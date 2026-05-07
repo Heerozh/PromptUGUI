@@ -226,5 +226,22 @@ namespace PromptUGUI.Tests.Parser {
             </UI>";
             Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
         }
+
+        [Test]
+        public void Parses_Slot_as_ordinary_element_node() {
+            const string xml = @"<UI version='1'>
+                <Template name='Box'>
+                    <Frame>
+                        <Slot/>
+                    </Frame>
+                </Template>
+            </UI>";
+
+            var doc = UIDocumentParser.Parse(xml);
+            var body = doc.Templates["Box"].Body;
+            Assert.AreEqual("Frame", body.Tag);
+            Assert.AreEqual(1, body.Children.Count);
+            Assert.AreEqual("Slot", body.Children[0].Tag);
+        }
     }
 }
