@@ -1,0 +1,11 @@
+namespace PromptUGUI.IR {
+    public sealed class ScreenDef {
+        public string Name { get; }
+        public ElementNode Root { get; }
+
+        public ScreenDef(string name, ElementNode root) {
+            Name = name;
+            Root = root;
+        }
+    }
+}
