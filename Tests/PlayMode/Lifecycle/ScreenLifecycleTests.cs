@@ -136,5 +136,25 @@ namespace PromptUGUI.Tests.Lifecycle {
             yield return null;
             Assert.IsTrue(UI.Get("UIFacade") == null);
         }
+
+        sealed class TrackingDisposable : System.IDisposable {
+            public bool Disposed;
+            public void Dispose() => Disposed = true;
+        }
+
+        [UnityTest]
+        public IEnumerator AddTo_screen_disposes_on_close() {
+            UI.LoadDocument("addto_doc", @"<UI version='1'>
+                <Screen name='AddToTest'><Image id='bg'/></Screen></UI>");
+            var screen = UI.Open("AddToTest");
+
+            var d = new TrackingDisposable();
+            d.AddTo(screen);
+
+            UI.Close("AddToTest");
+            yield return null;
+
+            Assert.IsTrue(d.Disposed);
+        }
     }
 }
