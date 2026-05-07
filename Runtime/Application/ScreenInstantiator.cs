@@ -18,8 +18,12 @@ namespace PromptUGUI.Application {
         }
 
         public InstantiationResult Instantiate(ScreenDef def) {
+            return InstantiateInto(new GameObject(def.Name, typeof(RectTransform)), def);
+        }
+
+        public InstantiationResult InstantiateInto(GameObject root, ScreenDef def) {
             var result = new InstantiationResult {
-                Root = new GameObject(def.Name, typeof(RectTransform)),
+                Root = root,
                 Controls = new Dictionary<string, IControl>(),
             };
 
