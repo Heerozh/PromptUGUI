@@ -1,0 +1,17 @@
+{
+  "name": "com.promptugui.core",
+  "version": "0.1.0",
+  "displayName": "PromptUGUI",
+  "description": "XML-driven uGUI for Unity 6+",
+  "unity": "6000.0",
+  "dependencies": {
+    "com.unity.ugui": "2.0.0"
+  },
+  "samples": [
+    {
+      "displayName": "Main Menu Demo",
+      "description": "Hello-world: 主菜单 + 三按钮 + R3 点击订阅",
+      "path": "Samples~/MainMenu"
+    }
+  ]
+}
