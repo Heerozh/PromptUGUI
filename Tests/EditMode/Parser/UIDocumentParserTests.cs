@@ -114,5 +114,28 @@ namespace PromptUGUI.Tests.Parser {
             Assert.Throws<System.Xml.XmlException>(() =>
                 UIDocumentParser.Parse("<UI version='1'><Screen></UI>"));
         }
+
+        [Test]
+        public void Text_shorthand_works_when_only_text_child() {
+            var doc = UIDocumentParser.Parse(
+                "<UI version='1'><Screen name='X'><Text>Hello</Text></Screen></UI>");
+            Assert.AreEqual("Hello", doc.Screens[0].Root.Children[0].TextContent);
+        }
+
+        [Test]
+        public void Text_shorthand_with_whitespace_is_trimmed() {
+            var doc = UIDocumentParser.Parse(
+                "<UI version='1'><Screen name='X'><Text>  Hello  </Text></Screen></UI>");
+            Assert.AreEqual("Hello", doc.Screens[0].Root.Children[0].TextContent);
+        }
+
+        [Test]
+        public void Text_shorthand_disallowed_when_mixed_with_elements() {
+            const string xml = @"<UI version='1'>
+                <Screen name='X'>
+                    <Btn>Hello <Image /></Btn>
+                </Screen></UI>";
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
     }
 }

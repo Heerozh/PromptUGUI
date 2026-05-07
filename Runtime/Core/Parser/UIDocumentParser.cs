@@ -54,9 +54,18 @@ namespace PromptUGUI.Parser {
                 }
             }
 
-            // 文本简写：仅当唯一子节点是 text node 时算
-            if (el.ChildNodes.Count == 1 && el.FirstChild is XmlText t)
-                node.TextContent = t.Value;
+            // 文本简写：仅当所有非空白子节点都是 text 时生效
+            bool hasElement = false, hasText = false;
+            foreach (XmlNode c in el.ChildNodes) {
+                if (c is XmlElement) hasElement = true;
+                else if (c is XmlText txt && !string.IsNullOrWhiteSpace(txt.Value)) hasText = true;
+            }
+            if (hasText && hasElement)
+                throw new ParseException(
+                    $"<{el.Name}> mixes text and child elements; not allowed");
+            if (hasText && !hasElement) {
+                node.TextContent = el.InnerText.Trim();
+            }
 
             foreach (XmlNode c in el.ChildNodes)
                 if (c is XmlElement child_el)
