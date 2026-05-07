@@ -214,5 +214,17 @@ namespace PromptUGUI.Tests.Parser {
             </UI>";
             Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
         }
+
+        [Test]
+        public void Throws_on_duplicate_param_name_in_template() {
+            const string xml = @"<UI version='1'>
+                <Template name='Box'>
+                    <Param name='x'/>
+                    <Param name='x' default='y'/>
+                    <Frame/>
+                </Template>
+            </UI>";
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
     }
 }

@@ -60,6 +60,7 @@ namespace PromptUGUI.Parser {
                 throw new ParseException($"Duplicate <Template name='{name}'>");
 
             var tpl = new TemplateDef(name);
+            var paramNames = new System.Collections.Generic.HashSet<string>();
             bool sawBody = false;
             ElementNode body = null;
 
@@ -73,6 +74,9 @@ namespace PromptUGUI.Parser {
                     if (string.IsNullOrEmpty(pname))
                         throw new ParseException(
                             $"<Template name='{name}'>: <Param> requires name attribute");
+                    if (!paramNames.Add(pname))
+                        throw new ParseException(
+                            $"<Template name='{name}'>: duplicate <Param name='{pname}'>");
                     string def = ce.HasAttribute("default") ? ce.GetAttribute("default") : null;
                     tpl.Params.Add(new ParamDef(pname, def));
                 } else {
