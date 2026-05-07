@@ -12,7 +12,8 @@ namespace PromptUGUI.Application {
         public static ControlRegistry Registry => _registry;
 
         public static void LoadDocument(string label, string xml) {
-            var doc = UIDocumentParser.Parse(xml);
+            var raw = UIDocumentParser.Parse(xml);
+            var doc = PromptUGUI.Template.TemplateExpander.Expand(raw);
             foreach (var s in doc.Screens) {
                 if (_docs.ContainsKey(s.Name))
                     throw new System.InvalidOperationException(
