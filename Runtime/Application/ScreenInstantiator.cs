@@ -69,6 +69,7 @@ namespace PromptUGUI.Application {
                 BindFields(control, go);
             control.AttachTo(go);
 
+            // 该节点的 id 入"当前作用域"——可能是 Screen 顶层，也可能是某个外层模板实例的 ScopedIds
             if (!string.IsNullOrEmpty(node.Id))
                 controls[node.Id] = control;
 
@@ -97,9 +98,16 @@ namespace PromptUGUI.Application {
 
             control.ApplyCommon(anchor, size, width, height, margin, pivot, hidden, interactable);
 
+            // 子节点的 id 作用域：若本节点是模板实例根，切换到本 Control 的 ScopedIds
+            Dictionary<string, IControl> childScope = controls;
+            if (node.IsTemplateInstanceRoot) {
+                childScope = new Dictionary<string, IControl>();
+                control.ReplaceScopedIds(childScope);
+            }
+
             bool selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid";
             foreach (var c in node.Children)
-                InstantiateRecursive(c, go.transform, selfIsLayoutGroup, controls);
+                InstantiateRecursive(c, go.transform, selfIsLayoutGroup, childScope);
         }
 
         static void BindFields(Control control, GameObject prefabRoot) {
