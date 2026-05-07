@@ -1,7 +1,29 @@
 using NUnit.Framework;
 using PromptUGUI.IR;
+using PromptUGUI.Layout;
+using UnityEngine;
 
 namespace PromptUGUI.Tests.Layout {
+    public class AnchorResolverTests {
+        [TestCase(AnchorVertical.Top,     AnchorHorizontal.Left,    0f, 1f, 0f, 1f, 0f, 1f)]
+        [TestCase(AnchorVertical.Top,     AnchorHorizontal.Right,   1f, 1f, 1f, 1f, 1f, 1f)]
+        [TestCase(AnchorVertical.Bottom,  AnchorHorizontal.Center,  0.5f, 0f, 0.5f, 0f, 0.5f, 0f)]
+        [TestCase(AnchorVertical.Center,  AnchorHorizontal.Center,  0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f)]
+        [TestCase(AnchorVertical.Stretch, AnchorHorizontal.Stretch, 0f, 0f, 1f, 1f, 0.5f, 0.5f)]
+        [TestCase(AnchorVertical.Stretch, AnchorHorizontal.Left,    0f, 0f, 0f, 1f, 0f, 0.5f)]
+        [TestCase(AnchorVertical.Top,     AnchorHorizontal.Stretch, 0f, 1f, 1f, 1f, 0.5f, 1f)]
+        public void Resolves_anchor_min_max_and_pivot(
+            AnchorVertical v, AnchorHorizontal h,
+            float minX, float minY, float maxX, float maxY, float pivotX, float pivotY) {
+            var preset = new AnchorPreset(v, h);
+            AnchorResolver.Resolve(preset,
+                out var min, out var max, out var pivot);
+            Assert.AreEqual(new Vector2(minX, minY), min);
+            Assert.AreEqual(new Vector2(maxX, maxY), max);
+            Assert.AreEqual(new Vector2(pivotX, pivotY), pivot);
+        }
+    }
+
     public class AnchorPresetTests {
         [TestCase("top-left",       AnchorVertical.Top,    AnchorHorizontal.Left)]
         [TestCase("bottom-right",   AnchorVertical.Bottom, AnchorHorizontal.Right)]
