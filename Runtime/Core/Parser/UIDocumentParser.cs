@@ -8,12 +8,12 @@ namespace PromptUGUI.Parser {
             xdoc.LoadXml(xml);
 
             var root = xdoc.DocumentElement;
-            if (root == null || root.Name != "UI")
-                throw new ParseException("Root element must be <UI>");
+            if (root == null || root.Name != "PromptUGUI")
+                throw new ParseException("Root element must be <PromptUGUI>");
 
             var versionAttr = root.GetAttribute("version");
             if (string.IsNullOrEmpty(versionAttr))
-                throw new ParseException("<UI> requires version attribute");
+                throw new ParseException("<PromptUGUI> requires version attribute");
 
             var doc = new UIDocument { Version = int.Parse(versionAttr) };
             var screenNames = new System.Collections.Generic.HashSet<string>();

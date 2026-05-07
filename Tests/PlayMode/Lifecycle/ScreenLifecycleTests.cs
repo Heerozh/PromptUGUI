@@ -23,10 +23,10 @@ namespace PromptUGUI.Tests.Lifecycle {
 
         [UnityTest]
         public IEnumerator Instantiates_image_with_anchor_and_size() {
-            const string xml = @"<UI version='1'>
+            const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <Image id='bg' anchor='top-right' size='240x80' margin='16'/>
-                </Screen></UI>";
+                </Screen></PromptUGUI>";
             var doc = UIDocumentParser.Parse(xml);
             var inst = new ScreenInstantiator(_reg);
             var rootGo = inst.Instantiate(doc.Screens[0]).Root;
@@ -44,13 +44,13 @@ namespace PromptUGUI.Tests.Lifecycle {
 
         [UnityTest]
         public IEnumerator Recursive_children_are_parented_correctly() {
-            const string xml = @"<UI version='1'>
+            const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <VStack id='root' anchor='center' size='400x300'>
                         <Image id='a'/>
                         <Image id='b'/>
                     </VStack>
-                </Screen></UI>";
+                </Screen></PromptUGUI>";
             var doc = UIDocumentParser.Parse(xml);
             var inst = new ScreenInstantiator(_reg);
             var rootGo = inst.Instantiate(doc.Screens[0]).Root;
@@ -67,10 +67,10 @@ namespace PromptUGUI.Tests.Lifecycle {
 
         [UnityTest]
         public IEnumerator Text_content_shorthand_applies_to_default_text_attr() {
-            const string xml = @"<UI version='1'>
+            const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <Text>Hello</Text>
-                </Screen></UI>";
+                </Screen></PromptUGUI>";
             var doc = UIDocumentParser.Parse(xml);
             var inst = new ScreenInstantiator(_reg);
             var rootGo = inst.Instantiate(doc.Screens[0]).Root;
@@ -84,11 +84,11 @@ namespace PromptUGUI.Tests.Lifecycle {
 
         [UnityTest]
         public IEnumerator Screen_creates_canvas_and_can_get_by_id() {
-            const string xml = @"<UI version='1'>
+            const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <Image id='bg' anchor='stretch'/>
                     <Text id='hello'>Hi</Text>
-                </Screen></UI>";
+                </Screen></PromptUGUI>";
             var doc = UIDocumentParser.Parse(xml);
             var inst = new ScreenInstantiator(_reg);
             var screen = new PromptScreen(doc.Screens[0], inst);
@@ -108,8 +108,8 @@ namespace PromptUGUI.Tests.Lifecycle {
 
         [UnityTest]
         public IEnumerator Screen_get_unknown_id_throws() {
-            const string xml = @"<UI version='1'>
-                <Screen name='UnknownIdTest'><Image id='only'/></Screen></UI>";
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='UnknownIdTest'><Image id='only'/></Screen></PromptUGUI>";
             var doc = UIDocumentParser.Parse(xml);
             var screen = new PromptScreen(doc.Screens[0], new ScreenInstantiator(_reg));
             screen.Open();
@@ -123,10 +123,10 @@ namespace PromptUGUI.Tests.Lifecycle {
 
         [UnityTest]
         public IEnumerator UI_open_returns_screen_and_close_destroys() {
-            UI.LoadDocument("test_doc", @"<UI version='1'>
+            UI.LoadDocument("test_doc", @"<PromptUGUI version='1'>
                 <Screen name='UIFacade'>
                     <Image id='bg' anchor='stretch'/>
-                </Screen></UI>");
+                </Screen></PromptUGUI>");
 
             var screen = UI.Open("UIFacade");
             Assert.IsNotNull(screen);
@@ -144,8 +144,8 @@ namespace PromptUGUI.Tests.Lifecycle {
 
         [UnityTest]
         public IEnumerator AddTo_screen_disposes_on_close() {
-            UI.LoadDocument("addto_doc", @"<UI version='1'>
-                <Screen name='AddToTest'><Image id='bg'/></Screen></UI>");
+            UI.LoadDocument("addto_doc", @"<PromptUGUI version='1'>
+                <Screen name='AddToTest'><Image id='bg'/></Screen></PromptUGUI>");
             var screen = UI.Open("AddToTest");
 
             var d = new TrackingDisposable();
@@ -159,7 +159,7 @@ namespace PromptUGUI.Tests.Lifecycle {
 
         [UnityTest]
         public IEnumerator Path_Get_walks_template_scope() {
-            UI.LoadDocument("path_doc", @"<UI version='1'>
+            UI.LoadDocument("path_doc", @"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Frame>
                         <Image id='inside'/>
@@ -167,7 +167,7 @@ namespace PromptUGUI.Tests.Lifecycle {
                 </Template>
                 <Screen name='PathTest'>
                     <Box id='outer'/>
-                </Screen></UI>");
+                </Screen></PromptUGUI>");
 
             var screen = UI.Open("PathTest");
 
@@ -185,13 +185,13 @@ namespace PromptUGUI.Tests.Lifecycle {
 
         [UnityTest]
         public IEnumerator Path_Get_throws_on_unknown_segment() {
-            UI.LoadDocument("path_doc2", @"<UI version='1'>
+            UI.LoadDocument("path_doc2", @"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Frame><Image id='inside'/></Frame>
                 </Template>
                 <Screen name='PathTest2'>
                     <Box id='outer'/>
-                </Screen></UI>");
+                </Screen></PromptUGUI>");
 
             var screen = UI.Open("PathTest2");
             Assert.Throws<System.Collections.Generic.KeyNotFoundException>(

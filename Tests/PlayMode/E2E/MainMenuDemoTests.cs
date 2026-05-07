@@ -59,14 +59,14 @@ namespace PromptUGUI.Tests.E2E {
 
         [UnityTest]
         public IEnumerator Main_menu_with_three_buttons_clicks_propagate() {
-            UI.LoadDocument("main", @"<UI version='1'>
+            UI.LoadDocument("main", @"<PromptUGUI version='1'>
                 <Screen name='MainMenu'>
                     <VStack id='menuRoot' anchor='center' size='280x240' spacing='12'>
                         <TestButton id='play'>开始</TestButton>
                         <TestButton id='settings'>设置</TestButton>
                         <TestButton id='quit'>退出</TestButton>
                     </VStack>
-                </Screen></UI>");
+                </Screen></PromptUGUI>");
 
             var screen = UI.Open("MainMenu");
 

@@ -45,8 +45,8 @@ namespace PromptUGUI.Tests.Registry {
 
         [UnityTest]
         public IEnumerator Bind_field_wires_component_from_named_child() {
-            UI.LoadDocument("d", @"<UI version='1'>
-                <Screen name='S'><BindSample id='x'/></Screen></UI>");
+            UI.LoadDocument("d", @"<PromptUGUI version='1'>
+                <Screen name='S'><BindSample id='x'/></Screen></PromptUGUI>");
             var screen = UI.Open("S");
 
             var ctl = screen.Get<BindSampleControl>("x");

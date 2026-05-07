@@ -6,12 +6,12 @@ namespace PromptUGUI.Tests.Template {
     public class TemplateExpanderTests {
         [Test]
         public void Pass_through_screen_with_no_template_invocation() {
-            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <VStack id='v'>
                         <Image id='a'/>
                     </VStack>
-                </Screen></UI>");
+                </Screen></PromptUGUI>");
 
             var expanded = TemplateExpander.Expand(doc);
 
@@ -28,10 +28,10 @@ namespace PromptUGUI.Tests.Template {
 
         [Test]
         public void Templates_dictionary_carries_through() {
-            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'><Frame/></Template>
                 <Screen name='X'/>
-            </UI>");
+            </PromptUGUI>");
 
             var expanded = TemplateExpander.Expand(doc);
             Assert.AreEqual(1, expanded.Screens.Count);
@@ -39,14 +39,14 @@ namespace PromptUGUI.Tests.Template {
 
         [Test]
         public void Expands_template_invocation_with_params() {
-            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Greet'>
                     <Param name='who'/>
                     <Text>Hello {{who}}</Text>
                 </Template>
                 <Screen name='S'>
                     <Greet who='World'/>
-                </Screen></UI>");
+                </Screen></PromptUGUI>");
 
             var expanded = TemplateExpander.Expand(doc);
             var screen = expanded.Screens[0];
@@ -58,14 +58,14 @@ namespace PromptUGUI.Tests.Template {
 
         [Test]
         public void Param_default_used_when_invocation_omits_attr() {
-            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Param name='label' default='默认'/>
                     <Text>{{label}}</Text>
                 </Template>
                 <Screen name='S'>
                     <Box/>
-                </Screen></UI>");
+                </Screen></PromptUGUI>");
 
             var expanded = TemplateExpander.Expand(doc);
             Assert.AreEqual("默认", expanded.Screens[0].Root.Children[0].TextContent);
@@ -73,31 +73,31 @@ namespace PromptUGUI.Tests.Template {
 
         [Test]
         public void Required_param_missing_throws() {
-            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Param name='must'/>
                     <Text>{{must}}</Text>
                 </Template>
-                <Screen name='S'><Box/></Screen></UI>");
+                <Screen name='S'><Box/></Screen></PromptUGUI>");
             Assert.Throws<TemplateException>(() => TemplateExpander.Expand(doc));
         }
 
         [Test]
         public void Unknown_param_passed_throws() {
-            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Param name='a'/>
                     <Text>{{a}}</Text>
                 </Template>
                 <Screen name='S'>
                     <Box a='1' b='2'/>
-                </Screen></UI>");
+                </Screen></PromptUGUI>");
             Assert.Throws<TemplateException>(() => TemplateExpander.Expand(doc));
         }
 
         [Test]
         public void Slot_receives_invocation_children() {
-            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Frame>
                         <Slot/>
@@ -107,7 +107,7 @@ namespace PromptUGUI.Tests.Template {
                     <Box>
                         <Image id='inside'/>
                     </Box>
-                </Screen></UI>");
+                </Screen></PromptUGUI>");
 
             var expanded = TemplateExpander.Expand(doc);
             var box = expanded.Screens[0].Root.Children[0];
@@ -118,7 +118,7 @@ namespace PromptUGUI.Tests.Template {
 
         [Test]
         public void If_drops_element_when_falsy() {
-            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Param name='show' default='false'/>
                     <Frame>
@@ -127,7 +127,7 @@ namespace PromptUGUI.Tests.Template {
                 </Template>
                 <Screen name='S'>
                     <Box/>
-                </Screen></UI>");
+                </Screen></PromptUGUI>");
 
             var expanded = TemplateExpander.Expand(doc);
             var frame = expanded.Screens[0].Root.Children[0];
@@ -136,7 +136,7 @@ namespace PromptUGUI.Tests.Template {
 
         [Test]
         public void Invocation_id_transfers_to_instance_root() {
-            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Frame>
                         <Image id='inside'/>
@@ -144,7 +144,7 @@ namespace PromptUGUI.Tests.Template {
                 </Template>
                 <Screen name='S'>
                     <Box id='outer'/>
-                </Screen></UI>");
+                </Screen></PromptUGUI>");
 
             var expanded = TemplateExpander.Expand(doc);
             var box = expanded.Screens[0].Root.Children[0];
@@ -156,13 +156,13 @@ namespace PromptUGUI.Tests.Template {
 
         [Test]
         public void Invocation_attributes_other_than_params_passthrough_to_root() {
-            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Frame/>
                 </Template>
                 <Screen name='S'>
                     <Box anchor='center' size='100x100'/>
-                </Screen></UI>");
+                </Screen></PromptUGUI>");
 
             var expanded = TemplateExpander.Expand(doc);
             var box = expanded.Screens[0].Root.Children[0];
@@ -172,7 +172,7 @@ namespace PromptUGUI.Tests.Template {
 
         [Test]
         public void Nested_template_invocation_expands() {
-            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Inner'>
                     <Param name='msg'/>
                     <Text>{{msg}}</Text>
@@ -184,7 +184,7 @@ namespace PromptUGUI.Tests.Template {
                 </Template>
                 <Screen name='S'>
                     <Outer/>
-                </Screen></UI>");
+                </Screen></PromptUGUI>");
 
             var expanded = TemplateExpander.Expand(doc);
             var frame = expanded.Screens[0].Root.Children[0];
@@ -195,32 +195,32 @@ namespace PromptUGUI.Tests.Template {
 
         [Test]
         public void Cyclic_template_reference_throws() {
-            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='A'><B/></Template>
                 <Template name='B'><A/></Template>
-                <Screen name='S'><A/></Screen></UI>");
+                <Screen name='S'><A/></Screen></PromptUGUI>");
             Assert.Throws<TemplateException>(() => TemplateExpander.Expand(doc));
         }
 
         [Test]
         public void Slot_in_Screen_body_throws() {
-            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Screen name='S'>
                     <Slot/>
-                </Screen></UI>");
+                </Screen></PromptUGUI>");
             Assert.Throws<TemplateException>(() => TemplateExpander.Expand(doc));
         }
 
         [Test]
         public void Two_slots_in_template_body_throws() {
-            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <VStack>
                         <Slot/>
                         <Slot/>
                     </VStack>
                 </Template>
-                <Screen name='S'><Box/></Screen></UI>");
+                <Screen name='S'><Box/></Screen></PromptUGUI>");
             Assert.Throws<TemplateException>(() => TemplateExpander.Expand(doc));
         }
     }

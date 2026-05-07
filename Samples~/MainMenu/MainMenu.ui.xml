@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<UI version="1">
+<PromptUGUI version="1">
   <!-- 模板：用 <Btn> 原语 + 子节点 <Text> 组合出彩色按钮，无需 prefab -->
   <Template name="PrimaryButton">
     <Param name="text"/>
@@ -25,4 +25,4 @@
       <DangerButton  id="quitBtn"     size="240x64" text="退出"/>
     </VStack>
   </Screen>
-</UI>
+</PromptUGUI>

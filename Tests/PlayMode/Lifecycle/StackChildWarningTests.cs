@@ -18,12 +18,12 @@ namespace PromptUGUI.Tests.Lifecycle {
             LogAssert.Expect(LogType.Warning,
                 new Regex("anchor.*ignored.*inside.*layout group", RegexOptions.IgnoreCase));
 
-            UI.LoadDocument("d", @"<UI version='1'>
+            UI.LoadDocument("d", @"<PromptUGUI version='1'>
                 <Screen name='S'>
                     <VStack id='v' anchor='center' size='200x200'>
                         <Image id='child' anchor='top-left'/>
                     </VStack>
-                </Screen></UI>");
+                </Screen></PromptUGUI>");
             UI.Open("S");
 
             yield return null;
@@ -35,12 +35,12 @@ namespace PromptUGUI.Tests.Lifecycle {
             LogAssert.Expect(LogType.Warning,
                 new Regex("margin.*ignored.*inside.*layout group", RegexOptions.IgnoreCase));
 
-            UI.LoadDocument("d2", @"<UI version='1'>
+            UI.LoadDocument("d2", @"<PromptUGUI version='1'>
                 <Screen name='S2'>
                     <HStack id='h' anchor='center' size='200x100'>
                         <Image id='child' margin='8'/>
                     </HStack>
-                </Screen></UI>");
+                </Screen></PromptUGUI>");
             UI.Open("S2");
 
             yield return null;
@@ -49,12 +49,12 @@ namespace PromptUGUI.Tests.Lifecycle {
 
         [UnityTest]
         public IEnumerator No_warning_when_only_size_specified_inside_stack() {
-            UI.LoadDocument("d3", @"<UI version='1'>
+            UI.LoadDocument("d3", @"<PromptUGUI version='1'>
                 <Screen name='S3'>
                     <VStack id='v' anchor='center' size='200x200'>
                         <Image id='child' size='100x40'/>
                     </VStack>
-                </Screen></UI>");
+                </Screen></PromptUGUI>");
             UI.Open("S3");
             yield return null;
             UI.Close("S3");

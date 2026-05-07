@@ -48,7 +48,7 @@ namespace PromptUGUI.Tests.E2E {
 
         [UnityTest]
         public IEnumerator TitledPanel_wraps_inventory_grid_with_path_access() {
-            UI.LoadDocument("inv", @"<UI version='1'>
+            UI.LoadDocument("inv", @"<PromptUGUI version='1'>
                 <Template name='TitledPanel'>
                     <Param name='title'/>
                     <Param name='closable' default='true'/>
@@ -62,7 +62,7 @@ namespace PromptUGUI.Tests.E2E {
                     <TitledPanel id='dialog' anchor='center' size='600x400' title='背包'>
                         <Grid id='itemGrid' columns='6'/>
                     </TitledPanel>
-                </Screen></UI>");
+                </Screen></PromptUGUI>");
 
             var screen = UI.Open("Inventory");
 
@@ -100,7 +100,7 @@ namespace PromptUGUI.Tests.E2E {
 
         [UnityTest]
         public IEnumerator TitledPanel_with_closable_false_omits_CloseBtn() {
-            UI.LoadDocument("inv2", @"<UI version='1'>
+            UI.LoadDocument("inv2", @"<PromptUGUI version='1'>
                 <Template name='TitledPanel'>
                     <Param name='title'/>
                     <Param name='closable' default='true'/>
@@ -114,7 +114,7 @@ namespace PromptUGUI.Tests.E2E {
                     <TitledPanel id='dialog' title='背包' closable='false'>
                         <Grid id='itemGrid' columns='6'/>
                     </TitledPanel>
-                </Screen></UI>");
+                </Screen></PromptUGUI>");
 
             var screen = UI.Open("InventoryNoClose");
             var dialog = screen.Get<PromptFrame>("dialog");
@@ -131,7 +131,7 @@ namespace PromptUGUI.Tests.E2E {
 
         [UnityTest]
         public IEnumerator TitledPanel_can_be_instantiated_twice_with_independent_ids() {
-            UI.LoadDocument("inv3", @"<UI version='1'>
+            UI.LoadDocument("inv3", @"<PromptUGUI version='1'>
                 <Template name='TitledPanel'>
                     <Param name='title'/>
                     <Frame>
@@ -143,7 +143,7 @@ namespace PromptUGUI.Tests.E2E {
                         <TitledPanel id='left'  title='Left'/>
                         <TitledPanel id='right' title='Right'/>
                     </VStack>
-                </Screen></UI>");
+                </Screen></PromptUGUI>");
 
             var screen = UI.Open("Twin");
 

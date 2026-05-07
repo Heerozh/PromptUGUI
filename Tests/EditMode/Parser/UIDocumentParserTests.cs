@@ -6,9 +6,9 @@ namespace PromptUGUI.Tests.Parser {
         [Test]
         public void Parses_minimal_document_with_one_screen() {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
-                <UI version='1'>
+                <PromptUGUI version='1'>
                     <Screen name='MainMenu' />
-                </UI>";
+                </PromptUGUI>";
 
             var doc = UIDocumentParser.Parse(xml);
 
@@ -21,14 +21,14 @@ namespace PromptUGUI.Tests.Parser {
         [Test]
         public void Parses_nested_elements_with_attributes() {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
-                <UI version='1'>
+                <PromptUGUI version='1'>
                     <Screen name='X'>
                         <VStack anchor='center' size='480x320' spacing='12'>
                             <Image sprite='bg' anchor='stretch' />
                             <Text>Hello</Text>
                         </VStack>
                     </Screen>
-                </UI>";
+                </PromptUGUI>";
 
             var doc = UIDocumentParser.Parse(xml);
             var root = doc.Screens[0].Root;
@@ -51,11 +51,11 @@ namespace PromptUGUI.Tests.Parser {
         [Test]
         public void Lifts_id_attribute_to_dedicated_field() {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
-                <UI version='1'>
+                <PromptUGUI version='1'>
                     <Screen name='X'>
                         <Image id='bg' sprite='main' />
                     </Screen>
-                </UI>";
+                </PromptUGUI>";
 
             var doc = UIDocumentParser.Parse(xml);
             var img = doc.Screens[0].Root.Children[0];
@@ -68,14 +68,14 @@ namespace PromptUGUI.Tests.Parser {
         [Test]
         public void Throws_on_duplicate_id_within_same_screen() {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
-                <UI version='1'>
+                <PromptUGUI version='1'>
                     <Screen name='X'>
                         <Image id='dup' />
                         <Frame>
                             <Image id='dup' />
                         </Frame>
                     </Screen>
-                </UI>";
+                </PromptUGUI>";
 
             Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
         }
@@ -83,64 +83,64 @@ namespace PromptUGUI.Tests.Parser {
         [Test]
         public void Throws_on_duplicate_screen_name() {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
-                <UI version='1'>
+                <PromptUGUI version='1'>
                     <Screen name='Same' />
                     <Screen name='Same' />
-                </UI>";
+                </PromptUGUI>";
 
             Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
         }
 
         [Test]
-        public void Throws_on_missing_root_UI() {
+        public void Throws_on_missing_root_PromptUGUI() {
             Assert.Throws<ParseException>(() =>
                 UIDocumentParser.Parse("<Screen name='X' />"));
         }
 
         [Test]
-        public void Throws_on_missing_UI_version() {
+        public void Throws_on_missing_PromptUGUI_version() {
             Assert.Throws<ParseException>(() =>
-                UIDocumentParser.Parse("<UI><Screen name='X' /></UI>"));
+                UIDocumentParser.Parse("<PromptUGUI><Screen name='X' /></PromptUGUI>"));
         }
 
         [Test]
         public void Throws_on_screen_without_name() {
-            const string xml = "<UI version='1'><Screen /></UI>";
+            const string xml = "<PromptUGUI version='1'><Screen /></PromptUGUI>";
             Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
         }
 
         [Test]
         public void Throws_on_invalid_xml() {
             Assert.Throws<System.Xml.XmlException>(() =>
-                UIDocumentParser.Parse("<UI version='1'><Screen></UI>"));
+                UIDocumentParser.Parse("<PromptUGUI version='1'><Screen></PromptUGUI>"));
         }
 
         [Test]
         public void Text_shorthand_works_when_only_text_child() {
             var doc = UIDocumentParser.Parse(
-                "<UI version='1'><Screen name='X'><Text>Hello</Text></Screen></UI>");
+                "<PromptUGUI version='1'><Screen name='X'><Text>Hello</Text></Screen></PromptUGUI>");
             Assert.AreEqual("Hello", doc.Screens[0].Root.Children[0].TextContent);
         }
 
         [Test]
         public void Text_shorthand_with_whitespace_is_trimmed() {
             var doc = UIDocumentParser.Parse(
-                "<UI version='1'><Screen name='X'><Text>  Hello  </Text></Screen></UI>");
+                "<PromptUGUI version='1'><Screen name='X'><Text>  Hello  </Text></Screen></PromptUGUI>");
             Assert.AreEqual("Hello", doc.Screens[0].Root.Children[0].TextContent);
         }
 
         [Test]
         public void Text_shorthand_disallowed_when_mixed_with_elements() {
-            const string xml = @"<UI version='1'>
+            const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <Btn>Hello <Image /></Btn>
-                </Screen></UI>";
+                </Screen></PromptUGUI>";
             Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
         }
 
         [Test]
         public void Parses_template_with_typed_params() {
-            const string xml = @"<UI version='1'>
+            const string xml = @"<PromptUGUI version='1'>
                 <Template name='TitledPanel'>
                     <Param name='title'/>
                     <Param name='closable' default='true'/>
@@ -148,7 +148,7 @@ namespace PromptUGUI.Tests.Parser {
                         <Text>{{title}}</Text>
                     </VStack>
                 </Template>
-            </UI>";
+            </PromptUGUI>";
 
             var doc = UIDocumentParser.Parse(xml);
 
@@ -171,71 +171,71 @@ namespace PromptUGUI.Tests.Parser {
         [Test]
         public void Throws_on_template_without_name() {
             Assert.Throws<ParseException>(() =>
-                UIDocumentParser.Parse("<UI version='1'><Template><VStack/></Template></UI>"));
+                UIDocumentParser.Parse("<PromptUGUI version='1'><Template><VStack/></Template></PromptUGUI>"));
         }
 
         [Test]
         public void Throws_on_template_with_zero_root_elements() {
-            const string xml = @"<UI version='1'>
+            const string xml = @"<PromptUGUI version='1'>
                 <Template name='Empty'>
                     <Param name='x'/>
                 </Template>
-            </UI>";
+            </PromptUGUI>";
             Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
         }
 
         [Test]
         public void Throws_on_template_with_multiple_root_elements() {
-            const string xml = @"<UI version='1'>
+            const string xml = @"<PromptUGUI version='1'>
                 <Template name='Two'>
                     <VStack/>
                     <HStack/>
                 </Template>
-            </UI>";
+            </PromptUGUI>";
             Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
         }
 
         [Test]
         public void Throws_on_duplicate_template_name() {
-            const string xml = @"<UI version='1'>
+            const string xml = @"<PromptUGUI version='1'>
                 <Template name='Same'><Frame/></Template>
                 <Template name='Same'><Frame/></Template>
-            </UI>";
+            </PromptUGUI>";
             Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
         }
 
         [Test]
         public void Throws_on_param_after_first_body_element() {
-            const string xml = @"<UI version='1'>
+            const string xml = @"<PromptUGUI version='1'>
                 <Template name='Bad'>
                     <Frame/>
                     <Param name='late'/>
                 </Template>
-            </UI>";
+            </PromptUGUI>";
             Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
         }
 
         [Test]
         public void Throws_on_duplicate_param_name_in_template() {
-            const string xml = @"<UI version='1'>
+            const string xml = @"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Param name='x'/>
                     <Param name='x' default='y'/>
                     <Frame/>
                 </Template>
-            </UI>";
+            </PromptUGUI>";
             Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
         }
 
         [Test]
         public void Parses_Slot_as_ordinary_element_node() {
-            const string xml = @"<UI version='1'>
+            const string xml = @"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Frame>
                         <Slot/>
                     </Frame>
                 </Template>
-            </UI>";
+            </PromptUGUI>";
 
             var doc = UIDocumentParser.Parse(xml);
             var body = doc.Templates["Box"].Body;

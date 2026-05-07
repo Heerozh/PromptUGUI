@@ -62,7 +62,7 @@ PromptUGUI 是一个 Unity 6+ 开源库，把一个紧凑的 XML 描述文件转
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
-<UI version="1">
+<PromptUGUI version="1">
   <Import src="common/Buttons.ui.xml"/>
 
   <!-- 可复用的标题面板 -->
@@ -101,7 +101,7 @@ PromptUGUI 是一个 Unity 6+ 开源库，把一个紧凑的 XML 描述文件转
       </Add>
     </Variant>
   </Screen>
-</UI>
+</PromptUGUI>
 ```
 
 代码侧：
@@ -122,7 +122,7 @@ screen.Get<DangerButton>("quitBtn").OnClick
 
 - 文件后缀：`.ui.xml`（双后缀，让 IDE 自动 XML 高亮，业务工具按 `.ui` 过滤）
 - 编码：UTF-8
-- 根元素：`<UI version="1">`，`version` 强制必填，预留语言演进
+- 根元素：`<PromptUGUI version="1">`，`version` 强制必填，预留语言演进
 
 ### 4.2 顶层允许元素
 
@@ -605,11 +605,11 @@ HeTu.Sub<int>("player.gold").BindText(...).AddTo(screen);
 # PromptUGUI 描述语言 (.ui.xml) 速查
 
 ## 文件骨架
-<UI version="1">
+<PromptUGUI version="1">
   <Import src="path.ui.xml" [as="ns"]/>
   <Screen   name="...">  body  </Screen>
   <Template name="..."> [<Param name="p" [default=""]/>...] body </Template>
-</UI>
+</PromptUGUI>
 
 ## 内置原语 (6)
 <Frame>            纯定位容器
