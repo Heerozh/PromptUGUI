@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UI version="1">
+  <Screen name="MainMenu">
+    <Image id="bg" anchor="stretch" color="#222244"/>
+    <VStack id="menuRoot" anchor="center" size="280x240" spacing="16" padding="16">
+      <PrimaryButton id="playBtn"     size="240x64">开始游戏</PrimaryButton>
+      <PrimaryButton id="settingsBtn" size="240x64">设置</PrimaryButton>
+      <DangerButton  id="quitBtn"     size="240x64">退出</DangerButton>
+    </VStack>
+  </Screen>
+</UI>
