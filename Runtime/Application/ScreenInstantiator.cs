@@ -29,13 +29,24 @@ namespace PromptUGUI.Application {
             };
 
             foreach (var childNode in def.Root.Children)
-                InstantiateRecursive(childNode, result.Root.transform, result.Controls);
+                InstantiateRecursive(childNode, result.Root.transform,
+                                     parentIsLayoutGroup: false, result.Controls);
 
             return result;
         }
 
         void InstantiateRecursive(ElementNode node, Transform parent,
+                                  bool parentIsLayoutGroup,
                                   Dictionary<string, IControl> controls) {
+            if (parentIsLayoutGroup) {
+                if (node.Attributes.ContainsKey("anchor"))
+                    Debug.LogWarning(
+                        $"<{node.Tag} id='{node.Id}'>: anchor ignored inside layout group");
+                if (node.Attributes.ContainsKey("margin"))
+                    Debug.LogWarning(
+                        $"<{node.Tag} id='{node.Id}'>: margin ignored inside layout group");
+            }
+
             var entry = _registry.Resolve(node.Tag);
 
             GameObject go;
@@ -86,8 +97,9 @@ namespace PromptUGUI.Application {
 
             control.ApplyCommon(anchor, size, width, height, margin, pivot, hidden, interactable);
 
+            bool selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid";
             foreach (var c in node.Children)
-                InstantiateRecursive(c, go.transform, controls);
+                InstantiateRecursive(c, go.transform, selfIsLayoutGroup, controls);
         }
 
         static void BindFields(Control control, GameObject prefabRoot) {
