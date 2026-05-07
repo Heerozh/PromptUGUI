@@ -9,8 +9,8 @@ namespace PromptUGUI.Samples.MainMenu {
         [SerializeField] GameObject _dangerButtonPrefab;
 
         void Start() {
-            UI.Registry.Register<PrimaryButton>("PrimaryButton", _primaryButtonPrefab);
-            UI.Registry.Register<DangerButton>("DangerButton", _dangerButtonPrefab);
+            UI.Registry.Register<PrimaryButton>("PrimaryButton", _primaryButtonPrefab, defaultTextAttr: "text");
+            UI.Registry.Register<DangerButton>("DangerButton", _dangerButtonPrefab, defaultTextAttr: "text");
 
             BuiltinPrimitives.Register(UI.Registry);
 
