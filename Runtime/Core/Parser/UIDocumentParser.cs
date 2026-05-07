@@ -20,23 +20,76 @@ namespace PromptUGUI.Parser {
 
             foreach (XmlNode child in root.ChildNodes) {
                 if (child is not XmlElement el) continue;
-                if (el.Name == "Screen") {
-                    var name = el.GetAttribute("name");
-                    if (string.IsNullOrEmpty(name))
-                        throw new ParseException("<Screen> requires name attribute");
-                    if (!screenNames.Add(name))
-                        throw new ParseException($"Duplicate <Screen name='{name}'>");
-
-                    var idsInScreen = new System.Collections.Generic.HashSet<string>();
-                    var rootNode = new ElementNode("__screen_root__");
-                    foreach (XmlNode c in el.ChildNodes)
-                        if (c is XmlElement child_el)
-                            rootNode.Children.Add(ParseElement(child_el, idsInScreen));
-                    doc.Screens.Add(new ScreenDef(name, rootNode));
+                switch (el.Name) {
+                    case "Screen":
+                        ParseScreen(el, doc, screenNames);
+                        break;
+                    case "Template":
+                        ParseTemplate(el, doc);
+                        break;
+                    default:
+                        throw new ParseException(
+                            $"unexpected top-level element <{el.Name}>");
                 }
             }
 
             return doc;
+        }
+
+        static void ParseScreen(XmlElement el, UIDocument doc,
+                                System.Collections.Generic.HashSet<string> screenNames) {
+            var name = el.GetAttribute("name");
+            if (string.IsNullOrEmpty(name))
+                throw new ParseException("<Screen> requires name attribute");
+            if (!screenNames.Add(name))
+                throw new ParseException($"Duplicate <Screen name='{name}'>");
+
+            var idsInScreen = new System.Collections.Generic.HashSet<string>();
+            var rootNode = new ElementNode("__screen_root__");
+            foreach (XmlNode c in el.ChildNodes)
+                if (c is XmlElement child_el)
+                    rootNode.Children.Add(ParseElement(child_el, idsInScreen));
+            doc.Screens.Add(new ScreenDef(name, rootNode));
+        }
+
+        static void ParseTemplate(XmlElement el, UIDocument doc) {
+            var name = el.GetAttribute("name");
+            if (string.IsNullOrEmpty(name))
+                throw new ParseException("<Template> requires name attribute");
+            if (doc.Templates.ContainsKey(name))
+                throw new ParseException($"Duplicate <Template name='{name}'>");
+
+            var tpl = new TemplateDef(name);
+            bool sawBody = false;
+            ElementNode body = null;
+
+            foreach (XmlNode c in el.ChildNodes) {
+                if (c is not XmlElement ce) continue;
+                if (ce.Name == "Param") {
+                    if (sawBody)
+                        throw new ParseException(
+                            $"<Template name='{name}'>: <Param> must appear before any body element");
+                    var pname = ce.GetAttribute("name");
+                    if (string.IsNullOrEmpty(pname))
+                        throw new ParseException(
+                            $"<Template name='{name}'>: <Param> requires name attribute");
+                    string def = ce.HasAttribute("default") ? ce.GetAttribute("default") : null;
+                    tpl.Params.Add(new ParamDef(pname, def));
+                } else {
+                    if (sawBody)
+                        throw new ParseException(
+                            $"<Template name='{name}'> must have exactly one root element");
+                    sawBody = true;
+                    var tplIds = new System.Collections.Generic.HashSet<string>();
+                    body = ParseElement(ce, tplIds);
+                }
+            }
+            if (!sawBody)
+                throw new ParseException(
+                    $"<Template name='{name}'> must have one root element after <Param>s");
+
+            tpl.Body = body;
+            doc.Templates[name] = tpl;
         }
 
         static ElementNode ParseElement(XmlElement el,
@@ -54,7 +107,7 @@ namespace PromptUGUI.Parser {
                 }
             }
 
-            // 文本简写：仅当所有非空白子节点都是 text 时生效
+            // 文本简写
             bool hasElement = false, hasText = false;
             foreach (XmlNode c in el.ChildNodes) {
                 if (c is XmlElement) hasElement = true;
@@ -63,9 +116,8 @@ namespace PromptUGUI.Parser {
             if (hasText && hasElement)
                 throw new ParseException(
                     $"<{el.Name}> mixes text and child elements; not allowed");
-            if (hasText && !hasElement) {
+            if (hasText && !hasElement)
                 node.TextContent = el.InnerText.Trim();
-            }
 
             foreach (XmlNode c in el.ChildNodes)
                 if (c is XmlElement child_el)

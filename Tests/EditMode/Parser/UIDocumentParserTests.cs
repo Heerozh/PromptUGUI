@@ -137,5 +137,82 @@ namespace PromptUGUI.Tests.Parser {
                 </Screen></UI>";
             Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
         }
+
+        [Test]
+        public void Parses_template_with_typed_params() {
+            const string xml = @"<UI version='1'>
+                <Template name='TitledPanel'>
+                    <Param name='title'/>
+                    <Param name='closable' default='true'/>
+                    <VStack padding='16'>
+                        <Text>{{title}}</Text>
+                    </VStack>
+                </Template>
+            </UI>";
+
+            var doc = UIDocumentParser.Parse(xml);
+
+            Assert.AreEqual(1, doc.Templates.Count);
+            var tpl = doc.Templates["TitledPanel"];
+            Assert.AreEqual("TitledPanel", tpl.Name);
+            Assert.AreEqual(2, tpl.Params.Count);
+
+            Assert.AreEqual("title",    tpl.Params[0].Name);
+            Assert.IsFalse(tpl.Params[0].HasDefault);
+
+            Assert.AreEqual("closable", tpl.Params[1].Name);
+            Assert.IsTrue(tpl.Params[1].HasDefault);
+            Assert.AreEqual("true", tpl.Params[1].DefaultValue);
+
+            Assert.IsNotNull(tpl.Body);
+            Assert.AreEqual("VStack", tpl.Body.Tag);
+        }
+
+        [Test]
+        public void Throws_on_template_without_name() {
+            Assert.Throws<ParseException>(() =>
+                UIDocumentParser.Parse("<UI version='1'><Template><VStack/></Template></UI>"));
+        }
+
+        [Test]
+        public void Throws_on_template_with_zero_root_elements() {
+            const string xml = @"<UI version='1'>
+                <Template name='Empty'>
+                    <Param name='x'/>
+                </Template>
+            </UI>";
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Throws_on_template_with_multiple_root_elements() {
+            const string xml = @"<UI version='1'>
+                <Template name='Two'>
+                    <VStack/>
+                    <HStack/>
+                </Template>
+            </UI>";
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Throws_on_duplicate_template_name() {
+            const string xml = @"<UI version='1'>
+                <Template name='Same'><Frame/></Template>
+                <Template name='Same'><Frame/></Template>
+            </UI>";
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Throws_on_param_after_first_body_element() {
+            const string xml = @"<UI version='1'>
+                <Template name='Bad'>
+                    <Frame/>
+                    <Param name='late'/>
+                </Template>
+            </UI>";
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
     }
 }
