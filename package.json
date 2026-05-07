@@ -7,6 +7,10 @@
   "dependencies": {
     "com.unity.ugui": "2.0.0"
   },
+  "testables": [
+    "PromptUGUI.Tests.EditMode",
+    "PromptUGUI.Tests.PlayMode"
+  ],
   "samples": [
     {
       "displayName": "Main Menu Demo",
