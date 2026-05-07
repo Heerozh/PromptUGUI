@@ -4,7 +4,7 @@
   <Template name="PrimaryButton">
     <Param name="text"/>
     <Btn color="#3B82F6">
-      <Text anchor="stretch" align="center" color="#FFFFFF" size="24"
+      <Text anchor="stretch" align="center" color="#FFFFFF" fontSize="24"
             raycastTarget="false">{{text}}</Text>
     </Btn>
   </Template>
@@ -12,7 +12,7 @@
   <Template name="DangerButton">
     <Param name="text"/>
     <Btn color="#DC2626">
-      <Text anchor="stretch" align="center" color="#FFFFFF" size="24"
+      <Text anchor="stretch" align="center" color="#FFFFFF" fontSize="24"
             raycastTarget="false">{{text}}</Text>
     </Btn>
   </Template>

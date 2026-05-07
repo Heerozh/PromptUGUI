@@ -16,7 +16,7 @@ namespace PromptUGUI.Controls {
             set => _tmp.text = value ?? "";
         }
 
-        [UIAttr]
+        [UIAttr("fontSize")]
         public int Size {
             set => _tmp.fontSize = value;
         }
