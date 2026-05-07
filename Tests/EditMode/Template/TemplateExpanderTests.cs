@@ -36,5 +36,161 @@ namespace PromptUGUI.Tests.Template {
             var expanded = TemplateExpander.Expand(doc);
             Assert.AreEqual(1, expanded.Screens.Count);
         }
+
+        [Test]
+        public void Expands_template_invocation_with_params() {
+            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+                <Template name='Greet'>
+                    <Param name='who'/>
+                    <Text>Hello {{who}}</Text>
+                </Template>
+                <Screen name='S'>
+                    <Greet who='World'/>
+                </Screen></UI>");
+
+            var expanded = TemplateExpander.Expand(doc);
+            var screen = expanded.Screens[0];
+            Assert.AreEqual(1, screen.Root.Children.Count);
+            var text = screen.Root.Children[0];
+            Assert.AreEqual("Text", text.Tag);
+            Assert.AreEqual("Hello World", text.TextContent);
+        }
+
+        [Test]
+        public void Param_default_used_when_invocation_omits_attr() {
+            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+                <Template name='Box'>
+                    <Param name='label' default='默认'/>
+                    <Text>{{label}}</Text>
+                </Template>
+                <Screen name='S'>
+                    <Box/>
+                </Screen></UI>");
+
+            var expanded = TemplateExpander.Expand(doc);
+            Assert.AreEqual("默认", expanded.Screens[0].Root.Children[0].TextContent);
+        }
+
+        [Test]
+        public void Required_param_missing_throws() {
+            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+                <Template name='Box'>
+                    <Param name='must'/>
+                    <Text>{{must}}</Text>
+                </Template>
+                <Screen name='S'><Box/></Screen></UI>");
+            Assert.Throws<TemplateException>(() => TemplateExpander.Expand(doc));
+        }
+
+        [Test]
+        public void Unknown_param_passed_throws() {
+            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+                <Template name='Box'>
+                    <Param name='a'/>
+                    <Text>{{a}}</Text>
+                </Template>
+                <Screen name='S'>
+                    <Box a='1' b='2'/>
+                </Screen></UI>");
+            Assert.Throws<TemplateException>(() => TemplateExpander.Expand(doc));
+        }
+
+        [Test]
+        public void Slot_receives_invocation_children() {
+            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+                <Template name='Box'>
+                    <Frame>
+                        <Slot/>
+                    </Frame>
+                </Template>
+                <Screen name='S'>
+                    <Box>
+                        <Image id='inside'/>
+                    </Box>
+                </Screen></UI>");
+
+            var expanded = TemplateExpander.Expand(doc);
+            var box = expanded.Screens[0].Root.Children[0];
+            Assert.AreEqual("Frame", box.Tag);
+            Assert.AreEqual(1, box.Children.Count);
+            Assert.AreEqual("inside", box.Children[0].Id);
+        }
+
+        [Test]
+        public void If_drops_element_when_falsy() {
+            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+                <Template name='Box'>
+                    <Param name='show' default='false'/>
+                    <Frame>
+                        <Image if='{{show}}' id='maybe'/>
+                    </Frame>
+                </Template>
+                <Screen name='S'>
+                    <Box/>
+                </Screen></UI>");
+
+            var expanded = TemplateExpander.Expand(doc);
+            var frame = expanded.Screens[0].Root.Children[0];
+            Assert.AreEqual(0, frame.Children.Count);
+        }
+
+        [Test]
+        public void Invocation_id_transfers_to_instance_root() {
+            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+                <Template name='Box'>
+                    <Frame>
+                        <Image id='inside'/>
+                    </Frame>
+                </Template>
+                <Screen name='S'>
+                    <Box id='outer'/>
+                </Screen></UI>");
+
+            var expanded = TemplateExpander.Expand(doc);
+            var box = expanded.Screens[0].Root.Children[0];
+            Assert.AreEqual("Frame", box.Tag);
+            Assert.AreEqual("outer", box.Id);
+            Assert.IsTrue(box.IsTemplateInstanceRoot);
+            Assert.AreEqual("inside", box.Children[0].Id);
+        }
+
+        [Test]
+        public void Invocation_attributes_other_than_params_passthrough_to_root() {
+            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+                <Template name='Box'>
+                    <Frame/>
+                </Template>
+                <Screen name='S'>
+                    <Box anchor='center' size='100x100'/>
+                </Screen></UI>");
+
+            var expanded = TemplateExpander.Expand(doc);
+            var box = expanded.Screens[0].Root.Children[0];
+            Assert.AreEqual("center", box.Attributes["anchor"]);
+            Assert.AreEqual("100x100", box.Attributes["size"]);
+        }
+
+        [Test]
+        public void Nested_template_invocation_expands() {
+            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+                <Template name='Inner'>
+                    <Param name='msg'/>
+                    <Text>{{msg}}</Text>
+                </Template>
+                <Template name='Outer'>
+                    <Frame>
+                        <Inner msg='from outer'/>
+                    </Frame>
+                </Template>
+                <Screen name='S'>
+                    <Outer/>
+                </Screen></UI>");
+
+            var expanded = TemplateExpander.Expand(doc);
+            var frame = expanded.Screens[0].Root.Children[0];
+            var text = frame.Children[0];
+            Assert.AreEqual("Text", text.Tag);
+            Assert.AreEqual("from outer", text.TextContent);
+        }
     }
 }
