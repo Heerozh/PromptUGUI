@@ -192,5 +192,36 @@ namespace PromptUGUI.Tests.Template {
             Assert.AreEqual("Text", text.Tag);
             Assert.AreEqual("from outer", text.TextContent);
         }
+
+        [Test]
+        public void Cyclic_template_reference_throws() {
+            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+                <Template name='A'><B/></Template>
+                <Template name='B'><A/></Template>
+                <Screen name='S'><A/></Screen></UI>");
+            Assert.Throws<TemplateException>(() => TemplateExpander.Expand(doc));
+        }
+
+        [Test]
+        public void Slot_in_Screen_body_throws() {
+            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+                <Screen name='S'>
+                    <Slot/>
+                </Screen></UI>");
+            Assert.Throws<TemplateException>(() => TemplateExpander.Expand(doc));
+        }
+
+        [Test]
+        public void Two_slots_in_template_body_throws() {
+            var doc = UIDocumentParser.Parse(@"<UI version='1'>
+                <Template name='Box'>
+                    <VStack>
+                        <Slot/>
+                        <Slot/>
+                    </VStack>
+                </Template>
+                <Screen name='S'><Box/></Screen></UI>");
+            Assert.Throws<TemplateException>(() => TemplateExpander.Expand(doc));
+        }
     }
 }
