@@ -47,5 +47,48 @@ namespace PromptUGUI.Tests.Parser {
             Assert.AreEqual("Text", vstack.Children[1].Tag);
             Assert.AreEqual("Hello", vstack.Children[1].TextContent);
         }
+
+        [Test]
+        public void Lifts_id_attribute_to_dedicated_field() {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+                <UI version='1'>
+                    <Screen name='X'>
+                        <Image id='bg' sprite='main' />
+                    </Screen>
+                </UI>";
+
+            var doc = UIDocumentParser.Parse(xml);
+            var img = doc.Screens[0].Root.Children[0];
+
+            Assert.AreEqual("bg", img.Id);
+            Assert.IsFalse(img.Attributes.ContainsKey("id"),
+                "id should be lifted, not stored in Attributes dict");
+        }
+
+        [Test]
+        public void Throws_on_duplicate_id_within_same_screen() {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+                <UI version='1'>
+                    <Screen name='X'>
+                        <Image id='dup' />
+                        <Frame>
+                            <Image id='dup' />
+                        </Frame>
+                    </Screen>
+                </UI>";
+
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Throws_on_duplicate_screen_name() {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+                <UI version='1'>
+                    <Screen name='Same' />
+                    <Screen name='Same' />
+                </UI>";
+
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
     }
 }
