@@ -16,8 +16,9 @@ namespace PromptUGUI.Tests.Lifecycle {
         ControlRegistry _reg;
 
         [SetUp] public void SetUp() {
-            _reg = new ControlRegistry();
-            BuiltinPrimitives.Register(_reg);
+            UI.ResetForTests();
+            BuiltinPrimitives.Register(UI.Registry);
+            _reg = UI.Registry;
         }
 
         [UnityTest]
@@ -108,7 +109,7 @@ namespace PromptUGUI.Tests.Lifecycle {
         [UnityTest]
         public IEnumerator Screen_get_unknown_id_throws() {
             const string xml = @"<UI version='1'>
-                <Screen name='X'><Image id='only'/></Screen></UI>";
+                <Screen name='UnknownIdTest'><Image id='only'/></Screen></UI>";
             var doc = UIDocumentParser.Parse(xml);
             var screen = new PromptScreen(doc.Screens[0], new ScreenInstantiator(_reg));
             screen.Open();
@@ -118,6 +119,22 @@ namespace PromptUGUI.Tests.Lifecycle {
 
             screen.Close();
             yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator UI_open_returns_screen_and_close_destroys() {
+            UI.LoadDocument("test_doc", @"<UI version='1'>
+                <Screen name='UIFacade'>
+                    <Image id='bg' anchor='stretch'/>
+                </Screen></UI>");
+
+            var screen = UI.Open("UIFacade");
+            Assert.IsNotNull(screen);
+            Assert.IsNotNull(screen.RootGameObject);
+
+            UI.Close("UIFacade");
+            yield return null;
+            Assert.IsTrue(UI.Get("UIFacade") == null);
         }
     }
 }
