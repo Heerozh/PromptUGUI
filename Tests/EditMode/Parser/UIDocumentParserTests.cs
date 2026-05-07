@@ -90,5 +90,29 @@ namespace PromptUGUI.Tests.Parser {
 
             Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
         }
+
+        [Test]
+        public void Throws_on_missing_root_UI() {
+            Assert.Throws<ParseException>(() =>
+                UIDocumentParser.Parse("<Screen name='X' />"));
+        }
+
+        [Test]
+        public void Throws_on_missing_UI_version() {
+            Assert.Throws<ParseException>(() =>
+                UIDocumentParser.Parse("<UI><Screen name='X' /></UI>"));
+        }
+
+        [Test]
+        public void Throws_on_screen_without_name() {
+            const string xml = "<UI version='1'><Screen /></UI>";
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Throws_on_invalid_xml() {
+            Assert.Throws<System.Xml.XmlException>(() =>
+                UIDocumentParser.Parse("<UI version='1'><Screen></UI>"));
+        }
     }
 }
