@@ -37,6 +37,24 @@ namespace PromptUGUI.Controls {
 
         public IReadOnlyList<IControl> Children => _children;
 
+        static readonly IReadOnlyDictionary<string, IControl> EmptyDict =
+            new Dictionary<string, IControl>();
+
+        Dictionary<string, IControl> _scopedIds;
+
+        public IReadOnlyDictionary<string, IControl> ScopedIds => _scopedIds ?? EmptyDict;
+
+        // 由 ScreenInstantiator 在 InsantiateRecursive 中调用：把模板内 id 累加到本 Control 的局部作用域
+        internal void AddScopedId(string id, IControl c) {
+            _scopedIds ??= new Dictionary<string, IControl>();
+            _scopedIds[id] = c;
+        }
+
+        // 由 ScreenInstantiator 在遇到 IsTemplateInstanceRoot 节点时一次性挂载共享字典
+        internal void ReplaceScopedIds(Dictionary<string, IControl> dict) {
+            _scopedIds = dict;
+        }
+
         // 通用属性应用（由 ScreenInstantiator 在子类自身属性应用之后调用）
         public void ApplyCommon(string anchor, string size, string width, string height,
                                 string margin, string pivot,
