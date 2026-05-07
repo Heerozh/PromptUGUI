@@ -104,3 +104,16 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+
+# Host Unity project for development; not part of the package
+/UnityProjects/
+
+# Unity .meta auto-generated for non-package files (docs, host artifacts)
+/docs.meta
+/docs/**/*.meta
+/UnityProjects.meta
+/.claude.meta
+
+# Personal Claude Code settings
+.claude/settings.local.json
