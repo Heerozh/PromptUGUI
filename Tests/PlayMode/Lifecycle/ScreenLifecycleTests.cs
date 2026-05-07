@@ -156,5 +156,49 @@ namespace PromptUGUI.Tests.Lifecycle {
 
             Assert.IsTrue(d.Disposed);
         }
+
+        [UnityTest]
+        public IEnumerator Path_Get_walks_template_scope() {
+            UI.LoadDocument("path_doc", @"<UI version='1'>
+                <Template name='Box'>
+                    <Frame>
+                        <Image id='inside'/>
+                    </Frame>
+                </Template>
+                <Screen name='PathTest'>
+                    <Box id='outer'/>
+                </Screen></UI>");
+
+            var screen = UI.Open("PathTest");
+
+            // 顶层 id 仍工作（模板根透传后是 Frame）
+            var outer = screen.Get<PromptUGUI.Controls.Frame>("outer");
+            Assert.IsNotNull(outer);
+
+            // 模板内 id 通过路径访问
+            var inside = screen.Get<PromptUGUI.Controls.Image>("outer/inside");
+            Assert.IsNotNull(inside);
+
+            UI.Close("PathTest");
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator Path_Get_throws_on_unknown_segment() {
+            UI.LoadDocument("path_doc2", @"<UI version='1'>
+                <Template name='Box'>
+                    <Frame><Image id='inside'/></Frame>
+                </Template>
+                <Screen name='PathTest2'>
+                    <Box id='outer'/>
+                </Screen></UI>");
+
+            var screen = UI.Open("PathTest2");
+            Assert.Throws<System.Collections.Generic.KeyNotFoundException>(
+                () => screen.Get("outer/nope"));
+
+            UI.Close("PathTest2");
+            yield return null;
+        }
     }
 }

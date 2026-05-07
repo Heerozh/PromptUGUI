@@ -53,19 +53,27 @@ namespace PromptUGUI.Application {
             _byId.Clear();
         }
 
-        public T Get<T>(string id) where T : class, IControl {
-            if (!_byId.TryGetValue(id, out var c))
-                throw new KeyNotFoundException($"id '{id}' not found in screen '{Name}'");
+        public T Get<T>(string idPath) where T : class, IControl {
+            var c = Get(idPath);
             if (c is not T typed)
                 throw new InvalidCastException(
-                    $"id '{id}' is {c.GetType().Name}, not {typeof(T).Name}");
+                    $"id '{idPath}' is {c.GetType().Name}, not {typeof(T).Name}");
             return typed;
         }
 
-        public IControl Get(string id) {
-            if (!_byId.TryGetValue(id, out var c))
-                throw new KeyNotFoundException($"id '{id}' not found in screen '{Name}'");
-            return c;
+        public IControl Get(string idPath) {
+            var segs = idPath.Split('/');
+            if (!_byId.TryGetValue(segs[0], out var current))
+                throw new KeyNotFoundException(
+                    $"id '{segs[0]}' not found in screen '{Name}'");
+            for (int i = 1; i < segs.Length; i++) {
+                var seg = segs[i];
+                if (!current.ScopedIds.TryGetValue(seg, out var next))
+                    throw new KeyNotFoundException(
+                        $"id '{seg}' not found under '{string.Join("/", segs, 0, i)}' in screen '{Name}'");
+                current = next;
+            }
+            return current;
         }
 
         public void Track(IDisposable d) => _subscriptions.Add(d);
