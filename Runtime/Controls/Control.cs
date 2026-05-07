@@ -1,0 +1,77 @@
+using System.Collections.Generic;
+using PromptUGUI.IR;
+using PromptUGUI.Layout;
+using UnityEngine;
+
+namespace PromptUGUI.Controls {
+    public abstract class Control : IControl {
+        public string Id { get; internal set; }
+        public GameObject GameObject { get; private set; }
+        public RectTransform RectTransform { get; private set; }
+        CanvasGroup _canvasGroup;
+
+        readonly List<IControl> _children = new();
+
+        public bool Hidden {
+            get => !GameObject.activeSelf;
+            set => GameObject.SetActive(!value);
+        }
+
+        public bool Interactable {
+            get => CanvasGroup.interactable;
+            set { CanvasGroup.interactable = value; CanvasGroup.blocksRaycasts = value; }
+        }
+
+        CanvasGroup CanvasGroup => _canvasGroup ??= GameObject.AddComponent<CanvasGroup>();
+
+        internal void AttachTo(GameObject go) {
+            GameObject = go;
+            RectTransform = go.GetComponent<RectTransform>()
+                            ?? go.AddComponent<RectTransform>();
+            OnAttached();
+        }
+
+        public virtual void OnAttached() { }
+
+        internal void AddChild(IControl child) => _children.Add(child);
+
+        public IReadOnlyList<IControl> Children => _children;
+
+        // 通用属性应用（由 ScreenInstantiator 在子类自身属性应用之后调用）
+        public void ApplyCommon(string anchor, string size, string width, string height,
+                                string margin, string pivot,
+                                bool hidden, bool interactable) {
+            var preset = string.IsNullOrEmpty(anchor)
+                ? new AnchorPreset(AnchorVertical.Top, AnchorHorizontal.Left)
+                : AnchorPreset.Parse(anchor);
+
+            var sizeSpec = SizeSpec.Parse(size, width, height);
+            sizeSpec.ValidateAgainst(preset);
+
+            AnchorResolver.Resolve(preset,
+                out var aMin, out var aMax, out var p);
+            RectTransform.anchorMin = aMin;
+            RectTransform.anchorMax = aMax;
+
+            if (!string.IsNullOrEmpty(pivot)) {
+                var parts = pivot.Split(',');
+                RectTransform.pivot = new Vector2(
+                    float.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture),
+                    float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture));
+            } else {
+                RectTransform.pivot = p;
+            }
+
+            var lr = MarginResolver.Resolve(preset, sizeSpec, margin);
+            RectTransform.anchoredPosition = lr.AnchoredPosition;
+            RectTransform.sizeDelta = lr.SizeDelta;
+
+            if (hidden) Hidden = true;
+            if (!interactable) Interactable = false;
+        }
+
+        public virtual void Dispose() {
+            if (GameObject != null) Object.Destroy(GameObject);
+        }
+    }
+}
