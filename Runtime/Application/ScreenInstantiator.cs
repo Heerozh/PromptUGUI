@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Reflection;
 using PromptUGUI.Controls;
 using PromptUGUI.IR;
 using PromptUGUI.Registry;
@@ -53,6 +54,8 @@ namespace PromptUGUI.Application {
                 go.name = node.Id;
 
             control.Id = node.Id;
+            if (entry.Prefab != null)
+                BindFields(control, go);
             control.AttachTo(go);
 
             if (!string.IsNullOrEmpty(node.Id))
@@ -85,6 +88,44 @@ namespace PromptUGUI.Application {
 
             foreach (var c in node.Children)
                 InstantiateRecursive(c, go.transform, controls);
+        }
+
+        static void BindFields(Control control, GameObject prefabRoot) {
+            var t = control.GetType();
+            foreach (var f in t.GetFields(
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)) {
+                var bind = f.GetCustomAttribute<BindAttribute>();
+                if (bind == null) continue;
+
+                string childName = bind.ChildName ?? StripUnderscore(f.Name);
+                var childTransform = FindChildByName(prefabRoot.transform, childName);
+                if (childTransform == null) {
+                    Debug.LogWarning(
+                        $"[Bind] {t.Name}.{f.Name}: child '{childName}' not found");
+                    continue;
+                }
+
+                var component = childTransform.GetComponent(f.FieldType);
+                if (component == null) {
+                    Debug.LogWarning(
+                        $"[Bind] {t.Name}.{f.Name}: child '{childName}' " +
+                        $"has no {f.FieldType.Name}");
+                    continue;
+                }
+
+                f.SetValue(control, component);
+            }
+        }
+
+        static string StripUnderscore(string name) =>
+            name.StartsWith("_") ? char.ToUpperInvariant(name[1]) + name.Substring(2) : name;
+
+        static Transform FindChildByName(Transform parent, string name) {
+            for (int i = 0; i < parent.childCount; i++) {
+                var c = parent.GetChild(i);
+                if (c.name == name) return c;
+            }
+            return null;
         }
 
         static bool IsCommonAttribute(string name) {
