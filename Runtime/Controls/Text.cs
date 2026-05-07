@@ -44,5 +44,10 @@ namespace PromptUGUI.Controls {
         public bool Wrap {
             set => _tmp.enableWordWrapping = value;
         }
+
+        [UIAttr]
+        public bool RaycastTarget {
+            set => _tmp.raycastTarget = value;
+        }
     }
 }
