@@ -93,7 +93,7 @@ namespace PromptUGUI.Template {
 
             var key = new PromptUGUI.Application.DocumentLoader.TemplateKey(src.Namespace, src.Tag);
             if (templates.TryGetValue(key, out var tpl))
-                return ExpandInvocation(src, tpl, templates, visiting);
+                return ExpandInvocation(src, tpl, key, templates, visiting);
 
             // Namespace was specified but no matching template → error
             if (src.Namespace != null)
@@ -118,12 +118,12 @@ namespace PromptUGUI.Template {
         static ElementNode ExpandInvocation(
             ElementNode invocation,
             TemplateDef tpl,
+            PromptUGUI.Application.DocumentLoader.TemplateKey key,
             IReadOnlyDictionary<PromptUGUI.Application.DocumentLoader.TemplateKey, TemplateDef> templates,
             HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey> visiting) {
 
-            // Cycle tracking uses (null, tpl.Name) — the TemplateDef is unique by name
-            var tplKey = new PromptUGUI.Application.DocumentLoader.TemplateKey(null, tpl.Name);
-            if (!visiting.Add(tplKey))
+            // Cycle tracking uses (Namespace, Name) key to allow same-named templates across different namespaces
+            if (!visiting.Add(key))
                 throw new TemplateException(
                     $"cyclic template reference detected: {string.Join(" → ", visiting)} → {tpl.Name}");
 
@@ -186,7 +186,7 @@ namespace PromptUGUI.Template {
 
                 return instanceRoot;
             } finally {
-                visiting.Remove(tplKey);
+                visiting.Remove(key);
             }
         }
 

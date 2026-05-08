@@ -54,5 +54,26 @@ namespace PromptUGUI.Tests.Template {
             var loaded = Make(inv, System.Array.Empty<(string, string, ElementNode)>());
             Assert.Throws<TemplateException>(() => TemplateExpander.Expand(loaded));
         }
+
+        [Test]
+        public void Same_name_templates_in_different_namespaces_both_expand() {
+            var bodyA = new ElementNode("Frame");
+            var bodyB = new ElementNode("Image");
+            var l = new DocumentLoader.LoadedDoc {
+                EntrySrc = "test",
+            };
+            var screen = new ScreenDef("S", new ElementNode("__root__"));
+            screen.Root.Children.Add(new ElementNode("Foo", "a"));
+            screen.Root.Children.Add(new ElementNode("Foo", "b"));
+            l.Screens.Add(screen);
+            l.Templates[new DocumentLoader.TemplateKey("a", "Foo")] =
+                new TemplateDef("Foo") { Body = bodyA };
+            l.Templates[new DocumentLoader.TemplateKey("b", "Foo")] =
+                new TemplateDef("Foo") { Body = bodyB };
+
+            var expanded = TemplateExpander.Expand(l);
+            Assert.AreEqual("Frame", expanded.Screens[0].Root.Children[0].Tag);
+            Assert.AreEqual("Image", expanded.Screens[0].Root.Children[1].Tag);
+        }
     }
 }
