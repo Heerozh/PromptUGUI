@@ -9,13 +9,16 @@ namespace PromptUGUI.Application {
     public sealed class InstantiationResult {
         public GameObject Root;
         public Dictionary<string, IControl> Controls;
+        public Dictionary<ElementNode, Control> NodeToControl;
     }
 
     public sealed class ScreenInstantiator {
         readonly ControlRegistry _registry;
+        readonly VariantStore _variants;
 
-        public ScreenInstantiator(ControlRegistry registry) {
+        public ScreenInstantiator(ControlRegistry registry, VariantStore variants) {
             _registry = registry;
+            _variants = variants;
         }
 
         public InstantiationResult Instantiate(ScreenDef def) {
@@ -26,23 +29,28 @@ namespace PromptUGUI.Application {
             var result = new InstantiationResult {
                 Root = root,
                 Controls = new Dictionary<string, IControl>(),
+                NodeToControl = new Dictionary<ElementNode, Control>(),
             };
 
             foreach (var childNode in def.Root.Children)
                 InstantiateRecursive(childNode, result.Root.transform,
-                                     parentIsLayoutGroup: false, result.Controls);
+                                     parentIsLayoutGroup: false,
+                                     result.Controls, result.NodeToControl);
 
             return result;
         }
 
-        void InstantiateRecursive(ElementNode node, Transform parent,
-                                  bool parentIsLayoutGroup,
-                                  Dictionary<string, IControl> controls) {
+        internal void InstantiateRecursive(ElementNode node, Transform parent,
+                                           bool parentIsLayoutGroup,
+                                           Dictionary<string, IControl> controls,
+                                           Dictionary<ElementNode, Control> nodeMap) {
             if (parentIsLayoutGroup) {
-                if (node.Attributes.ContainsKey("anchor"))
+                if (node.Attributes.ContainsKey("anchor")
+                    || node.VariantOverrides.ContainsKey("anchor"))
                     Debug.LogWarning(
                         $"<{node.Tag} id='{node.Id}'>: anchor ignored inside layout group");
-                if (node.Attributes.ContainsKey("margin"))
+                if (node.Attributes.ContainsKey("margin")
+                    || node.VariantOverrides.ContainsKey("margin"))
                     Debug.LogWarning(
                         $"<{node.Tag} id='{node.Id}'>: margin ignored inside layout group");
             }
@@ -69,36 +77,13 @@ namespace PromptUGUI.Application {
                 BindFields(control, go);
             control.AttachTo(go);
 
-            // 该节点的 id 入"当前作用域"——可能是 Screen 顶层，也可能是某个外层模板实例的 ScopedIds
             if (!string.IsNullOrEmpty(node.Id))
                 controls[node.Id] = control;
+            nodeMap[node] = control;
 
-            // 应用控件特定属性
-            foreach (var kv in node.Attributes) {
-                if (IsCommonAttribute(kv.Key)) continue;
-                if (entry.Meta.HasAttribute(kv.Key))
-                    entry.Meta.Apply(control, kv.Key, kv.Value);
-            }
+            ControlAttributeApplier.Apply(node, control, entry, _variants);
 
-            // 文本简写
-            if (!string.IsNullOrEmpty(node.TextContent) && entry.DefaultTextAttr != null)
-                entry.Meta.Apply(control, entry.DefaultTextAttr, node.TextContent);
-
-            // 应用通用属性
-            node.Attributes.TryGetValue("anchor", out var anchor);
-            node.Attributes.TryGetValue("size",   out var size);
-            node.Attributes.TryGetValue("width",  out var width);
-            node.Attributes.TryGetValue("height", out var height);
-            node.Attributes.TryGetValue("margin", out var margin);
-            node.Attributes.TryGetValue("pivot",  out var pivot);
-            node.Attributes.TryGetValue("hidden", out var hiddenStr);
-            node.Attributes.TryGetValue("interactable", out var interactableStr);
-            bool hidden       = hiddenStr == "true";
-            bool interactable = interactableStr != "false";
-
-            control.ApplyCommon(anchor, size, width, height, margin, pivot, hidden, interactable);
-
-            // 子节点的 id 作用域：若本节点是模板实例根，切换到本 Control 的 ScopedIds
+            // 子节点的 id 作用域
             Dictionary<string, IControl> childScope = controls;
             if (node.IsTemplateInstanceRoot) {
                 childScope = new Dictionary<string, IControl>();
@@ -107,7 +92,7 @@ namespace PromptUGUI.Application {
 
             bool selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid";
             foreach (var c in node.Children)
-                InstantiateRecursive(c, go.transform, selfIsLayoutGroup, childScope);
+                InstantiateRecursive(c, go.transform, selfIsLayoutGroup, childScope, nodeMap);
         }
 
         static void BindFields(Control control, GameObject prefabRoot) {
@@ -146,21 +131,6 @@ namespace PromptUGUI.Application {
                 if (c.name == name) return c;
             }
             return null;
-        }
-
-        static bool IsCommonAttribute(string name) {
-            switch (name) {
-                case "anchor":
-                case "size":
-                case "width":
-                case "height":
-                case "margin":
-                case "pivot":
-                case "hidden":
-                case "interactable":
-                    return true;
-            }
-            return false;
         }
     }
 }

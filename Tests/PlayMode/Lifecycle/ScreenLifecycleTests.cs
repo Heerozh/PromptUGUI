@@ -14,11 +14,13 @@ namespace PromptUGUI.Tests.Lifecycle {
     public class ScreenInstantiatorTests {
 
         ControlRegistry _reg;
+        VariantStore _store;
 
         [SetUp] public void SetUp() {
             UI.ResetForTests();
             BuiltinPrimitives.Register(UI.Registry);
             _reg = UI.Registry;
+            _store = UI.VariantStore;
         }
 
         [UnityTest]
@@ -28,7 +30,7 @@ namespace PromptUGUI.Tests.Lifecycle {
                     <Image id='bg' anchor='top-right' size='240x80' margin='16'/>
                 </Screen></PromptUGUI>";
             var doc = UIDocumentParser.Parse(xml);
-            var inst = new ScreenInstantiator(_reg);
+            var inst = new ScreenInstantiator(_reg, _store);
             var rootGo = inst.Instantiate(doc.Screens[0]).Root;
 
             Assert.IsNotNull(rootGo);
@@ -52,7 +54,7 @@ namespace PromptUGUI.Tests.Lifecycle {
                     </VStack>
                 </Screen></PromptUGUI>";
             var doc = UIDocumentParser.Parse(xml);
-            var inst = new ScreenInstantiator(_reg);
+            var inst = new ScreenInstantiator(_reg, _store);
             var rootGo = inst.Instantiate(doc.Screens[0]).Root;
 
             var vstackGo = rootGo.transform.GetChild(0).gameObject;
@@ -72,7 +74,7 @@ namespace PromptUGUI.Tests.Lifecycle {
                     <Text>Hello</Text>
                 </Screen></PromptUGUI>";
             var doc = UIDocumentParser.Parse(xml);
-            var inst = new ScreenInstantiator(_reg);
+            var inst = new ScreenInstantiator(_reg, _store);
             var rootGo = inst.Instantiate(doc.Screens[0]).Root;
 
             var txt = rootGo.transform.GetChild(0).GetComponent<TMPro.TMP_Text>();
@@ -90,7 +92,7 @@ namespace PromptUGUI.Tests.Lifecycle {
                     <Text id='hello'>Hi</Text>
                 </Screen></PromptUGUI>";
             var doc = UIDocumentParser.Parse(xml);
-            var inst = new ScreenInstantiator(_reg);
+            var inst = new ScreenInstantiator(_reg, _store);
             var screen = new PromptScreen(doc.Screens[0], inst);
 
             screen.Open();
@@ -111,7 +113,7 @@ namespace PromptUGUI.Tests.Lifecycle {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='UnknownIdTest'><Image id='only'/></Screen></PromptUGUI>";
             var doc = UIDocumentParser.Parse(xml);
-            var screen = new PromptScreen(doc.Screens[0], new ScreenInstantiator(_reg));
+            var screen = new PromptScreen(doc.Screens[0], new ScreenInstantiator(_reg, _store));
             screen.Open();
 
             Assert.Throws<System.Collections.Generic.KeyNotFoundException>(
@@ -198,6 +200,57 @@ namespace PromptUGUI.Tests.Lifecycle {
                 () => screen.Get("outer/nope"));
 
             UI.Close("PathTest2");
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator Variant_attribute_override_applies_when_variant_active_at_open() {
+            UI.LoadDocument("v1", @"<PromptUGUI version='1'>
+                <Screen name='V1'>
+                    <Image id='bg' anchor='top-left' size='100x50'
+                           anchor.mobile='top-right' size.mobile='200x100'/>
+                </Screen></PromptUGUI>");
+            UI.Variants.Set("mobile", true);
+            var screen = UI.Open("V1");
+
+            var rt = screen.Get<PromptImage>("bg").RectTransform;
+            Assert.AreEqual(new Vector2(200, 100), rt.sizeDelta);
+            // anchor=top-right → anchorMin/Max=(1,1)
+            Assert.AreEqual(new Vector2(1, 1), rt.anchorMin);
+            Assert.AreEqual(new Vector2(1, 1), rt.anchorMax);
+
+            UI.Close("V1");
+            UI.Variants.Set("mobile", false);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator Base_attribute_used_when_no_variant_active_at_open() {
+            UI.LoadDocument("v2", @"<PromptUGUI version='1'>
+                <Screen name='V2'>
+                    <Image id='bg' anchor='top-left' size='100x50'
+                           size.mobile='200x100'/>
+                </Screen></PromptUGUI>");
+            var screen = UI.Open("V2");
+
+            var rt = screen.Get<PromptImage>("bg").RectTransform;
+            Assert.AreEqual(new Vector2(100, 50), rt.sizeDelta);
+
+            UI.Close("V2");
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator Variant_only_attr_without_base_falls_through_to_default_when_inactive() {
+            UI.LoadDocument("v3", @"<PromptUGUI version='1'>
+                <Screen name='V3'>
+                    <Image id='bg' anchor='top-left' size='100x50' margin.mobile='8'/>
+                </Screen></PromptUGUI>");
+            var screen = UI.Open("V3");
+            var rt = screen.Get<PromptImage>("bg").RectTransform;
+            // 没 margin → anchoredPosition = (0, 0)
+            Assert.AreEqual(new Vector2(0, 0), rt.anchoredPosition);
+            UI.Close("V3");
             yield return null;
         }
     }

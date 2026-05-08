@@ -38,7 +38,7 @@ namespace PromptUGUI.Application {
                 throw new System.InvalidOperationException(
                     $"Screen '{screenName}' not loaded; call LoadDocument first");
 
-            var inst = new ScreenInstantiator(_registry);
+            var inst = new ScreenInstantiator(_registry, _variantStore);
             var screen = new Screen(def, inst);
             screen.Open();
             _open[screenName] = screen;
