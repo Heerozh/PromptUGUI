@@ -37,11 +37,6 @@ namespace PromptUGUI.Application {
                                      parentIsLayoutGroup: false,
                                      result.Controls, result.NodeToControl);
 
-            foreach (var block in def.Variants) {
-                if (!_variants.IsActive(block.When)) continue;
-                ApplyAddBlock(block, result);
-            }
-
             return result;
         }
 

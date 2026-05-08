@@ -4,6 +4,7 @@ using PromptUGUI.Application;
 using PromptUGUI.Controls;
 using PromptUGUI.Parser;
 using PromptUGUI.Registry;
+using R3;
 using UnityEngine;
 using UnityEngine.TestTools;
 using PromptImage = PromptUGUI.Controls.Image;
@@ -515,6 +516,132 @@ namespace PromptUGUI.Tests.Lifecycle {
 
             UI.Variants.Set("mobile", false);
             UI.Close("RS4");
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator ReSolve_first_activation_instantiates_add_block() {
+            UI.LoadDocument("rsa1", @"<PromptUGUI version='1'>
+                <Screen name='RSA1'>
+                    <Frame id='base'/>
+                    <Variant when='m'>
+                        <Add into='@root'><Image id='extra'/></Add>
+                    </Variant>
+                </Screen></PromptUGUI>");
+            var screen = UI.Open("RSA1");
+
+            // 首次激活前：Add 子树未实例化，screen.Get 抛 KeyNotFound
+            Assert.AreEqual(1, screen.RootGameObject.transform.childCount);
+            Assert.Throws<System.Collections.Generic.KeyNotFoundException>(
+                () => screen.Get("extra"));
+
+            UI.Variants.Set("m", true);
+            yield return null;
+
+            Assert.AreEqual(2, screen.RootGameObject.transform.childCount);
+            var extra = screen.Get<PromptImage>("extra");
+            Assert.IsNotNull(extra);
+            Assert.IsTrue(extra.GameObject.activeSelf);
+
+            UI.Close("RSA1");
+            UI.Variants.Set("m", false);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator ReSolve_deactivation_hides_via_SetActive_keeps_instance() {
+            UI.Variants.Set("m", true);
+            UI.LoadDocument("rsa2", @"<PromptUGUI version='1'>
+                <Screen name='RSA2'>
+                    <Frame id='base'/>
+                    <Variant when='m'>
+                        <Add into='@root'><Image id='extra'/></Add>
+                    </Variant>
+                </Screen></PromptUGUI>");
+            var screen = UI.Open("RSA2");
+            var extraGo = screen.Get<PromptImage>("extra").GameObject;
+            Assert.IsTrue(extraGo.activeSelf);
+
+            UI.Variants.Set("m", false);
+            yield return null;
+
+            // Strategy C：GameObject 仍在场景里、未销毁；id 仍可解析；activeSelf=false
+            Assert.IsFalse(extraGo.activeSelf);
+            Assert.IsTrue(extraGo != null);  // 与 Strategy A 不同：不是 Unity null
+            Assert.AreEqual(2, screen.RootGameObject.transform.childCount);
+            Assert.AreSame(extraGo, screen.Get<PromptImage>("extra").GameObject);
+
+            UI.Close("RSA2");
+        }
+
+        [UnityTest]
+        public IEnumerator ReSolve_re_activation_reuses_same_GameObject_instance() {
+            UI.LoadDocument("rsa3", @"<PromptUGUI version='1'>
+                <Screen name='RSA3'>
+                    <Frame id='base'/>
+                    <Variant when='m'>
+                        <Add into='@root'><Image id='extra'/></Add>
+                    </Variant>
+                </Screen></PromptUGUI>");
+            var screen = UI.Open("RSA3");
+
+            UI.Variants.Set("m", true);
+            yield return null;
+            var first = screen.Get<PromptImage>("extra").GameObject;
+            Assert.IsTrue(first.activeSelf);
+
+            UI.Variants.Set("m", false);
+            yield return null;
+            Assert.IsFalse(first.activeSelf);
+
+            UI.Variants.Set("m", true);
+            yield return null;
+
+            var second = screen.Get<PromptImage>("extra").GameObject;
+            // Strategy C 的核心保证：同一 GameObject 实例
+            Assert.AreSame(first, second);
+            Assert.IsTrue(second.activeSelf);
+
+            UI.Close("RSA3");
+            UI.Variants.Set("m", false);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator ReSolve_subscriptions_on_add_controls_survive_toggle_cycle() {
+            // Strategy C 的实用价值：在 Add 块的 Btn 上订阅一次 OnClick，跨 toggle 周期仍有效
+            UI.LoadDocument("rsa4", @"<PromptUGUI version='1'>
+                <Screen name='RSA4'>
+                    <Frame id='base'/>
+                    <Variant when='m'>
+                        <Add into='@root'><Btn id='extraBtn'/></Add>
+                    </Variant>
+                </Screen></PromptUGUI>");
+            var screen = UI.Open("RSA4");
+
+            UI.Variants.Set("m", true);
+            yield return null;
+
+            int clicks = 0;
+            var btn = screen.Get<PromptUGUI.Controls.Btn>("extraBtn");
+            btn.OnClick.Subscribe(_ => clicks++).AddTo(screen);
+
+            btn.GameObject.GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
+            yield return null;
+            Assert.AreEqual(1, clicks);
+
+            UI.Variants.Set("m", false);
+            yield return null;
+            UI.Variants.Set("m", true);
+            yield return null;
+
+            // 同一 Btn 实例、同一 Subject<Unit> → 订阅仍触发
+            btn.GameObject.GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
+            yield return null;
+            Assert.AreEqual(2, clicks);
+
+            UI.Close("RSA4");
+            UI.Variants.Set("m", false);
             yield return null;
         }
     }

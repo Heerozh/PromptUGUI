@@ -25,6 +25,17 @@ namespace PromptUGUI.Application {
         readonly List<IDisposable> _subscriptions = new();
         IDisposable _variantSub;
 
+        // 已实例化的 Add 块（不论当前是否可见）。Strategy C：首次进入激活才实例化；
+        // 之后 toggle 仅切根 GameObject 的 SetActive，永不 Destroy/移除字典项；
+        // 只在 Close 时随 RootGameObject 整体销毁。
+        readonly Dictionary<VariantBlock, AddInstance> _addInstances = new();
+
+        sealed class AddInstance {
+            public List<GameObject> Roots = new();
+            public List<string> AddedIds = new();
+            public List<ElementNode> AddedNodes = new();
+        }
+
         public string Name => _def.Name;
         public GameObject RootGameObject { get; private set; }
 
@@ -52,6 +63,10 @@ namespace PromptUGUI.Application {
             RootGameObject = result.Root;
             foreach (var kv in result.Controls) _byId[kv.Key] = kv.Value;
             foreach (var kv in result.NodeToControl) _nodeMap[kv.Key] = kv.Value;
+            foreach (var block in _def.Variants) {
+                if (_variants.IsActive(block.When))
+                    ActivateAddBlock(block);
+            }
             _variantSub = _variants.Changed.Subscribe(_ => ReSolve());
         }
 
@@ -66,6 +81,7 @@ namespace PromptUGUI.Application {
             }
             _byId.Clear();
             _nodeMap.Clear();
+            _addInstances.Clear();
         }
 
         public T Get<T>(string idPath) where T : class, IControl {
@@ -96,12 +112,54 @@ namespace PromptUGUI.Application {
         public void Dispose() => Close();
 
         public void ReSolve() {
+            foreach (var block in _def.Variants) {
+                if (_variants.IsActive(block.When)) ActivateAddBlock(block);
+                else                                DeactivateAddBlock(block);
+            }
             foreach (var kv in _nodeMap) {
                 var node = kv.Key;
                 var control = kv.Value;
                 var entry = _registry.Resolve(node.Tag);
                 ControlAttributeApplier.Apply(node, control, entry, _variants);
             }
+        }
+
+        void ActivateAddBlock(VariantBlock block) {
+            if (_addInstances.TryGetValue(block, out var existing)) {
+                // 已实例化过：只重新显示根 GameObject，引用与订阅保持稳定
+                foreach (var go in existing.Roots)
+                    if (go != null) go.SetActive(true);
+                return;
+            }
+
+            // 首次激活：实例化并永久挂在 Screen 的 _byId / _nodeMap 里
+            var pseudoResult = new InstantiationResult {
+                Root = RootGameObject,
+                Controls = _byId,
+                NodeToControl = _nodeMap,
+            };
+
+            // 用 keys 差集追踪 Add 块新增的 ids / nodes（便于诊断与未来扩展）
+            var prevIds   = new HashSet<string>(_byId.Keys);
+            var prevNodes = new HashSet<ElementNode>(_nodeMap.Keys);
+
+            var inst = new AddInstance();
+            inst.Roots.AddRange(_instantiator.ApplyAddBlock(block, pseudoResult));
+
+            foreach (var k in _byId.Keys)
+                if (!prevIds.Contains(k)) inst.AddedIds.Add(k);
+            foreach (var n in _nodeMap.Keys)
+                if (!prevNodes.Contains(n)) inst.AddedNodes.Add(n);
+
+            _addInstances[block] = inst;
+        }
+
+        void DeactivateAddBlock(VariantBlock block) {
+            if (!_addInstances.TryGetValue(block, out var inst)) return;
+            // Strategy C：只 SetActive(false) 隐藏；不 Destroy、不从 _byId/_nodeMap 移除——
+            // 让代码侧 cached 引用与 R3 订阅跨 toggle 周期持续有效。
+            foreach (var go in inst.Roots)
+                if (go != null) go.SetActive(false);
         }
     }
 }
