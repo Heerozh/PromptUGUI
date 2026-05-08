@@ -29,7 +29,7 @@ namespace PromptUGUI.Template {
                                         new HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey>());
                     if (ec != null) newRoot.Children.Add(ec);
                 }
-                var newScreen = new ScreenDef(s.Name, newRoot);
+                var newScreen = new ScreenDef(s.Name, newRoot) { CanvasMode = s.CanvasMode };
                 foreach (var block in s.Variants) {
                     var newBlock = new VariantBlock(block.When);
                     foreach (var add in block.Adds) {

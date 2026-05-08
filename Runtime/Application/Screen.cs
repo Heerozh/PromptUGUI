@@ -57,7 +57,13 @@ namespace PromptUGUI.Application {
                 typeof(Canvas),
                 typeof(UnityEngine.UI.CanvasScaler),
                 typeof(UnityEngine.UI.GraphicRaycaster));
-            root.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+            var canvas = root.GetComponent<Canvas>();
+            canvas.renderMode = _def.CanvasMode switch {
+                CanvasMode.Camera => RenderMode.ScreenSpaceCamera,
+                CanvasMode.World  => RenderMode.WorldSpace,
+                _                 => RenderMode.ScreenSpaceOverlay,
+            };
+            UI.CanvasConfigurator?.Invoke(canvas, _def.Name);
 
             var result = _instantiator.InstantiateInto(root, _def);
             RootGameObject = result.Root;

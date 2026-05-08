@@ -183,6 +183,23 @@ namespace PromptUGUI.Editor {
             w.WriteAttributeString("use", "required");
             w.WriteAttributeString("type", "xs:string");
             w.WriteEndElement();
+
+            // canvas="overlay|camera|world", optional, default overlay
+            w.WriteStartElement("xs", "attribute", null);
+            w.WriteAttributeString("name", "canvas");
+            w.WriteAttributeString("use", "optional");
+            w.WriteStartElement("xs", "simpleType", null);
+            w.WriteStartElement("xs", "restriction", null);
+            w.WriteAttributeString("base", "xs:string");
+            foreach (var v in new[] { "overlay", "camera", "world" }) {
+                w.WriteStartElement("xs", "enumeration", null);
+                w.WriteAttributeString("value", v);
+                w.WriteEndElement();
+            }
+            w.WriteEndElement();
+            w.WriteEndElement();
+            w.WriteEndElement();
+
             w.WriteEndElement();
             w.WriteEndElement();
         }

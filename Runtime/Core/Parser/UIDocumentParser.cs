@@ -74,6 +74,19 @@ namespace PromptUGUI.Parser {
             var idsInScreen = new System.Collections.Generic.HashSet<string>();
             var rootNode = new ElementNode("__screen_root__");
             var screen = new ScreenDef(name, rootNode);
+
+            var canvasAttr = el.GetAttribute("canvas");
+            if (!string.IsNullOrEmpty(canvasAttr)) {
+                screen.CanvasMode = canvasAttr switch {
+                    "overlay" => CanvasMode.Overlay,
+                    "camera"  => CanvasMode.Camera,
+                    "world"   => CanvasMode.World,
+                    _ => throw new ParseException(
+                        $"<Screen name='{name}'>: invalid canvas='{canvasAttr}' " +
+                        $"(expected 'overlay', 'camera', or 'world')"),
+                };
+            }
+
             var seenWhen = new System.Collections.Generic.HashSet<string>();
 
             foreach (XmlNode c in el.ChildNodes) {

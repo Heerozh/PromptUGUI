@@ -5,6 +5,7 @@ namespace PromptUGUI.IR {
         public string Name { get; }
         public ElementNode Root { get; }
         public List<VariantBlock> Variants { get; } = new();
+        public CanvasMode CanvasMode { get; set; } = CanvasMode.Overlay;
 
         public ScreenDef(string name, ElementNode root) {
             Name = name;

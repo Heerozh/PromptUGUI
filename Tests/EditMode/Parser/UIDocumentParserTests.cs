@@ -493,6 +493,50 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
+        public void Default_canvas_mode_is_overlay() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X'/>
+              </PromptUGUI>";
+            var doc = UIDocumentParser.Parse(xml);
+            Assert.AreEqual(IR.CanvasMode.Overlay, doc.Screens[0].CanvasMode);
+        }
+
+        [Test]
+        public void Parses_canvas_attribute_camera() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X' canvas='camera'/>
+              </PromptUGUI>";
+            var doc = UIDocumentParser.Parse(xml);
+            Assert.AreEqual(IR.CanvasMode.Camera, doc.Screens[0].CanvasMode);
+        }
+
+        [Test]
+        public void Parses_canvas_attribute_world() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X' canvas='world'/>
+              </PromptUGUI>";
+            var doc = UIDocumentParser.Parse(xml);
+            Assert.AreEqual(IR.CanvasMode.World, doc.Screens[0].CanvasMode);
+        }
+
+        [Test]
+        public void Parses_canvas_attribute_overlay_explicit() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X' canvas='overlay'/>
+              </PromptUGUI>";
+            var doc = UIDocumentParser.Parse(xml);
+            Assert.AreEqual(IR.CanvasMode.Overlay, doc.Screens[0].CanvasMode);
+        }
+
+        [Test]
+        public void Throws_on_invalid_canvas_value() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X' canvas='Overlay'/>
+              </PromptUGUI>";
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
         public void Variant_when_value_is_trimmed() {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>

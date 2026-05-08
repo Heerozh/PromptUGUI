@@ -24,7 +24,7 @@ This skill covers everything you need to write or edit a `.ui.xml` correctly. Re
 |---|---|---|
 | `<PromptUGUI version="1">` | Root, **always**. | NOT `<UI>`. `version="1"` is required. |
 | `<Import src="..." [as="ns"]/>` | Pull templates from another file. | Top-level only. `as=` adds namespace prefix. |
-| `<Screen name="...">` | A complete UI scene; opened by code with `UI.Open(name)`. | One Screen = one Canvas. Names unique across all loaded files. |
+| `<Screen name="..." [canvas="..."]>` | A complete UI scene; opened by code with `UI.Open(name)`. | One Screen = one Canvas. Names unique across all loaded files. `canvas="overlay\|camera\|world"`, default `overlay`. |
 | `<Template name="...">` | Reusable subtree, expanded at parse time. | Body must have **exactly one root element**. |
 
 `<Import>`, `<Screen>`, `<Template>` are the **only** elements allowed at the top level. Comments use standard `<!-- -->`.
@@ -252,6 +252,26 @@ UI.LoadDocumentFromSrc("screens/MainMenu");                // resolver path
 UI.LoadDocument("MainMenu", xmlString);                    // raw XML, no hot-reload
 ```
 
+**Canvas configuration** (optional):
+
+Each `Screen.Open()` creates its own root Canvas (+ `CanvasScaler` + `GraphicRaycaster`). The render mode comes from the XML `canvas` attribute on `<Screen>` (`overlay` / `camera` / `world`, default `overlay`). For everything *else* — pinning a `worldCamera`, setting `sortingOrder` / `planeDistance`, swapping render mode at runtime, etc. — register a configurator. The configurator runs **after** the XML-declared mode is applied, so it can override anything:
+
+```xml
+<Screen name="WorldTooltip" canvas="camera"> ... </Screen>
+```
+
+```csharp
+UI.CanvasConfigurator = (canvas, screenName) => {
+    if (canvas.renderMode == RenderMode.ScreenSpaceCamera) {
+        canvas.worldCamera = uiCamera;       // Camera ref must come from C# — not XML
+        canvas.planeDistance = 10f;
+    }
+    canvas.sortingOrder = screenName == "Settings" ? 100 : 0;  // popups above main
+};
+```
+
+The callback fires once per `Open()` (so also re-fires on hot-reload, since reload = close + reopen). The library never auto-creates Cameras — assigning `worldCamera` is the user's job. With no configurator and no `canvas=` attribute, every Screen is `ScreenSpaceOverlay`, `sortingOrder=0`.
+
 **Icon system setup** (optional, only if your XML uses `<Icon>`):
 
 ```csharp
@@ -336,7 +356,7 @@ UI.Registry.Register<MyControl>("MyControl", optionalPrefab: null);
 
 ```
 ROOT          <PromptUGUI version="1"> ... </PromptUGUI>
-TOP LEVEL     <Import src="" [as=""]/>  <Screen name="">  <Template name="">
+TOP LEVEL     <Import src="" [as=""]/>  <Screen name="" [canvas="overlay|camera|world"]>  <Template name="">
 
 BUILT-INS     <Frame> <Image> <Text> <VStack> <HStack> <Grid> <Btn> <Icon>
 TEXT SHORT    <Text>Hi</Text> ≡ <Text text="Hi"/>     (only <Text>)
@@ -377,6 +397,8 @@ C# OPEN       UI.LoadDocumentFromSrc("path"); UI.Open("ScreenName")
 C# GET        screen.Get<Btn>("id")  /  "outerId/innerId"
 C# EVENT      .OnClick.Subscribe(...).AddTo(screen)
 C# VARIANT    UI.Variants.Set("name", true)
+XML CANVAS    <Screen name="X" canvas="overlay|camera|world">   default overlay; renderMode only
+C# CANVAS     UI.CanvasConfigurator = (canvas, name) => { ... }  worldCamera / sortingOrder / overrides; runs after XML
 ```
 
 ## Worked end-to-end example

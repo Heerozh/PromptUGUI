@@ -15,6 +15,11 @@ namespace PromptUGUI.Application {
         public static System.Func<string, string> SourceResolver { get; set; }
         public static System.Func<string, UnityEngine.Sprite> IconResolver { get; set; }
 
+        // Invoked from Screen.Open() right after the Canvas + CanvasScaler + GraphicRaycaster
+        // are added and renderMode is set to ScreenSpaceOverlay. Use to switch renderMode,
+        // assign worldCamera, set sortingOrder, etc. Per-Screen behavior keys off the second arg.
+        public static System.Action<UnityEngine.Canvas, string> CanvasConfigurator { get; set; }
+
         public static ControlRegistry Registry => _registry;
 
         internal static VariantStore VariantStore => _variantStore;
@@ -235,6 +240,7 @@ namespace PromptUGUI.Application {
             _depGraph.Clear();
             SourceResolver = null;
             IconResolver = null;
+            CanvasConfigurator = null;
 #if UNITY_EDITOR
             HotReload.AssetPathToSrc = null;
             HotReload.IconResolverRebuilder = null;
