@@ -138,6 +138,66 @@ namespace PromptUGUI.Editor {
             return true;
         }
 
+        public static void SyncAll(IEnumerable<PromptUGUI.Application.IconSet> sets) {
+            var refs = ScanXmlReferences();
+
+            // detect duplicate setNames before any work
+            var seen = new HashSet<string>();
+            foreach (var s in sets) {
+                if (s == null) continue;
+                if (string.IsNullOrEmpty(s.SetName)) {
+                    Debug.LogError($"[IconSync] IconSet '{s.name}' has empty setName");
+                    return;
+                }
+                if (!seen.Add(s.SetName)) {
+                    Debug.LogError(
+                        $"[IconSync] duplicate IconSet setName '{s.SetName}'; aborting");
+                    return;
+                }
+            }
+
+            foreach (var set in sets) {
+                if (set == null) continue;
+                var folder = set.SourceFolderPath;
+                if (string.IsNullOrEmpty(folder) || !AssetDatabase.IsValidFolder(folder)) {
+                    Debug.LogError($"[IconSync] IconSet '{set.SetName}': sourceFolder invalid");
+                    continue;
+                }
+                var available = EnumeratePngs(folder);
+                var needed = new HashSet<string>();
+                foreach (var (ns, name) in refs)
+                    if (ns == set.SetName) needed.Add(name);
+                foreach (var n in set.AlwaysInclude)
+                    if (!string.IsNullOrEmpty(n)) needed.Add(n);
+
+                var picked = new List<Sprite>();
+                var missing = new List<string>();
+                foreach (var n in needed) {
+                    if (available.TryGetValue(n, out var sp)) picked.Add(sp);
+                    else missing.Add(n);
+                }
+                if (missing.Count > 0)
+                    Debug.LogWarning(
+                        $"[IconSync] '{set.SetName}': XML references missing PNGs: " +
+                        string.Join(", ", missing));
+
+                var atlas = EnsureAtlasAsset(set);
+                if (atlas == null) continue;
+                UpdateAtlas(atlas, picked.ToArray());
+            }
+
+            AssetDatabase.SaveAssets();
+        }
+
+        public static IEnumerable<PromptUGUI.Application.IconSet> FindAllIconSets() {
+            var guids = AssetDatabase.FindAssets("t:" + nameof(PromptUGUI.Application.IconSet));
+            foreach (var guid in guids) {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                var s = AssetDatabase.LoadAssetAtPath<PromptUGUI.Application.IconSet>(path);
+                if (s != null) yield return s;
+            }
+        }
+
         /// <summary>若 IconSet.atlas 为 null，在 SO 同目录创建 &lt;setName&gt;.spriteatlas 并回填。</summary>
         internal static SpriteAtlas EnsureAtlasAsset(PromptUGUI.Application.IconSet set) {
             if (set.Atlas != null) return set.Atlas;
