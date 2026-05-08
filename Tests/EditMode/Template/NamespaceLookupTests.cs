@@ -75,5 +75,14 @@ namespace PromptUGUI.Tests.Template {
             Assert.AreEqual("Frame", expanded.Screens[0].Root.Children[0].Tag);
             Assert.AreEqual("Image", expanded.Screens[0].Root.Children[1].Tag);
         }
+
+        [Test]
+        public void Unknown_namespace_message_lists_namespace() {
+            var inv = new ElementNode("Foo", "missing");
+            var loaded = Make(inv, System.Array.Empty<(string, string, ElementNode)>());
+            var ex = Assert.Throws<TemplateException>(() => TemplateExpander.Expand(loaded));
+            StringAssert.Contains("missing", ex.Message);
+            StringAssert.Contains("Foo", ex.Message);
+        }
     }
 }
