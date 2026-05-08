@@ -16,7 +16,6 @@ namespace PromptUGUI.Tests.PlayMode {
 
         [SetUp] public void Setup() {
             UI.ResetForTests();
-            BuiltinPrimitives.Register(UI.Registry);
             if (!AssetDatabase.IsValidFolder(TmpRoot))
                 AssetDatabase.CreateFolder("Assets", "__test_iconruntime__");
         }

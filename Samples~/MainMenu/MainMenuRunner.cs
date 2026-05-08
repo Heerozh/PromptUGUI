@@ -19,7 +19,6 @@ namespace PromptUGUI.Samples.MainMenu {
         [SerializeField] IconSet[] iconSets;
 
         void Start() {
-            BuiltinPrimitives.Register(UI.Registry);
             UI.UseResourcesResolver("UI");
 
             // 注册图标系统：建立 ns:icon → Sprite 查表，供 <Icon name="..."/> 使用

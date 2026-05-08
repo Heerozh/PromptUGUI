@@ -5,7 +5,7 @@ using PromptUGUI.Registry;
 
 namespace PromptUGUI.Application {
     public static partial class UI {
-        static ControlRegistry _registry = new();
+        static ControlRegistry _registry = CreateRegistryWithBuiltins();
         static readonly Dictionary<string, ScreenDef> _docs = new();
         static readonly Dictionary<string, Screen> _open = new();
         static readonly VariantStore _variantStore = new();
@@ -230,7 +230,7 @@ namespace PromptUGUI.Application {
             _open.Clear();
             _docs.Clear();
             _variantStore.Reset();
-            _registry = new ControlRegistry();
+            _registry = CreateRegistryWithBuiltins();
             _commonsPool.Clear();
             _depGraph.Clear();
             SourceResolver = null;
@@ -240,6 +240,12 @@ namespace PromptUGUI.Application {
             HotReload.IconResolverRebuilder = null;
             HotReload.Enabled = true;
 #endif
+        }
+
+        static ControlRegistry CreateRegistryWithBuiltins() {
+            var r = new ControlRegistry();
+            BuiltinPrimitives.Register(r);
+            return r;
         }
 
 #if UNITY_EDITOR

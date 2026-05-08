@@ -21,7 +21,6 @@ namespace PromptUGUI.Tests.Lifecycle {
 
         [SetUp] public void SetUp() {
             UI.ResetForTests();
-            BuiltinPrimitives.Register(UI.Registry);
             _reg = UI.Registry;
             _store = UI.VariantStore;
         }

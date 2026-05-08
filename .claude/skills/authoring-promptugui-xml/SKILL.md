@@ -31,7 +31,7 @@ This skill covers everything you need to write or edit a `.ui.xml` correctly. Re
 
 ## Built-in primitives (8)
 
-Registered automatically by `BuiltinPrimitives.Register(UI.Registry)`. Use as XML tags by name:
+Pre-registered on `UI.Registry`. Use as XML tags by name:
 
 | Tag | Notes | Tag-specific attributes |
 |---|---|---|
@@ -244,8 +244,7 @@ using PromptUGUI.Application;
 using R3;
 
 UI.SourceResolver = key => Resources.Load<TextAsset>($"UI/{key}").text;
-BuiltinPrimitives.Register(UI.Registry);
-UI.Registry.Register<MyCustomControl>("MyTag", myPrefab);  // optional
+UI.Registry.Register<MyCustomControl>("MyTag", myPrefab);  // optional; built-ins are pre-registered
 
 UI.LoadCommonLibrary("common/Buttons");                    // optional
 UI.LoadDocumentFromSrc("screens/MainMenu");                // resolver path
@@ -419,7 +418,6 @@ C# VARIANT    UI.Variants.Set("name", true)
 
 ```csharp
 UI.SourceResolver = key => Resources.Load<TextAsset>($"UI/{key}").text;
-BuiltinPrimitives.Register(UI.Registry);
 UI.LoadDocumentFromSrc("screens/main");
 
 #if UNITY_IOS || UNITY_ANDROID

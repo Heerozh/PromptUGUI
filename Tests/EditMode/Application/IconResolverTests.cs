@@ -9,7 +9,6 @@ namespace PromptUGUI.Tests.Application {
     public class IconResolverTests {
         [SetUp] public void Setup() {
             UI.ResetForTests();
-            BuiltinPrimitives.Register(UI.Registry);
         }
         [TearDown] public void Teardown() => UI.ResetForTests();
 

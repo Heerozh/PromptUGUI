@@ -38,7 +38,6 @@ namespace PromptUGUI.Tests.E2E {
         [SetUp]
         public void SetUp() {
             UI.ResetForTests();
-            BuiltinPrimitives.Register(UI.Registry);
 
             // 构造一个 mock button prefab
             _btnPrefab = new GameObject("TestButtonPrefab", typeof(RectTransform));

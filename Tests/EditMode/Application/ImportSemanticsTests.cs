@@ -8,7 +8,6 @@ namespace PromptUGUI.Tests.Application {
         [SetUp]
         public void Setup() {
             UI.ResetForTests();
-            BuiltinPrimitives.Register(UI.Registry);
         }
         [TearDown] public void TearDown() => UI.ResetForTests();
 

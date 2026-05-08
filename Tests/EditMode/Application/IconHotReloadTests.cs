@@ -6,7 +6,6 @@ namespace PromptUGUI.Tests.Application {
     public class IconHotReloadTests {
         [SetUp] public void Setup() {
             UI.ResetForTests();
-            BuiltinPrimitives.Register(UI.Registry);
         }
         [TearDown] public void Teardown() => UI.ResetForTests();
 

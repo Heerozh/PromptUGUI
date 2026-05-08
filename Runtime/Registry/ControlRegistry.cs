@@ -17,8 +17,6 @@ namespace PromptUGUI.Registry {
         public void Register<T>(string tag, GameObject prefab,
                                 string defaultTextAttr = null)
             where T : Control, new() {
-            if (_byTag.ContainsKey(tag))
-                throw new InvalidOperationException($"tag '{tag}' already registered");
             _byTag[tag] = new Entry {
                 ControlType = typeof(T),
                 Prefab = prefab,

@@ -111,7 +111,7 @@ After any source edit, refresh first, then check console for compile errors befo
 
 ## Test Conventions
 
-EditMode test classes that touch `UI` must call `UI.ResetForTests()` in `[SetUp]` and `[TearDown]`. Tests that open Screens additionally need `BuiltinPrimitives.Register(UI.Registry)`. The fake-files pattern for resolver-driven tests is established in `DocumentLoaderTests.cs` and `HotReloadTests.cs`.
+EditMode test classes that touch `UI` must call `UI.ResetForTests()` in `[SetUp]` and `[TearDown]`. `ResetForTests` rebuilds the registry with built-ins pre-registered — tests don't need to register them manually. The fake-files pattern for resolver-driven tests is established in `DocumentLoaderTests.cs` and `HotReloadTests.cs`.
 
 XSD generator tests use substring assertions (`StringAssert.Contains`) rather than byte-exact snapshots — small XSD changes won't trigger fixture churn.
 

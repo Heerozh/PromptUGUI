@@ -10,7 +10,6 @@ namespace PromptUGUI.Tests.Lifecycle {
 
         [SetUp] public void SetUp() {
             UI.ResetForTests();
-            BuiltinPrimitives.Register(UI.Registry);
         }
 
         [UnityTest]

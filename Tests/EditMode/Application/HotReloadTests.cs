@@ -10,7 +10,6 @@ namespace PromptUGUI.Tests.Application {
 
         [SetUp] public void Setup() {
             UI.ResetForTests();
-            BuiltinPrimitives.Register(UI.Registry);
             _files = new Dictionary<string, string>();
             UI.SourceResolver = src => _files.TryGetValue(src, out var v) ? v : null;
         }

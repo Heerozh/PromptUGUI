@@ -14,5 +14,16 @@ namespace PromptUGUI.Tests.Registry {
             var tags = r.All.Select(x => x.Tag).ToArray();
             CollectionAssert.AreEquivalent(new[] { "Frame", "VStack" }, tags);
         }
+
+        [Test]
+        public void Register_replaces_existing_tag_without_throwing() {
+            var r = new ControlRegistry();
+            r.Register<Frame>("Btn", null);
+
+            Assert.DoesNotThrow(() => r.Register<Btn>("Btn", null));
+
+            Assert.AreEqual(typeof(Btn), r.Resolve("Btn").ControlType);
+            Assert.AreEqual(1, r.All.Count(x => x.Tag == "Btn"));
+        }
     }
 }

@@ -22,7 +22,6 @@ namespace PromptUGUI.Tests.Registry {
 
         [SetUp] public void SetUp() {
             UI.ResetForTests();
-            BuiltinPrimitives.Register(UI.Registry);
 
             _prefab = new GameObject("BindSamplePrefab", typeof(RectTransform));
 

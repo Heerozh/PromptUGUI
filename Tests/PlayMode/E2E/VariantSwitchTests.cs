@@ -13,7 +13,6 @@ namespace PromptUGUI.Tests.E2E {
 
         [SetUp] public void SetUp() {
             UI.ResetForTests();
-            BuiltinPrimitives.Register(UI.Registry);
         }
 
         [TearDown] public void TearDown() {
