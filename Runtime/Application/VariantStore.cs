@@ -14,7 +14,7 @@ namespace PromptUGUI.Application {
 
         public bool IsActive(string name) => _active.Contains(name);
 
-        public IReadOnlyCollection<string> Active => _active;
+        internal IReadOnlyCollection<string> Active => _active;
 
         public void Set(string name, bool active) {
             bool changed = active ? _active.Add(name) : _active.Remove(name);
@@ -22,6 +22,6 @@ namespace PromptUGUI.Application {
         }
 
         /// <summary>测试用——清空所有激活变体，不发 Changed。</summary>
-        public void Reset() => _active.Clear();
+        internal void Reset() => _active.Clear();
     }
 }
