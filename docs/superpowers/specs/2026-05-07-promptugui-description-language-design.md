@@ -84,10 +84,10 @@ PromptUGUI 是一个 Unity 6+ 开源库，把一个紧凑的 XML 描述文件转
   <Screen name="MainMenu">
     <Image anchor="stretch" sprite="bg/main"/>
 
-    <VStack id="menuRoot"
-            anchor="center" size="480x320" spacing="12"
+    <VStack id="menuRoot" spacing="12"
+            anchor.pc="center" width.pc="480" height.pc="320"
             anchor.mobile-portrait="bottom-stretch"
-            size.mobile-portrait="_,400"
+            height.mobile-portrait="400"
             margin.mobile-portrait="_,16,80,16">
       <PrimaryButton id="playBtn"     size="240x64">开始游戏</PrimaryButton>
       <PrimaryButton id="settingsBtn" size="240x64">设置</PrimaryButton>
@@ -140,7 +140,7 @@ screen.Get<DangerButton>("quitBtn").OnClick
 
 ## 5. 内置控件原语
 
-刻意保持极少：6 个原语，覆盖布局与最基础视觉，其他全部通过自定义控件或 `<Template>` 扩展。
+刻意保持极少：7 个原语，覆盖布局、最基础视觉与点击交互，其他全部通过自定义控件或 `<Template>` 扩展。
 
 | 标签 | 作用 | 对应 uGUI |
 |---|---|---|
@@ -150,8 +150,11 @@ screen.Get<DangerButton>("quitBtn").OnClick
 | `<VStack>` | 纵向自动排布 | RectTransform + VerticalLayoutGroup |
 | `<HStack>` | 横向自动排布 | RectTransform + HorizontalLayoutGroup |
 | `<Grid>` | 网格排布 | RectTransform + GridLayoutGroup |
+| `<Btn>` | 通用按钮（背景图 + R3 OnClick 流） | Image + Button (uGUI) |
 
-不开 `<Button>`、`<Toggle>`、`<Slider>`、`<Dropdown>`、`<ScrollList>` 等原语。这些**必须**由代码侧注册的自定义控件提供，因为像素游戏中它们的视觉风格高度差异化（统一原语反而会出歧义）。
+`<Btn>` 提供"按钮"这一通用交互原语：可作为 Template 根，配合 `<Image>` / `<Text>` 子节点组合出 PrimaryButton / DangerButton / IconButton 等业务变体而无需额外 prefab。`Btn` 内部用 R3 `Subject<Unit>` 暴露 `OnClick`（与 §9.4 的"事件统一为 `Observable<T>`"约束一致）。
+
+不开 `<Toggle>`、`<Slider>`、`<Dropdown>`、`<ScrollList>` 等更复杂的原语。这些**必须**由代码侧注册的自定义控件提供，因为像素游戏中它们的视觉风格高度差异化（统一原语反而会出歧义）。
 
 ### 5.1 通用属性（任何标签可用）
 
@@ -385,14 +388,14 @@ var closeBtn = dialog.Get("close");          // 模板内部
 ```xml
 <VStack id="menuRoot"
         anchor="center" size="480x320"
-        anchor.mobile-portrait="bottom-stretch"
-        size.mobile-portrait="_,320"
-        margin.mobile-portrait="_,16,40,16">
+        size.mobile="320x600">
   ...
 </VStack>
 ```
 
 任何属性都可加 `.variantName` 后缀；多个后缀可并存。
+
+`attr.var` 是**整体替换**——不支持按分量的部分覆盖（例如 `size.var="_,400"` 借 margin 占位语法是非法）。要单独改一根轴：用 `width.var` / `height.var`，或在 base 不放冲突轴的 size、改用显式 `pc` / `mobile-portrait` 等变体把每条尺寸分别声明（见 §3 主菜单示例：anchor 切到 stretch 那一轴必须从 base 删除 width，所以走 `anchor.pc` + `width.pc` + `height.mobile-portrait` 这种"分期"写法）。
 
 ### 8.3 解析规则
 
@@ -424,8 +427,8 @@ var closeBtn = dialog.Get("close");          // 模板内部
 </Variant>
 ```
 
-- `into` 指定目标父节点：`#id` 或 `@root`（Screen 根）
-- `at` 控制插入位置：`start` / `end`（默认）/ 整数索引
+- `into` 指定目标父节点：`@root`（Screen 根）/ `#id`（Screen 顶层 id）/ `#id/path/to/inner`（按 `/` 分段下钻 ScopedIds，与 §9.2 `Screen.Get("a/b")` 同义；用于把变体专属节点插入模板实例内部，例如 `<Add into="#dialog/itemGrid">` 把项目注入 TitledPanel 内的 Grid）
+- `at` 控制插入位置：`start` / `end`（默认）/ 整数索引（越界自动 clamp：负数 → 0，超过当前 child 数 → 末尾）
 - 移除元素 → 用 `hidden.variant="true"`，无需 Remove
 - 修改属性 → 用内联 `attr.variant`，无需 Override
 
@@ -611,13 +614,14 @@ HeTu.Sub<int>("player.gold").BindText(...).AddTo(screen);
   <Template name="..."> [<Param name="p" [default=""]/>...] body </Template>
 </PromptUGUI>
 
-## 内置原语 (6)
+## 内置原语 (7)
 <Frame>            纯定位容器
 <Image sprite="" color=""/>
 <Text>文本</Text>     或 <Text text="..."/>
 <VStack spacing="" padding="">
 <HStack spacing="" padding="">
 <Grid columns="" spacing="" padding="">
+<Btn color="" sprite="">点击</Btn>   通用按钮（OnClick 流）
 
 ## 自定义控件
 注册后写法等同 <PascalCase .../>。
@@ -647,9 +651,9 @@ if="{{p}}"       仅 truthy 时保留该元素
 <D id="d"><B id="b"/></D>  →  screen.Get("d/b")
 
 ## Variant
-内联:  attr.var="..."     (last-active-wins; 多个 .var 可并存)
+内联:  attr.var="..."     (last-active-wins; 多个 .var 可并存; 整体替换, 不支持 _ 部分覆盖)
 块:    <Variant when="var">
-         <Add into="#id|@root" at="end|start|N">...</Add>
+         <Add into="#id[/path/...]|@root" at="end|start|N">...</Add>
        </Variant>
 不可带 .var: id, 标签名, <Param default>
 ```
