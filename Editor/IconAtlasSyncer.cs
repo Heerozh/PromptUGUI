@@ -146,8 +146,20 @@ namespace PromptUGUI.Editor {
             importer.SaveAndReimport();
         }
 
-        /// <summary>差量同步 atlas 的 packables。返回 true 表示发生了变更。</summary>
+        /// <summary>差量同步 atlas 的 packables。返回 true 表示发生了变更。
+        /// V2 atlases (`*.spriteatlasv2`) require <see cref="SpriteAtlasAsset.Save"/>
+        /// to persist; mutating the runtime <see cref="SpriteAtlas"/> view alone updates
+        /// only in-memory state and the editor will show an empty atlas on disk.</summary>
         public static bool UpdateAtlas(SpriteAtlas atlas, Sprite[] desired) {
+            var path = AssetDatabase.GetAssetPath(atlas);
+            if (!string.IsNullOrEmpty(path) &&
+                path.EndsWith(".spriteatlasv2", StringComparison.Ordinal)) {
+                return UpdateAtlasV2(path, desired);
+            }
+            return UpdateAtlasV1(atlas, desired);
+        }
+
+        static bool UpdateAtlasV1(SpriteAtlas atlas, Sprite[] desired) {
             var current = atlas.GetPackables();
             if (PackablesEqual(current, desired)) return false;
             atlas.Remove(current);
@@ -158,6 +170,49 @@ namespace PromptUGUI.Editor {
             SpriteAtlasUtility.PackAtlases(
                 new[] { atlas },
                 EditorUserBuildSettings.activeBuildTarget);
+            return true;
+        }
+
+        // V2's packables list lives at m_ImporterData.packables. v2.Add/Remove route
+        // through this serialized array but offer no enumeration, and v2.GetMasterAtlas()
+        // returns the packed-output runtime view, NOT this input list — which is why a
+        // diff against master.GetPackables() lets every sync re-Add and accumulate.
+        // Overwrite the array via SerializedObject so re-sync produces a stable result.
+        const string V2PackablesPath = "m_ImporterData.packables";
+
+        static bool UpdateAtlasV2(string path, Sprite[] desired) {
+            var v2 = SpriteAtlasAsset.Load(path);
+            if (v2 == null) {
+                Debug.LogError($"[IconSync] failed to load V2 atlas at {path}");
+                return false;
+            }
+            var so = new SerializedObject(v2);
+            var prop = so.FindProperty(V2PackablesPath);
+            if (prop == null || !prop.isArray) {
+                Debug.LogError(
+                    $"[IconSync] cannot find '{V2PackablesPath}' on V2 atlas at {path}; " +
+                    $"Unity API may have changed");
+                return false;
+            }
+
+            var current = new UnityEngine.Object[prop.arraySize];
+            for (int i = 0; i < prop.arraySize; i++)
+                current[i] = prop.GetArrayElementAtIndex(i).objectReferenceValue;
+            if (PackablesEqual(current, desired)) return false;
+
+            prop.arraySize = desired.Length;
+            for (int i = 0; i < desired.Length; i++)
+                prop.GetArrayElementAtIndex(i).objectReferenceValue = desired[i];
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            SpriteAtlasAsset.Save(v2, path);
+            AssetDatabase.ImportAsset(path);
+            var refreshed = AssetDatabase.LoadAssetAtPath<SpriteAtlas>(path);
+            if (refreshed != null) {
+                SpriteAtlasUtility.PackAtlases(
+                    new[] { refreshed },
+                    EditorUserBuildSettings.activeBuildTarget);
+            }
             return true;
         }
 

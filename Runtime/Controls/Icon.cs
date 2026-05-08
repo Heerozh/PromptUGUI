@@ -29,7 +29,11 @@ namespace PromptUGUI.Controls {
                 }
                 var sprite = UI.IconResolver(value);
                 if (sprite == null)
-                    Debug.LogError($"Icon '{value}': resolver returned null");
+                    Debug.LogError(
+                        $"Icon '{value}': resolver returned null. " +
+                        $"Check the icon name spelling, or run " +
+                        $"Tools → PromptUGUI → Sync Icon Atlases (All Sets) to " +
+                        $"include it in the IconSet's atlas.");
                 _img.sprite = sprite;
             }
         }

@@ -4,6 +4,7 @@ using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Editor;
 using UnityEditor;
+using UnityEditor.U2D;
 using UnityEngine;
 using UnityEngine.TestTools;
 
@@ -136,6 +137,60 @@ namespace PromptUGUI.Tests.Editor {
             Assert.AreEqual(TextureImporterType.Sprite, after.textureType);
             Assert.AreEqual(SpriteImportMode.Multiple, after.spriteImportMode,
                 "Author-configured Multiple sheet must not be silently flipped to Single");
+        }
+
+        [Test]
+        public void UpdateAtlas_v2_does_not_accumulate_packables_on_repeated_sync() {
+            var folder = $"{TestRoot}/v2";
+            AssetDatabase.CreateFolder(TestRoot, "v2");
+
+            // Bootstrap a V2 atlas asset on disk via AssetDatabase.CreateAsset.
+            // Unity logs an error about CreateAsset for .spriteatlasv2 but it does
+            // produce a usable file; LogAssert.Expect absorbs that diagnostic.
+            var atlasPath = $"{folder}/test.spriteatlasv2";
+            LogAssert.Expect(LogType.Error,
+                new System.Text.RegularExpressions.Regex("CreateAsset.*spriteatlasv2"));
+            var v2 = new SpriteAtlasAsset();
+            AssetDatabase.CreateAsset(v2, atlasPath);
+            AssetDatabase.SaveAssets();
+            _toCleanup.Add(atlasPath);
+
+            // Two distinct sprite assets so we can verify the second sync replaces, not appends.
+            var pngA = $"{folder}/a.png";
+            File.WriteAllBytes(pngA, MakeBlankPng());
+            ImportAsSprite(pngA);
+            _toCleanup.Add(pngA);
+            var spriteA = AssetDatabase.LoadAssetAtPath<Sprite>(pngA);
+
+            var pngB = $"{folder}/b.png";
+            File.WriteAllBytes(pngB, MakeBlankPng());
+            ImportAsSprite(pngB);
+            _toCleanup.Add(pngB);
+            var spriteB = AssetDatabase.LoadAssetAtPath<Sprite>(pngB);
+
+            var atlas = AssetDatabase.LoadAssetAtPath<UnityEngine.U2D.SpriteAtlas>(atlasPath);
+            Assume.That(atlas, Is.Not.Null, "V2 atlas bootstrap failed; cannot run test");
+
+            IconAtlasSyncer.UpdateAtlas(atlas, new[] { spriteA });
+            IconAtlasSyncer.UpdateAtlas(atlas, new[] { spriteB });
+            AssetDatabase.SaveAssets();
+
+            // Read packables directly from the V2 asset's serialized data — master's
+            // runtime view doesn't reflect the V2 input list.
+            var reloaded = SpriteAtlasAsset.Load(atlasPath);
+            var so = new SerializedObject(reloaded);
+            var prop = so.FindProperty("m_ImporterData.packables");
+            Assert.IsNotNull(prop, "V2 packables property path changed; test fixture stale");
+            Assert.AreEqual(1, prop.arraySize,
+                $"V2 atlas should have exactly 1 packable after two syncs, got {prop.arraySize}");
+        }
+
+        void ImportAsSprite(string pngPath) {
+            AssetDatabase.ImportAsset(pngPath, ImportAssetOptions.ForceUpdate);
+            var importer = AssetImporter.GetAtPath(pngPath) as TextureImporter;
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Single;
+            importer.SaveAndReimport();
         }
 
         [Test]
