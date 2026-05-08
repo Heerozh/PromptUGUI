@@ -223,5 +223,62 @@ namespace PromptUGUI.Tests.Template {
                 <Screen name='S'><Box/></Screen></PromptUGUI>");
             Assert.Throws<TemplateException>(() => TemplateExpander.Expand(doc));
         }
+
+        [Test]
+        public void Variant_overrides_inside_template_body_are_preserved() {
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
+                <Template name='Box'>
+                    <Frame anchor='center' anchor.mobile='top-stretch'/>
+                </Template>
+                <Screen name='S'>
+                    <Box id='b'/>
+                </Screen></PromptUGUI>");
+
+            var expanded = TemplateExpander.Expand(doc);
+            var b = expanded.Screens[0].Root.Children[0];
+
+            Assert.AreEqual("Frame", b.Tag);
+            Assert.AreEqual("center", b.Attributes["anchor"]);
+            Assert.IsTrue(b.VariantOverrides.ContainsKey("anchor"));
+            Assert.AreEqual(1, b.VariantOverrides["anchor"].Count);
+            Assert.AreEqual("top-stretch", b.VariantOverrides["anchor"][0].Value);
+        }
+
+        [Test]
+        public void Variant_overrides_on_invocation_propagate_to_instance_root() {
+            // 模板调用上 anchor.mobile=... 应作为通用属性 .var 透传
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
+                <Template name='Box'>
+                    <Frame/>
+                </Template>
+                <Screen name='S'>
+                    <Box id='b' anchor='center' anchor.mobile='top-stretch'/>
+                </Screen></PromptUGUI>");
+
+            var expanded = TemplateExpander.Expand(doc);
+            var b = expanded.Screens[0].Root.Children[0];
+
+            Assert.AreEqual("center", b.Attributes["anchor"]);
+            Assert.IsTrue(b.VariantOverrides.ContainsKey("anchor"));
+            Assert.AreEqual("top-stretch", b.VariantOverrides["anchor"][0].Value);
+        }
+
+        [Test]
+        public void Variant_overrides_on_template_body_inner_nodes_are_preserved() {
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
+                <Template name='Box'>
+                    <Frame>
+                        <Image id='inner' size='10x10' size.mobile='20x20'/>
+                    </Frame>
+                </Template>
+                <Screen name='S'>
+                    <Box id='b'/>
+                </Screen></PromptUGUI>");
+
+            var expanded = TemplateExpander.Expand(doc);
+            var inner = expanded.Screens[0].Root.Children[0].Children[0];
+            Assert.AreEqual("Image", inner.Tag);
+            Assert.AreEqual("20x20", inner.VariantOverrides["size"][0].Value);
+        }
     }
 }
