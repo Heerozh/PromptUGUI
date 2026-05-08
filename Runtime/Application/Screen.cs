@@ -68,6 +68,16 @@ namespace PromptUGUI.Application {
             canvas.vertexColorAlwaysGammaSpace = true;
             UI.CanvasConfigurator?.Invoke(canvas, _def.Name);
 
+            // 缺少 EventSystem 时按钮等不会响应任何指针事件,这是常见的踩坑点。
+            // 仅在 PlayMode 提示;EditMode 测试不需要 EventSystem。
+            if (UnityEngine.Application.isPlaying &&
+                UnityEngine.Object.FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>() == null) {
+                Debug.LogWarning(
+                    $"[PromptUGUI] No EventSystem found in scene; pointer events " +
+                    $"(Btn clicks, hovers, etc.) on Screen '{_def.Name}' will not fire. " +
+                    $"Add one via GameObject → UI → Event System.");
+            }
+
             var result = _instantiator.InstantiateInto(root, _def);
             RootGameObject = result.Root;
             foreach (var kv in result.Controls) _byId[kv.Key] = kv.Value;
