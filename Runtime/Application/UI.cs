@@ -191,6 +191,38 @@ namespace PromptUGUI.Application {
         public static Screen Get(string screenName) =>
             _open.TryGetValue(screenName, out var s) ? s : null;
 
+        /// <summary>
+        /// Clears all commons-pool entries and dep-graph commons sources.
+        /// Loaded Screens, depGraph.ScreenDeps, SourceResolver, Registry are preserved.
+        /// Use when re-bootstrapping commons (e.g., to swap as= namespace).
+        /// </summary>
+        public static void UnloadAllCommonLibraries() {
+            _commonsPool.Clear();
+            _depGraph.CommonsSources.Clear();
+            // Remove commons srcs from _srcToDeps; leave screen-related entries intact.
+            var commonsSrcs = new System.Collections.Generic.List<string>();
+            foreach (var src in _depGraph.SrcToDeps.Keys) {
+                bool stillUsedByScreen = false;
+                foreach (var sd in _depGraph.ScreenDeps.Values) {
+                    if (sd.AllDeps.Contains(src)) { stillUsedByScreen = true; break; }
+                }
+                if (!stillUsedByScreen) commonsSrcs.Add(src);
+            }
+            foreach (var s in commonsSrcs) _depGraph.SrcToDeps.Remove(s);
+        }
+
+        /// <summary>
+        /// Clears all loaded state — commons + Screens + open + dep graph.
+        /// Preserves SourceResolver, HotReload.AssetPathToSrc (Editor), and Registry.
+        /// </summary>
+        public static void UnloadAll() {
+            foreach (var s in _open.Values) s.Close();
+            _open.Clear();
+            _docs.Clear();
+            _commonsPool.Clear();
+            _depGraph.Clear();
+        }
+
         // 仅测试使用
         internal static void ResetForTests() {
             foreach (var s in _open.Values) s.Close();

@@ -175,5 +175,30 @@ namespace PromptUGUI.Tests.Application {
                 fn("Assets/Samples/PromptUGUI/0.0.0/Demo/Resources/UI/subdir/X.ui.xml"));
             Assert.IsNull(fn("Assets/Other/Foo.txt"));
         }
+
+        [Test]
+        public void UnloadAllCommonLibraries_clears_commons_only() {
+            UI.SourceResolver = _ => @"<?xml version='1.0'?><PromptUGUI version='1'>
+                <Template name='T'><Frame/></Template>
+              </PromptUGUI>";
+            UI.LoadCommonLibrary("c");
+            UI.UnloadAllCommonLibraries();
+
+            // Re-loading the same commons should now succeed (no conflict)
+            Assert.DoesNotThrow(() => UI.LoadCommonLibrary("c"));
+        }
+
+        [Test]
+        public void UnloadAll_clears_everything_but_preserves_resolver() {
+            var savedResolver = UI.SourceResolver = _ => @"<?xml version='1.0'?><PromptUGUI version='1'>
+                <Screen name='X'><Frame/></Screen>
+              </PromptUGUI>";
+            UI.LoadDocumentFromSrc("x");
+            UI.UnloadAll();
+
+            // Resolver still set; loading the same Screen succeeds again
+            Assert.AreSame(savedResolver, UI.SourceResolver);
+            Assert.DoesNotThrow(() => UI.LoadDocumentFromSrc("x"));
+        }
     }
 }
