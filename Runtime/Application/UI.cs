@@ -34,6 +34,25 @@ namespace PromptUGUI.Application {
             }
         }
 
+        public static IReadOnlyList<string> LoadDocumentFromSrc(string src) {
+            if (SourceResolver == null)
+                throw new System.InvalidOperationException(
+                    "UI.SourceResolver must be set before LoadDocumentFromSrc");
+
+            var loaded = DocumentLoader.Load(src, SourceResolver, allowScreens: true);
+            var expanded = PromptUGUI.Template.TemplateExpander.Expand(loaded);
+
+            var added = new List<string>();
+            foreach (var s in expanded.Screens) {
+                if (_docs.ContainsKey(s.Name))
+                    throw new System.InvalidOperationException(
+                        $"Screen '{s.Name}' already loaded");
+                _docs[s.Name] = s;
+                added.Add(s.Name);
+            }
+            return added;
+        }
+
         public static Screen Open(string screenName) {
             if (_open.TryGetValue(screenName, out var existing)) return existing;
             if (!_docs.TryGetValue(screenName, out var def))
