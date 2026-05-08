@@ -68,7 +68,7 @@ namespace PromptUGUI.Application {
             try { doc = UIDocumentParser.Parse(xml); }
             catch (ParseException) { throw; }
             catch (Exception e) {
-                throw new ParseException($"parsing src='{src}' failed: {e.Message}");
+                throw new ParseException($"parsing src='{src}' failed: {e.Message}", e);
             }
 
             if (!allowScreens && doc.Screens.Count > 0)
