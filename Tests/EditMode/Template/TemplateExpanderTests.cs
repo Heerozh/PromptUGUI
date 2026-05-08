@@ -223,5 +223,144 @@ namespace PromptUGUI.Tests.Template {
                 <Screen name='S'><Box/></Screen></PromptUGUI>");
             Assert.Throws<TemplateException>(() => TemplateExpander.Expand(doc));
         }
+
+        [Test]
+        public void Variant_overrides_inside_template_body_are_preserved() {
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
+                <Template name='Box'>
+                    <Frame anchor='center' anchor.mobile='top-stretch'/>
+                </Template>
+                <Screen name='S'>
+                    <Box id='b'/>
+                </Screen></PromptUGUI>");
+
+            var expanded = TemplateExpander.Expand(doc);
+            var b = expanded.Screens[0].Root.Children[0];
+
+            Assert.AreEqual("Frame", b.Tag);
+            Assert.AreEqual("center", b.Attributes["anchor"]);
+            Assert.IsTrue(b.VariantOverrides.ContainsKey("anchor"));
+            Assert.AreEqual(1, b.VariantOverrides["anchor"].Count);
+            Assert.AreEqual("top-stretch", b.VariantOverrides["anchor"][0].Value);
+            Assert.AreEqual("mobile", b.VariantOverrides["anchor"][0].Variant);
+        }
+
+        [Test]
+        public void Variant_overrides_on_invocation_propagate_to_instance_root() {
+            // 模板调用上 anchor.mobile=... 应作为通用属性 .var 透传
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
+                <Template name='Box'>
+                    <Frame/>
+                </Template>
+                <Screen name='S'>
+                    <Box id='b' anchor='center' anchor.mobile='top-stretch'/>
+                </Screen></PromptUGUI>");
+
+            var expanded = TemplateExpander.Expand(doc);
+            var b = expanded.Screens[0].Root.Children[0];
+
+            Assert.AreEqual("center", b.Attributes["anchor"]);
+            Assert.IsTrue(b.VariantOverrides.ContainsKey("anchor"));
+            Assert.AreEqual("top-stretch", b.VariantOverrides["anchor"][0].Value);
+            Assert.AreEqual(1, b.VariantOverrides["anchor"].Count);
+            Assert.AreEqual("mobile", b.VariantOverrides["anchor"][0].Variant);
+        }
+
+        [Test]
+        public void Variant_overrides_on_template_body_inner_nodes_are_preserved() {
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
+                <Template name='Box'>
+                    <Frame>
+                        <Image id='inner' size='10x10' size.mobile='20x20'/>
+                    </Frame>
+                </Template>
+                <Screen name='S'>
+                    <Box id='b'/>
+                </Screen></PromptUGUI>");
+
+            var expanded = TemplateExpander.Expand(doc);
+            var inner = expanded.Screens[0].Root.Children[0].Children[0];
+            Assert.AreEqual("Image", inner.Tag);
+            Assert.AreEqual("20x20", inner.VariantOverrides["size"][0].Value);
+            Assert.AreEqual(1, inner.VariantOverrides["size"].Count);
+            Assert.AreEqual("mobile", inner.VariantOverrides["size"][0].Variant);
+        }
+
+        [Test]
+        public void Throws_on_invocation_variant_override_for_template_param() {
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
+                <Template name='Box'>
+                    <Param name='title'/>
+                    <Text>{{title}}</Text>
+                </Template>
+                <Screen name='S'>
+                    <Box title='hi' title.mobile='hello'/>
+                </Screen></PromptUGUI>");
+
+            Assert.Throws<TemplateException>(() => TemplateExpander.Expand(doc));
+        }
+
+        [Test]
+        public void Throws_on_invocation_variant_override_with_unknown_key() {
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
+                <Template name='Box'>
+                    <Frame/>
+                </Template>
+                <Screen name='S'>
+                    <Box weird.mobile='x'/>
+                </Screen></PromptUGUI>");
+
+            Assert.Throws<TemplateException>(() => TemplateExpander.Expand(doc));
+        }
+
+        [Test]
+        public void Variants_block_is_carried_through_expansion() {
+            // 守护 Task 8 的 TemplateExpander 修复：Screen.Variants 在 Expand 后必须保留
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
+                <Screen name='S'>
+                    <Frame id='root'/>
+                    <Variant when='m'>
+                        <Add into='#root'><Image id='extra'/></Add>
+                    </Variant>
+                </Screen></PromptUGUI>");
+
+            var expanded = TemplateExpander.Expand(doc);
+            var s = expanded.Screens[0];
+            Assert.AreEqual(1, s.Variants.Count);
+            Assert.AreEqual("m", s.Variants[0].When);
+            Assert.AreEqual(1, s.Variants[0].Adds.Count);
+            Assert.AreEqual("#root", s.Variants[0].Adds[0].IntoPath);
+            Assert.AreEqual(1, s.Variants[0].Adds[0].Children.Count);
+            Assert.AreEqual("Image", s.Variants[0].Adds[0].Children[0].Tag);
+            Assert.AreEqual("extra", s.Variants[0].Adds[0].Children[0].Id);
+        }
+
+        [Test]
+        public void Variants_block_template_invocation_inside_Add_is_expanded() {
+            // 守护 Task 8 的 TemplateExpander 修复的另一面：Add.Children 中
+            // 的模板调用要被展开（而不是原样留作未知 tag）
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
+                <Template name='IconBtn'>
+                    <Param name='label'/>
+                    <Frame>
+                        <Text>{{label}}</Text>
+                    </Frame>
+                </Template>
+                <Screen name='S'>
+                    <Frame id='root'/>
+                    <Variant when='m'>
+                        <Add into='#root'>
+                            <IconBtn label='OK'/>
+                        </Add>
+                    </Variant>
+                </Screen></PromptUGUI>");
+
+            var expanded = TemplateExpander.Expand(doc);
+            var addedRoot = expanded.Screens[0].Variants[0].Adds[0].Children[0];
+            // 应该展开成 Frame（IconBtn 的模板根），而不是 IconBtn 标签
+            Assert.AreEqual("Frame", addedRoot.Tag);
+            Assert.IsTrue(addedRoot.IsTemplateInstanceRoot);
+            Assert.AreEqual("OK", addedRoot.Children[0].TextContent);
+        }
     }
 }

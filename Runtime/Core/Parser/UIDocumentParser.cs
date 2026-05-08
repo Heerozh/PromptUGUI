@@ -46,10 +46,22 @@ namespace PromptUGUI.Parser {
 
             var idsInScreen = new System.Collections.Generic.HashSet<string>();
             var rootNode = new ElementNode("__screen_root__");
-            foreach (XmlNode c in el.ChildNodes)
-                if (c is XmlElement child_el)
+            var screen = new ScreenDef(name, rootNode);
+            var seenWhen = new System.Collections.Generic.HashSet<string>();
+
+            foreach (XmlNode c in el.ChildNodes) {
+                if (c is not XmlElement child_el) continue;
+                if (child_el.Name == "Variant") {
+                    var when = child_el.GetAttribute("when").Trim();
+                    if (!string.IsNullOrEmpty(when) && !seenWhen.Add(when))
+                        throw new ParseException(
+                            $"<Screen name='{name}'>: duplicate <Variant when='{when}'>");
+                    ParseVariantBlock(child_el, screen, idsInScreen);
+                } else {
                     rootNode.Children.Add(ParseElement(child_el, idsInScreen));
-            doc.Screens.Add(new ScreenDef(name, rootNode));
+                }
+            }
+            doc.Screens.Add(screen);
         }
 
         static void ParseTemplate(XmlElement el, UIDocument doc) {
@@ -77,6 +89,15 @@ namespace PromptUGUI.Parser {
                     if (!paramNames.Add(pname))
                         throw new ParseException(
                             $"<Template name='{name}'>: duplicate <Param name='{pname}'>");
+
+                    foreach (XmlAttribute pa in ce.Attributes) {
+                        if (pa.Name == "name" || pa.Name == "default") continue;
+                        if (pa.Name.StartsWith("default.") || pa.Name.StartsWith("name."))
+                            throw new ParseException(
+                                $"<Param name='{pname}'>: '{pa.Name}' cannot carry .variant suffix");
+                        // 其他属性 M2 行为是隐式忽略，M3 维持
+                    }
+
                     string def = ce.HasAttribute("default") ? ce.GetAttribute("default") : null;
                     tpl.Params.Add(new ParamDef(pname, def));
                 } else {
@@ -96,6 +117,46 @@ namespace PromptUGUI.Parser {
             doc.Templates[name] = tpl;
         }
 
+        static void ParseVariantBlock(XmlElement el, ScreenDef screen,
+                                      System.Collections.Generic.HashSet<string> idsInScreen) {
+            var when = el.GetAttribute("when").Trim();
+            if (string.IsNullOrEmpty(when))
+                throw new ParseException("<Variant> requires 'when' attribute");
+
+            var block = new VariantBlock(when);
+
+            foreach (XmlNode c in el.ChildNodes) {
+                if (c is not XmlElement ce) continue;
+                if (ce.Name != "Add")
+                    throw new ParseException(
+                        $"<Variant when='{when}'>: only <Add> elements allowed (got <{ce.Name}>)");
+
+                var add = new AddDirective();
+                var into = ce.GetAttribute("into");
+                if (string.IsNullOrEmpty(into))
+                    throw new ParseException(
+                        $"<Add> inside <Variant when='{when}'>: 'into' attribute is required");
+                add.IntoPath = into;
+                if (ce.HasAttribute("at")) add.At = ce.GetAttribute("at");
+
+                foreach (XmlNode ac in ce.ChildNodes)
+                    if (ac is XmlElement ace)
+                        add.Children.Add(ParseElement(ace, idsInScreen));
+
+                if (add.Children.Count == 0)
+                    throw new ParseException(
+                        $"<Add into='{into}'> inside <Variant when='{when}'>: must contain at least one child element");
+
+                block.Adds.Add(add);
+            }
+
+            if (block.Adds.Count == 0)
+                throw new ParseException(
+                    $"<Variant when='{when}'>: must contain at least one <Add>");
+
+            screen.Variants.Add(block);
+        }
+
         static ElementNode ParseElement(XmlElement el,
                                         System.Collections.Generic.HashSet<string> idsInScope) {
             var node = new ElementNode(el.Name);
@@ -106,9 +167,36 @@ namespace PromptUGUI.Parser {
                         throw new ParseException(
                             $"Duplicate id='{attr.Value}' within scope");
                     node.Id = attr.Value;
-                } else {
-                    node.Attributes[attr.Name] = attr.Value;
+                    continue;
                 }
+
+                int dot = attr.Name.IndexOf('.');
+                if (dot < 0) {
+                    node.Attributes[attr.Name] = attr.Value;
+                    continue;
+                }
+
+                if (dot == 0 || dot == attr.Name.Length - 1)
+                    throw new ParseException(
+                        $"<{el.Name}>: malformed attribute '{attr.Name}' (variant suffix must be 'name.variant')");
+
+                var baseName = attr.Name.Substring(0, dot);
+                var variant = attr.Name.Substring(dot + 1);
+
+                if (variant.Contains('.'))
+                    throw new ParseException(
+                        $"<{el.Name}>: attribute '{attr.Name}' has '.' inside variant name " +
+                        $"(use '-' for compound names like 'mobile-portrait')");
+
+                if (baseName == "id")
+                    throw new ParseException(
+                        $"<{el.Name}>: 'id' cannot carry .variant suffix (id='{attr.Value}')");
+
+                if (!node.VariantOverrides.TryGetValue(baseName, out var list)) {
+                    list = new System.Collections.Generic.List<(string, string)>();
+                    node.VariantOverrides[baseName] = list;
+                }
+                list.Add((variant, attr.Value));
             }
 
             // 文本简写

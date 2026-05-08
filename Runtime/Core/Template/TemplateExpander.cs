@@ -26,7 +26,24 @@ namespace PromptUGUI.Template {
                     var ec = ExpandTree(c, doc.Templates, new HashSet<string>());
                     if (ec != null) newRoot.Children.Add(ec);
                 }
-                result.Screens.Add(new ScreenDef(s.Name, newRoot));
+                var newScreen = new ScreenDef(s.Name, newRoot);
+                foreach (var block in s.Variants) {
+                    var newBlock = new VariantBlock(block.When);
+                    foreach (var add in block.Adds) {
+                        var newAdd = new AddDirective {
+                            IntoPath = add.IntoPath,
+                            At = add.At,
+                        };
+                        foreach (var ch in add.Children) {
+                            EnsureNoSlot(ch, $"<Variant when='{block.When}'> in Screen '{s.Name}'");
+                            var ec = ExpandTree(ch, doc.Templates, new HashSet<string>());
+                            if (ec != null) newAdd.Children.Add(ec);
+                        }
+                        newBlock.Adds.Add(newAdd);
+                    }
+                    newScreen.Variants.Add(newBlock);
+                }
+                result.Screens.Add(newScreen);
             }
             return result;
         }
@@ -64,6 +81,7 @@ namespace PromptUGUI.Template {
             };
             foreach (var kv in src.Attributes)
                 dst.Attributes[kv.Key] = kv.Value;
+            CopyVariantOverrides(src, dst);
             foreach (var c in src.Children) {
                 var ec = ExpandTree(c, templates, visiting);
                 if (ec != null) dst.Children.Add(ec);
@@ -100,6 +118,17 @@ namespace PromptUGUI.Template {
                         $"<{tpl.Name}>: unknown attribute '{kv.Key}'");
                 }
 
+                foreach (var kv in invocation.VariantOverrides) {
+                    if (CommonAttrs.Contains(kv.Key)) continue;
+                    if (args.ContainsKey(kv.Key))
+                        throw new TemplateException(
+                            $"<{tpl.Name}>: variant override on template parameter '{kv.Key}' " +
+                            $"is not supported (only common attributes like anchor/size/margin " +
+                            $"can carry .variant suffixes on a template invocation)");
+                    throw new TemplateException(
+                        $"<{tpl.Name}>: unknown attribute '{kv.Key}' (with variant suffix)");
+                }
+
                 var slotContent = new List<ElementNode>();
                 foreach (var c in invocation.Children) {
                     var ec = ExpandTree(c, templates, visiting);
@@ -117,6 +146,14 @@ namespace PromptUGUI.Template {
                 foreach (var kv in invocation.Attributes) {
                     if (!CommonAttrs.Contains(kv.Key)) continue;
                     instanceRoot.Attributes[kv.Key] = kv.Value;
+                }
+                foreach (var kv in invocation.VariantOverrides) {
+                    if (!CommonAttrs.Contains(kv.Key)) continue;
+                    if (!instanceRoot.VariantOverrides.TryGetValue(kv.Key, out var list)) {
+                        list = new List<(string Variant, string Value)>();
+                        instanceRoot.VariantOverrides[kv.Key] = list;
+                    }
+                    list.AddRange(kv.Value);
                 }
 
                 return instanceRoot;
@@ -150,6 +187,7 @@ namespace PromptUGUI.Template {
                 if (kv.Key == "if") continue;
                 dst.Attributes[kv.Key] = kv.Value;
             }
+            CopyVariantOverrides(prepared, dst);
             foreach (var c in src.Children) {
                 if (c.Tag == "Slot") {
                     if (slotContent != null)
@@ -171,9 +209,21 @@ namespace PromptUGUI.Template {
             };
             foreach (var kv in src.Attributes)
                 dst.Attributes[kv.Key] = Substitution.Apply(kv.Value, args);
+            foreach (var kv in src.VariantOverrides) {
+                var newList = new List<(string Variant, string Value)>();
+                foreach (var (variant, value) in kv.Value)
+                    newList.Add((variant, Substitution.Apply(value, args)));
+                dst.VariantOverrides[kv.Key] = newList;
+            }
             foreach (var c in src.Children)
                 dst.Children.Add(c);
             return dst;
+        }
+
+        static void CopyVariantOverrides(ElementNode src, ElementNode dst) {
+            foreach (var kv in src.VariantOverrides)
+                dst.VariantOverrides[kv.Key] =
+                    new List<(string Variant, string Value)>(kv.Value);
         }
 
         static ElementNode DeepClone(ElementNode src) {
@@ -183,6 +233,7 @@ namespace PromptUGUI.Template {
                 IsTemplateInstanceRoot = src.IsTemplateInstanceRoot,
             };
             foreach (var kv in src.Attributes) dst.Attributes[kv.Key] = kv.Value;
+            CopyVariantOverrides(src, dst);
             foreach (var c in src.Children) dst.Children.Add(DeepClone(c));
             return dst;
         }

@@ -59,5 +59,39 @@ namespace PromptUGUI.Tests.Lifecycle {
             yield return null;
             UI.Close("S3");
         }
+
+        [UnityTest]
+        public IEnumerator Variant_anchor_on_VStack_child_logs_warning() {
+            LogAssert.Expect(LogType.Warning,
+                new Regex("anchor.*ignored.*inside.*layout group", RegexOptions.IgnoreCase));
+
+            UI.LoadDocument("vw1", @"<PromptUGUI version='1'>
+                <Screen name='VW1'>
+                    <VStack id='v' anchor='center' size='200x200'>
+                        <Image id='c' anchor.mobile='top-left'/>
+                    </VStack>
+                </Screen></PromptUGUI>");
+            UI.Open("VW1");
+
+            yield return null;
+            UI.Close("VW1");
+        }
+
+        [UnityTest]
+        public IEnumerator Variant_margin_on_HStack_child_logs_warning() {
+            LogAssert.Expect(LogType.Warning,
+                new Regex("margin.*ignored.*inside.*layout group", RegexOptions.IgnoreCase));
+
+            UI.LoadDocument("vw2", @"<PromptUGUI version='1'>
+                <Screen name='VW2'>
+                    <HStack id='h' anchor='center' size='200x100'>
+                        <Image id='c' margin.mobile='8'/>
+                    </HStack>
+                </Screen></PromptUGUI>");
+            UI.Open("VW2");
+
+            yield return null;
+            UI.Close("VW2");
+        }
     }
 }

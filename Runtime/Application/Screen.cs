@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using PromptUGUI.Controls;
 using PromptUGUI.IR;
+using PromptUGUI.Registry;
+using R3;
 using UnityEngine;
 
 namespace PromptUGUI.Application {
@@ -16,20 +18,40 @@ namespace PromptUGUI.Application {
     public sealed class Screen : IScreen {
         readonly ScreenDef _def;
         readonly ScreenInstantiator _instantiator;
+        readonly ControlRegistry _registry;
+        readonly VariantStore _variants;
         readonly Dictionary<string, IControl> _byId = new();
+        readonly Dictionary<ElementNode, Control> _nodeMap = new();
         readonly List<IDisposable> _subscriptions = new();
+        IDisposable _variantSub;
+
+        // 已实例化的 Add 块（不论当前是否可见）。Strategy C：首次进入激活才实例化；
+        // 之后 toggle 仅切根 GameObject 的 SetActive，永不 Destroy/移除字典项；
+        // 只在 Close 时随 RootGameObject 整体销毁。
+        readonly Dictionary<VariantBlock, AddInstance> _addInstances = new();
+
+        sealed class AddInstance {
+            public List<GameObject> Roots = new();
+            public List<string> AddedIds = new();
+            public List<ElementNode> AddedNodes = new();
+        }
 
         public string Name => _def.Name;
         public GameObject RootGameObject { get; private set; }
 
-        public Screen(ScreenDef def, ScreenInstantiator instantiator) {
+        internal IReadOnlyDictionary<ElementNode, Control> NodeMap => _nodeMap;
+        internal ScreenDef Def => _def;
+        internal VariantStore Variants => _variants;
+
+        public Screen(ScreenDef def, ScreenInstantiator instantiator,
+                      ControlRegistry registry, VariantStore variants) {
             _def = def;
             _instantiator = instantiator;
+            _registry = registry;
+            _variants = variants;
         }
 
         public void Open() {
-            // Build the root with Canvas first so child Graphic components can register
-            // with it during their Awake/OnEnable.
             var root = new GameObject(_def.Name,
                 typeof(RectTransform),
                 typeof(Canvas),
@@ -39,11 +61,18 @@ namespace PromptUGUI.Application {
 
             var result = _instantiator.InstantiateInto(root, _def);
             RootGameObject = result.Root;
-            foreach (var kv in result.Controls)
-                _byId[kv.Key] = kv.Value;
+            foreach (var kv in result.Controls) _byId[kv.Key] = kv.Value;
+            foreach (var kv in result.NodeToControl) _nodeMap[kv.Key] = kv.Value;
+            foreach (var block in _def.Variants) {
+                if (_variants.IsActive(block.When))
+                    ActivateAddBlock(block);
+            }
+            _variantSub = _variants.Changed.Subscribe(_ => ReSolve());
         }
 
         public void Close() {
+            _variantSub?.Dispose();
+            _variantSub = null;
             foreach (var d in _subscriptions) d.Dispose();
             _subscriptions.Clear();
             if (RootGameObject != null) {
@@ -51,6 +80,8 @@ namespace PromptUGUI.Application {
                 RootGameObject = null;
             }
             _byId.Clear();
+            _nodeMap.Clear();
+            _addInstances.Clear();
         }
 
         public T Get<T>(string idPath) where T : class, IControl {
@@ -79,5 +110,69 @@ namespace PromptUGUI.Application {
         public void Track(IDisposable d) => _subscriptions.Add(d);
 
         public void Dispose() => Close();
+
+        public void ReSolve() {
+            // Collect nodes belonging to currently-inactive Add blocks so we can skip
+            // re-applying attributes to them below. Their SetActive(false) state must
+            // not be overwritten by ApplyCommon's unconditional Hidden assignment.
+            var inactiveNodes = new HashSet<ElementNode>();
+            foreach (var block in _def.Variants) {
+                if (_variants.IsActive(block.When)) {
+                    ActivateAddBlock(block);
+                } else {
+                    DeactivateAddBlock(block);
+                    if (_addInstances.TryGetValue(block, out var inst))
+                        foreach (var n in inst.AddedNodes) inactiveNodes.Add(n);
+                }
+            }
+            // Strategy C: _nodeMap includes nodes from currently-hidden Add blocks.
+            // Skip attribute re-application for inactive Add block nodes to avoid
+            // ApplyCommon's Hidden=false overwriting the SetActive(false) set above.
+            foreach (var kv in _nodeMap) {
+                var node = kv.Key;
+                if (inactiveNodes.Contains(node)) continue;
+                var control = kv.Value;
+                var entry = _registry.Resolve(node.Tag);
+                ControlAttributeApplier.Apply(node, control, entry, _variants);
+            }
+        }
+
+        void ActivateAddBlock(VariantBlock block) {
+            if (_addInstances.TryGetValue(block, out var existing)) {
+                // 已实例化过：只重新显示根 GameObject，引用与订阅保持稳定
+                foreach (var go in existing.Roots)
+                    if (go != null) go.SetActive(true);
+                return;
+            }
+
+            // 首次激活：实例化并永久挂在 Screen 的 _byId / _nodeMap 里
+            var pseudoResult = new InstantiationResult {
+                Root = RootGameObject,
+                Controls = _byId,
+                NodeToControl = _nodeMap,
+            };
+
+            // 用 keys 差集追踪 Add 块新增的 ids / nodes（便于诊断与未来扩展）
+            var prevIds   = new HashSet<string>(_byId.Keys);
+            var prevNodes = new HashSet<ElementNode>(_nodeMap.Keys);
+
+            var inst = new AddInstance();
+            inst.Roots.AddRange(_instantiator.ApplyAddBlock(block, pseudoResult));
+
+            foreach (var k in _byId.Keys)
+                if (!prevIds.Contains(k)) inst.AddedIds.Add(k);
+            foreach (var n in _nodeMap.Keys)
+                if (!prevNodes.Contains(n)) inst.AddedNodes.Add(n);
+
+            _addInstances[block] = inst;
+        }
+
+        void DeactivateAddBlock(VariantBlock block) {
+            if (!_addInstances.TryGetValue(block, out var inst)) return;
+            // Strategy C：只 SetActive(false) 隐藏；不 Destroy、不从 _byId/_nodeMap 移除——
+            // 让代码侧 cached 引用与 R3 订阅跨 toggle 周期持续有效。
+            foreach (var go in inst.Roots)
+                if (go != null) go.SetActive(false);
+        }
     }
 }
