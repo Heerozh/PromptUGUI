@@ -50,5 +50,79 @@ namespace PromptUGUI.Tests.Application {
             Assert.Throws<InvalidOperationException>(() =>
                 UI.LoadDocumentFromSrc("main"));
         }
+
+        [Test]
+        public void LoadCommonLibrary_makes_template_visible_to_screen() {
+            var files = new Dictionary<string, string> {
+                ["common/btns"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                                      <Template name='PrimaryButton'>
+                                        <Btn><Slot/></Btn>
+                                      </Template>
+                                    </PromptUGUI>",
+                ["main"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                               <Screen name='M'>
+                                 <PrimaryButton id='play'>开始</PrimaryButton>
+                               </Screen>
+                             </PromptUGUI>",
+            };
+            UI.SourceResolver = src => files.TryGetValue(src, out var v) ? v : null;
+
+            UI.LoadCommonLibrary("common/btns");
+            UI.LoadDocumentFromSrc("main");
+            var screen = UI.Open("M");
+            Assert.IsNotNull(screen.Get<Btn>("play"));
+        }
+
+        [Test]
+        public void Commons_with_screen_throws() {
+            UI.SourceResolver = src =>
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Screen name='X'><Frame/></Screen>
+                  </PromptUGUI>";
+            Assert.Throws<PromptUGUI.Parser.ParseException>(() => UI.LoadCommonLibrary("any"));
+        }
+
+        [Test]
+        public void Commons_conflict_throws_on_second_register() {
+            var xml = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                          <Template name='Foo'><Frame/></Template>
+                        </PromptUGUI>";
+            UI.SourceResolver = _ => xml;
+            UI.LoadCommonLibrary("a");
+            Assert.Throws<PromptUGUI.Template.TemplateException>(() => UI.LoadCommonLibrary("b"));
+        }
+
+        [Test]
+        public void Commons_conflict_with_screen_local_throws() {
+            var files = new Dictionary<string, string> {
+                ["c"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                            <Template name='X'><Frame/></Template>
+                          </PromptUGUI>",
+                ["m"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                            <Template name='X'><Frame/></Template>
+                            <Screen name='S'><Frame/></Screen>
+                          </PromptUGUI>",
+            };
+            UI.SourceResolver = src => files.TryGetValue(src, out var v) ? v : null;
+            UI.LoadCommonLibrary("c");
+            Assert.Throws<PromptUGUI.Template.TemplateException>(() => UI.LoadDocumentFromSrc("m"));
+        }
+
+        [Test]
+        public void Commons_with_as_namespace_isolates() {
+            var files = new Dictionary<string, string> {
+                ["c"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                            <Template name='X'><Frame/></Template>
+                          </PromptUGUI>",
+                ["m"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                            <Template name='X'><Frame/></Template>
+                            <Screen name='S'><X id='a'/></Screen>
+                          </PromptUGUI>",
+            };
+            UI.SourceResolver = src => files.TryGetValue(src, out var v) ? v : null;
+            UI.LoadCommonLibrary("c", @as: "std");
+            UI.LoadDocumentFromSrc("m");
+            Assert.Pass();
+        }
     }
 }

@@ -9,6 +9,8 @@ namespace PromptUGUI.Application {
         static readonly Dictionary<string, ScreenDef> _docs = new();
         static readonly Dictionary<string, Screen> _open = new();
         static readonly VariantStore _variantStore = new();
+        static readonly System.Collections.Generic.Dictionary<DocumentLoader.TemplateKey, IR.TemplateDef> _commonsPool = new();
+        static readonly DepGraph _depGraph = new();
 
         public static System.Func<string, string> SourceResolver { get; set; }
 
@@ -40,6 +42,15 @@ namespace PromptUGUI.Application {
                     "UI.SourceResolver must be set before LoadDocumentFromSrc");
 
             var loaded = DocumentLoader.Load(src, SourceResolver, allowScreens: true);
+
+            // Merge commons into loaded.Templates (commons first; conflict on overlap)
+            foreach (var kv in _commonsPool) {
+                if (loaded.Templates.ContainsKey(kv.Key))
+                    throw new PromptUGUI.Template.TemplateException(
+                        $"template '{kv.Key}' conflicts with commons pool");
+                loaded.Templates[kv.Key] = kv.Value;
+            }
+
             var expanded = PromptUGUI.Template.TemplateExpander.Expand(loaded);
 
             var added = new List<string>();
@@ -49,8 +60,40 @@ namespace PromptUGUI.Application {
                         $"Screen '{s.Name}' already loaded");
                 _docs[s.Name] = s;
                 added.Add(s.Name);
+                _depGraph.ScreenDeps[s.Name] = new DepGraph.ScreenDep {
+                    EntrySrc = src,
+                    AllDeps = new System.Collections.Generic.HashSet<string>(loaded.AllSrcs),
+                };
             }
+            _depGraph.SrcToDeps[src] = new System.Collections.Generic.HashSet<string>(loaded.AllSrcs);
             return added;
+        }
+
+        public static void LoadCommonLibrary(string src, string @as = null) {
+            if (SourceResolver == null)
+                throw new System.InvalidOperationException(
+                    "UI.SourceResolver must be set before LoadCommonLibrary");
+
+            var loaded = DocumentLoader.Load(src, SourceResolver, allowScreens: false);
+
+            // Conflict-check FIRST so we don't pollute on failure.
+            var staged = new System.Collections.Generic.List<(DocumentLoader.TemplateKey Key, IR.TemplateDef Def)>();
+            foreach (var kv in loaded.Templates) {
+                var rebasedKey = @as == null
+                    ? kv.Key
+                    : new DocumentLoader.TemplateKey(@as, kv.Key.Name);
+                if (_commonsPool.ContainsKey(rebasedKey))
+                    throw new PromptUGUI.Template.TemplateException(
+                        $"common library conflict: '{rebasedKey}' already in commons pool");
+                staged.Add((rebasedKey, kv.Value));
+            }
+
+            foreach (var (key, def) in staged) {
+                def.OriginSrc = src;
+                _commonsPool[key] = def;
+            }
+            _depGraph.CommonsSources.Add(src);
+            _depGraph.SrcToDeps[src] = new System.Collections.Generic.HashSet<string>(loaded.AllSrcs);
         }
 
         public static Screen Open(string screenName) {
@@ -83,6 +126,8 @@ namespace PromptUGUI.Application {
             _docs.Clear();
             _variantStore.Reset();
             _registry = new ControlRegistry();
+            _commonsPool.Clear();
+            _depGraph.Clear();
             SourceResolver = null;
         }
     }
