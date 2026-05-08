@@ -114,5 +114,67 @@ namespace PromptUGUI.Tests.Application {
               </PromptUGUI>";
             Assert.DoesNotThrow(() => UI.ReloadCommonLibrary("c"));
         }
+
+        [Test]
+        public void NotifyAssetChanged_for_screen_src_reloads() {
+            _files["m"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                <Screen name='S'><Frame id='a'/></Screen>
+              </PromptUGUI>";
+            UI.LoadDocumentFromSrc("m");
+            UI.Open("S");
+
+            UI.HotReload.AssetPathToSrc = path => path == "fakepath/m.ui.xml" ? "m" : null;
+            _files["m"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                <Screen name='S'><Frame id='b'/></Screen>
+              </PromptUGUI>";
+            UI.HotReload.NotifyAssetChanged("fakepath/m.ui.xml");
+
+            Assert.IsNotNull(UI.Get("S").Get<Frame>("b"));
+        }
+
+        [Test]
+        public void NotifyAssetChanged_for_commons_src_reloads_screens() {
+            _files["c"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                <Template name='T'><Frame><Image id='inner_v1'/></Frame></Template>
+              </PromptUGUI>";
+            _files["m"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                <Screen name='S'><T id='outer'/></Screen>
+              </PromptUGUI>";
+            UI.LoadCommonLibrary("c");
+            UI.LoadDocumentFromSrc("m");
+            UI.Open("S");
+
+            UI.HotReload.AssetPathToSrc = path => path == "p/c.ui.xml" ? "c" : null;
+            _files["c"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                <Template name='T'><Frame><Image id='inner_v2'/></Frame></Template>
+              </PromptUGUI>";
+            UI.HotReload.NotifyAssetChanged("p/c.ui.xml");
+
+            Assert.IsNotNull(UI.Get("S").Get<Image>("outer/inner_v2"));
+        }
+
+        [Test]
+        public void NotifyAssetChanged_unknown_path_silently_ignored() {
+            UI.HotReload.AssetPathToSrc = _ => null;
+            Assert.DoesNotThrow(() => UI.HotReload.NotifyAssetChanged("foo"));
+        }
+
+        [Test]
+        public void NotifyAssetChanged_when_disabled_noops() {
+            _files["m"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                <Screen name='S'><Frame id='a'/></Screen>
+              </PromptUGUI>";
+            UI.LoadDocumentFromSrc("m");
+            UI.Open("S");
+
+            UI.HotReload.AssetPathToSrc = _ => "m";
+            UI.HotReload.Enabled = false;
+            _files["m"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                <Screen name='S'><Frame id='b'/></Screen>
+              </PromptUGUI>";
+            UI.HotReload.NotifyAssetChanged("p");
+
+            Assert.IsNotNull(UI.Get("S").Get<Frame>("a"));   // not reloaded
+        }
     }
 }

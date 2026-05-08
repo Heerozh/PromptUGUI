@@ -201,6 +201,33 @@ namespace PromptUGUI.Application {
             _commonsPool.Clear();
             _depGraph.Clear();
             SourceResolver = null;
+#if UNITY_EDITOR
+            HotReload.AssetPathToSrc = null;
+            HotReload.Enabled = true;
+#endif
         }
+
+#if UNITY_EDITOR
+        public static class HotReload {
+            public static System.Func<string, string> AssetPathToSrc { get; set; }
+            public static bool Enabled { get; set; } = true;
+
+            public static void NotifyAssetChanged(string assetPath) {
+                if (!Enabled || AssetPathToSrc == null) return;
+                var src = AssetPathToSrc(assetPath);
+                if (string.IsNullOrEmpty(src)) return;
+
+                if (_depGraph.IsCommons(src)) {
+                    ReloadCommonLibrary(src);
+                    return;
+                }
+
+                var affected = new System.Collections.Generic.List<string>();
+                foreach (var name in _depGraph.ScreensDependingOn(src))
+                    affected.Add(name);
+                foreach (var name in affected) Reload(name);
+            }
+        }
+#endif
     }
 }
