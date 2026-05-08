@@ -199,5 +199,19 @@ namespace PromptUGUI.Tests.Application {
             Assert.AreSame(savedResolver, UI.SourceResolver);
             Assert.DoesNotThrow(() => UI.LoadDocumentFromSrc("x"));
         }
+
+        [Test]
+        public void OnEnteringPlayMode_clears_loaded_docs_so_replay_does_not_throw() {
+            var savedResolver = UI.SourceResolver = _ => @"<?xml version='1.0'?><PromptUGUI version='1'>
+                <Screen name='Main'><Frame/></Screen>
+              </PromptUGUI>";
+            UI.LoadDocumentFromSrc("main");
+
+            UI.OnEnteringPlayModeForTests();
+
+            // Resolver preserved; same src can be loaded again without "already loaded"
+            Assert.AreSame(savedResolver, UI.SourceResolver);
+            Assert.DoesNotThrow(() => UI.LoadDocumentFromSrc("main"));
+        }
     }
 }

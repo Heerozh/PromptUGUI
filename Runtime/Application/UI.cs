@@ -248,6 +248,15 @@ namespace PromptUGUI.Application {
             return r;
         }
 
+        // Clears stale Screens/docs/commons/dep-graph that survive Play→Stop→Play
+        // when "Reload Domain" is disabled in Enter Play Mode Options. SourceResolver,
+        // IconResolver and Registry (with built-ins) are intentionally preserved.
+        [UnityEngine.OnEnteringPlayMode]
+        static void OnEnteringPlayMode() => UnloadAll();
+
+        // Test seam for the [OnEnteringPlayMode] handler above.
+        internal static void OnEnteringPlayModeForTests() => OnEnteringPlayMode();
+
 #if UNITY_EDITOR
         public static class HotReload {
             public static System.Func<string, string> AssetPathToSrc { get; set; }
