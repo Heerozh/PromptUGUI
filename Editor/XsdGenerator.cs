@@ -9,7 +9,9 @@ using PromptUGUI.Registry;
 
 namespace PromptUGUI.Editor {
     public static class XsdGenerator {
-        const string Ns = "https://prompt-ugui/v1";
+        // Schema is intentionally without targetNamespace: .ui.xml files use bare
+        // element names + xsi:noNamespaceSchemaLocation. A targetNamespace would
+        // require xmlns="..." on every <PromptUGUI> root and break authoring ergonomics.
 
         public static string Generate(ControlRegistry registry) {
             // Write to MemoryStream (not StringBuilder) so XmlWriter emits
@@ -25,9 +27,6 @@ namespace PromptUGUI.Editor {
             using (var writer = XmlWriter.Create(ms, settings)) {
                 writer.WriteStartDocument();
                 writer.WriteStartElement("xs", "schema", "http://www.w3.org/2001/XMLSchema");
-                writer.WriteAttributeString("targetNamespace", Ns);
-                writer.WriteAttributeString("xmlns", Ns);
-                writer.WriteAttributeString("elementFormDefault", "qualified");
 
                 WriteCommonAttrGroup(writer);
                 WritePromptUGUIRoot(writer);
@@ -342,11 +341,11 @@ namespace PromptUGUI.Editor {
                 w.WriteAttributeString("ref", n);
                 w.WriteEndElement();
             }
-            // any-element fallback for Template invocations
-            w.WriteStartElement("xs", "any", null);
-            w.WriteAttributeString("namespace", "##local");
-            w.WriteAttributeString("processContents", "lax");
-            w.WriteEndElement();
+            // No xs:any wildcard: with no targetNamespace, ##local would overlap
+            // with the explicit refs above and trip XSD's Unique Particle Attribution
+            // rule. Trade-off: Template invocations (<MyPanel/>) and unregistered
+            // custom controls show as undeclared in IDEs. Run Generate XSD after
+            // registering customs to keep IDE in sync; Templates are a known limitation.
             w.WriteEndElement();
             w.WriteEndElement();
         }
