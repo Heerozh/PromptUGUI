@@ -25,7 +25,7 @@ namespace PromptUGUI.Samples.MainMenu {
             if (iconSets != null && iconSets.Length > 0)
                 IconResolverHelpers.UseSpriteAtlasIconResolver(iconSets);
 
-            UI.LoadDocumentFromSrc("MainMenu");
+            UI.LoadDocumentFromSrc("MainMenu.ui");
             var screen = UI.Open("MainMenu");
 
             screen.Get<Btn>("playBtn").OnClick

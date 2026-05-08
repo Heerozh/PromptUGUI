@@ -11,21 +11,21 @@
 
       <Btn id="playBtn" color="#3B82F6" size="240x64">
         <HStack anchor="stretch" padding="16" spacing="12">
-          <Icon name="solar:Forward" size="32" color="#FFFFFF"/>
+          <Icon name="solar:Forward" size="32x32" color="#FFFFFF"/>
           <Text color="#FFFFFF" fontSize="24" raycastTarget="false">开始游戏</Text>
         </HStack>
       </Btn>
 
       <Btn id="settingsBtn" color="#3B82F6" size="240x64">
         <HStack anchor="stretch" padding="16" spacing="12">
-          <Icon name="solar:Settings" size="32" color="#FFFFFF"/>
+          <Icon name="solar:Settings" size="32x32" color="#FFFFFF"/>
           <Text color="#FFFFFF" fontSize="24" raycastTarget="false">设置</Text>
         </HStack>
       </Btn>
 
       <Btn id="quitBtn" color="#DC2626" size="240x64">
         <HStack anchor="stretch" padding="16" spacing="12">
-          <Icon name="solar:Power" size="32" color="#FFFFFF"/>
+          <Icon name="solar:Power" size="32x32" color="#FFFFFF"/>
           <Text color="#FFFFFF" fontSize="24" raycastTarget="false">退出</Text>
         </HStack>
       </Btn>
