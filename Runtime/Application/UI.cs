@@ -61,6 +61,47 @@ namespace PromptUGUI.Application {
             return added;
         }
 
+        public static void Reload(string screenName) {
+            if (!_depGraph.ScreenDeps.TryGetValue(screenName, out var dep))
+                throw new System.InvalidOperationException(
+                    $"Screen '{screenName}' was not loaded by src; cannot reload " +
+                    $"(use LoadDocumentFromSrc instead of LoadDocument(label, xml))");
+
+            if (SourceResolver == null)
+                throw new System.InvalidOperationException(
+                    "UI.SourceResolver must be set before Reload");
+
+            // 1) Parse + Expand FIRST. Failure here → throw, leave state intact.
+            var loaded = DocumentLoader.LoadAndMerge(dep.EntrySrc, SourceResolver, _commonsPool);
+            var expanded = PromptUGUI.Template.TemplateExpander.Expand(loaded);
+
+            PromptUGUI.IR.ScreenDef newDef = null;
+            foreach (var s in expanded.Screens) {
+                if (s.Name == screenName) { newDef = s; break; }
+            }
+            if (newDef == null)
+                throw new System.InvalidOperationException(
+                    $"Screen '{screenName}' no longer present in src='{dep.EntrySrc}' after reload");
+
+            // 2) Tear down old (after parse succeeded)
+            bool wasOpen = _open.ContainsKey(screenName);
+            if (wasOpen) Close(screenName);
+
+            // 3) Replace docs + dep entries
+            _docs.Remove(screenName);
+            _depGraph.ScreenDeps.Remove(screenName);
+
+            _docs[screenName] = newDef;
+            _depGraph.ScreenDeps[screenName] = new DepGraph.ScreenDep {
+                EntrySrc = dep.EntrySrc,
+                AllDeps = new System.Collections.Generic.HashSet<string>(loaded.AllSrcs),
+            };
+            _depGraph.SrcToDeps[dep.EntrySrc] = new System.Collections.Generic.HashSet<string>(loaded.AllSrcs);
+
+            // 4) Re-open if it was open
+            if (wasOpen) Open(screenName);
+        }
+
         public static void LoadCommonLibrary(string src, string @as = null) {
             if (SourceResolver == null)
                 throw new System.InvalidOperationException(
