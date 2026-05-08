@@ -44,6 +44,26 @@ namespace PromptUGUI.Application {
             return loaded;
         }
 
+        /// <summary>
+        /// 加载 src 并把 commons 池合并进 LoadedDoc.Templates。供 LoadDocumentFromSrc 与 Reload 复用。
+        /// commons 与 entry 同名 → 抛 TemplateException。
+        /// </summary>
+        internal static LoadedDoc LoadAndMerge(
+            string src,
+            Func<string, string> resolver,
+            IReadOnlyDictionary<TemplateKey, TemplateDef> commonsPool) {
+
+            var loaded = Load(src, resolver, allowScreens: true);
+
+            foreach (var kv in commonsPool) {
+                if (loaded.Templates.ContainsKey(kv.Key))
+                    throw new TemplateException(
+                        $"template '{kv.Key}' conflicts with commons pool");
+                loaded.Templates[kv.Key] = kv.Value;
+            }
+            return loaded;
+        }
+
         static void LoadInternal(
             string src,
             Func<string, string> resolver,

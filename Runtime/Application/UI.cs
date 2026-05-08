@@ -41,15 +41,7 @@ namespace PromptUGUI.Application {
                 throw new System.InvalidOperationException(
                     "UI.SourceResolver must be set before LoadDocumentFromSrc");
 
-            var loaded = DocumentLoader.Load(src, SourceResolver, allowScreens: true);
-
-            // Merge commons into loaded.Templates (commons first; conflict on overlap)
-            foreach (var kv in _commonsPool) {
-                if (loaded.Templates.ContainsKey(kv.Key))
-                    throw new PromptUGUI.Template.TemplateException(
-                        $"template '{kv.Key}' conflicts with commons pool");
-                loaded.Templates[kv.Key] = kv.Value;
-            }
+            var loaded = DocumentLoader.LoadAndMerge(src, SourceResolver, _commonsPool);
 
             var expanded = PromptUGUI.Template.TemplateExpander.Expand(loaded);
 
