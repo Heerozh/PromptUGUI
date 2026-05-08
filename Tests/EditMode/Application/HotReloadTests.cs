@@ -176,5 +176,15 @@ namespace PromptUGUI.Tests.Application {
 
             Assert.IsNotNull(UI.Get("S").Get<Frame>("a"));   // not reloaded
         }
+
+        [Test]
+        public void Reload_unknown_screen_throws() {
+            Assert.Throws<InvalidOperationException>(() => UI.Reload("Nonexistent"));
+        }
+
+        [Test]
+        public void ReloadCommonLibrary_unknown_src_throws() {
+            Assert.Throws<InvalidOperationException>(() => UI.ReloadCommonLibrary("not-a-commons"));
+        }
     }
 }
