@@ -133,7 +133,7 @@ screen.Get<DangerButton>("quitBtn").OnClick
 | `<Template name="...">` | 可复用子树定义，编译期展开 |
 
 跨文件 `Screen` 同名 → 报错。
-跨文件 `Template` 同名 → 报错；`as="ns"` 用于消歧（`<ns.TitledPanel/>`）。
+Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="ns"` 是唯一显式消歧手段（`<ns.TitledPanel/>`）。
 注释直接用 XML 标准 `<!-- -->`。
 
 ---
@@ -367,7 +367,7 @@ var closeBtn = dialog.Get("close");          // 模板内部
 </Screen>
 ```
 
-`as=` 仅在两个 Import 暴露同名 Template 时强制；常态不需要。
+`as=` 是唯一显式消歧手段；commons 与 Import 多源同名时必填。常态下 Template 名唯一即可省略。
 
 ---
 
@@ -669,7 +669,12 @@ if="{{p}}"       仅 truthy 时保留该元素
 | **M1 核心** | XML parser → Tree IR；6 原语；Screen Open/Close；`Get<T>`；自定义控件注册（`[UIAttr]` + `[Bind]`）；anchor/size/margin 系统 | 跑通"主菜单 + 三按钮 + 点击事件"完整闭环 |
 | **M2 模板** | `<Template>` + `<Param>` + `<Slot>` + `{{}}` 替换 + `if=` | 用 TitledPanel 包背包 Grid |
 | **M3 变体** | 内联 `attr.var`；块 `<Variant>/<Add>`；运行时切换重解算 | 同一 Screen 在 mobile-portrait 与 pc 间切换 |
-| **M4 可用性** | `<Import>` + 跨文件命名空间；编辑器内热重载；XSD 自动生成（IDE 补全） | 大型项目可拆文件协作 |
+| **M4.1** | `<Import>` parser + 循环检测 + 跨文件 Template 合并 | 单 Screen + 一层 Import 跑通 |
+| **M4.2** | `LoadCommonLibrary` + 全局 commons 池 + `LoadDocumentFromSrc` + 依赖图 | bootstrap 后 Screen 文件能用 commons 模板 |
+| **M4.3** | `as="ns"` 命名空间（commons / Import 一致语法） | conflict + namespace 用例覆盖 |
+| **M4.4** | `UI.Reload` + `UI.ReloadCommonLibrary` + `HotReload.NotifyAssetChanged` | EditMode 测试模拟改文件触发 reload |
+| **M4.5** | `PromptUGUI.Editor` asmdef + AssetPostprocessor + `UseResourcesResolver` + Sample 迁移 | 真 Editor 内改 .ui.xml 自动 reload |
+| **M4.6** | XsdGenerator + 菜单 + snapshot 测试 | IDE 内自动补全可工作 |
 | **M5 生态** | 内置 ScrollList / Toggle / Slider / Dropdown 自定义控件参考实现 | 用户零代码即可用上常用控件 |
 
 ---
