@@ -608,6 +608,48 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
+        public IEnumerator Variant_add_into_unknown_path_throws_when_first_activated_at_runtime() {
+            // Variant 在 Open 时未激活，所以不会在 Open 时实例化；首次激活时才走 ApplyAddBlock，
+            // 此刻 #dialog/missing 路径解析失败 → InvalidOperationException。
+            //
+            // R3 exception-routing note (verified via R3ExceptionBehaviorTests):
+            //   Observer<T>.OnNext catches subscriber exceptions and routes them through
+            //   OnErrorResume to the handler that was captured at Subscribe() time —
+            //   specifically ObservableSystem.GetUnhandledExceptionHandler() snapshotted when
+            //   Screen.Open() calls _variants.Changed.Subscribe(...). The default handler is
+            //   Console.WriteLine, so the exception is silently printed; it neither propagates
+            //   to UI.Variants.Set() nor appears in Unity's log. The observable side-effect
+            //   (item never registered) is therefore the correct assertion anchor.
+            UI.LoadDocument("a9", @"<PromptUGUI version='1'>
+                <Template name='Box'>
+                    <Frame><Grid id='inner' columns='6'/></Frame>
+                </Template>
+                <Screen name='A9'>
+                    <Box id='dialog'/>
+                    <Variant when='m'>
+                        <Add into='#dialog/missing'><Image id='item'/></Add>
+                    </Variant>
+                </Screen></PromptUGUI>");
+
+            // Open 不抛（m 未激活，Variant 块未尝试实例化）
+            var screen = UI.Open("A9");
+            Assert.IsNotNull(screen);
+
+            // 首次激活时才解析 #dialog/missing → 路径不存在 → InvalidOperationException。
+            // 异常被 R3 路由到 Subscribe 时捕获的 handler（Console.WriteLine），
+            // 对调用方透明。
+            UI.Variants.Set("m", true);
+
+            // 激活失败的可观测结果：ActivateAddBlock 在写入 _addInstances 前就抛了，
+            // 所以 'item' 从未注册 → screen.Get("item") 抛 KeyNotFoundException。
+            Assert.Throws<System.Collections.Generic.KeyNotFoundException>(
+                () => screen.Get("item"));
+
+            UI.Close("A9");
+            yield return null;
+        }
+
+        [UnityTest]
         public IEnumerator ReSolve_subscriptions_on_add_controls_survive_toggle_cycle() {
             // Strategy C 的实用价值：在 Add 块的 Btn 上订阅一次 OnClick，跨 toggle 周期仍有效
             UI.LoadDocument("rsa4", @"<PromptUGUI version='1'>

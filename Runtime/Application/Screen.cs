@@ -116,6 +116,10 @@ namespace PromptUGUI.Application {
                 if (_variants.IsActive(block.When)) ActivateAddBlock(block);
                 else                                DeactivateAddBlock(block);
             }
+            // Strategy C: _nodeMap includes nodes from currently-hidden Add blocks.
+            // ApplyCommon runs on them too — RectTransform writes are cheap on
+            // inactive GameObjects but trigger Unity layout dirty flags. Acceptable
+            // tradeoff vs. tracking which nodes are visible.
             foreach (var kv in _nodeMap) {
                 var node = kv.Key;
                 var control = kv.Value;
