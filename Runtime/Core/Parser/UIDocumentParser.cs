@@ -27,6 +27,9 @@ namespace PromptUGUI.Parser {
                     case "Template":
                         ParseTemplate(el, doc);
                         break;
+                    case "Import":
+                        ParseImport(el, doc);
+                        break;
                     default:
                         throw new ParseException(
                             $"unexpected top-level element <{el.Name}>");
@@ -34,6 +37,25 @@ namespace PromptUGUI.Parser {
             }
 
             return doc;
+        }
+
+        static void ParseImport(XmlElement el, UIDocument doc) {
+            var src = el.GetAttribute("src");
+            if (string.IsNullOrEmpty(src))
+                throw new ParseException("<Import> requires src attribute");
+
+            foreach (var existing in doc.Imports) {
+                if (existing.Src == src)
+                    throw new ParseException(
+                        $"<Import>: duplicate src='{src}' in same file");
+            }
+
+            var ns = el.HasAttribute("as") ? el.GetAttribute("as") : null;
+            if (ns != null && string.IsNullOrEmpty(ns))
+                throw new ParseException(
+                    $"<Import src='{src}'>: as attribute cannot be empty");
+
+            doc.Imports.Add(new IR.ImportRef(src, ns));
         }
 
         static void ParseScreen(XmlElement el, UIDocument doc,
@@ -51,6 +73,9 @@ namespace PromptUGUI.Parser {
 
             foreach (XmlNode c in el.ChildNodes) {
                 if (c is not XmlElement child_el) continue;
+                if (child_el.Name == "Import")
+                    throw new ParseException(
+                        $"<Screen name='{name}'>: <Import> only allowed as top-level element");
                 if (child_el.Name == "Variant") {
                     var when = child_el.GetAttribute("when").Trim();
                     if (!string.IsNullOrEmpty(when) && !seenWhen.Add(when))
@@ -78,6 +103,9 @@ namespace PromptUGUI.Parser {
 
             foreach (XmlNode c in el.ChildNodes) {
                 if (c is not XmlElement ce) continue;
+                if (ce.Name == "Import")
+                    throw new ParseException(
+                        $"<Template name='{name}'>: <Import> only allowed as top-level element");
                 if (ce.Name == "Param") {
                     if (sawBody)
                         throw new ParseException(
