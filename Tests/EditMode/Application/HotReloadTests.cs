@@ -76,5 +76,43 @@ namespace PromptUGUI.Tests.Application {
 
             Assert.IsTrue(UI.Variants.IsActive("mobile"));
         }
+
+        [Test]
+        public void ReloadCommonLibrary_picks_up_template_changes() {
+            _files["c"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                <Template name='V'><Frame><Image id='inner_v1'/></Frame></Template>
+              </PromptUGUI>";
+            _files["m"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                <Screen name='S'><V id='holder'/></Screen>
+              </PromptUGUI>";
+            UI.LoadCommonLibrary("c");
+            UI.LoadDocumentFromSrc("m");
+            UI.Open("S");
+
+            _files["c"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                <Template name='V'><Frame><Image id='inner_v2'/></Frame></Template>
+              </PromptUGUI>";
+            UI.ReloadCommonLibrary("c");
+
+            var s = UI.Get("S");
+            Assert.IsNotNull(s.Get<Image>("holder/inner_v2"));
+        }
+
+        [Test]
+        public void ReloadCommonLibrary_failed_parse_rolls_back() {
+            _files["c"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                <Template name='V'><Frame/></Template>
+              </PromptUGUI>";
+            UI.LoadCommonLibrary("c");
+
+            _files["c"] = "<<<bad>>>";
+            Assert.Catch<Exception>(() => UI.ReloadCommonLibrary("c"));
+
+            // Old commons still in pool — proven by being able to reload again with valid xml
+            _files["c"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                <Template name='V'><Frame/></Template>
+              </PromptUGUI>";
+            Assert.DoesNotThrow(() => UI.ReloadCommonLibrary("c"));
+        }
     }
 }

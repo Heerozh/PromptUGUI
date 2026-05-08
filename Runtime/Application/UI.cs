@@ -129,6 +129,45 @@ namespace PromptUGUI.Application {
             _depGraph.SrcToDeps[src] = new System.Collections.Generic.HashSet<string>(loaded.AllSrcs);
         }
 
+        public static void ReloadCommonLibrary(string src) {
+            if (!_depGraph.CommonsSources.Contains(src))
+                throw new System.InvalidOperationException(
+                    $"src='{src}' is not a registered common library");
+
+            if (SourceResolver == null)
+                throw new System.InvalidOperationException(
+                    "UI.SourceResolver must be set before ReloadCommonLibrary");
+
+            // Stash existing commons entries that came from this src (rollback if reload fails)
+            // M4 v1 limitation: original `as=` namespace is not preserved across reload.
+            // If a commons was loaded with as="ns", reload may fail with conflicts; users should
+            // UnloadAll + re-bootstrap in that case. Spec §15 R-? for follow-up.
+            var stashed = new System.Collections.Generic.List<
+                System.Collections.Generic.KeyValuePair<DocumentLoader.TemplateKey, IR.TemplateDef>>();
+            foreach (var kv in _commonsPool)
+                if (kv.Value.OriginSrc == src) stashed.Add(kv);
+            foreach (var kv in stashed) _commonsPool.Remove(kv.Key);
+
+            var prevDeps = _depGraph.SrcToDeps.TryGetValue(src, out var d)
+                ? new System.Collections.Generic.HashSet<string>(d) : null;
+            _depGraph.CommonsSources.Remove(src);
+            _depGraph.SrcToDeps.Remove(src);
+
+            try {
+                LoadCommonLibrary(src);
+            } catch {
+                // Roll back commons pool + depGraph state
+                foreach (var kv in stashed) _commonsPool[kv.Key] = kv.Value;
+                _depGraph.CommonsSources.Add(src);
+                if (prevDeps != null) _depGraph.SrcToDeps[src] = prevDeps;
+                throw;
+            }
+
+            // M4 v1 simplification: reload ALL screens (commons changes blast radius is global)
+            var names = new System.Collections.Generic.List<string>(_depGraph.ScreenDeps.Keys);
+            foreach (var name in names) Reload(name);
+        }
+
         public static Screen Open(string screenName) {
             if (_open.TryGetValue(screenName, out var existing)) return existing;
             if (!_docs.TryGetValue(screenName, out var def))
