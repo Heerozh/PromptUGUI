@@ -1,28 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PromptUGUI version="1">
-  <!-- 模板：用 <Btn> 原语 + 子节点 <Text> 组合出彩色按钮，无需 prefab -->
-  <Template name="PrimaryButton">
-    <Param name="text"/>
-    <Btn color="#3B82F6">
-      <Text anchor="stretch" align="center" color="#FFFFFF" fontSize="24"
-            raycastTarget="false">{{text}}</Text>
-    </Btn>
-  </Template>
-
-  <Template name="DangerButton">
-    <Param name="text"/>
-    <Btn color="#DC2626">
-      <Text anchor="stretch" align="center" color="#FFFFFF" fontSize="24"
-            raycastTarget="false">{{text}}</Text>
-    </Btn>
-  </Template>
-
   <Screen name="MainMenu">
     <Image id="bg" anchor="stretch" color="#222244"/>
+
     <VStack id="menuRoot" anchor="center" size="280x240" spacing="16" padding="16">
-      <PrimaryButton id="playBtn"     size="240x64" text="开始游戏"/>
-      <PrimaryButton id="settingsBtn" size="240x64" text="设置"/>
-      <DangerButton  id="quitBtn"     size="240x64" text="退出"/>
+
+      <!-- 演示：每个按钮里 HStack 横向排列 <Icon> + <Text>。
+           Icon 引用 SolarIconSet（setName="solar"），通过 ns:icon 形式按文件名查找。
+           运行前提：Tools → PromptUGUI → Sync Icon Atlases (All Sets) 已跑过一次。 -->
+
+      <Btn id="playBtn" color="#3B82F6" size="240x64">
+        <HStack anchor="stretch" padding="16" spacing="12">
+          <Icon name="solar:Forward" size="32" color="#FFFFFF"/>
+          <Text color="#FFFFFF" fontSize="24" raycastTarget="false">开始游戏</Text>
+        </HStack>
+      </Btn>
+
+      <Btn id="settingsBtn" color="#3B82F6" size="240x64">
+        <HStack anchor="stretch" padding="16" spacing="12">
+          <Icon name="solar:Settings" size="32" color="#FFFFFF"/>
+          <Text color="#FFFFFF" fontSize="24" raycastTarget="false">设置</Text>
+        </HStack>
+      </Btn>
+
+      <Btn id="quitBtn" color="#DC2626" size="240x64">
+        <HStack anchor="stretch" padding="16" spacing="12">
+          <Icon name="solar:Power" size="32" color="#FFFFFF"/>
+          <Text color="#FFFFFF" fontSize="24" raycastTarget="false">退出</Text>
+        </HStack>
+      </Btn>
+
     </VStack>
   </Screen>
 </PromptUGUI>

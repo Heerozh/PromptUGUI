@@ -6,14 +6,26 @@ using UnityEngine;
 namespace PromptUGUI.Samples.MainMenu {
     /// <summary>
     /// 加载 Resources/UI/MainMenu.ui.xml 并打开 MainMenu Screen。
-    /// Editor 内修改这个 .ui.xml 保存即自动 hot reload（M4.5 起）。
-    /// 使用步骤：场景里建空 GameObject，挂本组件，按 Play。
-    /// 不再需要 Inspector 拖文件。
+    /// Editor 内修改 .ui.xml 保存即自动 hot reload（M4.5 起）。
+    ///
+    /// 使用步骤：
+    ///   1. 场景里建空 GameObject，挂本组件
+    ///   2. 把 SolarIconSet.asset 拖到 Inspector 的 Icon Sets 字段
+    ///   3. Tools → PromptUGUI → Sync Icon Atlases (All Sets) 跑一次，
+    ///      让 SolarIconSet 的 SpriteAtlas 包含 XML 引用到的 sprite
+    ///   4. 按 Play
     /// </summary>
     public sealed class MainMenuRunner : MonoBehaviour {
+        [SerializeField] IconSet[] iconSets;
+
         void Start() {
             BuiltinPrimitives.Register(UI.Registry);
             UI.UseResourcesResolver("UI");
+
+            // 注册图标系统：建立 ns:icon → Sprite 查表，供 <Icon name="..."/> 使用
+            if (iconSets != null && iconSets.Length > 0)
+                IconResolverHelpers.UseSpriteAtlasIconResolver(iconSets);
+
             UI.LoadDocumentFromSrc("MainMenu");
             var screen = UI.Open("MainMenu");
 
