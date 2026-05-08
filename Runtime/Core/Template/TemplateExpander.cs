@@ -10,20 +10,23 @@ namespace PromptUGUI.Template {
             "hidden", "interactable",
         };
 
-        public static UIDocument Expand(UIDocument doc) {
-            // 模板内 Slot 计数检查（一次性、与 instance 数无关）
-            foreach (var t in doc.Templates.Values)
-                ValidateSlotCount(t);
+        /// <summary>
+        /// Real entry point — takes the merged LoadedDoc produced by DocumentLoader.
+        /// Uses (Namespace, Name) keyed lookup for template resolution.
+        /// </summary>
+        internal static UIDocument Expand(PromptUGUI.Application.DocumentLoader.LoadedDoc loaded) {
+            foreach (var t in loaded.Templates.Values) ValidateSlotCount(t);
 
-            var result = new UIDocument { Version = doc.Version };
-            foreach (var kv in doc.Templates)
-                result.Templates[kv.Key] = kv.Value;
+            var result = new UIDocument { Version = 1 };
+            foreach (var kv in loaded.Templates)
+                result.Templates[kv.Key.ToString()] = kv.Value;   // 调试可读，运行时不再用
 
-            foreach (var s in doc.Screens) {
-                var newRoot = new ElementNode(s.Root.Tag);
+            foreach (var s in loaded.Screens) {
+                var newRoot = new ElementNode(s.Root.Tag, s.Root.Namespace);
                 foreach (var c in s.Root.Children) {
                     EnsureNoSlot(c, $"Screen '{s.Name}'");
-                    var ec = ExpandTree(c, doc.Templates, new HashSet<string>());
+                    var ec = ExpandTree(c, loaded.Templates,
+                                        new HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey>());
                     if (ec != null) newRoot.Children.Add(ec);
                 }
                 var newScreen = new ScreenDef(s.Name, newRoot);
@@ -36,7 +39,8 @@ namespace PromptUGUI.Template {
                         };
                         foreach (var ch in add.Children) {
                             EnsureNoSlot(ch, $"<Variant when='{block.When}'> in Screen '{s.Name}'");
-                            var ec = ExpandTree(ch, doc.Templates, new HashSet<string>());
+                            var ec = ExpandTree(ch, loaded.Templates,
+                                                new HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey>());
                             if (ec != null) newAdd.Children.Add(ec);
                         }
                         newBlock.Adds.Add(newAdd);
@@ -46,6 +50,20 @@ namespace PromptUGUI.Template {
                 result.Screens.Add(newScreen);
             }
             return result;
+        }
+
+        /// <summary>
+        /// Backward-compat adapter: wraps a UIDocument (single-string keyed) and calls the real Expand.
+        /// All M1/M2/M3 callers continue to work unchanged.
+        /// </summary>
+        public static UIDocument Expand(UIDocument doc) {
+            var loaded = new PromptUGUI.Application.DocumentLoader.LoadedDoc {
+                EntrySrc = "<inline>",
+            };
+            foreach (var s in doc.Screens) loaded.Screens.Add(s);
+            foreach (var kv in doc.Templates)
+                loaded.Templates[new PromptUGUI.Application.DocumentLoader.TemplateKey(null, kv.Key)] = kv.Value;
+            return Expand(loaded);
         }
 
         static void ValidateSlotCount(TemplateDef tpl) {
@@ -68,13 +86,21 @@ namespace PromptUGUI.Template {
             foreach (var c in n.Children) EnsureNoSlot(c, contextLabel);
         }
 
-        static ElementNode ExpandTree(ElementNode src,
-                                      IReadOnlyDictionary<string, TemplateDef> templates,
-                                      HashSet<string> visiting) {
-            if (templates.TryGetValue(src.Tag, out var tpl))
-                return ExpandInvocation(src, tpl, templates, visiting);
+        static ElementNode ExpandTree(
+            ElementNode src,
+            IReadOnlyDictionary<PromptUGUI.Application.DocumentLoader.TemplateKey, TemplateDef> templates,
+            HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey> visiting) {
 
-            var dst = new ElementNode(src.Tag) {
+            var key = new PromptUGUI.Application.DocumentLoader.TemplateKey(src.Namespace, src.Tag);
+            if (templates.TryGetValue(key, out var tpl))
+                return ExpandInvocation(src, tpl, key, templates, visiting);
+
+            // Namespace was specified but no matching template → error
+            if (src.Namespace != null)
+                throw new TemplateException(
+                    $"unknown template '{src.Namespace}.{src.Tag}'");
+
+            var dst = new ElementNode(src.Tag, src.Namespace) {
                 Id = src.Id,
                 TextContent = src.TextContent,
                 IsTemplateInstanceRoot = src.IsTemplateInstanceRoot,
@@ -92,10 +118,12 @@ namespace PromptUGUI.Template {
         static ElementNode ExpandInvocation(
             ElementNode invocation,
             TemplateDef tpl,
-            IReadOnlyDictionary<string, TemplateDef> templates,
-            HashSet<string> visiting) {
+            PromptUGUI.Application.DocumentLoader.TemplateKey key,
+            IReadOnlyDictionary<PromptUGUI.Application.DocumentLoader.TemplateKey, TemplateDef> templates,
+            HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey> visiting) {
 
-            if (!visiting.Add(tpl.Name))
+            // Cycle tracking uses (Namespace, Name) key to allow same-named templates across different namespaces
+            if (!visiting.Add(key))
                 throw new TemplateException(
                     $"cyclic template reference detected: {string.Join(" → ", visiting)} → {tpl.Name}");
 
@@ -158,7 +186,7 @@ namespace PromptUGUI.Template {
 
                 return instanceRoot;
             } finally {
-                visiting.Remove(tpl.Name);
+                visiting.Remove(key);
             }
         }
 
@@ -166,8 +194,8 @@ namespace PromptUGUI.Template {
             ElementNode src,
             IReadOnlyDictionary<string, string> args,
             IReadOnlyList<ElementNode> slotContent,
-            IReadOnlyDictionary<string, TemplateDef> templates,
-            HashSet<string> visiting) {
+            IReadOnlyDictionary<PromptUGUI.Application.DocumentLoader.TemplateKey, TemplateDef> templates,
+            HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey> visiting) {
 
             if (src.Attributes.TryGetValue("if", out var rawIf)) {
                 var resolved = Substitution.Apply(rawIf, args);
@@ -176,10 +204,11 @@ namespace PromptUGUI.Template {
 
             ElementNode prepared = SubstituteAttrs(src, args);
 
-            if (templates.ContainsKey(prepared.Tag))
+            var key2 = new PromptUGUI.Application.DocumentLoader.TemplateKey(prepared.Namespace, prepared.Tag);
+            if (templates.ContainsKey(key2))
                 return ExpandTree(prepared, templates, visiting);
 
-            var dst = new ElementNode(prepared.Tag) {
+            var dst = new ElementNode(prepared.Tag, prepared.Namespace) {
                 Id = prepared.Id,
                 TextContent = Substitution.Apply(prepared.TextContent, args),
             };
@@ -203,7 +232,7 @@ namespace PromptUGUI.Template {
 
         static ElementNode SubstituteAttrs(ElementNode src,
                                            IReadOnlyDictionary<string, string> args) {
-            var dst = new ElementNode(src.Tag) {
+            var dst = new ElementNode(src.Tag, src.Namespace) {
                 Id = src.Id,
                 TextContent = src.TextContent,
             };
@@ -227,7 +256,7 @@ namespace PromptUGUI.Template {
         }
 
         static ElementNode DeepClone(ElementNode src) {
-            var dst = new ElementNode(src.Tag) {
+            var dst = new ElementNode(src.Tag, src.Namespace) {
                 Id = src.Id,
                 TextContent = src.TextContent,
                 IsTemplateInstanceRoot = src.IsTemplateInstanceRoot,

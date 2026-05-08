@@ -27,6 +27,9 @@ namespace PromptUGUI.Parser {
                     case "Template":
                         ParseTemplate(el, doc);
                         break;
+                    case "Import":
+                        ParseImport(el, doc);
+                        break;
                     default:
                         throw new ParseException(
                             $"unexpected top-level element <{el.Name}>");
@@ -34,6 +37,30 @@ namespace PromptUGUI.Parser {
             }
 
             return doc;
+        }
+
+        static void ParseImport(XmlElement el, UIDocument doc) {
+            var src = el.GetAttribute("src");
+            if (string.IsNullOrEmpty(src))
+                throw new ParseException("<Import> requires src attribute");
+
+            foreach (var existing in doc.Imports) {
+                if (existing.Src == src)
+                    throw new ParseException(
+                        $"<Import>: duplicate src='{src}' in same file");
+            }
+
+            var ns = el.HasAttribute("as") ? el.GetAttribute("as") : null;
+            if (ns != null) {
+                if (string.IsNullOrEmpty(ns))
+                    throw new ParseException(
+                        $"<Import src='{src}'>: as attribute cannot be empty");
+                if (ns.Contains('.'))
+                    throw new ParseException(
+                        $"<Import src='{src}'>: as='{ns}' must not contain '.'");
+            }
+
+            doc.Imports.Add(new IR.ImportRef(src, ns));
         }
 
         static void ParseScreen(XmlElement el, UIDocument doc,
@@ -51,6 +78,9 @@ namespace PromptUGUI.Parser {
 
             foreach (XmlNode c in el.ChildNodes) {
                 if (c is not XmlElement child_el) continue;
+                if (child_el.Name == "Import")
+                    throw new ParseException(
+                        $"<Screen name='{name}'>: <Import> only allowed as top-level element");
                 if (child_el.Name == "Variant") {
                     var when = child_el.GetAttribute("when").Trim();
                     if (!string.IsNullOrEmpty(when) && !seenWhen.Add(when))
@@ -78,6 +108,9 @@ namespace PromptUGUI.Parser {
 
             foreach (XmlNode c in el.ChildNodes) {
                 if (c is not XmlElement ce) continue;
+                if (ce.Name == "Import")
+                    throw new ParseException(
+                        $"<Template name='{name}'>: <Import> only allowed as top-level element");
                 if (ce.Name == "Param") {
                     if (sawBody)
                         throw new ParseException(
@@ -159,7 +192,20 @@ namespace PromptUGUI.Parser {
 
         static ElementNode ParseElement(XmlElement el,
                                         System.Collections.Generic.HashSet<string> idsInScope) {
-            var node = new ElementNode(el.Name);
+            string ns = null;
+            string tag = el.Name;
+            int dot = tag.IndexOf('.');
+            if (dot >= 0) {
+                if (dot == 0 || dot == tag.Length - 1)
+                    throw new ParseException(
+                        $"malformed namespaced tag '{tag}'");
+                if (tag.IndexOf('.', dot + 1) >= 0)
+                    throw new ParseException(
+                        $"tag '{tag}' has multiple dots; namespace tags must be 'ns.Name' (one dot)");
+                ns = tag.Substring(0, dot);
+                tag = tag.Substring(dot + 1);
+            }
+            var node = new ElementNode(tag, ns);
 
             foreach (XmlAttribute attr in el.Attributes) {
                 if (attr.Name == "id") {
@@ -170,18 +216,18 @@ namespace PromptUGUI.Parser {
                     continue;
                 }
 
-                int dot = attr.Name.IndexOf('.');
-                if (dot < 0) {
+                int attrDot = attr.Name.IndexOf('.');
+                if (attrDot < 0) {
                     node.Attributes[attr.Name] = attr.Value;
                     continue;
                 }
 
-                if (dot == 0 || dot == attr.Name.Length - 1)
+                if (attrDot == 0 || attrDot == attr.Name.Length - 1)
                     throw new ParseException(
                         $"<{el.Name}>: malformed attribute '{attr.Name}' (variant suffix must be 'name.variant')");
 
-                var baseName = attr.Name.Substring(0, dot);
-                var variant = attr.Name.Substring(dot + 1);
+                var baseName = attr.Name.Substring(0, attrDot);
+                var variant = attr.Name.Substring(attrDot + 1);
 
                 if (variant.Contains('.'))
                     throw new ParseException(
