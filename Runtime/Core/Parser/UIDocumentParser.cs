@@ -261,21 +261,35 @@ namespace PromptUGUI.Parser {
                 if (c is XmlElement child_el)
                     node.Children.Add(ParseElement(child_el, idsInScope));
 
-            // <Icon> 校验：name 必填、必须匹配 ns:icon 形式
+            // <Icon> 校验：name 必填、必须匹配 ns:icon 形式（含 Variant 覆盖）
             if (tag == "Icon" && ns == null) {
                 if (!node.Attributes.TryGetValue("name", out var iconName) || string.IsNullOrEmpty(iconName))
                     throw new ParseException("Icon: 'name' is required");
                 if (!IsValidIconName(iconName))
                     throw new ParseException(
                         $"Icon: 'name' must be 'set:icon' (got '{iconName}')");
+                if (node.VariantOverrides.TryGetValue("name", out var nameOverrides)) {
+                    foreach (var (variant, value) in nameOverrides) {
+                        if (string.IsNullOrEmpty(value) || !IsValidIconName(value))
+                            throw new ParseException(
+                                $"Icon: name.{variant} must be 'set:icon' (got '{value}')");
+                    }
+                }
             }
 
-            // size/width/height == "native" 仅 <Icon> 允许
+            // size/width/height == "native" 仅 <Icon> 允许（含 Variant 覆盖）
             if (!(tag == "Icon" && ns == null)) {
                 foreach (var key in new[] { "size", "width", "height" }) {
                     if (node.Attributes.TryGetValue(key, out var v) && v == "native")
                         throw new ParseException(
                             $"<{tag}>: native size only allowed on <Icon> (attribute '{key}')");
+                    if (node.VariantOverrides.TryGetValue(key, out var keyOverrides)) {
+                        foreach (var (variant, value) in keyOverrides) {
+                            if (value == "native")
+                                throw new ParseException(
+                                    $"<{tag}>: native size only allowed on <Icon> (attribute '{key}.{variant}')");
+                        }
+                    }
                 }
             }
 

@@ -78,5 +78,37 @@ namespace PromptUGUI.Tests.Parser {
             Assert.IsTrue(icon.VariantOverrides.ContainsKey("name"));
             Assert.IsTrue(icon.VariantOverrides.ContainsKey("color"));
         }
+
+        [Test]
+        public void Native_size_via_variant_on_Frame_throws() {
+            var xml = Header + "<Frame size.dark='native'/>" + Footer;
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+            StringAssert.Contains("native size only allowed on <Icon>", ex.Message);
+        }
+
+        [Test]
+        public void Native_width_via_variant_on_Frame_throws() {
+            var xml = Header + "<Frame width.dark='native'/>" + Footer;
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Icon_invalid_variant_name_throws() {
+            var xml = Header + "<Icon name='ui:sun' name.dark='bad-format'/>" + Footer;
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+            StringAssert.Contains("name.dark", ex.Message);
+        }
+
+        [Test]
+        public void Icon_empty_variant_name_throws() {
+            var xml = Header + "<Icon name='ui:sun' name.dark=''/>" + Footer;
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Icon_valid_variant_name_passes() {
+            var xml = Header + "<Icon name='ui:sun' name.dark='ui:moon'/>" + Footer;
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
+        }
     }
 }

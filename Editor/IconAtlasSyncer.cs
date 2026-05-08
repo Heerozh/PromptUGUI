@@ -139,11 +139,12 @@ namespace PromptUGUI.Editor {
         }
 
         public static void SyncAll(IEnumerable<PromptUGUI.Application.IconSet> sets) {
+            var setList = new List<PromptUGUI.Application.IconSet>(sets);
             var refs = ScanXmlReferences();
 
             // detect duplicate setNames before any work
             var seen = new HashSet<string>();
-            foreach (var s in sets) {
+            foreach (var s in setList) {
                 if (s == null) continue;
                 if (string.IsNullOrEmpty(s.SetName)) {
                     Debug.LogError($"[IconSync] IconSet '{s.name}' has empty setName");
@@ -156,7 +157,7 @@ namespace PromptUGUI.Editor {
                 }
             }
 
-            foreach (var set in sets) {
+            foreach (var set in setList) {
                 if (set == null) continue;
                 var folder = set.SourceFolderPath;
                 if (string.IsNullOrEmpty(folder) || !AssetDatabase.IsValidFolder(folder)) {
