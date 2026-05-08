@@ -20,7 +20,10 @@ namespace PromptUGUI.Controls {
             set {
                 if (string.IsNullOrEmpty(value)) { _img.sprite = null; return; }
                 if (UI.IconResolver == null) {
-                    Debug.LogError($"Icon '{value}': UI.IconResolver is not registered");
+                    Debug.LogError(
+                        $"Icon '{value}': UI.IconResolver is not registered. " +
+                        $"Call IconResolverHelpers.UseSpriteAtlasIconResolver(iconSets) " +
+                        $"before opening Screens that contain <Icon>.");
                     _img.sprite = null;
                     return;
                 }
