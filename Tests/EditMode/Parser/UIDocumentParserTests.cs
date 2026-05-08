@@ -338,5 +338,15 @@ namespace PromptUGUI.Tests.Parser {
 
             Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
         }
+
+        [Test]
+        public void Throws_on_dot_inside_variant_name() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X'>
+                    <VStack anchor.mobile.portrait='top-left'/>
+                </Screen></PromptUGUI>";
+
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
     }
 }

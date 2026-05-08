@@ -129,7 +129,12 @@ namespace PromptUGUI.Parser {
                         $"<{el.Name}>: malformed attribute '{attr.Name}' (variant suffix must be 'name.variant')");
 
                 var baseName = attr.Name.Substring(0, dot);
-                var variant  = attr.Name.Substring(dot + 1);
+                var variant = attr.Name.Substring(dot + 1);
+
+                if (variant.Contains('.'))
+                    throw new ParseException(
+                        $"<{el.Name}>: attribute '{attr.Name}' has '.' inside variant name " +
+                        $"(use '-' for compound names like 'mobile-portrait')");
 
                 if (baseName == "id")
                     throw new ParseException(
