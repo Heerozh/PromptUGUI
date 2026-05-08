@@ -559,6 +559,7 @@ M4 实施末段需要回填主 spec 以下位置（不改主 spec 结构）：
 | M4-R5 | XSD 1.0 表达力不足，IDE 实际体验可能仍有红线 | 在 README 写明"XSD 仅自动补全；运行时 Parser 是真理"；IDE 体验由 M5+ LSP 解决 |
 | M4-R6 | AssetPostprocessor 在 domain reload 期间触发，UI 静态状态可能已重置 | NotifyAssetChanged 的 src 在 depGraph 找不到时静默忽略——已经覆盖 |
 | M4-R7 | `Samples~/` 路径下 `Resources/` 目录在 package 安装时 Unity 行为？ | M4.5 验收：装包到独立项目后确认 Resources.Load 能读到；若不行回退用 TextAsset Inspector 引用 + UI.LoadDocument(raw) 写法（牺牲热重载） |
+| M4-R8 | `ReloadCommonLibrary` 不保留原始 `as=` 命名空间 | 用 as= 加载的 commons 在 reload 时按裸名重装；如有冲突需 UnloadAllCommonLibraries + 重 bootstrap。M5+ 可在 commonsPool 上记录原 as= 字段以恢复 |
 
 ---
 
