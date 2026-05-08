@@ -46,10 +46,17 @@ namespace PromptUGUI.Parser {
 
             var idsInScreen = new System.Collections.Generic.HashSet<string>();
             var rootNode = new ElementNode("__screen_root__");
-            foreach (XmlNode c in el.ChildNodes)
-                if (c is XmlElement child_el)
+            var screen = new ScreenDef(name, rootNode);
+
+            foreach (XmlNode c in el.ChildNodes) {
+                if (c is not XmlElement child_el) continue;
+                if (child_el.Name == "Variant") {
+                    ParseVariantBlock(child_el, screen, idsInScreen);
+                } else {
                     rootNode.Children.Add(ParseElement(child_el, idsInScreen));
-            doc.Screens.Add(new ScreenDef(name, rootNode));
+                }
+            }
+            doc.Screens.Add(screen);
         }
 
         static void ParseTemplate(XmlElement el, UIDocument doc) {
@@ -103,6 +110,38 @@ namespace PromptUGUI.Parser {
 
             tpl.Body = body;
             doc.Templates[name] = tpl;
+        }
+
+        static void ParseVariantBlock(XmlElement el, ScreenDef screen,
+                                      System.Collections.Generic.HashSet<string> idsInScreen) {
+            var when = el.GetAttribute("when");
+            if (string.IsNullOrEmpty(when))
+                throw new ParseException("<Variant> requires 'when' attribute");
+
+            var block = new VariantBlock(when);
+
+            foreach (XmlNode c in el.ChildNodes) {
+                if (c is not XmlElement ce) continue;
+                if (ce.Name != "Add")
+                    throw new ParseException(
+                        $"<Variant when='{when}'>: only <Add> elements allowed (got <{ce.Name}>)");
+
+                var add = new AddDirective();
+                var into = ce.GetAttribute("into");
+                if (string.IsNullOrEmpty(into))
+                    throw new ParseException(
+                        $"<Add> inside <Variant when='{when}'>: 'into' attribute is required");
+                add.IntoPath = into;
+                if (ce.HasAttribute("at")) add.At = ce.GetAttribute("at");
+
+                foreach (XmlNode ac in ce.ChildNodes)
+                    if (ac is XmlElement ace)
+                        add.Children.Add(ParseElement(ace, idsInScreen));
+
+                block.Adds.Add(add);
+            }
+
+            screen.Variants.Add(block);
         }
 
         static ElementNode ParseElement(XmlElement el,

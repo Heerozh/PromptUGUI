@@ -348,5 +348,115 @@ namespace PromptUGUI.Tests.Parser {
 
             Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
         }
+
+        [Test]
+        public void Parses_variant_block_with_add() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X'>
+                    <Frame id='root'/>
+                    <Variant when='mobile'>
+                        <Add into='#root' at='end'>
+                            <Image id='joy'/>
+                        </Add>
+                    </Variant>
+                </Screen></PromptUGUI>";
+
+            var doc = UIDocumentParser.Parse(xml);
+            var s = doc.Screens[0];
+            Assert.AreEqual(1, s.Variants.Count);
+            var v = s.Variants[0];
+            Assert.AreEqual("mobile", v.When);
+            Assert.AreEqual(1, v.Adds.Count);
+            Assert.AreEqual("#root", v.Adds[0].IntoPath);
+            Assert.AreEqual("end", v.Adds[0].At);
+            Assert.AreEqual(1, v.Adds[0].Children.Count);
+            Assert.AreEqual("Image", v.Adds[0].Children[0].Tag);
+        }
+
+        [Test]
+        public void Add_at_defaults_to_end_when_omitted() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X'>
+                    <Variant when='mobile'>
+                        <Add into='@root'><Image/></Add>
+                    </Variant>
+                </Screen></PromptUGUI>";
+
+            var doc = UIDocumentParser.Parse(xml);
+            Assert.AreEqual("end", doc.Screens[0].Variants[0].Adds[0].At);
+        }
+
+        [Test]
+        public void Add_at_can_be_integer_index_string() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X'>
+                    <Variant when='m'><Add into='@root' at='2'><Image/></Add></Variant>
+                </Screen></PromptUGUI>";
+
+            var doc = UIDocumentParser.Parse(xml);
+            Assert.AreEqual("2", doc.Screens[0].Variants[0].Adds[0].At);
+        }
+
+        [Test]
+        public void Variant_block_can_have_multiple_adds() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X'>
+                    <Frame id='a'/><Frame id='b'/>
+                    <Variant when='m'>
+                        <Add into='#a'><Image/></Add>
+                        <Add into='#b'><Image/></Add>
+                    </Variant>
+                </Screen></PromptUGUI>";
+
+            var doc = UIDocumentParser.Parse(xml);
+            Assert.AreEqual(2, doc.Screens[0].Variants[0].Adds.Count);
+        }
+
+        [Test]
+        public void Throws_on_variant_without_when() {
+            Assert.Throws<ParseException>(() =>
+                UIDocumentParser.Parse(@"<PromptUGUI version='1'>
+                    <Screen name='X'><Variant/></Screen></PromptUGUI>"));
+        }
+
+        [Test]
+        public void Throws_on_add_without_into() {
+            Assert.Throws<ParseException>(() =>
+                UIDocumentParser.Parse(@"<PromptUGUI version='1'>
+                    <Screen name='X'>
+                        <Variant when='m'><Add><Image/></Add></Variant>
+                    </Screen></PromptUGUI>"));
+        }
+
+        [Test]
+        public void Throws_when_variant_block_contains_non_add_child() {
+            Assert.Throws<ParseException>(() =>
+                UIDocumentParser.Parse(@"<PromptUGUI version='1'>
+                    <Screen name='X'>
+                        <Variant when='m'><Image/></Variant>
+                    </Screen></PromptUGUI>"));
+        }
+
+        [Test]
+        public void Throws_on_variant_at_top_level_outside_screen() {
+            Assert.Throws<ParseException>(() =>
+                UIDocumentParser.Parse(@"<PromptUGUI version='1'>
+                    <Variant when='m'><Add into='@root'><Image/></Add></Variant>
+                    </PromptUGUI>"));
+        }
+
+        [Test]
+        public void Variant_block_does_not_appear_in_screen_root_children() {
+            // <Variant> 应被解析到 ScreenDef.Variants，而不是出现在根 children 里
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X'>
+                    <Frame id='a'/>
+                    <Variant when='m'><Add into='@root'><Image/></Add></Variant>
+                </Screen></PromptUGUI>";
+
+            var doc = UIDocumentParser.Parse(xml);
+            Assert.AreEqual(1, doc.Screens[0].Root.Children.Count);
+            Assert.AreEqual("Frame", doc.Screens[0].Root.Children[0].Tag);
+        }
     }
 }
