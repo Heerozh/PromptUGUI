@@ -64,9 +64,7 @@ namespace PromptUGUI.Template {
             };
             foreach (var kv in src.Attributes)
                 dst.Attributes[kv.Key] = kv.Value;
-            foreach (var kv in src.VariantOverrides)
-                dst.VariantOverrides[kv.Key] =
-                    new System.Collections.Generic.List<(string Variant, string Value)>(kv.Value);
+            CopyVariantOverrides(src, dst);
             foreach (var c in src.Children) {
                 var ec = ExpandTree(c, templates, visiting);
                 if (ec != null) dst.Children.Add(ec);
@@ -103,6 +101,17 @@ namespace PromptUGUI.Template {
                         $"<{tpl.Name}>: unknown attribute '{kv.Key}'");
                 }
 
+                foreach (var kv in invocation.VariantOverrides) {
+                    if (CommonAttrs.Contains(kv.Key)) continue;
+                    if (args.ContainsKey(kv.Key))
+                        throw new TemplateException(
+                            $"<{tpl.Name}>: variant override on template parameter '{kv.Key}' " +
+                            $"is not supported (only common attributes like anchor/size/margin " +
+                            $"can carry .variant suffixes on a template invocation)");
+                    throw new TemplateException(
+                        $"<{tpl.Name}>: unknown attribute '{kv.Key}' (with variant suffix)");
+                }
+
                 var slotContent = new List<ElementNode>();
                 foreach (var c in invocation.Children) {
                     var ec = ExpandTree(c, templates, visiting);
@@ -124,7 +133,7 @@ namespace PromptUGUI.Template {
                 foreach (var kv in invocation.VariantOverrides) {
                     if (!CommonAttrs.Contains(kv.Key)) continue;
                     if (!instanceRoot.VariantOverrides.TryGetValue(kv.Key, out var list)) {
-                        list = new System.Collections.Generic.List<(string Variant, string Value)>();
+                        list = new List<(string Variant, string Value)>();
                         instanceRoot.VariantOverrides[kv.Key] = list;
                     }
                     list.AddRange(kv.Value);
@@ -161,9 +170,7 @@ namespace PromptUGUI.Template {
                 if (kv.Key == "if") continue;
                 dst.Attributes[kv.Key] = kv.Value;
             }
-            foreach (var kv in prepared.VariantOverrides)
-                dst.VariantOverrides[kv.Key] =
-                    new System.Collections.Generic.List<(string Variant, string Value)>(kv.Value);
+            CopyVariantOverrides(prepared, dst);
             foreach (var c in src.Children) {
                 if (c.Tag == "Slot") {
                     if (slotContent != null)
@@ -186,7 +193,7 @@ namespace PromptUGUI.Template {
             foreach (var kv in src.Attributes)
                 dst.Attributes[kv.Key] = Substitution.Apply(kv.Value, args);
             foreach (var kv in src.VariantOverrides) {
-                var newList = new System.Collections.Generic.List<(string Variant, string Value)>();
+                var newList = new List<(string Variant, string Value)>();
                 foreach (var (variant, value) in kv.Value)
                     newList.Add((variant, Substitution.Apply(value, args)));
                 dst.VariantOverrides[kv.Key] = newList;
@@ -196,6 +203,12 @@ namespace PromptUGUI.Template {
             return dst;
         }
 
+        static void CopyVariantOverrides(ElementNode src, ElementNode dst) {
+            foreach (var kv in src.VariantOverrides)
+                dst.VariantOverrides[kv.Key] =
+                    new List<(string Variant, string Value)>(kv.Value);
+        }
+
         static ElementNode DeepClone(ElementNode src) {
             var dst = new ElementNode(src.Tag) {
                 Id = src.Id,
@@ -203,9 +216,7 @@ namespace PromptUGUI.Template {
                 IsTemplateInstanceRoot = src.IsTemplateInstanceRoot,
             };
             foreach (var kv in src.Attributes) dst.Attributes[kv.Key] = kv.Value;
-            foreach (var kv in src.VariantOverrides)
-                dst.VariantOverrides[kv.Key] =
-                    new System.Collections.Generic.List<(string Variant, string Value)>(kv.Value);
+            CopyVariantOverrides(src, dst);
             foreach (var c in src.Children) dst.Children.Add(DeepClone(c));
             return dst;
         }

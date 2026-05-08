@@ -242,6 +242,7 @@ namespace PromptUGUI.Tests.Template {
             Assert.IsTrue(b.VariantOverrides.ContainsKey("anchor"));
             Assert.AreEqual(1, b.VariantOverrides["anchor"].Count);
             Assert.AreEqual("top-stretch", b.VariantOverrides["anchor"][0].Value);
+            Assert.AreEqual("mobile", b.VariantOverrides["anchor"][0].Variant);
         }
 
         [Test]
@@ -261,6 +262,8 @@ namespace PromptUGUI.Tests.Template {
             Assert.AreEqual("center", b.Attributes["anchor"]);
             Assert.IsTrue(b.VariantOverrides.ContainsKey("anchor"));
             Assert.AreEqual("top-stretch", b.VariantOverrides["anchor"][0].Value);
+            Assert.AreEqual(1, b.VariantOverrides["anchor"].Count);
+            Assert.AreEqual("mobile", b.VariantOverrides["anchor"][0].Variant);
         }
 
         [Test]
@@ -279,6 +282,35 @@ namespace PromptUGUI.Tests.Template {
             var inner = expanded.Screens[0].Root.Children[0].Children[0];
             Assert.AreEqual("Image", inner.Tag);
             Assert.AreEqual("20x20", inner.VariantOverrides["size"][0].Value);
+            Assert.AreEqual(1, inner.VariantOverrides["size"].Count);
+            Assert.AreEqual("mobile", inner.VariantOverrides["size"][0].Variant);
+        }
+
+        [Test]
+        public void Throws_on_invocation_variant_override_for_template_param() {
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
+                <Template name='Box'>
+                    <Param name='title'/>
+                    <Text>{{title}}</Text>
+                </Template>
+                <Screen name='S'>
+                    <Box title='hi' title.mobile='hello'/>
+                </Screen></PromptUGUI>");
+
+            Assert.Throws<TemplateException>(() => TemplateExpander.Expand(doc));
+        }
+
+        [Test]
+        public void Throws_on_invocation_variant_override_with_unknown_key() {
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
+                <Template name='Box'>
+                    <Frame/>
+                </Template>
+                <Screen name='S'>
+                    <Box weird.mobile='x'/>
+                </Screen></PromptUGUI>");
+
+            Assert.Throws<TemplateException>(() => TemplateExpander.Expand(doc));
         }
     }
 }
