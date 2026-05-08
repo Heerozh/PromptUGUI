@@ -261,7 +261,40 @@ namespace PromptUGUI.Parser {
                 if (c is XmlElement child_el)
                     node.Children.Add(ParseElement(child_el, idsInScope));
 
+            // <Icon> 校验：name 必填、必须匹配 ns:icon 形式
+            if (tag == "Icon" && ns == null) {
+                if (!node.Attributes.TryGetValue("name", out var iconName) || string.IsNullOrEmpty(iconName))
+                    throw new ParseException("Icon: 'name' is required");
+                if (!IsValidIconName(iconName))
+                    throw new ParseException(
+                        $"Icon: 'name' must be 'set:icon' (got '{iconName}')");
+            }
+
+            // size/width/height == "native" 仅 <Icon> 允许
+            if (!(tag == "Icon" && ns == null)) {
+                foreach (var key in new[] { "size", "width", "height" }) {
+                    if (node.Attributes.TryGetValue(key, out var v) && v == "native")
+                        throw new ParseException(
+                            $"<{tag}>: native size only allowed on <Icon> (attribute '{key}')");
+                }
+            }
+
             return node;
+        }
+
+        static bool IsValidIconName(string name) {
+            int colon = name.IndexOf(':');
+            if (colon <= 0 || colon == name.Length - 1) return false;
+            for (int i = 0; i < name.Length; i++) {
+                if (i == colon) continue;
+                char c = name[i];
+                bool ok = c == '-' || c == '_'
+                          || (c >= 'a' && c <= 'z')
+                          || (c >= 'A' && c <= 'Z')
+                          || (c >= '0' && c <= '9');
+                if (!ok) return false;
+            }
+            return true;
         }
     }
 }
