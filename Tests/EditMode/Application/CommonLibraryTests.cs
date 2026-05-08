@@ -124,5 +124,44 @@ namespace PromptUGUI.Tests.Application {
             UI.LoadDocumentFromSrc("m");
             Assert.Pass();
         }
+
+        [Test]
+        public void Common_library_can_import_other_files() {
+            var files = new Dictionary<string, string> {
+                ["base"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                               <Template name='B'><Frame/></Template>
+                             </PromptUGUI>",
+                ["ext"]  = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                               <Import src='base'/>
+                               <Template name='E'><Frame/></Template>
+                             </PromptUGUI>",
+                ["main"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                               <Screen name='M'><B id='b'/><E id='e'/></Screen>
+                             </PromptUGUI>",
+            };
+            UI.SourceResolver = src => files.TryGetValue(src, out var v) ? v : null;
+
+            UI.LoadCommonLibrary("ext");      // ext 内有 <Import src='base'/>
+            UI.LoadDocumentFromSrc("main");
+            var s = UI.Open("M");
+            Assert.IsNotNull(s.Get<Frame>("b"));
+            Assert.IsNotNull(s.Get<Frame>("e"));
+        }
+
+        [Test]
+        public void Two_commons_distinct_names_OK() {
+            var files = new Dictionary<string, string> {
+                ["a"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                            <Template name='A'><Frame/></Template>
+                          </PromptUGUI>",
+                ["b"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                            <Template name='B'><Frame/></Template>
+                          </PromptUGUI>",
+            };
+            UI.SourceResolver = src => files.TryGetValue(src, out var v) ? v : null;
+            UI.LoadCommonLibrary("a");
+            UI.LoadCommonLibrary("b");
+            Assert.Pass();
+        }
     }
 }
