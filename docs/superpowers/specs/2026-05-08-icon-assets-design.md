@@ -133,7 +133,7 @@ IconResolverHelpers.UseSpriteAtlasIconResolver(
 | `margin` | 否 | `0,0,0,0` | 同 Frame | |
 | `id` | 否 | — | 同其他控件 | |
 | `if` | 否 | — | truthy 表达式 | |
-| `attr.<var>.*` | 否 | — | Variant 覆盖 | 全部支持，包括 `attr.dark.name="ui:moon"` |
+| `attr.<var>.*` | 否 | — | Variant 覆盖 | 全部支持，包括 `name.dark="ui:moon"` |
 
 ### 4.2 IR 与解析
 
@@ -419,7 +419,7 @@ Editor/
 - 新增 `<Icon>` 章节：语法、属性表、`ns:name` 规则
 - 元素索引表加 `Icon` 行
 - 新增 "Dynamic icon names" 小节：`{{...}}` 限制 + alwaysInclude 逃生口
-- Variant 章节示例补一条 `attr.dark.name="ui:moon"`
+- Variant 章节示例补一条 `name.dark="ui:moon"`
 
 ### 10.2 Master spec（`2026-05-07-promptugui-description-language-design.md`）
 

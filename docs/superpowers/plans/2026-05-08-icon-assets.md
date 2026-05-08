@@ -376,7 +376,7 @@ namespace PromptUGUI.Tests.Parser {
         [Test]
         public void Icon_variant_overrides_supported() {
             var xml = Header +
-                "<Icon name='ui:sun' attr.dark.name='ui:moon' attr.dark.color='#000'/>"
+                "<Icon name='ui:sun' name.dark='ui:moon' color.dark='#000'/>"
                 + Footer;
             var doc = UIDocumentParser.Parse(xml);
             var icon = doc.Screens[0].Root.Children[0];
@@ -1297,7 +1297,7 @@ namespace PromptUGUI.Tests.Editor {
             File.WriteAllText(path,
                 @"<?xml version='1.0'?><PromptUGUI version='1'>
                     <Screen name='S'>
-                      <Icon name='ui:sun' attr.dark.name='ui:moon'/>
+                      <Icon name='ui:sun' name.dark='ui:moon'/>
                     </Screen>
                   </PromptUGUI>");
             AssetDatabase.ImportAsset(path);
@@ -2042,7 +2042,7 @@ namespace PromptUGUI.Tests.PlayMode {
             UI.LoadDocument("inline",
                 @"<?xml version='1.0'?><PromptUGUI version='1'>
                     <Screen name='S'>
-                      <Icon id='i' name='ui:sun' attr.dark.name='ui:moon'/>
+                      <Icon id='i' name='ui:sun' name.dark='ui:moon'/>
                     </Screen>
                   </PromptUGUI>");
             var screen = UI.Open("S");
@@ -2164,7 +2164,7 @@ Read .claude/skills/authoring-promptugui-xml/SKILL.md
 ```xml
 <Icon name="ui:settings" color="#ffffff"/>
 <Icon name="art:gold-coin" size="48"/>
-<Icon name="ui:bell" attr.dark.color="#fff"/>
+<Icon name="ui:bell" color.dark="#fff"/>
 ```
 
 | 属性 | 必填 | 默认 | 说明 |
@@ -2177,13 +2177,13 @@ Read .claude/skills/authoring-promptugui-xml/SKILL.md
 
 `<Icon name="ui:{{x}}"/>` 这种 Template 实参或表达式驱动的写法，Editor 同步工具**无法**静态分析，会 warn 并跳过。两种处理：
 
-- 优先：用 Variant 显式列出每种状态：`<Icon name='ui:sun' attr.dark.name='ui:moon'/>`，扫描器看得到所有候选
+- 优先：用 Variant 显式列出每种状态：`<Icon name='ui:sun' name.dark='ui:moon'/>`，扫描器看得到所有候选
 - 兜底：把候选列入 IconSet.alwaysInclude 字段（无条件打入 atlas）
 ```
 
 并在元素索引表（如有）加 Icon 行。
 
-并在 Variant 章节示例补一条：`<Icon attr.dark.name="ui:moon"/>`。
+并在 Variant 章节示例补一条：`<Icon name.dark="ui:moon"/>`。
 
 - [ ] **Step 3: Commit**
 
