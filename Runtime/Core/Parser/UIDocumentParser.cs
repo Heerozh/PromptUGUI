@@ -47,10 +47,15 @@ namespace PromptUGUI.Parser {
             var idsInScreen = new System.Collections.Generic.HashSet<string>();
             var rootNode = new ElementNode("__screen_root__");
             var screen = new ScreenDef(name, rootNode);
+            var seenWhen = new System.Collections.Generic.HashSet<string>();
 
             foreach (XmlNode c in el.ChildNodes) {
                 if (c is not XmlElement child_el) continue;
                 if (child_el.Name == "Variant") {
+                    var when = child_el.GetAttribute("when").Trim();
+                    if (!string.IsNullOrEmpty(when) && !seenWhen.Add(when))
+                        throw new ParseException(
+                            $"<Screen name='{name}'>: duplicate <Variant when='{when}'>");
                     ParseVariantBlock(child_el, screen, idsInScreen);
                 } else {
                     rootNode.Children.Add(ParseElement(child_el, idsInScreen));
@@ -114,7 +119,7 @@ namespace PromptUGUI.Parser {
 
         static void ParseVariantBlock(XmlElement el, ScreenDef screen,
                                       System.Collections.Generic.HashSet<string> idsInScreen) {
-            var when = el.GetAttribute("when");
+            var when = el.GetAttribute("when").Trim();
             if (string.IsNullOrEmpty(when))
                 throw new ParseException("<Variant> requires 'when' attribute");
 
@@ -138,8 +143,16 @@ namespace PromptUGUI.Parser {
                     if (ac is XmlElement ace)
                         add.Children.Add(ParseElement(ace, idsInScreen));
 
+                if (add.Children.Count == 0)
+                    throw new ParseException(
+                        $"<Add into='{into}'> inside <Variant when='{when}'>: must contain at least one child element");
+
                 block.Adds.Add(add);
             }
+
+            if (block.Adds.Count == 0)
+                throw new ParseException(
+                    $"<Variant when='{when}'>: must contain at least one <Add>");
 
             screen.Variants.Add(block);
         }

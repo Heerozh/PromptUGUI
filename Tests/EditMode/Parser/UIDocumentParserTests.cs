@@ -458,5 +458,49 @@ namespace PromptUGUI.Tests.Parser {
             Assert.AreEqual(1, doc.Screens[0].Root.Children.Count);
             Assert.AreEqual("Frame", doc.Screens[0].Root.Children[0].Tag);
         }
+
+        [Test]
+        public void Throws_on_empty_variant_block() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X'>
+                    <Variant when='m'></Variant>
+                </Screen></PromptUGUI>";
+
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Throws_on_empty_add_directive() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X'>
+                    <Variant when='m'>
+                        <Add into='@root'></Add>
+                    </Variant>
+                </Screen></PromptUGUI>";
+
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Throws_on_duplicate_variant_when_in_same_screen() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X'>
+                    <Variant when='m'><Add into='@root'><Image/></Add></Variant>
+                    <Variant when='m'><Add into='@root'><Image/></Add></Variant>
+                </Screen></PromptUGUI>";
+
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Variant_when_value_is_trimmed() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X'>
+                    <Variant when='  mobile  '><Add into='@root'><Image/></Add></Variant>
+                </Screen></PromptUGUI>";
+
+            var doc = UIDocumentParser.Parse(xml);
+            Assert.AreEqual("mobile", doc.Screens[0].Variants[0].When);
+        }
     }
 }
