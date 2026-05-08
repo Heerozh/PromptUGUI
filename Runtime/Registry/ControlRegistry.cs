@@ -34,5 +34,12 @@ namespace PromptUGUI.Registry {
         }
 
         public bool Has(string tag) => _byTag.ContainsKey(tag);
+
+        public System.Collections.Generic.IEnumerable<(string Tag, Entry Entry)> All {
+            get {
+                foreach (var kv in _byTag)
+                    yield return (kv.Key, kv.Value);
+            }
+        }
     }
 }
