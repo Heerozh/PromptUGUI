@@ -254,6 +254,12 @@ namespace PromptUGUI.Application {
         [UnityEngine.OnEnteringPlayMode]
         static void OnEnteringPlayMode() => UnloadAll();
 
+        // Symmetric cleanup on play exit. Without this, Screens whose GameObjects
+        // Unity tears down still sit in _open; later Editor work (e.g. icon sync's
+        // ReSolve broadcast) walks them and hits destroyed RectTransforms.
+        [UnityEngine.OnExitingPlayMode]
+        static void OnExitingPlayMode() => UnloadAll();
+
         // Test seam for the [OnEnteringPlayMode] handler above.
         internal static void OnEnteringPlayModeForTests() => OnEnteringPlayMode();
 
