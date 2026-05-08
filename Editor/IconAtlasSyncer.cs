@@ -70,5 +70,40 @@ namespace PromptUGUI.Editor {
             }
             refs.Add((ns, name));
         }
+
+        /// <summary>{iconName -> Sprite} 收集 sourceFolder 下所有 PNG。</summary>
+        public static Dictionary<string, Sprite> EnumeratePngs(string folderAssetPath) {
+            var dict = new Dictionary<string, Sprite>(StringComparer.Ordinal);
+            if (string.IsNullOrEmpty(folderAssetPath)) return dict;
+            if (!AssetDatabase.IsValidFolder(folderAssetPath)) {
+                Debug.LogError($"[IconSync] not a folder: '{folderAssetPath}'");
+                return dict;
+            }
+
+            var fullFolder = Path.GetFullPath(folderAssetPath);
+            foreach (var fullPath in Directory.EnumerateFiles(
+                         fullFolder, "*.png", SearchOption.AllDirectories)) {
+                var assetPath = "Assets" +
+                    fullPath.Substring(UnityEngine.Application.dataPath.Length).Replace('\\', '/');
+                EnsureSpriteImporter(assetPath);
+                var sp = AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
+                if (sp == null) continue;
+                var name = Path.GetFileNameWithoutExtension(assetPath);
+                if (dict.ContainsKey(name))
+                    Debug.LogWarning(
+                        $"[IconSync] duplicate icon '{name}' in {folderAssetPath}; using first");
+                else
+                    dict[name] = sp;
+            }
+            return dict;
+        }
+
+        static void EnsureSpriteImporter(string assetPath) {
+            var importer = AssetImporter.GetAtPath(assetPath) as TextureImporter;
+            if (importer == null) return;
+            if (importer.textureType == TextureImporterType.Sprite) return;
+            importer.textureType = TextureImporterType.Sprite;
+            importer.SaveAndReimport();
+        }
     }
 }
