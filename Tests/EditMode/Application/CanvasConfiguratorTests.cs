@@ -123,6 +123,29 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
+        public void Default_vertexColorAlwaysGammaSpace_is_true() {
+            // Pixel-art / hand-tuned palettes need vertex colors written in gamma to
+            // hit the canvas without the linear→sRGB roundtrip altering the result.
+            UI.LoadDocument("inline", Xml);
+            var screen = UI.Open("S");
+
+            var canvas = screen.RootGameObject.GetComponent<Canvas>();
+            Assert.IsTrue(canvas.vertexColorAlwaysGammaSpace);
+        }
+
+        [Test]
+        public void Configurator_can_override_default_shader_channels() {
+            UI.CanvasConfigurator = (c, _) =>
+                c.additionalShaderChannels |= AdditionalCanvasShaderChannels.TexCoord1;
+
+            UI.LoadDocument("inline", Xml);
+            var screen = UI.Open("S");
+
+            var canvas = screen.RootGameObject.GetComponent<Canvas>();
+            Assert.IsTrue((canvas.additionalShaderChannels & AdditionalCanvasShaderChannels.TexCoord1) != 0);
+        }
+
+        [Test]
         public void Configurator_runs_again_on_Reload() {
             var calls = 0;
             UI.CanvasConfigurator = (_, __) => calls++;

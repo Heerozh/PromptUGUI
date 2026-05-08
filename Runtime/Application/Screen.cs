@@ -63,6 +63,9 @@ namespace PromptUGUI.Application {
                 CanvasMode.World  => RenderMode.WorldSpace,
                 _                 => RenderMode.ScreenSpaceOverlay,
             };
+            // Pixel-art / hand-tuned palettes want vertex colors to land on the canvas
+            // verbatim, without the linear→sRGB roundtrip altering them.
+            canvas.vertexColorAlwaysGammaSpace = true;
             UI.CanvasConfigurator?.Invoke(canvas, _def.Name);
 
             var result = _instantiator.InstantiateInto(root, _def);
