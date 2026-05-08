@@ -112,16 +112,25 @@ namespace PromptUGUI.Application {
         public void Dispose() => Close();
 
         public void ReSolve() {
+            // Collect nodes belonging to currently-inactive Add blocks so we can skip
+            // re-applying attributes to them below. Their SetActive(false) state must
+            // not be overwritten by ApplyCommon's unconditional Hidden assignment.
+            var inactiveNodes = new HashSet<ElementNode>();
             foreach (var block in _def.Variants) {
-                if (_variants.IsActive(block.When)) ActivateAddBlock(block);
-                else                                DeactivateAddBlock(block);
+                if (_variants.IsActive(block.When)) {
+                    ActivateAddBlock(block);
+                } else {
+                    DeactivateAddBlock(block);
+                    if (_addInstances.TryGetValue(block, out var inst))
+                        foreach (var n in inst.AddedNodes) inactiveNodes.Add(n);
+                }
             }
             // Strategy C: _nodeMap includes nodes from currently-hidden Add blocks.
-            // ApplyCommon runs on them too — RectTransform writes are cheap on
-            // inactive GameObjects but trigger Unity layout dirty flags. Acceptable
-            // tradeoff vs. tracking which nodes are visible.
+            // Skip attribute re-application for inactive Add block nodes to avoid
+            // ApplyCommon's Hidden=false overwriting the SetActive(false) set above.
             foreach (var kv in _nodeMap) {
                 var node = kv.Key;
+                if (inactiveNodes.Contains(node)) continue;
                 var control = kv.Value;
                 var entry = _registry.Resolve(node.Tag);
                 ControlAttributeApplier.Apply(node, control, entry, _variants);

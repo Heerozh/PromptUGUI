@@ -84,8 +84,8 @@ namespace PromptUGUI.Controls {
             RectTransform.anchoredPosition = lr.AnchoredPosition;
             RectTransform.sizeDelta = lr.SizeDelta;
 
-            if (hidden) Hidden = true;
-            if (!interactable) Interactable = false;
+            Hidden = hidden;
+            Interactable = interactable;
         }
 
         public virtual void Dispose() {

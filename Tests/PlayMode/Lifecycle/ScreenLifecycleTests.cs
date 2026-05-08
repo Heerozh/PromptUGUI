@@ -678,6 +678,35 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
+        public IEnumerator ReSolve_hidden_variant_toggle_changes_visibility() {
+            // Regression for the M1 ApplyCommon asymmetry: hidden.var must work in BOTH
+            // directions across ReSolve, not just true → on.
+            UI.LoadDocument("hv1", @"<PromptUGUI version='1'>
+                <Screen name='HV1'>
+                    <Image id='bg' anchor='top-left' size='100x50'
+                           hidden='true' hidden.mobile='false'/>
+                </Screen></PromptUGUI>");
+            var screen = UI.Open("HV1");
+            var bg = screen.Get<PromptImage>("bg");
+
+            // 初态：mobile 未激活 → hidden=true（base）
+            Assert.IsFalse(bg.GameObject.activeSelf);
+
+            // 激活 mobile → hidden.mobile=false 应该让元素显现
+            UI.Variants.Set("mobile", true);
+            yield return null;
+            Assert.IsTrue(bg.GameObject.activeSelf);
+
+            // 反向：mobile 关闭 → 回到 base hidden=true
+            UI.Variants.Set("mobile", false);
+            yield return null;
+            Assert.IsFalse(bg.GameObject.activeSelf);
+
+            UI.Close("HV1");
+            yield return null;
+        }
+
+        [UnityTest]
         public IEnumerator ReSolve_subscriptions_on_add_controls_survive_toggle_cycle() {
             // Strategy C 的实用价值：在 Add 块的 Btn 上订阅一次 OnClick，跨 toggle 周期仍有效
             UI.LoadDocument("rsa4", @"<PromptUGUI version='1'>
