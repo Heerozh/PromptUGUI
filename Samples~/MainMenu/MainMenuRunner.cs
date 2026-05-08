@@ -5,16 +5,16 @@ using UnityEngine;
 
 namespace PromptUGUI.Samples.MainMenu {
     /// <summary>
-    /// 把 MainMenu.ui.xml 加载并打开。无需 prefab——按钮由 <Btn> 原语 + <Template> 组合而来。
-    /// 使用步骤：场景里建空 GameObject，挂本组件，把 MainMenu.ui.xml 拖到 _xml 字段，按 Play。
+    /// 加载 Resources/UI/MainMenu.ui.xml 并打开 MainMenu Screen。
+    /// Editor 内修改这个 .ui.xml 保存即自动 hot reload（M4.5 起）。
+    /// 使用步骤：场景里建空 GameObject，挂本组件，按 Play。
+    /// 不再需要 Inspector 拖文件。
     /// </summary>
     public sealed class MainMenuRunner : MonoBehaviour {
-        [SerializeField] TextAsset _xml;
-
         void Start() {
             BuiltinPrimitives.Register(UI.Registry);
-
-            UI.LoadDocument("main", _xml.text);
+            UI.UseResourcesResolver("UI");
+            UI.LoadDocumentFromSrc("MainMenu");
             var screen = UI.Open("MainMenu");
 
             screen.Get<Btn>("playBtn").OnClick
