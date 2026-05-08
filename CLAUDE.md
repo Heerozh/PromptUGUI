@@ -4,13 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-PromptUGUI is a Unity 6+ UPM package that translates compact `.ui.xml` files into runtime uGUI hierarchies. Target use case: pixel-art SLG that ships PC widescreen and mobile portrait from one description.
+PromptUGUI is a Unity 6+ UPM package that translates compact `.ui.xml` files into runtime uGUI hierarchies. Target use case: pixel-art game that ships PC widescreen and mobile portrait from one description.
 
 The library is **content-agnostic at runtime**: it never reads the filesystem itself. Callers register a `Func<string,string> SourceResolver` that maps an opaque `src` key to XML content; how the user obtains that content (Resources, Addressables, custom paths) is their concern.
 
 ## Canonical Design Sources
 
 `docs/superpowers/specs/2026-05-07-promptugui-description-language-design.md` is the master spec for the description language and C# API. Per-milestone specs and plans live alongside it. Always read the master spec before changing public API or XML semantics — section numbers (e.g. "spec §7.6") are referenced throughout the codebase and PR descriptions.
+
+`.claude/skills/authoring-promptugui-xml/SKILL.md` is the LLM-facing authoring guide. **Any functional change or addition must be reflected here in the same PR.** Triggers requiring a SKILL update:
+
+- New / removed / renamed XML elements (e.g. adding a `<Toggle>` builtin, retiring `<Btn>`)
+- New / removed / renamed attributes on any built-in tag, including type changes
+- Changes to anchor / size / margin / Variant / Template / Import / `if=` semantics
+- Public C# API surface changes (anything callers touch: `UI.*`, `IScreen`, `IControl`, `ControlRegistry`, `Variants`, `[UIAttr]` / `[Bind]`)
+- Changes to the `id` path / scoping rules
+- New / changed parser-time errors that authors will hit
+
+Internal refactors, test-only changes, performance work, and Editor tooling that doesn't affect XML or the public API do **not** require a SKILL update.
 
 ## Project Layout
 
