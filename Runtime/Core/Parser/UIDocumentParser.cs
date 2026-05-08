@@ -77,6 +77,15 @@ namespace PromptUGUI.Parser {
                     if (!paramNames.Add(pname))
                         throw new ParseException(
                             $"<Template name='{name}'>: duplicate <Param name='{pname}'>");
+
+                    foreach (XmlAttribute pa in ce.Attributes) {
+                        if (pa.Name == "name" || pa.Name == "default") continue;
+                        if (pa.Name.StartsWith("default.") || pa.Name.StartsWith("name."))
+                            throw new ParseException(
+                                $"<Param name='{pname}'>: '{pa.Name}' cannot carry .variant suffix");
+                        // 其他属性 M2 行为是隐式忽略，M3 维持
+                    }
+
                     string def = ce.HasAttribute("default") ? ce.GetAttribute("default") : null;
                     tpl.Params.Add(new ParamDef(pname, def));
                 } else {
@@ -106,9 +115,31 @@ namespace PromptUGUI.Parser {
                         throw new ParseException(
                             $"Duplicate id='{attr.Value}' within scope");
                     node.Id = attr.Value;
-                } else {
-                    node.Attributes[attr.Name] = attr.Value;
+                    continue;
                 }
+
+                int dot = attr.Name.IndexOf('.');
+                if (dot < 0) {
+                    node.Attributes[attr.Name] = attr.Value;
+                    continue;
+                }
+
+                if (dot == 0 || dot == attr.Name.Length - 1)
+                    throw new ParseException(
+                        $"<{el.Name}>: malformed attribute '{attr.Name}' (variant suffix must be 'name.variant')");
+
+                var baseName = attr.Name.Substring(0, dot);
+                var variant  = attr.Name.Substring(dot + 1);
+
+                if (baseName == "id")
+                    throw new ParseException(
+                        $"<{el.Name}>: 'id' cannot carry .variant suffix (id='{attr.Value}')");
+
+                if (!node.VariantOverrides.TryGetValue(baseName, out var list)) {
+                    list = new System.Collections.Generic.List<(string, string)>();
+                    node.VariantOverrides[baseName] = list;
+                }
+                list.Add((variant, attr.Value));
             }
 
             // 文本简写

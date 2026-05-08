@@ -243,5 +243,100 @@ namespace PromptUGUI.Tests.Parser {
             Assert.AreEqual(1, body.Children.Count);
             Assert.AreEqual("Slot", body.Children[0].Tag);
         }
+
+        [Test]
+        public void Parses_attr_with_variant_suffix() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X'>
+                    <VStack id='v' anchor='center' anchor.mobile='bottom-stretch'/>
+                </Screen></PromptUGUI>";
+
+            var doc = UIDocumentParser.Parse(xml);
+            var v = doc.Screens[0].Root.Children[0];
+
+            Assert.AreEqual("center", v.Attributes["anchor"]);
+            Assert.IsFalse(v.Attributes.ContainsKey("anchor.mobile"));
+            Assert.IsTrue(v.VariantOverrides.ContainsKey("anchor"));
+            var list = v.VariantOverrides["anchor"];
+            Assert.AreEqual(1, list.Count);
+            Assert.AreEqual("mobile", list[0].Variant);
+            Assert.AreEqual("bottom-stretch", list[0].Value);
+        }
+
+        [Test]
+        public void Multiple_variants_preserve_declaration_order() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X'>
+                    <VStack id='v' size='100x100'
+                            size.mobile='200x200' size.tablet='150x150'/>
+                </Screen></PromptUGUI>";
+
+            var doc = UIDocumentParser.Parse(xml);
+            var list = doc.Screens[0].Root.Children[0].VariantOverrides["size"];
+            Assert.AreEqual(2, list.Count);
+            Assert.AreEqual("mobile", list[0].Variant);
+            Assert.AreEqual("tablet", list[1].Variant);
+        }
+
+        [Test]
+        public void Variant_only_attr_without_base_is_allowed() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X'>
+                    <VStack id='v' margin.mobile='16'/>
+                </Screen></PromptUGUI>";
+
+            var doc = UIDocumentParser.Parse(xml);
+            var v = doc.Screens[0].Root.Children[0];
+            Assert.IsFalse(v.Attributes.ContainsKey("margin"));
+            Assert.IsTrue(v.VariantOverrides.ContainsKey("margin"));
+            Assert.AreEqual(1, v.VariantOverrides["margin"].Count);
+        }
+
+        [Test]
+        public void Multiple_attrs_with_their_own_variants_dont_interfere() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X'>
+                    <VStack anchor='center' anchor.mobile='top-stretch'
+                            margin='8'   margin.mobile='16'/>
+                </Screen></PromptUGUI>";
+
+            var doc = UIDocumentParser.Parse(xml);
+            var v = doc.Screens[0].Root.Children[0];
+            Assert.AreEqual(1, v.VariantOverrides["anchor"].Count);
+            Assert.AreEqual("top-stretch", v.VariantOverrides["anchor"][0].Value);
+            Assert.AreEqual(1, v.VariantOverrides["margin"].Count);
+            Assert.AreEqual("16", v.VariantOverrides["margin"][0].Value);
+        }
+
+        [Test]
+        public void Throws_on_id_with_variant_suffix() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X'>
+                    <VStack id='v' id.mobile='other'/>
+                </Screen></PromptUGUI>";
+
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Throws_on_param_default_with_variant_suffix() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Template name='T'>
+                    <Param name='x' default='a' default.mobile='b'/>
+                    <Frame/>
+                </Template></PromptUGUI>";
+
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Throws_on_attr_with_empty_variant_after_dot() {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X'>
+                    <VStack anchor.='top-left'/>
+                </Screen></PromptUGUI>";
+
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
     }
 }
