@@ -226,10 +226,12 @@ namespace PromptUGUI.Tests.Lifecycle {
 
         [UnityTest]
         public IEnumerator Base_attribute_used_when_no_variant_active_at_open() {
+            // Use a clearly-distinguishable mobile size: if variant routing accidentally
+            // applied size.mobile while mobile is inactive, this would visibly fail.
             UI.LoadDocument("v2", @"<PromptUGUI version='1'>
                 <Screen name='V2'>
                     <Image id='bg' anchor='top-left' size='100x50'
-                           size.mobile='200x100'/>
+                           size.mobile='999x999'/>
                 </Screen></PromptUGUI>");
             var screen = UI.Open("V2");
 
@@ -242,13 +244,15 @@ namespace PromptUGUI.Tests.Lifecycle {
 
         [UnityTest]
         public IEnumerator Variant_only_attr_without_base_falls_through_to_default_when_inactive() {
+            // margin.mobile='50' is large enough that anchoredPosition would be
+            // non-zero if accidentally applied while mobile is inactive.
             UI.LoadDocument("v3", @"<PromptUGUI version='1'>
                 <Screen name='V3'>
-                    <Image id='bg' anchor='top-left' size='100x50' margin.mobile='8'/>
+                    <Image id='bg' anchor='top-left' size='100x50' margin.mobile='50'/>
                 </Screen></PromptUGUI>");
             var screen = UI.Open("V3");
             var rt = screen.Get<PromptImage>("bg").RectTransform;
-            // 没 margin → anchoredPosition = (0, 0)
+            // mobile inactive → no margin → anchoredPosition = (0, 0)
             Assert.AreEqual(new Vector2(0, 0), rt.anchoredPosition);
             UI.Close("V3");
             yield return null;
