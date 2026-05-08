@@ -59,5 +59,24 @@ namespace PromptUGUI.Tests.Parser {
             var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
             StringAssert.Contains("namespace", ex.Message.ToLowerInvariant());
         }
+
+        [Test]
+        public void Import_with_as_recorded() {
+            var xml = Header + @"<Import src='a' as='ns'/>" + Footer;
+            var doc = UIDocumentParser.Parse(xml);
+            Assert.AreEqual("ns", doc.Imports[0].Namespace);
+        }
+
+        [Test]
+        public void Import_with_empty_as_throws() {
+            var xml = Header + @"<Import src='a' as=''/>" + Footer;
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Import_with_dot_in_as_throws() {
+            var xml = Header + @"<Import src='a' as='x.y'/>" + Footer;
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
     }
 }

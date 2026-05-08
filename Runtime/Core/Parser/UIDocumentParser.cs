@@ -51,9 +51,14 @@ namespace PromptUGUI.Parser {
             }
 
             var ns = el.HasAttribute("as") ? el.GetAttribute("as") : null;
-            if (ns != null && string.IsNullOrEmpty(ns))
-                throw new ParseException(
-                    $"<Import src='{src}'>: as attribute cannot be empty");
+            if (ns != null) {
+                if (string.IsNullOrEmpty(ns))
+                    throw new ParseException(
+                        $"<Import src='{src}'>: as attribute cannot be empty");
+                if (ns.Contains('.'))
+                    throw new ParseException(
+                        $"<Import src='{src}'>: as='{ns}' must not contain '.'");
+            }
 
             doc.Imports.Add(new IR.ImportRef(src, ns));
         }
