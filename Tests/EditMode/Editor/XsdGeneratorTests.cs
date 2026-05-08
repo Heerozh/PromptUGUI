@@ -50,7 +50,7 @@ namespace PromptUGUI.Tests.Editor {
             var r = new ControlRegistry();
             var xsd = XsdGenerator.Generate(r);
             StringAssert.Contains("xs:pattern", xsd);
-            StringAssert.Contains(":[\\w\\-]+", xsd);
+            StringAssert.Contains(":[A-Za-z0-9_\\-]+", xsd);  // ASCII char class, no ^/$
         }
 
         [Test]
@@ -98,6 +98,63 @@ namespace PromptUGUI.Tests.Editor {
             }
             CollectionAssert.IsEmpty(errors,
                 "Sample .ui.xml must validate against generated XSD (no namespace mismatch).");
+        }
+
+        [Test]
+        public void Icon_name_pattern_accepts_runtime_valid_values() {
+            // Regression: pattern was '^[\w\-]+:[\w\-]+$' — XSD treats ^/$ literally,
+            // so 'solar:Forward' (and any value not framed by literal ^/$) was rejected.
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+
+            const string sample = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'>
+    <Icon name='solar:Forward'/>
+  </Screen>
+</PromptUGUI>";
+
+            var schemas = new System.Xml.Schema.XmlSchemaSet();
+            schemas.Add(null, System.Xml.XmlReader.Create(new StringReader(xsd)));
+            var settings = new System.Xml.XmlReaderSettings {
+                ValidationType = System.Xml.ValidationType.Schema,
+                Schemas = schemas,
+            };
+            var errors = new System.Collections.Generic.List<string>();
+            settings.ValidationEventHandler += (_, e) => errors.Add(e.Message);
+            using (var reader = System.Xml.XmlReader.Create(new StringReader(sample), settings)) {
+                while (reader.Read()) { }
+            }
+            CollectionAssert.IsEmpty(errors,
+                "'solar:Forward' is a valid runtime icon name and must validate against XSD.");
+        }
+
+        [Test]
+        public void Text_element_accepts_inline_text_content() {
+            // Spec: <Text>Hi</Text> ≡ <Text text="Hi"/>. XSD must allow text body
+            // for <Text> (was rejected as element-only).
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+
+            const string sample = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'>
+    <Text>Hello world</Text>
+  </Screen>
+</PromptUGUI>";
+
+            var schemas = new System.Xml.Schema.XmlSchemaSet();
+            schemas.Add(null, System.Xml.XmlReader.Create(new StringReader(xsd)));
+            var settings = new System.Xml.XmlReaderSettings {
+                ValidationType = System.Xml.ValidationType.Schema,
+                Schemas = schemas,
+            };
+            var errors = new System.Collections.Generic.List<string>();
+            settings.ValidationEventHandler += (_, e) => errors.Add(e.Message);
+            using (var reader = System.Xml.XmlReader.Create(new StringReader(sample), settings)) {
+                while (reader.Read()) { }
+            }
+            CollectionAssert.IsEmpty(errors, "<Text>...</Text> shorthand must validate.");
         }
 
         [Test]

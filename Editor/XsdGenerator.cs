@@ -41,12 +41,14 @@ namespace PromptUGUI.Editor {
                 // 8 primitives + their attributes
                 WriteControl(writer, "Frame",  Array.Empty<(string,string,string)>());
                 WriteControl(writer, "Image",  new[] {("color","xs:string",(string)null),("sprite","xs:string",(string)null),("type","xs:string",(string)null)});
-                WriteControl(writer, "Text",   new[] {("align","xs:string",(string)null),("color","xs:string",(string)null),("font","xs:string",(string)null),("size","xs:string",(string)null),("text","xs:string",(string)null),("wrap","xs:string",(string)null)});
+                WriteControl(writer, "Text",   new[] {("align","xs:string",(string)null),("color","xs:string",(string)null),("fontSize","xs:int",(string)null),("text","xs:string",(string)null),("wrap","xs:string",(string)null),("raycastTarget","xs:string",(string)null)}, textContent: true);
                 WriteControl(writer, "VStack", Array.Empty<(string,string,string)>());
                 WriteControl(writer, "HStack", Array.Empty<(string,string,string)>());
-                WriteControl(writer, "Grid",   new[] {("columns","xs:int",(string)null)});
-                WriteControl(writer, "Btn",    new[] {("color","xs:string",(string)null),("sprite","xs:string",(string)null),("text","xs:string",(string)null)});
-                WriteControl(writer, "Icon",   new[] {("name","xs:string",@"^[\w\-]+:[\w\-]+$"),("color","xs:string",(string)null)});
+                WriteControl(writer, "Grid",   new[] {("columns","xs:int",(string)null),("cellSize","xs:string",(string)null)});
+                WriteControl(writer, "Btn",    new[] {("color","xs:string",(string)null),("sprite","xs:string",(string)null)});
+                // XSD patterns are implicitly anchored to the entire value — no ^/$.
+                // Match runtime parser's ASCII-only check (UIDocumentParser.IsValidIconName).
+                WriteControl(writer, "Icon",   new[] {("name","xs:string",@"[A-Za-z0-9_\-]+:[A-Za-z0-9_\-]+"),("color","xs:string",(string)null)});
 
                 // Registered custom controls — exclude primitives, sort by tag
                 var primitives = new HashSet<string> {
@@ -217,9 +219,11 @@ namespace PromptUGUI.Editor {
             w.WriteAttributeString("minOccurs", "0");
             w.WriteAttributeString("maxOccurs", "unbounded");
             w.WriteEndElement();
-            w.WriteStartElement("xs", "any", null);
-            w.WriteAttributeString("namespace", "##local");
-            w.WriteAttributeString("processContents", "lax");
+            // Body root: exactly one element from controlGroup. Spec §X: Template body
+            // must have exactly one root. Was xs:any namespace="##local", but that
+            // overlapped with <Param> and broke Unique Particle Attribution.
+            w.WriteStartElement("xs", "group", null);
+            w.WriteAttributeString("ref", "controlGroup");
             w.WriteEndElement();
             w.WriteEndElement();
             w.WriteStartElement("xs", "attribute", null);
@@ -294,17 +298,38 @@ namespace PromptUGUI.Editor {
         }
 
         static void WriteControl(XmlWriter w, string tag,
-                                 (string Name, string XsdType, string Pattern)[] attrs) {
+                                 (string Name, string XsdType, string Pattern)[] attrs,
+                                 bool textContent = false) {
             w.WriteStartElement("xs", "element", null);
             w.WriteAttributeString("name", tag);
             w.WriteStartElement("xs", "complexType", null);
-            w.WriteStartElement("xs", "choice", null);
-            w.WriteAttributeString("maxOccurs", "unbounded");
-            w.WriteAttributeString("minOccurs", "0");
-            w.WriteStartElement("xs", "group", null);
-            w.WriteAttributeString("ref", "controlGroup");
+
+            if (textContent) {
+                // simpleContent extension: element body is text (no children allowed),
+                // plus the usual attributes. Used for <Text> per spec text shorthand.
+                w.WriteStartElement("xs", "simpleContent", null);
+                w.WriteStartElement("xs", "extension", null);
+                w.WriteAttributeString("base", "xs:string");
+                WriteAttributes(w, attrs);
+                w.WriteEndElement();
+                w.WriteEndElement();
+            } else {
+                w.WriteStartElement("xs", "choice", null);
+                w.WriteAttributeString("maxOccurs", "unbounded");
+                w.WriteAttributeString("minOccurs", "0");
+                w.WriteStartElement("xs", "group", null);
+                w.WriteAttributeString("ref", "controlGroup");
+                w.WriteEndElement();
+                w.WriteEndElement();
+                WriteAttributes(w, attrs);
+            }
+
             w.WriteEndElement();
             w.WriteEndElement();
+        }
+
+        static void WriteAttributes(XmlWriter w,
+                                    (string Name, string XsdType, string Pattern)[] attrs) {
             w.WriteStartElement("xs", "attributeGroup", null);
             w.WriteAttributeString("ref", "commonAttrs");
             w.WriteEndElement();
@@ -325,8 +350,6 @@ namespace PromptUGUI.Editor {
                 }
                 w.WriteEndElement();
             }
-            w.WriteEndElement();
-            w.WriteEndElement();
         }
 
         static void WriteControlGroup(XmlWriter w, string[] customTags) {
@@ -334,7 +357,7 @@ namespace PromptUGUI.Editor {
             w.WriteAttributeString("name", "controlGroup");
             w.WriteStartElement("xs", "choice", null);
             string[] all = new[] {
-                "Frame","Image","Icon","Text","VStack","HStack","Grid","Btn"
+                "Frame","Image","Icon","Text","VStack","HStack","Grid","Btn","Slot"
             }.Concat(customTags).ToArray();
             foreach (var n in all) {
                 w.WriteStartElement("xs", "element", null);
