@@ -95,7 +95,7 @@ namespace PromptUGUI.Tests.Lifecycle {
                 </Screen></PromptUGUI>";
             var doc = UIDocumentParser.Parse(xml);
             var inst = new ScreenInstantiator(_reg, _store);
-            var screen = new PromptScreen(doc.Screens[0], inst);
+            var screen = new PromptScreen(doc.Screens[0], inst, _reg, _store);
 
             screen.Open();
 
@@ -115,7 +115,7 @@ namespace PromptUGUI.Tests.Lifecycle {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='UnknownIdTest'><Image id='only'/></Screen></PromptUGUI>";
             var doc = UIDocumentParser.Parse(xml);
-            var screen = new PromptScreen(doc.Screens[0], new ScreenInstantiator(_reg, _store));
+            var screen = new PromptScreen(doc.Screens[0], new ScreenInstantiator(_reg, _store), _reg, _store);
             screen.Open();
 
             Assert.Throws<System.Collections.Generic.KeyNotFoundException>(

@@ -39,7 +39,7 @@ namespace PromptUGUI.Application {
                     $"Screen '{screenName}' not loaded; call LoadDocument first");
 
             var inst = new ScreenInstantiator(_registry, _variantStore);
-            var screen = new Screen(def, inst);
+            var screen = new Screen(def, inst, _registry, _variantStore);
             screen.Open();
             _open[screenName] = screen;
             return screen;

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using PromptUGUI.Controls;
 using PromptUGUI.IR;
+using PromptUGUI.Registry;
 using UnityEngine;
 
 namespace PromptUGUI.Application {
@@ -16,20 +17,28 @@ namespace PromptUGUI.Application {
     public sealed class Screen : IScreen {
         readonly ScreenDef _def;
         readonly ScreenInstantiator _instantiator;
+        readonly ControlRegistry _registry;
+        readonly VariantStore _variants;
         readonly Dictionary<string, IControl> _byId = new();
+        readonly Dictionary<ElementNode, Control> _nodeMap = new();
         readonly List<IDisposable> _subscriptions = new();
 
         public string Name => _def.Name;
         public GameObject RootGameObject { get; private set; }
 
-        public Screen(ScreenDef def, ScreenInstantiator instantiator) {
+        internal IReadOnlyDictionary<ElementNode, Control> NodeMap => _nodeMap;
+        internal ScreenDef Def => _def;
+        internal VariantStore Variants => _variants;
+
+        public Screen(ScreenDef def, ScreenInstantiator instantiator,
+                      ControlRegistry registry, VariantStore variants) {
             _def = def;
             _instantiator = instantiator;
+            _registry = registry;
+            _variants = variants;
         }
 
         public void Open() {
-            // Build the root with Canvas first so child Graphic components can register
-            // with it during their Awake/OnEnable.
             var root = new GameObject(_def.Name,
                 typeof(RectTransform),
                 typeof(Canvas),
@@ -39,8 +48,8 @@ namespace PromptUGUI.Application {
 
             var result = _instantiator.InstantiateInto(root, _def);
             RootGameObject = result.Root;
-            foreach (var kv in result.Controls)
-                _byId[kv.Key] = kv.Value;
+            foreach (var kv in result.Controls) _byId[kv.Key] = kv.Value;
+            foreach (var kv in result.NodeToControl) _nodeMap[kv.Key] = kv.Value;
         }
 
         public void Close() {
@@ -51,6 +60,7 @@ namespace PromptUGUI.Application {
                 RootGameObject = null;
             }
             _byId.Clear();
+            _nodeMap.Clear();
         }
 
         public T Get<T>(string idPath) where T : class, IControl {
@@ -79,5 +89,7 @@ namespace PromptUGUI.Application {
         public void Track(IDisposable d) => _subscriptions.Add(d);
 
         public void Dispose() => Close();
+
+        // ReSolve and Add-block management land in Tasks 11/12.
     }
 }
