@@ -650,6 +650,34 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
+        public IEnumerator UI_Variants_Set_propagates_through_to_open_screens() {
+            // 双 Screen 同时打开，切一个变体应该让两边都重新解算
+            UI.LoadDocument("link", @"<PromptUGUI version='1'>
+                <Screen name='LinkA'>
+                    <Image id='a' anchor='top-left' size='10x10' size.m='20x20'/>
+                </Screen>
+                <Screen name='LinkB'>
+                    <Image id='b' anchor='top-left' size='30x30' size.m='40x40'/>
+                </Screen></PromptUGUI>");
+
+            var sa = UI.Open("LinkA");
+            var sb = UI.Open("LinkB");
+
+            UI.Variants.Set("m", true);
+            yield return null;
+
+            Assert.AreEqual(new Vector2(20, 20),
+                sa.Get<PromptImage>("a").RectTransform.sizeDelta);
+            Assert.AreEqual(new Vector2(40, 40),
+                sb.Get<PromptImage>("b").RectTransform.sizeDelta);
+
+            UI.Close("LinkA");
+            UI.Close("LinkB");
+            UI.Variants.Set("m", false);
+            yield return null;
+        }
+
+        [UnityTest]
         public IEnumerator ReSolve_subscriptions_on_add_controls_survive_toggle_cycle() {
             // Strategy C 的实用价值：在 Add 块的 Btn 上订阅一次 OnClick，跨 toggle 周期仍有效
             UI.LoadDocument("rsa4", @"<PromptUGUI version='1'>
