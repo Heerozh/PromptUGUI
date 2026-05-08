@@ -85,5 +85,39 @@ namespace PromptUGUI.Tests.Application {
             Assert.Throws<System.IO.IOException>(() =>
                 DocumentLoader.Load("x", _ => null, allowScreens: true));
         }
+
+        [Test]
+        public void Two_imports_define_same_template_name_throws() {
+            var ff = new FakeFiles { Map = {
+                ["main"] = W(@"<Import src='a'/><Import src='b'/>"),
+                ["a"]    = W(@"<Template name='Foo'><Frame/></Template>"),
+                ["b"]    = W(@"<Template name='Foo'><Frame/></Template>"),
+            }};
+            var ex = Assert.Throws<TemplateException>(() =>
+                DocumentLoader.Load("main", ff.Resolver, allowScreens: false));
+            StringAssert.Contains("Foo", ex.Message);
+            StringAssert.Contains("duplicate", ex.Message.ToLowerInvariant());
+        }
+
+        [Test]
+        public void Entry_doc_template_collides_with_import_throws() {
+            var ff = new FakeFiles { Map = {
+                ["main"] = W(@"<Import src='a'/><Template name='Foo'><Frame/></Template>"),
+                ["a"]    = W(@"<Template name='Foo'><Frame/></Template>"),
+            }};
+            Assert.Throws<TemplateException>(() =>
+                DocumentLoader.Load("main", ff.Resolver, allowScreens: false));
+        }
+
+        [Test]
+        public void Same_template_name_in_different_namespaces_OK() {
+            var ff = new FakeFiles { Map = {
+                ["main"] = W(@"<Import src='a'/><Import src='b' as='ns'/>"),
+                ["a"]    = W(@"<Template name='Foo'><Frame/></Template>"),
+                ["b"]    = W(@"<Template name='Foo'><Frame/></Template>"),
+            }};
+            var loaded = DocumentLoader.Load("main", ff.Resolver, allowScreens: false);
+            Assert.AreEqual(2, loaded.Templates.Count);
+        }
     }
 }
