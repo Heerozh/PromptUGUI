@@ -8,8 +8,18 @@ namespace PromptUGUI.Application {
         static ControlRegistry _registry = new();
         static readonly Dictionary<string, ScreenDef> _docs = new();
         static readonly Dictionary<string, Screen> _open = new();
+        static readonly VariantStore _variantStore = new();
 
         public static ControlRegistry Registry => _registry;
+
+        internal static VariantStore VariantStore => _variantStore;
+
+        public static class Variants {
+            public static void Set(string name, bool active) =>
+                _variantStore.Set(name, active);
+            public static bool IsActive(string name) =>
+                _variantStore.IsActive(name);
+        }
 
         public static void LoadDocument(string label, string xml) {
             var raw = UIDocumentParser.Parse(xml);
@@ -50,6 +60,7 @@ namespace PromptUGUI.Application {
             foreach (var s in _open.Values) s.Close();
             _open.Clear();
             _docs.Clear();
+            _variantStore.Reset();
             _registry = new ControlRegistry();
         }
     }
