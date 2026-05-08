@@ -437,5 +437,85 @@ namespace PromptUGUI.Tests.Lifecycle {
             UI.Variants.Set("m", false);
             yield return null;
         }
+
+        [UnityTest]
+        public IEnumerator ReSolve_updates_size_when_variant_toggles_at_runtime() {
+            UI.LoadDocument("rs1", @"<PromptUGUI version='1'>
+                <Screen name='RS1'>
+                    <Image id='bg' anchor='top-left' size='100x50' size.mobile='200x100'/>
+                </Screen></PromptUGUI>");
+            var screen = UI.Open("RS1");
+            var rt = screen.Get<PromptImage>("bg").RectTransform;
+            Assert.AreEqual(new Vector2(100, 50), rt.sizeDelta);
+
+            UI.Variants.Set("mobile", true);
+            yield return null;
+            Assert.AreEqual(new Vector2(200, 100), rt.sizeDelta);
+
+            UI.Variants.Set("mobile", false);
+            yield return null;
+            Assert.AreEqual(new Vector2(100, 50), rt.sizeDelta);
+
+            UI.Close("RS1");
+        }
+
+        [UnityTest]
+        public IEnumerator ReSolve_does_not_recreate_GameObjects() {
+            UI.LoadDocument("rs2", @"<PromptUGUI version='1'>
+                <Screen name='RS2'>
+                    <Image id='bg' size='100x50' size.mobile='200x100'/>
+                </Screen></PromptUGUI>");
+            var screen = UI.Open("RS2");
+            var bg1 = screen.Get<PromptImage>("bg").GameObject;
+
+            UI.Variants.Set("mobile", true);
+            yield return null;
+
+            var bg2 = screen.Get<PromptImage>("bg").GameObject;
+            Assert.AreSame(bg1, bg2);
+
+            UI.Close("RS2");
+            UI.Variants.Set("mobile", false);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator ReSolve_updates_control_specific_attributes() {
+            UI.LoadDocument("rs3", @"<PromptUGUI version='1'>
+                <Screen name='RS3'>
+                    <Text id='t' fontSize='24' fontSize.mobile='48'>Hello</Text>
+                </Screen></PromptUGUI>");
+            var screen = UI.Open("RS3");
+            var tmp = screen.Get<PromptText>("t").GameObject.GetComponent<TMPro.TMP_Text>();
+            Assert.AreEqual(24, tmp.fontSize);
+
+            UI.Variants.Set("mobile", true);
+            yield return null;
+            Assert.AreEqual(48, tmp.fontSize);
+
+            UI.Variants.Set("mobile", false);
+            UI.Close("RS3");
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator ReSolve_with_no_variant_overrides_is_noop() {
+            UI.LoadDocument("rs4", @"<PromptUGUI version='1'>
+                <Screen name='RS4'>
+                    <Image id='bg' anchor='top-left' size='100x50'/>
+                </Screen></PromptUGUI>");
+            var screen = UI.Open("RS4");
+            var rt = screen.Get<PromptImage>("bg").RectTransform;
+            Assert.AreEqual(new Vector2(100, 50), rt.sizeDelta);
+
+            // 切换无关变体不应改变属性
+            UI.Variants.Set("mobile", true);
+            yield return null;
+            Assert.AreEqual(new Vector2(100, 50), rt.sizeDelta);
+
+            UI.Variants.Set("mobile", false);
+            UI.Close("RS4");
+            yield return null;
+        }
     }
 }

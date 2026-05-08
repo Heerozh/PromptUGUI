@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using PromptUGUI.Controls;
 using PromptUGUI.IR;
 using PromptUGUI.Registry;
+using R3;
 using UnityEngine;
 
 namespace PromptUGUI.Application {
@@ -22,6 +23,7 @@ namespace PromptUGUI.Application {
         readonly Dictionary<string, IControl> _byId = new();
         readonly Dictionary<ElementNode, Control> _nodeMap = new();
         readonly List<IDisposable> _subscriptions = new();
+        IDisposable _variantSub;
 
         public string Name => _def.Name;
         public GameObject RootGameObject { get; private set; }
@@ -50,9 +52,12 @@ namespace PromptUGUI.Application {
             RootGameObject = result.Root;
             foreach (var kv in result.Controls) _byId[kv.Key] = kv.Value;
             foreach (var kv in result.NodeToControl) _nodeMap[kv.Key] = kv.Value;
+            _variantSub = _variants.Changed.Subscribe(_ => ReSolve());
         }
 
         public void Close() {
+            _variantSub?.Dispose();
+            _variantSub = null;
             foreach (var d in _subscriptions) d.Dispose();
             _subscriptions.Clear();
             if (RootGameObject != null) {
@@ -90,6 +95,13 @@ namespace PromptUGUI.Application {
 
         public void Dispose() => Close();
 
-        // ReSolve and Add-block management land in Tasks 11/12.
+        public void ReSolve() {
+            foreach (var kv in _nodeMap) {
+                var node = kv.Key;
+                var control = kv.Value;
+                var entry = _registry.Resolve(node.Tag);
+                ControlAttributeApplier.Apply(node, control, entry, _variants);
+            }
+        }
     }
 }
