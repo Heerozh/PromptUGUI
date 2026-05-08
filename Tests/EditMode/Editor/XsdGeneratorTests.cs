@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using NUnit.Framework;
 using PromptUGUI.Controls;
 using PromptUGUI.Editor;
@@ -50,6 +51,23 @@ namespace PromptUGUI.Tests.Editor {
             var xsd = XsdGenerator.Generate(r);
             StringAssert.Contains("xs:pattern", xsd);
             StringAssert.Contains(":[\\w\\-]+", xsd);
+        }
+
+        [Test]
+        public void Generated_file_loads_as_xml_without_encoding_mismatch() {
+            // Regression: XmlWriter against StringBuilder declared encoding="utf-16",
+            // but the file was written as UTF-8 bytes — causing parsers to choke at
+            // (1, 40) "Content is not allowed in prolog".
+            var r = new ControlRegistry();
+            var path = Path.Combine(UnityEngine.Application.temporaryCachePath, "test.encoding.xsd");
+            XsdGenerator.GenerateToFile(r, path);
+
+            var doc = new System.Xml.XmlDocument();
+            Assert.DoesNotThrow(() => doc.Load(path),
+                "Generated XSD must be parseable; declaration encoding must match actual bytes.");
+
+            var firstLine = File.ReadLines(path).First();
+            StringAssert.Contains("encoding=\"utf-8\"", firstLine);
         }
 
         [Test]

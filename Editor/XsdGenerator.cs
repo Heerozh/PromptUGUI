@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -11,14 +12,17 @@ namespace PromptUGUI.Editor {
         const string Ns = "https://prompt-ugui/v1";
 
         public static string Generate(ControlRegistry registry) {
-            var sb = new StringBuilder();
+            // Write to MemoryStream (not StringBuilder) so XmlWriter emits
+            // encoding="utf-8" in the prolog matching the actual file bytes.
+            // StringBuilder is UTF-16 internally → declaration would say utf-16.
+            var ms = new MemoryStream();
             var settings = new XmlWriterSettings {
                 Indent = true,
                 IndentChars = "  ",
                 Encoding = new UTF8Encoding(false),
                 OmitXmlDeclaration = false,
             };
-            using (var writer = XmlWriter.Create(sb, settings)) {
+            using (var writer = XmlWriter.Create(ms, settings)) {
                 writer.WriteStartDocument();
                 writer.WriteStartElement("xs", "schema", "http://www.w3.org/2001/XMLSchema");
                 writer.WriteAttributeString("targetNamespace", Ns);
@@ -63,7 +67,7 @@ namespace PromptUGUI.Editor {
                 writer.WriteEndElement();
                 writer.WriteEndDocument();
             }
-            return sb.ToString();
+            return new UTF8Encoding(false).GetString(ms.ToArray());
         }
 
         public static void GenerateToFile(
