@@ -312,5 +312,55 @@ namespace PromptUGUI.Tests.Template {
 
             Assert.Throws<TemplateException>(() => TemplateExpander.Expand(doc));
         }
+
+        [Test]
+        public void Variants_block_is_carried_through_expansion() {
+            // 守护 Task 8 的 TemplateExpander 修复：Screen.Variants 在 Expand 后必须保留
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
+                <Screen name='S'>
+                    <Frame id='root'/>
+                    <Variant when='m'>
+                        <Add into='#root'><Image id='extra'/></Add>
+                    </Variant>
+                </Screen></PromptUGUI>");
+
+            var expanded = TemplateExpander.Expand(doc);
+            var s = expanded.Screens[0];
+            Assert.AreEqual(1, s.Variants.Count);
+            Assert.AreEqual("m", s.Variants[0].When);
+            Assert.AreEqual(1, s.Variants[0].Adds.Count);
+            Assert.AreEqual("#root", s.Variants[0].Adds[0].IntoPath);
+            Assert.AreEqual(1, s.Variants[0].Adds[0].Children.Count);
+            Assert.AreEqual("Image", s.Variants[0].Adds[0].Children[0].Tag);
+            Assert.AreEqual("extra", s.Variants[0].Adds[0].Children[0].Id);
+        }
+
+        [Test]
+        public void Variants_block_template_invocation_inside_Add_is_expanded() {
+            // 守护 Task 8 的 TemplateExpander 修复的另一面：Add.Children 中
+            // 的模板调用要被展开（而不是原样留作未知 tag）
+            var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
+                <Template name='IconBtn'>
+                    <Param name='label'/>
+                    <Frame>
+                        <Text>{{label}}</Text>
+                    </Frame>
+                </Template>
+                <Screen name='S'>
+                    <Frame id='root'/>
+                    <Variant when='m'>
+                        <Add into='#root'>
+                            <IconBtn label='OK'/>
+                        </Add>
+                    </Variant>
+                </Screen></PromptUGUI>");
+
+            var expanded = TemplateExpander.Expand(doc);
+            var addedRoot = expanded.Screens[0].Variants[0].Adds[0].Children[0];
+            // 应该展开成 Frame（IconBtn 的模板根），而不是 IconBtn 标签
+            Assert.AreEqual("Frame", addedRoot.Tag);
+            Assert.IsTrue(addedRoot.IsTemplateInstanceRoot);
+            Assert.AreEqual("OK", addedRoot.Children[0].TextContent);
+        }
     }
 }

@@ -68,7 +68,8 @@ namespace PromptUGUI.Application {
                     targetBase = k;
                 } else {
                     throw new System.InvalidOperationException(
-                        $"<Add at='{add.At}'>: must be 'start' / 'end' / non-negative integer");
+                        $"<Add at='{add.At}'>: must be 'start' / 'end' / integer index " +
+                        $"(values out of range are clamped: <0 -> 0, >prevCount -> end)");
                 }
 
                 // 把刚加进来的 N 个 child 从末尾移到 targetBase..targetBase+N-1

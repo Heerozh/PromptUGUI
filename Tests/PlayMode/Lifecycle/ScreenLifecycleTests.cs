@@ -409,5 +409,33 @@ namespace PromptUGUI.Tests.Lifecycle {
             UI.Variants.Set("m", false);
             yield return null;
         }
+
+        [UnityTest]
+        public IEnumerator Variant_add_with_multiple_children_at_start_preserves_order() {
+            // 验证 SetSiblingIndex move 循环对 addedN > 1 的正确性：
+            // 起点 prevCount=1（VStack 已有 'a'），加 2 个 child 'x','y' 到 'start'
+            // 期望 child 顺序：x, y, a
+            UI.Variants.Set("m", true);
+            UI.LoadDocument("a8", @"<PromptUGUI version='1'>
+                <Screen name='A8'>
+                    <VStack id='v'>
+                        <Image id='a'/>
+                    </VStack>
+                    <Variant when='m'>
+                        <Add into='#v' at='start'>
+                            <Image id='x'/>
+                            <Image id='y'/>
+                        </Add>
+                    </Variant>
+                </Screen></PromptUGUI>");
+            var screen = UI.Open("A8");
+            var v = screen.Get<PromptVStack>("v").GameObject.transform;
+            Assert.AreEqual("x", v.GetChild(0).name);
+            Assert.AreEqual("y", v.GetChild(1).name);
+            Assert.AreEqual("a", v.GetChild(2).name);
+            UI.Close("A8");
+            UI.Variants.Set("m", false);
+            yield return null;
+        }
     }
 }
