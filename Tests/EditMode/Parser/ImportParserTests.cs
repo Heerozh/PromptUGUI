@@ -33,5 +33,31 @@ namespace PromptUGUI.Tests.Parser {
             var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
             StringAssert.Contains("duplicate", ex.Message.ToLowerInvariant());
         }
+
+        [Test]
+        public void Namespaced_tag_split_into_ns_and_name() {
+            var xml = Header +
+                @"<Screen name='S'><ml.Foo id='x'/></Screen>" + Footer;
+            var doc = UIDocumentParser.Parse(xml);
+            var foo = doc.Screens[0].Root.Children[0];
+            Assert.AreEqual("Foo", foo.Tag);
+            Assert.AreEqual("ml", foo.Namespace);
+        }
+
+        [Test]
+        public void Plain_tag_has_null_namespace() {
+            var xml = Header + @"<Screen name='S'><Frame/></Screen>" + Footer;
+            var doc = UIDocumentParser.Parse(xml);
+            var frame = doc.Screens[0].Root.Children[0];
+            Assert.AreEqual("Frame", frame.Tag);
+            Assert.IsNull(frame.Namespace);
+        }
+
+        [Test]
+        public void Multiple_dots_in_tag_throws() {
+            var xml = Header + @"<Screen name='S'><a.b.c/></Screen>" + Footer;
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+            StringAssert.Contains("namespace", ex.Message.ToLowerInvariant());
+        }
     }
 }
