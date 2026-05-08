@@ -1,0 +1,109 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What This Is
+
+PromptUGUI is a Unity 6+ UPM package that translates compact `.ui.xml` files into runtime uGUI hierarchies. Target use case: pixel-art SLG that ships PC widescreen and mobile portrait from one description.
+
+The library is **content-agnostic at runtime**: it never reads the filesystem itself. Callers register a `Func<string,string> SourceResolver` that maps an opaque `src` key to XML content; how the user obtains that content (Resources, Addressables, custom paths) is their concern.
+
+## Canonical Design Sources
+
+`docs/superpowers/specs/2026-05-07-promptugui-description-language-design.md` is the master spec for the description language and C# API. Per-milestone specs and plans live alongside it. Always read the master spec before changing public API or XML semantics — section numbers (e.g. "spec §7.6") are referenced throughout the codebase and PR descriptions.
+
+## Project Layout
+
+| Asmdef | Where | Compiled into Player? |
+|---|---|---|
+| `PromptUGUI.Runtime` | `Runtime/` | yes |
+| `PromptUGUI.Editor` | `Editor/` | no (Editor-only) |
+| `PromptUGUI.Tests.EditMode` | `Tests/EditMode/` | no |
+| `PromptUGUI.Tests.EditorOnly` | `Tests/EditMode/Editor/` | no (tests for `PromptUGUI.Editor`) |
+| `PromptUGUI.Tests.PlayMode` | `Tests/PlayMode/` | no |
+
+`Runtime/AssemblyInfo.cs` exposes internals to `PromptUGUI.Tests.EditMode` via `InternalsVisibleTo`.
+
+`Runtime/` is split into:
+- `Core/IR/` — pure POCOs (`UIDocument`, `ScreenDef`, `TemplateDef`, `ElementNode`, `ImportRef`, `VariantBlock`, `AddDirective`)
+- `Core/Parser/` — `UIDocumentParser` (XML → IR) + `ParseException`
+- `Core/Template/` — `TemplateExpander` (inlines Template invocations) + `Substitution` / `Truthy`
+- `Core/Variants/` — `VariantResolver` (last-active-wins for `attr.var` overrides)
+- `Core/Layout/` — `AnchorResolver` / `MarginResolver` / `SizeSpec`
+- `Controls/` — built-in primitives (`Frame`, `Image`, `Text`, `VStack`, `HStack`, `Grid`, `Btn`) + the `Control` base class
+- `Registry/` — `ControlRegistry` + `ControlMeta` (reflects `[UIAttr]` / `[Bind]`)
+- `Application/` — `UI` static facade (loading/lifecycle), `Screen`, `ScreenInstantiator`, `DocumentLoader`, `DepGraph`, `VariantStore`, `BuiltinPrimitives`
+
+## Pipeline (mental model)
+
+```
+src key ──[SourceResolver]──> xml string
+                                  │
+                              UIDocumentParser.Parse
+                                  │
+                                  ▼
+                         UIDocument (raw IR)
+                                  │
+       (commons pool + recursive Imports merge here)
+                                  │
+                       DocumentLoader.LoadAndMerge
+                                  │
+                                  ▼
+                            LoadedDoc
+                                  │
+                       TemplateExpander.Expand
+                                  │  (Template invocations inlined; (ns,name) lookup)
+                                  ▼
+                       UIDocument (expanded)
+                                  │
+                          ScreenInstantiator
+                                  │
+                                  ▼
+                         live Screen (GameObjects, _byId, _nodeMap)
+```
+
+Two entry points to this pipeline:
+- `UI.LoadDocumentFromSrc(src)` — full pipeline; populates DepGraph for hot reload
+- `UI.LoadDocument(label, xmlString)` — bypasses resolver/DepGraph; raw XML; **cannot be hot-reloaded**
+
+## Critical Conventions
+
+**Templates are inlined at expansion time.** After `TemplateExpander.Expand`, no `<TitledPanel>` invocations remain — they've been replaced with their bodies. Don't try to look up Templates at runtime; the only post-expansion artifact is the `IsTemplateInstanceRoot` flag + `ScopedIds` for id-path resolution.
+
+**Common (auto-imported) Templates live in `_commonsPool` keyed by `(ns, name)`.** `LoadCommonLibrary(src, [as])` populates it once at boot. Subsequent `LoadDocumentFromSrc` calls merge commons → entry templates with hard conflict errors.
+
+**Variants don't rebuild GameObjects.** `VariantStore.Changed` triggers `Screen.ReSolve` which re-applies attribute values via `ControlAttributeApplier`. Add blocks use Strategy C: instantiate once on first activation and only toggle `SetActive`. Never `Destroy` an Add block while the Screen is open — references and R3 subscriptions must survive variant toggles.
+
+**Editor-only code goes through `PromptUGUI.Editor` asmdef OR `#if UNITY_EDITOR`.** The `UI.HotReload` nested class is wrapped in `#if UNITY_EDITOR` so Player builds don't see it. `Editor/UIAssetPostprocessor.cs` is the AssetPostprocessor that calls `UI.HotReload.NotifyAssetChanged`.
+
+**`Screen.Close()` branches on `Application.isPlaying`** to use `DestroyImmediate` in EditMode (so EditMode tests don't log "Destroy may not be called from edit mode"). Don't revert this back to a single `Object.Destroy` call.
+
+**`anchor` has hard structural rules.** `anchor="stretch"` (or `stretch-X` / `X-stretch`) means the corresponding axis is pulled by margin, not size. Setting `size`/`width`/`height` on a stretched axis is a parse error, not a layout suggestion. See spec §6.2.
+
+## Build & Test
+
+The host Unity project is at `C:\xsoft\PromptUGUIDev`; this repo is referenced as a UPM package via `file://`. R3 (Cysharp) is provided by NuGetForUnity in the host project.
+
+**Always test via UnityMCP, not batch-mode Unity.** Tools (deferred — load with `ToolSearch(query="select:run_tests,refresh_unity,read_console", max_results=3)`):
+
+```
+mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)
+mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.EditMode"])
+mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.EditorOnly"])
+mcp__UnityMCP__run_tests(mode="PlayMode", assembly_names=["PromptUGUI.Tests.PlayMode"])
+mcp__UnityMCP__read_console(action="get", types=["error"])
+```
+
+Filter to a single test class with `filter="ClassName"` (matches by name fragment).
+
+After any source edit, refresh first, then check console for compile errors before running tests.
+
+## Test Conventions
+
+EditMode test classes that touch `UI` must call `UI.ResetForTests()` in `[SetUp]` and `[TearDown]`. Tests that open Screens additionally need `BuiltinPrimitives.Register(UI.Registry)`. The fake-files pattern for resolver-driven tests is established in `DocumentLoaderTests.cs` and `HotReloadTests.cs`.
+
+XSD generator tests use substring assertions (`StringAssert.Contains`) rather than byte-exact snapshots — small XSD changes won't trigger fixture churn.
+
+## Workflow
+
+`docs/superpowers/specs/<date>-<topic>-design.md` is the spec format; `docs/superpowers/plans/<date>-<topic>.md` is the implementation plan format. New milestones go through brainstorming → spec → plan → feature branch → PR → merge to main. Recent merges (PR #1 M3, PR #3 M4) used merge commits with `--delete-branch`.
