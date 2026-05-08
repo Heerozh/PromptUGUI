@@ -81,6 +81,38 @@ namespace PromptUGUI.I18n {
             return s.Substring(1, s.Length - 2);
         }
 
+        public static string Serialize(IEnumerable<PoEntry> entries) {
+            var sb = new StringBuilder();
+            foreach (var e in entries) {
+                if (e.TranslatorComments != null) {
+                    foreach (var line in e.TranslatorComments)
+                        sb.Append("# ").Append(line).Append('\n');
+                }
+                if (e.Msgctxt != null) {
+                    sb.Append("msgctxt \"").Append(Encode(e.Msgctxt)).Append("\"\n");
+                }
+                sb.Append("msgid \"").Append(Encode(e.Msgid ?? "")).Append("\"\n");
+                sb.Append("msgstr \"").Append(Encode(e.Msgstr ?? "")).Append("\"\n");
+                sb.Append('\n');
+            }
+            return sb.ToString();
+        }
+
+        static string Encode(string s) {
+            var sb = new StringBuilder(s.Length);
+            foreach (var c in s) {
+                switch (c) {
+                    case '\n': sb.Append("\\n"); break;
+                    case '\t': sb.Append("\\t"); break;
+                    case '\r': sb.Append("\\r"); break;
+                    case '"':  sb.Append("\\\""); break;
+                    case '\\': sb.Append("\\\\"); break;
+                    default:   sb.Append(c); break;
+                }
+            }
+            return sb.ToString();
+        }
+
         static string Decode(string raw) {
             var sb = new StringBuilder(raw.Length);
             for (int j = 0; j < raw.Length; j++) {

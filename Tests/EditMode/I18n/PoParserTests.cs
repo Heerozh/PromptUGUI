@@ -64,5 +64,30 @@ namespace PromptUGUI.Tests.I18n {
         [Test] public void Parse_MissingMsgstr_Throws() {
             Assert.Throws<PoParseException>(() => PoParser.Parse("msgid \"x\"\n").ToList());
         }
+
+        [Test] public void Roundtrip_BasicEntries_PreservesContent() {
+            var src = new[] {
+                new PoEntry { Msgid = "hello", Msgstr = "你好" },
+                new PoEntry { Msgctxt = "door", Msgid = "Open", Msgstr = "打开",
+                              TranslatorComments = { "doorway action" } },
+            };
+            var text = PoParser.Serialize(src);
+            var parsed = PoParser.Parse(text).ToList();
+            Assert.AreEqual(2, parsed.Count);
+            Assert.AreEqual("hello", parsed[0].Msgid);
+            Assert.AreEqual("你好",  parsed[0].Msgstr);
+            Assert.AreEqual("door",  parsed[1].Msgctxt);
+            Assert.AreEqual("Open",  parsed[1].Msgid);
+            Assert.AreEqual("打开",  parsed[1].Msgstr);
+        }
+
+        [Test] public void Serialize_EscapesNewlinesAndQuotes() {
+            var entries = new[] {
+                new PoEntry { Msgid = "line\nwith \"quotes\"", Msgstr = "" }
+            };
+            var text = PoParser.Serialize(entries);
+            StringAssert.Contains("\\n", text);
+            StringAssert.Contains("\\\"", text);
+        }
     }
 }
