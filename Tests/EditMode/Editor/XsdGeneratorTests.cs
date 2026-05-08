@@ -36,9 +36,37 @@ namespace PromptUGUI.Tests.Editor {
             var content = File.ReadAllText(path);
             StringAssert.Contains("PrimaryButton", content);
         }
+
+        [Test]
+        public void Icon_element_present_in_xsd() {
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+            StringAssert.Contains("name=\"Icon\"", xsd);
+        }
+
+        [Test]
+        public void Icon_name_attribute_has_pattern() {
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+            StringAssert.Contains("xs:pattern", xsd);
+            StringAssert.Contains(":[\\w\\-]+", xsd);
+        }
+
+        [Test]
+        public void UIAttr_Pattern_propagated_via_reflection() {
+            var r = new ControlRegistry();
+            r.Register<TestPatternedControl>("Patterned", null);
+            var xsd = XsdGenerator.Generate(r);
+            StringAssert.Contains("xs:pattern", xsd);
+            StringAssert.Contains("^abc$", xsd);
+        }
     }
 
     public class TestPrimaryButton : Control {
         [UIAttr] public string Label { get; set; }
+    }
+
+    public class TestPatternedControl : Control {
+        [UIAttr(Pattern = "^abc$")] public string Code { get; set; }
     }
 }

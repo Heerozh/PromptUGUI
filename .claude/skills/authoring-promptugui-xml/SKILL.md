@@ -29,7 +29,7 @@ This skill covers everything you need to write or edit a `.ui.xml` correctly. Re
 
 `<Import>`, `<Screen>`, `<Template>` are the **only** elements allowed at the top level. Comments use standard `<!-- -->`.
 
-## Built-in primitives (7)
+## Built-in primitives (8)
 
 Registered automatically by `BuiltinPrimitives.Register(UI.Registry)`. Use as XML tags by name:
 
@@ -42,8 +42,30 @@ Registered automatically by `BuiltinPrimitives.Register(UI.Registry)`. Use as XM
 | `<HStack>` | Horizontal layout group. | Same as VStack. |
 | `<Grid>` | Grid layout group, fixed columns. | `columns` (int), `cellSize` (`WxH`), `spacing` (single or `H,V`), `padding` |
 | `<Btn>` | Image + Button + R3 `OnClick`. Use as **template root** or registered prefab tag for any clickable. | `color`, `sprite` |
+| `<Icon>` | Sprite from a project-level IconSet; by-name lookup, package-time pruning. | `name` (required, `ns:icon-name`), `color` (`#RRGGBB[AA]`), `size` (numeric / `WxH` / `stretch` / `native`) |
 
 **No built-in `<Button>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>`.** Build those as `<Template>` (composing `<Btn>` + `<Image>` + `<Text>`) or register your own C# `Control` + Prefab.
+
+### `<Icon>`
+
+References a sprite from a project-level IconSet (shared icons, by-name lookup, package-time pruning).
+
+```xml
+<Icon name="ui:settings" color="#ffffff"/>
+<Icon name="art:gold-coin" size="48"/>
+<Icon name="ui:bell" color.dark="#fff"/>
+```
+
+| Attribute | Required | Default | Notes |
+|---|---|---|---|
+| `name` | yes | — | Format `ns:icon-name` (single colon, both halves match `[\w-]+`) |
+| `color` | no | `#ffffff` | Multiply tint on the underlying Image. White preserves a colored PNG; non-white tints a mono-mask PNG |
+| `size` | no | `native` | Numeric / `WxH` / `stretch` / `native` (Icon-only). Native reads sprite pixel dimensions |
+
+**Dynamic icon names**: writing `<Icon name="ui:{{x}}"/>` (Template substitution or expression-driven name) cannot be statically analyzed — the Editor sync tool will skip it with a warning. Two ways out:
+
+- Preferred: enumerate states explicitly via Variant overrides — `<Icon name="ui:sun" name.dark="ui:moon"/>`, the scanner sees both candidates.
+- Fallback: list candidates in `IconSet.alwaysInclude` (always packed into the atlas).
 
 ## Common attributes (any tag)
 
@@ -153,6 +175,8 @@ Append `.variantName` to **any** attribute. The base value applies when no varia
 
 **Last-active-wins** — declaration order matters. With `<X size="100" size.mobile="200" size.tablet="150"/>`, if both `mobile` and `tablet` are active, `tablet` wins because it was declared after.
 
+Variant overrides on `<Icon name="...">` swap the sprite at runtime: `<Icon name="ui:sun" name.dark="ui:moon"/>`.
+
 ### Block form — only `<Add>`
 
 For inserting elements per variant (no `Remove`, no `Replace` — use `hidden.var="true"` and inline overrides instead):
@@ -229,6 +253,17 @@ UI.LoadDocumentFromSrc("screens/MainMenu");                // resolver path
 UI.LoadDocument("MainMenu", xmlString);                    // raw XML, no hot-reload
 ```
 
+**Icon system setup** (optional, only if your XML uses `<Icon>`):
+
+```csharp
+// Default helper: enumerate Resources/IconSets/ folder
+IconResolverHelpers.UseSpriteAtlasIconResolver();
+// Or pass an explicit list of IconSet ScriptableObjects:
+IconResolverHelpers.UseSpriteAtlasIconResolver(new[] { uiIconSet, artIconSet });
+```
+
+The helper builds a `(set:icon) → Sprite` lookup from each IconSet's SpriteAtlas. To use a different backend (Addressables, custom), set `UI.IconResolver` directly.
+
 ### Open / Close / Get
 
 ```csharp
@@ -304,7 +339,7 @@ UI.Registry.Register<MyControl>("MyControl", optionalPrefab: null);
 ROOT          <PromptUGUI version="1"> ... </PromptUGUI>
 TOP LEVEL     <Import src="" [as=""]/>  <Screen name="">  <Template name="">
 
-BUILT-INS     <Frame> <Image> <Text> <VStack> <HStack> <Grid> <Btn>
+BUILT-INS     <Frame> <Image> <Text> <VStack> <HStack> <Grid> <Btn> <Icon>
 TEXT SHORT    <Text>Hi</Text> ≡ <Text text="Hi"/>     (only <Text>)
 
 COMMON ATTRS  id  anchor  size|width|height  margin  pivot  hidden  interactable

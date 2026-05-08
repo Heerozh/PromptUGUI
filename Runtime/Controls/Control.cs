@@ -55,6 +55,8 @@ namespace PromptUGUI.Controls {
             _scopedIds = dict;
         }
 
+        public virtual UnityEngine.Vector2? GetNativeSize() => null;
+
         // 通用属性应用（由 ScreenInstantiator 在子类自身属性应用之后调用）
         public void ApplyCommon(string anchor, string size, string width, string height,
                                 string margin, string pivot,
@@ -64,6 +66,13 @@ namespace PromptUGUI.Controls {
                 : AnchorPreset.Parse(anchor);
 
             var sizeSpec = SizeSpec.Parse(size, width, height);
+
+            if (sizeSpec.IsNativeWidth || sizeSpec.IsNativeHeight) {
+                var native = GetNativeSize();
+                if (native.HasValue)
+                    sizeSpec = sizeSpec.WithNativeResolved(native.Value);
+            }
+
             sizeSpec.ValidateAgainst(preset);
 
             AnchorResolver.Resolve(preset,

@@ -140,7 +140,7 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 
 ## 5. 内置控件原语
 
-刻意保持极少：7 个原语，覆盖布局、最基础视觉与点击交互，其他全部通过自定义控件或 `<Template>` 扩展。
+刻意保持极少：8 个原语，覆盖布局、最基础视觉与点击交互，其他全部通过自定义控件或 `<Template>` 扩展。
 
 | 标签 | 作用 | 对应 uGUI |
 |---|---|---|
@@ -151,6 +151,7 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 | `<HStack>` | 横向自动排布 | RectTransform + HorizontalLayoutGroup |
 | `<Grid>` | 网格排布 | RectTransform + GridLayoutGroup |
 | `<Btn>` | 通用按钮（背景图 + R3 OnClick 流） | Image + Button (uGUI) |
+| `<Icon>` | 项目级 IconSet 中的图标（按名查找，打包期剪枝） | Image |
 
 `<Btn>` 提供"按钮"这一通用交互原语：可作为 Template 根，配合 `<Image>` / `<Text>` 子节点组合出 PrimaryButton / DangerButton / IconButton 等业务变体而无需额外 prefab。`Btn` 内部用 R3 `Subject<Unit>` 暴露 `OnClick`（与 §9.4 的"事件统一为 `Observable<T>`"约束一致）。
 
@@ -187,6 +188,17 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 
 完整属性表见各控件 README（不在本 spec 范围）。
 
+### 5.4 `<Icon>`（项目级图标系统）
+
+引用项目级 IconSet 中的图标。完整设计见独立 spec
+[`2026-05-08-icon-assets-design.md`](2026-05-08-icon-assets-design.md)。
+
+简表：
+- `name="ns:icon"` 必填，冒号分隔，两侧字符 `[\w\-]+`
+- `color` multiply tint，默认 `#ffffff`
+- `size` 默认 `native`，Icon 独占该值
+- 完整 attrs 见 §5.3
+
 ---
 
 ## 6. 锚点与尺寸
@@ -214,6 +226,8 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 ```
 
 **严格规则**：拉伸轴上**禁止**出现 `size` / `width` / `height` 的相应分量。如 `anchor="top-stretch"` + `width="..."` 是非法的 → 编译期报错。
+
+**`native`**：取控件 native size（仅 `<Icon>` 接受；其他控件出现 → ParseException）。常用 `<Icon name="ui:settings"/>`，默认就是 native，作者一般不写 size。
 
 ### 6.3 margin —— 统一为"从锚点向内的距离"
 
@@ -614,7 +628,7 @@ HeTu.Sub<int>("player.gold").BindText(...).AddTo(screen);
   <Template name="..."> [<Param name="p" [default=""]/>...] body </Template>
 </PromptUGUI>
 
-## 内置原语 (7)
+## 内置原语 (8)
 <Frame>            纯定位容器
 <Image sprite="" color=""/>
 <Text>文本</Text>     或 <Text text="..."/>
@@ -622,6 +636,7 @@ HeTu.Sub<int>("player.gold").BindText(...).AddTo(screen);
 <HStack spacing="" padding="">
 <Grid columns="" spacing="" padding="">
 <Btn color="" sprite="">点击</Btn>   通用按钮（OnClick 流）
+<Icon name="ns:icon" color="" size="native"/>   项目级图标
 
 ## 自定义控件
 注册后写法等同 <PascalCase .../>。
@@ -689,6 +704,8 @@ if="{{p}}"       仅 truthy 时保留该元素
 | R4 | 自定义控件 Prefab 与 description 字段对齐错误 | M1 提供注册期一次性校验：检查 `[UIAttr]` 标记的属性与 prefab 是否匹配 |
 | R5 | ID 路径冲突（用户在 Screen 与 Template 内用同名 id） | 路径访问天然消歧；GetAll 返回所有匹配 |
 | R6 | 跨文件 Template 同名冲突且双方都未 alias | 编译期硬报错，要求其一改名或 alias |
+| R7 | Icon SpriteAtlas 4096 上限 | 同步工具 LogWarning；后续可加 split 策略 |
+| R8 | `<Icon name="ui:{{x}}"/>` 动态名漏打包 | IconSet.alwaysInclude 兜底 |
 
 ---
 
