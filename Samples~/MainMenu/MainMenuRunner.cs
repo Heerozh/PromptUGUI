@@ -6,7 +6,7 @@ using UnityEngine;
 namespace PromptUGUI.Samples.MainMenu {
     /// <summary>
     /// 加载 Resources/UI/MainMenu.ui.xml 并打开 MainMenu Screen。
-    /// Editor 内修改 .ui.xml 保存即自动 hot reload（M4.5 起）。
+    /// Editor 内修改 .ui.xml 保存即自动 hot reload。
     ///
     /// 使用步骤：
     ///   1. 场景里建空 GameObject，挂本组件

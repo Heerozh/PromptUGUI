@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: SolarIconSet
   m_EditorClassIdentifier: PromptUGUI.Runtime::PromptUGUI.Application.IconSet
   setName: solar
-  atlas: {fileID: 0}
+  atlas: {fileID: 100100200, guid: 238e5a76de3c6c246a8eb68e5e982e63, type: 3}
   alwaysInclude: []
-  sourceFolder: {fileID: 102900000, guid: b70ac8be232be364a8af07d05355ec20, type: 3}
+  sourceFolder: {fileID: 102900000, guid: 5277dbcf003df1940a9d264ef1cd246d, type: 3}
