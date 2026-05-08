@@ -26,7 +26,24 @@ namespace PromptUGUI.Template {
                     var ec = ExpandTree(c, doc.Templates, new HashSet<string>());
                     if (ec != null) newRoot.Children.Add(ec);
                 }
-                result.Screens.Add(new ScreenDef(s.Name, newRoot));
+                var newScreen = new ScreenDef(s.Name, newRoot);
+                foreach (var block in s.Variants) {
+                    var newBlock = new VariantBlock(block.When);
+                    foreach (var add in block.Adds) {
+                        var newAdd = new AddDirective {
+                            IntoPath = add.IntoPath,
+                            At = add.At,
+                        };
+                        foreach (var ch in add.Children) {
+                            EnsureNoSlot(ch, $"<Variant when='{block.When}'> in Screen '{s.Name}'");
+                            var ec = ExpandTree(ch, doc.Templates, new HashSet<string>());
+                            if (ec != null) newAdd.Children.Add(ec);
+                        }
+                        newBlock.Adds.Add(newAdd);
+                    }
+                    newScreen.Variants.Add(newBlock);
+                }
+                result.Screens.Add(newScreen);
             }
             return result;
         }

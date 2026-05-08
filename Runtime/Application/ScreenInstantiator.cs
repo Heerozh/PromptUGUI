@@ -37,7 +37,80 @@ namespace PromptUGUI.Application {
                                      parentIsLayoutGroup: false,
                                      result.Controls, result.NodeToControl);
 
+            foreach (var block in def.Variants) {
+                if (!_variants.IsActive(block.When)) continue;
+                ApplyAddBlock(block, result);
+            }
+
             return result;
+        }
+
+        internal List<GameObject> ApplyAddBlock(VariantBlock block, InstantiationResult result) {
+            var roots = new List<GameObject>();
+            foreach (var add in block.Adds) {
+                var parent = ResolveAddTarget(result.Root, result.Controls, add.IntoPath);
+                bool parentIsLayoutGroup = parent.GetComponent<UnityEngine.UI.LayoutGroup>() != null;
+
+                // 实例化前：记下当前 child 数；新增 N 个 child 此时都被追加到末尾
+                int prevCount = parent.childCount;
+                foreach (var child in add.Children)
+                    InstantiateRecursive(child, parent, parentIsLayoutGroup,
+                                         result.Controls, result.NodeToControl);
+                int addedN = parent.childCount - prevCount;
+
+                // 计算目标基准索引（at='end' 时等于 prevCount，保持新增项原位在末尾）
+                int targetBase;
+                if (add.At == "start")      targetBase = 0;
+                else if (add.At == "end")   targetBase = prevCount;
+                else if (int.TryParse(add.At, out var k)) {
+                    if (k < 0) k = 0;
+                    if (k > prevCount) k = prevCount;  // OOB clamp
+                    targetBase = k;
+                } else {
+                    throw new System.InvalidOperationException(
+                        $"<Add at='{add.At}'>: must be 'start' / 'end' / non-negative integer");
+                }
+
+                // 把刚加进来的 N 个 child 从末尾移到 targetBase..targetBase+N-1
+                if (targetBase != prevCount) {
+                    for (int i = 0; i < addedN; i++) {
+                        var c = parent.GetChild(prevCount + i);  // 它们仍在末尾
+                        c.SetSiblingIndex(targetBase + i);
+                    }
+                }
+
+                for (int i = 0; i < addedN; i++)
+                    roots.Add(parent.GetChild(targetBase + i).gameObject);
+            }
+            return roots;
+        }
+
+        static Transform ResolveAddTarget(GameObject screenRoot,
+                                          IReadOnlyDictionary<string, IControl> controls,
+                                          string intoPath) {
+            if (intoPath == "@root") return screenRoot.transform;
+            if (intoPath.StartsWith("#")) {
+                var path = intoPath.Substring(1);
+                if (string.IsNullOrEmpty(path))
+                    throw new System.InvalidOperationException(
+                        $"<Add into='{intoPath}'>: id is empty after '#'");
+
+                // 与 Screen.Get(idPath) 同义：首段查 top-level controls，后续段下钻 ScopedIds
+                var segs = path.Split('/');
+                if (!controls.TryGetValue(segs[0], out var current))
+                    throw new System.InvalidOperationException(
+                        $"<Add into='{intoPath}'>: id '{segs[0]}' not found in screen");
+                for (int i = 1; i < segs.Length; i++) {
+                    if (!current.ScopedIds.TryGetValue(segs[i], out var next))
+                        throw new System.InvalidOperationException(
+                            $"<Add into='{intoPath}'>: '{segs[i]}' not found under " +
+                            $"'{string.Join("/", segs, 0, i)}'");
+                    current = next;
+                }
+                return current.GameObject.transform;
+            }
+            throw new System.InvalidOperationException(
+                $"<Add into='{intoPath}'>: must be '@root' or '#id' / '#id/path/...'");
         }
 
         internal void InstantiateRecursive(ElementNode node, Transform parent,
