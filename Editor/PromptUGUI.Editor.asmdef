@@ -1,0 +1,13 @@
+{
+    "name": "PromptUGUI.Editor",
+    "rootNamespace": "PromptUGUI.Editor",
+    "references": ["PromptUGUI.Runtime"],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
