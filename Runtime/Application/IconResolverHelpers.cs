@@ -8,13 +8,27 @@ namespace PromptUGUI.Application {
         const string CloneSuffix = "(Clone)";
 
         public static void UseSpriteAtlasIconResolver(string resourcesSubpath = "IconSets") {
-            var sets = Resources.LoadAll<IconSet>(resourcesSubpath);
-            UseSpriteAtlasIconResolver(sets);
+            void Rebuild() {
+                var sets = Resources.LoadAll<IconSet>(resourcesSubpath);
+                var map = BuildLookup(sets);
+                UI.IconResolver = key => map.TryGetValue(key, out var sp) ? sp : null;
+            }
+            Rebuild();
+#if UNITY_EDITOR
+            UI.HotReload.IconResolverRebuilder = Rebuild;
+#endif
         }
 
         public static void UseSpriteAtlasIconResolver(IEnumerable<IconSet> sets) {
-            var map = BuildLookup(sets);
-            UI.IconResolver = key => map.TryGetValue(key, out var s) ? s : null;
+            var snapshot = new List<IconSet>(sets);
+            void Rebuild() {
+                var map = BuildLookup(snapshot);
+                UI.IconResolver = key => map.TryGetValue(key, out var sp) ? sp : null;
+            }
+            Rebuild();
+#if UNITY_EDITOR
+            UI.HotReload.IconResolverRebuilder = Rebuild;
+#endif
         }
 
         static Dictionary<string, Sprite> BuildLookup(IEnumerable<IconSet> sets) {

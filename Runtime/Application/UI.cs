@@ -237,6 +237,7 @@ namespace PromptUGUI.Application {
             IconResolver = null;
 #if UNITY_EDITOR
             HotReload.AssetPathToSrc = null;
+            HotReload.IconResolverRebuilder = null;
             HotReload.Enabled = true;
 #endif
         }
@@ -260,6 +261,22 @@ namespace PromptUGUI.Application {
                 foreach (var name in _depGraph.ScreensDependingOn(src))
                     affected.Add(name);
                 foreach (var name in affected) Reload(name);
+            }
+
+            /// <summary>
+            /// 由 helper 注册：被调用时应当重建 UI.IconResolver 的 lookup
+            /// (e.g., 重新枚举 IconSet 资源 + 重建 dict)。
+            /// </summary>
+            public static System.Action IconResolverRebuilder { get; set; }
+
+            /// <summary>
+            /// 由 AssetPostprocessor / 用户手动调用：通知 icon-related 资源变化。
+            /// 重建 IconResolver lookup + 触发所有 open Screen ReSolve。
+            /// </summary>
+            public static void NotifyIconAssetsChanged() {
+                if (!Enabled) return;
+                IconResolverRebuilder?.Invoke();
+                foreach (var s in _open.Values) s.ReSolve();
             }
         }
 #endif
