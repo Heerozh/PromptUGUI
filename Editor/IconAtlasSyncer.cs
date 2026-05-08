@@ -4,7 +4,9 @@ using System.IO;
 using PromptUGUI.IR;
 using PromptUGUI.Parser;
 using UnityEditor;
+using UnityEditor.U2D;
 using UnityEngine;
+using UnityEngine.U2D;
 
 namespace PromptUGUI.Editor {
     public static class IconAtlasSyncer {
@@ -104,6 +106,53 @@ namespace PromptUGUI.Editor {
             if (importer.textureType == TextureImporterType.Sprite) return;
             importer.textureType = TextureImporterType.Sprite;
             importer.SaveAndReimport();
+        }
+
+        /// <summary>差量同步 atlas 的 packables。返回 true 表示发生了变更。</summary>
+        public static bool UpdateAtlas(SpriteAtlas atlas, Sprite[] desired) {
+            var current = atlas.GetPackables();
+            if (PackablesEqual(current, desired)) return false;
+            atlas.Remove(current);
+            var asObjects = new UnityEngine.Object[desired.Length];
+            for (int i = 0; i < desired.Length; i++) asObjects[i] = desired[i];
+            atlas.Add(asObjects);
+            EditorUtility.SetDirty(atlas);
+            SpriteAtlasUtility.PackAtlases(
+                new[] { atlas },
+                EditorUserBuildSettings.activeBuildTarget);
+            return true;
+        }
+
+        static bool PackablesEqual(UnityEngine.Object[] a, Sprite[] b) {
+            if (a.Length != b.Length) return false;
+            var aSet = new HashSet<string>();
+            foreach (var o in a) {
+                var path = AssetDatabase.GetAssetPath(o);
+                aSet.Add(AssetDatabase.AssetPathToGUID(path) + "|" + (o as Sprite)?.name);
+            }
+            foreach (var s in b) {
+                var path = AssetDatabase.GetAssetPath(s);
+                var key = AssetDatabase.AssetPathToGUID(path) + "|" + s.name;
+                if (!aSet.Contains(key)) return false;
+            }
+            return true;
+        }
+
+        /// <summary>若 IconSet.atlas 为 null，在 SO 同目录创建 &lt;setName&gt;.spriteatlas 并回填。</summary>
+        internal static SpriteAtlas EnsureAtlasAsset(PromptUGUI.Application.IconSet set) {
+            if (set.Atlas != null) return set.Atlas;
+            var setPath = AssetDatabase.GetAssetPath(set);
+            if (string.IsNullOrEmpty(setPath)) {
+                Debug.LogError("[IconSync] IconSet not saved as asset; cannot create atlas");
+                return null;
+            }
+            var dir = Path.GetDirectoryName(setPath).Replace('\\', '/');
+            var atlasPath = $"{dir}/{set.SetName}.spriteatlas";
+            var atlas = new SpriteAtlas();
+            AssetDatabase.CreateAsset(atlas, atlasPath);
+            set.SetAtlasInternal(atlas);
+            AssetDatabase.SaveAssets();
+            return atlas;
         }
     }
 }
