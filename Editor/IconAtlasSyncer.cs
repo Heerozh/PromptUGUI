@@ -11,14 +11,26 @@ using UnityEngine.U2D;
 namespace PromptUGUI.Editor {
     public static class IconAtlasSyncer {
         const string DynamicMarker = "{{";
+        const string ProgressTitle = "PromptUGUI Icon Sync";
 
         /// <summary>(setName, iconName) pairs found across all .ui.xml in the project.</summary>
-        public static HashSet<(string set, string name)> ScanXmlReferences() {
+        /// <param name="showProgress">When true, drives a cancelable progress bar; throws
+        /// <see cref="OperationCanceledException"/> if the user cancels.</param>
+        public static HashSet<(string set, string name)> ScanXmlReferences(
+            bool showProgress = false) {
             var refs = new HashSet<(string, string)>();
             var guids = AssetDatabase.FindAssets("t:TextAsset");
-            foreach (var guid in guids) {
+            for (int i = 0; i < guids.Length; i++) {
+                var guid = guids[i];
                 var path = AssetDatabase.GUIDToAssetPath(guid);
                 if (!path.EndsWith(".ui.xml", StringComparison.Ordinal)) continue;
+                if (showProgress &&
+                    EditorUtility.DisplayCancelableProgressBar(
+                        ProgressTitle,
+                        $"Scanning XML references ({i + 1}/{guids.Length}): {path}",
+                        (float)i / Mathf.Max(1, guids.Length))) {
+                    throw new OperationCanceledException();
+                }
                 string text;
                 try { text = File.ReadAllText(path); }
                 catch (IOException ex) {
@@ -73,8 +85,24 @@ namespace PromptUGUI.Editor {
             refs.Add((ns, name));
         }
 
-        /// <summary>{iconName -> Sprite} 收集 sourceFolder 下所有 PNG。</summary>
-        public static Dictionary<string, Sprite> EnumeratePngs(string folderAssetPath) {
+        /// <summary>Cheap recursive count of *.png files under a folder. No asset
+        /// loading, no importer mutation — safe to call from OnInspectorGUI.</summary>
+        public static int CountPngs(string folderAssetPath) {
+            if (string.IsNullOrEmpty(folderAssetPath)) return 0;
+            if (!AssetDatabase.IsValidFolder(folderAssetPath)) return 0;
+            var fullFolder = Path.GetFullPath(folderAssetPath);
+            int n = 0;
+            foreach (var _ in Directory.EnumerateFiles(
+                         fullFolder, "*.png", SearchOption.AllDirectories)) n++;
+            return n;
+        }
+
+        /// <summary>{iconName -> Sprite} 收集 sourceFolder 下所有 PNG。Triggers sprite
+        /// reimport on first encounter — call from sync paths, not Inspector repaints.</summary>
+        /// <param name="progressLabel">When non-null, drives a cancelable progress bar
+        /// and throws <see cref="OperationCanceledException"/> if the user cancels.</param>
+        public static Dictionary<string, Sprite> EnumeratePngs(
+            string folderAssetPath, string progressLabel = null) {
             var dict = new Dictionary<string, Sprite>(StringComparer.Ordinal);
             if (string.IsNullOrEmpty(folderAssetPath)) return dict;
             if (!AssetDatabase.IsValidFolder(folderAssetPath)) {
@@ -83,10 +111,19 @@ namespace PromptUGUI.Editor {
             }
 
             var fullFolder = Path.GetFullPath(folderAssetPath);
-            foreach (var fullPath in Directory.EnumerateFiles(
-                         fullFolder, "*.png", SearchOption.AllDirectories)) {
+            var files = new List<string>(Directory.EnumerateFiles(
+                fullFolder, "*.png", SearchOption.AllDirectories));
+            for (int i = 0; i < files.Count; i++) {
+                var fullPath = files[i];
                 var assetPath = "Assets" +
                     fullPath.Substring(UnityEngine.Application.dataPath.Length).Replace('\\', '/');
+                if (progressLabel != null &&
+                    EditorUtility.DisplayCancelableProgressBar(
+                        ProgressTitle,
+                        $"{progressLabel}: {Path.GetFileName(assetPath)} ({i + 1}/{files.Count})",
+                        (float)i / Mathf.Max(1, files.Count))) {
+                    throw new OperationCanceledException();
+                }
                 EnsureSpriteImporter(assetPath);
                 var sp = AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
                 if (sp == null) continue;
@@ -105,6 +142,7 @@ namespace PromptUGUI.Editor {
             if (importer == null) return;
             if (importer.textureType == TextureImporterType.Sprite) return;
             importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Single;
             importer.SaveAndReimport();
         }
 
@@ -140,54 +178,69 @@ namespace PromptUGUI.Editor {
 
         public static void SyncAll(IEnumerable<PromptUGUI.Application.IconSet> sets) {
             var setList = new List<PromptUGUI.Application.IconSet>(sets);
-            var refs = ScanXmlReferences();
+            try {
+                var refs = ScanXmlReferences(showProgress: true);
 
-            // detect duplicate setNames before any work
-            var seen = new HashSet<string>();
-            foreach (var s in setList) {
-                if (s == null) continue;
-                if (string.IsNullOrEmpty(s.SetName)) {
-                    Debug.LogError($"[IconSync] IconSet '{s.name}' has empty setName");
-                    return;
+                // detect duplicate setNames before any work
+                var seen = new HashSet<string>();
+                foreach (var s in setList) {
+                    if (s == null) continue;
+                    if (string.IsNullOrEmpty(s.SetName)) {
+                        Debug.LogError($"[IconSync] IconSet '{s.name}' has empty setName");
+                        return;
+                    }
+                    if (!seen.Add(s.SetName)) {
+                        Debug.LogError(
+                            $"[IconSync] duplicate IconSet setName '{s.SetName}'; aborting");
+                        return;
+                    }
                 }
-                if (!seen.Add(s.SetName)) {
-                    Debug.LogError(
-                        $"[IconSync] duplicate IconSet setName '{s.SetName}'; aborting");
-                    return;
+
+                for (int i = 0; i < setList.Count; i++) {
+                    var set = setList[i];
+                    if (set == null) continue;
+                    var folder = set.SourceFolderPath;
+                    if (string.IsNullOrEmpty(folder) || !AssetDatabase.IsValidFolder(folder)) {
+                        Debug.LogError($"[IconSync] IconSet '{set.SetName}': sourceFolder invalid");
+                        continue;
+                    }
+                    var label = $"Set {i + 1}/{setList.Count} '{set.SetName}'";
+                    var available = EnumeratePngs(folder, label);
+                    var needed = new HashSet<string>();
+                    foreach (var (ns, name) in refs)
+                        if (ns == set.SetName) needed.Add(name);
+                    foreach (var n in set.AlwaysInclude)
+                        if (!string.IsNullOrEmpty(n)) needed.Add(n);
+
+                    var picked = new List<Sprite>();
+                    var missing = new List<string>();
+                    foreach (var n in needed) {
+                        if (available.TryGetValue(n, out var sp)) picked.Add(sp);
+                        else missing.Add(n);
+                    }
+                    if (missing.Count > 0)
+                        Debug.LogWarning(
+                            $"[IconSync] '{set.SetName}': XML references missing PNGs: " +
+                            string.Join(", ", missing));
+
+                    if (EditorUtility.DisplayCancelableProgressBar(
+                            ProgressTitle, $"{label}: packing atlas...",
+                            (i + 0.9f) / Mathf.Max(1, setList.Count))) {
+                        throw new OperationCanceledException();
+                    }
+                    var atlas = EnsureAtlasAsset(set);
+                    if (atlas == null) continue;
+                    UpdateAtlas(atlas, picked.ToArray());
                 }
+
+                AssetDatabase.SaveAssets();
             }
-
-            foreach (var set in setList) {
-                if (set == null) continue;
-                var folder = set.SourceFolderPath;
-                if (string.IsNullOrEmpty(folder) || !AssetDatabase.IsValidFolder(folder)) {
-                    Debug.LogError($"[IconSync] IconSet '{set.SetName}': sourceFolder invalid");
-                    continue;
-                }
-                var available = EnumeratePngs(folder);
-                var needed = new HashSet<string>();
-                foreach (var (ns, name) in refs)
-                    if (ns == set.SetName) needed.Add(name);
-                foreach (var n in set.AlwaysInclude)
-                    if (!string.IsNullOrEmpty(n)) needed.Add(n);
-
-                var picked = new List<Sprite>();
-                var missing = new List<string>();
-                foreach (var n in needed) {
-                    if (available.TryGetValue(n, out var sp)) picked.Add(sp);
-                    else missing.Add(n);
-                }
-                if (missing.Count > 0)
-                    Debug.LogWarning(
-                        $"[IconSync] '{set.SetName}': XML references missing PNGs: " +
-                        string.Join(", ", missing));
-
-                var atlas = EnsureAtlasAsset(set);
-                if (atlas == null) continue;
-                UpdateAtlas(atlas, picked.ToArray());
+            catch (OperationCanceledException) {
+                Debug.LogWarning("[IconSync] cancelled by user");
             }
-
-            AssetDatabase.SaveAssets();
+            finally {
+                EditorUtility.ClearProgressBar();
+            }
         }
 
         public static IEnumerable<PromptUGUI.Application.IconSet> FindAllIconSets() {

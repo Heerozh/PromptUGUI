@@ -99,6 +99,46 @@ namespace PromptUGUI.Tests.Editor {
         }
 
         [Test]
+        public void EnumeratePngs_forces_sprite_single_on_default_texture() {
+            var folder = $"{TestRoot}/icons_default";
+            AssetDatabase.CreateFolder(TestRoot, "icons_default");
+            var pngPath = $"{folder}/baz.png";
+            File.WriteAllBytes(pngPath, MakeBlankPng());
+            AssetDatabase.ImportAsset(pngPath, ImportAssetOptions.ForceUpdate);
+            var importer = AssetImporter.GetAtPath(pngPath) as TextureImporter;
+            Assert.IsNotNull(importer);
+            importer.textureType = TextureImporterType.Default;
+            importer.SaveAndReimport();
+
+            IconAtlasSyncer.EnumeratePngs(folder);
+
+            var after = AssetImporter.GetAtPath(pngPath) as TextureImporter;
+            Assert.AreEqual(TextureImporterType.Sprite, after.textureType);
+            Assert.AreEqual(SpriteImportMode.Single, after.spriteImportMode);
+        }
+
+        [Test]
+        public void EnumeratePngs_leaves_existing_sprite_importer_untouched() {
+            var folder = $"{TestRoot}/icons_multi";
+            AssetDatabase.CreateFolder(TestRoot, "icons_multi");
+            var pngPath = $"{folder}/sheet.png";
+            File.WriteAllBytes(pngPath, MakeBlankPng());
+            AssetDatabase.ImportAsset(pngPath, ImportAssetOptions.ForceUpdate);
+            var importer = AssetImporter.GetAtPath(pngPath) as TextureImporter;
+            Assert.IsNotNull(importer);
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Multiple;
+            importer.SaveAndReimport();
+
+            IconAtlasSyncer.EnumeratePngs(folder);
+
+            var after = AssetImporter.GetAtPath(pngPath) as TextureImporter;
+            Assert.AreEqual(TextureImporterType.Sprite, after.textureType);
+            Assert.AreEqual(SpriteImportMode.Multiple, after.spriteImportMode,
+                "Author-configured Multiple sheet must not be silently flipped to Single");
+        }
+
+        [Test]
         public void SyncAll_aborts_on_duplicate_setname() {
             var a = MakeIconSetAsset("a", "ui");
             var b = MakeIconSetAsset("b", "ui");
