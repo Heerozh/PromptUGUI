@@ -35,18 +35,19 @@ namespace PromptUGUI.Editor {
                 WriteVariant(writer);
                 WriteAdd(writer);
 
-                // 7 primitives + their attributes
-                WriteControl(writer, "Frame",  Array.Empty<(string,string)>());
-                WriteControl(writer, "Image",  new[] {("color","xs:string"),("sprite","xs:string"),("type","xs:string")});
-                WriteControl(writer, "Text",   new[] {("align","xs:string"),("color","xs:string"),("font","xs:string"),("size","xs:string"),("text","xs:string"),("wrap","xs:string")});
-                WriteControl(writer, "VStack", Array.Empty<(string,string)>());
-                WriteControl(writer, "HStack", Array.Empty<(string,string)>());
-                WriteControl(writer, "Grid",   new[] {("columns","xs:int")});
-                WriteControl(writer, "Btn",    new[] {("color","xs:string"),("sprite","xs:string"),("text","xs:string")});
+                // 8 primitives + their attributes
+                WriteControl(writer, "Frame",  Array.Empty<(string,string,string)>());
+                WriteControl(writer, "Image",  new[] {("color","xs:string",(string)null),("sprite","xs:string",(string)null),("type","xs:string",(string)null)});
+                WriteControl(writer, "Text",   new[] {("align","xs:string",(string)null),("color","xs:string",(string)null),("font","xs:string",(string)null),("size","xs:string",(string)null),("text","xs:string",(string)null),("wrap","xs:string",(string)null)});
+                WriteControl(writer, "VStack", Array.Empty<(string,string,string)>());
+                WriteControl(writer, "HStack", Array.Empty<(string,string,string)>());
+                WriteControl(writer, "Grid",   new[] {("columns","xs:int",(string)null)});
+                WriteControl(writer, "Btn",    new[] {("color","xs:string",(string)null),("sprite","xs:string",(string)null),("text","xs:string",(string)null)});
+                WriteControl(writer, "Icon",   new[] {("name","xs:string",@"^[\w\-]+:[\w\-]+$"),("color","xs:string",(string)null)});
 
                 // Registered custom controls — exclude primitives, sort by tag
                 var primitives = new HashSet<string> {
-                    "Frame","Image","Text","VStack","HStack","Grid","Btn" };
+                    "Frame","Image","Icon","Text","VStack","HStack","Grid","Btn" };
                 var customs = registry.All
                     .Where(x => !primitives.Contains(x.Tag))
                     .OrderBy(x => x.Tag, StringComparer.Ordinal)
@@ -76,10 +77,10 @@ namespace PromptUGUI.Editor {
 
         // ---- Reflection helpers ----
 
-        static (string Name, string XsdType)[] ReflectControlAttrs(Type controlType) {
+        static (string Name, string XsdType, string Pattern)[] ReflectControlAttrs(Type controlType) {
             var props = controlType.GetProperties(
                 BindingFlags.Public | BindingFlags.Instance);
-            var list = new List<(string, string)>();
+            var list = new List<(string, string, string)>();
             foreach (var p in props) {
                 var ui = p.GetCustomAttribute<UIAttrAttribute>();
                 if (ui == null || !p.CanWrite) continue;
@@ -90,7 +91,7 @@ namespace PromptUGUI.Editor {
                         $"[PromptUGUI] XSD: skipping {controlType.Name}.{p.Name} — type {p.PropertyType.Name} not supported");
                     continue;
                 }
-                list.Add((name, xsdType));
+                list.Add((name, xsdType, ui.Pattern));
             }
             list.Sort((a, b) => string.CompareOrdinal(a.Item1, b.Item1));
             return list.ToArray();
@@ -273,7 +274,7 @@ namespace PromptUGUI.Editor {
         }
 
         static void WriteControl(XmlWriter w, string tag,
-                                 (string Name, string XsdType)[] attrs) {
+                                 (string Name, string XsdType, string Pattern)[] attrs) {
             w.WriteStartElement("xs", "element", null);
             w.WriteAttributeString("name", tag);
             w.WriteStartElement("xs", "complexType", null);
@@ -287,10 +288,21 @@ namespace PromptUGUI.Editor {
             w.WriteStartElement("xs", "attributeGroup", null);
             w.WriteAttributeString("ref", "commonAttrs");
             w.WriteEndElement();
-            foreach (var (name, type) in attrs) {
+            foreach (var (name, type, pattern) in attrs) {
                 w.WriteStartElement("xs", "attribute", null);
                 w.WriteAttributeString("name", name);
-                w.WriteAttributeString("type", type);
+                if (string.IsNullOrEmpty(pattern)) {
+                    w.WriteAttributeString("type", type);
+                } else {
+                    w.WriteStartElement("xs", "simpleType", null);
+                    w.WriteStartElement("xs", "restriction", null);
+                    w.WriteAttributeString("base", type);
+                    w.WriteStartElement("xs", "pattern", null);
+                    w.WriteAttributeString("value", pattern);
+                    w.WriteEndElement();
+                    w.WriteEndElement();
+                    w.WriteEndElement();
+                }
                 w.WriteEndElement();
             }
             w.WriteEndElement();
@@ -302,7 +314,7 @@ namespace PromptUGUI.Editor {
             w.WriteAttributeString("name", "controlGroup");
             w.WriteStartElement("xs", "choice", null);
             string[] all = new[] {
-                "Frame","Image","Text","VStack","HStack","Grid","Btn"
+                "Frame","Image","Icon","Text","VStack","HStack","Grid","Btn"
             }.Concat(customTags).ToArray();
             foreach (var n in all) {
                 w.WriteStartElement("xs", "element", null);
