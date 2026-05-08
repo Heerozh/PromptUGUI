@@ -163,5 +163,17 @@ namespace PromptUGUI.Tests.Application {
             UI.LoadCommonLibrary("b");
             Assert.Pass();
         }
+
+        [Test]
+        public void UseResourcesResolver_AssetPathToSrc_strips_prefix() {
+            UI.UseResourcesResolver("UI");
+            var fn = UI.HotReload.AssetPathToSrc;
+            Assert.IsNotNull(fn);
+            Assert.AreEqual("MainMenu",
+                fn("Assets/Resources/UI/MainMenu.ui.xml"));
+            Assert.AreEqual("subdir/X",
+                fn("Assets/Samples/PromptUGUI/0.0.0/Demo/Resources/UI/subdir/X.ui.xml"));
+            Assert.IsNull(fn("Assets/Other/Foo.txt"));
+        }
     }
 }

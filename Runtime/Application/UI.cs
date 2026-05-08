@@ -4,7 +4,7 @@ using PromptUGUI.Parser;
 using PromptUGUI.Registry;
 
 namespace PromptUGUI.Application {
-    public static class UI {
+    public static partial class UI {
         static ControlRegistry _registry = new();
         static readonly Dictionary<string, ScreenDef> _docs = new();
         static readonly Dictionary<string, Screen> _open = new();
