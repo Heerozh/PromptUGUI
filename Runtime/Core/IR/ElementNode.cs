@@ -28,7 +28,7 @@ namespace PromptUGUI.IR {
             Tag = tag;
             Attributes = new Dictionary<string, string>();
             Children = new List<ElementNode>();
-            VariantOverrides = new Dictionary<string, List<(string, string)>>();
+            VariantOverrides = new Dictionary<string, List<(string Variant, string Value)>>();
         }
     }
 }
