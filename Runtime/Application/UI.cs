@@ -13,6 +13,7 @@ namespace PromptUGUI.Application {
         static readonly DepGraph _depGraph = new();
 
         public static System.Func<string, string> SourceResolver { get; set; }
+        public static System.Func<string, UnityEngine.Sprite> IconResolver { get; set; }
 
         public static ControlRegistry Registry => _registry;
 
@@ -233,6 +234,7 @@ namespace PromptUGUI.Application {
             _commonsPool.Clear();
             _depGraph.Clear();
             SourceResolver = null;
+            IconResolver = null;
 #if UNITY_EDITOR
             HotReload.AssetPathToSrc = null;
             HotReload.Enabled = true;
