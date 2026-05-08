@@ -76,7 +76,10 @@ namespace PromptUGUI.Application {
             foreach (var d in _subscriptions) d.Dispose();
             _subscriptions.Clear();
             if (RootGameObject != null) {
-                UnityEngine.Object.Destroy(RootGameObject);
+                if (UnityEngine.Application.isPlaying)
+                    UnityEngine.Object.Destroy(RootGameObject);
+                else
+                    UnityEngine.Object.DestroyImmediate(RootGameObject);
                 RootGameObject = null;
             }
             _byId.Clear();
