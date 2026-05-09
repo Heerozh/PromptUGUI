@@ -59,5 +59,55 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsNotNull(rm, "Text Area uses RectMask2D (matches default prefab)");
             Assert.AreEqual(new Vector4(-8, -5, -8, -5), rm.padding);
         }
+
+        [Test]
+        public void Geometry_PlaceholderIsItalicHalfAlphaWithIgnoreLayout()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <InputField id='f' placeholder='Enter...'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var f = UI.Open("S").Get<PInputField>("f");
+            var ph = f.GameObject.transform.Find("Text Area/Placeholder")?.GetComponent<TMP_Text>();
+            Assert.IsNotNull(ph, "Placeholder must be Text Area child");
+            Assert.AreEqual(FontStyles.Italic, ph.fontStyle);
+            Assert.That(ph.color.a, Is.EqualTo(0.5f).Within(0.005f));
+            Assert.IsFalse(ph.raycastTarget);
+
+            var le = ph.gameObject.GetComponent<LayoutElement>();
+            Assert.IsNotNull(le);
+            Assert.IsTrue(le.ignoreLayout);
+        }
+
+        [Test]
+        public void Geometry_TextChildExists()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <InputField id='f'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var f = UI.Open("S").Get<PInputField>("f");
+            var text = f.GameObject.transform.Find("Text Area/Text")?.GetComponent<TMP_Text>();
+            Assert.IsNotNull(text);
+            Assert.IsFalse(text.raycastTarget);
+        }
+
+        [Test]
+        public void Wired_TMPInputFieldRefsTextAndPlaceholder()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <InputField id='f'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var f = UI.Open("S").Get<PInputField>("f");
+            var input = f.GameObject.GetComponent<TMP_InputField>();
+            Assert.IsNotNull(input.textComponent);
+            Assert.AreEqual("Text", input.textComponent.gameObject.name);
+            Assert.IsNotNull(input.placeholder);
+            Assert.AreEqual("Placeholder", input.placeholder.gameObject.name);
+        }
     }
 }

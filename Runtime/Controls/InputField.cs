@@ -11,6 +11,8 @@ namespace PromptUGUI.Controls
     {
         private UnityImage _bg;
         private TMP_InputField _input;
+        private TMP_Text _placeholder;
+        private TMP_Text _text;
 
         public override void OnAttached()
         {
@@ -33,6 +35,28 @@ namespace PromptUGUI.Controls
             _input = GameObject.AddComponent<TMP_InputField>();
             _input.targetGraphic = _bg;
             _input.textViewport = textAreaRt;
+
+            // Placeholder：italic + 半透明 + IgnoreLayout (默认 prefab Placeholder 节点)
+            _placeholder = ProceduralBuilders.AddText(textAreaRt, "Placeholder");
+            _placeholder.alignment = TextAlignmentOptions.TopLeft;
+            _placeholder.fontStyle = FontStyles.Italic;
+            _placeholder.color = ProceduralBuilders.DefaultPlaceholderColor;
+            _placeholder.text = "Enter text...";
+            _placeholder.enableWordWrapping = false;
+            var phLE = _placeholder.gameObject.AddComponent<LayoutElement>();
+            phLE.ignoreLayout = true;
+
+            // Text：用户输入显示组件
+            _text = ProceduralBuilders.AddText(textAreaRt, "Text");
+            _text.alignment = TextAlignmentOptions.TopLeft;
+            _text.color = ProceduralBuilders.DefaultLabelColor;
+            _text.text = string.Empty;
+
+            _input.textComponent = _text;
+            _input.placeholder = _placeholder;
+            _input.caretColor = ProceduralBuilders.DefaultGlyphColor;
+            _input.customCaretColor = false;
+            _input.selectionColor = new Color(0.659f, 0.808f, 1f, 0.753f);
         }
     }
 }
