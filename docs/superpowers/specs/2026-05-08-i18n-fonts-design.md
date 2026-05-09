@@ -42,7 +42,7 @@ PromptUGUI 已有 Variant 系统（每个 Variant 触发已 open Screen 的 ReSo
 | I18N-D8 | XML opt-out | `tr="false"` | 隐式抽取 + 显式排除；C# 反过来：调用 `UI.Tr` 才抽 |
 | I18N-D9 | Settings 持久化 | PlayerSettings.preloadedAssets + AssetPostprocessor | Unity Localization 同款机制；零 Resources/ 污染 |
 | I18N-D10 | locale 列表 | 隐含从 `Settings.locales` 推导 | 单一字段不冗余 |
-| I18N-D11 | 默认 locale | `null`（全 miss → msgid 原样） | 不预设作者源语言；user app 自行调用 `SetToSystemDefault()` |
+| I18N-D11 | 默认 locale 启动初始化 | 自动从 `Application.systemLanguage` 推导；不命中 `Configured` 时回退到 `Configured[0]` 并 `LogWarning("丢失 'X', falling back to 'Y'")`无Config `null`（全 miss → msgid 原样） | 玩家开箱即用；命中失败要让开发者第一时间在 console 看到，避免静默用错语言 |
 | I18N-D12 | fallback chain | 无 | LLM 时代不需要；miss 直接返 msgid |
 | I18N-D13 | AI 配置 | endpoint/model/prompt 进 ProjectSettings；apiKey 进 UserSettings | 团队共享 + key 不进库 |
 | I18N-D14 | 触发节奏 | 手动 Extract / 手动 Translate 两个菜单 | 抽取幂等可频繁跑；翻译付费 LLM 需显式 |
@@ -143,10 +143,15 @@ namespace PromptUGUI.Application {
 
 ### 4.3 Runtime 行为
 
-- `UI.Locale.Set("ko")`，`ko` 不在 `Settings.locales` 中：**接受**
+- 启动自动初始化（`[RuntimeInitializeOnLoadMethod(BeforeSceneLoad)]`）走 §6.4 `InitializeIfNeeded()` 算法：
+  - `Configured` 为空 → 静默 noop，`Current` 保持 `null`（没法回退也没必要警告）
+  - 系统语言映射到 BCP-47 且命中 `Configured` → `Set(it)`
+  - 不命中（含映射返回 `null` 的未识别 SystemLanguage） → `LogWarning("[PromptUGUI] 丢失 'X', falling back to 'Y'")` 后 `Set(Configured[0])`，`X` 是 BCP-47 code 或 `SystemLanguage.{Enum}` 名
+  - 该自动钩子只在 Player / Play Mode 触发；EditMode 测试不受影响
+- 手动 `UI.Locale.Set("ko")`，`ko` 不在 `Settings.locales` 中：**接受**
   - fonts 走内置 TMP default
   - 加载 `Resources/PromptUGUI/i18n/ko/`（找不到就全 miss → msgid 原样输出）
-  - **不 throw**：设计哲学是"宁愿不翻译也不阻塞"
+  - **不 throw**：设计哲学是"宁愿不翻译也不阻塞"。该哲学只覆盖手工调 Set 的场景；自动初始化路径会回退（D11）
 
 ---
 
@@ -299,6 +304,10 @@ namespace PromptUGUI.Application {
             }
 
             public static void SetToSystemDefault() => Set(MapSystemLanguage());
+
+            // 启动自动初始化（[RuntimeInitializeOnLoadMethod(BeforeSceneLoad)] 调用此方法）。
+            // 也可被 app 手动调用作为兜底初始化。语义见 §4.3 / D11。
+            public static void InitializeIfNeeded();
             public static IReadOnlyList<string> Configured { get; } // Settings.locales 的 keys
         }
 
@@ -316,7 +325,16 @@ namespace PromptUGUI.Application {
 - Korean → "ko"
 - 其它常见 SystemLanguage 各对应；未识别返 null
 
-`MapSystemLanguage` 返回的字符串若不在 `Configured` 中，仍直接 set（保留 D11 "宁愿不翻译也不阻塞"原则）。
+`SetToSystemDefault()` 是低阶 API：调到 `MapSystemLanguage` 返回的字符串后直接 `Set`，即使该字符串不在 `Configured` 中也接受（"宁愿不翻译也不阻塞"哲学的手工逃生口）。
+
+`InitializeIfNeeded()` 是高阶启动初始化 API（D11）：
+1. 若 `Current != null` → 直接返回（已经被 app / 之前的初始化设过）
+2. 若 `Configured.Count == 0` → 静默返回（没有任何配置 locale 时 PromptUGUI 不发表意见）
+3. 否则把 `Application.systemLanguage` 经 `MapSystemLanguage` 映射成 BCP-47：
+   - 命中 `Configured` → `Set(命中的)`
+   - 不命中（含映射返回 `null`） → `Debug.LogWarning("[PromptUGUI] 丢失 'X', falling back to 'Y'")` 后 `Set(Configured[0])`
+
+PromptUGUI runtime 内部用 `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]` 在 Player / Play Mode 启动时自动跑一次 `InitializeIfNeeded()`。app 之后调 `UI.Locale.Set(savedPreference)` 会自然覆盖（含 PO 表 unload / reload）。可测性：内部 `InitializeIfNeededCore(SystemLanguage)` 接受参数注入，公共 `InitializeIfNeeded()` 读 `Application.systemLanguage` 转发。
 
 ### 6.5 locale 名作为 Variant 名
 
@@ -596,6 +614,7 @@ system prompt 默认模板（用户可在 ProjectSettings 改）：
 | `Tests/EditMode/Editor/StringExtractorXmlTests.cs` | XML 扫描、CDATA、`{{}}`、`tr="false"`、ambient ctx、TMP rich-text 注释 |
 | `Tests/EditMode/Editor/StringExtractorCSharpTests.cs` | Roslyn 扫描、动态参数 warn、注释提取 |
 | `Tests/EditMode/Application/LocaleSetTests.cs` | Variant.Changed 触发 + 切 locale 触发 ReSolve |
+| `Tests/EditMode/Application/LocaleInitializeIfNeededTests.cs` | 启动自动初始化算法（D11 / §6.4）：noop-when-set / noop-when-empty / use-system / warn-and-fallback (mapped) / warn-and-fallback (unknown) |
 | `Tests/EditMode/Parser/CDataInTextTests.cs` | parser 接受 `<Text><![CDATA[...]]></Text>`、含 `<sprite>` 等 |
 | `Tests/EditMode/Application/SettingsAssetTests.cs` | preloadedAssets 自动维护、多 Settings 报错 |
 | `Tests/PlayMode/E2E/I18nFontSwapTests.cs` | Set locale → 字体换 + 文字翻译 |

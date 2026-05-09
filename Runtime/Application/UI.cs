@@ -54,6 +54,29 @@ namespace PromptUGUI.Application {
             public static void SetToSystemDefault() =>
                 Set(LocaleHelpers.MapSystemLanguage(UnityEngine.Application.systemLanguage));
 
+            public static void InitializeIfNeeded() =>
+                InitializeIfNeededCore(UnityEngine.Application.systemLanguage, Configured);
+
+            internal static void InitializeIfNeededCore(
+                UnityEngine.SystemLanguage systemLanguage,
+                System.Collections.Generic.IReadOnlyList<string> configured) {
+                if (Current != null) return;
+                if (configured == null || configured.Count == 0) return;
+                var sysBcp47 = LocaleHelpers.MapSystemLanguage(systemLanguage);
+                if (sysBcp47 != null) {
+                    for (int i = 0; i < configured.Count; i++) {
+                        if (configured[i] == sysBcp47) {
+                            Set(sysBcp47);
+                            return;
+                        }
+                    }
+                }
+                var displayName = sysBcp47 ?? systemLanguage.ToString();
+                UnityEngine.Debug.LogWarning(
+                    $"[PromptUGUI] 丢失 '{displayName}', falling back to '{configured[0]}'");
+                Set(configured[0]);
+            }
+
             public static System.Collections.Generic.IReadOnlyList<string> Configured {
                 get {
                     var s = PromptUGUISettings.Instance;
@@ -327,6 +350,10 @@ namespace PromptUGUI.Application {
             BuiltinPrimitives.Register(r);
             return r;
         }
+
+        [UnityEngine.RuntimeInitializeOnLoadMethod(
+            UnityEngine.RuntimeInitializeLoadType.BeforeSceneLoad)]
+        static void AutoInitializeLocale() => Locale.InitializeIfNeeded();
 
         // Clears stale Screens/docs/commons/dep-graph that survive Play→Stop→Play
         // when "Reload Domain" is disabled in Enter Play Mode Options. SourceResolver,
