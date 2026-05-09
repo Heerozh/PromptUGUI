@@ -110,19 +110,22 @@ namespace PromptUGUI.Editor
             return n;
         }
 
-        /// <summary>{iconName -> Sprite} 收集 sourceFolder 下所有 PNG。Triggers sprite
-        /// reimport on first encounter — call from sync paths, not Inspector repaints.</summary>
+        /// <summary>每个 PNG 一个 entry，pathKey = sourceFolder 下的相对路径（'/' 分隔、
+        /// 去扩展名）。Root file 的 pathKey 等于裸文件名；子目录文件形如 "UI/heart"。
+        /// 不再 first-wins —— 同名 PNG 在不同子目录下都会各自出现，由 <see cref="SyncAll"/>
+        /// 决定如何引用（路径形 vs. 裸名别名）。Triggers sprite reimport on first encounter.
+        /// </summary>
         /// <param name="progressLabel">When non-null, drives a cancelable progress bar
         /// and throws <see cref="OperationCanceledException"/> if the user cancels.</param>
-        public static Dictionary<string, Sprite> EnumeratePngs(
+        public static List<(string pathKey, Sprite sprite)> EnumeratePngs(
             string folderAssetPath, string progressLabel = null)
         {
-            var dict = new Dictionary<string, Sprite>(StringComparer.Ordinal);
-            if (string.IsNullOrEmpty(folderAssetPath)) return dict;
+            var result = new List<(string, Sprite)>();
+            if (string.IsNullOrEmpty(folderAssetPath)) return result;
             if (!AssetDatabase.IsValidFolder(folderAssetPath))
             {
                 Debug.LogError($"[IconSync] not a folder: '{folderAssetPath}'");
-                return dict;
+                return result;
             }
 
             var fullFolder = Path.GetFullPath(folderAssetPath);
@@ -144,14 +147,50 @@ namespace PromptUGUI.Editor
                 EnsureSpriteImporter(assetPath);
                 var sp = AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
                 if (sp == null) continue;
-                var name = Path.GetFileNameWithoutExtension(assetPath);
-                if (dict.ContainsKey(name))
-                    Debug.LogWarning(
-                        $"[IconSync] duplicate icon '{name}' in {folderAssetPath}; using first");
-                else
-                    dict[name] = sp;
+                var rel = fullPath.Substring(fullFolder.Length)
+                    .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                    .Replace('\\', '/');
+                var ext = Path.GetExtension(rel);
+                var pathKey = rel.Substring(0, rel.Length - ext.Length);
+                result.Add((pathKey, sp));
             }
-            return dict;
+            return result;
+        }
+
+        /// <summary>从 EnumeratePngs 结果建一个统一的查找表：pathKey 总是可用；
+        /// 当某个裸名（最后一段文件名）在整个表中唯一时，也可以裸名作为别名引用。
+        /// 裸名冲突时不写入裸名 → 引用方必须用路径形。</summary>
+        internal static Dictionary<string, Sprite> BuildLookup(
+            IList<(string pathKey, Sprite sprite)> entries,
+            out Dictionary<string, List<string>> bareCandidates)
+        {
+            var lookup = new Dictionary<string, Sprite>(StringComparer.Ordinal);
+            bareCandidates = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            foreach (var (pathKey, sprite) in entries)
+            {
+                lookup[pathKey] = sprite;
+                var slash = pathKey.LastIndexOf('/');
+                if (slash < 0) continue; // root file: pathKey IS bare name
+                var bare = pathKey.Substring(slash + 1);
+                if (!bareCandidates.TryGetValue(bare, out var list))
+                {
+                    list = new List<string>();
+                    bareCandidates[bare] = list;
+                }
+                list.Add(pathKey);
+            }
+            // Promote bare → sprite ONLY when unambiguous (single candidate) AND
+            // bare doesn't already collide with an existing pathKey (root file with
+            // same basename always wins via the earlier lookup[pathKey] = sprite).
+            foreach (var kv in bareCandidates)
+            {
+                var bare = kv.Key;
+                var candidates = kv.Value;
+                if (candidates.Count != 1) continue;
+                if (lookup.ContainsKey(bare)) continue; // root file occupies this key
+                lookup[bare] = lookup[candidates[0]];
+            }
+            return lookup;
         }
 
         private static void EnsureSpriteImporter(string assetPath)
@@ -294,19 +333,32 @@ namespace PromptUGUI.Editor
                         continue;
                     }
                     var label = $"Set {i + 1}/{setList.Count} '{set.SetName}'";
-                    var available = EnumeratePngs(folder, label);
+                    var entries = EnumeratePngs(folder, label);
+                    var lookup = BuildLookup(entries, out var bareCandidates);
+
                     var needed = new HashSet<string>();
                     foreach (var (ns, name) in refs)
                         if (ns == set.SetName) needed.Add(name);
                     foreach (var n in set.AlwaysInclude)
                         if (!string.IsNullOrEmpty(n)) needed.Add(n);
 
-                    var picked = new List<Sprite>();
+                    var picked = new HashSet<Sprite>();
                     var missing = new List<string>();
                     foreach (var n in needed)
                     {
-                        if (available.TryGetValue(n, out var sp)) picked.Add(sp);
-                        else missing.Add(n);
+                        if (lookup.TryGetValue(n, out var sp)) { picked.Add(sp); continue; }
+                        // Bare-name reference where multiple subfolders contain a PNG with
+                        // that basename — author must disambiguate via path form.
+                        if (bareCandidates.TryGetValue(n, out var candidates) &&
+                            candidates.Count > 1)
+                        {
+                            Debug.LogError(
+                                $"[IconSync] '{set.SetName}': '{n}' is ambiguous; " +
+                                $"use the explicit path form. Candidates: " +
+                                string.Join(", ", candidates));
+                            continue;
+                        }
+                        missing.Add(n);
                     }
                     if (missing.Count > 0)
                         Debug.LogWarning(
@@ -319,9 +371,24 @@ namespace PromptUGUI.Editor
                     {
                         throw new OperationCanceledException();
                     }
+
+                    // Persist the (key → Sprite) projection IconResolverHelpers reads at
+                    // runtime: every key in `lookup` (pathKey + unique bare alias) that
+                    // resolves to a picked sprite gets one entry on the IconSet.
+                    var iconSetEntries = new List<(string key, Sprite sprite)>();
+                    foreach (var kv in lookup)
+                    {
+                        if (!picked.Contains(kv.Value)) continue;
+                        iconSetEntries.Add((kv.Key, kv.Value));
+                    }
+                    set.SetEntriesInternal(iconSetEntries);
+
                     var atlas = EnsureAtlasAsset(set);
                     if (atlas == null) continue;
-                    UpdateAtlas(atlas, picked.ToArray());
+                    var pickedArr = new Sprite[picked.Count];
+                    var pi = 0;
+                    foreach (var sp in picked) pickedArr[pi++] = sp;
+                    UpdateAtlas(atlas, pickedArr);
                 }
 
                 AssetDatabase.SaveAssets();

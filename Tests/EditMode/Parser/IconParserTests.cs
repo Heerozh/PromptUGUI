@@ -155,5 +155,34 @@ namespace PromptUGUI.Tests.Parser
                 + Footer;
             Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
         }
+
+        [Test]
+        public void Icon_name_with_slash_in_iconname_passes()
+        {
+            // Subfolder disambiguation: when two PNGs in different subfolders share
+            // the same basename, the author writes `set:Subfolder/name` to point at
+            // a specific one. '/' is allowed in the icon-name half.
+            var xml = Header + "<Icon name='ui:Combat/heart'/>" + Footer;
+            var doc = UIDocumentParser.Parse(xml);
+            var icon = doc.Screens[0].Root.Children[0];
+            Assert.AreEqual("ui:Combat/heart", icon.Attributes["name"]);
+        }
+
+        [Test]
+        public void Icon_name_with_slash_in_setname_throws()
+        {
+            // Set name remains strict (it's a reference key matching IconSet.setName).
+            var xml = Header + "<Icon name='my/set:heart'/>" + Footer;
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Icon_variant_with_slash_in_iconname_passes()
+        {
+            var xml = Header +
+                "<Icon name='ui:UI/heart' name.dark='ui:Combat/heart'/>"
+                + Footer;
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
+        }
     }
 }

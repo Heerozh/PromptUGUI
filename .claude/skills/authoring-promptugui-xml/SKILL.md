@@ -90,11 +90,11 @@ References a sprite from a project-level IconSet (shared icons, by-name lookup, 
 <Icon name="ui:bell" color.dark="#fff"/>
 ```
 
-| Attribute | Required | Default   | Notes                                                                                                                                   |
-| --------- | -------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`    | yes      | —         | Format `ns:icon-name`. `ns` (set name) is strict `[A-Za-z0-9_-]+`; `icon-name` additionally allows spaces, e.g. `solar:Alt Arrow Right` |
-| `color`   | no       | `#ffffff` | Multiply tint on the underlying Image. White preserves a colored PNG; non-white tints a mono-mask PNG                                   |
-| `size`    | no       | `native`  | Numeric / `WxH` / `stretch` / `native` (Icon-only). Native reads sprite pixel dimensions                                                |
+| Attribute | Required | Default   | Notes                                                                                                                                                                |
+| --------- | -------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`    | yes      | —         | Format `ns:icon-name`. `ns` (set name) is strict `[A-Za-z0-9_-]+`; `icon-name` additionally allows spaces and `/` for subfolder paths, e.g. `ui:Combat/heart` (see below) |
+| `color`   | no       | `#ffffff` | Multiply tint on the underlying Image. White preserves a colored PNG; non-white tints a mono-mask PNG                                                                |
+| `size`    | no       | `native`  | Numeric / `WxH` / `stretch` / `native` (Icon-only). Native reads sprite pixel dimensions                                                                             |
 
 **Discovering available icons** — to find which `setName:icon-name` combinations are valid in the current project, run from the project root:
 
@@ -114,11 +114,11 @@ find . -name "*.asset" -not -path "*/Library/*" -not -path "*/Temp/*" \
   done
 # example: solar -> Samples~/MainMenu/Icons
 
-# 2) Search a known IconSet by keyword
-find <sourceFolder> -iname "*<keyword>*.png" | sed 's|.*/||; s|\.png$||'
+# 2) Search a known IconSet by keyword (relative path under sourceFolder, no extension)
+cd <sourceFolder> && find . -iname "*<keyword>*.png" | sed 's|^\./||; s|\.png$||'
 ```
 
-Icon name in XML = PNG basename without extension. So `Arrow Right.png` in a set with `setName: solar` becomes `<Icon name="solar:Arrow Right"/>`. External packs (Font Awesome, Solar Icons, etc.) drop in as a folder of PNGs; create an IconSet ScriptableObject (`Create → PromptUGUI → Icon Set`) pointing at it, set `setName`, then `Tools → PromptUGUI → Icon → Sync Atlases (All Sets)` packs only the icons referenced from `.ui.xml` (plus `IconSet.alwaysInclude` entries).
+Icon name in XML = PNG path **relative to the IconSet's sourceFolder**, with `/` as separator and no extension. So `Arrow Right.png` directly under a set with `setName: solar` is `<Icon name="solar:Arrow Right"/>`; `Combat/heart.png` is `<Icon name="ui:Combat/heart"/>`. The bare basename (`ui:heart`) is also accepted as a shortcut **as long as it is unambiguous across the source folder** — when two PNGs in different subfolders share a basename you must use the path form, and the sync tool will error pointing at the candidates if XML still references the bare name. External packs (Font Awesome, Solar Icons, etc.) drop in as a folder of PNGs; create an IconSet ScriptableObject (`Create → PromptUGUI → Icon Set`) pointing at it, set `setName`, then `Tools → PromptUGUI → Icon → Sync Atlases (All Sets)` packs only the icons referenced from `.ui.xml` (plus `IconSet.alwaysInclude` entries).
 
 **Dynamic icon names**: writing `<Icon name="ui:{{x}}"/>` (Template substitution or expression-driven name) cannot be statically analyzed — the Editor sync tool will skip it with a warning. Two ways out:
 

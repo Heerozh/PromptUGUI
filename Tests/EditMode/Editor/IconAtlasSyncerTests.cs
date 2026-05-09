@@ -89,13 +89,12 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void EnumeratePngs_returns_dict_keyed_by_filename()
+        public void EnumeratePngs_returns_pathkey_for_root_file()
         {
             var folder = $"{TestRoot}/icons";
             AssetDatabase.CreateFolder(TestRoot, "icons");
             var pngPath = $"{folder}/foo.png";
             File.WriteAllBytes(pngPath, MakeBlankPng());
-            // Force import as Sprite synchronously before calling EnumeratePngs
             AssetDatabase.ImportAsset(pngPath, ImportAssetOptions.ForceUpdate);
             if (AssetImporter.GetAtPath(pngPath) is TextureImporter importer)
             {
@@ -104,9 +103,53 @@ namespace PromptUGUI.Tests.Editor
                 importer.SaveAndReimport();
             }
 
-            var dict = IconAtlasSyncer.EnumeratePngs(folder);
-            Assert.IsTrue(dict.ContainsKey("foo"),
-                $"Expected 'foo' in dict; keys: {string.Join(", ", dict.Keys)}");
+            var entries = IconAtlasSyncer.EnumeratePngs(folder);
+            var keys = new List<string>();
+            foreach (var (k, _) in entries) keys.Add(k);
+            Assert.That(keys, Does.Contain("foo"),
+                $"Expected 'foo' in entries; keys: {string.Join(", ", keys)}");
+        }
+
+        [Test]
+        public void EnumeratePngs_returns_pathkey_with_subfolder()
+        {
+            // File at <folder>/UI/heart.png should produce key "UI/heart" (relative
+            // path under sourceFolder, '/' separator, no extension).
+            var folder = $"{TestRoot}/icons_sub";
+            AssetDatabase.CreateFolder(TestRoot, "icons_sub");
+            AssetDatabase.CreateFolder(folder, "UI");
+            var pngPath = $"{folder}/UI/heart.png";
+            File.WriteAllBytes(pngPath, MakeBlankPng());
+            ImportAsSprite(pngPath);
+
+            var entries = IconAtlasSyncer.EnumeratePngs(folder);
+            var keys = new List<string>();
+            foreach (var (k, _) in entries) keys.Add(k);
+            Assert.That(keys, Does.Contain("UI/heart"),
+                $"Expected 'UI/heart' in entries; keys: {string.Join(", ", keys)}");
+        }
+
+        [Test]
+        public void EnumeratePngs_returns_both_entries_on_basename_collision()
+        {
+            // Two PNGs sharing a basename in different subfolders must each appear
+            // with their own pathKey — no first-wins, no warning.
+            var folder = $"{TestRoot}/icons_dup";
+            AssetDatabase.CreateFolder(TestRoot, "icons_dup");
+            AssetDatabase.CreateFolder(folder, "UI");
+            AssetDatabase.CreateFolder(folder, "Combat");
+            var pngA = $"{folder}/UI/heart.png";
+            var pngB = $"{folder}/Combat/heart.png";
+            File.WriteAllBytes(pngA, MakeBlankPng());
+            File.WriteAllBytes(pngB, MakeBlankPng());
+            ImportAsSprite(pngA);
+            ImportAsSprite(pngB);
+
+            var entries = IconAtlasSyncer.EnumeratePngs(folder);
+            var keys = new HashSet<string>();
+            foreach (var (k, _) in entries) keys.Add(k);
+            Assert.That(keys, Does.Contain("UI/heart"));
+            Assert.That(keys, Does.Contain("Combat/heart"));
         }
 
         [Test]
@@ -216,6 +259,100 @@ namespace PromptUGUI.Tests.Editor
             IconAtlasSyncer.SyncAll(new[] { a, b });
         }
 
+        [Test]
+        public void SyncAll_persists_pathkey_entries_for_subfolder_files()
+        {
+            // XML uses 'ui:UI/heart' → IconSet.entries should contain key "UI/heart".
+            var folder = MakeFolder("sub_a");
+            AssetDatabase.CreateFolder(folder, "UI");
+            var pngPath = $"{folder}/UI/heart.png";
+            File.WriteAllBytes(pngPath, MakeBlankPng());
+            ImportAsSprite(pngPath);
+
+            WriteXml("a.ui.xml", "<Icon name='ui:UI/heart'/>");
+            var set = MakeIconSetAssetWithFolder("setA", "ui", folder);
+
+            IconAtlasSyncer.SyncAll(new[] { set });
+
+            var keys = new List<string>();
+            foreach (var (k, _) in set.Entries) keys.Add(k);
+            Assert.That(keys, Does.Contain("UI/heart"),
+                $"Expected 'UI/heart' in entries; got: {string.Join(", ", keys)}");
+        }
+
+        [Test]
+        public void SyncAll_persists_bare_alias_when_unique()
+        {
+            // Single 'UI/heart.png' (no collision) → both 'UI/heart' and 'heart' should
+            // be in entries, so XML can reference either form.
+            var folder = MakeFolder("sub_b");
+            AssetDatabase.CreateFolder(folder, "UI");
+            var pngPath = $"{folder}/UI/heart.png";
+            File.WriteAllBytes(pngPath, MakeBlankPng());
+            ImportAsSprite(pngPath);
+
+            WriteXml("b.ui.xml", "<Icon name='ui:UI/heart'/>");
+            var set = MakeIconSetAssetWithFolder("setB", "ui", folder);
+
+            IconAtlasSyncer.SyncAll(new[] { set });
+
+            var keys = new HashSet<string>();
+            foreach (var (k, _) in set.Entries) keys.Add(k);
+            Assert.That(keys, Does.Contain("UI/heart"));
+            Assert.That(keys, Does.Contain("heart"),
+                $"Bare alias 'heart' missing; got: {string.Join(", ", keys)}");
+        }
+
+        [Test]
+        public void SyncAll_no_bare_alias_on_collision()
+        {
+            // Two heart.png files in different subfolders; XML references both via path
+            // form. IconSet.entries should contain both pathKeys but NO bare 'heart'.
+            var folder = MakeFolder("sub_c");
+            AssetDatabase.CreateFolder(folder, "UI");
+            AssetDatabase.CreateFolder(folder, "Combat");
+            var pngA = $"{folder}/UI/heart.png";
+            var pngB = $"{folder}/Combat/heart.png";
+            File.WriteAllBytes(pngA, MakeBlankPng());
+            File.WriteAllBytes(pngB, MakeBlankPng());
+            ImportAsSprite(pngA);
+            ImportAsSprite(pngB);
+
+            WriteXml("c.ui.xml",
+                "<Icon name='ui:UI/heart'/><Icon name='ui:Combat/heart'/>");
+            var set = MakeIconSetAssetWithFolder("setC", "ui", folder);
+
+            IconAtlasSyncer.SyncAll(new[] { set });
+
+            var keys = new HashSet<string>();
+            foreach (var (k, _) in set.Entries) keys.Add(k);
+            Assert.That(keys, Does.Contain("UI/heart"));
+            Assert.That(keys, Does.Contain("Combat/heart"));
+            Assert.That(keys, Does.Not.Contain("heart"),
+                $"Bare 'heart' must NOT alias when ambiguous; got: {string.Join(", ", keys)}");
+        }
+
+        [Test]
+        public void SyncAll_errors_on_ambiguous_bare_reference()
+        {
+            // Two heart.png files; XML uses bare 'ui:heart' → must error and list candidates.
+            var folder = MakeFolder("sub_d");
+            AssetDatabase.CreateFolder(folder, "UI");
+            AssetDatabase.CreateFolder(folder, "Combat");
+            File.WriteAllBytes($"{folder}/UI/heart.png", MakeBlankPng());
+            File.WriteAllBytes($"{folder}/Combat/heart.png", MakeBlankPng());
+            ImportAsSprite($"{folder}/UI/heart.png");
+            ImportAsSprite($"{folder}/Combat/heart.png");
+
+            WriteXml("d.ui.xml", "<Icon name='ui:heart'/>");
+            var set = MakeIconSetAssetWithFolder("setD", "ui", folder);
+
+            LogAssert.Expect(LogType.Error,
+                new System.Text.RegularExpressions.Regex(
+                    "ambiguous.*UI/heart.*Combat/heart|ambiguous.*Combat/heart.*UI/heart"));
+            IconAtlasSyncer.SyncAll(new[] { set });
+        }
+
         // ---- helpers ----
 
         private IconSet MakeIconSetAsset(string fileName, string setName)
@@ -228,6 +365,38 @@ namespace PromptUGUI.Tests.Editor
             AssetDatabase.CreateAsset(s, path);
             _toCleanup.Add(path);
             return AssetDatabase.LoadAssetAtPath<IconSet>(path);
+        }
+
+        private IconSet MakeIconSetAssetWithFolder(string fileName, string setName,
+            string folderAssetPath)
+        {
+            var s = ScriptableObject.CreateInstance<IconSet>();
+            var so = new SerializedObject(s);
+            so.FindProperty("setName").stringValue = setName;
+            so.FindProperty("sourceFolder").objectReferenceValue =
+                AssetDatabase.LoadAssetAtPath<DefaultAsset>(folderAssetPath);
+            so.ApplyModifiedProperties();
+            var path = $"{TestRoot}/{fileName}.asset";
+            AssetDatabase.CreateAsset(s, path);
+            _toCleanup.Add(path);
+            return AssetDatabase.LoadAssetAtPath<IconSet>(path);
+        }
+
+        private string MakeFolder(string name)
+        {
+            AssetDatabase.CreateFolder(TestRoot, name);
+            return $"{TestRoot}/{name}";
+        }
+
+        private void WriteXml(string fileName, string innerXml)
+        {
+            var path = $"{TestRoot}/{fileName}";
+            File.WriteAllText(path,
+                "<?xml version='1.0'?><PromptUGUI version='1'>" +
+                "<Screen name='S_" + Path.GetFileNameWithoutExtension(fileName) + "'>" +
+                innerXml + "</Screen></PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
         }
 
         private byte[] MakeBlankPng()

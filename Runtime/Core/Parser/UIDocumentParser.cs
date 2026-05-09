@@ -370,8 +370,10 @@ namespace PromptUGUI.Parser
                             || (c >= '0' && c <= '9')
                             || c == '-' || c == '_';
                 // External icon packs (Solar, Material) ship PNGs with spaces; allow them
-                // in the icon-name half. Set name is a reference key — keep it strict.
-                var ok = alnum || (i > colon && c == ' ');
+                // in the icon-name half. '/' after the colon disambiguates same-basename
+                // PNGs in different subfolders (e.g. 'ui:Combat/heart' vs 'ui:UI/heart').
+                // Set name is a reference key — keep it strict.
+                var ok = alnum || (i > colon && (c == ' ' || c == '/'));
                 if (!ok) return false;
             }
             return true;
