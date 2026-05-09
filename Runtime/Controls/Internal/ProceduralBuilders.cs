@@ -17,9 +17,12 @@ namespace PromptUGUI.Controls.Internal
         public static readonly Color DefaultHandleColor = Color.white;
         public static readonly Color DefaultPopupBgColor = Color.white;
         public static readonly Color DefaultContainerColor = new(1f, 1f, 1f, 0.392f);
-        public static readonly Color DefaultGlyphColor = new(0.196f, 0.196f, 0.196f, 1f);
-        public static readonly Color DefaultLabelColor = new(0.196f, 0.196f, 0.196f, 1f);
-        public static readonly Color DefaultPlaceholderColor = new(0.196f, 0.196f, 0.196f, 0.5f);
+        // 单一深灰色源（#323232），让 glyph / label / placeholder 三个语义角色共用同一基色
+        // 单点修改：换主题色只动这一行
+        private static readonly Color s_darkGrey = new(0.196f, 0.196f, 0.196f, 1f);
+        public static readonly Color DefaultGlyphColor = s_darkGrey;
+        public static readonly Color DefaultLabelColor = s_darkGrey;
+        public static readonly Color DefaultPlaceholderColor = new(s_darkGrey.r, s_darkGrey.g, s_darkGrey.b, 0.5f);
 
         // pugui.png 像素图集中的精灵名（参见 Runtime/Resources/PromptUGUI/Defaults/pugui.png.meta）
         public const string SpriteRoundedRect = "pugui_9slice_round";

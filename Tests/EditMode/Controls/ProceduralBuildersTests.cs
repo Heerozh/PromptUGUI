@@ -44,6 +44,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var c = ProceduralBuilders.DefaultLabelColor;
             Assert.That(c.r, Is.EqualTo(0.196f).Within(0.001f));
+            Assert.That(c.g, Is.EqualTo(0.196f).Within(0.001f));
+            Assert.That(c.b, Is.EqualTo(0.196f).Within(0.001f));
             Assert.AreEqual(1f, c.a);
         }
 
@@ -74,11 +76,14 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [Test]
         public void ApplyDefaultSimpleSprite_DefaultsPreserveAspectFalse()
         {
+            // sentinel=true 让"早返回 vs 实际执行 body" 可区分（Image 默认 preserveAspect=false）
             var go = new GameObject("Img", typeof(RectTransform));
             try
             {
                 var img = go.AddComponent<UnityImage>();
+                img.preserveAspect = true;  // sentinel
                 ProceduralBuilders.ApplyDefaultSimpleSprite(img, ProceduralBuilders.SpriteCheckmark);
+                Assert.IsNotNull(img.sprite, "sprite atlas must be loaded for this test to be meaningful");
                 Assert.IsFalse(img.preserveAspect, "default preserveAspect should be false");
                 Assert.AreEqual(UnityImage.Type.Simple, img.type);
             }
@@ -92,7 +97,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
             try
             {
                 var img = go.AddComponent<UnityImage>();
+                img.preserveAspect = false;  // sentinel
                 ProceduralBuilders.ApplyDefaultSimpleSprite(img, ProceduralBuilders.SpriteCheckmark, preserveAspect: true);
+                Assert.IsNotNull(img.sprite, "sprite atlas must be loaded for this test to be meaningful");
                 Assert.IsTrue(img.preserveAspect);
             }
             finally { Object.DestroyImmediate(go); }
