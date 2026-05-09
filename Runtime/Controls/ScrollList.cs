@@ -273,7 +273,7 @@ namespace PromptUGUI.Controls
             _vertScrollbar.handleRect = handle.rectTransform;
 
             _scroll.verticalScrollbar = _vertScrollbar;
-            _scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
+            _scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
             _scroll.verticalScrollbarSpacing = -3f;
         }
 
@@ -303,7 +303,7 @@ namespace PromptUGUI.Controls
             _horizScrollbar.handleRect = handle.rectTransform;
 
             _scroll.horizontalScrollbar = _horizScrollbar;
-            _scroll.horizontalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
+            _scroll.horizontalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
             _scroll.horizontalScrollbarSpacing = -3f;
         }
 

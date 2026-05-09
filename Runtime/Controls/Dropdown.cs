@@ -148,7 +148,7 @@ namespace PromptUGUI.Controls
             scrollbar.handleRect = sbHandle.rectTransform;
 
             templateScroll.verticalScrollbar = scrollbar;
-            templateScroll.verticalScrollbarVisibility = UnityEngine.UI.ScrollRect.ScrollbarVisibility.AutoHide;
+            templateScroll.verticalScrollbarVisibility = UnityEngine.UI.ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
             templateScroll.verticalScrollbarSpacing = -3f;
 
             templateScroll.viewport = viewport;

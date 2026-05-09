@@ -150,7 +150,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             var sr = sl.GameObject.GetComponent<UnityEngine.UI.ScrollRect>();
             Assert.AreSame(scrollbar, sr.verticalScrollbar);
-            Assert.AreEqual(UnityEngine.UI.ScrollRect.ScrollbarVisibility.AutoHide,
+            Assert.AreEqual(UnityEngine.UI.ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport,
                 sr.verticalScrollbarVisibility);
         }
 

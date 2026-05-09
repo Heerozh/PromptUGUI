@@ -55,7 +55,7 @@
 | M5.1-D14 | 测试策略 | EditMode：每个改动控件 ＋几何 / 颜色断言；新增 `InputFieldTests` | 跟 M5 已落地的 ToggleTests / SliderTests / DropdownTests 形状对齐 |
 | M5.1-D15 | Viewport masking 组件 | Dropdown / ScrollList viewport **切回 stencil `Mask`** + alpha=1 sliced Image + `showMaskGraphic=false` | 默认 prefab 用 Mask；4af322b 的 alpha-discard bug 仅在 alpha=0.01 触发，alpha=1 安全；Mask 走 sprite 形状能给 popup/scroll 圆角裁剪 |
 | M5.1-D16 | Dropdown popup 加 Scrollbar | Template 内增 `Scrollbar Vertical` 子节点；TMP_Dropdown.template/scroll 引用 wired up | 默认 prefab 有；选项数 > 容纳数时滚动 UI 体验对齐 |
-| M5.1-D17 | ScrollList 加 Scrollbar | 按 `direction=` 加 `Scrollbar Vertical`（vertical）或 `Scrollbar Horizontal`（horizontal）；scrollbarVisibility=AutoHide | 默认 Scroll View 有；保持单轴 (M5 v1) → 单轴 scrollbar |
+| M5.1-D17 | ScrollList 加 Scrollbar | 按 `direction=` 加 `Scrollbar Vertical`（vertical）或 `Scrollbar Horizontal`（horizontal）；scrollbarVisibility=AutoHideAndExpandViewport | 默认 Scroll View 有；保持单轴 (M5 v1) → 单轴 scrollbar |
 | M5.1-D18 | InputField TextArea masking | 用 `RectMask2D` + 负 padding `(-8,-5,-8,-5)` | 默认 prefab 即如此（不同于 Dropdown/ScrollList 用的 stencil Mask）；TMP_InputField 与 RectMask2D 配合是 Unity 标准方案 |
 
 ---
@@ -116,7 +116,7 @@
 
 | 节点 | 组件 | 默认 prefab 关键属性 | 我们的实现（旧） | 偏离 / 修正 |
 |---|---|---|---|---|
-| `Scroll View` (root) | RT / CR / Image / ScrollRect | sliced UISprite **white α=0.392**, ScrollRect (movementType=Elastic, scrollbarVisibility=2 AutoHide, spacing=−3) | RT / Image / ScrollRect | ✓ bg α=0.392 由调色板提供；**显式设 movementType=Elastic、verticalScrollbarVisibility=AutoHide、verticalScrollbarSpacing=−3**（horizontal 同理） |
+| `Scroll View` (root) | RT / CR / Image / ScrollRect | sliced UISprite **white α=0.392**, ScrollRect (movementType=Elastic, scrollbarVisibility=2 AutoHideAndExpandViewport, spacing=−3) | RT / Image / ScrollRect | ✓ bg α=0.392 由调色板提供；**显式设 movementType=Elastic、verticalScrollbarVisibility=AutoHideAndExpandViewport、verticalScrollbarSpacing=−3**（horizontal 同理） |
 | └ `Viewport` | RT / CR / **Image / Mask** | anchor=stretch（被 ScrollRect 驱动）, sliced sprite=UIMask **alpha=1** white, **`Mask.showMaskGraphic=0`** | RT / **RectMask2D** 无 Image | **切回 Mask + sliced Image alpha=1 + showMaskGraphic=false** |
 | │  └ `Content` | RT only | anchor + pivot 由 direction 决定（已正确） | ✓ | ✓ |
 | └ `Scrollbar Vertical` | RT / CR / Image / Scrollbar | anchor=(1,0)/(1,0)，pivot=(1,1), sizeDelta=(20,0), sliced Background white, direction=BottomToTop | _不存在_ | **direction="vertical" 时新增**（含 Sliding Area + Handle）|
@@ -520,7 +520,7 @@ scrollbar.handleRect = sbHandle.rectTransform;
 
 // Wire ScrollRect & TMP_Dropdown
 templateScroll.verticalScrollbar = scrollbar;
-templateScroll.verticalScrollbarVisibility = UnityEngine.UI.ScrollRect.ScrollbarVisibility.AutoHide;
+templateScroll.verticalScrollbarVisibility = UnityEngine.UI.ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
 templateScroll.verticalScrollbarSpacing = -3f;
 ```
 
@@ -606,7 +606,7 @@ private void EnsureVerticalScrollbar()
     _vertScrollbar.handleRect = handle.rectTransform;
 
     _scroll.verticalScrollbar = _vertScrollbar;
-    _scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
+    _scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
     _scroll.verticalScrollbarSpacing = -3f;
 }
 
@@ -617,7 +617,7 @@ private void EnsureVerticalScrollbar()
 
 - ScrollList Viewport 子树多了 Image+Mask 组件——已存在的 ScrollListTests 几何断言（如 GetComponent<RectMask2D>）会失败
 - `ApplyDirection` 切方向会重建 layoutGroup 但保留 scrollbar 子节点（toggling SetActive）
-- 单方向 scrollbar 是新行为：之前 ScrollList 完全没滚动条，作者依赖 drag 滚动；现在 AutoHide 模式下 content > viewport 时显示 ── 是改进，不是破坏
+- 单方向 scrollbar 是新行为：之前 ScrollList 完全没滚动条，作者依赖 drag 滚动；现在 AutoHideAndExpandViewport 模式下 content > viewport 时显示 ── 是改进，不是破坏
 
 ---
 

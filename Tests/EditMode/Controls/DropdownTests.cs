@@ -187,7 +187,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var template = d.GameObject.transform.Find("Template");
             var scrollRect = template.GetComponent<UnityEngine.UI.ScrollRect>();
             Assert.IsNotNull(scrollRect.verticalScrollbar);
-            Assert.AreEqual(UnityEngine.UI.ScrollRect.ScrollbarVisibility.AutoHide,
+            Assert.AreEqual(UnityEngine.UI.ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport,
                 scrollRect.verticalScrollbarVisibility);
             Assert.AreEqual(-3f, scrollRect.verticalScrollbarSpacing);
         }
