@@ -247,6 +247,123 @@ namespace PromptUGUI.Tests.Editor
             StringAssert.Contains("xs:pattern", xsd);
             StringAssert.Contains("^abc$", xsd);
         }
+
+        [Test]
+        public void Template_tags_appear_as_elements_in_xsd()
+        {
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r, new[] { "TitledPanel", "ItemRow" });
+            StringAssert.Contains("name=\"TitledPanel\"", xsd);
+            StringAssert.Contains("name=\"ItemRow\"", xsd);
+        }
+
+        [Test]
+        public void Template_tags_added_to_controlGroup()
+        {
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r, new[] { "TitledPanel" });
+            StringAssert.Contains("ref=\"TitledPanel\"", xsd);
+        }
+
+        [Test]
+        public void Template_invocation_validates_against_xsd()
+        {
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r, new[] { "TitledPanel" });
+            const string sample = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'>
+    <TitledPanel title='Settings'>
+      <Frame/>
+    </TitledPanel>
+  </Screen>
+</PromptUGUI>";
+            AssertValidates(xsd, sample,
+                "Template invocation with Param-as-attribute must validate.");
+        }
+
+        [Test]
+        public void Template_with_no_extras_unchanged_baseline()
+        {
+            // Regression: passing null/empty templateTags must produce the exact
+            // schema as the existing API (no spurious refs / elements).
+            var r = new ControlRegistry();
+            var withNull = XsdGenerator.Generate(r, null);
+            var withEmpty = XsdGenerator.Generate(r, System.Array.Empty<string>());
+            var legacy = XsdGenerator.Generate(r);
+            Assert.AreEqual(legacy, withNull);
+            Assert.AreEqual(legacy, withEmpty);
+        }
+
+        [Test]
+        public void ScanTemplates_collects_template_names_from_files()
+        {
+            var dir = Path.Combine(UnityEngine.Application.temporaryCachePath,
+                                   "xsd_scan_" + System.Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                var p1 = Path.Combine(dir, "a.ui.xml");
+                var p2 = Path.Combine(dir, "b.ui.xml");
+                File.WriteAllText(p1,
+                    "<?xml version='1.0'?><PromptUGUI version='1'>" +
+                    "<Template name='TitledPanel'><Frame/></Template></PromptUGUI>");
+                File.WriteAllText(p2,
+                    "<?xml version='1.0'?><PromptUGUI version='1'>" +
+                    "<Template name='ItemRow'><Frame/></Template>" +
+                    "<Template name='Footer'><Frame/></Template></PromptUGUI>");
+
+                var names = XsdGenerator.ScanTemplates(new[] { p1, p2 });
+                CollectionAssert.AreEquivalent(
+                    new[] { "TitledPanel", "ItemRow", "Footer" }, names);
+            }
+            finally
+            {
+                Directory.Delete(dir, recursive: true);
+            }
+        }
+
+        [Test]
+        public void ScanTemplates_skips_unparseable_files()
+        {
+            var dir = Path.Combine(UnityEngine.Application.temporaryCachePath,
+                                   "xsd_scan_bad_" + System.Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                var bad = Path.Combine(dir, "bad.ui.xml");
+                var good = Path.Combine(dir, "good.ui.xml");
+                File.WriteAllText(bad, "<not even xml");
+                File.WriteAllText(good,
+                    "<?xml version='1.0'?><PromptUGUI version='1'>" +
+                    "<Template name='Ok'><Frame/></Template></PromptUGUI>");
+
+                var names = XsdGenerator.ScanTemplates(new[] { bad, good });
+                CollectionAssert.Contains(names, "Ok");
+            }
+            finally
+            {
+                Directory.Delete(dir, recursive: true);
+            }
+        }
+
+        private static void AssertValidates(string xsd, string sample, string message)
+        {
+            var schemas = new System.Xml.Schema.XmlSchemaSet();
+            schemas.Add(null, System.Xml.XmlReader.Create(new StringReader(xsd)));
+            var settings = new System.Xml.XmlReaderSettings
+            {
+                ValidationType = System.Xml.ValidationType.Schema,
+                Schemas = schemas,
+            };
+            var errors = new System.Collections.Generic.List<string>();
+            settings.ValidationEventHandler += (_, e) => errors.Add(e.Message);
+            using (var reader = System.Xml.XmlReader.Create(new StringReader(sample), settings))
+            {
+                while (reader.Read()) { }
+            }
+            CollectionAssert.IsEmpty(errors, message);
+        }
     }
 
     public class TestPrimaryButton : Control

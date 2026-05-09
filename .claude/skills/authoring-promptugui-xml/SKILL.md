@@ -19,7 +19,9 @@ Every `.ui.xml` write — and every `.cs` write that touches PromptUGUI — MUST
 xmllint --noout --schema Assets/PromptUGUI.gen.xsd <path/to/your.ui.xml>
 ```
 
-- Default schema location: `Assets/PromptUGUI.gen.xsd`. It's generated from the user's `ControlRegistry`, so it knows about their custom controls.
+- Default schema location: `Assets/PromptUGUI.gen.xsd`. It's generated from the user's `ControlRegistry` (so it knows their custom C# controls) plus a project-wide scan for `<Template name="...">` definitions (so Template invocations like `<TitledPanel/>` are recognized too).
+- **Auto-regen on `.ui.xml` save**: Unity's AssetPostprocessor regenerates the XSD whenever any `.ui.xml` is added/moved/deleted. As long as you call `refresh_unity` after editing, `xmllint` will see fresh Template tags. **C# control registration changes are NOT auto-picked-up** — for those, ask the user to run `Tools → PromptUGUI → Schema → Generate XSD`.
+- If user not install unity mcp, u can ignore template tags error in XSD.
 - **If the file does not exist, STOP.** Tell the user (in their language) to run the Editor menu `Tools → PromptUGUI → Schema → Generate XSD`.
 
 ### 2. Unity MCP live feedback (xml AND C# writes)
@@ -88,11 +90,11 @@ References a sprite from a project-level IconSet (shared icons, by-name lookup, 
 <Icon name="ui:bell" color.dark="#fff"/>
 ```
 
-| Attribute | Required | Default   | Notes                                                                                                 |
-| --------- | -------- | --------- | ----------------------------------------------------------------------------------------------------- |
+| Attribute | Required | Default   | Notes                                                                                                                                   |
+| --------- | -------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `name`    | yes      | —         | Format `ns:icon-name`. `ns` (set name) is strict `[A-Za-z0-9_-]+`; `icon-name` additionally allows spaces, e.g. `solar:Alt Arrow Right` |
-| `color`   | no       | `#ffffff` | Multiply tint on the underlying Image. White preserves a colored PNG; non-white tints a mono-mask PNG |
-| `size`    | no       | `native`  | Numeric / `WxH` / `stretch` / `native` (Icon-only). Native reads sprite pixel dimensions              |
+| `color`   | no       | `#ffffff` | Multiply tint on the underlying Image. White preserves a colored PNG; non-white tints a mono-mask PNG                                   |
+| `size`    | no       | `native`  | Numeric / `WxH` / `stretch` / `native` (Icon-only). Native reads sprite pixel dimensions                                                |
 
 **Discovering available icons** — to find which `setName:icon-name` combinations are valid in the current project, run from the project root:
 

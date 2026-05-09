@@ -30,6 +30,22 @@ namespace PromptUGUI.Editor
                 }
             }
 
+            // XSD auto-regen branch — keeps Template invocations IDE-validatable
+            // without authors (or LLMs) having to click "Generate XSD" after each edit.
+            // C# Control registration changes are not reachable here; for those the
+            // Tools → PromptUGUI → Schema → Generate XSD menu remains.
+            var xmlChanged = importedAssets.Concat(movedAssets).Concat(deletedAssets)
+                .Any(p => p.EndsWith(".ui.xml"));
+            if (xmlChanged)
+            {
+                try { XsdGenerator.GenerateToFile(UI.Registry); }
+                catch (System.Exception e)
+                {
+                    UnityEngine.Debug.LogError(
+                        $"[PromptUGUI] auto XSD regen failed: {e.Message}");
+                }
+            }
+
             // .po branch — reload current locale if any .po under PromptUGUI/i18n[-custom]/<current>/ changed
             var current = UI.Locale.Current;
             if (current != null)

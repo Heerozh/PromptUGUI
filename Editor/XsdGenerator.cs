@@ -5,17 +5,52 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Xml;
+using PromptUGUI.Parser;
 using PromptUGUI.Registry;
+using UnityEditor;
 
 namespace PromptUGUI.Editor
 {
     public static class XsdGenerator
     {
+        /// <summary>Collect all `<Template name="...">` bare names from the given
+        /// .ui.xml file paths. Unparseable files are silently skipped (regen runs
+        /// on every save and partial edits should not throw).</summary>
+        public static HashSet<string> ScanTemplates(IEnumerable<string> filePaths)
+        {
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var path in filePaths)
+            {
+                string text;
+                try { text = File.ReadAllText(path); }
+                catch (IOException) { continue; }
+                IR.UIDocument doc;
+                // ParseException = semantic, XmlException = malformed XML.
+                // Both can occur during in-progress edits; skip silently.
+                try { doc = UIDocumentParser.Parse(text); }
+                catch (ParseException) { continue; }
+                catch (XmlException) { continue; }
+                foreach (var key in doc.Templates.Keys) names.Add(key);
+            }
+            return names;
+        }
+
+        /// <summary>Scan all *.ui.xml under Assets/ for Template definitions.
+        /// Editor-only; uses AssetDatabase.</summary>
+        public static HashSet<string> ScanProjectTemplates()
+        {
+            var paths = AssetDatabase.FindAssets("t:TextAsset")
+                .Select(AssetDatabase.GUIDToAssetPath)
+                .Where(p => p.EndsWith(".ui.xml", StringComparison.Ordinal));
+            return ScanTemplates(paths);
+        }
+
         // Schema is intentionally without targetNamespace: .ui.xml files use bare
         // element names + xsi:noNamespaceSchemaLocation. A targetNamespace would
         // require xmlns="..." on every <PromptUGUI> root and break authoring ergonomics.
 
-        public static string Generate(ControlRegistry registry)
+        public static string Generate(ControlRegistry registry,
+                                      IEnumerable<string> templateTags = null)
         {
             // Write to MemoryStream (not StringBuilder) so XmlWriter emits
             // encoding="utf-8" in the prolog matching the actual file bytes.
@@ -70,7 +105,24 @@ namespace PromptUGUI.Editor
                     WriteControl(writer, tag, attrs);
                 }
 
-                WriteControlGroup(writer, customs.Select(x => x.Tag).ToArray());
+                // Template tags from .ui.xml. Skip names already covered by primitives
+                // or registered customs (would emit duplicate element declarations).
+                // Templates have no schema-known attributes — Params come through
+                // commonAttrs' xs:anyAttribute processContents="lax".
+                var customTagSet = new HashSet<string>(customs.Select(x => x.Tag));
+                var templates = (templateTags ?? Array.Empty<string>())
+                    .Where(t => !string.IsNullOrEmpty(t)
+                                && !primitives.Contains(t)
+                                && !customTagSet.Contains(t))
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(t => t, StringComparer.Ordinal)
+                    .ToArray();
+
+                foreach (var tag in templates)
+                    WriteControl(writer, tag, Array.Empty<(string, string, string)>());
+
+                WriteControlGroup(writer,
+                    customs.Select(x => x.Tag).Concat(templates).ToArray());
 
                 writer.WriteEndElement();
                 writer.WriteEndDocument();
@@ -80,11 +132,14 @@ namespace PromptUGUI.Editor
 
         public static void GenerateToFile(
             ControlRegistry registry,
-            string assetPath = "Assets/PromptUGUI.gen.xsd")
+            string assetPath = "Assets/PromptUGUI.gen.xsd",
+            IEnumerable<string> templateTags = null)
         {
-            var xsd = Generate(registry);
+            // null means "scan project"; pass an explicit empty array to skip scanning.
+            var tags = templateTags ?? ScanProjectTemplates();
+            var xsd = Generate(registry, tags);
             System.IO.File.WriteAllText(assetPath, xsd, new UTF8Encoding(false));
-            UnityEditor.AssetDatabase.Refresh();
+            AssetDatabase.Refresh();
             UnityEngine.Debug.Log($"[PromptUGUI] XSD generated: {assetPath}");
         }
 
@@ -406,9 +461,9 @@ namespace PromptUGUI.Editor
             }
             // No xs:any wildcard: with no targetNamespace, ##local would overlap
             // with the explicit refs above and trip XSD's Unique Particle Attribution
-            // rule. Trade-off: Template invocations (<MyPanel/>) and unregistered
-            // custom controls show as undeclared in IDEs. Run Generate XSD after
-            // registering customs to keep IDE in sync; Templates are a known limitation.
+            // rule. So we enumerate Template tags explicitly via ScanProjectTemplates,
+            // which the AssetPostprocessor invokes on every .ui.xml change. Custom C#
+            // controls still need a manual "Generate XSD" run after registration.
             w.WriteEndElement();
             w.WriteEndElement();
         }
