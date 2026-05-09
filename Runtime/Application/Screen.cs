@@ -26,6 +26,8 @@ namespace PromptUGUI.Application
         private readonly List<IDisposable> _subscriptions = new();
         private IDisposable _variantSub;
 
+        internal Controls.Internal.ToggleGroupRegistry ToggleGroups { get; private set; }
+
         // 已实例化的 Add 块（不论当前是否可见）。Strategy C：首次进入激活才实例化；
         // 之后 toggle 仅切根 GameObject 的 SetActive，永不 Destroy/移除字典项；
         // 只在 Close 时随 RootGameObject 整体销毁。
@@ -84,6 +86,8 @@ namespace PromptUGUI.Application
                     $"Add one via GameObject → UI → Event System.");
             }
 
+            ToggleGroups = new Controls.Internal.ToggleGroupRegistry(root.transform);
+
             var result = _instantiator.InstantiateInto(root, Def);
             RootGameObject = result.Root;
             foreach (var kv in result.Controls) _byId[kv.Key] = kv.Value;
@@ -113,6 +117,8 @@ namespace PromptUGUI.Application
             _byId.Clear();
             _nodeMap.Clear();
             _addInstances.Clear();
+            ToggleGroups?.Clear();
+            ToggleGroups = null;
         }
 
         public T Get<T>(string idPath) where T : class, IControl
