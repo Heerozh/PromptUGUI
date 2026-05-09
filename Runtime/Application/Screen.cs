@@ -87,9 +87,11 @@ namespace PromptUGUI.Application
             }
 
             ToggleGroups = new Controls.Internal.ToggleGroupRegistry(root.transform);
+            // 在实例化前先设 RootGameObject，让 controls 在 OnAttached / setter 阶段
+            // 也能通过 UI.OwnerScreenOf 走 transform-tree → RootGameObject 反查到本 Screen。
+            RootGameObject = root;
 
             var result = _instantiator.InstantiateInto(root, Def);
-            RootGameObject = result.Root;
             foreach (var kv in result.Controls) _byId[kv.Key] = kv.Value;
             foreach (var kv in result.NodeToControl) _nodeMap[kv.Key] = kv.Value;
             foreach (var block in Def.Variants)
