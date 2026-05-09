@@ -119,9 +119,7 @@ InitTestScene*.unity*
 # Host Unity project for development; not part of the package
 /UnityProjects/
 
-# Unity .meta auto-generated for non-package files (docs, host artifacts)
-/docs.meta
-/docs/**/*.meta
+# Unity .meta auto-generated for non-package files (host artifacts)
 /UnityProjects.meta
 /.claude.meta
 

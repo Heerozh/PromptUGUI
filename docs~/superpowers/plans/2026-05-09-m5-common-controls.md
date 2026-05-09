@@ -8,7 +8,7 @@
 
 **Tech Stack:** Unity 6+, C# (PromptUGUI.Runtime / .Tests asmdefs), TMP, R3 (Cysharp), uGUI (Toggle / Slider / TMP_Dropdown / ScrollRect), NUnit via UnityMCP.
 
-**Spec:** `docs/superpowers/specs/2026-05-09-m5-common-controls-design.md`. Read it before starting.
+**Spec:** `docs~/superpowers/specs/2026-05-09-m5-common-controls-design.md`. Read it before starting.
 
 ---
 
@@ -44,7 +44,7 @@
 
 **Modified files (Docs / Package):**
 - `package.json` — add `Common Controls Demo` sample entry
-- `docs/superpowers/specs/2026-05-07-promptugui-description-language-design.md` — §5 primitives table 4 new rows; §10 reword "不开" → "默认开启"
+- `docs~/superpowers/specs/2026-05-07-promptugui-description-language-design.md` — §5 primitives table 4 new rows; §10 reword "不开" → "默认开启"
 - `.claude/skills/authoring-promptugui-xml/SKILL.md` — primitives table + event/data-binding examples
 
 ---
@@ -62,7 +62,7 @@ Expected: zero compile errors before starting.
 
 - [x] **Read the spec**
 
-Read `docs/superpowers/specs/2026-05-09-m5-common-controls-design.md` end-to-end. The decision table (§2) and risk table (§10) are the contract this plan implements.
+Read `docs~/superpowers/specs/2026-05-09-m5-common-controls-design.md` end-to-end. The decision table (§2) and risk table (§10) are the contract this plan implements.
 
 - [x] **Read affected files**
 
@@ -1743,12 +1743,12 @@ git commit -m "feat(sample): CommonControls demo (Toggle/Slider/Dropdown/ScrollL
 ## Task 11: Doc updates (master spec + SKILL.md) [DONE]
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-05-07-promptugui-description-language-design.md`
+- Modify: `docs~/superpowers/specs/2026-05-07-promptugui-description-language-design.md`
 - Modify: `.claude/skills/authoring-promptugui-xml/SKILL.md`
 
 - [x] **Step 1: Update master spec §5 primitives table**
 
-Open `docs/superpowers/specs/2026-05-07-promptugui-description-language-design.md`. In §5, change the "8 个原语" wording to "12 个原语" and append four rows to the table:
+Open `docs~/superpowers/specs/2026-05-07-promptugui-description-language-design.md`. In §5, change the "8 个原语" wording to "12 个原语" and append four rows to the table:
 
 ```markdown
 | `<Toggle>` | 复选 / 单选（OnValueChanged: bool；group= 字符串键互斥） | Image + Toggle (uGUI) + 内置 label |
@@ -1796,7 +1796,7 @@ screen.Get<ScrollList>("list")
 - [x] **Step 4: Commit**
 
 ```bash
-git add docs/superpowers/specs/2026-05-07-promptugui-description-language-design.md .claude/skills/authoring-promptugui-xml/SKILL.md
+git add docs~/superpowers/specs/2026-05-07-promptugui-description-language-design.md .claude/skills/authoring-promptugui-xml/SKILL.md
 git commit -m "doc: 主 spec §5/§10 + SKILL.md 同步 M5 四个常用控件"
 ```
 

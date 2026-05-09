@@ -8,7 +8,7 @@
 
 **Tech Stack:** Unity 6 Editor, C#, `Microsoft.CodeAnalysis.CSharp` (Unity-bundled), `System.Net.Http`.
 
-**Spec:** `docs/superpowers/specs/2026-05-08-i18n-fonts-design.md`. Read it before starting.
+**Spec:** `docs~/superpowers/specs/2026-05-08-i18n-fonts-design.md`. Read it before starting.
 
 **Prerequisite:** M5a plan must be complete — runtime PoParser, PoEntry, TranslationStore, UI.Tr, etc. all exist.
 
@@ -30,7 +30,7 @@
 - `Editor/I18n/TmpRichTextDetector.cs` — detect TMP tags in msgid → flag for "preserve tags" comment
 
 **Modified files:**
-- `docs/superpowers/specs/2026-05-07-promptugui-description-language-design.md` — flip §10 i18n entry
+- `docs~/superpowers/specs/2026-05-07-promptugui-description-language-design.md` — flip §10 i18n entry
 - `.claude/skills/authoring-promptugui-xml/SKILL.md` — add font / tr / ctx attrs, language-as-variant note, CDATA + TMP rich text section, i18n cheatsheet
 
 **Tests:**
@@ -1495,7 +1495,7 @@ git commit -m "docs(skill): document i18n + fonts (font/tr/ctx attrs, CDATA, UI.
 ## Task 11: Main spec sync
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-05-07-promptugui-description-language-design.md`
+- Modify: `docs~/superpowers/specs/2026-05-07-promptugui-description-language-design.md`
 
 - [ ] **Step 1: Flip §10 i18n entry**
 
@@ -1518,7 +1518,7 @@ Replace with:
 - [ ] **Step 2: Commit**
 
 ```bash
-git add docs/superpowers/specs/2026-05-07-promptugui-description-language-design.md
+git add docs~/superpowers/specs/2026-05-07-promptugui-description-language-design.md
 git commit -m "docs(spec): flip §10 i18n non-goal — now M5 deliverable"
 ```
 

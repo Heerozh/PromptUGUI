@@ -14,7 +14,7 @@
 
 工程师执行此计划前需要：
 
-1. M1 计划（`docs/superpowers/plans/2026-05-07-promptugui-m1-core.md`）已全部完成，53 EditMode + 23 PlayMode 测试 PASS
+1. M1 计划（`docs~/superpowers/plans/2026-05-07-promptugui-m1-core.md`）已全部完成，53 EditMode + 23 PlayMode 测试 PASS
 2. 宿主 Unity 项目位于 `C:\xsoft\PromptUGUIDev`（NuGetForUnity 装有 R3 1.3.0；`com.promptugui.core` 通过 file:// 引用本仓库）
 3. UnityMCP 已连接（操作 Unity 用 MCP 工具，不要 batch CLI）
 4. 工作目录始终为 PromptUGUI 仓库根 `C:\xsoft\PromptUGUI`

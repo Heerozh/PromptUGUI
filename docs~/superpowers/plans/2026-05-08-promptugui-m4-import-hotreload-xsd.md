@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 落实 M4 设计 spec（`docs/superpowers/specs/2026-05-08-m4-import-autoimport-hotreload-xsd-design.md`）。新增能力：
+**Goal:** 落实 M4 设计 spec（`docs~/superpowers/specs/2026-05-08-m4-import-autoimport-hotreload-xsd-design.md`）。新增能力：
 
 1. `<Import src="..." [as="ns"]/>` 跨文件 Template 复用
 2. `UI.LoadCommonLibrary(src, [as])` 启动期常驻模板池（auto-import）
@@ -2799,7 +2799,7 @@ git commit -m "test(editor): XsdGenerator coverage — primitives + custom contr
 ## Task 30：主 spec 同步
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-05-07-promptugui-description-language-design.md`
+- Modify: `docs~/superpowers/specs/2026-05-07-promptugui-description-language-design.md`
 
 - [ ] **Step 1：在 §4.2 改"跨文件"为"任意来源"**
 
@@ -2832,7 +2832,7 @@ git commit -m "test(editor): XsdGenerator coverage — primitives + custom contr
 - [ ] **Step 4：commit**
 
 ```bash
-git add docs/superpowers/specs/2026-05-07-promptugui-description-language-design.md
+git add docs~/superpowers/specs/2026-05-07-promptugui-description-language-design.md
 git commit -m "docs(spec): sync §4.2 / §7.6 / §12 with M4 implementation"
 ```
 

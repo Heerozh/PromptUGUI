@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 落实 Icon Assets 设计 spec（`docs/superpowers/specs/2026-05-08-icon-assets-design.md`）。新增能力：
+**Goal:** 落实 Icon Assets 设计 spec（`docs~/superpowers/specs/2026-05-08-icon-assets-design.md`）。新增能力：
 
 1. `<Icon name="ns:icon"/>` 内置控件 + ParseException 校验
 2. `UI.IconResolver: Func<string,Sprite>` 委托 + 默认 SpriteAtlas-backed helper
@@ -93,7 +93,7 @@ PromptUGUI/                                                    # 仓库根
 ├── Tests/PlayMode/
 │   └── Controls/
 │       └── IconRuntimeTests.cs                                # Create (T20)
-├── docs/superpowers/specs/
+├── docs~/superpowers/specs/
 │   └── 2026-05-07-promptugui-description-language-design.md   # Modify (T22)
 └── .claude/skills/authoring-promptugui-xml/
     └── SKILL.md                                                # Modify (T21)
@@ -2197,7 +2197,7 @@ git commit -m "docs(skill): <Icon> element + dynamic name guidance"
 ### Task 22: 更新 Master spec
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-05-07-promptugui-description-language-design.md`
+- Modify: `docs~/superpowers/specs/2026-05-07-promptugui-description-language-design.md`
 
 CLAUDE.md 要求：新元素 + 新属性 + 公开 API 必须反映在 master spec。
 
@@ -2233,7 +2233,7 @@ CLAUDE.md 要求：新元素 + 新属性 + 公开 API 必须反映在 master spe
 - [ ] **Step 5: Commit**
 
 ```
-git add docs/superpowers/specs/2026-05-07-promptugui-description-language-design.md
+git add docs~/superpowers/specs/2026-05-07-promptugui-description-language-design.md
 git commit -m "docs(spec): sync master spec with icon assets — §7 §6 §12"
 ```
 
@@ -2274,7 +2274,7 @@ git diff main...HEAD --stat                  # 检查变更范围
 gh pr create --title "feat: icon assets — <Icon>, IconSet, SpriteAtlas backend" \
   --body "$(cat <<'EOF'
 ## Summary
-落实 [icon assets spec](docs/superpowers/specs/2026-05-08-icon-assets-design.md)。
+落实 [icon assets spec](docs~/superpowers/specs/2026-05-08-icon-assets-design.md)。
 
 - `<Icon name="ns:icon"/>` 内置控件 + parse-time validation
 - IconSet ScriptableObject + 默认 SpriteAtlas backed IconResolver
