@@ -53,6 +53,7 @@
 | M5-D10 | itemTemplate 解析 | Screen 实例化期解析为 `Func<Transform,IControl>`，命中 Control 类或 TemplateDef | 复用 ControlRegistry + LoadedDoc.Templates，错误统一为 ParseException |
 | M5-D11 | i18n 接入 | Toggle.Text / Dropdown 选项 / ScrollList 任何子 Text 一律走 `TrResolver` | 与 Btn / `<Text>` 行为对齐 |
 | M5-D12 | 主 spec §10 措辞 | 改成"默认开启的常用控件，复杂样式仍鼓励 fork" | 与本 spec 前提对齐；非破坏性 |
+| M5-D13 | slot 内导航 API | 新增 `IControl.Get<T>(idPath)` / `IControl.Get(idPath)` 走 `ScopedIds` 路径 | 让 BindItems 回调里 `slot.Get<Text>("label")` 可读；与 `Screen.Get` 路径语义对齐 |
 
 ---
 
@@ -61,11 +62,11 @@
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <PromptUGUI version="1">
-  <!-- 装备槽位 Template，被 ScrollList 用作 itemTemplate -->
+  <!-- 装备槽位 Template，被 ScrollList 用作 itemTemplate；
+       注意：每项的具体内容由 BindItems 推送，所以 Icon/Text 用 id 暴露而非 Param -->
   <Template name="ItemSlot">
-    <Param name="iconName" default=""/>
     <HStack height="48" spacing="8" padding="4">
-      <Icon name="{{iconName}}" size="32x32"/>
+      <Icon id="icon" size="32x32"/>
       <Text id="label" size="20"/>
       <Frame width="0"/>
       <Text id="count" size="20"/>
@@ -99,7 +100,7 @@ quality.OnSelected.Subscribe(QualitySettings.SetQualityLevel).AddTo(screen);
 
 var list = screen.Get<ScrollList>("inv");
 list.BindItems(player.Inventory, (IControl slot, Item item) => {
-    slot.Get<Icon>("").Name = item.IconName;
+    slot.Get<Icon>("icon").Name = item.IconName;
     slot.Get<Text>("label").TextValue = item.Name;
     slot.Get<Text>("count").TextValue = $"x{item.Count}";
 }).AddTo(screen);
@@ -283,7 +284,20 @@ public sealed class ScrollList : Control
 
 ### 7.4 itemTemplate 与 ID 路径
 
-itemTemplate 命中 TemplateDef 时，每个 slot 的根节点是 Template 展开的根（`<HStack>` 之类），其内部 id 走主 spec §7.4 的 ScopedIds：
+itemTemplate 命中 TemplateDef 时，每个 slot 的根节点是 Template 展开的根（`<HStack>` 之类），其内部 id 走主 spec §7.4 的 ScopedIds。
+为此本 spec 同步在 `IControl` 接口上加路径 Get（D13）：
+
+```csharp
+namespace PromptUGUI.Controls
+{
+    public interface IControl : IDisposable
+    {
+        // 既有成员略...
+        public T Get<T>(string idPath) where T : class, IControl;
+        public IControl Get(string idPath);
+    }
+}
+```
 
 ```csharp
 list.BindItems(items, (IControl slot, Item item) => {
