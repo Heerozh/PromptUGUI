@@ -61,6 +61,12 @@ namespace PromptUGUI.Controls
             {
                 _scroll.horizontal = true;
                 _scroll.vertical = false;
+                // 左侧锚点：竖向铺满 viewport，水平方向由 ContentSizeFitter 撑开
+                _content.anchorMin = new Vector2(0f, 0f);
+                _content.anchorMax = new Vector2(0f, 1f);
+                _content.pivot = new Vector2(0f, 0.5f);
+                _content.sizeDelta = Vector2.zero;
+                _content.anchoredPosition = Vector2.zero;
                 _layoutGroup = _content.gameObject.AddComponent<HorizontalLayoutGroup>();
                 fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
                 fitter.verticalFit = ContentSizeFitter.FitMode.Unconstrained;
@@ -69,6 +75,12 @@ namespace PromptUGUI.Controls
             {
                 _scroll.horizontal = false;
                 _scroll.vertical = true;
+                // 顶部锚点：水平方向铺满 viewport，竖向由 ContentSizeFitter 撑开
+                _content.anchorMin = new Vector2(0f, 1f);
+                _content.anchorMax = new Vector2(1f, 1f);
+                _content.pivot = new Vector2(0.5f, 1f);
+                _content.sizeDelta = Vector2.zero;
+                _content.anchoredPosition = Vector2.zero;
                 _layoutGroup = _content.gameObject.AddComponent<VerticalLayoutGroup>();
                 fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
                 fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
