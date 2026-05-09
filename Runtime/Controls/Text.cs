@@ -49,5 +49,18 @@ namespace PromptUGUI.Controls {
         public bool RaycastTarget {
             set => _tmp.raycastTarget = value;
         }
+
+        [UIAttr]
+        public string Font {
+            set {
+                var settings = PromptUGUI.Application.PromptUGUISettings.Instance;
+                var locale = PromptUGUI.Application.UI.Locale.Current;
+                var asset = settings != null
+                    ? settings.ResolveFont(locale, value ?? "default")
+                    : null;
+                if (asset != null) _tmp.font = asset;
+                // miss → keep whatever TMP defaulted to; do not clobber.
+            }
+        }
     }
 }
