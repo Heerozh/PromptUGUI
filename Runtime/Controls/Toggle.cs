@@ -52,7 +52,8 @@ namespace PromptUGUI.Controls
             labelRt.anchorMin = new Vector2(0f, 0f);
             labelRt.anchorMax = new Vector2(1f, 1f);
             labelRt.pivot = new Vector2(0.5f, 0.5f);
-            labelRt.offsetMin = new Vector2(9f, 0f);
+            // 默认 prefab Label.offsetMin = (9, -0.5)；保持原值以便日后比对 prefab 不困惑
+            labelRt.offsetMin = new Vector2(9f, -0.5f);
             labelRt.offsetMax = new Vector2(-28f, 0f);
 
             ApplyFont();

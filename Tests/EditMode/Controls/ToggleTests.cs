@@ -128,7 +128,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsNotNull(label);
             Assert.AreEqual(new UnityEngine.Vector2(0, 0), label.anchorMin);
             Assert.AreEqual(new UnityEngine.Vector2(1, 1), label.anchorMax);
-            Assert.AreEqual(new UnityEngine.Vector2(9, 0), label.offsetMin);
+            Assert.AreEqual(new UnityEngine.Vector2(9, -0.5f), label.offsetMin);
             Assert.AreEqual(new UnityEngine.Vector2(-28, 0), label.offsetMax);
         }
 
