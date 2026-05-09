@@ -24,6 +24,9 @@ namespace PromptUGUI.Application {
 
         internal static VariantStore VariantStore => _variantStore;
 
+        // TEMP for Task 7; replaced by UI.Locale.Current in Task 9
+        internal static string CurrentLocaleForResolver;
+
         public static class Variants {
             public static void Set(string name, bool active) =>
                 _variantStore.Set(name, active);
