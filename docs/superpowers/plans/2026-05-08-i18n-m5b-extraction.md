@@ -908,7 +908,7 @@ namespace PromptUGUI.Editor.I18n {
         public string endpoint = "https://api.openai.com/v1/chat/completions";
         public string model = "gpt-4o-mini";
         [TextArea(6, 20)] public string systemPrompt =
-@"你正在为一款像素风游戏翻译 UI 字符串到 {{targetLocale}}。
+@"你正在为一款游戏翻译 UI 字符串到 {{targetLocale}}。
 
 规则：
 1. 保留所有 {{x}} 模板占位符与 {0} {1:C} 等 C# 格式占位符不变
