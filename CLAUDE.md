@@ -141,6 +141,10 @@ Filter to a single test class with `filter="ClassName"` (matches by name fragmen
 
 After any source edit, refresh first, then check console for compile errors before running tests.
 
+**Forbidden MCP calls** (do not invoke unless the user explicitly allows it during an alignment step):
+
+- `mcp__UnityMCP__execute_menu_item(menu_path="Assets/Reimport All")` — pops a modal confirmation dialog in Unity ("Are you sure you want to reimport all assets..."). The MCP call itself returns immediately, but **every subsequent MCP call will be blocked by the unclosed modal** until someone manually dismisses it in the Unity window. Recovering from an accidental trigger requires user intervention. For routine full refreshes, use `refresh_unity(mode="force", scope="all")` — it goes through `AssetDatabase.Refresh(ForceUpdate)`, no dialog, no editor restart.
+
 ## Test Conventions
 
 EditMode test classes that touch `UI` must call `UI.ResetForTests()` in `[SetUp]` and `[TearDown]`. `ResetForTests` rebuilds the registry with built-ins pre-registered — tests don't need to register them manually. The fake-files pattern for resolver-driven tests is established in `DocumentLoaderTests.cs` and `HotReloadTests.cs`.
