@@ -1,21 +1,15 @@
 using PromptUGUI.Registry;
 using R3;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Controls {
-    /// <summary>
-    /// 通用按钮原语：自带 Image (背景 + Button 的 raycast target) + Button + OnClick (R3)。
-    /// 模板可以把它作为根（<Btn .../>）并在内部塞 Image/Text 等子节点组合出
-    /// PrimaryButton / IconButton / 进度条按钮 等变体，不需要新的 prefab 或 C# 类。
-    ///
-    /// 注意：Btn 的子 Graphic 默认会拦截点击事件。如果不想被拦截，把子 Image/Text 的
-    /// raycastTarget 设为 false（Text 通过 raycastTarget="false" 属性控制）。
-    /// </summary>
     public sealed class Btn : Control {
         UnityImage _bg;
         Button _btn;
+        TMP_Text _autoLabel;
         readonly Subject<Unit> _click = new();
 
         public override void OnAttached() {
@@ -23,6 +17,42 @@ namespace PromptUGUI.Controls {
             _btn = GameObject.GetComponent<Button>() ?? GameObject.AddComponent<Button>();
             _btn.targetGraphic = _bg;
             _btn.onClick.AddListener(() => _click.OnNext(Unit.Default));
+        }
+
+        TMP_Text EnsureLabel() {
+            if (_autoLabel != null) return _autoLabel;
+            var go = new GameObject("Label", typeof(RectTransform));
+            go.transform.SetParent(GameObject.transform, worldPositionStays: false);
+            var rt = (RectTransform)go.transform;
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+            _autoLabel = go.AddComponent<TextMeshProUGUI>();
+            _autoLabel.alignment = TextAlignmentOptions.Center;
+            _autoLabel.raycastTarget = false;
+            return _autoLabel;
+        }
+
+        [UIAttr]
+        public string Text {
+            set {
+                if (string.IsNullOrEmpty(value) && _autoLabel == null) return;
+                EnsureLabel().text = value ?? "";
+            }
+        }
+
+        [UIAttr]
+        public string Font {
+            set {
+                if (_autoLabel == null) return;  // no text → font irrelevant
+                var settings = PromptUGUI.Application.PromptUGUISettings.Instance;
+                var locale = PromptUGUI.Application.UI.Locale.Current;
+                var asset = settings != null
+                    ? settings.ResolveFont(locale, value ?? "default")
+                    : null;
+                if (asset != null) _autoLabel.font = asset;
+            }
         }
 
         [UIAttr]
