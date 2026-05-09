@@ -5,14 +5,8 @@ using R3;
 
 namespace PromptUGUI.Tests.Application {
     public class LocaleSetTests {
-        [SetUp] public void Setup() {
-            UI.ResetForTests();
-            TranslationStore.Instance.UnloadAll();
-        }
-        [TearDown] public void Teardown() {
-            UI.ResetForTests();
-            TranslationStore.Instance.UnloadAll();
-        }
+        [SetUp] public void Setup() => UI.ResetForTests();
+        [TearDown] public void Teardown() => UI.ResetForTests();
 
         [Test] public void Initial_CurrentIsNull() {
             Assert.IsNull(UI.Locale.Current);

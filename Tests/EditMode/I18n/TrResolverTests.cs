@@ -5,14 +5,8 @@ using PromptUGUI.I18n;
 
 namespace PromptUGUI.Tests.I18n {
     public class TrResolverTests {
-        [SetUp] public void Setup() {
-            UI.ResetForTests();
-            TranslationStore.Instance.UnloadAll();
-        }
-        [TearDown] public void Teardown() {
-            UI.ResetForTests();
-            TranslationStore.Instance.UnloadAll();
-        }
+        [SetUp] public void Setup() => UI.ResetForTests();
+        [TearDown] public void Teardown() => UI.ResetForTests();
 
         [Test] public void Resolve_NullRaw_ReturnsNull() {
             Assert.IsNull(TrResolver.Resolve(null, null, null));
