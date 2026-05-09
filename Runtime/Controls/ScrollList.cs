@@ -46,6 +46,13 @@ namespace PromptUGUI.Controls
 
             _content = ProceduralBuilders.AddChild(viewport, "Content");
             _scroll.content = _content;
+
+            _scroll.movementType = ScrollRect.MovementType.Elastic;
+            _scroll.elasticity = 0.1f;
+            _scroll.inertia = true;
+            _scroll.decelerationRate = 0.135f;
+            _scroll.scrollSensitivity = 1f;
+
             ApplyDirection();
         }
 

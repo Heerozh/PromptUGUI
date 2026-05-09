@@ -92,5 +92,41 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var sl = UI.Open("S").Get<ScrollList>("sl");
             Assert.IsNull(sl.GameObject.GetComponentInChildren<UnityEngine.UI.RectMask2D>(includeInactive: true));
         }
+
+        [Test]
+        public void Visual_BgColorIsTranslucentWhite()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='Slot'><Frame/></Template>
+  <Screen name='S'><ScrollList id='sl' itemTemplate='Slot'/></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var sl = UI.Open("S").Get<ScrollList>("sl");
+            var img = sl.GameObject.GetComponent<UnityEngine.UI.Image>();
+            Assert.IsNotNull(img);
+            Assert.AreEqual(1f, img.color.r);
+            Assert.AreEqual(1f, img.color.g);
+            Assert.AreEqual(1f, img.color.b);
+            Assert.That(img.color.a, Is.EqualTo(0.392f).Within(0.005f));
+        }
+
+        [Test]
+        public void ScrollRect_HasDefaultMovementParams()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='Slot'><Frame/></Template>
+  <Screen name='S'><ScrollList id='sl' itemTemplate='Slot'/></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var sl = UI.Open("S").Get<ScrollList>("sl");
+            var sr = sl.GameObject.GetComponent<UnityEngine.UI.ScrollRect>();
+            Assert.AreEqual(UnityEngine.UI.ScrollRect.MovementType.Elastic, sr.movementType);
+            Assert.That(sr.elasticity, Is.EqualTo(0.1f).Within(0.001f));
+            Assert.IsTrue(sr.inertia);
+            Assert.That(sr.decelerationRate, Is.EqualTo(0.135f).Within(0.001f));
+            Assert.AreEqual(1f, sr.scrollSensitivity);
+        }
     }
 }
