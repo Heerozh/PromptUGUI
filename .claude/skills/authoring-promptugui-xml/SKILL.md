@@ -39,7 +39,7 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 - Check the user's MCP configuration files. If no Unity MCP installation is detected, issue a warning to the user indicating that MCP for Unity needs to be installed; however, this should be treated strictly as a warning—do not halt operations.
 - If an installation is detected, this indicates that the user has not launched Unity or the MCP server. In this case, you must **STOP** and instruct the user to open the Unity Editor and ensure that the MCP server is running.
 
-**DO NOT USE** `mcp__UnityMCP__execute_menu_item(menu_path="Assets/Reimport All")` — pops a modal confirmation dialog in Unity ("Are you sure you want to reimport all assets..."). The MCP call itself returns immediately, but **every subsequent MCP call will be blocked by the unclosed modal** until someone manually dismisses it in the Unity window. Recovering from an accidental trigger requires user intervention.
+**DO NOT USE** `mcp__UnityMCP__execute_menu_item(menu_path="Assets/Reimport All")` unless the user explicitly allows it during an alignment step — pops a modal confirmation dialog in Unity ("Are you sure you want to reimport all assets..."). The MCP call itself returns immediately, but **every subsequent MCP call will be blocked by the unclosed modal** until someone manually dismisses it in the Unity window. Recovering from an accidental trigger requires user intervention.
 
 ## File anatomy
 
@@ -247,53 +247,53 @@ For inserting elements per variant (no `Remove`, no `Replace` — use `hidden.va
 
 Trying to write `id.mobile="..."` or `default.mobile="..."` is a parse error.
 
-## i18n & 字体（M5 起）
+## i18n & Fonts
 
-源文本直接写在 `<Text>` / `<Btn>` 中。`UI.Locale.Set("en")` 切语言；切语言走 Variant 通路，已 open 的 Screen 自动 ReSolve。
+Source text goes directly inside `<Text>` / `<Btn>`. `UI.Locale.Set("en")` switches the language; locale switching rides the Variant pipeline, so already-open Screens auto-ReSolve.
 
 ```xml
-<!-- 源文本 = msgid；零 key -->
-<Text>开始游戏</Text>
-<Btn>设置</Btn>
+<!-- Source text = msgid; zero keys -->
+<Text>Start Game</Text>
+<Btn>Settings</Btn>
 
-<!-- 不要翻译 -->
+<!-- Do not translate -->
 <Text tr="false">{{playerName}}</Text>
 
-<!-- 同 msgid 多义；ctx 进 msgctxt -->
+<!-- Same msgid, different meanings; ctx becomes msgctxt -->
 <Btn ctx="door">Open</Btn>
 <Btn ctx="file-menu">Open</Btn>
 
-<!-- 字体 type 走 Settings；缺省 "default" -->
-<Text font="title">设置</Text>
+<!-- Font type comes from Settings; default is "default" -->
+<Text font="title">Settings</Text>
 <Text font="damage" fontSize="96">9999!</Text>
 
-<!-- 配合既有 Variant 系统 -->
-<Text font="title" font.zh-Hans="title-cn">设置</Text>
+<!-- Combined with the existing Variant system -->
+<Text font="title" font.zh-Hans="title-cn">Settings</Text>
 ```
 
 C#:
 
 ```csharp
-// 切 locale；同时切 .po 表与字体表
+// Switch locale; swaps both the .po table and the font table
 UI.Locale.Set("en");
 UI.Locale.SetToSystemDefault();
 
-// 代码里抽取的字符串
-var text = string.Format(c, UI.Tr("总价: {0:C}"), price);
+// Strings extracted from code
+var text = string.Format(c, UI.Tr("Total: {0:C}"), price);
 ```
 
-**保留命名空间**：`UI.Locale.Set("zh-Hans")` 内部把 `zh-Hans` 注册为活跃 Variant。author 不应使用同名 Variant 表达 locale 之外的状态。
+**Reserved namespace**: `UI.Locale.Set("zh-Hans")` internally registers `zh-Hans` as an active Variant. Authors must NOT reuse a Variant of the same name to express anything other than locale state.
 
-### 图文混排 / TMP 富文本
+### Inline sprites / TMP rich text
 
-`<Text>` 默认不允许 mix text + child elements。要 inline 写 `<sprite>` / `<color>` 等 TMP 标签，包 CDATA：
+`<Text>` does not allow mixing text + child elements by default. To inline TMP tags like `<sprite>` / `<color>`, wrap them in CDATA:
 
 ```xml
-<Text><![CDATA[金币: <sprite name="coin"/>{{count}}]]></Text>
-<Text><![CDATA[<color=#ff0>警告</color>: 库存不足]]></Text>
+<Text><![CDATA[Gold: <sprite name="coin"/>{{count}}]]></Text>
+<Text><![CDATA[<color=#ff0>Warning</color>: out of stock]]></Text>
 ```
 
-抽取器把 CDATA 内容作为完整 msgid 抽出；运行时翻译保留标签。
+The extractor pulls each CDATA block as a single complete msgid; runtime translation preserves the tags.
 
 ## Import & namespaces
 
@@ -424,7 +424,6 @@ UI.Registry.Register<MyControl>("MyControl", optionalPrefab: null);
 
 | Symptom                                                      | Cause                                                               | Fix                                                                                     |
 | ------------------------------------------------------------ | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `Root element must be <PromptUGUI>`                          | Wrote `<UI version="1">` (matches old spec drafts)                  | Use `<PromptUGUI version="1">`                                                          |
 | `cannot specify width/size on a horizontally-stretched axis` | `<X anchor="top-stretch" width="200"/>`                             | Either change anchor, or drop `width`. The stretched axis takes its size from `margin`. |
 | Element not found at runtime                                 | `id` only declared inside a `<Template>`, but accessed by flat name | Use path: `screen.Get("templateId/innerId")`                                            |
 | Ghost element on variant toggle                              | `<Add>` instantiated and never deactivated                          | This is by design (Strategy C). Use `hidden.variant` if you need a node to disappear.   |
@@ -487,12 +486,12 @@ XML CANVAS    <Screen name="X" canvas="overlay|camera|world">   default overlay;
 C# CANVAS     UI.CanvasConfigurator = (canvas, name) => { ... }  worldCamera / sortingOrder / overrides; runs after XML
 
 ## i18n
-<Text>...</Text>                 抽取 + 翻译
-<Text tr="false">...</Text>      跳过
-<Text font="title">...</Text>    字体 type
-<Text ctx="door">Open</Text>     msgctxt 消歧
-UI.Tr("...")                     C# 抽取入口
-UI.Locale.Set("zh-Hans")         切 locale (= 切 .po + 切字体)
+<Text>...</Text>                 extract + translate
+<Text tr="false">...</Text>      skip
+<Text font="title">...</Text>    font type
+<Text ctx="door">Open</Text>     msgctxt disambiguation
+UI.Tr("...")                     C# extraction entry point
+UI.Locale.Set("zh-Hans")         switch locale (= switch .po + switch font)
 ```
 
 ## Worked end-to-end example
@@ -533,8 +532,9 @@ UI.Locale.Set("zh-Hans")         切 locale (= 切 .po + 切字体)
 ```
 
 ```csharp
-UI.SourceResolver = key => Resources.Load<TextAsset>($"UI/{key}").text;
-UI.LoadDocumentFromSrc("screens/main");
+UI.UseResourcesResolver("UI"); // same as UI.SourceResolver = key => Resources.Load<TextAsset>($"UI/{key}").text;
+IconResolverHelpers.UseSpriteAtlasIconResolver(iconSets);   // pass icon set setting
+UI.LoadDocumentFromSrc("screens/main"); // FromSrc will enable hot-reload.
 
 #if UNITY_IOS || UNITY_ANDROID
 UI.Variants.Set("mobile", true);
