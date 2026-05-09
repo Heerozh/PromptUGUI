@@ -67,9 +67,9 @@
   <Template name="ItemSlot">
     <HStack height="48" spacing="8" padding="4">
       <Icon id="icon" size="32x32"/>
-      <Text id="label" size="20"/>
+      <Text id="label" fontSize="20"/>
       <Frame width="0"/>
-      <Text id="count" size="20"/>
+      <Text id="count" fontSize="20"/>
     </HStack>
   </Template>
 

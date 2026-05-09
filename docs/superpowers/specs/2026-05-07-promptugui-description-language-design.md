@@ -188,7 +188,7 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 
 由各标签自行声明：
 - `<Image sprite="bg/main" color="#FFFFFFAA" type="sliced|simple|filled|tiled"/>`
-- `<Text font="..." size="32" color="..." align="left|center|right" wrap="true"/>`
+- `<Text font="..." fontSize="32" color="..." align="left|center|right" wrap="true"/>` — 注意 Text 的字号属性是 `fontSize`，**不是** `size`；`size` 是通用 WxH 布局尺寸（§6.2），写 `<Text size="32"/>` 会被布局解析器拒收
 
 完整属性表见各控件 README（不在本 spec 范围）。
 

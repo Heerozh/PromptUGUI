@@ -1627,7 +1627,7 @@ Create `Samples~/CommonControls/Resources/UI/Settings.ui.xml`:
 <PromptUGUI version="1">
   <Template name="OptionRow">
     <HStack height="32" spacing="8">
-      <Text id="label" size="20"/>
+      <Text id="label" fontSize="20"/>
       <Frame width="0"/>
     </HStack>
   </Template>
@@ -1635,7 +1635,7 @@ Create `Samples~/CommonControls/Resources/UI/Settings.ui.xml`:
   <Screen name="Settings">
     <Image anchor="stretch" color="#202020"/>
     <VStack id="root" anchor="center" size="500x600" spacing="16" padding="24">
-      <Text size="28" align="center">Common Controls Demo</Text>
+      <Text fontSize="28" align="center">Common Controls Demo</Text>
 
       <Toggle id="muteAudio" group="audio">静音</Toggle>
       <Slider id="masterVol" min="0" max="1" value="0.8"/>

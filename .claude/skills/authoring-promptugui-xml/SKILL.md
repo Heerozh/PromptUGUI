@@ -90,7 +90,7 @@ References a sprite from a project-level IconSet (shared icons, by-name lookup, 
 
 ```xml
 <Icon name="ui:settings" color="#ffffff"/>
-<Icon name="art:gold-coin" size="48"/>
+<Icon name="art:gold-coin" size="48x48"/>
 <Icon name="ui:bell" color.dark="#fff"/>
 ```
 
