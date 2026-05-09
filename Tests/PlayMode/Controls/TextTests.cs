@@ -1,14 +1,17 @@
 using System.Collections;
 using NUnit.Framework;
-using TMPro;
 using PromptUGUI.Controls;
+using TMPro;
 using UnityEngine;
 using UnityEngine.TestTools;
 
-namespace PromptUGUI.Tests.Controls {
-    public class TextTests {
+namespace PromptUGUI.Tests.Controls
+{
+    public class TextTests
+    {
         [UnityTest]
-        public IEnumerator Adds_TMP_Text_component_on_attach() {
+        public IEnumerator Adds_TMP_Text_component_on_attach()
+        {
             var t = new Text();
             var go = new GameObject("text", typeof(RectTransform));
             t.AttachTo(go);
@@ -18,7 +21,8 @@ namespace PromptUGUI.Tests.Controls {
         }
 
         [UnityTest]
-        public IEnumerator Text_property_writes_to_TMP() {
+        public IEnumerator Text_property_writes_to_TMP()
+        {
             var t = new Text();
             var go = new GameObject("text", typeof(RectTransform));
             t.AttachTo(go);
@@ -29,7 +33,8 @@ namespace PromptUGUI.Tests.Controls {
         }
 
         [UnityTest]
-        public IEnumerator Size_property_writes_to_fontSize() {
+        public IEnumerator Size_property_writes_to_fontSize()
+        {
             var t = new Text();
             var go = new GameObject("text", typeof(RectTransform));
             t.AttachTo(go);

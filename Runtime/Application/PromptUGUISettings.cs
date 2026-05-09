@@ -52,12 +52,12 @@ namespace PromptUGUI.Application
             }
         }
 
-        void OnValidate()
+        private void OnValidate()
         {
             if (locales != null)
             {
                 var seenLocale = new Dictionary<string, int>();
-                for (int i = 0; i < locales.Count; i++)
+                for (var i = 0; i < locales.Count; i++)
                 {
                     var lc = locales[i];
                     if (lc == null || string.IsNullOrEmpty(lc.locale)) continue;
@@ -75,10 +75,10 @@ namespace PromptUGUI.Application
                 }
             }
 
-            if (fontTypes == null) fontTypes = new List<string>();
+            fontTypes ??= new List<string>();
             var canonical = new List<string>();
             var seenType = new HashSet<string>();
-            for (int i = 0; i < fontTypes.Count; i++)
+            for (var i = 0; i < fontTypes.Count; i++)
             {
                 var t = fontTypes[i];
                 if (string.IsNullOrEmpty(t)) continue;
@@ -97,7 +97,7 @@ namespace PromptUGUI.Application
                 foreach (var lc in locales)
                 {
                     if (lc == null) continue;
-                    if (lc.fonts == null) lc.fonts = new List<FontEntry>();
+                    lc.fonts ??= new List<FontEntry>();
                     var byType = new Dictionary<string, TMP_FontAsset>();
                     foreach (var fe in lc.fonts)
                     {

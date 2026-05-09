@@ -2,19 +2,24 @@ using PromptUGUI.Application;
 using UnityEditor;
 using UnityEngine;
 
-namespace PromptUGUI.Editor {
+namespace PromptUGUI.Editor
+{
     [CustomPropertyDrawer(typeof(LocalePresetsAttribute))]
-    public sealed class LocalePresetsDrawer : PropertyDrawer {
-        const float DropdownWidth = 22f;
-        const float Spacing = 2f;
+    public sealed class LocalePresetsDrawer : PropertyDrawer
+    {
+        private const float DropdownWidth = 22f;
+        private const float Spacing = 2f;
 
-        public override void OnGUI(Rect position, SerializedProperty property, GUIContent label) {
-            if (property.propertyType != SerializedPropertyType.String) {
+        public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
+        {
+            if (property.propertyType != SerializedPropertyType.String)
+            {
                 EditorGUI.PropertyField(position, property, label);
                 return;
             }
 
-            using (new EditorGUI.PropertyScope(position, label, property)) {
+            using (new EditorGUI.PropertyScope(position, label, property))
+            {
                 var contentRect = EditorGUI.PrefixLabel(position, label);
                 var fieldRect = new Rect(
                     contentRect.x, contentRect.y,
@@ -25,13 +30,16 @@ namespace PromptUGUI.Editor {
 
                 property.stringValue = EditorGUI.TextField(fieldRect, property.stringValue);
 
-                if (EditorGUI.DropdownButton(dropRect, new GUIContent("▾"), FocusType.Keyboard, EditorStyles.miniButton)) {
+                if (EditorGUI.DropdownButton(dropRect, new GUIContent("▾"), FocusType.Keyboard, EditorStyles.miniButton))
+                {
                     var menu = new GenericMenu();
                     var prop = property.Copy();
-                    foreach (var (code, display) in LocalePresetsAttribute.Defaults) {
+                    foreach (var (code, display) in LocalePresetsAttribute.Defaults)
+                    {
                         var captured = code;
-                        bool on = prop.stringValue == captured;
-                        menu.AddItem(new GUIContent(display), on, () => {
+                        var on = prop.stringValue == captured;
+                        menu.AddItem(new GUIContent(display), on, () =>
+                        {
                             prop.stringValue = captured;
                             prop.serializedObject.ApplyModifiedProperties();
                         });

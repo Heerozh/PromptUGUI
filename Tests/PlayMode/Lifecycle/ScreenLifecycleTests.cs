@@ -7,26 +7,31 @@ using PromptUGUI.Registry;
 using R3;
 using UnityEngine;
 using UnityEngine.TestTools;
-using PromptImage = PromptUGUI.Controls.Image;
-using PromptText = PromptUGUI.Controls.Text;
-using PromptScreen = PromptUGUI.Application.Screen;
 using PromptGrid = PromptUGUI.Controls.Grid;
+using PromptImage = PromptUGUI.Controls.Image;
+using PromptScreen = PromptUGUI.Application.Screen;
+using PromptText = PromptUGUI.Controls.Text;
 using PromptVStack = PromptUGUI.Controls.VStack;
 
-namespace PromptUGUI.Tests.Lifecycle {
-    public class ScreenInstantiatorTests {
+namespace PromptUGUI.Tests.Lifecycle
+{
+    public class ScreenInstantiatorTests
+    {
 
-        ControlRegistry _reg;
-        VariantStore _store;
+        private ControlRegistry _reg;
+        private VariantStore _store;
 
-        [SetUp] public void SetUp() {
+        [SetUp]
+        public void SetUp()
+        {
             UI.ResetForTests();
             _reg = UI.Registry;
             _store = UI.VariantStore;
         }
 
         [UnityTest]
-        public IEnumerator Instantiates_image_with_anchor_and_size() {
+        public IEnumerator Instantiates_image_with_anchor_and_size()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <Image id='bg' anchor='top-right' size='240x80' margin='16'/>
@@ -47,7 +52,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Recursive_children_are_parented_correctly() {
+        public IEnumerator Recursive_children_are_parented_correctly()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <VStack id='root' anchor='center' size='400x300'>
@@ -70,7 +76,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Text_content_shorthand_applies_to_default_text_attr() {
+        public IEnumerator Text_content_shorthand_applies_to_default_text_attr()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <Text>Hello</Text>
@@ -87,7 +94,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Screen_creates_canvas_and_can_get_by_id() {
+        public IEnumerator Screen_creates_canvas_and_can_get_by_id()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <Image id='bg' anchor='stretch'/>
@@ -111,7 +119,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Screen_get_unknown_id_throws() {
+        public IEnumerator Screen_get_unknown_id_throws()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='UnknownIdTest'><Image id='only'/></Screen></PromptUGUI>";
             var doc = UIDocumentParser.Parse(xml);
@@ -126,7 +135,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator UI_open_returns_screen_and_close_destroys() {
+        public IEnumerator UI_open_returns_screen_and_close_destroys()
+        {
             UI.LoadDocument("test_doc", @"<PromptUGUI version='1'>
                 <Screen name='UIFacade'>
                     <Image id='bg' anchor='stretch'/>
@@ -141,13 +151,15 @@ namespace PromptUGUI.Tests.Lifecycle {
             Assert.IsTrue(UI.Get("UIFacade") == null);
         }
 
-        sealed class TrackingDisposable : System.IDisposable {
+        private sealed class TrackingDisposable : System.IDisposable
+        {
             public bool Disposed;
             public void Dispose() => Disposed = true;
         }
 
         [UnityTest]
-        public IEnumerator AddTo_screen_disposes_on_close() {
+        public IEnumerator AddTo_screen_disposes_on_close()
+        {
             UI.LoadDocument("addto_doc", @"<PromptUGUI version='1'>
                 <Screen name='AddToTest'><Image id='bg'/></Screen></PromptUGUI>");
             var screen = UI.Open("AddToTest");
@@ -162,7 +174,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Path_Get_walks_template_scope() {
+        public IEnumerator Path_Get_walks_template_scope()
+        {
             UI.LoadDocument("path_doc", @"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Frame>
@@ -188,7 +201,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Path_Get_throws_on_unknown_segment() {
+        public IEnumerator Path_Get_throws_on_unknown_segment()
+        {
             UI.LoadDocument("path_doc2", @"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Frame><Image id='inside'/></Frame>
@@ -206,7 +220,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Variant_attribute_override_applies_when_variant_active_at_open() {
+        public IEnumerator Variant_attribute_override_applies_when_variant_active_at_open()
+        {
             UI.LoadDocument("v1", @"<PromptUGUI version='1'>
                 <Screen name='V1'>
                     <Image id='bg' anchor='top-left' size='100x50'
@@ -227,7 +242,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Base_attribute_used_when_no_variant_active_at_open() {
+        public IEnumerator Base_attribute_used_when_no_variant_active_at_open()
+        {
             // Use a clearly-distinguishable mobile size: if variant routing accidentally
             // applied size.mobile while mobile is inactive, this would visibly fail.
             UI.LoadDocument("v2", @"<PromptUGUI version='1'>
@@ -245,7 +261,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Variant_only_attr_without_base_falls_through_to_default_when_inactive() {
+        public IEnumerator Variant_only_attr_without_base_falls_through_to_default_when_inactive()
+        {
             // margin.mobile='50' is large enough that anchoredPosition would be
             // non-zero if accidentally applied while mobile is inactive.
             UI.LoadDocument("v3", @"<PromptUGUI version='1'>
@@ -261,7 +278,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Variant_add_block_creates_node_when_active_at_open() {
+        public IEnumerator Variant_add_block_creates_node_when_active_at_open()
+        {
             UI.Variants.Set("m", true);
             UI.LoadDocument("a1", @"<PromptUGUI version='1'>
                 <Screen name='A1'>
@@ -282,7 +300,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Variant_add_block_skipped_when_inactive_at_open() {
+        public IEnumerator Variant_add_block_skipped_when_inactive_at_open()
+        {
             UI.LoadDocument("a2", @"<PromptUGUI version='1'>
                 <Screen name='A2'>
                     <Frame id='root'/>
@@ -302,7 +321,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Variant_add_into_root_creates_at_screen_root() {
+        public IEnumerator Variant_add_into_root_creates_at_screen_root()
+        {
             UI.Variants.Set("m", true);
             UI.LoadDocument("a3", @"<PromptUGUI version='1'>
                 <Screen name='A3'>
@@ -320,7 +340,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Variant_add_at_index_inserts_at_position() {
+        public IEnumerator Variant_add_at_index_inserts_at_position()
+        {
             UI.Variants.Set("m", true);
             UI.LoadDocument("a4", @"<PromptUGUI version='1'>
                 <Screen name='A4'>
@@ -343,7 +364,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Variant_add_at_start_inserts_first() {
+        public IEnumerator Variant_add_at_start_inserts_first()
+        {
             UI.Variants.Set("m", true);
             UI.LoadDocument("a5", @"<PromptUGUI version='1'>
                 <Screen name='A5'>
@@ -364,7 +386,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Variant_add_into_template_instance_path_inserts_inside_template() {
+        public IEnumerator Variant_add_into_template_instance_path_inserts_inside_template()
+        {
             // into="#dialog/inner" → 走模板内部 ScopedIds（spec drift §5 / spec §8.4 扩展）
             UI.Variants.Set("m", true);
             UI.LoadDocument("a6", @"<PromptUGUI version='1'>
@@ -391,7 +414,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Variant_add_into_unknown_path_segment_throws_at_open() {
+        public IEnumerator Variant_add_into_unknown_path_segment_throws_at_open()
+        {
             UI.Variants.Set("m", true);
             UI.LoadDocument("a7", @"<PromptUGUI version='1'>
                 <Template name='Box'>
@@ -411,7 +435,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Variant_add_with_multiple_children_at_start_preserves_order() {
+        public IEnumerator Variant_add_with_multiple_children_at_start_preserves_order()
+        {
             // 验证 SetSiblingIndex move 循环对 addedN > 1 的正确性：
             // 起点 prevCount=1（VStack 已有 'a'），加 2 个 child 'x','y' 到 'start'
             // 期望 child 顺序：x, y, a
@@ -439,7 +464,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator ReSolve_updates_size_when_variant_toggles_at_runtime() {
+        public IEnumerator ReSolve_updates_size_when_variant_toggles_at_runtime()
+        {
             UI.LoadDocument("rs1", @"<PromptUGUI version='1'>
                 <Screen name='RS1'>
                     <Image id='bg' anchor='top-left' size='100x50' size.mobile='200x100'/>
@@ -460,7 +486,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator ReSolve_does_not_recreate_GameObjects() {
+        public IEnumerator ReSolve_does_not_recreate_GameObjects()
+        {
             UI.LoadDocument("rs2", @"<PromptUGUI version='1'>
                 <Screen name='RS2'>
                     <Image id='bg' size='100x50' size.mobile='200x100'/>
@@ -480,7 +507,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator ReSolve_updates_control_specific_attributes() {
+        public IEnumerator ReSolve_updates_control_specific_attributes()
+        {
             UI.LoadDocument("rs3", @"<PromptUGUI version='1'>
                 <Screen name='RS3'>
                     <Text id='t' fontSize='24' fontSize.mobile='48'>Hello</Text>
@@ -499,7 +527,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator ReSolve_with_no_variant_overrides_is_noop() {
+        public IEnumerator ReSolve_with_no_variant_overrides_is_noop()
+        {
             UI.LoadDocument("rs4", @"<PromptUGUI version='1'>
                 <Screen name='RS4'>
                     <Image id='bg' anchor='top-left' size='100x50'/>
@@ -519,7 +548,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator ReSolve_first_activation_instantiates_add_block() {
+        public IEnumerator ReSolve_first_activation_instantiates_add_block()
+        {
             UI.LoadDocument("rsa1", @"<PromptUGUI version='1'>
                 <Screen name='RSA1'>
                     <Frame id='base'/>
@@ -548,7 +578,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator ReSolve_deactivation_hides_via_SetActive_keeps_instance() {
+        public IEnumerator ReSolve_deactivation_hides_via_SetActive_keeps_instance()
+        {
             UI.Variants.Set("m", true);
             UI.LoadDocument("rsa2", @"<PromptUGUI version='1'>
                 <Screen name='RSA2'>
@@ -574,7 +605,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator ReSolve_re_activation_reuses_same_GameObject_instance() {
+        public IEnumerator ReSolve_re_activation_reuses_same_GameObject_instance()
+        {
             UI.LoadDocument("rsa3", @"<PromptUGUI version='1'>
                 <Screen name='RSA3'>
                     <Frame id='base'/>
@@ -607,7 +639,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Variant_add_into_unknown_path_throws_when_first_activated_at_runtime() {
+        public IEnumerator Variant_add_into_unknown_path_throws_when_first_activated_at_runtime()
+        {
             // Variant 在 Open 时未激活，所以不会在 Open 时实例化；首次激活时才走 ApplyAddBlock，
             // 此刻 #dialog/missing 路径解析失败 → InvalidOperationException。
             //
@@ -649,7 +682,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator UI_Variants_Set_propagates_through_to_open_screens() {
+        public IEnumerator UI_Variants_Set_propagates_through_to_open_screens()
+        {
             // 双 Screen 同时打开，切一个变体应该让两边都重新解算
             UI.LoadDocument("link", @"<PromptUGUI version='1'>
                 <Screen name='LinkA'>
@@ -677,7 +711,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator ReSolve_hidden_variant_toggle_changes_visibility() {
+        public IEnumerator ReSolve_hidden_variant_toggle_changes_visibility()
+        {
             // Regression for the M1 ApplyCommon asymmetry: hidden.var must work in BOTH
             // directions across ReSolve, not just true → on.
             UI.LoadDocument("hv1", @"<PromptUGUI version='1'>
@@ -706,7 +741,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator ReSolve_subscriptions_on_add_controls_survive_toggle_cycle() {
+        public IEnumerator ReSolve_subscriptions_on_add_controls_survive_toggle_cycle()
+        {
             // Strategy C 的实用价值：在 Add 块的 Btn 上订阅一次 OnClick，跨 toggle 周期仍有效
             UI.LoadDocument("rsa4", @"<PromptUGUI version='1'>
                 <Screen name='RSA4'>
@@ -720,7 +756,7 @@ namespace PromptUGUI.Tests.Lifecycle {
             UI.Variants.Set("m", true);
             yield return null;
 
-            int clicks = 0;
+            var clicks = 0;
             var btn = screen.Get<PromptUGUI.Controls.Btn>("extraBtn");
             btn.OnClick.Subscribe(_ => clicks++).AddTo(screen);
 

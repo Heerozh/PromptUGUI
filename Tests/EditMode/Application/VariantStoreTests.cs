@@ -2,16 +2,20 @@ using NUnit.Framework;
 using PromptUGUI.Application;
 using R3;
 
-namespace PromptUGUI.Tests.Application {
-    public class VariantStoreTests {
+namespace PromptUGUI.Tests.Application
+{
+    public class VariantStoreTests
+    {
         [Test]
-        public void IsActive_default_false() {
+        public void IsActive_default_false()
+        {
             var store = new VariantStore();
             Assert.IsFalse(store.IsActive("mobile"));
         }
 
         [Test]
-        public void Set_true_then_false_toggles_state() {
+        public void Set_true_then_false_toggles_state()
+        {
             var store = new VariantStore();
             store.Set("mobile", true);
             Assert.IsTrue(store.IsActive("mobile"));
@@ -20,7 +24,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Multiple_variants_active_simultaneously() {
+        public void Multiple_variants_active_simultaneously()
+        {
             var store = new VariantStore();
             store.Set("a", true);
             store.Set("b", true);
@@ -29,9 +34,10 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Changed_fires_only_on_state_transition() {
+        public void Changed_fires_only_on_state_transition()
+        {
             var store = new VariantStore();
-            int events = 0;
+            var events = 0;
             store.Changed.Subscribe(_ => events++);
 
             store.Set("a", true);
@@ -48,7 +54,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Reset_clears_all_active_variants() {
+        public void Reset_clears_all_active_variants()
+        {
             var store = new VariantStore();
             store.Set("a", true);
             store.Set("b", true);

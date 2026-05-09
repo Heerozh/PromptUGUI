@@ -4,16 +4,20 @@ using PromptUGUI.Controls;
 using PromptUGUI.I18n;
 using TMPro;
 
-namespace PromptUGUI.Tests.E2E {
-    public class I18nHotReloadTests {
-        const string Xml = @"<?xml version='1.0' encoding='utf-8'?>
+namespace PromptUGUI.Tests.E2E
+{
+    public class I18nHotReloadTests
+    {
+        private const string Xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S'>
     <Text id='lbl'>开始游戏</Text>
   </Screen>
 </PromptUGUI>";
 
-        [SetUp] public void Setup() {
+        [SetUp]
+        public void Setup()
+        {
             UI.ResetForTests();
             TranslationStore.Instance.UnloadAll();
             UI.LoadDocument("S", Xml);
@@ -22,12 +26,16 @@ namespace PromptUGUI.Tests.E2E {
             });
             UI.Locale.Set("en");
         }
-        [TearDown] public void Teardown() {
+        [TearDown]
+        public void Teardown()
+        {
             UI.ResetForTests();
             TranslationStore.Instance.UnloadAll();
         }
 
-        [Test] public void TableMutation_AfterReSolve_UpdatesText() {
+        [Test]
+        public void TableMutation_AfterReSolve_UpdatesText()
+        {
             var screen = UI.Open("S");
             var go = ((Control)screen.Get<Text>("lbl")).GameObject;
             Assert.AreEqual("Start", go.GetComponent<TMP_Text>().text);

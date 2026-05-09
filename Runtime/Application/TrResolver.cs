@@ -1,16 +1,20 @@
 using System.Collections.Generic;
 using PromptUGUI.Template;
 
-namespace PromptUGUI.Application {
-    public static class TrResolver {
+namespace PromptUGUI.Application
+{
+    public static class TrResolver
+    {
         public static string Resolve(
             string raw,
             IReadOnlyDictionary<string, string> args,
-            string ctx) {
+            string ctx)
+        {
             if (raw == null) return null;
             var locale = UI.Locale.Current;
-            string template = raw;
-            if (locale != null) {
+            var template = raw;
+            if (locale != null)
+            {
                 var hit = TranslationStore.Instance.Lookup(locale, ctx, raw);
                 if (!string.IsNullOrEmpty(hit)) template = hit;
             }

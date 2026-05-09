@@ -1,8 +1,10 @@
 using System;
 
-namespace PromptUGUI.Registry {
+namespace PromptUGUI.Registry
+{
     [AttributeUsage(AttributeTargets.Property)]
-    public sealed class UIAttrAttribute : Attribute {
+    public sealed class UIAttrAttribute : Attribute
+    {
         public string Name { get; }
         /// <summary>
         /// Optional XSD pattern (regex) for value validation. Uses XSD pattern syntax —

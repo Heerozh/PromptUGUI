@@ -1,9 +1,12 @@
 using PromptUGUI.Controls;
 using PromptUGUI.Registry;
 
-namespace PromptUGUI.Application {
-    internal static class BuiltinPrimitives {
-        public static void Register(ControlRegistry reg) {
+namespace PromptUGUI.Application
+{
+    internal static class BuiltinPrimitives
+    {
+        public static void Register(ControlRegistry reg)
+        {
             reg.Register<Frame>("Frame", null);
             reg.Register<Image>("Image", null);
             reg.Register<Icon>("Icon", null);

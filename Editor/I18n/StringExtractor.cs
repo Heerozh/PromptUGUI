@@ -9,7 +9,7 @@ namespace PromptUGUI.Editor.I18n
 {
     internal static class StringExtractor
     {
-        const string OutputRoot = "Assets/Resources/PromptUGUI/i18n";
+        private const string OutputRoot = "Assets/Resources/PromptUGUI/i18n";
 
         [MenuItem("Tools/PromptUGUI/I18n/1. Extract Strings")]
         public static void ExtractAll()
@@ -35,7 +35,7 @@ namespace PromptUGUI.Editor.I18n
                 .GroupBy(e => e.LocalePartition ?? "_code")
                 .ToDictionary(g => g.Key, g => g.ToList());
 
-            int filesWritten = 0;
+            var filesWritten = 0;
             foreach (var lc in settings.locales)
             {
                 if (string.IsNullOrEmpty(lc.locale)) continue;
@@ -54,7 +54,7 @@ namespace PromptUGUI.Editor.I18n
             Debug.Log($"[PromptUGUI] Extract Strings: {allExtracted.Count} msgids → {filesWritten} .po files across {settings.locales.Count} locales.");
         }
 
-        static IEnumerable<ExtractedString> ScanAllXml()
+        private static IEnumerable<ExtractedString> ScanAllXml()
         {
             var guids = AssetDatabase.FindAssets("t:TextAsset");
             foreach (var guid in guids)
@@ -72,7 +72,7 @@ namespace PromptUGUI.Editor.I18n
             }
         }
 
-        static IEnumerable<ExtractedString> ScanAllCSharp()
+        private static IEnumerable<ExtractedString> ScanAllCSharp()
         {
             var guids = AssetDatabase.FindAssets("t:Script");
             foreach (var guid in guids)
@@ -87,14 +87,14 @@ namespace PromptUGUI.Editor.I18n
             }
         }
 
-        static string PathToPartition(string assetPath)
+        private static string PathToPartition(string assetPath)
         {
             // "Assets/UI/screens/MainMenu.ui.xml" → "screens/MainMenu"
             // "Assets/UI/common/Buttons.ui.xml"   → "common/Buttons"
             const string prefix = "Assets/";
             var p = assetPath.StartsWith(prefix) ? assetPath.Substring(prefix.Length) : assetPath;
             // Drop top-level folder (UI/) for shorter partitions; but only if path is multi-segment.
-            int firstSlash = p.IndexOf('/');
+            var firstSlash = p.IndexOf('/');
             if (firstSlash > 0) p = p.Substring(firstSlash + 1);
             if (p.EndsWith(".ui.xml")) p = p.Substring(0, p.Length - ".ui.xml".Length);
             return p;

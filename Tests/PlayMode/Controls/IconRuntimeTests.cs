@@ -6,21 +6,28 @@ using PromptUGUI.Controls;
 using UnityEditor;
 using UnityEditor.U2D;
 using UnityEngine;
-using UnityEngine.U2D;
 using UnityEngine.TestTools;
+using UnityEngine.U2D;
 
-namespace PromptUGUI.Tests.PlayMode {
-    public class IconRuntimeTests {
-        const string TmpRoot = "Assets/__test_iconruntime__";
-        readonly List<string> _toCleanup = new();
+namespace PromptUGUI.Tests.PlayMode
+{
+    public class IconRuntimeTests
+    {
+        private const string TmpRoot = "Assets/__test_iconruntime__";
+        private readonly List<string> _toCleanup = new();
+        private static readonly string[] stringArray = new[] { "sun", "moon" };
 
-        [SetUp] public void Setup() {
+        [SetUp]
+        public void Setup()
+        {
             UI.ResetForTests();
             if (!AssetDatabase.IsValidFolder(TmpRoot))
                 AssetDatabase.CreateFolder("Assets", "__test_iconruntime__");
         }
 
-        [TearDown] public void Teardown() {
+        [TearDown]
+        public void Teardown()
+        {
             UI.ResetForTests();
             foreach (var p in _toCleanup) AssetDatabase.DeleteAsset(p);
             _toCleanup.Clear();
@@ -28,7 +35,8 @@ namespace PromptUGUI.Tests.PlayMode {
         }
 
         [Test]
-        public void Icon_resolves_sprite_from_atlas() {
+        public void Icon_resolves_sprite_from_atlas()
+        {
             var (set, _) = MakeIconSetWithSprite("ui", "settings");
             IconResolverHelpers.UseSpriteAtlasIconResolver(new[] { set });
 
@@ -43,7 +51,8 @@ namespace PromptUGUI.Tests.PlayMode {
         }
 
         [Test]
-        public void Icon_unknown_name_logs_error_sprite_null() {
+        public void Icon_unknown_name_logs_error_sprite_null()
+        {
             var (set, _) = MakeIconSetWithSprite("ui", "settings");
             IconResolverHelpers.UseSpriteAtlasIconResolver(new[] { set });
 
@@ -60,7 +69,8 @@ namespace PromptUGUI.Tests.PlayMode {
         }
 
         [Test]
-        public void Icon_color_applied() {
+        public void Icon_color_applied()
+        {
             var (set, _) = MakeIconSetWithSprite("ui", "x");
             IconResolverHelpers.UseSpriteAtlasIconResolver(new[] { set });
 
@@ -74,9 +84,10 @@ namespace PromptUGUI.Tests.PlayMode {
         }
 
         [Test]
-        public void Variant_swap_changes_sprite() {
+        public void Variant_swap_changes_sprite()
+        {
             var (set, _) = MakeIconSetWithSpritesMulti("ui",
-                new[] { "sun", "moon" });
+                stringArray);
             IconResolverHelpers.UseSpriteAtlasIconResolver(new[] { set });
 
             UI.LoadDocument("inline",
@@ -97,16 +108,19 @@ namespace PromptUGUI.Tests.PlayMode {
 
         // ---- helpers ----
 
-        (IconSet set, SpriteAtlas atlas) MakeIconSetWithSprite(string setName, string iconName) {
+        private (IconSet set, SpriteAtlas atlas) MakeIconSetWithSprite(string setName, string iconName)
+        {
             return MakeIconSetWithSpritesMulti(setName, new[] { iconName });
         }
 
-        (IconSet set, SpriteAtlas atlas) MakeIconSetWithSpritesMulti(
-            string setName, string[] iconNames) {
+        private (IconSet set, SpriteAtlas atlas) MakeIconSetWithSpritesMulti(
+            string setName, string[] iconNames)
+        {
             var folder = $"{TmpRoot}/{setName}";
             AssetDatabase.CreateFolder(TmpRoot, setName);
             var sprites = new List<Sprite>();
-            foreach (var n in iconNames) {
+            foreach (var n in iconNames)
+            {
                 var pngPath = $"{folder}/{n}.png";
                 System.IO.File.WriteAllBytes(pngPath, MakeBlankPng());
                 AssetDatabase.ImportAsset(pngPath, ImportAssetOptions.ForceUpdate);
@@ -121,7 +135,7 @@ namespace PromptUGUI.Tests.PlayMode {
             var atlasPath = $"{TmpRoot}/{setName}.spriteatlas";
             AssetDatabase.CreateAsset(atlas, atlasPath);
             var spriteObjects = new UnityEngine.Object[sprites.Count];
-            for (int i = 0; i < sprites.Count; i++) spriteObjects[i] = sprites[i];
+            for (var i = 0; i < sprites.Count; i++) spriteObjects[i] = sprites[i];
             atlas.Add(spriteObjects);
             EditorUtility.SetDirty(atlas);
             UnityEditor.U2D.SpriteAtlasUtility.PackAtlases(
@@ -139,10 +153,11 @@ namespace PromptUGUI.Tests.PlayMode {
             return (AssetDatabase.LoadAssetAtPath<IconSet>(setPath), atlas);
         }
 
-        byte[] MakeBlankPng() {
+        private byte[] MakeBlankPng()
+        {
             var t = new Texture2D(8, 8);
-            for (int y = 0; y < 8; y++)
-                for (int x = 0; x < 8; x++)
+            for (var y = 0; y < 8; y++)
+                for (var x = 0; x < 8; x++)
                     t.SetPixel(x, y, Color.white);
             t.Apply();
             var bytes = t.EncodeToPNG();

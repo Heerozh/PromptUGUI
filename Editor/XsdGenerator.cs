@@ -7,24 +7,29 @@ using System.Text;
 using System.Xml;
 using PromptUGUI.Registry;
 
-namespace PromptUGUI.Editor {
-    public static class XsdGenerator {
+namespace PromptUGUI.Editor
+{
+    public static class XsdGenerator
+    {
         // Schema is intentionally without targetNamespace: .ui.xml files use bare
         // element names + xsi:noNamespaceSchemaLocation. A targetNamespace would
         // require xmlns="..." on every <PromptUGUI> root and break authoring ergonomics.
 
-        public static string Generate(ControlRegistry registry) {
+        public static string Generate(ControlRegistry registry)
+        {
             // Write to MemoryStream (not StringBuilder) so XmlWriter emits
             // encoding="utf-8" in the prolog matching the actual file bytes.
             // StringBuilder is UTF-16 internally → declaration would say utf-16.
             var ms = new MemoryStream();
-            var settings = new XmlWriterSettings {
+            var settings = new XmlWriterSettings
+            {
                 Indent = true,
                 IndentChars = "  ",
                 Encoding = new UTF8Encoding(false),
                 OmitXmlDeclaration = false,
             };
-            using (var writer = XmlWriter.Create(ms, settings)) {
+            using (var writer = XmlWriter.Create(ms, settings))
+            {
                 writer.WriteStartDocument();
                 writer.WriteStartElement("xs", "schema", "http://www.w3.org/2001/XMLSchema");
 
@@ -39,16 +44,16 @@ namespace PromptUGUI.Editor {
                 WriteAdd(writer);
 
                 // 8 primitives + their attributes
-                WriteControl(writer, "Frame",  Array.Empty<(string,string,string)>());
-                WriteControl(writer, "Image",  new[] {("color","xs:string",(string)null),("sprite","xs:string",(string)null),("type","xs:string",(string)null)});
-                WriteControl(writer, "Text",   new[] {("align","xs:string",(string)null),("color","xs:string",(string)null),("fontSize","xs:int",(string)null),("text","xs:string",(string)null),("wrap","xs:string",(string)null),("raycastTarget","xs:string",(string)null)}, textContent: true);
-                WriteControl(writer, "VStack", Array.Empty<(string,string,string)>());
-                WriteControl(writer, "HStack", Array.Empty<(string,string,string)>());
-                WriteControl(writer, "Grid",   new[] {("columns","xs:int",(string)null),("cellSize","xs:string",(string)null)});
-                WriteControl(writer, "Btn",    new[] {("color","xs:string",(string)null),("sprite","xs:string",(string)null)});
+                WriteControl(writer, "Frame", Array.Empty<(string, string, string)>());
+                WriteControl(writer, "Image", new[] { ("color", "xs:string", (string)null), ("sprite", "xs:string", (string)null), ("type", "xs:string", (string)null) });
+                WriteControl(writer, "Text", new[] { ("align", "xs:string", (string)null), ("color", "xs:string", (string)null), ("fontSize", "xs:int", (string)null), ("text", "xs:string", (string)null), ("wrap", "xs:string", (string)null), ("raycastTarget", "xs:string", (string)null) }, textContent: true);
+                WriteControl(writer, "VStack", Array.Empty<(string, string, string)>());
+                WriteControl(writer, "HStack", Array.Empty<(string, string, string)>());
+                WriteControl(writer, "Grid", new[] { ("columns", "xs:int", (string)null), ("cellSize", "xs:string", (string)null) });
+                WriteControl(writer, "Btn", new[] { ("color", "xs:string", (string)null), ("sprite", "xs:string", (string)null) });
                 // XSD patterns are implicitly anchored to the entire value — no ^/$.
                 // Match runtime parser's ASCII-only check (UIDocumentParser.IsValidIconName).
-                WriteControl(writer, "Icon",   new[] {("name","xs:string",@"[A-Za-z0-9_\-]+:[A-Za-z0-9_\-]+"),("color","xs:string",(string)null)});
+                WriteControl(writer, "Icon", new[] { ("name", "xs:string", @"[A-Za-z0-9_\-]+:[A-Za-z0-9_\-]+"), ("color", "xs:string", (string)null) });
 
                 // Registered custom controls — exclude primitives, sort by tag
                 var primitives = new HashSet<string> {
@@ -58,7 +63,8 @@ namespace PromptUGUI.Editor {
                     .OrderBy(x => x.Tag, StringComparer.Ordinal)
                     .ToArray();
 
-                foreach (var (tag, entry) in customs) {
+                foreach (var (tag, entry) in customs)
+                {
                     var attrs = ReflectControlAttrs(entry.ControlType);
                     WriteControl(writer, tag, attrs);
                 }
@@ -73,7 +79,8 @@ namespace PromptUGUI.Editor {
 
         public static void GenerateToFile(
             ControlRegistry registry,
-            string assetPath = "Assets/PromptUGUI.gen.xsd") {
+            string assetPath = "Assets/PromptUGUI.gen.xsd")
+        {
             var xsd = Generate(registry);
             System.IO.File.WriteAllText(assetPath, xsd, new UTF8Encoding(false));
             UnityEditor.AssetDatabase.Refresh();
@@ -82,16 +89,19 @@ namespace PromptUGUI.Editor {
 
         // ---- Reflection helpers ----
 
-        static (string Name, string XsdType, string Pattern)[] ReflectControlAttrs(Type controlType) {
+        private static (string Name, string XsdType, string Pattern)[] ReflectControlAttrs(Type controlType)
+        {
             var props = controlType.GetProperties(
                 BindingFlags.Public | BindingFlags.Instance);
             var list = new List<(string, string, string)>();
-            foreach (var p in props) {
+            foreach (var p in props)
+            {
                 var ui = p.GetCustomAttribute<UIAttrAttribute>();
                 if (ui == null || !p.CanWrite) continue;
                 var name = ui.Name ?? CamelCase(p.Name);
                 var xsdType = MapXsdType(p.PropertyType);
-                if (xsdType == null) {
+                if (xsdType == null)
+                {
                     UnityEngine.Debug.LogWarning(
                         $"[PromptUGUI] XSD: skipping {controlType.Name}.{p.Name} — type {p.PropertyType.Name} not supported");
                     continue;
@@ -102,26 +112,29 @@ namespace PromptUGUI.Editor {
             return list.ToArray();
         }
 
-        static string MapXsdType(Type t) {
+        private static string MapXsdType(Type t)
+        {
             if (t == typeof(string)) return "xs:string";
-            if (t == typeof(int))    return "xs:int";
-            if (t == typeof(float))  return "xs:float";
-            if (t == typeof(bool))   return "xs:boolean";
+            if (t == typeof(int)) return "xs:int";
+            if (t == typeof(float)) return "xs:float";
+            if (t == typeof(bool)) return "xs:boolean";
             return null;
         }
 
-        static string CamelCase(string s) =>
+        private static string CamelCase(string s) =>
             string.IsNullOrEmpty(s) ? s : char.ToLowerInvariant(s[0]) + s.Substring(1);
 
         // ---- Static schema fragments ----
 
-        static void WriteCommonAttrGroup(XmlWriter w) {
+        private static void WriteCommonAttrGroup(XmlWriter w)
+        {
             w.WriteStartElement("xs", "attributeGroup", null);
             w.WriteAttributeString("name", "commonAttrs");
             string[] commons = {
                 "id","anchor","size","width","height","margin","pivot",
                 "padding","spacing","hidden","interactable" };
-            foreach (var a in commons) {
+            foreach (var a in commons)
+            {
                 w.WriteStartElement("xs", "attribute", null);
                 w.WriteAttributeString("name", a);
                 w.WriteAttributeString("type", "xs:string");
@@ -133,13 +146,15 @@ namespace PromptUGUI.Editor {
             w.WriteEndElement();
         }
 
-        static void WritePromptUGUIRoot(XmlWriter w) {
+        private static void WritePromptUGUIRoot(XmlWriter w)
+        {
             w.WriteStartElement("xs", "element", null);
             w.WriteAttributeString("name", "PromptUGUI");
             w.WriteStartElement("xs", "complexType", null);
             w.WriteStartElement("xs", "choice", null);
             w.WriteAttributeString("maxOccurs", "unbounded");
-            foreach (var name in new[] {"Import","Screen","Template"}) {
+            foreach (var name in new[] { "Import", "Screen", "Template" })
+            {
                 w.WriteStartElement("xs", "element", null);
                 w.WriteAttributeString("ref", name);
                 w.WriteEndElement();
@@ -154,11 +169,13 @@ namespace PromptUGUI.Editor {
             w.WriteEndElement();
         }
 
-        static void WriteImport(XmlWriter w) {
+        private static void WriteImport(XmlWriter w)
+        {
             w.WriteStartElement("xs", "element", null);
             w.WriteAttributeString("name", "Import");
             w.WriteStartElement("xs", "complexType", null);
-            foreach (var (n, req) in new[] {("src","required"),("as","optional")}) {
+            foreach (var (n, req) in new[] { ("src", "required"), ("as", "optional") })
+            {
                 w.WriteStartElement("xs", "attribute", null);
                 w.WriteAttributeString("name", n);
                 w.WriteAttributeString("use", req);
@@ -169,7 +186,8 @@ namespace PromptUGUI.Editor {
             w.WriteEndElement();
         }
 
-        static void WriteScreen(XmlWriter w) {
+        private static void WriteScreen(XmlWriter w)
+        {
             w.WriteStartElement("xs", "element", null);
             w.WriteAttributeString("name", "Screen");
             w.WriteStartElement("xs", "complexType", null);
@@ -196,7 +214,8 @@ namespace PromptUGUI.Editor {
             w.WriteStartElement("xs", "simpleType", null);
             w.WriteStartElement("xs", "restriction", null);
             w.WriteAttributeString("base", "xs:string");
-            foreach (var v in new[] { "overlay", "camera", "world" }) {
+            foreach (var v in new[] { "overlay", "camera", "world" })
+            {
                 w.WriteStartElement("xs", "enumeration", null);
                 w.WriteAttributeString("value", v);
                 w.WriteEndElement();
@@ -209,7 +228,8 @@ namespace PromptUGUI.Editor {
             w.WriteEndElement();
         }
 
-        static void WriteTemplate(XmlWriter w) {
+        private static void WriteTemplate(XmlWriter w)
+        {
             w.WriteStartElement("xs", "element", null);
             w.WriteAttributeString("name", "Template");
             w.WriteStartElement("xs", "complexType", null);
@@ -235,11 +255,13 @@ namespace PromptUGUI.Editor {
             w.WriteEndElement();
         }
 
-        static void WriteParam(XmlWriter w) {
+        private static void WriteParam(XmlWriter w)
+        {
             w.WriteStartElement("xs", "element", null);
             w.WriteAttributeString("name", "Param");
             w.WriteStartElement("xs", "complexType", null);
-            foreach (var (n, req) in new[] {("name","required"),("default","optional")}) {
+            foreach (var (n, req) in new[] { ("name", "required"), ("default", "optional") })
+            {
                 w.WriteStartElement("xs", "attribute", null);
                 w.WriteAttributeString("name", n);
                 w.WriteAttributeString("use", req);
@@ -250,7 +272,8 @@ namespace PromptUGUI.Editor {
             w.WriteEndElement();
         }
 
-        static void WriteSlot(XmlWriter w) {
+        private static void WriteSlot(XmlWriter w)
+        {
             w.WriteStartElement("xs", "element", null);
             w.WriteAttributeString("name", "Slot");
             w.WriteStartElement("xs", "complexType", null);
@@ -258,7 +281,8 @@ namespace PromptUGUI.Editor {
             w.WriteEndElement();
         }
 
-        static void WriteVariant(XmlWriter w) {
+        private static void WriteVariant(XmlWriter w)
+        {
             w.WriteStartElement("xs", "element", null);
             w.WriteAttributeString("name", "Variant");
             w.WriteStartElement("xs", "complexType", null);
@@ -278,7 +302,8 @@ namespace PromptUGUI.Editor {
             w.WriteEndElement();
         }
 
-        static void WriteAdd(XmlWriter w) {
+        private static void WriteAdd(XmlWriter w)
+        {
             w.WriteStartElement("xs", "element", null);
             w.WriteAttributeString("name", "Add");
             w.WriteStartElement("xs", "complexType", null);
@@ -286,7 +311,8 @@ namespace PromptUGUI.Editor {
             w.WriteAttributeString("ref", "controlGroup");
             w.WriteAttributeString("maxOccurs", "unbounded");
             w.WriteEndElement();
-            foreach (var (n, req) in new[] {("into","required"),("at","optional")}) {
+            foreach (var (n, req) in new[] { ("into", "required"), ("at", "optional") })
+            {
                 w.WriteStartElement("xs", "attribute", null);
                 w.WriteAttributeString("name", n);
                 w.WriteAttributeString("use", req);
@@ -297,14 +323,16 @@ namespace PromptUGUI.Editor {
             w.WriteEndElement();
         }
 
-        static void WriteControl(XmlWriter w, string tag,
+        private static void WriteControl(XmlWriter w, string tag,
                                  (string Name, string XsdType, string Pattern)[] attrs,
-                                 bool textContent = false) {
+                                 bool textContent = false)
+        {
             w.WriteStartElement("xs", "element", null);
             w.WriteAttributeString("name", tag);
             w.WriteStartElement("xs", "complexType", null);
 
-            if (textContent) {
+            if (textContent)
+            {
                 // simpleContent extension: element body is text (no children allowed),
                 // plus the usual attributes. Used for <Text> per spec text shorthand.
                 w.WriteStartElement("xs", "simpleContent", null);
@@ -313,7 +341,9 @@ namespace PromptUGUI.Editor {
                 WriteAttributes(w, attrs);
                 w.WriteEndElement();
                 w.WriteEndElement();
-            } else {
+            }
+            else
+            {
                 w.WriteStartElement("xs", "choice", null);
                 w.WriteAttributeString("maxOccurs", "unbounded");
                 w.WriteAttributeString("minOccurs", "0");
@@ -328,17 +358,22 @@ namespace PromptUGUI.Editor {
             w.WriteEndElement();
         }
 
-        static void WriteAttributes(XmlWriter w,
-                                    (string Name, string XsdType, string Pattern)[] attrs) {
+        private static void WriteAttributes(XmlWriter w,
+                                    (string Name, string XsdType, string Pattern)[] attrs)
+        {
             w.WriteStartElement("xs", "attributeGroup", null);
             w.WriteAttributeString("ref", "commonAttrs");
             w.WriteEndElement();
-            foreach (var (name, type, pattern) in attrs) {
+            foreach (var (name, type, pattern) in attrs)
+            {
                 w.WriteStartElement("xs", "attribute", null);
                 w.WriteAttributeString("name", name);
-                if (string.IsNullOrEmpty(pattern)) {
+                if (string.IsNullOrEmpty(pattern))
+                {
                     w.WriteAttributeString("type", type);
-                } else {
+                }
+                else
+                {
                     w.WriteStartElement("xs", "simpleType", null);
                     w.WriteStartElement("xs", "restriction", null);
                     w.WriteAttributeString("base", type);
@@ -352,14 +387,18 @@ namespace PromptUGUI.Editor {
             }
         }
 
-        static void WriteControlGroup(XmlWriter w, string[] customTags) {
+        private static readonly string[] first = new[] {
+                "Frame","Image","Icon","Text","VStack","HStack","Grid","Btn","Slot"
+            };
+
+        private static void WriteControlGroup(XmlWriter w, string[] customTags)
+        {
             w.WriteStartElement("xs", "group", null);
             w.WriteAttributeString("name", "controlGroup");
             w.WriteStartElement("xs", "choice", null);
-            string[] all = new[] {
-                "Frame","Image","Icon","Text","VStack","HStack","Grid","Btn","Slot"
-            }.Concat(customTags).ToArray();
-            foreach (var n in all) {
+            var all = first.Concat(customTags).ToArray();
+            foreach (var n in all)
+            {
                 w.WriteStartElement("xs", "element", null);
                 w.WriteAttributeString("ref", n);
                 w.WriteEndElement();

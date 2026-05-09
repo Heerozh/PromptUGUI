@@ -1,10 +1,13 @@
 using NUnit.Framework;
 using PromptUGUI.Parser;
 
-namespace PromptUGUI.Tests.Parser {
-    public class UIDocumentParserTests {
+namespace PromptUGUI.Tests.Parser
+{
+    public class UIDocumentParserTests
+    {
         [Test]
-        public void Parses_minimal_document_with_one_screen() {
+        public void Parses_minimal_document_with_one_screen()
+        {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
                 <PromptUGUI version='1'>
                     <Screen name='MainMenu' />
@@ -19,7 +22,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Parses_nested_elements_with_attributes() {
+        public void Parses_nested_elements_with_attributes()
+        {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
                 <PromptUGUI version='1'>
                     <Screen name='X'>
@@ -49,7 +53,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Lifts_id_attribute_to_dedicated_field() {
+        public void Lifts_id_attribute_to_dedicated_field()
+        {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
                 <PromptUGUI version='1'>
                     <Screen name='X'>
@@ -66,7 +71,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Throws_on_duplicate_id_within_same_screen() {
+        public void Throws_on_duplicate_id_within_same_screen()
+        {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
                 <PromptUGUI version='1'>
                     <Screen name='X'>
@@ -81,7 +87,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Throws_on_duplicate_screen_name() {
+        public void Throws_on_duplicate_screen_name()
+        {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
                 <PromptUGUI version='1'>
                     <Screen name='Same' />
@@ -92,45 +99,52 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Throws_on_missing_root_PromptUGUI() {
+        public void Throws_on_missing_root_PromptUGUI()
+        {
             Assert.Throws<ParseException>(() =>
                 UIDocumentParser.Parse("<Screen name='X' />"));
         }
 
         [Test]
-        public void Throws_on_missing_PromptUGUI_version() {
+        public void Throws_on_missing_PromptUGUI_version()
+        {
             Assert.Throws<ParseException>(() =>
                 UIDocumentParser.Parse("<PromptUGUI><Screen name='X' /></PromptUGUI>"));
         }
 
         [Test]
-        public void Throws_on_screen_without_name() {
+        public void Throws_on_screen_without_name()
+        {
             const string xml = "<PromptUGUI version='1'><Screen /></PromptUGUI>";
             Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
         }
 
         [Test]
-        public void Throws_on_invalid_xml() {
+        public void Throws_on_invalid_xml()
+        {
             Assert.Throws<System.Xml.XmlException>(() =>
                 UIDocumentParser.Parse("<PromptUGUI version='1'><Screen></PromptUGUI>"));
         }
 
         [Test]
-        public void Text_shorthand_works_when_only_text_child() {
+        public void Text_shorthand_works_when_only_text_child()
+        {
             var doc = UIDocumentParser.Parse(
                 "<PromptUGUI version='1'><Screen name='X'><Text>Hello</Text></Screen></PromptUGUI>");
             Assert.AreEqual("Hello", doc.Screens[0].Root.Children[0].TextContent);
         }
 
         [Test]
-        public void Text_shorthand_with_whitespace_is_trimmed() {
+        public void Text_shorthand_with_whitespace_is_trimmed()
+        {
             var doc = UIDocumentParser.Parse(
                 "<PromptUGUI version='1'><Screen name='X'><Text>  Hello  </Text></Screen></PromptUGUI>");
             Assert.AreEqual("Hello", doc.Screens[0].Root.Children[0].TextContent);
         }
 
         [Test]
-        public void Text_shorthand_disallowed_when_mixed_with_elements() {
+        public void Text_shorthand_disallowed_when_mixed_with_elements()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <Btn>Hello <Image /></Btn>
@@ -139,7 +153,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Parses_template_with_typed_params() {
+        public void Parses_template_with_typed_params()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Template name='TitledPanel'>
                     <Param name='title'/>
@@ -157,7 +172,7 @@ namespace PromptUGUI.Tests.Parser {
             Assert.AreEqual("TitledPanel", tpl.Name);
             Assert.AreEqual(2, tpl.Params.Count);
 
-            Assert.AreEqual("title",    tpl.Params[0].Name);
+            Assert.AreEqual("title", tpl.Params[0].Name);
             Assert.IsFalse(tpl.Params[0].HasDefault);
 
             Assert.AreEqual("closable", tpl.Params[1].Name);
@@ -169,13 +184,15 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Throws_on_template_without_name() {
+        public void Throws_on_template_without_name()
+        {
             Assert.Throws<ParseException>(() =>
                 UIDocumentParser.Parse("<PromptUGUI version='1'><Template><VStack/></Template></PromptUGUI>"));
         }
 
         [Test]
-        public void Throws_on_template_with_zero_root_elements() {
+        public void Throws_on_template_with_zero_root_elements()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Template name='Empty'>
                     <Param name='x'/>
@@ -185,7 +202,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Throws_on_template_with_multiple_root_elements() {
+        public void Throws_on_template_with_multiple_root_elements()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Template name='Two'>
                     <VStack/>
@@ -196,7 +214,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Throws_on_duplicate_template_name() {
+        public void Throws_on_duplicate_template_name()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Template name='Same'><Frame/></Template>
                 <Template name='Same'><Frame/></Template>
@@ -205,7 +224,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Throws_on_param_after_first_body_element() {
+        public void Throws_on_param_after_first_body_element()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Template name='Bad'>
                     <Frame/>
@@ -216,7 +236,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Throws_on_duplicate_param_name_in_template() {
+        public void Throws_on_duplicate_param_name_in_template()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Param name='x'/>
@@ -228,7 +249,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Parses_Slot_as_ordinary_element_node() {
+        public void Parses_Slot_as_ordinary_element_node()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Frame>
@@ -245,7 +267,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Parses_attr_with_variant_suffix() {
+        public void Parses_attr_with_variant_suffix()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <VStack id='v' anchor='center' anchor.mobile='bottom-stretch'/>
@@ -264,7 +287,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Multiple_variants_preserve_declaration_order() {
+        public void Multiple_variants_preserve_declaration_order()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <VStack id='v' size='100x100'
@@ -279,7 +303,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Variant_only_attr_without_base_is_allowed() {
+        public void Variant_only_attr_without_base_is_allowed()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <VStack id='v' margin.mobile='16'/>
@@ -293,7 +318,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Multiple_attrs_with_their_own_variants_dont_interfere() {
+        public void Multiple_attrs_with_their_own_variants_dont_interfere()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <VStack anchor='center' anchor.mobile='top-stretch'
@@ -309,7 +335,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Throws_on_id_with_variant_suffix() {
+        public void Throws_on_id_with_variant_suffix()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <VStack id='v' id.mobile='other'/>
@@ -319,7 +346,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Throws_on_param_default_with_variant_suffix() {
+        public void Throws_on_param_default_with_variant_suffix()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Template name='T'>
                     <Param name='x' default='a' default.mobile='b'/>
@@ -330,7 +358,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Throws_on_attr_with_empty_variant_after_dot() {
+        public void Throws_on_attr_with_empty_variant_after_dot()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <VStack anchor.='top-left'/>
@@ -340,7 +369,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Throws_on_dot_inside_variant_name() {
+        public void Throws_on_dot_inside_variant_name()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <VStack anchor.mobile.portrait='top-left'/>
@@ -350,7 +380,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Parses_variant_block_with_add() {
+        public void Parses_variant_block_with_add()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <Frame id='root'/>
@@ -374,7 +405,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Add_at_defaults_to_end_when_omitted() {
+        public void Add_at_defaults_to_end_when_omitted()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <Variant when='mobile'>
@@ -387,7 +419,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Add_at_can_be_integer_index_string() {
+        public void Add_at_can_be_integer_index_string()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <Variant when='m'><Add into='@root' at='2'><Image/></Add></Variant>
@@ -398,7 +431,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Variant_block_can_have_multiple_adds() {
+        public void Variant_block_can_have_multiple_adds()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <Frame id='a'/><Frame id='b'/>
@@ -413,14 +447,16 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Throws_on_variant_without_when() {
+        public void Throws_on_variant_without_when()
+        {
             Assert.Throws<ParseException>(() =>
                 UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                     <Screen name='X'><Variant/></Screen></PromptUGUI>"));
         }
 
         [Test]
-        public void Throws_on_add_without_into() {
+        public void Throws_on_add_without_into()
+        {
             Assert.Throws<ParseException>(() =>
                 UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                     <Screen name='X'>
@@ -429,7 +465,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Throws_when_variant_block_contains_non_add_child() {
+        public void Throws_when_variant_block_contains_non_add_child()
+        {
             Assert.Throws<ParseException>(() =>
                 UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                     <Screen name='X'>
@@ -438,7 +475,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Throws_on_variant_at_top_level_outside_screen() {
+        public void Throws_on_variant_at_top_level_outside_screen()
+        {
             Assert.Throws<ParseException>(() =>
                 UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                     <Variant when='m'><Add into='@root'><Image/></Add></Variant>
@@ -446,7 +484,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Variant_block_does_not_appear_in_screen_root_children() {
+        public void Variant_block_does_not_appear_in_screen_root_children()
+        {
             // <Variant> 应被解析到 ScreenDef.Variants，而不是出现在根 children 里
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
@@ -460,7 +499,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Throws_on_empty_variant_block() {
+        public void Throws_on_empty_variant_block()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <Variant when='m'></Variant>
@@ -470,7 +510,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Throws_on_empty_add_directive() {
+        public void Throws_on_empty_add_directive()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <Variant when='m'>
@@ -482,7 +523,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Throws_on_duplicate_variant_when_in_same_screen() {
+        public void Throws_on_duplicate_variant_when_in_same_screen()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <Variant when='m'><Add into='@root'><Image/></Add></Variant>
@@ -493,7 +535,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Default_canvas_mode_is_overlay() {
+        public void Default_canvas_mode_is_overlay()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'/>
               </PromptUGUI>";
@@ -502,7 +545,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Parses_canvas_attribute_camera() {
+        public void Parses_canvas_attribute_camera()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X' canvas='camera'/>
               </PromptUGUI>";
@@ -511,7 +555,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Parses_canvas_attribute_world() {
+        public void Parses_canvas_attribute_world()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X' canvas='world'/>
               </PromptUGUI>";
@@ -520,7 +565,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Parses_canvas_attribute_overlay_explicit() {
+        public void Parses_canvas_attribute_overlay_explicit()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X' canvas='overlay'/>
               </PromptUGUI>";
@@ -529,7 +575,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Throws_on_invalid_canvas_value() {
+        public void Throws_on_invalid_canvas_value()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X' canvas='Overlay'/>
               </PromptUGUI>";
@@ -537,7 +584,8 @@ namespace PromptUGUI.Tests.Parser {
         }
 
         [Test]
-        public void Variant_when_value_is_trimmed() {
+        public void Variant_when_value_is_trimmed()
+        {
             const string xml = @"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <Variant when='  mobile  '><Add into='@root'><Image/></Add></Variant>

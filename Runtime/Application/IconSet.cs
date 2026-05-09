@@ -5,25 +5,28 @@ using UnityEngine.U2D;
 using UnityEditor;
 #endif
 
-namespace PromptUGUI.Application {
+namespace PromptUGUI.Application
+{
     /// <summary>
     /// Project-level icon set. Author 拖一个文件夹做 sourceFolder（Editor only），
     /// 同步工具按 XML 引用扫描结果重建 atlas。运行时仅读 setName + atlas。
     /// </summary>
     [CreateAssetMenu(menuName = "PromptUGUI/Icon Set", fileName = "IconSet")]
-    public sealed class IconSet : ScriptableObject {
-        [SerializeField] string setName;
-        [SerializeField] SpriteAtlas atlas;
-        [SerializeField] List<string> alwaysInclude = new();
+    public sealed class IconSet : ScriptableObject
+    {
+        [SerializeField] private string setName;
+        [SerializeField] private SpriteAtlas atlas;
+        [SerializeField] private List<string> alwaysInclude = new();
 
 #if UNITY_EDITOR
-        [SerializeField] DefaultAsset sourceFolder;
+        [SerializeField] private DefaultAsset sourceFolder;
         public DefaultAsset SourceFolder => sourceFolder;
         public string SourceFolderPath =>
             sourceFolder != null ? AssetDatabase.GetAssetPath(sourceFolder) : null;
 
         // Editor-only: 同步工具回填 atlas 字段
-        internal void SetAtlasInternal(SpriteAtlas a) {
+        internal void SetAtlasInternal(SpriteAtlas a)
+        {
             atlas = a;
             EditorUtility.SetDirty(this);
         }

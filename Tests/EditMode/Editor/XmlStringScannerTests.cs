@@ -2,9 +2,13 @@ using System.Linq;
 using NUnit.Framework;
 using PromptUGUI.Editor.I18n;
 
-namespace PromptUGUI.Tests.Editor {
-    public class XmlStringScannerTests {
-        [Test] public void Scan_SimpleTextElement_ExtractsMsgid() {
+namespace PromptUGUI.Tests.Editor
+{
+    public class XmlStringScannerTests
+    {
+        [Test]
+        public void Scan_SimpleTextElement_ExtractsMsgid()
+        {
             var xml = "<PromptUGUI version='1'><Screen name='Main'>" +
                       "<Text>开始游戏</Text></Screen></PromptUGUI>";
             var found = XmlStringScanner.Scan(xml, "screens/Main").ToList();
@@ -13,7 +17,9 @@ namespace PromptUGUI.Tests.Editor {
             Assert.IsNull(found[0].Msgctxt);
         }
 
-        [Test] public void Scan_BtnContent_ExtractsMsgid() {
+        [Test]
+        public void Scan_BtnContent_ExtractsMsgid()
+        {
             var xml = "<PromptUGUI version='1'><Screen name='X'>" +
                       "<Btn id='b'>设置</Btn></Screen></PromptUGUI>";
             var found = XmlStringScanner.Scan(xml, "screens/X").ToList();
@@ -21,21 +27,27 @@ namespace PromptUGUI.Tests.Editor {
             Assert.AreEqual("设置", found[0].Msgid);
         }
 
-        [Test] public void Scan_TextAttribute_AlsoExtracts() {
+        [Test]
+        public void Scan_TextAttribute_AlsoExtracts()
+        {
             var xml = "<PromptUGUI version='1'><Screen name='X'>" +
                       "<Text text='Hello' fontSize='32'/></Screen></PromptUGUI>";
             var found = XmlStringScanner.Scan(xml, "screens/X").ToList();
             Assert.IsTrue(found.Any(e => e.Msgid == "Hello"));
         }
 
-        [Test] public void Scan_TrFalse_Skips() {
+        [Test]
+        public void Scan_TrFalse_Skips()
+        {
             var xml = "<PromptUGUI version='1'><Screen name='X'>" +
                       "<Text tr='false'>hardcoded</Text></Screen></PromptUGUI>";
             var found = XmlStringScanner.Scan(xml, "screens/X").ToList();
             Assert.IsEmpty(found);
         }
 
-        [Test] public void Scan_ExplicitCtx_PopulatesMsgctxt() {
+        [Test]
+        public void Scan_ExplicitCtx_PopulatesMsgctxt()
+        {
             var xml = "<PromptUGUI version='1'><Screen name='X'>" +
                       "<Text ctx='door'>Open</Text></Screen></PromptUGUI>";
             var found = XmlStringScanner.Scan(xml, "screens/X").ToList();
@@ -43,21 +55,27 @@ namespace PromptUGUI.Tests.Editor {
             Assert.AreEqual("Open", found[0].Msgid);
         }
 
-        [Test] public void Scan_PureBracePlaceholder_SkippedWithWarning() {
+        [Test]
+        public void Scan_PureBracePlaceholder_SkippedWithWarning()
+        {
             var xml = "<PromptUGUI version='1'><Screen name='X'>" +
                       "<Text>{{playerName}}</Text></Screen></PromptUGUI>";
             var found = XmlStringScanner.Scan(xml, "screens/X").ToList();
             Assert.IsEmpty(found);   // pure {{x}} has no translation value
         }
 
-        [Test] public void Scan_TextWithBraceAndStatic_Extracted() {
+        [Test]
+        public void Scan_TextWithBraceAndStatic_Extracted()
+        {
             var xml = "<PromptUGUI version='1'><Screen name='X'>" +
                       "<Text>金币: {{n}}</Text></Screen></PromptUGUI>";
             var found = XmlStringScanner.Scan(xml, "screens/X").ToList();
             Assert.AreEqual("金币: {{n}}", found[0].Msgid);
         }
 
-        [Test] public void Scan_AmbientCtx_AddedAsExtractedComment() {
+        [Test]
+        public void Scan_AmbientCtx_AddedAsExtractedComment()
+        {
             var xml = "<PromptUGUI version='1'><Screen name='Main'>" +
                       "<Btn id='play'>开始</Btn>" +
                       "<Btn id='cfg'>设置</Btn>" +
@@ -70,7 +88,9 @@ namespace PromptUGUI.Tests.Editor {
             Assert.IsTrue(play.ExtractedComments.Any(c => c.Contains("设置")));
         }
 
-        [Test] public void Scan_CDataWithRichText_ExtractsAndFlags() {
+        [Test]
+        public void Scan_CDataWithRichText_ExtractsAndFlags()
+        {
             var xml = "<PromptUGUI version='1'><Screen name='X'>" +
                       "<Text><![CDATA[<color=#ff0>警告</color>]]></Text>" +
                       "</Screen></PromptUGUI>";

@@ -3,11 +3,14 @@ using PromptUGUI.Registry;
 using UnityEngine;
 using UnityImage = UnityEngine.UI.Image;
 
-namespace PromptUGUI.Controls {
-    public sealed class Icon : Control {
-        UnityImage _img;
+namespace PromptUGUI.Controls
+{
+    public sealed class Icon : Control
+    {
+        private UnityImage _img;
 
-        public override void OnAttached() {
+        public override void OnAttached()
+        {
             _img = GameObject.GetComponent<UnityImage>()
                    ?? GameObject.AddComponent<UnityImage>();
             _img.preserveAspect = true;
@@ -16,10 +19,13 @@ namespace PromptUGUI.Controls {
         }
 
         [UIAttr]
-        public string Name {
-            set {
+        public string Name
+        {
+            set
+            {
                 if (string.IsNullOrEmpty(value)) { _img.sprite = null; return; }
-                if (UI.IconResolver == null) {
+                if (UI.IconResolver == null)
+                {
                     Debug.LogError(
                         $"Icon '{value}': UI.IconResolver is not registered. " +
                         $"Call IconResolverHelpers.UseSpriteAtlasIconResolver(iconSets) " +
@@ -39,8 +45,10 @@ namespace PromptUGUI.Controls {
         }
 
         [UIAttr]
-        public string Color {
-            set {
+        public string Color
+        {
+            set
+            {
                 if (string.IsNullOrEmpty(value)) return;
                 if (ColorUtility.TryParseHtmlString(value, out var c))
                     _img.color = c;

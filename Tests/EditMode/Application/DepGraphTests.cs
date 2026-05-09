@@ -1,10 +1,13 @@
 using NUnit.Framework;
 using PromptUGUI.Application;
 
-namespace PromptUGUI.Tests.Application {
-    public class DepGraphTests {
+namespace PromptUGUI.Tests.Application
+{
+    public class DepGraphTests
+    {
         [Test]
-        public void IsCommons_reflects_set() {
+        public void IsCommons_reflects_set()
+        {
             var g = new DepGraph();
             g.CommonsSources.Add("c");
             Assert.IsTrue(g.IsCommons("c"));
@@ -12,13 +15,16 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void ScreensDependingOn_returns_matches() {
+        public void ScreensDependingOn_returns_matches()
+        {
             var g = new DepGraph();
-            g.ScreenDeps["A"] = new DepGraph.ScreenDep {
+            g.ScreenDeps["A"] = new DepGraph.ScreenDep
+            {
                 EntrySrc = "a",
                 AllDeps = new() { "a", "x" },
             };
-            g.ScreenDeps["B"] = new DepGraph.ScreenDep {
+            g.ScreenDeps["B"] = new DepGraph.ScreenDep
+            {
                 EntrySrc = "b",
                 AllDeps = new() { "b", "y" },
             };
@@ -27,7 +33,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Clear_resets() {
+        public void Clear_resets()
+        {
             var g = new DepGraph();
             g.CommonsSources.Add("c");
             g.ScreenDeps["A"] = new DepGraph.ScreenDep();

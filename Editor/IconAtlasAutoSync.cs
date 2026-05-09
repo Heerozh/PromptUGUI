@@ -3,31 +3,37 @@ using PromptUGUI.Application;
 using UnityEditor;
 using UnityEngine;
 
-namespace PromptUGUI.Editor {
-    public sealed class IconAtlasAutoSync : AssetPostprocessor {
-        const string PrefKey = "PromptUGUI.IconAtlas.AutoSyncOnSave";
+namespace PromptUGUI.Editor
+{
+    public sealed class IconAtlasAutoSync : AssetPostprocessor
+    {
+        private const string PrefKey = "PromptUGUI.IconAtlas.AutoSyncOnSave";
 
-        public static bool Enabled {
+        public static bool Enabled
+        {
             get => EditorPrefs.GetBool(PrefKey, false);
             set => EditorPrefs.SetBool(PrefKey, value);
         }
 
         [MenuItem("Tools/PromptUGUI/Icon/Auto-sync Atlases on Save")]
-        static void Toggle() => Enabled = !Enabled;
+        private static void Toggle() => Enabled = !Enabled;
 
         [MenuItem("Tools/PromptUGUI/Icon/Auto-sync Atlases on Save", true)]
-        static bool ToggleValidate() {
+        private static bool ToggleValidate()
+        {
             Menu.SetChecked("Tools/PromptUGUI/Icon/Auto-sync Atlases on Save", Enabled);
             return true;
         }
 
-        static void OnPostprocessAllAssets(
-            string[] imported, string[] deleted, string[] moved, string[] movedFrom) {
+        private static void OnPostprocessAllAssets(
+            string[] imported, string[] deleted, string[] moved, string[] movedFrom)
+        {
             if (!Enabled) return;
-            bool xmlChanged = false;
+            var xmlChanged = false;
             foreach (var p in imported)
                 if (p.EndsWith(".ui.xml", StringComparison.Ordinal)) { xmlChanged = true; break; }
-            if (!xmlChanged) {
+            if (!xmlChanged)
+            {
                 foreach (var p in deleted)
                     if (p.EndsWith(".ui.xml", StringComparison.Ordinal)) { xmlChanged = true; break; }
             }

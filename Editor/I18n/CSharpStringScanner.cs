@@ -4,14 +4,18 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace PromptUGUI.Editor.I18n {
-    internal static class CSharpStringScanner {
-        public static IEnumerable<ExtractedString> Scan(string source, string filePath) {
+namespace PromptUGUI.Editor.I18n
+{
+    internal static class CSharpStringScanner
+    {
+        public static IEnumerable<ExtractedString> Scan(string source, string filePath)
+        {
             var tree = CSharpSyntaxTree.ParseText(source);
             var root = tree.GetRoot();
             var calls = root.DescendantNodes().OfType<InvocationExpressionSyntax>();
 
-            foreach (var call in calls) {
+            foreach (var call in calls)
+            {
                 if (!IsUiTr(call)) continue;
                 var args = call.ArgumentList.Arguments;
                 if (args.Count == 0) continue;
@@ -20,17 +24,20 @@ namespace PromptUGUI.Editor.I18n {
                 if (msgid == null) continue;       // dynamic — skip
 
                 string ctx = null;
-                bool ctxArgInvalid = false;
-                for (int i = 1; i < args.Count; i++) {
+                var ctxArgInvalid = false;
+                for (var i = 1; i < args.Count; i++)
+                {
                     var a = args[i];
-                    if (a.NameColon?.Name.Identifier.ValueText == "ctx") {
+                    if (a.NameColon?.Name.Identifier.ValueText == "ctx")
+                    {
                         ctx = AsLiteral(a.Expression);
                         if (ctx == null) { ctxArgInvalid = true; break; }
                     }
                 }
                 if (ctxArgInvalid) continue;
 
-                var es = new ExtractedString {
+                var es = new ExtractedString
+                {
                     Msgid = msgid,
                     Msgctxt = ctx,
                     LocalePartition = "_code",
@@ -53,9 +60,11 @@ namespace PromptUGUI.Editor.I18n {
             }
         }
 
-        static bool IsUiTr(InvocationExpressionSyntax call) {
+        private static bool IsUiTr(InvocationExpressionSyntax call)
+        {
             // Match `UI.Tr(...)` and `PromptUGUI.Application.UI.Tr(...)` and `Tr(...)` (looser).
-            return call.Expression switch {
+            return call.Expression switch
+            {
                 MemberAccessExpressionSyntax m =>
                     m.Name.Identifier.ValueText == "Tr",
                 IdentifierNameSyntax id =>
@@ -64,17 +73,21 @@ namespace PromptUGUI.Editor.I18n {
             };
         }
 
-        static string AsLiteral(ExpressionSyntax e) {
+        private static string AsLiteral(ExpressionSyntax e)
+        {
             if (e is LiteralExpressionSyntax lit && lit.IsKind(SyntaxKind.StringLiteralExpression))
                 return lit.Token.ValueText;
             return null;
         }
 
-        static IEnumerable<string> CollectLeadingComments(InvocationExpressionSyntax call) {
+        private static IEnumerable<string> CollectLeadingComments(InvocationExpressionSyntax call)
+        {
             var stmt = call.AncestorsAndSelf().OfType<StatementSyntax>().FirstOrDefault();
             if (stmt == null) yield break;
-            foreach (var trivia in stmt.GetLeadingTrivia()) {
-                if (trivia.IsKind(SyntaxKind.SingleLineCommentTrivia)) {
+            foreach (var trivia in stmt.GetLeadingTrivia())
+            {
+                if (trivia.IsKind(SyntaxKind.SingleLineCommentTrivia))
+                {
                     var text = trivia.ToString().TrimStart('/').Trim();
                     if (!string.IsNullOrEmpty(text)) yield return text;
                 }

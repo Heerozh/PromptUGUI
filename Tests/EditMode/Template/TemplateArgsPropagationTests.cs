@@ -2,9 +2,13 @@ using NUnit.Framework;
 using PromptUGUI.Parser;
 using PromptUGUI.Template;
 
-namespace PromptUGUI.Tests.Template {
-    public class TemplateArgsPropagationTests {
-        [Test] public void Expand_PassesArgsToTextArgsOnExpandedNodes() {
+namespace PromptUGUI.Tests.Template
+{
+    public class TemplateArgsPropagationTests
+    {
+        [Test]
+        public void Expand_PassesArgsToTextArgsOnExpandedNodes()
+        {
             var xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Template name='Gold'>
@@ -28,7 +32,9 @@ namespace PromptUGUI.Tests.Template {
             Assert.AreEqual("123", text.TextArgs["n"]);
         }
 
-        [Test] public void Expand_PreservesAttributesRawOnExpansion() {
+        [Test]
+        public void Expand_PreservesAttributesRawOnExpansion()
+        {
             var xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Template name='Gold'>

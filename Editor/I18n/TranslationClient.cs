@@ -7,26 +7,32 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PromptUGUI.Editor.I18n {
-    internal sealed class TranslationItem {
+namespace PromptUGUI.Editor.I18n
+{
+    internal sealed class TranslationItem
+    {
         public string Msgid { get; set; }
         public string Msgctxt { get; set; }
         public List<string> Comments { get; set; } = new();
     }
 
-    internal sealed class BatchResult {
+    internal sealed class BatchResult
+    {
         public Dictionary<(string, string), string> Translations { get; }
         public string RawResponse { get; }
-        public BatchResult(Dictionary<(string, string), string> translations, string rawResponse) {
+        public BatchResult(Dictionary<(string, string), string> translations, string rawResponse)
+        {
             Translations = translations;
             RawResponse = rawResponse;
         }
     }
 
-    internal sealed class TranslationClient {
-        readonly HttpClient _http;
+    internal sealed class TranslationClient
+    {
+        private readonly HttpClient _http;
 
-        public TranslationClient(HttpClient http = null) {
+        public TranslationClient(HttpClient http = null)
+        {
             _http = http ?? new HttpClient();
         }
 
@@ -34,15 +40,18 @@ namespace PromptUGUI.Editor.I18n {
             IList<TranslationItem> items,
             string targetLocale,
             string endpoint, string model, string apiKey, string systemPrompt,
-            CancellationToken ct) {
+            CancellationToken ct)
+        {
 
             var req = new HttpRequestMessage(HttpMethod.Post, endpoint);
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
             var prompt = systemPrompt.Replace("{{targetLocale}}", targetLocale);
-            var inputJson = JsonSerializer.Serialize(new {
+            var inputJson = JsonSerializer.Serialize(new
+            {
                 target_locale = targetLocale,
-                items = items.Select(i => new {
+                items = items.Select(i => new
+                {
                     msgid = i.Msgid,
                     msgctxt = i.Msgctxt,
                     comments = i.Comments,
@@ -53,7 +62,8 @@ namespace PromptUGUI.Editor.I18n {
                 "{\"translations\":[{\"msgid\":\"...\",\"msgctxt\":\"... or null\",\"msgstr\":\"...\"}]}\n" +
                 "Echo each msgid and msgctxt verbatim from the input. Do not add, omit, or merge items.\n\n" +
                 "Input:\n" + inputJson;
-            var body = new {
+            var body = new
+            {
                 model,
                 messages = new object[] {
                     new { role = "system", content = prompt },
@@ -68,7 +78,8 @@ namespace PromptUGUI.Editor.I18n {
 
             var resp = await _http.SendAsync(req, ct);
             var text = await resp.Content.ReadAsStringAsync();
-            if (!resp.IsSuccessStatusCode) {
+            if (!resp.IsSuccessStatusCode)
+            {
                 throw new HttpRequestException($"HTTP {(int)resp.StatusCode}: {text}");
             }
 
@@ -79,7 +90,8 @@ namespace PromptUGUI.Editor.I18n {
                 .GetProperty("content").GetString();
             using var inner = JsonDocument.Parse(content);
             var result = new Dictionary<(string, string), string>();
-            foreach (var t in inner.RootElement.GetProperty("translations").EnumerateArray()) {
+            foreach (var t in inner.RootElement.GetProperty("translations").EnumerateArray())
+            {
                 var msgid = t.GetProperty("msgid").GetString();
                 var msgctxt = t.TryGetProperty("msgctxt", out var ctxProp)
                               && ctxProp.ValueKind != System.Text.Json.JsonValueKind.Null

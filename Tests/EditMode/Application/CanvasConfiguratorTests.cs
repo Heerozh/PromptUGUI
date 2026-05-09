@@ -3,9 +3,11 @@ using NUnit.Framework;
 using PromptUGUI.Application;
 using UnityEngine;
 
-namespace PromptUGUI.Tests.Application {
-    public class CanvasConfiguratorTests {
-        const string Xml = @"<?xml version='1.0'?><PromptUGUI version='1'>
+namespace PromptUGUI.Tests.Application
+{
+    public class CanvasConfiguratorTests
+    {
+        private const string Xml = @"<?xml version='1.0'?><PromptUGUI version='1'>
             <Screen name='S'><Frame id='a'/></Screen>
           </PromptUGUI>";
 
@@ -13,7 +15,8 @@ namespace PromptUGUI.Tests.Application {
         [TearDown] public void TearDown() => UI.ResetForTests();
 
         [Test]
-        public void Default_renderMode_is_ScreenSpaceOverlay_when_no_configurator() {
+        public void Default_renderMode_is_ScreenSpaceOverlay_when_no_configurator()
+        {
             UI.LoadDocument("inline", Xml);
             var screen = UI.Open("S");
 
@@ -22,7 +25,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Configurator_is_invoked_with_canvas_and_screen_name() {
+        public void Configurator_is_invoked_with_canvas_and_screen_name()
+        {
             Canvas seen = null;
             string seenName = null;
             UI.CanvasConfigurator = (c, n) => { seen = c; seenName = n; };
@@ -36,11 +40,14 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Configurator_can_change_renderMode_to_Camera() {
+        public void Configurator_can_change_renderMode_to_Camera()
+        {
             var camGO = new GameObject("TestCam", typeof(Camera));
-            try {
+            try
+            {
                 var cam = camGO.GetComponent<Camera>();
-                UI.CanvasConfigurator = (c, _) => {
+                UI.CanvasConfigurator = (c, _) =>
+                {
                     c.renderMode = RenderMode.ScreenSpaceCamera;
                     c.worldCamera = cam;
                     c.sortingOrder = 7;
@@ -53,13 +60,16 @@ namespace PromptUGUI.Tests.Application {
                 Assert.AreEqual(RenderMode.ScreenSpaceCamera, canvas.renderMode);
                 Assert.AreSame(cam, canvas.worldCamera);
                 Assert.AreEqual(7, canvas.sortingOrder);
-            } finally {
+            }
+            finally
+            {
                 UnityEngine.Object.DestroyImmediate(camGO);
             }
         }
 
         [Test]
-        public void ResetForTests_clears_configurator() {
+        public void ResetForTests_clears_configurator()
+        {
             UI.CanvasConfigurator = (_, __) => throw new Exception("must not be called");
             UI.ResetForTests();
 
@@ -72,12 +82,14 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Xml_canvas_camera_attribute_sets_renderMode() {
+        public void Xml_canvas_camera_attribute_sets_renderMode()
+        {
             // Unity silently reverts ScreenSpaceCamera → Overlay if worldCamera is null,
             // so a real "camera mode" Screen always pairs the XML attr with a configurator
             // that supplies the Camera. That's what we test here.
             var camGO = new GameObject("Cam", typeof(Camera));
-            try {
+            try
+            {
                 var cam = camGO.GetComponent<Camera>();
                 UI.CanvasConfigurator = (c, _) => c.worldCamera = cam;
 
@@ -90,13 +102,16 @@ namespace PromptUGUI.Tests.Application {
                 var canvas = screen.RootGameObject.GetComponent<Canvas>();
                 Assert.AreEqual(RenderMode.ScreenSpaceCamera, canvas.renderMode);
                 Assert.AreSame(cam, canvas.worldCamera);
-            } finally {
+            }
+            finally
+            {
                 UnityEngine.Object.DestroyImmediate(camGO);
             }
         }
 
         [Test]
-        public void Xml_canvas_world_attribute_sets_renderMode() {
+        public void Xml_canvas_world_attribute_sets_renderMode()
+        {
             const string xml = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Screen name='S' canvas='world'><Frame id='a'/></Screen>
               </PromptUGUI>";
@@ -108,7 +123,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Configurator_runs_after_xml_canvas_and_can_override() {
+        public void Configurator_runs_after_xml_canvas_and_can_override()
+        {
             // XML says camera, configurator forces back to overlay → configurator wins.
             const string xml = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Screen name='S' canvas='camera'><Frame id='a'/></Screen>
@@ -123,7 +139,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Default_vertexColorAlwaysGammaSpace_is_true() {
+        public void Default_vertexColorAlwaysGammaSpace_is_true()
+        {
             // Pixel-art / hand-tuned palettes need vertex colors written in gamma to
             // hit the canvas without the linear→sRGB roundtrip altering the result.
             UI.LoadDocument("inline", Xml);
@@ -134,7 +151,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Configurator_can_override_default_shader_channels() {
+        public void Configurator_can_override_default_shader_channels()
+        {
             UI.CanvasConfigurator = (c, _) =>
                 c.additionalShaderChannels |= AdditionalCanvasShaderChannels.TexCoord1;
 
@@ -146,7 +164,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Configurator_runs_again_on_Reload() {
+        public void Configurator_runs_again_on_Reload()
+        {
             var calls = 0;
             UI.CanvasConfigurator = (_, __) => calls++;
 

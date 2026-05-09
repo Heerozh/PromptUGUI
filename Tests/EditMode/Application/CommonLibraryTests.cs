@@ -4,23 +4,28 @@ using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
 
-namespace PromptUGUI.Tests.Application {
-    public class CommonLibraryTests {
+namespace PromptUGUI.Tests.Application
+{
+    public class CommonLibraryTests
+    {
         [SetUp]
-        public void Setup() {
+        public void Setup()
+        {
             UI.ResetForTests();
         }
         [TearDown] public void TearDown() => UI.ResetForTests();
 
         [Test]
-        public void LoadDocumentFromSrc_without_resolver_throws() {
+        public void LoadDocumentFromSrc_without_resolver_throws()
+        {
             UI.SourceResolver = null;
             Assert.Throws<InvalidOperationException>(() =>
                 UI.LoadDocumentFromSrc("X"));
         }
 
         [Test]
-        public void LoadDocumentFromSrc_returns_screen_names() {
+        public void LoadDocumentFromSrc_returns_screen_names()
+        {
             UI.SourceResolver = src => src == "main"
                 ? @"<?xml version='1.0'?><PromptUGUI version='1'>
                       <Screen name='S1'><Frame/></Screen>
@@ -32,8 +37,10 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void LoadDocumentFromSrc_imports_resolved() {
-            var files = new Dictionary<string, string> {
+        public void LoadDocumentFromSrc_imports_resolved()
+        {
+            var files = new Dictionary<string, string>
+            {
                 ["main"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                               <Import src='shared'/>
                               <Screen name='S'><Frame/></Screen>
@@ -51,8 +58,10 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void LoadCommonLibrary_makes_template_visible_to_screen() {
-            var files = new Dictionary<string, string> {
+        public void LoadCommonLibrary_makes_template_visible_to_screen()
+        {
+            var files = new Dictionary<string, string>
+            {
                 ["common/btns"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                                       <Template name='PrimaryButton'>
                                         <Btn><Slot/></Btn>
@@ -73,7 +82,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Commons_with_screen_throws() {
+        public void Commons_with_screen_throws()
+        {
             UI.SourceResolver = src =>
                 @"<?xml version='1.0'?><PromptUGUI version='1'>
                     <Screen name='X'><Frame/></Screen>
@@ -82,7 +92,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Commons_conflict_throws_on_second_register() {
+        public void Commons_conflict_throws_on_second_register()
+        {
             var xml = @"<?xml version='1.0'?><PromptUGUI version='1'>
                           <Template name='Foo'><Frame/></Template>
                         </PromptUGUI>";
@@ -92,8 +103,10 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Commons_conflict_with_screen_local_throws() {
-            var files = new Dictionary<string, string> {
+        public void Commons_conflict_with_screen_local_throws()
+        {
+            var files = new Dictionary<string, string>
+            {
                 ["c"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                             <Template name='X'><Frame/></Template>
                           </PromptUGUI>",
@@ -108,8 +121,10 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Commons_with_as_namespace_isolates() {
-            var files = new Dictionary<string, string> {
+        public void Commons_with_as_namespace_isolates()
+        {
+            var files = new Dictionary<string, string>
+            {
                 ["c"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                             <Template name='X'><Frame/></Template>
                           </PromptUGUI>",
@@ -125,12 +140,14 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Common_library_can_import_other_files() {
-            var files = new Dictionary<string, string> {
+        public void Common_library_can_import_other_files()
+        {
+            var files = new Dictionary<string, string>
+            {
                 ["base"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                                <Template name='B'><Frame/></Template>
                              </PromptUGUI>",
-                ["ext"]  = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                ["ext"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                                <Import src='base'/>
                                <Template name='E'><Frame/></Template>
                              </PromptUGUI>",
@@ -148,8 +165,10 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Two_commons_distinct_names_OK() {
-            var files = new Dictionary<string, string> {
+        public void Two_commons_distinct_names_OK()
+        {
+            var files = new Dictionary<string, string>
+            {
                 ["a"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                             <Template name='A'><Frame/></Template>
                           </PromptUGUI>",
@@ -164,7 +183,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void UseResourcesResolver_AssetPathToSrc_strips_prefix() {
+        public void UseResourcesResolver_AssetPathToSrc_strips_prefix()
+        {
             UI.UseResourcesResolver("UI");
             var fn = UI.HotReload.AssetPathToSrc;
             Assert.IsNotNull(fn);
@@ -176,7 +196,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void UnloadAllCommonLibraries_clears_commons_only() {
+        public void UnloadAllCommonLibraries_clears_commons_only()
+        {
             UI.SourceResolver = _ => @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Template name='T'><Frame/></Template>
               </PromptUGUI>";
@@ -188,7 +209,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void UnloadAll_clears_everything_but_preserves_resolver() {
+        public void UnloadAll_clears_everything_but_preserves_resolver()
+        {
             var savedResolver = UI.SourceResolver = _ => @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Screen name='X'><Frame/></Screen>
               </PromptUGUI>";
@@ -201,7 +223,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void OnEnteringPlayMode_clears_loaded_docs_so_replay_does_not_throw() {
+        public void OnEnteringPlayMode_clears_loaded_docs_so_replay_does_not_throw()
+        {
             var savedResolver = UI.SourceResolver = _ => @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Screen name='Main'><Frame/></Screen>
               </PromptUGUI>";

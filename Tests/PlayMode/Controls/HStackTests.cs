@@ -5,10 +5,13 @@ using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
 
-namespace PromptUGUI.Tests.Controls {
-    public class HStackTests {
+namespace PromptUGUI.Tests.Controls
+{
+    public class HStackTests
+    {
         [UnityTest]
-        public IEnumerator Adds_HorizontalLayoutGroup() {
+        public IEnumerator Adds_HorizontalLayoutGroup()
+        {
             var h = new HStack();
             var go = new GameObject("hstack", typeof(RectTransform));
             h.AttachTo(go);
@@ -18,7 +21,8 @@ namespace PromptUGUI.Tests.Controls {
         }
 
         [UnityTest]
-        public IEnumerator Spacing_and_padding_apply() {
+        public IEnumerator Spacing_and_padding_apply()
+        {
             var h = new HStack();
             var go = new GameObject("hstack", typeof(RectTransform));
             h.AttachTo(go);

@@ -1,10 +1,13 @@
-using UnityEditor;
 using PromptUGUI.Application;
+using UnityEditor;
 
-namespace PromptUGUI.Editor {
-    static class XsdMenu {
+namespace PromptUGUI.Editor
+{
+    internal static class XsdMenu
+    {
         [MenuItem("Tools/PromptUGUI/Schema/Generate XSD")]
-        static void Run() {
+        private static void Run()
+        {
             XsdGenerator.GenerateToFile(UI.Registry);
         }
     }

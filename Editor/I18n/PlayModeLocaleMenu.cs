@@ -10,7 +10,7 @@ namespace PromptUGUI.Editor.I18n
     [InitializeOnLoad]
     internal static class PlayModeLocaleMenu
     {
-        static readonly List<PopupField<string>> s_Menus = new();
+        private static readonly List<PopupField<string>> s_Menus = new();
 
         static PlayModeLocaleMenu()
         {
@@ -18,13 +18,13 @@ namespace PromptUGUI.Editor.I18n
             if (UnityEngine.Application.isPlaying) Show();
         }
 
-        static void OnPlayModeChanged(PlayModeStateChange state)
+        private static void OnPlayModeChanged(PlayModeStateChange state)
         {
             if (state == PlayModeStateChange.EnteredPlayMode) Show();
             else if (state == PlayModeStateChange.ExitingPlayMode) Hide();
         }
 
-        static void Show()
+        private static void Show()
         {
             var configured = UI.Locale.Configured;
             if (configured == null || configured.Count == 0) return;
@@ -62,13 +62,13 @@ namespace PromptUGUI.Editor.I18n
             }
         }
 
-        static void Hide()
+        private static void Hide()
         {
             UI.Locale.Changed -= SyncMenusToCurrent;
             ClearMenus();
         }
 
-        static void ClearMenus()
+        private static void ClearMenus()
         {
             foreach (var m in s_Menus)
             {
@@ -78,7 +78,7 @@ namespace PromptUGUI.Editor.I18n
             s_Menus.Clear();
         }
 
-        static void SyncMenusToCurrent()
+        private static void SyncMenusToCurrent()
         {
             var current = UI.Locale.Current;
             if (current == null) return;

@@ -8,17 +8,20 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
-using PromptText = PromptUGUI.Controls.Text;
-using PromptGrid = PromptUGUI.Controls.Grid;
 using PromptFrame = PromptUGUI.Controls.Frame;
+using PromptGrid = PromptUGUI.Controls.Grid;
+using PromptText = PromptUGUI.Controls.Text;
 using UnityImage = UnityEngine.UI.Image;
 
-namespace PromptUGUI.Tests.E2E {
+namespace PromptUGUI.Tests.E2E
+{
 
-    public sealed class CloseBtn : Control {
-        Button _btn;
-        readonly Subject<Unit> _click = new();
-        public override void OnAttached() {
+    public sealed class CloseBtn : Control
+    {
+        private Button _btn;
+        private readonly Subject<Unit> _click = new();
+        public override void OnAttached()
+        {
             _btn = GameObject.GetComponent<Button>();
             _btn.onClick.AddListener(() => _click.OnNext(Unit.Default));
         }
@@ -26,11 +29,14 @@ namespace PromptUGUI.Tests.E2E {
         public override void Dispose() { _click.Dispose(); base.Dispose(); }
     }
 
-    public class TitledPanelInventoryTests {
+    public class TitledPanelInventoryTests
+    {
 
-        GameObject _btnPrefab;
+        private GameObject _btnPrefab;
 
-        [SetUp] public void SetUp() {
+        [SetUp]
+        public void SetUp()
+        {
             UI.ResetForTests();
 
             _btnPrefab = new GameObject("CloseBtnPrefab", typeof(RectTransform));
@@ -40,13 +46,16 @@ namespace PromptUGUI.Tests.E2E {
             UI.Registry.Register<CloseBtn>("CloseBtn", _btnPrefab);
         }
 
-        [TearDown] public void TearDown() {
+        [TearDown]
+        public void TearDown()
+        {
             if (_btnPrefab != null) Object.Destroy(_btnPrefab);
             UI.ResetForTests();
         }
 
         [UnityTest]
-        public IEnumerator TitledPanel_wraps_inventory_grid_with_path_access() {
+        public IEnumerator TitledPanel_wraps_inventory_grid_with_path_access()
+        {
             UI.LoadDocument("inv", @"<PromptUGUI version='1'>
                 <Template name='TitledPanel'>
                     <Param name='title'/>
@@ -87,7 +96,7 @@ namespace PromptUGUI.Tests.E2E {
             Assert.IsNotNull(grid);
 
             // close 可订阅
-            int clicks = 0;
+            var clicks = 0;
             close.OnClick.Subscribe(_ => clicks++).AddTo(screen);
             close.GameObject.GetComponent<Button>().onClick.Invoke();
             yield return null;
@@ -98,7 +107,8 @@ namespace PromptUGUI.Tests.E2E {
         }
 
         [UnityTest]
-        public IEnumerator TitledPanel_with_closable_false_omits_CloseBtn() {
+        public IEnumerator TitledPanel_with_closable_false_omits_CloseBtn()
+        {
             UI.LoadDocument("inv2", @"<PromptUGUI version='1'>
                 <Template name='TitledPanel'>
                     <Param name='title'/>
@@ -129,7 +139,8 @@ namespace PromptUGUI.Tests.E2E {
         }
 
         [UnityTest]
-        public IEnumerator TitledPanel_can_be_instantiated_twice_with_independent_ids() {
+        public IEnumerator TitledPanel_can_be_instantiated_twice_with_independent_ids()
+        {
             UI.LoadDocument("inv3", @"<PromptUGUI version='1'>
                 <Template name='TitledPanel'>
                     <Param name='title'/>
@@ -146,10 +157,10 @@ namespace PromptUGUI.Tests.E2E {
 
             var screen = UI.Open("Twin");
 
-            var leftTitle  = screen.Get<PromptText>("left/titleLabel");
+            var leftTitle = screen.Get<PromptText>("left/titleLabel");
             var rightTitle = screen.Get<PromptText>("right/titleLabel");
 
-            Assert.AreEqual("Left",  leftTitle.GameObject.GetComponent<TMP_Text>().text);
+            Assert.AreEqual("Left", leftTitle.GameObject.GetComponent<TMP_Text>().text);
             Assert.AreEqual("Right", rightTitle.GameObject.GetComponent<TMP_Text>().text);
 
             UI.Close("Twin");

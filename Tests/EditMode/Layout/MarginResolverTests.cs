@@ -3,13 +3,16 @@ using PromptUGUI.IR;
 using PromptUGUI.Layout;
 using UnityEngine;
 
-namespace PromptUGUI.Tests.Layout {
-    public class MarginResolverTests {
+namespace PromptUGUI.Tests.Layout
+{
+    public class MarginResolverTests
+    {
 
         [Test]
-        public void Top_right_with_margin_16_and_size_240x80() {
+        public void Top_right_with_margin_16_and_size_240x80()
+        {
             var anchor = AnchorPreset.Parse("top-right");
-            var size   = SizeSpec.Parse("240x80", null, null);
+            var size = SizeSpec.Parse("240x80", null, null);
             var r = MarginResolver.Resolve(anchor, size, "16");
 
             Assert.AreEqual(new Vector2(-16, -16), r.AnchoredPosition);
@@ -17,9 +20,10 @@ namespace PromptUGUI.Tests.Layout {
         }
 
         [Test]
-        public void Top_left_with_margin_16_8() {
+        public void Top_left_with_margin_16_8()
+        {
             var anchor = AnchorPreset.Parse("top-left");
-            var size   = SizeSpec.Parse("240x80", null, null);
+            var size = SizeSpec.Parse("240x80", null, null);
             var r = MarginResolver.Resolve(anchor, size, "16,8");
 
             Assert.AreEqual(new Vector2(8, -16), r.AnchoredPosition);
@@ -27,9 +31,10 @@ namespace PromptUGUI.Tests.Layout {
         }
 
         [Test]
-        public void Center_with_no_margin() {
+        public void Center_with_no_margin()
+        {
             var anchor = AnchorPreset.Parse("center");
-            var size   = SizeSpec.Parse("400x300", null, null);
+            var size = SizeSpec.Parse("400x300", null, null);
             var r = MarginResolver.Resolve(anchor, size, null);
 
             Assert.AreEqual(new Vector2(0, 0), r.AnchoredPosition);
@@ -37,9 +42,10 @@ namespace PromptUGUI.Tests.Layout {
         }
 
         [Test]
-        public void Top_stretch_with_height_64_and_horizontal_margin_8() {
+        public void Top_stretch_with_height_64_and_horizontal_margin_8()
+        {
             var anchor = AnchorPreset.Parse("top-stretch");
-            var size   = SizeSpec.Parse(null, null, "64");
+            var size = SizeSpec.Parse(null, null, "64");
             var r = MarginResolver.Resolve(anchor, size, "0,8,_,8");
 
             Assert.AreEqual(new Vector2(0, 0), r.AnchoredPosition);
@@ -47,9 +53,10 @@ namespace PromptUGUI.Tests.Layout {
         }
 
         [Test]
-        public void Stretch_all_with_margin_0() {
+        public void Stretch_all_with_margin_0()
+        {
             var anchor = AnchorPreset.Parse("stretch");
-            var size   = SizeSpec.Parse(null, null, null);
+            var size = SizeSpec.Parse(null, null, null);
             var r = MarginResolver.Resolve(anchor, size, null);
 
             Assert.AreEqual(new Vector2(0, 0), r.AnchoredPosition);

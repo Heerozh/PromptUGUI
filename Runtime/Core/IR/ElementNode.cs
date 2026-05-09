@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 
-namespace PromptUGUI.IR {
-    public sealed class ElementNode {
+namespace PromptUGUI.IR
+{
+    public sealed class ElementNode
+    {
         public string Tag { get; }
         public string Namespace { get; }
         public string Id { get; set; }
@@ -46,7 +48,8 @@ namespace PromptUGUI.IR {
         /// </summary>
         public Dictionary<string, List<(string Variant, string Value)>> VariantOverrides { get; }
 
-        public ElementNode(string tag, string ns = null) {
+        public ElementNode(string tag, string ns = null)
+        {
             Tag = tag;
             Namespace = ns;
             Attributes = new Dictionary<string, string>();

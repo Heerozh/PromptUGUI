@@ -1,9 +1,12 @@
 using System.Xml;
 using PromptUGUI.IR;
 
-namespace PromptUGUI.Parser {
-    public static class UIDocumentParser {
-        public static UIDocument Parse(string xml) {
+namespace PromptUGUI.Parser
+{
+    public static class UIDocumentParser
+    {
+        public static UIDocument Parse(string xml)
+        {
             var xdoc = new XmlDocument();
             xdoc.LoadXml(xml);
 
@@ -18,9 +21,11 @@ namespace PromptUGUI.Parser {
             var doc = new UIDocument { Version = int.Parse(versionAttr) };
             var screenNames = new System.Collections.Generic.HashSet<string>();
 
-            foreach (XmlNode child in root.ChildNodes) {
+            foreach (XmlNode child in root.ChildNodes)
+            {
                 if (child is not XmlElement el) continue;
-                switch (el.Name) {
+                switch (el.Name)
+                {
                     case "Screen":
                         ParseScreen(el, doc, screenNames);
                         break;
@@ -39,19 +44,22 @@ namespace PromptUGUI.Parser {
             return doc;
         }
 
-        static void ParseImport(XmlElement el, UIDocument doc) {
+        private static void ParseImport(XmlElement el, UIDocument doc)
+        {
             var src = el.GetAttribute("src");
             if (string.IsNullOrEmpty(src))
                 throw new ParseException("<Import> requires src attribute");
 
-            foreach (var existing in doc.Imports) {
+            foreach (var existing in doc.Imports)
+            {
                 if (existing.Src == src)
                     throw new ParseException(
                         $"<Import>: duplicate src='{src}' in same file");
             }
 
             var ns = el.HasAttribute("as") ? el.GetAttribute("as") : null;
-            if (ns != null) {
+            if (ns != null)
+            {
                 if (string.IsNullOrEmpty(ns))
                     throw new ParseException(
                         $"<Import src='{src}'>: as attribute cannot be empty");
@@ -63,8 +71,9 @@ namespace PromptUGUI.Parser {
             doc.Imports.Add(new IR.ImportRef(src, ns));
         }
 
-        static void ParseScreen(XmlElement el, UIDocument doc,
-                                System.Collections.Generic.HashSet<string> screenNames) {
+        private static void ParseScreen(XmlElement el, UIDocument doc,
+                                System.Collections.Generic.HashSet<string> screenNames)
+        {
             var name = el.GetAttribute("name");
             if (string.IsNullOrEmpty(name))
                 throw new ParseException("<Screen> requires name attribute");
@@ -76,11 +85,13 @@ namespace PromptUGUI.Parser {
             var screen = new ScreenDef(name, rootNode);
 
             var canvasAttr = el.GetAttribute("canvas");
-            if (!string.IsNullOrEmpty(canvasAttr)) {
-                screen.CanvasMode = canvasAttr switch {
+            if (!string.IsNullOrEmpty(canvasAttr))
+            {
+                screen.CanvasMode = canvasAttr switch
+                {
                     "overlay" => CanvasMode.Overlay,
-                    "camera"  => CanvasMode.Camera,
-                    "world"   => CanvasMode.World,
+                    "camera" => CanvasMode.Camera,
+                    "world" => CanvasMode.World,
                     _ => throw new ParseException(
                         $"<Screen name='{name}'>: invalid canvas='{canvasAttr}' " +
                         $"(expected 'overlay', 'camera', or 'world')"),
@@ -89,25 +100,30 @@ namespace PromptUGUI.Parser {
 
             var seenWhen = new System.Collections.Generic.HashSet<string>();
 
-            foreach (XmlNode c in el.ChildNodes) {
+            foreach (XmlNode c in el.ChildNodes)
+            {
                 if (c is not XmlElement child_el) continue;
                 if (child_el.Name == "Import")
                     throw new ParseException(
                         $"<Screen name='{name}'>: <Import> only allowed as top-level element");
-                if (child_el.Name == "Variant") {
+                if (child_el.Name == "Variant")
+                {
                     var when = child_el.GetAttribute("when").Trim();
                     if (!string.IsNullOrEmpty(when) && !seenWhen.Add(when))
                         throw new ParseException(
                             $"<Screen name='{name}'>: duplicate <Variant when='{when}'>");
                     ParseVariantBlock(child_el, screen, idsInScreen);
-                } else {
+                }
+                else
+                {
                     rootNode.Children.Add(ParseElement(child_el, idsInScreen));
                 }
             }
             doc.Screens.Add(screen);
         }
 
-        static void ParseTemplate(XmlElement el, UIDocument doc) {
+        private static void ParseTemplate(XmlElement el, UIDocument doc)
+        {
             var name = el.GetAttribute("name");
             if (string.IsNullOrEmpty(name))
                 throw new ParseException("<Template> requires name attribute");
@@ -116,15 +132,17 @@ namespace PromptUGUI.Parser {
 
             var tpl = new TemplateDef(name);
             var paramNames = new System.Collections.Generic.HashSet<string>();
-            bool sawBody = false;
+            var sawBody = false;
             ElementNode body = null;
 
-            foreach (XmlNode c in el.ChildNodes) {
+            foreach (XmlNode c in el.ChildNodes)
+            {
                 if (c is not XmlElement ce) continue;
                 if (ce.Name == "Import")
                     throw new ParseException(
                         $"<Template name='{name}'>: <Import> only allowed as top-level element");
-                if (ce.Name == "Param") {
+                if (ce.Name == "Param")
+                {
                     if (sawBody)
                         throw new ParseException(
                             $"<Template name='{name}'>: <Param> must appear before any body element");
@@ -136,7 +154,8 @@ namespace PromptUGUI.Parser {
                         throw new ParseException(
                             $"<Template name='{name}'>: duplicate <Param name='{pname}'>");
 
-                    foreach (XmlAttribute pa in ce.Attributes) {
+                    foreach (XmlAttribute pa in ce.Attributes)
+                    {
                         if (pa.Name == "name" || pa.Name == "default") continue;
                         if (pa.Name.StartsWith("default.") || pa.Name.StartsWith("name."))
                             throw new ParseException(
@@ -144,9 +163,11 @@ namespace PromptUGUI.Parser {
                         // 其他属性 M2 行为是隐式忽略，M3 维持
                     }
 
-                    string def = ce.HasAttribute("default") ? ce.GetAttribute("default") : null;
+                    var def = ce.HasAttribute("default") ? ce.GetAttribute("default") : null;
                     tpl.Params.Add(new ParamDef(pname, def));
-                } else {
+                }
+                else
+                {
                     if (sawBody)
                         throw new ParseException(
                             $"<Template name='{name}'> must have exactly one root element");
@@ -163,15 +184,17 @@ namespace PromptUGUI.Parser {
             doc.Templates[name] = tpl;
         }
 
-        static void ParseVariantBlock(XmlElement el, ScreenDef screen,
-                                      System.Collections.Generic.HashSet<string> idsInScreen) {
+        private static void ParseVariantBlock(XmlElement el, ScreenDef screen,
+                                      System.Collections.Generic.HashSet<string> idsInScreen)
+        {
             var when = el.GetAttribute("when").Trim();
             if (string.IsNullOrEmpty(when))
                 throw new ParseException("<Variant> requires 'when' attribute");
 
             var block = new VariantBlock(when);
 
-            foreach (XmlNode c in el.ChildNodes) {
+            foreach (XmlNode c in el.ChildNodes)
+            {
                 if (c is not XmlElement ce) continue;
                 if (ce.Name != "Add")
                     throw new ParseException(
@@ -203,12 +226,14 @@ namespace PromptUGUI.Parser {
             screen.Variants.Add(block);
         }
 
-        static ElementNode ParseElement(XmlElement el,
-                                        System.Collections.Generic.HashSet<string> idsInScope) {
+        private static ElementNode ParseElement(XmlElement el,
+                                        System.Collections.Generic.HashSet<string> idsInScope)
+        {
             string ns = null;
-            string tag = el.Name;
-            int dot = tag.IndexOf('.');
-            if (dot >= 0) {
+            var tag = el.Name;
+            var dot = tag.IndexOf('.');
+            if (dot >= 0)
+            {
                 if (dot == 0 || dot == tag.Length - 1)
                     throw new ParseException(
                         $"malformed namespaced tag '{tag}'");
@@ -220,8 +245,10 @@ namespace PromptUGUI.Parser {
             }
             var node = new ElementNode(tag, ns);
 
-            foreach (XmlAttribute attr in el.Attributes) {
-                if (attr.Name == "id") {
+            foreach (XmlAttribute attr in el.Attributes)
+            {
+                if (attr.Name == "id")
+                {
                     if (!idsInScope.Add(attr.Value))
                         throw new ParseException(
                             $"Duplicate id='{attr.Value}' within scope");
@@ -229,8 +256,9 @@ namespace PromptUGUI.Parser {
                     continue;
                 }
 
-                int attrDot = attr.Name.IndexOf('.');
-                if (attrDot < 0) {
+                var attrDot = attr.Name.IndexOf('.');
+                if (attrDot < 0)
+                {
                     node.Attributes[attr.Name] = attr.Value;
                     continue;
                 }
@@ -251,7 +279,8 @@ namespace PromptUGUI.Parser {
                     throw new ParseException(
                         $"<{el.Name}>: 'id' cannot carry .variant suffix (id='{attr.Value}')");
 
-                if (!node.VariantOverrides.TryGetValue(baseName, out var list)) {
+                if (!node.VariantOverrides.TryGetValue(baseName, out var list))
+                {
                     list = new System.Collections.Generic.List<(string, string)>();
                     node.VariantOverrides[baseName] = list;
                 }
@@ -259,14 +288,16 @@ namespace PromptUGUI.Parser {
             }
 
             // Capture raw attribute values for attrs containing {{...}} (for runtime re-substitution on translated msgstr).
-            foreach (var kv in node.Attributes) {
+            foreach (var kv in node.Attributes)
+            {
                 if (kv.Value != null && kv.Value.Contains("{{"))
                     node.AttributesRaw[kv.Key] = kv.Value;
             }
 
             // 文本简写
             bool hasElement = false, hasText = false;
-            foreach (XmlNode c in el.ChildNodes) {
+            foreach (XmlNode c in el.ChildNodes)
+            {
                 if (c is XmlElement) hasElement = true;
                 else if (c is XmlText txt && !string.IsNullOrWhiteSpace(txt.Value)) hasText = true;
                 else if (c is XmlCDataSection cdata && !string.IsNullOrWhiteSpace(cdata.Value)) hasText = true;
@@ -274,7 +305,8 @@ namespace PromptUGUI.Parser {
             if (hasText && hasElement)
                 throw new ParseException(
                     $"<{el.Name}> mixes text and child elements; not allowed");
-            if (hasText && !hasElement) {
+            if (hasText && !hasElement)
+            {
                 node.TextContent = el.InnerText.Trim();
                 node.TextContentRaw = el.InnerText;     // un-trimmed raw — preserves intentional whitespace inside CDATA
             }
@@ -284,14 +316,17 @@ namespace PromptUGUI.Parser {
                     node.Children.Add(ParseElement(child_el, idsInScope));
 
             // <Icon> 校验：name 必填、必须匹配 ns:icon 形式（含 Variant 覆盖）
-            if (tag == "Icon" && ns == null) {
+            if (tag == "Icon" && ns == null)
+            {
                 if (!node.Attributes.TryGetValue("name", out var iconName) || string.IsNullOrEmpty(iconName))
                     throw new ParseException("Icon: 'name' is required");
                 if (!IsValidIconName(iconName))
                     throw new ParseException(
                         $"Icon: 'name' must be 'set:icon' (got '{iconName}')");
-                if (node.VariantOverrides.TryGetValue("name", out var nameOverrides)) {
-                    foreach (var (variant, value) in nameOverrides) {
+                if (node.VariantOverrides.TryGetValue("name", out var nameOverrides))
+                {
+                    foreach (var (variant, value) in nameOverrides)
+                    {
                         if (string.IsNullOrEmpty(value) || !IsValidIconName(value))
                             throw new ParseException(
                                 $"Icon: name.{variant} must be 'set:icon' (got '{value}')");
@@ -300,13 +335,17 @@ namespace PromptUGUI.Parser {
             }
 
             // size/width/height == "native" 仅 <Icon> 允许（含 Variant 覆盖）
-            if (!(tag == "Icon" && ns == null)) {
-                foreach (var key in new[] { "size", "width", "height" }) {
+            if (!(tag == "Icon" && ns == null))
+            {
+                foreach (var key in new[] { "size", "width", "height" })
+                {
                     if (node.Attributes.TryGetValue(key, out var v) && v == "native")
                         throw new ParseException(
                             $"<{tag}>: native size only allowed on <Icon> (attribute '{key}')");
-                    if (node.VariantOverrides.TryGetValue(key, out var keyOverrides)) {
-                        foreach (var (variant, value) in keyOverrides) {
+                    if (node.VariantOverrides.TryGetValue(key, out var keyOverrides))
+                    {
+                        foreach (var (variant, value) in keyOverrides)
+                        {
                             if (value == "native")
                                 throw new ParseException(
                                     $"<{tag}>: native size only allowed on <Icon> (attribute '{key}.{variant}')");
@@ -318,13 +357,15 @@ namespace PromptUGUI.Parser {
             return node;
         }
 
-        static bool IsValidIconName(string name) {
-            int colon = name.IndexOf(':');
+        private static bool IsValidIconName(string name)
+        {
+            var colon = name.IndexOf(':');
             if (colon <= 0 || colon == name.Length - 1) return false;
-            for (int i = 0; i < name.Length; i++) {
+            for (var i = 0; i < name.Length; i++)
+            {
                 if (i == colon) continue;
-                char c = name[i];
-                bool ok = c == '-' || c == '_'
+                var c = name[i];
+                var ok = c == '-' || c == '_'
                           || (c >= 'a' && c <= 'z')
                           || (c >= 'A' && c <= 'Z')
                           || (c >= '0' && c <= '9');

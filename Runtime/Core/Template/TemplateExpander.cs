@@ -1,10 +1,12 @@
 using System.Collections.Generic;
 using PromptUGUI.IR;
 
-namespace PromptUGUI.Template {
-    public static class TemplateExpander {
+namespace PromptUGUI.Template
+{
+    public static class TemplateExpander
+    {
         // 通用属性集合：模板调用上写的这些不算 Param
-        static readonly HashSet<string> CommonAttrs = new() {
+        private static readonly HashSet<string> CommonAttrs = new() {
             "anchor", "size", "width", "height", "margin", "pivot",
             "padding", "spacing",
             "hidden", "interactable",
@@ -14,30 +16,37 @@ namespace PromptUGUI.Template {
         /// Real entry point — takes the merged LoadedDoc produced by DocumentLoader.
         /// Uses (Namespace, Name) keyed lookup for template resolution.
         /// </summary>
-        internal static UIDocument Expand(PromptUGUI.Application.DocumentLoader.LoadedDoc loaded) {
+        internal static UIDocument Expand(PromptUGUI.Application.DocumentLoader.LoadedDoc loaded)
+        {
             foreach (var t in loaded.Templates.Values) ValidateSlotCount(t);
 
             var result = new UIDocument { Version = 1 };
             foreach (var kv in loaded.Templates)
                 result.Templates[kv.Key.ToString()] = kv.Value;   // 调试可读，运行时不再用
 
-            foreach (var s in loaded.Screens) {
+            foreach (var s in loaded.Screens)
+            {
                 var newRoot = new ElementNode(s.Root.Tag, s.Root.Namespace);
-                foreach (var c in s.Root.Children) {
+                foreach (var c in s.Root.Children)
+                {
                     EnsureNoSlot(c, $"Screen '{s.Name}'");
                     var ec = ExpandTree(c, loaded.Templates,
                                         new HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey>());
                     if (ec != null) newRoot.Children.Add(ec);
                 }
                 var newScreen = new ScreenDef(s.Name, newRoot) { CanvasMode = s.CanvasMode };
-                foreach (var block in s.Variants) {
+                foreach (var block in s.Variants)
+                {
                     var newBlock = new VariantBlock(block.When);
-                    foreach (var add in block.Adds) {
-                        var newAdd = new AddDirective {
+                    foreach (var add in block.Adds)
+                    {
+                        var newAdd = new AddDirective
+                        {
                             IntoPath = add.IntoPath,
                             At = add.At,
                         };
-                        foreach (var ch in add.Children) {
+                        foreach (var ch in add.Children)
+                        {
                             EnsureNoSlot(ch, $"<Variant when='{block.When}'> in Screen '{s.Name}'");
                             var ec = ExpandTree(ch, loaded.Templates,
                                                 new HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey>());
@@ -56,8 +65,10 @@ namespace PromptUGUI.Template {
         /// Backward-compat adapter: wraps a UIDocument (single-string keyed) and calls the real Expand.
         /// All M1/M2/M3 callers continue to work unchanged.
         /// </summary>
-        public static UIDocument Expand(UIDocument doc) {
-            var loaded = new PromptUGUI.Application.DocumentLoader.LoadedDoc {
+        public static UIDocument Expand(UIDocument doc)
+        {
+            var loaded = new PromptUGUI.Application.DocumentLoader.LoadedDoc
+            {
                 EntrySrc = "<inline>",
             };
             foreach (var s in doc.Screens) loaded.Screens.Add(s);
@@ -66,30 +77,34 @@ namespace PromptUGUI.Template {
             return Expand(loaded);
         }
 
-        static void ValidateSlotCount(TemplateDef tpl) {
-            int count = 0;
+        private static void ValidateSlotCount(TemplateDef tpl)
+        {
+            var count = 0;
             CountSlots(tpl.Body, ref count);
             if (count > 1)
                 throw new TemplateException(
                     $"<Template name='{tpl.Name}'>: at most one <Slot/> allowed (found {count})");
         }
 
-        static void CountSlots(ElementNode n, ref int count) {
+        private static void CountSlots(ElementNode n, ref int count)
+        {
             if (n.Tag == "Slot") count++;
             foreach (var c in n.Children) CountSlots(c, ref count);
         }
 
-        static void EnsureNoSlot(ElementNode n, string contextLabel) {
+        private static void EnsureNoSlot(ElementNode n, string contextLabel)
+        {
             if (n.Tag == "Slot")
                 throw new TemplateException(
                     $"<Slot/> is only allowed inside <Template>, but found in {contextLabel}");
             foreach (var c in n.Children) EnsureNoSlot(c, contextLabel);
         }
 
-        static ElementNode ExpandTree(
+        private static ElementNode ExpandTree(
             ElementNode src,
             IReadOnlyDictionary<PromptUGUI.Application.DocumentLoader.TemplateKey, TemplateDef> templates,
-            HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey> visiting) {
+            HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey> visiting)
+        {
 
             var key = new PromptUGUI.Application.DocumentLoader.TemplateKey(src.Namespace, src.Tag);
             if (templates.TryGetValue(key, out var tpl))
@@ -100,7 +115,8 @@ namespace PromptUGUI.Template {
                 throw new TemplateException(
                     $"unknown template '{src.Namespace}.{src.Tag}'");
 
-            var dst = new ElementNode(src.Tag, src.Namespace) {
+            var dst = new ElementNode(src.Tag, src.Namespace)
+            {
                 Id = src.Id,
                 TextContent = src.TextContent,
                 TextContentRaw = src.TextContentRaw ?? src.TextContent,
@@ -111,28 +127,32 @@ namespace PromptUGUI.Template {
             foreach (var kv in src.AttributesRaw)
                 dst.AttributesRaw[kv.Key] = kv.Value;
             CopyVariantOverrides(src, dst);
-            foreach (var c in src.Children) {
+            foreach (var c in src.Children)
+            {
                 var ec = ExpandTree(c, templates, visiting);
                 if (ec != null) dst.Children.Add(ec);
             }
             return dst;
         }
 
-        static ElementNode ExpandInvocation(
+        private static ElementNode ExpandInvocation(
             ElementNode invocation,
             TemplateDef tpl,
             PromptUGUI.Application.DocumentLoader.TemplateKey key,
             IReadOnlyDictionary<PromptUGUI.Application.DocumentLoader.TemplateKey, TemplateDef> templates,
-            HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey> visiting) {
+            HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey> visiting)
+        {
 
             // Cycle tracking uses (Namespace, Name) key to allow same-named templates across different namespaces
             if (!visiting.Add(key))
                 throw new TemplateException(
                     $"cyclic template reference detected: {string.Join(" → ", visiting)} → {tpl.Name}");
 
-            try {
+            try
+            {
                 var args = new Dictionary<string, string>();
-                foreach (var p in tpl.Params) {
+                foreach (var p in tpl.Params)
+                {
                     if (invocation.Attributes.TryGetValue(p.Name, out var v))
                         args[p.Name] = v;
                     else if (p.HasDefault)
@@ -142,14 +162,16 @@ namespace PromptUGUI.Template {
                             $"<{tpl.Name}>: required <Param name='{p.Name}'> not provided");
                 }
 
-                foreach (var kv in invocation.Attributes) {
+                foreach (var kv in invocation.Attributes)
+                {
                     if (CommonAttrs.Contains(kv.Key)) continue;
                     if (args.ContainsKey(kv.Key)) continue;
                     throw new TemplateException(
                         $"<{tpl.Name}>: unknown attribute '{kv.Key}'");
                 }
 
-                foreach (var kv in invocation.VariantOverrides) {
+                foreach (var kv in invocation.VariantOverrides)
+                {
                     if (CommonAttrs.Contains(kv.Key)) continue;
                     if (args.ContainsKey(kv.Key))
                         throw new TemplateException(
@@ -161,26 +183,27 @@ namespace PromptUGUI.Template {
                 }
 
                 var slotContent = new List<ElementNode>();
-                foreach (var c in invocation.Children) {
+                foreach (var c in invocation.Children)
+                {
                     var ec = ExpandTree(c, templates, visiting);
                     if (ec != null) slotContent.Add(ec);
                 }
 
-                var instanceRoot = ExpandNode(tpl.Body, args, slotContent, templates, visiting);
-                if (instanceRoot == null)
-                    throw new TemplateException(
+                var instanceRoot = ExpandNode(tpl.Body, args, slotContent, templates, visiting) ?? throw new TemplateException(
                         $"<{tpl.Name}>: template body root was excluded by if; not allowed");
-
                 instanceRoot.IsTemplateInstanceRoot = true;
                 if (!string.IsNullOrEmpty(invocation.Id))
                     instanceRoot.Id = invocation.Id;
-                foreach (var kv in invocation.Attributes) {
+                foreach (var kv in invocation.Attributes)
+                {
                     if (!CommonAttrs.Contains(kv.Key)) continue;
                     instanceRoot.Attributes[kv.Key] = kv.Value;
                 }
-                foreach (var kv in invocation.VariantOverrides) {
+                foreach (var kv in invocation.VariantOverrides)
+                {
                     if (!CommonAttrs.Contains(kv.Key)) continue;
-                    if (!instanceRoot.VariantOverrides.TryGetValue(kv.Key, out var list)) {
+                    if (!instanceRoot.VariantOverrides.TryGetValue(kv.Key, out var list))
+                    {
                         list = new List<(string Variant, string Value)>();
                         instanceRoot.VariantOverrides[kv.Key] = list;
                     }
@@ -188,19 +211,23 @@ namespace PromptUGUI.Template {
                 }
 
                 return instanceRoot;
-            } finally {
+            }
+            finally
+            {
                 visiting.Remove(key);
             }
         }
 
-        static ElementNode ExpandNode(
+        private static ElementNode ExpandNode(
             ElementNode src,
             IReadOnlyDictionary<string, string> args,
             IReadOnlyList<ElementNode> slotContent,
             IReadOnlyDictionary<PromptUGUI.Application.DocumentLoader.TemplateKey, TemplateDef> templates,
-            HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey> visiting) {
+            HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey> visiting)
+        {
 
-            if (src.Attributes.TryGetValue("if", out var rawIf)) {
+            if (src.Attributes.TryGetValue("if", out var rawIf))
+            {
                 var resolved = Substitution.Apply(rawIf, args);
                 if (!Truthy.Eval(resolved)) return null;
             }
@@ -211,12 +238,14 @@ namespace PromptUGUI.Template {
             if (templates.ContainsKey(key2))
                 return ExpandTree(prepared, templates, visiting);
 
-            var dst = new ElementNode(prepared.Tag, prepared.Namespace) {
+            var dst = new ElementNode(prepared.Tag, prepared.Namespace)
+            {
                 Id = prepared.Id,
                 TextContent = Substitution.Apply(prepared.TextContent, args),
                 TextContentRaw = src.TextContentRaw ?? src.TextContent,
             };
-            foreach (var kv in prepared.Attributes) {
+            foreach (var kv in prepared.Attributes)
+            {
                 if (kv.Key == "if") continue;
                 dst.Attributes[kv.Key] = kv.Value;
             }
@@ -225,8 +254,10 @@ namespace PromptUGUI.Template {
             if (args != null && args.Count > 0)
                 dst.TextArgs = new System.Collections.Generic.Dictionary<string, string>(args);
             CopyVariantOverrides(prepared, dst);
-            foreach (var c in src.Children) {
-                if (c.Tag == "Slot") {
+            foreach (var c in src.Children)
+            {
+                if (c.Tag == "Slot")
+                {
                     if (slotContent != null)
                         foreach (var sc in slotContent)
                             dst.Children.Add(DeepClone(sc));
@@ -238,9 +269,11 @@ namespace PromptUGUI.Template {
             return dst;
         }
 
-        static ElementNode SubstituteAttrs(ElementNode src,
-                                           IReadOnlyDictionary<string, string> args) {
-            var dst = new ElementNode(src.Tag, src.Namespace) {
+        private static ElementNode SubstituteAttrs(ElementNode src,
+                                           IReadOnlyDictionary<string, string> args)
+        {
+            var dst = new ElementNode(src.Tag, src.Namespace)
+            {
                 Id = src.Id,
                 TextContent = src.TextContent,
             };
@@ -249,7 +282,8 @@ namespace PromptUGUI.Template {
             // Preserve raw attribute values — substitution does NOT clobber raw
             foreach (var kv in src.AttributesRaw)
                 dst.AttributesRaw[kv.Key] = kv.Value;
-            foreach (var kv in src.VariantOverrides) {
+            foreach (var kv in src.VariantOverrides)
+            {
                 var newList = new List<(string Variant, string Value)>();
                 foreach (var (variant, value) in kv.Value)
                     newList.Add((variant, Substitution.Apply(value, args)));
@@ -260,14 +294,17 @@ namespace PromptUGUI.Template {
             return dst;
         }
 
-        static void CopyVariantOverrides(ElementNode src, ElementNode dst) {
+        private static void CopyVariantOverrides(ElementNode src, ElementNode dst)
+        {
             foreach (var kv in src.VariantOverrides)
                 dst.VariantOverrides[kv.Key] =
                     new List<(string Variant, string Value)>(kv.Value);
         }
 
-        static ElementNode DeepClone(ElementNode src) {
-            var dst = new ElementNode(src.Tag, src.Namespace) {
+        private static ElementNode DeepClone(ElementNode src)
+        {
+            var dst = new ElementNode(src.Tag, src.Namespace)
+            {
                 Id = src.Id,
                 TextContent = src.TextContent,
                 TextContentRaw = src.TextContentRaw ?? src.TextContent,

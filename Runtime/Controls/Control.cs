@@ -3,28 +3,33 @@ using PromptUGUI.IR;
 using PromptUGUI.Layout;
 using UnityEngine;
 
-namespace PromptUGUI.Controls {
-    public abstract class Control : IControl {
+namespace PromptUGUI.Controls
+{
+    public abstract class Control : IControl
+    {
         public string Id { get; internal set; }
         public GameObject GameObject { get; private set; }
         public RectTransform RectTransform { get; private set; }
-        CanvasGroup _canvasGroup;
+        private CanvasGroup _canvasGroup;
 
-        readonly List<IControl> _children = new();
+        private readonly List<IControl> _children = new();
 
-        public bool Hidden {
+        public bool Hidden
+        {
             get => !GameObject.activeSelf;
             set => GameObject.SetActive(!value);
         }
 
-        public bool Interactable {
+        public bool Interactable
+        {
             get => CanvasGroup.interactable;
             set { CanvasGroup.interactable = value; CanvasGroup.blocksRaycasts = value; }
         }
 
-        CanvasGroup CanvasGroup => _canvasGroup ??= GameObject.AddComponent<CanvasGroup>();
+        private CanvasGroup CanvasGroup => _canvasGroup ??= GameObject.AddComponent<CanvasGroup>();
 
-        internal void AttachTo(GameObject go) {
+        internal void AttachTo(GameObject go)
+        {
             GameObject = go;
             RectTransform = go.GetComponent<RectTransform>()
                             ?? go.AddComponent<RectTransform>();
@@ -37,21 +42,23 @@ namespace PromptUGUI.Controls {
 
         public IReadOnlyList<IControl> Children => _children;
 
-        static readonly IReadOnlyDictionary<string, IControl> EmptyDict =
+        private static readonly IReadOnlyDictionary<string, IControl> EmptyDict =
             new Dictionary<string, IControl>();
 
-        Dictionary<string, IControl> _scopedIds;
+        private Dictionary<string, IControl> _scopedIds;
 
         public IReadOnlyDictionary<string, IControl> ScopedIds => _scopedIds ?? EmptyDict;
 
         // 由 ScreenInstantiator 在 InsantiateRecursive 中调用：把模板内 id 累加到本 Control 的局部作用域
-        internal void AddScopedId(string id, IControl c) {
+        internal void AddScopedId(string id, IControl c)
+        {
             _scopedIds ??= new Dictionary<string, IControl>();
             _scopedIds[id] = c;
         }
 
         // 由 ScreenInstantiator 在遇到 IsTemplateInstanceRoot 节点时一次性挂载共享字典
-        internal void ReplaceScopedIds(Dictionary<string, IControl> dict) {
+        internal void ReplaceScopedIds(Dictionary<string, IControl> dict)
+        {
             _scopedIds = dict;
         }
 
@@ -60,14 +67,16 @@ namespace PromptUGUI.Controls {
         // 通用属性应用（由 ScreenInstantiator 在子类自身属性应用之后调用）
         public void ApplyCommon(string anchor, string size, string width, string height,
                                 string margin, string pivot,
-                                bool hidden, bool interactable) {
+                                bool hidden, bool interactable)
+        {
             var preset = string.IsNullOrEmpty(anchor)
                 ? new AnchorPreset(AnchorVertical.Top, AnchorHorizontal.Left)
                 : AnchorPreset.Parse(anchor);
 
             var sizeSpec = SizeSpec.Parse(size, width, height);
 
-            if (sizeSpec.IsNativeWidth || sizeSpec.IsNativeHeight) {
+            if (sizeSpec.IsNativeWidth || sizeSpec.IsNativeHeight)
+            {
                 var native = GetNativeSize();
                 if (native.HasValue)
                     sizeSpec = sizeSpec.WithNativeResolved(native.Value);
@@ -80,12 +89,15 @@ namespace PromptUGUI.Controls {
             RectTransform.anchorMin = aMin;
             RectTransform.anchorMax = aMax;
 
-            if (!string.IsNullOrEmpty(pivot)) {
+            if (!string.IsNullOrEmpty(pivot))
+            {
                 var parts = pivot.Split(',');
                 RectTransform.pivot = new Vector2(
                     float.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture),
                     float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture));
-            } else {
+            }
+            else
+            {
                 RectTransform.pivot = p;
             }
 
@@ -97,7 +109,8 @@ namespace PromptUGUI.Controls {
             Interactable = interactable;
         }
 
-        public virtual void Dispose() {
+        public virtual void Dispose()
+        {
             if (GameObject != null) Object.Destroy(GameObject);
         }
     }

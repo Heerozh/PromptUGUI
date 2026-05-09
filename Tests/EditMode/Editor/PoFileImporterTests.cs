@@ -5,20 +5,28 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.TestTools;
 
-namespace PromptUGUI.Tests.Editor {
-    public class PoFileImporterTests {
-        const string TmpDir = "Assets/PromptUGUIPoTmp";
-        const string TmpPath = "Assets/PromptUGUIPoTmp/sample.po";
+namespace PromptUGUI.Tests.Editor
+{
+    public class PoFileImporterTests
+    {
+        private const string TmpDir = "Assets/PromptUGUIPoTmp";
+        private const string TmpPath = "Assets/PromptUGUIPoTmp/sample.po";
 
-        [SetUp] public void Setup() {
+        [SetUp]
+        public void Setup()
+        {
             if (!AssetDatabase.IsValidFolder(TmpDir))
                 AssetDatabase.CreateFolder("Assets", "PromptUGUIPoTmp");
         }
-        [TearDown] public void Teardown() {
+        [TearDown]
+        public void Teardown()
+        {
             AssetDatabase.DeleteAsset(TmpDir);
         }
 
-        [Test] public void Import_PoFile_AutoOverrideViaPostprocessor_LoadsAsTextAsset() {
+        [Test]
+        public void Import_PoFile_AutoOverrideViaPostprocessor_LoadsAsTextAsset()
+        {
             var absPath = System.IO.Path.Combine(
                 UnityEngine.Application.dataPath, "PromptUGUIPoTmp", "auto.po");
             System.IO.File.WriteAllText(absPath, "msgid \"a\"\nmsgstr \"b\"\n");
@@ -33,7 +41,9 @@ namespace PromptUGUI.Tests.Editor {
             StringAssert.Contains("msgid", asset.text);
         }
 
-        [Test] public void Import_PoFile_LoadsAsTextAsset() {
+        [Test]
+        public void Import_PoFile_LoadsAsTextAsset()
+        {
             // Write via absolute path (File.WriteAllText uses CWD which may not be project root)
             var absPath = Path.Combine(UnityEngine.Application.dataPath, "PromptUGUIPoTmp", "sample.po");
             File.WriteAllText(absPath, "msgid \"x\"\nmsgstr \"y\"\n");

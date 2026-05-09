@@ -8,24 +8,31 @@ using UnityEditor.U2D;
 using UnityEngine;
 using UnityEngine.TestTools;
 
-namespace PromptUGUI.Tests.Editor {
-    public class IconAtlasSyncerTests {
-        const string TestRoot = "Assets/__test_iconsync__";
-        readonly List<string> _toCleanup = new();
+namespace PromptUGUI.Tests.Editor
+{
+    public class IconAtlasSyncerTests
+    {
+        private const string TestRoot = "Assets/__test_iconsync__";
+        private readonly List<string> _toCleanup = new();
 
-        [SetUp] public void Setup() {
+        [SetUp]
+        public void Setup()
+        {
             if (!AssetDatabase.IsValidFolder(TestRoot))
                 AssetDatabase.CreateFolder("Assets", "__test_iconsync__");
         }
 
-        [TearDown] public void Teardown() {
+        [TearDown]
+        public void Teardown()
+        {
             foreach (var p in _toCleanup) AssetDatabase.DeleteAsset(p);
             _toCleanup.Clear();
             AssetDatabase.DeleteAsset(TestRoot);
         }
 
         [Test]
-        public void Scan_finds_icon_refs_in_ui_xml() {
+        public void Scan_finds_icon_refs_in_ui_xml()
+        {
             var path = $"{TestRoot}/sample.ui.xml";
             File.WriteAllText(path,
                 @"<?xml version='1.0'?><PromptUGUI version='1'>
@@ -43,7 +50,8 @@ namespace PromptUGUI.Tests.Editor {
         }
 
         [Test]
-        public void Scan_skips_malformed_xml() {
+        public void Scan_skips_malformed_xml()
+        {
             var path = $"{TestRoot}/dyn.ui.xml";
             File.WriteAllText(path,
                 @"<?xml version='1.0'?><PromptUGUI version='1'>
@@ -63,7 +71,8 @@ namespace PromptUGUI.Tests.Editor {
         }
 
         [Test]
-        public void Scan_picks_up_variant_overrides() {
+        public void Scan_picks_up_variant_overrides()
+        {
             var path = $"{TestRoot}/variant.ui.xml";
             File.WriteAllText(path,
                 @"<?xml version='1.0'?><PromptUGUI version='1'>
@@ -80,15 +89,16 @@ namespace PromptUGUI.Tests.Editor {
         }
 
         [Test]
-        public void EnumeratePngs_returns_dict_keyed_by_filename() {
+        public void EnumeratePngs_returns_dict_keyed_by_filename()
+        {
             var folder = $"{TestRoot}/icons";
             AssetDatabase.CreateFolder(TestRoot, "icons");
             var pngPath = $"{folder}/foo.png";
             File.WriteAllBytes(pngPath, MakeBlankPng());
             // Force import as Sprite synchronously before calling EnumeratePngs
             AssetDatabase.ImportAsset(pngPath, ImportAssetOptions.ForceUpdate);
-            var importer = AssetImporter.GetAtPath(pngPath) as TextureImporter;
-            if (importer != null) {
+            if (AssetImporter.GetAtPath(pngPath) is TextureImporter importer)
+            {
                 importer.textureType = TextureImporterType.Sprite;
                 importer.spriteImportMode = SpriteImportMode.Single;
                 importer.SaveAndReimport();
@@ -100,7 +110,8 @@ namespace PromptUGUI.Tests.Editor {
         }
 
         [Test]
-        public void EnumeratePngs_forces_sprite_single_on_default_texture() {
+        public void EnumeratePngs_forces_sprite_single_on_default_texture()
+        {
             var folder = $"{TestRoot}/icons_default";
             AssetDatabase.CreateFolder(TestRoot, "icons_default");
             var pngPath = $"{folder}/baz.png";
@@ -119,7 +130,8 @@ namespace PromptUGUI.Tests.Editor {
         }
 
         [Test]
-        public void EnumeratePngs_leaves_existing_sprite_importer_untouched() {
+        public void EnumeratePngs_leaves_existing_sprite_importer_untouched()
+        {
             var folder = $"{TestRoot}/icons_multi";
             AssetDatabase.CreateFolder(TestRoot, "icons_multi");
             var pngPath = $"{folder}/sheet.png";
@@ -140,7 +152,8 @@ namespace PromptUGUI.Tests.Editor {
         }
 
         [Test]
-        public void UpdateAtlas_v2_does_not_accumulate_packables_on_repeated_sync() {
+        public void UpdateAtlas_v2_does_not_accumulate_packables_on_repeated_sync()
+        {
             var folder = $"{TestRoot}/v2";
             AssetDatabase.CreateFolder(TestRoot, "v2");
 
@@ -185,7 +198,8 @@ namespace PromptUGUI.Tests.Editor {
                 $"V2 atlas should have exactly 1 packable after two syncs, got {prop.arraySize}");
         }
 
-        void ImportAsSprite(string pngPath) {
+        private void ImportAsSprite(string pngPath)
+        {
             AssetDatabase.ImportAsset(pngPath, ImportAssetOptions.ForceUpdate);
             var importer = AssetImporter.GetAtPath(pngPath) as TextureImporter;
             importer.textureType = TextureImporterType.Sprite;
@@ -194,7 +208,8 @@ namespace PromptUGUI.Tests.Editor {
         }
 
         [Test]
-        public void SyncAll_aborts_on_duplicate_setname() {
+        public void SyncAll_aborts_on_duplicate_setname()
+        {
             var a = MakeIconSetAsset("a", "ui");
             var b = MakeIconSetAsset("b", "ui");
             LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("duplicate IconSet"));
@@ -203,7 +218,8 @@ namespace PromptUGUI.Tests.Editor {
 
         // ---- helpers ----
 
-        IconSet MakeIconSetAsset(string fileName, string setName) {
+        private IconSet MakeIconSetAsset(string fileName, string setName)
+        {
             var s = ScriptableObject.CreateInstance<IconSet>();
             var so = new SerializedObject(s);
             so.FindProperty("setName").stringValue = setName;
@@ -214,7 +230,8 @@ namespace PromptUGUI.Tests.Editor {
             return AssetDatabase.LoadAssetAtPath<IconSet>(path);
         }
 
-        byte[] MakeBlankPng() {
+        private byte[] MakeBlankPng()
+        {
             var t = new Texture2D(1, 1);
             t.SetPixel(0, 0, Color.white);
             t.Apply();

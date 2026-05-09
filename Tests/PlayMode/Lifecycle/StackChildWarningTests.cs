@@ -5,15 +5,20 @@ using PromptUGUI.Application;
 using UnityEngine;
 using UnityEngine.TestTools;
 
-namespace PromptUGUI.Tests.Lifecycle {
-    public class StackChildWarningTests {
+namespace PromptUGUI.Tests.Lifecycle
+{
+    public class StackChildWarningTests
+    {
 
-        [SetUp] public void SetUp() {
+        [SetUp]
+        public void SetUp()
+        {
             UI.ResetForTests();
         }
 
         [UnityTest]
-        public IEnumerator Anchor_on_VStack_child_logs_warning() {
+        public IEnumerator Anchor_on_VStack_child_logs_warning()
+        {
             LogAssert.Expect(LogType.Warning,
                 new Regex("anchor.*ignored.*inside.*layout group", RegexOptions.IgnoreCase));
 
@@ -30,7 +35,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Margin_on_HStack_child_logs_warning() {
+        public IEnumerator Margin_on_HStack_child_logs_warning()
+        {
             LogAssert.Expect(LogType.Warning,
                 new Regex("margin.*ignored.*inside.*layout group", RegexOptions.IgnoreCase));
 
@@ -47,7 +53,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator No_warning_when_only_size_specified_inside_stack() {
+        public IEnumerator No_warning_when_only_size_specified_inside_stack()
+        {
             UI.LoadDocument("d3", @"<PromptUGUI version='1'>
                 <Screen name='S3'>
                     <VStack id='v' anchor='center' size='200x200'>
@@ -60,7 +67,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Variant_anchor_on_VStack_child_logs_warning() {
+        public IEnumerator Variant_anchor_on_VStack_child_logs_warning()
+        {
             LogAssert.Expect(LogType.Warning,
                 new Regex("anchor.*ignored.*inside.*layout group", RegexOptions.IgnoreCase));
 
@@ -77,7 +85,8 @@ namespace PromptUGUI.Tests.Lifecycle {
         }
 
         [UnityTest]
-        public IEnumerator Variant_margin_on_HStack_child_logs_warning() {
+        public IEnumerator Variant_margin_on_HStack_child_logs_warning()
+        {
             LogAssert.Expect(LogType.Warning,
                 new Regex("margin.*ignored.*inside.*layout group", RegexOptions.IgnoreCase));
 

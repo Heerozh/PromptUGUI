@@ -5,15 +5,18 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityImage = UnityEngine.UI.Image;
 
-namespace PromptUGUI.Controls {
-    public sealed class Btn : Control {
-        UnityImage _bg;
-        Button _btn;
-        TMP_Text _autoLabel;
-        string _fontType = "default";
-        readonly Subject<Unit> _click = new();
+namespace PromptUGUI.Controls
+{
+    public sealed class Btn : Control
+    {
+        private UnityImage _bg;
+        private Button _btn;
+        private TMP_Text _autoLabel;
+        private string _fontType = "default";
+        private readonly Subject<Unit> _click = new();
 
-        public override void OnAttached() {
+        public override void OnAttached()
+        {
             _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
             _btn = GameObject.GetComponent<Button>() ?? GameObject.AddComponent<Button>();
             _btn.targetGraphic = _bg;
@@ -21,7 +24,8 @@ namespace PromptUGUI.Controls {
             PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
         }
 
-        TMP_Text EnsureLabel() {
+        private TMP_Text EnsureLabel()
+        {
             if (_autoLabel != null) return _autoLabel;
             var go = new GameObject("Label", typeof(RectTransform));
             go.transform.SetParent(GameObject.transform, worldPositionStays: false);
@@ -37,43 +41,50 @@ namespace PromptUGUI.Controls {
             return _autoLabel;
         }
 
-        void ApplyFont() {
+        private void ApplyFont()
+        {
             if (_autoLabel == null) return;
             var settings = PromptUGUI.Application.PromptUGUISettings.Instance;
             var locale = PromptUGUI.Application.UI.Locale.Current;
-            var asset = settings != null
-                ? settings.ResolveFont(locale, _fontType)
-                : null;
+            var asset = settings?.ResolveFont(locale, _fontType);
             if (asset != null) _autoLabel.font = asset;
         }
 
         [UIAttr]
-        public string Text {
-            set {
+        public string Text
+        {
+            set
+            {
                 if (string.IsNullOrEmpty(value) && _autoLabel == null) return;
                 EnsureLabel().text = value ?? "";
             }
         }
 
         [UIAttr]
-        public string Font {
-            set {
+        public string Font
+        {
+            set
+            {
                 _fontType = string.IsNullOrEmpty(value) ? "default" : value;
                 ApplyFont();
             }
         }
 
         [UIAttr]
-        public string Color {
-            set {
+        public string Color
+        {
+            set
+            {
                 if (string.IsNullOrEmpty(value)) return;
                 if (ColorUtility.TryParseHtmlString(value, out var c)) _bg.color = c;
             }
         }
 
         [UIAttr]
-        public string Sprite {
-            set {
+        public string Sprite
+        {
+            set
+            {
                 if (string.IsNullOrEmpty(value)) { _bg.sprite = null; return; }
                 _bg.sprite = Resources.Load<Sprite>(value);
             }
@@ -81,7 +92,8 @@ namespace PromptUGUI.Controls {
 
         public Observable<Unit> OnClick => _click;
 
-        public override void Dispose() {
+        public override void Dispose()
+        {
             PromptUGUI.Application.UI.Locale.Changed -= ApplyFont;
             _click.Dispose();
             base.Dispose();

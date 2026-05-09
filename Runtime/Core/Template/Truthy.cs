@@ -1,8 +1,11 @@
 using System.Globalization;
 
-namespace PromptUGUI.Template {
-    public static class Truthy {
-        public static bool Eval(string s) {
+namespace PromptUGUI.Template
+{
+    public static class Truthy
+    {
+        public static bool Eval(string s)
+        {
             if (string.IsNullOrEmpty(s)) return false;
 
             var lower = s.ToLowerInvariant();

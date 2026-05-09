@@ -4,10 +4,13 @@ using PromptUGUI.Controls;
 using UnityEngine;
 using UnityEngine.TestTools;
 
-namespace PromptUGUI.Tests.Controls {
-    public class FrameTests {
+namespace PromptUGUI.Tests.Controls
+{
+    public class FrameTests
+    {
         [UnityTest]
-        public IEnumerator Frame_attaches_to_GameObject_and_exposes_RectTransform() {
+        public IEnumerator Frame_attaches_to_GameObject_and_exposes_RectTransform()
+        {
             var frame = new Frame();
             var go = new GameObject("test", typeof(RectTransform));
             frame.AttachTo(go);

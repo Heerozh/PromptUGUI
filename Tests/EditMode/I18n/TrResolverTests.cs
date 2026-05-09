@@ -3,25 +3,35 @@ using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.I18n;
 
-namespace PromptUGUI.Tests.I18n {
-    public class TrResolverTests {
+namespace PromptUGUI.Tests.I18n
+{
+    public class TrResolverTests
+    {
         [SetUp] public void Setup() => UI.ResetForTests();
         [TearDown] public void Teardown() => UI.ResetForTests();
 
-        [Test] public void Resolve_NullRaw_ReturnsNull() {
+        [Test]
+        public void Resolve_NullRaw_ReturnsNull()
+        {
             Assert.IsNull(TrResolver.Resolve(null, null, null));
         }
 
-        [Test] public void Resolve_LocaleNull_ReturnsRaw() {
+        [Test]
+        public void Resolve_LocaleNull_ReturnsRaw()
+        {
             Assert.AreEqual("hi", TrResolver.Resolve("hi", null, null));
         }
 
-        [Test] public void Resolve_Miss_ReturnsRaw() {
+        [Test]
+        public void Resolve_Miss_ReturnsRaw()
+        {
             UI.Locale.Set("zh-Hans");
             Assert.AreEqual("hi", TrResolver.Resolve("hi", null, null));
         }
 
-        [Test] public void Resolve_Hit_ReturnsMsgstr() {
+        [Test]
+        public void Resolve_Hit_ReturnsMsgstr()
+        {
             TranslationStore.Instance.Load("zh-Hans", new[] {
                 new PoEntry { Msgid = "hi", Msgstr = "你好" },
             });
@@ -29,7 +39,9 @@ namespace PromptUGUI.Tests.I18n {
             Assert.AreEqual("你好", TrResolver.Resolve("hi", null, null));
         }
 
-        [Test] public void Resolve_HitWithCtx_ReturnsCtxScopedMsgstr() {
+        [Test]
+        public void Resolve_HitWithCtx_ReturnsCtxScopedMsgstr()
+        {
             TranslationStore.Instance.Load("zh-Hans", new[] {
                 new PoEntry { Msgid = "Open", Msgstr = "打开" },
                 new PoEntry { Msgctxt = "door", Msgid = "Open", Msgstr = "开门" },
@@ -39,7 +51,9 @@ namespace PromptUGUI.Tests.I18n {
             Assert.AreEqual("打开", TrResolver.Resolve("Open", null, null));
         }
 
-        [Test] public void Resolve_WithArgs_AppliesSubstitutionAfterLookup() {
+        [Test]
+        public void Resolve_WithArgs_AppliesSubstitutionAfterLookup()
+        {
             TranslationStore.Instance.Load("en", new[] {
                 new PoEntry { Msgid = "金币: {{n}}", Msgstr = "Gold: {{n}}" },
             });
@@ -48,7 +62,9 @@ namespace PromptUGUI.Tests.I18n {
             Assert.AreEqual("Gold: 123", TrResolver.Resolve("金币: {{n}}", args, null));
         }
 
-        [Test] public void Resolve_ArgsOnMiss_StillSubstitutesIntoRaw() {
+        [Test]
+        public void Resolve_ArgsOnMiss_StillSubstitutesIntoRaw()
+        {
             UI.Locale.Set("ja");  // empty store
             var args = new Dictionary<string, string> { { "n", "5" } };
             Assert.AreEqual("金币: 5", TrResolver.Resolve("金币: {{n}}", args, null));

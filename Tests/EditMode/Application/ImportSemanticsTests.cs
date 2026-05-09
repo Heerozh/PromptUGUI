@@ -3,23 +3,28 @@ using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
 
-namespace PromptUGUI.Tests.Application {
-    public class ImportSemanticsTests {
+namespace PromptUGUI.Tests.Application
+{
+    public class ImportSemanticsTests
+    {
         [SetUp]
-        public void Setup() {
+        public void Setup()
+        {
             UI.ResetForTests();
         }
         [TearDown] public void TearDown() => UI.ResetForTests();
 
         [Test]
-        public void Imported_template_usable_in_screen_file() {
-            var files = new Dictionary<string, string> {
+        public void Imported_template_usable_in_screen_file()
+        {
+            var files = new Dictionary<string, string>
+            {
                 ["panels"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                                  <Template name='Card'>
                                    <Frame><Slot/></Frame>
                                  </Template>
                                </PromptUGUI>",
-                ["main"]   = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                ["main"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                                  <Import src='panels'/>
                                  <Screen name='Main'>
                                    <Card id='c'><Text>hi</Text></Card>
@@ -33,8 +38,10 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Imports_with_namespace_can_coexist_with_same_template_name() {
-            var files = new Dictionary<string, string> {
+        public void Imports_with_namespace_can_coexist_with_same_template_name()
+        {
+            var files = new Dictionary<string, string>
+            {
                 ["a"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                             <Template name='Btn'><Frame/></Template>
                           </PromptUGUI>",

@@ -45,7 +45,12 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <LangVersion>latest</LangVersion>
+    <!--
+      Unity 6 ships C# 9. Match it so Roslyn analyzers / dotnet format
+      don't suggest C# 10+ features (primary constructors, collection
+      expressions, field-keyword properties) that Unity can't compile.
+    -->
+    <LangVersion>9.0</LangVersion>
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>

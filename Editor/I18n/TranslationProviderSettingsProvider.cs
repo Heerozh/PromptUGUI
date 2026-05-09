@@ -3,12 +3,15 @@ using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
 
-namespace PromptUGUI.Editor.I18n {
-    internal static class TranslationProviderSettingsProvider {
-        const string ProviderPath = "ProjectSettings/PromptUGUI.asset";
-        const string AuthPath = "UserSettings/PromptUGUI/Auth.asset";
+namespace PromptUGUI.Editor.I18n
+{
+    internal static class TranslationProviderSettingsProvider
+    {
+        private const string ProviderPath = "ProjectSettings/PromptUGUI.asset";
+        private const string AuthPath = "UserSettings/PromptUGUI/Auth.asset";
 
-        internal static TranslationProvider GetOrCreateProvider() {
+        internal static TranslationProvider GetOrCreateProvider()
+        {
             var loaded = InternalEditorUtility.LoadSerializedFileAndForget(ProviderPath);
             if (loaded != null && loaded.Length > 0 && loaded[0] is TranslationProvider tp) return tp;
             var fresh = ScriptableObject.CreateInstance<TranslationProvider>();
@@ -16,7 +19,8 @@ namespace PromptUGUI.Editor.I18n {
             return fresh;
         }
 
-        internal static TranslationAuth GetOrCreateAuth() {
+        internal static TranslationAuth GetOrCreateAuth()
+        {
             var loaded = InternalEditorUtility.LoadSerializedFileAndForget(AuthPath);
             if (loaded != null && loaded.Length > 0 && loaded[0] is TranslationAuth a) return a;
             var fresh = ScriptableObject.CreateInstance<TranslationAuth>();
@@ -24,15 +28,18 @@ namespace PromptUGUI.Editor.I18n {
             return fresh;
         }
 
-        internal static void Save(Object obj, string path) {
+        internal static void Save(Object obj, string path)
+        {
             Directory.CreateDirectory(Path.GetDirectoryName(path));
             InternalEditorUtility.SaveToSerializedFileAndForget(new[] { obj }, path, allowTextSerialization: true);
         }
 
         [SettingsProvider]
-        public static SettingsProvider Create() => new("Project/PromptUGUI/Translation", SettingsScope.Project) {
+        public static SettingsProvider Create() => new("Project/PromptUGUI/Translation", SettingsScope.Project)
+        {
             label = "Translation",
-            guiHandler = _ => {
+            guiHandler = _ =>
+            {
                 var tp = GetOrCreateProvider();
                 var auth = GetOrCreateAuth();
                 EditorGUI.BeginChangeCheck();
@@ -42,7 +49,8 @@ namespace PromptUGUI.Editor.I18n {
                 tp.systemPrompt = EditorGUILayout.TextArea(tp.systemPrompt, GUILayout.Height(140));
                 EditorGUILayout.Space();
                 auth.apiKey = EditorGUILayout.PasswordField("API Key (UserSettings)", auth.apiKey);
-                if (EditorGUI.EndChangeCheck()) {
+                if (EditorGUI.EndChangeCheck())
+                {
                     Save(tp, ProviderPath);
                     Save(auth, AuthPath);
                 }

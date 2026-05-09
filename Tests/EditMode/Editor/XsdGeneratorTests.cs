@@ -5,11 +5,14 @@ using PromptUGUI.Controls;
 using PromptUGUI.Editor;
 using PromptUGUI.Registry;
 
-namespace PromptUGUI.Tests.Editor {
-    public class XsdGeneratorTests {
+namespace PromptUGUI.Tests.Editor
+{
+    public class XsdGeneratorTests
+    {
 
         [Test]
-        public void Empty_registry_produces_static_skeleton() {
+        public void Empty_registry_produces_static_skeleton()
+        {
             var r = new ControlRegistry();
             var xsd = XsdGenerator.Generate(r);
             StringAssert.Contains("<xs:schema", xsd);
@@ -19,7 +22,8 @@ namespace PromptUGUI.Tests.Editor {
         }
 
         [Test]
-        public void Custom_control_appears_with_UIAttr_attributes() {
+        public void Custom_control_appears_with_UIAttr_attributes()
+        {
             var r = new ControlRegistry();
             r.Register<TestPrimaryButton>("PrimaryButton", null);
             var xsd = XsdGenerator.Generate(r);
@@ -28,7 +32,8 @@ namespace PromptUGUI.Tests.Editor {
         }
 
         [Test]
-        public void Generate_to_file_produces_readable_file() {
+        public void Generate_to_file_produces_readable_file()
+        {
             var r = new ControlRegistry();
             r.Register<TestPrimaryButton>("PrimaryButton", null);
             var path = Path.Combine(UnityEngine.Application.temporaryCachePath, "test.gen.xsd");
@@ -39,14 +44,16 @@ namespace PromptUGUI.Tests.Editor {
         }
 
         [Test]
-        public void Icon_element_present_in_xsd() {
+        public void Icon_element_present_in_xsd()
+        {
             var r = new ControlRegistry();
             var xsd = XsdGenerator.Generate(r);
             StringAssert.Contains("name=\"Icon\"", xsd);
         }
 
         [Test]
-        public void Icon_name_attribute_has_pattern() {
+        public void Icon_name_attribute_has_pattern()
+        {
             var r = new ControlRegistry();
             var xsd = XsdGenerator.Generate(r);
             StringAssert.Contains("xs:pattern", xsd);
@@ -54,7 +61,8 @@ namespace PromptUGUI.Tests.Editor {
         }
 
         [Test]
-        public void Generated_file_loads_as_xml_without_encoding_mismatch() {
+        public void Generated_file_loads_as_xml_without_encoding_mismatch()
+        {
             // Regression: XmlWriter against StringBuilder declared encoding="utf-16",
             // but the file was written as UTF-8 bytes — causing parsers to choke at
             // (1, 40) "Content is not allowed in prolog".
@@ -71,7 +79,8 @@ namespace PromptUGUI.Tests.Editor {
         }
 
         [Test]
-        public void Sample_uiXml_validates_against_generated_schema() {
+        public void Sample_uiXml_validates_against_generated_schema()
+        {
             // Regression: schema used to declare targetNamespace, but .ui.xml files
             // are written with bare element names (no namespace) + xsi:noNamespaceSchemaLocation.
             // Validation then failed with TargetNamespace.2 + cvc-elt.1.a.
@@ -87,13 +96,15 @@ namespace PromptUGUI.Tests.Editor {
 
             var schemas = new System.Xml.Schema.XmlSchemaSet();
             schemas.Add(null, System.Xml.XmlReader.Create(new StringReader(xsd)));
-            var settings = new System.Xml.XmlReaderSettings {
+            var settings = new System.Xml.XmlReaderSettings
+            {
                 ValidationType = System.Xml.ValidationType.Schema,
                 Schemas = schemas,
             };
             var errors = new System.Collections.Generic.List<string>();
             settings.ValidationEventHandler += (_, e) => errors.Add(e.Message);
-            using (var reader = System.Xml.XmlReader.Create(new StringReader(sample), settings)) {
+            using (var reader = System.Xml.XmlReader.Create(new StringReader(sample), settings))
+            {
                 while (reader.Read()) { }
             }
             CollectionAssert.IsEmpty(errors,
@@ -101,7 +112,8 @@ namespace PromptUGUI.Tests.Editor {
         }
 
         [Test]
-        public void Icon_name_pattern_accepts_runtime_valid_values() {
+        public void Icon_name_pattern_accepts_runtime_valid_values()
+        {
             // Regression: pattern was '^[\w\-]+:[\w\-]+$' — XSD treats ^/$ literally,
             // so 'solar:Forward' (and any value not framed by literal ^/$) was rejected.
             var r = new ControlRegistry();
@@ -116,13 +128,15 @@ namespace PromptUGUI.Tests.Editor {
 
             var schemas = new System.Xml.Schema.XmlSchemaSet();
             schemas.Add(null, System.Xml.XmlReader.Create(new StringReader(xsd)));
-            var settings = new System.Xml.XmlReaderSettings {
+            var settings = new System.Xml.XmlReaderSettings
+            {
                 ValidationType = System.Xml.ValidationType.Schema,
                 Schemas = schemas,
             };
             var errors = new System.Collections.Generic.List<string>();
             settings.ValidationEventHandler += (_, e) => errors.Add(e.Message);
-            using (var reader = System.Xml.XmlReader.Create(new StringReader(sample), settings)) {
+            using (var reader = System.Xml.XmlReader.Create(new StringReader(sample), settings))
+            {
                 while (reader.Read()) { }
             }
             CollectionAssert.IsEmpty(errors,
@@ -130,7 +144,8 @@ namespace PromptUGUI.Tests.Editor {
         }
 
         [Test]
-        public void Text_element_accepts_inline_text_content() {
+        public void Text_element_accepts_inline_text_content()
+        {
             // Spec: <Text>Hi</Text> ≡ <Text text="Hi"/>. XSD must allow text body
             // for <Text> (was rejected as element-only).
             var r = new ControlRegistry();
@@ -145,20 +160,23 @@ namespace PromptUGUI.Tests.Editor {
 
             var schemas = new System.Xml.Schema.XmlSchemaSet();
             schemas.Add(null, System.Xml.XmlReader.Create(new StringReader(xsd)));
-            var settings = new System.Xml.XmlReaderSettings {
+            var settings = new System.Xml.XmlReaderSettings
+            {
                 ValidationType = System.Xml.ValidationType.Schema,
                 Schemas = schemas,
             };
             var errors = new System.Collections.Generic.List<string>();
             settings.ValidationEventHandler += (_, e) => errors.Add(e.Message);
-            using (var reader = System.Xml.XmlReader.Create(new StringReader(sample), settings)) {
+            using (var reader = System.Xml.XmlReader.Create(new StringReader(sample), settings))
+            {
                 while (reader.Read()) { }
             }
             CollectionAssert.IsEmpty(errors, "<Text>...</Text> shorthand must validate.");
         }
 
         [Test]
-        public void UIAttr_Pattern_propagated_via_reflection() {
+        public void UIAttr_Pattern_propagated_via_reflection()
+        {
             var r = new ControlRegistry();
             r.Register<TestPatternedControl>("Patterned", null);
             var xsd = XsdGenerator.Generate(r);
@@ -167,11 +185,13 @@ namespace PromptUGUI.Tests.Editor {
         }
     }
 
-    public class TestPrimaryButton : Control {
+    public class TestPrimaryButton : Control
+    {
         [UIAttr] public string Label { get; set; }
     }
 
-    public class TestPatternedControl : Control {
+    public class TestPatternedControl : Control
+    {
         [UIAttr(Pattern = "^abc$")] public string Code { get; set; }
     }
 }

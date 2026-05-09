@@ -4,9 +4,13 @@ using NUnit.Framework;
 using PromptUGUI.Editor.I18n;
 using PromptUGUI.I18n;
 
-namespace PromptUGUI.Tests.Editor {
-    public class PoFileWriterTests {
-        [Test] public void Merge_NewMsgid_AddedWithEmptyMsgstr() {
+namespace PromptUGUI.Tests.Editor
+{
+    public class PoFileWriterTests
+    {
+        [Test]
+        public void Merge_NewMsgid_AddedWithEmptyMsgstr()
+        {
             var existing = "";   // no prior file
             var result = PoFileWriter.Merge(existing, new[] {
                 new ExtractedString { Msgid = "hello" },
@@ -17,7 +21,9 @@ namespace PromptUGUI.Tests.Editor {
             Assert.AreEqual("", entries[0].Msgstr);
         }
 
-        [Test] public void Merge_ExistingNonEmptyMsgstr_PreservedAcrossExtract() {
+        [Test]
+        public void Merge_ExistingNonEmptyMsgstr_PreservedAcrossExtract()
+        {
             var existing = PoParser.Serialize(new[] {
                 new PoEntry { Msgid = "hello", Msgstr = "你好" },
             });
@@ -28,7 +34,9 @@ namespace PromptUGUI.Tests.Editor {
             Assert.AreEqual("你好", entries[0].Msgstr);
         }
 
-        [Test] public void Merge_ExtractedDoesNotIncludeOldMsgid_RemovesIt() {
+        [Test]
+        public void Merge_ExtractedDoesNotIncludeOldMsgid_RemovesIt()
+        {
             var existing = PoParser.Serialize(new[] {
                 new PoEntry { Msgid = "old", Msgstr = "obsolete-tr" },
                 new PoEntry { Msgid = "kept", Msgstr = "tr" },
@@ -41,7 +49,9 @@ namespace PromptUGUI.Tests.Editor {
             Assert.AreEqual("kept", entries[0].Msgid);
         }
 
-        [Test] public void Merge_NewExtractionRefreshesComments() {
+        [Test]
+        public void Merge_NewExtractionRefreshesComments()
+        {
             var existing = PoParser.Serialize(new[] {
                 new PoEntry { Msgid = "x", Msgstr = "y",
                               TranslatorComments = new() { "old comment" } },
@@ -56,7 +66,9 @@ namespace PromptUGUI.Tests.Editor {
             Assert.IsFalse(entries[0].TranslatorComments.Any(c => c.Contains("old comment")));
         }
 
-        [Test] public void Merge_SameMsgidDifferentCtx_TwoEntries() {
+        [Test]
+        public void Merge_SameMsgidDifferentCtx_TwoEntries()
+        {
             var result = PoFileWriter.Merge("", new[] {
                 new ExtractedString { Msgid = "Open" },
                 new ExtractedString { Msgid = "Open", Msgctxt = "door" },

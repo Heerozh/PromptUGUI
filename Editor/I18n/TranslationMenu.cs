@@ -38,26 +38,26 @@ namespace PromptUGUI.Editor.I18n
 
     internal sealed class TranslateLocaleWindow : EditorWindow
     {
-        const string I18nRoot = "Assets/Resources/PromptUGUI/i18n";
-        const int BatchSize = 50;
+        private const string I18nRoot = "Assets/Resources/PromptUGUI/i18n";
+        private const int BatchSize = 50;
 
-        string[] _locales = Array.Empty<string>();
-        int _selected;
-        Vector2 _outputScroll;
+        private string[] _locales = Array.Empty<string>();
+        private int _selected;
+        private Vector2 _outputScroll;
 
-        readonly object _lock = new();
-        bool _running;
-        int _batchTotal;
-        int _batchDone;
-        int _entriesTotal;
-        int _entriesProcessed;
-        int _entriesFilled;
-        string _lastResponse = "";
-        string _statusLine = "Idle.";
-        bool _needsAssetRefresh;
+        private readonly object _lock = new();
+        private bool _running;
+        private int _batchTotal;
+        private int _batchDone;
+        private int _entriesTotal;
+        private int _entriesProcessed;
+        private int _entriesFilled;
+        private string _lastResponse = "";
+        private string _statusLine = "Idle.";
+        private bool _needsAssetRefresh;
 
-        CancellationTokenSource _cts;
-        Task _runTask;
+        private CancellationTokenSource _cts;
+        private Task _runTask;
 
         public static void Open(string[] locales)
         {
@@ -68,15 +68,15 @@ namespace PromptUGUI.Editor.I18n
             w.Show();
         }
 
-        void OnEnable() => EditorApplication.update += OnEditorUpdate;
+        private void OnEnable() => EditorApplication.update += OnEditorUpdate;
 
-        void OnDisable()
+        private void OnDisable()
         {
             EditorApplication.update -= OnEditorUpdate;
             try { _cts?.Cancel(); } catch { /* cts may already be disposed */ }
         }
 
-        void OnEditorUpdate()
+        private void OnEditorUpdate()
         {
             bool needRefresh;
             bool running;
@@ -90,7 +90,7 @@ namespace PromptUGUI.Editor.I18n
             if (running || needRefresh) Repaint();
         }
 
-        void OnGUI()
+        private void OnGUI()
         {
             if (_locales.Length == 0)
             {
@@ -141,7 +141,7 @@ namespace PromptUGUI.Editor.I18n
             EditorGUILayout.Space();
 
             var rect = GUILayoutUtility.GetRect(0, 18, GUILayout.ExpandWidth(true));
-            float prog = batchTotal > 0 ? (float)batchDone / batchTotal : 0f;
+            var prog = batchTotal > 0 ? (float)batchDone / batchTotal : 0f;
             EditorGUI.ProgressBar(rect, prog, statusLine);
 
             EditorGUILayout.Space();
@@ -155,7 +155,7 @@ namespace PromptUGUI.Editor.I18n
             EditorGUILayout.EndScrollView();
         }
 
-        void StartTranslate()
+        private void StartTranslate()
         {
             var locale = _locales[_selected];
             var auth = TranslationProviderSettingsProvider.GetOrCreateAuth();
@@ -215,7 +215,7 @@ namespace PromptUGUI.Editor.I18n
                 queue, locale, endpoint, model, apiKey, systemPrompt, ct));
         }
 
-        async Task RunAsync(
+        private async Task RunAsync(
             List<(string poPath, PoEntry entry)> queue,
             string locale,
             string endpoint, string model, string apiKey, string systemPrompt,
@@ -224,7 +224,7 @@ namespace PromptUGUI.Editor.I18n
             var client = new TranslationClient();
             try
             {
-                for (int i = 0; i < queue.Count; i += BatchSize)
+                for (var i = 0; i < queue.Count; i += BatchSize)
                 {
                     if (ct.IsCancellationRequested) break;
                     var slice = queue.Skip(i).Take(BatchSize).ToList();
@@ -238,7 +238,7 @@ namespace PromptUGUI.Editor.I18n
 
                     BatchResult br = null;
                     Exception lastEx = null;
-                    for (int retry = 0; retry < 3; retry++)
+                    for (var retry = 0; retry < 3; retry++)
                     {
                         if (ct.IsCancellationRequested) break;
                         try
@@ -272,7 +272,7 @@ namespace PromptUGUI.Editor.I18n
                         continue;
                     }
 
-                    int filled = 0;
+                    var filled = 0;
                     foreach (var (poPath, entry) in slice)
                     {
                         if (!br.Translations.TryGetValue((entry.Msgid, entry.Msgctxt), out var translated))
@@ -317,7 +317,7 @@ namespace PromptUGUI.Editor.I18n
             }
         }
 
-        static List<(string poPath, PoEntry entry)> CollectQueue(string[] poFiles)
+        private static List<(string poPath, PoEntry entry)> CollectQueue(string[] poFiles)
         {
             var queue = new List<(string, PoEntry)>();
             foreach (var po in poFiles)
@@ -331,7 +331,7 @@ namespace PromptUGUI.Editor.I18n
             return queue;
         }
 
-        static void WriteMsgstr(string poPath, PoEntry target, string newMsgstr)
+        private static void WriteMsgstr(string poPath, PoEntry target, string newMsgstr)
         {
             var entries = PoParser.Parse(File.ReadAllText(poPath)).ToList();
             var idx = entries.FindIndex(e => e.Msgctxt == target.Msgctxt && e.Msgid == target.Msgid);

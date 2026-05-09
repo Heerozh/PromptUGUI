@@ -3,27 +3,33 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Reflection;
 
-namespace PromptUGUI.Registry {
-    public sealed class ControlMeta {
-        readonly Dictionary<string, Action<object, string>> _setters;
+namespace PromptUGUI.Registry
+{
+    public sealed class ControlMeta
+    {
+        private readonly Dictionary<string, Action<object, string>> _setters;
 
-        ControlMeta(Dictionary<string, Action<object, string>> setters) {
+        private ControlMeta(Dictionary<string, Action<object, string>> setters)
+        {
             _setters = setters;
         }
 
         public bool HasAttribute(string name) => _setters.ContainsKey(name);
 
-        public void Apply(object instance, string name, string value) {
+        public void Apply(object instance, string name, string value)
+        {
             if (!_setters.TryGetValue(name, out var setter))
                 throw new ArgumentException($"unknown attribute '{name}'");
             setter(instance, value);
         }
 
-        public static ControlMeta Build(Type type) {
+        public static ControlMeta Build(Type type)
+        {
             var setters = new Dictionary<string, Action<object, string>>();
 
             foreach (var prop in type.GetProperties(
-                BindingFlags.Public | BindingFlags.Instance)) {
+                BindingFlags.Public | BindingFlags.Instance))
+            {
                 var attr = prop.GetCustomAttribute<UIAttrAttribute>();
                 if (attr == null) continue;
                 if (!prop.CanWrite) continue;
@@ -36,23 +42,28 @@ namespace PromptUGUI.Registry {
             return new ControlMeta(setters);
         }
 
-        static string CamelCase(string s) =>
+        private static string CamelCase(string s) =>
             string.IsNullOrEmpty(s) ? s : char.ToLowerInvariant(s[0]) + s.Substring(1);
 
-        static Action<object, string> BuildSetter(PropertyInfo prop) {
+        private static Action<object, string> BuildSetter(PropertyInfo prop)
+        {
             var t = prop.PropertyType;
-            if (t == typeof(string)) {
+            if (t == typeof(string))
+            {
                 return (obj, v) => prop.SetValue(obj, v);
             }
-            if (t == typeof(int)) {
+            if (t == typeof(int))
+            {
                 return (obj, v) => prop.SetValue(obj,
                     int.Parse(v, CultureInfo.InvariantCulture));
             }
-            if (t == typeof(float)) {
+            if (t == typeof(float))
+            {
                 return (obj, v) => prop.SetValue(obj,
                     float.Parse(v, CultureInfo.InvariantCulture));
             }
-            if (t == typeof(bool)) {
+            if (t == typeof(bool))
+            {
                 return (obj, v) => prop.SetValue(obj, bool.Parse(v));
             }
             throw new NotSupportedException(

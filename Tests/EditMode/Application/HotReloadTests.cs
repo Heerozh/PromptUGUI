@@ -4,11 +4,15 @@ using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
 
-namespace PromptUGUI.Tests.Application {
-    public class HotReloadTests {
-        Dictionary<string, string> _files;
+namespace PromptUGUI.Tests.Application
+{
+    public class HotReloadTests
+    {
+        private Dictionary<string, string> _files;
 
-        [SetUp] public void Setup() {
+        [SetUp]
+        public void Setup()
+        {
             UI.ResetForTests();
             _files = new Dictionary<string, string>();
             UI.SourceResolver = src => _files.TryGetValue(src, out var v) ? v : null;
@@ -16,7 +20,8 @@ namespace PromptUGUI.Tests.Application {
         [TearDown] public void TearDown() => UI.ResetForTests();
 
         [Test]
-        public void Reload_replaces_screen_def() {
+        public void Reload_replaces_screen_def()
+        {
             _files["main"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Screen name='S'><Frame id='a'/></Screen>
               </PromptUGUI>";
@@ -34,7 +39,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Reload_failed_parse_preserves_old_state() {
+        public void Reload_failed_parse_preserves_old_state()
+        {
             _files["main"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Screen name='S'><Frame id='a'/></Screen>
               </PromptUGUI>";
@@ -50,7 +56,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Reload_raw_loaded_doc_throws() {
+        public void Reload_raw_loaded_doc_throws()
+        {
             UI.LoadDocument("inline",
                 @"<?xml version='1.0'?><PromptUGUI version='1'>
                     <Screen name='S'><Frame/></Screen>
@@ -60,7 +67,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Reload_preserves_VariantStore_state() {
+        public void Reload_preserves_VariantStore_state()
+        {
             _files["main"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Screen name='S'><Frame id='a'/></Screen>
               </PromptUGUI>";
@@ -77,7 +85,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void ReloadCommonLibrary_picks_up_template_changes() {
+        public void ReloadCommonLibrary_picks_up_template_changes()
+        {
             _files["c"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Template name='V'><Frame><Image id='inner_v1'/></Frame></Template>
               </PromptUGUI>";
@@ -98,7 +107,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void ReloadCommonLibrary_failed_parse_rolls_back() {
+        public void ReloadCommonLibrary_failed_parse_rolls_back()
+        {
             _files["c"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Template name='V'><Frame/></Template>
               </PromptUGUI>";
@@ -115,7 +125,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void NotifyAssetChanged_for_screen_src_reloads() {
+        public void NotifyAssetChanged_for_screen_src_reloads()
+        {
             _files["m"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Screen name='S'><Frame id='a'/></Screen>
               </PromptUGUI>";
@@ -132,7 +143,8 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void NotifyAssetChanged_for_commons_src_reloads_screens() {
+        public void NotifyAssetChanged_for_commons_src_reloads_screens()
+        {
             _files["c"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Template name='T'><Frame><Image id='inner_v1'/></Frame></Template>
               </PromptUGUI>";
@@ -153,13 +165,15 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void NotifyAssetChanged_unknown_path_silently_ignored() {
+        public void NotifyAssetChanged_unknown_path_silently_ignored()
+        {
             UI.HotReload.AssetPathToSrc = _ => null;
             Assert.DoesNotThrow(() => UI.HotReload.NotifyAssetChanged("foo"));
         }
 
         [Test]
-        public void NotifyAssetChanged_when_disabled_noops() {
+        public void NotifyAssetChanged_when_disabled_noops()
+        {
             _files["m"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Screen name='S'><Frame id='a'/></Screen>
               </PromptUGUI>";
@@ -177,12 +191,14 @@ namespace PromptUGUI.Tests.Application {
         }
 
         [Test]
-        public void Reload_unknown_screen_throws() {
+        public void Reload_unknown_screen_throws()
+        {
             Assert.Throws<InvalidOperationException>(() => UI.Reload("Nonexistent"));
         }
 
         [Test]
-        public void ReloadCommonLibrary_unknown_src_throws() {
+        public void ReloadCommonLibrary_unknown_src_throws()
+        {
             Assert.Throws<InvalidOperationException>(() => UI.ReloadCommonLibrary("not-a-commons"));
         }
     }

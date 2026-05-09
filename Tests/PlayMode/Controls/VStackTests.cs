@@ -5,10 +5,13 @@ using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
 
-namespace PromptUGUI.Tests.Controls {
-    public class VStackTests {
+namespace PromptUGUI.Tests.Controls
+{
+    public class VStackTests
+    {
         [UnityTest]
-        public IEnumerator Adds_VerticalLayoutGroup() {
+        public IEnumerator Adds_VerticalLayoutGroup()
+        {
             var v = new VStack();
             var go = new GameObject("vstack", typeof(RectTransform));
             v.AttachTo(go);
@@ -18,7 +21,8 @@ namespace PromptUGUI.Tests.Controls {
         }
 
         [UnityTest]
-        public IEnumerator Spacing_writes_to_layout_group() {
+        public IEnumerator Spacing_writes_to_layout_group()
+        {
             var v = new VStack();
             var go = new GameObject("vstack", typeof(RectTransform));
             v.AttachTo(go);
@@ -29,7 +33,8 @@ namespace PromptUGUI.Tests.Controls {
         }
 
         [UnityTest]
-        public IEnumerator Padding_uniform_writes_to_layout_group() {
+        public IEnumerator Padding_uniform_writes_to_layout_group()
+        {
             var v = new VStack();
             var go = new GameObject("vstack", typeof(RectTransform));
             v.AttachTo(go);
@@ -44,7 +49,8 @@ namespace PromptUGUI.Tests.Controls {
         }
 
         [UnityTest]
-        public IEnumerator Padding_4_values_TRBL() {
+        public IEnumerator Padding_4_values_TRBL()
+        {
             var v = new VStack();
             var go = new GameObject("vstack", typeof(RectTransform));
             v.AttachTo(go);

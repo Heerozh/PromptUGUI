@@ -8,16 +8,19 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
-using UnityImage = UnityEngine.UI.Image;
 using PromptVStack = PromptUGUI.Controls.VStack;
+using UnityImage = UnityEngine.UI.Image;
 
-namespace PromptUGUI.Tests.E2E {
+namespace PromptUGUI.Tests.E2E
+{
 
-    public sealed class TestButton : Control {
-        Button _btn;
-        TMP_Text _label;
-        readonly Subject<Unit> _click = new();
-        public override void OnAttached() {
+    public sealed class TestButton : Control
+    {
+        private Button _btn;
+        private TMP_Text _label;
+        private readonly Subject<Unit> _click = new();
+        public override void OnAttached()
+        {
             _btn = GameObject.GetComponent<Button>();
             _label = GameObject.GetComponentInChildren<TMP_Text>();
             _btn.onClick.AddListener(() => _click.OnNext(Unit.Default));
@@ -25,18 +28,21 @@ namespace PromptUGUI.Tests.E2E {
         [UIAttr("text")]
         public string TextValue { set => _label.text = value; }
         public Observable<Unit> OnClick => _click;
-        public override void Dispose() {
+        public override void Dispose()
+        {
             _click.Dispose();
             base.Dispose();
         }
     }
 
-    public class MainMenuDemoTests {
+    public class MainMenuDemoTests
+    {
 
-        GameObject _btnPrefab;
+        private GameObject _btnPrefab;
 
         [SetUp]
-        public void SetUp() {
+        public void SetUp()
+        {
             UI.ResetForTests();
 
             // 构造一个 mock button prefab
@@ -51,13 +57,15 @@ namespace PromptUGUI.Tests.E2E {
         }
 
         [TearDown]
-        public void TearDown() {
+        public void TearDown()
+        {
             if (_btnPrefab != null) Object.Destroy(_btnPrefab);
             UI.ResetForTests();
         }
 
         [UnityTest]
-        public IEnumerator Main_menu_with_three_buttons_clicks_propagate() {
+        public IEnumerator Main_menu_with_three_buttons_clicks_propagate()
+        {
             UI.LoadDocument("main", @"<PromptUGUI version='1'>
                 <Screen name='MainMenu'>
                     <VStack id='menuRoot' anchor='center' size='280x240' spacing='12'>
@@ -69,7 +77,7 @@ namespace PromptUGUI.Tests.E2E {
 
             var screen = UI.Open("MainMenu");
 
-            int playClicks = 0;
+            var playClicks = 0;
             screen.Get<TestButton>("play").OnClick
                   .Subscribe(_ => playClicks++)
                   .AddTo(screen);

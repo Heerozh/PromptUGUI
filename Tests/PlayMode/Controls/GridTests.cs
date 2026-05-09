@@ -5,10 +5,13 @@ using UnityEngine.TestTools;
 using UnityEngine.UI;
 using Grid = PromptUGUI.Controls.Grid;
 
-namespace PromptUGUI.Tests.Controls {
-    public class GridTests {
+namespace PromptUGUI.Tests.Controls
+{
+    public class GridTests
+    {
         [UnityTest]
-        public IEnumerator Adds_GridLayoutGroup_with_fixed_column_count() {
+        public IEnumerator Adds_GridLayoutGroup_with_fixed_column_count()
+        {
             var g = new Grid();
             var go = new GameObject("grid", typeof(RectTransform));
             g.AttachTo(go);
@@ -22,7 +25,8 @@ namespace PromptUGUI.Tests.Controls {
         }
 
         [UnityTest]
-        public IEnumerator CellSize_writes_WxH() {
+        public IEnumerator CellSize_writes_WxH()
+        {
             var g = new Grid();
             var go = new GameObject("grid", typeof(RectTransform));
             g.AttachTo(go);

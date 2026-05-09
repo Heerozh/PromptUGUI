@@ -7,23 +7,26 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.TestTools;
 
-namespace PromptUGUI.Tests.E2E {
+namespace PromptUGUI.Tests.E2E
+{
     /// <summary>
     /// End-to-end: locale switch → text translates + font swaps via the Settings table.
     /// </summary>
-    public class I18nFontSwapTests {
-        const string Xml = @"<?xml version='1.0' encoding='utf-8'?>
+    public class I18nFontSwapTests
+    {
+        private const string Xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S'>
     <Text id='lbl' font='title'>开始游戏</Text>
   </Screen>
 </PromptUGUI>";
 
-        PromptUGUISettings _settings;
-        TMP_FontAsset _fontEn, _fontZh;
+        private PromptUGUISettings _settings;
+        private TMP_FontAsset _fontEn, _fontZh;
 
         [SetUp]
-        public void Setup() {
+        public void Setup()
+        {
             UI.ResetForTests();
 
             // Distinct instances suffice for reference-equality assertions.
@@ -63,7 +66,8 @@ namespace PromptUGUI.Tests.E2E {
         }
 
         [TearDown]
-        public void Teardown() {
+        public void Teardown()
+        {
             UI.ResetForTests();
             if (_settings != null) Object.DestroyImmediate(_settings);
             if (_fontEn != null) Object.DestroyImmediate(_fontEn);
@@ -71,7 +75,8 @@ namespace PromptUGUI.Tests.E2E {
         }
 
         [Test]
-        public void SwitchLocale_TextAndFontChange() {
+        public void SwitchLocale_TextAndFontChange()
+        {
             var screen = UI.Open("S");
             var txt = screen.Get<Text>("lbl");
 
@@ -80,9 +85,10 @@ namespace PromptUGUI.Tests.E2E {
             // Font swap: only assert when settings object is discoverable AND font assets
             // were successfully created (Arial may be absent in headless Unity / CI).
             // TODO: font swap assertion needs CI font setup if Arial is unavailable.
-            bool canAssertFont = PromptUGUISettings.Instance != null
+            var canAssertFont = PromptUGUISettings.Instance != null
                                  && _fontEn != null && _fontZh != null;
-            if (canAssertFont) {
+            if (canAssertFont)
+            {
                 Assert.AreSame(_fontZh, GetTmpFont(txt),
                     "zh-Hans font should be _fontZh");
             }
@@ -93,16 +99,17 @@ namespace PromptUGUI.Tests.E2E {
             UI.Locale.Set("en");
 
             Assert.AreEqual("Start", GetTmpText(txt));
-            if (canAssertFont) {
+            if (canAssertFont)
+            {
                 Assert.AreSame(_fontEn, GetTmpFont(txt),
                     "en font should be _fontEn");
             }
         }
 
-        static string GetTmpText(Text t) =>
+        private static string GetTmpText(Text t) =>
             ((Control)t).GameObject.GetComponent<TMP_Text>().text;
 
-        static TMP_FontAsset GetTmpFont(Text t) =>
+        private static TMP_FontAsset GetTmpFont(Text t) =>
             ((Control)t).GameObject.GetComponent<TMP_Text>().font;
     }
 }

@@ -2,10 +2,13 @@ using NUnit.Framework;
 using PromptUGUI.Parser;
 using PromptUGUI.Template;
 
-namespace PromptUGUI.Tests.Template {
-    public class TemplateExpanderTests {
+namespace PromptUGUI.Tests.Template
+{
+    public class TemplateExpanderTests
+    {
         [Test]
-        public void Pass_through_screen_with_no_template_invocation() {
+        public void Pass_through_screen_with_no_template_invocation()
+        {
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Screen name='X'>
                     <VStack id='v'>
@@ -27,7 +30,8 @@ namespace PromptUGUI.Tests.Template {
         }
 
         [Test]
-        public void Templates_dictionary_carries_through() {
+        public void Templates_dictionary_carries_through()
+        {
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'><Frame/></Template>
                 <Screen name='X'/>
@@ -38,7 +42,8 @@ namespace PromptUGUI.Tests.Template {
         }
 
         [Test]
-        public void Expands_template_invocation_with_params() {
+        public void Expands_template_invocation_with_params()
+        {
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Greet'>
                     <Param name='who'/>
@@ -57,7 +62,8 @@ namespace PromptUGUI.Tests.Template {
         }
 
         [Test]
-        public void Param_default_used_when_invocation_omits_attr() {
+        public void Param_default_used_when_invocation_omits_attr()
+        {
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Param name='label' default='默认'/>
@@ -72,7 +78,8 @@ namespace PromptUGUI.Tests.Template {
         }
 
         [Test]
-        public void Required_param_missing_throws() {
+        public void Required_param_missing_throws()
+        {
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Param name='must'/>
@@ -83,7 +90,8 @@ namespace PromptUGUI.Tests.Template {
         }
 
         [Test]
-        public void Unknown_param_passed_throws() {
+        public void Unknown_param_passed_throws()
+        {
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Param name='a'/>
@@ -96,7 +104,8 @@ namespace PromptUGUI.Tests.Template {
         }
 
         [Test]
-        public void Slot_receives_invocation_children() {
+        public void Slot_receives_invocation_children()
+        {
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Frame>
@@ -117,7 +126,8 @@ namespace PromptUGUI.Tests.Template {
         }
 
         [Test]
-        public void If_drops_element_when_falsy() {
+        public void If_drops_element_when_falsy()
+        {
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Param name='show' default='false'/>
@@ -135,7 +145,8 @@ namespace PromptUGUI.Tests.Template {
         }
 
         [Test]
-        public void Invocation_id_transfers_to_instance_root() {
+        public void Invocation_id_transfers_to_instance_root()
+        {
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Frame>
@@ -155,7 +166,8 @@ namespace PromptUGUI.Tests.Template {
         }
 
         [Test]
-        public void Invocation_attributes_other_than_params_passthrough_to_root() {
+        public void Invocation_attributes_other_than_params_passthrough_to_root()
+        {
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Frame/>
@@ -171,7 +183,8 @@ namespace PromptUGUI.Tests.Template {
         }
 
         [Test]
-        public void Nested_template_invocation_expands() {
+        public void Nested_template_invocation_expands()
+        {
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Inner'>
                     <Param name='msg'/>
@@ -194,7 +207,8 @@ namespace PromptUGUI.Tests.Template {
         }
 
         [Test]
-        public void Cyclic_template_reference_throws() {
+        public void Cyclic_template_reference_throws()
+        {
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='A'><B/></Template>
                 <Template name='B'><A/></Template>
@@ -203,7 +217,8 @@ namespace PromptUGUI.Tests.Template {
         }
 
         [Test]
-        public void Slot_in_Screen_body_throws() {
+        public void Slot_in_Screen_body_throws()
+        {
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Screen name='S'>
                     <Slot/>
@@ -212,7 +227,8 @@ namespace PromptUGUI.Tests.Template {
         }
 
         [Test]
-        public void Two_slots_in_template_body_throws() {
+        public void Two_slots_in_template_body_throws()
+        {
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <VStack>
@@ -225,7 +241,8 @@ namespace PromptUGUI.Tests.Template {
         }
 
         [Test]
-        public void Variant_overrides_inside_template_body_are_preserved() {
+        public void Variant_overrides_inside_template_body_are_preserved()
+        {
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Frame anchor='center' anchor.mobile='top-stretch'/>
@@ -246,7 +263,8 @@ namespace PromptUGUI.Tests.Template {
         }
 
         [Test]
-        public void Variant_overrides_on_invocation_propagate_to_instance_root() {
+        public void Variant_overrides_on_invocation_propagate_to_instance_root()
+        {
             // 模板调用上 anchor.mobile=... 应作为通用属性 .var 透传
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
@@ -267,7 +285,8 @@ namespace PromptUGUI.Tests.Template {
         }
 
         [Test]
-        public void Variant_overrides_on_template_body_inner_nodes_are_preserved() {
+        public void Variant_overrides_on_template_body_inner_nodes_are_preserved()
+        {
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Frame>
@@ -287,7 +306,8 @@ namespace PromptUGUI.Tests.Template {
         }
 
         [Test]
-        public void Throws_on_invocation_variant_override_for_template_param() {
+        public void Throws_on_invocation_variant_override_for_template_param()
+        {
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Param name='title'/>
@@ -301,7 +321,8 @@ namespace PromptUGUI.Tests.Template {
         }
 
         [Test]
-        public void Throws_on_invocation_variant_override_with_unknown_key() {
+        public void Throws_on_invocation_variant_override_with_unknown_key()
+        {
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Frame/>
@@ -314,7 +335,8 @@ namespace PromptUGUI.Tests.Template {
         }
 
         [Test]
-        public void Variants_block_is_carried_through_expansion() {
+        public void Variants_block_is_carried_through_expansion()
+        {
             // 守护 Task 8 的 TemplateExpander 修复：Screen.Variants 在 Expand 后必须保留
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>
                 <Screen name='S'>
@@ -336,7 +358,8 @@ namespace PromptUGUI.Tests.Template {
         }
 
         [Test]
-        public void Variants_block_template_invocation_inside_Add_is_expanded() {
+        public void Variants_block_template_invocation_inside_Add_is_expanded()
+        {
             // 守护 Task 8 的 TemplateExpander 修复的另一面：Add.Children 中
             // 的模板调用要被展开（而不是原样留作未知 tag）
             var doc = UIDocumentParser.Parse(@"<PromptUGUI version='1'>

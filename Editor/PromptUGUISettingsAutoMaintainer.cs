@@ -4,17 +4,22 @@ using PromptUGUI.Application;
 using UnityEditor;
 using UnityEngine;
 
-namespace PromptUGUI.Editor {
+namespace PromptUGUI.Editor
+{
     [InitializeOnLoad]
-    internal static class PromptUGUISettingsAutoMaintainer {
-        static PromptUGUISettingsAutoMaintainer() {
+    internal static class PromptUGUISettingsAutoMaintainer
+    {
+        static PromptUGUISettingsAutoMaintainer()
+        {
             EditorApplication.delayCall += Sync;
         }
 
-        internal static void Sync() {
+        internal static void Sync()
+        {
             var guids = AssetDatabase.FindAssets("t:PromptUGUISettings");
             if (guids.Length == 0) return;
-            if (guids.Length > 1) {
+            if (guids.Length > 1)
+            {
                 Debug.LogError(
                     "[PromptUGUI] Multiple PromptUGUISettings assets found; " +
                     "keep exactly one. preloadedAssets not updated.");
@@ -31,18 +36,20 @@ namespace PromptUGUI.Editor {
             PlayerSettings.SetPreloadedAssets(preloaded.ToArray());
         }
 
-        sealed class Postprocessor : AssetPostprocessor {
-            static void OnPostprocessAllAssets(
+        private sealed class Postprocessor : AssetPostprocessor
+        {
+            private static void OnPostprocessAllAssets(
                 string[] importedAssets, string[] deletedAssets,
-                string[] movedAssets, string[] movedFromAssetPaths) {
-                bool touched =
+                string[] movedAssets, string[] movedFromAssetPaths)
+            {
+                var touched =
                     importedAssets.Any(IsSettings)
                     || deletedAssets.Any(IsSettings)
                     || movedAssets.Any(IsSettings)
                     || movedFromAssetPaths.Any(IsSettings);
                 if (touched) Sync();
             }
-            static bool IsSettings(string p) =>
+            private static bool IsSettings(string p) =>
                 p.EndsWith(".asset") &&
                 AssetDatabase.GetMainAssetTypeAtPath(p) == typeof(PromptUGUISettings);
         }

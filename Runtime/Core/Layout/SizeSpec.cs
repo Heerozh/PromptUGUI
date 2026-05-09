@@ -3,31 +3,39 @@ using System.Globalization;
 using PromptUGUI.IR;
 using UnityEngine;
 
-namespace PromptUGUI.Layout {
-    public readonly struct SizeSpec {
-        public float Width  { get; }
+namespace PromptUGUI.Layout
+{
+    public readonly struct SizeSpec
+    {
+        public float Width { get; }
         public float Height { get; }
-        public bool  HasWidth  { get; }
-        public bool  HasHeight { get; }
-        public bool  IsNativeWidth  { get; }
-        public bool  IsNativeHeight { get; }
+        public bool HasWidth { get; }
+        public bool HasHeight { get; }
+        public bool IsNativeWidth { get; }
+        public bool IsNativeHeight { get; }
 
-        SizeSpec(float w, float h, bool hw, bool hh, bool nw, bool nh) {
+        private SizeSpec(float w, float h, bool hw, bool hh, bool nw, bool nh)
+        {
             Width = w; Height = h;
             HasWidth = hw; HasHeight = hh;
             IsNativeWidth = nw; IsNativeHeight = nh;
         }
 
-        public static SizeSpec Parse(string size, string width, string height) {
+        public static SizeSpec Parse(string size, string width, string height)
+        {
             float w = 0f, h = 0f;
             bool hw = false, hh = false;
             bool nw = false, nh = false;
 
-            if (!string.IsNullOrEmpty(size)) {
-                if (size == "native") {
+            if (!string.IsNullOrEmpty(size))
+            {
+                if (size == "native")
+                {
                     hw = hh = true;
                     nw = nh = true;
-                } else {
+                }
+                else
+                {
                     var x = size.IndexOf('x');
                     if (x <= 0 || x == size.Length - 1)
                         throw new ArgumentException($"size '{size}' must be 'WxH' or 'native'");
@@ -37,17 +45,19 @@ namespace PromptUGUI.Layout {
                 }
             }
 
-            if (!string.IsNullOrEmpty(width)) {
+            if (!string.IsNullOrEmpty(width))
+            {
                 if (hw) throw new ArgumentException("cannot specify both size and width");
                 if (width == "native") { nw = true; }
-                else                   { w = ParseFloat(width, "width"); }
+                else { w = ParseFloat(width, "width"); }
                 hw = true;
             }
 
-            if (!string.IsNullOrEmpty(height)) {
+            if (!string.IsNullOrEmpty(height))
+            {
                 if (hh) throw new ArgumentException("cannot specify both size and height");
                 if (height == "native") { nh = true; }
-                else                    { h = ParseFloat(height, "height"); }
+                else { h = ParseFloat(height, "height"); }
                 hh = true;
             }
 
@@ -55,19 +65,21 @@ namespace PromptUGUI.Layout {
         }
 
         public SizeSpec WithNativeResolved(Vector2 native) =>
-            new SizeSpec(
-                IsNativeWidth  ? native.x : Width,
+            new(
+                IsNativeWidth ? native.x : Width,
                 IsNativeHeight ? native.y : Height,
                 HasWidth, HasHeight,
                 false, false);
 
-        static float ParseFloat(string s, string label) {
+        private static float ParseFloat(string s, string label)
+        {
             if (!float.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var v))
                 throw new ArgumentException($"{label}: '{s}' is not a number");
             return v;
         }
 
-        public void ValidateAgainst(AnchorPreset anchor) {
+        public void ValidateAgainst(AnchorPreset anchor)
+        {
             if (anchor.StretchX && HasWidth)
                 throw new ArgumentException(
                     "cannot specify width/size on a horizontally-stretched axis");

@@ -3,24 +3,31 @@ using NUnit.Framework;
 using PromptUGUI.Application;
 using UnityEngine;
 using UnityEngine.TestTools;
+using PromptBtn = PromptUGUI.Controls.Btn;
+using PromptImage = PromptUGUI.Controls.Image;
 using PromptVStack = PromptUGUI.Controls.VStack;
-using PromptImage  = PromptUGUI.Controls.Image;
-using PromptBtn    = PromptUGUI.Controls.Btn;
 
-namespace PromptUGUI.Tests.E2E {
+namespace PromptUGUI.Tests.E2E
+{
 
-    public class VariantSwitchTests {
+    public class VariantSwitchTests
+    {
 
-        [SetUp] public void SetUp() {
+        [SetUp]
+        public void SetUp()
+        {
             UI.ResetForTests();
         }
 
-        [TearDown] public void TearDown() {
+        [TearDown]
+        public void TearDown()
+        {
             UI.ResetForTests();
         }
 
         [UnityTest]
-        public IEnumerator MainMenu_switches_between_pc_and_mobile_portrait() {
+        public IEnumerator MainMenu_switches_between_pc_and_mobile_portrait()
+        {
             UI.LoadDocument("e2e", @"<PromptUGUI version='1'>
                 <Screen name='Menu'>
                     <VStack id='menuRoot' spacing='12'
@@ -83,7 +90,8 @@ namespace PromptUGUI.Tests.E2E {
         }
 
         [UnityTest]
-        public IEnumerator GameObject_identity_preserved_across_variant_switch() {
+        public IEnumerator GameObject_identity_preserved_across_variant_switch()
+        {
             // base 整体替换：base size 与 size.m 都是 anchor=center，无 stretch 轴冲突
             UI.LoadDocument("id_e2e", @"<PromptUGUI version='1'>
                 <Screen name='Stable'>
@@ -100,7 +108,7 @@ namespace PromptUGUI.Tests.E2E {
             yield return null;
 
             Assert.AreSame(rootGo, screen.Get<PromptVStack>("root").GameObject);
-            Assert.AreSame(btnGo,  screen.Get<PromptBtn>("go").GameObject);
+            Assert.AreSame(btnGo, screen.Get<PromptBtn>("go").GameObject);
 
             UI.Variants.Set("m", false);
             yield return null;

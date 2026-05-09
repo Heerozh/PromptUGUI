@@ -20,12 +20,12 @@ namespace PromptUGUI.Editor
             serializedObject.ApplyModifiedProperties();
         }
 
-        static void DrawLocales(SerializedProperty locales)
+        private static void DrawLocales(SerializedProperty locales)
         {
             EditorGUILayout.LabelField("Locales", EditorStyles.boldLabel);
 
-            int toRemove = -1;
-            for (int i = 0; i < locales.arraySize; i++)
+            var toRemove = -1;
+            for (var i = 0; i < locales.arraySize; i++)
             {
                 var lc = locales.GetArrayElementAtIndex(i);
                 var localeProp = lc.FindPropertyRelative("locale");
@@ -51,7 +51,7 @@ namespace PromptUGUI.Editor
                     {
                         using (new EditorGUI.IndentLevelScope())
                         {
-                            for (int j = 0; j < fontsProp.arraySize; j++)
+                            for (var j = 0; j < fontsProp.arraySize; j++)
                             {
                                 var fe = fontsProp.GetArrayElementAtIndex(j);
                                 var typeProp = fe.FindPropertyRelative("type");

@@ -161,6 +161,11 @@ csharp_space_between_square_brackets = false
 # License header
 file_header_template = Licensed to the.NET Foundation under one or more agreements.\nThe.NET Foundation licenses this file to you under the MIT license.
 
+# CA1846: Unity 6 (Mono / .NET Standard 2.1) lacks the
+# float.Parse(ReadOnlySpan<char>, IFormatProvider) overload, so the analyzer's
+# Substring -> AsSpan rewrite produces CS1503 in Unity. Disable across the codebase.
+dotnet_diagnostic.CA1846.severity = none
+
 # C++ Files
 [*.{cpp,h,in}]
 curly_bracket_next_line = true

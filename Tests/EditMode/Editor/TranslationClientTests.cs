@@ -8,18 +8,24 @@ using System.Threading.Tasks;
 using NUnit.Framework;
 using PromptUGUI.Editor.I18n;
 
-namespace PromptUGUI.Tests.Editor {
-    public class TranslationClientTests {
-        sealed class StubHandler : HttpMessageHandler {
+namespace PromptUGUI.Tests.Editor
+{
+    public class TranslationClientTests
+    {
+        private sealed class StubHandler : HttpMessageHandler
+        {
             public Func<HttpRequestMessage, HttpResponseMessage> Reply;
             protected override Task<HttpResponseMessage> SendAsync(
                 HttpRequestMessage req, CancellationToken ct) => Task.FromResult(Reply(req));
         }
 
         [Test]
-        public async Task TranslateBatch_ParsesStructuredJson() {
-            var stub = new StubHandler {
-                Reply = _ => new HttpResponseMessage(HttpStatusCode.OK) {
+        public async Task TranslateBatch_ParsesStructuredJson()
+        {
+            var stub = new StubHandler
+            {
+                Reply = _ => new HttpResponseMessage(HttpStatusCode.OK)
+                {
                     Content = new StringContent(@"
                         { ""choices"": [ { ""message"": {
                           ""content"": ""{\""translations\"":[{\""msgid\"":\""hello\"",\""msgctxt\"":null,\""msgstr\"":\""你好\""}]}""
@@ -38,9 +44,12 @@ namespace PromptUGUI.Tests.Editor {
         }
 
         [Test]
-        public async Task TranslateBatch_DistinguishesSameMsgidDifferentCtx() {
-            var stub = new StubHandler {
-                Reply = _ => new HttpResponseMessage(HttpStatusCode.OK) {
+        public async Task TranslateBatch_DistinguishesSameMsgidDifferentCtx()
+        {
+            var stub = new StubHandler
+            {
+                Reply = _ => new HttpResponseMessage(HttpStatusCode.OK)
+                {
                     Content = new StringContent(@"
                         { ""choices"": [ { ""message"": {
                           ""content"": ""{\""translations\"":[{\""msgid\"":\""Open\"",\""msgctxt\"":null,\""msgstr\"":\""打开\""},{\""msgid\"":\""Open\"",\""msgctxt\"":\""door\"",\""msgstr\"":\""开门\""}]}""
@@ -59,9 +68,12 @@ namespace PromptUGUI.Tests.Editor {
         }
 
         [Test]
-        public void TranslateBatch_NonOk_Throws() {
-            var stub = new StubHandler {
-                Reply = _ => new HttpResponseMessage(HttpStatusCode.Unauthorized) {
+        public void TranslateBatch_NonOk_Throws()
+        {
+            var stub = new StubHandler
+            {
+                Reply = _ => new HttpResponseMessage(HttpStatusCode.Unauthorized)
+                {
                     Content = new StringContent(""),
                 },
             };

@@ -1,7 +1,9 @@
 using UnityEngine;
 
-namespace PromptUGUI.Application {
-    public sealed class LocalePresetsAttribute : PropertyAttribute {
+namespace PromptUGUI.Application
+{
+    public sealed class LocalePresetsAttribute : PropertyAttribute
+    {
         public static readonly (string code, string display)[] Defaults = {
             ("en",      "en — English"),
             ("zh-Hans", "zh-Hans — 简体中文"),

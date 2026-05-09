@@ -5,10 +5,13 @@ using UnityEngine;
 using UnityEngine.TestTools;
 using UnityImage = UnityEngine.UI.Image;
 
-namespace PromptUGUI.Tests.Controls {
-    public class ImageTests {
+namespace PromptUGUI.Tests.Controls
+{
+    public class ImageTests
+    {
         [UnityTest]
-        public IEnumerator Adds_UI_Image_component_on_attach() {
+        public IEnumerator Adds_UI_Image_component_on_attach()
+        {
             var img = new Image();
             var go = new GameObject("img", typeof(RectTransform));
             img.AttachTo(go);
@@ -19,7 +22,8 @@ namespace PromptUGUI.Tests.Controls {
         }
 
         [UnityTest]
-        public IEnumerator Color_property_parses_hex_and_applies() {
+        public IEnumerator Color_property_parses_hex_and_applies()
+        {
             var img = new Image();
             var go = new GameObject("img", typeof(RectTransform));
             img.AttachTo(go);

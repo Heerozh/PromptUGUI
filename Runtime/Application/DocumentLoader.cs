@@ -4,21 +4,25 @@ using PromptUGUI.IR;
 using PromptUGUI.Parser;
 using PromptUGUI.Template;
 
-namespace PromptUGUI.Application {
+namespace PromptUGUI.Application
+{
     /// <summary>
     /// 把一个 src 解析成"已合并 Templates 与 Screens 的 IR 文档"。
     /// 递归解析其 Import 链；同 src 在一次 Load 内只解析一次（cache）；A→B→A 循环报错。
     /// 不接触 commons pool；不入 depGraph。这两件事由 UI 上层负责。
     /// </summary>
-    internal static class DocumentLoader {
-        internal sealed class LoadedDoc {
+    internal static class DocumentLoader
+    {
+        internal sealed class LoadedDoc
+        {
             public string EntrySrc;
-            public HashSet<string> AllSrcs = new HashSet<string>();
-            public List<ScreenDef> Screens = new List<ScreenDef>();
-            public Dictionary<TemplateKey, TemplateDef> Templates = new Dictionary<TemplateKey, TemplateDef>();
+            public HashSet<string> AllSrcs = new();
+            public List<ScreenDef> Screens = new();
+            public Dictionary<TemplateKey, TemplateDef> Templates = new();
         }
 
-        internal readonly struct TemplateKey : IEquatable<TemplateKey> {
+        internal readonly struct TemplateKey : IEquatable<TemplateKey>
+        {
             public readonly string Namespace;   // null = 裸名
             public readonly string Name;
             public TemplateKey(string ns, string name) { Namespace = ns; Name = name; }
@@ -32,7 +36,8 @@ namespace PromptUGUI.Application {
 
         internal static LoadedDoc Load(string src,
                                        Func<string, string> resolver,
-                                       bool allowScreens) {
+                                       bool allowScreens)
+        {
             if (resolver == null)
                 throw new InvalidOperationException(
                     "UI.SourceResolver is not set; required for src-based loading");
@@ -51,11 +56,13 @@ namespace PromptUGUI.Application {
         internal static LoadedDoc LoadAndMerge(
             string src,
             Func<string, string> resolver,
-            IReadOnlyDictionary<TemplateKey, TemplateDef> commonsPool) {
+            IReadOnlyDictionary<TemplateKey, TemplateDef> commonsPool)
+        {
 
             var loaded = Load(src, resolver, allowScreens: true);
 
-            foreach (var kv in commonsPool) {
+            foreach (var kv in commonsPool)
+            {
                 if (loaded.Templates.ContainsKey(kv.Key))
                     throw new TemplateException(
                         $"template '{kv.Key}' conflicts with commons pool");
@@ -64,15 +71,17 @@ namespace PromptUGUI.Application {
             return loaded;
         }
 
-        static void LoadInternal(
+        private static void LoadInternal(
             string src,
             Func<string, string> resolver,
             bool allowScreens,
             LoadedDoc agg,
             Stack<string> visiting,
-            string applyNamespace) {
+            string applyNamespace)
+        {
 
-            if (visiting.Contains(src)) {
+            if (visiting.Contains(src))
+            {
                 var chain = string.Join(" → ", visiting);
                 throw new ParseException(
                     $"cyclic Import detected: {chain} → {src}");
@@ -87,7 +96,8 @@ namespace PromptUGUI.Application {
             UIDocument doc;
             try { doc = UIDocumentParser.Parse(xml); }
             catch (ParseException) { throw; }
-            catch (Exception e) {
+            catch (Exception e)
+            {
                 throw new ParseException($"parsing src='{src}' failed: {e.Message}", e);
             }
 
@@ -96,12 +106,14 @@ namespace PromptUGUI.Application {
                     $"src='{src}' is loaded as common library / nested import; <Screen> not allowed");
 
             // 当前文件的 Screens（仅 entry 允许）
-            if (allowScreens) {
+            if (allowScreens)
+            {
                 foreach (var s in doc.Screens) agg.Screens.Add(s);
             }
 
             // 当前文件的 Templates 入合并表，按 applyNamespace 决定 ns
-            foreach (var kv in doc.Templates) {
+            foreach (var kv in doc.Templates)
+            {
                 var key = new TemplateKey(applyNamespace, kv.Key);
                 if (agg.Templates.ContainsKey(key))
                     throw new TemplateException(
@@ -111,13 +123,16 @@ namespace PromptUGUI.Application {
 
             // 递归解析 Imports
             visiting.Push(src);
-            try {
-                foreach (var imp in doc.Imports) {
+            try
+            {
+                foreach (var imp in doc.Imports)
+                {
                     var childNs = imp.Namespace ?? applyNamespace;
                     LoadInternal(imp.Src, resolver, allowScreens: false,
                                  agg, visiting, childNs);
                 }
-            } finally { visiting.Pop(); }
+            }
+            finally { visiting.Pop(); }
         }
     }
 }
