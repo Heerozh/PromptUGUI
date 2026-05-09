@@ -63,22 +63,26 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 
 `<Import>`, `<Screen>`, `<Template>` are the **only** elements allowed at the top level. Comments use standard `<!-- -->`.
 
-## Built-in primitives (8)
+## Built-in primitives (12)
 
 Pre-registered on `UI.Registry`. Use as XML tags by name:
 
-| Tag        | Notes                                                                                                                                                                | Tag-specific attributes                                                                                                                                                                                                                                                                                             |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `<Frame>`  | Empty container (RectTransform only).                                                                                                                                | —                                                                                                                                                                                                                                                                                                                   |
-| `<Image>`  | uGUI Image; loads sprites from `Resources`.                                                                                                                          | `sprite` (resource path), `color` (`#RRGGBB[AA]`), `type` (`simple` / `sliced` / `tiled` / `filled`)                                                                                                                                                                                                                |
-| `<Text>`   | TMP_Text. Has text-content shorthand: `<Text>Hello</Text>` ≡ `<Text text="Hello"/>`.                                                                                 | `text`, `fontSize` (int), `color`, `align` (`left` / `center` / `right`), `wrap` (bool), `raycastTarget` (bool), `font` (string, font type from Settings; default `default`), `tr` (bool, default `true`; set `false` to skip i18n extraction), `ctx` (string, msgctxt to disambiguate same-msgid in the .po table) |
-| `<VStack>` | Vertical layout group.                                                                                                                                               | `spacing` (float), `padding` (`T,R,B,L` 1/2/4 components)                                                                                                                                                                                                                                                           |
-| `<HStack>` | Horizontal layout group.                                                                                                                                             | Same as VStack.                                                                                                                                                                                                                                                                                                     |
-| `<Grid>`   | Grid layout group, fixed columns.                                                                                                                                    | `columns` (int), `cellSize` (`WxH`), `spacing` (single or `H,V`), `padding`                                                                                                                                                                                                                                         |
-| `<Btn>`    | Image + Button + R3 `OnClick`. `<Btn>开始</Btn>` shorthand creates an internal TMP label child. Use as **template root** or registered prefab tag for any clickable. | `color`, `sprite`, `font` (string, font type from Settings; default `default`), `tr` (bool, default `true`; set `false` to skip i18n extraction), `ctx` (string, msgctxt to disambiguate same-msgid in the .po table)                                                                                               |
-| `<Icon>`   | Sprite from a project-level IconSet; by-name lookup, package-time pruning.                                                                                           | `name` (required, `ns:icon-name`), `color` (`#RRGGBB[AA]`), `size` (numeric / `WxH` / `stretch` / `native`)                                                                                                                                                                                                         |
+| Tag             | Notes                                                                                                                                                                | Tag-specific attributes                                                                                                                                                                                                                                                                                             |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<Frame>`       | Empty container (RectTransform only).                                                                                                                                | —                                                                                                                                                                                                                                                                                                                   |
+| `<Image>`       | uGUI Image; loads sprites from `Resources`.                                                                                                                          | `sprite` (resource path), `color` (`#RRGGBB[AA]`), `type` (`simple` / `sliced` / `tiled` / `filled`)                                                                                                                                                                                                                |
+| `<Text>`        | TMP_Text. Has text-content shorthand: `<Text>Hello</Text>` ≡ `<Text text="Hello"/>`.                                                                                 | `text`, `fontSize` (int), `color`, `align` (`left` / `center` / `right`), `wrap` (bool), `raycastTarget` (bool), `font` (string, font type from Settings; default `default`), `tr` (bool, default `true`; set `false` to skip i18n extraction), `ctx` (string, msgctxt to disambiguate same-msgid in the .po table) |
+| `<VStack>`      | Vertical layout group.                                                                                                                                               | `spacing` (float), `padding` (`T,R,B,L` 1/2/4 components)                                                                                                                                                                                                                                                           |
+| `<HStack>`      | Horizontal layout group.                                                                                                                                             | Same as VStack.                                                                                                                                                                                                                                                                                                     |
+| `<Grid>`        | Grid layout group, fixed columns.                                                                                                                                    | `columns` (int), `cellSize` (`WxH`), `spacing` (single or `H,V`), `padding`                                                                                                                                                                                                                                         |
+| `<Btn>`         | Image + Button + R3 `OnClick`. `<Btn>开始</Btn>` shorthand creates an internal TMP label child. Use as **template root** or registered prefab tag for any clickable. | `color`, `sprite`, `font` (string, font type from Settings; default `default`), `tr` (bool, default `true`; set `false` to skip i18n extraction), `ctx` (string, msgctxt to disambiguate same-msgid in the .po table)                                                                                               |
+| `<Icon>`        | Sprite from a project-level IconSet; by-name lookup, package-time pruning.                                                                                           | `name` (required, `ns:icon-name`), `color` (`#RRGGBB[AA]`), `size` (numeric / `WxH` / `stretch` / `native`)                                                                                                                                                                                                         |
+| `<Toggle>`      | Image + uGUI Toggle + auto label. R3 `OnValueChanged: bool`. `<Toggle>静音</Toggle>` shorthand sets the label. Same `group=` name → mutual exclusion.                  | `text`, `isOn` (bool, default false), `group` (string, mutual-exclusion key), `color`, `sprite` (Resources path for checkmark sprite), `font`                                                                                                                                                                       |
+| `<Slider>`      | Image + uGUI Slider. R3 `OnValueChanged: float`.                                                                                                                     | `min` (float), `max` (float), `value` (float), `wholeNumbers` (bool), `direction` (`horizontal` / `vertical` / `reverse-horizontal` / `reverse-vertical`), `color`, `sprite`                                                                                                                                        |
+| `<Dropdown>`    | TMP_Dropdown. R3 `OnSelected: int`. Options pushed via `BindOptions(Observable<IEnumerable<string \| DropdownOption>>)`.                                              | `value` (int initial index), `color`, `sprite`, `font`                                                                                                                                                                                                                                                              |
+| `<ScrollList>`  | ScrollRect + Mask. Items pushed via `BindItems(Observable<IReadOnlyList<T>>, Action<slot, T>)`. `itemTemplate` references a `<Template name=...>` or registered Control class. | `itemTemplate` (required tag name), `direction` (`vertical` / `horizontal`), `spacing` (float), `padding`, `color`, `sprite`                                                                                                                                                                                        |
 
-**No built-in `<Button>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>`.** Build those as `<Template>` (composing `<Btn>` + `<Image>` + `<Text>`) or register your own C# `Control` + Prefab.
+`<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` are reference implementations. For project-specific differentiation (pixel border, press feedback, custom popup chrome) subclass and override `OnAttached`.
 
 ### `<Icon>`
 
@@ -413,9 +417,35 @@ All events are R3 `Observable<T>` — never `event` or `Action`:
 screen.Get<Btn>("playBtn").OnClick
       .Subscribe(_ => Game.Start())
       .AddTo(screen);          // disposed when Screen closes
+
+screen.Get<Toggle>("muteAudio").OnValueChanged
+      .Subscribe(b => AudioMixer.Mute = b).AddTo(screen);
+
+screen.Get<Slider>("masterVol").OnValueChanged
+      .Subscribe(v => AudioMixer.Master = v).AddTo(screen);
+
+screen.Get<Dropdown>("quality").OnSelected
+      .Subscribe(QualitySettings.SetQualityLevel).AddTo(screen);
 ```
 
 `screen.Track(disposable)` (or the `.AddTo(screen)` extension) ties a subscription to Screen lifetime. Always do this — leaked R3 subscriptions hold the GameObject alive after Close.
+
+### List / option push
+
+```csharp
+screen.Get<Dropdown>("quality")
+      .BindOptions(Observable.Return(new[] {"Low", "Medium", "High"}))
+      .AddTo(screen);
+
+screen.Get<ScrollList>("inv")
+      .BindItems(player.Inventory, (IControl slot, Item item) => {
+          slot.Get<Text>("label").TextValue = item.Name;
+          slot.Get<Text>("count").TextValue = $"x{item.Count}";
+      })
+      .AddTo(screen);
+```
+
+`itemTemplate=` resolves to either a `<Template name="...">` (slot root is the template body) or a registered Control class (slot is that Control). Use `slot.Get<T>("childId")` inside the bind callback to reach into Template bodies.
 
 ### Variant switching at runtime
 
@@ -470,7 +500,8 @@ ROOT          <PromptUGUI version="1"> ... </PromptUGUI>
 TOP LEVEL     <Import src="" [as=""]/>  <Screen name="" [canvas="overlay|camera|world"]>  <Template name="">
 
 BUILT-INS     <Frame> <Image> <Text> <VStack> <HStack> <Grid> <Btn> <Icon>
-TEXT SHORT    <Text>Hi</Text> ≡ <Text text="Hi"/>     (only <Text>)
+              <Toggle> <Slider> <Dropdown> <ScrollList>
+TEXT SHORT    <Text>Hi</Text> ≡ <Text text="Hi"/>     (also <Btn>, <Toggle>)
 
 COMMON ATTRS  id  anchor  size|width|height  margin  pivot  hidden  interactable
 STACK-ONLY    padding  spacing                                    (VStack/HStack/Grid)
@@ -506,7 +537,9 @@ USE           <ns.TagName/>             (when prefixed)
 
 C# OPEN       UI.LoadDocumentFromSrc("path"); UI.Open("ScreenName")
 C# GET        screen.Get<Btn>("id")  /  "outerId/innerId"
-C# EVENT      .OnClick.Subscribe(...).AddTo(screen)
+C# EVENT      .OnClick / .OnValueChanged / .OnSelected   .Subscribe(...).AddTo(screen)
+C# DATA       Dropdown.BindOptions(Observable<IEnumerable<string>>).AddTo(screen)
+              ScrollList.BindItems(Observable<IReadOnlyList<T>>, (slot,t)=>...).AddTo(screen)
 C# VARIANT    UI.Variants.Set("name", true)
 XML CANVAS    <Screen name="X" canvas="overlay|camera|world">   default overlay; renderMode only
 C# CANVAS     UI.CanvasConfigurator = (canvas, name) => { ... }  worldCamera / sortingOrder / overrides; runs after XML
