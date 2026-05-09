@@ -21,6 +21,7 @@ namespace PromptUGUI.Controls
         {
             _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
             _bg.color = ProceduralBuilders.DefaultControlBgColor;
+            ProceduralBuilders.ApplyDefaultSlicedSprite(_bg);
             _tmp = GameObject.AddComponent<TMP_Dropdown>();
             _tmp.targetGraphic = _bg;
 
@@ -29,22 +30,20 @@ namespace PromptUGUI.Controls
             var label = ProceduralBuilders.AddText(RectTransform, "Label");
             _tmp.captionText = label;
 
-            // Caret as a TMP glyph (no sprite asset dependency).
-            var arrow = ProceduralBuilders.AddText(RectTransform, "Arrow");
-            arrow.text = "▼";
+            var arrow = ProceduralBuilders.AddImage(RectTransform, "Arrow", raycast: false);
             arrow.color = ProceduralBuilders.DefaultGlyphColor;
-            arrow.fontSize = 14;
-            arrow.alignment = TextAlignmentOptions.Right;
+            ProceduralBuilders.ApplyDefaultSimpleSprite(arrow, ProceduralBuilders.SpriteCaret);
             arrow.rectTransform.anchorMin = new Vector2(1f, 0.5f);
             arrow.rectTransform.anchorMax = new Vector2(1f, 0.5f);
             arrow.rectTransform.pivot = new Vector2(1f, 0.5f);
-            arrow.rectTransform.sizeDelta = new Vector2(24f, 24f);
-            arrow.rectTransform.anchoredPosition = new Vector2(-8f, 0f);
+            arrow.rectTransform.sizeDelta = new Vector2(14f, 10f);
+            arrow.rectTransform.anchoredPosition = new Vector2(-12f, 0f);
 
             var template = ProceduralBuilders.AddChild(RectTransform, "Template");
             template.gameObject.SetActive(false);
             var templateBg = template.gameObject.AddComponent<UnityImage>();
             templateBg.color = ProceduralBuilders.DefaultPopupBgColor;
+            ProceduralBuilders.ApplyDefaultSlicedSprite(templateBg);
             var viewport = ProceduralBuilders.AddChild(template, "Viewport");
             viewport.gameObject.AddComponent<UnityEngine.UI.Mask>();
             viewport.gameObject.AddComponent<UnityImage>();
@@ -52,14 +51,12 @@ namespace PromptUGUI.Controls
             var item = ProceduralBuilders.AddChild(content, "Item");
             var itemBg = item.gameObject.AddComponent<UnityImage>();
             itemBg.color = ProceduralBuilders.DefaultControlBgColor;
+            ProceduralBuilders.ApplyDefaultSlicedSprite(itemBg);
             var itemToggle = item.gameObject.AddComponent<UnityEngine.UI.Toggle>();
             itemToggle.targetGraphic = itemBg;
             var itemCheckmark = ProceduralBuilders.AddImage(item, "Item Checkmark", raycast: false);
-            itemCheckmark.color = new UnityEngine.Color(0, 0, 0, 0);
-            var itemCheckGlyph = ProceduralBuilders.AddText(itemCheckmark.rectTransform, "Glyph");
-            itemCheckGlyph.text = "•";
-            itemCheckGlyph.color = ProceduralBuilders.DefaultGlyphColor;
-            itemCheckGlyph.fontSize = 18;
+            itemCheckmark.color = ProceduralBuilders.DefaultGlyphColor;
+            ProceduralBuilders.ApplyDefaultSimpleSprite(itemCheckmark, ProceduralBuilders.SpriteCheckmark);
             itemToggle.graphic = itemCheckmark;
             var itemLabel = ProceduralBuilders.AddText(item, "Item Label");
             _tmp.template = template;

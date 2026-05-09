@@ -19,12 +19,15 @@ namespace PromptUGUI.Controls
         {
             _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
             _bg.color = ProceduralBuilders.DefaultTrackColor;
+            ProceduralBuilders.ApplyDefaultSlicedSprite(_bg);
             var fillArea = ProceduralBuilders.AddChild(RectTransform, "FillArea");
             _fill = ProceduralBuilders.AddImage(fillArea, "Fill", raycast: false);
             _fill.color = ProceduralBuilders.DefaultFillColor;
+            ProceduralBuilders.ApplyDefaultSlicedSprite(_fill);
             var handleArea = ProceduralBuilders.AddChild(RectTransform, "HandleArea");
             _handle = ProceduralBuilders.AddImage(handleArea, "Handle", raycast: false);
             _handle.color = ProceduralBuilders.DefaultHandleColor;
+            ProceduralBuilders.ApplyDefaultSlicedSprite(_handle);
 
             _slider = GameObject.GetComponent<UnitySlider>() ?? GameObject.AddComponent<UnitySlider>();
             _slider.targetGraphic = _handle;

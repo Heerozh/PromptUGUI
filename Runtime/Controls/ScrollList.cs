@@ -31,6 +31,7 @@ namespace PromptUGUI.Controls
         {
             _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
             _bg.color = ProceduralBuilders.DefaultContainerColor;
+            ProceduralBuilders.ApplyDefaultSlicedSprite(_bg);
             _scroll = GameObject.GetComponent<ScrollRect>() ?? GameObject.AddComponent<ScrollRect>();
 
             var viewport = ProceduralBuilders.AddChild(RectTransform, "Viewport");
