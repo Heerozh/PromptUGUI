@@ -64,6 +64,13 @@ namespace PromptUGUI.Application {
                 }
             }
 
+            public static void ReloadCurrent() {
+                if (Current == null) return;
+                TranslationStore.Instance.UnloadLocale(Current);
+                LoadPoFiles(Current);
+                _variantStore.NotifyChangedInternal();
+            }
+
             internal static void ResetForTestsInternal() {
                 if (Current != null) _variantStore.Set(Current, false);
                 Current = null;
@@ -290,6 +297,9 @@ namespace PromptUGUI.Application {
             _commonsPool.Clear();
             _depGraph.Clear();
         }
+
+        internal static void NotifyVariantChangedForReSolve() =>
+            _variantStore.NotifyChangedInternal();
 
         // 仅测试使用
         internal static void ResetForTests() {
