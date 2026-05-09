@@ -10,6 +10,27 @@ namespace PromptUGUI.IR {
         public List<ElementNode> Children { get; }
 
         /// <summary>
+        /// Pre-substitution textContent. Filled by parser AND TemplateExpander preserves it through
+        /// to expanded nodes (parser fills raw, expander leaves it alone but updates TextArgs).
+        /// Only Text/Btn-shaped controls consume this; other tags ignore.
+        /// </summary>
+        public string TextContentRaw { get; set; }
+
+        /// <summary>
+        /// Template instantiation arguments captured by TemplateExpander when the node was produced
+        /// from a Template expansion. Empty / null on parser-produced nodes.
+        /// Used at runtime so TrResolver can re-substitute on the translated msgstr.
+        /// </summary>
+        public Dictionary<string, string> TextArgs { get; set; }
+
+        /// <summary>
+        /// Pre-substitution attribute values, populated for attributes whose VALUE contained {{...}}
+        /// (e.g. <code>text="Gold: {{n}}"</code>). Other attributes can be retrieved from Attributes
+        /// directly. Used at runtime for the same reason as TextContentRaw.
+        /// </summary>
+        public Dictionary<string, string> AttributesRaw { get; set; }
+
+        /// <summary>
         /// True 表示此节点是某个模板调用展开后产生的"实例根"。
         /// 它内部声明的 id 形成一个独立作用域，由 Control.ScopedIds 持有。
         /// 仅由 TemplateExpander 设置；parser 始终为 false。
@@ -29,6 +50,7 @@ namespace PromptUGUI.IR {
             Tag = tag;
             Namespace = ns;
             Attributes = new Dictionary<string, string>();
+            AttributesRaw = new Dictionary<string, string>();
             Children = new List<ElementNode>();
             VariantOverrides = new Dictionary<string, List<(string Variant, string Value)>>();
         }
