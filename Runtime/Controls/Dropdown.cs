@@ -59,16 +59,14 @@ namespace PromptUGUI.Controls
             templateScroll.horizontal = false;
             templateScroll.movementType = UnityEngine.UI.ScrollRect.MovementType.Clamped;
 
-            // Viewport (full-fills the template; mask the items so they don't bleed past the popup).
+            // Viewport (full-fills the template; clip items via RectMask2D — scissor-rect, no stencil/graphic).
             var viewport = ProceduralBuilders.AddChild(template, "Viewport");
             viewport.anchorMin = new Vector2(0f, 0f);
             viewport.anchorMax = new Vector2(1f, 1f);
             viewport.pivot = new Vector2(0f, 1f);
             viewport.offsetMin = Vector2.zero;
             viewport.offsetMax = Vector2.zero;
-            var viewportImg = viewport.gameObject.AddComponent<UnityImage>();
-            viewportImg.color = new UnityEngine.Color(1f, 1f, 1f, 0.01f); // mask requires a graphic
-            viewport.gameObject.AddComponent<UnityEngine.UI.Mask>().showMaskGraphic = false;
+            viewport.gameObject.AddComponent<UnityEngine.UI.RectMask2D>();
 
             // Content (top-anchored; height grows to fit items via TMP_Dropdown's runtime sizing).
             var content = ProceduralBuilders.AddChild(viewport, "Content");
@@ -79,7 +77,7 @@ namespace PromptUGUI.Controls
             content.anchoredPosition = Vector2.zero;
 
             // Item template (cloned per option; fixed height + horizontal stretch).
-            const float itemHeight = 24f;
+            const float itemHeight = 48f;
             var item = ProceduralBuilders.AddChild(content, "Item");
             item.anchorMin = new Vector2(0f, 0.5f);
             item.anchorMax = new Vector2(1f, 0.5f);

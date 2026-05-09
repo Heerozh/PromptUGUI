@@ -35,8 +35,7 @@ namespace PromptUGUI.Controls
             _scroll = GameObject.GetComponent<ScrollRect>() ?? GameObject.AddComponent<ScrollRect>();
 
             var viewport = ProceduralBuilders.AddChild(RectTransform, "Viewport");
-            viewport.gameObject.AddComponent<UnityImage>().color = new UnityEngine.Color(1, 1, 1, 0);
-            viewport.gameObject.AddComponent<Mask>().showMaskGraphic = false;
+            viewport.gameObject.AddComponent<RectMask2D>();
             _scroll.viewport = viewport;
 
             _content = ProceduralBuilders.AddChild(viewport, "Content");
