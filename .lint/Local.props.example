@@ -1,0 +1,44 @@
+<Project>
+
+  <!--
+    Per-developer Unity reference paths.
+
+    Setup:
+      1. Copy this file: cp Local.props.example Local.props
+      2. Edit the two paths below for your machine.
+      3. Open VS Code (or restart the C# extension): the Unity types resolve,
+         CS0246 errors disappear.
+
+    Local.props is gitignored — your paths stay local.
+  -->
+
+  <PropertyGroup>
+
+    <!--
+      Path to <UnityEditor>\Data\Managed in your Unity install.
+      Provides: UnityEngine.dll + all UnityEngine.*.dll modules + UnityEditor.dll
+
+      Examples:
+        Windows:  C:\Program Files\Unity\Hub\Editor\6000.0.40f1\Editor\Data\Managed
+        macOS:    /Applications/Unity/Hub/Editor/6000.0.40f1/Unity.app/Contents/Managed
+        Linux:    /home/<you>/Unity/Hub/Editor/6000.0.40f1/Editor/Data/Managed
+
+      Find your installed version in Unity Hub, then substitute it for
+      "6000.0.40f1" above.
+    -->
+    <UnityManagedDir>C:\Program Files\Unity\Hub\Editor\6000.6.0a3\Editor\Data\Managed</UnityManagedDir>
+
+    <!--
+      Path to a host Unity project that has this package installed.
+      Provides: package DLLs (Unity.TextMeshPro.dll, UnityEngine.UI.dll, ...).
+
+      Open the project in Unity once before relying on this — the DLLs only
+      appear in Library\ScriptAssemblies after Unity has compiled them.
+
+      Per CLAUDE.md the dev project lives at C:\soft\PromptUGUIDev.
+    -->
+    <UnityHostProjectDir>C:\soft\PromptUGUIDev</UnityHostProjectDir>
+
+  </PropertyGroup>
+
+</Project>

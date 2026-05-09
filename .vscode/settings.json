@@ -1,3 +1,4 @@
 {
-  "cSpell.words": ["UGUI"]
+  "cSpell.words": ["UGUI"],
+  "dotnet.defaultSolution": ".lint/PromptUGUI.Lint.slnx"
 }

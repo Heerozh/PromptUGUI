@@ -47,6 +47,16 @@ ExportedObj/
 *.unityproj
 *.sln
 *.slnx
+
+# Lint stub projects: committed so VSCode/dotnet format work out of the box.
+# See .lint/Directory.Build.props for rationale.
+!/.lint/*.csproj
+!/.lint/*.sln
+!/.lint/*.slnx
+/.lint/bin/
+/.lint/obj/
+# Per-developer Unity install paths (copy Local.props.example to set yours).
+/.lint/Local.props
 *.suo
 *.tmp
 *.user

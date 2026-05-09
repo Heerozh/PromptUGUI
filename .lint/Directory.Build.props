@@ -1,0 +1,116 @@
+<Project>
+
+  <!--
+    Shared MSBuild settings for the .lint stub projects.
+
+    Purpose: stand up a Roslyn workspace OUTSIDE Unity so `dotnet format`
+    and the VS Code C# extension can run analyzers on this UPM package.
+
+    Reference resolution comes from three sources:
+
+      1. R3 (core)        — NuGet PackageReference, always applied.
+
+      2. Unity engine     — Optional <Reference><HintPath>..\UnityEngine\*.dll
+         + UnityEditor      from your local Unity install. Configured via
+                            $(UnityManagedDir) in Local.props (per-developer,
+                            gitignored). Skipped when the path doesn't exist
+                            (e.g. inside the Docker dev container).
+
+      3. Package DLLs     — Optional refs into a host Unity project's
+         (TMPro, UI, ...)   Library\ScriptAssemblies\ folder. Configured via
+                            $(UnityHostProjectDir). Open the host project in
+                            Unity once before relying on this so the DLLs
+                            actually exist.
+
+    On a dev machine with the right Local.props paths set, VS Code resolves
+    all UnityEngine / UnityEditor / TMPro types and CS0246 errors disappear.
+
+    On a machine where those paths don't exist, the references fall away
+    silently and CS0246 errors are visible — Roslyn marks them non-
+    configurable so they cannot be downgraded by NoWarn / .editorconfig /
+    .globalconfig / .ruleset (verified 2026-05-09). In that fallback case,
+    use VS Code's Problems panel filter (Ctrl+Shift+M → uncheck Errors) to
+    look at only the Warning-level lint diagnostics that actually matter.
+
+    Style / IDE / CA analyzers run regardless of the above and produce the
+    same diagnostics with or without the Unity refs.
+  -->
+
+  <!--
+    Per-developer overrides. Copy Local.props.example -> Local.props and
+    edit the paths for your machine. Local.props is gitignored.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)Local.props"
+          Condition="Exists('$(MSBuildThisFileDirectory)Local.props')" />
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+
+    <!--
+      Define UNITY_EDITOR so #if UNITY_EDITOR blocks (e.g. UI.HotReload)
+      get analyzed. Trade-off: any rare Player-only #else branch is skipped.
+    -->
+    <DefineConstants>$(DefineConstants);UNITY_EDITOR;UNITY_2022_3_OR_NEWER;UNITY_6000_0_OR_NEWER</DefineConstants>
+
+    <!--
+      Suppressible warnings (these CAN be silenced — they're not Errors):
+        CS8019  unused using directive
+        CS1591  missing XML doc
+        CS0067  event never used
+        CS0414  field assigned but never used
+        CS0649  field never assigned
+        CS0168  variable declared but never used
+        CS0219  variable assigned but never used
+    -->
+    <NoWarn>$(NoWarn);CS8019;CS1591;CS0067;CS0414;CS0649;CS0168;CS0219</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      R3 core API from nuget.org. The Unity-specific surface (UnityFrameProvider
+      etc.) is NOT in this NuGet package — pick that up from $(UnityHostProjectDir)
+      below if you need it.
+    -->
+    <PackageReference Include="R3" Version="1.3.0" />
+  </ItemGroup>
+
+  <!--
+    Unity engine + editor DLLs from a local Unity install.
+    $(UnityManagedDir) example: C:\Program Files\Unity\Hub\Editor\6000.0.40f1\Editor\Data\Managed
+  -->
+  <ItemGroup Condition="'$(UnityManagedDir)' != '' AND Exists('$(UnityManagedDir)\UnityEngine')">
+    <Reference Include="$(UnityManagedDir)\UnityEngine\*.dll">
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UnityManagedDir)' != '' AND Exists('$(UnityManagedDir)\UnityEditor.dll')">
+    <Reference Include="$(UnityManagedDir)\UnityEditor.dll">
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!--
+    Package DLLs (TMPro, UnityEngine.UI, etc.) from a host Unity project's
+    ScriptAssemblies. $(UnityHostProjectDir) example: C:\xsoft\PromptUGUIDev
+
+    Excluded:
+      - PromptUGUI.*.dll  : avoid circular reference to ourselves
+      - *Test*.dll        : test assemblies aren't needed here
+      - R3*.dll           : prefer the NuGet R3 above for consistency
+  -->
+  <ItemGroup Condition="'$(UnityHostProjectDir)' != '' AND Exists('$(UnityHostProjectDir)\Library\ScriptAssemblies')">
+    <Reference Include="$(UnityHostProjectDir)\Library\ScriptAssemblies\*.dll"
+               Exclude="$(UnityHostProjectDir)\Library\ScriptAssemblies\PromptUGUI*.dll;$(UnityHostProjectDir)\Library\ScriptAssemblies\*Test*.dll;$(UnityHostProjectDir)\Library\ScriptAssemblies\R3*.dll">
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

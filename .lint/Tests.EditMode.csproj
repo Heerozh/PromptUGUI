@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Tests/EditMode/ excluding the nested Tests/EditMode/Editor/ asmdef. -->
+  <ItemGroup>
+    <Compile Include="..\Tests\EditMode\**\*.cs"
+             Exclude="..\Tests\EditMode\Editor\**\*.cs" />
+  </ItemGroup>
+
+</Project>

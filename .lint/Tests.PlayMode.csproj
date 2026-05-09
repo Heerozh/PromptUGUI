@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <Compile Include="..\Tests\PlayMode\**\*.cs" />
+  </ItemGroup>
+
+</Project>

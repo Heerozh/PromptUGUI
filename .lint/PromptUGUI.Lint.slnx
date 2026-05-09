@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Editor.csproj" />
+  <Project Path="Runtime.csproj" />
+  <Project Path="Tests.EditMode.csproj" />
+  <Project Path="Tests.EditorOnly.csproj" />
+  <Project Path="Tests.PlayMode.csproj" />
+</Solution>
