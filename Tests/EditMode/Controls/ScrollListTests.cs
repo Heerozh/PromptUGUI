@@ -128,5 +128,53 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.That(sr.decelerationRate, Is.EqualTo(0.135f).Within(0.001f));
             Assert.AreEqual(1f, sr.scrollSensitivity);
         }
+
+        [Test]
+        public void Has_VerticalScrollbarByDefaultDirection()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='Slot'><Frame/></Template>
+  <Screen name='S'><ScrollList id='sl' itemTemplate='Slot'/></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var sl = UI.Open("S").Get<ScrollList>("sl");
+            var sb = sl.GameObject.transform.Find("Scrollbar Vertical") as UnityEngine.RectTransform;
+            Assert.IsNotNull(sb, "default direction is vertical → Scrollbar Vertical exists");
+            Assert.AreEqual(new UnityEngine.Vector2(1, 0), sb.anchorMin);
+            Assert.AreEqual(new UnityEngine.Vector2(1, 0), sb.anchorMax);
+            Assert.AreEqual(new UnityEngine.Vector2(20, 0), sb.sizeDelta);
+
+            var scrollbar = sb.GetComponent<UnityEngine.UI.Scrollbar>();
+            Assert.AreEqual(UnityEngine.UI.Scrollbar.Direction.BottomToTop, scrollbar.direction);
+
+            var sr = sl.GameObject.GetComponent<UnityEngine.UI.ScrollRect>();
+            Assert.AreSame(scrollbar, sr.verticalScrollbar);
+            Assert.AreEqual(UnityEngine.UI.ScrollRect.ScrollbarVisibility.AutoHide,
+                sr.verticalScrollbarVisibility);
+        }
+
+        [Test]
+        public void Has_HorizontalScrollbarWhenDirectionHorizontal()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='Slot'><Frame/></Template>
+  <Screen name='S'><ScrollList id='sl' direction='horizontal' itemTemplate='Slot'/></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var sl = UI.Open("S").Get<ScrollList>("sl");
+            var sb = sl.GameObject.transform.Find("Scrollbar Horizontal") as UnityEngine.RectTransform;
+            Assert.IsNotNull(sb);
+            Assert.AreEqual(new UnityEngine.Vector2(0, 0), sb.anchorMin);
+            Assert.AreEqual(new UnityEngine.Vector2(0, 0), sb.anchorMax);
+            Assert.AreEqual(new UnityEngine.Vector2(0, 20), sb.sizeDelta);
+
+            var scrollbar = sb.GetComponent<UnityEngine.UI.Scrollbar>();
+            Assert.AreEqual(UnityEngine.UI.Scrollbar.Direction.LeftToRight, scrollbar.direction);
+
+            var sr = sl.GameObject.GetComponent<UnityEngine.UI.ScrollRect>();
+            Assert.AreSame(scrollbar, sr.horizontalScrollbar);
+        }
     }
 }

@@ -19,6 +19,8 @@ namespace PromptUGUI.Controls
         private RectTransform _content;
         private LayoutGroup _layoutGroup;
         private string _direction = "vertical";
+        private Scrollbar _vertScrollbar;
+        private Scrollbar _horizScrollbar;
         private string _itemTemplate;
         private float _spacing;
         private string _padding;
@@ -98,6 +100,17 @@ namespace PromptUGUI.Controls
                 fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             }
             ApplySpacingPadding();
+
+            if (_direction == "horizontal")
+            {
+                EnsureHorizontalScrollbar();
+                if (_vertScrollbar != null) _vertScrollbar.gameObject.SetActive(false);
+            }
+            else
+            {
+                EnsureVerticalScrollbar();
+                if (_horizScrollbar != null) _horizScrollbar.gameObject.SetActive(false);
+            }
         }
 
         private void ApplySpacingPadding()
@@ -232,6 +245,66 @@ namespace PromptUGUI.Controls
                 s.Dispose();
             }
             _slots.Clear();
+        }
+
+        private void EnsureVerticalScrollbar()
+        {
+            if (_vertScrollbar != null) { _vertScrollbar.gameObject.SetActive(true); return; }
+            var rt = ProceduralBuilders.AddChild(RectTransform, "Scrollbar Vertical");
+            rt.anchorMin = new Vector2(1f, 0f);
+            rt.anchorMax = new Vector2(1f, 0f);
+            rt.pivot = new Vector2(1f, 1f);
+            rt.sizeDelta = new Vector2(20f, 0f);
+            var bg = rt.gameObject.AddComponent<UnityImage>();
+            bg.color = UnityEngine.Color.white;
+            ProceduralBuilders.ApplyDefaultSlicedSprite(bg);
+            _vertScrollbar = rt.gameObject.AddComponent<Scrollbar>();
+            _vertScrollbar.direction = Scrollbar.Direction.BottomToTop;
+
+            var sliding = ProceduralBuilders.AddChild(rt, "Sliding Area");
+            sliding.sizeDelta = new Vector2(-20f, -20f);
+            var handle = ProceduralBuilders.AddImage(sliding, "Handle");
+            handle.color = UnityEngine.Color.white;
+            ProceduralBuilders.ApplyDefaultSlicedSprite(handle);
+            handle.rectTransform.anchorMin = Vector2.zero;
+            handle.rectTransform.anchorMax = Vector2.zero;
+            handle.rectTransform.sizeDelta = new Vector2(20f, 20f);
+            _vertScrollbar.targetGraphic = handle;
+            _vertScrollbar.handleRect = handle.rectTransform;
+
+            _scroll.verticalScrollbar = _vertScrollbar;
+            _scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
+            _scroll.verticalScrollbarSpacing = -3f;
+        }
+
+        private void EnsureHorizontalScrollbar()
+        {
+            if (_horizScrollbar != null) { _horizScrollbar.gameObject.SetActive(true); return; }
+            var rt = ProceduralBuilders.AddChild(RectTransform, "Scrollbar Horizontal");
+            rt.anchorMin = new Vector2(0f, 0f);
+            rt.anchorMax = new Vector2(0f, 0f);
+            rt.pivot = new Vector2(0f, 0f);
+            rt.sizeDelta = new Vector2(0f, 20f);
+            var bg = rt.gameObject.AddComponent<UnityImage>();
+            bg.color = UnityEngine.Color.white;
+            ProceduralBuilders.ApplyDefaultSlicedSprite(bg);
+            _horizScrollbar = rt.gameObject.AddComponent<Scrollbar>();
+            _horizScrollbar.direction = Scrollbar.Direction.LeftToRight;
+
+            var sliding = ProceduralBuilders.AddChild(rt, "Sliding Area");
+            sliding.sizeDelta = new Vector2(-20f, -20f);
+            var handle = ProceduralBuilders.AddImage(sliding, "Handle");
+            handle.color = UnityEngine.Color.white;
+            ProceduralBuilders.ApplyDefaultSlicedSprite(handle);
+            handle.rectTransform.anchorMin = Vector2.zero;
+            handle.rectTransform.anchorMax = Vector2.zero;
+            handle.rectTransform.sizeDelta = new Vector2(20f, 20f);
+            _horizScrollbar.targetGraphic = handle;
+            _horizScrollbar.handleRect = handle.rectTransform;
+
+            _scroll.horizontalScrollbar = _horizScrollbar;
+            _scroll.horizontalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
+            _scroll.horizontalScrollbarSpacing = -3f;
         }
 
         public override void Dispose()
