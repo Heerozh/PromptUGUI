@@ -103,5 +103,60 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsNotNull(viewport);
             Assert.AreEqual(-18f, viewport.sizeDelta.x, "viewport sizeDelta.x = -18 reserves 18px for Vertical Scrollbar");
         }
+
+        [Test]
+        public void Geometry_ItemHeightIsTwenty()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Dropdown id='d'/></Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var d = UI.Open("S").Get<Dropdown>("d");
+            var item = d.GameObject.transform.Find("Template/Viewport/Content/Item") as RectTransform;
+            Assert.IsNotNull(item);
+            Assert.AreEqual(20f, item.sizeDelta.y);
+        }
+
+        [Test]
+        public void Geometry_ItemBackgroundIsSimpleHighlightedF5()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Dropdown id='d'/></Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var d = UI.Open("S").Get<Dropdown>("d");
+            var bgRt = d.GameObject.transform.Find("Template/Viewport/Content/Item/Item Background") as RectTransform;
+            Assert.IsNotNull(bgRt, "Item Background must be a child node (default prefab parity)");
+            var bg = bgRt.GetComponent<UnityEngine.UI.Image>();
+            Assert.AreEqual(UnityEngine.UI.Image.Type.Simple, bg.type);
+            Assert.IsNull(bg.sprite, "Item Background uses no sprite (highlighted color band only)");
+            Assert.That(bg.color.r, Is.EqualTo(0.961f).Within(0.005f));
+            Assert.That(bg.color.g, Is.EqualTo(0.961f).Within(0.005f));
+            Assert.AreEqual(1f, bg.color.a);
+        }
+
+        [Test]
+        public void Geometry_ItemCheckmarkSizeAndPos()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Dropdown id='d'/></Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var d = UI.Open("S").Get<Dropdown>("d");
+            var ck = d.GameObject.transform.Find("Template/Viewport/Content/Item/Item Checkmark") as RectTransform;
+            Assert.IsNotNull(ck);
+            Assert.AreEqual(new Vector2(20, 20), ck.sizeDelta);
+            Assert.AreEqual(new Vector2(10, 0), ck.anchoredPosition);
+        }
+
+        [Test]
+        public void Geometry_ItemLabelOffset()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Dropdown id='d'/></Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var d = UI.Open("S").Get<Dropdown>("d");
+            var lbl = d.GameObject.transform.Find("Template/Viewport/Content/Item/Item Label") as RectTransform;
+            Assert.IsNotNull(lbl);
+            Assert.AreEqual(new Vector2(20, 1.5f), lbl.offsetMin);
+            Assert.AreEqual(new Vector2(-10, -1.5f), lbl.offsetMax);
+        }
     }
 }

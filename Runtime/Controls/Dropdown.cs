@@ -84,16 +84,19 @@ namespace PromptUGUI.Controls
             content.anchoredPosition = Vector2.zero;
 
             // Item template (cloned per option; fixed height + horizontal stretch).
-            const float itemHeight = 48f;
+            const float itemHeight = 20f;
             var item = ProceduralBuilders.AddChild(content, "Item");
             item.anchorMin = new Vector2(0f, 0.5f);
             item.anchorMax = new Vector2(1f, 0.5f);
             item.pivot = new Vector2(0.5f, 0.5f);
             item.sizeDelta = new Vector2(0f, itemHeight);
 
-            var itemBg = item.gameObject.AddComponent<UnityImage>();
-            itemBg.color = ProceduralBuilders.DefaultControlBgColor;
-            ProceduralBuilders.ApplyDefaultSlicedSprite(itemBg);
+            // Item Background: 独立子节点，simple + 无 sprite + #F5F5F5 (highlighted-tinted 色带)
+            var itemBgRt = ProceduralBuilders.AddChild(item, "Item Background");
+            var itemBg = itemBgRt.gameObject.AddComponent<UnityImage>();
+            itemBg.type = UnityImage.Type.Simple;
+            itemBg.sprite = null;
+            itemBg.color = new UnityEngine.Color(0.961f, 0.961f, 0.961f, 1f);
             var itemToggle = item.gameObject.AddComponent<UnityEngine.UI.Toggle>();
             itemToggle.targetGraphic = itemBg;
 
@@ -104,8 +107,8 @@ namespace PromptUGUI.Controls
             itemCheckmark.rectTransform.anchorMin = new Vector2(0f, 0.5f);
             itemCheckmark.rectTransform.anchorMax = new Vector2(0f, 0.5f);
             itemCheckmark.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            itemCheckmark.rectTransform.sizeDelta = new Vector2(14f, 14f);
-            itemCheckmark.rectTransform.anchoredPosition = new Vector2(12f, 0f);
+            itemCheckmark.rectTransform.sizeDelta = new Vector2(20f, 20f);
+            itemCheckmark.rectTransform.anchoredPosition = new Vector2(10f, 0f);
             itemToggle.graphic = itemCheckmark;
 
             // Item label fills the rest of the item.
@@ -113,8 +116,8 @@ namespace PromptUGUI.Controls
             itemLabel.alignment = TextAlignmentOptions.Left;
             itemLabel.rectTransform.anchorMin = new Vector2(0f, 0f);
             itemLabel.rectTransform.anchorMax = new Vector2(1f, 1f);
-            itemLabel.rectTransform.offsetMin = new Vector2(24f, 0f);
-            itemLabel.rectTransform.offsetMax = new Vector2(-10f, 0f);
+            itemLabel.rectTransform.offsetMin = new Vector2(20f, 1.5f);
+            itemLabel.rectTransform.offsetMax = new Vector2(-10f, -1.5f);
 
             templateScroll.viewport = viewport;
             templateScroll.content = content;
