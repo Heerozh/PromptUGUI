@@ -158,5 +158,38 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(new Vector2(20, 1.5f), lbl.offsetMin);
             Assert.AreEqual(new Vector2(-10, -1.5f), lbl.offsetMax);
         }
+
+        [Test]
+        public void Has_ScrollbarChildWithCorrectGeometry()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Dropdown id='d'/></Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var d = UI.Open("S").Get<Dropdown>("d");
+            var sb = d.GameObject.transform.Find("Template/Scrollbar") as RectTransform;
+            Assert.IsNotNull(sb, "Template/Scrollbar must exist (default prefab parity)");
+            Assert.AreEqual(new Vector2(1, 0), sb.anchorMin);
+            Assert.AreEqual(new Vector2(1, 1), sb.anchorMax);
+            Assert.AreEqual(new Vector2(20, 0), sb.sizeDelta);
+
+            var scrollbar = sb.GetComponent<UnityEngine.UI.Scrollbar>();
+            Assert.IsNotNull(scrollbar);
+            Assert.AreEqual(UnityEngine.UI.Scrollbar.Direction.BottomToTop, scrollbar.direction);
+        }
+
+        [Test]
+        public void Wired_VerticalScrollbarOnScrollRect()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Dropdown id='d'/></Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var d = UI.Open("S").Get<Dropdown>("d");
+            var template = d.GameObject.transform.Find("Template");
+            var scrollRect = template.GetComponent<UnityEngine.UI.ScrollRect>();
+            Assert.IsNotNull(scrollRect.verticalScrollbar);
+            Assert.AreEqual(UnityEngine.UI.ScrollRect.ScrollbarVisibility.AutoHide,
+                scrollRect.verticalScrollbarVisibility);
+            Assert.AreEqual(-3f, scrollRect.verticalScrollbarSpacing);
+        }
     }
 }

@@ -119,6 +119,38 @@ namespace PromptUGUI.Controls
             itemLabel.rectTransform.offsetMin = new Vector2(20f, 1.5f);
             itemLabel.rectTransform.offsetMax = new Vector2(-10f, -1.5f);
 
+            // Scrollbar Vertical (default prefab 在 Template 内有这个子树)
+            var scrollbarRt = ProceduralBuilders.AddChild(template, "Scrollbar");
+            scrollbarRt.anchorMin = new Vector2(1f, 0f);
+            scrollbarRt.anchorMax = new Vector2(1f, 1f);
+            scrollbarRt.pivot = new Vector2(1f, 1f);
+            scrollbarRt.sizeDelta = new Vector2(20f, 0f);
+            scrollbarRt.anchoredPosition = Vector2.zero;
+            var scrollbarBg = scrollbarRt.gameObject.AddComponent<UnityImage>();
+            scrollbarBg.color = ProceduralBuilders.DefaultControlBgColor; // white
+            ProceduralBuilders.ApplyDefaultSlicedSprite(scrollbarBg);
+            var scrollbar = scrollbarRt.gameObject.AddComponent<UnityEngine.UI.Scrollbar>();
+            scrollbar.direction = UnityEngine.UI.Scrollbar.Direction.BottomToTop;
+            scrollbar.value = 0f;
+            scrollbar.size = 0.2f;
+
+            var slidingArea = ProceduralBuilders.AddChild(scrollbarRt, "Sliding Area");
+            slidingArea.sizeDelta = new Vector2(-20f, -20f);
+
+            var sbHandle = ProceduralBuilders.AddImage(slidingArea, "Handle");
+            sbHandle.color = UnityEngine.Color.white;
+            ProceduralBuilders.ApplyDefaultSlicedSprite(sbHandle);
+            sbHandle.rectTransform.anchorMin = new Vector2(0f, 0f);
+            sbHandle.rectTransform.anchorMax = new Vector2(1f, 0.2f);
+            sbHandle.rectTransform.sizeDelta = new Vector2(20f, 20f);
+            sbHandle.rectTransform.anchoredPosition = Vector2.zero;
+            scrollbar.targetGraphic = sbHandle;
+            scrollbar.handleRect = sbHandle.rectTransform;
+
+            templateScroll.verticalScrollbar = scrollbar;
+            templateScroll.verticalScrollbarVisibility = UnityEngine.UI.ScrollRect.ScrollbarVisibility.AutoHide;
+            templateScroll.verticalScrollbarSpacing = -3f;
+
             templateScroll.viewport = viewport;
             templateScroll.content = content;
 
