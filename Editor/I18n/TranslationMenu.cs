@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using PromptUGUI.Application;
 using PromptUGUI.I18n;
 using UnityEditor;
@@ -141,11 +142,11 @@ namespace PromptUGUI.Editor.I18n
                     {
                         try
                         {
-                            map = client.TranslateBatch(
+                            map = Task.Run(() => client.TranslateBatch(
                                 items, locale,
                                 provider.endpoint, provider.model, auth.apiKey,
                                 provider.systemPrompt,
-                                cts.Token).GetAwaiter().GetResult();
+                                cts.Token)).GetAwaiter().GetResult();
                             break;
                         }
                         catch (Exception e)

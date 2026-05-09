@@ -31,7 +31,7 @@ namespace PromptUGUI.Editor.I18n {
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
             var prompt = systemPrompt.Replace("{{targetLocale}}", targetLocale);
-            var userMessage = JsonSerializer.Serialize(new {
+            var inputJson = JsonSerializer.Serialize(new {
                 target_locale = targetLocale,
                 items = items.Select(i => new {
                     msgid = i.Msgid,
@@ -39,39 +39,18 @@ namespace PromptUGUI.Editor.I18n {
                     comments = i.Comments,
                 }),
             });
+            var userMessage =
+                "Translate every item below and respond with a single JSON object of the form:\n" +
+                "{\"translations\":[{\"msgid\":\"...\",\"msgctxt\":\"... or null\",\"msgstr\":\"...\"}]}\n" +
+                "Echo each msgid and msgctxt verbatim from the input. Do not add, omit, or merge items.\n\n" +
+                "Input:\n" + inputJson;
             var body = new {
                 model,
                 messages = new object[] {
                     new { role = "system", content = prompt },
                     new { role = "user", content = userMessage },
                 },
-                response_format = new {
-                    type = "json_schema",
-                    json_schema = new {
-                        name = "Translations",
-                        strict = true,
-                        schema = new {
-                            type = "object",
-                            additionalProperties = false,
-                            required = new[] { "translations" },
-                            properties = new {
-                                translations = new {
-                                    type = "array",
-                                    items = new {
-                                        type = "object",
-                                        additionalProperties = false,
-                                        required = new[] { "msgid", "msgctxt", "msgstr" },
-                                        properties = new {
-                                            msgid = new { type = "string" },
-                                            msgctxt = new { type = new[] { "string", "null" } },
-                                            msgstr = new { type = "string" },
-                                        },
-                                    },
-                                },
-                            },
-                        },
-                    },
-                },
+                response_format = new { type = "json_object" },
             };
             req.Content = new StringContent(
                 JsonSerializer.Serialize(body),
