@@ -39,6 +39,8 @@ namespace PromptUGUI.Controls
             _autoLabel = go.AddComponent<TextMeshProUGUI>();
             _autoLabel.alignment = TextAlignmentOptions.Center;
             _autoLabel.raycastTarget = false;
+            _autoLabel.fontSize = 24;  // 默认 prefab Button label 字号；AddText 默认 14 是 Toggle/Dropdown 字号
+            _autoLabel.color = PromptUGUI.Controls.Internal.ProceduralBuilders.DefaultLabelColor;
             ApplyFont();
             return _autoLabel;
         }
