@@ -16,4 +16,17 @@ namespace PromptUGUI.Editor {
             ctx.SetMainObject(asset);
         }
     }
+
+    internal sealed class PoFilePostprocessor : UnityEditor.AssetPostprocessor {
+        static void OnPostprocessAllAssets(
+            string[] importedAssets, string[] deletedAssets,
+            string[] movedAssets, string[] movedFromAssetPaths) {
+            foreach (var path in importedAssets) {
+                if (!path.EndsWith(".po", System.StringComparison.OrdinalIgnoreCase)) continue;
+                var current = UnityEditor.AssetDatabase.GetImporterOverride(path);
+                if (current == typeof(PoFileImporter)) continue;
+                UnityEditor.AssetDatabase.SetImporterOverride<PoFileImporter>(path);
+            }
+        }
+    }
 }

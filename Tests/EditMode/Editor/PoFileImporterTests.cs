@@ -18,6 +18,21 @@ namespace PromptUGUI.Tests.Editor {
             AssetDatabase.DeleteAsset(TmpDir);
         }
 
+        [Test] public void Import_PoFile_AutoOverrideViaPostprocessor_LoadsAsTextAsset() {
+            var absPath = System.IO.Path.Combine(
+                UnityEngine.Application.dataPath, "PromptUGUIPoTmp", "auto.po");
+            System.IO.File.WriteAllText(absPath, "msgid \"a\"\nmsgstr \"b\"\n");
+
+            UnityEngine.TestTools.LogAssert.ignoreFailingMessages = true;
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            UnityEngine.TestTools.LogAssert.ignoreFailingMessages = false;
+
+            // Postprocessor should have set the override automatically — no manual SetImporterOverride here.
+            var asset = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/PromptUGUIPoTmp/auto.po");
+            Assert.IsNotNull(asset, "PoFilePostprocessor should auto-route .po to PoFileImporter");
+            StringAssert.Contains("msgid", asset.text);
+        }
+
         [Test] public void Import_PoFile_LoadsAsTextAsset() {
             // Write via absolute path (File.WriteAllText uses CWD which may not be project root)
             var absPath = Path.Combine(UnityEngine.Application.dataPath, "PromptUGUIPoTmp", "sample.po");
