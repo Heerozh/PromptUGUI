@@ -10,6 +10,7 @@ namespace PromptUGUI.Controls {
         UnityImage _bg;
         Button _btn;
         TMP_Text _autoLabel;
+        string _fontType = "default";
         readonly Subject<Unit> _click = new();
 
         public override void OnAttached() {
@@ -17,6 +18,7 @@ namespace PromptUGUI.Controls {
             _btn = GameObject.GetComponent<Button>() ?? GameObject.AddComponent<Button>();
             _btn.targetGraphic = _bg;
             _btn.onClick.AddListener(() => _click.OnNext(Unit.Default));
+            PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
         }
 
         TMP_Text EnsureLabel() {
@@ -31,7 +33,18 @@ namespace PromptUGUI.Controls {
             _autoLabel = go.AddComponent<TextMeshProUGUI>();
             _autoLabel.alignment = TextAlignmentOptions.Center;
             _autoLabel.raycastTarget = false;
+            ApplyFont();
             return _autoLabel;
+        }
+
+        void ApplyFont() {
+            if (_autoLabel == null) return;
+            var settings = PromptUGUI.Application.PromptUGUISettings.Instance;
+            var locale = PromptUGUI.Application.UI.Locale.Current;
+            var asset = settings != null
+                ? settings.ResolveFont(locale, _fontType)
+                : null;
+            if (asset != null) _autoLabel.font = asset;
         }
 
         [UIAttr]
@@ -45,12 +58,8 @@ namespace PromptUGUI.Controls {
         [UIAttr]
         public string Font {
             set {
-                var settings = PromptUGUI.Application.PromptUGUISettings.Instance;
-                var locale = PromptUGUI.Application.UI.Locale.Current;
-                var asset = settings != null
-                    ? settings.ResolveFont(locale, value ?? "default")
-                    : null;
-                if (asset != null) EnsureLabel().font = asset;
+                _fontType = string.IsNullOrEmpty(value) ? "default" : value;
+                ApplyFont();
             }
         }
 
@@ -73,6 +82,7 @@ namespace PromptUGUI.Controls {
         public Observable<Unit> OnClick => _click;
 
         public override void Dispose() {
+            PromptUGUI.Application.UI.Locale.Changed -= ApplyFont;
             _click.Dispose();
             base.Dispose();
         }

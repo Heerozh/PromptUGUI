@@ -5,10 +5,28 @@ using UnityEngine;
 namespace PromptUGUI.Controls {
     public sealed class Text : Control {
         TMP_Text _tmp;
+        string _fontType = "default";
 
         public override void OnAttached() {
             _tmp = GameObject.GetComponent<TMP_Text>()
                    ?? GameObject.AddComponent<TextMeshProUGUI>();
+            ApplyFont();
+            PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
+        }
+
+        public override void Dispose() {
+            PromptUGUI.Application.UI.Locale.Changed -= ApplyFont;
+            base.Dispose();
+        }
+
+        void ApplyFont() {
+            if (_tmp == null) return;
+            var settings = PromptUGUI.Application.PromptUGUISettings.Instance;
+            var locale = PromptUGUI.Application.UI.Locale.Current;
+            var asset = settings != null
+                ? settings.ResolveFont(locale, _fontType)
+                : null;
+            if (asset != null) _tmp.font = asset;
         }
 
         [UIAttr("text")]
@@ -53,13 +71,8 @@ namespace PromptUGUI.Controls {
         [UIAttr]
         public string Font {
             set {
-                var settings = PromptUGUI.Application.PromptUGUISettings.Instance;
-                var locale = PromptUGUI.Application.UI.Locale.Current;
-                var asset = settings != null
-                    ? settings.ResolveFont(locale, value ?? "default")
-                    : null;
-                if (asset != null) _tmp.font = asset;
-                // miss → keep whatever TMP defaulted to; do not clobber.
+                _fontType = string.IsNullOrEmpty(value) ? "default" : value;
+                ApplyFont();
             }
         }
     }
