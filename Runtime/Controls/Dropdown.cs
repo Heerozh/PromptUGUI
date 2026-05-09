@@ -41,8 +41,8 @@ namespace PromptUGUI.Controls
             arrow.rectTransform.anchorMin = new Vector2(1f, 0.5f);
             arrow.rectTransform.anchorMax = new Vector2(1f, 0.5f);
             arrow.rectTransform.pivot = new Vector2(1f, 0.5f);
-            arrow.rectTransform.sizeDelta = new Vector2(14f, 10f);
-            arrow.rectTransform.anchoredPosition = new Vector2(-12f, 0f);
+            arrow.rectTransform.sizeDelta = new Vector2(20f, 20f);
+            arrow.rectTransform.anchoredPosition = new Vector2(-15f, 0f);
 
             // Template (popup root, anchored to dropdown's bottom edge so it grows downward).
             var template = ProceduralBuilders.AddChild(RectTransform, "Template");

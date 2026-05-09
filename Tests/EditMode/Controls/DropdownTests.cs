@@ -3,6 +3,7 @@ using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
 using R3;
+using UnityEngine;
 
 namespace PromptUGUI.Tests.EditMode.Controls
 {
@@ -39,6 +40,29 @@ namespace PromptUGUI.Tests.EditMode.Controls
             d.OnSelected.Subscribe(i => last = i);
             d.Value = 2;
             Assert.AreEqual(2, last);
+        }
+
+        [Test]
+        public void Geometry_ArrowSizeIsTwentyTwenty()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Dropdown id='d'/></Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var d = UI.Open("S").Get<Dropdown>("d");
+            var arrow = d.GameObject.transform.Find("Arrow") as RectTransform;
+            Assert.IsNotNull(arrow);
+            Assert.AreEqual(new Vector2(20, 20), arrow.sizeDelta);
+        }
+
+        [Test]
+        public void Geometry_ArrowAnchoredPositionMinusFifteen()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Dropdown id='d'/></Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var d = UI.Open("S").Get<Dropdown>("d");
+            var arrow = d.GameObject.transform.Find("Arrow") as RectTransform;
+            Assert.AreEqual(new Vector2(-15, 0), arrow.anchoredPosition);
         }
     }
 }
