@@ -14,6 +14,15 @@ namespace PromptUGUI.Editor.I18n {
         public List<string> Comments { get; set; } = new();
     }
 
+    internal sealed class BatchResult {
+        public Dictionary<(string, string), string> Translations { get; }
+        public string RawResponse { get; }
+        public BatchResult(Dictionary<(string, string), string> translations, string rawResponse) {
+            Translations = translations;
+            RawResponse = rawResponse;
+        }
+    }
+
     internal sealed class TranslationClient {
         readonly HttpClient _http;
 
@@ -21,7 +30,7 @@ namespace PromptUGUI.Editor.I18n {
             _http = http ?? new HttpClient();
         }
 
-        public async Task<Dictionary<(string, string), string>> TranslateBatch(
+        public async Task<BatchResult> TranslateBatch(
             IList<TranslationItem> items,
             string targetLocale,
             string endpoint, string model, string apiKey, string systemPrompt,
@@ -58,8 +67,10 @@ namespace PromptUGUI.Editor.I18n {
                 "application/json");
 
             var resp = await _http.SendAsync(req, ct);
-            resp.EnsureSuccessStatusCode();
             var text = await resp.Content.ReadAsStringAsync();
+            if (!resp.IsSuccessStatusCode) {
+                throw new HttpRequestException($"HTTP {(int)resp.StatusCode}: {text}");
+            }
 
             using var doc = JsonDocument.Parse(text);
             var content = doc.RootElement
@@ -77,7 +88,7 @@ namespace PromptUGUI.Editor.I18n {
                 var msgstr = t.GetProperty("msgstr").GetString();
                 result[(msgid, msgctxt)] = msgstr;
             }
-            return result;
+            return new BatchResult(result, text);
         }
     }
 }

@@ -34,7 +34,7 @@ namespace PromptUGUI.Tests.Editor {
                 input, "zh-Hans",
                 endpoint: "https://example/v1", model: "x", apiKey: "k", systemPrompt: "p",
                 CancellationToken.None);
-            Assert.AreEqual("你好", result[("hello", null)]);
+            Assert.AreEqual("你好", result.Translations[("hello", null)]);
         }
 
         [Test]
@@ -54,8 +54,8 @@ namespace PromptUGUI.Tests.Editor {
             };
             var result = await client.TranslateBatch(
                 input, "zh-Hans", "https://e", "x", "k", "p", CancellationToken.None);
-            Assert.AreEqual("打开", result[("Open", null)]);
-            Assert.AreEqual("开门", result[("Open", "door")]);
+            Assert.AreEqual("打开", result.Translations[("Open", null)]);
+            Assert.AreEqual("开门", result.Translations[("Open", "door")]);
         }
 
         [Test]
