@@ -113,15 +113,24 @@ list.BindItems(player.Inventory, (IControl slot, Item item) => {
 ### 4.1 XML
 
 ```xml
+<!-- 单个 Toggle = checkbox，不要带 group -->
 <Toggle id="muteAudio"
-        group="audio"          ← 同 group 名互斥；省略=独立
         isOn="true"            ← 初始值；缺省 false
         sprite="ui/check"      ← 选中态 graphic，可省
         color="#ffffff"
         font="default">
   静音                          ← §5.2 文本简写；走 TrResolver
 </Toggle>
+
+<!-- 多个 Toggle 共享 group 名 = radio 互斥组（uGUI ToggleGroup 默认要求至少有一个 on） -->
+<HStack spacing="8">
+  <Toggle group="difficulty" isOn="true">简单</Toggle>
+  <Toggle group="difficulty">普通</Toggle>
+  <Toggle group="difficulty">困难</Toggle>
+</HStack>
 ```
+
+> ⚠️ **常见陷阱**：单 Toggle 不要写 `group="..."`。uGUI ToggleGroup 默认 `allowSwitchOff=false`，组内必须至少保留一个 active，所以单成员组一旦点上就锁死、永远是 `true`。
 
 ### 4.2 C# API
 
