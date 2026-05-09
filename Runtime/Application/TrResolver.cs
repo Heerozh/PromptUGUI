@@ -8,8 +8,7 @@ namespace PromptUGUI.Application {
             IReadOnlyDictionary<string, string> args,
             string ctx) {
             if (raw == null) return null;
-            // TEMP: reads UI.CurrentLocaleForResolver; replaced by UI.Locale.Current in Task 9
-            var locale = UI.CurrentLocaleForResolver;
+            var locale = UI.Locale.Current;
             string template = raw;
             if (locale != null) {
                 var hit = TranslationStore.Instance.Lookup(locale, ctx, raw);

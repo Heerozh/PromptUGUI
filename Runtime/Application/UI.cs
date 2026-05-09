@@ -24,14 +24,73 @@ namespace PromptUGUI.Application {
 
         internal static VariantStore VariantStore => _variantStore;
 
-        // TEMP for Task 7; replaced by UI.Locale.Current in Task 9
-        internal static string CurrentLocaleForResolver;
-
         public static class Variants {
             public static void Set(string name, bool active) =>
                 _variantStore.Set(name, active);
             public static bool IsActive(string name) =>
                 _variantStore.IsActive(name);
+        }
+
+        public static class Locale {
+            public static string Current { get; private set; }
+            public static event System.Action Changed;
+
+            public static void Set(string locale) {
+                if (Current == locale) return;
+                if (Current != null) {
+                    _variantStore.Set(Current, false);
+                    TranslationStore.Instance.UnloadLocale(Current);
+                }
+                Current = locale;
+                if (locale != null) {
+                    LoadPoFiles(locale);
+                    _variantStore.Set(locale, true);
+                } else {
+                    _variantStore.NotifyChangedInternal();
+                }
+                Changed?.Invoke();
+            }
+
+            public static void SetToSystemDefault() =>
+                Set(LocaleHelpers.MapSystemLanguage(UnityEngine.Application.systemLanguage));
+
+            public static System.Collections.Generic.IReadOnlyList<string> Configured {
+                get {
+                    var s = PromptUGUISettings.Instance;
+                    if (s == null) return System.Array.Empty<string>();
+                    var list = new System.Collections.Generic.List<string>();
+                    foreach (var lc in s.locales) if (!string.IsNullOrEmpty(lc.locale)) list.Add(lc.locale);
+                    return list;
+                }
+            }
+
+            internal static void ResetForTestsInternal() {
+                if (Current != null) _variantStore.Set(Current, false);
+                Current = null;
+                Changed = null;
+            }
+        }
+
+        public static string Tr(string msgid, string ctx = null) =>
+            TrResolver.Resolve(msgid, null, ctx);
+
+        static void LoadPoFiles(string locale) {
+            LoadPoFromPath($"PromptUGUI/i18n/{locale}", locale);
+            LoadPoFromPath($"PromptUGUI/i18n-custom/{locale}", locale);
+        }
+
+        static void LoadPoFromPath(string resourcesPath, string locale) {
+            var assets = UnityEngine.Resources.LoadAll<UnityEngine.TextAsset>(resourcesPath);
+            foreach (var asset in assets) {
+                try {
+                    var entries = new System.Collections.Generic.List<I18n.PoEntry>(
+                        I18n.PoParser.Parse(asset.text));
+                    TranslationStore.Instance.Load(locale, entries);
+                } catch (System.Exception e) {
+                    UnityEngine.Debug.LogError(
+                        $"[PromptUGUI] failed to parse .po asset '{asset.name}': {e.Message}");
+                }
+            }
         }
 
         public static void LoadDocument(string label, string xml) {
@@ -234,6 +293,8 @@ namespace PromptUGUI.Application {
 
         // 仅测试使用
         internal static void ResetForTests() {
+            Locale.ResetForTestsInternal();
+            TranslationStore.Instance.UnloadAll();
             foreach (var s in _open.Values) s.Close();
             _open.Clear();
             _docs.Clear();
