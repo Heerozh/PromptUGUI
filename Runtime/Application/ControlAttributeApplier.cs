@@ -14,21 +14,40 @@ namespace PromptUGUI.Application {
         public static void Apply(ElementNode node, Control control,
                                  ControlRegistry.Entry entry, VariantStore variants) {
 
-            // 控件特定属性：基础 + 变体 keys 求并集
+            // Determine tr opt-out and ctx (common attrs not registered on Meta)
+            bool tr = !(node.Attributes.TryGetValue("tr", out var trVal) && trVal == "false");
+            node.Attributes.TryGetValue("ctx", out var ctx);
+
+            // Control-specific attributes: union of base + variant keys.
             var allKeys = new HashSet<string>(node.Attributes.Keys);
             foreach (var k in node.VariantOverrides.Keys) allKeys.Add(k);
             foreach (var attrName in allKeys) {
                 if (IsCommonAttribute(attrName)) continue;
+                if (attrName == "tr" || attrName == "ctx") continue;
                 if (!entry.Meta.HasAttribute(attrName)) continue;
                 var v = VariantResolver.ResolveAttribute(node, attrName, variants);
-                if (v != null) entry.Meta.Apply(control, attrName, v);
+                if (v == null) continue;
+                // Translate string-valued attrs that are commonly text-bearing.
+                // Default: only "text" attr goes through Tr (others like "color", "sprite" don't translate).
+                if (tr && attrName == "text") {
+                    // Use raw value if available so we Tr the un-substituted template.
+                    string raw = (node.AttributesRaw != null &&
+                                  node.AttributesRaw.TryGetValue("text", out var r)) ? r : v;
+                    v = TrResolver.Resolve(raw, node.TextArgs, ctx);
+                }
+                entry.Meta.Apply(control, attrName, v);
             }
 
-            // 文本简写
-            if (!string.IsNullOrEmpty(node.TextContent) && entry.DefaultTextAttr != null)
-                entry.Meta.Apply(control, entry.DefaultTextAttr, node.TextContent);
+            // Text shorthand
+            if (!string.IsNullOrEmpty(node.TextContent) && entry.DefaultTextAttr != null) {
+                string raw = node.TextContentRaw ?? node.TextContent;
+                string final = tr
+                    ? TrResolver.Resolve(raw, node.TextArgs, ctx)
+                    : node.TextContent;
+                entry.Meta.Apply(control, entry.DefaultTextAttr, final ?? "");
+            }
 
-            // 通用属性
+            // Common attributes
             var anchor = VariantResolver.ResolveAttribute(node, "anchor", variants);
             var size   = VariantResolver.ResolveAttribute(node, "size",   variants);
             var width  = VariantResolver.ResolveAttribute(node, "width",  variants);

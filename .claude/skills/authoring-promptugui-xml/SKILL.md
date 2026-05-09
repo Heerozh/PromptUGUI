@@ -37,11 +37,11 @@ Pre-registered on `UI.Registry`. Use as XML tags by name:
 |---|---|---|
 | `<Frame>` | Empty container (RectTransform only). | — |
 | `<Image>` | uGUI Image; loads sprites from `Resources`. | `sprite` (resource path), `color` (`#RRGGBB[AA]`), `type` (`simple` / `sliced` / `tiled` / `filled`) |
-| `<Text>` | TMP_Text. Has text-content shorthand: `<Text>Hello</Text>` ≡ `<Text text="Hello"/>`. | `text`, `fontSize` (int), `color`, `align` (`left` / `center` / `right`), `wrap` (bool), `raycastTarget` (bool) |
+| `<Text>` | TMP_Text. Has text-content shorthand: `<Text>Hello</Text>` ≡ `<Text text="Hello"/>`. | `text`, `fontSize` (int), `color`, `align` (`left` / `center` / `right`), `wrap` (bool), `raycastTarget` (bool), `font` (string, font type from Settings; default `default`), `tr` (bool, default `true`; set `false` to skip i18n extraction), `ctx` (string, msgctxt to disambiguate same-msgid in the .po table) |
 | `<VStack>` | Vertical layout group. | `spacing` (float), `padding` (`T,R,B,L` 1/2/4 components) |
 | `<HStack>` | Horizontal layout group. | Same as VStack. |
 | `<Grid>` | Grid layout group, fixed columns. | `columns` (int), `cellSize` (`WxH`), `spacing` (single or `H,V`), `padding` |
-| `<Btn>` | Image + Button + R3 `OnClick`. Use as **template root** or registered prefab tag for any clickable. | `color`, `sprite` |
+| `<Btn>` | Image + Button + R3 `OnClick`. `<Btn>开始</Btn>` shorthand creates an internal TMP label child. Use as **template root** or registered prefab tag for any clickable. | `color`, `sprite`, `font` (string, font type from Settings; default `default`), `tr` (bool, default `true`; set `false` to skip i18n extraction), `ctx` (string, msgctxt to disambiguate same-msgid in the .po table) |
 | `<Icon>` | Sprite from a project-level IconSet; by-name lookup, package-time pruning. | `name` (required, `ns:icon-name`), `color` (`#RRGGBB[AA]`), `size` (numeric / `WxH` / `stretch` / `native`) |
 
 **No built-in `<Button>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>`.** Build those as `<Template>` (composing `<Btn>` + `<Image>` + `<Text>`) or register your own C# `Control` + Prefab.
@@ -213,6 +213,54 @@ For inserting elements per variant (no `Remove`, no `Replace` — use `hidden.va
 - `<Param default>` values
 
 Trying to write `id.mobile="..."` or `default.mobile="..."` is a parse error.
+
+## i18n & 字体（M5 起）
+
+源文本直接写在 `<Text>` / `<Btn>` 中。`UI.Locale.Set("en")` 切语言；切语言走 Variant 通路，已 open 的 Screen 自动 ReSolve。
+
+```xml
+<!-- 源文本 = msgid；零 key -->
+<Text>开始游戏</Text>
+<Btn>设置</Btn>
+
+<!-- 不要翻译 -->
+<Text tr="false">{{playerName}}</Text>
+
+<!-- 同 msgid 多义；ctx 进 msgctxt -->
+<Btn ctx="door">Open</Btn>
+<Btn ctx="file-menu">Open</Btn>
+
+<!-- 字体 type 走 Settings；缺省 "default" -->
+<Text font="title">设置</Text>
+<Text font="damage" fontSize="96">9999!</Text>
+
+<!-- 配合既有 Variant 系统 -->
+<Text font="title" font.zh-Hans="title-cn">设置</Text>
+```
+
+C#:
+
+```csharp
+// 切 locale；同时切 .po 表与字体表
+UI.Locale.Set("en");
+UI.Locale.SetToSystemDefault();
+
+// 代码里抽取的字符串
+var text = string.Format(c, UI.Tr("总价: {0:C}"), price);
+```
+
+**保留命名空间**：`UI.Locale.Set("zh-Hans")` 内部把 `zh-Hans` 注册为活跃 Variant。author 不应使用同名 Variant 表达 locale 之外的状态。
+
+### 图文混排 / TMP 富文本
+
+`<Text>` 默认不允许 mix text + child elements。要 inline 写 `<sprite>` / `<color>` 等 TMP 标签，包 CDATA：
+
+```xml
+<Text><![CDATA[金币: <sprite name="coin"/>{{count}}]]></Text>
+<Text><![CDATA[<color=#ff0>警告</color>: 库存不足]]></Text>
+```
+
+抽取器把 CDATA 内容作为完整 msgid 抽出；运行时翻译保留标签。
 
 ## Import & namespaces
 
@@ -399,6 +447,14 @@ C# EVENT      .OnClick.Subscribe(...).AddTo(screen)
 C# VARIANT    UI.Variants.Set("name", true)
 XML CANVAS    <Screen name="X" canvas="overlay|camera|world">   default overlay; renderMode only
 C# CANVAS     UI.CanvasConfigurator = (canvas, name) => { ... }  worldCamera / sortingOrder / overrides; runs after XML
+
+## i18n
+<Text>...</Text>                 抽取 + 翻译
+<Text tr="false">...</Text>      跳过
+<Text font="title">...</Text>    字体 type
+<Text ctx="door">Open</Text>     msgctxt 消歧
+UI.Tr("...")                     C# 抽取入口
+UI.Locale.Set("zh-Hans")         切 locale (= 切 .po + 切字体)
 ```
 
 ## Worked end-to-end example

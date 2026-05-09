@@ -23,5 +23,7 @@ namespace PromptUGUI.Application {
 
         /// <summary>测试用——清空所有激活变体，不发 Changed。</summary>
         internal void Reset() => _active.Clear();
+
+        internal void NotifyChangedInternal() => _changed.OnNext(Unit.Default);
     }
 }

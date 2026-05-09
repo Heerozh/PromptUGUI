@@ -103,10 +103,13 @@ namespace PromptUGUI.Template {
             var dst = new ElementNode(src.Tag, src.Namespace) {
                 Id = src.Id,
                 TextContent = src.TextContent,
+                TextContentRaw = src.TextContentRaw ?? src.TextContent,
                 IsTemplateInstanceRoot = src.IsTemplateInstanceRoot,
             };
             foreach (var kv in src.Attributes)
                 dst.Attributes[kv.Key] = kv.Value;
+            foreach (var kv in src.AttributesRaw)
+                dst.AttributesRaw[kv.Key] = kv.Value;
             CopyVariantOverrides(src, dst);
             foreach (var c in src.Children) {
                 var ec = ExpandTree(c, templates, visiting);
@@ -211,11 +214,16 @@ namespace PromptUGUI.Template {
             var dst = new ElementNode(prepared.Tag, prepared.Namespace) {
                 Id = prepared.Id,
                 TextContent = Substitution.Apply(prepared.TextContent, args),
+                TextContentRaw = src.TextContentRaw ?? src.TextContent,
             };
             foreach (var kv in prepared.Attributes) {
                 if (kv.Key == "if") continue;
                 dst.Attributes[kv.Key] = kv.Value;
             }
+            foreach (var kv in src.AttributesRaw)
+                dst.AttributesRaw[kv.Key] = kv.Value;
+            if (args != null && args.Count > 0)
+                dst.TextArgs = new System.Collections.Generic.Dictionary<string, string>(args);
             CopyVariantOverrides(prepared, dst);
             foreach (var c in src.Children) {
                 if (c.Tag == "Slot") {
@@ -238,6 +246,9 @@ namespace PromptUGUI.Template {
             };
             foreach (var kv in src.Attributes)
                 dst.Attributes[kv.Key] = Substitution.Apply(kv.Value, args);
+            // Preserve raw attribute values — substitution does NOT clobber raw
+            foreach (var kv in src.AttributesRaw)
+                dst.AttributesRaw[kv.Key] = kv.Value;
             foreach (var kv in src.VariantOverrides) {
                 var newList = new List<(string Variant, string Value)>();
                 foreach (var (variant, value) in kv.Value)
@@ -259,9 +270,13 @@ namespace PromptUGUI.Template {
             var dst = new ElementNode(src.Tag, src.Namespace) {
                 Id = src.Id,
                 TextContent = src.TextContent,
+                TextContentRaw = src.TextContentRaw ?? src.TextContent,
                 IsTemplateInstanceRoot = src.IsTemplateInstanceRoot,
             };
             foreach (var kv in src.Attributes) dst.Attributes[kv.Key] = kv.Value;
+            foreach (var kv in src.AttributesRaw) dst.AttributesRaw[kv.Key] = kv.Value;
+            if (src.TextArgs != null)
+                dst.TextArgs = new System.Collections.Generic.Dictionary<string, string>(src.TextArgs);
             CopyVariantOverrides(src, dst);
             foreach (var c in src.Children) dst.Children.Add(DeepClone(c));
             return dst;
