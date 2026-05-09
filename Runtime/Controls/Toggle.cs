@@ -20,18 +20,41 @@ namespace PromptUGUI.Controls
 
         public override void OnAttached()
         {
-            _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
+            _toggle = GameObject.GetComponent<UnityToggle>() ?? GameObject.AddComponent<UnityToggle>();
+
+            // Background：左上角 20x20 box（默认 prefab Toggle 的 Background 节点）
+            var bgRt = ProceduralBuilders.AddChild(RectTransform, "Background");
+            bgRt.anchorMin = new Vector2(0f, 1f);
+            bgRt.anchorMax = new Vector2(0f, 1f);
+            bgRt.pivot = new Vector2(0.5f, 0.5f);
+            bgRt.sizeDelta = new Vector2(20f, 20f);
+            bgRt.anchoredPosition = new Vector2(10f, -10f);
+            _bg = bgRt.gameObject.AddComponent<UnityImage>();
             _bg.color = ProceduralBuilders.DefaultControlBgColor;
             ProceduralBuilders.ApplyDefaultSlicedSprite(_bg);
-            _toggle = GameObject.GetComponent<UnityToggle>() ?? GameObject.AddComponent<UnityToggle>();
             _toggle.targetGraphic = _bg;
 
-            _checkmark = ProceduralBuilders.AddImage(RectTransform, "Checkmark", raycast: false);
+            // Checkmark：放在 Background 内部，居中 20x20 simple sprite
+            _checkmark = ProceduralBuilders.AddImage(bgRt, "Checkmark", raycast: false);
+            _checkmark.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+            _checkmark.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            _checkmark.rectTransform.sizeDelta = new Vector2(20f, 20f);
+            _checkmark.rectTransform.anchoredPosition = Vector2.zero;
             _checkmark.color = ProceduralBuilders.DefaultGlyphColor;
             ProceduralBuilders.ApplyDefaultSimpleSprite(_checkmark, ProceduralBuilders.SpriteCheckmark);
             _toggle.graphic = _checkmark;
 
+            // Label：右侧水平 stretch；raycastTarget=true 让整条 toggle 都能点击
             _label = ProceduralBuilders.AddText(RectTransform, "Label");
+            _label.alignment = TextAlignmentOptions.Left;
+            _label.raycastTarget = true;
+            var labelRt = _label.rectTransform;
+            labelRt.anchorMin = new Vector2(0f, 0f);
+            labelRt.anchorMax = new Vector2(1f, 1f);
+            labelRt.pivot = new Vector2(0.5f, 0.5f);
+            labelRt.offsetMin = new Vector2(9f, 0f);
+            labelRt.offsetMax = new Vector2(-28f, 0f);
+
             ApplyFont();
 
             _toggle.onValueChanged.AddListener(v => _changed.OnNext(v));

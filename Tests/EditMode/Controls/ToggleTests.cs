@@ -73,5 +73,76 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var labels = t.GameObject.GetComponentsInChildren<TMPro.TMP_Text>();
             Assert.That(labels, Has.Some.Property("text").EqualTo("静音"));
         }
+
+        [Test]
+        public void Geometry_RootHasNoImage()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Toggle id='t'/></Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var t = UI.Open("S").Get<Toggle>("t");
+            Assert.IsNull(t.GameObject.GetComponent<UnityEngine.UI.Image>(),
+                "root Toggle should have no Image (default prefab parity)");
+        }
+
+        [Test]
+        public void Geometry_BackgroundIsTwentyByTwentyTopLeft()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Toggle id='t'/></Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var t = UI.Open("S").Get<Toggle>("t");
+            var bg = t.GameObject.transform.Find("Background") as UnityEngine.RectTransform;
+            Assert.IsNotNull(bg, "Background child must exist");
+            Assert.AreEqual(new UnityEngine.Vector2(0, 1), bg.anchorMin);
+            Assert.AreEqual(new UnityEngine.Vector2(0, 1), bg.anchorMax);
+            Assert.AreEqual(new UnityEngine.Vector2(20, 20), bg.sizeDelta);
+            Assert.AreEqual(new UnityEngine.Vector2(10, -10), bg.anchoredPosition);
+            Assert.IsNotNull(bg.GetComponent<UnityEngine.UI.Image>());
+        }
+
+        [Test]
+        public void Geometry_CheckmarkIsChildOfBackgroundAndCentered()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Toggle id='t'/></Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var t = UI.Open("S").Get<Toggle>("t");
+            var bg = t.GameObject.transform.Find("Background");
+            var checkmark = bg.Find("Checkmark") as UnityEngine.RectTransform;
+            Assert.IsNotNull(checkmark, "Checkmark must be child of Background");
+            Assert.AreEqual(new UnityEngine.Vector2(0.5f, 0.5f), checkmark.anchorMin);
+            Assert.AreEqual(new UnityEngine.Vector2(0.5f, 0.5f), checkmark.anchorMax);
+            Assert.AreEqual(new UnityEngine.Vector2(20, 20), checkmark.sizeDelta);
+            Assert.AreEqual(UnityEngine.Vector2.zero, checkmark.anchoredPosition);
+        }
+
+        [Test]
+        public void Geometry_LabelStretchesRightOfBackground()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Toggle id='t'>X</Toggle></Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var t = UI.Open("S").Get<Toggle>("t");
+            var label = t.GameObject.transform.Find("Label") as UnityEngine.RectTransform;
+            Assert.IsNotNull(label);
+            Assert.AreEqual(new UnityEngine.Vector2(0, 0), label.anchorMin);
+            Assert.AreEqual(new UnityEngine.Vector2(1, 1), label.anchorMax);
+            Assert.AreEqual(new UnityEngine.Vector2(9, 0), label.offsetMin);
+            Assert.AreEqual(new UnityEngine.Vector2(-28, 0), label.offsetMax);
+        }
+
+        [Test]
+        public void Visual_LabelRaycastTargetTrue()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Toggle id='t'>X</Toggle></Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var t = UI.Open("S").Get<Toggle>("t");
+            var labelGo = t.GameObject.transform.Find("Label").gameObject;
+            var tmp = labelGo.GetComponent<TMPro.TMP_Text>();
+            Assert.IsTrue(tmp.raycastTarget,
+                "Toggle label must be raycast target so clicks register on the right side of the toggle (default prefab behavior)");
+        }
     }
 }
