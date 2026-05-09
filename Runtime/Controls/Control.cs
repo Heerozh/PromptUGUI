@@ -49,6 +49,29 @@ namespace PromptUGUI.Controls
 
         public IReadOnlyDictionary<string, IControl> ScopedIds => _scopedIds ?? EmptyDict;
 
+        public T Get<T>(string idPath) where T : class, IControl
+        {
+            var c = Get(idPath);
+            return c as T ?? throw new System.InvalidCastException(
+                $"control at '{idPath}' is {c?.GetType().Name ?? "null"}, not {typeof(T).Name}");
+        }
+
+        public IControl Get(string idPath)
+        {
+            if (string.IsNullOrEmpty(idPath))
+                throw new System.ArgumentException("idPath is empty");
+            var segs = idPath.Split('/');
+            IControl current = this;
+            foreach (var seg in segs)
+            {
+                if (!current.ScopedIds.TryGetValue(seg, out var next))
+                    throw new System.Collections.Generic.KeyNotFoundException(
+                        $"id '{seg}' not found under '{current.Id ?? current.GameObject?.name}'");
+                current = next;
+            }
+            return current;
+        }
+
         // 由 ScreenInstantiator 在 InsantiateRecursive 中调用：把模板内 id 累加到本 Control 的局部作用域
         internal void AddScopedId(string id, IControl c)
         {

@@ -17,5 +17,9 @@ namespace PromptUGUI.Controls
         /// 用于 Screen.Get("a/b") 路径解析。
         /// </summary>
         public IReadOnlyDictionary<string, IControl> ScopedIds { get; }
+
+        /// <summary>路径查询：a/b/c 沿 ScopedIds 下钻；与 IScreen.Get 对齐。</summary>
+        public T Get<T>(string idPath) where T : class, IControl;
+        public IControl Get(string idPath);
     }
 }
