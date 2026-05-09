@@ -51,7 +51,7 @@
 
 ## Pre-flight
 
-- [ ] **Refresh Unity & check console**
+- [x] **Refresh Unity & check console**
 
 ```
 mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)
@@ -60,11 +60,11 @@ mcp__UnityMCP__read_console(action="get", types=["error"])
 
 Expected: zero compile errors before starting.
 
-- [ ] **Read the spec**
+- [x] **Read the spec**
 
 Read `docs/superpowers/specs/2026-05-09-m5-common-controls-design.md` end-to-end. The decision table (§2) and risk table (§10) are the contract this plan implements.
 
-- [ ] **Read affected files**
+- [x] **Read affected files**
 
 ```
 Runtime/Controls/Btn.cs                          ← procedural-visuals reference pattern
@@ -84,7 +84,7 @@ Runtime/Application/ControlAttributeApplier.cs   ← TrResolver + variant routin
 **Files:**
 - Create: `Runtime/Controls/Internal/ProceduralBuilders.cs`
 
-- [ ] **Step 1: Write the helper**
+- [x] **Step 1: Write the helper**
 
 ```csharp
 using TMPro;
@@ -128,7 +128,7 @@ namespace PromptUGUI.Controls.Internal
 }
 ```
 
-- [ ] **Step 2: Refresh + verify compiles**
+- [x] **Step 2: Refresh + verify compiles**
 
 ```
 mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)
@@ -137,7 +137,7 @@ mcp__UnityMCP__read_console(action="get", types=["error"])
 
 Expected: no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add Runtime/Controls/Internal/ProceduralBuilders.cs
@@ -153,7 +153,7 @@ git commit -m "feat(controls): ProceduralBuilders 共享 RectTransform/Image/TMP
 - Modify: `Runtime/Controls/Control.cs`
 - Test: `Tests/EditMode/Controls/IControlGetPathTests.cs`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `Tests/EditMode/Controls/IControlGetPathTests.cs`:
 
@@ -223,7 +223,9 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
 
 Expected: FAIL — `IControl` has no `Get` member (compile error or method-missing).
 
-- [ ] **Step 3: Add `Get` to IControl**
+- [x] **Step 2: Run test to verify it fails** (verified compile errors before adding API)
+
+- [x] **Step 3: Add `Get` to IControl**
 
 Edit `Runtime/Controls/IControl.cs` — append after `ScopedIds`:
 
@@ -233,7 +235,7 @@ Edit `Runtime/Controls/IControl.cs` — append after `ScopedIds`:
         public IControl Get(string idPath);
 ```
 
-- [ ] **Step 4: Implement on Control**
+- [x] **Step 4: Implement on Control**
 
 Edit `Runtime/Controls/Control.cs` — add inside the class:
 
@@ -262,7 +264,7 @@ Edit `Runtime/Controls/Control.cs` — add inside the class:
         }
 ```
 
-- [ ] **Step 5: Run test, verify pass**
+- [x] **Step 5: Run test, verify pass**
 
 ```
 mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)
@@ -271,7 +273,7 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add Runtime/Controls/IControl.cs Runtime/Controls/Control.cs Tests/EditMode/Controls/IControlGetPathTests.cs
@@ -280,13 +282,13 @@ git commit -m "feat(controls): IControl.Get<T>(idPath) 路径 API；走 ScopedId
 
 ---
 
-## Task 3: ToggleGroupRegistry (Screen-scoped)
+## Task 3: ToggleGroupRegistry (Screen-scoped) [DONE]
 
 **Files:**
 - Create: `Runtime/Controls/Internal/ToggleGroupRegistry.cs`
 - Modify: `Runtime/Application/Screen.cs`
 
-- [ ] **Step 1: Write the registry**
+- [x] **Step 1: Write the registry**
 
 Create `Runtime/Controls/Internal/ToggleGroupRegistry.cs`:
 
@@ -321,7 +323,7 @@ namespace PromptUGUI.Controls.Internal
 }
 ```
 
-- [ ] **Step 2: Wire registry into Screen**
+- [x] **Step 2: Wire registry into Screen**
 
 In `Runtime/Application/Screen.cs`, find the field block (around the `_byId` declaration) and add:
 
@@ -346,7 +348,7 @@ In the `Close()` / cleanup path — alongside `_byId.Clear()`:
 
 > If the existing Screen.cs structure differs from these landmark names, follow the same lifecycle hooks: create on Screen instantiation, clear on close. Re-creation on `ReSolve` is unnecessary — registry survives variant ReSolve like the other Screen-scoped state.
 
-- [ ] **Step 3: Refresh + verify compiles**
+- [x] **Step 3: Refresh + verify compiles**
 
 ```
 mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)
@@ -355,7 +357,7 @@ mcp__UnityMCP__read_console(action="get", types=["error"])
 
 Expected: no errors. (Registry has no callers yet — Toggle wires it up next task.)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add Runtime/Controls/Internal/ToggleGroupRegistry.cs Runtime/Application/Screen.cs
@@ -364,14 +366,17 @@ git commit -m "feat(controls): Screen 级 ToggleGroupRegistry，按 group 名复
 
 ---
 
-## Task 4: Toggle control
+## Task 4: Toggle control [DONE]
 
 **Files:**
 - Create: `Runtime/Controls/Toggle.cs`
 - Modify: `Runtime/Application/BuiltinPrimitives.cs`
+- Modify: `Runtime/Application/UI.cs` (added `OwnerScreenOf`; register Screen in `_open` before `screen.Open()` so transform-tree owner lookup works during instantiation)
+- Modify: `Runtime/Application/Screen.cs` (assign `RootGameObject` before `InstantiateInto` so OwnerScreenOf resolves during attribute application)
+- Modify: `Tests/EditMode/PromptUGUI.Tests.EditMode.asmdef` (added `Unity.TextMeshPro` reference for TMP_Text assertion)
 - Test: `Tests/EditMode/Controls/ToggleTests.cs`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `Tests/EditMode/Controls/ToggleTests.cs`:
 
@@ -464,7 +469,9 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
 
 Expected: FAIL — `Toggle` type missing.
 
-- [ ] **Step 3: Implement Toggle**
+- [x] **Step 2: Run test to verify it fails** (verified compile errors before implementing)
+
+- [x] **Step 3: Implement Toggle**
 
 Create `Runtime/Controls/Toggle.cs`:
 
@@ -587,7 +594,7 @@ namespace PromptUGUI.Controls
 
 > **Note**: `UI.OwnerScreenOf(IControl)` is needed for the Toggle to find its host Screen. If it doesn't exist, add it to `UI.cs` as a static helper that walks `Application.Screens` and finds the screen whose `_byId.Values.Contains(control)` or `NodeMap.Values.Contains(control)`. If implementation churn is high, alternative is a `Control._owner` field set by `Screen` after instantiation. Pick whichever is least intrusive in the current codebase.
 
-- [ ] **Step 4: Register Toggle**
+- [x] **Step 4: Register Toggle**
 
 Edit `Runtime/Application/BuiltinPrimitives.cs`, add inside `Register`:
 
@@ -595,7 +602,7 @@ Edit `Runtime/Application/BuiltinPrimitives.cs`, add inside `Register`:
             reg.Register<Toggle>("Toggle", null, defaultTextAttr: "text");
 ```
 
-- [ ] **Step 5: Run tests, verify pass**
+- [x] **Step 5: Run tests, verify pass**
 
 ```
 mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)
@@ -604,7 +611,7 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
 
 Expected: 4 PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add Runtime/Controls/Toggle.cs Runtime/Application/BuiltinPrimitives.cs Tests/EditMode/Controls/ToggleTests.cs
@@ -613,14 +620,14 @@ git commit -m "feat(controls): Toggle 控件，OnValueChanged 流 + group 互斥
 
 ---
 
-## Task 5: Slider control
+## Task 5: Slider control [DONE]
 
 **Files:**
 - Create: `Runtime/Controls/Slider.cs`
 - Modify: `Runtime/Application/BuiltinPrimitives.cs`
 - Test: `Tests/EditMode/Controls/SliderTests.cs`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `Tests/EditMode/Controls/SliderTests.cs`:
 
@@ -683,7 +690,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```
 mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)
@@ -692,7 +699,7 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
 
 Expected: FAIL — `Slider` type missing.
 
-- [ ] **Step 3: Implement Slider**
+- [x] **Step 3: Implement Slider**
 
 Create `Runtime/Controls/Slider.cs`:
 
@@ -788,7 +795,7 @@ namespace PromptUGUI.Controls
 }
 ```
 
-- [ ] **Step 4: Register Slider**
+- [x] **Step 4: Register Slider**
 
 Edit `Runtime/Application/BuiltinPrimitives.cs`, append:
 
@@ -796,7 +803,7 @@ Edit `Runtime/Application/BuiltinPrimitives.cs`, append:
             reg.Register<Slider>("Slider", null);
 ```
 
-- [ ] **Step 5: Run tests, verify pass**
+- [x] **Step 5: Run tests, verify pass**
 
 ```
 mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)
@@ -805,7 +812,7 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
 
 Expected: 3 PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add Runtime/Controls/Slider.cs Runtime/Application/BuiltinPrimitives.cs Tests/EditMode/Controls/SliderTests.cs
@@ -814,7 +821,7 @@ git commit -m "feat(controls): Slider 控件，min/max/value + direction + OnVal
 
 ---
 
-## Task 6: Dropdown control
+## Task 6: Dropdown control [DONE]
 
 **Files:**
 - Create: `Runtime/Controls/Internal/DropdownOption.cs`
@@ -822,7 +829,7 @@ git commit -m "feat(controls): Slider 控件，min/max/value + direction + OnVal
 - Modify: `Runtime/Application/BuiltinPrimitives.cs`
 - Test: `Tests/EditMode/Controls/DropdownTests.cs`
 
-- [ ] **Step 1: Write DropdownOption POCO**
+- [x] **Step 1: Write DropdownOption POCO**
 
 Create `Runtime/Controls/Internal/DropdownOption.cs`:
 
@@ -844,7 +851,7 @@ namespace PromptUGUI.Controls
 }
 ```
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Create `Tests/EditMode/Controls/DropdownTests.cs`:
 
@@ -895,7 +902,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 }
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [x] **Step 3: Run test to verify it fails**
 
 ```
 mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)
@@ -904,7 +911,7 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
 
 Expected: FAIL — `Dropdown` type missing.
 
-- [ ] **Step 4: Implement Dropdown**
+- [x] **Step 4: Implement Dropdown**
 
 Create `Runtime/Controls/Dropdown.cs`:
 
@@ -1040,7 +1047,7 @@ namespace PromptUGUI.Controls
 }
 ```
 
-- [ ] **Step 5: Register Dropdown**
+- [x] **Step 5: Register Dropdown**
 
 Edit `Runtime/Application/BuiltinPrimitives.cs`, append:
 
@@ -1048,7 +1055,7 @@ Edit `Runtime/Application/BuiltinPrimitives.cs`, append:
             reg.Register<Dropdown>("Dropdown", null);
 ```
 
-- [ ] **Step 6: Run tests, verify pass**
+- [x] **Step 6: Run tests, verify pass**
 
 ```
 mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)
@@ -1057,7 +1064,7 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
 
 Expected: 2 PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add Runtime/Controls/Dropdown.cs Runtime/Controls/Internal/DropdownOption.cs Runtime/Application/BuiltinPrimitives.cs Tests/EditMode/Controls/DropdownTests.cs
@@ -1066,12 +1073,12 @@ git commit -m "feat(controls): Dropdown 控件，BindOptions 推送选项 + OnSe
 
 ---
 
-## Task 7: ScreenInstantiator.InstantiateNode public entry
+## Task 7: ScreenInstantiator.InstantiateNode public entry [DONE]
 
 **Files:**
 - Modify: `Runtime/Application/ScreenInstantiator.cs`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `Tests/EditMode/Controls/IControlGetPathTests.cs` (or create `Tests/EditMode/Application/InstantiateNodeTests.cs`):
 
@@ -1116,7 +1123,7 @@ namespace PromptUGUI.Tests.EditMode.Application
 
 > **Implementation note**: `UI.GetLoadedDoc` and `UI.GetInstantiator` are existing internals (or near-internals). If they aren't already exposed, add them as `internal static` accessors on `UI.cs` for test consumption — they already exist as private state. Adjust the test to use whatever access path is least invasive.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```
 mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)
@@ -1125,7 +1132,7 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
 
 Expected: FAIL — `InstantiateNode` method missing.
 
-- [ ] **Step 3: Add public entry to ScreenInstantiator**
+- [x] **Step 3: Add public entry to ScreenInstantiator**
 
 Edit `Runtime/Application/ScreenInstantiator.cs`, add a new public method that wraps `InstantiateRecursive`:
 
@@ -1155,7 +1162,7 @@ Edit `Runtime/Application/ScreenInstantiator.cs`, add a new public method that w
 
 > **About `owner`**: parameter is reserved for future hooks (e.g., per-screen registries Toggle/ScrollList query). If unused right now, prefix `owner` with `_ =` or simply keep it for the API stability — caller already has the reference.
 
-- [ ] **Step 4: Run test, verify pass**
+- [x] **Step 4: Run test, verify pass**
 
 ```
 mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)
@@ -1164,7 +1171,7 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Runtime/Application/ScreenInstantiator.cs Tests/EditMode/Application/InstantiateNodeTests.cs
@@ -1173,14 +1180,14 @@ git commit -m "feat(application): ScreenInstantiator.InstantiateNode 公开入�
 
 ---
 
-## Task 8: ScrollList control
+## Task 8: ScrollList control [DONE]
 
 **Files:**
 - Create: `Runtime/Controls/ScrollList.cs`
 - Modify: `Runtime/Application/BuiltinPrimitives.cs`
 - Test: `Tests/EditMode/Controls/ScrollListTests.cs`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `Tests/EditMode/Controls/ScrollListTests.cs`:
 
@@ -1251,7 +1258,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```
 mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)
@@ -1260,7 +1267,7 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
 
 Expected: FAIL — `ScrollList` type missing.
 
-- [ ] **Step 3: Implement ScrollList**
+- [x] **Step 3: Implement ScrollList**
 
 Create `Runtime/Controls/ScrollList.cs`:
 
@@ -1479,7 +1486,7 @@ namespace PromptUGUI.Controls
 
 > **About `UI.GetCurrentDoc` / `UI.GetInstantiator` / `UI.OwnerScreenOf` / `LoadedDoc.TryFindTemplate`**: implement these as thin internal accessors over existing private state. If the codebase already has equivalents under different names, reuse them. If not, add the smallest possible accessor (no public surface).
 
-- [ ] **Step 4: Register ScrollList**
+- [x] **Step 4: Register ScrollList**
 
 Edit `Runtime/Application/BuiltinPrimitives.cs`, append:
 
@@ -1487,7 +1494,7 @@ Edit `Runtime/Application/BuiltinPrimitives.cs`, append:
             reg.Register<ScrollList>("ScrollList", null);
 ```
 
-- [ ] **Step 5: Run tests, verify pass**
+- [x] **Step 5: Run tests, verify pass**
 
 ```
 mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)
@@ -1496,7 +1503,7 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
 
 Expected: 3 PASS.
 
-- [ ] **Step 6: Run full EditMode suite**
+- [x] **Step 6: Run full EditMode suite**
 
 ```
 mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.EditMode"])
@@ -1504,7 +1511,7 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
 
 Expected: all green; no regressions in earlier M1–M4 tests.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add Runtime/Controls/ScrollList.cs Runtime/Application/BuiltinPrimitives.cs Tests/EditMode/Controls/ScrollListTests.cs
@@ -1513,12 +1520,12 @@ git commit -m "feat(controls): ScrollList，itemTemplate→工厂解析 + BindIt
 
 ---
 
-## Task 9: PlayMode integration tests
+## Task 9: PlayMode integration tests [DONE]
 
 **Files:**
 - Create: `Tests/PlayMode/Controls/CommonControlsPlayTests.cs`
 
-- [ ] **Step 1: Write the integration tests**
+- [x] **Step 1: Write the integration tests**
 
 Create `Tests/PlayMode/Controls/CommonControlsPlayTests.cs`:
 
@@ -1586,7 +1593,7 @@ namespace PromptUGUI.Tests.PlayMode.Controls
 }
 ```
 
-- [ ] **Step 2: Run PlayMode tests**
+- [x] **Step 2: Run PlayMode tests**
 
 ```
 mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)
@@ -1595,7 +1602,7 @@ mcp__UnityMCP__run_tests(mode="PlayMode", assembly_names=["PromptUGUI.Tests.Play
 
 Expected: 2 PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add Tests/PlayMode/Controls/CommonControlsPlayTests.cs
@@ -1604,14 +1611,14 @@ git commit -m "test(playmode): Toggle group + ScrollList 真实 layout 路径冒
 
 ---
 
-## Task 10: Sample (CommonControls demo)
+## Task 10: Sample (CommonControls demo) [DONE]
 
 **Files:**
 - Create: `Samples~/CommonControls/CommonControlsRunner.cs`
 - Create: `Samples~/CommonControls/Resources/UI/Settings.ui.xml`
 - Modify: `package.json`
 
-- [ ] **Step 1: Write the sample XML**
+- [x] **Step 1: Write the sample XML**
 
 Create `Samples~/CommonControls/Resources/UI/Settings.ui.xml`:
 
@@ -1641,7 +1648,7 @@ Create `Samples~/CommonControls/Resources/UI/Settings.ui.xml`:
 </PromptUGUI>
 ```
 
-- [ ] **Step 2: Write the runner MonoBehaviour**
+- [x] **Step 2: Write the runner MonoBehaviour**
 
 Create `Samples~/CommonControls/CommonControlsRunner.cs`:
 
@@ -1696,7 +1703,7 @@ namespace PromptUGUI.Samples.CommonControls
 }
 ```
 
-- [ ] **Step 3: Add sample entry to package.json**
+- [x] **Step 3: Add sample entry to package.json**
 
 Edit `package.json`, append the new entry inside the `samples` array:
 
@@ -1715,7 +1722,7 @@ Edit `package.json`, append the new entry inside the `samples` array:
   ]
 ```
 
-- [ ] **Step 4: Refresh + verify the sample compiles**
+- [x] **Step 4: Refresh + verify the sample compiles**
 
 ```
 mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)
@@ -1724,7 +1731,7 @@ mcp__UnityMCP__read_console(action="get", types=["error"])
 
 Expected: no errors. (`Samples~` is excluded from main asmdef compilation but the C# itself should be syntactically valid.)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Samples~/CommonControls/ package.json
@@ -1733,13 +1740,13 @@ git commit -m "feat(sample): CommonControls demo (Toggle/Slider/Dropdown/ScrollL
 
 ---
 
-## Task 11: Doc updates (master spec + SKILL.md)
+## Task 11: Doc updates (master spec + SKILL.md) [DONE]
 
 **Files:**
 - Modify: `docs/superpowers/specs/2026-05-07-promptugui-description-language-design.md`
 - Modify: `.claude/skills/authoring-promptugui-xml/SKILL.md`
 
-- [ ] **Step 1: Update master spec §5 primitives table**
+- [x] **Step 1: Update master spec §5 primitives table**
 
 Open `docs/superpowers/specs/2026-05-07-promptugui-description-language-design.md`. In §5, change the "8 个原语" wording to "12 个原语" and append four rows to the table:
 
@@ -1758,7 +1765,7 @@ with:
 
 > `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` 默认开启的参考实现（详见 [`2026-05-09-m5-common-controls-design.md`](2026-05-09-m5-common-controls-design.md)）。视觉风格用 `sprite` / `color` 等属性表达；需要项目级强差异化样式（像素描边、按下震动等）时作者继承相应类重写 `OnAttached`。
 
-- [ ] **Step 2: Update SKILL.md primitives table**
+- [x] **Step 2: Update SKILL.md primitives table**
 
 Open `.claude/skills/authoring-promptugui-xml/SKILL.md`. Find the "内置原语" section and add four lines:
 
@@ -1769,7 +1776,7 @@ Open `.claude/skills/authoring-promptugui-xml/SKILL.md`. Find the "内置原语"
 <ScrollList itemTemplate="TagName"/>               BindItems(IObservable<IReadOnlyList<T>>) 推送
 ```
 
-- [ ] **Step 3: Update SKILL.md C# bridge examples**
+- [x] **Step 3: Update SKILL.md C# bridge examples**
 
 Append a `BindItems / BindOptions` block to the C# examples section:
 
@@ -1786,7 +1793,7 @@ screen.Get<ScrollList>("list")
       .AddTo(screen);
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/superpowers/specs/2026-05-07-promptugui-description-language-design.md .claude/skills/authoring-promptugui-xml/SKILL.md
@@ -1795,12 +1802,12 @@ git commit -m "doc: 主 spec §5/§10 + SKILL.md 同步 M5 四个常用控件"
 
 ---
 
-## Task 12: Lint + final verification
+## Task 12: Lint + final verification [DONE]
 
 **Files:**
 - _no edits expected_
 
-- [ ] **Step 1: Run `dotnet format` whitespace + style + analyzers**
+- [x] **Step 1: Run `dotnet format` whitespace + style + analyzers**
 
 From repo root:
 
@@ -1814,7 +1821,7 @@ dotnet format --verify-no-changes --severity warn PromptUGUI.Lint.slnx
 
 Expected: clean exit, no diff produced. If `--verify-no-changes` reports drift, run the un-verified `dotnet format` once more to absorb fixers, commit the result.
 
-- [ ] **Step 2: Run full EditMode suite**
+- [x] **Step 2: Run full EditMode suite**
 
 ```
 mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.EditMode"])
@@ -1822,7 +1829,7 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
 
 Expected: all green.
 
-- [ ] **Step 3: Run full PlayMode suite**
+- [x] **Step 3: Run full PlayMode suite**
 
 ```
 mcp__UnityMCP__run_tests(mode="PlayMode", assembly_names=["PromptUGUI.Tests.PlayMode"])
@@ -1830,7 +1837,7 @@ mcp__UnityMCP__run_tests(mode="PlayMode", assembly_names=["PromptUGUI.Tests.Play
 
 Expected: all green.
 
-- [ ] **Step 4: Run EditorOnly suite**
+- [x] **Step 4: Run EditorOnly suite**
 
 ```
 mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.EditorOnly"])
@@ -1838,7 +1845,7 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
 
 Expected: all green.
 
-- [ ] **Step 5: Final console check**
+- [x] **Step 5: Final console check**
 
 ```
 mcp__UnityMCP__read_console(action="get", types=["error","warning"])
@@ -1846,7 +1853,7 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 
 Expected: no new errors; warnings only from acknowledged sources (e.g., M3 Strategy C debug logs). No `[Bind]` warnings, no `[UIAttr]` warnings on the four new controls.
 
-- [ ] **Step 6: Commit any lint fixups**
+- [x] **Step 6: Commit any lint fixups**
 
 ```bash
 git status
@@ -1855,7 +1862,7 @@ git add -p
 git commit -m "chore: lint autofix on M5 controls"
 ```
 
-- [ ] **Step 7: Push branch and report**
+- [x] **Step 7: Push branch and report**
 
 ```bash
 git push -u origin <branch-name>
