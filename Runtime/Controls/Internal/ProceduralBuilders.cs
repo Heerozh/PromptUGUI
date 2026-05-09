@@ -8,21 +8,23 @@ namespace PromptUGUI.Controls.Internal
 {
     internal static class ProceduralBuilders
     {
-        // 默认配色：让无 sprite/无 color 的控件依然可视（不是纯白叠白）。
-        // 作者写 color="..." / sprite="..." 时 UIAttr setter 会 override 这些值。
-        public static readonly Color DefaultBtnColor       = new(0.231f, 0.510f, 0.965f, 1f);  // #3B82F6
-        public static readonly Color DefaultControlBgColor = new(0.267f, 0.267f, 0.267f, 1f);  // #444444
-        public static readonly Color DefaultTrackColor     = new(0.200f, 0.200f, 0.200f, 1f);  // #333333
-        public static readonly Color DefaultFillColor      = new(0.231f, 0.510f, 0.965f, 1f);  // #3B82F6
-        public static readonly Color DefaultHandleColor    = new(1.000f, 1.000f, 1.000f, 1f);  // #FFFFFF
-        public static readonly Color DefaultPopupBgColor   = new(0.227f, 0.227f, 0.227f, 1f);  // #3A3A3A
-        public static readonly Color DefaultContainerColor = new(0.165f, 0.165f, 0.165f, 1f);  // #2A2A2A
-        public static readonly Color DefaultGlyphColor     = new(1.000f, 1.000f, 1.000f, 1f);  // #FFFFFF
+        // 默认配色对齐 Unity 6 标准控件（菜单 GameObject → UI → … 创建出来的 prefab）
+        // 全部白底 sliced + #323232 深字；sprite 由 atlas tint 表现明暗。
+        public static readonly Color DefaultBtnColor = Color.white;
+        public static readonly Color DefaultControlBgColor = Color.white;
+        public static readonly Color DefaultTrackColor = Color.white;
+        public static readonly Color DefaultFillColor = Color.white;
+        public static readonly Color DefaultHandleColor = Color.white;
+        public static readonly Color DefaultPopupBgColor = Color.white;
+        public static readonly Color DefaultContainerColor = new(1f, 1f, 1f, 0.392f);
+        public static readonly Color DefaultGlyphColor = new(0.196f, 0.196f, 0.196f, 1f);
+        public static readonly Color DefaultLabelColor = new(0.196f, 0.196f, 0.196f, 1f);
+        public static readonly Color DefaultPlaceholderColor = new(0.196f, 0.196f, 0.196f, 0.5f);
 
         // pugui.png 像素图集中的精灵名（参见 Runtime/Resources/PromptUGUI/Defaults/pugui.png.meta）
         public const string SpriteRoundedRect = "pugui_9slice_round";
-        public const string SpriteCaret       = "pugui_caret";
-        public const string SpriteCheckmark   = "pugui_checkmark";
+        public const string SpriteCaret = "pugui_caret";
+        public const string SpriteCheckmark = "pugui_checkmark";
 
         private const string DefaultSpritesPath = "PromptUGUI/Defaults/pugui";
         private static Dictionary<string, Sprite> _defaultSprites;
@@ -50,14 +52,14 @@ namespace PromptUGUI.Controls.Internal
         }
 
         /// <summary>给 Image 应用 simple sprite 兜底（caret / checkmark 等无边界形状）。</summary>
-        public static void ApplyDefaultSimpleSprite(UnityImage img, string spriteName)
+        public static void ApplyDefaultSimpleSprite(UnityImage img, string spriteName, bool preserveAspect = false)
         {
             if (img == null || img.sprite != null) return;
             var s = GetDefaultSprite(spriteName);
             if (s == null) return;
             img.sprite = s;
             img.type = UnityImage.Type.Simple;
-            img.preserveAspect = true;
+            img.preserveAspect = preserveAspect;
         }
 
         internal static void ResetDefaultSpriteCacheForTests() => _defaultSprites = null;
@@ -88,6 +90,8 @@ namespace PromptUGUI.Controls.Internal
             var tmp = rt.gameObject.AddComponent<TextMeshProUGUI>();
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.raycastTarget = false;
+            tmp.color = DefaultLabelColor;
+            tmp.fontSize = 14;
             return tmp;
         }
     }
