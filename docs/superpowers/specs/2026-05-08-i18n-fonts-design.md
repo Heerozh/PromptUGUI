@@ -490,8 +490,8 @@ Assets/Resources/PromptUGUI/
 ### 9.1 入口与配置
 
 - 配置面板：`Project Settings → PromptUGUI → Translation`（SettingsProvider）
-  - `endpoint`（默认 `https://api.openai.com/v1/chat/completions`）
-  - `model`（默认 `gpt-4o-mini`）
+  - `endpoint`（默认 `https://api.deepseek.com/chat/completions`）
+  - `model`（默认 `deepseek-v4-flash`）
   - `systemPrompt`（默认含游戏 UI 翻译指南的中文 prompt；可改）
   - 持久化到 `ProjectSettings/PromptUGUI.asset`（进 git，团队共享）
 - API key：`UserSettings/PromptUGUI/Auth.asset`（单字段 ScriptableObject，Unity 默认 .gitignore）

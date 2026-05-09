@@ -905,8 +905,8 @@ namespace PromptUGUI.Editor.I18n {
     /// `ProjectSettings/PromptUGUI.asset` (in repo, team-shared).
     /// </summary>
     internal sealed class TranslationProvider : ScriptableObject {
-        public string endpoint = "https://api.openai.com/v1/chat/completions";
-        public string model = "gpt-4o-mini";
+        public string endpoint = "https://api.deepseek.com/chat/completions";
+        public string model = "deepseek-v4-flash";
         [TextArea(6, 20)] public string systemPrompt =
 @"你正在为一款游戏翻译 UI 字符串到 {{targetLocale}}。
 
