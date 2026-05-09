@@ -214,7 +214,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```
 mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)
@@ -460,7 +460,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```
 mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)
