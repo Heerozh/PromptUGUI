@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace PromptUGUI.Editor {
     public static class IconAtlasMenu {
-        [MenuItem("Tools/PromptUGUI/Sync Icon Atlases (All Sets)")]
+        [MenuItem("Tools/PromptUGUI/Icon/Sync Atlases (All Sets)")]
         public static void SyncAll() {
             var sets = new System.Collections.Generic.List<IconSet>();
             foreach (var s in IconAtlasSyncer.FindAllIconSets()) sets.Add(s);
@@ -17,7 +17,7 @@ namespace PromptUGUI.Editor {
             Debug.Log($"[PromptUGUI] Synced {sets.Count} IconSet(s)");
         }
 
-        [MenuItem("Tools/PromptUGUI/Sync Icon Atlases (Selected Set)")]
+        [MenuItem("Tools/PromptUGUI/Icon/Sync Atlases (Selected Set)")]
         public static void SyncSelected() {
             var picked = new System.Collections.Generic.List<IconSet>();
             foreach (var o in Selection.objects)
@@ -30,7 +30,7 @@ namespace PromptUGUI.Editor {
             UI.HotReload.NotifyIconAssetsChanged();
         }
 
-        [MenuItem("Tools/PromptUGUI/Sync Icon Atlases (Selected Set)", true)]
+        [MenuItem("Tools/PromptUGUI/Icon/Sync Atlases (Selected Set)", true)]
         public static bool SyncSelectedValidate() {
             foreach (var o in Selection.objects)
                 if (o is IconSet) return true;

@@ -5,18 +5,23 @@ using PromptUGUI.Application;
 using UnityEditor;
 using UnityEngine;
 
-namespace PromptUGUI.Editor.I18n {
-    internal static class StringExtractor {
+namespace PromptUGUI.Editor.I18n
+{
+    internal static class StringExtractor
+    {
         const string OutputRoot = "Assets/Resources/PromptUGUI/i18n";
 
-        [MenuItem("Tools/PromptUGUI/Extract Strings")]
-        public static void ExtractAll() {
+        [MenuItem("Tools/PromptUGUI/I18n/1. Extract Strings")]
+        public static void ExtractAll()
+        {
             var settings = PromptUGUISettings.Instance;
-            if (settings == null || settings.locales.Count == 0) {
+            if (settings == null || settings.locales.Count == 0)
+            {
                 EditorUtility.DisplayDialog(
                     "PromptUGUI",
-                    "No PromptUGUISettings found, or it has no locales configured. " +
-                    "Add one and configure locales first.",
+                    "No PromptUGUISettings found, or it has no locales configured.\n\n" +
+                    "Create one via 'Assets → Create → PromptUGUI/Settings', " +
+                    "then select the asset and add at least one entry under 'Locales' in the Inspector.",
                     "OK");
                 return;
             }
@@ -31,9 +36,11 @@ namespace PromptUGUI.Editor.I18n {
                 .ToDictionary(g => g.Key, g => g.ToList());
 
             int filesWritten = 0;
-            foreach (var lc in settings.locales) {
+            foreach (var lc in settings.locales)
+            {
                 if (string.IsNullOrEmpty(lc.locale)) continue;
-                foreach (var kv in byPartition) {
+                foreach (var kv in byPartition)
+                {
                     var path = Path.Combine(OutputRoot, lc.locale, kv.Key + ".po")
                         .Replace('\\', '/');
                     Directory.CreateDirectory(Path.GetDirectoryName(path));
@@ -47,24 +54,29 @@ namespace PromptUGUI.Editor.I18n {
             Debug.Log($"[PromptUGUI] Extract Strings: {allExtracted.Count} msgids → {filesWritten} .po files across {settings.locales.Count} locales.");
         }
 
-        static IEnumerable<ExtractedString> ScanAllXml() {
+        static IEnumerable<ExtractedString> ScanAllXml()
+        {
             var guids = AssetDatabase.FindAssets("t:TextAsset");
-            foreach (var guid in guids) {
+            foreach (var guid in guids)
+            {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
                 if (!path.EndsWith(".ui.xml")) continue;
                 if (path.StartsWith("Packages/")) continue;
                 var text = File.ReadAllText(path);
                 var partition = PathToPartition(path);
-                foreach (var es in XmlStringScanner.Scan(text, partition)) {
+                foreach (var es in XmlStringScanner.Scan(text, partition))
+                {
                     if (es.References.Count == 0) es.References.Add(path);
                     yield return es;
                 }
             }
         }
 
-        static IEnumerable<ExtractedString> ScanAllCSharp() {
+        static IEnumerable<ExtractedString> ScanAllCSharp()
+        {
             var guids = AssetDatabase.FindAssets("t:Script");
-            foreach (var guid in guids) {
+            foreach (var guid in guids)
+            {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
                 if (!path.EndsWith(".cs")) continue;
                 if (path.StartsWith("Packages/")) continue;
@@ -75,7 +87,8 @@ namespace PromptUGUI.Editor.I18n {
             }
         }
 
-        static string PathToPartition(string assetPath) {
+        static string PathToPartition(string assetPath)
+        {
             // "Assets/UI/screens/MainMenu.ui.xml" → "screens/MainMenu"
             // "Assets/UI/common/Buttons.ui.xml"   → "common/Buttons"
             const string prefix = "Assets/";

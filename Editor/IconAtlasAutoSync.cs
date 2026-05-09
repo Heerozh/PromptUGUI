@@ -12,12 +12,12 @@ namespace PromptUGUI.Editor {
             set => EditorPrefs.SetBool(PrefKey, value);
         }
 
-        [MenuItem("Tools/PromptUGUI/Auto-sync Icon Atlases on Save")]
+        [MenuItem("Tools/PromptUGUI/Icon/Auto-sync Atlases on Save")]
         static void Toggle() => Enabled = !Enabled;
 
-        [MenuItem("Tools/PromptUGUI/Auto-sync Icon Atlases on Save", true)]
+        [MenuItem("Tools/PromptUGUI/Icon/Auto-sync Atlases on Save", true)]
         static bool ToggleValidate() {
-            Menu.SetChecked("Tools/PromptUGUI/Auto-sync Icon Atlases on Save", Enabled);
+            Menu.SetChecked("Tools/PromptUGUI/Icon/Auto-sync Atlases on Save", Enabled);
             return true;
         }
 

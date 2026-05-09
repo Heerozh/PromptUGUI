@@ -3,7 +3,7 @@ using PromptUGUI.Application;
 
 namespace PromptUGUI.Editor {
     static class XsdMenu {
-        [MenuItem("Tools/PromptUGUI/Generate XSD")]
+        [MenuItem("Tools/PromptUGUI/Schema/Generate XSD")]
         static void Run() {
             XsdGenerator.GenerateToFile(UI.Registry);
         }

@@ -4,7 +4,7 @@ using TMPro;
 using UnityEngine;
 
 namespace PromptUGUI.Application {
-    [CreateAssetMenu(menuName = "PromptUGUI/Settings", fileName = "Settings")]
+    [CreateAssetMenu(menuName = "PromptUGUI/Settings", fileName = "PromptUGUI_Settings")]
     public sealed class PromptUGUISettings : ScriptableObject {
         [Serializable] public sealed class FontEntry {
             public string type;          // "default" | "title" | "damage" | ...
