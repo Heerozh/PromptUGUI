@@ -59,14 +59,21 @@ namespace PromptUGUI.Controls
             templateScroll.horizontal = false;
             templateScroll.movementType = UnityEngine.UI.ScrollRect.MovementType.Clamped;
 
-            // Viewport (full-fills the template; clip items via RectMask2D — scissor-rect, no stencil/graphic).
+            // Viewport: stencil Mask + sliced Image (alpha=1, showMaskGraphic=false) ── 跟默认 prefab 一致。
+            // CRITICAL: alpha 必须为 1。alpha=0.01 会触发 UI/Default shader 的 alpha-discard，
+            // 把 stencil 写飞 (4af322b 之前的 bug)。
             var viewport = ProceduralBuilders.AddChild(template, "Viewport");
             viewport.anchorMin = new Vector2(0f, 0f);
             viewport.anchorMax = new Vector2(1f, 1f);
             viewport.pivot = new Vector2(0f, 1f);
             viewport.offsetMin = Vector2.zero;
             viewport.offsetMax = Vector2.zero;
-            viewport.gameObject.AddComponent<UnityEngine.UI.RectMask2D>();
+            viewport.sizeDelta = new Vector2(-18f, 0f);  // 留 18px 给 Vertical Scrollbar (Task 8 加)
+            var viewportImg = viewport.gameObject.AddComponent<UnityImage>();
+            viewportImg.color = UnityEngine.Color.white;  // alpha=1 关键
+            ProceduralBuilders.ApplyDefaultSlicedSprite(viewportImg);
+            var viewportMask = viewport.gameObject.AddComponent<UnityEngine.UI.Mask>();
+            viewportMask.showMaskGraphic = false;
 
             // Content (top-anchored; height grows to fit items via TMP_Dropdown's runtime sizing).
             var content = ProceduralBuilders.AddChild(viewport, "Content");
