@@ -12,6 +12,7 @@
     <VStack id="root" anchor="center" size="500x600" spacing="16" padding="24">
       <Text fontSize="28" align="center">Common Controls Demo</Text>
 
+      <InputField id="username" placeholder="Username" width="240" height="30"/>
       <Toggle id="muteAudio">静音</Toggle>
       <Slider id="masterVol" min="0" max="1" value="0.8"/>
       <Dropdown id="quality"/>
