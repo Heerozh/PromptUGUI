@@ -9,6 +9,36 @@ PromptUGUI is a Unity 6+ package that turns compact XML files into runtime uGUI 
 
 This skill covers everything you need to write or edit a `.ui.xml` correctly. Read top-to-bottom once; afterwards the **Quick Reference** at the end is enough.
 
+## Validation & feedback loop (run after every write)
+
+Every `.ui.xml` write — and every `.cs` write that touches PromptUGUI — MUST be verified before reporting the work done. Two steps, in order:
+
+### 1. XSD validate every `.ui.xml`
+
+```
+xmllint --noout --schema Assets/PromptUGUI.gen.xsd <path/to/your.ui.xml>
+```
+
+- Default schema location: `Assets/PromptUGUI.gen.xsd`. It's generated from the user's `ControlRegistry`, so it knows about their custom controls.
+- **If the file does not exist, STOP.** Tell the user (in their language) to run the Editor menu `Tools → PromptUGUI → Schema → Generate XSD`.
+
+### 2. Unity MCP live feedback (xml AND C# writes)
+
+XSD only catches structural errors; Unity catches the rest — parser semantic errors (anchor/size conflicts, id collisions, missing `ref=`, Template namespace clashes), C# compile failures, runtime hot-reload errors.
+
+After every `.ui.xml` or `.cs` write:
+
+```
+mcp__UnityMCP__refresh_unity(compile="request", mode="force")
+mcp__UnityMCP__read_console(action="get", types=["error","warning"])
+# Notice: this is a CoplayDev/unity-mcp, user may use official unity mcp.
+```
+
+**If MCP for Unity is unavailable** (call fails / no Unity instance): Note that the Unity MCP connection is prone to disconnection; therefore, we must first take the following steps:
+
+- Check the user's MCP configuration files. If no Unity MCP installation is detected, issue a warning to the user indicating that MCP for Unity needs to be installed; however, this should be treated strictly as a warning—do not halt operations.
+- If an installation is detected, this indicates that the user has not launched Unity or the MCP server. In this case, you must **STOP** and instruct the user to open the Unity Editor and ensure that the MCP server is running.
+
 ## File anatomy
 
 ```xml
@@ -20,12 +50,12 @@ This skill covers everything you need to write or edit a `.ui.xml` correctly. Re
 </PromptUGUI>
 ```
 
-| Element | Role | Notes |
-|---|---|---|
-| `<PromptUGUI version="1">` | Root, **always**. | NOT `<UI>`. `version="1"` is required. |
-| `<Import src="..." [as="ns"]/>` | Pull templates from another file. | Top-level only. `as=` adds namespace prefix. |
+| Element                              | Role                                                      | Notes                                                                                                                |
+| ------------------------------------ | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `<PromptUGUI version="1">`           | Root, **always**.                                         | NOT `<UI>`. `version="1"` is required.                                                                               |
+| `<Import src="..." [as="ns"]/>`      | Pull templates from another file.                         | Top-level only. `as=` adds namespace prefix.                                                                         |
 | `<Screen name="..." [canvas="..."]>` | A complete UI scene; opened by code with `UI.Open(name)`. | One Screen = one Canvas. Names unique across all loaded files. `canvas="overlay\|camera\|world"`, default `overlay`. |
-| `<Template name="...">` | Reusable subtree, expanded at parse time. | Body must have **exactly one root element**. |
+| `<Template name="...">`              | Reusable subtree, expanded at parse time.                 | Body must have **exactly one root element**.                                                                         |
 
 `<Import>`, `<Screen>`, `<Template>` are the **only** elements allowed at the top level. Comments use standard `<!-- -->`.
 
@@ -33,16 +63,16 @@ This skill covers everything you need to write or edit a `.ui.xml` correctly. Re
 
 Pre-registered on `UI.Registry`. Use as XML tags by name:
 
-| Tag | Notes | Tag-specific attributes |
-|---|---|---|
-| `<Frame>` | Empty container (RectTransform only). | — |
-| `<Image>` | uGUI Image; loads sprites from `Resources`. | `sprite` (resource path), `color` (`#RRGGBB[AA]`), `type` (`simple` / `sliced` / `tiled` / `filled`) |
-| `<Text>` | TMP_Text. Has text-content shorthand: `<Text>Hello</Text>` ≡ `<Text text="Hello"/>`. | `text`, `fontSize` (int), `color`, `align` (`left` / `center` / `right`), `wrap` (bool), `raycastTarget` (bool), `font` (string, font type from Settings; default `default`), `tr` (bool, default `true`; set `false` to skip i18n extraction), `ctx` (string, msgctxt to disambiguate same-msgid in the .po table) |
-| `<VStack>` | Vertical layout group. | `spacing` (float), `padding` (`T,R,B,L` 1/2/4 components) |
-| `<HStack>` | Horizontal layout group. | Same as VStack. |
-| `<Grid>` | Grid layout group, fixed columns. | `columns` (int), `cellSize` (`WxH`), `spacing` (single or `H,V`), `padding` |
-| `<Btn>` | Image + Button + R3 `OnClick`. `<Btn>开始</Btn>` shorthand creates an internal TMP label child. Use as **template root** or registered prefab tag for any clickable. | `color`, `sprite`, `font` (string, font type from Settings; default `default`), `tr` (bool, default `true`; set `false` to skip i18n extraction), `ctx` (string, msgctxt to disambiguate same-msgid in the .po table) |
-| `<Icon>` | Sprite from a project-level IconSet; by-name lookup, package-time pruning. | `name` (required, `ns:icon-name`), `color` (`#RRGGBB[AA]`), `size` (numeric / `WxH` / `stretch` / `native`) |
+| Tag        | Notes                                                                                                                                                                | Tag-specific attributes                                                                                                                                                                                                                                                                                             |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<Frame>`  | Empty container (RectTransform only).                                                                                                                                | —                                                                                                                                                                                                                                                                                                                   |
+| `<Image>`  | uGUI Image; loads sprites from `Resources`.                                                                                                                          | `sprite` (resource path), `color` (`#RRGGBB[AA]`), `type` (`simple` / `sliced` / `tiled` / `filled`)                                                                                                                                                                                                                |
+| `<Text>`   | TMP_Text. Has text-content shorthand: `<Text>Hello</Text>` ≡ `<Text text="Hello"/>`.                                                                                 | `text`, `fontSize` (int), `color`, `align` (`left` / `center` / `right`), `wrap` (bool), `raycastTarget` (bool), `font` (string, font type from Settings; default `default`), `tr` (bool, default `true`; set `false` to skip i18n extraction), `ctx` (string, msgctxt to disambiguate same-msgid in the .po table) |
+| `<VStack>` | Vertical layout group.                                                                                                                                               | `spacing` (float), `padding` (`T,R,B,L` 1/2/4 components)                                                                                                                                                                                                                                                           |
+| `<HStack>` | Horizontal layout group.                                                                                                                                             | Same as VStack.                                                                                                                                                                                                                                                                                                     |
+| `<Grid>`   | Grid layout group, fixed columns.                                                                                                                                    | `columns` (int), `cellSize` (`WxH`), `spacing` (single or `H,V`), `padding`                                                                                                                                                                                                                                         |
+| `<Btn>`    | Image + Button + R3 `OnClick`. `<Btn>开始</Btn>` shorthand creates an internal TMP label child. Use as **template root** or registered prefab tag for any clickable. | `color`, `sprite`, `font` (string, font type from Settings; default `default`), `tr` (bool, default `true`; set `false` to skip i18n extraction), `ctx` (string, msgctxt to disambiguate same-msgid in the .po table)                                                                                               |
+| `<Icon>`   | Sprite from a project-level IconSet; by-name lookup, package-time pruning.                                                                                           | `name` (required, `ns:icon-name`), `color` (`#RRGGBB[AA]`), `size` (numeric / `WxH` / `stretch` / `native`)                                                                                                                                                                                                         |
 
 **No built-in `<Button>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>`.** Build those as `<Template>` (composing `<Btn>` + `<Image>` + `<Text>`) or register your own C# `Control` + Prefab.
 
@@ -56,11 +86,11 @@ References a sprite from a project-level IconSet (shared icons, by-name lookup, 
 <Icon name="ui:bell" color.dark="#fff"/>
 ```
 
-| Attribute | Required | Default | Notes |
-|---|---|---|---|
-| `name` | yes | — | Format `ns:icon-name` (single colon, both halves match `[\w-]+`) |
-| `color` | no | `#ffffff` | Multiply tint on the underlying Image. White preserves a colored PNG; non-white tints a mono-mask PNG |
-| `size` | no | `native` | Numeric / `WxH` / `stretch` / `native` (Icon-only). Native reads sprite pixel dimensions |
+| Attribute | Required | Default   | Notes                                                                                                 |
+| --------- | -------- | --------- | ----------------------------------------------------------------------------------------------------- |
+| `name`    | yes      | —         | Format `ns:icon-name` (single colon, both halves match `[\w-]+`)                                      |
+| `color`   | no       | `#ffffff` | Multiply tint on the underlying Image. White preserves a colored PNG; non-white tints a mono-mask PNG |
+| `size`    | no       | `native`  | Numeric / `WxH` / `stretch` / `native` (Icon-only). Native reads sprite pixel dimensions              |
 
 **Dynamic icon names**: writing `<Icon name="ui:{{x}}"/>` (Template substitution or expression-driven name) cannot be statically analyzed — the Editor sync tool will skip it with a warning. Two ways out:
 
@@ -69,16 +99,16 @@ References a sprite from a project-level IconSet (shared icons, by-name lookup, 
 
 ## Common attributes (any tag)
 
-| Attribute | Format | Notes |
-|---|---|---|
-| `id="..."` | string | Unique within Screen / Template instance scope. Lift to dedicated handle for `Get<T>`. |
-| `anchor="..."` | preset | See "Anchor system" below. Default `top-left`. |
-| `size="WxH"` | `240x80` | Both dimensions in pixels. **Forbidden on stretched axes.** |
-| `width="W"` / `height="H"` | float | Use when only one axis is point-anchored. **Forbidden on stretched axes.** |
-| `margin="..."` | 1/2/4 floats | "Distance from anchor inward, positive". `"_"` = 0 placeholder. |
-| `pivot="x,y"` | `0..1, 0..1` | Defaults derive from `anchor`; rarely needed. |
-| `hidden="true"` | bool | Initial `SetActive(false)`. |
-| `interactable="false"` | bool | Initial `CanvasGroup.interactable=false` + `blocksRaycasts=false`. |
+| Attribute                  | Format       | Notes                                                                                  |
+| -------------------------- | ------------ | -------------------------------------------------------------------------------------- |
+| `id="..."`                 | string       | Unique within Screen / Template instance scope. Lift to dedicated handle for `Get<T>`. |
+| `anchor="..."`             | preset       | See "Anchor system" below. Default `top-left`.                                         |
+| `size="WxH"`               | `240x80`     | Both dimensions in pixels. **Forbidden on stretched axes.**                            |
+| `width="W"` / `height="H"` | float        | Use when only one axis is point-anchored. **Forbidden on stretched axes.**             |
+| `margin="..."`             | 1/2/4 floats | "Distance from anchor inward, positive". `"_"` = 0 placeholder.                        |
+| `pivot="x,y"`              | `0..1, 0..1` | Defaults derive from `anchor`; rarely needed.                                          |
+| `hidden="true"`            | bool         | Initial `SetActive(false)`.                                                            |
+| `interactable="false"`     | bool         | Initial `CanvasGroup.interactable=false` + `blocksRaycasts=false`.                     |
 
 `padding` and `spacing` are **NOT** universal — only on `<VStack>` / `<HStack>` / `<Grid>`.
 
@@ -86,12 +116,12 @@ References a sprite from a project-level IconSet (shared icons, by-name lookup, 
 
 `anchor="<vertical>-<horizontal>"`:
 
-|       | left | center | right | stretch |
-|---|---|---|---|---|
-| **top**     | top-left     | top-center     | top-right     | top-stretch |
+|             | left         | center         | right         | stretch        |
+| ----------- | ------------ | -------------- | ------------- | -------------- |
+| **top**     | top-left     | top-center     | top-right     | top-stretch    |
 | **center**  | center-left  | center         | center-right  | center-stretch |
 | **bottom**  | bottom-left  | bottom-center  | bottom-right  | bottom-stretch |
-| **stretch** | stretch-left | stretch-center | stretch-right | stretch |
+| **stretch** | stretch-left | stretch-center | stretch-right | stretch        |
 
 Aliases: `center` = `center-center`; `stretch` = `fill` = `stretch-stretch`.
 
@@ -202,6 +232,7 @@ For inserting elements per variant (no `Remove`, no `Replace` — use `hidden.va
 ```
 
 `<Add>`:
+
 - `into="#id"` targets a node by id; `into="@root"` targets the Screen root.
 - `at="start" | "end" | <integer>` — defaults to `"end"`.
 - Strategy: instantiated **once on first activation**, then only `SetActive`-toggled. Subscriptions and references survive variant flips.
@@ -302,7 +333,7 @@ UI.LoadDocument("MainMenu", xmlString);                    // raw XML, no hot-re
 
 **Canvas configuration** (optional):
 
-Each `Screen.Open()` creates its own root Canvas (+ `CanvasScaler` + `GraphicRaycaster`). The render mode comes from the XML `canvas` attribute on `<Screen>` (`overlay` / `camera` / `world`, default `overlay`). For everything *else* — pinning a `worldCamera`, setting `sortingOrder` / `planeDistance`, swapping render mode at runtime, etc. — register a configurator. The configurator runs **after** the XML-declared mode is applied, so it can override anything:
+Each `Screen.Open()` creates its own root Canvas (+ `CanvasScaler` + `GraphicRaycaster`). The render mode comes from the XML `canvas` attribute on `<Screen>` (`overlay` / `camera` / `world`, default `overlay`). For everything _else_ — pinning a `worldCamera`, setting `sortingOrder` / `planeDistance`, swapping render mode at runtime, etc. — register a configurator. The configurator runs **after** the XML-declared mode is applied, so it can override anything:
 
 ```xml
 <Screen name="WorldTooltip" canvas="camera"> ... </Screen>
@@ -389,20 +420,25 @@ UI.Registry.Register<MyControl>("MyControl", optionalPrefab: null);
 
 ## Common mistakes
 
-| Symptom | Cause | Fix |
-|---|---|---|
-| `Root element must be <PromptUGUI>` | Wrote `<UI version="1">` (matches old spec drafts) | Use `<PromptUGUI version="1">` |
-| `cannot specify width/size on a horizontally-stretched axis` | `<X anchor="top-stretch" width="200"/>` | Either change anchor, or drop `width`. The stretched axis takes its size from `margin`. |
-| Element not found at runtime | `id` only declared inside a `<Template>`, but accessed by flat name | Use path: `screen.Get("templateId/innerId")` |
-| Ghost element on variant toggle | `<Add>` instantiated and never deactivated | This is by design (Strategy C). Use `hidden.variant` if you need a node to disappear. |
-| Subscription survives Close → null refs | Forgot `.AddTo(screen)` | Always tie R3 subscriptions to Screen lifetime |
-| Parser silently merges children | Wrote `<Btn>开始 <Image/> </Btn>` (text + element mix) | Pick one: text shorthand OR child elements. Mixed content is rejected. |
-| Variant changes one attribute but not another | `attr.variant` declared before `attr` (base) in the SAME element | Fine — declaration order is per-attribute. Just verify the right `.variant` exists. |
-| Custom control's `[UIAttr]` ignored | Type other than string/int/float/bool | Take a string param and parse internally (see `Btn.Color` for a hex example). |
+| Symptom                                                      | Cause                                                               | Fix                                                                                     |
+| ------------------------------------------------------------ | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `Root element must be <PromptUGUI>`                          | Wrote `<UI version="1">` (matches old spec drafts)                  | Use `<PromptUGUI version="1">`                                                          |
+| `cannot specify width/size on a horizontally-stretched axis` | `<X anchor="top-stretch" width="200"/>`                             | Either change anchor, or drop `width`. The stretched axis takes its size from `margin`. |
+| Element not found at runtime                                 | `id` only declared inside a `<Template>`, but accessed by flat name | Use path: `screen.Get("templateId/innerId")`                                            |
+| Ghost element on variant toggle                              | `<Add>` instantiated and never deactivated                          | This is by design (Strategy C). Use `hidden.variant` if you need a node to disappear.   |
+| Subscription survives Close → null refs                      | Forgot `.AddTo(screen)`                                             | Always tie R3 subscriptions to Screen lifetime                                          |
+| Parser silently merges children                              | Wrote `<Btn>开始 <Image/> </Btn>` (text + element mix)              | Pick one: text shorthand OR child elements. Mixed content is rejected.                  |
+| Variant changes one attribute but not another                | `attr.variant` declared before `attr` (base) in the SAME element    | Fine — declaration order is per-attribute. Just verify the right `.variant` exists.     |
+| Custom control's `[UIAttr]` ignored                          | Type other than string/int/float/bool                               | Take a string param and parse internally (see `Btn.Color` for a hex example).           |
 
 ## Quick reference (cheatsheet)
 
 ```
+VALIDATE      every .ui.xml write  →  xmllint --noout --schema Assets/PromptUGUI.gen.xsd <file>
+              schema missing       →  ask user to run Tools → PromptUGUI → Schema → Generate XSD
+MCP FEEDBACK  every .ui.xml/.cs write → refresh_unity + read_console (error,warning)
+              MCP missing          →  ask user to open Unity + connect MCP for Unity
+
 ROOT          <PromptUGUI version="1"> ... </PromptUGUI>
 TOP LEVEL     <Import src="" [as=""]/>  <Screen name="" [canvas="overlay|camera|world"]>  <Template name="">
 
