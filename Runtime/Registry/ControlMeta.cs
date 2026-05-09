@@ -20,7 +20,13 @@ namespace PromptUGUI.Registry
         {
             if (!_setters.TryGetValue(name, out var setter))
                 throw new ArgumentException($"unknown attribute '{name}'");
-            setter(instance, value);
+            try { setter(instance, value); }
+            catch (TargetInvocationException tie) when (tie.InnerException != null)
+            {
+                // 通过反射调用属性 setter 时，setter 抛出的异常被包成 TargetInvocationException。
+                // 调用方期待看到原始类型（例如 ParseException），剥一层。
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(tie.InnerException).Throw();
+            }
         }
 
         public static ControlMeta Build(Type type)

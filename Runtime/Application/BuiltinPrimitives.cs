@@ -18,6 +18,7 @@ namespace PromptUGUI.Application
             reg.Register<Toggle>("Toggle", null, defaultTextAttr: "text");
             reg.Register<Slider>("Slider", null);
             reg.Register<Dropdown>("Dropdown", null);
+            reg.Register<ScrollList>("ScrollList", null);
         }
     }
 }

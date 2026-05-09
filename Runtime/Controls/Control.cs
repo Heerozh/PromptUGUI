@@ -134,7 +134,10 @@ namespace PromptUGUI.Controls
 
         public virtual void Dispose()
         {
-            if (GameObject != null) Object.Destroy(GameObject);
+            if (GameObject == null) return;
+            // 与 Screen.Close 一致：EditMode 下用 DestroyImmediate，避免 "Destroy may not be called" 警告。
+            if (UnityEngine.Application.isPlaying) Object.Destroy(GameObject);
+            else Object.DestroyImmediate(GameObject);
         }
     }
 }
