@@ -36,8 +36,8 @@ namespace PromptUGUI.Controls
             _fill = ProceduralBuilders.AddImage(fillArea, "Fill", raycast: false);
             var fillRt = _fill.rectTransform;
             fillRt.anchorMin = Vector2.zero;
-            // Y=1: Unity Slider.UpdateVisuals() forces anchorMax.y=1 for horizontal fill;
-            // set explicitly so code intent is clear.
+            // 默认 prefab 是 (0,0)，但 Unity Slider.UpdateVisuals() 会在 LeftToRight 方向把
+            // anchorMax.y 强制覆写为 1。预设 (0,1) 避免首帧前一瞬间的视觉位差。
             fillRt.anchorMax = new Vector2(0f, 1f);
             fillRt.sizeDelta = new Vector2(10f, 0f);
             _fill.color = ProceduralBuilders.DefaultFillColor;
@@ -48,14 +48,14 @@ namespace PromptUGUI.Controls
             handleArea.anchorMin = Vector2.zero;
             handleArea.anchorMax = Vector2.one;
             handleArea.sizeDelta = new Vector2(-20f, 0f);
-            handleArea.anchoredPosition = Vector2.zero;
             _handle = ProceduralBuilders.AddImage(handleArea, "Handle", raycast: false);
             var handleRt = _handle.rectTransform;
             handleRt.anchorMin = Vector2.zero;
             handleRt.anchorMax = Vector2.zero;
             handleRt.sizeDelta = new Vector2(20f, 0f);
             _handle.color = ProceduralBuilders.DefaultHandleColor;
-            // Handle 用 simple type；preserveAspect=false（与默认 Knob 一致）
+            // Handle 用 simple type；preserveAspect=false 跟默认 Knob 一致。
+            // atlas 无专用 knob sprite (D8)，临时复用 pugui_9slice_round 当圆角矩形 knob，视觉合理。
             ProceduralBuilders.ApplyDefaultSimpleSprite(_handle, ProceduralBuilders.SpriteRoundedRect);
 
             _slider = GameObject.GetComponent<UnitySlider>() ?? GameObject.AddComponent<UnitySlider>();

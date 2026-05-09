@@ -323,10 +323,12 @@ Toggle (160x20, anchor center)
 Slider (160x20, anchor center)
 ├── Background (anchor=(0,0.25)/(1,0.75), sizeDelta=0,0, sliced sprite white)
 ├── Fill Area (anchor=(0,0.25)/(1,0.75), anchoredPos=(-5,0), sizeDelta=(-20,0))
-│   └── Fill (anchor=(0,0)/(0,0), sizeDelta=(10,0), sliced sprite white)
+│   └── Fill (anchor=(0,0)/(0,1)*, sizeDelta=(10,0), sliced sprite white)
 └── Handle Slide Area (anchor=stretch, sizeDelta=(-20,0))
     └── Handle (anchor=(0,0)/(0,0), sizeDelta=(20,0), simple sprite, no preserveAspect)
 ```
+
+> **\* `Fill.anchorMax = (0,1)` 注意点**：默认 prefab YAML 写的是 `(0,0)`，但 Unity Slider.UpdateVisuals() 在 LeftToRight 方向会强制把 `anchorMax.y` 覆写为 1。我们在程序化构造里直接预设 `(0,1)`，避免首帧前一瞬间的视觉位差；测试断言对齐 runtime 状态。
 
 ### 6.2 `Slider.OnAttached()` 改造
 
