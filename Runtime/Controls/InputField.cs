@@ -13,6 +13,7 @@ namespace PromptUGUI.Controls
         private TMP_InputField _input;
         private TMP_Text _placeholder;
         private TMP_Text _text;
+        private string _fontType = "default";
 
         public override void OnAttached()
         {
@@ -57,6 +58,122 @@ namespace PromptUGUI.Controls
             _input.caretColor = ProceduralBuilders.DefaultGlyphColor;
             _input.customCaretColor = false;
             _input.selectionColor = new Color(0.659f, 0.808f, 1f, 0.753f);
+
+            ApplyFont();
+            PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
+        }
+
+        private void ApplyFont()
+        {
+            if (_text == null) return;
+            var settings = PromptUGUI.Application.PromptUGUISettings.Instance;
+            var locale = PromptUGUI.Application.UI.Locale.Current;
+            var asset = settings?.ResolveFont(locale, _fontType);
+            if (asset == null) return;
+            _text.font = asset;
+            if (_placeholder != null) _placeholder.font = asset;
+        }
+
+        [UIAttr("text")]
+        public string TextValue
+        {
+            set => _input.text = value ?? string.Empty;
+        }
+
+        [UIAttr]
+        public string Placeholder
+        {
+            set
+            {
+                if (_placeholder != null) _placeholder.text = value ?? string.Empty;
+            }
+        }
+
+        [UIAttr]
+        public string ContentType
+        {
+            set
+            {
+                _input.contentType = value switch
+                {
+                    "standard" => TMP_InputField.ContentType.Standard,
+                    "autocorrected" => TMP_InputField.ContentType.Autocorrected,
+                    "integer-number" => TMP_InputField.ContentType.IntegerNumber,
+                    "decimal-number" => TMP_InputField.ContentType.DecimalNumber,
+                    "alphanumeric" => TMP_InputField.ContentType.Alphanumeric,
+                    "name" => TMP_InputField.ContentType.Name,
+                    "email" => TMP_InputField.ContentType.EmailAddress,
+                    "password" => TMP_InputField.ContentType.Password,
+                    "pin" => TMP_InputField.ContentType.Pin,
+                    "custom" => TMP_InputField.ContentType.Custom,
+                    _ => throw new System.ArgumentException(
+                        $"InputField.contentType='{value}' invalid; expected standard|autocorrected|integer-number|decimal-number|alphanumeric|name|email|password|pin|custom"),
+                };
+            }
+        }
+
+        [UIAttr]
+        public string LineType
+        {
+            set
+            {
+                _input.lineType = value switch
+                {
+                    "single" => TMP_InputField.LineType.SingleLine,
+                    "multi-newline" => TMP_InputField.LineType.MultiLineNewline,
+                    "multi-submit" => TMP_InputField.LineType.MultiLineSubmit,
+                    _ => throw new System.ArgumentException(
+                        $"InputField.lineType='{value}' invalid; expected single|multi-newline|multi-submit"),
+                };
+            }
+        }
+
+        [UIAttr]
+        public int CharacterLimit
+        {
+            set => _input.characterLimit = value;
+        }
+
+        [UIAttr]
+        public bool ReadOnly
+        {
+            set => _input.readOnly = value;
+        }
+
+        [UIAttr]
+        public string Color
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value)) return;
+                if (UnityEngine.ColorUtility.TryParseHtmlString(value, out var c)) _bg.color = c;
+            }
+        }
+
+        [UIAttr]
+        public string Sprite
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value)) { _bg.sprite = null; return; }
+                _bg.sprite = Resources.Load<Sprite>(value);
+            }
+        }
+
+        [UIAttr]
+        public string Font
+        {
+            set
+            {
+                _fontType = string.IsNullOrEmpty(value) ? "default" : value;
+                ApplyFont();
+            }
+        }
+
+        public override void Dispose()
+        {
+            PromptUGUI.Application.UI.Locale.Changed -= ApplyFont;
+            base.Dispose();
         }
     }
 }

@@ -109,5 +109,92 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsNotNull(input.placeholder);
             Assert.AreEqual("Placeholder", input.placeholder.gameObject.name);
         }
+
+        [Test]
+        public void Apply_TextAttribute()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <InputField id='f' text='hello'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var f = UI.Open("S").Get<PInputField>("f");
+            Assert.AreEqual("hello", f.GameObject.GetComponent<TMP_InputField>().text);
+        }
+
+        [Test]
+        public void TextShorthand_BodyTextSetsText()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <InputField id='f'>初始</InputField>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var f = UI.Open("S").Get<PInputField>("f");
+            Assert.AreEqual("初始", f.GameObject.GetComponent<TMP_InputField>().text);
+        }
+
+        [Test]
+        public void Apply_PlaceholderAttribute()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <InputField id='f' placeholder='请输入'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var f = UI.Open("S").Get<PInputField>("f");
+            var ph = f.GameObject.transform.Find("Text Area/Placeholder").GetComponent<TMP_Text>();
+            Assert.AreEqual("请输入", ph.text);
+        }
+
+        [Test]
+        public void Apply_ContentTypePassword()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <InputField id='f' contentType='password'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var f = UI.Open("S").Get<PInputField>("f");
+            Assert.AreEqual(TMP_InputField.ContentType.Password,
+                f.GameObject.GetComponent<TMP_InputField>().contentType);
+        }
+
+        [Test]
+        public void Apply_LineTypeMultiNewline()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <InputField id='f' lineType='multi-newline'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var f = UI.Open("S").Get<PInputField>("f");
+            Assert.AreEqual(TMP_InputField.LineType.MultiLineNewline,
+                f.GameObject.GetComponent<TMP_InputField>().lineType);
+        }
+
+        [Test]
+        public void Apply_CharacterLimit()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <InputField id='f' characterLimit='10'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var f = UI.Open("S").Get<PInputField>("f");
+            Assert.AreEqual(10, f.GameObject.GetComponent<TMP_InputField>().characterLimit);
+        }
+
+        [Test]
+        public void Apply_ReadOnly()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <InputField id='f' readOnly='true'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var f = UI.Open("S").Get<PInputField>("f");
+            Assert.IsTrue(f.GameObject.GetComponent<TMP_InputField>().readOnly);
+        }
     }
 }
