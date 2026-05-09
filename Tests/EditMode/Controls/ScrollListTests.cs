@@ -60,5 +60,37 @@ namespace PromptUGUI.Tests.EditMode.Controls
             UI.LoadDocument("test", xml);
             Assert.Throws<PromptUGUI.Parser.ParseException>(() => UI.Open("S"));
         }
+
+        [Test]
+        public void Viewport_HasStencilMaskAndImageWithAlphaOne()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='Slot'><Frame/></Template>
+  <Screen name='S'><ScrollList id='sl' itemTemplate='Slot'/></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var sl = UI.Open("S").Get<ScrollList>("sl");
+            var mask = sl.GameObject.GetComponentInChildren<UnityEngine.UI.Mask>(includeInactive: true);
+            Assert.IsNotNull(mask, "Viewport should use stencil Mask");
+            Assert.IsFalse(mask.showMaskGraphic);
+
+            var img = mask.GetComponent<UnityEngine.UI.Image>();
+            Assert.IsNotNull(img);
+            Assert.AreEqual(1f, img.color.a, "alpha=1 critical to avoid 4af322b alpha-discard regression");
+        }
+
+        [Test]
+        public void Viewport_HasNoRectMask2D()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='Slot'><Frame/></Template>
+  <Screen name='S'><ScrollList id='sl' itemTemplate='Slot'/></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var sl = UI.Open("S").Get<ScrollList>("sl");
+            Assert.IsNull(sl.GameObject.GetComponentInChildren<UnityEngine.UI.RectMask2D>(includeInactive: true));
+        }
     }
 }

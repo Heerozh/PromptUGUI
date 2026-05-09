@@ -35,7 +35,13 @@ namespace PromptUGUI.Controls
             _scroll = GameObject.GetComponent<ScrollRect>() ?? GameObject.AddComponent<ScrollRect>();
 
             var viewport = ProceduralBuilders.AddChild(RectTransform, "Viewport");
-            viewport.gameObject.AddComponent<RectMask2D>();
+            // Viewport: stencil Mask + alpha=1 sliced Image + showMaskGraphic=false (跟默认 prefab 一致；
+            // alpha=1 关键，避免 4af322b 的 UI/Default shader alpha-discard)
+            var viewportImg = viewport.gameObject.AddComponent<UnityImage>();
+            viewportImg.color = UnityEngine.Color.white;  // alpha=1 关键
+            ProceduralBuilders.ApplyDefaultSlicedSprite(viewportImg);
+            var viewportMask = viewport.gameObject.AddComponent<Mask>();
+            viewportMask.showMaskGraphic = false;
             _scroll.viewport = viewport;
 
             _content = ProceduralBuilders.AddChild(viewport, "Content");
