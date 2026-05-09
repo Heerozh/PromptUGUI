@@ -258,17 +258,26 @@ namespace PromptUGUI.Parser {
                 list.Add((variant, attr.Value));
             }
 
+            // Capture raw attribute values for attrs containing {{...}} (for runtime re-substitution on translated msgstr).
+            foreach (var kv in node.Attributes) {
+                if (kv.Value != null && kv.Value.Contains("{{"))
+                    node.AttributesRaw[kv.Key] = kv.Value;
+            }
+
             // 文本简写
             bool hasElement = false, hasText = false;
             foreach (XmlNode c in el.ChildNodes) {
                 if (c is XmlElement) hasElement = true;
                 else if (c is XmlText txt && !string.IsNullOrWhiteSpace(txt.Value)) hasText = true;
+                else if (c is XmlCDataSection cdata && !string.IsNullOrWhiteSpace(cdata.Value)) hasText = true;
             }
             if (hasText && hasElement)
                 throw new ParseException(
                     $"<{el.Name}> mixes text and child elements; not allowed");
-            if (hasText && !hasElement)
+            if (hasText && !hasElement) {
                 node.TextContent = el.InnerText.Trim();
+                node.TextContentRaw = el.InnerText;     // un-trimmed raw — preserves intentional whitespace inside CDATA
+            }
 
             foreach (XmlNode c in el.ChildNodes)
                 if (c is XmlElement child_el)
