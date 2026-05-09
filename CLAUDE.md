@@ -45,6 +45,38 @@ Internal refactors, test-only changes, performance work, and Editor tooling that
 - `Registry/` — `ControlRegistry` + `ControlMeta` (reflects `[UIAttr]` / `[Bind]`)
 - `Application/` — `UI` static facade (loading/lifecycle), `Screen`, `ScreenInstantiator`, `DocumentLoader`, `DepGraph`, `VariantStore`, `BuiltinPrimitives`
 
+Write Red test first, and then write implementation. Always use Unity MCP to run tests in the host Unity project.
+If MCP is unavailable, try reconnect or tell user to restart MCP.
+
+Always check lint after write code. `.lint/` 放了 stub csproj + `Directory.Build.props`，让 `dotnet format` 能在 Unity 外面跑（Roslyn 工作区独立于 Unity 的编译流程）。从仓库根：
+
+```bash
+cd .lint && dotnet restore PromptUGUI.Lint.slnx
+dotnet format whitespace PromptUGUI.Lint.slnx                  # 安全
+dotnet format style       PromptUGUI.Lint.slnx                 # 默认 warn 级，安全
+dotnet format analyzers   PromptUGUI.Lint.slnx                 # 默认 warn 级，安全
+dotnet format --verify-no-changes --severity warn PromptUGUI.Lint.slnx
+```
+
+**不要用 `dotnet format analyzers --severity info`**——Roslyn 的 info 级 fixer 会做下面这些"自动修复"，每一条在这个 Unity 项目里都会炸编译或破坏 Unity 反射契约：
+
+| 规则 | 自动改成 | 为何在 Unity 里炸 |
+|---|---|---|
+| CA1822 | 方法标 `static` | 误判：方法调用了同类的实例方法 → CS0120；或方法是接口实现 → CS0736 |
+| CA1846 | `value.Substring(...)` → `value.AsSpan(...)` | Unity Mono 没有 `float.Parse(ReadOnlySpan<char>, IFormatProvider)` 重载 → CS1503 |
+| CA2016 | 给 `Async` 调用补 `CancellationToken` | Unity 的 `HttpContent.ReadAsStringAsync()` 没有 CT 重载 → CS1501 |
+| IDE0032 | `[SerializeField] T _x;` + `T X => _x;` 折叠成 `[field: SerializeField] T X { get; }` | `SerializedObject.FindProperty("oldFieldName")` 找不到字段 → 运行时 NRE |
+| IDE0044 | 给私有字段加 `readonly` | 构造函数外还有赋值时 → CS0191 |
+
+仓库配置里已固化的护栏：
+
+- `.lint/Directory.Build.props`: `<LangVersion>9.0</LangVersion>`——跟 Unity 6 一致，挡掉 primary constructor、collection expression `[]`、`[field: SerializeField]` 等 C# 10+ 特性建议
+- `.editorconfig`: `dotnet_diagnostic.CA1846.severity = none`
+
+`Local.props`（gitignored）放每个开发者本机的 Unity 安装路径 + host 工程 `Library/ScriptAssemblies`。没填会出 CS0246 噪音，但 style/IDE/CA 分析器照常工作。
+
+剩下的 info 级诊断（命名 `s_`/`_` 前缀、`var` 偏好等）`NamingStyleCodeFixProvider` 不支持 FixAll，需要时在 IDE 里手动 Quick-Fix。
+
 ## Pipeline (mental model)
 
 ```

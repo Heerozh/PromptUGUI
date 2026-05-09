@@ -15,6 +15,13 @@ namespace PromptUGUI.Application
         public static System.Func<string, string> SourceResolver { get; set; }
         public static System.Func<string, UnityEngine.Sprite> IconResolver { get; set; }
 
+        // Optional override for locale → translation entries. Default (null) loads
+        // .po TextAssets from `Resources/PromptUGUI/i18n/{locale}/` and
+        // `Resources/PromptUGUI/i18n-custom/{locale}/`. Set to an in-memory resolver
+        // (e.g. `_ => System.Linq.Enumerable.Empty<PoEntry>()`) to isolate tests from
+        // the host project's PO assets.
+        public static System.Func<string, IEnumerable<I18n.PoEntry>> PoResolver { get; set; }
+
         // Invoked from Screen.Open() right after the Canvas + CanvasScaler + GraphicRaycaster
         // are added and renderMode is set to ScreenSpaceOverlay. Use to switch renderMode,
         // assign worldCamera, set sortingOrder, etc. Per-Screen behavior keys off the second arg.
@@ -121,6 +128,13 @@ namespace PromptUGUI.Application
 
         private static void LoadPoFiles(string locale)
         {
+            if (PoResolver != null)
+            {
+                var entries = PoResolver(locale);
+                if (entries != null)
+                    TranslationStore.Instance.Load(locale, entries);
+                return;
+            }
             LoadPoFromPath($"PromptUGUI/i18n/{locale}", locale);
             LoadPoFromPath($"PromptUGUI/i18n-custom/{locale}", locale);
         }
@@ -379,6 +393,7 @@ namespace PromptUGUI.Application
             _depGraph.Clear();
             SourceResolver = null;
             IconResolver = null;
+            PoResolver = null;
             CanvasConfigurator = null;
 #if UNITY_EDITOR
             HotReload.AssetPathToSrc = null;
