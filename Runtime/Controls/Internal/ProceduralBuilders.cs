@@ -7,6 +7,17 @@ namespace PromptUGUI.Controls.Internal
 {
     internal static class ProceduralBuilders
     {
+        // 默认配色：让无 sprite/无 color 的控件依然可视（不是纯白叠白）。
+        // 作者写 color="..." / sprite="..." 时 UIAttr setter 会 override 这些值。
+        public static readonly Color DefaultBtnColor       = new(0.231f, 0.510f, 0.965f, 1f);  // #3B82F6
+        public static readonly Color DefaultControlBgColor = new(0.267f, 0.267f, 0.267f, 1f);  // #444444
+        public static readonly Color DefaultTrackColor     = new(0.200f, 0.200f, 0.200f, 1f);  // #333333
+        public static readonly Color DefaultFillColor      = new(0.231f, 0.510f, 0.965f, 1f);  // #3B82F6
+        public static readonly Color DefaultHandleColor    = new(1.000f, 1.000f, 1.000f, 1f);  // #FFFFFF
+        public static readonly Color DefaultPopupBgColor   = new(0.227f, 0.227f, 0.227f, 1f);  // #3A3A3A
+        public static readonly Color DefaultContainerColor = new(0.165f, 0.165f, 0.165f, 1f);  // #2A2A2A
+        public static readonly Color DefaultGlyphColor     = new(1.000f, 1.000f, 1.000f, 1f);  // #FFFFFF
+
         public static RectTransform AddChild(RectTransform parent, string name)
         {
             var go = new GameObject(name, typeof(RectTransform));

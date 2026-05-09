@@ -30,10 +30,11 @@ namespace PromptUGUI.Controls
         public override void OnAttached()
         {
             _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
+            _bg.color = ProceduralBuilders.DefaultContainerColor;
             _scroll = GameObject.GetComponent<ScrollRect>() ?? GameObject.AddComponent<ScrollRect>();
 
             var viewport = ProceduralBuilders.AddChild(RectTransform, "Viewport");
-            viewport.gameObject.AddComponent<UnityImage>().color = new Color(1, 1, 1, 0);
+            viewport.gameObject.AddComponent<UnityImage>().color = new UnityEngine.Color(1, 1, 1, 0);
             viewport.gameObject.AddComponent<Mask>().showMaskGraphic = false;
             _scroll.viewport = viewport;
 

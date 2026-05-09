@@ -12,6 +12,7 @@ namespace PromptUGUI.Controls
     {
         private UnityImage _bg;
         private UnityImage _checkmark;
+        private TMP_Text _checkmarkGlyph;
         private UnityToggle _toggle;
         private TMP_Text _label;
         private string _fontType = "default";
@@ -21,10 +22,17 @@ namespace PromptUGUI.Controls
         public override void OnAttached()
         {
             _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
+            _bg.color = ProceduralBuilders.DefaultControlBgColor;
             _toggle = GameObject.GetComponent<UnityToggle>() ?? GameObject.AddComponent<UnityToggle>();
             _toggle.targetGraphic = _bg;
 
             _checkmark = ProceduralBuilders.AddImage(RectTransform, "Checkmark", raycast: false);
+            // Use a TMP "✓" glyph for the visible check shape so we don't depend on a sprite asset.
+            _checkmarkGlyph = ProceduralBuilders.AddText(_checkmark.rectTransform, "Glyph");
+            _checkmarkGlyph.text = "✓";
+            _checkmarkGlyph.color = ProceduralBuilders.DefaultGlyphColor;
+            _checkmarkGlyph.fontSize = 24;
+            _checkmark.color = new UnityEngine.Color(0, 0, 0, 0); // checkmark Image is just a Graphic carrier; glyph child does the visual
             _toggle.graphic = _checkmark;
 
             _label = ProceduralBuilders.AddText(RectTransform, "Label");
@@ -77,8 +85,18 @@ namespace PromptUGUI.Controls
         {
             set
             {
-                if (string.IsNullOrEmpty(value)) { _checkmark.sprite = null; return; }
+                if (string.IsNullOrEmpty(value))
+                {
+                    // Fall back to TMP glyph checkmark (default).
+                    _checkmark.sprite = null;
+                    _checkmark.color = new UnityEngine.Color(0, 0, 0, 0);
+                    if (_checkmarkGlyph != null) _checkmarkGlyph.gameObject.SetActive(true);
+                    return;
+                }
+                // User-supplied sprite wins; hide the glyph so we don't render both.
                 _checkmark.sprite = Resources.Load<Sprite>(value);
+                _checkmark.color = UnityEngine.Color.white;
+                if (_checkmarkGlyph != null) _checkmarkGlyph.gameObject.SetActive(false);
             }
         }
 

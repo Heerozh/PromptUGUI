@@ -18,10 +18,13 @@ namespace PromptUGUI.Controls
         public override void OnAttached()
         {
             _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
+            _bg.color = ProceduralBuilders.DefaultTrackColor;
             var fillArea = ProceduralBuilders.AddChild(RectTransform, "FillArea");
             _fill = ProceduralBuilders.AddImage(fillArea, "Fill", raycast: false);
+            _fill.color = ProceduralBuilders.DefaultFillColor;
             var handleArea = ProceduralBuilders.AddChild(RectTransform, "HandleArea");
             _handle = ProceduralBuilders.AddImage(handleArea, "Handle", raycast: false);
+            _handle.color = ProceduralBuilders.DefaultHandleColor;
 
             _slider = GameObject.GetComponent<UnitySlider>() ?? GameObject.AddComponent<UnitySlider>();
             _slider.targetGraphic = _handle;

@@ -20,6 +20,7 @@ namespace PromptUGUI.Controls
         public override void OnAttached()
         {
             _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
+            _bg.color = ProceduralBuilders.DefaultControlBgColor;
             _tmp = GameObject.AddComponent<TMP_Dropdown>();
             _tmp.targetGraphic = _bg;
 
@@ -28,17 +29,38 @@ namespace PromptUGUI.Controls
             var label = ProceduralBuilders.AddText(RectTransform, "Label");
             _tmp.captionText = label;
 
+            // Caret as a TMP glyph (no sprite asset dependency).
+            var arrow = ProceduralBuilders.AddText(RectTransform, "Arrow");
+            arrow.text = "▼";
+            arrow.color = ProceduralBuilders.DefaultGlyphColor;
+            arrow.fontSize = 14;
+            arrow.alignment = TextAlignmentOptions.Right;
+            arrow.rectTransform.anchorMin = new Vector2(1f, 0.5f);
+            arrow.rectTransform.anchorMax = new Vector2(1f, 0.5f);
+            arrow.rectTransform.pivot = new Vector2(1f, 0.5f);
+            arrow.rectTransform.sizeDelta = new Vector2(24f, 24f);
+            arrow.rectTransform.anchoredPosition = new Vector2(-8f, 0f);
+
             var template = ProceduralBuilders.AddChild(RectTransform, "Template");
             template.gameObject.SetActive(false);
-            template.gameObject.AddComponent<UnityImage>();
+            var templateBg = template.gameObject.AddComponent<UnityImage>();
+            templateBg.color = ProceduralBuilders.DefaultPopupBgColor;
             var viewport = ProceduralBuilders.AddChild(template, "Viewport");
             viewport.gameObject.AddComponent<UnityEngine.UI.Mask>();
             viewport.gameObject.AddComponent<UnityImage>();
             var content = ProceduralBuilders.AddChild(viewport, "Content");
             var item = ProceduralBuilders.AddChild(content, "Item");
             var itemBg = item.gameObject.AddComponent<UnityImage>();
+            itemBg.color = ProceduralBuilders.DefaultControlBgColor;
             var itemToggle = item.gameObject.AddComponent<UnityEngine.UI.Toggle>();
             itemToggle.targetGraphic = itemBg;
+            var itemCheckmark = ProceduralBuilders.AddImage(item, "Item Checkmark", raycast: false);
+            itemCheckmark.color = new UnityEngine.Color(0, 0, 0, 0);
+            var itemCheckGlyph = ProceduralBuilders.AddText(itemCheckmark.rectTransform, "Glyph");
+            itemCheckGlyph.text = "•";
+            itemCheckGlyph.color = ProceduralBuilders.DefaultGlyphColor;
+            itemCheckGlyph.fontSize = 18;
+            itemToggle.graphic = itemCheckmark;
             var itemLabel = ProceduralBuilders.AddText(item, "Item Label");
             _tmp.template = template;
             _tmp.itemText = itemLabel;
