@@ -35,6 +35,9 @@ namespace PromptUGUI.Template
                     if (ec != null) newRoot.Children.Add(ec);
                 }
                 var newScreen = new ScreenDef(s.Name, newRoot) { CanvasMode = s.CanvasMode };
+                // 把全局 Template 表附到本 Screen，供 ScrollList 等运行时控件按 tag 反查。
+                foreach (var kv in loaded.Templates)
+                    newScreen.Templates[kv.Key.ToString()] = kv.Value;
                 foreach (var block in s.Variants)
                 {
                     var newBlock = new VariantBlock(block.When);

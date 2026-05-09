@@ -389,6 +389,14 @@ namespace PromptUGUI.Application
         internal static void NotifyVariantChangedForReSolve() =>
             VariantStore.NotifyChangedInternal();
 
+        /// <summary>测试与 ScrollList 用：取已加载的 ScreenDef（含 Templates）。</summary>
+        internal static IR.ScreenDef GetScreenDef(string screenName) =>
+            _docs.TryGetValue(screenName, out var d) ? d : null;
+
+        /// <summary>测试与 ScrollList 用：拿到一个共享的 ScreenInstantiator（按需 new 一个新的）。</summary>
+        internal static ScreenInstantiator GetInstantiator() =>
+            new(Registry, VariantStore);
+
         /// <summary>
         /// 通过 Control 的 GameObject transform 沿树向上找到所属 Screen。
         /// 用于 Toggle / ScrollList 等需要在 attribute setter 里触达 Screen 级 state 的控件。

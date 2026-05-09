@@ -30,6 +30,36 @@ namespace PromptUGUI.Application
             return InstantiateInto(new GameObject(def.Name, typeof(RectTransform)), def);
         }
 
+        /// <summary>
+        /// 单节点子树实例化（用于 ScrollList 这类需要按数据动态实例化模板的控件）。
+        /// 节点内的 id 写入新建的局部 scope；该 scope 同时挂在返回的根 IControl 的 ScopedIds，
+        /// 让调用方能用 root.Get&lt;T&gt;("childId") 访问子节点。不污染 Screen._byId。
+        /// </summary>
+        public IControl InstantiateNode(ElementNode node, RectTransform parent, Screen owner)
+        {
+            _ = owner; // 保留参数：未来可注入 owner-scoped lookups
+            var scope = new Dictionary<string, IControl>();
+            var nodeMap = new Dictionary<ElementNode, Control>();
+            var parentIsLayoutGroup = parent.GetComponent<UnityEngine.UI.LayoutGroup>() != null;
+
+            int prevChildCount = parent.childCount;
+            InstantiateRecursive(node, parent, parentIsLayoutGroup, scope, nodeMap);
+
+            // InstantiateRecursive 把子树根追加到 parent 末尾；取它对应的 Control。
+            if (parent.childCount <= prevChildCount) return null;
+            var rootGo = parent.GetChild(prevChildCount).gameObject;
+            Control rootControl = null;
+            foreach (var kv in nodeMap)
+                if (kv.Value.GameObject == rootGo) { rootControl = kv.Value; break; }
+            if (rootControl == null) return null;
+
+            // 无论节点是否标了 IsTemplateInstanceRoot，对外把整个 scope 接到根；
+            // 让 caller (ScrollList BindItems 回调) 能 root.Get<T>("id") 命中子节点。
+            // 若根本身的 id 出现在 scope 中（与自己同名场景），不影响——ScopedIds 是 IControl 的查询面。
+            rootControl.ReplaceScopedIds(scope);
+            return rootControl;
+        }
+
         public InstantiationResult InstantiateInto(GameObject root, ScreenDef def)
         {
             var result = new InstantiationResult
