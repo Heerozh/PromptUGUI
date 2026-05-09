@@ -13,7 +13,7 @@
 
       <Btn id="playBtn" color="#3B82F6" size="240x64">
         <HStack anchor="stretch" padding="16" spacing="12">
-          <Icon name="solar:Forward" size="32x32" color="#FFFFFF" />
+          <Icon name="solar:Bold Duotone/Arrows Action/Forward" size="32x32" color="#FFFFFF" />
           <Text color="#FFFFFF" fontSize="24" raycastTarget="false">开始游戏</Text>
         </HStack>
       </Btn>
