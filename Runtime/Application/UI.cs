@@ -323,8 +323,18 @@ namespace PromptUGUI.Application
 
             var inst = new ScreenInstantiator(Registry, VariantStore);
             var screen = new Screen(def, inst, Registry, VariantStore);
-            screen.Open();
+            // 在 Open() 之前登记到 _open，让 controls 在 OnAttached / setter 阶段
+            // 通过 UI.OwnerScreenOf 反查到本 Screen（例如 Toggle.Group 的 Group 解析）。
             _open[screenName] = screen;
+            try
+            {
+                screen.Open();
+            }
+            catch
+            {
+                _open.Remove(screenName);
+                throw;
+            }
             return screen;
         }
 
@@ -378,6 +388,34 @@ namespace PromptUGUI.Application
 
         internal static void NotifyVariantChangedForReSolve() =>
             VariantStore.NotifyChangedInternal();
+
+        /// <summary>测试与 ScrollList 用：取已加载的 ScreenDef（含 Templates）。</summary>
+        internal static IR.ScreenDef GetScreenDef(string screenName) =>
+            _docs.TryGetValue(screenName, out var d) ? d : null;
+
+        /// <summary>测试与 ScrollList 用：拿到一个共享的 ScreenInstantiator（按需 new 一个新的）。</summary>
+        internal static ScreenInstantiator GetInstantiator() =>
+            new(Registry, VariantStore);
+
+        /// <summary>
+        /// 通过 Control 的 GameObject transform 沿树向上找到所属 Screen。
+        /// 用于 Toggle / ScrollList 等需要在 attribute setter 里触达 Screen 级 state 的控件。
+        /// </summary>
+        internal static Screen OwnerScreenOf(Controls.IControl control)
+        {
+            if (control?.GameObject == null) return null;
+            var t = control.GameObject.transform;
+            while (t != null)
+            {
+                var go = t.gameObject;
+                foreach (var s in _open.Values)
+                {
+                    if (s.RootGameObject == go) return s;
+                }
+                t = t.parent;
+            }
+            return null;
+        }
 
         // 仅测试使用
         internal static void ResetForTests()

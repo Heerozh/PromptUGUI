@@ -15,6 +15,10 @@ namespace PromptUGUI.Application
             reg.Register<HStack>("HStack", null);
             reg.Register<Grid>("Grid", null);
             reg.Register<Btn>("Btn", null, defaultTextAttr: "text");
+            reg.Register<Toggle>("Toggle", null, defaultTextAttr: "text");
+            reg.Register<Slider>("Slider", null);
+            reg.Register<Dropdown>("Dropdown", null);
+            reg.Register<ScrollList>("ScrollList", null);
         }
     }
 }

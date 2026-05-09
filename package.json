@@ -16,6 +16,11 @@
       "displayName": "Main Menu Demo",
       "description": "Hello-world: 主菜单 + 三按钮 + R3 点击订阅",
       "path": "Samples~/MainMenu"
+    },
+    {
+      "displayName": "Common Controls Demo",
+      "description": "Toggle / Slider / Dropdown / ScrollList 四个常用控件示例",
+      "path": "Samples~/CommonControls"
     }
   ]
 }

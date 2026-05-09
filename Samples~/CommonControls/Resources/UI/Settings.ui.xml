@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PromptUGUI version="1">
+  <Template name="OptionRow">
+    <HStack height="32" spacing="8">
+      <Text id="label" fontSize="20"/>
+      <Frame width="0"/>
+    </HStack>
+  </Template>
+
+  <Screen name="Settings">
+    <Image anchor="stretch" color="#202020"/>
+    <VStack id="root" anchor="center" size="500x600" spacing="16" padding="24">
+      <Text fontSize="28" align="center">Common Controls Demo</Text>
+
+      <Toggle id="muteAudio">静音</Toggle>
+      <Slider id="masterVol" min="0" max="1" value="0.8"/>
+      <Dropdown id="quality"/>
+
+      <ScrollList id="list" anchor="stretch" itemTemplate="OptionRow"
+                  spacing="4" padding="8"/>
+    </VStack>
+  </Screen>
+</PromptUGUI>

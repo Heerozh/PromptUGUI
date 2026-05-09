@@ -18,6 +18,8 @@ namespace PromptUGUI.Controls
         public override void OnAttached()
         {
             _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
+            _bg.color = PromptUGUI.Controls.Internal.ProceduralBuilders.DefaultBtnColor;
+            PromptUGUI.Controls.Internal.ProceduralBuilders.ApplyDefaultSlicedSprite(_bg);
             _btn = GameObject.GetComponent<Button>() ?? GameObject.AddComponent<Button>();
             _btn.targetGraphic = _bg;
             _btn.onClick.AddListener(() => _click.OnNext(Unit.Default));

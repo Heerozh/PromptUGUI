@@ -10,7 +10,7 @@ The library is **content-agnostic at runtime**: it never reads the filesystem it
 
 ## Canonical Design Sources
 
-`docs/superpowers/specs/2026-05-07-promptugui-description-language-design.md` is the master spec for the description language and C# API. Per-milestone specs and plans live alongside it. Always read the master spec before changing public API or XML semantics — section numbers (e.g. "spec §7.6") are referenced throughout the codebase and PR descriptions.
+`docs~/superpowers/specs/2026-05-07-promptugui-description-language-design.md` is the master spec for the description language and C# API. Per-milestone specs and plans live alongside it. Always read the master spec before changing public API or XML semantics — section numbers (e.g. "spec §7.6") are referenced throughout the codebase and PR descriptions.
 
 `.claude/skills/authoring-promptugui-xml/SKILL.md` is the LLM-facing authoring guide. **Any functional change or addition must be reflected here in the same PR.** Triggers requiring a SKILL update:
 
@@ -153,4 +153,4 @@ XSD generator tests use substring assertions (`StringAssert.Contains`) rather th
 
 ## Workflow
 
-`docs/superpowers/specs/<date>-<topic>-design.md` is the spec format; `docs/superpowers/plans/<date>-<topic>.md` is the implementation plan format. New milestones go through brainstorming → spec → plan → feature branch → PR → merge to main. Recent merges (PR #1 M3, PR #3 M4) used merge commits with `--delete-branch`.
+`docs~/superpowers/specs/<date>-<topic>-design.md` is the spec format; `docs~/superpowers/plans/<date>-<topic>.md` is the implementation plan format. New milestones go through brainstorming → spec → plan → feature branch → PR → merge to main. Recent merges (PR #1 M3, PR #3 M4) used merge commits with `--delete-branch`.
