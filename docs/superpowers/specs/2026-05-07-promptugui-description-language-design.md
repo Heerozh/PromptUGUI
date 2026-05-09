@@ -605,7 +605,11 @@ HeTu.Sub<int>("player.gold").BindText(...).AddTo(screen);
 
 - ❌ **动画**：用 Unity Animator / DOTween，不在描述文件管
 - ❌ **主题 token / 全局样式表**：风格通过控件类型变体表达（PrimaryButton vs DangerButton），不再做 token 层
-- ❌ **本地化**：文本由代码侧推送或经过外部 L10N 钩子；描述文件不内置 i18n
+- ✅ **本地化** (M5 起)：见 `2026-05-08-i18n-fonts-design.md`
+  - 零 key gettext 流（msgid = 源文本字面量）
+  - .po 表 + Roslyn / XML 抽取 + LLM 翻译菜单
+  - locale 切换走 Variant.Changed 通路
+  - 字体 type → 每 locale TMP_FontAsset 表（Settings）
 - ❌ **运行时 DOM 编辑 API**：想动态加节点请重建 Screen
 - ❌ **绑定表达式 / 模板循环 `<For>`**：列表是代码侧推送的自定义控件
 - ❌ **多 Slot 命名**：单匿名 Slot 够用；真有多 slot 需求重新评估
