@@ -21,7 +21,7 @@ namespace PromptUGUI.Editor.I18n {
             _http = http ?? new HttpClient();
         }
 
-        public async Task<Dictionary<string, string>> TranslateBatch(
+        public async Task<Dictionary<(string, string), string>> TranslateBatch(
             IList<TranslationItem> items,
             string targetLocale,
             string endpoint, string model, string apiKey, string systemPrompt,
@@ -88,11 +88,15 @@ namespace PromptUGUI.Editor.I18n {
                 .GetProperty("message")
                 .GetProperty("content").GetString();
             using var inner = JsonDocument.Parse(content);
-            var result = new Dictionary<string, string>(System.StringComparer.Ordinal);
+            var result = new Dictionary<(string, string), string>();
             foreach (var t in inner.RootElement.GetProperty("translations").EnumerateArray()) {
                 var msgid = t.GetProperty("msgid").GetString();
+                var msgctxt = t.TryGetProperty("msgctxt", out var ctxProp)
+                              && ctxProp.ValueKind != System.Text.Json.JsonValueKind.Null
+                    ? ctxProp.GetString()
+                    : null;
                 var msgstr = t.GetProperty("msgstr").GetString();
-                result[msgid] = msgstr;
+                result[(msgid, msgctxt)] = msgstr;
             }
             return result;
         }

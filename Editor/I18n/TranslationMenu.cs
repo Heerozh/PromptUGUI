@@ -113,7 +113,7 @@ namespace PromptUGUI.Editor.I18n {
                         Comments = p.entry.TranslatorComments,
                     }).ToList();
 
-                    Dictionary<string, string> map = null;
+                    Dictionary<(string, string), string> map = null;
                     int retry = 0;
                     Exception lastEx = null;
                     while (retry < 3) {
@@ -136,7 +136,7 @@ namespace PromptUGUI.Editor.I18n {
                     }
                     // Write back.
                     foreach (var (poPath, entry) in slice) {
-                        if (!map.TryGetValue(entry.Msgid, out var translated)) continue;
+                        if (!map.TryGetValue((entry.Msgid, entry.Msgctxt), out var translated)) continue;
                         WriteMsgstr(poPath, entry, translated);
                         done++;
                     }

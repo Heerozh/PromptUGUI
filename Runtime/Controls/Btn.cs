@@ -45,13 +45,12 @@ namespace PromptUGUI.Controls {
         [UIAttr]
         public string Font {
             set {
-                if (_autoLabel == null) return;  // no text → font irrelevant
                 var settings = PromptUGUI.Application.PromptUGUISettings.Instance;
                 var locale = PromptUGUI.Application.UI.Locale.Current;
                 var asset = settings != null
                     ? settings.ResolveFont(locale, value ?? "default")
                     : null;
-                if (asset != null) _autoLabel.font = asset;
+                if (asset != null) EnsureLabel().font = asset;
             }
         }
 

@@ -34,7 +34,28 @@ namespace PromptUGUI.Tests.Editor {
                 input, "zh-Hans",
                 endpoint: "https://example/v1", model: "x", apiKey: "k", systemPrompt: "p",
                 CancellationToken.None);
-            Assert.AreEqual("你好", result["hello"]);
+            Assert.AreEqual("你好", result[("hello", null)]);
+        }
+
+        [Test]
+        public async Task TranslateBatch_DistinguishesSameMsgidDifferentCtx() {
+            var stub = new StubHandler {
+                Reply = _ => new HttpResponseMessage(HttpStatusCode.OK) {
+                    Content = new StringContent(@"
+                        { ""choices"": [ { ""message"": {
+                          ""content"": ""{\""translations\"":[{\""msgid\"":\""Open\"",\""msgctxt\"":null,\""msgstr\"":\""打开\""},{\""msgid\"":\""Open\"",\""msgctxt\"":\""door\"",\""msgstr\"":\""开门\""}]}""
+                        } } ] }"),
+                },
+            };
+            var client = new TranslationClient(new HttpClient(stub));
+            var input = new System.Collections.Generic.List<TranslationItem> {
+                new() { Msgid = "Open" },
+                new() { Msgid = "Open", Msgctxt = "door" },
+            };
+            var result = await client.TranslateBatch(
+                input, "zh-Hans", "https://e", "x", "k", "p", CancellationToken.None);
+            Assert.AreEqual("打开", result[("Open", null)]);
+            Assert.AreEqual("开门", result[("Open", "door")]);
         }
 
         [Test]
