@@ -17,17 +17,46 @@ namespace PromptUGUI.Controls
 
         public override void OnAttached()
         {
-            _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
+            // Background：竖向内缩到中间 50% (Y 0.25 — 0.75) sliced 轨道
+            var bgRt = ProceduralBuilders.AddChild(RectTransform, "Background");
+            bgRt.anchorMin = new Vector2(0f, 0.25f);
+            bgRt.anchorMax = new Vector2(1f, 0.75f);
+            bgRt.offsetMin = Vector2.zero;
+            bgRt.offsetMax = Vector2.zero;
+            _bg = bgRt.gameObject.AddComponent<UnityImage>();
             _bg.color = ProceduralBuilders.DefaultTrackColor;
             ProceduralBuilders.ApplyDefaultSlicedSprite(_bg);
-            var fillArea = ProceduralBuilders.AddChild(RectTransform, "FillArea");
+
+            // Fill Area：跟 Background 同样 Y 内缩，X 两侧各留 10px (handle 半径)
+            var fillArea = ProceduralBuilders.AddChild(RectTransform, "Fill Area");
+            fillArea.anchorMin = new Vector2(0f, 0.25f);
+            fillArea.anchorMax = new Vector2(1f, 0.75f);
+            fillArea.anchoredPosition = new Vector2(-5f, 0f);
+            fillArea.sizeDelta = new Vector2(-20f, 0f);
             _fill = ProceduralBuilders.AddImage(fillArea, "Fill", raycast: false);
+            var fillRt = _fill.rectTransform;
+            fillRt.anchorMin = Vector2.zero;
+            // Y=1: Unity Slider.UpdateVisuals() forces anchorMax.y=1 for horizontal fill;
+            // set explicitly so code intent is clear.
+            fillRt.anchorMax = new Vector2(0f, 1f);
+            fillRt.sizeDelta = new Vector2(10f, 0f);
             _fill.color = ProceduralBuilders.DefaultFillColor;
             ProceduralBuilders.ApplyDefaultSlicedSprite(_fill);
-            var handleArea = ProceduralBuilders.AddChild(RectTransform, "HandleArea");
+
+            // Handle Slide Area：水平 stretch，左右各留 10px
+            var handleArea = ProceduralBuilders.AddChild(RectTransform, "Handle Slide Area");
+            handleArea.anchorMin = Vector2.zero;
+            handleArea.anchorMax = Vector2.one;
+            handleArea.sizeDelta = new Vector2(-20f, 0f);
+            handleArea.anchoredPosition = Vector2.zero;
             _handle = ProceduralBuilders.AddImage(handleArea, "Handle", raycast: false);
+            var handleRt = _handle.rectTransform;
+            handleRt.anchorMin = Vector2.zero;
+            handleRt.anchorMax = Vector2.zero;
+            handleRt.sizeDelta = new Vector2(20f, 0f);
             _handle.color = ProceduralBuilders.DefaultHandleColor;
-            ProceduralBuilders.ApplyDefaultSlicedSprite(_handle);
+            // Handle 用 simple type；preserveAspect=false（与默认 Knob 一致）
+            ProceduralBuilders.ApplyDefaultSimpleSprite(_handle, ProceduralBuilders.SpriteRoundedRect);
 
             _slider = GameObject.GetComponent<UnitySlider>() ?? GameObject.AddComponent<UnitySlider>();
             _slider.targetGraphic = _handle;
