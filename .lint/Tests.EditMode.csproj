@@ -1,9 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <AssemblyName>PromptUGUI.Tests.EditMode</AssemblyName>
+  </PropertyGroup>
+
   <!-- Tests/EditMode/ excluding the nested Tests/EditMode/Editor/ asmdef. -->
   <ItemGroup>
     <Compile Include="..\Tests\EditMode\**\*.cs"
              Exclude="..\Tests\EditMode\Editor\**\*.cs" />
+    <ProjectReference Include="Runtime.csproj" />
+
+    <!--
+      NUnit ships inside Unity's `com.unity.test-framework` package, not in
+      Library/ScriptAssemblies, so the host-project glob in Directory.Build.props
+      doesn't pick it up. Pull from NuGet for the lint workspace; version doesn't
+      need to match Unity's bundled NUnit (the [Test] / Assert.* API is stable).
+    -->
+    <PackageReference Include="NUnit" Version="3.13.3" />
   </ItemGroup>
 
 </Project>

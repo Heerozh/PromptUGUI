@@ -9,7 +9,7 @@
   - XSD Schema定义语法，编辑器自动提示和检查，减少出错
   - 允许模板xml自定义控件，也可以直接把Prefab当成模板
 - 自动icon引用
-  - 把目录添加到IconSet，xml里用<Icon name="solar:Forward" />引用，并且只会打包用到的
+  - 把目录添加到IconSet，xml里用`<Icon name="solar:Forward" />`引用，并且只会打包用到的
   - 建议使用web开发习惯的图标库，适合大模型选用
 - 已内置全自动多国语言系统：
   - 自动提取界面文本，以及代码中Tr()包裹的字符串

@@ -1,7 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <AssemblyName>PromptUGUI.Tests.PlayMode</AssemblyName>
+  </PropertyGroup>
+
   <ItemGroup>
     <Compile Include="..\Tests\PlayMode\**\*.cs" />
+    <ProjectReference Include="Runtime.csproj" />
+    <PackageReference Include="NUnit" Version="3.13.3" />
   </ItemGroup>
 
 </Project>

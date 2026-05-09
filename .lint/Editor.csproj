@@ -1,7 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <AssemblyName>PromptUGUI.Editor</AssemblyName>
+  </PropertyGroup>
+
   <ItemGroup>
     <Compile Include="..\Editor\**\*.cs" />
+    <ProjectReference Include="Runtime.csproj" />
+
+    <!--
+      Roslyn syntax/semantic API used by Editor/I18n/CSharpStringScanner.cs.
+      In Unity, this DLL comes from NuGetForUnity in the host project; here in
+      the lint workspace we resolve it from nuget.org. Version doesn't need to
+      match Unity's bundled Roslyn — APIs we use (CSharpSyntaxTree, etc.) are
+      stable across 4.x.
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
   </ItemGroup>
 
 </Project>

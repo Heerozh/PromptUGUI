@@ -90,8 +90,17 @@
     Unity engine + editor DLLs from a local Unity install.
     $(UnityManagedDir) example: C:\Program Files\Unity\Hub\Editor\6000.0.40f1\Editor\Data\Managed
   -->
+  <!--
+    Exclude UnityEditor*.dll from the UnityEngine glob. Modern Unity ships both:
+      - <Managed>/UnityEngine/UnityEditor.CoreModule.dll (modular)
+      - <Managed>/UnityEditor.dll (legacy monolithic, referenced below)
+    Both expose UnityEditor.MenuItem etc. Unity itself avoids the clash because
+    asmdefs reference exactly one; our coarse wildcard pulls both → CS0433. Keep
+    the legacy DLL as the single source for UnityEditor.* types.
+  -->
   <ItemGroup Condition="'$(UnityManagedDir)' != '' AND Exists('$(UnityManagedDir)\UnityEngine')">
-    <Reference Include="$(UnityManagedDir)\UnityEngine\*.dll">
+    <Reference Include="$(UnityManagedDir)\UnityEngine\*.dll"
+               Exclude="$(UnityManagedDir)\UnityEngine\UnityEditor*.dll">
       <Private>false</Private>
     </Reference>
   </ItemGroup>
@@ -103,17 +112,21 @@
   </ItemGroup>
 
   <!--
-    Package DLLs (TMPro, UnityEngine.UI, etc.) from a host Unity project's
-    ScriptAssemblies. $(UnityHostProjectDir) example: C:\xsoft\PromptUGUIDev
+    Package DLLs (TMPro, UnityEngine.UI, UnityEngine.TestRunner, etc.) from a
+    host Unity project's ScriptAssemblies. $(UnityHostProjectDir) example:
+    C:\xsoft\PromptUGUIDev
 
     Excluded:
-      - PromptUGUI.*.dll  : avoid circular reference to ourselves
-      - *Test*.dll        : test assemblies aren't needed here
-      - R3*.dll           : prefer the NuGet R3 above for consistency
+      - PromptUGUI*.dll       : avoid circular reference to ourselves (Runtime
+                                + Editor + our compiled Tests assemblies)
+      - R3*.dll               : prefer the NuGet R3 above for consistency
+    Do NOT add `*Test*.dll` to the exclusion — that pattern would also strip
+    UnityEngine.TestRunner.dll, breaking `using NUnit.Framework` /
+    `using UnityEngine.TestTools` in test sources.
   -->
   <ItemGroup Condition="'$(UnityHostProjectDir)' != '' AND Exists('$(UnityHostProjectDir)\Library\ScriptAssemblies')">
     <Reference Include="$(UnityHostProjectDir)\Library\ScriptAssemblies\*.dll"
-               Exclude="$(UnityHostProjectDir)\Library\ScriptAssemblies\PromptUGUI*.dll;$(UnityHostProjectDir)\Library\ScriptAssemblies\*Test*.dll;$(UnityHostProjectDir)\Library\ScriptAssemblies\R3*.dll">
+               Exclude="$(UnityHostProjectDir)\Library\ScriptAssemblies\PromptUGUI*.dll;$(UnityHostProjectDir)\Library\ScriptAssemblies\R3*.dll">
       <Private>false</Private>
     </Reference>
   </ItemGroup>

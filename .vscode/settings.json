@@ -1,4 +1,14 @@
 {
-  "cSpell.words": ["UGUI"],
-  "dotnet.defaultSolution": ".lint/PromptUGUI.Lint.slnx"
+    "cSpell.words": [
+        "Mathf",
+        "Msgctxt",
+        "msgids",
+        "packables",
+        "promptugui",
+        "spriteatlas",
+        "Syncer",
+        "UGUI",
+        "USERPROFILE"
+    ],
+    "dotnet.defaultSolution": ".lint/PromptUGUI.Lint.slnx"
 }

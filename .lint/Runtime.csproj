@@ -1,5 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!--
+      Match the asmdef-driven assembly name used in Unity. InternalsVisibleTo
+      attributes (in Runtime/AssemblyInfo.cs) target the Unity names — without
+      these overrides the lint workspace produces `Runtime.dll` etc. and IVT
+      lookups fail with CS0122.
+    -->
+    <AssemblyName>PromptUGUI.Runtime</AssemblyName>
+  </PropertyGroup>
+
   <ItemGroup>
     <Compile Include="..\Runtime\**\*.cs" />
   </ItemGroup>
