@@ -1,5 +1,6 @@
 using PromptUGUI.Controls.Internal;
 using PromptUGUI.Registry;
+using R3;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -14,6 +15,13 @@ namespace PromptUGUI.Controls
         private TMP_Text _placeholder;
         private TMP_Text _text;
         private string _fontType = "default";
+        private readonly Subject<string> _changed = new();
+        private readonly Subject<string> _endEdit = new();
+        private readonly Subject<string> _submit = new();
+
+        public Observable<string> OnValueChanged => _changed;
+        public Observable<string> OnEndEdit => _endEdit;
+        public Observable<string> OnSubmit => _submit;
 
         public override void OnAttached()
         {
@@ -58,6 +66,9 @@ namespace PromptUGUI.Controls
             _input.caretColor = ProceduralBuilders.DefaultGlyphColor;
             _input.customCaretColor = false;
             _input.selectionColor = new Color(0.659f, 0.808f, 1f, 0.753f);
+            _input.onValueChanged.AddListener(v => _changed.OnNext(v));
+            _input.onEndEdit.AddListener(v => _endEdit.OnNext(v));
+            _input.onSubmit.AddListener(v => _submit.OnNext(v));
 
             ApplyFont();
             PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
@@ -173,6 +184,9 @@ namespace PromptUGUI.Controls
         public override void Dispose()
         {
             PromptUGUI.Application.UI.Locale.Changed -= ApplyFont;
+            _changed.Dispose();
+            _endEdit.Dispose();
+            _submit.Dispose();
             base.Dispose();
         }
     }

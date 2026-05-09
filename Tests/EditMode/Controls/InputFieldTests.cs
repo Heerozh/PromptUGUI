@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
+using R3;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -195,6 +196,54 @@ namespace PromptUGUI.Tests.EditMode.Controls
             UI.LoadDocument("test", xml);
             var f = UI.Open("S").Get<PInputField>("f");
             Assert.IsTrue(f.GameObject.GetComponent<TMP_InputField>().readOnly);
+        }
+
+        [Test]
+        public void Event_OnValueChanged_FiresOnTextSet()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <InputField id='f'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var f = UI.Open("S").Get<PInputField>("f");
+
+            string last = null;
+            f.OnValueChanged.Subscribe(v => last = v);
+            f.GameObject.GetComponent<TMP_InputField>().text = "abc";
+            Assert.AreEqual("abc", last);
+        }
+
+        [Test]
+        public void Event_OnEndEdit_FiresOnEndEditUnityCallback()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <InputField id='f'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var f = UI.Open("S").Get<PInputField>("f");
+
+            string last = null;
+            f.OnEndEdit.Subscribe(v => last = v);
+            f.GameObject.GetComponent<TMP_InputField>().onEndEdit.Invoke("done");
+            Assert.AreEqual("done", last);
+        }
+
+        [Test]
+        public void Event_OnSubmit_FiresOnSubmitUnityCallback()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <InputField id='f'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var f = UI.Open("S").Get<PInputField>("f");
+
+            string last = null;
+            f.OnSubmit.Subscribe(v => last = v);
+            f.GameObject.GetComponent<TMP_InputField>().onSubmit.Invoke("submitted");
+            Assert.AreEqual("submitted", last);
         }
     }
 }
