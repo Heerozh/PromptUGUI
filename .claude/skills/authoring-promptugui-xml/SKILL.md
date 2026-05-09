@@ -94,6 +94,30 @@ References a sprite from a project-level IconSet (shared icons, by-name lookup, 
 | `color`   | no       | `#ffffff` | Multiply tint on the underlying Image. White preserves a colored PNG; non-white tints a mono-mask PNG |
 | `size`    | no       | `native`  | Numeric / `WxH` / `stretch` / `native` (Icon-only). Native reads sprite pixel dimensions              |
 
+**Discovering available icons** — to find which `setName:icon-name` combinations are valid in the current project, run from the project root:
+
+```bash
+# 1) List every IconSet (setName → source folder)
+find . -name "*.asset" -not -path "*/Library/*" -not -path "*/Temp/*" \
+  -exec grep -l "PromptUGUI.Application.IconSet" {} \; 2>/dev/null \
+| while IFS= read -r f; do
+    n=$(grep -m1 "^  setName:" "$f" | awk '{print $2}')
+    g=$(grep -m1 "^  sourceFolder:" "$f" | grep -oP 'guid: \K[a-f0-9]+')
+    if [ -n "$g" ]; then
+      p=$(grep -rl "^guid: $g$" --include="*.meta" . 2>/dev/null | head -1)
+      echo "$n -> ${p%.meta}"
+    else
+      echo "$n -> (sourceFolder not set)"
+    fi
+  done
+# example: solar -> Samples~/MainMenu/Icons
+
+# 2) Search a known IconSet by keyword
+find <sourceFolder> -iname "*<keyword>*.png" | sed 's|.*/||; s|\.png$||'
+```
+
+Icon name in XML = PNG basename without extension. So `Arrow Right.png` in a set with `setName: solar` becomes `<Icon name="solar:Arrow Right"/>`. External packs (Font Awesome, Solar Icons, etc.) drop in as a folder of PNGs; create an IconSet ScriptableObject (`Create → PromptUGUI → Icon Set`) pointing at it, set `setName`, then `Tools → PromptUGUI → Icon → Sync Atlases (All Sets)` packs only the icons referenced from `.ui.xml` (plus `IconSet.alwaysInclude` entries).
+
 **Dynamic icon names**: writing `<Icon name="ui:{{x}}"/>` (Template substitution or expression-driven name) cannot be statically analyzed — the Editor sync tool will skip it with a warning. Two ways out:
 
 - Preferred: enumerate states explicitly via Variant overrides — `<Icon name="ui:sun" name.dark="ui:moon"/>`, the scanner sees both candidates.
