@@ -57,7 +57,71 @@ namespace PromptUGUI.Tests.Editor
             var r = new ControlRegistry();
             var xsd = XsdGenerator.Generate(r);
             StringAssert.Contains("xs:pattern", xsd);
-            StringAssert.Contains(":[A-Za-z0-9_\\-]+", xsd);  // ASCII char class, no ^/$
+            // Set name strict, icon name allows space (matches IsValidIconName).
+            StringAssert.Contains(":[A-Za-z0-9_\\- ]+", xsd);
+        }
+
+        [Test]
+        public void Icon_name_pattern_accepts_space_in_iconname()
+        {
+            // Real-world icon packs ship PNGs with spaces ('Alt Arrow Right.png').
+            // Parser allows this; XSD must too, otherwise IDE flags valid XML as invalid.
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+
+            const string sample = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'>
+    <Icon name='solar:Alt Arrow Right'/>
+  </Screen>
+</PromptUGUI>";
+
+            var schemas = new System.Xml.Schema.XmlSchemaSet();
+            schemas.Add(null, System.Xml.XmlReader.Create(new StringReader(xsd)));
+            var settings = new System.Xml.XmlReaderSettings
+            {
+                ValidationType = System.Xml.ValidationType.Schema,
+                Schemas = schemas,
+            };
+            var errors = new System.Collections.Generic.List<string>();
+            settings.ValidationEventHandler += (_, e) => errors.Add(e.Message);
+            using (var reader = System.Xml.XmlReader.Create(new StringReader(sample), settings))
+            {
+                while (reader.Read()) { }
+            }
+            CollectionAssert.IsEmpty(errors,
+                "'solar:Alt Arrow Right' is parser-valid; XSD must validate it.");
+        }
+
+        [Test]
+        public void Icon_name_pattern_rejects_space_in_setname()
+        {
+            // Set name is strict (parser rejects 'my set:icon'); XSD must too.
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+
+            const string sample = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'>
+    <Icon name='my set:Forward'/>
+  </Screen>
+</PromptUGUI>";
+
+            var schemas = new System.Xml.Schema.XmlSchemaSet();
+            schemas.Add(null, System.Xml.XmlReader.Create(new StringReader(xsd)));
+            var settings = new System.Xml.XmlReaderSettings
+            {
+                ValidationType = System.Xml.ValidationType.Schema,
+                Schemas = schemas,
+            };
+            var errors = new System.Collections.Generic.List<string>();
+            settings.ValidationEventHandler += (_, e) => errors.Add(e.Message);
+            using (var reader = System.Xml.XmlReader.Create(new StringReader(sample), settings))
+            {
+                while (reader.Read()) { }
+            }
+            CollectionAssert.IsNotEmpty(errors,
+                "'my set:Forward' has space in set name and must fail XSD validation.");
         }
 
         [Test]

@@ -365,10 +365,13 @@ namespace PromptUGUI.Parser
             {
                 if (i == colon) continue;
                 var c = name[i];
-                var ok = c == '-' || c == '_'
-                          || (c >= 'a' && c <= 'z')
-                          || (c >= 'A' && c <= 'Z')
-                          || (c >= '0' && c <= '9');
+                var alnum = (c >= 'a' && c <= 'z')
+                            || (c >= 'A' && c <= 'Z')
+                            || (c >= '0' && c <= '9')
+                            || c == '-' || c == '_';
+                // External icon packs (Solar, Material) ship PNGs with spaces; allow them
+                // in the icon-name half. Set name is a reference key — keep it strict.
+                var ok = alnum || (i > colon && c == ' ');
                 if (!ok) return false;
             }
             return true;

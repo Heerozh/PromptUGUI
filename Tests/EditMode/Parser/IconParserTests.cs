@@ -127,5 +127,33 @@ namespace PromptUGUI.Tests.Parser
             var xml = Header + "<Icon name='ui:sun' name.dark='ui:moon'/>" + Footer;
             Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
         }
+
+        [Test]
+        public void Icon_name_with_space_in_iconname_passes()
+        {
+            // Real-world packs (Solar Icons, Material) ship PNGs like 'Alt Arrow Right.png'.
+            // Renaming on every pack upgrade is friction; allow spaces in the icon-name half.
+            var xml = Header + "<Icon name='solar:Alt Arrow Right'/>" + Footer;
+            var doc = UIDocumentParser.Parse(xml);
+            var icon = doc.Screens[0].Root.Children[0];
+            Assert.AreEqual("solar:Alt Arrow Right", icon.Attributes["name"]);
+        }
+
+        [Test]
+        public void Icon_name_with_space_in_setname_throws()
+        {
+            // Set name is a reference key (matches IconSet.setName); keep it strict.
+            var xml = Header + "<Icon name='my set:Forward'/>" + Footer;
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Icon_variant_with_space_in_iconname_passes()
+        {
+            var xml = Header +
+                "<Icon name='solar:Sun' name.dark='solar:Alt Moon Bold'/>"
+                + Footer;
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
+        }
     }
 }

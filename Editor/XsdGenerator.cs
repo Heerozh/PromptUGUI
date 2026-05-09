@@ -52,8 +52,9 @@ namespace PromptUGUI.Editor
                 WriteControl(writer, "Grid", new[] { ("columns", "xs:int", (string)null), ("cellSize", "xs:string", (string)null) });
                 WriteControl(writer, "Btn", new[] { ("color", "xs:string", (string)null), ("sprite", "xs:string", (string)null) });
                 // XSD patterns are implicitly anchored to the entire value — no ^/$.
-                // Match runtime parser's ASCII-only check (UIDocumentParser.IsValidIconName).
-                WriteControl(writer, "Icon", new[] { ("name", "xs:string", @"[A-Za-z0-9_\-]+:[A-Za-z0-9_\-]+"), ("color", "xs:string", (string)null) });
+                // Match runtime parser's check (UIDocumentParser.IsValidIconName): set name
+                // strict alnum/_-, icon name additionally allows space (icon-pack PNG names).
+                WriteControl(writer, "Icon", new[] { ("name", "xs:string", @"[A-Za-z0-9_\-]+:[A-Za-z0-9_\- ]+"), ("color", "xs:string", (string)null) });
 
                 // Registered custom controls — exclude primitives, sort by tag
                 var primitives = new HashSet<string> {

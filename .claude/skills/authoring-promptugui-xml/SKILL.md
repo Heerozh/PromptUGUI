@@ -90,7 +90,7 @@ References a sprite from a project-level IconSet (shared icons, by-name lookup, 
 
 | Attribute | Required | Default   | Notes                                                                                                 |
 | --------- | -------- | --------- | ----------------------------------------------------------------------------------------------------- |
-| `name`    | yes      | —         | Format `ns:icon-name` (single colon, both halves match `[\w-]+`)                                      |
+| `name`    | yes      | —         | Format `ns:icon-name`. `ns` (set name) is strict `[A-Za-z0-9_-]+`; `icon-name` additionally allows spaces, e.g. `solar:Alt Arrow Right` |
 | `color`   | no       | `#ffffff` | Multiply tint on the underlying Image. White preserves a colored PNG; non-white tints a mono-mask PNG |
 | `size`    | no       | `native`  | Numeric / `WxH` / `stretch` / `native` (Icon-only). Native reads sprite pixel dimensions              |
 
