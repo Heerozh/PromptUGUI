@@ -50,7 +50,7 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void Scan_skips_malformed_xml()
+        public void Scan_skips_dynamic_icon_outside_template()
         {
             var path = $"{TestRoot}/dyn.ui.xml";
             File.WriteAllText(path,
@@ -62,8 +62,9 @@ namespace PromptUGUI.Tests.Editor
             AssetDatabase.ImportAsset(path);
             _toCleanup.Add(path);
 
-            // The parser rejects 'ui:{{kind}}' (invalid icon name pattern).
-            // ScanXmlReferences logs warning and skips the file; no entries from it.
+            // Parser now accepts '{{...}}' (Template substitution placeholder).
+            // Outside a <Template>, no Param flow exists; syncer skips with a warning
+            // — caller must list candidates in IconSet.alwaysInclude.
             LogAssert.ignoreFailingMessages = true;
             var refs = IconAtlasSyncer.ScanXmlReferences();
             LogAssert.ignoreFailingMessages = false;
@@ -86,6 +87,160 @@ namespace PromptUGUI.Tests.Editor
             var refs = IconAtlasSyncer.ScanXmlReferences();
             Assert.That(refs, Does.Contain(("ui", "sun")));
             Assert.That(refs, Does.Contain(("ui", "moon")));
+        }
+
+        [Test]
+        public void Scan_follows_template_param_full_placeholder()
+        {
+            // <Icon name="{{iconName}}"/> — invocation arg is the full set:icon string.
+            // Use TestSyncer_* prefixes so assertions aren't contaminated by real
+            // .ui.xml files in the host project (the scan walks the whole project).
+            var path = $"{TestRoot}/tpl_full.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Template name='TestSyncerIconBtn'>
+                      <Param name='iconName'/>
+                      <Icon name='{{iconName}}'/>
+                    </Template>
+                    <Screen name='S'>
+                      <TestSyncerIconBtn iconName='testset:TestSyncer_Foo'/>
+                      <TestSyncerIconBtn iconName='testset:TestSyncer_Bar'/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            var refs = IconAtlasSyncer.ScanXmlReferences();
+            Assert.That(refs, Does.Contain(("testset", "TestSyncer_Foo")));
+            Assert.That(refs, Does.Contain(("testset", "TestSyncer_Bar")));
+        }
+
+        [Test]
+        public void Scan_follows_template_param_partial_placeholder()
+        {
+            // <Icon name="solar:{{x}}"/> — invocation arg is the icon-name half.
+            // Don't use Param name 'id' — that's a reserved attribute consumed by
+            // the parser into ElementNode.Id, not ElementNode.Attributes.
+            var path = $"{TestRoot}/tpl_partial.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Template name='TestSyncerSolar'>
+                      <Param name='which'/>
+                      <Icon name='testset:{{which}}'/>
+                    </Template>
+                    <Screen name='S'>
+                      <TestSyncerSolar which='TestSyncer_Knife'/>
+                      <TestSyncerSolar which='TestSyncer_Spoon'/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            var refs = IconAtlasSyncer.ScanXmlReferences();
+            Assert.That(refs, Does.Contain(("testset", "TestSyncer_Knife")));
+            Assert.That(refs, Does.Contain(("testset", "TestSyncer_Spoon")));
+        }
+
+        [Test]
+        public void Scan_follows_template_variant_param_placeholder()
+        {
+            // Param can drive a variant override (name.dark="{{x}}").
+            var path = $"{TestRoot}/tpl_variant.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Template name='TestSyncerThemeIcon'>
+                      <Param name='dark'/>
+                      <Icon name='testset:TestSyncer_Sun' name.dark='{{dark}}'/>
+                    </Template>
+                    <Screen name='S'>
+                      <TestSyncerThemeIcon dark='testset:TestSyncer_Moon'/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            var refs = IconAtlasSyncer.ScanXmlReferences();
+            Assert.That(refs, Does.Contain(("testset", "TestSyncer_Sun")));
+            Assert.That(refs, Does.Contain(("testset", "TestSyncer_Moon")));
+        }
+
+        [Test]
+        public void Scan_uses_template_param_default_when_invocation_omits_arg()
+        {
+            // Param has default; invocation may omit the arg. Treat default as the
+            // effective value so default-only templates still pack the right icon.
+            var path = $"{TestRoot}/tpl_default.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Template name='TestSyncerCoin'>
+                      <Param name='kind' default='TestSyncer_Gold'/>
+                      <Icon name='testset:{{kind}}'/>
+                    </Template>
+                    <Screen name='S'>
+                      <TestSyncerCoin/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            var refs = IconAtlasSyncer.ScanXmlReferences();
+            Assert.That(refs, Does.Contain(("testset", "TestSyncer_Gold")));
+        }
+
+        [Test]
+        public void Scan_warns_on_forwarded_template_arg()
+        {
+            // Outer Template forwards its own Param into inner Template's Param —
+            // syncer can't statically resolve the chain; warn and skip.
+            var path = $"{TestRoot}/tpl_forward.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Template name='TestSyncerInner'>
+                      <Param name='i'/>
+                      <Icon name='{{i}}'/>
+                    </Template>
+                    <Template name='TestSyncerOuter'>
+                      <Param name='passthrough'/>
+                      <TestSyncerInner i='{{passthrough}}'/>
+                    </Template>
+                    <Screen name='S'>
+                      <TestSyncerOuter passthrough='testset:TestSyncer_Forwarded'/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            LogAssert.ignoreFailingMessages = true;
+            var refs = IconAtlasSyncer.ScanXmlReferences();
+            LogAssert.ignoreFailingMessages = false;
+            // Forwarded form is unanalyzable — must NOT silently include.
+            Assert.IsFalse(refs.Contains(("testset", "TestSyncer_Forwarded")));
+        }
+
+        [Test]
+        public void Scan_warns_on_complex_substitution_in_template_body()
+        {
+            // Multi-placeholder body shapes (e.g. "solar:{{a}}-{{b}}") aren't
+            // covered by the simple full/partial recognizer — warn, no flow.
+            var path = $"{TestRoot}/tpl_complex.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Template name='TestSyncerCombo'>
+                      <Param name='a'/>
+                      <Param name='b'/>
+                      <Icon name='testset:{{a}}-{{b}}'/>
+                    </Template>
+                    <Screen name='S'>
+                      <TestSyncerCombo a='TestSyncer_X' b='TestSyncer_Y'/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            LogAssert.ignoreFailingMessages = true;
+            var refs = IconAtlasSyncer.ScanXmlReferences();
+            LogAssert.ignoreFailingMessages = false;
+            Assert.IsFalse(refs.Contains(("testset", "TestSyncer_X-TestSyncer_Y")));
         }
 
         [Test]

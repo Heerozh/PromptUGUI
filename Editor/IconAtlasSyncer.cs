@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 using PromptUGUI.IR;
 using PromptUGUI.Parser;
 using UnityEditor;
@@ -15,13 +16,18 @@ namespace PromptUGUI.Editor
         private const string DynamicMarker = "{{";
         private const string ProgressTitle = "PromptUGUI Icon Sync";
 
-        /// <summary>(setName, iconName) pairs found across all .ui.xml in the project.</summary>
+        /// <summary>(setName, iconName) pairs found across all .ui.xml in the project.
+        /// Two passes: (A) build Template Param-flow map across all docs, (B) walk each
+        /// doc collecting literal &lt;Icon&gt; refs plus refs derived from Template
+        /// invocations whose attributes feed an &lt;Icon name&gt; in the Template body.</summary>
         /// <param name="showProgress">When true, drives a cancelable progress bar; throws
         /// <see cref="OperationCanceledException"/> if the user cancels.</param>
         public static HashSet<(string set, string name)> ScanXmlReferences(
             bool showProgress = false)
         {
             var refs = new HashSet<(string, string)>();
+            var parsed = new List<(string path, UIDocument doc)>();
+
             var guids = AssetDatabase.FindAssets("t:TextAsset");
             for (var i = 0; i < guids.Length; i++)
             {
@@ -50,16 +56,126 @@ namespace PromptUGUI.Editor
                     Debug.LogWarning($"[IconSync] skipping malformed {path}: {ex.Message}");
                     continue;
                 }
-                foreach (var screen in doc.Screens)
-                    CollectFromNode(screen.Root, refs, path);
+                parsed.Add((path, doc));
+            }
+
+            // Pass A: cross-doc Template Param-flow map.
+            // Templates may live in commons (one file) and be invoked in screens (another).
+            // Key by Template local name only — Imports' `as` alias propagates only at
+            // expansion time, but the Param-flow shape is identical regardless of alias.
+            var templateFlows = new Dictionary<string, TemplateFlow>(StringComparer.Ordinal);
+            foreach (var (path, doc) in parsed)
+            {
                 foreach (var tpl in doc.Templates.Values)
-                    if (tpl.Body != null) CollectFromNode(tpl.Body, refs, path);
+                {
+                    if (tpl.Body == null) continue;
+                    var flows = new Dictionary<string, IconParamFlow>(StringComparer.Ordinal);
+                    AnalyzeIconNode(tpl.Body, flows, path, tpl.Name);
+                    if (flows.Count == 0) continue;
+
+                    // Treat Param `default` values as effective invocation args so a
+                    // bare `<MyIcon/>` invocation (no explicit arg) still pre-packs.
+                    var defaults = new Dictionary<string, string>(StringComparer.Ordinal);
+                    foreach (var p in tpl.Params)
+                        if (!string.IsNullOrEmpty(p.DefaultValue)) defaults[p.Name] = p.DefaultValue;
+
+                    templateFlows[tpl.Name] = new TemplateFlow(flows, defaults);
+                }
+            }
+
+            // Pass B: literal <Icon> + Template-Param-driven refs.
+            foreach (var (path, doc) in parsed)
+            {
+                foreach (var screen in doc.Screens)
+                    CollectFromNode(screen.Root, refs, templateFlows, path);
+                foreach (var tpl in doc.Templates.Values)
+                {
+                    if (tpl.Body == null) continue;
+                    CollectFromNode(tpl.Body, refs, templateFlows, path);
+                    // Also fold Param defaults into refs at definition site (covers the
+                    // case where a Template is defined but never invoked yet still ships
+                    // a sensible default icon).
+                    if (templateFlows.TryGetValue(tpl.Name, out var tf))
+                    {
+                        foreach (var (paramName, flow) in tf.Flows)
+                        {
+                            if (!tf.Defaults.TryGetValue(paramName, out var def)) continue;
+                            CollectFromTemplateArg(def, flow, refs, path, tpl.Name, paramName);
+                        }
+                    }
+                }
             }
             return refs;
         }
 
+        private readonly struct TemplateFlow
+        {
+            public readonly Dictionary<string, IconParamFlow> Flows;
+            public readonly Dictionary<string, string> Defaults;
+            public TemplateFlow(Dictionary<string, IconParamFlow> flows,
+                                Dictionary<string, string> defaults)
+            { Flows = flows; Defaults = defaults; }
+        }
+
+        // If LiteralSet is non-null, the body has `set:{{param}}` and the invocation
+        // arg is just the icon-name half. If null, the body has `{{param}}` and the
+        // invocation arg is the full `set:icon`.
+        private readonly struct IconParamFlow
+        {
+            public readonly string LiteralSet;
+            public IconParamFlow(string literalSet) { LiteralSet = literalSet; }
+        }
+
+        private static readonly Regex FullPlaceholder =
+            new(@"^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$", RegexOptions.Compiled);
+        private static readonly Regex PartialPlaceholder =
+            new(@"^([A-Za-z0-9_\-]+):\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$",
+                RegexOptions.Compiled);
+
+        private static void AnalyzeIconNode(ElementNode node,
+                                    Dictionary<string, IconParamFlow> flows,
+                                    string path, string tplName)
+        {
+            if (node == null) return;
+            if (node.Tag == "Icon" && node.Namespace == null)
+            {
+                if (node.Attributes.TryGetValue("name", out var v))
+                    TryAddFlow(v, flows, path, tplName);
+                if (node.VariantOverrides.TryGetValue("name", out var list))
+                    foreach (var (_, vv) in list) TryAddFlow(vv, flows, path, tplName);
+            }
+            foreach (var c in node.Children) AnalyzeIconNode(c, flows, path, tplName);
+        }
+
+        private static void TryAddFlow(string value,
+                                Dictionary<string, IconParamFlow> flows,
+                                string path, string tplName)
+        {
+            if (string.IsNullOrEmpty(value)) return;
+            if (!value.Contains(DynamicMarker)) return; // literal — no flow
+
+            var m = FullPlaceholder.Match(value);
+            if (m.Success)
+            {
+                flows[m.Groups[1].Value] = new IconParamFlow(null);
+                return;
+            }
+            m = PartialPlaceholder.Match(value);
+            if (m.Success)
+            {
+                flows[m.Groups[2].Value] = new IconParamFlow(m.Groups[1].Value);
+                return;
+            }
+            Debug.LogWarning(
+                $"[IconSync] {path}: <Template name='{tplName}'>: <Icon name='{value}'> " +
+                $"uses a non-trivial substitution; only `{{x}}` and `set:{{x}}` are " +
+                $"statically analyzable. List candidates in IconSet.alwaysInclude.");
+        }
+
         private static void CollectFromNode(ElementNode node,
-                                    HashSet<(string, string)> refs, string path)
+                                    HashSet<(string, string)> refs,
+                                    IReadOnlyDictionary<string, TemplateFlow> templateFlows,
+                                    string path)
         {
             if (node == null) return;
             if (node.Tag == "Icon" && node.Namespace == null)
@@ -69,7 +185,48 @@ namespace PromptUGUI.Editor
                 if (node.VariantOverrides.TryGetValue("name", out var list))
                     foreach (var (_, v) in list) CollectFromAttr(v, refs, path);
             }
-            foreach (var c in node.Children) CollectFromNode(c, refs, path);
+            else if (templateFlows.TryGetValue(node.Tag, out var tf))
+            {
+                foreach (var (paramName, flow) in tf.Flows)
+                {
+                    if (!node.Attributes.TryGetValue(paramName, out var arg) ||
+                        string.IsNullOrEmpty(arg))
+                        continue;
+                    CollectFromTemplateArg(arg, flow, refs, path, node.Tag, paramName);
+                }
+            }
+            foreach (var c in node.Children) CollectFromNode(c, refs, templateFlows, path);
+        }
+
+        private static void CollectFromTemplateArg(string value, IconParamFlow flow,
+                                            HashSet<(string, string)> refs, string path,
+                                            string tplName, string paramName)
+        {
+            if (string.IsNullOrEmpty(value)) return;
+            if (value.Contains(DynamicMarker))
+            {
+                Debug.LogWarning(
+                    $"[IconSync] {path}: <{tplName} {paramName}='{value}'>: arg is " +
+                    $"itself a placeholder (forwarded from outer Param); cannot " +
+                    $"analyze further. List final values in IconSet.alwaysInclude.");
+                return;
+            }
+            if (flow.LiteralSet == null)
+            {
+                var colon = value.IndexOf(':');
+                if (colon <= 0 || colon == value.Length - 1)
+                {
+                    Debug.LogWarning(
+                        $"[IconSync] {path}: <{tplName} {paramName}='{value}'>: " +
+                        $"expected 'set:icon' form; ignoring.");
+                    return;
+                }
+                refs.Add((value.Substring(0, colon), value.Substring(colon + 1)));
+            }
+            else
+            {
+                refs.Add((flow.LiteralSet, value));
+            }
         }
 
         private static void CollectFromAttr(string value,

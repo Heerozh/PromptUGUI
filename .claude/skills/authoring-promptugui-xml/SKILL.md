@@ -127,10 +127,14 @@ cd <sourceFolder> && find . -iname "*<keyword>*.png" | sed 's|^\./||; s|\.png$||
 
 Icon name in XML = PNG path **relative to the IconSet's sourceFolder**, with `/` as separator and no extension. So `Arrow Right.png` directly under a set with `setName: solar` is `<Icon name="solar:Arrow Right"/>`; `Combat/heart.png` is `<Icon name="ui:Combat/heart"/>`. The bare basename (`ui:heart`) is also accepted as a shortcut **as long as it is unambiguous across the source folder** — when two PNGs in different subfolders share a basename you must use the path form, and the sync tool will error pointing at the candidates if XML still references the bare name. External packs (Font Awesome, Solar Icons, etc.) drop in as a folder of PNGs; create an IconSet ScriptableObject (`Create → PromptUGUI → Icon Set`) pointing at it, set `setName`, then `Tools → PromptUGUI → Icon → Sync Atlases (All Sets)` packs only the icons referenced from `.ui.xml` (plus `IconSet.alwaysInclude` entries).
 
-**Dynamic icon names**: writing `<Icon name="ui:{{x}}"/>` (Template substitution or expression-driven name) cannot be statically analyzed — the Editor sync tool will skip it with a warning. Two ways out:
+**Variant overrides on literal `<Icon>`**: `<Icon name="ui:sun" name.dark="ui:moon"/>` — the scanner reads both `name` and every `name.<variant>` value, so each candidate sprite is packed.
 
-- Preferred: enumerate states explicitly via Variant overrides — `<Icon name="ui:sun" name.dark="ui:moon"/>`, the scanner sees both candidates.
-- Fallback: list candidates in `IconSet.alwaysInclude` (always packed into the atlas).
+**Template-Param-driven icon names**: the sync tool follows two recognized substitution shapes inside a `<Template>` body (also applies to `name.<variant>` overrides):
+
+- Full placeholder — `<Icon name="{{iconName}}"/>`. Treats each invocation arg (`<MyIcon iconName="solar:Bell Bing"/>`) as a complete `set:icon` ref. Param `default=` also counts.
+- Partial placeholder — `<Icon name="solar:{{x}}"/>`. Treats each invocation arg as the icon-name half, paired with the literal `solar` set.
+
+Anything else inside a Template body (`{{a}}:{{b}}`, `solar:{{a}}-{{b}}`, multi-placeholder) is unanalyzable — the syncer logs a warning. Same for forwarded args (one Template's Param fed verbatim into another's). For unanalyzable cases, list final values in `IconSet.alwaysInclude`. Outside a `<Template>` (a literal `<Icon name="ui:{{x}}"/>` directly in a Screen) is always unanalyzable too.
 
 ## Common attributes (any tag)
 
