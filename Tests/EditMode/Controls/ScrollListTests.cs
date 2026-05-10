@@ -142,7 +142,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var sb = sl.GameObject.transform.Find("Scrollbar Vertical") as UnityEngine.RectTransform;
             Assert.IsNotNull(sb, "default direction is vertical → Scrollbar Vertical exists");
             Assert.AreEqual(new UnityEngine.Vector2(1, 0), sb.anchorMin);
-            Assert.AreEqual(new UnityEngine.Vector2(1, 0), sb.anchorMax);
+            Assert.AreEqual(new UnityEngine.Vector2(1, 1), sb.anchorMax);
             Assert.AreEqual(new UnityEngine.Vector2(20, 0), sb.sizeDelta);
 
             var scrollbar = sb.GetComponent<UnityEngine.UI.Scrollbar>();
@@ -167,7 +167,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var sb = sl.GameObject.transform.Find("Scrollbar Horizontal") as UnityEngine.RectTransform;
             Assert.IsNotNull(sb);
             Assert.AreEqual(new UnityEngine.Vector2(0, 0), sb.anchorMin);
-            Assert.AreEqual(new UnityEngine.Vector2(0, 0), sb.anchorMax);
+            Assert.AreEqual(new UnityEngine.Vector2(1, 0), sb.anchorMax);
             Assert.AreEqual(new UnityEngine.Vector2(0, 20), sb.sizeDelta);
 
             var scrollbar = sb.GetComponent<UnityEngine.UI.Scrollbar>();

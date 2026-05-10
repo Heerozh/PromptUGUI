@@ -120,11 +120,13 @@
 | `Scroll View` (root) | RT / CR / Image / ScrollRect | sliced UISprite **white α=0.392**, ScrollRect (movementType=Elastic, scrollbarVisibility=2 AutoHideAndExpandViewport, spacing=−3) | RT / Image / ScrollRect | ✓ bg α=0.392 由调色板提供；**显式设 movementType=Elastic、verticalScrollbarVisibility=AutoHideAndExpandViewport、verticalScrollbarSpacing=−3**（horizontal 同理） |
 | └ `Viewport` | RT / CR / **Image / Mask** | anchor=stretch（被 ScrollRect 驱动）, sliced sprite=UIMask **alpha=1** white, **`Mask.showMaskGraphic=0`** | RT / **RectMask2D** 无 Image | **切回 Mask + sliced Image alpha=1 + showMaskGraphic=false** |
 | │  └ `Content` | RT only | anchor + pivot 由 direction 决定（已正确） | ✓ | ✓ |
-| └ `Scrollbar Vertical` | RT / CR / Image / Scrollbar | anchor=(1,0)/(1,0)，pivot=(1,1), sizeDelta=(20,0), sliced Background white, direction=BottomToTop | _不存在_ | **direction="vertical" 时新增**（含 Sliding Area + Handle）|
-| └ `Scrollbar Horizontal` | RT / CR / Image / Scrollbar | anchor=(0,0)/(0,0), pivot=(0,0), sizeDelta=(0,20), sliced Background white, direction=LeftToRight | _不存在_ | **direction="horizontal" 时新增** |
+| └ `Scrollbar Vertical` | RT / CR / Image / Scrollbar | prefab: anchor=(1,0)/(1,0)，pivot=(1,1), sizeDelta=(20,0), sliced Background white, direction=BottomToTop；**我们用 (1,0)/(1,1) 全 Y stretch** | _不存在_ | **direction="vertical" 时新增**（含 Sliding Area + Handle）；**anchorMax.y=1 偏离 prefab，原因见 §8.3.1** |
+| └ `Scrollbar Horizontal` | RT / CR / Image / Scrollbar | prefab: anchor=(0,0)/(0,0), pivot=(0,0), sizeDelta=(0,20), sliced Background white, direction=LeftToRight；**我们用 (0,0)/(1,0) 全 X stretch** | _不存在_ | **direction="horizontal" 时新增；anchorMax.x=1 偏离 prefab (同 §8.3.1)** |
 | └ ScrollRect 引用 | — | viewport/content/horizontalScrollbar/verticalScrollbar wired | viewport/content wired，无 scrollbar | **按 direction wire 单一 scrollbar** |
 
 > 默认 Scroll View prefab 同时含 H+V scrollbar。M5 spec 锁定 ScrollList 单轴模式（M5-D... "v1 仅 vertical / horizontal stack"），所以**只加跟 `direction` 一致的那条 Scrollbar**。两条全加是越界。
+>
+> **§8.3.1 单轴 anchor 偏离原因**：默认 Scroll View prefab 的 Scrollbar 用 point 锚 + sizeDelta=(20,0)/(0,20)，靠 ScrollRect 在 `m_HSliderExpand`/`m_VSliderExpand` 为 true 时驱动撑开。但这两个 flag 要求**两条 scrollbar 同时存在**（`m_HSliderExpand = visibility==AutoHideAndExpandViewport && m_HorizontalScrollbar`）。单轴模式下另一条是 null，flag 永远 false，ScrollRect 不驱动 → scrollbar 卡在设计时的 20x0 / 0x20 不可见。所以单轴模式 scrollbar 必须自己 anchor 全轴 stretch。
 
 ### InputField (新增) ↔ InputField (TMP).prefab
 

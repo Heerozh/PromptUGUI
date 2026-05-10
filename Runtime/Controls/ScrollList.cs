@@ -251,8 +251,11 @@ namespace PromptUGUI.Controls
         {
             if (_vertScrollbar != null) { _vertScrollbar.gameObject.SetActive(true); return; }
             var rt = ProceduralBuilders.AddChild(RectTransform, "Scrollbar Vertical");
+            // 注意 anchorMax.y=1：默认 Scroll View prefab 是 (1,0)/(1,0) point 锚，靠 ScrollRect
+            // 在 m_HSliderExpand 为 true 时驱动撑开。但 m_HSliderExpand 要求同时存在 horizontal
+            // scrollbar；ScrollList 单轴模式下不存在 → 必须自己 anchor 全 Y stretch。
             rt.anchorMin = new Vector2(1f, 0f);
-            rt.anchorMax = new Vector2(1f, 0f);
+            rt.anchorMax = new Vector2(1f, 1f);
             rt.pivot = new Vector2(1f, 1f);
             rt.sizeDelta = new Vector2(20f, 0f);
             var bg = rt.gameObject.AddComponent<UnityImage>();
@@ -284,8 +287,9 @@ namespace PromptUGUI.Controls
         {
             if (_horizScrollbar != null) { _horizScrollbar.gameObject.SetActive(true); return; }
             var rt = ProceduralBuilders.AddChild(RectTransform, "Scrollbar Horizontal");
+            // anchorMax.x=1：单轴 ScrollList 没有 vertical scrollbar，ScrollRect 不会驱动撑开 → 自己 X stretch (镜像 vertical)。
             rt.anchorMin = new Vector2(0f, 0f);
-            rt.anchorMax = new Vector2(0f, 0f);
+            rt.anchorMax = new Vector2(1f, 0f);
             rt.pivot = new Vector2(0f, 0f);
             rt.sizeDelta = new Vector2(0f, 20f);
             var bg = rt.gameObject.AddComponent<UnityImage>();
