@@ -10,6 +10,7 @@
 1. Unity 6000.0+ 项目
 2. `<project root>/Packages/manifest.json` 存在
 3. R3（Cysharp）已装好——PromptUGUI 运行时依赖。通常通过 NuGetForUnity 安装 `R3` 包；如未装，先告诉用户装好再继续
+4. 确认系统可以执行xmllint，如果不行，最后总结时提醒用户。
 
 ## 步骤 1：把包加到 manifest
 
