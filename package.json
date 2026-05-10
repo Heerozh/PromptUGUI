@@ -7,6 +7,11 @@
     "dependencies": {
         "com.unity.ugui": "2.0.0"
     },
+    "author": {
+        "name": "Heerozh",
+        "url": "https://www.heerozh.com",
+        "email": "heeroz@gmail.com"
+    },
     "testables": [
         "PromptUGUI.Tests.EditMode",
         "PromptUGUI.Tests.PlayMode"
