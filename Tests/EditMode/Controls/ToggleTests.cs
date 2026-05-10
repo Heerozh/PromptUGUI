@@ -86,7 +86,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Geometry_BackgroundIsTwentyByTwentyTopLeft()
+        public void Geometry_BackgroundIsTwentyByTwentyLeftMiddle()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'><Toggle id='t'/></Screen></PromptUGUI>";
@@ -94,10 +94,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var t = UI.Open("S").Get<Toggle>("t");
             var bg = t.GameObject.transform.Find("Background") as UnityEngine.RectTransform;
             Assert.IsNotNull(bg, "Background child must exist");
-            Assert.AreEqual(new UnityEngine.Vector2(0, 1), bg.anchorMin);
-            Assert.AreEqual(new UnityEngine.Vector2(0, 1), bg.anchorMax);
+            Assert.AreEqual(new UnityEngine.Vector2(0, 0.5f), bg.anchorMin);
+            Assert.AreEqual(new UnityEngine.Vector2(0, 0.5f), bg.anchorMax);
             Assert.AreEqual(new UnityEngine.Vector2(20, 20), bg.sizeDelta);
-            Assert.AreEqual(new UnityEngine.Vector2(10, -10), bg.anchoredPosition);
+            Assert.AreEqual(new UnityEngine.Vector2(10, 0), bg.anchoredPosition);
             Assert.IsNotNull(bg.GetComponent<UnityEngine.UI.Image>());
         }
 
@@ -128,8 +128,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsNotNull(label);
             Assert.AreEqual(new UnityEngine.Vector2(0, 0), label.anchorMin);
             Assert.AreEqual(new UnityEngine.Vector2(1, 1), label.anchorMax);
-            Assert.AreEqual(new UnityEngine.Vector2(9, -0.5f), label.offsetMin);
-            Assert.AreEqual(new UnityEngine.Vector2(-28, 0), label.offsetMax);
+            Assert.AreEqual(new UnityEngine.Vector2(23, 0), label.offsetMin);
+            Assert.AreEqual(new UnityEngine.Vector2(-5, 0), label.offsetMax);
         }
 
         [Test]

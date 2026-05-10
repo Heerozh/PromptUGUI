@@ -57,6 +57,7 @@
 | M5.1-D16 | Dropdown popup 加 Scrollbar | Template 内增 `Scrollbar Vertical` 子节点；TMP_Dropdown.template/scroll 引用 wired up | 默认 prefab 有；选项数 > 容纳数时滚动 UI 体验对齐 |
 | M5.1-D17 | ScrollList 加 Scrollbar | 按 `direction=` 加 `Scrollbar Vertical`（vertical）或 `Scrollbar Horizontal`（horizontal）；scrollbarVisibility=AutoHideAndExpandViewport | 默认 Scroll View 有；保持单轴 (M5 v1) → 单轴 scrollbar |
 | M5.1-D18 | InputField TextArea masking | 用 `RectMask2D` + 负 padding `(-8,-5,-8,-5)` | 默认 prefab 即如此（不同于 Dropdown/ScrollList 用的 stencil Mask）；TMP_InputField 与 RectMask2D 配合是 Unity 标准方案 |
+| M5.1-D19 | Toggle Background 锚点 | left-middle `(0,0.5)/(0,0.5)` pos `(10,0)` 而非默认 prefab 的 top-left `(0,1)/(0,1)` pos `(10,-10)` | 默认 prefab 假设 Toggle 固定 20 高，top-left + 20x20 = 全 fill；PromptUGUI 里 Toggle 经常被 VStack/Grid 拉高，top-left 锚会让 checkmark 卡顶部 + label 居中 → 视觉成"上下垂直布局"。Left-middle 让 checkmark 始终跟 label 同行 |
 
 ---
 
@@ -78,9 +79,9 @@
 | 节点 | 组件 | 默认 prefab 关键属性 | 我们的实现（旧） | 偏离 / 修正 |
 |---|---|---|---|---|
 | `Toggle` (root) | RT / Toggle | **无 Image**；ColorBlock=default | RT + **Image** + Toggle | **去掉 root Image**（移到子 Background）|
-| └ `Background` | RT / CR / Image | anchor=(0,1)/(0,1), pos=(10,-10), size=20x20, sliced UISprite white | _不存在（Image 在 root）_ | **新增子节点** |
+| └ `Background` | RT / CR / Image | prefab: anchor=(0,1)/(0,1), pos=(10,-10), size=20x20；**我们用 (0,0.5)/(0,0.5) pos=(10,0)** sliced UISprite white | _不存在（Image 在 root）_ | **新增子节点；锚 top-left → left-middle，让 Toggle 被 VStack/Grid 拉高时 checkmark 仍跟 label 视觉同行 (D19)** |
 | │  └ `Checkmark` | RT / CR / Image | anchor=center, size=20x20, simple sprite=Checkmark white preserveAspect=false | 父级是 root，size 全 stretch | **改父级为 Background；改 size=20x20；preserveAspect=false** |
-| └ `Label` | RT / CR / **legacy UI.Text** | anchor=stretch, offset=(9,−1)/(−28,−2), font=Arial, **fontSize=14**, color=#323232, align=Left+Middle, **raycastTarget=true** | TMP_Text，align=Center, raycastTarget=false | **改用 TMP_Text 但对齐 fontSize=14、color=#323232、align=Left+Middle、raycastTarget=true**；选 TMP 是项目级偏好 |
+| └ `Label` | RT / CR / **legacy UI.Text** | prefab: anchor=stretch offsetMin≈(23,1) offsetMax≈(-5,-2) font=Arial **fontSize=14** color=#323232 align=Left+Middle **raycastTarget=true**；**我们用 offsetMin=(23,0) offsetMax=(-5,0)** | TMP_Text，align=Center, raycastTarget=false | **TMP_Text + offsetMin=(23,0)/offsetMax=(-5,0) (Y 全 stretch 配合 Background 垂直居中)；align=Left+Middle, raycastTarget=true** |
 
 ### Slider ↔ Slider.prefab
 
