@@ -356,7 +356,65 @@ namespace PromptUGUI.Editor
             if (importer.textureType == TextureImporterType.Sprite) return;
             importer.textureType = TextureImporterType.Sprite;
             importer.spriteImportMode = SpriteImportMode.Single;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
             importer.SaveAndReimport();
+        }
+
+        /// <summary>Force every PNG under <paramref name="folderAssetPath"/> to the
+        /// canonical PromptUGUI format: textureType=Sprite, spriteImportMode=Single,
+        /// textureCompression=Uncompressed. Overrides prior author-set TextureImporter
+        /// values — explicit "reset" semantics, intended for the IconSet inspector
+        /// "Reset All PNGs Format" button. Returns the number of PNGs reimported.
+        /// Wraps the loop in <see cref="AssetDatabase.StartAssetEditing"/> for batch
+        /// throughput.</summary>
+        /// <param name="showProgress">When true, drives a cancelable progress bar;
+        /// throws <see cref="OperationCanceledException"/> if the user cancels.</param>
+        public static int ResetPngImportSettings(string folderAssetPath,
+                                                bool showProgress = false)
+        {
+            if (string.IsNullOrEmpty(folderAssetPath)) return 0;
+            if (!AssetDatabase.IsValidFolder(folderAssetPath))
+            {
+                Debug.LogError($"[IconSync] not a folder: '{folderAssetPath}'");
+                return 0;
+            }
+            var fullFolder = Path.GetFullPath(folderAssetPath);
+            var files = new List<string>(Directory.EnumerateFiles(
+                fullFolder, "*.png", SearchOption.AllDirectories));
+            var count = 0;
+            try
+            {
+                AssetDatabase.StartAssetEditing();
+                for (var i = 0; i < files.Count; i++)
+                {
+                    var fullPath = files[i];
+                    var assetPath = "Assets" +
+                        fullPath.Substring(UnityEngine.Application.dataPath.Length)
+                                .Replace('\\', '/');
+                    if (showProgress &&
+                        EditorUtility.DisplayCancelableProgressBar(
+                            ProgressTitle,
+                            $"Resetting import format: {Path.GetFileName(assetPath)} " +
+                            $"({i + 1}/{files.Count})",
+                            (float)i / Mathf.Max(1, files.Count)))
+                    {
+                        throw new OperationCanceledException();
+                    }
+                    if (AssetImporter.GetAtPath(assetPath) is not TextureImporter imp)
+                        continue;
+                    imp.textureType = TextureImporterType.Sprite;
+                    imp.spriteImportMode = SpriteImportMode.Single;
+                    imp.textureCompression = TextureImporterCompression.Uncompressed;
+                    imp.SaveAndReimport();
+                    count++;
+                }
+            }
+            finally
+            {
+                AssetDatabase.StopAssetEditing();
+                if (showProgress) EditorUtility.ClearProgressBar();
+            }
+            return count;
         }
 
         /// <summary>差量同步 atlas 的 packables。返回 true 表示发生了变更。

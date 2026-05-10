@@ -328,6 +328,79 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void EnumeratePngs_sets_uncompressed_on_default_texture()
+        {
+            // Repro for SpriteAtlas pack-time warning: "Source Texture (...) is using
+            // compressed format. To ensure no loss in source pixel details when
+            // packing to SpriteAtlas, please use uncompressed format in TextureImporter."
+            // Default TextureImporter.textureCompression is Compressed; the syncer's
+            // one-time Sprite conversion must also flip compression to Uncompressed.
+            // (Existing Sprite importers are intentionally left alone — author choice.)
+            var folder = $"{TestRoot}/icons_compress_default";
+            AssetDatabase.CreateFolder(TestRoot, "icons_compress_default");
+            var pngPath = $"{folder}/raw.png";
+            File.WriteAllBytes(pngPath, MakeBlankPng());
+            AssetDatabase.ImportAsset(pngPath, ImportAssetOptions.ForceUpdate);
+            var importer = AssetImporter.GetAtPath(pngPath) as TextureImporter;
+            Assert.IsNotNull(importer);
+            importer.textureType = TextureImporterType.Default;
+            importer.SaveAndReimport();
+
+            IconAtlasSyncer.EnumeratePngs(folder);
+
+            var after = AssetImporter.GetAtPath(pngPath) as TextureImporter;
+            Assert.AreEqual(TextureImporterCompression.Uncompressed, after.textureCompression,
+                "Fresh PNG conversion to Sprite must set Uncompressed to avoid atlas warning.");
+        }
+
+        [Test]
+        public void ResetPngImportSettings_forces_canonical_format()
+        {
+            // Inspector "Reset All PNGs Format" button entry point. Unlike the
+            // implicit-on-sync flow (which respects author tweaks on already-Sprite
+            // imports), this is an explicit user-triggered force: every PNG in the
+            // folder ends up Sprite + Single + Uncompressed, overriding prior config.
+            var folder = $"{TestRoot}/icons_reset";
+            AssetDatabase.CreateFolder(TestRoot, "icons_reset");
+            var pngPath = $"{folder}/r.png";
+            File.WriteAllBytes(pngPath, MakeBlankPng());
+            AssetDatabase.ImportAsset(pngPath, ImportAssetOptions.ForceUpdate);
+            var importer = AssetImporter.GetAtPath(pngPath) as TextureImporter;
+            Assert.IsNotNull(importer);
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Multiple;
+            importer.textureCompression = TextureImporterCompression.Compressed;
+            importer.SaveAndReimport();
+
+            var n = IconAtlasSyncer.ResetPngImportSettings(folder);
+
+            Assert.AreEqual(1, n);
+            var after = AssetImporter.GetAtPath(pngPath) as TextureImporter;
+            Assert.AreEqual(TextureImporterType.Sprite, after.textureType);
+            Assert.AreEqual(SpriteImportMode.Single, after.spriteImportMode);
+            Assert.AreEqual(TextureImporterCompression.Uncompressed, after.textureCompression);
+        }
+
+        [Test]
+        public void ResetPngImportSettings_walks_subfolders()
+        {
+            // Mirrors EnumeratePngs: recursive over subfolders.
+            var folder = $"{TestRoot}/icons_reset_sub";
+            AssetDatabase.CreateFolder(TestRoot, "icons_reset_sub");
+            AssetDatabase.CreateFolder(folder, "Sub");
+            var rootPng = $"{folder}/root.png";
+            var subPng = $"{folder}/Sub/leaf.png";
+            File.WriteAllBytes(rootPng, MakeBlankPng());
+            File.WriteAllBytes(subPng, MakeBlankPng());
+            AssetDatabase.ImportAsset(rootPng, ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(subPng, ImportAssetOptions.ForceUpdate);
+
+            var n = IconAtlasSyncer.ResetPngImportSettings(folder);
+
+            Assert.AreEqual(2, n);
+        }
+
+        [Test]
         public void EnumeratePngs_leaves_existing_sprite_importer_untouched()
         {
             var folder = $"{TestRoot}/icons_multi";

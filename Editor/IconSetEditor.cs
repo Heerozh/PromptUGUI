@@ -20,6 +20,28 @@ namespace PromptUGUI.Editor
             {
                 IconAtlasSyncer.SyncAll(new[] { set });
             }
+            if (GUILayout.Button("Reset All PNGs Format"))
+            {
+                var folder = set.SourceFolderPath;
+                if (string.IsNullOrEmpty(folder))
+                {
+                    EditorUtility.DisplayDialog(
+                        "Reset PNG Import Format",
+                        "Source folder is not set on this IconSet.", "OK");
+                }
+                else if (EditorUtility.DisplayDialog(
+                    "Reset PNG Import Format",
+                    $"Force re-import every PNG under '{folder}' as:\n\n" +
+                    "  • Texture Type: Sprite\n" +
+                    "  • Sprite Mode: Single\n" +
+                    "  • Compression: Uncompressed\n\n" +
+                    "This overrides any manual TextureImporter tweaks on these PNGs.",
+                    "Reset", "Cancel"))
+                {
+                    var n = IconAtlasSyncer.ResetPngImportSettings(folder, showProgress: true);
+                    Debug.Log($"[IconSync] reset {n} PNG(s) under '{folder}'");
+                }
+            }
         }
     }
 }
