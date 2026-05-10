@@ -417,6 +417,91 @@ namespace PromptUGUI.Editor
             return count;
         }
 
+        /// <summary>Inspector "Apply to All PNGs" entry: copy
+        /// <paramref name="templatePngAssetPath"/>'s TextureImporter onto every other
+        /// PNG under <paramref name="folderAssetPath"/> via
+        /// <see cref="EditorUtility.CopySerialized(UnityEngine.Object,UnityEngine.Object)"/>.
+        /// The template itself is skipped. Per IconSet contract every icon is a single
+        /// sprite, so manual slicing data is not expected to leak between PNGs.
+        /// Returns the number of non-template PNGs that received the settings copy.</summary>
+        /// <param name="showProgress">When true, drives a cancelable progress bar;
+        /// throws <see cref="OperationCanceledException"/> if the user cancels.</param>
+        public static int ApplyImportSettingsToFolder(
+            string templatePngAssetPath,
+            string folderAssetPath,
+            bool showProgress = false)
+        {
+            if (string.IsNullOrEmpty(templatePngAssetPath)) return 0;
+            if (string.IsNullOrEmpty(folderAssetPath)) return 0;
+            if (!AssetDatabase.IsValidFolder(folderAssetPath))
+            {
+                Debug.LogError($"[IconSync] not a folder: '{folderAssetPath}'");
+                return 0;
+            }
+            if (AssetImporter.GetAtPath(templatePngAssetPath) is not TextureImporter template)
+            {
+                Debug.LogError(
+                    $"[IconSync] template is not a TextureImporter: '{templatePngAssetPath}'");
+                return 0;
+            }
+            var fullFolder = Path.GetFullPath(folderAssetPath);
+            var templateFullPath = Path.GetFullPath(templatePngAssetPath);
+            var files = new List<string>(Directory.EnumerateFiles(
+                fullFolder, "*.png", SearchOption.AllDirectories));
+            var count = 0;
+            try
+            {
+                AssetDatabase.StartAssetEditing();
+                for (var i = 0; i < files.Count; i++)
+                {
+                    var fullPath = files[i];
+                    if (string.Equals(
+                            fullPath, templateFullPath, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    var assetPath = "Assets" +
+                        fullPath.Substring(UnityEngine.Application.dataPath.Length)
+                                .Replace('\\', '/');
+                    if (showProgress &&
+                        EditorUtility.DisplayCancelableProgressBar(
+                            ProgressTitle,
+                            $"Applying import settings: {Path.GetFileName(assetPath)} " +
+                            $"({i + 1}/{files.Count})",
+                            (float)i / Mathf.Max(1, files.Count)))
+                    {
+                        throw new OperationCanceledException();
+                    }
+                    if (AssetImporter.GetAtPath(assetPath) is not TextureImporter dst) continue;
+                    EditorUtility.CopySerialized(template, dst);
+                    dst.SaveAndReimport();
+                    count++;
+                }
+            }
+            finally
+            {
+                AssetDatabase.StopAssetEditing();
+                if (showProgress) EditorUtility.ClearProgressBar();
+            }
+            return count;
+        }
+
+        /// <summary>Alphabetically-first *.png under <paramref name="folderAssetPath"/>
+        /// (recursive), as a project-relative "Assets/..." path. Returns null if the
+        /// folder is missing or contains no PNGs. Used by the IconSet inspector to pick
+        /// a default template for the embedded TextureImporter editor — sorting keeps
+        /// the choice stable across filesystem enumeration order changes.</summary>
+        public static string FindFirstPng(string folderAssetPath)
+        {
+            if (string.IsNullOrEmpty(folderAssetPath)) return null;
+            if (!AssetDatabase.IsValidFolder(folderAssetPath)) return null;
+            var fullFolder = Path.GetFullPath(folderAssetPath);
+            var files = new List<string>(Directory.EnumerateFiles(
+                fullFolder, "*.png", SearchOption.AllDirectories));
+            if (files.Count == 0) return null;
+            files.Sort(StringComparer.OrdinalIgnoreCase);
+            return "Assets" +
+                files[0].Substring(UnityEngine.Application.dataPath.Length).Replace('\\', '/');
+        }
+
         /// <summary>差量同步 atlas 的 packables。返回 true 表示发生了变更。
         /// V2 atlases (`*.spriteatlasv2`) require <see cref="SpriteAtlasAsset.Save"/>
         /// to persist; mutating the runtime <see cref="SpriteAtlas"/> view alone updates

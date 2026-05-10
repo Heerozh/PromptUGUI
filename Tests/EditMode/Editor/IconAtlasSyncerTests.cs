@@ -401,6 +401,113 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void ApplyImportSettingsToFolder_propagates_template_settings_to_others()
+        {
+            // Inspector "Apply to All PNGs" entry point: copy a chosen template PNG's
+            // TextureImporter onto every other PNG in the folder, preserving whatever
+            // settings the user dialed in via the embedded importer inspector.
+            var folder = $"{TestRoot}/icons_apply";
+            AssetDatabase.CreateFolder(TestRoot, "icons_apply");
+            var templatePng = $"{folder}/template.png";
+            var otherPng = $"{folder}/other.png";
+            File.WriteAllBytes(templatePng, MakeBlankPng());
+            File.WriteAllBytes(otherPng, MakeBlankPng());
+            AssetDatabase.ImportAsset(templatePng, ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(otherPng, ImportAssetOptions.ForceUpdate);
+
+            var t = AssetImporter.GetAtPath(templatePng) as TextureImporter;
+            Assert.IsNotNull(t);
+            t.textureType = TextureImporterType.Sprite;
+            t.spriteImportMode = SpriteImportMode.Single;
+            t.textureCompression = TextureImporterCompression.Compressed;
+            t.filterMode = FilterMode.Point;
+            t.SaveAndReimport();
+
+            var beforeOther = AssetImporter.GetAtPath(otherPng) as TextureImporter;
+            Assert.IsNotNull(beforeOther);
+            beforeOther.filterMode = FilterMode.Bilinear;
+            beforeOther.textureCompression = TextureImporterCompression.Uncompressed;
+            beforeOther.SaveAndReimport();
+
+            var n = IconAtlasSyncer.ApplyImportSettingsToFolder(templatePng, folder);
+
+            Assert.AreEqual(1, n, "Should have updated 1 PNG (excluding the template).");
+            var after = AssetImporter.GetAtPath(otherPng) as TextureImporter;
+            Assert.AreEqual(FilterMode.Point, after.filterMode);
+            Assert.AreEqual(TextureImporterCompression.Compressed, after.textureCompression);
+            Assert.AreEqual(TextureImporterType.Sprite, after.textureType);
+        }
+
+        [Test]
+        public void ApplyImportSettingsToFolder_walks_subfolders()
+        {
+            var folder = $"{TestRoot}/icons_apply_sub";
+            AssetDatabase.CreateFolder(TestRoot, "icons_apply_sub");
+            AssetDatabase.CreateFolder(folder, "Sub");
+            var template = $"{folder}/tpl.png";
+            var leaf = $"{folder}/Sub/leaf.png";
+            File.WriteAllBytes(template, MakeBlankPng());
+            File.WriteAllBytes(leaf, MakeBlankPng());
+            AssetDatabase.ImportAsset(template, ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(leaf, ImportAssetOptions.ForceUpdate);
+            var t = AssetImporter.GetAtPath(template) as TextureImporter;
+            Assert.IsNotNull(t);
+            t.textureType = TextureImporterType.Sprite;
+            t.filterMode = FilterMode.Point;
+            t.SaveAndReimport();
+
+            var n = IconAtlasSyncer.ApplyImportSettingsToFolder(template, folder);
+
+            Assert.AreEqual(1, n);
+            var after = AssetImporter.GetAtPath(leaf) as TextureImporter;
+            Assert.AreEqual(FilterMode.Point, after.filterMode);
+        }
+
+        [Test]
+        public void ApplyImportSettingsToFolder_skips_template_itself()
+        {
+            var folder = $"{TestRoot}/icons_apply_skip";
+            AssetDatabase.CreateFolder(TestRoot, "icons_apply_skip");
+            var only = $"{folder}/sole.png";
+            File.WriteAllBytes(only, MakeBlankPng());
+            AssetDatabase.ImportAsset(only, ImportAssetOptions.ForceUpdate);
+            var t = AssetImporter.GetAtPath(only) as TextureImporter;
+            Assert.IsNotNull(t);
+            t.textureType = TextureImporterType.Sprite;
+            t.SaveAndReimport();
+
+            var n = IconAtlasSyncer.ApplyImportSettingsToFolder(only, folder);
+
+            Assert.AreEqual(0, n, "Template itself must not be counted.");
+        }
+
+        [Test]
+        public void FindFirstPng_returns_alphabetically_first_under_folder()
+        {
+            var folder = $"{TestRoot}/icons_first";
+            AssetDatabase.CreateFolder(TestRoot, "icons_first");
+            var b = $"{folder}/b.png";
+            var a = $"{folder}/a.png";
+            File.WriteAllBytes(b, MakeBlankPng());
+            File.WriteAllBytes(a, MakeBlankPng());
+            AssetDatabase.ImportAsset(b, ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(a, ImportAssetOptions.ForceUpdate);
+
+            var first = IconAtlasSyncer.FindFirstPng(folder);
+
+            Assert.AreEqual(a, first);
+        }
+
+        [Test]
+        public void FindFirstPng_returns_null_for_empty_folder()
+        {
+            var folder = $"{TestRoot}/icons_empty";
+            AssetDatabase.CreateFolder(TestRoot, "icons_empty");
+
+            Assert.IsNull(IconAtlasSyncer.FindFirstPng(folder));
+        }
+
+        [Test]
         public void EnumeratePngs_leaves_existing_sprite_importer_untouched()
         {
             var folder = $"{TestRoot}/icons_multi";
