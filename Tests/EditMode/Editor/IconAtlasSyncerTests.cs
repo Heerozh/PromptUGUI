@@ -508,6 +508,48 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void EnsureAtlasAsset_inherits_filter_mode_from_first_png()
+        {
+            // Newly-created atlases should pick up FilterMode from the alphabetically
+            // first PNG in the source folder, so atlas filtering matches the icons it
+            // packs (pixel-art games typically want Point on both).
+            var folder = MakeFolder("icons_atlas_filter");
+            var pngPath = $"{folder}/a.png";
+            File.WriteAllBytes(pngPath, MakeBlankPng());
+            AssetDatabase.ImportAsset(pngPath, ImportAssetOptions.ForceUpdate);
+            var ti = AssetImporter.GetAtPath(pngPath) as TextureImporter;
+            Assert.IsNotNull(ti);
+            ti.textureType = TextureImporterType.Sprite;
+            ti.filterMode = FilterMode.Point;
+            ti.SaveAndReimport();
+
+            var set = MakeIconSetAssetWithFolder("ifset", "ifset", folder);
+            _toCleanup.Add($"{TestRoot}/ifset.spriteatlas");
+
+            var atlas = IconAtlasSyncer.EnsureAtlasAsset(set);
+
+            Assert.IsNotNull(atlas);
+            var ts = atlas.GetTextureSettings();
+            Assert.AreEqual(FilterMode.Point, ts.filterMode);
+        }
+
+        [Test]
+        public void EnsureAtlasAsset_keeps_default_filter_mode_when_folder_empty()
+        {
+            // No PNGs to derive FilterMode from → leave the atlas's default untouched
+            // rather than guessing.
+            var folder = MakeFolder("icons_atlas_empty");
+            var set = MakeIconSetAssetWithFolder("efset", "efset", folder);
+            _toCleanup.Add($"{TestRoot}/efset.spriteatlas");
+
+            var atlas = IconAtlasSyncer.EnsureAtlasAsset(set);
+
+            Assert.IsNotNull(atlas);
+            // Default SpriteAtlas TextureSettings.filterMode is Bilinear.
+            Assert.AreEqual(FilterMode.Bilinear, atlas.GetTextureSettings().filterMode);
+        }
+
+        [Test]
         public void EnumeratePngs_leaves_existing_sprite_importer_untouched()
         {
             var folder = $"{TestRoot}/icons_multi";

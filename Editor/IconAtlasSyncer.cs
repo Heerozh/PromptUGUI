@@ -714,7 +714,9 @@ namespace PromptUGUI.Editor
             }
         }
 
-        /// <summary>若 IconSet.atlas 为 null，在 SO 同目录创建 &lt;setName&gt;.spriteatlas 并回填。</summary>
+        /// <summary>若 IconSet.atlas 为 null，在 SO 同目录创建 &lt;setName&gt;.spriteatlas 并回填。
+        /// 新建 atlas 的 FilterMode 沿用 sourceFolder 下首个 PNG 的 TextureImporter.filterMode，
+        /// 这样像素美术 (Point) 与一般贴图 (Bilinear) 在 atlas 上不会被默认值覆盖。</summary>
         internal static SpriteAtlas EnsureAtlasAsset(PromptUGUI.Application.IconSet set)
         {
             if (set.Atlas != null) return set.Atlas;
@@ -728,9 +730,20 @@ namespace PromptUGUI.Editor
             var atlasPath = $"{dir}/{set.SetName}.spriteatlas";
             var atlas = new SpriteAtlas();
             AssetDatabase.CreateAsset(atlas, atlasPath);
+            ApplyTemplateFilterMode(atlas, set.SourceFolderPath);
             set.SetAtlasInternal(atlas);
             AssetDatabase.SaveAssets();
             return atlas;
+        }
+
+        private static void ApplyTemplateFilterMode(SpriteAtlas atlas, string folderAssetPath)
+        {
+            var firstPng = FindFirstPng(folderAssetPath);
+            if (firstPng == null) return;
+            if (AssetImporter.GetAtPath(firstPng) is not TextureImporter ti) return;
+            var ts = atlas.GetTextureSettings();
+            ts.filterMode = ti.filterMode;
+            atlas.SetTextureSettings(ts);
         }
     }
 }
