@@ -266,8 +266,11 @@ namespace PromptUGUI.Controls
             var handle = ProceduralBuilders.AddImage(sliding, "Handle");
             handle.color = UnityEngine.Color.white;
             ProceduralBuilders.ApplyDefaultSlicedSprite(handle);
+            // Vertical Handle: 默认 prefab anchorMax=(1, 0.2) — X 全 stretch (跨 Sliding Area 宽度，
+            // 配合 sliding.sizeDelta.x=-20 + handle.sizeDelta.x=20 还原 scrollbar 全宽)；
+            // Y 占 sliding 高度的 0%-20% (初始 size=0.2 范围)。
             handle.rectTransform.anchorMin = Vector2.zero;
-            handle.rectTransform.anchorMax = Vector2.zero;
+            handle.rectTransform.anchorMax = new Vector2(1f, 0.2f);
             handle.rectTransform.sizeDelta = new Vector2(20f, 20f);
             _vertScrollbar.targetGraphic = handle;
             _vertScrollbar.handleRect = handle.rectTransform;
@@ -296,8 +299,9 @@ namespace PromptUGUI.Controls
             var handle = ProceduralBuilders.AddImage(sliding, "Handle");
             handle.color = UnityEngine.Color.white;
             ProceduralBuilders.ApplyDefaultSlicedSprite(handle);
+            // Horizontal Handle: 镜像 vertical — anchorMax=(0.2, 1)，Y 全 stretch + X 占 0%-20%。
             handle.rectTransform.anchorMin = Vector2.zero;
-            handle.rectTransform.anchorMax = Vector2.zero;
+            handle.rectTransform.anchorMax = new Vector2(0.2f, 1f);
             handle.rectTransform.sizeDelta = new Vector2(20f, 20f);
             _horizScrollbar.targetGraphic = handle;
             _horizScrollbar.handleRect = handle.rectTransform;
