@@ -99,7 +99,7 @@ References a sprite from a project-level IconSet (shared icons, by-name lookup, 
 
 | Attribute | Required | Default   | Notes                                                                                                                                                                |
 | --------- | -------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`    | yes      | —         | Format `ns:icon-name`. `ns` (set name) is strict `[A-Za-z0-9_-]+`; `icon-name` additionally allows spaces and `/` for subfolder paths, e.g. `ui:Combat/heart` (see below) |
+| `name`    | yes      | —         | Format `ns:icon-name`. `ns` (set name) is strict `[A-Za-z0-9_-]+`; `icon-name` mirrors the filesystem path under `sourceFolder` (no extension) — `/`-separated, may contain spaces, `&`, parens, commas, apostrophes, etc. Only the `:` delimiter is forbidden. Example: `solar:Bold Duotone/Map & Location/Radar 2` |
 | `color`   | no       | `#ffffff` | Multiply tint on the underlying Image. White preserves a colored PNG; non-white tints a mono-mask PNG                                                                |
 | `size`    | no       | `native`  | Numeric / `WxH` / `stretch` / `native` (Icon-only). Native reads sprite pixel dimensions                                                                             |
 

@@ -184,5 +184,37 @@ namespace PromptUGUI.Tests.Parser
                 + Footer;
             Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
         }
+
+        [Test]
+        public void Icon_name_with_ampersand_in_iconname_passes()
+        {
+            // Solar Bold Duotone ships PNGs like 'Map & Location/Radar 2.png'.
+            // '&' is a legal filesystem char; XML attribute parser decodes &amp; → &.
+            var xml = Header + "<Icon name='solar:Map &amp; Location/Radar 2'/>" + Footer;
+            var doc = UIDocumentParser.Parse(xml);
+            var icon = doc.Screens[0].Root.Children[0];
+            Assert.AreEqual("solar:Map & Location/Radar 2", icon.Attributes["name"]);
+        }
+
+        [Test]
+        public void Icon_name_with_punctuation_in_iconname_passes()
+        {
+            // Real-world icon-pack PNGs use parens, commas, apostrophes, dots.
+            // Icon-name half mirrors filesystem; only ':' (the delimiter) is forbidden.
+            var xml = Header +
+                "<Icon name=\"solar:Files (Group)/file 1.0,v2&apos;s\"/>" + Footer;
+            var doc = UIDocumentParser.Parse(xml);
+            var icon = doc.Screens[0].Root.Children[0];
+            Assert.AreEqual("solar:Files (Group)/file 1.0,v2's", icon.Attributes["name"]);
+        }
+
+        [Test]
+        public void Icon_name_with_extra_colon_in_iconname_throws()
+        {
+            // Only the FIRST ':' is the set/icon delimiter. A second ':' in the
+            // icon-name half is ambiguous and rejected.
+            var xml = Header + "<Icon name='solar:Sub/Foo:Bar'/>" + Footer;
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
     }
 }

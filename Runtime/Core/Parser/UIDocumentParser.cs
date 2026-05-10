@@ -365,16 +365,23 @@ namespace PromptUGUI.Parser
             {
                 if (i == colon) continue;
                 var c = name[i];
-                var alnum = (c >= 'a' && c <= 'z')
-                            || (c >= 'A' && c <= 'Z')
-                            || (c >= '0' && c <= '9')
-                            || c == '-' || c == '_';
-                // External icon packs (Solar, Material) ship PNGs with spaces; allow them
-                // in the icon-name half. '/' after the colon disambiguates same-basename
-                // PNGs in different subfolders (e.g. 'ui:Combat/heart' vs 'ui:UI/heart').
-                // Set name is a reference key — keep it strict.
-                var ok = alnum || (i > colon && (c == ' ' || c == '/'));
-                if (!ok) return false;
+                if (i < colon)
+                {
+                    // Set name is a reference key matching IconSet.setName — strict.
+                    var alnum = (c >= 'a' && c <= 'z')
+                                || (c >= 'A' && c <= 'Z')
+                                || (c >= '0' && c <= '9')
+                                || c == '-' || c == '_';
+                    if (!alnum) return false;
+                }
+                else
+                {
+                    // Icon-name half mirrors the filesystem path (sans extension):
+                    // '/'-separated, may contain spaces, '&', parens, commas, etc.
+                    // Only forbid the ':' delimiter (a second one is ambiguous) and
+                    // raw control chars.
+                    if (c == ':' || char.IsControl(c)) return false;
+                }
             }
             return true;
         }

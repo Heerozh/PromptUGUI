@@ -57,9 +57,9 @@ namespace PromptUGUI.Tests.Editor
             var r = new ControlRegistry();
             var xsd = XsdGenerator.Generate(r);
             StringAssert.Contains("xs:pattern", xsd);
-            // Set name strict; icon name allows space (icon-pack PNG names) AND
-            // '/' (subfolder path form, e.g. 'ui:Combat/heart').
-            StringAssert.Contains(":[A-Za-z0-9_\\- /]+", xsd);
+            // Set name stays strict; icon-name half mirrors the filesystem, so the
+            // pattern only forbids the ':' delimiter (any other path char is fine).
+            StringAssert.Contains("[A-Za-z0-9_\\-]+:[^:]+", xsd);
         }
 
         [Test]
@@ -155,6 +155,39 @@ namespace PromptUGUI.Tests.Editor
             }
             CollectionAssert.IsNotEmpty(errors,
                 "'my set:Forward' has space in set name and must fail XSD validation.");
+        }
+
+        [Test]
+        public void Icon_name_pattern_accepts_ampersand_and_punctuation_in_iconname()
+        {
+            // Solar Bold Duotone ships paths like 'Map & Location/Radar 2.png' and
+            // 'Files (Group)/file 1.0,v2.png'. Parser allows them; XSD must too.
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+
+            const string sample = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'>
+    <Icon name='solar:Map &amp; Location/Radar 2'/>
+    <Icon name=""solar:Files (Group)/file 1.0,v2's""/>
+  </Screen>
+</PromptUGUI>";
+
+            var schemas = new System.Xml.Schema.XmlSchemaSet();
+            schemas.Add(null, System.Xml.XmlReader.Create(new StringReader(xsd)));
+            var settings = new System.Xml.XmlReaderSettings
+            {
+                ValidationType = System.Xml.ValidationType.Schema,
+                Schemas = schemas,
+            };
+            var errors = new System.Collections.Generic.List<string>();
+            settings.ValidationEventHandler += (_, e) => errors.Add(e.Message);
+            using (var reader = System.Xml.XmlReader.Create(new StringReader(sample), settings))
+            {
+                while (reader.Read()) { }
+            }
+            CollectionAssert.IsEmpty(errors,
+                "Real icon-pack paths with '&', parens, commas, apostrophes must validate.");
         }
 
         [Test]
