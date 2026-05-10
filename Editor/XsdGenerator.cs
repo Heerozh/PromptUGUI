@@ -91,7 +91,10 @@ namespace PromptUGUI.Editor
                 // set name stays strict alnum/_-, icon-name half mirrors the filesystem
                 // (path-like, '/'-separated; may contain spaces, '&', parens, commas, …).
                 // Only the ':' delimiter is forbidden.
-                WriteControl(writer, "Icon", new[] { ("name", "xs:string", @"[A-Za-z0-9_\-]+:[^:]+"), ("color", "xs:string", (string)null) });
+                // Second alternative `.*\{\{.*` accepts Template Param placeholders like
+                // `{{iconName}}` or `solar:{{name}}` whose final form is decided at
+                // TemplateExpander time — parser skips format check on those, XSD too.
+                WriteControl(writer, "Icon", new[] { ("name", "xs:string", @"[A-Za-z0-9_\-]+:[^:]+|.*\{\{.*"), ("color", "xs:string", (string)null) });
 
                 // Registered custom controls — exclude primitives, sort by tag
                 var primitives = new HashSet<string> {

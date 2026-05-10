@@ -315,19 +315,24 @@ namespace PromptUGUI.Parser
                 if (c is XmlElement child_el)
                     node.Children.Add(ParseElement(child_el, idsInScope));
 
-            // <Icon> 校验：name 必填、必须匹配 ns:icon 形式（含 Variant 覆盖）
+            // <Icon> 校验：name 必填、必须匹配 ns:icon 形式（含 Variant 覆盖）。
+            // Template Param 占位符 (`{{x}}`) 在 TemplateExpander 之后才替换；parse
+            // 阶段还看不到最终值，跳过格式校验（IconAtlasSyncer 同样把 '{{' 视作 dynamic）。
             if (tag == "Icon" && ns == null)
             {
                 if (!node.Attributes.TryGetValue("name", out var iconName) || string.IsNullOrEmpty(iconName))
                     throw new ParseException("Icon: 'name' is required");
-                if (!IsValidIconName(iconName))
+                if (!iconName.Contains("{{") && !IsValidIconName(iconName))
                     throw new ParseException(
                         $"Icon: 'name' must be 'set:icon' (got '{iconName}')");
                 if (node.VariantOverrides.TryGetValue("name", out var nameOverrides))
                 {
                     foreach (var (variant, value) in nameOverrides)
                     {
-                        if (string.IsNullOrEmpty(value) || !IsValidIconName(value))
+                        if (string.IsNullOrEmpty(value))
+                            throw new ParseException(
+                                $"Icon: name.{variant} must be 'set:icon' (got '{value}')");
+                        if (!value.Contains("{{") && !IsValidIconName(value))
                             throw new ParseException(
                                 $"Icon: name.{variant} must be 'set:icon' (got '{value}')");
                     }

@@ -59,7 +59,8 @@ namespace PromptUGUI.Tests.Editor
             StringAssert.Contains("xs:pattern", xsd);
             // Set name stays strict; icon-name half mirrors the filesystem, so the
             // pattern only forbids the ':' delimiter (any other path char is fine).
-            StringAssert.Contains("[A-Za-z0-9_\\-]+:[^:]+", xsd);
+            // Alternation accepts Template Param placeholders ('{{iconName}}').
+            StringAssert.Contains("[A-Za-z0-9_\\-]+:[^:]+|.*\\{\\{.*", xsd);
         }
 
         [Test]
@@ -188,6 +189,44 @@ namespace PromptUGUI.Tests.Editor
             }
             CollectionAssert.IsEmpty(errors,
                 "Real icon-pack paths with '&', parens, commas, apostrophes must validate.");
+        }
+
+        [Test]
+        public void Icon_name_pattern_accepts_template_placeholder()
+        {
+            // Templates use Param substitution: <Icon name="{{iconName}}"/>. The
+            // final form is only determined at expansion time. Parser already skips
+            // format validation when the value contains '{{'; XSD must do likewise
+            // or the IDE will red-underline valid Template authoring.
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+
+            const string sample = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='IconBtn'>
+    <Param name='iconName'/>
+    <Icon name='{{iconName}}'/>
+  </Template>
+  <Screen name='S'>
+    <Frame/>
+  </Screen>
+</PromptUGUI>";
+
+            var schemas = new System.Xml.Schema.XmlSchemaSet();
+            schemas.Add(null, System.Xml.XmlReader.Create(new StringReader(xsd)));
+            var settings = new System.Xml.XmlReaderSettings
+            {
+                ValidationType = System.Xml.ValidationType.Schema,
+                Schemas = schemas,
+            };
+            var errors = new System.Collections.Generic.List<string>();
+            settings.ValidationEventHandler += (_, e) => errors.Add(e.Message);
+            using (var reader = System.Xml.XmlReader.Create(new StringReader(sample), settings))
+            {
+                while (reader.Read()) { }
+            }
+            CollectionAssert.IsEmpty(errors,
+                "Template Param placeholders in <Icon name> must validate against XSD.");
         }
 
         [Test]

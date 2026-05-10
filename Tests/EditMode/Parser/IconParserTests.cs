@@ -216,5 +216,38 @@ namespace PromptUGUI.Tests.Parser
             var xml = Header + "<Icon name='solar:Sub/Foo:Bar'/>" + Footer;
             Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
         }
+
+        [Test]
+        public void Icon_name_full_template_placeholder_parses()
+        {
+            // Templates: `<Icon name="{{iconName}}"/>` is a Param substitution that
+            // resolves at TemplateExpander time. Parser sees the unsubstituted form
+            // and must not reject it (IconAtlasSyncer already treats '{{' as dynamic).
+            var xml = "<?xml version='1.0'?><PromptUGUI version='1'>" +
+                "<Template name='IconBtn'><Param name='iconName'/>" +
+                "<Btn><Icon name='{{iconName}}'/></Btn></Template>" +
+                "<Screen name='S'><Frame/></Screen></PromptUGUI>";
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Icon_name_partial_template_placeholder_parses()
+        {
+            // Set-side fixed, icon-name-side dynamic — `solar:{{name}}`. Final form
+            // is determined at expansion; parser must accept the literal as-is.
+            var xml = Header + "<Icon name='solar:{{name}}'/>" + Footer;
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Icon_variant_template_placeholder_parses()
+        {
+            // Variant override may also be a Template Param.
+            var xml = "<?xml version='1.0'?><PromptUGUI version='1'>" +
+                "<Template name='T'><Param name='dark'/>" +
+                "<Icon name='solar:Sun' name.dark='{{dark}}'/></Template>" +
+                "<Screen name='S'><Frame/></Screen></PromptUGUI>";
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
+        }
     }
 }
