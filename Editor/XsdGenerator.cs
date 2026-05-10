@@ -187,14 +187,21 @@ namespace PromptUGUI.Editor
 
         // ---- Static schema fragments ----
 
+        // Names emitted as part of <attributeGroup name="commonAttrs"/>. Per-control
+        // [UIAttr] reflection skips any name in this set so the same attribute does
+        // not appear twice in a complexType (XSD §3.4.3 forbids duplicates; .NET's
+        // XmlSchemaSet rejects with "The attribute 'X' already exists.").
+        private static readonly string[] _commonAttrNames = {
+            "id","anchor","size","width","height","margin","pivot",
+            "padding","spacing","hidden","interactable" };
+        private static readonly HashSet<string> _commonAttrSet =
+            new HashSet<string>(_commonAttrNames, StringComparer.Ordinal);
+
         private static void WriteCommonAttrGroup(XmlWriter w)
         {
             w.WriteStartElement("xs", "attributeGroup", null);
             w.WriteAttributeString("name", "commonAttrs");
-            string[] commons = {
-                "id","anchor","size","width","height","margin","pivot",
-                "padding","spacing","hidden","interactable" };
-            foreach (var a in commons)
+            foreach (var a in _commonAttrNames)
             {
                 w.WriteStartElement("xs", "attribute", null);
                 w.WriteAttributeString("name", a);
@@ -427,6 +434,12 @@ namespace PromptUGUI.Editor
             w.WriteEndElement();
             foreach (var (name, type, pattern) in attrs)
             {
+                // commonAttrs already covers these names — re-emitting would produce
+                // a duplicate attribute and break XmlSchemaSet.Compile(). Per-control
+                // type precision (e.g. xs:float for Spacing) is shadowed by commonAttrs'
+                // xs:string, which is the same trade-off existing layout primitives
+                // (VStack/HStack) accept.
+                if (_commonAttrSet.Contains(name)) continue;
                 w.WriteStartElement("xs", "attribute", null);
                 w.WriteAttributeString("name", name);
                 if (string.IsNullOrEmpty(pattern))

@@ -354,6 +354,29 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Custom_control_attr_colliding_with_commonAttrs_is_deduped()
+        {
+            // Regression: <ScrollList>'s [UIAttr] Padding/Spacing collided with
+            // commonAttrs (which already declares padding/spacing). The reflected
+            // attrs were appended after <attributeGroup ref="commonAttrs"/> without
+            // dedup, so the same <complexType> contained two <xs:attribute name="padding"/>
+            // — XSD §3.4.3 forbids duplicate attribute names in a complexType, and
+            // XmlSchemaSet.Compile() rejects the schema with "Duplicate attribute".
+            var r = new ControlRegistry();
+            r.Register<TestScrollLike>("ScrollLike", null);
+            var xsd = XsdGenerator.Generate(r);
+
+            var schemas = new System.Xml.Schema.XmlSchemaSet();
+            var errors = new System.Collections.Generic.List<string>();
+            schemas.ValidationEventHandler += (_, e) => errors.Add(e.Message);
+            schemas.Add(null, System.Xml.XmlReader.Create(new StringReader(xsd)));
+            schemas.Compile();
+
+            CollectionAssert.IsEmpty(errors,
+                "Custom-control [UIAttr] names that collide with commonAttrs must be skipped, not re-emitted.");
+        }
+
+        [Test]
         public void Template_tags_appear_as_elements_in_xsd()
         {
             var r = new ControlRegistry();
@@ -479,5 +502,11 @@ namespace PromptUGUI.Tests.Editor
     public class TestPatternedControl : Control
     {
         [UIAttr(Pattern = "^abc$")] public string Code { get; set; }
+    }
+
+    public class TestScrollLike : Control
+    {
+        [UIAttr] public string Padding { get; set; }
+        [UIAttr] public float Spacing { get; set; }
     }
 }
