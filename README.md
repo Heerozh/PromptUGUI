@@ -15,6 +15,17 @@
   - 自动提取界面文本，以及代码中Tr()包裹的字符串
   - 自动携带上下文交给OpenAI兼容的模型自动翻译。对于翻译不准确的内容，用户可在文字上添加注释，会携带到上下文
 
+## 安装/升级方法
+
+### Claude Code
+
+（可选：打开Unity和Unity MCP），在项目目录执行以下提示词：
+
+```
+我希望安装 PromptUGUI 到本Unity项目，请curl获取后遵循指导： https://github.com/Heerozh/PromptUGUI/raw/refs/heads/main/install_for_claude.md
+```
+
+升级同样。
 
 ## Claude Code 集成（可选）
 

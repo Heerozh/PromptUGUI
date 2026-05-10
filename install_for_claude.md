@@ -66,7 +66,7 @@ PromptUGUI 项目里所有面向玩家的文本都应走 `Tr(...)` 包裹（i18n
 ```markdown
 ## i18n: Tr() 包裹约定
 
-PromptUGUI 项目里凡是会出现在 UI 上、玩家能读到的C#代码中的字符串，都用 `Tr(...)` 包裹(UI namespace下)。
+项目里凡是会出现在 UI 上、玩家能读到的C#代码中的字符串，都用 `Tr(...)` 包裹(`UI` namespace下)。
 
 **要包裹**：
 - C# 给 UI 控件赋值的字符串：`label.Text = Tr("Start Game")`
