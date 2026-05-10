@@ -62,7 +62,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Viewport_HasStencilMaskAndImageWithAlphaOne()
+        public void Viewport_HasStencilMaskAndMaskSpriteWithAlphaOne()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
@@ -78,6 +78,11 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var img = mask.GetComponent<UnityEngine.UI.Image>();
             Assert.IsNotNull(img);
             Assert.AreEqual(1f, img.color.a, "alpha=1 critical to avoid 4af322b alpha-discard regression");
+
+            // Mask graphic 用专门的 pugui_9slice_mask (不是 bg 的 pugui_9slice_round)
+            Assert.IsNotNull(img.sprite, "mask sprite must be loaded; otherwise stencil 写不出形状");
+            Assert.AreEqual("pugui_9slice_mask", img.sprite.name);
+            Assert.AreEqual(UnityEngine.UI.Image.Type.Sliced, img.type);
         }
 
         [Test]
