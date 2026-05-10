@@ -70,6 +70,13 @@ namespace PromptUGUI.Controls
             _input.onEndEdit.AddListener(v => _endEdit.OnNext(v));
             _input.onSubmit.AddListener(v => _submit.OnNext(v));
 
+            // AddComponent<TMP_InputField> 在 active GO 上立刻触发 OnEnable, 那一刻
+            // textComponent/placeholder/textViewport 都还是 null, RegisterDirtyVerticesCallback
+            // 被跳过 → caret 顶点没人触发 redraw, 永远不显示。再触一次 OnEnable cycle 才能
+            // 把 MarkGeometryAsDirty/UpdateLabel 绑到现在已经 wire 好的 textComponent 上。
+            _input.enabled = false;
+            _input.enabled = true;
+
             ApplyFont();
             PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
         }

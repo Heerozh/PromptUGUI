@@ -112,6 +112,33 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Wired_TextComponentHasInputFieldDirtyVertsCallbacks()
+        {
+            // TMP_InputField 在 AddComponent 触发 OnEnable 时, 才把 MarkGeometryAsDirty/UpdateLabel
+            // 注册到 textComponent 的 m_OnDirtyVertsCallback。如果注册时 textComponent 是 null
+            // (textComponent 在 AddComponent 之后才赋值), caret 顶点永不 redraw → caret 永远不显示。
+            // 这条断言保证 OnAttached 完成时 callback 已绑定; 修复方式: 强制再触一次 OnEnable cycle。
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <InputField id='f'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var f = UI.Open("S").Get<PInputField>("f");
+            var input = f.GameObject.GetComponent<TMP_InputField>();
+            var fld = typeof(TMP_Text).GetField("m_OnDirtyVertsCallback",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            var cb = (UnityEngine.Events.UnityAction)fld.GetValue(input.textComponent);
+            Assert.IsNotNull(cb, "textComponent.m_OnDirtyVertsCallback must be bound after OnAttached");
+            var handlers = cb.GetInvocationList();
+            var names = new System.Collections.Generic.List<string>();
+            foreach (var d in handlers) names.Add(d.Method.Name);
+            CollectionAssert.Contains(names, "MarkGeometryAsDirty",
+                "TMP_InputField.MarkGeometryAsDirty must be registered on textComponent");
+            CollectionAssert.Contains(names, "UpdateLabel",
+                "TMP_InputField.UpdateLabel must be registered on textComponent");
+        }
+
+        [Test]
         public void Apply_TextAttribute()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
