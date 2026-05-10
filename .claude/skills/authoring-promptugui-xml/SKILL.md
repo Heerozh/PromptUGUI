@@ -63,7 +63,9 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 
 `<Import>`, `<Screen>`, `<Template>` are the **only** elements allowed at the top level. Comments use standard `<!-- -->`.
 
-## Built-in primitives (12)
+## Built-in primitives (13)
+
+**默认视觉主题**：白底 sliced + #323232 深字（与 Unity 6 `GameObject → UI → …` 创建出来的标准 prefab 一致）。所有控件的颜色/sprite 都能通过 `color=` / `sprite=` 属性 override；想要彻底深色主题项目级覆写 `ProceduralBuilders` 的常量，或用 Variant 方式 `color.dark="..."`。
 
 Pre-registered on `UI.Registry`. Use as XML tags by name:
 
@@ -81,6 +83,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name:
 | `<Slider>`      | Image + uGUI Slider. R3 `OnValueChanged: float`.                                                                                                                     | `min` (float), `max` (float), `value` (float), `wholeNumbers` (bool), `direction` (`horizontal` / `vertical` / `reverse-horizontal` / `reverse-vertical`), `color`, `sprite`                                                                                                                                        |
 | `<Dropdown>`    | TMP_Dropdown. R3 `OnSelected: int`. Options pushed via `BindOptions(Observable<IEnumerable<string \| DropdownOption>>)`.                                              | `value` (int initial index), `color`, `sprite`, `font`                                                                                                                                                                                                                                                              |
 | `<ScrollList>`  | ScrollRect + Mask. Items pushed via `BindItems(Observable<IReadOnlyList<T>>, Action<slot, T>)`. `itemTemplate` references a `<Template name=...>` or registered Control class. | `itemTemplate` (required tag name), `direction` (`vertical` / `horizontal`), `spacing` (float), `padding`, `color`, `sprite`                                                                                                                                                                                        |
+| `<InputField>`  | TMP_InputField；R3 `OnValueChanged` / `OnEndEdit` / `OnSubmit: string`。`<InputField>初始文本</InputField>` 短手设 `text=`。 | `text`, `placeholder`, `contentType` (`standard`/`autocorrected`/`integer-number`/`decimal-number`/`alphanumeric`/`name`/`email`/`password`/`pin`/`custom`), `lineType` (`single`/`multi-newline`/`multi-submit`), `characterLimit` (int), `readOnly` (bool), `color`, `sprite`, `font`, `tr` (placeholder)/`ctx` |
 
 `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` are reference implementations. For project-specific differentiation (pixel border, press feedback, custom popup chrome) subclass and override `OnAttached`.
 
@@ -500,8 +503,8 @@ ROOT          <PromptUGUI version="1"> ... </PromptUGUI>
 TOP LEVEL     <Import src="" [as=""]/>  <Screen name="" [canvas="overlay|camera|world"]>  <Template name="">
 
 BUILT-INS     <Frame> <Image> <Text> <VStack> <HStack> <Grid> <Btn> <Icon>
-              <Toggle> <Slider> <Dropdown> <ScrollList>
-TEXT SHORT    <Text>Hi</Text> ≡ <Text text="Hi"/>     (also <Btn>, <Toggle>)
+              <Toggle> <Slider> <Dropdown> <ScrollList> <InputField>
+TEXT SHORT    <Text>Hi</Text> ≡ <Text text="Hi"/>     (also <Btn>, <Toggle>, <InputField>)
 
 COMMON ATTRS  id  anchor  size|width|height  margin  pivot  hidden  interactable
 STACK-ONLY    padding  spacing                                    (VStack/HStack/Grid)

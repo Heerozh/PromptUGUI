@@ -20,6 +20,9 @@ namespace PromptUGUI.Samples.CommonControls
             UI.LoadDocumentFromSrc("Settings.ui");
             var screen = UI.Open("Settings");
 
+            screen.Get<PromptUGUI.Controls.InputField>("username").OnValueChanged
+                  .Subscribe(v => Debug.Log($"[Sample] username = {v}")).AddTo(screen);
+
             screen.Get<Toggle>("muteAudio").OnValueChanged
                   .Subscribe(b => Debug.Log($"[Sample] mute = {b}")).AddTo(screen);
 

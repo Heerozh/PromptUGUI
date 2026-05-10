@@ -60,5 +60,126 @@ namespace PromptUGUI.Tests.EditMode.Controls
             UI.LoadDocument("test", xml);
             Assert.Throws<PromptUGUI.Parser.ParseException>(() => UI.Open("S"));
         }
+
+        [Test]
+        public void Viewport_HasStencilMaskAndMaskSpriteWithAlphaOne()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='Slot'><Frame/></Template>
+  <Screen name='S'><ScrollList id='sl' itemTemplate='Slot'/></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var sl = UI.Open("S").Get<ScrollList>("sl");
+            var mask = sl.GameObject.GetComponentInChildren<UnityEngine.UI.Mask>(includeInactive: true);
+            Assert.IsNotNull(mask, "Viewport should use stencil Mask");
+            Assert.IsFalse(mask.showMaskGraphic);
+
+            var img = mask.GetComponent<UnityEngine.UI.Image>();
+            Assert.IsNotNull(img);
+            Assert.AreEqual(1f, img.color.a, "alpha=1 critical to avoid 4af322b alpha-discard regression");
+
+            // Mask graphic 用专门的 pugui_9slice_mask (不是 bg 的 pugui_9slice_round)
+            Assert.IsNotNull(img.sprite, "mask sprite must be loaded; otherwise stencil 写不出形状");
+            Assert.AreEqual("pugui_9slice_mask", img.sprite.name);
+            Assert.AreEqual(UnityEngine.UI.Image.Type.Sliced, img.type);
+        }
+
+        [Test]
+        public void Viewport_HasNoRectMask2D()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='Slot'><Frame/></Template>
+  <Screen name='S'><ScrollList id='sl' itemTemplate='Slot'/></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var sl = UI.Open("S").Get<ScrollList>("sl");
+            Assert.IsNull(sl.GameObject.GetComponentInChildren<UnityEngine.UI.RectMask2D>(includeInactive: true));
+        }
+
+        [Test]
+        public void Visual_BgColorIsTranslucentWhite()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='Slot'><Frame/></Template>
+  <Screen name='S'><ScrollList id='sl' itemTemplate='Slot'/></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var sl = UI.Open("S").Get<ScrollList>("sl");
+            var img = sl.GameObject.GetComponent<UnityEngine.UI.Image>();
+            Assert.IsNotNull(img);
+            Assert.AreEqual(1f, img.color.r);
+            Assert.AreEqual(1f, img.color.g);
+            Assert.AreEqual(1f, img.color.b);
+            Assert.That(img.color.a, Is.EqualTo(0.392f).Within(0.005f));
+        }
+
+        [Test]
+        public void ScrollRect_HasDefaultMovementParams()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='Slot'><Frame/></Template>
+  <Screen name='S'><ScrollList id='sl' itemTemplate='Slot'/></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var sl = UI.Open("S").Get<ScrollList>("sl");
+            var sr = sl.GameObject.GetComponent<UnityEngine.UI.ScrollRect>();
+            Assert.AreEqual(UnityEngine.UI.ScrollRect.MovementType.Elastic, sr.movementType);
+            Assert.That(sr.elasticity, Is.EqualTo(0.1f).Within(0.001f));
+            Assert.IsTrue(sr.inertia);
+            Assert.That(sr.decelerationRate, Is.EqualTo(0.135f).Within(0.001f));
+            Assert.AreEqual(1f, sr.scrollSensitivity);
+        }
+
+        [Test]
+        public void Has_VerticalScrollbarByDefaultDirection()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='Slot'><Frame/></Template>
+  <Screen name='S'><ScrollList id='sl' itemTemplate='Slot'/></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var sl = UI.Open("S").Get<ScrollList>("sl");
+            var sb = sl.GameObject.transform.Find("Scrollbar Vertical") as UnityEngine.RectTransform;
+            Assert.IsNotNull(sb, "default direction is vertical → Scrollbar Vertical exists");
+            Assert.AreEqual(new UnityEngine.Vector2(1, 0), sb.anchorMin);
+            Assert.AreEqual(new UnityEngine.Vector2(1, 1), sb.anchorMax);
+            Assert.AreEqual(new UnityEngine.Vector2(20, 0), sb.sizeDelta);
+
+            var scrollbar = sb.GetComponent<UnityEngine.UI.Scrollbar>();
+            Assert.AreEqual(UnityEngine.UI.Scrollbar.Direction.BottomToTop, scrollbar.direction);
+
+            var sr = sl.GameObject.GetComponent<UnityEngine.UI.ScrollRect>();
+            Assert.AreSame(scrollbar, sr.verticalScrollbar);
+            Assert.AreEqual(UnityEngine.UI.ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport,
+                sr.verticalScrollbarVisibility);
+        }
+
+        [Test]
+        public void Has_HorizontalScrollbarWhenDirectionHorizontal()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='Slot'><Frame/></Template>
+  <Screen name='S'><ScrollList id='sl' direction='horizontal' itemTemplate='Slot'/></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var sl = UI.Open("S").Get<ScrollList>("sl");
+            var sb = sl.GameObject.transform.Find("Scrollbar Horizontal") as UnityEngine.RectTransform;
+            Assert.IsNotNull(sb);
+            Assert.AreEqual(new UnityEngine.Vector2(0, 0), sb.anchorMin);
+            Assert.AreEqual(new UnityEngine.Vector2(1, 0), sb.anchorMax);
+            Assert.AreEqual(new UnityEngine.Vector2(0, 20), sb.sizeDelta);
+
+            var scrollbar = sb.GetComponent<UnityEngine.UI.Scrollbar>();
+            Assert.AreEqual(UnityEngine.UI.Scrollbar.Direction.LeftToRight, scrollbar.direction);
+
+            var sr = sl.GameObject.GetComponent<UnityEngine.UI.ScrollRect>();
+            Assert.AreSame(scrollbar, sr.horizontalScrollbar);
+        }
     }
 }
