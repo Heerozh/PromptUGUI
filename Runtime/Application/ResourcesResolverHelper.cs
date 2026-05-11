@@ -20,10 +20,13 @@ namespace PromptUGUI.Application
             SourceResolver = src =>
             {
                 if (string.IsNullOrEmpty(src))
-                    throw new IOException("Resources lookup with empty src");
-                var ta = Resources.Load<TextAsset>($"{root}/{src}") ?? throw new IOException(
-                        $"Resources lookup failed: {root}/{src}");
-                return ta.text;
+                    return AwaitableHelpers.Faulted<string>(
+                        new IOException("Resources lookup with empty src"));
+                var ta = Resources.Load<TextAsset>($"{root}/{src}");
+                if (ta == null)
+                    return AwaitableHelpers.Faulted<string>(
+                        new IOException($"Resources lookup failed: {root}/{src}"));
+                return AwaitableHelpers.Completed(ta.text);
             };
 
 #if UNITY_EDITOR

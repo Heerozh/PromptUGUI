@@ -169,12 +169,12 @@ namespace PromptUGUI.Tests.Application
             var calls = 0;
             UI.CanvasConfigurator = (_, __) => calls++;
 
-            UI.SourceResolver = src => Xml;
-            UI.LoadDocumentFromSrc("main");
+            UI.SourceResolver = src => AwaitableHelpers.Completed(Xml);
+            UI.LoadDocumentAsync("main").GetAwaiter().GetResult();
             UI.Open("S");
             Assert.AreEqual(1, calls);
 
-            UI.Reload("S");
+            UI.ReloadAsync("S").GetAwaiter().GetResult();
             Assert.AreEqual(2, calls);
         }
     }

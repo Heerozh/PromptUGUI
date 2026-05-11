@@ -20,19 +20,19 @@ namespace PromptUGUI.Tests.Application
         {
             UI.SourceResolver = null;
             Assert.Throws<InvalidOperationException>(() =>
-                UI.LoadDocumentFromSrc("X"));
+                UI.LoadDocumentAsync("X").GetAwaiter().GetResult());
         }
 
         [Test]
         public void LoadDocumentFromSrc_returns_screen_names()
         {
-            UI.SourceResolver = src => src == "main"
+            UI.SourceResolver = src => AwaitableHelpers.Completed(src == "main"
                 ? @"<?xml version='1.0'?><PromptUGUI version='1'>
                       <Screen name='S1'><Frame/></Screen>
                       <Screen name='S2'><Frame/></Screen>
                    </PromptUGUI>"
-                : null;
-            var names = UI.LoadDocumentFromSrc("main");
+                : null);
+            var names = UI.LoadDocumentAsync("main").GetAwaiter().GetResult();
             CollectionAssert.AreEquivalent(new[] { "S1", "S2" }, names);
         }
 
@@ -49,12 +49,12 @@ namespace PromptUGUI.Tests.Application
                                 <Template name='T'><Frame/></Template>
                               </PromptUGUI>",
             };
-            UI.SourceResolver = src => files.TryGetValue(src, out var v) ? v : null;
-            var names = UI.LoadDocumentFromSrc("main");
+            UI.SourceResolver = src => AwaitableHelpers.Completed(files.TryGetValue(src, out var v) ? v : null);
+            var names = UI.LoadDocumentAsync("main").GetAwaiter().GetResult();
             // Verify screen was loaded by checking it can be requested again and throws
             CollectionAssert.Contains(names, "S");
             Assert.Throws<InvalidOperationException>(() =>
-                UI.LoadDocumentFromSrc("main"));
+                UI.LoadDocumentAsync("main").GetAwaiter().GetResult());
         }
 
         [Test]
@@ -73,10 +73,10 @@ namespace PromptUGUI.Tests.Application
                                </Screen>
                              </PromptUGUI>",
             };
-            UI.SourceResolver = src => files.TryGetValue(src, out var v) ? v : null;
+            UI.SourceResolver = src => AwaitableHelpers.Completed(files.TryGetValue(src, out var v) ? v : null);
 
-            UI.LoadCommonLibrary("common/btns");
-            UI.LoadDocumentFromSrc("main");
+            UI.LoadCommonLibraryAsync("common/btns").GetAwaiter().GetResult();
+            UI.LoadDocumentAsync("main").GetAwaiter().GetResult();
             var screen = UI.Open("M");
             Assert.IsNotNull(screen.Get<Btn>("play"));
         }
@@ -84,11 +84,11 @@ namespace PromptUGUI.Tests.Application
         [Test]
         public void Commons_with_screen_throws()
         {
-            UI.SourceResolver = src =>
+            UI.SourceResolver = src => AwaitableHelpers.Completed(
                 @"<?xml version='1.0'?><PromptUGUI version='1'>
                     <Screen name='X'><Frame/></Screen>
-                  </PromptUGUI>";
-            Assert.Throws<PromptUGUI.Parser.ParseException>(() => UI.LoadCommonLibrary("any"));
+                  </PromptUGUI>");
+            Assert.Throws<PromptUGUI.Parser.ParseException>(() => UI.LoadCommonLibraryAsync("any").GetAwaiter().GetResult());
         }
 
         [Test]
@@ -97,9 +97,9 @@ namespace PromptUGUI.Tests.Application
             var xml = @"<?xml version='1.0'?><PromptUGUI version='1'>
                           <Template name='Foo'><Frame/></Template>
                         </PromptUGUI>";
-            UI.SourceResolver = _ => xml;
-            UI.LoadCommonLibrary("a");
-            Assert.Throws<PromptUGUI.Template.TemplateException>(() => UI.LoadCommonLibrary("b"));
+            UI.SourceResolver = _ => AwaitableHelpers.Completed(xml);
+            UI.LoadCommonLibraryAsync("a").GetAwaiter().GetResult();
+            Assert.Throws<PromptUGUI.Template.TemplateException>(() => UI.LoadCommonLibraryAsync("b").GetAwaiter().GetResult());
         }
 
         [Test]
@@ -115,9 +115,9 @@ namespace PromptUGUI.Tests.Application
                             <Screen name='S'><Frame/></Screen>
                           </PromptUGUI>",
             };
-            UI.SourceResolver = src => files.TryGetValue(src, out var v) ? v : null;
-            UI.LoadCommonLibrary("c");
-            Assert.Throws<PromptUGUI.Template.TemplateException>(() => UI.LoadDocumentFromSrc("m"));
+            UI.SourceResolver = src => AwaitableHelpers.Completed(files.TryGetValue(src, out var v) ? v : null);
+            UI.LoadCommonLibraryAsync("c").GetAwaiter().GetResult();
+            Assert.Throws<PromptUGUI.Template.TemplateException>(() => UI.LoadDocumentAsync("m").GetAwaiter().GetResult());
         }
 
         [Test]
@@ -133,9 +133,9 @@ namespace PromptUGUI.Tests.Application
                             <Screen name='S'><X id='a'/></Screen>
                           </PromptUGUI>",
             };
-            UI.SourceResolver = src => files.TryGetValue(src, out var v) ? v : null;
-            UI.LoadCommonLibrary("c", @as: "std");
-            UI.LoadDocumentFromSrc("m");
+            UI.SourceResolver = src => AwaitableHelpers.Completed(files.TryGetValue(src, out var v) ? v : null);
+            UI.LoadCommonLibraryAsync("c", @as: "std").GetAwaiter().GetResult();
+            UI.LoadDocumentAsync("m").GetAwaiter().GetResult();
             Assert.Pass();
         }
 
@@ -155,10 +155,10 @@ namespace PromptUGUI.Tests.Application
                                <Screen name='M'><B id='b'/><E id='e'/></Screen>
                              </PromptUGUI>",
             };
-            UI.SourceResolver = src => files.TryGetValue(src, out var v) ? v : null;
+            UI.SourceResolver = src => AwaitableHelpers.Completed(files.TryGetValue(src, out var v) ? v : null);
 
-            UI.LoadCommonLibrary("ext");      // ext 内有 <Import src='base'/>
-            UI.LoadDocumentFromSrc("main");
+            UI.LoadCommonLibraryAsync("ext").GetAwaiter().GetResult();      // ext 内有 <Import src='base'/>
+            UI.LoadDocumentAsync("main").GetAwaiter().GetResult();
             var s = UI.Open("M");
             Assert.IsNotNull(s.Get<Frame>("b"));
             Assert.IsNotNull(s.Get<Frame>("e"));
@@ -176,9 +176,9 @@ namespace PromptUGUI.Tests.Application
                             <Template name='B'><Frame/></Template>
                           </PromptUGUI>",
             };
-            UI.SourceResolver = src => files.TryGetValue(src, out var v) ? v : null;
-            UI.LoadCommonLibrary("a");
-            UI.LoadCommonLibrary("b");
+            UI.SourceResolver = src => AwaitableHelpers.Completed(files.TryGetValue(src, out var v) ? v : null);
+            UI.LoadCommonLibraryAsync("a").GetAwaiter().GetResult();
+            UI.LoadCommonLibraryAsync("b").GetAwaiter().GetResult();
             Assert.Pass();
         }
 
@@ -198,43 +198,43 @@ namespace PromptUGUI.Tests.Application
         [Test]
         public void UnloadAllCommonLibraries_clears_commons_only()
         {
-            UI.SourceResolver = _ => @"<?xml version='1.0'?><PromptUGUI version='1'>
+            UI.SourceResolver = _ => AwaitableHelpers.Completed(@"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Template name='T'><Frame/></Template>
-              </PromptUGUI>";
-            UI.LoadCommonLibrary("c");
+              </PromptUGUI>");
+            UI.LoadCommonLibraryAsync("c").GetAwaiter().GetResult();
             UI.UnloadAllCommonLibraries();
 
             // Re-loading the same commons should now succeed (no conflict)
-            Assert.DoesNotThrow(() => UI.LoadCommonLibrary("c"));
+            Assert.DoesNotThrow(() => UI.LoadCommonLibraryAsync("c").GetAwaiter().GetResult());
         }
 
         [Test]
         public void UnloadAll_clears_everything_but_preserves_resolver()
         {
-            var savedResolver = UI.SourceResolver = _ => @"<?xml version='1.0'?><PromptUGUI version='1'>
+            var savedResolver = UI.SourceResolver = _ => AwaitableHelpers.Completed(@"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Screen name='X'><Frame/></Screen>
-              </PromptUGUI>";
-            UI.LoadDocumentFromSrc("x");
+              </PromptUGUI>");
+            UI.LoadDocumentAsync("x").GetAwaiter().GetResult();
             UI.UnloadAll();
 
             // Resolver still set; loading the same Screen succeeds again
             Assert.AreSame(savedResolver, UI.SourceResolver);
-            Assert.DoesNotThrow(() => UI.LoadDocumentFromSrc("x"));
+            Assert.DoesNotThrow(() => UI.LoadDocumentAsync("x").GetAwaiter().GetResult());
         }
 
         [Test]
         public void OnEnteringPlayMode_clears_loaded_docs_so_replay_does_not_throw()
         {
-            var savedResolver = UI.SourceResolver = _ => @"<?xml version='1.0'?><PromptUGUI version='1'>
+            var savedResolver = UI.SourceResolver = _ => AwaitableHelpers.Completed(@"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Screen name='Main'><Frame/></Screen>
-              </PromptUGUI>";
-            UI.LoadDocumentFromSrc("main");
+              </PromptUGUI>");
+            UI.LoadDocumentAsync("main").GetAwaiter().GetResult();
 
             UI.OnEnteringPlayModeForTests();
 
             // Resolver preserved; same src can be loaded again without "already loaded"
             Assert.AreSame(savedResolver, UI.SourceResolver);
-            Assert.DoesNotThrow(() => UI.LoadDocumentFromSrc("main"));
+            Assert.DoesNotThrow(() => UI.LoadDocumentAsync("main").GetAwaiter().GetResult());
         }
     }
 }

@@ -31,8 +31,8 @@ namespace PromptUGUI.Tests.Application
                                  </Screen>
                                </PromptUGUI>",
             };
-            UI.SourceResolver = src => files.TryGetValue(src, out var v) ? v : null;
-            UI.LoadDocumentFromSrc("main");
+            UI.SourceResolver = src => AwaitableHelpers.Completed(files.TryGetValue(src, out var v) ? v : null);
+            UI.LoadDocumentAsync("main").GetAwaiter().GetResult();
             var screen = UI.Open("Main");
             Assert.IsNotNull(screen.Get<Frame>("c"));
         }
@@ -57,8 +57,8 @@ namespace PromptUGUI.Tests.Application
                                </Screen>
                              </PromptUGUI>",
             };
-            UI.SourceResolver = src => files.TryGetValue(src, out var v) ? v : null;
-            UI.LoadDocumentFromSrc("main");
+            UI.SourceResolver = src => AwaitableHelpers.Completed(files.TryGetValue(src, out var v) ? v : null);
+            UI.LoadDocumentAsync("main").GetAwaiter().GetResult();
             var s = UI.Open("M");
             Assert.IsNotNull(s.Get<Frame>("one"));
             Assert.IsNotNull(s.Get<Frame>("two"));

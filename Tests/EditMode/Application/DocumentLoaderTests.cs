@@ -4,6 +4,7 @@ using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Parser;
 using PromptUGUI.Template;
+using UnityEngine;
 
 namespace PromptUGUI.Tests.Application
 {
@@ -12,8 +13,8 @@ namespace PromptUGUI.Tests.Application
         private sealed class FakeFiles
         {
             public Dictionary<string, string> Map = new();
-            public Func<string, string> Resolver => s =>
-                Map.TryGetValue(s, out var v) ? v : null;
+            public Func<string, Awaitable<string>> Resolver => s =>
+                AwaitableHelpers.Completed(Map.TryGetValue(s, out var v) ? v : null);
         }
 
         private const string Wrap = "<?xml version='1.0'?><PromptUGUI version='1'>{0}</PromptUGUI>";
@@ -29,7 +30,7 @@ namespace PromptUGUI.Tests.Application
                 ["main"] = W("<Template name='X'><Frame/></Template>"),
             }
             };
-            var loaded = DocumentLoader.Load("main", ff.Resolver, allowScreens: true);
+            var loaded = DocumentLoader.LoadAsync("main", ff.Resolver, allowScreens: true).GetAwaiter().GetResult();
             Assert.AreEqual(1, loaded.Templates.Count);
             CollectionAssert.AreEquivalent(new[] { "main" }, loaded.AllSrcs);
         }
@@ -45,7 +46,7 @@ namespace PromptUGUI.Tests.Application
                 ["b"]    = W("<Template name='Tb'><Frame/></Template>"),
             }
             };
-            var loaded = DocumentLoader.Load("main", ff.Resolver, allowScreens: true);
+            var loaded = DocumentLoader.LoadAsync("main", ff.Resolver, allowScreens: true).GetAwaiter().GetResult();
             CollectionAssert.AreEquivalent(new[] { "main", "a", "b" }, loaded.AllSrcs);
             Assert.AreEqual(2, loaded.Templates.Count);
         }
@@ -62,7 +63,7 @@ namespace PromptUGUI.Tests.Application
             }
             };
             var ex = Assert.Throws<ParseException>(() =>
-                DocumentLoader.Load("main", ff.Resolver, allowScreens: true));
+                DocumentLoader.LoadAsync("main", ff.Resolver, allowScreens: true).GetAwaiter().GetResult());
             StringAssert.Contains("cyclic", ex.Message.ToLowerInvariant());
             StringAssert.Contains("a", ex.Message);
             StringAssert.Contains("b", ex.Message);
@@ -78,7 +79,7 @@ namespace PromptUGUI.Tests.Application
             }
             };
             Assert.Throws<ParseException>(() =>
-                DocumentLoader.Load("common", ff.Resolver, allowScreens: false));
+                DocumentLoader.LoadAsync("common", ff.Resolver, allowScreens: false).GetAwaiter().GetResult());
         }
 
         [Test]
@@ -93,7 +94,7 @@ namespace PromptUGUI.Tests.Application
                 ["shared"] = W("<Template name='Sh'><Frame/></Template>"),
             }
             };
-            var loaded = DocumentLoader.Load("main", ff.Resolver, allowScreens: false);
+            var loaded = DocumentLoader.LoadAsync("main", ff.Resolver, allowScreens: false).GetAwaiter().GetResult();
             Assert.AreEqual(1, loaded.Templates.Count);   // Sh 不重复
         }
 
@@ -101,14 +102,14 @@ namespace PromptUGUI.Tests.Application
         public void Resolver_null_throws_InvalidOperation()
         {
             Assert.Throws<InvalidOperationException>(() =>
-                DocumentLoader.Load("x", null, allowScreens: true));
+                DocumentLoader.LoadAsync("x", null, allowScreens: true).GetAwaiter().GetResult());
         }
 
         [Test]
         public void Resolver_returns_null_throws_IOException()
         {
             Assert.Throws<System.IO.IOException>(() =>
-                DocumentLoader.Load("x", _ => null, allowScreens: true));
+                DocumentLoader.LoadAsync("x", _ => AwaitableHelpers.Completed<string>(null), allowScreens: true).GetAwaiter().GetResult());
         }
 
         [Test]
@@ -123,7 +124,7 @@ namespace PromptUGUI.Tests.Application
             }
             };
             var ex = Assert.Throws<TemplateException>(() =>
-                DocumentLoader.Load("main", ff.Resolver, allowScreens: false));
+                DocumentLoader.LoadAsync("main", ff.Resolver, allowScreens: false).GetAwaiter().GetResult());
             StringAssert.Contains("Foo", ex.Message);
             StringAssert.Contains("duplicate", ex.Message.ToLowerInvariant());
         }
@@ -139,7 +140,7 @@ namespace PromptUGUI.Tests.Application
             }
             };
             Assert.Throws<TemplateException>(() =>
-                DocumentLoader.Load("main", ff.Resolver, allowScreens: false));
+                DocumentLoader.LoadAsync("main", ff.Resolver, allowScreens: false).GetAwaiter().GetResult());
         }
 
         [Test]
@@ -153,7 +154,7 @@ namespace PromptUGUI.Tests.Application
                 ["b"]    = W(@"<Template name='Foo'><Frame/></Template>"),
             }
             };
-            var loaded = DocumentLoader.Load("main", ff.Resolver, allowScreens: false);
+            var loaded = DocumentLoader.LoadAsync("main", ff.Resolver, allowScreens: false).GetAwaiter().GetResult();
             Assert.AreEqual(2, loaded.Templates.Count);
         }
     }
