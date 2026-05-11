@@ -34,35 +34,17 @@ namespace PromptUGUI.Application
             return LoadFromAddressablesInternalAsync(src);
         }
 
-        private static Awaitable<string> LoadFromAddressablesInternalAsync(string src)
+        private static async Awaitable<string> LoadFromAddressablesInternalAsync(string src)
         {
             var handle = Addressables.LoadAssetAsync<TextAsset>(src);
             try
             {
-                // WaitForCompletion() blocks synchronously until the operation is done.
-                // In "Use Asset Database" mode (EditMode) this completes immediately.
-                // In Play mode with remote bundles it may block briefly, but is still
-                // supported by Addressables. We then return a pre-completed Awaitable
-                // so awaiter.IsCompleted is true without requiring any player-loop pump.
-                // This is essential for [UnityTest]+IEnumerator in EditMode, where
-                // AwaitableCompletionSource.SetResult() schedules via the player-loop
-                // SynchronizationContext which does not tick in EditMode.
-                UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle nonGeneric = handle;
-                nonGeneric.WaitForCompletion();
-
-                if (handle.Status != UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationStatus.Succeeded)
-                {
-                    var ex = handle.OperationException
-                             ?? new IOException($"Addressables load failed for key: {src}");
-                    return AwaitableHelpers.Faulted<string>(ex);
-                }
-
-                var ta = handle.Result;
+                // AsyncOperationHandle<T>.Task 在 Addressables 1.x 全系列稳定；
+                // 1.21+ 也支持直接 `await handle`，但 .Task 兼容更广。
+                var ta = await handle.Task;
                 if (ta == null)
-                    return AwaitableHelpers.Faulted<string>(
-                        new IOException($"Addressables key not found or wrong type: {src}"));
-
-                return AwaitableHelpers.Completed(ta.text);
+                    throw new IOException($"Addressables key not found or wrong type: {src}");
+                return ta.text;
             }
             finally
             {
