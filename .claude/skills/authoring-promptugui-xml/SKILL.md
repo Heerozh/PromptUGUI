@@ -344,12 +344,12 @@ The extractor pulls each CDATA block as a single complete msgid; runtime transla
 </Screen>
 ```
 
-- `src` is an opaque key passed to the user's `UI.SourceResolver` — could be a Resources path, an Addressables address, anything. The library never touches the filesystem itself.
+- `src` is an opaque key passed to the user's `UI.SourceResolver` (`Func<string, Awaitable<string>>`) — could be a Resources path, an Addressables key, anything. The library never touches the filesystem itself.
 - Imports merge **recursively**; cycles are detected.
 - Imported files cannot contain `<Screen>` — only `<Template>`.
 - Same-named templates from two imports without `as=` → conflict error. Resolve with `as="ns"` on one of them.
 
-There's also a **commons pool**: `UI.LoadCommonLibrary("ui/common", as: null)` populates a global template pool merged into every screen automatically (no `<Import>` needed at the call site). Use this for project-wide shared widgets.
+There's also a **commons pool**: `await UI.LoadCommonLibraryAsync("ui/common", @as: null)` populates a global template pool merged into every screen automatically (no `<Import>` needed at the call site). Use this for project-wide shared widgets.
 
 ## C# code-side bridge
 
@@ -361,14 +361,29 @@ The XML doesn't bind data or events — it just creates handles. C# does the res
 using PromptUGUI.Application;
 using R3;
 
-UI.SourceResolver = key => Resources.Load<TextAsset>($"UI/{key}").text;
+UI.UseResourcesResolver("UI");                             // sets SourceResolver + Editor hot-reload mapping
 UI.Registry.Register<MyCustomControl>("MyTag", myPrefab);  // optional; built-ins are pre-registered
 
-UI.LoadCommonLibrary("common/Buttons");                    // optional
-UI.LoadDocumentFromSrc("screens/MainMenu");                // resolver path
-// or:
-UI.LoadDocument("MainMenu", xmlString);                    // raw XML, no hot-reload
+async void Start() {
+    await UI.LoadCommonLibraryAsync("common/Buttons");     // optional
+    await UI.LoadDocumentAsync("screens/MainMenu");        // resolver path; enables hot-reload
+    // or, sync raw-XML form (no resolver, no hot-reload):
+    // UI.LoadDocument("MainMenu", xmlString);
+    var screen = UI.Open("MainMenu");
+}
 ```
+
+### Addressables resolver (optional)
+
+If your project has `com.unity.addressables` installed, you can load `.ui.xml` files via Addressables instead of Resources:
+
+```csharp
+UI.UseAddressableResolver();
+await UI.LoadDocumentAsync("screens/MainMenu");   // src 直接当 Addressables key 用
+UI.Open("MainMenu");
+```
+
+In Editor, saving a `.ui.xml` that's registered with Addressables auto-triggers hot-reload (same as Resources path). Player builds load via Addressables catalog. The `UseAddressableResolver` method only exists when `com.unity.addressables` ≥ 1.0 is installed (gated by `PROMPTUGUI_HAS_ADDRESSABLES` compile symbol).
 
 **Canvas configuration** (optional):
 
@@ -542,7 +557,7 @@ NEVER VARY    id, tag name, <Param default>
 IMPORT        <Import src="..." [as="ns"]/>
 USE           <ns.TagName/>             (when prefixed)
 
-C# OPEN       UI.LoadDocumentFromSrc("path"); UI.Open("ScreenName")
+C# OPEN       await UI.LoadDocumentAsync("path"); UI.Open("ScreenName")
 C# GET        screen.Get<Btn>("id")  /  "outerId/innerId"
 C# EVENT      .OnClick / .OnValueChanged / .OnSelected   .Subscribe(...).AddTo(screen)
 C# DATA       Dropdown.BindOptions(Observable<IEnumerable<string>>).AddTo(screen)
@@ -598,21 +613,23 @@ UI.Locale.Set("zh-Hans")         switch locale (= switch .po + switch font)
 ```
 
 ```csharp
-UI.UseResourcesResolver("UI"); // same as UI.SourceResolver = key => Resources.Load<TextAsset>($"UI/{key}").text;
-IconResolverHelpers.UseSpriteAtlasIconResolver(iconSets);   // pass icon set setting
-UI.LoadDocumentFromSrc("screens/main"); // FromSrc will enable hot-reload.
+async void Start() {
+    UI.UseResourcesResolver("UI");                                  // sets SourceResolver + Editor hot-reload mapping
+    IconResolverHelpers.UseSpriteAtlasIconResolver(iconSets);       // pass icon set setting
+    await UI.LoadDocumentAsync("screens/main");                     // enables hot-reload (resolver-backed src)
 
 #if UNITY_IOS || UNITY_ANDROID
-UI.Variants.Set("mobile", true);
+    UI.Variants.Set("mobile", true);
 #endif
 
-var screen = UI.Open("MainMenu");
+    var screen = UI.Open("MainMenu");
 
-screen.Get<Btn>("play").OnClick               // call-site id is transferred to template body root (a <Btn>)
-      .Subscribe(_ => Game.Start()).AddTo(screen);
+    screen.Get<Btn>("play").OnClick               // call-site id is transferred to template body root (a <Btn>)
+          .Subscribe(_ => Game.Start()).AddTo(screen);
 
-screen.Get<Btn>("quit").OnClick
-      .Subscribe(_ => Application.Quit()).AddTo(screen);
+    screen.Get<Btn>("quit").OnClick
+          .Subscribe(_ => Application.Quit()).AddTo(screen);
+}
 ```
 
 Note: `id="play"` on `<MenuButton id="play"/>` is automatically transferred to the template body's single root element (the `<Btn>`), so `screen.Get<Btn>("play")` resolves directly without a path. Use a path (`"play/inner"`) only when reaching into an element that has its own id **inside** the template body.
