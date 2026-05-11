@@ -14,6 +14,7 @@
     },
     "testables": [
         "PromptUGUI.Tests.EditMode",
+        "PromptUGUI.Tests.EditMode.Addressables",
         "PromptUGUI.Tests.PlayMode"
     ],
     "samples": [

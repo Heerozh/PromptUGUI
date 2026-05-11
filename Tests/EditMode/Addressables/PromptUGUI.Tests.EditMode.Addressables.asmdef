@@ -1,0 +1,35 @@
+{
+    "name": "PromptUGUI.Tests.EditMode.Addressables",
+    "rootNamespace": "PromptUGUI.Tests.Addressables",
+    "references": [
+        "PromptUGUI.Runtime",
+        "PromptUGUI.Editor",
+        "Unity.Addressables",
+        "Unity.Addressables.Editor",
+        "Unity.ResourceManager",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS",
+        "PROMPTUGUI_HAS_ADDRESSABLES"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.addressables",
+            "expression": "1.0.0",
+            "define": "PROMPTUGUI_HAS_ADDRESSABLES"
+        }
+    ],
+    "noEngineReferences": false
+}
