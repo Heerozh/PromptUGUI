@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 PromptUGUI is a Unity 6+ UPM package that translates compact `.ui.xml` files into runtime uGUI hierarchies. Target use case: pixel-art game that ships PC widescreen and mobile portrait from one description.
 
-The library is **content-agnostic at runtime**: it never reads the filesystem itself. Callers register a `Func<string,string> SourceResolver` that maps an opaque `src` key to XML content; how the user obtains that content (Resources, Addressables, custom paths) is their concern.
+The library is **content-agnostic at runtime**: it never reads the filesystem itself. Callers register a `Func<string, Awaitable<string>> SourceResolver` that maps an opaque `src` key to XML content; how the user obtains that content (Resources, Addressables, custom paths) is their concern. Built-in helpers: `UI.UseResourcesResolver(rootPath)` and (when `com.unity.addressables` ≥ 1.0 is installed) `UI.UseAddressableResolver()`.
 
 ## Canonical Design Sources
 
@@ -32,8 +32,9 @@ Internal refactors, test-only changes, performance work, and Editor tooling that
 | `PromptUGUI.Tests.EditMode` | `Tests/EditMode/` | no |
 | `PromptUGUI.Tests.EditorOnly` | `Tests/EditMode/Editor/` | no (tests for `PromptUGUI.Editor`) |
 | `PromptUGUI.Tests.PlayMode` | `Tests/PlayMode/` | no |
+| `PromptUGUI.Tests.EditMode.Addressables` | `Tests/EditMode/Addressables/` | no (gated by `PROMPTUGUI_HAS_ADDRESSABLES`) |
 
-`Runtime/AssemblyInfo.cs` exposes internals to `PromptUGUI.Tests.EditMode` via `InternalsVisibleTo`.
+`Runtime/AssemblyInfo.cs` exposes internals to `PromptUGUI.Tests.EditMode`, `PromptUGUI.Tests.PlayMode`, `PromptUGUI.Editor`, and `PromptUGUI.Tests.EditMode.Addressables` via `InternalsVisibleTo`.
 
 `Runtime/` is split into:
 - `Core/IR/` — pure POCOs (`UIDocument`, `ScreenDef`, `TemplateDef`, `ElementNode`, `ImportRef`, `VariantBlock`, `AddDirective`)
@@ -106,14 +107,16 @@ src key ──[SourceResolver]──> xml string
 ```
 
 Two entry points to this pipeline:
-- `UI.LoadDocumentFromSrc(src)` — full pipeline; populates DepGraph for hot reload
-- `UI.LoadDocument(label, xmlString)` — bypasses resolver/DepGraph; raw XML; **cannot be hot-reloaded**
+- `await UI.LoadDocumentAsync(src)` — full pipeline; populates DepGraph for hot reload; returns `Awaitable<IReadOnlyList<string>>`
+- `UI.LoadDocument(label, xmlString)` — sync; bypasses resolver/DepGraph; raw XML; **cannot be hot-reloaded**
 
 ## Critical Conventions
 
 **Templates are inlined at expansion time.** After `TemplateExpander.Expand`, no `<TitledPanel>` invocations remain — they've been replaced with their bodies. Don't try to look up Templates at runtime; the only post-expansion artifact is the `IsTemplateInstanceRoot` flag + `ScopedIds` for id-path resolution.
 
-**Common (auto-imported) Templates live in `_commonsPool` keyed by `(ns, name)`.** `LoadCommonLibrary(src, [as])` populates it once at boot. Subsequent `LoadDocumentFromSrc` calls merge commons → entry templates with hard conflict errors.
+**Common (auto-imported) Templates live in `_commonsPool` keyed by `(ns, name)`.** `LoadCommonLibraryAsync(src, [as])` populates it once at boot. Subsequent `LoadDocumentAsync` calls merge commons → entry templates with hard conflict errors.
+
+**Async-by-default load pipeline.** `SourceResolver` is `Func<string, Awaitable<string>>`. `LoadDocumentAsync` / `LoadCommonLibraryAsync` / `ReloadAsync` / `ReloadCommonLibraryAsync` are all `async Awaitable<...>`. EditMode tests synchronously unwrap with `.GetAwaiter().GetResult()` — `AwaitableHelpers.Completed(value)` (internal) produces a sync-completed `Awaitable<T>` so there's no real yield point and the call returns on the test thread. The sync `LoadDocument(label, xml)` overload remains for raw-XML callers. `HotReload.NotifyAssetChanged` stays `void`; internally it fires `_ = ReloadAsyncLogged(...)` / `_ = ReloadCommonLibraryAsyncLogged(...)` with try/catch + `Debug.LogError` because AssetPostprocessor is a sync context.
 
 **Variants don't rebuild GameObjects.** `VariantStore.Changed` triggers `Screen.ReSolve` which re-applies attribute values via `ControlAttributeApplier`. Add blocks use Strategy C: instantiate once on first activation and only toggle `SetActive`. Never `Destroy` an Add block while the Screen is open — references and R3 subscriptions must survive variant toggles.
 
