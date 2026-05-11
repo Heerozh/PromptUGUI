@@ -15,7 +15,7 @@ namespace PromptUGUI.Tests.Application
         {
             UI.ResetForTests();
             _files = new Dictionary<string, string>();
-            UI.SourceResolver = src => _files.TryGetValue(src, out var v) ? v : null;
+            UI.SourceResolver = src => AwaitableHelpers.Completed(_files.TryGetValue(src, out var v) ? v : null);
         }
         [TearDown] public void TearDown() => UI.ResetForTests();
 
@@ -25,13 +25,13 @@ namespace PromptUGUI.Tests.Application
             _files["main"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Screen name='S'><Frame id='a'/></Screen>
               </PromptUGUI>";
-            UI.LoadDocumentFromSrc("main");
+            UI.LoadDocumentAsync("main").GetAwaiter().GetResult();
             UI.Open("S");
 
             _files["main"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Screen name='S'><Frame id='b'/></Screen>
               </PromptUGUI>";
-            UI.Reload("S");
+            UI.ReloadAsync("S").GetAwaiter().GetResult();
 
             var s = UI.Get("S");
             Assert.IsNotNull(s.Get<Frame>("b"));
@@ -44,11 +44,11 @@ namespace PromptUGUI.Tests.Application
             _files["main"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Screen name='S'><Frame id='a'/></Screen>
               </PromptUGUI>";
-            UI.LoadDocumentFromSrc("main");
+            UI.LoadDocumentAsync("main").GetAwaiter().GetResult();
             var oldScreen = UI.Open("S");
 
             _files["main"] = "<<<not xml>>>";
-            Assert.Catch<Exception>(() => UI.Reload("S"));
+            Assert.Catch<Exception>(() => UI.ReloadAsync("S").GetAwaiter().GetResult());
 
             // Old screen still usable
             Assert.IsNotNull(oldScreen.Get<Frame>("a"));
@@ -63,7 +63,7 @@ namespace PromptUGUI.Tests.Application
                     <Screen name='S'><Frame/></Screen>
                   </PromptUGUI>");
             UI.Open("S");
-            Assert.Throws<InvalidOperationException>(() => UI.Reload("S"));
+            Assert.Throws<InvalidOperationException>(() => UI.ReloadAsync("S").GetAwaiter().GetResult());
         }
 
         [Test]
@@ -72,20 +72,20 @@ namespace PromptUGUI.Tests.Application
             _files["main"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Screen name='S'><Frame id='a'/></Screen>
               </PromptUGUI>";
-            UI.LoadDocumentFromSrc("main");
+            UI.LoadDocumentAsync("main").GetAwaiter().GetResult();
             UI.Variants.Set("mobile", true);
             UI.Open("S");
 
             _files["main"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Screen name='S'><Frame id='b'/></Screen>
               </PromptUGUI>";
-            UI.Reload("S");
+            UI.ReloadAsync("S").GetAwaiter().GetResult();
 
             Assert.IsTrue(UI.Variants.IsActive("mobile"));
         }
 
         [Test]
-        public void ReloadCommonLibrary_picks_up_template_changes()
+        public void ReloadCommonLibraryAsync_picks_up_template_changes()
         {
             _files["c"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Template name='V'><Frame><Image id='inner_v1'/></Frame></Template>
@@ -93,35 +93,35 @@ namespace PromptUGUI.Tests.Application
             _files["m"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Screen name='S'><V id='holder'/></Screen>
               </PromptUGUI>";
-            UI.LoadCommonLibrary("c");
-            UI.LoadDocumentFromSrc("m");
+            UI.LoadCommonLibraryAsync("c").GetAwaiter().GetResult();
+            UI.LoadDocumentAsync("m").GetAwaiter().GetResult();
             UI.Open("S");
 
             _files["c"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Template name='V'><Frame><Image id='inner_v2'/></Frame></Template>
               </PromptUGUI>";
-            UI.ReloadCommonLibrary("c");
+            UI.ReloadCommonLibraryAsync("c").GetAwaiter().GetResult();
 
             var s = UI.Get("S");
             Assert.IsNotNull(s.Get<Image>("holder/inner_v2"));
         }
 
         [Test]
-        public void ReloadCommonLibrary_failed_parse_rolls_back()
+        public void ReloadCommonLibraryAsync_failed_parse_rolls_back()
         {
             _files["c"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Template name='V'><Frame/></Template>
               </PromptUGUI>";
-            UI.LoadCommonLibrary("c");
+            UI.LoadCommonLibraryAsync("c").GetAwaiter().GetResult();
 
             _files["c"] = "<<<bad>>>";
-            Assert.Catch<Exception>(() => UI.ReloadCommonLibrary("c"));
+            Assert.Catch<Exception>(() => UI.ReloadCommonLibraryAsync("c").GetAwaiter().GetResult());
 
             // Old commons still in pool — proven by being able to reload again with valid xml
             _files["c"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Template name='V'><Frame/></Template>
               </PromptUGUI>";
-            Assert.DoesNotThrow(() => UI.ReloadCommonLibrary("c"));
+            Assert.DoesNotThrow(() => UI.ReloadCommonLibraryAsync("c").GetAwaiter().GetResult());
         }
 
         [Test]
@@ -130,7 +130,7 @@ namespace PromptUGUI.Tests.Application
             _files["m"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Screen name='S'><Frame id='a'/></Screen>
               </PromptUGUI>";
-            UI.LoadDocumentFromSrc("m");
+            UI.LoadDocumentAsync("m").GetAwaiter().GetResult();
             UI.Open("S");
 
             UI.HotReload.AssetPathToSrc = path => path == "fakepath/m.ui.xml" ? "m" : null;
@@ -151,8 +151,8 @@ namespace PromptUGUI.Tests.Application
             _files["m"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Screen name='S'><T id='outer'/></Screen>
               </PromptUGUI>";
-            UI.LoadCommonLibrary("c");
-            UI.LoadDocumentFromSrc("m");
+            UI.LoadCommonLibraryAsync("c").GetAwaiter().GetResult();
+            UI.LoadDocumentAsync("m").GetAwaiter().GetResult();
             UI.Open("S");
 
             UI.HotReload.AssetPathToSrc = path => path == "p/c.ui.xml" ? "c" : null;
@@ -177,7 +177,7 @@ namespace PromptUGUI.Tests.Application
             _files["m"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Screen name='S'><Frame id='a'/></Screen>
               </PromptUGUI>";
-            UI.LoadDocumentFromSrc("m");
+            UI.LoadDocumentAsync("m").GetAwaiter().GetResult();
             UI.Open("S");
 
             UI.HotReload.AssetPathToSrc = _ => "m";
@@ -191,15 +191,15 @@ namespace PromptUGUI.Tests.Application
         }
 
         [Test]
-        public void Reload_unknown_screen_throws()
+        public void ReloadAsync_unknown_screen_throws()
         {
-            Assert.Throws<InvalidOperationException>(() => UI.Reload("Nonexistent"));
+            Assert.Throws<InvalidOperationException>(() => UI.ReloadAsync("Nonexistent").GetAwaiter().GetResult());
         }
 
         [Test]
-        public void ReloadCommonLibrary_unknown_src_throws()
+        public void ReloadCommonLibraryAsync_unknown_src_throws()
         {
-            Assert.Throws<InvalidOperationException>(() => UI.ReloadCommonLibrary("not-a-commons"));
+            Assert.Throws<InvalidOperationException>(() => UI.ReloadCommonLibraryAsync("not-a-commons").GetAwaiter().GetResult());
         }
     }
 }

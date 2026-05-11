@@ -12,7 +12,7 @@ namespace PromptUGUI.Application
         private static readonly System.Collections.Generic.Dictionary<DocumentLoader.TemplateKey, IR.TemplateDef> _commonsPool = new();
         private static readonly DepGraph _depGraph = new();
 
-        public static System.Func<string, string> SourceResolver { get; set; }
+        public static System.Func<string, UnityEngine.Awaitable<string>> SourceResolver { get; set; }
         public static System.Func<string, UnityEngine.Sprite> IconResolver { get; set; }
 
         // Optional override for locale → translation entries. Default (null) loads
@@ -171,14 +171,13 @@ namespace PromptUGUI.Application
             }
         }
 
-        public static IReadOnlyList<string> LoadDocumentFromSrc(string src)
+        public static async UnityEngine.Awaitable<IReadOnlyList<string>> LoadDocumentAsync(string src)
         {
             if (SourceResolver == null)
                 throw new System.InvalidOperationException(
-                    "UI.SourceResolver must be set before LoadDocumentFromSrc");
+                    "UI.SourceResolver must be set before LoadDocumentAsync");
 
-            var loaded = DocumentLoader.LoadAndMerge(src, SourceResolver, _commonsPool);
-
+            var loaded = await DocumentLoader.LoadAndMergeAsync(src, SourceResolver, _commonsPool);
             var expanded = PromptUGUI.Template.TemplateExpander.Expand(loaded);
 
             var added = new List<string>();
@@ -199,19 +198,18 @@ namespace PromptUGUI.Application
             return added;
         }
 
-        public static void Reload(string screenName)
+        public static async UnityEngine.Awaitable ReloadAsync(string screenName)
         {
             if (!_depGraph.ScreenDeps.TryGetValue(screenName, out var dep))
                 throw new System.InvalidOperationException(
                     $"Screen '{screenName}' was not loaded by src; cannot reload " +
-                    $"(use LoadDocumentFromSrc instead of LoadDocument(label, xml))");
+                    $"(use LoadDocumentAsync instead of LoadDocument(label, xml))");
 
             if (SourceResolver == null)
                 throw new System.InvalidOperationException(
-                    "UI.SourceResolver must be set before Reload");
+                    "UI.SourceResolver must be set before ReloadAsync");
 
-            // 1) Parse + Expand FIRST. Failure here → throw, leave state intact.
-            var loaded = DocumentLoader.LoadAndMerge(dep.EntrySrc, SourceResolver, _commonsPool);
+            var loaded = await DocumentLoader.LoadAndMergeAsync(dep.EntrySrc, SourceResolver, _commonsPool);
             var expanded = PromptUGUI.Template.TemplateExpander.Expand(loaded);
 
             PromptUGUI.IR.ScreenDef newDef = null;
@@ -220,11 +218,9 @@ namespace PromptUGUI.Application
                 if (s.Name == screenName) { newDef = s; break; }
             }
 
-            // 2) Tear down old (after parse succeeded)
             var wasOpen = _open.ContainsKey(screenName);
             if (wasOpen) Close(screenName);
 
-            // 3) Replace docs + dep entries
             _docs.Remove(screenName);
             _depGraph.ScreenDeps.Remove(screenName);
 
@@ -237,19 +233,17 @@ namespace PromptUGUI.Application
             };
             _depGraph.SrcToDeps[dep.EntrySrc] = new System.Collections.Generic.HashSet<string>(loaded.AllSrcs);
 
-            // 4) Re-open if it was open
             if (wasOpen) Open(screenName);
         }
 
-        public static void LoadCommonLibrary(string src, string @as = null)
+        public static async UnityEngine.Awaitable LoadCommonLibraryAsync(string src, string @as = null)
         {
             if (SourceResolver == null)
                 throw new System.InvalidOperationException(
-                    "UI.SourceResolver must be set before LoadCommonLibrary");
+                    "UI.SourceResolver must be set before LoadCommonLibraryAsync");
 
-            var loaded = DocumentLoader.Load(src, SourceResolver, allowScreens: false);
+            var loaded = await DocumentLoader.LoadAsync(src, SourceResolver, allowScreens: false);
 
-            // Conflict-check FIRST so we don't pollute on failure.
             var staged = new System.Collections.Generic.List<(DocumentLoader.TemplateKey Key, IR.TemplateDef Def)>();
             foreach (var kv in loaded.Templates)
             {
@@ -271,7 +265,7 @@ namespace PromptUGUI.Application
             _depGraph.SrcToDeps[src] = new System.Collections.Generic.HashSet<string>(loaded.AllSrcs);
         }
 
-        public static void ReloadCommonLibrary(string src)
+        public static async UnityEngine.Awaitable ReloadCommonLibraryAsync(string src)
         {
             if (!_depGraph.CommonsSources.Contains(src))
                 throw new System.InvalidOperationException(
@@ -279,12 +273,9 @@ namespace PromptUGUI.Application
 
             if (SourceResolver == null)
                 throw new System.InvalidOperationException(
-                    "UI.SourceResolver must be set before ReloadCommonLibrary");
+                    "UI.SourceResolver must be set before ReloadCommonLibraryAsync");
 
-            // Stash existing commons entries that came from this src (rollback if reload fails)
             // M4 v1 limitation: original `as=` namespace is not preserved across reload.
-            // If a commons was loaded with as="ns", reload may fail with conflicts; users should
-            // UnloadAll + re-bootstrap in that case. Spec §15 R-? for follow-up.
             var stashed = new System.Collections.Generic.List<
                 System.Collections.Generic.KeyValuePair<DocumentLoader.TemplateKey, IR.TemplateDef>>();
             foreach (var kv in _commonsPool)
@@ -298,20 +289,18 @@ namespace PromptUGUI.Application
 
             try
             {
-                LoadCommonLibrary(src);
+                await LoadCommonLibraryAsync(src);
             }
             catch
             {
-                // Roll back commons pool + depGraph state
                 foreach (var kv in stashed) _commonsPool[kv.Key] = kv.Value;
                 _depGraph.CommonsSources.Add(src);
                 if (prevDeps != null) _depGraph.SrcToDeps[src] = prevDeps;
                 throw;
             }
 
-            // M4 v1 simplification: reload ALL screens (commons changes blast radius is global)
             var names = new System.Collections.Generic.List<string>(_depGraph.ScreenDeps.Keys);
-            foreach (var name in names) Reload(name);
+            foreach (var name in names) await ReloadAsync(name);
         }
 
         public static Screen Open(string screenName)
@@ -480,26 +469,38 @@ namespace PromptUGUI.Application
 
                 if (_depGraph.IsCommons(src))
                 {
-                    ReloadCommonLibrary(src);
+                    _ = ReloadCommonLibraryAsyncLogged(src);
                     return;
                 }
 
                 var affected = new System.Collections.Generic.List<string>();
                 foreach (var name in _depGraph.ScreensDependingOn(src))
                     affected.Add(name);
-                foreach (var name in affected) Reload(name);
+                foreach (var name in affected) _ = ReloadAsyncLogged(name);
             }
 
-            /// <summary>
-            /// 由 helper 注册：被调用时应当重建 UI.IconResolver 的 lookup
-            /// (e.g., 重新枚举 IconSet 资源 + 重建 dict)。
-            /// </summary>
+            private static async UnityEngine.Awaitable ReloadAsyncLogged(string screenName)
+            {
+                try { await ReloadAsync(screenName); }
+                catch (System.Exception e)
+                {
+                    UnityEngine.Debug.LogError(
+                        $"[PromptUGUI] hot reload failed for screen '{screenName}': {e}");
+                }
+            }
+
+            private static async UnityEngine.Awaitable ReloadCommonLibraryAsyncLogged(string src)
+            {
+                try { await ReloadCommonLibraryAsync(src); }
+                catch (System.Exception e)
+                {
+                    UnityEngine.Debug.LogError(
+                        $"[PromptUGUI] hot reload commons failed for src '{src}': {e}");
+                }
+            }
+
             public static System.Action IconResolverRebuilder { get; set; }
 
-            /// <summary>
-            /// 由 AssetPostprocessor / 用户手动调用：通知 icon-related 资源变化。
-            /// 重建 IconResolver lookup + 触发所有 open Screen ReSolve。
-            /// </summary>
             public static void NotifyIconAssetsChanged()
             {
                 if (!Enabled) return;

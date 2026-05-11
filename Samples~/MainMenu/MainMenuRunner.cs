@@ -18,14 +18,13 @@ namespace PromptUGUI.Samples.MainMenu {
     public sealed class MainMenuRunner : MonoBehaviour {
         [SerializeField] IconSet[] iconSets;
 
-        void Start() {
+        async void Start() {
             UI.UseResourcesResolver("UI");
 
-            // 注册图标系统：建立 ns:icon → Sprite 查表，供 <Icon name="..."/> 使用
             if (iconSets != null && iconSets.Length > 0)
                 IconResolverHelpers.UseSpriteAtlasIconResolver(iconSets);
 
-            UI.LoadDocumentFromSrc("MainMenu.ui");
+            await UI.LoadDocumentAsync("MainMenu.ui");
             var screen = UI.Open("MainMenu");
 
             screen.Get<Btn>("playBtn").OnClick

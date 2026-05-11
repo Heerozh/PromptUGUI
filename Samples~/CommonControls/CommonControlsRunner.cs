@@ -14,10 +14,10 @@ namespace PromptUGUI.Samples.CommonControls
     /// </summary>
     public sealed class CommonControlsRunner : MonoBehaviour
     {
-        void Start()
+        async void Start()
         {
             UI.UseResourcesResolver("UI");
-            UI.LoadDocumentFromSrc("Settings.ui");
+            await UI.LoadDocumentAsync("Settings.ui");
             var screen = UI.Open("Settings");
 
             screen.Get<PromptUGUI.Controls.InputField>("username").OnValueChanged
