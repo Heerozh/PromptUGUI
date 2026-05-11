@@ -7,6 +7,12 @@ using UnityEditor.AddressableAssets.Settings;
 
 namespace PromptUGUI.Tests.Addressables
 {
+    /// <summary>
+    /// Verifies <c>UI.HotReload.AssetPathToSrc</c> reverse mapping after
+    /// <c>UseAddressableResolver()</c>: asset path → Addressables key lookup via
+    /// the Editor-only guid→key dictionary maintained by
+    /// <see cref="PromptUGUI.Application.UI"/>.
+    /// </summary>
     public class AddressableHotReloadTests
     {
         private const string FixturesRoot = "Assets/PromptUGUI_TestFixtures";

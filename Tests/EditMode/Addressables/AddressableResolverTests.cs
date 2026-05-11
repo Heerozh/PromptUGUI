@@ -88,6 +88,9 @@ namespace PromptUGUI.Tests.Addressables
             UI.UseAddressableResolver();
             var awaitable = UI.SourceResolver(FixtureKey);
             Assert.IsNotNull(awaitable, "Resolver returned null Awaitable");
+            // Note: the returned Awaitable is intentionally not awaited; the underlying
+            // AsyncOperationHandle stays alive until next domain reload. Acceptable for
+            // a one-shot smoke check in EditMode where the test process is short-lived.
         }
     }
 }

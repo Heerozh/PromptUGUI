@@ -275,6 +275,7 @@ namespace PromptUGUI.Application
                 throw new System.InvalidOperationException(
                     "UI.SourceResolver must be set before ReloadCommonLibraryAsync");
 
+            // M4 v1 limitation: original `as=` namespace is not preserved across reload.
             var stashed = new System.Collections.Generic.List<
                 System.Collections.Generic.KeyValuePair<DocumentLoader.TemplateKey, IR.TemplateDef>>();
             foreach (var kv in _commonsPool)

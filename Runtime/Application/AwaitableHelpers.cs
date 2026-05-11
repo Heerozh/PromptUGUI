@@ -1,4 +1,4 @@
-// Runtime/Application/AwaitableHelpers.cs
+using System;
 using UnityEngine;
 
 namespace PromptUGUI.Application
@@ -16,7 +16,7 @@ namespace PromptUGUI.Application
             return src.Awaitable;
         }
 
-        internal static Awaitable<T> Faulted<T>(System.Exception ex)
+        internal static Awaitable<T> Faulted<T>(Exception ex)
         {
             var src = new AwaitableCompletionSource<T>();
             src.SetException(ex);

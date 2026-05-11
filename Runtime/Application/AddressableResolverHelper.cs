@@ -3,6 +3,11 @@ using System;
 using System.IO;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+#if UNITY_EDITOR
+using UnityEditor;
+using UnityEditor.AddressableAssets;
+using UnityEditor.AddressableAssets.Settings;
+#endif
 
 namespace PromptUGUI.Application
 {
@@ -58,8 +63,7 @@ namespace PromptUGUI.Application
         private static void BuildAddressablesReverseMapping()
         {
             _guidToKey = new System.Collections.Generic.Dictionary<string, string>();
-            var settings = UnityEditor.AddressableAssets
-                                       .AddressableAssetSettingsDefaultObject.Settings;
+            var settings = AddressableAssetSettingsDefaultObject.Settings;
             if (settings == null) return;
             foreach (var group in settings.groups)
             {
@@ -75,28 +79,20 @@ namespace PromptUGUI.Application
         }
 
         private static void OnAddressableSettingsModified(
-            UnityEditor.AddressableAssets.Settings.AddressableAssetSettings settings,
-            UnityEditor.AddressableAssets.Settings.AddressableAssetSettings.ModificationEvent evt,
+            AddressableAssetSettings settings,
+            AddressableAssetSettings.ModificationEvent evt,
             object obj)
         {
             switch (evt)
             {
-                case UnityEditor.AddressableAssets.Settings.AddressableAssetSettings
-                                .ModificationEvent.EntryAdded:
-                case UnityEditor.AddressableAssets.Settings.AddressableAssetSettings
-                                .ModificationEvent.EntryCreated:
-                case UnityEditor.AddressableAssets.Settings.AddressableAssetSettings
-                                .ModificationEvent.EntryMoved:
-                case UnityEditor.AddressableAssets.Settings.AddressableAssetSettings
-                                .ModificationEvent.EntryRemoved:
-                case UnityEditor.AddressableAssets.Settings.AddressableAssetSettings
-                                .ModificationEvent.EntryModified:
-                case UnityEditor.AddressableAssets.Settings.AddressableAssetSettings
-                                .ModificationEvent.GroupAdded:
-                case UnityEditor.AddressableAssets.Settings.AddressableAssetSettings
-                                .ModificationEvent.GroupRemoved:
-                case UnityEditor.AddressableAssets.Settings.AddressableAssetSettings
-                                .ModificationEvent.BatchModification:
+                case AddressableAssetSettings.ModificationEvent.EntryAdded:
+                case AddressableAssetSettings.ModificationEvent.EntryCreated:
+                case AddressableAssetSettings.ModificationEvent.EntryMoved:
+                case AddressableAssetSettings.ModificationEvent.EntryRemoved:
+                case AddressableAssetSettings.ModificationEvent.EntryModified:
+                case AddressableAssetSettings.ModificationEvent.GroupAdded:
+                case AddressableAssetSettings.ModificationEvent.GroupRemoved:
+                case AddressableAssetSettings.ModificationEvent.BatchModification:
                     BuildAddressablesReverseMapping();
                     break;
             }
@@ -106,7 +102,7 @@ namespace PromptUGUI.Application
         {
             if (string.IsNullOrEmpty(assetPath)) return null;
             if (!assetPath.EndsWith(".ui.xml")) return null;
-            var guid = UnityEditor.AssetDatabase.AssetPathToGUID(assetPath);
+            var guid = AssetDatabase.AssetPathToGUID(assetPath);
             if (string.IsNullOrEmpty(guid)) return null;
             return _guidToKey != null && _guidToKey.TryGetValue(guid, out var key)
                 ? key

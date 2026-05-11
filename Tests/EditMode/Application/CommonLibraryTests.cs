@@ -16,7 +16,7 @@ namespace PromptUGUI.Tests.Application
         [TearDown] public void TearDown() => UI.ResetForTests();
 
         [Test]
-        public void LoadDocumentFromSrc_without_resolver_throws()
+        public void LoadDocumentAsync_without_resolver_throws()
         {
             UI.SourceResolver = null;
             Assert.Throws<InvalidOperationException>(() =>
@@ -24,7 +24,7 @@ namespace PromptUGUI.Tests.Application
         }
 
         [Test]
-        public void LoadDocumentFromSrc_returns_screen_names()
+        public void LoadDocumentAsync_returns_screen_names()
         {
             UI.SourceResolver = src => AwaitableHelpers.Completed(src == "main"
                 ? @"<?xml version='1.0'?><PromptUGUI version='1'>
@@ -37,7 +37,7 @@ namespace PromptUGUI.Tests.Application
         }
 
         [Test]
-        public void LoadDocumentFromSrc_imports_resolved()
+        public void LoadDocumentAsync_imports_resolved()
         {
             var files = new Dictionary<string, string>
             {

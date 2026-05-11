@@ -85,7 +85,7 @@ namespace PromptUGUI.Tests.Application
         }
 
         [Test]
-        public void ReloadCommonLibrary_picks_up_template_changes()
+        public void ReloadCommonLibraryAsync_picks_up_template_changes()
         {
             _files["c"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Template name='V'><Frame><Image id='inner_v1'/></Frame></Template>
@@ -107,7 +107,7 @@ namespace PromptUGUI.Tests.Application
         }
 
         [Test]
-        public void ReloadCommonLibrary_failed_parse_rolls_back()
+        public void ReloadCommonLibraryAsync_failed_parse_rolls_back()
         {
             _files["c"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Template name='V'><Frame/></Template>
@@ -191,13 +191,13 @@ namespace PromptUGUI.Tests.Application
         }
 
         [Test]
-        public void Reload_unknown_screen_throws()
+        public void ReloadAsync_unknown_screen_throws()
         {
             Assert.Throws<InvalidOperationException>(() => UI.ReloadAsync("Nonexistent").GetAwaiter().GetResult());
         }
 
         [Test]
-        public void ReloadCommonLibrary_unknown_src_throws()
+        public void ReloadCommonLibraryAsync_unknown_src_throws()
         {
             Assert.Throws<InvalidOperationException>(() => UI.ReloadCommonLibraryAsync("not-a-commons").GetAwaiter().GetResult());
         }
