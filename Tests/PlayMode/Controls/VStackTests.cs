@@ -82,5 +82,52 @@ namespace PromptUGUI.Tests.Controls
             Object.Destroy(go);
             yield return null;
         }
+
+        [UnityTest]
+        public IEnumerator Fixed_size_child_is_not_stretched_after_layout_rebuild()
+        {
+            // 镜像 spec 里那个 bug 场景：VStack height=84, Btn size=64x64, Text height=14。
+            // 修复前 Btn 会被 VLG force-expand 拉到 ~41。
+            var canvasGo = new GameObject("canvas", typeof(RectTransform), typeof(Canvas));
+            var canvas = canvasGo.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+
+            var vs = new VStack();
+            var stackGo = new GameObject("stack", typeof(RectTransform));
+            stackGo.transform.SetParent(canvasGo.transform, worldPositionStays: false);
+            vs.AttachTo(stackGo);
+            vs.Spacing = 2f;
+            var stackRt = (RectTransform)stackGo.transform;
+            stackRt.sizeDelta = new Vector2(70f, 84f);
+
+            var btnGo = new GameObject("btn",
+                typeof(RectTransform),
+                typeof(UnityEngine.UI.Image),
+                typeof(LayoutElement));
+            btnGo.transform.SetParent(stackGo.transform, worldPositionStays: false);
+            var btnLe = btnGo.GetComponent<LayoutElement>();
+            btnLe.preferredWidth = 64f;
+            btnLe.preferredHeight = 64f;
+            btnLe.flexibleWidth = 0f;
+            btnLe.flexibleHeight = 0f;
+
+            var textGo = new GameObject("text",
+                typeof(RectTransform),
+                typeof(LayoutElement));
+            textGo.transform.SetParent(stackGo.transform, worldPositionStays: false);
+            var textLe = textGo.GetComponent<LayoutElement>();
+            textLe.preferredHeight = 14f;
+            textLe.flexibleHeight = 0f;
+
+            UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(stackRt);
+            yield return null;
+
+            var btnRt = (RectTransform)btnGo.transform;
+            var textRt = (RectTransform)textGo.transform;
+            Assert.AreEqual(64f, btnRt.rect.height, 0.5f,
+                "Btn must not be stretched by VStack — LayoutElement.preferredHeight + flexibleHeight=0 is binding");
+            Assert.AreEqual(14f, textRt.rect.height, 0.5f);
+            Object.Destroy(canvasGo);
+        }
     }
 }
