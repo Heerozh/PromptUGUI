@@ -65,6 +65,26 @@ namespace PromptUGUI.Application
                 }
             }
 
+            public static async UnityEngine.Awaitable SetAsync(string locale)
+            {
+                if (Current == locale) return;
+                if (Current != null)
+                {
+                    VariantStore.Set(Current, false);
+                    TranslationStore.Instance.UnloadLocale(Current);
+                }
+                Current = locale;
+                if (locale != null)
+                {
+                    await LoadPoFilesAndApplyAsync(locale);
+                }
+                else
+                {
+                    VariantStore.NotifyChangedInternal();
+                    Changed?.Invoke();
+                }
+            }
+
             public static void SetToSystemDefault() =>
                 Set(LocaleHelpers.MapSystemLanguage(UnityEngine.Application.systemLanguage));
 
@@ -113,10 +133,16 @@ namespace PromptUGUI.Application
                 _ = ReloadCurrentAsyncLogged();
             }
 
+            public static async UnityEngine.Awaitable ReloadCurrentAsync()
+            {
+                if (Current == null) return;
+                await ReloadCurrentAsyncInternal();
+            }
+
             internal static async UnityEngine.Awaitable LoadPoFilesAndApplyAsync(string locale)
             {
                 await LoadPoFilesAsync(locale);
-                // Task 2 will insert: if (Current != locale) return;  (race guard)
+                if (Current != locale) return;              // race guard: don't flip variant for stale
                 VariantStore.Set(locale, true);
                 Changed?.Invoke();
             }
@@ -165,7 +191,7 @@ namespace PromptUGUI.Application
             if (PoResolver != null)
             {
                 var entries = await PoResolver(locale);
-                // Task 2 will insert: if (Current != locale) return;  (race guard)
+                if (Locale.Current != locale) return;          // race guard: stale load
                 if (entries != null)
                     TranslationStore.Instance.Load(locale, entries);
                 return;
