@@ -1,3 +1,4 @@
+using System;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
 using PromptUGUI.Application;
@@ -77,6 +78,46 @@ namespace PromptUGUI.Tests.Addressables
             UI.ResetForTests();
             Assert.AreEqual(beforeReset + 1, IconResolverHelpers._testReleaseCount,
                 "ResetForTests should trigger OnReset → helper releases the handle");
+        }
+
+        [Test]
+        public void MultiLabel_null_labels_throws_ArgumentNullException()
+        {
+            Assert.Throws<ArgumentNullException>(() =>
+                IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(
+                    (System.Collections.Generic.IEnumerable<string>)null));
+        }
+
+        [Test]
+        public void MultiLabel_empty_labels_throws_ArgumentException()
+        {
+            Assert.Throws<ArgumentException>(() =>
+                IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(
+                    System.Array.Empty<string>()));
+        }
+
+        [Test]
+        public void MultiLabel_invocation_returns_an_awaitable()
+        {
+            LogAssert.Expect(LogType.Error, InvalidKeyError);
+            var awaitable = IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(
+                new[] { FixtureLabel, FixtureLabel + "-extra" },
+                UnityEngine.AddressableAssets.Addressables.MergeMode.Union);
+            Assert.IsNotNull(awaitable,
+                "multi-label UseAddressableSpriteAtlasIconResolver should return non-null Awaitable");
+        }
+
+        [Test]
+        public void MultiLabel_releases_previous_handle_on_second_call()
+        {
+            LogAssert.Expect(LogType.Error, InvalidKeyError);
+            LogAssert.Expect(LogType.Error, InvalidKeyError);
+            _ = IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(FixtureLabel);
+            var beforeSecond = IconResolverHelpers._testReleaseCount;
+            _ = IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(
+                new[] { FixtureLabel, FixtureLabel + "-extra" });
+            Assert.AreEqual(beforeSecond + 1, IconResolverHelpers._testReleaseCount,
+                "multi-label call should release single-label predecessor exactly once");
         }
     }
 }

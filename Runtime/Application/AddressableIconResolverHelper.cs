@@ -40,13 +40,40 @@ namespace PromptUGUI.Application
         /// (<c>PROMPTUGUI_HAS_ADDRESSABLES</c> compile define).
         /// </summary>
         /// <param name="label">Addressables label tagging the IconSet assets to load.</param>
-        public static async Awaitable UseAddressableSpriteAtlasIconResolver(
-            string label = "IconSets")
+        public static Awaitable UseAddressableSpriteAtlasIconResolver(
+            string label = "IconSets") =>
+            UseAddressableSpriteAtlasIconResolverInternal(
+                () => Addressables.LoadAssetsAsync<IconSet>(label, null));
+
+        /// <summary>
+        /// Multi-label overload. Loads every <see cref="IconSet"/> matching the supplied
+        /// <paramref name="labels"/> combined via <paramref name="mergeMode"/>
+        /// (<see cref="Addressables.MergeMode.Union"/> for OR — default,
+        /// <see cref="Addressables.MergeMode.Intersection"/> for AND), then wires
+        /// <c>UI.IconResolver</c> the same way the single-label overload does.
+        /// Same handle-release / HotReload semantics.
+        /// </summary>
+        public static Awaitable UseAddressableSpriteAtlasIconResolver(
+            IEnumerable<string> labels,
+            Addressables.MergeMode mergeMode = Addressables.MergeMode.Union)
+        {
+            if (labels == null) throw new ArgumentNullException(nameof(labels));
+            var keys = new List<object>();
+            foreach (var l in labels) keys.Add(l);
+            if (keys.Count == 0)
+                throw new ArgumentException(
+                    "labels must contain at least one entry", nameof(labels));
+            return UseAddressableSpriteAtlasIconResolverInternal(
+                () => Addressables.LoadAssetsAsync<IconSet>(keys, null, mergeMode));
+        }
+
+        private static async Awaitable UseAddressableSpriteAtlasIconResolverInternal(
+            Func<AsyncOperationHandle<IList<IconSet>>> loader)
         {
             ReleaseAddressableIconHandle();
             HookResetOnce();
 
-            var handle = Addressables.LoadAssetsAsync<IconSet>(label, null);
+            var handle = loader();
             _addressableIconHandle = handle;
             var sets = await handle.Task;
             var snapshot = new List<IconSet>(sets ?? Array.Empty<IconSet>());

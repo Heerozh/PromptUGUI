@@ -462,6 +462,12 @@ The helper builds a `(set:icon) → Sprite` lookup from each IconSet's SpriteAtl
 await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver();
 // Or custom label:
 await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver("MyIcons");
+// Multiple labels — OR (Union, default): every IconSet tagged with "core" or "mobile"
+await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(
+    new[] { "core", "mobile" });
+// AND (Intersection): only IconSets tagged with BOTH "core" and "mobile"
+await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(
+    new[] { "core", "mobile" }, UnityEngine.AddressableAssets.Addressables.MergeMode.Intersection);
 ```
 
 Returns `Awaitable` — `await` it before opening any Screen that contains `<Icon>`, since `UI.IconResolver` is set inside the continuation. The loaded handle is held static and released on a second `UseAddressableSpriteAtlasIconResolver` call (swap label/locale). Only visible when `PROMPTUGUI_HAS_ADDRESSABLES` is defined.
