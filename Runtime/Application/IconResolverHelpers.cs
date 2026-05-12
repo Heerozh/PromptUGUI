@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace PromptUGUI.Application
 {
-    public static class IconResolverHelpers
+    public static partial class IconResolverHelpers
     {
         public static void UseSpriteAtlasIconResolver(string resourcesSubpath = "IconSets")
         {

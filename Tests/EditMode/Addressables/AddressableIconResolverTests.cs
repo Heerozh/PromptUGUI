@@ -1,0 +1,82 @@
+using System.Text.RegularExpressions;
+using NUnit.Framework;
+using PromptUGUI.Application;
+using UnityEditor.AddressableAssets;
+using UnityEngine;
+using UnityEngine.TestTools;
+
+namespace PromptUGUI.Tests.Addressables
+{
+    /// <summary>
+    /// Wiring smoke tests for IconResolverHelpers.UseAddressableSpriteAtlasIconResolver.
+    ///
+    /// End-to-end "label → IconSet → IconResolver returns sprite" is NOT tested
+    /// in EditMode: AsyncOperationHandle continuations need the player-loop
+    /// SynchronizationContext which is absent in EditMode test runners. Same
+    /// limitation documented in AddressableResolverTests. The synchronous prefix
+    /// of the async method (release-previous-handle, start-load, store-handle,
+    /// hook-reset) is what gets covered here.
+    ///
+    /// FixtureLabel intentionally doesn't resolve to any registered asset, so
+    /// Addressables logs an InvalidKeyException synchronously inside LoadAssetsAsync.
+    /// Each test declares the expected error via LogAssert.Expect; Unity Test
+    /// Framework consumes the matched entry instead of failing the test on it.
+    /// </summary>
+    public class AddressableIconResolverTests
+    {
+        private const string FixtureLabel = "promptugui-test/icons";
+        private static readonly Regex InvalidKeyError = new(".*InvalidKeyException.*");
+
+        [SetUp]
+        public void Setup()
+        {
+            UI.ResetForTests();
+            // Ensure AddressableAssetSettings exists; without it
+            // Addressables.LoadAssetsAsync throws synchronously in a fresh project.
+            _ = AddressableAssetSettingsDefaultObject.Settings
+                ?? AddressableAssetSettingsDefaultObject.GetSettings(true);
+            IconResolverHelpers._testReleaseCount = 0;
+        }
+
+        [TearDown]
+        public void TearDown() => UI.ResetForTests();
+
+        [Test]
+        public void Invocation_returns_an_awaitable()
+        {
+            LogAssert.Expect(LogType.Error, InvalidKeyError);
+            var awaitable =
+                IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(FixtureLabel);
+            Assert.IsNotNull(awaitable,
+                "UseAddressableSpriteAtlasIconResolver should return non-null Awaitable");
+            // Note: Awaitable intentionally not awaited; underlying AsyncOperationHandle
+            // remains pending until TearDown's ResetForTests releases it. We don't
+            // assert on UI.IconResolver state — its post-await value depends on
+            // whether LoadAssetsAsync completed synchronously (rare but possible),
+            // which is a C# state-machine detail rather than this helper's contract.
+        }
+
+        [Test]
+        public void Releases_previous_handle_on_second_call()
+        {
+            LogAssert.Expect(LogType.Error, InvalidKeyError);
+            LogAssert.Expect(LogType.Error, InvalidKeyError);
+            _ = IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(FixtureLabel);
+            var beforeSecond = IconResolverHelpers._testReleaseCount;
+            _ = IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(FixtureLabel);
+            Assert.AreEqual(beforeSecond + 1, IconResolverHelpers._testReleaseCount,
+                "Second call should release the first call's handle exactly once");
+        }
+
+        [Test]
+        public void ResetForTests_releases_handle()
+        {
+            LogAssert.Expect(LogType.Error, InvalidKeyError);
+            _ = IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(FixtureLabel);
+            var beforeReset = IconResolverHelpers._testReleaseCount;
+            UI.ResetForTests();
+            Assert.AreEqual(beforeReset + 1, IconResolverHelpers._testReleaseCount,
+                "ResetForTests should trigger OnReset → helper releases the handle");
+        }
+    }
+}
