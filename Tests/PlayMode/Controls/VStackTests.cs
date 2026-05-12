@@ -84,6 +84,36 @@ namespace PromptUGUI.Tests.Controls
         }
 
         [UnityTest]
+        public IEnumerator Default_child_alignment_is_upper_center()
+        {
+            var v = new VStack();
+            var go = new GameObject("vstack", typeof(RectTransform));
+            v.AttachTo(go);
+            Assert.AreEqual(TextAnchor.UpperCenter,
+                go.GetComponent<VerticalLayoutGroup>().childAlignment,
+                "VStack must default to UpperCenter so children narrower than the cross-axis are horizontally centered");
+            Object.Destroy(go);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator ChildAlign_attribute_overrides_default()
+        {
+            var v = new VStack();
+            var go = new GameObject("vstack", typeof(RectTransform));
+            v.AttachTo(go);
+            v.ChildAlign = "lower-right";
+            Assert.AreEqual(TextAnchor.LowerRight,
+                go.GetComponent<VerticalLayoutGroup>().childAlignment);
+            v.ChildAlign = "center";
+            Assert.AreEqual(TextAnchor.MiddleCenter,
+                go.GetComponent<VerticalLayoutGroup>().childAlignment,
+                "'center' must alias middle-center");
+            Object.Destroy(go);
+            yield return null;
+        }
+
+        [UnityTest]
         public IEnumerator Fixed_size_child_is_not_stretched_after_layout_rebuild()
         {
             // 镜像 spec 里那个 bug 场景：VStack height=84, Btn size=64x64, Text height=14。

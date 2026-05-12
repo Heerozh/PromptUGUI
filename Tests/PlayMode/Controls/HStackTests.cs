@@ -54,6 +54,32 @@ namespace PromptUGUI.Tests.Controls
         }
 
         [UnityTest]
+        public IEnumerator Default_child_alignment_is_middle_left()
+        {
+            var h = new HStack();
+            var go = new GameObject("hstack", typeof(RectTransform));
+            h.AttachTo(go);
+            Assert.AreEqual(TextAnchor.MiddleLeft,
+                go.GetComponent<HorizontalLayoutGroup>().childAlignment,
+                "HStack must default to MiddleLeft so children shorter than the cross-axis are vertically centered");
+            Object.Destroy(go);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator ChildAlign_attribute_overrides_default()
+        {
+            var h = new HStack();
+            var go = new GameObject("hstack", typeof(RectTransform));
+            h.AttachTo(go);
+            h.ChildAlign = "upper-right";
+            Assert.AreEqual(TextAnchor.UpperRight,
+                go.GetComponent<HorizontalLayoutGroup>().childAlignment);
+            Object.Destroy(go);
+            yield return null;
+        }
+
+        [UnityTest]
         public IEnumerator Fixed_size_child_is_not_stretched_after_layout_rebuild()
         {
             var canvasGo = new GameObject("canvas", typeof(RectTransform), typeof(Canvas));

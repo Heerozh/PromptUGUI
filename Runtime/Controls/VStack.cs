@@ -21,7 +21,31 @@ namespace PromptUGUI.Controls
             _layout.childControlHeight = true;
             _layout.childForceExpandWidth = false;
             _layout.childForceExpandHeight = false;
+            // 默认水平居中：子节点窄于 VStack 时贴中线（pixel-art icon+label widget 的常见诉求）。
+            // 顶部对齐保留"自顶向下堆叠"语义；要居中可写 childAlign="center"。
+            _layout.childAlignment = TextAnchor.UpperCenter;
         }
+
+        [UIAttr]
+        public string ChildAlign
+        {
+            set => _layout.childAlignment = ParseChildAlign(value);
+        }
+
+        internal static TextAnchor ParseChildAlign(string s) => s switch
+        {
+            "upper-left" => TextAnchor.UpperLeft,
+            "upper-center" => TextAnchor.UpperCenter,
+            "upper-right" => TextAnchor.UpperRight,
+            "middle-left" => TextAnchor.MiddleLeft,
+            "middle-center" or "center" => TextAnchor.MiddleCenter,
+            "middle-right" => TextAnchor.MiddleRight,
+            "lower-left" => TextAnchor.LowerLeft,
+            "lower-center" => TextAnchor.LowerCenter,
+            "lower-right" => TextAnchor.LowerRight,
+            _ => throw new ArgumentException(
+                $"childAlign '{s}' must be 'upper|middle|lower-left|center|right' (or 'center' alias for middle-center)"),
+        };
 
         [UIAttr]
         public float Spacing
