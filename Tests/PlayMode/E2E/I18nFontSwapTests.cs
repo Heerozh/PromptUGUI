@@ -28,7 +28,8 @@ namespace PromptUGUI.Tests.E2E
         public void Setup()
         {
             UI.ResetForTests();
-            UI.PoResolver = _ => System.Linq.Enumerable.Empty<PoEntry>();
+            UI.PoResolver = _ => AwaitableHelpers.Completed<System.Collections.Generic.IEnumerable<PoEntry>>(
+                System.Array.Empty<PoEntry>());
 
             // Distinct instances suffice for reference-equality assertions.
             _fontEn = TMP_FontAsset.CreateFontAsset(Font.CreateDynamicFontFromOSFont("Arial", 16));

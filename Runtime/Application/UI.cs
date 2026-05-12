@@ -21,7 +21,7 @@ namespace PromptUGUI.Application
         // `Resources/PromptUGUI/i18n-custom/{locale}/`. Set to an in-memory resolver
         // (e.g. `_ => System.Linq.Enumerable.Empty<PoEntry>()`) to isolate tests from
         // the host project's PO assets.
-        public static System.Func<string, IEnumerable<I18n.PoEntry>> PoResolver { get; set; }
+        public static System.Func<string, UnityEngine.Awaitable<IEnumerable<I18n.PoEntry>>> PoResolver { get; set; }
 
         // Invoked from Screen.Open() right after the Canvas + CanvasScaler + GraphicRaycaster
         // are added and renderMode is set to ScreenSpaceOverlay. Use to switch renderMode,
@@ -40,7 +40,7 @@ namespace PromptUGUI.Application
                 VariantStore.IsActive(name);
         }
 
-        public static class Locale
+        public static partial class Locale
         {
             public static string Current { get; private set; }
             public static event System.Action Changed;
@@ -56,14 +56,33 @@ namespace PromptUGUI.Application
                 Current = locale;
                 if (locale != null)
                 {
-                    LoadPoFiles(locale);
-                    VariantStore.Set(locale, true);
+                    _ = LoadPoFilesAndApplyAsyncLogged(locale);
                 }
                 else
                 {
                     VariantStore.NotifyChangedInternal();
+                    Changed?.Invoke();
                 }
-                Changed?.Invoke();
+            }
+
+            public static async UnityEngine.Awaitable SetAsync(string locale)
+            {
+                if (Current == locale) return;
+                if (Current != null)
+                {
+                    VariantStore.Set(Current, false);
+                    TranslationStore.Instance.UnloadLocale(Current);
+                }
+                Current = locale;
+                if (locale != null)
+                {
+                    await LoadPoFilesAndApplyAsync(locale);
+                }
+                else
+                {
+                    VariantStore.NotifyChangedInternal();
+                    Changed?.Invoke();
+                }
             }
 
             public static void SetToSystemDefault() =>
@@ -111,9 +130,49 @@ namespace PromptUGUI.Application
             public static void ReloadCurrent()
             {
                 if (Current == null) return;
+                _ = ReloadCurrentAsyncLogged();
+            }
+
+            public static async UnityEngine.Awaitable ReloadCurrentAsync()
+            {
+                if (Current == null) return;
+                await ReloadCurrentAsyncInternal();
+            }
+
+            internal static async UnityEngine.Awaitable LoadPoFilesAndApplyAsync(string locale)
+            {
+                await LoadPoFilesAsync(locale);
+                if (Current != locale) return;              // race guard: don't flip variant for stale
+                VariantStore.Set(locale, true);
+                Changed?.Invoke();
+            }
+
+            private static async UnityEngine.Awaitable LoadPoFilesAndApplyAsyncLogged(string locale)
+            {
+                try { await LoadPoFilesAndApplyAsync(locale); }
+                catch (System.Exception e)
+                {
+                    UnityEngine.Debug.LogError(
+                        $"[PromptUGUI] locale load failed for '{locale}': {e}");
+                }
+            }
+
+            internal static async UnityEngine.Awaitable ReloadCurrentAsyncInternal()
+            {
+                if (Current == null) return;
                 TranslationStore.Instance.UnloadLocale(Current);
-                LoadPoFiles(Current);
+                await LoadPoFilesAsync(Current);
                 VariantStore.NotifyChangedInternal();
+            }
+
+            private static async UnityEngine.Awaitable ReloadCurrentAsyncLogged()
+            {
+                try { await ReloadCurrentAsyncInternal(); }
+                catch (System.Exception e)
+                {
+                    UnityEngine.Debug.LogError(
+                        $"[PromptUGUI] locale reload failed for '{Current}': {e}");
+                }
             }
 
             internal static void ResetForTestsInternal()
@@ -127,20 +186,21 @@ namespace PromptUGUI.Application
         public static string Tr(string msgid, string ctx = null) =>
             TrResolver.Resolve(msgid, null, ctx);
 
-        private static void LoadPoFiles(string locale)
+        private static async UnityEngine.Awaitable LoadPoFilesAsync(string locale)
         {
             if (PoResolver != null)
             {
-                var entries = PoResolver(locale);
+                var entries = await PoResolver(locale);
+                if (Locale.Current != locale) return;          // race guard: stale load
                 if (entries != null)
                     TranslationStore.Instance.Load(locale, entries);
                 return;
             }
-            LoadPoFromPath($"PromptUGUI/i18n/{locale}", locale);
-            LoadPoFromPath($"PromptUGUI/i18n-custom/{locale}", locale);
+            LoadPoFromResourcesPath($"PromptUGUI/i18n/{locale}", locale);
+            LoadPoFromResourcesPath($"PromptUGUI/i18n-custom/{locale}", locale);
         }
 
-        private static void LoadPoFromPath(string resourcesPath, string locale)
+        private static void LoadPoFromResourcesPath(string resourcesPath, string locale)
         {
             var assets = UnityEngine.Resources.LoadAll<UnityEngine.TextAsset>(resourcesPath);
             foreach (var asset in assets)

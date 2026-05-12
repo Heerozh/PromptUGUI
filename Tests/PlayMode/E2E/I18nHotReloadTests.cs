@@ -19,7 +19,8 @@ namespace PromptUGUI.Tests.E2E
         public void Setup()
         {
             UI.ResetForTests();
-            UI.PoResolver = _ => System.Linq.Enumerable.Empty<PoEntry>();
+            UI.PoResolver = _ => AwaitableHelpers.Completed<System.Collections.Generic.IEnumerable<PoEntry>>(
+                System.Array.Empty<PoEntry>());
             TranslationStore.Instance.UnloadAll();
             UI.LoadDocument("S", Xml);
             TranslationStore.Instance.Load("en", new[] {

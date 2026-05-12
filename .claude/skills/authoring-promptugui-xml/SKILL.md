@@ -321,6 +321,32 @@ var text = string.Format(c, UI.Tr("Total: {0:C}"), price);
 
 **Reserved namespace**: `UI.Locale.Set("zh-Hans")` internally registers `zh-Hans` as an active Variant. Authors must NOT reuse a Variant of the same name to express anything other than locale state.
 
+**.po file location**
+
+By default `.po` files live in `Assets/Resources/PromptUGUI/i18n/<locale>/` or
+`/PromptUGUI/i18n-custom/<locale>/`. Files anywhere under those paths are
+picked up by `Resources.LoadAll<TextAsset>`; subfolder names are ignored.
+
+When the project ships `.po` via Addressables, call
+`UI.Locale.UseAddressableResolver()` at boot. The resolver loads every TextAsset
+whose Addressables **label matches the locale string** (so `Locale.Set("zh-Hans")`
+loads everything labelled `zh-Hans`). Files can live anywhere. Only available
+when `com.unity.addressables` ≥ 1.0 is installed (gated by
+`PROMPTUGUI_HAS_ADDRESSABLES`).
+
+```csharp
+UI.Locale.UseAddressableResolver();
+UI.Locale.Set("zh-Hans");                  // sync; UI shows msgid briefly during download
+// or:
+await UI.Locale.SetAsync("zh-Hans");       // awaits download + parse + ReSolve
+```
+
+`Locale.Set` returns immediately after issuing the load. While the download is
+in flight, open Screens briefly fall back to msgid text; when the load
+completes the locale variant flips on and all open Screens re-resolve to the
+translated strings. `SetAsync` returns only after that re-resolve completes —
+use it when you need to read `UI.Tr(...)` immediately after switching locales.
+
 ### Inline sprites / TMP rich text
 
 `<Text>` does not allow mixing text + child elements by default. To inline TMP tags like `<sprite>` / `<color>`, wrap them in CDATA:
@@ -589,6 +615,8 @@ C# CANVAS     UI.CanvasConfigurator = (canvas, name) => { ... }  worldCamera / s
 <Text ctx="door">Open</Text>     msgctxt disambiguation
 UI.Tr("...")                     C# extraction entry point
 UI.Locale.Set("zh-Hans")         switch locale (= switch .po + switch font)
+UI.Locale.SetAsync("zh-Hans")    awaitable variant; completes after .po load + ReSolve
+UI.Locale.UseAddressableResolver() load .po via Addressables, label = locale string
 ```
 
 ## Worked end-to-end example
