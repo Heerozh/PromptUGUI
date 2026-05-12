@@ -107,29 +107,82 @@ namespace PromptUGUI.Controls
 
             sizeSpec.ValidateAgainst(preset);
 
-            AnchorResolver.Resolve(preset,
-                out var aMin, out var aMax, out var p);
-            RectTransform.anchorMin = aMin;
-            RectTransform.anchorMax = aMax;
+            // spec §6.5: 父级是 VStack/HStack 时走 LayoutElement 通道；
+            // GridLayoutGroup 例外（它直接用 cellSize，LayoutElement 在它下面被忽略）。
+            var parentLg = RectTransform.parent != null
+                ? RectTransform.parent.GetComponent<UnityEngine.UI.LayoutGroup>()
+                : null;
+            var parentIsAutoLayout = parentLg != null
+                && !(parentLg is UnityEngine.UI.GridLayoutGroup);
 
-            if (!string.IsNullOrEmpty(pivot))
+            if (parentIsAutoLayout)
             {
-                var parts = pivot.Split(',');
-                RectTransform.pivot = new Vector2(
-                    float.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture),
-                    float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture));
+                ApplyLayoutElement(sizeSpec);
+                // anchor / pivot / sizeDelta / anchoredPosition: LayoutGroup 接管几何。
+                // 作者写 anchor/margin 已经被 ScreenInstantiator 警告（spec §6.5）；这里静默跳过。
             }
             else
             {
-                RectTransform.pivot = p;
-            }
+                AnchorResolver.Resolve(preset,
+                    out var aMin, out var aMax, out var p);
+                RectTransform.anchorMin = aMin;
+                RectTransform.anchorMax = aMax;
 
-            var lr = MarginResolver.Resolve(preset, sizeSpec, margin);
-            RectTransform.anchoredPosition = lr.AnchoredPosition;
-            RectTransform.sizeDelta = lr.SizeDelta;
+                if (!string.IsNullOrEmpty(pivot))
+                {
+                    var parts = pivot.Split(',');
+                    RectTransform.pivot = new Vector2(
+                        float.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture),
+                        float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture));
+                }
+                else
+                {
+                    RectTransform.pivot = p;
+                }
+
+                var lr = MarginResolver.Resolve(preset, sizeSpec, margin);
+                RectTransform.anchoredPosition = lr.AnchoredPosition;
+                RectTransform.sizeDelta = lr.SizeDelta;
+            }
 
             Hidden = hidden;
             Interactable = interactable;
+        }
+
+        private void ApplyLayoutElement(SizeSpec sizeSpec)
+        {
+            // 决策 LGC-D8: 作者没写任何 size 属性 → 不挂 LayoutElement（让 Image/TMP 自带 ILayoutElement 主导）
+            // 决策 LGC-D9: 按轴路由 — 未写的轴留在 -1 哨兵值
+            // 决策 LGC-D10: 每次都先把两轴全置 -1，清掉前一次 Variant 的残留约束
+            if (!sizeSpec.HasWidth && !sizeSpec.HasHeight)
+            {
+                // 前一次 Variant 可能挂过 LayoutElement，本次没尺寸 → 还原成"无约束"
+                var existing = GameObject.GetComponent<UnityEngine.UI.LayoutElement>();
+                if (existing != null)
+                {
+                    existing.preferredWidth = -1;
+                    existing.preferredHeight = -1;
+                    existing.flexibleWidth = -1;
+                    existing.flexibleHeight = -1;
+                }
+                return;
+            }
+            var le = GameObject.GetComponent<UnityEngine.UI.LayoutElement>()
+                     ?? GameObject.AddComponent<UnityEngine.UI.LayoutElement>();
+            le.preferredWidth = -1;
+            le.preferredHeight = -1;
+            le.flexibleWidth = -1;
+            le.flexibleHeight = -1;
+            if (sizeSpec.HasWidth)
+            {
+                le.preferredWidth = sizeSpec.Width;
+                le.flexibleWidth = 0;
+            }
+            if (sizeSpec.HasHeight)
+            {
+                le.preferredHeight = sizeSpec.Height;
+                le.flexibleHeight = 0;
+            }
         }
 
         public virtual void Dispose()
