@@ -405,7 +405,7 @@ If your project has `com.unity.addressables` installed, prefer to load `.ui.xml`
 
 ```csharp
 UI.UseAddressableResolver();
-await UI.LoadDocumentAsync("screens/MainMenu");   // src 直接当 Addressables key 用
+await UI.LoadDocumentAsync("UI/screens/MainMenu.ui.xml");   // src = Addressable key; enables hot-reload
 UI.Open("MainMenu");
 ```
 
