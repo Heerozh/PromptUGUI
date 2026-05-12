@@ -1,5 +1,6 @@
 #if PROMPTUGUI_HAS_ADDRESSABLES
 using System;
+using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
@@ -29,6 +30,23 @@ namespace PromptUGUI.Application
             BuildAddressablesReverseMapping();
             HotReload.AssetPathToSrc = AddressablesAssetPathToSrc;
 #endif
+        }
+
+        /// <summary>
+        /// 接受拖拽进 Inspector 的 AssetReferenceT&lt;TextAsset&gt;，转发到字符串管线
+        /// （AssetGUID 直接作为 Addressables key）。需要先调用 UseAddressableResolver()
+        /// 或自行配置一个能解析 GUID 的 SourceResolver。
+        /// </summary>
+        public static Awaitable<IReadOnlyList<string>> LoadDocumentAsync(
+            AssetReferenceT<TextAsset> xmlRef)
+        {
+            if (xmlRef == null)
+                throw new ArgumentNullException(nameof(xmlRef));
+            if (!xmlRef.RuntimeKeyIsValid())
+                throw new ArgumentException(
+                    "AssetReferenceT<TextAsset> has no asset assigned (RuntimeKey invalid)",
+                    nameof(xmlRef));
+            return LoadDocumentAsync(xmlRef.AssetGUID);
         }
 
         private static Awaitable<string> LoadFromAddressablesAsync(string src)

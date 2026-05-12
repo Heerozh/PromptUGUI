@@ -404,12 +404,24 @@ async void Start() {
 If your project has `com.unity.addressables` installed, prefer to load `.ui.xml` files via Addressables instead of Resources:
 
 ```csharp
+[SerializeField] AssetReferenceT<TextAsset> _mainMenuXml;
+// ...
+UI.UseAddressableResolver();
+await UI.LoadDocumentAsync(_mainMenuXml);                   // forwards AssetGUID to the string pipeline
+UI.Open("MainMenu");
+```
+
+prefer via a serialized `AssetReferenceT<TextAsset>` field (so authors drag the asset in the Inspector instead of typing a key).
+
+or load via key:
+
+```csharp
 UI.UseAddressableResolver();
 await UI.LoadDocumentAsync("UI/screens/MainMenu.ui.xml");   // src = Addressable key; enables hot-reload
 UI.Open("MainMenu");
 ```
 
-In Editor, saving a `.ui.xml` that's registered with Addressables auto-triggers hot-reload (same as Resources path). Player builds load via Addressables catalog. The `UseAddressableResolver` method only exists when `com.unity.addressables` ≥ 1.0 is installed (gated by `PROMPTUGUI_HAS_ADDRESSABLES` compile symbol).
+In Editor, saving a `.ui.xml` that's registered with Addressables auto-triggers hot-reload (same as Resources path). Player builds load via Addressables catalog. The `UseAddressableResolver` and `LoadDocumentAsync(AssetReferenceT<TextAsset>)` methods only exist when `com.unity.addressables` ≥ 1.0 is installed (gated by `PROMPTUGUI_HAS_ADDRESSABLES` compile symbol).
 
 **Canvas configuration** (optional):
 
