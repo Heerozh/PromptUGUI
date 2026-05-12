@@ -778,5 +778,52 @@ namespace PromptUGUI.Tests.Lifecycle
             UI.Variants.Set("m", false);
             yield return null;
         }
+
+        [UnityTest]
+        public IEnumerator RectTransformDimensionsChanged_fires_when_canvas_rt_size_changes()
+        {
+            // 使用 world canvas 让根 RT 不被 Unity overlay 驱动，sizeDelta 修改才能稳定触发
+            // OnRectTransformDimensionsChange。
+            UI.LoadDocument("rd1", @"<PromptUGUI version='1'>
+                <Screen name='RD1' canvas='world'><Image id='bg'/></Screen></PromptUGUI>");
+            var screen = UI.Open("RD1");
+
+            var fires = 0;
+            screen.RectTransformDimensionsChanged += () => fires++;
+
+            var rt = screen.RootGameObject.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(640, 480);
+            yield return null;
+
+            Assert.GreaterOrEqual(fires, 1,
+                "RectTransformDimensionsChanged should fire after canvas RT sizeDelta changes");
+
+            UI.Close("RD1");
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator RectTransformDimensionsChanged_stops_firing_after_close()
+        {
+            UI.LoadDocument("rd2", @"<PromptUGUI version='1'>
+                <Screen name='RD2' canvas='world'><Image id='bg'/></Screen></PromptUGUI>");
+            var screen = UI.Open("RD2");
+
+            var fires = 0;
+            screen.RectTransformDimensionsChanged += () => fires++;
+
+            var rt = screen.RootGameObject.GetComponent<RectTransform>();
+            // 注意:新建 RectTransform 的默认 sizeDelta 是 (100,100),要用别的值才能触发 change。
+            rt.sizeDelta = new Vector2(320, 240);
+            yield return null;
+            var beforeClose = fires;
+            Assert.GreaterOrEqual(beforeClose, 1);
+
+            UI.Close("RD2");
+            yield return null;
+
+            // root 已销毁,事件不会再被触发(也不应当因 dangling ref 报 MissingReferenceException)
+            Assert.AreEqual(beforeClose, fires);
+        }
     }
 }

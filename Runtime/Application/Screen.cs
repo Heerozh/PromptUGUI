@@ -43,6 +43,11 @@ namespace PromptUGUI.Application
         public string Name => Def.Name;
         public GameObject RootGameObject { get; private set; }
 
+        // 转发自挂在 RootGameObject 上的 RectDimensionsRelay。订阅时机：UI.Open 返回之后。
+        // 触发时机:根 Canvas 的 RectTransform 维度变化(屏幕方向切换、Camera/World canvas 主动改 size 等)。
+        // 生命周期:Close 时连同 RootGameObject 一起销毁,并主动清空所有订阅。
+        public event Action RectTransformDimensionsChanged;
+
         internal IReadOnlyDictionary<ElementNode, Control> NodeMap => _nodeMap;
         internal ScreenDef Def { get; }
         internal VariantStore Variants { get; }
@@ -91,6 +96,9 @@ namespace PromptUGUI.Application
             // 也能通过 UI.OwnerScreenOf 走 transform-tree → RootGameObject 反查到本 Screen。
             RootGameObject = root;
 
+            var relay = root.AddComponent<RectDimensionsRelay>();
+            relay.OnDimensionsChanged = () => RectTransformDimensionsChanged?.Invoke();
+
             var result = _instantiator.InstantiateInto(root, Def);
             foreach (var kv in result.Controls) _byId[kv.Key] = kv.Value;
             foreach (var kv in result.NodeToControl) _nodeMap[kv.Key] = kv.Value;
@@ -108,6 +116,9 @@ namespace PromptUGUI.Application
             _variantSub = null;
             foreach (var d in _subscriptions) d.Dispose();
             _subscriptions.Clear();
+            // 主动清空订阅,避免 GO 销毁过程中 Unity 再触发 OnRectTransformDimensionsChange 时
+            // 还把回调派给已 Close 的 Screen 上的 stale 订阅者。
+            RectTransformDimensionsChanged = null;
             if (RootGameObject != null)
             {
                 if (UnityEngine.Application.isPlaying)

@@ -475,7 +475,7 @@ UI.Close("MainMenu");                                      // destroys GameObjec
 
 ### Events & subscriptions
 
-All events are R3 `Observable<T>` — never `event` or `Action`:
+Control-level events are R3 `Observable<T>` — never `event` or `Action`:
 
 ```csharp
 screen.Get<Btn>("playBtn").OnClick
@@ -493,6 +493,10 @@ screen.Get<Dropdown>("quality").OnSelected
 ```
 
 `screen.Track(disposable)` (or the `.AddTo(screen)` extension) ties a subscription to Screen lifetime. Always do this — leaked R3 subscriptions hold the GameObject alive after Close.
+
+### Screen-level hooks
+
+`screen.RectTransformDimensionsChanged` same as Canvas's `screen.RootGameObject.RectTransformDimensionsChanged`
 
 ### List / option push
 
