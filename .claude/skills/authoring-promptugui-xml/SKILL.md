@@ -414,7 +414,21 @@ IconResolverHelpers.UseSpriteAtlasIconResolver();
 IconResolverHelpers.UseSpriteAtlasIconResolver(new[] { uiIconSet, artIconSet });
 ```
 
-The helper builds a `(set:icon) → Sprite` lookup from each IconSet's SpriteAtlas. To use a different backend (Addressables, custom), set `UI.IconResolver` directly.
+The helper builds a `(set:icon) → Sprite` lookup from each IconSet's SpriteAtlas.
+
+**Addressables variant** (when `com.unity.addressables` ≥ 1.0 is installed):
+
+```csharp
+// Tag your IconSet assets in Addressables with label="IconSets".
+// Addressables auto-pulls the referenced SpriteAtlas as a dependency.
+await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver();
+// Or custom label:
+await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver("MyIcons");
+```
+
+Returns `Awaitable` — `await` it before opening any Screen that contains `<Icon>`, since `UI.IconResolver` is set inside the continuation. The loaded handle is held static and released either on a second `UseAddressableSpriteAtlasIconResolver` call (swap label/locale) or on `UI.ResetForTests`. Only visible when `PROMPTUGUI_HAS_ADDRESSABLES` is defined.
+
+To use a fully custom backend, set `UI.IconResolver` directly with your own `(key → Sprite)` lookup.
 
 ### Open / Close / Get
 
