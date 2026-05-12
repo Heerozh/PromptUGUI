@@ -151,6 +151,8 @@ Anything else inside a Template body (`{{a}}:{{b}}`, `solar:{{a}}-{{b}}`, multi-
 
 `padding` and `spacing` are **NOT** universal — only on `<VStack>` / `<HStack>` / `<Grid>`.
 
+`anchor` and `margin` are **NOT** available on `<VStack>` / `<HStack>` / `<Grid>`.
+
 ## Anchor system: 4×4 grid
 
 `anchor="<vertical>-<horizontal>"`:
