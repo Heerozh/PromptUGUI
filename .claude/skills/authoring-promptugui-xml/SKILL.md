@@ -404,10 +404,10 @@ async void Start() {
 If your project has `com.unity.addressables` installed, prefer to load `.ui.xml` files via Addressables instead of Resources:
 
 ```csharp
-[SerializeField] AssetReferenceT<TextAsset> _mainMenuXml;
+[SerializeField] AssetReferenceT<TextAsset> mainMenuXml;
 // ...
 UI.UseAddressableResolver();
-await UI.LoadDocumentAsync(_mainMenuXml);                   // forwards AssetGUID to the string pipeline
+await UI.LoadDocumentAsync(mainMenuXml);                   // forwards AssetGUID to the string pipeline
 UI.Open("MainMenu");
 ```
 
