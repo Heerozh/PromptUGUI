@@ -106,6 +106,40 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Variant_switch_from_size_to_width_only_resets_height_axis()
+        {
+            // 验证 ApplyLayoutElement 的"先重置两轴再写入"逻辑：
+            // 切换变体让 height 轴从"被 size=指定为 64"变成"未指定"，preferredHeight 必须
+            // 从 64 重置到 -1，而不是残留前一轮的值。
+            //
+            // 用法：base 提供 size=64x64；mobile 激活时把 size 覆写为空 + 提供 width=100。
+            // (SizeSpec.Parse 视空串为"未指定"，所以 mobile 下只有 width 轴被指定。)
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <VStack id='stack' width='200' height='200'>
+    <Btn id='b' size='64x64' size.mobile='' width.mobile='100'/>
+  </VStack>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            UI.Variants.Set("mobile", false);
+            var screen = UI.Open("S");
+            var btn = screen.Get<Btn>("b");
+            var le = btn.GameObject.GetComponent<LayoutElement>();
+            Assert.AreEqual(64f, le.preferredWidth, "desktop: size= writes both axes");
+            Assert.AreEqual(64f, le.preferredHeight);
+            Assert.AreEqual(0f, le.flexibleWidth);
+            Assert.AreEqual(0f, le.flexibleHeight);
+
+            UI.Variants.Set("mobile", true);
+            // Variants.Changed → Screen.ReSolve → ApplyCommon → ApplyLayoutElement
+            Assert.AreEqual(100f, le.preferredWidth, "mobile: width override = 100");
+            Assert.AreEqual(0f, le.flexibleWidth);
+            Assert.AreEqual(-1f, le.preferredHeight,
+                "mobile has no height (size.mobile empty) — must reset to -1, not retain 64");
+            Assert.AreEqual(-1f, le.flexibleHeight);
+        }
+
+        [Test]
         public void LayoutElement_inside_VStack_skips_rect_anchored_and_size_writes()
         {
             // Author-supplied anchor/margin under a LayoutGroup is ignored by design (spec §6.5).
