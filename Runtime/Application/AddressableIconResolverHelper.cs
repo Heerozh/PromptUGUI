@@ -21,6 +21,25 @@ namespace PromptUGUI.Application
         // called, without inspecting Addressables internals.
         internal static int _testReleaseCount;
 
+        /// <summary>
+        /// Loads every <see cref="IconSet"/> tagged with <paramref name="label"/> via
+        /// Addressables, builds the icon lookup map, and installs it as
+        /// <c>UI.IconResolver</c>.
+        ///
+        /// The underlying <c>AsyncOperationHandle</c> is held for the lifetime of the
+        /// resolver so the loaded IconSet assets (and their dependent SpriteAtlas refs)
+        /// stay resident. It is released on the next call to this method or on
+        /// <c>UI.ResetForTests</c>; calling twice in a row is therefore safe and acts
+        /// as a rebind.
+        ///
+        /// In the Editor this also wires <c>UI.HotReload.IconResolverRebuilder</c> so
+        /// the lookup map is rebuilt in-place when an IconSet asset is re-imported,
+        /// without re-downloading via Addressables.
+        ///
+        /// Only available when <c>com.unity.addressables</c> is installed
+        /// (<c>PROMPTUGUI_HAS_ADDRESSABLES</c> compile define).
+        /// </summary>
+        /// <param name="label">Addressables label tagging the IconSet assets to load.</param>
         public static async Awaitable UseAddressableSpriteAtlasIconResolver(
             string label = "IconSets")
         {
