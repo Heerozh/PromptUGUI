@@ -458,13 +458,13 @@ The helper builds a `(set:icon) → Sprite` lookup from each IconSet's SpriteAtl
 
 ```csharp
 // Tag your IconSet assets in Addressables with label="IconSets".
-// Addressables auto-pulls the referenced SpriteAtlas as a dependency.
+// Addressables auto-pulls all the referenced SpriteAtlas as a dependency.
 await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver();
 // Or custom label:
 await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver("MyIcons");
 ```
 
-Returns `Awaitable` — `await` it before opening any Screen that contains `<Icon>`, since `UI.IconResolver` is set inside the continuation. The loaded handle is held static and released either on a second `UseAddressableSpriteAtlasIconResolver` call (swap label/locale) or on `UI.ResetForTests`. Only visible when `PROMPTUGUI_HAS_ADDRESSABLES` is defined.
+Returns `Awaitable` — `await` it before opening any Screen that contains `<Icon>`, since `UI.IconResolver` is set inside the continuation. The loaded handle is held static and released on a second `UseAddressableSpriteAtlasIconResolver` call (swap label/locale). Only visible when `PROMPTUGUI_HAS_ADDRESSABLES` is defined.
 
 `Sprite` references returned from `UI.IconResolver` are only valid while the current handle is held — releasing the handle (label swap, reset) unloads the underlying `SpriteAtlas`. Do not cache the returned `Sprite` in your own fields across such calls; resolve via `UI.IconResolver` (or rely on `<Icon name>` re-resolving on Variant changes) each time you need it.
 
