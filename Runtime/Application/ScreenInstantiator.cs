@@ -166,11 +166,15 @@ namespace PromptUGUI.Application
                 if (node.Attributes.ContainsKey("anchor")
                     || node.VariantOverrides.ContainsKey("anchor"))
                     Debug.LogWarning(
-                        $"<{node.Tag} id='{node.Id}'>: anchor ignored inside layout group");
+                        $"<{node.Tag} id='{node.Id}'>: 'anchor' is ignored because the parent is a layout group (VStack/HStack/Grid), which positions children automatically. " +
+                        $"Fix: remove the 'anchor' attribute and use 'size' / 'width' / 'height' to control this child's size; " +
+                        $"or, if you need anchor-based positioning, move this element out of the layout group (e.g. into a <Frame>).");
                 if (node.Attributes.ContainsKey("margin")
                     || node.VariantOverrides.ContainsKey("margin"))
                     Debug.LogWarning(
-                        $"<{node.Tag} id='{node.Id}'>: margin ignored inside layout group");
+                        $"<{node.Tag} id='{node.Id}'>: 'margin' is ignored because the parent is a layout group (VStack/HStack/Grid), which spaces children automatically. " +
+                        $"Fix: remove the 'margin' attribute and use the parent stack's 'padding' / 'spacing' for gaps; " +
+                        $"or, if you need margin-based offsets, move this element out of the layout group (e.g. into a <Frame>).");
             }
 
             var entry = _registry.Resolve(node.Tag);

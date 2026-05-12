@@ -20,7 +20,8 @@ namespace PromptUGUI.Tests.Lifecycle
         public IEnumerator Anchor_on_VStack_child_logs_warning()
         {
             LogAssert.Expect(LogType.Warning,
-                new Regex("anchor.*ignored.*inside.*layout group", RegexOptions.IgnoreCase));
+                new Regex("anchor.*ignored.*VStack/HStack/Grid.*(size|width|height).*Frame",
+                    RegexOptions.IgnoreCase));
 
             UI.LoadDocument("d", @"<PromptUGUI version='1'>
                 <Screen name='S'>
@@ -38,7 +39,8 @@ namespace PromptUGUI.Tests.Lifecycle
         public IEnumerator Margin_on_HStack_child_logs_warning()
         {
             LogAssert.Expect(LogType.Warning,
-                new Regex("margin.*ignored.*inside.*layout group", RegexOptions.IgnoreCase));
+                new Regex("margin.*ignored.*VStack/HStack/Grid.*(padding|spacing).*Frame",
+                    RegexOptions.IgnoreCase));
 
             UI.LoadDocument("d2", @"<PromptUGUI version='1'>
                 <Screen name='S2'>
@@ -70,7 +72,8 @@ namespace PromptUGUI.Tests.Lifecycle
         public IEnumerator Variant_anchor_on_VStack_child_logs_warning()
         {
             LogAssert.Expect(LogType.Warning,
-                new Regex("anchor.*ignored.*inside.*layout group", RegexOptions.IgnoreCase));
+                new Regex("anchor.*ignored.*VStack/HStack/Grid.*(size|width|height).*Frame",
+                    RegexOptions.IgnoreCase));
 
             UI.LoadDocument("vw1", @"<PromptUGUI version='1'>
                 <Screen name='VW1'>
@@ -88,7 +91,8 @@ namespace PromptUGUI.Tests.Lifecycle
         public IEnumerator Variant_margin_on_HStack_child_logs_warning()
         {
             LogAssert.Expect(LogType.Warning,
-                new Regex("margin.*ignored.*inside.*layout group", RegexOptions.IgnoreCase));
+                new Regex("margin.*ignored.*VStack/HStack/Grid.*(padding|spacing).*Frame",
+                    RegexOptions.IgnoreCase));
 
             UI.LoadDocument("vw2", @"<PromptUGUI version='1'>
                 <Screen name='VW2'>
