@@ -63,5 +63,24 @@ namespace PromptUGUI.Tests.Controls
             Object.Destroy(go);
             yield return null;
         }
+
+        [UnityTest]
+        public IEnumerator Locks_child_sizing_flags()
+        {
+            var v = new VStack();
+            var go = new GameObject("vstack", typeof(RectTransform));
+            v.AttachTo(go);
+            var lg = go.GetComponent<VerticalLayoutGroup>();
+            Assert.IsTrue(lg.childControlWidth,
+                "VStack must let LayoutElement.preferredWidth drive child width");
+            Assert.IsTrue(lg.childControlHeight,
+                "VStack must let LayoutElement.preferredHeight drive child height");
+            Assert.IsFalse(lg.childForceExpandWidth,
+                "VStack must NOT force-expand children horizontally — that defeats fixed-size children");
+            Assert.IsFalse(lg.childForceExpandHeight,
+                "VStack must NOT force-expand children vertically — that defeats fixed-size children");
+            Object.Destroy(go);
+            yield return null;
+        }
     }
 }

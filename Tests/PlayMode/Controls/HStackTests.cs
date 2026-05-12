@@ -37,5 +37,20 @@ namespace PromptUGUI.Tests.Controls
             Object.Destroy(go);
             yield return null;
         }
+
+        [UnityTest]
+        public IEnumerator Locks_child_sizing_flags()
+        {
+            var h = new HStack();
+            var go = new GameObject("hstack", typeof(RectTransform));
+            h.AttachTo(go);
+            var lg = go.GetComponent<HorizontalLayoutGroup>();
+            Assert.IsTrue(lg.childControlWidth);
+            Assert.IsTrue(lg.childControlHeight);
+            Assert.IsFalse(lg.childForceExpandWidth);
+            Assert.IsFalse(lg.childForceExpandHeight);
+            Object.Destroy(go);
+            yield return null;
+        }
     }
 }

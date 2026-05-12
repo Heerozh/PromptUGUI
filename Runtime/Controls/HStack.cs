@@ -12,6 +12,11 @@ namespace PromptUGUI.Controls
         {
             _layout = GameObject.GetComponent<HorizontalLayoutGroup>()
                       ?? GameObject.AddComponent<HorizontalLayoutGroup>();
+            // 同 VStack：spec §6.5 路由前提。
+            _layout.childControlWidth = true;
+            _layout.childControlHeight = true;
+            _layout.childForceExpandWidth = false;
+            _layout.childForceExpandHeight = false;
         }
 
         [UIAttr]

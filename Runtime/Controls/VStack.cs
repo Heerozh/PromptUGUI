@@ -14,6 +14,13 @@ namespace PromptUGUI.Controls
         {
             _layout = GameObject.GetComponent<VerticalLayoutGroup>()
                       ?? GameObject.AddComponent<VerticalLayoutGroup>();
+            // spec §6.5: 子节点 size/width/height 走 LayoutElement.preferredX + flexibleX=0。
+            // childControl* 必须 true，LayoutElement 才生效；forceExpand* 必须 false，
+            // 否则剩余空间会被均摊到固定尺寸子节点上把它撑大。
+            _layout.childControlWidth = true;
+            _layout.childControlHeight = true;
+            _layout.childForceExpandWidth = false;
+            _layout.childForceExpandHeight = false;
         }
 
         [UIAttr]
