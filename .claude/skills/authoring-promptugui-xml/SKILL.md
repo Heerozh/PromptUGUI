@@ -153,6 +153,10 @@ Anything else inside a Template body (`{{a}}:{{b}}`, `solar:{{a}}-{{b}}`, multi-
 
 `anchor` and `margin` are **NOT** available on `<VStack>` / `<HStack>` / `<Grid>`.
 
+**Inside `<VStack>` / `<HStack>`**, a child's `size` / `width` / `height` is written to `LayoutElement.preferredX` with `flexibleX=0` (not to `sizeDelta`). So `<Btn size="64x64"/>` inside a VStack is **strictly 64×64** — the layout group will not stretch it. Specifying only one axis (e.g. `width="100"`) leaves the other axis unconstrained, taking the child's intrinsic preferred size. Omitting all size attributes gets no `LayoutElement` — the child collapses to whatever its own components advertise (often 0 for an empty Frame), so write at least one axis when you need a visible footprint.
+
+**Inside `<Grid>`**, the parent's `cellSize` is authoritative — a child's `size` is silently ignored.
+
 ## Anchor system: 4×4 grid
 
 `anchor="<vertical>-<horizontal>"`:
