@@ -85,8 +85,39 @@ namespace PromptUGUI.Application
                 }
             }
 
-            public static void SetToSystemDefault() =>
-                Set(LocaleHelpers.MapSystemLanguage(UnityEngine.Application.systemLanguage));
+            public static void SetToSystemDefault(string fallback = null) =>
+                SetToSystemDefaultCore(
+                    UnityEngine.Application.systemLanguage, Configured, fallback);
+
+            public static UnityEngine.Awaitable SetToSystemDefaultAsync(string fallback = null) =>
+                SetToSystemDefaultAsyncCore(
+                    UnityEngine.Application.systemLanguage, Configured, fallback);
+
+            internal static void SetToSystemDefaultCore(
+                UnityEngine.SystemLanguage systemLanguage,
+                System.Collections.Generic.IReadOnlyList<string> configured,
+                string fallback) =>
+                Set(ResolveSystemDefault(systemLanguage, configured, fallback));
+
+            internal static UnityEngine.Awaitable SetToSystemDefaultAsyncCore(
+                UnityEngine.SystemLanguage systemLanguage,
+                System.Collections.Generic.IReadOnlyList<string> configured,
+                string fallback) =>
+                SetAsync(ResolveSystemDefault(systemLanguage, configured, fallback));
+
+            internal static string ResolveSystemDefault(
+                UnityEngine.SystemLanguage systemLanguage,
+                System.Collections.Generic.IReadOnlyList<string> configured,
+                string fallback)
+            {
+                var sysBcp47 = LocaleHelpers.MapSystemLanguage(systemLanguage);
+                if (sysBcp47 != null && configured != null)
+                {
+                    for (var i = 0; i < configured.Count; i++)
+                        if (configured[i] == sysBcp47) return sysBcp47;
+                }
+                return fallback ?? sysBcp47;
+            }
 
             public static void InitializeIfNeeded() =>
                 InitializeIfNeededCore(UnityEngine.Application.systemLanguage, Configured);

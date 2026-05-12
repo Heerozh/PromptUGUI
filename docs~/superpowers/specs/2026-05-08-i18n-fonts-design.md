@@ -303,7 +303,8 @@ namespace PromptUGUI.Application {
                 Changed?.Invoke();
             }
 
-            public static void SetToSystemDefault() => Set(MapSystemLanguage());
+            public static void SetToSystemDefault(string fallback = null);
+            public static UnityEngine.Awaitable SetToSystemDefaultAsync(string fallback = null);
 
             // 启动自动初始化（[RuntimeInitializeOnLoadMethod(BeforeSceneLoad)] 调用此方法）。
             // 也可被 app 手动调用作为兜底初始化。语义见 §4.3 / D11。
@@ -325,7 +326,17 @@ namespace PromptUGUI.Application {
 - Korean → "ko"
 - 其它常见 SystemLanguage 各对应；未识别返 null
 
-`SetToSystemDefault()` 是低阶 API：调到 `MapSystemLanguage` 返回的字符串后直接 `Set`，即使该字符串不在 `Configured` 中也接受（"宁愿不翻译也不阻塞"哲学的手工逃生口）。
+`SetToSystemDefault(fallback = null)` 是低阶 API：
+
+1. 若 `MapSystemLanguage(systemLanguage)` 返回非 null 且命中 `Configured` → `Set(命中的)`
+2. 否则若 `fallback != null` → `Set(fallback)`（即使 `fallback` 不在 `Configured` 中也接受 — 与 `Set` 一致的"信任 caller"立场）
+3. 否则 → `Set(MapSystemLanguage(systemLanguage))`（保留"宁愿不翻译也不阻塞"逃生口；映射返回 null 时 `Current` 留为 null，所有 msgid 透出原文）
+
+跟 `InitializeIfNeeded()` 不同：`SetToSystemDefault` 不发警告，因为 (a) `fallback` 是 caller 显式选择，不是降级；(b) 不命中且无 fallback 的"显示原文"路径是 spec §6.4 文档化的逃生口，不是错误。
+
+`SetToSystemDefaultAsync(fallback = null)` 走相同的 resolution 逻辑，但通过 `SetAsync` 让 caller 可以 `await` PO 加载完成（典型用法：登录闪屏想等翻译就位再过场）。
+
+可测性：内部 `SetToSystemDefaultCore(SystemLanguage, IReadOnlyList<string>, string)` / `SetToSystemDefaultAsyncCore(...)` 接受参数注入，共用纯函数 `ResolveSystemDefault(...)`；公共方法读 `Application.systemLanguage` + `Configured` 转发。
 
 `InitializeIfNeeded()` 是高阶启动初始化 API（D11）：
 1. 若 `Current != null` → 直接返回（已经被 app / 之前的初始化设过）
@@ -615,6 +626,7 @@ system prompt 默认模板（用户可在 ProjectSettings 改）：
 | `Tests/EditMode/Editor/StringExtractorCSharpTests.cs` | Roslyn 扫描、动态参数 warn、注释提取 |
 | `Tests/EditMode/Application/LocaleSetTests.cs` | Variant.Changed 触发 + 切 locale 触发 ReSolve |
 | `Tests/EditMode/Application/LocaleInitializeIfNeededTests.cs` | 启动自动初始化算法（D11 / §6.4）：noop-when-set / noop-when-empty / use-system / warn-and-fallback (mapped) / warn-and-fallback (unknown) |
+| `Tests/EditMode/Application/LocaleSetToSystemDefaultTests.cs` | `SetToSystemDefault(fallback)` / `SetToSystemDefaultAsync(fallback)` §6.4：use-system-when-configured / fallback-when-system-not-configured / fallback-when-system-unknown / 无 fallback 保持旧"逃生口"行为 / fallback 不在 Configured 也接受 / configured=null 等价空 / Async 走 SetAsync 让 PO 可 await |
 | `Tests/EditMode/Parser/CDataInTextTests.cs` | parser 接受 `<Text><![CDATA[...]]></Text>`、含 `<sprite>` 等 |
 | `Tests/EditMode/Application/SettingsAssetTests.cs` | preloadedAssets 自动维护、多 Settings 报错 |
 | `Tests/PlayMode/E2E/I18nFontSwapTests.cs` | Set locale → 字体换 + 文字翻译 |
