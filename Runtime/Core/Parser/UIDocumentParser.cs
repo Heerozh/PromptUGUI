@@ -98,6 +98,37 @@ namespace PromptUGUI.Parser
                 };
             }
 
+            // <Screen reference="WxH"> stored on rootNode.Attributes so VariantResolver
+            // can pick base + .variant overrides uniformly at runtime.
+            if (el.HasAttribute("reference"))
+            {
+                var referenceAttr = el.GetAttribute("reference");
+                if (!string.IsNullOrEmpty(referenceAttr))
+                    PromptUGUI.Application.ReferenceResolutionParser.Parse(
+                        referenceAttr, $"<Screen name='{name}' reference>");
+                rootNode.Attributes["reference"] = referenceAttr;
+            }
+
+            // <Screen reference.<variant>="..."> — same shape as ElementNode VariantOverrides.
+            foreach (System.Xml.XmlAttribute a in el.Attributes)
+            {
+                if (!a.Name.StartsWith("reference.")) continue;
+                var variant = a.Name.Substring("reference.".Length);
+                if (string.IsNullOrEmpty(variant) || variant.Contains("."))
+                    throw new ParseException(
+                        $"<Screen name='{name}'>: malformed attribute '{a.Name}' " +
+                        $"(variant suffix must be 'reference.variant' with no further dots)");
+                if (!string.IsNullOrEmpty(a.Value))
+                    PromptUGUI.Application.ReferenceResolutionParser.Parse(
+                        a.Value, $"<Screen name='{name}' {a.Name}>");
+                if (!rootNode.VariantOverrides.TryGetValue("reference", out var list))
+                {
+                    list = new System.Collections.Generic.List<(string, string)>();
+                    rootNode.VariantOverrides["reference"] = list;
+                }
+                list.Add((variant, a.Value));
+            }
+
             var seenWhen = new System.Collections.Generic.HashSet<string>();
 
             foreach (XmlNode c in el.ChildNodes)

@@ -529,6 +529,46 @@ namespace PromptUGUI.Tests.Editor
             }
             CollectionAssert.IsEmpty(errors, message);
         }
+
+        [Test]
+        public void Screen_element_declares_reference_attribute()
+        {
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+            StringAssert.Contains("name=\"reference\"", xsd);
+        }
+
+        [Test]
+        public void Screen_element_allows_variant_form_via_any_attribute()
+        {
+            // Validate reference.<variant> attribute on <Screen> against the generated
+            // schema — covers both 'reference declared' and 'open variant namespace'.
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+
+            const string sample = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' reference='1920x1080' reference.mobile='1080x1920'>
+    <Frame/>
+  </Screen>
+</PromptUGUI>";
+
+            var schemas = new System.Xml.Schema.XmlSchemaSet();
+            schemas.Add(null, System.Xml.XmlReader.Create(new StringReader(xsd)));
+            var settings = new System.Xml.XmlReaderSettings
+            {
+                ValidationType = System.Xml.ValidationType.Schema,
+                Schemas = schemas,
+            };
+            var errors = new System.Collections.Generic.List<string>();
+            settings.ValidationEventHandler += (_, e) => errors.Add(e.Message);
+            using (var reader = System.Xml.XmlReader.Create(new StringReader(sample), settings))
+            {
+                while (reader.Read()) { }
+            }
+            CollectionAssert.IsEmpty(errors,
+                "Screen reference= and reference.<variant>= must validate against generated XSD.");
+        }
     }
 
     public class TestPrimaryButton : Control

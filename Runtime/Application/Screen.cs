@@ -78,6 +78,7 @@ namespace PromptUGUI.Application
             // Pixel-art / hand-tuned palettes want vertex colors to land on the canvas
             // verbatim, without the linear→sRGB roundtrip altering them.
             canvas.vertexColorAlwaysGammaSpace = true;
+            ApplyCanvasScaler(root.GetComponent<UnityEngine.UI.CanvasScaler>());
             UI.CanvasConfigurator?.Invoke(canvas, Def.Name);
 
             // 缺少 EventSystem 时按钮等不会响应任何指针事件,这是常见的踩坑点。
@@ -108,6 +109,24 @@ namespace PromptUGUI.Application
                     ActivateAddBlock(block);
             }
             _variantSub = Variants.Changed.Subscribe(_ => ReSolve());
+        }
+
+        private void ApplyCanvasScaler(UnityEngine.UI.CanvasScaler scaler)
+        {
+            var raw = PromptUGUI.Variants.VariantResolver.ResolveAttribute(
+                Def.Root, "reference", Variants);
+            var parsed = PromptUGUI.Application.ReferenceResolutionParser.Parse(
+                raw, $"<Screen name='{Def.Name}' reference> (runtime)");
+            if (!parsed.HasValue)
+            {
+                scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize;
+                scaler.scaleFactor = 1f;
+                return;
+            }
+            var size = parsed.Value;
+            scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = size;
+            scaler.matchWidthOrHeight = size.x >= size.y ? 0f : 1f;
         }
 
         public void Close()
@@ -194,6 +213,7 @@ namespace PromptUGUI.Application
                 var entry = _registry.Resolve(node.Tag);
                 ControlAttributeApplier.Apply(node, control, entry, Variants);
             }
+            ApplyCanvasScaler(RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>());
         }
 
         private void ActivateAddBlock(VariantBlock block)

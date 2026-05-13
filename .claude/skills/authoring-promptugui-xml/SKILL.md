@@ -58,7 +58,7 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 | ------------------------------------ | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `<PromptUGUI version="1">`           | Root, **always**.                                         | NOT `<UI>`. `version="1"` is required.                                                                               |
 | `<Import src="..." [as="ns"]/>`      | Pull templates from another file.                         | Top-level only. `as=` adds namespace prefix.                                                                         |
-| `<Screen name="..." [canvas="..."]>` | A complete UI scene; opened by code with `UI.Open(name)`. | One Screen = one Canvas. Names unique across all loaded files. `canvas="overlay\|camera\|world"`, default `overlay`. |
+| `<Screen name="..." [canvas="..."] [reference="..."]>` | A complete UI scene; opened by code with `UI.Open(name)`. | One Screen = one Canvas. Names unique across all loaded files. `canvas="overlay\|camera\|world"`, default `overlay`. Optional `reference="WxH"` (+ `.variant`) switches CanvasScaler to ScaleWithScreenSize. |
 | `<Template name="...">`              | Reusable subtree, expanded at parse time.                 | Body must have **exactly one root element**.                                                                         |
 
 `<Import>`, `<Screen>`, `<Template>` are the **only** elements allowed at the top level. Comments use standard `<!-- -->`.
@@ -559,6 +559,29 @@ UI.CanvasConfigurator = (canvas, screenName) => {
 
 The callback fires once per `Open()` (so also re-fires on hot-reload, since reload = close + reopen). The library never auto-creates Cameras — assigning `worldCamera` is the user's job. With no configurator and no `canvas=` attribute, every Screen is `ScreenSpaceOverlay`, `sortingOrder=0`.
 
+**Pixel units & scaling.** 默认情况下 `<Screen>` 创建的 `CanvasScaler` 是
+`ConstantPixelSize, scaleFactor=1`，所以 `width="240"` ≡ 240 个**设备像素** ——
+同一 XML 在 1080p / 4K / 不同手机上视觉大小不一致。要按"设计分辨率"自动缩放
+（业内默认配法），在 `<Screen>` 上声明 `reference="WxH"`：
+
+```xml
+<Screen name="MainMenu" reference="1920x1080">...</Screen>
+
+<!-- 横屏 PC + 竖屏手机一份 XML -->
+<Screen name="MainMenu"
+        reference="1920x1080"
+        reference.mobile="1080x1920">...</Screen>
+```
+
+- `reference="WxH"` → CanvasScaler 切到 `ScaleWithScreenSize`，referenceResolution
+  即该值。`matchWidthOrHeight` 按朝向自动推断：W ≥ H 锁宽（0），H > W 锁高（1）。
+- 未设 / `reference=""` → 保留默认 ConstantPixelSize 行为。
+- `.variant` 形态：`reference.mobile="..."` 同其他属性 variant 规则；变体切换时
+  CanvasScaler 立即重应用。
+- 要 `match=0.5` 折中或改 `referencePixelsPerUnit`：走 `UI.CanvasConfigurator`
+  手改。**不要在两条路径同时改 CanvasScaler** —— variant flip 时 XML 路径会覆盖
+  configurator 的改动。
+
 **Icon system setup** (optional, only if your XML uses `<Icon>`):
 
 ```csharp
@@ -683,6 +706,7 @@ UI.Registry.Register<MyControl>("MyControl", optionalPrefab: null);
 | Symptom                                                            | Cause                                                                        | Fix                                                                                            |
 | ------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `cannot specify width/size on a horizontally-stretched axis`       | `<X anchor="top-stretch" width="200"/>`                                      | Either change anchor, or drop `width`. The stretched axis takes its size from `margin`.        |
+| `<Text>` renders one character per line (vertical)                 | `<Text>` under a non-LayoutGroup parent (`<Btn>` / `<Frame>` / `<Screen>`) with `anchor="center"` and no `width` / `height` — `sizeDelta` defaults to `(0,0)`, so TMP wraps every glyph at width 0 | Give the Text width: `anchor="stretch"` + `margin` to fill the parent (offset siblings like `<Icon>` with margin), or set `width="..."` explicitly. Inside a `<VStack>` / `<HStack>` this doesn't happen — the LayoutGroup expands the child on the cross axis. |
 | Element not found at runtime                                       | `id` only declared inside a `<Template>`, but accessed by flat name          | Use path: `screen.Get("templateId/innerId")`                                                   |
 | Ghost element on variant toggle                                    | `<Add>` instantiated and never deactivated                                   | This is by design (Strategy C). Use `hidden.variant` if you need a node to disappear.          |
 | Subscription survives Close → null refs                            | Forgot `.AddTo(screen)`                                                      | Always tie R3 subscriptions to Screen lifetime                                                 |
@@ -694,6 +718,7 @@ UI.Registry.Register<MyControl>("MyControl", optionalPrefab: null);
 | `'%' (fractional) ... cannot be used inside <VStack>/<HStack>/<Grid>` | `<Btn width="50%"/>` inside a VStack/HStack/Grid                            | LayoutGroup is weight-based: use `stretch*N` + spacer siblings (e.g. spacer/stretch\*2/spacer = 25/50/25), or move the child to a `<Frame>` parent |
 | `stretch*0` / `stretch*-1` / `stretch*` rejected                   | Invalid weight after `stretch*`                                              | Weight must be a positive number, e.g. `stretch*2` / `stretch*0.5`                             |
 | `'150%' must be in (0%, 100%]`                                     | Percentage out of range                                                      | Allowed range is `(0%, 100%]`. For "wider than parent", redesign the layout (likely a typo)    |
+| UI 在不同屏上视觉大小不一（4K 上变邮票、手机上变巨人） | `<Screen>` 没设 `reference=`，走默认 `ConstantPixelSize, scaleFactor=1`，XML 数字直接 = 设备像素 | 在 `<Screen>` 上加 `reference="1920x1080"`（或你的设计分辨率），切到 `ScaleWithScreenSize` |
 
 ## Quick reference (cheatsheet)
 
@@ -757,6 +782,8 @@ C# DATA       Dropdown.BindOptions(Observable<IEnumerable<string>>).AddTo(screen
               ScrollList.BindItems(Observable<IReadOnlyList<T>>, (slot,t)=>...).AddTo(screen)
 C# VARIANT    UI.Variants.Set("name", true)
 XML CANVAS    <Screen name="X" canvas="overlay|camera|world">   default overlay; renderMode only
+XML SCALER    <Screen name="X" reference="WxH">                 ScaleWithScreenSize; unset = ConstantPixelSize
+                                                                  .variant overrides supported (reference.mobile=...)
 C# CANVAS     UI.CanvasConfigurator = (canvas, name) => { ... }  worldCamera / sortingOrder / overrides; runs after XML
 
 ## i18n
