@@ -381,6 +381,103 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Btn_element_accepts_inline_text_content()
+        {
+            // Spec: <Btn>开始</Btn> shorthand (BuiltinPrimitives registers Btn with
+            // defaultTextAttr='text'). XSD previously declared Btn as element-only,
+            // so xmllint rejected the shorthand as 'Character content other than
+            // whitespace is not allowed'. Pinning mixed-content here.
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+
+            const string sample = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'>
+    <Btn>开始</Btn>
+  </Screen>
+</PromptUGUI>";
+
+            AssertValidates(xsd, sample, "<Btn>开始</Btn> text shorthand must validate.");
+        }
+
+        [Test]
+        public void Btn_element_still_accepts_nested_child()
+        {
+            // Regression guard: making Btn mixed-content must not lose the existing
+            // ability to nest child elements (template authoring uses
+            // <Btn><Text>{{label}}</Text></Btn>).
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+
+            const string sample = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'>
+    <Btn>
+      <Text anchor='center'>Inside</Text>
+    </Btn>
+  </Screen>
+</PromptUGUI>";
+
+            AssertValidates(xsd, sample, "<Btn><Text>...</Text></Btn> must still validate.");
+        }
+
+        [Test]
+        public void Custom_control_with_defaultTextAttr_accepts_inline_text()
+        {
+            // Toggle / InputField are registered through BuiltinPrimitives with
+            // defaultTextAttr='text'; the XSD generator must honor Entry.DefaultTextAttr
+            // and emit mixed-content for those tags. Use Toggle as the representative
+            // case — same code path covers any custom control registered with
+            // defaultTextAttr.
+            var r = new ControlRegistry();
+            r.Register<Toggle>("Toggle", null, defaultTextAttr: "text");
+            var xsd = XsdGenerator.Generate(r);
+
+            const string sample = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'>
+    <Toggle>静音</Toggle>
+  </Screen>
+</PromptUGUI>";
+
+            AssertValidates(xsd, sample, "<Toggle>静音</Toggle> text shorthand must validate.");
+        }
+
+        [Test]
+        public void Custom_control_without_defaultTextAttr_rejects_inline_text()
+        {
+            // Negative case: registering a control without defaultTextAttr means
+            // runtime would reject text body, and XSD must too. Guards against the
+            // opposite regression (everyone gets mixed='true').
+            var r = new ControlRegistry();
+            r.Register<TestPrimaryButton>("PrimaryButton", null);
+            var xsd = XsdGenerator.Generate(r);
+
+            const string sample = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'>
+    <PrimaryButton>nope</PrimaryButton>
+  </Screen>
+</PromptUGUI>";
+
+            var schemas = new System.Xml.Schema.XmlSchemaSet();
+            schemas.Add(null, System.Xml.XmlReader.Create(new StringReader(xsd)));
+            var settings = new System.Xml.XmlReaderSettings
+            {
+                ValidationType = System.Xml.ValidationType.Schema,
+                Schemas = schemas,
+            };
+            var errors = new System.Collections.Generic.List<string>();
+            settings.ValidationEventHandler += (_, e) => errors.Add(e.Message);
+            using (var reader = System.Xml.XmlReader.Create(new StringReader(sample), settings))
+            {
+                while (reader.Read()) { }
+            }
+            CollectionAssert.IsNotEmpty(errors,
+                "Custom control without defaultTextAttr must remain element-only.");
+        }
+
+        [Test]
         public void UIAttr_Pattern_propagated_via_reflection()
         {
             var r = new ControlRegistry();

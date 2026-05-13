@@ -85,7 +85,10 @@ namespace PromptUGUI.Editor
                 WriteControl(writer, "VStack", Array.Empty<(string, string, string)>());
                 WriteControl(writer, "HStack", Array.Empty<(string, string, string)>());
                 WriteControl(writer, "Grid", new[] { ("columns", "xs:int", (string)null), ("cellSize", "xs:string", (string)null) });
-                WriteControl(writer, "Btn", new[] { ("color", "xs:string", (string)null), ("sprite", "xs:string", (string)null) });
+                // Btn is registered with defaultTextAttr='text' (BuiltinPrimitives) →
+                // <Btn>开始</Btn> is shorthand for <Btn text="开始"/>. mixed='true' lets
+                // the same element also nest <Text> children (template authoring).
+                WriteControl(writer, "Btn", new[] { ("color", "xs:string", (string)null), ("sprite", "xs:string", (string)null) }, mixedContent: true);
                 // XSD patterns are implicitly anchored to the entire value — no ^/$.
                 // Match runtime parser's check (UIDocumentParser.IsValidIconName):
                 // set name stays strict alnum/_-, icon-name half mirrors the filesystem
@@ -107,7 +110,11 @@ namespace PromptUGUI.Editor
                 foreach (var (tag, entry) in customs)
                 {
                     var attrs = ReflectControlAttrs(entry.ControlType);
-                    WriteControl(writer, tag, attrs);
+                    // defaultTextAttr=null means the control rejects text body at
+                    // runtime; keep XSD element-only. Otherwise emit mixed='true' so
+                    // <Tag>text</Tag> shorthand validates while still permitting child
+                    // elements (e.g. <Btn><Text/></Btn>).
+                    WriteControl(writer, tag, attrs, mixedContent: entry.DefaultTextAttr != null);
                 }
 
                 // Template tags from .ui.xml. Skip names already covered by primitives
@@ -406,7 +413,8 @@ namespace PromptUGUI.Editor
 
         private static void WriteControl(XmlWriter w, string tag,
                                  (string Name, string XsdType, string Pattern)[] attrs,
-                                 bool textContent = false)
+                                 bool textContent = false,
+                                 bool mixedContent = false)
         {
             w.WriteStartElement("xs", "element", null);
             w.WriteAttributeString("name", tag);
@@ -415,7 +423,8 @@ namespace PromptUGUI.Editor
             if (textContent)
             {
                 // simpleContent extension: element body is text (no children allowed),
-                // plus the usual attributes. Used for <Text> per spec text shorthand.
+                // plus the usual attributes. Used for <Text> per spec text shorthand —
+                // inline TMP rich-text / sprite tags ship inside CDATA, not as elements.
                 w.WriteStartElement("xs", "simpleContent", null);
                 w.WriteStartElement("xs", "extension", null);
                 w.WriteAttributeString("base", "xs:string");
@@ -425,6 +434,10 @@ namespace PromptUGUI.Editor
             }
             else
             {
+                // mixed='true' is set as an attribute on the SAME complexType opened
+                // above. Must precede any child element per XmlWriter contract.
+                if (mixedContent)
+                    w.WriteAttributeString("mixed", "true");
                 w.WriteStartElement("xs", "choice", null);
                 w.WriteAttributeString("maxOccurs", "unbounded");
                 w.WriteAttributeString("minOccurs", "0");
