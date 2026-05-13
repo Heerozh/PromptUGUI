@@ -160,6 +160,50 @@ Rules:
 - Don't put `<SafeArea>` inside `<VStack>` / `<HStack>` / `<Grid>` — the layout group will override its anchor math.
 - Reacts automatically to screen rotation, window resize, and Unity 6's Device Simulator. No code-side wiring needed.
 
+## uGUI 对照表
+
+每个 PromptUGUI tag 在运行时落成一组 GameObject + Unity 组件。调试时在 Hierarchy 里按这张表把 XML 节点和实际 GO 对上；理解控件原理时把 XML 当成「这套 GO + 组件 + 默认绑线」的简写。
+
+**Tag → GO 结构 / 组件**
+
+| Tag | 根节点组件 | 自动子节点 | R3 事件源 |
+| --- | --- | --- | --- |
+| `<Frame>` | `RectTransform` 单独 | — | — |
+| `<Image>` | `Image` | — | — |
+| `<Text>` | `TextMeshProUGUI` | — | — |
+| `<VStack>` | `VerticalLayoutGroup`（硬编码 `childControlWidth/Height=true`、`childForceExpand*=false`） | — | — |
+| `<HStack>` | `HorizontalLayoutGroup`（同 VStack） | — | — |
+| `<Grid>` | `GridLayoutGroup`（`constraint=FixedColumnCount`） | — | — |
+| `<Btn>` | `Image` + `Button`（`targetGraphic=Image`） | `Label`(`TMP_Text`, stretch 撑满) — **lazy**：写了 `text=` 才创建 | `OnClick` ← `Button.onClick` |
+| `<Icon>` | `Image`（`preserveAspect=true`, `raycastTarget=false`） | — | — |
+| `<Toggle>` | `Toggle`（`targetGraphic=Background`, `graphic=Checkmark`） | `Background`(`Image`, left-middle 锚 20×20) → 内嵌 `Checkmark`(`Image`, 居中 20×20)；`Label`(`TMP_Text`, 右侧水平 stretch) | `OnValueChanged` ← `Toggle.onValueChanged` |
+| `<Slider>` | `Slider` | `Background`(`Image`)；`Fill Area` → `Fill`(`Image`)；`Handle Slide Area` → `Handle`(`Image`) | `OnValueChanged` ← `Slider.onValueChanged` |
+| `<Dropdown>` | `Image` + `TMP_Dropdown` | `Label` + `Arrow` + `Template`（默认 inactive，内含 `Viewport` / `Content` / `Item` / `Scrollbar` 完整下拉子树） | `OnSelected` ← `TMP_Dropdown.onValueChanged` |
+| `<ScrollList>` | `Image` + `ScrollRect` | `Viewport`(`Image` + `Mask` stencil) → `Content`(V/H `LayoutGroup` + `ContentSizeFitter`)；按 `direction` 再加一个 `Scrollbar` | 无独立事件；C# 端 `BindItems(...)` 推数据 |
+| `<InputField>` | `Image` + `TMP_InputField` | `Text Area`(`RectMask2D`) → `Placeholder`(`TMP_Text`, italic 半透明) + `Text`(`TMP_Text`) | `OnValueChanged` / `OnEndEdit` / `OnSubmit` ← `TMP_InputField.*` |
+| `<SafeArea>` | `RectTransform` + `SafeAreaTracker`（内部 `MonoBehaviour`，订阅设备 safeArea / 旋转 / Device Simulator） | — | — |
+
+**Common attribute → uGUI 落点**（实现在 `Control.ApplyCommon`；对所有 tag 生效，`<SafeArea>` 例外，整套 anchor/size/margin/pivot 都被拒绝）
+
+| XML | uGUI 落点 |
+| --- | --- |
+| `anchor` | `RectTransform.anchorMin` / `anchorMax`，并按 anchor 推导默认 `pivot` |
+| `size` / `width` / `height` | 父级不是 LayoutGroup：经 `MarginResolver` 写到 `RectTransform.sizeDelta`。父级是 `<VStack>` / `<HStack>`：写到 `LayoutElement.preferredWidth` / `preferredHeight` + 对应 `flexible*=0`（按轴路由，未写的轴留 `-1` 哨兵）。父级是 `<Grid>`：**被 GridLayoutGroup 接管**（cellSize 由 parent 决定，子节点写了也无视） |
+| `margin` | `RectTransform.anchoredPosition` + `sizeDelta`（`MarginResolver` 按 anchor 自动反号；stretched 轴专门吃 margin） |
+| `pivot="x,y"` | `RectTransform.pivot`（不写则从 anchor 推） |
+| `hidden="true"` | `GameObject.SetActive(false)` |
+| `interactable="false"` | `CanvasGroup.interactable=false` + `blocksRaycasts=false`（首次访问按需 add `CanvasGroup`；级联到所有后代，比 `Selectable.interactable` 范围更大） |
+
+**不变量与易踩坑**
+
+- 纯容器（`<Frame>` / `<*Stack>` / `<Grid>` / `<SafeArea>`）根上**没有** `Image`，本身不可见 —— 想要底色得自己塞一个 `<Image anchor="stretch"/>` 子节点。
+- `<Btn>` 的 Label 是 lazy：写 `<Btn/>`（无 `text=`、无子 `<Text>`、无内联文本）不会有 Label 子 GO；之后 C# 设 `BtnInstance.Text = "x"` 才会现场补一个。
+- `<Toggle>` 的 `targetGraphic` / `graphic` 在 `OnAttached` 内已绑死（Background / Checkmark），外部别再设；`group=` 不直接绑 Unity `ToggleGroup`，而是落到 `Screen.ToggleGroups.GetOrCreate(name)` 这个 Screen 范围的共享池里。
+- `<ScrollList>` 的 item 子节点在 `OnAttached` 阶段是空的，必须在 C# 端 `BindItems(observable, (slot, item) => ...)` 之后才出现；hot-reload 后也要重新 Bind。
+- `font="<type>"` 不是字体文件路径，而是 `PromptUGUISettings.fonts[]` 登记的**字体类型 key**（如 `"default"` / `"title"`），通过 `ResolveFont(locale, type)` 才解析到 `TMP_FontAsset`，并在 `UI.Locale.Changed` 时自动重赋。
+- 内置 `<Image>` / `<Btn>` / `<Toggle>` 的 `sprite=` 走 `Resources.Load<Sprite>(value)`；要用 Addressables / Asset 引用的精灵得自己 subclass。`<Icon>` 是唯一走 `UI.IconResolver` 的入口。
+- `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` 是参考实现 —— 想要像素描边、按下反馈、自定义下拉 chrome，subclass 并 override `OnAttached`，不要改这几个 Control 本体。
+
 ## Common attributes (any tag)
 
 | Attribute                  | Format       | Notes                                                                                  |
