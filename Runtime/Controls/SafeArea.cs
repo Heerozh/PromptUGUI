@@ -1,7 +1,14 @@
+using PromptUGUI.Controls.Internal;
+
 namespace PromptUGUI.Controls
 {
     public sealed class SafeArea : Control
     {
-        // OnAttached / OnAfterApply 在后续 Task 中填充。
+        private SafeAreaTracker _tracker;
+
+        public override void OnAttached()
+        {
+            _tracker = GameObject.AddComponent<SafeAreaTracker>();
+        }
     }
 }

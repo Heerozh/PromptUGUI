@@ -25,6 +25,20 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void SafeArea_attaches_tracker_on_instantiation()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <SafeArea id='sa'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var sa = screen.Get<SafeArea>("sa");
+            var tracker = sa.GameObject.GetComponent<PromptUGUI.Controls.Internal.SafeAreaTracker>();
+            Assert.IsNotNull(tracker, "SafeArea.OnAttached should add SafeAreaTracker");
+        }
+
+        [Test]
         public void Tracker_applies_safe_area_fractions()
         {
             try
