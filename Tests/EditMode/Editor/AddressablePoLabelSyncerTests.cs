@@ -159,5 +159,122 @@ namespace PromptUGUI.Tests.Editor
             CollectionAssert.AreEquivalent(
                 new[] { "Assets/Localization/zh-Hans/main.po" }, orphans);
         }
+
+        [Test]
+        public void FindLocaleFolder_returns_folder_path_up_to_locale()
+        {
+            var folder = AddressablePoLabelSyncer.FindLocaleFolder(
+                "Assets/Localization/zh-Hans/main.po", "zh-Hans");
+            Assert.AreEqual("Assets/Localization/zh-Hans", folder);
+        }
+
+        [Test]
+        public void FindLocaleFolder_returns_grandparent_folder_when_nested_below_locale()
+        {
+            var folder = AddressablePoLabelSyncer.FindLocaleFolder(
+                "Assets/Localization/en/screens/MainMenu.po", "en");
+            Assert.AreEqual("Assets/Localization/en", folder);
+        }
+
+        [Test]
+        public void FindLocaleFolder_returns_null_when_no_segment_matches()
+        {
+            var folder = AddressablePoLabelSyncer.FindLocaleFolder(
+                "Assets/Misc/random/foo.po", "zh-Hans");
+            Assert.IsNull(folder);
+        }
+
+        [Test]
+        public void FindLocaleFolder_picks_closest_when_multiple_segments_match()
+        {
+            var folder = AddressablePoLabelSyncer.FindLocaleFolder(
+                "Assets/zh-Hans/sub/zh-Hans/leaf.po", "zh-Hans");
+            Assert.AreEqual("Assets/zh-Hans/sub/zh-Hans", folder);
+        }
+
+        [Test]
+        public void FindLocaleFolder_normalizes_backslashes()
+        {
+            var folder = AddressablePoLabelSyncer.FindLocaleFolder(
+                "Assets\\Localization\\zh-Hans\\main.po", "zh-Hans");
+            Assert.AreEqual("Assets/Localization/zh-Hans", folder);
+        }
+
+        [Test]
+        public void FindLocaleFolder_returns_null_for_empty_path()
+        {
+            Assert.IsNull(AddressablePoLabelSyncer.FindLocaleFolder("", "zh-Hans"));
+            Assert.IsNull(AddressablePoLabelSyncer.FindLocaleFolder(null, "zh-Hans"));
+        }
+
+        [Test]
+        public void ResolveOutputDirForLocale_falls_back_when_no_labelled_paths()
+        {
+            var dir = AddressablePoLabelSyncer.ResolveOutputDirForLocale(
+                "zh-Hans",
+                System.Array.Empty<string>(),
+                "Assets/Resources/PromptUGUI/i18n",
+                out var detected);
+            Assert.AreEqual("Assets/Resources/PromptUGUI/i18n/zh-Hans", dir);
+            Assert.IsEmpty(detected);
+        }
+
+        [Test]
+        public void ResolveOutputDirForLocale_returns_locale_folder_when_single_labelled_path()
+        {
+            var dir = AddressablePoLabelSyncer.ResolveOutputDirForLocale(
+                "zh-Hans",
+                new[] { "Assets/MyI18n/zh-Hans/main.po" },
+                "Assets/Resources/PromptUGUI/i18n",
+                out var detected);
+            Assert.AreEqual("Assets/MyI18n/zh-Hans", dir);
+            CollectionAssert.AreEqual(new[] { "Assets/MyI18n/zh-Hans" }, detected);
+        }
+
+        [Test]
+        public void ResolveOutputDirForLocale_collapses_multiple_paths_in_same_folder()
+        {
+            var dir = AddressablePoLabelSyncer.ResolveOutputDirForLocale(
+                "zh-Hans",
+                new[]
+                {
+                    "Assets/MyI18n/zh-Hans/screens.po",
+                    "Assets/MyI18n/zh-Hans/dialogs.po",
+                },
+                "Assets/Resources/PromptUGUI/i18n",
+                out var detected);
+            Assert.AreEqual("Assets/MyI18n/zh-Hans", dir);
+            Assert.AreEqual(1, detected.Count);
+        }
+
+        [Test]
+        public void ResolveOutputDirForLocale_returns_first_alphabetically_when_ambiguous()
+        {
+            var dir = AddressablePoLabelSyncer.ResolveOutputDirForLocale(
+                "zh-Hans",
+                new[]
+                {
+                    "Assets/OtherI18n/zh-Hans/bar.po",
+                    "Assets/MyI18n/zh-Hans/foo.po",
+                },
+                "Assets/Resources/PromptUGUI/i18n",
+                out var detected);
+            Assert.AreEqual("Assets/MyI18n/zh-Hans", dir,
+                "Ambiguous case must resolve deterministically — Ordinal-sorted first wins.");
+            CollectionAssert.AreEquivalent(
+                new[] { "Assets/MyI18n/zh-Hans", "Assets/OtherI18n/zh-Hans" }, detected);
+        }
+
+        [Test]
+        public void ResolveOutputDirForLocale_ignores_paths_without_matching_locale_segment()
+        {
+            var dir = AddressablePoLabelSyncer.ResolveOutputDirForLocale(
+                "zh-Hans",
+                new[] { "Assets/MyI18n/chinese/foo.po" },
+                "Assets/Resources/PromptUGUI/i18n",
+                out var detected);
+            Assert.AreEqual("Assets/Resources/PromptUGUI/i18n/zh-Hans", dir);
+            Assert.IsEmpty(detected);
+        }
     }
 }

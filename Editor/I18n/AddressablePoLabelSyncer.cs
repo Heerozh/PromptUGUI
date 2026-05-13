@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 #if PROMPTUGUI_HAS_ADDRESSABLES
 using System.Linq;
@@ -50,6 +51,54 @@ namespace PromptUGUI.Editor.I18n
                 if (localeSet.Contains(segments[i])) return segments[i];
             }
             return null;
+        }
+
+        /// <summary>
+        /// Returns the asset path up to and including the closest parent folder named
+        /// exactly <paramref name="locale"/>, or null if no such ancestor exists.
+        /// Mirrors <see cref="ComputeDesiredLocale"/>'s leaf-wins semantics so the
+        /// folder selected for output matches the one the labeller would choose.
+        /// </summary>
+        public static string FindLocaleFolder(string assetPath, string locale)
+        {
+            if (string.IsNullOrEmpty(assetPath) || string.IsNullOrEmpty(locale)) return null;
+            var segments = assetPath.Replace('\\', '/').Split('/');
+            // Skip the file name; walk parents leaf-up.
+            for (var i = segments.Length - 2; i >= 0; i--)
+            {
+                if (segments[i] == locale)
+                    return string.Join("/", segments, 0, i + 1);
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Decides where extraction should write <c>.po</c> files for
+        /// <paramref name="locale"/>: the folder of any existing labelled
+        /// <c>.po</c> (so re-extract follows the user when they move files),
+        /// or <c>&lt;fallbackRoot&gt;/&lt;locale&gt;</c> when none exist yet.
+        /// <paramref name="allDetectedFolders"/> exposes every distinct
+        /// candidate the caller might want to warn about; the chosen folder is
+        /// always the Ordinal-sorted first one for determinism.
+        /// </summary>
+        public static string ResolveOutputDirForLocale(
+            string locale,
+            IEnumerable<string> labelledPoPaths,
+            string fallbackRoot,
+            out IReadOnlyList<string> allDetectedFolders)
+        {
+            var folders = new SortedSet<string>(StringComparer.Ordinal);
+            if (labelledPoPaths != null)
+            {
+                foreach (var path in labelledPoPaths)
+                {
+                    var folder = FindLocaleFolder(path, locale);
+                    if (folder != null) folders.Add(folder);
+                }
+            }
+            allDetectedFolders = new List<string>(folders);
+            if (allDetectedFolders.Count > 0) return allDetectedFolders[0];
+            return (fallbackRoot.TrimEnd('/') + "/" + locale).Replace('\\', '/');
         }
 
         /// <summary>

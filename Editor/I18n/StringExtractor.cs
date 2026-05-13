@@ -6,12 +6,15 @@ using PromptUGUI.IR;
 using PromptUGUI.Parser;
 using UnityEditor;
 using UnityEngine;
+#if PROMPTUGUI_HAS_ADDRESSABLES
+using UnityEditor.AddressableAssets;
+#endif
 
 namespace PromptUGUI.Editor.I18n
 {
     internal static class StringExtractor
     {
-        private const string OutputRoot = "Assets/Resources/PromptUGUI/i18n";
+        private const string DefaultOutputRoot = "Assets/Resources/PromptUGUI/i18n";
 
         [MenuItem("Tools/PromptUGUI/I18n/1. Extract Strings")]
         public static void ExtractAll()
@@ -37,14 +40,34 @@ namespace PromptUGUI.Editor.I18n
                 .GroupBy(e => e.LocalePartition ?? "_code")
                 .ToDictionary(g => g.Key, g => g.ToList());
 
+            // Per-locale: if Addressables has labelled .po files, re-extract follows
+            // the user's chosen folder. First-time extracts (no labels yet) and
+            // non-Addressables setups land in DefaultOutputRoot. Path remains locked
+            // to Resources/ when the runtime resolver is the Resources fallback —
+            // that contract is the user's responsibility once they opt in to
+            // UseAddressableResolver().
+            var labelledByLocale = CollectAddressablePoPathsByLocale();
+
             var filesWritten = 0;
             foreach (var lc in settings.locales)
             {
                 if (string.IsNullOrEmpty(lc.locale)) continue;
+                labelledByLocale.TryGetValue(lc.locale, out var labelled);
+                var localeDir = AddressablePoLabelSyncer.ResolveOutputDirForLocale(
+                    lc.locale,
+                    labelled ?? (IEnumerable<string>)System.Array.Empty<string>(),
+                    DefaultOutputRoot,
+                    out var detected);
+                if (detected.Count > 1)
+                {
+                    Debug.LogWarning(
+                        $"[PromptUGUI] Multiple '{lc.locale}' folders contain labelled .po " +
+                        $"files: {string.Join(", ", detected)}. Writing extraction output to " +
+                        $"{localeDir} (Ordinal-sorted first). Consolidate or relabel to silence.");
+                }
                 foreach (var kv in byPartition)
                 {
-                    var path = Path.Combine(OutputRoot, lc.locale, kv.Key + ".po")
-                        .Replace('\\', '/');
+                    var path = $"{localeDir}/{kv.Key}.po";
                     Directory.CreateDirectory(Path.GetDirectoryName(path));
                     var existing = File.Exists(path) ? File.ReadAllText(path) : "";
                     var merged = PoFileWriter.Merge(existing, kv.Value);
@@ -54,6 +77,40 @@ namespace PromptUGUI.Editor.I18n
             }
             AssetDatabase.Refresh();
             Debug.Log($"[PromptUGUI] Extract Strings: {allExtracted.Count} msgids → {filesWritten} .po files across {settings.locales.Count} locales.");
+        }
+
+        private static Dictionary<string, List<string>> CollectAddressablePoPathsByLocale()
+        {
+            var result = new Dictionary<string, List<string>>();
+#if PROMPTUGUI_HAS_ADDRESSABLES
+            var aa = AddressableAssetSettingsDefaultObject.Settings;
+            if (aa == null) return result;
+            foreach (var group in aa.groups)
+            {
+                if (group == null) continue;
+                foreach (var entry in group.entries)
+                {
+                    if (entry == null) continue;
+                    var path = entry.AssetPath;
+                    if (string.IsNullOrEmpty(path) ||
+                        !path.EndsWith(".po", System.StringComparison.OrdinalIgnoreCase)) continue;
+                    foreach (var label in entry.labels)
+                    {
+                        if (string.IsNullOrEmpty(label) ||
+                            !label.StartsWith(AddressablePoLabelSyncer.LabelPrefix)) continue;
+                        var locale = label.Substring(AddressablePoLabelSyncer.LabelPrefix.Length);
+                        if (string.IsNullOrEmpty(locale)) continue;
+                        if (!result.TryGetValue(locale, out var list))
+                        {
+                            list = new List<string>();
+                            result[locale] = list;
+                        }
+                        list.Add(path);
+                    }
+                }
+            }
+#endif
+            return result;
         }
 
         private static IEnumerable<ExtractedString> ScanAllXml()

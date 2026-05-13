@@ -171,6 +171,37 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Scan_RealWorldTopIconBtn_ExtractsLabel()
+        {
+            // Mirrors a real authoring shape the user hit: Template body has a
+            // multi-line <Text>{{label}}\n  </Text> nested inside VStack>Btn/Text,
+            // invocation is in a Screen. Verify the substituted label value
+            // surfaces as a msgid.
+            var xml = @"<PromptUGUI version='1'>
+                <Template name='TopIconBtn'>
+                    <Param name='icon'/>
+                    <Param name='label'/>
+                    <VStack width='128' height='184' spacing='15'>
+                        <Btn id='btn' size='96x96' color='#1F3A5FCC'>
+                            <Icon name='{{icon}}' anchor='center' size='64x64' color='#D6E1F0'/>
+                        </Btn>
+                        <Text height='33'
+                              fontSize='28' color='#C5D2E5' align='center'>{{label}}
+                        </Text>
+                    </VStack>
+                </Template>
+                <Screen name='Main'>
+                    <TopIconBtn id='accountBtn'
+                                icon='Solar32Bold:Users/User Circle'
+                                label='切换账号'/>
+                </Screen>
+            </PromptUGUI>";
+            var msgids = XmlStringScanner.Scan(xml, "screens/Main")
+                .Select(e => e.Msgid).ToList();
+            Assert.Contains("切换账号", msgids);
+        }
+
+        [Test]
         public void Scan_TemplateBodyFormatString_StillExtractedOnce()
         {
             // A format-string body like "Hello {{label}}" stays a single msgid
