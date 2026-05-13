@@ -11,7 +11,11 @@ namespace PromptUGUI.Editor
 <PromptUGUI version=""1"">
 
   <Screen name=""NewScreen"">
-    <Frame anchor=""stretch""/>
+    <SafeArea>
+      <Frame anchor=""stretch"">
+        <Text anchor=""stretch"" align=""center"" fontSize=""99"" color=""blue"">PromptUGUI</Text>
+      </Frame>
+    </SafeArea>
   </Screen>
 
 </PromptUGUI>
