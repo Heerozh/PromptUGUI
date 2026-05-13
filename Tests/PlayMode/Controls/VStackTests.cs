@@ -65,6 +65,24 @@ namespace PromptUGUI.Tests.Controls
         }
 
         [UnityTest]
+        public IEnumerator Padding_underscore_placeholder_is_zero()
+        {
+            // 和 margin 一致：'_' 在 padding 里也表示 0，方便只填一边的写法
+            // (e.g. padding="6,_,_,_" 只在顶部留 6px)。
+            var v = new VStack();
+            var go = new GameObject("vstack", typeof(RectTransform));
+            v.AttachTo(go);
+            v.Padding = "6,_,_,_";
+            var p = go.GetComponent<VerticalLayoutGroup>().padding;
+            Assert.AreEqual(6, p.top);
+            Assert.AreEqual(0, p.right);
+            Assert.AreEqual(0, p.bottom);
+            Assert.AreEqual(0, p.left);
+            Object.Destroy(go);
+            yield return null;
+        }
+
+        [UnityTest]
         public IEnumerator Locks_child_sizing_flags()
         {
             var v = new VStack();

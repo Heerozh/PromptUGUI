@@ -71,7 +71,11 @@ namespace PromptUGUI.Controls
             var parts = s.Split(',');
             var v = new int[parts.Length];
             for (var i = 0; i < parts.Length; i++)
-                v[i] = int.Parse(parts[i].Trim(), CultureInfo.InvariantCulture);
+            {
+                var p = parts[i].Trim();
+                v[i] = (p == "_" || p == "") ? 0
+                    : int.Parse(p, CultureInfo.InvariantCulture);
+            }
             switch (parts.Length)
             {
                 case 1: t = r = b = l = v[0]; return;
