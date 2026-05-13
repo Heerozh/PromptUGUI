@@ -105,5 +105,59 @@ namespace PromptUGUI.Tests.Editor
             // LocaleAddressableResolverTests.BuildLocaleLabel_prefixes_with_Locale_colon.
             Assert.AreEqual("Locale:", AddressablePoLabelSyncer.LabelPrefix);
         }
+
+        [Test]
+        public void FindOrphanPoPaths_returns_paths_with_no_matching_locale_segment()
+        {
+            var orphans = AddressablePoLabelSyncer.FindOrphanPoPaths(
+                new[]
+                {
+                    "Assets/Localization/zh-Hans/main.po",
+                    "Assets/MyI18n/chinese/foo.po",
+                    "Assets/Misc/random/bar.po",
+                    "Assets/Resources/PromptUGUI/i18n/en/screens/MainMenu.po",
+                },
+                KnownLocales);
+
+            CollectionAssert.AreEquivalent(
+                new[]
+                {
+                    "Assets/MyI18n/chinese/foo.po",
+                    "Assets/Misc/random/bar.po",
+                },
+                orphans);
+        }
+
+        [Test]
+        public void FindOrphanPoPaths_returns_empty_when_all_paths_match()
+        {
+            var orphans = AddressablePoLabelSyncer.FindOrphanPoPaths(
+                new[]
+                {
+                    "Assets/Localization/zh-Hans/main.po",
+                    "Assets/Localization/en/main.po",
+                },
+                KnownLocales);
+
+            Assert.IsEmpty(orphans);
+        }
+
+        [Test]
+        public void FindOrphanPoPaths_returns_empty_for_empty_input()
+        {
+            var orphans = AddressablePoLabelSyncer.FindOrphanPoPaths(
+                System.Array.Empty<string>(), KnownLocales);
+            Assert.IsEmpty(orphans);
+        }
+
+        [Test]
+        public void FindOrphanPoPaths_treats_all_as_orphans_when_known_locales_empty()
+        {
+            var orphans = AddressablePoLabelSyncer.FindOrphanPoPaths(
+                new[] { "Assets/Localization/zh-Hans/main.po" },
+                System.Array.Empty<string>());
+            CollectionAssert.AreEquivalent(
+                new[] { "Assets/Localization/zh-Hans/main.po" }, orphans);
+        }
     }
 }

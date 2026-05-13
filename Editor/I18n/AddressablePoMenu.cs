@@ -63,13 +63,25 @@ namespace PromptUGUI.Editor.I18n
                 return;
             }
 
+            var orphans = AddressablePoLabelSyncer.FindOrphanPoPaths(poPaths, locales);
+            foreach (var orphanPath in orphans)
+            {
+                var asset = AssetDatabase.LoadAssetAtPath<TextAsset>(orphanPath);
+                Debug.LogWarning(
+                    $"[PromptUGUI] Skipped (no recognized locale folder in path): {orphanPath}. " +
+                    $"Expected one of the parent folders to be: {string.Join(", ", locales)}. " +
+                    "Rename the folder to match one of the configured locales, or add the " +
+                    "locale to PromptUGUISettings.", asset);
+            }
+
             AddressablePoLabelSyncer.MakeLocalePoFilesAddressable(poPaths, locales);
             AssetDatabase.SaveAssets();
+            var labelled = poPaths.Count - orphans.Count;
             Debug.Log(
                 "[PromptUGUI] Setup Addressables for Locale PO Files: " +
-                $"processed {poPaths.Count} .po file(s) across {locales.Count} locale(s). " +
-                "Files under a known-locale folder are now Addressable and labelled " +
-                $"`{AddressablePoLabelSyncer.LabelPrefix}<locale>`.");
+                $"labelled {labelled} of {poPaths.Count} .po file(s) across {locales.Count} locale(s)" +
+                (orphans.Count > 0 ? $" — {orphans.Count} skipped (see warnings above)." : ".") +
+                $" Labelled files now carry `{AddressablePoLabelSyncer.LabelPrefix}<locale>`.");
             Debug.Log("[PromptUGUI] Addressable setup complete. " +
                       "Please go Window → Asset Management → Addressable → Groups " +
                       "to verify.");

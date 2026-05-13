@@ -53,6 +53,26 @@ namespace PromptUGUI.Editor.I18n
         }
 
         /// <summary>
+        /// Returns the subset of <paramref name="assetPaths"/> that don't sit under a
+        /// folder matching any of <paramref name="knownLocales"/> — i.e. would be
+        /// silently skipped by <see cref="MakeLocalePoFilesAddressable"/>. The menu
+        /// uses this to surface a warning so authors notice misnamed locale folders
+        /// (e.g. <c>.../chinese/foo.po</c> when <c>zh-Hans</c> is the configured locale).
+        /// </summary>
+        public static IReadOnlyList<string> FindOrphanPoPaths(
+            IReadOnlyList<string> assetPaths, IReadOnlyCollection<string> knownLocales)
+        {
+            var orphans = new List<string>();
+            if (assetPaths == null || assetPaths.Count == 0) return orphans;
+            foreach (var path in assetPaths)
+            {
+                if (string.IsNullOrEmpty(path)) continue;
+                if (ComputeDesiredLocale(path, knownLocales) == null) orphans.Add(path);
+            }
+            return orphans;
+        }
+
+        /// <summary>
         /// True when <paramref name="label"/> starts with <see cref="LabelPrefix"/>
         /// but doesn't match the <paramref name="currentLocale"/>'s expected label.
         /// Used to scrub stale <c>Locale:*</c> labels when a .po asset moves between
