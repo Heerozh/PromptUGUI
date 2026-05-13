@@ -11,7 +11,8 @@ namespace PromptUGUI.Tests.Controls
     public class SafeAreaTests
     {
         [SetUp] public void SetUp() => UI.ResetForTests();
-        [TearDown] public void TearDown()
+        [TearDown]
+        public void TearDown()
         {
             SafeAreaTracker.SafeAreaOverride = null;
             SafeAreaTracker.ScreenSizeOverride = null;
