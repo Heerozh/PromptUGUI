@@ -133,41 +133,22 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Tracker_apply_tolerates_sub_pixel_residue_on_offset()
+        public void Tracker_does_not_subscribe_to_rect_transform_dimensions_change()
         {
-            try
-            {
-                PromptUGUI.Controls.Internal.SafeAreaTracker.SafeAreaOverride =
-                    () => new UnityEngine.Rect(0f, 100f, 1080f, 1820f);
-                PromptUGUI.Controls.Internal.SafeAreaTracker.ScreenSizeOverride =
-                    () => new UnityEngine.Vector2(1080f, 1920f);
-
-                var go = new UnityEngine.GameObject("sa", typeof(UnityEngine.RectTransform));
-                var tracker = go.AddComponent<PromptUGUI.Controls.Internal.SafeAreaTracker>();
-                tracker.Apply();
-
-                var rt = (UnityEngine.RectTransform)go.transform;
-
-                // 复现实际发现的 RectTransform 残留：anchor 写完后 offset 被 Unity 留下
-                // ~7.5e-5 的 float 噪声（实际从 Rider 调试出来的值）。Vector2.== 阈值不够宽
-                // 会让 Apply 永远以为 offset != zero 然后无限写。
-                rt.offsetMax = new UnityEngine.Vector2(7.57527596e-5f, 7.57527596e-5f);
-                rt.offsetMin = new UnityEngine.Vector2(7.57527596e-5f, 7.57527596e-5f);
-                rt.hasChanged = false;
-
-                tracker.Apply();
-
-                Assert.IsFalse(rt.hasChanged,
-                    "Apply must skip writing when offsets are within sub-pixel tolerance; " +
-                    "otherwise OnRectTransformDimensionsChange → Apply 死循环");
-
-                UnityEngine.Object.DestroyImmediate(go);
-            }
-            finally
-            {
-                PromptUGUI.Controls.Internal.SafeAreaTracker.SafeAreaOverride = null;
-                PromptUGUI.Controls.Internal.SafeAreaTracker.ScreenSizeOverride = null;
-            }
+            // 守门测试：SafeAreaTracker 上不能存在 OnRectTransformDimensionsChange
+            // magic method。一旦订阅，Unity 在 RectTransform setter 内部反向求解的
+            // 中间态会反过来触发 tracker.Apply，跟 ApplyCommon 形成写入回环（实测
+            // 卡在 var screen = UI.Open(...) 的 InstantiateRecursive 阶段，offsetMax
+            // 在 0 / 0.65 间反复跳）。Unity 官方 SafeArea 示例同样用 Update poll，
+            // 不订阅这个 magic method。
+            var method = typeof(PromptUGUI.Controls.Internal.SafeAreaTracker)
+                .GetMethod("OnRectTransformDimensionsChange",
+                    System.Reflection.BindingFlags.Instance
+                    | System.Reflection.BindingFlags.NonPublic
+                    | System.Reflection.BindingFlags.Public);
+            Assert.IsNull(method,
+                "SafeAreaTracker must not implement OnRectTransformDimensionsChange — " +
+                "it forms a write loop with ApplyCommon. Use Update() polling instead.");
         }
 
         [Test]
