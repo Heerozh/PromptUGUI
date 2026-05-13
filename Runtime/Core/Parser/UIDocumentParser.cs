@@ -98,6 +98,17 @@ namespace PromptUGUI.Parser
                 };
             }
 
+            // <Screen reference="WxH"> stored on rootNode.Attributes so VariantResolver
+            // can pick base + .variant overrides uniformly at runtime.
+            if (el.HasAttribute("reference"))
+            {
+                var referenceAttr = el.GetAttribute("reference");
+                if (!string.IsNullOrEmpty(referenceAttr))
+                    PromptUGUI.Application.ReferenceResolutionParser.Parse(
+                        referenceAttr, $"<Screen name='{name}' reference>");
+                rootNode.Attributes["reference"] = referenceAttr;
+            }
+
             var seenWhen = new System.Collections.Generic.HashSet<string>();
 
             foreach (XmlNode c in el.ChildNodes)
