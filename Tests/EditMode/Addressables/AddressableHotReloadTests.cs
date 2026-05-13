@@ -4,6 +4,8 @@ using PromptUGUI.Application;
 using UnityEditor;
 using UnityEditor.AddressableAssets;
 using UnityEditor.AddressableAssets.Settings;
+using UnityEngine;
+using UnityEngine.AddressableAssets;
 
 namespace PromptUGUI.Tests.Addressables
 {
@@ -73,6 +75,29 @@ namespace PromptUGUI.Tests.Addressables
         {
             UI.UseAddressableResolver();
             Assert.IsNull(UI.HotReload.AssetPathToSrc(_xmlPath.Replace(".ui.xml", ".txt")));
+        }
+
+        // Regression: when callers load via the AssetReferenceT<TextAsset> overload,
+        // the DepGraph is keyed by AssetGUID (see LoadDocumentAsync(AssetReferenceT)).
+        // AssetPathToSrc must report that GUID so HotReload.NotifyAssetChanged →
+        // _depGraph.ScreensDependingOn(src) actually matches; returning the Addressables
+        // address here would silently no-op the reload.
+        [Test]
+        public void AssetPathToSrc_returns_guid_when_AssetReference_overload_registered()
+        {
+            UI.UseAddressableResolver();
+            UI.SourceResolver = _ => AwaitableHelpers.Completed(
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Screen name='HR'><Frame/></Screen>
+                  </PromptUGUI>");
+
+            var guid = AssetDatabase.AssetPathToGUID(_xmlPath);
+            var assetRef = new AssetReferenceT<TextAsset>(guid);
+            UI.LoadDocumentAsync(assetRef).GetAwaiter().GetResult();
+
+            Assert.AreEqual(guid, UI.HotReload.AssetPathToSrc(_xmlPath),
+                "DepGraph holds GUID via the AssetReferenceT overload; " +
+                "AssetPathToSrc must return GUID so reload matches.");
         }
     }
 }

@@ -122,9 +122,14 @@ namespace PromptUGUI.Application
             if (!assetPath.EndsWith(".ui.xml")) return null;
             var guid = AssetDatabase.AssetPathToGUID(assetPath);
             if (string.IsNullOrEmpty(guid)) return null;
-            return _guidToKey != null && _guidToKey.TryGetValue(guid, out var key)
-                ? key
-                : null;
+
+            // LoadDocumentAsync(AssetReferenceT<TextAsset>) forwards xmlRef.AssetGUID as src,
+            // so DepGraph is keyed by GUID. LoadDocumentAsync(string addressKey) keys by address.
+            // Prefer whichever the DepGraph actually registered; otherwise fall back to address.
+            if (_depGraph.SrcToDeps.ContainsKey(guid) || _depGraph.IsCommons(guid))
+                return guid;
+
+            return _guidToKey != null && _guidToKey.TryGetValue(guid, out var key) ? key : null;
         }
 #endif
     }
