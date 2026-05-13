@@ -97,6 +97,42 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void SafeArea_anchor_persists_after_ReSolve()
+        {
+            try
+            {
+                PromptUGUI.Controls.Internal.SafeAreaTracker.SafeAreaOverride =
+                    () => new UnityEngine.Rect(0f, 100f, 1080f, 1820f);
+                PromptUGUI.Controls.Internal.SafeAreaTracker.ScreenSizeOverride =
+                    () => new UnityEngine.Vector2(1080f, 1920f);
+
+                const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <SafeArea id='sa'/>
+</Screen></PromptUGUI>";
+                UI.LoadDocument("test", xml);
+                var screen = UI.Open("S");
+                var sa = screen.Get<SafeArea>("sa");
+
+                // ReSolve clobbers anchorMin/Max via ApplyCommon (defaults to top-left).
+                // OnAfterApply must restore the safe-area fractions in the same call.
+                screen.ReSolve();
+
+                var rt = sa.RectTransform;
+                Assert.AreEqual(0f, rt.anchorMin.x, 0.001f);
+                Assert.AreEqual(100f / 1920f, rt.anchorMin.y, 0.001f,
+                    "anchorMin.y should equal safeArea.y / Screen.height after ReSolve");
+                Assert.AreEqual(1f, rt.anchorMax.x, 0.001f);
+                Assert.AreEqual(1f, rt.anchorMax.y, 0.001f);
+            }
+            finally
+            {
+                PromptUGUI.Controls.Internal.SafeAreaTracker.SafeAreaOverride = null;
+                PromptUGUI.Controls.Internal.SafeAreaTracker.ScreenSizeOverride = null;
+            }
+        }
+
+        [Test]
         public void Tracker_zero_screen_size_is_noop()
         {
             try
