@@ -35,23 +35,29 @@
 
 ## 使用方法
 
-1. 创建IconSet
+### 1. 创建IconSet
 
-    Project 右键 → Create → PromptUGUI → IconSet，拖一个PNG图标集目录（比如Font Awesome）
-    到Project，并设为IconSet Folder，此后Skill会自动发现你所拥有的所有图标。
+Project 右键 → Create → PromptUGUI → IconSet，拖一个PNG图标集目录（比如Font Awesome）到Project，并设为IconSet Folder，此后Skill会自动发现你所拥有的所有图标。
 
-    使用公开图集，或图标名保持近似，让大模型认识。
+使用公开图集，或图标名保持近似，让大模型认识。
 
-2. 设置字体和多国语言 (可选)
+**推荐**使用Addressable，把多个IconSet和对应的SpriteAtlas打成一个Label，图标带文字的打上语言标签，然后用`await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver({label, "Locale:zh-Hans"}, MergeMode.Intersection);`
+就可以实现按需下载和热更对应语言的图标集。
 
-    Project 右键 → Create → PromptUGUI → Settings，设置字体Type (以后font="..."使用type名) 和多国语言以及字体。
+### 2. 设置字体和多国语言 (可选)
 
-    设置好即可，以后一键翻译会自动提取界面文本和代码中Tr()包裹的字符串。
+Project 右键 → Create → PromptUGUI → Settings，设置字体Type (以后font="..."使用type名) 和多国语言以及字体。
 
-3. 创建UI
+设置好即可，以后一键翻译会自动提取界面文本和代码中Tr()包裹的字符串。
 
-    Project 右键 → Create → PromptUGUI → UI XML。
+**建议**使用Addressable，点击菜单的`Setup Addressable for Locale ...`后，i18n目录即可移出Resources目录，放到其他目录。通过`UI.Locale.UseAddressableResolver();`后，`UI.Locale.SetToSystemDefaultAsync("en");`会自动后台下载多国语言，下完自动刷新界面。
 
-    让大模型按你的要求（Figma > 截图）写UI。
+### 3. 创建UI
 
-    第一个界面大模型没有参考，选用的图素都是默认值，你需要手动修改或个别一一指示，之后会更顺利。
+Project 右键 → Create → PromptUGUI → UI XML。
+
+让大模型按你的要求（Figma > 截图）写UI。
+
+第一个界面大模型没有参考，选用的图素都是默认值，你需要手动修改或个别一一指示，之后会更顺利。
+
+**建议**使用Addressable，`[SerializeField] private AssetReferenceT<TextAsset> xml` 定义属性，然后脚本中`await UI.LoadDocumentAsync(xml);`按需下载和热更。
