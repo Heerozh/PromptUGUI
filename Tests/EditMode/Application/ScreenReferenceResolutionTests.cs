@@ -177,5 +177,70 @@ namespace PromptUGUI.Tests.Application
             }
             finally { UI.CanvasConfigurator = null; }
         }
+
+        [Test]
+        public void Variant_flip_reapplies_canvas_scaler()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' reference='1920x1080' reference.mobile='1080x1920'>
+    <Frame/>
+  </Screen>
+</PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+            Assert.AreEqual(new UnityEngine.Vector2(1920, 1080), scaler.referenceResolution);
+            Assert.AreEqual(0f, scaler.matchWidthOrHeight);
+
+            UI.Variants.Set("mobile", true);
+            try
+            {
+                Assert.AreEqual(new UnityEngine.Vector2(1080, 1920), scaler.referenceResolution);
+                Assert.AreEqual(1f, scaler.matchWidthOrHeight);
+            }
+            finally { UI.Variants.Set("mobile", false); }
+        }
+
+        [Test]
+        public void Variant_empty_value_clears_to_constant_pixel_size()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' reference='1920x1080' reference.raw=''>
+    <Frame/>
+  </Screen>
+</PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+
+            UI.Variants.Set("raw", true);
+            try
+            {
+                Assert.AreEqual(UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize,
+                                scaler.uiScaleMode);
+                Assert.AreEqual(1f, scaler.scaleFactor);
+            }
+            finally { UI.Variants.Set("raw", false); }
+        }
+
+        [Test]
+        public void Variant_off_returns_to_base_reference()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' reference='1920x1080' reference.mobile='1080x1920'>
+    <Frame/>
+  </Screen>
+</PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+            UI.Variants.Set("mobile", true);
+            UI.Variants.Set("mobile", false);
+            Assert.AreEqual(new UnityEngine.Vector2(1920, 1080), scaler.referenceResolution);
+            Assert.AreEqual(0f, scaler.matchWidthOrHeight);
+        }
     }
 }
