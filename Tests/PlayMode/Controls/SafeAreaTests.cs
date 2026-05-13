@@ -82,7 +82,7 @@ namespace PromptUGUI.Tests.Controls
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
   <Variant when='mobile'>
-    <Add>
+    <Add into='@root'>
       <SafeArea id='sa'/>
     </Add>
   </Variant>
