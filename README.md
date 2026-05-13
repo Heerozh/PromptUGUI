@@ -60,4 +60,5 @@ Project 右键 → Create → PromptUGUI → UI XML。
 
 第一个界面大模型没有参考，选用的图素都是默认值，你需要手动修改或个别一一指示，之后会更顺利。
 
-**建议**使用Addressable，`[SerializeField] private AssetReferenceT<TextAsset> xml` 定义属性，然后脚本中`await UI.LoadDocumentAsync(xml);`按需下载和热更。
+**建议**使用Addressable，`[SerializeField] private AssetReferenceT<TextAsset> xml` 定义属性，
+然后就能在Inspector中把UI文件拖入xml，在脚本中`await UI.LoadDocumentAsync(xml);`按需下载和热更。
