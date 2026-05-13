@@ -26,7 +26,7 @@ xmllint --noout --schema Assets/PromptUGUI.gen.xsd <path/to/your.ui.xml>
 
 ### 2. Unity MCP live feedback
 
-XSD only catches structural errors; Unity catches the rest — parser semantic errors (anchor/size conflicts, id collisions, missing `ref=`, Template namespace clashes), runtime hot-reload errors.
+XSD catches structural errors and a couple of identity constraints — element/attribute names, attribute patterns (`<Icon name>`), and **duplicate `id=` within the same Screen / Template body** (via `xs:unique`). Unity still catches the rest — parser semantic errors (anchor/size conflicts, missing `ref=`, Template namespace clashes), runtime hot-reload errors.
 
 After every `.ui.xml` write:
 

@@ -627,6 +627,137 @@ namespace PromptUGUI.Tests.Editor
             CollectionAssert.IsEmpty(errors, message);
         }
 
+        private static void AssertValidationFails(string xsd, string sample, string message)
+        {
+            var schemas = new System.Xml.Schema.XmlSchemaSet();
+            schemas.Add(null, System.Xml.XmlReader.Create(new StringReader(xsd)));
+            var settings = new System.Xml.XmlReaderSettings
+            {
+                ValidationType = System.Xml.ValidationType.Schema,
+                Schemas = schemas,
+            };
+            var errors = new System.Collections.Generic.List<string>();
+            settings.ValidationEventHandler += (_, e) => errors.Add(e.Message);
+            using (var reader = System.Xml.XmlReader.Create(new StringReader(sample), settings))
+            {
+                while (reader.Read()) { }
+            }
+            CollectionAssert.IsNotEmpty(errors, message);
+        }
+
+        [Test]
+        public void Duplicate_id_within_same_Screen_fails_validation()
+        {
+            // Mirrors parser's idsInScreen check (UIDocumentParser.cs:83) — XSD
+            // xs:unique should catch this before xmllint hands off to Unity.
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+            const string sample = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'>
+    <Frame id='btn'/>
+    <Frame id='btn'/>
+  </Screen>
+</PromptUGUI>";
+            AssertValidationFails(xsd, sample,
+                "Duplicate id within same Screen must fail XSD validation.");
+        }
+
+        [Test]
+        public void Duplicate_id_nested_within_same_Screen_fails_validation()
+        {
+            // Same-scope check must reach descendants, not just direct children.
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+            const string sample = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'>
+    <VStack id='outer'>
+      <Frame id='x'/>
+    </VStack>
+    <HStack>
+      <Frame id='x'/>
+    </HStack>
+  </Screen>
+</PromptUGUI>";
+            AssertValidationFails(xsd, sample,
+                "Duplicate id at any depth inside one Screen must fail XSD validation.");
+        }
+
+        [Test]
+        public void Duplicate_id_within_same_Template_fails_validation()
+        {
+            // Mirrors parser's tplIds scope (UIDocumentParser.cs:206).
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+            const string sample = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='Dup'>
+    <VStack id='root'>
+      <Frame id='child'/>
+      <Frame id='child'/>
+    </VStack>
+  </Template>
+  <Screen name='S'><Frame/></Screen>
+</PromptUGUI>";
+            AssertValidationFails(xsd, sample,
+                "Duplicate id within same Template body must fail XSD validation.");
+        }
+
+        [Test]
+        public void Same_id_in_different_Screens_validates()
+        {
+            // Each Screen is its own scope — same id text across two Screens is fine.
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+            const string sample = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='A'><Frame id='root'/></Screen>
+  <Screen name='B'><Frame id='root'/></Screen>
+</PromptUGUI>";
+            AssertValidates(xsd, sample,
+                "Same id across different Screens is fine — each Screen scopes ids independently.");
+        }
+
+        [Test]
+        public void Same_id_in_Screen_and_Template_body_validates()
+        {
+            // Template body and Screen are separate scopes (parser uses two distinct
+            // HashSets) — reusing 'root' in both must NOT trip uniqueness.
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+            const string sample = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='P'><Frame id='root'/></Template>
+  <Screen name='S'><Frame id='root'/></Screen>
+</PromptUGUI>";
+            AssertValidates(xsd, sample,
+                "Template body and Screen have separate id scopes.");
+        }
+
+        [Test]
+        public void Duplicate_id_across_Screen_and_Variant_Add_fails_validation()
+        {
+            // Parser routes Variant/Add descendants through idsInScreen
+            // (UIDocumentParser.cs:244) — XSD scope must match by reaching every
+            // descendant of <Screen>, including nested <Add> children.
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+            const string sample = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'>
+    <Frame id='dup'/>
+    <Variant when='dark'>
+      <Add into='/'>
+        <Frame id='dup'/>
+      </Add>
+    </Variant>
+  </Screen>
+</PromptUGUI>";
+            AssertValidationFails(xsd, sample,
+                "Variant/Add children share Screen's id scope — duplicate must fail.");
+        }
+
         [Test]
         public void Screen_element_declares_reference_attribute()
         {

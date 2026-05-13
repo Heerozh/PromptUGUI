@@ -312,6 +312,27 @@ namespace PromptUGUI.Editor
             w.WriteAttributeString("processContents", "lax");
             w.WriteEndElement();
 
+            w.WriteEndElement(); // /complexType
+
+            // xs:unique scopes id uniqueness to this Screen instance, mirroring
+            // the parser's idsInScreen HashSet (UIDocumentParser.cs:83). The
+            // .//* selector also covers <Variant>/<Add> descendants, which the
+            // parser deliberately routes through the same Screen-level scope
+            // (UIDocumentParser.cs:244).
+            WriteIdUniqueConstraint(w, "screenIdUnique");
+
+            w.WriteEndElement(); // /element
+        }
+
+        private static void WriteIdUniqueConstraint(XmlWriter w, string name)
+        {
+            w.WriteStartElement("xs", "unique", null);
+            w.WriteAttributeString("name", name);
+            w.WriteStartElement("xs", "selector", null);
+            w.WriteAttributeString("xpath", ".//*");
+            w.WriteEndElement();
+            w.WriteStartElement("xs", "field", null);
+            w.WriteAttributeString("xpath", "@id");
             w.WriteEndElement();
             w.WriteEndElement();
         }
@@ -339,8 +360,13 @@ namespace PromptUGUI.Editor
             w.WriteAttributeString("use", "required");
             w.WriteAttributeString("type", "xs:string");
             w.WriteEndElement();
-            w.WriteEndElement();
-            w.WriteEndElement();
+            w.WriteEndElement(); // /complexType
+
+            // Mirrors parser's tplIds HashSet (UIDocumentParser.cs:206) — each
+            // Template body has its own id scope, independent of any Screen.
+            WriteIdUniqueConstraint(w, "templateIdUnique");
+
+            w.WriteEndElement(); // /element
         }
 
         private static void WriteParam(XmlWriter w)
