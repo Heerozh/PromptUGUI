@@ -133,6 +133,37 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Tracker_apply_is_idempotent_no_writes_when_already_at_target()
+        {
+            try
+            {
+                PromptUGUI.Controls.Internal.SafeAreaTracker.SafeAreaOverride =
+                    () => new UnityEngine.Rect(0f, 100f, 1080f, 1820f);
+                PromptUGUI.Controls.Internal.SafeAreaTracker.ScreenSizeOverride =
+                    () => new UnityEngine.Vector2(1080f, 1920f);
+
+                var go = new UnityEngine.GameObject("sa", typeof(UnityEngine.RectTransform));
+                var tracker = go.AddComponent<PromptUGUI.Controls.Internal.SafeAreaTracker>();
+                tracker.Apply();
+
+                var rt = (UnityEngine.RectTransform)go.transform;
+                // Inspector hook: hasChanged 反映 RectTransform 自上次置 false 起是否被写过
+                rt.hasChanged = false;
+                tracker.Apply();
+                Assert.IsFalse(rt.hasChanged,
+                    "Apply must be a no-op when the RectTransform is already at the target; " +
+                    "otherwise OnRectTransformDimensionsChange → Apply 会形成回环");
+
+                UnityEngine.Object.DestroyImmediate(go);
+            }
+            finally
+            {
+                PromptUGUI.Controls.Internal.SafeAreaTracker.SafeAreaOverride = null;
+                PromptUGUI.Controls.Internal.SafeAreaTracker.ScreenSizeOverride = null;
+            }
+        }
+
+        [Test]
         public void Tracker_zero_screen_size_is_noop()
         {
             try

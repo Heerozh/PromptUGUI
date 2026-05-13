@@ -39,10 +39,13 @@ namespace PromptUGUI.Controls.Internal
             var aMin = new Vector2(safe.xMin / screenSize.x, safe.yMin / screenSize.y);
             var aMax = new Vector2(safe.xMax / screenSize.x, safe.yMax / screenSize.y);
 
-            _rt.anchorMin = aMin;
-            _rt.anchorMax = aMax;
-            _rt.offsetMin = Vector2.zero;
-            _rt.offsetMax = Vector2.zero;
+            // 写之前比较一次：避免 OnRectTransformDimensionsChange → Apply → 写 RectTransform →
+            // 再次触发 OnRectTransformDimensionsChange 的回环（PlayMode 下 LayoutRebuilder
+            // 会把这条链路放大成实际死循环）。
+            if (_rt.anchorMin != aMin) _rt.anchorMin = aMin;
+            if (_rt.anchorMax != aMax) _rt.anchorMax = aMax;
+            if (_rt.offsetMin != Vector2.zero) _rt.offsetMin = Vector2.zero;
+            if (_rt.offsetMax != Vector2.zero) _rt.offsetMax = Vector2.zero;
         }
     }
 }
