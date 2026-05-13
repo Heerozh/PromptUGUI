@@ -68,5 +68,38 @@ namespace PromptUGUI.Tests.Application
             Assert.AreEqual("tv", list[0].Variant);
             Assert.AreEqual("", list[0].Value);
         }
+
+        [Test]
+        public void Parser_rejects_invalid_reference_base()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' reference='1920x0'><Frame/></Screen>
+</PromptUGUI>";
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+            StringAssert.Contains("reference", ex.Message);
+            StringAssert.Contains("positive", ex.Message);
+        }
+
+        [Test]
+        public void Parser_rejects_invalid_reference_variant()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' reference.mobile='-1x100'><Frame/></Screen>
+</PromptUGUI>";
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+            StringAssert.Contains("reference.mobile", ex.Message);
+        }
+
+        [Test]
+        public void Parser_rejects_reference_without_x()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' reference='1920'><Frame/></Screen>
+</PromptUGUI>";
+            Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+        }
     }
 }
