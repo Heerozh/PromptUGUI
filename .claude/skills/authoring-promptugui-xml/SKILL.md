@@ -102,7 +102,7 @@ References a sprite from a project-level IconSet (shared icons, by-name lookup, 
 | --------- | -------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `name`    | yes      | —         | Format `ns:icon-name`. `ns` (set name) is strict `[A-Za-z0-9_-]+`; `icon-name` mirrors the filesystem path under `sourceFolder` (no extension) — `/`-separated, may contain spaces, `&`, parens, commas, apostrophes, etc. Only the `:` delimiter is forbidden. Example: `solar:Bold Duotone/Map & Location/Radar 2` |
 | `color`   | no       | `#ffffff` | Multiply tint on the underlying Image. White preserves a colored PNG; non-white tints a mono-mask PNG                                                                                                                                                                                                                |
-| `size`    | no       | `native`  | Numeric / `WxH` / `stretch` / `native` (Icon-only). Native reads sprite pixel dimensions                                                                                                                                                                                                                             |
+| `size`    | no       | `native`  | Numeric / `WxH` / `native` (Icon-only — reads sprite pixel dimensions). For "fill the parent" use `anchor="stretch"` (free-positioning) or wrap the Icon in a V/HStack and use `width="stretch"` / `height="stretch"` (LayoutGroup)                                                                                  |
 
 **Discovering available icons** — to find which `setName:icon-name` combinations are valid in the current project, run from the project root:
 
@@ -155,7 +155,7 @@ Mobile devices have unsafe insets — notch, status bar, home indicator, gesture
 Rules:
 
 - `<SafeArea>` is always stretched to the safe area; it does **not** accept `anchor`, `size`, `width`, `height`, `margin`, or `pivot` (including their `.variant` override forms). Writing any of those is a parse error.
-- To add inner padding inside the safe area, wrap content in `<Frame anchor="stretch" margin="..."/>` *inside* the `<SafeArea>`.
+- To add inner padding inside the safe area, wrap content in `<Frame anchor="stretch" margin="..."/>` _inside_ the `<SafeArea>`.
 - Place `<SafeArea>` as a direct child of `<Screen>`. Nesting another `<SafeArea>` inside one is harmless but redundant (the inner one collapses to the outer one's rect).
 - Don't put `<SafeArea>` inside `<VStack>` / `<HStack>` / `<Grid>` — the layout group will override its anchor math.
 - Reacts automatically to screen rotation, window resize, and Unity 6's Device Simulator. No code-side wiring needed.
@@ -166,33 +166,33 @@ Rules:
 
 **Tag → GO 结构 / 组件**
 
-| Tag | 根节点组件 | 自动子节点 | R3 事件源 |
-| --- | --- | --- | --- |
-| `<Frame>` | `RectTransform` 单独 | — | — |
-| `<Image>` | `Image` | — | — |
-| `<Text>` | `TextMeshProUGUI` | — | — |
-| `<VStack>` | `VerticalLayoutGroup`（硬编码 `childControlWidth/Height=true`、`childForceExpand*=false`） | — | — |
-| `<HStack>` | `HorizontalLayoutGroup`（同 VStack） | — | — |
-| `<Grid>` | `GridLayoutGroup`（`constraint=FixedColumnCount`） | — | — |
-| `<Btn>` | `Image` + `Button`（`targetGraphic=Image`） | `Label`(`TMP_Text`, stretch 撑满) — **lazy**：写了 `text=` 才创建 | `OnClick` ← `Button.onClick` |
-| `<Icon>` | `Image`（`preserveAspect=true`, `raycastTarget=false`） | — | — |
-| `<Toggle>` | `Toggle`（`targetGraphic=Background`, `graphic=Checkmark`） | `Background`(`Image`, left-middle 锚 20×20) → 内嵌 `Checkmark`(`Image`, 居中 20×20)；`Label`(`TMP_Text`, 右侧水平 stretch) | `OnValueChanged` ← `Toggle.onValueChanged` |
-| `<Slider>` | `Slider` | `Background`(`Image`)；`Fill Area` → `Fill`(`Image`)；`Handle Slide Area` → `Handle`(`Image`) | `OnValueChanged` ← `Slider.onValueChanged` |
-| `<Dropdown>` | `Image` + `TMP_Dropdown` | `Label` + `Arrow` + `Template`（默认 inactive，内含 `Viewport` / `Content` / `Item` / `Scrollbar` 完整下拉子树） | `OnSelected` ← `TMP_Dropdown.onValueChanged` |
-| `<ScrollList>` | `Image` + `ScrollRect` | `Viewport`(`Image` + `Mask` stencil) → `Content`(V/H `LayoutGroup` + `ContentSizeFitter`)；按 `direction` 再加一个 `Scrollbar` | 无独立事件；C# 端 `BindItems(...)` 推数据 |
-| `<InputField>` | `Image` + `TMP_InputField` | `Text Area`(`RectMask2D`) → `Placeholder`(`TMP_Text`, italic 半透明) + `Text`(`TMP_Text`) | `OnValueChanged` / `OnEndEdit` / `OnSubmit` ← `TMP_InputField.*` |
-| `<SafeArea>` | `RectTransform` + `SafeAreaTracker`（内部 `MonoBehaviour`，订阅设备 safeArea / 旋转 / Device Simulator） | — | — |
+| Tag            | 根节点组件                                                                                               | 自动子节点                                                                                                                     | R3 事件源                                                        |
+| -------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `<Frame>`      | `RectTransform` 单独                                                                                     | —                                                                                                                              | —                                                                |
+| `<Image>`      | `Image`                                                                                                  | —                                                                                                                              | —                                                                |
+| `<Text>`       | `TextMeshProUGUI`                                                                                        | —                                                                                                                              | —                                                                |
+| `<VStack>`     | `VerticalLayoutGroup`（硬编码 `childControlWidth/Height=true`、`childForceExpand*=false`）               | —                                                                                                                              | —                                                                |
+| `<HStack>`     | `HorizontalLayoutGroup`（同 VStack）                                                                     | —                                                                                                                              | —                                                                |
+| `<Grid>`       | `GridLayoutGroup`（`constraint=FixedColumnCount`）                                                       | —                                                                                                                              | —                                                                |
+| `<Btn>`        | `Image` + `Button`（`targetGraphic=Image`）                                                              | `Label`(`TMP_Text`, stretch 撑满) — **lazy**：写了 `text=` 才创建                                                              | `OnClick` ← `Button.onClick`                                     |
+| `<Icon>`       | `Image`（`preserveAspect=true`, `raycastTarget=false`）                                                  | —                                                                                                                              | —                                                                |
+| `<Toggle>`     | `Toggle`（`targetGraphic=Background`, `graphic=Checkmark`）                                              | `Background`(`Image`, left-middle 锚 20×20) → 内嵌 `Checkmark`(`Image`, 居中 20×20)；`Label`(`TMP_Text`, 右侧水平 stretch)     | `OnValueChanged` ← `Toggle.onValueChanged`                       |
+| `<Slider>`     | `Slider`                                                                                                 | `Background`(`Image`)；`Fill Area` → `Fill`(`Image`)；`Handle Slide Area` → `Handle`(`Image`)                                  | `OnValueChanged` ← `Slider.onValueChanged`                       |
+| `<Dropdown>`   | `Image` + `TMP_Dropdown`                                                                                 | `Label` + `Arrow` + `Template`（默认 inactive，内含 `Viewport` / `Content` / `Item` / `Scrollbar` 完整下拉子树）               | `OnSelected` ← `TMP_Dropdown.onValueChanged`                     |
+| `<ScrollList>` | `Image` + `ScrollRect`                                                                                   | `Viewport`(`Image` + `Mask` stencil) → `Content`(V/H `LayoutGroup` + `ContentSizeFitter`)；按 `direction` 再加一个 `Scrollbar` | 无独立事件；C# 端 `BindItems(...)` 推数据                        |
+| `<InputField>` | `Image` + `TMP_InputField`                                                                               | `Text Area`(`RectMask2D`) → `Placeholder`(`TMP_Text`, italic 半透明) + `Text`(`TMP_Text`)                                      | `OnValueChanged` / `OnEndEdit` / `OnSubmit` ← `TMP_InputField.*` |
+| `<SafeArea>`   | `RectTransform` + `SafeAreaTracker`（内部 `MonoBehaviour`，订阅设备 safeArea / 旋转 / Device Simulator） | —                                                                                                                              | —                                                                |
 
 **Common attribute → uGUI 落点**（实现在 `Control.ApplyCommon`；对所有 tag 生效，`<SafeArea>` 例外，整套 anchor/size/margin/pivot 都被拒绝）
 
-| XML | uGUI 落点 |
-| --- | --- |
-| `anchor` | `RectTransform.anchorMin` / `anchorMax`，并按 anchor 推导默认 `pivot` |
+| XML                         | uGUI 落点                                                                                                                                                                                                                                                                                                           |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `anchor`                    | `RectTransform.anchorMin` / `anchorMax`，并按 anchor 推导默认 `pivot`                                                                                                                                                                                                                                               |
 | `size` / `width` / `height` | 父级不是 LayoutGroup：经 `MarginResolver` 写到 `RectTransform.sizeDelta`。父级是 `<VStack>` / `<HStack>`：写到 `LayoutElement.preferredWidth` / `preferredHeight` + 对应 `flexible*=0`（按轴路由，未写的轴留 `-1` 哨兵）。父级是 `<Grid>`：**被 GridLayoutGroup 接管**（cellSize 由 parent 决定，子节点写了也无视） |
-| `margin` | `RectTransform.anchoredPosition` + `sizeDelta`（`MarginResolver` 按 anchor 自动反号；stretched 轴专门吃 margin） |
-| `pivot="x,y"` | `RectTransform.pivot`（不写则从 anchor 推） |
-| `hidden="true"` | `GameObject.SetActive(false)` |
-| `interactable="false"` | `CanvasGroup.interactable=false` + `blocksRaycasts=false`（首次访问按需 add `CanvasGroup`；级联到所有后代，比 `Selectable.interactable` 范围更大） |
+| `margin`                    | `RectTransform.anchoredPosition` + `sizeDelta`（`MarginResolver` 按 anchor 自动反号；stretched 轴专门吃 margin）                                                                                                                                                                                                    |
+| `pivot="x,y"`               | `RectTransform.pivot`（不写则从 anchor 推）                                                                                                                                                                                                                                                                         |
+| `hidden="true"`             | `GameObject.SetActive(false)`                                                                                                                                                                                                                                                                                       |
+| `interactable="false"`      | `CanvasGroup.interactable=false` + `blocksRaycasts=false`（首次访问按需 add `CanvasGroup`；级联到所有后代，比 `Selectable.interactable` 范围更大）                                                                                                                                                                  |
 
 **不变量与易踩坑**
 
@@ -206,22 +206,27 @@ Rules:
 
 ## Common attributes (any tag)
 
-| Attribute                  | Format       | Notes                                                                                  |
-| -------------------------- | ------------ | -------------------------------------------------------------------------------------- |
-| `id="..."`                 | string       | Unique within Screen / Template instance scope. Lift to dedicated handle for `Get<T>`. |
-| `anchor="..."`             | preset       | See "Anchor system" below. Default `top-left`.                                         |
-| `size="WxH"`               | `240x80`     | Both dimensions in pixels. **Forbidden on stretched axes.**                            |
-| `width="W"` / `height="H"` | float        | Use when only one axis is point-anchored. **Forbidden on stretched axes.**             |
-| `margin="..."`             | 1/2/4 floats | "Distance from anchor inward, positive". `"_"` = 0 placeholder.                        |
-| `pivot="x,y"`              | `0..1, 0..1` | Defaults derive from `anchor`; rarely needed.                                          |
-| `hidden="true"`            | bool         | Initial `SetActive(false)`.                                                            |
-| `interactable="false"`     | bool         | Initial `CanvasGroup.interactable=false` + `blocksRaycasts=false`.                     |
+| Attribute                  | Format            | Notes                                                                                                                                                                              |
+| -------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id="..."`                 | string            | Unique within Screen / Template instance scope. Lift to dedicated handle for `Get<T>`.                                                                                             |
+| `anchor="..."`             | preset            | See "Anchor system" below. Default `top-left`.                                                                                                                                     |
+| `size="WxH"`               | `240x80`          | Both dimensions in pixels (numeric only — keyword `stretch` is **not** accepted here, use per-axis attrs). **Forbidden on stretched axes.**                                        |
+| `width="W"` / `height="H"` | float / `stretch` | Use when only one axis is point-anchored. Keyword `stretch` valid only inside `<VStack>`/`<HStack>` — see "Stretch keyword" below. **Numeric forbidden on stretched anchor axes.** |
+| `margin="..."`             | 1/2/4 floats      | "Distance from anchor inward, positive". `"_"` = 0 placeholder.                                                                                                                    |
+| `pivot="x,y"`              | `0..1, 0..1`      | Defaults derive from `anchor`; rarely needed.                                                                                                                                      |
+| `hidden="true"`            | bool              | Initial `SetActive(false)`.                                                                                                                                                        |
+| `interactable="false"`     | bool              | Initial `CanvasGroup.interactable=false` + `blocksRaycasts=false`.                                                                                                                 |
 
 `padding` and `spacing` are **NOT** universal — only on `<VStack>` / `<HStack>` / `<Grid>`.
 
 `anchor` and `margin` are **NOT** available on `<VStack>` / `<HStack>` / `<Grid>`.
 
 **Inside `<VStack>` / `<HStack>`**, a child's `size` / `width` / `height` is written to `LayoutElement.preferredX` with `flexibleX=0` (not to `sizeDelta`). So `<Btn size="64x64"/>` inside a VStack is **strictly 64×64** — the layout group will not stretch it. Specifying only one axis (e.g. `width="100"`) leaves the other axis unconstrained, taking the child's intrinsic preferred size. Omitting all size attributes gets no `LayoutElement` — the child collapses to whatever its own components advertise (often 0 for an empty Frame), so write at least one axis when you need a visible footprint.
+
+**Stretch keyword** — `width="stretch"` / `height="stretch"` on a V/HStack child maps to `LayoutElement.preferredX=0, flexibleX=1`
+
+- Multiple sibling stretches share remaining space by equal weight (Unity's `flexibleX` is additive). `width="stretch"` on two siblings → each gets half.
+- Variant-overridable: `width="240" width.mobile="stretch"` flips between fixed and flex.
 
 **Inside `<Grid>`**, the parent's `cellSize` is authoritative — a child's `size` is silently ignored.
 
@@ -312,11 +317,14 @@ Append `.variantName` to **any** attribute. The base value applies when no varia
 <VStack id="menu"
         anchor="center" size="480x320"
         anchor.mobile="bottom-stretch"
-        size.mobile="_,400"
+        size.mobile="" height.mobile="400"
         margin.mobile="_,16,80,16">
-  <Btn size="240x64" size.mobile="stretch,72">开始</Btn>
+  <Btn size="240x64"
+       size.mobile="" width.mobile="stretch" height.mobile="72">开始</Btn>
 </VStack>
 ```
+
+The `size.mobile=""` clears the base `size=` under that variant — required because mobile flips one axis to anchor-stretch (`anchor.mobile="bottom-stretch"`), which forbids any width on the same axis. Per-axis `width.mobile=` / `height.mobile=` then provide the new dimensions cleanly.
 
 **Last-active-wins** — declaration order matters. With `<X size="100" size.mobile="200" size.tablet="150"/>`, if both `mobile` and `tablet` are active, `tablet` wins because it was declared after.
 
@@ -648,15 +656,17 @@ UI.Registry.Register<MyControl>("MyControl", optionalPrefab: null);
 
 ## Common mistakes
 
-| Symptom                                                      | Cause                                                               | Fix                                                                                     |
-| ------------------------------------------------------------ | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `cannot specify width/size on a horizontally-stretched axis` | `<X anchor="top-stretch" width="200"/>`                             | Either change anchor, or drop `width`. The stretched axis takes its size from `margin`. |
-| Element not found at runtime                                 | `id` only declared inside a `<Template>`, but accessed by flat name | Use path: `screen.Get("templateId/innerId")`                                            |
-| Ghost element on variant toggle                              | `<Add>` instantiated and never deactivated                          | This is by design (Strategy C). Use `hidden.variant` if you need a node to disappear.   |
-| Subscription survives Close → null refs                      | Forgot `.AddTo(screen)`                                             | Always tie R3 subscriptions to Screen lifetime                                          |
-| Parser silently merges children                              | Wrote `<Btn>开始 <Image/> </Btn>` (text + element mix)              | Pick one: text shorthand OR child elements. Mixed content is rejected.                  |
-| Variant changes one attribute but not another                | `attr.variant` declared before `attr` (base) in the SAME element    | Fine — declaration order is per-attribute. Just verify the right `.variant` exists.     |
-| Custom control's `[UIAttr]` ignored                          | Type other than string/int/float/bool                               | Take a string param and parse internally (see `Btn.Color` for a hex example).           |
+| Symptom                                                            | Cause                                                                        | Fix                                                                                            |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `cannot specify width/size on a horizontally-stretched axis`       | `<X anchor="top-stretch" width="200"/>`                                      | Either change anchor, or drop `width`. The stretched axis takes its size from `margin`.        |
+| Element not found at runtime                                       | `id` only declared inside a `<Template>`, but accessed by flat name          | Use path: `screen.Get("templateId/innerId")`                                                   |
+| Ghost element on variant toggle                                    | `<Add>` instantiated and never deactivated                                   | This is by design (Strategy C). Use `hidden.variant` if you need a node to disappear.          |
+| Subscription survives Close → null refs                            | Forgot `.AddTo(screen)`                                                      | Always tie R3 subscriptions to Screen lifetime                                                 |
+| Parser silently merges children                                    | Wrote `<Btn>开始 <Image/> </Btn>` (text + element mix)                       | Pick one: text shorthand OR child elements. Mixed content is rejected.                         |
+| Variant changes one attribute but not another                      | `attr.variant` declared before `attr` (base) in the SAME element             | Fine — declaration order is per-attribute. Just verify the right `.variant` exists.            |
+| Custom control's `[UIAttr]` ignored                                | Type other than string/int/float/bool                                        | Take a string param and parse internally (see `Btn.Color` for a hex example).                  |
+| `'stretch' on width/height is only valid inside <VStack>/<HStack>` | `<Btn width="stretch"/>` under a `<Frame>` (or other non-LayoutGroup parent) | Either wrap the Btn in a stack, or switch to free-positioning: `anchor="X-stretch"` + `margin` |
+| `size 'stretchx72' must be 'WxH' or 'native'`                      | Trying to put `stretch` keyword inside compact `size=`                       | `size=` is numeric-only. Use per-axis: `width="stretch" height="72"`                           |
 
 ## Quick reference (cheatsheet)
 
@@ -681,8 +691,11 @@ ANCHOR        "<v>-<h>"     v ∈ {top, center, bottom, stretch}
 ALIASES       center  =  center-center
               stretch | fill  =  stretch-stretch
 
-SIZE          size="WxH"  /  width="W"  /  height="H"
-              FORBIDDEN on stretched axis (parse error)
+SIZE          size="WxH"          numeric only
+              width="W"  / height="H"        numeric, or "stretch" (V/HStack child only)
+              FORBIDDEN on anchor-stretched axis (parse error)
+STRETCH KW    width="stretch" / height="stretch"  →  LayoutElement.flexible*=1
+              Only inside <VStack>/<HStack>.  Free-positioning: use anchor="...-stretch" + margin
 
 MARGIN        "X" | "V,H" | "T,R,B,L"     "_" = 0 placeholder
               Always inward from anchor (positive)
@@ -735,7 +748,8 @@ UI.Locale.UseAddressableResolver() load .po via Addressables, label = Locale:<lo
   <Template name="MenuButton">
     <Param name="label"/>
     <Param name="color" default="#3B82F6"/>
-    <Btn color="{{color}}" size="240x64" size.mobile="stretch,72">
+    <Btn color="{{color}}" size="240x64"
+         size.mobile="" width.mobile="stretch" height.mobile="72">
       <Text anchor="center" fontSize="24" color="#FFFFFF">{{label}}</Text>
     </Btn>
   </Template>
@@ -745,7 +759,7 @@ UI.Locale.UseAddressableResolver() load .po via Addressables, label = Locale:<lo
 
     <VStack id="menu" anchor="center" size="280x240" spacing="12"
             anchor.mobile="bottom-stretch"
-            size.mobile="_,320"
+            size.mobile="" height.mobile="320"
             margin.mobile="_,16,40,16">
       <MenuButton id="play"     label="开始游戏"/>
       <MenuButton id="settings" label="设置"/>

@@ -130,6 +130,14 @@ namespace PromptUGUI.Controls
             }
             else
             {
+                // 'stretch' 关键字只在 V/HStack 子节点上有意义（映射到 LayoutElement.flexibleX=1）。
+                // 自由布局父级（Frame/Screen/Grid）下没有 flex weight 概念，作者真要拉伸应改用 anchor="stretch"。
+                // 静默忽略会让作者以为生效了，所以显式抛错。
+                if (sizeSpec.IsFlexibleWidth || sizeSpec.IsFlexibleHeight)
+                    throw new System.ArgumentException(
+                        "'stretch' on width/height is only valid inside <VStack>/<HStack>; " +
+                        "use anchor=\"stretch\" (or anchor=\"X-stretch\") + margin for free-positioning containers");
+
                 AnchorResolver.Resolve(preset,
                     out var aMin, out var aMax, out var p);
                 RectTransform.anchorMin = aMin;
@@ -182,13 +190,32 @@ namespace PromptUGUI.Controls
             le.flexibleHeight = -1;
             if (sizeSpec.HasWidth)
             {
-                le.preferredWidth = sizeSpec.Width;
-                le.flexibleWidth = 0;
+                if (sizeSpec.IsFlexibleWidth)
+                {
+                    // stretch: 让 LayoutGroup 把剩余空间全分给该子节点（VerticalLayoutGroup 跨轴
+                    // 在 flexible>0 时把 requiredSpace 抬到容器内宽，HorizontalLayoutGroup 主轴则按
+                    // flexible 权重分配剩余空间）。preferred=0 让 base 部分不抢权重。
+                    le.preferredWidth = 0;
+                    le.flexibleWidth = 1;
+                }
+                else
+                {
+                    le.preferredWidth = sizeSpec.Width;
+                    le.flexibleWidth = 0;
+                }
             }
             if (sizeSpec.HasHeight)
             {
-                le.preferredHeight = sizeSpec.Height;
-                le.flexibleHeight = 0;
+                if (sizeSpec.IsFlexibleHeight)
+                {
+                    le.preferredHeight = 0;
+                    le.flexibleHeight = 1;
+                }
+                else
+                {
+                    le.preferredHeight = sizeSpec.Height;
+                    le.flexibleHeight = 0;
+                }
             }
         }
 

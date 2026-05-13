@@ -56,7 +56,7 @@ Project 右键 → Create → PromptUGUI → Settings，设置字体Type (以后
 
 Project 右键 → Create → PromptUGUI → UI XML。
 
-让大模型按你的要求（Figma > 截图）写UI。
+让大模型按你的要求（Figma > 截图）写UI，XML的修改会自动反映在Play模式的界面上。
 
 第一个界面大模型没有参考，选用的图素都是默认值，你需要手动修改或个别一一指示，之后会更顺利。
 

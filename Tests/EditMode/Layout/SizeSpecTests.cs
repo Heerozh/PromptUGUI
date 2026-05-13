@@ -65,5 +65,56 @@ namespace PromptUGUI.Tests.Layout
             Assert.Throws<System.ArgumentException>(() =>
                 SizeSpec.Parse(bad, null, null));
         }
+
+        [Test]
+        public void Parses_width_stretch_sets_flexible_flag()
+        {
+            var s = SizeSpec.Parse(size: null, width: "stretch", height: null);
+            Assert.IsTrue(s.HasWidth, "stretch is a width assignment, HasWidth must be true");
+            Assert.IsTrue(s.IsFlexibleWidth, "width='stretch' must set IsFlexibleWidth");
+            Assert.IsFalse(s.HasHeight);
+            Assert.IsFalse(s.IsFlexibleHeight);
+        }
+
+        [Test]
+        public void Parses_height_stretch_sets_flexible_flag()
+        {
+            var s = SizeSpec.Parse(size: null, width: null, height: "stretch");
+            Assert.IsTrue(s.HasHeight);
+            Assert.IsTrue(s.IsFlexibleHeight);
+            Assert.IsFalse(s.HasWidth);
+            Assert.IsFalse(s.IsFlexibleWidth);
+        }
+
+        [Test]
+        public void Parses_width_stretch_with_height_numeric()
+        {
+            var s = SizeSpec.Parse(size: null, width: "stretch", height: "72");
+            Assert.IsTrue(s.IsFlexibleWidth);
+            Assert.IsTrue(s.HasHeight);
+            Assert.IsFalse(s.IsFlexibleHeight);
+            Assert.AreEqual(72f, s.Height);
+        }
+
+        [TestCase("stretch")]
+        [TestCase("stretchx72")]
+        [TestCase("100xstretch")]
+        [TestCase("stretchxstretch")]
+        public void Throws_when_stretch_used_in_size_attribute(string bad)
+        {
+            // 'stretch' keyword is only valid on width=/height= attrs, never inside compact size=.
+            Assert.Throws<System.ArgumentException>(() =>
+                SizeSpec.Parse(size: bad, width: null, height: null));
+        }
+
+        [Test]
+        public void Stretch_on_anchor_stretched_axis_throws()
+        {
+            // Same rule as numeric: anchor stretched axis MUST use margin, cannot specify width/height.
+            // 'stretch' keyword counts as specifying width.
+            var spec = SizeSpec.Parse(size: null, width: "stretch", height: null);
+            var anchor = new AnchorPreset(AnchorVertical.Top, AnchorHorizontal.Stretch);
+            Assert.Throws<System.ArgumentException>(() => spec.ValidateAgainst(anchor));
+        }
     }
 }

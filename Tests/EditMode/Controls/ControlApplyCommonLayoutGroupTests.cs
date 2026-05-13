@@ -140,6 +140,99 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Btn_in_VStack_with_width_stretch_writes_flexible_one()
+        {
+            // width="stretch" inside V/HStack maps to LayoutElement.flexibleWidth=1
+            // (with preferredWidth=0). The LayoutGroup then grows the child to fill the cross axis.
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <VStack id='stack' width='380' height='180'>
+    <Btn id='b' width='stretch' height='46'/>
+  </VStack>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var btn = screen.Get<Btn>("b");
+            var le = btn.GameObject.GetComponent<LayoutElement>();
+            Assert.IsNotNull(le, "Btn with width=stretch must get a LayoutElement");
+            Assert.AreEqual(0f, le.preferredWidth, "stretch: preferred width = 0");
+            Assert.AreEqual(1f, le.flexibleWidth, "stretch: flexible width = 1 (LayoutGroup distributes remaining space)");
+            Assert.AreEqual(46f, le.preferredHeight, "height numeric stays preferred");
+            Assert.AreEqual(0f, le.flexibleHeight);
+        }
+
+        [Test]
+        public void Btn_in_HStack_with_height_stretch_writes_flexible_one()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <HStack id='stack' width='200' height='200'>
+    <Btn id='b' width='100' height='stretch'/>
+  </HStack>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var btn = screen.Get<Btn>("b");
+            var le = btn.GameObject.GetComponent<LayoutElement>();
+            Assert.AreEqual(100f, le.preferredWidth);
+            Assert.AreEqual(0f, le.flexibleWidth);
+            Assert.AreEqual(0f, le.preferredHeight);
+            Assert.AreEqual(1f, le.flexibleHeight);
+        }
+
+        [Test]
+        public void Variant_switch_from_stretch_to_numeric_resets_flexible()
+        {
+            // mobile base 是 stretch；切到 desktop 写死 width=240 → flexibleWidth 必须从 1 回到 0。
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <VStack id='stack' width='380' height='180'>
+    <Btn id='b' width='stretch' width.desktop='240' height='46'/>
+  </VStack>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            UI.Variants.Set("desktop", false);
+            var screen = UI.Open("S");
+            var btn = screen.Get<Btn>("b");
+            var le = btn.GameObject.GetComponent<LayoutElement>();
+            Assert.AreEqual(0f, le.preferredWidth, "base: stretch");
+            Assert.AreEqual(1f, le.flexibleWidth);
+
+            UI.Variants.Set("desktop", true);
+            Assert.AreEqual(240f, le.preferredWidth, "desktop override: numeric");
+            Assert.AreEqual(0f, le.flexibleWidth, "flexibleWidth must reset to 0 when override is numeric");
+        }
+
+        [Test]
+        public void Stretch_under_Frame_throws()
+        {
+            // 'stretch' keyword is meaningless outside V/HStack — anchor.stretch is the right tool
+            // for free-positioning containers. Reject loudly instead of silently doing nothing.
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='frame' anchor='stretch' margin='0'>
+    <Btn id='b' width='stretch' height='46'/>
+  </Frame>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            Assert.Throws<System.ArgumentException>(() => UI.Open("S"));
+        }
+
+        [Test]
+        public void Stretch_under_Grid_throws()
+        {
+            // Grid uses cellSize and ignores LayoutElement; stretch on a Grid child is doubly meaningless.
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Grid id='grid' columns='2' cellSize='40x40' width='200' height='200'>
+    <Btn id='b' width='stretch'/>
+  </Grid>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            Assert.Throws<System.ArgumentException>(() => UI.Open("S"));
+        }
+
+        [Test]
         public void LayoutElement_inside_VStack_skips_rect_anchored_and_size_writes()
         {
             // Author-supplied anchor/margin under a LayoutGroup is ignored by design (spec §6.5).
