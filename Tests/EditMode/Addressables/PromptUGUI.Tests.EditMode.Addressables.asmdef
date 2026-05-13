@@ -3,6 +3,7 @@
     "rootNamespace": "PromptUGUI.Tests.Addressables",
     "references": [
         "PromptUGUI.Runtime",
+        "PromptUGUI.Editor",
         "Unity.Addressables",
         "Unity.Addressables.Editor",
         "Unity.ResourceManager",

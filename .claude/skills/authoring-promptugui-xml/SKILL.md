@@ -337,9 +337,9 @@ picked up by `Resources.LoadAll<TextAsset>`; subfolder names are ignored.
 
 When the project ships `.po` via Addressables, call
 `UI.Locale.UseAddressableResolver()` at boot. The resolver loads every TextAsset
-whose Addressables **label matches the locale string** (so `Locale.Set("zh-Hans")`
-loads everything labelled `zh-Hans`). Files can live anywhere. Only available
-when `com.unity.addressables` ≥ 1.0 is installed (gated by
+whose Addressables **label is `Locale:<locale>`** (so `Locale.Set("zh-Hans")`
+loads everything labelled `Locale:zh-Hans`). Files can live anywhere. Only
+available when `com.unity.addressables` ≥ 1.0 is installed (gated by
 `PROMPTUGUI_HAS_ADDRESSABLES`).
 
 ```csharp
@@ -348,6 +348,14 @@ UI.Locale.Set("zh-Hans");                  // sync; UI shows msgid briefly durin
 // or:
 await UI.Locale.SetAsync("zh-Hans");       // awaits download + parse + ReSolve
 ```
+
+**One-shot setup**: run `Tools → PromptUGUI → I18n → Setup Addressables for
+Locale PO Files`. The menu scans every `.po` in the project, and for each one
+whose parent folder matches a `PromptUGUISettings.locales[].locale` entry
+(e.g. `Assets/Localization/zh-Hans/main.po`), it (1) applies the
+`Locale:<locale>` label, and 23) scrubs any stale `Locale:*` label left over
+from a previous folder location. Non-Locale labels you've set yourself (e.g.
+`UI`, `Stage:1-1`) are preserved.
 
 `Locale.Set` returns immediately after issuing the load. While the download is
 in flight, open Screens briefly fall back to msgid text; when the load
@@ -646,7 +654,8 @@ C# CANVAS     UI.CanvasConfigurator = (canvas, name) => { ... }  worldCamera / s
 UI.Tr("...")                     C# extraction entry point
 UI.Locale.Set("zh-Hans")         switch locale (= switch .po + switch font)
 UI.Locale.SetAsync("zh-Hans")    awaitable variant; completes after .po load + ReSolve
-UI.Locale.UseAddressableResolver() load .po via Addressables, label = locale string
+UI.Locale.UseAddressableResolver() load .po via Addressables, label = Locale:<locale>
+                                  (set via Tools→PromptUGUI→I18n→Setup Addressables for Locale PO Files)
 ```
 
 ## Worked end-to-end example

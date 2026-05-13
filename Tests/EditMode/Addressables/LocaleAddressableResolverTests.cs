@@ -10,12 +10,16 @@ namespace PromptUGUI.Tests.Addressables
     /// <summary>
     /// Wiring smoke tests for UI.Locale.UseAddressableResolver.
     ///
-    /// End-to-end "label='zh-Hans' → .po TextAssets → TranslationStore" is NOT
-    /// tested in EditMode: AsyncOperationHandle continuations need the player-loop
-    /// SynchronizationContext, which is absent in EditMode test runners. Same
-    /// limitation documented in AddressableResolverTests. Tests here cover only
-    /// the synchronous registration prefix: PoResolver is non-null after the
-    /// call, and invoking it returns a non-null Awaitable.
+    /// End-to-end "label='Locale:zh-Hans' → .po TextAssets → TranslationStore" is
+    /// NOT tested in EditMode: AsyncOperationHandle continuations need the
+    /// player-loop SynchronizationContext, which is absent in EditMode test
+    /// runners. Same limitation documented in AddressableResolverTests. Tests
+    /// here cover only the synchronous registration prefix: PoResolver is
+    /// non-null after the call, invoking it returns a non-null Awaitable, and
+    /// the static <see cref="UI.Locale.BuildLocaleLabel"/> helper produces the
+    /// `Locale:&lt;locale&gt;` form (Addressables' InvalidKeyException log
+    /// wraps the key as a List&lt;string&gt; so log-pattern matching is not a
+    /// reliable assertion vehicle here).
     ///
     /// 'zh-Hans' intentionally doesn't resolve to any registered asset, so
     /// Addressables logs an InvalidKeyException synchronously inside
@@ -61,6 +65,17 @@ namespace PromptUGUI.Tests.Addressables
                 "Not awaited — EditMode has no player loop, the Addressables " +
                 "AsyncOperationHandle won't resume; TearDown's ResetForTests " +
                 "releases the handle.");
+        }
+
+        [Test]
+        public void BuildLocaleLabel_prefixes_with_Locale_colon()
+        {
+            // The Addressables resolver loads .po TextAssets by label
+            // `Locale:<locale>` (not the bare locale string). Putting the
+            // bare locale on an AA entry would silently miss, so the prefix
+            // is the contract authors must match.
+            Assert.AreEqual("Locale:zh-Hans", UI.Locale.BuildLocaleLabel("zh-Hans"));
+            Assert.AreEqual("Locale:en", UI.Locale.BuildLocaleLabel("en"));
         }
     }
 }
