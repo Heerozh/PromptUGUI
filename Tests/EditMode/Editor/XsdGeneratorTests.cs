@@ -96,6 +96,43 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Xsd_accepts_stretch_keyword_on_width_and_height()
+        {
+            // width=/height= now accept the 'stretch' keyword (parser-side flex). The XSD
+            // declares these as xs:string with no enum, so any string passes. This test pins
+            // that contract: if someone later tightens the type (e.g. to xs:float), this
+            // breaks loud and reminds them to allow 'stretch' explicitly.
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+
+            const string sample = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'>
+    <VStack id='stack' width='380' height='180'>
+      <Btn id='b' width='stretch' height='46'/>
+      <Btn id='c' width='100'     height='stretch'/>
+    </VStack>
+  </Screen>
+</PromptUGUI>";
+
+            var schemas = new System.Xml.Schema.XmlSchemaSet();
+            schemas.Add(null, System.Xml.XmlReader.Create(new StringReader(xsd)));
+            var settings = new System.Xml.XmlReaderSettings
+            {
+                ValidationType = System.Xml.ValidationType.Schema,
+                Schemas = schemas,
+            };
+            var errors = new System.Collections.Generic.List<string>();
+            settings.ValidationEventHandler += (_, e) => errors.Add(e.Message);
+            using (var reader = System.Xml.XmlReader.Create(new StringReader(sample), settings))
+            {
+                while (reader.Read()) { }
+            }
+            CollectionAssert.IsEmpty(errors,
+                "width='stretch' / height='stretch' must pass XSD validation (xs:string contract).");
+        }
+
+        [Test]
         public void Icon_name_pattern_accepts_space_in_iconname()
         {
             // Real-world icon packs ship PNGs with spaces ('Alt Arrow Right.png').
