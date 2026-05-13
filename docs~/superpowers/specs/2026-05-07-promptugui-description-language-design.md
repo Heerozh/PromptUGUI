@@ -212,6 +212,15 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 - 允许 `id` / `hidden` / `interactable` / `if=`。
 - 典型用法：作为 `<Screen>` 直接子节点，UI 全放它里面；需要 bleed 到屏幕物理边缘的背景图作为 SafeArea 的兄弟节点。
 
+### 5.6 `<Screen reference="WxH">`（参考分辨率，since 2026-05-13）
+
+`<Screen>` 上可选属性 `reference="WxH"` 把 CanvasScaler 切到 `ScaleWithScreenSize`，
+`referenceResolution` 即该值。不设 = `ConstantPixelSize, scaleFactor=1`（零迁移默认）。
+`matchWidthOrHeight` 按朝向自动推断：W ≥ H → 0（锁宽），H > W → 1（锁高）。
+支持 `.variant` 形态（`reference.mobile="1080x1920"`），变体翻转时通过 `ReSolve`
+立即重应用。完整设计见独立 spec
+[`2026-05-13-screen-reference-resolution-design.md`](2026-05-13-screen-reference-resolution-design.md)。
+
 ---
 
 ## 6. 锚点与尺寸
