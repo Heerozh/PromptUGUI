@@ -50,7 +50,7 @@ Project 右键 → Create → PromptUGUI → Settings，设置字体Type (以后
 
 设置好即可，以后一键翻译会自动提取界面文本和代码中Tr()包裹的字符串。
 
-**建议**使用Addressable，点击菜单的`Setup Addressable for Locale ...`后，i18n目录即可移出Resources目录，放到其他目录。通过`UI.Locale.UseAddressableResolver();`后，`UI.Locale.SetToSystemDefaultAsync("en");`会自动后台下载多国语言，下完自动刷新界面。
+**建议**使用Addressable，点击菜单的`Setup Addressable for Locale ...`后，i18n目录即可移出Resources目录，放到其他目录。通过`UI.Locale.UseAddressableResolver();`后，`UI.Locale.SetToSystemDefault("en");`会自动后台下载多国语言，下完自动刷新界面。
 
 ### 3. 创建UI
 
