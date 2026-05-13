@@ -307,8 +307,13 @@ namespace PromptUGUI.Parser
                     $"<{el.Name}> mixes text and child elements; not allowed");
             if (hasText && !hasElement)
             {
+                // Trim both: XML preserves formatting whitespace by default, but for
+                // UI text content the leading/trailing whitespace from pretty-printed
+                // source files (e.g. <Text>\n  {{label}}\n</Text>) is never wanted —
+                // it would otherwise leak into TrResolver's lookup key and the final
+                // rendered string (since runtime uses TextContentRaw as the format).
                 node.TextContent = el.InnerText.Trim();
-                node.TextContentRaw = el.InnerText;     // un-trimmed raw — preserves intentional whitespace inside CDATA
+                node.TextContentRaw = el.InnerText.Trim();
             }
 
             foreach (XmlNode c in el.ChildNodes)

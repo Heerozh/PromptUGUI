@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using PromptUGUI.Application;
+using PromptUGUI.IR;
+using PromptUGUI.Parser;
 using UnityEditor;
 using UnityEngine;
 
@@ -56,15 +58,32 @@ namespace PromptUGUI.Editor.I18n
 
         private static IEnumerable<ExtractedString> ScanAllXml()
         {
-            var guids = AssetDatabase.FindAssets("t:TextAsset");
-            foreach (var guid in guids)
+            // Two pass: collect all <Template> defs across the project so that a
+            // Screen invoking a Template defined in a separate (commons) file can
+            // still have its parameter values extracted as msgids. Files that fail
+            // to parse are silently skipped here (same fallback the per-file scan
+            // applies); pure-parse-error reporting belongs elsewhere.
+            var paths = new List<string>();
+            var pool = new Dictionary<string, TemplateDef>();
+            foreach (var guid in AssetDatabase.FindAssets("t:TextAsset"))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
                 if (!path.EndsWith(".ui.xml")) continue;
                 if (path.StartsWith("Packages/")) continue;
+                paths.Add(path);
+                try
+                {
+                    var doc = UIDocumentParser.Parse(File.ReadAllText(path));
+                    foreach (var kv in doc.Templates) pool[kv.Key] = kv.Value;
+                }
+                catch (ParseException) { /* surface during per-file scan */ }
+            }
+
+            foreach (var path in paths)
+            {
                 var text = File.ReadAllText(path);
                 var partition = PathToPartition(path);
-                foreach (var es in XmlStringScanner.Scan(text, partition))
+                foreach (var es in XmlStringScanner.Scan(text, partition, pool))
                 {
                     if (es.References.Count == 0) es.References.Add(path);
                     yield return es;

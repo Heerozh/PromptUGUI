@@ -143,6 +143,18 @@ namespace PromptUGUI.Tests.Parser
         }
 
         [Test]
+        public void Text_shorthand_with_whitespace_also_trims_TextContentRaw()
+        {
+            // TextContentRaw is the lookup key for TrResolver at runtime. If the
+            // formatting whitespace leaks in, translated text renders with trailing
+            // spaces/newlines (bug seen with multi-line <Text>{{label}}\n  </Text>).
+            var xml = "<PromptUGUI version='1'><Screen name='X'>" +
+                      "<Text>{{label}}\n      </Text></Screen></PromptUGUI>";
+            var doc = UIDocumentParser.Parse(xml);
+            Assert.AreEqual("{{label}}", doc.Screens[0].Root.Children[0].TextContentRaw);
+        }
+
+        [Test]
         public void Text_shorthand_disallowed_when_mixed_with_elements()
         {
             const string xml = @"<PromptUGUI version='1'>

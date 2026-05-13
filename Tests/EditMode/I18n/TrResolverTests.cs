@@ -69,5 +69,30 @@ namespace PromptUGUI.Tests.I18n
             var args = new Dictionary<string, string> { { "n", "5" } };
             Assert.AreEqual("金币: 5", TrResolver.Resolve("金币: {{n}}", args, null));
         }
+
+        [Test]
+        public void Resolve_PureBracesRaw_LooksUpSubstitutedValue()
+        {
+            // When the raw text is *just* a placeholder (e.g. template body
+            // <Text>{{label}}</Text>), the user-visible string is the parameter
+            // value at the invocation site. The po file holds the param VALUE as
+            // msgid, so the resolver must substitute first, then look up.
+            TranslationStore.Instance.Load("en", new[] {
+                new PoEntry { Msgid = "开始", Msgstr = "Start" },
+            });
+            UI.Locale.Set("en");
+            var args = new Dictionary<string, string> { { "label", "开始" } };
+            Assert.AreEqual("Start", TrResolver.Resolve("{{label}}", args, null));
+        }
+
+        [Test]
+        public void Resolve_PureBracesRaw_FallsThroughOnMiss()
+        {
+            // If the substituted value isn't in the po, render the substituted
+            // value verbatim — same fallback behavior as a plain miss.
+            UI.Locale.Set("en");  // empty store
+            var args = new Dictionary<string, string> { { "label", "Quit" } };
+            Assert.AreEqual("Quit", TrResolver.Resolve("{{label}}", args, null));
+        }
     }
 }
