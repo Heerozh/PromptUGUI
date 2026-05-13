@@ -27,6 +27,13 @@ namespace PromptUGUI.Template
             foreach (var s in loaded.Screens)
             {
                 var newRoot = new ElementNode(s.Root.Tag, s.Root.Namespace);
+                // Screen-level attributes (e.g. reference=, reference.<variant>=) live on
+                // ScreenDef.Root and must survive expansion so runtime VariantResolver can read them.
+                foreach (var kv in s.Root.Attributes)
+                    newRoot.Attributes[kv.Key] = kv.Value;
+                foreach (var kv in s.Root.VariantOverrides)
+                    newRoot.VariantOverrides[kv.Key] =
+                        new List<(string Variant, string Value)>(kv.Value);
                 foreach (var c in s.Root.Children)
                 {
                     EnsureNoSlot(c, $"Screen '{s.Name}'");

@@ -101,5 +101,81 @@ namespace PromptUGUI.Tests.Application
 </PromptUGUI>";
             Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
         }
+
+        [Test]
+        public void Open_unset_reference_keeps_constant_pixel_size()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Frame/></Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+            Assert.AreEqual(UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize,
+                            scaler.uiScaleMode);
+            Assert.AreEqual(1f, scaler.scaleFactor);
+        }
+
+        [Test]
+        public void Open_landscape_reference_sets_match_zero()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' reference='1920x1080'><Frame/></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+            Assert.AreEqual(UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize,
+                            scaler.uiScaleMode);
+            Assert.AreEqual(new UnityEngine.Vector2(1920, 1080), scaler.referenceResolution);
+            Assert.AreEqual(0f, scaler.matchWidthOrHeight);
+        }
+
+        [Test]
+        public void Open_portrait_reference_sets_match_one()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' reference='1080x1920'><Frame/></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+            Assert.AreEqual(1f, scaler.matchWidthOrHeight);
+        }
+
+        [Test]
+        public void Open_square_reference_sets_match_zero()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' reference='1000x1000'><Frame/></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+            Assert.AreEqual(0f, scaler.matchWidthOrHeight);
+        }
+
+        [Test]
+        public void Open_canvas_configurator_runs_after_xml_reference()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' reference='1920x1080'><Frame/></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            UI.CanvasConfigurator = (canvas, _) => {
+                var s = canvas.GetComponent<UnityEngine.UI.CanvasScaler>();
+                s.referenceResolution = new UnityEngine.Vector2(2560, 1440);
+            };
+            try
+            {
+                var screen = UI.Open("S");
+                var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+                Assert.AreEqual(new UnityEngine.Vector2(2560, 1440), scaler.referenceResolution);
+            }
+            finally { UI.CanvasConfigurator = null; }
+        }
     }
 }
