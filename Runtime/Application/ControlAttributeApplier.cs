@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using PromptUGUI.Controls;
 using PromptUGUI.IR;
+using PromptUGUI.Parser;
 using PromptUGUI.Registry;
 using PromptUGUI.Variants;
 
@@ -40,7 +42,7 @@ namespace PromptUGUI.Application
                                   node.AttributesRaw.TryGetValue("text", out var r)) ? r : v;
                     v = TrResolver.Resolve(raw, node.TextArgs, ctx);
                 }
-                entry.Meta.Apply(control, attrName, v);
+                ApplyOne(entry.Meta, control, node, attrName, v);
             }
 
             // Text shorthand
@@ -50,7 +52,7 @@ namespace PromptUGUI.Application
                 var final = tr
                     ? TrResolver.Resolve(raw, node.TextArgs, ctx)
                     : node.TextContent;
-                entry.Meta.Apply(control, entry.DefaultTextAttr, final ?? "");
+                ApplyOne(entry.Meta, control, node, entry.DefaultTextAttr, final ?? "");
             }
 
             // Common attributes
@@ -65,8 +67,34 @@ namespace PromptUGUI.Application
             var hidden = hiddenStr == "true";
             var interactable = interactableStr != "false";
 
-            control.ApplyCommon(anchor, size, width, height, margin, pivot, hidden, interactable);
-            control.OnAfterApply();
+            try
+            {
+                control.ApplyCommon(anchor, size, width, height, margin, pivot, hidden, interactable);
+                control.OnAfterApply();
+            }
+            catch (Exception ex) when (!(ex is ParseException))
+            {
+                // 不挂 InnerException：Unity 的 StackTraceUtility 会把 inner 顶到日志最前面、
+                // 把我们附带上下文的外层 message 埋到中间，作者一眼看不到关键诊断。
+                throw new ParseException(FormatNodeContext(node) + ": " + ex.Message);
+            }
+        }
+
+        private static void ApplyOne(ControlMeta meta, Control control,
+                                     ElementNode node, string attrName, string value)
+        {
+            try { meta.Apply(control, attrName, value); }
+            catch (Exception ex) when (!(ex is ParseException))
+            {
+                throw new ParseException(
+                    $"{FormatNodeContext(node)} attribute {attrName}=\"{value}\": {ex.Message}");
+            }
+        }
+
+        private static string FormatNodeContext(ElementNode node)
+        {
+            var id = string.IsNullOrEmpty(node.Id) ? "" : $" id='{node.Id}'";
+            return $"<{node.Tag}{id}>";
         }
 
         public static bool IsCommonAttribute(string name)

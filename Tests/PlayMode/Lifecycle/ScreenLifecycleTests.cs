@@ -135,6 +135,44 @@ namespace PromptUGUI.Tests.Lifecycle
         }
 
         [UnityTest]
+        public IEnumerator Malformed_control_attribute_throws_with_element_context()
+        {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X'>
+                    <VStack id='root' padding='8,oops'/>
+                </Screen></PromptUGUI>";
+            var doc = UIDocumentParser.Parse(xml);
+            var inst = new ScreenInstantiator(_reg, _store);
+            var ex = Assert.Throws<ParseException>(
+                () => inst.Instantiate(doc.Screens[0]));
+            StringAssert.Contains("VStack", ex.Message);
+            StringAssert.Contains("root", ex.Message);
+            StringAssert.Contains("padding", ex.Message);
+            StringAssert.Contains("8,oops", ex.Message);
+            // Inner exception intentionally not preserved so Unity's StackTraceUtility
+            // prints OUR message at the top instead of burying it under the inner stack.
+            Assert.IsNull(ex.InnerException);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator Malformed_common_attribute_throws_with_element_context()
+        {
+            const string xml = @"<PromptUGUI version='1'>
+                <Screen name='X'>
+                    <Image id='bg' size='not-a-size'/>
+                </Screen></PromptUGUI>";
+            var doc = UIDocumentParser.Parse(xml);
+            var inst = new ScreenInstantiator(_reg, _store);
+            var ex = Assert.Throws<ParseException>(
+                () => inst.Instantiate(doc.Screens[0]));
+            StringAssert.Contains("Image", ex.Message);
+            StringAssert.Contains("bg", ex.Message);
+            Assert.IsNull(ex.InnerException);
+            yield return null;
+        }
+
+        [UnityTest]
         public IEnumerator UI_open_returns_screen_and_close_destroys()
         {
             UI.LoadDocument("test_doc", @"<PromptUGUI version='1'>

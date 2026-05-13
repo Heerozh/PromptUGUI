@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
+using PromptUGUI.Parser;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -250,7 +251,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
   </Frame>
 </Screen></PromptUGUI>";
             UI.LoadDocument("test", xml);
-            Assert.Throws<System.ArgumentException>(() => UI.Open("S"));
+            Assert.Throws<ParseException>(() => UI.Open("S"));
         }
 
         [Test]
@@ -264,7 +265,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
   </Grid>
 </Screen></PromptUGUI>";
             UI.LoadDocument("test", xml);
-            Assert.Throws<System.ArgumentException>(() => UI.Open("S"));
+            Assert.Throws<ParseException>(() => UI.Open("S"));
         }
 
         [Test]

@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
+using PromptUGUI.Parser;
 using UnityEngine;
 
 namespace PromptUGUI.Tests.EditMode.Controls
@@ -134,7 +135,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
   </VStack>
 </Screen></PromptUGUI>";
             UI.LoadDocument("test", xml);
-            var ex = Assert.Throws<System.ArgumentException>(() => UI.Open("S"));
+            var ex = Assert.Throws<ParseException>(() => UI.Open("S"));
             // Error must point the author at the right alternatives.
             StringAssert.Contains("stretch", ex.Message);
             StringAssert.Contains("spacer", ex.Message);
@@ -150,7 +151,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
   </HStack>
 </Screen></PromptUGUI>";
             UI.LoadDocument("test", xml);
-            Assert.Throws<System.ArgumentException>(() => UI.Open("S"));
+            Assert.Throws<ParseException>(() => UI.Open("S"));
         }
 
         [Test]
@@ -163,7 +164,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
   </Grid>
 </Screen></PromptUGUI>";
             UI.LoadDocument("test", xml);
-            Assert.Throws<System.ArgumentException>(() => UI.Open("S"));
+            Assert.Throws<ParseException>(() => UI.Open("S"));
         }
 
         [Test]
@@ -177,7 +178,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
   </Frame>
 </Screen></PromptUGUI>";
             UI.LoadDocument("test", xml);
-            Assert.Throws<System.ArgumentException>(() => UI.Open("S"));
+            Assert.Throws<ParseException>(() => UI.Open("S"));
         }
 
         [Test]
@@ -190,7 +191,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
   </Frame>
 </Screen></PromptUGUI>";
             UI.LoadDocument("test", xml);
-            Assert.Throws<System.ArgumentException>(() => UI.Open("S"));
+            Assert.Throws<ParseException>(() => UI.Open("S"));
         }
     }
 }
