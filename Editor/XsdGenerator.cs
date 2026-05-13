@@ -292,6 +292,19 @@ namespace PromptUGUI.Editor
             w.WriteEndElement();
             w.WriteEndElement();
 
+            // reference="WxH", optional
+            w.WriteStartElement("xs", "attribute", null);
+            w.WriteAttributeString("name", "reference");
+            w.WriteAttributeString("use", "optional");
+            w.WriteAttributeString("type", "xs:string");
+            w.WriteEndElement();
+
+            // Accept reference.<variant>="..." (open variant namespace). Must come
+            // after all explicit attributes per XSD schema ordering rules.
+            w.WriteStartElement("xs", "anyAttribute", null);
+            w.WriteAttributeString("processContents", "lax");
+            w.WriteEndElement();
+
             w.WriteEndElement();
             w.WriteEndElement();
         }
