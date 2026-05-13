@@ -22,6 +22,18 @@ namespace PromptUGUI.Tests.Addressables
     /// Addressables logs an InvalidKeyException synchronously inside LoadAssetsAsync.
     /// Each test declares the expected error via LogAssert.Expect; Unity Test
     /// Framework consumes the matched entry instead of failing the test on it.
+    ///
+    /// FRAGILE: this hinges on `promptugui-test/icons` never being registered as a
+    /// label in the host project's AddressableAssetSettings. AA only emits
+    /// InvalidKeyException for *unknown* keys — registered-but-zero-entries labels
+    /// resolve silently to an empty list. The sibling LocaleAddressableResolver
+    /// test hit this exact failure after `AddressablePoLabelSyncer` registered
+    /// `Locale:zh-Hans` permanently in the project's AA labels (see commit fixing
+    /// LocaleAddressableResolverTests). If `promptugui-test/icons` ever gets added
+    /// as an AA label, mirror that fix here: drop `LogAssert.Expect(...)` and use
+    /// `LogAssert.ignoreFailingMessages = true` so the test only asserts the
+    /// behavioral contract (non-null Awaitable / release counter) and tolerates
+    /// either AA code path.
     /// </summary>
     public class AddressableIconResolverTests
     {
