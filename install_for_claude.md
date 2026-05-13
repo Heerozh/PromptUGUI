@@ -24,35 +24,37 @@
 
 **验证**：等 Unity 完成 import（可调 `mcp__UnityMCP__refresh_unity(compile="request", mode="standard", wait_for_ready=true)`），确认 `<project root>/Packages/com.promptugui.core/` 目录存在，含 `Runtime/`、`Editor/`、`package.json`。
 
-## 步骤 2：复制 LLM 编辑 Skill 到用户项目
+## 步骤 2：复制 LLM Skills 到用户项目
 
-包内自带一份给 LLM 读的 XML 编写指南，路径：
+包内自带三个给 LLM 读的 skill，路径：
 
 ```
-<project root>/Packages/com.promptugui.core/.claude/skills/authoring-promptugui-xml/SKILL.md
+<project root>/Packages/com.promptugui.core/.claude/skills/authoring-promptugui-xml/SKILL.md      # XML 编写
+<project root>/Packages/com.promptugui.core/.claude/skills/scripting-promptugui-csharp/SKILL.md   # C# bridge（UI.Open / Get<T> / R3 / BindItems / 自定义 Control）
+<project root>/Packages/com.promptugui.core/.claude/skills/using-promptugui-addressables/SKILL.md # Addressables 集成（.ui.xml / .po / IconSet）
 ```
 
-把整个目录复制到用户项目的 `.claude/skills/` 下（**项目作用域**，跟仓库走，团队共享）：
+把整个 skills 目录复制到用户项目的 `.claude/skills/` 下（**项目作用域**，跟仓库走，团队共享）：
 
 **Unix / macOS / WSL：**
 ```bash
 mkdir -p .claude/skills
-cp -r Packages/com.promptugui.core/.claude/skills/authoring-promptugui-xml .claude/skills/
+cp -r Packages/com.promptugui.core/.claude/skills/* .claude/skills/
 ```
 
 **Windows PowerShell：**
 ```powershell
 New-Item -ItemType Directory -Force -Path .claude/skills | Out-Null
 Copy-Item -Recurse -Force `
-  Packages/com.promptugui.core/.claude/skills/authoring-promptugui-xml `
+  Packages/com.promptugui.core/.claude/skills/* `
   .claude/skills/
 ```
 
 如目标已存在，覆盖即可（**幂等**——包升级时 skill 也要跟着升级，重新跑这一步）。
 
-> 备选：如果用户希望该 skill 跨所有项目可用，复制到 `~/.claude/skills/` 而不是项目内 `.claude/skills/`。默认推荐项目作用域。
+> 备选：如果用户希望这些 skill 跨所有项目可用，复制到 `~/.claude/skills/` 而不是项目内 `.claude/skills/`。默认推荐项目作用域。
 
-**验证**：用 Read 工具读 `.claude/skills/authoring-promptugui-xml/SKILL.md` 第 1 行，应是 `---`（YAML frontmatter 起始）。
+**验证**：确认 `.claude/skills/` 下 `authoring-promptugui-xml/`、`scripting-promptugui-csharp/`、`using-promptugui-addressables/` 三个目录都存在，每个目录里的 `SKILL.md` 第 1 行都是 `---`（YAML frontmatter 起始）。
 
 ## 步骤 3：注入项目级 CLAUDE.md 约定
 
@@ -90,11 +92,11 @@ Copy-Item -Recurse -Force `
 依次确认：
 
 1. ✓ `Packages/com.promptugui.core/Runtime/` 存在
-2. ✓ `.claude/skills/authoring-promptugui-xml/SKILL.md` 存在，frontmatter 完整
+2. ✓ `.claude/skills/` 下 `authoring-promptugui-xml/`、`scripting-promptugui-csharp/`、`using-promptugui-addressables/` 三个 SKILL.md 都存在，frontmatter 完整
 3. ✓ `CLAUDE.md` 含 Tr() 包裹约定章节，原内容保留
 4. ✓ （可选）`mcp__UnityMCP__refresh_unity(compile="request", mode="standard")` 后 `mcp__UnityMCP__read_console(action="get", types=["error"])` 无编译错误
 
-全部通过即安装完成。下次会话 Claude Code 会自动加载 `CLAUDE.md`；用户编辑 `.ui.xml` 时 `authoring-promptugui-xml` skill 按需触发。
+全部通过即安装完成。下次会话 Claude Code 会自动加载 `CLAUDE.md`；用户编辑 `.ui.xml` 时 `authoring-promptugui-xml` 触发，写 C# 调用 `UI.*` 时 `scripting-promptugui-csharp` 触发，集成 Unity Addressables 时 `using-promptugui-addressables` 触发。
 
 ## 升级 / 卸载
 
@@ -102,5 +104,5 @@ Copy-Item -Recurse -Force `
 
 **卸载**：
 1. 从 `manifest.json` 删除 `com.promptugui.core`
-2. 删除 `.claude/skills/authoring-promptugui-xml/`
+2. 删除 `.claude/skills/authoring-promptugui-xml/`、`.claude/skills/scripting-promptugui-csharp/`、`.claude/skills/using-promptugui-addressables/`
 3. 从 `CLAUDE.md` 删除 `## i18n: Tr() 包裹约定` 章节（如果项目里别的库也共用同名约定，保留）

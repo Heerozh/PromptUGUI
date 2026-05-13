@@ -12,14 +12,20 @@ The library is **content-agnostic at runtime**: it never reads the filesystem it
 
 `docs~/superpowers/specs/2026-05-07-promptugui-description-language-design.md` is the master spec for the description language and C# API. Per-milestone specs and plans live alongside it. Always read the master spec before changing public API or XML semantics — section numbers (e.g. "spec §7.6") are referenced throughout the codebase and PR descriptions.
 
-`.claude/skills/authoring-promptugui-xml/SKILL.md` is the LLM-facing authoring guide. **Any functional change or addition must be reflected here in the same PR.** Triggers requiring a SKILL update:
+The LLM-facing authoring guide is split into three skills under `.claude/skills/`. **Any functional change or addition must be reflected in the relevant skill(s) in the same PR.**
 
-- New / removed / renamed XML elements (e.g. adding a `<Toggle>` builtin, retiring `<Btn>`)
-- New / removed / renamed attributes on any built-in tag, including type changes
-- Changes to anchor / size / margin / Variant / Template / Import / `if=` semantics
-- Public C# API surface changes (anything callers touch: `UI.*`, `IScreen`, `IControl`, `ControlRegistry`, `Variants`, `[UIAttr]` / `[Bind]`)
-- Changes to the `id` path / scoping rules
-- New / changed parser-time errors that authors will hit
+- `authoring-promptugui-xml/SKILL.md` — XML markup: built-in tags, attributes, anchor / size / margin / Variant / Template / Import / `if=` / `<Icon>` / i18n markup / XML parse errors.
+- `scripting-promptugui-csharp/SKILL.md` — C# bridge: `UI.*`, `IScreen`, `IControl`, `ControlRegistry`, `Variants`, `[UIAttr]` / `[Bind]`, `BindItems` / `BindOptions`, Resources-backed icon / .po loading, `UI.CanvasConfigurator`.
+- `using-promptugui-addressables/SKILL.md` — Addressables-backed loaders for `.ui.xml`, `.po`, and icon atlases (gated by `PROMPTUGUI_HAS_ADDRESSABLES`).
+
+Triggers requiring a SKILL update (route to the relevant file):
+
+- New / removed / renamed XML elements (e.g. adding a `<Toggle>` builtin, retiring `<Btn>`) → XML skill
+- New / removed / renamed attributes on any built-in tag, including type changes → XML skill
+- Changes to anchor / size / margin / Variant / Template / Import / `if=` semantics → XML skill
+- Public C# API surface changes (anything callers touch: `UI.*`, `IScreen`, `IControl`, `ControlRegistry`, `Variants`, `[UIAttr]` / `[Bind]`) → C# skill (Addressables skill if the change is `PROMPTUGUI_HAS_ADDRESSABLES`-gated)
+- Changes to the `id` path / scoping rules → both XML (declaration) and C# (`Get<T>` path) skills
+- New / changed parser-time errors that authors will hit → XML skill
 
 Internal refactors, test-only changes, performance work, and Editor tooling that doesn't affect XML or the public API do **not** require a SKILL update.
 

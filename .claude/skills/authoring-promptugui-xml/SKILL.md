@@ -1,17 +1,17 @@
 ---
 name: authoring-promptugui-xml
-description: Use when authoring or editing PromptUGUI `.ui.xml` files (XML-driven uGUI for Unity 6+), defining `<Screen>` / `<Template>` / `<Variant>`, or wiring the C# `Get<T>` + R3 event bridge that drives them.
+description: Use when authoring or editing PromptUGUI `.ui.xml` files (XML-driven uGUI for Unity 6+) — defining `<Screen>` / `<Template>` / `<Variant>`, anchor / size / margin layout, built-in controls, or `<Icon>` / i18n markup. For C# event / data wire-up (`Get<T>`, R3, `BindItems`), see scripting-promptugui-csharp; for loading `.ui.xml` / `.po` / icons via Unity Addressables, see using-promptugui-addressables.
 ---
 
 # Authoring PromptUGUI `.ui.xml`
 
-PromptUGUI is a Unity 6+ package that turns compact XML files into runtime uGUI hierarchies. The description file is **pure structure + named handles** — no logic, no data binding expressions. All event/data wiring happens C#-side via `Get<T>(id)` and R3 `Observable<T>`.
+PromptUGUI is a Unity 6+ package that turns compact XML files into runtime uGUI hierarchies. The description file is **pure structure + named handles** — no logic, no data binding expressions. All event/data wiring happens C#-side via `Get<T>(id)` and R3 `Observable<T>`; see the **scripting-promptugui-csharp** skill for that side.
 
 This skill covers everything you need to write or edit a `.ui.xml` correctly. Read top-to-bottom once; afterwards the **Quick Reference** at the end is enough.
 
 ## Validation & feedback loop (run after every write)
 
-Every `.ui.xml` write — and every `.cs` write that touches PromptUGUI — MUST be verified before reporting the work done. Two steps, in order:
+Every `.ui.xml` write MUST be verified before reporting the work done. Two steps, in order:
 
 ### 1. XSD validate every `.ui.xml`
 
@@ -24,11 +24,11 @@ xmllint --noout --schema Assets/PromptUGUI.gen.xsd <path/to/your.ui.xml>
 - If user not install unity mcp, u can ignore template tags error in XSD.
 - **If the file does not exist, STOP.** Tell the user (in their language) to run the Editor menu `Tools → PromptUGUI → Schema → Generate XSD`.
 
-### 2. Unity MCP live feedback (xml AND C# writes)
+### 2. Unity MCP live feedback
 
-XSD only catches structural errors; Unity catches the rest — parser semantic errors (anchor/size conflicts, id collisions, missing `ref=`, Template namespace clashes), C# compile failures, runtime hot-reload errors.
+XSD only catches structural errors; Unity catches the rest — parser semantic errors (anchor/size conflicts, id collisions, missing `ref=`, Template namespace clashes), runtime hot-reload errors.
 
-After every `.ui.xml` or `.cs` write:
+After every `.ui.xml` write:
 
 ```
 mcp__UnityMCP__refresh_unity(compile="request", mode="force")
@@ -70,7 +70,7 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 Pre-registered on `UI.Registry`. Use as XML tags by name:
 
 | Tag            | Notes                                                                                                                                                                                                                                                        | Tag-specific attributes                                                                                                                                                                                                                                                                                             |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `<Frame>`      | Empty container (RectTransform only).                                                                                                                                                                                                                        | —                                                                                                                                                                                                                                                                                                                   |
 | `<SafeArea>`   | Stretches to `Screen.safeArea` (notch / status bar / home indicator). Auto-reacts to rotation, window resize, Device Simulator. **Rejects** `anchor` / `size` / `width` / `height` / `margin` / `pivot` (incl. `.variant`); see "Safe area" section below.   | —                                                                                                                                                                                                                                                                                                                   |
 | `<Image>`      | uGUI Image; loads sprites from `Resources`.                                                                                                                                                                                                                  | `sprite` (resource path), `color` (`#RRGGBB[AA]`), `type` (`simple` / `sliced` / `tiled` / `filled`)                                                                                                                                                                                                                |
@@ -82,11 +82,11 @@ Pre-registered on `UI.Registry`. Use as XML tags by name:
 | `<Icon>`       | Sprite from a project-level IconSet; by-name lookup, package-time pruning.                                                                                                                                                                                   | `name` (required, `ns:icon-name`), `color` (`#RRGGBB[AA]`), `size` (`WxH` / `native`; 拉伸用 `anchor="stretch"`)                                                                                                                                                                                                    |
 | `<Toggle>`     | Image + uGUI Toggle + auto label. R3 `OnValueChanged: bool`. `<Toggle>静音</Toggle>` shorthand sets the label. Same `group=` name → mutual exclusion. **不要给单个 Toggle 写 `group=`** — uGUI ToggleGroup 默认要求至少一个 active，单成员组一旦点上就锁死。 | `text`, `isOn` (bool, default false), `group` (string, mutual-exclusion key), `color`, `sprite` (Resources path for checkmark sprite), `font`                                                                                                                                                                       |
 | `<Slider>`     | Image + uGUI Slider. R3 `OnValueChanged: float`.                                                                                                                                                                                                             | `min` (float), `max` (float), `value` (float), `wholeNumbers` (bool), `direction` (`horizontal` / `vertical` / `reverse-horizontal` / `reverse-vertical`), `color`, `sprite`                                                                                                                                        |
-| `<Dropdown>`   | TMP_Dropdown. R3 `OnSelected: int`. Options pushed via `BindOptions(Observable<IEnumerable<string \| DropdownOption>>)`.                                                                                                                                     | `value` (int initial index), `color`, `sprite`, `font`                                                                                                                                                                                                                                                              |
-| `<ScrollList>` | ScrollRect + Mask. Items pushed via `BindItems(Observable<IReadOnlyList<T>>, Action<slot, T>)`. `itemTemplate` references a `<Template name=...>` or registered Control class.                                                                               | `itemTemplate` (required tag name), `direction` (`vertical` / `horizontal`), `spacing` (float), `padding`, `color`, `sprite`                                                                                                                                                                                        |
+| `<Dropdown>`   | TMP_Dropdown. R3 `OnSelected: int`. Options pushed C#-side via `BindOptions(...)`.                                                                                                                                                                           | `value` (int initial index), `color`, `sprite`, `font`                                                                                                                                                                                                                                                              |
+| `<ScrollList>` | ScrollRect + Mask. Items pushed C#-side via `BindItems(...)`. `itemTemplate` references a `<Template name=...>` or registered Control class.                                                                                                                | `itemTemplate` (required tag name), `direction` (`vertical` / `horizontal`), `spacing` (float), `padding`, `color`, `sprite`                                                                                                                                                                                        |
 | `<InputField>` | TMP_InputField；R3 `OnValueChanged` / `OnEndEdit` / `OnSubmit: string`。`<InputField>初始文本</InputField>` 短手设 `text=`。                                                                                                                                 | `text`, `placeholder`, `contentType` (`standard`/`autocorrected`/`integer-number`/`decimal-number`/`alphanumeric`/`name`/`email`/`password`/`pin`/`custom`), `lineType` (`single`/`multi-newline`/`multi-submit`), `characterLimit` (int), `readOnly` (bool), `color`, `sprite`, `font`, `tr` (placeholder)/`ctx`   |
 
-`<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` are reference implementations. For project-specific differentiation (pixel border, press feedback, custom popup chrome) subclass and override `OnAttached`.
+`<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` are reference implementations. For project-specific differentiation (pixel border, press feedback, custom popup chrome) subclass and override `OnAttached` — see scripting-promptugui-csharp.
 
 ### `<Icon>`
 
@@ -331,7 +331,7 @@ The grid (and its Image children) are injected at the `<Slot/>` position.
 
 ## Variants: runtime layout switching
 
-Variants are named flags, toggled C#-side: `UI.Variants.Set("mobile", true)`. Multiple flags can be active simultaneously. Toggling re-applies attributes on all open Screens **without rebuilding GameObjects**.
+Variants are named flags, **toggled C#-side** with `UI.Variants.Set("mobile", true)` (see scripting-promptugui-csharp). Multiple flags can be active simultaneously. Toggling re-applies attributes on all open Screens **without rebuilding GameObjects**.
 
 ### Inline override — 90% of usage
 
@@ -392,9 +392,9 @@ For inserting elements per variant (no `Remove`, no `Replace` — use `hidden.va
 
 Trying to write `id.mobile="..."` or `default.mobile="..."` is a parse error.
 
-## i18n & Fonts
+## i18n & Fonts (XML markup)
 
-Source text goes directly inside `<Text>` / `<Btn>`. `UI.Locale.Set("en")` switches the language; locale switching rides the Variant pipeline, so already-open Screens auto-ReSolve.
+Source text goes directly inside `<Text>` / `<Btn>` and serves as the msgid for extraction. Translation happens at runtime — see the **scripting-promptugui-csharp** skill for the `UI.Locale.Set` / `UI.Tr` C# calls that switch language, and the **using-promptugui-addressables** skill if your `.po` files ship via Addressables.
 
 ```xml
 <!-- Source text = msgid; zero keys -->
@@ -416,52 +416,7 @@ Source text goes directly inside `<Text>` / `<Btn>`. `UI.Locale.Set("en")` switc
 <Text font="title" font.zh-Hans="title-cn">Settings</Text>
 ```
 
-C#:
-
-```csharp
-// Switch locale; swaps both the .po table and the font table
-UI.Locale.Set("en");
-UI.Locale.SetToSystemDefault();
-
-// Strings extracted from code
-var text = string.Format(c, UI.Tr("Total: {0:C}"), price);
-```
-
-**Reserved namespace**: `UI.Locale.Set("zh-Hans")` internally registers `zh-Hans` as an active Variant. Authors must NOT reuse a Variant of the same name to express anything other than locale state.
-
-**.po file location**
-
-By default `.po` files live in `Assets/Resources/PromptUGUI/i18n/<locale>/` or
-`/PromptUGUI/i18n-custom/<locale>/`. Files anywhere under those paths are
-picked up by `Resources.LoadAll<TextAsset>`; subfolder names are ignored.
-
-When the project ships `.po` via Addressables, call
-`UI.Locale.UseAddressableResolver()` at boot. The resolver loads every TextAsset
-whose Addressables **label is `Locale:<locale>`** (so `Locale.Set("zh-Hans")`
-loads everything labelled `Locale:zh-Hans`). Files can live anywhere. Only
-available when `com.unity.addressables` ≥ 1.0 is installed (gated by
-`PROMPTUGUI_HAS_ADDRESSABLES`).
-
-```csharp
-UI.Locale.UseAddressableResolver();
-UI.Locale.Set("zh-Hans");                  // sync; UI shows msgid briefly during download
-// or:
-await UI.Locale.SetAsync("zh-Hans");       // awaits download + parse + ReSolve
-```
-
-**One-shot setup**: run `Tools → PromptUGUI → I18n → Setup Addressables for
-Locale PO Files`. The menu scans every `.po` in the project, and for each one
-whose parent folder matches a `PromptUGUISettings.locales[].locale` entry
-(e.g. `Assets/Localization/zh-Hans/main.po`), it (1) applies the
-`Locale:<locale>` label, and 23) scrubs any stale `Locale:*` label left over
-from a previous folder location. Non-Locale labels you've set yourself (e.g.
-`UI`, `Stage:1-1`) are preserved.
-
-`Locale.Set` returns immediately after issuing the load. While the download is
-in flight, open Screens briefly fall back to msgid text; when the load
-completes the locale variant flips on and all open Screens re-resolve to the
-translated strings. `SetAsync` returns only after that re-resolve completes —
-use it when you need to read `UI.Tr(...)` immediately after switching locales.
+**Reserved variant namespace**: `UI.Locale.Set("zh-Hans")` internally registers `zh-Hans` as an active Variant. Authors must NOT reuse a Variant of the same name to express anything other than locale state.
 
 ### Inline sprites / TMP rich text
 
@@ -491,81 +446,12 @@ The extractor pulls each CDATA block as a single complete msgid; runtime transla
 - Imported files cannot contain `<Screen>` — only `<Template>`.
 - Same-named templates from two imports without `as=` → conflict error. Resolve with `as="ns"` on one of them.
 
-There's also a **commons pool**: `await UI.LoadCommonLibraryAsync("ui/common", @as: null)` populates a global template pool merged into every screen automatically (no `<Import>` needed at the call site). Use this for project-wide shared widgets.
+There's also a **commons pool** populated C#-side that's merged into every Screen automatically — see scripting-promptugui-csharp.
 
-## C# code-side bridge
-
-The XML doesn't bind data or events — it just creates handles. C# does the rest.
-
-### Setup
-
-```csharp
-using PromptUGUI.Application;
-using R3;
-
-UI.UseResourcesResolver("UI");                             // sets SourceResolver rootPath + Editor hot-reload mapping
-UI.Registry.Register<MyCustomControl>("MyTag", myPrefab);  // optional; built-ins are pre-registered
-
-async void Start() {
-    await UI.LoadCommonLibraryAsync("common/Buttons");     // optional
-    await UI.LoadDocumentAsync("screens/MainMenu");        // load "{rootPath}/screens/MainMenu.ui.xml"; enables hot-reload
-    // or, sync raw-XML form (no resolver, no hot-reload):
-    // UI.LoadDocument("MainMenu", xmlString);
-    var screen = UI.Open("MainMenu");
-}
-```
-
-### Addressables resolver (optional)
-
-If your project has `com.unity.addressables` installed, prefer to load `.ui.xml` files via Addressables instead of Resources:
-
-```csharp
-[SerializeField] AssetReferenceT<TextAsset> mainMenuXml;
-// ...
-UI.UseAddressableResolver();
-await UI.LoadDocumentAsync(mainMenuXml);                   // forwards AssetGUID to the string pipeline
-UI.Open("MainMenu");
-```
-
-prefer via a serialized `AssetReferenceT<TextAsset>` field (so authors drag the asset in the Inspector instead of typing a key).
-
-or load via key:
-
-```csharp
-UI.UseAddressableResolver();
-await UI.LoadDocumentAsync("UI/screens/MainMenu.ui.xml");   // src = Addressable key; enables hot-reload
-UI.Open("MainMenu");
-```
-
-In Editor, saving a `.ui.xml` that's registered with Addressables auto-triggers hot-reload (same as Resources path). Player builds load via Addressables catalog. The `UseAddressableResolver` and `LoadDocumentAsync(AssetReferenceT<TextAsset>)` methods only exist when `com.unity.addressables` ≥ 1.0 is installed (gated by `PROMPTUGUI_HAS_ADDRESSABLES` compile symbol).
-
-**Canvas configuration** (optional):
-
-Each `Screen.Open()` creates its own root Canvas (+ `CanvasScaler` + `GraphicRaycaster`). The render mode comes from the XML `canvas` attribute on `<Screen>` (`overlay` / `camera` / `world`, default `overlay`). For everything _else_ — pinning a `worldCamera`, setting `sortingOrder` / `planeDistance`, swapping render mode at runtime, etc. — register a configurator. The configurator runs **after** the XML-declared mode is applied, so it can override anything:
+## Canvas / scaler attributes on `<Screen>`
 
 ```xml
-<Screen name="WorldTooltip" canvas="camera"> ... </Screen>
-```
-
-```csharp
-UI.CanvasConfigurator = (canvas, screenName) => {
-    if (canvas.renderMode == RenderMode.ScreenSpaceCamera) {
-        canvas.worldCamera = uiCamera;       // Camera ref must come from C# — not XML
-        canvas.planeDistance = 10f;
-    }
-    canvas.sortingOrder = screenName == "Settings" ? 100 : 0;  // popups above main
-};
-```
-
-The callback fires once per `Open()` (so also re-fires on hot-reload, since reload = close + reopen). The library never auto-creates Cameras — assigning `worldCamera` is the user's job. With no configurator and no `canvas=` attribute, every Screen is `ScreenSpaceOverlay`, `sortingOrder=0`.
-
-**Pixel units & scaling.** 默认情况下 `<Screen>` 创建的 `CanvasScaler` 是
-`ConstantPixelSize, scaleFactor=1`，所以 `width="240"` ≡ 240 个**设备像素** ——
-同一 XML 在 1080p / 4K / 不同手机上视觉大小不一致。要按"设计分辨率"自动缩放
-（业内默认配法），在 `<Screen>` 上声明 `reference="WxH"`：
-
-```xml
-<Screen name="MainMenu" reference="1920x1080">...</Screen>
+<Screen name="MainMenu" canvas="overlay" reference="1920x1080">...</Screen>
 
 <!-- 横屏 PC + 竖屏手机一份 XML -->
 <Screen name="MainMenu"
@@ -573,146 +459,21 @@ The callback fires once per `Open()` (so also re-fires on hot-reload, since relo
         reference.mobile="1080x1920">...</Screen>
 ```
 
-- `reference="WxH"` → CanvasScaler 切到 `ScaleWithScreenSize`，referenceResolution
-  即该值。`matchWidthOrHeight` 按朝向自动推断：W ≥ H 锁宽（0），H > W 锁高（1）。
-- 未设 / `reference=""` → 保留默认 ConstantPixelSize 行为。
-- `.variant` 形态：`reference.mobile="..."` 同其他属性 variant 规则；变体切换时
-  CanvasScaler 立即重应用。
-- 要 `match=0.5` 折中或改 `referencePixelsPerUnit`：走 `UI.CanvasConfigurator`
-  手改。**不要在两条路径同时改 CanvasScaler** —— variant flip 时 XML 路径会覆盖
-  configurator 的改动。
+- `canvas="overlay|camera|world"`, default `overlay`. Picks the runtime `Canvas.renderMode` for this Screen. Everything else (worldCamera, sortingOrder) is configured C#-side via `UI.CanvasConfigurator`.
+- `reference="WxH"` → CanvasScaler 切到 `ScaleWithScreenSize`，referenceResolution 即该值。`matchWidthOrHeight` 按朝向自动推断：W ≥ H 锁宽（0），H > W 锁高（1）。
+- 未设 / `reference=""` → 保留默认 `ConstantPixelSize, scaleFactor=1` 行为；XML 数字直接 = 设备像素。
+- `.variant` 形态：`reference.mobile="..."` 同其他属性 variant 规则；变体切换时 CanvasScaler 立即重应用。
+- 要 `match=0.5` 折中或改 `referencePixelsPerUnit`：走 `UI.CanvasConfigurator` 手改。**不要在两条路径同时改 CanvasScaler** —— variant flip 时 XML 路径会覆盖 configurator 的改动。
 
-**Icon system setup** (optional, only if your XML uses `<Icon>`):
-
-```csharp
-// Default helper: enumerate Resources/IconSets/ folder
-IconResolverHelpers.UseSpriteAtlasIconResolver();
-// Or pass an explicit list of IconSet ScriptableObjects:
-IconResolverHelpers.UseSpriteAtlasIconResolver(new[] { uiIconSet, artIconSet });
-```
-
-The helper builds a `(set:icon) → Sprite` lookup from each IconSet's SpriteAtlas.
-
-**Addressables variant** (when `com.unity.addressables` ≥ 1.0 is installed):
-
-```csharp
-// Tag your IconSet assets in Addressables with label="IconSets".
-// Addressables auto-pulls all the referenced SpriteAtlas as a dependency.
-await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver();
-// Or custom label:
-await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver("MyIcons");
-// Multiple labels — OR (Union, default): every IconSet tagged with "core" or "mobile"
-await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(
-    new[] { "core", "mobile" });
-// AND (Intersection): only IconSets tagged with BOTH "core" and "mobile"
-await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(
-    new[] { "core", "mobile" }, UnityEngine.AddressableAssets.Addressables.MergeMode.Intersection);
-```
-
-Returns `Awaitable` — `await` it before opening any Screen that contains `<Icon>`, since `UI.IconResolver` is set inside the continuation. The loaded handle is held static and released on a second `UseAddressableSpriteAtlasIconResolver` call (swap label/locale). Only visible when `PROMPTUGUI_HAS_ADDRESSABLES` is defined.
-
-`Sprite` references returned from `UI.IconResolver` are only valid while the current handle is held — releasing the handle (label swap, reset) unloads the underlying `SpriteAtlas`. Do not cache the returned `Sprite` in your own fields across such calls; resolve via `UI.IconResolver` (or rely on `<Icon name>` re-resolving on Variant changes) each time you need it.
-
-To use a fully custom backend, set `UI.IconResolver` directly with your own `(key → Sprite)` lookup.
-
-### Open / Close / Get
-
-```csharp
-var screen = UI.Open("MainMenu");                          // returns IScreen
-
-var btn = screen.Get<Btn>("playBtn");                      // throws KeyNotFoundException if missing
-IControl any = screen.Get("playBtn");                      // untyped fallback
-
-// Path syntax for nested template instances:
-//   <TitledPanel id="bagPanel"> ...inside template <Btn id="close"/>... </TitledPanel>
-var close = screen.Get<Btn>("bagPanel/close");
-
-UI.Close("MainMenu");                                      // destroys GameObjects
-```
-
-### Events & subscriptions
-
-Control-level events are R3 `Observable<T>` — never `event` or `Action`:
-
-```csharp
-screen.Get<Btn>("playBtn").OnClick
-      .Subscribe(_ => Game.Start())
-      .AddTo(screen);          // disposed when Screen closes
-
-screen.Get<Toggle>("muteAudio").OnValueChanged
-      .Subscribe(b => AudioMixer.Mute = b).AddTo(screen);
-
-screen.Get<Slider>("masterVol").OnValueChanged
-      .Subscribe(v => AudioMixer.Master = v).AddTo(screen);
-
-screen.Get<Dropdown>("quality").OnSelected
-      .Subscribe(QualitySettings.SetQualityLevel).AddTo(screen);
-```
-
-`screen.Track(disposable)` (or the `.AddTo(screen)` extension) ties a subscription to Screen lifetime. Always do this — leaked R3 subscriptions hold the GameObject alive after Close.
-
-### Screen-level hooks
-
-`screen.RectTransformDimensionsChanged` same as Canvas's `screen.RootGameObject.RectTransformDimensionsChanged`
-
-### List / option push
-
-```csharp
-screen.Get<Dropdown>("quality")
-      .BindOptions(Observable.Return(new[] {"Low", "Medium", "High"}))
-      .AddTo(screen);
-
-screen.Get<ScrollList>("inv")
-      .BindItems(player.Inventory, (IControl slot, Item item) => {
-          slot.Get<Text>("label").TextValue = item.Name;
-          slot.Get<Text>("count").TextValue = $"x{item.Count}";
-      })
-      .AddTo(screen);
-```
-
-`itemTemplate=` resolves to either a `<Template name="...">` (slot root is the template body) or a registered Control class (slot is that Control). Use `slot.Get<T>("childId")` inside the bind callback to reach into Template bodies.
-
-### Variant switching at runtime
-
-```csharp
-UI.Variants.Set("mobile", true);    // all open Screens re-apply
-UI.Variants.Set("mobile", false);
-```
-
-### Custom controls
-
-```csharp
-public sealed class MyControl : Control {
-    UnityEngine.UI.Image _bg;
-
-    public override void OnAttached() {
-        _bg = GameObject.GetComponent<UnityEngine.UI.Image>()
-              ?? GameObject.AddComponent<UnityEngine.UI.Image>();
-    }
-
-    [UIAttr] public string Color { set { /* parse hex, apply */ } }
-    [UIAttr("backgroundSprite")] public string Sprite { set { /* ... */ } }
-}
-
-UI.Registry.Register<MyControl>("MyControl", optionalPrefab: null);
-```
-
-`[UIAttr]` (no name) maps to the camelCase of the property name (`Color` → `color`). `[UIAttr("foo")]` overrides. Supported types: `string` / `int` / `float` / `bool`. Use string + parse internally for everything else.
-
-`[Bind]` on a field auto-wires a child component from a Prefab by child name. Useful when the control has a non-trivial Prefab structure.
-
-## Common mistakes
+## Common mistakes (XML)
 
 | Symptom                                                            | Cause                                                                        | Fix                                                                                            |
 | ------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `cannot specify width/size on a horizontally-stretched axis`       | `<X anchor="top-stretch" width="200"/>`                                      | Either change anchor, or drop `width`. The stretched axis takes its size from `margin`.        |
 | `<Text>` renders one character per line (vertical)                 | `<Text>` under a non-LayoutGroup parent (`<Btn>` / `<Frame>` / `<Screen>`) with `anchor="center"` and no `width` / `height` — `sizeDelta` defaults to `(0,0)`, so TMP wraps every glyph at width 0 | Give the Text width: `anchor="stretch"` + `margin` to fill the parent (offset siblings like `<Icon>` with margin), or set `width="..."` explicitly. Inside a `<VStack>` / `<HStack>` this doesn't happen — the LayoutGroup expands the child on the cross axis. |
-| Element not found at runtime                                       | `id` only declared inside a `<Template>`, but accessed by flat name          | Use path: `screen.Get("templateId/innerId")`                                                   |
 | Ghost element on variant toggle                                    | `<Add>` instantiated and never deactivated                                   | This is by design (Strategy C). Use `hidden.variant` if you need a node to disappear.          |
-| Subscription survives Close → null refs                            | Forgot `.AddTo(screen)`                                                      | Always tie R3 subscriptions to Screen lifetime                                                 |
 | Parser silently merges children                                    | Wrote `<Btn>开始 <Image/> </Btn>` (text + element mix)                       | Pick one: text shorthand OR child elements. Mixed content is rejected.                         |
 | Variant changes one attribute but not another                      | `attr.variant` declared before `attr` (base) in the SAME element             | Fine — declaration order is per-attribute. Just verify the right `.variant` exists.            |
-| Custom control's `[UIAttr]` ignored                                | Type other than string/int/float/bool                                        | Take a string param and parse internally (see `Btn.Color` for a hex example).                  |
 | `'stretch' on width/height is only valid inside <VStack>/<HStack>` | `<Btn width="stretch"/>` under a `<Frame>` (or other non-LayoutGroup parent) | Either wrap the Btn in a stack, or switch to free-positioning: `anchor="X-stretch"` + `margin` |
 | `size 'stretchx72' is numeric-only...`                             | Trying to put `stretch` or `%` keyword inside compact `size=`                | `size=` is numeric-only. Use per-axis: `width="stretch" height="72"` or `width="50%"`          |
 | `'%' (fractional) ... cannot be used inside <VStack>/<HStack>/<Grid>` | `<Btn width="50%"/>` inside a VStack/HStack/Grid                            | LayoutGroup is weight-based: use `stretch*N` + spacer siblings (e.g. spacer/stretch\*2/spacer = 25/50/25), or move the child to a `<Frame>` parent |
@@ -725,7 +486,7 @@ UI.Registry.Register<MyControl>("MyControl", optionalPrefab: null);
 ```
 VALIDATE      every .ui.xml write  →  xmllint --noout --schema Assets/PromptUGUI.gen.xsd <file>
               schema missing       →  ask user to run Tools → PromptUGUI → Schema → Generate XSD
-MCP FEEDBACK  every .ui.xml/.cs write → refresh_unity + read_console (error,warning)
+MCP FEEDBACK  every .ui.xml write  →  refresh_unity + read_console (error,warning)
               MCP missing          →  ask user to open Unity + connect MCP for Unity
 
 ROOT          <PromptUGUI version="1"> ... </PromptUGUI>
@@ -775,30 +536,17 @@ NEVER VARY    id, tag name, <Param default>
 IMPORT        <Import src="..." [as="ns"]/>
 USE           <ns.TagName/>             (when prefixed)
 
-C# OPEN       await UI.LoadDocumentAsync("path"); UI.Open("ScreenName")
-C# GET        screen.Get<Btn>("id")  /  "outerId/innerId"
-C# EVENT      .OnClick / .OnValueChanged / .OnSelected   .Subscribe(...).AddTo(screen)
-C# DATA       Dropdown.BindOptions(Observable<IEnumerable<string>>).AddTo(screen)
-              ScrollList.BindItems(Observable<IReadOnlyList<T>>, (slot,t)=>...).AddTo(screen)
-C# VARIANT    UI.Variants.Set("name", true)
-XML CANVAS    <Screen name="X" canvas="overlay|camera|world">   default overlay; renderMode only
-XML SCALER    <Screen name="X" reference="WxH">                 ScaleWithScreenSize; unset = ConstantPixelSize
-                                                                  .variant overrides supported (reference.mobile=...)
-C# CANVAS     UI.CanvasConfigurator = (canvas, name) => { ... }  worldCamera / sortingOrder / overrides; runs after XML
+SCREEN ATTRS  canvas="overlay|camera|world"    default overlay; renderMode only
+              reference="WxH"                  ScaleWithScreenSize; unset = ConstantPixelSize
+                                               .variant overrides supported (reference.mobile=...)
 
-## i18n
-<Text>...</Text>                 extract + translate
-<Text tr="false">...</Text>      skip
-<Text font="title">...</Text>    font type
-<Text ctx="door">Open</Text>     msgctxt disambiguation
-UI.Tr("...")                     C# extraction entry point
-UI.Locale.Set("zh-Hans")         switch locale (= switch .po + switch font)
-UI.Locale.SetAsync("zh-Hans")    awaitable variant; completes after .po load + ReSolve
-UI.Locale.UseAddressableResolver() load .po via Addressables, label = Locale:<locale>
-                                  (set via Tools→PromptUGUI→I18n→Setup Addressables for Locale PO Files)
+I18N XML      <Text>...</Text>                 extract + translate
+              <Text tr="false">...</Text>      skip
+              <Text font="title">...</Text>    font type
+              <Text ctx="door">Open</Text>     msgctxt disambiguation
 ```
 
-## Worked end-to-end example
+## Worked end-to-end example (XML)
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -813,7 +561,7 @@ UI.Locale.UseAddressableResolver() load .po via Addressables, label = Locale:<lo
     </Btn>
   </Template>
 
-  <Screen name="MainMenu">
+  <Screen name="MainMenu" reference="1920x1080" reference.mobile="1080x1920">
     <Image anchor="stretch" sprite="bg/main"/>
 
     <VStack id="menu" anchor="center" size="280x240" spacing="12"
@@ -836,24 +584,4 @@ UI.Locale.UseAddressableResolver() load .po via Addressables, label = Locale:<lo
 </PromptUGUI>
 ```
 
-```csharp
-async void Start() {
-    UI.UseResourcesResolver("UI");                                  // sets SourceResolver + Editor hot-reload mapping
-    IconResolverHelpers.UseSpriteAtlasIconResolver(iconSets);       // pass icon set setting
-    await UI.LoadDocumentAsync("screens/main");                     // enables hot-reload (resolver-backed src)
-
-#if UNITY_IOS || UNITY_ANDROID
-    UI.Variants.Set("mobile", true);
-#endif
-
-    var screen = UI.Open("MainMenu");
-
-    screen.Get<Btn>("play").OnClick               // call-site id is transferred to template body root (a <Btn>)
-          .Subscribe(_ => Game.Start()).AddTo(screen);
-
-    screen.Get<Btn>("quit").OnClick
-          .Subscribe(_ => Application.Quit()).AddTo(screen);
-}
-```
-
-Note: `id="play"` on `<MenuButton id="play"/>` is automatically transferred to the template body's single root element (the `<Btn>`), so `screen.Get<Btn>("play")` resolves directly without a path. Use a path (`"play/inner"`) only when reaching into an element that has its own id **inside** the template body.
+For the C# side that loads this document, opens the Screen, and wires `screen.Get<Btn>("play").OnClick`, see the **scripting-promptugui-csharp** skill. Note: `id="play"` on `<MenuButton id="play"/>` is automatically transferred to the template body's single root element (the `<Btn>`), so `screen.Get<Btn>("play")` resolves directly without a path. Use a path (`"play/inner"`) only when reaching into an element that has its own id **inside** the template body.
