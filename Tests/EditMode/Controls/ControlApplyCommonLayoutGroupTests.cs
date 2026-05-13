@@ -204,6 +204,41 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Btn_in_VStack_with_stretch_weighted_two_writes_flexible_two()
+        {
+            // width="stretch*2" maps to LayoutElement.flexibleWidth=2 — so a 1:2:1 split
+            // with two stretch-weight-1 siblings + this child yields exact 25/50/25.
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <VStack id='stack' width='200' height='200'>
+    <Btn id='b' width='stretch*2' height='46'/>
+  </VStack>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var btn = screen.Get<Btn>("b");
+            var le = btn.GameObject.GetComponent<LayoutElement>();
+            Assert.AreEqual(0f, le.preferredWidth);
+            Assert.AreEqual(2f, le.flexibleWidth, "weight 2 → flexibleWidth=2");
+        }
+
+        [Test]
+        public void Btn_in_HStack_with_stretch_weighted_half_writes_flexible_half()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <HStack id='stack' width='200' height='200'>
+    <Btn id='b' width='100' height='stretch*0.5'/>
+  </HStack>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var btn = screen.Get<Btn>("b");
+            var le = btn.GameObject.GetComponent<LayoutElement>();
+            Assert.AreEqual(0.5f, le.flexibleHeight);
+        }
+
+        [Test]
         public void Stretch_under_Frame_throws()
         {
             // 'stretch' keyword is meaningless outside V/HStack — anchor.stretch is the right tool

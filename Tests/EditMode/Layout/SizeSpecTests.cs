@@ -116,5 +116,101 @@ namespace PromptUGUI.Tests.Layout
             var anchor = new AnchorPreset(AnchorVertical.Top, AnchorHorizontal.Stretch);
             Assert.Throws<System.ArgumentException>(() => spec.ValidateAgainst(anchor));
         }
+
+        // ───── weighted stretch ─────
+
+        [Test]
+        public void Bare_stretch_has_weight_one()
+        {
+            var s = SizeSpec.Parse(size: null, width: "stretch", height: null);
+            Assert.AreEqual(1f, s.WeightWidth, "bare 'stretch' = weight 1");
+        }
+
+        [Test]
+        public void Stretch_with_weight_two()
+        {
+            var s = SizeSpec.Parse(size: null, width: "stretch*2", height: null);
+            Assert.IsTrue(s.IsFlexibleWidth);
+            Assert.AreEqual(2f, s.WeightWidth);
+        }
+
+        [Test]
+        public void Stretch_with_fractional_weight()
+        {
+            var s = SizeSpec.Parse(size: null, width: null, height: "stretch*0.5");
+            Assert.IsTrue(s.IsFlexibleHeight);
+            Assert.AreEqual(0.5f, s.WeightHeight);
+        }
+
+        [TestCase("stretch*0")]
+        [TestCase("stretch*-1")]
+        [TestCase("stretch*foo")]
+        [TestCase("stretch*")]
+        [TestCase("stretch**2")]
+        public void Throws_on_invalid_stretch_weight(string bad)
+        {
+            Assert.Throws<System.ArgumentException>(() =>
+                SizeSpec.Parse(size: null, width: bad, height: null));
+        }
+
+        // ───── fractional % ─────
+
+        [Test]
+        public void Parses_width_50_percent()
+        {
+            var s = SizeSpec.Parse(size: null, width: "50%", height: null);
+            Assert.IsTrue(s.HasWidth, "fractional is a width assignment");
+            Assert.IsTrue(s.IsFractionalWidth);
+            Assert.AreEqual(0.5f, s.WidthFraction);
+            Assert.IsFalse(s.IsFlexibleWidth, "fractional and flexible are distinct modes");
+        }
+
+        [Test]
+        public void Parses_height_decimal_percent()
+        {
+            var s = SizeSpec.Parse(size: null, width: null, height: "33.3%");
+            Assert.IsTrue(s.IsFractionalHeight);
+            Assert.AreEqual(0.333f, s.HeightFraction, 0.001f);
+        }
+
+        [Test]
+        public void Hundred_percent_is_allowed()
+        {
+            // 100% == full parent axis; equivalent to anchor=stretch but expressible per-axis.
+            var s = SizeSpec.Parse(size: null, width: "100%", height: null);
+            Assert.IsTrue(s.IsFractionalWidth);
+            Assert.AreEqual(1f, s.WidthFraction);
+        }
+
+        [TestCase("0%")]
+        [TestCase("-10%")]
+        [TestCase("150%")]
+        [TestCase("100.1%")]
+        [TestCase("%")]
+        [TestCase("foo%")]
+        public void Throws_on_invalid_percent(string bad)
+        {
+            Assert.Throws<System.ArgumentException>(() =>
+                SizeSpec.Parse(size: null, width: bad, height: null));
+        }
+
+        [TestCase("50%")]
+        [TestCase("50%x100")]
+        [TestCase("100x50%")]
+        public void Throws_when_percent_used_in_size_attribute(string bad)
+        {
+            // size= stays numeric-only — keyword forms (stretch / %) belong on per-axis attrs.
+            Assert.Throws<System.ArgumentException>(() =>
+                SizeSpec.Parse(size: bad, width: null, height: null));
+        }
+
+        [Test]
+        public void Fractional_on_anchor_stretched_axis_throws()
+        {
+            // Same rule as numeric/stretch: fractional counts as specifying width.
+            var spec = SizeSpec.Parse(size: null, width: "50%", height: null);
+            var anchor = new AnchorPreset(AnchorVertical.Top, AnchorHorizontal.Stretch);
+            Assert.Throws<System.ArgumentException>(() => spec.ValidateAgainst(anchor));
+        }
     }
 }

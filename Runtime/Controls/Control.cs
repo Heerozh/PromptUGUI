@@ -119,8 +119,24 @@ namespace PromptUGUI.Controls
             var parentLg = RectTransform.parent != null
                 ? RectTransform.parent.GetComponent<UnityEngine.UI.LayoutGroup>()
                 : null;
-            var parentIsAutoLayout = parentLg != null
-                && !(parentLg is UnityEngine.UI.GridLayoutGroup);
+            var parentIsGrid = parentLg is UnityEngine.UI.GridLayoutGroup;
+            var parentIsAutoLayout = parentLg != null && !parentIsGrid;
+
+            // 百分比 ('%') 在任何 LayoutGroup 容器（V/HStack 或 Grid）里都无法表达：
+            // - V/HStack 用的是 flex 权重，不是父尺寸百分比；
+            // - Grid 用的是 cellSize，子节点的 anchor 直接被 GridLayoutGroup 覆写。
+            // 给出可操作的提示：用加权 stretch + spacer 兄弟，或者移到自由定位父级。
+            if ((parentIsAutoLayout || parentIsGrid)
+                && (sizeSpec.IsFractionalWidth || sizeSpec.IsFractionalHeight))
+            {
+                throw new System.ArgumentException(
+                    "'%' (fractional) width/height cannot be used inside <VStack>/<HStack>/<Grid> — " +
+                    "Unity LayoutGroup distributes by flex weight (or fixed cellSize for Grid), not parent percentage. " +
+                    "Use a weighted stretch + spacer pattern instead: " +
+                    "<Frame width=\"stretch\"/> <Btn width=\"stretch*2\"/> <Frame width=\"stretch\"/> " +
+                    "gives a 25/50/25 split. " +
+                    "Or move the child to a free-positioning parent (Frame/Screen) where '%' maps to anchor fractions.");
+            }
 
             if (parentIsAutoLayout)
             {
@@ -140,6 +156,25 @@ namespace PromptUGUI.Controls
 
                 AnchorResolver.Resolve(preset,
                     out var aMin, out var aMax, out var p);
+
+                // 分数尺寸 (e.g. width="50%") 把 anchor 改成父容器的子区间。
+                // 对应轴的 pivot 强制 0.5，让 MarginResolver 的 stretch 路径（对称偏移公式）直接复用；
+                // sizeDelta 由 margin 之差驱动，0 margin 时为 0（完全 anchor 驱动）。
+                if (sizeSpec.IsFractionalWidth)
+                {
+                    ComputeFractionalAnchor(preset.H, sizeSpec.WidthFraction,
+                        out var min, out var max);
+                    aMin.x = min; aMax.x = max;
+                    p.x = 0.5f;
+                }
+                if (sizeSpec.IsFractionalHeight)
+                {
+                    ComputeFractionalAnchor(preset.V, sizeSpec.HeightFraction,
+                        out var min, out var max);
+                    aMin.y = min; aMax.y = max;
+                    p.y = 0.5f;
+                }
+
                 RectTransform.anchorMin = aMin;
                 RectTransform.anchorMax = aMax;
 
@@ -155,7 +190,14 @@ namespace PromptUGUI.Controls
                     RectTransform.pivot = p;
                 }
 
-                var lr = MarginResolver.Resolve(preset, sizeSpec, margin);
+                // 分数轴行为上等同 stretch（在子区间内由 margin 收缩），MarginResolver 的 stretch 分支
+                // 公式刚好满足：sizeDelta = -(l+r)（无 margin 则 0），anchoredPosition = (l-r)/2（对称居中）。
+                // 这里合成一个"有效 preset"——把分数轴标记为 stretch——让 MarginResolver 走那条分支。
+                var effectivePreset = new AnchorPreset(
+                    sizeSpec.IsFractionalHeight ? AnchorVertical.Stretch : preset.V,
+                    sizeSpec.IsFractionalWidth ? AnchorHorizontal.Stretch : preset.H);
+
+                var lr = MarginResolver.Resolve(effectivePreset, sizeSpec, margin);
                 RectTransform.anchoredPosition = lr.AnchoredPosition;
                 RectTransform.sizeDelta = lr.SizeDelta;
             }
@@ -192,11 +234,11 @@ namespace PromptUGUI.Controls
             {
                 if (sizeSpec.IsFlexibleWidth)
                 {
-                    // stretch: 让 LayoutGroup 把剩余空间全分给该子节点（VerticalLayoutGroup 跨轴
+                    // stretch / stretch*N: 让 LayoutGroup 把剩余空间按权重分给该子节点（VerticalLayoutGroup 跨轴
                     // 在 flexible>0 时把 requiredSpace 抬到容器内宽，HorizontalLayoutGroup 主轴则按
                     // flexible 权重分配剩余空间）。preferred=0 让 base 部分不抢权重。
                     le.preferredWidth = 0;
-                    le.flexibleWidth = 1;
+                    le.flexibleWidth = sizeSpec.WeightWidth;
                 }
                 else
                 {
@@ -209,13 +251,66 @@ namespace PromptUGUI.Controls
                 if (sizeSpec.IsFlexibleHeight)
                 {
                     le.preferredHeight = 0;
-                    le.flexibleHeight = 1;
+                    le.flexibleHeight = sizeSpec.WeightHeight;
                 }
                 else
                 {
                     le.preferredHeight = sizeSpec.Height;
                     le.flexibleHeight = 0;
                 }
+            }
+        }
+
+        // 把 anchor 预设里的"端点"对齐方式 + 分数 转成具体的 anchorMin/Max 子区间。
+        // 入参：H/V 的端点（Left/Right/Top/Bottom/Center/Stretch），分数 0..1
+        // 出参：父空间的 [min, max] 子区间
+        //   left/bottom  → [0, f]
+        //   right/top    → [1-f, 1]
+        //   center       → [(1-f)/2, (1+f)/2]
+        //   stretch      → 由 ValidateAgainst 提前拒掉（HasX + StretchX 冲突），这里走不到
+        private static void ComputeFractionalAnchor(AnchorHorizontal h, float fraction,
+            out float min, out float max)
+        {
+            switch (h)
+            {
+                case AnchorHorizontal.Left:
+                    min = 0f;
+                    max = fraction;
+                    break;
+                case AnchorHorizontal.Right:
+                    min = 1f - fraction;
+                    max = 1f;
+                    break;
+                case AnchorHorizontal.Center:
+                    min = (1f - fraction) * 0.5f;
+                    max = (1f + fraction) * 0.5f;
+                    break;
+                default:
+                    throw new System.ArgumentOutOfRangeException(
+                        nameof(h), "fractional + stretch on same axis is rejected by ValidateAgainst");
+            }
+        }
+
+        private static void ComputeFractionalAnchor(AnchorVertical v, float fraction,
+            out float min, out float max)
+        {
+            switch (v)
+            {
+                case AnchorVertical.Bottom:
+                    min = 0f;
+                    max = fraction;
+                    break;
+                case AnchorVertical.Top:
+                    min = 1f - fraction;
+                    max = 1f;
+                    break;
+                case AnchorVertical.Center:
+                    min = (1f - fraction) * 0.5f;
+                    max = (1f + fraction) * 0.5f;
+                    break;
+                default:
+                    throw new System.ArgumentOutOfRangeException(
+                        nameof(v), "fractional + stretch on same axis is rejected by ValidateAgainst");
             }
         }
 

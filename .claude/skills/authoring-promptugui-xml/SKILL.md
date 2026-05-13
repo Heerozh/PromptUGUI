@@ -210,8 +210,8 @@ Rules:
 | -------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `id="..."`                 | string            | Unique within Screen / Template instance scope. Lift to dedicated handle for `Get<T>`.                                                                                             |
 | `anchor="..."`             | preset            | See "Anchor system" below. Default `top-left`.                                                                                                                                     |
-| `size="WxH"`               | `240x80`          | Both dimensions in pixels (numeric only — keyword `stretch` is **not** accepted here, use per-axis attrs). **Forbidden on stretched axes.**                                        |
-| `width="W"` / `height="H"` | float / `stretch` | Use when only one axis is point-anchored. Keyword `stretch` valid only inside `<VStack>`/`<HStack>` — see "Stretch keyword" below. **Numeric forbidden on stretched anchor axes.** |
+| `size="WxH"`               | `240x80`          | Both dimensions in pixels (numeric only — keywords `stretch` / `N%` are **not** accepted here, use per-axis attrs). **Forbidden on stretched axes.**                               |
+| `width="W"` / `height="H"` | float / `stretch[*N]` / `N%` | Numeric is base. `stretch` / `stretch*N` is LayoutGroup-only — see "Stretch keyword". `N%` is free-positioning-only — see "Fractional %". **Numeric forbidden on stretched anchor axes.** |
 | `margin="..."`             | 1/2/4 floats      | "Distance from anchor inward, positive". `"_"` = 0 placeholder.                                                                                                                    |
 | `pivot="x,y"`              | `0..1, 0..1`      | Defaults derive from `anchor`; rarely needed.                                                                                                                                      |
 | `hidden="true"`            | bool              | Initial `SetActive(false)`.                                                                                                                                                        |
@@ -223,10 +223,34 @@ Rules:
 
 **Inside `<VStack>` / `<HStack>`**, a child's `size` / `width` / `height` is written to `LayoutElement.preferredX` with `flexibleX=0` (not to `sizeDelta`). So `<Btn size="64x64"/>` inside a VStack is **strictly 64×64** — the layout group will not stretch it. Specifying only one axis (e.g. `width="100"`) leaves the other axis unconstrained, taking the child's intrinsic preferred size. Omitting all size attributes gets no `LayoutElement` — the child collapses to whatever its own components advertise (often 0 for an empty Frame), so write at least one axis when you need a visible footprint.
 
-**Stretch keyword** — `width="stretch"` / `height="stretch"` on a V/HStack child maps to `LayoutElement.preferredX=0, flexibleX=1`
+**Stretch keyword** (LayoutGroup-only) — `width="stretch"` / `height="stretch"` on a V/HStack child maps to `LayoutElement.preferredX=0, flexibleX=1`. The LayoutGroup grows the child to fill that axis.
 
-- Multiple sibling stretches share remaining space by equal weight (Unity's `flexibleX` is additive). `width="stretch"` on two siblings → each gets half.
+- Multiple sibling stretches share remaining space by equal weight (`flexibleX` is additive). Two `stretch` siblings → each gets half.
+- **Weighted form** `stretch*N` for non-equal splits. `<Frame width="stretch"/> <Btn width="stretch*2"/> <Frame width="stretch"/>` gives a 1:2:1 weight split → 25/50/25. `N` must be > 0 (e.g. `stretch*0.5` halves the weight).
+- Forbidden outside V/HStack (parse error). Use `anchor="X-stretch"` + margin for free-positioning, or `N%` for fractional sizing.
 - Variant-overridable: `width="240" width.mobile="stretch"` flips between fixed and flex.
+
+**Fractional `%`** (free-positioning only) — `width="50%"` / `height="33.3%"` on a child of `<Frame>` / `<Screen>` / `<SafeArea>` maps to uGUI's native anchor fractions. The `anchor=` preset decides where in the parent the fraction sits:
+
+| `anchor` horizontal | `width="50%"` becomes |
+|---|---|
+| `*-left`             | anchorMin.x=0, anchorMax.x=0.5 (left half)    |
+| `*-center` / `center` | anchorMin.x=0.25, anchorMax.x=0.75 (centered) |
+| `*-right`            | anchorMin.x=0.5, anchorMax.x=1 (right half)   |
+
+Vertical: same idea (`top` → upper, `bottom` → lower, `center` → middle).
+
+```xml
+<Frame anchor="top-stretch" height="60">
+  <Btn anchor="center"      width="50%" height="46"/>             <!-- 50% wide, centered -->
+  <Btn anchor="center-left" width="30%" height="46" margin="0,16,0,16"/>  <!-- left 30% minus 16px each side -->
+</Frame>
+```
+
+- Range `(0%, 100%]`. `0%` / `>100%` are parse errors (almost always a typo); `100%` is allowed but equivalent to `anchor=stretch` on that axis.
+- `margin` further insets *within* the fractional range (so `width="50%" margin="0,16"` = 50% minus 32px total, still centered).
+- Forbidden inside `<VStack>` / `<HStack>` / `<Grid>` (parse error with guidance). LayoutGroup is weight-based, not percentage-based — use `stretch*N` + spacer siblings there.
+- Forbidden combined with `anchor="X-stretch"` on the same axis (existing "stretched-axis can't have width" rule).
 
 **Inside `<Grid>`**, the parent's `cellSize` is authoritative — a child's `size` is silently ignored.
 
@@ -666,7 +690,10 @@ UI.Registry.Register<MyControl>("MyControl", optionalPrefab: null);
 | Variant changes one attribute but not another                      | `attr.variant` declared before `attr` (base) in the SAME element             | Fine — declaration order is per-attribute. Just verify the right `.variant` exists.            |
 | Custom control's `[UIAttr]` ignored                                | Type other than string/int/float/bool                                        | Take a string param and parse internally (see `Btn.Color` for a hex example).                  |
 | `'stretch' on width/height is only valid inside <VStack>/<HStack>` | `<Btn width="stretch"/>` under a `<Frame>` (or other non-LayoutGroup parent) | Either wrap the Btn in a stack, or switch to free-positioning: `anchor="X-stretch"` + `margin` |
-| `size 'stretchx72' must be 'WxH' or 'native'`                      | Trying to put `stretch` keyword inside compact `size=`                       | `size=` is numeric-only. Use per-axis: `width="stretch" height="72"`                           |
+| `size 'stretchx72' is numeric-only...`                             | Trying to put `stretch` or `%` keyword inside compact `size=`                | `size=` is numeric-only. Use per-axis: `width="stretch" height="72"` or `width="50%"`          |
+| `'%' (fractional) ... cannot be used inside <VStack>/<HStack>/<Grid>` | `<Btn width="50%"/>` inside a VStack/HStack/Grid                            | LayoutGroup is weight-based: use `stretch*N` + spacer siblings (e.g. spacer/stretch\*2/spacer = 25/50/25), or move the child to a `<Frame>` parent |
+| `stretch*0` / `stretch*-1` / `stretch*` rejected                   | Invalid weight after `stretch*`                                              | Weight must be a positive number, e.g. `stretch*2` / `stretch*0.5`                             |
+| `'150%' must be in (0%, 100%]`                                     | Percentage out of range                                                      | Allowed range is `(0%, 100%]`. For "wider than parent", redesign the layout (likely a typo)    |
 
 ## Quick reference (cheatsheet)
 
@@ -691,11 +718,16 @@ ANCHOR        "<v>-<h>"     v ∈ {top, center, bottom, stretch}
 ALIASES       center  =  center-center
               stretch | fill  =  stretch-stretch
 
-SIZE          size="WxH"          numeric only
-              width="W"  / height="H"        numeric, or "stretch" (V/HStack child only)
-              FORBIDDEN on anchor-stretched axis (parse error)
-STRETCH KW    width="stretch" / height="stretch"  →  LayoutElement.flexible*=1
-              Only inside <VStack>/<HStack>.  Free-positioning: use anchor="...-stretch" + margin
+SIZE          size="WxH"          numeric only (no keywords)
+              width="W" / height="H"   numeric, or "stretch[*N]" (LG only), or "N%" (free-positioning only)
+              FORBIDDEN on anchor-stretched axis
+STRETCH KW    "stretch"        → LayoutElement.flexible*=1   (LayoutGroup child only)
+              "stretch*N"      → LayoutElement.flexible*=N   (N > 0; for 1:2:1 splits etc.)
+              Free-positioning equivalent: anchor="...-stretch" + margin
+FRACTIONAL %  "N%"             → anchorMin/Max sub-range     (free-positioning child only)
+              Range (0%, 100%]. anchor= preset decides where the fraction sits
+              (left=[0,f], center=[(1-f)/2,(1+f)/2], right=[1-f,1]; same for top/center/bottom)
+              In LayoutGroup → parse error (use stretch*N + spacer siblings)
 
 MARGIN        "X" | "V,H" | "T,R,B,L"     "_" = 0 placeholder
               Always inward from anchor (positive)
