@@ -23,5 +23,94 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsNotNull(sa.GameObject);
             Assert.IsNotNull(sa.RectTransform);
         }
+
+        [Test]
+        public void Tracker_applies_safe_area_fractions()
+        {
+            try
+            {
+                PromptUGUI.Controls.Internal.SafeAreaTracker.SafeAreaOverride =
+                    () => new UnityEngine.Rect(0f, 100f, 1080f, 1820f);
+                PromptUGUI.Controls.Internal.SafeAreaTracker.ScreenSizeOverride =
+                    () => new UnityEngine.Vector2(1080f, 1920f);
+
+                var go = new UnityEngine.GameObject("sa", typeof(UnityEngine.RectTransform));
+                var tracker = go.AddComponent<PromptUGUI.Controls.Internal.SafeAreaTracker>();
+                tracker.Apply();
+
+                var rt = (UnityEngine.RectTransform)go.transform;
+                Assert.AreEqual(0f, rt.anchorMin.x, 0.001f);
+                Assert.AreEqual(100f / 1920f, rt.anchorMin.y, 0.001f);
+                Assert.AreEqual(1f, rt.anchorMax.x, 0.001f);
+                Assert.AreEqual(1f, rt.anchorMax.y, 0.001f);
+                Assert.AreEqual(UnityEngine.Vector2.zero, rt.offsetMin);
+                Assert.AreEqual(UnityEngine.Vector2.zero, rt.offsetMax);
+
+                UnityEngine.Object.DestroyImmediate(go);
+            }
+            finally
+            {
+                PromptUGUI.Controls.Internal.SafeAreaTracker.SafeAreaOverride = null;
+                PromptUGUI.Controls.Internal.SafeAreaTracker.ScreenSizeOverride = null;
+            }
+        }
+
+        [Test]
+        public void Tracker_full_screen_safe_area_yields_identity_anchors()
+        {
+            try
+            {
+                PromptUGUI.Controls.Internal.SafeAreaTracker.SafeAreaOverride =
+                    () => new UnityEngine.Rect(0f, 0f, 1080f, 1920f);
+                PromptUGUI.Controls.Internal.SafeAreaTracker.ScreenSizeOverride =
+                    () => new UnityEngine.Vector2(1080f, 1920f);
+
+                var go = new UnityEngine.GameObject("sa", typeof(UnityEngine.RectTransform));
+                var tracker = go.AddComponent<PromptUGUI.Controls.Internal.SafeAreaTracker>();
+                tracker.Apply();
+
+                var rt = (UnityEngine.RectTransform)go.transform;
+                Assert.AreEqual(UnityEngine.Vector2.zero, rt.anchorMin);
+                Assert.AreEqual(UnityEngine.Vector2.one, rt.anchorMax);
+
+                UnityEngine.Object.DestroyImmediate(go);
+            }
+            finally
+            {
+                PromptUGUI.Controls.Internal.SafeAreaTracker.SafeAreaOverride = null;
+                PromptUGUI.Controls.Internal.SafeAreaTracker.ScreenSizeOverride = null;
+            }
+        }
+
+        [Test]
+        public void Tracker_zero_screen_size_is_noop()
+        {
+            try
+            {
+                PromptUGUI.Controls.Internal.SafeAreaTracker.SafeAreaOverride =
+                    () => new UnityEngine.Rect(0f, 0f, 1080f, 1820f);
+                PromptUGUI.Controls.Internal.SafeAreaTracker.ScreenSizeOverride =
+                    () => UnityEngine.Vector2.zero;
+
+                var go = new UnityEngine.GameObject("sa", typeof(UnityEngine.RectTransform));
+                var rt = (UnityEngine.RectTransform)go.transform;
+                rt.anchorMin = new UnityEngine.Vector2(0.5f, 0.5f);
+                rt.anchorMax = new UnityEngine.Vector2(0.5f, 0.5f);
+
+                var tracker = go.AddComponent<PromptUGUI.Controls.Internal.SafeAreaTracker>();
+                tracker.Apply();
+
+                // Zero screen size → tracker bails; anchors unchanged.
+                Assert.AreEqual(new UnityEngine.Vector2(0.5f, 0.5f), rt.anchorMin);
+                Assert.AreEqual(new UnityEngine.Vector2(0.5f, 0.5f), rt.anchorMax);
+
+                UnityEngine.Object.DestroyImmediate(go);
+            }
+            finally
+            {
+                PromptUGUI.Controls.Internal.SafeAreaTracker.SafeAreaOverride = null;
+                PromptUGUI.Controls.Internal.SafeAreaTracker.ScreenSizeOverride = null;
+            }
+        }
     }
 }
