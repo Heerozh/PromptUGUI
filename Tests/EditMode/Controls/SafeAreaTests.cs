@@ -133,7 +133,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Tracker_apply_is_idempotent_no_writes_when_already_at_target()
+        public void Tracker_apply_tolerates_sub_pixel_residue_on_offset()
         {
             try
             {
@@ -147,12 +147,19 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 tracker.Apply();
 
                 var rt = (UnityEngine.RectTransform)go.transform;
-                // Inspector hook: hasChanged 反映 RectTransform 自上次置 false 起是否被写过
+
+                // 复现实际发现的 RectTransform 残留：anchor 写完后 offset 被 Unity 留下
+                // ~7.5e-5 的 float 噪声（实际从 Rider 调试出来的值）。Vector2.== 阈值不够宽
+                // 会让 Apply 永远以为 offset != zero 然后无限写。
+                rt.offsetMax = new UnityEngine.Vector2(7.57527596e-5f, 7.57527596e-5f);
+                rt.offsetMin = new UnityEngine.Vector2(7.57527596e-5f, 7.57527596e-5f);
                 rt.hasChanged = false;
+
                 tracker.Apply();
+
                 Assert.IsFalse(rt.hasChanged,
-                    "Apply must be a no-op when the RectTransform is already at the target; " +
-                    "otherwise OnRectTransformDimensionsChange → Apply 会形成回环");
+                    "Apply must skip writing when offsets are within sub-pixel tolerance; " +
+                    "otherwise OnRectTransformDimensionsChange → Apply 死循环");
 
                 UnityEngine.Object.DestroyImmediate(go);
             }

@@ -40,12 +40,25 @@ namespace PromptUGUI.Controls.Internal
             var aMax = new Vector2(safe.xMax / screenSize.x, safe.yMax / screenSize.y);
 
             // 写之前比较一次：避免 OnRectTransformDimensionsChange → Apply → 写 RectTransform →
-            // 再次触发 OnRectTransformDimensionsChange 的回环（PlayMode 下 LayoutRebuilder
-            // 会把这条链路放大成实际死循环）。
-            if (_rt.anchorMin != aMin) _rt.anchorMin = aMin;
-            if (_rt.anchorMax != aMax) _rt.anchorMax = aMax;
-            if (_rt.offsetMin != Vector2.zero) _rt.offsetMin = Vector2.zero;
-            if (_rt.offsetMax != Vector2.zero) _rt.offsetMax = Vector2.zero;
+            // 再次触发 OnRectTransformDimensionsChange 的回环。
+            //
+            // 必须用宽容差：Unity 的 Vector2.== 阈值是 sqrMagnitude < 1e-10（约边长 1e-5），
+            // 但 anchor 改写后 RectTransform 上 offset 会留下 ~7.5e-5 的 float 残留 ——
+            // 比 Vector2.== 阈值大两个量级，比较直接相等会永远写、永远循环。
+            // 用按维度的绝对容差：anchor 是 [0,1] 分数，0.0001 容差对应 1920 屏上 < 0.2 像素；
+            // offset 是像素量纲，0.5 容差正好亚像素。
+            if (NotApprox(_rt.anchorMin, aMin, kAnchorEpsilon)) _rt.anchorMin = aMin;
+            if (NotApprox(_rt.anchorMax, aMax, kAnchorEpsilon)) _rt.anchorMax = aMax;
+            if (NotApprox(_rt.offsetMin, Vector2.zero, kOffsetEpsilon)) _rt.offsetMin = Vector2.zero;
+            if (NotApprox(_rt.offsetMax, Vector2.zero, kOffsetEpsilon)) _rt.offsetMax = Vector2.zero;
+        }
+
+        private const float kAnchorEpsilon = 1e-4f;
+        private const float kOffsetEpsilon = 0.5f;
+
+        private static bool NotApprox(Vector2 a, Vector2 b, float eps)
+        {
+            return Mathf.Abs(a.x - b.x) > eps || Mathf.Abs(a.y - b.y) > eps;
         }
     }
 }
