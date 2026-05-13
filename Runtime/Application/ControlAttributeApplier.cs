@@ -66,6 +66,7 @@ namespace PromptUGUI.Application
             var interactable = interactableStr != "false";
 
             control.ApplyCommon(anchor, size, width, height, margin, pivot, hidden, interactable);
+            control.OnAfterApply();
         }
 
         public static bool IsCommonAttribute(string name)

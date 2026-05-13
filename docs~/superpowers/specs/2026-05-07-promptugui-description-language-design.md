@@ -203,6 +203,15 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 - `size` 默认 `native`，Icon 独占该值
 - 完整 attrs 见 §5.3
 
+### 5.5 `<SafeArea>`（安全区容器）
+
+显式安全区包裹层；运行时按 `Screen.safeArea` 把自己 inset 到设备的安全矩形里，自动响应屏幕旋转 / 窗口缩放 / Device Simulator 切换 / Variant ReSolve。完整设计见独立 spec [`2026-05-13-safearea-builtin-design.md`](2026-05-13-safearea-builtin-design.md)。
+
+简表：
+- 不接受 `anchor` / `size` / `width` / `height` / `margin` / `pivot`（含 `.variant` 覆盖）—— 几何完全由 `Screen.safeArea` 驱动；写这些属性会在 parse 期抛 `ParseException`。
+- 允许 `id` / `hidden` / `interactable` / `if=`。
+- 典型用法：作为 `<Screen>` 直接子节点，UI 全放它里面；需要 bleed 到屏幕物理边缘的背景图作为 SafeArea 的兄弟节点。
+
 ---
 
 ## 6. 锚点与尺寸

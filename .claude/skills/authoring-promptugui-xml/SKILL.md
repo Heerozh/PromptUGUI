@@ -63,7 +63,7 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 
 `<Import>`, `<Screen>`, `<Template>` are the **only** elements allowed at the top level. Comments use standard `<!-- -->`.
 
-## Built-in primitives (13)
+## Built-in primitives (14)
 
 **默认视觉主题**：白底 sliced + #323232 深字（与 Unity 6 `GameObject → UI → …` 创建出来的标准 prefab 一致）。所有控件的颜色/sprite 都能通过 `color=` / `sprite=` 属性 override；想要彻底深色主题项目级覆写 `ProceduralBuilders` 的常量，或用 Variant 方式 `color.dark="..."`。
 
@@ -72,6 +72,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name:
 | Tag            | Notes                                                                                                                                                                                                                                                        | Tag-specific attributes                                                                                                                                                                                                                                                                                             |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `<Frame>`      | Empty container (RectTransform only).                                                                                                                                                                                                                        | —                                                                                                                                                                                                                                                                                                                   |
+| `<SafeArea>`   | Stretches to `Screen.safeArea` (notch / status bar / home indicator). Auto-reacts to rotation, window resize, Device Simulator. **Rejects** `anchor` / `size` / `width` / `height` / `margin` / `pivot` (incl. `.variant`); see "Safe area" section below.   | —                                                                                                                                                                                                                                                                                                                   |
 | `<Image>`      | uGUI Image; loads sprites from `Resources`.                                                                                                                                                                                                                  | `sprite` (resource path), `color` (`#RRGGBB[AA]`), `type` (`simple` / `sliced` / `tiled` / `filled`)                                                                                                                                                                                                                |
 | `<Text>`       | TMP_Text. Has text-content shorthand: `<Text>Hello</Text>` ≡ `<Text text="Hello"/>`.                                                                                                                                                                         | `text`, `fontSize` (int), `color`, `align` (`left` / `center` / `right`), `wrap` (bool), `raycastTarget` (bool), `font` (string, font type from Settings; default `default`), `tr` (bool, default `true`; set `false` to skip i18n extraction), `ctx` (string, msgctxt to disambiguate same-msgid in the .po table) |
 | `<VStack>`     | Vertical layout group. Default `childAlign="upper-center"` (cross-axis centered).                                                                                                                                                                            | `spacing` (float), `padding` (`T,R,B,L` 1/2/4 components), `childAlign` (`upper/middle/lower-left/center/right`; `center` alias for `middle-center`)                                                                                                                                                                |
@@ -135,6 +136,29 @@ Icon name in XML = PNG path **relative to the IconSet's sourceFolder**, with `/`
 - Partial placeholder — `<Icon name="solar:{{x}}"/>`. Treats each invocation arg as the icon-name half, paired with the literal `solar` set.
 
 Anything else inside a Template body (`{{a}}:{{b}}`, `solar:{{a}}-{{b}}`, multi-placeholder) is unanalyzable — the syncer logs a warning. Same for forwarded args (one Template's Param fed verbatim into another's). For unanalyzable cases, list final values in `IconSet.alwaysInclude`. Outside a `<Template>` (a literal `<Icon name="ui:{{x}}"/>` directly in a Screen) is always unanalyzable too.
+
+### Safe area
+
+Mobile devices have unsafe insets — notch, status bar, home indicator, gesture bar. Wrap your UI in `<SafeArea>` to stay inside `Screen.safeArea`. Backgrounds that should bleed to the device edges stay outside, as siblings of `<SafeArea>`:
+
+```xml
+<Screen name="Login">
+  <Image id="bg" anchor="stretch" color="#0B1828"/>
+  <SafeArea>
+    <HStack id="brandBar" anchor="top-left" width="320" height="56" margin="24,_,_,24">
+      ...
+    </HStack>
+  </SafeArea>
+</Screen>
+```
+
+Rules:
+
+- `<SafeArea>` is always stretched to the safe area; it does **not** accept `anchor`, `size`, `width`, `height`, `margin`, or `pivot` (including their `.variant` override forms). Writing any of those is a parse error.
+- To add inner padding inside the safe area, wrap content in `<Frame anchor="stretch" margin="..."/>` *inside* the `<SafeArea>`.
+- Place `<SafeArea>` as a direct child of `<Screen>`. Nesting another `<SafeArea>` inside one is harmless but redundant (the inner one collapses to the outer one's rect).
+- Don't put `<SafeArea>` inside `<VStack>` / `<HStack>` / `<Grid>` — the layout group will override its anchor math.
+- Reacts automatically to screen rotation, window resize, and Unity 6's Device Simulator. No code-side wiring needed.
 
 ## Common attributes (any tag)
 

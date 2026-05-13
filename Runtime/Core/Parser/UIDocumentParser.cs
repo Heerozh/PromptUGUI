@@ -339,6 +339,24 @@ namespace PromptUGUI.Parser
                 }
             }
 
+            // <SafeArea> 校验：禁止 layout 类属性，几何完全由 Screen.safeArea 决定。
+            // 要 padding 用 <Frame margin="..."> 嵌套；要不同形状用其他容器组合。
+            if (tag == "SafeArea" && ns == null)
+            {
+                foreach (var key in new[] { "anchor", "size", "width", "height", "margin", "pivot" })
+                {
+                    if (node.Attributes.ContainsKey(key))
+                        throw new ParseException(
+                            $"<SafeArea> does not accept attribute '{key}'; " +
+                            $"SafeArea is always stretched to Screen.safeArea. " +
+                            $"To add inner padding, wrap content in <Frame margin=\"...\"/> inside the SafeArea.");
+                    if (node.VariantOverrides.ContainsKey(key))
+                        throw new ParseException(
+                            $"<SafeArea> does not accept variant override for '{key}'; " +
+                            $"SafeArea is always stretched to Screen.safeArea.");
+                }
+            }
+
             // size/width/height == "native" 仅 <Icon> 允许（含 Variant 覆盖）
             if (!(tag == "Icon" && ns == null))
             {

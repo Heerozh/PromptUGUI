@@ -38,6 +38,13 @@ namespace PromptUGUI.Controls
 
         public virtual void OnAttached() { }
 
+        /// <summary>
+        /// 在 <see cref="ControlAttributeApplier"/> 调用 <see cref="ApplyCommon"/> 之后再触发一次，
+        /// 让一些控件在 Variant ReSolve / 初始 Apply 完成后做"恢复其它逻辑写入的 RectTransform / 组件状态"
+        /// 这类收尾。默认实现为空；目前只有 SafeArea 重写。
+        /// </summary>
+        internal virtual void OnAfterApply() { }
+
         internal void AddChild(IControl child) => _children.Add(child);
 
         public IReadOnlyList<IControl> Children => _children;
