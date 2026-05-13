@@ -165,7 +165,8 @@ namespace PromptUGUI.Tests.Application
   <Screen name='S' reference='1920x1080'><Frame/></Screen>
 </PromptUGUI>";
             UI.LoadDocument("t", xml);
-            UI.CanvasConfigurator = (canvas, _) => {
+            UI.CanvasConfigurator = (canvas, _) =>
+            {
                 var s = canvas.GetComponent<UnityEngine.UI.CanvasScaler>();
                 s.referenceResolution = new UnityEngine.Vector2(2560, 1440);
             };

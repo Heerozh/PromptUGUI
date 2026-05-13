@@ -124,9 +124,9 @@ namespace PromptUGUI.Application
                 return;
             }
             var size = parsed.Value;
-            scaler.uiScaleMode         = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = size;
-            scaler.matchWidthOrHeight  = size.x >= size.y ? 0f : 1f;
+            scaler.matchWidthOrHeight = size.x >= size.y ? 0f : 1f;
         }
 
         public void Close()
