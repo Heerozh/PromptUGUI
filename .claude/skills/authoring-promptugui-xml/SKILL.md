@@ -546,6 +546,136 @@ I18N XML      <Text>...</Text>                 extract + translate
               <Text ctx="door">Open</Text>     msgctxt disambiguation
 ```
 
+## Triggers and Animations
+
+Two new built-in tags introduced together. `<Trigger>` is the base — it subscribes to an event (open / loop / click / manual) and exposes an `OnFire` stream to C#. `<Animation>` extends Trigger by also playing a LitMotion animation on fire.
+
+### `<Trigger>` — declarative event hook
+
+```xml
+<Trigger id="bonus" on="click@bonus-btn">
+  <Frame><Btn id="bonus-btn">领取</Btn></Frame>
+</Trigger>
+```
+
+`on=` values:
+
+| Value | Fires when |
+|---|---|
+| `open` | Once when Screen opens (default if `on=` is omitted) |
+| `loop` | Once on open; sets internal loop=yoyo for downstream Animations |
+| `click` | The unique `<Btn>` inside this Trigger's subtree is clicked |
+| `click@<id>` | The `<Btn>` matching `<id>` inside the subtree is clicked |
+| `manual` | Does not auto-fire; C# must call `Fire()` |
+
+Subscribe in C#:
+
+```csharp
+screen.Get<Trigger>("bonus").OnFire
+    .Subscribe(_ => Game.AwardBonus())
+    .AddTo(screen);
+```
+
+### `<Animation>` — LitMotion-driven effects
+
+Three exclusive attribute families. Each `<Animation>` uses **exactly one** family.
+
+#### Family A — Preset (opinionated bundle)
+
+```xml
+<Animation type="fadein" duration="0.3s">
+  <Text>Welcome</Text>
+</Animation>
+```
+
+Valid `type=` values: `fadein` / `fadeout` / `slidein-left` / `slidein-right` / `slidein-up` / `slidein-down` / `slideout-left` / `slideout-right` / `slideout-up` / `slideout-down` / `scalein` / `scaleout` / `pulse` / `bounce` / `shake`
+
+#### Family B — Low-level transform (compose any combination)
+
+```xml
+<Animation translate="0,-50:0,0" fade="0:1" duration="0.4s" easing="out-back">
+  <Frame>...</Frame>
+</Animation>
+```
+
+Attributes (any combination):
+
+| Attribute | Format | Notes |
+|---|---|---|
+| `translate` | `"x1,y1:x2,y2"` | Offset from→to in pixels. Omitting `from` (e.g. `":50,0"`) means from=zero |
+| `scale` | `"s:s"` or `"sx,sy:sx,sy"` | Scale from→to; single value applies to both x and y |
+| `rotate` | `"d1:d2"` | Z-axis rotation in degrees |
+| `fade` | `"a1:a2"` | Alpha from→to (0..1) |
+
+Transform attributes always target the Animation's inner `_offsetProxy` GO — they cannot be redirected with `target=`.
+
+#### Family C — Text effect
+
+```xml
+<!-- Count-up number -->
+<Animation count="0:100000" format="{0:N0}" duration="2s">
+  <Text>0</Text>
+</Animation>
+
+<!-- Per-character color wave -->
+<Animation char-color="1,1,1,1:1,0.8,0.2,1" char-stagger="0.05s" duration="0.4s">
+  <Text>VICTORY</Text>
+</Animation>
+```
+
+| Attribute | Notes |
+|---|---|
+| `count="from:to"` + `format="{0:N0}"` | Animates a number; writes formatted string into `<Text>` (LitMotion `BindToText`) |
+| `char-color="r,g,b,a:r,g,b,a"` + `char-stagger="0.05s"` | Per-char color wave (`BindToTMPCharColor`); each char's motion is delayed by `i * stagger` |
+| `target="@id"` | Resolves a `<Text id="id">` in screen-global scope when the target is outside the wrapper subtree |
+
+Text family default: looks for the unique `<Text>` in the subtree. Multiple `<Text>` descendants without `target=` → parse error.
+
+#### Common attributes (all families)
+
+| Attribute | Default | Notes |
+|---|---|---|
+| `duration` | `0.3s` | Supports `0.3s` / `300ms` / bare float (seconds) |
+| `delay` | `0s` | Delay before motion starts |
+| `easing` | `out-cubic` | See easing table below |
+| `loop` | (none) | `true` (infinite restart) / `yoyo` (infinite back-and-forth) / `count:N` (N times then stop) |
+| `on` | `open` | Same as `<Trigger>` |
+
+**Easing values:** `linear` / `in-cubic` / `out-cubic` / `in-out-cubic` / `in-quad` / `out-quad` / `in-out-quad` / `in-quart` / `out-quart` / `in-out-quart` / `in-quint` / `out-quint` / `in-out-quint` / `out-back` / `out-elastic` / `out-bounce`
+
+### Rules and parse errors
+
+- Three families are mutually exclusive: writing both `type=` and `translate=` → parse error
+- `count=` and `char-color=` are mutually exclusive within the text family
+- `on="click"` requires a unique `<Btn>` descendant; multiple → use `on="click@<id>"` to disambiguate; zero `<Btn>` → error
+
+### Patterns
+
+**Menu entry stagger** (v1 has no stagger sugar — write siblings with explicit delays):
+
+```xml
+<VStack>
+  <Animation type="slidein-left" delay="0.0s"><Btn>A</Btn></Animation>
+  <Animation type="slidein-left" delay="0.05s"><Btn>B</Btn></Animation>
+  <Animation type="slidein-left" delay="0.10s"><Btn>C</Btn></Animation>
+</VStack>
+```
+
+**Score popup (count + char-color combo):** Nest animations sharing the same `<Text>`:
+
+```xml
+<Animation count="0:1000" format="{0:N0}" duration="2s">
+  <Animation char-color="1,1,1,1:1,0.8,0.2,1" char-stagger="0.05s" delay="2s" duration="0.4s">
+    <Text id="score">0</Text>
+  </Animation>
+</Animation>
+```
+
+**Caveats:**
+- `char-color` assumes Text content doesn't change during animation; concurrent `count` + `char-color` on the same `<Text>` may produce wrong-char colors as text length changes
+- `<Animation>` adds a `CanvasGroup` and an inner `_offsetProxy` GameObject (transparent to layout, but visible in the Hierarchy)
+- `on="open"` fires once at Screen open; Variant ReSolve does **not** re-fire
+
 ## Worked end-to-end example (XML)
 
 ```xml
