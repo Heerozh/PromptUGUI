@@ -29,6 +29,8 @@ namespace PromptUGUI.Controls
         [UIAttr("count")] public string CountAttr { set => _spec.SetCount(value); }
         [UIAttr("format")] public string FormatAttr { set => _spec.SetFormat(value); }
         [UIAttr("target")] public string TargetAttr { set => _spec.SetTarget(value); }
+        [UIAttr("char-color")] public string CharColorAttr { set => _spec.SetCharColor(value); }
+        [UIAttr("char-stagger")] public string CharStaggerAttr { set => _spec.SetCharStagger(value); }
 
         public override void OnAttached()
         {

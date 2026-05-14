@@ -154,5 +154,32 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             yield return new WaitForSeconds(0.2f);
             Assert.AreEqual("500", screen.Get<Text>("score").GameObject.GetComponent<TMPro.TMP_Text>().text);
         }
+
+        [UnityTest]
+        public IEnumerator CharColor_zero_stagger_all_chars_reach_to_color()
+        {
+            UI.LoadDocument("t", $"{Header}" +
+                "<Animation id='a' char-color='1,1,1,1:1,0,0,1' duration='0.1s'><Text id='label'>ABC</Text></Animation>" +
+                $"{Footer}");
+            var screen = UI.Open("S");
+            var tmp = screen.Get<Text>("a/label").GameObject.GetComponent<TMPro.TMP_Text>();
+            tmp.ForceMeshUpdate();
+            yield return new WaitForSeconds(0.2f);
+
+            // After motion, LitMotion has written the final Color (red) to meshInfo.colors32
+            // via TMP's UpdateVertexData. Do NOT call ForceMeshUpdate() here — it would
+            // regenerate geometry and reset vertex colors to their defaults.
+            for (int i = 0; i < 3; i++)
+            {
+                var c = tmp.textInfo.characterInfo[i];
+                if (!c.isVisible) continue;
+                var mi = c.materialReferenceIndex;
+                var vi = c.vertexIndex;
+                var color = tmp.textInfo.meshInfo[mi].colors32[vi];
+                Assert.AreEqual(255, color.r);
+                Assert.AreEqual(0, color.g);
+                Assert.AreEqual(0, color.b);
+            }
+        }
     }
 }

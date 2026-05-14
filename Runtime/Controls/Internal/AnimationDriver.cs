@@ -93,7 +93,29 @@ namespace PromptUGUI.Controls.Internal
                         }
                         handles.Add(b.BindToText(textTarget, spec.Format));
                     }
-                    // char-color comes in Task 12
+                    if (spec.HasCharColor)
+                    {
+                        if (textTarget == null)
+                            throw new System.InvalidOperationException(
+                                "<Animation char-color=...> requires a Text target");
+                        // Force the mesh to populate textInfo so characterCount is correct.
+                        textTarget.ForceMeshUpdate();
+                        var count = textTarget.textInfo.characterCount;
+                        for (int i = 0; i < count; i++)
+                        {
+                            var charIdx = i;
+                            var perCharDelay = spec.Delay + spec.CharStaggerSec * i;
+                            var b = LMotion.Create(spec.CharColorFrom, spec.CharColorTo, spec.Duration)
+                                           .WithEase(ease).WithDelay(perCharDelay);
+                            switch (spec.LoopMode)
+                            {
+                                case LoopMode.Yoyo: b = b.WithLoops(-1, LoopType.Yoyo); break;
+                                case LoopMode.Restart: b = b.WithLoops(-1, LoopType.Restart); break;
+                                case LoopMode.Count: b = b.WithLoops(spec.LoopCount, LoopType.Restart); break;
+                            }
+                            handles.Add(b.BindToTMPCharColor(textTarget, charIdx));
+                        }
+                    }
                     break;
             }
 
