@@ -263,6 +263,11 @@ namespace PromptUGUI.Application
             }
         }
 
+        internal static void UnloadDocument(string screenName)
+        {
+            _docs.Remove(screenName);
+        }
+
         public static async UnityEngine.Awaitable<IReadOnlyList<string>> LoadDocumentAsync(string src)
         {
             if (SourceResolver == null)
