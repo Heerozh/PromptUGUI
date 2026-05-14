@@ -39,6 +39,14 @@ namespace PromptUGUI.Controls
         public virtual void OnAttached() { }
 
         /// <summary>
+        /// 实例化子节点时 ScreenInstantiator 用作 parent 的 Transform。
+        /// 默认 = 自身 RectTransform；Animation 等需要"在 transform 树里多塞一层"的控件 override 它，
+        /// 这样子节点 parent 到那一层，而不是自身根 GameObject。
+        /// </summary>
+        /// <remarks>必须返回一个 RectTransform — uGUI 子节点要求父也是 RectTransform。</remarks>
+        protected internal virtual Transform ChildHostTransform => RectTransform;
+
+        /// <summary>
         /// 在 <see cref="ControlAttributeApplier"/> 调用 <see cref="ApplyCommon"/> 之后再触发一次，
         /// 让一些控件在 Variant ReSolve / 初始 Apply 完成后做"恢复其它逻辑写入的 RectTransform / 组件状态"
         /// 这类收尾。默认实现为空；目前只有 SafeArea 重写。

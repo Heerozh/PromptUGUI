@@ -767,6 +767,26 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Xsd_includes_Trigger_and_Animation()
+        {
+            // Regression lock (ANIM-D28): XSD generator is reflection-driven; this
+            // test pins that <Trigger> and <Animation> (and their [UIAttr] attributes)
+            // appear in the generated schema after being registered in the registry.
+            var r = new ControlRegistry();
+            r.Register<Trigger>("Trigger", null);
+            r.Register<Animation>("Animation", null);
+            var xsd = XsdGenerator.Generate(r);
+
+            StringAssert.Contains("name=\"Trigger\"", xsd);
+            StringAssert.Contains("name=\"Animation\"", xsd);
+            StringAssert.Contains("name=\"on\"", xsd);   // Trigger.[UIAttr("on")]
+            StringAssert.Contains("name=\"type\"", xsd);   // Animation.[UIAttr("type")]
+            StringAssert.Contains("name=\"translate\"", xsd);   // Animation.[UIAttr("translate")]
+            StringAssert.Contains("name=\"count\"", xsd);   // Animation.[UIAttr("count")]
+            StringAssert.Contains("name=\"char-color\"", xsd);   // Animation.[UIAttr("char-color")]
+        }
+
+        [Test]
         public void Screen_element_allows_variant_form_via_any_attribute()
         {
             // Validate reference.<variant> attribute on <Screen> against the generated

@@ -159,7 +159,8 @@ namespace PromptUGUI.Application
         internal void InstantiateRecursive(ElementNode node, Transform parent,
                                            bool parentIsLayoutGroup,
                                            Dictionary<string, IControl> controls,
-                                           Dictionary<ElementNode, Control> nodeMap)
+                                           Dictionary<ElementNode, Control> nodeMap,
+                                           Control parentControl = null)
         {
             if (parentIsLayoutGroup)
             {
@@ -201,14 +202,16 @@ namespace PromptUGUI.Application
             if (entry.Prefab != null)
                 BindFields(control, go);
             control.AttachTo(go);
+            parentControl?.AddChild(control);
 
             if (!string.IsNullOrEmpty(node.Id))
+            {
                 controls[node.Id] = control;
+                parentControl?.AddScopedId(node.Id, control);
+            }
             nodeMap[node] = control;
 
-            ControlAttributeApplier.Apply(node, control, entry, _variants);
-
-            // 子节点的 id 作用域
+            // 子节点的 id 作用域（在递归之前建好，让子节点能把自身 id 注入正确的 scope）
             Dictionary<string, IControl> childScope = controls;
             if (node.IsTemplateInstanceRoot)
             {
@@ -218,7 +221,12 @@ namespace PromptUGUI.Application
 
             var selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid";
             foreach (var c in node.Children)
-                InstantiateRecursive(c, go.transform, selfIsLayoutGroup, childScope, nodeMap);
+                InstantiateRecursive(c, control.ChildHostTransform, selfIsLayoutGroup, childScope, nodeMap,
+                                     parentControl: control);
+
+            // Apply 放在子树递归之后：OnAfterApply（如 Trigger.SubscribeClick）可以安全访问
+            // 已完全实例化的子节点（通过 ScopedIds / GetComponentsInChildren 等）。
+            ControlAttributeApplier.Apply(node, control, entry, _variants);
         }
 
         private static void BindFields(Control control, GameObject prefabRoot)

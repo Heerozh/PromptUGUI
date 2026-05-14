@@ -260,6 +260,37 @@ CUSTOM         class X : Control { override OnAttached() { ... } }
                UI.Registry.Register<X>("Tag", prefab)
 ```
 
+## `<Trigger>` and `<Animation>` from C#
+
+XML declares the trigger condition and effect; C# subscribes when game logic needs to react on top.
+
+### `Trigger.OnFire` — R3 Observable
+
+```csharp
+screen.Get<Trigger>("bonus").OnFire
+    .Subscribe(_ => Game.AwardBonus())
+    .AddTo(screen);
+```
+
+Pattern: XML places the `<Trigger>` with `on="click@<id>"` next to the relevant UI element. C# attaches the game-side reaction. The wiring (which event triggers what) lives in XML; the action lives in C#. Decoupled — designers tweak XML, programmers tweak handlers.
+
+### `Animation.Fire()` — manual trigger
+
+```csharp
+screen.Get<Animation>("welcome-anim").Fire();
+```
+
+Works for any `on=` mode. Useful for:
+- `on="manual"` triggers (no auto-fire, fully C# driven)
+- Re-firing `on="click"` triggers from code (e.g., on a non-Btn event)
+- Replaying open animations (debug / preview)
+
+### Lifecycle notes
+
+- `Animation` registers as a Control via `BuiltinPrimitives.Register<Animation>("Animation", null)` — already wired into `UI.ResetForTests`
+- `Screen.Close()` disposes all Controls (including Animations); `MotionHandle`s are `TryCancel`led at that point — no lingering callbacks after Close
+- Variant ReSolve re-evaluates Animation's attributes; if `duration` / `easing` / `loop` / from-to values change, the running motion is cancelled and ready to re-fire on the next trigger. If attributes are unchanged, in-flight motion is preserved
+
 ## Worked end-to-end example (C#)
 
 XML in the **authoring-promptugui-xml** worked example (a `MainMenu` Screen with three `<MenuButton>` Template instances + a `mobile` Variant that adds a logo). C# side:

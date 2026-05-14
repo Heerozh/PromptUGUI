@@ -1,18 +1,28 @@
+using PromptUGUI.Controls.Internal;
 using PromptUGUI.Registry;
+using R3;
 using UnityEngine;
 using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class Image : Control
+    public sealed class Image : Control, IPointerEventSource
     {
         private UnityImage _img;
+        private PointerEventRelay _pointerRelay;
 
         public override void OnAttached()
         {
             _img = GameObject.GetComponent<UnityImage>()
                    ?? GameObject.AddComponent<UnityImage>();
         }
+
+        private PointerEventRelay EnsureRelay()
+            => _pointerRelay ??= GameObject.AddComponent<PointerEventRelay>();
+
+        public Observable<Unit> OnPointerEnter => EnsureRelay().OnPointerEnter;
+        public Observable<Unit> OnPointerExit => EnsureRelay().OnPointerExit;
+        public Observable<Unit> OnPointerDown => EnsureRelay().OnPointerDown;
 
         [UIAttr]
         public string Sprite
