@@ -11,7 +11,7 @@ namespace PromptUGUI.Tests.Modals
             <Screen name='T'><Frame id='a'/></Screen>
           </PromptUGUI>";
 
-        [SetUp]    public void SetUp()    => UI.ResetForTests();
+        [SetUp] public void SetUp() => UI.ResetForTests();
         [TearDown] public void TearDown() => UI.ResetForTests();
 
         [Test]

@@ -513,6 +513,7 @@ namespace PromptUGUI.Application
         {
             Locale.ResetForTestsInternal();
             TranslationStore.Instance.UnloadAll();
+            Modal.CancelAllForTeardown();
             foreach (var s in _open.Values) s.Close();
             _open.Clear();
             _docs.Clear();

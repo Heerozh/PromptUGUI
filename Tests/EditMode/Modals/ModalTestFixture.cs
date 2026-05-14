@@ -17,7 +17,6 @@ namespace PromptUGUI.Tests.Modals
       <VStack anchor='stretch' margin='16' spacing='8'>
         <Text id='title' fontSize='20'/>
         <Text id='text'  fontSize='14'/>
-        <Icon id='icon'  width='32' height='32'/>
         <Btn  id='ok'>OK</Btn>
         <Btn  id='cancel'>Cancel</Btn>
         <Btn  id='yes'>Yes</Btn>
