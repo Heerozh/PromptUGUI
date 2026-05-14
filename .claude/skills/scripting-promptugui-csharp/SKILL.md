@@ -258,7 +258,81 @@ CUSTOM         class X : Control { override OnAttached() { ... } }
                [UIAttr] / [UIAttr("name")]    string/int/float/bool only
                [Bind] field                   auto-wire child by name
                UI.Registry.Register<X>("Tag", prefab)
+
+MODAL          var r = await MessageBox.Open(text, Btn.OK|Btn.Cancel, icon, title)
+               UI.Modal.OpenAsync(new MyRequest())          custom ModalRequest<T>
+               UI.Modal.CloseAll()                          cancel all pending
+               UI.Modal.SortingOrderBase = 1000             default
 ```
+
+## Modal dialogs
+
+PromptUGUI ships a generic modal system in `PromptUGUI.Application.Modals` plus a builtin MessageBox.
+
+### Quick usage
+
+```csharp
+using PromptUGUI.Application.Modals;
+
+// Default messagebox
+var r = await MessageBox.Open(UI.Tr("Save changes?"),
+                              Btn.Yes | Btn.No | Btn.Cancel);
+if (r == Btn.Yes) await game.SaveAsync();
+
+// Custom button labels (still returns mapped Btn flag)
+var r2 = await MessageBox.Open(UI.Tr("File not found."),
+    new[] { (UI.Tr("Retry"), Btn.OK), (UI.Tr("Skip"), Btn.Cancel) });
+
+// Optional icon and title
+await MessageBox.Open("Saved.", Btn.OK, icon: "ui:check", title: "Done");
+```
+
+### Behavior
+
+- **Modal stacking**: when one MessageBox is open, subsequent `Open(...)` calls queue FIFO. The next pops automatically when the active one closes.
+- **ESC / Android Back**: maps to the most-negative button in the combo: `Cancel > No > Close`. ESC on an `OK`-only modal does nothing.
+- **Raycast block**: the modal Screen overrides `Canvas.sortingOrder` to `UI.Modal.SortingOrderBase` (default 1000), so it sits above every regular Screen. The XML's backdrop Image fills the canvas and absorbs clicks.
+- **Locale / Variant**: a modal is a regular `Screen` — locale switches translate its button labels; Variants re-apply attribute values normally.
+
+### Cancelling
+
+```csharp
+UI.Modal.CloseAll();   // every pending await throws OperationCanceledException
+```
+
+`UI.UnloadAll()` and `UI.ResetForTests()` also cancel all pending modals.
+
+### Custom modal types
+
+Subclass `ModalRequest<TResult>` and pass it to `UI.Modal.OpenAsync(...)`. Your `Bind(screen, close)` wires events; `close(result)` resolves the awaiter.
+
+```csharp
+public sealed class NamePickerRequest : ModalRequest<string> {
+    public override string XmlSrc => "MyUI/Modals/NamePicker";
+    public override void Bind(IScreen screen, Action<string> close) {
+        screen.Get<Btn>("ok").OnClick.Subscribe(_ =>
+            close(screen.Get<InputField>("input").Text)).AddTo(screen);
+        screen.Get<Btn>("cancel").OnClick.Subscribe(_ => close(null)).AddTo(screen);
+    }
+    public override bool TryEscape(out string r) { r = null; return true; }
+}
+
+var name = await UI.Modal.OpenAsync(new NamePickerRequest());
+```
+
+Custom modal `XmlSrc` keys go through the caller's `UI.SourceResolver` like any other Screen.
+
+### Overriding the builtin MessageBox layout
+
+Set `MessageBox.XmlSrc` once at boot to point at your own XML file. Note: Unity strips only the final `.xml` from multi-dot filenames, so for `MyMessageBox.ui.xml`, the lookup key is `MyMessageBox.ui` (with the `.ui` suffix). The builtin default is `"PromptUGUI/Modals/MessageBox.ui"`.
+
+```csharp
+MessageBox.XmlSrc = "MyUI/Modals/PixelMessageBox.ui";  // resolved by UI.SourceResolver
+```
+
+Keys starting with `PromptUGUI/` resolve to the package's bundled Resources; other keys go through `UI.SourceResolver`.
+
+Your XML must declare a Screen with these ids: `text`, `title`, `ok`, `cancel`, `yes`, `no`, `close`. An optional `icon` id is supported but not required (Bind tolerates missing icon node). If you want icon support, your XML must include `<Icon id="icon" name="placeholder:something"/>` because PromptUGUI's parser requires the `name=` attribute on `<Icon>` elements.
 
 ## `<Trigger>` and `<Animation>` from C#
 
