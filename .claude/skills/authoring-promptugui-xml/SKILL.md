@@ -169,12 +169,12 @@ Rules:
 | Tag            | 根节点组件                                                                                               | 自动子节点                                                                                                                     | R3 事件源                                                        |
 | -------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
 | `<Frame>`      | `RectTransform` 单独                                                                                     | —                                                                                                                              | —                                                                |
-| `<Image>`      | `Image`                                                                                                  | —                                                                                                                              | —                                                                |
+| `<Image>`      | `Image` + (lazy) `PointerEventRelay`（被 hover/press trigger 引用为源时挂上）                            | —                                                                                                                              | `OnPointerEnter` / `OnPointerExit` / `OnPointerDown` ← Relay     |
 | `<Text>`       | `TextMeshProUGUI`                                                                                        | —                                                                                                                              | —                                                                |
 | `<VStack>`     | `VerticalLayoutGroup`（硬编码 `childControlWidth/Height=true`、`childForceExpand*=false`）               | —                                                                                                                              | —                                                                |
 | `<HStack>`     | `HorizontalLayoutGroup`（同 VStack）                                                                     | —                                                                                                                              | —                                                                |
 | `<Grid>`       | `GridLayoutGroup`（`constraint=FixedColumnCount`）                                                       | —                                                                                                                              | —                                                                |
-| `<Btn>`        | `Image` + `Button`（`targetGraphic=Image`）                                                              | `Label`(`TMP_Text`, stretch 撑满) — **lazy**：写了 `text=` 才创建                                                              | `OnClick` ← `Button.onClick`                                     |
+| `<Btn>`        | `Image` + `Button`（`targetGraphic=Image`）+ (lazy) `PointerEventRelay`                                  | `Label`(`TMP_Text`, stretch 撑满) — **lazy**：写了 `text=` 才创建                                                              | `OnClick` ← `Button.onClick`；`OnPointerEnter/Exit/Down` ← Relay |
 | `<Icon>`       | `Image`（`preserveAspect=true`, `raycastTarget=false`）                                                  | —                                                                                                                              | —                                                                |
 | `<Toggle>`     | `Toggle`（`targetGraphic=Background`, `graphic=Checkmark`）                                              | `Background`(`Image`, left-middle 锚 20×20) → 内嵌 `Checkmark`(`Image`, 居中 20×20)；`Label`(`TMP_Text`, 右侧水平 stretch)     | `OnValueChanged` ← `Toggle.onValueChanged`                       |
 | `<Slider>`     | `Slider`                                                                                                 | `Background`(`Image`)；`Fill Area` → `Fill`(`Image`)；`Handle Slide Area` → `Handle`(`Image`)                                  | `OnValueChanged` ← `Slider.onValueChanged`                       |
@@ -182,7 +182,7 @@ Rules:
 | `<ScrollList>` | `Image` + `ScrollRect`                                                                                   | `Viewport`(`Image` + `Mask` stencil) → `Content`(V/H `LayoutGroup` + `ContentSizeFitter`)；按 `direction` 再加一个 `Scrollbar` | 无独立事件；C# 端 `BindItems(...)` 推数据                        |
 | `<InputField>` | `Image` + `TMP_InputField`                                                                               | `Text Area`(`RectMask2D`) → `Placeholder`(`TMP_Text`, italic 半透明) + `Text`(`TMP_Text`)                                      | `OnValueChanged` / `OnEndEdit` / `OnSubmit` ← `TMP_InputField.*` |
 | `<SafeArea>`   | `RectTransform` + `SafeAreaTracker`（内部 `MonoBehaviour`，订阅设备 safeArea / 旋转 / Device Simulator） | —                                                                                                                              | —                                                                |
-| `<Trigger>`    | `RectTransform` 单独（无视觉、无 layout 行为，仅作 wrapper 划定事件源 scope）                            | —                                                                                                                              | `OnFire` ← R3 `Subject<Unit>`，由 `on=`（open/loop/click/manual）触发 |
+| `<Trigger>`    | `RectTransform` 单独（无视觉、无 layout 行为，仅作 wrapper 划定事件源 scope）                            | —                                                                                                                              | `OnFire` ← R3 `Subject<Unit>`，由 `on=`（open/loop/click/hover-enter/hover-exit/press/manual）触发 |
 | `<Animation>`  | `RectTransform` + `CanvasGroup`（继承自 Trigger；CanvasGroup 给 `fade=` 用，由 `ApplyCommon` 懒加载）    | `_offsetProxy`(`RectTransform`，anchor stretch、margin=0、pivot=0.5,0.5) — XML 子节点全 parent 到这一层；LitMotion 驱动它的 anchoredPosition / localScale / localEulerAngles | `OnFire` ← 继承 Trigger；同时由 `on=` 触发 LitMotion `MotionHandle[]` |
 
 **Common attribute → uGUI 落点**（实现在 `Control.ApplyCommon`；对所有 tag 生效，`<SafeArea>` 例外，整套 anchor/size/margin/pivot 都被拒绝）
@@ -562,13 +562,29 @@ I18N XML      <Text>...</Text>                 extract + translate
 
 `on=` values:
 
-| Value        | Fires when                                                      |
-| ------------ | --------------------------------------------------------------- |
-| `open`       | Once when Screen opens (default if `on=` is omitted)            |
-| `loop`       | Once on open; sets internal loop=yoyo for downstream Animations |
-| `click`      | The unique `<Btn>` inside this Trigger's subtree is clicked     |
-| `click@<id>` | The `<Btn>` matching `<id>` inside the subtree is clicked       |
-| `manual`     | Does not auto-fire; C# must call `Fire()`                       |
+| Value               | Fires when                                                                                                                                       |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `open`              | Once when Screen opens (default if `on=` is omitted)                                                                                             |
+| `loop`              | (Animation only) Fires once on open and enables looping (default yoyo)                                                                           |
+| `click`             | The unique `<Btn>` inside this Trigger's subtree is clicked (uses Unity `Button.onClick`)                                                        |
+| `click@<id>`        | The `<Btn>` matching `<id>` inside the subtree is clicked                                                                                        |
+| `hover-enter`       | Pointer enters the unique `<Btn>` or `<Image>` in this Trigger's subtree (uGUI `IPointerEnterHandler`)                                           |
+| `hover-enter@<id>`  | Pointer enters the `<Btn>` or `<Image>` with `<id>` inside the subtree                                                                           |
+| `hover-exit`        | Pointer leaves the unique `<Btn>` or `<Image>` (`IPointerExitHandler`)                                                                           |
+| `hover-exit@<id>`   | Pointer leaves the `<Btn>` or `<Image>` with `<id>`                                                                                              |
+| `press`             | Pointer pressed down on the unique `<Btn>` or `<Image>` (`IPointerDownHandler`). Instantaneous — release / long-press are v2                     |
+| `press@<id>`        | Pointer pressed down on the `<Btn>` or `<Image>` with `<id>`                                                                                     |
+| `manual`            | Does not auto-fire; C# must call `Fire()`                                                                                                        |
+
+**Pointer-event source range**: only `<Btn>` and `<Image>` can be `hover-enter` / `hover-exit` / `press` event sources. They both default to `raycastTarget=true`, which is what Unity's EventSystem requires for dispatching pointer events. Using `@<id>` to reference `<Icon>` (hardcoded `raycastTarget=false`), `<Text>` (default `false`), `<Frame>` (no Graphic to receive raycasts), or any other control as a pointer source → runtime error `"id 'X' is a Y, not supported as pointer event source. Use <Btn> or <Image>."`
+
+**Caveat — `raycastTarget="false"` silently breaks pointer triggers**: if you set `<Image raycastTarget="false">` and then reference that Image via `on="hover-enter@..."`, the pointer event never reaches the GameObject — the trigger silently never fires. No error is raised. Keep `raycastTarget=true` on any Image you want to trigger pointer events from.
+
+**`click` vs `press`**:
+
+- `click` uses Unity's `Button.onClick` (drag-cancel / disabled-state handling). **`<Btn>` only.**
+- `press` is the raw `IPointerDownHandler` event. **Works on both `<Btn>` and `<Image>`.**
+- Use `click` for button activation; use `press` for instant visual feedback on press (scale 0.95 etc.).
 
 Subscribe in C#:
 
