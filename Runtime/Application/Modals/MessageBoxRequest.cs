@@ -68,5 +68,24 @@ namespace PromptUGUI.Application.Modals
         // 必须带 .ui 后缀：Unity 只剥离 .ui.xml 文件名的最后 .xml，所以
         // Resources 里 asset 的查找名是 "MessageBox.ui" 而不是 "MessageBox"。
         public static string XmlSrc { get; set; } = "PromptUGUI/Modals/MessageBox.ui";
+
+        public static UnityEngine.Awaitable<Btn> Open(
+            string text, Btn buttons = Btn.OK, string icon = null, string title = null)
+            => UI.Modal.OpenAsync(new MessageBoxRequest {
+                Text = text, Buttons = buttons, Icon = icon, Title = title,
+            });
+
+        public static UnityEngine.Awaitable<Btn> Open(
+            string text,
+            System.Collections.Generic.IEnumerable<(string label, Btn key)> buttons,
+            string icon = null, string title = null)
+        {
+            var list = new System.Collections.Generic.List<(string, Btn)>(buttons);
+            var mask = Btn.None;
+            foreach (var (_, k) in list) mask |= k;
+            return UI.Modal.OpenAsync(new MessageBoxRequest {
+                Text = text, CustomLabels = list, Buttons = mask, Icon = icon, Title = title,
+            });
+        }
     }
 }
