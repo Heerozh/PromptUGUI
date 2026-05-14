@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PromptUGUI version="1">
+  <Screen name="PromptUGUI/Modals/MessageBox" reference="1920x1080">
+    <Image id="backdrop" anchor="stretch" color="#0000007F"/>
+
+    <Frame id="dialog" anchor="center" size="640x300">
+      <Image anchor="stretch" color="#202020"/>
+      <VStack anchor="stretch" margin="24" spacing="12">
+        <HStack height="40" spacing="12">
+          <Icon id="icon" width="40" height="40"/>
+          <Text  id="title" fontSize="24"/>
+        </HStack>
+        <Text id="text" anchor="stretch" fontSize="18"/>
+        <HStack height="44" spacing="8">
+          <Btn id="ok">OK</Btn>
+          <Btn id="cancel">Cancel</Btn>
+          <Btn id="yes">Yes</Btn>
+          <Btn id="no">No</Btn>
+          <Btn id="close">Close</Btn>
+        </HStack>
+      </VStack>
+    </Frame>
+  </Screen>
+</PromptUGUI>

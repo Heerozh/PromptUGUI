@@ -34,5 +34,18 @@ namespace PromptUGUI.Tests.Modals
             Assert.Throws<InvalidOperationException>(() =>
                 ModalSourceLoader.LoadAsync("PromptUGUI/Modals/Nonexistent").GetAwaiter().GetResult());
         }
+
+        [Test]
+        public void Builtin_MessageBox_xml_is_loadable()
+        {
+            // Unity strips only `.xml` (the last dot), so the asset's lookup name is
+            // `MessageBox.ui` for `MessageBox.ui.xml`. The src key must include `.ui`.
+            var xml = ModalSourceLoader.LoadAsync("PromptUGUI/Modals/MessageBox.ui")
+                .GetAwaiter().GetResult();
+            StringAssert.Contains("<Screen name=\"PromptUGUI/Modals/MessageBox\"", xml);
+            StringAssert.Contains("id=\"backdrop\"", xml);
+            StringAssert.Contains("id=\"ok\"", xml);
+        }
+
     }
 }
