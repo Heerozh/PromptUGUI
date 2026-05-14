@@ -85,5 +85,50 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             var proxy = (RectTransform)screen.Get<Animation>("a").GameObject.transform.Find("_offsetProxy");
             Assert.AreEqual(Vector2.zero, proxy.anchoredPosition);
         }
+
+        [UnityTest]
+        public IEnumerator On_loop_pulse_oscillates_scale()
+        {
+            // pulse animates scale 1.0→1.05 and on="loop" implies yoyo (infinite).
+            // With yoyo, after one full duration (the "to" end) the motion reverses.
+            // A non-looping animation would freeze at 1.05 after duration; a yoyo loops back to 1.0.
+            // Strategy: wait 3× the duration so we are well into multiple cycles.
+            // At that point, if yoyo is running the scale must be somewhere in [1.0, 1.05] and NOT
+            // permanently stuck at exactly the "to" value of 1.05.
+            // We sample at 1.5× duration (guaranteed mid-reverse: scale strictly between 1.0 and 1.05)
+            // and verify it is LESS than the peak (proving reverse happened).
+            UI.LoadDocument("t", $"{Header}" +
+                "<Animation id='a' type='pulse' on='loop' duration='0.1s' easing='linear'><Frame id='f'/></Animation>" +
+                $"{Footer}");
+            var screen = UI.Open("S");
+            var proxy = (RectTransform)screen.Get<Animation>("a").GameObject.transform.Find("_offsetProxy");
+
+            // Wait to the peak (end of forward pass)
+            yield return new WaitForSeconds(0.1f);
+            var sPeak = proxy.localScale.x;
+
+            // Wait another half-duration into the reverse pass
+            yield return new WaitForSeconds(0.05f);
+            var sMidReverse = proxy.localScale.x;
+
+            // sPeak should be ~1.05 (the "to" value); sMidReverse should be ~1.025 (halfway back).
+            // sMidReverse must be strictly less than sPeak — proving the yoyo reversed.
+            Assert.IsTrue(sPeak > 1.001f, $"scale at peak ({sPeak}) must be above 1.0");
+            Assert.IsTrue(sMidReverse < sPeak - 0.005f,
+                $"scale mid-reverse ({sMidReverse}) must be less than peak ({sPeak}) — yoyo must reverse");
+        }
+
+        [UnityTest]
+        public IEnumerator Loop_count_3_runs_three_times_then_stops()
+        {
+            UI.LoadDocument("t", $"{Header}" +
+                "<Animation id='a' translate='0,0:50,0' duration='0.05s' loop='count:3' on='open'><Frame id='f'/></Animation>" +
+                $"{Footer}");
+            var screen = UI.Open("S");
+            var proxy = (RectTransform)screen.Get<Animation>("a").GameObject.transform.Find("_offsetProxy");
+            yield return new WaitForSeconds(0.05f * 3 + 0.05f);  // 3 loops + grace
+            // After 3 loops with Restart mode, position is at "to" (50,0)
+            Assert.AreEqual(new Vector2(50, 0), proxy.anchoredPosition);
+        }
     }
 }

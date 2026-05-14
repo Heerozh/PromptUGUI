@@ -17,6 +17,8 @@ namespace PromptUGUI.Controls
         [UIAttr("on")]
         public string On { set => _spec = TriggerSpec.Parse(value); }
 
+        internal Internal.TriggerKind TriggerKind => _spec?.Kind ?? Internal.TriggerKind.Open;
+
         internal override void OnAfterApply()
         {
             if (_subscribed) return;

@@ -24,24 +24,56 @@ namespace PromptUGUI.Controls.Internal
 
                 case AnimationFamily.LowLevel:
                     if (spec.HasTranslate)
-                        handles.Add(LMotion.Create(spec.TranslateFrom, spec.TranslateTo, spec.Duration)
-                            .WithEase(ease).WithDelay(spec.Delay)
-                            .Bind(offsetProxy, (v, rt) => rt.anchoredPosition = v));
+                    {
+                        var b = LMotion.Create(spec.TranslateFrom, spec.TranslateTo, spec.Duration)
+                            .WithEase(ease).WithDelay(spec.Delay);
+                        switch (spec.LoopMode)
+                        {
+                            case LoopMode.Yoyo: b = b.WithLoops(-1, LoopType.Yoyo); break;
+                            case LoopMode.Restart: b = b.WithLoops(-1, LoopType.Restart); break;
+                            case LoopMode.Count: b = b.WithLoops(spec.LoopCount, LoopType.Restart); break;
+                        }
+                        handles.Add(b.Bind(offsetProxy, (v, rt) => rt.anchoredPosition = v));
+                    }
                     if (spec.HasScale)
-                        handles.Add(LMotion.Create(
+                    {
+                        var b = LMotion.Create(
                                 new Vector3(spec.ScaleFrom.x, spec.ScaleFrom.y, 1f),
                                 new Vector3(spec.ScaleTo.x, spec.ScaleTo.y, 1f),
                                 spec.Duration)
-                            .WithEase(ease).WithDelay(spec.Delay)
-                            .Bind(offsetProxy, (v, rt) => rt.localScale = v));
+                            .WithEase(ease).WithDelay(spec.Delay);
+                        switch (spec.LoopMode)
+                        {
+                            case LoopMode.Yoyo: b = b.WithLoops(-1, LoopType.Yoyo); break;
+                            case LoopMode.Restart: b = b.WithLoops(-1, LoopType.Restart); break;
+                            case LoopMode.Count: b = b.WithLoops(spec.LoopCount, LoopType.Restart); break;
+                        }
+                        handles.Add(b.Bind(offsetProxy, (v, rt) => rt.localScale = v));
+                    }
                     if (spec.HasRotate)
-                        handles.Add(LMotion.Create(spec.RotateFrom, spec.RotateTo, spec.Duration)
-                            .WithEase(ease).WithDelay(spec.Delay)
-                            .Bind(offsetProxy, (v, rt) => rt.localEulerAngles = new Vector3(0, 0, v)));
+                    {
+                        var b = LMotion.Create(spec.RotateFrom, spec.RotateTo, spec.Duration)
+                            .WithEase(ease).WithDelay(spec.Delay);
+                        switch (spec.LoopMode)
+                        {
+                            case LoopMode.Yoyo: b = b.WithLoops(-1, LoopType.Yoyo); break;
+                            case LoopMode.Restart: b = b.WithLoops(-1, LoopType.Restart); break;
+                            case LoopMode.Count: b = b.WithLoops(spec.LoopCount, LoopType.Restart); break;
+                        }
+                        handles.Add(b.Bind(offsetProxy, (v, rt) => rt.localEulerAngles = new Vector3(0, 0, v)));
+                    }
                     if (spec.HasFade)
-                        handles.Add(LMotion.Create(spec.FadeFrom, spec.FadeTo, spec.Duration)
-                            .WithEase(ease).WithDelay(spec.Delay)
-                            .Bind(canvasGroup, (v, cg) => cg.alpha = v));
+                    {
+                        var b = LMotion.Create(spec.FadeFrom, spec.FadeTo, spec.Duration)
+                            .WithEase(ease).WithDelay(spec.Delay);
+                        switch (spec.LoopMode)
+                        {
+                            case LoopMode.Yoyo: b = b.WithLoops(-1, LoopType.Yoyo); break;
+                            case LoopMode.Restart: b = b.WithLoops(-1, LoopType.Restart); break;
+                            case LoopMode.Count: b = b.WithLoops(spec.LoopCount, LoopType.Restart); break;
+                        }
+                        handles.Add(b.Bind(canvasGroup, (v, cg) => cg.alpha = v));
+                    }
                     break;
 
                 case AnimationFamily.Text:

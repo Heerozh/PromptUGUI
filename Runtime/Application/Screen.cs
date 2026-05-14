@@ -138,6 +138,12 @@ namespace PromptUGUI.Application
             // 主动清空订阅,避免 GO 销毁过程中 Unity 再触发 OnRectTransformDimensionsChange 时
             // 还把回调派给已 Close 的 Screen 上的 stale 订阅者。
             RectTransformDimensionsChanged = null;
+            // Dispose all controls before destroying the GameObject so that running
+            // motions (e.g. LitMotion handles) are cancelled before the objects
+            // become invalid. DestroyImmediate / Destroy are deferred in PlayMode,
+            // so without explicit cancellation LitMotion callbacks can fire on
+            // already-destroyed RectTransforms.
+            foreach (var c in _nodeMap.Values) c.Dispose();
             if (RootGameObject != null)
             {
                 if (UnityEngine.Application.isPlaying)

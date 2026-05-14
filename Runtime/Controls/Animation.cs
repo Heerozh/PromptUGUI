@@ -44,6 +44,12 @@ namespace PromptUGUI.Controls
 
         internal override void OnAfterApply()
         {
+            // on="loop" implies yoyo unless user explicitly set loop=
+            if (TriggerKind == PromptUGUI.Controls.Internal.TriggerKind.Loop
+                && _spec.LoopMode == PromptUGUI.Controls.Internal.LoopMode.None)
+            {
+                _spec.LoopMode = PromptUGUI.Controls.Internal.LoopMode.Yoyo;
+            }
             // Retrieve the CanvasGroup that ApplyCommon already added via Control.Interactable.
             _cg = GameObject.GetComponent<CanvasGroup>();
             if (_cg == null) _cg = GameObject.AddComponent<CanvasGroup>();
