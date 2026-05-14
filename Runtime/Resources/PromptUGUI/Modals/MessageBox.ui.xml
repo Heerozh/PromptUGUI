@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PromptUGUI version="1">
-  <Screen name="PromptUGUI/Modals/MessageBox" reference="1920x1080">
+  <Screen name="PromptUGUI/Modals/MessageBox.ui" reference="1920x1080">
     <Image id="backdrop" anchor="stretch" color="#0000007F"/>
 
     <Frame id="dialog" anchor="center" size="640x300">
