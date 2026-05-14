@@ -218,7 +218,7 @@ namespace PromptUGUI.Application
 
             var selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid";
             foreach (var c in node.Children)
-                InstantiateRecursive(c, go.transform, selfIsLayoutGroup, childScope, nodeMap);
+                InstantiateRecursive(c, control.ChildHostTransform, selfIsLayoutGroup, childScope, nodeMap);
         }
 
         private static void BindFields(Control control, GameObject prefabRoot)
