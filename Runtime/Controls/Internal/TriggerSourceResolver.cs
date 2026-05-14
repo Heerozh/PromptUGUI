@@ -45,8 +45,9 @@ namespace PromptUGUI.Controls.Internal
                 {
                     if (string.IsNullOrEmpty(idFilter) || b.Id == idFilter)
                         outList.Add(b);
+                    // Btns are leaves — do not descend into their children
                 }
-                if (child is Control childCtrl)
+                else if (child is Control childCtrl)
                     CollectBtns(childCtrl, idFilter, outList);
             }
         }
