@@ -19,8 +19,8 @@ namespace PromptUGUI.Controls.Internal
             switch (spec.Family)
             {
                 case AnimationFamily.Preset:
-                    // Task 9 expands preset → low-level invocations
-                    break;
+                    spec.ExpandPreset();
+                    goto case AnimationFamily.LowLevel;
 
                 case AnimationFamily.LowLevel:
                     if (spec.HasTranslate)

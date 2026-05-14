@@ -134,5 +134,44 @@ namespace PromptUGUI.Tests.EditMode.Controls
             s.Validate();
             Assert.AreEqual("score", s.TargetId);
         }
+
+        [Test]
+        public void Preset_fadein_expands_to_fade_0_to_1()
+        {
+            var s = new AnimationSpec(); s.SetType("fadein"); s.Validate();
+            s.ExpandPreset();
+            Assert.IsTrue(s.HasFade);
+            Assert.AreEqual(0f, s.FadeFrom);
+            Assert.AreEqual(1f, s.FadeTo);
+        }
+
+        [Test]
+        public void Preset_slidein_left_expands_to_translate_and_fade()
+        {
+            var s = new AnimationSpec(); s.SetType("slidein-left"); s.Validate();
+            s.ExpandPreset();
+            Assert.IsTrue(s.HasTranslate);
+            Assert.AreEqual(new UnityEngine.Vector2(-100, 0), s.TranslateFrom);
+            Assert.AreEqual(UnityEngine.Vector2.zero, s.TranslateTo);
+            Assert.IsTrue(s.HasFade);
+        }
+
+        [Test]
+        public void Preset_pulse_sets_yoyo_loop_implicitly()
+        {
+            var s = new AnimationSpec(); s.SetType("pulse"); s.Validate();
+            s.ExpandPreset();
+            Assert.AreEqual(LoopMode.Yoyo, s.LoopMode);
+        }
+
+        [Test]
+        public void Preset_bounce_sets_outback_easing_implicitly()
+        {
+            var s = new AnimationSpec(); s.SetType("bounce"); s.Validate();
+            // explicitly check the easing was NOT overwritten if user set it
+            Assert.AreEqual(EasingKind.OutCubic, s.Easing); // user didn't set, default
+            s.ExpandPreset();
+            Assert.AreEqual(EasingKind.OutBack, s.Easing);
+        }
     }
 }

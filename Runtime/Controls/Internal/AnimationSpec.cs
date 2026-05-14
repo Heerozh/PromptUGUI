@@ -149,6 +149,57 @@ namespace PromptUGUI.Controls.Internal
                 TranslateTo, ScaleTo, FadeTo, CountTo);
         }
 
+        /// <summary>
+        /// 把 TypeRaw 展开成等价的低层属性 (HasTranslate/HasFade/...)。
+        /// 调用后 Family 保持 Preset；Driver 用展开后的低层值生成 motion。
+        /// </summary>
+        public void ExpandPreset()
+        {
+            if (string.IsNullOrEmpty(TypeRaw)) return;
+            switch (TypeRaw)
+            {
+                case "fadein": HasFade = true; FadeFrom = 0; FadeTo = 1; break;
+                case "fadeout": HasFade = true; FadeFrom = 1; FadeTo = 0; break;
+                case "slidein-left": SlideIn(new Vector2(-100, 0)); break;
+                case "slidein-right": SlideIn(new Vector2(100, 0)); break;
+                case "slidein-up": SlideIn(new Vector2(0, -100)); break;
+                case "slidein-down": SlideIn(new Vector2(0, 100)); break;
+                case "slideout-left": SlideOut(new Vector2(-100, 0)); break;
+                case "slideout-right": SlideOut(new Vector2(100, 0)); break;
+                case "slideout-up": SlideOut(new Vector2(0, -100)); break;
+                case "slideout-down": SlideOut(new Vector2(0, 100)); break;
+                case "scalein":
+                    HasScale = true; ScaleFrom = new Vector2(0.8f, 0.8f); ScaleTo = Vector2.one;
+                    HasFade = true; FadeFrom = 0; FadeTo = 1; break;
+                case "scaleout":
+                    HasScale = true; ScaleFrom = Vector2.one; ScaleTo = new Vector2(0.8f, 0.8f);
+                    HasFade = true; FadeFrom = 1; FadeTo = 0; break;
+                case "pulse":
+                    HasScale = true; ScaleFrom = Vector2.one; ScaleTo = new Vector2(1.05f, 1.05f);
+                    if (LoopMode == LoopMode.None) LoopMode = LoopMode.Yoyo; break;
+                case "bounce":
+                    HasScale = true; ScaleFrom = new Vector2(0.9f, 0.9f); ScaleTo = Vector2.one;
+                    Easing = EasingKind.OutBack; break;
+                case "shake":
+                    HasTranslate = true; TranslateFrom = new Vector2(-5, 0); TranslateTo = new Vector2(5, 0);
+                    Easing = EasingKind.Linear;
+                    if (LoopMode == LoopMode.None) { LoopMode = LoopMode.Count; LoopCount = 4; }
+                    break;
+            }
+        }
+
+        private void SlideIn(Vector2 from)
+        {
+            HasTranslate = true; TranslateFrom = from; TranslateTo = Vector2.zero;
+            HasFade = true; FadeFrom = 0; FadeTo = 1;
+        }
+
+        private void SlideOut(Vector2 to)
+        {
+            HasTranslate = true; TranslateFrom = Vector2.zero; TranslateTo = to;
+            HasFade = true; FadeFrom = 1; FadeTo = 0;
+        }
+
         // --- parsers ---
 
         private static float ParseFloat(string s)

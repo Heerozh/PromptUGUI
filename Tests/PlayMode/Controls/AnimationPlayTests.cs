@@ -61,5 +61,29 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             var proxy = (RectTransform)anim.GameObject.transform.Find("_offsetProxy");
             Assert.AreEqual(Vector3.one, proxy.localScale);
         }
+
+        [UnityTest]
+        public IEnumerator Preset_fadein_completes_to_alpha_1()
+        {
+            UI.LoadDocument("t", $"{Header}" +
+                "<Animation id='a' type='fadein' duration='0.1s'><Frame id='f'/></Animation>" +
+                $"{Footer}");
+            var screen = UI.Open("S");
+            yield return new WaitForSeconds(0.2f);
+            var cg = screen.Get<Animation>("a").GameObject.GetComponent<CanvasGroup>();
+            Assert.AreEqual(1f, cg.alpha, 0.01f);
+        }
+
+        [UnityTest]
+        public IEnumerator Preset_slidein_left_ends_at_origin()
+        {
+            UI.LoadDocument("t", $"{Header}" +
+                "<Animation id='a' type='slidein-left' duration='0.1s'><Frame id='f'/></Animation>" +
+                $"{Footer}");
+            var screen = UI.Open("S");
+            yield return new WaitForSeconds(0.2f);
+            var proxy = (RectTransform)screen.Get<Animation>("a").GameObject.transform.Find("_offsetProxy");
+            Assert.AreEqual(Vector2.zero, proxy.anchoredPosition);
+        }
     }
 }
