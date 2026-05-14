@@ -31,7 +31,33 @@
 
 升级同样。
 
+### 手动安装：
+
+0. Prerequisite:
+
+Install NuGetForUnity: https://github.com/GlitchEnzo/NuGetForUnity
+Install R3: github.com/Cysharp/R3
+Install LitMotion: https://github.com/annulusgames/LitMotion.git
+
+1. UPM
+Window > Package Manager > "+" > "Add package from git URL" > Enter:
+
+```
+https://github.com/heerozh/PromptUGUI.git
+```
+
+2. Skills
+把包内的 `.claude/skills/` 目录下的三个 skill 目录 copy 到你项目对应agent的skills目录下
+Claude Code: `<project root>/.claude/skills/`
+Codex: `<project root>/.agents/skills/`
+
 > Skill 文件遵循开放 [Agent Skills](https://agentskills.io) 规范，兼容平台（Codex / Gemini CLI 等）也可复用，只需放到对应平台的 skill 目录。
+
+3. AGENT.md / CLAUDE.md
+把以下内容写到项目全局提示词：
+```
+Use `Tr("...")` to wrap all player-facing text for i18n.
+```
 
 ## 使用方法
 
@@ -60,5 +86,5 @@ Project 右键 → Create → PromptUGUI → UI XML。
 
 第一个界面大模型没有参考，选用的图素都是默认值，你需要手动修改或个别一一指示，之后会更顺利。
 
-**建议**使用Addressable，`[SerializeField] private AssetReferenceT<TextAsset> xml` 定义属性，
-然后就能在Inspector中把UI文件拖入xml，在脚本中`await UI.LoadDocumentAsync(xml);`按需下载和热更。
+**建议**使用Addressable，`[SerializeField] private AssetReferenceT<TextAsset> xmlSlot` 定义属性，
+然后就能在Inspector中把`*.ui.xml`文件拖入`xmlSlot`，在脚本中`await UI.LoadDocumentAsync(xmlSlot);`按需下载和热更。

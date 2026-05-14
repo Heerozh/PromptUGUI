@@ -14,10 +14,11 @@
 
 ## 步骤 1：把包加到 manifest
 
-读 `<project root>/Packages/manifest.json`，在 `dependencies` 对象里加一行（如已存在则跳过）：
+读 `<project root>/Packages/manifest.json`，在 `dependencies` 对象里加2行（任一如已存在则跳过）：
 
 ```json
 "com.promptugui.core": "https://github.com/heerozh/PromptUGUI.git"
+"com.annulusgames.lit-motion": "https://github.com/annulusgames/LitMotion.git?path=src/LitMotion/Assets/LitMotion"
 ```
 
 也可以让用户走 Unity → Window → Package Manager → "+" → "Add package from git URL"，URL 同上。
