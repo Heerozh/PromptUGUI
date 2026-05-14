@@ -112,6 +112,17 @@ namespace PromptUGUI.Application
 
             internal static bool IsModalScreen(string screenName) =>
                 _currentScreenName == screenName;
+
+#if UNITY_EDITOR
+            internal static void InvalidateCacheForEditor(string src)
+            {
+                if (string.IsNullOrEmpty(src)) return;
+                if (_loadedSrcs.Remove(src))
+                {
+                    UnloadDocument(src);
+                }
+            }
+#endif
         }
     }
 }

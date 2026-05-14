@@ -42,7 +42,7 @@ namespace PromptUGUI.Tests.Modals
             // `MessageBox.ui` for `MessageBox.ui.xml`. The src key must include `.ui`.
             var xml = ModalSourceLoader.LoadAsync("PromptUGUI/Modals/MessageBox.ui")
                 .GetAwaiter().GetResult();
-            StringAssert.Contains("<Screen name=\"PromptUGUI/Modals/MessageBox\"", xml);
+            StringAssert.Contains("<Screen name=\"PromptUGUI/Modals/MessageBox.ui\"", xml);
             StringAssert.Contains("id=\"backdrop\"", xml);
             StringAssert.Contains("id=\"ok\"", xml);
         }
