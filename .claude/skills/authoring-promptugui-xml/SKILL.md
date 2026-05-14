@@ -54,12 +54,12 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 </PromptUGUI>
 ```
 
-| Element                              | Role                                                      | Notes                                                                                                                |
-| ------------------------------------ | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `<PromptUGUI version="1">`           | Root, **always**.                                         | NOT `<UI>`. `version="1"` is required.                                                                               |
-| `<Import src="..." [as="ns"]/>`      | Pull templates from another file.                         | Top-level only. `as=` adds namespace prefix.                                                                         |
+| Element                                                | Role                                                      | Notes                                                                                                                                                                                                        |
+| ------------------------------------------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `<PromptUGUI version="1">`                             | Root, **always**.                                         | NOT `<UI>`. `version="1"` is required.                                                                                                                                                                       |
+| `<Import src="..." [as="ns"]/>`                        | Pull templates from another file.                         | Top-level only. `as=` adds namespace prefix.                                                                                                                                                                 |
 | `<Screen name="..." [canvas="..."] [reference="..."]>` | A complete UI scene; opened by code with `UI.Open(name)`. | One Screen = one Canvas. Names unique across all loaded files. `canvas="overlay\|camera\|world"`, default `overlay`. Optional `reference="WxH"` (+ `.variant`) switches CanvasScaler to ScaleWithScreenSize. |
-| `<Template name="...">`              | Reusable subtree, expanded at parse time.                 | Body must have **exactly one root element**.                                                                         |
+| `<Template name="...">`                                | Reusable subtree, expanded at parse time.                 | Body must have **exactly one root element**.                                                                                                                                                                 |
 
 `<Import>`, `<Screen>`, `<Template>` are the **only** elements allowed at the top level. Comments use standard `<!-- -->`.
 
@@ -70,12 +70,12 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 Pre-registered on `UI.Registry`. Use as XML tags by name:
 
 | Tag            | Notes                                                                                                                                                                                                                                                        | Tag-specific attributes                                                                                                                                                                                                                                                                                             |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `<Frame>`      | Empty container (RectTransform only).                                                                                                                                                                                                                        | —                                                                                                                                                                                                                                                                                                                   |
 | `<SafeArea>`   | Stretches to `Screen.safeArea` (notch / status bar / home indicator). Auto-reacts to rotation, window resize, Device Simulator. **Rejects** `anchor` / `size` / `width` / `height` / `margin` / `pivot` (incl. `.variant`); see "Safe area" section below.   | —                                                                                                                                                                                                                                                                                                                   |
 | `<Image>`      | uGUI Image; loads sprites from `Resources`.                                                                                                                                                                                                                  | `sprite` (resource path), `color` (`#RRGGBB[AA]`), `type` (`simple` / `sliced` / `tiled` / `filled`)                                                                                                                                                                                                                |
 | `<Text>`       | TMP_Text. Has text-content shorthand: `<Text>Hello</Text>` ≡ `<Text text="Hello"/>`.                                                                                                                                                                         | `text`, `fontSize` (int), `color`, `align` (`left` / `center` / `right`), `wrap` (bool), `raycastTarget` (bool), `font` (string, font type from Settings; default `default`), `tr` (bool, default `true`; set `false` to skip i18n extraction), `ctx` (string, msgctxt to disambiguate same-msgid in the .po table) |
-| `<VStack>`     | Vertical layout group. Default `childAlign="upper-center"` (cross-axis centered).                                                                                                                                                                            | `spacing` (float), `padding` (`T,R,B,L` 1/2/4 components; `"_"` = 0 placeholder, e.g. `padding="6,_,_,_"`), `childAlign` (`upper/middle/lower-left/center/right`; `center` alias for `middle-center`)                                                                                                              |
+| `<VStack>`     | Vertical layout group. Default `childAlign="upper-center"` (cross-axis centered).                                                                                                                                                                            | `spacing` (float), `padding` (`T,R,B,L` 1/2/4 components; `"_"` = 0 placeholder, e.g. `padding="6,_,_,_"`), `childAlign` (`upper/middle/lower-left/center/right`; `center` alias for `middle-center`)                                                                                                               |
 | `<HStack>`     | Horizontal layout group. Default `childAlign="middle-left"` (cross-axis centered).                                                                                                                                                                           | Same as VStack.                                                                                                                                                                                                                                                                                                     |
 | `<Grid>`       | Grid layout group, fixed columns.                                                                                                                                                                                                                            | `columns` (int), `cellSize` (`WxH`), `spacing` (single or `H,V`), `padding`                                                                                                                                                                                                                                         |
 | `<Btn>`        | Image + Button + R3 `OnClick`. `<Btn>开始</Btn>` shorthand creates an internal TMP label child. Use as **template root** or registered prefab tag for any clickable.                                                                                         | `color`, `sprite`, `font` (string, font type from Settings; default `default`), `tr` (bool, default `true`; set `false` to skip i18n extraction), `ctx` (string, msgctxt to disambiguate same-msgid in the .po table)                                                                                               |
@@ -83,7 +83,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name:
 | `<Toggle>`     | Image + uGUI Toggle + auto label. R3 `OnValueChanged: bool`. `<Toggle>静音</Toggle>` shorthand sets the label. Same `group=` name → mutual exclusion. **不要给单个 Toggle 写 `group=`** — uGUI ToggleGroup 默认要求至少一个 active，单成员组一旦点上就锁死。 | `text`, `isOn` (bool, default false), `group` (string, mutual-exclusion key), `color`, `sprite` (Resources path for checkmark sprite), `font`                                                                                                                                                                       |
 | `<Slider>`     | Image + uGUI Slider. R3 `OnValueChanged: float`.                                                                                                                                                                                                             | `min` (float), `max` (float), `value` (float), `wholeNumbers` (bool), `direction` (`horizontal` / `vertical` / `reverse-horizontal` / `reverse-vertical`), `color`, `sprite`                                                                                                                                        |
 | `<Dropdown>`   | TMP_Dropdown. R3 `OnSelected: int`. Options pushed C#-side via `BindOptions(...)`.                                                                                                                                                                           | `value` (int initial index), `color`, `sprite`, `font`                                                                                                                                                                                                                                                              |
-| `<ScrollList>` | ScrollRect + Mask. Items pushed C#-side via `BindItems(...)`. `itemTemplate` references a `<Template name=...>` or registered Control class.                                                                                                                | `itemTemplate` (required tag name), `direction` (`vertical` / `horizontal`), `spacing` (float), `padding`, `color`, `sprite`                                                                                                                                                                                        |
+| `<ScrollList>` | ScrollRect + Mask. Items pushed C#-side via `BindItems(...)`. `itemTemplate` references a `<Template name=...>` or registered Control class.                                                                                                                 | `itemTemplate` (required tag name), `direction` (`vertical` / `horizontal`), `spacing` (float), `padding`, `color`, `sprite`                                                                                                                                                                                        |
 | `<InputField>` | TMP_InputField；R3 `OnValueChanged` / `OnEndEdit` / `OnSubmit: string`。`<InputField>初始文本</InputField>` 短手设 `text=`。                                                                                                                                 | `text`, `placeholder`, `contentType` (`standard`/`autocorrected`/`integer-number`/`decimal-number`/`alphanumeric`/`name`/`email`/`password`/`pin`/`custom`), `lineType` (`single`/`multi-newline`/`multi-submit`), `characterLimit` (int), `readOnly` (bool), `color`, `sprite`, `font`, `tr` (placeholder)/`ctx`   |
 
 `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` are reference implementations. For project-specific differentiation (pixel border, press feedback, custom popup chrome) subclass and override `OnAttached` — see scripting-promptugui-csharp.
@@ -206,16 +206,16 @@ Rules:
 
 ## Common attributes (any tag)
 
-| Attribute                  | Format            | Notes                                                                                                                                                                              |
-| -------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id="..."`                 | string            | Unique within Screen / Template instance scope. Lift to dedicated handle for `Get<T>`.                                                                                             |
-| `anchor="..."`             | preset            | See "Anchor system" below. Default `top-left`.                                                                                                                                     |
-| `size="WxH"`               | `240x80`          | Both dimensions in pixels (numeric only — keywords `stretch` / `N%` are **not** accepted here, use per-axis attrs). **Forbidden on stretched axes.**                               |
+| Attribute                  | Format                       | Notes                                                                                                                                                                                     |
+| -------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id="..."`                 | string                       | Unique within Screen / Template instance scope. Lift to dedicated handle for `Get<T>`.                                                                                                    |
+| `anchor="..."`             | preset                       | See "Anchor system" below. Default `top-left`.                                                                                                                                            |
+| `size="WxH"`               | `240x80`                     | Both dimensions in pixels (numeric only — keywords `stretch` / `N%` are **not** accepted here, use per-axis attrs). **Forbidden on stretched axes.**                                      |
 | `width="W"` / `height="H"` | float / `stretch[*N]` / `N%` | Numeric is base. `stretch` / `stretch*N` is LayoutGroup-only — see "Stretch keyword". `N%` is free-positioning-only — see "Fractional %". **Numeric forbidden on stretched anchor axes.** |
-| `margin="..."`             | 1/2/4 floats      | "Distance from anchor inward, positive". `"_"` = 0 placeholder.                                                                                                                    |
-| `pivot="x,y"`              | `0..1, 0..1`      | Defaults derive from `anchor`; rarely needed.                                                                                                                                      |
-| `hidden="true"`            | bool              | Initial `SetActive(false)`.                                                                                                                                                        |
-| `interactable="false"`     | bool              | Initial `CanvasGroup.interactable=false` + `blocksRaycasts=false`.                                                                                                                 |
+| `margin="..."`             | 1/2/4 floats                 | "Distance from anchor inward, positive". `"_"` = 0 placeholder.                                                                                                                           |
+| `pivot="x,y"`              | `0..1, 0..1`                 | Defaults derive from `anchor`; rarely needed.                                                                                                                                             |
+| `hidden="true"`            | bool                         | Initial `SetActive(false)`.                                                                                                                                                               |
+| `interactable="false"`     | bool                         | Initial `CanvasGroup.interactable=false` + `blocksRaycasts=false`.                                                                                                                        |
 
 `padding` and `spacing` are **NOT** universal — only on `<VStack>` / `<HStack>` / `<Grid>`.
 
@@ -232,11 +232,11 @@ Rules:
 
 **Fractional `%`** (free-positioning only) — `width="50%"` / `height="33.3%"` on a child of `<Frame>` / `<Screen>` / `<SafeArea>` maps to uGUI's native anchor fractions. The `anchor=` preset decides where in the parent the fraction sits:
 
-| `anchor` horizontal | `width="50%"` becomes |
-|---|---|
-| `*-left`             | anchorMin.x=0, anchorMax.x=0.5 (left half)    |
+| `anchor` horizontal   | `width="50%"` becomes                         |
+| --------------------- | --------------------------------------------- |
+| `*-left`              | anchorMin.x=0, anchorMax.x=0.5 (left half)    |
 | `*-center` / `center` | anchorMin.x=0.25, anchorMax.x=0.75 (centered) |
-| `*-right`            | anchorMin.x=0.5, anchorMax.x=1 (right half)   |
+| `*-right`             | anchorMin.x=0.5, anchorMax.x=1 (right half)   |
 
 Vertical: same idea (`top` → upper, `bottom` → lower, `center` → middle).
 
@@ -248,7 +248,7 @@ Vertical: same idea (`top` → upper, `bottom` → lower, `center` → middle).
 ```
 
 - Range `(0%, 100%]`. `0%` / `>100%` are parse errors (almost always a typo); `100%` is allowed but equivalent to `anchor=stretch` on that axis.
-- `margin` further insets *within* the fractional range (so `width="50%" margin="0,16"` = 50% minus 32px total, still centered).
+- `margin` further insets _within_ the fractional range (so `width="50%" margin="0,16"` = 50% minus 32px total, still centered).
 - Forbidden inside `<VStack>` / `<HStack>` / `<Grid>` (parse error with guidance). LayoutGroup is weight-based, not percentage-based — use `stretch*N` + spacer siblings there.
 - Forbidden combined with `anchor="X-stretch"` on the same axis (existing "stretched-axis can't have width" rule).
 
@@ -467,19 +467,19 @@ There's also a **commons pool** populated C#-side that's merged into every Scree
 
 ## Common mistakes (XML)
 
-| Symptom                                                            | Cause                                                                        | Fix                                                                                            |
-| ------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `cannot specify width/size on a horizontally-stretched axis`       | `<X anchor="top-stretch" width="200"/>`                                      | Either change anchor, or drop `width`. The stretched axis takes its size from `margin`.        |
-| `<Text>` renders one character per line (vertical)                 | `<Text>` under a non-LayoutGroup parent (`<Btn>` / `<Frame>` / `<Screen>`) with `anchor="center"` and no `width` / `height` — `sizeDelta` defaults to `(0,0)`, so TMP wraps every glyph at width 0 | Give the Text width: `anchor="stretch"` + `margin` to fill the parent (offset siblings like `<Icon>` with margin), or set `width="..."` explicitly. Inside a `<VStack>` / `<HStack>` this doesn't happen — the LayoutGroup expands the child on the cross axis. |
-| Ghost element on variant toggle                                    | `<Add>` instantiated and never deactivated                                   | This is by design (Strategy C). Use `hidden.variant` if you need a node to disappear.          |
-| Parser silently merges children                                    | Wrote `<Btn>开始 <Image/> </Btn>` (text + element mix)                       | Pick one: text shorthand OR child elements. Mixed content is rejected.                         |
-| Variant changes one attribute but not another                      | `attr.variant` declared before `attr` (base) in the SAME element             | Fine — declaration order is per-attribute. Just verify the right `.variant` exists.            |
-| `'stretch' on width/height is only valid inside <VStack>/<HStack>` | `<Btn width="stretch"/>` under a `<Frame>` (or other non-LayoutGroup parent) | Either wrap the Btn in a stack, or switch to free-positioning: `anchor="X-stretch"` + `margin` |
-| `size 'stretchx72' is numeric-only...`                             | Trying to put `stretch` or `%` keyword inside compact `size=`                | `size=` is numeric-only. Use per-axis: `width="stretch" height="72"` or `width="50%"`          |
-| `'%' (fractional) ... cannot be used inside <VStack>/<HStack>/<Grid>` | `<Btn width="50%"/>` inside a VStack/HStack/Grid                            | LayoutGroup is weight-based: use `stretch*N` + spacer siblings (e.g. spacer/stretch\*2/spacer = 25/50/25), or move the child to a `<Frame>` parent |
-| `stretch*0` / `stretch*-1` / `stretch*` rejected                   | Invalid weight after `stretch*`                                              | Weight must be a positive number, e.g. `stretch*2` / `stretch*0.5`                             |
-| `'150%' must be in (0%, 100%]`                                     | Percentage out of range                                                      | Allowed range is `(0%, 100%]`. For "wider than parent", redesign the layout (likely a typo)    |
-| UI 在不同屏上视觉大小不一（4K 上变邮票、手机上变巨人） | `<Screen>` 没设 `reference=`，走默认 `ConstantPixelSize, scaleFactor=1`，XML 数字直接 = 设备像素 | 在 `<Screen>` 上加 `reference="1920x1080"`（或你的设计分辨率），切到 `ScaleWithScreenSize` |
+| Symptom                                                               | Cause                                                                                                                                                                                              | Fix                                                                                                                                                                                                                                                             |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cannot specify width/size on a horizontally-stretched axis`          | `<X anchor="top-stretch" width="200"/>`                                                                                                                                                            | Either change anchor, or drop `width`. The stretched axis takes its size from `margin`.                                                                                                                                                                         |
+| `<Text>` renders one character per line (vertical)                    | `<Text>` under a non-LayoutGroup parent (`<Btn>` / `<Frame>` / `<Screen>`) with `anchor="center"` and no `width` / `height` — `sizeDelta` defaults to `(0,0)`, so TMP wraps every glyph at width 0 | Give the Text width: `anchor="stretch"` + `margin` to fill the parent (offset siblings like `<Icon>` with margin), or set `width="..."` explicitly. Inside a `<VStack>` / `<HStack>` this doesn't happen — the LayoutGroup expands the child on the cross axis. |
+| Ghost element on variant toggle                                       | `<Add>` instantiated and never deactivated                                                                                                                                                         | This is by design (Strategy C). Use `hidden.variant` if you need a node to disappear.                                                                                                                                                                           |
+| Parser silently merges children                                       | Wrote `<Btn>开始 <Image/> </Btn>` (text + element mix)                                                                                                                                             | Pick one: text shorthand OR child elements. Mixed content is rejected.                                                                                                                                                                                          |
+| Variant changes one attribute but not another                         | `attr.variant` declared before `attr` (base) in the SAME element                                                                                                                                   | Fine — declaration order is per-attribute. Just verify the right `.variant` exists.                                                                                                                                                                             |
+| `'stretch' on width/height is only valid inside <VStack>/<HStack>`    | `<Btn width="stretch"/>` under a `<Frame>` (or other non-LayoutGroup parent)                                                                                                                       | Either wrap the Btn in a stack, or switch to free-positioning: `anchor="X-stretch"` + `margin`                                                                                                                                                                  |
+| `size 'stretchx72' is numeric-only...`                                | Trying to put `stretch` or `%` keyword inside compact `size=`                                                                                                                                      | `size=` is numeric-only. Use per-axis: `width="stretch" height="72"` or `width="50%"`                                                                                                                                                                           |
+| `'%' (fractional) ... cannot be used inside <VStack>/<HStack>/<Grid>` | `<Btn width="50%"/>` inside a VStack/HStack/Grid                                                                                                                                                   | LayoutGroup is weight-based: use `stretch*N` + spacer siblings (e.g. spacer/stretch\*2/spacer = 25/50/25), or move the child to a `<Frame>` parent                                                                                                              |
+| `stretch*0` / `stretch*-1` / `stretch*` rejected                      | Invalid weight after `stretch*`                                                                                                                                                                    | Weight must be a positive number, e.g. `stretch*2` / `stretch*0.5`                                                                                                                                                                                              |
+| `'150%' must be in (0%, 100%]`                                        | Percentage out of range                                                                                                                                                                            | Allowed range is `(0%, 100%]`. For "wider than parent", redesign the layout (likely a typo)                                                                                                                                                                     |
+| UI 在不同屏上视觉大小不一（4K 上变邮票、手机上变巨人）                | `<Screen>` 没设 `reference=`，走默认 `ConstantPixelSize, scaleFactor=1`，XML 数字直接 = 设备像素                                                                                                   | 在 `<Screen>` 上加 `reference="1920x1080"`（或你的设计分辨率），切到 `ScaleWithScreenSize`                                                                                                                                                                      |
 
 ## Quick reference (cheatsheet)
 
@@ -548,7 +548,7 @@ I18N XML      <Text>...</Text>                 extract + translate
 
 ## Triggers and Animations
 
-Two new built-in tags introduced together. `<Trigger>` is the base — it subscribes to an event (open / loop / click / manual) and exposes an `OnFire` stream to C#. `<Animation>` extends Trigger by also playing a LitMotion animation on fire.
+`<Trigger>` is the base — it subscribes to an event (open / loop / click / manual) and exposes an `OnFire` stream to C#. `<Animation>` extends Trigger by also playing a LitMotion animation on fire.
 
 ### `<Trigger>` — declarative event hook
 
@@ -560,13 +560,13 @@ Two new built-in tags introduced together. `<Trigger>` is the base — it subscr
 
 `on=` values:
 
-| Value | Fires when |
-|---|---|
-| `open` | Once when Screen opens (default if `on=` is omitted) |
-| `loop` | Once on open; sets internal loop=yoyo for downstream Animations |
-| `click` | The unique `<Btn>` inside this Trigger's subtree is clicked |
-| `click@<id>` | The `<Btn>` matching `<id>` inside the subtree is clicked |
-| `manual` | Does not auto-fire; C# must call `Fire()` |
+| Value        | Fires when                                                      |
+| ------------ | --------------------------------------------------------------- |
+| `open`       | Once when Screen opens (default if `on=` is omitted)            |
+| `loop`       | Once on open; sets internal loop=yoyo for downstream Animations |
+| `click`      | The unique `<Btn>` inside this Trigger's subtree is clicked     |
+| `click@<id>` | The `<Btn>` matching `<id>` inside the subtree is clicked       |
+| `manual`     | Does not auto-fire; C# must call `Fire()`                       |
 
 Subscribe in C#:
 
@@ -600,12 +600,12 @@ Valid `type=` values: `fadein` / `fadeout` / `slidein-left` / `slidein-right` / 
 
 Attributes (any combination):
 
-| Attribute | Format | Notes |
-|---|---|---|
-| `translate` | `"x1,y1:x2,y2"` | Offset from→to in pixels. Omitting `from` (e.g. `":50,0"`) means from=zero |
-| `scale` | `"s:s"` or `"sx,sy:sx,sy"` | Scale from→to; single value applies to both x and y |
-| `rotate` | `"d1:d2"` | Z-axis rotation in degrees |
-| `fade` | `"a1:a2"` | Alpha from→to (0..1) |
+| Attribute   | Format                     | Notes                                                                      |
+| ----------- | -------------------------- | -------------------------------------------------------------------------- |
+| `translate` | `"x1,y1:x2,y2"`            | Offset from→to in pixels. Omitting `from` (e.g. `":50,0"`) means from=zero |
+| `scale`     | `"s:s"` or `"sx,sy:sx,sy"` | Scale from→to; single value applies to both x and y                        |
+| `rotate`    | `"d1:d2"`                  | Z-axis rotation in degrees                                                 |
+| `fade`      | `"a1:a2"`                  | Alpha from→to (0..1)                                                       |
 
 Transform attributes always target the Animation's inner `_offsetProxy` GO — they cannot be redirected with `target=`.
 
@@ -623,23 +623,23 @@ Transform attributes always target the Animation's inner `_offsetProxy` GO — t
 </Animation>
 ```
 
-| Attribute | Notes |
-|---|---|
-| `count="from:to"` + `format="{0:N0}"` | Animates a number; writes formatted string into `<Text>` (LitMotion `BindToText`) |
-| `char-color="r,g,b,a:r,g,b,a"` + `char-stagger="0.05s"` | Per-char color wave (`BindToTMPCharColor`); each char's motion is delayed by `i * stagger` |
-| `target="@id"` | Resolves a `<Text id="id">` in screen-global scope when the target is outside the wrapper subtree |
+| Attribute                                               | Notes                                                                                             |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `count="from:to"` + `format="{0:N0}"`                   | Animates a number; writes formatted string into `<Text>` (LitMotion `BindToText`)                 |
+| `char-color="r,g,b,a:r,g,b,a"` + `char-stagger="0.05s"` | Per-char color wave (`BindToTMPCharColor`); each char's motion is delayed by `i * stagger`        |
+| `target="@id"`                                          | Resolves a `<Text id="id">` in screen-global scope when the target is outside the wrapper subtree |
 
 Text family default: looks for the unique `<Text>` in the subtree. Multiple `<Text>` descendants without `target=` → parse error.
 
 #### Common attributes (all families)
 
-| Attribute | Default | Notes |
-|---|---|---|
-| `duration` | `0.3s` | Supports `0.3s` / `300ms` / bare float (seconds) |
-| `delay` | `0s` | Delay before motion starts |
-| `easing` | `out-cubic` | See easing table below |
-| `loop` | (none) | `true` (infinite restart) / `yoyo` (infinite back-and-forth) / `count:N` (N times then stop) |
-| `on` | `open` | Same as `<Trigger>` |
+| Attribute  | Default     | Notes                                                                                        |
+| ---------- | ----------- | -------------------------------------------------------------------------------------------- |
+| `duration` | `0.3s`      | Supports `0.3s` / `300ms` / bare float (seconds)                                             |
+| `delay`    | `0s`        | Delay before motion starts                                                                   |
+| `easing`   | `out-cubic` | See easing table below                                                                       |
+| `loop`     | (none)      | `true` (infinite restart) / `yoyo` (infinite back-and-forth) / `count:N` (N times then stop) |
+| `on`       | `open`      | Same as `<Trigger>`                                                                          |
 
 **Easing values:** `linear` / `in-cubic` / `out-cubic` / `in-out-cubic` / `in-quad` / `out-quad` / `in-out-quad` / `in-quart` / `out-quart` / `in-out-quart` / `in-quint` / `out-quint` / `in-out-quint` / `out-back` / `out-elastic` / `out-bounce`
 
@@ -672,6 +672,7 @@ Text family default: looks for the unique `<Text>` in the subtree. Multiple `<Te
 ```
 
 **Caveats:**
+
 - `char-color` assumes Text content doesn't change during animation; concurrent `count` + `char-color` on the same `<Text>` may produce wrong-char colors as text length changes
 - `<Animation>` adds a `CanvasGroup` and an inner `_offsetProxy` GameObject (transparent to layout, but visible in the Hierarchy)
 - `on="open"` fires once at Screen open; Variant ReSolve does **not** re-fire
