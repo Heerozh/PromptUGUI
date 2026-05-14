@@ -6,7 +6,9 @@
     "UnityEngine.UI",
     "Unity.Addressables",
     "Unity.Addressables.Editor",
-    "Unity.ResourceManager"
+    "Unity.ResourceManager",
+    "LitMotion",
+    "LitMotion.Extensions"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

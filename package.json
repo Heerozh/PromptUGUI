@@ -5,7 +5,8 @@
     "description": "XML-driven uGUI for Unity 6+",
     "unity": "6000.0",
     "dependencies": {
-        "com.unity.ugui": "2.0.0"
+        "com.unity.ugui": "2.0.0",
+        "com.annulusgames.lit-motion": "https://github.com/annulusgames/LitMotion.git?path=src/LitMotion/Assets/LitMotion"
     },
     "author": {
         "name": "Heerozh",
