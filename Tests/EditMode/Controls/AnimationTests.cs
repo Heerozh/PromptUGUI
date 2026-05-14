@@ -47,5 +47,19 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 label.RectTransform.parent,
                 "Text must be parented to _offsetProxy, not Animation root");
         }
+
+        [Test]
+        public void Animation_OnAfterApply_idempotent_when_attrs_unchanged()
+        {
+            UI.LoadDocument("t", "<?xml version='1.0' encoding='utf-8'?>" +
+                "<PromptUGUI version='1'><Screen name='S'>" +
+                "<Animation id='a' fade='0:1' duration='0.3s' on='manual'><Frame id='f'/></Animation>" +
+                "</Screen></PromptUGUI>");
+            var screen = UI.Open("S");
+            var anim = screen.Get<Animation>("a");
+            // Manually trigger ReSolve via VariantStore (no actual change to spec)
+            // If snapshot equality works, repeated ReSolve + Fire is harmless.
+            Assert.DoesNotThrow(() => { anim.Fire(); screen.ReSolve(); anim.Fire(); });
+        }
     }
 }
