@@ -57,5 +57,75 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 UI.Open("S");
             }, Throws.InstanceOf<Exception>());
         }
+
+        [Test]
+        public void Click_trigger_fires_when_unique_inner_Btn_clicked()
+        {
+            UI.LoadDocument("t", $"{Header}" +
+                "<Trigger id='t' on='click'><Btn id='b'>OK</Btn></Trigger>" +
+                $"{Footer}");
+            var screen = UI.Open("S");
+            int fires = 0;
+            screen.Get<Trigger>("t").OnFire.Subscribe(_ => fires++);
+            var btn = screen.Get<Btn>("t/b");  // scoped path
+            btn.GameObject.GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
+            Assert.AreEqual(1, fires);
+        }
+
+        [Test]
+        public void Click_trigger_with_id_picks_correct_Btn()
+        {
+            UI.LoadDocument("t", $"{Header}" +
+                "<Trigger id='t' on='click@ok'>" +
+                "  <Btn id='ok'>OK</Btn>" +
+                "  <Btn id='cancel'>Cancel</Btn>" +
+                "</Trigger>" +
+                $"{Footer}");
+            var screen = UI.Open("S");
+            int fires = 0;
+            screen.Get<Trigger>("t").OnFire.Subscribe(_ => fires++);
+            screen.Get<Btn>("t/cancel").GameObject
+                .GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
+            Assert.AreEqual(0, fires, "cancel click must NOT fire when source is @ok");
+            screen.Get<Btn>("t/ok").GameObject
+                .GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
+            Assert.AreEqual(1, fires);
+        }
+
+        [Test]
+        public void Click_trigger_no_inner_Btn_throws()
+        {
+            Assert.That(() =>
+            {
+                UI.LoadDocument("t", $"{Header}<Trigger id='t' on='click'/>{Footer}");
+                UI.Open("S");
+            }, Throws.InstanceOf<Exception>());
+        }
+
+        [Test]
+        public void Click_trigger_multiple_Btn_no_id_throws()
+        {
+            Assert.That(() =>
+            {
+                UI.LoadDocument("t", $"{Header}" +
+                    "<Trigger id='t' on='click'>" +
+                    "  <Btn id='a'>A</Btn><Btn id='b'>B</Btn>" +
+                    "</Trigger>" +
+                    $"{Footer}");
+                UI.Open("S");
+            }, Throws.InstanceOf<Exception>());
+        }
+
+        [Test]
+        public void Click_trigger_unknown_id_throws()
+        {
+            Assert.That(() =>
+            {
+                UI.LoadDocument("t", $"{Header}" +
+                    "<Trigger id='t' on='click@nope'><Btn id='ok'>OK</Btn></Trigger>" +
+                    $"{Footer}");
+                UI.Open("S");
+            }, Throws.InstanceOf<Exception>());
+        }
     }
 }

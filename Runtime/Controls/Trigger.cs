@@ -52,9 +52,8 @@ namespace PromptUGUI.Controls
 
         private void SubscribeClick()
         {
-            // Implemented in Task 5
-            throw new NotImplementedException(
-                "on=\"click\" 触发暂未实现 (Task 5 will add it)");
+            var btn = Internal.TriggerSourceResolver.FindBtn(this, _spec.SourceId);
+            _sourceSub = btn.OnClick.Subscribe(_ => Fire());
         }
 
         public override void Dispose()
