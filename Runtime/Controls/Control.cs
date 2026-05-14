@@ -105,7 +105,7 @@ namespace PromptUGUI.Controls
         // 通用属性应用（由 ScreenInstantiator 在子类自身属性应用之后调用）
         public void ApplyCommon(string anchor, string size, string width, string height,
                                 string margin, string pivot,
-                                bool hidden, bool interactable)
+                                bool? hidden, bool interactable)
         {
             var preset = string.IsNullOrEmpty(anchor)
                 ? new AnchorPreset(AnchorVertical.Top, AnchorHorizontal.Left)
@@ -210,7 +210,7 @@ namespace PromptUGUI.Controls
                 RectTransform.sizeDelta = lr.SizeDelta;
             }
 
-            Hidden = hidden;
+            if (hidden.HasValue) Hidden = hidden.Value;
             Interactable = interactable;
         }
 

@@ -34,7 +34,7 @@ namespace PromptUGUI.Tests.Modals
             Files = new Dictionary<string, string> { ["test/Box1"] = MinimalMboxXml };
             UI.SourceResolver = src =>
                 AwaitableHelpers.Completed(Files.TryGetValue(src, out var v) ? v : null);
-            // MessageBox.XmlSrc = "test/Box1";   // uncommented in Task 11 (MessageBox class not yet defined)
+            MessageBox.XmlSrc = "test/Box1";   // uncommented in Task 11
         }
 
         [TearDown]

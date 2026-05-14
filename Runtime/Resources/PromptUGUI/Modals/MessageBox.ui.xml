@@ -6,10 +6,7 @@
     <Frame id="dialog" anchor="center" size="640x300">
       <Image anchor="stretch" color="#202020"/>
       <VStack anchor="stretch" margin="24" spacing="12">
-        <HStack height="40" spacing="12">
-          <Icon id="icon" width="40" height="40"/>
-          <Text  id="title" fontSize="24"/>
-        </HStack>
+        <Text id="title" fontSize="24" height="40"/>
         <Text id="text" anchor="stretch" fontSize="18"/>
         <HStack height="44" spacing="8">
           <Btn id="ok">OK</Btn>

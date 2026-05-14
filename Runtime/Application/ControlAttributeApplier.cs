@@ -64,7 +64,7 @@ namespace PromptUGUI.Application
             var pivot = VariantResolver.ResolveAttribute(node, "pivot", variants);
             var hiddenStr = VariantResolver.ResolveAttribute(node, "hidden", variants);
             var interactableStr = VariantResolver.ResolveAttribute(node, "interactable", variants);
-            var hidden = hiddenStr == "true";
+            bool? hidden = hiddenStr == null ? null : hiddenStr == "true";
             var interactable = interactableStr != "false";
 
             try
