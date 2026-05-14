@@ -38,6 +38,11 @@ namespace PromptUGUI.Controls
                 case TriggerKind.Click:
                     SubscribeClick();
                     break;
+                case TriggerKind.HoverEnter:
+                case TriggerKind.HoverExit:
+                case TriggerKind.Press:
+                    SubscribePointer(_spec.Kind);
+                    break;
                 case TriggerKind.Manual:
                     // no auto-subscribe; awaiting Fire()
                     break;
@@ -56,6 +61,19 @@ namespace PromptUGUI.Controls
         {
             var btn = Internal.TriggerSourceResolver.FindBtn(this, _spec.SourceId);
             _sourceSub = btn.OnClick.Subscribe(_ => Fire());
+        }
+
+        private void SubscribePointer(TriggerKind kind)
+        {
+            var src = Internal.TriggerSourceResolver.FindPointerSource(this, _spec.SourceId);
+            var stream = kind switch
+            {
+                TriggerKind.HoverEnter => src.OnPointerEnter,
+                TriggerKind.HoverExit => src.OnPointerExit,
+                TriggerKind.Press => src.OnPointerDown,
+                _ => throw new InvalidOperationException("unreachable"),
+            };
+            _sourceSub = stream.Subscribe(_ => Fire());
         }
 
         public override void Dispose()
