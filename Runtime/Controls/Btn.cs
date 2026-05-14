@@ -1,3 +1,4 @@
+using PromptUGUI.Controls.Internal;
 using PromptUGUI.Registry;
 using R3;
 using TMPro;
@@ -7,13 +8,21 @@ using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class Btn : Control
+    public sealed class Btn : Control, IPointerEventSource
     {
         private UnityImage _bg;
         private Button _btn;
         private TMP_Text _autoLabel;
         private string _fontType = "default";
         private readonly Subject<Unit> _click = new();
+        private PointerEventRelay _pointerRelay;
+
+        private PointerEventRelay EnsureRelay()
+            => _pointerRelay ??= GameObject.AddComponent<PointerEventRelay>();
+
+        public Observable<Unit> OnPointerEnter => EnsureRelay().OnPointerEnter;
+        public Observable<Unit> OnPointerExit => EnsureRelay().OnPointerExit;
+        public Observable<Unit> OnPointerDown => EnsureRelay().OnPointerDown;
 
         public override void OnAttached()
         {
