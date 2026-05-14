@@ -16,6 +16,59 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [TearDown] public void TearDown() => UI.ResetForTests();
 
         [Test]
+        public void Pointer_trigger_subtree_unique_Btn_resolves()
+        {
+            Assert.DoesNotThrow(() =>
+            {
+                UI.LoadDocument("t", $"{Header}" +
+                    "<Trigger id='t' on='hover-enter'><Btn id='b'>OK</Btn></Trigger>" +
+                    $"{Footer}");
+                UI.Open("S");
+            });
+        }
+
+        [Test]
+        public void Pointer_trigger_subtree_unique_Image_resolves()
+        {
+            Assert.DoesNotThrow(() =>
+            {
+                UI.LoadDocument("t", $"{Header}" +
+                    "<Trigger id='t' on='press'><Image id='i' sprite='ui/dummy'/></Trigger>" +
+                    $"{Footer}");
+                UI.Open("S");
+            });
+        }
+
+        [Test]
+        public void Pointer_trigger_subtree_multiple_sources_no_id_throws()
+        {
+            Assert.That(() =>
+            {
+                UI.LoadDocument("t", $"{Header}" +
+                    "<Trigger id='t' on='hover-enter'>" +
+                    "  <Btn id='b'>OK</Btn>" +
+                    "  <Image id='i' sprite='ui/dummy'/>" +
+                    "</Trigger>" +
+                    $"{Footer}");
+                UI.Open("S");
+            }, Throws.InstanceOf<Exception>());
+        }
+
+        [Test]
+        public void Pointer_trigger_at_id_pointing_to_Text_throws()
+        {
+            Assert.That(() =>
+            {
+                UI.LoadDocument("t", $"{Header}" +
+                    "<Trigger id='t' on='press@label'>" +
+                    "  <Text id='label'>hi</Text>" +
+                    "</Trigger>" +
+                    $"{Footer}");
+                UI.Open("S");
+            }, Throws.InstanceOf<Exception>());
+        }
+
+        [Test]
         public void Open_trigger_fires_OnFire_on_open()
         {
             UI.LoadDocument("t", $"{Header}<Trigger id='t' on='open'/>{Footer}");
