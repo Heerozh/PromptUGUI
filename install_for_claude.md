@@ -70,7 +70,7 @@ Copy-Item -Recurse -Force `
 ```markdown
 ## i18n: Tr() 包裹约定
 
-项目里凡是会出现在 UI 上、玩家能读到的C#代码中的字符串，都用 `Tr(...)` 包裹(`UI` namespace下)。
+项目里凡是会出现在 UI 上、玩家能读到的C#代码中的字符串，都用 `UI.Tr(...)` 包裹(`PromptUGUI.Application` namespace下)。
 
 **要包裹**：
 - C# 给 UI 控件赋值的字符串：`label.Text = Tr("Start Game")`

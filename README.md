@@ -56,7 +56,7 @@ Codex: `<project root>/.agents/skills/`
 3. AGENT.md / CLAUDE.md
 把以下内容写到项目全局提示词：
 ```
-Use `Tr("...")` to wrap all player-facing text for i18n.
+Use `PromptUGUI.Application` namespace's `UI.Tr("...")` to wrap all player-facing text for i18n.
 ```
 
 ## 使用方法
