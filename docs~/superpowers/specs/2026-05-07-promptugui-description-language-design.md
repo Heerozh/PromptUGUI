@@ -221,6 +221,14 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 立即重应用。完整设计见独立 spec
 [`2026-05-13-screen-reference-resolution-design.md`](2026-05-13-screen-reference-resolution-design.md)。
 
+### 5.7 `<Trigger>` / `<Animation>`（事件订阅 + LitMotion 动画，since 2026-05-14）
+
+- `<Trigger>` — 订阅宿主控件（或任意 `source=` 指定的 id）上的 R3 事件流，满足条件时播放或停止动画序列。
+- `<Animation>` — 声明一段 LitMotion 驱动的属性动画（position / scale / color / alpha 等），可组合进 `<Trigger>` 的 `play=` / `stop=` 列表。
+
+详见独立 spec
+[`2026-05-14-litmotion-animations-design.md`](2026-05-14-litmotion-animations-design.md)。
+
 ---
 
 ## 6. 锚点与尺寸
