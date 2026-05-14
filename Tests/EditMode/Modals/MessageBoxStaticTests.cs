@@ -28,7 +28,7 @@ namespace PromptUGUI.Tests.Modals
         {
             var task = MessageBox.Open("hello");
             var s = UI.Get("test/Box1");
-            Assert.IsTrue (s.Get<PromptUGUI.Controls.Btn>("ok").GameObject.activeSelf);
+            Assert.IsTrue(s.Get<PromptUGUI.Controls.Btn>("ok").GameObject.activeSelf);
             Assert.IsFalse(s.Get<PromptUGUI.Controls.Btn>("cancel").GameObject.activeSelf);
             s.Get<PromptUGUI.Controls.Btn>("ok").SimulateClick();
             Assert.AreEqual(Btn.OK, task.GetAwaiter().GetResult());

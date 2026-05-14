@@ -71,8 +71,12 @@ namespace PromptUGUI.Application.Modals
 
         public static UnityEngine.Awaitable<Btn> Open(
             string text, Btn buttons = Btn.OK, string icon = null, string title = null)
-            => UI.Modal.OpenAsync(new MessageBoxRequest {
-                Text = text, Buttons = buttons, Icon = icon, Title = title,
+            => UI.Modal.OpenAsync(new MessageBoxRequest
+            {
+                Text = text,
+                Buttons = buttons,
+                Icon = icon,
+                Title = title,
             });
 
         public static UnityEngine.Awaitable<Btn> Open(
@@ -83,8 +87,13 @@ namespace PromptUGUI.Application.Modals
             var list = new System.Collections.Generic.List<(string, Btn)>(buttons);
             var mask = Btn.None;
             foreach (var (_, k) in list) mask |= k;
-            return UI.Modal.OpenAsync(new MessageBoxRequest {
-                Text = text, CustomLabels = list, Buttons = mask, Icon = icon, Title = title,
+            return UI.Modal.OpenAsync(new MessageBoxRequest
+            {
+                Text = text,
+                CustomLabels = list,
+                Buttons = mask,
+                Icon = icon,
+                Title = title,
             });
         }
     }
