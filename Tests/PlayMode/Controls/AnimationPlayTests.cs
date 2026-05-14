@@ -126,9 +126,12 @@ namespace PromptUGUI.Tests.PlayMode.Controls
                 $"{Footer}");
             var screen = UI.Open("S");
             var proxy = (RectTransform)screen.Get<Animation>("a").GameObject.transform.Find("_offsetProxy");
-            yield return new WaitForSeconds(0.05f * 3 + 0.05f);  // 3 loops + grace
-            // After 3 loops with Restart mode, position is at "to" (50,0)
-            Assert.AreEqual(new Vector2(50, 0), proxy.anchoredPosition);
+            yield return new WaitForSeconds(0.05f * 3 + 0.15f);  // 3 loops + grace (tripled for slow CI)
+            // After 3 loops with Restart mode, position is at "to" (50,0).
+            // Use component-wise tolerance — NUnit's Vector2 equality is exact-bit, but
+            // LitMotion ends within float-epsilon of the to value, not bit-identical.
+            Assert.AreEqual(50f, proxy.anchoredPosition.x, 0.01f);
+            Assert.AreEqual(0f, proxy.anchoredPosition.y, 0.01f);
         }
 
         [UnityTest]
