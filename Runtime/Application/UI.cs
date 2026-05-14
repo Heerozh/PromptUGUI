@@ -465,6 +465,7 @@ namespace PromptUGUI.Application
         /// </summary>
         public static void UnloadAll()
         {
+            Modal.CancelAllForTeardown();
             foreach (var s in _open.Values) s.Close();
             _open.Clear();
             _docs.Clear();
