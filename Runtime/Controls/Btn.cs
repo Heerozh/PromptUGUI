@@ -105,6 +105,8 @@ namespace PromptUGUI.Controls
 
         public Observable<Unit> OnClick => _click;
 
+        internal void SimulateClick() => _click.OnNext(Unit.Default);
+
         public override void Dispose()
         {
             PromptUGUI.Application.UI.Locale.Changed -= ApplyFont;
