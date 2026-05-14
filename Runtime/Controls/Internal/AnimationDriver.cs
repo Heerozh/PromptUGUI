@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using LitMotion;
+using LitMotion.Extensions;
 using TMPro;
 using UnityEngine;
 
@@ -77,7 +78,22 @@ namespace PromptUGUI.Controls.Internal
                     break;
 
                 case AnimationFamily.Text:
-                    // Task 11 / 12 fill in text effects
+                    if (spec.HasCount)
+                    {
+                        if (textTarget == null)
+                            throw new System.InvalidOperationException(
+                                "<Animation count=...> requires a Text target (in subtree or via target=\"@id\")");
+                        var b = LMotion.Create(spec.CountFrom, spec.CountTo, spec.Duration)
+                                       .WithEase(ease).WithDelay(spec.Delay);
+                        switch (spec.LoopMode)
+                        {
+                            case LoopMode.Yoyo: b = b.WithLoops(-1, LoopType.Yoyo); break;
+                            case LoopMode.Restart: b = b.WithLoops(-1, LoopType.Restart); break;
+                            case LoopMode.Count: b = b.WithLoops(spec.LoopCount, LoopType.Restart); break;
+                        }
+                        handles.Add(b.BindToText(textTarget, spec.Format));
+                    }
+                    // char-color comes in Task 12
                     break;
             }
 

@@ -9,6 +9,8 @@ namespace PromptUGUI.Controls
         private TMP_Text _tmp;
         private string _fontType = "default";
 
+        internal TMP_Text TmpComponent => _tmp;
+
         public override void OnAttached()
         {
             _tmp = GameObject.GetComponent<TMP_Text>()

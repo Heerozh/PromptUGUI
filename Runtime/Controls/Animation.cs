@@ -26,7 +26,9 @@ namespace PromptUGUI.Controls
         [UIAttr("delay")] public string DelayAttr { set => _spec.SetDelay(value); }
         [UIAttr("easing")] public string EasingAttr { set => _spec.SetEasing(value); }
         [UIAttr("loop")] public string LoopAttr { set => _spec.SetLoop(value); }
-        // Text-effect / target attrs added in Tasks 11-12.
+        [UIAttr("count")] public string CountAttr { set => _spec.SetCount(value); }
+        [UIAttr("format")] public string FormatAttr { set => _spec.SetFormat(value); }
+        [UIAttr("target")] public string TargetAttr { set => _spec.SetTarget(value); }
 
         public override void OnAttached()
         {
@@ -69,7 +71,49 @@ namespace PromptUGUI.Controls
             _current = AnimationDriver.Play(_spec, _offsetProxy, _cg, ResolveTextTarget());
         }
 
-        private TMP_Text ResolveTextTarget() => null;  // Tasks 11-12 implement
+        private TMP_Text ResolveTextTarget()
+        {
+            if (_spec.Family != Internal.AnimationFamily.Text) return null;
+            if (!string.IsNullOrEmpty(_spec.TargetId))
+            {
+                var screen = UI.OwnerScreenOf(this)
+                    ?? throw new System.InvalidOperationException(
+                        $"<Animation target=\"@{_spec.TargetId}\">: owner Screen not found");
+                // Use screen.Get<Text> first (works after Screen._byId is populated).
+                // If called during instantiation (on="open" fires inside InstantiateInto
+                // before _byId is populated), fall back to transform-tree lookup by name —
+                // GameObject names match element ids (ScreenInstantiator assigns go.name = node.Id).
+                try
+                {
+                    return screen.Get<Text>(_spec.TargetId).TmpComponent;
+                }
+                catch (System.Collections.Generic.KeyNotFoundException)
+                {
+                    // Fallback: during on="open" instantiation, _byId not yet populated.
+                    // Find by GameObject name (ids are assigned as go.name by ScreenInstantiator).
+                    return FindTmpInTree(screen.RootGameObject.transform, _spec.TargetId)
+                        ?? throw new System.InvalidOperationException(
+                            $"<Animation target=\"@{_spec.TargetId}\">: id '{_spec.TargetId}' not found in screen");
+                }
+            }
+            return Internal.AnimationTargetResolver.FindTextInSubtree(this);
+        }
+
+        private static TMP_Text FindTmpInTree(Transform root, string name)
+        {
+            for (var i = 0; i < root.childCount; i++)
+            {
+                var child = root.GetChild(i);
+                if (child.name == name)
+                {
+                    var tmp = child.GetComponent<TMP_Text>();
+                    if (tmp != null) return tmp;
+                }
+                var found = FindTmpInTree(child, name);
+                if (found != null) return found;
+            }
+            return null;
+        }
 
         private void CancelCurrent()
         {

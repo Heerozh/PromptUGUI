@@ -130,5 +130,29 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             // After 3 loops with Restart mode, position is at "to" (50,0)
             Assert.AreEqual(new Vector2(50, 0), proxy.anchoredPosition);
         }
+
+        [UnityTest]
+        public IEnumerator Count_animation_writes_final_value_to_Text()
+        {
+            UI.LoadDocument("t", $"{Header}" +
+                "<Animation id='a' count='0:1000' format='{0:F0}' duration='0.1s'><Text id='label'>0</Text></Animation>" +
+                $"{Footer}");
+            var screen = UI.Open("S");
+            yield return new WaitForSeconds(0.2f);
+            var label = screen.Get<Text>("a/label");
+            Assert.AreEqual("1000", label.GameObject.GetComponent<TMPro.TMP_Text>().text);
+        }
+
+        [UnityTest]
+        public IEnumerator Count_with_target_refs_screen_scope_Text()
+        {
+            UI.LoadDocument("t", $"{Header}" +
+                "<Text id='score'>0</Text>" +
+                "<Animation id='a' count='0:500' format='{0:F0}' target='@score' duration='0.1s' on='open'/>" +
+                $"{Footer}");
+            var screen = UI.Open("S");
+            yield return new WaitForSeconds(0.2f);
+            Assert.AreEqual("500", screen.Get<Text>("score").GameObject.GetComponent<TMPro.TMP_Text>().text);
+        }
     }
 }
