@@ -182,6 +182,8 @@ Rules:
 | `<ScrollList>` | `Image` + `ScrollRect`                                                                                   | `Viewport`(`Image` + `Mask` stencil) → `Content`(V/H `LayoutGroup` + `ContentSizeFitter`)；按 `direction` 再加一个 `Scrollbar` | 无独立事件；C# 端 `BindItems(...)` 推数据                        |
 | `<InputField>` | `Image` + `TMP_InputField`                                                                               | `Text Area`(`RectMask2D`) → `Placeholder`(`TMP_Text`, italic 半透明) + `Text`(`TMP_Text`)                                      | `OnValueChanged` / `OnEndEdit` / `OnSubmit` ← `TMP_InputField.*` |
 | `<SafeArea>`   | `RectTransform` + `SafeAreaTracker`（内部 `MonoBehaviour`，订阅设备 safeArea / 旋转 / Device Simulator） | —                                                                                                                              | —                                                                |
+| `<Trigger>`    | `RectTransform` 单独（无视觉、无 layout 行为，仅作 wrapper 划定事件源 scope）                            | —                                                                                                                              | `OnFire` ← R3 `Subject<Unit>`，由 `on=`（open/loop/click/manual）触发 |
+| `<Animation>`  | `RectTransform` + `CanvasGroup`（继承自 Trigger；CanvasGroup 给 `fade=` 用，由 `ApplyCommon` 懒加载）    | `_offsetProxy`(`RectTransform`，anchor stretch、margin=0、pivot=0.5,0.5) — XML 子节点全 parent 到这一层；LitMotion 驱动它的 anchoredPosition / localScale / localEulerAngles | `OnFire` ← 继承 Trigger；同时由 `on=` 触发 LitMotion `MotionHandle[]` |
 
 **Common attribute → uGUI 落点**（实现在 `Control.ApplyCommon`；对所有 tag 生效，`<SafeArea>` 例外，整套 anchor/size/margin/pivot 都被拒绝）
 
