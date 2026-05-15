@@ -263,6 +263,11 @@ namespace PromptUGUI.Application
             }
         }
 
+        internal static void UnloadDocument(string screenName)
+        {
+            _docs.Remove(screenName);
+        }
+
         public static async UnityEngine.Awaitable<IReadOnlyList<string>> LoadDocumentAsync(string src)
         {
             if (SourceResolver == null)
@@ -460,6 +465,7 @@ namespace PromptUGUI.Application
         /// </summary>
         public static void UnloadAll()
         {
+            Modal.CancelAllForTeardown();
             foreach (var s in _open.Values) s.Close();
             _open.Clear();
             _docs.Clear();
@@ -508,6 +514,7 @@ namespace PromptUGUI.Application
         {
             Locale.ResetForTestsInternal();
             TranslationStore.Instance.UnloadAll();
+            Modal.CancelAllForTeardown();
             foreach (var s in _open.Values) s.Close();
             _open.Clear();
             _docs.Clear();
