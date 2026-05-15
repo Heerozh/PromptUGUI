@@ -106,5 +106,44 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(-1f, le.flexibleWidth);
             Assert.AreEqual(-1f, le.flexibleHeight);
         }
+
+        [Test]
+        public void Btn_in_Frame_explicit_size_overrides_native()
+        {
+            // BCS-D5: 显式 size 优先；fallback 只在没写 size 时启用
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='f' size='400x200'>
+    <Btn id='b' size='200x60'>OK</Btn>
+  </Frame>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var btn = screen.Get<Btn>("b");
+            Assert.AreEqual(new Vector2(200f, 60f), btn.RectTransform.sizeDelta);
+        }
+
+        [Test]
+        public void Btn_in_HStack_variant_text_change_updates_preferred()
+        {
+            // BCS-D9: ApplyCommon 在 Variant 切换时重跑 → GetNativeSize 重算 → LE.preferred 跟随
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <HStack id='stack' width='400' height='44'>
+    <Btn id='b' text='OK' text.long='Confirm and Apply Changes'/>
+  </HStack>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            UI.Variants.Set("long", false);
+            var screen = UI.Open("S");
+            var btn = screen.Get<Btn>("b");
+            var le = btn.GameObject.GetComponent<LayoutElement>();
+            var preferredShort = le.preferredWidth;
+            Assert.Greater(preferredShort, 0f, "base text='OK' preferred 应该 > 0");
+
+            UI.Variants.Set("long", true);
+            Assert.Greater(le.preferredWidth, preferredShort,
+                "long variant 文字更长 → preferredWidth 应该更大");
+        }
     }
 }
