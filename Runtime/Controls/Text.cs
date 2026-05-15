@@ -1,3 +1,4 @@
+using PromptUGUI.Controls.Internal;
 using PromptUGUI.Registry;
 using TMPro;
 using UnityEngine;
@@ -13,8 +14,12 @@ namespace PromptUGUI.Controls
 
         public override void OnAttached()
         {
-            _tmp = GameObject.GetComponent<TMP_Text>()
-                   ?? GameObject.AddComponent<TextMeshProUGUI>();
+            _tmp = GameObject.GetComponent<TMP_Text>();
+            if (_tmp == null)
+            {
+                _tmp = GameObject.AddComponent<TextMeshProUGUI>();
+                _tmp.color = ProceduralBuilders.DefaultLabelColor;
+            }
             ApplyFont();
             PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
         }
