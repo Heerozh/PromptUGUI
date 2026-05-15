@@ -51,6 +51,42 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Btn_in_Frame_no_size_sizeDelta_matches_native()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='f' size='400x200'>
+    <Btn id='b'>Cancel</Btn>
+  </Frame>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var btn = screen.Get<Btn>("b");
+            var native = btn.GetNativeSize().Value;
+            Assert.AreEqual(native.x, btn.RectTransform.sizeDelta.x, 0.5f,
+                "BCS-D7: free-positioning + no size + has native → sizeDelta = native");
+            Assert.AreEqual(native.y, btn.RectTransform.sizeDelta.y, 0.5f);
+            Assert.AreEqual(44f, btn.RectTransform.sizeDelta.y, 0.5f);
+        }
+
+        [Test]
+        public void Btn_in_Frame_anchor_stretch_skips_native_fallback()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='f' size='400x200'>
+    <Btn id='b' anchor='stretch' margin='8'>OK</Btn>
+  </Frame>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var btn = screen.Get<Btn>("b");
+            Assert.AreEqual(-16f, btn.RectTransform.sizeDelta.x, 0.5f,
+                "anchor=stretch + margin=8: sizeDelta.x = -(l+r) = -16, 不被 native fallback 覆盖");
+            Assert.AreEqual(-16f, btn.RectTransform.sizeDelta.y, 0.5f);
+        }
+
+        [Test]
         public void Btn_in_HStack_no_size_gets_LayoutElement_with_native_preferred()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>

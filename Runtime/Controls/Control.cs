@@ -162,6 +162,20 @@ namespace PromptUGUI.Controls
                         "'stretch' on width/height is only valid inside <VStack>/<HStack>; " +
                         "use anchor=\"stretch\" (or anchor=\"X-stretch\") + margin for free-positioning containers");
 
+                // BCS-D7: 自由定位 + anchor 两轴都不 stretch + sizeSpec 完全无尺寸 →
+                // 若控件能提供 native size (GetNativeSize)，用 native 作为默认尺寸，
+                // 避免 sizeDelta=(0,0) 不可见。已有 size="native" 关键字处理在前 (IsNativeWidth/Height),
+                // 此 fallback 只覆盖"完全没写 size"的情况, 两条互斥。
+                if (!preset.StretchX && !preset.StretchY
+                    && !sizeSpec.HasWidth && !sizeSpec.HasHeight)
+                {
+                    var nativeFallback = GetNativeSize();
+                    if (nativeFallback.HasValue)
+                    {
+                        sizeSpec = SizeSpec.FromNumeric(nativeFallback.Value.x, nativeFallback.Value.y);
+                    }
+                }
+
                 AnchorResolver.Resolve(preset,
                     out var aMin, out var aMax, out var p);
 
