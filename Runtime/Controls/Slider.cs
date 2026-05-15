@@ -1,3 +1,4 @@
+using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
 using PromptUGUI.Registry;
 using R3;
@@ -107,11 +108,7 @@ namespace PromptUGUI.Controls
         [UIAttr]
         public string Sprite
         {
-            set
-            {
-                if (string.IsNullOrEmpty(value)) { _bg.sprite = null; return; }
-                _bg.sprite = Resources.Load<Sprite>(value);
-            }
+            set => _bg.sprite = UI.ResolveSprite(value);
         }
 
         public Observable<float> OnValueChanged => _changed;

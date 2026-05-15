@@ -177,11 +177,7 @@ namespace PromptUGUI.Controls
         [UIAttr]
         public string Sprite
         {
-            set
-            {
-                if (string.IsNullOrEmpty(value)) { _bg.sprite = null; return; }
-                _bg.sprite = Resources.Load<Sprite>(value);
-            }
+            set => _bg.sprite = UI.ResolveSprite(value);
         }
 
         private Func<RectTransform, IControl> ResolveFactory(string tag)
