@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PromptUGUI version="1">
-  <Screen name="PromptUGUI/Modals/MessageBox.ui" reference="1920x1080">
-    <Image id="backdrop" anchor="stretch" color="#0000007F"/>
+  <Screen name="PromptUGUI/Modals/MessageBox.ui" reference="1920x1080" reference.portrait="1080x1920" >
+    <Image id="backdrop" anchor="stretch" color="#000000FE"/>
 
     <Frame id="dialog" anchor="center" size="640x300">
-      <Image anchor="stretch" color="#202020"/>
+      <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui.png#pugui_9slice_round"/>
       <VStack anchor="stretch" margin="24" spacing="12">
         <Text id="title" fontSize="24" height="40"/>
         <Text id="text" anchor="stretch" fontSize="18"/>

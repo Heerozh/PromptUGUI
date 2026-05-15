@@ -82,5 +82,43 @@ namespace PromptUGUI.Tests.EditMode.Application
 
             Assert.IsNull(actual);
         }
+
+        [Test]
+        public void ResolveSprite_with_hash_returns_named_slice_from_multi_sprite_texture()
+        {
+            var actual = UI.ResolveSprite("PromptUGUI/Defaults/pugui.png#pugui_9slice_round");
+
+            Assert.IsNotNull(actual);
+            Assert.AreEqual("pugui_9slice_round", actual.name);
+        }
+
+        [Test]
+        public void ResolveSprite_with_hash_strips_image_extension_for_lookup()
+        {
+            var actual = UI.ResolveSprite("PromptUGUI/Defaults/pugui#pugui_caret");
+
+            Assert.IsNotNull(actual);
+            Assert.AreEqual("pugui_caret", actual.name);
+        }
+
+        [Test]
+        public void ResolveSprite_with_hash_missing_slice_logs_error_and_returns_null()
+        {
+            LogAssert.Expect(LogType.Error,
+                new System.Text.RegularExpressions.Regex("slice 'no_such_slice' not found"));
+
+            var actual = UI.ResolveSprite("PromptUGUI/Defaults/pugui.png#no_such_slice");
+
+            Assert.IsNull(actual);
+        }
+
+        [Test]
+        public void ResolveSprite_with_hash_missing_texture_returns_null_silently()
+        {
+            // Texture path itself doesn't exist → no sprites at all → silent like the
+            // existing bare-path "missing resource" convention.
+            var actual = UI.ResolveSprite("does/not/exist#anything");
+            Assert.IsNull(actual);
+        }
     }
 }

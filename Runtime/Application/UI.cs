@@ -21,7 +21,12 @@ namespace PromptUGUI.Application
         /// `sprite=` setters and recommended for custom Control subclasses.
         /// Values containing `:` are routed to <see cref="SpriteResolver"/>
         /// (SpriteSet/atlas path); bare paths fall through to
-        /// <c>Resources.Load&lt;Sprite&gt;</c>. Null/empty input returns null.
+        /// <c>Resources.Load&lt;Sprite&gt;</c>. Bare paths may include
+        /// <c>#sliceName</c> to pick a named sub-sprite from a multi-sprite
+        /// (sliced) texture via <c>Resources.LoadAll&lt;Sprite&gt;</c>; an
+        /// image extension on the path before the <c>#</c> is stripped so
+        /// <c>foo.png#bar</c> and <c>foo#bar</c> both work. Null/empty input
+        /// returns null.
         /// </summary>
         public static UnityEngine.Sprite ResolveSprite(string value)
         {
@@ -47,7 +52,35 @@ namespace PromptUGUI.Application
                 return sprite;
             }
 
-            return UnityEngine.Resources.Load<UnityEngine.Sprite>(value);
+            int hashIdx = value.IndexOf('#');
+            if (hashIdx < 0)
+                return UnityEngine.Resources.Load<UnityEngine.Sprite>(value);
+
+            var path = value.Substring(0, hashIdx);
+            var sliceName = value.Substring(hashIdx + 1);
+            var dotIdx = path.LastIndexOf('.');
+            if (dotIdx > 0)
+            {
+                var ext = path.Substring(dotIdx);
+                if (ext.Equals(".png", System.StringComparison.OrdinalIgnoreCase)
+                 || ext.Equals(".jpg", System.StringComparison.OrdinalIgnoreCase)
+                 || ext.Equals(".jpeg", System.StringComparison.OrdinalIgnoreCase)
+                 || ext.Equals(".tga", System.StringComparison.OrdinalIgnoreCase)
+                 || ext.Equals(".psd", System.StringComparison.OrdinalIgnoreCase))
+                    path = path.Substring(0, dotIdx);
+            }
+            var all = UnityEngine.Resources.LoadAll<UnityEngine.Sprite>(path);
+            if (all == null || all.Length == 0)
+                return null;
+            for (int i = 0; i < all.Length; i++)
+                if (all[i].name == sliceName) return all[i];
+
+            var names = new string[all.Length];
+            for (int i = 0; i < all.Length; i++) names[i] = all[i].name;
+            UnityEngine.Debug.LogError(
+                $"sprite '{value}': slice '{sliceName}' not found in '{path}'. " +
+                $"Available: {string.Join(", ", names)}");
+            return null;
         }
 
         // Optional override for locale → translation entries. Default (null) loads
