@@ -10,19 +10,19 @@ namespace PromptUGUI.Samples.MainMenu {
     ///
     /// 使用步骤：
     ///   1. 场景里建空 GameObject，挂本组件
-    ///   2. 把 SolarIconSet.asset 拖到 Inspector 的 Icon Sets 字段
-    ///   3. Tools → PromptUGUI → Sync Icon Atlases (All Sets) 跑一次，
-    ///      让 SolarIconSet 的 SpriteAtlas 包含 XML 引用到的 sprite
+    ///   2. 把 SolarSpriteSet.asset 拖到 Inspector 的 Sprite Sets 字段
+    ///   3. Tools → PromptUGUI → Sprite → Sync Atlases (All Sets) 跑一次，
+    ///      让 SolarSpriteSet 的 SpriteAtlas 包含 XML 引用到的 sprite
     ///   4. 按 Play
     /// </summary>
     public sealed class MainMenuRunner : MonoBehaviour {
-        [SerializeField] IconSet[] iconSets;
+        [SerializeField] SpriteSet[] spriteSets;
 
         async void Start() {
             UI.UseResourcesResolver("UI");
 
-            if (iconSets != null && iconSets.Length > 0)
-                IconResolverHelpers.UseSpriteAtlasIconResolver(iconSets);
+            if (spriteSets != null && spriteSets.Length > 0)
+                SpriteResolverHelpers.UseSpriteSetResolver(spriteSets);
 
             await UI.LoadDocumentAsync("MainMenu.ui");
             var screen = UI.Open("MainMenu");

@@ -7,7 +7,7 @@ using UnityEngine.U2D;
 
 namespace PromptUGUI.Tests.Application
 {
-    public class IconResolverTests
+    public class SpriteResolverTests
     {
         [SetUp]
         public void Setup()
@@ -19,15 +19,15 @@ namespace PromptUGUI.Tests.Application
         [Test]
         public void Null_resolver_default_state()
         {
-            Assert.IsNull(UI.IconResolver);
+            Assert.IsNull(UI.SpriteResolver);
         }
 
         [Test]
-        public void UseSpriteAtlasIconResolver_with_empty_list_builds_resolver()
+        public void UseSpriteSetResolver_with_empty_list_builds_resolver()
         {
-            IconResolverHelpers.UseSpriteAtlasIconResolver(Array.Empty<IconSet>());
-            Assert.IsNotNull(UI.IconResolver);
-            Assert.IsNull(UI.IconResolver("ui:nope"));
+            SpriteResolverHelpers.UseSpriteSetResolver(Array.Empty<SpriteSet>());
+            Assert.IsNotNull(UI.SpriteResolver);
+            Assert.IsNull(UI.SpriteResolver("ui:nope"));
         }
 
         [Test]
@@ -36,28 +36,28 @@ namespace PromptUGUI.Tests.Application
             var a = MakeIconSet("ui");
             var b = MakeIconSet("ui");
             Assert.Throws<InvalidOperationException>(() =>
-                IconResolverHelpers.UseSpriteAtlasIconResolver(new[] { a, b }));
+                SpriteResolverHelpers.UseSpriteSetResolver(new[] { a, b }));
         }
 
         [Test]
         public void Null_atlas_does_not_throw()
         {
             var s = MakeIconSet("ui");
-            IconResolverHelpers.UseSpriteAtlasIconResolver(new[] { s });
-            Assert.IsNull(UI.IconResolver("ui:foo"));
+            SpriteResolverHelpers.UseSpriteSetResolver(new[] { s });
+            Assert.IsNull(UI.SpriteResolver("ui:foo"));
         }
 
         [Test]
         public void Resolver_with_set_returns_non_null_delegate()
         {
             var s = MakeIconSet("ui");
-            IconResolverHelpers.UseSpriteAtlasIconResolver(new[] { s });
-            Assert.IsNotNull(UI.IconResolver);
+            SpriteResolverHelpers.UseSpriteSetResolver(new[] { s });
+            Assert.IsNotNull(UI.SpriteResolver);
         }
 
-        private static IconSet MakeIconSet(string name)
+        private static SpriteSet MakeIconSet(string name)
         {
-            var s = ScriptableObject.CreateInstance<IconSet>();
+            var s = ScriptableObject.CreateInstance<SpriteSet>();
             var so = new UnityEditor.SerializedObject(s);
             so.FindProperty("setName").stringValue = name;
             so.ApplyModifiedProperties();

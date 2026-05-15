@@ -353,7 +353,7 @@ namespace PromptUGUI.Parser
 
             // <Icon> 校验：name 必填、必须匹配 ns:icon 形式（含 Variant 覆盖）。
             // Template Param 占位符 (`{{x}}`) 在 TemplateExpander 之后才替换；parse
-            // 阶段还看不到最终值，跳过格式校验（IconAtlasSyncer 同样把 '{{' 视作 dynamic）。
+            // 阶段还看不到最终值，跳过格式校验（SpriteAtlasSyncer 同样把 '{{' 视作 dynamic）。
             if (tag == "Icon" && ns == null)
             {
                 if (!node.Attributes.TryGetValue("name", out var iconName) || string.IsNullOrEmpty(iconName))
@@ -426,7 +426,7 @@ namespace PromptUGUI.Parser
                 var c = name[i];
                 if (i < colon)
                 {
-                    // Set name is a reference key matching IconSet.setName — strict.
+                    // Set name is a reference key matching SpriteSet.setName — strict.
                     var alnum = (c >= 'a' && c <= 'z')
                                 || (c >= 'A' && c <= 'Z')
                                 || (c >= '0' && c <= '9')

@@ -79,7 +79,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name:
 | `<HStack>`     | Horizontal layout group. Default `childAlign="middle-left"` (cross-axis centered).                                                                                                                                                                           | Same as VStack.                                                                                                                                                                                                                                                                                                     |
 | `<Grid>`       | Grid layout group, fixed columns.                                                                                                                                                                                                                            | `columns` (int), `cellSize` (`WxH`), `spacing` (single or `H,V`), `padding`                                                                                                                                                                                                                                         |
 | `<Btn>`        | Image + Button + R3 `OnClick`. `<Btn>开始</Btn>` shorthand creates an internal TMP label child. Use as **template root** or registered prefab tag for any clickable.                                                                                         | `color`, `sprite`, `font` (string, font type from Settings; default `default`), `tr` (bool, default `true`; set `false` to skip i18n extraction), `ctx` (string, msgctxt to disambiguate same-msgid in the .po table)                                                                                               |
-| `<Icon>`       | Sprite from a project-level IconSet; by-name lookup, package-time pruning.                                                                                                                                                                                   | `name` (required, `ns:icon-name`), `color` (`#RRGGBB[AA]`), `size` (`WxH` / `native`; 拉伸用 `anchor="stretch"`)                                                                                                                                                                                                    |
+| `<Icon>`       | Sprite from a project-level SpriteSet; by-name lookup, package-time pruning.                                                                                                                                                                                   | `name` (required, `ns:icon-name`), `color` (`#RRGGBB[AA]`), `size` (`WxH` / `native`; 拉伸用 `anchor="stretch"`)                                                                                                                                                                                                    |
 | `<Toggle>`     | Image + uGUI Toggle + auto label. R3 `OnValueChanged: bool`. `<Toggle>静音</Toggle>` shorthand sets the label. Same `group=` name → mutual exclusion. **不要给单个 Toggle 写 `group=`** — uGUI ToggleGroup 默认要求至少一个 active，单成员组一旦点上就锁死。 | `text`, `isOn` (bool, default false), `group` (string, mutual-exclusion key), `color`, `sprite` (Resources path for checkmark sprite), `font`                                                                                                                                                                       |
 | `<Slider>`     | Image + uGUI Slider. R3 `OnValueChanged: float`.                                                                                                                                                                                                             | `min` (float), `max` (float), `value` (float), `wholeNumbers` (bool), `direction` (`horizontal` / `vertical` / `reverse-horizontal` / `reverse-vertical`), `color`, `sprite`                                                                                                                                        |
 | `<Dropdown>`   | TMP_Dropdown. R3 `OnSelected: int`. Options pushed C#-side via `BindOptions(...)`.                                                                                                                                                                           | `value` (int initial index), `color`, `sprite`, `font`                                                                                                                                                                                                                                                              |
@@ -90,7 +90,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name:
 
 ### `<Icon>`
 
-References a sprite from a project-level IconSet (shared icons, by-name lookup, package-time pruning).
+References a sprite from a project-level SpriteSet (shared icons, by-name lookup, package-time pruning).
 
 ```xml
 <Icon name="ui:settings" color="#ffffff"/>
@@ -107,9 +107,9 @@ References a sprite from a project-level IconSet (shared icons, by-name lookup, 
 **Discovering available icons** — to find which `setName:icon-name` combinations are valid in the current project, run from the project root:
 
 ```bash
-# 1) List every IconSet (setName → source folder)
+# 1) List every SpriteSet (setName → source folder)
 find . -name "*.asset" -not -path "*/Library/*" -not -path "*/Temp/*" \
-  -exec grep -l "PromptUGUI.Application.IconSet" {} \; 2>/dev/null \
+  -exec grep -l "PromptUGUI.Application.SpriteSet" {} \; 2>/dev/null \
 | while IFS= read -r f; do
     n=$(grep -m1 "^  setName:" "$f" | awk '{print $2}')
     g=$(grep -m1 "^  sourceFolder:" "$f" | grep -oP 'guid: \K[a-f0-9]+')
@@ -122,11 +122,11 @@ find . -name "*.asset" -not -path "*/Library/*" -not -path "*/Temp/*" \
   done
 # example: solar -> Samples~/MainMenu/Icons
 
-# 2) Search a known IconSet by keyword (relative path under sourceFolder, no extension)
+# 2) Search a known SpriteSet by keyword (relative path under sourceFolder, no extension)
 cd <sourceFolder> && find . -iname "*<keyword>*.png" | sed 's|^\./||; s|\.png$||'
 ```
 
-Icon name in XML = PNG path **relative to the IconSet's sourceFolder**, with `/` as separator and no extension. So `Arrow Right.png` directly under a set with `setName: solar` is `<Icon name="solar:Arrow Right"/>`; `Combat/heart.png` is `<Icon name="ui:Combat/heart"/>`. The bare basename (`ui:heart`) is also accepted as a shortcut **as long as it is unambiguous across the source folder** — when two PNGs in different subfolders share a basename you must use the path form, and the sync tool will error pointing at the candidates if XML still references the bare name. External packs (Font Awesome, Solar Icons, etc.) drop in as a folder of PNGs; create an IconSet ScriptableObject (`Create → PromptUGUI → Icon Set`) pointing at it, set `setName`, then `Tools → PromptUGUI → Icon → Sync Atlases (All Sets)` packs only the icons referenced from `.ui.xml` (plus `IconSet.alwaysInclude` entries).
+Icon name in XML = PNG path **relative to the SpriteSet's sourceFolder**, with `/` as separator and no extension. So `Arrow Right.png` directly under a set with `setName: solar` is `<Icon name="solar:Arrow Right"/>`; `Combat/heart.png` is `<Icon name="ui:Combat/heart"/>`. The bare basename (`ui:heart`) is also accepted as a shortcut **as long as it is unambiguous across the source folder** — when two PNGs in different subfolders share a basename you must use the path form, and the sync tool will error pointing at the candidates if XML still references the bare name. External packs (Font Awesome, Solar Icons, etc.) drop in as a folder of PNGs; create an SpriteSet ScriptableObject (`Create → PromptUGUI → Sprite Set`) pointing at it, set `setName`, then `Tools → PromptUGUI → Sprite → Sync Atlases (All Sets)` packs only the icons referenced from `.ui.xml` (plus `SpriteSet.alwaysInclude` entries).
 
 **Variant overrides on literal `<Icon>`**: `<Icon name="ui:sun" name.dark="ui:moon"/>` — the scanner reads both `name` and every `name.<variant>` value, so each candidate sprite is packed.
 
@@ -135,7 +135,7 @@ Icon name in XML = PNG path **relative to the IconSet's sourceFolder**, with `/`
 - Full placeholder — `<Icon name="{{iconName}}"/>`. Treats each invocation arg (`<MyIcon iconName="solar:Bell Bing"/>`) as a complete `set:icon` ref. Param `default=` also counts.
 - Partial placeholder — `<Icon name="solar:{{x}}"/>`. Treats each invocation arg as the icon-name half, paired with the literal `solar` set.
 
-Anything else inside a Template body (`{{a}}:{{b}}`, `solar:{{a}}-{{b}}`, multi-placeholder) is unanalyzable — the syncer logs a warning. Same for forwarded args (one Template's Param fed verbatim into another's). For unanalyzable cases, list final values in `IconSet.alwaysInclude`. Outside a `<Template>` (a literal `<Icon name="ui:{{x}}"/>` directly in a Screen) is always unanalyzable too.
+Anything else inside a Template body (`{{a}}:{{b}}`, `solar:{{a}}-{{b}}`, multi-placeholder) is unanalyzable — the syncer logs a warning. Same for forwarded args (one Template's Param fed verbatim into another's). For unanalyzable cases, list final values in `SpriteSet.alwaysInclude`. Outside a `<Template>` (a literal `<Icon name="ui:{{x}}"/>` directly in a Screen) is always unanalyzable too.
 
 ### Safe area
 
@@ -203,7 +203,7 @@ Rules:
 - `<Toggle>` 的 `targetGraphic` / `graphic` 在 `OnAttached` 内已绑死（Background / Checkmark），外部别再设；`group=` 不直接绑 Unity `ToggleGroup`，而是落到 `Screen.ToggleGroups.GetOrCreate(name)` 这个 Screen 范围的共享池里。
 - `<ScrollList>` 的 item 子节点在 `OnAttached` 阶段是空的，必须在 C# 端 `BindItems(observable, (slot, item) => ...)` 之后才出现；hot-reload 后也要重新 Bind。
 - `font="<type>"` 不是字体文件路径，而是 `PromptUGUISettings.fonts[]` 登记的**字体类型 key**（如 `"default"` / `"title"`），通过 `ResolveFont(locale, type)` 才解析到 `TMP_FontAsset`，并在 `UI.Locale.Changed` 时自动重赋。
-- 内置 `<Image>` / `<Btn>` / `<Toggle>` 的 `sprite=` 走 `Resources.Load<Sprite>(value)`；要用 Addressables / Asset 引用的精灵得自己 subclass。`<Icon>` 是唯一走 `UI.IconResolver` 的入口。
+- 内置 `<Image>` / `<Btn>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` / `<InputField>` 的 `sprite=` 走 `UI.ResolveSprite(value)` 双语法分流:含 `:` 的值(`sprite="ui:dialog"`)走 `UI.SpriteResolver` → SpriteSet/atlas 通道(包时按 XML scan 剪枝);无 `:` 的值(`sprite="ui/dialog"`)走 `Resources.Load<Sprite>(value)`(适合一次性 / 原型期 sprite)。`<Icon>` 仍强制 `ns:name` 形式,只走 SpriteResolver 通道。自定义 Control subclass 用同一 `UI.ResolveSprite(value)` 入口即可。
 - `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` 是参考实现 —— 想要像素描边、按下反馈、自定义下拉 chrome，subclass 并 override `OnAttached`，不要改这几个 Control 本体。
 
 ## Common attributes (any tag)
@@ -482,6 +482,7 @@ There's also a **commons pool** populated C#-side that's merged into every Scree
 | `stretch*0` / `stretch*-1` / `stretch*` rejected                      | Invalid weight after `stretch*`                                                                                                                                                                    | Weight must be a positive number, e.g. `stretch*2` / `stretch*0.5`                                                                                                                                                                                              |
 | `'150%' must be in (0%, 100%]`                                        | Percentage out of range                                                                                                                                                                            | Allowed range is `(0%, 100%]`. For "wider than parent", redesign the layout (likely a typo)                                                                                                                                                                     |
 | UI 在不同屏上视觉大小不一（4K 上变邮票、手机上变巨人）                | `<Screen>` 没设 `reference=`，走默认 `ConstantPixelSize, scaleFactor=1`，XML 数字直接 = 设备像素                                                                                                   | 在 `<Screen>` 上加 `reference="1920x1080"`（或你的设计分辨率），切到 `ScaleWithScreenSize`                                                                                                                                                                      |
+| `<Image sprite="ns:name"/>` 显示白图,控制台报 "UI.SpriteResolver is not registered"      | 启动期未注册 SpriteResolver,`ns:name` 路径走 UI.SpriteResolver 找不到 atlas                                                                                                                        | 在 `UI.LoadDocumentAsync` / `UI.Open` 之前调一次 `SpriteResolverHelpers.UseSpriteSetResolver(spriteSets)`(或 `UseAddressableSpriteSetResolver` 走 Addressables)                                                                                                |
 
 ## Quick reference (cheatsheet)
 

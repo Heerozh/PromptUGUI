@@ -9,11 +9,11 @@ using UnityEditor;
 namespace PromptUGUI.Application
 {
     /// <summary>
-    /// Project-level icon set. Author 拖一个文件夹做 sourceFolder（Editor only），
+    /// Project-level sprite set. Author 拖一个文件夹做 sourceFolder（Editor only），
     /// 同步工具按 XML 引用扫描结果重建 atlas。运行时仅读 setName + entries（key→Sprite）。
     /// </summary>
-    [CreateAssetMenu(menuName = "PromptUGUI/Icon Set", fileName = "IconSet")]
-    public sealed class IconSet : ScriptableObject
+    [CreateAssetMenu(menuName = "PromptUGUI/Sprite Set", fileName = "SpriteSet")]
+    public sealed class SpriteSet : ScriptableObject
     {
         [SerializeField] private string setName;
         [SerializeField] private SpriteAtlas atlas;
@@ -56,7 +56,7 @@ namespace PromptUGUI.Application
         public SpriteAtlas Atlas => atlas;
         public IReadOnlyList<string> AlwaysInclude => alwaysInclude;
 
-        /// <summary>(key → Sprite) — 运行时由 IconResolverHelpers 直接读取，
+        /// <summary>(key → Sprite) — 运行时由 SpriteResolverHelpers 直接读取，
         /// 跨过 SpriteAtlas 内部以 sprite name 索引时遇到的撞名歧义。</summary>
         public IEnumerable<(string key, Sprite sprite)> Entries
         {

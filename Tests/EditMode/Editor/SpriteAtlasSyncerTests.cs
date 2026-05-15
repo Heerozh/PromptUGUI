@@ -10,7 +10,7 @@ using UnityEngine.TestTools;
 
 namespace PromptUGUI.Tests.Editor
 {
-    public class IconAtlasSyncerTests
+    public class SpriteAtlasSyncerTests
     {
         private const string TestRoot = "Assets/__test_iconsync__";
         private readonly List<string> _toCleanup = new();
@@ -44,7 +44,7 @@ namespace PromptUGUI.Tests.Editor
             AssetDatabase.ImportAsset(path);
             _toCleanup.Add(path);
 
-            var refs = IconAtlasSyncer.ScanXmlReferences();
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
             Assert.That(refs, Does.Contain(("ui", "settings")));
             Assert.That(refs, Does.Contain(("art", "gold-coin")));
         }
@@ -64,9 +64,9 @@ namespace PromptUGUI.Tests.Editor
 
             // Parser now accepts '{{...}}' (Template substitution placeholder).
             // Outside a <Template>, no Param flow exists; syncer skips with a warning
-            // — caller must list candidates in IconSet.alwaysInclude.
+            // — caller must list candidates in SpriteSet.alwaysInclude.
             LogAssert.ignoreFailingMessages = true;
-            var refs = IconAtlasSyncer.ScanXmlReferences();
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
             LogAssert.ignoreFailingMessages = false;
             foreach (var (ns, _) in refs) Assert.AreNotEqual("ui", ns);
         }
@@ -84,7 +84,7 @@ namespace PromptUGUI.Tests.Editor
             AssetDatabase.ImportAsset(path);
             _toCleanup.Add(path);
 
-            var refs = IconAtlasSyncer.ScanXmlReferences();
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
             Assert.That(refs, Does.Contain(("ui", "sun")));
             Assert.That(refs, Does.Contain(("ui", "moon")));
         }
@@ -110,7 +110,7 @@ namespace PromptUGUI.Tests.Editor
             AssetDatabase.ImportAsset(path);
             _toCleanup.Add(path);
 
-            var refs = IconAtlasSyncer.ScanXmlReferences();
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
             Assert.That(refs, Does.Contain(("testset", "TestSyncer_Foo")));
             Assert.That(refs, Does.Contain(("testset", "TestSyncer_Bar")));
         }
@@ -136,7 +136,7 @@ namespace PromptUGUI.Tests.Editor
             AssetDatabase.ImportAsset(path);
             _toCleanup.Add(path);
 
-            var refs = IconAtlasSyncer.ScanXmlReferences();
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
             Assert.That(refs, Does.Contain(("testset", "TestSyncer_Knife")));
             Assert.That(refs, Does.Contain(("testset", "TestSyncer_Spoon")));
         }
@@ -159,7 +159,7 @@ namespace PromptUGUI.Tests.Editor
             AssetDatabase.ImportAsset(path);
             _toCleanup.Add(path);
 
-            var refs = IconAtlasSyncer.ScanXmlReferences();
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
             Assert.That(refs, Does.Contain(("testset", "TestSyncer_Sun")));
             Assert.That(refs, Does.Contain(("testset", "TestSyncer_Moon")));
         }
@@ -183,7 +183,7 @@ namespace PromptUGUI.Tests.Editor
             AssetDatabase.ImportAsset(path);
             _toCleanup.Add(path);
 
-            var refs = IconAtlasSyncer.ScanXmlReferences();
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
             Assert.That(refs, Does.Contain(("testset", "TestSyncer_Gold")));
         }
 
@@ -211,7 +211,7 @@ namespace PromptUGUI.Tests.Editor
             _toCleanup.Add(path);
 
             LogAssert.ignoreFailingMessages = true;
-            var refs = IconAtlasSyncer.ScanXmlReferences();
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
             LogAssert.ignoreFailingMessages = false;
             // Forwarded form is unanalyzable — must NOT silently include.
             Assert.IsFalse(refs.Contains(("testset", "TestSyncer_Forwarded")));
@@ -238,7 +238,7 @@ namespace PromptUGUI.Tests.Editor
             _toCleanup.Add(path);
 
             LogAssert.ignoreFailingMessages = true;
-            var refs = IconAtlasSyncer.ScanXmlReferences();
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
             LogAssert.ignoreFailingMessages = false;
             Assert.IsFalse(refs.Contains(("testset", "TestSyncer_X-TestSyncer_Y")));
         }
@@ -258,7 +258,7 @@ namespace PromptUGUI.Tests.Editor
                 importer.SaveAndReimport();
             }
 
-            var entries = IconAtlasSyncer.EnumeratePngs(folder);
+            var entries = SpriteAtlasSyncer.EnumeratePngs(folder);
             var keys = new List<string>();
             foreach (var (k, _) in entries) keys.Add(k);
             Assert.That(keys, Does.Contain("foo"),
@@ -277,7 +277,7 @@ namespace PromptUGUI.Tests.Editor
             File.WriteAllBytes(pngPath, MakeBlankPng());
             ImportAsSprite(pngPath);
 
-            var entries = IconAtlasSyncer.EnumeratePngs(folder);
+            var entries = SpriteAtlasSyncer.EnumeratePngs(folder);
             var keys = new List<string>();
             foreach (var (k, _) in entries) keys.Add(k);
             Assert.That(keys, Does.Contain("UI/heart"),
@@ -300,7 +300,7 @@ namespace PromptUGUI.Tests.Editor
             ImportAsSprite(pngA);
             ImportAsSprite(pngB);
 
-            var entries = IconAtlasSyncer.EnumeratePngs(folder);
+            var entries = SpriteAtlasSyncer.EnumeratePngs(folder);
             var keys = new HashSet<string>();
             foreach (var (k, _) in entries) keys.Add(k);
             Assert.That(keys, Does.Contain("UI/heart"));
@@ -320,7 +320,7 @@ namespace PromptUGUI.Tests.Editor
             importer.textureType = TextureImporterType.Default;
             importer.SaveAndReimport();
 
-            IconAtlasSyncer.EnumeratePngs(folder);
+            SpriteAtlasSyncer.EnumeratePngs(folder);
 
             var after = AssetImporter.GetAtPath(pngPath) as TextureImporter;
             Assert.AreEqual(TextureImporterType.Sprite, after.textureType);
@@ -346,7 +346,7 @@ namespace PromptUGUI.Tests.Editor
             importer.textureType = TextureImporterType.Default;
             importer.SaveAndReimport();
 
-            IconAtlasSyncer.EnumeratePngs(folder);
+            SpriteAtlasSyncer.EnumeratePngs(folder);
 
             var after = AssetImporter.GetAtPath(pngPath) as TextureImporter;
             Assert.AreEqual(TextureImporterCompression.Uncompressed, after.textureCompression,
@@ -372,7 +372,7 @@ namespace PromptUGUI.Tests.Editor
             importer.textureCompression = TextureImporterCompression.Compressed;
             importer.SaveAndReimport();
 
-            var n = IconAtlasSyncer.ResetPngImportSettings(folder);
+            var n = SpriteAtlasSyncer.ResetPngImportSettings(folder);
 
             Assert.AreEqual(1, n);
             var after = AssetImporter.GetAtPath(pngPath) as TextureImporter;
@@ -395,7 +395,7 @@ namespace PromptUGUI.Tests.Editor
             AssetDatabase.ImportAsset(rootPng, ImportAssetOptions.ForceUpdate);
             AssetDatabase.ImportAsset(subPng, ImportAssetOptions.ForceUpdate);
 
-            var n = IconAtlasSyncer.ResetPngImportSettings(folder);
+            var n = SpriteAtlasSyncer.ResetPngImportSettings(folder);
 
             Assert.AreEqual(2, n);
         }
@@ -429,7 +429,7 @@ namespace PromptUGUI.Tests.Editor
             beforeOther.textureCompression = TextureImporterCompression.Uncompressed;
             beforeOther.SaveAndReimport();
 
-            var n = IconAtlasSyncer.ApplyImportSettingsToFolder(templatePng, folder);
+            var n = SpriteAtlasSyncer.ApplyImportSettingsToFolder(templatePng, folder);
 
             Assert.AreEqual(1, n, "Should have updated 1 PNG (excluding the template).");
             var after = AssetImporter.GetAtPath(otherPng) as TextureImporter;
@@ -456,7 +456,7 @@ namespace PromptUGUI.Tests.Editor
             t.filterMode = FilterMode.Point;
             t.SaveAndReimport();
 
-            var n = IconAtlasSyncer.ApplyImportSettingsToFolder(template, folder);
+            var n = SpriteAtlasSyncer.ApplyImportSettingsToFolder(template, folder);
 
             Assert.AreEqual(1, n);
             var after = AssetImporter.GetAtPath(leaf) as TextureImporter;
@@ -476,7 +476,7 @@ namespace PromptUGUI.Tests.Editor
             t.textureType = TextureImporterType.Sprite;
             t.SaveAndReimport();
 
-            var n = IconAtlasSyncer.ApplyImportSettingsToFolder(only, folder);
+            var n = SpriteAtlasSyncer.ApplyImportSettingsToFolder(only, folder);
 
             Assert.AreEqual(0, n, "Template itself must not be counted.");
         }
@@ -493,7 +493,7 @@ namespace PromptUGUI.Tests.Editor
             AssetDatabase.ImportAsset(b, ImportAssetOptions.ForceUpdate);
             AssetDatabase.ImportAsset(a, ImportAssetOptions.ForceUpdate);
 
-            var first = IconAtlasSyncer.FindFirstPng(folder);
+            var first = SpriteAtlasSyncer.FindFirstPng(folder);
 
             Assert.AreEqual(a, first);
         }
@@ -504,7 +504,7 @@ namespace PromptUGUI.Tests.Editor
             var folder = $"{TestRoot}/icons_empty";
             AssetDatabase.CreateFolder(TestRoot, "icons_empty");
 
-            Assert.IsNull(IconAtlasSyncer.FindFirstPng(folder));
+            Assert.IsNull(SpriteAtlasSyncer.FindFirstPng(folder));
         }
 
         [Test]
@@ -526,7 +526,7 @@ namespace PromptUGUI.Tests.Editor
             var set = MakeIconSetAssetWithFolder("ifset", "ifset", folder);
             _toCleanup.Add($"{TestRoot}/ifset.spriteatlas");
 
-            var atlas = IconAtlasSyncer.EnsureAtlasAsset(set);
+            var atlas = SpriteAtlasSyncer.EnsureAtlasAsset(set);
 
             Assert.IsNotNull(atlas);
             var ts = atlas.GetTextureSettings();
@@ -542,7 +542,7 @@ namespace PromptUGUI.Tests.Editor
             var set = MakeIconSetAssetWithFolder("efset", "efset", folder);
             _toCleanup.Add($"{TestRoot}/efset.spriteatlas");
 
-            var atlas = IconAtlasSyncer.EnsureAtlasAsset(set);
+            var atlas = SpriteAtlasSyncer.EnsureAtlasAsset(set);
 
             Assert.IsNotNull(atlas);
             // Default SpriteAtlas TextureSettings.filterMode is Bilinear.
@@ -563,7 +563,7 @@ namespace PromptUGUI.Tests.Editor
             importer.spriteImportMode = SpriteImportMode.Multiple;
             importer.SaveAndReimport();
 
-            IconAtlasSyncer.EnumeratePngs(folder);
+            SpriteAtlasSyncer.EnumeratePngs(folder);
 
             var after = AssetImporter.GetAtPath(pngPath) as TextureImporter;
             Assert.AreEqual(TextureImporterType.Sprite, after.textureType);
@@ -604,8 +604,8 @@ namespace PromptUGUI.Tests.Editor
             var atlas = AssetDatabase.LoadAssetAtPath<UnityEngine.U2D.SpriteAtlas>(atlasPath);
             Assume.That(atlas, Is.Not.Null, "V2 atlas bootstrap failed; cannot run test");
 
-            IconAtlasSyncer.UpdateAtlas(atlas, new[] { spriteA });
-            IconAtlasSyncer.UpdateAtlas(atlas, new[] { spriteB });
+            SpriteAtlasSyncer.UpdateAtlas(atlas, new[] { spriteA });
+            SpriteAtlasSyncer.UpdateAtlas(atlas, new[] { spriteB });
             AssetDatabase.SaveAssets();
 
             // Read packables directly from the V2 asset's serialized data — master's
@@ -632,14 +632,14 @@ namespace PromptUGUI.Tests.Editor
         {
             var a = MakeIconSetAsset("a", "ui");
             var b = MakeIconSetAsset("b", "ui");
-            LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("duplicate IconSet"));
-            IconAtlasSyncer.SyncAll(new[] { a, b });
+            LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("duplicate SpriteSet"));
+            SpriteAtlasSyncer.SyncAll(new[] { a, b });
         }
 
         [Test]
         public void SyncAll_persists_pathkey_entries_for_subfolder_files()
         {
-            // XML uses 'ui:UI/heart' → IconSet.entries should contain key "UI/heart".
+            // XML uses 'ui:UI/heart' → SpriteSet.entries should contain key "UI/heart".
             var folder = MakeFolder("sub_a");
             AssetDatabase.CreateFolder(folder, "UI");
             var pngPath = $"{folder}/UI/heart.png";
@@ -649,7 +649,7 @@ namespace PromptUGUI.Tests.Editor
             WriteXml("a.ui.xml", "<Icon name='ui:UI/heart'/>");
             var set = MakeIconSetAssetWithFolder("setA", "ui", folder);
 
-            IconAtlasSyncer.SyncAll(new[] { set });
+            SpriteAtlasSyncer.SyncAll(new[] { set });
 
             var keys = new List<string>();
             foreach (var (k, _) in set.Entries) keys.Add(k);
@@ -671,7 +671,7 @@ namespace PromptUGUI.Tests.Editor
             WriteXml("b.ui.xml", "<Icon name='ui:UI/heart'/>");
             var set = MakeIconSetAssetWithFolder("setB", "ui", folder);
 
-            IconAtlasSyncer.SyncAll(new[] { set });
+            SpriteAtlasSyncer.SyncAll(new[] { set });
 
             var keys = new HashSet<string>();
             foreach (var (k, _) in set.Entries) keys.Add(k);
@@ -684,7 +684,7 @@ namespace PromptUGUI.Tests.Editor
         public void SyncAll_no_bare_alias_on_collision()
         {
             // Two heart.png files in different subfolders; XML references both via path
-            // form. IconSet.entries should contain both pathKeys but NO bare 'heart'.
+            // form. SpriteSet.entries should contain both pathKeys but NO bare 'heart'.
             var folder = MakeFolder("sub_c");
             AssetDatabase.CreateFolder(folder, "UI");
             AssetDatabase.CreateFolder(folder, "Combat");
@@ -699,7 +699,7 @@ namespace PromptUGUI.Tests.Editor
                 "<Icon name='ui:UI/heart'/><Icon name='ui:Combat/heart'/>");
             var set = MakeIconSetAssetWithFolder("setC", "ui", folder);
 
-            IconAtlasSyncer.SyncAll(new[] { set });
+            SpriteAtlasSyncer.SyncAll(new[] { set });
 
             var keys = new HashSet<string>();
             foreach (var (k, _) in set.Entries) keys.Add(k);
@@ -727,27 +727,27 @@ namespace PromptUGUI.Tests.Editor
             LogAssert.Expect(LogType.Error,
                 new System.Text.RegularExpressions.Regex(
                     "ambiguous.*UI/heart.*Combat/heart|ambiguous.*Combat/heart.*UI/heart"));
-            IconAtlasSyncer.SyncAll(new[] { set });
+            SpriteAtlasSyncer.SyncAll(new[] { set });
         }
 
         // ---- helpers ----
 
-        private IconSet MakeIconSetAsset(string fileName, string setName)
+        private SpriteSet MakeIconSetAsset(string fileName, string setName)
         {
-            var s = ScriptableObject.CreateInstance<IconSet>();
+            var s = ScriptableObject.CreateInstance<SpriteSet>();
             var so = new SerializedObject(s);
             so.FindProperty("setName").stringValue = setName;
             so.ApplyModifiedProperties();
             var path = $"{TestRoot}/{fileName}.asset";
             AssetDatabase.CreateAsset(s, path);
             _toCleanup.Add(path);
-            return AssetDatabase.LoadAssetAtPath<IconSet>(path);
+            return AssetDatabase.LoadAssetAtPath<SpriteSet>(path);
         }
 
-        private IconSet MakeIconSetAssetWithFolder(string fileName, string setName,
+        private SpriteSet MakeIconSetAssetWithFolder(string fileName, string setName,
             string folderAssetPath)
         {
-            var s = ScriptableObject.CreateInstance<IconSet>();
+            var s = ScriptableObject.CreateInstance<SpriteSet>();
             var so = new SerializedObject(s);
             so.FindProperty("setName").stringValue = setName;
             so.FindProperty("sourceFolder").objectReferenceValue =
@@ -756,7 +756,138 @@ namespace PromptUGUI.Tests.Editor
             var path = $"{TestRoot}/{fileName}.asset";
             AssetDatabase.CreateAsset(s, path);
             _toCleanup.Add(path);
-            return AssetDatabase.LoadAssetAtPath<IconSet>(path);
+            return AssetDatabase.LoadAssetAtPath<SpriteSet>(path);
+        }
+
+        [Test]
+        public void Scan_picks_up_Image_sprite_colon_form()
+        {
+            var path = $"{TestRoot}/image_sprite.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Screen name='S_image_sprite'>
+                      <Image sprite='ui:dialog'/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
+            Assert.That(refs, Does.Contain(("ui", "dialog")));
+        }
+
+        [Test]
+        public void Scan_picks_up_six_other_controls_sprite_colon_form()
+        {
+            var path = $"{TestRoot}/six_controls.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Screen name='S_six_controls'>
+                      <Btn sprite='ui:btn-bg'/>
+                      <Toggle sprite='ui:check'/>
+                      <Slider sprite='ui:slider-bg'/>
+                      <Dropdown sprite='ui:dropdown-bg'/>
+                      <ScrollList sprite='ui:scroll-bg' itemTemplate='Frame'/>
+                      <InputField sprite='ui:input-bg'/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
+            Assert.That(refs, Does.Contain(("ui", "btn-bg")));
+            Assert.That(refs, Does.Contain(("ui", "check")));
+            Assert.That(refs, Does.Contain(("ui", "slider-bg")));
+            Assert.That(refs, Does.Contain(("ui", "dropdown-bg")));
+            Assert.That(refs, Does.Contain(("ui", "scroll-bg")));
+            Assert.That(refs, Does.Contain(("ui", "input-bg")));
+        }
+
+        [Test]
+        public void Scan_ignores_Image_sprite_without_colon()
+        {
+            var path = $"{TestRoot}/bare_path.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Screen name='S_bare_path'>
+                      <Image sprite='ui/dialog-frame'/>
+                      <Image sprite='ui:atlas-form'/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
+            // Bare path 'ui/dialog-frame' has no colon and is Resources.Load — must NOT be collected.
+            Assert.IsFalse(refs.Contains(("ui", "dialog-frame")),
+                "Bare path (no colon) is a Resources.Load ref, must not be collected");
+            // Sibling colon form must still be collected.
+            Assert.That(refs, Does.Contain(("ui", "atlas-form")));
+        }
+
+        [Test]
+        public void Scan_picks_up_template_param_driven_sprite_full_placeholder()
+        {
+            var path = $"{TestRoot}/tpl_sprite_full.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Template name='Themed'>
+                      <Param name='bg'/>
+                      <Image sprite='{{bg}}'/>
+                    </Template>
+                    <Screen name='S_tpl_sprite_full'>
+                      <Themed bg='ui:dialog'/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
+            Assert.That(refs, Does.Contain(("ui", "dialog")));
+        }
+
+        [Test]
+        public void Scan_picks_up_template_param_driven_sprite_partial_placeholder()
+        {
+            var path = $"{TestRoot}/tpl_sprite_partial.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Template name='Themed'>
+                      <Param name='kind'/>
+                      <Image sprite='ui:{{kind}}'/>
+                    </Template>
+                    <Screen name='S_tpl_sprite_partial'>
+                      <Themed kind='panel-bg'/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
+            Assert.That(refs, Does.Contain(("ui", "panel-bg")));
+        }
+
+        [Test]
+        public void Scan_logs_warning_on_unanalyzable_sprite_substitution()
+        {
+            var path = $"{TestRoot}/tpl_sprite_unanalyzable.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Template name='X'>
+                      <Param name='a'/>
+                      <Param name='b'/>
+                      <Image sprite='{{a}}:{{b}}'/>
+                    </Template>
+                    <Screen name='S_tpl_sprite_unanalyzable'>
+                      <X a='ui' b='bell'/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("non-trivial substitution|cannot analyze"));
+            SpriteAtlasSyncer.ScanXmlReferences();
         }
 
         private string MakeFolder(string name)

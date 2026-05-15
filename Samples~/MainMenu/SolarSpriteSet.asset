@@ -10,8 +10,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d34ab5c6513e65b4497659dd376d6ea7, type: 3}
-  m_Name: SolarIconSet
-  m_EditorClassIdentifier: PromptUGUI.Runtime::PromptUGUI.Application.IconSet
+  m_Name: SolarSpriteSet
+  m_EditorClassIdentifier: PromptUGUI.Runtime::PromptUGUI.Application.SpriteSet
   setName: solar
   atlas: {fileID: 100100200, guid: 238e5a76de3c6c246a8eb68e5e982e63, type: 3}
   alwaysInclude: []

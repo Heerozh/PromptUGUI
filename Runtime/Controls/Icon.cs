@@ -24,22 +24,22 @@ namespace PromptUGUI.Controls
             set
             {
                 if (string.IsNullOrEmpty(value)) { _img.sprite = null; return; }
-                if (UI.IconResolver == null)
+                if (UI.SpriteResolver == null)
                 {
                     Debug.LogError(
-                        $"Icon '{value}': UI.IconResolver is not registered. " +
-                        $"Call IconResolverHelpers.UseSpriteAtlasIconResolver(iconSets) " +
+                        $"Icon '{value}': UI.SpriteResolver is not registered. " +
+                        $"Call SpriteResolverHelpers.UseSpriteSetResolver(spriteSets) " +
                         $"before opening Screens that contain <Icon>.");
                     _img.sprite = null;
                     return;
                 }
-                var sprite = UI.IconResolver(value);
+                var sprite = UI.SpriteResolver(value);
                 if (sprite == null)
                     Debug.LogError(
                         $"Icon '{value}': resolver returned null. " +
                         $"Check the icon name spelling, or run " +
-                        $"Tools → PromptUGUI → Sync Icon Atlases (All Sets) to " +
-                        $"include it in the IconSet's atlas.");
+                        $"Tools → PromptUGUI → Sprite → Sync Atlases (All Sets) to " +
+                        $"include it in the SpriteSet's atlas.");
                 _img.sprite = sprite;
             }
         }

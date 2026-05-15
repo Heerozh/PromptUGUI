@@ -1,6 +1,6 @@
 ---
 name: using-promptugui-addressables
-description: Use when integrating PromptUGUI with Unity Addressables — loading `.ui.xml` via `UI.UseAddressableResolver` / `AssetReferenceT<TextAsset>`, `.po` translations via `UI.Locale.UseAddressableResolver` and `Locale:<locale>` labels, or icon SpriteAtlases via `IconResolverHelpers.UseAddressableSpriteAtlasIconResolver`. Requires `com.unity.addressables` ≥ 1.0 in the project (gated by the `PROMPTUGUI_HAS_ADDRESSABLES` compile symbol).
+description: Use when integrating PromptUGUI with Unity Addressables — loading `.ui.xml` via `UI.UseAddressableResolver` / `AssetReferenceT<TextAsset>`, `.po` translations via `UI.Locale.UseAddressableResolver` and `Locale:<locale>` labels, or icon SpriteAtlases via `SpriteResolverHelpers.UseAddressableSpriteSetResolver`. Requires `com.unity.addressables` ≥ 1.0 in the project (gated by the `PROMPTUGUI_HAS_ADDRESSABLES` compile symbol).
 ---
 
 # Using PromptUGUI with Addressables
@@ -60,42 +60,42 @@ Non-`Locale` labels you've set yourself (e.g. `UI`, `Stage:1-1`) are preserved.
 
 ## Icon atlases via Addressables
 
-Tag your IconSet assets in Addressables with a label (default: `IconSets`). Addressables auto-pulls each referenced SpriteAtlas as a dependency.
+Tag your SpriteSet assets in Addressables with a label (default: `SpriteSets`). Addressables auto-pulls each referenced SpriteAtlas as a dependency.
 
 ```csharp
-// Default label "IconSets"
-await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver();
+// Default label "SpriteSets"
+await SpriteResolverHelpers.UseAddressableSpriteSetResolver();
 
 // Custom label
-await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver("MyIcons");
+await SpriteResolverHelpers.UseAddressableSpriteSetResolver("MyIcons");
 
-// Multiple labels — OR (Union, default): every IconSet tagged with "core" OR "mobile"
-await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(
+// Multiple labels — OR (Union, default): every SpriteSet tagged with "core" OR "mobile"
+await SpriteResolverHelpers.UseAddressableSpriteSetResolver(
     new[] { "core", "mobile" });
 
-// AND (Intersection): only IconSets tagged with BOTH "core" AND "mobile"
-await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(
+// AND (Intersection): only SpriteSets tagged with BOTH "core" AND "mobile"
+await SpriteResolverHelpers.UseAddressableSpriteSetResolver(
     new[] { "core", "mobile" },
     UnityEngine.AddressableAssets.Addressables.MergeMode.Intersection);
 ```
 
-Returns `Awaitable` — **`await` it before opening any Screen that contains `<Icon>`**, because `UI.IconResolver` is set inside the continuation.
+Returns `Awaitable` — **`await` it before opening any Screen that contains `<Icon>`**, because `UI.SpriteResolver` is set inside the continuation.
 
 ### Sprite handle lifecycle
 
-The loaded handle is held static and **released on a second `UseAddressableSpriteAtlasIconResolver` call** (label swap, reset). `Sprite` references returned from `UI.IconResolver` are only valid while the current handle is held — releasing the handle unloads the underlying `SpriteAtlas`.
+The loaded handle is held static and **released on a second `UseAddressableSpriteSetResolver` call** (label swap, reset). `Sprite` references returned from `UI.SpriteResolver` are only valid while the current handle is held — releasing the handle unloads the underlying `SpriteAtlas`.
 
-**Do not cache** the returned `Sprite` in your own fields across such calls; resolve via `UI.IconResolver` (or rely on `<Icon name>` re-resolving on Variant changes) each time you need it.
+**Do not cache** the returned `Sprite` in your own fields across such calls; resolve via `UI.SpriteResolver` (or rely on `<Icon name>` re-resolving on Variant changes) each time you need it.
 
 ## Common mistakes
 
 | Symptom                                                | Cause                                                                                | Fix                                                                                          |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
 | `UseAddressableResolver` doesn't exist                 | `com.unity.addressables` not installed (no `PROMPTUGUI_HAS_ADDRESSABLES`)            | Install the Addressables package, or use `UI.UseResourcesResolver(...)` instead              |
-| `<Icon>` shows pink right after `Locale.Set` swap      | Old IconSet handle was released, new one still downloading                           | `await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(...)` before opening Screens; or rely on `<Icon name>` re-resolving on the next Variant tick |
+| `<Icon>` shows pink right after `Locale.Set` swap      | Old SpriteSet handle was released, new one still downloading                           | `await SpriteResolverHelpers.UseAddressableSpriteSetResolver(...)` before opening Screens; or rely on `<Icon name>` re-resolving on the next Variant tick |
 | Translated text doesn't appear until next frame        | `Locale.Set` returned before `.po` finished loading                                  | Use `await UI.Locale.SetAsync(...)` when you need to read `UI.Tr(...)` synchronously after   |
 | `.po` files not picked up                              | Files don't carry the `Locale:<locale>` label, or the label points at the wrong locale | Run `Tools → PromptUGUI → I18n → Setup Addressables for Locale PO Files`, or set labels manually |
-| Cached `Sprite` field becomes invalid after label swap | Sprite was captured in a user field across a `UseAddressable...Resolver` call        | Don't cache — go through `UI.IconResolver` each time, or re-resolve on `UI.Variants.Changed` |
+| Cached `Sprite` field becomes invalid after label swap | Sprite was captured in a user field across a `UseAddressable...Resolver` call        | Don't cache — go through `UI.SpriteResolver` each time, or re-resolve on `UI.Variants.Changed` |
 
 ## Quick reference (cheatsheet)
 
@@ -113,9 +113,9 @@ PREREQ        com.unity.addressables ≥ 1.0   (defines PROMPTUGUI_HAS_ADDRESSAB
               label convention: Locale:<locale>
               one-shot setup: Tools → PromptUGUI → I18n → Setup Addressables for Locale PO Files
 
-Icons         await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver()
-              await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver("MyLabel")
-              await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(
+Icons         await SpriteResolverHelpers.UseAddressableSpriteSetResolver()
+              await SpriteResolverHelpers.UseAddressableSpriteSetResolver("MyLabel")
+              await SpriteResolverHelpers.UseAddressableSpriteSetResolver(
                     labels, MergeMode.Union | Intersection)
               MUST await before opening any Screen with <Icon>
               handle released on next call → invalidates returned Sprite refs

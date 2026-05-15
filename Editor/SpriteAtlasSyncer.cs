@@ -11,10 +11,10 @@ using UnityEngine.U2D;
 
 namespace PromptUGUI.Editor
 {
-    public static class IconAtlasSyncer
+    public static class SpriteAtlasSyncer
     {
         private const string DynamicMarker = "{{";
-        private const string ProgressTitle = "PromptUGUI Icon Sync";
+        private const string ProgressTitle = "PromptUGUI Sprite Sync";
 
         /// <summary>(setName, iconName) pairs found across all .ui.xml in the project.
         /// Two passes: (A) build Template Param-flow map across all docs, (B) walk each
@@ -46,14 +46,14 @@ namespace PromptUGUI.Editor
                 try { text = File.ReadAllText(path); }
                 catch (IOException ex)
                 {
-                    Debug.LogWarning($"[IconSync] cannot read {path}: {ex.Message}");
+                    Debug.LogWarning($"[SpriteSync] cannot read {path}: {ex.Message}");
                     continue;
                 }
                 UIDocument doc;
                 try { doc = UIDocumentParser.Parse(text); }
                 catch (ParseException ex)
                 {
-                    Debug.LogWarning($"[IconSync] skipping malformed {path}: {ex.Message}");
+                    Debug.LogWarning($"[SpriteSync] skipping malformed {path}: {ex.Message}");
                     continue;
                 }
                 parsed.Add((path, doc));
@@ -70,7 +70,7 @@ namespace PromptUGUI.Editor
                 {
                     if (tpl.Body == null) continue;
                     var flows = new Dictionary<string, IconParamFlow>(StringComparer.Ordinal);
-                    AnalyzeIconNode(tpl.Body, flows, path, tpl.Name);
+                    AnalyzeNode(tpl.Body, flows, path, tpl.Name);
                     if (flows.Count == 0) continue;
 
                     // Treat Param `default` values as effective invocation args so a
@@ -132,24 +132,34 @@ namespace PromptUGUI.Editor
             new(@"^([A-Za-z0-9_\-]+):\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$",
                 RegexOptions.Compiled);
 
-        private static void AnalyzeIconNode(ElementNode node,
+        private static void AnalyzeNode(ElementNode node,
                                     Dictionary<string, IconParamFlow> flows,
                                     string path, string tplName)
         {
             if (node == null) return;
+            // <Icon name=...> existing path.
             if (node.Tag == "Icon" && node.Namespace == null)
             {
                 if (node.Attributes.TryGetValue("name", out var v))
-                    TryAddFlow(v, flows, path, tplName);
+                    TryAddFlow(v, flows, path, tplName, "Icon", "name");
                 if (node.VariantOverrides.TryGetValue("name", out var list))
-                    foreach (var (_, vv) in list) TryAddFlow(vv, flows, path, tplName);
+                    foreach (var (_, vv) in list)
+                        TryAddFlow(vv, flows, path, tplName, "Icon", "name");
             }
-            foreach (var c in node.Children) AnalyzeIconNode(c, flows, path, tplName);
+            // Any element's sprite= attribute (covers built-in controls + any custom subclass).
+            if (node.Attributes.TryGetValue("sprite", out var sv))
+                TryAddFlow(sv, flows, path, tplName, node.Tag, "sprite");
+            if (node.VariantOverrides.TryGetValue("sprite", out var spList))
+                foreach (var (_, vv) in spList)
+                    TryAddFlow(vv, flows, path, tplName, node.Tag, "sprite");
+
+            foreach (var c in node.Children) AnalyzeNode(c, flows, path, tplName);
         }
 
         private static void TryAddFlow(string value,
                                 Dictionary<string, IconParamFlow> flows,
-                                string path, string tplName)
+                                string path, string tplName,
+                                string elementTag, string attrName)
         {
             if (string.IsNullOrEmpty(value)) return;
             if (!value.Contains(DynamicMarker)) return; // literal — no flow
@@ -167,9 +177,9 @@ namespace PromptUGUI.Editor
                 return;
             }
             Debug.LogWarning(
-                $"[IconSync] {path}: <Template name='{tplName}'>: <Icon name='{value}'> " +
+                $"[SpriteSync] {path}: <Template name='{tplName}'>: <{elementTag} {attrName}='{value}'> " +
                 $"uses a non-trivial substitution; only `{{x}}` and `set:{{x}}` are " +
-                $"statically analyzable. List candidates in IconSet.alwaysInclude.");
+                $"statically analyzable. List candidates in SpriteSet.alwaysInclude.");
         }
 
         private static void CollectFromNode(ElementNode node,
@@ -178,13 +188,17 @@ namespace PromptUGUI.Editor
                                     string path)
         {
             if (node == null) return;
+
+            // <Icon name=...> literal extraction.
             if (node.Tag == "Icon" && node.Namespace == null)
             {
-                CollectFromAttr(node.Attributes.TryGetValue("name", out var n) ? n : null,
-                                refs, path);
+                if (node.Attributes.TryGetValue("name", out var n))
+                    CollectFromAttr(n, refs, path, "Icon", "name");
                 if (node.VariantOverrides.TryGetValue("name", out var list))
-                    foreach (var (_, v) in list) CollectFromAttr(v, refs, path);
+                    foreach (var (_, v) in list)
+                        CollectFromAttr(v, refs, path, "Icon", "name");
             }
+            // Template invocations: resolve invocation args via Param flows.
             else if (templateFlows.TryGetValue(node.Tag, out var tf))
             {
                 foreach (var (paramName, flow) in tf.Flows)
@@ -195,6 +209,16 @@ namespace PromptUGUI.Editor
                     CollectFromTemplateArg(arg, flow, refs, path, node.Tag, paramName);
                 }
             }
+
+            // Any element's sprite= literal (covers Image, Btn, Toggle, Slider, Dropdown,
+            // ScrollList, InputField, plus any custom subclass). Bare paths (no colon) are
+            // Resources.Load, so CollectFromAttr returns early — they are NOT collected.
+            if (node.Attributes.TryGetValue("sprite", out var sv))
+                CollectFromAttr(sv, refs, path, node.Tag, "sprite");
+            if (node.VariantOverrides.TryGetValue("sprite", out var spList))
+                foreach (var (_, v) in spList)
+                    CollectFromAttr(v, refs, path, node.Tag, "sprite");
+
             foreach (var c in node.Children) CollectFromNode(c, refs, templateFlows, path);
         }
 
@@ -206,9 +230,9 @@ namespace PromptUGUI.Editor
             if (value.Contains(DynamicMarker))
             {
                 Debug.LogWarning(
-                    $"[IconSync] {path}: <{tplName} {paramName}='{value}'>: arg is " +
+                    $"[SpriteSync] {path}: <{tplName} {paramName}='{value}'>: arg is " +
                     $"itself a placeholder (forwarded from outer Param); cannot " +
-                    $"analyze further. List final values in IconSet.alwaysInclude.");
+                    $"analyze further. List final values in SpriteSet.alwaysInclude.");
                 return;
             }
             if (flow.LiteralSet == null)
@@ -217,7 +241,7 @@ namespace PromptUGUI.Editor
                 if (colon <= 0 || colon == value.Length - 1)
                 {
                     Debug.LogWarning(
-                        $"[IconSync] {path}: <{tplName} {paramName}='{value}'>: " +
+                        $"[SpriteSync] {path}: <{tplName} {paramName}='{value}'>: " +
                         $"expected 'set:icon' form; ignoring.");
                     return;
                 }
@@ -230,7 +254,8 @@ namespace PromptUGUI.Editor
         }
 
         private static void CollectFromAttr(string value,
-                                    HashSet<(string, string)> refs, string path)
+                                    HashSet<(string, string)> refs, string path,
+                                    string elementTag, string attrName)
         {
             if (string.IsNullOrEmpty(value)) return;
             var colon = value.IndexOf(':');
@@ -240,15 +265,15 @@ namespace PromptUGUI.Editor
             if (ns.Contains(DynamicMarker))
             {
                 Debug.LogWarning(
-                    $"[IconSync] {path}: <Icon name='{value}'>: dynamic namespace " +
+                    $"[SpriteSync] {path}: <{elementTag} {attrName}='{value}'>: dynamic namespace " +
                     $"({DynamicMarker}...) is not analyzable; skipping");
                 return;
             }
             if (name.Contains(DynamicMarker))
             {
                 Debug.LogWarning(
-                    $"[IconSync] {path}: <Icon name='{value}'>: dynamic icon name " +
-                    $"({DynamicMarker}...); list candidates in IconSet.alwaysInclude");
+                    $"[SpriteSync] {path}: <{elementTag} {attrName}='{value}'>: dynamic name " +
+                    $"({DynamicMarker}...); list candidates in SpriteSet.alwaysInclude");
                 return;
             }
             refs.Add((ns, name));
@@ -281,7 +306,7 @@ namespace PromptUGUI.Editor
             if (string.IsNullOrEmpty(folderAssetPath)) return result;
             if (!AssetDatabase.IsValidFolder(folderAssetPath))
             {
-                Debug.LogError($"[IconSync] not a folder: '{folderAssetPath}'");
+                Debug.LogError($"[SpriteSync] not a folder: '{folderAssetPath}'");
                 return result;
             }
 
@@ -363,7 +388,7 @@ namespace PromptUGUI.Editor
         /// <summary>Force every PNG under <paramref name="folderAssetPath"/> to the
         /// canonical PromptUGUI format: textureType=Sprite, spriteImportMode=Single,
         /// textureCompression=Uncompressed. Overrides prior author-set TextureImporter
-        /// values — explicit "reset" semantics, intended for the IconSet inspector
+        /// values — explicit "reset" semantics, intended for the SpriteSet inspector
         /// "Reset All PNGs Format" button. Returns the number of PNGs reimported.
         /// Wraps the loop in <see cref="AssetDatabase.StartAssetEditing"/> for batch
         /// throughput.</summary>
@@ -375,7 +400,7 @@ namespace PromptUGUI.Editor
             if (string.IsNullOrEmpty(folderAssetPath)) return 0;
             if (!AssetDatabase.IsValidFolder(folderAssetPath))
             {
-                Debug.LogError($"[IconSync] not a folder: '{folderAssetPath}'");
+                Debug.LogError($"[SpriteSync] not a folder: '{folderAssetPath}'");
                 return 0;
             }
             var fullFolder = Path.GetFullPath(folderAssetPath);
@@ -421,7 +446,7 @@ namespace PromptUGUI.Editor
         /// <paramref name="templatePngAssetPath"/>'s TextureImporter onto every other
         /// PNG under <paramref name="folderAssetPath"/> via
         /// <see cref="EditorUtility.CopySerialized(UnityEngine.Object,UnityEngine.Object)"/>.
-        /// The template itself is skipped. Per IconSet contract every icon is a single
+        /// The template itself is skipped. Per SpriteSet contract every icon is a single
         /// sprite, so manual slicing data is not expected to leak between PNGs.
         /// Returns the number of non-template PNGs that received the settings copy.</summary>
         /// <param name="showProgress">When true, drives a cancelable progress bar;
@@ -435,13 +460,13 @@ namespace PromptUGUI.Editor
             if (string.IsNullOrEmpty(folderAssetPath)) return 0;
             if (!AssetDatabase.IsValidFolder(folderAssetPath))
             {
-                Debug.LogError($"[IconSync] not a folder: '{folderAssetPath}'");
+                Debug.LogError($"[SpriteSync] not a folder: '{folderAssetPath}'");
                 return 0;
             }
             if (AssetImporter.GetAtPath(templatePngAssetPath) is not TextureImporter template)
             {
                 Debug.LogError(
-                    $"[IconSync] template is not a TextureImporter: '{templatePngAssetPath}'");
+                    $"[SpriteSync] template is not a TextureImporter: '{templatePngAssetPath}'");
                 return 0;
             }
             var fullFolder = Path.GetFullPath(folderAssetPath);
@@ -486,7 +511,7 @@ namespace PromptUGUI.Editor
 
         /// <summary>Alphabetically-first *.png under <paramref name="folderAssetPath"/>
         /// (recursive), as a project-relative "Assets/..." path. Returns null if the
-        /// folder is missing or contains no PNGs. Used by the IconSet inspector to pick
+        /// folder is missing or contains no PNGs. Used by the SpriteSet inspector to pick
         /// a default template for the embedded TextureImporter editor — sorting keeps
         /// the choice stable across filesystem enumeration order changes.</summary>
         public static string FindFirstPng(string folderAssetPath)
@@ -544,7 +569,7 @@ namespace PromptUGUI.Editor
             var v2 = SpriteAtlasAsset.Load(path);
             if (v2 == null)
             {
-                Debug.LogError($"[IconSync] failed to load V2 atlas at {path}");
+                Debug.LogError($"[SpriteSync] failed to load V2 atlas at {path}");
                 return false;
             }
             var so = new SerializedObject(v2);
@@ -552,7 +577,7 @@ namespace PromptUGUI.Editor
             if (prop == null || !prop.isArray)
             {
                 Debug.LogError(
-                    $"[IconSync] cannot find '{V2PackablesPath}' on V2 atlas at {path}; " +
+                    $"[SpriteSync] cannot find '{V2PackablesPath}' on V2 atlas at {path}; " +
                     $"Unity API may have changed");
                 return false;
             }
@@ -597,9 +622,9 @@ namespace PromptUGUI.Editor
             return true;
         }
 
-        public static void SyncAll(IEnumerable<PromptUGUI.Application.IconSet> sets)
+        public static void SyncAll(IEnumerable<PromptUGUI.Application.SpriteSet> sets)
         {
-            var setList = new List<PromptUGUI.Application.IconSet>(sets);
+            var setList = new List<PromptUGUI.Application.SpriteSet>(sets);
             try
             {
                 var refs = ScanXmlReferences(showProgress: true);
@@ -611,13 +636,13 @@ namespace PromptUGUI.Editor
                     if (s == null) continue;
                     if (string.IsNullOrEmpty(s.SetName))
                     {
-                        Debug.LogError($"[IconSync] IconSet '{s.name}' has empty setName");
+                        Debug.LogError($"[SpriteSync] SpriteSet '{s.name}' has empty setName");
                         return;
                     }
                     if (!seen.Add(s.SetName))
                     {
                         Debug.LogError(
-                            $"[IconSync] duplicate IconSet setName '{s.SetName}'; aborting");
+                            $"[SpriteSync] duplicate SpriteSet setName '{s.SetName}'; aborting");
                         return;
                     }
                 }
@@ -629,7 +654,7 @@ namespace PromptUGUI.Editor
                     var folder = set.SourceFolderPath;
                     if (string.IsNullOrEmpty(folder) || !AssetDatabase.IsValidFolder(folder))
                     {
-                        Debug.LogError($"[IconSync] IconSet '{set.SetName}': sourceFolder invalid");
+                        Debug.LogError($"[SpriteSync] SpriteSet '{set.SetName}': sourceFolder invalid");
                         continue;
                     }
                     var label = $"Set {i + 1}/{setList.Count} '{set.SetName}'";
@@ -653,7 +678,7 @@ namespace PromptUGUI.Editor
                             candidates.Count > 1)
                         {
                             Debug.LogError(
-                                $"[IconSync] '{set.SetName}': '{n}' is ambiguous; " +
+                                $"[SpriteSync] '{set.SetName}': '{n}' is ambiguous; " +
                                 $"use the explicit path form. Candidates: " +
                                 string.Join(", ", candidates));
                             continue;
@@ -662,7 +687,7 @@ namespace PromptUGUI.Editor
                     }
                     if (missing.Count > 0)
                         Debug.LogWarning(
-                            $"[IconSync] '{set.SetName}': XML references missing PNGs: " +
+                            $"[SpriteSync] '{set.SetName}': XML references missing PNGs: " +
                             string.Join(", ", missing));
 
                     if (EditorUtility.DisplayCancelableProgressBar(
@@ -672,9 +697,9 @@ namespace PromptUGUI.Editor
                         throw new OperationCanceledException();
                     }
 
-                    // Persist the (key → Sprite) projection IconResolverHelpers reads at
+                    // Persist the (key → Sprite) projection SpriteResolverHelpers reads at
                     // runtime: every key in `lookup` (pathKey + unique bare alias) that
-                    // resolves to a picked sprite gets one entry on the IconSet.
+                    // resolves to a picked sprite gets one entry on the SpriteSet.
                     var iconSetEntries = new List<(string key, Sprite sprite)>();
                     foreach (var kv in lookup)
                     {
@@ -695,7 +720,7 @@ namespace PromptUGUI.Editor
             }
             catch (OperationCanceledException)
             {
-                Debug.LogWarning("[IconSync] cancelled by user");
+                Debug.LogWarning("[SpriteSync] cancelled by user");
             }
             finally
             {
@@ -703,27 +728,27 @@ namespace PromptUGUI.Editor
             }
         }
 
-        public static IEnumerable<PromptUGUI.Application.IconSet> FindAllIconSets()
+        public static IEnumerable<PromptUGUI.Application.SpriteSet> FindAllSpriteSets()
         {
-            var guids = AssetDatabase.FindAssets("t:" + nameof(PromptUGUI.Application.IconSet));
+            var guids = AssetDatabase.FindAssets("t:" + nameof(PromptUGUI.Application.SpriteSet));
             foreach (var guid in guids)
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
-                var s = AssetDatabase.LoadAssetAtPath<PromptUGUI.Application.IconSet>(path);
+                var s = AssetDatabase.LoadAssetAtPath<PromptUGUI.Application.SpriteSet>(path);
                 if (s != null) yield return s;
             }
         }
 
-        /// <summary>若 IconSet.atlas 为 null，在 SO 同目录创建 &lt;setName&gt;.spriteatlas 并回填。
+        /// <summary>若 SpriteSet.atlas 为 null，在 SO 同目录创建 &lt;setName&gt;.spriteatlas 并回填。
         /// 新建 atlas 的 FilterMode 沿用 sourceFolder 下首个 PNG 的 TextureImporter.filterMode，
         /// 这样像素美术 (Point) 与一般贴图 (Bilinear) 在 atlas 上不会被默认值覆盖。</summary>
-        internal static SpriteAtlas EnsureAtlasAsset(PromptUGUI.Application.IconSet set)
+        internal static SpriteAtlas EnsureAtlasAsset(PromptUGUI.Application.SpriteSet set)
         {
             if (set.Atlas != null) return set.Atlas;
             var setPath = AssetDatabase.GetAssetPath(set);
             if (string.IsNullOrEmpty(setPath))
             {
-                Debug.LogError("[IconSync] IconSet not saved as asset; cannot create atlas");
+                Debug.LogError("[SpriteSync] SpriteSet not saved as asset; cannot create atlas");
                 return null;
             }
             var dir = Path.GetDirectoryName(setPath).Replace('\\', '/');

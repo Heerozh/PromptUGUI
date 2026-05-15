@@ -1,3 +1,4 @@
+using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
 using PromptUGUI.Registry;
 using R3;
@@ -108,11 +109,7 @@ namespace PromptUGUI.Controls
         [UIAttr]
         public string Sprite
         {
-            set
-            {
-                if (string.IsNullOrEmpty(value)) { _checkmark.sprite = null; return; }
-                _checkmark.sprite = Resources.Load<Sprite>(value);
-            }
+            set => _checkmark.sprite = UI.ResolveSprite(value);
         }
 
         [UIAttr]

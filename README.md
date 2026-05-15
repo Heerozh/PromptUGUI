@@ -9,8 +9,8 @@
   - 支持响应式UI
   - 自动XSD Schema语法检查
   - 高扩展性，允许模板/Prefab模板
-- **自动icon引用**
-  - 可配置IconSet，后xml里用`<Icon name="solar:Forward" />`引用
+- **自动sprite/icon引用**
+  - 可配置SpriteSet，后xml里用`<Icon name="solar:Forward" />`或`<Image sprite="ui:dialog" />`引用
   - 只打包用到的
   - 大模型极其擅长此种方式
 - **全自动多国语言系统**
@@ -72,14 +72,16 @@ Use `PromptUGUI.Application` namespace's `UI.Tr("...")` to wrap all player-facin
 
 ## 使用方法
 
-### 1. 创建IconSet
+### 1. 创建SpriteSet
 
-Project 右键 → Create → PromptUGUI → IconSet，拖一个PNG图标集目录（比如Font Awesome）到Project，并设为IconSet Folder，此后Skill会自动发现你所拥有的所有图标。
+Project 右键 → Create → PromptUGUI → Sprite Set，拖一个PNG图标集目录（比如Font Awesome）到Project，并设为SpriteSet Folder，此后Skill会自动发现你所拥有的所有图标。
 
 使用公开图集，或图标名保持近似，让大模型认识。
 
-**推荐**使用Addressable，设置`IconSet.asset`和对应的SpriteAtlas的Label，如`FontAwesome`，然后用`await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver("FontAwesome");`就可以实现按需下载和热更对应图标集。
-更复杂的比如`await IconResolverHelpers.UseAddressableSpriteAtlasIconResolver({"Banner", "Locale:zh-Hans"}, MergeMode.Intersection);`可以指定只使用/下载对应语言的图标集
+控件 `sprite=` 双语法：`<Image sprite="ui:dialog">`（含 `:`）走 SpriteResolver/atlas 通道；`<Image sprite="ui/dialog">`（无 `:`）走 `Resources.Load`。`<Icon>` 仍强制 `ns:name` 形式。
+
+**推荐**使用Addressable，设置`SpriteSet.asset`和对应的SpriteAtlas的Label，如`FontAwesome`，然后用`await SpriteResolverHelpers.UseAddressableSpriteSetResolver("FontAwesome");`就可以实现按需下载和热更对应图标集。
+更复杂的比如`await SpriteResolverHelpers.UseAddressableSpriteSetResolver({"Banner", "Locale:zh-Hans"}, MergeMode.Intersection);`可以指定只使用/下载对应语言的图标集
 
 ### 2. 设置字体和多国语言 (可选)
 
