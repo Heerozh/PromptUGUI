@@ -76,22 +76,51 @@ The callback fires once per `Open()` (so also re-fires on hot-reload, since relo
 
 **CanvasScaler**: the `<Screen reference="WxH">` XML attribute is the recommended way to switch from `ConstantPixelSize` to `ScaleWithScreenSize`. If you need `match=0.5` or a custom `referencePixelsPerUnit`, modify `canvas.GetComponent<CanvasScaler>()` inside the configurator — but **don't fight the XML path on the same property** because Variant flips will re-apply the XML setting and overwrite your configurator change.
 
-## Icon resolver (Resources-backed)
+## Sprite resolver (Resources-backed)
 
-Only needed if your XML uses `<Icon>`:
+Needed if your XML uses `<Icon>` or any `sprite="ns:name"` form:
 
 ```csharp
-// Default helper: enumerate Resources/IconSets/ folder
-IconResolverHelpers.UseSpriteAtlasIconResolver();
-// Or pass an explicit list of IconSet ScriptableObjects:
-IconResolverHelpers.UseSpriteAtlasIconResolver(new[] { uiIconSet, artIconSet });
+// Default helper: enumerate Resources/SpriteSets/ folder
+SpriteResolverHelpers.UseSpriteSetResolver();
+// Or pass an explicit list of SpriteSet ScriptableObjects:
+SpriteResolverHelpers.UseSpriteSetResolver(new[] { uiSpriteSet, artSpriteSet });
 ```
 
-The helper builds a `(set:icon) → Sprite` lookup from each IconSet's SpriteAtlas.
+The helper builds a `(set:name) → Sprite` lookup from each SpriteSet's SpriteAtlas.
 
-For Addressables-backed icon atlases, see **using-promptugui-addressables**.
+For Addressables-backed atlases, see **using-promptugui-addressables**.
 
-To use a fully custom backend, set `UI.IconResolver` directly with your own `(key → Sprite)` lookup.
+To use a fully custom backend, set `UI.SpriteResolver` directly with your own `(key → Sprite)` lookup.
+
+## `sprite=` dual-syntax (built-in controls + subclasses)
+
+Built-in controls (`<Image>` / `<Btn>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` / `<InputField>`) route their `sprite=` attribute through `UI.ResolveSprite(string)`:
+
+- Values containing `:` (e.g. `sprite="ui:dialog"`) go through `UI.SpriteResolver` → SpriteSet/atlas path (`SpriteAtlasSyncer` includes them in package-time pruning).
+- Bare paths (`sprite="ui/dialog"`) fall back to `Resources.Load<Sprite>(value)` — handy for one-off sprites and prototype work that doesn't justify a SpriteSet yet.
+
+`<Icon>` stays atlas-only — it requires `ns:name` and calls `UI.SpriteResolver` directly.
+
+Custom Control subclasses that want a `sprite=` attribute should call `UI.ResolveSprite` to inherit the dual-syntax behaviour:
+
+```csharp
+public sealed class AtlasImage : PromptUGUI.Controls.Control
+{
+    private UnityEngine.UI.Image _img;
+    public override void OnAttached()
+        => _img = GameObject.GetComponent<UnityEngine.UI.Image>()
+                  ?? GameObject.AddComponent<UnityEngine.UI.Image>();
+
+    [UIAttr]
+    public string Sprite
+    {
+        set => _img.sprite = UI.ResolveSprite(value);
+    }
+}
+```
+
+Error handling: when a `ns:name` value is used and `UI.SpriteResolver` is unset or returns null, `UI.ResolveSprite` logs `Debug.LogError` (pointing to `SpriteResolverHelpers.UseSpriteSetResolver` or the Sync menu) and returns null. Bare-path failures stay silent — same behavior as `Resources.Load` returning null.
 
 ## Open / Close / Get
 
@@ -217,14 +246,14 @@ UI.Registry.Register<MyControl>("MyControl", optionalPrefab: null);
 | Subscription survives Close → null refs   | Forgot `.AddTo(screen)`                                                             | Always tie R3 subscriptions to Screen lifetime                                                    |
 | Custom control's `[UIAttr]` ignored       | Property type other than string/int/float/bool                                      | Take a string param and parse internally (see `Btn.Color` for a hex example)                      |
 | ScrollList shows nothing after hot-reload | `BindItems` subscription disposed on close, but the ScrollList is rebuilt on reload | Re-call `BindItems` on reload — the convention is to re-wire from a single `OnOpened` entry point |
-| `<Icon>` shows pink/error sprite          | `UI.IconResolver` not set (or `IconSet` not in Resources/IconSets)                  | Call `IconResolverHelpers.UseSpriteAtlasIconResolver(...)` before any Screen opens                |
+| `<Icon>` shows pink/error sprite          | `UI.SpriteResolver` not set (or `SpriteSet` not in Resources/SpriteSets)             | Call `SpriteResolverHelpers.UseSpriteSetResolver(...)` before any Screen opens                |
 
 ## Quick reference (cheatsheet)
 
 ```
 SETUP          UI.UseResourcesResolver("UI")
                UI.Registry.Register<T>("Tag", optionalPrefab)
-               IconResolverHelpers.UseSpriteAtlasIconResolver([iconSets])
+               SpriteResolverHelpers.UseSpriteSetResolver([spriteSets])
                await UI.LoadCommonLibraryAsync("common/Foo")
                await UI.LoadDocumentAsync("screens/Main")
                UI.LoadDocument("Label", xmlString)            sync, no hot-reload
@@ -372,7 +401,7 @@ XML in the **authoring-promptugui-xml** worked example (a `MainMenu` Screen with
 ```csharp
 async void Start() {
     UI.UseResourcesResolver("UI");                                  // sets SourceResolver + Editor hot-reload mapping
-    IconResolverHelpers.UseSpriteAtlasIconResolver(iconSets);       // pass icon set settings
+    SpriteResolverHelpers.UseSpriteSetResolver(spriteSets);       // pass SpriteSet[] (asset references)
     await UI.LoadDocumentAsync("screens/main");                     // enables hot-reload (resolver-backed src)
 
 #if UNITY_IOS || UNITY_ANDROID
