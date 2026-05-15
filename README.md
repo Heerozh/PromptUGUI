@@ -52,7 +52,7 @@ Install DotNet SDK 10: https://dotnet.microsoft.com/zh-cn/download
 
 Install NuGetForUnity: https://github.com/GlitchEnzo/NuGetForUnity
 
-Install R3: github.com/Cysharp/R3
+Install R3: https://github.com/Cysharp/R3
 
 Install LitMotion: https://github.com/annulusgames/LitMotion.git
 
@@ -83,9 +83,10 @@ Use `PromptUGUI.Application` namespace's `UI.Tr("...")` to wrap all player-facin
 
 Project 右键 → Create → PromptUGUI → Sprite Set，设置图标以及界面元素的图集。
 
-图标建议使用公开图集，或起名一致，让大模型认识。比如可拖一个PNG图标集目录（比如Font Awesome）到Project，并设为SpriteSet Folder，此后Skill会自动发现你所拥有的所有图标。
+图标建议使用公开图集，或起名一致，让大模型认识。比如可拖一个PNG图标集目录（比如Font Awesome）到Project，并设为SpriteSet Folder，此后Skill会自动发现你所拥有的所有图标。当然最后打包只含用到的图标/Sprite。
 
 **推荐**使用Addressable，设置`SpriteSet.asset`和对应的SpriteAtlas的Label，如`FontAwesome`，然后用`await SpriteResolverHelpers.UseAddressableSpriteSetResolver("FontAwesome");`就可以实现按需下载和热更对应图标集，一个Label可以对应多个SpriteSet。
+
 实际应该用比如`await SpriteResolverHelpers.UseAddressableSpriteSetResolver(new[] { "SpriteSetsA-Common", $"SpriteSetsA-{currentLang}" }, Addressables.MergeMode.Union);` 这样来只使用通用语言图集或当前语言的图集。
 
 ### 2. 设置字体和多国语言 (可选)
