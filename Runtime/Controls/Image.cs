@@ -11,6 +11,7 @@ namespace PromptUGUI.Controls
     {
         private UnityImage _img;
         private PointerEventRelay _pointerRelay;
+        private bool _typeExplicit;
 
         public override void OnAttached()
         {
@@ -47,6 +48,7 @@ namespace PromptUGUI.Controls
         {
             set
             {
+                _typeExplicit = true;
                 _img.type = value switch
                 {
                     "sliced" => UnityImage.Type.Sliced,
@@ -55,6 +57,18 @@ namespace PromptUGUI.Controls
                     _ => UnityImage.Type.Simple,
                 };
             }
+        }
+
+        internal override void OnAfterApply()
+        {
+            // Auto-pick Sliced for 9-slice sprites when author didn't write type=.
+            // Sprite border is set in the Sprite Editor; non-zero on any edge means the
+            // asset was authored for 9-slice rendering.
+            if (_typeExplicit) return;
+            var s = _img.sprite;
+            _img.type = (s != null && s.border != Vector4.zero)
+                ? UnityImage.Type.Sliced
+                : UnityImage.Type.Simple;
         }
     }
 }
