@@ -84,6 +84,17 @@ dotnet format --verify-no-changes --severity warn PromptUGUI.Lint.slnx
 
 剩下的 info 级诊断（命名 `s_`/`_` 前缀、`var` 偏好等）`NamingStyleCodeFixProvider` 不支持 FixAll，需要时在 IDE 里手动 Quick-Fix。
 
+### `.ui.xml` 内容校验（UIXmlLint CLI）
+
+写完或编辑任何 `.ui.xml` 之后，跑一遍 lint CLI 把 layout-group 子节点上的非法 `anchor` / `margin` 等问题暴露成 error（Unity 跑时是 `Debug.LogWarning`，容易漏看；这个工具升级为非零 exit code）：
+
+```bash
+dotnet run --project .lint/UIXmlLint -- Runtime/Resources/PromptUGUI/Modals/MessageBox.ui.xml
+dotnet run --project .lint/UIXmlLint -- Runtime/Resources/                   # 整个目录递归
+```
+
+规则代码在 `Runtime/Core/Lint/`（纯 C#），跟 `ScreenInstantiator` 的 warning 路径共用同一份实现 —— 新增规则时只改一处。详见 `.lint/UIXmlLint/README.md`。
+
 ## Pipeline (mental model)
 
 ```

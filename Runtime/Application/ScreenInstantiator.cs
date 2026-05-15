@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using PromptUGUI.Controls;
 using PromptUGUI.IR;
+using PromptUGUI.Lint;
 using PromptUGUI.Registry;
 using UnityEngine;
 
@@ -164,18 +165,8 @@ namespace PromptUGUI.Application
         {
             if (parentIsLayoutGroup)
             {
-                if (node.Attributes.ContainsKey("anchor")
-                    || node.VariantOverrides.ContainsKey("anchor"))
-                    Debug.LogWarning(
-                        $"<{node.Tag} id='{node.Id}'>: 'anchor' is ignored because the parent is a layout group (VStack/HStack/Grid), which positions children automatically. " +
-                        $"Fix: remove the 'anchor' attribute and use 'size' / 'width' / 'height' to control this child's size; " +
-                        $"or, if you need anchor-based positioning, move this element out of the layout group (e.g. into a <Frame>).");
-                if (node.Attributes.ContainsKey("margin")
-                    || node.VariantOverrides.ContainsKey("margin"))
-                    Debug.LogWarning(
-                        $"<{node.Tag} id='{node.Id}'>: 'margin' is ignored because the parent is a layout group (VStack/HStack/Grid), which spaces children automatically. " +
-                        $"Fix: remove the 'margin' attribute and use the parent stack's 'padding' / 'spacing' for gaps; " +
-                        $"or, if you need margin-based offsets, move this element out of the layout group (e.g. into a <Frame>).");
+                foreach (var issue in LayoutGroupChildRules.CheckChild(node))
+                    Debug.LogWarning(issue.Message);
             }
 
             var entry = _registry.Resolve(node.Tag);

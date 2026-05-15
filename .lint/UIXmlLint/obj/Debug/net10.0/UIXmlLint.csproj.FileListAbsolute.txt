@@ -1,0 +1,11 @@
+/workspace-PromptUGUI/.lint/UIXmlLint/obj/Debug/net10.0/UIXmlLint.GeneratedMSBuildEditorConfig.editorconfig
+/workspace-PromptUGUI/.lint/UIXmlLint/obj/Debug/net10.0/UIXmlLint.csproj.CoreCompileInputs.cache
+/workspace-PromptUGUI/.lint/UIXmlLint/obj/Debug/net10.0/UIXmlLint.sourcelink.json
+/workspace-PromptUGUI/.lint/UIXmlLint/bin/Debug/net10.0/UIXmlLint
+/workspace-PromptUGUI/.lint/UIXmlLint/bin/Debug/net10.0/UIXmlLint.deps.json
+/workspace-PromptUGUI/.lint/UIXmlLint/bin/Debug/net10.0/UIXmlLint.runtimeconfig.json
+/workspace-PromptUGUI/.lint/UIXmlLint/bin/Debug/net10.0/UIXmlLint.dll
+/workspace-PromptUGUI/.lint/UIXmlLint/bin/Debug/net10.0/UIXmlLint.pdb
+/workspace-PromptUGUI/.lint/UIXmlLint/obj/Debug/net10.0/UIXmlLint.dll
+/workspace-PromptUGUI/.lint/UIXmlLint/obj/Debug/net10.0/UIXmlLint.pdb
+/workspace-PromptUGUI/.lint/UIXmlLint/obj/Debug/net10.0/UIXmlLint.genruntimeconfig.cache

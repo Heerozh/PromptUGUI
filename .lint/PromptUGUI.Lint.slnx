@@ -4,4 +4,5 @@
   <Project Path="Tests.EditMode.csproj" />
   <Project Path="Tests.EditorOnly.csproj" />
   <Project Path="Tests.PlayMode.csproj" />
+  <Project Path="UIXmlLint/UIXmlLint.csproj" />
 </Solution>

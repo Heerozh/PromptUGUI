@@ -104,7 +104,7 @@ namespace PromptUGUI.Parser
             {
                 var referenceAttr = el.GetAttribute("reference");
                 if (!string.IsNullOrEmpty(referenceAttr))
-                    PromptUGUI.Application.ReferenceResolutionParser.Parse(
+                    ReferenceSyntax.Parse(
                         referenceAttr, $"<Screen name='{name}' reference>");
                 rootNode.Attributes["reference"] = referenceAttr;
             }
@@ -119,7 +119,7 @@ namespace PromptUGUI.Parser
                         $"<Screen name='{name}'>: malformed attribute '{a.Name}' " +
                         $"(variant suffix must be 'reference.variant' with no further dots)");
                 if (!string.IsNullOrEmpty(a.Value))
-                    PromptUGUI.Application.ReferenceResolutionParser.Parse(
+                    ReferenceSyntax.Parse(
                         a.Value, $"<Screen name='{name}' {a.Name}>");
                 if (!rootNode.VariantOverrides.TryGetValue("reference", out var list))
                 {

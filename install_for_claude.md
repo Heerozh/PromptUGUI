@@ -10,7 +10,11 @@
 1. Unity 6000.0+ 项目
 2. `<project root>/Packages/manifest.json` 存在
 3. R3（Cysharp）已装好——PromptUGUI 运行时依赖。通常通过 NuGetForUnity 安装 `R3` 包；如未装，先告诉用户装好再继续
-4. 确认系统可以执行xmllint，如果不行，最后总结时提醒用户。
+4. .Net SDK 10，这是很重要的，脱离Unity检查lint需要。如未装，先告诉用户装好再继续：
+    Windows: winget install Microsoft.DotNet.SDK.10
+    macOS: brew install --cask dotnet-sdk
+    linux: sudo apt-get update && sudo apt-get install -y dotnet-sdk-10.0
+5. (可选) 确认系统可以执行`xmllint`，如果不行，最后总结时提醒用户安装。
 
 ## 步骤 1：把包加到 manifest
 
@@ -95,7 +99,9 @@ Copy-Item -Recurse -Force `
 1. ✓ `Packages/com.promptugui.core/Runtime/` 存在
 2. ✓ `.claude/skills/` 下 `authoring-promptugui-xml/`、`scripting-promptugui-csharp/`、`using-promptugui-addressables/` 三个 SKILL.md 都存在，frontmatter 完整
 3. ✓ `CLAUDE.md` 含 Tr() 包裹约定章节，原内容保留
-4. ✓ （可选）`mcp__UnityMCP__refresh_unity(compile="request", mode="standard")` 后 `mcp__UnityMCP__read_console(action="get", types=["error"])` 无编译错误
+4. ✓ 检查 `dotnet --list-sdks` 是否安装了 10 版本。
+5. ✓ （可选）`mcp__UnityMCP__refresh_unity(compile="request", mode="standard")` 后 `mcp__UnityMCP__read_console(action="get", types=["error"])` 无编译错误
+6. ✓ （可选）检查`xmllint`是否可执行，提醒用户安装
 
 全部通过即安装完成。下次会话 Claude Code 会自动加载 `CLAUDE.md`；用户编辑 `.ui.xml` 时 `authoring-promptugui-xml` 触发，写 C# 调用 `UI.*` 时 `scripting-promptugui-csharp` 触发，集成 Unity Addressables 时 `using-promptugui-addressables` 触发。
 

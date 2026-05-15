@@ -11,7 +11,7 @@ This skill covers everything you need to write or edit a `.ui.xml` correctly. Re
 
 ## Validation & feedback loop (run after every write)
 
-Every `.ui.xml` write MUST be verified before reporting the work done. Two steps, in order:
+Every `.ui.xml` write MUST be verified before reporting the work done. Three steps, in order — each catches a different layer of mistake:
 
 ### 1. XSD validate every `.ui.xml`
 
@@ -24,7 +24,19 @@ xmllint --noout --schema Assets/PromptUGUI.gen.xsd <path/to/your.ui.xml>
 - If user not install unity mcp, u can ignore template tags error in XSD.
 - **If the file does not exist, STOP.** Tell the user (in their language) to run the Editor menu `Tools → PromptUGUI → Schema → Generate XSD`.
 
-### 2. Unity MCP live feedback
+### 2. UIXmlLint CLI (catches semantic mistakes XSD can't express)
+
+```
+dotnet run --project .lint/UIXmlLint -- <path/to/your.ui.xml>
+dotnet run --project .lint/UIXmlLint -- Runtime/Resources/   # 整个目录递归
+```
+
+- No Unity required — pure .NET, runs anywhere `dotnet` is installed.
+- Surfaces context-dependent rules that XSD can't easily express, e.g. **`anchor` / `margin` on a direct child of `<VStack>` / `<HStack>` / `<Grid>`** (`PUI-LAYOUT-ANCHOR` / `PUI-LAYOUT-MARGIN`). Unity logs these as warnings (so `UI.Open()` doesn't break), but the CLI promotes them to errors with non-zero exit code so they don't slip through.
+- Exit 0 = clean. Exit 1 = at least one parse error or rule violation; STOP and fix before reporting done.
+- Rule code lives in `Runtime/Core/Lint/` and is shared with `ScreenInstantiator`'s warning path — same logic, one source of truth.
+
+### 3. Unity MCP live feedback
 
 XSD catches structural errors and a couple of identity constraints — element/attribute names, attribute patterns (`<Icon name>`), and **duplicate `id=` within the same Screen / Template body** (via `xs:unique`). Unity still catches the rest — parser semantic errors (anchor/size conflicts, missing `ref=`, Template namespace clashes), runtime hot-reload errors.
 
