@@ -107,6 +107,9 @@ namespace PromptUGUI.Layout
                 IsFractionalWidth, IsFractionalHeight,
                 WidthFraction, HeightFraction);
 
+        internal static SizeSpec FromNumeric(float w, float h) =>
+            new(w, h, true, true, false, false, false, false, 1f, 1f, false, false, 0f, 0f);
+
         private static bool LooksLikeKeyword(string s)
         {
             // Heuristic for the size= validator: catch 'stretch', 'stretch*N', 'N%', 'NxN%' early
