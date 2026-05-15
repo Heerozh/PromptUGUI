@@ -759,6 +759,137 @@ namespace PromptUGUI.Tests.Editor
             return AssetDatabase.LoadAssetAtPath<SpriteSet>(path);
         }
 
+        [Test]
+        public void Scan_picks_up_Image_sprite_colon_form()
+        {
+            var path = $"{TestRoot}/image_sprite.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Screen name='S_image_sprite'>
+                      <Image sprite='ui:dialog'/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
+            Assert.That(refs, Does.Contain(("ui", "dialog")));
+        }
+
+        [Test]
+        public void Scan_picks_up_six_other_controls_sprite_colon_form()
+        {
+            var path = $"{TestRoot}/six_controls.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Screen name='S_six_controls'>
+                      <Btn sprite='ui:btn-bg'/>
+                      <Toggle sprite='ui:check'/>
+                      <Slider sprite='ui:slider-bg'/>
+                      <Dropdown sprite='ui:dropdown-bg'/>
+                      <ScrollList sprite='ui:scroll-bg' itemTemplate='Frame'/>
+                      <InputField sprite='ui:input-bg'/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
+            Assert.That(refs, Does.Contain(("ui", "btn-bg")));
+            Assert.That(refs, Does.Contain(("ui", "check")));
+            Assert.That(refs, Does.Contain(("ui", "slider-bg")));
+            Assert.That(refs, Does.Contain(("ui", "dropdown-bg")));
+            Assert.That(refs, Does.Contain(("ui", "scroll-bg")));
+            Assert.That(refs, Does.Contain(("ui", "input-bg")));
+        }
+
+        [Test]
+        public void Scan_ignores_Image_sprite_without_colon()
+        {
+            var path = $"{TestRoot}/bare_path.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Screen name='S_bare_path'>
+                      <Image sprite='ui/dialog-frame'/>
+                      <Image sprite='ui:atlas-form'/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
+            // Bare path 'ui/dialog-frame' has no colon and is Resources.Load — must NOT be collected.
+            Assert.IsFalse(refs.Contains(("ui", "dialog-frame")),
+                "Bare path (no colon) is a Resources.Load ref, must not be collected");
+            // Sibling colon form must still be collected.
+            Assert.That(refs, Does.Contain(("ui", "atlas-form")));
+        }
+
+        [Test]
+        public void Scan_picks_up_template_param_driven_sprite_full_placeholder()
+        {
+            var path = $"{TestRoot}/tpl_sprite_full.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Template name='Themed'>
+                      <Param name='bg'/>
+                      <Image sprite='{{bg}}'/>
+                    </Template>
+                    <Screen name='S_tpl_sprite_full'>
+                      <Themed bg='ui:dialog'/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
+            Assert.That(refs, Does.Contain(("ui", "dialog")));
+        }
+
+        [Test]
+        public void Scan_picks_up_template_param_driven_sprite_partial_placeholder()
+        {
+            var path = $"{TestRoot}/tpl_sprite_partial.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Template name='Themed'>
+                      <Param name='kind'/>
+                      <Image sprite='ui:{{kind}}'/>
+                    </Template>
+                    <Screen name='S_tpl_sprite_partial'>
+                      <Themed kind='panel-bg'/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
+            Assert.That(refs, Does.Contain(("ui", "panel-bg")));
+        }
+
+        [Test]
+        public void Scan_logs_warning_on_unanalyzable_sprite_substitution()
+        {
+            var path = $"{TestRoot}/tpl_sprite_unanalyzable.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Template name='X'>
+                      <Param name='a'/>
+                      <Param name='b'/>
+                      <Image sprite='{{a}}:{{b}}'/>
+                    </Template>
+                    <Screen name='S_tpl_sprite_unanalyzable'>
+                      <X a='ui' b='bell'/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("non-trivial substitution|cannot analyze"));
+            SpriteAtlasSyncer.ScanXmlReferences();
+        }
+
         private string MakeFolder(string name)
         {
             AssetDatabase.CreateFolder(TestRoot, name);

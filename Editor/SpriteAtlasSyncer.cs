@@ -70,7 +70,7 @@ namespace PromptUGUI.Editor
                 {
                     if (tpl.Body == null) continue;
                     var flows = new Dictionary<string, IconParamFlow>(StringComparer.Ordinal);
-                    AnalyzeIconNode(tpl.Body, flows, path, tpl.Name);
+                    AnalyzeNode(tpl.Body, flows, path, tpl.Name);
                     if (flows.Count == 0) continue;
 
                     // Treat Param `default` values as effective invocation args so a
@@ -132,24 +132,34 @@ namespace PromptUGUI.Editor
             new(@"^([A-Za-z0-9_\-]+):\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$",
                 RegexOptions.Compiled);
 
-        private static void AnalyzeIconNode(ElementNode node,
+        private static void AnalyzeNode(ElementNode node,
                                     Dictionary<string, IconParamFlow> flows,
                                     string path, string tplName)
         {
             if (node == null) return;
+            // <Icon name=...> existing path.
             if (node.Tag == "Icon" && node.Namespace == null)
             {
                 if (node.Attributes.TryGetValue("name", out var v))
-                    TryAddFlow(v, flows, path, tplName);
+                    TryAddFlow(v, flows, path, tplName, "Icon", "name");
                 if (node.VariantOverrides.TryGetValue("name", out var list))
-                    foreach (var (_, vv) in list) TryAddFlow(vv, flows, path, tplName);
+                    foreach (var (_, vv) in list)
+                        TryAddFlow(vv, flows, path, tplName, "Icon", "name");
             }
-            foreach (var c in node.Children) AnalyzeIconNode(c, flows, path, tplName);
+            // Any element's sprite= attribute (covers built-in controls + any custom subclass).
+            if (node.Attributes.TryGetValue("sprite", out var sv))
+                TryAddFlow(sv, flows, path, tplName, node.Tag, "sprite");
+            if (node.VariantOverrides.TryGetValue("sprite", out var spList))
+                foreach (var (_, vv) in spList)
+                    TryAddFlow(vv, flows, path, tplName, node.Tag, "sprite");
+
+            foreach (var c in node.Children) AnalyzeNode(c, flows, path, tplName);
         }
 
         private static void TryAddFlow(string value,
                                 Dictionary<string, IconParamFlow> flows,
-                                string path, string tplName)
+                                string path, string tplName,
+                                string elementTag, string attrName)
         {
             if (string.IsNullOrEmpty(value)) return;
             if (!value.Contains(DynamicMarker)) return; // literal — no flow
@@ -167,7 +177,7 @@ namespace PromptUGUI.Editor
                 return;
             }
             Debug.LogWarning(
-                $"[SpriteSync] {path}: <Template name='{tplName}'>: <Icon name='{value}'> " +
+                $"[SpriteSync] {path}: <Template name='{tplName}'>: <{elementTag} {attrName}='{value}'> " +
                 $"uses a non-trivial substitution; only `{{x}}` and `set:{{x}}` are " +
                 $"statically analyzable. List candidates in SpriteSet.alwaysInclude.");
         }
@@ -178,13 +188,17 @@ namespace PromptUGUI.Editor
                                     string path)
         {
             if (node == null) return;
+
+            // <Icon name=...> literal extraction.
             if (node.Tag == "Icon" && node.Namespace == null)
             {
-                CollectFromAttr(node.Attributes.TryGetValue("name", out var n) ? n : null,
-                                refs, path);
+                if (node.Attributes.TryGetValue("name", out var n))
+                    CollectFromAttr(n, refs, path, "Icon", "name");
                 if (node.VariantOverrides.TryGetValue("name", out var list))
-                    foreach (var (_, v) in list) CollectFromAttr(v, refs, path);
+                    foreach (var (_, v) in list)
+                        CollectFromAttr(v, refs, path, "Icon", "name");
             }
+            // Template invocations: resolve invocation args via Param flows.
             else if (templateFlows.TryGetValue(node.Tag, out var tf))
             {
                 foreach (var (paramName, flow) in tf.Flows)
@@ -195,6 +209,16 @@ namespace PromptUGUI.Editor
                     CollectFromTemplateArg(arg, flow, refs, path, node.Tag, paramName);
                 }
             }
+
+            // Any element's sprite= literal (covers Image, Btn, Toggle, Slider, Dropdown,
+            // ScrollList, InputField, plus any custom subclass). Bare paths (no colon) are
+            // Resources.Load, so CollectFromAttr returns early — they are NOT collected.
+            if (node.Attributes.TryGetValue("sprite", out var sv))
+                CollectFromAttr(sv, refs, path, node.Tag, "sprite");
+            if (node.VariantOverrides.TryGetValue("sprite", out var spList))
+                foreach (var (_, v) in spList)
+                    CollectFromAttr(v, refs, path, node.Tag, "sprite");
+
             foreach (var c in node.Children) CollectFromNode(c, refs, templateFlows, path);
         }
 
@@ -230,7 +254,8 @@ namespace PromptUGUI.Editor
         }
 
         private static void CollectFromAttr(string value,
-                                    HashSet<(string, string)> refs, string path)
+                                    HashSet<(string, string)> refs, string path,
+                                    string elementTag, string attrName)
         {
             if (string.IsNullOrEmpty(value)) return;
             var colon = value.IndexOf(':');
@@ -240,14 +265,14 @@ namespace PromptUGUI.Editor
             if (ns.Contains(DynamicMarker))
             {
                 Debug.LogWarning(
-                    $"[SpriteSync] {path}: <Icon name='{value}'>: dynamic namespace " +
+                    $"[SpriteSync] {path}: <{elementTag} {attrName}='{value}'>: dynamic namespace " +
                     $"({DynamicMarker}...) is not analyzable; skipping");
                 return;
             }
             if (name.Contains(DynamicMarker))
             {
                 Debug.LogWarning(
-                    $"[SpriteSync] {path}: <Icon name='{value}'>: dynamic icon name " +
+                    $"[SpriteSync] {path}: <{elementTag} {attrName}='{value}'>: dynamic name " +
                     $"({DynamicMarker}...); list candidates in SpriteSet.alwaysInclude");
                 return;
             }
