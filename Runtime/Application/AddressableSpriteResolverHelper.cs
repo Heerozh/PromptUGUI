@@ -12,7 +12,7 @@ namespace PromptUGUI.Application
         // Held alive so the SpriteSet refs (and their dependent SpriteAtlas) stay
         // loaded for the lifetime of UI.SpriteResolver. Released on second-call /
         // UI.ResetForTests. (PROMPTUGUI_HAS_ADDRESSABLES only.)
-        private static AsyncOperationHandle<IList<SpriteSet>>? _addressableIconHandle;
+        private static AsyncOperationHandle<IList<SpriteSet>>? _addressableSpriteSetHandle;
         // Static; intentionally survives UI.ResetForTests so we don't double-subscribe
         // OnReset across test sessions.
         private static bool _addressableResetHooked;
@@ -23,7 +23,7 @@ namespace PromptUGUI.Application
 
         /// <summary>
         /// Loads every <see cref="SpriteSet"/> tagged with <paramref name="label"/> via
-        /// Addressables, builds the icon lookup map, and installs it as
+        /// Addressables, builds the sprite lookup map, and installs it as
         /// <c>UI.SpriteResolver</c>.
         ///
         /// The underlying <c>AsyncOperationHandle</c> is held for the lifetime of the
@@ -40,9 +40,9 @@ namespace PromptUGUI.Application
         /// (<c>PROMPTUGUI_HAS_ADDRESSABLES</c> compile define).
         /// </summary>
         /// <param name="label">Addressables label tagging the SpriteSet assets to load.</param>
-        public static Awaitable UseAddressableSpriteAtlasIconResolver(
-            string label = "IconSets") =>
-            UseAddressableSpriteAtlasIconResolverInternal(
+        public static Awaitable UseAddressableSpriteSetResolver(
+            string label = "SpriteSets") =>
+            UseAddressableSpriteSetResolverInternal(
                 () => Addressables.LoadAssetsAsync<SpriteSet>(label, null));
 
         /// <summary>
@@ -53,7 +53,7 @@ namespace PromptUGUI.Application
         /// <c>UI.SpriteResolver</c> the same way the single-label overload does.
         /// Same handle-release / HotReload semantics.
         /// </summary>
-        public static Awaitable UseAddressableSpriteAtlasIconResolver(
+        public static Awaitable UseAddressableSpriteSetResolver(
             IEnumerable<string> labels,
             Addressables.MergeMode mergeMode = Addressables.MergeMode.Union)
         {
@@ -63,18 +63,18 @@ namespace PromptUGUI.Application
             if (keys.Count == 0)
                 throw new ArgumentException(
                     "labels must contain at least one entry", nameof(labels));
-            return UseAddressableSpriteAtlasIconResolverInternal(
+            return UseAddressableSpriteSetResolverInternal(
                 () => Addressables.LoadAssetsAsync<SpriteSet>(keys, null, mergeMode));
         }
 
-        private static async Awaitable UseAddressableSpriteAtlasIconResolverInternal(
+        private static async Awaitable UseAddressableSpriteSetResolverInternal(
             Func<AsyncOperationHandle<IList<SpriteSet>>> loader)
         {
-            ReleaseAddressableIconHandle();
+            ReleaseAddressableSpriteSetHandle();
             HookResetOnce();
 
             var handle = loader();
-            _addressableIconHandle = handle;
+            _addressableSpriteSetHandle = handle;
             var sets = await handle.Task;
             var snapshot = new List<SpriteSet>(sets ?? Array.Empty<SpriteSet>());
 
@@ -92,18 +92,18 @@ namespace PromptUGUI.Application
         private static void HookResetOnce()
         {
             if (_addressableResetHooked) return;
-            UI.OnReset += ReleaseAddressableIconHandle;
+            UI.OnReset += ReleaseAddressableSpriteSetHandle;
             _addressableResetHooked = true;
         }
 
-        private static void ReleaseAddressableIconHandle()
+        private static void ReleaseAddressableSpriteSetHandle()
         {
-            if (_addressableIconHandle.HasValue && _addressableIconHandle.Value.IsValid())
+            if (_addressableSpriteSetHandle.HasValue && _addressableSpriteSetHandle.Value.IsValid())
             {
-                Addressables.Release(_addressableIconHandle.Value);
+                Addressables.Release(_addressableSpriteSetHandle.Value);
                 _testReleaseCount++;
             }
-            _addressableIconHandle = null;
+            _addressableSpriteSetHandle = null;
         }
     }
 }
