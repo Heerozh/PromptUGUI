@@ -1,5 +1,4 @@
 using System;
-using System.Text.RegularExpressions;
 using NUnit.Framework;
 using PromptUGUI.Application;
 using UnityEditor.AddressableAssets;
@@ -18,27 +17,17 @@ namespace PromptUGUI.Tests.Addressables
     /// of the async method (release-previous-handle, start-load, store-handle,
     /// hook-reset) is what gets covered here.
     ///
-    /// FixtureLabel intentionally doesn't resolve to any registered asset, so
-    /// Addressables logs an InvalidKeyException synchronously inside LoadAssetsAsync.
-    /// Each test declares the expected error via LogAssert.Expect; Unity Test
-    /// Framework consumes the matched entry instead of failing the test on it.
-    ///
-    /// FRAGILE: this hinges on `promptugui-test/icons` never being registered as a
-    /// label in the host project's AddressableAssetSettings. AA only emits
-    /// InvalidKeyException for *unknown* keys — registered-but-zero-entries labels
-    /// resolve silently to an empty list. The sibling LocaleAddressableResolver
-    /// test hit this exact failure after `AddressablePoLabelSyncer` registered
-    /// `Locale:zh-Hans` permanently in the project's AA labels (see commit fixing
-    /// LocaleAddressableResolverTests). If `promptugui-test/icons` ever gets added
-    /// as an AA label, mirror that fix here: drop `LogAssert.Expect(...)` and use
-    /// `LogAssert.ignoreFailingMessages = true` so the test only asserts the
-    /// behavioral contract (non-null Awaitable / release counter) and tolerates
-    /// either AA code path.
+    /// FixtureLabel may or may not resolve to a registered AA label in the host
+    /// project, and AA emits an InvalidKeyException only for *unknown* keys —
+    /// registered-but-zero-entries labels resolve silently to an empty list.
+    /// To tolerate both code paths we set <c>LogAssert.ignoreFailingMessages =
+    /// true</c> in SetUp and only assert the behavioral contract (non-null
+    /// Awaitable / release counter increments). This trades log-level precision
+    /// for stability across host project AA settings.
     /// </summary>
     public class AddressableSpriteResolverTests
     {
         private const string FixtureLabel = "promptugui-test/icons";
-        private static readonly Regex InvalidKeyError = new(".*InvalidKeyException.*");
 
         [SetUp]
         public void Setup()
@@ -57,7 +46,12 @@ namespace PromptUGUI.Tests.Addressables
         [Test]
         public void Invocation_returns_an_awaitable()
         {
-            LogAssert.Expect(LogType.Error, InvalidKeyError);
+            // Tolerate whichever path AA takes for FixtureLabel: unknown key →
+            // InvalidKeyException error log, or registered-but-empty label →
+            // silent empty result. ignoreFailingMessages must be set inside the
+            // test method (not SetUp) because the Unity Test Framework's
+            // per-test LogScope is created after SetUp runs.
+            LogAssert.ignoreFailingMessages = true;
             var awaitable =
                 SpriteResolverHelpers.UseAddressableSpriteSetResolver(FixtureLabel);
             Assert.IsNotNull(awaitable,
@@ -72,8 +66,7 @@ namespace PromptUGUI.Tests.Addressables
         [Test]
         public void Releases_previous_handle_on_second_call()
         {
-            LogAssert.Expect(LogType.Error, InvalidKeyError);
-            LogAssert.Expect(LogType.Error, InvalidKeyError);
+            LogAssert.ignoreFailingMessages = true;
             _ = SpriteResolverHelpers.UseAddressableSpriteSetResolver(FixtureLabel);
             var beforeSecond = SpriteResolverHelpers._testReleaseCount;
             _ = SpriteResolverHelpers.UseAddressableSpriteSetResolver(FixtureLabel);
@@ -84,7 +77,7 @@ namespace PromptUGUI.Tests.Addressables
         [Test]
         public void ResetForTests_releases_handle()
         {
-            LogAssert.Expect(LogType.Error, InvalidKeyError);
+            LogAssert.ignoreFailingMessages = true;
             _ = SpriteResolverHelpers.UseAddressableSpriteSetResolver(FixtureLabel);
             var beforeReset = SpriteResolverHelpers._testReleaseCount;
             UI.ResetForTests();
@@ -111,7 +104,7 @@ namespace PromptUGUI.Tests.Addressables
         [Test]
         public void MultiLabel_invocation_returns_an_awaitable()
         {
-            LogAssert.Expect(LogType.Error, InvalidKeyError);
+            LogAssert.ignoreFailingMessages = true;
             var awaitable = SpriteResolverHelpers.UseAddressableSpriteSetResolver(
                 new[] { FixtureLabel, FixtureLabel + "-extra" },
                 UnityEngine.AddressableAssets.Addressables.MergeMode.Union);
@@ -122,8 +115,7 @@ namespace PromptUGUI.Tests.Addressables
         [Test]
         public void MultiLabel_releases_previous_handle_on_second_call()
         {
-            LogAssert.Expect(LogType.Error, InvalidKeyError);
-            LogAssert.Expect(LogType.Error, InvalidKeyError);
+            LogAssert.ignoreFailingMessages = true;
             _ = SpriteResolverHelpers.UseAddressableSpriteSetResolver(FixtureLabel);
             var beforeSecond = SpriteResolverHelpers._testReleaseCount;
             _ = SpriteResolverHelpers.UseAddressableSpriteSetResolver(
