@@ -19,15 +19,15 @@ namespace PromptUGUI.Tests.Application
         [Test]
         public void Null_resolver_default_state()
         {
-            Assert.IsNull(UI.IconResolver);
+            Assert.IsNull(UI.SpriteResolver);
         }
 
         [Test]
         public void UseSpriteAtlasIconResolver_with_empty_list_builds_resolver()
         {
             IconResolverHelpers.UseSpriteAtlasIconResolver(Array.Empty<SpriteSet>());
-            Assert.IsNotNull(UI.IconResolver);
-            Assert.IsNull(UI.IconResolver("ui:nope"));
+            Assert.IsNotNull(UI.SpriteResolver);
+            Assert.IsNull(UI.SpriteResolver("ui:nope"));
         }
 
         [Test]
@@ -44,7 +44,7 @@ namespace PromptUGUI.Tests.Application
         {
             var s = MakeIconSet("ui");
             IconResolverHelpers.UseSpriteAtlasIconResolver(new[] { s });
-            Assert.IsNull(UI.IconResolver("ui:foo"));
+            Assert.IsNull(UI.SpriteResolver("ui:foo"));
         }
 
         [Test]
@@ -52,7 +52,7 @@ namespace PromptUGUI.Tests.Application
         {
             var s = MakeIconSet("ui");
             IconResolverHelpers.UseSpriteAtlasIconResolver(new[] { s });
-            Assert.IsNotNull(UI.IconResolver);
+            Assert.IsNotNull(UI.SpriteResolver);
         }
 
         private static SpriteSet MakeIconSet(string name)

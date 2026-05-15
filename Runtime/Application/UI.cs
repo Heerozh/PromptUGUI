@@ -14,7 +14,41 @@ namespace PromptUGUI.Application
         private static readonly DepGraph _depGraph = new();
 
         public static System.Func<string, UnityEngine.Awaitable<string>> SourceResolver { get; set; }
-        public static System.Func<string, UnityEngine.Sprite> IconResolver { get; set; }
+        public static System.Func<string, UnityEngine.Sprite> SpriteResolver { get; set; }
+
+        /// <summary>
+        /// Dual-syntax sprite resolver entry point used by built-in controls'
+        /// `sprite=` setters and recommended for custom Control subclasses.
+        /// Values containing `:` are routed to <see cref="SpriteResolver"/>
+        /// (SpriteSet/atlas path); bare paths fall through to
+        /// <c>Resources.Load&lt;Sprite&gt;</c>. Null/empty input returns null.
+        /// </summary>
+        public static UnityEngine.Sprite ResolveSprite(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return null;
+
+            if (value.IndexOf(':') >= 0)
+            {
+                if (SpriteResolver == null)
+                {
+                    UnityEngine.Debug.LogError(
+                        $"sprite '{value}': UI.SpriteResolver is not registered. " +
+                        $"Call SpriteResolverHelpers.UseSpriteSetResolver(spriteSets) " +
+                        $"before opening Screens that reference sprite='ns:name'.");
+                    return null;
+                }
+                var sprite = SpriteResolver(value);
+                if (sprite == null)
+                    UnityEngine.Debug.LogError(
+                        $"sprite '{value}': resolver returned null. " +
+                        $"Check the sprite name spelling, or run " +
+                        $"Tools → PromptUGUI → Sprite → Sync Atlases (All Sets) " +
+                        $"to include it in the SpriteSet's atlas.");
+                return sprite;
+            }
+
+            return UnityEngine.Resources.Load<UnityEngine.Sprite>(value);
+        }
 
         // Optional override for locale → translation entries. Default (null) loads
         // .po TextAssets from `Resources/PromptUGUI/i18n/{locale}/` and
@@ -504,7 +538,7 @@ namespace PromptUGUI.Application
             return null;
         }
 
-        // ResetForTests 末尾触发；let helpers (e.g. AddressableIconResolverHelper)
+        // ResetForTests 末尾触发；let helpers (e.g. AddressableSpriteResolverHelper)
         // 释放 Addressables 句柄等外部资源。订阅者必须在 ResetForTests 自身把状态
         // 清空之后再跑，所以 Invoke 放在方法尾部。
         internal static event System.Action OnReset;
@@ -523,12 +557,12 @@ namespace PromptUGUI.Application
             _commonsPool.Clear();
             _depGraph.Clear();
             SourceResolver = null;
-            IconResolver = null;
+            SpriteResolver = null;
             PoResolver = null;
             CanvasConfigurator = null;
 #if UNITY_EDITOR
             HotReload.AssetPathToSrc = null;
-            HotReload.IconResolverRebuilder = null;
+            HotReload.SpriteResolverRebuilder = null;
             HotReload.Enabled = true;
 #endif
             OnReset?.Invoke();
@@ -547,7 +581,7 @@ namespace PromptUGUI.Application
 
         // Clears stale Screens/docs/commons/dep-graph that survive Play→Stop→Play
         // when "Reload Domain" is disabled in Enter Play Mode Options. SourceResolver,
-        // IconResolver and Registry (with built-ins) are intentionally preserved.
+        // SpriteResolver and Registry (with built-ins) are intentionally preserved.
         [UnityEngine.OnEnteringPlayMode]
         private static void OnEnteringPlayMode() => UnloadAll();
 
@@ -604,12 +638,12 @@ namespace PromptUGUI.Application
                 }
             }
 
-            public static System.Action IconResolverRebuilder { get; set; }
+            public static System.Action SpriteResolverRebuilder { get; set; }
 
-            public static void NotifyIconAssetsChanged()
+            public static void NotifySpriteAssetsChanged()
             {
                 if (!Enabled) return;
-                IconResolverRebuilder?.Invoke();
+                SpriteResolverRebuilder?.Invoke();
                 foreach (var s in _open.Values) s.ReSolve();
             }
         }

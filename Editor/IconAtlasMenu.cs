@@ -17,7 +17,7 @@ namespace PromptUGUI.Editor
                 return;
             }
             IconAtlasSyncer.SyncAll(sets);
-            UI.HotReload.NotifyIconAssetsChanged();
+            UI.HotReload.NotifySpriteAssetsChanged();
             Debug.Log($"[PromptUGUI] Synced {sets.Count} SpriteSet(s)");
         }
 
@@ -33,7 +33,7 @@ namespace PromptUGUI.Editor
                 return;
             }
             IconAtlasSyncer.SyncAll(picked);
-            UI.HotReload.NotifyIconAssetsChanged();
+            UI.HotReload.NotifySpriteAssetsChanged();
         }
 
         [MenuItem("Tools/PromptUGUI/Icon/Sync Atlases (Selected Set)", true)]

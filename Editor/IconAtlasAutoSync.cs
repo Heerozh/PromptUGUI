@@ -43,7 +43,7 @@ namespace PromptUGUI.Editor
             foreach (var s in IconAtlasSyncer.FindAllIconSets()) sets.Add(s);
             if (sets.Count == 0) return;
             IconAtlasSyncer.SyncAll(sets);
-            UI.HotReload.NotifyIconAssetsChanged();
+            UI.HotReload.NotifySpriteAssetsChanged();
         }
     }
 }

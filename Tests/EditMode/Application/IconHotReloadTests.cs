@@ -17,8 +17,8 @@ namespace PromptUGUI.Tests.Application
         public void NotifyIconAssetsChanged_invokes_resolver_rebuild_callback()
         {
             var rebuildCount = 0;
-            UI.HotReload.IconResolverRebuilder = () => rebuildCount++;
-            UI.HotReload.NotifyIconAssetsChanged();
+            UI.HotReload.SpriteResolverRebuilder = () => rebuildCount++;
+            UI.HotReload.NotifySpriteAssetsChanged();
             Assert.AreEqual(1, rebuildCount);
         }
 
@@ -26,9 +26,9 @@ namespace PromptUGUI.Tests.Application
         public void NotifyIconAssetsChanged_no_op_when_disabled()
         {
             var rebuildCount = 0;
-            UI.HotReload.IconResolverRebuilder = () => rebuildCount++;
+            UI.HotReload.SpriteResolverRebuilder = () => rebuildCount++;
             UI.HotReload.Enabled = false;
-            UI.HotReload.NotifyIconAssetsChanged();
+            UI.HotReload.NotifySpriteAssetsChanged();
             Assert.AreEqual(0, rebuildCount);
         }
     }

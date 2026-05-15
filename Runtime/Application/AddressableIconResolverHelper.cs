@@ -10,7 +10,7 @@ namespace PromptUGUI.Application
     public static partial class IconResolverHelpers
     {
         // Held alive so the SpriteSet refs (and their dependent SpriteAtlas) stay
-        // loaded for the lifetime of UI.IconResolver. Released on second-call /
+        // loaded for the lifetime of UI.SpriteResolver. Released on second-call /
         // UI.ResetForTests. (PROMPTUGUI_HAS_ADDRESSABLES only.)
         private static AsyncOperationHandle<IList<SpriteSet>>? _addressableIconHandle;
         // Static; intentionally survives UI.ResetForTests so we don't double-subscribe
@@ -24,7 +24,7 @@ namespace PromptUGUI.Application
         /// <summary>
         /// Loads every <see cref="SpriteSet"/> tagged with <paramref name="label"/> via
         /// Addressables, builds the icon lookup map, and installs it as
-        /// <c>UI.IconResolver</c>.
+        /// <c>UI.SpriteResolver</c>.
         ///
         /// The underlying <c>AsyncOperationHandle</c> is held for the lifetime of the
         /// resolver so the loaded SpriteSet assets (and their dependent SpriteAtlas refs)
@@ -32,7 +32,7 @@ namespace PromptUGUI.Application
         /// <c>UI.ResetForTests</c>; calling twice in a row is therefore safe and acts
         /// as a rebind.
         ///
-        /// In the Editor this also wires <c>UI.HotReload.IconResolverRebuilder</c> so
+        /// In the Editor this also wires <c>UI.HotReload.SpriteResolverRebuilder</c> so
         /// the lookup map is rebuilt in-place when an SpriteSet asset is re-imported,
         /// without re-downloading via Addressables.
         ///
@@ -50,7 +50,7 @@ namespace PromptUGUI.Application
         /// <paramref name="labels"/> combined via <paramref name="mergeMode"/>
         /// (<see cref="Addressables.MergeMode.Union"/> for OR — default,
         /// <see cref="Addressables.MergeMode.Intersection"/> for AND), then wires
-        /// <c>UI.IconResolver</c> the same way the single-label overload does.
+        /// <c>UI.SpriteResolver</c> the same way the single-label overload does.
         /// Same handle-release / HotReload semantics.
         /// </summary>
         public static Awaitable UseAddressableSpriteAtlasIconResolver(
@@ -81,11 +81,11 @@ namespace PromptUGUI.Application
             void Rebuild()
             {
                 var map = BuildLookup(snapshot);
-                UI.IconResolver = key => map.TryGetValue(key, out var sp) ? sp : null;
+                UI.SpriteResolver = key => map.TryGetValue(key, out var sp) ? sp : null;
             }
             Rebuild();
 #if UNITY_EDITOR
-            UI.HotReload.IconResolverRebuilder = Rebuild;
+            UI.HotReload.SpriteResolverRebuilder = Rebuild;
 #endif
         }
 

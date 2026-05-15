@@ -12,11 +12,11 @@ namespace PromptUGUI.Application
             {
                 var sets = Resources.LoadAll<SpriteSet>(resourcesSubpath);
                 var map = BuildLookup(sets);
-                UI.IconResolver = key => map.TryGetValue(key, out var sp) ? sp : null;
+                UI.SpriteResolver = key => map.TryGetValue(key, out var sp) ? sp : null;
             }
             Rebuild();
 #if UNITY_EDITOR
-            UI.HotReload.IconResolverRebuilder = Rebuild;
+            UI.HotReload.SpriteResolverRebuilder = Rebuild;
 #endif
         }
 
@@ -26,11 +26,11 @@ namespace PromptUGUI.Application
             void Rebuild()
             {
                 var map = BuildLookup(snapshot);
-                UI.IconResolver = key => map.TryGetValue(key, out var sp) ? sp : null;
+                UI.SpriteResolver = key => map.TryGetValue(key, out var sp) ? sp : null;
             }
             Rebuild();
 #if UNITY_EDITOR
-            UI.HotReload.IconResolverRebuilder = Rebuild;
+            UI.HotReload.SpriteResolverRebuilder = Rebuild;
 #endif
         }
 

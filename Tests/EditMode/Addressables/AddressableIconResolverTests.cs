@@ -64,7 +64,7 @@ namespace PromptUGUI.Tests.Addressables
                 "UseAddressableSpriteAtlasIconResolver should return non-null Awaitable");
             // Note: Awaitable intentionally not awaited; underlying AsyncOperationHandle
             // remains pending until TearDown's ResetForTests releases it. We don't
-            // assert on UI.IconResolver state — its post-await value depends on
+            // assert on UI.SpriteResolver state — its post-await value depends on
             // whether LoadAssetsAsync completed synchronously (rare but possible),
             // which is a C# state-machine detail rather than this helper's contract.
         }
