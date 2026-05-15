@@ -18,6 +18,11 @@ namespace PromptUGUI.Controls
         private readonly Subject<Unit> _click = new();
         private PointerEventRelay _pointerRelay;
 
+        private const float HorizontalPadding = 16f;
+        private const float VerticalPadding = 6f;
+        private const float MinTapHeight = 44f;
+        private const float DefaultIconBtnWidth = 80f;
+
         private PointerEventRelay EnsureRelay()
             => _pointerRelay ??= GameObject.AddComponent<PointerEventRelay>();
 
@@ -98,6 +103,18 @@ namespace PromptUGUI.Controls
         public string Sprite
         {
             set => _bg.sprite = UI.ResolveSprite(value);
+        }
+
+        public override Vector2? GetNativeSize()
+        {
+            if (_autoLabel != null && !string.IsNullOrEmpty(_autoLabel.text))
+            {
+                _autoLabel.ForceMeshUpdate();
+                var w = _autoLabel.preferredWidth + HorizontalPadding * 2f;
+                var h = Mathf.Max(MinTapHeight, _autoLabel.preferredHeight + VerticalPadding * 2f);
+                return new Vector2(w, h);
+            }
+            return new Vector2(DefaultIconBtnWidth, MinTapHeight);
         }
 
         public Observable<Unit> OnClick => _click;
