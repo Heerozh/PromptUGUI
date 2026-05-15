@@ -1,6 +1,6 @@
 ---
 name: scripting-promptugui-csharp
-description: Use when writing C# that drives PromptUGUI — `UI.LoadDocumentAsync` / `UI.Open`, `Screen.Get<T>`, R3 event subscriptions (`OnClick` / `OnValueChanged` / `OnSelected`), `BindItems` / `BindOptions`, runtime `UI.Variants.Set` / `UI.Locale.Set` switching, `UI.CanvasConfigurator`, or custom `[UIAttr]` / `[Bind]` controls. For the XML markup itself, see authoring-promptugui-xml; for Addressables-backed loaders (`.ui.xml` / `.po` / icon atlases), see using-promptugui-addressables.
+description: Use when writing C# that drives PromptUGUI — `UI.LoadDocumentAsync` / `UI.Open`, `Screen.Get<T>`, R3 event subscriptions (`OnClick` / `OnValueChanged` / `OnSelected`), `BindItems` / `BindOptions`, runtime `UI.Variants.Set` / `UI.Locale.Set` / `UI.Orientation` switching, `UI.CanvasConfigurator`, or custom `[UIAttr]` / `[Bind]` controls. For the XML markup itself, see authoring-promptugui-xml; for Addressables-backed loaders (`.ui.xml` / `.po` / icon atlases), see using-promptugui-addressables.
 ---
 
 # Scripting PromptUGUI in C#
@@ -197,6 +197,23 @@ UI.Variants.Set("mobile", false);
 
 Variants do **not** rebuild GameObjects — `VariantStore.Changed` triggers `Screen.ReSolve` which re-applies attributes. `<Add>` blocks use a "instantiate once on first activation, only `SetActive`-toggle thereafter" strategy so references and R3 subscriptions survive variant flips.
 
+## Orientation (auto-tracked variants)
+
+The library boots a global `OrientationTracker` (RuntimeInitializeOnLoadMethod → `DontDestroyOnLoad`) that every frame reads `Screen.width` vs `Screen.height` and toggles two reserved, mutually-exclusive variants:
+
+- `portrait` — active when `Screen.height > Screen.width`
+- `landscape` — active otherwise (square dims count as landscape, matching `Screen.ApplyCanvasScaler`'s `W >= H → match=0` rule)
+
+XML authors override per-orientation via `attr.portrait="..."` / `attr.landscape="..."` on any element. Typical use: `<Screen reference="1920x1080" reference.portrait="1080x1920">` so each orientation gets its own CanvasScaler reference (and therefore the auto-derived `match` is correct on both axes).
+
+```csharp
+UI.Orientation.IsPortrait;                // read current state
+UI.Orientation.Set(true);                 // manual override (still subject to AutoTrack overwriting next frame)
+UI.Orientation.AutoTrack = false;         // disable auto-tracking; user fully self-manages
+```
+
+Portrait-locked games can ignore the system entirely — base values apply when no `.portrait`/`.landscape` override exists, and `landscape` overrides never fire on a locked-portrait device. Don't reuse `portrait` / `landscape` as Variant names for non-orientation state.
+
 ## Locale & i18n (C# side)
 
 Switch language at runtime:
@@ -277,6 +294,9 @@ DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                .AddTo(screen)
 
 VARIANT        UI.Variants.Set("name", true|false)            re-applies, no rebuild
+ORIENTATION    UI.Orientation.IsPortrait                      auto-tracked: portrait / landscape variants
+               UI.Orientation.Set(bool)                       manual override
+               UI.Orientation.AutoTrack = false               disable global tracker
 LOCALE         UI.Locale.Set("en")                            sync
                UI.Locale.SetToSystemDefault()
                UI.Tr("...")                                   extract + translate

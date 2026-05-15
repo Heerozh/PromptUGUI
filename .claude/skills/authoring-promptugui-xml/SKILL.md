@@ -418,7 +418,10 @@ Source text goes directly inside `<Text>` / `<Btn>` and serves as the msgid for 
 <Text font="title" font.zh-Hans="title-cn">Settings</Text>
 ```
 
-**Reserved variant namespace**: `UI.Locale.Set("zh-Hans")` internally registers `zh-Hans` as an active Variant. Authors must NOT reuse a Variant of the same name to express anything other than locale state.
+**Reserved variant namespace**: the library auto-manages two namespaces — authors must NOT reuse these names for business state:
+
+- **Locale**: `UI.Locale.Set("zh-Hans")` internally registers `zh-Hans` (any locale code passed to `UI.Locale.Set`) as an active Variant.
+- **Orientation**: `portrait` and `landscape` are toggled automatically by a global tracker based on `Screen.width` vs `Screen.height` (equal dims → `landscape`, matching the CanvasScaler `match` auto-derivation). They are mutually exclusive. Use them as overrides — e.g. `<Screen reference="1920x1080" reference.portrait="1080x1920">`, `<Btn width="240" width.portrait="stretch"/>`. Portrait-locked games can ignore them (base values apply when no override exists, `landscape` overrides simply never fire). Users who want to fully self-manage can set `UI.Orientation.AutoTrack = false`.
 
 ### Inline sprites / TMP rich text
 

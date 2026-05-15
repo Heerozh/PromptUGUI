@@ -107,6 +107,32 @@ namespace PromptUGUI.Application
                 VariantStore.IsActive(name);
         }
 
+        /// <summary>
+        /// 自动管理 reserved variant <c>portrait</c> / <c>landscape</c>。包内
+        /// <see cref="Internal.OrientationTracker"/> 全局单例每帧根据
+        /// <c>Screen.width/height</c> 切换这对互斥 variant。用户也可显式调
+        /// <see cref="Set"/> 手动覆盖；想完全自管时把 <see cref="AutoTrack"/>
+        /// 置 false。等宽高视为 landscape，与 CanvasScaler `match` 自动推断
+        /// 的 W&gt;=H 锁宽逻辑保持一致。
+        /// </summary>
+        public static class Orientation
+        {
+            public static bool AutoTrack { get; set; } = true;
+            public static bool IsPortrait => VariantStore.IsActive("portrait");
+
+            public static void Set(bool isPortrait)
+            {
+                VariantStore.Set("portrait", isPortrait);
+                VariantStore.Set("landscape", !isPortrait);
+            }
+
+            internal static void ResetForTestsInternal()
+            {
+                AutoTrack = true;
+                Internal.OrientationTracker.ScreenSizeOverride = null;
+            }
+        }
+
         public static partial class Locale
         {
             public static string Current { get; private set; }
@@ -580,6 +606,7 @@ namespace PromptUGUI.Application
         internal static void ResetForTests()
         {
             Locale.ResetForTestsInternal();
+            Orientation.ResetForTestsInternal();
             TranslationStore.Instance.UnloadAll();
             Modal.CancelAllForTeardown();
             foreach (var s in _open.Values) s.Close();
