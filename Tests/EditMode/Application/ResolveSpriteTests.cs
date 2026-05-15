@@ -1,7 +1,7 @@
 using NUnit.Framework;
+using PromptUGUI.Application;
 using UnityEngine;
 using UnityEngine.TestTools;
-using PromptUGUI.Application;
 
 namespace PromptUGUI.Tests.EditMode.Application
 {
