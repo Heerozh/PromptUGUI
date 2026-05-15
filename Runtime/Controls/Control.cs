@@ -216,15 +216,27 @@ namespace PromptUGUI.Controls
 
         private void ApplyLayoutElement(SizeSpec sizeSpec)
         {
-            // 决策 LGC-D8: 作者没写任何 size 属性 → 不挂 LayoutElement（让 Image/TMP 自带 ILayoutElement 主导）
+            // 决策 LGC-D8 + BCS-D6:
+            // 作者没写任何 size 属性 → 如果控件能报告 native (GetNativeSize 非 null)，
+            // 挂 LayoutElement 把 native 当 preferred 暴露给 LayoutGroup;
+            // 否则维持原"无约束 / 清空到 -1"行为，让 Image/TMP 自带 ILayoutElement 主导。
             // 决策 LGC-D9: 按轴路由 — 未写的轴留在 -1 哨兵值
             // 决策 LGC-D10: 每次都先把两轴全置 -1，清掉前一次 Variant 的残留约束
             if (!sizeSpec.HasWidth && !sizeSpec.HasHeight)
             {
-                // 前一次 Variant 可能挂过 LayoutElement，本次没尺寸 → 还原成"无约束"
                 var existing = GameObject.GetComponent<UnityEngine.UI.LayoutElement>();
-                if (existing != null)
+                var native = GetNativeSize();
+                if (native.HasValue)
                 {
+                    existing ??= GameObject.AddComponent<UnityEngine.UI.LayoutElement>();
+                    existing.preferredWidth = native.Value.x;
+                    existing.preferredHeight = native.Value.y;
+                    existing.flexibleWidth = -1;
+                    existing.flexibleHeight = -1;
+                }
+                else if (existing != null)
+                {
+                    // 前一次 Variant 可能挂过 LayoutElement，本次没尺寸 + 控件没有 native → 还原成"无约束"
                     existing.preferredWidth = -1;
                     existing.preferredHeight = -1;
                     existing.flexibleWidth = -1;

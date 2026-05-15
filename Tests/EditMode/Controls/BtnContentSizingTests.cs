@@ -49,5 +49,26 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(44f, native.Value.y, 0.5f,
                 "preferredHeight = max(44, label.preferredHeight + 6*2)");
         }
+
+        [Test]
+        public void Btn_in_HStack_no_size_gets_LayoutElement_with_native_preferred()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <HStack id='stack' width='400' height='44'>
+    <Btn id='b'>OK</Btn>
+  </HStack>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var btn = screen.Get<Btn>("b");
+            var le = btn.GameObject.GetComponent<LayoutElement>();
+            Assert.IsNotNull(le, "BCS-D6: Btn under LayoutGroup with no size should auto-attach LE reporting GetNativeSize");
+            var native = btn.GetNativeSize().Value;
+            Assert.AreEqual(native.x, le.preferredWidth, 0.5f);
+            Assert.AreEqual(native.y, le.preferredHeight, 0.5f);
+            Assert.AreEqual(-1f, le.flexibleWidth);
+            Assert.AreEqual(-1f, le.flexibleHeight);
+        }
     }
 }

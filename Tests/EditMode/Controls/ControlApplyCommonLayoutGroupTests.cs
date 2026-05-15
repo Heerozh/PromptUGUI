@@ -54,8 +54,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Btn_in_VStack_with_no_size_attrs_gets_no_LayoutElement()
+        public void Btn_in_VStack_with_no_size_attrs_gets_LayoutElement_from_native()
         {
+            // BCS-D6: Btn 提供 GetNativeSize → ApplyLayoutElement 在无 size 时挂 LE 报告 native preferred.
+            // 这覆写了 LGC-D8 在 GetNativeSize 不为 null 控件上的行为；GetNativeSize=null 的控件仍走原 LGC-D8.
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
   <VStack id='stack' width='200' height='200'>
@@ -65,8 +67,29 @@ namespace PromptUGUI.Tests.EditMode.Controls
             UI.LoadDocument("test", xml);
             var screen = UI.Open("S");
             var btn = screen.Get<Btn>("b");
-            Assert.IsNull(btn.GameObject.GetComponent<LayoutElement>(),
-                "No size/width/height -> no LayoutElement; intrinsic ILayoutElement (Image/TMP) drives sizing");
+            var le = btn.GameObject.GetComponent<LayoutElement>();
+            Assert.IsNotNull(le, "BCS-D6: GetNativeSize 非 null 的控件无 size → 自动挂 LE 报告 native");
+            // Btn 无 text → fallback (80, 44)
+            Assert.AreEqual(80f, le.preferredWidth);
+            Assert.AreEqual(44f, le.preferredHeight);
+        }
+
+        [Test]
+        public void Image_in_VStack_with_no_size_attrs_gets_no_LayoutElement()
+        {
+            // LGC-D8 原契约：GetNativeSize=null 的控件（如 Image）无 size → 不挂 LE，
+            // 让 UnityImage 自带的 ILayoutElement 主导。Btn 测试拆出去用了 BCS-D6 新分支。
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <VStack id='stack' width='200' height='200'>
+    <Image id='i'/>
+  </VStack>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var img = screen.Get<PromptUGUI.Controls.Image>("i");
+            Assert.IsNull(img.GameObject.GetComponent<LayoutElement>(),
+                "Image.GetNativeSize() == null → 不挂 LE，让 UnityImage 自带 ILayoutElement 主导");
         }
 
         [Test]
