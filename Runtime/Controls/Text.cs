@@ -73,7 +73,7 @@ namespace PromptUGUI.Controls
         [UIAttr]
         public bool Wrap
         {
-            set => _tmp.enableWordWrapping = value;
+            set => _tmp.textWrappingMode = value ? TextWrappingModes.Normal : TextWrappingModes.NoWrap;
         }
 
         [UIAttr]

@@ -52,7 +52,7 @@ namespace PromptUGUI.Controls
             _placeholder.fontStyle = FontStyles.Italic;
             _placeholder.color = ProceduralBuilders.DefaultPlaceholderColor;
             _placeholder.text = "Enter text...";
-            _placeholder.enableWordWrapping = false;
+            _placeholder.textWrappingMode = TextWrappingModes.NoWrap;
             var phLE = _placeholder.gameObject.AddComponent<LayoutElement>();
             phLE.ignoreLayout = true;
 
