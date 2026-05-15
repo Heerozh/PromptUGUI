@@ -28,7 +28,7 @@ namespace PromptUGUI.Controls
                 {
                     Debug.LogError(
                         $"Icon '{value}': UI.SpriteResolver is not registered. " +
-                        $"Call SpriteResolverHelpers.UseSpriteSetResolver(iconSets) " +
+                        $"Call SpriteResolverHelpers.UseSpriteSetResolver(spriteSets) " +
                         $"before opening Screens that contain <Icon>.");
                     _img.sprite = null;
                     return;
@@ -38,7 +38,7 @@ namespace PromptUGUI.Controls
                     Debug.LogError(
                         $"Icon '{value}': resolver returned null. " +
                         $"Check the icon name spelling, or run " +
-                        $"Tools → PromptUGUI → Sync Icon Atlases (All Sets) to " +
+                        $"Tools → PromptUGUI → Sprite → Sync Atlases (All Sets) to " +
                         $"include it in the SpriteSet's atlas.");
                 _img.sprite = sprite;
             }
