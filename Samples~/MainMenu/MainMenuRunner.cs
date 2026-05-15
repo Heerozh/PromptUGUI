@@ -16,7 +16,7 @@ namespace PromptUGUI.Samples.MainMenu {
     ///   4. 按 Play
     /// </summary>
     public sealed class MainMenuRunner : MonoBehaviour {
-        [SerializeField] IconSet[] iconSets;
+        [SerializeField] SpriteSet[] iconSets;
 
         async void Start() {
             UI.UseResourcesResolver("UI");

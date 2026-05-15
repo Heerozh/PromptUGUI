@@ -11,10 +11,10 @@ namespace PromptUGUI.Editor
 
         public void OnPreprocessBuild(BuildReport report)
         {
-            var sets = new System.Collections.Generic.List<IconSet>();
+            var sets = new System.Collections.Generic.List<SpriteSet>();
             foreach (var s in IconAtlasSyncer.FindAllIconSets()) sets.Add(s);
             if (sets.Count == 0) return;
-            Debug.Log($"[PromptUGUI] Pre-build syncing {sets.Count} IconSet(s)");
+            Debug.Log($"[PromptUGUI] Pre-build syncing {sets.Count} SpriteSet(s)");
             IconAtlasSyncer.SyncAll(sets);
         }
     }

@@ -10,7 +10,7 @@ namespace PromptUGUI.Application
         {
             void Rebuild()
             {
-                var sets = Resources.LoadAll<IconSet>(resourcesSubpath);
+                var sets = Resources.LoadAll<SpriteSet>(resourcesSubpath);
                 var map = BuildLookup(sets);
                 UI.IconResolver = key => map.TryGetValue(key, out var sp) ? sp : null;
             }
@@ -20,9 +20,9 @@ namespace PromptUGUI.Application
 #endif
         }
 
-        public static void UseSpriteAtlasIconResolver(IEnumerable<IconSet> sets)
+        public static void UseSpriteAtlasIconResolver(IEnumerable<SpriteSet> sets)
         {
-            var snapshot = new List<IconSet>(sets);
+            var snapshot = new List<SpriteSet>(sets);
             void Rebuild()
             {
                 var map = BuildLookup(snapshot);
@@ -34,9 +34,9 @@ namespace PromptUGUI.Application
 #endif
         }
 
-        private static Dictionary<string, Sprite> BuildLookup(IEnumerable<IconSet> sets)
+        private static Dictionary<string, Sprite> BuildLookup(IEnumerable<SpriteSet> sets)
         {
-            // Reads IconSet.Entries (filled by the Editor sync tool) instead of
+            // Reads SpriteSet.Entries (filled by the Editor sync tool) instead of
             // iterating the SpriteAtlas directly. The atlas's per-sprite .name can
             // collide when two PNGs in different subfolders share a basename;
             // Entries carry the canonical pathKey + bare alias the syncer chose.
@@ -47,12 +47,12 @@ namespace PromptUGUI.Application
                 if (set == null) continue;
                 if (string.IsNullOrEmpty(set.SetName))
                 {
-                    Debug.LogWarning("[PromptUGUI] IconSet with empty setName, skipping");
+                    Debug.LogWarning("[PromptUGUI] SpriteSet with empty setName, skipping");
                     continue;
                 }
                 if (!seenSet.Add(set.SetName))
                     throw new InvalidOperationException(
-                        $"Duplicate IconSet name '{set.SetName}'");
+                        $"Duplicate SpriteSet name '{set.SetName}'");
 
                 foreach (var (key, sprite) in set.Entries)
                 {

@@ -39,7 +39,7 @@ namespace PromptUGUI.Editor
             }
             if (!xmlChanged) return;
 
-            var sets = new System.Collections.Generic.List<IconSet>();
+            var sets = new System.Collections.Generic.List<SpriteSet>();
             foreach (var s in IconAtlasSyncer.FindAllIconSets()) sets.Add(s);
             if (sets.Count == 0) return;
             IconAtlasSyncer.SyncAll(sets);

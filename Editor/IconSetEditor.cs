@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace PromptUGUI.Editor
 {
-    [CustomEditor(typeof(IconSet))]
+    [CustomEditor(typeof(SpriteSet))]
     public sealed class IconSetEditor : UnityEditor.Editor
     {
         private UnityEditor.Editor _importerEditor;
@@ -54,7 +54,7 @@ namespace PromptUGUI.Editor
         {
             DrawDefaultInspector();
             EditorGUILayout.Space();
-            var set = (IconSet)target;
+            var set = (SpriteSet)target;
             var folder = set.SourceFolderPath;
             var pngCount = IconAtlasSyncer.CountPngs(folder);
             EditorGUILayout.LabelField("Source PNGs", pngCount.ToString());
@@ -75,7 +75,7 @@ namespace PromptUGUI.Editor
             if (string.IsNullOrEmpty(folder))
             {
                 EditorGUILayout.HelpBox(
-                    "Source folder is not set on this IconSet.", MessageType.Info);
+                    "Source folder is not set on this SpriteSet.", MessageType.Info);
                 return;
             }
             EnsureImporterEditor(folder);
@@ -133,7 +133,7 @@ namespace PromptUGUI.Editor
             {
                 EditorUtility.DisplayDialog(
                     "Reset PNG Import Format",
-                    "Source folder is not set on this IconSet.", "OK");
+                    "Source folder is not set on this SpriteSet.", "OK");
                 return;
             }
             if (EditorUtility.DisplayDialog(

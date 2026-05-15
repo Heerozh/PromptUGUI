@@ -426,7 +426,7 @@ namespace PromptUGUI.Parser
                 var c = name[i];
                 if (i < colon)
                 {
-                    // Set name is a reference key matching IconSet.setName — strict.
+                    // Set name is a reference key matching SpriteSet.setName — strict.
                     var alnum = (c >= 'a' && c <= 'z')
                                 || (c >= 'A' && c <= 'Z')
                                 || (c >= '0' && c <= '9')

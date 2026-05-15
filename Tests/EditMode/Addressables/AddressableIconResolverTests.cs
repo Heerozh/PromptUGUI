@@ -11,7 +11,7 @@ namespace PromptUGUI.Tests.Addressables
     /// <summary>
     /// Wiring smoke tests for IconResolverHelpers.UseAddressableSpriteAtlasIconResolver.
     ///
-    /// End-to-end "label → IconSet → IconResolver returns sprite" is NOT tested
+    /// End-to-end "label → SpriteSet → IconResolver returns sprite" is NOT tested
     /// in EditMode: AsyncOperationHandle continuations need the player-loop
     /// SynchronizationContext which is absent in EditMode test runners. Same
     /// limitation documented in AddressableResolverTests. The synchronous prefix

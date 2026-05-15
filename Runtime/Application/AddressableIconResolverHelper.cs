@@ -9,10 +9,10 @@ namespace PromptUGUI.Application
 {
     public static partial class IconResolverHelpers
     {
-        // Held alive so the IconSet refs (and their dependent SpriteAtlas) stay
+        // Held alive so the SpriteSet refs (and their dependent SpriteAtlas) stay
         // loaded for the lifetime of UI.IconResolver. Released on second-call /
         // UI.ResetForTests. (PROMPTUGUI_HAS_ADDRESSABLES only.)
-        private static AsyncOperationHandle<IList<IconSet>>? _addressableIconHandle;
+        private static AsyncOperationHandle<IList<SpriteSet>>? _addressableIconHandle;
         // Static; intentionally survives UI.ResetForTests so we don't double-subscribe
         // OnReset across test sessions.
         private static bool _addressableResetHooked;
@@ -22,31 +22,31 @@ namespace PromptUGUI.Application
         internal static int _testReleaseCount;
 
         /// <summary>
-        /// Loads every <see cref="IconSet"/> tagged with <paramref name="label"/> via
+        /// Loads every <see cref="SpriteSet"/> tagged with <paramref name="label"/> via
         /// Addressables, builds the icon lookup map, and installs it as
         /// <c>UI.IconResolver</c>.
         ///
         /// The underlying <c>AsyncOperationHandle</c> is held for the lifetime of the
-        /// resolver so the loaded IconSet assets (and their dependent SpriteAtlas refs)
+        /// resolver so the loaded SpriteSet assets (and their dependent SpriteAtlas refs)
         /// stay resident. It is released on the next call to this method or on
         /// <c>UI.ResetForTests</c>; calling twice in a row is therefore safe and acts
         /// as a rebind.
         ///
         /// In the Editor this also wires <c>UI.HotReload.IconResolverRebuilder</c> so
-        /// the lookup map is rebuilt in-place when an IconSet asset is re-imported,
+        /// the lookup map is rebuilt in-place when an SpriteSet asset is re-imported,
         /// without re-downloading via Addressables.
         ///
         /// Only available when <c>com.unity.addressables</c> is installed
         /// (<c>PROMPTUGUI_HAS_ADDRESSABLES</c> compile define).
         /// </summary>
-        /// <param name="label">Addressables label tagging the IconSet assets to load.</param>
+        /// <param name="label">Addressables label tagging the SpriteSet assets to load.</param>
         public static Awaitable UseAddressableSpriteAtlasIconResolver(
             string label = "IconSets") =>
             UseAddressableSpriteAtlasIconResolverInternal(
-                () => Addressables.LoadAssetsAsync<IconSet>(label, null));
+                () => Addressables.LoadAssetsAsync<SpriteSet>(label, null));
 
         /// <summary>
-        /// Multi-label overload. Loads every <see cref="IconSet"/> matching the supplied
+        /// Multi-label overload. Loads every <see cref="SpriteSet"/> matching the supplied
         /// <paramref name="labels"/> combined via <paramref name="mergeMode"/>
         /// (<see cref="Addressables.MergeMode.Union"/> for OR — default,
         /// <see cref="Addressables.MergeMode.Intersection"/> for AND), then wires
@@ -64,11 +64,11 @@ namespace PromptUGUI.Application
                 throw new ArgumentException(
                     "labels must contain at least one entry", nameof(labels));
             return UseAddressableSpriteAtlasIconResolverInternal(
-                () => Addressables.LoadAssetsAsync<IconSet>(keys, null, mergeMode));
+                () => Addressables.LoadAssetsAsync<SpriteSet>(keys, null, mergeMode));
         }
 
         private static async Awaitable UseAddressableSpriteAtlasIconResolverInternal(
-            Func<AsyncOperationHandle<IList<IconSet>>> loader)
+            Func<AsyncOperationHandle<IList<SpriteSet>>> loader)
         {
             ReleaseAddressableIconHandle();
             HookResetOnce();
@@ -76,7 +76,7 @@ namespace PromptUGUI.Application
             var handle = loader();
             _addressableIconHandle = handle;
             var sets = await handle.Task;
-            var snapshot = new List<IconSet>(sets ?? Array.Empty<IconSet>());
+            var snapshot = new List<SpriteSet>(sets ?? Array.Empty<SpriteSet>());
 
             void Rebuild()
             {

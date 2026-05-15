@@ -64,7 +64,7 @@ namespace PromptUGUI.Tests.Editor
 
             // Parser now accepts '{{...}}' (Template substitution placeholder).
             // Outside a <Template>, no Param flow exists; syncer skips with a warning
-            // — caller must list candidates in IconSet.alwaysInclude.
+            // — caller must list candidates in SpriteSet.alwaysInclude.
             LogAssert.ignoreFailingMessages = true;
             var refs = IconAtlasSyncer.ScanXmlReferences();
             LogAssert.ignoreFailingMessages = false;
@@ -632,14 +632,14 @@ namespace PromptUGUI.Tests.Editor
         {
             var a = MakeIconSetAsset("a", "ui");
             var b = MakeIconSetAsset("b", "ui");
-            LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("duplicate IconSet"));
+            LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("duplicate SpriteSet"));
             IconAtlasSyncer.SyncAll(new[] { a, b });
         }
 
         [Test]
         public void SyncAll_persists_pathkey_entries_for_subfolder_files()
         {
-            // XML uses 'ui:UI/heart' → IconSet.entries should contain key "UI/heart".
+            // XML uses 'ui:UI/heart' → SpriteSet.entries should contain key "UI/heart".
             var folder = MakeFolder("sub_a");
             AssetDatabase.CreateFolder(folder, "UI");
             var pngPath = $"{folder}/UI/heart.png";
@@ -684,7 +684,7 @@ namespace PromptUGUI.Tests.Editor
         public void SyncAll_no_bare_alias_on_collision()
         {
             // Two heart.png files in different subfolders; XML references both via path
-            // form. IconSet.entries should contain both pathKeys but NO bare 'heart'.
+            // form. SpriteSet.entries should contain both pathKeys but NO bare 'heart'.
             var folder = MakeFolder("sub_c");
             AssetDatabase.CreateFolder(folder, "UI");
             AssetDatabase.CreateFolder(folder, "Combat");
@@ -732,22 +732,22 @@ namespace PromptUGUI.Tests.Editor
 
         // ---- helpers ----
 
-        private IconSet MakeIconSetAsset(string fileName, string setName)
+        private SpriteSet MakeIconSetAsset(string fileName, string setName)
         {
-            var s = ScriptableObject.CreateInstance<IconSet>();
+            var s = ScriptableObject.CreateInstance<SpriteSet>();
             var so = new SerializedObject(s);
             so.FindProperty("setName").stringValue = setName;
             so.ApplyModifiedProperties();
             var path = $"{TestRoot}/{fileName}.asset";
             AssetDatabase.CreateAsset(s, path);
             _toCleanup.Add(path);
-            return AssetDatabase.LoadAssetAtPath<IconSet>(path);
+            return AssetDatabase.LoadAssetAtPath<SpriteSet>(path);
         }
 
-        private IconSet MakeIconSetAssetWithFolder(string fileName, string setName,
+        private SpriteSet MakeIconSetAssetWithFolder(string fileName, string setName,
             string folderAssetPath)
         {
-            var s = ScriptableObject.CreateInstance<IconSet>();
+            var s = ScriptableObject.CreateInstance<SpriteSet>();
             var so = new SerializedObject(s);
             so.FindProperty("setName").stringValue = setName;
             so.FindProperty("sourceFolder").objectReferenceValue =
@@ -756,7 +756,7 @@ namespace PromptUGUI.Tests.Editor
             var path = $"{TestRoot}/{fileName}.asset";
             AssetDatabase.CreateAsset(s, path);
             _toCleanup.Add(path);
-            return AssetDatabase.LoadAssetAtPath<IconSet>(path);
+            return AssetDatabase.LoadAssetAtPath<SpriteSet>(path);
         }
 
         private string MakeFolder(string name)

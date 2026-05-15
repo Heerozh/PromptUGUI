@@ -39,7 +39,7 @@ namespace PromptUGUI.Controls
                         $"Icon '{value}': resolver returned null. " +
                         $"Check the icon name spelling, or run " +
                         $"Tools → PromptUGUI → Sync Icon Atlases (All Sets) to " +
-                        $"include it in the IconSet's atlas.");
+                        $"include it in the SpriteSet's atlas.");
                 _img.sprite = sprite;
             }
         }

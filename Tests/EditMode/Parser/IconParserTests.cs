@@ -142,7 +142,7 @@ namespace PromptUGUI.Tests.Parser
         [Test]
         public void Icon_name_with_space_in_setname_throws()
         {
-            // Set name is a reference key (matches IconSet.setName); keep it strict.
+            // Set name is a reference key (matches SpriteSet.setName); keep it strict.
             var xml = Header + "<Icon name='my set:Forward'/>" + Footer;
             Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
         }
@@ -171,7 +171,7 @@ namespace PromptUGUI.Tests.Parser
         [Test]
         public void Icon_name_with_slash_in_setname_throws()
         {
-            // Set name remains strict (it's a reference key matching IconSet.setName).
+            // Set name remains strict (it's a reference key matching SpriteSet.setName).
             var xml = Header + "<Icon name='my/set:heart'/>" + Footer;
             Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
         }

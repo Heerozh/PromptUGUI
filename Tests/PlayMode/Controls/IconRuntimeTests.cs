@@ -108,12 +108,12 @@ namespace PromptUGUI.Tests.PlayMode
 
         // ---- helpers ----
 
-        private (IconSet set, SpriteAtlas atlas) MakeIconSetWithSprite(string setName, string iconName)
+        private (SpriteSet set, SpriteAtlas atlas) MakeIconSetWithSprite(string setName, string iconName)
         {
             return MakeIconSetWithSpritesMulti(setName, new[] { iconName });
         }
 
-        private (IconSet set, SpriteAtlas atlas) MakeIconSetWithSpritesMulti(
+        private (SpriteSet set, SpriteAtlas atlas) MakeIconSetWithSpritesMulti(
             string setName, string[] iconNames)
         {
             var folder = $"{TmpRoot}/{setName}";
@@ -142,7 +142,7 @@ namespace PromptUGUI.Tests.PlayMode
                 new[] { atlas }, EditorUserBuildSettings.activeBuildTarget);
             _toCleanup.Add(atlasPath);
 
-            var set = ScriptableObject.CreateInstance<IconSet>();
+            var set = ScriptableObject.CreateInstance<SpriteSet>();
             var so = new SerializedObject(set);
             so.FindProperty("setName").stringValue = setName;
             so.FindProperty("atlas").objectReferenceValue = atlas;
@@ -150,9 +150,9 @@ namespace PromptUGUI.Tests.PlayMode
             var setPath = $"{TmpRoot}/{setName}.asset";
             AssetDatabase.CreateAsset(set, setPath);
             _toCleanup.Add(setPath);
-            var loaded = AssetDatabase.LoadAssetAtPath<IconSet>(setPath);
+            var loaded = AssetDatabase.LoadAssetAtPath<SpriteSet>(setPath);
             // Bypass the editor sync tool: populate entries directly so the runtime
-            // resolver (which reads IconSet.Entries) can resolve these by-name.
+            // resolver (which reads SpriteSet.Entries) can resolve these by-name.
             var entries = new List<(string key, Sprite sprite)>();
             for (var i = 0; i < iconNames.Length; i++) entries.Add((iconNames[i], sprites[i]));
             loaded.SetEntriesInternal(entries);

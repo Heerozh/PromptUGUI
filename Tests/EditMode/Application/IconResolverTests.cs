@@ -25,7 +25,7 @@ namespace PromptUGUI.Tests.Application
         [Test]
         public void UseSpriteAtlasIconResolver_with_empty_list_builds_resolver()
         {
-            IconResolverHelpers.UseSpriteAtlasIconResolver(Array.Empty<IconSet>());
+            IconResolverHelpers.UseSpriteAtlasIconResolver(Array.Empty<SpriteSet>());
             Assert.IsNotNull(UI.IconResolver);
             Assert.IsNull(UI.IconResolver("ui:nope"));
         }
@@ -55,9 +55,9 @@ namespace PromptUGUI.Tests.Application
             Assert.IsNotNull(UI.IconResolver);
         }
 
-        private static IconSet MakeIconSet(string name)
+        private static SpriteSet MakeIconSet(string name)
         {
-            var s = ScriptableObject.CreateInstance<IconSet>();
+            var s = ScriptableObject.CreateInstance<SpriteSet>();
             var so = new UnityEditor.SerializedObject(s);
             so.FindProperty("setName").stringValue = name;
             so.ApplyModifiedProperties();
