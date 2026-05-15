@@ -49,9 +49,13 @@
 0. Prerequisite:
 
 Install DotNet SDK 10: https://dotnet.microsoft.com/zh-cn/download
+
 Install NuGetForUnity: https://github.com/GlitchEnzo/NuGetForUnity
+
 Install R3: github.com/Cysharp/R3
+
 Install LitMotion: https://github.com/annulusgames/LitMotion.git
+
 
 1. UPM
 Window > Package Manager > "+" > "Add package from git URL" > Enter:
