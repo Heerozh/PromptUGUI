@@ -7,7 +7,7 @@ using UnityEngine.U2D;
 
 namespace PromptUGUI.Tests.Application
 {
-    public class IconResolverTests
+    public class SpriteResolverTests
     {
         [SetUp]
         public void Setup()

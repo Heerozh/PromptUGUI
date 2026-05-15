@@ -4,7 +4,7 @@ using PromptUGUI.Application;
 
 namespace PromptUGUI.Tests.Application
 {
-    public class IconHotReloadTests
+    public class SpriteHotReloadTests
     {
         [SetUp]
         public void Setup()

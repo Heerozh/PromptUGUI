@@ -10,7 +10,7 @@ using UnityEngine.TestTools;
 
 namespace PromptUGUI.Tests.Editor
 {
-    public class IconAtlasSyncerTests
+    public class SpriteAtlasSyncerTests
     {
         private const string TestRoot = "Assets/__test_iconsync__";
         private readonly List<string> _toCleanup = new();

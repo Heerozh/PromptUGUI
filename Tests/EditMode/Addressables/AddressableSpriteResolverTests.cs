@@ -11,7 +11,7 @@ namespace PromptUGUI.Tests.Addressables
     /// <summary>
     /// Wiring smoke tests for SpriteResolverHelpers.UseAddressableSpriteSetResolver.
     ///
-    /// End-to-end "label → SpriteSet → IconResolver returns sprite" is NOT tested
+    /// End-to-end "label → SpriteSet → SpriteResolver returns sprite" is NOT tested
     /// in EditMode: AsyncOperationHandle continuations need the player-loop
     /// SynchronizationContext which is absent in EditMode test runners. Same
     /// limitation documented in AddressableResolverTests. The synchronous prefix
@@ -35,7 +35,7 @@ namespace PromptUGUI.Tests.Addressables
     /// behavioral contract (non-null Awaitable / release counter) and tolerates
     /// either AA code path.
     /// </summary>
-    public class AddressableIconResolverTests
+    public class AddressableSpriteResolverTests
     {
         private const string FixtureLabel = "promptugui-test/icons";
         private static readonly Regex InvalidKeyError = new(".*InvalidKeyException.*");
