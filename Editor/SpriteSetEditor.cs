@@ -5,7 +5,7 @@ using UnityEngine;
 namespace PromptUGUI.Editor
 {
     [CustomEditor(typeof(SpriteSet))]
-    public sealed class IconSetEditor : UnityEditor.Editor
+    public sealed class SpriteSetEditor : UnityEditor.Editor
     {
         private UnityEditor.Editor _importerEditor;
         private string _templatePngPath;
