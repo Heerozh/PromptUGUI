@@ -23,9 +23,9 @@ namespace PromptUGUI.Tests.Application
         }
 
         [Test]
-        public void UseSpriteAtlasIconResolver_with_empty_list_builds_resolver()
+        public void UseSpriteSetResolver_with_empty_list_builds_resolver()
         {
-            IconResolverHelpers.UseSpriteAtlasIconResolver(Array.Empty<SpriteSet>());
+            SpriteResolverHelpers.UseSpriteSetResolver(Array.Empty<SpriteSet>());
             Assert.IsNotNull(UI.SpriteResolver);
             Assert.IsNull(UI.SpriteResolver("ui:nope"));
         }
@@ -36,14 +36,14 @@ namespace PromptUGUI.Tests.Application
             var a = MakeIconSet("ui");
             var b = MakeIconSet("ui");
             Assert.Throws<InvalidOperationException>(() =>
-                IconResolverHelpers.UseSpriteAtlasIconResolver(new[] { a, b }));
+                SpriteResolverHelpers.UseSpriteSetResolver(new[] { a, b }));
         }
 
         [Test]
         public void Null_atlas_does_not_throw()
         {
             var s = MakeIconSet("ui");
-            IconResolverHelpers.UseSpriteAtlasIconResolver(new[] { s });
+            SpriteResolverHelpers.UseSpriteSetResolver(new[] { s });
             Assert.IsNull(UI.SpriteResolver("ui:foo"));
         }
 
@@ -51,7 +51,7 @@ namespace PromptUGUI.Tests.Application
         public void Resolver_with_set_returns_non_null_delegate()
         {
             var s = MakeIconSet("ui");
-            IconResolverHelpers.UseSpriteAtlasIconResolver(new[] { s });
+            SpriteResolverHelpers.UseSpriteSetResolver(new[] { s });
             Assert.IsNotNull(UI.SpriteResolver);
         }
 

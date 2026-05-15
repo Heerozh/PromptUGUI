@@ -7,7 +7,7 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 
 namespace PromptUGUI.Application
 {
-    public static partial class IconResolverHelpers
+    public static partial class SpriteResolverHelpers
     {
         // Held alive so the SpriteSet refs (and their dependent SpriteAtlas) stay
         // loaded for the lifetime of UI.SpriteResolver. Released on second-call /

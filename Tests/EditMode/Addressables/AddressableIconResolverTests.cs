@@ -9,7 +9,7 @@ using UnityEngine.TestTools;
 namespace PromptUGUI.Tests.Addressables
 {
     /// <summary>
-    /// Wiring smoke tests for IconResolverHelpers.UseAddressableSpriteAtlasIconResolver.
+    /// Wiring smoke tests for SpriteResolverHelpers.UseAddressableSpriteAtlasIconResolver.
     ///
     /// End-to-end "label → SpriteSet → IconResolver returns sprite" is NOT tested
     /// in EditMode: AsyncOperationHandle continuations need the player-loop
@@ -48,7 +48,7 @@ namespace PromptUGUI.Tests.Addressables
             // Addressables.LoadAssetsAsync throws synchronously in a fresh project.
             _ = AddressableAssetSettingsDefaultObject.Settings
                 ?? AddressableAssetSettingsDefaultObject.GetSettings(true);
-            IconResolverHelpers._testReleaseCount = 0;
+            SpriteResolverHelpers._testReleaseCount = 0;
         }
 
         [TearDown]
@@ -59,7 +59,7 @@ namespace PromptUGUI.Tests.Addressables
         {
             LogAssert.Expect(LogType.Error, InvalidKeyError);
             var awaitable =
-                IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(FixtureLabel);
+                SpriteResolverHelpers.UseAddressableSpriteAtlasIconResolver(FixtureLabel);
             Assert.IsNotNull(awaitable,
                 "UseAddressableSpriteAtlasIconResolver should return non-null Awaitable");
             // Note: Awaitable intentionally not awaited; underlying AsyncOperationHandle
@@ -74,10 +74,10 @@ namespace PromptUGUI.Tests.Addressables
         {
             LogAssert.Expect(LogType.Error, InvalidKeyError);
             LogAssert.Expect(LogType.Error, InvalidKeyError);
-            _ = IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(FixtureLabel);
-            var beforeSecond = IconResolverHelpers._testReleaseCount;
-            _ = IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(FixtureLabel);
-            Assert.AreEqual(beforeSecond + 1, IconResolverHelpers._testReleaseCount,
+            _ = SpriteResolverHelpers.UseAddressableSpriteAtlasIconResolver(FixtureLabel);
+            var beforeSecond = SpriteResolverHelpers._testReleaseCount;
+            _ = SpriteResolverHelpers.UseAddressableSpriteAtlasIconResolver(FixtureLabel);
+            Assert.AreEqual(beforeSecond + 1, SpriteResolverHelpers._testReleaseCount,
                 "Second call should release the first call's handle exactly once");
         }
 
@@ -85,10 +85,10 @@ namespace PromptUGUI.Tests.Addressables
         public void ResetForTests_releases_handle()
         {
             LogAssert.Expect(LogType.Error, InvalidKeyError);
-            _ = IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(FixtureLabel);
-            var beforeReset = IconResolverHelpers._testReleaseCount;
+            _ = SpriteResolverHelpers.UseAddressableSpriteAtlasIconResolver(FixtureLabel);
+            var beforeReset = SpriteResolverHelpers._testReleaseCount;
             UI.ResetForTests();
-            Assert.AreEqual(beforeReset + 1, IconResolverHelpers._testReleaseCount,
+            Assert.AreEqual(beforeReset + 1, SpriteResolverHelpers._testReleaseCount,
                 "ResetForTests should trigger OnReset → helper releases the handle");
         }
 
@@ -96,7 +96,7 @@ namespace PromptUGUI.Tests.Addressables
         public void MultiLabel_null_labels_throws_ArgumentNullException()
         {
             Assert.Throws<ArgumentNullException>(() =>
-                IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(
+                SpriteResolverHelpers.UseAddressableSpriteAtlasIconResolver(
                     (System.Collections.Generic.IEnumerable<string>)null));
         }
 
@@ -104,7 +104,7 @@ namespace PromptUGUI.Tests.Addressables
         public void MultiLabel_empty_labels_throws_ArgumentException()
         {
             Assert.Throws<ArgumentException>(() =>
-                IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(
+                SpriteResolverHelpers.UseAddressableSpriteAtlasIconResolver(
                     System.Array.Empty<string>()));
         }
 
@@ -112,7 +112,7 @@ namespace PromptUGUI.Tests.Addressables
         public void MultiLabel_invocation_returns_an_awaitable()
         {
             LogAssert.Expect(LogType.Error, InvalidKeyError);
-            var awaitable = IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(
+            var awaitable = SpriteResolverHelpers.UseAddressableSpriteAtlasIconResolver(
                 new[] { FixtureLabel, FixtureLabel + "-extra" },
                 UnityEngine.AddressableAssets.Addressables.MergeMode.Union);
             Assert.IsNotNull(awaitable,
@@ -124,11 +124,11 @@ namespace PromptUGUI.Tests.Addressables
         {
             LogAssert.Expect(LogType.Error, InvalidKeyError);
             LogAssert.Expect(LogType.Error, InvalidKeyError);
-            _ = IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(FixtureLabel);
-            var beforeSecond = IconResolverHelpers._testReleaseCount;
-            _ = IconResolverHelpers.UseAddressableSpriteAtlasIconResolver(
+            _ = SpriteResolverHelpers.UseAddressableSpriteAtlasIconResolver(FixtureLabel);
+            var beforeSecond = SpriteResolverHelpers._testReleaseCount;
+            _ = SpriteResolverHelpers.UseAddressableSpriteAtlasIconResolver(
                 new[] { FixtureLabel, FixtureLabel + "-extra" });
-            Assert.AreEqual(beforeSecond + 1, IconResolverHelpers._testReleaseCount,
+            Assert.AreEqual(beforeSecond + 1, SpriteResolverHelpers._testReleaseCount,
                 "multi-label call should release single-label predecessor exactly once");
         }
     }

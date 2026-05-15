@@ -4,9 +4,9 @@ using UnityEngine;
 
 namespace PromptUGUI.Application
 {
-    public static partial class IconResolverHelpers
+    public static partial class SpriteResolverHelpers
     {
-        public static void UseSpriteAtlasIconResolver(string resourcesSubpath = "IconSets")
+        public static void UseSpriteSetResolver(string resourcesSubpath = "SpriteSets")
         {
             void Rebuild()
             {
@@ -20,7 +20,7 @@ namespace PromptUGUI.Application
 #endif
         }
 
-        public static void UseSpriteAtlasIconResolver(IEnumerable<SpriteSet> sets)
+        public static void UseSpriteSetResolver(IEnumerable<SpriteSet> sets)
         {
             var snapshot = new List<SpriteSet>(sets);
             void Rebuild()

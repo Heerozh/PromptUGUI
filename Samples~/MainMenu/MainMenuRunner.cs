@@ -22,7 +22,7 @@ namespace PromptUGUI.Samples.MainMenu {
             UI.UseResourcesResolver("UI");
 
             if (iconSets != null && iconSets.Length > 0)
-                IconResolverHelpers.UseSpriteAtlasIconResolver(iconSets);
+                SpriteResolverHelpers.UseSpriteSetResolver(iconSets);
 
             await UI.LoadDocumentAsync("MainMenu.ui");
             var screen = UI.Open("MainMenu");

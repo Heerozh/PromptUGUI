@@ -28,7 +28,7 @@ namespace PromptUGUI.Controls
                 {
                     Debug.LogError(
                         $"Icon '{value}': UI.SpriteResolver is not registered. " +
-                        $"Call IconResolverHelpers.UseSpriteAtlasIconResolver(iconSets) " +
+                        $"Call SpriteResolverHelpers.UseSpriteSetResolver(iconSets) " +
                         $"before opening Screens that contain <Icon>.");
                     _img.sprite = null;
                     return;

@@ -38,7 +38,7 @@ namespace PromptUGUI.Tests.PlayMode
         public void Icon_resolves_sprite_from_atlas()
         {
             var (set, _) = MakeIconSetWithSprite("ui", "settings");
-            IconResolverHelpers.UseSpriteAtlasIconResolver(new[] { set });
+            SpriteResolverHelpers.UseSpriteSetResolver(new[] { set });
 
             UI.LoadDocument("inline",
                 @"<?xml version='1.0'?><PromptUGUI version='1'>
@@ -54,7 +54,7 @@ namespace PromptUGUI.Tests.PlayMode
         public void Icon_unknown_name_logs_error_sprite_null()
         {
             var (set, _) = MakeIconSetWithSprite("ui", "settings");
-            IconResolverHelpers.UseSpriteAtlasIconResolver(new[] { set });
+            SpriteResolverHelpers.UseSpriteSetResolver(new[] { set });
 
             LogAssert.Expect(LogType.Error,
                 new System.Text.RegularExpressions.Regex("resolver returned null"));
@@ -72,7 +72,7 @@ namespace PromptUGUI.Tests.PlayMode
         public void Icon_color_applied()
         {
             var (set, _) = MakeIconSetWithSprite("ui", "x");
-            IconResolverHelpers.UseSpriteAtlasIconResolver(new[] { set });
+            SpriteResolverHelpers.UseSpriteSetResolver(new[] { set });
 
             UI.LoadDocument("inline",
                 @"<?xml version='1.0'?><PromptUGUI version='1'>
@@ -88,7 +88,7 @@ namespace PromptUGUI.Tests.PlayMode
         {
             var (set, _) = MakeIconSetWithSpritesMulti("ui",
                 stringArray);
-            IconResolverHelpers.UseSpriteAtlasIconResolver(new[] { set });
+            SpriteResolverHelpers.UseSpriteSetResolver(new[] { set });
 
             UI.LoadDocument("inline",
                 @"<?xml version='1.0'?><PromptUGUI version='1'>

@@ -672,7 +672,7 @@ namespace PromptUGUI.Editor
                         throw new OperationCanceledException();
                     }
 
-                    // Persist the (key → Sprite) projection IconResolverHelpers reads at
+                    // Persist the (key → Sprite) projection SpriteResolverHelpers reads at
                     // runtime: every key in `lookup` (pathKey + unique bare alias) that
                     // resolves to a picked sprite gets one entry on the SpriteSet.
                     var iconSetEntries = new List<(string key, Sprite sprite)>();
