@@ -31,7 +31,12 @@ namespace PromptUGUI.Tests.PlayMode.Modals
             };
             _es = new GameObject("EventSystem");
             _es.AddComponent<EventSystem>();
-            _es.AddComponent<StandaloneInputModule>();
+            // No InputModule: the tests trigger ESC via ModalEscapeListener.FireForTests(),
+            // they never poll real input. StandaloneInputModule.UpdateModule reads
+            // UnityEngine.Input.mousePosition every frame, which throws under
+            // Input System-only Player Settings. ModalEscapeListener itself adapts
+            // via #if ENABLE_INPUT_SYSTEM / ELIF ENABLE_LEGACY_INPUT_MANAGER, so no
+            // input module is needed for the listener to operate.
         }
 
         [TearDown]
