@@ -4,24 +4,24 @@ using UnityEngine;
 
 namespace PromptUGUI.Editor
 {
-    public static class IconAtlasMenu
+    public static class SpriteAtlasMenu
     {
-        [MenuItem("Tools/PromptUGUI/Icon/Sync Atlases (All Sets)")]
+        [MenuItem("Tools/PromptUGUI/Sprite/Sync Atlases (All Sets)")]
         public static void SyncAll()
         {
             var sets = new System.Collections.Generic.List<SpriteSet>();
-            foreach (var s in IconAtlasSyncer.FindAllIconSets()) sets.Add(s);
+            foreach (var s in SpriteAtlasSyncer.FindAllSpriteSets()) sets.Add(s);
             if (sets.Count == 0)
             {
                 Debug.Log("[PromptUGUI] No SpriteSet assets found");
                 return;
             }
-            IconAtlasSyncer.SyncAll(sets);
+            SpriteAtlasSyncer.SyncAll(sets);
             UI.HotReload.NotifySpriteAssetsChanged();
             Debug.Log($"[PromptUGUI] Synced {sets.Count} SpriteSet(s)");
         }
 
-        [MenuItem("Tools/PromptUGUI/Icon/Sync Atlases (Selected Set)")]
+        [MenuItem("Tools/PromptUGUI/Sprite/Sync Atlases (Selected Set)")]
         public static void SyncSelected()
         {
             var picked = new System.Collections.Generic.List<SpriteSet>();
@@ -32,11 +32,11 @@ namespace PromptUGUI.Editor
                 Debug.LogWarning("[PromptUGUI] No SpriteSet selected");
                 return;
             }
-            IconAtlasSyncer.SyncAll(picked);
+            SpriteAtlasSyncer.SyncAll(picked);
             UI.HotReload.NotifySpriteAssetsChanged();
         }
 
-        [MenuItem("Tools/PromptUGUI/Icon/Sync Atlases (Selected Set)", true)]
+        [MenuItem("Tools/PromptUGUI/Sprite/Sync Atlases (Selected Set)", true)]
         public static bool SyncSelectedValidate()
         {
             foreach (var o in Selection.objects)

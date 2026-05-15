@@ -222,7 +222,7 @@ namespace PromptUGUI.Tests.Parser
         {
             // Templates: `<Icon name="{{iconName}}"/>` is a Param substitution that
             // resolves at TemplateExpander time. Parser sees the unsubstituted form
-            // and must not reject it (IconAtlasSyncer already treats '{{' as dynamic).
+            // and must not reject it (SpriteAtlasSyncer already treats '{{' as dynamic).
             var xml = "<?xml version='1.0'?><PromptUGUI version='1'>" +
                 "<Template name='IconBtn'><Param name='iconName'/>" +
                 "<Btn><Icon name='{{iconName}}'/></Btn></Template>" +

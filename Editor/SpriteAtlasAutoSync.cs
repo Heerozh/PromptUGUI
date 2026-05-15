@@ -5,9 +5,9 @@ using UnityEngine;
 
 namespace PromptUGUI.Editor
 {
-    public sealed class IconAtlasAutoSync : AssetPostprocessor
+    public sealed class SpriteAtlasAutoSync : AssetPostprocessor
     {
-        private const string PrefKey = "PromptUGUI.IconAtlas.AutoSyncOnSave";
+        private const string PrefKey = "PromptUGUI.SpriteAtlas.AutoSyncOnSave";
 
         public static bool Enabled
         {
@@ -15,13 +15,13 @@ namespace PromptUGUI.Editor
             set => EditorPrefs.SetBool(PrefKey, value);
         }
 
-        [MenuItem("Tools/PromptUGUI/Icon/Auto-sync Atlases on Save")]
+        [MenuItem("Tools/PromptUGUI/Sprite/Auto-sync Atlases on Save")]
         private static void Toggle() => Enabled = !Enabled;
 
-        [MenuItem("Tools/PromptUGUI/Icon/Auto-sync Atlases on Save", true)]
+        [MenuItem("Tools/PromptUGUI/Sprite/Auto-sync Atlases on Save", true)]
         private static bool ToggleValidate()
         {
-            Menu.SetChecked("Tools/PromptUGUI/Icon/Auto-sync Atlases on Save", Enabled);
+            Menu.SetChecked("Tools/PromptUGUI/Sprite/Auto-sync Atlases on Save", Enabled);
             return true;
         }
 
@@ -40,9 +40,9 @@ namespace PromptUGUI.Editor
             if (!xmlChanged) return;
 
             var sets = new System.Collections.Generic.List<SpriteSet>();
-            foreach (var s in IconAtlasSyncer.FindAllIconSets()) sets.Add(s);
+            foreach (var s in SpriteAtlasSyncer.FindAllSpriteSets()) sets.Add(s);
             if (sets.Count == 0) return;
-            IconAtlasSyncer.SyncAll(sets);
+            SpriteAtlasSyncer.SyncAll(sets);
             UI.HotReload.NotifySpriteAssetsChanged();
         }
     }

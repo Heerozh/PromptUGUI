@@ -27,7 +27,7 @@ namespace PromptUGUI.Editor
 
         private void EnsureImporterEditor(string folder)
         {
-            var first = IconAtlasSyncer.FindFirstPng(folder);
+            var first = SpriteAtlasSyncer.FindFirstPng(folder);
             if (first == _templatePngPath && _importerEditor != null) return;
             DestroyImporterEditor();
             if (string.IsNullOrEmpty(first)) return;
@@ -56,13 +56,13 @@ namespace PromptUGUI.Editor
             EditorGUILayout.Space();
             var set = (SpriteSet)target;
             var folder = set.SourceFolderPath;
-            var pngCount = IconAtlasSyncer.CountPngs(folder);
+            var pngCount = SpriteAtlasSyncer.CountPngs(folder);
             EditorGUILayout.LabelField("Source PNGs", pngCount.ToString());
             EditorGUILayout.LabelField("Atlas",
                 set.Atlas == null ? "(not yet generated)" : AssetDatabase.GetAssetPath(set.Atlas));
             if (GUILayout.Button("Sync This Set"))
             {
-                IconAtlasSyncer.SyncAll(new[] { set });
+                SpriteAtlasSyncer.SyncAll(new[] { set });
             }
 
             EditorGUILayout.Space();
@@ -114,10 +114,10 @@ namespace PromptUGUI.Editor
                         "Apply", "Cancel"))
                     {
                         FlushTemplatePendingEdits();
-                        var n = IconAtlasSyncer.ApplyImportSettingsToFolder(
+                        var n = SpriteAtlasSyncer.ApplyImportSettingsToFolder(
                             _templatePngPath, folder, showProgress: true);
                         Debug.Log(
-                            $"[IconSync] copied import settings to {n} PNG(s) " +
+                            $"[SpriteSync] copied import settings to {n} PNG(s) " +
                             $"under '{folder}'");
                     }
                 }
@@ -145,8 +145,8 @@ namespace PromptUGUI.Editor
                 "This overrides any manual TextureImporter tweaks on these PNGs.",
                 "Reset", "Cancel"))
             {
-                var n = IconAtlasSyncer.ResetPngImportSettings(folder, showProgress: true);
-                Debug.Log($"[IconSync] reset {n} PNG(s) under '{folder}'");
+                var n = SpriteAtlasSyncer.ResetPngImportSettings(folder, showProgress: true);
+                Debug.Log($"[SpriteSync] reset {n} PNG(s) under '{folder}'");
             }
         }
     }

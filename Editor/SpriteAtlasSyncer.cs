@@ -11,10 +11,10 @@ using UnityEngine.U2D;
 
 namespace PromptUGUI.Editor
 {
-    public static class IconAtlasSyncer
+    public static class SpriteAtlasSyncer
     {
         private const string DynamicMarker = "{{";
-        private const string ProgressTitle = "PromptUGUI Icon Sync";
+        private const string ProgressTitle = "PromptUGUI Sprite Sync";
 
         /// <summary>(setName, iconName) pairs found across all .ui.xml in the project.
         /// Two passes: (A) build Template Param-flow map across all docs, (B) walk each
@@ -46,14 +46,14 @@ namespace PromptUGUI.Editor
                 try { text = File.ReadAllText(path); }
                 catch (IOException ex)
                 {
-                    Debug.LogWarning($"[IconSync] cannot read {path}: {ex.Message}");
+                    Debug.LogWarning($"[SpriteSync] cannot read {path}: {ex.Message}");
                     continue;
                 }
                 UIDocument doc;
                 try { doc = UIDocumentParser.Parse(text); }
                 catch (ParseException ex)
                 {
-                    Debug.LogWarning($"[IconSync] skipping malformed {path}: {ex.Message}");
+                    Debug.LogWarning($"[SpriteSync] skipping malformed {path}: {ex.Message}");
                     continue;
                 }
                 parsed.Add((path, doc));
@@ -167,7 +167,7 @@ namespace PromptUGUI.Editor
                 return;
             }
             Debug.LogWarning(
-                $"[IconSync] {path}: <Template name='{tplName}'>: <Icon name='{value}'> " +
+                $"[SpriteSync] {path}: <Template name='{tplName}'>: <Icon name='{value}'> " +
                 $"uses a non-trivial substitution; only `{{x}}` and `set:{{x}}` are " +
                 $"statically analyzable. List candidates in SpriteSet.alwaysInclude.");
         }
@@ -206,7 +206,7 @@ namespace PromptUGUI.Editor
             if (value.Contains(DynamicMarker))
             {
                 Debug.LogWarning(
-                    $"[IconSync] {path}: <{tplName} {paramName}='{value}'>: arg is " +
+                    $"[SpriteSync] {path}: <{tplName} {paramName}='{value}'>: arg is " +
                     $"itself a placeholder (forwarded from outer Param); cannot " +
                     $"analyze further. List final values in SpriteSet.alwaysInclude.");
                 return;
@@ -217,7 +217,7 @@ namespace PromptUGUI.Editor
                 if (colon <= 0 || colon == value.Length - 1)
                 {
                     Debug.LogWarning(
-                        $"[IconSync] {path}: <{tplName} {paramName}='{value}'>: " +
+                        $"[SpriteSync] {path}: <{tplName} {paramName}='{value}'>: " +
                         $"expected 'set:icon' form; ignoring.");
                     return;
                 }
@@ -240,14 +240,14 @@ namespace PromptUGUI.Editor
             if (ns.Contains(DynamicMarker))
             {
                 Debug.LogWarning(
-                    $"[IconSync] {path}: <Icon name='{value}'>: dynamic namespace " +
+                    $"[SpriteSync] {path}: <Icon name='{value}'>: dynamic namespace " +
                     $"({DynamicMarker}...) is not analyzable; skipping");
                 return;
             }
             if (name.Contains(DynamicMarker))
             {
                 Debug.LogWarning(
-                    $"[IconSync] {path}: <Icon name='{value}'>: dynamic icon name " +
+                    $"[SpriteSync] {path}: <Icon name='{value}'>: dynamic icon name " +
                     $"({DynamicMarker}...); list candidates in SpriteSet.alwaysInclude");
                 return;
             }
@@ -281,7 +281,7 @@ namespace PromptUGUI.Editor
             if (string.IsNullOrEmpty(folderAssetPath)) return result;
             if (!AssetDatabase.IsValidFolder(folderAssetPath))
             {
-                Debug.LogError($"[IconSync] not a folder: '{folderAssetPath}'");
+                Debug.LogError($"[SpriteSync] not a folder: '{folderAssetPath}'");
                 return result;
             }
 
@@ -375,7 +375,7 @@ namespace PromptUGUI.Editor
             if (string.IsNullOrEmpty(folderAssetPath)) return 0;
             if (!AssetDatabase.IsValidFolder(folderAssetPath))
             {
-                Debug.LogError($"[IconSync] not a folder: '{folderAssetPath}'");
+                Debug.LogError($"[SpriteSync] not a folder: '{folderAssetPath}'");
                 return 0;
             }
             var fullFolder = Path.GetFullPath(folderAssetPath);
@@ -435,13 +435,13 @@ namespace PromptUGUI.Editor
             if (string.IsNullOrEmpty(folderAssetPath)) return 0;
             if (!AssetDatabase.IsValidFolder(folderAssetPath))
             {
-                Debug.LogError($"[IconSync] not a folder: '{folderAssetPath}'");
+                Debug.LogError($"[SpriteSync] not a folder: '{folderAssetPath}'");
                 return 0;
             }
             if (AssetImporter.GetAtPath(templatePngAssetPath) is not TextureImporter template)
             {
                 Debug.LogError(
-                    $"[IconSync] template is not a TextureImporter: '{templatePngAssetPath}'");
+                    $"[SpriteSync] template is not a TextureImporter: '{templatePngAssetPath}'");
                 return 0;
             }
             var fullFolder = Path.GetFullPath(folderAssetPath);
@@ -544,7 +544,7 @@ namespace PromptUGUI.Editor
             var v2 = SpriteAtlasAsset.Load(path);
             if (v2 == null)
             {
-                Debug.LogError($"[IconSync] failed to load V2 atlas at {path}");
+                Debug.LogError($"[SpriteSync] failed to load V2 atlas at {path}");
                 return false;
             }
             var so = new SerializedObject(v2);
@@ -552,7 +552,7 @@ namespace PromptUGUI.Editor
             if (prop == null || !prop.isArray)
             {
                 Debug.LogError(
-                    $"[IconSync] cannot find '{V2PackablesPath}' on V2 atlas at {path}; " +
+                    $"[SpriteSync] cannot find '{V2PackablesPath}' on V2 atlas at {path}; " +
                     $"Unity API may have changed");
                 return false;
             }
@@ -611,13 +611,13 @@ namespace PromptUGUI.Editor
                     if (s == null) continue;
                     if (string.IsNullOrEmpty(s.SetName))
                     {
-                        Debug.LogError($"[IconSync] SpriteSet '{s.name}' has empty setName");
+                        Debug.LogError($"[SpriteSync] SpriteSet '{s.name}' has empty setName");
                         return;
                     }
                     if (!seen.Add(s.SetName))
                     {
                         Debug.LogError(
-                            $"[IconSync] duplicate SpriteSet setName '{s.SetName}'; aborting");
+                            $"[SpriteSync] duplicate SpriteSet setName '{s.SetName}'; aborting");
                         return;
                     }
                 }
@@ -629,7 +629,7 @@ namespace PromptUGUI.Editor
                     var folder = set.SourceFolderPath;
                     if (string.IsNullOrEmpty(folder) || !AssetDatabase.IsValidFolder(folder))
                     {
-                        Debug.LogError($"[IconSync] SpriteSet '{set.SetName}': sourceFolder invalid");
+                        Debug.LogError($"[SpriteSync] SpriteSet '{set.SetName}': sourceFolder invalid");
                         continue;
                     }
                     var label = $"Set {i + 1}/{setList.Count} '{set.SetName}'";
@@ -653,7 +653,7 @@ namespace PromptUGUI.Editor
                             candidates.Count > 1)
                         {
                             Debug.LogError(
-                                $"[IconSync] '{set.SetName}': '{n}' is ambiguous; " +
+                                $"[SpriteSync] '{set.SetName}': '{n}' is ambiguous; " +
                                 $"use the explicit path form. Candidates: " +
                                 string.Join(", ", candidates));
                             continue;
@@ -662,7 +662,7 @@ namespace PromptUGUI.Editor
                     }
                     if (missing.Count > 0)
                         Debug.LogWarning(
-                            $"[IconSync] '{set.SetName}': XML references missing PNGs: " +
+                            $"[SpriteSync] '{set.SetName}': XML references missing PNGs: " +
                             string.Join(", ", missing));
 
                     if (EditorUtility.DisplayCancelableProgressBar(
@@ -695,7 +695,7 @@ namespace PromptUGUI.Editor
             }
             catch (OperationCanceledException)
             {
-                Debug.LogWarning("[IconSync] cancelled by user");
+                Debug.LogWarning("[SpriteSync] cancelled by user");
             }
             finally
             {
@@ -703,7 +703,7 @@ namespace PromptUGUI.Editor
             }
         }
 
-        public static IEnumerable<PromptUGUI.Application.SpriteSet> FindAllIconSets()
+        public static IEnumerable<PromptUGUI.Application.SpriteSet> FindAllSpriteSets()
         {
             var guids = AssetDatabase.FindAssets("t:" + nameof(PromptUGUI.Application.SpriteSet));
             foreach (var guid in guids)
@@ -723,7 +723,7 @@ namespace PromptUGUI.Editor
             var setPath = AssetDatabase.GetAssetPath(set);
             if (string.IsNullOrEmpty(setPath))
             {
-                Debug.LogError("[IconSync] SpriteSet not saved as asset; cannot create atlas");
+                Debug.LogError("[SpriteSync] SpriteSet not saved as asset; cannot create atlas");
                 return null;
             }
             var dir = Path.GetDirectoryName(setPath).Replace('\\', '/');
