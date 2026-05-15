@@ -125,3 +125,7 @@ InitTestScene*.unity*
 
 # Personal Claude Code settings
 .claude/settings.local.json
+
+# dotnet build artifacts under .lint/ (UIXmlLint + lint workspace `dotnet format` cache)
+.lint/**/bin/
+.lint/**/obj/
