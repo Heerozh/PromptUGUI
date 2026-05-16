@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PromptUGUI version="1">
   <Screen name="PromptUGUI/Modals/Loading.ui" reference="1920x1080" reference.portrait="1080x1920">
-    <Image id="backdrop" anchor="stretch" color="#000000C0"/>
+    <Image id="backdrop" anchor="stretch" color="#000000FE"/>
 
     <Frame id="dialog" anchor="center" size="320x160">
       <VStack anchor="stretch" margin="20" spacing="12">
@@ -9,13 +9,13 @@
         <!-- HStack 不加 anchor: VStack 是 layout group, child anchor 会被 PUI-LAYOUT-ANCHOR lint
              报错. VStack 默认 childAlignment=UpperCenter 已经水平居中 width=80 的 HStack. -->
         <HStack height="20" spacing="10" width="80">
-          <Animation fade="0.25:1" duration="0.5s" delay="0s"    easing="in-out-quad" on="loop">
+          <Animation fade="0.05:1" duration="0.5s" delay="0s"    easing="in-out-quad" on="loop">
             <Image width="14" height="14" color="white"/>
           </Animation>
-          <Animation fade="0.25:1" duration="0.5s" delay="0.15s" easing="in-out-quad" on="loop">
+          <Animation fade="0.05:1" duration="0.5s" delay="0.15s" easing="in-out-quad" on="loop">
             <Image width="14" height="14" color="white"/>
           </Animation>
-          <Animation fade="0.25:1" duration="0.5s" delay="0.3s"  easing="in-out-quad" on="loop">
+          <Animation fade="0.05:1" duration="0.5s" delay="0.3s"  easing="in-out-quad" on="loop">
             <Image width="14" height="14" color="white"/>
           </Animation>
         </HStack>
