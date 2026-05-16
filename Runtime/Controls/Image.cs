@@ -1,8 +1,10 @@
 using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
+using PromptUGUI.Layout;
 using PromptUGUI.Registry;
 using R3;
 using UnityEngine;
+using UnityEngine.UI;
 using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Controls
@@ -12,6 +14,10 @@ namespace PromptUGUI.Controls
         private UnityImage _img;
         private PointerEventRelay _pointerRelay;
         private bool _typeExplicit;
+        private RectMask2D _rectMask;
+        private UnityEngine.UI.Mask _stencilMask;     // populated by Task 8
+        private string _pendingMaskPadding;
+        private bool? _pendingShowMask;               // populated by Task 8
 
         public override void OnAttached()
         {
@@ -56,6 +62,32 @@ namespace PromptUGUI.Controls
                     "filled" => UnityImage.Type.Filled,
                     _ => UnityImage.Type.Simple,
                 };
+            }
+        }
+
+        [UIAttr]
+        public string Mask
+        {
+            set
+            {
+                if (value == "rect")
+                {
+                    _rectMask ??= GameObject.AddComponent<RectMask2D>();
+                    if (!string.IsNullOrEmpty(_pendingMaskPadding))
+                        _rectMask.padding = MaskPaddingParser.Parse(_pendingMaskPadding);
+                }
+                // mask="self" path implemented in Task 8
+            }
+        }
+
+        [UIAttr]
+        public string MaskPadding
+        {
+            set
+            {
+                _pendingMaskPadding = value;
+                if (_rectMask != null)
+                    _rectMask.padding = MaskPaddingParser.Parse(value);
             }
         }
 
