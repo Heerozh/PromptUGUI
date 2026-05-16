@@ -169,6 +169,14 @@ namespace PromptUGUI.Application
                     Debug.LogWarning(issue.Message);
             }
 
+            // Mask-family self-checks (mirror of IRWalker dispatch; runtime warns)
+            if (node.Tag == "Frame")
+                foreach (var issue in MaskAttributeRules.CheckFrame(node))
+                    Debug.LogWarning(issue.Message);
+            else if (node.Tag == "Image")
+                foreach (var issue in MaskAttributeRules.CheckImage(node))
+                    Debug.LogWarning(issue.Message);
+
             var entry = _registry.Resolve(node.Tag);
 
             GameObject go;

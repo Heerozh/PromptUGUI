@@ -33,6 +33,15 @@ namespace PromptUGUI.Lint
 
         private static IEnumerable<LintIssue> WalkNode(ElementNode node)
         {
+            // Self-checks (tag-specific). Mask rules are about the node itself,
+            // not its parent (unlike LayoutGroupChildRules which is parent-relative).
+            if (node.Tag == "Frame")
+                foreach (var issue in MaskAttributeRules.CheckFrame(node))
+                    yield return issue;
+            else if (node.Tag == "Image")
+                foreach (var issue in MaskAttributeRules.CheckImage(node))
+                    yield return issue;
+
             var isLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid";
             foreach (var child in node.Children)
             {

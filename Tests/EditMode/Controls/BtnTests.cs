@@ -55,5 +55,19 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var label = btn.GameObject.GetComponentInChildren<TMP_Text>();
             Assert.AreEqual(ProceduralBuilders.DefaultLabelColor, label.color);
         }
+
+        [Test]
+        public void Attr_FontSizeAppliesToAutoLabel()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Btn id='b' fontSize='32'>Hi</Btn>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var btn = screen.Get<Btn>("b");
+            var label = btn.GameObject.GetComponentInChildren<TMP_Text>();
+            Assert.AreEqual(32f, label.fontSize);
+        }
     }
 }
