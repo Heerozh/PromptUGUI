@@ -154,5 +154,46 @@ namespace PromptUGUI.Tests.Modals
             handle.Close();
             Assert.IsFalse(UI.Modal.IsAnyOpen);
         }
+
+        [Test]
+        public void Mixed_with_MessageBox_respects_FIFO_queue()
+        {
+            // 顺序: Loading 先 → MessageBox 后. Loading 显示, MessageBox 排队
+            var loading = Loading.Open("step 1");
+            var mboxTask = UI.Modal.OpenAsync(new MessageBoxRequest
+            {
+                Text = "step 2",
+                Buttons = MsgBtn.OK,
+            });
+
+            Assert.AreEqual(2, UI.Modal.QueuedCount);
+            Assert.IsNotNull(UI.Get("test/Loading1"), "Loading 应该先显示");
+            Assert.IsNull(UI.Get("test/Box1"), "MessageBox 应该还在队列");
+
+            // 关 Loading → pump 切到 MessageBox
+            loading.Close();
+            Assert.IsTrue(loading.IsClosed);
+            Assert.IsNull(UI.Get("test/Loading1"), "Loading 应该已关闭");
+            Assert.IsNotNull(UI.Get("test/Box1"), "MessageBox 应该接着显示");
+
+            // 关 MessageBox
+            UI.Get("test/Box1").Get<PromptUGUI.Controls.Btn>("ok").SimulateClick();
+            Assert.AreEqual(MsgBtn.OK, mboxTask.GetAwaiter().GetResult());
+            Assert.IsFalse(UI.Modal.IsAnyOpen);
+        }
+
+        [Test]
+        public void UnloadAll_cancels_loading_and_handle_close_after_is_noop()
+        {
+            var handle = Loading.Open("about to be torn down");
+            Assert.IsTrue(UI.Modal.IsAnyOpen);
+
+            // 模拟 UI 全拆除路径 (ResetForTests 内部会调 CancelAllForTeardown)
+            UI.ResetForTests();
+
+            // 之后 handle.Close 不应该抛 / 不应该副作用
+            Assert.DoesNotThrow(() => handle.Close());
+            Assert.IsTrue(handle.IsClosed);
+        }
     }
 }
