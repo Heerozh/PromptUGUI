@@ -6,7 +6,8 @@
     "unity": "6000.0",
     "dependencies": {
         "com.unity.ugui": "2.0.0",
-        "com.annulusgames.lit-motion": "https://github.com/annulusgames/LitMotion.git?path=src/LitMotion/Assets/LitMotion"
+        "com.annulusgames.lit-motion": "https://github.com/annulusgames/LitMotion.git?path=src/LitMotion/Assets/LitMotion",
+        "com.unity.nuget.newtonsoft-json": "3.2.1"
     },
     "author": {
         "name": "Heerozh",
