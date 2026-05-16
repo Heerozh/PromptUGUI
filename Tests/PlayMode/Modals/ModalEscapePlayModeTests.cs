@@ -49,7 +49,7 @@ namespace PromptUGUI.Tests.PlayMode.Modals
         [UnityTest]
         public IEnumerator Escape_returns_Cancel_when_OK_Cancel_combo()
         {
-            var task = MessageBox.Open("first", Btn.OK | Btn.Cancel);
+            var task = MessageBox.Open("first", MsgBtn.OK | MsgBtn.Cancel);
             yield return null;
             yield return null;
 
@@ -61,14 +61,14 @@ namespace PromptUGUI.Tests.PlayMode.Modals
             listener.FireForTests();
             yield return null;
 
-            Assert.AreEqual(Btn.Cancel, task.GetAwaiter().GetResult());
+            Assert.AreEqual(MsgBtn.Cancel, task.GetAwaiter().GetResult());
             Assert.IsFalse(UI.Modal.IsAnyOpen);
         }
 
         [UnityTest]
         public IEnumerator Escape_only_OK_does_not_close()
         {
-            var task = MessageBox.Open("only ok", Btn.OK);
+            var task = MessageBox.Open("only ok", MsgBtn.OK);
             yield return null;
             yield return null;
 
@@ -85,7 +85,7 @@ namespace PromptUGUI.Tests.PlayMode.Modals
         public IEnumerator SortingOrder_uses_SortingOrderBase()
         {
             UI.Modal.SortingOrderBase = 777;
-            var task = MessageBox.Open("x", Btn.OK);
+            var task = MessageBox.Open("x", MsgBtn.OK);
             yield return null;
             yield return null;
 
@@ -94,7 +94,7 @@ namespace PromptUGUI.Tests.PlayMode.Modals
 
             UI.Get(MessageBox.XmlSrc).Get<PromptUGUI.Controls.Btn>("ok").SimulateClick();
             yield return null;
-            Assert.AreEqual(Btn.OK, task.GetAwaiter().GetResult());
+            Assert.AreEqual(MsgBtn.OK, task.GetAwaiter().GetResult());
         }
     }
 }

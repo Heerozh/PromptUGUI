@@ -9,7 +9,7 @@ namespace PromptUGUI.Tests.Modals
         [Test]
         public void Bind_only_OK_hides_other_buttons()
         {
-            UI.Modal.OpenAsync(new MessageBoxRequest { Text = "hi", Buttons = Btn.OK });
+            UI.Modal.OpenAsync(new MessageBoxRequest { Text = "hi", Buttons = MsgBtn.OK });
             var s = UI.Get("test/Box1");
 
             Assert.IsTrue(s.Get<PromptUGUI.Controls.Btn>("ok").GameObject.activeSelf);
@@ -20,29 +20,29 @@ namespace PromptUGUI.Tests.Modals
         }
 
         [Test]
-        public void Click_OK_returns_Btn_OK()
+        public void Click_OK_returns_MsgBtn_OK()
         {
-            var task = UI.Modal.OpenAsync(new MessageBoxRequest { Text = "hi", Buttons = Btn.OK });
+            var task = UI.Modal.OpenAsync(new MessageBoxRequest { Text = "hi", Buttons = MsgBtn.OK });
             UI.Get("test/Box1").Get<PromptUGUI.Controls.Btn>("ok").SimulateClick();
-            Assert.AreEqual(Btn.OK, task.GetAwaiter().GetResult());
+            Assert.AreEqual(MsgBtn.OK, task.GetAwaiter().GetResult());
         }
 
         [Test]
-        public void Click_Cancel_returns_Btn_Cancel_when_OK_Cancel_combo()
+        public void Click_Cancel_returns_MsgBtn_Cancel_when_OK_Cancel_combo()
         {
             var task = UI.Modal.OpenAsync(new MessageBoxRequest
             {
                 Text = "hi",
-                Buttons = Btn.OK | Btn.Cancel,
+                Buttons = MsgBtn.OK | MsgBtn.Cancel,
             });
             UI.Get("test/Box1").Get<PromptUGUI.Controls.Btn>("cancel").SimulateClick();
-            Assert.AreEqual(Btn.Cancel, task.GetAwaiter().GetResult());
+            Assert.AreEqual(MsgBtn.Cancel, task.GetAwaiter().GetResult());
         }
 
         [Test]
         public void Title_null_hides_title_node()
         {
-            UI.Modal.OpenAsync(new MessageBoxRequest { Text = "hi", Buttons = Btn.OK, Title = null });
+            UI.Modal.OpenAsync(new MessageBoxRequest { Text = "hi", Buttons = MsgBtn.OK, Title = null });
             var s = UI.Get("test/Box1");
             Assert.IsFalse(s.Get<PromptUGUI.Controls.Text>("title").GameObject.activeSelf);
         }
@@ -53,7 +53,7 @@ namespace PromptUGUI.Tests.Modals
             UI.Modal.OpenAsync(new MessageBoxRequest
             {
                 Text = "body",
-                Buttons = Btn.OK,
+                Buttons = MsgBtn.OK,
                 Title = "Heading",
             });
             var s = UI.Get("test/Box1");
@@ -68,34 +68,34 @@ namespace PromptUGUI.Tests.Modals
             var task = UI.Modal.OpenAsync(new MessageBoxRequest
             {
                 Text = "hi",
-                Buttons = Btn.OK | Btn.Cancel,
-                CustomLabels = new[] { ("Retry", Btn.OK), ("Skip", Btn.Cancel) },
+                Buttons = MsgBtn.OK | MsgBtn.Cancel,
+                CustomLabels = new[] { ("Retry", MsgBtn.OK), ("Skip", MsgBtn.Cancel) },
             });
             UI.Get("test/Box1").Get<PromptUGUI.Controls.Btn>("cancel").SimulateClick();
-            Assert.AreEqual(Btn.Cancel, task.GetAwaiter().GetResult());
+            Assert.AreEqual(MsgBtn.Cancel, task.GetAwaiter().GetResult());
         }
 
         [Test]
         public void TryEscape_only_OK_returns_false()
         {
-            var req = new MessageBoxRequest { Buttons = Btn.OK };
+            var req = new MessageBoxRequest { Buttons = MsgBtn.OK };
             Assert.IsFalse(req.TryEscape(out _));
         }
 
         [Test]
         public void TryEscape_priority_Cancel_over_No_over_Close()
         {
-            var c = new MessageBoxRequest { Buttons = Btn.Cancel | Btn.No | Btn.Close };
+            var c = new MessageBoxRequest { Buttons = MsgBtn.Cancel | MsgBtn.No | MsgBtn.Close };
             Assert.IsTrue(c.TryEscape(out var r1));
-            Assert.AreEqual(Btn.Cancel, r1);
+            Assert.AreEqual(MsgBtn.Cancel, r1);
 
-            var n = new MessageBoxRequest { Buttons = Btn.No | Btn.Close };
+            var n = new MessageBoxRequest { Buttons = MsgBtn.No | MsgBtn.Close };
             Assert.IsTrue(n.TryEscape(out var r2));
-            Assert.AreEqual(Btn.No, r2);
+            Assert.AreEqual(MsgBtn.No, r2);
 
-            var x = new MessageBoxRequest { Buttons = Btn.Close };
+            var x = new MessageBoxRequest { Buttons = MsgBtn.Close };
             Assert.IsTrue(x.TryEscape(out var r3));
-            Assert.AreEqual(Btn.Close, r3);
+            Assert.AreEqual(MsgBtn.Close, r3);
         }
 
         [Test]
@@ -104,13 +104,13 @@ namespace PromptUGUI.Tests.Modals
             var task = UI.Modal.OpenAsync(new MessageBoxRequest
             {
                 Text = "x",
-                Buttons = Btn.OK | Btn.Cancel,
+                Buttons = MsgBtn.OK | MsgBtn.Cancel,
             });
             var listener = UI.Get("test/Box1")
                 .RootGameObject.GetComponent<ModalEscapeListener>();
             Assert.IsNotNull(listener, "Pump must attach ModalEscapeListener to the modal Screen root");
             listener.FireForTests();
-            Assert.AreEqual(Btn.Cancel, task.GetAwaiter().GetResult());
+            Assert.AreEqual(MsgBtn.Cancel, task.GetAwaiter().GetResult());
             Assert.IsFalse(UI.Modal.IsAnyOpen);
         }
 
@@ -120,7 +120,7 @@ namespace PromptUGUI.Tests.Modals
             var task = UI.Modal.OpenAsync(new MessageBoxRequest
             {
                 Text = "x",
-                Buttons = Btn.OK,
+                Buttons = MsgBtn.OK,
             });
             var listener = UI.Get("test/Box1")
                 .RootGameObject.GetComponent<ModalEscapeListener>();

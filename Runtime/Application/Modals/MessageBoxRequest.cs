@@ -4,17 +4,17 @@ using R3;
 
 namespace PromptUGUI.Application.Modals
 {
-    public sealed class MessageBoxRequest : ModalRequest<Btn>
+    public sealed class MessageBoxRequest : ModalRequest<MsgBtn>
     {
         public string Text;
-        public Btn Buttons = Btn.OK;
+        public MsgBtn Buttons = MsgBtn.OK;
         public string Icon;
         public string Title;
-        public IReadOnlyList<(string label, Btn key)> CustomLabels;
+        public IReadOnlyList<(string label, MsgBtn key)> CustomLabels;
 
         public override string XmlSrc => MessageBox.XmlSrc;
 
-        public override void Bind(IScreen screen, Action<Btn> close)
+        public override void Bind(IScreen screen, Action<MsgBtn> close)
         {
             screen.Get<PromptUGUI.Controls.Text>("text").TextValue = Text ?? "";
 
@@ -30,23 +30,23 @@ namespace PromptUGUI.Application.Modals
             }
             catch (System.Collections.Generic.KeyNotFoundException) { /* icon element is optional */ }
 
-            BindBtn(screen, "ok", Btn.OK, close);
-            BindBtn(screen, "cancel", Btn.Cancel, close);
-            BindBtn(screen, "yes", Btn.Yes, close);
-            BindBtn(screen, "no", Btn.No, close);
-            BindBtn(screen, "close", Btn.Close, close);
+            BindBtn(screen, "ok", MsgBtn.OK, close);
+            BindBtn(screen, "cancel", MsgBtn.Cancel, close);
+            BindBtn(screen, "yes", MsgBtn.Yes, close);
+            BindBtn(screen, "no", MsgBtn.No, close);
+            BindBtn(screen, "close", MsgBtn.Close, close);
         }
 
-        public override bool TryEscape(out Btn result)
+        public override bool TryEscape(out MsgBtn result)
         {
-            if ((Buttons & Btn.Cancel) != 0) { result = Btn.Cancel; return true; }
-            if ((Buttons & Btn.No) != 0) { result = Btn.No; return true; }
-            if ((Buttons & Btn.Close) != 0) { result = Btn.Close; return true; }
-            result = Btn.None;
+            if ((Buttons & MsgBtn.Cancel) != 0) { result = MsgBtn.Cancel; return true; }
+            if ((Buttons & MsgBtn.No) != 0) { result = MsgBtn.No; return true; }
+            if ((Buttons & MsgBtn.Close) != 0) { result = MsgBtn.Close; return true; }
+            result = MsgBtn.None;
             return false;
         }
 
-        private void BindBtn(IScreen screen, string id, Btn flag, Action<Btn> close)
+        private void BindBtn(IScreen screen, string id, MsgBtn flag, Action<MsgBtn> close)
         {
             var btn = screen.Get<PromptUGUI.Controls.Btn>(id);
             if ((Buttons & flag) == 0) { btn.GameObject.SetActive(false); return; }
@@ -69,8 +69,8 @@ namespace PromptUGUI.Application.Modals
         // Resources 里 asset 的查找名是 "MessageBox.ui" 而不是 "MessageBox"。
         public static string XmlSrc { get; set; } = "PromptUGUI/Modals/MessageBox.ui";
 
-        public static UnityEngine.Awaitable<Btn> Open(
-            string text, Btn buttons = Btn.OK, string icon = null, string title = null)
+        public static UnityEngine.Awaitable<MsgBtn> Open(
+            string text, MsgBtn buttons = MsgBtn.OK, string icon = null, string title = null)
             => UI.Modal.OpenAsync(new MessageBoxRequest
             {
                 Text = text,
@@ -79,13 +79,13 @@ namespace PromptUGUI.Application.Modals
                 Title = title,
             });
 
-        public static UnityEngine.Awaitable<Btn> Open(
+        public static UnityEngine.Awaitable<MsgBtn> Open(
             string text,
-            System.Collections.Generic.IEnumerable<(string label, Btn key)> buttons,
+            System.Collections.Generic.IEnumerable<(string label, MsgBtn key)> buttons,
             string icon = null, string title = null)
         {
-            var list = new System.Collections.Generic.List<(string, Btn)>(buttons);
-            var mask = Btn.None;
+            var list = new System.Collections.Generic.List<(string, MsgBtn)>(buttons);
+            var mask = MsgBtn.None;
             foreach (var (_, k) in list) mask |= k;
             return UI.Modal.OpenAsync(new MessageBoxRequest
             {

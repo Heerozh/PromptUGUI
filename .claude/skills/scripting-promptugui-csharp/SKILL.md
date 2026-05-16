@@ -309,7 +309,7 @@ CUSTOM         class X : Control { override OnAttached() { ... } }
                [Bind] field                   auto-wire child by name
                UI.Registry.Register<X>("Tag", prefab)
 
-MODAL          var r = await MessageBox.Open(text, Btn.OK|Btn.Cancel, icon, title)
+MODAL          var r = await MessageBox.Open(text, MsgBtn.OK|MsgBtn.Cancel, icon, title)
                UI.Modal.OpenAsync(new MyRequest())          custom ModalRequest<T>
                UI.Modal.CloseAll()                          cancel all pending
                UI.Modal.SortingOrderBase = 1000             default
@@ -326,15 +326,15 @@ using PromptUGUI.Application.Modals;
 
 // Default messagebox
 var r = await MessageBox.Open(UI.Tr("Save changes?"),
-                              Btn.Yes | Btn.No | Btn.Cancel);
-if (r == Btn.Yes) await game.SaveAsync();
+                              MsgBtn.Yes | MsgBtn.No | MsgBtn.Cancel);
+if (r == MsgBtn.Yes) await game.SaveAsync();
 
-// Custom button labels (still returns mapped Btn flag)
+// Custom button labels (still returns mapped MsgBtn flag)
 var r2 = await MessageBox.Open(UI.Tr("File not found."),
-    new[] { (UI.Tr("Retry"), Btn.OK), (UI.Tr("Skip"), Btn.Cancel) });
+    new[] { (UI.Tr("Retry"), MsgBtn.OK), (UI.Tr("Skip"), MsgBtn.Cancel) });
 
 // Optional icon and title
-await MessageBox.Open("Saved.", Btn.OK, icon: "ui:check", title: "Done");
+await MessageBox.Open("Saved.", MsgBtn.OK, icon: "ui:check", title: "Done");
 ```
 
 ### Behavior

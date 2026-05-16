@@ -7,20 +7,20 @@ namespace PromptUGUI.Tests.Modals
     public class MessageBoxStaticTests : ModalTestFixture
     {
         [Test]
-        public void Open_default_overload_returns_Btn_OK()
+        public void Open_default_overload_returns_MsgBtn_OK()
         {
-            var task = MessageBox.Open("hello", Btn.OK);
+            var task = MessageBox.Open("hello", MsgBtn.OK);
             UI.Get("test/Box1").Get<PromptUGUI.Controls.Btn>("ok").SimulateClick();
-            Assert.AreEqual(Btn.OK, task.GetAwaiter().GetResult());
+            Assert.AreEqual(MsgBtn.OK, task.GetAwaiter().GetResult());
         }
 
         [Test]
         public void Open_custom_labels_overload_returns_mapped_key()
         {
             var task = MessageBox.Open("hello",
-                new[] { ("Retry", Btn.OK), ("Skip", Btn.Cancel) });
+                new[] { ("Retry", MsgBtn.OK), ("Skip", MsgBtn.Cancel) });
             UI.Get("test/Box1").Get<PromptUGUI.Controls.Btn>("cancel").SimulateClick();
-            Assert.AreEqual(Btn.Cancel, task.GetAwaiter().GetResult());
+            Assert.AreEqual(MsgBtn.Cancel, task.GetAwaiter().GetResult());
         }
 
         [Test]
@@ -31,7 +31,7 @@ namespace PromptUGUI.Tests.Modals
             Assert.IsTrue(s.Get<PromptUGUI.Controls.Btn>("ok").GameObject.activeSelf);
             Assert.IsFalse(s.Get<PromptUGUI.Controls.Btn>("cancel").GameObject.activeSelf);
             s.Get<PromptUGUI.Controls.Btn>("ok").SimulateClick();
-            Assert.AreEqual(Btn.OK, task.GetAwaiter().GetResult());
+            Assert.AreEqual(MsgBtn.OK, task.GetAwaiter().GetResult());
         }
     }
 }

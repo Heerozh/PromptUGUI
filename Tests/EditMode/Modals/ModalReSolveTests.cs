@@ -9,7 +9,7 @@ namespace PromptUGUI.Tests.Modals
         [Test]
         public void Bind_SetActive_false_survives_VariantStore_Changed()
         {
-            UI.Modal.OpenAsync(new MessageBoxRequest { Text = "x", Buttons = Btn.OK });
+            UI.Modal.OpenAsync(new MessageBoxRequest { Text = "x", Buttons = MsgBtn.OK });
             var s = UI.Get("test/Box1");
             Assert.IsFalse(s.Get<PromptUGUI.Controls.Btn>("cancel").GameObject.activeSelf);
 

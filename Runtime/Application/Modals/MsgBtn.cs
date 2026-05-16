@@ -3,7 +3,7 @@ using System;
 namespace PromptUGUI.Application.Modals
 {
     [Flags]
-    public enum Btn
+    public enum MsgBtn
     {
         None = 0,
         OK = 1,
