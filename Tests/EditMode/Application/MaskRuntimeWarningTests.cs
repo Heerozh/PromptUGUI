@@ -1,8 +1,8 @@
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using PromptUGUI.Application;
 using UnityEngine;
 using UnityEngine.TestTools;
-using System.Text.RegularExpressions;
 
 namespace PromptUGUI.Tests.EditMode.Application
 {
