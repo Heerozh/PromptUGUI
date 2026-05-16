@@ -3,9 +3,10 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace PromptUGUI.Editor.I18n
 {
@@ -47,7 +48,7 @@ namespace PromptUGUI.Editor.I18n
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
             var prompt = systemPrompt.Replace("{{targetLocale}}", targetLocale);
-            var inputJson = JsonSerializer.Serialize(new
+            var inputJson = JsonConvert.SerializeObject(new
             {
                 target_locale = targetLocale,
                 items = items.Select(i => new
@@ -72,7 +73,7 @@ namespace PromptUGUI.Editor.I18n
                 response_format = new { type = "json_object" },
             };
             req.Content = new StringContent(
-                JsonSerializer.Serialize(body),
+                JsonConvert.SerializeObject(body),
                 Encoding.UTF8,
                 "application/json");
 
@@ -83,21 +84,18 @@ namespace PromptUGUI.Editor.I18n
                 throw new HttpRequestException($"HTTP {(int)resp.StatusCode}: {text}");
             }
 
-            using var doc = JsonDocument.Parse(text);
-            var content = doc.RootElement
-                .GetProperty("choices")[0]
-                .GetProperty("message")
-                .GetProperty("content").GetString();
-            using var inner = JsonDocument.Parse(content);
+            var doc = JObject.Parse(text);
+            var content = (string)doc["choices"][0]["message"]["content"];
+            var inner = JObject.Parse(content);
             var result = new Dictionary<(string, string), string>();
-            foreach (var t in inner.RootElement.GetProperty("translations").EnumerateArray())
+            foreach (var t in (JArray)inner["translations"])
             {
-                var msgid = t.GetProperty("msgid").GetString();
-                var msgctxt = t.TryGetProperty("msgctxt", out var ctxProp)
-                              && ctxProp.ValueKind != System.Text.Json.JsonValueKind.Null
-                    ? ctxProp.GetString()
+                var msgid = (string)t["msgid"];
+                var ctxToken = t["msgctxt"];
+                var msgctxt = ctxToken != null && ctxToken.Type != JTokenType.Null
+                    ? (string)ctxToken
                     : null;
-                var msgstr = t.GetProperty("msgstr").GetString();
+                var msgstr = (string)t["msgstr"];
                 result[(msgid, msgctxt)] = msgstr;
             }
             return new BatchResult(result, text);
