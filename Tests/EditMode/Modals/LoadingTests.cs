@@ -195,5 +195,24 @@ namespace PromptUGUI.Tests.Modals
             Assert.DoesNotThrow(() => handle.Close());
             Assert.IsTrue(handle.IsClosed);
         }
+
+        [Test]
+        public void Default_xml_src_loads_builtin_template()
+        {
+            // 把 XmlSrc 切回默认 (base.SetUp 把它改成了 test/Loading1)
+            Loading.XmlSrc = "PromptUGUI/Modals/Loading.ui";
+
+            var handle = Loading.Open("from real template");
+            Assert.IsNotNull(handle);
+            Assert.IsTrue(UI.Modal.IsAnyOpen);
+
+            var screen = UI.Get("PromptUGUI/Modals/Loading.ui");
+            Assert.IsNotNull(screen, "默认 Loading.ui.xml 应该能从 Resources 加载");
+
+            var text = screen.Get<PromptUGUI.Controls.Text>("text");
+            Assert.AreEqual("from real template", text.TmpComponent.text);
+
+            handle.Close();
+        }
     }
 }
