@@ -83,9 +83,9 @@ Pre-registered on `UI.Registry`. Use as XML tags by name:
 
 | Tag            | Notes                                                                                                                                                                                                                                                        | Tag-specific attributes                                                                                                                                                                                                                                                                                             |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `<Frame>`      | Empty container (RectTransform only).                                                                                                                                                                                                                        | —                                                                                                                                                                                                                                                                                                                   |
+| `<Frame>`      | Empty container; optional `RectMask2D` via `mask="rect"`.                                                                                                                                                                                                    | `mask` (`rect`), `maskPadding` (`T,R,B,L`, "_" placeholder; only with `mask="rect"`)                                                                                                                                                                                                                                |
 | `<SafeArea>`   | Stretches to `Screen.safeArea` (notch / status bar / home indicator). Auto-reacts to rotation, window resize, Device Simulator. **Rejects** `anchor` / `size` / `width` / `height` / `margin` / `pivot` (incl. `.variant`); see "Safe area" section below.   | —                                                                                                                                                                                                                                                                                                                   |
-| `<Image>`      | uGUI Image; loads sprites from `Resources`.                                                                                                                                                                                                                  | `sprite` (resource path), `color` (`#RRGGBB[AA]`), `type` (`simple` / `sliced` / `tiled` / `filled`; **omit to auto-pick `sliced` when sprite has a non-zero border, else `simple`** — explicit value always wins)                                                                                                  |
+| `<Image>`      | uGUI Image; loads sprites from `Resources`. Optional `RectMask2D` via `mask="rect"`, or stencil `Mask` via `mask="self"` (Image's own sprite becomes the mask shape).                                                                                        | `sprite`, `color` (`#RRGGBB[AA]`), `type` (`simple` / `sliced` / `tiled` / `filled`; **omit to auto-pick `sliced` when sprite has a non-zero border, else `simple`**), `mask` (`rect` / `self`), `showMask` (bool, default `true`; only with `mask="self"`), `maskPadding` (`T,R,B,L`; only with `mask="rect"`)     |
 | `<Text>`       | TMP_Text. Has text-content shorthand: `<Text>Hello</Text>` ≡ `<Text text="Hello"/>`.                                                                                                                                                                         | `text`, `fontSize` (int), `color`, `align` (`left` / `center` / `right`), `wrap` (bool), `raycastTarget` (bool), `font` (string, font type from Settings; default `default`), `tr` (bool, default `true`; set `false` to skip i18n extraction), `ctx` (string, msgctxt to disambiguate same-msgid in the .po table) |
 | `<VStack>`     | Vertical layout group. Default `childAlign="upper-center"` (cross-axis centered).                                                                                                                                                                            | `spacing` (float), `padding` (`T,R,B,L` 1/2/4 components; `"_"` = 0 placeholder, e.g. `padding="6,_,_,_"`), `childAlign` (`upper/middle/lower-left/center/right`; `center` alias for `middle-center`)                                                                                                               |
 | `<HStack>`     | Horizontal layout group. Default `childAlign="middle-left"` (cross-axis centered).                                                                                                                                                                           | Same as VStack.                                                                                                                                                                                                                                                                                                     |
@@ -483,6 +483,37 @@ There's also a **commons pool** populated C#-side that's merged into every Scree
 - 未设 / `reference=""` → 保留默认 `ConstantPixelSize, scaleFactor=1` 行为；XML 数字直接 = 设备像素。
 - `.variant` 形态：`reference.mobile="..."` 同其他属性 variant 规则；变体切换时 CanvasScaler 立即重应用。
 - 要 `match=0.5` 折中或改 `referencePixelsPerUnit`：走 `UI.CanvasConfigurator` 手改。**不要在两条路径同时改 CanvasScaler** —— variant flip 时 XML 路径会覆盖 configurator 的改动。
+
+## Mask & clipping
+
+PromptUGUI never auto-enables masking — you must opt in via `mask=`. Two reasons: (1) stencil Mask isn't free (extra SetPass call, breaks batching with elements outside the mask); (2) "decorative background that lets children overflow" is a legit, common pattern.
+
+| Want | Recipe | Component used |
+|---|---|---|
+| Pure container, no clip | `<Frame/>` (current default) | none |
+| Cheap rectangular clip (viewport-style) | `<Frame mask="rect"/>` or `<Image mask="rect" sprite="..."/>` | `RectMask2D` |
+| Sprite-shape clip + sprite drawn (rounded card) | `<Image sprite="round" mask="self"/>` | stencil `Mask`, `showMaskGraphic=true` |
+| Sprite-shape clip + sprite hidden (viewport with shaped mask) | `<Image sprite="round-mask" mask="self" showMask="false"/>` | stencil `Mask`, `showMaskGraphic=false` |
+| Decorated outer frame + different inner clip shape | Nest two `<Image>` — outer has `sprite=` only; inner has `mask="self" sprite=` (different shape) + `margin=` to control inner size | none on outer, stencil on inner |
+
+**`<Frame>` never supports `mask="self"`** — Frame has no Image graphic to use as the mask source. Use `<Image mask="self">` for sprite-shape clipping.
+
+**`maskPadding`** is `RectMask2D`-only and uses the same `T,R,B,L` (1/2/4 components, `"_"` placeholder) convention as `padding`. Negative values are allowed (matches Unity's `RectMask2D.padding` semantics; used internally by `<InputField>` for text-area insets).
+
+**`showMask`** is stencil-Mask-only; `true` (default) keeps the Image visible, `false` hides it (the sprite still defines the clip shape but isn't drawn).
+
+**Variant overrides** on `mask` / `showMask` / `maskPadding` are rejected in v1 (`PUI-MASK-VARIANT`) — switching mask mode means `AddComponent`/`Destroy` at runtime, which we don't support. If you need per-variant clipping, split into two Screens or use `<Add into=…>`.
+
+Lint codes you might see (CLI errors / Unity warnings):
+
+| Code | Meaning |
+|---|---|
+| `PUI-MASK-FRAME-SELF` | `<Frame mask="self">` is invalid (no graphic) |
+| `PUI-MASK-VALUE` | `mask=` value not in `rect` / `self` (Image) or `rect` (Frame) |
+| `PUI-MASK-PADDING-NO-RECT` | `maskPadding` only applies to `mask="rect"` |
+| `PUI-MASK-SHOWMASK-NO-SELF` | `showMask` only applies to `mask="self"` |
+| `PUI-MASK-VARIANT` | `mask` / `showMask` / `maskPadding` cannot be overridden in variants |
+| `PUI-MASK-SELF-NO-SPRITE` | `<Image mask="self">` with no `sprite=` won't clip anything |
 
 ## Common mistakes (XML)
 

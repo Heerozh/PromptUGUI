@@ -144,7 +144,7 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 
 | 标签 | 作用 | 对应 uGUI |
 |---|---|---|
-| `<Frame>` | 纯定位容器，无视觉 | 空 RectTransform |
+| `<Frame>` | 纯定位容器，无视觉；可选 `mask="rect"` 启用 RectMask2D | RectTransform（+ 可选 RectMask2D） |
 | `<Image>` | 图像 / 9-slice / 纯色块 | Image |
 | `<Text>` | 文本 | TMP_Text |
 | `<VStack>` | 纵向自动排布 | RectTransform + VerticalLayoutGroup |
@@ -188,6 +188,8 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 
 由各标签自行声明：
 - `<Image sprite="bg/main" color="#FFFFFFAA" type="sliced|simple|filled|tiled"/>`
+- `<Image mask="rect|self" showMask="true|false" maskPadding="T,R,B,L"/>` — 见 [`2026-05-16-frame-image-mask-design.md`](2026-05-16-frame-image-mask-design.md)
+- `<Frame mask="rect" maskPadding="T,R,B,L"/>` — 同上
 - `<Text font="..." fontSize="32" color="..." align="left|center|right" wrap="true"/>` — 注意 Text 的字号属性是 `fontSize`，**不是** `size`；`size` 是通用 WxH 布局尺寸（§6.2），写 `<Text size="32"/>` 会被布局解析器拒收
 
 完整属性表见各控件 README（不在本 spec 范围）。
