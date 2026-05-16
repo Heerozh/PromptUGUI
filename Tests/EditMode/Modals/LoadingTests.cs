@@ -55,5 +55,36 @@ namespace PromptUGUI.Tests.Modals
             Assert.IsNull(UI.Get("test/Loading1"),
                 "Loading screen 应该已经被 pump 关闭");
         }
+
+        [Test]
+        public void Close_before_pump_skips_modal_instantiation()
+        {
+            // MessageBox 先开 → pump 卡在它的 await waiter 上
+            var mboxTask = UI.Modal.OpenAsync(new MessageBoxRequest
+            {
+                Text = "first",
+                Buttons = MsgBtn.OK,
+            });
+
+            // Loading 入队, 但 pump 没轮到它 (仍在处理 MessageBox)
+            var loading = Loading.Open("queued");
+            Assert.AreEqual(2, UI.Modal.QueuedCount);
+            Assert.IsNull(UI.Get("test/Loading1"),
+                "Loading 还在队列里, screen 还没创建");
+
+            // 关闭 Loading handle —— 走 ResolveExternally → entry.Resolved=true
+            loading.Close();
+            Assert.IsTrue(loading.IsClosed);
+            Assert.IsNull(UI.Get("test/Loading1"),
+                "Close() 在 pre-show 不应该实例化 screen");
+
+            // 关掉 MessageBox → pump 转到 Loading entry, 看到 Resolved=true, 直接 continue
+            UI.Get("test/Box1").Get<PromptUGUI.Controls.Btn>("ok").SimulateClick();
+            Assert.AreEqual(MsgBtn.OK, mboxTask.GetAwaiter().GetResult());
+
+            Assert.IsFalse(UI.Modal.IsAnyOpen);
+            Assert.IsNull(UI.Get("test/Loading1"),
+                "Loading screen 整个生命周期都不应该被创建过");
+        }
     }
 }
