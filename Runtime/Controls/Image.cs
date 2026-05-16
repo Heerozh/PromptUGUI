@@ -76,7 +76,24 @@ namespace PromptUGUI.Controls
                     if (!string.IsNullOrEmpty(_pendingMaskPadding))
                         _rectMask.padding = MaskPaddingParser.Parse(_pendingMaskPadding);
                 }
-                // mask="self" path implemented in Task 8
+                else if (value == "self")
+                {
+                    _stencilMask ??= GameObject.AddComponent<UnityEngine.UI.Mask>();
+                    if (_pendingShowMask.HasValue)
+                        _stencilMask.showMaskGraphic = _pendingShowMask.Value;
+                }
+            }
+        }
+
+        [UIAttr]
+        public string ShowMask
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value)) return;
+                _pendingShowMask = bool.Parse(value);
+                if (_stencilMask != null)
+                    _stencilMask.showMaskGraphic = _pendingShowMask.Value;
             }
         }
 
