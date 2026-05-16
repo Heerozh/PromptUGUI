@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using R3;
 
 namespace PromptUGUI.Application.Modals
@@ -17,7 +18,7 @@ namespace PromptUGUI.Application.Modals
                 if (string.IsNullOrEmpty(Text)) textCtl.GameObject.SetActive(false);
                 else textCtl.TextValue = Text;
             }
-            catch (System.Collections.Generic.KeyNotFoundException) { /* text 元素可选 */ }
+            catch (KeyNotFoundException) { /* text element is optional */ }
         }
     }
 
