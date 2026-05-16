@@ -86,5 +86,73 @@ namespace PromptUGUI.Tests.Modals
             Assert.IsNull(UI.Get("test/Loading1"),
                 "Loading screen 整个生命周期都不应该被创建过");
         }
+
+        [Test]
+        public void Close_is_idempotent()
+        {
+            var handle = Loading.Open("hi");
+            handle.Close();
+            Assert.IsTrue(handle.IsClosed);
+
+            // 第二次 Close 不应该抛
+            Assert.DoesNotThrow(() => handle.Close());
+            Assert.IsTrue(handle.IsClosed);
+            Assert.IsFalse(UI.Modal.IsAnyOpen);
+        }
+
+        [Test]
+        public void Text_null_hides_text_node()
+        {
+            Loading.Open(null);
+            var text = UI.Get("test/Loading1").Get<PromptUGUI.Controls.Text>("text");
+            Assert.IsFalse(text.GameObject.activeSelf);
+        }
+
+        [Test]
+        public void Text_empty_hides_text_node()
+        {
+            Loading.Open("");
+            var text = UI.Get("test/Loading1").Get<PromptUGUI.Controls.Text>("text");
+            Assert.IsFalse(text.GameObject.activeSelf);
+        }
+
+        [Test]
+        public void TryEscape_listener_does_not_close_loading()
+        {
+            var handle = Loading.Open("press ESC and see nothing");
+            var listener = UI.Get("test/Loading1")
+                .RootGameObject.GetComponent<ModalEscapeListener>();
+            Assert.IsNotNull(listener, "Pump 必须给 Loading screen 也挂 ModalEscapeListener");
+
+            listener.FireForTests();
+
+            Assert.IsTrue(UI.Modal.IsAnyOpen, "Loading 应该仍然显示");
+            Assert.IsFalse(handle.IsClosed);
+            UI.Modal.CloseAll();   // teardown 干净点
+        }
+
+        [Test]
+        public void Custom_xml_without_text_id_does_not_throw()
+        {
+            // 模拟用户自定义 XML 时把 text 元素删了的场景
+            const string customXml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='test/Loading2'>
+    <Image id='backdrop' anchor='stretch' color='#000000C0'/>
+    <Frame anchor='center' size='200x100'>
+      <Image anchor='stretch' color='white'/>
+    </Frame>
+  </Screen>
+</PromptUGUI>";
+            Files["test/Loading2"] = customXml;
+            Loading.XmlSrc = "test/Loading2";
+
+            var handle = Loading.Open("仍然传 text 但 XML 没 text 元素");
+            Assert.IsNotNull(handle, "Bind 不应该抛 KeyNotFoundException");
+            Assert.IsTrue(UI.Modal.IsAnyOpen);
+
+            handle.Close();
+            Assert.IsFalse(UI.Modal.IsAnyOpen);
+        }
     }
 }
