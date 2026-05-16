@@ -4,6 +4,9 @@ using UnityEngine;
 
 namespace PromptUGUI.Application.Modals
 {
+    // Non-generic queue entry interface — lets UI.Modal.cs work without referencing
+    // the generic ModalRequest<TResult> type, which Unity's Roslyn fails to resolve
+    // across namespace boundaries in partial-class files.
     internal interface IModalEntry
     {
         public string XmlSrc { get; }
