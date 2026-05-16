@@ -639,6 +639,7 @@ namespace PromptUGUI.Application
             UnityEngine.RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void AutoInitializeLocale() => Locale.InitializeIfNeeded();
 
+#if UNITY_6000_5_OR_NEWER
         // Clears stale Screens/docs/commons/dep-graph that survive Play→Stop→Play
         // when "Reload Domain" is disabled in Enter Play Mode Options. SourceResolver,
         // SpriteResolver and Registry (with built-ins) are intentionally preserved.
@@ -653,6 +654,7 @@ namespace PromptUGUI.Application
 
         // Test seam for the [OnEnteringPlayMode] handler above.
         internal static void OnEnteringPlayModeForTests() => OnEnteringPlayMode();
+#endif
 
 #if UNITY_EDITOR
         public static class HotReload
