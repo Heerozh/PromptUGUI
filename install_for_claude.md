@@ -27,16 +27,16 @@
 
 也可以让用户走 Unity → Window → Package Manager → "+" → "Add package from git URL"，URL 同上。
 
-**验证**：等 Unity 完成 import（可调 `mcp__UnityMCP__refresh_unity(compile="request", mode="standard", wait_for_ready=true)`），确认 `<project root>/Packages/com.promptugui.core/` 目录存在，含 `Runtime/`、`Editor/`、`package.json`。
+**验证**：等 Unity 完成 import（可调 `mcp__UnityMCP__refresh_unity(compile="request", mode="standard", wait_for_ready=true)`），确认 `<project root>/Library/PackageCache/com.promptugui.core@<hash>/` 目录存在(hash为随机值)，含 `Runtime/`、`Editor/`、`package.json`。
 
 ## 步骤 2：复制 LLM Skills 到用户项目
 
 包内自带三个给 LLM 读的 skill，路径：
 
 ```
-<project root>/Packages/com.promptugui.core/.claude/skills/authoring-promptugui-xml/SKILL.md      # XML 编写
-<project root>/Packages/com.promptugui.core/.claude/skills/scripting-promptugui-csharp/SKILL.md   # C# bridge（UI.Open / Get<T> / R3 / BindItems / 自定义 Control）
-<project root>/Packages/com.promptugui.core/.claude/skills/using-promptugui-addressables/SKILL.md # Addressables 集成（.ui.xml / .po / IconSet）
+<project root>/Library/PackageCache/com.promptugui.core@<hash>/.claude/skills/authoring-promptugui-xml/SKILL.md      # XML 编写
+<project root>/Library/PackageCache/com.promptugui.core@<hash>/.claude/skills/scripting-promptugui-csharp/SKILL.md   # C# bridge（UI.Open / Get<T> / R3 / BindItems / 自定义 Control）
+<project root>/Library/PackageCache/com.promptugui.core@<hash>/.claude/skills/using-promptugui-addressables/SKILL.md # Addressables 集成（.ui.xml / .po / IconSet）
 ```
 
 把整个 skills 目录复制到用户项目的 `.claude/skills/` 下（**项目作用域**，跟仓库走，团队共享）：
@@ -44,14 +44,14 @@
 **Unix / macOS / WSL：**
 ```bash
 mkdir -p .claude/skills
-cp -r Packages/com.promptugui.core/.claude/skills/* .claude/skills/
+cp -r Library/PackageCache/com.promptugui.core@<hash>/.claude/skills/* .claude/skills/
 ```
 
 **Windows PowerShell：**
 ```powershell
 New-Item -ItemType Directory -Force -Path .claude/skills | Out-Null
 Copy-Item -Recurse -Force `
-  Packages/com.promptugui.core/.claude/skills/* `
+  Library/PackageCache/com.promptugui.core@<hash>/.claude/skills/* `
   .claude/skills/
 ```
 
@@ -96,7 +96,7 @@ Copy-Item -Recurse -Force `
 
 依次确认：
 
-1. ✓ `Packages/com.promptugui.core/Runtime/` 存在
+1. ✓ `Library/PackageCache/com.promptugui.core@<hash>/Runtime/` 存在
 2. ✓ `.claude/skills/` 下 `authoring-promptugui-xml/`、`scripting-promptugui-csharp/`、`using-promptugui-addressables/` 三个 SKILL.md 都存在，frontmatter 完整
 3. ✓ `CLAUDE.md` 含 Tr() 包裹约定章节，原内容保留
 4. ✓ 检查 `dotnet --list-sdks` 是否安装了 10 版本。

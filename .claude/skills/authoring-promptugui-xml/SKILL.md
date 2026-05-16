@@ -27,14 +27,14 @@ xmllint --noout --schema Assets/PromptUGUI.gen.xsd <path/to/your.ui.xml>
 ### 2. UIXmlLint CLI (catches semantic mistakes XSD can't express)
 
 ```
-dotnet run --project .lint/UIXmlLint -- <path/to/your.ui.xml>
-dotnet run --project .lint/UIXmlLint -- Runtime/Resources/   # 整个目录递归
+dotnet run --project Library/PackageCache/com.promptugui.core@<hash>/.lint/UIXmlLint -- <path/to/your.ui.xml>
+dotnet run --project Library/PackageCache/com.promptugui.core@<hash>/.lint/UIXmlLint -- Assets/   # 整个目录递归
 ```
 
 - No Unity required — pure .NET, runs anywhere `dotnet` is installed.
 - Surfaces context-dependent rules that XSD can't easily express, e.g. **`anchor` / `margin` on a direct child of `<VStack>` / `<HStack>` / `<Grid>`** (`PUI-LAYOUT-ANCHOR` / `PUI-LAYOUT-MARGIN`). Unity logs these as warnings (so `UI.Open()` doesn't break), but the CLI promotes them to errors with non-zero exit code so they don't slip through.
 - Exit 0 = clean. Exit 1 = at least one parse error or rule violation; STOP and fix before reporting done.
-- Rule code lives in `Runtime/Core/Lint/` and is shared with `ScreenInstantiator`'s warning path — same logic, one source of truth.
+- Rule code lives in `Library/PackageCache/com.promptugui.core@<hash>/Runtime/Core/Lint/` and is shared with `ScreenInstantiator`'s warning path — same logic, one source of truth.
 
 ### 3. Unity MCP live feedback
 
@@ -521,6 +521,7 @@ VALIDATE      every .ui.xml write  →  xmllint --noout --schema Assets/PromptUG
               schema missing       →  ask user to run Tools → PromptUGUI → Schema → Generate XSD
 MCP FEEDBACK  every .ui.xml write  →  refresh_unity + read_console (error,warning)
               MCP missing          →  ask user to open Unity + connect MCP for Unity
+.NET LINT     every .ui.xml write  →  UIXmlLint CLI
 
 ROOT          <PromptUGUI version="1"> ... </PromptUGUI>
 TOP LEVEL     <Import src="" [as=""]/>  <Screen name="" [canvas="overlay|camera|world"]>  <Template name="">
