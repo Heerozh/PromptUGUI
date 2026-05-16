@@ -19,6 +19,15 @@ namespace PromptUGUI.Controls
         private string _groupName;
         private readonly Subject<bool> _changed = new();
 
+        // Bound to OnAttached layout — changing these without changing OnAttached breaks the formula.
+        // CheckmarkZoneWidth = Background sizeDelta.x (20) + 3px gap = Label offsetMin.x (23)
+        // RightPadding       = -Label offsetMax.x (5)
+        private const float CheckmarkZoneWidth = 23f;
+        private const float RightPadding = 5f;
+        private const float VerticalPadding = 6f;
+        private const float MinTapHeight = 44f;
+        private const float DefaultIconOnlySize = 44f;
+
         public override void OnAttached()
         {
             _toggle = GameObject.GetComponent<UnityToggle>() ?? GameObject.AddComponent<UnityToggle>();
@@ -132,6 +141,18 @@ namespace PromptUGUI.Controls
         }
 
         public Observable<bool> OnValueChanged => _changed;
+
+        public override Vector2? GetNativeSize()
+        {
+            if (_label != null && !string.IsNullOrEmpty(_label.text))
+            {
+                _label.ForceMeshUpdate();
+                var w = _label.preferredWidth + CheckmarkZoneWidth + RightPadding;
+                var h = Mathf.Max(MinTapHeight, _label.preferredHeight + VerticalPadding * 2f);
+                return new Vector2(w, h);
+            }
+            return new Vector2(DefaultIconOnlySize, DefaultIconOnlySize);
+        }
 
         public override void Dispose()
         {
