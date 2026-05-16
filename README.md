@@ -110,3 +110,90 @@ Project 右键 → Create → PromptUGUI → UI XML。
 **建议**使用Addressable，`[SerializeField] private AssetReferenceT<TextAsset> xmlSlot` 定义属性，
 然后就能在Inspector中把`*.ui.xml`文件拖入`xmlSlot`，在脚本中`await UI.LoadDocumentAsync(xmlSlot);`按需下载和热更。
 
+## 示例
+
+```
+write a normal login ui use promptugui, with Login.cs monobehavior script open it.
+```
+
+<img src="https://github.com/Heerozh/PromptUGUI/blob/media/example.png" width="394" height="497"/>
+
+Response:
+
+```
+  Searched for 1 pattern, read 3 files, listed 6 directories (ctrl+o to expand)
+
+● I'll explore the PromptUGUI conventions first by invoking the relevant skills.
+
+● Skill(authoring-promptugui-xml)
+  ⎿  Successfully loaded skill
+
+● Skill(scripting-promptugui-csharp)
+  ⎿  Successfully loaded skill
+
+...
+
+● Clean compile. Let me complete the task tracking and summarize.
+
+● Created two files:
+
+  Assets/Resources/UI/Login.ui.xml — login screen with title/subtitle, username + password fields (password masked via
+  contentType="password"), "Remember me" toggle, "Forgot password?" link, primary Login button, and a "Sign up" footer.
+  Uses reference="1920x1080" with a reference.portrait="1080x1920" override so it scales sensibly on both PC and mobile.
+
+  Assets/Scripts/Login.cs — MonoBehaviour that:
+  1. Sets up UseResourcesResolver("UI"), loads Login.ui, opens the screen in Start.
+  2. Tracks _username / _password / _rememberMe via R3 OnValueChanged subscriptions (InputField has setter-only
+  TextValue, so caching latest values via R3 is the idiomatic way).
+  3. Wires the three buttons (login / forgot / register) to handlers that pop a MessageBox for feedback. Player-facing
+  strings are wrapped in UI.Tr(...) per the project's i18n convention; XML source text is auto-extracted as msgid (no
+  wrapping needed there).
+
+  To use it: drop the Login script onto an empty GameObject in your scene and hit Play.
+
+  Validation: xmllint passes against Assets/PromptUGUI.gen.xsd; Unity recompile is clean.
+
+✻ Worked for 8m 22s
+```
+
+C# Code:
+
+```csharp
+    private async void Start()
+    {
+        UI.UseResourcesResolver("UI");
+        await UI.LoadDocumentAsync("Login.ui");
+        var screen = UI.Open("Login");
+
+        screen.Get<InputField>("username").OnValueChanged
+              .Subscribe(v => _username = v).AddTo(screen);
+
+        screen.Get<InputField>("password").OnValueChanged
+              .Subscribe(v => _password = v).AddTo(screen);
+
+        screen.Get<Toggle>("rememberMe").OnValueChanged
+              .Subscribe(v => _rememberMe = v).AddTo(screen);
+
+        screen.Get<Btn>("login").OnClick
+              .Subscribe(_ => OnLoginClicked()).AddTo(screen);
+
+        screen.Get<Btn>("forgot").OnClick
+              .Subscribe(_ => OnForgotClicked()).AddTo(screen);
+
+        screen.Get<Btn>("register").OnClick
+              .Subscribe(_ => OnRegisterClicked()).AddTo(screen);
+    }
+
+    private async void OnLoginClicked()
+    {
+        if (string.IsNullOrWhiteSpace(_username) || string.IsNullOrWhiteSpace(_password))
+        {
+            await MessageBox.Open(
+                UI.Tr("Please enter both username and password."), MsgBtn.OK);
+            return;
+        }
+
+        Debug.Log($"[Login] user={_username} remember={_rememberMe}");
+        await MessageBox.Open(UI.Tr("Welcome back!"), MsgBtn.OK);
+    }
+```
