@@ -89,5 +89,97 @@ namespace PromptUGUI.Tests.EditMode.Lint
             Assert.AreEqual(1, issues.Count);
             Assert.AreEqual(MaskAttributeRules.VariantCode, issues[0].Code);
         }
+
+        // ===== Image =====
+
+        [Test]
+        public void Image_NoMaskAttrs_NoIssue()
+        {
+            var n = new ElementNode("Image");
+            n.Attributes["sprite"] = "card-bg";
+            Assert.IsEmpty(MaskAttributeRules.CheckImage(n));
+        }
+
+        [Test]
+        public void Image_MaskRect_NoIssue()
+        {
+            var n = new ElementNode("Image");
+            n.Attributes["mask"] = "rect";
+            Assert.IsEmpty(MaskAttributeRules.CheckImage(n));
+        }
+
+        [Test]
+        public void Image_MaskSelf_WithSprite_NoIssue()
+        {
+            var n = new ElementNode("Image");
+            n.Attributes["mask"] = "self";
+            n.Attributes["sprite"] = "round-card";
+            Assert.IsEmpty(MaskAttributeRules.CheckImage(n));
+        }
+
+        [Test]
+        public void Image_MaskSelf_NoSprite_SelfNoSpriteIssue()
+        {
+            var n = new ElementNode("Image") { Id = "i" };
+            n.Attributes["mask"] = "self";
+            var issues = MaskAttributeRules.CheckImage(n).ToList();
+            Assert.AreEqual(1, issues.Count);
+            Assert.AreEqual(MaskAttributeRules.SelfNoSpriteCode, issues[0].Code);
+        }
+
+        [Test]
+        public void Image_MaskBogus_ValueIssue()
+        {
+            var n = new ElementNode("Image");
+            n.Attributes["mask"] = "circle";
+            var issues = MaskAttributeRules.CheckImage(n).ToList();
+            Assert.AreEqual(1, issues.Count);
+            Assert.AreEqual(MaskAttributeRules.ValueCode, issues[0].Code);
+        }
+
+        [Test]
+        public void Image_ShowMaskWithoutSelf_ShowMaskIssue()
+        {
+            var n = new ElementNode("Image");
+            n.Attributes["mask"] = "rect";
+            n.Attributes["showMask"] = "false";
+            var issues = MaskAttributeRules.CheckImage(n).ToList();
+            Assert.AreEqual(1, issues.Count);
+            Assert.AreEqual(MaskAttributeRules.ShowMaskNoSelfCode, issues[0].Code);
+        }
+
+        [Test]
+        public void Image_ShowMaskWithoutMask_ShowMaskIssue()
+        {
+            var n = new ElementNode("Image");
+            n.Attributes["showMask"] = "false";
+            var issues = MaskAttributeRules.CheckImage(n).ToList();
+            Assert.AreEqual(1, issues.Count);
+            Assert.AreEqual(MaskAttributeRules.ShowMaskNoSelfCode, issues[0].Code);
+        }
+
+        [Test]
+        public void Image_MaskPaddingWithoutRect_PaddingIssue()
+        {
+            var n = new ElementNode("Image");
+            n.Attributes["mask"] = "self";
+            n.Attributes["sprite"] = "round-card";
+            n.Attributes["maskPadding"] = "8";
+            var issues = MaskAttributeRules.CheckImage(n).ToList();
+            Assert.AreEqual(1, issues.Count);
+            Assert.AreEqual(MaskAttributeRules.PaddingNoRectCode, issues[0].Code);
+        }
+
+        [Test]
+        public void Image_MaskInVariantOverride_VariantIssue()
+        {
+            var n = new ElementNode("Image");
+            n.Attributes["sprite"] = "round";
+            n.VariantOverrides["mask"] =
+                new List<(string Variant, string Value)> { ("mobile", "self") };
+            var issues = MaskAttributeRules.CheckImage(n).ToList();
+            Assert.AreEqual(1, issues.Count);
+            Assert.AreEqual(MaskAttributeRules.VariantCode, issues[0].Code);
+        }
     }
 }

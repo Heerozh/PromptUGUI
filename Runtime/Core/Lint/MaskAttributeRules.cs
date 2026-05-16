@@ -54,7 +54,45 @@ namespace PromptUGUI.Lint
 
         public static IEnumerable<LintIssue> CheckImage(ElementNode n)
         {
-            yield break; // Task 3 fills this in
+            foreach (var issue in CheckVariantOverrides(n)) yield return issue;
+
+            n.Attributes.TryGetValue("mask", out var mask);
+            var hasSprite = n.Attributes.ContainsKey("sprite");
+            var hasPadding = n.Attributes.ContainsKey("maskPadding");
+            var hasShowMask = n.Attributes.ContainsKey("showMask");
+
+            if (!string.IsNullOrEmpty(mask) && mask != "rect" && mask != "self")
+            {
+                yield return new LintIssue(
+                    ValueCode, n.Tag, n.Id,
+                    $"<Image id='{n.Id}'>: mask=\"{mask}\" is invalid. Image allows mask=\"rect\" or mask=\"self\".");
+            }
+
+            if (mask == "self" && !hasSprite)
+            {
+                yield return new LintIssue(
+                    SelfNoSpriteCode, n.Tag, n.Id,
+                    $"<Image id='{n.Id}'>: mask=\"self\" with no sprite= will not clip anything (stencil Mask " +
+                    "needs an Image graphic as the mask source). Add sprite=, or use mask=\"rect\" if you want " +
+                    "a rectangular clip without a sprite.");
+            }
+
+            if (hasPadding && mask != "rect")
+            {
+                yield return new LintIssue(
+                    PaddingNoRectCode, n.Tag, n.Id,
+                    $"<Image id='{n.Id}'>: maskPadding only takes effect with mask=\"rect\" (RectMask2D); " +
+                    "stencil Mask (mask=\"self\") has no padding concept. " +
+                    "Add mask=\"rect\" or remove maskPadding.");
+            }
+
+            if (hasShowMask && mask != "self")
+            {
+                yield return new LintIssue(
+                    ShowMaskNoSelfCode, n.Tag, n.Id,
+                    $"<Image id='{n.Id}'>: showMask only takes effect with mask=\"self\" (stencil Mask). " +
+                    "RectMask2D has no graphic to show/hide. Add mask=\"self\" or remove showMask.");
+            }
         }
 
         private static IEnumerable<LintIssue> CheckVariantOverrides(ElementNode n)
