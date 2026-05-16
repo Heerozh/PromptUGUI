@@ -29,6 +29,15 @@ namespace PromptUGUI.Application
                 return awaitable;
             }
 
+            internal static IModalEntry EnqueueRequest<TResult>(ModalRequest<TResult> request)
+            {
+                if (request == null) throw new ArgumentNullException(nameof(request));
+                var (entry, _) = ModalEntry<TResult>.Create(request);
+                _queue.Enqueue(entry);
+                if (!_pumping) _ = PumpAsync();
+                return entry;
+            }
+
             private static async Awaitable PumpAsync()
             {
                 if (_pumping) return;
@@ -38,6 +47,7 @@ namespace PromptUGUI.Application
                     while (_queue.Count > 0)
                     {
                         var entry = _queue.Dequeue();
+                        if (entry.Resolved) continue;                                       // NEW (1)
                         _current = entry;
                         _currentScreenName = entry.XmlSrc;
                         _currentWaiter = new AwaitableCompletionSource<bool>();
@@ -49,6 +59,8 @@ namespace PromptUGUI.Application
                                 LoadDocument(entry.XmlSrc, xml);
                                 _loadedSrcs.Add(entry.XmlSrc);
                             }
+                            if (entry.Resolved) continue;                                   // NEW (2)
+
                             var screen = Open(entry.XmlSrc);
                             var canvas = screen.RootGameObject.GetComponent<Canvas>();
                             canvas.overrideSorting = true;
@@ -56,6 +68,7 @@ namespace PromptUGUI.Application
 
                             var waiter = _currentWaiter;
                             var captured = entry;
+                            captured.SetWaker(() => waiter.TrySetResult(true));             // NEW (3)
                             captured.RunBind(screen, () => waiter.TrySetResult(true));
 
                             var listener = screen.RootGameObject

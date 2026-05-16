@@ -14,12 +14,15 @@ namespace PromptUGUI.Application.Modals
         public bool TryEscape(Action wakePump);
         public void Cancel(Exception ex);
         public bool Resolved { get; }
+        public void SetWaker(Action waker);
+        public void ResolveExternally();
     }
 
     internal sealed class ModalEntry<TResult> : IModalEntry
     {
         private readonly ModalRequest<TResult> _request;
         private readonly AwaitableCompletionSource<TResult> _tcs = new();
+        private Action _waker;
 
         public bool Resolved { get; private set; }
         public string XmlSrc => _request.XmlSrc;
@@ -27,11 +30,6 @@ namespace PromptUGUI.Application.Modals
 
         private ModalEntry(ModalRequest<TResult> request) { _request = request; }
 
-        /// <summary>
-        /// Creates a <see cref="ModalEntry{TResult}"/> for <paramref name="request"/> and
-        /// returns both the queue-compatible <see cref="IModalEntry"/> and the caller's
-        /// <see cref="Awaitable{TResult}"/> in one call.
-        /// </summary>
         internal static (IModalEntry entry, Awaitable<TResult> awaitable) Create(
             ModalRequest<TResult> request)
         {
@@ -65,6 +63,16 @@ namespace PromptUGUI.Application.Modals
             if (Resolved) return;
             Resolved = true;
             _tcs.TrySetException(ex);
+        }
+
+        public void SetWaker(Action waker) => _waker = waker;
+
+        public void ResolveExternally()
+        {
+            if (Resolved) return;
+            Resolved = true;
+            _tcs.TrySetResult(default!);
+            _waker?.Invoke();
         }
     }
 }
