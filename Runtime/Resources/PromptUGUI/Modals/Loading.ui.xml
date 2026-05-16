@@ -4,7 +4,6 @@
     <Image id="backdrop" anchor="stretch" color="#000000C0"/>
 
     <Frame id="dialog" anchor="center" size="320x160">
-      <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui.png#pugui_9slice_round"/>
       <VStack anchor="stretch" margin="20" spacing="12">
 
         <!-- HStack 不加 anchor: VStack 是 layout group, child anchor 会被 PUI-LAYOUT-ANCHOR lint
@@ -21,7 +20,7 @@
           </Animation>
         </HStack>
 
-        <Text id="text" width="stretch" height="stretch" fontSize="16"/>
+        <Text id="text" width="stretch" height="stretch" fontSize="46" align="center" color="white"/>
       </VStack>
     </Frame>
   </Screen>
