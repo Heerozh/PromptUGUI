@@ -158,6 +158,66 @@ Response:
 ✻ Worked for 8m 22s
 ```
 
+XML Code:
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<PromptUGUI version="1">
+
+  <Screen name="Login" reference="1920x1080" reference.portrait="1080x1920">
+
+    <Image anchor="stretch" color="#1E2433"/>
+
+    <Frame id="card" anchor="center" size="420x600">
+      <Image anchor="stretch" color="#FFFFFF"/>
+
+      <VStack anchor="stretch" margin="32" spacing="14">
+        <Text fontSize="30" align="center" color="#111827">Welcome Back</Text>
+        <Text fontSize="14" align="center" color="#6B7280">Sign in to your account</Text>
+
+        <Frame height="16"/>
+
+        <Text fontSize="14" color="#374151">Username</Text>
+        <InputField id="username" placeholder="Enter your username"
+                    width="stretch" height="40"/>
+
+        <Frame height="4"/>
+
+        <Text fontSize="14" color="#374151">Password</Text>
+        <InputField id="password" placeholder="Enter your password"
+                    contentType="password"
+                    width="stretch" height="40"/>
+
+        <HStack height="28" spacing="8">
+          <Toggle id="rememberMe">Remember me</Toggle>
+          <Frame width="stretch"/>
+          <Btn id="forgot" color="#FFFFFF00">
+            <Text anchor="stretch" align="center" fontSize="13" color="#3B82F6">Forgot password?</Text>
+          </Btn>
+        </HStack>
+
+        <Frame height="8"/>
+
+        <Btn id="login" color="#3B82F6" width="stretch" height="44">
+          <Text anchor="stretch" align="center" fontSize="16" color="#FFFFFF">Login</Text>
+        </Btn>
+
+        <HStack height="24" spacing="4" childAlign="middle-center">
+          <Text fontSize="13" color="#6B7280">No account?</Text>
+          <Btn id="register" color="#FFFFFF00">
+            <Text anchor="stretch" align="center" fontSize="13" color="#3B82F6">Sign up</Text>
+          </Btn>
+        </HStack>
+      </VStack>
+    </Frame>
+
+  </Screen>
+
+</PromptUGUI>
+
+```
+
+
 C# Code:
 
 ```csharp
@@ -199,3 +259,7 @@ C# Code:
         await MessageBox.Open(UI.Tr("Welcome back!"), MsgBtn.OK);
     }
 ```
+
+## 友情链接
+
+[v2ex](https://www.v2ex.com/) | [linuxdo](https://linux.do)
