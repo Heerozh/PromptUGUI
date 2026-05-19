@@ -15,7 +15,7 @@ env:
   # 改成你 host project 的实际相对路径。
   # 约定：UnityProjects/PromptUGUIDev/ 里有完整 Unity 工程，
   # 它的 Packages/manifest.json 用 "com.promptugui.core": "file:../.." 引用本包。
-  PROJECT_PATH: UnityProjects/PromptUGUIDev
+  PROJECT_PATH: UnityProjects~/PromptUGUIDev
 
 jobs:
   test:
