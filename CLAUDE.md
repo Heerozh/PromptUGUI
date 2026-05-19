@@ -12,7 +12,7 @@ The library is **content-agnostic at runtime**: it never reads the filesystem it
 
 `docs~/superpowers/specs/2026-05-07-promptugui-description-language-design.md` is the master spec for the description language and C# API. Per-milestone specs and plans live alongside it. Always read the master spec before changing public API or XML semantics — section numbers (e.g. "spec §7.6") are referenced throughout the codebase and PR descriptions.
 
-The LLM-facing authoring guide is split into three skills under `.claude/skills/`. **Any functional change or addition must be reflected in the relevant skill(s) in the same PR.**
+The LLM-facing authoring guide is split into three skills under `.claude/skills/`. **Any functional change or addition must be reflected in the relevant skill(s) in the same PR (in english).**
 
 - `authoring-promptugui-xml/SKILL.md` — XML markup: built-in tags, attributes, anchor / size / margin / Variant / Template / Import / `if=` / `<Icon>` / i18n markup / XML parse errors.
 - `scripting-promptugui-csharp/SKILL.md` — C# bridge: `UI.*`, `IScreen`, `IControl`, `ControlRegistry`, `Variants`, `[UIAttr]` / `[Bind]`, `BindItems` / `BindOptions`, Resources-backed icon / .po loading, `UI.CanvasConfigurator`.
@@ -134,6 +134,8 @@ Two entry points to this pipeline:
 **Common (auto-imported) Templates live in `_commonsPool` keyed by `(ns, name)`.** `LoadCommonLibraryAsync(src, [as])` populates it once at boot. Subsequent `LoadDocumentAsync` calls merge commons → entry templates with hard conflict errors.
 
 **Async-by-default load pipeline.** `SourceResolver` is `Func<string, Awaitable<string>>`. `LoadDocumentAsync` / `LoadCommonLibraryAsync` / `ReloadAsync` / `ReloadCommonLibraryAsync` are all `async Awaitable<...>`. EditMode tests synchronously unwrap with `.GetAwaiter().GetResult()` — `AwaitableHelpers.Completed(value)` (internal) produces a sync-completed `Awaitable<T>` so there's no real yield point and the call returns on the test thread. The sync `LoadDocument(label, xml)` overload remains for raw-XML callers. `HotReload.NotifyAssetChanged` stays `void`; internally it fires `_ = ReloadAsyncLogged(...)` / `_ = ReloadCommonLibraryAsyncLogged(...)` with try/catch + `Debug.LogError` because AssetPostprocessor is a sync context.
+
+**Do not use .Net Threading.** for WebGL support purpose. Specifically, not use `Task` async return value, use Unity's `Awaitable` instead, and also TCS use `AwaitableCompletionSource`.
 
 **Variants don't rebuild GameObjects.** `VariantStore.Changed` triggers `Screen.ReSolve` which re-applies attribute values via `ControlAttributeApplier`. Add blocks use Strategy C: instantiate once on first activation and only toggle `SetActive`. Never `Destroy` an Add block while the Screen is open — references and R3 subscriptions must survive variant toggles.
 

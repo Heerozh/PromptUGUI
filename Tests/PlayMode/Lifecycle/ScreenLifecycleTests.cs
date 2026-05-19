@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
@@ -679,17 +680,22 @@ namespace PromptUGUI.Tests.Lifecycle
         [UnityTest]
         public IEnumerator Variant_add_into_unknown_path_throws_when_first_activated_at_runtime()
         {
-            // Variant 在 Open 时未激活，所以不会在 Open 时实例化；首次激活时才走 ApplyAddBlock，
-            // 此刻 #dialog/missing 路径解析失败 → InvalidOperationException。
+            // Variant 在 Open 时未激活，所以不会在 Open 时实例化；首次激活时才走
+            // ApplyAddBlock，此刻 #dialog/missing 路径解析失败 → InvalidOperationException。
             //
-            // R3 exception-routing note (verified via R3ExceptionBehaviorTests):
-            //   Observer<T>.OnNext catches subscriber exceptions and routes them through
-            //   OnErrorResume to the handler that was captured at Subscribe() time —
-            //   specifically ObservableSystem.GetUnhandledExceptionHandler() snapshotted when
-            //   Screen.Open() calls _variants.Changed.Subscribe(...). The default handler is
-            //   Console.WriteLine, so the exception is silently printed; it neither propagates
-            //   to UI.Variants.Set() nor appears in Unity's log. The observable side-effect
-            //   (item never registered) is therefore the correct assertion anchor.
+            // R3 异常路由：Observer<T>.OnNext 捕获订阅者异常 → OnErrorResume →
+            // Subscribe 时快照的 ObservableSystem.UnhandledExceptionHandler。这个默认
+            // handler 取决于装了哪一组 R3 包：
+            //   • 只装 R3 core (NuGet `R3`)：handler 是 Console.WriteLine，异常静默 print，
+            //     既不进 Unity 日志，也不传回 UI.Variants.Set 调用方。
+            //   • 加装 R3 for Unity (UPM com.cysharp.r3)：里面的 UnityProviderInitializer
+            //     在 [RuntimeInitializeOnLoadMethod] 阶段把 handler 换成 Debug.LogException，
+            //     异常以 Exception 级日志出现（依然不会从 UI.Variants.Set 抛回调用方）。
+            // 本仓库的 host 工程装了 R3 for Unity，所以下面用 LogAssert.Expect 声明这条日志。
+            //
+            // 与 handler 选择无关的不变量：ActivateAddBlock 在写入 _addInstances / _byId 前就
+            // 抛了，所以 'item' 从未注册 —— 这是更稳健的可观测副作用，最终用 KeyNotFoundException
+            // 断言锚住。
             UI.LoadDocument("a9", @"<PromptUGUI version='1'>
                 <Template name='Box'>
                     <Frame><Grid id='inner' columns='6'/></Frame>
@@ -705,9 +711,10 @@ namespace PromptUGUI.Tests.Lifecycle
             var screen = UI.Open("A9");
             Assert.IsNotNull(screen);
 
-            // 首次激活时才解析 #dialog/missing → 路径不存在 → InvalidOperationException。
-            // 异常被 R3 路由到 Subscribe 时捕获的 handler（Console.WriteLine），
-            // 对调用方透明。
+            // 首次激活时才解析 #dialog/missing → 路径不存在 → InvalidOperationException，
+            // 经 R3 路由到 Debug.LogException。
+            LogAssert.Expect(LogType.Exception,
+                new Regex(@"InvalidOperationException.*<Add into='#dialog/missing'>.*'missing' not found under 'dialog'"));
             UI.Variants.Set("m", true);
 
             // 激活失败的可观测结果：ActivateAddBlock 在写入 _addInstances 前就抛了，

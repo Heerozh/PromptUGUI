@@ -1,0 +1,72 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 改成你 host project 的实际相对路径。
+  # 约定：UnityProjects/PromptUGUIDev/ 里有完整 Unity 工程，
+  # 它的 Packages/manifest.json 用 "com.promptugui.core": "file:../.." 引用本包。
+  PROJECT_PATH: UnityProjects/PromptUGUIDev
+
+jobs:
+  test:
+    name: ${{ matrix.testMode }}
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        testMode:
+          - EditMode
+          - PlayMode
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Cache Library
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT_PATH }}/Library
+          key: Library-${{ matrix.testMode }}-${{ hashFiles(format('{0}/Packages/manifest.json', env.PROJECT_PATH), format('{0}/ProjectSettings/ProjectVersion.txt', env.PROJECT_PATH)) }}
+          restore-keys: |
+            Library-${{ matrix.testMode }}-
+            Library-
+
+      - name: Run ${{ matrix.testMode }} tests
+        uses: game-ci/unity-test-runner@v4
+        id: tests
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        with:
+          projectPath: ${{ env.PROJECT_PATH }}
+          unityVersion: auto
+          testMode: ${{ matrix.testMode }}
+          artifactsPath: ${{ matrix.testMode }}-artifacts
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          checkName: ${{ matrix.testMode }} Results
+          # 默认会跑 host project 能看到的所有 test assemblies。
+          # 想限定到本包的话取消下面注释（注意：EditorOnly 不在 package.json testables 里，
+          # 默认情况下 host 项目看不到它；要跑它需要把它加进 testables，或把测试搬进 EditMode）。
+          # testFilter: |
+          #   PromptUGUI.Tests.EditMode
+          #   PromptUGUI.Tests.EditMode.Addressables
+          #   PromptUGUI.Tests.PlayMode
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Test results (${{ matrix.testMode }})
+          path: ${{ steps.tests.outputs.artifactsPath }}
