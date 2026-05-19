@@ -28,7 +28,7 @@
       "hash": "acc1c7bc9ea34c33b830e40316fca52553878d29"
     },
     "com.promptugui.core": {
-      "version": "file:../../../../PromptUGUI",
+      "version": "file:../../..",
       "depth": 0,
       "source": "local",
       "dependencies": {
