@@ -3,7 +3,7 @@
         "com.annulusgames.lit-motion": "https://github.com/annulusgames/LitMotion.git?path=src/LitMotion/Assets/LitMotion",
         "com.cysharp.r3": "https://github.com/Cysharp/R3.git?path=src/R3.Unity/Assets/R3.Unity",
         "com.github-glitchenzo.nugetforunity": "https://github.com/GlitchEnzo/NuGetForUnity.git?path=/src/NuGetForUnity",
-        "com.promptugui.core": "file:../../../../PromptUGUI",
+        "com.promptugui.core": "file:../../..",
         "com.unity.ai.navigation": "2.0.12",
         "com.unity.collab-proxy": "2.12.4",
         "com.unity.ide.rider": "3.0.39",
