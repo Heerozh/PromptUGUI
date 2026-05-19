@@ -222,6 +222,7 @@ namespace PromptUGUI.Tests.Application
             Assert.DoesNotThrow(() => UI.LoadDocumentAsync("x").GetAwaiter().GetResult());
         }
 
+#if UNITY_6000_5_OR_NEWER
         [Test]
         public void OnEnteringPlayMode_clears_loaded_docs_so_replay_does_not_throw()
         {
@@ -236,5 +237,6 @@ namespace PromptUGUI.Tests.Application
             Assert.AreSame(savedResolver, UI.SourceResolver);
             Assert.DoesNotThrow(() => UI.LoadDocumentAsync("main").GetAwaiter().GetResult());
         }
+#endif
     }
 }

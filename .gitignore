@@ -129,3 +129,4 @@ InitTestScene*.unity*
 # dotnet build artifacts under .lint/ (UIXmlLint + lint workspace `dotnet format` cache)
 .lint/**/bin/
 .lint/**/obj/
+.idea/
