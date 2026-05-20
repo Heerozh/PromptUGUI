@@ -70,19 +70,21 @@ namespace PromptUGUI.Application.Modals
         public static string XmlSrc { get; set; } = "PromptUGUI/Modals/MessageBox.ui";
 
         public static UnityEngine.Awaitable<MsgBtn> Open(
-            string text, MsgBtn buttons = MsgBtn.OK, string icon = null, string title = null)
+            string text, MsgBtn buttons = MsgBtn.OK, string icon = null, string title = null,
+            ModalMode mode = ModalMode.Popup)
             => UI.Modal.OpenAsync(new MessageBoxRequest
             {
                 Text = text,
                 Buttons = buttons,
                 Icon = icon,
                 Title = title,
-            });
+            }, mode);
 
         public static UnityEngine.Awaitable<MsgBtn> Open(
             string text,
             System.Collections.Generic.IEnumerable<(string label, MsgBtn key)> buttons,
-            string icon = null, string title = null)
+            string icon = null, string title = null,
+            ModalMode mode = ModalMode.Popup)
         {
             var list = new System.Collections.Generic.List<(string, MsgBtn)>(buttons);
             var mask = MsgBtn.None;
@@ -94,7 +96,7 @@ namespace PromptUGUI.Application.Modals
                 Buttons = mask,
                 Icon = icon,
                 Title = title,
-            });
+            }, mode);
         }
     }
 }
