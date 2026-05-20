@@ -589,6 +589,7 @@ namespace PromptUGUI.Application
         public static void UnloadAll()
         {
             Modal.CancelAllForTeardown();
+            Modals.LoadingOverlay.CancelAllForTeardown();
             Modals.ModalDocCache.Clear();
             foreach (var s in _open.Values) s.Close();
             _open.Clear();
@@ -640,6 +641,7 @@ namespace PromptUGUI.Application
             Orientation.ResetForTestsInternal();
             TranslationStore.Instance.UnloadAll();
             Modal.CancelAllForTeardown();
+            Modals.LoadingOverlay.CancelAllForTeardown();
             Modals.ModalDocCache.Clear();
             foreach (var s in _open.Values) s.Close();
             _open.Clear();
