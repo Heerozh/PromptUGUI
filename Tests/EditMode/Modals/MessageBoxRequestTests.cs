@@ -10,7 +10,7 @@ namespace PromptUGUI.Tests.Modals
         public void Bind_only_OK_hides_other_buttons()
         {
             UI.Modal.OpenAsync(new MessageBoxRequest { Text = "hi", Buttons = MsgBtn.OK });
-            var s = UI.Get("test/Box1");
+            var s = UI.Modal.TopScreen;
 
             Assert.IsTrue(s.Get<PromptUGUI.Controls.Btn>("ok").GameObject.activeSelf);
             Assert.IsFalse(s.Get<PromptUGUI.Controls.Btn>("cancel").GameObject.activeSelf);
@@ -23,7 +23,7 @@ namespace PromptUGUI.Tests.Modals
         public void Click_OK_returns_MsgBtn_OK()
         {
             var task = UI.Modal.OpenAsync(new MessageBoxRequest { Text = "hi", Buttons = MsgBtn.OK });
-            UI.Get("test/Box1").Get<PromptUGUI.Controls.Btn>("ok").SimulateClick();
+            UI.Modal.TopScreen.Get<PromptUGUI.Controls.Btn>("ok").SimulateClick();
             Assert.AreEqual(MsgBtn.OK, task.GetAwaiter().GetResult());
         }
 
@@ -35,7 +35,7 @@ namespace PromptUGUI.Tests.Modals
                 Text = "hi",
                 Buttons = MsgBtn.OK | MsgBtn.Cancel,
             });
-            UI.Get("test/Box1").Get<PromptUGUI.Controls.Btn>("cancel").SimulateClick();
+            UI.Modal.TopScreen.Get<PromptUGUI.Controls.Btn>("cancel").SimulateClick();
             Assert.AreEqual(MsgBtn.Cancel, task.GetAwaiter().GetResult());
         }
 
@@ -43,7 +43,7 @@ namespace PromptUGUI.Tests.Modals
         public void Title_null_hides_title_node()
         {
             UI.Modal.OpenAsync(new MessageBoxRequest { Text = "hi", Buttons = MsgBtn.OK, Title = null });
-            var s = UI.Get("test/Box1");
+            var s = UI.Modal.TopScreen;
             Assert.IsFalse(s.Get<PromptUGUI.Controls.Text>("title").GameObject.activeSelf);
         }
 
@@ -56,7 +56,7 @@ namespace PromptUGUI.Tests.Modals
                 Buttons = MsgBtn.OK,
                 Title = "Heading",
             });
-            var s = UI.Get("test/Box1");
+            var s = UI.Modal.TopScreen;
             var title = s.Get<PromptUGUI.Controls.Text>("title");
             Assert.IsTrue(title.GameObject.activeSelf);
             Assert.AreEqual("Heading", title.TmpComponent.text);
@@ -71,7 +71,7 @@ namespace PromptUGUI.Tests.Modals
                 Buttons = MsgBtn.OK | MsgBtn.Cancel,
                 CustomLabels = new[] { ("Retry", MsgBtn.OK), ("Skip", MsgBtn.Cancel) },
             });
-            UI.Get("test/Box1").Get<PromptUGUI.Controls.Btn>("cancel").SimulateClick();
+            UI.Modal.TopScreen.Get<PromptUGUI.Controls.Btn>("cancel").SimulateClick();
             Assert.AreEqual(MsgBtn.Cancel, task.GetAwaiter().GetResult());
         }
 
@@ -106,7 +106,7 @@ namespace PromptUGUI.Tests.Modals
                 Text = "x",
                 Buttons = MsgBtn.OK | MsgBtn.Cancel,
             });
-            var listener = UI.Get("test/Box1")
+            var listener = UI.Modal.TopScreen
                 .RootGameObject.GetComponent<ModalEscapeListener>();
             Assert.IsNotNull(listener, "Pump must attach ModalEscapeListener to the modal Screen root");
             listener.FireForTests();
@@ -122,7 +122,7 @@ namespace PromptUGUI.Tests.Modals
                 Text = "x",
                 Buttons = MsgBtn.OK,
             });
-            var listener = UI.Get("test/Box1")
+            var listener = UI.Modal.TopScreen
                 .RootGameObject.GetComponent<ModalEscapeListener>();
             listener.FireForTests();
             Assert.IsTrue(UI.Modal.IsAnyOpen, "ESC on OK-only should be a no-op");

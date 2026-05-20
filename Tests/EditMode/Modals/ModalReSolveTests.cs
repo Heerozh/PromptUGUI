@@ -10,7 +10,7 @@ namespace PromptUGUI.Tests.Modals
         public void Bind_SetActive_false_survives_VariantStore_Changed()
         {
             UI.Modal.OpenAsync(new MessageBoxRequest { Text = "x", Buttons = MsgBtn.OK });
-            var s = UI.Get("test/Box1");
+            var s = UI.Modal.TopScreen;
             Assert.IsFalse(s.Get<PromptUGUI.Controls.Btn>("cancel").GameObject.activeSelf);
 
             UI.Variants.Set("mobile", true);   // triggers ReSolve

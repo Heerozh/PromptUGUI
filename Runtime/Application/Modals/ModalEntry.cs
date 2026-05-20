@@ -5,8 +5,7 @@ using UnityEngine;
 namespace PromptUGUI.Application.Modals
 {
     // Non-generic queue entry interface — lets UI.Modal.cs work without referencing
-    // the generic ModalRequest<TResult> type, which Unity's Roslyn fails to resolve
-    // across namespace boundaries in partial-class files.
+    // the generic ModalRequest<TResult> type.
     internal interface IModalEntry
     {
         public string XmlSrc { get; }
@@ -14,15 +13,12 @@ namespace PromptUGUI.Application.Modals
         public bool TryEscape(Action wakePump);
         public void Cancel(Exception ex);
         public bool Resolved { get; }
-        public void SetWaker(Action waker);
-        public void ResolveExternally();
     }
 
     internal sealed class ModalEntry<TResult> : IModalEntry
     {
         private readonly ModalRequest<TResult> _request;
         private readonly AwaitableCompletionSource<TResult> _tcs = new();
-        private Action _waker;
 
         public bool Resolved { get; private set; }
         public string XmlSrc => _request.XmlSrc;
@@ -63,16 +59,6 @@ namespace PromptUGUI.Application.Modals
             if (Resolved) return;
             Resolved = true;
             _tcs.TrySetException(ex);
-        }
-
-        public void SetWaker(Action waker) => _waker = waker;
-
-        public void ResolveExternally()
-        {
-            if (Resolved) return;
-            Resolved = true;
-            _tcs.TrySetResult(default!);
-            _waker?.Invoke();
         }
     }
 }
