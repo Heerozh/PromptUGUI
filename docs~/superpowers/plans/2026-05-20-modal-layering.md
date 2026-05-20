@@ -230,6 +230,31 @@ namespace PromptUGUI.Application.Modals
         }
 ```
 
+并在 `UnloadAll` 与 `ResetForTests` 里接 `ModalDocCache` 的清理 —— 两者都 `_docs.Clear()`,XML 加载缓存必须同步清空,否则下次 `EnsureLoaded` 命中陈旧的 `_loaded` 会跳过 `LoadDocument`、与 `_docs` 不一致(也会导致 `ModalDocCacheTests` 两个用例互相污染)。在 `UI.cs` 的 `UnloadAll` 与 `ResetForTests` 里,各自在 `Modal.CancelAllForTeardown();` 之后插入一行 `Modals.ModalDocCache.Clear();`:
+
+```csharp
+        public static void UnloadAll()
+        {
+            Modal.CancelAllForTeardown();
+            Modals.ModalDocCache.Clear();          // ← 新增
+            foreach (var s in _open.Values) s.Close();
+            // ...其余不变
+        }
+```
+
+```csharp
+        internal static void ResetForTests()
+        {
+            // ...
+            Modal.CancelAllForTeardown();
+            Modals.ModalDocCache.Clear();          // ← 新增
+            foreach (var s in _open.Values) s.Close();
+            // ...其余不变
+        }
+```
+
+(Task 8 会在这行之前再插入 `LoadingOverlay.CancelAllForTeardown();`。)
+
 - [ ] **Step 5: 跑测试确认通过**
 
 `mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)` → `read_console` 确认无错 → `mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.EditMode"], filter="ModalDocCacheTests")`。预期:2 passed。
@@ -1404,6 +1429,8 @@ namespace PromptUGUI.Tests.Modals
 
 - [ ] **Step 3: 改 `UI.cs` 的 `UnloadAll`**
 
+Task 2 已加入 `Modals.ModalDocCache.Clear();`。本步只在它之前插入 `Modals.LoadingOverlay.CancelAllForTeardown();`。最终形态:
+
 ```csharp
         public static void UnloadAll()
         {
@@ -1420,7 +1447,7 @@ namespace PromptUGUI.Tests.Modals
 
 - [ ] **Step 4: 改 `UI.cs` 的 `ResetForTests`**
 
-在 `Modal.CancelAllForTeardown();` 之后加两行:
+Task 2 已加入 `Modals.ModalDocCache.Clear();`。本步只在它之前插入 `Modals.LoadingOverlay.CancelAllForTeardown();`。最终(`Modal.CancelAllForTeardown();` 起):
 
 ```csharp
             Modal.CancelAllForTeardown();
