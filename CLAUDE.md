@@ -176,3 +176,5 @@ XSD generator tests use substring assertions (`StringAssert.Contains`) rather th
 ## Workflow
 
 `docs~/superpowers/specs/<date>-<topic>-design.md` is the spec format; `docs~/superpowers/plans/<date>-<topic>.md` is the implementation plan format. New milestones go through brainstorming → spec → plan → feature branch → PR → merge to main. Recent merges (PR #1 M3, PR #3 M4) used merge commits with `--delete-branch`.
+
+DO NOT Commit any file to main branch!

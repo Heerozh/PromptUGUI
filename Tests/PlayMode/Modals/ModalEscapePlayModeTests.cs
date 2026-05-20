@@ -53,7 +53,7 @@ namespace PromptUGUI.Tests.PlayMode.Modals
             yield return null;
             yield return null;
 
-            var screen = UI.Get(MessageBox.XmlSrc);
+            var screen = UI.Modal.TopScreen;
             Assert.IsNotNull(screen, "Screen should be loaded");
             var listener = screen.RootGameObject.GetComponent<ModalEscapeListener>();
             Assert.IsNotNull(listener, "ModalEscapeListener should be attached");
@@ -72,7 +72,7 @@ namespace PromptUGUI.Tests.PlayMode.Modals
             yield return null;
             yield return null;
 
-            var listener = UI.Get(MessageBox.XmlSrc).RootGameObject.GetComponent<ModalEscapeListener>();
+            var listener = UI.Modal.TopScreen.RootGameObject.GetComponent<ModalEscapeListener>();
             listener.FireForTests();
             yield return null;
 
@@ -89,10 +89,10 @@ namespace PromptUGUI.Tests.PlayMode.Modals
             yield return null;
             yield return null;
 
-            var canvas = UI.Get(MessageBox.XmlSrc).RootGameObject.GetComponent<Canvas>();
+            var canvas = UI.Modal.TopScreen.RootGameObject.GetComponent<Canvas>();
             Assert.AreEqual(777, canvas.sortingOrder);
 
-            UI.Get(MessageBox.XmlSrc).Get<PromptUGUI.Controls.Btn>("ok").SimulateClick();
+            UI.Modal.TopScreen.Get<PromptUGUI.Controls.Btn>("ok").SimulateClick();
             yield return null;
             Assert.AreEqual(MsgBtn.OK, task.GetAwaiter().GetResult());
         }

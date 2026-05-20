@@ -10,7 +10,7 @@ namespace PromptUGUI.Tests.Modals
         public void Open_default_overload_returns_MsgBtn_OK()
         {
             var task = MessageBox.Open("hello", MsgBtn.OK);
-            UI.Get("test/Box1").Get<PromptUGUI.Controls.Btn>("ok").SimulateClick();
+            UI.Modal.TopScreen.Get<PromptUGUI.Controls.Btn>("ok").SimulateClick();
             Assert.AreEqual(MsgBtn.OK, task.GetAwaiter().GetResult());
         }
 
@@ -19,7 +19,7 @@ namespace PromptUGUI.Tests.Modals
         {
             var task = MessageBox.Open("hello",
                 new[] { ("Retry", MsgBtn.OK), ("Skip", MsgBtn.Cancel) });
-            UI.Get("test/Box1").Get<PromptUGUI.Controls.Btn>("cancel").SimulateClick();
+            UI.Modal.TopScreen.Get<PromptUGUI.Controls.Btn>("cancel").SimulateClick();
             Assert.AreEqual(MsgBtn.Cancel, task.GetAwaiter().GetResult());
         }
 
@@ -27,7 +27,7 @@ namespace PromptUGUI.Tests.Modals
         public void Open_default_overload_no_buttons_arg_defaults_to_OK()
         {
             var task = MessageBox.Open("hello");
-            var s = UI.Get("test/Box1");
+            var s = UI.Modal.TopScreen;
             Assert.IsTrue(s.Get<PromptUGUI.Controls.Btn>("ok").GameObject.activeSelf);
             Assert.IsFalse(s.Get<PromptUGUI.Controls.Btn>("cancel").GameObject.activeSelf);
             s.Get<PromptUGUI.Controls.Btn>("ok").SimulateClick();

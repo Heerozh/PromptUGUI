@@ -526,6 +526,36 @@ namespace PromptUGUI.Application
             }
         }
 
+        private static int _modalInstanceSeq;
+
+        /// <summary>
+        /// modal / overlay 专用:从已加载的 _docs 实例化一份 Screen,登记进 _open
+        /// 用唯一 key(`{docName}#m{n}`),使同一份 XML 可叠多份实例。
+        /// 普通 Screen 仍走 Open(name)。
+        /// </summary>
+        internal static (Screen screen, string key) OpenModalScreen(string docName)
+        {
+            if (!_docs.TryGetValue(docName, out var def))
+                throw new System.InvalidOperationException(
+                    $"Modal screen '{docName}' not loaded; call LoadDocument first");
+            var key = docName + "#m" + (++_modalInstanceSeq);
+            var inst = new ScreenInstantiator(Registry, VariantStore);
+            var screen = new Screen(def, inst, Registry, VariantStore);
+            _open[key] = screen;                 // Open() 前登记,让 OwnerScreenOf 反查得到
+            try { screen.Open(); }
+            catch { _open.Remove(key); throw; }
+            return (screen, key);
+        }
+
+        internal static void CloseModalScreen(string key)
+        {
+            if (_open.TryGetValue(key, out var s))
+            {
+                s.Close();
+                _open.Remove(key);
+            }
+        }
+
         public static Screen Get(string screenName) =>
             _open.TryGetValue(screenName, out var s) ? s : null;
 
@@ -559,6 +589,8 @@ namespace PromptUGUI.Application
         public static void UnloadAll()
         {
             Modal.CancelAllForTeardown();
+            Modals.LoadingOverlay.CancelAllForTeardown();
+            Modals.ModalDocCache.Clear();
             foreach (var s in _open.Values) s.Close();
             _open.Clear();
             _docs.Clear();
@@ -609,8 +641,11 @@ namespace PromptUGUI.Application
             Orientation.ResetForTestsInternal();
             TranslationStore.Instance.UnloadAll();
             Modal.CancelAllForTeardown();
+            Modals.LoadingOverlay.CancelAllForTeardown();
+            Modals.ModalDocCache.Clear();
             foreach (var s in _open.Values) s.Close();
             _open.Clear();
+            _modalInstanceSeq = 0;
             _docs.Clear();
             VariantStore.Reset();
             Registry = CreateRegistryWithBuiltins();
