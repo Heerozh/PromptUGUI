@@ -124,14 +124,14 @@ namespace PromptUGUI.Tests.Modals
         {
             // 显式设两个 band 值,避免被别的测试遗留的 SortingOrderBase 污染。
             UI.Modal.SortingOrderBase = 1000;
-            LoadingOverlay.SortingOrder = 500;
+            Loading.SortingOrder = 500;
             Loading.Open("x");
             var screen = System.Linq.Enumerable.First(LoadingOverlay.ActiveScreens);
             var canvas = screen.RootGameObject.GetComponent<UnityEngine.Canvas>();
             // 注:不断言 canvas.overrideSorting —— 根 ScreenSpaceOverlay canvas 上
             // overrideSorting 不会回读为 true(只对嵌套 canvas 有意义)。sortingOrder
             // 才是实际生效、可验证的量。
-            Assert.AreEqual(LoadingOverlay.SortingOrder, canvas.sortingOrder);
+            Assert.AreEqual(Loading.SortingOrder, canvas.sortingOrder);
             Assert.Less(canvas.sortingOrder, UI.Modal.SortingOrderBase,
                 "Loading 必须在 dialog 之下");
         }

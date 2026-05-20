@@ -9,6 +9,9 @@ namespace PromptUGUI.Application.Modals
         // .ui 后缀:Unity 只剥离 .ui.xml 文件名的最后 .xml
         public static string XmlSrc { get; set; } = "PromptUGUI/Modals/Loading.ui";
 
+        /// <summary>overlay 的 sortingOrder。须低于 <see cref="UI.Modal.SortingOrderBase"/>(默认 1000)。</summary>
+        public static int SortingOrder { get; set; } = 500;
+
         public static LoadingHandle Open(string text = null)
             => LoadingOverlay.Open(text);
     }

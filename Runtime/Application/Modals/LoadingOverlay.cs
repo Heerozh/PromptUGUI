@@ -24,9 +24,6 @@ namespace PromptUGUI.Application.Modals
         private static readonly Queue<LoadingEntry> _pending = new();
         private static bool _materializing;
 
-        /// <summary>overlay 的 sortingOrder。须低于 <see cref="UI.Modal.SortingOrderBase"/>。</summary>
-        public static int SortingOrder { get; set; } = 500;
-
         internal static int ActiveCount => _entries.Count;
 
         internal static IEnumerable<Screen> ActiveScreens
@@ -89,7 +86,7 @@ namespace PromptUGUI.Application.Modals
 
                         var canvas = screen.RootGameObject.GetComponent<Canvas>();
                         canvas.overrideSorting = true;
-                        canvas.sortingOrder = SortingOrder;
+                        canvas.sortingOrder = Loading.SortingOrder;
 
                         BindText(screen, entry.Text);
                     }
