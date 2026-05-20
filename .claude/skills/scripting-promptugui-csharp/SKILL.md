@@ -310,10 +310,12 @@ CUSTOM         class X : Control { override OnAttached() { ... } }
                UI.Registry.Register<X>("Tag", prefab)
 
 MODAL          var r = await MessageBox.Open(text, MsgBtn.OK|MsgBtn.Cancel, icon, title)
-               UI.Modal.OpenAsync(new MyRequest())          custom ModalRequest<T>
-               UI.Modal.CloseAll()                          cancel all pending
+               MessageBox.Open(text, ..., mode: ModalMode.Queued)  排队,不叠加
+               UI.Modal.OpenAsync(new MyRequest(), ModalMode.Popup) custom ModalRequest<T>
+               UI.Modal.CloseAll()                          cancel all
                UI.Modal.SortingOrderBase = 1000             default
-               var h = Loading.Open(text); h.Close()         loading spinner (no result)
+               var h = Loading.Open(text); h.Close()        loading overlay(独立于 modal 栈)
+               Loading.SortingOrder = 500                   overlay 层带,低于 dialog
 ```
 
 ## Modal dialogs
@@ -340,10 +342,16 @@ await MessageBox.Open("Saved.", MsgBtn.OK, icon: "ui:check", title: "Done");
 
 ### Behavior
 
-- **Modal stacking**: when one MessageBox is open, subsequent `Open(...)` calls queue FIFO. The next pops automatically when the active one closes.
-- **ESC / Android Back**: maps to the most-negative button in the combo: `Cancel > No > Close`. ESC on an `OK`-only modal does nothing.
-- **Raycast block**: the modal Screen overrides `Canvas.sortingOrder` to `UI.Modal.SortingOrderBase` (default 1000), so it sits above every regular Screen. The XML's backdrop Image fills the canvas and absorbs clicks.
-- **Locale / Variant**: a modal is a regular `Screen` — locale switches translate its button labels; Variants re-apply attribute values normally.
+- **Stacking (`ModalMode`)**: every `Open` takes a `mode`. **`ModalMode.Popup`** (default)
+  shows the dialog immediately, stacked on top of any current dialog — use it for nested
+  dialogs (e.g. a confirm dialog opened from inside another modal). **`ModalMode.Queued`**
+  waits until the whole dialog stack is empty, then shows as the new base; multiple
+  `Queued` dialogs show FIFO. Closing the top dialog reveals the one below.
+- **ESC / Android Back**: only the top dialog responds; maps to `Cancel > No > Close`.
+  ESC on an `OK`-only dialog does nothing.
+- **Raycast block**: each dialog's Canvas overrides `sortingOrder` to
+  `UI.Modal.SortingOrderBase + depth` (base default 1000), above every regular Screen.
+- **Locale / Variant**: a dialog is a regular `Screen` — locale / Variants apply normally.
 
 ### Cancelling
 
@@ -385,32 +393,27 @@ Keys starting with `PromptUGUI/` resolve to the package's bundled Resources; oth
 
 Your XML must declare a Screen with these ids: `text`, `title`, `ok`, `cancel`, `yes`, `no`, `close`. An optional `icon` id is supported but not required (Bind tolerates missing icon node). If you want icon support, your XML must include `<Icon id="icon" name="placeholder:something"/>` because PromptUGUI's parser requires the `name=` attribute on `<Icon>` elements.
 
-### Loading modal
+### Loading overlay
 
-A non-blocking "loading" modal: blocks UI while async work runs, then your code closes it. **Does not accept user input** (ESC cannot dismiss it).
+A non-interactive overlay that blocks the screen while async work runs, then your code
+closes it. It is **not a modal/dialog** — it is a separate subsystem that sits *below*
+the dialog stack, so a MessageBox opened during a Loading appears on top of it.
 
 ```csharp
-using PromptUGUI.Application.Modals;
-
 var loading = Loading.Open(UI.Tr("Loading..."));
-try
-{
-    await DoWorkAsync();
-    var data = await FetchAsync();
-}
-finally
-{
-    loading.Close();   // idempotent — safe to call multiple times
-}
+try { await DoWorkAsync(); }
+finally { loading.Close(); }   // idempotent
 ```
 
-Differences from `MessageBox.Open`:
-
-- `Loading.Open(text)` returns a `LoadingHandle` **synchronously** — callers do not `await` the modal; they `await` their own background work and then call `handle.Close()`
-- No `TResult` — the modal is not closed by user input
-- `text` is optional; pass `null` or `""` to render the spinner alone
-- Shares the FIFO queue with MessageBox: open Loading + MessageBox in either order, they take turns
-- `handle.Close()` is safe after `UI.UnloadAll()` / `UI.ResetForTests()` — no-op once the entry is cancelled
+- `Loading.Open(text)` returns a `LoadingHandle` synchronously; close it from code.
+- Does not accept input (ESC cannot dismiss it).
+- Coexists with dialogs — a MessageBox opened while a Loading is showing stacks above it;
+  opening one no longer deadlocks against the other.
+- Concurrent `Loading.Open()` calls each get their own overlay.
+- `Loading.SortingOrder` (default 500) is the overlay band; keep it below
+  `UI.Modal.SortingOrderBase` (default 1000).
+- `text` is optional (`null`/`""` → spinner only). Custom XML: only `<Text id="text">`
+  is recognised by Bind, and it is optional.
 
 #### Overriding the builtin Loading layout
 
@@ -419,8 +422,6 @@ Loading.XmlSrc = "MyUI/Modals/PixelLoading.ui";   // resolved by UI.SourceResolv
 ```
 
 Default key is `"PromptUGUI/Modals/Loading.ui"` (note the `.ui` suffix — same Unity multi-dot stripping caveat as MessageBox).
-
-**id contract for custom XML**: only `<Text id="text">` is recognized by `Bind`, and even that is **optional** — Bind catches `KeyNotFoundException` so XML without a `text` element works (e.g. pure spinner with no caption). All other elements (backdrop, container Frame, spinner visuals) have no id contract — design them freely.
 
 ## `<Trigger>` and `<Animation>` from C#
 
