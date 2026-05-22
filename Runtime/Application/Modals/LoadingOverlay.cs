@@ -23,6 +23,9 @@ namespace PromptUGUI.Application.Modals
         private static readonly List<LoadingEntry> _entries = new();
         private static readonly Queue<LoadingEntry> _pending = new();
         private static bool _materializing;
+        // 每次 CancelAllForTeardown 自增。MaterializePump 启动时快照一份；快照与当前值不符
+        // 即说明自己已被 teardown 抛弃，立刻退出、不再触碰 _materializing。
+        private static int _materializeEpoch;
 
         internal static int ActiveCount => _entries.Count;
 
@@ -62,6 +65,10 @@ namespace PromptUGUI.Application.Modals
             foreach (var e in _entries) e.Closed = true;
             _entries.Clear();
             _pending.Clear();
+            // 此刻可能还有一个 MaterializePump 挂在它的 await 上；自增 epoch 让它恢复时立刻
+            // 退出，并清掉 latch，使 teardown 之后的 Open 能正常起一个新 pump。
+            _materializeEpoch++;
+            _materializing = false;
             // overlay Screen 由 UnloadAll / ResetForTests 的 _open 循环统一关
         }
 
@@ -69,10 +76,14 @@ namespace PromptUGUI.Application.Modals
         {
             if (_materializing) return;
             _materializing = true;
+            int epoch = _materializeEpoch;
             try
             {
                 while (_pending.Count > 0)
                 {
+                    // await 期间若发生过 teardown，本 pump 已被抛弃 —— 立刻退出。
+                    if (epoch != _materializeEpoch) return;
+
                     var entry = _pending.Dequeue();
                     if (entry.Closed) continue;          // 实例化前就 Close 了
                     try
@@ -98,7 +109,11 @@ namespace PromptUGUI.Application.Modals
                     }
                 }
             }
-            finally { _materializing = false; }
+            finally
+            {
+                // 只有仍持有当前 epoch 的 pump 才清 latch —— 被抛弃的 pump 去清会误伤新 pump。
+                if (epoch == _materializeEpoch) _materializing = false;
+            }
         }
 
         private static void BindText(Screen screen, string text)

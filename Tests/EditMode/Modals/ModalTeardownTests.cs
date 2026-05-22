@@ -106,5 +106,37 @@ namespace PromptUGUI.Tests.Modals
             // slow is intentionally left uncompleted: the orphaned pump stays parked
             // and (by the epoch guard) no-ops if it ever resumes.
         }
+
+        [Test]
+        public void Loading_teardown_while_pump_suspended_lets_later_overlays_open()
+        {
+            // Twin of the modal-pump test: LoadingOverlay has its own MaterializePump
+            // and its own _materializing latch. "test/slow" never completes, so the
+            // overlay pump parks at its await with the latch set.
+            var slow = new UnityEngine.AwaitableCompletionSource<string>();
+            UI.SourceResolver = src =>
+                src == "test/slow"
+                    ? slow.Awaitable
+                    : AwaitableHelpers.Completed(Files.TryGetValue(src, out var v) ? v : null);
+
+            // Overlay A — pump starts, then suspends awaiting the never-completing load.
+            Loading.XmlSrc = "test/slow";
+            Loading.Open("A");
+
+            // Teardown while the pump is parked mid-await.
+            LoadingOverlay.CancelAllForTeardown();
+
+            // Overlay B — loads synchronously, opened after the teardown. It must still
+            // materialize: CancelAllForTeardown has to release LoadingOverlay's latch.
+            Loading.XmlSrc = "test/Loading1";
+            Loading.Open("B");
+            var materialized = 0;
+            foreach (var _ in LoadingOverlay.ActiveScreens) materialized++;
+            Assert.AreEqual(1, materialized,
+                "an overlay opened after CancelAllForTeardown must still materialize");
+
+            // slow is intentionally left uncompleted — the orphaned pump no-ops via
+            // the epoch guard if it ever resumes.
+        }
     }
 }
