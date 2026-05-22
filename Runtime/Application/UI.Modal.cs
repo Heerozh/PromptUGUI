@@ -26,6 +26,10 @@ namespace PromptUGUI.Application
             private static readonly Queue<IModalEntry> _pending = new();  // 待实例化
             private static bool _materializing;
             private static IModalEntry _inFlight;
+            // 每次 teardown（CancelAllForTeardown / CloseAll）自增。MaterializePump 启动时
+            // 快照一份；快照与当前值不符即说明自己已被 teardown 抛弃，必须立刻退出、不再触碰
+            // 任何共享状态，把所有权让给 teardown 之后新起的 pump。
+            private static int _materializeEpoch;
 
             public static int SortingOrderBase { get; set; } = 1000;
 
@@ -64,10 +68,15 @@ namespace PromptUGUI.Application
             {
                 if (_materializing) return;
                 _materializing = true;
+                int epoch = _materializeEpoch;
                 try
                 {
                     while (_pending.Count > 0)
                     {
+                        // await 期间若发生过 teardown，本 pump 已被抛弃 —— 立刻退出：
+                        // 既不消费新 entry，也不在下面的 finally 里清共享状态。
+                        if (epoch != _materializeEpoch) return;
+
                         var entry = _pending.Dequeue();
                         if (entry.Resolved) continue;       // CloseAll 在实例化前取消
                         _inFlight = entry;
@@ -104,14 +113,20 @@ namespace PromptUGUI.Application
                         }
                         finally
                         {
-                            _inFlight = null;
+                            // epoch 不符 = 已被 teardown 抛弃，_inFlight 现归新 pump，别动。
+                            if (epoch == _materializeEpoch) _inFlight = null;
                         }
                     }
                 }
                 finally
                 {
-                    _materializing = false;
-                    PromoteWaiting();
+                    // 只有仍持有当前 epoch 的 pump 才负责清 latch —— 被抛弃的 pump 去清会
+                    // 误伤 teardown 之后新起 pump 的状态。
+                    if (epoch == _materializeEpoch)
+                    {
+                        _materializing = false;
+                        PromoteWaiting();
+                    }
                 }
             }
 
@@ -158,6 +173,16 @@ namespace PromptUGUI.Application
                 }
             }
 
+            // teardown 收尾：此刻可能还有一个 MaterializePump 挂在它唯一的 await 上。自增
+            // epoch 让那个 pump 恢复时立刻退出；清掉 latch / _inFlight，使 teardown 之后的
+            // QueueForMaterialize 能正常起一个新 pump。调用方须已清空 _pending / _waiting / _stack。
+            private static void AbandonInFlightPump()
+            {
+                _materializeEpoch++;
+                _materializing = false;
+                _inFlight = null;
+            }
+
             public static void CloseAll()
             {
                 var oce = new OperationCanceledException("Modal cancelled (CloseAll)");
@@ -170,6 +195,7 @@ namespace PromptUGUI.Application
                 _inFlight?.Cancel(oce);
                 while (_pending.Count > 0) _pending.Dequeue().Cancel(oce);
                 while (_waiting.Count > 0) _waiting.Dequeue().Cancel(oce);
+                AbandonInFlightPump();
             }
 
             // UI.UnloadAll / UI.ResetForTests 调用:取消所有 await,但不关 Screen
@@ -182,6 +208,7 @@ namespace PromptUGUI.Application
                 _inFlight?.Cancel(oce);
                 while (_pending.Count > 0) _pending.Dequeue().Cancel(oce);
                 while (_waiting.Count > 0) _waiting.Dequeue().Cancel(oce);
+                AbandonInFlightPump();
             }
 
 #if UNITY_EDITOR
