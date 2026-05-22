@@ -196,6 +196,52 @@ namespace PromptUGUI.Tests.Lifecycle
             public void Dispose() => Disposed = true;
         }
 
+        // Test probe: records the GameObject's hierarchy-active state at OnAttached time.
+        private sealed class ActiveProbe : Control
+        {
+            public static bool Recorded;
+            public static bool ActiveInHierarchyAtAttach;
+            public override void OnAttached()
+            {
+                Recorded = true;
+                ActiveInHierarchyAtAttach = GameObject.activeInHierarchy;
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator Screen_Open_instantiates_tree_while_inactive_then_activates_once()
+        {
+            // Regression guard for the uGUI Selectable.OnEnable IndexOutOfRange crash:
+            // Screen.Open must build the whole tree under an INACTIVE root so that no
+            // Selectable.OnEnable fires mid-build (interleaved with AddComponent). All
+            // OnEnable callbacks must be deferred to one batch activation pass — the
+            // same path Object.Instantiate / scene-load use.
+            ActiveProbe.Recorded = false;
+            ActiveProbe.ActiveInHierarchyAtAttach = true;   // sentinel
+            _reg.Register<ActiveProbe>("ActiveProbe", null);
+
+            UI.LoadDocument("probe_doc", @"<PromptUGUI version='1'>
+                <Screen name='ProbeScreen'>
+                    <Frame id='f'>
+                        <ActiveProbe id='p'/>
+                    </Frame>
+                </Screen></PromptUGUI>");
+
+            var screen = UI.Open("ProbeScreen");
+
+            Assert.IsTrue(ActiveProbe.Recorded, "probe OnAttached must have run during Open");
+            Assert.IsFalse(ActiveProbe.ActiveInHierarchyAtAttach,
+                "controls must be instantiated while the screen tree is INACTIVE — " +
+                "every Selectable.OnEnable is then deferred to one batch SetActive(true)");
+
+            // Once Open returns, the tree is active and usable.
+            Assert.IsTrue(screen.RootGameObject.activeInHierarchy);
+            Assert.IsTrue(screen.Get("p").GameObject.activeInHierarchy);
+
+            UI.Close("ProbeScreen");
+            yield return null;
+        }
+
         [UnityTest]
         public IEnumerator AddTo_screen_disposes_on_close()
         {

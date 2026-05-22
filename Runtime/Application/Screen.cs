@@ -68,6 +68,14 @@ namespace PromptUGUI.Application
                 typeof(Canvas),
                 typeof(UnityEngine.UI.CanvasScaler),
                 typeof(UnityEngine.UI.GraphicRaycaster));
+            // Build the whole hierarchy under an INACTIVE root: every AddComponent in
+            // the InstantiateInto recursion below then runs without firing OnEnable.
+            // OnEnable is deferred to the single SetActive(true) at the end of Open().
+            // Crucially this collapses N incremental UnityEngine.UI.Selectable.OnEnable
+            // calls (each mutates a shared static registry and is fragile when
+            // interleaved with the build) into one batched activation pass — the same
+            // path Object.Instantiate / scene-load take. Also far fewer layout rebuilds.
+            root.SetActive(false);
             var canvas = root.GetComponent<Canvas>();
             canvas.renderMode = Def.CanvasMode switch
             {
@@ -100,14 +108,28 @@ namespace PromptUGUI.Application
             var relay = root.AddComponent<RectDimensionsRelay>();
             relay.OnDimensionsChanged = () => RectTransformDimensionsChanged?.Invoke();
 
-            var result = _instantiator.InstantiateInto(root, Def);
+            // deferApply: the InstantiateInto recursion attaches every control but does
+            // NOT apply attributes yet — nodes are collected into result.ApplyOrder
+            // (DFS post-order). Attribute application is deferred until after the
+            // SetActive(true) below, because ApplyCommon → GetNativeSize measures TMP
+            // text and TMP must be Awake (the GameObject active) to measure.
+            var result = _instantiator.InstantiateInto(root, Def, deferApply: true);
             foreach (var kv in result.Controls) _byId[kv.Key] = kv.Value;
             foreach (var kv in result.NodeToControl) _nodeMap[kv.Key] = kv.Value;
             foreach (var block in Def.Variants)
             {
                 if (Variants.IsActive(block.When))
-                    ActivateAddBlock(block);
+                    ActivateAddBlock(block, result.ApplyOrder);
             }
+            // Single batched activation: fires every component's OnEnable — crucially
+            // UnityEngine.UI.Selectable.OnEnable — in one pass now that the whole tree
+            // (incl. Add blocks above) is built. See the SetActive(false) note above.
+            root.SetActive(true);
+            // Attributes applied last, on the now-Awake/active components, in the same
+            // DFS post-order the recursion would have used inline.
+            foreach (var node in result.ApplyOrder)
+                ControlAttributeApplier.Apply(node, _nodeMap[node],
+                                              _registry.Resolve(node.Tag), Variants);
             _variantSub = Variants.Changed.Subscribe(_ => ReSolve());
         }
 
@@ -222,7 +244,9 @@ namespace PromptUGUI.Application
             ApplyCanvasScaler(RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>());
         }
 
-        private void ActivateAddBlock(VariantBlock block)
+        // deferApplyTo 非 null（Screen.Open 首次构建）：Add 子树属性 Apply 延迟收进该列表，
+        // 由 Open 在 SetActive(true) 之后统一执行；null（ReSolve 运行时激活，树已 active）：就地 Apply。
+        private void ActivateAddBlock(VariantBlock block, List<ElementNode> deferApplyTo = null)
         {
             if (_addInstances.TryGetValue(block, out var existing))
             {
@@ -245,7 +269,7 @@ namespace PromptUGUI.Application
             var prevNodes = new HashSet<ElementNode>(_nodeMap.Keys);
 
             var inst = new AddInstance();
-            inst.Roots.AddRange(_instantiator.ApplyAddBlock(block, pseudoResult));
+            inst.Roots.AddRange(_instantiator.ApplyAddBlock(block, pseudoResult, deferApplyTo));
 
             foreach (var k in _byId.Keys)
                 if (!prevIds.Contains(k)) inst.AddedIds.Add(k);

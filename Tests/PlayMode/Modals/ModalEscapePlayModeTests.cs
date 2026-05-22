@@ -16,6 +16,10 @@ namespace PromptUGUI.Tests.PlayMode.Modals
         public void SetUp()
         {
             UI.ResetForTests();
+            // MessageBox.XmlSrc is a mutable static; ModalTestFixture-based EditMode
+            // tests repoint it to "test/Box1" and never restore it. Pin it back to the
+            // builtin so this fixture does not depend on cross-suite test ordering.
+            MessageBox.XmlSrc = "PromptUGUI/Modals/MessageBox.ui";
             // Resources path structure: Assets/Runtime/Resources/PromptUGUI/Modals/MessageBox.ui.xml
             // Resources.Load("PromptUGUI/Modals/MessageBox.ui") loads the above file
             UI.SourceResolver = src =>

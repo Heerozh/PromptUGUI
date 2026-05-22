@@ -65,5 +65,78 @@ namespace PromptUGUI.Tests.Modals
             loading.Close();
             Assert.AreEqual(0, LoadingOverlay.ActiveCount);
         }
+
+        [Test]
+        public void Teardown_while_pump_suspended_lets_later_modals_open()
+        {
+            // A resolver whose "test/slow" src never completes — the materialize pump
+            // parks at its await with the pump-running latch (_materializing) set.
+            var slow = new UnityEngine.AwaitableCompletionSource<string>();
+            UI.SourceResolver = src =>
+                src == "test/slow"
+                    ? slow.Awaitable
+                    : AwaitableHelpers.Completed(Files.TryGetValue(src, out var v) ? v : null);
+
+            // Modal A — pump starts, then suspends awaiting the never-completing load.
+            MessageBox.XmlSrc = "test/slow";
+            var aTask = UI.Modal.OpenAsync(
+                new MessageBoxRequest { Text = "A", Buttons = MsgBtn.OK });
+            Assert.IsFalse(UI.Modal.IsAnyOpen, "A is still loading — not on the stack yet");
+
+            // Teardown while the pump is parked mid-await.
+            UI.Modal.CancelAllForTeardown();
+            Assert.Throws<System.OperationCanceledException>(
+                () => aTask.GetAwaiter().GetResult(),
+                "teardown cancels the in-flight modal");
+
+            // Modal B — loads synchronously, opened after the teardown. It must still
+            // materialize: CancelAllForTeardown has to release the pump-running latch
+            // even when a MaterializePump was suspended mid-flight, otherwise every
+            // later modal is silently stuck in _pending.
+            MessageBox.XmlSrc = "test/Box1";
+            var bTask = UI.Modal.OpenAsync(
+                new MessageBoxRequest { Text = "B", Buttons = MsgBtn.OK });
+            Assert.IsNotNull(UI.Modal.TopScreen,
+                "a modal opened after CancelAllForTeardown must still materialize");
+
+            // B is fully functional, not merely on the stack.
+            UI.Modal.TopScreen.Get<PromptUGUI.Controls.Btn>("ok").SimulateClick();
+            Assert.AreEqual(MsgBtn.OK, bTask.GetAwaiter().GetResult());
+
+            // slow is intentionally left uncompleted: the orphaned pump stays parked
+            // and (by the epoch guard) no-ops if it ever resumes.
+        }
+
+        [Test]
+        public void Loading_teardown_while_pump_suspended_lets_later_overlays_open()
+        {
+            // Twin of the modal-pump test: LoadingOverlay has its own MaterializePump
+            // and its own _materializing latch. "test/slow" never completes, so the
+            // overlay pump parks at its await with the latch set.
+            var slow = new UnityEngine.AwaitableCompletionSource<string>();
+            UI.SourceResolver = src =>
+                src == "test/slow"
+                    ? slow.Awaitable
+                    : AwaitableHelpers.Completed(Files.TryGetValue(src, out var v) ? v : null);
+
+            // Overlay A — pump starts, then suspends awaiting the never-completing load.
+            Loading.XmlSrc = "test/slow";
+            Loading.Open("A");
+
+            // Teardown while the pump is parked mid-await.
+            LoadingOverlay.CancelAllForTeardown();
+
+            // Overlay B — loads synchronously, opened after the teardown. It must still
+            // materialize: CancelAllForTeardown has to release LoadingOverlay's latch.
+            Loading.XmlSrc = "test/Loading1";
+            Loading.Open("B");
+            var materialized = 0;
+            foreach (var _ in LoadingOverlay.ActiveScreens) materialized++;
+            Assert.AreEqual(1, materialized,
+                "an overlay opened after CancelAllForTeardown must still materialize");
+
+            // slow is intentionally left uncompleted — the orphaned pump no-ops via
+            // the epoch guard if it ever resumes.
+        }
     }
 }
