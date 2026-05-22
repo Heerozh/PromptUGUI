@@ -13,6 +13,8 @@ namespace PromptUGUI.Application
         public GameObject Root;
         public Dictionary<string, IControl> Controls;
         public Dictionary<ElementNode, Control> NodeToControl;
+        // DFS 后序排列的待 Apply 节点，仅在 InstantiateInto(deferApply:true) 时填充。
+        public List<ElementNode> ApplyOrder;
     }
 
     public sealed class ScreenInstantiator
@@ -61,24 +63,33 @@ namespace PromptUGUI.Application
             return rootControl;
         }
 
-        public InstantiationResult InstantiateInto(GameObject root, ScreenDef def)
+        /// <param name="deferApply">
+        /// true：递归里不就地 Apply 属性，而是把节点按 DFS 后序收进
+        /// <see cref="InstantiationResult.ApplyOrder"/>，由调用方在 SetActive(true) 之后统一
+        /// Apply —— 这样 ApplyCommon / GetNativeSize 的 TMP 文本测量发生在组件 Awake 之后。
+        /// </param>
+        public InstantiationResult InstantiateInto(GameObject root, ScreenDef def,
+                                                   bool deferApply = false)
         {
             var result = new InstantiationResult
             {
                 Root = root,
                 Controls = new Dictionary<string, IControl>(),
                 NodeToControl = new Dictionary<ElementNode, Control>(),
+                ApplyOrder = new List<ElementNode>(),
             };
 
             foreach (var childNode in def.Root.Children)
                 InstantiateRecursive(childNode, result.Root.transform,
                                      parentIsLayoutGroup: false,
-                                     result.Controls, result.NodeToControl);
+                                     result.Controls, result.NodeToControl,
+                                     applyOrder: deferApply ? result.ApplyOrder : null);
 
             return result;
         }
 
-        internal List<GameObject> ApplyAddBlock(VariantBlock block, InstantiationResult result)
+        internal List<GameObject> ApplyAddBlock(VariantBlock block, InstantiationResult result,
+                                                List<ElementNode> applyOrder = null)
         {
             var roots = new List<GameObject>();
             foreach (var add in block.Adds)
@@ -90,7 +101,8 @@ namespace PromptUGUI.Application
                 int prevCount = parent.childCount;
                 foreach (var child in add.Children)
                     InstantiateRecursive(child, parent, parentIsLayoutGroup,
-                                         result.Controls, result.NodeToControl);
+                                         result.Controls, result.NodeToControl,
+                                         applyOrder: applyOrder);
                 int addedN = parent.childCount - prevCount;
 
                 // 计算目标基准索引（at='end' 时等于 prevCount，保持新增项原位在末尾）
@@ -161,7 +173,8 @@ namespace PromptUGUI.Application
                                            bool parentIsLayoutGroup,
                                            Dictionary<string, IControl> controls,
                                            Dictionary<ElementNode, Control> nodeMap,
-                                           Control parentControl = null)
+                                           Control parentControl = null,
+                                           List<ElementNode> applyOrder = null)
         {
             if (parentIsLayoutGroup)
             {
@@ -221,11 +234,16 @@ namespace PromptUGUI.Application
             var selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid";
             foreach (var c in node.Children)
                 InstantiateRecursive(c, control.ChildHostTransform, selfIsLayoutGroup, childScope, nodeMap,
-                                     parentControl: control);
+                                     parentControl: control, applyOrder: applyOrder);
 
             // Apply 放在子树递归之后：OnAfterApply（如 Trigger.SubscribeClick）可以安全访问
             // 已完全实例化的子节点（通过 ScopedIds / GetComponentsInChildren 等）。
-            ControlAttributeApplier.Apply(node, control, entry, _variants);
+            // applyOrder != null：延迟 Apply —— 调用方会先 SetActive(true) 让组件 Awake，
+            // 再按这里收集的 DFS 后序统一 Apply（GetNativeSize 的 TMP 测量需要 Awake）。
+            if (applyOrder != null)
+                applyOrder.Add(node);
+            else
+                ControlAttributeApplier.Apply(node, control, entry, _variants);
         }
 
         private static void BindFields(Control control, GameObject prefabRoot)
