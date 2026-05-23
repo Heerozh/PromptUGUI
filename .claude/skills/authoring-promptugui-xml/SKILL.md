@@ -483,6 +483,15 @@ There's also a **commons pool** populated C#-side that's merged into every Scree
 - `.variant` 形态：`reference.mobile="..."` 同其他属性 variant 规则；变体切换时 CanvasScaler 立即重应用。
 - 要 `match=0.5` 折中或改 `referencePixelsPerUnit`：走 `UI.CanvasConfigurator` 手改。**不要在两条路径同时改 CanvasScaler** —— variant flip 时 XML 路径会覆盖 configurator 的改动。
 
+## Modal / Loading screens (XML contract)
+
+Custom `MessageBox` / `Loading` overrides are regular `<Screen>` documents — the modal subsystem just instantiates them through the normal pipeline (anchor / margin / Variant / locale all work). Two specifics XML authors must know:
+
+- **Dim backdrop is your responsibility.** The library does NOT auto-inject a full-screen Graphic behind the dialog. If you want clicks blocked on empty space, include something like `<Image id="backdrop" anchor="stretch" color="#000000FE"/>` as a sibling of your dialog Frame. Otherwise pointer raycasts outside the dialog box pass through to the Canvas below.
+- **`MessageBox` requires specific `id=`s on built-in controls** (`text`, `title`, `ok`, `cancel`, `yes`, `no`, `close`, optional `icon`) so its `Bind` step can wire them via `screen.Get<T>(id)`. Default button labels are XML text content (`<Btn id="ok">OK</Btn>`) and become msgids extracted into your `.po` like any other `<Btn>` — translate them through your normal i18n workflow. **`Loading` only recognises `<Text id="text">`** (optional); everything else (spinner, backdrop) is up to you.
+
+For the C# override mechanism (`MessageBox.XmlSrc = "..."`, `Loading.XmlSrc = "..."`), the full id contract, ESC behaviour, sortingOrder bands, and `UI.CanvasConfigurator` caveats, see the **scripting-promptugui-csharp** skill's "Modal dialogs" section.
+
 ## Mask & clipping
 
 PromptUGUI never auto-enables masking — you must opt in via `mask=`. Two reasons: (1) stencil Mask isn't free (extra SetPass call, breaks batching with elements outside the mask); (2) "decorative background that lets children overflow" is a legit, common pattern.

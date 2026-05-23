@@ -1,6 +1,6 @@
 ---
 name: scripting-promptugui-csharp
-description: Use when writing C# that drives PromptUGUI — `UI.LoadDocumentAsync` / `UI.Open`, `Screen.Get<T>`, R3 event subscriptions (`OnClick` / `OnValueChanged` / `OnSelected`), `BindItems` / `BindOptions`, runtime `UI.Variants.Set` / `UI.Locale.Set` / `UI.Orientation` switching, `UI.CanvasConfigurator`, or custom `[UIAttr]` / `[Bind]` controls. For the XML markup itself, see authoring-promptugui-xml; for Addressables-backed loaders (`.ui.xml` / `.po` / icon atlases), see using-promptugui-addressables.
+description: Use when writing C# that drives PromptUGUI — `UI.LoadDocumentAsync` / `UI.Open`, `Screen.Get<T>`, R3 event subscriptions (`OnClick` / `OnValueChanged` / `OnSelected`), `BindItems` / `BindOptions`, runtime `UI.Variants.Set` / `UI.Locale.Set` / `UI.Orientation` switching, `UI.CanvasConfigurator`, modal dialogs (`MessageBox.Open` / `Loading.Open` / `UI.Modal.OpenAsync` / `ModalRequest<T>` / `MsgBtn` / `ModalMode`) and overriding `MessageBox.XmlSrc` / `Loading.XmlSrc`, or custom `[UIAttr]` / `[Bind]` controls. For the XML markup itself, see authoring-promptugui-xml; for Addressables-backed loaders (`.ui.xml` / `.po` / icon atlases), see using-promptugui-addressables.
 ---
 
 # Scripting PromptUGUI in C#
@@ -310,17 +310,29 @@ CUSTOM         class X : Control { override OnAttached() { ... } }
                UI.Registry.Register<X>("Tag", prefab)
 
 MODAL          var r = await MessageBox.Open(text, MsgBtn.OK|MsgBtn.Cancel, icon, title)
+               MessageBox.Open(text, [(label,key),...], icon, title, mode)  custom labels
                MessageBox.Open(text, ..., mode: ModalMode.Queued)  排队,不叠加
+               ESC priority   Cancel > No > Close   (OK-only → no-op)
+               override XML   MessageBox.XmlSrc = "MyUI/Modals/Foo.ui"   (keep .ui suffix)
+               required ids   text  title  ok  cancel  yes  no  close   (icon optional)
+               backdrop       author writes <Image anchor="stretch"/> — NOT auto-injected
                UI.Modal.OpenAsync(new MyRequest(), ModalMode.Popup) custom ModalRequest<T>
-               UI.Modal.CloseAll()                          cancel all
-               UI.Modal.SortingOrderBase = 1000             default
-               var h = Loading.Open(text); h.Close()        loading overlay(独立于 modal 栈)
+                              override TryEscape(out T) to map ESC → result
+               UI.Modal.CloseAll()                          cancel all (OperationCanceledException)
+               UI.Modal.SortingOrderBase = 1000             default; configurator can't pin sortingOrder
+LOADING        var h = Loading.Open(text); h.Close()        idempotent; h.IsClosed
+               Loading.XmlSrc = "MyUI/Modals/Foo.ui"        override; only <Text id="text"> recognised
                Loading.SortingOrder = 500                   overlay 层带,低于 dialog
+               concurrent Open() → independent overlays at the same band (no ref-count)
 ```
 
 ## Modal dialogs
 
-PromptUGUI ships a generic modal system in `PromptUGUI.Application.Modals` plus a builtin MessageBox.
+PromptUGUI ships a generic modal stack in `PromptUGUI.Application.Modals` plus two
+builtin overlays: a `MessageBox` dialog and a `Loading` spinner. **Every modal IS a real
+`Screen` instantiated from `.ui.xml`** — anchor / margin / Variant / locale / `<Icon>`
+all work normally. The modal subsystem only adds: stack management, ESC handling, and a
+sortingOrder band above regular Screens.
 
 ### Quick usage
 
@@ -336,22 +348,83 @@ if (r == MsgBtn.Yes) await game.SaveAsync();
 var r2 = await MessageBox.Open(UI.Tr("File not found."),
     new[] { (UI.Tr("Retry"), MsgBtn.OK), (UI.Tr("Skip"), MsgBtn.Cancel) });
 
-// Optional icon and title
-await MessageBox.Open("Saved.", MsgBtn.OK, icon: "ui:check", title: "Done");
+// Optional icon and title; ModalMode.Queued waits behind any current dialog
+await MessageBox.Open("Saved.", MsgBtn.OK,
+    icon: "ui:check", title: "Done", mode: ModalMode.Queued);
+```
+
+### API surface (`PromptUGUI.Application.Modals`)
+
+```csharp
+public static class MessageBox {
+    public static string XmlSrc { get; set; } = "PromptUGUI/Modals/MessageBox.ui";
+
+    public static Awaitable<MsgBtn> Open(
+        string text, MsgBtn buttons = MsgBtn.OK,
+        string icon = null, string title = null,
+        ModalMode mode = ModalMode.Popup);
+
+    public static Awaitable<MsgBtn> Open(
+        string text,
+        IEnumerable<(string label, MsgBtn key)> buttons,   // also sets the .Buttons mask
+        string icon = null, string title = null,
+        ModalMode mode = ModalMode.Popup);
+}
+
+[Flags] public enum MsgBtn { None=0, OK=1, Cancel=2, Yes=4, No=8, Close=16 }
+public enum ModalMode { Popup = 0, Queued = 1 }
+
+public static class Loading {
+    public static string XmlSrc { get; set; } = "PromptUGUI/Modals/Loading.ui";
+    public static int SortingOrder { get; set; } = 500;   // keep < SortingOrderBase
+    public static LoadingHandle Open(string text = null);
+}
+
+public sealed class LoadingHandle {
+    public bool IsClosed { get; }
+    public void Close();                                  // idempotent
+}
+
+// nested under UI:
+public static class UI.Modal {
+    public static int SortingOrderBase { get; set; } = 1000;
+    public static int QueuedCount { get; }
+    public static bool IsAnyOpen { get; }
+
+    public static Awaitable<TResult> OpenAsync<TResult>(
+        ModalRequest<TResult> request, ModalMode mode = ModalMode.Popup);
+
+    public static void CloseAll();                        // cancels every pending await
+}
 ```
 
 ### Behavior
 
-- **Stacking (`ModalMode`)**: every `Open` takes a `mode`. **`ModalMode.Popup`** (default)
-  shows the dialog immediately, stacked on top of any current dialog — use it for nested
-  dialogs (e.g. a confirm dialog opened from inside another modal). **`ModalMode.Queued`**
-  waits until the whole dialog stack is empty, then shows as the new base; multiple
-  `Queued` dialogs show FIFO. Closing the top dialog reveals the one below.
-- **ESC / Android Back**: only the top dialog responds; maps to `Cancel > No > Close`.
-  ESC on an `OK`-only dialog does nothing.
-- **Raycast block**: each dialog's Canvas overrides `sortingOrder` to
-  `UI.Modal.SortingOrderBase + depth` (base default 1000), above every regular Screen.
-- **Locale / Variant**: a dialog is a regular `Screen` — locale / Variants apply normally.
+- **Stacking (`ModalMode`)**: **`ModalMode.Popup`** (default) shows the dialog immediately,
+  stacked on top of any current dialog — use it for nested dialogs (e.g. a confirm dialog
+  opened from inside another modal). **`ModalMode.Queued`** waits until the whole dialog
+  stack is empty, then shows as the new base; multiple `Queued` dialogs show FIFO.
+  Closing the top dialog reveals the one below.
+- **ESC / Android Back**: only the top dialog responds; maps to `Cancel > No > Close` in
+  that priority (whichever flag is set in the requested `buttons` mask wins). ESC on an
+  `OK`-only dialog does nothing. The listener (`ModalEscapeListener`) is auto-attached —
+  **no XML markup is required**. It uses `UnityEngine.InputSystem` when
+  `ENABLE_INPUT_SYSTEM` is defined (bindings: `<Keyboard>/escape` + `<Gamepad>/start`),
+  else legacy `Input.GetKeyDown(KeyCode.Escape)`. `Loading` overlays do NOT have this
+  listener — they're not dismissible by input.
+- **Raycast / sortingOrder**: each dialog's Canvas overrides `sortingOrder` to
+  `UI.Modal.SortingOrderBase + depth` (depth 0 = bottom of dialog stack). Loading
+  overlays sit at `Loading.SortingOrder` (default 500). Keep `Loading.SortingOrder <
+  UI.Modal.SortingOrderBase` so dialogs opened during a Loading appear above it.
+- **Dim backdrop is part of the XML, not auto-injected.** If you want clicks blocked on
+  empty space outside your dialog box, include a stretched Graphic in your override XML
+  (the builtin uses `<Image id="backdrop" anchor="stretch" color="#000000FE"/>`).
+  Without a full-screen Graphic, pointer raycasts outside the dialog pass through to
+  the Canvas underneath. The `id="backdrop"` itself has no special meaning to Bind — any
+  id (or none) works as long as the Graphic exists.
+- **Locale / Variant**: a dialog is a regular `Screen` — `UI.Locale.Set(...)` and
+  `UI.Variants.Set(...)` ReSolve open modals in place, no rebuild. Fonts swap on locale
+  switch like in any other Screen (`<Text font="title">` etc.).
 
 ### Cancelling
 
@@ -359,61 +432,104 @@ await MessageBox.Open("Saved.", MsgBtn.OK, icon: "ui:check", title: "Done");
 UI.Modal.CloseAll();   // every pending await throws OperationCanceledException
 ```
 
-`UI.UnloadAll()` and `UI.ResetForTests()` also cancel all pending modals.
+`UI.UnloadAll()` and `UI.ResetForTests()` also cancel all pending modals AND close all
+active Loading overlays.
 
 ### Custom modal types
 
-Subclass `ModalRequest<TResult>` and pass it to `UI.Modal.OpenAsync(...)`. Your `Bind(screen, close)` wires events; `close(result)` resolves the awaiter.
+Subclass `ModalRequest<TResult>` and pass it to `UI.Modal.OpenAsync(...)`. `Bind(screen,
+close)` wires events; calling `close(result)` resolves the awaiter. Optionally override
+`TryEscape(out TResult)` to map ESC to a result (return `false` to suppress ESC
+dismissal — the default).
 
 ```csharp
 public sealed class NamePickerRequest : ModalRequest<string> {
-    public override string XmlSrc => "MyUI/Modals/NamePicker";
+    public override string XmlSrc => "MyUI/Modals/NamePicker.ui";
     public override void Bind(IScreen screen, Action<string> close) {
         screen.Get<Btn>("ok").OnClick.Subscribe(_ =>
             close(screen.Get<InputField>("input").Text)).AddTo(screen);
         screen.Get<Btn>("cancel").OnClick.Subscribe(_ => close(null)).AddTo(screen);
     }
-    public override bool TryEscape(out string r) { r = null; return true; }
+    public override bool TryEscape(out string r) { r = null; return true; }  // ESC → null
 }
 
 var name = await UI.Modal.OpenAsync(new NamePickerRequest());
 ```
 
-Custom modal `XmlSrc` keys go through the caller's `UI.SourceResolver` like any other Screen.
+Custom modal `XmlSrc` keys go through the caller's `UI.SourceResolver` like any other
+Screen (the `PromptUGUI/` prefix is reserved — those keys load synchronously from the
+package's bundled Resources via `Resources.Load`, no resolver involved).
 
 ### Overriding the builtin MessageBox layout
 
-Set `MessageBox.XmlSrc` once at boot to point at your own XML file. Note: Unity strips only the final `.xml` from multi-dot filenames, so for `MyMessageBox.ui.xml`, the lookup key is `MyMessageBox.ui` (with the `.ui` suffix). The builtin default is `"PromptUGUI/Modals/MessageBox.ui"`.
+Set `MessageBox.XmlSrc` once at boot to point at your own XML file. **Caveat**: Unity
+strips only the final `.xml` from multi-dot filenames, so for `MyMessageBox.ui.xml` the
+lookup key is `MyMessageBox.ui` (keep the `.ui` suffix). Default:
+`"PromptUGUI/Modals/MessageBox.ui"`.
 
 ```csharp
-MessageBox.XmlSrc = "MyUI/Modals/PixelMessageBox.ui";  // resolved by UI.SourceResolver
+MessageBox.XmlSrc = "MyUI/Modals/PixelMessageBox.ui";   // your SourceResolver resolves this
 ```
 
-Keys starting with `PromptUGUI/` resolve to the package's bundled Resources; other keys go through `UI.SourceResolver`.
+Keys starting with `PromptUGUI/` load from the package's bundled Resources (sync); any
+other key flows through `UI.SourceResolver` — Resources, Addressables, or whatever
+resolver you registered. There is no per-call `template:` override; `MessageBox.XmlSrc`
+is the global swap point.
 
-Your XML must declare a Screen with these ids: `text`, `title`, `ok`, `cancel`, `yes`, `no`, `close`. An optional `icon` id is supported but not required (Bind tolerates missing icon node). If you want icon support, your XML must include `<Icon id="icon" name="placeholder:something"/>` because PromptUGUI's parser requires the `name=` attribute on `<Icon>` elements.
+#### Custom `MessageBox.ui.xml` contract
+
+Your override XML must declare:
+
+| Id        | Required | Bind behavior                                                                                                                                                                                                                                  |
+| --------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `text`    | yes      | `<Text>`. Receives the `text` argument verbatim (no auto-translation — pass `UI.Tr(...)` yourself if needed). Always shown.                                                                                                                    |
+| `title`   | yes      | `<Text>`. Receives the `title` argument. **`GameObject.SetActive(false)`** when the argument is null/empty — don't depend on it always being visible. Reserve layout space if you want a fixed dialog height regardless of title.              |
+| `ok`      | yes      | `<Btn>`. `SetActive(false)` unless `MsgBtn.OK` is in the requested `buttons` mask. Default label = XML text content (e.g. `<Btn id="ok">OK</Btn>`).                                                                                            |
+| `cancel`  | yes      | `<Btn>`. Same rule for `MsgBtn.Cancel`.                                                                                                                                                                                                        |
+| `yes`     | yes      | `<Btn>`. Same rule for `MsgBtn.Yes`.                                                                                                                                                                                                           |
+| `no`      | yes      | `<Btn>`. Same rule for `MsgBtn.No`.                                                                                                                                                                                                            |
+| `close`   | yes      | `<Btn>`. Same rule for `MsgBtn.Close`.                                                                                                                                                                                                         |
+| `icon`    | no       | `<Icon>`. `Bind` swallows `KeyNotFoundException`, so omitting the id is fine. If you include it, PromptUGUI's parser still requires a `name=` attribute (use any placeholder — Bind overwrites `.Name` when set, `SetActive(false)` otherwise). |
+| backdrop  | no       | Any full-screen Graphic if you want a dim / click-blocker. No required id. **Library does NOT auto-create one.**                                                                                                                               |
+
+**Default button labels & i18n**: the builtin XML uses English text content (`<Btn
+id="ok">OK</Btn>` etc.). Those literals become msgids during XML extraction, so they go
+into your project's `.po` files alongside all other XML strings — translate them via
+your normal i18n workflow. The package does NOT ship its own `.po`; the default labels
+are visible English until your project supplies translations.
+
+**Custom button labels** (the `IEnumerable<(label, key)>` overload): each `label` string
+is assigned to the button via `btn.Text = label` at Bind time, replacing the XML text.
+These are NOT auto-translated — wrap with `UI.Tr(...)` at the call site:
+`new[] { (UI.Tr("Retry"), MsgBtn.OK) }`.
 
 ### Loading overlay
 
 A non-interactive overlay that blocks the screen while async work runs, then your code
-closes it. It is **not a modal/dialog** — it is a separate subsystem that sits *below*
-the dialog stack, so a MessageBox opened during a Loading appears on top of it.
+closes it. **Not a modal/dialog** — separate subsystem that sits *below* the dialog
+stack, so a MessageBox opened during a Loading appears on top.
 
 ```csharp
 var loading = Loading.Open(UI.Tr("Loading..."));
 try { await DoWorkAsync(); }
-finally { loading.Close(); }   // idempotent
+finally { loading.Close(); }   // idempotent; loading.IsClosed == true afterwards
 ```
 
-- `Loading.Open(text)` returns a `LoadingHandle` synchronously; close it from code.
-- Does not accept input (ESC cannot dismiss it).
-- Coexists with dialogs — a MessageBox opened while a Loading is showing stacks above it;
-  opening one no longer deadlocks against the other.
-- Concurrent `Loading.Open()` calls each get their own overlay.
+- `Loading.Open(text)` returns a `LoadingHandle` synchronously; close from code via
+  `.Close()` (idempotent). Query `.IsClosed` if you need a status check.
+- **No ESC dismissal** — `LoadingOverlay` does not attach a `ModalEscapeListener`. Cancel
+  by closing the handle.
+- Coexists with dialogs — a MessageBox opened while a Loading is showing stacks above
+  it; opening one no longer deadlocks against the other.
+- **Concurrent `Loading.Open()` calls each get their own overlay Screen instance**, all
+  sharing the same `Loading.SortingOrder` band. Each call returns an independent
+  `LoadingHandle`; close them independently. There's no built-in ref-counting — if you
+  want "show once, close after N tasks", track that with your own counter.
 - `Loading.SortingOrder` (default 500) is the overlay band; keep it below
-  `UI.Modal.SortingOrderBase` (default 1000).
-- `text` is optional (`null`/`""` → spinner only). Custom XML: only `<Text id="text">`
-  is recognised by Bind, and it is optional.
+  `UI.Modal.SortingOrderBase` (default 1000) so dialogs render above overlays.
+- `text` is optional (`null`/`""` → spinner only — the `<Text id="text">` node is
+  `SetActive(false)`'d). Custom XML: only `<Text id="text">` is recognised by Bind, and
+  it is optional (KeyNotFoundException tolerated).
 
 #### Overriding the builtin Loading layout
 
@@ -421,7 +537,34 @@ finally { loading.Close(); }   // idempotent
 Loading.XmlSrc = "MyUI/Modals/PixelLoading.ui";   // resolved by UI.SourceResolver
 ```
 
-Default key is `"PromptUGUI/Modals/Loading.ui"` (note the `.ui` suffix — same Unity multi-dot stripping caveat as MessageBox).
+Same key / resolver / `.ui` suffix rules as `MessageBox.XmlSrc`. Default:
+`"PromptUGUI/Modals/Loading.ui"`. Custom XML need only include `<Text id="text">`
+(optional) — everything else (spinner animation, backdrop) is up to you.
+
+### Modal Canvas + `UI.CanvasConfigurator`
+
+Modal and Loading Screens go through the same `UI.CanvasConfigurator` callback as
+regular Screens:
+
+```csharp
+UI.CanvasConfigurator = (canvas, screenName) => {
+    if (screenName == MessageBox.XmlSrc) {            // "PromptUGUI/Modals/MessageBox.ui"
+        canvas.renderMode = RenderMode.ScreenSpaceCamera;
+        canvas.worldCamera = uiCamera;
+    }
+};
+```
+
+Two caveats specific to modals/overlays:
+
+1. **`screenName` is the XML `<Screen name="...">` value**, not the internal modal
+   instance key (`"{name}#m{N}"`). Branch on the XML name — stable across `Open` calls
+   and across multiple concurrent instances of the same dialog.
+2. **The modal subsystem overrides `canvas.sortingOrder` AFTER your configurator runs**
+   — modals to `UI.Modal.SortingOrderBase + depth`, Loading to `Loading.SortingOrder`.
+   Don't try to pin `sortingOrder` from the configurator for modal/loading XML keys;
+   tune `UI.Modal.SortingOrderBase` / `Loading.SortingOrder` instead. `renderMode` /
+   `worldCamera` / `planeDistance` / `pixelPerfect` etc. are still honored.
 
 ## `<Trigger>` and `<Animation>` from C#
 
