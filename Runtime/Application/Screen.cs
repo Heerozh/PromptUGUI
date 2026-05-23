@@ -239,7 +239,7 @@ namespace PromptUGUI.Application
                 if (inactiveNodes.Contains(node)) continue;
                 var control = kv.Value;
                 var entry = _registry.Resolve(node.Tag);
-                ControlAttributeApplier.Apply(node, control, entry, Variants);
+                ControlAttributeApplier.Apply(node, control, entry, Variants, initial: false);
             }
             ApplyCanvasScaler(RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>());
         }

@@ -53,6 +53,22 @@ namespace PromptUGUI.Controls
         /// </summary>
         internal virtual void OnAfterApply() { }
 
+        /// <summary>
+        /// 上次 <see cref="ControlAttributeApplier"/> 通过 DefaultTextAttr 写入的字符串。
+        /// ReSolve 阶段拿来跟 <see cref="PeekDefaultText"/> 的当前值对比 —— 若当前值已被
+        /// 调用方通过 setter 改掉(如 MessageBoxRequest.Bind 改 TextValue), 就不再被 XML
+        /// 声明值覆盖；i18n locale 切换场景 (control 当前 text 还是上次 Apply 自己写的)
+        /// 则正常重 Apply 翻译结果。仅 ControlAttributeApplier 读写。
+        /// </summary>
+        internal string _lastAppliedDefaultText;
+
+        /// <summary>
+        /// 返回 control 当前渲染的 default-text 字符串 (e.g. TMP_Text.text)。控件没有
+        /// DefaultTextAttr 或文本未初始化时返回 null。仅 <see cref="ControlAttributeApplier"/>
+        /// 用于检测 runtime 覆写。
+        /// </summary>
+        internal virtual string PeekDefaultText() => null;
+
         internal void AddChild(IControl child) => _children.Add(child);
 
         public IReadOnlyList<IControl> Children => _children;

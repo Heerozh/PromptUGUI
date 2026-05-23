@@ -16,12 +16,26 @@ namespace PromptUGUI.Application
     internal static class ControlAttributeApplier
     {
         public static void Apply(ElementNode node, Control control,
-                                 ControlRegistry.Entry entry, VariantStore variants)
+                                 ControlRegistry.Entry entry, VariantStore variants,
+                                 bool initial = true)
         {
 
             // Determine tr opt-out and ctx (common attrs not registered on Meta)
             var tr = !(node.Attributes.TryGetValue("tr", out var trVal) && trVal == "false");
             node.Attributes.TryGetValue("ctx", out var ctx);
+
+            // 检测 caller 是否在 initial Apply 之后通过 setter 接管了 default-text attribute
+            // (e.g. MessageBoxRequest.Bind 改 TextValue)。如果接管了, ReSolve 不该把它打回
+            // XML 声明值; 但 i18n 场景 (control text 是上次 Apply 自己写的, locale 切换后
+            // Tr 结果变了) 必须重新 apply —— 区分两者靠 control 当前 text 是否 == 上次
+            // Apply 写下的 _lastAppliedDefaultText。
+            bool DefaultTextLockedByRuntime()
+            {
+                if (initial) return false;
+                if (entry.DefaultTextAttr == null) return false;
+                var current = control.PeekDefaultText();
+                return current != null && current != control._lastAppliedDefaultText;
+            }
 
             // Control-specific attributes: union of base + variant keys.
             var allKeys = new HashSet<string>(node.Attributes.Keys);
@@ -31,6 +45,8 @@ namespace PromptUGUI.Application
                 if (IsCommonAttribute(attrName)) continue;
                 if (attrName == "tr" || attrName == "ctx") continue;
                 if (!entry.Meta.HasAttribute(attrName)) continue;
+                // 跳过 default-text attribute 的 re-apply, 当 runtime 已经通过 setter 接管。
+                if (attrName == entry.DefaultTextAttr && DefaultTextLockedByRuntime()) continue;
                 var v = VariantResolver.ResolveAttribute(node, attrName, variants);
                 if (v == null) continue;
                 // Translate string-valued attrs that are commonly text-bearing.
@@ -43,16 +59,20 @@ namespace PromptUGUI.Application
                     v = TrResolver.Resolve(raw, node.TextArgs, ctx);
                 }
                 ApplyOne(entry.Meta, control, node, attrName, v);
+                if (attrName == entry.DefaultTextAttr) control._lastAppliedDefaultText = v;
             }
 
             // Text shorthand
-            if (!string.IsNullOrEmpty(node.TextContent) && entry.DefaultTextAttr != null)
+            if (!string.IsNullOrEmpty(node.TextContent) && entry.DefaultTextAttr != null
+                && !DefaultTextLockedByRuntime())
             {
                 var raw = node.TextContentRaw ?? node.TextContent;
                 var final = tr
                     ? TrResolver.Resolve(raw, node.TextArgs, ctx)
                     : node.TextContent;
-                ApplyOne(entry.Meta, control, node, entry.DefaultTextAttr, final ?? "");
+                final ??= "";
+                ApplyOne(entry.Meta, control, node, entry.DefaultTextAttr, final);
+                control._lastAppliedDefaultText = final;
             }
 
             // Common attributes

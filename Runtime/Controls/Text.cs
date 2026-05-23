@@ -45,6 +45,8 @@ namespace PromptUGUI.Controls
             set => _tmp.text = value ?? "";
         }
 
+        internal override string PeekDefaultText() => _tmp != null ? _tmp.text : null;
+
         [UIAttr("fontSize")]
         public int Size
         {

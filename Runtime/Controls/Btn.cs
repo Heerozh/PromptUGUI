@@ -79,6 +79,8 @@ namespace PromptUGUI.Controls
             }
         }
 
+        internal override string PeekDefaultText() => _autoLabel != null ? _autoLabel.text : null;
+
         [UIAttr]
         public string Font
         {

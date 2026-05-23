@@ -99,6 +99,8 @@ namespace PromptUGUI.Controls
             set => _input.text = value ?? string.Empty;
         }
 
+        internal override string PeekDefaultText() => _input != null ? _input.text : null;
+
         [UIAttr]
         public string Placeholder
         {
