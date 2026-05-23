@@ -73,20 +73,34 @@ namespace PromptUGUI.Application
             ReleaseAddressableSpriteSetHandle();
             HookResetOnce();
 
-            var handle = loader();
-            _addressableSpriteSetHandle = handle;
-            var sets = await handle.Task;
-            var snapshot = new List<SpriteSet>(sets ?? Array.Empty<SpriteSet>());
-
-            void Rebuild()
+            // Announce the load BEFORE the await so any synchronous UI.Open that
+            // races us in the same frame sees IsSpriteResolverLoadInFlight=true
+            // and Icons stay silent instead of LogError-spamming. The matching
+            // EndSpriteResolverLoad in the finally block decrements the counter
+            // and broadcasts a Variant change so open Screens re-ReSolve and
+            // pick up the now-installed resolver.
+            UI.BeginSpriteResolverLoad();
+            try
             {
-                var map = BuildLookup(snapshot);
-                UI.SpriteResolver = key => map.TryGetValue(key, out var sp) ? sp : null;
-            }
-            Rebuild();
+                var handle = loader();
+                _addressableSpriteSetHandle = handle;
+                var sets = await handle.Task;
+                var snapshot = new List<SpriteSet>(sets ?? Array.Empty<SpriteSet>());
+
+                void Rebuild()
+                {
+                    var map = BuildLookup(snapshot);
+                    UI.SpriteResolver = key => map.TryGetValue(key, out var sp) ? sp : null;
+                }
+                Rebuild();
 #if UNITY_EDITOR
-            UI.HotReload.SpriteResolverRebuilder = Rebuild;
+                UI.HotReload.SpriteResolverRebuilder = Rebuild;
 #endif
+            }
+            finally
+            {
+                UI.EndSpriteResolverLoad();
+            }
         }
 
         private static void HookResetOnce()

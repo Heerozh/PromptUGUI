@@ -79,7 +79,7 @@ await SpriteResolverHelpers.UseAddressableSpriteSetResolver(
     UnityEngine.AddressableAssets.Addressables.MergeMode.Intersection);
 ```
 
-Returns `Awaitable` — **`await` it before opening any Screen that contains `<Icon>`**, because `UI.SpriteResolver` is set inside the continuation.
+Returns `Awaitable`. You can either `await` it (no flash of empty icons) or fire-and-forget (`_ = SpriteResolverHelpers.UseAddressableSpriteSetResolver(); UI.Open("MainMenu");`) — between the call and the await continuation `UI.IsSpriteResolverLoadInFlight` is `true`, so any `<Icon>` rendered in that window stays empty silently (no `LogError`) and is re-resolved automatically via a `VariantStore` broadcast once the download completes. Use the awaited form if a one-frame empty icon would be visible in your golden path (e.g. boot splash → main menu with no intermediate loader).
 
 ### Sprite handle lifecycle
 
@@ -92,7 +92,8 @@ The loaded handle is held static and **released on a second `UseAddressableSprit
 | Symptom                                                | Cause                                                                                | Fix                                                                                          |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
 | `UseAddressableResolver` doesn't exist                 | `com.unity.addressables` not installed (no `PROMPTUGUI_HAS_ADDRESSABLES`)            | Install the Addressables package, or use `UI.UseResourcesResolver(...)` instead              |
-| `<Icon>` shows pink right after `Locale.Set` swap      | Old SpriteSet handle was released, new one still downloading                           | `await SpriteResolverHelpers.UseAddressableSpriteSetResolver(...)` before opening Screens; or rely on `<Icon name>` re-resolving on the next Variant tick |
+| `<Icon>` shows pink right after `Locale.Set` swap      | Old SpriteSet handle was released, new one still downloading                           | Fire-and-forget is safe — `UI.IsSpriteResolverLoadInFlight` keeps Icons silent + auto re-resolve on completion. `await` only if a one-frame empty Icon would be visible. |
+| `UI.SpriteResolver is not registered` LogError spam    | A Screen was opened before any `UseAddressableSpriteSetResolver` / `UseSpriteSetResolver` call (no in-flight load to silence the warning either) | Call `UseAddressableSpriteSetResolver(...)` (sync prefix sets in-flight) BEFORE `UI.Open`; you do not need to `await` it.   |
 | Translated text doesn't appear until next frame        | `Locale.Set` returned before `.po` finished loading                                  | Use `await UI.Locale.SetAsync(...)` when you need to read `UI.Tr(...)` synchronously after   |
 | `.po` files not picked up                              | Files don't carry the `Locale:<locale>` label, or the label points at the wrong locale | Run `Tools → PromptUGUI → I18n → Setup Addressables for Locale PO Files`, or set labels manually |
 | Cached `Sprite` field becomes invalid after label swap | Sprite was captured in a user field across a `UseAddressable...Resolver` call        | Don't cache — go through `UI.SpriteResolver` each time, or re-resolve on `UI.Variants.Changed` |
@@ -113,10 +114,12 @@ PREREQ        com.unity.addressables ≥ 1.0   (defines PROMPTUGUI_HAS_ADDRESSAB
               label convention: Locale:<locale>
               one-shot setup: Tools → PromptUGUI → I18n → Setup Addressables for Locale PO Files
 
-Icons         await SpriteResolverHelpers.UseAddressableSpriteSetResolver()
-              await SpriteResolverHelpers.UseAddressableSpriteSetResolver("MyLabel")
-              await SpriteResolverHelpers.UseAddressableSpriteSetResolver(
+Icons         SpriteResolverHelpers.UseAddressableSpriteSetResolver()      fire-and-forget OK
+              SpriteResolverHelpers.UseAddressableSpriteSetResolver("MyLabel")
+              SpriteResolverHelpers.UseAddressableSpriteSetResolver(
                     labels, MergeMode.Union | Intersection)
-              MUST await before opening any Screen with <Icon>
+              must be called BEFORE UI.Open (synchronous prefix flips
+              UI.IsSpriteResolverLoadInFlight so in-flight Icons stay silent);
+              await only if a one-frame empty Icon would be visible
               handle released on next call → invalidates returned Sprite refs
 ```

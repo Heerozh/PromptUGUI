@@ -26,11 +26,12 @@ namespace PromptUGUI.Controls
                 if (string.IsNullOrEmpty(value)) { _img.sprite = null; return; }
                 if (UI.SpriteResolver == null)
                 {
+                    _img.sprite = null;
+                    if (UI.IsSpriteResolverLoadInFlight) return;
                     Debug.LogError(
                         $"Icon '{value}': UI.SpriteResolver is not registered. " +
                         $"Call SpriteResolverHelpers.UseSpriteSetResolver(spriteSets) " +
                         $"before opening Screens that contain <Icon>.");
-                    _img.sprite = null;
                     return;
                 }
                 var sprite = UI.SpriteResolver(value);

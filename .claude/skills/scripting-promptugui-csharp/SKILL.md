@@ -121,7 +121,7 @@ public sealed class AtlasImage : PromptUGUI.Controls.Control
 }
 ```
 
-Error handling: when a `ns:name` value is used and `UI.SpriteResolver` is unset or returns null, `UI.ResolveSprite` logs `Debug.LogError` (pointing to `SpriteResolverHelpers.UseSpriteSetResolver` or the Sync menu) and returns null. Bare-path failures stay silent — same behavior as `Resources.Load` returning null — except for the `#sliceName` form: a missing texture is silent, but a present texture with no matching slice name logs `Debug.LogError` listing the available slice names (typos in an explicit slice should not fail silently).
+Error handling: when a `ns:name` value is used and `UI.SpriteResolver` is unset or returns null, `UI.ResolveSprite` logs `Debug.LogError` (pointing to `SpriteResolverHelpers.UseSpriteSetResolver` or the Sync menu) and returns null. **Exception:** while `UI.IsSpriteResolverLoadInFlight` is `true` (an async resolver loader like `UseAddressableSpriteSetResolver` is mid-download), both `UI.ResolveSprite` and `<Icon>` stay silent and return null — open Screens automatically re-resolve via a Variant broadcast once the loader completes. Bare-path failures stay silent — same behavior as `Resources.Load` returning null — except for the `#sliceName` form: a missing texture is silent, but a present texture with no matching slice name logs `Debug.LogError` listing the available slice names (typos in an explicit slice should not fail silently).
 
 ## Open / Close / Get
 

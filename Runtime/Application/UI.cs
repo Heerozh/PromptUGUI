@@ -16,6 +16,44 @@ namespace PromptUGUI.Application
         public static System.Func<string, UnityEngine.Awaitable<string>> SourceResolver { get; set; }
         public static System.Func<string, UnityEngine.Sprite> SpriteResolver { get; set; }
 
+        private static int _spriteResolverLoadCount;
+
+        /// <summary>
+        /// True while at least one async sprite-resolver loader (typically
+        /// <c>SpriteResolverHelpers.UseAddressableSpriteSetResolver</c>) has called
+        /// <see cref="BeginSpriteResolverLoad"/> and not yet called
+        /// <see cref="EndSpriteResolverLoad"/>. Lets fire-and-forget callers start
+        /// the resolver and immediately <c>UI.Open</c> Screens containing
+        /// <c>&lt;Icon&gt;</c>: while the flag is set the icons stay empty silently
+        /// instead of logging "SpriteResolver is not registered", and when the
+        /// counter drops back to zero a Variant broadcast triggers
+        /// <c>Screen.ReSolve</c> so all open icons re-render.
+        /// </summary>
+        public static bool IsSpriteResolverLoadInFlight => _spriteResolverLoadCount > 0;
+
+        /// <summary>
+        /// Marks the start of an async sprite-resolver install. Mirrors
+        /// <see cref="EndSpriteResolverLoad"/>; the pair must be balanced (Addressable
+        /// helper wraps its await in try/finally). Multiple loaders may overlap —
+        /// the counter is nested, so the broadcast happens only when the outermost
+        /// load finishes.
+        /// </summary>
+        internal static void BeginSpriteResolverLoad() => _spriteResolverLoadCount++;
+
+        /// <summary>
+        /// Marks the end of an async sprite-resolver install. When the counter drops
+        /// to zero, broadcasts a Variant change so open Screens re-resolve and any
+        /// <c>&lt;Icon&gt;</c> nodes that rendered empty during the load pick up the
+        /// now-installed resolver.
+        /// </summary>
+        internal static void EndSpriteResolverLoad()
+        {
+            if (_spriteResolverLoadCount == 0) return;
+            _spriteResolverLoadCount--;
+            if (_spriteResolverLoadCount == 0)
+                VariantStore.NotifyChangedInternal();
+        }
+
         /// <summary>
         /// Dual-syntax sprite resolver entry point used by built-in controls'
         /// `sprite=` setters and recommended for custom Control subclasses.
@@ -36,6 +74,7 @@ namespace PromptUGUI.Application
             {
                 if (SpriteResolver == null)
                 {
+                    if (IsSpriteResolverLoadInFlight) return null;
                     UnityEngine.Debug.LogError(
                         $"sprite '{value}': UI.SpriteResolver is not registered. " +
                         $"Call SpriteResolverHelpers.UseSpriteSetResolver(spriteSets) " +
@@ -653,6 +692,7 @@ namespace PromptUGUI.Application
             _depGraph.Clear();
             SourceResolver = null;
             SpriteResolver = null;
+            _spriteResolverLoadCount = 0;
             PoResolver = null;
             CanvasConfigurator = null;
 #if UNITY_EDITOR
