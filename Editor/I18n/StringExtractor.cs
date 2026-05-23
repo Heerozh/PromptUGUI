@@ -48,7 +48,9 @@ namespace PromptUGUI.Editor.I18n
             // UseAddressableResolver().
             var labelledByLocale = CollectAddressablePoPathsByLocale();
 
+            var activePartitions = new HashSet<string>(byPartition.Keys);
             var filesWritten = 0;
+            var orphanCount = 0;
             foreach (var lc in settings.locales)
             {
                 if (string.IsNullOrEmpty(lc.locale)) continue;
@@ -74,9 +76,43 @@ namespace PromptUGUI.Editor.I18n
                     File.WriteAllText(path, merged);
                     filesWritten++;
                 }
+                orphanCount += ReportOrphanPoFiles(localeDir, activePartitions);
             }
             AssetDatabase.Refresh();
-            Debug.Log($"[PromptUGUI] Extract Strings: {allExtracted.Count} msgids → {filesWritten} .po files across {settings.locales.Count} locales.");
+            Debug.Log($"[PromptUGUI] Extract Strings: {allExtracted.Count} msgids → {filesWritten} .po files across {settings.locales.Count} locales." +
+                      (orphanCount > 0 ? $" {orphanCount} orphan .po file(s) reported as errors — delete manually." : ""));
+        }
+
+        // Pure helper: which .po files under <localeDir> no longer correspond to
+        // a partition produced by the current scan. Paths are returned as given
+        // (caller-supplied paths), only the relative-key lookup normalizes separators.
+        internal static IEnumerable<string> FindOrphanPoFiles(
+            IEnumerable<string> poFilePaths, string localeDir, ISet<string> activePartitions)
+        {
+            var prefixLen = localeDir.Length + 1;
+            foreach (var poPath in poFilePaths)
+            {
+                var normalized = poPath.Replace('\\', '/');
+                if (normalized.Length <= prefixLen) continue;
+                var rel = normalized.Substring(prefixLen);
+                if (rel.EndsWith(".po")) rel = rel.Substring(0, rel.Length - 3);
+                if (!activePartitions.Contains(rel)) yield return poPath;
+            }
+        }
+
+        private static int ReportOrphanPoFiles(string localeDir, ISet<string> activePartitions)
+        {
+            if (!Directory.Exists(localeDir)) return 0;
+            var poFiles = Directory.GetFiles(localeDir, "*.po", SearchOption.AllDirectories);
+            var count = 0;
+            foreach (var poPath in FindOrphanPoFiles(poFiles, localeDir, activePartitions))
+            {
+                Debug.LogError(
+                    $"[PromptUGUI] Orphan .po file: {poPath.Replace('\\', '/')} — " +
+                    "source XML/C# no longer produces this partition. Delete the file (and its .meta) manually.");
+                count++;
+            }
+            return count;
         }
 
         private static Dictionary<string, List<string>> CollectAddressablePoPathsByLocale()
