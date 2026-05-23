@@ -49,7 +49,7 @@ namespace PromptUGUI.Editor.I18n
             var labelledByLocale = CollectAddressablePoPathsByLocale();
 
             var activePartitions = new HashSet<string>(byPartition.Keys);
-            var filesWritten = 0;
+            var writtenPaths = new List<string>();
             var orphanCount = 0;
             foreach (var lc in settings.locales)
             {
@@ -74,12 +74,23 @@ namespace PromptUGUI.Editor.I18n
                     var existing = File.Exists(path) ? File.ReadAllText(path) : "";
                     var merged = PoFileWriter.Merge(existing, kv.Value);
                     File.WriteAllText(path, merged);
-                    filesWritten++;
+                    writtenPaths.Add(path);
                 }
                 orphanCount += ReportOrphanPoFiles(localeDir, activePartitions);
             }
-            AssetDatabase.Refresh();
-            Debug.Log($"[PromptUGUI] Extract Strings: {allExtracted.Count} msgids → {filesWritten} .po files across {settings.locales.Count} locales." +
+            // Targeted import instead of bulk AssetDatabase.Refresh(): unrelated
+            // stale assets in the project can otherwise log "File couldn't be read"
+            // attributed to this call site.
+            AssetDatabase.StartAssetEditing();
+            try
+            {
+                foreach (var p in writtenPaths) AssetDatabase.ImportAsset(p);
+            }
+            finally
+            {
+                AssetDatabase.StopAssetEditing();
+            }
+            Debug.Log($"[PromptUGUI] Extract Strings: {allExtracted.Count} msgids → {writtenPaths.Count} .po files across {settings.locales.Count} locales." +
                       (orphanCount > 0 ? $" {orphanCount} orphan .po file(s) reported as errors — delete manually." : ""));
         }
 
