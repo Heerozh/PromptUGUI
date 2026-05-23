@@ -314,6 +314,10 @@ MODAL          var r = await MessageBox.Open(text, MsgBtn.OK|MsgBtn.Cancel, icon
                MessageBox.Open(text, ..., mode: ModalMode.Queued)  排队,不叠加
                ESC priority   Cancel > No > Close   (OK-only → no-op)
                override XML   MessageBox.XmlSrc = "MyUI/Modals/Foo.ui"   (keep .ui suffix)
+                              prereq #1  resolver registered + (Addressables) address pre-registered
+                              prereq #2  <Screen name="..."> byte-equal to MessageBox.XmlSrc
+                              else: InvalidKeyException / "Modal screen 'X' not loaded; call LoadDocument first"
+                              (do NOT call LoadDocument manually — auto via ModalDocCache.EnsureLoaded)
                required ids   text  title  ok  cancel  yes  no  close   (icon optional)
                backdrop       author writes <Image anchor="stretch"/> — NOT auto-injected
                UI.Modal.OpenAsync(new MyRequest(), ModalMode.Popup) custom ModalRequest<T>
@@ -458,7 +462,12 @@ var name = await UI.Modal.OpenAsync(new NamePickerRequest());
 
 Custom modal `XmlSrc` keys go through the caller's `UI.SourceResolver` like any other
 Screen (the `PromptUGUI/` prefix is reserved — those keys load synchronously from the
-package's bundled Resources via `Resources.Load`, no resolver involved).
+package's bundled Resources via `Resources.Load`, no resolver involved). **The same
+"Setup prerequisites" rules from "Overriding the builtin MessageBox layout" below apply
+verbatim**: a matching resolver must be registered (Addressables needs the address
+pre-registered, not just the file on disk), and your XML's `<Screen name="...">` must
+equal `XmlSrc` byte-for-byte — otherwise you get the same `InvalidKeyException` /
+`Modal screen '...' not loaded` errors listed in the override section's mistakes table.
 
 ### Overriding the builtin MessageBox layout
 
@@ -471,14 +480,80 @@ lookup key is `MyMessageBox.ui` (keep the `.ui` suffix). Default:
 MessageBox.XmlSrc = "MyUI/Modals/PixelMessageBox.ui";   // your SourceResolver resolves this
 ```
 
-Keys starting with `PromptUGUI/` load from the package's bundled Resources (sync); any
-other key flows through `UI.SourceResolver` — Resources, Addressables, or whatever
-resolver you registered. There is no per-call `template:` override; `MessageBox.XmlSrc`
-is the global swap point.
+There is no per-call `template:` override; `MessageBox.XmlSrc` is the global swap point.
+
+#### Setup prerequisites (read BEFORE swapping `XmlSrc`)
+
+Two non-obvious requirements have to be satisfied or `MessageBox.Open` will throw at
+runtime. Walking through both BEFORE you change `MessageBox.XmlSrc` saves a round of
+"file exists on disk, why doesn't it load":
+
+1. **A `SourceResolver` matching the key prefix must be registered.** `MessageBox.XmlSrc`
+   values starting with `PromptUGUI/` load synchronously from the package's bundled
+   Resources (no resolver involved — the `Resources/PromptUGUI/...` tree shipped with the
+   package). **Every other key** flows through `UI.SourceResolver`:
+   - Resources resolver: `UI.UseResourcesResolver(rootPath)` — `XmlSrc` is the path under
+     `Resources/{rootPath}/...` (no `.ui.xml` extension).
+   - Addressables resolver: `UI.UseAddressableResolver()` — `XmlSrc` is an Addressables
+     **Address**, not a filesystem path. **The asset MUST be added to an Addressables
+     group with its Address set to exactly your `XmlSrc` string.** "The .ui.xml file
+     exists in `Assets/`" is not enough; resolvers do NOT do filesystem fallback.
+     Missing registration → `InvalidKeyException: No Location found for Key=<XmlSrc>`
+     from `AddressableResolverHelper`.
+   - Custom resolver: whatever `(string src) → Awaitable<string>` you assigned to
+     `UI.SourceResolver`.
+
+2. **Your XML's `<Screen name="...">` must equal `MessageBox.XmlSrc` byte-for-byte.**
+   `UI.LoadDocument` keys the internal `_docs` table by the XML's `<Screen name>`, NOT
+   by the load key — so the resolver successfully fetching the XML is only step one.
+   `OpenModalScreen(XmlSrc)` then looks up `_docs[XmlSrc]`; if `<Screen name>` was
+   anything else, you get `InvalidOperationException: Modal screen '<XmlSrc>' not
+   loaded; call LoadDocument first`. **You do NOT need to call `LoadDocument` manually**
+   — `ModalDocCache.EnsureLoaded` runs it on first `Open`. The error wording is
+   misleading; the real fix is to align the two strings.
+
+#### Worked example
+
+`MessageBox.XmlSrc = "Modals/MessageBox.ui"` with an Addressables resolver:
+
+```csharp
+// boot
+UI.UseAddressableResolver();
+MessageBox.XmlSrc = "Modals/MessageBox.ui";
+```
+
+```xml
+<!-- Assets/UI/Modals/MessageBox.ui.xml
+     Addressables Groups → Address: "Modals/MessageBox.ui"   ← prerequisite #1 -->
+<?xml version="1.0" encoding="utf-8"?>
+<PromptUGUI version="1">
+  <Screen name="Modals/MessageBox.ui" reference="1920x1080">
+                  <!-- ↑ must match MessageBox.XmlSrc byte-for-byte — prerequisite #2 -->
+    <Image id="backdrop" anchor="stretch" color="#000000FE"/>
+    <Frame id="dialog" anchor="center" size="640x300">
+      ... (id table below) ...
+    </Frame>
+  </Screen>
+</PromptUGUI>
+```
+
+Common copy-paste mistake — taking the package default XML and changing only `XmlSrc`:
+
+```csharp
+MessageBox.XmlSrc = "Modals/MessageBox.ui";
+```
+
+```xml
+<Screen name="PromptUGUI/Modals/MessageBox.ui">   <!-- ❌ still the default — doesn't match XmlSrc -->
+```
+
+→ Addressables resolves fine, `LoadDocument` registers `_docs["PromptUGUI/Modals/MessageBox.ui"]`,
+then `OpenModalScreen("Modals/MessageBox.ui")` looks up `_docs["Modals/MessageBox.ui"]` →
+miss → `"Modal screen 'Modals/MessageBox.ui' not loaded; call LoadDocument first"`.
 
 #### Custom `MessageBox.ui.xml` contract
 
-Your override XML must declare:
+Inside the `<Screen>`, your override XML must declare these `id`s:
 
 | Id        | Required | Bind behavior                                                                                                                                                                                                                                  |
 | --------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -502,6 +577,18 @@ are visible English until your project supplies translations.
 is assigned to the button via `btn.Text = label` at Bind time, replacing the XML text.
 These are NOT auto-translated — wrap with `UI.Tr(...)` at the call site:
 `new[] { (UI.Tr("Retry"), MsgBtn.OK) }`.
+
+#### Common mistakes (modal override)
+
+Same table applies to `Loading.XmlSrc` and any `ModalRequest<T>.XmlSrc` — they all share
+the resolver path + `<Screen name>` contract.
+
+| Symptom (exact runtime error)                                                                                            | Cause                                                                                                                              | Fix                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `InvalidKeyException: No Location found for Key=<XmlSrc>` (stack: `AddressableResolverHelper.LoadFromAddressablesInternalAsync`) | Addressables resolver is active and `<XmlSrc>` isn't registered as an Address (or the Address differs by even one character).      | Window → Asset Management → Addressables → Groups; drag your `.ui.xml` in; set its Address to exactly `<XmlSrc>`. Or boot a Resources/custom resolver instead. "File exists in `Assets/`" doesn't matter. |
+| `InvalidOperationException: Modal screen '<XmlSrc>' not loaded; call LoadDocument first` (stack: `UI.OpenModalScreen`)   | XML's `<Screen name="...">` ≠ `<XmlSrc>`. `_docs` got registered under the wrong key.                                              | Edit your XML: `<Screen name="<XmlSrc>" ...>` — byte-equal. **Do NOT** call `LoadDocument` manually; the error wording is misleading.                                                                     |
+| Dialog opens but clicks on empty space still hit the UI below it                                                         | No full-screen Graphic in your override XML; pointer raycasts pass through where there's no drawn surface.                         | Add `<Image id="backdrop" anchor="stretch" color="#000000FE"/>` as a sibling of your dialog Frame inside the `<Screen>`.                                                                                  |
+| `Screen 'X' already loaded` on second `Open`                                                                             | You ALSO called `UI.LoadDocumentAsync("X")` manually (or two modal `XmlSrc`s point at XML files whose `<Screen name>` collides).   | Pick one path — either let `ModalDocCache` auto-load (recommended), or load yourself and don't touch `XmlSrc`. Distinct modals need distinct `<Screen name>`s.                                            |
 
 ### Loading overlay
 
@@ -540,6 +627,12 @@ Loading.XmlSrc = "MyUI/Modals/PixelLoading.ui";   // resolved by UI.SourceResolv
 Same key / resolver / `.ui` suffix rules as `MessageBox.XmlSrc`. Default:
 `"PromptUGUI/Modals/Loading.ui"`. Custom XML need only include `<Text id="text">`
 (optional) — everything else (spinner animation, backdrop) is up to you.
+
+**Same setup prerequisites apply** — see "Setup prerequisites" and "Common mistakes
+(modal override)" under "Overriding the builtin MessageBox layout" above. The resolver
+registration and `<Screen name>` ↔ `XmlSrc` byte-equal rules are identical; the
+`InvalidKeyException` / "Modal screen 'X' not loaded" errors will surface here too if
+either is wrong.
 
 ### Modal Canvas + `UI.CanvasConfigurator`
 

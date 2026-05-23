@@ -13,18 +13,7 @@ This skill covers everything you need to write or edit a `.ui.xml` correctly. Re
 
 Every `.ui.xml` write MUST be verified before reporting the work done. Three steps, in order — each catches a different layer of mistake:
 
-### 1. XSD validate every `.ui.xml`
-
-```
-xmllint --noout --schema Assets/PromptUGUI.gen.xsd <path/to/your.ui.xml>
-```
-
-- Default schema location: `Assets/PromptUGUI.gen.xsd`. It's generated from the user's `ControlRegistry` (so it knows their custom C# controls) plus a project-wide scan for `<Template name="...">` definitions (so Template invocations like `<TitledPanel/>` are recognized too).
-- **Auto-regen on `.ui.xml` save**: Unity's AssetPostprocessor regenerates the XSD whenever any `.ui.xml` is added/moved/deleted. As long as you call `refresh_unity` after editing, `xmllint` will see fresh Template tags. **C# control registration changes are NOT auto-picked-up** — for those, ask the user to run `Tools → PromptUGUI → Schema → Generate XSD`.
-- If user not install unity mcp, u can ignore template tags error in XSD.
-- **If the file does not exist, STOP.** Tell the user (in their language) to run the Editor menu `Tools → PromptUGUI → Schema → Generate XSD`.
-
-### 2. UIXmlLint CLI (catches semantic mistakes XSD can't express)
+### 1. Full validate CLI for every `.ui.xml` (catches semantic mistakes XSD can't express)
 
 ```
 dotnet run --project Library/PackageCache/com.promptugui.core@<hash>/.lint/UIXmlLint -- <path/to/your.ui.xml>
@@ -35,6 +24,15 @@ dotnet run --project Library/PackageCache/com.promptugui.core@<hash>/.lint/UIXml
 - Surfaces context-dependent rules that XSD can't easily express, e.g. **`anchor` / `margin` on a direct child of `<VStack>` / `<HStack>` / `<Grid>`** (`PUI-LAYOUT-ANCHOR` / `PUI-LAYOUT-MARGIN`). Unity logs these as warnings (so `UI.Open()` doesn't break), but the CLI promotes them to errors with non-zero exit code so they don't slip through.
 - Exit 0 = clean. Exit 1 = at least one parse error or rule violation; STOP and fix before reporting done.
 - Rule code lives in `Library/PackageCache/com.promptugui.core@<hash>/Runtime/Core/Lint/` and is shared with `ScreenInstantiator`'s warning path — same logic, one source of truth.
+
+### 2. XSD validate & full validate cli for every `.ui.xml`
+
+```
+xmllint --noout --schema Assets/PromptUGUI.gen.xsd <path/to/your.ui.xml>
+```
+
+- Default schema location: `Assets/PromptUGUI.gen.xsd`. It's generated from the user's `ControlRegistry` (so it knows their custom C# controls) plus a project-wide scan for `<Template name="...">` definitions (so Template invocations like `<TitledPanel/>` are recognized too).
+- It should **Auto-regen on `.ui.xml` save**, If user not install unity mcp, u can ignore template tags error in XSD.
 
 ### 3. Unity MCP live feedback
 
@@ -530,7 +528,7 @@ VALIDATE      every .ui.xml write  →  xmllint --noout --schema Assets/PromptUG
               schema missing       →  ask user to run Tools → PromptUGUI → Schema → Generate XSD
 MCP FEEDBACK  every .ui.xml write  →  refresh_unity + read_console (error,warning)
               MCP missing          →  ask user to open Unity + connect MCP for Unity
-.NET LINT     every .ui.xml write  →  UIXmlLint CLI
+.NET LINT     every .ui.xml write  →  dotnet run --project Library/PackageCache/com.promptugui.core@<hash>/.lint/UIXmlLint -- <path/to/your.ui.xml>
 
 ROOT          <PromptUGUI version="1"> ... </PromptUGUI>
 TOP LEVEL     <Import src="" [as=""]/>  <Screen name="" [canvas="overlay|camera|world"]>  <Template name="">
