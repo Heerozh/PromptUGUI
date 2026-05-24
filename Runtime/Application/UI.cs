@@ -61,8 +61,8 @@ namespace PromptUGUI.Application
         /// (SpriteSet/atlas path); bare paths fall through to
         /// <c>Resources.Load&lt;Sprite&gt;</c>. Bare paths may include
         /// <c>#sliceName</c> to pick a named sub-sprite from a multi-sprite
-        /// (sliced) texture via <c>Resources.LoadAll&lt;Sprite&gt;</c>; an
-        /// image extension on the path before the <c>#</c> is stripped so
+        /// (sliced) texture via <c>Resources.LoadAll&lt;Sprite&gt;</c>; any
+        /// file extension on the path before the <c>#</c> is stripped so
         /// <c>foo.png#bar</c> and <c>foo#bar</c> both work. Null/empty input
         /// returns null.
         /// </summary>
