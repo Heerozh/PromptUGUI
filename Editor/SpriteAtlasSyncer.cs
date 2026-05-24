@@ -279,13 +279,19 @@ namespace PromptUGUI.Editor
             refs.Add((ns, name));
         }
 
-        /// <summary>Cheap recursive count of image files under a folder. No asset
-        /// loading, no importer mutation — safe to call from OnInspectorGUI.</summary>
+        /// <summary>Cheap recursive count of sprite source assets (any Unity-recognized
+        /// texture format + Aseprite single-sprite files) under a folder. No asset
+        /// loading, no path resolution, no importer mutation — safe to call from
+        /// OnInspectorGUI.</summary>
         public static int CountPngs(string folderAssetPath)
         {
             if (string.IsNullOrEmpty(folderAssetPath)) return 0;
             if (!AssetDatabase.IsValidFolder(folderAssetPath)) return 0;
-            return EnumerateSpriteSourceGuids(folderAssetPath).Length;
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var folders = new[] { folderAssetPath };
+            foreach (var g in AssetDatabase.FindAssets("t:Texture2D", folders)) seen.Add(g);
+            foreach (var g in AssetDatabase.FindAssets("t:Sprite", folders)) seen.Add(g);
+            return seen.Count;
         }
 
         /// <summary>每个 PNG 一个 entry，pathKey = sourceFolder 下的相对路径（'/' 分隔、
