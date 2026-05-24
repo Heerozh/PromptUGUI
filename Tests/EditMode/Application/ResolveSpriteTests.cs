@@ -140,5 +140,14 @@ namespace PromptUGUI.Tests.EditMode.Application
             Assert.IsNotNull(actual);
             Assert.AreEqual("pugui_caret", actual.name);
         }
+
+        [Test]
+        public void ResolveSprite_does_not_strip_dot_in_folder_name()
+        {
+            // "v2.0/foo" — the dot is in the folder segment before the slash, so it must
+            // NOT be stripped. LoadAll("v2.0/foo") returns empty → null is returned silently.
+            var actual = UI.ResolveSprite("v2.0/foo#anything");
+            Assert.IsNull(actual); // LoadAll finds nothing; no error expected either
+        }
     }
 }
