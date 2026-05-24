@@ -7,6 +7,7 @@
 2. 复用 Btn 那次（`2026-05-15-btn-content-sizing-design.md`）已经接好的 `Control.ApplyLayoutElement` (BCS-D6) 与 `Control.ApplyCommon` 自由定位 fallback (BCS-D7) —— 本次不再改 Control / SizeSpec 基础设施。
 3. 测试：每个控件一份独立 `XxxContentSizingTests.cs`（平行于 `BtnContentSizingTests` / `ToggleContentSizingTests`），覆盖 LayoutGroup auto-LE、自由定位 sizeDelta fallback、anchor=stretch skip、显式 size override 四条主路径。
 4. 同步 `authoring-promptugui-xml/SKILL.md` 里 `<Dropdown>` / `<Slider>` / `<ScrollList>` 三段的默认尺寸说明 + LayoutGroup / free-positioning 段的"提供 native 的控件"列表。
+5. **附加 (DSS-D13)**: `<Frame>` 默认 anchor 从"统一 top-left"改成"按轴看 size 是否存在"——没写 size 的轴 stretch，写了 size 的轴 top-left。这跟前面四点的 `GetNativeSize` 路径不同（Frame 没有"自然尺寸"概念），通过给 `Control` 加 protected virtual `GetDefaultAnchor(SizeSpec)` 实现；只有 `Frame` 覆写，其他控件维持 `(Top, Left)`。镜像 CSS `<div>` 块流默认：未约束的轴 = `auto`/stretch；显式 `anchor=` 仍按原规则严格校验。
 
 **依赖**: [`2026-05-15-btn-content-sizing-design.md`](2026-05-15-btn-content-sizing-design.md)（BCS-D6 / BCS-D7 引入的"控件 opt-in 通过覆写 GetNativeSize 主导 preferred 报告"机制本次直接复用，无新增基础设施改动）。
 
@@ -44,6 +45,9 @@
 | DSS-D10 | 测试拆分 | 三个独立测试文件：`DropdownContentSizingTests.cs` / `SliderContentSizingTests.cs` / `ScrollListContentSizingTests.cs` | 每个控件公式 / 默认值 / 方向分支不同，独立文件更易在 Unity Test Runner 里单独跑 + filter；跟 `BtnContentSizingTests` / `ToggleContentSizingTests` 风格一致 |
 | DSS-D11 | 是否覆盖 InputField | 否 —— 留下一个 spec 单独做 | InputField 内部还有 placeholder / caret / multi-line 等参数，公式比这三个复杂；与其塞进本 spec，不如单独做一份 |
 | DSS-D12 | SKILL.md 更新点 | `authoring-promptugui-xml/SKILL.md` 的三个控件表格行各加一句默认尺寸说明；LayoutGroup 段 + free-positioning 段把"提供 native 的控件"列表从 `<Btn>`、`<Toggle>`、`<Icon>` 扩展到 + `<Dropdown>`、`<Slider>`、`<ScrollList>` | CLAUDE.md 触发条件：新增可见行为（默认值变化） |
+| DSS-D13 | Frame 默认 anchor 改成"按轴 fill-or-fit" | 没写 anchor 时：作者写过 size 的轴默认 top/left；没写过的轴默认 stretch | 镜像 CSS 块流：`<div>` 没写 size 的轴 auto，写了的轴用值。Frame 没有"自然尺寸"，GetNativeSize 路径不适用；这条修法是 anchor 层的，是 free-positioning 容器问题的正解 |
+| DSS-D14 | 实现 API | 给 `Control` 加 `protected virtual AnchorPreset GetDefaultAnchor(SizeSpec sizeSpec) => new(Top, Left);`；`Frame` 覆写按 sizeSpec.HasWidth/HasHeight 决定 H/V；`ApplyCommon` 先 parse sizeSpec 再算 default preset（顺序调整） | 用 virtual 而不是 hardcode "is Frame" 的 type check，让未来其他容器类（如自定义 PanelControl）可以选择性 opt-in；保持 Frame 之外的所有控件行为不变 |
+| DSS-D15 | 显式 anchor=stretch 与 size 的现有 parse error 保留 | 不变 —— "anchor=stretch 与 size 同时写"仍然报错；只有"省略 anchor"时才走"按轴 fill-or-fit" | 显式写 anchor=stretch 是作者明确表达"两轴都拉伸"，再写 size 是逻辑矛盾；省略 anchor 是作者表达"不在意定位细节"，这时按 web 直觉给最不容易出错的默认 |
 
 ---
 
