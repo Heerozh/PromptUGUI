@@ -572,6 +572,46 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void EnumeratePngs_picks_up_jpg_alongside_png()
+        {
+            // Multi-format coverage: glob-based *.png enumeration would miss JPG.
+            // After switching to AssetDatabase.FindAssets("t:Texture2D" ∪ "t:Sprite"),
+            // any importer-recognized image file in the folder is included.
+            var folder = $"{TestRoot}/icons_mixed";
+            AssetDatabase.CreateFolder(TestRoot, "icons_mixed");
+            var pngPath = $"{folder}/p.png";
+            var jpgPath = $"{folder}/j.jpg";
+            File.WriteAllBytes(pngPath, MakeBlankPng());
+            File.WriteAllBytes(jpgPath, MakeBlankJpg());
+            ImportAsSprite(pngPath);
+            ImportAsSprite(jpgPath);
+
+            var entries = SpriteAtlasSyncer.EnumeratePngs(folder);
+            var keys = new HashSet<string>();
+            foreach (var (k, _) in entries) keys.Add(k);
+            Assert.That(keys, Does.Contain("p"));
+            Assert.That(keys, Does.Contain("j"));
+        }
+
+        [Test]
+        public void EnumeratePngs_returns_entries_in_stable_path_order()
+        {
+            var folder = $"{TestRoot}/icons_order";
+            AssetDatabase.CreateFolder(TestRoot, "icons_order");
+            var c = $"{folder}/c.png";
+            var a = $"{folder}/a.png";
+            var b = $"{folder}/b.png";
+            File.WriteAllBytes(c, MakeBlankPng()); ImportAsSprite(c);
+            File.WriteAllBytes(a, MakeBlankPng()); ImportAsSprite(a);
+            File.WriteAllBytes(b, MakeBlankPng()); ImportAsSprite(b);
+
+            var entries = SpriteAtlasSyncer.EnumeratePngs(folder);
+            var keys = new List<string>();
+            foreach (var (k, _) in entries) keys.Add(k);
+            Assert.AreEqual(new[] { "a", "b", "c" }, keys.ToArray());
+        }
+
+        [Test]
         public void UpdateAtlas_v2_does_not_accumulate_packables_on_repeated_sync()
         {
             var folder = $"{TestRoot}/v2";
@@ -913,6 +953,16 @@ namespace PromptUGUI.Tests.Editor
             t.SetPixel(0, 0, Color.white);
             t.Apply();
             var bytes = t.EncodeToPNG();
+            UnityEngine.Object.DestroyImmediate(t);
+            return bytes;
+        }
+
+        private byte[] MakeBlankJpg()
+        {
+            var t = new Texture2D(1, 1);
+            t.SetPixel(0, 0, Color.white);
+            t.Apply();
+            var bytes = t.EncodeToJPG();
             UnityEngine.Object.DestroyImmediate(t);
             return bytes;
         }
