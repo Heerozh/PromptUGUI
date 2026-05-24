@@ -27,6 +27,15 @@ namespace PromptUGUI.Controls
         private Func<RectTransform, IControl> _factory;
         private readonly List<IControl> _slots = new();
 
+        // DSS-D4: ScrollList 视口默认值（避免 0x0 不可见）；实际项目几乎都会显式写 size。
+        private const float DefaultMainAxisLength = 200f;
+        private const float DefaultCrossAxisLength = 160f;
+
+        public override Vector2? GetNativeSize()
+            => _direction == "horizontal"
+                ? new Vector2(DefaultMainAxisLength, DefaultCrossAxisLength)
+                : new Vector2(DefaultCrossAxisLength, DefaultMainAxisLength);
+
         public int SlotCount => _slots.Count;
 
         public override void OnAttached()
