@@ -331,7 +331,12 @@ namespace PromptUGUI.Editor
                 EnsureSpriteImporter(assetPath);
 #if PROMPTUGUI_HAS_ASEPRITE
                 // MF-D4: multi-sprite Aseprite is rejected at validation time; skip it
-                // here so a stray first-sprite doesn't sneak into the SpriteSet.
+                // here so a stray first-sprite doesn't sneak into the SpriteSet via
+                // LoadAssetAtPath<Sprite>'s arbitrary-first behavior. Note: this
+                // LoadAllAssetsAtPath fires for EVERY Aseprite file (single- and
+                // multi-sprite) — EnsureSpriteImporter above already paid the same
+                // cost. The duplication is accepted per plan §5.5; refactor to a
+                // single call if profiling shows it's hot.
                 if (AssetImporter.GetAtPath(assetPath) is UnityEditor.U2D.Aseprite.AsepriteImporter)
                 {
                     if (AssetDatabase.LoadAllAssetsAtPath(assetPath).OfType<Sprite>().Count() != 1)
