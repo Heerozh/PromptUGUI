@@ -120,5 +120,25 @@ namespace PromptUGUI.Tests.EditMode.Application
             var actual = UI.ResolveSprite("does/not/exist#anything");
             Assert.IsNull(actual);
         }
+
+        [Test]
+        public void ResolveSprite_with_hash_strips_aseprite_extension()
+        {
+            // After whitelist removal, any extension should be stripped before LoadAll.
+            var actual = UI.ResolveSprite("PromptUGUI/Defaults/pugui.aseprite#pugui_caret");
+
+            Assert.IsNotNull(actual);
+            Assert.AreEqual("pugui_caret", actual.name);
+        }
+
+        [Test]
+        public void ResolveSprite_with_hash_strips_unknown_extension()
+        {
+            // Any extension after the last '.' (not in folder name) is dropped.
+            var actual = UI.ResolveSprite("PromptUGUI/Defaults/pugui.xyz#pugui_caret");
+
+            Assert.IsNotNull(actual);
+            Assert.AreEqual("pugui_caret", actual.name);
+        }
     }
 }

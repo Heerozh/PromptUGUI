@@ -97,17 +97,14 @@ namespace PromptUGUI.Application
 
             var path = value.Substring(0, hashIdx);
             var sliceName = value.Substring(hashIdx + 1);
+            // Resources virtual paths don't carry extensions; strip any trailing
+            // extension on the value side so sprite="ui/dialog.png#slice" and
+            // sprite="ui/dialog.aseprite#slice" both resolve via LoadAll("ui/dialog").
+            // dotIdx > slashIdx guards "v2.0/dialog" where the dot is in a folder name.
+            var slashIdx = path.LastIndexOf('/');
             var dotIdx = path.LastIndexOf('.');
-            if (dotIdx > 0)
-            {
-                var ext = path.Substring(dotIdx);
-                if (ext.Equals(".png", System.StringComparison.OrdinalIgnoreCase)
-                 || ext.Equals(".jpg", System.StringComparison.OrdinalIgnoreCase)
-                 || ext.Equals(".jpeg", System.StringComparison.OrdinalIgnoreCase)
-                 || ext.Equals(".tga", System.StringComparison.OrdinalIgnoreCase)
-                 || ext.Equals(".psd", System.StringComparison.OrdinalIgnoreCase))
-                    path = path.Substring(0, dotIdx);
-            }
+            if (dotIdx > slashIdx && dotIdx > 0)
+                path = path.Substring(0, dotIdx);
             var all = UnityEngine.Resources.LoadAll<UnityEngine.Sprite>(path);
             if (all == null || all.Length == 0)
                 return null;
