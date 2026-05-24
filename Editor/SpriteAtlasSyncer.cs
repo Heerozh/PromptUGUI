@@ -562,22 +562,36 @@ namespace PromptUGUI.Editor
             return count;
         }
 
-        /// <summary>Alphabetically-first texture under <paramref name="folderAssetPath"/>
-        /// (recursive), as a project-relative "Assets/..." path. Returns null if the
-        /// folder is missing or contains no textures. Used by the SpriteSet inspector to pick
-        /// a default template for the embedded TextureImporter editor — sorting keeps
-        /// the choice stable across filesystem enumeration order changes.</summary>
+        /// <summary>Alphabetically-first <see cref="TextureImporter"/> asset under
+        /// <paramref name="folderAssetPath"/> (recursive), as a project-relative
+        /// "Assets/..." path. Returns null if the folder is missing or contains no
+        /// TextureImporter assets. AsepriteImporter assets are excluded because
+        /// AsepriteImporterEditor isn't designed for embedded hosting (NREs in
+        /// HasModified when hosted inside SpriteSetEditor). Used by the SpriteSet
+        /// inspector to pick a default template for the embedded TextureImporter editor
+        /// — sorting keeps the choice stable across filesystem enumeration order
+        /// changes.</summary>
         public static string FindFirstTexture(string folderAssetPath)
         {
             if (string.IsNullOrEmpty(folderAssetPath)) return null;
             if (!AssetDatabase.IsValidFolder(folderAssetPath)) return null;
-            // MF-D1b: used for "first TextureImporter's filterMode" template; AsepriteImporter
-            // has no equivalent filterMode field, so t:Texture2D-only is correct.
+            // MF-D1b: TextureImporter-only template (filterMode source + embedded
+            // inspector template). Aseprite SpriteSheet mode produces a t:Texture2D
+            // main asset too, so t:Texture2D alone matches Aseprite assets — filter
+            // by importer type. Aseprite has no equivalent filterMode and its
+            // AsepriteImporterEditor isn't designed to be hosted inside our custom
+            // inspector (NREs in HasModified).
             var guids = AssetDatabase.FindAssets("t:Texture2D", new[] { folderAssetPath });
             if (guids.Length == 0) return null;
-            var paths = new string[guids.Length];
-            for (var i = 0; i < guids.Length; i++) paths[i] = AssetDatabase.GUIDToAssetPath(guids[i]);
-            Array.Sort(paths, StringComparer.Ordinal);
+            var paths = new List<string>(guids.Length);
+            for (var i = 0; i < guids.Length; i++)
+            {
+                var p = AssetDatabase.GUIDToAssetPath(guids[i]);
+                if (AssetImporter.GetAtPath(p) is TextureImporter)
+                    paths.Add(p);
+            }
+            if (paths.Count == 0) return null;
+            paths.Sort(StringComparer.Ordinal);
             return paths[0];
         }
 

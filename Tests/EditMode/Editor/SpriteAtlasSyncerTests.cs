@@ -990,6 +990,50 @@ namespace PromptUGUI.Tests.Editor
         }
 #endif
 
+#if PROMPTUGUI_HAS_ASEPRITE
+        [Test]
+        public void FindFirstTexture_skips_aseprite_assets()
+        {
+            // Repro for NRE: AsepriteImporterEditor isn't designed to be hosted inside
+            // SpriteSetEditor's embedded inspector. FindFirstTexture must skip Aseprite
+            // assets even though their main asset is t:Texture2D (SpriteSheet mode).
+            var folder = $"{TestRoot}/find_first_skips_aseprite";
+            AssetDatabase.CreateFolder(TestRoot, "find_first_skips_aseprite");
+            var srcAseprite = "Packages/com.heerozh.promptugui/Tests/EditMode/Editor/Fixtures/aseprite/single_sheet.aseprite";
+            Assume.That(File.Exists(srcAseprite), $"Fixture missing: {srcAseprite}");
+            // Aseprite at "a.aseprite" alphabetically wins over PNG at "b.png" with
+            // ordinal sort, so without the importer-type filter the result would be
+            // the Aseprite path — which then causes AsepriteImporterEditor NRE when
+            // hosted by SpriteSetEditor.
+            AssetDatabase.CopyAsset(srcAseprite, $"{folder}/a.aseprite");
+            var pngPath = $"{folder}/b.png";
+            File.WriteAllBytes(pngPath, MakeBlankPng());
+            ImportAsSprite(pngPath);
+
+            var first = SpriteAtlasSyncer.FindFirstTexture(folder);
+
+            Assert.AreEqual(pngPath, first,
+                "FindFirstTexture must return the PNG (TextureImporter), not the alphabetically-prior Aseprite.");
+        }
+#endif
+
+        [Test]
+        public void FindFirstTexture_returns_alphabetically_first_texture_importer()
+        {
+            var folder = $"{TestRoot}/find_first_sort";
+            AssetDatabase.CreateFolder(TestRoot, "find_first_sort");
+            var c = $"{folder}/c.png";
+            var a = $"{folder}/a.png";
+            var b = $"{folder}/b.png";
+            File.WriteAllBytes(c, MakeBlankPng()); ImportAsSprite(c);
+            File.WriteAllBytes(a, MakeBlankPng()); ImportAsSprite(a);
+            File.WriteAllBytes(b, MakeBlankPng()); ImportAsSprite(b);
+
+            var first = SpriteAtlasSyncer.FindFirstTexture(folder);
+
+            Assert.AreEqual(a, first);
+        }
+
         private string MakeFolder(string name)
         {
             AssetDatabase.CreateFolder(TestRoot, name);
