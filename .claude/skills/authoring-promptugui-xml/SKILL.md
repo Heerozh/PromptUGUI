@@ -269,6 +269,29 @@ Vertical: same idea (`top` → upper, `bottom` → lower, `center` → middle).
 
 **Cross-axis alignment** of layout-group children is set on the parent via `childAlign` (defaults: VStack `upper-center`, HStack `middle-left`). Override the whole group, not per child — uGUI LayoutGroup doesn't support per-child cross-axis alignment.
 
+## Layout group 放置配方（HStack / VStack）
+
+| 目标布局                        | HStack 写法                                                                                            | 关键                                                        |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| 顶部右侧工具栏（按钮数可变）    | `<HStack anchor="top-stretch" height="<H>" margin="T,R,_,_" childAlign="middle-right" spacing="<S>">`  | **首选**。横跨整行，childAlign 推到右；加减按钮无需改 stack |
+| 顶部左侧工具栏                  | `<HStack anchor="top-stretch" height="<H>" margin="T,_,_,L" spacing="<S>">`                            | 默认 `childAlign="middle-left"`，无需声明                   |
+| 顶部居中工具栏                  | `<HStack anchor="top-stretch" height="<H>" margin="T,R,_,L" childAlign="middle-center" spacing="<S>">` | 或固定宽：`anchor="top-center" width="<W>"`                 |
+| 顶部铺满（按钮等分整行）        | `<HStack anchor="top-stretch" height="<H>" margin="T,R,_,L">` + 每个 child `width="stretch"`           | child 用 `stretch*N` 实现 1:2:1 等加权                      |
+| 左 logo + 右按钮组（split bar） | `<HStack anchor="top-stretch" ...>` body：`<Image .../>` → `<Frame width="stretch"/>`(spacer) → 按钮们 | spacer `width="stretch"` 吃光中间剩余空间                   |
+| 底部工具栏                      | 把顶部配方的 anchor 改 `bottom-stretch`、margin 改 `_,R,B,L`                                           | 镜像；childAlign 同样适用                                   |
+
+VStack 同理（纵轴，axis 翻转）：
+
+| 目标布局                   | VStack 写法                                                                                            | 关键                                          |
+| -------------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| 右侧垂直按钮列（数量可变） | `<VStack anchor="stretch-right" width="<W>" margin="T,R,B,_" childAlign="upper-center" spacing="<S>">` | **首选**。纵向 stretch，childAlign 控顶/中/底 |
+| 右侧垂直按钮列（数量固定） | `<VStack anchor="top-right" width="<W>" height="<总高>" margin="T,R,_,_" spacing="<S>">`               | 总高 = Σchild + S×(N-1)                       |
+| 居中垂直菜单               | `<VStack anchor="center" width="<W>" spacing="<S>">`                                                   | 自由定位 + 不写 height，沿 children 自然展开  |
+
+⚠️ 反模式（lint / parser 不一定报但视觉上炸）：
+
+- `<HStack anchor="top-right" height="56">` 没写 `width=` → 0 宽 rect，子按钮全挤在一起。
+
 ## Anchor system: 4×4 grid
 
 `anchor="<vertical>-<horizontal>"`:
@@ -509,6 +532,7 @@ PromptUGUI never auto-enables masking — you must opt in via `mask=`. Two reaso
 | Symptom                                                                             | Cause                                                                                                                                                                                              | Fix                                                                                                                                                                                                                                                             |
 | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `cannot specify width/size on a horizontally-stretched axis`                        | `<X anchor="top-stretch" width="200"/>`                                                                                                                                                            | Either change anchor, or drop `width`. The stretched axis takes its size from `margin`.                                                                                                                                                                         |
+| HStack/VStack 子节点全挤在一起 / 重叠 / 被压扁                                      | Stack 自己没写 `width=` / `height=`（free-positioning 下 `sizeDelta=(0,0)`），LayoutGroup 把 children 压进 0 宽/0 高 rect                                                                          | 给 stack 显式 `width=` / `height=`；或者改成 `anchor="X-stretch"` 让 stack 横跨整轴 + `childAlign=` 控制 children 靠哪边。见 "Layout group 放置配方"                                                                                                            |
 | `<Text>` renders one character per line (vertical)                                  | `<Text>` under a non-LayoutGroup parent (`<Btn>` / `<Frame>` / `<Screen>`) with `anchor="center"` and no `width` / `height` — `sizeDelta` defaults to `(0,0)`, so TMP wraps every glyph at width 0 | Give the Text width: `anchor="stretch"` + `margin` to fill the parent (offset siblings like `<Icon>` with margin), or set `width="..."` explicitly. Inside a `<VStack>` / `<HStack>` this doesn't happen — the LayoutGroup expands the child on the cross axis. |
 | Ghost element on variant toggle                                                     | `<Add>` instantiated and never deactivated                                                                                                                                                         | This is by design (Strategy C). Use `hidden.variant` if you need a node to disappear.                                                                                                                                                                           |
 | Parser silently merges children                                                     | Wrote `<Btn>开始 <Image/> </Btn>` (text + element mix)                                                                                                                                             | Pick one: text shorthand OR child elements. Mixed content is rejected.                                                                                                                                                                                          |
