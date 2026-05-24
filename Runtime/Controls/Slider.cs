@@ -16,6 +16,20 @@ namespace PromptUGUI.Controls
         private UnitySlider _slider;
         private readonly Subject<float> _changed = new();
 
+        // DSS-D3: Slider 无内容驱动自然尺寸；长边 160 + 短边 44 (tap target) 是常用默认。
+        private const float MinTapHeight = 44f;
+        private const float DefaultSliderLength = 160f;
+
+        public override Vector2? GetNativeSize()
+        {
+            var horizontal = _slider == null
+                          || _slider.direction == UnitySlider.Direction.LeftToRight
+                          || _slider.direction == UnitySlider.Direction.RightToLeft;
+            return horizontal
+                ? new Vector2(DefaultSliderLength, MinTapHeight)
+                : new Vector2(MinTapHeight, DefaultSliderLength);
+        }
+
         public override void OnAttached()
         {
             // Background：竖向内缩到中间 50% (Y 0.25 — 0.75) sliced 轨道
