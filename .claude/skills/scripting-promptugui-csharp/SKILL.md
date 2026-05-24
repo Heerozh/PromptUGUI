@@ -89,6 +89,13 @@ SpriteResolverHelpers.UseSpriteSetResolver(new[] { uiSpriteSet, artSpriteSet });
 
 The helper builds a `(set:name) → Sprite` lookup from each SpriteSet's SpriteAtlas.
 
+**Source formats**: SpriteSet's source folder accepts any Unity-recognized texture
+format (PNG, JPG, JPEG, TGA, PSD, TIFF, BMP, EXR, HDR, GIF) plus Aseprite
+(`.ase` / `.aseprite`, requires `com.unity.2d.aseprite ≥ 1.0`). For Aseprite,
+each file must produce exactly **one sprite** — set the AsepriteImporter Import
+Mode to single-frame output or use one file per icon. Multi-sprite Aseprite
+files are logged as errors and skipped during sync.
+
 For Addressables-backed atlases, see **using-promptugui-addressables**.
 
 To use a fully custom backend, set `UI.SpriteResolver` directly with your own `(key → Sprite)` lookup.
