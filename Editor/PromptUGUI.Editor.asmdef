@@ -5,7 +5,8 @@
         "PromptUGUI.Runtime",
         "Unity.Addressables",
         "Unity.Addressables.Editor",
-        "Unity.ResourceManager"
+        "Unity.ResourceManager",
+        "Unity.2D.Aseprite.Editor"
     ],
     "includePlatforms": ["Editor"],
     "excludePlatforms": [],

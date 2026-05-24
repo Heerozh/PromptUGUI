@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using PromptUGUI.IR;
 using PromptUGUI.Parser;
@@ -328,6 +329,15 @@ namespace PromptUGUI.Editor
                     throw new OperationCanceledException();
                 }
                 EnsureSpriteImporter(assetPath);
+#if PROMPTUGUI_HAS_ASEPRITE
+                // MF-D4: multi-sprite Aseprite is rejected at validation time; skip it
+                // here so a stray first-sprite doesn't sneak into the SpriteSet.
+                if (AssetImporter.GetAtPath(assetPath) is UnityEditor.U2D.Aseprite.AsepriteImporter)
+                {
+                    if (AssetDatabase.LoadAllAssetsAtPath(assetPath).OfType<Sprite>().Count() != 1)
+                        continue;
+                }
+#endif
                 var sp = AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
                 if (sp == null) continue;
                 var rel = assetPath.Substring(folderPrefix.Length);
@@ -394,12 +404,34 @@ namespace PromptUGUI.Editor
 
         private static void EnsureSpriteImporter(string assetPath)
         {
-            if (AssetImporter.GetAtPath(assetPath) is not TextureImporter importer) return;
-            if (importer.textureType == TextureImporterType.Sprite) return;
-            importer.textureType = TextureImporterType.Sprite;
-            importer.spriteImportMode = SpriteImportMode.Single;
-            importer.textureCompression = TextureImporterCompression.Uncompressed;
-            importer.SaveAndReimport();
+            var importer = AssetImporter.GetAtPath(assetPath);
+            if (importer is TextureImporter ti)
+            {
+                if (ti.textureType == TextureImporterType.Sprite) return;
+                ti.textureType = TextureImporterType.Sprite;
+                ti.spriteImportMode = SpriteImportMode.Single;
+                ti.textureCompression = TextureImporterCompression.Uncompressed;
+                ti.SaveAndReimport();
+                return;
+            }
+#if PROMPTUGUI_HAS_ASEPRITE
+            if (importer is UnityEditor.U2D.Aseprite.AsepriteImporter)
+            {
+                // MF-D4: validate single-sprite contract; do not coerce AsepriteImporter
+                // settings — layer/frame configuration is author intent.
+                var sprites = AssetDatabase.LoadAllAssetsAtPath(assetPath).OfType<Sprite>().Count();
+                if (sprites != 1)
+                {
+                    Debug.LogError(
+                        $"[SpriteSync] Aseprite '{assetPath}' produces {sprites} sprites; " +
+                        $"SpriteSet requires exactly 1 sprite per file. Skipping. " +
+                        $"Set the AsepriteImporter Import Mode to single-frame output, " +
+                        $"or use a different file per icon.");
+                }
+                return;
+            }
+#endif
+            // Other importer types (eg. SVG via com.unity.vectorgraphics) - silent skip.
         }
 
         /// <summary>Force every texture under <paramref name="folderAssetPath"/> to the

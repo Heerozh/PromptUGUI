@@ -930,6 +930,66 @@ namespace PromptUGUI.Tests.Editor
             SpriteAtlasSyncer.ScanXmlReferences();
         }
 
+#if PROMPTUGUI_HAS_ASEPRITE
+        [Test]
+        public void EnumerateSpriteSources_picks_up_single_frame_animatedsprite_aseprite()
+        {
+            // AnimatedSprite is Aseprite's default Import Mode. Main asset is t:Sprite,
+            // NOT t:Texture2D, so the union filter (MF-D1) is what makes this work.
+            var folder = $"{TestRoot}/aseprite_animated";
+            AssetDatabase.CreateFolder(TestRoot, "aseprite_animated");
+            var srcAseprite = "Packages/com.heerozh.promptugui/Tests/EditMode/Editor/Fixtures/aseprite/single_animated.aseprite";
+            Assume.That(File.Exists(srcAseprite), $"Fixture missing: {srcAseprite}");
+            var destAseprite = $"{folder}/single.aseprite";
+            AssetDatabase.CopyAsset(srcAseprite, destAseprite);
+
+            var entries = SpriteAtlasSyncer.EnumerateSpriteSources(folder);
+            var keys = new List<string>();
+            foreach (var (k, _) in entries) keys.Add(k);
+            Assert.That(keys, Does.Contain("single"));
+        }
+
+        [Test]
+        public void EnumerateSpriteSources_picks_up_single_frame_spritesheet_aseprite()
+        {
+            var folder = $"{TestRoot}/aseprite_sheet";
+            AssetDatabase.CreateFolder(TestRoot, "aseprite_sheet");
+            var srcAseprite = "Packages/com.heerozh.promptugui/Tests/EditMode/Editor/Fixtures/aseprite/single_sheet.aseprite";
+            Assume.That(File.Exists(srcAseprite), $"Fixture missing: {srcAseprite}");
+            var destAseprite = $"{folder}/single.aseprite";
+            AssetDatabase.CopyAsset(srcAseprite, destAseprite);
+
+            var entries = SpriteAtlasSyncer.EnumerateSpriteSources(folder);
+            var keys = new List<string>();
+            foreach (var (k, _) in entries) keys.Add(k);
+            Assert.That(keys, Does.Contain("single"),
+                "SpriteSheet-mode 1-sprite Aseprite must be enumerated");
+            // Dedupe assertion: SpriteSheet mode hits BOTH t:Texture2D and t:Sprite.
+            // Union HashSet should fold them into one entry.
+            Assert.AreEqual(1, keys.Count,
+                "Expected exactly one entry; got: " + string.Join(",", keys));
+        }
+
+        [Test]
+        public void EnumerateSpriteSources_skips_multi_sprite_aseprite_with_log_error()
+        {
+            var folder = $"{TestRoot}/aseprite_multi";
+            AssetDatabase.CreateFolder(TestRoot, "aseprite_multi");
+            var srcAseprite = "Packages/com.heerozh.promptugui/Tests/EditMode/Editor/Fixtures/aseprite/multi.aseprite";
+            Assume.That(File.Exists(srcAseprite), $"Fixture missing: {srcAseprite}");
+            var destAseprite = $"{folder}/multi.aseprite";
+            AssetDatabase.CopyAsset(srcAseprite, destAseprite);
+
+            LogAssert.Expect(LogType.Error,
+                new System.Text.RegularExpressions.Regex("produces .* sprites; SpriteSet requires exactly 1"));
+
+            var entries = SpriteAtlasSyncer.EnumerateSpriteSources(folder);
+            var keys = new List<string>();
+            foreach (var (k, _) in entries) keys.Add(k);
+            Assert.That(keys, Does.Not.Contain("multi"));
+        }
+#endif
+
         private string MakeFolder(string name)
         {
             AssetDatabase.CreateFolder(TestRoot, name);
