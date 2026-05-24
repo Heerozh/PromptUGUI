@@ -118,15 +118,16 @@ namespace PromptUGUI.Controls
 
         public virtual UnityEngine.Vector2? GetNativeSize() => null;
 
+        // DSS-D14: 作者省略 anchor= 时的默认 preset。基类返回 top-left（沿用既有行为）；
+        // 容器类（Frame）覆写按 sizeSpec.HasWidth/HasHeight 决定每轴 stretch 还是 top/left。
+        protected virtual AnchorPreset GetDefaultAnchor(SizeSpec sizeSpec)
+            => new(AnchorVertical.Top, AnchorHorizontal.Left);
+
         // 通用属性应用（由 ScreenInstantiator 在子类自身属性应用之后调用）
         public void ApplyCommon(string anchor, string size, string width, string height,
                                 string margin, string pivot,
                                 bool? hidden, bool interactable)
         {
-            var preset = string.IsNullOrEmpty(anchor)
-                ? new AnchorPreset(AnchorVertical.Top, AnchorHorizontal.Left)
-                : AnchorPreset.Parse(anchor);
-
             var sizeSpec = SizeSpec.Parse(size, width, height);
 
             if (sizeSpec.IsNativeWidth || sizeSpec.IsNativeHeight)
@@ -135,6 +136,10 @@ namespace PromptUGUI.Controls
                 if (native.HasValue)
                     sizeSpec = sizeSpec.WithNativeResolved(native.Value);
             }
+
+            var preset = string.IsNullOrEmpty(anchor)
+                ? GetDefaultAnchor(sizeSpec)
+                : AnchorPreset.Parse(anchor);
 
             sizeSpec.ValidateAgainst(preset);
 
