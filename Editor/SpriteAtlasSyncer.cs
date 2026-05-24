@@ -283,7 +283,7 @@ namespace PromptUGUI.Editor
         /// texture format + Aseprite single-sprite files) under a folder. No asset
         /// loading, no path resolution, no importer mutation — safe to call from
         /// OnInspectorGUI.</summary>
-        public static int CountPngs(string folderAssetPath)
+        public static int CountSpriteSources(string folderAssetPath)
         {
             if (string.IsNullOrEmpty(folderAssetPath)) return 0;
             if (!AssetDatabase.IsValidFolder(folderAssetPath)) return 0;
@@ -294,14 +294,14 @@ namespace PromptUGUI.Editor
             return seen.Count;
         }
 
-        /// <summary>每个 PNG 一个 entry，pathKey = sourceFolder 下的相对路径（'/' 分隔、
+        /// <summary>每个 image 一个 entry，pathKey = sourceFolder 下的相对路径（'/' 分隔、
         /// 去扩展名）。Root file 的 pathKey 等于裸文件名；子目录文件形如 "UI/heart"。
-        /// 不再 first-wins —— 同名 PNG 在不同子目录下都会各自出现，由 <see cref="SyncAll"/>
+        /// 不再 first-wins —— 同名 texture 在不同子目录下都会各自出现，由 <see cref="SyncAll"/>
         /// 决定如何引用（路径形 vs. 裸名别名）。Triggers sprite reimport on first encounter.
         /// </summary>
         /// <param name="progressLabel">When non-null, drives a cancelable progress bar
         /// and throws <see cref="OperationCanceledException"/> if the user cancels.</param>
-        public static List<(string pathKey, Sprite sprite)> EnumeratePngs(
+        public static List<(string pathKey, Sprite sprite)> EnumerateSpriteSources(
             string folderAssetPath, string progressLabel = null)
         {
             var result = new List<(string, Sprite)>();
@@ -356,7 +356,7 @@ namespace PromptUGUI.Editor
             return paths;
         }
 
-        /// <summary>从 EnumeratePngs 结果建一个统一的查找表：pathKey 总是可用；
+        /// <summary>从 EnumerateSpriteSources 结果建一个统一的查找表：pathKey 总是可用；
         /// 当某个裸名（最后一段文件名）在整个表中唯一时，也可以裸名作为别名引用。
         /// 裸名冲突时不写入裸名 → 引用方必须用路径形。</summary>
         internal static Dictionary<string, Sprite> BuildLookup(
@@ -402,16 +402,16 @@ namespace PromptUGUI.Editor
             importer.SaveAndReimport();
         }
 
-        /// <summary>Force every PNG under <paramref name="folderAssetPath"/> to the
+        /// <summary>Force every texture under <paramref name="folderAssetPath"/> to the
         /// canonical PromptUGUI format: textureType=Sprite, spriteImportMode=Single,
         /// textureCompression=Uncompressed. Overrides prior author-set TextureImporter
         /// values — explicit "reset" semantics, intended for the SpriteSet inspector
-        /// "Reset All PNGs Format" button. Returns the number of PNGs reimported.
+        /// "Reset All Textures Format" button. Returns the number of textures reimported.
         /// Wraps the loop in <see cref="AssetDatabase.StartAssetEditing"/> for batch
         /// throughput.</summary>
         /// <param name="showProgress">When true, drives a cancelable progress bar;
         /// throws <see cref="OperationCanceledException"/> if the user cancels.</param>
-        public static int ResetPngImportSettings(string folderAssetPath,
+        public static int ResetTextureImportSettings(string folderAssetPath,
                                                 bool showProgress = false)
         {
             if (string.IsNullOrEmpty(folderAssetPath)) return 0;
@@ -461,13 +461,13 @@ namespace PromptUGUI.Editor
             return count;
         }
 
-        /// <summary>Inspector "Apply to All PNGs" entry: copy
+        /// <summary>Inspector "Apply to All Textures" entry: copy
         /// <paramref name="templatePngAssetPath"/>'s TextureImporter onto every other
-        /// PNG under <paramref name="folderAssetPath"/> via
+        /// texture under <paramref name="folderAssetPath"/> via
         /// <see cref="EditorUtility.CopySerialized(UnityEngine.Object,UnityEngine.Object)"/>.
         /// The template itself is skipped. Per SpriteSet contract every icon is a single
-        /// sprite, so manual slicing data is not expected to leak between PNGs.
-        /// Returns the number of non-template PNGs that received the settings copy.</summary>
+        /// sprite, so manual slicing data is not expected to leak between textures.
+        /// Returns the number of non-template textures that received the settings copy.</summary>
         /// <param name="showProgress">When true, drives a cancelable progress bar;
         /// throws <see cref="OperationCanceledException"/> if the user cancels.</param>
         public static int ApplyImportSettingsToFolder(
@@ -488,7 +488,7 @@ namespace PromptUGUI.Editor
                     $"[SpriteSync] template is not a TextureImporter: '{templatePngAssetPath}'");
                 return 0;
             }
-            // MF-D1b: TextureImporter-only, same reasoning as ResetPngImportSettings.
+            // MF-D1b: TextureImporter-only, same reasoning as ResetTextureImportSettings.
             var guids = AssetDatabase.FindAssets("t:Texture2D", new[] { folderAssetPath });
             var paths = new string[guids.Length];
             for (var i = 0; i < guids.Length; i++) paths[i] = AssetDatabase.GUIDToAssetPath(guids[i]);
@@ -525,12 +525,12 @@ namespace PromptUGUI.Editor
             return count;
         }
 
-        /// <summary>Alphabetically-first *.png under <paramref name="folderAssetPath"/>
+        /// <summary>Alphabetically-first texture under <paramref name="folderAssetPath"/>
         /// (recursive), as a project-relative "Assets/..." path. Returns null if the
-        /// folder is missing or contains no PNGs. Used by the SpriteSet inspector to pick
+        /// folder is missing or contains no textures. Used by the SpriteSet inspector to pick
         /// a default template for the embedded TextureImporter editor — sorting keeps
         /// the choice stable across filesystem enumeration order changes.</summary>
-        public static string FindFirstPng(string folderAssetPath)
+        public static string FindFirstTexture(string folderAssetPath)
         {
             if (string.IsNullOrEmpty(folderAssetPath)) return null;
             if (!AssetDatabase.IsValidFolder(folderAssetPath)) return null;
@@ -675,7 +675,7 @@ namespace PromptUGUI.Editor
                         continue;
                     }
                     var label = $"Set {i + 1}/{setList.Count} '{set.SetName}'";
-                    var entries = EnumeratePngs(folder, label);
+                    var entries = EnumerateSpriteSources(folder, label);
                     var lookup = BuildLookup(entries, out var bareCandidates);
 
                     var needed = new HashSet<string>();
@@ -704,7 +704,7 @@ namespace PromptUGUI.Editor
                     }
                     if (missing.Count > 0)
                         Debug.LogWarning(
-                            $"[SpriteSync] '{set.SetName}': XML references missing PNGs: " +
+                            $"[SpriteSync] '{set.SetName}': XML references missing sprites: " +
                             string.Join(", ", missing));
 
                     if (EditorUtility.DisplayCancelableProgressBar(
@@ -757,7 +757,7 @@ namespace PromptUGUI.Editor
         }
 
         /// <summary>若 SpriteSet.atlas 为 null，在 SO 同目录创建 &lt;setName&gt;.spriteatlas 并回填。
-        /// 新建 atlas 的 FilterMode 沿用 sourceFolder 下首个 PNG 的 TextureImporter.filterMode，
+        /// 新建 atlas 的 FilterMode 沿用 sourceFolder 下首个 texture 的 TextureImporter.filterMode，
         /// 这样像素美术 (Point) 与一般贴图 (Bilinear) 在 atlas 上不会被默认值覆盖。</summary>
         internal static SpriteAtlas EnsureAtlasAsset(PromptUGUI.Application.SpriteSet set)
         {
@@ -780,7 +780,7 @@ namespace PromptUGUI.Editor
 
         private static void ApplyTemplateFilterMode(SpriteAtlas atlas, string folderAssetPath)
         {
-            var firstPng = FindFirstPng(folderAssetPath);
+            var firstPng = FindFirstTexture(folderAssetPath);
             if (firstPng == null) return;
             if (AssetImporter.GetAtPath(firstPng) is not TextureImporter ti) return;
             var ts = atlas.GetTextureSettings();

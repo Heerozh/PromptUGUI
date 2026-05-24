@@ -244,7 +244,7 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void EnumeratePngs_returns_pathkey_for_root_file()
+        public void EnumerateSpriteSources_returns_pathkey_for_root_file()
         {
             var folder = $"{TestRoot}/icons";
             AssetDatabase.CreateFolder(TestRoot, "icons");
@@ -258,7 +258,7 @@ namespace PromptUGUI.Tests.Editor
                 importer.SaveAndReimport();
             }
 
-            var entries = SpriteAtlasSyncer.EnumeratePngs(folder);
+            var entries = SpriteAtlasSyncer.EnumerateSpriteSources(folder);
             var keys = new List<string>();
             foreach (var (k, _) in entries) keys.Add(k);
             Assert.That(keys, Does.Contain("foo"),
@@ -266,7 +266,7 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void EnumeratePngs_returns_pathkey_with_subfolder()
+        public void EnumerateSpriteSources_returns_pathkey_with_subfolder()
         {
             // File at <folder>/UI/heart.png should produce key "UI/heart" (relative
             // path under sourceFolder, '/' separator, no extension).
@@ -277,7 +277,7 @@ namespace PromptUGUI.Tests.Editor
             File.WriteAllBytes(pngPath, MakeBlankPng());
             ImportAsSprite(pngPath);
 
-            var entries = SpriteAtlasSyncer.EnumeratePngs(folder);
+            var entries = SpriteAtlasSyncer.EnumerateSpriteSources(folder);
             var keys = new List<string>();
             foreach (var (k, _) in entries) keys.Add(k);
             Assert.That(keys, Does.Contain("UI/heart"),
@@ -285,7 +285,7 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void EnumeratePngs_returns_both_entries_on_basename_collision()
+        public void EnumerateSpriteSources_returns_both_entries_on_basename_collision()
         {
             // Two PNGs sharing a basename in different subfolders must each appear
             // with their own pathKey — no first-wins, no warning.
@@ -300,7 +300,7 @@ namespace PromptUGUI.Tests.Editor
             ImportAsSprite(pngA);
             ImportAsSprite(pngB);
 
-            var entries = SpriteAtlasSyncer.EnumeratePngs(folder);
+            var entries = SpriteAtlasSyncer.EnumerateSpriteSources(folder);
             var keys = new HashSet<string>();
             foreach (var (k, _) in entries) keys.Add(k);
             Assert.That(keys, Does.Contain("UI/heart"));
@@ -308,7 +308,7 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void EnumeratePngs_forces_sprite_single_on_default_texture()
+        public void EnumerateSpriteSources_forces_sprite_single_on_default_texture()
         {
             var folder = $"{TestRoot}/icons_default";
             AssetDatabase.CreateFolder(TestRoot, "icons_default");
@@ -320,7 +320,7 @@ namespace PromptUGUI.Tests.Editor
             importer.textureType = TextureImporterType.Default;
             importer.SaveAndReimport();
 
-            SpriteAtlasSyncer.EnumeratePngs(folder);
+            SpriteAtlasSyncer.EnumerateSpriteSources(folder);
 
             var after = AssetImporter.GetAtPath(pngPath) as TextureImporter;
             Assert.AreEqual(TextureImporterType.Sprite, after.textureType);
@@ -328,7 +328,7 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void EnumeratePngs_sets_uncompressed_on_default_texture()
+        public void EnumerateSpriteSources_sets_uncompressed_on_default_texture()
         {
             // Repro for SpriteAtlas pack-time warning: "Source Texture (...) is using
             // compressed format. To ensure no loss in source pixel details when
@@ -346,7 +346,7 @@ namespace PromptUGUI.Tests.Editor
             importer.textureType = TextureImporterType.Default;
             importer.SaveAndReimport();
 
-            SpriteAtlasSyncer.EnumeratePngs(folder);
+            SpriteAtlasSyncer.EnumerateSpriteSources(folder);
 
             var after = AssetImporter.GetAtPath(pngPath) as TextureImporter;
             Assert.AreEqual(TextureImporterCompression.Uncompressed, after.textureCompression,
@@ -354,7 +354,7 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void ResetPngImportSettings_forces_canonical_format()
+        public void ResetTextureImportSettings_forces_canonical_format()
         {
             // Inspector "Reset All PNGs Format" button entry point. Unlike the
             // implicit-on-sync flow (which respects author tweaks on already-Sprite
@@ -372,7 +372,7 @@ namespace PromptUGUI.Tests.Editor
             importer.textureCompression = TextureImporterCompression.Compressed;
             importer.SaveAndReimport();
 
-            var n = SpriteAtlasSyncer.ResetPngImportSettings(folder);
+            var n = SpriteAtlasSyncer.ResetTextureImportSettings(folder);
 
             Assert.AreEqual(1, n);
             var after = AssetImporter.GetAtPath(pngPath) as TextureImporter;
@@ -382,7 +382,7 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void ResetPngImportSettings_walks_subfolders()
+        public void ResetTextureImportSettings_walks_subfolders()
         {
             // Mirrors EnumeratePngs: recursive over subfolders.
             var folder = $"{TestRoot}/icons_reset_sub";
@@ -395,7 +395,7 @@ namespace PromptUGUI.Tests.Editor
             AssetDatabase.ImportAsset(rootPng, ImportAssetOptions.ForceUpdate);
             AssetDatabase.ImportAsset(subPng, ImportAssetOptions.ForceUpdate);
 
-            var n = SpriteAtlasSyncer.ResetPngImportSettings(folder);
+            var n = SpriteAtlasSyncer.ResetTextureImportSettings(folder);
 
             Assert.AreEqual(2, n);
         }
@@ -482,7 +482,7 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void FindFirstPng_returns_alphabetically_first_under_folder()
+        public void FindFirstTexture_returns_alphabetically_first_under_folder()
         {
             var folder = $"{TestRoot}/icons_first";
             AssetDatabase.CreateFolder(TestRoot, "icons_first");
@@ -493,18 +493,18 @@ namespace PromptUGUI.Tests.Editor
             AssetDatabase.ImportAsset(b, ImportAssetOptions.ForceUpdate);
             AssetDatabase.ImportAsset(a, ImportAssetOptions.ForceUpdate);
 
-            var first = SpriteAtlasSyncer.FindFirstPng(folder);
+            var first = SpriteAtlasSyncer.FindFirstTexture(folder);
 
             Assert.AreEqual(a, first);
         }
 
         [Test]
-        public void FindFirstPng_returns_null_for_empty_folder()
+        public void FindFirstTexture_returns_null_for_empty_folder()
         {
             var folder = $"{TestRoot}/icons_empty";
             AssetDatabase.CreateFolder(TestRoot, "icons_empty");
 
-            Assert.IsNull(SpriteAtlasSyncer.FindFirstPng(folder));
+            Assert.IsNull(SpriteAtlasSyncer.FindFirstTexture(folder));
         }
 
         [Test]
@@ -550,7 +550,7 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void EnumeratePngs_leaves_existing_sprite_importer_untouched()
+        public void EnumerateSpriteSources_leaves_existing_sprite_importer_untouched()
         {
             var folder = $"{TestRoot}/icons_multi";
             AssetDatabase.CreateFolder(TestRoot, "icons_multi");
@@ -563,7 +563,7 @@ namespace PromptUGUI.Tests.Editor
             importer.spriteImportMode = SpriteImportMode.Multiple;
             importer.SaveAndReimport();
 
-            SpriteAtlasSyncer.EnumeratePngs(folder);
+            SpriteAtlasSyncer.EnumerateSpriteSources(folder);
 
             var after = AssetImporter.GetAtPath(pngPath) as TextureImporter;
             Assert.AreEqual(TextureImporterType.Sprite, after.textureType);
@@ -572,7 +572,7 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void EnumeratePngs_picks_up_jpg_alongside_png()
+        public void EnumerateSpriteSources_picks_up_jpg_alongside_png()
         {
             // Multi-format coverage: glob-based *.png enumeration would miss JPG.
             // After switching to AssetDatabase.FindAssets("t:Texture2D" ∪ "t:Sprite"),
@@ -586,7 +586,7 @@ namespace PromptUGUI.Tests.Editor
             ImportAsSprite(pngPath);
             ImportAsSprite(jpgPath);
 
-            var entries = SpriteAtlasSyncer.EnumeratePngs(folder);
+            var entries = SpriteAtlasSyncer.EnumerateSpriteSources(folder);
             var keys = new HashSet<string>();
             foreach (var (k, _) in entries) keys.Add(k);
             Assert.That(keys, Does.Contain("p"));
@@ -594,7 +594,7 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void EnumeratePngs_returns_entries_in_stable_path_order()
+        public void EnumerateSpriteSources_returns_entries_in_stable_path_order()
         {
             var folder = $"{TestRoot}/icons_order";
             AssetDatabase.CreateFolder(TestRoot, "icons_order");
@@ -605,7 +605,7 @@ namespace PromptUGUI.Tests.Editor
             File.WriteAllBytes(a, MakeBlankPng()); ImportAsSprite(a);
             File.WriteAllBytes(b, MakeBlankPng()); ImportAsSprite(b);
 
-            var entries = SpriteAtlasSyncer.EnumeratePngs(folder);
+            var entries = SpriteAtlasSyncer.EnumerateSpriteSources(folder);
             var keys = new List<string>();
             foreach (var (k, _) in entries) keys.Add(k);
             Assert.AreEqual(new[] { "a", "b", "c" }, keys.ToArray());

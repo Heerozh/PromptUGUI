@@ -8,7 +8,7 @@ namespace PromptUGUI.Editor
     public sealed class SpriteSetEditor : UnityEditor.Editor
     {
         private UnityEditor.Editor _importerEditor;
-        private string _templatePngPath;
+        private string _templateTexturePath;
 
         private void OnDisable()
         {
@@ -22,19 +22,19 @@ namespace PromptUGUI.Editor
                 DestroyImmediate(_importerEditor);
                 _importerEditor = null;
             }
-            _templatePngPath = null;
+            _templateTexturePath = null;
         }
 
         private void EnsureImporterEditor(string folder)
         {
-            var first = SpriteAtlasSyncer.FindFirstPng(folder);
-            if (first == _templatePngPath && _importerEditor != null) return;
+            var first = SpriteAtlasSyncer.FindFirstTexture(folder);
+            if (first == _templateTexturePath && _importerEditor != null) return;
             DestroyImporterEditor();
             if (string.IsNullOrEmpty(first)) return;
             var importer = AssetImporter.GetAtPath(first);
             if (importer == null) return;
             _importerEditor = CreateEditor(importer);
-            _templatePngPath = first;
+            _templateTexturePath = first;
         }
 
         // Commit any pending SerializedObject edits in the embedded TextureImporterInspector
@@ -56,8 +56,8 @@ namespace PromptUGUI.Editor
             EditorGUILayout.Space();
             var set = (SpriteSet)target;
             var folder = set.SourceFolderPath;
-            var pngCount = SpriteAtlasSyncer.CountPngs(folder);
-            EditorGUILayout.LabelField("Source PNGs", pngCount.ToString());
+            var sourceCount = SpriteAtlasSyncer.CountSpriteSources(folder);
+            EditorGUILayout.LabelField("Source sprites", sourceCount.ToString());
             EditorGUILayout.LabelField("Atlas",
                 set.Atlas == null ? "(not yet generated)" : AssetDatabase.GetAssetPath(set.Atlas));
             if (GUILayout.Button("Sync This Set"))
@@ -66,11 +66,11 @@ namespace PromptUGUI.Editor
             }
 
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField("PNG Import Settings", EditorStyles.boldLabel);
-            DrawImportSettingsSection(folder, pngCount);
+            EditorGUILayout.LabelField("Texture Import Settings", EditorStyles.boldLabel);
+            DrawImportSettingsSection(folder, sourceCount);
         }
 
-        private void DrawImportSettingsSection(string folder, int pngCount)
+        private void DrawImportSettingsSection(string folder, int sourceCount)
         {
             if (string.IsNullOrEmpty(folder))
             {
@@ -82,16 +82,16 @@ namespace PromptUGUI.Editor
             if (_importerEditor == null)
             {
                 EditorGUILayout.HelpBox(
-                    $"No PNG found under '{folder}'. " +
-                    "Add a PNG to define import settings.",
+                    $"No texture found under '{folder}'. " +
+                    "Add a texture to define import settings.",
                     MessageType.Info);
                 DrawCanonicalResetButton(folder);
                 return;
             }
 
-            EditorGUILayout.LabelField("Template", _templatePngPath);
+            EditorGUILayout.LabelField("Template", _templateTexturePath);
             EditorGUILayout.HelpBox(
-                "Edit the import settings below — they'll be applied to every PNG in " +
+                "Edit the import settings below — they'll be applied to every texture in " +
                 "the folder when you click 'Apply to All'.",
                 MessageType.None);
             using (new EditorGUI.IndentLevelScope())
@@ -99,25 +99,25 @@ namespace PromptUGUI.Editor
                 _importerEditor.OnInspectorGUI();
             }
             EditorGUILayout.Space();
-            using (new EditorGUI.DisabledScope(pngCount <= 1))
+            using (new EditorGUI.DisabledScope(sourceCount <= 1))
             {
-                var label = pngCount <= 1
-                    ? "Apply Settings to All PNGs in Folder (template is the only PNG)"
-                    : $"Apply Settings to All {pngCount} PNGs in Folder";
+                var label = sourceCount <= 1
+                    ? "Apply Settings to All Textures in Folder (template is the only texture)"
+                    : $"Apply Settings to All {sourceCount} Textures in Folder";
                 if (GUILayout.Button(label))
                 {
                     if (EditorUtility.DisplayDialog(
                         "Apply Import Settings",
-                        $"Copy import settings from\n  {_templatePngPath}\n" +
-                        $"to every PNG under\n  {folder}?\n\n" +
-                        "This overrides any per-PNG manual TextureImporter tweaks.",
+                        $"Copy import settings from\n  {_templateTexturePath}\n" +
+                        $"to every texture under\n  {folder}?\n\n" +
+                        "This overrides any per-texture manual TextureImporter tweaks.",
                         "Apply", "Cancel"))
                     {
                         FlushTemplatePendingEdits();
                         var n = SpriteAtlasSyncer.ApplyImportSettingsToFolder(
-                            _templatePngPath, folder, showProgress: true);
+                            _templateTexturePath, folder, showProgress: true);
                         Debug.Log(
-                            $"[SpriteSync] copied import settings to {n} PNG(s) " +
+                            $"[SpriteSync] copied import settings to {n} texture(s) " +
                             $"under '{folder}'");
                     }
                 }
@@ -128,25 +128,25 @@ namespace PromptUGUI.Editor
 
         private static void DrawCanonicalResetButton(string folder)
         {
-            if (!GUILayout.Button("Reset All PNGs Format")) return;
+            if (!GUILayout.Button("Reset All Textures Format")) return;
             if (string.IsNullOrEmpty(folder))
             {
                 EditorUtility.DisplayDialog(
-                    "Reset PNG Import Format",
+                    "Reset Texture Import Format",
                     "Source folder is not set on this SpriteSet.", "OK");
                 return;
             }
             if (EditorUtility.DisplayDialog(
-                "Reset PNG Import Format",
-                $"Force re-import every PNG under '{folder}' as:\n\n" +
+                "Reset Texture Import Format",
+                $"Force re-import every texture under '{folder}' as:\n\n" +
                 "  • Texture Type: Sprite\n" +
                 "  • Sprite Mode: Single\n" +
                 "  • Compression: Uncompressed\n\n" +
-                "This overrides any manual TextureImporter tweaks on these PNGs.",
+                "This overrides any manual TextureImporter tweaks on these textures.",
                 "Reset", "Cancel"))
             {
-                var n = SpriteAtlasSyncer.ResetPngImportSettings(folder, showProgress: true);
-                Debug.Log($"[SpriteSync] reset {n} PNG(s) under '{folder}'");
+                var n = SpriteAtlasSyncer.ResetTextureImportSettings(folder, showProgress: true);
+                Debug.Log($"[SpriteSync] reset {n} texture(s) under '{folder}'");
             }
         }
     }
