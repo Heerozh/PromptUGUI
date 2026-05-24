@@ -18,6 +18,14 @@ namespace PromptUGUI.Controls
         private string _fontType = "default";
         private readonly Subject<int> _selected = new();
 
+        // DSS-D2: Dropdown 不读 caption 来算 native（caption 会随用户选项变化，UX 会跳）。
+        // 固定默认覆盖"作者忘写 size"的可见性问题；显式 size 仍胜出。
+        private const float MinTapHeight = 44f;
+        private const float DefaultDropdownWidth = 160f;
+
+        public override Vector2? GetNativeSize()
+            => new Vector2(DefaultDropdownWidth, MinTapHeight);
+
         public override void OnAttached()
         {
             _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
