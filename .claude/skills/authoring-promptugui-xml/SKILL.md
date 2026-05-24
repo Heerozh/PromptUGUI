@@ -238,6 +238,8 @@ Rules:
 
 **`<Frame>` 默认 anchor 按轴 fill-or-fit**: 作者**没写** `anchor=` 时，Frame 按 size 是否存在分轴决定 —— 写过 `size`/`width`/`height` 的轴默认 top/left + 用作者写的值；没写的轴默认 stretch（填满父）。`<Frame/>` 两轴都 stretch（fill parent），`<Frame width="100"/>` X 轴固定 100、Y 轴 stretch，`<Frame size="100x50"/>` 两轴都 top-left 固定。镜像 CSS 块流：`<div style="width:100px">` 高度按 `auto` 撑开。**显式写 `anchor=`** 仍按原规则严格校验（`anchor="stretch"` + size attr 仍是 parse error）。其他控件维持 `(top, left)` 默认。
 
+**Frame 在 `<VStack>` / `<HStack>` 里的 cross 轴也自动 fill**：上一条 anchor 默认对自由定位生效；放进 LayoutGroup 时 anchor 被接管，PromptUGUI 把同一份"按轴 stretch"意图沿用到 `LayoutElement` —— `<VStack><Frame height="180"/></VStack>` 的 Frame 横向 `preferred=0, flexible=1` 自动撑满 VStack 宽度，`<HStack><Frame width="180"/></HStack>` 同理纵向撑满。Btn/Toggle 等 `(top, left)` 默认的控件不受影响（在 VStack 里仍按 native preferred 宽显示，不会被强行拉满）。
+
 **Stretch keyword** (LayoutGroup-only) — `width="stretch"` / `height="stretch"` on a V/HStack child maps to `LayoutElement.preferredX=0, flexibleX=1`. The LayoutGroup grows the child to fill that axis.
 
 - Multiple sibling stretches share remaining space by equal weight (`flexibleX` is additive). Two `stretch` siblings → each gets half.
