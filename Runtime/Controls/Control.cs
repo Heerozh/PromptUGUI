@@ -169,7 +169,7 @@ namespace PromptUGUI.Controls
 
             if (parentIsAutoLayout)
             {
-                ApplyLayoutElement(sizeSpec);
+                ApplyLayoutElement(sizeSpec, preset);
                 // anchor / pivot / sizeDelta / anchoredPosition: LayoutGroup 接管几何。
                 // 作者写 anchor/margin 已经被 ScreenInstantiator 警告（spec §6.5）；这里静默跳过。
             }
@@ -249,8 +249,17 @@ namespace PromptUGUI.Controls
             Interactable = interactable;
         }
 
-        private void ApplyLayoutElement(SizeSpec sizeSpec)
+        private void ApplyLayoutElement(SizeSpec sizeSpec, AnchorPreset preset)
         {
+            // DSS-D16: 父级 V/HStack 的 cross 轴上，作者没写 size 且 preset 默认 stretch（来自 GetDefaultAnchor）
+            // → LE 在该轴 preferred=0, flexible=1（CSS flex `align-items: stretch` 直译）。
+            // 只 Frame 默认 anchor 会让 preset.Stretch* 在没 size 时为 true；其他控件保持 (Top, Left)，不触发。
+            var parentHv = RectTransform.parent != null
+                ? RectTransform.parent.GetComponent<UnityEngine.UI.HorizontalOrVerticalLayoutGroup>()
+                : null;
+            var fillCrossX = parentHv is UnityEngine.UI.VerticalLayoutGroup && preset.StretchX && !sizeSpec.HasWidth;
+            var fillCrossY = parentHv is UnityEngine.UI.HorizontalLayoutGroup && preset.StretchY && !sizeSpec.HasHeight;
+
             // 决策 LGC-D8 + BCS-D6:
             // 作者没写任何 size 属性 → 如果控件能报告 native (GetNativeSize 非 null)，
             // 挂 LayoutElement 把 native 当 preferred 暴露给 LayoutGroup;
@@ -269,13 +278,28 @@ namespace PromptUGUI.Controls
                     existing.flexibleWidth = -1;
                     existing.flexibleHeight = -1;
                 }
-                else if (existing != null)
+                else if (fillCrossX || fillCrossY)
                 {
-                    // 前一次 Variant 可能挂过 LayoutElement，本次没尺寸 + 控件没有 native → 还原成"无约束"
+                    // DSS-D16: 没 native 但作者 anchor 默认 stretch → 需要 LE 承载 cross-axis flex
+                    existing ??= GameObject.AddComponent<UnityEngine.UI.LayoutElement>();
                     existing.preferredWidth = -1;
                     existing.preferredHeight = -1;
                     existing.flexibleWidth = -1;
                     existing.flexibleHeight = -1;
+                }
+                else if (existing != null)
+                {
+                    // 前一次 Variant 可能挂过 LayoutElement，本次没尺寸 + 控件没有 native + 不需要 cross fill → 还原成"无约束"
+                    existing.preferredWidth = -1;
+                    existing.preferredHeight = -1;
+                    existing.flexibleWidth = -1;
+                    existing.flexibleHeight = -1;
+                }
+
+                if (existing != null)
+                {
+                    if (fillCrossX) { existing.preferredWidth = 0; existing.flexibleWidth = 1; }
+                    if (fillCrossY) { existing.preferredHeight = 0; existing.flexibleHeight = 1; }
                 }
                 return;
             }
@@ -314,6 +338,11 @@ namespace PromptUGUI.Controls
                     le.flexibleHeight = 0;
                 }
             }
+
+            // DSS-D16: cross 轴 fill — 必须在 HasWidth/HasHeight 分支之后，
+            // 因为它要把 -1 覆写成 0+flex=1。
+            if (fillCrossX) { le.preferredWidth = 0; le.flexibleWidth = 1; }
+            if (fillCrossY) { le.preferredHeight = 0; le.flexibleHeight = 1; }
         }
 
         // 把 anchor 预设里的"端点"对齐方式 + 分数 转成具体的 anchorMin/Max 子区间。
