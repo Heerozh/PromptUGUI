@@ -1055,6 +1055,24 @@ Commit GREEN.
 
 ---
 
+### Task 11: Frame cross-axis fill in LayoutGroup (DSS-D16/D17) red→green
+
+**Files:**
+- Create: `Tests/EditMode/Controls/FrameInLayoutGroupTests.cs`
+- Modify: `Runtime/Controls/Control.cs` (ApplyLayoutElement signature + cross-axis flex)
+
+- [ ] **Step 1: Red tests**
+
+5 tests covering: `<VStack><Frame height='180'/></VStack>` → LE.flexW=1; `<HStack><Frame width='180'/></HStack>` → LE.flexH=1; `<VStack><Frame/></VStack>` → LE.flexW=1; explicit `anchor='top-left'` blocks cross fill; Btn under VStack still uses native (no cross fill).
+
+- [ ] **Step 2: Update ApplyLayoutElement signature**
+
+Pass `AnchorPreset preset` from the call site in ApplyCommon. Inside ApplyLayoutElement, detect cross axis via `parent.GetComponent<HorizontalOrVerticalLayoutGroup>()` and apply `preferred=0, flexible=1` on the cross axis when `preset.Stretch*` is set on that axis AND `sizeSpec.Has*` is false. Apply AFTER the existing HasWidth/HasHeight branches so it overrides `-1` sentinels.
+
+- [ ] **Step 3: Verify green + full EditMode pass + lint**
+
+---
+
 ### Task 10: SKILL.md addendum — Frame fill-or-fit default
 
 **Files:**

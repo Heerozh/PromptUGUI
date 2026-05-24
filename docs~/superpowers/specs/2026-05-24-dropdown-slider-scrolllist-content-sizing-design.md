@@ -48,6 +48,8 @@
 | DSS-D13 | Frame 默认 anchor 改成"按轴 fill-or-fit" | 没写 anchor 时：作者写过 size 的轴默认 top/left；没写过的轴默认 stretch | 镜像 CSS 块流：`<div>` 没写 size 的轴 auto，写了的轴用值。Frame 没有"自然尺寸"，GetNativeSize 路径不适用；这条修法是 anchor 层的，是 free-positioning 容器问题的正解 |
 | DSS-D14 | 实现 API | 给 `Control` 加 `protected virtual AnchorPreset GetDefaultAnchor(SizeSpec sizeSpec) => new(Top, Left);`；`Frame` 覆写按 sizeSpec.HasWidth/HasHeight 决定 H/V；`ApplyCommon` 先 parse sizeSpec 再算 default preset（顺序调整） | 用 virtual 而不是 hardcode "is Frame" 的 type check，让未来其他容器类（如自定义 PanelControl）可以选择性 opt-in；保持 Frame 之外的所有控件行为不变 |
 | DSS-D15 | 显式 anchor=stretch 与 size 的现有 parse error 保留 | 不变 —— "anchor=stretch 与 size 同时写"仍然报错；只有"省略 anchor"时才走"按轴 fill-or-fit" | 显式写 anchor=stretch 是作者明确表达"两轴都拉伸"，再写 size 是逻辑矛盾；省略 anchor 是作者表达"不在意定位细节"，这时按 web 直觉给最不容易出错的默认 |
+| DSS-D16 | Frame 在 LayoutGroup 里 cross 轴未约束时也 fill | `Control.ApplyLayoutElement` 收一个 `preset` 参数；当 cross 轴 (`VStack`→X / `HStack`→Y) 的 `preset.Stretch*` 为 true **且**该轴 `sizeSpec.Has*` 为 false → 把 LE 的该轴 `preferred=0, flexible=1` 设上 | LayoutGroup 子节点路径下，anchor 被 LayoutGroup 接管，所以 DSS-D13 在 ApplyCommon 层的"按轴 stretch"对 LayoutGroup 没效果。但 `preset.StretchX/Y` 是同一份意图信号——把它沿用到 LE 通道，让 `<VStack><Frame height='180'/></VStack>` 的 Frame 横向填满（CSS flex 容器 `align-items: stretch` 默认）。其他控件（Btn/Toggle 等）GetDefaultAnchor 仍返回 (Top, Left)，preset.StretchX/Y=false，行为零影响 |
+| DSS-D17 | DSS-D16 与 Btn / Image 的 native preferred 是否冲突 | 不冲突 —— `Btn.GetDefaultAnchor` 没覆写，preset 默认 (Top, Left)；cross-fill 条件 `preset.StretchX` 为 false → 不触发 | Btn 在 VStack 里仍按 native 宽度（label + 32）显示，不会被强行拉满 |
 
 ---
 
