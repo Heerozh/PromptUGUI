@@ -81,10 +81,26 @@ namespace PromptUGUI.Editor
             EnsureImporterEditor(folder);
             if (_importerEditor == null)
             {
-                EditorGUILayout.HelpBox(
-                    $"No texture found under '{folder}'. " +
-                    "Add a texture to define import settings.",
-                    MessageType.Info);
+                if (sourceCount > 0)
+                {
+                    // Folder has sprite sources but none of them is a TextureImporter
+                    // asset (eg. all Aseprite or other non-TextureImporter formats).
+                    // The template / apply-to-all flow is TextureImporter-only.
+                    EditorGUILayout.HelpBox(
+                        $"No regular texture (PNG / JPG / TGA / PSD / ...) found under " +
+                        $"'{folder}'. Aseprite and other non-TextureImporter formats " +
+                        $"manage their own per-file import settings — edit each file " +
+                        $"directly in the Project window. Add a regular texture to use " +
+                        $"the template / apply-to-all flow below.",
+                        MessageType.Info);
+                }
+                else
+                {
+                    EditorGUILayout.HelpBox(
+                        $"No texture found under '{folder}'. " +
+                        "Add a texture to define import settings.",
+                        MessageType.Info);
+                }
                 DrawCanonicalResetButton(folder);
                 return;
             }
