@@ -294,9 +294,9 @@ namespace PromptUGUI.Editor
             return seen.Count;
         }
 
-        /// <summary>每个 image 一个 entry，pathKey = sourceFolder 下的相对路径（'/' 分隔、
+        /// <summary>每个 sprite source 一个 entry，pathKey = sourceFolder 下的相对路径（'/' 分隔、
         /// 去扩展名）。Root file 的 pathKey 等于裸文件名；子目录文件形如 "UI/heart"。
-        /// 不再 first-wins —— 同名 texture 在不同子目录下都会各自出现，由 <see cref="SyncAll"/>
+        /// 不再 first-wins —— 同名 sprite source 在不同子目录下都会各自出现，由 <see cref="SyncAll"/>
         /// 决定如何引用（路径形 vs. 裸名别名）。Triggers sprite reimport on first encounter.
         /// </summary>
         /// <param name="progressLabel">When non-null, drives a cancelable progress bar
@@ -462,7 +462,7 @@ namespace PromptUGUI.Editor
         }
 
         /// <summary>Inspector "Apply to All Textures" entry: copy
-        /// <paramref name="templatePngAssetPath"/>'s TextureImporter onto every other
+        /// <paramref name="templateTextureAssetPath"/>'s TextureImporter onto every other
         /// texture under <paramref name="folderAssetPath"/> via
         /// <see cref="EditorUtility.CopySerialized(UnityEngine.Object,UnityEngine.Object)"/>.
         /// The template itself is skipped. Per SpriteSet contract every icon is a single
@@ -471,21 +471,21 @@ namespace PromptUGUI.Editor
         /// <param name="showProgress">When true, drives a cancelable progress bar;
         /// throws <see cref="OperationCanceledException"/> if the user cancels.</param>
         public static int ApplyImportSettingsToFolder(
-            string templatePngAssetPath,
+            string templateTextureAssetPath,
             string folderAssetPath,
             bool showProgress = false)
         {
-            if (string.IsNullOrEmpty(templatePngAssetPath)) return 0;
+            if (string.IsNullOrEmpty(templateTextureAssetPath)) return 0;
             if (string.IsNullOrEmpty(folderAssetPath)) return 0;
             if (!AssetDatabase.IsValidFolder(folderAssetPath))
             {
                 Debug.LogError($"[SpriteSync] not a folder: '{folderAssetPath}'");
                 return 0;
             }
-            if (AssetImporter.GetAtPath(templatePngAssetPath) is not TextureImporter template)
+            if (AssetImporter.GetAtPath(templateTextureAssetPath) is not TextureImporter template)
             {
                 Debug.LogError(
-                    $"[SpriteSync] template is not a TextureImporter: '{templatePngAssetPath}'");
+                    $"[SpriteSync] template is not a TextureImporter: '{templateTextureAssetPath}'");
                 return 0;
             }
             // MF-D1b: TextureImporter-only, same reasoning as ResetTextureImportSettings.
@@ -500,7 +500,7 @@ namespace PromptUGUI.Editor
                 for (var i = 0; i < paths.Length; i++)
                 {
                     var assetPath = paths[i];
-                    if (string.Equals(assetPath, templatePngAssetPath, StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(assetPath, templateTextureAssetPath, StringComparison.OrdinalIgnoreCase))
                         continue;
                     if (showProgress &&
                         EditorUtility.DisplayCancelableProgressBar(
@@ -780,9 +780,9 @@ namespace PromptUGUI.Editor
 
         private static void ApplyTemplateFilterMode(SpriteAtlas atlas, string folderAssetPath)
         {
-            var firstPng = FindFirstTexture(folderAssetPath);
-            if (firstPng == null) return;
-            if (AssetImporter.GetAtPath(firstPng) is not TextureImporter ti) return;
+            var firstTexture = FindFirstTexture(folderAssetPath);
+            if (firstTexture == null) return;
+            if (AssetImporter.GetAtPath(firstTexture) is not TextureImporter ti) return;
             var ts = atlas.GetTextureSettings();
             ts.filterMode = ti.filterMode;
             atlas.SetTextureSettings(ts);

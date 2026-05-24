@@ -356,9 +356,9 @@ namespace PromptUGUI.Tests.Editor
         [Test]
         public void ResetTextureImportSettings_forces_canonical_format()
         {
-            // Inspector "Reset All PNGs Format" button entry point. Unlike the
+            // Inspector "Reset All Textures Format" button entry point. Unlike the
             // implicit-on-sync flow (which respects author tweaks on already-Sprite
-            // imports), this is an explicit user-triggered force: every PNG in the
+            // imports), this is an explicit user-triggered force: every texture in the
             // folder ends up Sprite + Single + Uncompressed, overriding prior config.
             var folder = $"{TestRoot}/icons_reset";
             AssetDatabase.CreateFolder(TestRoot, "icons_reset");
@@ -384,7 +384,7 @@ namespace PromptUGUI.Tests.Editor
         [Test]
         public void ResetTextureImportSettings_walks_subfolders()
         {
-            // Mirrors EnumeratePngs: recursive over subfolders.
+            // Mirrors EnumerateSpriteSources: recursive over subfolders.
             var folder = $"{TestRoot}/icons_reset_sub";
             AssetDatabase.CreateFolder(TestRoot, "icons_reset_sub");
             AssetDatabase.CreateFolder(folder, "Sub");
@@ -403,8 +403,8 @@ namespace PromptUGUI.Tests.Editor
         [Test]
         public void ApplyImportSettingsToFolder_propagates_template_settings_to_others()
         {
-            // Inspector "Apply to All PNGs" entry point: copy a chosen template PNG's
-            // TextureImporter onto every other PNG in the folder, preserving whatever
+            // Inspector "Apply to All Textures" entry point: copy a chosen template texture's
+            // TextureImporter onto every other texture in the folder, preserving whatever
             // settings the user dialed in via the embedded importer inspector.
             var folder = $"{TestRoot}/icons_apply";
             AssetDatabase.CreateFolder(TestRoot, "icons_apply");
@@ -508,10 +508,10 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void EnsureAtlasAsset_inherits_filter_mode_from_first_png()
+        public void EnsureAtlasAsset_inherits_filter_mode_from_first_texture()
         {
             // Newly-created atlases should pick up FilterMode from the alphabetically
-            // first PNG in the source folder, so atlas filtering matches the icons it
+            // first texture in the source folder, so atlas filtering matches the icons it
             // packs (pixel-art games typically want Point on both).
             var folder = MakeFolder("icons_atlas_filter");
             var pngPath = $"{folder}/a.png";
