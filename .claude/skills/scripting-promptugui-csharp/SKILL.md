@@ -89,6 +89,13 @@ SpriteResolverHelpers.UseSpriteSetResolver(new[] { uiSpriteSet, artSpriteSet });
 
 The helper builds a `(set:name) → Sprite` lookup from each SpriteSet's SpriteAtlas.
 
+**Source formats**: SpriteSet's source folder accepts any Unity-recognized texture
+format (PNG, JPG, JPEG, TGA, PSD, TIFF, BMP, EXR, HDR, GIF) plus Aseprite
+(`.ase` / `.aseprite`, requires `com.unity.2d.aseprite ≥ 1.0`). For Aseprite,
+each file must produce exactly **one sprite** — set the AsepriteImporter Import
+Mode to single-frame output or use one file per icon. Multi-sprite Aseprite
+files are logged as errors and skipped during sync.
+
 For Addressables-backed atlases, see **using-promptugui-addressables**.
 
 To use a fully custom backend, set `UI.SpriteResolver` directly with your own `(key → Sprite)` lookup.
@@ -99,7 +106,7 @@ Built-in controls (`<Image>` / `<Btn>` / `<Toggle>` / `<Slider>` / `<Dropdown>` 
 
 - Values containing `:` (e.g. `sprite="ui:dialog"`) go through `UI.SpriteResolver` → SpriteSet/atlas path (`SpriteAtlasSyncer` includes them in package-time pruning).
 - Bare paths (`sprite="ui/dialog"`) fall back to `Resources.Load<Sprite>(value)` — handy for one-off sprites and prototype work that doesn't justify a SpriteSet yet.
-- Bare paths may add a `#sliceName` suffix to pick a named sub-sprite out of a multi-sprite (sliced) texture, e.g. `sprite="PromptUGUI/Defaults/pugui.png#pugui_9slice_round"`. The path before `#` goes through `Resources.LoadAll<Sprite>`, then the slice with matching `.name` is returned. A trailing `.png` / `.jpg` / `.jpeg` / `.tga` / `.psd` extension on the path is stripped, so `foo.png#bar` and `foo#bar` are equivalent.
+- Bare paths may add a `#sliceName` suffix to pick a named sub-sprite out of a multi-sprite (sliced) texture, e.g. `sprite="PromptUGUI/Defaults/pugui.png#pugui_9slice_round"`. The path before `#` goes through `Resources.LoadAll<Sprite>`, then the slice with matching `.name` is returned. Any file extension on the path before the `#` is stripped, so `foo.png#bar`, `foo.aseprite#bar`, and `foo#bar` are all equivalent.
 
 `<Icon>` stays atlas-only — it requires `ns:name` and calls `UI.SpriteResolver` directly.
 

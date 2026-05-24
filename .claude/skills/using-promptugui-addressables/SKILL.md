@@ -81,6 +81,11 @@ await SpriteResolverHelpers.UseAddressableSpriteSetResolver(
 
 Returns `Awaitable`. You can either `await` it (no flash of empty icons) or fire-and-forget (`_ = SpriteResolverHelpers.UseAddressableSpriteSetResolver(); UI.Open("MainMenu");`) — between the call and the await continuation `UI.IsSpriteResolverLoadInFlight` is `true`, so any `<Icon>` rendered in that window stays empty silently (no `LogError`) and is re-resolved automatically via a `VariantStore` broadcast once the download completes. Use the awaited form if a one-frame empty icon would be visible in your golden path (e.g. boot splash → main menu with no intermediate loader).
 
+**Source formats via Addressables**: Sprite source format is transparent to the
+Addressables path — `AssetReferenceT<Sprite>` resolves to a Sprite regardless of
+whether the underlying file was PNG / JPG / Aseprite / etc. The same single-sprite
+contract for Aseprite (see csharp SKILL) applies.
+
 ### Sprite handle lifecycle
 
 The loaded handle is held static and **released on a second `UseAddressableSpriteSetResolver` call** (label swap, reset). `Sprite` references returned from `UI.SpriteResolver` are only valid while the current handle is held — releasing the handle unloads the underlying `SpriteAtlas`.

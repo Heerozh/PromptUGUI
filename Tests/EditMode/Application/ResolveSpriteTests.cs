@@ -120,5 +120,34 @@ namespace PromptUGUI.Tests.EditMode.Application
             var actual = UI.ResolveSprite("does/not/exist#anything");
             Assert.IsNull(actual);
         }
+
+        [Test]
+        public void ResolveSprite_with_hash_strips_aseprite_extension()
+        {
+            // After whitelist removal, any extension should be stripped before LoadAll.
+            var actual = UI.ResolveSprite("PromptUGUI/Defaults/pugui.aseprite#pugui_caret");
+
+            Assert.IsNotNull(actual);
+            Assert.AreEqual("pugui_caret", actual.name);
+        }
+
+        [Test]
+        public void ResolveSprite_with_hash_strips_unknown_extension()
+        {
+            // Any extension after the last '.' (not in folder name) is dropped.
+            var actual = UI.ResolveSprite("PromptUGUI/Defaults/pugui.xyz#pugui_caret");
+
+            Assert.IsNotNull(actual);
+            Assert.AreEqual("pugui_caret", actual.name);
+        }
+
+        [Test]
+        public void ResolveSprite_does_not_strip_dot_in_folder_name()
+        {
+            // "v2.0/foo" — the dot is in the folder segment before the slash, so it must
+            // NOT be stripped. LoadAll("v2.0/foo") returns empty → null is returned silently.
+            var actual = UI.ResolveSprite("v2.0/foo#anything");
+            Assert.IsNull(actual); // LoadAll finds nothing; no error expected either
+        }
     }
 }

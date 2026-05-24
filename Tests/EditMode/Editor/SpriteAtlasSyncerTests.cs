@@ -244,7 +244,7 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void EnumeratePngs_returns_pathkey_for_root_file()
+        public void EnumerateSpriteSources_returns_pathkey_for_root_file()
         {
             var folder = $"{TestRoot}/icons";
             AssetDatabase.CreateFolder(TestRoot, "icons");
@@ -258,7 +258,7 @@ namespace PromptUGUI.Tests.Editor
                 importer.SaveAndReimport();
             }
 
-            var entries = SpriteAtlasSyncer.EnumeratePngs(folder);
+            var entries = SpriteAtlasSyncer.EnumerateSpriteSources(folder);
             var keys = new List<string>();
             foreach (var (k, _) in entries) keys.Add(k);
             Assert.That(keys, Does.Contain("foo"),
@@ -266,7 +266,7 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void EnumeratePngs_returns_pathkey_with_subfolder()
+        public void EnumerateSpriteSources_returns_pathkey_with_subfolder()
         {
             // File at <folder>/UI/heart.png should produce key "UI/heart" (relative
             // path under sourceFolder, '/' separator, no extension).
@@ -277,7 +277,7 @@ namespace PromptUGUI.Tests.Editor
             File.WriteAllBytes(pngPath, MakeBlankPng());
             ImportAsSprite(pngPath);
 
-            var entries = SpriteAtlasSyncer.EnumeratePngs(folder);
+            var entries = SpriteAtlasSyncer.EnumerateSpriteSources(folder);
             var keys = new List<string>();
             foreach (var (k, _) in entries) keys.Add(k);
             Assert.That(keys, Does.Contain("UI/heart"),
@@ -285,7 +285,7 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void EnumeratePngs_returns_both_entries_on_basename_collision()
+        public void EnumerateSpriteSources_returns_both_entries_on_basename_collision()
         {
             // Two PNGs sharing a basename in different subfolders must each appear
             // with their own pathKey — no first-wins, no warning.
@@ -300,7 +300,7 @@ namespace PromptUGUI.Tests.Editor
             ImportAsSprite(pngA);
             ImportAsSprite(pngB);
 
-            var entries = SpriteAtlasSyncer.EnumeratePngs(folder);
+            var entries = SpriteAtlasSyncer.EnumerateSpriteSources(folder);
             var keys = new HashSet<string>();
             foreach (var (k, _) in entries) keys.Add(k);
             Assert.That(keys, Does.Contain("UI/heart"));
@@ -308,7 +308,7 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void EnumeratePngs_forces_sprite_single_on_default_texture()
+        public void EnumerateSpriteSources_forces_sprite_single_on_default_texture()
         {
             var folder = $"{TestRoot}/icons_default";
             AssetDatabase.CreateFolder(TestRoot, "icons_default");
@@ -320,7 +320,7 @@ namespace PromptUGUI.Tests.Editor
             importer.textureType = TextureImporterType.Default;
             importer.SaveAndReimport();
 
-            SpriteAtlasSyncer.EnumeratePngs(folder);
+            SpriteAtlasSyncer.EnumerateSpriteSources(folder);
 
             var after = AssetImporter.GetAtPath(pngPath) as TextureImporter;
             Assert.AreEqual(TextureImporterType.Sprite, after.textureType);
@@ -328,7 +328,7 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void EnumeratePngs_sets_uncompressed_on_default_texture()
+        public void EnumerateSpriteSources_sets_uncompressed_on_default_texture()
         {
             // Repro for SpriteAtlas pack-time warning: "Source Texture (...) is using
             // compressed format. To ensure no loss in source pixel details when
@@ -346,7 +346,7 @@ namespace PromptUGUI.Tests.Editor
             importer.textureType = TextureImporterType.Default;
             importer.SaveAndReimport();
 
-            SpriteAtlasSyncer.EnumeratePngs(folder);
+            SpriteAtlasSyncer.EnumerateSpriteSources(folder);
 
             var after = AssetImporter.GetAtPath(pngPath) as TextureImporter;
             Assert.AreEqual(TextureImporterCompression.Uncompressed, after.textureCompression,
@@ -354,11 +354,11 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void ResetPngImportSettings_forces_canonical_format()
+        public void ResetTextureImportSettings_forces_canonical_format()
         {
-            // Inspector "Reset All PNGs Format" button entry point. Unlike the
+            // Inspector "Reset All Textures Format" button entry point. Unlike the
             // implicit-on-sync flow (which respects author tweaks on already-Sprite
-            // imports), this is an explicit user-triggered force: every PNG in the
+            // imports), this is an explicit user-triggered force: every texture in the
             // folder ends up Sprite + Single + Uncompressed, overriding prior config.
             var folder = $"{TestRoot}/icons_reset";
             AssetDatabase.CreateFolder(TestRoot, "icons_reset");
@@ -372,7 +372,7 @@ namespace PromptUGUI.Tests.Editor
             importer.textureCompression = TextureImporterCompression.Compressed;
             importer.SaveAndReimport();
 
-            var n = SpriteAtlasSyncer.ResetPngImportSettings(folder);
+            var n = SpriteAtlasSyncer.ResetTextureImportSettings(folder);
 
             Assert.AreEqual(1, n);
             var after = AssetImporter.GetAtPath(pngPath) as TextureImporter;
@@ -382,9 +382,9 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void ResetPngImportSettings_walks_subfolders()
+        public void ResetTextureImportSettings_walks_subfolders()
         {
-            // Mirrors EnumeratePngs: recursive over subfolders.
+            // Mirrors EnumerateSpriteSources: recursive over subfolders.
             var folder = $"{TestRoot}/icons_reset_sub";
             AssetDatabase.CreateFolder(TestRoot, "icons_reset_sub");
             AssetDatabase.CreateFolder(folder, "Sub");
@@ -395,7 +395,7 @@ namespace PromptUGUI.Tests.Editor
             AssetDatabase.ImportAsset(rootPng, ImportAssetOptions.ForceUpdate);
             AssetDatabase.ImportAsset(subPng, ImportAssetOptions.ForceUpdate);
 
-            var n = SpriteAtlasSyncer.ResetPngImportSettings(folder);
+            var n = SpriteAtlasSyncer.ResetTextureImportSettings(folder);
 
             Assert.AreEqual(2, n);
         }
@@ -403,8 +403,8 @@ namespace PromptUGUI.Tests.Editor
         [Test]
         public void ApplyImportSettingsToFolder_propagates_template_settings_to_others()
         {
-            // Inspector "Apply to All PNGs" entry point: copy a chosen template PNG's
-            // TextureImporter onto every other PNG in the folder, preserving whatever
+            // Inspector "Apply to All Textures" entry point: copy a chosen template texture's
+            // TextureImporter onto every other texture in the folder, preserving whatever
             // settings the user dialed in via the embedded importer inspector.
             var folder = $"{TestRoot}/icons_apply";
             AssetDatabase.CreateFolder(TestRoot, "icons_apply");
@@ -482,7 +482,7 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void FindFirstPng_returns_alphabetically_first_under_folder()
+        public void FindFirstTexture_returns_alphabetically_first_under_folder()
         {
             var folder = $"{TestRoot}/icons_first";
             AssetDatabase.CreateFolder(TestRoot, "icons_first");
@@ -493,25 +493,25 @@ namespace PromptUGUI.Tests.Editor
             AssetDatabase.ImportAsset(b, ImportAssetOptions.ForceUpdate);
             AssetDatabase.ImportAsset(a, ImportAssetOptions.ForceUpdate);
 
-            var first = SpriteAtlasSyncer.FindFirstPng(folder);
+            var first = SpriteAtlasSyncer.FindFirstTexture(folder);
 
             Assert.AreEqual(a, first);
         }
 
         [Test]
-        public void FindFirstPng_returns_null_for_empty_folder()
+        public void FindFirstTexture_returns_null_for_empty_folder()
         {
             var folder = $"{TestRoot}/icons_empty";
             AssetDatabase.CreateFolder(TestRoot, "icons_empty");
 
-            Assert.IsNull(SpriteAtlasSyncer.FindFirstPng(folder));
+            Assert.IsNull(SpriteAtlasSyncer.FindFirstTexture(folder));
         }
 
         [Test]
-        public void EnsureAtlasAsset_inherits_filter_mode_from_first_png()
+        public void EnsureAtlasAsset_inherits_filter_mode_from_first_texture()
         {
             // Newly-created atlases should pick up FilterMode from the alphabetically
-            // first PNG in the source folder, so atlas filtering matches the icons it
+            // first texture in the source folder, so atlas filtering matches the icons it
             // packs (pixel-art games typically want Point on both).
             var folder = MakeFolder("icons_atlas_filter");
             var pngPath = $"{folder}/a.png";
@@ -550,7 +550,7 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void EnumeratePngs_leaves_existing_sprite_importer_untouched()
+        public void EnumerateSpriteSources_leaves_existing_sprite_importer_untouched()
         {
             var folder = $"{TestRoot}/icons_multi";
             AssetDatabase.CreateFolder(TestRoot, "icons_multi");
@@ -563,12 +563,52 @@ namespace PromptUGUI.Tests.Editor
             importer.spriteImportMode = SpriteImportMode.Multiple;
             importer.SaveAndReimport();
 
-            SpriteAtlasSyncer.EnumeratePngs(folder);
+            SpriteAtlasSyncer.EnumerateSpriteSources(folder);
 
             var after = AssetImporter.GetAtPath(pngPath) as TextureImporter;
             Assert.AreEqual(TextureImporterType.Sprite, after.textureType);
             Assert.AreEqual(SpriteImportMode.Multiple, after.spriteImportMode,
                 "Author-configured Multiple sheet must not be silently flipped to Single");
+        }
+
+        [Test]
+        public void EnumerateSpriteSources_picks_up_jpg_alongside_png()
+        {
+            // Multi-format coverage: glob-based *.png enumeration would miss JPG.
+            // After switching to AssetDatabase.FindAssets("t:Texture2D" ∪ "t:Sprite"),
+            // any importer-recognized image file in the folder is included.
+            var folder = $"{TestRoot}/icons_mixed";
+            AssetDatabase.CreateFolder(TestRoot, "icons_mixed");
+            var pngPath = $"{folder}/p.png";
+            var jpgPath = $"{folder}/j.jpg";
+            File.WriteAllBytes(pngPath, MakeBlankPng());
+            File.WriteAllBytes(jpgPath, MakeBlankJpg());
+            ImportAsSprite(pngPath);
+            ImportAsSprite(jpgPath);
+
+            var entries = SpriteAtlasSyncer.EnumerateSpriteSources(folder);
+            var keys = new HashSet<string>();
+            foreach (var (k, _) in entries) keys.Add(k);
+            Assert.That(keys, Does.Contain("p"));
+            Assert.That(keys, Does.Contain("j"));
+        }
+
+        [Test]
+        public void EnumerateSpriteSources_returns_entries_in_stable_path_order()
+        {
+            var folder = $"{TestRoot}/icons_order";
+            AssetDatabase.CreateFolder(TestRoot, "icons_order");
+            var c = $"{folder}/c.png";
+            var a = $"{folder}/a.png";
+            var b = $"{folder}/b.png";
+            File.WriteAllBytes(c, MakeBlankPng()); ImportAsSprite(c);
+            File.WriteAllBytes(a, MakeBlankPng()); ImportAsSprite(a);
+            File.WriteAllBytes(b, MakeBlankPng()); ImportAsSprite(b);
+
+            var entries = SpriteAtlasSyncer.EnumerateSpriteSources(folder);
+            var keys = new List<string>();
+            foreach (var (k, _) in entries) keys.Add(k);
+            Assert.AreEqual(new[] { "a", "b", "c" }, keys.ToArray());
         }
 
         [Test]
@@ -890,6 +930,110 @@ namespace PromptUGUI.Tests.Editor
             SpriteAtlasSyncer.ScanXmlReferences();
         }
 
+#if PROMPTUGUI_HAS_ASEPRITE
+        [Test]
+        public void EnumerateSpriteSources_picks_up_single_frame_animatedsprite_aseprite()
+        {
+            // AnimatedSprite is Aseprite's default Import Mode. Main asset is t:Sprite,
+            // NOT t:Texture2D, so the union filter (MF-D1) is what makes this work.
+            var folder = $"{TestRoot}/aseprite_animated";
+            AssetDatabase.CreateFolder(TestRoot, "aseprite_animated");
+            var srcAseprite = "Packages/com.heerozh.promptugui/Tests/EditMode/Editor/Fixtures/aseprite/single_animated.aseprite";
+            Assume.That(File.Exists(srcAseprite), $"Fixture missing: {srcAseprite}");
+            var destAseprite = $"{folder}/single.aseprite";
+            AssetDatabase.CopyAsset(srcAseprite, destAseprite);
+
+            var entries = SpriteAtlasSyncer.EnumerateSpriteSources(folder);
+            var keys = new List<string>();
+            foreach (var (k, _) in entries) keys.Add(k);
+            Assert.That(keys, Does.Contain("single"));
+        }
+
+        [Test]
+        public void EnumerateSpriteSources_picks_up_single_frame_spritesheet_aseprite()
+        {
+            var folder = $"{TestRoot}/aseprite_sheet";
+            AssetDatabase.CreateFolder(TestRoot, "aseprite_sheet");
+            var srcAseprite = "Packages/com.heerozh.promptugui/Tests/EditMode/Editor/Fixtures/aseprite/single_sheet.aseprite";
+            Assume.That(File.Exists(srcAseprite), $"Fixture missing: {srcAseprite}");
+            var destAseprite = $"{folder}/single.aseprite";
+            AssetDatabase.CopyAsset(srcAseprite, destAseprite);
+
+            var entries = SpriteAtlasSyncer.EnumerateSpriteSources(folder);
+            var keys = new List<string>();
+            foreach (var (k, _) in entries) keys.Add(k);
+            Assert.That(keys, Does.Contain("single"),
+                "SpriteSheet-mode 1-sprite Aseprite must be enumerated");
+            // Dedupe assertion: SpriteSheet mode hits BOTH t:Texture2D and t:Sprite.
+            // Union HashSet should fold them into one entry.
+            Assert.AreEqual(1, keys.Count,
+                "Expected exactly one entry; got: " + string.Join(",", keys));
+        }
+
+        [Test]
+        public void EnumerateSpriteSources_skips_multi_sprite_aseprite_with_log_error()
+        {
+            var folder = $"{TestRoot}/aseprite_multi";
+            AssetDatabase.CreateFolder(TestRoot, "aseprite_multi");
+            var srcAseprite = "Packages/com.heerozh.promptugui/Tests/EditMode/Editor/Fixtures/aseprite/multi.aseprite";
+            Assume.That(File.Exists(srcAseprite), $"Fixture missing: {srcAseprite}");
+            var destAseprite = $"{folder}/multi.aseprite";
+            AssetDatabase.CopyAsset(srcAseprite, destAseprite);
+
+            LogAssert.Expect(LogType.Error,
+                new System.Text.RegularExpressions.Regex("produces .* sprites; SpriteSet requires exactly 1"));
+
+            var entries = SpriteAtlasSyncer.EnumerateSpriteSources(folder);
+            var keys = new List<string>();
+            foreach (var (k, _) in entries) keys.Add(k);
+            Assert.That(keys, Does.Not.Contain("multi"));
+        }
+#endif
+
+#if PROMPTUGUI_HAS_ASEPRITE
+        [Test]
+        public void FindFirstTexture_skips_aseprite_assets()
+        {
+            // Repro for NRE: AsepriteImporterEditor isn't designed to be hosted inside
+            // SpriteSetEditor's embedded inspector. FindFirstTexture must skip Aseprite
+            // assets even though their main asset is t:Texture2D (SpriteSheet mode).
+            var folder = $"{TestRoot}/find_first_skips_aseprite";
+            AssetDatabase.CreateFolder(TestRoot, "find_first_skips_aseprite");
+            var srcAseprite = "Packages/com.heerozh.promptugui/Tests/EditMode/Editor/Fixtures/aseprite/single_sheet.aseprite";
+            Assume.That(File.Exists(srcAseprite), $"Fixture missing: {srcAseprite}");
+            // Aseprite at "a.aseprite" alphabetically wins over PNG at "b.png" with
+            // ordinal sort, so without the importer-type filter the result would be
+            // the Aseprite path — which then causes AsepriteImporterEditor NRE when
+            // hosted by SpriteSetEditor.
+            AssetDatabase.CopyAsset(srcAseprite, $"{folder}/a.aseprite");
+            var pngPath = $"{folder}/b.png";
+            File.WriteAllBytes(pngPath, MakeBlankPng());
+            ImportAsSprite(pngPath);
+
+            var first = SpriteAtlasSyncer.FindFirstTexture(folder);
+
+            Assert.AreEqual(pngPath, first,
+                "FindFirstTexture must return the PNG (TextureImporter), not the alphabetically-prior Aseprite.");
+        }
+#endif
+
+        [Test]
+        public void FindFirstTexture_returns_alphabetically_first_texture_importer()
+        {
+            var folder = $"{TestRoot}/find_first_sort";
+            AssetDatabase.CreateFolder(TestRoot, "find_first_sort");
+            var c = $"{folder}/c.png";
+            var a = $"{folder}/a.png";
+            var b = $"{folder}/b.png";
+            File.WriteAllBytes(c, MakeBlankPng()); ImportAsSprite(c);
+            File.WriteAllBytes(a, MakeBlankPng()); ImportAsSprite(a);
+            File.WriteAllBytes(b, MakeBlankPng()); ImportAsSprite(b);
+
+            var first = SpriteAtlasSyncer.FindFirstTexture(folder);
+
+            Assert.AreEqual(a, first);
+        }
+
         private string MakeFolder(string name)
         {
             AssetDatabase.CreateFolder(TestRoot, name);
@@ -913,6 +1057,16 @@ namespace PromptUGUI.Tests.Editor
             t.SetPixel(0, 0, Color.white);
             t.Apply();
             var bytes = t.EncodeToPNG();
+            UnityEngine.Object.DestroyImmediate(t);
+            return bytes;
+        }
+
+        private byte[] MakeBlankJpg()
+        {
+            var t = new Texture2D(1, 1);
+            t.SetPixel(0, 0, Color.white);
+            t.Apply();
+            var bytes = t.EncodeToJPG();
             UnityEngine.Object.DestroyImmediate(t);
             return bytes;
         }

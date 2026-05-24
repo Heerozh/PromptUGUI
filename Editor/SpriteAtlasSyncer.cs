@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using PromptUGUI.IR;
 using PromptUGUI.Parser;
@@ -279,27 +280,29 @@ namespace PromptUGUI.Editor
             refs.Add((ns, name));
         }
 
-        /// <summary>Cheap recursive count of *.png files under a folder. No asset
-        /// loading, no importer mutation — safe to call from OnInspectorGUI.</summary>
-        public static int CountPngs(string folderAssetPath)
+        /// <summary>Cheap recursive count of sprite source assets (any Unity-recognized
+        /// texture format + Aseprite single-sprite files) under a folder. No asset
+        /// loading, no path resolution, no importer mutation — safe to call from
+        /// OnInspectorGUI.</summary>
+        public static int CountSpriteSources(string folderAssetPath)
         {
             if (string.IsNullOrEmpty(folderAssetPath)) return 0;
             if (!AssetDatabase.IsValidFolder(folderAssetPath)) return 0;
-            var fullFolder = Path.GetFullPath(folderAssetPath);
-            var n = 0;
-            foreach (var _ in Directory.EnumerateFiles(
-                         fullFolder, "*.png", SearchOption.AllDirectories)) n++;
-            return n;
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var folders = new[] { folderAssetPath };
+            foreach (var g in AssetDatabase.FindAssets("t:Texture2D", folders)) seen.Add(g);
+            foreach (var g in AssetDatabase.FindAssets("t:Sprite", folders)) seen.Add(g);
+            return seen.Count;
         }
 
-        /// <summary>每个 PNG 一个 entry，pathKey = sourceFolder 下的相对路径（'/' 分隔、
+        /// <summary>每个 sprite source 一个 entry，pathKey = sourceFolder 下的相对路径（'/' 分隔、
         /// 去扩展名）。Root file 的 pathKey 等于裸文件名；子目录文件形如 "UI/heart"。
-        /// 不再 first-wins —— 同名 PNG 在不同子目录下都会各自出现，由 <see cref="SyncAll"/>
+        /// 不再 first-wins —— 同名 sprite source 在不同子目录下都会各自出现，由 <see cref="SyncAll"/>
         /// 决定如何引用（路径形 vs. 裸名别名）。Triggers sprite reimport on first encounter.
         /// </summary>
         /// <param name="progressLabel">When non-null, drives a cancelable progress bar
         /// and throws <see cref="OperationCanceledException"/> if the user cancels.</param>
-        public static List<(string pathKey, Sprite sprite)> EnumeratePngs(
+        public static List<(string pathKey, Sprite sprite)> EnumerateSpriteSources(
             string folderAssetPath, string progressLabel = null)
         {
             var result = new List<(string, Sprite)>();
@@ -310,28 +313,39 @@ namespace PromptUGUI.Editor
                 return result;
             }
 
-            var fullFolder = Path.GetFullPath(folderAssetPath);
-            var files = new List<string>(Directory.EnumerateFiles(
-                fullFolder, "*.png", SearchOption.AllDirectories));
-            for (var i = 0; i < files.Count; i++)
+            var paths = EnumerateSpriteSourceGuids(folderAssetPath);
+            var folderPrefix = folderAssetPath.EndsWith("/")
+                ? folderAssetPath
+                : folderAssetPath + "/";
+            for (var i = 0; i < paths.Length; i++)
             {
-                var fullPath = files[i];
-                var assetPath = "Assets" +
-                    fullPath.Substring(UnityEngine.Application.dataPath.Length).Replace('\\', '/');
+                var assetPath = paths[i];
                 if (progressLabel != null &&
                     EditorUtility.DisplayCancelableProgressBar(
                         ProgressTitle,
-                        $"{progressLabel}: {Path.GetFileName(assetPath)} ({i + 1}/{files.Count})",
-                        (float)i / Mathf.Max(1, files.Count)))
+                        $"{progressLabel}: {Path.GetFileName(assetPath)} ({i + 1}/{paths.Length})",
+                        (float)i / Mathf.Max(1, paths.Length)))
                 {
                     throw new OperationCanceledException();
                 }
                 EnsureSpriteImporter(assetPath);
+#if PROMPTUGUI_HAS_ASEPRITE
+                // MF-D4: multi-sprite Aseprite is rejected at validation time; skip it
+                // here so a stray first-sprite doesn't sneak into the SpriteSet via
+                // LoadAssetAtPath<Sprite>'s arbitrary-first behavior. Note: this
+                // LoadAllAssetsAtPath fires for EVERY Aseprite file (single- and
+                // multi-sprite) — EnsureSpriteImporter above already paid the same
+                // cost. The duplication is accepted per plan §5.5; refactor to a
+                // single call if profiling shows it's hot.
+                if (AssetImporter.GetAtPath(assetPath) is UnityEditor.U2D.Aseprite.AsepriteImporter)
+                {
+                    if (AssetDatabase.LoadAllAssetsAtPath(assetPath).OfType<Sprite>().Count() != 1)
+                        continue;
+                }
+#endif
                 var sp = AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
                 if (sp == null) continue;
-                var rel = fullPath.Substring(fullFolder.Length)
-                    .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                    .Replace('\\', '/');
+                var rel = assetPath.Substring(folderPrefix.Length);
                 var ext = Path.GetExtension(rel);
                 var pathKey = rel.Substring(0, rel.Length - ext.Length);
                 result.Add((pathKey, sp));
@@ -339,7 +353,25 @@ namespace PromptUGUI.Editor
             return result;
         }
 
-        /// <summary>从 EnumeratePngs 结果建一个统一的查找表：pathKey 总是可用；
+        // Returns asset paths sorted ordinally for stable downstream output.
+        // MF-D1: union t:Texture2D (covers PNG/JPG/.../Aseprite-SpriteSheet + PNG-Default-mode
+        // for EnsureSpriteImporter auto-flip) with t:Sprite (covers Aseprite-AnimatedSprite
+        // where the main asset is Sprite rather than Texture2D). HashSet by GUID dedupes
+        // the overlap (eg. PNG-as-Sprite hits both filters).
+        private static string[] EnumerateSpriteSourceGuids(string folderAssetPath)
+        {
+            var folders = new[] { folderAssetPath };
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var g in AssetDatabase.FindAssets("t:Texture2D", folders)) seen.Add(g);
+            foreach (var g in AssetDatabase.FindAssets("t:Sprite", folders)) seen.Add(g);
+            var paths = new string[seen.Count];
+            var idx = 0;
+            foreach (var g in seen) paths[idx++] = AssetDatabase.GUIDToAssetPath(g);
+            Array.Sort(paths, StringComparer.Ordinal);
+            return paths;
+        }
+
+        /// <summary>从 EnumerateSpriteSources 结果建一个统一的查找表：pathKey 总是可用；
         /// 当某个裸名（最后一段文件名）在整个表中唯一时，也可以裸名作为别名引用。
         /// 裸名冲突时不写入裸名 → 引用方必须用路径形。</summary>
         internal static Dictionary<string, Sprite> BuildLookup(
@@ -377,24 +409,46 @@ namespace PromptUGUI.Editor
 
         private static void EnsureSpriteImporter(string assetPath)
         {
-            if (AssetImporter.GetAtPath(assetPath) is not TextureImporter importer) return;
-            if (importer.textureType == TextureImporterType.Sprite) return;
-            importer.textureType = TextureImporterType.Sprite;
-            importer.spriteImportMode = SpriteImportMode.Single;
-            importer.textureCompression = TextureImporterCompression.Uncompressed;
-            importer.SaveAndReimport();
+            var importer = AssetImporter.GetAtPath(assetPath);
+            if (importer is TextureImporter ti)
+            {
+                if (ti.textureType == TextureImporterType.Sprite) return;
+                ti.textureType = TextureImporterType.Sprite;
+                ti.spriteImportMode = SpriteImportMode.Single;
+                ti.textureCompression = TextureImporterCompression.Uncompressed;
+                ti.SaveAndReimport();
+                return;
+            }
+#if PROMPTUGUI_HAS_ASEPRITE
+            if (importer is UnityEditor.U2D.Aseprite.AsepriteImporter)
+            {
+                // MF-D4: validate single-sprite contract; do not coerce AsepriteImporter
+                // settings — layer/frame configuration is author intent.
+                var sprites = AssetDatabase.LoadAllAssetsAtPath(assetPath).OfType<Sprite>().Count();
+                if (sprites != 1)
+                {
+                    Debug.LogError(
+                        $"[SpriteSync] Aseprite '{assetPath}' produces {sprites} sprites; " +
+                        $"SpriteSet requires exactly 1 sprite per file. Skipping. " +
+                        $"Set the AsepriteImporter Import Mode to single-frame output, " +
+                        $"or use a different file per icon.");
+                }
+                return;
+            }
+#endif
+            // Other importer types (eg. SVG via com.unity.vectorgraphics) - silent skip.
         }
 
-        /// <summary>Force every PNG under <paramref name="folderAssetPath"/> to the
+        /// <summary>Force every texture under <paramref name="folderAssetPath"/> to the
         /// canonical PromptUGUI format: textureType=Sprite, spriteImportMode=Single,
         /// textureCompression=Uncompressed. Overrides prior author-set TextureImporter
         /// values — explicit "reset" semantics, intended for the SpriteSet inspector
-        /// "Reset All PNGs Format" button. Returns the number of PNGs reimported.
+        /// "Reset All Textures Format" button. Returns the number of textures reimported.
         /// Wraps the loop in <see cref="AssetDatabase.StartAssetEditing"/> for batch
         /// throughput.</summary>
         /// <param name="showProgress">When true, drives a cancelable progress bar;
         /// throws <see cref="OperationCanceledException"/> if the user cancels.</param>
-        public static int ResetPngImportSettings(string folderAssetPath,
+        public static int ResetTextureImportSettings(string folderAssetPath,
                                                 bool showProgress = false)
         {
             if (string.IsNullOrEmpty(folderAssetPath)) return 0;
@@ -403,25 +457,27 @@ namespace PromptUGUI.Editor
                 Debug.LogError($"[SpriteSync] not a folder: '{folderAssetPath}'");
                 return 0;
             }
-            var fullFolder = Path.GetFullPath(folderAssetPath);
-            var files = new List<string>(Directory.EnumerateFiles(
-                fullFolder, "*.png", SearchOption.AllDirectories));
+            // MF-D1b: TextureImporter-only operation; AsepriteImporter resources would be
+            // rejected by the importer-type guard anyway, so single t:Texture2D filter
+            // is sufficient (and avoids enumerating Aseprite AnimatedSprite which is t:Sprite).
+            var guids = AssetDatabase.FindAssets("t:Texture2D", new[] { folderAssetPath });
+            var paths = new string[guids.Length];
+            for (var i = 0; i < guids.Length; i++) paths[i] = AssetDatabase.GUIDToAssetPath(guids[i]);
+            Array.Sort(paths, StringComparer.Ordinal);
+
             var count = 0;
             try
             {
                 AssetDatabase.StartAssetEditing();
-                for (var i = 0; i < files.Count; i++)
+                for (var i = 0; i < paths.Length; i++)
                 {
-                    var fullPath = files[i];
-                    var assetPath = "Assets" +
-                        fullPath.Substring(UnityEngine.Application.dataPath.Length)
-                                .Replace('\\', '/');
+                    var assetPath = paths[i];
                     if (showProgress &&
                         EditorUtility.DisplayCancelableProgressBar(
                             ProgressTitle,
                             $"Resetting import format: {Path.GetFileName(assetPath)} " +
-                            $"({i + 1}/{files.Count})",
-                            (float)i / Mathf.Max(1, files.Count)))
+                            $"({i + 1}/{paths.Length})",
+                            (float)i / Mathf.Max(1, paths.Length)))
                     {
                         throw new OperationCanceledException();
                     }
@@ -442,56 +498,53 @@ namespace PromptUGUI.Editor
             return count;
         }
 
-        /// <summary>Inspector "Apply to All PNGs" entry: copy
-        /// <paramref name="templatePngAssetPath"/>'s TextureImporter onto every other
-        /// PNG under <paramref name="folderAssetPath"/> via
+        /// <summary>Inspector "Apply to All Textures" entry: copy
+        /// <paramref name="templateTextureAssetPath"/>'s TextureImporter onto every other
+        /// texture under <paramref name="folderAssetPath"/> via
         /// <see cref="EditorUtility.CopySerialized(UnityEngine.Object,UnityEngine.Object)"/>.
         /// The template itself is skipped. Per SpriteSet contract every icon is a single
-        /// sprite, so manual slicing data is not expected to leak between PNGs.
-        /// Returns the number of non-template PNGs that received the settings copy.</summary>
+        /// sprite, so manual slicing data is not expected to leak between textures.
+        /// Returns the number of non-template textures that received the settings copy.</summary>
         /// <param name="showProgress">When true, drives a cancelable progress bar;
         /// throws <see cref="OperationCanceledException"/> if the user cancels.</param>
         public static int ApplyImportSettingsToFolder(
-            string templatePngAssetPath,
+            string templateTextureAssetPath,
             string folderAssetPath,
             bool showProgress = false)
         {
-            if (string.IsNullOrEmpty(templatePngAssetPath)) return 0;
+            if (string.IsNullOrEmpty(templateTextureAssetPath)) return 0;
             if (string.IsNullOrEmpty(folderAssetPath)) return 0;
             if (!AssetDatabase.IsValidFolder(folderAssetPath))
             {
                 Debug.LogError($"[SpriteSync] not a folder: '{folderAssetPath}'");
                 return 0;
             }
-            if (AssetImporter.GetAtPath(templatePngAssetPath) is not TextureImporter template)
+            if (AssetImporter.GetAtPath(templateTextureAssetPath) is not TextureImporter template)
             {
                 Debug.LogError(
-                    $"[SpriteSync] template is not a TextureImporter: '{templatePngAssetPath}'");
+                    $"[SpriteSync] template is not a TextureImporter: '{templateTextureAssetPath}'");
                 return 0;
             }
-            var fullFolder = Path.GetFullPath(folderAssetPath);
-            var templateFullPath = Path.GetFullPath(templatePngAssetPath);
-            var files = new List<string>(Directory.EnumerateFiles(
-                fullFolder, "*.png", SearchOption.AllDirectories));
+            // MF-D1b: TextureImporter-only, same reasoning as ResetTextureImportSettings.
+            var guids = AssetDatabase.FindAssets("t:Texture2D", new[] { folderAssetPath });
+            var paths = new string[guids.Length];
+            for (var i = 0; i < guids.Length; i++) paths[i] = AssetDatabase.GUIDToAssetPath(guids[i]);
+            Array.Sort(paths, StringComparer.Ordinal);
             var count = 0;
             try
             {
                 AssetDatabase.StartAssetEditing();
-                for (var i = 0; i < files.Count; i++)
+                for (var i = 0; i < paths.Length; i++)
                 {
-                    var fullPath = files[i];
-                    if (string.Equals(
-                            fullPath, templateFullPath, StringComparison.OrdinalIgnoreCase))
+                    var assetPath = paths[i];
+                    if (string.Equals(assetPath, templateTextureAssetPath, StringComparison.OrdinalIgnoreCase))
                         continue;
-                    var assetPath = "Assets" +
-                        fullPath.Substring(UnityEngine.Application.dataPath.Length)
-                                .Replace('\\', '/');
                     if (showProgress &&
                         EditorUtility.DisplayCancelableProgressBar(
                             ProgressTitle,
                             $"Applying import settings: {Path.GetFileName(assetPath)} " +
-                            $"({i + 1}/{files.Count})",
-                            (float)i / Mathf.Max(1, files.Count)))
+                            $"({i + 1}/{paths.Length})",
+                            (float)i / Mathf.Max(1, paths.Length)))
                     {
                         throw new OperationCanceledException();
                     }
@@ -509,22 +562,37 @@ namespace PromptUGUI.Editor
             return count;
         }
 
-        /// <summary>Alphabetically-first *.png under <paramref name="folderAssetPath"/>
-        /// (recursive), as a project-relative "Assets/..." path. Returns null if the
-        /// folder is missing or contains no PNGs. Used by the SpriteSet inspector to pick
-        /// a default template for the embedded TextureImporter editor — sorting keeps
-        /// the choice stable across filesystem enumeration order changes.</summary>
-        public static string FindFirstPng(string folderAssetPath)
+        /// <summary>Alphabetically-first <see cref="TextureImporter"/> asset under
+        /// <paramref name="folderAssetPath"/> (recursive), as a project-relative
+        /// "Assets/..." path. Returns null if the folder is missing or contains no
+        /// TextureImporter assets. AsepriteImporter assets are excluded because
+        /// AsepriteImporterEditor isn't designed for embedded hosting (NREs in
+        /// HasModified when hosted inside SpriteSetEditor). Used by the SpriteSet
+        /// inspector to pick a default template for the embedded TextureImporter editor
+        /// — sorting keeps the choice stable across filesystem enumeration order
+        /// changes.</summary>
+        public static string FindFirstTexture(string folderAssetPath)
         {
             if (string.IsNullOrEmpty(folderAssetPath)) return null;
             if (!AssetDatabase.IsValidFolder(folderAssetPath)) return null;
-            var fullFolder = Path.GetFullPath(folderAssetPath);
-            var files = new List<string>(Directory.EnumerateFiles(
-                fullFolder, "*.png", SearchOption.AllDirectories));
-            if (files.Count == 0) return null;
-            files.Sort(StringComparer.OrdinalIgnoreCase);
-            return "Assets" +
-                files[0].Substring(UnityEngine.Application.dataPath.Length).Replace('\\', '/');
+            // MF-D1b: TextureImporter-only template (filterMode source + embedded
+            // inspector template). Aseprite SpriteSheet mode produces a t:Texture2D
+            // main asset too, so t:Texture2D alone matches Aseprite assets — filter
+            // by importer type. Aseprite has no equivalent filterMode and its
+            // AsepriteImporterEditor isn't designed to be hosted inside our custom
+            // inspector (NREs in HasModified).
+            var guids = AssetDatabase.FindAssets("t:Texture2D", new[] { folderAssetPath });
+            if (guids.Length == 0) return null;
+            var paths = new List<string>(guids.Length);
+            for (var i = 0; i < guids.Length; i++)
+            {
+                var p = AssetDatabase.GUIDToAssetPath(guids[i]);
+                if (AssetImporter.GetAtPath(p) is TextureImporter)
+                    paths.Add(p);
+            }
+            if (paths.Count == 0) return null;
+            paths.Sort(StringComparer.Ordinal);
+            return paths[0];
         }
 
         /// <summary>差量同步 atlas 的 packables。返回 true 表示发生了变更。
@@ -658,7 +726,7 @@ namespace PromptUGUI.Editor
                         continue;
                     }
                     var label = $"Set {i + 1}/{setList.Count} '{set.SetName}'";
-                    var entries = EnumeratePngs(folder, label);
+                    var entries = EnumerateSpriteSources(folder, label);
                     var lookup = BuildLookup(entries, out var bareCandidates);
 
                     var needed = new HashSet<string>();
@@ -687,7 +755,7 @@ namespace PromptUGUI.Editor
                     }
                     if (missing.Count > 0)
                         Debug.LogWarning(
-                            $"[SpriteSync] '{set.SetName}': XML references missing PNGs: " +
+                            $"[SpriteSync] '{set.SetName}': XML references missing sprites: " +
                             string.Join(", ", missing));
 
                     if (EditorUtility.DisplayCancelableProgressBar(
@@ -740,7 +808,7 @@ namespace PromptUGUI.Editor
         }
 
         /// <summary>若 SpriteSet.atlas 为 null，在 SO 同目录创建 &lt;setName&gt;.spriteatlas 并回填。
-        /// 新建 atlas 的 FilterMode 沿用 sourceFolder 下首个 PNG 的 TextureImporter.filterMode，
+        /// 新建 atlas 的 FilterMode 沿用 sourceFolder 下首个 texture 的 TextureImporter.filterMode，
         /// 这样像素美术 (Point) 与一般贴图 (Bilinear) 在 atlas 上不会被默认值覆盖。</summary>
         internal static SpriteAtlas EnsureAtlasAsset(PromptUGUI.Application.SpriteSet set)
         {
@@ -763,9 +831,9 @@ namespace PromptUGUI.Editor
 
         private static void ApplyTemplateFilterMode(SpriteAtlas atlas, string folderAssetPath)
         {
-            var firstPng = FindFirstPng(folderAssetPath);
-            if (firstPng == null) return;
-            if (AssetImporter.GetAtPath(firstPng) is not TextureImporter ti) return;
+            var firstTexture = FindFirstTexture(folderAssetPath);
+            if (firstTexture == null) return;
+            if (AssetImporter.GetAtPath(firstTexture) is not TextureImporter ti) return;
             var ts = atlas.GetTextureSettings();
             ts.filterMode = ti.filterMode;
             atlas.SetTextureSettings(ts);
