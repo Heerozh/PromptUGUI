@@ -166,9 +166,35 @@ namespace PromptUGUI.Application
             scaler.matchWidthOrHeight = size.x >= size.y ? 0f : 1f;
         }
 
-        // Stub — implemented in Task 6. Falls through to Auto so all existing tests
-        // remain green during the refactor.
-        private void ApplyPixel(UnityEngine.UI.CanvasScaler scaler) => ApplyAuto(scaler);
+        private void ApplyPixel(UnityEngine.UI.CanvasScaler scaler)
+        {
+            var refRaw = PromptUGUI.Variants.VariantResolver.ResolveAttribute(
+                Def.Root, "reference", Variants);
+            var design = PromptUGUI.Application.ReferenceResolutionParser.Parse(
+                refRaw, $"<Screen name='{Def.Name}' reference> (pixel-mode runtime)");
+            if (!design.HasValue)
+            {
+                UnityEngine.Debug.LogError(
+                    $"[PromptUGUI] <Screen name='{Def.Name}' scale-mode='pixel'>: " +
+                    $"requires a reference='WxH' to compute integer scale factor. " +
+                    $"Falling back to ConstantPixelSize, scaleFactor=1.");
+                scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize;
+                scaler.scaleFactor = 1f;
+                return;
+            }
+            var canvasSize = UI.CanvasSizeOverride != null
+                ? UI.CanvasSizeOverride()
+                : ReadCanvasRectSize();
+            scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize;
+            scaler.scaleFactor = PixelScaleSolver.Solve(canvasSize, design.Value);
+        }
+
+        private UnityEngine.Vector2 ReadCanvasRectSize()
+        {
+            var rt = RootGameObject.GetComponent<RectTransform>();
+            var rect = rt.rect;
+            return new UnityEngine.Vector2(rect.width, rect.height);
+        }
 
         public void Close()
         {
