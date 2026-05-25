@@ -181,7 +181,7 @@ Call: `mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all"
 Then: `mcp__UnityMCP__read_console(action="get", types=["error"])`
 Expected: no errors.
 Then: `mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.EditMode"], filter="PixelScaleSolverTests")`
-Expected: all 15 test cases pass.
+Expected: all 16 test cases pass.
 
 - [ ] **Step 5: Commit**
 
@@ -194,7 +194,7 @@ git commit -m "$(cat <<'EOF'
 feat: PixelScaleSolver fit-inside + 1/2^n snap
 
 Pure-function helper used by the Pixel scale mode. Tested in isolation
-with 15 parametrized cases covering 4K/1080/21:9/9:16/sub-1x/degenerate.
+with 16 parametrized cases covering 4K/1080/21:9/9:16/sub-1x/degenerate.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -1099,7 +1099,7 @@ Spec: `docs~/superpowers/specs/2026-05-25-pixel-perfect-scaling-design.md`
 Plan: `docs~/superpowers/plans/2026-05-25-pixel-perfect-scaling.md`
 
 ## Test plan
-- [ ] EditMode `PixelScaleSolverTests` — 15 parametrized algorithm cases
+- [ ] EditMode `PixelScaleSolverTests` — 16 parametrized algorithm cases
 - [ ] EditMode `ScreenScaleModeTests` — 18 parse / apply / variant / resize cases
 - [ ] EditMode `XsdGeneratorTests.Screen_element_declares_scale_mode_enum_attribute`
 - [ ] Full EditMode + EditorOnly suites green
