@@ -164,6 +164,15 @@ namespace PromptUGUI.Application
         // assign worldCamera, set sortingOrder, etc. Per-Screen behavior keys off the second arg.
         public static System.Action<UnityEngine.Canvas, string> CanvasConfigurator { get; set; }
 
+        // Project-level default for <Screen> scale-mode. Per-Screen XML override
+        // (scale-mode="auto|pixel") wins when present. See ScaleMode.cs for semantics.
+        public static ScaleMode DefaultScaleMode { get; set; } = ScaleMode.Auto;
+
+        // Test seam: when non-null, Screen.ApplyCanvasScaler (Pixel branch) reads canvas
+        // size from this override instead of the Canvas RectTransform. Mirrors the pattern
+        // used by Internal.OrientationTracker.ScreenSizeOverride.
+        internal static System.Func<UnityEngine.Vector2> CanvasSizeOverride { get; set; }
+
         public static ControlRegistry Registry { get; private set; } = CreateRegistryWithBuiltins();
 
         internal static VariantStore VariantStore { get; } = new();
@@ -726,6 +735,8 @@ namespace PromptUGUI.Application
             _spriteResolverLoadCount = 0;
             PoResolver = null;
             CanvasConfigurator = null;
+            DefaultScaleMode = ScaleMode.Auto;
+            CanvasSizeOverride = null;
 #if UNITY_EDITOR
             HotReload.AssetPathToSrc = null;
             HotReload.SpriteResolverRebuilder = null;
