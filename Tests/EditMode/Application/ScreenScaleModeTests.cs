@@ -284,5 +284,76 @@ namespace PromptUGUI.Tests.Application
             for (int i = 0; i < 5; i++) relay.OnDimensionsChanged?.Invoke();
             Assert.Pass();
         }
+
+        [Test]
+        public void Pixel_apply_is_idempotent_under_repeated_relay_fires()
+        {
+            // Reproduces the runtime flicker bug: ApplyPixel previously read
+            // RectTransform.rect, which equals Screen.size / scaleFactor in
+            // ConstantPixelSize mode — so each ApplyPixel write triggered a new
+            // OnRectTransformDimensionsChange with a different rect, computing a
+            // different factor next time. The fix is to read Canvas.pixelRect
+            // (independent of scaleFactor). With a stable input source, repeated
+            // relay invocations must yield the same scaleFactor every time.
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(1920f, 1080f);
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='480x270'><Frame/></Screen>
+</PromptUGUI>");
+            var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+            var relay = screen.RootGameObject.GetComponent<PromptUGUI.Application.RectDimensionsRelay>();
+            var initial = scaler.scaleFactor;
+            Assert.AreEqual(4f, initial, 1e-6f, "expected factor=4 for 1920x1080 canvas against 480x270 design");
+
+            for (int i = 0; i < 5; i++)
+            {
+                relay.OnDimensionsChanged?.Invoke();
+                Assert.AreEqual(initial, scaler.scaleFactor, 1e-6f,
+                    $"scaleFactor oscillated on relay fire #{i + 1}");
+            }
+        }
+
+        [Test]
+        public void RectDimensionsRelay_skips_invoke_when_rect_size_unchanged()
+        {
+            // Direct unit test of the relay's size-diff guard. We trigger via the
+            // InvokeRectChangedForTests seam because Unity's auto-fire of
+            // OnRectTransformDimensionsChange doesn't run on orphan GameObjects in
+            // EditMode (the magic-method bridge only fires inside a real Canvas /
+            // scene hierarchy).
+            var go = new UnityEngine.GameObject("relay-test-rt", typeof(UnityEngine.RectTransform));
+            try
+            {
+                var rt = (UnityEngine.RectTransform)go.transform;
+                rt.sizeDelta = new UnityEngine.Vector2(100f, 100f);
+                var relay = go.AddComponent<PromptUGUI.Application.RectDimensionsRelay>();
+                int callCount = 0;
+                relay.OnDimensionsChanged = () => callCount++;
+
+                // First trigger → _lastSize was NaN, so guard sees change → fire.
+                relay.InvokeRectChangedForTests();
+                Assert.AreEqual(1, callCount, "first trigger should fire (NaN sentinel)");
+
+                // Same size → guard skips.
+                relay.InvokeRectChangedForTests();
+                relay.InvokeRectChangedForTests();
+                relay.InvokeRectChangedForTests();
+                Assert.AreEqual(1, callCount, "relay must skip when rect size unchanged");
+
+                // Real size change → fires again.
+                rt.sizeDelta = new UnityEngine.Vector2(200f, 100f);
+                relay.InvokeRectChangedForTests();
+                Assert.AreEqual(2, callCount, "relay must fire when rect size actually changes");
+
+                // Stable again → no more fires.
+                relay.InvokeRectChangedForTests();
+                relay.InvokeRectChangedForTests();
+                Assert.AreEqual(2, callCount, "relay re-skips after the new size becomes stable");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+            }
+        }
     }
 }

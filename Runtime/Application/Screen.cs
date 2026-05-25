@@ -192,9 +192,14 @@ namespace PromptUGUI.Application
 
         private UnityEngine.Vector2 ReadCanvasRectSize()
         {
-            var rt = RootGameObject.GetComponent<RectTransform>();
-            var rect = rt.rect;
-            return new UnityEngine.Vector2(rect.width, rect.height);
+            // 必须读 Canvas.pixelRect(物理屏幕像素),不能读 RectTransform.rect。
+            // 原因:在 ConstantPixelSize 模式下 RT.rect 等于 Screen.size / scaleFactor —
+            // 我们改 scaleFactor 后 RT.rect 跟着变,下一帧 ApplyPixel 读到不同 rect 又算出
+            // 不同 factor,形成反馈循环让 scaleFactor 在 1 ↔ N 之间闪烁。Canvas.pixelRect
+            // 与 scaleFactor 无关(返回的是实际渲染输出像素),切断反馈链。
+            var canvas = RootGameObject.GetComponent<UnityEngine.Canvas>();
+            var pr = canvas.pixelRect;
+            return new UnityEngine.Vector2(pr.width, pr.height);
         }
 
         private void OnCanvasDimensionsChanged()
