@@ -25,6 +25,7 @@ namespace PromptUGUI.Application
         private readonly Dictionary<ElementNode, Control> _nodeMap = new();
         private readonly List<IDisposable> _subscriptions = new();
         private IDisposable _variantSub;
+        private bool _isReapplyingScaler;
 
         internal Controls.Internal.ToggleGroupRegistry ToggleGroups { get; private set; }
 
@@ -76,6 +77,9 @@ namespace PromptUGUI.Application
             // interleaved with the build) into one batched activation pass — the same
             // path Object.Instantiate / scene-load take. Also far fewer layout rebuilds.
             root.SetActive(false);
+            // 必须先于 ApplyCanvasScaler / OnAttached / setter 阶段设好：pixel-mode
+            // 的 ReadCanvasRectSize 与 UI.OwnerScreenOf 都会反查 RootGameObject。
+            RootGameObject = root;
             var canvas = root.GetComponent<Canvas>();
             canvas.renderMode = Def.CanvasMode switch
             {
@@ -101,12 +105,9 @@ namespace PromptUGUI.Application
             }
 
             ToggleGroups = new Controls.Internal.ToggleGroupRegistry(root.transform);
-            // 在实例化前先设 RootGameObject，让 controls 在 OnAttached / setter 阶段
-            // 也能通过 UI.OwnerScreenOf 走 transform-tree → RootGameObject 反查到本 Screen。
-            RootGameObject = root;
 
             var relay = root.AddComponent<RectDimensionsRelay>();
-            relay.OnDimensionsChanged = () => RectTransformDimensionsChanged?.Invoke();
+            relay.OnDimensionsChanged = OnCanvasDimensionsChanged;
 
             // deferApply: the InstantiateInto recursion attaches every control but does
             // NOT apply attributes yet — nodes are collected into result.ApplyOrder
@@ -135,6 +136,21 @@ namespace PromptUGUI.Application
 
         private void ApplyCanvasScaler(UnityEngine.UI.CanvasScaler scaler)
         {
+            var mode = ResolveScaleMode();
+            if (mode == ScaleMode.Pixel) ApplyPixel(scaler);
+            else ApplyAuto(scaler);
+        }
+
+        private ScaleMode ResolveScaleMode()
+        {
+            var raw = PromptUGUI.Variants.VariantResolver.ResolveAttribute(
+                Def.Root, "scale-mode", Variants);
+            if (string.IsNullOrEmpty(raw)) return UI.DefaultScaleMode;
+            return raw == "pixel" ? ScaleMode.Pixel : ScaleMode.Auto;
+        }
+
+        private void ApplyAuto(UnityEngine.UI.CanvasScaler scaler)
+        {
             var raw = PromptUGUI.Variants.VariantResolver.ResolveAttribute(
                 Def.Root, "reference", Variants);
             var parsed = PromptUGUI.Application.ReferenceResolutionParser.Parse(
@@ -149,6 +165,62 @@ namespace PromptUGUI.Application
             scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = size;
             scaler.matchWidthOrHeight = size.x >= size.y ? 0f : 1f;
+        }
+
+        private void ApplyPixel(UnityEngine.UI.CanvasScaler scaler)
+        {
+            var refRaw = PromptUGUI.Variants.VariantResolver.ResolveAttribute(
+                Def.Root, "reference", Variants);
+            var design = PromptUGUI.Application.ReferenceResolutionParser.Parse(
+                refRaw, $"<Screen name='{Def.Name}' reference> (pixel-mode runtime)");
+            if (!design.HasValue)
+            {
+                UnityEngine.Debug.LogError(
+                    $"[PromptUGUI] <Screen name='{Def.Name}' scale-mode='pixel'>: " +
+                    $"requires a reference='WxH' to compute integer scale factor. " +
+                    $"Falling back to ConstantPixelSize, scaleFactor=1.");
+                scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize;
+                scaler.scaleFactor = 1f;
+                return;
+            }
+            var canvasSize = UI.CanvasSizeOverride != null
+                ? UI.CanvasSizeOverride()
+                : ReadCanvasRectSize();
+            var factor = PixelScaleSolver.Solve(canvasSize, design.Value);
+            if (UI.MinPixelScale > 0f && factor < UI.MinPixelScale)
+                factor = UI.MinPixelScale;
+            scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize;
+            scaler.scaleFactor = factor;
+        }
+
+        private UnityEngine.Vector2 ReadCanvasRectSize()
+        {
+            // 必须读 Canvas.pixelRect(物理屏幕像素),不能读 RectTransform.rect。
+            // 原因:在 ConstantPixelSize 模式下 RT.rect 等于 Screen.size / scaleFactor —
+            // 我们改 scaleFactor 后 RT.rect 跟着变,下一帧 ApplyPixel 读到不同 rect 又算出
+            // 不同 factor,形成反馈循环让 scaleFactor 在 1 ↔ N 之间闪烁。Canvas.pixelRect
+            // 与 scaleFactor 无关(返回的是实际渲染输出像素),切断反馈链。
+            var canvas = RootGameObject.GetComponent<UnityEngine.Canvas>();
+            var pr = canvas.pixelRect;
+            return new UnityEngine.Vector2(pr.width, pr.height);
+        }
+
+        private void OnCanvasDimensionsChanged()
+        {
+            // Forward to public subscribers first.
+            RectTransformDimensionsChanged?.Invoke();
+            // Pixel mode needs to recompute scaleFactor when canvas size changes;
+            // Auto mode does its work via Unity's ScaleWithScreenSize internally, so
+            // reapplying is idempotent and cheap. Guard against re-entry just in case
+            // a subscriber happens to mutate the RectTransform during the callback.
+            if (_isReapplyingScaler) return;
+            _isReapplyingScaler = true;
+            try
+            {
+                var scaler = RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+                if (scaler != null) ApplyCanvasScaler(scaler);
+            }
+            finally { _isReapplyingScaler = false; }
         }
 
         public void Close()

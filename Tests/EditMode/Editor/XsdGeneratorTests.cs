@@ -767,6 +767,18 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Screen_element_declares_scale_mode_enum_attribute()
+        {
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+            // The Screen element should carry an explicit attribute name="scale-mode"
+            // restricted to {auto, pixel}.
+            StringAssert.Contains("name=\"scale-mode\"", xsd);
+            StringAssert.Contains("value=\"auto\"", xsd);
+            StringAssert.Contains("value=\"pixel\"", xsd);
+        }
+
+        [Test]
         public void Xsd_includes_Trigger_and_Animation()
         {
             // Regression lock (ANIM-D28): XSD generator is reflection-driven; this

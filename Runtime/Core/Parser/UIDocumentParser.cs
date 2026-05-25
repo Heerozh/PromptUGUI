@@ -129,6 +129,34 @@ namespace PromptUGUI.Parser
                 list.Add((variant, a.Value));
             }
 
+            // <Screen scale-mode="auto|pixel"> — parse-time validation only checks the
+            // enum value. "Pixel requires reference=" is enforced at runtime instead,
+            // because variant + DefaultScaleMode combinations can't be resolved here.
+            if (el.HasAttribute("scale-mode"))
+            {
+                var scaleAttr = el.GetAttribute("scale-mode");
+                ValidateScaleMode(scaleAttr, $"<Screen name='{name}' scale-mode>");
+                rootNode.Attributes["scale-mode"] = scaleAttr;
+            }
+
+            // <Screen scale-mode.<variant>="..."> — same shape as ElementNode VariantOverrides.
+            foreach (System.Xml.XmlAttribute a in el.Attributes)
+            {
+                if (!a.Name.StartsWith("scale-mode.")) continue;
+                var variant = a.Name.Substring("scale-mode.".Length);
+                if (string.IsNullOrEmpty(variant) || variant.Contains("."))
+                    throw new ParseException(
+                        $"<Screen name='{name}'>: malformed attribute '{a.Name}' " +
+                        $"(variant suffix must be 'scale-mode.variant' with no further dots)");
+                ValidateScaleMode(a.Value, $"<Screen name='{name}' {a.Name}>");
+                if (!rootNode.VariantOverrides.TryGetValue("scale-mode", out var list))
+                {
+                    list = new System.Collections.Generic.List<(string, string)>();
+                    rootNode.VariantOverrides["scale-mode"] = list;
+                }
+                list.Add((variant, a.Value));
+            }
+
             var seenWhen = new System.Collections.Generic.HashSet<string>();
 
             foreach (XmlNode c in el.ChildNodes)
@@ -414,6 +442,15 @@ namespace PromptUGUI.Parser
             }
 
             return node;
+        }
+
+        private static void ValidateScaleMode(string raw, string contextLabel)
+        {
+            // Empty string means "inherit UI.DefaultScaleMode"; runtime semantics decide.
+            if (string.IsNullOrEmpty(raw)) return;
+            if (raw == "auto" || raw == "pixel") return;
+            throw new ParseException(
+                $"{contextLabel}: invalid value '{raw}' (expected 'auto' or 'pixel')");
         }
 
         private static bool IsValidIconName(string name)

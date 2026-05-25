@@ -306,6 +306,23 @@ namespace PromptUGUI.Editor
             w.WriteAttributeString("type", "xs:string");
             w.WriteEndElement();
 
+            // scale-mode="auto|pixel", optional
+            w.WriteStartElement("xs", "attribute", null);
+            w.WriteAttributeString("name", "scale-mode");
+            w.WriteAttributeString("use", "optional");
+            w.WriteStartElement("xs", "simpleType", null);
+            w.WriteStartElement("xs", "restriction", null);
+            w.WriteAttributeString("base", "xs:string");
+            foreach (var v in new[] { "auto", "pixel" })
+            {
+                w.WriteStartElement("xs", "enumeration", null);
+                w.WriteAttributeString("value", v);
+                w.WriteEndElement();
+            }
+            w.WriteEndElement();
+            w.WriteEndElement();
+            w.WriteEndElement();
+
             // Accept reference.<variant>="..." (open variant namespace). Must come
             // after all explicit attributes per XSD schema ordering rules.
             w.WriteStartElement("xs", "anyAttribute", null);

@@ -76,6 +76,10 @@ The callback fires once per `Open()` (so also re-fires on hot-reload, since relo
 
 **CanvasScaler**: the `<Screen reference="WxH">` XML attribute is the recommended way to switch from `ConstantPixelSize` to `ScaleWithScreenSize`. If you need `match=0.5` or a custom `referencePixelsPerUnit`, modify `canvas.GetComponent<CanvasScaler>()` inside the configurator — but **don't fight the XML path on the same property** because Variant flips will re-apply the XML setting and overwrite your configurator change.
 
+**像素美术整数缩放**：`UI.DefaultScaleMode = ScaleMode.Pixel`（启动期一次性设置）让所有 `<Screen>` 默认走 `ConstantPixelSize` + 整数倍 `scaleFactor`。每个 Screen 必须配 `reference="WxH"` 作为设计分辨率。具体某个 Screen 想 opt-out 写 XML `scale-mode="auto"`。详见 [authoring-promptugui-xml](../authoring-promptugui-xml/SKILL.md) 的 Canvas 段。
+
+**Pixel 模式下限 `UI.MinPixelScale`**：默认 `0f` = 不限制（小屏算到 `0.5 / 0.25 / 0.125 ...` 自由下落）。设为 `0.5f` / `1f` 等限制 factor 下限——小屏不再缩小内容，而是让内容溢出（你 `anchor="stretch"` 的元素会被物理屏幕吃边距）。建议值在算法台阶上 `{0.5, 1, 2, ...}`；off-ladder 值（如 `0.7f`）会被原样使用但破坏整数像素对齐。只对 Pixel 模式生效，Auto 模式忽略。
+
 ## Sprite resolver (Resources-backed)
 
 Needed if your XML uses `<Icon>` or any `sprite="ns:name"` form:

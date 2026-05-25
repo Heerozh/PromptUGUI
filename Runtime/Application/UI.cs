@@ -164,6 +164,24 @@ namespace PromptUGUI.Application
         // assign worldCamera, set sortingOrder, etc. Per-Screen behavior keys off the second arg.
         public static System.Action<UnityEngine.Canvas, string> CanvasConfigurator { get; set; }
 
+        // Project-level default for <Screen> scale-mode. Per-Screen XML override
+        // (scale-mode="auto|pixel") wins when present. See ScaleMode.cs for semantics.
+        public static ScaleMode DefaultScaleMode { get; set; } = ScaleMode.Auto;
+
+        // Hard floor for the Pixel-mode scaleFactor. Default 0 = no floor (algorithm
+        // can fall through 0.5 / 0.25 / 0.125 / ... toward zero on small screens).
+        // Set to 0.5 / 1 / etc. to clamp the lower fallback — useful when small
+        // screens shouldn't shrink content below a readable threshold (content will
+        // overflow instead, and your anchor=stretch elements absorb the slack).
+        // Off-ladder values like 0.7 are honored verbatim but defeat integer pixel
+        // alignment — stick to {0.5, 1, 2, ...}. No effect on Auto mode.
+        public static float MinPixelScale { get; set; } = 0f;
+
+        // Test seam: when non-null, Screen.ApplyCanvasScaler (Pixel branch) reads canvas
+        // size from this override instead of the Canvas RectTransform. Mirrors the pattern
+        // used by Internal.OrientationTracker.ScreenSizeOverride.
+        internal static System.Func<UnityEngine.Vector2> CanvasSizeOverride { get; set; }
+
         public static ControlRegistry Registry { get; private set; } = CreateRegistryWithBuiltins();
 
         internal static VariantStore VariantStore { get; } = new();
@@ -726,6 +744,9 @@ namespace PromptUGUI.Application
             _spriteResolverLoadCount = 0;
             PoResolver = null;
             CanvasConfigurator = null;
+            DefaultScaleMode = ScaleMode.Auto;
+            MinPixelScale = 0f;
+            CanvasSizeOverride = null;
 #if UNITY_EDITOR
             HotReload.AssetPathToSrc = null;
             HotReload.SpriteResolverRebuilder = null;

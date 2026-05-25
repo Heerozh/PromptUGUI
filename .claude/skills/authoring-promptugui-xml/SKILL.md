@@ -68,7 +68,7 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 | --------------------------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `<PromptUGUI version="1">`                                                        | Root, **always**.                                         | NOT `<UI>`. `version="1"` is required.                                                                                                                                                                       |
 | `<Import src="..." [as="ns"]/>`                                                   | Pull templates from another file.                         | Top-level only. `as=` adds namespace prefix.                                                                                                                                                                 |
-| `<Screen name="..." [canvas="..."] [reference="..."] [reference.portrait="..."]>` | A complete UI scene; opened by code with `UI.Open(name)`. | One Screen = one Canvas. Names unique across all loaded files. `canvas="overlay\|camera\|world"`, default `overlay`. Optional `reference="WxH"` (+ `.variant`) switches CanvasScaler to ScaleWithScreenSize. |
+| `<Screen name="..." [canvas="..."] [reference="..."] [scale-mode="..."] [reference.portrait="..."]>` | A complete UI scene; opened by code with `UI.Open(name)`. | One Screen = one Canvas. Names unique across all loaded files. `canvas="overlay\|camera\|world"`, default `overlay`. Optional `reference="WxH"` (+ `.variant`) switches CanvasScaler to ScaleWithScreenSize. Optional `scale-mode="auto\|pixel"` (+ `.variant`); pixel = integer scaleFactor. |
 | `<Template name="...">`                                                           | Reusable subtree, expanded at parse time.                 | Body must have **exactly one root element**.                                                                                                                                                                 |
 
 `<Import>`, `<Screen>`, `<Template>` are the **only** elements allowed at the top level. Comments use standard `<!-- -->`.
@@ -507,6 +507,7 @@ There's also a **commons pool** populated C#-side that's merged into every Scree
 - 未设 / `reference=""` → 保留默认 `ConstantPixelSize, scaleFactor=1` 行为；XML 数字直接 = 设备像素。
 - `.variant` 形态：`reference.mobile="..."` 同其他属性 variant 规则；变体切换时 CanvasScaler 立即重应用。
 - 要 `match=0.5` 折中或改 `referencePixelsPerUnit`：走 `UI.CanvasConfigurator` 手改。**不要在两条路径同时改 CanvasScaler** —— variant flip 时 XML 路径会覆盖 configurator 的改动。
+- `scale-mode="auto|pixel"` (+ `.variant`)：默认 `auto` = 上面 `reference` 的连续缩放语义。`pixel` 切到 `ConstantPixelSize` + 整数倍 `scaleFactor`（fit-inside 取小；屏幕 < 设计时 snap 到 1/2、1/4、1/8 等保 2x2 干净降采样）。**必须配 `reference="WxH"`**，否则运行期 `Debug.LogError` 并降级 `scaleFactor=1`。像素美术 / 等距图项目用 —— sprite 永远整数倍渲染到屏幕像素。项目级默认走 C# `UI.DefaultScaleMode = ScaleMode.Pixel`；具体 Screen 想退回连续缩放写 `scale-mode="auto"`。
 
 ## Modal / Loading screens (XML contract)
 
@@ -608,6 +609,8 @@ USE           <ns.TagName/>             (when prefixed)
 SCREEN ATTRS  canvas="overlay|camera|world"    default overlay; renderMode only
               reference="WxH"                  ScaleWithScreenSize; unset = ConstantPixelSize
                                                .variant overrides supported (reference.mobile=...)
+              scale-mode="auto|pixel"          pixel = ConstantPixelSize + integer factor
+                                               requires reference; project default via UI.DefaultScaleMode
 
 I18N XML      <Text>...</Text>                 extract + translate
               <Text tr="false">...</Text>      skip
