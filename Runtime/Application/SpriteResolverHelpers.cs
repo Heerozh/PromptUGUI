@@ -42,6 +42,7 @@ namespace PromptUGUI.Application
             // Entries carry the canonical pathKey + bare alias the syncer chose.
             var map = new Dictionary<string, Sprite>(StringComparer.Ordinal);
             var seenSet = new HashSet<string>(StringComparer.Ordinal);
+            UI.LoadedSpriteSetNames.Clear();
             foreach (var set in sets)
             {
                 if (set == null) continue;
@@ -53,6 +54,7 @@ namespace PromptUGUI.Application
                 if (!seenSet.Add(set.SetName))
                     throw new InvalidOperationException(
                         $"Duplicate SpriteSet name '{set.SetName}'");
+                UI.LoadedSpriteSetNames.Add(set.SetName);
 
                 foreach (var (key, sprite) in set.Entries)
                 {

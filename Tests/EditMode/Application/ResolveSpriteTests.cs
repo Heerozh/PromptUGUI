@@ -84,6 +84,67 @@ namespace PromptUGUI.Tests.EditMode.Application
         }
 
         [Test]
+        public void ResolveSprite_unknown_set_name_message_calls_out_set_not_loaded()
+        {
+            // Set "ui" is loaded via UseSpriteSetResolver, but the caller asks for
+            // sprite from set "icons" which was never registered. The error must
+            // explicitly say "SpriteSet 'icons' is not loaded" so the author knows
+            // the issue is registration, not a typo or atlas sync.
+            SpriteResolverHelpers.UseSpriteSetResolver(new[] { MakeIconSet("ui") });
+            LogAssert.Expect(LogType.Error,
+                new System.Text.RegularExpressions.Regex(
+                    @"SpriteSet 'icons' is not loaded"));
+
+            var actual = UI.ResolveSprite("icons:bell");
+
+            Assert.IsNull(actual);
+        }
+
+        [Test]
+        public void ResolveSprite_unknown_set_name_message_lists_loaded_sets_and_both_registration_hints()
+        {
+            // Diagnose-without-callback: the user might have registered via either
+            // UseAddressableSpriteSetResolver (label-based) or UseSpriteSetResolver
+            // (Resources-subpath). We don't know which, so mention both. Also list
+            // what IS loaded so the user can compare.
+            SpriteResolverHelpers.UseSpriteSetResolver(
+                new[] { MakeIconSet("ui"), MakeIconSet("game") });
+            LogAssert.Expect(LogType.Error,
+                new System.Text.RegularExpressions.Regex(
+                    @"UseAddressableSpriteSetResolver.*UseSpriteSetResolver",
+                    System.Text.RegularExpressions.RegexOptions.Singleline));
+
+            var actual = UI.ResolveSprite("icons:bell");
+
+            Assert.IsNull(actual);
+        }
+
+        [Test]
+        public void ResolveSprite_known_set_missing_key_message_calls_out_atlas_sync()
+        {
+            // Set "ui" IS loaded but doesn't contain key "bell" → the registration
+            // is fine; the user needs to add the sprite + run Sync Atlases.
+            SpriteResolverHelpers.UseSpriteSetResolver(new[] { MakeIconSet("ui") });
+            LogAssert.Expect(LogType.Error,
+                new System.Text.RegularExpressions.Regex(
+                    @"SpriteSet 'ui' is loaded but doesn't contain 'bell'.*Sync Atlases",
+                    System.Text.RegularExpressions.RegexOptions.Singleline));
+
+            var actual = UI.ResolveSprite("ui:bell");
+
+            Assert.IsNull(actual);
+        }
+
+        private static SpriteSet MakeIconSet(string name)
+        {
+            var s = UnityEngine.ScriptableObject.CreateInstance<SpriteSet>();
+            var so = new UnityEditor.SerializedObject(s);
+            so.FindProperty("setName").stringValue = name;
+            so.ApplyModifiedProperties();
+            return s;
+        }
+
+        [Test]
         public void ResolveSprite_with_hash_returns_named_slice_from_multi_sprite_texture()
         {
             var actual = UI.ResolveSprite("PromptUGUI/Defaults/pugui.png#pugui_9slice_round");

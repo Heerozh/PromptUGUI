@@ -16,6 +16,14 @@ namespace PromptUGUI.Application
         public static System.Func<string, UnityEngine.Awaitable<string>> SourceResolver { get; set; }
         public static System.Func<string, UnityEngine.Sprite> SpriteResolver { get; set; }
 
+        // Populated by SpriteResolverHelpers.BuildLookup so resolution-failure
+        // diagnostics can tell apart "set never registered" from "set registered
+        // but key missing". Empty if the user installed a raw SpriteResolver
+        // delegate without going through UseSpriteSetResolver — in that case the
+        // diagnostic falls back to the "set not loaded" branch with an empty list.
+        internal static readonly System.Collections.Generic.HashSet<string> LoadedSpriteSetNames
+            = new(System.StringComparer.Ordinal);
+
         private static int _spriteResolverLoadCount;
 
         /// <summary>
@@ -83,11 +91,7 @@ namespace PromptUGUI.Application
                 }
                 var sprite = SpriteResolver(value);
                 if (sprite == null)
-                    UnityEngine.Debug.LogError(
-                        $"sprite '{value}': resolver returned null. " +
-                        $"Check the sprite name spelling, or run " +
-                        $"Tools → PromptUGUI → Sprite → Sync Atlases (All Sets) " +
-                        $"to include it in the SpriteSet's atlas.");
+                    UnityEngine.Debug.LogError(BuildSpriteResolutionFailureMessage("sprite", value));
                 return sprite;
             }
 
@@ -117,6 +121,35 @@ namespace PromptUGUI.Application
                 $"sprite '{value}': slice '{sliceName}' not found in '{path}'. " +
                 $"Available: {string.Join(", ", names)}");
             return null;
+        }
+
+        // Shared between UI.ResolveSprite and Icon.Name. Splits the `set:key` form
+        // and branches the hint on whether the set was ever registered, so the
+        // author gets actionable advice instead of the generic "Sync Atlases" line.
+        // <paramref name="prefix"/> is "sprite" for ResolveSprite, "Icon" for Icon.
+        internal static string BuildSpriteResolutionFailureMessage(string prefix, string value)
+        {
+            int colon = value.IndexOf(':');
+            if (colon <= 0)
+                return $"{prefix} '{value}': resolver returned null. " +
+                       $"Check the name spelling.";
+
+            var setName = value.Substring(0, colon);
+            if (!LoadedSpriteSetNames.Contains(setName))
+            {
+                var loaded = LoadedSpriteSetNames.Count == 0
+                    ? "none"
+                    : string.Join(", ", LoadedSpriteSetNames);
+                return $"{prefix} '{value}': resolver returned null because SpriteSet '{setName}' is not loaded. " +
+                       $"Currently loaded sets: [{loaded}]. " +
+                       $"If you registered via UseAddressableSpriteSetResolver, ensure the '{setName}' SpriteSet asset has the matching Addressables label. " +
+                       $"If via UseSpriteSetResolver(resourcesSubpath), ensure the asset lives under that Resources subfolder.";
+            }
+
+            var key = value.Substring(colon + 1);
+            return $"{prefix} '{value}': resolver returned null. SpriteSet '{setName}' is loaded but doesn't contain '{key}'. " +
+                   $"Add the sprite to the '{setName}' SpriteSet's source folder, then run " +
+                   $"Tools → PromptUGUI → Sprite → Sync Atlases (Selected Set).";
         }
 
         // Optional override for locale → translation entries. Default (null) loads
@@ -689,6 +722,7 @@ namespace PromptUGUI.Application
             _depGraph.Clear();
             SourceResolver = null;
             SpriteResolver = null;
+            LoadedSpriteSetNames.Clear();
             _spriteResolverLoadCount = 0;
             PoResolver = null;
             CanvasConfigurator = null;
