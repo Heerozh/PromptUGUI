@@ -21,19 +21,19 @@ namespace PromptUGUI.Controls
             _layout.childAlignment = TextAnchor.MiddleLeft;
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string ChildAlign
         {
             set => _layout.childAlignment = VStack.ParseChildAlign(value);
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public float Spacing
         {
             set => _layout.spacing = value;
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Padding
         {
             set

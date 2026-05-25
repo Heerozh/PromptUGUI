@@ -17,13 +17,13 @@ namespace PromptUGUI.Controls
             _layout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public int Columns
         {
             set => _layout.constraintCount = value;
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string CellSize
         {
             set
@@ -35,7 +35,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Spacing
         {
             set
@@ -55,7 +55,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Padding
         {
             set

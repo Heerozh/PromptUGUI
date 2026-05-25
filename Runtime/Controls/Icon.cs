@@ -18,7 +18,7 @@ namespace PromptUGUI.Controls
             _img.color = UnityEngine.Color.white;
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Name
         {
             set
@@ -41,7 +41,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Color
         {
             set

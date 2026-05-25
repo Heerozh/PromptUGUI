@@ -18,7 +18,7 @@ namespace PromptUGUI.Controls
                 sizeSpec.HasHeight ? AnchorVertical.Top : AnchorVertical.Stretch,
                 sizeSpec.HasWidth ? AnchorHorizontal.Left : AnchorHorizontal.Stretch);
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Mask
         {
             set
@@ -33,7 +33,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string MaskPadding
         {
             set

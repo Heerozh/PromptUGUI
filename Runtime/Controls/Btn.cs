@@ -69,7 +69,7 @@ namespace PromptUGUI.Controls
             if (asset != null) _autoLabel.font = asset;
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Text
         {
             set
@@ -81,7 +81,7 @@ namespace PromptUGUI.Controls
 
         internal override string PeekDefaultText() => _autoLabel != null ? _autoLabel.text : null;
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Font
         {
             set
@@ -91,13 +91,13 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr("fontSize")]
+        [UIAttr("fontSize"), Preserve]
         public int FontSize
         {
             set => EnsureLabel().fontSize = value;
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Color
         {
             set
@@ -107,7 +107,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Sprite
         {
             set => _bg.sprite = UI.ResolveSprite(value);

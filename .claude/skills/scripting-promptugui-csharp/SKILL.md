@@ -251,8 +251,8 @@ public sealed class MyControl : Control {
               ?? GameObject.AddComponent<UnityEngine.UI.Image>();
     }
 
-    [UIAttr] public string Color { set { /* parse hex, apply */ } }
-    [UIAttr("backgroundSprite")] public string Sprite { set { /* ... */ } }
+    [UIAttr, Preserve] public string Color { set { /* parse hex, apply */ } }
+    [UIAttr("backgroundSprite"), Preserve] public string Sprite { set { /* ... */ } }
 }
 
 UI.Registry.Register<MyControl>("MyControl", optionalPrefab: null);
@@ -262,7 +262,7 @@ UI.Registry.Register<MyControl>("MyControl", optionalPrefab: null);
 - Supported types: `string` / `int` / `float` / `bool`. Use string + parse internally for everything else.
 - `[Bind]` on a field auto-wires a child component from a Prefab by child name. Useful when the control has a non-trivial Prefab structure.
 - `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` are reference implementations — for project-specific differentiation (pixel border, press feedback, custom popup chrome), subclass and override `OnAttached`; don't modify the base controls.
-- **IL2CPP / Managed Code Stripping**: `[UIAttr]` setters are invoked via reflection (`PropertyInfo.SetValue`), invisible to the IL2CPP linker. PromptUGUI's own controls are covered by `Runtime/link.xml` (preserves the whole `PromptUGUI.Runtime` assembly). Custom controls in your own asmdef are **not** — add a `link.xml` next to your asmdef preserving your assembly, or mark each `[UIAttr]` property with `[UnityEngine.Scripting.Preserve]`. Symptom of forgetting: attributes (color/sprite/etc.) silently revert to defaults in builds with no error log.
+- **IL2CPP Managed Stripping (Medium+)**: setter-only `[UIAttr]` properties get their `PropertyInfo` metadata stripped (`Type.GetProperties()` returns nothing for them), reflection misses the property, attribute silently reverts to default in Player builds with no error log. **Pair every `[UIAttr]` and `[Bind]` with `[Preserve]`**: `[UIAttr, Preserve] public string Color { set { ... } }`. `PromptUGUI.Registry.PreserveAttribute` is name-matched by Mono.Linker (any class named exactly `PreserveAttribute`, inheritance does **not** count). All built-in controls already do this; custom controls must too.
 
 ## Common mistakes (C#)
 
@@ -271,7 +271,7 @@ UI.Registry.Register<MyControl>("MyControl", optionalPrefab: null);
 | Element not found at runtime              | `id` only declared inside a `<Template>`, accessed by flat name                     | Use path: `screen.Get("templateInstanceId/innerId")`                                              |
 | Subscription survives Close → null refs   | Forgot `.AddTo(screen)`                                                             | Always tie R3 subscriptions to Screen lifetime                                                    |
 | Custom control's `[UIAttr]` ignored       | Property type other than string/int/float/bool                                      | Take a string param and parse internally (see `Btn.Color` for a hex example)                      |
-| Attrs silently default in IL2CPP build    | Managed code stripping removed reflected setter metadata in custom asmdef          | Add `link.xml` preserving your assembly, or `[UnityEngine.Scripting.Preserve]` per `[UIAttr]` prop |
+| Attrs silently default in IL2CPP build    | Forgot `[Preserve]` next to `[UIAttr]` — Medium+ stripping drops PropertyInfo metadata, reflection misses the property | Always write `[UIAttr, Preserve]` (both from `PromptUGUI.Registry`)                                |
 | ScrollList shows nothing after hot-reload | `BindItems` subscription disposed on close, but the ScrollList is rebuilt on reload | Re-call `BindItems` on reload — the convention is to re-wire from a single `OnOpened` entry point |
 | `<Icon>` shows pink/error sprite          | `UI.SpriteResolver` not set (or `SpriteSet` not in Resources/SpriteSets)             | Call `SpriteResolverHelpers.UseSpriteSetResolver(...)` before any Screen opens                |
 

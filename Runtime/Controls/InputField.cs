@@ -93,7 +93,7 @@ namespace PromptUGUI.Controls
             if (_placeholder != null) _placeholder.font = asset;
         }
 
-        [UIAttr("text")]
+        [UIAttr("text"), Preserve]
         public string TextValue
         {
             set => _input.text = value ?? string.Empty;
@@ -101,7 +101,7 @@ namespace PromptUGUI.Controls
 
         internal override string PeekDefaultText() => _input != null ? _input.text : null;
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Placeholder
         {
             set
@@ -110,7 +110,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string ContentType
         {
             set
@@ -133,7 +133,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string LineType
         {
             set
@@ -149,19 +149,19 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public int CharacterLimit
         {
             set => _input.characterLimit = value;
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public bool ReadOnly
         {
             set => _input.readOnly = value;
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Color
         {
             set
@@ -171,13 +171,13 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Sprite
         {
             set => _bg.sprite = UI.ResolveSprite(value);
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Font
         {
             set

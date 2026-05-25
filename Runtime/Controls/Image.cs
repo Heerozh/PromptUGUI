@@ -32,13 +32,13 @@ namespace PromptUGUI.Controls
         public Observable<Unit> OnPointerExit => EnsureRelay().OnPointerExit;
         public Observable<Unit> OnPointerDown => EnsureRelay().OnPointerDown;
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Sprite
         {
             set => _img.sprite = UI.ResolveSprite(value);
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Color
         {
             set
@@ -49,7 +49,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Type
         {
             set
@@ -65,7 +65,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Mask
         {
             set
@@ -85,7 +85,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string ShowMask
         {
             set
@@ -97,7 +97,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string MaskPadding
         {
             set

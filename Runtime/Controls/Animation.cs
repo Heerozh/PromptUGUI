@@ -17,20 +17,20 @@ namespace PromptUGUI.Controls
 
         protected internal override Transform ChildHostTransform => _offsetProxy;
 
-        [UIAttr("type")] public string TypeAttr { set => _spec.SetType(value); }
-        [UIAttr("translate")] public string TranslateAttr { set => _spec.SetTranslate(value); }
-        [UIAttr("scale")] public string ScaleAttr { set => _spec.SetScale(value); }
-        [UIAttr("rotate")] public string RotateAttr { set => _spec.SetRotate(value); }
-        [UIAttr("fade")] public string FadeAttr { set => _spec.SetFade(value); }
-        [UIAttr("duration")] public string DurationAttr { set => _spec.SetDuration(value); }
-        [UIAttr("delay")] public string DelayAttr { set => _spec.SetDelay(value); }
-        [UIAttr("easing")] public string EasingAttr { set => _spec.SetEasing(value); }
-        [UIAttr("loop")] public string LoopAttr { set => _spec.SetLoop(value); }
-        [UIAttr("count")] public string CountAttr { set => _spec.SetCount(value); }
-        [UIAttr("format")] public string FormatAttr { set => _spec.SetFormat(value); }
-        [UIAttr("target")] public string TargetAttr { set => _spec.SetTarget(value); }
-        [UIAttr("char-color")] public string CharColorAttr { set => _spec.SetCharColor(value); }
-        [UIAttr("char-stagger")] public string CharStaggerAttr { set => _spec.SetCharStagger(value); }
+        [UIAttr("type"), Preserve] public string TypeAttr { set => _spec.SetType(value); }
+        [UIAttr("translate"), Preserve] public string TranslateAttr { set => _spec.SetTranslate(value); }
+        [UIAttr("scale"), Preserve] public string ScaleAttr { set => _spec.SetScale(value); }
+        [UIAttr("rotate"), Preserve] public string RotateAttr { set => _spec.SetRotate(value); }
+        [UIAttr("fade"), Preserve] public string FadeAttr { set => _spec.SetFade(value); }
+        [UIAttr("duration"), Preserve] public string DurationAttr { set => _spec.SetDuration(value); }
+        [UIAttr("delay"), Preserve] public string DelayAttr { set => _spec.SetDelay(value); }
+        [UIAttr("easing"), Preserve] public string EasingAttr { set => _spec.SetEasing(value); }
+        [UIAttr("loop"), Preserve] public string LoopAttr { set => _spec.SetLoop(value); }
+        [UIAttr("count"), Preserve] public string CountAttr { set => _spec.SetCount(value); }
+        [UIAttr("format"), Preserve] public string FormatAttr { set => _spec.SetFormat(value); }
+        [UIAttr("target"), Preserve] public string TargetAttr { set => _spec.SetTarget(value); }
+        [UIAttr("char-color"), Preserve] public string CharColorAttr { set => _spec.SetCharColor(value); }
+        [UIAttr("char-stagger"), Preserve] public string CharStaggerAttr { set => _spec.SetCharStagger(value); }
 
         public override void OnAttached()
         {

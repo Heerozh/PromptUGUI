@@ -86,7 +86,7 @@ namespace PromptUGUI.Controls
             if (asset != null) _label.font = asset;
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Text
         {
             set
@@ -97,7 +97,7 @@ namespace PromptUGUI.Controls
 
         internal override string PeekDefaultText() => _label != null ? _label.text : null;
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Font
         {
             set
@@ -107,7 +107,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Color
         {
             set
@@ -117,20 +117,20 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Sprite
         {
             set => _checkmark.sprite = UI.ResolveSprite(value);
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public bool IsOn
         {
             get => _toggle.isOn;
             set => _toggle.isOn = value;
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Group
         {
             set

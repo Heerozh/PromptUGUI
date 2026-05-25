@@ -36,7 +36,7 @@ namespace PromptUGUI.Controls
         private IDisposable _sourceSub;
         private bool _subscribed;
 
-        [UIAttr("on")]
+        [UIAttr("on"), Preserve]
         public string On { set => _spec = TriggerSpec.Parse(value); }
 
         internal Internal.TriggerKind TriggerKind => _spec?.Kind ?? Internal.TriggerKind.Open;

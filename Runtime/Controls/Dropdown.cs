@@ -184,14 +184,14 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public int Value
         {
             get => _tmp.value;
             set => _tmp.value = value;
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Color
         {
             set
@@ -201,13 +201,13 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Sprite
         {
             set => _bg.sprite = UI.ResolveSprite(value);
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Font
         {
             set

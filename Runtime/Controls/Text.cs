@@ -39,7 +39,7 @@ namespace PromptUGUI.Controls
             if (asset != null) _tmp.font = asset;
         }
 
-        [UIAttr("text")]
+        [UIAttr("text"), Preserve]
         public string TextValue
         {
             set => _tmp.text = value ?? "";
@@ -47,13 +47,13 @@ namespace PromptUGUI.Controls
 
         internal override string PeekDefaultText() => _tmp != null ? _tmp.text : null;
 
-        [UIAttr("fontSize")]
+        [UIAttr("fontSize"), Preserve]
         public int Size
         {
             set => _tmp.fontSize = value;
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Color
         {
             set
@@ -63,7 +63,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Align
         {
             set
@@ -77,19 +77,19 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public bool Wrap
         {
             set => _tmp.textWrappingMode = value ? TextWrappingModes.Normal : TextWrappingModes.NoWrap;
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public bool RaycastTarget
         {
             set => _tmp.raycastTarget = value;
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Font
         {
             set

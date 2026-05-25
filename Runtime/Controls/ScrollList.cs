@@ -151,7 +151,7 @@ namespace PromptUGUI.Controls
             _layoutGroup.padding = new RectOffset(l, r, t, b);
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string ItemTemplate
         {
             set
@@ -161,19 +161,19 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Direction
         {
             set { _direction = string.IsNullOrEmpty(value) ? "vertical" : value; ApplyDirection(); }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public float Spacing { set { _spacing = value; ApplySpacingPadding(); } }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Padding { set { _padding = value; ApplySpacingPadding(); } }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Color
         {
             set
@@ -183,7 +183,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Sprite
         {
             set => _bg.sprite = UI.ResolveSprite(value);

@@ -26,7 +26,7 @@ namespace PromptUGUI.Controls
             _layout.childAlignment = TextAnchor.UpperCenter;
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string ChildAlign
         {
             set => _layout.childAlignment = ParseChildAlign(value);
@@ -47,13 +47,13 @@ namespace PromptUGUI.Controls
                 $"childAlign '{s}' must be 'upper|middle|lower-left|center|right' (or 'center' alias for middle-center)"),
         };
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public float Spacing
         {
             set => _layout.spacing = value;
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Padding
         {
             set

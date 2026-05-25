@@ -82,17 +82,17 @@ namespace PromptUGUI.Controls
             _slider.onValueChanged.AddListener(v => _changed.OnNext(v));
         }
 
-        [UIAttr] public float Min { set => _slider.minValue = value; }
-        [UIAttr] public float Max { set => _slider.maxValue = value; }
-        [UIAttr]
+        [UIAttr, Preserve] public float Min { set => _slider.minValue = value; }
+        [UIAttr, Preserve] public float Max { set => _slider.maxValue = value; }
+        [UIAttr, Preserve]
         public float Value
         {
             get => _slider.value;
             set => _slider.value = value;
         }
-        [UIAttr] public bool WholeNumbers { set => _slider.wholeNumbers = value; }
+        [UIAttr, Preserve] public bool WholeNumbers { set => _slider.wholeNumbers = value; }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Direction
         {
             set
@@ -109,7 +109,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Color
         {
             set
@@ -119,7 +119,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr]
+        [UIAttr, Preserve]
         public string Sprite
         {
             set => _bg.sprite = UI.ResolveSprite(value);
