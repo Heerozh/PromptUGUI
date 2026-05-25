@@ -25,6 +25,7 @@ namespace PromptUGUI.Application
         private readonly Dictionary<ElementNode, Control> _nodeMap = new();
         private readonly List<IDisposable> _subscriptions = new();
         private IDisposable _variantSub;
+        private bool _isReapplyingScaler;
 
         internal Controls.Internal.ToggleGroupRegistry ToggleGroups { get; private set; }
 
@@ -106,7 +107,7 @@ namespace PromptUGUI.Application
             ToggleGroups = new Controls.Internal.ToggleGroupRegistry(root.transform);
 
             var relay = root.AddComponent<RectDimensionsRelay>();
-            relay.OnDimensionsChanged = () => RectTransformDimensionsChanged?.Invoke();
+            relay.OnDimensionsChanged = OnCanvasDimensionsChanged;
 
             // deferApply: the InstantiateInto recursion attaches every control but does
             // NOT apply attributes yet — nodes are collected into result.ApplyOrder
@@ -194,6 +195,24 @@ namespace PromptUGUI.Application
             var rt = RootGameObject.GetComponent<RectTransform>();
             var rect = rt.rect;
             return new UnityEngine.Vector2(rect.width, rect.height);
+        }
+
+        private void OnCanvasDimensionsChanged()
+        {
+            // Forward to public subscribers first.
+            RectTransformDimensionsChanged?.Invoke();
+            // Pixel mode needs to recompute scaleFactor when canvas size changes;
+            // Auto mode does its work via Unity's ScaleWithScreenSize internally, so
+            // reapplying is idempotent and cheap. Guard against re-entry just in case
+            // a subscriber happens to mutate the RectTransform during the callback.
+            if (_isReapplyingScaler) return;
+            _isReapplyingScaler = true;
+            try
+            {
+                var scaler = RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+                if (scaler != null) ApplyCanvasScaler(scaler);
+            }
+            finally { _isReapplyingScaler = false; }
         }
 
         public void Close()

@@ -249,5 +249,40 @@ namespace PromptUGUI.Tests.Application
             // rect — we only care that Open() completed and a factor was assigned.
             Assert.Greater(scaler.scaleFactor, 0f);
         }
+
+        [Test]
+        public void Resize_event_recomputes_pixel_factor()
+        {
+            UnityEngine.Vector2 size = new(1920f, 1080f);
+            UI.CanvasSizeOverride = () => size;
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'><Frame/></Screen>
+</PromptUGUI>");
+            var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+            Assert.AreEqual(1f, scaler.scaleFactor, 1e-6f);
+
+            // Simulate window resize: change the override and fire the relay.
+            size = new UnityEngine.Vector2(3840f, 2160f);
+            var relay = screen.RootGameObject.GetComponent<PromptUGUI.Application.RectDimensionsRelay>();
+            relay.OnDimensionsChanged?.Invoke();
+
+            Assert.AreEqual(2f, scaler.scaleFactor, 1e-6f);
+        }
+
+        [Test]
+        public void Resize_does_not_recurse()
+        {
+            UnityEngine.Vector2 size = new(1920f, 1080f);
+            UI.CanvasSizeOverride = () => size;
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'><Frame/></Screen>
+</PromptUGUI>");
+            var relay = screen.RootGameObject.GetComponent<PromptUGUI.Application.RectDimensionsRelay>();
+            // Manually fire 5 times in a row; should not stack-overflow.
+            for (int i = 0; i < 5; i++) relay.OnDimensionsChanged?.Invoke();
+            Assert.Pass();
+        }
     }
 }
