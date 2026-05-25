@@ -113,7 +113,6 @@ namespace PromptUGUI.Tests.Application
 
         private static PromptUGUI.Application.Screen OpenScreen(string xml)
         {
-            UI.SourceResolver = _ => AwaitableHelpers.Completed("dummy");
             UI.LoadDocument("test", xml);
             return (PromptUGUI.Application.Screen)UI.Open("S");
         }
@@ -229,6 +228,26 @@ namespace PromptUGUI.Tests.Application
             UI.ResetForTests();
             Assert.AreEqual(ScaleMode.Auto, UI.DefaultScaleMode);
             Assert.IsNull(UI.CanvasSizeOverride);
+        }
+
+        [Test]
+        public void Pixel_without_canvas_size_override_reads_canvas_rect_without_NRE()
+        {
+            // Reproduces the NRE that occurred when ApplyCanvasScaler ran before
+            // RootGameObject was assigned in Open(). The point isn't the factor —
+            // it's that ReadCanvasRectSize can read RootGameObject's RectTransform
+            // without throwing. CanvasSizeOverride intentionally NOT set so the
+            // pixel branch takes the ReadCanvasRectSize path.
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'><Frame/></Screen>
+</PromptUGUI>");
+            var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+            Assert.AreEqual(UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize, scaler.uiScaleMode);
+            // PixelScaleSolver always returns a positive factor (>= 0 degenerate guard or
+            // power-of-two snap). The exact value depends on the host EditMode canvas
+            // rect — we only care that Open() completed and a factor was assigned.
+            Assert.Greater(scaler.scaleFactor, 0f);
         }
     }
 }

@@ -76,6 +76,9 @@ namespace PromptUGUI.Application
             // interleaved with the build) into one batched activation pass — the same
             // path Object.Instantiate / scene-load take. Also far fewer layout rebuilds.
             root.SetActive(false);
+            // 必须先于 ApplyCanvasScaler / OnAttached / setter 阶段设好：pixel-mode
+            // 的 ReadCanvasRectSize 与 UI.OwnerScreenOf 都会反查 RootGameObject。
+            RootGameObject = root;
             var canvas = root.GetComponent<Canvas>();
             canvas.renderMode = Def.CanvasMode switch
             {
@@ -101,9 +104,6 @@ namespace PromptUGUI.Application
             }
 
             ToggleGroups = new Controls.Internal.ToggleGroupRegistry(root.transform);
-            // 在实例化前先设 RootGameObject，让 controls 在 OnAttached / setter 阶段
-            // 也能通过 UI.OwnerScreenOf 走 transform-tree → RootGameObject 反查到本 Screen。
-            RootGameObject = root;
 
             var relay = root.AddComponent<RectDimensionsRelay>();
             relay.OnDimensionsChanged = () => RectTransformDimensionsChanged?.Invoke();
