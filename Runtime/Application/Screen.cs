@@ -135,6 +135,21 @@ namespace PromptUGUI.Application
 
         private void ApplyCanvasScaler(UnityEngine.UI.CanvasScaler scaler)
         {
+            var mode = ResolveScaleMode();
+            if (mode == ScaleMode.Pixel) ApplyPixel(scaler);
+            else ApplyAuto(scaler);
+        }
+
+        private ScaleMode ResolveScaleMode()
+        {
+            var raw = PromptUGUI.Variants.VariantResolver.ResolveAttribute(
+                Def.Root, "scale-mode", Variants);
+            if (string.IsNullOrEmpty(raw)) return UI.DefaultScaleMode;
+            return raw == "pixel" ? ScaleMode.Pixel : ScaleMode.Auto;
+        }
+
+        private void ApplyAuto(UnityEngine.UI.CanvasScaler scaler)
+        {
             var raw = PromptUGUI.Variants.VariantResolver.ResolveAttribute(
                 Def.Root, "reference", Variants);
             var parsed = PromptUGUI.Application.ReferenceResolutionParser.Parse(
@@ -150,6 +165,10 @@ namespace PromptUGUI.Application
             scaler.referenceResolution = size;
             scaler.matchWidthOrHeight = size.x >= size.y ? 0f : 1f;
         }
+
+        // Stub — implemented in Task 6. Falls through to Auto so all existing tests
+        // remain green during the refactor.
+        private void ApplyPixel(UnityEngine.UI.CanvasScaler scaler) => ApplyAuto(scaler);
 
         public void Close()
         {
