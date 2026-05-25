@@ -125,7 +125,7 @@ namespace PromptUGUI.Tests.Application
         [TestCase(960f, 540f, 1920f, 1080f, 0.5f)]
         [TestCase(480f, 270f, 1920f, 1080f, 0.25f)]
         [TestCase(240f, 135f, 1920f, 1080f, 0.125f)]
-        [TestCase(100f, 100f, 1920f, 1080f, 0.0625f)]
+        [TestCase(100f, 100f, 1920f, 1080f, 0.03125f)]
         // Degenerate inputs fall back to 1
         [TestCase(0f, 100f, 1920f, 1080f, 1f)]
         [TestCase(100f, 0f, 1920f, 1080f, 1f)]
