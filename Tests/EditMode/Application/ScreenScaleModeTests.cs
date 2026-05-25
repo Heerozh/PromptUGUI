@@ -221,6 +221,73 @@ namespace PromptUGUI.Tests.Application
         }
 
         [Test]
+        public void Pixel_mode_enables_canvas_pixelPerfect()
+        {
+            // scale-mode=pixel naturally pairs with Canvas.pixelPerfect: scale-mode handles
+            // integer outer scaling, pixelPerfect snaps every UI vertex inside the canvas
+            // to integer pixels (anchor/margin math can produce sub-pixel positions).
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(1920f, 1080f);
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'><Frame/></Screen>
+</PromptUGUI>");
+            var canvas = screen.RootGameObject.GetComponent<UnityEngine.Canvas>();
+            Assert.IsTrue(canvas.pixelPerfect);
+        }
+
+        [Test]
+        public void Auto_mode_leaves_canvas_pixelPerfect_off()
+        {
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='auto' reference='1920x1080'><Frame/></Screen>
+</PromptUGUI>");
+            var canvas = screen.RootGameObject.GetComponent<UnityEngine.Canvas>();
+            Assert.IsFalse(canvas.pixelPerfect);
+        }
+
+        [Test]
+        public void Variant_flip_toggles_canvas_pixelPerfect()
+        {
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(3840f, 2160f);
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'
+          scale-mode='auto'
+          scale-mode.portrait='pixel'
+          reference='1920x1080'
+          reference.portrait='1080x1920'>
+    <Frame/>
+  </Screen>
+</PromptUGUI>");
+            var canvas = screen.RootGameObject.GetComponent<UnityEngine.Canvas>();
+            Assert.IsFalse(canvas.pixelPerfect, "auto branch should leave pixelPerfect off");
+
+            UI.Orientation.AutoTrack = false;
+            UI.Orientation.Set(isPortrait: true);
+            // ReSolve re-applies the scaler and must flip pixelPerfect on with the mode.
+            Assert.IsTrue(canvas.pixelPerfect, "pixel branch should turn pixelPerfect on");
+
+            UI.Orientation.Set(isPortrait: false);
+            Assert.IsFalse(canvas.pixelPerfect, "flipping back to auto must turn pixelPerfect off again");
+        }
+
+        [Test]
+        public void CanvasConfigurator_can_override_pixelPerfect_off()
+        {
+            // CanvasConfigurator runs AFTER ApplyCanvasScaler in Open(), so a user who
+            // explicitly wants smooth animations on a pixel-art Screen can opt out.
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(1920f, 1080f);
+            UI.CanvasConfigurator = (c, _) => c.pixelPerfect = false;
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'><Frame/></Screen>
+</PromptUGUI>");
+            var canvas = screen.RootGameObject.GetComponent<UnityEngine.Canvas>();
+            Assert.IsFalse(canvas.pixelPerfect);
+        }
+
+        [Test]
         public void ResetForTests_clears_default_and_override()
         {
             UI.DefaultScaleMode = ScaleMode.Pixel;

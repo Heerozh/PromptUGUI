@@ -137,6 +137,13 @@ namespace PromptUGUI.Application
         private void ApplyCanvasScaler(UnityEngine.UI.CanvasScaler scaler)
         {
             var mode = ResolveScaleMode();
+            // scale-mode=pixel naturally pairs with Canvas.pixelPerfect — scale-mode
+            // handles the integer outer scale, pixelPerfect snaps each UI vertex inside
+            // to integer pixels (anchor/margin math can otherwise leave sub-pixel
+            // positions). pixelPerfect is a no-op on World Space canvases, safe to set
+            // unconditionally. CanvasConfigurator (Open-time) runs after and can opt
+            // out for screens that need smooth tweens despite pixel scaling.
+            scaler.GetComponent<UnityEngine.Canvas>().pixelPerfect = mode == ScaleMode.Pixel;
             if (mode == ScaleMode.Pixel) ApplyPixel(scaler);
             else ApplyAuto(scaler);
         }
