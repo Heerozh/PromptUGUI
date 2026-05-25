@@ -9,6 +9,12 @@ duplicated rule logic. The CLI surfaces every rule violation as an **error**
 (non-zero exit code); the Unity runtime path surfaces them as
 `Debug.LogWarning` so `UI.Open()` is not interrupted.
 
+Some rules are **CLI-only** — they catch author confusion that runtime
+silently absorbs (e.g. `sprite=` on `<Frame>` is dropped without a visible
+defect). Those rules dispatch from `IRWalker` but not from
+`ScreenInstantiator`, so they cost nothing at runtime. Each CLI-only rule
+documents the choice in its source file.
+
 ## Why this exists
 
 LLMs and humans regularly write structurally-valid but semantically-wrong
@@ -80,14 +86,23 @@ installed locally — check `/help` if unsure.)
 
 ## Current rule coverage
 
-| Code                | Rule                                                                                   |
-|---------------------|----------------------------------------------------------------------------------------|
-| `PUI-LAYOUT-ANCHOR` | `anchor` on a direct child of `<VStack>` / `<HStack>` / `<Grid>` (LayoutGroup overrides it). |
-| `PUI-LAYOUT-MARGIN` | `margin` on a direct child of `<VStack>` / `<HStack>` / `<Grid>` (use parent's `padding` / `spacing` instead). |
+| Code                          | Rule                                                                                                              | Where dispatched         |
+|-------------------------------|-------------------------------------------------------------------------------------------------------------------|--------------------------|
+| `PUI-LAYOUT-ANCHOR`           | `anchor` on a direct child of `<VStack>` / `<HStack>` / `<Grid>` (LayoutGroup overrides it).                      | CLI + runtime warning    |
+| `PUI-LAYOUT-MARGIN`           | `margin` on a direct child of `<VStack>` / `<HStack>` / `<Grid>` (use parent's `padding` / `spacing` instead).    | CLI + runtime warning    |
+| `PUI-MASK-FRAME-SELF`         | `mask="self"` on `<Frame>` (Frame has no Image to act as mask source).                                            | CLI + runtime warning    |
+| `PUI-MASK-VALUE`              | `mask=` on `<Frame>` / `<Image>` set to anything other than `rect` / `self`.                                      | CLI + runtime warning    |
+| `PUI-MASK-PADDING-NO-RECT`    | `maskPadding=` without `mask="rect"` (RectMask2D-only knob).                                                      | CLI + runtime warning    |
+| `PUI-MASK-SHOWMASK-NO-SELF`   | `showMask=` without `mask="self"` (stencil-Mask-only knob).                                                       | CLI + runtime warning    |
+| `PUI-MASK-VARIANT`            | Variant override on `mask` / `showMask` / `maskPadding` (mode switch requires AddComponent / Destroy; not v1).    | CLI + runtime warning    |
+| `PUI-MASK-SELF-NO-SPRITE`     | `mask="self"` on `<Image>` without `sprite=` (stencil mask needs a Graphic source).                               | CLI + runtime warning    |
+| `PUI-CONTAINER-VISUAL-ATTR`   | `sprite=` / `color=` on pure containers (`<Frame>` / `<VStack>` / `<HStack>` / `<Grid>` / `<SafeArea>`) — they carry no `Graphic`, so the attribute is silently dropped. Nest an `<Image anchor="stretch" sprite=...>` for backgrounds. | **CLI-only**             |
 
-To add a new rule: implement it in `Runtime/Core/Lint/` so both the runtime
-warning path (`ScreenInstantiator`) and the CLI rule walker (`IRWalker`) pick
-it up automatically.
+To add a new rule: implement it in `Runtime/Core/Lint/` and dispatch from
+`IRWalker`. Also wire it into `ScreenInstantiator.InstantiateRecursive` if and
+only if the failure mode is silent visible breakage (mask rules, layout-group
+overrides). Pure "author wrote something we ignored" warnings should stay
+CLI-only to keep `Debug.Log*` noise out of the editor / Player.
 
 ## Scope (what this CLI does NOT do)
 

@@ -42,6 +42,12 @@ namespace PromptUGUI.Lint
                 foreach (var issue in MaskAttributeRules.CheckImage(node))
                     yield return issue;
 
+            // CLI-only: pure containers carry no Graphic; sprite/color silently dropped.
+            // Intentionally NOT dispatched from ScreenInstantiator — see rule's XML docs.
+            if (PureContainerVisualAttrRules.AppliesTo(node.Tag))
+                foreach (var issue in PureContainerVisualAttrRules.Check(node))
+                    yield return issue;
+
             var isLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid";
             foreach (var child in node.Children)
             {
