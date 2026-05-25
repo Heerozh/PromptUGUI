@@ -224,10 +224,90 @@ namespace PromptUGUI.Tests.Application
         public void ResetForTests_clears_default_and_override()
         {
             UI.DefaultScaleMode = ScaleMode.Pixel;
+            UI.MinPixelScale = 0.5f;
             UI.CanvasSizeOverride = () => new UnityEngine.Vector2(99f, 99f);
             UI.ResetForTests();
             Assert.AreEqual(ScaleMode.Auto, UI.DefaultScaleMode);
+            Assert.AreEqual(0f, UI.MinPixelScale, 1e-6f);
             Assert.IsNull(UI.CanvasSizeOverride);
+        }
+
+        [Test]
+        public void Pixel_MinPixelScale_clamps_low_factor_up()
+        {
+            // raw = min(480/1920, 270/1080) = 0.25 → solver returns 0.25.
+            // MinPixelScale = 0.5 pulls it up to 0.5.
+            UI.MinPixelScale = 0.5f;
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(480f, 270f);
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'><Frame/></Screen>
+</PromptUGUI>");
+            var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+            Assert.AreEqual(0.5f, scaler.scaleFactor, 1e-6f);
+        }
+
+        [Test]
+        public void Pixel_MinPixelScale_does_not_cap_high_factor()
+        {
+            // 4K screen + 1080p design = factor 2, which is well above MinPixelScale.
+            UI.MinPixelScale = 0.5f;
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(3840f, 2160f);
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'><Frame/></Screen>
+</PromptUGUI>");
+            var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+            Assert.AreEqual(2f, scaler.scaleFactor, 1e-6f);
+        }
+
+        [Test]
+        public void Pixel_MinPixelScale_one_locks_to_at_least_native()
+        {
+            // MinPixelScale = 1 means "never shrink below 1x; let content overflow
+            // anchor=stretch elements instead". With a 1366x768 screen against
+            // 1920x1080 design, raw = 0.711 → solver = 0.5 → clamp → 1.
+            UI.MinPixelScale = 1f;
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(1366f, 768f);
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'><Frame/></Screen>
+</PromptUGUI>");
+            var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+            Assert.AreEqual(1f, scaler.scaleFactor, 1e-6f);
+        }
+
+        [Test]
+        public void Pixel_MinPixelScale_default_zero_means_no_floor()
+        {
+            // Default UI.MinPixelScale = 0 must preserve pre-feature behavior:
+            // the algorithm can fall through to 1/2^n on tiny screens.
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(480f, 270f);
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'><Frame/></Screen>
+</PromptUGUI>");
+            var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+            Assert.AreEqual(0.25f, scaler.scaleFactor, 1e-6f);
+        }
+
+        [Test]
+        public void Auto_mode_ignores_MinPixelScale()
+        {
+            // Auto mode uses ScaleWithScreenSize (continuous fractional). MinPixelScale
+            // is documented as Pixel-only; verify the Auto branch doesn't read it.
+            UI.MinPixelScale = 1f;
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(960f, 540f);
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='auto' reference='1920x1080'><Frame/></Screen>
+</PromptUGUI>");
+            var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+            Assert.AreEqual(UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize, scaler.uiScaleMode);
+            // Auto leaves scaleFactor at default 1; Unity computes effective scale
+            // internally from referenceResolution + matchWidthOrHeight, not from
+            // CanvasScaler.scaleFactor (which only applies in ConstantPixelSize mode).
+            Assert.AreEqual(1f, scaler.scaleFactor, 1e-6f);
         }
 
         [Test]
