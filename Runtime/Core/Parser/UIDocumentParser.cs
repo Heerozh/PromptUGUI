@@ -445,13 +445,18 @@ namespace PromptUGUI.Parser
 
             // scale: positive float, applied at runtime as RectTransform.localScale.
             // Validate at parse so authors get errors at load, not silent runtime no-ops.
-            var nodeContext = $"<{tag}{(string.IsNullOrEmpty(node.Id) ? "" : $" id='{node.Id}'")}>";
-            if (node.Attributes.TryGetValue("scale", out var psValue))
-                ValidateScale(psValue, $"{nodeContext} scale");
-            if (node.VariantOverrides.TryGetValue("scale", out var psVariants))
+            // <Animation> is exempt — its `scale` is a 'from:to' keyframe spec parsed by
+            // AnimationSpec.ParseScaleFromTo at runtime, not a static localScale value.
+            if (!(tag == "Animation" && ns == null))
             {
-                foreach (var (variant, value) in psVariants)
-                    ValidateScale(value, $"{nodeContext} scale.{variant}");
+                var nodeContext = $"<{tag}{(string.IsNullOrEmpty(node.Id) ? "" : $" id='{node.Id}'")}>";
+                if (node.Attributes.TryGetValue("scale", out var psValue))
+                    ValidateScale(psValue, $"{nodeContext} scale");
+                if (node.VariantOverrides.TryGetValue("scale", out var psVariants))
+                {
+                    foreach (var (variant, value) in psVariants)
+                        ValidateScale(value, $"{nodeContext} scale.{variant}");
+                }
             }
 
             return node;

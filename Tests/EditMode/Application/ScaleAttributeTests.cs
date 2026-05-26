@@ -81,6 +81,38 @@ namespace PromptUGUI.Tests.Application
             Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
         }
 
+        // <Animation scale> uses 'from:to' keyframe syntax (parsed by AnimationSpec at
+        // runtime), not the static positive-float form — parser must defer.
+        [Test]
+        public void Parser_accepts_Animation_scale_from_to()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'><Animation id='a' scale='1:0.5' duration='0.1s'><Frame id='f'/></Animation></Screen>
+</PromptUGUI>";
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Parser_accepts_Animation_scale_vec2_from_to()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'><Animation id='a' scale='0.5,1:1,2' duration='0.1s'><Frame id='f'/></Animation></Screen>
+</PromptUGUI>";
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Parser_accepts_Animation_scale_variant_from_to()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'><Animation id='a' scale='1:0.5' scale.mobile='1:0.8' duration='0.1s'><Frame id='f'/></Animation></Screen>
+</PromptUGUI>";
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
+        }
+
         // ---------- Runtime (relative semantic: localScale = N) ----------
 
         [Test]

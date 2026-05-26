@@ -122,9 +122,10 @@ namespace PromptUGUI.Application
             return name switch
             {
                 "anchor" or "size" or "width" or "height" or "margin" or "pivot" or "hidden" or "interactable" => true,
-                // scale applied by Screen.ApplyScales (sets RectTransform.localScale directly);
-                // flagged common here so it isn't treated as control-specific or warned as unknown.
-                "scale" => true,
+                // 'scale' deliberately NOT listed: it is applied by Screen.ApplyScales (independent
+                // of the ApplyCommon path) for controls without their own setter, and dispatched
+                // through the normal [UIAttr("scale")] loop for controls that handle it themselves
+                // (e.g. <Animation>, which interprets scale="from:to" as keyframe values).
                 _ => false,
             };
         }

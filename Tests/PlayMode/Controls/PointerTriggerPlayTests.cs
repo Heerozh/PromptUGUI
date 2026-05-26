@@ -129,5 +129,26 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             var proxy = (RectTransform)anim.GameObject.transform.Find("_offsetProxy");
             Assert.AreEqual(0.5f, proxy.localScale.x, 0.01f);
         }
+
+        // Diagnostic: does <Animation on='press'> even fire OnFire when child Btn is pressed?
+        // (Isolates trigger-wiring from AnimationDriver.)
+        [UnityTest]
+        public IEnumerator Press_fires_on_Animation_with_child_Btn()
+        {
+            UI.LoadDocument("t", $"{Header}" +
+                "<Animation id='a' scale='1:0.5' duration='0.1s' on='press'>" +
+                "  <Btn id='b'>OK</Btn>" +
+                "</Animation>" +
+                $"{Footer}");
+            var screen = UI.Open("S");
+            int fires = 0;
+            screen.Get<Animation>("a").OnFire.Subscribe(_ => fires++);
+            var btn = screen.Get<Btn>("a/b");
+
+            ExecuteEvents.Execute(btn.GameObject, NewEventData(), ExecuteEvents.pointerDownHandler);
+            yield return null;
+
+            Assert.AreEqual(1, fires);
+        }
     }
 }
