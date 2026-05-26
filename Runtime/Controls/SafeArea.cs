@@ -8,10 +8,12 @@ namespace PromptUGUI.Controls
     {
         private SafeAreaTracker _tracker;
 
-        // SafeArea 拒绝 anchor / size / width / height / margin / pivot 属性
-        // (SA-D7),但默认 anchor 必须是 stretch — 旧模型靠 tracker 写
-        // safe-area 分数 anchor,新模型 tracker 不再写,所以 SafeArea 必须自己
-        // 声明"我永远 stretch 到 parent",否则 Control 基类返回 top-left → 宽高 0。
+        // SafeArea 默认 anchor 必须是 stretch — 旧模型靠 tracker 写
+        // safe-area 分数 anchor,新模型 tracker 在 stretch 框架下用 offsetMin/Max
+        // 表达 safe-area,所以 SafeArea 必须自己声明"永远 stretch 到 parent",
+        // 否则 Control 基类返回 top-left → ApplyCommon 写出 sizeDelta=(0,0) →
+        // Inspector 里宽高全 0。SA-D7 仍拒绝 anchor / size / width / height /
+        // pivot 等几何 override,但 margin 由 v2 absorb 语义接管(参考 OnAfterApply)。
         protected override AnchorPreset GetDefaultAnchor(SizeSpec sizeSpec)
             => new(AnchorVertical.Stretch, AnchorHorizontal.Stretch);
 
