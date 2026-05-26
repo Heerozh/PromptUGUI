@@ -25,6 +25,45 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void SafeArea_defaults_to_stretch_filling_parent_rect()
+        {
+            // SafeArea 拒绝 anchor 属性,但默认必须是 stretch — 否则 Control 基类
+            // 默认 top-left + sizeDelta=(0,0) 会让 RectTransform 宽高=0,
+            // direct 子的 stretch 直接子也跟着是 0(没东西可吸收 inset)。
+            //
+            // v2 适配:tracker 会主动用 Screen.safeArea 写 offsetMin/Max,Editor
+            // Game View 的 safeArea 不保证等于全屏(host Unity 上实测有 top inset)。
+            // 注入 full-screen override 让 device insets 都为 0,这样 sizeDelta
+            // 才稳定地等于 (0,0),专心守 GetDefaultAnchor 这个 Inspector bug。
+            try
+            {
+                PromptUGUI.Controls.Internal.SafeAreaTracker.SafeAreaOverride =
+                    () => new UnityEngine.Rect(0f, 0f, 1080f, 1920f);
+                PromptUGUI.Controls.Internal.SafeAreaTracker.ScreenSizeOverride =
+                    () => new UnityEngine.Vector2(1080f, 1920f);
+                PromptUGUI.Controls.Internal.SafeAreaTracker.ScaleFactorOverride =
+                    () => 1f;
+
+                const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <SafeArea id='sa'/>
+</Screen></PromptUGUI>";
+                UI.LoadDocument("test", xml);
+                var screen = UI.Open("S");
+                var rt = screen.Get<SafeArea>("sa").RectTransform;
+                Assert.AreEqual(UnityEngine.Vector2.zero, rt.anchorMin, "SafeArea anchorMin should be (0,0)");
+                Assert.AreEqual(UnityEngine.Vector2.one, rt.anchorMax, "SafeArea anchorMax should be (1,1)");
+                Assert.AreEqual(UnityEngine.Vector2.zero, rt.sizeDelta, "SafeArea sizeDelta should be (0,0) → fills parent");
+            }
+            finally
+            {
+                PromptUGUI.Controls.Internal.SafeAreaTracker.SafeAreaOverride = null;
+                PromptUGUI.Controls.Internal.SafeAreaTracker.ScreenSizeOverride = null;
+                PromptUGUI.Controls.Internal.SafeAreaTracker.ScaleFactorOverride = null;
+            }
+        }
+
+        [Test]
         public void SafeArea_attaches_tracker_on_instantiation()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
