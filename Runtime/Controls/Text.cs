@@ -98,5 +98,12 @@ namespace PromptUGUI.Controls
                 ApplyFont();
             }
         }
+
+        public override Vector2? GetNativeSize()
+        {
+            if (_tmp == null || string.IsNullOrEmpty(_tmp.text)) return null;
+            _tmp.ForceMeshUpdate();
+            return new Vector2(_tmp.preferredWidth, _tmp.preferredHeight);
+        }
     }
 }

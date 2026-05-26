@@ -119,5 +119,14 @@ namespace PromptUGUI.Controls
                 ? UnityImage.Type.Sliced
                 : UnityImage.Type.Simple;
         }
+
+        public override Vector2? GetNativeSize()
+        {
+            if (_img == null || _img.sprite == null) return null;
+            // Mirror UnityEngine.UI.Image.SetNativeSize(): rect / pixelsPerUnit
+            // (which already folds in the sprite's pixelsPerUnit + pixelsPerUnitMultiplier).
+            var ppu = _img.pixelsPerUnit;
+            return new Vector2(_img.sprite.rect.width / ppu, _img.sprite.rect.height / ppu);
+        }
     }
 }
