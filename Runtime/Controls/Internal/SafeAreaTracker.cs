@@ -13,6 +13,10 @@ namespace PromptUGUI.Controls.Internal
         internal static Func<float> ScaleFactorOverride;
 
         private RectTransform _rt;
+        // _canvas 在 OnEnable 抓一次后只在 null 时重查;假设 SafeArea 实例化后不会跨
+        // Canvas reparent。若有人在 active 状态下 SetParent 到另一个 scaleFactor 不同
+        // 的 Canvas 树,inset 换算到 design px 会用错值(直到下次 OnDisable→OnEnable)。
+        // Modal 走 instantiate/destroy 不触发此路径,正常用法都安全。
         private Canvas _canvas;
         private bool _warnedNoCanvas;
 
