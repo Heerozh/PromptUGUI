@@ -207,12 +207,14 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 
 ### 5.5 `<SafeArea>`（安全区容器）
 
-显式安全区包裹层；运行时按 `Screen.safeArea` 把自己 inset 到设备的安全矩形里，自动响应屏幕旋转 / 窗口缩放 / Device Simulator 切换 / Variant ReSolve。完整设计见独立 spec [`2026-05-13-safearea-builtin-design.md`](2026-05-13-safearea-builtin-design.md)。
+显式安全区包裹层；运行时每条边 `inset = max(designMargin_i, Screen.safeArea_i)`（max-blend），自动响应屏幕旋转 / 窗口缩放 / Device Simulator / Variant ReSolve / Dynamic Island。完整设计见 [`2026-05-26-safearea-margin-absorb-v2-design.md`](2026-05-26-safearea-margin-absorb-v2-design.md)。
 
 简表：
-- 不接受 `anchor` / `size` / `width` / `height` / `margin` / `pivot`（含 `.variant` 覆盖）—— 几何完全由 `Screen.safeArea` 驱动；写这些属性会在 parse 期抛 `ParseException`。
-- 允许 `id` / `hidden` / `interactable` / `if=`。
+- 接受 `margin`：表示"距父级边至少这么多 design px"，会被 device safe-area inset 取大吸收。`<SafeArea/>`（无 margin）= SafeArea 正好 fit safe area。
+- 不接受 `anchor` / `size` / `width` / `height` / `pivot`（含 `.variant` 覆盖）—— 形状固定为 stretch；写这些属性会在 parse 期抛 `ParseException`。
+- 允许 `id` / `hidden` / `interactable` / `if=` / `margin` / `margin.variant`。
 - 典型用法：作为 `<Screen>` 直接子节点，UI 全放它里面；需要 bleed 到屏幕物理边缘的背景图作为 SafeArea 的兄弟节点。
+- 想要"safe area + 固定 padding"叠加（e.g. 16px below the notch, never flush），在 SafeArea 内嵌套 `<Frame anchor="stretch" margin="16,_,_,_"/>`。
 
 ### 5.6 `<Screen reference="WxH">`（参考分辨率，since 2026-05-13）
 

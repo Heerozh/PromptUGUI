@@ -82,7 +82,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name:
 | Tag            | Notes                                                                                                                                                                                                                                                                                                                                                                                            | Tag-specific attributes                                                                                                                                                                                                                                                                                                                            |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `<Frame>`      | Empty container; optional `RectMask2D` via `mask="rect"`.                                                                                                                                                                                                                                                                                                                                        | `mask` (`rect`), `maskPadding` (`T,R,B,L`, "\_" placeholder; only with `mask="rect"`)                                                                                                                                                                                                                                                              |
-| `<SafeArea>`   | Stretches to `Screen.safeArea` (notch / status bar / home indicator). Auto-reacts to rotation, window resize, Device Simulator. **Rejects** `anchor` / `size` / `width` / `height` / `margin` / `pivot` (incl. `.variant`); see "Safe area" section below.                                                                                                                                       | —                                                                                                                                                                                                                                                                                                                                                  |
+| `<SafeArea>`   | Stretches to its parent; per-edge inset = `max(designMargin, Screen.safeArea_i)`. Auto-reacts to rotation, window resize, Device Simulator, Dynamic Island. Accepts `margin` (absorbed by device inset); **rejects** `anchor` / `size` / `width` / `height` / `pivot` (incl. `.variant`); see "Safe area" section below.                                                                          | —                                                                                                                                                                                                                                                                                                                                                  |
 | `<Image>`      | uGUI Image; loads sprites from `Resources`. Optional `RectMask2D` via `mask="rect"`, or stencil `Mask` via `mask="self"` (Image's own sprite becomes the mask shape).                                                                                                                                                                                                                            | `sprite`, `color` (`#RRGGBB[AA]`), `type` (`simple` / `sliced` / `tiled` / `filled`; **omit to auto-pick `sliced` when sprite has a non-zero border, else `simple`**), `mask` (`rect` / `self`), `showMask` (bool, default `true`; only with `mask="self"`), `maskPadding` (`T,R,B,L`; only with `mask="rect"`)                                    |
 | `<Text>`       | TMP_Text. Has text-content shorthand: `<Text>Hello</Text>` ≡ `<Text text="Hello"/>`.                                                                                                                                                                                                                                                                                                             | `text`, `fontSize` (int), `color`, `align` (`left` / `center` / `right`), `wrap` (bool), `raycastTarget` (bool), `font` (string, font type from Settings; default `default`), `tr` (bool, default `true`; set `false` to skip i18n extraction), `ctx` (string, msgctxt to disambiguate same-msgid in the .po table)                                |
 | `<VStack>`     | Vertical layout group. Default `childAlign="upper-center"` (cross-axis centered).                                                                                                                                                                                                                                                                                                                | `spacing` (float), `padding` (`T,R,B,L` 1/2/4 components; `"_"` = 0 placeholder, e.g. `padding="6,_,_,_"`), `childAlign` (`upper/middle/lower-left/center/right`; `center` alias for `middle-center`)                                                                                                                                              |
@@ -149,26 +149,30 @@ Anything else inside a Template body (`{{a}}:{{b}}`, `solar:{{a}}-{{b}}`, multi-
 
 ### Safe area
 
-Mobile devices have unsafe insets — notch, status bar, home indicator, gesture bar. Wrap your UI in `<SafeArea>` to stay inside `Screen.safeArea`. Backgrounds that should bleed to the device edges stay outside, as siblings of `<SafeArea>`:
+Wrap UI in `<SafeArea>` and put a `margin` on it to control inset. Per-edge `inset = max(designMargin_i, Screen.safeArea_i)` — the safe-area inset absorbs the design margin (not adds to it), so the same XML looks right on PC and on notched devices:
 
 ```xml
-<Screen name="Login">
-  <Image id="bg" anchor="stretch" color="#0B1828"/>
-  <SafeArea>
-    <HStack id="brandBar" anchor="top-left" width="320" height="56" margin="24,_,_,24">
-      ...
-    </HStack>
+<Screen name="Lobby">
+  <Image anchor="stretch" color="#08152C"/>           <!-- bleed background, sibling of SafeArea -->
+  <SafeArea margin="6,6,6,6">
+    <HStack id="topIcons" anchor="top-stretch" height="24"
+            margin="0,0,_,_" spacing="4" childAlign="middle-right">...</HStack>
   </SafeArea>
 </Screen>
 ```
 
-Rules:
+- PC (no inset): you get exactly the `margin` you wrote (here, 6px on each edge).
+- Notched device: the safe-area inset wins where it's bigger than your margin. E.g. iPhone 14 Pro (top inset ≈ 134, bottom ≈ 132 device px, sf=1): top=134, right=6, bottom=132, left=6.
+- Design margin wins past the inset: `<SafeArea margin="200,_,_,_">` on the same device gives top=200 (your design value is bigger than 134).
+- Unspecified edges (`_` or shorter than 4 components) default to 0 → that edge fully absorbs the device inset.
 
-- `<SafeArea>` is always stretched to the safe area; it does **not** accept `anchor`, `size`, `width`, `height`, `margin`, or `pivot` (including their `.variant` override forms). Writing any of those is a parse error.
-- To add inner padding inside the safe area, wrap content in `<Frame anchor="stretch" margin="..."/>` _inside_ the `<SafeArea>`.
-- Place `<SafeArea>` as a direct child of `<Screen>`. Nesting another `<SafeArea>` inside one is harmless but redundant (the inner one collapses to the outer one's rect).
+Other notes:
+
+- `<SafeArea>` still rejects `anchor` / `size` / `width` / `height` / `pivot` (and their `.variant` forms). The container is always stretched to its parent; only `margin` is author-controlled.
+- One `<SafeArea>` per `<Screen>`. Backgrounds that need to bleed past the safe area stay as siblings of `<SafeArea>`, not children.
+- For "fixed gap below the safe area" (e.g. always 16px below the notch, never flush), nest a `<Frame anchor="stretch" margin="16,_,_,_"/>` inside the `<SafeArea>` instead of using the SafeArea's own margin.
 - Don't put `<SafeArea>` inside `<VStack>` / `<HStack>` / `<Grid>` — the layout group will override its anchor math.
-- Reacts automatically to screen rotation, window resize, and Unity 6's Device Simulator. No code-side wiring needed.
+- Reacts automatically to screen rotation, window resize, Unity 6's Device Simulator, and Dynamic Island animations. No code-side wiring needed.
 
 ## uGUI 对照表
 
@@ -195,7 +199,7 @@ Rules:
 | `<Trigger>`    | `RectTransform` 单独（无视觉、无 layout 行为，仅作 wrapper 划定事件源 scope）                                                                                                   | —                                                                                                                                                                            | `OnFire` ← R3 `Subject<Unit>`，由 `on=`（open/loop/click/hover-enter/hover-exit/press/manual）触发 |
 | `<Animation>`  | `RectTransform` + `CanvasGroup`（继承自 Trigger；CanvasGroup 给 `fade=` 用，由 `ApplyCommon` 懒加载）                                                                           | `_offsetProxy`(`RectTransform`，anchor stretch、margin=0、pivot=0.5,0.5) — XML 子节点全 parent 到这一层；LitMotion 驱动它的 anchoredPosition / localScale / localEulerAngles | `OnFire` ← 继承 Trigger；同时由 `on=` 触发 LitMotion `MotionHandle[]`                              |
 
-**Common attribute → uGUI 落点**（实现在 `Control.ApplyCommon`；对所有 tag 生效，`<SafeArea>` 例外，整套 anchor/size/margin/pivot 都被拒绝）
+**Common attribute → uGUI 落点**（实现在 `Control.ApplyCommon`；对所有 tag 生效，`<SafeArea>` 例外，整套 anchor/size/width/height/pivot 都被拒绝）
 
 | XML                         | uGUI 落点                                                                                                                                                                                                                                                                                                           |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
