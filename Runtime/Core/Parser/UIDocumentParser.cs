@@ -403,21 +403,23 @@ namespace PromptUGUI.Parser
                 }
             }
 
-            // <SafeArea> 校验：禁止 layout 类属性，几何完全由 Screen.safeArea 决定。
-            // 要 padding 用 <Frame margin="..."> 嵌套；要不同形状用其他容器组合。
+            // <SafeArea> 校验：仍禁止形状类 layout 属性（anchor/size/width/height/pivot），
+            // 几何固定为"stretch + per-edge max(margin, deviceInset)"。
+            // `margin` 在 v2 (2026-05-26-safearea-margin-absorb-v2) 已解禁 —— 它是 SafeArea
+            // 自身的设计 margin，跟 device safe-area inset 取大。
             if (tag == "SafeArea" && ns == null)
             {
-                foreach (var key in new[] { "anchor", "size", "width", "height", "margin", "pivot" })
+                foreach (var key in new[] { "anchor", "size", "width", "height", "pivot" })
                 {
                     if (node.Attributes.ContainsKey(key))
                         throw new ParseException(
                             $"<SafeArea> does not accept attribute '{key}'; " +
-                            $"SafeArea is always stretched to Screen.safeArea. " +
-                            $"To add inner padding, wrap content in <Frame margin=\"...\"/> inside the SafeArea.");
+                            $"SafeArea is always stretched to its parent. " +
+                            $"Use <SafeArea margin=\"...\"> for inset (absorbed by device safe area).");
                     if (node.VariantOverrides.ContainsKey(key))
                         throw new ParseException(
                             $"<SafeArea> does not accept variant override for '{key}'; " +
-                            $"SafeArea is always stretched to Screen.safeArea.");
+                            $"SafeArea is always stretched to its parent.");
                 }
             }
 

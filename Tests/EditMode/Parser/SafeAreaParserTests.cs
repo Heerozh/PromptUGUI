@@ -50,11 +50,12 @@ namespace PromptUGUI.Tests.Parser
         }
 
         [Test]
-        public void SafeArea_with_margin_throws()
+        public void SafeArea_with_margin_does_not_throw()
         {
-            var xml = Header + "<SafeArea margin='10'/>" + Footer;
-            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
-            StringAssert.Contains("margin", ex.Message);
+            // v2 (2026-05-26-safearea-margin-absorb-v2): SafeArea accepts `margin` —
+            // per-edge max-blended with device safe area inset.
+            var xml = Header + "<SafeArea margin='6,6,6,6'/>" + Footer;
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
         }
 
         [Test]
