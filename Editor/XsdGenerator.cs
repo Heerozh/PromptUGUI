@@ -200,7 +200,7 @@ namespace PromptUGUI.Editor
         // XmlSchemaSet rejects with "The attribute 'X' already exists.").
         private static readonly string[] _commonAttrNames = {
             "id","anchor","size","width","height","margin","pivot",
-            "padding","spacing","hidden","interactable" };
+            "padding","spacing","hidden","interactable","scale" };
         private static readonly HashSet<string> _commonAttrSet =
             new HashSet<string>(_commonAttrNames, StringComparer.Ordinal);
 

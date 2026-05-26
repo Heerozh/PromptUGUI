@@ -131,6 +131,9 @@ namespace PromptUGUI.Application
             foreach (var node in result.ApplyOrder)
                 ControlAttributeApplier.Apply(node, _nodeMap[node],
                                               _registry.Resolve(node.Tag), Variants);
+            // scale must run after _nodeMap is populated and attributes have been applied
+            // (so it doesn't fight ApplyCommon writes). Independent of canvas factor.
+            ApplyScales();
             _variantSub = Variants.Changed.Subscribe(_ => ReSolve());
         }
 
@@ -198,6 +201,41 @@ namespace PromptUGUI.Application
                 factor = UI.MinPixelScale;
             scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize;
             scaler.scaleFactor = factor;
+        }
+
+        // Applies per-element 'scale' attribute as RectTransform.localScale directly
+        // (relative to layout box; works in any scale-mode). Called at Open after the
+        // attribute apply loop, and at ReSolve when variants change. No dependence on
+        // canvas factor, so OnCanvasDimensionsChanged does not need to re-apply.
+        //
+        // Walks every Control in _nodeMap so nodes that declared 'scale' only via a
+        // variant override are still tracked (resolves to null → identity reset).
+        private void ApplyScales()
+        {
+            if (_nodeMap.Count == 0) return;
+            foreach (var kv in _nodeMap)
+            {
+                var node = kv.Key;
+                var declaredBase = node.Attributes.ContainsKey("scale");
+                var declaredVariant = node.VariantOverrides.ContainsKey("scale");
+                if (!declaredBase && !declaredVariant) continue;
+
+                var raw = PromptUGUI.Variants.VariantResolver.ResolveAttribute(
+                    node, "scale", Variants);
+                var rt = kv.Value.RectTransform;
+                if (rt == null) continue;
+
+                if (string.IsNullOrEmpty(raw)
+                    || !float.TryParse(raw, System.Globalization.NumberStyles.Float,
+                                       System.Globalization.CultureInfo.InvariantCulture, out var v)
+                    || v <= 0f)
+                {
+                    rt.localScale = Vector3.one;
+                    continue;
+                }
+
+                rt.localScale = new Vector3(v, v, 1f);
+            }
         }
 
         private UnityEngine.Vector2 ReadCanvasRectSize()
@@ -321,6 +359,7 @@ namespace PromptUGUI.Application
                 ControlAttributeApplier.Apply(node, control, entry, Variants, initial: false);
             }
             ApplyCanvasScaler(RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>());
+            ApplyScales();
         }
 
         // deferApplyTo 非 null（Screen.Open 首次构建）：Add 子树属性 Apply 延迟收进该列表，

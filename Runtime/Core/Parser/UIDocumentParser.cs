@@ -441,6 +441,17 @@ namespace PromptUGUI.Parser
                 }
             }
 
+            // scale: positive float, applied at runtime as RectTransform.localScale.
+            // Validate at parse so authors get errors at load, not silent runtime no-ops.
+            var nodeContext = $"<{tag}{(string.IsNullOrEmpty(node.Id) ? "" : $" id='{node.Id}'")}>";
+            if (node.Attributes.TryGetValue("scale", out var psValue))
+                ValidateScale(psValue, $"{nodeContext} scale");
+            if (node.VariantOverrides.TryGetValue("scale", out var psVariants))
+            {
+                foreach (var (variant, value) in psVariants)
+                    ValidateScale(value, $"{nodeContext} scale.{variant}");
+            }
+
             return node;
         }
 
@@ -451,6 +462,20 @@ namespace PromptUGUI.Parser
             if (raw == "auto" || raw == "pixel") return;
             throw new ParseException(
                 $"{contextLabel}: invalid value '{raw}' (expected 'auto' or 'pixel')");
+        }
+
+        private static void ValidateScale(string raw, string contextLabel)
+        {
+            // scale="N" sets RectTransform.localScale = N (relative to layout box; works in
+            // any scale-mode). Must be a positive float — '0' or negative would invert /
+            // collapse the subtree. N=1 is the no-op identity.
+            if (string.IsNullOrEmpty(raw))
+                throw new ParseException(
+                    $"{contextLabel}: value cannot be empty (expected a positive number, e.g. '1' or '0.5')");
+            if (!float.TryParse(raw, System.Globalization.NumberStyles.Float,
+                                System.Globalization.CultureInfo.InvariantCulture, out var v) || v <= 0f)
+                throw new ParseException(
+                    $"{contextLabel}: invalid value '{raw}' (expected a positive number, e.g. '1' or '0.5')");
         }
 
         private static bool IsValidIconName(string name)

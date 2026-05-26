@@ -122,6 +122,9 @@ namespace PromptUGUI.Application
             return name switch
             {
                 "anchor" or "size" or "width" or "height" or "margin" or "pivot" or "hidden" or "interactable" => true,
+                // scale applied by Screen.ApplyScales (sets RectTransform.localScale directly);
+                // flagged common here so it isn't treated as control-specific or warned as unknown.
+                "scale" => true,
                 _ => false,
             };
         }
