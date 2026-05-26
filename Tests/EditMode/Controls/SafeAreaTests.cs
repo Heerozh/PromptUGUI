@@ -325,6 +325,91 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void SafeArea_margin_variant_override_re_blends_on_variant_switch()
+        {
+            try
+            {
+                // PC-like: no device inset, so design margin wins on every edge.
+                PromptUGUI.Controls.Internal.SafeAreaTracker.SafeAreaOverride =
+                    () => new UnityEngine.Rect(0f, 0f, 1920f, 1080f);
+                PromptUGUI.Controls.Internal.SafeAreaTracker.ScreenSizeOverride =
+                    () => new UnityEngine.Vector2(1920f, 1080f);
+
+                // Variant `wide` is auto-declared by being referenced via `margin.wide=...`;
+                // no explicit `<Variants>` declaration block needed (see UIDocumentParserTests
+                // and BtnContentSizingTests for prior art).
+                const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <SafeArea id='sa' margin='6' margin.wide='20'/>
+</Screen></PromptUGUI>";
+                UI.LoadDocument("test", xml);
+                var screen = UI.Open("S");
+                var sa = screen.Get<SafeArea>("sa");
+
+                var rt = sa.RectTransform;
+                Assert.AreEqual(6f, rt.offsetMin.x, 0.001f, "base margin=6 → left=6");
+                Assert.AreEqual(-6f, rt.offsetMax.x, 0.001f, "base margin=6 → right=-6");
+
+                // Switch variant: ApplyCommon re-runs with margin=20, OnAfterApply re-captures,
+                // tracker.Apply re-blends. Inset still 0, so design margin still wins.
+                UI.Variants.Set("wide", true);
+
+                Assert.AreEqual(20f, rt.offsetMin.x, 0.001f, "variant margin=20 → left=20");
+                Assert.AreEqual(-20f, rt.offsetMax.x, 0.001f, "variant margin=20 → right=-20");
+            }
+            finally
+            {
+                PromptUGUI.Controls.Internal.SafeAreaTracker.SafeAreaOverride = null;
+                PromptUGUI.Controls.Internal.SafeAreaTracker.ScreenSizeOverride = null;
+            }
+        }
+
+        [Test]
+        public void SafeArea_with_margin_attribute_absorbs_device_inset()
+        {
+            // End-to-end: <SafeArea margin> goes through ApplyCommon, OnAfterApply captures
+            // the margin via CaptureDesignMargin, tracker.Apply max-blends with device inset.
+            try
+            {
+                PromptUGUI.Controls.Internal.SafeAreaTracker.SafeAreaOverride =
+                    () => new UnityEngine.Rect(0f, 100f, 1080f, 1820f);
+                PromptUGUI.Controls.Internal.SafeAreaTracker.ScreenSizeOverride =
+                    () => new UnityEngine.Vector2(1080f, 1920f);
+
+                const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <SafeArea id='sa' margin='6,6,6,6'/>
+</Screen></PromptUGUI>";
+                UI.LoadDocument("test", xml);
+                var screen = UI.Open("S");
+                var sa = screen.Get<SafeArea>("sa");
+
+                var rt = sa.RectTransform;
+                // Anchor must always be (0,0)/(1,1) in v2.
+                Assert.AreEqual(UnityEngine.Vector2.zero, rt.anchorMin);
+                Assert.AreEqual(UnityEngine.Vector2.one, rt.anchorMax);
+                // safe (0, 100, 1080, 1820), screen (1080, 1920) → device insets (l=0, r=0, b=100, t=0).
+                // Canvas scaleFactor depends on host CanvasScaler config; assert qualitatively:
+                //   - left/right: max(6, 0) = 6 (design margin in design px) regardless of scaleFactor
+                //   - bottom: at least max(6, 100/sf). With sf=1 → 100; with sf=2 → 50. Either way ≥ 6.
+                //   - top: max(6, 0/sf) = 6
+                Assert.AreEqual(6f, rt.offsetMin.x, 0.001f,
+                    "left = max(designLeft=6, deviceL=0) = 6");
+                Assert.AreEqual(-6f, rt.offsetMax.x, 0.001f,
+                    "right encoded as -6 (margin design value)");
+                Assert.AreEqual(-6f, rt.offsetMax.y, 0.001f,
+                    "top = max(6, 0/sf) = 6 → offsetMax.y = -6");
+                Assert.GreaterOrEqual(rt.offsetMin.y, 6f,
+                    "bottom = max(6, 100/sf) ≥ 6; inset absorbs the 6 when sf yields ≥ 6 design px");
+            }
+            finally
+            {
+                PromptUGUI.Controls.Internal.SafeAreaTracker.SafeAreaOverride = null;
+                PromptUGUI.Controls.Internal.SafeAreaTracker.ScreenSizeOverride = null;
+            }
+        }
+
+        [Test]
         public void Tracker_max_blends_design_margin_with_device_inset()
         {
             // v2: tracker writes anchor=stretch + offsetMin/Max = max(designMargin, inset_designPx) per edge.
