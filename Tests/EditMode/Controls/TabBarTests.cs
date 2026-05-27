@@ -108,5 +108,47 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreSame(group, a.group);
             Assert.AreSame(group, b.group);
         }
+
+        [Test]
+        public void Tab_Bind_Toggle_Switches_Frame_SetActive()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar'>
+    <Tab id='a' bind='fa'/>
+    <Tab id='b' bind='fb'/>
+  </TabBar>
+  <Frame id='fa'/>
+  <Frame id='fb'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var fa = screen.Get<Frame>("fa");
+            var fb = screen.Get<Frame>("fb");
+            var a = screen.Get<Tab>("a");
+            var b = screen.Get<Tab>("b");
+            a.IsOn = true;
+            Assert.IsTrue(fa.GameObject.activeSelf);
+            b.IsOn = true;
+            Assert.IsFalse(fa.GameObject.activeSelf);
+            Assert.IsTrue(fb.GameObject.activeSelf);
+        }
+
+        [Test]
+        public void Tab_Bind_To_Missing_Frame_Warns_Once_Then_Silent()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.bind='nope'.*did not resolve"));
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar'><Tab id='a' bind='nope' isOn='true'/></TabBar>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var a = screen.Get<Tab>("a");
+            a.IsOn = false;
+            a.IsOn = true;
+            // No further warn expected — LogAssert would fail if a 2nd warning fires.
+        }
     }
 }

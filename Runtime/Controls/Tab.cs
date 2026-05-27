@@ -18,6 +18,9 @@ namespace PromptUGUI.Controls
         private TMP_Text _label;
         private UnityToggle _toggle;
         private string _fontType = "default";
+        private string _bindId;
+        private bool _bindResolved;
+        private Frame _boundFrame;
         private readonly Subject<bool> _changed = new();
         private readonly Subject<Unit> _selected = new();
 
@@ -47,13 +50,33 @@ namespace PromptUGUI.Controls
             else
                 _toggle.group = group;
 
-            _toggle.onValueChanged.AddListener(v =>
-            {
-                _changed.OnNext(v);
-                if (v) _selected.OnNext(Unit.Default);
-            });
+            _toggle.onValueChanged.AddListener(OnIsOnChanged);
             UI.Locale.Changed += ApplyFont;
         }
+
+        private void OnIsOnChanged(bool isOn)
+        {
+            _changed.OnNext(isOn);
+            if (isOn) _selected.OnNext(Unit.Default);
+            ApplyBindFrame(isOn);
+        }
+
+        private void ApplyBindFrame(bool isOn)
+        {
+            if (_bindId == null && !_bindResolved) return;
+            if (!_bindResolved)
+            {
+                try { _boundFrame = UI.OwnerScreenOf(this)?.Get<Frame>(_bindId); }
+                catch { _boundFrame = null; }
+                if (_boundFrame == null)
+                    Debug.LogWarning($"Tab.bind='{_bindId}' did not resolve to a Frame; ignoring.");
+                _bindResolved = true;
+                _bindId = null;     // prevent re-warn
+            }
+            if (_boundFrame != null) _boundFrame.GameObject.SetActive(isOn);
+        }
+
+        internal void ForceSyncBindFrame(bool isOn) => ApplyBindFrame(isOn);
 
         private ToggleGroup FindAncestorToggleGroup()
         {
@@ -87,6 +110,9 @@ namespace PromptUGUI.Controls
             get => _toggle != null && _toggle.isOn;
             set { if (_toggle != null) _toggle.isOn = value; }
         }
+
+        [UIAttr, Preserve]
+        public string Bind { set => _bindId = value; }
 
         [UIAttr, Preserve]
         public string Text
