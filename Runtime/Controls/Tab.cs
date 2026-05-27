@@ -108,6 +108,28 @@ namespace PromptUGUI.Controls
             set { if (_label != null) _label.fontSize = value; }
         }
 
+        [UIAttr(IsSprite = true), Preserve]
+        public string Icon
+        {
+            set
+            {
+                if (_icon == null)
+                {
+                    _icon = ProceduralBuilders.AddImage(RectTransform, "Icon", raycast: false);
+                    var rt = _icon.rectTransform;
+                    rt.anchorMin = new Vector2(0f, 0.5f);
+                    rt.anchorMax = new Vector2(0f, 0.5f);
+                    rt.pivot = new Vector2(0.5f, 0.5f);
+                    rt.sizeDelta = new Vector2(24f, 24f);
+                    rt.anchoredPosition = new Vector2(16f, 0f);     // 4px gap from left edge then center of 24
+                    // Shift label right to make room for icon
+                    var lrt = _label.rectTransform;
+                    lrt.offsetMin = new Vector2(32f, 0f);
+                }
+                _icon.sprite = UI.ResolveSprite(value);
+            }
+        }
+
         public Observable<bool> OnValueChanged => _changed;
         public Observable<Unit> OnSelected => _selected;
 

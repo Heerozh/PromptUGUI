@@ -92,5 +92,28 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var label = t.GameObject.transform.Find("Label").GetComponent<TMP_Text>();
             Assert.AreEqual(24f, label.fontSize);
         }
+
+        [Test]
+        public void Tab_With_Icon_Creates_Icon_Child()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            LogAssert.Expect(LogType.Error,
+                new System.Text.RegularExpressions.Regex("UI.SpriteResolver is not registered"));
+            var t = OpenTab("<Tab id='t' text='X' icon='ui:nope'/>");
+            var icon = t.GameObject.transform.Find("Icon") as RectTransform;
+            Assert.IsNotNull(icon, "Icon RT child created");
+            Assert.IsNotNull(icon.GetComponent<UnityImage>(), "Icon UnityImage");
+            Assert.IsFalse(icon.GetComponent<UnityImage>().raycastTarget, "Icon does not block raycasts");
+        }
+
+        [Test]
+        public void Tab_Without_Icon_Attr_Has_No_Icon_Child()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t' text='X'/>");
+            Assert.IsNull(t.GameObject.transform.Find("Icon"), "no Icon RT when icon attr absent");
+        }
     }
 }
