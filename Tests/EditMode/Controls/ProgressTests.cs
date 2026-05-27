@@ -336,5 +336,37 @@ namespace PromptUGUI.Tests.EditMode.Controls
             p.Bg = "PromptUGUI/Defaults/pugui#pugui_9slice_round";
             Assert.IsFalse(m.showMaskGraphic, "runtime bg= activation must hide mask graphic");
         }
+
+        [Test]
+        public void GetNativeSize_Default_Is_160x16()
+        {
+            var p = Open("<Progress id='p'/>");
+            var n = p.GetNativeSize();
+            Assert.IsTrue(n.HasValue);
+            Assert.AreEqual(new Vector2(160f, 16f), n.Value);
+        }
+
+        [Test]
+        public void GetNativeSize_Falls_Back_To_Bg_When_No_Frame()
+        {
+            var p = Open("<Progress id='p' bg='PromptUGUI/Defaults/pugui#pugui_9slice_round'/>");
+            var n = p.GetNativeSize();
+            Assert.IsTrue(n.HasValue);
+            var img = p.GameObject.transform.Find("MaskWrapper/Bg").GetComponent<UnityImage>();
+            var expected = new Vector2(img.sprite.rect.width / img.pixelsPerUnit,
+                                       img.sprite.rect.height / img.pixelsPerUnit);
+            Assert.AreEqual(expected, n.Value);
+        }
+
+        [Test]
+        public void GetNativeSize_Prefers_Frame_Over_Bg()
+        {
+            var p = Open("<Progress id='p' bg='PromptUGUI/Defaults/pugui#pugui_9slice_round' frame='PromptUGUI/Defaults/pugui#pugui_9slice_mask'/>");
+            var n = p.GetNativeSize();
+            var img = p.GameObject.transform.Find("Frame").GetComponent<UnityImage>();
+            var expected = new Vector2(img.sprite.rect.width / img.pixelsPerUnit,
+                                       img.sprite.rect.height / img.pixelsPerUnit);
+            Assert.AreEqual(expected, n.Value);
+        }
     }
 }

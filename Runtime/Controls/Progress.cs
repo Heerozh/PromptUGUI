@@ -196,6 +196,19 @@ namespace PromptUGUI.Controls
             }
         }
 
+        public override Vector2? GetNativeSize()
+        {
+            if (_frame != null && _frame.sprite != null) return NativeOf(_frame);
+            if (_bg != null && _bg.sprite != null) return NativeOf(_bg);
+            return new Vector2(160f, 16f);
+        }
+
+        private static Vector2 NativeOf(UnityImage img)
+        {
+            var ppu = img.pixelsPerUnit;
+            return new Vector2(img.sprite.rect.width / ppu, img.sprite.rect.height / ppu);
+        }
+
         public override void OnAttached()
         {
             // MaskWrapper: stretch wrapper around Bg + Fill. UI.Mask + UnityImage attached
