@@ -182,7 +182,7 @@ namespace PromptUGUI.Application
                     Debug.LogWarning(issue.Message);
             }
 
-            // Mask-family self-checks (mirror of IRWalker dispatch; runtime warns)
+            // Per-tag self-checks (mirror of IRWalker dispatch; runtime warns)
             if (node.Tag == "Frame")
                 foreach (var issue in MaskAttributeRules.CheckFrame(node))
                     Debug.LogWarning(issue.Message);
