@@ -69,5 +69,32 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var p = Open("<Progress id='p' value='1.7'/>");
             Assert.AreEqual(1f, p.Value);
         }
+
+        [Test]
+        public void Scale_Horizontal_Value_Half_Anchors_Right_At_Half()
+        {
+            var p = Open("<Progress id='p' value='0.5'/>");
+            var fill = p.GameObject.transform.Find("MaskWrapper/Fill") as RectTransform;
+            Assert.AreEqual(Vector2.zero, fill.anchorMin);
+            Assert.AreEqual(new Vector2(0.5f, 1f), fill.anchorMax);
+            Assert.AreEqual(Vector2.zero, fill.offsetMin);
+            Assert.AreEqual(Vector2.zero, fill.offsetMax);
+        }
+
+        [Test]
+        public void Scale_Horizontal_Value_Zero_Fill_Is_Zero_Width()
+        {
+            var p = Open("<Progress id='p' value='0'/>");
+            var fill = p.GameObject.transform.Find("MaskWrapper/Fill") as RectTransform;
+            Assert.AreEqual(new Vector2(0f, 1f), fill.anchorMax);
+        }
+
+        [Test]
+        public void Scale_Horizontal_Value_One_Fill_Full_Width()
+        {
+            var p = Open("<Progress id='p' value='1'/>");
+            var fill = p.GameObject.transform.Find("MaskWrapper/Fill") as RectTransform;
+            Assert.AreEqual(new Vector2(1f, 1f), fill.anchorMax);
+        }
     }
 }

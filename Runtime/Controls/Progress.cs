@@ -27,6 +27,22 @@ namespace PromptUGUI.Controls
             set => _value = Mathf.Clamp01(value);
         }
 
+        internal override void OnAfterApply()
+        {
+            ReconcileFill();
+        }
+
+        private void ReconcileFill()
+        {
+            var rt = _fill.rectTransform;
+            // v1 single path: mode=scale, direction=horizontal (other modes/directions
+            // land in tasks 4-5).
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = new Vector2(_value, 1f);
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+        }
+
         public override void OnAttached()
         {
             // MaskWrapper: stretch wrapper around Bg + Fill. UI.Mask + UnityImage attached
