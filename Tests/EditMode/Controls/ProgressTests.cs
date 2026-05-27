@@ -291,7 +291,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var p = Open("<Progress id='p' mask='PromptUGUI/Defaults/pugui#pugui_9slice_mask'/>");
             var wrapper = p.GameObject.transform.Find("MaskWrapper").gameObject;
-            Assert.IsNotNull(wrapper.GetComponent<UnityImage>(), "mask= adds UnityImage to wrapper");
+            var img = wrapper.GetComponent<UnityImage>();
+            Assert.IsNotNull(img, "mask= adds UnityImage to wrapper");
+            Assert.IsFalse(img.raycastTarget, "mask graphic must not eat input (PB-D16)");
+            Assert.AreEqual(UnityImage.Type.Sliced, img.type, "9-slice mask sprite auto-Sliced (PB-D15)");
             var m = wrapper.GetComponent<UnityMask>();
             Assert.IsNotNull(m, "mask= adds UI.Mask");
             Assert.IsTrue(m.showMaskGraphic, "no bg → mask sprite visible (PB-D9)");
