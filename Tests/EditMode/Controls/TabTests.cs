@@ -52,5 +52,25 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var group = bar.GameObject.GetComponent<ToggleGroup>();
             Assert.AreSame(group, toggle.group, "Tab's UnityToggle.group is the TabBar's ToggleGroup");
         }
+
+        [Test]
+        public void Tab_Text_Sets_Label()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t' text='Hello'/>");
+            var label = t.GameObject.transform.Find("Label").GetComponent<TMP_Text>();
+            Assert.AreEqual("Hello", label.text);
+        }
+
+        [Test]
+        public void Tab_With_Empty_Text_Has_Empty_Label()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t'/>");
+            var label = t.GameObject.transform.Find("Label").GetComponent<TMP_Text>();
+            Assert.AreEqual("", label.text);
+        }
     }
 }

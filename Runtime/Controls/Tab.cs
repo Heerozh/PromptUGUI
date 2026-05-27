@@ -35,6 +35,7 @@ namespace PromptUGUI.Controls
             _label.alignment = TextAlignmentOptions.Center;
             _label.raycastTarget = false;
             _label.fontSize = 24;
+            _label.text = "";
             var lrt = _label.rectTransform;
             lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
             lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
@@ -79,6 +80,17 @@ namespace PromptUGUI.Controls
             var asset = settings?.ResolveFont(locale, _fontType);
             if (asset != null) _label.font = asset;
         }
+
+        [UIAttr, Preserve]
+        public string Text
+        {
+            set
+            {
+                if (_label != null) _label.text = value ?? "";
+            }
+        }
+
+        internal override string PeekDefaultText() => _label != null ? _label.text : null;
 
         public Observable<bool> OnValueChanged => _changed;
         public Observable<Unit> OnSelected => _selected;
