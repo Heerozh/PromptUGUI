@@ -72,5 +72,25 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var label = t.GameObject.transform.Find("Label").GetComponent<TMP_Text>();
             Assert.AreEqual("", label.text);
         }
+
+        [Test]
+        public void Tab_FontSize_Sets_TMP_FontSize()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t' text='X' fontSize='18'/>");
+            var label = t.GameObject.transform.Find("Label").GetComponent<TMP_Text>();
+            Assert.AreEqual(18f, label.fontSize);
+        }
+
+        [Test]
+        public void Tab_Default_FontSize_Is_24()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t' text='X'/>");
+            var label = t.GameObject.transform.Find("Label").GetComponent<TMP_Text>();
+            Assert.AreEqual(24f, label.fontSize);
+        }
     }
 }

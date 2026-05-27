@@ -92,6 +92,22 @@ namespace PromptUGUI.Controls
 
         internal override string PeekDefaultText() => _label != null ? _label.text : null;
 
+        [UIAttr, Preserve]
+        public string Font
+        {
+            set
+            {
+                _fontType = string.IsNullOrEmpty(value) ? "default" : value;
+                ApplyFont();
+            }
+        }
+
+        [UIAttr("fontSize"), Preserve]
+        public int FontSize
+        {
+            set { if (_label != null) _label.fontSize = value; }
+        }
+
         public Observable<bool> OnValueChanged => _changed;
         public Observable<Unit> OnSelected => _selected;
 
