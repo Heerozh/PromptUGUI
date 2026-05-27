@@ -32,7 +32,7 @@ namespace PromptUGUI.Controls
         public Observable<Unit> OnPointerExit => EnsureRelay().OnPointerExit;
         public Observable<Unit> OnPointerDown => EnsureRelay().OnPointerDown;
 
-        [UIAttr, Preserve]
+        [UIAttr(IsSprite = true), Preserve]
         public string Sprite
         {
             set => _img.sprite = UI.ResolveSprite(value);

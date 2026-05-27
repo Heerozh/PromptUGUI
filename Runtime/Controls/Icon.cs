@@ -18,7 +18,7 @@ namespace PromptUGUI.Controls
             _img.color = UnityEngine.Color.white;
         }
 
-        [UIAttr, Preserve]
+        [UIAttr(IsSprite = true), Preserve]
         public string Name
         {
             set

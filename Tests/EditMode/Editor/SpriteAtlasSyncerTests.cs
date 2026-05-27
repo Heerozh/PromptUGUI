@@ -1051,6 +1051,65 @@ namespace PromptUGUI.Tests.Editor
             _toCleanup.Add(path);
         }
 
+        [Test]
+        public void Scan_picks_up_Progress_sprite_attributes()
+        {
+            var path = $"{TestRoot}/progress_sprites.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Screen name='S_progress_sprites'>
+                      <Progress fill='ui:bar-fill' bg='ui:bar-bg' frame='ui:bar-frame' mask='ui:bar-mask'/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
+            Assert.That(refs, Does.Contain(("ui", "bar-fill")));
+            Assert.That(refs, Does.Contain(("ui", "bar-bg")));
+            Assert.That(refs, Does.Contain(("ui", "bar-frame")));
+            Assert.That(refs, Does.Contain(("ui", "bar-mask")));
+        }
+
+        [Test]
+        public void Scan_picks_up_Progress_sprite_variant_overrides()
+        {
+            var path = $"{TestRoot}/progress_variants.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Screen name='S_progress_variants'>
+                      <Progress fill='ui:fill-light' fill.dark='ui:fill-dark'/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
+            Assert.That(refs, Does.Contain(("ui", "fill-light")));
+            Assert.That(refs, Does.Contain(("ui", "fill-dark")));
+        }
+
+        [Test]
+        public void Scan_picks_up_template_param_driven_Progress_fill()
+        {
+            var path = $"{TestRoot}/tpl_progress_fill.ui.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Template name='ThemedBar'>
+                      <Param name='bar'/>
+                      <Progress fill='{{bar}}'/>
+                    </Template>
+                    <Screen name='S_tpl_progress_fill'>
+                      <ThemedBar bar='ui:fill-themed'/>
+                    </Screen>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            var refs = SpriteAtlasSyncer.ScanXmlReferences();
+            Assert.That(refs, Does.Contain(("ui", "fill-themed")));
+        }
+
         private byte[] MakeBlankPng()
         {
             var t = new Texture2D(1, 1);

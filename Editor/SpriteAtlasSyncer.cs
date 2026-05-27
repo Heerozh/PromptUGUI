@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using PromptUGUI.Application;
 using PromptUGUI.IR;
 using PromptUGUI.Parser;
+using PromptUGUI.Registry;
 using UnityEditor;
 using UnityEditor.U2D;
 using UnityEngine;
@@ -28,6 +30,7 @@ namespace PromptUGUI.Editor
         {
             var refs = new HashSet<(string, string)>();
             var parsed = new List<(string path, UIDocument doc)>();
+            var registry = UI.Registry;
 
             var guids = AssetDatabase.FindAssets("t:TextAsset");
             for (var i = 0; i < guids.Length; i++)
@@ -71,7 +74,7 @@ namespace PromptUGUI.Editor
                 {
                     if (tpl.Body == null) continue;
                     var flows = new Dictionary<string, IconParamFlow>(StringComparer.Ordinal);
-                    AnalyzeNode(tpl.Body, flows, path, tpl.Name);
+                    AnalyzeNode(tpl.Body, flows, path, tpl.Name, registry);
                     if (flows.Count == 0) continue;
 
                     // Treat Param `default` values as effective invocation args so a
@@ -88,11 +91,11 @@ namespace PromptUGUI.Editor
             foreach (var (path, doc) in parsed)
             {
                 foreach (var screen in doc.Screens)
-                    CollectFromNode(screen.Root, refs, templateFlows, path);
+                    CollectFromNode(screen.Root, refs, templateFlows, path, registry);
                 foreach (var tpl in doc.Templates.Values)
                 {
                     if (tpl.Body == null) continue;
-                    CollectFromNode(tpl.Body, refs, templateFlows, path);
+                    CollectFromNode(tpl.Body, refs, templateFlows, path, registry);
                     // Also fold Param defaults into refs at definition site (covers the
                     // case where a Template is defined but never invoked yet still ships
                     // a sensible default icon).
@@ -135,26 +138,24 @@ namespace PromptUGUI.Editor
 
         private static void AnalyzeNode(ElementNode node,
                                     Dictionary<string, IconParamFlow> flows,
-                                    string path, string tplName)
+                                    string path, string tplName,
+                                    ControlRegistry registry)
         {
             if (node == null) return;
-            // <Icon name=...> existing path.
-            if (node.Tag == "Icon" && node.Namespace == null)
+            // Sprite-bearing attribute names for this tag come from
+            // [UIAttr(IsSprite = true)] metadata via the registry; namespaced /
+            // unregistered tags (custom controls not registered at Editor scan time)
+            // fall back to the conventional "sprite" attribute name for back-compat.
+            foreach (var attrName in SpriteAttrsFor(node, registry))
             {
-                if (node.Attributes.TryGetValue("name", out var v))
-                    TryAddFlow(v, flows, path, tplName, "Icon", "name");
-                if (node.VariantOverrides.TryGetValue("name", out var list))
+                if (node.Attributes.TryGetValue(attrName, out var v))
+                    TryAddFlow(v, flows, path, tplName, node.Tag, attrName);
+                if (node.VariantOverrides.TryGetValue(attrName, out var list))
                     foreach (var (_, vv) in list)
-                        TryAddFlow(vv, flows, path, tplName, "Icon", "name");
+                        TryAddFlow(vv, flows, path, tplName, node.Tag, attrName);
             }
-            // Any element's sprite= attribute (covers built-in controls + any custom subclass).
-            if (node.Attributes.TryGetValue("sprite", out var sv))
-                TryAddFlow(sv, flows, path, tplName, node.Tag, "sprite");
-            if (node.VariantOverrides.TryGetValue("sprite", out var spList))
-                foreach (var (_, vv) in spList)
-                    TryAddFlow(vv, flows, path, tplName, node.Tag, "sprite");
 
-            foreach (var c in node.Children) AnalyzeNode(c, flows, path, tplName);
+            foreach (var c in node.Children) AnalyzeNode(c, flows, path, tplName, registry);
         }
 
         private static void TryAddFlow(string value,
@@ -186,21 +187,17 @@ namespace PromptUGUI.Editor
         private static void CollectFromNode(ElementNode node,
                                     HashSet<(string, string)> refs,
                                     IReadOnlyDictionary<string, TemplateFlow> templateFlows,
-                                    string path)
+                                    string path,
+                                    ControlRegistry registry)
         {
             if (node == null) return;
 
-            // <Icon name=...> literal extraction.
-            if (node.Tag == "Icon" && node.Namespace == null)
-            {
-                if (node.Attributes.TryGetValue("name", out var n))
-                    CollectFromAttr(n, refs, path, "Icon", "name");
-                if (node.VariantOverrides.TryGetValue("name", out var list))
-                    foreach (var (_, v) in list)
-                        CollectFromAttr(v, refs, path, "Icon", "name");
-            }
-            // Template invocations: resolve invocation args via Param flows.
-            else if (templateFlows.TryGetValue(node.Tag, out var tf))
+            // Template invocations: resolve invocation args via Param flows. templateFlows
+            // is keyed by local name only, so namespaced invocations (<lib.Themed .../>)
+            // also resolve here. Both paths can fire — invocation args feed flow-driven
+            // refs, and a stray literal sprite= on the same node feeds the registry-driven
+            // path below; refs is a set so duplicates collapse.
+            if (templateFlows.TryGetValue(node.Tag, out var tf))
             {
                 foreach (var (paramName, flow) in tf.Flows)
                 {
@@ -211,16 +208,37 @@ namespace PromptUGUI.Editor
                 }
             }
 
-            // Any element's sprite= literal (covers Image, Btn, Toggle, Slider, Dropdown,
-            // ScrollList, InputField, plus any custom subclass). Bare paths (no colon) are
-            // Resources.Load, so CollectFromAttr returns early — they are NOT collected.
-            if (node.Attributes.TryGetValue("sprite", out var sv))
-                CollectFromAttr(sv, refs, path, node.Tag, "sprite");
-            if (node.VariantOverrides.TryGetValue("sprite", out var spList))
-                foreach (var (_, v) in spList)
-                    CollectFromAttr(v, refs, path, node.Tag, "sprite");
+            // Sprite-bearing attribute names come from [UIAttr(IsSprite = true)] metadata
+            // via the registry — covers Image / Btn / Toggle / Slider / Dropdown /
+            // ScrollList / InputField (sprite=), Icon (name=), Progress (fill / bg /
+            // frame / mask =), plus any future control. Namespaced or unregistered tags
+            // (custom controls not registered at Editor scan time) fall back to the
+            // conventional "sprite" attribute name for back-compat. Bare paths (no colon)
+            // are Resources.Load — CollectFromAttr returns early.
+            foreach (var attrName in SpriteAttrsFor(node, registry))
+            {
+                if (node.Attributes.TryGetValue(attrName, out var v))
+                    CollectFromAttr(v, refs, path, node.Tag, attrName);
+                if (node.VariantOverrides.TryGetValue(attrName, out var list))
+                    foreach (var (_, vv) in list)
+                        CollectFromAttr(vv, refs, path, node.Tag, attrName);
+            }
 
-            foreach (var c in node.Children) CollectFromNode(c, refs, templateFlows, path);
+            foreach (var c in node.Children) CollectFromNode(c, refs, templateFlows, path, registry);
+        }
+
+        // Per-tag sprite attribute names, taken from [UIAttr(IsSprite = true)] via the
+        // registry. Namespaced tags (always Templates via Imports) and unregistered tags
+        // (custom controls not registered at Editor scan time) fall back to the literal
+        // "sprite" attribute, preserving back-compat.
+        private static readonly string[] FallbackSpriteAttrs = { "sprite" };
+
+        private static IReadOnlyCollection<string> SpriteAttrsFor(
+            ElementNode node, ControlRegistry registry)
+        {
+            if (node.Namespace == null && registry != null && registry.Has(node.Tag))
+                return registry.Resolve(node.Tag).Meta.SpriteAttrs;
+            return FallbackSpriteAttrs;
         }
 
         private static void CollectFromTemplateArg(string value, IconParamFlow flow,

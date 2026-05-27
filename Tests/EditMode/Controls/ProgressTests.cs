@@ -287,6 +287,34 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void FrameColor_With_Frame_Sprite_Tints_Frame()
+        {
+            var p = Open("<Progress id='p' frame='PromptUGUI/Defaults/pugui#pugui_9slice_round' frameColor='#ff0000'/>");
+            var frame = p.GameObject.transform.Find("Frame").GetComponent<UnityImage>();
+            Assert.AreEqual(Color.red, frame.color, "frameColor must tint the frame Image");
+        }
+
+        [Test]
+        public void FrameColor_Alone_Activates_Frame_Layer_With_Color()
+        {
+            var p = Open("<Progress id='p' frameColor='#222222'/>");
+            var frame = p.GameObject.transform.Find("Frame");
+            Assert.IsTrue(frame.gameObject.activeSelf, "Frame activated by frameColor= alone");
+            var img = frame.GetComponent<UnityImage>();
+            ColorUtility.TryParseHtmlString("#222222", out var expected);
+            Assert.AreEqual(expected, img.color);
+        }
+
+        [Test]
+        public void FrameColor_Setter_At_Runtime_Updates_Tint()
+        {
+            var p = Open("<Progress id='p' frame='PromptUGUI/Defaults/pugui#pugui_9slice_round'/>");
+            var frame = p.GameObject.transform.Find("Frame").GetComponent<UnityImage>();
+            p.FrameColor = "#00ff00";
+            Assert.AreEqual(Color.green, frame.color, "runtime FrameColor= must repaint frame");
+        }
+
+        [Test]
         public void Mask_Alone_Adds_Image_Plus_Mask_With_ShowMaskGraphic_True()
         {
             var p = Open("<Progress id='p' mask='PromptUGUI/Defaults/pugui#pugui_9slice_mask'/>");

@@ -27,6 +27,15 @@ namespace PromptUGUI.Registry
         /// </summary>
         public string Pattern { get; set; }
 
+        /// <summary>
+        /// Marks this attribute as carrying a sprite reference (resolved via
+        /// <c>UI.ResolveSprite</c> or equivalent). The Editor-side
+        /// <c>SpriteAtlasSyncer</c> reads this flag to discover sprite-bearing
+        /// attribute names per tag, so the atlas picks up sprites referenced via
+        /// non-`sprite` attribute names (e.g. <c>&lt;Progress fill=... bg=... frame=... mask=.../&gt;</c>).
+        /// </summary>
+        public bool IsSprite { get; set; }
+
         public UIAttrAttribute(string name = null) { Name = name; }
     }
 }

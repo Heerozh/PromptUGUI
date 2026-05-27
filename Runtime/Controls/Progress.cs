@@ -56,7 +56,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr, Preserve]
+        [UIAttr(IsSprite = true), Preserve]
         public string Fill
         {
             set
@@ -76,7 +76,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr, Preserve]
+        [UIAttr(IsSprite = true), Preserve]
         public string Bg
         {
             set
@@ -102,7 +102,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr, Preserve]
+        [UIAttr(IsSprite = true), Preserve]
         public string Frame
         {
             set
@@ -115,6 +115,18 @@ namespace PromptUGUI.Controls
         }
 
         [UIAttr, Preserve]
+        public string FrameColor
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value)) return;
+                if (!ColorUtility.TryParseHtmlString(value, out var c)) return;
+                _frame.color = c;
+                _frame.gameObject.SetActive(true);
+            }
+        }
+
+        [UIAttr(IsSprite = true), Preserve]
         public string Mask
         {
             set
