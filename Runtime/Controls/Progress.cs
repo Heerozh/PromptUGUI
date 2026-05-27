@@ -19,6 +19,7 @@ namespace PromptUGUI.Controls
 
         // Attribute state.
         private float _value;
+        private string _direction = "horizontal";
 
         [UIAttr, Preserve]
         public float Value
@@ -31,6 +32,16 @@ namespace PromptUGUI.Controls
             }
         }
 
+        [UIAttr, Preserve]
+        public string Direction
+        {
+            set
+            {
+                _direction = value;
+                ReconcileFill();
+            }
+        }
+
         internal override void OnAfterApply()
         {
             ReconcileFill();
@@ -39,10 +50,14 @@ namespace PromptUGUI.Controls
         private void ReconcileFill()
         {
             var rt = _fill.rectTransform;
-            // v1 single path: mode=scale, direction=horizontal (other modes/directions
-            // land in tasks 4-5).
-            rt.anchorMin = Vector2.zero;
-            rt.anchorMax = new Vector2(_value, 1f);
+            (rt.anchorMin, rt.anchorMax) = _direction switch
+            {
+                "horizontal" => (new Vector2(0f, 0f), new Vector2(_value, 1f)),
+                "reverse-horizontal" => (new Vector2(1f - _value, 0f), new Vector2(1f, 1f)),
+                "vertical" => (new Vector2(0f, 0f), new Vector2(1f, _value)),
+                "reverse-vertical" => (new Vector2(0f, 1f - _value), new Vector2(1f, 1f)),
+                _ => (new Vector2(0f, 0f), new Vector2(_value, 1f)),
+            };
             rt.offsetMin = Vector2.zero;
             rt.offsetMax = Vector2.zero;
         }

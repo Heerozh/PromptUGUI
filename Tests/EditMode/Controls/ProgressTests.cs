@@ -107,5 +107,42 @@ namespace PromptUGUI.Tests.EditMode.Controls
             p.Value = 0.7f;
             Assert.AreEqual(new Vector2(0.7f, 1f), fill.anchorMax, "runtime setter must repaint Fill");
         }
+
+        [Test]
+        public void Scale_ReverseHorizontal_Anchors_From_Right()
+        {
+            var p = Open("<Progress id='p' value='0.25' direction='reverse-horizontal'/>");
+            var fill = p.GameObject.transform.Find("MaskWrapper/Fill") as RectTransform;
+            Assert.AreEqual(new Vector2(0.75f, 0f), fill.anchorMin);
+            Assert.AreEqual(new Vector2(1f, 1f), fill.anchorMax);
+        }
+
+        [Test]
+        public void Scale_Vertical_Anchors_From_Bottom()
+        {
+            var p = Open("<Progress id='p' value='0.4' direction='vertical'/>");
+            var fill = p.GameObject.transform.Find("MaskWrapper/Fill") as RectTransform;
+            Assert.AreEqual(Vector2.zero, fill.anchorMin);
+            Assert.AreEqual(new Vector2(1f, 0.4f), fill.anchorMax);
+        }
+
+        [Test]
+        public void Scale_ReverseVertical_Anchors_From_Top()
+        {
+            var p = Open("<Progress id='p' value='0.4' direction='reverse-vertical'/>");
+            var fill = p.GameObject.transform.Find("MaskWrapper/Fill") as RectTransform;
+            Assert.AreEqual(new Vector2(0f, 0.6f), fill.anchorMin);
+            Assert.AreEqual(new Vector2(1f, 1f), fill.anchorMax);
+        }
+
+        [Test]
+        public void Direction_Setter_At_Runtime_Reconciles_Fill()
+        {
+            var p = Open("<Progress id='p' value='0.4'/>");
+            var fill = p.GameObject.transform.Find("MaskWrapper/Fill") as RectTransform;
+            Assert.AreEqual(new Vector2(0.4f, 1f), fill.anchorMax, "initial horizontal");
+            p.Direction = "vertical";
+            Assert.AreEqual(new Vector2(1f, 0.4f), fill.anchorMax, "runtime direction switch must repaint Fill");
+        }
     }
 }
