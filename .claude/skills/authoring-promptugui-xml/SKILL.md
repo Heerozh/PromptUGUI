@@ -578,12 +578,10 @@ Radial fill（冷却环）不在 `<Progress>` 范围；以后用单独的 `<Cool
 <Progress value="0.3" fill="ui:liquid" mode="fill" direction="reverse-vertical"/>
 
 <!-- 6. 在 Variant 中切换 value / colors (frame / bg / fill sprite 允许；mask 完全禁止 — PUI-PROG-MASK-VARIANT) -->
-<Progress id="hp" value="1.0" fill="ui:bar" bgColor="#000">
-  <Variant when="state.low">
-    <Attr name="value" value="0.2"/>
-    <Attr name="fillColor" value="#f44"/>
-  </Variant>
-</Progress>
+<Progress id="hp"
+          value="1.0" value.low="0.2"
+          fill="ui:bar" fillColor.low="#f44"
+          bgColor="#000"/>
 ```
 
 ### mask × bg 四种组合
