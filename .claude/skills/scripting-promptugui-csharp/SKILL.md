@@ -173,6 +173,8 @@ screen.Get<InputField>("playerName").OnEndEdit
       .Subscribe(s => Player.Rename(s)).AddTo(screen);
 ```
 
+**Progress** — `screen.Get<Progress>("hp").Value = 0.42f;` Progress 是只读显示控件，无 `OnValueChanged`，用 `Bind`-属性或直接 setter 推值。`Value` 被 `Mathf.Clamp01` 钳位。
+
 `screen.Track(disposable)` (or the `.AddTo(screen)` extension) ties a subscription to Screen lifetime. **Always do this** — leaked R3 subscriptions hold the GameObject alive after Close, and the next Open will produce phantom callbacks against the old (destroyed) GameObject.
 
 ## Screen-level hooks
@@ -301,6 +303,7 @@ EVENTS (R3)    .OnClick                Btn
                .OnSelected             Dropdown:int
                .OnEndEdit / .OnSubmit  InputField:string
                .Subscribe(...).AddTo(screen)   tie lifetime — ALWAYS
+               Progress                display-only; .Value = 0.42f (Clamp01); no event
 
 DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                ScrollList.BindItems(Observable<IReadOnlyList<T>>, (slot,t)=>...)

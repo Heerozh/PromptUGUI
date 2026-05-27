@@ -95,6 +95,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name:
 | `<Dropdown>`   | TMP_Dropdown. R3 `OnSelected: int`. Options pushed C#-side via `BindOptions(...)`. **不写 size 时默认 160×44**（不读 caption 文字宽，避免每选一项就改宽度）。                                                                                                                                                                                                                                    | `value` (int initial index), `color`, `sprite`, `font`                                                                                                                                                                                                                                                                                             |
 | `<ScrollList>` | ScrollRect + Mask. Items pushed C#-side via `BindItems(...)`. `itemTemplate` references a `<Template name=...>` or registered Control class. **不写 size 时按方向给视口默认**：纵向滚动 160×200、横向滚动 200×160；实际项目通常显式写 size。                                                                                                                                                     | `itemTemplate` (required tag name), `direction` (`vertical` / `horizontal`), `spacing` (float), `padding`, `color`, `sprite`                                                                                                                                                                                                                       |
 | `<InputField>` | TMP_InputField；R3 `OnValueChanged` / `OnEndEdit` / `OnSubmit: string`。`<InputField>初始文本</InputField>` 短手设 `text=`。                                                                                                                                                                                                                                                                     | `text`, `placeholder`, `contentType` (`standard`/`autocorrected`/`integer-number`/`decimal-number`/`alphanumeric`/`name`/`email`/`password`/`pin`/`custom`), `lineType` (`single`/`multi-newline`/`multi-submit`), `characterLimit` (int), `readOnly` (bool), `color`, `sprite`, `font`, `tr` (placeholder)/`ctx`                                  |
+| `<Progress>` | 显示型线性进度条（只读，无 `OnValueChanged`）。一行配齐 frame / mask / bg / fill / mode / direction / value，零手糊图层。 | `value` (float `[0..1]`, default `0`), `fill` (sprite key), `fillColor` (`#rrggbbaa`), `bg` (sprite key), `bgColor` (颜色), `frame` (sprite key), `mask` (sprite key), `mode` (`scale`\|`fill`, default `scale`), `direction` (`horizontal`\|`vertical`\|`reverse-horizontal`\|`reverse-vertical`, default `horizontal`) |
 
 `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` are reference implementations. For project-specific differentiation (pixel border, press feedback, custom popup chrome) subclass and override `OnAttached` — see scripting-promptugui-csharp.
 
@@ -195,6 +196,7 @@ Other notes:
 | `<Dropdown>`   | `Image` + `TMP_Dropdown`                                                                                                                                                        | `Label` + `Arrow` + `Template`（默认 inactive，内含 `Viewport` / `Content` / `Item` / `Scrollbar` 完整下拉子树）                                                             | `OnSelected` ← `TMP_Dropdown.onValueChanged`                                                       |
 | `<ScrollList>` | `Image` + `ScrollRect`                                                                                                                                                          | `Viewport`(`Image` + `Mask` stencil) → `Content`(V/H `LayoutGroup` + `ContentSizeFitter`)；按 `direction` 再加一个 `Scrollbar`                                               | 无独立事件；C# 端 `BindItems(...)` 推数据                                                          |
 | `<InputField>` | `Image` + `TMP_InputField`                                                                                                                                                      | `Text Area`(`RectMask2D`) → `Placeholder`(`TMP_Text`, italic 半透明) + `Text`(`TMP_Text`)                                                                                    | `OnValueChanged` / `OnEndEdit` / `OnSubmit` ← `TMP_InputField.*`                                   |
+| `<Progress>`   | `RectTransform`（无 Graphic）                                                                                                                                                   | `MaskWrapper`(`RectTransform`; 按需挂 `UnityImage` + `Mask`) → `Bg`(`Image`, 按需启用) + `Fill`(`Image`, 永远存在)；`Frame`(`Image`, 按需启用, `raycastTarget=false`) | —                                                                                                  |
 | `<SafeArea>`   | `RectTransform` + `SafeAreaTracker`（内部 `MonoBehaviour`，订阅设备 safeArea / 旋转 / Device Simulator）                                                                        | —                                                                                                                                                                            | —                                                                                                  |
 | `<Trigger>`    | `RectTransform` 单独（无视觉、无 layout 行为，仅作 wrapper 划定事件源 scope）                                                                                                   | —                                                                                                                                                                            | `OnFire` ← R3 `Subject<Unit>`，由 `on=`（open/loop/click/hover-enter/hover-exit/press/manual）触发 |
 | `<Animation>`  | `RectTransform` + `CanvasGroup`（继承自 Trigger；CanvasGroup 给 `fade=` 用，由 `ApplyCommon` 懒加载）                                                                           | `_offsetProxy`(`RectTransform`，anchor stretch、margin=0、pivot=0.5,0.5) — XML 子节点全 parent 到这一层；LitMotion 驱动它的 anchoredPosition / localScale / localEulerAngles | `OnFire` ← 继承 Trigger；同时由 `on=` 触发 LitMotion `MotionHandle[]`                              |
@@ -551,6 +553,61 @@ PromptUGUI never auto-enables masking — you must opt in via `mask=`. Two reaso
 
 **Variant overrides** on `mask` / `showMask` / `maskPadding` are rejected in v1 (`PUI-MASK-VARIANT`) — switching mask mode means `AddComponent`/`Destroy` at runtime, which we don't support. If you need per-variant clipping, split into two Screens or use `<Add into=…>`.
 
+## Progress
+
+`<Progress>` 是显示型线性进度条，把 frame / mask / bg / fill / mode / direction / value 打包进一行 XML。**只读** — C# 侧直接 setter，无 `OnValueChanged` Observable。
+
+Radial fill（冷却环）不在 `<Progress>` 范围；以后用单独的 `<Cooldown>` 控件。
+
+### 六个典型用例
+
+```xml
+<!-- 1. 最简：纯色 bg + 单色 fill；scale 横向 -->
+<Progress value="0.6" bgColor="#222" fillColor="#3cf"/>
+
+<!-- 2. 单 sprite 填充；scale 横向 -->
+<Progress value="0.6" fill="ui:bar_red"/>
+
+<!-- 3. 圆角胶囊：mask sprite 兼当底 (PB-D9) -->
+<Progress value="0.4" mask="ui:pill" fill="ui:bar_blue"/>
+
+<!-- 4. 全套装饰：frame + mask + bg + fill -->
+<Progress value="0.6" frame="ui:gold_border" mask="ui:pill" bg="ui:track" fill="ui:bar_red"/>
+
+<!-- 5. Unity Image.Type.Filled, 反向纵向（液体从顶部往下空） -->
+<Progress value="0.3" fill="ui:liquid" mode="fill" direction="reverse-vertical"/>
+
+<!-- 6. 在 Variant 中切换 value / colors (mask/frame/bg/fill sprite 允许；mask 模式禁止) -->
+<Progress id="hp" value="1.0" fill="ui:bar" bgColor="#000">
+  <Variant when="state.low">
+    <Attr name="value" value="0.2"/>
+    <Attr name="fillColor" value="#f44"/>
+  </Variant>
+</Progress>
+```
+
+### mask × bg 四种组合
+
+| 条件 | MaskWrapper.UnityImage | MaskWrapper.Mask | MaskWrapper.showMaskGraphic | Bg.SetActive | Frame.SetActive |
+|---|---|---|---|---|---|
+| 无 mask、无 bg/bgColor | 不挂 | 不挂 | — | false | (按 frame) |
+| 无 mask、有 bg/bgColor | 不挂 | 不挂 | — | true | (按 frame) |
+| 有 mask、无 bg/bgColor | 挂（sprite=mask） | 挂 | true | false | (按 frame) |
+| 有 mask、有 bg/bgColor | 挂（sprite=mask） | 挂 | false | true | (按 frame) |
+
+`有 mask、无 bg/bgColor` 时 `showMaskGraphic=true` — mask sprite 兼任可见底，一个 sprite 干两件事（圆角胶囊最常见路径）。
+
+### Lint 规则
+
+| Code | 触发条件 | 级别 |
+|---|---|---|
+| `PUI-PROG-VALUE-RANGE` | `value` 字面量超出 `[0..1]` | warning |
+| `PUI-PROG-MODE` | `mode` 不在 `scale\|fill` | error |
+| `PUI-PROG-DIRECTION` | `direction` 不在 `horizontal\|vertical\|reverse-horizontal\|reverse-vertical` | error |
+| `PUI-PROG-CHILDREN` | `<Progress>` 包含子元素 | error |
+| `PUI-PROG-MASK-VARIANT` | `mask` 出现在 Variant 覆盖里 | error |
+| `PUI-PROG-NO-FILL` | `value` 有值但 `fill`/`fillColor` 均未设 | warning |
+
 ## Common mistakes (XML)
 
 | Symptom                                                                             | Cause                                                                                                                                                                                              | Fix                                                                                                                                                                                                                                                             |
@@ -583,6 +640,7 @@ TOP LEVEL     <Import src="" [as=""]/>  <Screen name="" [canvas="overlay|camera|
 
 BUILT-INS     <Frame> <Image> <Text> <VStack> <HStack> <Grid> <Btn> <Icon>
               <Toggle> <Slider> <Dropdown> <ScrollList> <InputField>
+              <Progress value="0.6" fill="ui:bar"/>  最简；mask= + 不设 bg → mask sprite 自动可见兼当底；radial 进度环不在 <Progress> 范围
 TEXT SHORT    <Text>Hi</Text> ≡ <Text text="Hi"/>     (also <Btn>, <Toggle>, <InputField>)
 
 COMMON ATTRS  id  anchor  size|width|height  margin  pivot  hidden  interactable
