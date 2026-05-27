@@ -189,6 +189,9 @@ namespace PromptUGUI.Application
             else if (node.Tag == "Image")
                 foreach (var issue in MaskAttributeRules.CheckImage(node))
                     Debug.LogWarning(issue.Message);
+            else if (node.Tag == "Progress")
+                foreach (var issue in ProgressAttributeRules.CheckProgress(node))
+                    Debug.LogWarning(issue.Message);
 
             var entry = _registry.Resolve(node.Tag);
 

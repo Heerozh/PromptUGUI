@@ -41,6 +41,9 @@ namespace PromptUGUI.Lint
             else if (node.Tag == "Image")
                 foreach (var issue in MaskAttributeRules.CheckImage(node))
                     yield return issue;
+            else if (node.Tag == "Progress")
+                foreach (var issue in ProgressAttributeRules.CheckProgress(node))
+                    yield return issue;
 
             // CLI-only: pure containers carry no Graphic; sprite/color silently dropped.
             // Intentionally NOT dispatched from ScreenInstantiator — see rule's XML docs.
