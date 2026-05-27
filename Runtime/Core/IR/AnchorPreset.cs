@@ -29,7 +29,10 @@ namespace PromptUGUI.IR
 
             var dash = s.IndexOf('-');
             if (dash < 1 || dash == s.Length - 1)
-                throw new ArgumentException($"anchor '{s}' must be '<v>-<h>'");
+                throw new ArgumentException(
+                    $"anchor '{s}' is invalid; expected 'center', 'stretch' (alias 'fill'), or "
+                    + "'<vertical>-<horizontal>' such as 'top-left' or 'bottom-stretch' "
+                    + "(vertical: top|center|bottom|stretch, horizontal: left|center|right|stretch)");
 
             var v = ParseV(s.Substring(0, dash));
             var h = ParseH(s.Substring(dash + 1));
@@ -42,7 +45,8 @@ namespace PromptUGUI.IR
             "center" => AnchorVertical.Center,
             "bottom" => AnchorVertical.Bottom,
             "stretch" => AnchorVertical.Stretch,
-            _ => throw new ArgumentException($"invalid vertical '{s}'")
+            _ => throw new ArgumentException(
+                $"anchor vertical '{s}' is invalid; expected 'top', 'center', 'bottom', or 'stretch'")
         };
 
         private static AnchorHorizontal ParseH(string s) => s switch
@@ -51,7 +55,8 @@ namespace PromptUGUI.IR
             "center" => AnchorHorizontal.Center,
             "right" => AnchorHorizontal.Right,
             "stretch" => AnchorHorizontal.Stretch,
-            _ => throw new ArgumentException($"invalid horizontal '{s}'")
+            _ => throw new ArgumentException(
+                $"anchor horizontal '{s}' is invalid; expected 'left', 'center', 'right', or 'stretch'")
         };
 
         public bool Equals(AnchorPreset o) => V == o.V && H == o.H;
