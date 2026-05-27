@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
+using R3;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
@@ -193,6 +194,36 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(6, hlg.padding.right);
             Assert.AreEqual(4, hlg.padding.top);
             Assert.AreEqual(4, hlg.padding.bottom);
+        }
+
+        [Test]
+        public void TabBar_OnSelectionChanged_Fires_With_Newly_Selected_Tab()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar'><Tab id='a' isOn='true'/><Tab id='b'/></TabBar>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var bar = screen.Get<TabBar>("bar");
+            Tab observed = null;
+            using var sub = bar.OnSelectionChanged.Subscribe(t => observed = t);
+
+            screen.Get<Tab>("b").IsOn = true;
+            Assert.AreSame(screen.Get<Tab>("b"), observed);
+        }
+
+        [Test]
+        public void TabBar_SelectedTab_And_SelectedIndex_Reflect_State()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar'><Tab id='a'/><Tab id='b' isOn='true'/><Tab id='c'/></TabBar>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var bar = UI.Open("S").Get<TabBar>("bar");
+            Assert.AreEqual(1, bar.SelectedIndex);
+            Assert.AreEqual("b", bar.SelectedTab.Id);
         }
 
         [Test]

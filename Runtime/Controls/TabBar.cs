@@ -30,6 +30,10 @@ namespace PromptUGUI.Controls
         private Func<RectTransform, IControl> _factory;
         private IDisposable _itemsSub;
 
+        // Per-Tab subscriptions kept alive until next rebuild / Dispose; reset
+        // both on dynamic Rebuild and on static OnAfterApply so reapply replaces them.
+        private CompositeDisposable _tabSubs;
+
         internal ToggleGroup InternalToggleGroup => _group;
 
         public override void OnAttached()
@@ -136,10 +140,14 @@ namespace PromptUGUI.Controls
                 bind(typed, items[i]);
             }
             SyncInitialSelection();
+            WireTabSubscriptions();
+            if (_tabs.Count == 0) _selectionChanged.OnNext(null);
         }
 
         private void ClearTabs()
         {
+            _tabSubs?.Dispose();
+            _tabSubs = null;
             foreach (var t in _tabs) t.Dispose();
             _tabs.Clear();
         }
@@ -193,6 +201,21 @@ namespace PromptUGUI.Controls
             CollectStaticTabs();
             PushVisualToTabs();
             SyncInitialSelection();
+            WireTabSubscriptions();
+        }
+
+        private void WireTabSubscriptions()
+        {
+            _tabSubs?.Dispose();
+            _tabSubs = new CompositeDisposable();
+            foreach (var t in _tabs)
+            {
+                var captured = t;
+                captured.OnValueChanged
+                    .Where(on => on)
+                    .Subscribe(_ => _selectionChanged.OnNext(captured))
+                    .AddTo(_tabSubs);
+            }
         }
 
         private void SyncInitialSelection()
@@ -268,6 +291,7 @@ namespace PromptUGUI.Controls
 
         public override void Dispose()
         {
+            _tabSubs?.Dispose();
             _itemsSub?.Dispose();
             _selectionChanged.Dispose();
             base.Dispose();
