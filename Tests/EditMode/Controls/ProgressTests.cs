@@ -48,5 +48,27 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsNull(p.GameObject.GetComponent<UnityImage>(),
                 "Progress root is a pure RectTransform host, no Graphic");
         }
+
+        [Test]
+        public void Value_Stores_InRangeAsIs()
+        {
+            var p = Open("<Progress id='p' value='0.5'/>");
+            Assert.AreEqual(0.5f, p.Value);
+        }
+
+        [Test]
+        public void Value_Below_Zero_Clamps_To_Zero()
+        {
+            var p = Open("<Progress id='p'/>");
+            p.Value = -0.3f;
+            Assert.AreEqual(0f, p.Value);
+        }
+
+        [Test]
+        public void Value_Above_One_Clamps_To_One()
+        {
+            var p = Open("<Progress id='p' value='1.7'/>");
+            Assert.AreEqual(1f, p.Value);
+        }
     }
 }

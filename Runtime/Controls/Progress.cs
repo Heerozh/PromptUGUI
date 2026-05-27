@@ -15,6 +15,14 @@ namespace PromptUGUI.Controls
         private UnityImage _frame;
         private UnityImage _maskGraphic;     // null until mask= setter runs
         private UnityEngine.UI.Mask _stencilMask;
+        private float _value;
+
+        [UIAttr, Preserve]
+        public float Value
+        {
+            get => _value;
+            set => _value = Mathf.Clamp01(value);
+        }
 
         public override void OnAttached()
         {
