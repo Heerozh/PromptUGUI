@@ -10,11 +10,14 @@ namespace PromptUGUI.Controls
     /// <Cooldown> control instead — see spec PB-D6.
     public sealed class Progress : Control
     {
-        private UnityImage _bg;
-        private UnityImage _fill;
-        private UnityImage _frame;
+        // Image layers — conditionally null/active per spec §6 activation table.
+        private UnityImage _bg;              // null disabled until bg=/bgColor= activates it
         private UnityImage _maskGraphic;     // null until mask= setter runs
-        private UnityEngine.UI.Mask _stencilMask;
+        private UnityEngine.UI.Mask _stencilMask;  // pairs with _maskGraphic
+        private UnityImage _fill;            // always present (PB-D7)
+        private UnityImage _frame;           // null disabled until frame= activates it
+
+        // Attribute state.
         private float _value;
 
         [UIAttr, Preserve]

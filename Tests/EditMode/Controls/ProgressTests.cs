@@ -2,7 +2,6 @@ using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
 using UnityEngine;
-using UnityEngine.UI;
 using UnityImage = UnityEngine.UI.Image;
 using UnityMask = UnityEngine.UI.Mask;
 
