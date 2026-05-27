@@ -20,6 +20,7 @@ namespace PromptUGUI.Controls
         // Attribute state.
         private float _value;
         private string _direction = "horizontal";
+        private string _mode = "scale";
 
         [UIAttr, Preserve]
         public float Value
@@ -43,6 +44,17 @@ namespace PromptUGUI.Controls
             }
         }
 
+        [UIAttr, Preserve]
+        public string Mode
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value)) return;
+                _mode = value;
+                ReconcileFill();
+            }
+        }
+
         internal override void OnAfterApply()
         {
             ReconcileFill();
@@ -51,16 +63,41 @@ namespace PromptUGUI.Controls
         private void ReconcileFill()
         {
             var rt = _fill.rectTransform;
-            (rt.anchorMin, rt.anchorMax) = _direction switch
+            if (_mode == "fill")
             {
-                "horizontal" => (Vector2.zero, new Vector2(_value, 1f)),
-                "reverse-horizontal" => (new Vector2(1f - _value, 0f), Vector2.one),
-                "vertical" => (Vector2.zero, new Vector2(1f, _value)),
-                "reverse-vertical" => (new Vector2(0f, 1f - _value), Vector2.one),
-                _ => (Vector2.zero, new Vector2(_value, 1f)),
-            };
-            rt.offsetMin = Vector2.zero;
-            rt.offsetMax = Vector2.zero;
+                rt.anchorMin = Vector2.zero;
+                rt.anchorMax = Vector2.one;
+                rt.offsetMin = Vector2.zero;
+                rt.offsetMax = Vector2.zero;
+                _fill.type = UnityImage.Type.Filled;
+                (_fill.fillMethod, _fill.fillOrigin) = _direction switch
+                {
+                    "horizontal" => (UnityImage.FillMethod.Horizontal, (int)UnityImage.OriginHorizontal.Left),
+                    "reverse-horizontal" => (UnityImage.FillMethod.Horizontal, (int)UnityImage.OriginHorizontal.Right),
+                    "vertical" => (UnityImage.FillMethod.Vertical, (int)UnityImage.OriginVertical.Bottom),
+                    "reverse-vertical" => (UnityImage.FillMethod.Vertical, (int)UnityImage.OriginVertical.Top),
+                    _ => (UnityImage.FillMethod.Horizontal, (int)UnityImage.OriginHorizontal.Left),
+                };
+                _fill.fillAmount = _value;
+            }
+            else // scale (default)
+            {
+                // Reset away from Filled, then pick Simple/Sliced per sprite border.
+                _fill.fillAmount = 1f;
+                _fill.type = (_fill.sprite != null && _fill.sprite.border != Vector4.zero)
+                    ? UnityImage.Type.Sliced
+                    : UnityImage.Type.Simple;
+                (rt.anchorMin, rt.anchorMax) = _direction switch
+                {
+                    "horizontal" => (Vector2.zero, new Vector2(_value, 1f)),
+                    "reverse-horizontal" => (new Vector2(1f - _value, 0f), Vector2.one),
+                    "vertical" => (Vector2.zero, new Vector2(1f, _value)),
+                    "reverse-vertical" => (new Vector2(0f, 1f - _value), Vector2.one),
+                    _ => (Vector2.zero, new Vector2(_value, 1f)),
+                };
+                rt.offsetMin = Vector2.zero;
+                rt.offsetMax = Vector2.zero;
+            }
         }
 
         public override void OnAttached()

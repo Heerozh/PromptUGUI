@@ -144,5 +144,62 @@ namespace PromptUGUI.Tests.EditMode.Controls
             p.Direction = "vertical";
             Assert.AreEqual(new Vector2(1f, 0.4f), fill.anchorMax, "runtime direction switch must repaint Fill");
         }
+
+        [Test]
+        public void Fill_Horizontal_Sets_Type_Filled_And_FillAmount()
+        {
+            var p = Open("<Progress id='p' value='0.7' mode='fill'/>");
+            var fill = p.GameObject.transform.Find("MaskWrapper/Fill").GetComponent<UnityImage>();
+            Assert.AreEqual(UnityImage.Type.Filled, fill.type);
+            Assert.AreEqual(UnityImage.FillMethod.Horizontal, fill.fillMethod);
+            Assert.AreEqual((int)UnityImage.OriginHorizontal.Left, fill.fillOrigin);
+            Assert.AreEqual(0.7f, fill.fillAmount);
+            var rt = fill.rectTransform;
+            Assert.AreEqual(Vector2.zero, rt.anchorMin);
+            Assert.AreEqual(Vector2.one, rt.anchorMax);
+        }
+
+        [Test]
+        public void Fill_ReverseHorizontal_Origin_Right()
+        {
+            var p = Open("<Progress id='p' value='0.5' mode='fill' direction='reverse-horizontal'/>");
+            var fill = p.GameObject.transform.Find("MaskWrapper/Fill").GetComponent<UnityImage>();
+            Assert.AreEqual(UnityImage.FillMethod.Horizontal, fill.fillMethod);
+            Assert.AreEqual((int)UnityImage.OriginHorizontal.Right, fill.fillOrigin);
+        }
+
+        [Test]
+        public void Fill_Vertical_Origin_Bottom()
+        {
+            var p = Open("<Progress id='p' value='0.5' mode='fill' direction='vertical'/>");
+            var fill = p.GameObject.transform.Find("MaskWrapper/Fill").GetComponent<UnityImage>();
+            Assert.AreEqual(UnityImage.FillMethod.Vertical, fill.fillMethod);
+            Assert.AreEqual((int)UnityImage.OriginVertical.Bottom, fill.fillOrigin);
+        }
+
+        [Test]
+        public void Fill_ReverseVertical_Origin_Top()
+        {
+            var p = Open("<Progress id='p' value='0.5' mode='fill' direction='reverse-vertical'/>");
+            var fill = p.GameObject.transform.Find("MaskWrapper/Fill").GetComponent<UnityImage>();
+            Assert.AreEqual(UnityImage.FillMethod.Vertical, fill.fillMethod);
+            Assert.AreEqual((int)UnityImage.OriginVertical.Top, fill.fillOrigin);
+        }
+
+        [Test]
+        public void Switch_From_Fill_Back_To_Scale_Resets_Type_And_FillAmount()
+        {
+            var p = Open("<Progress id='p' value='0.6' mode='fill'/>");
+            // sanity
+            var fillImg = p.GameObject.transform.Find("MaskWrapper/Fill").GetComponent<UnityImage>();
+            Assert.AreEqual(UnityImage.Type.Filled, fillImg.type, "starts as Filled");
+
+            p.Mode = "scale";
+            Assert.AreNotEqual(UnityImage.Type.Filled, fillImg.type,
+                "switching back to scale must reset away from Filled");
+            Assert.AreEqual(1f, fillImg.fillAmount, "scale mode resets fillAmount to 1");
+            var rt = fillImg.rectTransform;
+            Assert.AreEqual(new Vector2(0.6f, 1f), rt.anchorMax, "scale anchorMax reflects value");
+        }
     }
 }
