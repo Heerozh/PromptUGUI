@@ -235,5 +235,35 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var fill = p.GameObject.transform.Find("MaskWrapper/Fill").GetComponent<UnityImage>();
             Assert.AreEqual(Color.red, fill.color);
         }
+
+        [Test]
+        public void Bg_Sprite_Activates_Bg_Layer()
+        {
+            var p = Open("<Progress id='p' bg='PromptUGUI/Defaults/pugui#pugui_9slice_round'/>");
+            var bg = p.GameObject.transform.Find("MaskWrapper/Bg");
+            Assert.IsTrue(bg.gameObject.activeSelf, "Bg activated by bg=");
+            var img = bg.GetComponent<UnityImage>();
+            Assert.IsNotNull(img.sprite);
+            Assert.AreEqual(UnityImage.Type.Sliced, img.type, "9-slice sprite auto-Sliced");
+        }
+
+        [Test]
+        public void BgColor_Alone_Activates_Bg_Layer_With_Color()
+        {
+            var p = Open("<Progress id='p' bgColor='#222222'/>");
+            var bg = p.GameObject.transform.Find("MaskWrapper/Bg");
+            Assert.IsTrue(bg.gameObject.activeSelf, "Bg activated by bgColor= alone");
+            var img = bg.GetComponent<UnityImage>();
+            ColorUtility.TryParseHtmlString("#222222", out var expected);
+            Assert.AreEqual(expected, img.color);
+        }
+
+        [Test]
+        public void No_Bg_No_BgColor_Bg_Layer_Stays_Inactive()
+        {
+            var p = Open("<Progress id='p' fill='PromptUGUI/Defaults/pugui#pugui_9slice_round'/>");
+            var bg = p.GameObject.transform.Find("MaskWrapper/Bg");
+            Assert.IsFalse(bg.gameObject.activeSelf);
+        }
     }
 }

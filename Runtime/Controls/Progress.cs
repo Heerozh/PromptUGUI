@@ -76,9 +76,42 @@ namespace PromptUGUI.Controls
             }
         }
 
+        [UIAttr, Preserve]
+        public string Bg
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value)) return;
+                _bg.sprite = UI.ResolveSprite(value);
+                _bg.gameObject.SetActive(true);
+                AutoSlice(_bg);
+            }
+        }
+
+        [UIAttr, Preserve]
+        public string BgColor
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value)) return;
+                if (!ColorUtility.TryParseHtmlString(value, out var c)) return;
+                _bg.color = c;
+                _bg.gameObject.SetActive(true);
+            }
+        }
+
         internal override void OnAfterApply()
         {
+            AutoSlice(_bg);
             ReconcileFill();
+        }
+
+        private static void AutoSlice(UnityImage img)
+        {
+            if (img == null || img.sprite == null) return;
+            img.type = img.sprite.border != Vector4.zero
+                ? UnityImage.Type.Sliced
+                : UnityImage.Type.Simple;
         }
 
         private void ReconcileFill()
