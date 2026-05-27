@@ -56,7 +56,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr, Preserve]
+        [UIAttr(IsSprite = true), Preserve]
         public string Fill
         {
             set
@@ -76,7 +76,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr, Preserve]
+        [UIAttr(IsSprite = true), Preserve]
         public string Bg
         {
             set
@@ -102,7 +102,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr, Preserve]
+        [UIAttr(IsSprite = true), Preserve]
         public string Frame
         {
             set
@@ -114,7 +114,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr, Preserve]
+        [UIAttr(IsSprite = true), Preserve]
         public string Mask
         {
             set

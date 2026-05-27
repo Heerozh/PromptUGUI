@@ -9,9 +9,18 @@ namespace PromptUGUI.Registry
     {
         private readonly Dictionary<string, Action<object, string>> _setters;
 
-        private ControlMeta(Dictionary<string, Action<object, string>> setters)
+        /// <summary>Attribute names (camelCase, matching XML) that carry sprite
+        /// references — i.e. were declared with <c>[UIAttr(IsSprite = true)]</c>.
+        /// Consumed by the Editor-side <c>SpriteAtlasSyncer</c> so XML refs on
+        /// non-`sprite` attribute names (e.g. <c>Progress.fill / bg / frame / mask</c>)
+        /// reach the atlas. Empty for controls that don't display sprites.</summary>
+        public IReadOnlyCollection<string> SpriteAttrs { get; }
+
+        private ControlMeta(Dictionary<string, Action<object, string>> setters,
+                            IReadOnlyCollection<string> spriteAttrs)
         {
             _setters = setters;
+            SpriteAttrs = spriteAttrs;
         }
 
         public bool HasAttribute(string name) => _setters.ContainsKey(name);
@@ -32,6 +41,7 @@ namespace PromptUGUI.Registry
         public static ControlMeta Build(Type type)
         {
             var setters = new Dictionary<string, Action<object, string>>();
+            var spriteAttrs = new List<string>();
 
             foreach (var prop in type.GetProperties(
                 BindingFlags.Public | BindingFlags.Instance))
@@ -43,9 +53,10 @@ namespace PromptUGUI.Registry
                 var name = attr.Name ?? CamelCase(prop.Name);
                 var setter = BuildSetter(prop);
                 setters[name] = setter;
+                if (attr.IsSprite) spriteAttrs.Add(name);
             }
 
-            return new ControlMeta(setters);
+            return new ControlMeta(setters, spriteAttrs);
         }
 
         private static string CamelCase(string s) =>

@@ -117,7 +117,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr, Preserve]
+        [UIAttr(IsSprite = true), Preserve]
         public string Sprite
         {
             set => _checkmark.sprite = UI.ResolveSprite(value);

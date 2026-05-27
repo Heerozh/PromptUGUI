@@ -201,7 +201,7 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr, Preserve]
+        [UIAttr(IsSprite = true), Preserve]
         public string Sprite
         {
             set => _bg.sprite = UI.ResolveSprite(value);
