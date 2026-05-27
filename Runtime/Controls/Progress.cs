@@ -114,6 +114,18 @@ namespace PromptUGUI.Controls
             }
         }
 
+        [UIAttr, Preserve]
+        public string FrameColor
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value)) return;
+                if (!ColorUtility.TryParseHtmlString(value, out var c)) return;
+                _frame.color = c;
+                _frame.gameObject.SetActive(true);
+            }
+        }
+
         [UIAttr(IsSprite = true), Preserve]
         public string Mask
         {
