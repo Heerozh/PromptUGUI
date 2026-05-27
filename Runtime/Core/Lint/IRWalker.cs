@@ -33,13 +33,16 @@ namespace PromptUGUI.Lint
 
         private static IEnumerable<LintIssue> WalkNode(ElementNode node)
         {
-            // Self-checks (tag-specific). Mask rules are about the node itself,
-            // not its parent (unlike LayoutGroupChildRules which is parent-relative).
+            // Per-tag self-checks (mirror of ScreenInstantiator dispatch; CLI errors).
+            // Self-relative — about the node itself, unlike parent-relative LayoutGroupChildRules.
             if (node.Tag == "Frame")
                 foreach (var issue in MaskAttributeRules.CheckFrame(node))
                     yield return issue;
             else if (node.Tag == "Image")
                 foreach (var issue in MaskAttributeRules.CheckImage(node))
+                    yield return issue;
+            else if (node.Tag == "Progress")
+                foreach (var issue in ProgressAttributeRules.CheckProgress(node))
                     yield return issue;
 
             // CLI-only: pure containers carry no Graphic; sprite/color silently dropped.

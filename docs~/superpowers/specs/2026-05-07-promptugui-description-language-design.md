@@ -154,6 +154,7 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 | `<Icon>` | 项目级 IconSet 中的图标（按名查找，打包期剪枝） | Image |
 | `<Toggle>` | 复选 / 单选（OnValueChanged: bool；group= 字符串键互斥） | Image + Toggle (uGUI) + 内置 label |
 | `<Slider>` | 数值滑块（OnValueChanged: float） | Image + Slider (uGUI) |
+| `<Progress>` | 线性进度条 (scale / Image.Type.Filled, horizontal / vertical, +可选 frame / mask / bg / fill 装饰) | RectTransform（+ 内部 4 个图层；详见 [`2026-05-27-progress-control-design.md`](2026-05-27-progress-control-design.md)） |
 | `<Dropdown>` | 下拉选择（OnSelected: int；BindOptions 推送选项） | TMP_Dropdown |
 | `<ScrollList>` | 滚动列表（BindItems 推送数据；itemTemplate 引用 Template/Control 类） | ScrollRect + Mask |
 
