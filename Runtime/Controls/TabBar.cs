@@ -34,8 +34,6 @@ namespace PromptUGUI.Controls
         // both on dynamic Rebuild and on static OnAfterApply so reapply replaces them.
         private CompositeDisposable _tabSubs;
 
-        internal ToggleGroup InternalToggleGroup => _group;
-
         public override void OnAttached()
         {
             _group = GameObject.AddComponent<ToggleGroup>();

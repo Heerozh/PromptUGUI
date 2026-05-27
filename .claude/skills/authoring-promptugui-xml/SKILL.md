@@ -622,9 +622,9 @@ Radial fill（冷却环）不在 `<Progress>` 范围；以后用单独的 `<Cool
   <Tab text="Settings" bind="settings_panel"/>
 </TabBar>
 
-<Frame id="editor_panel"   anchor="fill" margin="40,0,0,0">...</Frame>
-<Frame id="help_panel"     anchor="fill" margin="40,0,0,0">...</Frame>
-<Frame id="settings_panel" anchor="fill" margin="40,0,0,0">...</Frame>
+<Frame id="editor_panel"   margin="40,0,0,0">...</Frame>
+<Frame id="help_panel"     margin="40,0,0,0">...</Frame>
+<Frame id="settings_panel" margin="40,0,0,0">...</Frame>
 ```
 
 `bind="frame_id"` 让 Tab 选中时显示、未选时隐藏命名 Frame。lookup 是 lazy 的 —— 首次切换才解析并缓存。Tab `isOn="true"` 在 XML 里指定初始选中；都没写时 TabBar 自动选第一个。`bind=` 省略时只 fire `OnSelected`（C# 端自己处理）。
