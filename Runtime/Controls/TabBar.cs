@@ -124,8 +124,7 @@ namespace PromptUGUI.Controls
                     throw new InvalidCastException(
                         $"itemTemplate='{_itemTemplate}' instantiated {node.GetType().Name}, expected {typeof(TSlot).Name}");
 
-                var tab = node as Tab
-                          ?? ((Control)node).GameObject.GetComponentInChildren<Tab>();
+                var tab = node as Tab ?? FindTabIn(node);
                 if (tab == null)
                     throw new InvalidCastException(
                         $"itemTemplate='{_itemTemplate}' root contains no <Tab>; cannot bind.");
@@ -143,6 +142,26 @@ namespace PromptUGUI.Controls
         {
             foreach (var t in _tabs) t.Dispose();
             _tabs.Clear();
+        }
+
+        // Tab is a pure C# Control (not a MonoBehaviour), so GetComponentInChildren
+        // can't find it. ScrollList-style template wrappers expose the full id scope on
+        // the root via ReplaceScopedIds — look there first; if the template has no
+        // id'd Tab, fall back to a recursive Children walk so wrappers without ids still work.
+        private static Tab FindTabIn(IControl node)
+        {
+            foreach (var c in node.ScopedIds.Values)
+                if (c is Tab t) return t;
+            if (node is Control ctrl)
+            {
+                foreach (var child in ctrl.Children)
+                {
+                    if (child is Tab t) return t;
+                    var nested = FindTabIn(child);
+                    if (nested != null) return nested;
+                }
+            }
+            return null;
         }
 
         private Func<RectTransform, IControl> ResolveFactory(string tag)

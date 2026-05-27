@@ -54,5 +54,25 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(0, bar.Count);
             Assert.AreEqual(-1, bar.SelectedIndex);
         }
+
+        [Test]
+        public void BindItems_With_Custom_Template_Resolves_Tab_Via_GetComponentInChildren()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='MyTab'><Frame id='wrap'><Tab id='tab'/></Frame></Template>
+  <Screen name='S'>
+    <TabBar id='bar' itemTemplate='MyTab'/>
+  </Screen>
+</PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var bar = UI.Open("S").Get<TabBar>("bar");
+            using var sub = bar.BindItems<string, IControl>(
+                Observable.Return<IReadOnlyList<string>>(new[] { "X", "Y" }),
+                (slot, s) => slot.Get<Tab>("tab").Text = s);
+
+            Assert.AreEqual(2, bar.Count);
+            Assert.AreEqual("X", bar.GetAt(0).GameObject.transform.Find("Label").GetComponent<TMPro.TMP_Text>().text);
+        }
     }
 }
