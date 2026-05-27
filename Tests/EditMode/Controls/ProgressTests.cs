@@ -285,5 +285,53 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var frame = p.GameObject.transform.Find("Frame");
             Assert.IsFalse(frame.gameObject.activeSelf);
         }
+
+        [Test]
+        public void Mask_Alone_Adds_Image_Plus_Mask_With_ShowMaskGraphic_True()
+        {
+            var p = Open("<Progress id='p' mask='PromptUGUI/Defaults/pugui#pugui_9slice_mask'/>");
+            var wrapper = p.GameObject.transform.Find("MaskWrapper").gameObject;
+            Assert.IsNotNull(wrapper.GetComponent<UnityImage>(), "mask= adds UnityImage to wrapper");
+            var m = wrapper.GetComponent<UnityMask>();
+            Assert.IsNotNull(m, "mask= adds UI.Mask");
+            Assert.IsTrue(m.showMaskGraphic, "no bg → mask sprite visible (PB-D9)");
+        }
+
+        [Test]
+        public void Mask_With_Bg_Sprite_Hides_Mask_Graphic()
+        {
+            var p = Open("<Progress id='p' mask='PromptUGUI/Defaults/pugui#pugui_9slice_mask' bg='PromptUGUI/Defaults/pugui#pugui_9slice_round'/>");
+            var wrapper = p.GameObject.transform.Find("MaskWrapper").gameObject;
+            var m = wrapper.GetComponent<UnityMask>();
+            Assert.IsFalse(m.showMaskGraphic, "bg present → mask is invisible stencil only (PB-D10)");
+        }
+
+        [Test]
+        public void Mask_With_BgColor_Only_Hides_Mask_Graphic()
+        {
+            var p = Open("<Progress id='p' mask='PromptUGUI/Defaults/pugui#pugui_9slice_mask' bgColor='#222222'/>");
+            var m = p.GameObject.transform.Find("MaskWrapper").GetComponent<UnityMask>();
+            Assert.IsFalse(m.showMaskGraphic, "bgColor alone also counts as bg present");
+        }
+
+        [Test]
+        public void No_Mask_No_Image_No_Mask_Component_On_Wrapper()
+        {
+            var p = Open("<Progress id='p' fill='PromptUGUI/Defaults/pugui#pugui_9slice_round'/>");
+            var wrapper = p.GameObject.transform.Find("MaskWrapper").gameObject;
+            Assert.IsNull(wrapper.GetComponent<UnityImage>());
+            Assert.IsNull(wrapper.GetComponent<UnityMask>());
+        }
+
+        [Test]
+        public void Mask_Then_Bg_At_Runtime_Updates_ShowMaskGraphic()
+        {
+            // Demonstrates the runtime ordering: mask set first, bg added later.
+            var p = Open("<Progress id='p' mask='PromptUGUI/Defaults/pugui#pugui_9slice_mask'/>");
+            var m = p.GameObject.transform.Find("MaskWrapper").GetComponent<UnityMask>();
+            Assert.IsTrue(m.showMaskGraphic, "no bg yet → mask visible");
+            p.Bg = "PromptUGUI/Defaults/pugui#pugui_9slice_round";
+            Assert.IsFalse(m.showMaskGraphic, "runtime bg= activation must hide mask graphic");
+        }
     }
 }
