@@ -178,6 +178,24 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void TabBar_Spacing_And_Padding_Apply_To_LayoutGroup()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar' spacing='8' padding='4,6'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var bar = UI.Open("S").Get<TabBar>("bar");
+            var hlg = bar.GameObject.GetComponent<HorizontalLayoutGroup>();
+            Assert.AreEqual(8f, hlg.spacing);
+            // RectOffset is a reference type with no value-equality, assert fields individually.
+            Assert.AreEqual(6, hlg.padding.left);
+            Assert.AreEqual(6, hlg.padding.right);
+            Assert.AreEqual(4, hlg.padding.top);
+            Assert.AreEqual(4, hlg.padding.bottom);
+        }
+
+        [Test]
         public void TabBar_Non_Selected_Bind_Frames_Are_Deactivated_Initially()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>

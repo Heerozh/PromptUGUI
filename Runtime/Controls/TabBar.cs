@@ -12,6 +12,8 @@ namespace PromptUGUI.Controls
         private ToggleGroup _group;
         private LayoutGroup _layout;
         private string _direction = "horizontal";
+        private float _spacing;
+        private string _padding;
         private readonly List<Tab> _tabs = new();
         private readonly Subject<Tab> _selectionChanged = new();
         private Sprite _sprite;
@@ -36,6 +38,12 @@ namespace PromptUGUI.Controls
                 ApplyDirection();
             }
         }
+
+        [UIAttr, Preserve]
+        public float Spacing { set { _spacing = value; ApplySpacingPadding(); } }
+
+        [UIAttr, Preserve]
+        public string Padding { set { _padding = value; ApplySpacingPadding(); } }
 
         [UIAttr(IsSprite = true), Preserve]
         public string Sprite { set => _sprite = UI.ResolveSprite(value); }
@@ -98,6 +106,32 @@ namespace PromptUGUI.Controls
             _layout = _direction == "vertical"
                 ? (LayoutGroup)GameObject.AddComponent<VerticalLayoutGroup>()
                 : GameObject.AddComponent<HorizontalLayoutGroup>();
+            ApplySpacingPadding();
+        }
+
+        private void ApplySpacingPadding()
+        {
+            switch (_layout)
+            {
+                case HorizontalLayoutGroup h: h.spacing = _spacing; break;
+                case VerticalLayoutGroup v: v.spacing = _spacing; break;
+            }
+            if (string.IsNullOrEmpty(_padding) || _layout == null) return;
+            var parts = _padding.Split(',');
+            int t = 0, r = 0, b = 0, l = 0;
+            switch (parts.Length)
+            {
+                case 1: int.TryParse(parts[0], out t); r = b = l = t; break;
+                case 2:
+                    int.TryParse(parts[0], out t); b = t;
+                    int.TryParse(parts[1], out r); l = r; break;
+                case 4:
+                    int.TryParse(parts[0], out t);
+                    int.TryParse(parts[1], out r);
+                    int.TryParse(parts[2], out b);
+                    int.TryParse(parts[3], out l); break;
+            }
+            _layout.padding = new RectOffset(l, r, t, b);
         }
 
         public Observable<Tab> OnSelectionChanged => _selectionChanged;
