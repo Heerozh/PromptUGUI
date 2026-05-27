@@ -165,6 +165,19 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void TabBar_Direction_Vertical_Uses_VerticalLayoutGroup()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar' direction='vertical'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var bar = UI.Open("S").Get<TabBar>("bar");
+            Assert.IsNull(bar.GameObject.GetComponent<HorizontalLayoutGroup>(), "HLG removed");
+            Assert.IsNotNull(bar.GameObject.GetComponent<VerticalLayoutGroup>(), "VLG present");
+        }
+
+        [Test]
         public void TabBar_Non_Selected_Bind_Frames_Are_Deactivated_Initially()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>

@@ -27,6 +27,16 @@ namespace PromptUGUI.Controls
             ApplyDirection();
         }
 
+        [UIAttr, Preserve]
+        public string Direction
+        {
+            set
+            {
+                _direction = string.IsNullOrEmpty(value) ? "horizontal" : value;
+                ApplyDirection();
+            }
+        }
+
         [UIAttr(IsSprite = true), Preserve]
         public string Sprite { set => _sprite = UI.ResolveSprite(value); }
 
