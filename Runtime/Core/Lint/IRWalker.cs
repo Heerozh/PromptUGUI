@@ -44,6 +44,12 @@ namespace PromptUGUI.Lint
             else if (node.Tag == "Progress")
                 foreach (var issue in ProgressAttributeRules.CheckProgress(node))
                     yield return issue;
+            else if (node.Tag == "Tab")
+                foreach (var issue in TabRules.CheckTab(node))
+                    yield return issue;
+            else if (node.Tag == "TabBar")
+                foreach (var issue in TabRules.CheckTabBar(node))
+                    yield return issue;
 
             // CLI-only: pure containers carry no Graphic; sprite/color silently dropped.
             // Intentionally NOT dispatched from ScreenInstantiator — see rule's XML docs.
@@ -51,12 +57,18 @@ namespace PromptUGUI.Lint
                 foreach (var issue in PureContainerVisualAttrRules.Check(node))
                     yield return issue;
 
-            var isLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid";
+            var isLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar";
+            var isTabBar = node.Tag == "TabBar";
             foreach (var child in node.Children)
             {
                 if (isLayoutGroup)
                     foreach (var issue in LayoutGroupChildRules.CheckChild(child))
                         yield return issue;
+                if (child.Tag == "Tab" && !isTabBar)
+                    yield return new LintIssue(
+                        TabRules.TabParentCode, child.Tag, child.Id,
+                        $"<Tab id='{child.Id}'>: must be a direct child of <TabBar>; current parent is <{node.Tag}>. " +
+                        "Mutual exclusion and shared visuals will not apply.");
                 foreach (var issue in WalkNode(child))
                     yield return issue;
             }
