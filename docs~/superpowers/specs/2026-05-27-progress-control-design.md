@@ -104,7 +104,7 @@
 <!-- 5. Unity Image.Type.Filled, 反向纵向（液体从顶部往下空） -->
 <Progress value="0.3" fill="ui:liquid" mode="fill" direction="reverse-vertical"/>
 
-<!-- 6. 在 Variant 中切换 value / colors (mask/frame/bg/fill sprite 允许；mask 模式禁止) -->
+<!-- 6. 在 Variant 中切换 value / colors (frame / bg / fill sprite 允许；mask 完全禁止 — PUI-PROG-MASK-VARIANT) -->
 <Progress id="hp" value="1.0" fill="ui:bar" bgColor="#000">
   <Variant when="state.low">
     <Attr name="value" value="0.2"/>
