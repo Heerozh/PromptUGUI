@@ -88,5 +88,25 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var tab = screen.Get<Tab>("a");
             Assert.IsNull(tab.GameObject.transform.Find("Overlay"), "no Overlay when selectedSprite absent");
         }
+
+        [Test]
+        public void TabBar_Children_Share_ToggleGroup()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar'>
+    <Tab id='a'/>
+    <Tab id='b'/>
+  </TabBar>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var bar = screen.Get<TabBar>("bar");
+            var a = screen.Get<Tab>("a").GameObject.GetComponent<UnityEngine.UI.Toggle>();
+            var b = screen.Get<Tab>("b").GameObject.GetComponent<UnityEngine.UI.Toggle>();
+            var group = bar.GameObject.GetComponent<UnityEngine.UI.ToggleGroup>();
+            Assert.AreSame(group, a.group);
+            Assert.AreSame(group, b.group);
+        }
     }
 }
