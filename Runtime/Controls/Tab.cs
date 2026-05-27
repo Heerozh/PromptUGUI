@@ -130,6 +130,13 @@ namespace PromptUGUI.Controls
             }
         }
 
+        internal void ApplyBgSprite(Sprite sprite)
+        {
+            if (sprite == null) return;
+            _bg.sprite = sprite;
+            _bg.type = sprite.border != Vector4.zero ? UnityImage.Type.Sliced : UnityImage.Type.Simple;
+        }
+
         public Observable<bool> OnValueChanged => _changed;
         public Observable<Unit> OnSelected => _selected;
 

@@ -14,6 +14,7 @@ namespace PromptUGUI.Controls
         private string _direction = "horizontal";
         private readonly List<Tab> _tabs = new();
         private readonly Subject<Tab> _selectionChanged = new();
+        private Sprite _sprite;
 
         internal ToggleGroup InternalToggleGroup => _group;
 
@@ -22,6 +23,27 @@ namespace PromptUGUI.Controls
             _group = GameObject.AddComponent<ToggleGroup>();
             _group.allowSwitchOff = false;
             ApplyDirection();
+        }
+
+        [UIAttr(IsSprite = true), Preserve]
+        public string Sprite { set => _sprite = UI.ResolveSprite(value); }
+
+        internal override void OnAfterApply()
+        {
+            CollectStaticTabs();
+            PushVisualToTabs();
+        }
+
+        private void CollectStaticTabs()
+        {
+            _tabs.Clear();
+            foreach (var child in Children)
+                if (child is Tab tab) _tabs.Add(tab);
+        }
+
+        private void PushVisualToTabs()
+        {
+            foreach (var t in _tabs) t.ApplyBgSprite(_sprite);
         }
 
         private void ApplyDirection()

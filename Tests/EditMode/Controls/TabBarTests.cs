@@ -2,6 +2,7 @@ using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
 using UnityEngine;
+using UnityEngine.TestTools;
 using UnityEngine.UI;
 
 namespace PromptUGUI.Tests.EditMode.Controls
@@ -26,6 +27,27 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsNotNull(bar.GameObject.GetComponent<ToggleGroup>(), "ToggleGroup on self");
             Assert.IsNotNull(bar.GameObject.GetComponent<HorizontalLayoutGroup>(), "HLG default");
             Assert.IsFalse(bar.GameObject.GetComponent<ToggleGroup>().allowSwitchOff, "TB-D7 fixed false");
+        }
+
+        [Test]
+        public void TabBar_Sprite_Pushes_To_All_Child_Tabs()
+        {
+            LogAssert.Expect(LogType.Error,
+                new System.Text.RegularExpressions.Regex("UI.SpriteResolver is not registered"));
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar' sprite='ui:fake_normal'>
+    <Tab id='a' text='A'/>
+    <Tab id='b' text='B'/>
+  </TabBar>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var a = screen.Get<Tab>("a");
+            var b = screen.Get<Tab>("b");
+            var bgA = a.GameObject.GetComponent<UnityEngine.UI.Image>();
+            var bgB = b.GameObject.GetComponent<UnityEngine.UI.Image>();
+            Assert.AreEqual(bgA.sprite, bgB.sprite, "both Tabs received the same (possibly null) sprite from TabBar");
         }
     }
 }
