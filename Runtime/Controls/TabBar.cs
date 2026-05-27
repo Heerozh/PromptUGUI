@@ -1,5 +1,8 @@
+using System;
 using System.Collections.Generic;
 using PromptUGUI.Application;
+using PromptUGUI.IR;
+using PromptUGUI.Parser;
 using PromptUGUI.Registry;
 using R3;
 using UnityEngine;
@@ -19,6 +22,13 @@ namespace PromptUGUI.Controls
         private Sprite _sprite;
         private Sprite _selectedSprite;
         private bool _selectedSpriteDeclared;
+
+        // BindItems / itemTemplate state — factory resolution is deferred to first
+        // Rebuild so that OwnerScreenOf(this) sees the Screen registered in UI._open
+        // (XML setter time may pre-date Open(); also lets tests rely on default "Tab").
+        private string _itemTemplate = "Tab";
+        private Func<RectTransform, IControl> _factory;
+        private IDisposable _itemsSub;
 
         internal ToggleGroup InternalToggleGroup => _group;
 
@@ -56,6 +66,107 @@ namespace PromptUGUI.Controls
                 _selectedSpriteDeclared = true;
                 _selectedSprite = UI.ResolveSprite(value);
             }
+        }
+
+        [UIAttr, Preserve]
+        public string ItemTemplate
+        {
+            set { _itemTemplate = string.IsNullOrEmpty(value) ? "Tab" : value; _factory = null; }
+        }
+
+        public int Count => _tabs.Count;
+
+        public int SelectedIndex
+        {
+            get
+            {
+                for (int i = 0; i < _tabs.Count; i++)
+                    if (_tabs[i].IsOn) return i;
+                return -1;
+            }
+        }
+
+        public Tab SelectedTab
+        {
+            get
+            {
+                var idx = SelectedIndex;
+                return idx >= 0 ? _tabs[idx] : null;
+            }
+        }
+
+        public Tab GetAt(int index) => _tabs[index];
+
+        public IDisposable BindItems<T>(
+            Observable<IReadOnlyList<T>> source,
+            Action<Tab, T> bind)
+            => BindItems<T, Tab>(source, bind);
+
+        public IDisposable BindItems<T, TSlot>(
+            Observable<IReadOnlyList<T>> source,
+            Action<TSlot, T> bind) where TSlot : class, IControl
+        {
+            _itemsSub?.Dispose();
+            _itemsSub = source.Subscribe(items => Rebuild(items, bind));
+            return _itemsSub;
+        }
+
+        private void Rebuild<T, TSlot>(IReadOnlyList<T> items, Action<TSlot, T> bind)
+            where TSlot : class, IControl
+        {
+            if (_factory == null) _factory = ResolveFactory(_itemTemplate);
+            ClearTabs();
+            for (int i = 0; i < items.Count; i++)
+            {
+                var node = _factory(RectTransform);
+                var typed = node as TSlot;
+                if (typed == null)
+                    throw new InvalidCastException(
+                        $"itemTemplate='{_itemTemplate}' instantiated {node.GetType().Name}, expected {typeof(TSlot).Name}");
+
+                var tab = node as Tab
+                          ?? ((Control)node).GameObject.GetComponentInChildren<Tab>();
+                if (tab == null)
+                    throw new InvalidCastException(
+                        $"itemTemplate='{_itemTemplate}' root contains no <Tab>; cannot bind.");
+
+                _tabs.Add(tab);
+                // Tab.OnAttached already wired ToggleGroup via FindAncestorToggleGroup; push shared visuals now.
+                tab.ApplyBgSprite(_sprite);
+                if (_selectedSpriteDeclared) tab.EnsureOverlay(_selectedSprite);
+                bind(typed, items[i]);
+            }
+            SyncInitialSelection();
+        }
+
+        private void ClearTabs()
+        {
+            foreach (var t in _tabs) t.Dispose();
+            _tabs.Clear();
+        }
+
+        private Func<RectTransform, IControl> ResolveFactory(string tag)
+        {
+            var owner = UI.OwnerScreenOf(this);
+            if (owner?.Def?.Templates != null && owner.Def.Templates.TryGetValue(tag, out var tpl))
+            {
+                return parent =>
+                {
+                    var instantiator = UI.GetInstantiator();
+                    return instantiator.InstantiateNode(tpl.Body, parent, owner);
+                };
+            }
+            if (UI.Registry.Has(tag))
+            {
+                return parent =>
+                {
+                    var instantiator = UI.GetInstantiator();
+                    var node = new ElementNode(tag);
+                    return instantiator.InstantiateNode(node, parent, owner);
+                };
+            }
+            throw new ParseException(
+                $"<TabBar itemTemplate='{tag}'>: tag is neither a registered Control nor a Template");
         }
 
         internal override void OnAfterApply()
@@ -99,8 +210,8 @@ namespace PromptUGUI.Controls
         {
             if (_layout != null)
             {
-                if (UnityEngine.Application.isPlaying) Object.Destroy((Component)_layout);
-                else Object.DestroyImmediate((Component)_layout);
+                if (UnityEngine.Application.isPlaying) UnityEngine.Object.Destroy((Component)_layout);
+                else UnityEngine.Object.DestroyImmediate((Component)_layout);
                 _layout = null;
             }
             _layout = _direction == "vertical"
@@ -138,6 +249,7 @@ namespace PromptUGUI.Controls
 
         public override void Dispose()
         {
+            _itemsSub?.Dispose();
             _selectionChanged.Dispose();
             base.Dispose();
         }
