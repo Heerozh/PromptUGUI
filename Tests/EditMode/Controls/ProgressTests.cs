@@ -368,5 +368,19 @@ namespace PromptUGUI.Tests.EditMode.Controls
                                        img.sprite.rect.height / img.pixelsPerUnit);
             Assert.AreEqual(expected, n.Value);
         }
+
+        [Test]
+        public void Value_Variant_Override_Reapplies_On_Activation()
+        {
+            var p = Open("<Progress id='p' value='1.0' value.low='0.2' fill='PromptUGUI/Defaults/pugui#pugui_9slice_round'/>");
+            var fill = p.GameObject.transform.Find("MaskWrapper/Fill") as RectTransform;
+            Assert.AreEqual(new Vector2(1f, 1f), fill.anchorMax, "base value");
+            try
+            {
+                UI.Variants.Set("low", true);
+                Assert.AreEqual(new Vector2(0.2f, 1f), fill.anchorMax, "variant override should re-reconcile Fill");
+            }
+            finally { UI.Variants.Set("low", false); }
+        }
     }
 }
