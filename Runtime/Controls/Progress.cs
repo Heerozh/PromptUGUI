@@ -37,6 +37,7 @@ namespace PromptUGUI.Controls
         {
             set
             {
+                if (string.IsNullOrEmpty(value)) return;
                 _direction = value;
                 ReconcileFill();
             }
@@ -52,11 +53,11 @@ namespace PromptUGUI.Controls
             var rt = _fill.rectTransform;
             (rt.anchorMin, rt.anchorMax) = _direction switch
             {
-                "horizontal" => (new Vector2(0f, 0f), new Vector2(_value, 1f)),
-                "reverse-horizontal" => (new Vector2(1f - _value, 0f), new Vector2(1f, 1f)),
-                "vertical" => (new Vector2(0f, 0f), new Vector2(1f, _value)),
-                "reverse-vertical" => (new Vector2(0f, 1f - _value), new Vector2(1f, 1f)),
-                _ => (new Vector2(0f, 0f), new Vector2(_value, 1f)),
+                "horizontal" => (Vector2.zero, new Vector2(_value, 1f)),
+                "reverse-horizontal" => (new Vector2(1f - _value, 0f), Vector2.one),
+                "vertical" => (Vector2.zero, new Vector2(1f, _value)),
+                "reverse-vertical" => (new Vector2(0f, 1f - _value), Vector2.one),
+                _ => (Vector2.zero, new Vector2(_value, 1f)),
             };
             rt.offsetMin = Vector2.zero;
             rt.offsetMax = Vector2.zero;
