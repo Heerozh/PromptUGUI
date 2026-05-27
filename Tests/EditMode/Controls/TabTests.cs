@@ -38,12 +38,19 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Tab_With_No_TabBar_Parent_Logs_Warning_But_Instantiates()
+        public void Tab_Inside_TabBar_Has_ToggleGroup_Wired()
         {
-            LogAssert.Expect(LogType.Warning,
-                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
-            var t = OpenTab("<Tab id='t'/>");
-            Assert.IsNotNull(t);
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar'><Tab id='t'/></TabBar>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var tab = screen.Get<Tab>("t");
+            var bar = screen.Get<TabBar>("bar");
+            var toggle = tab.GameObject.GetComponent<UnityToggle>();
+            var group = bar.GameObject.GetComponent<ToggleGroup>();
+            Assert.AreSame(group, toggle.group, "Tab's UnityToggle.group is the TabBar's ToggleGroup");
         }
     }
 }

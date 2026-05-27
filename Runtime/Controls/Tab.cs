@@ -40,11 +40,11 @@ namespace PromptUGUI.Controls
             lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
             ApplyFont();
 
-            var bar = FindAncestorTabBar();
-            if (bar == null)
+            var group = FindAncestorToggleGroup();
+            if (group == null)
                 Debug.LogWarning($"Tab '{Id}' has no <TabBar> ancestor; mutual exclusion disabled.");
             else
-                _toggle.group = bar.InternalToggleGroup;
+                _toggle.group = group;
 
             _toggle.onValueChanged.AddListener(v =>
             {
@@ -54,20 +54,18 @@ namespace PromptUGUI.Controls
             UI.Locale.Changed += ApplyFont;
         }
 
-        private TabBar FindAncestorTabBar()
+        private ToggleGroup FindAncestorToggleGroup()
         {
-            // TabBar is a POCO Control (not a Component), so we can't GetComponent it.
-            // Walk transform ancestors and look each GameObject up via the owning Screen's
-            // NodeMap to find the Control instance.
-            var screen = UI.OwnerScreenOf(this);
-            if (screen == null) return null;
+            // OnAttached runs before Screen._nodeMap is populated, so we can't look up
+            // the TabBar control by GameObject yet. TabBar.OnAttached has already added
+            // its ToggleGroup component to its own GameObject (parent created first
+            // during DFS instantiation), so a transform-ancestor GetComponent walk
+            // finds it directly without depending on _nodeMap.
             var t = RectTransform.parent;
             while (t != null)
             {
-                foreach (var c in screen.NodeMap.Values)
-                {
-                    if (c is TabBar bar && c.GameObject == t.gameObject) return bar;
-                }
+                var g = t.GetComponent<UnityEngine.UI.ToggleGroup>();
+                if (g != null) return g;
                 t = t.parent;
             }
             return null;
