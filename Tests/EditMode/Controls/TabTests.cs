@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
+using R3;
 using TMPro;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -114,6 +115,42 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
             var t = OpenTab("<Tab id='t' text='X'/>");
             Assert.IsNull(t.GameObject.transform.Find("Icon"), "no Icon RT when icon attr absent");
+        }
+
+        [Test]
+        public void Tab_IsOn_Roundtrip()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t' isOn='true'/>");
+            Assert.IsTrue(t.IsOn);
+            t.IsOn = false;
+            Assert.IsFalse(t.IsOn);
+        }
+
+        [Test]
+        public void Tab_OnValueChanged_Fires_On_Set()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t'/>");
+            bool? observed = null;
+            using var sub = t.OnValueChanged.Subscribe(v => observed = v);
+            t.IsOn = true;
+            Assert.IsTrue(observed == true);
+        }
+
+        [Test]
+        public void Tab_OnSelected_Fires_Only_On_False_To_True()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t' isOn='true'/>");
+            int fires = 0;
+            using var sub = t.OnSelected.Subscribe(_ => fires++);
+            t.IsOn = false;
+            t.IsOn = true;
+            Assert.AreEqual(1, fires);
         }
     }
 }

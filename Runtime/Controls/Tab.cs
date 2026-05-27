@@ -82,6 +82,13 @@ namespace PromptUGUI.Controls
         }
 
         [UIAttr, Preserve]
+        public bool IsOn
+        {
+            get => _toggle != null && _toggle.isOn;
+            set { if (_toggle != null) _toggle.isOn = value; }
+        }
+
+        [UIAttr, Preserve]
         public string Text
         {
             set
