@@ -73,7 +73,7 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 
 `<Import>`, `<Screen>`, `<Template>` are the **only** elements allowed at the top level. Comments use standard `<!-- -->`.
 
-## Built-in primitives (14)
+## Built-in primitives (15)
 
 **默认视觉主题**：白底 sliced + #323232 深字（同 Unity 6 标准 UI prefab）。`color=` / `sprite=` 单点 override，整体深色覆写 `ProceduralBuilders` 常量或用 Variant `color.dark="..."`。
 
@@ -95,7 +95,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name:
 | `<Dropdown>`   | TMP_Dropdown. R3 `OnSelected: int`. Options pushed C#-side via `BindOptions(...)`. **不写 size 时默认 160×44**（不读 caption 文字宽，避免每选一项就改宽度）。                                                                                                                                                                                                                                    | `value` (int initial index), `color`, `sprite`, `font`                                                                                                                                                                                                                                                                                             |
 | `<ScrollList>` | ScrollRect + Mask. Items pushed C#-side via `BindItems(...)`. `itemTemplate` references a `<Template name=...>` or registered Control class. **不写 size 时按方向给视口默认**：纵向滚动 160×200、横向滚动 200×160；实际项目通常显式写 size。                                                                                                                                                     | `itemTemplate` (required tag name), `direction` (`vertical` / `horizontal`), `spacing` (float), `padding`, `color`, `sprite`                                                                                                                                                                                                                       |
 | `<InputField>` | TMP_InputField；R3 `OnValueChanged` / `OnEndEdit` / `OnSubmit: string`。`<InputField>初始文本</InputField>` 短手设 `text=`。                                                                                                                                                                                                                                                                     | `text`, `placeholder`, `contentType` (`standard`/`autocorrected`/`integer-number`/`decimal-number`/`alphanumeric`/`name`/`email`/`password`/`pin`/`custom`), `lineType` (`single`/`multi-newline`/`multi-submit`), `characterLimit` (int), `readOnly` (bool), `color`, `sprite`, `font`, `tr` (placeholder)/`ctx`                                  |
-| `<Progress>` | 显示型线性进度条（只读，无 `OnValueChanged`）。一行配齐 frame / mask / bg / fill / mode / direction / value，零手糊图层。 | `value` (float `[0..1]`, default `0`), `fill` (sprite key), `fillColor` (`#rrggbbaa`), `bg` (sprite key), `bgColor` (颜色), `frame` (sprite key), `mask` (sprite key), `mode` (`scale`\|`fill`, default `scale`), `direction` (`horizontal`\|`vertical`\|`reverse-horizontal`\|`reverse-vertical`, default `horizontal`) |
+| `<Progress>` | 显示型线性进度条（只读，无 `OnValueChanged`）。一行配齐 frame / mask / bg / fill / mode / direction / value，零手糊图层。 | `value` (float `[0..1]`, default `0`), `fill` (sprite key), `fillColor` (`#RRGGBB[AA]` / 命名色), `bg` (sprite key), `bgColor` (`#RRGGBB[AA]` / 命名色), `frame` (sprite key), `mask` (sprite key), `mode` (`scale`\|`fill`, default `scale`), `direction` (`horizontal`\|`vertical`\|`reverse-horizontal`\|`reverse-vertical`, default `horizontal`) |
 
 `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` are reference implementations. For project-specific differentiation (pixel border, press feedback, custom popup chrome) subclass and override `OnAttached` — see scripting-promptugui-csharp.
 
@@ -577,7 +577,7 @@ Radial fill（冷却环）不在 `<Progress>` 范围；以后用单独的 `<Cool
 <!-- 5. Unity Image.Type.Filled, 反向纵向（液体从顶部往下空） -->
 <Progress value="0.3" fill="ui:liquid" mode="fill" direction="reverse-vertical"/>
 
-<!-- 6. 在 Variant 中切换 value / colors (mask/frame/bg/fill sprite 允许；mask 模式禁止) -->
+<!-- 6. 在 Variant 中切换 value / colors (frame / bg / fill sprite 允许；mask 完全禁止 — PUI-PROG-MASK-VARIANT) -->
 <Progress id="hp" value="1.0" fill="ui:bar" bgColor="#000">
   <Variant when="state.low">
     <Attr name="value" value="0.2"/>

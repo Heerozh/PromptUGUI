@@ -173,7 +173,7 @@ screen.Get<InputField>("playerName").OnEndEdit
       .Subscribe(s => Player.Rename(s)).AddTo(screen);
 ```
 
-**Progress** — `screen.Get<Progress>("hp").Value = 0.42f;` Progress 是只读显示控件，无 `OnValueChanged`，用 `Bind`-属性或直接 setter 推值。`Value` 被 `Mathf.Clamp01` 钳位。
+**Progress** — `screen.Get<Progress>("hp").Value = 0.42f;` 或 R3 推送 `healthStream.Subscribe(v => p.Value = v).AddTo(screen)`。Progress 是只读显示控件，无 `OnValueChanged`。`Value` 被 `Mathf.Clamp01` 钳位。注意：`[Bind]` 在本项目里是把 child control 字段注入到 parent（见 `Runtime/Registry/BindAttribute.cs`），不是数据流绑定 —— 用直接 setter / R3 推。
 
 `screen.Track(disposable)` (or the `.AddTo(screen)` extension) ties a subscription to Screen lifetime. **Always do this** — leaked R3 subscriptions hold the GameObject alive after Close, and the next Open will produce phantom callbacks against the old (destroyed) GameObject.
 
