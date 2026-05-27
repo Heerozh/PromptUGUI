@@ -73,7 +73,7 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 
 `<Import>`, `<Screen>`, `<Template>` are the **only** elements allowed at the top level. Comments use standard `<!-- -->`.
 
-## Built-in primitives (15)
+## Built-in primitives (17)
 
 **默认视觉主题**：白底 sliced + #323232 深字（同 Unity 6 标准 UI prefab）。`color=` / `sprite=` 单点 override，整体深色覆写 `ProceduralBuilders` 常量或用 Variant `color.dark="..."`。
 
@@ -96,8 +96,10 @@ Pre-registered on `UI.Registry`. Use as XML tags by name:
 | `<ScrollList>` | ScrollRect + Mask. Items pushed C#-side via `BindItems(...)`. `itemTemplate` references a `<Template name=...>` or registered Control class. **不写 size 时按方向给视口默认**：纵向滚动 160×200、横向滚动 200×160；实际项目通常显式写 size。                                                                                                                                                     | `itemTemplate` (required tag name), `direction` (`vertical` / `horizontal`), `spacing` (float), `padding`, `color`, `sprite`                                                                                                                                                                                                                       |
 | `<InputField>` | TMP_InputField；R3 `OnValueChanged` / `OnEndEdit` / `OnSubmit: string`。`<InputField>初始文本</InputField>` 短手设 `text=`。                                                                                                                                                                                                                                                                     | `text`, `placeholder`, `contentType` (`standard`/`autocorrected`/`integer-number`/`decimal-number`/`alphanumeric`/`name`/`email`/`password`/`pin`/`custom`), `lineType` (`single`/`multi-newline`/`multi-submit`), `characterLimit` (int), `readOnly` (bool), `color`, `sprite`, `font`, `tr` (placeholder)/`ctx`                                  |
 | `<Progress>` | 显示型线性进度条（只读，无 `OnValueChanged`）。一行配齐 frame / mask / bg / fill / mode / direction / value，零手糊图层。 | `value` (float `[0..1]`, default `0`), `fill` (sprite key), `fillColor` (`#RRGGBB[AA]` / 命名色), `bg` (sprite key), `bgColor` (`#RRGGBB[AA]` / 命名色;单独设也激活 bg 层), `frame` (sprite key), `frameColor` (`#RRGGBB[AA]` / 命名色;单独设也激活 frame 层), `mask` (sprite key), `mode` (`scale`\|`fill`, default `scale`), `direction` (`horizontal`\|`vertical`\|`reverse-horizontal`\|`reverse-vertical`, default `horizontal`) |
+| `<TabBar>`   | Tab container; private `ToggleGroup` (`allowSwitchOff=false`) + `Horizontal`/`VerticalLayoutGroup`. All child Tabs share `sprite` (normal bg) + `selectedSprite` (overlay shown when on, bound to `UnityToggle.graphic`). Supports `itemTemplate` + `BindItems` for dynamic content (same shape as `<ScrollList>`). Behaves as a layout group for children — Tabs can't declare `anchor` / `margin`. | `sprite` (normal bg, shared), `selectedSprite` (overlay sprite when selected), `direction` (`horizontal` / `vertical`, default `horizontal`), `spacing` (float), `padding` (`T,R,B,L`), `itemTemplate` (tag name, default `Tab`) |
+| `<Tab>`      | Child of `<TabBar>`; uGUI `Toggle` + centered TMP label + optional left-side icon + optional selected overlay. Mutex via TabBar's `ToggleGroup` (automatic). `bind="frame_id"` declaratively shows/hides a sibling `<Frame>` on selection (lazy lookup, cached). No `bind=` → only `OnSelected`. No nested XML children allowed. | `text`, `isOn` (bool, default `false`), `bind` (id of sibling `<Frame>` to show/hide), `font`, `fontSize` (int), `icon` (sprite key, left-aligned 24×24 with 4px gap) |
 
-`<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` are reference implementations. For project-specific differentiation (pixel border, press feedback, custom popup chrome) subclass and override `OnAttached` — see scripting-promptugui-csharp.
+`<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` / `<TabBar>` are reference implementations. For project-specific differentiation (pixel border, press feedback, custom popup chrome) subclass and override `OnAttached` — see scripting-promptugui-csharp.
 
 ### `<Icon>`
 
@@ -197,6 +199,8 @@ Other notes:
 | `<ScrollList>` | `Image` + `ScrollRect`                                                                                                                                                          | `Viewport`(`Image` + `Mask` stencil) → `Content`(V/H `LayoutGroup` + `ContentSizeFitter`)；按 `direction` 再加一个 `Scrollbar`                                               | 无独立事件；C# 端 `BindItems(...)` 推数据                                                          |
 | `<InputField>` | `Image` + `TMP_InputField`                                                                                                                                                      | `Text Area`(`RectMask2D`) → `Placeholder`(`TMP_Text`, italic 半透明) + `Text`(`TMP_Text`)                                                                                    | `OnValueChanged` / `OnEndEdit` / `OnSubmit` ← `TMP_InputField.*`                                   |
 | `<Progress>`   | `RectTransform`（无 Graphic）                                                                                                                                                   | `MaskWrapper`(`RectTransform`; 按需挂 `UnityImage` + `Mask`) → `Bg`(`Image`, 按需启用) + `Fill`(`Image`, 永远存在)；`Frame`(`Image`, 按需启用, `raycastTarget=false`) | —                                                                                                  |
+| `<TabBar>`     | `ToggleGroup` + `HorizontalLayoutGroup`（或 `VerticalLayoutGroup` 看 `direction=`）                                                                                              | XML 写的或 `BindItems` 推的 `<Tab>` children；shared `sprite` / `selectedSprite` 在每个 Tab 上压平                                                                            | `OnSelectionChanged` ← per-Tab `OnValueChanged.Where(on => on)`                                    |
+| `<Tab>`        | `UnityImage`（bg, `targetGraphic`）+ `UnityToggle`（`transition=ColorTint`）；Toggle 的 `group` 在 `OnAttached` 用 transform-ancestor walk 找 TabBar 的 `ToggleGroup`           | `Label`(`TMP_Text`, stretch fill, `Center` 对齐, raycast off)；可选 `Icon`(`Image`, 左 16px + 24×24)；可选 `Overlay`(`Image`, stretch fill, 绑到 `Toggle.graphic` 当选中态) | `OnValueChanged: bool` / `OnSelected: Unit`（只在 isOn=true 时 fire）                              |
 | `<SafeArea>`   | `RectTransform` + `SafeAreaTracker`（内部 `MonoBehaviour`，订阅设备 safeArea / 旋转 / Device Simulator）                                                                        | —                                                                                                                                                                            | —                                                                                                  |
 | `<Trigger>`    | `RectTransform` 单独（无视觉、无 layout 行为，仅作 wrapper 划定事件源 scope）                                                                                                   | —                                                                                                                                                                            | `OnFire` ← R3 `Subject<Unit>`，由 `on=`（open/loop/click/hover-enter/hover-exit/press/manual）触发 |
 | `<Animation>`  | `RectTransform` + `CanvasGroup`（继承自 Trigger；CanvasGroup 给 `fade=` 用，由 `ApplyCommon` 懒加载）                                                                           | `_offsetProxy`(`RectTransform`，anchor stretch、margin=0、pivot=0.5,0.5) — XML 子节点全 parent 到这一层；LitMotion 驱动它的 anchoredPosition / localScale / localEulerAngles | `OnFire` ← 继承 Trigger；同时由 `on=` 触发 LitMotion `MotionHandle[]`                              |
@@ -606,6 +610,39 @@ Radial fill（冷却环）不在 `<Progress>` 范围；以后用单独的 `<Cool
 | `PUI-PROG-MASK-VARIANT` | `mask` 出现在 Variant 覆盖里 | error |
 | `PUI-PROG-NO-FILL` | `value` 有值但 `fill`/`fillColor` 均未设 | warning |
 
+## Tabs
+
+`<TabBar>` 是 Tab 的容器；私有 `ToggleGroup`（`allowSwitchOff=false`）保证互斥，私有 `HorizontalLayoutGroup` / `VerticalLayoutGroup`（看 `direction=`）排布。所有 Tab 共享 TabBar 的 `sprite`（常态底）和 `selectedSprite`（选中时显示的 overlay，绑到 `UnityToggle.graphic`）。不写 `selectedSprite` Tabs 退化成"按钮"视觉（仍互斥，但没有选中态反馈）。
+
+```xml
+<TabBar id="topbar" anchor="top-stretch" height="40"
+        sprite="ui:tab_normal" selectedSprite="ui:tab_selected">
+  <Tab text="Edit" bind="editor_panel" isOn="true"/>
+  <Tab text="Help" bind="help_panel"/>
+  <Tab text="Settings" bind="settings_panel"/>
+</TabBar>
+
+<Frame id="editor_panel"   anchor="fill" margin="40,0,0,0">...</Frame>
+<Frame id="help_panel"     anchor="fill" margin="40,0,0,0">...</Frame>
+<Frame id="settings_panel" anchor="fill" margin="40,0,0,0">...</Frame>
+```
+
+`bind="frame_id"` 让 Tab 选中时显示、未选时隐藏命名 Frame。lookup 是 lazy 的 —— 首次切换才解析并缓存。Tab `isOn="true"` 在 XML 里指定初始选中；都没写时 TabBar 自动选第一个。`bind=` 省略时只 fire `OnSelected`（C# 端自己处理）。
+
+用自定义 `itemTemplate` 时（`<TabBar itemTemplate="MyTabTemplate"/>`），Template body 必须在树里某处包含恰好一个 `<Tab>`（通过 `ScopedIds` 或递归 `Control.Children` walk 在 `BindItems` 时定位）。
+
+Tab 是 TabBar 的 layout group child —— 不能写 `anchor=` / `margin=`（`HorizontalLayoutGroup` 接管排布；TabBar 在 `selfIsLayoutGroup` 名单里）。
+
+### Lint 规则
+
+| Code | 触发条件 | 级别 |
+|---|---|---|
+| `PUI-TAB-PARENT` | `<Tab>` 不在 `<TabBar>` 直接父节点下 | warning |
+| `PUI-TABBAR-CHILD` | `<TabBar>` 的直接子节点不是 `<Tab>` | warning |
+| `PUI-TAB-CHILDREN` | `<Tab>` 包含嵌套 XML children（auto label / icon 由属性驱动） | error |
+| `PUI-TABBAR-DIRECTION` | `direction` 不是 `horizontal` / `vertical` | error |
+| `PUI-TAB-BIND-EMPTY` | `bind=""`（空字符串） | warning |
+
 ## Common mistakes (XML)
 
 | Symptom                                                                             | Cause                                                                                                                                                                                              | Fix                                                                                                                                                                                                                                                             |
@@ -639,6 +676,7 @@ TOP LEVEL     <Import src="" [as=""]/>  <Screen name="" [canvas="overlay|camera|
 BUILT-INS     <Frame> <Image> <Text> <VStack> <HStack> <Grid> <Btn> <Icon>
               <Toggle> <Slider> <Dropdown> <ScrollList> <InputField>
               <Progress value="0.6" fill="ui:bar"/>  最简；mask= + 不设 bg → mask sprite 自动可见兼当底；radial 进度环不在 <Progress> 范围
+              <TabBar><Tab text="A" bind="frame_a" isOn="true"/>...</TabBar>  互斥 + shared sprite/selectedSprite + bind 自动 toggle Frame
 TEXT SHORT    <Text>Hi</Text> ≡ <Text text="Hi"/>     (also <Btn>, <Toggle>, <InputField>)
 
 COMMON ATTRS  id  anchor  size|width|height  margin  pivot  hidden  interactable
