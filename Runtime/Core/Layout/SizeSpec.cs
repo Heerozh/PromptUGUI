@@ -110,6 +110,17 @@ namespace PromptUGUI.Layout
         internal static SizeSpec FromNumeric(float w, float h) =>
             new(w, h, true, true, false, false, false, false, 1f, 1f, false, false, 0f, 0f);
 
+        internal SizeSpec WithFallbackForMissing(Vector2 native) =>
+            new(
+                HasWidth ? Width : native.x,
+                HasHeight ? Height : native.y,
+                true, true,
+                false, false,
+                IsFlexibleWidth, IsFlexibleHeight,
+                WeightWidth, WeightHeight,
+                IsFractionalWidth, IsFractionalHeight,
+                WidthFraction, HeightFraction);
+
         private static bool LooksLikeKeyword(string s)
         {
             // Heuristic for the size= validator: catch 'stretch', 'stretch*N', 'N%', 'NxN%' early

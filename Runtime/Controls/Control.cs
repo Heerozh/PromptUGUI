@@ -183,17 +183,17 @@ namespace PromptUGUI.Controls
                         "'stretch' on width/height is only valid inside <VStack>/<HStack>; " +
                         "use anchor=\"stretch\" (or anchor=\"X-stretch\") + margin for free-positioning containers");
 
-                // BCS-D7: 自由定位 + anchor 两轴都不 stretch + sizeSpec 完全无尺寸 →
-                // 若控件能提供 native size (GetNativeSize)，用 native 作为默认尺寸，
-                // 避免 sizeDelta=(0,0) 不可见。已有 size="native" 关键字处理在前 (IsNativeWidth/Height),
-                // 此 fallback 只覆盖"完全没写 size"的情况, 两条互斥。
+                // BCS-D7: 自由定位 + anchor 两轴都不 stretch + 至少一轴没写 →
+                // 若控件能提供 native size (GetNativeSize)，缺失的轴用 native 填，已写的轴保留作者值。
+                // 避免 sizeDelta=(0,0) 不可见，并支持 CSS 直觉：写 height、width 仍按内容自适应。
+                // size="native" 关键字处理在前 (IsNativeWidth/Height)，两条互斥。
                 if (!preset.StretchX && !preset.StretchY
-                    && !sizeSpec.HasWidth && !sizeSpec.HasHeight)
+                    && (!sizeSpec.HasWidth || !sizeSpec.HasHeight))
                 {
                     var nativeFallback = GetNativeSize();
                     if (nativeFallback.HasValue)
                     {
-                        sizeSpec = SizeSpec.FromNumeric(nativeFallback.Value.x, nativeFallback.Value.y);
+                        sizeSpec = sizeSpec.WithFallbackForMissing(nativeFallback.Value);
                     }
                 }
 
@@ -260,55 +260,37 @@ namespace PromptUGUI.Controls
             var fillCrossX = parentHv is UnityEngine.UI.VerticalLayoutGroup && preset.StretchX && !sizeSpec.HasWidth;
             var fillCrossY = parentHv is UnityEngine.UI.HorizontalLayoutGroup && preset.StretchY && !sizeSpec.HasHeight;
 
-            // 决策 LGC-D8 + BCS-D6:
-            // 作者没写任何 size 属性 → 如果控件能报告 native (GetNativeSize 非 null)，
-            // 挂 LayoutElement 把 native 当 preferred 暴露给 LayoutGroup;
-            // 否则维持原"无约束 / 清空到 -1"行为，让 Image/TMP 自带 ILayoutElement 主导。
-            // 决策 LGC-D9: 按轴路由 — 未写的轴留在 -1 哨兵值
-            // 决策 LGC-D10: 每次都先把两轴全置 -1，清掉前一次 Variant 的残留约束
-            if (!sizeSpec.HasWidth && !sizeSpec.HasHeight)
-            {
-                var existing = GameObject.GetComponent<UnityEngine.UI.LayoutElement>();
-                var native = GetNativeSize();
-                if (native.HasValue)
-                {
-                    existing ??= GameObject.AddComponent<UnityEngine.UI.LayoutElement>();
-                    existing.preferredWidth = native.Value.x;
-                    existing.preferredHeight = native.Value.y;
-                    existing.flexibleWidth = -1;
-                    existing.flexibleHeight = -1;
-                }
-                else if (fillCrossX || fillCrossY)
-                {
-                    // DSS-D16: 没 native 但作者 anchor 默认 stretch → 需要 LE 承载 cross-axis flex
-                    existing ??= GameObject.AddComponent<UnityEngine.UI.LayoutElement>();
-                    existing.preferredWidth = -1;
-                    existing.preferredHeight = -1;
-                    existing.flexibleWidth = -1;
-                    existing.flexibleHeight = -1;
-                }
-                else if (existing != null)
-                {
-                    // 前一次 Variant 可能挂过 LayoutElement，本次没尺寸 + 控件没有 native + 不需要 cross fill → 还原成"无约束"
-                    existing.preferredWidth = -1;
-                    existing.preferredHeight = -1;
-                    existing.flexibleWidth = -1;
-                    existing.flexibleHeight = -1;
-                }
+            // 决策 LGC-D8 + BCS-D6 + BCS-D7 partial-write:
+            // 任一轴没写 → 询问 GetNativeSize 作为该轴 fallback；写了的轴保留作者值。
+            // 决策 LGC-D9: 没 native 时该轴留在 -1 哨兵值，让 Image/TMP 自带 ILayoutElement 主导。
+            // 决策 LGC-D10: 每次都先把两轴全置 -1，清掉前一次 Variant 的残留约束。
+            var needNativeFallback = !sizeSpec.HasWidth || !sizeSpec.HasHeight;
+            var native = needNativeFallback ? GetNativeSize() : null;
+            var hasNative = native.HasValue;
 
-                if (existing != null)
+            // 是否需要 LE：作者写了 size、或 native fallback 命中、或需要 cross 轴 fill。
+            // 都不需要时若有残留 LE（Variant 切换可能挂过）→ 清回 -1。
+            var needLE = sizeSpec.HasWidth || sizeSpec.HasHeight || hasNative || fillCrossX || fillCrossY;
+
+            var le = GameObject.GetComponent<UnityEngine.UI.LayoutElement>();
+            if (!needLE)
+            {
+                if (le != null)
                 {
-                    if (fillCrossX) { existing.preferredWidth = 0; existing.flexibleWidth = 1; }
-                    if (fillCrossY) { existing.preferredHeight = 0; existing.flexibleHeight = 1; }
+                    le.preferredWidth = -1;
+                    le.preferredHeight = -1;
+                    le.flexibleWidth = -1;
+                    le.flexibleHeight = -1;
                 }
                 return;
             }
-            var le = GameObject.GetComponent<UnityEngine.UI.LayoutElement>()
-                     ?? GameObject.AddComponent<UnityEngine.UI.LayoutElement>();
+
+            le ??= GameObject.AddComponent<UnityEngine.UI.LayoutElement>();
             le.preferredWidth = -1;
             le.preferredHeight = -1;
             le.flexibleWidth = -1;
             le.flexibleHeight = -1;
+
             if (sizeSpec.HasWidth)
             {
                 if (sizeSpec.IsFlexibleWidth)
@@ -325,6 +307,12 @@ namespace PromptUGUI.Controls
                     le.flexibleWidth = 0;
                 }
             }
+            else if (hasNative)
+            {
+                le.preferredWidth = native.Value.x;
+                // flexibleWidth 保持 -1（"无意见"），与历史 both-missing native 路径一致
+            }
+
             if (sizeSpec.HasHeight)
             {
                 if (sizeSpec.IsFlexibleHeight)
@@ -338,9 +326,13 @@ namespace PromptUGUI.Controls
                     le.flexibleHeight = 0;
                 }
             }
+            else if (hasNative)
+            {
+                le.preferredHeight = native.Value.y;
+            }
 
-            // DSS-D16: cross 轴 fill — 必须在 HasWidth/HasHeight 分支之后，
-            // 因为它要把 -1 覆写成 0+flex=1。
+            // DSS-D16: cross 轴 fill — 必须在 HasWidth/HasHeight 与 native 分支之后，
+            // 因为它要把 preferred/-1 覆写成 0+flex=1。
             if (fillCrossX) { le.preferredWidth = 0; le.flexibleWidth = 1; }
             if (fillCrossY) { le.preferredHeight = 0; le.flexibleHeight = 1; }
         }

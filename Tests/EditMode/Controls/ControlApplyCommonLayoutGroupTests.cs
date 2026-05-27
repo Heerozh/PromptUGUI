@@ -33,8 +33,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Btn_in_VStack_with_only_width_leaves_height_axis_unconstrained()
+        public void Btn_in_VStack_with_only_width_height_falls_back_to_native()
         {
+            // BCS-D7 partial-write: 作者写 width 不写 height → 未写的轴用 GetNativeSize 兜底
+            // （Btn 无 text 时 native=(80,44)）。flexible 保持 -1（"无意见"），与 both-missing 一致。
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
   <VStack id='stack' width='200' height='200'>
@@ -48,9 +50,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsNotNull(le);
             Assert.AreEqual(100f, le.preferredWidth);
             Assert.AreEqual(0f, le.flexibleWidth);
-            Assert.AreEqual(-1f, le.preferredHeight,
-                "Unspecified height axis must be -1 (LayoutElement 'ignored' sentinel)");
-            Assert.AreEqual(-1f, le.flexibleHeight);
+            Assert.AreEqual(44f, le.preferredHeight,
+                "omitted height → Btn native (44)");
+            Assert.AreEqual(-1f, le.flexibleHeight,
+                "native-filled axis keeps flexible=-1 (defer to ILayoutElement priority)");
         }
 
         [Test]
@@ -132,12 +135,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [Test]
         public void Variant_switch_from_size_to_width_only_resets_height_axis()
         {
-            // 验证 ApplyLayoutElement 的"先重置两轴再写入"逻辑：
-            // 切换变体让 height 轴从"被 size=指定为 64"变成"未指定"，preferredHeight 必须
-            // 从 64 重置到 -1，而不是残留前一轮的值。
-            //
-            // 用法：base 提供 size=64x64；mobile 激活时把 size 覆写为空 + 提供 width=100。
-            // (SizeSpec.Parse 视空串为"未指定"，所以 mobile 下只有 width 轴被指定。)
+            // 验证 ApplyLayoutElement 的"先重置两轴再写入"逻辑：切换变体让 height 轴从"被 size=指定为 64"
+            // 变成"未指定"，preferredHeight 必须从 64 重置 —— 不能残留前一轮的 64。
+            // BCS-D7 partial-write 后，未指定的轴会从 GetNativeSize 兜底，所以 mobile 下 height 落到 Btn native (44)，
+            // 而不是 -1。关键点：换值发生了（≠64），证明 reset+rewrite 路径有效。
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
   <VStack id='stack' width='200' height='200'>
@@ -158,8 +159,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             // Variants.Changed → Screen.ReSolve → ApplyCommon → ApplyLayoutElement
             Assert.AreEqual(100f, le.preferredWidth, "mobile: width override = 100");
             Assert.AreEqual(0f, le.flexibleWidth);
-            Assert.AreEqual(-1f, le.preferredHeight,
-                "mobile has no height (size.mobile empty) — must reset to -1, not retain 64");
+            Assert.AreEqual(44f, le.preferredHeight,
+                "mobile has no height (size.mobile empty) — falls back to Btn native (44), not retained 64");
             Assert.AreEqual(-1f, le.flexibleHeight);
         }
 
