@@ -1,3 +1,4 @@
+using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
 using PromptUGUI.Registry;
 using UnityEngine;
@@ -52,6 +53,26 @@ namespace PromptUGUI.Controls
                 if (string.IsNullOrEmpty(value)) return;
                 _mode = value;
                 ReconcileFill();
+            }
+        }
+
+        [UIAttr, Preserve]
+        public string Fill
+        {
+            set
+            {
+                _fill.sprite = UI.ResolveSprite(value);
+                ReconcileFill();
+            }
+        }
+
+        [UIAttr, Preserve]
+        public string FillColor
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value)) return;
+                if (ColorUtility.TryParseHtmlString(value, out var c)) _fill.color = c;
             }
         }
 

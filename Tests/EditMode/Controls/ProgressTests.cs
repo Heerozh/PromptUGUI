@@ -201,5 +201,39 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var rt = fillImg.rectTransform;
             Assert.AreEqual(new Vector2(0.6f, 1f), rt.anchorMax, "scale anchorMax reflects value");
         }
+
+        [Test]
+        public void Fill_Sprite_Resolves_Via_UI_ResolveSprite()
+        {
+            var p = Open("<Progress id='p' fill='PromptUGUI/Defaults/pugui#pugui_9slice_round'/>");
+            var fill = p.GameObject.transform.Find("MaskWrapper/Fill").GetComponent<UnityImage>();
+            Assert.IsNotNull(fill.sprite, "sprite resolved from atlas key");
+            Assert.AreEqual("pugui_9slice_round", fill.sprite.name);
+        }
+
+        [Test]
+        public void Fill_9Slice_Sprite_Auto_Sliced_In_Scale_Mode()
+        {
+            var p = Open("<Progress id='p' value='0.5' fill='PromptUGUI/Defaults/pugui#pugui_9slice_round'/>");
+            var fill = p.GameObject.transform.Find("MaskWrapper/Fill").GetComponent<UnityImage>();
+            Assert.AreEqual(UnityImage.Type.Sliced, fill.type);
+        }
+
+        [Test]
+        public void Fill_9Slice_Sprite_Becomes_Filled_When_Mode_Is_Fill()
+        {
+            var p = Open("<Progress id='p' value='0.5' mode='fill' fill='PromptUGUI/Defaults/pugui#pugui_9slice_round'/>");
+            var fill = p.GameObject.transform.Find("MaskWrapper/Fill").GetComponent<UnityImage>();
+            Assert.AreEqual(UnityImage.Type.Filled, fill.type,
+                "mode=fill must force Filled even for 9-slice sprites");
+        }
+
+        [Test]
+        public void FillColor_Parses_Hex()
+        {
+            var p = Open("<Progress id='p' fillColor='#ff0000'/>");
+            var fill = p.GameObject.transform.Find("MaskWrapper/Fill").GetComponent<UnityImage>();
+            Assert.AreEqual(Color.red, fill.color);
+        }
     }
 }
