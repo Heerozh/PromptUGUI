@@ -24,7 +24,11 @@ namespace PromptUGUI.Controls
         public float Value
         {
             get => _value;
-            set => _value = Mathf.Clamp01(value);
+            set
+            {
+                _value = Mathf.Clamp01(value);
+                ReconcileFill();
+            }
         }
 
         internal override void OnAfterApply()

@@ -95,6 +95,17 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var p = Open("<Progress id='p' value='1'/>");
             var fill = p.GameObject.transform.Find("MaskWrapper/Fill") as RectTransform;
             Assert.AreEqual(new Vector2(1f, 1f), fill.anchorMax);
+            Assert.AreEqual(Vector2.zero, fill.offsetMin, "offsetMin must be zeroed by ReconcileFill");
+        }
+
+        [Test]
+        public void Value_Setter_At_Runtime_Reconciles_Fill()
+        {
+            var p = Open("<Progress id='p' value='0.2'/>");
+            var fill = p.GameObject.transform.Find("MaskWrapper/Fill") as RectTransform;
+            Assert.AreEqual(new Vector2(0.2f, 1f), fill.anchorMax, "initial XML state");
+            p.Value = 0.7f;
+            Assert.AreEqual(new Vector2(0.7f, 1f), fill.anchorMax, "runtime setter must repaint Fill");
         }
     }
 }
