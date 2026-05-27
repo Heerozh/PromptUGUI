@@ -150,5 +150,39 @@ namespace PromptUGUI.Tests.EditMode.Controls
             a.IsOn = true;
             // No further warn expected — LogAssert would fail if a 2nd warning fires.
         }
+
+        [Test]
+        public void TabBar_With_No_Initial_IsOn_Auto_Selects_First_Tab()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar'><Tab id='a'/><Tab id='b'/></TabBar>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            Assert.IsTrue(screen.Get<Tab>("a").IsOn);
+            Assert.IsFalse(screen.Get<Tab>("b").IsOn);
+        }
+
+        [Test]
+        public void TabBar_Non_Selected_Bind_Frames_Are_Deactivated_Initially()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar'>
+    <Tab id='a' bind='fa' isOn='true'/>
+    <Tab id='b' bind='fb'/>
+    <Tab id='c' bind='fc'/>
+  </TabBar>
+  <Frame id='fa'/>
+  <Frame id='fb'/>
+  <Frame id='fc'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            Assert.IsTrue(screen.Get<Frame>("fa").GameObject.activeSelf);
+            Assert.IsFalse(screen.Get<Frame>("fb").GameObject.activeSelf);
+            Assert.IsFalse(screen.Get<Frame>("fc").GameObject.activeSelf);
+        }
     }
 }

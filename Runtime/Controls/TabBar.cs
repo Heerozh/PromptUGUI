@@ -44,6 +44,21 @@ namespace PromptUGUI.Controls
         {
             CollectStaticTabs();
             PushVisualToTabs();
+            SyncInitialSelection();
+        }
+
+        private void SyncInitialSelection()
+        {
+            if (_tabs.Count == 0) return;
+
+            // (1) Reconcile: any unselected Tab with a bind clears its Frame
+            foreach (var t in _tabs)
+                if (!t.IsOn) t.ForceSyncBindFrame(isOn: false);
+
+            // (2) Auto-select first if nothing on
+            bool anyOn = false;
+            foreach (var t in _tabs) if (t.IsOn) { anyOn = true; break; }
+            if (!anyOn) _tabs[0].IsOn = true;
         }
 
         private void CollectStaticTabs()
