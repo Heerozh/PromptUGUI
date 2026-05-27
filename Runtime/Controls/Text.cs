@@ -9,6 +9,7 @@ namespace PromptUGUI.Controls
     {
         private TMP_Text _tmp;
         private string _fontType = "default";
+        private bool _autosize;
 
         internal TMP_Text TmpComponent => _tmp;
 
@@ -50,7 +51,38 @@ namespace PromptUGUI.Controls
         [UIAttr("fontSize"), Preserve]
         public int Size
         {
-            set => _tmp.fontSize = value;
+            set
+            {
+                _tmp.fontSize = value;
+                if (_autosize) ApplyAutosize();
+            }
+        }
+
+        [UIAttr, Preserve]
+        public bool Autosize
+        {
+            set
+            {
+                _autosize = value;
+                ApplyAutosize();
+            }
+        }
+
+        private void ApplyAutosize()
+        {
+            if (_tmp == null) return;
+            if (_autosize)
+            {
+                var size = _tmp.fontSize;
+                _tmp.fontSizeMin = size;
+                _tmp.fontSizeMax = size;
+                _tmp.characterWidthAdjustment = 50f;
+                _tmp.enableAutoSizing = true;
+            }
+            else
+            {
+                _tmp.enableAutoSizing = false;
+            }
         }
 
         [UIAttr, Preserve]

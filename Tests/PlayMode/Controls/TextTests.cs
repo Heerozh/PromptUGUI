@@ -43,5 +43,55 @@ namespace PromptUGUI.Tests.Controls
             Object.Destroy(go);
             yield return null;
         }
+
+        [UnityTest]
+        public IEnumerator Autosize_true_enables_TMP_autosize_wd_only()
+        {
+            var t = new Text();
+            var go = new GameObject("text", typeof(RectTransform));
+            t.AttachTo(go);
+            t.Size = 24;
+            t.Autosize = true;
+            var tmp = go.GetComponent<TMP_Text>();
+            Assert.IsTrue(tmp.enableAutoSizing, "enableAutoSizing should be on");
+            Assert.AreEqual(24f, tmp.fontSize, "fontSize unchanged");
+            Assert.AreEqual(24f, tmp.fontSizeMin, "fontSizeMin locked to current size");
+            Assert.AreEqual(24f, tmp.fontSizeMax, "fontSizeMax locked to current size");
+            Assert.Greater(tmp.characterWidthAdjustment, 0f, "WD% squish enabled");
+            Object.Destroy(go);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator Autosize_false_disables_TMP_autosize()
+        {
+            var t = new Text();
+            var go = new GameObject("text", typeof(RectTransform));
+            t.AttachTo(go);
+            t.Size = 24;
+            t.Autosize = true;
+            t.Autosize = false;
+            var tmp = go.GetComponent<TMP_Text>();
+            Assert.IsFalse(tmp.enableAutoSizing, "enableAutoSizing should be off");
+            Object.Destroy(go);
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator Autosize_then_resize_relocks_min_max()
+        {
+            var t = new Text();
+            var go = new GameObject("text", typeof(RectTransform));
+            t.AttachTo(go);
+            t.Autosize = true;
+            t.Size = 48;
+            var tmp = go.GetComponent<TMP_Text>();
+            Assert.IsTrue(tmp.enableAutoSizing);
+            Assert.AreEqual(48f, tmp.fontSize);
+            Assert.AreEqual(48f, tmp.fontSizeMin, "Min re-locks after Size change");
+            Assert.AreEqual(48f, tmp.fontSizeMax, "Max re-locks after Size change");
+            Object.Destroy(go);
+            yield return null;
+        }
     }
 }
