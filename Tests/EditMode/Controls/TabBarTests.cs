@@ -49,5 +49,44 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var bgB = b.GameObject.GetComponent<UnityEngine.UI.Image>();
             Assert.AreEqual(bgA.sprite, bgB.sprite, "both Tabs received the same (possibly null) sprite from TabBar");
         }
+
+        [Test]
+        public void TabBar_SelectedSprite_Creates_Overlay_On_Each_Tab()
+        {
+            LogAssert.Expect(LogType.Error,
+                new System.Text.RegularExpressions.Regex("UI.SpriteResolver is not registered"));
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar' selectedSprite='ui:fake_selected'>
+    <Tab id='a'/>
+    <Tab id='b'/>
+  </TabBar>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            foreach (var id in new[] { "a", "b" })
+            {
+                var tab = screen.Get<Tab>(id);
+                var overlay = tab.GameObject.transform.Find("Overlay") as RectTransform;
+                Assert.IsNotNull(overlay, $"Tab '{id}' has Overlay RT");
+                var img = overlay.GetComponent<UnityEngine.UI.Image>();
+                var toggle = tab.GameObject.GetComponent<UnityEngine.UI.Toggle>();
+                Assert.AreSame(img, toggle.graphic, $"Tab '{id}' UnityToggle.graphic = overlay");
+                Assert.IsFalse(img.raycastTarget, "Overlay does not block raycasts");
+            }
+        }
+
+        [Test]
+        public void TabBar_Without_SelectedSprite_Has_No_Overlay()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar'><Tab id='a'/></TabBar>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var tab = screen.Get<Tab>("a");
+            Assert.IsNull(tab.GameObject.transform.Find("Overlay"), "no Overlay when selectedSprite absent");
+        }
     }
 }

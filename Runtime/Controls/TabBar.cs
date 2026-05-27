@@ -15,6 +15,8 @@ namespace PromptUGUI.Controls
         private readonly List<Tab> _tabs = new();
         private readonly Subject<Tab> _selectionChanged = new();
         private Sprite _sprite;
+        private Sprite _selectedSprite;
+        private bool _selectedSpriteDeclared;
 
         internal ToggleGroup InternalToggleGroup => _group;
 
@@ -27,6 +29,16 @@ namespace PromptUGUI.Controls
 
         [UIAttr(IsSprite = true), Preserve]
         public string Sprite { set => _sprite = UI.ResolveSprite(value); }
+
+        [UIAttr(IsSprite = true), Preserve]
+        public string SelectedSprite
+        {
+            set
+            {
+                _selectedSpriteDeclared = true;
+                _selectedSprite = UI.ResolveSprite(value);
+            }
+        }
 
         internal override void OnAfterApply()
         {
@@ -43,7 +55,11 @@ namespace PromptUGUI.Controls
 
         private void PushVisualToTabs()
         {
-            foreach (var t in _tabs) t.ApplyBgSprite(_sprite);
+            foreach (var t in _tabs)
+            {
+                t.ApplyBgSprite(_sprite);
+                if (_selectedSpriteDeclared) t.EnsureOverlay(_selectedSprite);
+            }
         }
 
         private void ApplyDirection()

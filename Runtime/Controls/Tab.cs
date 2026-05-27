@@ -137,6 +137,25 @@ namespace PromptUGUI.Controls
             _bg.type = sprite.border != Vector4.zero ? UnityImage.Type.Sliced : UnityImage.Type.Simple;
         }
 
+        internal void EnsureOverlay(Sprite selectedSprite)
+        {
+            if (_overlay == null)
+            {
+                _overlay = ProceduralBuilders.AddImage(RectTransform, "Overlay", raycast: false);
+                _overlay.rectTransform.SetSiblingIndex(0);   // draw under Label / Icon
+                var rt = _overlay.rectTransform;
+                rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+                rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+                _toggle.graphic = _overlay;
+                _toggle.toggleTransition = UnityToggle.ToggleTransition.None;   // instant; TB-D5
+            }
+            if (selectedSprite == null) return;
+            _overlay.sprite = selectedSprite;
+            _overlay.type = selectedSprite.border != Vector4.zero
+                ? UnityImage.Type.Sliced
+                : UnityImage.Type.Simple;
+        }
+
         public Observable<bool> OnValueChanged => _changed;
         public Observable<Unit> OnSelected => _selected;
 
