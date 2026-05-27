@@ -265,5 +265,25 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var bg = p.GameObject.transform.Find("MaskWrapper/Bg");
             Assert.IsFalse(bg.gameObject.activeSelf);
         }
+
+        [Test]
+        public void Frame_Sprite_Activates_Frame_Layer_With_Raycast_Off()
+        {
+            var p = Open("<Progress id='p' frame='PromptUGUI/Defaults/pugui#pugui_9slice_round'/>");
+            var frame = p.GameObject.transform.Find("Frame");
+            Assert.IsTrue(frame.gameObject.activeSelf);
+            var img = frame.GetComponent<UnityImage>();
+            Assert.IsNotNull(img.sprite);
+            Assert.AreEqual(UnityImage.Type.Sliced, img.type, "9-slice sprite auto-Sliced");
+            Assert.IsFalse(img.raycastTarget, "Frame must not eat input (PB-D16)");
+        }
+
+        [Test]
+        public void No_Frame_Frame_Layer_Stays_Inactive()
+        {
+            var p = Open("<Progress id='p' fill='PromptUGUI/Defaults/pugui#pugui_9slice_round'/>");
+            var frame = p.GameObject.transform.Find("Frame");
+            Assert.IsFalse(frame.gameObject.activeSelf);
+        }
     }
 }

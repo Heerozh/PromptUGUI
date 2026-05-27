@@ -100,9 +100,22 @@ namespace PromptUGUI.Controls
             }
         }
 
+        [UIAttr, Preserve]
+        public string Frame
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value)) return;
+                _frame.sprite = UI.ResolveSprite(value);
+                _frame.gameObject.SetActive(true);
+                AutoSlice(_frame);
+            }
+        }
+
         internal override void OnAfterApply()
         {
             AutoSlice(_bg);
+            AutoSlice(_frame);
             ReconcileFill();
         }
 
