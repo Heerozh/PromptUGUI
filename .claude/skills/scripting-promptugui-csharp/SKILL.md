@@ -283,6 +283,33 @@ Locale switching rides the Variant pipeline — already-open Screens auto-ReSolv
 
 For Addressables-backed `.po` loading (`UI.Locale.UseAddressableResolver`, `Locale:<locale>` labels, `SetAsync`), see **using-promptugui-addressables**.
 
+## Theme switching
+
+```csharp
+// Load themes (one-time at boot; themes piggyback on the commons library).
+await UI.LoadCommonLibraryAsync("themes/main");
+
+// Inspect / switch.
+UI.Theme.Current;       // string?, the active theme name
+UI.Theme.Available;     // IReadOnlyCollection<string>
+UI.Theme.Set("dark");   // throws ArgumentException if "dark" not registered
+
+// Subscribe to switches (Screens do this automatically and ReSolve themselves).
+UI.Theme.Changed += newName => Debug.Log($"theme switched to {newName}");
+
+// Programmatic lookup (returns null when no Current theme or token absent).
+Color? c = UI.Theme.Lookup("primary");
+
+// Full resolution chain (token → base → literal → throw).
+Color resolved = UI.Theme.Resolve("primary");          // theme token hit
+Color resolved2 = UI.Theme.Resolve("#ff8800");         // hex literal
+// UI.Theme.Resolve("primaru")  // throws (token miss + literal miss)
+```
+
+Single-theme projects: if `LoadCommonLibraryAsync` registers exactly one theme and `UI.Theme.Current` is null, the loader auto-selects it. Multi-theme projects must call `UI.Theme.Set` explicitly.
+
+Hot reload: when a `<Theme>` XML file is edited at Editor time, `Theme.Changed` re-fires for the current theme so all open Screens re-color.
+
 ## Custom controls
 
 ```csharp
@@ -307,6 +334,22 @@ UI.Registry.Register<MyControl>("MyControl", optionalPrefab: null);
 - `[Bind]` on a field auto-wires a child component from a Prefab by child name. Useful when the control has a non-trivial Prefab structure.
 - `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` are reference implementations — for project-specific differentiation (pixel border, press feedback, custom popup chrome), subclass and override `OnAttached`; don't modify the base controls.
 - **IL2CPP Managed Stripping (Medium+)**: setter-only `[UIAttr]` properties get their `PropertyInfo` metadata stripped (`Type.GetProperties()` returns nothing for them), reflection misses the property, attribute silently reverts to default in Player builds with no error log. **Pair every `[UIAttr]` and `[Bind]` with `[Preserve]`**: `[UIAttr, Preserve] public string Color { set { ... } }`. `PromptUGUI.Registry.PreserveAttribute` is name-matched by Mono.Linker (any class named exactly `PreserveAttribute`, inheritance does **not** count). All built-in controls already do this; custom controls must too.
+
+### Color attributes on custom controls
+
+Mark color-bearing `[UIAttr]` properties with `IsColor = true`. The setter receives the raw `string` from XML and should call `UI.Theme.Resolve` to convert:
+
+```csharp
+[UIAttr(IsColor = true), Preserve]
+public string AccentColor
+{
+    set => _accent.color = UI.Theme.Resolve(value);
+}
+```
+
+`IsColor = true` enables static lint discovery (the lint pipeline checks hex literals). Runtime resolution is in the setter itself — there is no separate applier branch (same pattern as `IsSprite` + `UI.ResolveSprite`).
+
+If `UI.Theme.Resolve` throws, the exception flows through the reflection setter into `ControlAttributeApplier.ApplyOne`, which wraps it with the node's path — authors see e.g. `<Image id='avatar'> attribute color="primaru": unknown color token "primaru" (no entry in theme 'light', not a valid hex/named literal)`.
 
 ## Common mistakes (C#)
 
@@ -358,6 +401,11 @@ ORIENTATION    UI.Orientation.IsPortrait                      auto-tracked: port
 LOCALE         UI.Locale.Set("en")                            sync
                UI.Locale.SetToSystemDefault()
                UI.Tr("...")                                   extract + translate
+
+THEME          UI.Theme.Set("dark")                           switch active theme; fires Theme.Changed. Open Screens auto-ReSolve
+               UI.Theme.Resolve(value)                        get Color from token name or hex/named literal; throws on miss
+               UI.Theme.Lookup(token)                         same as Resolve but token-only and returns Color? (no literal fallback, no throw)
+               UI.Theme.Changed                               event Action<string>; invoked with new theme name on switch + hot reload
 
 CANVAS         UI.CanvasConfigurator = (canvas, name) => { ... }
                runs AFTER XML canvas= / reference= apply
