@@ -29,14 +29,19 @@ namespace PromptUGUI.Application
         public void Register(string name, string baseName,
                              IReadOnlyDictionary<string, Color> colors, string src)
         {
-            if (_themes.TryGetValue(name, out var existing))
-            {
-                // Same (name, src) pair: idempotent — LoadDocumentAsync may be called
-                // multiple times for the same file (e.g. screen reopened after hot reload).
-                if (existing.Src == src) return;
+            if (_themes.TryGetValue(name, out var existing) && existing.Src != src)
                 throw new ParseException(
                     $"duplicate <Theme name=\"{name}\"> in '{existing.Src}' and '{src}'");
-            }
+            // Same (name, src) pair: replace, not no-op. Two cases hit this branch:
+            //   (1) Re-open a Screen whose Import brings the same theme back in —
+            //       the values are identical, so replacement is observably a no-op.
+            //   (2) Editor cycle "edit theme XML → re-Play" with Domain Reload
+            //       disabled — the static singleton persists from the previous
+            //       session and the new XML carries DIFFERENT values. An
+            //       idempotent skip here silently drops the author's edit; a
+            //       replace propagates it correctly. (Hot-reload during Play
+            //       routes through ReplaceFromSrc instead of Register, so its
+            //       value-update path is unaffected either way.)
             _themes[name] = new Entry
             {
                 Name = name,

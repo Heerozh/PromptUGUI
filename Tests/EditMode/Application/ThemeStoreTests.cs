@@ -82,5 +82,22 @@ namespace PromptUGUI.Tests.Application
             StringAssert.Contains("themes/main", ex.Message);
             StringAssert.Contains("themes/extra", ex.Message);
         }
+
+        [Test]
+        public void Register_Same_Src_Replaces_Existing_Values()
+        {
+            // Editor "edit XML → re-Play with Domain Reload off" scenario: the
+            // static singleton persists across play sessions, so the same
+            // (name, src) re-registers with new values. Must REPLACE, not no-op,
+            // or the author's edit is silently dropped.
+            ThemeStore.Instance.Register("light", null, Map(("primary", "#ff8800")), "themes/main");
+            ThemeStore.Instance.ResolveBases();
+
+            ThemeStore.Instance.Register("light", null, Map(("primary", "#00ff00")), "themes/main");
+            ThemeStore.Instance.ResolveBases();
+
+            var c = ThemeStore.Instance.LookupChained("light", "primary");
+            Assert.AreEqual(new Color32(0x00, 0xff, 0x00, 0xff), (Color32)c.Value);
+        }
     }
 }

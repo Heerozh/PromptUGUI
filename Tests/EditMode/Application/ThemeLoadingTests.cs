@@ -140,6 +140,36 @@ namespace PromptUGUI.Tests.Application
         }
 
         [Test]
+        public void ReLoad_Same_Src_With_New_Color_Values_Replaces_Old()
+        {
+            // Editor "edit XML → re-Play with Domain Reload off" scenario via the
+            // production path: ThemeStore persists across the simulated re-Play,
+            // so the second LoadCommonLibraryAsync re-registers the same
+            // (name, src) with NEW color values. Register must replace, or the
+            // author's edit is silently dropped.
+            var files = new Dictionary<string, string>
+            {
+                ["themes/main"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Theme name='light'><Color name='primary' value='#ff8800'/></Theme>
+                </PromptUGUI>"
+            };
+            UI.SourceResolver = src => AwaitableHelpers.Completed(files[src]);
+            UI.LoadCommonLibraryAsync("themes/main").GetAwaiter().GetResult();
+            Assert.AreEqual(new Color32(0xff, 0x88, 0x00, 0xff),
+                            (Color32)UI.Theme.Resolve("primary"));
+
+            // Simulate the "Domain Reload off" path: keep ThemeStore + Theme.Current
+            // alive but feed the resolver new XML content (mirrors what an edited
+            // .ui.xml would deliver on the next Resources.Load call).
+            files["themes/main"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                <Theme name='light'><Color name='primary' value='#00ff00'/></Theme>
+            </PromptUGUI>";
+            UI.LoadCommonLibraryAsync("themes/main").GetAwaiter().GetResult();
+            Assert.AreEqual(new Color32(0x00, 0xff, 0x00, 0xff),
+                            (Color32)UI.Theme.Resolve("primary"));
+        }
+
+        [Test]
         public void PreSet_Theme_That_Never_Loads_Warns_After_LoadCommonLibrary()
         {
             // Typo case: user Set a name that no <Theme> matches. The load
