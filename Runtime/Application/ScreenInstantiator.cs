@@ -176,13 +176,6 @@ namespace PromptUGUI.Application
                                            Control parentControl = null,
                                            List<ElementNode> applyOrder = null)
         {
-            if (node.Tag == "Tab" && parentControl != null && !(parentControl is Controls.TabBar))
-            {
-                Debug.LogWarning(
-                    $"<Tab id='{node.Id}'>: must be a direct child of <TabBar>; current parent is " +
-                    $"<{parentControl.GetType().Name}>. Mutual exclusion and shared visuals will not apply.");
-            }
-
             if (parentIsLayoutGroup)
             {
                 foreach (var issue in LayoutGroupChildRules.CheckChild(node))
