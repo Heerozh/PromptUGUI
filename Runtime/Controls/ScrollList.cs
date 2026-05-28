@@ -179,6 +179,12 @@ namespace PromptUGUI.Controls
             set => _bg.color = UI.Theme.Resolve(value);
         }
 
+        [UIAttr, Preserve]
+        public string Tint
+        {
+            set => ImageTint.Apply(_bg, value);
+        }
+
         [UIAttr(IsSprite = true), Preserve]
         public string Sprite
         {

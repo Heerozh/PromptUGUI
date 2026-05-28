@@ -194,6 +194,7 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 - `<Image sprite="bg/main" color="#FFFFFFAA" type="sliced|simple|filled|tiled"/>`
   - `color` 值解析：主题 token（经 `UI.Theme.Current` 与 base 链查表）→ 字面 `ColorUtility.TryParseHtmlString`；详见 [`2026-05-28-color-tokens-design.md`](2026-05-28-color-tokens-design.md)
 - `<Image mask="rect|self" showMask="true|false" maskPadding="T,R,B,L"/>` — 见 [`2026-05-16-frame-image-mask-design.md`](2026-05-16-frame-image-mask-design.md)
+- `<Image ... tint="multiply|linear"/>` — Image 混合材质：`multiply`（默认，UI/Default）或 `linear`（Linear Light，128 灰中性）。这些控件通用：Image / Icon / Btn / Toggle / Slider / Dropdown / ScrollList / InputField / Progress；`<Text>`（TMP 独立 shader）与 `<Tab>`（v1 暂不支持）除外。见 [`2026-05-28-image-tint-blend-mode-design.md`](2026-05-28-image-tint-blend-mode-design.md)
 - `<Frame mask="rect" maskPadding="T,R,B,L"/>` — 同上
 - `<Text font="..." fontSize="32" color="..." align="left|center|right" wrap="true"/>` — 注意 Text 的字号属性是 `fontSize`，**不是** `size`；`size` 是通用 WxH 布局尺寸（§6.2），写 `<Text size="32"/>` 会被布局解析器拒收
 

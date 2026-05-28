@@ -45,6 +45,12 @@ namespace PromptUGUI.Controls
         }
 
         [UIAttr, Preserve]
+        public string Tint
+        {
+            set => ImageTint.Apply(_img, value);
+        }
+
+        [UIAttr, Preserve]
         public string Type
         {
             set
