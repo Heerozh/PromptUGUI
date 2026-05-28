@@ -16,11 +16,19 @@ namespace PromptUGUI.Registry
         /// reach the atlas. Empty for controls that don't display sprites.</summary>
         public IReadOnlyCollection<string> SpriteAttrs { get; }
 
+        /// <summary>Attribute names (camelCase, matching XML) that carry color
+        /// references — i.e. were declared with <c>[UIAttr(IsColor = true)]</c>.
+        /// Consumed by the Editor-side lint pipeline to discover color-bearing
+        /// attribute names per control. Empty for controls that don't use colors.</summary>
+        public IReadOnlyCollection<string> ColorAttrs { get; }
+
         private ControlMeta(Dictionary<string, Action<object, string>> setters,
-                            IReadOnlyCollection<string> spriteAttrs)
+                            IReadOnlyCollection<string> spriteAttrs,
+                            IReadOnlyCollection<string> colorAttrs)
         {
             _setters = setters;
             SpriteAttrs = spriteAttrs;
+            ColorAttrs = colorAttrs;
         }
 
         public bool HasAttribute(string name) => _setters.ContainsKey(name);
@@ -42,6 +50,7 @@ namespace PromptUGUI.Registry
         {
             var setters = new Dictionary<string, Action<object, string>>();
             var spriteAttrs = new List<string>();
+            var colorAttrs = new List<string>();
 
             foreach (var prop in type.GetProperties(
                 BindingFlags.Public | BindingFlags.Instance))
@@ -54,9 +63,10 @@ namespace PromptUGUI.Registry
                 var setter = BuildSetter(prop);
                 setters[name] = setter;
                 if (attr.IsSprite) spriteAttrs.Add(name);
+                if (attr.IsColor) colorAttrs.Add(name);
             }
 
-            return new ControlMeta(setters, spriteAttrs);
+            return new ControlMeta(setters, spriteAttrs, colorAttrs);
         }
 
         private static string CamelCase(string s) =>

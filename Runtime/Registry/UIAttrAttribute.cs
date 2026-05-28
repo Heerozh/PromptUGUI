@@ -36,6 +36,15 @@ namespace PromptUGUI.Registry
         /// </summary>
         public bool IsSprite { get; set; }
 
+        /// <summary>
+        /// Marks this attribute as carrying a color reference (resolved via
+        /// <c>UI.Theme.Resolve</c>). The Editor-side lint pipeline reads this flag
+        /// to know which attribute names carry colors. Runtime resolution is in
+        /// the setter itself (parallel to <c>IsSprite</c> + <c>UI.ResolveSprite</c>);
+        /// the applier does not branch on this flag.
+        /// </summary>
+        public bool IsColor { get; set; }
+
         public UIAttrAttribute(string name = null) { Name = name; }
     }
 }
