@@ -94,5 +94,19 @@ namespace PromptUGUI.Tests.Parser
                 "<Theme name='l'><Frame/></Theme>" + Footer));
             StringAssert.Contains("Frame", ex.Message);
         }
+
+        [Test]
+        public void Color_Value_Accepts_Named_Color()
+        {
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(
+                Header + "<Theme name='l'><Color name='primary' value='red'/></Theme>" + Footer));
+        }
+
+        [Test]
+        public void Color_Value_Accepts_Mixed_Case_Named_Color()
+        {
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(
+                Header + "<Theme name='l'><Color name='primary' value='Red'/></Theme>" + Footer));
+        }
     }
 }

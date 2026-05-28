@@ -95,6 +95,16 @@ namespace PromptUGUI.Tests.EditMode.Lint
         }
 
         [Test]
+        public void Named_Color_No_Issue()
+        {
+            // Named CSS colors are not prefixed with #, so the lint rule must not flag them.
+            var n = new IR.ElementNode("Image") { Id = "test" };
+            n.Attributes["color"] = "red";
+            var issues = ColorLiteralRules.Check(n).ToList();
+            Assert.IsEmpty(issues);
+        }
+
+        [Test]
         public void IRWalker_Integration_DispatchesColorLiteralRule()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
