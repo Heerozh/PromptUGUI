@@ -46,8 +46,11 @@ namespace PromptUGUI.Lint
                     VisualAttrCode, n.Tag, n.Id,
                     $"<{n.Tag} id='{n.Id}'>: '{attr}' is silently ignored — " +
                     $"{n.Tag} has no Image on its root. " +
-                    $"For a background, nest <Image anchor=\"stretch\" {attr}=\"...\"/> inside; " +
-                    "for a tinted clickable region, use <Btn> instead.");
+                    $"Prefer replacing <{n.Tag}> with <Image {attr}=\"...\"> — Image accepts children, " +
+                    "so one node covers both background and container. " +
+                    $"If the background must cover a different area than the content, add " +
+                    $"<Image anchor=\"stretch\" {attr}=\"...\"/> as a sibling instead. " +
+                    "For a tinted clickable region, use <Btn>.");
             }
         }
     }
