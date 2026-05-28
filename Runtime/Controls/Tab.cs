@@ -163,14 +163,34 @@ namespace PromptUGUI.Controls
             }
         }
 
-        internal void ApplyBgSprite(Sprite sprite)
+        [UIAttr(IsSprite = true), Preserve]
+        public string Sprite
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value)) return;
+                ApplyBgSprite(UI.ResolveSprite(value));
+            }
+        }
+
+        [UIAttr(IsSprite = true), Preserve]
+        public string SelectedSprite
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value)) return;
+                EnsureOverlay(UI.ResolveSprite(value));
+            }
+        }
+
+        private void ApplyBgSprite(UnityEngine.Sprite sprite)
         {
             if (sprite == null) return;
             _bg.sprite = sprite;
             _bg.type = sprite.border != Vector4.zero ? UnityImage.Type.Sliced : UnityImage.Type.Simple;
         }
 
-        internal void EnsureOverlay(Sprite selectedSprite)
+        private void EnsureOverlay(UnityEngine.Sprite selectedSprite)
         {
             if (_overlay == null)
             {

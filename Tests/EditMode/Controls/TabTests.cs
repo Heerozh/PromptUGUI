@@ -152,5 +152,53 @@ namespace PromptUGUI.Tests.EditMode.Controls
             t.IsOn = true;
             Assert.AreEqual(1, fires);
         }
+
+        [Test]
+        public void Tab_Sprite_Applies_To_Bg_Image()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var stub = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            UI.SpriteResolver = key => key == "ui:tab_bg" ? stub : null;
+            var t = OpenTab("<Tab id='t' sprite='ui:tab_bg'/>");
+            var bg = t.GameObject.GetComponent<UnityImage>();
+            Assert.AreSame(stub, bg.sprite);
+        }
+
+        [Test]
+        public void Tab_SelectedSprite_Creates_Overlay_Wired_To_Toggle_Graphic()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var stub = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            UI.SpriteResolver = key => key == "ui:tab_sel" ? stub : null;
+            var t = OpenTab("<Tab id='t' selectedSprite='ui:tab_sel'/>");
+            var overlay = t.GameObject.transform.Find("Overlay") as RectTransform;
+            Assert.IsNotNull(overlay, "Overlay RT created");
+            var img = overlay.GetComponent<UnityImage>();
+            Assert.AreSame(stub, img.sprite);
+            Assert.IsFalse(img.raycastTarget, "Overlay does not block raycasts");
+            var toggle = t.GameObject.GetComponent<UnityToggle>();
+            Assert.AreSame(img, toggle.graphic, "UnityToggle.graphic = overlay");
+        }
+
+        [Test]
+        public void Tab_Without_SelectedSprite_Has_No_Overlay()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t'/>");
+            Assert.IsNull(t.GameObject.transform.Find("Overlay"), "no Overlay when selectedSprite absent");
+        }
+
+        [Test]
+        public void Tab_Empty_SelectedSprite_Does_Not_Create_Overlay()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t' selectedSprite=''/>");
+            Assert.IsNull(t.GameObject.transform.Find("Overlay"),
+                "empty selectedSprite is no-op (tightened semantics)");
+        }
     }
 }

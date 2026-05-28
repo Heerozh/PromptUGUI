@@ -19,9 +19,6 @@ namespace PromptUGUI.Controls
         private string _padding;
         private readonly List<Tab> _tabs = new();
         private readonly Subject<Tab> _selectionChanged = new();
-        private Sprite _sprite;
-        private Sprite _selectedSprite;
-        private bool _selectedSpriteDeclared;
 
         // BindItems / itemTemplate state — factory resolution is deferred to first
         // Rebuild so that OwnerScreenOf(this) sees the Screen registered in UI._open
@@ -56,19 +53,6 @@ namespace PromptUGUI.Controls
 
         [UIAttr, Preserve]
         public string Padding { set { _padding = value; ApplySpacingPadding(); } }
-
-        [UIAttr(IsSprite = true), Preserve]
-        public string Sprite { set => _sprite = UI.ResolveSprite(value); }
-
-        [UIAttr(IsSprite = true), Preserve]
-        public string SelectedSprite
-        {
-            set
-            {
-                _selectedSpriteDeclared = true;
-                _selectedSprite = UI.ResolveSprite(value);
-            }
-        }
 
         [UIAttr, Preserve]
         public string ItemTemplate
@@ -132,9 +116,10 @@ namespace PromptUGUI.Controls
                         $"itemTemplate='{_itemTemplate}' root contains no <Tab>; cannot bind.");
 
                 _tabs.Add(tab);
-                // Tab.OnAttached already wired ToggleGroup via FindAncestorToggleGroup; push shared visuals now.
-                tab.ApplyBgSprite(_sprite);
-                if (_selectedSpriteDeclared) tab.EnsureOverlay(_selectedSprite);
+                // Tab.OnAttached already wired ToggleGroup via FindAncestorToggleGroup.
+                // Per-tab sprite / selectedSprite live on Tab itself — set them on the
+                // itemTemplate body (e.g. <Template name="MyTab"><Tab sprite="..."/></Template>)
+                // if every dynamic Tab should share the same visual.
                 bind(typed, items[i]);
             }
             SyncInitialSelection();
@@ -197,7 +182,6 @@ namespace PromptUGUI.Controls
         internal override void OnAfterApply()
         {
             CollectStaticTabs();
-            PushVisualToTabs();
             SyncInitialSelection();
             WireTabSubscriptions();
         }
@@ -241,15 +225,6 @@ namespace PromptUGUI.Controls
                 // same recursive walk used by BindItems for itemTemplate.
                 var found = FindTabIn(child);
                 if (found != null) _tabs.Add(found);
-            }
-        }
-
-        private void PushVisualToTabs()
-        {
-            foreach (var t in _tabs)
-            {
-                t.ApplyBgSprite(_sprite);
-                if (_selectedSpriteDeclared) t.EnsureOverlay(_selectedSprite);
             }
         }
 
