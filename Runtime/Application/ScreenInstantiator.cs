@@ -192,6 +192,12 @@ namespace PromptUGUI.Application
             else if (node.Tag == "Progress")
                 foreach (var issue in ProgressAttributeRules.CheckProgress(node))
                     Debug.LogWarning(issue.Message);
+            else if (node.Tag == "Tab")
+                foreach (var issue in TabRules.CheckTab(node))
+                    Debug.LogWarning(issue.Message);
+            else if (node.Tag == "TabBar")
+                foreach (var issue in TabRules.CheckTabBar(node))
+                    Debug.LogWarning(issue.Message);
 
             var entry = _registry.Resolve(node.Tag);
 
@@ -234,7 +240,7 @@ namespace PromptUGUI.Application
                 control.ReplaceScopedIds(childScope);
             }
 
-            var selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid";
+            var selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar";
             foreach (var c in node.Children)
                 InstantiateRecursive(c, control.ChildHostTransform, selfIsLayoutGroup, childScope, nodeMap,
                                      parentControl: control, applyOrder: applyOrder);

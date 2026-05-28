@@ -201,6 +201,43 @@ screen.Get<ScrollList>("inv")
 - `itemTemplate=` in the XML resolves to either a `<Template name="...">` (slot root is the template body) or a registered Control class (slot is that Control). Use `slot.Get<T>("childId")` inside the binder to reach into Template bodies.
 - After hot-reload, you must **re-Bind** — the underlying ScrollList is rebuilt.
 
+### TabBar
+
+```csharp
+var bar = screen.Get<TabBar>("topbar");
+
+// Static XML tabs already exist; subscribe to selection changes:
+bar.OnSelectionChanged
+   .Subscribe(tab => Debug.Log($"selected: {tab?.Id}"))
+   .AddTo(screen);
+
+// Or per-Tab:
+screen.Get<Tab>("edit").OnSelected
+      .Subscribe(_ => OpenEditor()).AddTo(screen);
+
+// Dynamic: clear and rebuild from a data source (same shape as ScrollList.BindItems):
+bar.BindItems(
+    items,
+    (Tab tab, MyModel m) => { tab.Text = m.Name; tab.Bind = m.FrameId; })
+   .AddTo(screen);
+
+// Custom Template (when Tab needs to be wrapped — e.g. <HStack><Icon/><Tab id="tab"/></HStack>):
+bar.BindItems<MyModel, IControl>(
+    items,
+    (slot, m) => slot.Get<Tab>("tab").Text = m.Name)
+   .AddTo(screen);
+
+// Query API:
+bar.Count;          // current tab count
+bar.SelectedIndex;  // -1 if none (only possible right after BindItems with empty list)
+bar.SelectedTab;    // Tab ref or null
+bar.GetAt(i);
+```
+
+Setting `tab.IsOn = true` triggers mutex (other Tabs flip to false via the TabBar's private `ToggleGroup`) AND auto-shows the `bind`-ed Frame — no manual `frame.GameObject.SetActive(...)` needed. If `BindItems` is called with an empty list, `OnSelectionChanged` fires with `null` to let subscribers clear UI state. After hot-reload, re-Bind just like ScrollList.
+
+`bar.BindItems<T, TSlot>` lets the template root be any `IControl`; `bar.BindItems<T>` is shorthand when the template root *is* a `<Tab>` directly. The `<Tab>` reachable inside the slot is found via `ScopedIds` first, then a recursive child walk — Templates without an id'd Tab still work as long as exactly one `<Tab>` exists in the subtree.
+
 ## Variant switching at runtime
 
 ```csharp
@@ -300,15 +337,19 @@ GET            screen.Get<Btn>("id")                          typed
                screen.Get<Btn>("outerId/innerId")             path into Template body
 
 EVENTS (R3)    .OnClick                Btn
-               .OnValueChanged         Toggle:bool / Slider:float / InputField:string
-               .OnSelected             Dropdown:int
+               .OnValueChanged         Toggle:bool / Slider:float / InputField:string / Tab:bool
+               .OnSelected             Dropdown:int / Tab:Unit (on=true only)
+               .OnSelectionChanged     TabBar:Tab (the newly-on Tab, or null when emptied)
                .OnEndEdit / .OnSubmit  InputField:string
                .Subscribe(...).AddTo(screen)   tie lifetime — ALWAYS
                Progress                display-only; .Value = 0.42f (Clamp01); no event
 
 DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                ScrollList.BindItems(Observable<IReadOnlyList<T>>, (slot,t)=>...)
+               TabBar.BindItems(Observable<IReadOnlyList<T>>, (Tab tab,t)=>...)
+                                       or BindItems<T,TSlot>(...) for wrapped templates
                .AddTo(screen)
+               TabBar query: .Count / .SelectedIndex (-1 if empty) / .SelectedTab / .GetAt(i)
 
 VARIANT        UI.Variants.Set("name", true|false)            re-applies, no rebuild
 ORIENTATION    UI.Orientation.IsPortrait                      auto-tracked: portrait / landscape variants
