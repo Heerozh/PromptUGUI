@@ -561,7 +561,7 @@ If you register a token named `red`, then `color="red"` resolves to that token (
 
 ## Tint blend modes
 
-`tint=` chooses how a control's `color` combines with its sprite. Available on every Image-backed control: `<Image>`, `<Icon>`, `<Btn>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<ScrollList>`, `<InputField>`, `<Progress>`. (`<Text>` does **not** support it — TMP text uses its own shader, not the UI Image shader.)
+`tint=` chooses how a control's `color` combines with its sprite. Available on these controls: `<Image>`, `<Icon>`, `<Btn>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<ScrollList>`, `<InputField>`, `<Progress>`. Not supported on `<Text>` (TMP uses its own shader, not the UI Image shader) or `<Tab>` (out of scope for v1).
 
 | `tint`               | Blend                                                                                                                                   | Use it for                                                                                   |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |

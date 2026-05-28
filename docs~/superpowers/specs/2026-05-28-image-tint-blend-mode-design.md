@@ -247,6 +247,7 @@ Material 加载：测试运行时 Unity 编辑器 Resources.Load 应能找到 `R
 ## 7. Out of Scope
 
 - Text/TMP 上的 tint 模式（D4：shader stack 不同；未来若做要单写 TMP material 设计）
+- `<Tab>` / `<TabBar>` 的 tint —— `<Tab>` 有 3 个 Image 图层（bg / overlay / icon），需要 Progress 式多层 setter；v1 控件集只覆盖 D3 列的 9 个，Tab 留作后续 follow-up
 - 用户注入自定 material（路线 B：`material="..."`；等真有需求扩 `tint` enum 或开独立 attr）
 - per-layer tint on Progress（`tint.fill="linear" tint.bg="multiply"`；D5：YAGNI）
 - R3 binding tint（D13：material 切换不是连续值）
