@@ -518,6 +518,7 @@ namespace PromptUGUI.Application
                     "UI.SourceResolver must be set before LoadDocumentAsync");
 
             var loaded = await DocumentLoader.LoadAndMergeAsync(src, SourceResolver, _commonsPool);
+            RegisterThemesAndAutoSet(loaded);
             var expanded = PromptUGUI.Template.TemplateExpander.Expand(loaded);
 
             var added = new List<string>();
@@ -603,20 +604,7 @@ namespace PromptUGUI.Application
             }
 
             // Register <Theme> blocks from all docs in this load chain.
-            // Cross-doc conflict detection happens inside ThemeStore.Register.
-            foreach (var (theme, themeSrc) in loaded.Themes)
-            {
-                var colors = new System.Collections.Generic.Dictionary<string, UnityEngine.Color>(
-                    theme.Colors.Count);
-                foreach (var ce in theme.Colors)
-                {
-                    UnityEngine.ColorUtility.TryParseHtmlString(ce.Value, out var c);
-                    colors[ce.Name] = c;
-                }
-                ThemeStore.Instance.Register(theme.Name, theme.BaseName, colors, themeSrc);
-            }
-            ThemeStore.Instance.ResolveBases();
-            Theme.AutoSetIfSingleAvailable();
+            RegisterThemesAndAutoSet(loaded);
 
             _depGraph.CommonsSources.Add(src);
             _depGraph.SrcToDeps[src] = new System.Collections.Generic.HashSet<string>(loaded.AllSrcs);
@@ -794,6 +782,30 @@ namespace PromptUGUI.Application
                 t = t.parent;
             }
             return null;
+        }
+
+        /// <summary>
+        /// Shared helper: parse colors from <paramref name="loaded"/>.Themes,
+        /// register each into <see cref="ThemeStore"/>, resolve base-chains, and
+        /// auto-select when exactly one theme is available. Called from both
+        /// <see cref="LoadCommonLibraryAsync"/> and <see cref="LoadDocumentAsync"/>
+        /// so that &lt;Theme&gt; blocks work regardless of which file they live in.
+        /// </summary>
+        private static void RegisterThemesAndAutoSet(DocumentLoader.LoadedDoc loaded)
+        {
+            foreach (var (theme, themeSrc) in loaded.Themes)
+            {
+                var colors = new System.Collections.Generic.Dictionary<string, UnityEngine.Color>(
+                    theme.Colors.Count);
+                foreach (var ce in theme.Colors)
+                {
+                    UnityEngine.ColorUtility.TryParseHtmlString(ce.Value, out var c);
+                    colors[ce.Name] = c;
+                }
+                ThemeStore.Instance.Register(theme.Name, theme.BaseName, colors, themeSrc);
+            }
+            ThemeStore.Instance.ResolveBases();
+            Theme.AutoSetIfSingleAvailable();
         }
 
         // ResetForTests 末尾触发；let helpers (e.g. AddressableSpriteResolverHelper)

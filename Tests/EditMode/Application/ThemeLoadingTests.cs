@@ -72,5 +72,37 @@ namespace PromptUGUI.Tests.Application
                 UI.LoadCommonLibraryAsync("themes/main").GetAwaiter().GetResult());
             StringAssert.Contains("ghost", ex.Message);
         }
+
+        [Test]
+        public void LoadDocument_Registers_Themes_From_Screen_Doc()
+        {
+            Resolver(new()
+            {
+                ["s/main"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Theme name='light'><Color name='primary' value='#ff8800'/></Theme>
+                    <Screen name='S'/>
+                </PromptUGUI>"
+            });
+            UI.LoadDocumentAsync("s/main").GetAwaiter().GetResult();
+            CollectionAssert.Contains(UI.Theme.Available, "light");
+            Assert.AreEqual("light", UI.Theme.Current);
+        }
+
+        [Test]
+        public void LoadDocument_Registers_Themes_From_Import()
+        {
+            Resolver(new()
+            {
+                ["themes/main"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Theme name='light'><Color name='primary' value='#ff8800'/></Theme>
+                </PromptUGUI>",
+                ["screen/main"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Import src='themes/main'/>
+                    <Screen name='S'/>
+                </PromptUGUI>"
+            });
+            UI.LoadDocumentAsync("screen/main").GetAwaiter().GetResult();
+            CollectionAssert.Contains(UI.Theme.Available, "light");
+        }
     }
 }

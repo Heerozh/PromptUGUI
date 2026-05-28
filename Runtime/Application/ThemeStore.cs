@@ -30,8 +30,13 @@ namespace PromptUGUI.Application
                              IReadOnlyDictionary<string, Color> colors, string src)
         {
             if (_themes.TryGetValue(name, out var existing))
+            {
+                // Same (name, src) pair: idempotent — LoadDocumentAsync may be called
+                // multiple times for the same file (e.g. screen reopened after hot reload).
+                if (existing.Src == src) return;
                 throw new ParseException(
                     $"duplicate <Theme name=\"{name}\"> in '{existing.Src}' and '{src}'");
+            }
             _themes[name] = new Entry
             {
                 Name = name,
