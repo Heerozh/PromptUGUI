@@ -8,5 +8,6 @@ namespace PromptUGUI.IR
         public List<ScreenDef> Screens { get; } = new();
         public Dictionary<string, TemplateDef> Templates { get; } = new();
         public List<ImportRef> Imports { get; } = new();
+        public List<ThemeBlock> Themes { get; } = new();
     }
 }

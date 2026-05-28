@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Xml;
 using PromptUGUI.IR;
 
@@ -5,6 +6,9 @@ namespace PromptUGUI.Parser
 {
     public static class UIDocumentParser
     {
+        private static readonly Regex KebabRx =
+            new Regex("^[a-z0-9]+(-[a-z0-9]+)*$", RegexOptions.Compiled);
+
         public static UIDocument Parse(string xml)
         {
             var xdoc = new XmlDocument();
@@ -34,6 +38,16 @@ namespace PromptUGUI.Parser
                         break;
                     case "Import":
                         ParseImport(el, doc);
+                        break;
+                    case "Theme":
+                        var theme = ParseTheme(el);
+                        foreach (var existing in doc.Themes)
+                        {
+                            if (existing.Name == theme.Name)
+                                throw new ParseException(
+                                    $"duplicate <Theme name=\"{theme.Name}\"> within document");
+                        }
+                        doc.Themes.Add(theme);
                         break;
                     default:
                         throw new ParseException(
@@ -69,6 +83,45 @@ namespace PromptUGUI.Parser
             }
 
             doc.Imports.Add(new IR.ImportRef(src, ns));
+        }
+
+        private static ThemeBlock ParseTheme(XmlElement el)
+        {
+            var name = el.GetAttribute("name");
+            if (string.IsNullOrEmpty(name))
+                throw new ParseException("<Theme>: missing required attribute 'name'");
+            var block = new ThemeBlock
+            {
+                Name = name,
+                BaseName = el.HasAttribute("base") ? el.GetAttribute("base") : null
+            };
+            var seen = new System.Collections.Generic.HashSet<string>();
+            foreach (XmlNode c in el.ChildNodes)
+            {
+                if (c is not XmlElement child) continue;
+                if (child.Name != "Color")
+                    throw new ParseException(
+                        $"<Theme name=\"{name}\">: unexpected child <{child.Name}> " +
+                        $"(only <Color> allowed)");
+                var cn = child.GetAttribute("name");
+                var hasValue = child.HasAttribute("value");
+                var cv = child.GetAttribute("value");
+                if (string.IsNullOrEmpty(cn))
+                    throw new ParseException($"<Color value=\"{cv}\">: missing required attribute 'name'");
+                if (!hasValue)
+                    throw new ParseException($"<Color name=\"{cn}\">: missing required attribute 'value'");
+                if (!KebabRx.IsMatch(cn))
+                    throw new ParseException(
+                        $"<Color name=\"{cn}\">: token name must be kebab-case [a-z0-9-]");
+                if (!UnityEngine.ColorUtility.TryParseHtmlString(cv, out _))
+                    throw new ParseException(
+                        $"<Color name=\"{cn}\" value=\"{cv}\">: invalid color literal");
+                if (!seen.Add(cn))
+                    throw new ParseException(
+                        $"<Theme name=\"{name}\"> declares '{cn}' twice");
+                block.Colors.Add(new ColorEntry { Name = cn, Value = cv });
+            }
+            return block;
         }
 
         private static void ParseScreen(XmlElement el, UIDocument doc,
