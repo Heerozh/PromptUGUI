@@ -1,4 +1,5 @@
 using PromptUGUI.Application;
+using PromptUGUI.Controls.Internal;
 using PromptUGUI.Registry;
 using UnityEngine;
 using UnityImage = UnityEngine.UI.Image;
@@ -45,6 +46,12 @@ namespace PromptUGUI.Controls
         public string Color
         {
             set => _img.color = UI.Theme.Resolve(value);
+        }
+
+        [UIAttr, Preserve]
+        public string Tint
+        {
+            set => ImageTint.Apply(_img, value);
         }
 
         public override Vector2? GetNativeSize() =>

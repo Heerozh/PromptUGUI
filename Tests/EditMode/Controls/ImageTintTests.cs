@@ -100,5 +100,15 @@ namespace PromptUGUI.Tests.EditMode.Controls
                       .GetComponent<UnityImage>();
             Assert.AreEqual("UI/LinearLightTint", bg.material.shader.name);
         }
+
+        [Test]
+        public void Icon_TintLinear_AppliesToImage()
+        {
+            // No sprite resolver registered → a sprite LogError is expected; tint is independent.
+            LogAssert.Expect(LogType.Error, new Regex("SpriteResolver"));
+            var s = Open("<Icon id='i' name='ui:gear' color='#ffffff' tint='linear'/>");
+            var img = s.Get<Icon>("i").GameObject.GetComponent<UnityImage>();
+            Assert.AreEqual("UI/LinearLightTint", img.material.shader.name);
+        }
     }
 }
