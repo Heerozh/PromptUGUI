@@ -21,9 +21,20 @@ namespace PromptUGUI.Tests.Application
         }
 
         [Test]
-        public void Set_Unknown_Throws()
+        public void Set_Unknown_Does_Not_Throw_And_Records_Intent()
         {
-            Assert.Throws<ArgumentException>(() => UI.Theme.Set("nope"));
+            // Order-independent: Set accepts any name. Pre-Set before the load
+            // completes is the canonical use case (e.g. firing from
+            // [RuntimeInitializeOnLoadMethod] before async LoadCommonLibraryAsync
+            // resolves).
+            Assert.DoesNotThrow(() => UI.Theme.Set("nope"));
+            Assert.AreEqual("nope", UI.Theme.Current);
+        }
+
+        [Test]
+        public void Set_Null_Throws()
+        {
+            Assert.Throws<ArgumentNullException>(() => UI.Theme.Set(null));
         }
 
         [Test]
@@ -35,6 +46,30 @@ namespace PromptUGUI.Tests.Application
             UI.Theme.Set("light");
             Assert.AreEqual("light", UI.Theme.Current);
             Assert.AreEqual("light", fired);
+        }
+
+        [Test]
+        public void Set_Then_Register_Fires_Changed_Via_Resolve_Soft_Fail()
+        {
+            // Boot-time ordering: Set comes first, register comes later.
+            // Until register, Resolve must not throw on token names — instead it
+            // returns white as a placeholder so open Screens render *something*
+            // and snap to the correct color on the eventual Theme.Changed.
+            UI.Theme.Set("dark");
+            Assert.AreEqual("dark", UI.Theme.Current);
+            // Token name + Current set + theme not yet registered → soft-fail to white.
+            Assert.AreEqual(Color.white, UI.Theme.Resolve("primary"));
+            // Literal still resolves normally even while pending.
+            Assert.AreEqual(new Color32(0xff, 0x88, 0x00, 0xff),
+                            (Color32)UI.Theme.Resolve("#ff8800"));
+        }
+
+        [Test]
+        public void Resolve_Soft_Fail_Does_Not_Apply_When_Current_Is_Null()
+        {
+            // No Theme.Set was called → token names must still throw (the
+            // soft-fail is *only* the in-flight intent case).
+            Assert.Throws<Exception>(() => UI.Theme.Resolve("primary"));
         }
 
         [Test]

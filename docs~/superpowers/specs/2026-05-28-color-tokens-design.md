@@ -54,7 +54,7 @@
 | CT-D1 | 引用语法 | `color="primary"` 不加 sigil | 作者偏好，最简；shadow 规则把"theme 优先于字面"显式写到 SKILL，可接受 |
 | CT-D2 | 主题来源 | XML 表（`<Theme>` 块嵌进 `.ui.xml`），不引 `.colors.xml` 新后缀 | 复用 commons pool / Import / hot reload / DepGraph 所有现成机制 |
 | CT-D3 | 注册通道 | `UI.LoadCommonLibraryAsync` 顺带注册 + `.ui.xml` 内 `<Import>` 顺带注册 | 不加新 loader；作者按 Screen 粒度 Import 也行，全局 boot load 也行 |
-| CT-D4 | 切换 API | `UI.Theme.Set(name)`；事件 `UI.Theme.Changed` | 跟 `UI.Locale` / `UI.Variants` 同构 |
+| CT-D4 | 切换 API | `UI.Theme.Set(name)`：**接受任意 name 不抛**；记意图，事件 `UI.Theme.Changed` 触发；未注册 name 在 Resolve 阶段软着陆到 `Color.white`，等 register 触发的再次 `Changed` 让 Screens 重涂出正确色 | 跟 `UI.Locale.Set` 一致（先设 Current，async 加载 .po，加载完 fire Changed）；让 AA 用户能在 `[RuntimeInitializeOnLoadMethod]` 里同步 `Set` + 即发即弃 `LoadCommonLibraryAsync` 不需要 await |
 | CT-D5 | 主题必须命名 | `<Theme>` 必须 `name=` | 避免"默认主题 vs 命名主题"二义；多主题项目零歧义 |
 | CT-D6 | 跨主题继承 | `<Theme name="dark" base="light">`，token 缺失沿 base 链回溯 | 同 CSS `:root` + `.dark` override 心智；新增暗主题不强迫补齐所有 token |
 | CT-D7 | 字面值兼容 | token 没命中 → fall back `ColorUtility.TryParseHtmlString` | 老 `.ui.xml` 不需要改；混用 token 与 hex 自由 |
@@ -176,11 +176,44 @@ public static partial class UI
 
         public static event Action<string> Changed;                    // (newName) — 切换 + hot reload 都触发
 
-        public static void Set(string name);                           // 切换；未注册 → ArgumentException
+        public static void Set(string name);                           // 切换；接受任意 name；name == null → ArgumentNullException；其他不抛
         public static Color? Lookup(string token);                     // 程序化查；含 base 回溯；Current==null 或未命中 → null
+        public static Color Resolve(string value);                     // 完整解析链；Current 已 Set 但未注册时对 token 名软着陆到 Color.white
     }
 }
 ```
+
+### 4.2.1 乱序加载（order-independent）
+
+`UI.Theme.Set` 不要求目标 theme 先 register。典型 AA 用户：
+
+```csharp
+[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+static void Boot()
+{
+    UI.UseAddressableResolver();
+    _ = UI.LoadCommonLibraryAsync("themes/main");   // 即发即弃
+    UI.Theme.Set("dark");                            // 同步，立刻记意图
+}
+```
+
+执行轨迹：
+
+1. `Set("dark")` → `Current = "dark"`，`Changed?.Invoke("dark")` 立刻发射一次。这时已经开的 Screen ReSolve → 色 token 经 Resolve 走「Current 已 Set 但未注册」分支，返回 `Color.white` 占位。
+2. `LoadCommonLibraryAsync` 完成 → `RegisterThemesAndAutoSet` 跑完后，如果 `Theme.Current` 在它执行前就已经被 Set（`preExistingCurrent != null`）且 AutoSet 没动它，再 `RaiseChangedIfCurrent(Current)` 触发第二次 `Changed`。Screen ReSolve，这次 token 命中正确色。
+3. 完成后 `WarnIfPendingThemeUnloaded`：如果 `Current` 名字根本没出现在加载到的 theme 集里（拼错、源文件没引到等），`Debug.LogWarning` 一行。
+
+### 4.2.2 `Resolve` 软着陆规则
+
+`UI.Theme.Resolve(value)`：
+
+1. value 空或 null → 抛
+2. `Current != null` → 查 token；命中即返回（含 base 链）
+3. `ColorUtility.TryParseHtmlString(value)` → 命中即返回（字面值兼容）
+4. **`Current != null` 且 `Current` 不在 `Available` 里 → 返回 `Color.white`**（pending；register 触发的 ReSolve 会修正）
+5. 否则 → 抛
+
+新 4 这一支是 Set 不抛的语义闭环 —— 装载没完时 Screen 渲染不爆炸；装载真没来则有 `WarnIfPendingThemeUnloaded` 兜底。代价：拼错 theme 名（`Set("drak")`）会静默渲染白色直到加载完成才有 warning，对应的 typo 在 PlayMode 调试时由两个信号一起表面：肉眼可见的白色 + 一行 warning。
 
 ### 4.3 初始 `Current` 解算（CT-D12）
 
@@ -415,8 +448,11 @@ CT-D17：`base` 引用的校验延后到注册阶段最后做（commons 池所�
 | `base` 不存在 | ParseException | `<Theme name="dark" base="brigth">: base theme 'brigth' not found (did you mean 'bright'?)` |
 | `base` 成环 | ParseException | `<Theme> base cycle: dark → night → dark` |
 | color attr 无法解析 | ParseException（applier 包装） | `<Image id='avatar'> attribute color="primaru": unknown color token (no entry in theme 'light', not a valid hex/named literal)` |
-| `UI.Theme.Set("nope")` 未注册 | ArgumentException | `UI.Theme.Set: theme 'nope' not registered (available: light, dark)` |
+| `UI.Theme.Set(null)` | ArgumentNullException | （`name` 参数为 null） |
+| `UI.Theme.Set("drak")` 未注册（typo / 加载未完） | 不抛 | 解析阶段 Resolve 软着陆到 `Color.white`；`LoadCommonLibraryAsync` 完成时如仍未注册，发 `Debug.LogWarning("UI.Theme.Current is 'drak' but that theme is not registered ...")` |
 | `UI.Theme.Lookup` 失败 | 不抛，返回 `null` | （程序化 API；调用方决定怎么处理） |
+| `UI.Theme.Resolve("primaru")` 未命中且 `Current` 已注册 | 抛 `Exception`，包成 `ParseException` 带节点上下文 | `<Image id='avatar'> attribute color="primaru": unknown color token "primaru" (no entry in theme 'light', not a valid hex/named literal)` |
+| `UI.Theme.Resolve("primary")` 未命中但 `Current` 未注册（pending） | 不抛，返回 `Color.white` | 占位；register 后 ReSolve 会重新解析为正确色 |
 
 ---
 

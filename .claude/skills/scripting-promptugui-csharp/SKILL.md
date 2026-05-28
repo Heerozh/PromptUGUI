@@ -285,14 +285,13 @@ For Addressables-backed `.po` loading (`UI.Locale.UseAddressableResolver`, `Loca
 
 ## Theme switching
 
-```csharp
-// Load themes (one-time at boot; themes piggyback on the commons library).
-await UI.LoadCommonLibraryAsync("themes/main");
+`UI.Theme.Set` is order-independent — it never blocks on the load. You can fire it before `LoadCommonLibraryAsync` resolves; when the named theme registers, `Theme.Changed` re-fires and open Screens repaint. While pending, color attribute resolution falls back to `Color.white` for token names (literal hex / CSS named values resolve as usual).
 
+```csharp
 // Inspect / switch.
-UI.Theme.Current;       // string?, the active theme name
-UI.Theme.Available;     // IReadOnlyCollection<string>
-UI.Theme.Set("dark");   // throws ArgumentException if "dark" not registered
+UI.Theme.Current;       // string?, the active theme name (= last Set, even if not yet loaded)
+UI.Theme.Available;     // IReadOnlyCollection<string> of registered themes
+UI.Theme.Set("dark");   // never throws on unknown name; throws ArgumentNullException on null
 
 // Subscribe to switches (Screens do this automatically and ReSolve themselves).
 UI.Theme.Changed += newName => Debug.Log($"theme switched to {newName}");
@@ -300,15 +299,40 @@ UI.Theme.Changed += newName => Debug.Log($"theme switched to {newName}");
 // Programmatic lookup (returns null when no Current theme or token absent).
 Color? c = UI.Theme.Lookup("primary");
 
-// Full resolution chain (token → base → literal → throw).
-Color resolved = UI.Theme.Resolve("primary");          // theme token hit
-Color resolved2 = UI.Theme.Resolve("#ff8800");         // hex literal
-// UI.Theme.Resolve("primaru")  // throws (token miss + literal miss)
+// Full resolution chain.
+Color resolved  = UI.Theme.Resolve("primary");   // token hit
+Color resolved2 = UI.Theme.Resolve("#ff8800");   // hex literal
+Color resolved3 = UI.Theme.Resolve("red");       // CSS named color
+// UI.Theme.Resolve("primaru")  // throws when Current is registered;
+//                                 returns Color.white when Current is still pending.
 ```
 
-Single-theme projects: if `LoadCommonLibraryAsync` registers exactly one theme and `UI.Theme.Current` is null, the loader auto-selects it. Multi-theme projects must call `UI.Theme.Set` explicitly.
+### AA / async load idiom
 
-Hot reload: when a `<Theme>` XML file is edited at Editor time, `Theme.Changed` re-fires for the current theme so all open Screens re-color.
+Common pattern with Addressables: fire-and-forget the load from `[RuntimeInitializeOnLoadMethod]`, then `Set` immediately. No `await` needed in the boot hook.
+
+```csharp
+[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+static void Boot()
+{
+    UI.UseAddressableResolver();
+    _ = UI.LoadCommonLibraryAsync("themes/main");  // fire and forget
+    UI.Theme.Set("dark");                          // queued; takes effect once "dark" registers
+}
+```
+
+Sequence:
+1. `Set("dark")` fires `Theme.Changed` once; any already-open Screens ReSolve → tokens soft-fail to white.
+2. `LoadCommonLibraryAsync` completes, `dark` registers, `Theme.Changed` re-fires automatically → Screens ReSolve again → tokens hit real colors.
+3. If `Current` still names an unregistered theme after the load (typo, missing source), the loader emits one `Debug.LogWarning` to surface it.
+
+### Single-theme projects
+
+If `LoadCommonLibraryAsync` registers exactly one theme and `UI.Theme.Current` is null, the loader auto-selects it. Multi-theme projects must call `UI.Theme.Set` explicitly (before or after the load, your choice).
+
+### Hot reload
+
+When a `<Theme>` XML file is edited at Editor time, `Theme.Changed` re-fires for the current theme so all open Screens re-color.
 
 ## Custom controls
 
@@ -402,10 +426,10 @@ LOCALE         UI.Locale.Set("en")                            sync
                UI.Locale.SetToSystemDefault()
                UI.Tr("...")                                   extract + translate
 
-THEME          UI.Theme.Set("dark")                           switch active theme; fires Theme.Changed. Open Screens auto-ReSolve
-               UI.Theme.Resolve(value)                        get Color from token name or hex/named literal; throws on miss
-               UI.Theme.Lookup(token)                         same as Resolve but token-only and returns Color? (no literal fallback, no throw)
-               UI.Theme.Changed                               event Action<string>; invoked with new theme name on switch + hot reload
+THEME          UI.Theme.Set("dark")                           switch active theme; order-independent (accepts unregistered name); fires Theme.Changed
+               UI.Theme.Resolve(value)                        token → base chain → literal hex/CSS-name; soft-fails to Color.white when Current is set but not yet registered
+               UI.Theme.Lookup(token)                         token-only lookup; returns Color? (no literal fallback, no throw)
+               UI.Theme.Changed                               event Action<string>; fires on Set, post-load registration of pre-Set theme, and hot reload
 
 CANVAS         UI.CanvasConfigurator = (canvas, name) => { ... }
                runs AFTER XML canvas= / reference= apply
