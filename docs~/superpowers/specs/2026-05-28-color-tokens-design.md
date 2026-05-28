@@ -355,6 +355,13 @@ Migration：
 - 实施 PR 里附带一次 `Runtime/Resources/` 全量 grep + 内部项目 `.ui.xml` lint pass，确认无现存非法 hex。
 - `UIXmlLint` CLI 新增规则 `color-literal-must-parse`（独立于 token 的纯静态字面校验），让作者本地能跑出来。
 
+**第二处潜在破坏性变更**：`<Animation char-color>` 的 value 语法从「CSV float `r,g,b,a` 双段」改为「`UI.Theme.Resolve` 接受的形态（token 或 hex 字面）双段」。具体：
+
+- 旧格式 `char-color="1,1,1,1:1,0,0,1"`（白→红）→ 现在抛错；改写为 `char-color="#ffffff:#ff0000"`。
+- 旧的单值缺省形式 `char-color="r,g,b,a"`（默认 from=white）→ 现在抛错；必须写明 `from:to`。
+
+Migration：仓库已经把 `Tests/EditMode/Controls/AnimationSpecTests.cs` 和 `Tests/PlayMode/Controls/AnimationPlayTests.cs` 里的 CSV-float fixture 一起迁掉了。新代码不应该再写 CSV-float。
+
 ---
 
 ## 7. 与现有系统的交互

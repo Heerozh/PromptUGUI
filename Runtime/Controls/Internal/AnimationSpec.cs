@@ -262,16 +262,7 @@ namespace PromptUGUI.Controls.Internal
             if (parts.Length != 2)
                 throw new System.Exception($"char-color=\"{v}\": expected 'from:to'");
             from = PromptUGUI.Application.UI.Theme.Resolve(parts[0]);
-            to   = PromptUGUI.Application.UI.Theme.Resolve(parts[1]);
-        }
-
-        private static Color ParseColor(string s)
-        {
-            var parts = s.Split(',');
-            if (parts.Length != 4)
-                throw new ArgumentException($"Expected 'r,g,b,a', got '{s}'");
-            return new Color(ParseFloat(parts[0]), ParseFloat(parts[1]),
-                             ParseFloat(parts[2]), ParseFloat(parts[3]));
+            to = PromptUGUI.Application.UI.Theme.Resolve(parts[1]);
         }
 
         private static EasingKind ParseEasing(string s) => (s ?? "out-cubic") switch

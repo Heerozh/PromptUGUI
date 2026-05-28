@@ -162,7 +162,7 @@ namespace PromptUGUI.Tests.PlayMode.Controls
         public IEnumerator CharColor_zero_stagger_all_chars_reach_to_color()
         {
             UI.LoadDocument("t", $"{Header}" +
-                "<Animation id='a' char-color='1,1,1,1:1,0,0,1' duration='0.1s'><Text id='label'>ABC</Text></Animation>" +
+                "<Animation id='a' char-color='#ffffff:#ff0000' duration='0.1s'><Text id='label'>ABC</Text></Animation>" +
                 $"{Footer}");
             var screen = UI.Open("S");
             var tmp = screen.Get<Text>("a/label").GameObject.GetComponent<TMPro.TMP_Text>();
