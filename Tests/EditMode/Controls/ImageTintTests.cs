@@ -39,6 +39,15 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void TintEmptyString_UsesDefaultMaterial()
+        {
+            // An explicit empty attribute (tint='') is passed through as "" by the
+            // attribute applier; it must behave like multiply, not throw or warn.
+            var img = ImageOf(Open("<Image id='i' color='#ffffff' tint=''/>"), "i");
+            Assert.AreEqual(img.defaultMaterial, img.material);
+        }
+
+        [Test]
         public void TintLinear_UsesLinearLightTintMaterial()
         {
             var img = ImageOf(Open("<Image id='i' color='#ffffff' tint='linear'/>"), "i");
