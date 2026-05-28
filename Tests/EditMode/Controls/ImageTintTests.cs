@@ -83,5 +83,22 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var b = ImageOf(s, "b");
             Assert.AreSame(a.material, b.material);
         }
+
+        [Test]
+        public void Btn_TintLinear_AppliesToBackground()
+        {
+            var s = Open("<Btn id='b' color='#ffffff' text='Go' tint='linear'/>");
+            var bg = s.Get<Btn>("b").GameObject.GetComponent<UnityImage>();
+            Assert.AreEqual("UI/LinearLightTint", bg.material.shader.name);
+        }
+
+        [Test]
+        public void Toggle_TintLinear_AppliesToBackgroundChild()
+        {
+            var s = Open("<Toggle id='t' color='#ffffff' text='On' tint='linear'/>");
+            var bg = s.Get<Toggle>("t").GameObject.transform.Find("Background")
+                      .GetComponent<UnityImage>();
+            Assert.AreEqual("UI/LinearLightTint", bg.material.shader.name);
+        }
     }
 }
