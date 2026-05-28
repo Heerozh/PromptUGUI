@@ -20,6 +20,9 @@ namespace PromptUGUI.Application
             public HashSet<string> AllSrcs = new();
             public List<ScreenDef> Screens = new();
             public Dictionary<TemplateKey, TemplateDef> Templates = new();
+            // Each entry carries the original src so cross-doc duplicate detection
+            // can name both conflicting files in the error message.
+            public List<(IR.ThemeBlock Theme, string Src)> Themes = new();
         }
 
         internal readonly struct TemplateKey : IEquatable<TemplateKey>
@@ -114,6 +117,9 @@ namespace PromptUGUI.Application
                         $"duplicate template '{key}' (loaded from src='{src}')");
                 agg.Templates[key] = kv.Value;
             }
+
+            foreach (var theme in doc.Themes)
+                agg.Themes.Add((theme, src));
 
             visiting.Push(src);
             try

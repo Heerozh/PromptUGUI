@@ -601,6 +601,23 @@ namespace PromptUGUI.Application
                 def.OriginSrc = src;
                 _commonsPool[key] = def;
             }
+
+            // Register <Theme> blocks from all docs in this load chain.
+            // Cross-doc conflict detection happens inside ThemeStore.Register.
+            foreach (var (theme, themeSrc) in loaded.Themes)
+            {
+                var colors = new System.Collections.Generic.Dictionary<string, UnityEngine.Color>(
+                    theme.Colors.Count);
+                foreach (var ce in theme.Colors)
+                {
+                    UnityEngine.ColorUtility.TryParseHtmlString(ce.Value, out var c);
+                    colors[ce.Name] = c;
+                }
+                ThemeStore.Instance.Register(theme.Name, theme.BaseName, colors, themeSrc);
+            }
+            ThemeStore.Instance.ResolveBases();
+            Theme.AutoSetIfSingleAvailable();
+
             _depGraph.CommonsSources.Add(src);
             _depGraph.SrcToDeps[src] = new System.Collections.Generic.HashSet<string>(loaded.AllSrcs);
         }
