@@ -258,10 +258,11 @@ namespace PromptUGUI.Controls.Internal
 
         private static void ParseColorFromTo(string v, out Color from, out Color to)
         {
-            var i = v.IndexOf(':');
-            if (i < 0) { from = Color.white; to = ParseColor(v); return; }
-            from = ParseColor(v.Substring(0, i));
-            to = ParseColor(v.Substring(i + 1));
+            var parts = v.Split(':');
+            if (parts.Length != 2)
+                throw new System.Exception($"char-color=\"{v}\": expected 'from:to'");
+            from = PromptUGUI.Application.UI.Theme.Resolve(parts[0]);
+            to   = PromptUGUI.Application.UI.Theme.Resolve(parts[1]);
         }
 
         private static Color ParseColor(string s)

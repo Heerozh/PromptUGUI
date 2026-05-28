@@ -65,7 +65,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var s = new AnimationSpec();
             s.SetCount("0:100");
-            s.SetCharColor("1,1,1,1:1,0,0,1");
+            s.SetCharColor("#ffffff:#ff0000");
             Assert.Throws<System.ArgumentException>(s.Validate);
         }
 
