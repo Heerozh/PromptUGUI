@@ -227,6 +227,58 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void TabBar_With_Static_Template_Wrapper_Collects_Inner_Tab()
+        {
+            LogAssert.Expect(LogType.Error,
+                new System.Text.RegularExpressions.Regex("UI.SpriteResolver is not registered"));
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='FileTab'>
+    <Param name='isOn' default='false'/>
+    <Frame><Tab id='tab' isOn='{{isOn}}'/></Frame>
+  </Template>
+  <Screen name='S'>
+    <TabBar id='bar' sprite='ui:fake_normal'>
+      <FileTab isOn='true'/>
+      <FileTab isOn='false'/>
+    </TabBar>
+  </Screen>
+</PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var bar = UI.Open("S").Get<TabBar>("bar");
+            Assert.AreEqual(2, bar.Count, "TabBar collected 2 inner Tabs via FindTabIn");
+            Assert.AreEqual(0, bar.SelectedIndex, "first Tab IsOn");
+            // sprite push verification — bg.sprite equal across both wrapped Tabs
+            var bgA = bar.GetAt(0).GameObject.GetComponent<UnityEngine.UI.Image>();
+            var bgB = bar.GetAt(1).GameObject.GetComponent<UnityEngine.UI.Image>();
+            Assert.AreEqual(bgA.sprite, bgB.sprite);
+        }
+
+        [Test]
+        public void TabBar_With_Static_Template_Wrapper_Fires_OnSelectionChanged()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='FileTab'>
+    <Param name='isOn' default='false'/>
+    <Frame><Tab id='tab' isOn='{{isOn}}'/></Frame>
+  </Template>
+  <Screen name='S'>
+    <TabBar id='bar'>
+      <FileTab isOn='true'/>
+      <FileTab isOn='false'/>
+    </TabBar>
+  </Screen>
+</PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var bar = UI.Open("S").Get<TabBar>("bar");
+            Tab observed = null;
+            using var sub = bar.OnSelectionChanged.Subscribe(t => observed = t);
+            bar.GetAt(1).IsOn = true;
+            Assert.AreSame(bar.GetAt(1), observed);
+        }
+
+        [Test]
         public void TabBar_Non_Selected_Bind_Frames_Are_Deactivated_Initially()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>

@@ -234,7 +234,14 @@ namespace PromptUGUI.Controls
         {
             _tabs.Clear();
             foreach (var child in Children)
-                if (child is Tab tab) _tabs.Add(tab);
+            {
+                if (child is Tab tab) { _tabs.Add(tab); continue; }
+                // Template-wrapper case: a <Tab> nested inside a Template-expanded
+                // child (e.g. <FileTab><Frame><Tab/></Frame></FileTab>). Reuse the
+                // same recursive walk used by BindItems for itemTemplate.
+                var found = FindTabIn(child);
+                if (found != null) _tabs.Add(found);
+            }
         }
 
         private void PushVisualToTabs()
