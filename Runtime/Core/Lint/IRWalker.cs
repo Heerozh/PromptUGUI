@@ -61,6 +61,10 @@ namespace PromptUGUI.Lint
                 foreach (var issue in PureContainerVisualAttrRules.Check(node))
                     yield return issue;
 
+            // Static color literal validation: hex values starting with '#' must parse.
+            foreach (var issue in ColorLiteralRules.Check(node))
+                yield return issue;
+
             var isLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar";
             var isTabBar = node.Tag == "TabBar";
             foreach (var child in node.Children)

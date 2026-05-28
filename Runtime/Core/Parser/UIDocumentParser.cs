@@ -113,7 +113,7 @@ namespace PromptUGUI.Parser
                 if (!KebabRx.IsMatch(cn))
                     throw new ParseException(
                         $"<Color name=\"{cn}\">: token name must be kebab-case [a-z0-9-]");
-                if (!UnityEngine.ColorUtility.TryParseHtmlString(cv, out _))
+                if (!ColorParser.TryParseHtmlString(cv))
                     throw new ParseException(
                         $"<Color name=\"{cn}\" value=\"{cv}\">: invalid color literal");
                 if (!seen.Add(cn))
