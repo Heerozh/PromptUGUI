@@ -136,5 +136,21 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var bg = prog.GameObject.transform.Find("MaskWrapper/Bg").GetComponent<UnityImage>();
             Assert.AreEqual("UI/LinearLightTint", bg.material.shader.name);
         }
+
+        [Test]
+        public void Variant_OverridesTint_OnReSolve()
+        {
+            var s = Open("<Image id='i' color='#ffffff' tint='multiply' tint.dark='linear'/>");
+            var img = ImageOf(s, "i");
+            Assert.AreEqual(img.defaultMaterial, img.material, "multiply before variant");
+
+            UI.VariantStore.Set("dark", true);
+            s.ReSolve();
+            Assert.AreEqual("UI/LinearLightTint", img.material.shader.name, "linear after variant");
+
+            UI.VariantStore.Set("dark", false);
+            s.ReSolve();
+            Assert.AreEqual(img.defaultMaterial, img.material, "back to multiply");
+        }
     }
 }
