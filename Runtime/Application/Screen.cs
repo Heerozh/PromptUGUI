@@ -25,6 +25,7 @@ namespace PromptUGUI.Application
         private readonly Dictionary<ElementNode, Control> _nodeMap = new();
         private readonly List<IDisposable> _subscriptions = new();
         private IDisposable _variantSub;
+        private System.Action<string> _themeHandler;
         private bool _isReapplyingScaler;
 
         internal Controls.Internal.ToggleGroupRegistry ToggleGroups { get; private set; }
@@ -135,6 +136,8 @@ namespace PromptUGUI.Application
             // (so it doesn't fight ApplyCommon writes). Independent of canvas factor.
             ApplyScales();
             _variantSub = Variants.Changed.Subscribe(_ => ReSolve());
+            _themeHandler = _ => ReSolve();
+            UI.Theme.Changed += _themeHandler;
         }
 
         private void ApplyCanvasScaler(UnityEngine.UI.CanvasScaler scaler)
@@ -272,6 +275,11 @@ namespace PromptUGUI.Application
         {
             _variantSub?.Dispose();
             _variantSub = null;
+            if (_themeHandler != null)
+            {
+                UI.Theme.Changed -= _themeHandler;
+                _themeHandler = null;
+            }
             foreach (var d in _subscriptions) d.Dispose();
             _subscriptions.Clear();
             // 主动清空订阅,避免 GO 销毁过程中 Unity 再触发 OnRectTransformDimensionsChange 时
