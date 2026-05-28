@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
@@ -409,6 +410,49 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 Assert.AreEqual(new Vector2(0.2f, 1f), fill.anchorMax, "variant override should re-reconcile Fill");
             }
             finally { UI.Variants.Set("low", false); }
+        }
+
+        // ── Color token tests ─────────────────────────────────────────────────────
+
+        private static void SeedLight(string primaryHex)
+        {
+            var d = new Dictionary<string, Color>();
+            ColorUtility.TryParseHtmlString(primaryHex, out var c);
+            d["primary"] = c;
+            ThemeStore.Instance.Register("light", null, d, "test");
+            ThemeStore.Instance.ResolveBases();
+            UI.Theme.Set("light");
+        }
+
+        [Test]
+        public void FillColor_Token_Resolves()
+        {
+            SeedLight("#ff8800");
+            var p = Open("<Progress id='p' fillColor='primary' value='0.5'/>");
+            var fill = p.GameObject.transform.Find("MaskWrapper/Fill").GetComponent<UnityImage>();
+            Assert.AreEqual(new Color32(0xff, 0x88, 0, 0xff), (Color32)fill.color);
+        }
+
+        [Test]
+        public void BgColor_Token_Resolves_And_Activates_Bg()
+        {
+            SeedLight("#224466");
+            var p = Open("<Progress id='p' bgColor='primary' value='0.5'/>");
+            var bg = p.GameObject.transform.Find("MaskWrapper/Bg");
+            Assert.IsTrue(bg.gameObject.activeSelf, "bgColor token must activate Bg layer");
+            var img = bg.GetComponent<UnityImage>();
+            Assert.AreEqual(new Color32(0x22, 0x44, 0x66, 0xff), (Color32)img.color);
+        }
+
+        [Test]
+        public void FrameColor_Token_Resolves_And_Activates_Frame()
+        {
+            SeedLight("#aabbcc");
+            var p = Open("<Progress id='p' frameColor='primary' value='0.5'/>");
+            var frame = p.GameObject.transform.Find("Frame");
+            Assert.IsTrue(frame.gameObject.activeSelf, "frameColor token must activate Frame layer");
+            var img = frame.GetComponent<UnityImage>();
+            Assert.AreEqual(new Color32(0xaa, 0xbb, 0xcc, 0xff), (Color32)img.color);
         }
     }
 }

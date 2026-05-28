@@ -5,6 +5,7 @@ using PromptUGUI.Parser;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityImage = UnityEngine.UI.Image;
+using UnityToggleUI = UnityEngine.UI.Toggle;
 
 namespace PromptUGUI.Tests.EditMode.Controls
 {
@@ -89,6 +90,30 @@ namespace PromptUGUI.Tests.EditMode.Controls
             LogAssert.Expect(LogType.Exception, new System.Text.RegularExpressions.Regex("ParseException"));
             UI.VariantStore.Set("dark", true);
             Assert.Throws<ParseException>(() => s.ReSolve());
+        }
+
+        [Test]
+        public void Icon_Color_Token_Resolves()
+        {
+            SeedLight("#aabbcc");
+            // name requires "set:icon" format; no resolver registered so a LogError fires for the sprite,
+            // but color is independent and must still resolve.
+            LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("SpriteResolver"));
+            var s = Open("<Icon id='i' name='ui:gear' color='primary'/>");
+            var img = s.Get<Icon>("i").GameObject.GetComponent<UnityImage>();
+            Assert.AreEqual(new Color32(0xaa, 0xbb, 0xcc, 0xff), (Color32)img.color);
+        }
+
+        [Test]
+        public void Toggle_Color_Token_Resolves()
+        {
+            SeedLight("#ff4400");
+            var s = Open("<Toggle id='t' color='primary' text='On'/>");
+            // Toggle.Color routes to the Background UnityImage child.
+            var bgRt = s.Get<Toggle>("t").GameObject.transform.Find("Background");
+            Assert.IsNotNull(bgRt, "Background child");
+            var bg = bgRt.GetComponent<UnityImage>();
+            Assert.AreEqual(new Color32(0xff, 0x44, 0, 0xff), (Color32)bg.color);
         }
     }
 }

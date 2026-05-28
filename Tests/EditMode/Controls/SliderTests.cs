@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
@@ -131,6 +132,30 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var handle = s.GameObject.transform.Find("Handle Slide Area/Handle").GetComponent<UnityEngine.UI.Image>();
             Assert.AreEqual(UnityEngine.UI.Image.Type.Simple, handle.type);
             Assert.IsFalse(handle.preserveAspect);
+        }
+
+        // ── Color token tests ─────────────────────────────────────────────────────
+
+        private static void SeedLight(string primaryHex)
+        {
+            var d = new Dictionary<string, Color>();
+            ColorUtility.TryParseHtmlString(primaryHex, out var c);
+            d["primary"] = c;
+            ThemeStore.Instance.Register("light", null, d, "test");
+            ThemeStore.Instance.ResolveBases();
+            UI.Theme.Set("light");
+        }
+
+        [Test]
+        public void Color_Token_Resolves_Background()
+        {
+            SeedLight("#336699");
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Slider id='s' color='primary'/></Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var s = UI.Open("S").Get<Slider>("s");
+            var bg = s.GameObject.transform.Find("Background").GetComponent<UnityEngine.UI.Image>();
+            Assert.AreEqual(new Color32(0x33, 0x66, 0x99, 0xff), (Color32)bg.color);
         }
     }
 }

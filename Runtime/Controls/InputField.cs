@@ -161,14 +161,10 @@ namespace PromptUGUI.Controls
             set => _input.readOnly = value;
         }
 
-        [UIAttr, Preserve]
+        [UIAttr(IsColor = true), Preserve]
         public string Color
         {
-            set
-            {
-                if (string.IsNullOrEmpty(value)) return;
-                if (UnityEngine.ColorUtility.TryParseHtmlString(value, out var c)) _bg.color = c;
-            }
+            set => _bg.color = UI.Theme.Resolve(value);
         }
 
         [UIAttr(IsSprite = true), Preserve]
