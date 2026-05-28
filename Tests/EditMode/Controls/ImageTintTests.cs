@@ -117,11 +117,11 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var s = Open("<Progress id='p' value='0.5' color='#ffffff' " +
                          "bgColor='#222222' frameColor='#888888' tint='linear'/>");
             var p = s.Get<Progress>("p").GameObject.transform;
-            var fill  = p.Find("MaskWrapper/Fill").GetComponent<UnityImage>();
-            var bg    = p.Find("MaskWrapper/Bg").GetComponent<UnityImage>();
+            var fill = p.Find("MaskWrapper/Fill").GetComponent<UnityImage>();
+            var bg = p.Find("MaskWrapper/Bg").GetComponent<UnityImage>();
             var frame = p.Find("Frame").GetComponent<UnityImage>();
-            Assert.AreEqual("UI/LinearLightTint", fill.material.shader.name,  "fill");
-            Assert.AreEqual("UI/LinearLightTint", bg.material.shader.name,    "bg");
+            Assert.AreEqual("UI/LinearLightTint", fill.material.shader.name, "fill");
+            Assert.AreEqual("UI/LinearLightTint", bg.material.shader.name, "bg");
             Assert.AreEqual("UI/LinearLightTint", frame.material.shader.name, "frame");
         }
 
