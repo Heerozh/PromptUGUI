@@ -21,7 +21,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: UI-LinearLightTint
-  m_Shader: {fileID: 4800000, guid: 45938fe4b10c31d4292eae7b89948cd1, type: 3}
+  m_Shader: {fileID: 4800000, guid: db73d1437c9c0d3448fb2527877d54d8, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
