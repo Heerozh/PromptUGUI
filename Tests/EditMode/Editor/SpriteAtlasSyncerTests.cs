@@ -53,10 +53,12 @@ namespace PromptUGUI.Tests.Editor
         public void Scan_skips_dynamic_icon_outside_template()
         {
             var path = $"{TestRoot}/dyn.ui.xml";
+            // Unique 'testdyn' namespace so the assertion can't be tripped by real
+            // 'ui:*' refs in host-project .ui.xml files (the scan walks the whole project).
             File.WriteAllText(path,
                 @"<?xml version='1.0'?><PromptUGUI version='1'>
                     <Screen name='S'>
-                      <Icon name='ui:{{kind}}'/>
+                      <Icon name='testdyn:{{kind}}'/>
                     </Screen>
                   </PromptUGUI>");
             AssetDatabase.ImportAsset(path);
@@ -68,7 +70,7 @@ namespace PromptUGUI.Tests.Editor
             LogAssert.ignoreFailingMessages = true;
             var refs = SpriteAtlasSyncer.ScanXmlReferences();
             LogAssert.ignoreFailingMessages = false;
-            foreach (var (ns, _) in refs) Assert.AreNotEqual("ui", ns);
+            foreach (var (ns, _) in refs) Assert.AreNotEqual("testdyn", ns);
         }
 
         [Test]
