@@ -9,6 +9,7 @@ namespace PromptUGUI.Editor
     {
         private const string DefaultScreenFilename = "NewUI.ui.xml";
         private const string DefaultTemplateFilename = "NewTemplate.ui.xml";
+        private const string DefaultThemeFilename = "NewTheme.ui.xml";
 
         private const string ScreenContent =
 @"<?xml version=""1.0"" encoding=""utf-8""?>
@@ -39,11 +40,34 @@ namespace PromptUGUI.Editor
 </PromptUGUI>
 ";
 
+        private const string ThemeContent =
+@"<?xml version=""1.0"" encoding=""utf-8""?>
+<PromptUGUI version=""1"">
+
+  <Theme name=""light"">
+    <Color name=""primary""   value=""#ff8800""/>
+    <Color name=""secondary"" value=""#0080ff""/>
+    <Color name=""label-fg""  value=""#222222""/>
+    <Color name=""bg""        value=""#f5f5f5""/>
+  </Theme>
+
+  <Theme name=""dark"" base=""light"">
+    <Color name=""primary""  value=""#cc6600""/>
+    <Color name=""label-fg"" value=""#e6e6e6""/>
+    <Color name=""bg""       value=""#1a1a1a""/>
+  </Theme>
+
+</PromptUGUI>
+";
+
         [MenuItem("Assets/Create/PromptUGUI/UI XML", false, 81)]
         private static void CreateUiXml() => Create(DefaultScreenFilename, ScreenContent);
 
         [MenuItem("Assets/Create/PromptUGUI/UI Template", false, 82)]
         private static void CreateUiTemplate() => Create(DefaultTemplateFilename, TemplateContent);
+
+        [MenuItem("Assets/Create/PromptUGUI/UI Theme", false, 83)]
+        private static void CreateUiTheme() => Create(DefaultThemeFilename, ThemeContent);
 
         private static void Create(string filename, string content)
         {
