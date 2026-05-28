@@ -455,6 +455,16 @@ namespace PromptUGUI.Application
                 Current = only;
                 Changed?.Invoke(only);
             }
+
+            /// <summary>Fire Theme.Changed for the current theme. Used by hot reload
+            /// after a theme block was replaced — if the affected theme is currently
+            /// active, re-emit Changed so open Screens ReSolve with new token values.
+            /// No-op when Current is null or doesn't match.</summary>
+            internal static void RaiseChangedIfCurrent(string themeName)
+            {
+                if (Current != null && Current == themeName)
+                    Changed?.Invoke(Current);
+            }
         }
 
         public static string Tr(string msgid, string ctx = null) =>
@@ -551,6 +561,12 @@ namespace PromptUGUI.Application
                     "UI.SourceResolver must be set before ReloadAsync");
 
             var loaded = await DocumentLoader.LoadAndMergeAsync(dep.EntrySrc, SourceResolver, _commonsPool);
+            // Re-register Theme blocks on reload. Mirror LoadDocumentAsync's
+            // RegisterThemesAndAutoSet call but route through ReplaceFromSrc so
+            // edited color values overwrite the previous (name, src) entries
+            // (Register would idempotent-no-op on the same key) and fire
+            // Theme.Changed if the current theme was among the replaced ones.
+            ReplaceThemesAndNotify(loaded);
             var expanded = PromptUGUI.Template.TemplateExpander.Expand(loaded);
 
             PromptUGUI.IR.ScreenDef newDef = null;
@@ -577,7 +593,11 @@ namespace PromptUGUI.Application
             if (wasOpen) Open(screenName);
         }
 
-        public static async UnityEngine.Awaitable LoadCommonLibraryAsync(string src, string @as = null)
+        public static UnityEngine.Awaitable LoadCommonLibraryAsync(string src, string @as = null) =>
+            LoadCommonLibraryAsyncInternal(src, @as, isReload: false);
+
+        private static async UnityEngine.Awaitable LoadCommonLibraryAsyncInternal(
+            string src, string @as, bool isReload)
         {
             if (SourceResolver == null)
                 throw new System.InvalidOperationException(
@@ -603,8 +623,15 @@ namespace PromptUGUI.Application
                 _commonsPool[key] = def;
             }
 
-            // Register <Theme> blocks from all docs in this load chain.
-            RegisterThemesAndAutoSet(loaded);
+            // Register or replace <Theme> blocks. On first load, Register is used
+            // (idempotent on (name, src), throws on cross-src duplicate). On reload,
+            // the old (name, src) entries are dropped first via ReplaceFromSrc so
+            // edited color values actually take effect — Register's idempotent
+            // no-op would otherwise silently swallow the new values.
+            if (isReload)
+                ReplaceThemesAndNotify(loaded);
+            else
+                RegisterThemesAndAutoSet(loaded);
 
             _depGraph.CommonsSources.Add(src);
             _depGraph.SrcToDeps[src] = new System.Collections.Generic.HashSet<string>(loaded.AllSrcs);
@@ -634,7 +661,7 @@ namespace PromptUGUI.Application
 
             try
             {
-                await LoadCommonLibraryAsync(src);
+                await LoadCommonLibraryAsyncInternal(src, @as: null, isReload: true);
             }
             catch
             {
@@ -806,6 +833,59 @@ namespace PromptUGUI.Application
             }
             ThemeStore.Instance.ResolveBases();
             Theme.AutoSetIfSingleAvailable();
+        }
+
+        /// <summary>
+        /// Hot-reload sibling of <see cref="RegisterThemesAndAutoSet"/>: groups
+        /// themes by their originating src and routes each group through
+        /// <see cref="ThemeStore.ReplaceFromSrc"/> so edited color values overwrite
+        /// the previous (name, src) entries rather than no-oping through Register's
+        /// idempotent path. After replacement, fires <see cref="Theme.Changed"/>
+        /// for the current theme if it was among the replaced ones so all open
+        /// Screens re-color via <see cref="Screen.ReSolve"/>. Theme.Current is
+        /// preserved (no AutoSetIfSingleAvailable on reload).
+        /// </summary>
+        private static void ReplaceThemesAndNotify(DocumentLoader.LoadedDoc loaded)
+        {
+            // Group themes by their originating src so ReplaceFromSrc gets a
+            // per-src complete replacement (any theme deleted from the new XML
+            // for that src will correctly disappear from the store too).
+            var bySrc = new System.Collections.Generic.Dictionary<
+                string,
+                System.Collections.Generic.List<(string name, string baseName,
+                    System.Collections.Generic.IReadOnlyDictionary<string, UnityEngine.Color> colors)>>();
+            foreach (var (theme, themeSrc) in loaded.Themes)
+            {
+                var colors = new System.Collections.Generic.Dictionary<string, UnityEngine.Color>(
+                    theme.Colors.Count);
+                foreach (var ce in theme.Colors)
+                {
+                    UnityEngine.ColorUtility.TryParseHtmlString(ce.Value, out var c);
+                    colors[ce.Name] = c;
+                }
+                if (!bySrc.TryGetValue(themeSrc, out var list))
+                    bySrc[themeSrc] = list = new();
+                list.Add((theme.Name, theme.BaseName, colors));
+            }
+            foreach (var kv in bySrc)
+                ThemeStore.Instance.ReplaceFromSrc(kv.Key, kv.Value);
+
+            // Re-emit Changed for the current theme if any of the replaced themes
+            // are it. Open Screens are subscribed to Theme.Changed and will ReSolve.
+            if (Theme.Current != null)
+            {
+                foreach (var list in bySrc.Values)
+                {
+                    foreach (var (themeName, _, _) in list)
+                    {
+                        if (themeName == Theme.Current)
+                        {
+                            Theme.RaiseChangedIfCurrent(Theme.Current);
+                            return;
+                        }
+                    }
+                }
+            }
         }
 
         // ResetForTests 末尾触发；let helpers (e.g. AddressableSpriteResolverHelper)
