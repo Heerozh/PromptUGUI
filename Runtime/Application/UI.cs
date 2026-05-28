@@ -394,6 +394,69 @@ namespace PromptUGUI.Application
             }
         }
 
+        public static partial class Theme
+        {
+            public static string Current { get; private set; }
+            public static IReadOnlyCollection<string> Available => ThemeStore.Instance.Available;
+
+            public static event System.Action<string> Changed;
+
+            public static void Set(string name)
+            {
+                if (name == null) throw new System.ArgumentNullException(nameof(name));
+                var available = ThemeStore.Instance.Available;
+                if (!System.Linq.Enumerable.Contains(available, name))
+                    throw new System.ArgumentException(
+                        $"UI.Theme.Set: theme '{name}' not registered (available: " +
+                        string.Join(", ", available) + ")");
+                if (Current == name) return;
+                Current = name;
+                Changed?.Invoke(name);
+            }
+
+            public static UnityEngine.Color? Lookup(string token)
+            {
+                if (Current == null) return null;
+                return ThemeStore.Instance.LookupChained(Current, token);
+            }
+
+            public static UnityEngine.Color Resolve(string value)
+            {
+                if (string.IsNullOrEmpty(value))
+                    throw new System.Exception("empty color value");
+                if (Current != null)
+                {
+                    var hit = ThemeStore.Instance.LookupChained(Current, value);
+                    if (hit.HasValue) return hit.Value;
+                }
+                if (UnityEngine.ColorUtility.TryParseHtmlString(value, out var c))
+                    return c;
+                throw new System.Exception(
+                    $"unknown color token \"{value}\" (no entry in theme " +
+                    $"'{Current ?? "(none)"}', not a valid hex/named literal)");
+            }
+
+            internal static void ResetForTestsInternal()
+            {
+                Current = null;
+                Changed = null;
+                ThemeStore.Instance.Clear();
+            }
+
+            /// <summary>Called by DocumentLoader after loading commons; if only one
+            /// theme is registered and Current is unset, auto-select it (single-theme
+            /// projects work without explicit Set).</summary>
+            internal static void AutoSetIfSingleAvailable()
+            {
+                if (Current != null) return;
+                var available = ThemeStore.Instance.Available;
+                if (available.Count != 1) return;
+                var only = System.Linq.Enumerable.First(available);
+                Current = only;
+                Changed?.Invoke(only);
+            }
+        }
+
         public static string Tr(string msgid, string ctx = null) =>
             TrResolver.Resolve(msgid, null, ctx);
 
@@ -726,6 +789,7 @@ namespace PromptUGUI.Application
         {
             Locale.ResetForTestsInternal();
             Orientation.ResetForTestsInternal();
+            Theme.ResetForTestsInternal();
             TranslationStore.Instance.UnloadAll();
             Modal.CancelAllForTeardown();
             Modals.LoadingOverlay.CancelAllForTeardown();
