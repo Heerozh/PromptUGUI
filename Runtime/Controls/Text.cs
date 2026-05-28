@@ -1,3 +1,4 @@
+using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
 using PromptUGUI.Registry;
 using TMPro;
@@ -85,14 +86,10 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr, Preserve]
+        [UIAttr(IsColor = true), Preserve]
         public string Color
         {
-            set
-            {
-                if (ColorUtility.TryParseHtmlString(value, out var c))
-                    _tmp.color = c;
-            }
+            set => _tmp.color = UI.Theme.Resolve(value);
         }
 
         [UIAttr, Preserve]

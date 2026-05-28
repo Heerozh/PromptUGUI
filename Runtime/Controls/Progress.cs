@@ -66,14 +66,10 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr, Preserve]
+        [UIAttr(IsColor = true), Preserve]
         public string FillColor
         {
-            set
-            {
-                if (string.IsNullOrEmpty(value)) return;
-                if (ColorUtility.TryParseHtmlString(value, out var c)) _fill.color = c;
-            }
+            set => _fill.color = UI.Theme.Resolve(value);
         }
 
         [UIAttr(IsSprite = true), Preserve]
@@ -89,14 +85,12 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr, Preserve]
+        [UIAttr(IsColor = true), Preserve]
         public string BgColor
         {
             set
             {
-                if (string.IsNullOrEmpty(value)) return;
-                if (!ColorUtility.TryParseHtmlString(value, out var c)) return;
-                _bg.color = c;
+                _bg.color = UI.Theme.Resolve(value);
                 _bg.gameObject.SetActive(true);
                 ReconcileMaskVisibility();
             }
@@ -114,14 +108,12 @@ namespace PromptUGUI.Controls
             }
         }
 
-        [UIAttr, Preserve]
+        [UIAttr(IsColor = true), Preserve]
         public string FrameColor
         {
             set
             {
-                if (string.IsNullOrEmpty(value)) return;
-                if (!ColorUtility.TryParseHtmlString(value, out var c)) return;
-                _frame.color = c;
+                _frame.color = UI.Theme.Resolve(value);
                 _frame.gameObject.SetActive(true);
             }
         }

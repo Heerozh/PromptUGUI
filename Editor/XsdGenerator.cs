@@ -73,6 +73,8 @@ namespace PromptUGUI.Editor
                 WriteImport(writer);
                 WriteScreen(writer);
                 WriteTemplate(writer);
+                WriteTheme(writer);
+                WriteColor(writer);
                 WriteParam(writer);
                 WriteSlot(writer);
                 WriteVariant(writer);
@@ -228,7 +230,7 @@ namespace PromptUGUI.Editor
             w.WriteStartElement("xs", "complexType", null);
             w.WriteStartElement("xs", "choice", null);
             w.WriteAttributeString("maxOccurs", "unbounded");
-            foreach (var name in new[] { "Import", "Screen", "Template" })
+            foreach (var name in new[] { "Import", "Screen", "Template", "Theme" })
             {
                 w.WriteStartElement("xs", "element", null);
                 w.WriteAttributeString("ref", name);
@@ -383,6 +385,51 @@ namespace PromptUGUI.Editor
             // Template body has its own id scope, independent of any Screen.
             WriteIdUniqueConstraint(w, "templateIdUnique");
 
+            w.WriteEndElement(); // /element
+        }
+
+        private static void WriteTheme(XmlWriter w)
+        {
+            w.WriteStartElement("xs", "element", null);
+            w.WriteAttributeString("name", "Theme");
+            w.WriteStartElement("xs", "complexType", null);
+            w.WriteStartElement("xs", "sequence", null);
+            w.WriteStartElement("xs", "element", null);
+            w.WriteAttributeString("ref", "Color");
+            w.WriteAttributeString("minOccurs", "0");
+            w.WriteAttributeString("maxOccurs", "unbounded");
+            w.WriteEndElement();
+            w.WriteEndElement();
+            w.WriteStartElement("xs", "attribute", null);
+            w.WriteAttributeString("name", "name");
+            w.WriteAttributeString("use", "required");
+            w.WriteAttributeString("type", "xs:string");
+            w.WriteEndElement();
+            w.WriteStartElement("xs", "attribute", null);
+            w.WriteAttributeString("name", "base");
+            w.WriteAttributeString("use", "optional");
+            w.WriteAttributeString("type", "xs:string");
+            w.WriteEndElement();
+            w.WriteEndElement(); // /complexType
+            w.WriteEndElement(); // /element
+        }
+
+        private static void WriteColor(XmlWriter w)
+        {
+            w.WriteStartElement("xs", "element", null);
+            w.WriteAttributeString("name", "Color");
+            w.WriteStartElement("xs", "complexType", null);
+            w.WriteStartElement("xs", "attribute", null);
+            w.WriteAttributeString("name", "name");
+            w.WriteAttributeString("use", "required");
+            w.WriteAttributeString("type", "xs:string");
+            w.WriteEndElement();
+            w.WriteStartElement("xs", "attribute", null);
+            w.WriteAttributeString("name", "value");
+            w.WriteAttributeString("use", "required");
+            w.WriteAttributeString("type", "xs:string");
+            w.WriteEndElement();
+            w.WriteEndElement(); // /complexType
             w.WriteEndElement(); // /element
         }
 

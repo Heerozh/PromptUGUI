@@ -152,6 +152,7 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 | `<Grid>` | 网格排布 | RectTransform + GridLayoutGroup |
 | `<Btn>` | 通用按钮（背景图 + R3 OnClick 流） | Image + Button (uGUI) |
 | `<Icon>` | 项目级 IconSet 中的图标（按名查找，打包期剪枝） | Image |
+| `<Theme name=... base=...?>` / `<Color name=... value=...>` | 顶层主题 / 颜色 token 块；运行时可通过 `UI.Theme.Set` 切换 | — |
 | `<Toggle>` | 复选 / 单选（OnValueChanged: bool；group= 字符串键互斥） | Image + Toggle (uGUI) + 内置 label |
 | `<Slider>` | 数值滑块（OnValueChanged: float） | Image + Slider (uGUI) |
 | `<Progress>` | 线性进度条 (scale / Image.Type.Filled, horizontal / vertical, +可选 frame / mask / bg / fill 装饰) | RectTransform（+ 内部 4 个图层；详见 [`2026-05-27-progress-control-design.md`](2026-05-27-progress-control-design.md)） |
@@ -191,6 +192,7 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 
 由各标签自行声明：
 - `<Image sprite="bg/main" color="#FFFFFFAA" type="sliced|simple|filled|tiled"/>`
+  - `color` 值解析：主题 token（经 `UI.Theme.Current` 与 base 链查表）→ 字面 `ColorUtility.TryParseHtmlString`；详见 [`2026-05-28-color-tokens-design.md`](2026-05-28-color-tokens-design.md)
 - `<Image mask="rect|self" showMask="true|false" maskPadding="T,R,B,L"/>` — 见 [`2026-05-16-frame-image-mask-design.md`](2026-05-16-frame-image-mask-design.md)
 - `<Frame mask="rect" maskPadding="T,R,B,L"/>` — 同上
 - `<Text font="..." fontSize="32" color="..." align="left|center|right" wrap="true"/>` — 注意 Text 的字号属性是 `fontSize`，**不是** `size`；`size` 是通用 WxH 布局尺寸（§6.2），写 `<Text size="32"/>` 会被布局解析器拒收
@@ -435,6 +437,7 @@ var closeBtn = dialog.Get("close");          // 模板内部
   ```
 - 多个开关可同时为真
 - 切换 Variant 触发已实例化 Screen 的**重新解算**（不重建 GameObject，只刷新被覆盖的属性值）——支持 PC 端窗口缩放等场景
+- `UI.Theme.Set(name)` 也触发已开 Screen 的重新解算，平行于 `UI.Locale.Set` 与 `UI.Variants.Set` 的逻辑
 
 ### 8.2 内联属性覆盖（90% 用法）
 

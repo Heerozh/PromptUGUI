@@ -38,15 +38,10 @@ namespace PromptUGUI.Controls
             set => _img.sprite = UI.ResolveSprite(value);
         }
 
-        [UIAttr, Preserve]
+        [UIAttr(IsColor = true), Preserve]
         public string Color
         {
-            set
-            {
-                if (string.IsNullOrEmpty(value)) return;
-                if (ColorUtility.TryParseHtmlString(value, out var c))
-                    _img.color = c;
-            }
+            set => _img.color = UI.Theme.Resolve(value);
         }
 
         [UIAttr, Preserve]

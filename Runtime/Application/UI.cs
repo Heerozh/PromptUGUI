@@ -394,6 +394,92 @@ namespace PromptUGUI.Application
             }
         }
 
+        public static partial class Theme
+        {
+            public static string Current { get; private set; }
+            public static IReadOnlyCollection<string> Available => ThemeStore.Instance.Available;
+
+            public static event System.Action<string> Changed;
+
+            /// <summary>
+            /// Set the active theme. Order-independent: accepts any name, including
+            /// one not yet registered (e.g. the user fires Set before the async
+            /// LoadCommonLibraryAsync completes). If the name later registers,
+            /// Theme.Changed re-fires automatically so open Screens repaint.
+            /// While pending, color attribute resolution falls back to
+            /// <see cref="UnityEngine.Color.white"/> for token values (literal
+            /// hex/named values still resolve normally). See <see cref="Resolve"/>.
+            /// </summary>
+            public static void Set(string name)
+            {
+                if (name == null) throw new System.ArgumentNullException(nameof(name));
+                if (Current == name) return;
+                Current = name;
+                Changed?.Invoke(name);
+            }
+
+            public static UnityEngine.Color? Lookup(string token)
+            {
+                if (Current == null) return null;
+                return ThemeStore.Instance.LookupChained(Current, token);
+            }
+
+            public static UnityEngine.Color Resolve(string value)
+            {
+                if (string.IsNullOrEmpty(value))
+                    throw new System.Exception("empty color value");
+                if (Current != null)
+                {
+                    var hit = ThemeStore.Instance.LookupChained(Current, value);
+                    if (hit.HasValue) return hit.Value;
+                }
+                if (UnityEngine.ColorUtility.TryParseHtmlString(value, out var c))
+                    return c;
+                // Soft-fail for the in-flight load case: Current was Set but its
+                // named theme isn't registered yet (e.g. Theme.Set("dark") fired
+                // before LoadCommonLibraryAsync completed, or the user pre-Set a
+                // theme that will register from a subsequent load). Return white
+                // as a placeholder; ReSolve will recompute once the registering
+                // pass calls RaiseChangedIfCurrent and fires Theme.Changed.
+                if (Current != null
+                    && !System.Linq.Enumerable.Contains(ThemeStore.Instance.Available, Current))
+                    return UnityEngine.Color.white;
+                throw new System.Exception(
+                    $"unknown color token \"{value}\" (no entry in theme " +
+                    $"'{Current ?? "(none)"}', not a valid hex/named literal)");
+            }
+
+            internal static void ResetForTestsInternal()
+            {
+                Current = null;
+                Changed = null;
+                ThemeStore.Instance.Clear();
+            }
+
+            /// <summary>Called by DocumentLoader after loading commons; if only one
+            /// theme is registered and Current is unset, auto-select it (single-theme
+            /// projects work without explicit Set).</summary>
+            internal static void AutoSetIfSingleAvailable()
+            {
+                if (Current != null) return;
+                var available = ThemeStore.Instance.Available;
+                if (available.Count != 1) return;
+                var only = System.Linq.Enumerable.First(available);
+                Current = only;
+                Changed?.Invoke(only);
+            }
+
+            /// <summary>Fire Theme.Changed for the current theme. Used by hot reload
+            /// after a theme block was replaced — if the affected theme is currently
+            /// active, re-emit Changed so open Screens ReSolve with new token values.
+            /// No-op when Current is null or doesn't match.</summary>
+            internal static void RaiseChangedIfCurrent(string themeName)
+            {
+                if (Current != null && Current == themeName)
+                    Changed?.Invoke(Current);
+            }
+        }
+
         public static string Tr(string msgid, string ctx = null) =>
             TrResolver.Resolve(msgid, null, ctx);
 
@@ -455,6 +541,7 @@ namespace PromptUGUI.Application
                     "UI.SourceResolver must be set before LoadDocumentAsync");
 
             var loaded = await DocumentLoader.LoadAndMergeAsync(src, SourceResolver, _commonsPool);
+            RegisterThemesAndAutoSet(loaded);
             var expanded = PromptUGUI.Template.TemplateExpander.Expand(loaded);
 
             var added = new List<string>();
@@ -487,6 +574,12 @@ namespace PromptUGUI.Application
                     "UI.SourceResolver must be set before ReloadAsync");
 
             var loaded = await DocumentLoader.LoadAndMergeAsync(dep.EntrySrc, SourceResolver, _commonsPool);
+            // Re-register Theme blocks on reload. Mirror LoadDocumentAsync's
+            // RegisterThemesAndAutoSet call but route through ReplaceFromSrc so
+            // edited color values overwrite the previous (name, src) entries
+            // (Register would idempotent-no-op on the same key) and fire
+            // Theme.Changed if the current theme was among the replaced ones.
+            ReplaceThemesAndNotify(loaded);
             var expanded = PromptUGUI.Template.TemplateExpander.Expand(loaded);
 
             PromptUGUI.IR.ScreenDef newDef = null;
@@ -513,7 +606,11 @@ namespace PromptUGUI.Application
             if (wasOpen) Open(screenName);
         }
 
-        public static async UnityEngine.Awaitable LoadCommonLibraryAsync(string src, string @as = null)
+        public static UnityEngine.Awaitable LoadCommonLibraryAsync(string src, string @as = null) =>
+            LoadCommonLibraryAsyncInternal(src, @as, isReload: false);
+
+        private static async UnityEngine.Awaitable LoadCommonLibraryAsyncInternal(
+            string src, string @as, bool isReload)
         {
             if (SourceResolver == null)
                 throw new System.InvalidOperationException(
@@ -538,6 +635,18 @@ namespace PromptUGUI.Application
                 def.OriginSrc = src;
                 _commonsPool[key] = def;
             }
+
+            // Register or replace <Theme> blocks. On first load, Register is used
+            // (idempotent on (name, src), throws on cross-src duplicate). On reload,
+            // the old (name, src) entries are dropped first via ReplaceFromSrc so
+            // edited color values actually take effect — Register's idempotent
+            // no-op would otherwise silently swallow the new values.
+            if (isReload)
+                ReplaceThemesAndNotify(loaded);
+            else
+                RegisterThemesAndAutoSet(loaded);
+            WarnIfPendingThemeUnloaded();
+
             _depGraph.CommonsSources.Add(src);
             _depGraph.SrcToDeps[src] = new System.Collections.Generic.HashSet<string>(loaded.AllSrcs);
         }
@@ -566,7 +675,7 @@ namespace PromptUGUI.Application
 
             try
             {
-                await LoadCommonLibraryAsync(src);
+                await LoadCommonLibraryAsyncInternal(src, @as: null, isReload: true);
             }
             catch
             {
@@ -716,6 +825,117 @@ namespace PromptUGUI.Application
             return null;
         }
 
+        /// <summary>
+        /// Shared helper: parse colors from <paramref name="loaded"/>.Themes,
+        /// register each into <see cref="ThemeStore"/>, resolve base-chains, and
+        /// auto-select when exactly one theme is available. Called from both
+        /// <see cref="LoadCommonLibraryAsync"/> and <see cref="LoadDocumentAsync"/>
+        /// so that &lt;Theme&gt; blocks work regardless of which file they live in.
+        /// </summary>
+        private static void RegisterThemesAndAutoSet(DocumentLoader.LoadedDoc loaded)
+        {
+            foreach (var (theme, themeSrc) in loaded.Themes)
+            {
+                var colors = new System.Collections.Generic.Dictionary<string, UnityEngine.Color>(
+                    theme.Colors.Count);
+                foreach (var ce in theme.Colors)
+                {
+                    UnityEngine.ColorUtility.TryParseHtmlString(ce.Value, out var c);
+                    colors[ce.Name] = c;
+                }
+                ThemeStore.Instance.Register(theme.Name, theme.BaseName, colors, themeSrc);
+            }
+            ThemeStore.Instance.ResolveBases();
+
+            // Two paths to drive Theme.Changed after this load:
+            //   1. Single-theme auto-select (Current was null, exactly one theme
+            //      registered → AutoSet picks it and fires Changed).
+            //   2. Order-independent pre-Set: user called Theme.Set("dark")
+            //      before this load completed. preExisting captures their intent;
+            //      if AutoSet was a no-op (Current preserved), we fire Changed so
+            //      open Screens repaint via the soft-fail → real-color transition.
+            //      RaiseChangedIfCurrent fires regardless of whether the named
+            //      theme is now actually registered — the soft-fail in Resolve
+            //      still hits (returns white) for the typo case until the user
+            //      Sets a valid name.
+            var preExistingCurrent = Theme.Current;
+            Theme.AutoSetIfSingleAvailable();
+            if (preExistingCurrent != null && Theme.Current == preExistingCurrent)
+                Theme.RaiseChangedIfCurrent(preExistingCurrent);
+        }
+
+        /// <summary>
+        /// Called from the boot loader paths after register/replace finishes.
+        /// If <see cref="Theme.Current"/> points at a theme name nobody actually
+        /// loaded, log a one-line warning so authors don't get stuck wondering
+        /// why their pre-<see cref="Theme.Set"/> never produced colors.
+        /// </summary>
+        private static void WarnIfPendingThemeUnloaded()
+        {
+            var current = Theme.Current;
+            if (current == null) return;
+            if (System.Linq.Enumerable.Contains(ThemeStore.Instance.Available, current))
+                return;
+            UnityEngine.Debug.LogWarning(
+                $"UI.Theme.Current is '{current}' but that theme is not registered " +
+                $"(no <Theme name=\"{current}\"> was loaded by the time " +
+                "LoadCommonLibraryAsync completed). Typo, missing source file, " +
+                "or load not yet finished?");
+        }
+
+        /// <summary>
+        /// Hot-reload sibling of <see cref="RegisterThemesAndAutoSet"/>: groups
+        /// themes by their originating src and routes each group through
+        /// <see cref="ThemeStore.ReplaceFromSrc"/> so edited color values overwrite
+        /// the previous (name, src) entries rather than no-oping through Register's
+        /// idempotent path. After replacement, fires <see cref="Theme.Changed"/>
+        /// for the current theme if it was among the replaced ones so all open
+        /// Screens re-color via <see cref="Screen.ReSolve"/>. Theme.Current is
+        /// preserved (no AutoSetIfSingleAvailable on reload).
+        /// </summary>
+        private static void ReplaceThemesAndNotify(DocumentLoader.LoadedDoc loaded)
+        {
+            // Group themes by their originating src so ReplaceFromSrc gets a
+            // per-src complete replacement (any theme deleted from the new XML
+            // for that src will correctly disappear from the store too).
+            var bySrc = new System.Collections.Generic.Dictionary<
+                string,
+                System.Collections.Generic.List<(string name, string baseName,
+                    System.Collections.Generic.IReadOnlyDictionary<string, UnityEngine.Color> colors)>>();
+            foreach (var (theme, themeSrc) in loaded.Themes)
+            {
+                var colors = new System.Collections.Generic.Dictionary<string, UnityEngine.Color>(
+                    theme.Colors.Count);
+                foreach (var ce in theme.Colors)
+                {
+                    UnityEngine.ColorUtility.TryParseHtmlString(ce.Value, out var c);
+                    colors[ce.Name] = c;
+                }
+                if (!bySrc.TryGetValue(themeSrc, out var list))
+                    bySrc[themeSrc] = list = new();
+                list.Add((theme.Name, theme.BaseName, colors));
+            }
+            foreach (var kv in bySrc)
+                ThemeStore.Instance.ReplaceFromSrc(kv.Key, kv.Value);
+
+            // Re-emit Changed for the current theme if any of the replaced themes
+            // are it. Open Screens are subscribed to Theme.Changed and will ReSolve.
+            if (Theme.Current != null)
+            {
+                foreach (var list in bySrc.Values)
+                {
+                    foreach (var (themeName, _, _) in list)
+                    {
+                        if (themeName == Theme.Current)
+                        {
+                            Theme.RaiseChangedIfCurrent(Theme.Current);
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
         // ResetForTests 末尾触发；let helpers (e.g. AddressableSpriteResolverHelper)
         // 释放 Addressables 句柄等外部资源。订阅者必须在 ResetForTests 自身把状态
         // 清空之后再跑，所以 Invoke 放在方法尾部。
@@ -726,6 +946,7 @@ namespace PromptUGUI.Application
         {
             Locale.ResetForTestsInternal();
             Orientation.ResetForTestsInternal();
+            Theme.ResetForTestsInternal();
             TranslationStore.Instance.UnloadAll();
             Modal.CancelAllForTeardown();
             Modals.LoadingOverlay.CancelAllForTeardown();

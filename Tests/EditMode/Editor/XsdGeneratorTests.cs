@@ -829,6 +829,28 @@ namespace PromptUGUI.Tests.Editor
             CollectionAssert.IsEmpty(errors,
                 "Screen reference= and reference.<variant>= must validate against generated XSD.");
         }
+
+        [Test]
+        public void Generated_Xsd_Contains_Theme_Element()
+        {
+            var xsd = XsdGenerator.Generate(new ControlRegistry());
+            StringAssert.Contains("name=\"Theme\"", xsd);
+        }
+
+        [Test]
+        public void Generated_Xsd_Contains_Color_Element()
+        {
+            var xsd = XsdGenerator.Generate(new ControlRegistry());
+            StringAssert.Contains("name=\"Color\"", xsd);
+        }
+
+        [Test]
+        public void Generated_Xsd_Theme_Has_Base_Attribute()
+        {
+            var xsd = XsdGenerator.Generate(new ControlRegistry());
+            // base is optional on <Theme>
+            StringAssert.Contains("name=\"base\"", xsd);
+        }
     }
 
     public class TestPrimaryButton : Control
