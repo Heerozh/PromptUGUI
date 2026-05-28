@@ -92,6 +92,49 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Scan_warns_on_PromptUGUI_doc_with_misnamed_xml_extension()
+        {
+            // A common foot-gun: Template library file is named ".xml" instead of
+            // ".ui.xml". Scanner filters on .ui.xml so the file is silently skipped
+            // and any <Icon name="{{x}}"/> Param flow it would have contributed is
+            // missing — Template invocations in other files then look unanalyzable.
+            // Detect on file-content sniff (XmlReader root element) and warn so the
+            // user can rename to .ui.xml.
+            var path = $"{TestRoot}/MisnamedTemplate.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><PromptUGUI version='1'>
+                    <Template name='TestSyncerMisnamed'>
+                      <Param name='icon'/>
+                      <Icon name='{{icon}}'/>
+                    </Template>
+                  </PromptUGUI>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("MisnamedTemplate\\.xml.*\\.ui\\.xml"));
+            SpriteAtlasSyncer.ScanXmlReferences();
+        }
+
+        [Test]
+        public void Scan_does_not_warn_on_non_PromptUGUI_xml_files()
+        {
+            // Other .xml files in the project (Unity .meta-adjacent configs, manifests,
+            // user data, etc.) must not trigger the misnamed-extension warning — the
+            // detector sniffs the root element, not just the filename.
+            var path = $"{TestRoot}/UnrelatedConfig.xml";
+            File.WriteAllText(path,
+                @"<?xml version='1.0'?><SomeOtherSchema>
+                    <value>not a PromptUGUI document</value>
+                  </SomeOtherSchema>");
+            AssetDatabase.ImportAsset(path);
+            _toCleanup.Add(path);
+
+            // LogAssert.NoUnexpectedReceived at TearDown enforces no stray warning.
+            SpriteAtlasSyncer.ScanXmlReferences();
+        }
+
+        [Test]
         public void Scan_follows_template_param_full_placeholder()
         {
             // <Icon name="{{iconName}}"/> — invocation arg is the full set:icon string.

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Xml;
 using PromptUGUI.Application;
 using PromptUGUI.IR;
 using PromptUGUI.Parser;
@@ -37,7 +38,16 @@ namespace PromptUGUI.Editor
             {
                 var guid = guids[i];
                 var path = AssetDatabase.GUIDToAssetPath(guid);
-                if (!path.EndsWith(".ui.xml", StringComparison.Ordinal)) continue;
+                if (!path.EndsWith(".ui.xml", StringComparison.Ordinal))
+                {
+                    // Common foot-gun: PromptUGUI doc named `.xml` (single suffix)
+                    // is silently skipped by the .ui.xml filter, so any Template /
+                    // <Icon> in it never makes it into Pass A / Pass B. Sniff root
+                    // element; if it's <PromptUGUI>, warn so the author renames.
+                    if (path.EndsWith(".xml", StringComparison.Ordinal))
+                        WarnIfMisnamedPromptUGUIDoc(path);
+                    continue;
+                }
                 if (showProgress &&
                     EditorUtility.DisplayCancelableProgressBar(
                         ProgressTitle,
@@ -110,6 +120,41 @@ namespace PromptUGUI.Editor
                 }
             }
             return refs;
+        }
+
+        // XmlReaderSettings shared across calls — Closing it after each use is fine,
+        // settings are immutable. Comments / whitespace / processing instructions are
+        // skipped so we land on the first real Element node and stop.
+        private static readonly XmlReaderSettings MisnamedSniffSettings = new()
+        {
+            IgnoreComments = true,
+            IgnoreProcessingInstructions = true,
+            IgnoreWhitespace = true,
+            DtdProcessing = DtdProcessing.Ignore,
+        };
+
+        private static void WarnIfMisnamedPromptUGUIDoc(string path)
+        {
+            try
+            {
+                using var reader = XmlReader.Create(path, MisnamedSniffSettings);
+                while (reader.Read())
+                {
+                    if (reader.NodeType != XmlNodeType.Element) continue;
+                    if (reader.Name == "PromptUGUI")
+                    {
+                        Debug.LogWarning(
+                            $"[SpriteSync] '{path}' looks like a PromptUGUI document but is " +
+                            $"named '.xml' (single suffix). Sprite sync only scans '.ui.xml' " +
+                            $"files, so any <Icon>/sprite= refs in this file (including any " +
+                            $"Template body that's invoked elsewhere) will be missed. " +
+                            $"Rename to '.ui.xml'.");
+                    }
+                    return; // first element decides; stop reading either way
+                }
+            }
+            catch (XmlException) { /* not valid XML — silently ignore */ }
+            catch (IOException) { /* unreadable — silently ignore */ }
         }
 
         private readonly struct TemplateFlow
