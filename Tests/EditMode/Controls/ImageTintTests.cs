@@ -110,5 +110,31 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var img = s.Get<Icon>("i").GameObject.GetComponent<UnityImage>();
             Assert.AreEqual("UI/LinearLightTint", img.material.shader.name);
         }
+
+        [Test]
+        public void Progress_TintLinear_AppliesToFillBgAndFrame()
+        {
+            var s = Open("<Progress id='p' value='0.5' color='#ffffff' " +
+                         "bgColor='#222222' frameColor='#888888' tint='linear'/>");
+            var p = s.Get<Progress>("p").GameObject.transform;
+            var fill  = p.Find("MaskWrapper/Fill").GetComponent<UnityImage>();
+            var bg    = p.Find("MaskWrapper/Bg").GetComponent<UnityImage>();
+            var frame = p.Find("Frame").GetComponent<UnityImage>();
+            Assert.AreEqual("UI/LinearLightTint", fill.material.shader.name,  "fill");
+            Assert.AreEqual("UI/LinearLightTint", bg.material.shader.name,    "bg");
+            Assert.AreEqual("UI/LinearLightTint", frame.material.shader.name, "frame");
+        }
+
+        [Test]
+        public void Progress_TintReachesInactiveBgLayer_AndSurvivesActivation()
+        {
+            // _bg is created (inactive) in OnAttached, so Tint reaches it even before
+            // BgColor activates the layer; activation must not lose the material.
+            var prog = Open("<Progress id='p' value='0.5'/>").Get<Progress>("p");
+            prog.Tint = "linear";          // _bg exists but is inactive here
+            prog.BgColor = "#222222";      // activates _bg; material must persist
+            var bg = prog.GameObject.transform.Find("MaskWrapper/Bg").GetComponent<UnityImage>();
+            Assert.AreEqual("UI/LinearLightTint", bg.material.shader.name);
+        }
     }
 }

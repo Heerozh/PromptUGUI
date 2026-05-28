@@ -56,6 +56,21 @@ namespace PromptUGUI.Controls
             }
         }
 
+        [UIAttr, Preserve]
+        public string Tint
+        {
+            set
+            {
+                // _fill / _bg / _frame are all created in OnAttached (bg & frame just
+                // start inactive), so they are non-null here regardless of attribute
+                // order, and nothing resets .material on activation — applying directly
+                // to all three is order-independent.
+                ImageTint.Apply(_fill, value);
+                ImageTint.Apply(_bg, value);
+                ImageTint.Apply(_frame, value);
+            }
+        }
+
         [UIAttr(IsSprite = true), Preserve]
         public string Fill
         {
