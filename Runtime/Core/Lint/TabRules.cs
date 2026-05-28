@@ -43,12 +43,26 @@ namespace PromptUGUI.Lint
 
             foreach (var c in n.Children)
             {
-                if (c.Tag != "Tab")
-                    yield return new LintIssue(
-                        TabBarChildCode, n.Tag, n.Id,
-                        $"<TabBar id='{n.Id}'>: expected <Tab> children; found <{c.Tag}>. " +
-                        "Layout will still render via LayoutGroup but tab semantics will not apply to non-Tab nodes.");
+                if (c.Tag == "Tab") continue;
+                // Template wrapper around a Tab is OK — TabBar.CollectStaticTabs walks
+                // into the wrapper via FindTabIn so sprite push / auto-select / events
+                // still work. Suppress the CHILD warning to match runtime behaviour.
+                if (ContainsTabDescendant(c)) continue;
+                yield return new LintIssue(
+                    TabBarChildCode, n.Tag, n.Id,
+                    $"<TabBar id='{n.Id}'>: expected <Tab> children; found <{c.Tag}>. " +
+                    "Layout will still render via LayoutGroup but tab semantics will not apply to non-Tab nodes.");
             }
+        }
+
+        private static bool ContainsTabDescendant(ElementNode node)
+        {
+            foreach (var c in node.Children)
+            {
+                if (c.Tag == "Tab") return true;
+                if (ContainsTabDescendant(c)) return true;
+            }
+            return false;
         }
     }
 }
