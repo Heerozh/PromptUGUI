@@ -96,7 +96,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name:
 | `<ScrollList>` | ScrollRect + Mask. Items pushed C#-side via `BindItems(...)`. `itemTemplate` references a `<Template name=...>` or registered Control class. **不写 size 时按方向给视口默认**：纵向滚动 160×200、横向滚动 200×160；实际项目通常显式写 size。                                                                                                                                                     | `itemTemplate` (required tag name), `direction` (`vertical` / `horizontal`), `spacing` (float), `padding`, `color`, `sprite`                                                                                                                                                                                                                       |
 | `<InputField>` | TMP_InputField；R3 `OnValueChanged` / `OnEndEdit` / `OnSubmit: string`。`<InputField>初始文本</InputField>` 短手设 `text=`。                                                                                                                                                                                                                                                                     | `text`, `placeholder`, `contentType` (`standard`/`autocorrected`/`integer-number`/`decimal-number`/`alphanumeric`/`name`/`email`/`password`/`pin`/`custom`), `lineType` (`single`/`multi-newline`/`multi-submit`), `characterLimit` (int), `readOnly` (bool), `color`, `sprite`, `font`, `tr` (placeholder)/`ctx`                                  |
 | `<Progress>` | 显示型线性进度条（只读，无 `OnValueChanged`）。一行配齐 frame / mask / bg / fill / mode / direction / value，零手糊图层。 | `value` (float `[0..1]`, default `0`), `fill` (sprite key), `fillColor` (`#RRGGBB[AA]` / 命名色), `bg` (sprite key), `bgColor` (`#RRGGBB[AA]` / 命名色;单独设也激活 bg 层), `frame` (sprite key), `frameColor` (`#RRGGBB[AA]` / 命名色;单独设也激活 frame 层), `mask` (sprite key), `mode` (`scale`\|`fill`, default `scale`), `direction` (`horizontal`\|`vertical`\|`reverse-horizontal`\|`reverse-vertical`, default `horizontal`) |
-| `<TabBar>`   | Tab container; private `ToggleGroup` (`allowSwitchOff=false`) + `Horizontal`/`VerticalLayoutGroup`. All child Tabs share `sprite` (normal bg) + `selectedSprite` (overlay shown when on, bound to `UnityToggle.graphic`). Supports `itemTemplate` + `BindItems` for dynamic content (same shape as `<ScrollList>`). Behaves as a layout group for children — Tabs can't declare `anchor` / `margin`. | `sprite` (normal bg, shared), `selectedSprite` (overlay sprite when selected), `direction` (`horizontal` / `vertical`, default `horizontal`), `spacing` (float), `padding` (`T,R,B,L`), `itemTemplate` (tag name, default `Tab`) |
+| `<TabBar>`   | Tab container; private `ToggleGroup` (`allowSwitchOff=false`) + `Horizontal`/`VerticalLayoutGroup`. All child Tabs share `sprite` (normal bg) + `selectedSprite` (overlay shown when on, bound to `UnityToggle.graphic`). Children may be direct `<Tab>` or Template wrappers containing a `<Tab>` (recursive collect). Supports `itemTemplate` + `BindItems` for dynamic content (same shape as `<ScrollList>`). Behaves as a layout group for children — Tabs can't declare `anchor` / `margin`. | `sprite` (normal bg, shared), `selectedSprite` (overlay sprite when selected), `direction` (`horizontal` / `vertical`, default `horizontal`), `spacing` (float), `padding` (`T,R,B,L`), `itemTemplate` (tag name, default `Tab`) |
 | `<Tab>`      | Child of `<TabBar>`; uGUI `Toggle` + centered TMP label + optional left-side icon + optional selected overlay. Mutex via TabBar's `ToggleGroup` (automatic). `bind="frame_id"` declaratively shows/hides a sibling `<Frame>` on selection (lazy lookup, cached). No `bind=` → only `OnSelected`. No nested XML children allowed. | `text`, `isOn` (bool, default `false`), `bind` (id of sibling `<Frame>` to show/hide), `font`, `fontSize` (int), `icon` (sprite key, left-aligned 24×24 with 4px gap) |
 
 `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` / `<TabBar>` are reference implementations. For project-specific differentiation (pixel border, press feedback, custom popup chrome) subclass and override `OnAttached` — see scripting-promptugui-csharp.
@@ -633,12 +633,42 @@ Radial fill（冷却环）不在 `<Progress>` 范围；以后用单独的 `<Cool
 
 Tab 是 TabBar 的 layout group child —— 不能写 `anchor=` / `margin=`（`HorizontalLayoutGroup` 接管排布；TabBar 在 `selfIsLayoutGroup` 名单里）。
 
+### Custom Tab layout via Template
+
+For richer cells (big icon + multi-line text, Explorer-style file tiles, etc.), wrap a `<Tab>` in a Template and invoke it as TabBar's child:
+
+```xml
+<Template name="FileTab">
+  <Param name="text"/>
+  <Param name="icon"/>
+  <Param name="bind"/>
+  <Param name="isOn" default="false"/>
+  <Frame width="80" height="96">
+    <Tab id="tab" isOn="{{isOn}}" bind="{{bind}}"/>
+    <Icon id="icon" sprite="ui:icon_{{icon}}"
+          anchor="top-center" width="48" height="48"
+          margin="8,0,0,0"/>
+    <Text id="name" anchor="top-stretch" margin="60,4,0,4"
+          fontSize="12" align="center" raycastTarget="false">{{text}}</Text>
+  </Frame>
+</Template>
+
+<TabBar id="files" sprite="ui:cell_normal" selectedSprite="ui:cell_selected">
+  <FileTab text="111.png" icon="png" isOn="true" bind="panel1"/>
+  <FileTab text="222.jpg" icon="jpg" bind="panel2"/>
+</TabBar>
+```
+
+TabBar walks Template wrappers recursively to find the inner `<Tab>`; sprite push, auto-select, and `OnSelectionChanged` all work as if the wrappers were direct Tab children. Lint rules `PUI-TABBAR-CHILD` and `PUI-TAB-PARENT` are suppressed for Template-instance roots. Use `<Icon>` (hardcoded `raycastTarget=false`) for decorative imagery and `raycastTarget="false"` on `<Text>` so clicks pass through to the underlying Tab.
+
+For dynamic data, use `BindItems` with `itemTemplate="FileTab"` (the same Template works for both patterns).
+
 ### Lint 规则
 
 | Code | 触发条件 | 级别 |
 |---|---|---|
-| `PUI-TAB-PARENT` | `<Tab>` 不在 `<TabBar>` 直接父节点下 | warning |
-| `PUI-TABBAR-CHILD` | `<TabBar>` 的直接子节点不是 `<Tab>` | warning |
+| `PUI-TAB-PARENT` | `<Tab>` 不在 `<TabBar>` 直接父节点下（Template-instance root 内的 Tab 已豁免） | warning |
+| `PUI-TABBAR-CHILD` | `<TabBar>` 的直接子节点不是 `<Tab>` 且子树里也没有 `<Tab>`（Template wrapper 已豁免） | warning |
 | `PUI-TAB-CHILDREN` | `<Tab>` 包含嵌套 XML children（auto label / icon 由属性驱动） | error |
 | `PUI-TABBAR-DIRECTION` | `direction` 不是 `horizontal` / `vertical` | error |
 | `PUI-TAB-BIND-EMPTY` | `bind=""`（空字符串） | warning |
