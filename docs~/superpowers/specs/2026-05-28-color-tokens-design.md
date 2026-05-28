@@ -3,16 +3,16 @@
 **日期**: 2026-05-28
 **状态**: 设计阶段（待 review，未进入实施）
 **作用域**:
-1. 新增 `Runtime/Application/ThemeStore.cs` + `Runtime/Application/ColorResolver.cs`
-2. 新增 `Runtime/Core/IR/ThemeBlock.cs`（POCO）
+1. 新增 `Runtime/Application/ThemeStore.cs`（注册中心 + `LookupChained` + cycle 校验）
+2. 新增 `Runtime/Core/IR/ThemeBlock.cs` + `ColorEntry.cs`（POCO）
 3. `Runtime/Core/Parser/UIDocumentParser.cs` 识别 `<Theme>` / `<Color>`
-4. `Runtime/Application/DocumentLoader.cs` 合并 theme 注册（与 commons pool / Templates 同通道）
-5. `Runtime/Application/UI.cs` 暴露 `UI.Theme.*` API + `ResetForTests` hook
+4. `Runtime/Application/DocumentLoader.cs` themes 进 `ThemeStore`（与 commons pool / Templates 同通道）
+5. `Runtime/Application/UI.cs` 暴露 `UI.Theme.*`（含 `Resolve(string)->Color`）+ `ResetForTests` hook
 6. `Runtime/Application/Screen.cs` 订阅 `Theme.Changed`，触发 `ReSolve`
-7. `Runtime/Registry/UIAttr.cs` 新增 `IsColor`，`Runtime/Registry/ControlMeta.cs` 暴露 `IsColorAttribute`
-8. `Runtime/Application/ControlAttributeApplier.cs` 新增 color 拦截分支
-9. 控件改造：`Image.cs` / `Text.cs` / `Btn.cs` / `Animation.cs` color setter 签名 + `IsColor` 标记
-10. `Editor/XsdGenerator.cs` 生成 `<Theme>` / `<Color>` schema
+7. `Runtime/Registry/UIAttrAttribute.cs` 新增 `IsColor` flag；`Runtime/Registry/ControlMeta.cs` 暴露 `ColorAttrs` 集合（与 `SpriteAttrs` 同模式）
+8. 控件改造：`Image.cs` / `Text.cs` / `Btn.cs` setter 改调 `UI.Theme.Resolve`；`AnimationSpec.cs` `ParseColorFromTo` 改走 `UI.Theme.Resolve`
+9. `Editor/XsdGenerator.cs` 生成 `<Theme>` / `<Color>` schema
+10. `Runtime/Core/Lint/ColorLiteralRules.cs` —「现场非法 hex 字面」纯静态规则
 11. SKILL: `authoring-promptugui-xml/SKILL.md` + `scripting-promptugui-csharp/SKILL.md`
 12. 主 spec `2026-05-07-promptugui-description-language-design.md` §6 / §8 追加 token 解析规则
 
@@ -42,7 +42,8 @@
 |---|---|---|---|---|---|
 | i18n | `TranslationStore` | `UI.Locale.LoadPoAsync` | `UI.Locale.Set` | `ControlAttributeApplier`（`text` attr） | `Locale.Changed` → `Screen.ReSolve` |
 | Variant | `VariantStore` | `<Variant when=...>` XML 块 | `UI.Variants.Set` | `VariantResolver.ResolveAttribute` | `VariantStore.Changed` → `Screen.ReSolve` |
-| **Theme** | **`ThemeStore`** | **`<Theme name="...">` XML 块**（随 `LoadCommonLibraryAsync` 或 `<Import>` 进入） | **`UI.Theme.Set`** | **`ControlAttributeApplier`（`IsColor=true` attr）** | **`Theme.Changed` → `Screen.ReSolve`** |
+| Sprite | （直接转字符串） | （无独立注册） | （无切换；Addressables 解析器换） | 控件 `[UIAttr(IsSprite=true)]` setter via `UI.ResolveSprite` | （无回流） |
+| **Theme** | **`ThemeStore`** | **`<Theme name="...">` XML 块**（随 `LoadCommonLibraryAsync` 或 `<Import>` 进入） | **`UI.Theme.Set`** | **控件 `[UIAttr(IsColor=true)]` setter via `UI.Theme.Resolve`** | **`Theme.Changed` → `Screen.ReSolve`** |
 
 ---
 
@@ -59,8 +60,8 @@
 | CT-D7 | 字面值兼容 | token 没命中 → fall back `ColorUtility.TryParseHtmlString` | 老 `.ui.xml` 不需要改；混用 token 与 hex 自由 |
 | CT-D8 | shadow 顺序 | theme token > hex / 命名色字面 | token 是显式声明，字面是 ad-hoc；token 优先符合"声明覆盖默认"直觉。CSS 命名色被影子在游戏 UI 几乎无影响 |
 | CT-D9 | 解析失败行为 | 抛 `ParseException`，带节点上下文 | 顺带修 §8 描述的"静默 no-op" bug；Variant override 错值也立刻报错 |
-| CT-D10 | setter 签名 | `IsColor=true` 的 `[UIAttr]` setter 改收 `Color` 结构体（不再是 `string`） | 解析集中到 applier，控件 setter 只剩"赋值"；三处重复代码合一 |
-| CT-D11 | `Animation.char-color` | 不走 `IsColor=true`；`AnimationSpec.SetCharColor` 内部对 `from:to` 两段各自调 `ColorResolver.Resolve` | `char-color="primary:secondary"` 不是单值，applier 不该参与；但失败诊断信号一致 |
+| CT-D10 | setter 签名 / 解析点 | setter 保持 `string`；内部直接 `UI.Theme.Resolve(value)`；`IsColor=true` flag 用于 lint / 工具静态发现 color attr | 与 `IsSprite` / `UI.ResolveSprite` 既有惯例一致（`Image.cs:35` 等），applier 不加新分支；错误诊断走 `meta.Apply` 现有的 `TargetInvocationException` 解包 + `ApplyOne` 节点上下文包装 |
+| CT-D11 | `Animation.char-color` | 不挂 `IsColor=true`（值是 `from:to` 二元）；`AnimationSpec.SetCharColor` 内部对 `from:to` 两段各自调 `UI.Theme.Resolve` | `char-color="primary:secondary"` 不是单值；但单段解析失败诊断信号与 `Image.Color` 一致 |
 | CT-D12 | 多主题项目初始 `Current` | 多主题 → `Current == null`（首次 `Set` 前 color attr 走字面）；单主题 → 自动设为该唯一主题 | 多主题项目必须显式选；单主题项目零配置可用 |
 | CT-D13 | `Theme.Changed` 触发条件 | `Set(name)` 切换 **以及** hot reload 替换了当前主题表里任一 token 值 | 改 XML 即时生效，不需要手动切回切去 |
 | CT-D14 | token 命名空间 | flat name；`name` 字符集 `[a-z0-9-]`（kebab-case） | 简单；后续要分组（`button.primary`）再开 `<Group>` 包装，本期 YAGNI |
@@ -226,71 +227,64 @@ public sealed class UIAttrAttribute : Attribute
 
 `ControlMeta` 暴露 `IsColorAttribute(string attrName) -> bool`，applier 拦截分支用。
 
-### 5.2 setter 改签名（CT-D10）
+### 5.2 setter 改造（CT-D10）
+
+setter 签名保持 `string`（与 `IsSprite` 既有惯例一致 —— 见 `Image.cs:35-39` 的 `Sprite` 走 `UI.ResolveSprite(value)`）；只是把"过 `TryParseHtmlString` 静默落地"换成"过 `UI.Theme.Resolve(value)` 失败就抛"：
 
 ```csharp
 // Image.cs
 [UIAttr(IsColor = true), Preserve]
-public Color Color { set => _img.color = value; }
+public string Color { set => _img.color = UI.Theme.Resolve(value); }
 
 // Text.cs
 [UIAttr(IsColor = true), Preserve]
-public Color Color { set => _tmp.color = value; }
+public string Color { set => _tmp.color = UI.Theme.Resolve(value); }
 
 // Btn.cs
 [UIAttr(IsColor = true), Preserve]
-public Color Color { set => _bg.color = value; }
+public string Color { set => _bg.color = UI.Theme.Resolve(value); }
 ```
 
-`ControlMeta` 反射阶段识别 `IsColor=true` 的 prop，记录在元数据；`Apply(...)` 时按 `Color` 类型反射 setter（不走 string 通路）。
-
-### 5.3 `ControlAttributeApplier` 拦截
-
-在 `ControlAttributeApplier.cs` 现有 `text` Tr 分支（line 54-60）旁边平行加 color 分支。`ColorResolver.Resolve(string)` 是无状态纯函数：
+`UI.Theme.Resolve(string) -> Color`：
 
 ```csharp
-public static Color Resolve(string value)
+public static class Theme
 {
-    if (string.IsNullOrEmpty(value))
-        throw new Exception("empty color value");
-
-    if (UI.Theme.Current != null)
+    public static Color Resolve(string value)
     {
-        var hit = ThemeStore.Instance.LookupChained(UI.Theme.Current, value);
-        if (hit.HasValue) return hit.Value;
+        if (string.IsNullOrEmpty(value))
+            throw new Exception("empty color value");
+
+        if (Current != null)
+        {
+            var hit = ThemeStore.Instance.LookupChained(Current, value);
+            if (hit.HasValue) return hit.Value;
+        }
+        if (ColorUtility.TryParseHtmlString(value, out var c))
+            return c;
+        throw new Exception(
+            $"unknown color token \"{value}\" (no entry in theme " +
+            $"'{Current ?? "(none)"}', not a valid hex/named literal)");
     }
-    if (ColorUtility.TryParseHtmlString(value, out var c))
-        return c;
-    throw new Exception(
-        $"unknown color token (no entry in theme " +
-        $"'{UI.Theme.Current ?? "(none)"}', not a valid hex/named literal)");
 }
 ```
 
-拦截点本身负责把节点上下文包上 —— 模仿 `ApplyOne` 现有 `try/catch` 模板（line 105-111），但内联在拦截分支里，因为 color 路径不走 `meta.Apply(string)`：
+`IsColor=true` flag 由 `ControlMeta` 在反射阶段记录到 `ColorAttrs` 集合（与 `SpriteAttrs` 同模式），供 lint / 静态工具发现 color attr 集合用 —— **runtime 解析路径不读这个 flag**，setter 直接调 `UI.Theme.Resolve`。
 
-```csharp
-if (entry.Meta.IsColorAttribute(attrName))
-{
-    Color color;
-    try { color = ColorResolver.Resolve(v); }
-    catch (Exception ex) when (!(ex is ParseException))
-    {
-        throw new ParseException(
-            $"{FormatNodeContext(node)} attribute {attrName}=\"{v}\": {ex.Message}");
-    }
-    entry.Meta.ApplyColor(control, attrName, color);
-    continue;
-}
+### 5.3 错误诊断如何串起来
+
+`UI.Theme.Resolve` 抛 `Exception` → 反射 setter 包成 `TargetInvocationException` → `ControlMeta.Apply` 现有解包逻辑（`ControlMeta.cs:33-38`）剥一层 → `ControlAttributeApplier.ApplyOne` 现有 `try/catch`（`ControlAttributeApplier.cs:105-111`）把节点上下文包上：
+
+```
+<Image id='avatar'> attribute color="primaru": unknown color token "primaru"
+(no entry in theme 'light', not a valid hex/named literal)
 ```
 
-`ApplyColor` 是 `ControlMeta` 上跟 `Apply(string)` 平行的入口，直接按 `Color` 类型反射 setter。
-
-最终作者看到的错误：`<Image id='avatar'> attribute color="primaru": unknown color token (no entry in theme 'light', not a valid hex/named literal)`。
+不需要在 applier 加新分支；走完全跟 `IsSprite` / `Image.Sprite` 一致的既有通路。这是相对早先 spec 草案的精简（早先打算让 applier 拦截 color attr 单独路径；与项目惯例不符，且 `ApplyOne` 已经够用）。
 
 ### 5.4 `Animation.char-color` 特殊处理（CT-D11）
 
-`Animation.CharColorAttr` setter 不加 `IsColor=true`（它的 string 是 `from:to` 两段，applier 不该把它当单值）：
+`Animation.CharColorAttr` setter 不挂 `IsColor=true`（它的 string 是 `from:to` 二元，不能整段过 `UI.Theme.Resolve`）。改 `AnimationSpec.SetCharColor` 内部对两段分别 resolve：
 
 ```csharp
 // AnimationSpec.cs
@@ -304,14 +298,13 @@ private static void ParseColorFromTo(string v, out Color from, out Color to)
 {
     var parts = v.Split(':');
     if (parts.Length != 2)
-        throw new ParseException($"char-color=\"{v}\": expected 'from:to'");
-    // 每段单独走 ColorResolver
-    from = ColorResolver.Resolve(parts[0]);
-    to   = ColorResolver.Resolve(parts[1]);
+        throw new Exception($"char-color=\"{v}\": expected 'from:to'");
+    from = UI.Theme.Resolve(parts[0]);
+    to   = UI.Theme.Resolve(parts[1]);
 }
 ```
 
-`char-color="primary:secondary"` 可以工作；`char-color="primary:#ff0000"` 可以混用；任意一段失败 Resolver 抛 `Exception` → `ApplyOne` 现有 try/catch（line 105-111）包成带 `<Animation>` 节点上下文的 `ParseException`。这条路径不需要拦截分支自己包，因为 `Animation.CharColorAttr` setter 是常规 `[UIAttr]`（不带 `IsColor`），走的就是 `ApplyOne` 主路径。
+`char-color="primary:secondary"` 可以工作；`char-color="primary:#ff0000"` 可以混用；任意一段失败 → `UI.Theme.Resolve` 抛 → setter 抛 → `ApplyOne` 既有 try/catch 包成 `<Animation> attribute char-color="primary:#bagval": ...` 带节点上下文的 `ParseException`。
 
 主题切换不重跑 `Animation` 关键帧（动画已经在播了，重算 from/to 的语义不清楚）；下一次 `<Animation>` Apply 时按新 token 值。Spec 显式声明这个边界，避免后续争议。
 
@@ -350,9 +343,9 @@ public string Color {
 
 随 §5 改造一起：
 
-- 解析挪到 applier（`ColorResolver.Resolve`），失败直接 throw。
-- setter 签名改 `Color`，三处 `if (TryParse...)` 重复守门代码全删。
-- `ApplyOne` 现成 `try/catch` 把异常包成 `<Image id='bg'> attribute color="#bagval": unknown color token ...` 带节点位置的 `ParseException`。
+- 三处 setter 改为 `set => _x.color = UI.Theme.Resolve(value);`；`if (TryParse) ...` 静默守门全部删掉。
+- `UI.Theme.Resolve` 解析失败必抛（token 没命中 + 字面也无效 → `Exception`）。
+- `meta.Apply` 反射解包 + `ApplyOne` 现有 `try/catch` 把异常包成 `<Image id='bg'> attribute color="#bagval": unknown color token "#bagval" ...` 带节点位置的 `ParseException`。
 
 ### 6.3 破坏性变更声明
 
@@ -447,18 +440,16 @@ CT-D17：`base` 引用的校验延后到注册阶段最后做（commons 池所�
 
 | 类型 | 文件 |
 |---|---|
-| 新增 | `Runtime/Application/ThemeStore.cs` |
-| 新增 | `Runtime/Application/ColorResolver.cs` |
+| 新增 | `Runtime/Application/ThemeStore.cs`（含 `LookupChained`、cycle 校验） |
 | 新增 | `Runtime/Core/IR/ThemeBlock.cs`、`Runtime/Core/IR/ColorEntry.cs`（POCO） |
 | 改 | `Runtime/Core/Parser/UIDocumentParser.cs` — 识别 `<Theme>` / `<Color>` |
-| 改 | `Runtime/Application/DocumentLoader.cs` — `_themeRegistry` 合并、base 校验 |
-| 改 | `Runtime/Application/UI.cs` — `UI.Theme` 子类、`ResetForTests` |
+| 改 | `Runtime/Application/DocumentLoader.cs` — themes 进 `ThemeStore`、跨文档冲突、base 校验 |
+| 改 | `Runtime/Application/UI.cs` — `UI.Theme` 子类（`Current` / `Available` / `Set` / `Lookup` / `Resolve` / `Changed` / `ResetForTestsInternal`） |
 | 改 | `Runtime/Application/Screen.cs` — 订阅 `Theme.Changed` |
-| 改 | `Runtime/Application/ControlAttributeApplier.cs` — IsColor 分支 |
-| 改 | `Runtime/Registry/UIAttr.cs` — `IsColor` flag |
-| 改 | `Runtime/Registry/ControlMeta.cs` — `IsColorAttribute` 暴露、`ApplyColor` 路径 |
-| 改 | `Runtime/Controls/Image.cs` / `Text.cs` / `Btn.cs` — setter 签名 + 标记 |
-| 改 | `Runtime/Controls/Internal/AnimationSpec.cs` — `ParseColorFromTo` 改走 `ColorResolver` |
+| 改 | `Runtime/Registry/UIAttrAttribute.cs` — `IsColor` flag |
+| 改 | `Runtime/Registry/ControlMeta.cs` — `ColorAttrs` 集合（与 `SpriteAttrs` 同模式） |
+| 改 | `Runtime/Controls/Image.cs` / `Text.cs` / `Btn.cs` — `[UIAttr(IsColor=true)]` + setter 改调 `UI.Theme.Resolve` |
+| 改 | `Runtime/Controls/Internal/AnimationSpec.cs` — `ParseColorFromTo` 改走 `UI.Theme.Resolve` |
 | 改 | `Editor/XsdGenerator.cs` — 输出 `<Theme>` / `<Color>` XSD |
 | 改 | `Editor/UIAssetPostprocessor.cs` — 主题块 hot reload 路径 |
 | 新增 lint | `Runtime/Core/Lint/ColorLiteralRules.cs` —「现场非法 hex 字面」纯静态规则 |
