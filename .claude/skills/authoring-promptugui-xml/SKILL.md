@@ -681,7 +681,6 @@ For dynamic data, use `BindItems` with `itemTemplate="FileTab"` (the same Templa
 | `PUI-TABBAR-CHILD`     | `<TabBar>` 的直接子节点不是 `<Tab>` 且子树里也没有 `<Tab>`（Template wrapper 已豁免） | warning |
 | `PUI-TAB-CHILDREN`     | `<Tab>` 包含嵌套 XML children（auto label / icon 由属性驱动）                         | error   |
 | `PUI-TABBAR-DIRECTION` | `direction` 不是 `horizontal` / `vertical`                                            | error   |
-| `PUI-TAB-BIND-EMPTY`   | `bind=""`（空字符串）                                                                 | warning |
 
 ## Common mistakes (XML)
 

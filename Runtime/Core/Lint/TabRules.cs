@@ -15,7 +15,6 @@ namespace PromptUGUI.Lint
         public const string TabBarChildCode = "PUI-TABBAR-CHILD";
         public const string TabChildrenCode = "PUI-TAB-CHILDREN";
         public const string DirectionCode = "PUI-TABBAR-DIRECTION";
-        public const string BindEmptyCode = "PUI-TAB-BIND-EMPTY";
 
         public static IEnumerable<LintIssue> CheckTab(ElementNode n)
         {
@@ -24,12 +23,6 @@ namespace PromptUGUI.Lint
                     TabChildrenCode, n.Tag, n.Id,
                     $"<Tab id='{n.Id}'>: Tab is a leaf control; nested children are not allowed. " +
                     "Use text / icon attributes to express content.");
-
-            if (n.Attributes.TryGetValue("bind", out var bindVal) && bindVal == "")
-                yield return new LintIssue(
-                    BindEmptyCode, n.Tag, n.Id,
-                    $"<Tab id='{n.Id}'>: bind='' (empty string) is meaningless. " +
-                    "Remove the attribute or set a Frame id.");
         }
 
         public static IEnumerable<LintIssue> CheckTabBar(ElementNode n)

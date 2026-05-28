@@ -25,15 +25,20 @@ namespace PromptUGUI.Tests.EditMode.Lint
         }
 
         [Test]
-        public void Tab_Bind_Empty_String_Triggers_TabBindEmpty()
+        public void Tab_Bind_Empty_String_Is_Treated_As_Absent()
         {
+            // Template substitution can yield bind="" when the caller omits the param;
+            // that must be silent (same as omitting bind=) so authors don't need to
+            // duplicate templates just to dodge a warning.
             var root = Parse(@"<?xml version='1.0'?>
 <PromptUGUI version='1'><Screen name='S'>
   <TabBar><Tab bind=''/></TabBar>
 </Screen></PromptUGUI>");
             var tab = root.Children[0].Children[0];
             var issues = TabRules.CheckTab(tab).ToList();
-            Assert.That(issues.Any(i => i.Code == TabRules.BindEmptyCode));
+            Assert.IsFalse(issues.Any(),
+                "bind='' must not produce any lint issue; got: "
+                + string.Join(", ", issues.Select(i => i.Code)));
         }
 
         [Test]

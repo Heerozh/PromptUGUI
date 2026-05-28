@@ -112,7 +112,10 @@ namespace PromptUGUI.Controls
         }
 
         [UIAttr, Preserve]
-        public string Bind { set => _bindId = value; }
+        public string Bind
+        {
+            set => _bindId = string.IsNullOrWhiteSpace(value) ? null : value;
+        }
 
         [UIAttr, Preserve]
         public string Text
