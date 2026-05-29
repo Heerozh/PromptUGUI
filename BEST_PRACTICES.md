@@ -1,10 +1,10 @@
-# PromptUGUI 最佳实践
+# PromptUGUI Best Practices
 
+[English](BEST_PRACTICES.md) | [中文](BEST_PRACTICES.zh.md)
 
+## 1. Initialization Best Practices
 
-## 1. 初始化最佳实践
-
-用 `[RuntimeInitializeOnLoadMethod(BeforeSceneLoad)]` 把解析器、缩放、主题、语言一次性配好：
+Use `[RuntimeInitializeOnLoadMethod(BeforeSceneLoad)]` to configure the resolver, scaling, theme, and locale all at once:
 
 ```csharp
 using PromptUGUI.Application;
@@ -15,39 +15,39 @@ public static class UIBoot
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void Init()
     {
-        // ① 解析器：.ui.xml / .po / SpriteSet 全部走 Addressables
+        // ① Resolver: route .ui.xml / .po / SpriteSet all through Addressables
         UI.UseAddressableResolver();
         UI.Locale.UseAddressableResolver();
         _ = SpriteResolverHelpers.UseAddressableSpriteSetResolver(
             new[] { "SpriteSets-Common", $"SpriteSets-{UserConfig.Language}" });
 
-        // ② 如果是像素游戏：整数倍像素对齐缩放 + 缩放下限
+        // ② For a pixel-art game: integer-multiple pixel-aligned scaling + a scale floor
         UI.DefaultScaleMode = ScaleMode.Pixel;
         UI.MinPixelScale = 1.0f;
 
-        // ③ 载入全局模板/主题库（含 <Theme>），并设主题
+        // ③ Load the global template/theme library (includes <Theme>), then set the theme
         _ = UI.LoadCommonLibraryAsync("UI/Templates/DefaultTheme.ui.xml");
         UI.Theme.Set("dark");
 
-        // ④ 用项目自定义对话框覆盖内置 MessageBox
+        // ④ Override the built-in MessageBox with the project's custom dialog
         MessageBox.XmlSrc = "UI/Modals/MessageBox.ui.xml";
 
-        // ⑤ 应用语言：同步返回，.po 后台异步加载
+        // ⑤ Apply the locale: returns synchronously, .po loads in the background
         UI.Locale.Set(UserConfig.Language);
     }
 }
 ```
-无论单机还是在线游戏，AA 都是推荐路线，方便加载和日后维护。
+Whether single-player or online, Addressables (AA) is the recommended route — it keeps loading and future maintenance easy.
 
-`Theme.Set` / `Locale.Set` / SpriteSet resolver 都是 **order-independent**：可以 fire-and-forget（`_ =`）启动加载、紧接着 `Set`，等资源加载完成会**自动重刷所有已打开的界面**。所以 boot 里无需 `await`，也不怕顺序。
+`Theme.Set` / `Locale.Set` / the SpriteSet resolver are all **order-independent**: you can kick off loading fire-and-forget (`_ =`) and call `Set` right after; once the assets finish loading, **every open screen is refreshed automatically**. So there's no need to `await` in boot, and order doesn't matter.
 
-**可选（`ScaleMode.Pixel`像素艺术模式）**：让 Canvas 按整数倍缩放，sprite 永远整数像素对齐。也可在XML `<Screen>` 标签里，单独写 `scale-mode="auto"`或`"pixel"`。
+**Optional (`ScaleMode.Pixel` pixel-art mode)**: scales the Canvas by integer multiples so sprites are always aligned to whole pixels. You can also set this per-screen in XML on the `<Screen>` tag with `scale-mode="auto"` or `"pixel"`.
 
 ---
 
-## 2. 加载、打开界面 + C# 接线
+## 2. Loading & Opening Screens + C# Wiring
 
-**界面用 `AssetReferenceT<TextAsset>` 槽**：Inspector 拖资源，不手敲字符串 key。
+**Use an `AssetReferenceT<TextAsset>` slot for screens**: drag the asset in the Inspector instead of hand-typing a string key.
 
 ```csharp
 using PromptUGUI.Application;
@@ -56,14 +56,14 @@ using R3;
 
 public class MainMenu : MonoBehaviour
 {
-    [SerializeField] private AssetReferenceT<TextAsset> _xml;   // Inspector 拖入 .ui.xml
+    [SerializeField] private AssetReferenceT<TextAsset> _xml;   // drag the .ui.xml into the Inspector
 
     private async void Start()
     {
-        await UI.LoadDocumentAsync(_xml);     // 解析 + 展开模板 + 注册；Editor 下自动热重载
-        var screen = UI.Open("MainMenu");     // 实例化 GameObject，返回 IScreen
+        await UI.LoadDocumentAsync(_xml);     // parse + expand templates + register; hot-reloads automatically in the Editor
+        var screen = UI.Open("MainMenu");     // instantiate the GameObject, returns IScreen
 
-        // 接线：每个订阅都要 .AddTo(screen)
+        // Wiring: every subscription must .AddTo(screen)
         screen.Get<Btn>("play").OnClick
               .Subscribe(_ => Game.Start())
               .AddTo(screen);
@@ -75,9 +75,9 @@ public class MainMenu : MonoBehaviour
 }
 ```
 
-**`.AddTo(screen)` 是硬规矩。** R3 订阅必须绑到 Screen 生命周期。漏了 → Close 后订阅仍存活、持有已销毁的 GameObject，下次 Open 产生幽灵回调。
+**`.AddTo(screen)` is a hard rule.** R3 subscriptions must be bound to the Screen lifecycle. Miss it → the subscription outlives Close, holds onto a destroyed GameObject, and fires ghost callbacks the next time you Open.
 
-**动态列表用 `BindItems` / `BindOptions`**（数据驱动，不要手动 new 子节点）：
+**Use `BindItems` / `BindOptions` for dynamic lists** (data-driven; don't hand-`new` child nodes):
 
 ```csharp
 screen.Get<Dropdown>("quality")
@@ -92,9 +92,9 @@ screen.Get<ScrollList>("inv").BindItems(player.Inventory, (slot, item) =>
 
 ---
 
-## 3. 主题颜色
+## 3. Theme Colors
 
-**颜色走主题 token，不要硬编码十六进制。** 在 `<Theme>` 里定义命名色，任意 `color=` 属性按名引用；切主题时所有界面自动重新着色。
+**Colors go through theme tokens — don't hard-code hex.** Define named colors in `<Theme>`; any `color=` attribute references them by name. When you switch themes, every screen re-colors automatically.
 
 ```xml
 <PromptUGUI version="1">
@@ -106,116 +106,116 @@ screen.Get<ScrollList>("inv").BindItems(player.Inventory, (slot, item) =>
   <Theme name="dark" base="light">
     <Color name="primary" value="#cc6600"/>
     <Color name="bg"      value="#10141c"/>
-    <!-- on-primary 未重定义 → 沿 base="light" 继承 -->
+    <!-- on-primary not redefined → inherited from base="light" -->
   </Theme>
 </PromptUGUI>
 ```
 
 ```xml
 <Image color="bg"/>
-<Text  color="on-primary">开始</Text>
-<Btn   color="primary">购买</Btn>
+<Text  color="on-primary">Start</Text>
+<Btn   color="primary">Buy</Btn>
 ```
 
 ```csharp
-UI.Theme.Set("dark");   // 运行时切换，已打开界面自动重刷
+UI.Theme.Set("dark");   // switch at runtime; open screens refresh automatically
 ```
 
-- 主题文件通过 `UI.LoadCommonLibraryAsync(...)`（§1）或 `<Import src="themes/main"/>` 注册。
-- **token 优先于字面量**：注册了名为 `red` 的 token，`color="red"` 就解析成它。
-- 单主题项目可省略 `Theme.Set`，加载后自动选中那一个。
+- Register the theme file via `UI.LoadCommonLibraryAsync(...)` (§1) or `<Import src="themes/main"/>`.
+- **Tokens take priority over literals**: once a token named `red` is registered, `color="red"` resolves to it.
+- A single-theme project can skip `Theme.Set` — the one theme is selected automatically after loading.
 
 ---
 
-## 4. SpriteSet（图标 / 图集）
+## 4. SpriteSet (Icons / Atlases)
 
-**共享图标和 UI 切片建 SpriteSet**（`Create → PromptUGUI → Sprite Set`，设 `setName` + 源目录），XML 里按名引用，打包时**只含被 XML 引用到的图**（package-time pruning）：
+**Build a SpriteSet for shared icons and UI slices** (`Create → PromptUGUI → Sprite Set`, set `setName` + a source directory), reference them by name in XML, and **only the sprites actually referenced by XML are shipped** (package-time pruning):
 
 ```xml
 <Icon name="Solar16Bold:Essentional, UI/Crown" color="primary" size="16x16"/>
 <Image sprite="UI:Button-Small"/>
 ```
 
-- `<Icon>` 只能用 `setName:icon-name` 格式
-- `<Image sprite=>` 等控件：
-    - **`setName:icon-name`格式** 走SpriteSet图集
-    - **`ui/dialog` 格式** 走 `Resources.Load`（适合一次性 / 原型）。
-- 改完跑 `Tools → PromptUGUI → Sprite → Sync Atlases` 打包引用到的图。
+- `<Icon>` accepts only the `setName:icon-name` format.
+- Controls like `<Image sprite=>`:
+    - **`setName:icon-name` format** → goes through the SpriteSet atlas.
+    - **`ui/dialog` format** → goes through `Resources.Load` (good for one-offs / prototyping).
+- After changes, run `Tools → PromptUGUI → Sprite → Sync Atlases` to pack the referenced sprites.
 
-**AA：一个 Label 收编整组 SpriteSet。** 给 SpriteSet 资源打 Addressables label，Addressables 自动拉取依赖的 SpriteAtlas：
+**AA: one label gathers a whole group of SpriteSets.** Tag the SpriteSet assets with an Addressables label, and Addressables automatically pulls in the SpriteAtlases they depend on:
 
 ```csharp
-// 多 label 默认 Union（并集）：通用图集 + 当前语言图集
+// Multiple labels default to Union: the common atlas + the current-language atlas
 await SpriteResolverHelpers.UseAddressableSpriteSetResolver(
     new[] { "SpriteSets-Common", $"SpriteSets-{lang}" });
 ```
 
-> 一个 label 可对应多个 SpriteSet。可 `await`（无空图闪烁），也可 fire-and-forget（加载中 `<Icon>` 静默留空、下完自动重刷）。
+> One label can map to multiple SpriteSets. You can `await` it (no empty-sprite flicker) or fire-and-forget (loading `<Icon>`s stay silently blank, then refresh automatically once downloaded).
 
 ---
 
-## 5. 多国语言 & 字体
+## 5. Localization & Fonts
 
-始终设置多国语言，PromptUGUI 支持自动翻译，多国语言是免费的。
+Always set up localization — PromptUGUI supports automatic translation, so localization is free.
 
-Project 右键 → Create → PromptUGUI → Settings，设置有哪些语言和对应的字体Type 。
+Project right-click → Create → PromptUGUI → Settings, then configure which languages exist and their corresponding font types.
 
-**源文本即 key，零键名。** XML 里写什么，什么就是 msgid；代码里用 `UI.Tr(...)` 包裹：
+**Source text is the key — zero key names.** Whatever you write in XML is the msgid; in code, wrap it with `UI.Tr(...)`:
 
 ```xml
-<Text>开始游戏</Text>                <!-- 文本本身即 msgid，自动提取 -->
-<Text tr="false">{{playerName}}</Text>   <!-- 玩家名等不翻译 -->
-<Btn ctx="door">Open</Btn>           <!-- ctx 给「同字不同义」消歧 -->
+<Text>Start Game</Text>                  <!-- the text itself is the msgid, auto-extracted -->
+<Text tr="false">{{playerName}}</Text>   <!-- player names etc. — not translated -->
+<Btn ctx="door">Open</Btn>               <!-- ctx disambiguates "same word, different meaning" -->
 ```
 
 ```csharp
-var label = string.Format(c, UI.Tr("Total: {0:C}"), price);   // 代码里的字符串也进 .po
+var label = string.Format(c, UI.Tr("Total: {0:C}"), price);   // strings in code go into the .po too
 ```
 
-**字体走 Settings 注册的 font type，不是文件路径。** 切语言时按 locale 自动解析到对应 `TMP_FontAsset`：
+**Fonts go through the font types registered in Settings, not file paths.** When switching languages, each locale resolves to its corresponding `TMP_FontAsset` automatically:
 
 ```xml
-<Text font="title">设置</Text>
-<Text font="title" font.zh-Hans="title-cn">设置</Text>   <!-- 按语言覆盖字体 -->
+<Text font="title">Settings</Text>
+<Text font="title" font.zh-Hans="title-cn">Settings</Text>   <!-- override the font per language -->
 ```
 
-**`.po` 走 AA是最佳实践**：执行一遍 `Tools → PromptUGUI → I18n → Setup Addressables for Locale PO Files` ，它会自动给.po打 `Locale:<locale>` label，打完后整个目录即可移出Resource目录。运行时：
+**Routing `.po` through AA is the best practice**: run `Tools → PromptUGUI → I18n → Setup Addressables for Locale PO Files` once — it automatically tags the `.po` files with a `Locale:<locale>` label, after which the whole directory can be moved out of the Resources folder. At runtime:
 
 ```csharp
-UI.Locale.Set("en");              // 同步；下载中先显示 msgid，下完自动重刷
-await UI.Locale.SetAsync("en");   // 等下载 + 重刷完成（之后要立刻读 UI.Tr 时用这个）
+UI.Locale.Set("en");              // synchronous; shows the msgid while downloading, refreshes when done
+await UI.Locale.SetAsync("en");   // waits for download + refresh to finish (use this when you need to read UI.Tr immediately after)
 ```
 
-> **带文字的 SpriteSet 按语言拆 label**（`SpriteSets-zh-Hans` / `SpriteSets-en`），启动时只挂当前语言那份 —— 即 §1 里的 `$"SpriteSets-{lang}"`。
+> **SpriteSets that contain text get split into per-language labels** (`SpriteSets-zh-Hans` / `SpriteSets-en`); at startup mount only the current-language one — i.e. the `$"SpriteSets-{lang}"` from §1.
 
 ---
 
-## 6. XML 书写最佳实践
+## 6. XML Authoring Best Practices
 
-**`<Screen>`：用 `reference` + `reference.portrait` 让一份 XML 同时供横竖屏。** `reference` 是设计分辨率，CanvasScaler 切到按屏缩放，并按朝向自动锁边（W≥H 锁宽、H>W 锁高）。`portrait` / `landscape` 是库**自动跟踪**的朝向变体（见下方 Variant）。
+**`<Screen>`: use `reference` + `reference.portrait` so one XML serves both landscape and portrait.** `reference` is the design resolution; the CanvasScaler switches to scale-with-screen and auto-locks the edge by orientation (lock width when W≥H, lock height when H>W). `portrait` / `landscape` are orientation variants the library **tracks automatically** (see Variant below).
 
 ```xml
 <Screen name="MainMenu" reference="640x360" reference.portrait="360x640">
 ```
 
-**正常内容始终用 `<SafeArea>` 打头，** 全屏内容比如背景图可放在SafeArea外面。
+**Always lead regular content with `<SafeArea>`;** full-screen content like a background image can sit outside the SafeArea.
 
-内容统一套一层 `<SafeArea>` 并给 `margin`；刘海屏会吸收这个 margin：实际margin=max(margin, 非安全区空间)。比如：在 PC 这种没安全区的设备，你写的margin生效，内容不会紧贴窗口边框；在刘海屏则部分margin自动被刘海吸收，不会让刘海显得异常大，自动根据屏幕朝向判断。
+Wrap content in a single `<SafeArea>` and give it a `margin`; notched screens absorb that margin: actual margin = max(margin, non-safe-area space). For example: on a device with no safe area such as a PC, the margin you wrote takes effect so content isn't flush against the window edge; on a notched screen, part of the margin is absorbed by the notch automatically so the notch doesn't look oversized — decided automatically per screen orientation.
 
 ```xml
 <Screen name="MainMenu" reference="640x360">
-  <Image anchor="stretch" color="bg"/>      <!-- 出血底图：SafeArea 同级 -->
+  <Image anchor="stretch" color="bg"/>      <!-- bleed background: sibling of SafeArea -->
   <SafeArea margin="6,_,6,_">
-    ...内容...
+    ...content...
   </SafeArea>
 </Screen>
 ```
 
-**布局经验**：
+**Layout tips**:
 
-1. **要背景就直接拿 `<Image>` 当容器**（它能放子节点，少一层）。
-2. **工具栏 / 可变数量按钮用 `anchor="top-stretch"` + `childAlign` + `spacing`** —— 横跨整行、childAlign 推到一边，增减按钮不用动布局。**别**写 `anchor="top-right"` 却不给 `width`（rect 塌成 0 宽，按钮全挤一起）。
-3. **等分用 stretch**：LayoutGroup 内 `width="stretch"`（`stretch*2` 加权）；自由定位用 `anchor="X-stretch"` + margin，或 `width="50%"`。
+1. **Need a background? Use `<Image>` directly as the container** (it can hold children — one less layer).
+2. **For toolbars / a variable number of buttons, use `anchor="top-stretch"` + `childAlign` + `spacing`** — it spans the full row, childAlign pushes everything to one side, and adding/removing buttons needs no layout changes. **Don't** write `anchor="top-right"` without a `width` (the rect collapses to 0 width and the buttons all pile up together).
+3. **Use stretch for equal splits**: inside a LayoutGroup, `width="stretch"` (`stretch*2` to weight it); for free positioning use `anchor="X-stretch"` + margin, or `width="50%"`.
 
 ```xml
 <HStack anchor="top-stretch" height="24" margin="_,6,_,_"
@@ -226,7 +226,7 @@ await UI.Locale.SetAsync("en");   // 等下载 + 重刷完成（之后要立刻�
 </HStack>
 ```
 
-**复用 = `<Template>`。** 重复结构抽成模板：`<Param>` 收参、`{{var}}` 字符串替换、`<Slot/>` 收子节点。展开发生在解析期（运行时看不到模板调用，按内置标签一样用）。
+**Reuse = `<Template>`.** Pull repeated structure into a template: `<Param>` takes parameters, `{{var}}` does string substitution, `<Slot/>` receives children. Expansion happens at parse time (template invocations are invisible at runtime — you use them just like a built-in tag).
 
 ```xml
 <Template name="IconTab">
@@ -237,13 +237,13 @@ await UI.Locale.SetAsync("en");   // 等下载 + 重刷完成（之后要立刻�
 </Template>
 
 <TabBar id="topbar" itemTemplate="IconTab">
-  <IconTab text="战力" icon="Solar16Bold:Security/Shield Minimalistic" isOn="true"/>
-  <IconTab text="胜率" icon="Solar16Bold:Business"/>
+  <IconTab text="Power" icon="Solar16Bold:Security/Shield Minimalistic" isOn="true"/>
+  <IconTab text="Win Rate" icon="Solar16Bold:Business"/>
 </TabBar>
 ```
 
-**要写「行为」= Control 子类（C#）。** 模板只复用视觉/布局（无代码）；需要新组件或新交互时，继承 `Control` 重写 `OnAttached`，用 `[UIAttr]` 暴露属性。
-**硬规矩：`[UIAttr]` / `[Bind]` 必须配 `[Preserve]`** —— 否则 IL2CPP（Medium+ 裁剪）下 Player 包里属性会静默失效、无报错。
+**Need "behavior" = a Control subclass (C#).** Templates only reuse visuals/layout (no code); when you need a new component or new interaction, subclass `Control`, override `OnAttached`, and expose properties with `[UIAttr]`.
+**Hard rule: `[UIAttr]` / `[Bind]` must be paired with `[Preserve]`** — otherwise under IL2CPP (Medium+ stripping) the property silently fails in the Player build, with no error.
 
 ```csharp
 using PromptUGUI.Application;
@@ -257,13 +257,13 @@ public sealed class Badge : Control
         => _img = GameObject.GetComponent<UnityEngine.UI.Image>()
                ?? GameObject.AddComponent<UnityEngine.UI.Image>();
 
-    [UIAttr(IsColor = true), Preserve]      // ← 两个特性都要写
+    [UIAttr(IsColor = true), Preserve]      // ← both attributes are required
     public string Color { set => _img.color = UI.Theme.Resolve(value); }
 }
 // UI.Registry.Register<Badge>("Badge", optionalPrefab: null);
 ```
 
-**Variant：运行时切布局，不重建 GameObject。** C# 端 `UI.Variants.Set("mobile", true)` 切换；任意属性追加 `.变体名` 即覆写，切换时只重新应用属性值（订阅、引用全部存活不变）。
+**Variant: switch layout at runtime without rebuilding GameObjects.** On the C# side, `UI.Variants.Set("mobile", true)` toggles it; suffix any attribute with `.variantName` to override it. Switching only re-applies attribute values (subscriptions and references all survive unchanged).
 
 ```xml
 <VStack anchor="center" size="480x320"
@@ -271,16 +271,16 @@ public sealed class Badge : Control
         size.mobile="" height.mobile="400" margin.mobile="_,16,80,16">
 ```
 
-- 要按变体**插入元素**用 `<Variant when="mobile"><Add into="#id">...</Add></Variant>`（无 Remove/Replace；要隐藏写 `hidden.mobile="true"`）。
-- **保留变体名**：`portrait` / `landscape`（朝向，自动跟踪）和 `<locale>`（比如 `sprite.zh-Hans`）是库的保留变体，会自动设置True/False。
+- To **insert elements** per variant, use `<Variant when="mobile"><Add into="#id">...</Add></Variant>` (there's no Remove/Replace; to hide something write `hidden.mobile="true"`).
+- **Reserved variant names**: `portrait` / `landscape` (orientation, auto-tracked) and `<locale>` (e.g. `sprite.zh-Hans`) are reserved variants the library sets True/False automatically.
 
-**`tint="linear"`：像素图全程域变色。** 把要变色的 sprite **预先按灰度绘制**（128 灰为中性），运行时用 Linear Light 混合 —— 既能压暗也能提亮，一张灰度图变出整套配色。默认的 `multiply` 只能压暗。
+**`tint="linear"`: full-range tinting for pixel art.** Draw the sprite you want to tint **in grayscale up front** (128 gray is neutral) and blend with Linear Light at runtime — this can both darken and brighten, turning one grayscale sprite into a whole palette. The default `multiply` can only darken.
 
 ```xml
 <Image sprite="UI:TabBar-Frame" color="primary-light" tint="linear"/>
 ```
 
-**圆角 / 头像裁切用 `mask="self"`** 可用 Image 自身 sprite 当裁切形状，不让内容超出圆角边框：
+**For rounded corners / avatar clipping, use `mask="self"`** — the Image's own sprite becomes the clip shape, keeping content from spilling past the rounded border:
 
 ```xml
 <Image sprite="UI:Frame-Mask" anchor="stretch" mask="self">
@@ -288,45 +288,45 @@ public sealed class Badge : Control
 </Image>
 ```
 
-> 💡 写完任何 `.ui.xml` 后跑一遍 lint CLI（`dotnet run --project .lint/UIXmlLint -- <file>`）：它把布局组子节点上的非法 `anchor`/`margin` 等问题升级成 error，比 Unity 的 warning 更难漏。
+> 💡 After writing any `.ui.xml`, run the lint CLI (`dotnet run --project .lint/UIXmlLint -- <file>`): it escalates illegal `anchor`/`margin` on layout-group children into errors, which are harder to miss than Unity's warnings.
 
 ---
 
-## 7. 模态对话框
+## 7. Modal Dialogs
 
-**MessageBox 异步阻塞式，直接 `await` 拿结果：**
+**MessageBox is async and blocking — `await` the result directly:**
 
 ```csharp
 using PromptUGUI.Application.Modals;
 
-var r = await MessageBox.Open(UI.Tr("保存修改？"), MsgBtn.Yes | MsgBtn.No | MsgBtn.Cancel);
+var r = await MessageBox.Open(UI.Tr("Save changes?"), MsgBtn.Yes | MsgBtn.No | MsgBtn.Cancel);
 if (r == MsgBtn.Yes) await game.SaveAsync();
 ```
 
-**自定义外观：`MessageBox.XmlSrc = "..."`（§1 里设一次）。** 模态本质就是普通 `<Screen>`，anchor / margin / Variant / locale 全照常工作。**必须满足**的前置条件（否则运行时抛异常）：
+**Custom appearance: `MessageBox.XmlSrc = "..."` (set once in §1).** A modal is fundamentally just a regular `<Screen>` — anchor / margin / Variant / locale all work as usual. **Required** preconditions (otherwise it throws at runtime):
 
-- 文件里的 **`<Screen name="...">` `name` 必须与 `XmlSrc` 逐字节相等**。
+- The **`<Screen name="...">` `name` in the file must be byte-for-byte equal to `XmlSrc`**.
 
-自定义 XML 需带固定 id：`text` / `title` / `ok` / `cancel` / `yes` / `no` / `close`（`icon` 可选）
+Custom XML must carry these fixed ids: `text` / `title` / `ok` / `cancel` / `yes` / `no` / `close` (`icon` is optional).
 
-**Loading 遮罩**：非交互、代码自己关，幂等：
+**Loading overlay**: non-interactive, closed by your own code, idempotent:
 
 ```csharp
-var loading = Loading.Open(UI.Tr("加载中..."));
+var loading = Loading.Open(UI.Tr("Loading..."));
 try { await DoWorkAsync(); }
 finally { loading.Close(); }
 ```
 
-**排队 vs 叠加**（`mode` 参数）：
+**Queued vs stacked** (the `mode` parameter):
 
-- `ModalMode.Popup`（默认）—— 立即叠在当前对话框上方，用于「从一个弹窗里再开确认框」。
-- `ModalMode.Queued` —— 堵塞，直到等整个对话框栈清空（没有其他模态窗时）再显示；多个 Queued 按 FIFO 依次弹出，避免互相覆盖。**注意，此模式用`await`调用2次会导致死锁。**
+- `ModalMode.Popup` (default) — stacks immediately on top of the current dialog; use it for "open another confirm box from inside a popup".
+- `ModalMode.Queued` — blocks until the entire dialog stack is empty (no other modal open) before showing; multiple Queued modals pop in FIFO order, avoiding mutual overlap. **Note: calling this mode twice with `await` will deadlock.**
 
 ---
 
-## 8. 动效（可选）
+## 8. Animation (Optional)
 
-**入场动画：`<Animation>` 包住元素，`on="open"` 时自动播。**
+**Entrance animation: wrap an element in `<Animation>`; with `on="open"` it plays automatically.**
 
 ```xml
 <Animation type="fadein" duration="0.3s">
@@ -334,22 +334,22 @@ finally { loading.Close(); }
 </Animation>
 ```
 
-菜单逐项错峰（v1 无 stagger 糖，写多个兄弟带递增 `delay`）：
+Stagger menu items (v1 has no stagger sugar — write multiple siblings with increasing `delay`):
 
 ```xml
 <VStack>
-  <Animation type="slidein-left" delay="0.0s"><Btn>开始</Btn></Animation>
-  <Animation type="slidein-left" delay="0.05s"><Btn>设置</Btn></Animation>
-  <Animation type="slidein-left" delay="0.10s"><Btn>退出</Btn></Animation>
+  <Animation type="slidein-left" delay="0.0s"><Btn>Start</Btn></Animation>
+  <Animation type="slidein-left" delay="0.05s"><Btn>Settings</Btn></Animation>
+  <Animation type="slidein-left" delay="0.10s"><Btn>Quit</Btn></Animation>
 </VStack>
 ```
 
-**按钮手感**：用 preset `type="pulse"` 配 `on="click@<id>"` 做点击反馈（`<Animation>` 还支持低层 `translate`/`scale`/`rotate`/`fade` 组合 + 各种 easing）：
+**Button feel**: use the preset `type="pulse"` with `on="click@<id>"` for click feedback (`<Animation>` also supports low-level `translate`/`scale`/`rotate`/`fade` combos + various easings):
 
 ```xml
 <Animation type="pulse" on="click@buy">
-  <Btn id="buy">购买</Btn>
+  <Btn id="buy">Buy</Btn>
 </Animation>
 ```
 
-> C# 端可订阅 `Get<Trigger>("x").OnFire`，或 `Get<Animation>("x").Fire()` 手动触发（`on="manual"` / 重播入场动画）。
+> On the C# side you can subscribe to `Get<Trigger>("x").OnFire`, or call `Get<Animation>("x").Fire()` to trigger manually (`on="manual"` / replay the entrance animation).
