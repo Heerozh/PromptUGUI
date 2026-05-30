@@ -12,7 +12,7 @@ namespace PromptUGUI.Controls
     public sealed class Btn : Control, IPointerEventSource
     {
         private UnityImage _bg;
-        private Button _btn;
+        private PuiButton _btn;
         private TMP_Text _autoLabel;
         private string _fontType = "default";
         private readonly Subject<Unit> _click = new();
@@ -35,11 +35,20 @@ namespace PromptUGUI.Controls
             _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
             _bg.color = PromptUGUI.Controls.Internal.ProceduralBuilders.DefaultBtnColor;
             PromptUGUI.Controls.Internal.ProceduralBuilders.ApplyDefaultSlicedSprite(_bg);
-            _btn = GameObject.GetComponent<Button>() ?? GameObject.AddComponent<Button>();
+            _btn = GameObject.GetComponent<PuiButton>() ?? GameObject.AddComponent<PuiButton>();
             _btn.targetGraphic = _bg;
             _btn.onClick.AddListener(() => _click.OnNext(Unit.Default));
             PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
         }
+
+        /// <summary>
+        /// Broadcasts this Btn's uGUI interaction state (Normal / Hover / Pressed / Disabled).
+        /// Descendants and C# can subscribe to react to press / hover beyond the single
+        /// <c>targetGraphic</c> that Selectable's ColorTint drives. The underlying
+        /// <see cref="ReactiveProperty{T}"/> replays the current value (Normal at start) to
+        /// new subscribers.
+        /// </summary>
+        public Observable<BtnState> OnState => _btn.OnState;
 
         private TMP_Text EnsureLabel()
         {
