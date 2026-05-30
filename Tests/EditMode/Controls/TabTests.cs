@@ -223,5 +223,25 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(32f, label.rectTransform.offsetMin.x,
                 "label is shifted right to make room for icon, regardless of setter order");
         }
+
+        [Test]
+        public void Tab_Color_AppliesToBg()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t' color='#FF0000'/>");
+            var bg = t.GameObject.GetComponent<UnityImage>();
+            Assert.AreEqual(new Color(1f, 0f, 0f, 1f), bg.color);
+        }
+
+        [Test]
+        public void Tab_TransparentColor_AlphaZero()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t' color='#00000000'/>");
+            var bg = t.GameObject.GetComponent<UnityImage>();
+            Assert.AreEqual(0f, bg.color.a);
+        }
     }
 }

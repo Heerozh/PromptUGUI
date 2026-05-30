@@ -193,6 +193,12 @@ namespace PromptUGUI.Controls
             }
         }
 
+        [UIAttr(IsColor = true), Preserve]
+        public string Color
+        {
+            set => _bg.color = UI.Theme.Resolve(value);
+        }
+
         private void ApplyBgSprite(UnityEngine.Sprite sprite)
         {
             if (sprite == null) return;
