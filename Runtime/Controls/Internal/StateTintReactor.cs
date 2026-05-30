@@ -52,7 +52,7 @@ namespace PromptUGUI.Controls.Internal
                 _baseCaptured = true;
             }
 
-            var source = GetComponentInParent<PuiButton>();
+            var source = GetComponentInParent<IStateSource>();
             if (source != null)
                 _sub = source.OnState.Subscribe(OnState);
         }

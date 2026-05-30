@@ -10,7 +10,7 @@ namespace PromptUGUI.Controls
     /// alternative subtrees (e.g. swap an icon on press).
     /// </summary>
     /// <remarks>
-    /// Coordination owner is the <see cref="PuiButton"/> (see <see cref="PuiButton.RegisterShow"/>):
+    /// Coordination owner is the <see cref="IStateSource"/> (see <see cref="IStateSource.RegisterShow"/>):
     /// each Show only registers a state claim + a re-evaluation callback and never subscribes to
     /// <c>OnState</c> itself. Visibility uses <c>GameObject.SetActive</c> only (Strategy C — never
     /// destroyed), so a hidden alternative and its R3 subscriptions survive.
@@ -23,7 +23,7 @@ namespace PromptUGUI.Controls
     public sealed class Show : Trigger
     {
         private InteractState _myState;
-        private PuiButton _pui;
+        private IStateSource _src;
 
         protected override void InitTriggerSubscription()
         {
@@ -39,8 +39,8 @@ namespace PromptUGUI.Controls
                     $"state-pressed / state-selected / state-disabled), got 'on=\"{OnRaw()}\"'."),
             };
 
-            _pui = TriggerSourceResolver.FindStateSource(this, _spec.SourceId);
-            _pui.RegisterShow(_myState, ReevaluateVisibility);
+            _src = TriggerSourceResolver.FindStateSource(this, _spec.SourceId);
+            _src.RegisterShow(_myState, ReevaluateVisibility);
         }
 
         // Best-effort echo of the author's literal on= value for the error message.
@@ -61,9 +61,9 @@ namespace PromptUGUI.Controls
         // exists for the current state, that group shows nothing.
         private void ReevaluateVisibility()
         {
-            var current = _pui.Current;
+            var current = _src.Current;
             var active = current == _myState
-                         || (_myState == InteractState.Normal && !_pui.IsShowStateClaimed(current));
+                         || (_myState == InteractState.Normal && !_src.IsShowStateClaimed(current));
             GameObject.SetActive(active);
         }
     }
