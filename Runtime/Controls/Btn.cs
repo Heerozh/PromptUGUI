@@ -1,11 +1,9 @@
-using System.Collections.Generic;
 using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
 using PromptUGUI.Registry;
 using R3;
 using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
 using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Controls

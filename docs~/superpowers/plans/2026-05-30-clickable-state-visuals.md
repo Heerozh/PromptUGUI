@@ -912,17 +912,31 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.That(bg.color.r, Is.EqualTo(bgBase.r).Within(0.001f));
         }
 
+        // Two tabs: TabBar auto-selects the first and allowSwitchOff=false, so we use a sibling
+        // to drive tab 'a' to a known Normal (untinted) baseline before activating it. The reactor
+        // captures the true authored base at install regardless of the auto-selected display state.
         [Test]
-        public void SelectedColor_AppliesWhenIsOnAtRest()
+        public void SelectedColor_AppliesToActiveTabAtRest()
         {
-            var tab = BuildTab("selectedColor='#808080'");
-            var pt = tab.GameObject.GetComponent<PuiToggle>();
-            var bg = tab.GameObject.GetComponent<UnityImage>();
-            var bgBase = bg.color;
+            string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar'>
+    <Tab id='a' selectedColor='#808080'/>
+    <Tab id='b' selectedColor='#808080'/>
+  </TabBar>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var a = screen.Get<Tab>("bar/a");
+            var b = screen.Get<Tab>("bar/b");
+            var bgA = a.GameObject.GetComponent<UnityImage>();
             var half = new Color(0.5019608f, 0.5019608f, 0.5019608f, 1f);
 
-            tab.IsOn = true;   // active at rest -> Selected
-            Assert.That(bg.color.r, Is.EqualTo((bgBase * half).r).Within(0.001f));
+            b.IsOn = true;                       // a -> Normal (untinted base)
+            var aBase = bgA.color;
+            a.IsOn = true;                       // a -> Selected (active at rest)
+            Assert.That(bgA.color.r, Is.EqualTo((aBase * half).r).Within(0.001f),
+                "active tab bg gets selectedColor multiplier at rest");
         }
 
         [Test]
@@ -1391,41 +1405,46 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             AssertColorsEqual(bgBase, bg.color, "bg tint reverts to base after returning to Normal");
         }
 
+        // Two tabs (auto-select + allowSwitchOff=false), so selection can move off 'a' via its
+        // sibling. Proves the Selected resting-baseline end-to-end with real instantiation: a
+        // state-selected <Show> activates when 'a' is the active tab at rest, yields to a transient
+        // hover (Normal-fallback block shows), and returns at rest. (The selectedSprite overlay is a
+        // uGUI-intrinsic isOn channel — not our code — so we don't assert on it here.)
         [UnityTest]
-        public IEnumerator IsOn_drives_state_selected_Show_while_overlay_persists_through_hover()
+        public IEnumerator IsOn_drives_state_selected_Show_and_yields_to_transient_hover()
         {
             UI.LoadDocument("t", @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
   <TabBar id='bar'>
-    <Tab id='t' selectedSprite='ui:tab_on'>
+    <Tab id='a'>
       <Show id='ssel' on='state-selected'><Image id='sel'/></Show>
+      <Show id='snorm' on='state-normal'><Image id='nrm'/></Show>
     </Tab>
+    <Tab id='b'/>
   </TabBar>
 </Screen></PromptUGUI>");
             var screen = UI.Open("S");
             yield return null;
 
-            var tab = screen.Get<Tab>("bar/t");
-            var pt = tab.GameObject.GetComponent<PuiToggle>();
-            var ssel = screen.Get<Show>("bar/t/ssel");
+            var a = screen.Get<Tab>("bar/a");
+            var pt = a.GameObject.GetComponent<PuiToggle>();
+            var ssel = screen.Get<Show>("bar/a/ssel");
+            var snorm = screen.Get<Show>("bar/a/snorm");
 
-            // Not active yet: at open the (only) Tab may be auto-selected by TabBar; force a known
-            // off-state first so the transition to on is unambiguous.
-            tab.IsOn = false;
-            Assert.IsFalse(ssel.GameObject.activeSelf, "state-selected Show hidden when off");
+            screen.Get<Tab>("bar/b").IsOn = true;        // a -> Normal
+            Assert.IsFalse(ssel.GameObject.activeSelf, "selected Show hidden when 'a' not active");
+            Assert.IsTrue(snorm.GameObject.activeSelf, "normal Show shown when 'a' not active");
 
-            tab.IsOn = true;
-            Assert.IsTrue(ssel.GameObject.activeSelf, "state-selected Show shown when active at rest");
-            Assert.IsTrue(pt.graphic != null && pt.graphic.enabled, "selectedSprite overlay enabled when on");
+            a.IsOn = true;                               // a -> Selected at rest
+            Assert.IsTrue(ssel.GameObject.activeSelf, "selected Show shown when 'a' active at rest");
+            Assert.IsFalse(snorm.GameObject.activeSelf, "normal Show hidden when 'a' selected");
 
-            // Transient hover overrides Selected in the broadcast, but the overlay is an independent
-            // isOn-driven channel and must stay visible.
-            pt.SimulateState(Highlighted);
-            Assert.IsTrue(pt.graphic.enabled, "overlay stays visible during hover (independent channel)");
-            Assert.IsFalse(ssel.GameObject.activeSelf, "state-selected Show yields to Hover transiently");
+            pt.SimulateState(Highlighted);               // hover overrides Selected; no hover block -> Normal fallback
+            Assert.IsFalse(ssel.GameObject.activeSelf, "selected Show yields to transient hover");
+            Assert.IsTrue(snorm.GameObject.activeSelf, "normal block is the fallback for unclaimed Hover");
 
-            pt.SimulateState(Normal);
-            Assert.IsTrue(ssel.GameObject.activeSelf, "state-selected Show returns at rest while still on");
+            pt.SimulateState(Normal);                    // back to rest -> Selected
+            Assert.IsTrue(ssel.GameObject.activeSelf, "selected Show returns at rest while still selected");
             yield return null;
         }
 
@@ -1439,8 +1458,6 @@ namespace PromptUGUI.Tests.PlayMode.Controls
     }
 }
 ```
-
-> The second test references an icon key `ui:tab_on` — if the test icon set lacks it, swap to any sprite key the other PlayMode tests use, or assert overlay existence via `pt.graphic != null` only. `pt.graphic` is the `Toggle.graphic` (Tab's overlay), enabled/disabled by uGUI from `isOn`.
 
 - [ ] **Step 2: Run to verify it passes (runtime already implemented by Tasks 1-9)**
 

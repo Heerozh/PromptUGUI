@@ -4,8 +4,9 @@ using PromptUGUI.Controls.Internal;
 namespace PromptUGUI.Controls
 {
     /// <summary>
-    /// A <see cref="Trigger"/> whose own subtree is <b>visible only while the source <c>&lt;Btn&gt;</c>
-    /// is in the <c>on=</c> state</b> (and hidden otherwise) — a state-conditional view switch.
+    /// A <see cref="Trigger"/> whose own subtree is <b>visible only while the source
+    /// <c>&lt;Btn&gt;</c>/<c>&lt;Tab&gt;</c>/<c>&lt;Toggle&gt;</c> is in the <c>on=</c> state</b>
+    /// (and hidden otherwise) — a state-conditional view switch.
     /// Give several <c>&lt;Show&gt;</c> siblings different <c>on="state-*"</c> values to swap between
     /// alternative subtrees (e.g. swap an icon on press).
     /// </summary>
