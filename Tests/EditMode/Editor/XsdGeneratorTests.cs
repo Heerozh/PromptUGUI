@@ -759,6 +759,43 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Xsd_includes_Show_element()
+        {
+            // <Show> is a registered builtin (BuiltinPrimitives) and not in the hardcoded
+            // primitives set, so it surfaces via reflection. It inherits [UIAttr("on")]
+            // from Trigger, so 'on' must appear too.
+            var r = new ControlRegistry();
+            r.Register<Show>("Show", null);
+            var xsd = XsdGenerator.Generate(r);
+
+            StringAssert.Contains("name=\"Show\"", xsd);
+            StringAssert.Contains("name=\"on\"", xsd);   // inherited Trigger.[UIAttr("on")]
+        }
+
+        [Test]
+        public void Xsd_Btn_declares_state_color_attributes()
+        {
+            // Btn is hardcoded in the generator (not reflection-driven), so the new
+            // Btn-specific state-tint [UIAttr]s (hoverColor/pressedColor/disabledColor)
+            // must be added to the hardcoded Btn attr list or IDEs flag valid authoring.
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+            StringAssert.Contains("name=\"hoverColor\"", xsd);
+            StringAssert.Contains("name=\"pressedColor\"", xsd);
+            StringAssert.Contains("name=\"disabledColor\"", xsd);
+        }
+
+        [Test]
+        public void Xsd_commonAttrs_declares_stateReact()
+        {
+            // stateReact is [UIAttr] on the Control base — it applies to every control,
+            // so it belongs in the shared commonAttrs group (not per-element).
+            var r = new ControlRegistry();
+            var xsd = XsdGenerator.Generate(r);
+            StringAssert.Contains("name=\"stateReact\"", xsd);
+        }
+
+        [Test]
         public void Screen_element_declares_reference_attribute()
         {
             var r = new ControlRegistry();

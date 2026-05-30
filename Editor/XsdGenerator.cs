@@ -90,7 +90,16 @@ namespace PromptUGUI.Editor
                 // Btn is registered with defaultTextAttr='text' (BuiltinPrimitives) →
                 // <Btn>开始</Btn> is shorthand for <Btn text="开始"/>. mixed='true' lets
                 // the same element also nest <Text> children (template authoring).
-                WriteControl(writer, "Btn", new[] { ("color", "xs:string", (string)null), ("sprite", "xs:string", (string)null) }, mixedContent: true);
+                WriteControl(writer, "Btn", new[]
+                {
+                    ("color", "xs:string", (string)null),
+                    ("sprite", "xs:string", (string)null),
+                    // State-driven tint [UIAttr]s (Btn.HoverColor/PressedColor/DisabledColor).
+                    // Btn is hardcoded here (not reflected), so list them explicitly.
+                    ("hoverColor", "xs:string", (string)null),
+                    ("pressedColor", "xs:string", (string)null),
+                    ("disabledColor", "xs:string", (string)null),
+                }, mixedContent: true);
                 // XSD patterns are implicitly anchored to the entire value — no ^/$.
                 // Match runtime parser's check (UIDocumentParser.IsValidIconName):
                 // set name stays strict alnum/_-, icon-name half mirrors the filesystem
@@ -202,7 +211,10 @@ namespace PromptUGUI.Editor
         // XmlSchemaSet rejects with "The attribute 'X' already exists.").
         private static readonly string[] _commonAttrNames = {
             "id","anchor","size","width","height","margin","pivot",
-            "padding","spacing","hidden","interactable","scale" };
+            "padding","spacing","hidden","interactable","scale",
+            // Control.StateReact ([UIAttr] on the base) — opts a graphic out of a parent
+            // Btn's state-tint fan-out; applies to every control, so it's a common attr.
+            "stateReact" };
         private static readonly HashSet<string> _commonAttrSet =
             new HashSet<string>(_commonAttrNames, StringComparer.Ordinal);
 
