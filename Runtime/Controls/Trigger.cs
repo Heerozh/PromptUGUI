@@ -109,10 +109,10 @@ namespace PromptUGUI.Controls
             var pui = Internal.TriggerSourceResolver.FindStateSource(this, _spec.SourceId);
             var target = kind switch
             {
-                TriggerKind.StateNormal => BtnState.Normal,
-                TriggerKind.StateHover => BtnState.Hover,
-                TriggerKind.StatePressed => BtnState.Pressed,
-                TriggerKind.StateDisabled => BtnState.Disabled,
+                TriggerKind.StateNormal => InteractState.Normal,
+                TriggerKind.StateHover => InteractState.Hover,
+                TriggerKind.StatePressed => InteractState.Pressed,
+                TriggerKind.StateDisabled => InteractState.Disabled,
                 _ => throw new InvalidOperationException("unreachable"),
             };
             // OnState replays the current value on subscribe, so a trigger whose target matches

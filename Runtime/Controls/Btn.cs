@@ -55,7 +55,7 @@ namespace PromptUGUI.Controls
         /// <see cref="ReactiveProperty{T}"/> replays the current value (Normal at start) to
         /// new subscribers.
         /// </summary>
-        public Observable<BtnState> OnState => _btn.OnState;
+        public Observable<InteractState> OnState => _btn.OnState;
 
         /// <summary>
         /// Bridges the common <c>interactable</c> attribute (already applied by
@@ -63,7 +63,7 @@ namespace PromptUGUI.Controls
         /// <see cref="Control.Interactable"/>, CanvasGroup-backed) to the underlying
         /// <see cref="UnityEngine.UI.Button"/>. Setting <c>Button.interactable = false</c>
         /// synchronously runs <c>DoStateTransition(Disabled)</c>, so <see cref="OnState"/>
-        /// emits <see cref="BtnState.Disabled"/>. Runs after every <c>ApplyCommon</c>
+        /// emits <see cref="InteractState.Disabled"/>. Runs after every <c>ApplyCommon</c>
         /// (initial apply + each Variant ReSolve), composing with — not replacing — the
         /// CanvasGroup behaviour.
         /// </summary>

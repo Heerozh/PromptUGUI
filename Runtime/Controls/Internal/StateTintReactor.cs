@@ -8,7 +8,7 @@ namespace PromptUGUI.Controls.Internal
 {
     /// <summary>
     /// Drives a single <see cref="Graphic"/>'s colour from the owning <see cref="PuiButton"/>'s
-    /// <see cref="BtnState"/> stream. On each state it tweens the graphic toward
+    /// <see cref="InteractState"/> stream. On each state it tweens the graphic toward
     /// <c>baseColor * multiplier[state]</c> (component-wise) — the uGUI ColorTint behaviour,
     /// but fanned out per-graphic instead of a single <c>targetGraphic</c>.
     /// </summary>
@@ -71,15 +71,15 @@ namespace PromptUGUI.Controls.Internal
             _fade = fade;
         }
 
-        private Color MultiplierFor(BtnState state) => state switch
+        private Color MultiplierFor(InteractState state) => state switch
         {
-            BtnState.Hover => _hover,
-            BtnState.Pressed => _pressed,
-            BtnState.Disabled => _disabled,
+            InteractState.Hover => _hover,
+            InteractState.Pressed => _pressed,
+            InteractState.Disabled => _disabled,
             _ => Color.white,
         };
 
-        private void OnState(BtnState state)
+        private void OnState(InteractState state)
         {
             if (_graphic == null) return;
             var target = _baseColor * MultiplierFor(state);

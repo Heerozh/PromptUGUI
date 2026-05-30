@@ -22,17 +22,17 @@ namespace PromptUGUI.Controls
     /// </remarks>
     public sealed class Show : Trigger
     {
-        private BtnState _myState;
+        private InteractState _myState;
         private PuiButton _pui;
 
         protected override void InitTriggerSubscription()
         {
             _myState = _spec.Kind switch
             {
-                TriggerKind.StateNormal => BtnState.Normal,
-                TriggerKind.StateHover => BtnState.Hover,
-                TriggerKind.StatePressed => BtnState.Pressed,
-                TriggerKind.StateDisabled => BtnState.Disabled,
+                TriggerKind.StateNormal => InteractState.Normal,
+                TriggerKind.StateHover => InteractState.Hover,
+                TriggerKind.StatePressed => InteractState.Pressed,
+                TriggerKind.StateDisabled => InteractState.Disabled,
                 _ => throw new InvalidOperationException(
                     "<Show> only accepts state-* events (state-normal / state-hover / " +
                     $"state-pressed / state-disabled), got 'on=\"{OnRaw()}\"'."),
@@ -62,7 +62,7 @@ namespace PromptUGUI.Controls
         {
             var current = _pui.Current;
             var active = current == _myState
-                         || (_myState == BtnState.Normal && !_pui.IsShowStateClaimed(current));
+                         || (_myState == InteractState.Normal && !_pui.IsShowStateClaimed(current));
             GameObject.SetActive(active);
         }
     }

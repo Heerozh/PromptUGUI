@@ -63,21 +63,21 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [Test]
         public void Map_TranslatesSelectionStatesToBtnState()
         {
-            Assert.AreEqual(BtnState.Normal, PuiButton.Map(Normal));
-            Assert.AreEqual(BtnState.Hover, PuiButton.Map(Highlighted));
-            Assert.AreEqual(BtnState.Pressed, PuiButton.Map(Pressed));
-            Assert.AreEqual(BtnState.Disabled, PuiButton.Map(Disabled));
+            Assert.AreEqual(InteractState.Normal, PuiButton.Map(Normal));
+            Assert.AreEqual(InteractState.Hover, PuiButton.Map(Highlighted));
+            Assert.AreEqual(InteractState.Pressed, PuiButton.Map(Pressed));
+            Assert.AreEqual(InteractState.Disabled, PuiButton.Map(Disabled));
             // Momentary button must not keep a sticky highlight after a touch tap.
-            Assert.AreEqual(BtnState.Normal, PuiButton.Map(Selected));
+            Assert.AreEqual(InteractState.Normal, PuiButton.Map(Selected));
         }
 
         [Test]
         public void OnState_EmitsCurrentValueImmediatelyAsNormal()
         {
             var btn = BuildBtn();
-            BtnState seen = (BtnState)(-1);
+            InteractState seen = (InteractState)(-1);
             using var _ = btn.OnState.Subscribe(s => seen = s);
-            Assert.AreEqual(BtnState.Normal, seen);
+            Assert.AreEqual(InteractState.Normal, seen);
         }
 
         [Test]
@@ -87,7 +87,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var puiBtn = btn.GameObject.GetComponent<PuiButton>();
             Assert.IsNotNull(puiBtn, "Btn should host a PuiButton");
 
-            var seen = new List<BtnState>();
+            var seen = new List<InteractState>();
             using var _ = btn.OnState.Subscribe(s => seen.Add(s));
 
             puiBtn.SimulateState(Highlighted); // -> Hover
@@ -102,11 +102,11 @@ namespace PromptUGUI.Tests.EditMode.Controls
             CollectionAssert.AreEqual(
                 new[]
                 {
-                    BtnState.Normal,  // replayed initial value
-                    BtnState.Hover,
-                    BtnState.Pressed,
-                    BtnState.Normal,  // Selected -> Normal
-                    BtnState.Hover,
+                    InteractState.Normal,  // replayed initial value
+                    InteractState.Hover,
+                    InteractState.Pressed,
+                    InteractState.Normal,  // Selected -> Normal
+                    InteractState.Hover,
                 },
                 seen);
         }
@@ -117,14 +117,14 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var btn = BuildBtn();
             var puiBtn = btn.GameObject.GetComponent<PuiButton>();
 
-            var seen = new List<BtnState>();
+            var seen = new List<InteractState>();
             using var _ = btn.OnState.Subscribe(s => seen.Add(s));
 
             // Already Normal (initial). Selected folds to Normal, so no change -> no emission.
             puiBtn.SimulateState(Selected);
             puiBtn.SimulateState(Normal);
 
-            CollectionAssert.AreEqual(new[] { BtnState.Normal }, seen);
+            CollectionAssert.AreEqual(new[] { InteractState.Normal }, seen);
         }
 
         [Test]
@@ -139,9 +139,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             Assert.IsFalse(puiBtn.interactable, "Button.interactable should mirror interactable='false'");
 
-            BtnState seen = (BtnState)(-1);
+            InteractState seen = (InteractState)(-1);
             using var _ = btn.OnState.Subscribe(s => seen = s);
-            Assert.AreEqual(BtnState.Disabled, seen);
+            Assert.AreEqual(InteractState.Disabled, seen);
         }
 
         [Test]
@@ -152,9 +152,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             Assert.IsTrue(puiBtn.interactable, "default <Btn> Button.interactable should be true");
 
-            BtnState seen = (BtnState)(-1);
+            InteractState seen = (InteractState)(-1);
             using var _ = btn.OnState.Subscribe(s => seen = s);
-            Assert.AreEqual(BtnState.Normal, seen);
+            Assert.AreEqual(InteractState.Normal, seen);
         }
 
         [Test]
