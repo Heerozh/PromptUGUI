@@ -71,75 +71,7 @@ namespace PromptUGUI.Controls
         {
             base.OnAfterApply();
             _btn.interactable = Interactable;
-            ApplyStateTint();
-        }
-
-        /// <summary>
-        /// If any <c>*Color</c> multiplier is set: switch the bg off uGUI ColorTint (so the
-        /// reactors become the single source of truth) and install / refresh a
-        /// <see cref="StateTintReactor"/> on the bg plus every descendant <see cref="Graphic"/>
-        /// (not descending into a nested <see cref="Btn"/>, and skipping any control with
-        /// <c>stateReact="false"</c>). If no <c>*Color</c> is set, leave the default ColorTint
-        /// behaviour untouched (back-compat) — no reactors. Idempotent: re-runs on every Variant
-        /// ReSolve, adding a reactor only where one is missing then re-<c>Configure</c>-ing all
-        /// (the reactor captures its base colour once, so re-Configure never re-captures).
-        /// </summary>
-        private void ApplyStateTint()
-        {
-            var hasAny = !string.IsNullOrEmpty(_hoverColor)
-                         || !string.IsNullOrEmpty(_pressedColor)
-                         || !string.IsNullOrEmpty(_disabledColor);
-            if (!hasAny) return;
-
-            _btn.transition = Selectable.Transition.None;
-
-            Color? hover = string.IsNullOrEmpty(_hoverColor) ? null : UI.Theme.Resolve(_hoverColor);
-            Color? pressed = string.IsNullOrEmpty(_pressedColor) ? null : UI.Theme.Resolve(_pressedColor);
-            Color? disabled = string.IsNullOrEmpty(_disabledColor) ? null : UI.Theme.Resolve(_disabledColor);
-
-            // Collect GameObjects to exclude: any opted-out control's GameObject and any
-            // GameObject inside a nested <Btn> subtree (a deeper Btn owns its own graphics).
-            var blocked = new HashSet<GameObject>();
-            foreach (var child in Children)
-                CollectBlocked(child as Control, blocked);
-
-            // Fan out to the bg + every descendant Graphic except blocked ones. Walking the
-            // transform subtree (not just the control tree) catches non-control graphics like
-            // the Btn's auto-label. The bg lives on this Btn's own GO and is always tinted.
-            foreach (var g in GameObject.GetComponentsInChildren<Graphic>(includeInactive: true))
-            {
-                if (blocked.Contains(g.gameObject)) continue;
-                InstallReactor(g, hover, pressed, disabled);
-            }
-        }
-
-        private static void CollectBlocked(Control control, HashSet<GameObject> blocked)
-        {
-            if (control == null) return;
-            var optedOut = !control.StateReact;
-            var nestedBtn = control is Btn;
-            if (optedOut || nestedBtn)
-            {
-                // Block this control's whole transform subtree (its graphics + descendants).
-                if (control.GameObject != null)
-                {
-                    foreach (var g in control.GameObject.GetComponentsInChildren<Graphic>(includeInactive: true))
-                        blocked.Add(g.gameObject);
-                    blocked.Add(control.GameObject);
-                }
-                return; // already covered the whole subtree
-            }
-
-            foreach (var child in control.Children)
-                CollectBlocked(child as Control, blocked);
-        }
-
-        private static void InstallReactor(Graphic graphic, Color? hover, Color? pressed, Color? disabled)
-        {
-            if (graphic == null) return;
-            var reactor = graphic.GetComponent<StateTintReactor>()
-                          ?? graphic.gameObject.AddComponent<StateTintReactor>();
-            reactor.Configure(hover, pressed, disabled, StateTintReactor.DefaultFade);
+            StateTintInstaller.Install(GameObject, _btn, Children, _hoverColor, _pressedColor, null, _disabledColor);
         }
 
         private TMP_Text EnsureLabel()

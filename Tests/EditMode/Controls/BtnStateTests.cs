@@ -224,7 +224,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 "bg should host exactly one reactor after the initial apply");
 
             // Toggle the 'dark' variant: VariantStore.Changed fires → open Screen ReSolves →
-            // Btn.OnAfterApply re-runs ApplyStateTint with the dark-resolved multiplier.
+            // Btn.OnAfterApply re-runs StateTintInstaller.Install with the dark-resolved multiplier.
             UI.Variants.Set("dark", true);
 
             // (a) No duplicate reactor — re-apply reuses the existing one via GetComponent ?? Add.
@@ -279,6 +279,19 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var btn = BuildBtn("pressedColor='#808080'");
             var puiBtn = btn.GameObject.GetComponent<PuiButton>();
             Assert.AreEqual(Selectable.Transition.None, puiBtn.transition);
+        }
+
+        [Test]
+        public void NestedStateSource_IsFanOutBoundary()
+        {
+            UseInstantTint();
+            // Outer Btn with pressedColor; an inner <Btn> (another IStateSource) must NOT receive the
+            // outer's reactor on its own bg — the inner owns its subtree.
+            var outer = BuildBtnXml("pressedColor='#808080'", "<Btn id='inner'>x</Btn>");
+            var inner = outer.Get<Btn>("inner");
+            var innerBg = inner.GameObject.GetComponent<UnityImage>();
+            Assert.IsNull(innerBg.GetComponent<StateTintReactor>(),
+                "nested state source must be a fan-out boundary (no reactor from the outer Btn)");
         }
 
         private static void AssertColorsEqual(Color expected, Color actual)
