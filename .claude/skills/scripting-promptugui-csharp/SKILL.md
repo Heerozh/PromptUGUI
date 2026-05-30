@@ -1,6 +1,6 @@
 ---
 name: scripting-promptugui-csharp
-description: Use when writing C# that drives PromptUGUI — `UI.LoadDocumentAsync` / `UI.Open`, `Screen.Get<T>`, R3 event subscriptions (`OnClick` / `OnValueChanged` / `OnSelected`), `BindItems` / `BindOptions`, runtime `UI.Variants.Set` / `UI.Locale.Set` / `UI.Orientation` switching, `UI.CanvasConfigurator`, modal dialogs (`MessageBox.Open` / `Loading.Open` / `UI.Modal.OpenAsync` / `ModalRequest<T>` / `MsgBtn` / `ModalMode`) and overriding `MessageBox.XmlSrc` / `Loading.XmlSrc`, or custom `[UIAttr]` / `[Bind]` controls. For the XML markup itself, see authoring-promptugui-xml; for Addressables-backed loaders (`.ui.xml` / `.po` / icon atlases), see using-promptugui-addressables.
+description: Use when writing C# that drives PromptUGUI — `UI.LoadDocumentAsync` / `UI.Open`, `Screen.Get<T>`, R3 event subscriptions (`OnClick` / `OnValueChanged` / `OnSelected` / `OnState`), `BindItems` / `BindOptions`, runtime `UI.Variants.Set` / `UI.Locale.Set` / `UI.Orientation` switching, `UI.CanvasConfigurator`, modal dialogs (`MessageBox.Open` / `Loading.Open` / `UI.Modal.OpenAsync` / `ModalRequest<T>` / `MsgBtn` / `ModalMode`) and overriding `MessageBox.XmlSrc` / `Loading.XmlSrc`, or custom `[UIAttr]` / `[Bind]` controls. For the XML markup itself, see authoring-promptugui-xml; for Addressables-backed loaders (`.ui.xml` / `.po` / icon atlases), see using-promptugui-addressables.
 ---
 
 # Scripting PromptUGUI in C#
@@ -174,6 +174,16 @@ screen.Get<InputField>("playerName").OnEndEdit
 ```
 
 **Progress** — `screen.Get<Progress>("hp").Value = 0.42f;` 或 R3 推送 `healthStream.Subscribe(v => p.Value = v).AddTo(screen)`。Progress 是只读显示控件，无 `OnValueChanged`。`Value` 被 `Mathf.Clamp01` 钳位。注意：`[Bind]` 在本项目里是把 child control 字段注入到 parent（见 `Runtime/Registry/BindAttribute.cs`），不是数据流绑定 —— 用直接 setter / R3 推。
+
+**`Btn.OnState`** — a `<Btn>` broadcasts its uGUI interaction state as `Observable<BtnState>` (`BtnState { Normal, Hover, Pressed, Disabled }`; Selectable's `Selected` folds into `Normal`). It replays the current value to new subscribers, so you can react in C# to press / hover / disable — complementing the XML-side `*Color` tint fan-out and `<Show>` artwork swap (see authoring-promptugui-xml → "Btn state visuals"):
+
+```csharp
+screen.Get<Btn>("buy").OnState
+      .Where(s => s == BtnState.Pressed)
+      .Subscribe(_ => sfx.PlayClick()).AddTo(screen);
+```
+
+State is driven by the Selectable machine and is disabled-aware (a disabled Btn only emits `Disabled`). `interactable="false"` (XML) puts the Btn in `Disabled`.
 
 `screen.Track(disposable)` (or the `.AddTo(screen)` extension) ties a subscription to Screen lifetime. **Always do this** — leaked R3 subscriptions hold the GameObject alive after Close, and the next Open will produce phantom callbacks against the old (destroyed) GameObject.
 
@@ -404,6 +414,7 @@ GET            screen.Get<Btn>("id")                          typed
                screen.Get<Btn>("outerId/innerId")             path into Template body
 
 EVENTS (R3)    .OnClick                Btn
+               .OnState                Btn:BtnState (Normal/Hover/Pressed/Disabled; replays current)
                .OnValueChanged         Toggle:bool / Slider:float / InputField:string / Tab:bool
                .OnSelected             Dropdown:int / Tab:Unit (on=true only)
                .OnSelectionChanged     TabBar:Tab (the newly-on Tab, or null when emptied)

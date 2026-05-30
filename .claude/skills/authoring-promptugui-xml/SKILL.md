@@ -21,7 +21,7 @@ dotnet run --project Library/PackageCache/com.promptugui.core@<hash>/.lint/UIXml
 ```
 
 - No Unity required — pure .NET, runs anywhere `dotnet` is installed.
-- Surfaces context-dependent rules that XSD can't easily express, e.g. **`anchor` / `margin` on a direct child of `<VStack>` / `<HStack>` / `<Grid>`** (`PUI-LAYOUT-ANCHOR` / `PUI-LAYOUT-MARGIN`). Unity logs these as warnings (so `UI.Open()` doesn't break), but the CLI promotes them to errors with non-zero exit code so they don't slip through.
+- Surfaces context-dependent rules that XSD can't easily express, e.g. **`anchor` / `margin` on a direct child of `<VStack>` / `<HStack>` / `<Grid>`** (`PUI-LAYOUT-ANCHOR` / `PUI-LAYOUT-MARGIN`), or a bare `state-*` trigger with no `<Btn>` ancestor (`PUI-STATE-NO-SOURCE`). Unity logs these as warnings (so `UI.Open()` doesn't break), but the CLI promotes them to errors with non-zero exit code so they don't slip through.
 - Exit 0 = clean. Exit 1 = at least one parse error or rule violation; STOP and fix before reporting done.
 - Rule code lives in `Library/PackageCache/com.promptugui.core@<hash>/Runtime/Core/Lint/` and is shared with `ScreenInstantiator`'s warning path — same logic, one source of truth.
 
@@ -75,7 +75,7 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 
 `<Import>`, `<Theme>`, `<Screen>`, `<Template>` are the **only** elements allowed at the top level. Comments use standard `<!-- -->`.
 
-## Built-in primitives (17)
+## Built-in primitives (18)
 
 **默认视觉主题**：白底 sliced + #323232 深字（同 Unity 6 标准 UI prefab）。`color=` / `sprite=` 单点 override，整体深色覆写 `ProceduralBuilders` 常量或用 Variant `color.dark="..."`。
 
@@ -90,7 +90,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name:
 | `<VStack>`     | Vertical layout group. Default `childAlign="upper-center"` (cross-axis centered).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | `spacing` (float), `padding` (`T,R,B,L` 1/2/4 components; `"_"` = 0 placeholder, e.g. `padding="6,_,_,_"`), `childAlign` (`upper/middle/lower-left/center/right`; `center` alias for `middle-center`)                                                                                                                                                                                                                                                                                                                                                      |
 | `<HStack>`     | Horizontal layout group. Default `childAlign="middle-left"` (cross-axis centered).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Same as VStack.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `<Grid>`       | Grid layout group, fixed columns.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | `columns` (int), `cellSize` (`WxH`), `spacing` (single or `H,V`), `padding`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `<Btn>`        | Image + Button + R3 `OnClick`. `<Btn>开始</Btn>` shorthand creates an internal TMP label child. Use as **template root** or registered prefab tag for any clickable. **不写 size 时自动按文字宽 + 左右 16 padding、上下 max(44, 文字高+12) 自适应**；无 text（icon-only）回退到 80×44。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `color` (hex / CSS named color / theme token; see **Color Tokens** section), `sprite`, `fontSize` (int, applied to the auto-label only; other Text attrs like `align` / `wrap` require an explicit `<Text>` child), `font` (string, font type from Settings; default `default`), `tr` (bool, default `true`; set `false` to skip i18n extraction), `ctx` (string, msgctxt to disambiguate same-msgid in the .po table), `tint` (`multiply` / `linear`; see **Tint blend modes**)                                                                           |
+| `<Btn>`        | Image + Button + R3 `OnClick` / `OnState`. `<Btn>开始</Btn>` shorthand creates an internal TMP label child. Use as **template root** or registered prefab tag for any clickable. **不写 size 时自动按文字宽 + 左右 16 padding、上下 max(44, 文字高+12) 自适应**；无 text（icon-only）回退到 80×44。 `interactable="false"` also drives `Button.interactable` → Btn enters Disabled state (`disabledColor` applies, `state-disabled` fires) on top of the CanvasGroup raycast block. State colours: see **Btn state visuals** section.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `color` (hex / CSS named color / theme token; see **Color Tokens** section), `sprite`, `hoverColor` / `pressedColor` / `disabledColor` (hex / CSS named / theme token; **colour multipliers** in the uGUI ColorTint sense — see **Btn state visuals**), `fontSize` (int, applied to the auto-label only; other Text attrs like `align` / `wrap` require an explicit `<Text>` child), `font` (string, font type from Settings; default `default`), `tr` (bool, default `true`; set `false` to skip i18n extraction), `ctx` (string, msgctxt to disambiguate same-msgid in the .po table), `tint` (`multiply` / `linear`; see **Tint blend modes**)                                                                           |
 | `<Icon>`       | Sprite from a project-level SpriteSet; by-name lookup, package-time pruning.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `name` (required, `ns:icon-name`), `color` (hex / CSS named color / theme token; see **Color Tokens** section), `size` (`WxH` / `native`; 拉伸用 `anchor="stretch"`), `tint` (`multiply` / `linear`; see **Tint blend modes**)                                                                                                                                                                                                                                                                                                                             |
 | `<Toggle>`     | Image + uGUI Toggle + auto label. R3 `OnValueChanged: bool`. `<Toggle>静音</Toggle>` shorthand sets the label. Same `group=` name → mutual exclusion. **不要给单个 Toggle 写 `group=`** — uGUI ToggleGroup 默认要求至少一个 active，单成员组一旦点上就锁死。**不写 size 时按文字宽 + 23 左 checkmark 区 + 5 右 padding、上下 max(44, 文字高+12) 自适应**；无 text（checkbox-only）回退到 44×44。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `text`, `isOn` (bool, default false), `group` (string, mutual-exclusion key), `color` (hex / CSS named color / theme token; see **Color Tokens** section), `sprite` (Resources path for checkmark sprite), `font`, `tint` (`multiply` / `linear`; see **Tint blend modes**)                                                                                                                                                                                                                                                                                |
 | `<Slider>`     | Image + uGUI Slider. R3 `OnValueChanged: float`. **不写 size 时按方向给默认**：横向 160×44、纵向 44×160（长边视觉宽度、短边 tap target）。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `min` (float), `max` (float), `value` (float), `wholeNumbers` (bool), `direction` (`horizontal` / `vertical` / `reverse-horizontal` / `reverse-vertical`), `color` (hex / CSS named color / theme token; see **Color Tokens** section), `sprite`, `tint` (`multiply` / `linear`; see **Tint blend modes**)                                                                                                                                                                                                                                                 |
@@ -100,6 +100,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name:
 | `<Progress>`   | 显示型线性进度条（只读，无 `OnValueChanged`）。一行配齐 frame / mask / bg / fill / mode / direction / value，零手糊图层。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | `value` (float `[0..1]`, default `0`), `fill` (sprite key), `fillColor` (hex / CSS named / theme token), `bg` (sprite key), `bgColor` (hex / CSS named / theme token; 单独设也激活 bg 层), `frame` (sprite key), `frameColor` (hex / CSS named / theme token; 单独设也激活 frame 层), `mask` (sprite key), `mode` (`scale`\|`fill`, default `scale`), `direction` (`horizontal`\|`vertical`\|`reverse-horizontal`\|`reverse-vertical`, default `horizontal`), `tint` (`multiply` / `linear`; applies to fill+bg+frame together — see **Tint blend modes**) |
 | `<TabBar>`     | Tab container; private `ToggleGroup` (`allowSwitchOff=false`) + `Horizontal`/`VerticalLayoutGroup`. Pure layout — no own visual (wrap in `<Image>` if you need a background strip). Children may be direct `<Tab>` or Template wrappers containing a `<Tab>` (recursive collect). Supports `itemTemplate` + `BindItems` for dynamic content (same shape as `<ScrollList>`). Behaves as a layout group for children — Tabs can't declare `anchor` / `margin`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `direction` (`horizontal` / `vertical`, default `horizontal`), `spacing` (float), `padding` (`T,R,B,L`), `itemTemplate` (tag name, default `Tab`)                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `<Tab>`        | Child of `<TabBar>`; uGUI `Toggle` + centered TMP label + optional left-side icon + optional selected overlay. Mutex via TabBar's `ToggleGroup` (automatic). `bind="frame_id"` declaratively shows/hides a sibling `<Frame>` on selection (lazy lookup, cached). No `bind=` → only `OnSelected`. `sprite` sets the normal bg; `selectedSprite` creates the overlay swap (bound to `UnityToggle.graphic`, instant transition); omit `selectedSprite` for "button mode" (mutex stays, no selected feedback — ColorTint on `_bg` still highlights). To share visuals across all Tabs in a bar, put them on a `<Template>` and use it as `itemTemplate` or as a static child wrapper. Accepts nested XML children (overlaid Frame-style on the Tab bg). For click-through, children must set `raycastTarget="false"` (`<Icon>` already does); a child that keeps `raycastTarget=true` (e.g. a nested `<Btn>`) handles its own clicks instead. | `text`, `isOn` (bool, default `false`), `bind` (id of sibling `<Frame>` to show/hide), `color` (hex / CSS named color / theme token; `#00000000` = transparent-but-clickable), `font`, `fontSize` (int), `icon` (sprite key, left-aligned 24×24 with 4px gap), `sprite` (normal bg), `selectedSprite` (overlay sprite when on; empty value = no-op)                                                                                                                                                                                                        |
+| `<Show>`       | No-visual wrapper (Trigger-derived). Its subtree is **visible while** the nearest ancestor `<Btn>` is in the `on="state-*"` state, hidden otherwise (`SetActive` toggle, never destroyed — hidden subtrees + their R3 subs survive). Sibling `<Show>` blocks under one Btn are **mutually exclusive**; a state with no explicit `<Show>` falls back to the `state-normal` block (so declaring only `state-normal` + `state-pressed` makes Normal artwork also cover PC `state-hover` — add an explicit `state-hover` block to override). Only `state-*` `on=` values are valid (any other, e.g. `on="click"`, is an error). Bare `state-*` needs a `<Btn>` ancestor (`PUI-STATE-NO-SOURCE`). Use it to swap artwork per state — see **Btn state visuals**.                                                                                                                                                                                                                | `on` (required; one of `state-normal` / `state-hover` / `state-pressed` / `state-disabled`, each also `@<id>`)                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` / `<TabBar>` are reference implementations. For project-specific differentiation (pixel border, press feedback, custom popup chrome) subclass and override `OnAttached` — see scripting-promptugui-csharp.
 
@@ -206,6 +207,7 @@ Other notes:
 | `<SafeArea>`   | `RectTransform` + `SafeAreaTracker`（内部 `MonoBehaviour`，订阅设备 safeArea / 旋转 / Device Simulator）                                                                                                                                                       | —                                                                                                                                                                                                                                                                                      | —                                                                                                  |
 | `<Trigger>`    | `RectTransform` 单独（无视觉、无 layout 行为，仅作 wrapper 划定事件源 scope）                                                                                                                                                                                  | —                                                                                                                                                                                                                                                                                      | `OnFire` ← R3 `Subject<Unit>`，由 `on=`（open/loop/click/hover-enter/hover-exit/press/manual）触发 |
 | `<Animation>`  | `RectTransform` + `CanvasGroup`（继承自 Trigger；CanvasGroup 给 `fade=` 用，由 `ApplyCommon` 懒加载）                                                                                                                                                          | `_offsetProxy`(`RectTransform`，anchor stretch、margin=0、pivot=0.5,0.5) — XML 子节点全 parent 到这一层；LitMotion 驱动它的 anchoredPosition / localScale / localEulerAngles                                                                                                           | `OnFire` ← 继承 Trigger；同时由 `on=` 触发 LitMotion `MotionHandle[]`                              |
+| `<Show>`       | `RectTransform` 单独（继承自 Trigger；无视觉、无 layout）— 仅是一个按状态 `SetActive` 切换的 wrapper                                                                                                                                                            | —（作者子节点直接挂在它下面，整组随状态显隐）                                                                                                                                                                                                                                          | `OnFire` ← 继承 Trigger；不订阅 `OnState`，由最近 `<Btn>` 祖先（`PuiButton`）的状态协调器统一驱动显隐 |
 
 **Common attribute → uGUI 落点**（实现在 `Control.ApplyCommon`；对所有 tag 生效，`<SafeArea>` 例外，整套 anchor/size/width/height/pivot 都被拒绝）
 
@@ -238,7 +240,8 @@ Other notes:
 | `margin="..."`             | 1/2/4 floats                 | "Distance from anchor inward, positive". `"_"` = 0 placeholder.                                                                                                                                                                                                                                                                                                        |
 | `pivot="x,y"`              | `0..1, 0..1`                 | Defaults derive from `anchor`; rarely needed.                                                                                                                                                                                                                                                                                                                          |
 | `hidden="true"`            | bool                         | Initial `SetActive(false)`.                                                                                                                                                                                                                                                                                                                                            |
-| `interactable="false"`     | bool                         | Initial `CanvasGroup.interactable=false` + `blocksRaycasts=false`.                                                                                                                                                                                                                                                                                                     |
+| `interactable="false"`     | bool                         | Initial `CanvasGroup.interactable=false` + `blocksRaycasts=false`. On `<Btn>` it **also** sets `Button.interactable=false` → the Btn enters its Disabled state (see **Btn state visuals**).                                                                                                                                                                              |
+| `stateReact="false"`       | bool (default `true`)        | Opts this node **and its whole subtree** out of an ancestor `<Btn>`'s state-colour tint fan-out (`hoverColor` / `pressedColor` / `disabledColor`). See **Btn state visuals**.                                                                                                                                                                                           |
 | `scale="N"`                | positive float               | Sets `RectTransform.localScale = (N, N, 1)`. Relative to layout box: `N=1` is identity, `N=0.5` is half-size, `N=2` is double. Works in any `scale-mode`. Common use: shrink small text / debug overlays inside a `scale-mode='pixel'` Canvas so they render finer than the canvas's auto integer factor. See "Relative scale" section below for layout-group caveats. |
 
 `padding` and `spacing` are **NOT** universal — only on `<VStack>` / `<HStack>` / `<Grid>`.
@@ -725,9 +728,9 @@ Tab 是 TabBar 的 layout group child —— 不能写 `anchor=` / `margin=`（`
 
 #### Via Template (for shared styling across instances / dynamic BindItems)
 
-When several tabs share one rich face, or tabs are generated at runtime from data, wrap the `<Tab>` in a
-Template and invoke it as TabBar's child. Put `sprite` / `selectedSprite` on the `<Tab>` inside the Template
-so every instance shares them without restating:
+When several tabs share one rich face, or tabs are generated at runtime from data, make the `<Tab>` the
+Template root and put its content **inside** the Tab (children overlay the bg, Frame-style). `sprite` /
+`selectedSprite` live on the `<Tab>` so every instance shares them without restating:
 
 ```xml
 <Template name="FileTab">
@@ -735,15 +738,15 @@ so every instance shares them without restating:
   <Param name="icon"/>
   <Param name="bind"/>
   <Param name="isOn" default="false"/>
-  <Frame width="80" height="96">
-    <Tab id="tab" sprite="ui:cell_normal" selectedSprite="ui:cell_selected"
-         isOn="{{isOn}}" bind="{{bind}}"/>
-    <Icon id="icon" sprite="ui:icon_{{icon}}"
+  <Tab id="tab" width="80" height="96"
+       sprite="ui:cell_normal" selectedSprite="ui:cell_selected"
+       isOn="{{isOn}}" bind="{{bind}}">
+    <Icon id="icon" name="ui:icon_{{icon}}"
           anchor="top-center" width="48" height="48"
           margin="8,0,0,0"/>
     <Text id="name" anchor="top-stretch" margin="60,4,0,4"
           fontSize="12" align="center" raycastTarget="false">{{text}}</Text>
-  </Frame>
+  </Tab>
 </Template>
 
 <TabBar id="files">
@@ -752,7 +755,7 @@ so every instance shares them without restating:
 </TabBar>
 ```
 
-TabBar walks Template wrappers recursively to find the inner `<Tab>`; auto-select and `OnSelectionChanged` all work as if the wrappers were direct Tab children. Lint rules `PUI-TABBAR-CHILD` and `PUI-TAB-PARENT` are suppressed for Template-instance roots. Use `<Icon>` (hardcoded `raycastTarget=false`) for decorative imagery and `raycastTarget="false"` on `<Text>` so clicks pass through to the underlying Tab.
+TabBar collects the Tab whether it is the Template root (as here) or nested inside a wrapper; auto-select and `OnSelectionChanged` work the same either way. Lint rules `PUI-TABBAR-CHILD` and `PUI-TAB-PARENT` are suppressed for Template-instance roots. The Tab's `width`/`height` is its layout-group cell size; its children use their own `anchor` / `margin` (Tab is not a layout group). Keep decorative children `raycastTarget=false` (`<Icon>` already is; add it on `<Text>`) so clicks fall through to the containing Tab.
 
 For dynamic data, use `BindItems` with `itemTemplate="FileTab"` (the same Template works for both patterns).
 
@@ -798,9 +801,14 @@ BUILT-INS     <Frame> <Image> <Text> <VStack> <HStack> <Grid> <Btn> <Icon>
               <Toggle> <Slider> <Dropdown> <ScrollList> <InputField>
               <Progress value="0.6" fill="ui:bar"/>  最简；mask= + 不设 bg → mask sprite 自动可见兼当底；radial 进度环不在 <Progress> 范围
               <TabBar><Tab text="A" sprite="..." selectedSprite="..." bind="frame_a" isOn="true"/>...</TabBar>  互斥 + Tab 自管 sprite/selectedSprite + bind 自动 toggle Frame
+              <Show on="state-pressed">...</Show>  visible-while-state wrapper; siblings mutex; unclaimed states → state-normal fallback
 TEXT SHORT    <Text>Hi</Text> ≡ <Text text="Hi"/>     (also <Btn>, <Toggle>, <InputField>)
 
-COMMON ATTRS  id  anchor  size|width|height  margin  pivot  hidden  interactable
+BTN STATE     hoverColor/pressedColor/disabledColor  colour multipliers (base*state), fan out to bg + descendants, fade ~0.1s
+              stateReact="false"  opt node+subtree out of fan-out
+              on="state-normal|hover|pressed|disabled[@id]"  on <Trigger>/<Animation>/<Show>; resolves UPWARD to nearest <Btn>; fires on enter
+
+COMMON ATTRS  id  anchor  size|width|height  margin  pivot  hidden  interactable  stateReact
 STACK-ONLY    padding  spacing                                    (VStack/HStack/Grid)
 
 ANCHOR        "<v>-<h>"     v ∈ {top, center, bottom, stretch}
@@ -878,7 +886,16 @@ I18N XML      <Text>...</Text>                 extract + translate
 | `hover-exit@<id>`  | Pointer leaves the `<Btn>` or `<Image>` with `<id>`                                                                          |
 | `press`            | Pointer pressed down on the unique `<Btn>` or `<Image>` (`IPointerDownHandler`). Instantaneous — release / long-press are v2 |
 | `press@<id>`       | Pointer pressed down on the `<Btn>` or `<Image>` with `<id>`                                                                 |
+| `state-normal`     | The nearest **ancestor** `<Btn>` enters its Normal state (also fires once at open, since the Btn starts Normal)              |
+| `state-hover`      | The nearest ancestor `<Btn>` enters Hover                                                                                    |
+| `state-pressed`    | The nearest ancestor `<Btn>` enters Pressed                                                                                  |
+| `state-disabled`   | The nearest ancestor `<Btn>` enters Disabled                                                                                 |
+| `state-...@<id>`   | Same, but the source `<Btn>` is the one with `<id>` (any of the four `state-*` values)                                       |
 | `manual`           | Does not auto-fire; C# must call `Fire()`                                                                                    |
+
+**`state-*` source resolution is UPWARD**: unlike `click` / `hover-enter` / `press` (which search this Trigger's **subtree downward** for a `<Btn>` / `<Image>` source), `state-*` resolves to the nearest `<Btn>` **ancestor** (`state-...@<id>` targets a specific `<Btn>` by id). A bare `state-*` with no `<Btn>` ancestor is a runtime error (and `PUI-STATE-NO-SOURCE` in the lint CLI; `@id` forms and Template bodies are exempt). They **fire on entering** the state, so `state-normal` fires once at open and `<Animation on="state-pressed">` plays on press with `<Animation on="state-normal">` as its natural revert.
+
+**`hover-enter` vs `state-hover`**: `hover-enter` / `press` are **raw pointer events** (`PointerEventRelay`, `IPointer*Handler`, downward source) — they fire on any pointer enter / down regardless of interactable state. `state-hover` / `state-pressed` come from the Btn's **Selectable state machine** (disabled-aware, drag-cancel-aware, upward source); a disabled Btn never emits `state-hover` / `state-pressed`, only `state-disabled`.
 
 **Pointer-event source range**: only `<Btn>` and `<Image>` can be `hover-enter` / `hover-exit` / `press` event sources. They both default to `raycastTarget=true`, which is what Unity's EventSystem requires for dispatching pointer events. Using `@<id>` to reference `<Icon>` (hardcoded `raycastTarget=false`), `<Text>` (default `false`), `<Frame>` (no Graphic to receive raycasts), or any other control as a pointer source → runtime error `"id 'X' is a Y, not supported as pointer event source. Use <Btn> or <Image>."`
 
@@ -1002,6 +1019,59 @@ Text family default: looks for the unique `<Text>` in the subtree. Multiple `<Te
 - `char-color` assumes Text content doesn't change during animation; concurrent `count` + `char-color` on the same `<Text>` may produce wrong-char colors as text length changes
 - `<Animation>` adds a `CanvasGroup` and an inner `_offsetProxy` GameObject (transparent to layout, but visible in the Hierarchy)
 - `on="open"` fires once at Screen open; Variant ReSolve does **not** re-fire
+
+## Btn state visuals
+
+A `<Btn>` broadcasts its uGUI interaction state (`Normal` / `Hover` / `Pressed` / `Disabled`; Selectable's `Selected` is folded into `Normal`). Three ways to react, in increasing power:
+
+### 1. State colour multipliers — `hoverColor` / `pressedColor` / `disabledColor`
+
+These are **colour multipliers** with uGUI ColorTint semantics: the graphic shows `baseColor * stateColor`, and Normal is the identity (white). They accept the same value forms as `color` (hex / CSS named / theme token). When **any** of the three is set, the Btn fans the tint out to its bg **and every descendant Graphic** (label, icons, nested images) — switching the bg off uGUI's built-in ColorTint so these reactors become the single source of truth — and the tint **fades** over ~0.1s. A `<Btn>` with **none** of them set is unchanged (plain ColorTint on its bg only).
+
+```xml
+<Btn pressedColor="#cccccc" disabledColor="#888888">
+  <Text anchor="center">Buy</Text>
+</Btn>
+```
+
+- Distinct from `tint` (which picks the multiply-vs-linear-light **material**) and `color` (the base bg colour). All three compose.
+- `interactable="false"` on the Btn now also sets `Button.interactable=false`, so it enters the Disabled state — `disabledColor` applies and `state-disabled` fires (on top of the existing CanvasGroup raycast block; the two compose).
+- Variant-overridable like any `[UIAttr]` colour (the reactor re-resolves on ReSolve; the captured base colour is never re-captured).
+
+**Opting out — `stateReact="false"`**: a **common attribute** (any element, default `true`) that opts a node **and its whole subtree** out of an ancestor Btn's tint fan-out. The installer prunes that subtree, so those graphics keep their authored colour through hover / press / disable. (A nested `<Btn>` is auto-pruned — it owns its own graphics.)
+
+```xml
+<Btn pressedColor="#aaaaaa">
+  <Image sprite="ui:badge" stateReact="false"/>  <!-- stays full-colour on press -->
+  <Text anchor="center">Claim</Text>             <!-- tints with the Btn -->
+</Btn>
+```
+
+### 2. Artwork swap — `<Show on="state-...">`
+
+`<Show>` is a no-visual wrapper whose subtree is visible **only while** the nearest ancestor `<Btn>` is in that state (hidden otherwise, via `SetActive` — never destroyed). Sibling `<Show>` blocks under one Btn are mutually exclusive; an unclaimed state falls back to the `state-normal` block. Only `state-*` `on=` values are valid (any other, e.g. `on="click"`, is an error). Wrap two `<Image>` siblings to swap artwork per state:
+
+```xml
+<Btn id="play">
+  <Show on="state-normal"><Image anchor="stretch" sprite="ui:play-normal"/></Show>
+  <Show on="state-pressed"><Image anchor="stretch" sprite="ui:play-pressed"/></Show>
+  <Text anchor="center">Play</Text>
+</Btn>
+```
+
+Here PC `state-hover` has no explicit block, so the `state-normal` artwork covers it too; add a `<Show on="state-hover">` to give hover its own art.
+
+### 3. State-triggered animation — `<Trigger>` / `<Animation on="state-...">`
+
+`state-normal` / `state-hover` / `state-pressed` / `state-disabled` (each also `@<id>`) are `on=` values on `<Trigger>` / `<Animation>` / `<Show>` — see the Triggers `on=` table. Source resolution is **upward** to the nearest `<Btn>` ancestor (opposite of `click` / `press`), and they fire **on entering** the state. Pair a press animation with its revert:
+
+```xml
+<Btn>
+  <Animation scale="1:0.95" duration="0.08s" on="state-pressed"><Frame anchor="stretch"/></Animation>
+  <Animation scale="0.95:1" duration="0.08s" on="state-normal"><Frame anchor="stretch"/></Animation>
+  <Text anchor="center">Tap</Text>
+</Btn>
+```
 
 ## Worked end-to-end example (XML)
 

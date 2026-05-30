@@ -97,5 +97,37 @@ namespace PromptUGUI.Controls.Internal
                     CollectPointerSources(childCtrl, outList);
             }
         }
+
+        /// <summary>
+        /// 为 state-* 触发器查找作为状态源的 <see cref="PuiButton"/>。
+        /// 与 click / hover / press 向下搜子树相反，state-* 默认向 <b>上</b> 找最近的 Btn 祖先
+        /// （把 Trigger 当作"贴在 Btn 上的反应器"）。
+        /// </summary>
+        /// <param name="trigger">触发器控件</param>
+        /// <param name="sourceId">空 → 走 GameObject 树向上找最近的 PuiButton；非空 → 走 ScopedIds 精确查找 + 类型校验</param>
+        public static PuiButton FindStateSource(Trigger trigger, string sourceId)
+        {
+            if (string.IsNullOrEmpty(sourceId))
+            {
+                var ancestor = trigger.GameObject.GetComponentInParent<PuiButton>();
+                if (ancestor == null)
+                    throw new InvalidOperationException(
+                        $"<Trigger on=\"state-...\"> in '{trigger.Id ?? trigger.GameObject.name}': " +
+                        "no <Btn> ancestor found. Place it inside a <Btn>, or use state-...@<id>.");
+                return ancestor;
+            }
+
+            if (!trigger.ScopedIds.TryGetValue(sourceId, out var ctrl))
+                throw new InvalidOperationException(
+                    $"<Trigger on=\"state-...@{sourceId}\"> in '{trigger.Id ?? trigger.GameObject.name}': " +
+                    $"id '{sourceId}' not found in trigger subtree scope");
+
+            var pui = ctrl.GameObject.GetComponent<PuiButton>();
+            if (pui == null)
+                throw new InvalidOperationException(
+                    $"<Trigger on=\"state-...@{sourceId}\">: id '{sourceId}' is a " +
+                    $"{ctrl.GetType().Name}, not a <Btn>. state-* triggers require a <Btn> source.");
+            return pui;
+        }
     }
 }
