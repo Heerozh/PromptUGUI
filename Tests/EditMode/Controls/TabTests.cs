@@ -25,7 +25,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Tab_Has_Bg_Toggle_And_Label_Children()
+        public void Tab_Has_Bg_And_Toggle()
         {
             // Suppress the no-ancestor warning fired by OnAttached.
             LogAssert.Expect(LogType.Warning,
@@ -33,9 +33,6 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var t = OpenTab("<Tab id='t'/>");
             Assert.IsNotNull(t.GameObject.GetComponent<UnityImage>(), "bg UnityImage on self");
             Assert.IsNotNull(t.GameObject.GetComponent<UnityToggle>(), "UnityToggle on self");
-            var label = t.GameObject.transform.Find("Label") as RectTransform;
-            Assert.IsNotNull(label, "Label RT child");
-            Assert.IsNotNull(label.GetComponent<TMP_Text>(), "TMP on Label");
         }
 
         [Test]
@@ -65,13 +62,13 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Tab_With_Empty_Text_Has_Empty_Label()
+        public void Tab_NoText_Has_No_Label()
         {
             LogAssert.Expect(LogType.Warning,
                 new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
             var t = OpenTab("<Tab id='t'/>");
-            var label = t.GameObject.transform.Find("Label").GetComponent<TMP_Text>();
-            Assert.AreEqual("", label.text);
+            Assert.IsNull(t.GameObject.transform.Find("Label"),
+                "no Label GameObject when text attr absent (lazy label)");
         }
 
         [Test]

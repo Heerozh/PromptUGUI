@@ -34,16 +34,6 @@ namespace PromptUGUI.Controls
             _toggle.targetGraphic = _bg;
             _toggle.transition = Selectable.Transition.ColorTint;
 
-            _label = ProceduralBuilders.AddText(RectTransform, "Label");
-            _label.alignment = TextAlignmentOptions.Center;
-            _label.raycastTarget = false;
-            _label.fontSize = 24;
-            _label.text = "";
-            var lrt = _label.rectTransform;
-            lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
-            lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
-            ApplyFont();
-
             var group = FindAncestorToggleGroup();
             if (group == null)
                 Debug.LogWarning($"Tab '{Id}' has no <TabBar> ancestor; mutual exclusion disabled.");
@@ -52,6 +42,22 @@ namespace PromptUGUI.Controls
 
             _toggle.onValueChanged.AddListener(OnIsOnChanged);
             UI.Locale.Changed += ApplyFont;
+        }
+
+        private TMP_Text EnsureLabel()
+        {
+            if (_label != null) return _label;
+            _label = ProceduralBuilders.AddText(RectTransform, "Label");
+            _label.alignment = TextAlignmentOptions.Center;
+            _label.raycastTarget = false;
+            _label.fontSize = 24;
+            _label.text = "";
+            var lrt = _label.rectTransform;
+            lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one;
+            lrt.offsetMin = _icon != null ? new Vector2(32f, 0f) : Vector2.zero;
+            lrt.offsetMax = Vector2.zero;
+            ApplyFont();
+            return _label;
         }
 
         private void OnIsOnChanged(bool isOn)
@@ -122,7 +128,8 @@ namespace PromptUGUI.Controls
         {
             set
             {
-                if (_label != null) _label.text = value ?? "";
+                if (string.IsNullOrEmpty(value) && _label == null) return;
+                EnsureLabel().text = value ?? "";
             }
         }
 
@@ -134,14 +141,14 @@ namespace PromptUGUI.Controls
             set
             {
                 _fontType = string.IsNullOrEmpty(value) ? "default" : value;
-                ApplyFont();
+                if (_label != null) ApplyFont();
             }
         }
 
         [UIAttr("fontSize"), Preserve]
         public int FontSize
         {
-            set { if (_label != null) _label.fontSize = value; }
+            set => EnsureLabel().fontSize = value;
         }
 
         [UIAttr(IsSprite = true), Preserve]
