@@ -150,8 +150,11 @@ Extract `Btn.ApplyStateTint` / `CollectBlocked` / `InstallReactor` into a shared
 
 ## 6. XSD
 
-- `Tab` / `Toggle` are **reflected** (`XsdGenerator.ReflectControlAttrs`), so their new `*Color` `[UIAttr]`s appear automatically — no manual edit for them.
-- Manual edits: add `state-selected` (and `state-selected@…` pattern) to the `on=` enumeration; keep `*Color` off the hand-listed `<Btn>` block except the existing three (no `selectedColor` on Btn).
+Verified against `Editor/XsdGenerator.cs`: **no manual XSD work is required.**
+- `Tab` / `Toggle` are **reflected** (`ReflectControlAttrs`; they are not in the hand-listed `primitives` set), so their new `*Color` `[UIAttr]`s appear automatically.
+- `on=` is a reflected free-form `xs:string` — there is **no** `state-*` enumeration in the generator — so `state-selected` needs no schema edit.
+- No `.xsd` artifact is committed (generated on demand via `Tools → PromptUGUI → Schema → Generate XSD`), so nothing to regenerate. `selectedColor` correctly stays off `<Btn>`: Btn's attrs are hand-listed and we add nothing there.
+- Optional coverage: extend `Tests/EditMode/Editor/XsdGeneratorTests.cs` with a substring assertion that `<Tab>` / `<Toggle>` now expose `selectedColor` (mirrors the existing reflected-attr assertions).
 
 ## 7. Extension points (for deferred controls)
 
