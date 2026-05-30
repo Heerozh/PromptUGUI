@@ -211,6 +211,39 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void PressedColor_VariantReSolve_KeepsSingleReactorAndReConfiguresMultiplier()
+        {
+            UseInstantTint();
+            // pressedColor has an inline Variant override: light=#808080, dark=#404040.
+            var btn = BuildBtnXml("pressedColor='#808080' pressedColor.dark='#404040'", "<Image id='img'/>");
+            var bg = btn.GameObject.GetComponent<UnityImage>();
+
+            // Base (authored) colour + the single reactor installed by the first apply.
+            var bgBase = bg.color;
+            Assert.AreEqual(1, bg.GetComponents<StateTintReactor>().Length,
+                "bg should host exactly one reactor after the initial apply");
+
+            // Toggle the 'dark' variant: VariantStore.Changed fires → open Screen ReSolves →
+            // Btn.OnAfterApply re-runs ApplyStateTint with the dark-resolved multiplier.
+            UI.Variants.Set("dark", true);
+
+            // (a) No duplicate reactor — re-apply reuses the existing one via GetComponent ?? Add.
+            Assert.AreEqual(1, bg.GetComponents<StateTintReactor>().Length,
+                "Variant ReSolve must NOT add a second reactor");
+
+            // (b) Pressed now multiplies by the dark override (#404040), and the base colour
+            // is still the original authored colour (reactor never re-captured a tinted value).
+            var dark = new Color(0.2509804f, 0.2509804f, 0.2509804f, 1f); // #404040
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+            puiBtn.SimulateState(Pressed);
+            AssertColorsEqual(bgBase * dark, bg.color);
+
+            // Returning to Normal restores the untinted base, proving base wasn't promoted.
+            puiBtn.SimulateState(Normal);
+            AssertColorsEqual(bgBase, bg.color);
+        }
+
+        [Test]
         public void StateReactFalse_ChildKeepsColorAndHasNoReactor()
         {
             UseInstantTint();

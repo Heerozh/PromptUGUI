@@ -28,9 +28,6 @@ namespace PromptUGUI.Controls.Internal
         private readonly HashSet<BtnState> _claimedShowStates = new();
         private readonly List<Action> _showReevaluators = new();
 
-        /// <summary>States with at least one explicit <c><Show on="state-*"></c> sibling.</summary>
-        internal IReadOnlyCollection<BtnState> ClaimedShowStates => _claimedShowStates;
-
         /// <summary>True if some <c><Show></c> has explicitly claimed <paramref name="state"/>.</summary>
         internal bool IsShowStateClaimed(BtnState state) => _claimedShowStates.Contains(state);
 
