@@ -101,13 +101,35 @@ namespace PromptUGUI.Tests.EditMode.Controls
             CollectionAssert.AreEqual(new[] { BtnState.Normal }, seen);
         }
 
-        // NOTE (Phase 1.4 — interactable): intentionally NOT implemented in this commit.
-        // The XML `interactable` attribute is a CommonAttr (see ControlAttributeApplier.CommonAttrs),
-        // so it is filtered out before per-control [UIAttr] setters run and flows ONLY through
-        // ApplyCommon -> Control.Interactable (CanvasGroup), which does not drive Button.interactable
-        // and therefore does not put the Selectable into Disabled. A [UIAttr("interactable")] on Btn
-        // would be dead code. Resolving this is a design fork (see PR/report); the
-        // InteractableFalse_EmitsDisabled test is deferred until the fork is decided.
+        [Test]
+        public void InteractableFalse_DrivesButtonAndEmitsDisabled()
+        {
+            // `interactable` is a common attr: it flows through ApplyCommon -> Control.Interactable
+            // (CanvasGroup) and, via Btn.OnAfterApply, is bridged to Button.interactable. Setting
+            // Button.interactable = false synchronously runs DoStateTransition(Disabled).
+            var btn = BuildBtn("interactable='false'");
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+            Assert.IsNotNull(puiBtn, "Btn should host a PuiButton");
+
+            Assert.IsFalse(puiBtn.interactable, "Button.interactable should mirror interactable='false'");
+
+            BtnState seen = (BtnState)(-1);
+            using var _ = btn.OnState.Subscribe(s => seen = s);
+            Assert.AreEqual(BtnState.Disabled, seen);
+        }
+
+        [Test]
+        public void InteractableOmitted_StaysNormalAndButtonInteractable()
+        {
+            var btn = BuildBtn();
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+
+            Assert.IsTrue(puiBtn.interactable, "default <Btn> Button.interactable should be true");
+
+            BtnState seen = (BtnState)(-1);
+            using var _ = btn.OnState.Subscribe(s => seen = s);
+            Assert.AreEqual(BtnState.Normal, seen);
+        }
 
         [Test]
         public void PlainBtn_BackCompat_TargetGraphicIsBgAndTransitionIsColorTint()

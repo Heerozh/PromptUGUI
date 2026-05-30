@@ -50,6 +50,22 @@ namespace PromptUGUI.Controls
         /// </summary>
         public Observable<BtnState> OnState => _btn.OnState;
 
+        /// <summary>
+        /// Bridges the common <c>interactable</c> attribute (already applied by
+        /// <see cref="ControlAttributeApplier"/> via <c>ApplyCommon</c> → base
+        /// <see cref="Control.Interactable"/>, CanvasGroup-backed) to the underlying
+        /// <see cref="UnityEngine.UI.Button"/>. Setting <c>Button.interactable = false</c>
+        /// synchronously runs <c>DoStateTransition(Disabled)</c>, so <see cref="OnState"/>
+        /// emits <see cref="BtnState.Disabled"/>. Runs after every <c>ApplyCommon</c>
+        /// (initial apply + each Variant ReSolve), composing with — not replacing — the
+        /// CanvasGroup behaviour.
+        /// </summary>
+        internal override void OnAfterApply()
+        {
+            base.OnAfterApply();
+            _btn.interactable = Interactable;
+        }
+
         private TMP_Text EnsureLabel()
         {
             if (_autoLabel != null) return _autoLabel;
