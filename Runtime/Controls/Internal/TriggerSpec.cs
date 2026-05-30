@@ -5,7 +5,7 @@ namespace PromptUGUI.Controls.Internal
     internal enum TriggerKind
     {
         Open, Loop, Click, Manual, HoverEnter, HoverExit, Press,
-        StateNormal, StateHover, StatePressed, StateDisabled,
+        StateNormal, StateHover, StatePressed, StateSelected, StateDisabled,
     }
 
     internal sealed class TriggerSpec
@@ -21,6 +21,7 @@ namespace PromptUGUI.Controls.Internal
             ("state-normal@",   TriggerKind.StateNormal),
             ("state-hover@",    TriggerKind.StateHover),
             ("state-pressed@",  TriggerKind.StatePressed),
+            ("state-selected@", TriggerKind.StateSelected),
             ("state-disabled@", TriggerKind.StateDisabled),
         };
 
@@ -39,6 +40,7 @@ namespace PromptUGUI.Controls.Internal
                 case "state-normal": return new TriggerSpec { Kind = TriggerKind.StateNormal };
                 case "state-hover": return new TriggerSpec { Kind = TriggerKind.StateHover };
                 case "state-pressed": return new TriggerSpec { Kind = TriggerKind.StatePressed };
+                case "state-selected": return new TriggerSpec { Kind = TriggerKind.StateSelected };
                 case "state-disabled": return new TriggerSpec { Kind = TriggerKind.StateDisabled };
             }
             foreach (var (prefix, kind) in s_prefixedKinds)
@@ -55,7 +57,7 @@ namespace PromptUGUI.Controls.Internal
             throw new ArgumentException(
                 $"Invalid trigger 'on=\"{value}\"' — expected one of: open / loop / click / click@<id> / " +
                 "hover-enter / hover-enter@<id> / hover-exit / hover-exit@<id> / press / press@<id> / " +
-                "state-normal / state-hover / state-pressed / state-disabled (each also with @<id>) / manual");
+                "state-normal / state-hover / state-pressed / state-selected / state-disabled (each also with @<id>) / manual");
         }
     }
 }

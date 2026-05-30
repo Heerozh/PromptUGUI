@@ -4,13 +4,14 @@ using PromptUGUI.Controls.Internal;
 namespace PromptUGUI.Controls
 {
     /// <summary>
-    /// A <see cref="Trigger"/> whose own subtree is <b>visible only while the source <c>&lt;Btn&gt;</c>
-    /// is in the <c>on=</c> state</b> (and hidden otherwise) — a state-conditional view switch.
+    /// A <see cref="Trigger"/> whose own subtree is <b>visible only while the source
+    /// <c>&lt;Btn&gt;</c>/<c>&lt;Tab&gt;</c>/<c>&lt;Toggle&gt;</c> is in the <c>on=</c> state</b>
+    /// (and hidden otherwise) — a state-conditional view switch.
     /// Give several <c>&lt;Show&gt;</c> siblings different <c>on="state-*"</c> values to swap between
     /// alternative subtrees (e.g. swap an icon on press).
     /// </summary>
     /// <remarks>
-    /// Coordination owner is the <see cref="PuiButton"/> (see <see cref="PuiButton.RegisterShow"/>):
+    /// Coordination owner is the <see cref="IStateSource"/> (see <see cref="IStateSource.RegisterShow"/>):
     /// each Show only registers a state claim + a re-evaluation callback and never subscribes to
     /// <c>OnState</c> itself. Visibility uses <c>GameObject.SetActive</c> only (Strategy C — never
     /// destroyed), so a hidden alternative and its R3 subscriptions survive.
@@ -22,24 +23,25 @@ namespace PromptUGUI.Controls
     /// </remarks>
     public sealed class Show : Trigger
     {
-        private BtnState _myState;
-        private PuiButton _pui;
+        private InteractState _myState;
+        private IStateSource _src;
 
         protected override void InitTriggerSubscription()
         {
             _myState = _spec.Kind switch
             {
-                TriggerKind.StateNormal => BtnState.Normal,
-                TriggerKind.StateHover => BtnState.Hover,
-                TriggerKind.StatePressed => BtnState.Pressed,
-                TriggerKind.StateDisabled => BtnState.Disabled,
+                TriggerKind.StateNormal => InteractState.Normal,
+                TriggerKind.StateHover => InteractState.Hover,
+                TriggerKind.StatePressed => InteractState.Pressed,
+                TriggerKind.StateSelected => InteractState.Selected,
+                TriggerKind.StateDisabled => InteractState.Disabled,
                 _ => throw new InvalidOperationException(
                     "<Show> only accepts state-* events (state-normal / state-hover / " +
-                    $"state-pressed / state-disabled), got 'on=\"{OnRaw()}\"'."),
+                    $"state-pressed / state-selected / state-disabled), got 'on=\"{OnRaw()}\"'."),
             };
 
-            _pui = TriggerSourceResolver.FindStateSource(this, _spec.SourceId);
-            _pui.RegisterShow(_myState, ReevaluateVisibility);
+            _src = TriggerSourceResolver.FindStateSource(this, _spec.SourceId);
+            _src.RegisterShow(_myState, ReevaluateVisibility);
         }
 
         // Best-effort echo of the author's literal on= value for the error message.
@@ -60,9 +62,9 @@ namespace PromptUGUI.Controls
         // exists for the current state, that group shows nothing.
         private void ReevaluateVisibility()
         {
-            var current = _pui.Current;
+            var current = _src.Current;
             var active = current == _myState
-                         || (_myState == BtnState.Normal && !_pui.IsShowStateClaimed(current));
+                         || (_myState == InteractState.Normal && !_src.IsShowStateClaimed(current));
             GameObject.SetActive(active);
         }
     }

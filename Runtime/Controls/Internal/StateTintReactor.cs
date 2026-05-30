@@ -7,8 +7,8 @@ using UnityEngine.UI;
 namespace PromptUGUI.Controls.Internal
 {
     /// <summary>
-    /// Drives a single <see cref="Graphic"/>'s colour from the owning <see cref="PuiButton"/>'s
-    /// <see cref="BtnState"/> stream. On each state it tweens the graphic toward
+    /// Drives a single <see cref="Graphic"/>'s colour from the owning <see cref="IStateSource"/>'s
+    /// <see cref="InteractState"/> stream. On each state it tweens the graphic toward
     /// <c>baseColor * multiplier[state]</c> (component-wise) — the uGUI ColorTint behaviour,
     /// but fanned out per-graphic instead of a single <c>targetGraphic</c>.
     /// </summary>
@@ -36,6 +36,7 @@ namespace PromptUGUI.Controls.Internal
 
         private Color _hover = Color.white;
         private Color _pressed = Color.white;
+        private Color _selected = Color.white;
         private Color _disabled = Color.white;
         private float _fade = DefaultFade;
 
@@ -52,7 +53,7 @@ namespace PromptUGUI.Controls.Internal
                 _baseCaptured = true;
             }
 
-            var source = GetComponentInParent<PuiButton>();
+            var source = GetComponentInParent<IStateSource>();
             if (source != null)
                 _sub = source.OnState.Subscribe(OnState);
         }
@@ -62,24 +63,26 @@ namespace PromptUGUI.Controls.Internal
         /// identity) for that state. Safe to call repeatedly (Variant ReSolve): the base colour
         /// stays captured from the first init.
         /// </summary>
-        public void Configure(Color? hover, Color? pressed, Color? disabled, float fade)
+        public void Configure(Color? hover, Color? pressed, Color? selected, Color? disabled, float fade)
         {
             EnsureInit();
             _hover = hover ?? Color.white;
             _pressed = pressed ?? Color.white;
+            _selected = selected ?? Color.white;
             _disabled = disabled ?? Color.white;
             _fade = fade;
         }
 
-        private Color MultiplierFor(BtnState state) => state switch
+        private Color MultiplierFor(InteractState state) => state switch
         {
-            BtnState.Hover => _hover,
-            BtnState.Pressed => _pressed,
-            BtnState.Disabled => _disabled,
+            InteractState.Hover => _hover,
+            InteractState.Pressed => _pressed,
+            InteractState.Selected => _selected,
+            InteractState.Disabled => _disabled,
             _ => Color.white,
         };
 
-        private void OnState(BtnState state)
+        private void OnState(InteractState state)
         {
             if (_graphic == null) return;
             var target = _baseColor * MultiplierFor(state);

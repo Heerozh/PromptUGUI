@@ -5,7 +5,6 @@ using R3;
 using TMPro;
 using UnityEngine;
 using UnityImage = UnityEngine.UI.Image;
-using UnityToggle = UnityEngine.UI.Toggle;
 
 namespace PromptUGUI.Controls
 {
@@ -13,11 +12,17 @@ namespace PromptUGUI.Controls
     {
         private UnityImage _bg;
         private UnityImage _checkmark;
-        private UnityToggle _toggle;
+        private PuiToggle _toggle;
         private TMP_Text _label;
         private string _fontType = "default";
         private string _groupName;
         private readonly Subject<bool> _changed = new();
+
+        // Raw (unresolved) *Color attribute values. Resolved against UI.Theme in OnAfterApply.
+        private string _hoverColor;
+        private string _pressedColor;
+        private string _selectedColor;
+        private string _disabledColor;
 
         // Bound to OnAttached layout — changing these without changing OnAttached breaks the formula.
         // CheckmarkZoneWidth = Background sizeDelta.x (20) + 3px gap = Label offsetMin.x (23)
@@ -30,7 +35,7 @@ namespace PromptUGUI.Controls
 
         public override void OnAttached()
         {
-            _toggle = GameObject.GetComponent<UnityToggle>() ?? GameObject.AddComponent<UnityToggle>();
+            _toggle = GameObject.GetComponent<PuiToggle>() ?? GameObject.AddComponent<PuiToggle>();
 
             // Background：左侧垂直居中 20x20 box。
             // 默认 prefab 是 (0,1) 锚到 top-left + 20x20 + pos(10,-10)，因为 Toggle 固定 20 高刚好满；
@@ -56,6 +61,7 @@ namespace PromptUGUI.Controls
             _checkmark.color = ProceduralBuilders.DefaultGlyphColor;
             ProceduralBuilders.ApplyDefaultSimpleSprite(_checkmark, ProceduralBuilders.SpriteCheckmark);
             _toggle.graphic = _checkmark;
+            _toggle.InitStateBroadcast();
 
             // Label：从 Background 右边开始水平 stretch，垂直填满；raycastTarget=true 让整条 toggle 都能点击
             _label = ProceduralBuilders.AddText(RectTransform, "Label");
@@ -145,6 +151,26 @@ namespace PromptUGUI.Controls
         }
 
         public Observable<bool> OnValueChanged => _changed;
+
+        /// <summary>Tint multiplier applied to the Toggle's bg + descendant graphics while Hover.</summary>
+        [UIAttr(IsColor = true), Preserve] public string HoverColor { set => _hoverColor = value; }
+        /// <summary>Tint multiplier applied while Pressed.</summary>
+        [UIAttr(IsColor = true), Preserve] public string PressedColor { set => _pressedColor = value; }
+        /// <summary>Tint multiplier applied while checked (isOn) and at rest.</summary>
+        [UIAttr(IsColor = true), Preserve] public string SelectedColor { set => _selectedColor = value; }
+        /// <summary>Tint multiplier applied while Disabled.</summary>
+        [UIAttr(IsColor = true), Preserve] public string DisabledColor { set => _disabledColor = value; }
+
+        /// <summary>Broadcasts the Toggle's interaction state. Selected = checked (isOn) and at rest.</summary>
+        public Observable<InteractState> OnState => _toggle.OnState;
+
+        internal override void OnAfterApply()
+        {
+            base.OnAfterApply();
+            _toggle.interactable = Interactable;
+            StateTintInstaller.Install(GameObject, _toggle, Children,
+                _hoverColor, _pressedColor, _selectedColor, _disabledColor);
+        }
 
         public override Vector2? GetNativeSize()
         {

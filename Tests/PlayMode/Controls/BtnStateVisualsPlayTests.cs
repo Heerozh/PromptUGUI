@@ -11,7 +11,7 @@ namespace PromptUGUI.Tests.PlayMode.Controls
 {
     // PlayMode integration: exercises the StateTintReactor's LitMotion fade over REAL frames
     // (EditMode uses StateTintReactor.TestForceInstant and can't cover the actual animation),
-    // and proves <Show> artwork toggles + reverts as the Btn's BtnState changes.
+    // and proves <Show> artwork toggles + reverts as the Btn's InteractState changes.
     //
     // Drive path: PuiButton.SimulateState(ordinal) — the documented internal test hook that
     // routes through the REAL Selectable.DoStateTransition (same code path a pointer event takes),

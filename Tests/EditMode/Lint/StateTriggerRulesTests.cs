@@ -106,5 +106,49 @@ namespace PromptUGUI.Tests.EditMode.Lint
             var codes = IRWalker.Walk(doc).Select(i => i.Code).ToList();
             CollectionAssert.DoesNotContain(codes, Code);
         }
+
+        [Test]
+        public void State_Selected_Show_Without_Ancestor_Yields_Issue()
+        {
+            var doc = Parse("<Frame><Show on='state-selected'/></Frame>");
+            var codes = IRWalker.Walk(doc).Select(i => i.Code).ToList();
+            CollectionAssert.Contains(codes, Code);
+        }
+
+        [Test]
+        public void IsStateSourceTag_RecognisesClickables()
+        {
+            Assert.IsFalse(StateTriggerRules.IsStateSourceTag("Frame"));
+            Assert.IsTrue(StateTriggerRules.IsStateSourceTag("Btn"));
+            Assert.IsTrue(StateTriggerRules.IsStateSourceTag("Tab"));
+            Assert.IsTrue(StateTriggerRules.IsStateSourceTag("Toggle"));
+        }
+
+        [Test]
+        public void State_Show_Inside_Tab_No_Issue()
+        {
+            var doc = Parse("<TabBar id='bar'><Tab id='t'><Show on='state-pressed'><Icon name='ui:gear'/></Show></Tab></TabBar>");
+            var codes = IRWalker.Walk(doc).Select(i => i.Code).ToList();
+            CollectionAssert.DoesNotContain(codes, Code,
+                "state-* inside a <Tab> resolves the Tab as a state source.");
+        }
+
+        [Test]
+        public void State_Show_Inside_Toggle_No_Issue()
+        {
+            var doc = Parse("<Toggle id='tg'><Show on='state-selected'><Icon name='ui:check'/></Show></Toggle>");
+            var codes = IRWalker.Walk(doc).Select(i => i.Code).ToList();
+            CollectionAssert.DoesNotContain(codes, Code,
+                "state-* inside a <Toggle> resolves the Toggle as a state source.");
+        }
+
+        [Test]
+        public void NoSource_Message_Names_Btn_Tab_Toggle()
+        {
+            var doc = Parse("<Frame><Show on='state-pressed'/></Frame>");
+            var issue = IRWalker.Walk(doc).First(i => i.Code == Code);
+            StringAssert.Contains("<Tab>", issue.Message);
+            StringAssert.Contains("<Toggle>", issue.Message);
+        }
     }
 }

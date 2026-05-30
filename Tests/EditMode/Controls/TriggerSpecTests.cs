@@ -142,5 +142,21 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.Throws<System.ArgumentException>(() => TriggerSpec.Parse("state-hover@a@b"));
             Assert.Throws<System.ArgumentException>(() => TriggerSpec.Parse("state-disabled@x@y"));
         }
+
+        [Test]
+        public void Parse_StateSelected_NoId()
+        {
+            var spec = TriggerSpec.Parse("state-selected");
+            Assert.AreEqual(TriggerKind.StateSelected, spec.Kind);
+            Assert.IsNull(spec.SourceId);
+        }
+
+        [Test]
+        public void Parse_StateSelected_WithId()
+        {
+            var spec = TriggerSpec.Parse("state-selected@tab1");
+            Assert.AreEqual(TriggerKind.StateSelected, spec.Kind);
+            Assert.AreEqual("tab1", spec.SourceId);
+        }
     }
 }

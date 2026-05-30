@@ -16,7 +16,7 @@ namespace PromptUGUI.Controls
         private UnityImage _overlay;
         private UnityImage _icon;
         private TMP_Text _label;
-        private UnityToggle _toggle;
+        private PuiToggle _toggle;
         private string _fontType = "default";
         private string _bindId;
         private bool _bindResolved;
@@ -24,15 +24,22 @@ namespace PromptUGUI.Controls
         private readonly Subject<bool> _changed = new();
         private readonly Subject<Unit> _selected = new();
 
+        // Raw (unresolved) *Color attribute values. Resolved against UI.Theme in OnAfterApply.
+        private string _hoverColor;
+        private string _pressedColor;
+        private string _selectedColor;
+        private string _disabledColor;
+
         public override void OnAttached()
         {
             _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
             _bg.color = ProceduralBuilders.DefaultBtnColor;
             ProceduralBuilders.ApplyDefaultSlicedSprite(_bg);
 
-            _toggle = GameObject.GetComponent<UnityToggle>() ?? GameObject.AddComponent<UnityToggle>();
+            _toggle = GameObject.GetComponent<PuiToggle>() ?? GameObject.AddComponent<PuiToggle>();
             _toggle.targetGraphic = _bg;
             _toggle.transition = Selectable.Transition.ColorTint;
+            _toggle.InitStateBroadcast();
 
             var group = FindAncestorToggleGroup();
             if (group == null)
@@ -225,8 +232,28 @@ namespace PromptUGUI.Controls
                 : UnityImage.Type.Simple;
         }
 
+        /// <summary>Tint multiplier applied to the Tab's bg + descendant graphics while Hover.</summary>
+        [UIAttr(IsColor = true), Preserve] public string HoverColor { set => _hoverColor = value; }
+        /// <summary>Tint multiplier applied while Pressed.</summary>
+        [UIAttr(IsColor = true), Preserve] public string PressedColor { set => _pressedColor = value; }
+        /// <summary>Tint multiplier applied while this Tab is the active (isOn) one at rest.</summary>
+        [UIAttr(IsColor = true), Preserve] public string SelectedColor { set => _selectedColor = value; }
+        /// <summary>Tint multiplier applied while Disabled.</summary>
+        [UIAttr(IsColor = true), Preserve] public string DisabledColor { set => _disabledColor = value; }
+
+        /// <summary>Broadcasts the Tab's interaction state. Selected = this Tab is the active (isOn) one at rest.</summary>
+        public Observable<InteractState> OnState => _toggle.OnState;
+
         public Observable<bool> OnValueChanged => _changed;
         public Observable<Unit> OnSelected => _selected;
+
+        internal override void OnAfterApply()
+        {
+            base.OnAfterApply();
+            _toggle.interactable = Interactable;
+            StateTintInstaller.Install(GameObject, _toggle, Children,
+                _hoverColor, _pressedColor, _selectedColor, _disabledColor);
+        }
 
         public override void Dispose()
         {

@@ -13,13 +13,13 @@ namespace PromptUGUI.Lint
         {
             foreach (var screen in doc.Screens)
             {
-                foreach (var issue in WalkNode(screen.Root, inTemplateBody: false, hasBtnAncestor: false))
+                foreach (var issue in WalkNode(screen.Root, inTemplateBody: false, hasStateSourceAncestor: false))
                     yield return issue;
 
                 foreach (var variant in screen.Variants)
                     foreach (var add in variant.Adds)
                         foreach (var addChild in add.Children)
-                            foreach (var issue in WalkNode(addChild, inTemplateBody: false, hasBtnAncestor: false))
+                            foreach (var issue in WalkNode(addChild, inTemplateBody: false, hasStateSourceAncestor: false))
                                 yield return issue;
             }
 
@@ -30,12 +30,12 @@ namespace PromptUGUI.Lint
                 // walks Template-expanded wrappers recursively, so a Frame>Tab pattern
                 // inside a Template body is intentional structure, not a misuse.
                 if (template.Body != null)
-                    foreach (var issue in WalkNode(template.Body, inTemplateBody: true, hasBtnAncestor: false))
+                    foreach (var issue in WalkNode(template.Body, inTemplateBody: true, hasStateSourceAncestor: false))
                         yield return issue;
             }
         }
 
-        private static IEnumerable<LintIssue> WalkNode(ElementNode node, bool inTemplateBody, bool hasBtnAncestor)
+        private static IEnumerable<LintIssue> WalkNode(ElementNode node, bool inTemplateBody, bool hasStateSourceAncestor)
         {
             // Per-tag self-checks (mirror of ScreenInstantiator dispatch; CLI errors).
             // Self-relative — about the node itself, unlike parent-relative LayoutGroupChildRules.
@@ -63,15 +63,15 @@ namespace PromptUGUI.Lint
                 yield return issue;
 
             // Ancestor-aware (like PUI-TAB-PARENT, but upward): a bare state-* trigger /
-            // animation / show resolves to its nearest <Btn> ancestor at runtime. With no
-            // such ancestor it hard-throws (TriggerSourceResolver.FindStateSource); surface
-            // it statically here. Exempt Template bodies + instance roots — the <Btn> may be
-            // supplied only at invocation. @id forms defer to runtime ScopedIds resolution.
+            // animation / show resolves to its nearest clickable (<Btn>/<Tab>/<Toggle>) ancestor
+            // at runtime. With no such ancestor it hard-throws (TriggerSourceResolver.FindStateSource);
+            // surface it statically here. Exempt Template bodies + instance roots — the clickable
+            // ancestor may be supplied only at invocation. @id forms defer to runtime ScopedIds resolution.
             if (!inTemplateBody && !node.IsTemplateInstanceRoot)
-                foreach (var issue in StateTriggerRules.CheckStateSource(node, hasBtnAncestor))
+                foreach (var issue in StateTriggerRules.CheckStateSource(node, hasStateSourceAncestor))
                     yield return issue;
 
-            var childHasBtnAncestor = hasBtnAncestor || node.Tag == "Btn";
+            var childHasStateSourceAncestor = hasStateSourceAncestor || StateTriggerRules.IsStateSourceTag(node.Tag);
             var isLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar";
             var isTabBar = node.Tag == "TabBar";
             foreach (var child in node.Children)
@@ -90,7 +90,7 @@ namespace PromptUGUI.Lint
                         TabRules.TabParentCode, child.Tag, child.Id,
                         $"<Tab id='{child.Id}'>: must be a direct child of <TabBar>; current parent is <{node.Tag}>. " +
                         "Mutual exclusion and shared visuals will not apply.");
-                foreach (var issue in WalkNode(child, inTemplateBody, childHasBtnAncestor))
+                foreach (var issue in WalkNode(child, inTemplateBody, childHasStateSourceAncestor))
                     yield return issue;
             }
         }

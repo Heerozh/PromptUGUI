@@ -99,21 +99,21 @@ namespace PromptUGUI.Controls.Internal
         }
 
         /// <summary>
-        /// 为 state-* 触发器查找作为状态源的 <see cref="PuiButton"/>。
-        /// 与 click / hover / press 向下搜子树相反，state-* 默认向 <b>上</b> 找最近的 Btn 祖先
-        /// （把 Trigger 当作"贴在 Btn 上的反应器"）。
+        /// 为 state-* 触发器查找作为状态源的 <see cref="IStateSource"/>。
+        /// 与 click / hover / press 向下搜子树相反，state-* 默认向 <b>上</b> 找最近的 IStateSource 祖先
+        /// （把 Trigger 当作"贴在 Btn / Tab / Toggle 上的反应器"）。
         /// </summary>
         /// <param name="trigger">触发器控件</param>
-        /// <param name="sourceId">空 → 走 GameObject 树向上找最近的 PuiButton；非空 → 走 ScopedIds 精确查找 + 类型校验</param>
-        public static PuiButton FindStateSource(Trigger trigger, string sourceId)
+        /// <param name="sourceId">空 → 走 GameObject 树向上找最近的 IStateSource；非空 → 走 ScopedIds 精确查找 + 类型校验</param>
+        public static IStateSource FindStateSource(Trigger trigger, string sourceId)
         {
             if (string.IsNullOrEmpty(sourceId))
             {
-                var ancestor = trigger.GameObject.GetComponentInParent<PuiButton>();
+                var ancestor = trigger.GameObject.GetComponentInParent<IStateSource>();
                 if (ancestor == null)
                     throw new InvalidOperationException(
                         $"<Trigger on=\"state-...\"> in '{trigger.Id ?? trigger.GameObject.name}': " +
-                        "no <Btn> ancestor found. Place it inside a <Btn>, or use state-...@<id>.");
+                        "no <Btn>/<Tab>/<Toggle> ancestor found. Place it inside one, or use state-...@<id>.");
                 return ancestor;
             }
 
@@ -122,12 +122,12 @@ namespace PromptUGUI.Controls.Internal
                     $"<Trigger on=\"state-...@{sourceId}\"> in '{trigger.Id ?? trigger.GameObject.name}': " +
                     $"id '{sourceId}' not found in trigger subtree scope");
 
-            var pui = ctrl.GameObject.GetComponent<PuiButton>();
-            if (pui == null)
+            var src = ctrl.GameObject.GetComponent<IStateSource>();
+            if (src == null)
                 throw new InvalidOperationException(
                     $"<Trigger on=\"state-...@{sourceId}\">: id '{sourceId}' is a " +
-                    $"{ctrl.GetType().Name}, not a <Btn>. state-* triggers require a <Btn> source.");
-            return pui;
+                    $"{ctrl.GetType().Name}, not a state source. state-* triggers require a <Btn>/<Tab>/<Toggle>.");
+            return src;
         }
     }
 }
