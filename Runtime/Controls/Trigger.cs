@@ -65,6 +65,12 @@ namespace PromptUGUI.Controls
                 case TriggerKind.Press:
                     SubscribePointer(_spec.Kind);
                     break;
+                case TriggerKind.StateNormal:
+                case TriggerKind.StateHover:
+                case TriggerKind.StatePressed:
+                case TriggerKind.StateDisabled:
+                    SubscribeState(_spec.Kind);
+                    break;
                 case TriggerKind.Manual:
                     // no auto-subscribe; awaiting Fire()
                     break;
@@ -96,6 +102,25 @@ namespace PromptUGUI.Controls
                 _ => throw new InvalidOperationException("unreachable"),
             };
             _sourceSub = stream.Subscribe(_ => Fire());
+        }
+
+        private void SubscribeState(TriggerKind kind)
+        {
+            var pui = Internal.TriggerSourceResolver.FindStateSource(this, _spec.SourceId);
+            var target = kind switch
+            {
+                TriggerKind.StateNormal => BtnState.Normal,
+                TriggerKind.StateHover => BtnState.Hover,
+                TriggerKind.StatePressed => BtnState.Pressed,
+                TriggerKind.StateDisabled => BtnState.Disabled,
+                _ => throw new InvalidOperationException("unreachable"),
+            };
+            // OnState replays the current value on subscribe, so a trigger whose target matches
+            // the button's current state fires once at open ("currently in that state").
+            _sourceSub = pui.OnState.Subscribe(s =>
+            {
+                if (s == target) Fire();
+            });
         }
 
         public override void Dispose()
