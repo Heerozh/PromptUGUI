@@ -8,6 +8,8 @@ PromptUGUI is a Unity 6+ UPM package that translates compact `.ui.xml` files int
 
 The library is **content-agnostic at runtime**: it never reads the filesystem itself. Callers register a `Func<string, Awaitable<string>> SourceResolver` that maps an opaque `src` key to XML content; how the user obtains that content (Resources, Addressables, custom paths) is their concern. Built-in helpers: `UI.UseResourcesResolver(rootPath)` and (when `com.unity.addressables` ≥ 1.0 is installed) `UI.UseAddressableResolver()`.
 
+请**始终使用用户提问时使用的语言回答**！！
+
 ## Canonical Design Sources
 
 `docs~/superpowers/specs/2026-05-07-promptugui-description-language-design.md` is the master spec for the description language and C# API. Per-milestone specs and plans live alongside it. Always read the master spec before changing public API or XML semantics — section numbers (e.g. "spec §7.6") are referenced throughout the codebase and PR descriptions.
