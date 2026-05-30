@@ -32,8 +32,8 @@ namespace PromptUGUI.Controls
             return sd;
         }
 
-        private TriggerSpec _spec;
-        private IDisposable _sourceSub;
+        private protected TriggerSpec _spec;
+        private protected IDisposable _sourceSub;
         private bool _subscribed;
 
         [UIAttr("on"), Preserve]
