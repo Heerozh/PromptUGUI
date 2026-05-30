@@ -13,17 +13,7 @@ namespace PromptUGUI.Lint
     {
         public const string TabParentCode = "PUI-TAB-PARENT";
         public const string TabBarChildCode = "PUI-TABBAR-CHILD";
-        public const string TabChildrenCode = "PUI-TAB-CHILDREN";
         public const string DirectionCode = "PUI-TABBAR-DIRECTION";
-
-        public static IEnumerable<LintIssue> CheckTab(ElementNode n)
-        {
-            if (n.Children.Count > 0)
-                yield return new LintIssue(
-                    TabChildrenCode, n.Tag, n.Id,
-                    $"<Tab id='{n.Id}'>: Tab is a leaf control; nested children are not allowed. " +
-                    "Use text / icon attributes to express content.");
-        }
 
         public static IEnumerable<LintIssue> CheckTabBar(ElementNode n)
         {

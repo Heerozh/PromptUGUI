@@ -13,35 +13,6 @@ namespace PromptUGUI.Tests.EditMode.Lint
             => UIDocumentParser.Parse(xml).Screens[0].Root;
 
         [Test]
-        public void Tab_With_Children_Triggers_TabChildren()
-        {
-            var root = Parse(@"<?xml version='1.0'?>
-<PromptUGUI version='1'><Screen name='S'>
-  <TabBar><Tab id='t'><Frame/></Tab></TabBar>
-</Screen></PromptUGUI>");
-            var tab = root.Children[0].Children[0];
-            var issues = TabRules.CheckTab(tab).ToList();
-            Assert.That(issues.Any(i => i.Code == TabRules.TabChildrenCode));
-        }
-
-        [Test]
-        public void Tab_Bind_Empty_String_Is_Treated_As_Absent()
-        {
-            // Template substitution can yield bind="" when the caller omits the param;
-            // that must be silent (same as omitting bind=) so authors don't need to
-            // duplicate templates just to dodge a warning.
-            var root = Parse(@"<?xml version='1.0'?>
-<PromptUGUI version='1'><Screen name='S'>
-  <TabBar><Tab bind=''/></TabBar>
-</Screen></PromptUGUI>");
-            var tab = root.Children[0].Children[0];
-            var issues = TabRules.CheckTab(tab).ToList();
-            Assert.IsFalse(issues.Any(),
-                "bind='' must not produce any lint issue; got: "
-                + string.Join(", ", issues.Select(i => i.Code)));
-        }
-
-        [Test]
         public void TabBar_Direction_Invalid_Triggers_TabBarDirection()
         {
             var root = Parse(@"<?xml version='1.0'?>
@@ -63,17 +34,6 @@ namespace PromptUGUI.Tests.EditMode.Lint
             var bar = root.Children[0];
             var issues = TabRules.CheckTabBar(bar).ToList();
             Assert.That(issues.Any(i => i.Code == TabRules.TabBarChildCode));
-        }
-
-        [Test]
-        public void IRWalker_Dispatches_Tab_Children_Rule()
-        {
-            var doc = UIDocumentParser.Parse(@"<?xml version='1.0'?>
-<PromptUGUI version='1'><Screen name='S'>
-  <TabBar><Tab><Frame/></Tab></TabBar>
-</Screen></PromptUGUI>");
-            var issues = IRWalker.Walk(doc).ToList();
-            Assert.That(issues.Any(i => i.Code == TabRules.TabChildrenCode));
         }
 
         [Test]
@@ -153,6 +113,19 @@ namespace PromptUGUI.Tests.EditMode.Lint
             var issues = IRWalker.Walk(doc).ToList();
             Assert.That(issues.Any(i => i.Code == TabRules.TabParentCode),
                 "Plain Frame wrapper (no Template) should still warn PARENT");
+        }
+
+        [Test]
+        public void IRWalker_Does_Not_Flag_Tab_With_Children()
+        {
+            // Container model: <Tab> may now hold children. PUI-TAB-CHILDREN is retired.
+            var doc = UIDocumentParser.Parse(@"<?xml version='1.0'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar><Tab id='t'><Icon name='ui:gear'/></Tab></TabBar>
+</Screen></PromptUGUI>");
+            var issues = IRWalker.Walk(doc).ToList();
+            Assert.IsFalse(issues.Any(i => i.Code == "PUI-TAB-CHILDREN"),
+                "Tab with children must not produce PUI-TAB-CHILDREN anymore");
         }
     }
 }

@@ -192,9 +192,6 @@ namespace PromptUGUI.Application
             else if (node.Tag == "Progress")
                 foreach (var issue in ProgressAttributeRules.CheckProgress(node))
                     Debug.LogWarning(issue.Message);
-            else if (node.Tag == "Tab")
-                foreach (var issue in TabRules.CheckTab(node))
-                    Debug.LogWarning(issue.Message);
             else if (node.Tag == "TabBar")
                 foreach (var issue in TabRules.CheckTabBar(node))
                     Debug.LogWarning(issue.Message);

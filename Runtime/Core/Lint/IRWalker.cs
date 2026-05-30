@@ -48,9 +48,6 @@ namespace PromptUGUI.Lint
             else if (node.Tag == "Progress")
                 foreach (var issue in ProgressAttributeRules.CheckProgress(node))
                     yield return issue;
-            else if (node.Tag == "Tab")
-                foreach (var issue in TabRules.CheckTab(node))
-                    yield return issue;
             else if (node.Tag == "TabBar")
                 foreach (var issue in TabRules.CheckTabBar(node))
                     yield return issue;
