@@ -165,9 +165,9 @@ namespace PromptUGUI.Controls
                     rt.pivot = new Vector2(0.5f, 0.5f);
                     rt.sizeDelta = new Vector2(24f, 24f);
                     rt.anchoredPosition = new Vector2(16f, 0f);     // 4px gap from left edge then center of 24
-                    // Shift label right to make room for icon
-                    var lrt = _label.rectTransform;
-                    lrt.offsetMin = new Vector2(32f, 0f);
+                    // Shift label right to make room for icon — only if label exists.
+                    // If text is applied later, EnsureLabel() reads _icon != null and shifts itself.
+                    if (_label != null) _label.rectTransform.offsetMin = new Vector2(32f, 0f);
                 }
                 _icon.sprite = UI.ResolveSprite(value);
             }

@@ -197,5 +197,31 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsNull(t.GameObject.transform.Find("Overlay"),
                 "empty selectedSprite is no-op (tightened semantics)");
         }
+
+        [Test]
+        public void Tab_IconOnly_NoLabel_NoCrash()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var stub = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            UI.SpriteResolver = key => stub;
+            // icon setter must NOT NRE when there is no label (lazy label).
+            var t = OpenTab("<Tab id='t' icon='ui:gear'/>");
+            Assert.IsNull(t.GameObject.transform.Find("Label"), "no Label when text absent");
+            Assert.IsNotNull(t.GameObject.transform.Find("Icon"), "Icon created");
+        }
+
+        [Test]
+        public void Tab_IconAndText_LabelShiftedRight()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var stub = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            UI.SpriteResolver = key => stub;
+            var t = OpenTab("<Tab id='t' icon='ui:gear' text='Hi'/>");
+            var label = t.GameObject.transform.Find("Label").GetComponent<TMP_Text>();
+            Assert.AreEqual(32f, label.rectTransform.offsetMin.x,
+                "label is shifted right to make room for icon, regardless of setter order");
+        }
     }
 }
