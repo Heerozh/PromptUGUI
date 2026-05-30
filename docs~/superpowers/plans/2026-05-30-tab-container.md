@@ -20,9 +20,13 @@
 
 - 编译刷新:`mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)`
 - 查编译错:`mcp__UnityMCP__read_console(action="get", types=["error"])` → 期望空
-- 跑测试:`mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.EditMode"], filter="<ClassName>")`
+- 跑测试:`mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.EditMode"], group_names=[".*<ClassName>.*"])`
 
-`filter` 按类名片段匹配。若 MCP 不可用,按 CLAUDE.md:尝试重连或让用户重启 MCP。
+**run_tests 调用要点(Task 1 实测,务必照做):**
+- 部署版 `run_tests` **没有 `filter` 参数**。按类名筛选用 `group_names`,且要传**正则**:`group_names=[".*TabTests.*"]`。⚠️ 用 `test_names=["TabTests"]`(类名)会匹配到 **0 个**测试 → 看似"通过"实则没跑。
+- `run_tests` 是**异步**的:返回 `job_id`,需用 `mcp__UnityMCP__get_test_job(job_id=...)` 轮询拿结果(`ToolSearch(query="select:get_test_job", max_results=1)` 加载)。
+- **EditMode 测试要求 Editor 不在 Play Mode**。若报 `"Cannot start a test run while the Editor is in or entering Play Mode."`,先 `mcp__UnityMCP__manage_editor(action="stop")`(play-mode 状态读 `mcpforunity://editor/state` 资源,`manage_editor` 无 `get_state`),再重跑。
+- **先调一次 `refresh_unity` 确认 MCP 真的连上**;若报错/超时(Unity 没开),停下来报告 "MCP unavailable" + 错误原文,**不要编造测试结果**。可按 CLAUDE.md 尝试重连一次。
 
 **EditMode 测试的日志规则(重要):** Unity 测试遇到**未声明的 `LogError`**会判 FAIL;`LogWarning` 不会让测试失败但会污染输出。现有 Tab 测试用 `LogAssert.Expect(LogType.Warning, regex)` 显式声明 `OnAttached` 在无 `<TabBar>` 祖先时发的告警("Tab ... has no ... TabBar ... ancestor")。**本计划新增的、用 `OpenTab(...)` 直开单个 Tab(无 TabBar)的测试,必须照抄这条 `LogAssert.Expect`,否则 FAIL。** 用 `OpenBar`/含 `<TabBar>` 的测试不需要。
 
