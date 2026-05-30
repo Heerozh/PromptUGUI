@@ -4,7 +4,10 @@ using PromptUGUI.Application;
 using PromptUGUI.Controls;
 using PromptUGUI.Controls.Internal;
 using R3;
+using UnityEngine;
 using UnityEngine.UI;
+using PuiImage = PromptUGUI.Controls.Image;
+using PuiText = PromptUGUI.Controls.Text;
 using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Tests.EditMode.Controls
@@ -20,14 +23,37 @@ namespace PromptUGUI.Tests.EditMode.Controls
         private const int Selected = 3;
         private const int Disabled = 4;
 
-        [SetUp] public void SetUp() => UI.ResetForTests();
-        [TearDown] public void TearDown() => UI.ResetForTests();
+        [SetUp]
+        public void SetUp()
+        {
+            UI.ResetForTests();
+            StateTintReactor.TestForceInstant = false;
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            UI.ResetForTests();
+            StateTintReactor.TestForceInstant = false;
+        }
 
         private static Btn BuildBtn(string extraAttrs = "")
         {
             string xml = $@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
   <Btn id='b' {extraAttrs}>Hi</Btn>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            return screen.Get<Btn>("b");
+        }
+
+        // Builds a Btn from a full inner-XML body (children + attrs on the Btn itself).
+        private static Btn BuildBtnXml(string btnAttrs, string body)
+        {
+            string xml = $@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Btn id='b' {btnAttrs}>{body}</Btn>
 </Screen></PromptUGUI>";
             UI.LoadDocument("test", xml);
             var screen = UI.Open("S");
@@ -139,6 +165,95 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var bg = btn.GameObject.GetComponent<UnityImage>();
             Assert.AreEqual(bg, puiBtn.targetGraphic);
             Assert.AreEqual(Selectable.Transition.ColorTint, puiBtn.transition);
+        }
+
+        // ---- Phase 2: state-driven tint fan-out (StateTintReactor) ----
+
+        // Force the reactor's fade to 0 so the target colour is applied synchronously
+        // (no frame loop in EditMode). PRODUCTION default stays 0.1f.
+        private static void UseInstantTint() => StateTintReactor.TestForceInstant = true;
+
+        [Test]
+        public void PressedColor_InstallsReactorOnBgAndDescendantGraphics()
+        {
+            var btn = BuildBtnXml("pressedColor='#808080'", "<Image id='img'/><Text id='t'>x</Text>");
+            var bg = btn.GameObject.GetComponent<UnityImage>();
+            Assert.IsNotNull(bg.GetComponent<StateTintReactor>(), "bg should host a reactor");
+
+            var img = btn.Get<PuiImage>("img");
+            Assert.IsNotNull(img.GameObject.GetComponent<StateTintReactor>(), "Image graphic should host a reactor");
+
+            var txt = btn.Get<PuiText>("t");
+            Assert.IsNotNull(txt.GameObject.GetComponent<StateTintReactor>(), "Text graphic should host a reactor");
+        }
+
+        [Test]
+        public void PressedColor_TintsThenRestoresOnStateChange()
+        {
+            UseInstantTint();
+            var btn = BuildBtnXml("pressedColor='#808080'", "<Image id='img'/>");
+            var bg = btn.GameObject.GetComponent<UnityImage>();
+            var img = btn.Get<PuiImage>("img").GameObject.GetComponent<UnityImage>();
+
+            var bgBase = bg.color;
+            var imgBase = img.color;
+            var half = new Color(0.5019608f, 0.5019608f, 0.5019608f, 1f); // #808080
+
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+            puiBtn.SimulateState(Pressed);
+
+            AssertColorsEqual(bgBase * half, bg.color);
+            AssertColorsEqual(imgBase * half, img.color);
+
+            puiBtn.SimulateState(Normal);
+            AssertColorsEqual(bgBase, bg.color);
+            AssertColorsEqual(imgBase, img.color);
+        }
+
+        [Test]
+        public void StateReactFalse_ChildKeepsColorAndHasNoReactor()
+        {
+            UseInstantTint();
+            var btn = BuildBtnXml("pressedColor='#808080'",
+                "<Image id='keep' color='#FF0000' stateReact='false'/>");
+            var keep = btn.Get<PuiImage>("keep").GameObject.GetComponent<UnityImage>();
+
+            Assert.IsNull(keep.GetComponent<StateTintReactor>(),
+                "stateReact='false' child must not get a reactor");
+
+            var before = keep.color;
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+            puiBtn.SimulateState(Pressed);
+            AssertColorsEqual(before, keep.color); // unchanged across state
+            puiBtn.SimulateState(Normal);
+            AssertColorsEqual(before, keep.color);
+        }
+
+        [Test]
+        public void NoStateColor_KeepsColorTintAndHasNoReactors()
+        {
+            var btn = BuildBtnXml("", "<Image id='img'/><Text id='t'>x</Text>");
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+            Assert.AreEqual(Selectable.Transition.ColorTint, puiBtn.transition);
+
+            var reactors = btn.GameObject.GetComponentsInChildren<StateTintReactor>(includeInactive: true);
+            Assert.AreEqual(0, reactors.Length, "plain Btn must install zero reactors");
+        }
+
+        [Test]
+        public void StateColor_SwitchesTransitionToNone()
+        {
+            var btn = BuildBtn("pressedColor='#808080'");
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+            Assert.AreEqual(Selectable.Transition.None, puiBtn.transition);
+        }
+
+        private static void AssertColorsEqual(Color expected, Color actual)
+        {
+            Assert.That(actual.r, Is.EqualTo(expected.r).Within(0.001f), "r");
+            Assert.That(actual.g, Is.EqualTo(expected.g).Within(0.001f), "g");
+            Assert.That(actual.b, Is.EqualTo(expected.b).Within(0.001f), "b");
+            Assert.That(actual.a, Is.EqualTo(expected.a).Within(0.001f), "a");
         }
     }
 }

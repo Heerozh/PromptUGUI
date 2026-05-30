@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using PromptUGUI.IR;
 using PromptUGUI.Layout;
+using PromptUGUI.Registry;
 using UnityEngine;
 
 namespace PromptUGUI.Controls
@@ -11,6 +12,15 @@ namespace PromptUGUI.Controls
         public GameObject GameObject { get; private set; }
         public RectTransform RectTransform { get; private set; }
         private CanvasGroup _canvasGroup;
+
+        /// <summary>
+        /// Whether this control's <see cref="UnityEngine.UI.Graphic"/> participates in a
+        /// parent <see cref="Btn"/>'s state-driven tint fan-out (<c>*Color</c> attributes).
+        /// Set <c>stateReact="false"</c> to opt a graphic out — the Btn installer then skips
+        /// this control (and does not tint it on press / hover / disable). Default <c>true</c>.
+        /// </summary>
+        [UIAttr, Preserve]
+        public bool StateReact { get; set; } = true;
 
         private readonly List<IControl> _children = new();
 
