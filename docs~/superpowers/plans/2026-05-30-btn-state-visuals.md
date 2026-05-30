@@ -1,12 +1,43 @@
-# Btn State-Driven Visuals — Implementation Plan
+# Btn State-Driven Visuals Implementation Plan
 
-> Status legend: `pending` | `in-progress` | `complete` | `blocked`
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-## Metadata
+**Goal:** `<Btn>` broadcasts its uGUI `Selectable` state so descendants react — tint fan-out (`*Color`), per-state artwork switching (`<Show>`), and state-driven animation (`on="state-*"`) — plus `Btn.OnState` for C#.
+
+**Architecture:** Replace `Btn`'s plain `Button` with an internal `PuiButton : Button` that overrides `DoStateTransition` to publish a `BtnState` over an R3 `ReactiveProperty`. Three reaction surfaces consume it: per-graphic `StateTintReactor` MonoBehaviours (fan-out, LitMotion fade), the existing `Trigger`/`Animation` `on=` system extended with `state-*` kinds (resolved **upward** to the nearest `<Btn>` ancestor), and a new `Show : Trigger` control that `SetActive`-toggles its subtree by state. Strictly additive — a `<Btn>` with none of the new attrs/children behaves as today.
+
+**Tech Stack:** Unity 6 uGUI + TMP; C# 9; R3 (Cysharp); LitMotion; pure-C# lint (`Runtime/Core/Lint`); tests via UnityMCP (EditMode + PlayMode).
+
 - **Date:** 2026-05-30
 - **Spec:** `docs~/superpowers/specs/2026-05-30-btn-state-visuals-design.md`
-- **Status:** pending
-- **Branch:** `feat/btn-state-visuals`
+- **Branch:** `feat/btn-state-visuals` (created; spec + this plan committed). **DO NOT commit to main.**
+
+---
+
+## MCP test-running conventions (every "run tests" step uses these)
+
+Tests run **only** via UnityMCP, never batch-mode. After any source edit: **refresh → read console for compile errors → run tests**. Load tools first: `ToolSearch(query="select:refresh_unity,run_tests,read_console,get_test_job", max_results=4)`.
+
+- Refresh: `refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)`
+- Compile check: `read_console(action="get", types=["error"])` → expect empty before running tests.
+- **`run_tests` has NO `filter` param in the deployed tool.** Where a task below writes `filter="X"` it is **shorthand** — translate to `run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.EditMode"], group_names=[".*X.*"])` (a **regex**, not a class name). ⚠️ `test_names=["X"]` matches 0 tests → looks "passed" but ran nothing.
+- `run_tests` is **async**: it returns a `job_id`; poll `get_test_job(job_id=...)` for the result. Never report pass/fail without the job result.
+- **EditMode requires the Editor NOT in Play Mode.** On `"Cannot start a test run while the Editor is in or entering Play Mode."` → `manage_editor(action="stop")`, then rerun.
+- **First call `refresh_unity` to confirm MCP is actually connected.** If it errors/times out (Unity not open), STOP and report "MCP unavailable" + the raw error — **do not fabricate test results**. Retry-reconnect once per CLAUDE.md.
+- **Unexpected `LogError` fails an EditMode test; `LogWarning` does not.** Tests that build a sourceless `state-*` (Task 5.1) or otherwise expect a warning must declare it with `LogAssert.Expect(LogType.Warning, new Regex(...))`, mirroring the existing Tab tests.
+- After `.ui.xml`/lint changes: `dotnet run --project .lint/UIXmlLint -- <path>`. After C# edits: `cd .lint && dotnet format --verify-no-changes --severity warn PromptUGUI.Lint.slnx` (never `analyzers --severity info` — see CLAUDE.md guardrails).
+
+---
+
+## Grounding facts (verified against current source)
+
+- `Control` (`Runtime/Controls/Control.cs`) base members tasks rely on: `Id`, `GameObject`, `RectTransform`, `Children : IReadOnlyList<IControl>`, `ScopedIds`, `OnAttached()`, `internal virtual OnAfterApply()` (called by `ControlAttributeApplier` after `ApplyCommon`; `Trigger`/`Animation`/`SafeArea` already override it), `Dispose()`. There is **no** existing `stateReact` member — Task 2.4 adds it.
+- `ProceduralBuilders` (`Runtime/Controls/Internal/`) helpers: `AddImage(RectTransform parent, string name, bool raycast=true)`, `AddText(RectTransform, string)`, `DefaultBtnColor`, `ApplyDefaultSlicedSprite`.
+- Builtins are registered in `Runtime/Application/BuiltinPrimitives.cs` (`reg.Register<T>("Tag", null)`); `UI.ResetForTests()` rebuilds from there, so a new `<Show>` builtin (Task 4.4) is auto-visible to tests + XSD.
+- Lint: rule classes in `Runtime/Core/Lint/` (e.g. `TabRules`, `MaskAttributeRules`) return `IEnumerable<LintIssue>` (`LintIssue(code, tag, id, message)`); dispatched per-tag from `IRWalker.WalkNode` (CLI, `yield`) and `ScreenInstantiator` (runtime, `Debug.LogWarning`). The new `state-*`-no-source rule needs **ancestor context** (is there a `<Btn>` ancestor?), so it threads a flag through `IRWalker.WalkNode` like the existing `inTemplateBody` / Tab-parent check.
+- `Trigger` (`Runtime/Controls/Trigger.cs`): `on=` → `TriggerSpec.Parse`; `InitTriggerSubscription()` switches on `TriggerKind`; `Fire()`/`protected virtual OnTriggerFired()`; source resolution **downward** via `TriggerSourceResolver.FindBtn`/`FindPointerSource`. `Animation : Trigger` overrides `OnTriggerFired` to play LitMotion. `TriggerSpec` (`Internal/`): `enum TriggerKind { Open, Loop, Click, Manual, HoverEnter, HoverExit, Press }`, `@id` via `s_prefixedKinds`.
+
+---
 
 ## Context & Constraints
 
