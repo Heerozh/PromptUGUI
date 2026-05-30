@@ -61,14 +61,14 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Map_TranslatesSelectionStatesToBtnState()
+        public void Map_TranslatesSelectionStatesToInteractState()
         {
-            Assert.AreEqual(InteractState.Normal, PuiButton.Map(Normal));
-            Assert.AreEqual(InteractState.Hover, PuiButton.Map(Highlighted));
-            Assert.AreEqual(InteractState.Pressed, PuiButton.Map(Pressed));
-            Assert.AreEqual(InteractState.Disabled, PuiButton.Map(Disabled));
+            Assert.AreEqual(InteractState.Normal, StateBroadcaster.MapTransient(Normal));
+            Assert.AreEqual(InteractState.Hover, StateBroadcaster.MapTransient(Highlighted));
+            Assert.AreEqual(InteractState.Pressed, StateBroadcaster.MapTransient(Pressed));
+            Assert.AreEqual(InteractState.Disabled, StateBroadcaster.MapTransient(Disabled));
             // Momentary button must not keep a sticky highlight after a touch tap.
-            Assert.AreEqual(InteractState.Normal, PuiButton.Map(Selected));
+            Assert.AreEqual(InteractState.Normal, StateBroadcaster.MapTransient(Selected));
         }
 
         [Test]
