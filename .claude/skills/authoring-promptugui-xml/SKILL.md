@@ -725,9 +725,9 @@ Tab 是 TabBar 的 layout group child —— 不能写 `anchor=` / `margin=`（`
 
 #### Via Template (for shared styling across instances / dynamic BindItems)
 
-When several tabs share one rich face, or tabs are generated at runtime from data, wrap the `<Tab>` in a
-Template and invoke it as TabBar's child. Put `sprite` / `selectedSprite` on the `<Tab>` inside the Template
-so every instance shares them without restating:
+When several tabs share one rich face, or tabs are generated at runtime from data, make the `<Tab>` the
+Template root and put its content **inside** the Tab (children overlay the bg, Frame-style). `sprite` /
+`selectedSprite` live on the `<Tab>` so every instance shares them without restating:
 
 ```xml
 <Template name="FileTab">
@@ -735,15 +735,15 @@ so every instance shares them without restating:
   <Param name="icon"/>
   <Param name="bind"/>
   <Param name="isOn" default="false"/>
-  <Frame width="80" height="96">
-    <Tab id="tab" sprite="ui:cell_normal" selectedSprite="ui:cell_selected"
-         isOn="{{isOn}}" bind="{{bind}}"/>
-    <Icon id="icon" sprite="ui:icon_{{icon}}"
+  <Tab id="tab" width="80" height="96"
+       sprite="ui:cell_normal" selectedSprite="ui:cell_selected"
+       isOn="{{isOn}}" bind="{{bind}}">
+    <Icon id="icon" name="ui:icon_{{icon}}"
           anchor="top-center" width="48" height="48"
           margin="8,0,0,0"/>
     <Text id="name" anchor="top-stretch" margin="60,4,0,4"
           fontSize="12" align="center" raycastTarget="false">{{text}}</Text>
-  </Frame>
+  </Tab>
 </Template>
 
 <TabBar id="files">
@@ -752,7 +752,7 @@ so every instance shares them without restating:
 </TabBar>
 ```
 
-TabBar walks Template wrappers recursively to find the inner `<Tab>`; auto-select and `OnSelectionChanged` all work as if the wrappers were direct Tab children. Lint rules `PUI-TABBAR-CHILD` and `PUI-TAB-PARENT` are suppressed for Template-instance roots. Use `<Icon>` (hardcoded `raycastTarget=false`) for decorative imagery and `raycastTarget="false"` on `<Text>` so clicks pass through to the underlying Tab.
+TabBar collects the Tab whether it is the Template root (as here) or nested inside a wrapper; auto-select and `OnSelectionChanged` work the same either way. Lint rules `PUI-TABBAR-CHILD` and `PUI-TAB-PARENT` are suppressed for Template-instance roots. The Tab's `width`/`height` is its layout-group cell size; its children use their own `anchor` / `margin` (Tab is not a layout group). Keep decorative children `raycastTarget=false` (`<Icon>` already is; add it on `<Text>`) so clicks fall through to the containing Tab.
 
 For dynamic data, use `BindItems` with `itemTemplate="FileTab"` (the same Template works for both patterns).
 
