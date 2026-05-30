@@ -175,15 +175,19 @@ screen.Get<InputField>("playerName").OnEndEdit
 
 **Progress** — `screen.Get<Progress>("hp").Value = 0.42f;` 或 R3 推送 `healthStream.Subscribe(v => p.Value = v).AddTo(screen)`。Progress 是只读显示控件，无 `OnValueChanged`。`Value` 被 `Mathf.Clamp01` 钳位。注意：`[Bind]` 在本项目里是把 child control 字段注入到 parent（见 `Runtime/Registry/BindAttribute.cs`），不是数据流绑定 —— 用直接 setter / R3 推。
 
-**`Btn.OnState`** — a `<Btn>` broadcasts its uGUI interaction state as `Observable<BtnState>` (`BtnState { Normal, Hover, Pressed, Disabled }`; Selectable's `Selected` folds into `Normal`). It replays the current value to new subscribers, so you can react in C# to press / hover / disable — complementing the XML-side `*Color` tint fan-out and `<Show>` artwork swap (see authoring-promptugui-xml → "Btn state visuals"):
+**`Btn.OnState` / `Tab.OnState` / `Toggle.OnState`** — each control broadcasts its uGUI interaction state as `Observable<InteractState>` (`InteractState { Normal, Hover, Pressed, Selected, Disabled }`). `Selected` = the active/`isOn` control at rest; transient Hover/Pressed/Disabled override it and revert on release; a momentary `<Btn>` never emits `Selected`. The observable replays the current value to new subscribers, so you can react in C# to press / hover / select / disable — complementing the XML-side `*Color` tint fan-out and `<Show>` artwork swap (see authoring-promptugui-xml → "Btn state visuals"):
 
 ```csharp
 screen.Get<Btn>("buy").OnState
-      .Where(s => s == BtnState.Pressed)
+      .Where(s => s == InteractState.Pressed)
       .Subscribe(_ => sfx.PlayClick()).AddTo(screen);
+
+screen.Get<Tab>("edit").OnState
+      .Where(s => s == InteractState.Selected)
+      .Subscribe(_ => ShowEditPanel()).AddTo(screen);
 ```
 
-State is driven by the Selectable machine and is disabled-aware (a disabled Btn only emits `Disabled`). `interactable="false"` (XML) puts the Btn in `Disabled`.
+State is driven by the Selectable machine and is disabled-aware (a disabled control only emits `Disabled`). `interactable="false"` (XML) puts the control in `Disabled`.
 
 `screen.Track(disposable)` (or the `.AddTo(screen)` extension) ties a subscription to Screen lifetime. **Always do this** — leaked R3 subscriptions hold the GameObject alive after Close, and the next Open will produce phantom callbacks against the old (destroyed) GameObject.
 
@@ -414,7 +418,8 @@ GET            screen.Get<Btn>("id")                          typed
                screen.Get<Btn>("outerId/innerId")             path into Template body
 
 EVENTS (R3)    .OnClick                Btn
-               .OnState                Btn:BtnState (Normal/Hover/Pressed/Disabled; replays current)
+               .OnState                Btn/Tab/Toggle:InteractState (Normal/Hover/Pressed/Selected/Disabled; replays current)
+                                        Selected = active/isOn at rest; <Btn> never emits Selected
                .OnValueChanged         Toggle:bool / Slider:float / InputField:string / Tab:bool
                .OnSelected             Dropdown:int / Tab:Unit (on=true only)
                .OnSelectionChanged     TabBar:Tab (the newly-on Tab, or null when emptied)

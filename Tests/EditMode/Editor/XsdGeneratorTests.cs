@@ -786,6 +786,19 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Xsd_Tab_and_Toggle_declare_selectedColor_attribute()
+        {
+            // Tab and Toggle expose [UIAttr] selectedColor (reflection-driven, not hardcoded).
+            // This pins that the attribute surfaces in the generated schema so IDEs don't
+            // flag valid authoring as unknown.
+            var r = new ControlRegistry();
+            r.Register<Tab>("Tab", null, defaultTextAttr: "text");
+            r.Register<Toggle>("Toggle", null, defaultTextAttr: "text");
+            var xsd = XsdGenerator.Generate(r);
+            StringAssert.Contains("name=\"selectedColor\"", xsd);
+        }
+
+        [Test]
         public void Xsd_commonAttrs_declares_stateReact()
         {
             // stateReact is [UIAttr] on the Control base — it applies to every control,
