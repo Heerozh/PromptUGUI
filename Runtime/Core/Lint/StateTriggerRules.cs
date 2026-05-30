@@ -31,7 +31,7 @@ namespace PromptUGUI.Lint
 
         private static readonly HashSet<string> BareStateValues = new HashSet<string>
         {
-            "state-normal", "state-hover", "state-pressed", "state-disabled"
+            "state-normal", "state-hover", "state-pressed", "state-selected", "state-disabled"
         };
 
         /// <summary>

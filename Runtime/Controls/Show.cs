@@ -32,10 +32,11 @@ namespace PromptUGUI.Controls
                 TriggerKind.StateNormal => InteractState.Normal,
                 TriggerKind.StateHover => InteractState.Hover,
                 TriggerKind.StatePressed => InteractState.Pressed,
+                TriggerKind.StateSelected => InteractState.Selected,
                 TriggerKind.StateDisabled => InteractState.Disabled,
                 _ => throw new InvalidOperationException(
                     "<Show> only accepts state-* events (state-normal / state-hover / " +
-                    $"state-pressed / state-disabled), got 'on=\"{OnRaw()}\"'."),
+                    $"state-pressed / state-selected / state-disabled), got 'on=\"{OnRaw()}\"'."),
             };
 
             _pui = TriggerSourceResolver.FindStateSource(this, _spec.SourceId);

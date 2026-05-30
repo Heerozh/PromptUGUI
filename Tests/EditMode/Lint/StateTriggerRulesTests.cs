@@ -106,5 +106,13 @@ namespace PromptUGUI.Tests.EditMode.Lint
             var codes = IRWalker.Walk(doc).Select(i => i.Code).ToList();
             CollectionAssert.DoesNotContain(codes, Code);
         }
+
+        [Test]
+        public void State_Selected_Show_Without_Ancestor_Yields_Issue()
+        {
+            var doc = Parse("<Frame><Show on='state-selected'/></Frame>");
+            var codes = IRWalker.Walk(doc).Select(i => i.Code).ToList();
+            CollectionAssert.Contains(codes, Code);
+        }
     }
 }

@@ -68,6 +68,7 @@ namespace PromptUGUI.Controls
                 case TriggerKind.StateNormal:
                 case TriggerKind.StateHover:
                 case TriggerKind.StatePressed:
+                case TriggerKind.StateSelected:
                 case TriggerKind.StateDisabled:
                     SubscribeState(_spec.Kind);
                     break;
@@ -112,6 +113,7 @@ namespace PromptUGUI.Controls
                 TriggerKind.StateNormal => InteractState.Normal,
                 TriggerKind.StateHover => InteractState.Hover,
                 TriggerKind.StatePressed => InteractState.Pressed,
+                TriggerKind.StateSelected => InteractState.Selected,
                 TriggerKind.StateDisabled => InteractState.Disabled,
                 _ => throw new InvalidOperationException("unreachable"),
             };
