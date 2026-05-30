@@ -34,15 +34,22 @@ namespace PromptUGUI.Lint
             "state-normal", "state-hover", "state-pressed", "state-selected", "state-disabled"
         };
 
+        private static readonly HashSet<string> StateSourceTags =
+            new HashSet<string> { "Btn", "Tab", "Toggle" };
+
+        /// <summary>True if <paramref name="tag"/> instantiates an IStateSource-backed control
+        /// (broadcasts InteractState). Extend this set when a new clickable opts in.</summary>
+        public static bool IsStateSourceTag(string tag) => StateSourceTags.Contains(tag);
+
         /// <summary>
         /// Yields <see cref="NoSourceCode"/> when <paramref name="n"/> is a state-* trigger
-        /// with a bare (no-<c>@id</c>) state value and no <c>&lt;Btn&gt;</c> ancestor.
-        /// The caller supplies <paramref name="hasBtnAncestor"/> and is responsible for the
+        /// with a bare (no-<c>@id</c>) state value and no <c>&lt;Btn&gt;</c>/<c>&lt;Tab&gt;</c>/<c>&lt;Toggle&gt;</c> ancestor.
+        /// The caller supplies <paramref name="hasStateSourceAncestor"/> and is responsible for the
         /// Template-body / instance-root exemptions.
         /// </summary>
-        public static IEnumerable<LintIssue> CheckStateSource(ElementNode n, bool hasBtnAncestor)
+        public static IEnumerable<LintIssue> CheckStateSource(ElementNode n, bool hasStateSourceAncestor)
         {
-            if (hasBtnAncestor) yield break;
+            if (hasStateSourceAncestor) yield break;
             if (!StateTriggerTags.Contains(n.Tag)) yield break;
             if (!n.Attributes.TryGetValue("on", out var on)) yield break;
             // @id forms resolve against ScopedIds at runtime — can't be checked statically.
@@ -50,8 +57,8 @@ namespace PromptUGUI.Lint
 
             yield return new LintIssue(
                 NoSourceCode, n.Tag, n.Id,
-                $"<{n.Tag} on=\"{on}\">: no <Btn> ancestor. state-* resolves upward to the " +
-                "nearest <Btn> — place it inside a <Btn>, or use state-...@<id>.");
+                $"<{n.Tag} on=\"{on}\">: no <Btn>/<Tab>/<Toggle> ancestor. state-* resolves upward to the " +
+                "nearest clickable — place it inside a <Btn>/<Tab>/<Toggle>, or use state-...@<id>.");
         }
     }
 }
