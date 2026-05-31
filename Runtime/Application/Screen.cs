@@ -27,6 +27,8 @@ namespace PromptUGUI.Application
         private IDisposable _variantSub;
         private System.Action<string> _themeHandler;
         private bool _isReapplyingScaler;
+        // The pixel/auto factor that ApplyCanvasScaler last applied; 'Nx' scale divides by it.
+        private float _canvasFactor = 1f;
 
         internal Controls.Internal.ToggleGroupRegistry ToggleGroups { get; private set; }
 
@@ -172,12 +174,22 @@ namespace PromptUGUI.Application
             {
                 scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize;
                 scaler.scaleFactor = 1f;
+                _canvasFactor = 1f;
                 return;
             }
             var size = parsed.Value;
             scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = size;
             scaler.matchWidthOrHeight = size.x >= size.y ? 0f : 1f;
+            // Cache the effective factor for 'Nx' scale. Replicates Unity's
+            // ScaleWithScreenSize output at the match endpoints we use (0 → width-locked,
+            // 1 → height-locked). Same screen-size source as pixel mode.
+            var screenPx = UI.CanvasSizeOverride != null
+                ? UI.CanvasSizeOverride()
+                : ReadCanvasRectSize();
+            _canvasFactor = size.x >= size.y
+                ? (size.x > 0f ? screenPx.x / size.x : 1f)
+                : (size.y > 0f ? screenPx.y / size.y : 1f);
         }
 
         private void ApplyPixel(UnityEngine.UI.CanvasScaler scaler)
@@ -194,6 +206,7 @@ namespace PromptUGUI.Application
                     $"Falling back to ConstantPixelSize, scaleFactor=1.");
                 scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize;
                 scaler.scaleFactor = 1f;
+                _canvasFactor = 1f;
                 return;
             }
             var canvasSize = UI.CanvasSizeOverride != null
@@ -204,6 +217,7 @@ namespace PromptUGUI.Application
                 factor = UI.MinPixelScale;
             scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize;
             scaler.scaleFactor = factor;
+            _canvasFactor = factor;
         }
 
         // Applies per-element 'scale' attribute as RectTransform.localScale (relative to
@@ -213,9 +227,9 @@ namespace PromptUGUI.Application
         // ReSolve when variants change; both run ApplyCommon first (resets the RectTransform
         // to its margin-resolved baseline), so reading that baseline here is idempotent.
         //
-        // No dependence on canvas factor: a stretch axis's compensation lives in widened
-        // anchors that Unity itself re-drives against the parent size, so a window/canvas
-        // resize needs no re-apply (OnCanvasDimensionsChanged does not call this).
+        // Plain-multiplier 'scale="N"' has no dependence on canvas factor. The device-density
+        // form 'scale="Nx"' divides by _canvasFactor, so a factor change (canvas resize) must
+        // re-run this — routed via ReSolve in OnCanvasDimensionsChanged when _hasDeviceScale (added in the next task).
         //
         // Walks every Control in _nodeMap so nodes that declared 'scale' only via a
         // variant override are still tracked (resolves to null → identity reset).
@@ -234,6 +248,15 @@ namespace PromptUGUI.Application
                 var rt = kv.Value.RectTransform;
                 if (rt == null) continue;
 
+                if (TryParseDeviceScale(raw, out var devN))
+                {
+                    var f = _canvasFactor > 0f ? _canvasFactor : 1f;
+                    var dv = devN / f;
+                    rt.localScale = new Vector3(dv, dv, 1f);
+                    ApplyBoxPreservingCompensation(rt, dv);
+                    continue;
+                }
+
                 if (string.IsNullOrEmpty(raw)
                     || !float.TryParse(raw, System.Globalization.NumberStyles.Float,
                                        System.Globalization.CultureInfo.InvariantCulture, out var v)
@@ -248,6 +271,18 @@ namespace PromptUGUI.Application
                 rt.localScale = new Vector3(v, v, 1f);
                 ApplyBoxPreservingCompensation(rt, v);
             }
+        }
+
+        // scale="Nx" (N positive integer): localScale = N / canvasFactor → renders the
+        // element at exactly N physical pixels per design-unit, independent of the auto
+        // factor. Returns false for the plain-multiplier form (handled by float.TryParse).
+        private static bool TryParseDeviceScale(string raw, out int n)
+        {
+            n = 0;
+            if (string.IsNullOrEmpty(raw) || raw.Length < 2 || raw[raw.Length - 1] != 'x') return false;
+            return int.TryParse(raw.Substring(0, raw.Length - 1),
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out n) && n >= 1;
         }
 
         // Inflates a just-baselined RectTransform by 1/scale so that localScale=scale renders

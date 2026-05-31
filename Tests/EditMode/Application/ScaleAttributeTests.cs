@@ -480,5 +480,145 @@ namespace PromptUGUI.Tests.Application
             Assert.GreaterOrEqual(rt.anchorMin.x, 0f);
             Assert.GreaterOrEqual(rt.anchorMin.y, 0f);
         }
+
+        // ---------- Runtime device-density: localScale = N / canvasFactor ----------
+
+        [Test]
+        public void DeviceScale_1x_in_pixel_factor3_is_one_third()
+        {
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(5760f, 3240f); // /1920x1080 = factor 3
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>
+    <Frame id='f' scale='1x'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(1f / 3f, rt.localScale.x, 1e-5f);
+            Assert.AreEqual(1f / 3f, rt.localScale.y, 1e-5f);
+        }
+
+        [Test]
+        public void DeviceScale_2x_in_pixel_factor3_is_two_thirds()
+        {
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(5760f, 3240f); // factor 3
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>
+    <Frame id='f' scale='2x'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(2f / 3f, rt.localScale.x, 1e-5f);
+        }
+
+        [Test]
+        public void DeviceScale_3x_in_pixel_factor3_is_identity()
+        {
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(5760f, 3240f); // factor 3
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>
+    <Frame id='f' scale='3x'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(1f, rt.localScale.x, 1e-5f);
+        }
+
+        [Test]
+        public void DeviceScale_2x_in_pixel_factor2_is_identity()
+        {
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(3840f, 2160f); // /1920x1080 = factor 2
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>
+    <Frame id='f' scale='2x'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(1f, rt.localScale.x, 1e-5f);
+        }
+
+        [Test]
+        public void DeviceScale_2x_in_pixel_factor4_is_half()
+        {
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(1920f, 1080f); // /480x270 = factor 4
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='480x270'>
+    <Frame id='f' scale='2x'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(0.5f, rt.localScale.x, 1e-5f);
+        }
+
+        [Test]
+        public void DeviceScale_1x_in_auto_factor2_is_half()
+        {
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(3840f, 2160f); // /1920x1080 = factor 2
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='auto' reference='1920x1080'>
+    <Frame id='f' scale='1x'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(0.5f, rt.localScale.x, 1e-5f);
+        }
+
+        [Test]
+        public void DeviceScale_2x_in_auto_no_reference_is_two()
+        {
+            // No reference → ConstantPixelSize factor 1 → localScale = 2/1 = 2.
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='auto'>
+    <Frame id='f' scale='2x'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(2f, rt.localScale.x, 1e-5f);
+        }
+
+        [Test]
+        public void DeviceScale_2x_box_preserving_stretch_in_factor3()
+        {
+            // localScale = 2/3; inv = 1/0.6667 = 1.5. stretch span widened 1.5 about 0.5
+            // → [-0.25, 1.25]; sizeDelta = -(10+10) * 1.5 = -30.
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(5760f, 3240f); // factor 3
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>
+    <Frame id='f' anchor='stretch' margin='10,10,10,10' scale='2x'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(2f / 3f, rt.localScale.x, 1e-5f);
+            Assert.AreEqual(-0.25f, rt.anchorMin.x, 1e-4f);
+            Assert.AreEqual(1.25f, rt.anchorMax.x, 1e-4f);
+            Assert.AreEqual(-30f, rt.sizeDelta.x, 1e-3f);
+        }
+
+        [Test]
+        public void DeviceScale_under_layout_group_keeps_unscaled_slot_and_no_widen()
+        {
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(5760f, 3240f); // factor 3
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>
+    <VStack>
+      <Frame id='f' width='100' height='50' scale='2x'/>
+    </VStack>
+  </Screen>
+</PromptUGUI>");
+            var c = screen.Get("f");
+            var rt = c.RectTransform;
+            var le = c.GameObject.GetComponent<UnityEngine.UI.LayoutElement>();
+            Assert.AreEqual(2f / 3f, rt.localScale.x, 1e-5f);
+            Assert.AreEqual(100f, le.preferredWidth, 1e-4f);   // unscaled slot
+            Assert.GreaterOrEqual(rt.anchorMin.x, 0f);          // compensation skipped
+        }
     }
 }
