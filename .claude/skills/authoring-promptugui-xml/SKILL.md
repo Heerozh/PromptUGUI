@@ -242,7 +242,7 @@ Other notes:
 | `hidden="true"`            | bool                         | Initial `SetActive(false)`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `interactable="false"`     | bool                         | Initial `CanvasGroup.interactable=false` + `blocksRaycasts=false`. On `<Btn>` it **also** sets `Button.interactable=false` → the Btn enters its Disabled state (see **Btn state visuals**).                                                                                                                                                                                                                                                                                                                                                                         |
 | `stateReact="false"`       | bool (default `true`)        | Opts this node **and its whole subtree** out of an ancestor `<Btn>` / `<Tab>` / `<Toggle>`'s state-colour tint fan-out (`hoverColor` / `pressedColor` / `selectedColor` / `disabledColor`). See **Btn state visuals**.                                                                                                                                                                                                                                                                                                                                              |
-| `scale="N"`                | positive float               | Sets `RectTransform.localScale = (N, N, 1)`, **box-preserving**: the declared `anchor`/`size`/`margin` stays the visual box, `N` only changes render density (`N<1` = finer/crisper, `N>1` = coarser), not on-screen size. Works in any `scale-mode`. Use to render small text / detail finer than the `scale-mode='pixel'` integer factor without shrinking its box (so a stretched `<Text>` wraps against its full width). For a smaller element, use a smaller `size` — not `scale`. See "Relative scale" section below for the mechanism + layout-group caveat. |
+| `scale="N"` / `scale="Nx"` | positive float, **or** `Nx` (N a positive integer) | `scale="N"` (float): `localScale=(N,N,1)`, **box-preserving** — declared `anchor`/`size`/`margin` stays the visual box, `N` only changes render density (`N<1` finer/crisper, `N>1` coarser), not on-screen size. `scale="Nx"` (device-density, N positive integer): `localScale = N / canvasFactor` → locks the element to **N physical pixels per design-unit**, recomputed when the factor changes. Use `Nx` for pixel-perfect bitmap text under a `scale-mode='pixel'` integer factor (e.g. a 12×12 CJK font: `scale="2x"` renders it 24×24 and crisp at factor 2, 3 *or* 4). `scale="2"` (coarse 2×) and `scale="2x"` (net 2 device-px) differ. For a smaller element prefer a smaller `size`, not float `scale`. See "Relative scale" below. |
 
 `padding` and `spacing` are **NOT** universal — only on `<VStack>` / `<HStack>` / `<Grid>`.
 
@@ -623,13 +623,32 @@ Primary use case is small text / detail UI inside a `scale-mode="pixel"` Screen.
 </Frame>
 ```
 
+### Device-density (`scale="Nx"`)
+
+`scale="Nx"` (N a **positive integer**) is the device-density form: `localScale = N / canvasFactor`, where `canvasFactor` is the live CanvasScaler factor. Because the factor cancels out, the element's content renders at exactly **N physical pixels per design-unit** regardless of which integer factor `scale-mode="pixel"` auto-computes (2 / 3 / 4 …), and it is **recomputed on canvas resize / device rotation**.
+
+Why it exists: a pixel font's glyphs are crisp only when one source pixel maps to an integer number of physical pixels. A fixed multiplier like `scale="0.5"` breaks that under an odd factor (`3 × 0.5 = 1.5` px per source pixel → blur). `Nx` divides the factor out, so the on-screen result is always the integer N.
+
+```xml
+<!-- 12x12 CJK bitmap font in a scale-mode="pixel" canvas. At factor 3 it would be a
+     chunky 36x36; scale="2x" renders it 24x24 and crisp at factor 2, 3 AND 4.
+     Set fontSize to the font's native pixel height so 1 source pixel = 1 design-unit. -->
+<Text fontSize="12" scale="2x" alignment="center">设置</Text>
+```
+
+Caveats:
+- **N must be a positive integer.** `scale="1.5x"` is a parse error — use the plain multiplier `scale="1.5"` for non-aligned scaling. A non-integer N cannot be pixel-aligned.
+- **`Nx` is truly crisp only in `scale-mode="pixel"`** (integer factor + `Canvas.pixelPerfect` snaps vertices). In `auto` mode the *size* is still exactly N device-px per design-unit, but the element's position can land on a sub-pixel (auto mode does not snap), so text may be slightly soft.
+- `Nx` only locks density. The font must also be authored so 1 source pixel = 1 design-unit — i.e. set `fontSize` to the font's native pixel height. A `fontSize` that differs from native still misaligns.
+- Box-preserving behavior and the LayoutGroup-skip caveat below apply identically to `Nx` (the inflation uses `1 / localScale`).
+
 **Where to put `scale`**:
 
 - Directly on a `<Text>` / `<Image>` (single-element use) — works under any free-positioning parent (`<Frame>` / `<Screen>` / `<SafeArea>` / `<Tab>` / `<Toggle>`); anchor / margin / wrapping all behave against the visual box.
 - Container `<Frame>` (for multi-element groups) — the whole subtree renders at density `N` inside the Frame's declared box.
 - **On a direct child of `<VStack>` / `<HStack>` / `<Grid>`, box-preserving is skipped** (the LayoutGroup owns the child's geometry). `localScale` still applies, but the group measures with the _unscaled_ `RT.rect`, so a `scale="0.5"` child still reserves its full unscaled slot (the "small text gap" footgun). Wrap in a `<Frame size="..." scale="0.5">` if you want the group to see the intended size.
 
-**Variant-overridable**: `scale.mobile="0.5"` follows the standard variant override shape. When a variant where `scale` is unresolved becomes active, `localScale` resets to 1 **and** the box-preserving inflation is removed (geometry returns to its plain margin-resolved baseline).
+**Variant-overridable**: `scale.mobile="0.5"` / `scale.portrait="2x"` follow the standard variant override shape. When a variant where `scale` is unresolved becomes active, `localScale` resets to 1 **and** the box-preserving inflation is removed (geometry returns to its plain margin-resolved baseline).
 
 ## Modal / Loading screens (XML contract)
 
