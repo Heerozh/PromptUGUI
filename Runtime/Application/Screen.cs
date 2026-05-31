@@ -217,7 +217,8 @@ namespace PromptUGUI.Application
             var canvasSize = UI.CanvasSizeOverride != null
                 ? UI.CanvasSizeOverride()
                 : ReadCanvasRectSize();
-            var factor = PixelScaleSolver.Solve(canvasSize, design.Value);
+            var factor = PixelScaleSolver.Solve(
+                canvasSize, design.Value, UI.PixelScalePowerOfTwo);
             if (UI.MinPixelScale > 0f && factor < UI.MinPixelScale)
                 factor = UI.MinPixelScale;
             scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize;

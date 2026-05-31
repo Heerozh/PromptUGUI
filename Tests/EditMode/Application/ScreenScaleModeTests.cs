@@ -359,6 +359,76 @@ namespace PromptUGUI.Tests.Application
         }
 
         [Test]
+        public void Pixel_PowerOfTwo_snaps_3x_screen_down_to_2x()
+        {
+            // raw = min(5760/1920, 3240/1080) = 3 -> default would floor to 3,
+            // power-of-two snaps DOWN to 2.
+            UI.PixelScalePowerOfTwo = true;
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(5760f, 3240f);
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'><Frame/></Screen>
+</PromptUGUI>");
+            var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+            Assert.AreEqual(2f, scaler.scaleFactor, 1e-6f);
+        }
+
+        [Test]
+        public void Pixel_PowerOfTwo_default_false_keeps_integer_3x()
+        {
+            // Default UI.PixelScalePowerOfTwo = false must preserve the integer ladder:
+            // a 3x-capable screen renders at 3x, not snapped to 2x.
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(5760f, 3240f);
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'><Frame/></Screen>
+</PromptUGUI>");
+            var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+            Assert.AreEqual(3f, scaler.scaleFactor, 1e-6f);
+        }
+
+        [Test]
+        public void Pixel_PowerOfTwo_snap_runs_before_MinPixelScale_clamp()
+        {
+            // raw = 5. Power-of-two snaps it DOWN to 4 (the integer ladder would
+            // keep 5). MinPixelScale = 4 is a floor: 4 is not below it, so it stays 4.
+            // Without the pow2 snap this would be floor(5)=5 clamped by 4 -> 5, so a
+            // result of 4 proves the snap ran and the clamp left it alone.
+            UI.PixelScalePowerOfTwo = true;
+            UI.MinPixelScale = 4f;
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(9600f, 5400f);
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'><Frame/></Screen>
+</PromptUGUI>");
+            var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+            Assert.AreEqual(4f, scaler.scaleFactor, 1e-6f);
+        }
+
+        [Test]
+        public void ResetForTests_clears_PixelScalePowerOfTwo()
+        {
+            UI.PixelScalePowerOfTwo = true;
+            UI.ResetForTests();
+            Assert.IsFalse(UI.PixelScalePowerOfTwo);
+        }
+
+        [Test]
+        public void Auto_mode_ignores_PixelScalePowerOfTwo()
+        {
+            // Power-of-two is documented as Pixel-only; the Auto branch must not read it.
+            UI.PixelScalePowerOfTwo = true;
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(5760f, 3240f);
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='auto' reference='1920x1080'><Frame/></Screen>
+</PromptUGUI>");
+            var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+            Assert.AreEqual(UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize, scaler.uiScaleMode);
+            Assert.AreEqual(1f, scaler.scaleFactor, 1e-6f);
+        }
+
+        [Test]
         public void Auto_mode_ignores_MinPixelScale()
         {
             // Auto mode uses ScaleWithScreenSize (continuous fractional). MinPixelScale
