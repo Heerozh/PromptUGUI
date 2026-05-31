@@ -27,6 +27,12 @@ namespace PromptUGUI.Application
         private IDisposable _variantSub;
         private System.Action<string> _themeHandler;
         private bool _isReapplyingScaler;
+        // The pixel/auto factor that ApplyCanvasScaler last applied; 'Nx' scale divides by it.
+        private float _canvasFactor = 1f;
+        // True if any node declares scale="Nx" (base or variant). Gates the resize path:
+        // such Screens re-run ReSolve (re-baseline + recompute) on canvas resize; others
+        // keep the lightweight ApplyCanvasScaler-only path (zero behavior change).
+        private bool _hasDeviceScale;
 
         internal Controls.Internal.ToggleGroupRegistry ToggleGroups { get; private set; }
 
@@ -133,7 +139,8 @@ namespace PromptUGUI.Application
                 ControlAttributeApplier.Apply(node, _nodeMap[node],
                                               _registry.Resolve(node.Tag), Variants);
             // scale must run after _nodeMap is populated and attributes have been applied
-            // (so it doesn't fight ApplyCommon writes). Independent of canvas factor.
+            // (so it doesn't fight ApplyCommon writes).
+            RecomputeHasDeviceScale();
             ApplyScales();
             _variantSub = Variants.Changed.Subscribe(_ => ReSolve());
             _themeHandler = _ => ReSolve();
@@ -172,12 +179,22 @@ namespace PromptUGUI.Application
             {
                 scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize;
                 scaler.scaleFactor = 1f;
+                _canvasFactor = 1f;
                 return;
             }
             var size = parsed.Value;
             scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = size;
             scaler.matchWidthOrHeight = size.x >= size.y ? 0f : 1f;
+            // Cache the effective factor for 'Nx' scale. Replicates Unity's
+            // ScaleWithScreenSize output at the match endpoints we use (0 → width-locked,
+            // 1 → height-locked). Same screen-size source as pixel mode.
+            var screenPx = UI.CanvasSizeOverride != null
+                ? UI.CanvasSizeOverride()
+                : ReadCanvasRectSize();
+            _canvasFactor = size.x >= size.y
+                ? (size.x > 0f ? screenPx.x / size.x : 1f)
+                : (size.y > 0f ? screenPx.y / size.y : 1f);
         }
 
         private void ApplyPixel(UnityEngine.UI.CanvasScaler scaler)
@@ -194,6 +211,7 @@ namespace PromptUGUI.Application
                     $"Falling back to ConstantPixelSize, scaleFactor=1.");
                 scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize;
                 scaler.scaleFactor = 1f;
+                _canvasFactor = 1f;
                 return;
             }
             var canvasSize = UI.CanvasSizeOverride != null
@@ -204,12 +222,19 @@ namespace PromptUGUI.Application
                 factor = UI.MinPixelScale;
             scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize;
             scaler.scaleFactor = factor;
+            _canvasFactor = factor;
         }
 
-        // Applies per-element 'scale' attribute as RectTransform.localScale directly
-        // (relative to layout box; works in any scale-mode). Called at Open after the
-        // attribute apply loop, and at ReSolve when variants change. No dependence on
-        // canvas factor, so OnCanvasDimensionsChanged does not need to re-apply.
+        // Applies per-element 'scale' attribute as RectTransform.localScale (relative to
+        // the layout box; works in any scale-mode), then box-preserving compensation so the
+        // declared anchor/size/margin keeps describing the VISUAL box — 'scale' only changes
+        // render density, not the box. Called at Open after the attribute apply loop, and at
+        // ReSolve when variants change; both run ApplyCommon first (resets the RectTransform
+        // to its margin-resolved baseline), so reading that baseline here is idempotent.
+        //
+        // Plain-multiplier 'scale="N"' has no dependence on canvas factor. The device-density
+        // form 'scale="Nx"' divides by _canvasFactor, so a factor change (canvas resize) must
+        // re-run this — routed via ReSolve in OnCanvasDimensionsChanged when _hasDeviceScale.
         //
         // Walks every Control in _nodeMap so nodes that declared 'scale' only via a
         // variant override are still tracked (resolves to null → identity reset).
@@ -228,17 +253,97 @@ namespace PromptUGUI.Application
                 var rt = kv.Value.RectTransform;
                 if (rt == null) continue;
 
+                if (TryParseDeviceScale(raw, out var devN))
+                {
+                    var f = _canvasFactor > 0f ? _canvasFactor : 1f;
+                    var dv = devN / f;
+                    rt.localScale = new Vector3(dv, dv, 1f);
+                    ApplyBoxPreservingCompensation(rt, dv);
+                    continue;
+                }
+
                 if (string.IsNullOrEmpty(raw)
                     || !float.TryParse(raw, System.Globalization.NumberStyles.Float,
                                        System.Globalization.CultureInfo.InvariantCulture, out var v)
                     || v <= 0f)
                 {
+                    // Unresolved / non-numeric (e.g. <Animation scale="1:0.5">) → identity.
+                    // ApplyCommon already restored the baseline geometry, so leave it untouched.
                     rt.localScale = Vector3.one;
                     continue;
                 }
 
                 rt.localScale = new Vector3(v, v, 1f);
+                ApplyBoxPreservingCompensation(rt, v);
             }
+        }
+
+        // Sets _hasDeviceScale if any currently-instantiated node uses scale="Nx".
+        // Called at Open and re-run in ReSolve: Add-block activation (Strategy C) can
+        // introduce device-scale nodes into _nodeMap after Open. Activated nodes stay in
+        // _nodeMap, so the flag is effectively sticky once any Nx node exists.
+        private void RecomputeHasDeviceScale()
+        {
+            _hasDeviceScale = false;
+            foreach (var node in _nodeMap.Keys)
+            {
+                if (DeclaresDeviceScale(node)) { _hasDeviceScale = true; break; }
+            }
+        }
+
+        // Whether a node declares scale="Nx" in its base attribute or any variant override.
+        private static bool DeclaresDeviceScale(ElementNode node)
+        {
+            if (node.Attributes.TryGetValue("scale", out var baseVal)
+                && TryParseDeviceScale(baseVal, out _)) return true;
+            if (node.VariantOverrides.TryGetValue("scale", out var list))
+                foreach (var (_, value) in list)
+                    if (TryParseDeviceScale(value, out _)) return true;
+            return false;
+        }
+
+        // scale="Nx" (N positive integer): localScale = N / canvasFactor → renders the
+        // element at exactly N physical pixels per design-unit, independent of the auto
+        // factor. Returns false for the plain-multiplier form (handled by float.TryParse).
+        private static bool TryParseDeviceScale(string raw, out int n)
+        {
+            n = 0;
+            if (string.IsNullOrEmpty(raw) || raw.Length < 2 || raw[raw.Length - 1] != 'x') return false;
+            return int.TryParse(raw.Substring(0, raw.Length - 1),
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out n) && n >= 1;
+        }
+
+        // Inflates a just-baselined RectTransform by 1/scale so that localScale=scale renders
+        // it back to its declared box (XML skill, "Relative scale"). Per axis: widen the anchor span by 1/scale
+        // about its center, and divide sizeDelta by scale. A point (fixed) axis has span 0, so
+        // only its sizeDelta changes and the anchored edge stays put; a stretch / fractional
+        // axis has pivot 0.5, so widening about the center keeps the box centered. anchoredPosition
+        // is unchanged. Skipped under a LayoutGroup parent: geometry is group-driven there, and
+        // 'scale' keeps the documented "reserves the unscaled slot" behaviour.
+        private static void ApplyBoxPreservingCompensation(RectTransform rt, float scale)
+        {
+            var parent = rt.parent;
+            if (parent != null && parent.GetComponent<UnityEngine.UI.LayoutGroup>() != null)
+                return;
+
+            var inv = 1f / scale;
+            var baseMin = rt.anchorMin;
+            var baseMax = rt.anchorMax;
+            var baseSize = rt.sizeDelta;
+            var basePos = rt.anchoredPosition;
+
+            var cx = (baseMin.x + baseMax.x) * 0.5f;
+            var cy = (baseMin.y + baseMax.y) * 0.5f;
+            var hx = (baseMax.x - baseMin.x) * 0.5f * inv;
+            var hy = (baseMax.y - baseMin.y) * 0.5f * inv;
+
+            rt.anchorMin = new Vector2(cx - hx, cy - hy);
+            rt.anchorMax = new Vector2(cx + hx, cy + hy);
+            // Re-anchoring makes Unity re-derive sizeDelta / anchoredPosition to hold the
+            // current offsets; overwrite both so the result is a pure function of the baseline.
+            rt.sizeDelta = baseSize * inv;
+            rt.anchoredPosition = basePos;
         }
 
         private UnityEngine.Vector2 ReadCanvasRectSize()
@@ -266,7 +371,14 @@ namespace PromptUGUI.Application
             try
             {
                 var scaler = RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
-                if (scaler != null) ApplyCanvasScaler(scaler);
+                if (scaler == null) return;
+                if (_hasDeviceScale)
+                    // 'Nx' localScale depends on the factor: re-baseline + recompute via the
+                    // tested ReSolve path (ApplyCommon → ApplyCanvasScaler → ApplyScales) so the
+                    // box-preserving inflation does not accumulate.
+                    ReSolve();
+                else
+                    ApplyCanvasScaler(scaler);
             }
             finally { _isReapplyingScaler = false; }
         }
@@ -366,6 +478,7 @@ namespace PromptUGUI.Application
                 var entry = _registry.Resolve(node.Tag);
                 ControlAttributeApplier.Apply(node, control, entry, Variants, initial: false);
             }
+            RecomputeHasDeviceScale();
             ApplyCanvasScaler(RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>());
             ApplyScales();
         }

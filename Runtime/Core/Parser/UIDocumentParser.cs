@@ -527,15 +527,31 @@ namespace PromptUGUI.Parser
         private static void ValidateScale(string raw, string contextLabel)
         {
             // scale="N" sets RectTransform.localScale = N (relative to layout box; works in
-            // any scale-mode). Must be a positive float — '0' or negative would invert /
-            // collapse the subtree. N=1 is the no-op identity.
+            // any scale-mode). Must be a positive float. N=1 is the no-op identity.
+            // scale="Nx" (N positive integer) is the device-density form: localScale =
+            // N / canvasFactor at runtime — locks the element to N physical pixels per
+            // design-unit. See 2026-05-31-scale-device-density-design.md.
             if (string.IsNullOrEmpty(raw))
                 throw new ParseException(
-                    $"{contextLabel}: value cannot be empty (expected a positive number, e.g. '1' or '0.5')");
+                    $"{contextLabel}: value cannot be empty " +
+                    $"(expected a positive number like '0.5', or a device-density like '2x')");
+
+            if (raw.Length >= 2 && raw[raw.Length - 1] == 'x')
+            {
+                var num = raw.Substring(0, raw.Length - 1);
+                if (int.TryParse(num, System.Globalization.NumberStyles.None,
+                                 System.Globalization.CultureInfo.InvariantCulture, out var n) && n >= 1)
+                    return;
+                throw new ParseException(
+                    $"{contextLabel}: invalid device-density '{raw}' " +
+                    $"(expected a positive integer before 'x', e.g. '1x' or '2x')");
+            }
+
             if (!float.TryParse(raw, System.Globalization.NumberStyles.Float,
                                 System.Globalization.CultureInfo.InvariantCulture, out var v) || v <= 0f)
                 throw new ParseException(
-                    $"{contextLabel}: invalid value '{raw}' (expected a positive number, e.g. '1' or '0.5')");
+                    $"{contextLabel}: invalid value '{raw}' " +
+                    $"(expected a positive number like '0.5', or a device-density like '2x')");
         }
 
         private static bool IsValidIconName(string name)
