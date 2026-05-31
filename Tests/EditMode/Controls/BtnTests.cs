@@ -28,6 +28,42 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Default_Bg_Has_Sprite()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Btn id='b'>Hi</Btn>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var img = UI.Open("S").Get<Btn>("b").GameObject.GetComponent<UnityImage>();
+            Assert.IsNotNull(img.sprite, "Btn ships a built-in 9-slice bg sprite by default");
+        }
+
+        [Test]
+        public void Sprite_None_Clears_Default_Bg()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Btn id='b' sprite='none'>Hi</Btn>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var img = UI.Open("S").Get<Btn>("b").GameObject.GetComponent<UnityImage>();
+            Assert.IsNull(img.sprite, "sprite='none' drops the built-in bg sprite");
+        }
+
+        [Test]
+        public void Sprite_Empty_Clears_Default_Bg()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Btn id='b' sprite=''>Hi</Btn>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var img = UI.Open("S").Get<Btn>("b").GameObject.GetComponent<UnityImage>();
+            Assert.IsNull(img.sprite, "sprite='' drops the built-in bg sprite, same effect as 'none'");
+        }
+
+        [Test]
         public void Visual_LabelFontSizeIsTwentyFour()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>

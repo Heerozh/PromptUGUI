@@ -199,6 +199,46 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Tab_Default_Bg_Has_Sprite()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t'/>");
+            var bg = t.GameObject.GetComponent<UnityImage>();
+            Assert.IsNotNull(bg.sprite, "Tab ships a built-in 9-slice bg sprite by default");
+        }
+
+        [Test]
+        public void Tab_Sprite_None_Clears_Default_Bg()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t' sprite='none'/>");
+            var bg = t.GameObject.GetComponent<UnityImage>();
+            Assert.IsNull(bg.sprite, "sprite='none' drops the built-in bg sprite");
+        }
+
+        [Test]
+        public void Tab_Sprite_Empty_Clears_Default_Bg()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t' sprite=''/>");
+            var bg = t.GameObject.GetComponent<UnityImage>();
+            Assert.IsNull(bg.sprite, "sprite='' drops the built-in bg sprite, same effect as 'none'");
+        }
+
+        [Test]
+        public void Tab_None_SelectedSprite_Does_Not_Create_Overlay()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t' selectedSprite='none'/>");
+            Assert.IsNull(t.GameObject.transform.Find("Overlay"),
+                "selectedSprite='none' is a no-op like empty — no empty overlay created");
+        }
+
+        [Test]
         public void Tab_IconOnly_NoLabel_NoCrash()
         {
             LogAssert.Expect(LogType.Warning,

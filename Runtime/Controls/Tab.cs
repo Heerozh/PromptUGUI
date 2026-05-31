@@ -185,7 +185,14 @@ namespace PromptUGUI.Controls
         {
             set
             {
-                if (string.IsNullOrEmpty(value)) return;
+                // sprite="" / sprite="none" → drop the built-in default bg sprite, leaving a
+                // plain color-filled rect. Mirrors Btn/Toggle/Image, which null out the same way.
+                if (string.IsNullOrEmpty(value) || value == "none")
+                {
+                    _bg.sprite = null;
+                    _bg.type = UnityImage.Type.Simple;
+                    return;
+                }
                 ApplyBgSprite(UI.ResolveSprite(value));
             }
         }
@@ -195,7 +202,9 @@ namespace PromptUGUI.Controls
         {
             set
             {
-                if (string.IsNullOrEmpty(value)) return;
+                // "" / "none" → no selected-state overlay. There is no default overlay to
+                // clear, so this is a plain no-op (don't materialise an empty overlay).
+                if (string.IsNullOrEmpty(value) || value == "none") return;
                 EnsureOverlay(UI.ResolveSprite(value));
             }
         }
