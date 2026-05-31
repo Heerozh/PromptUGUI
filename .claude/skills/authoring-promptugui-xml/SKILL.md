@@ -242,7 +242,7 @@ Other notes:
 | `hidden="true"`            | bool                         | Initial `SetActive(false)`.                                                                                                                                                                                                                                                                                                                                            |
 | `interactable="false"`     | bool                         | Initial `CanvasGroup.interactable=false` + `blocksRaycasts=false`. On `<Btn>` it **also** sets `Button.interactable=false` → the Btn enters its Disabled state (see **Btn state visuals**).                                                                                                                                                                              |
 | `stateReact="false"`       | bool (default `true`)        | Opts this node **and its whole subtree** out of an ancestor `<Btn>` / `<Tab>` / `<Toggle>`'s state-colour tint fan-out (`hoverColor` / `pressedColor` / `selectedColor` / `disabledColor`). See **Btn state visuals**.                                                                                                                                                                                           |
-| `scale="N"`                | positive float               | Sets `RectTransform.localScale = (N, N, 1)`. Relative to layout box: `N=1` is identity, `N=0.5` is half-size, `N=2` is double. Works in any `scale-mode`. Common use: shrink small text / debug overlays inside a `scale-mode='pixel'` Canvas so they render finer than the canvas's auto integer factor. See "Relative scale" section below for layout-group caveats. |
+| `scale="N"`                | positive float               | Sets `RectTransform.localScale = (N, N, 1)`, **box-preserving**: the declared `anchor`/`size`/`margin` stays the visual box, `N` only changes render density (`N<1` = finer/crisper, `N>1` = coarser), not on-screen size. Works in any `scale-mode`. Use to render small text / detail finer than the `scale-mode='pixel'` integer factor without shrinking its box (so a stretched `<Text>` wraps against its full width). For a smaller element, use a smaller `size` — not `scale`. See "Relative scale" section below for the mechanism + layout-group caveat. |
 
 `padding` and `spacing` are **NOT** universal — only on `<VStack>` / `<HStack>` / `<Grid>`.
 
@@ -602,19 +602,34 @@ If you register a token named `red`, then `color="red"` resolves to that token (
 - 要 `match=0.5` 折中或改 `referencePixelsPerUnit`：走 `UI.CanvasConfigurator` 手改。**不要在两条路径同时改 CanvasScaler** —— variant flip 时 XML 路径会覆盖 configurator 的改动。
 - `scale-mode="auto|pixel"` (+ `.variant`)：默认 `auto` = 上面 `reference` 的连续缩放语义。`pixel` 切到 `ConstantPixelSize` + 整数倍 `scaleFactor`（fit-inside 取小；屏幕 < 设计时 snap 到 1/2、1/4、1/8 等保 2x2 干净降采样）。**必须配 `reference="WxH"`**，否则运行期 `Debug.LogError` 并降级 `scaleFactor=1`。像素美术 / 等距图项目用 —— sprite 永远整数倍渲染到屏幕像素。项目级默认走 C# `UI.DefaultScaleMode = ScaleMode.Pixel`；具体 Screen 想退回连续缩放写 `scale-mode="auto"`。
 
-### Relative scale (`scale="N"`)
+### Relative scale (`scale="N"`) — box-preserving
 
-`scale="N"` sets `RectTransform.localScale = (N, N, 1)` directly — relative to the layout box, not absolute device pixels. `N=1` is the no-op identity; `N=0.5` is half; `N=2` is double. Same result on every screen / canvas factor, so the same XML keeps a consistent "this element is N× of normal UI" intent across PC, mobile, 4K, etc.
+`scale="N"` sets `RectTransform.localScale = (N, N, 1)` but is **box-preserving**: the element's declared `anchor` / `size` / `width` / `height` / `margin` describes its **visual box**, and `scale` only changes how finely its content is *rendered* inside that box — **not** its on-screen size or position. `N=1` is identity; `N<1` renders finer (the content is laid out larger, then shrunk — crisper detail); `N>1` renders coarser. Same result on every screen / canvas factor.
 
-Primary use case is small text / detail UI inside a `scale-mode="pixel"` Screen. Pixel mode scales the whole Canvas by an integer factor (typically 3×/4×) to keep pixel-art crisp; that's great for sprites but locks small text out of finer-than-canvas detail. `scale="0.5"` on a debug overlay or info label renders it at half the chunky integer scale — still bigger than `1×` device on 4K, but no longer enforced canvas-chunky. SDF text (TMP) stays readable; pixel-art sprites get blurred (so use this on text/UI, not on pixel-art `<Image>`s).
+Mechanically, the layout box stays put while the RectTransform is inflated by `1/N` so that `×N` lands back on the declared box. On a stretch (or `%`) axis the inflation lives in widened anchors, so Unity re-drives it on window/canvas resize for free; on a fixed-size axis `sizeDelta` is divided by `N`. `anchoredPosition` is unchanged.
+
+> **This means `scale` is a render-density knob, not a resize knob.** To make an element visually smaller, give it a smaller `size` / `width` / `height` (or `%`) — don't reach for `scale`. Reach for `scale<1` when you want the *same footprint* rendered with finer detail.
+
+Primary use case is small text / detail UI inside a `scale-mode="pixel"` Screen. Pixel mode scales the whole Canvas by an integer factor (typically 3×/4×) to keep pixel-art crisp; great for sprites, but it locks small text out of finer-than-canvas detail. `scale="0.5"` on a label renders its glyphs at twice the canvas resolution (visually ≈ half the chunky integer step) **while keeping the label's box exactly as declared** — so a stretch-width `<Text scale="0.5">` wraps against its *full visual width* instead of wrapping early. SDF text (TMP) stays readable; pixel-art sprites get blurred (so use this on text/UI, not on pixel-art `<Image>`s).
+
+```xml
+<!-- horizontal stretch label, rendered at 2× density; wraps against the full box, not half of it -->
+<Frame width="40" height="50">
+  <Tab anchor="stretch" sprite="" color="#0000">
+    <Icon name="cog" anchor="top-center" size="24x24" margin="4,0,0,0"/>
+    <Text anchor="top-stretch" margin="28,4,0,4" fontSize="12" scale="0.5"
+          alignment="center" raycastTarget="false">Settings</Text>
+  </Tab>
+</Frame>
+```
 
 **Where to put `scale`**:
 
-- Container `<Frame>` (recommended for multi-element groups) — the Frame itself participates in the parent layout at canvas-unit size, only its subtree renders scaled. The "small text gap inside V/HStack" footgun is avoided because the Frame's `RectTransform.rect` is unchanged.
-- Directly on a `<Text>` / `<Image>` (single-element use) — fine when the parent is free-positioning (`<Frame>`/`<Screen>`/`<SafeArea>`); the element's anchor/margin still work normally, just rendered scaled.
-- **Avoid on a direct child of `<VStack>` / `<HStack>` / `<Grid>`** unless you want the gap: LayoutGroup measures with `RT.rect` and ignores `localScale`, so a 0.5×-rendered child still reserves its full unscaled slot in the layout. Wrap in a `<Frame size="..." scale="0.5">` if you want layout-group-aware sizing.
+- Directly on a `<Text>` / `<Image>` (single-element use) — works under any free-positioning parent (`<Frame>` / `<Screen>` / `<SafeArea>` / `<Tab>` / `<Toggle>`); anchor / margin / wrapping all behave against the visual box.
+- Container `<Frame>` (for multi-element groups) — the whole subtree renders at density `N` inside the Frame's declared box.
+- **On a direct child of `<VStack>` / `<HStack>` / `<Grid>`, box-preserving is skipped** (the LayoutGroup owns the child's geometry). `localScale` still applies, but the group measures with the *unscaled* `RT.rect`, so a `scale="0.5"` child still reserves its full unscaled slot (the "small text gap" footgun). Wrap in a `<Frame size="..." scale="0.5">` if you want the group to see the intended size.
 
-**Variant-overridable**: `scale.mobile="0.5"` follows the standard variant override shape. When a variant where `scale` is unresolved becomes active, `localScale` resets back to 1.
+**Variant-overridable**: `scale.mobile="0.5"` follows the standard variant override shape. When a variant where `scale` is unresolved becomes active, `localScale` resets to 1 **and** the box-preserving inflation is removed (geometry returns to its plain margin-resolved baseline).
 
 ## Modal / Loading screens (XML contract)
 

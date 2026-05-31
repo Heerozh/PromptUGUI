@@ -206,10 +206,16 @@ namespace PromptUGUI.Application
             scaler.scaleFactor = factor;
         }
 
-        // Applies per-element 'scale' attribute as RectTransform.localScale directly
-        // (relative to layout box; works in any scale-mode). Called at Open after the
-        // attribute apply loop, and at ReSolve when variants change. No dependence on
-        // canvas factor, so OnCanvasDimensionsChanged does not need to re-apply.
+        // Applies per-element 'scale' attribute as RectTransform.localScale (relative to
+        // the layout box; works in any scale-mode), then box-preserving compensation so the
+        // declared anchor/size/margin keeps describing the VISUAL box — 'scale' only changes
+        // render density, not the box. Called at Open after the attribute apply loop, and at
+        // ReSolve when variants change; both run ApplyCommon first (resets the RectTransform
+        // to its margin-resolved baseline), so reading that baseline here is idempotent.
+        //
+        // No dependence on canvas factor: a stretch axis's compensation lives in widened
+        // anchors that Unity itself re-drives against the parent size, so a window/canvas
+        // resize needs no re-apply (OnCanvasDimensionsChanged does not call this).
         //
         // Walks every Control in _nodeMap so nodes that declared 'scale' only via a
         // variant override are still tracked (resolves to null → identity reset).
@@ -233,12 +239,47 @@ namespace PromptUGUI.Application
                                        System.Globalization.CultureInfo.InvariantCulture, out var v)
                     || v <= 0f)
                 {
+                    // Unresolved / non-numeric (e.g. <Animation scale="1:0.5">) → identity.
+                    // ApplyCommon already restored the baseline geometry, so leave it untouched.
                     rt.localScale = Vector3.one;
                     continue;
                 }
 
                 rt.localScale = new Vector3(v, v, 1f);
+                ApplyBoxPreservingCompensation(rt, v);
             }
+        }
+
+        // Inflates a just-baselined RectTransform by 1/scale so that localScale=scale renders
+        // it back to its declared box (XML skill, "Relative scale"). Per axis: widen the anchor span by 1/scale
+        // about its center, and divide sizeDelta by scale. A point (fixed) axis has span 0, so
+        // only its sizeDelta changes and the anchored edge stays put; a stretch / fractional
+        // axis has pivot 0.5, so widening about the center keeps the box centered. anchoredPosition
+        // is unchanged. Skipped under a LayoutGroup parent: geometry is group-driven there, and
+        // 'scale' keeps the documented "reserves the unscaled slot" behaviour.
+        private static void ApplyBoxPreservingCompensation(RectTransform rt, float scale)
+        {
+            var parent = rt.parent;
+            if (parent != null && parent.GetComponent<UnityEngine.UI.LayoutGroup>() != null)
+                return;
+
+            var inv = 1f / scale;
+            var baseMin = rt.anchorMin;
+            var baseMax = rt.anchorMax;
+            var baseSize = rt.sizeDelta;
+            var basePos = rt.anchoredPosition;
+
+            var cx = (baseMin.x + baseMax.x) * 0.5f;
+            var cy = (baseMin.y + baseMax.y) * 0.5f;
+            var hx = (baseMax.x - baseMin.x) * 0.5f * inv;
+            var hy = (baseMax.y - baseMin.y) * 0.5f * inv;
+
+            rt.anchorMin = new Vector2(cx - hx, cy - hy);
+            rt.anchorMax = new Vector2(cx + hx, cy + hy);
+            // Re-anchoring makes Unity re-derive sizeDelta / anchoredPosition to hold the
+            // current offsets; overwrite both so the result is a pure function of the baseline.
+            rt.sizeDelta = baseSize * inv;
+            rt.anchoredPosition = basePos;
         }
 
         private UnityEngine.Vector2 ReadCanvasRectSize()
