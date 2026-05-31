@@ -620,5 +620,120 @@ namespace PromptUGUI.Tests.Application
             Assert.AreEqual(100f, le.preferredWidth, 1e-4f);   // unscaled slot
             Assert.GreaterOrEqual(rt.anchorMin.x, 0f);          // compensation skipped
         }
+
+        // ---------- Device-density recompute on canvas resize ----------
+
+        [Test]
+        public void DeviceScale_recomputes_localScale_on_resize()
+        {
+            UnityEngine.Vector2 size = new(5760f, 3240f); // factor 3
+            UI.CanvasSizeOverride = () => size;
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>
+    <Frame id='f' scale='1x'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(1f / 3f, rt.localScale.x, 1e-5f);
+
+            // Resize to factor 2; fire the relay (same seam ScreenScaleModeTests uses).
+            size = new UnityEngine.Vector2(3840f, 2160f); // factor 2
+            var relay = screen.RootGameObject.GetComponent<PromptUGUI.Application.RectDimensionsRelay>();
+            relay.OnDimensionsChanged?.Invoke();
+
+            Assert.AreEqual(0.5f, rt.localScale.x, 1e-5f);
+        }
+
+        [Test]
+        public void DeviceScale_box_preserving_does_not_accumulate_across_resizes()
+        {
+            UnityEngine.Vector2 size = new(5760f, 3240f); // factor 3
+            UI.CanvasSizeOverride = () => size;
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>
+    <Frame id='f' anchor='stretch' margin='10,10,10,10' scale='1x'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            var relay = screen.RootGameObject.GetComponent<PromptUGUI.Application.RectDimensionsRelay>();
+
+            // factor 3: localScale 1/3, inv 3 → span 3 about 0.5 → [-1, 2]; sizeDelta -20*3 = -60.
+            Assert.AreEqual(1f / 3f, rt.localScale.x, 1e-5f);
+            Assert.AreEqual(-1f, rt.anchorMin.x, 1e-4f);
+            Assert.AreEqual(-60f, rt.sizeDelta.x, 1e-3f);
+
+            // → factor 2: localScale 1/2, inv 2 → [-0.5, 1.5]; sizeDelta -20*2 = -40.
+            size = new UnityEngine.Vector2(3840f, 2160f);
+            relay.OnDimensionsChanged?.Invoke();
+            Assert.AreEqual(0.5f, rt.localScale.x, 1e-5f);
+            Assert.AreEqual(-0.5f, rt.anchorMin.x, 1e-4f);
+            Assert.AreEqual(-40f, rt.sizeDelta.x, 1e-3f);
+
+            // → back to factor 3: must equal first reading, NOT compounded.
+            size = new UnityEngine.Vector2(5760f, 3240f);
+            relay.OnDimensionsChanged?.Invoke();
+            Assert.AreEqual(1f / 3f, rt.localScale.x, 1e-5f);
+            Assert.AreEqual(-1f, rt.anchorMin.x, 1e-4f);
+            Assert.AreEqual(-60f, rt.sizeDelta.x, 1e-3f);
+        }
+
+        [Test]
+        public void DeviceScale_in_add_block_recomputes_on_resize_after_activation()
+        {
+            UnityEngine.Vector2 size = new(5760f, 3240f); // factor 3
+            UI.CanvasSizeOverride = () => size;
+            // Nx appears ONLY inside an initially-inactive Add block (variant 'extra'),
+            // so _hasDeviceScale must be (re)discovered when the block activates.
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>
+    <Frame id='root' anchor='stretch'/>
+    <Variant when='extra'>
+      <Add into='#root'>
+        <Frame id='added' scale='1x'/>
+      </Add>
+    </Variant>
+  </Screen>
+</PromptUGUI>");
+            // Activate the variant → Add block instantiates; localScale = 1/factor = 1/3.
+            UI.Variants.Set("extra", true);
+            var rt = screen.Get("added").RectTransform;
+            Assert.AreEqual(1f / 3f, rt.localScale.x, 1e-5f);
+
+            // Resize to factor 2; must recompute even though Nx lived only in the
+            // (now-active) Add block — regression guard for the _hasDeviceScale gap.
+            size = new UnityEngine.Vector2(3840f, 2160f); // factor 2
+            var relay = screen.RootGameObject.GetComponent<PromptUGUI.Application.RectDimensionsRelay>();
+            relay.OnDimensionsChanged?.Invoke();
+
+            Assert.AreEqual(0.5f, rt.localScale.x, 1e-5f);
+        }
+
+        [Test]
+        public void Resize_without_device_scale_still_recomputes_factor()
+        {
+            // Regression: a Screen with NO 'Nx' takes the lightweight path (no ReSolve)
+            // and still recomputes the canvas scaleFactor on resize.
+            UnityEngine.Vector2 size = new(1920f, 1080f); // factor 1
+            UI.CanvasSizeOverride = () => size;
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>
+    <Frame id='f' scale='0.5'/>
+  </Screen>
+</PromptUGUI>");
+            var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
+            Assert.AreEqual(1f, scaler.scaleFactor, 1e-6f);
+            Assert.AreEqual(0.5f, screen.Get("f").RectTransform.localScale.x, 1e-6f);
+
+            size = new UnityEngine.Vector2(3840f, 2160f); // factor 2
+            var relay = screen.RootGameObject.GetComponent<PromptUGUI.Application.RectDimensionsRelay>();
+            relay.OnDimensionsChanged?.Invoke();
+
+            Assert.AreEqual(2f, scaler.scaleFactor, 1e-6f);
+            Assert.AreEqual(0.5f, screen.Get("f").RectTransform.localScale.x, 1e-6f); // unchanged
+        }
     }
 }
