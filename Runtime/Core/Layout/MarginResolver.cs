@@ -76,8 +76,17 @@ namespace PromptUGUI.Layout
             for (var i = 0; i < parts.Length; i++)
             {
                 var p = parts[i].Trim();
-                vals[i] = (p == "_" || p == "") ? 0f
-                    : float.Parse(p, CultureInfo.InvariantCulture);
+                if (p == "_" || p == "")
+                {
+                    vals[i] = 0f;
+                }
+                else if (!float.TryParse(p, NumberStyles.Float, CultureInfo.InvariantCulture, out vals[i]))
+                {
+                    throw new ArgumentException(
+                        $"margin '{s}': component '{p}' is not a number " +
+                        "(use a number like 12 or 12.5, '_' for 0, and ',' to separate; " +
+                        "e.g. '16', '16,8', or '8,16,8,16')");
+                }
             }
 
             switch (parts.Length)

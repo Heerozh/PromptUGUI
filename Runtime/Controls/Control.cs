@@ -234,9 +234,12 @@ namespace PromptUGUI.Controls
                 if (!string.IsNullOrEmpty(pivot))
                 {
                     var parts = pivot.Split(',');
+                    if (parts.Length != 2)
+                        throw new System.ArgumentException(
+                            $"pivot '{pivot}' must be 'x,y' (two comma-separated numbers in 0..1, e.g. '0.5,0.5')");
                     RectTransform.pivot = new Vector2(
-                        float.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture),
-                        float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture));
+                        ParsePivotComponent(parts[0], pivot, "x"),
+                        ParsePivotComponent(parts[1], pivot, "y"));
                 }
                 else
                 {
@@ -257,6 +260,16 @@ namespace PromptUGUI.Controls
 
             if (hidden.HasValue) Hidden = hidden.Value;
             Interactable = interactable;
+        }
+
+        private static float ParsePivotComponent(string component, string pivot, string axis)
+        {
+            if (!float.TryParse(component.Trim(), System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var v))
+                throw new System.ArgumentException(
+                    $"pivot '{pivot}': {axis} component '{component.Trim()}' is not a number " +
+                    "(expected 'x,y' in 0..1, e.g. '0.5,0.5')");
+            return v;
         }
 
         private void ApplyLayoutElement(SizeSpec sizeSpec, AnchorPreset preset)

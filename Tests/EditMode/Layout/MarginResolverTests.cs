@@ -62,5 +62,20 @@ namespace PromptUGUI.Tests.Layout
             Assert.AreEqual(new Vector2(0, 0), r.AnchoredPosition);
             Assert.AreEqual(new Vector2(0, 0), r.SizeDelta);
         }
+
+        [Test]
+        public void Non_numeric_component_throws_error_naming_attr_and_value()
+        {
+            // 用户实际踩坑: margin 写成 "0_0,_,_"。旧实现走裸 float.Parse → 抛
+            // 泛型 FormatException("Input string was not in a correct format.")，
+            // 既没点名 margin 也没指出哪个分量坏了。新实现必须点名属性 + 出错分量,
+            // 并且抛 ArgumentException (与 SizeSpec 的 "is not a number" 一致)。
+            var anchor = AnchorPreset.Parse("top-left");
+            var size = SizeSpec.Parse("240x80", null, null);
+            var ex = Assert.Throws<System.ArgumentException>(() =>
+                MarginResolver.Resolve(anchor, size, "0_0,_,_"));
+            StringAssert.Contains("margin", ex.Message);
+            StringAssert.Contains("0_0", ex.Message);
+        }
     }
 }
