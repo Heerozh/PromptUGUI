@@ -80,6 +80,8 @@ The callback fires once per `Open()` (so also re-fires on hot-reload, since relo
 
 **Pixel 模式下限 `UI.MinPixelScale`**：默认 `0f` = 不限制（小屏算到 `0.5 / 0.25 / 0.125 ...` 自由下落）。设为 `0.5f` / `1f` 等限制 factor 下限——小屏不再缩小内容，而是让内容溢出（你 `anchor="stretch"` 的元素会被物理屏幕吃边距）。建议值在算法台阶上 `{0.5, 1, 2, ...}`；off-ladder 值（如 `0.7f`）会被原样使用但破坏整数像素对齐。只对 Pixel 模式生效，Auto 模式忽略。
 
+**Power-of-two-only scaling `UI.PixelScalePowerOfTwo`** (`bool`, default `false`): when `true`, the Pixel-mode `scaleFactor` is constrained to a power-of-two ladder `…0.25, 0.5, 1, 2, 4, 8…`. The magnify segment snaps **down** to the largest power of two ≤ the fit-inside ratio, so a 3×-capable screen renders at 2×, 5× at 4× — content still fits inside (rounds down, never overflows; the slack is absorbed by `anchor="stretch"` / letterboxing). The sub-1× fallback is already `1/2^n`, so it is unchanged; only the integer magnify steps `3, 5, 6, 7, …` are removed. Applied **before** `MinPixelScale`, which still floors the snapped result — pair it with a power-of-two `MinPixelScale` to stay on-ladder. Pixel-mode only; Auto mode ignores it.
+
 ## Sprite resolver (Resources-backed)
 
 Needed if your XML uses `<Icon>` or any `sprite="ns:name"` form:

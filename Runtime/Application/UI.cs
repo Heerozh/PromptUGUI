@@ -177,6 +177,15 @@ namespace PromptUGUI.Application
         // alignment — stick to {0.5, 1, 2, ...}. No effect on Auto mode.
         public static float MinPixelScale { get; set; } = 0f;
 
+        // When true, constrains the Pixel-mode scaleFactor to a power-of-two ladder
+        // (...0.25, 0.5, 1, 2, 4, 8...): the magnify segment snaps DOWN to the largest
+        // power of two <= the fit-inside ratio (so a 3x-capable screen renders at 2x,
+        // 5x at 4x), keeping content fit-inside. The sub-1x fallback is already 1/2^n,
+        // so it is unchanged. Default false = the full integer ladder (1, 2, 3, 4, ...).
+        // Applied before MinPixelScale (which still floors the result). No effect on
+        // Auto mode. Pair with a power-of-two MinPixelScale to stay on-ladder.
+        public static bool PixelScalePowerOfTwo { get; set; } = false;
+
         // Test seam: when non-null, Screen.ApplyCanvasScaler (Pixel branch) reads canvas
         // size from this override instead of the Canvas RectTransform. Mirrors the pattern
         // used by Internal.OrientationTracker.ScreenSizeOverride.
@@ -967,6 +976,7 @@ namespace PromptUGUI.Application
             CanvasConfigurator = null;
             DefaultScaleMode = ScaleMode.Auto;
             MinPixelScale = 0f;
+            PixelScalePowerOfTwo = false;
             CanvasSizeOverride = null;
 #if UNITY_EDITOR
             HotReload.AssetPathToSrc = null;
