@@ -190,6 +190,20 @@ namespace PromptUGUI.Tests.Application
             StringAssert.Contains("device-density", ex.Message);
         }
 
+        [Test]
+        public void Parser_rejects_uppercase_device_scale()
+        {
+            // Device-density is lowercase 'x' only (spec §9). Uppercase '2X' falls through
+            // to the float check and is still rejected — pin it so the lowercase-only
+            // decision can't silently regress.
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'><Frame id='f' scale='2X'/></Screen>
+</PromptUGUI>";
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+            StringAssert.Contains("scale", ex.Message);
+        }
+
         // ---------- Runtime (relative semantic: localScale = N) ----------
 
         [Test]
