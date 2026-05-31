@@ -232,6 +232,7 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 [`2026-05-13-screen-reference-resolution-design.md`](2026-05-13-screen-reference-resolution-design.md)。
 
 - `scale-mode="auto|pixel"`（可选，支持 `.variant`）：`pixel` 切 CanvasScaler 到 `ConstantPixelSize` + 整数倍 `scaleFactor`（用于像素艺术）。详见 [`2026-05-25-pixel-perfect-scaling-design.md`](2026-05-25-pixel-perfect-scaling-design.md)。
+- 元素级 `scale="Nx"`（N 正整数，支持 `.variant`）：设备像素密度形态，`localScale = N / canvasFactor`（每个设计单位渲染 N 个物理像素，canvas factor 变化时重算），用于 `scale-mode="pixel"` 下位图字的像素对齐。普通 `scale="N"`（正浮点）仍是 factor-independent 的 box-preserving 渲染密度乘数。详见 [`2026-05-31-scale-device-density-design.md`](2026-05-31-scale-device-density-design.md)。
 
 ### 5.7 `<Trigger>` / `<Animation>`（事件订阅 + LitMotion 动画，since 2026-05-14）
 
