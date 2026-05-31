@@ -113,6 +113,83 @@ namespace PromptUGUI.Tests.Application
             Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
         }
 
+        // ---------- Parser validation: device-density 'Nx' ----------
+
+        [Test]
+        public void Parser_accepts_device_scale_integer()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'><Frame id='f' scale='2x'/></Screen>
+</PromptUGUI>";
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Parser_accepts_device_scale_one_and_multidigit()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'><Frame id='a' scale='1x'/><Frame id='b' scale='10x'/></Screen>
+</PromptUGUI>";
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Parser_accepts_device_scale_variant()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'><Frame id='f' scale='1x' scale.portrait='2x'/></Screen>
+</PromptUGUI>";
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Parser_rejects_fractional_device_scale()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'><Frame id='f' scale='1.5x'/></Screen>
+</PromptUGUI>";
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+            StringAssert.Contains("device-density", ex.Message);
+        }
+
+        [Test]
+        public void Parser_rejects_zero_device_scale()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'><Frame id='f' scale='0x'/></Screen>
+</PromptUGUI>";
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+            StringAssert.Contains("device-density", ex.Message);
+        }
+
+        [Test]
+        public void Parser_rejects_bare_x_device_scale()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'><Frame id='f' scale='x'/></Screen>
+</PromptUGUI>";
+            // 'x' length<2 → not the device branch → falls to float check → still errors (msg contains 'scale').
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+            StringAssert.Contains("scale", ex.Message);
+        }
+
+        [Test]
+        public void Parser_rejects_negative_device_scale()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'><Frame id='f' scale='-1x'/></Screen>
+</PromptUGUI>";
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+            StringAssert.Contains("device-density", ex.Message);
+        }
+
         // ---------- Runtime (relative semantic: localScale = N) ----------
 
         [Test]
