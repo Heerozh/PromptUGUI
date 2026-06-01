@@ -717,6 +717,139 @@ namespace PromptUGUI.Tests.Application
             Assert.GreaterOrEqual(rt.anchorMin.x, 0f);          // compensation skipped
         }
 
+        // ---------- Runtime canvas-relative: localScale = max(1, round(f·r)) / f ----------
+
+        [Test]
+        public void RelativeScale_half_in_pixel_factor2_is_half()
+        {
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(3840f, 2160f); // /1920x1080 = factor 2
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>
+    <Frame id='f' scale='0.5R'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(0.5f, rt.localScale.x, 1e-5f); // round(2*0.5)=1 → 1/2
+            Assert.AreEqual(0.5f, rt.localScale.y, 1e-5f);
+        }
+
+        [Test]
+        public void RelativeScale_half_in_pixel_factor3_is_two_thirds()
+        {
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(5760f, 3240f); // factor 3
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>
+    <Frame id='f' scale='0.5R'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(2f / 3f, rt.localScale.x, 1e-5f); // round(3*0.5)=round(1.5)=2 → 2/3
+        }
+
+        [Test]
+        public void RelativeScale_half_in_pixel_factor4_is_half()
+        {
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(1920f, 1080f); // /480x270 = factor 4
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='480x270'>
+    <Frame id='f' scale='0.5R'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(0.5f, rt.localScale.x, 1e-5f); // round(4*0.5)=2 → 2/4
+        }
+
+        [Test]
+        public void RelativeScale_half_in_pixel_factor5_rounds_half_up()
+        {
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(2400f, 1350f); // /480x270 = factor 5
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='480x270'>
+    <Frame id='f' scale='0.5R'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(3f / 5f, rt.localScale.x, 1e-5f); // round(5*0.5)=round(2.5)=3 (half-up) → 3/5
+        }
+
+        [Test]
+        public void RelativeScale_half_in_pixel_factor1_does_not_clamp()
+        {
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(1920f, 1080f); // factor 1
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>
+    <Frame id='f' scale='0.5R'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(1f, rt.localScale.x, 1e-5f); // round(1*0.5)=round(0.5)=1 → 1/1
+        }
+
+        [Test]
+        public void RelativeScale_quarter_in_pixel_factor1_clamps_to_one()
+        {
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(1920f, 1080f); // factor 1
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>
+    <Frame id='f' scale='0.25R'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(1f, rt.localScale.x, 1e-5f); // round(0.25)=0 → max(1,0)=1 → 1/1
+        }
+
+        [Test]
+        public void RelativeScale_one_in_pixel_factor3_is_identity()
+        {
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(5760f, 3240f); // factor 3
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>
+    <Frame id='f' scale='1R'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(1f, rt.localScale.x, 1e-5f); // round(3*1)=3 → 3/3
+        }
+
+        [Test]
+        public void RelativeScale_half_in_auto_factor2_is_half()
+        {
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(3840f, 2160f); // /1920x1080 = factor 2
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='auto' reference='1920x1080'>
+    <Frame id='f' scale='0.5R'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(0.5f, rt.localScale.x, 1e-5f); // round(2*0.5)=1 → 1/2
+        }
+
+        [Test]
+        public void RelativeScale_box_preserving_stretch_in_factor3()
+        {
+            // localScale = round(3*0.5)/3 = 2/3; inv = 1.5. Same numbers as 2x@factor3 (net 2).
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(5760f, 3240f); // factor 3
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>
+    <Frame id='f' anchor='stretch' margin='10,10,10,10' scale='0.5R'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(2f / 3f, rt.localScale.x, 1e-5f);
+            Assert.AreEqual(-0.25f, rt.anchorMin.x, 1e-4f);
+            Assert.AreEqual(1.25f, rt.anchorMax.x, 1e-4f);
+            Assert.AreEqual(-30f, rt.sizeDelta.x, 1e-3f);
+        }
+
         // ---------- Device-density recompute on canvas resize ----------
 
         [Test]

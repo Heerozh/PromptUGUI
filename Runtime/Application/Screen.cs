@@ -234,8 +234,9 @@ namespace PromptUGUI.Application
         // to its margin-resolved baseline), so reading that baseline here is idempotent.
         //
         // Plain-multiplier 'scale="N"' has no dependence on canvas factor. The device-density
-        // form 'scale="Nx"' divides by _canvasFactor, so a factor change (canvas resize) must
-        // re-run this — routed via ReSolve in OnCanvasDimensionsChanged when _hasDeviceScale.
+        // form 'scale="Nx"' and the canvas-relative form 'scale="<r>R"' both divide by
+        // _canvasFactor, so a factor change (canvas resize) must re-run this — routed via
+        // ReSolve in OnCanvasDimensionsChanged when _hasDeviceScale.
         //
         // Walks every Control in _nodeMap so nodes that declared 'scale' only via a
         // variant override are still tracked (resolves to null → identity reset).
@@ -258,6 +259,19 @@ namespace PromptUGUI.Application
                 {
                     var f = _canvasFactor > 0f ? _canvasFactor : 1f;
                     var dv = devN / f;
+                    rt.localScale = new Vector3(dv, dv, 1f);
+                    ApplyBoxPreservingCompensation(rt, dv);
+                    continue;
+                }
+
+                if (TryParseRelativeScale(raw, out var relR))
+                {
+                    var f = _canvasFactor > 0f ? _canvasFactor : 1f;
+                    // round-half-up to the nearest integer effective (>= 1), then divide the
+                    // factor back out: net physical-px/unit = effective (integer → pixel-aligned),
+                    // and grows with f (responds to window size). See CRS-D3/D4/D5.
+                    var eff = Mathf.Max(1f, Mathf.Floor(f * relR + 0.5f));
+                    var dv = eff / f;
                     rt.localScale = new Vector3(dv, dv, 1f);
                     ApplyBoxPreservingCompensation(rt, dv);
                     continue;
@@ -313,6 +327,19 @@ namespace PromptUGUI.Application
             return int.TryParse(raw.Substring(0, raw.Length - 1),
                 System.Globalization.NumberStyles.None,
                 System.Globalization.CultureInfo.InvariantCulture, out n) && n >= 1;
+        }
+
+        // scale="<r>R" (r positive float): localScale = max(1, round(canvasFactor·r)) / canvasFactor
+        // → scales relative to the factor but snaps net physical-px/unit to the nearest integer
+        // so it stays pixel-aligned at any factor. Returns false for the 'Nx' and plain-multiplier
+        // forms (handled by TryParseDeviceScale / float.TryParse).
+        private static bool TryParseRelativeScale(string raw, out float r)
+        {
+            r = 0f;
+            if (string.IsNullOrEmpty(raw) || raw.Length < 2 || raw[raw.Length - 1] != 'R') return false;
+            return float.TryParse(raw.Substring(0, raw.Length - 1),
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out r) && r > 0f;
         }
 
         // Inflates a just-baselined RectTransform by 1/scale so that localScale=scale renders
