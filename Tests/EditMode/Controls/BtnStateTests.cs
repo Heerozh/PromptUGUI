@@ -294,6 +294,98 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 "nested state source must be a fan-out boundary (no reactor from the outer Btn)");
         }
 
+        [Test]
+        public void PressedSprite_SwapsBgOverrideOnPressed_RevertsOnNormal()
+        {
+            var stub = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            UI.SpriteResolver = _ => stub;
+
+            var btn = BuildBtn("pressedSprite='ui:pressed'");
+            var bg = btn.GameObject.GetComponent<UnityImage>();
+            var authored = bg.sprite; // built-in 9-slice default, must stay untouched
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+
+            // Image.overrideSprite's getter returns m_OverrideSprite ?? sprite, so "no override
+            // in effect" is observable as the getter falling back to the authored base sprite —
+            // which is exactly the visible result we care about (no reflection needed).
+            Assert.AreEqual(authored, bg.overrideSprite, "no override before press (falls back to base sprite)");
+
+            puiBtn.SimulateState(Pressed);
+            Assert.AreEqual(stub, bg.overrideSprite, "Pressed shows pressedSprite via overrideSprite");
+            Assert.AreEqual(authored, bg.sprite, "authored sprite is untouched during press");
+
+            puiBtn.SimulateState(Normal);
+            Assert.AreEqual(authored, bg.overrideSprite, "release clears the override → getter falls back to base sprite");
+            Assert.AreEqual(authored, bg.sprite, "authored sprite still untouched after release");
+        }
+
+        [Test]
+        public void PressedSprite_DisablesDefaultColorTint()
+        {
+            var stub = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            UI.SpriteResolver = _ => stub;
+
+            var btn = BuildBtn("pressedSprite='ui:pressed'");
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+            Assert.AreEqual(Selectable.Transition.None, puiBtn.transition,
+                "a pressedSprite must switch the Btn off uGUI's built-in ColorTint");
+        }
+
+        [Test]
+        public void PressedSprite_ComposesWithPressedColor()
+        {
+            UseInstantTint();
+            var stub = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            UI.SpriteResolver = _ => stub;
+
+            var btn = BuildBtnXml("pressedSprite='ui:pressed' pressedColor='#808080'", "<Image id='img'/>");
+            var bg = btn.GameObject.GetComponent<UnityImage>();
+            var bgBase = bg.color;
+            var half = new Color(0.5019608f, 0.5019608f, 0.5019608f, 1f); // #808080
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+
+            puiBtn.SimulateState(Pressed);
+            Assert.AreEqual(stub, bg.overrideSprite, "sprite swaps on press");
+            AssertColorsEqual(bgBase * half, bg.color);  // and the tint reactor still multiplies
+        }
+
+        [Test]
+        public void PressedSprite_VariantOverride_ReResolves()
+        {
+            var a = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            var b = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            UI.SpriteResolver = key => key == "ui:b" ? b : a;
+
+            var btn = BuildBtn("pressedSprite='ui:a' pressedSprite.dark='ui:b'");
+            var bg = btn.GameObject.GetComponent<UnityImage>();
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+
+            puiBtn.SimulateState(Pressed);
+            Assert.AreEqual(a, bg.overrideSprite, "light variant uses 'ui:a'");
+
+            puiBtn.SimulateState(Normal);
+            UI.Variants.Set("dark", true); // ReSolve re-invokes the setter with the 'dark' override
+
+            puiBtn.SimulateState(Pressed);
+            Assert.AreEqual(b, bg.overrideSprite, "dark variant uses 'ui:b' after ReSolve");
+        }
+
+        [Test]
+        public void PressedSprite_None_NoSwapAndKeepsColorTint()
+        {
+            var btn = BuildBtn("pressedSprite='none'");
+            var bg = btn.GameObject.GetComponent<UnityImage>();
+            var authored = bg.sprite;
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+
+            Assert.AreEqual(Selectable.Transition.ColorTint, puiBtn.transition,
+                "pressedSprite='none' must not disable the default ColorTint");
+
+            puiBtn.SimulateState(Pressed);
+            // none => no override in effect; the getter falls back to the base sprite.
+            Assert.AreEqual(authored, bg.overrideSprite, "pressedSprite='none' => no swap on press");
+        }
+
         private static void AssertColorsEqual(Color expected, Color actual)
         {
             Assert.That(actual.r, Is.EqualTo(expected.r).Within(0.001f), "r");

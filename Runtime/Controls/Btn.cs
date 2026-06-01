@@ -1,3 +1,4 @@
+using System;
 using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
 using PromptUGUI.Registry;
@@ -16,6 +17,8 @@ namespace PromptUGUI.Controls
         private string _fontType = "default";
         private readonly Subject<Unit> _click = new();
         private PointerEventRelay _pointerRelay;
+        private Sprite _pressedSprite;
+        private IDisposable _pressedSpriteSub;
 
         // Raw (unresolved) *Color attribute values. Resolved against UI.Theme in OnAfterApply
         // (same resolver Color uses) so a Variant changing a token re-resolves on ReSolve.
@@ -43,6 +46,7 @@ namespace PromptUGUI.Controls
             _btn = GameObject.GetComponent<PuiButton>() ?? GameObject.AddComponent<PuiButton>();
             _btn.targetGraphic = _bg;
             _btn.onClick.AddListener(() => _click.OnNext(Unit.Default));
+            _pressedSpriteSub = _btn.OnState.Subscribe(ApplyPressedSpriteForState);
             PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
         }
 
@@ -70,6 +74,11 @@ namespace PromptUGUI.Controls
             base.OnAfterApply();
             _btn.interactable = Interactable;
             StateTintInstaller.Install(GameObject, _btn, Children, _hoverColor, _pressedColor, null, _disabledColor);
+            // A pressedSprite is itself a state visual: drop uGUI's built-in ColorTint so the
+            // swapped pressed image isn't double-darkened. Set-only, matching the *Color path
+            // (StateTintInstaller only flips transition when a *Color is present).
+            if (_pressedSprite != null)
+                _btn.transition = UnityEngine.UI.Selectable.Transition.None;
         }
 
         private TMP_Text EnsureLabel()
@@ -158,6 +167,25 @@ namespace PromptUGUI.Controls
             set => _bg.sprite = UI.ResolveSprite(value);
         }
 
+        [UIAttr(IsSprite = true), Preserve]
+        public string PressedSprite
+        {
+            set
+            {
+                // "" / "none" => no pressed swap (mirrors Tab.selectedSprite). Otherwise resolve
+                // through the same path as `sprite`; a Variant ReSolve re-invokes this setter.
+                _pressedSprite = string.IsNullOrEmpty(value) || value == "none"
+                    ? null
+                    : UI.ResolveSprite(value);
+                // Re-evaluate for the live state so a Variant-driven change takes effect immediately.
+                ApplyPressedSpriteForState(_btn.Current);
+            }
+        }
+
+        // Swaps the bg's overrideSprite (never its authored `sprite`) so revert is overrideSprite=null.
+        private void ApplyPressedSpriteForState(InteractState state)
+            => _bg.overrideSprite = state == InteractState.Pressed ? _pressedSprite : null;
+
         public override Vector2? GetNativeSize()
         {
             if (_autoLabel != null && !string.IsNullOrEmpty(_autoLabel.text))
@@ -177,6 +205,7 @@ namespace PromptUGUI.Controls
         public override void Dispose()
         {
             PromptUGUI.Application.UI.Locale.Changed -= ApplyFont;
+            _pressedSpriteSub?.Dispose();
             _click.Dispose();
             base.Dispose();
         }

@@ -8,7 +8,7 @@ PromptUGUI is a Unity 6+ UPM package that translates compact `.ui.xml` files int
 
 The library is **content-agnostic at runtime**: it never reads the filesystem itself. Callers register a `Func<string, Awaitable<string>> SourceResolver` that maps an opaque `src` key to XML content; how the user obtains that content (Resources, Addressables, custom paths) is their concern. Built-in helpers: `UI.UseResourcesResolver(rootPath)` and (when `com.unity.addressables` ≥ 1.0 is installed) `UI.UseAddressableResolver()`.
 
-请**始终使用用户提问时使用的语言回答** 特别是在执行 superpowers:brainstorming 或 superpowers:writing-plans 时，请不要切换到英语，除非用户使用英语。
+请始终**使用中文思考并回答** 特别是在执行 superpowers:brainstorming 或 superpowers:writing-plans 时，请依旧使用中文。
 
 ## Canonical Design Sources
 

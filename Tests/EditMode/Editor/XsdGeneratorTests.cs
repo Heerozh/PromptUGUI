@@ -783,6 +783,7 @@ namespace PromptUGUI.Tests.Editor
             StringAssert.Contains("name=\"hoverColor\"", xsd);
             StringAssert.Contains("name=\"pressedColor\"", xsd);
             StringAssert.Contains("name=\"disabledColor\"", xsd);
+            StringAssert.Contains("name=\"pressedSprite\"", xsd);
         }
 
         [Test]
