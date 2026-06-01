@@ -13,13 +13,13 @@ namespace PromptUGUI.Lint
         {
             foreach (var screen in doc.Screens)
             {
-                foreach (var issue in WalkNode(screen.Root, inTemplateBody: false, hasStateSourceAncestor: false))
+                foreach (var issue in WalkNode(screen.Root, inTemplateBody: false, hasStateSourceAncestor: false, parentIsLayoutGroup: false))
                     yield return issue;
 
                 foreach (var variant in screen.Variants)
                     foreach (var add in variant.Adds)
                         foreach (var addChild in add.Children)
-                            foreach (var issue in WalkNode(addChild, inTemplateBody: false, hasStateSourceAncestor: false))
+                            foreach (var issue in WalkNode(addChild, inTemplateBody: false, hasStateSourceAncestor: false, parentIsLayoutGroup: false))
                                 yield return issue;
             }
 
@@ -30,12 +30,12 @@ namespace PromptUGUI.Lint
                 // walks Template-expanded wrappers recursively, so a Frame>Tab pattern
                 // inside a Template body is intentional structure, not a misuse.
                 if (template.Body != null)
-                    foreach (var issue in WalkNode(template.Body, inTemplateBody: true, hasStateSourceAncestor: false))
+                    foreach (var issue in WalkNode(template.Body, inTemplateBody: true, hasStateSourceAncestor: false, parentIsLayoutGroup: false))
                         yield return issue;
             }
         }
 
-        private static IEnumerable<LintIssue> WalkNode(ElementNode node, bool inTemplateBody, bool hasStateSourceAncestor)
+        private static IEnumerable<LintIssue> WalkNode(ElementNode node, bool inTemplateBody, bool hasStateSourceAncestor, bool parentIsLayoutGroup)
         {
             // Per-tag self-checks (mirror of ScreenInstantiator dispatch; CLI errors).
             // Self-relative — about the node itself, unlike parent-relative LayoutGroupChildRules.
@@ -56,6 +56,14 @@ namespace PromptUGUI.Lint
             // Intentionally NOT dispatched from ScreenInstantiator — see rule's XML docs.
             if (PureContainerVisualAttrRules.AppliesTo(node.Tag))
                 foreach (var issue in PureContainerVisualAttrRules.Check(node))
+                    yield return issue;
+
+            // CLI-only: a margin slot set on a side this anchor doesn't consume is silently
+            // dropped (spec §6.2). Self-relative — about the node's own anchor + margin.
+            // Skipped under a layout group: margin is wholly ignored there and PUI-LAYOUT-MARGIN
+            // already owns that message, so an inert-side error would be a redundant second hit.
+            if (!parentIsLayoutGroup)
+                foreach (var issue in MarginAnchorRules.Check(node))
                     yield return issue;
 
             // Static color literal validation: hex values starting with '#' must parse.
@@ -90,7 +98,7 @@ namespace PromptUGUI.Lint
                         TabRules.TabParentCode, child.Tag, child.Id,
                         $"<Tab id='{child.Id}'>: must be a direct child of <TabBar>; current parent is <{node.Tag}>. " +
                         "Mutual exclusion and shared visuals will not apply.");
-                foreach (var issue in WalkNode(child, inTemplateBody, childHasStateSourceAncestor))
+                foreach (var issue in WalkNode(child, inTemplateBody, childHasStateSourceAncestor, parentIsLayoutGroup: isLayoutGroup))
                     yield return issue;
             }
         }
