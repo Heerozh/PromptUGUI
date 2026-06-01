@@ -97,6 +97,7 @@ installed locally — check `/help` if unsure.)
 | `PUI-MASK-VARIANT`            | Variant override on `mask` / `showMask` / `maskPadding` (mode switch requires AddComponent / Destroy; not v1).    | CLI + runtime warning    |
 | `PUI-MASK-SELF-NO-SPRITE`     | `mask="self"` on `<Image>` without `sprite=` (stencil mask needs a Graphic source).                               | CLI + runtime warning    |
 | `PUI-CONTAINER-VISUAL-ATTR`   | `sprite=` / `color=` on pure containers (`<Frame>` / `<VStack>` / `<HStack>` / `<Grid>` / `<SafeArea>`) — they carry no `Graphic`, so the attribute is silently dropped. Nest an `<Image anchor="stretch" sprite=...>` for backgrounds. | **CLI-only**             |
+| `PUI-MARGIN-INERT-SIDE`       | A 4-component `margin` slot (order `top,right,bottom,left`) set to a non-zero value on a side the explicit `anchor` doesn't consume — e.g. `anchor="bottom-right" margin="60,_,_,_"` (top=60 is dropped; a `bottom` anchor only reads the `bottom` slot). A stretched axis consumes both its slots; a point anchor only its own side; a centered axis neither. Only the explicit-`anchor` + 4-component-`margin` form is checked (1-/2-component shorthands are symmetric and always land on the consumed side). | **CLI-only**             |
 
 To add a new rule: implement it in `Runtime/Core/Lint/` and dispatch from
 `IRWalker`. Also wire it into `ScreenInstantiator.InstantiateRecursive` if and
