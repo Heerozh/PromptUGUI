@@ -12,7 +12,8 @@ namespace PromptUGUI.Application
         public sealed class FontEntry
         {
             public string type;          // "default" | "title" | "damage" | ...
-            public TMP_FontAsset font;
+            public TMP_FontAsset font;   // leave empty to inherit this locale's "default" font
+            public Material material;    // optional TMP material preset (e.g. outline); null = font's default
         }
         [Serializable]
         public sealed class LocaleConfig
@@ -25,21 +26,45 @@ namespace PromptUGUI.Application
         public List<string> fontTypes = new() { "default" };
         public List<LocaleConfig> locales = new();
 
-        public TMP_FontAsset ResolveFont(string locale, string type)
+        /// <summary>Resolved font + optional material preset for a (locale, type) pair.</summary>
+        internal readonly struct FontResolution
         {
-            if (string.IsNullOrEmpty(locale)) return null;
+            public readonly TMP_FontAsset Font;
+            public readonly Material Material;
+            public FontResolution(TMP_FontAsset font, Material material)
+            {
+                Font = font;
+                Material = material;
+            }
+        }
+
+        public TMP_FontAsset ResolveFont(string locale, string type) =>
+            ResolveFontEntry(locale, type).Font;
+
+        /// <summary>
+        /// Resolves the font and material preset for a logical type within a locale.
+        /// A matched entry with an empty font slot inherits the locale's "default"
+        /// font; an unknown type falls back to the "default" entry entirely.
+        /// </summary>
+        internal FontResolution ResolveFontEntry(string locale, string type)
+        {
+            if (string.IsNullOrEmpty(locale)) return default;
             foreach (var lc in locales)
             {
                 if (lc.locale != locale) continue;
+                FontEntry match = null;
                 FontEntry fallback = null;
                 foreach (var fe in lc.fonts)
                 {
-                    if (fe.type == type) return fe.font;
+                    if (fe.type == type) match = fe;
                     if (fe.type == "default") fallback = fe;
                 }
-                return fallback?.font;
+                var entry = match ?? fallback;
+                if (entry == null) return default;
+                var font = entry.font != null ? entry.font : fallback?.font;
+                return new FontResolution(font, entry.material);
             }
-            return null;
+            return default;
         }
 
         // Returns first loaded instance via preloadedAssets, null if none.
@@ -98,17 +123,17 @@ namespace PromptUGUI.Application
                 {
                     if (lc == null) continue;
                     lc.fonts ??= new List<FontEntry>();
-                    var byType = new Dictionary<string, TMP_FontAsset>();
+                    var byType = new Dictionary<string, FontEntry>();
                     foreach (var fe in lc.fonts)
                     {
                         if (fe == null || string.IsNullOrEmpty(fe.type)) continue;
-                        byType[fe.type] = fe.font;
+                        byType[fe.type] = fe;
                     }
                     lc.fonts.Clear();
                     foreach (var t in canonical)
                     {
-                        byType.TryGetValue(t, out var f);
-                        lc.fonts.Add(new FontEntry { type = t, font = f });
+                        byType.TryGetValue(t, out var prev);
+                        lc.fonts.Add(new FontEntry { type = t, font = prev?.font, material = prev?.material });
                     }
                 }
             }

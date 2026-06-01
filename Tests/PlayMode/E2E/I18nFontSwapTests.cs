@@ -23,6 +23,7 @@ namespace PromptUGUI.Tests.E2E
 
         private PromptUGUISettings _settings;
         private TMP_FontAsset _fontEn, _fontZh;
+        private Material _matEn, _matZh;
 
         [SetUp]
         public void Setup()
@@ -74,6 +75,8 @@ namespace PromptUGUI.Tests.E2E
             if (_settings != null) Object.DestroyImmediate(_settings);
             if (_fontEn != null) Object.DestroyImmediate(_fontEn);
             if (_fontZh != null) Object.DestroyImmediate(_fontZh);
+            if (_matEn != null) Object.DestroyImmediate(_matEn);
+            if (_matZh != null) Object.DestroyImmediate(_matZh);
         }
 
         [Test]
@@ -108,10 +111,39 @@ namespace PromptUGUI.Tests.E2E
             }
         }
 
+        [Test]
+        public void SwitchLocale_MaterialPresetSwaps()
+        {
+            // Same font type 'title' carries a per-locale material preset; switching
+            // locale must swap fontSharedMaterial, not just the font asset.
+            _matEn = new Material(Shader.Find("UI/Default"));
+            _matZh = new Material(Shader.Find("UI/Default"));
+            foreach (var lc in _settings.locales)
+                foreach (var fe in lc.fonts)
+                    if (fe.type == "title")
+                        fe.material = lc.locale == "en" ? _matEn : _matZh;
+
+            var screen = UI.Open("S");
+            var txt = screen.Get<Text>("lbl");
+
+            var canAssert = PromptUGUISettings.Instance != null
+                            && _fontEn != null && _fontZh != null;
+            if (canAssert)
+                Assert.AreSame(_matZh, GetTmpMaterial(txt), "zh-Hans should use _matZh preset");
+
+            UI.Locale.Set("en");
+
+            if (canAssert)
+                Assert.AreSame(_matEn, GetTmpMaterial(txt), "en should use _matEn preset");
+        }
+
         private static string GetTmpText(Text t) =>
             ((Control)t).GameObject.GetComponent<TMP_Text>().text;
 
         private static TMP_FontAsset GetTmpFont(Text t) =>
             ((Control)t).GameObject.GetComponent<TMP_Text>().font;
+
+        private static Material GetTmpMaterial(Text t) =>
+            ((Control)t).GameObject.GetComponent<TMP_Text>().fontSharedMaterial;
     }
 }
