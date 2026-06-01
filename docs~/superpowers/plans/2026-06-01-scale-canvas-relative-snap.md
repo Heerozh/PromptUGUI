@@ -1,10 +1,10 @@
-# `scale="<r>R"` 画布相对像素吸附缩放 实施计划
+# `scale="<r>r"` 画布相对像素吸附缩放 实施计划
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 给 `scale` 属性新增取值形态 `<r>R`（r 正浮点），运行期解析为 `localScale = max(1, round(canvasFactor × r)) / canvasFactor`——随 canvas factor 响应窗口、净尺寸吸附整数保持像素对齐。
+**Goal:** 给 `scale` 属性新增取值形态 `<r>r`（r 正浮点），运行期解析为 `localScale = max(1, round(canvasFactor × r)) / canvasFactor`——随 canvas factor 响应窗口、净尺寸吸附整数保持像素对齐。
 
-**Architecture:** 复用已合并的 device-density（`Nx`）全部基础设施：同一个 `_canvasFactor` 缓存、同一条 `OnCanvasDimensionsChanged → ReSolve` 重算路径。新增一个 `TryParseRelativeScale` helper 与 `ApplyScales` 分支；把原本只认 `Nx` 的 resize 门控（`_hasDeviceScale`）泛化为"含 factor 依赖型 scale"（`_hasFactorScale`），让 `<r>R` 也触发 resize 重算。parser 加 `R` 后缀校验。无 C# 公开 API 变化。
+**Architecture:** 复用已合并的 device-density（`Nx`）全部基础设施：同一个 `_canvasFactor` 缓存、同一条 `OnCanvasDimensionsChanged → ReSolve` 重算路径。新增一个 `TryParseRelativeScale` helper 与 `ApplyScales` 分支；把原本只认 `Nx` 的 resize 门控（`_hasDeviceScale`）泛化为"含 factor 依赖型 scale"（`_hasFactorScale`），让 `<r>r` 也触发 resize 重算。parser 加 `R` 后缀校验。无 C# 公开 API 变化。
 
 **Tech Stack:** C# (Unity 6, `Awaitable`/uGUI), NUnit EditMode tests via Unity MCP, `dotnet format`（`.lint/`）。
 
@@ -16,11 +16,11 @@
 
 | 文件 | 职责 | 改动 |
 |---|---|---|
-| `Runtime/Core/Parser/UIDocumentParser.cs` | XML→IR 解析 + 属性校验 | 改 `ValidateScale`：加 `R` 后缀分支 + 错误信息补 `0.5R` 示例 |
+| `Runtime/Core/Parser/UIDocumentParser.cs` | XML→IR 解析 + 属性校验 | 改 `ValidateScale`：加 `R` 后缀分支 + 错误信息补 `0.5r` 示例 |
 | `Runtime/Application/Screen.cs` | 运行期 layout / scale 应用 / resize 重算 | 加 `TryParseRelativeScale` helper；`ApplyScales` 加 `R` 分支；门控 `_hasDeviceScale`→`_hasFactorScale` 泛化 + 检测扩到 `R`；更新注释 |
 | `Tests/EditMode/Application/ScaleAttributeTests.cs` | EditMode 测试 | 加 parser / runtime / box-preserving / resize / 门控 用例 |
 | `.claude/skills/authoring-promptugui-xml/SKILL.md` | XML 作者文档 | `scale` 表行 + 新增 "Canvas-relative snapped" 子节 + 三形态对照 + caveat |
-| `docs~/superpowers/specs/2026-05-07-...-design.md` | master spec | §6 `scale` 行旁追加 `<r>R` 一行 + 引用 |
+| `docs~/superpowers/specs/2026-05-07-...-design.md` | master spec | §6 `scale` 行旁追加 `<r>r` 一行 + 引用 |
 | （核实）XSD generator | `scale` 是否被 XSD 约束 | 大概率 anyAttribute → 无需改；Task 4 核实 |
 
 **测试执行方式（Unity MCP）：** 每次改 C# 后先
@@ -40,7 +40,7 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
 
 ---
 
-## Task 1: Parser — `<r>R` 校验
+## Task 1: Parser — `<r>r` 校验
 
 **Files:**
 - Modify: `Runtime/Core/Parser/UIDocumentParser.cs`（`ValidateScale`，约 line 527-555）
@@ -51,14 +51,14 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
 在 `ScaleAttributeTests.cs` 的 device-density parser 段（约 line 205 `Parser_rejects_uppercase_device_scale` 之后）插入：
 
 ```csharp
-        // ---------- Parser validation: canvas-relative '<r>R' ----------
+        // ---------- Parser validation: canvas-relative '<r>r' ----------
 
         [Test]
         public void Parser_accepts_relative_scale_half()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
-  <Screen name='S'><Frame id='f' scale='0.5R'/></Screen>
+  <Screen name='S'><Frame id='f' scale='0.5r'/></Screen>
 </PromptUGUI>";
             Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
         }
@@ -69,8 +69,8 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S'>
-    <Frame id='a' scale='0.25R'/><Frame id='b' scale='1.5R'/>
-    <Frame id='c' scale='1R'/><Frame id='d' scale='2R'/>
+    <Frame id='a' scale='0.25r'/><Frame id='b' scale='1.5r'/>
+    <Frame id='c' scale='1r'/><Frame id='d' scale='2r'/>
   </Screen>
 </PromptUGUI>";
             Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
@@ -81,7 +81,7 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
-  <Screen name='S'><Frame id='f' scale='1' scale.portrait='0.5R'/></Screen>
+  <Screen name='S'><Frame id='f' scale='1' scale.portrait='0.5r'/></Screen>
 </PromptUGUI>";
             Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
         }
@@ -91,7 +91,7 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
-  <Screen name='S'><Frame id='f' scale='0R'/></Screen>
+  <Screen name='S'><Frame id='f' scale='0r'/></Screen>
 </PromptUGUI>";
             var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
             StringAssert.Contains("canvas-relative", ex.Message);
@@ -102,32 +102,32 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
-  <Screen name='S'><Frame id='f' scale='-0.5R'/></Screen>
+  <Screen name='S'><Frame id='f' scale='-0.5r'/></Screen>
 </PromptUGUI>";
             var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
             StringAssert.Contains("canvas-relative", ex.Message);
         }
 
         [Test]
-        public void Parser_rejects_bare_R()
+        public void Parser_rejects_bare_r()
         {
-            // 'R' length<2 → not the R branch → falls to float check → still errors (msg contains 'scale').
+            // 'r' length<2 → not the r branch → falls to float check → still errors (msg contains 'scale').
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
-  <Screen name='S'><Frame id='f' scale='R'/></Screen>
+  <Screen name='S'><Frame id='f' scale='r'/></Screen>
 </PromptUGUI>";
             var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
             StringAssert.Contains("scale", ex.Message);
         }
 
         [Test]
-        public void Parser_rejects_lowercase_relative_scale()
+        public void Parser_rejects_uppercase_relative_scale()
         {
-            // Canvas-relative suffix is uppercase 'R' only (CRS-D10). '0.5r' falls through to
-            // the float check and is rejected; the fallback message shows the '0.5R' form.
+            // Canvas-relative suffix is lowercase 'r' only (CRS-D10), matching device-density's
+            // lowercase 'x'. '0.5R' falls through to the float check and is rejected.
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
-  <Screen name='S'><Frame id='f' scale='0.5r'/></Screen>
+  <Screen name='S'><Frame id='f' scale='0.5R'/></Screen>
 </PromptUGUI>";
             var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
             StringAssert.Contains("scale", ex.Message);
@@ -142,11 +142,11 @@ mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_
 mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.EditMode"], filter="ScaleAttributeTests")
 ```
 
-Expected: `Parser_accepts_relative_scale_*` 失败（`0.5R` 当前走 float 校验 → `float.TryParse("0.5R")` fail → ParseException）；`Parser_rejects_zero/negative_relative_scale` 失败（断言找 `canvas-relative` 子串，但当前 fallback msg 无此词）。
+Expected: `Parser_accepts_relative_scale_*` 失败（`0.5r` 当前走 float 校验 → `float.TryParse("0.5r")` fail → ParseException）；`Parser_rejects_zero/negative_relative_scale` 失败（断言找 `canvas-relative` 子串，但当前 fallback msg 无此词）。
 
 - [ ] **Step 3: 实现 `ValidateScale` 的 `R` 分支**
 
-在 `Runtime/Core/Parser/UIDocumentParser.cs` 的 `ValidateScale` 里，把 `x` 分支（`if (raw.Length >= 2 && raw[raw.Length - 1] == 'x')` ... 那段）之后、最后的 float fallback 之前，插入 `R` 分支，并把两处 fallback 错误信息补上 `0.5R` 示例。改完后整个方法体为：
+在 `Runtime/Core/Parser/UIDocumentParser.cs` 的 `ValidateScale` 里，把 `x` 分支（`if (raw.Length >= 2 && raw[raw.Length - 1] == 'x')` ... 那段）之后、最后的 float fallback 之前，插入 `R` 分支，并把两处 fallback 错误信息补上 `0.5r` 示例。改完后整个方法体为：
 
 ```csharp
         private static void ValidateScale(string raw, string contextLabel)
@@ -156,7 +156,7 @@ Expected: `Parser_accepts_relative_scale_*` 失败（`0.5R` 当前走 float 校�
             // scale="Nx" (N positive integer) is the device-density form: localScale =
             // N / canvasFactor at runtime — locks the element to N physical pixels per
             // design-unit. See 2026-05-31-scale-device-density-design.md.
-            // scale="<r>R" (r positive float) is the canvas-relative snapped form: localScale =
+            // scale="<r>r" (r positive float) is the canvas-relative snapped form: localScale =
             // round(canvasFactor × r) / canvasFactor at runtime — scales with the factor but the
             // net physical-px/unit snaps to the nearest integer, keeping pixel alignment while
             // still responding to window size. See 2026-06-01-scale-canvas-relative-snap-design.md.
@@ -164,7 +164,7 @@ Expected: `Parser_accepts_relative_scale_*` 失败（`0.5R` 当前走 float 校�
                 throw new ParseException(
                     $"{contextLabel}: value cannot be empty " +
                     $"(expected a positive number like '0.5', a device-density like '2x', " +
-                    $"or a canvas-relative scale like '0.5R')");
+                    $"or a canvas-relative scale like '0.5r')");
 
             if (raw.Length >= 2 && raw[raw.Length - 1] == 'x')
             {
@@ -177,7 +177,7 @@ Expected: `Parser_accepts_relative_scale_*` 失败（`0.5R` 当前走 float 校�
                     $"(expected a positive integer before 'x', e.g. '1x' or '2x')");
             }
 
-            if (raw.Length >= 2 && raw[raw.Length - 1] == 'R')
+            if (raw.Length >= 2 && raw[raw.Length - 1] == 'r')
             {
                 var num = raw.Substring(0, raw.Length - 1);
                 if (float.TryParse(num, System.Globalization.NumberStyles.Float,
@@ -185,7 +185,7 @@ Expected: `Parser_accepts_relative_scale_*` 失败（`0.5R` 当前走 float 校�
                     return;
                 throw new ParseException(
                     $"{contextLabel}: invalid canvas-relative scale '{raw}' " +
-                    $"(expected a positive number before uppercase 'R', e.g. '0.5R' or '0.25R')");
+                    $"(expected a positive number before lowercase 'r', e.g. '0.5r' or '0.25r')");
             }
 
             if (!float.TryParse(raw, System.Globalization.NumberStyles.Float,
@@ -193,7 +193,7 @@ Expected: `Parser_accepts_relative_scale_*` 失败（`0.5R` 当前走 float 校�
                 throw new ParseException(
                     $"{contextLabel}: invalid value '{raw}' " +
                     $"(expected a positive number like '0.5', a device-density like '2x', " +
-                    $"or a canvas-relative scale like '0.5R')");
+                    $"or a canvas-relative scale like '0.5r')");
         }
 ```
 
@@ -220,7 +220,7 @@ Expected: 无 diff、无 warn。（**不要**用 `dotnet format analyzers --seve
 
 ```bash
 git add Runtime/Core/Parser/UIDocumentParser.cs Tests/EditMode/Application/ScaleAttributeTests.cs
-git commit -m "feat: parse scale=\"<r>R\" canvas-relative scale form
+git commit -m "feat: parse scale=\"<r>r\" canvas-relative scale form
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
@@ -249,7 +249,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='1920x1080'>
-    <Frame id='f' scale='0.5R'/>
+    <Frame id='f' scale='0.5r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -264,7 +264,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='1920x1080'>
-    <Frame id='f' scale='0.5R'/>
+    <Frame id='f' scale='0.5r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -278,7 +278,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='480x270'>
-    <Frame id='f' scale='0.5R'/>
+    <Frame id='f' scale='0.5r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -292,7 +292,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='480x270'>
-    <Frame id='f' scale='0.5R'/>
+    <Frame id='f' scale='0.5r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -306,7 +306,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='1920x1080'>
-    <Frame id='f' scale='0.5R'/>
+    <Frame id='f' scale='0.5r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -320,7 +320,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='1920x1080'>
-    <Frame id='f' scale='0.25R'/>
+    <Frame id='f' scale='0.25r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -334,7 +334,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='1920x1080'>
-    <Frame id='f' scale='1R'/>
+    <Frame id='f' scale='1r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -348,7 +348,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='auto' reference='1920x1080'>
-    <Frame id='f' scale='0.5R'/>
+    <Frame id='f' scale='0.5r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -363,7 +363,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='1920x1080'>
-    <Frame id='f' anchor='stretch' margin='10,10,10,10' scale='0.5R'/>
+    <Frame id='f' anchor='stretch' margin='10,10,10,10' scale='0.5r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -381,21 +381,21 @@ mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_
 mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.EditMode"], filter="ScaleAttributeTests")
 ```
 
-Expected: 9 个 `RelativeScale_*` 全失败——当前 `ApplyScales` 不识别 `R`，`float.TryParse("0.5R")` fail → localScale 落到 identity 1（断言 0.5/0.6667 等 → 失败）。
+Expected: 9 个 `RelativeScale_*` 全失败——当前 `ApplyScales` 不识别 `R`，`float.TryParse("0.5r")` fail → localScale 落到 identity 1（断言 0.5/0.6667 等 → 失败）。
 
 - [ ] **Step 3: 实现 helper + `ApplyScales` 分支**
 
 `Runtime/Application/Screen.cs`：在 `TryParseDeviceScale`（约 line 309）下方新增 helper：
 
 ```csharp
-        // scale="<r>R" (r positive float): localScale = max(1, round(canvasFactor·r)) / canvasFactor
+        // scale="<r>r" (r positive float): localScale = max(1, round(canvasFactor·r)) / canvasFactor
         // → scales relative to the factor but snaps net physical-px/unit to the nearest integer
         // so it stays pixel-aligned at any factor. Returns false for the 'Nx' and plain-multiplier
         // forms (handled by TryParseDeviceScale / float.TryParse).
         private static bool TryParseRelativeScale(string raw, out float r)
         {
             r = 0f;
-            if (string.IsNullOrEmpty(raw) || raw.Length < 2 || raw[raw.Length - 1] != 'R') return false;
+            if (string.IsNullOrEmpty(raw) || raw.Length < 2 || raw[raw.Length - 1] != 'r') return false;
             return float.TryParse(raw.Substring(0, raw.Length - 1),
                 System.Globalization.NumberStyles.Float,
                 System.Globalization.CultureInfo.InvariantCulture, out r) && r > 0f;
@@ -419,11 +419,11 @@ Expected: 9 个 `RelativeScale_*` 全失败——当前 `ApplyScales` 不识别 
                 }
 ```
 
-同时更新 `ApplyScales` 上方注释（约 line 236-238）的 "Plain-multiplier has no dependence... The device-density form 'Nx' divides by _canvasFactor" 段，改为同时提及 `<r>R`：
+同时更新 `ApplyScales` 上方注释（约 line 236-238）的 "Plain-multiplier has no dependence... The device-density form 'Nx' divides by _canvasFactor" 段，改为同时提及 `<r>r`：
 
 ```csharp
         // Plain-multiplier 'scale="N"' has no dependence on canvas factor. The device-density
-        // form 'scale="Nx"' and the canvas-relative form 'scale="<r>R"' both divide by
+        // form 'scale="Nx"' and the canvas-relative form 'scale="<r>r"' both divide by
         // _canvasFactor, so a factor change (canvas resize) must re-run this — routed via
         // ReSolve in OnCanvasDimensionsChanged when _hasFactorScale.
 ```
@@ -451,7 +451,7 @@ dotnet format --verify-no-changes --severity warn PromptUGUI.Lint.slnx
 
 ```bash
 git add Runtime/Application/Screen.cs Tests/EditMode/Application/ScaleAttributeTests.cs
-git commit -m "feat: apply scale=\"<r>R\" at Open (localScale = round(f*r)/f)
+git commit -m "feat: apply scale=\"<r>r\" at Open (localScale = round(f*r)/f)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
@@ -481,7 +481,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='1920x1080'>
-    <Frame id='f' scale='0.5R'/>
+    <Frame id='f' scale='0.5r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -502,7 +502,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='1920x1080'>
-    <Frame id='f' anchor='stretch' margin='10,10,10,10' scale='0.5R'/>
+    <Frame id='f' anchor='stretch' margin='10,10,10,10' scale='0.5r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -548,14 +548,14 @@ Expected: 两个测试在 resize 后断言失败——`_hasDeviceScale` 当前�
 (a) 字段（约 line 35）：
 
 ```csharp
-        private bool _hasFactorScale;      // 任一节点用了 scale="Nx" 或 "<r>R"（依赖 _canvasFactor）→ resize 走 ReSolve
+        private bool _hasFactorScale;      // 任一节点用了 scale="Nx" 或 "<r>r"（依赖 _canvasFactor）→ resize 走 ReSolve
 ```
 
 (b) `RecomputeHasDeviceScale`（约 line 286）→ 重命名为 `RecomputeFactorScale`，注释同步：
 
 ```csharp
         // Sets _hasFactorScale if any currently-instantiated node uses a factor-dependent
-        // scale form (scale="Nx" or scale="<r>R"). Called at Open and re-run in ReSolve:
+        // scale form (scale="Nx" or scale="<r>r"). Called at Open and re-run in ReSolve:
         // Add-block activation (Strategy C) can introduce such nodes into _nodeMap after Open.
         private void RecomputeFactorScale()
         {
@@ -570,7 +570,7 @@ Expected: 两个测试在 resize 后断言失败——`_hasDeviceScale` 当前�
 (c) `DeclaresDeviceScale`（约 line 296）→ 重命名为 `DeclaresFactorScale`，检测加 `TryParseRelativeScale`：
 
 ```csharp
-        // Whether a node declares a factor-dependent scale (Nx or <r>R) in its base attribute
+        // Whether a node declares a factor-dependent scale (Nx or <r>r) in its base attribute
         // or any variant override.
         private static bool DeclaresFactorScale(ElementNode node)
         {
@@ -625,9 +625,9 @@ Expected: 全绿（确认重命名没碰到 Screen 其他路径）。
 
 ```bash
 git add Runtime/Application/Screen.cs Tests/EditMode/Application/ScaleAttributeTests.cs
-git commit -m "feat: gate resize-recompute on any factor-dependent scale (Nx or <r>R)
+git commit -m "feat: gate resize-recompute on any factor-dependent scale (Nx or <r>r)
 
-Generalize _hasDeviceScale → _hasFactorScale so scale=\"<r>R\" also re-runs
+Generalize _hasDeviceScale → _hasFactorScale so scale=\"<r>r\" also re-runs
 ReSolve on canvas resize. Internal rename, no behavior change for Nx.
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -648,13 +648,13 @@ grep -rln "anyAttribute\|XmlSchema\|xsd" Editor/ Runtime/ --include=*.cs
 ```
 
 定位生成 `scale` 属性声明的代码处，判断它是：
-- (A) `xs:anyAttribute` / `xs:string` 无 pattern/enum 约束 → **无需改**（`<r>R` 天然被接受）。
-- (B) 有 pattern/enum 限定 `scale` 取值 → 需放开以接受 `<r>R`（如 pattern 加 `|[0-9]*\.?[0-9]+R` 分支）。
+- (A) `xs:anyAttribute` / `xs:string` 无 pattern/enum 约束 → **无需改**（`<r>r` 天然被接受）。
+- (B) 有 pattern/enum 限定 `scale` 取值 → 需放开以接受 `<r>r`（如 pattern 加 `|[0-9]*\.?[0-9]+R` 分支）。
 
 - [ ] **Step 2: 处置**
 
 - 若 (A)：在本计划勾选记录"XSD 无 `scale` 约束，无需改"，跳到 Task 5。
-- 若 (B)：改 generator 放开 `scale`；若有 XSD generator 测试（`StringAssert.Contains` 风格），加一条覆盖 `<r>R` 被接受；跑 `PromptUGUI.Tests.EditorOnly` 转绿。
+- 若 (B)：改 generator 放开 `scale`；若有 XSD generator 测试（`StringAssert.Contains` 风格），加一条覆盖 `<r>r` 被接受；跑 `PromptUGUI.Tests.EditorOnly` 转绿。
 
 ```
 mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.EditorOnly"])
@@ -664,7 +664,7 @@ mcp__UnityMCP__run_tests(mode="EditMode", assembly_names=["PromptUGUI.Tests.Edit
 
 ```bash
 git add Editor/
-git commit -m "feat: XSD accepts scale=\"<r>R\" canvas-relative form
+git commit -m "feat: XSD accepts scale=\"<r>r\" canvas-relative form
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
@@ -678,26 +678,26 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: 改 `scale` 速查表行（line 236）**
 
-把现有 `scale="N"` / `scale="Nx"` 行整行替换为同时含 `<r>R` 的版本：
+把现有 `scale="N"` / `scale="Nx"` 行整行替换为同时含 `<r>r` 的版本：
 
 ```markdown
-| `scale="N"` / `scale="Nx"` / `scale="<r>R"` | positive float `N`; **or** `Nx` (N positive integer); **or** `<r>R` (r positive float, uppercase `R`) | `scale="N"` (float): `localScale=(N,N,1)`, **box-preserving** — declared box stays, `N` only changes render density. `scale="Nx"` (device-density): `localScale = N / canvasFactor` → locks to **N physical pixels per design-unit** (constant size across factors, does **not** grow with window). `scale="<r>R"` (canvas-relative snapped): `localScale = max(1, round(canvasFactor × r)) / canvasFactor` → scales to `r×` the canvas factor but **snaps the net to an integer**, so it **grows with the window yet stays pixel-aligned at any factor** (e.g. `0.5R` is net 1 px/unit at factor 2, net 2 at factor 3 _and_ 4, net 3 at factor 6). All three recompute on factor change. See "Relative scale" / "Device-density" / "Canvas-relative snapped" below. |
+| `scale="N"` / `scale="Nx"` / `scale="<r>r"` | positive float `N`; **or** `Nx` (N positive integer); **or** `<r>r` (r positive float, lowercase `r`) | `scale="N"` (float): `localScale=(N,N,1)`, **box-preserving** — declared box stays, `N` only changes render density. `scale="Nx"` (device-density): `localScale = N / canvasFactor` → locks to **N physical pixels per design-unit** (constant size across factors, does **not** grow with window). `scale="<r>r"` (canvas-relative snapped): `localScale = max(1, round(canvasFactor × r)) / canvasFactor` → scales to `r×` the canvas factor but **snaps the net to an integer**, so it **grows with the window yet stays pixel-aligned at any factor** (e.g. `0.5r` is net 1 px/unit at factor 2, net 2 at factor 3 _and_ 4, net 3 at factor 6). All three recompute on factor change. See "Relative scale" / "Device-density" / "Canvas-relative snapped" below. |
 ```
 
 - [ ] **Step 2: 在 "Device-density (`scale="Nx"`)" 子节之后（约 line 635 的 LayoutGroup caveat 项之后）新增子节**
 
 ```markdown
-### Canvas-relative snapped (`scale="<r>R"`)
+### Canvas-relative snapped (`scale="<r>r"`)
 
-`scale="<r>R"` (r a **positive float**, uppercase `R`) scales the element to **r× the current canvas factor**, but snaps the result to the nearest integer net density so it stays pixel-aligned: `localScale = max(1, round(canvasFactor × r)) / canvasFactor`. The net physical-pixels-per-design-unit is `round(canvasFactor × r)` — an integer that **grows as the window grows** (unlike `Nx`, whose net is constant) while **never going off the pixel grid** (unlike a plain float, which blurs at odd factors). Recomputed on canvas resize / device rotation.
+`scale="<r>r"` (r a **positive float**, lowercase `r`) scales the element to **r× the current canvas factor**, but snaps the result to the nearest integer net density so it stays pixel-aligned: `localScale = max(1, round(canvasFactor × r)) / canvasFactor`. The net physical-pixels-per-design-unit is `round(canvasFactor × r)` — an integer that **grows as the window grows** (unlike `Nx`, whose net is constant) while **never going off the pixel grid** (unlike a plain float, which blurs at odd factors). Recomputed on canvas resize / device rotation.
 
-Why it exists: `scale="0.5"` follows the window but blurs at an odd factor (`3 × 0.5 = 1.5` px → off-grid); `scale="2x"` is always crisp but its size never grows with the window. `<r>R` gives the in-between: a smaller element that still responds to window size **and** stays crisp at every factor.
+Why it exists: `scale="0.5"` follows the window but blurs at an odd factor (`3 × 0.5 = 1.5` px → off-grid); `scale="2x"` is always crisp but its size never grows with the window. `<r>r` gives the in-between: a smaller element that still responds to window size **and** stays crisp at every factor.
 
 ```xml
 <!-- 12x12 CJK bitmap font: want it "about half" the chunky integer step, but crisp.
-     0.5R → factor 2: net 1 (12px); factor 3: net 2 (24px); factor 4: net 2; factor 6: net 3.
+     0.5r → factor 2: net 1 (12px); factor 3: net 2 (24px); factor 4: net 2; factor 6: net 3.
      Always an integer net → pixel-aligned, and it grows as the window grows. -->
-<Text fontSize="12" scale="0.5R" alignment="center">设置</Text>
+<Text fontSize="12" scale="0.5r" alignment="center">设置</Text>
 ```
 
 Choosing between the three forms:
@@ -706,13 +706,13 @@ Choosing between the three forms:
 |---|---|---|---|---|
 | `scale="N"` (float) | `N × factor` | yes | only if `N×factor` is integer | render-density tweaks on SDF/TMP text; not pixel-art |
 | `scale="Nx"` (N int) | `N` (constant) | no | yes (pixel mode) | UI text at a fixed physical size across devices |
-| `scale="<r>R"` (r float) | `round(factor × r)` | yes | yes (pixel mode) | small bitmap text/elements that scale with the window but must stay crisp |
+| `scale="<r>r"` (r float) | `round(factor × r)` | yes | yes (pixel mode) | small bitmap text/elements that scale with the window but must stay crisp |
 
-- **Rounding is round-half-up**: `round(factor × r)` rounds `.5` up, so `0.5R` at factor 3 → net 2 (not 1), at factor 5 → net 3.
-- **Clamped to a minimum net of 1**: when `round(factor × r) < 1` (e.g. `0.25R` at factor 1), the net floors at 1 — you can't go below one physical pixel per design-unit and stay aligned.
-- **r may exceed 1** (`2R` grows twice as fast and stays aligned), and may be fractional (`0.25R`, `1.5R`). `r` must be positive; the suffix is uppercase `R` only (`0.5r` is a parse error).
+- **Rounding is round-half-up**: `round(factor × r)` rounds `.5` up, so `0.5r` at factor 3 → net 2 (not 1), at factor 5 → net 3.
+- **Clamped to a minimum net of 1**: when `round(factor × r) < 1` (e.g. `0.25r` at factor 1), the net floors at 1 — you can't go below one physical pixel per design-unit and stay aligned.
+- **r may exceed 1** (`2r` grows twice as fast and stays aligned), and may be fractional (`0.25r`, `1.5r`). `r` must be positive; the suffix is lowercase `r` only — matching device-density's lowercase `x` (`0.5R` is a parse error).
 - **Truly crisp only in `scale-mode="pixel"`** (integer factor + `Canvas.pixelPerfect`). In `auto` mode the net is still integer but position can land sub-pixel — same caveat as `Nx`.
-- **Composes with `UI.PixelScalePowerOfTwo` / `UI.MinPixelScale`**: `<r>R` reads the final effective factor, so it snaps relative to whatever factor those settings produce.
+- **Composes with `UI.PixelScalePowerOfTwo` / `UI.MinPixelScale`**: `<r>r` reads the final effective factor, so it snaps relative to whatever factor those settings produce.
 - Box-preserving behavior and the LayoutGroup-skip caveat (below) apply identically (inflation uses `1 / localScale`).
 ```
 
@@ -724,7 +724,7 @@ Choosing between the three forms:
 
 ```bash
 git add .claude/skills/authoring-promptugui-xml/SKILL.md
-git commit -m "docs(skill): document scale=\"<r>R\" canvas-relative snapped form
+git commit -m "docs(skill): document scale=\"<r>r\" canvas-relative snapped form
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
@@ -736,19 +736,19 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 **Files:**
 - Modify: `docs~/superpowers/specs/2026-05-07-promptugui-description-language-design.md`（约 line 235，`scale="Nx"` 那一行）
 
-- [ ] **Step 1: 在 `scale="Nx"` 行之后追加 `<r>R` 一行**
+- [ ] **Step 1: 在 `scale="Nx"` 行之后追加 `<r>r` 一行**
 
 在 master spec 现有 `- 元素级 \`scale="Nx"\`（...）...详见 2026-05-31-scale-device-density-design.md。普通 \`scale="N"\`...` 那一条之后，追加：
 
 ```markdown
-- 元素级 `scale="<r>R"`（r 正浮点，大写 `R`，支持 `.variant`）：画布相对吸附形态，`localScale = max(1, round(canvasFactor × r)) / canvasFactor`——缩放跟随 factor（随窗口长大），但净物理像素/设计单位吸附到整数保持像素对齐，填补 `scale="N"`（响应但奇数 factor 糊）与 `scale="Nx"`（恒定不长大）之间。详见 [`2026-06-01-scale-canvas-relative-snap-design.md`](2026-06-01-scale-canvas-relative-snap-design.md)。
+- 元素级 `scale="<r>r"`（r 正浮点，小写 `r`，支持 `.variant`）：画布相对吸附形态，`localScale = max(1, round(canvasFactor × r)) / canvasFactor`——缩放跟随 factor（随窗口长大），但净物理像素/设计单位吸附到整数保持像素对齐，填补 `scale="N"`（响应但奇数 factor 糊）与 `scale="Nx"`（恒定不长大）之间。详见 [`2026-06-01-scale-canvas-relative-snap-design.md`](2026-06-01-scale-canvas-relative-snap-design.md)。
 ```
 
 - [ ] **Step 2: Commit**
 
 ```bash
 git add "docs~/superpowers/specs/2026-05-07-promptugui-description-language-design.md"
-git commit -m "doc: reference scale=\"<r>R\" spec from master design
+git commit -m "doc: reference scale=\"<r>r\" spec from master design
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
@@ -761,7 +761,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: pixel 模式多 factor 目测**
 
-在 host 工程 `C:\xsoft\PromptUGUIDev` 摆一个 `scale-mode="pixel"` Screen，放 `<Text fontSize="12" scale="0.5R">设置文字 ABC</Text>`，调窗口大小使 factor 落在 2 / 3 / 4 / 5：
+在 host 工程 `C:\xsoft\PromptUGUIDev` 摆一个 `scale-mode="pixel"` Screen，放 `<Text fontSize="12" scale="0.5r">设置文字 ABC</Text>`，调窗口大小使 factor 落在 2 / 3 / 4 / 5：
 - 每个 factor 下中文位图字**清晰不糊**（无半像素跨格）。
 - factor 越大字越大（net 1→2→2→3），即随窗口响应。
 
@@ -771,7 +771,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 3: 与 `0.5` / `2x` 对照**
 
-同屏并列 `scale="0.5"`、`scale="2x"`、`scale="0.5R"` 三个 `<Text>`，在 factor 3 下确认：`0.5` 糊、`2x` 清晰但偏小固定、`0.5R` 清晰且尺寸介于两者并随窗口变化。
+同屏并列 `scale="0.5"`、`scale="2x"`、`scale="0.5r"` 三个 `<Text>`，在 factor 3 下确认：`0.5` 糊、`2x` 清晰但偏小固定、`0.5r` 清晰且尺寸介于两者并随窗口变化。
 
 - [ ] **Step 4: 记录结论**
 
@@ -783,12 +783,12 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 | spec 要点 | 对应任务 |
 |---|---|
-| CRS-D1/D2 语法 `<r>R` 正浮点 | Task 1 |
+| CRS-D1/D2 语法 `<r>r` 正浮点 | Task 1 |
 | CRS-D3/D4/D5 语义 + round-half-up + ≥1 钳制 | Task 2（Step 3 公式 `Max(1, Floor(f·r+0.5))`） |
 | CRS-D6/D7 不分支 scale-mode + 读最终 `_canvasFactor` | Task 2（复用既有 `_canvasFactor`） |
 | CRS-D8 门控泛化 `_hasFactorScale` | Task 3 |
-| CRS-D9/D10 parse 校验 + 大写 R | Task 1 |
-| CRS-D11 r>1 允许 | Task 1（`2R` 用例）+ Task 2（identity/放大隐含） |
+| CRS-D9/D10 parse 校验 + 小写 r | Task 1 |
+| CRS-D11 r>1 允许 | Task 1（`2r` 用例）+ Task 2（identity/放大隐含） |
 | CRS-D12 ApplyScales 解析顺序 | Task 2（R 分支在 Nx 后、float 前） |
 | CRS-D13 `_canvasFactor≤0` 兜底 | Task 2（`f = _canvasFactor>0 ? : 1`） |
 | CRS-D14 LayoutGroup 子节点 | 复用 `ApplyBoxPreservingCompensation`（无新代码）；SKILL caveat（Task 5） |

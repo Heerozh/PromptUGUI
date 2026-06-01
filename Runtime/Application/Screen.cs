@@ -29,7 +29,7 @@ namespace PromptUGUI.Application
         private bool _isReapplyingScaler;
         // The pixel/auto factor that ApplyCanvasScaler last applied; 'Nx' scale divides by it.
         private float _canvasFactor = 1f;
-        // True if any node declares a factor-dependent scale — scale="Nx" or scale="<r>R"
+        // True if any node declares a factor-dependent scale — scale="Nx" or scale="<r>r"
         // (base or variant). Gates the resize path: such Screens re-run ReSolve (re-baseline +
         // recompute) on canvas resize; others keep the lightweight ApplyCanvasScaler-only path
         // (zero behavior change).
@@ -235,7 +235,7 @@ namespace PromptUGUI.Application
         // to its margin-resolved baseline), so reading that baseline here is idempotent.
         //
         // Plain-multiplier 'scale="N"' has no dependence on canvas factor. The device-density
-        // form 'scale="Nx"' and the canvas-relative form 'scale="<r>R"' both divide by
+        // form 'scale="Nx"' and the canvas-relative form 'scale="<r>r"' both divide by
         // _canvasFactor, so a factor change (canvas resize) must re-run this — routed via
         // ReSolve in OnCanvasDimensionsChanged when _hasFactorScale.
         //
@@ -295,7 +295,7 @@ namespace PromptUGUI.Application
         }
 
         // Sets _hasFactorScale if any currently-instantiated node uses a factor-dependent scale
-        // form (scale="Nx" or scale="<r>R"). Called at Open and re-run in ReSolve: Add-block
+        // form (scale="Nx" or scale="<r>r"). Called at Open and re-run in ReSolve: Add-block
         // activation (Strategy C) can introduce such nodes into _nodeMap after Open. Activated
         // nodes stay in _nodeMap, so the flag is effectively sticky once any such node exists.
         private void RecomputeFactorScale()
@@ -307,7 +307,7 @@ namespace PromptUGUI.Application
             }
         }
 
-        // Whether a node declares a factor-dependent scale (Nx or <r>R) in its base attribute
+        // Whether a node declares a factor-dependent scale (Nx or <r>r) in its base attribute
         // or any variant override.
         private static bool DeclaresFactorScale(ElementNode node)
         {
@@ -331,14 +331,14 @@ namespace PromptUGUI.Application
                 System.Globalization.CultureInfo.InvariantCulture, out n) && n >= 1;
         }
 
-        // scale="<r>R" (r positive float): localScale = max(1, round(canvasFactor·r)) / canvasFactor
+        // scale="<r>r" (r positive float): localScale = max(1, round(canvasFactor·r)) / canvasFactor
         // → scales relative to the factor but snaps net physical-px/unit to the nearest integer
         // so it stays pixel-aligned at any factor. Returns false for the 'Nx' and plain-multiplier
         // forms (handled by TryParseDeviceScale / float.TryParse).
         private static bool TryParseRelativeScale(string raw, out float r)
         {
             r = 0f;
-            if (string.IsNullOrEmpty(raw) || raw.Length < 2 || raw[raw.Length - 1] != 'R') return false;
+            if (string.IsNullOrEmpty(raw) || raw.Length < 2 || raw[raw.Length - 1] != 'r') return false;
             return float.TryParse(raw.Substring(0, raw.Length - 1),
                 System.Globalization.NumberStyles.Float,
                 System.Globalization.CultureInfo.InvariantCulture, out r) && r > 0f;

@@ -204,14 +204,14 @@ namespace PromptUGUI.Tests.Application
             StringAssert.Contains("scale", ex.Message);
         }
 
-        // ---------- Parser validation: canvas-relative '<r>R' ----------
+        // ---------- Parser validation: canvas-relative '<r>r' ----------
 
         [Test]
         public void Parser_accepts_relative_scale_half()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
-  <Screen name='S'><Frame id='f' scale='0.5R'/></Screen>
+  <Screen name='S'><Frame id='f' scale='0.5r'/></Screen>
 </PromptUGUI>";
             Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
         }
@@ -222,8 +222,8 @@ namespace PromptUGUI.Tests.Application
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S'>
-    <Frame id='a' scale='0.25R'/><Frame id='b' scale='1.5R'/>
-    <Frame id='c' scale='1R'/><Frame id='d' scale='2R'/>
+    <Frame id='a' scale='0.25r'/><Frame id='b' scale='1.5r'/>
+    <Frame id='c' scale='1r'/><Frame id='d' scale='2r'/>
   </Screen>
 </PromptUGUI>";
             Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
@@ -234,7 +234,7 @@ namespace PromptUGUI.Tests.Application
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
-  <Screen name='S'><Frame id='f' scale='1' scale.portrait='0.5R'/></Screen>
+  <Screen name='S'><Frame id='f' scale='1' scale.portrait='0.5r'/></Screen>
 </PromptUGUI>";
             Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
         }
@@ -244,7 +244,7 @@ namespace PromptUGUI.Tests.Application
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
-  <Screen name='S'><Frame id='f' scale='0R'/></Screen>
+  <Screen name='S'><Frame id='f' scale='0r'/></Screen>
 </PromptUGUI>";
             var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
             StringAssert.Contains("canvas-relative", ex.Message);
@@ -255,32 +255,33 @@ namespace PromptUGUI.Tests.Application
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
-  <Screen name='S'><Frame id='f' scale='-0.5R'/></Screen>
+  <Screen name='S'><Frame id='f' scale='-0.5r'/></Screen>
 </PromptUGUI>";
             var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
             StringAssert.Contains("canvas-relative", ex.Message);
         }
 
         [Test]
-        public void Parser_rejects_bare_R()
+        public void Parser_rejects_bare_r()
         {
-            // 'R' length<2 → not the R branch → falls to float check → still errors (msg contains 'scale').
+            // 'r' length<2 → not the r branch → falls to float check → still errors (msg contains 'scale').
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
-  <Screen name='S'><Frame id='f' scale='R'/></Screen>
+  <Screen name='S'><Frame id='f' scale='r'/></Screen>
 </PromptUGUI>";
             var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
             StringAssert.Contains("scale", ex.Message);
         }
 
         [Test]
-        public void Parser_rejects_lowercase_relative_scale()
+        public void Parser_rejects_uppercase_relative_scale()
         {
-            // Canvas-relative suffix is uppercase 'R' only (CRS-D10). '0.5r' falls through to
-            // the float check and is rejected; the fallback message shows the '0.5R' form.
+            // Canvas-relative suffix is lowercase 'r' only (CRS-D10), matching device-density's
+            // lowercase 'x'. '0.5R' falls through to the float check and is rejected; the
+            // fallback message shows the '0.5r' form.
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
-  <Screen name='S'><Frame id='f' scale='0.5r'/></Screen>
+  <Screen name='S'><Frame id='f' scale='0.5R'/></Screen>
 </PromptUGUI>";
             var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
             StringAssert.Contains("scale", ex.Message);
@@ -726,7 +727,7 @@ namespace PromptUGUI.Tests.Application
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='1920x1080'>
-    <Frame id='f' scale='0.5R'/>
+    <Frame id='f' scale='0.5r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -741,7 +742,7 @@ namespace PromptUGUI.Tests.Application
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='1920x1080'>
-    <Frame id='f' scale='0.5R'/>
+    <Frame id='f' scale='0.5r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -755,7 +756,7 @@ namespace PromptUGUI.Tests.Application
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='480x270'>
-    <Frame id='f' scale='0.5R'/>
+    <Frame id='f' scale='0.5r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -769,7 +770,7 @@ namespace PromptUGUI.Tests.Application
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='480x270'>
-    <Frame id='f' scale='0.5R'/>
+    <Frame id='f' scale='0.5r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -783,7 +784,7 @@ namespace PromptUGUI.Tests.Application
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='1920x1080'>
-    <Frame id='f' scale='0.5R'/>
+    <Frame id='f' scale='0.5r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -797,7 +798,7 @@ namespace PromptUGUI.Tests.Application
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='1920x1080'>
-    <Frame id='f' scale='0.25R'/>
+    <Frame id='f' scale='0.25r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -811,7 +812,7 @@ namespace PromptUGUI.Tests.Application
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='1920x1080'>
-    <Frame id='f' scale='1R'/>
+    <Frame id='f' scale='1r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -825,7 +826,7 @@ namespace PromptUGUI.Tests.Application
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='auto' reference='1920x1080'>
-    <Frame id='f' scale='0.5R'/>
+    <Frame id='f' scale='0.5r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -840,7 +841,7 @@ namespace PromptUGUI.Tests.Application
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='1920x1080'>
-    <Frame id='f' anchor='stretch' margin='10,10,10,10' scale='0.5R'/>
+    <Frame id='f' anchor='stretch' margin='10,10,10,10' scale='0.5r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -977,7 +978,7 @@ namespace PromptUGUI.Tests.Application
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='1920x1080'>
-    <Frame id='f' scale='0.5R'/>
+    <Frame id='f' scale='0.5r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
@@ -998,7 +999,7 @@ namespace PromptUGUI.Tests.Application
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='1920x1080'>
-    <Frame id='f' anchor='stretch' margin='10,10,10,10' scale='0.5R'/>
+    <Frame id='f' anchor='stretch' margin='10,10,10,10' scale='0.5r'/>
   </Screen>
 </PromptUGUI>");
             var rt = screen.Get("f").RectTransform;
