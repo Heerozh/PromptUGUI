@@ -74,6 +74,11 @@ namespace PromptUGUI.Controls
             base.OnAfterApply();
             _btn.interactable = Interactable;
             StateTintInstaller.Install(GameObject, _btn, Children, _hoverColor, _pressedColor, null, _disabledColor);
+            // A pressedSprite is itself a state visual: drop uGUI's built-in ColorTint so the
+            // swapped pressed image isn't double-darkened. Set-only, matching the *Color path
+            // (StateTintInstaller only flips transition when a *Color is present).
+            if (_pressedSprite != null)
+                _btn.transition = UnityEngine.UI.Selectable.Transition.None;
         }
 
         private TMP_Text EnsureLabel()

@@ -319,6 +319,18 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(authored, bg.sprite, "authored sprite still untouched after release");
         }
 
+        [Test]
+        public void PressedSprite_DisablesDefaultColorTint()
+        {
+            var stub = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            UI.SpriteResolver = _ => stub;
+
+            var btn = BuildBtn("pressedSprite='ui:pressed'");
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+            Assert.AreEqual(Selectable.Transition.None, puiBtn.transition,
+                "a pressedSprite must switch the Btn off uGUI's built-in ColorTint");
+        }
+
         private static void AssertColorsEqual(Color expected, Color actual)
         {
             Assert.That(actual.r, Is.EqualTo(expected.r).Within(0.001f), "r");
