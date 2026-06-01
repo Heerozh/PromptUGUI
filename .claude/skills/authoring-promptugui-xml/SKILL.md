@@ -233,7 +233,7 @@ Other notes:
 | `hidden="true"`            | bool                                               | Initial `SetActive(false)`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `interactable="false"`     | bool                                               | Initial `CanvasGroup.interactable=false` + `blocksRaycasts=false`. On `<Btn>` it **also** sets `Button.interactable=false` → the Btn enters its Disabled state (see **Btn state visuals**).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `stateReact="false"`       | bool (default `true`)                              | Opts this node **and its whole subtree** out of an ancestor `<Btn>` / `<Tab>` / `<Toggle>`'s state-colour tint fan-out (`hoverColor` / `pressedColor` / `selectedColor` / `disabledColor`). See **Btn state visuals**.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `scale="N"` / `scale="Nx"` | positive float, **or** `Nx` (N a positive integer) | `scale="N"` (float): `localScale=(N,N,1)`, **box-preserving** — declared `anchor`/`size`/`margin` stays the visual box, `N` only changes render density (`N<1` finer/crisper, `N>1` coarser), not on-screen size. `scale="Nx"` (device-density, N positive integer): `localScale = N / canvasFactor` → locks the element to **N physical pixels per design-unit**, recomputed when the factor changes. Use `Nx` for pixel-perfect bitmap text under a `scale-mode='pixel'` integer factor (e.g. a 12×12 CJK font: `scale="2x"` renders it 24×24 and crisp at factor 2, 3 _or_ 4). `scale="2"` (coarse 2×) and `scale="2x"` (net 2 device-px) differ. For a smaller element prefer a smaller `size`, not float `scale`. See "Relative scale" below. |
+| `scale="N"` / `scale="Nx"` / `scale="<r>r"` | positive float `N`; **or** `Nx` (N a positive integer); **or** `<r>r` (r a positive float, lowercase `r`) | `scale="N"` (float): `localScale=(N,N,1)`, **box-preserving** — declared `anchor`/`size`/`margin` stays the visual box, `N` only changes render density (`N<1` finer/crisper, `N>1` coarser), not on-screen size. `scale="Nx"` (device-density): `localScale = N / canvasFactor` → locks to **N physical pixels per design-unit** (constant size across factors, does **not** grow with the window). `scale="<r>r"` (canvas-relative snapped): `localScale = max(1, round(canvasFactor × r)) / canvasFactor` → scales to `r×` the canvas factor but **snaps the net to an integer**, so it **grows with the window yet stays pixel-aligned at any factor** (e.g. `0.5r` is net 1 px/unit at factor 2, net 2 at factor 3 _and_ 4, net 3 at factor 6). All three recompute on factor change; `Nx`/`<r>r` are crisp under a `scale-mode='pixel'` integer factor. `scale="2"` (coarse 2×) and `scale="2x"` (net 2 device-px) differ. See "Relative scale" / "Device-density" / "Canvas-relative snapped" below. |
 
 `padding` and `spacing` are **NOT** universal — only on `<VStack>` / `<HStack>` / `<Grid>`.
 
@@ -633,6 +633,36 @@ Caveats:
 - **`Nx` is truly crisp only in `scale-mode="pixel"`** (integer factor + `Canvas.pixelPerfect` snaps vertices). In `auto` mode the _size_ is still exactly N device-px per design-unit, but the element's position can land on a sub-pixel (auto mode does not snap), so text may be slightly soft.
 - `Nx` only locks density. The font must also be authored so 1 source pixel = 1 design-unit — i.e. set `fontSize` to the font's native pixel height. A `fontSize` that differs from native still misaligns.
 - Box-preserving behavior and the LayoutGroup-skip caveat below apply identically to `Nx` (the inflation uses `1 / localScale`).
+
+### Canvas-relative snapped (`scale="<r>r"`)
+
+`scale="<r>r"` (r a **positive float**, lowercase `r`) scales the element to **r× the current canvas factor**, but snaps the result to the nearest integer net density so it stays pixel-aligned: `localScale = max(1, round(canvasFactor × r)) / canvasFactor`. The net physical-pixels-per-design-unit is `round(canvasFactor × r)` — an integer that **grows as the window grows** (unlike `Nx`, whose net is constant) while **never going off the pixel grid** (unlike a plain float, which blurs at odd factors). Recomputed on canvas resize / device rotation.
+
+Why it exists: `scale="0.5"` follows the window but blurs at an odd factor (`3 × 0.5 = 1.5` px → off-grid); `scale="2x"` is always crisp but its size never grows with the window. `<r>r` gives the in-between: a smaller element that still responds to window size **and** stays crisp at every factor.
+
+```xml
+<!-- 12x12 CJK bitmap font: want it "about half" the chunky integer step, but crisp.
+     0.5r → factor 2: net 1 (12px); factor 3: net 2 (24px); factor 4: net 2; factor 6: net 3.
+     Always an integer net → pixel-aligned, and it grows as the window grows. -->
+<Text fontSize="12" scale="0.5r" alignment="center">设置</Text>
+```
+
+Choosing between the three forms:
+
+| Form | Net px/design-unit | Grows with window? | Pixel-aligned? | Use for |
+|---|---|---|---|---|
+| `scale="N"` (float) | `N × factor` | yes | only if `N×factor` is integer | render-density tweaks on SDF/TMP text; not pixel-art |
+| `scale="Nx"` (N int) | `N` (constant) | no | yes (pixel mode) | UI text at a fixed physical size across devices |
+| `scale="<r>r"` (r float) | `round(factor × r)` | yes | yes (pixel mode) | small bitmap text/elements that scale with the window but must stay crisp |
+
+Caveats:
+
+- **Rounding is round-half-up**: `round(factor × r)` rounds `.5` up, so `0.5r` at factor 3 → net 2 (not 1), at factor 5 → net 3.
+- **Clamped to a minimum net of 1**: when `round(factor × r) < 1` (e.g. `0.25r` at factor 1), the net floors at 1 — you can't go below one physical pixel per design-unit and stay aligned.
+- **r may exceed 1** (`2r` grows twice as fast and stays aligned), and may be fractional (`0.25r`, `1.5r`). `r` must be positive; the suffix is lowercase `r` only — matching device-density's lowercase `x` (`0.5R` is a parse error).
+- **Truly crisp only in `scale-mode="pixel"`** (integer factor + `Canvas.pixelPerfect`). In `auto` mode the net is still integer but position can land sub-pixel — same caveat as `Nx`.
+- **Composes with `UI.PixelScalePowerOfTwo` / `UI.MinPixelScale`**: `<r>r` reads the final effective factor, so it snaps relative to whatever factor those settings produce.
+- Box-preserving behavior and the LayoutGroup-skip caveat below apply identically (the inflation uses `1 / localScale`).
 
 **Where to put `scale`**:
 

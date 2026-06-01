@@ -531,10 +531,15 @@ namespace PromptUGUI.Parser
             // scale="Nx" (N positive integer) is the device-density form: localScale =
             // N / canvasFactor at runtime — locks the element to N physical pixels per
             // design-unit. See 2026-05-31-scale-device-density-design.md.
+            // scale="<r>r" (r positive float) is the canvas-relative snapped form: localScale =
+            // round(canvasFactor × r) / canvasFactor at runtime — scales with the factor but the
+            // net physical-px/unit snaps to the nearest integer, keeping pixel alignment while
+            // still responding to window size. See 2026-06-01-scale-canvas-relative-snap-design.md.
             if (string.IsNullOrEmpty(raw))
                 throw new ParseException(
                     $"{contextLabel}: value cannot be empty " +
-                    $"(expected a positive number like '0.5', or a device-density like '2x')");
+                    $"(expected a positive number like '0.5', a device-density like '2x', " +
+                    $"or a canvas-relative scale like '0.5r')");
 
             if (raw.Length >= 2 && raw[raw.Length - 1] == 'x')
             {
@@ -547,11 +552,23 @@ namespace PromptUGUI.Parser
                     $"(expected a positive integer before 'x', e.g. '1x' or '2x')");
             }
 
+            if (raw.Length >= 2 && raw[raw.Length - 1] == 'r')
+            {
+                var num = raw.Substring(0, raw.Length - 1);
+                if (float.TryParse(num, System.Globalization.NumberStyles.Float,
+                                   System.Globalization.CultureInfo.InvariantCulture, out var rr) && rr > 0f)
+                    return;
+                throw new ParseException(
+                    $"{contextLabel}: invalid canvas-relative scale '{raw}' " +
+                    $"(expected a positive number before lowercase 'r', e.g. '0.5r' or '0.25r')");
+            }
+
             if (!float.TryParse(raw, System.Globalization.NumberStyles.Float,
                                 System.Globalization.CultureInfo.InvariantCulture, out var v) || v <= 0f)
                 throw new ParseException(
                     $"{contextLabel}: invalid value '{raw}' " +
-                    $"(expected a positive number like '0.5', or a device-density like '2x')");
+                    $"(expected a positive number like '0.5', a device-density like '2x', " +
+                    $"or a canvas-relative scale like '0.5r')");
         }
 
         private static bool IsValidIconName(string name)
