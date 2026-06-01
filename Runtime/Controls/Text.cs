@@ -1,3 +1,4 @@
+using System;
 using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
 using PromptUGUI.Registry;
@@ -93,13 +94,50 @@ namespace PromptUGUI.Controls
         {
             set
             {
-                _tmp.alignment = value switch
-                {
-                    "center" => TextAlignmentOptions.Center,
-                    "right" => TextAlignmentOptions.Right,
-                    _ => TextAlignmentOptions.Left,
-                };
+                var (h, v) = ParseAlign(value);
+                _tmp.horizontalAlignment = h;
+                _tmp.verticalAlignment = v;
             }
+        }
+
+        private static readonly char[] AlignSeparators = { '-', ' ' };
+
+        // Maps the `align` string onto TMP's two independent alignment axes. Tokens are
+        // hyphen- or space-separated and order-independent (e.g. "bottom-right" == "right-bottom");
+        // the last token seen per axis wins. Horizontal defaults to Left, vertical to Middle, so the
+        // legacy `left`/`center`/`right` values keep their old vertically-centred behaviour while the
+        // full TMP grid (6 horizontal × 6 vertical) is now reachable.
+        internal static (HorizontalAlignmentOptions, VerticalAlignmentOptions) ParseAlign(string value)
+        {
+            var h = HorizontalAlignmentOptions.Left;
+            var v = VerticalAlignmentOptions.Middle;
+            if (!string.IsNullOrEmpty(value))
+            {
+                foreach (var raw in value.Split(AlignSeparators, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    switch (raw.Trim().ToLowerInvariant())
+                    {
+                        case "left": h = HorizontalAlignmentOptions.Left; break;
+                        case "center": h = HorizontalAlignmentOptions.Center; break;
+                        case "right": h = HorizontalAlignmentOptions.Right; break;
+                        case "justified": h = HorizontalAlignmentOptions.Justified; break;
+                        case "flush": h = HorizontalAlignmentOptions.Flush; break;
+                        case "geo": h = HorizontalAlignmentOptions.Geometry; break;
+                        case "top": v = VerticalAlignmentOptions.Top; break;
+                        case "middle": v = VerticalAlignmentOptions.Middle; break;
+                        case "bottom": v = VerticalAlignmentOptions.Bottom; break;
+                        case "baseline": v = VerticalAlignmentOptions.Baseline; break;
+                        case "midline": v = VerticalAlignmentOptions.Geometry; break;
+                        case "capline": v = VerticalAlignmentOptions.Capline; break;
+                        default:
+                            throw new ArgumentException(
+                                $"align token '{raw}' is not a horizontal "
+                                + "(left|center|right|justified|flush|geo) or vertical "
+                                + "(top|middle|bottom|baseline|midline|capline) keyword");
+                    }
+                }
+            }
+            return (h, v);
         }
 
         [UIAttr, Preserve]
