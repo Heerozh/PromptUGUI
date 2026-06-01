@@ -56,7 +56,15 @@ namespace PromptUGUI.Editor
                                 var fe = fontsProp.GetArrayElementAtIndex(j);
                                 var typeProp = fe.FindPropertyRelative("type");
                                 var fontProp = fe.FindPropertyRelative("font");
+                                var matProp = fe.FindPropertyRelative("material");
                                 EditorGUILayout.PropertyField(fontProp, new GUIContent(typeProp.stringValue));
+                                using (new EditorGUI.IndentLevelScope())
+                                {
+                                    EditorGUILayout.PropertyField(matProp, new GUIContent(
+                                        "Material",
+                                        "Optional TMP material preset (e.g. outline). " +
+                                        "Empty = the font's default material."));
+                                }
                             }
                         }
                     }

@@ -84,13 +84,8 @@ namespace PromptUGUI.Controls
 
         private void ApplyFont()
         {
-            if (_text == null) return;
-            var settings = PromptUGUI.Application.PromptUGUISettings.Instance;
-            var locale = PromptUGUI.Application.UI.Locale.Current;
-            var asset = settings?.ResolveFont(locale, _fontType);
-            if (asset == null) return;
-            _text.font = asset;
-            if (_placeholder != null) _placeholder.font = asset;
+            FontApplier.Apply(_text, _fontType);
+            FontApplier.Apply(_placeholder, _fontType);
         }
 
         [UIAttr("text"), Preserve]

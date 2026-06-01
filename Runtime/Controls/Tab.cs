@@ -110,11 +110,7 @@ namespace PromptUGUI.Controls
 
         private void ApplyFont()
         {
-            if (_label == null) return;
-            var settings = PromptUGUISettings.Instance;
-            var locale = UI.Locale.Current;
-            var asset = settings?.ResolveFont(locale, _fontType);
-            if (asset != null) _label.font = asset;
+            FontApplier.Apply(_label, _fontType);
         }
 
         [UIAttr, Preserve]
