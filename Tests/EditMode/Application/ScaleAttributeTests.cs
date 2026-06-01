@@ -914,7 +914,7 @@ namespace PromptUGUI.Tests.Application
             UnityEngine.Vector2 size = new(5760f, 3240f); // factor 3
             UI.CanvasSizeOverride = () => size;
             // Nx appears ONLY inside an initially-inactive Add block (variant 'extra'),
-            // so _hasDeviceScale must be (re)discovered when the block activates.
+            // so _hasFactorScale must be (re)discovered when the block activates.
             var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S' scale-mode='pixel' reference='1920x1080'>
@@ -932,7 +932,7 @@ namespace PromptUGUI.Tests.Application
             Assert.AreEqual(1f / 3f, rt.localScale.x, 1e-5f);
 
             // Resize to factor 2; must recompute even though Nx lived only in the
-            // (now-active) Add block — regression guard for the _hasDeviceScale gap.
+            // (now-active) Add block — regression guard for the _hasFactorScale gap.
             size = new UnityEngine.Vector2(3840f, 2160f); // factor 2
             var relay = screen.RootGameObject.GetComponent<PromptUGUI.Application.RectDimensionsRelay>();
             relay.OnDimensionsChanged?.Invoke();
@@ -963,6 +963,68 @@ namespace PromptUGUI.Tests.Application
 
             Assert.AreEqual(2f, scaler.scaleFactor, 1e-6f);
             Assert.AreEqual(0.5f, screen.Get("f").RectTransform.localScale.x, 1e-6f); // unchanged
+        }
+
+        // ---------- Canvas-relative recompute on resize + gate ----------
+
+        [Test]
+        public void RelativeScale_recomputes_localScale_on_resize()
+        {
+            // R-only Screen (no Nx): the resize gate must include the R form, else the
+            // lightweight path skips ApplyScales and localScale stays stale.
+            UnityEngine.Vector2 size = new(3840f, 2160f); // /1920x1080 = factor 2
+            UI.CanvasSizeOverride = () => size;
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>
+    <Frame id='f' scale='0.5R'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(0.5f, rt.localScale.x, 1e-5f); // factor 2: round(1)=1 → 1/2
+
+            // Resize to factor 3; fire the relay.
+            size = new UnityEngine.Vector2(5760f, 3240f); // factor 3
+            var relay = screen.RootGameObject.GetComponent<PromptUGUI.Application.RectDimensionsRelay>();
+            relay.OnDimensionsChanged?.Invoke();
+            Assert.AreEqual(2f / 3f, rt.localScale.x, 1e-5f); // factor 3: round(1.5)=2 → 2/3
+        }
+
+        [Test]
+        public void RelativeScale_box_preserving_does_not_accumulate_across_resizes()
+        {
+            UnityEngine.Vector2 size = new(3840f, 2160f); // factor 2
+            UI.CanvasSizeOverride = () => size;
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>
+    <Frame id='f' anchor='stretch' margin='10,10,10,10' scale='0.5R'/>
+  </Screen>
+</PromptUGUI>");
+            var rt = screen.Get("f").RectTransform;
+            var relay = screen.RootGameObject.GetComponent<PromptUGUI.Application.RectDimensionsRelay>();
+
+            // factor 2: round(1)=1 → localScale 1/2, inv 2 → span 2 about 0.5 → [-0.5, 1.5]; sizeDelta -20*2 = -40.
+            Assert.AreEqual(0.5f, rt.localScale.x, 1e-5f);
+            Assert.AreEqual(-0.5f, rt.anchorMin.x, 1e-4f);
+            Assert.AreEqual(1.5f, rt.anchorMax.x, 1e-4f);
+            Assert.AreEqual(-40f, rt.sizeDelta.x, 1e-3f);
+
+            // → factor 3: round(1.5)=2 → localScale 2/3, inv 1.5 → [-0.25, 1.25]; sizeDelta -30.
+            size = new UnityEngine.Vector2(5760f, 3240f);
+            relay.OnDimensionsChanged?.Invoke();
+            Assert.AreEqual(2f / 3f, rt.localScale.x, 1e-5f);
+            Assert.AreEqual(-0.25f, rt.anchorMin.x, 1e-4f);
+            Assert.AreEqual(1.25f, rt.anchorMax.x, 1e-4f);
+            Assert.AreEqual(-30f, rt.sizeDelta.x, 1e-3f);
+
+            // → back to factor 2: must equal first reading, NOT compounded.
+            size = new UnityEngine.Vector2(3840f, 2160f);
+            relay.OnDimensionsChanged?.Invoke();
+            Assert.AreEqual(0.5f, rt.localScale.x, 1e-5f);
+            Assert.AreEqual(-0.5f, rt.anchorMin.x, 1e-4f);
+            Assert.AreEqual(1.5f, rt.anchorMax.x, 1e-4f);
+            Assert.AreEqual(-40f, rt.sizeDelta.x, 1e-3f);
         }
     }
 }

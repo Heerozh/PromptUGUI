@@ -29,10 +29,11 @@ namespace PromptUGUI.Application
         private bool _isReapplyingScaler;
         // The pixel/auto factor that ApplyCanvasScaler last applied; 'Nx' scale divides by it.
         private float _canvasFactor = 1f;
-        // True if any node declares scale="Nx" (base or variant). Gates the resize path:
-        // such Screens re-run ReSolve (re-baseline + recompute) on canvas resize; others
-        // keep the lightweight ApplyCanvasScaler-only path (zero behavior change).
-        private bool _hasDeviceScale;
+        // True if any node declares a factor-dependent scale — scale="Nx" or scale="<r>R"
+        // (base or variant). Gates the resize path: such Screens re-run ReSolve (re-baseline +
+        // recompute) on canvas resize; others keep the lightweight ApplyCanvasScaler-only path
+        // (zero behavior change).
+        private bool _hasFactorScale;
 
         internal Controls.Internal.ToggleGroupRegistry ToggleGroups { get; private set; }
 
@@ -140,7 +141,7 @@ namespace PromptUGUI.Application
                                               _registry.Resolve(node.Tag), Variants);
             // scale must run after _nodeMap is populated and attributes have been applied
             // (so it doesn't fight ApplyCommon writes).
-            RecomputeHasDeviceScale();
+            RecomputeFactorScale();
             ApplyScales();
             _variantSub = Variants.Changed.Subscribe(_ => ReSolve());
             _themeHandler = _ => ReSolve();
@@ -236,7 +237,7 @@ namespace PromptUGUI.Application
         // Plain-multiplier 'scale="N"' has no dependence on canvas factor. The device-density
         // form 'scale="Nx"' and the canvas-relative form 'scale="<r>R"' both divide by
         // _canvasFactor, so a factor change (canvas resize) must re-run this — routed via
-        // ReSolve in OnCanvasDimensionsChanged when _hasDeviceScale.
+        // ReSolve in OnCanvasDimensionsChanged when _hasFactorScale.
         //
         // Walks every Control in _nodeMap so nodes that declared 'scale' only via a
         // variant override are still tracked (resolves to null → identity reset).
@@ -293,27 +294,28 @@ namespace PromptUGUI.Application
             }
         }
 
-        // Sets _hasDeviceScale if any currently-instantiated node uses scale="Nx".
-        // Called at Open and re-run in ReSolve: Add-block activation (Strategy C) can
-        // introduce device-scale nodes into _nodeMap after Open. Activated nodes stay in
-        // _nodeMap, so the flag is effectively sticky once any Nx node exists.
-        private void RecomputeHasDeviceScale()
+        // Sets _hasFactorScale if any currently-instantiated node uses a factor-dependent scale
+        // form (scale="Nx" or scale="<r>R"). Called at Open and re-run in ReSolve: Add-block
+        // activation (Strategy C) can introduce such nodes into _nodeMap after Open. Activated
+        // nodes stay in _nodeMap, so the flag is effectively sticky once any such node exists.
+        private void RecomputeFactorScale()
         {
-            _hasDeviceScale = false;
+            _hasFactorScale = false;
             foreach (var node in _nodeMap.Keys)
             {
-                if (DeclaresDeviceScale(node)) { _hasDeviceScale = true; break; }
+                if (DeclaresFactorScale(node)) { _hasFactorScale = true; break; }
             }
         }
 
-        // Whether a node declares scale="Nx" in its base attribute or any variant override.
-        private static bool DeclaresDeviceScale(ElementNode node)
+        // Whether a node declares a factor-dependent scale (Nx or <r>R) in its base attribute
+        // or any variant override.
+        private static bool DeclaresFactorScale(ElementNode node)
         {
             if (node.Attributes.TryGetValue("scale", out var baseVal)
-                && TryParseDeviceScale(baseVal, out _)) return true;
+                && (TryParseDeviceScale(baseVal, out _) || TryParseRelativeScale(baseVal, out _))) return true;
             if (node.VariantOverrides.TryGetValue("scale", out var list))
                 foreach (var (_, value) in list)
-                    if (TryParseDeviceScale(value, out _)) return true;
+                    if (TryParseDeviceScale(value, out _) || TryParseRelativeScale(value, out _)) return true;
             return false;
         }
 
@@ -400,7 +402,7 @@ namespace PromptUGUI.Application
             {
                 var scaler = RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
                 if (scaler == null) return;
-                if (_hasDeviceScale)
+                if (_hasFactorScale)
                     // 'Nx' localScale depends on the factor: re-baseline + recompute via the
                     // tested ReSolve path (ApplyCommon → ApplyCanvasScaler → ApplyScales) so the
                     // box-preserving inflation does not accumulate.
@@ -506,7 +508,7 @@ namespace PromptUGUI.Application
                 var entry = _registry.Resolve(node.Tag);
                 ControlAttributeApplier.Apply(node, control, entry, Variants, initial: false);
             }
-            RecomputeHasDeviceScale();
+            RecomputeFactorScale();
             ApplyCanvasScaler(RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>());
             ApplyScales();
         }
