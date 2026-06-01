@@ -11,9 +11,17 @@ namespace PromptUGUI.Editor
         private const string DefaultTemplateFilename = "NewTemplate.ui.xml";
         private const string DefaultThemeFilename = "NewTheme.ui.xml";
 
-        private const string ScreenContent =
+        // Prepended to every generated .ui.xml so an AI/LLM editing the file knows
+        // to load the authoring skill first. const string concat keeps it DRY.
+        private const string XmlHeader =
 @"<?xml version=""1.0"" encoding=""utf-8""?>
-<PromptUGUI version=""1"">
+<!--
+  PromptUGUI's `.ui.xml` File — You can use `authoring-promptugui-xml` skill to learn how to edit it.
+-->
+";
+
+        private const string ScreenContent = XmlHeader +
+@"<PromptUGUI version=""1"">
 
   <Screen name=""NewScreen"">
     <SafeArea>
@@ -26,9 +34,8 @@ namespace PromptUGUI.Editor
 </PromptUGUI>
 ";
 
-        private const string TemplateContent =
-@"<?xml version=""1.0"" encoding=""utf-8""?>
-<PromptUGUI version=""1"">
+        private const string TemplateContent = XmlHeader +
+@"<PromptUGUI version=""1"">
 
   <Template name=""NewTemplate"">
     <Param name=""label"" default=""""/>
@@ -40,9 +47,8 @@ namespace PromptUGUI.Editor
 </PromptUGUI>
 ";
 
-        private const string ThemeContent =
-@"<?xml version=""1.0"" encoding=""utf-8""?>
-<PromptUGUI version=""1"">
+        private const string ThemeContent = XmlHeader +
+@"<PromptUGUI version=""1"">
 
   <Theme name=""light"">
     <Color name=""primary""   value=""#ff8800""/>
