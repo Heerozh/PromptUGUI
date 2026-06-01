@@ -94,6 +94,8 @@ namespace PromptUGUI.Editor
                 {
                     ("color", "xs:string", (string)null),
                     ("sprite", "xs:string", (string)null),
+                    // Pressed-state bg swap ([UIAttr] Btn.PressedSprite).
+                    ("pressedSprite", "xs:string", (string)null),
                     // State-driven tint [UIAttr]s (Btn.HoverColor/PressedColor/DisabledColor).
                     // Btn is hardcoded here (not reflected), so list them explicitly.
                     ("hoverColor", "xs:string", (string)null),
