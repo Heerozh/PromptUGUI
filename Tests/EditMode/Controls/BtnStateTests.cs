@@ -294,6 +294,31 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 "nested state source must be a fan-out boundary (no reactor from the outer Btn)");
         }
 
+        [Test]
+        public void PressedSprite_SwapsBgOverrideOnPressed_RevertsOnNormal()
+        {
+            var stub = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            UI.SpriteResolver = _ => stub;
+
+            var btn = BuildBtn("pressedSprite='ui:pressed'");
+            var bg = btn.GameObject.GetComponent<UnityImage>();
+            var authored = bg.sprite; // built-in 9-slice default, must stay untouched
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+
+            // Image.overrideSprite's getter returns m_OverrideSprite ?? sprite, so "no override
+            // in effect" is observable as the getter falling back to the authored base sprite —
+            // which is exactly the visible result we care about (no reflection needed).
+            Assert.AreEqual(authored, bg.overrideSprite, "no override before press (falls back to base sprite)");
+
+            puiBtn.SimulateState(Pressed);
+            Assert.AreEqual(stub, bg.overrideSprite, "Pressed shows pressedSprite via overrideSprite");
+            Assert.AreEqual(authored, bg.sprite, "authored sprite is untouched during press");
+
+            puiBtn.SimulateState(Normal);
+            Assert.AreEqual(authored, bg.overrideSprite, "release clears the override → getter falls back to base sprite");
+            Assert.AreEqual(authored, bg.sprite, "authored sprite still untouched after release");
+        }
+
         private static void AssertColorsEqual(Color expected, Color actual)
         {
             Assert.That(actual.r, Is.EqualTo(expected.r).Within(0.001f), "r");
