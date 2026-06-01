@@ -204,6 +204,88 @@ namespace PromptUGUI.Tests.Application
             StringAssert.Contains("scale", ex.Message);
         }
 
+        // ---------- Parser validation: canvas-relative '<r>R' ----------
+
+        [Test]
+        public void Parser_accepts_relative_scale_half()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'><Frame id='f' scale='0.5R'/></Screen>
+</PromptUGUI>";
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Parser_accepts_relative_scale_fractional_and_integer_prefix()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'>
+    <Frame id='a' scale='0.25R'/><Frame id='b' scale='1.5R'/>
+    <Frame id='c' scale='1R'/><Frame id='d' scale='2R'/>
+  </Screen>
+</PromptUGUI>";
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Parser_accepts_relative_scale_variant()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'><Frame id='f' scale='1' scale.portrait='0.5R'/></Screen>
+</PromptUGUI>";
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
+        }
+
+        [Test]
+        public void Parser_rejects_zero_relative_scale()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'><Frame id='f' scale='0R'/></Screen>
+</PromptUGUI>";
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+            StringAssert.Contains("canvas-relative", ex.Message);
+        }
+
+        [Test]
+        public void Parser_rejects_negative_relative_scale()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'><Frame id='f' scale='-0.5R'/></Screen>
+</PromptUGUI>";
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+            StringAssert.Contains("canvas-relative", ex.Message);
+        }
+
+        [Test]
+        public void Parser_rejects_bare_R()
+        {
+            // 'R' length<2 → not the R branch → falls to float check → still errors (msg contains 'scale').
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'><Frame id='f' scale='R'/></Screen>
+</PromptUGUI>";
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+            StringAssert.Contains("scale", ex.Message);
+        }
+
+        [Test]
+        public void Parser_rejects_lowercase_relative_scale()
+        {
+            // Canvas-relative suffix is uppercase 'R' only (CRS-D10). '0.5r' falls through to
+            // the float check and is rejected; the fallback message shows the '0.5R' form.
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'><Frame id='f' scale='0.5r'/></Screen>
+</PromptUGUI>";
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+            StringAssert.Contains("scale", ex.Message);
+        }
+
         // ---------- Runtime (relative semantic: localScale = N) ----------
 
         [Test]
