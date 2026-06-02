@@ -80,8 +80,8 @@ namespace PromptUGUI.Controls
             var mod = StateColorSet.Resolve(_hoverModulate, _pressedModulate, null, _disabledModulate);
             StateTintInstaller.Install(GameObject, _btn, Children, abs, mod);
             // A pressedSprite is itself a state visual: drop uGUI's built-in ColorTint so the
-            // swapped pressed image isn't double-darkened. Set-only, matching the *Color path
-            // (StateTintInstaller only flips transition when a *Color is present).
+            // swapped pressed image isn't double-darkened. Set-only, matching the state-colour path
+            // (StateTintInstaller flips transition to None when any *Color / *Modulate is present).
             if (_pressedSprite != null)
                 _btn.transition = UnityEngine.UI.Selectable.Transition.None;
         }
