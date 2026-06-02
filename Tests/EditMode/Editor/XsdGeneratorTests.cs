@@ -784,6 +784,11 @@ namespace PromptUGUI.Tests.Editor
             StringAssert.Contains("name=\"pressedColor\"", xsd);
             StringAssert.Contains("name=\"disabledColor\"", xsd);
             StringAssert.Contains("name=\"pressedSprite\"", xsd);
+            // *Modulate family — also hardcoded in the Btn block (same as *Color above, since Btn
+            // is not reflection-driven); guard all three so a future refactor can't drop one silently.
+            StringAssert.Contains("name=\"hoverModulate\"", xsd);
+            StringAssert.Contains("name=\"pressedModulate\"", xsd);
+            StringAssert.Contains("name=\"disabledModulate\"", xsd);
         }
 
         [Test]
@@ -797,6 +802,9 @@ namespace PromptUGUI.Tests.Editor
             r.Register<Toggle>("Toggle", null, defaultTextAttr: "text");
             var xsd = XsdGenerator.Generate(r);
             StringAssert.Contains("name=\"selectedColor\"", xsd);
+            // *Modulate family — reflection-driven [UIAttr]s added in Task 2; guard that
+            // the XSD still emits them after any future refactor.
+            StringAssert.Contains("name=\"selectedModulate\"", xsd);
         }
 
         [Test]
