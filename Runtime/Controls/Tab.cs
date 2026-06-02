@@ -211,6 +211,18 @@ namespace PromptUGUI.Controls
             set => _bg.color = UI.Theme.Resolve(value);
         }
 
+        /// <summary>
+        /// Blend mode for how <see cref="Color"/> combines with the bg sprite — same
+        /// <c>multiply</c> / <c>linear</c> (Linear Light) choice as <see cref="Btn"/> / <see cref="Image"/>.
+        /// Applies to <c>_bg</c> only (where <see cref="Color"/> lands); the selectedSprite overlay is
+        /// not tinted. Orthogonal to the state-colour reactors (which drive <c>color</c>, not material).
+        /// </summary>
+        [UIAttr, Preserve]
+        public string Tint
+        {
+            set => ImageTint.Apply(_bg, value);
+        }
+
         private void ApplyBgSprite(UnityEngine.Sprite sprite)
         {
             if (sprite == null) return;

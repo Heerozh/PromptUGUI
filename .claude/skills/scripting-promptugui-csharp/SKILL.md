@@ -1,6 +1,6 @@
 ---
 name: scripting-promptugui-csharp
-description: Use when writing C# that drives PromptUGUI — `UI.LoadDocumentAsync` / `UI.Open`, `Screen.Get<T>`, R3 event subscriptions (`OnClick` / `OnValueChanged` / `OnSelected` / `OnState`), `BindItems` / `BindOptions`, runtime `UI.Variants.Set` / `UI.Locale.Set` / `UI.Orientation` switching, `UI.CanvasConfigurator`, modal dialogs (`MessageBox.Open` / `Loading.Open` / `UI.Modal.OpenAsync` / `ModalRequest<T>` / `MsgBtn` / `ModalMode`) and overriding `MessageBox.XmlSrc` / `Loading.XmlSrc`, or custom `[UIAttr]` / `[Bind]` controls. For the XML markup itself, see authoring-promptugui-xml; for Addressables-backed loaders (`.ui.xml` / `.po` / icon atlases), see using-promptugui-addressables.
+description: Use when writing C# that drives PromptUGUI — `UI.LoadDocumentAsync` / `UI.Open`, `Screen.Get<T>`, R3 event subscriptions (`OnClick` / `OnValueChanged` / `OnSelected` / `OnState`). For the XML markup itself, see authoring-promptugui-xml; for Addressables-backed loaders (`.ui.xml` / `.po` / icon atlases), see using-promptugui-addressables.
 ---
 
 # Scripting PromptUGUI in C#
@@ -252,7 +252,7 @@ bar.GetAt(i);
 
 Setting `tab.IsOn = true` triggers mutex (other Tabs flip to false via the TabBar's private `ToggleGroup`) AND auto-shows the `bind`-ed Frame — no manual `frame.GameObject.SetActive(...)` needed. If `BindItems` is called with an empty list, `OnSelectionChanged` fires with `null` to let subscribers clear UI state. After hot-reload, re-Bind just like ScrollList.
 
-`bar.BindItems<T, TSlot>` lets the template root be any `IControl`; `bar.BindItems<T>` is shorthand when the template root *is* a `<Tab>` directly. The `<Tab>` reachable inside the slot is found via `ScopedIds` first, then a recursive child walk — Templates without an id'd Tab still work as long as exactly one `<Tab>` exists in the subtree.
+`bar.BindItems<T, TSlot>` lets the template root be any `IControl`; `bar.BindItems<T>` is shorthand when the template root _is_ a `<Tab>` directly. The `<Tab>` reachable inside the slot is found via `ScopedIds` first, then a recursive child walk — Templates without an id'd Tab still work as long as exactly one `<Tab>` exists in the subtree.
 
 ## Variant switching at runtime
 
@@ -338,6 +338,7 @@ static void Boot()
 ```
 
 Sequence:
+
 1. `Set("dark")` fires `Theme.Changed` once; any already-open Screens ReSolve → tokens soft-fail to white.
 2. `LoadCommonLibraryAsync` completes, `dark` registers, `Theme.Changed` re-fires automatically → Screens ReSolve again → tokens hit real colors.
 3. If `Current` still names an unregistered theme after the load (typo, missing source), the loader emits one `Debug.LogWarning` to surface it.
@@ -393,14 +394,14 @@ If `UI.Theme.Resolve` throws, the exception flows through the reflection setter 
 
 ## Common mistakes (C#)
 
-| Symptom                                   | Cause                                                                               | Fix                                                                                               |
-| ----------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Element not found at runtime              | `id` only declared inside a `<Template>`, accessed by flat name                     | Use path: `screen.Get("templateInstanceId/innerId")`                                              |
-| Subscription survives Close → null refs   | Forgot `.AddTo(screen)`                                                             | Always tie R3 subscriptions to Screen lifetime                                                    |
-| Custom control's `[UIAttr]` ignored       | Property type other than string/int/float/bool                                      | Take a string param and parse internally (see `Btn.Color` for a hex example)                      |
-| Attrs silently default in IL2CPP build    | Forgot `[Preserve]` next to `[UIAttr]` — Medium+ stripping drops PropertyInfo metadata, reflection misses the property | Always write `[UIAttr, Preserve]` (both from `PromptUGUI.Registry`)                                |
-| ScrollList shows nothing after hot-reload | `BindItems` subscription disposed on close, but the ScrollList is rebuilt on reload | Re-call `BindItems` on reload — the convention is to re-wire from a single `OnOpened` entry point |
-| `<Icon>` shows pink/error sprite          | `UI.SpriteResolver` not set (or `SpriteSet` not in Resources/SpriteSets)             | Call `SpriteResolverHelpers.UseSpriteSetResolver(...)` before any Screen opens                |
+| Symptom                                   | Cause                                                                                                                  | Fix                                                                                               |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Element not found at runtime              | `id` only declared inside a `<Template>`, accessed by flat name                                                        | Use path: `screen.Get("templateInstanceId/innerId")`                                              |
+| Subscription survives Close → null refs   | Forgot `.AddTo(screen)`                                                                                                | Always tie R3 subscriptions to Screen lifetime                                                    |
+| Custom control's `[UIAttr]` ignored       | Property type other than string/int/float/bool                                                                         | Take a string param and parse internally (see `Btn.Color` for a hex example)                      |
+| Attrs silently default in IL2CPP build    | Forgot `[Preserve]` next to `[UIAttr]` — Medium+ stripping drops PropertyInfo metadata, reflection misses the property | Always write `[UIAttr, Preserve]` (both from `PromptUGUI.Registry`)                               |
+| ScrollList shows nothing after hot-reload | `BindItems` subscription disposed on close, but the ScrollList is rebuilt on reload                                    | Re-call `BindItems` on reload — the convention is to re-wire from a single `OnOpened` entry point |
+| `<Icon>` shows pink/error sprite          | `UI.SpriteResolver` not set (or `SpriteSet` not in Resources/SpriteSets)                                               | Call `SpriteResolverHelpers.UseSpriteSetResolver(...)` before any Screen opens                    |
 
 ## Quick reference (cheatsheet)
 
@@ -567,7 +568,7 @@ public static class UI.Modal {
 - **Raycast / sortingOrder**: each dialog's Canvas overrides `sortingOrder` to
   `UI.Modal.SortingOrderBase + depth` (depth 0 = bottom of dialog stack). Loading
   overlays sit at `Loading.SortingOrder` (default 500). Keep `Loading.SortingOrder <
-  UI.Modal.SortingOrderBase` so dialogs opened during a Loading appear above it.
+UI.Modal.SortingOrderBase` so dialogs opened during a Loading appear above it.
 - **Dim backdrop is part of the XML, not auto-injected.** If you want clicks blocked on
   empty space outside your dialog box, include a stretched Graphic in your override XML
   (the builtin uses `<Image id="backdrop" anchor="stretch" color="#000000FE"/>`).
@@ -640,23 +641,23 @@ runtime. Walking through both BEFORE you change `MessageBox.XmlSrc` saves a roun
    values starting with `PromptUGUI/` load synchronously from the package's bundled
    Resources (no resolver involved — the `Resources/PromptUGUI/...` tree shipped with the
    package). **Every other key** flows through `UI.SourceResolver`:
-   - Resources resolver: `UI.UseResourcesResolver(rootPath)` — `XmlSrc` is the path under
-     `Resources/{rootPath}/...` (no `.ui.xml` extension).
-   - Addressables resolver: `UI.UseAddressableResolver()` — `XmlSrc` is an Addressables
-     **Address**, not a filesystem path. **The asset MUST be added to an Addressables
-     group with its Address set to exactly your `XmlSrc` string.** "The .ui.xml file
-     exists in `Assets/`" is not enough; resolvers do NOT do filesystem fallback.
-     Missing registration → `InvalidKeyException: No Location found for Key=<XmlSrc>`
-     from `AddressableResolverHelper`.
-   - Custom resolver: whatever `(string src) → Awaitable<string>` you assigned to
-     `UI.SourceResolver`.
+    - Resources resolver: `UI.UseResourcesResolver(rootPath)` — `XmlSrc` is the path under
+      `Resources/{rootPath}/...` (no `.ui.xml` extension).
+    - Addressables resolver: `UI.UseAddressableResolver()` — `XmlSrc` is an Addressables
+      **Address**, not a filesystem path. **The asset MUST be added to an Addressables
+      group with its Address set to exactly your `XmlSrc` string.** "The .ui.xml file
+      exists in `Assets/`" is not enough; resolvers do NOT do filesystem fallback.
+      Missing registration → `InvalidKeyException: No Location found for Key=<XmlSrc>`
+      from `AddressableResolverHelper`.
+    - Custom resolver: whatever `(string src) → Awaitable<string>` you assigned to
+      `UI.SourceResolver`.
 
 2. **Your XML's `<Screen name="...">` must equal `MessageBox.XmlSrc` byte-for-byte.**
    `UI.LoadDocument` keys the internal `_docs` table by the XML's `<Screen name>`, NOT
    by the load key — so the resolver successfully fetching the XML is only step one.
    `OpenModalScreen(XmlSrc)` then looks up `_docs[XmlSrc]`; if `<Screen name>` was
    anything else, you get `InvalidOperationException: Modal screen '<XmlSrc>' not
-   loaded; call LoadDocument first`. **You do NOT need to call `LoadDocument` manually**
+loaded; call LoadDocument first`. **You do NOT need to call `LoadDocument` manually**
    — `ModalDocCache.EnsureLoaded` runs it on first `Open`. The error wording is
    misleading; the real fix is to align the two strings.
 
@@ -703,17 +704,17 @@ miss → `"Modal screen 'Modals/MessageBox.ui' not loaded; call LoadDocument fir
 
 Inside the `<Screen>`, your override XML must declare these `id`s:
 
-| Id        | Required | Bind behavior                                                                                                                                                                                                                                  |
-| --------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `text`    | yes      | `<Text>`. Receives the `text` argument verbatim (no auto-translation — pass `UI.Tr(...)` yourself if needed). Always shown.                                                                                                                    |
-| `title`   | yes      | `<Text>`. Receives the `title` argument. **`GameObject.SetActive(false)`** when the argument is null/empty — don't depend on it always being visible. Reserve layout space if you want a fixed dialog height regardless of title.              |
-| `ok`      | yes      | `<Btn>`. `SetActive(false)` unless `MsgBtn.OK` is in the requested `buttons` mask. Default label = XML text content (e.g. `<Btn id="ok">OK</Btn>`).                                                                                            |
-| `cancel`  | yes      | `<Btn>`. Same rule for `MsgBtn.Cancel`.                                                                                                                                                                                                        |
-| `yes`     | yes      | `<Btn>`. Same rule for `MsgBtn.Yes`.                                                                                                                                                                                                           |
-| `no`      | yes      | `<Btn>`. Same rule for `MsgBtn.No`.                                                                                                                                                                                                            |
-| `close`   | yes      | `<Btn>`. Same rule for `MsgBtn.Close`.                                                                                                                                                                                                         |
-| `icon`    | no       | `<Icon>`. `Bind` swallows `KeyNotFoundException`, so omitting the id is fine. If you include it, PromptUGUI's parser still requires a `name=` attribute (use any placeholder — Bind overwrites `.Name` when set, `SetActive(false)` otherwise). |
-| backdrop  | no       | Any full-screen Graphic if you want a dim / click-blocker. No required id. **Library does NOT auto-create one.**                                                                                                                               |
+| Id       | Required | Bind behavior                                                                                                                                                                                                                                   |
+| -------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `text`   | yes      | `<Text>`. Receives the `text` argument verbatim (no auto-translation — pass `UI.Tr(...)` yourself if needed). Always shown.                                                                                                                     |
+| `title`  | yes      | `<Text>`. Receives the `title` argument. **`GameObject.SetActive(false)`** when the argument is null/empty — don't depend on it always being visible. Reserve layout space if you want a fixed dialog height regardless of title.               |
+| `ok`     | yes      | `<Btn>`. `SetActive(false)` unless `MsgBtn.OK` is in the requested `buttons` mask. Default label = XML text content (e.g. `<Btn id="ok">OK</Btn>`).                                                                                             |
+| `cancel` | yes      | `<Btn>`. Same rule for `MsgBtn.Cancel`.                                                                                                                                                                                                         |
+| `yes`    | yes      | `<Btn>`. Same rule for `MsgBtn.Yes`.                                                                                                                                                                                                            |
+| `no`     | yes      | `<Btn>`. Same rule for `MsgBtn.No`.                                                                                                                                                                                                             |
+| `close`  | yes      | `<Btn>`. Same rule for `MsgBtn.Close`.                                                                                                                                                                                                          |
+| `icon`   | no       | `<Icon>`. `Bind` swallows `KeyNotFoundException`, so omitting the id is fine. If you include it, PromptUGUI's parser still requires a `name=` attribute (use any placeholder — Bind overwrites `.Name` when set, `SetActive(false)` otherwise). |
+| backdrop | no       | Any full-screen Graphic if you want a dim / click-blocker. No required id. **Library does NOT auto-create one.**                                                                                                                                |
 
 **Default button labels & i18n**: the builtin XML uses English text content (`<Btn
 id="ok">OK</Btn>` etc.). Those literals become msgids during XML extraction, so they go
@@ -731,17 +732,17 @@ These are NOT auto-translated — wrap with `UI.Tr(...)` at the call site:
 Same table applies to `Loading.XmlSrc` and any `ModalRequest<T>.XmlSrc` — they all share
 the resolver path + `<Screen name>` contract.
 
-| Symptom (exact runtime error)                                                                                            | Cause                                                                                                                              | Fix                                                                                                                                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `InvalidKeyException: No Location found for Key=<XmlSrc>` (stack: `AddressableResolverHelper.LoadFromAddressablesInternalAsync`) | Addressables resolver is active and `<XmlSrc>` isn't registered as an Address (or the Address differs by even one character).      | Window → Asset Management → Addressables → Groups; drag your `.ui.xml` in; set its Address to exactly `<XmlSrc>`. Or boot a Resources/custom resolver instead. "File exists in `Assets/`" doesn't matter. |
-| `InvalidOperationException: Modal screen '<XmlSrc>' not loaded; call LoadDocument first` (stack: `UI.OpenModalScreen`)   | XML's `<Screen name="...">` ≠ `<XmlSrc>`. `_docs` got registered under the wrong key.                                              | Edit your XML: `<Screen name="<XmlSrc>" ...>` — byte-equal. **Do NOT** call `LoadDocument` manually; the error wording is misleading.                                                                     |
-| Dialog opens but clicks on empty space still hit the UI below it                                                         | No full-screen Graphic in your override XML; pointer raycasts pass through where there's no drawn surface.                         | Add `<Image id="backdrop" anchor="stretch" color="#000000FE"/>` as a sibling of your dialog Frame inside the `<Screen>`.                                                                                  |
-| `Screen 'X' already loaded` on second `Open`                                                                             | You ALSO called `UI.LoadDocumentAsync("X")` manually (or two modal `XmlSrc`s point at XML files whose `<Screen name>` collides).   | Pick one path — either let `ModalDocCache` auto-load (recommended), or load yourself and don't touch `XmlSrc`. Distinct modals need distinct `<Screen name>`s.                                            |
+| Symptom (exact runtime error)                                                                                                    | Cause                                                                                                                            | Fix                                                                                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `InvalidKeyException: No Location found for Key=<XmlSrc>` (stack: `AddressableResolverHelper.LoadFromAddressablesInternalAsync`) | Addressables resolver is active and `<XmlSrc>` isn't registered as an Address (or the Address differs by even one character).    | Window → Asset Management → Addressables → Groups; drag your `.ui.xml` in; set its Address to exactly `<XmlSrc>`. Or boot a Resources/custom resolver instead. "File exists in `Assets/`" doesn't matter. |
+| `InvalidOperationException: Modal screen '<XmlSrc>' not loaded; call LoadDocument first` (stack: `UI.OpenModalScreen`)           | XML's `<Screen name="...">` ≠ `<XmlSrc>`. `_docs` got registered under the wrong key.                                            | Edit your XML: `<Screen name="<XmlSrc>" ...>` — byte-equal. **Do NOT** call `LoadDocument` manually; the error wording is misleading.                                                                     |
+| Dialog opens but clicks on empty space still hit the UI below it                                                                 | No full-screen Graphic in your override XML; pointer raycasts pass through where there's no drawn surface.                       | Add `<Image id="backdrop" anchor="stretch" color="#000000FE"/>` as a sibling of your dialog Frame inside the `<Screen>`.                                                                                  |
+| `Screen 'X' already loaded` on second `Open`                                                                                     | You ALSO called `UI.LoadDocumentAsync("X")` manually (or two modal `XmlSrc`s point at XML files whose `<Screen name>` collides). | Pick one path — either let `ModalDocCache` auto-load (recommended), or load yourself and don't touch `XmlSrc`. Distinct modals need distinct `<Screen name>`s.                                            |
 
 ### Loading overlay
 
 A non-interactive overlay that blocks the screen while async work runs, then your code
-closes it. **Not a modal/dialog** — separate subsystem that sits *below* the dialog
+closes it. **Not a modal/dialog** — separate subsystem that sits _below_ the dialog
 stack, so a MessageBox opened during a Loading appears on top.
 
 ```csharp
@@ -828,6 +829,7 @@ screen.Get<Animation>("welcome-anim").Fire();
 ```
 
 Works for any `on=` mode. Useful for:
+
 - `on="manual"` triggers (no auto-fire, fully C# driven)
 - Re-firing `on="click"` triggers from code (e.g., on a non-Btn event)
 - Replaying open animations (debug / preview)
