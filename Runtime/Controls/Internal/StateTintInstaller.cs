@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using PromptUGUI.Application;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -18,29 +17,31 @@ namespace PromptUGUI.Controls.Internal
             GameObject root,
             Selectable selectable,
             IReadOnlyList<IControl> children,
-            string hoverColor, string pressedColor, string selectedColor, string disabledColor)
+            StateColorSet absolutes,
+            StateColorSet modulates)
         {
-            var hasAny = !string.IsNullOrEmpty(hoverColor)
-                         || !string.IsNullOrEmpty(pressedColor)
-                         || !string.IsNullOrEmpty(selectedColor)
-                         || !string.IsNullOrEmpty(disabledColor);
-            if (!hasAny) return;
+            if (!absolutes.HasAny && !modulates.HasAny) return;
 
             selectable.transition = Selectable.Transition.None;
-
-            Color? hover = string.IsNullOrEmpty(hoverColor) ? null : UI.Theme.Resolve(hoverColor);
-            Color? pressed = string.IsNullOrEmpty(pressedColor) ? null : UI.Theme.Resolve(pressedColor);
-            Color? selected = string.IsNullOrEmpty(selectedColor) ? null : UI.Theme.Resolve(selectedColor);
-            Color? disabled = string.IsNullOrEmpty(disabledColor) ? null : UI.Theme.Resolve(disabledColor);
 
             var blocked = new HashSet<GameObject>();
             foreach (var child in children)
                 CollectBlocked(child as Control, blocked);
 
+            var fade = StateTintReactor.DefaultFade;
+            var target = selectable.targetGraphic;
             foreach (var g in root.GetComponentsInChildren<Graphic>(includeInactive: true))
             {
                 if (blocked.Contains(g.gameObject)) continue;
-                InstallReactor(g, hover, pressed, selected, disabled);
+                var isTarget = ReferenceEquals(g, target);
+                // Descendants only matter for the fan-out multiplier: with no modulates, a descendant
+                // reactor would be a no-op (base × white). Skip them so we don't add idle MonoBehaviours
+                // + OnState subscriptions. The targetGraphic always installs (it carries the absolutes).
+                if (!isTarget && !modulates.HasAny) continue;
+                // Absolutes apply ONLY to the control's base graphic (targetGraphic) — fanning them
+                // out would paint label/icon the same colour as bg. Descendants get the multiplier only.
+                var abs = isTarget ? absolutes : default;
+                InstallReactor(g, abs, modulates, fade);
             }
         }
 
@@ -65,12 +66,12 @@ namespace PromptUGUI.Controls.Internal
                 CollectBlocked(child as Control, blocked);
         }
 
-        private static void InstallReactor(Graphic graphic, Color? hover, Color? pressed, Color? selected, Color? disabled)
+        private static void InstallReactor(Graphic graphic, StateColorSet absolutes, StateColorSet modulates, float fade)
         {
             if (graphic == null) return;
             var reactor = graphic.GetComponent<StateTintReactor>()
                           ?? graphic.gameObject.AddComponent<StateTintReactor>();
-            reactor.Configure(hover, pressed, selected, disabled, StateTintReactor.DefaultFade);
+            reactor.Configure(absolutes, modulates, fade);
         }
     }
 }

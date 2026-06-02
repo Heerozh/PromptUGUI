@@ -24,11 +24,16 @@ namespace PromptUGUI.Controls
         private readonly Subject<bool> _changed = new();
         private readonly Subject<Unit> _selected = new();
 
-        // Raw (unresolved) *Color attribute values. Resolved against UI.Theme in OnAfterApply.
+        // Absolute per-state bg colours (set _bg). Resolved in OnAfterApply.
         private string _hoverColor;
         private string _pressedColor;
         private string _selectedColor;
         private string _disabledColor;
+        // Relative per-state multipliers (fan out to _bg + descendants). Resolved in OnAfterApply.
+        private string _hoverModulate;
+        private string _pressedModulate;
+        private string _selectedModulate;
+        private string _disabledModulate;
 
         public override void OnAttached()
         {
@@ -249,14 +254,22 @@ namespace PromptUGUI.Controls
                 : UnityImage.Type.Simple;
         }
 
-        /// <summary>Tint multiplier applied to the Tab's bg + descendant graphics while Hover.</summary>
+        /// <summary>Absolute bg colour while Hover.</summary>
         [UIAttr(IsColor = true), Preserve] public string HoverColor { set => _hoverColor = value; }
-        /// <summary>Tint multiplier applied while Pressed.</summary>
+        /// <summary>Absolute bg colour while Pressed.</summary>
         [UIAttr(IsColor = true), Preserve] public string PressedColor { set => _pressedColor = value; }
-        /// <summary>Tint multiplier applied while this Tab is the active (isOn) one at rest.</summary>
+        /// <summary>Absolute bg colour while this Tab is the active (isOn) one at rest.</summary>
         [UIAttr(IsColor = true), Preserve] public string SelectedColor { set => _selectedColor = value; }
-        /// <summary>Tint multiplier applied while Disabled.</summary>
+        /// <summary>Absolute bg colour while Disabled.</summary>
         [UIAttr(IsColor = true), Preserve] public string DisabledColor { set => _disabledColor = value; }
+        /// <summary>Relative colour multiplier (fans out to subtree) while Hover.</summary>
+        [UIAttr(IsColor = true), Preserve] public string HoverModulate { set => _hoverModulate = value; }
+        /// <summary>Relative colour multiplier while Pressed.</summary>
+        [UIAttr(IsColor = true), Preserve] public string PressedModulate { set => _pressedModulate = value; }
+        /// <summary>Relative colour multiplier while active (isOn) at rest.</summary>
+        [UIAttr(IsColor = true), Preserve] public string SelectedModulate { set => _selectedModulate = value; }
+        /// <summary>Relative colour multiplier while Disabled.</summary>
+        [UIAttr(IsColor = true), Preserve] public string DisabledModulate { set => _disabledModulate = value; }
 
         /// <summary>Broadcasts the Tab's interaction state. Selected = this Tab is the active (isOn) one at rest.</summary>
         public Observable<InteractState> OnState => _toggle.OnState;
@@ -268,8 +281,9 @@ namespace PromptUGUI.Controls
         {
             base.OnAfterApply();
             _toggle.interactable = Interactable;
-            StateTintInstaller.Install(GameObject, _toggle, Children,
-                _hoverColor, _pressedColor, _selectedColor, _disabledColor);
+            var abs = StateColorSet.Resolve(_hoverColor, _pressedColor, _selectedColor, _disabledColor);
+            var mod = StateColorSet.Resolve(_hoverModulate, _pressedModulate, _selectedModulate, _disabledModulate);
+            StateTintInstaller.Install(GameObject, _toggle, Children, abs, mod);
         }
 
         public override void Dispose()

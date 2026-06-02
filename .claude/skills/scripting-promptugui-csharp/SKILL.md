@@ -177,7 +177,7 @@ screen.Get<InputField>("playerName").OnEndEdit
 
 **Progress** — `screen.Get<Progress>("hp").Value = 0.42f;` 或 R3 推送 `healthStream.Subscribe(v => p.Value = v).AddTo(screen)`。Progress 是只读显示控件，无 `OnValueChanged`。`Value` 被 `Mathf.Clamp01` 钳位。注意：`[Bind]` 在本项目里是把 child control 字段注入到 parent（见 `Runtime/Registry/BindAttribute.cs`），不是数据流绑定 —— 用直接 setter / R3 推。
 
-**`Btn.OnState` / `Tab.OnState` / `Toggle.OnState`** — each control broadcasts its uGUI interaction state as `Observable<InteractState>` (`InteractState { Normal, Hover, Pressed, Selected, Disabled }`). `Selected` = the active/`isOn` control at rest; transient Hover/Pressed/Disabled override it and revert on release; a momentary `<Btn>` never emits `Selected`. The observable replays the current value to new subscribers, so you can react in C# to press / hover / select / disable — complementing the XML-side `*Color` tint fan-out and `<Show>` artwork swap (see authoring-promptugui-xml → "Btn state visuals"):
+**`Btn.OnState` / `Tab.OnState` / `Toggle.OnState`** — each control broadcasts its uGUI interaction state as `Observable<InteractState>` (`InteractState { Normal, Hover, Pressed, Selected, Disabled }`). `Selected` = the active/`isOn` control at rest; transient Hover/Pressed/Disabled override it and revert on release; a momentary `<Btn>` never emits `Selected`. The observable replays the current value to new subscribers, so you can react in C# to press / hover / select / disable — complementing the XML-side `*Color` / `*Modulate` state colours and `<Show>` artwork swap (see authoring-promptugui-xml → "Btn state visuals"):
 
 ```csharp
 screen.Get<Btn>("buy").OnState

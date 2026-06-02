@@ -48,7 +48,7 @@ namespace PromptUGUI.Tests.PlayMode.Controls
         {
             UI.LoadDocument("t", @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
-  <Btn id='b' pressedColor='#808080'>
+  <Btn id='b' pressedModulate='#808080'>
     <Show id='sn' on='state-normal'><Image id='n'/></Show>
     <Show id='sp' on='state-pressed'><Image id='p'/></Show>
   </Btn>
@@ -104,7 +104,7 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             // mid-sample to be a partial move — well clear of both endpoints' tolerances.
             UI.LoadDocument("t", @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
-  <Btn id='b' pressedColor='#808080'><Image id='img'/></Btn>
+  <Btn id='b' pressedModulate='#808080'><Image id='img'/></Btn>
 </Screen></PromptUGUI>");
             var screen = UI.Open("S");
             yield return null;

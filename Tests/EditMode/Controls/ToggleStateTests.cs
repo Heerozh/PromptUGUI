@@ -27,9 +27,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void PressedColor_SwitchesTransitionNone_AndInstallsReactors()
+        public void PressedModulate_SwitchesTransitionNone_AndInstallsReactors()
         {
-            var tg = BuildToggle("pressedColor='#808080'");
+            var tg = BuildToggle("pressedModulate='#808080'");
             var pt = tg.GameObject.GetComponent<PuiToggle>();
             Assert.IsNotNull(pt, "Toggle should host a PuiToggle");
             Assert.AreEqual(Selectable.Transition.None, pt.transition);
@@ -41,7 +41,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [Test]
         public void Selected_ReadsWhenIsOnAtRest()
         {
-            var tg = BuildToggle("selectedColor='#808080'");
+            var tg = BuildToggle("selectedModulate='#808080'");
             var pt = tg.GameObject.GetComponent<PuiToggle>();
             Assert.AreEqual(InteractState.Normal, pt.Current);
             tg.IsOn = true;

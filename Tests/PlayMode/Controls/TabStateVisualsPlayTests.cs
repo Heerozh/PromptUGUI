@@ -31,7 +31,7 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             UI.LoadDocument("t", @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
   <TabBar id='bar'>
-    <Tab id='t' pressedColor='#808080'>
+    <Tab id='t' pressedModulate='#808080'>
       <Show id='sn' on='state-normal'><Image id='n'/></Show>
       <Show id='sp' on='state-pressed'><Image id='p'/></Show>
     </Tab>

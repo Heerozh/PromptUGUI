@@ -96,11 +96,15 @@ namespace PromptUGUI.Editor
                     ("sprite", "xs:string", (string)null),
                     // Pressed-state bg swap ([UIAttr] Btn.PressedSprite).
                     ("pressedSprite", "xs:string", (string)null),
-                    // State-driven tint [UIAttr]s (Btn.HoverColor/PressedColor/DisabledColor).
+                    // State-driven absolute [UIAttr]s (Btn.HoverColor/PressedColor/DisabledColor).
                     // Btn is hardcoded here (not reflected), so list them explicitly.
                     ("hoverColor", "xs:string", (string)null),
                     ("pressedColor", "xs:string", (string)null),
                     ("disabledColor", "xs:string", (string)null),
+                    // State-driven relative multiplier [UIAttr]s (Btn.HoverModulate/PressedModulate/DisabledModulate).
+                    ("hoverModulate", "xs:string", (string)null),
+                    ("pressedModulate", "xs:string", (string)null),
+                    ("disabledModulate", "xs:string", (string)null),
                 }, mixedContent: true);
                 // XSD patterns are implicitly anchored to the entire value — no ^/$.
                 // Match runtime parser's check (UIDocumentParser.IsValidIconName):
