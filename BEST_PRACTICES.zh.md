@@ -45,7 +45,7 @@ public static class UIBoot
 
 ---
 
-## 2. 加载、打开界面 + C# 接线
+## 2. 加载、打开界面 + C# 交互
 
 **界面用 `AssetReferenceT<TextAsset>` 槽**：Inspector 拖资源，不手敲字符串 key。
 
@@ -142,7 +142,7 @@ UI.Theme.Set("dark");   // 运行时切换，已打开界面自动重刷
     - **`ui/dialog` 格式** 走 `Resources.Load`（适合一次性 / 原型）。
 - 改完跑 `Tools → PromptUGUI → Sprite → Sync Atlases` 打包引用到的图。
 
-**AA：一个 Label 收编整组 SpriteSet。** 给 SpriteSet 资源打 Addressables label，Addressables 自动拉取依赖的 SpriteAtlas：
+**依然是推荐使用AA包** ：把 SpriteSet 设为Addressable，给 SpriteSet 资源打 Addressables label，Addressables 自动拉取依赖的 SpriteAtlas：
 
 ```csharp
 // 多 label 默认 Union（并集）：通用图集 + 当前语言图集
@@ -213,8 +213,8 @@ await UI.Locale.SetAsync("en");   // 等下载 + 重刷完成（之后要立刻�
 **布局经验**：
 
 1. **要背景就直接拿 `<Image>` 当容器**（它能放子节点，少一层）。
-2. **工具栏 / 可变数量按钮用 `anchor="top-stretch"` + `childAlign` + `spacing`** —— 横跨整行、childAlign 推到一边，增减按钮不用动布局。**别**写 `anchor="top-right"` 却不给 `width`（rect 塌成 0 宽，按钮全挤一起）。
-3. **等分用 stretch**：LayoutGroup 内 `width="stretch"`（`stretch*2` 加权）；自由定位用 `anchor="X-stretch"` + margin，或 `width="50%"`。
+2. **Flow 布局可使用`HStack`/`VStack`**，且支持stretch权重，反之就是自由定位。
+3. **各种stretch：** Flow 布局用 `width="stretch"`（`stretch*2` 加权）；自由定位用 `anchor="X-stretch"` + margin，或 `width="50%"`。
 
 ```xml
 <HStack anchor="top-stretch" height="24" margin="_,6,_,_"
@@ -225,7 +225,9 @@ await UI.Locale.SetAsync("en");   // 等下载 + 重刷完成（之后要立刻�
 </HStack>
 ```
 
-**复用 = `<Template>`。** 重复结构抽成模板：`<Param>` 收参、`{{var}}` 字符串替换、`<Slot/>` 收子节点。展开发生在解析期（运行时看不到模板调用，按内置标签一样用）。
+**自定义控件**：
+
+**结构复用 = `<Template>`：** 重复结构抽成模板：`<Param>` 收参、`{{var}}` 字符串替换、`<Slot/>` 收子节点。展开发生在解析期（运行时看不到模板调用，按内置标签一样用）。
 
 ```xml
 <Template name="IconTab">
@@ -262,7 +264,9 @@ public sealed class Badge : Control
 // UI.Registry.Register<Badge>("Badge", optionalPrefab: null);
 ```
 
-**Variant：运行时切布局，不重建 GameObject。** C# 端 `UI.Variants.Set("mobile", true)` 切换；任意属性追加 `.变体名` 即覆写，切换时只重新应用属性值（订阅、引用全部存活不变）。
+**Variant 变体**：
+
+**运行时动态响应式布局** C# 端 `UI.Variants.Set("mobile", true)` 切换；任意属性追加 `.变体名` 即覆写，切换时只重新应用属性值（订阅、引用全部存活不变）。
 
 ```xml
 <VStack anchor="center" size="480x320"
@@ -272,6 +276,8 @@ public sealed class Badge : Control
 
 - 要按变体**插入元素**用 `<Variant when="mobile"><Add into="#id">...</Add></Variant>`（无 Remove/Replace；要隐藏写 `hidden.mobile="true"`）。
 - **保留变体名**：`portrait` / `landscape`（朝向，自动跟踪）和 `<locale>`（比如 `sprite.zh-Hans`）是库的保留变体，会自动设置True/False。
+
+**其他**:
 
 **`tint="linear"`：像素图全程域变色。** 把要变色的 sprite **预先按灰度绘制**（128 灰为中性），运行时用 Linear Light 混合 —— 既能压暗也能提亮，一张灰度图变出整套配色。默认的 `multiply` 只能压暗。
 
@@ -293,7 +299,7 @@ public sealed class Badge : Control
 
 ## 7. 模态对话框
 
-**MessageBox 异步阻塞式，直接 `await` 拿结果：**
+**请使用内置的 MessageBox， 天然异步阻塞式，直接 `await` 拿结果：**
 
 ```csharp
 using PromptUGUI.Application.Modals;
@@ -323,7 +329,9 @@ finally { loading.Close(); }
 
 ---
 
-## 8. 动效（可选）
+## 8. 触发器
+
+目前有2种触发器，`<Animation>` 负责动画，和 `<Show>` 负责隐藏/展示子节点。
 
 **入场动画：`<Animation>` 包住元素，`on="open"` 时自动播。**
 
@@ -352,3 +360,5 @@ finally { loading.Close(); }
 ```
 
 > C# 端可订阅 `Get<Trigger>("x").OnFire`，或 `Get<Animation>("x").Fire()` 手动触发（`on="manual"` / 重播入场动画）。
+
+** `<Show on="state-hover">` 支持uGUI状态 `state-hover` / `state-pressed` / `state-selected` 之类，当状态符合时自动显示子节点（不符合时自动隐藏）。** 适合做按钮的 hover/pressed 效果，或选项卡的选中状态。
