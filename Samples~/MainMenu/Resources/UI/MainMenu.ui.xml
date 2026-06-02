@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PromptUGUI version="1">
-  <Screen name="MainMenu">
+  <Screen name="MainMenu" reference="640x360" reference.portrait="360x640" scale-mode="pixel">
     <Image id="bg" anchor="stretch" color="#222244" />
 
     <VStack id="menuRoot" anchor="center" size="280x240" spacing="16" padding="16">

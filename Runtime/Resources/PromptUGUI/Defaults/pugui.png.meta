@@ -48,7 +48,7 @@ TextureImporter:
   spriteMeshType: 1
   alignment: 0
   spritePivot: {x: 0.5, y: 0.5}
-  spritePixelsToUnits: 25
+  spritePixelsToUnits: 100
   spriteBorder: {x: 0, y: 0, z: 0, w: 0}
   spriteGenerateFallbackPhysicsShape: 1
   alphaUsage: 1
@@ -108,6 +108,19 @@ TextureImporter:
     ignorePlatformSupport: 0
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Android
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 0
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
     sprites:
@@ -130,7 +143,7 @@ TextureImporter:
       spriteID: e363c62743235ae49bf2cd2381f401b2
       internalID: 513791919
       vertices: []
-      indices: 
+      indices: {_typeName: int, _data: }
       edges: []
       weights: []
     - serializedVersion: 2
@@ -152,7 +165,7 @@ TextureImporter:
       spriteID: 687866d269811674b9be193760ca6272
       internalID: -477943551
       vertices: []
-      indices: 
+      indices: {_typeName: int, _data: }
       edges: []
       weights: []
     - serializedVersion: 2
@@ -174,7 +187,7 @@ TextureImporter:
       spriteID: 46bef18fa99619e4082be284e6397001
       internalID: -2047013150
       vertices: []
-      indices: 
+      indices: {_typeName: int, _data: }
       edges: []
       weights: []
     - serializedVersion: 2
@@ -196,7 +209,7 @@ TextureImporter:
       spriteID: e30dccf157396f1459c3567d6c4ef4fb
       internalID: -637970564
       vertices: []
-      indices: 
+      indices: {_typeName: int, _data: }
       edges: []
       weights: []
     outline: []
@@ -206,7 +219,7 @@ TextureImporter:
     spriteID: 901728d3561855e408ab44c92ef68ee9
     internalID: 0
     vertices: []
-    indices: 
+    indices: {_typeName: int, _data: }
     edges: []
     weights: []
     secondaryTextures: []

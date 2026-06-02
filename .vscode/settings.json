@@ -10,5 +10,11 @@
         "UGUI",
         "USERPROFILE"
     ],
+    "xml.fileAssociations": [
+        {
+            "pattern": "**/*.ui.xml",
+            "systemId": "UnityProjects~/PromptUGUIDev/Assets/PromptUGUI.gen.xsd"
+        }
+    ],
     "dotnet.defaultSolution": ".lint/PromptUGUI.Lint.slnx"
 }
