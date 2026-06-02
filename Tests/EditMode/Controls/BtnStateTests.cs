@@ -174,9 +174,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
         private static void UseInstantTint() => StateTintReactor.TestForceInstant = true;
 
         [Test]
-        public void PressedColor_InstallsReactorOnBgAndDescendantGraphics()
+        public void PressedModulate_InstallsReactorOnBgAndDescendantGraphics()
         {
-            var btn = BuildBtnXml("pressedColor='#808080'", "<Image id='img'/><Text id='t'>x</Text>");
+            var btn = BuildBtnXml("pressedModulate='#808080'", "<Image id='img'/><Text id='t'>x</Text>");
             var bg = btn.GameObject.GetComponent<UnityImage>();
             Assert.IsNotNull(bg.GetComponent<StateTintReactor>(), "bg should host a reactor");
 
@@ -188,10 +188,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void PressedColor_TintsThenRestoresOnStateChange()
+        public void PressedModulate_TintsThenRestoresOnStateChange()
         {
             UseInstantTint();
-            var btn = BuildBtnXml("pressedColor='#808080'", "<Image id='img'/>");
+            var btn = BuildBtnXml("pressedModulate='#808080'", "<Image id='img'/>");
             var bg = btn.GameObject.GetComponent<UnityImage>();
             var img = btn.Get<PuiImage>("img").GameObject.GetComponent<UnityImage>();
 
@@ -211,11 +211,11 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void PressedColor_VariantReSolve_KeepsSingleReactorAndReConfiguresMultiplier()
+        public void PressedModulate_VariantReSolve_KeepsSingleReactorAndReConfiguresMultiplier()
         {
             UseInstantTint();
-            // pressedColor has an inline Variant override: light=#808080, dark=#404040.
-            var btn = BuildBtnXml("pressedColor='#808080' pressedColor.dark='#404040'", "<Image id='img'/>");
+            // pressedModulate has an inline Variant override: light=#808080, dark=#404040.
+            var btn = BuildBtnXml("pressedModulate='#808080' pressedModulate.dark='#404040'", "<Image id='img'/>");
             var bg = btn.GameObject.GetComponent<UnityImage>();
 
             // Base (authored) colour + the single reactor installed by the first apply.
@@ -247,7 +247,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         public void StateReactFalse_ChildKeepsColorAndHasNoReactor()
         {
             UseInstantTint();
-            var btn = BuildBtnXml("pressedColor='#808080'",
+            var btn = BuildBtnXml("pressedModulate='#808080'",
                 "<Image id='keep' color='#FF0000' stateReact='false'/>");
             var keep = btn.Get<PuiImage>("keep").GameObject.GetComponent<UnityImage>();
 
@@ -276,7 +276,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [Test]
         public void StateColor_SwitchesTransitionToNone()
         {
-            var btn = BuildBtn("pressedColor='#808080'");
+            var btn = BuildBtn("pressedModulate='#808080'");
             var puiBtn = btn.GameObject.GetComponent<PuiButton>();
             Assert.AreEqual(Selectable.Transition.None, puiBtn.transition);
         }
@@ -285,9 +285,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
         public void NestedStateSource_IsFanOutBoundary()
         {
             UseInstantTint();
-            // Outer Btn with pressedColor; an inner <Btn> (another IStateSource) must NOT receive the
+            // Outer Btn with pressedModulate; an inner <Btn> (another IStateSource) must NOT receive the
             // outer's reactor on its own bg — the inner owns its subtree.
-            var outer = BuildBtnXml("pressedColor='#808080'", "<Btn id='inner'>x</Btn>");
+            var outer = BuildBtnXml("pressedModulate='#808080'", "<Btn id='inner'>x</Btn>");
             var inner = outer.Get<Btn>("inner");
             var innerBg = inner.GameObject.GetComponent<UnityImage>();
             Assert.IsNull(innerBg.GetComponent<StateTintReactor>(),
@@ -332,13 +332,13 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void PressedSprite_ComposesWithPressedColor()
+        public void PressedSprite_ComposesWithPressedModulate()
         {
             UseInstantTint();
             var stub = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
             UI.SpriteResolver = _ => stub;
 
-            var btn = BuildBtnXml("pressedSprite='ui:pressed' pressedColor='#808080'", "<Image id='img'/>");
+            var btn = BuildBtnXml("pressedSprite='ui:pressed' pressedModulate='#808080'", "<Image id='img'/>");
             var bg = btn.GameObject.GetComponent<UnityImage>();
             var bgBase = bg.color;
             var half = new Color(0.5019608f, 0.5019608f, 0.5019608f, 1f); // #808080

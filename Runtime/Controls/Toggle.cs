@@ -18,11 +18,16 @@ namespace PromptUGUI.Controls
         private string _groupName;
         private readonly Subject<bool> _changed = new();
 
-        // Raw (unresolved) *Color attribute values. Resolved against UI.Theme in OnAfterApply.
+        // Absolute per-state bg colours (set targetGraphic). Resolved in OnAfterApply.
         private string _hoverColor;
         private string _pressedColor;
         private string _selectedColor;
         private string _disabledColor;
+        // Relative per-state multipliers (fan out to bg + descendants). Resolved in OnAfterApply.
+        private string _hoverModulate;
+        private string _pressedModulate;
+        private string _selectedModulate;
+        private string _disabledModulate;
 
         // Bound to OnAttached layout — changing these without changing OnAttached breaks the formula.
         // CheckmarkZoneWidth = Background sizeDelta.x (20) + 3px gap = Label offsetMin.x (23)
@@ -148,14 +153,22 @@ namespace PromptUGUI.Controls
 
         public Observable<bool> OnValueChanged => _changed;
 
-        /// <summary>Tint multiplier applied to the Toggle's bg + descendant graphics while Hover.</summary>
+        /// <summary>Absolute bg colour while Hover.</summary>
         [UIAttr(IsColor = true), Preserve] public string HoverColor { set => _hoverColor = value; }
-        /// <summary>Tint multiplier applied while Pressed.</summary>
+        /// <summary>Absolute bg colour while Pressed.</summary>
         [UIAttr(IsColor = true), Preserve] public string PressedColor { set => _pressedColor = value; }
-        /// <summary>Tint multiplier applied while checked (isOn) and at rest.</summary>
+        /// <summary>Absolute bg colour while checked (isOn) at rest.</summary>
         [UIAttr(IsColor = true), Preserve] public string SelectedColor { set => _selectedColor = value; }
-        /// <summary>Tint multiplier applied while Disabled.</summary>
+        /// <summary>Absolute bg colour while Disabled.</summary>
         [UIAttr(IsColor = true), Preserve] public string DisabledColor { set => _disabledColor = value; }
+        /// <summary>Relative colour multiplier (fans out to subtree) while Hover.</summary>
+        [UIAttr(IsColor = true), Preserve] public string HoverModulate { set => _hoverModulate = value; }
+        /// <summary>Relative colour multiplier while Pressed.</summary>
+        [UIAttr(IsColor = true), Preserve] public string PressedModulate { set => _pressedModulate = value; }
+        /// <summary>Relative colour multiplier while checked (isOn) at rest.</summary>
+        [UIAttr(IsColor = true), Preserve] public string SelectedModulate { set => _selectedModulate = value; }
+        /// <summary>Relative colour multiplier while Disabled.</summary>
+        [UIAttr(IsColor = true), Preserve] public string DisabledModulate { set => _disabledModulate = value; }
 
         /// <summary>Broadcasts the Toggle's interaction state. Selected = checked (isOn) and at rest.</summary>
         public Observable<InteractState> OnState => _toggle.OnState;
@@ -164,8 +177,9 @@ namespace PromptUGUI.Controls
         {
             base.OnAfterApply();
             _toggle.interactable = Interactable;
-            StateTintInstaller.Install(GameObject, _toggle, Children,
-                _hoverColor, _pressedColor, _selectedColor, _disabledColor);
+            var abs = StateColorSet.Resolve(_hoverColor, _pressedColor, _selectedColor, _disabledColor);
+            var mod = StateColorSet.Resolve(_hoverModulate, _pressedModulate, _selectedModulate, _disabledModulate);
+            StateTintInstaller.Install(GameObject, _toggle, Children, abs, mod);
         }
 
         public override Vector2? GetNativeSize()

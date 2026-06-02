@@ -14,10 +14,11 @@ namespace PromptUGUI.Controls
         private CanvasGroup _canvasGroup;
 
         /// <summary>
-        /// Whether this control's <see cref="UnityEngine.UI.Graphic"/> participates in a
-        /// parent <see cref="Btn"/>'s state-driven tint fan-out (<c>*Color</c> attributes).
-        /// Set <c>stateReact="false"</c> to opt a graphic out — the Btn installer then skips
-        /// this control (and does not tint it on press / hover / disable). Default <c>true</c>.
+        /// Whether this control's <see cref="UnityEngine.UI.Graphic"/> participates in a parent
+        /// Btn / Tab / Toggle's state-driven <c>*Modulate</c> tint fan-out. Set
+        /// <c>stateReact="false"</c> to opt this control (and its subtree) out — the installer then
+        /// skips it (no modulate tint on hover / press / select / disable). Has no effect on the
+        /// absolute <c>*Color</c> attributes (those apply to the source's bg only). Default <c>true</c>.
         /// </summary>
         [UIAttr, Preserve]
         public bool StateReact { get; set; } = true;
