@@ -293,7 +293,33 @@ public sealed class Badge : Control
 </Image>
 ```
 
-> 💡 写完任何 `.ui.xml` 后跑一遍 lint CLI（`dotnet run --project .lint/UIXmlLint -- <file>`）：它把布局组子节点上的非法 `anchor`/`margin` 等问题升级成 error，比 Unity 的 warning 更难漏。
+**XML 编辑器自动补全（XSD schema）**
+
+让 Rider / VS Code 写 `.ui.xml` 时实时列出标签和属性候选。
+
+PromptUGUI 把所有内置控件 + 反射注册的自定义控件 + 扫描到的 `<Template>` 标签导出成一份 XSD。
+
+- XSD 由 `Tools → PromptUGUI → Schema → Generate XSD` 生成到工程的 `Assets/PromptUGUI.gen.xsd`，并且**每次保存 `.ui.xml` 都会自动重生成**；只有新增/改名 C# 控件后才需手动跑一次菜单刷新。
+
+**VS Code**（先装 Red Hat 的 **XML** 扩展 `redhat.vscode-xml`）。在 Unity 工程根打开 VS Code，编辑 `.vscode/settings.json`：
+
+```json
+{
+  "xml.fileAssociations": [
+    { "pattern": "**/*.ui.xml", "systemId": "Assets/PromptUGUI.gen.xsd" }
+  ]
+}
+```
+
+`systemId` 相对当前打开的工作区根（即 Unity 工程根，`Assets/` 在此存在）。可把 `redhat.vscode-xml` 加进 `.vscode/extensions.json` 的 `recommendations`，团队一键安装。
+
+**Rider**（内置 XML 支持，无需插件）：
+
+在 `Settings → Languages & Frameworks → Schemas and DTDs -> External Schemas and DTDs` 中添加，URI填写文件路径。
+
+**验证补全生效**：打 `<` 候选应该会自动弹出。
+
+> 💡 写完任何 `.ui.xml` 后跑一遍 lint CLI（`dotnet run --project .lint/UIXmlLint -- <file>`），大模型写时每次都会执行此命令来验证。它会捕获大量运行时为了性能而忽略的错误。
 
 ---
 
