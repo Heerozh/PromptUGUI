@@ -16,7 +16,7 @@
 
 | File | Responsibility | Action |
 |---|---|---|
-| `Runtime/Controls/Internal/StateColorSet.cs` | 4 optional colours keyed by `InteractState`; `For` / `Any` / `Resolve` | **Create** |
+| `Runtime/Controls/Internal/StateColorSet.cs` | 4 optional colours keyed by `InteractState`; `For` / `HasAny` / `Resolve` | **Create** |
 | `Runtime/Controls/Internal/StateTintReactor.cs` | per-graphic tween to `(abs ?? base) × (mod ?? white)` | Modify |
 | `Runtime/Controls/Internal/StateTintInstaller.cs` | install reactors; absolutes → `targetGraphic` only, modulates → fan-out | Modify |
 | `Runtime/Controls/Btn.cs` | rename `*Color`→`*Modulate` fields/setters; add absolute `*Color`; new Install call | Modify |
@@ -76,8 +76,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [Test]
         public void Any_TrueWhenAnyPresent_FalseWhenAllNull()
         {
-            Assert.IsFalse(default(StateColorSet).Any);
-            Assert.IsTrue(new StateColorSet(null, Color.red, null, null).Any);
+            Assert.IsFalse(default(StateColorSet).HasAny);
+            Assert.IsTrue(new StateColorSet(null, Color.red, null, null).HasAny);
         }
 
         [Test]
@@ -138,7 +138,8 @@ namespace PromptUGUI.Controls.Internal
             _ => null,
         };
 
-        public bool Any => Hover.HasValue || Pressed.HasValue || Selected.HasValue || Disabled.HasValue;
+        // "HasAny" (not "Any") so it never reads like a LINQ Enumerable.Any call at a use-site.
+        public bool HasAny => Hover.HasValue || Pressed.HasValue || Selected.HasValue || Disabled.HasValue;
 
         /// <summary>Resolve four raw attribute strings (hex / CSS named / theme token; null / empty /
         /// whitespace ⇒ no override) into resolved colours via <see cref="UI.Theme"/>.</summary>
@@ -345,7 +346,7 @@ In `Runtime/Controls/Internal/StateTintInstaller.cs`, replace `Install` and `Ins
             StateColorSet absolutes,
             StateColorSet modulates)
         {
-            if (!absolutes.Any && !modulates.Any) return;
+            if (!absolutes.HasAny && !modulates.HasAny) return;
 
             selectable.transition = Selectable.Transition.None;
 
@@ -594,6 +595,6 @@ git commit -m "feat: XSD asserts *Modulate; SKILL documents absolute *Color vs r
 
 **Placeholder scan:** none — every code/edit step shows concrete content or exact line targets.
 
-**Type consistency:** `StateColorSet(hover,pressed,selected,disabled)`, `.For(InteractState)`, `.Any`, `.Resolve(string×4)` used identically in Task 1 (def), Task 2 reactor (`_absolutes`/`_modulates`, `BaseFor`/`MultiplierFor`), installer (`Install(…, StateColorSet, StateColorSet)`, `InstallReactor(…, StateColorSet, StateColorSet, float)`), and all three controls' `OnAfterApply` (`StateColorSet.Resolve(...)` → `Install(GameObject, selectable, Children, abs, mod)`). `Configure(StateColorSet, StateColorSet, float)` matches between reactor def and installer call. ✓
+**Type consistency:** `StateColorSet(hover,pressed,selected,disabled)`, `.For(InteractState)`, `.HasAny`, `.Resolve(string×4)` used identically in Task 1 (def), Task 2 reactor (`_absolutes`/`_modulates`, `BaseFor`/`MultiplierFor`), installer (`Install(…, StateColorSet, StateColorSet)`, `InstallReactor(…, StateColorSet, StateColorSet, float)`), and all three controls' `OnAfterApply` (`StateColorSet.Resolve(...)` → `Install(GameObject, selectable, Children, abs, mod)`). `Configure(StateColorSet, StateColorSet, float)` matches between reactor def and installer call. ✓
 
 **Note for executor:** Tab.cs on this branch is the `main` version (no `tint` attr — that lives in the separate open PR #44 `feat/tab-tint`). If #44 merges before this lands, rebase; the changes touch different attributes and should not conflict beyond adjacent lines.
