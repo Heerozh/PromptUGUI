@@ -9,14 +9,14 @@ namespace PromptUGUI.Controls.Internal
     /// <summary>
     /// Drives a single <see cref="Graphic"/>'s colour from the owning <see cref="IStateSource"/>'s
     /// <see cref="InteractState"/> stream. On each state it tweens the graphic toward
-    /// <c>baseColor * multiplier[state]</c> (component-wise) — the uGUI ColorTint behaviour,
-    /// but fanned out per-graphic instead of a single <c>targetGraphic</c>.
+    /// <c>(absolute ?? baseColor) × (modulate ?? white)</c>. Absolutes are applied only to the
+    /// control's <c>targetGraphic</c>; modulates fan out to every descendant graphic.
     /// </summary>
     /// <remarks>
     /// The base (authored) colour is captured ONCE on first init and never re-captured: a
-    /// re-<see cref="Configure"/> (e.g. a Variant ReSolve changing a multiplier) must not promote
-    /// the currently-tinted colour into the new base. Multipliers default to white (identity), so
-    /// a state with no explicit multiplier returns the graphic to its base colour.
+    /// re-<see cref="Configure"/> (e.g. a Variant ReSolve) must not promote the currently-tinted
+    /// colour into the new base. A state with no absolute and no modulate returns the graphic to
+    /// its base colour.
     /// </remarks>
     internal sealed class StateTintReactor : MonoBehaviour
     {
@@ -34,10 +34,8 @@ namespace PromptUGUI.Controls.Internal
         private bool _baseCaptured;
         private Color _baseColor = Color.white;
 
-        private Color _hover = Color.white;
-        private Color _pressed = Color.white;
-        private Color _selected = Color.white;
-        private Color _disabled = Color.white;
+        private StateColorSet _absolutes;   // per-state ABSOLUTE base override (targetGraphic only)
+        private StateColorSet _modulates;   // per-state relative MULTIPLIER (null entry = white identity)
         private float _fade = DefaultFade;
 
         private IDisposable _sub;
@@ -59,33 +57,24 @@ namespace PromptUGUI.Controls.Internal
         }
 
         /// <summary>
-        /// (Re)set the per-state multipliers + fade. A null multiplier keeps Normal (white =
-        /// identity) for that state. Safe to call repeatedly (Variant ReSolve): the base colour
-        /// stays captured from the first init.
+        /// (Re)set the per-state absolute overrides + relative multipliers + fade. Safe to call
+        /// repeatedly (Variant ReSolve): the base colour stays captured from the first init.
         /// </summary>
-        public void Configure(Color? hover, Color? pressed, Color? selected, Color? disabled, float fade)
+        public void Configure(StateColorSet absolutes, StateColorSet modulates, float fade)
         {
             EnsureInit();
-            _hover = hover ?? Color.white;
-            _pressed = pressed ?? Color.white;
-            _selected = selected ?? Color.white;
-            _disabled = disabled ?? Color.white;
+            _absolutes = absolutes;
+            _modulates = modulates;
             _fade = fade;
         }
 
-        private Color MultiplierFor(InteractState state) => state switch
-        {
-            InteractState.Hover => _hover,
-            InteractState.Pressed => _pressed,
-            InteractState.Selected => _selected,
-            InteractState.Disabled => _disabled,
-            _ => Color.white,
-        };
+        private Color MultiplierFor(InteractState state) => _modulates.For(state) ?? Color.white;
+        private Color BaseFor(InteractState state) => _absolutes.For(state) ?? _baseColor;
 
         private void OnState(InteractState state)
         {
             if (_graphic == null) return;
-            var target = _baseColor * MultiplierFor(state);
+            var target = BaseFor(state) * MultiplierFor(state);
 
             if (_handle.IsActive()) _handle.TryCancel();
 

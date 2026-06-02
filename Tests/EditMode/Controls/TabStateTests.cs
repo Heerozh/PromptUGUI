@@ -27,9 +27,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void PressedColor_TintsBgAndDescendants_AndSwitchesTransitionNone()
+        public void PressedModulate_TintsBgAndDescendants_AndSwitchesTransitionNone()
         {
-            var tab = BuildTab("pressedColor='#808080'", "<Image id='img'/>");
+            var tab = BuildTab("pressedModulate='#808080'", "<Image id='img'/>");
             var pt = tab.GameObject.GetComponent<PuiToggle>();
             Assert.IsNotNull(pt, "Tab should host a PuiToggle");
             Assert.AreEqual(Selectable.Transition.None, pt.transition);
@@ -48,13 +48,13 @@ namespace PromptUGUI.Tests.EditMode.Controls
         // Two tabs: auto-select + allowSwitchOff=false means we drive tab 'a' to a known Normal
         // baseline via its sibling before activating it.
         [Test]
-        public void SelectedColor_AppliesToActiveTabAtRest()
+        public void SelectedModulate_AppliesToActiveTabAtRest()
         {
             string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
   <TabBar id='bar'>
-    <Tab id='a' selectedColor='#808080'/>
-    <Tab id='b' selectedColor='#808080'/>
+    <Tab id='a' selectedModulate='#808080'/>
+    <Tab id='b' selectedModulate='#808080'/>
   </TabBar>
 </Screen></PromptUGUI>";
             UI.LoadDocument("test", xml);
@@ -68,7 +68,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var aBase = bgA.color;
             a.IsOn = true;                       // a -> Selected (active at rest)
             Assert.That(bgA.color.r, Is.EqualTo((aBase * half).r).Within(0.001f),
-                "active tab bg gets selectedColor multiplier at rest");
+                "active tab bg gets selectedModulate multiplier at rest");
         }
 
         [Test]

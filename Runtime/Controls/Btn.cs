@@ -20,11 +20,14 @@ namespace PromptUGUI.Controls
         private Sprite _pressedSprite;
         private IDisposable _pressedSpriteSub;
 
-        // Raw (unresolved) *Color attribute values. Resolved against UI.Theme in OnAfterApply
-        // (same resolver Color uses) so a Variant changing a token re-resolves on ReSolve.
+        // Absolute per-state bg colours (set targetGraphic). Resolved in OnAfterApply.
         private string _hoverColor;
         private string _pressedColor;
         private string _disabledColor;
+        // Relative per-state multipliers (fan out to bg + descendants). Resolved in OnAfterApply.
+        private string _hoverModulate;
+        private string _pressedModulate;
+        private string _disabledModulate;
 
         private const float HorizontalPadding = 16f;
         private const float VerticalPadding = 6f;
@@ -73,7 +76,9 @@ namespace PromptUGUI.Controls
         {
             base.OnAfterApply();
             _btn.interactable = Interactable;
-            StateTintInstaller.Install(GameObject, _btn, Children, _hoverColor, _pressedColor, null, _disabledColor);
+            var abs = StateColorSet.Resolve(_hoverColor, _pressedColor, null, _disabledColor);
+            var mod = StateColorSet.Resolve(_hoverModulate, _pressedModulate, null, _disabledModulate);
+            StateTintInstaller.Install(GameObject, _btn, Children, abs, mod);
             // A pressedSprite is itself a state visual: drop uGUI's built-in ColorTint so the
             // swapped pressed image isn't double-darkened. Set-only, matching the *Color path
             // (StateTintInstaller only flips transition when a *Color is present).
@@ -139,17 +144,18 @@ namespace PromptUGUI.Controls
             set => _bg.color = UI.Theme.Resolve(value);
         }
 
-        /// <summary>Tint multiplier applied to the Btn's bg + descendant graphics while Hover.</summary>
-        [UIAttr(IsColor = true), Preserve]
-        public string HoverColor { set => _hoverColor = value; }
-
-        /// <summary>Tint multiplier applied while Pressed.</summary>
-        [UIAttr(IsColor = true), Preserve]
-        public string PressedColor { set => _pressedColor = value; }
-
-        /// <summary>Tint multiplier applied while Disabled.</summary>
-        [UIAttr(IsColor = true), Preserve]
-        public string DisabledColor { set => _disabledColor = value; }
+        /// <summary>Absolute bg colour while Hover.</summary>
+        [UIAttr(IsColor = true), Preserve] public string HoverColor { set => _hoverColor = value; }
+        /// <summary>Absolute bg colour while Pressed.</summary>
+        [UIAttr(IsColor = true), Preserve] public string PressedColor { set => _pressedColor = value; }
+        /// <summary>Absolute bg colour while Disabled.</summary>
+        [UIAttr(IsColor = true), Preserve] public string DisabledColor { set => _disabledColor = value; }
+        /// <summary>Relative colour multiplier (fans out to subtree) while Hover.</summary>
+        [UIAttr(IsColor = true), Preserve] public string HoverModulate { set => _hoverModulate = value; }
+        /// <summary>Relative colour multiplier while Pressed.</summary>
+        [UIAttr(IsColor = true), Preserve] public string PressedModulate { set => _pressedModulate = value; }
+        /// <summary>Relative colour multiplier while Disabled.</summary>
+        [UIAttr(IsColor = true), Preserve] public string DisabledModulate { set => _disabledModulate = value; }
 
         [UIAttr, Preserve]
         public string Tint
