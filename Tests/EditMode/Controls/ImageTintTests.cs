@@ -102,6 +102,14 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Tab_TintLinear_AppliesToBackground()
+        {
+            var s = Open("<TabBar id='bar'><Tab id='t' color='#ffffff' text='Edit' tint='linear'/></TabBar>");
+            var bg = s.Get<Tab>("bar/t").GameObject.GetComponent<UnityImage>();
+            Assert.AreEqual("UI/LinearLightTint", bg.material.shader.name);
+        }
+
+        [Test]
         public void Icon_TintLinear_AppliesToImage()
         {
             // No sprite resolver registered → a sprite LogError is expected; tint is independent.
