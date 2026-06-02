@@ -71,6 +71,56 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 "active tab bg gets selectedModulate multiplier at rest");
         }
 
+        // Repro of the user's report: a template-wrapped <Tab> declared isOn="true" inside a
+        // <TabBar>, with absolute color + selectedColor. Verifies BOTH the internal selection
+        // state AND that the reactor paints the active tab its selectedColor at Open() (no runtime
+        // toggle). Inactive siblings must keep the base color (catches stale-broadcaster bleed).
+        [Test]
+        public void DeclaredIsOn_TemplateWrappedTab_ShowsSelectedColorAtOpen()
+        {
+            string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='HIconTab'>
+    <Param name='text'/>
+    <Param name='isOn' default='false'/>
+    <Frame>
+      <Tab id='tab' isOn='{{isOn}}' anchor='stretch'
+           color='#202020' selectedColor='#076DD7'/>
+      <Text id='lbl' anchor='stretch' raycastTarget='false'>{{text}}</Text>
+    </Frame>
+  </Template>
+  <Screen name='S'>
+    <TabBar id='bar' itemTemplate='HIconTab'>
+      <HIconTab text='Cosmos' isOn='true'/>
+      <HIconTab text='Alliance'/>
+      <HIconTab text='Team'/>
+    </TabBar>
+  </Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var bar = UI.Open("S").Get<TabBar>("bar");
+
+            Assert.AreEqual(3, bar.Count, "all three template-wrapped tabs collected");
+            Assert.AreEqual(0, bar.SelectedIndex, "internal state: first tab is the active one");
+
+            // Probe the desync: toggle.isOn vs the StateBroadcaster's composite Current.
+            var pt0 = bar.GetAt(0).GameObject.GetComponent<PuiToggle>();
+            Assert.IsTrue(bar.GetAt(0).IsOn, "toggle.isOn is true for the active tab");
+            Assert.AreEqual(InteractState.Selected, pt0.Current,
+                "broadcaster Current should be Selected for the active tab at Open");
+
+            var sel = new Color(0x07 / 255f, 0x6D / 255f, 0xD7 / 255f, 1f);
+            var bas = new Color(0x20 / 255f, 0x20 / 255f, 0x20 / 255f, 1f);
+            var bg0 = bar.GetAt(0).GameObject.GetComponent<UnityImage>();
+            var bg1 = bar.GetAt(1).GameObject.GetComponent<UnityImage>();
+            var bg2 = bar.GetAt(2).GameObject.GetComponent<UnityImage>();
+
+            Assert.That(bg0.color.r, Is.EqualTo(sel.r).Within(0.001f), "active tab bg = selectedColor (r)");
+            Assert.That(bg0.color.g, Is.EqualTo(sel.g).Within(0.001f), "active tab bg = selectedColor (g)");
+            Assert.That(bg0.color.b, Is.EqualTo(sel.b).Within(0.001f), "active tab bg = selectedColor (b)");
+            Assert.That(bg1.color.r, Is.EqualTo(bas.r).Within(0.001f), "inactive tab keeps base color");
+            Assert.That(bg2.color.r, Is.EqualTo(bas.r).Within(0.001f), "inactive tab keeps base color");
+        }
+
         [Test]
         public void InteractableFalse_BridgesToToggleAndEmitsDisabled()
         {

@@ -62,10 +62,15 @@ namespace PromptUGUI.Controls.Internal
         /// </summary>
         public void Configure(StateColorSet absolutes, StateColorSet modulates, float fade)
         {
-            EnsureInit();
+            // Assign the colour sets BEFORE EnsureInit subscribes: the OnState subscription replays
+            // the source's current state synchronously, so if the control is already in a non-Normal
+            // state at first install (e.g. a Tab declared isOn="true", shown Selected at Open and never
+            // re-toggled) that first replay must see the colours — otherwise it paints the base colour
+            // and, with no later state change to correct it, the state colour never appears.
             _absolutes = absolutes;
             _modulates = modulates;
             _fade = fade;
+            EnsureInit();
         }
 
         private Color MultiplierFor(InteractState state) => _modulates.For(state) ?? Color.white;
