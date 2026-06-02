@@ -349,10 +349,34 @@ namespace PromptUGUI.Application
         // about its center, and divide sizeDelta by scale. A point (fixed) axis has span 0, so
         // only its sizeDelta changes and the anchored edge stays put; a stretch / fractional
         // axis has pivot 0.5, so widening about the center keeps the box centered. anchoredPosition
-        // is unchanged. Skipped under a LayoutGroup parent: geometry is group-driven there, and
-        // 'scale' keeps the documented "reserves the unscaled slot" behaviour.
+        // is unchanged. Skipped under a LayoutGroup parent — see the guard below for the full why.
         private static void ApplyBoxPreservingCompensation(RectTransform rt, float scale)
         {
+            // Box-preserving is INTENTIONALLY skipped for a direct child of a LayoutGroup
+            // (VStack/HStack/Grid). Two fundamental reasons — do NOT "fix" this by deleting the guard:
+            //
+            //   1. Mechanism: a LayoutGroup with childControlWidth/Height=true re-drives the child's
+            //      anchors (forced to (0,1)), sizeDelta and anchoredPosition through a
+            //      DrivenRectTransformTracker on EVERY layout pass. The one-shot anchor/sizeDelta
+            //      inflation below would be overwritten on the next rebuild — it cannot stick.
+            //   2. Contract: box-preserving means "the declared anchor/size/margin IS the visual box;
+            //      scale only changes render density." A LayoutGroup child has no declared box — the
+            //      group computes it from siblings / spacing / flexible weights. There is no stable
+            //      box to preserve, so the contract is ill-defined here.
+            //
+            // Unity's "Use Child Scale" toggle (childScaleWidth/Height on a Horizontal/Vertical
+            // LayoutGroup; Grid has none) does NOT substitute: it only shrinks the SPACE BUDGET of
+            // FIXED-size children on the packing axis so siblings pack tight (fixes the "small text
+            // gap"). It never makes a flexible (width="stretch") child fill its row at higher
+            // density — SetChildAlongAxisWithScale still sets sizeDelta to the full allocated size,
+            // so localScale halves the visual regardless; and space freed by scaling a fixed child
+            // is absorbed by any stretch sibling, so it's often a visual no-op (verified empirically).
+            //
+            // Supported fix: give the scaled element a real declared box — wrap it in a <Frame>
+            // (free-positioning), put layout sizing (width="stretch" / fixed height) on the Frame and
+            // scale="..." + anchor="stretch" on the inner element. Then this method runs (parent is
+            // not a LayoutGroup) and the element renders at density inside the Frame's box. See the
+            // XML skill "Relative scale" LayoutGroup-skip caveat.
             var parent = rt.parent;
             if (parent != null && parent.GetComponent<UnityEngine.UI.LayoutGroup>() != null)
                 return;
