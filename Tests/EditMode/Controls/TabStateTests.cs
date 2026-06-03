@@ -121,6 +121,35 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.That(bg2.color.r, Is.EqualTo(bas.r).Within(0.001f), "inactive tab keeps base color");
         }
 
+        // Repro of the user's second report: the active tab's selectedColor vanishes on a slight
+        // window resize. A resize funnels through Screen.ReSolve (when the screen uses scale="Nx"/
+        // "<r>r"), and so do Variant / Theme changes. ReSolve re-applies the authored base `color`
+        // to the bg graphic and re-Configures the reactor, but the broadcaster's state value is
+        // unchanged so OnState does not replay — the reactor must re-paint the current state itself,
+        // otherwise the bg stays stuck on the base colour.
+        [Test]
+        public void SelectedColor_SurvivesReSolve()
+        {
+            string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar'><Tab id='t' color='#202020' selectedColor='#076DD7'/></TabBar>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var tab = screen.Get<Tab>("bar/t");
+            tab.IsOn = true;                     // active at rest -> Selected
+
+            var sel = new Color(0x07 / 255f, 0x6D / 255f, 0xD7 / 255f, 1f);
+            var bg = tab.GameObject.GetComponent<UnityImage>();
+            Assert.That(bg.color.r, Is.EqualTo(sel.r).Within(0.001f), "selectedColor applied before ReSolve");
+
+            screen.ReSolve();                    // window resize / Variant / Theme all funnel here
+
+            Assert.That(bg.color.r, Is.EqualTo(sel.r).Within(0.001f), "selectedColor survives ReSolve (r)");
+            Assert.That(bg.color.g, Is.EqualTo(sel.g).Within(0.001f), "selectedColor survives ReSolve (g)");
+            Assert.That(bg.color.b, Is.EqualTo(sel.b).Within(0.001f), "selectedColor survives ReSolve (b)");
+        }
+
         [Test]
         public void InteractableFalse_BridgesToToggleAndEmitsDisabled()
         {

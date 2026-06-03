@@ -38,6 +38,7 @@ namespace PromptUGUI.Controls.Internal
         private StateColorSet _modulates;   // per-state relative MULTIPLIER (null entry = white identity)
         private float _fade = DefaultFade;
 
+        private IStateSource _source;
         private IDisposable _sub;
         private MotionHandle _handle;
 
@@ -51,9 +52,9 @@ namespace PromptUGUI.Controls.Internal
                 _baseCaptured = true;
             }
 
-            var source = GetComponentInParent<IStateSource>();
-            if (source != null)
-                _sub = source.OnState.Subscribe(OnState);
+            _source = GetComponentInParent<IStateSource>();
+            if (_source != null)
+                _sub = _source.OnState.Subscribe(OnState);
         }
 
         /// <summary>
@@ -70,7 +71,17 @@ namespace PromptUGUI.Controls.Internal
             _absolutes = absolutes;
             _modulates = modulates;
             _fade = fade;
+
+            var firstInit = _graphic == null;
             EnsureInit();
+
+            // On a *re*-Configure (Variant / Theme / window-resize ReSolve) the OnState subscription
+            // does NOT replay and the broadcaster's state value is unchanged — yet ControlAttributeApplier
+            // has just reset the graphic to its authored base colour. Without an explicit repaint the
+            // state tint (e.g. a Selected tab's selectedColor) silently vanishes on the next resize.
+            // First install is already painted by the subscription replay above, so only repaint here.
+            if (!firstInit && _source != null)
+                OnState(_source.Current);
         }
 
         private Color MultiplierFor(InteractState state) => _modulates.For(state) ?? Color.white;
