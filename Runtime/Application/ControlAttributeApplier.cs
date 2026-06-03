@@ -47,6 +47,10 @@ namespace PromptUGUI.Application
                 if (!entry.Meta.HasAttribute(attrName)) continue;
                 // 跳过 default-text attribute 的 re-apply, 当 runtime 已经通过 setter 接管。
                 if (attrName == entry.DefaultTextAttr && DefaultTextLockedByRuntime()) continue;
+                // 运行时独占状态属性（Tab/Toggle 的 isOn 选中态）：声明值只作为初始选中，初次
+                // Apply 写入后，ReSolve（窗口 resize / Variant / Theme）不得再 re-apply，否则用户
+                // 运行期切换的选中态会被打回声明默认值。
+                if (!initial && attrName == entry.RuntimeStateAttr) continue;
                 var v = VariantResolver.ResolveAttribute(node, attrName, variants);
                 if (v == null) continue;
                 // Translate string-valued attrs that are commonly text-bearing.

@@ -105,6 +105,43 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsFalse(screen.Get<Tab>("b").IsOn);
         }
 
+        // User report: a window resize (which runs Screen.ReSolve when scale="Nx"/"<r>r") snaps the
+        // active tab back to the declared default — losing the user's selection and the page they
+        // navigated to. The declared isOn is the INITIAL selection only; a runtime selection (and
+        // its bound page) must survive a ReSolve.
+        [Test]
+        public void Tab_RuntimeSelection_Survives_ReSolve()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar'>
+    <Tab id='a' isOn='true' bind='fa'/>
+    <Tab id='b' bind='fb'/>
+  </TabBar>
+  <Frame id='fa'/>
+  <Frame id='fb'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var a = screen.Get<Tab>("a");
+            var b = screen.Get<Tab>("b");
+            var fa = screen.Get<Frame>("fa");
+            var fb = screen.Get<Frame>("fb");
+
+            b.IsOn = true;                   // user switches to tab b (a turns off via ToggleGroup)
+            Assert.IsTrue(b.IsOn);
+            Assert.IsFalse(a.IsOn);
+            Assert.IsTrue(fb.GameObject.activeSelf, "page b shown after user switch");
+            Assert.IsFalse(fa.GameObject.activeSelf);
+
+            screen.ReSolve();                // window resize / scale recompute
+
+            Assert.IsTrue(b.IsOn, "user's tab selection survives ReSolve");
+            Assert.IsFalse(a.IsOn, "declared-default tab is NOT force-re-selected on ReSolve");
+            Assert.IsTrue(fb.GameObject.activeSelf, "bound page b stays shown after ReSolve");
+            Assert.IsFalse(fa.GameObject.activeSelf, "bound page a stays hidden after ReSolve");
+        }
+
         [Test]
         public void TabBar_Direction_Vertical_Uses_VerticalLayoutGroup()
         {

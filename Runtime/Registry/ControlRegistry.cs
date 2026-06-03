@@ -13,12 +13,17 @@ namespace PromptUGUI.Registry
             public GameObject Prefab;       // null = 内置原语，由 ScreenInstantiator 直接 new GameObject
             public ControlMeta Meta;
             public string DefaultTextAttr;  // null = 不支持文本简写
+            // Attribute whose declared value is the INITIAL runtime state only (e.g. Tab/Toggle
+            // "isOn" selection). Applied once at Open; a ReSolve (resize / Variant / Theme) must
+            // NOT re-apply it, or the user's runtime selection snaps back to the declared default.
+            public string RuntimeStateAttr;  // null = 无运行时独占状态属性
         }
 
         private readonly Dictionary<string, Entry> _byTag = new();
 
         public void Register<T>(string tag, GameObject prefab,
-                                string defaultTextAttr = null)
+                                string defaultTextAttr = null,
+                                string runtimeStateAttr = null)
             where T : Control, new()
         {
             _byTag[tag] = new Entry
@@ -27,6 +32,7 @@ namespace PromptUGUI.Registry
                 Prefab = prefab,
                 Meta = ControlMeta.Build(typeof(T)),
                 DefaultTextAttr = defaultTextAttr,
+                RuntimeStateAttr = runtimeStateAttr,
             };
         }
 
