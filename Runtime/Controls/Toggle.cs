@@ -104,6 +104,8 @@ namespace PromptUGUI.Controls
 
         internal override string PeekDefaultText() => _label != null ? _label.text : null;
 
+        internal override string PeekRuntimeState() => IsOn ? "true" : "false";
+
         [UIAttr, Preserve]
         public string Font
         {

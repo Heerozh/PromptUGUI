@@ -21,6 +21,25 @@ namespace PromptUGUI.Tests.EditMode.Controls
             return UI.Open("S").Get<Progress>("p");
         }
 
+        // Same runtime-owned-state class as Tab/Toggle isOn: a declared value is the INITIAL value
+        // only. Progress is code-driven; a window resize runs Screen.ReSolve, which must NOT snap a
+        // runtime-set fill back to the declared value.
+        [Test]
+        public void Value_RuntimeChange_Survives_ReSolve()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Progress id='p' value='0.2'/></Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var p = screen.Get<Progress>("p");
+            p.Value = 0.7f;                  // runtime code sets the fill
+            Assert.AreEqual(0.7f, p.Value);
+
+            screen.ReSolve();                // window resize / scale recompute
+
+            Assert.AreEqual(0.7f, p.Value, "runtime-set progress value survives ReSolve (not reset to declared 0.2)");
+        }
+
         [Test]
         public void Empty_Progress_Has_MaskWrapper_Fill_Frame_Children()
         {

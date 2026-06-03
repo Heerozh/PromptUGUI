@@ -34,6 +34,9 @@ namespace PromptUGUI.Controls
             }
         }
 
+        internal override string PeekRuntimeState() =>
+            _value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
         [UIAttr, Preserve]
         public string Direction
         {

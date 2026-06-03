@@ -80,6 +80,21 @@ namespace PromptUGUI.Controls
         /// </summary>
         internal virtual string PeekDefaultText() => null;
 
+        /// <summary>
+        /// 上次 <see cref="ControlAttributeApplier"/> 通过 RuntimeStateAttr 应用并回读的归一化
+        /// 字符串 (e.g. Tab.isOn / Slider.value)。ReSolve 阶段跟 <see cref="PeekRuntimeState"/>
+        /// 当前值对比：相等 → runtime 没动过, Variant 覆盖正常重 Apply；不等 → 用户/代码改过,
+        /// 不被 XML 声明值打回。仅 ControlAttributeApplier 读写。
+        /// </summary>
+        internal string _lastAppliedRuntimeState;
+
+        /// <summary>
+        /// 返回 control 当前运行时独占状态值的归一化字符串 (e.g. Tab.isOn → "true"/"false",
+        /// Slider.value → invariant float)。没有 RuntimeStateAttr 的控件返回 null。
+        /// 仅 <see cref="ControlAttributeApplier"/> 用于检测 runtime 覆写。
+        /// </summary>
+        internal virtual string PeekRuntimeState() => null;
+
         internal void AddChild(IControl child) => _children.Add(child);
 
         public IReadOnlyList<IControl> Children => _children;

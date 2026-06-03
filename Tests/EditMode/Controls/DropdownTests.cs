@@ -27,6 +27,26 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual("Low", tmp.options[0].text);
         }
 
+        // Same runtime-owned-state class as Tab/Toggle isOn: a declared value is the INITIAL
+        // selection only. A window resize runs Screen.ReSolve, which must NOT snap a user's
+        // dropdown choice back to the declared value.
+        [Test]
+        public void Value_RuntimeChange_Survives_ReSolve()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Dropdown id='d' value='1'/></Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var d = screen.Get<Dropdown>("d");
+            d.BindOptions(Observable.Return<IEnumerable<string>>(new[] { "A", "B", "C" }));
+            d.Value = 2;                     // user selects C
+            Assert.AreEqual(2, d.Value);
+
+            screen.ReSolve();                // window resize / scale recompute
+
+            Assert.AreEqual(2, d.Value, "user's dropdown selection survives ReSolve (not reset to declared value=1)");
+        }
+
         [Test]
         public void OnSelected_fires_when_value_setter_changes()
         {

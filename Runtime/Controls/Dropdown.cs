@@ -185,6 +185,9 @@ namespace PromptUGUI.Controls
             set => _tmp.value = value;
         }
 
+        internal override string PeekRuntimeState() =>
+            _tmp != null ? _tmp.value.ToString(System.Globalization.CultureInfo.InvariantCulture) : null;
+
         [UIAttr(IsColor = true), Preserve]
         public string Color
         {

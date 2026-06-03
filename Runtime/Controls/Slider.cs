@@ -92,6 +92,9 @@ namespace PromptUGUI.Controls
         }
         [UIAttr, Preserve] public bool WholeNumbers { set => _slider.wholeNumbers = value; }
 
+        internal override string PeekRuntimeState() =>
+            _slider != null ? _slider.value.ToString(System.Globalization.CultureInfo.InvariantCulture) : null;
+
         [UIAttr, Preserve]
         public string Direction
         {

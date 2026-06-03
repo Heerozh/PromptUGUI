@@ -775,7 +775,7 @@ Radial fill（冷却环）不在 `<Progress>` 范围；以后用单独的 `<Cool
 </Image>
 ```
 
-`bind="frame_id"` 让 Tab 选中时显示、未选时隐藏命名 Frame。lookup 是 lazy 的 —— 首次切换才解析并缓存。Tab `isOn="true"` 在 XML 里指定初始选中；都没写时 TabBar 自动选第一个。`bind=` 省略时只 fire `OnSelected`（C# 端自己处理）。`isOn` 是**运行时独占状态**：声明值只在初次 Open 应用一次，之后归用户/`ToggleGroup` 所有 —— ReSolve（窗口 resize / Variant / Theme 切换）**不会**把它打回声明默认值，用户选中的 Tab 和 `bind` 的页面都保持不变。代价：`isOn.variant`（如 `isOn.portrait`）只在初次 Open 生效，切 Variant 不会重应用；运行期要按 Variant 改选中请走 C#。`<Toggle isOn>` 同理。
+`bind="frame_id"` 让 Tab 选中时显示、未选时隐藏命名 Frame。lookup 是 lazy 的 —— 首次切换才解析并缓存。Tab `isOn="true"` 在 XML 里指定初始选中；都没写时 TabBar 自动选第一个。`bind=` 省略时只 fire `OnSelected`（C# 端自己处理）。`isOn` 是**运行时独占状态**：声明值是初始选中，但一旦用户/代码运行期改过它，ReSolve（窗口 resize / Variant / Theme 切换）**不会**把它打回声明默认值 —— 用户选中的 Tab 和 `bind` 的页面都保持不变。`isOn.variant`（如 `isOn.portrait`）仍然有效：只要运行期没动过，切到该 Variant 会正常重应用覆盖值；动过之后用户的选择优先。`<Toggle isOn>` 同理。（同款「运行期改过就不打回、没动过 Variant 照常覆盖」也适用于 `<Slider value>` / `<Dropdown value>` / `<Progress value>`。）
 
 用自定义 `itemTemplate` 时（`<TabBar itemTemplate="MyTabTemplate"/>`），Template body 必须在树里某处包含恰好一个 `<Tab>`（通过 `ScopedIds` 或递归 `Control.Children` walk 在 `BindItems` 时定位）。
 

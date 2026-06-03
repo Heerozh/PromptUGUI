@@ -25,6 +25,27 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(3f, s.Value);
         }
 
+        // Same runtime-owned-state class as Tab/Toggle isOn: a declared value is the INITIAL value
+        // only. A window resize runs Screen.ReSolve, which must NOT snap a user-dragged slider back
+        // to the declared value.
+        [Test]
+        public void Value_RuntimeChange_Survives_ReSolve()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Slider id='s' min='0' max='1' value='0.3'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var s = screen.Get<Slider>("s");
+            s.Value = 0.8f;                  // user drags
+            Assert.AreEqual(0.8f, s.Value);
+
+            screen.ReSolve();                // window resize / scale recompute
+
+            Assert.AreEqual(0.8f, s.Value, "user's slider value survives ReSolve (not reset to declared 0.3)");
+        }
+
         [Test]
         public void Setter_triggers_OnValueChanged()
         {

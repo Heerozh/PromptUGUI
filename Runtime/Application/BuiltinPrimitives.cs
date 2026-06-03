@@ -22,9 +22,9 @@ namespace PromptUGUI.Application
             reg.Register<Toggle>("Toggle", null, defaultTextAttr: "text", runtimeStateAttr: "isOn");
             reg.Register<Tab>("Tab", null, defaultTextAttr: "text", runtimeStateAttr: "isOn");
             reg.Register<TabBar>("TabBar", null);
-            reg.Register<Slider>("Slider", null);
-            reg.Register<Progress>("Progress", null);
-            reg.Register<Dropdown>("Dropdown", null);
+            reg.Register<Slider>("Slider", null, runtimeStateAttr: "value");
+            reg.Register<Progress>("Progress", null, runtimeStateAttr: "value");
+            reg.Register<Dropdown>("Dropdown", null, runtimeStateAttr: "value");
             reg.Register<ScrollList>("ScrollList", null);
             reg.Register<InputField>("InputField", null, defaultTextAttr: "text");
         }

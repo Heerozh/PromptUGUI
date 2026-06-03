@@ -37,6 +37,23 @@ namespace PromptUGUI.Application
                 return current != null && current != control._lastAppliedDefaultText;
             }
 
+            // 运行时独占状态属性（Tab/Toggle 的 isOn 选中、Slider/Dropdown/Progress 的 value）。
+            // 与 default-text 同构的「runtime 接管即不打回」逻辑：声明值是初始值，但
+            //   - Variant 覆盖（value.low / isOn.portrait）切到对应 variant 时必须重应用 → 不能无脑跳过；
+            //   - 用户/代码运行期改过的值，ReSolve（resize / Variant / Theme）不得打回声明默认。
+            // 区分两者：control 当前值（PeekRuntimeState）是否 == 上次 Apply 写下的 _lastAppliedRuntimeState。
+            // 注意：这里存的是「应用后回读」的归一化字符串（见末尾 capture），不是 XML 字面量 ——
+            // 数值属性 "1.0" 经 float 往返会变成 "1"，直接跟字面量比会误判；回读对回读才稳。
+            bool RuntimeStateLockedByRuntime()
+            {
+                if (initial) return false;
+                if (entry.RuntimeStateAttr == null) return false;
+                var current = control.PeekRuntimeState();
+                return current != null && current != control._lastAppliedRuntimeState;
+            }
+
+            var runtimeStateReapplied = false;
+
             // Control-specific attributes: union of base + variant keys.
             var allKeys = new HashSet<string>(node.Attributes.Keys);
             foreach (var k in node.VariantOverrides.Keys) allKeys.Add(k);
@@ -47,10 +64,8 @@ namespace PromptUGUI.Application
                 if (!entry.Meta.HasAttribute(attrName)) continue;
                 // 跳过 default-text attribute 的 re-apply, 当 runtime 已经通过 setter 接管。
                 if (attrName == entry.DefaultTextAttr && DefaultTextLockedByRuntime()) continue;
-                // 运行时独占状态属性（Tab/Toggle 的 isOn 选中态）：声明值只作为初始选中，初次
-                // Apply 写入后，ReSolve（窗口 resize / Variant / Theme）不得再 re-apply，否则用户
-                // 运行期切换的选中态会被打回声明默认值。
-                if (!initial && attrName == entry.RuntimeStateAttr) continue;
+                // 同理跳过 runtime-state 属性 (isOn / value)，当 runtime 已经改过它。
+                if (attrName == entry.RuntimeStateAttr && RuntimeStateLockedByRuntime()) continue;
                 var v = VariantResolver.ResolveAttribute(node, attrName, variants);
                 if (v == null) continue;
                 // Translate string-valued attrs that are commonly text-bearing.
@@ -64,6 +79,7 @@ namespace PromptUGUI.Application
                 }
                 ApplyOne(entry.Meta, control, node, attrName, v);
                 if (attrName == entry.DefaultTextAttr) control._lastAppliedDefaultText = v;
+                if (attrName == entry.RuntimeStateAttr) runtimeStateReapplied = true;
             }
 
             // Text shorthand
@@ -102,6 +118,14 @@ namespace PromptUGUI.Application
                 // 把我们附带上下文的外层 message 埋到中间，作者一眼看不到关键诊断。
                 throw new ParseException(FormatNodeContext(node) + ": " + ex.Message);
             }
+
+            // Capture the runtime-state baseline AFTER everything settles (OnAfterApply + any
+            // clamping by sibling attrs like Slider min/max), and only when we actually (re)applied
+            // it this pass — a locked/skipped attr must keep its prior baseline so the lock persists.
+            // Store the read-back (PeekRuntimeState), not the XML literal: numeric round-trips
+            // ("1.0" → 1f → "1") would otherwise read as a runtime change on the next ReSolve.
+            if (runtimeStateReapplied && entry.RuntimeStateAttr != null)
+                control._lastAppliedRuntimeState = control.PeekRuntimeState();
         }
 
         private static void ApplyOne(ControlMeta meta, Control control,
