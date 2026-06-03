@@ -62,6 +62,56 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void NativeSize_DefaultsTo160x44()
+        {
+            // A bare <InputField/> must report a native size like its sibling controls
+            // (Dropdown is 160x44) so "write nothing = Unity default box" instead of
+            // collapsing to sizeDelta (0,0). Free-positioning => native fills sizeDelta.
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <InputField id='f'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var f = UI.Open("S").Get<PInputField>("f");
+            var rt = (RectTransform)f.GameObject.transform;
+            Assert.AreEqual(160f, rt.sizeDelta.x, 1e-3f, "native width = 160");
+            Assert.AreEqual(44f, rt.sizeDelta.y, 1e-3f, "native height = 44 (MinTapHeight)");
+        }
+
+        [Test]
+        public void Geometry_NoSprite_TextAreaFillsField()
+        {
+            // sprite='' => no border => the Text Area inset (breathing room for the frame)
+            // must collapse to 0, otherwise a short field (height=12) makes the Text Area
+            // height negative: 12 - 13 = -1. The mask overscan tracks the inset to 0 too.
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <InputField id='f' sprite='' height='12'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var f = UI.Open("S").Get<PInputField>("f");
+            var ta = f.GameObject.transform.Find("Text Area") as RectTransform;
+            Assert.AreEqual(new Vector2(0, 0), ta.sizeDelta, "no border => Text Area fills field");
+            var rm = ta.GetComponent<RectMask2D>();
+            Assert.AreEqual(new Vector4(0, 0, 0, 0), rm.padding, "no inset => no mask overscan");
+        }
+
+        [Test]
+        public void Geometry_PaddingOverride_SetsTextAreaInset()
+        {
+            // padding='T,R,B,L'=2,4,2,4 => L=4,R=4,T=2,B=2 => offsetMin=(4,2) offsetMax=(-4,-2)
+            // => sizeDelta=(-8,-4). Author value wins over the bordered default.
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <InputField id='f' padding='2,4,2,4'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var f = UI.Open("S").Get<PInputField>("f");
+            var ta = f.GameObject.transform.Find("Text Area") as RectTransform;
+            Assert.AreEqual(new Vector2(-8, -4), ta.sizeDelta, "padding override drives Text Area inset");
+        }
+
+        [Test]
         public void Geometry_PlaceholderIsItalicHalfAlphaWithIgnoreLayout()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>

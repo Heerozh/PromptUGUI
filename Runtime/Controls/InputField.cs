@@ -11,10 +11,22 @@ namespace PromptUGUI.Controls
 {
     public sealed class InputField : Control
     {
+        private const float DefaultWidth = 160f;
+        private const float MinTapHeight = 44f;
+
+        // Breathing room between the field's frame and its text when a border sprite is
+        // present. (t, r, b, l) = (7, 10, 6, 10) reproduces the historical TMP-prefab
+        // geometry (Text Area sizeDelta -20,-13, anchoredPosition 0,-0.5). When there is no
+        // border sprite the inset collapses to 0 so short fields don't go negative-height.
+        private static readonly (float t, float r, float b, float l) DefaultPadding = (7f, 10f, 6f, 10f);
+
         private UnityImage _bg;
         private TMP_InputField _input;
         private TMP_Text _placeholder;
         private TMP_Text _text;
+        private RectTransform _textArea;
+        private RectMask2D _textAreaMask;
+        private (float t, float r, float b, float l)? _paddingOverride;
         private string _fontType = "default";
         private readonly Subject<string> _changed = new();
         private readonly Subject<string> _endEdit = new();
@@ -24,6 +36,8 @@ namespace PromptUGUI.Controls
         public Observable<string> OnEndEdit => _endEdit;
         public Observable<string> OnSubmit => _submit;
 
+        public override Vector2? GetNativeSize() => new Vector2(DefaultWidth, MinTapHeight);
+
         public override void OnAttached()
         {
             // Root: sliced bg + TMP_InputField
@@ -31,23 +45,21 @@ namespace PromptUGUI.Controls
             _bg.color = ProceduralBuilders.DefaultControlBgColor;
             ProceduralBuilders.ApplyDefaultSlicedSprite(_bg);
 
-            // Text Area: 跟 default prefab 一致 (sizeDelta=-20,-13, pos=(0,-0.5), RectMask2D padding=(-8,-5,-8,-5))
-            var textAreaRt = ProceduralBuilders.AddChild(RectTransform, "Text Area");
-            textAreaRt.anchorMin = new Vector2(0f, 0f);
-            textAreaRt.anchorMax = new Vector2(1f, 1f);
-            textAreaRt.offsetMin = Vector2.zero;
-            textAreaRt.offsetMax = Vector2.zero;
-            textAreaRt.sizeDelta = new Vector2(-20f, -13f);
-            textAreaRt.anchoredPosition = new Vector2(0f, -0.5f);
-            var textAreaMask = textAreaRt.gameObject.AddComponent<RectMask2D>();
-            textAreaMask.padding = new Vector4(-8f, -5f, -8f, -5f);
+            // Text Area: stretch to the field; the inset (offsets + mask overscan) is derived
+            // from sprite/padding state in ApplyTextAreaPadding — default = historical prefab
+            // geometry, sprite="" => 0, explicit padding= wins.
+            _textArea = ProceduralBuilders.AddChild(RectTransform, "Text Area");
+            _textArea.anchorMin = new Vector2(0f, 0f);
+            _textArea.anchorMax = new Vector2(1f, 1f);
+            _textAreaMask = _textArea.gameObject.AddComponent<RectMask2D>();
+            ApplyTextAreaPadding();
 
             _input = GameObject.AddComponent<TMP_InputField>();
             _input.targetGraphic = _bg;
-            _input.textViewport = textAreaRt;
+            _input.textViewport = _textArea;
 
             // Placeholder：italic + 半透明 + IgnoreLayout (默认 prefab Placeholder 节点)
-            _placeholder = ProceduralBuilders.AddText(textAreaRt, "Placeholder");
+            _placeholder = ProceduralBuilders.AddText(_textArea, "Placeholder");
             _placeholder.alignment = TextAlignmentOptions.TopLeft;
             _placeholder.fontStyle = FontStyles.Italic;
             _placeholder.color = ProceduralBuilders.DefaultPlaceholderColor;
@@ -57,7 +69,7 @@ namespace PromptUGUI.Controls
             phLE.ignoreLayout = true;
 
             // Text：用户输入显示组件
-            _text = ProceduralBuilders.AddText(textAreaRt, "Text");
+            _text = ProceduralBuilders.AddText(_textArea, "Text");
             _text.alignment = TextAlignmentOptions.TopLeft;
             _text.color = ProceduralBuilders.DefaultLabelColor;
             _text.text = string.Empty;
@@ -88,6 +100,26 @@ namespace PromptUGUI.Controls
             FontApplier.Apply(_placeholder, _fontType);
         }
 
+        // Effective Text Area inset = author padding override, else (has border sprite ?
+        // DefaultPadding : 0). Recomputed after every ApplyCommon so clearing the sprite
+        // (sprite="") collapses the inset regardless of attribute application order. The mask
+        // overscan grows the clip outward up to the historical (8,5) but never past the inset
+        // (otherwise the clip would extend beyond the field's edge).
+        private void ApplyTextAreaPadding()
+        {
+            if (_textArea == null) return;
+            var (t, r, b, l) = _paddingOverride
+                ?? (_bg != null && _bg.sprite != null ? DefaultPadding : (0f, 0f, 0f, 0f));
+            _textArea.offsetMin = new Vector2(l, b);
+            _textArea.offsetMax = new Vector2(-r, -t);
+            if (_textAreaMask != null)
+            {
+                // RectMask2D.padding is (left, bottom, right, top); negative grows the region.
+                _textAreaMask.padding = new Vector4(
+                    -Mathf.Min(l, 8f), -Mathf.Min(b, 5f), -Mathf.Min(r, 8f), -Mathf.Min(t, 5f));
+            }
+        }
+
         /// <summary>
         /// Bridges the common <c>interactable</c> attribute (already applied by
         /// <see cref="Application.ControlAttributeApplier"/> via <c>ApplyCommon</c> → base
@@ -101,6 +133,7 @@ namespace PromptUGUI.Controls
         {
             base.OnAfterApply();
             _input.interactable = Interactable;
+            ApplyTextAreaPadding();
         }
 
         [UIAttr("text"), Preserve]
@@ -169,6 +202,27 @@ namespace PromptUGUI.Controls
         public bool ReadOnly
         {
             set => _input.readOnly = value;
+        }
+
+        // Inner space between the field's edge and its text (T,R,B,L; "_" = 0). When unset the
+        // inset auto-tracks the border: DefaultPadding with a sprite, 0 when sprite="" / "none".
+        // An explicit value wins over that auto-default. Empty string clears the override.
+        [UIAttr, Preserve]
+        public string Padding
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value))
+                {
+                    _paddingOverride = null;
+                }
+                else
+                {
+                    VStack.ParseTRBL(value, out var t, out var r, out var b, out var l);
+                    _paddingOverride = (t, r, b, l);
+                }
+                ApplyTextAreaPadding();
+            }
         }
 
         [UIAttr(IsColor = true), Preserve]
