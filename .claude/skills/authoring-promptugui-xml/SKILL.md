@@ -826,7 +826,7 @@ For dynamic data, use `BindItems` with `itemTemplate="FileTab"` (the same Templa
 | Code                   | 触发条件                                                                              | 级别    |
 | ---------------------- | ------------------------------------------------------------------------------------- | ------- |
 | `PUI-TAB-PARENT`       | `<Tab>` 不在 `<TabBar>` 直接父节点下（Template-instance root 内的 Tab 已豁免）        | warning |
-| `PUI-TABBAR-CHILD`     | `<TabBar>` 的直接子节点不是 `<Tab>` 且子树里也没有 `<Tab>`（Template wrapper 已豁免） | warning |
+| `PUI-TABBAR-CHILD`     | `<TabBar>` 的直接子节点不是 `<Tab>`，且子树里既无字面 `<Tab>` 也无模板调用（Template wrapper 与模板调用均已豁免——后者是非内置 tag，CLI 不展开 `<Import>`，可能含 `<Tab>`，如 `itemTemplate` 项） | warning |
 | `PUI-TABBAR-DIRECTION` | `direction` 不是 `horizontal` / `vertical`                                            | error   |
 
 ## Common mistakes (XML)

@@ -86,6 +86,53 @@ namespace PromptUGUI.Tests.EditMode.Lint
         }
 
         [Test]
+        public void TabBar_With_Template_Invocation_Child_Does_Not_Trigger_TabBarChild()
+        {
+            // <TabItem> is a Template invocation (e.g. used via itemTemplate=). In the
+            // CLI's pre-expansion view it's a non-builtin leaf; its body — unknown to the
+            // CLI because <Import> isn't resolved at lint time — may expand to a <Tab>.
+            // Runtime checks post-expansion (Frame>Tab) and stays silent, so the CLI must
+            // suppress here too rather than false-positive.
+            var root = Parse(@"<?xml version='1.0'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar itemTemplate='TabItem'><TabItem text='A'/></TabBar>
+</Screen></PromptUGUI>");
+            var bar = root.Children[0];
+            var issues = TabRules.CheckTabBar(bar).ToList();
+            Assert.IsFalse(issues.Any(i => i.Code == TabRules.TabBarChildCode),
+                "Template-invocation child (non-builtin tag) must not trigger TABBAR-CHILD");
+        }
+
+        [Test]
+        public void TabBar_With_Template_Invocation_Inside_Literal_Wrapper_Does_Not_Trigger_TabBarChild()
+        {
+            // Nested case: a literal <Frame> wrapping a Template invocation. The invocation
+            // may still expand to a <Tab>, so the whole subtree must be exempt.
+            var root = Parse(@"<?xml version='1.0'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar><Frame><TabItem text='A'/></Frame></TabBar>
+</Screen></PromptUGUI>");
+            var bar = root.Children[0];
+            var issues = TabRules.CheckTabBar(bar).ToList();
+            Assert.IsFalse(issues.Any(i => i.Code == TabRules.TabBarChildCode),
+                "Template invocation nested in a literal wrapper must not trigger TABBAR-CHILD");
+        }
+
+        [Test]
+        public void IRWalker_Does_Not_Warn_TabBarChild_For_Unresolved_Template_Invocation()
+        {
+            // Mirrors the CLI on the real repro: the <TabItem> template lives in an
+            // imported file the CLI doesn't resolve, so here it's an undefined custom tag.
+            var doc = UIDocumentParser.Parse(@"<?xml version='1.0'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar itemTemplate='TabItem'><TabItem text='A'/></TabBar>
+</Screen></PromptUGUI>");
+            var issues = IRWalker.Walk(doc).ToList();
+            Assert.IsFalse(issues.Any(i => i.Code == TabRules.TabBarChildCode),
+                "Unresolved Template invocation under TabBar must not warn TABBAR-CHILD in the CLI");
+        }
+
+        [Test]
         public void IRWalker_Does_Not_Warn_Tab_Parent_When_Wrapped_In_Template_Instance_Root()
         {
             // After expansion: <TabBar><Frame IsTemplateInstanceRoot=true><Tab/></Frame></TabBar>
