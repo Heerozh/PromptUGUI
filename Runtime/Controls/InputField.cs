@@ -88,6 +88,21 @@ namespace PromptUGUI.Controls
             FontApplier.Apply(_placeholder, _fontType);
         }
 
+        /// <summary>
+        /// Bridges the common <c>interactable</c> attribute (already applied by
+        /// <see cref="Application.ControlAttributeApplier"/> via <c>ApplyCommon</c> → base
+        /// <see cref="Control.Interactable"/>, CanvasGroup-backed) to the underlying
+        /// <see cref="TMP_InputField"/> (itself a <c>Selectable</c>), so disabling the field
+        /// also runs <c>DoStateTransition(Disabled)</c> and blocks focus/typing. Mirrors
+        /// <c>Btn</c>/<c>Toggle</c>/<c>Tab</c>; runs after every <c>ApplyCommon</c>
+        /// (initial apply + each Variant ReSolve), composing with the CanvasGroup behaviour.
+        /// </summary>
+        internal override void OnAfterApply()
+        {
+            base.OnAfterApply();
+            _input.interactable = Interactable;
+        }
+
         [UIAttr("text"), Preserve]
         public string TextValue
         {
@@ -182,6 +197,67 @@ namespace PromptUGUI.Controls
                 _fontType = string.IsNullOrEmpty(value) ? "default" : value;
                 ApplyFont();
             }
+        }
+
+        // Point size goes through TMP_InputField.pointSize; SetGlobalPointSize fans it out
+        // to both the text and placeholder components (matches the default prefab's
+        // GlobalPointSize), so setting it on _text alone would be overwritten by TMP.
+        [UIAttr("fontSize"), Preserve]
+        public int FontSize
+        {
+            set => _input.pointSize = value;
+        }
+
+        // The bg color lives on `color`; `textColor` is the typed-text color (_text).
+        [UIAttr(IsColor = true), Preserve]
+        public string TextColor
+        {
+            set => _text.color = UI.Theme.Resolve(value);
+        }
+
+        [UIAttr(IsColor = true), Preserve]
+        public string PlaceholderColor
+        {
+            set => _placeholder.color = UI.Theme.Resolve(value);
+        }
+
+        // Reuses Text.ParseAlign (two independent TMP axes) and applies to both the text and
+        // the placeholder so the placeholder previews where typed text will land.
+        [UIAttr, Preserve]
+        public string Align
+        {
+            set
+            {
+                var (h, v) = Text.ParseAlign(value);
+                _text.horizontalAlignment = h;
+                _text.verticalAlignment = v;
+                _placeholder.horizontalAlignment = h;
+                _placeholder.verticalAlignment = v;
+            }
+        }
+
+        // Must flip customCaretColor on, else TMP_InputField.caretColor's getter falls back
+        // to textComponent.color and the assigned value is dead.
+        [UIAttr(IsColor = true), Preserve]
+        public string CaretColor
+        {
+            set
+            {
+                _input.customCaretColor = true;
+                _input.caretColor = UI.Theme.Resolve(value);
+            }
+        }
+
+        [UIAttr(IsColor = true), Preserve]
+        public string SelectionColor
+        {
+            set => _input.selectionColor = UI.Theme.Resolve(value);
+        }
+
+        [UIAttr, Preserve]
+        public int CaretWidth
+        {
+            set => _input.caretWidth = value;
         }
 
         public override void Dispose()
