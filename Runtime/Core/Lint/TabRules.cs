@@ -26,11 +26,12 @@ namespace PromptUGUI.Lint
 
             foreach (var c in n.Children)
             {
-                if (c.Tag == "Tab") continue;
-                // Template wrapper around a Tab is OK — TabBar.CollectStaticTabs walks
-                // into the wrapper via FindTabIn so sprite push / auto-select / events
-                // still work. Suppress the CHILD warning to match runtime behaviour.
-                if (ContainsTabDescendant(c)) continue;
+                // A direct <Tab>, a literal wrapper containing a <Tab> (TabBar.CollectStaticTabs
+                // walks into it via FindTabIn so sprite push / auto-select / events still work),
+                // OR a Template invocation whose body the CLI can't see — all may carry tab
+                // semantics, so don't warn. Only a subtree built entirely from non-Tab builtins
+                // is a genuine misuse. This matches runtime, which checks post-expansion.
+                if (SubtreeMayResolveToTab(c)) continue;
                 yield return new LintIssue(
                     TabBarChildCode, n.Tag, n.Id,
                     $"<TabBar id='{n.Id}'>: expected <Tab> children; found <{c.Tag}>. " +
@@ -38,13 +39,20 @@ namespace PromptUGUI.Lint
             }
         }
 
-        private static bool ContainsTabDescendant(ElementNode node)
+        /// <summary>
+        /// True if this subtree may yield a <c>&lt;Tab&gt;</c> at runtime. A literal
+        /// <c>&lt;Tab&gt;</c> obviously does. A non-builtin tag is a Template invocation whose
+        /// body the CLI can't expand (<c>&lt;Import&gt;</c> isn't resolved at lint time), so it
+        /// MAY expand to a <c>&lt;Tab&gt;</c> (e.g. an <c>itemTemplate</c> tab) — we suppress
+        /// rather than false-positive. At runtime this runs POST-expansion, where every tag is a
+        /// registered builtin, so the non-builtin branch never fires and behaviour is unchanged.
+        /// </summary>
+        private static bool SubtreeMayResolveToTab(ElementNode node)
         {
+            if (node.Tag == "Tab") return true;
+            if (!BuiltinTags.IsBuiltin(node.Tag)) return true; // Template invocation — unknown expansion
             foreach (var c in node.Children)
-            {
-                if (c.Tag == "Tab") return true;
-                if (ContainsTabDescendant(c)) return true;
-            }
+                if (SubtreeMayResolveToTab(c)) return true;
             return false;
         }
     }
