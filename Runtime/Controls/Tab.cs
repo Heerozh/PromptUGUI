@@ -14,6 +14,7 @@ namespace PromptUGUI.Controls
     {
         private UnityImage _bg;
         private UnityEngine.Sprite _selectedSprite;   // resolved selectedSprite, swapped onto _bg.overrideSprite while IsOn
+        private StateTintReactor _bgReactor;
         private UnityImage _icon;
         private TMP_Text _label;
         private PuiToggle _toggle;
@@ -78,6 +79,7 @@ namespace PromptUGUI.Controls
             if (isOn) _selected.OnNext(Unit.Default);
             ApplyBindFrame(isOn);
             ApplySelectedSprite();
+            _bgReactor?.SetSelected(isOn);
         }
 
         private void ApplyBindFrame(bool isOn)
@@ -283,12 +285,14 @@ namespace PromptUGUI.Controls
         {
             base.OnAfterApply();
             _toggle.interactable = Interactable;
-            var abs = StateColorSet.Resolve(_hoverColor, _pressedColor, _selectedColor, _disabledColor);
+            // selectedColor is the selection-aware BASE (not a Selected-state absolute), so pass null
+            // for the Selected absolute; selectedModulate stays the Selected multiplier.
+            var abs = StateColorSet.Resolve(_hoverColor, _pressedColor, null, _disabledColor);
             var mod = StateColorSet.Resolve(_hoverModulate, _pressedModulate, _selectedModulate, _disabledModulate);
-            StateTintInstaller.Install(GameObject, _toggle, Children, abs, mod);
-            // selectedSprite takes the bg off ColorTint (the swap IS the selected feedback); re-assert
-            // here so a ReSolve where the colour installer bails early can't leave it on ColorTint.
-            // Mirrors Btn.OnAfterApply's pressedSprite re-assert.
+            Color? selectedBase = string.IsNullOrWhiteSpace(_selectedColor)
+                ? (Color?)null
+                : UI.Theme.Resolve(_selectedColor);
+            _bgReactor = StateTintInstaller.Install(GameObject, _toggle, Children, abs, mod, selectedBase, IsOn);
             if (_selectedSprite != null) _toggle.transition = Selectable.Transition.None;
             ApplySelectedSprite();
         }

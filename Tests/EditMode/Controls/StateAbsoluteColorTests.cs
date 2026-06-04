@@ -71,10 +71,11 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [Test]
         public void StateWithoutAnyAttr_FallsBackToColorBase()
         {
-            // selectedColor present, but Pressed has neither attr → Pressed bg == color base.
+            // selectedColor present, but Pressed has neither attr → Pressed bg == color base (not selected).
             var (a, b) = TwoTabs("color='#202020' selectedColor='#076DD7'");
             var bg = a.GameObject.GetComponent<UnityImage>();
             var pt = a.GameObject.GetComponent<PuiToggle>();
+            b.IsOn = true;          // deselect a so _selected = false; base is color (#202020), not selectedBase
             pt.SimulateState((int)InteractState.Pressed);
             var baseC = Hex("#202020");
             Assert.That(bg.color.r, Is.EqualTo(baseC.r).Within(0.001f));

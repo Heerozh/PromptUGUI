@@ -10,7 +10,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 {
     public class TabStateTests
     {
-        private const int Normal = 0, Pressed = 2;
+        private const int Normal = 0, Hover = 1, Pressed = 2;
 
         [SetUp] public void SetUp() { UI.ResetForTests(); StateTintReactor.TestForceInstant = true; }
         [TearDown] public void TearDown() { UI.ResetForTests(); StateTintReactor.TestForceInstant = false; }
@@ -173,6 +173,70 @@ namespace PromptUGUI.Tests.EditMode.Controls
             tab.GameObject.GetComponent<PuiToggle>().SimulateState(Pressed);
             Assert.IsFalse(sn.GameObject.activeSelf);
             Assert.IsTrue(sp.GameObject.activeSelf);
+        }
+
+        // The core regression: a transparent-normal tab with selectedColor must NOT fall back to the
+        // transparent base when the SELECTED tab is hovered (broadcaster emits Hover, suppressing
+        // Selected). With selection-aware base, no hoverColor => stays at selectedColor.
+        [Test]
+        public void HoverOnSelectedTab_StaysSelectedColor()
+        {
+            var tab = BuildTab("color='#00000000' selectedColor='#076DD7'");
+            var pt = tab.GameObject.GetComponent<PuiToggle>();
+            var bg = tab.GameObject.GetComponent<UnityImage>();
+            var sel = new Color(0x07 / 255f, 0x6D / 255f, 0xD7 / 255f, 1f);
+
+            tab.IsOn = true;                       // active at rest -> Selected
+            Assert.That(bg.color.r, Is.EqualTo(sel.r).Within(0.001f), "selected idle = selectedColor");
+
+            pt.SimulateState(Hover);               // hover the already-selected tab
+            Assert.That(bg.color.r, Is.EqualTo(sel.r).Within(0.001f), "selected+hover stays selectedColor (r)");
+            Assert.That(bg.color.b, Is.EqualTo(sel.b).Within(0.001f), "selected+hover stays selectedColor (b)");
+            Assert.That(bg.color.a, Is.EqualTo(1f).Within(0.001f), "selected+hover does not fall back to transparent base");
+        }
+
+        // hoverColor (absolute) composes on top of the selection-aware base: present => wins; absent
+        // => the current base (selectedColor when selected, color when not).
+        [Test]
+        public void HoverColorOverSelectedTab_Composes()
+        {
+            var tab = BuildTab("color='#00000000' selectedColor='#076DD7' hoverColor='#ffffff'");
+            var pt = tab.GameObject.GetComponent<PuiToggle>();
+            var bg = tab.GameObject.GetComponent<UnityImage>();
+
+            tab.IsOn = true;
+            pt.SimulateState(Hover);
+            Assert.That(bg.color.r, Is.EqualTo(1f).Within(0.001f), "selected+hover uses hoverColor when set");
+            pt.SimulateState(Normal);
+            Assert.That(bg.color.r, Is.EqualTo(0x07 / 255f).Within(0.001f), "selected idle back to selectedColor");
+        }
+
+        // selectedColor alone (no hover/pressed/modulate) must still install the bg reactor and flip
+        // transition=None — otherwise the selection-aware base never takes effect.
+        [Test]
+        public void SelectedColorOnly_InstallsReactor_AndFlipsTransitionNone()
+        {
+            var tab = BuildTab("color='#202020' selectedColor='#076DD7'");
+            var pt = tab.GameObject.GetComponent<PuiToggle>();
+            var bg = tab.GameObject.GetComponent<UnityImage>();
+            Assert.AreEqual(Selectable.Transition.None, pt.transition);
+            Assert.IsNotNull(bg.GetComponent<StateTintReactor>(), "selectedColor installs the bg reactor");
+        }
+
+        // The motivating UX case in transient form: pressing the already-selected tab with no
+        // pressedColor must stay at selectedColor (base), not fall back to the transparent color base.
+        [Test]
+        public void PressedOnSelectedTab_NoPressedColor_StaysSelectedColor()
+        {
+            var tab = BuildTab("color='#00000000' selectedColor='#076DD7'");
+            var pt = tab.GameObject.GetComponent<PuiToggle>();
+            var bg = tab.GameObject.GetComponent<UnityImage>();
+            var sel = new Color(0x07 / 255f, 0x6D / 255f, 0xD7 / 255f, 1f);
+
+            tab.IsOn = true;
+            pt.SimulateState(Pressed);
+            Assert.That(bg.color.r, Is.EqualTo(sel.r).Within(0.001f), "selected+pressed (no pressedColor) stays selectedColor");
+            Assert.That(bg.color.a, Is.EqualTo(1f).Within(0.001f), "does not fall back to transparent base");
         }
     }
 }

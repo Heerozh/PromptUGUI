@@ -13,14 +13,16 @@ namespace PromptUGUI.Controls.Internal
     /// </summary>
     internal static class StateTintInstaller
     {
-        internal static void Install(
+        internal static StateTintReactor Install(
             GameObject root,
             Selectable selectable,
             IReadOnlyList<IControl> children,
             StateColorSet absolutes,
-            StateColorSet modulates)
+            StateColorSet modulates,
+            Color? selectedBase = null,
+            bool selected = false)
         {
-            if (!absolutes.HasAny && !modulates.HasAny) return;
+            if (!absolutes.HasAny && !modulates.HasAny && !selectedBase.HasValue) return null;
 
             selectable.transition = Selectable.Transition.None;
 
@@ -30,19 +32,24 @@ namespace PromptUGUI.Controls.Internal
 
             var fade = StateTintReactor.DefaultFade;
             var target = selectable.targetGraphic;
+            StateTintReactor targetReactor = null;
             foreach (var g in root.GetComponentsInChildren<Graphic>(includeInactive: true))
             {
                 if (blocked.Contains(g.gameObject)) continue;
                 var isTarget = ReferenceEquals(g, target);
                 // Descendants only matter for the fan-out multiplier: with no modulates, a descendant
                 // reactor would be a no-op (base × white). Skip them so we don't add idle MonoBehaviours
-                // + OnState subscriptions. The targetGraphic always installs (it carries the absolutes).
+                // + OnState subscriptions. The targetGraphic always installs (it carries the absolutes
+                // and the selection-aware base).
                 if (!isTarget && !modulates.HasAny) continue;
-                // Absolutes apply ONLY to the control's base graphic (targetGraphic) — fanning them
-                // out would paint label/icon the same colour as bg. Descendants get the multiplier only.
+                // Absolutes + selectedBase apply ONLY to the control's base graphic (targetGraphic) —
+                // fanning them out would paint label/icon the bg colour. Descendants get the multiplier only.
                 var abs = isTarget ? absolutes : default;
-                InstallReactor(g, abs, modulates, fade);
+                var selBase = isTarget ? selectedBase : null;
+                var reactor = InstallReactor(g, abs, modulates, fade, selBase, selected);
+                if (isTarget) targetReactor = reactor;
             }
+            return targetReactor;
         }
 
         private static void CollectBlocked(Control control, HashSet<GameObject> blocked)
@@ -66,12 +73,13 @@ namespace PromptUGUI.Controls.Internal
                 CollectBlocked(child as Control, blocked);
         }
 
-        private static void InstallReactor(Graphic graphic, StateColorSet absolutes, StateColorSet modulates, float fade)
+        private static StateTintReactor InstallReactor(Graphic graphic, StateColorSet absolutes, StateColorSet modulates, float fade, Color? selectedBase, bool selected)
         {
-            if (graphic == null) return;
+            if (graphic == null) return null;
             var reactor = graphic.GetComponent<StateTintReactor>()
                           ?? graphic.gameObject.AddComponent<StateTintReactor>();
-            reactor.Configure(absolutes, modulates, fade);
+            reactor.Configure(absolutes, modulates, fade, selectedBase, selected);
+            return reactor;
         }
     }
 }
