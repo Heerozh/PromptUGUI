@@ -51,6 +51,9 @@ namespace PromptUGUI.Lint
             else if (node.Tag == "TabBar")
                 foreach (var issue in TabRules.CheckTabBar(node))
                     yield return issue;
+            else if (node.Tag == "Carousel")
+                foreach (var issue in CarouselRules.CheckCarousel(node))
+                    yield return issue;
 
             // CLI-only: pure containers carry no Graphic; sprite/color silently dropped.
             // Intentionally NOT dispatched from ScreenInstantiator — see rule's XML docs.
@@ -80,12 +83,15 @@ namespace PromptUGUI.Lint
                     yield return issue;
 
             var childHasStateSourceAncestor = hasStateSourceAncestor || StateTriggerRules.IsStateSourceTag(node.Tag);
-            var isLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar";
+            var isLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "Carousel";
             var isTabBar = node.Tag == "TabBar";
             foreach (var child in node.Children)
             {
                 if (isLayoutGroup)
                     foreach (var issue in LayoutGroupChildRules.CheckChild(child))
+                        yield return issue;
+                if (node.Tag == "Carousel")
+                    foreach (var issue in CarouselRules.CheckCard(child))
                         yield return issue;
                 // Exempt Template-instance roots and bodies: <Tab> wrapped in a
                 // Template (e.g. <Template name='FileTab'><Frame><Tab/>...) is
