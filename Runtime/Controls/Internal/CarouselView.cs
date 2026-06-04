@@ -106,7 +106,48 @@ namespace PromptUGUI.Controls.Internal
         private void RefreshDotSelection() { /* Task 6 */ }
 
         // —— 翻页 ——
-        public void GoTo(int index, bool animated) { /* Task 3 */ }
+        // 翻到 index：loop 取最短环向，非 loop 钳位。animated=true 用 LitMotion 把 _scroll
+        // 平滑滑到目标整数；false 立即定位。仅当提交页真正变化时 fire OnCurrent。
+        public void GoTo(int index, bool animated)
+        {
+            int n = _cards.Count;
+            if (n == 0) { _current = Mathf.Max(0, index); _scroll = _current; return; }
+
+            int target = _loop ? ((index % n) + n) % n : Mathf.Clamp(index, 0, n - 1);
+            bool changed = target != _current;
+            _elapsed = 0f;
+
+            if (_handle.IsActive()) _handle.TryCancel();
+
+            if (!animated || _transition <= 0f || !UnityEngine.Application.isPlaying)
+            {
+                // Clear any flag leaked from the tween just cancelled above (TryCancel
+                // suppresses OnComplete, which is where _animating would otherwise reset).
+                _animating = false;
+                _current = target;
+                _scroll = target;
+                Reposition();
+            }
+            else
+            {
+                // 选最短环向目标 scroll（可能为负或 >n，补间结束再归一化）。
+                float delta = target - _scroll;
+                if (_loop)
+                {
+                    delta = Mathf.Repeat(delta + n * 0.5f, n) - n * 0.5f;
+                }
+                float targetScroll = _scroll + delta;
+                _current = target;
+                _animating = true;
+                _handle = LMotion.Create(_scroll, targetScroll, _transition)
+                    .WithEase(Ease.OutCubic)
+                    .WithOnComplete(() => { _scroll = target; _animating = false; Reposition(); })
+                    .Bind(this, static (v, self) => { self._scroll = v; self.Reposition(); });
+            }
+
+            if (changed) OnCurrent?.Invoke(_current);
+        }
+
         public void Next(bool animated) => GoTo(_current + 1, animated);
         public void Previous(bool animated) => GoTo(_current - 1, animated);
         // 按连续位置 _scroll 把每张卡放到正确 x。无限循环用 Mathf.Repeat 把偏移
@@ -134,6 +175,8 @@ namespace PromptUGUI.Controls.Internal
         // 重算页宽高 + 重排卡片。OnAfterApply（初始 / ReSolve）与 resize 都调它。
         public void RelayoutNow()
         {
+            if (_handle.IsActive()) _handle.TryCancel();
+            _animating = false;
             var r = _root.rect;
             _pageWidth = r.width > 0f ? r.width : 1f;
             _pageHeight = r.height > 0f ? r.height : 1f;

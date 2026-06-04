@@ -64,6 +64,12 @@ namespace PromptUGUI.Controls
             set { _itemTemplate = string.IsNullOrEmpty(value) ? "Frame" : value; _factory = null; }
         }
 
+        [UIAttr, Preserve]
+        public bool Loop { set => _view.SetLoop(value); }
+
+        [UIAttr, Preserve]
+        public float Transition { set => _view.SetTransition(value); }
+
         internal override void OnAfterApply()
         {
             base.OnAfterApply();
@@ -72,6 +78,10 @@ namespace PromptUGUI.Controls
         }
 
         public int Count => _view.CardCount;
+        public int Current => _view.CurrentIndex;
+        public void GoTo(int index, bool animated = true) => _view.GoTo(index, animated);
+        public void Next(bool animated = true) => _view.Next(animated);
+        public void Previous(bool animated = true) => _view.Previous(animated);
         public Observable<int> OnCurrentChanged => _currentChanged;
 
         public override void Dispose()
