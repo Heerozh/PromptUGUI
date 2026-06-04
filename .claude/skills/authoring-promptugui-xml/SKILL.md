@@ -97,6 +97,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name:
 | `<Progress>`   | 显示型线性进度条（只读，无 `OnValueChanged`）。一行配齐 frame / mask / bg / fill / mode / direction / value，零手糊图层。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `value` (float `[0..1]`, default `0`), `fill` (sprite key), `fillColor` (hex / CSS named / theme token), `bg` (sprite key), `bgColor` (hex / CSS named / theme token; 单独设也激活 bg 层), `frame` (sprite key), `frameColor` (hex / CSS named / theme token; 单独设也激活 frame 层), `mask` (sprite key), `mode` (`scale`\|`fill`, default `scale`), `direction` (`horizontal`\|`vertical`\|`reverse-horizontal`\|`reverse-vertical`, default `horizontal`), `tint` (`multiply` / `linear`; applies to fill+bg+frame together — see **Tint blend modes**)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `<TabBar>`     | Tab container; private `ToggleGroup` (`allowSwitchOff=false`) + `Horizontal`/`VerticalLayoutGroup`. Pure layout — no own visual (wrap in `<Image>` if you need a background strip). Children may be direct `<Tab>` or Template wrappers containing a `<Tab>` (recursive collect). Supports `itemTemplate` + `BindItems` for dynamic content (same shape as `<ScrollList>`). Behaves as a layout group for children — Tabs can't declare `anchor` / `margin`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `direction` (`horizontal` / `vertical`, default `horizontal`), `spacing` (float), `padding` (`T,R,B,L`), `itemTemplate` (tag name, default `Tab`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `<Tab>`        | Child of `<TabBar>`; uGUI `Toggle` + centered TMP label + optional left-side icon. Mutex via TabBar's `ToggleGroup` (automatic). `bind="frame_id"` declaratively shows/hides a sibling `<Frame>` on selection (lazy lookup, cached). No `bind=` → only `OnSelected`. `sprite` sets the normal bg; `selectedSprite` swaps the bg's `overrideSprite` to it while the Tab is the active/`isOn` one and reverts to `sprite` when deselected — no separate overlay node; keyed on `isOn` so hover/press of the selected tab never disturb it; setting it flips `transition` off uGUI ColorTint, like `<Btn pressedSprite>`; `""` / `none` = no swap. Omit `selectedSprite` for "button mode" (mutex stays; `selectedColor` / `selectedModulate` still apply). To share visuals across all Tabs in a bar, put them on a `<Template>` and use it as `itemTemplate` or as a static child wrapper. Accepts nested XML children (overlaid Frame-style on the Tab bg). For click-through, children must set `raycastTarget="false"` (`<Icon>` already does); a child that keeps `raycastTarget=true` (e.g. a nested `<Btn>`) handles its own clicks instead. State colours: see **Btn state visuals** section. | `text`, `isOn` (bool, default `false`), `bind` (id of sibling `<Frame>` to show/hide), `color` (hex / CSS named color / theme token; `#00000000` = transparent-but-clickable), `font`, `fontSize` (int), `icon` (sprite key, left-aligned 24×24 with 4px gap), `sprite` (normal bg; `""` / `none` 移除自带 9-slice 底), `selectedSprite` (sprite key; while this Tab is the active/`isOn` one, swaps the bg's `overrideSprite` to it and reverts to `sprite` when deselected — no separate overlay node; keyed on `isOn` so hover/press of the selected tab never disturb it; setting it flips `transition` off uGUI ColorTint, like `<Btn pressedSprite>`; `""` / `none` = no swap), `hoverColor` / `pressedColor` / `selectedColor` / `disabledColor` (hex / CSS named / theme token; **absolute** per-state bg colour — applied to `targetGraphic` only, does NOT fan out; `selectedColor` is the **absolute** bg base colour **while selected** (`targetGraphic` only; hover/pressed/disabled `*Color`/`*Modulate` layer on top of it); see **Btn state visuals**), `hoverModulate` / `pressedModulate` / `selectedModulate` / `disabledModulate` (hex / CSS named / theme token; **relative multiplier** fanned out to bg + every descendant Graphic — opt a child out with `stateReact="false"`; see **Btn state visuals**), `tint` (`multiply` / `linear`; applies to the bg; since `selectedSprite` swaps the bg's own sprite, the selected sprite is tinted too — see **Tint blend modes**)                                                                                                                                                                                                                                                                                                                                    |
+| `<Carousel>`   | 水平翻页轮播卡容器：自动播放 + 拖动 + 无限循环 + 状态化指示点。卡片用 `itemTemplate` + C# `BindItems` 动态填充（同 ScrollList/TabBar），也接受静态子卡。每张卡被排成视口大小——卡片**不能**写 `anchor`/`margin`/`size`（`PUI-LAYOUT-ANCHOR` / `PUI-LAYOUT-MARGIN` / `PUI-CAROUSEL-CARD-SIZE`）。当前页 `current` 是**运行期独占状态**（同 Tab `isOn`），resize/Variant/Theme 切换不重置；`current.<variant>` 仍可声明初始覆盖（运行期没动过才生效）。竖向为主的拖动自动转发到外层 ScrollList/ScrollRect，嵌套不冲突。指示点自动按卡数生成、可点击跳转、状态着色；≤1 张卡时自动隐藏。 | `itemTemplate`（tag/Template 名，默认 `Frame`）, `interval`（自动播放秒，默认 `5`，`0`=关）, `loop`（bool，默认 `true`）, `transition`（吸附补间秒，默认 `0.3`）, `current`（int，初始页；runtime-owned，见上），`dots`（指示点锚点如 `bottom-center`；空/`none`=不显示；非法锚点 → runtime 回退 `bottom-center` + `PUI-CAROUSEL-DOTS-ANCHOR` warning），`dotSize`（`WxH`，默认 `8x8`）, `dotSpacing`（float，默认 `6`）, `dotMargin`（`T,R,B,L`），`dotSprite`（形状 sprite），`dotSelectedSprite`（当前态换图），`dotColor` / `dotSelectedColor` / `dotHoverColor` / `dotPressedColor`（hex/CSS/theme token，状态色）, `dotTint`（`multiply`/`linear`）|
 | `<Show>`       | No-visual wrapper (Trigger-derived). Its subtree is **visible while** the nearest ancestor `<Btn>` / `<Tab>` / `<Toggle>` is in the `on="state-*"` state, hidden otherwise (`SetActive` toggle, never destroyed — hidden subtrees + their R3 subs survive). Sibling `<Show>` blocks under one source control are **mutually exclusive**; a state with no explicit `<Show>` falls back to the `state-normal` block (so declaring only `state-normal` + `state-pressed` makes Normal artwork also cover PC `state-hover` — add an explicit `state-hover` block to override). Only `state-*` `on=` values are valid (any other, e.g. `on="click"`, is an error). Bare `state-*` needs a `<Btn>` / `<Tab>` / `<Toggle>` ancestor (`PUI-STATE-NO-SOURCE`). Use it to swap artwork per state — see **Btn state visuals**.                                                                                                                                                                         | `on` (required; one of `state-normal` / `state-hover` / `state-pressed` / `state-selected` / `state-disabled`, each also `@<id>`; `state-selected` is meaningful only with a `<Tab>` / `<Toggle>` source — a `<Btn>` never emits it)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` / `<TabBar>` are reference implementations. For project-specific differentiation (pixel border, press feedback, custom popup chrome) subclass and override `OnAttached` — see scripting-promptugui-csharp.
@@ -200,6 +201,7 @@ Other notes:
 | `<InputField>` | `Image` + `TMP_InputField`                                                                                                                                                                                                                                     | `Text Area`(`RectMask2D`) → `Placeholder`(`TMP_Text`, italic 半透明) + `Text`(`TMP_Text`)                                                                                                                                                                                              | `OnValueChanged` / `OnEndEdit` / `OnSubmit` ← `TMP_InputField.*`                                                            |
 | `<Progress>`   | `RectTransform`（无 Graphic）                                                                                                                                                                                                                                  | `MaskWrapper`(`RectTransform`; 按需挂 `UnityImage` + `Mask`) → `Bg`(`Image`, 按需启用) + `Fill`(`Image`, 永远存在)；`Frame`(`Image`, 按需启用, `raycastTarget=false`)                                                                                                                  | —                                                                                                                           |
 | `<TabBar>`     | `ToggleGroup` + `HorizontalLayoutGroup`（或 `VerticalLayoutGroup` 看 `direction=`）；无自身视觉，纯布局容器                                                                                                                                                    | XML 写的或 `BindItems` 推的 `<Tab>` children；视觉由 Tab 自管,共享样式靠 Template                                                                                                                                                                                                      | `OnSelectionChanged` ← per-Tab `OnValueChanged.Where(on => on)`                                                             |
+| `<Carousel>`   | `RectTransform` + `CarouselView`（UIBehaviour，挂在 root；拖动事件从子卡冒泡上来）                                                                                                                                                        | `Viewport`(`UnityImage`+`RectMask2D`) → `Strip`(`RectTransform`，卡片的 parent)；`Indicator`(`RectTransform` + `HorizontalLayoutGroup`，点排)；每个 dot = `RectTransform`+`UnityImage`+`PuiButton`+`StateTintReactor` | 无独立 R3 事件；C# 端 `OnCurrentChanged: Observable<int>` + `BindItems(...)` |
 | `<Tab>`        | `UnityImage`（bg, `targetGraphic`, supports `overrideSprite` swap while selected）+ `UnityToggle`（`graphic` 未设；配 `selectedSprite` 时 `transition=None`，否则 `transition=ColorTint`）；Toggle 的 `group` 在 `OnAttached` 用 transform-ancestor walk 找 TabBar 的 `ToggleGroup` | 可选 `Label`(`TMP_Text`, stretch fill, `Center` 对齐, raycast off, 懒建—写了 `text`/`fontSize`/`font` 才有)；可选 `Icon`(`Image`, 左 16px + 24×24, 懒建)；外加任意作者子节点（Frame 式叠放在 bg 上）；无 Overlay 自动子节点 | `OnValueChanged: bool` / `OnSelected: Unit`（只在 isOn=true 时 fire）                                                       |
 | `<SafeArea>`   | `RectTransform` + `SafeAreaTracker`（内部 `MonoBehaviour`，订阅设备 safeArea / 旋转 / Device Simulator）                                                                                                                                                       | —                                                                                                                                                                                                                                                                                      | —                                                                                                                           |
 | `<Trigger>`    | `RectTransform` 单独（无视觉、无 layout 行为，仅作 wrapper 划定事件源 scope）                                                                                                                                                                                  | —                                                                                                                                                                                                                                                                                      | `OnFire` ← R3 `Subject<Unit>`，由 `on=`（open/loop/click/hover-enter/hover-exit/press/manual）触发                          |
@@ -847,6 +849,97 @@ For dynamic data, use `BindItems` with `itemTemplate="FileTab"` (the same Templa
 | UI 在不同屏上视觉大小不一（4K 上变邮票、手机上变巨人）                              | `<Screen>` 没设 `reference=`，走默认 `ConstantPixelSize, scaleFactor=1`，XML 数字直接 = 设备像素                                                                                                                             | 在 `<Screen>` 上加 `reference="1920x1080"`（或你的设计分辨率），切到 `ScaleWithScreenSize`                                                                      |
 | `<Image sprite="ns:name"/>` 显示白图,控制台报 "UI.SpriteResolver is not registered" | 启动期未注册 SpriteResolver,`ns:name` 路径走 UI.SpriteResolver 找不到 atlas                                                                                                                                                  | 在 `UI.LoadDocumentAsync` / `UI.Open` 之前调一次 `SpriteResolverHelpers.UseSpriteSetResolver(spriteSets)`(或 `UseAddressableSpriteSetResolver` 走 Addressables) |
 
+## Carousel（轮播卡）
+
+`<Carousel>` 是水平翻页轮播卡容器：**自动播放 + 拖动吸附 + 无限循环 + 状态化指示点**。卡片用 `itemTemplate` + C# `BindItems` 动态填充（同 `<ScrollList>`），也接受静态 XML 子卡。当前页 `current` 是**运行期独占状态**（同 Tab `isOn`）—— resize / Variant / Theme 切换不重置。
+
+### 动态卡（BindItems，§3.1）
+
+```xml
+<Carousel id="banner" anchor="top-stretch" height="200"
+          itemTemplate="BannerCard"
+          interval="5" loop="true" transition="0.3"
+          dots="bottom-center" dotSize="8x8" dotSpacing="6"
+          dotSprite="ui:dot" dotSelectedSprite="ui:dot_on"
+          dotColor="#888888" dotSelectedColor="#ffffff"/>
+```
+
+```xml
+<Template name="BannerCard">
+  <Param name="title"/>
+  <Frame>
+    <Image anchor="stretch" sprite="ui:banner_bg"/>
+    <Text id="title" anchor="bottom-stretch" height="32"
+          align="center">{{title}}</Text>
+    <Btn id="cta" anchor="bottom-right" size="80x28" margin="0,8,8,0">详情</Btn>
+  </Frame>
+</Template>
+```
+
+C#-side binding:
+
+```csharp
+screen.Get<Carousel>("banner")
+      .BindItems(banners, (IControl card, Banner b) => {
+          card.Get<Text>("title").TextValue = b.Title;
+          card.Get<Btn>("cta").OnClick.Subscribe(_ => Open(b.Link)).AddTo(screen);
+      }).AddTo(screen);
+```
+
+### 静态卡（§3.2）
+
+```xml
+<Carousel id="intro" anchor="center" size="360x200"
+          loop="false" interval="0"
+          dots="bottom-center" dotColor="#666" dotSelectedColor="#fff">
+  <Frame>
+    <Image anchor="stretch" sprite="ui:slide1"/>
+  </Frame>
+  <Frame>
+    <Image anchor="stretch" sprite="ui:slide2"/>
+  </Frame>
+  <Frame>
+    <Image anchor="stretch" sprite="ui:slide3"/>
+  </Frame>
+</Carousel>
+```
+
+### 禁用自动播放 / 隐藏指示点（§3.3）
+
+```xml
+<!-- interval="0" → 无自动播放；dots 省略（或 dots="none"）→ 无指示点 -->
+<Carousel id="gallery" anchor="stretch" interval="0"/>
+```
+
+### 卡片布局约束
+
+每张卡的 `RectTransform` 由控件内部排版——卡片不能写 `anchor` / `margin`（lint `PUI-LAYOUT-ANCHOR` / `PUI-LAYOUT-MARGIN`）或 `size`/`width`/`height`（lint **`PUI-CAROUSEL-CARD-SIZE`**，error）。
+
+```xml
+<!-- WRONG — 卡片自己写了 anchor，会触发 PUI-LAYOUT-ANCHOR -->
+<Carousel id="x">
+  <Frame anchor="stretch"/>   <!-- error: PUI-CAROUSEL-CARD-SIZE 或 PUI-LAYOUT-ANCHOR -->
+</Carousel>
+
+<!-- RIGHT — 什么都不写；控件会把它撑满视口 -->
+<Carousel id="x">
+  <Frame/>
+</Carousel>
+```
+
+### `current` 是运行期独占状态
+
+`current=` 的值是**初始页**；一旦用户或代码在运行期切换了页面，resize / Variant / Theme 切换都不会把它打回声明值。`current.<variant>` 仍然有效：只要运行期没动过，切到该 Variant 会正常重应用覆盖值；动过之后用户的选择优先（同 Tab `isOn`）。
+
+### Lint 规则
+
+| Code                        | 触发条件                                                                     | 级别    |
+| --------------------------- | ---------------------------------------------------------------------------- | ------- |
+| `PUI-CAROUSEL-CARD-SIZE`    | `<Carousel>` 的直接子卡写了 `size`/`width`/`height`                         | error   |
+| `PUI-CAROUSEL-DOTS-ANCHOR`  | `dots=` 值不是合法的 anchor 关键字（如 `dots="center-center-wrong"`）        | warning（runtime 回退 `bottom-center`） |
+
+（`anchor`/`margin` 违规已由通用规则 `PUI-LAYOUT-ANCHOR` / `PUI-LAYOUT-MARGIN` 覆盖，Carousel 不额外重复）
+
 ## Quick reference (cheatsheet)
 
 ```
@@ -861,6 +954,7 @@ BUILT-INS     <Frame> <Image> <Text> <VStack> <HStack> <Grid> <Btn> <Icon>
               <Toggle> <Slider> <Dropdown> <ScrollList> <InputField>
               <Progress value="0.6" fill="ui:bar"/>  最简；mask= + 不设 bg → mask sprite 自动可见兼当底；radial 进度环不在 <Progress> 范围
               <TabBar><Tab text="A" sprite="..." selectedSprite="..." bind="frame_a" isOn="true"/>...</TabBar>  互斥 + Tab 自管 sprite/selectedSprite + bind 自动 toggle Frame
+              <Carousel itemTemplate="Card" interval="5" dots="bottom-center" dotSprite="ui:dot" dotColor="#888" dotSelectedColor="#fff"/>  翻页 + 自动播放 + 拖动 + 状态化指示点；卡片走 C# BindItems；当前页 resize 不重置
               <Show on="state-pressed">...</Show>  visible-while-state wrapper; siblings mutex; unclaimed states → state-normal fallback
 TEXT SHORT    <Text>Hi</Text> ≡ <Text text="Hi"/>     (also <Btn>, <Toggle>, <InputField>)
 

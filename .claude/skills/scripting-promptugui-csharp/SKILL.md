@@ -254,6 +254,38 @@ Setting `tab.IsOn = true` triggers mutex (other Tabs flip to false via the TabBa
 
 `bar.BindItems<T, TSlot>` lets the template root be any `IControl`; `bar.BindItems<T>` is shorthand when the template root _is_ a `<Tab>` directly. The `<Tab>` reachable inside the slot is found via `ScopedIds` first, then a recursive child walk — Templates without an id'd Tab still work as long as exactly one `<Tab>` exists in the subtree.
 
+### Carousel
+
+```csharp
+// Dynamic cards (same shape as ScrollList.BindItems):
+screen.Get<Carousel>("banner")
+      .BindItems(banners, (IControl card, Banner b) => {
+          card.Get<Text>("title").TextValue = b.Title;
+          card.Get<Btn>("cta").OnClick.Subscribe(_ => Open(b.Link)).AddTo(screen);
+      }).AddTo(screen);
+
+// Custom template slot type:
+screen.Get<Carousel>("banner")
+      .BindItems<Banner, BannerCard>(banners, (BannerCard card, Banner b) => card.Bind(b))
+      .AddTo(screen);
+```
+
+Control API:
+
+```csharp
+var car = screen.Get<Carousel>("banner");
+car.Current;                       // 当前页（int，runtime-owned；resize 不重置）
+car.Count;                         // 卡片数
+car.GoTo(2, animated: true);       // 跳到指定页（默认带动画）
+car.Next(); car.Previous();        // 前/后一页（默认带动画）
+car.Playing = false;               // 暂停/恢复自动播放（interval > 0 才有效）
+car.OnCurrentChanged
+   .Subscribe(i => Analytics.BannerView(i))
+   .AddTo(screen);                 // Observable<int>：任意来源的页变化，dedup 相同值
+```
+
+`current` is a **runtime-owned state** (same as Tab `isOn`): resize / Variant / Theme ReSolve does NOT reset the page. `current.<variant>` initial overrides still apply when the user has not navigated at runtime; once navigated, the user's choice wins.
+
 ## Variant switching at runtime
 
 ```csharp
@@ -426,6 +458,7 @@ EVENTS (R3)    .OnClick                Btn
                .OnValueChanged         Toggle:bool / Slider:float / InputField:string / Tab:bool
                .OnSelected             Dropdown:int / Tab:Unit (on=true only)
                .OnSelectionChanged     TabBar:Tab (the newly-on Tab, or null when emptied)
+               .OnCurrentChanged       Carousel:int (any-source page change, deduped)
                .OnEndEdit / .OnSubmit  InputField:string
                .Subscribe(...).AddTo(screen)   tie lifetime — ALWAYS
                Progress                display-only; .Value = 0.42f (Clamp01); no event
@@ -434,8 +467,11 @@ DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                ScrollList.BindItems(Observable<IReadOnlyList<T>>, (slot,t)=>...)
                TabBar.BindItems(Observable<IReadOnlyList<T>>, (Tab tab,t)=>...)
                                        or BindItems<T,TSlot>(...) for wrapped templates
+               Carousel.BindItems(Observable<IReadOnlyList<T>>, (IControl card,t)=>...)
+                                       or BindItems<T,TSlot>(...) for typed card template
                .AddTo(screen)
                TabBar query: .Count / .SelectedIndex (-1 if empty) / .SelectedTab / .GetAt(i)
+               Carousel query: .Count / .Current (get/set) / .Playing (get/set) / .GoTo(i,animated) / .Next() / .Previous()
 
 VARIANT        UI.Variants.Set("name", true|false)            re-applies, no rebuild
 ORIENTATION    UI.Orientation.IsPortrait                      auto-tracked: portrait / landscape variants
