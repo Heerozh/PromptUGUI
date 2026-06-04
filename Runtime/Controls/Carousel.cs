@@ -70,10 +70,48 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public float Transition { set => _view.SetTransition(value); }
 
+        [UIAttr, Preserve] public string Dots { set => _dotsAnchor = value; }
+        [UIAttr, Preserve]
+        public string DotSize
+        {
+            set
+            {
+                var parts = (value ?? "").Split('x');
+                if (parts.Length == 2
+                    && float.TryParse(parts[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var w)
+                    && float.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var h))
+                    _dotSize = new Vector2(w, h);
+                else
+                {
+                    _dotSize = new Vector2(8f, 8f);
+                    if (!string.IsNullOrEmpty(value))
+                        Debug.LogWarning($"<Carousel dotSize='{value}'> not 'WxH'; using 8x8.");
+                }
+            }
+        }
+        [UIAttr, Preserve] public float DotSpacing { set => _dotSpacing = value; }
+        [UIAttr, Preserve] public string DotMargin { set => _dotMargin = value; }
+        [UIAttr(IsSprite = true), Preserve] public string DotSprite { set => _dotSprite = value; }
+        [UIAttr(IsSprite = true), Preserve] public string DotSelectedSprite { set => _dotSelectedSprite = value; }
+        [UIAttr(IsColor = true), Preserve] public string DotColor { set => _dotColor = value; }
+        [UIAttr(IsColor = true), Preserve] public string DotSelectedColor { set => _dotSelectedColor = value; }
+        [UIAttr(IsColor = true), Preserve] public string DotHoverColor { set => _dotHoverColor = value; }
+        [UIAttr(IsColor = true), Preserve] public string DotPressedColor { set => _dotPressedColor = value; }
+        [UIAttr, Preserve] public string DotTint { set => _dotTint = value; }
+
         internal override void OnAfterApply()
         {
             base.OnAfterApply();
             _view.SetStaticCards(Children);
+            _view.ConfigureDots(
+                _dotsAnchor, _dotSize, _dotSpacing, _dotMargin,
+                string.IsNullOrEmpty(_dotSprite) ? null : UI.ResolveSprite(_dotSprite),
+                string.IsNullOrEmpty(_dotSelectedSprite) ? null : UI.ResolveSprite(_dotSelectedSprite),
+                _dotTint,
+                string.IsNullOrWhiteSpace(_dotColor) ? Color.white : UI.Theme.Resolve(_dotColor),
+                _dotHoverColor, _dotPressedColor,
+                string.IsNullOrWhiteSpace(_dotSelectedColor) ? (Color?)null : UI.Theme.Resolve(_dotSelectedColor));
+            _view.RebuildIndicator();
             _view.RelayoutNow();
         }
 

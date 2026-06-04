@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using LitMotion;
+using PromptUGUI.IR;
+using PromptUGUI.Layout;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -121,9 +123,124 @@ namespace PromptUGUI.Controls.Internal
         public void ConfigureDots(string anchor, Vector2 size, float spacing, string margin,
                                   Sprite sprite, Sprite selectedSprite, string tint,
                                   Color baseColor, string hover, string pressed, Color? selected)
-        { /* Task 6 */ }
-        public void RebuildIndicator() { /* Task 6 */ }
-        private void RefreshDotSelection() { /* Task 6 */ }
+        {
+            _dotsAnchor = anchor;
+            _dotSize = size;
+            _dotSpacing = spacing;
+            _dotMargin = margin;
+            _dotSprite = sprite;
+            _dotSelectedSprite = selectedSprite;
+            _dotTint = tint;
+            _dotBaseColor = baseColor;
+            _dotHoverColor = hover;
+            _dotPressedColor = pressed;
+            _dotSelectedColor = selected;
+        }
+
+        // 按卡数建/拆指示点。dots= 空 或 卡数<=1 → 隐藏整排。每个 dot = Image + PuiButton
+        // (点击跳转 + 提供 hover/pressed 的 IStateSource) + StateTintReactor (状态着色)。
+        public void RebuildIndicator()
+        {
+            // 清旧
+            for (int i = _indicator.childCount - 1; i >= 0; i--)
+            {
+                var go = _indicator.GetChild(i).gameObject;
+                if (UnityEngine.Application.isPlaying) Destroy(go); else DestroyImmediate(go);
+            }
+            _dotImages.Clear();
+            _dotReactors.Clear();
+            _lastDotCurrent = -2;
+
+            bool show = !string.IsNullOrEmpty(_dotsAnchor) && _dotsAnchor != "none" && _cards.Count > 1;
+            _indicator.gameObject.SetActive(show);
+            if (!show) return;
+
+            // 整排锚点 / 尺寸 / 边距。非法锚点回退 bottom-center（与 lint PUI-CAROUSEL-DOTS-ANCHOR 的承诺一致）。
+            AnchorPreset preset;
+            try { preset = AnchorPreset.Parse(_dotsAnchor); }
+            catch { preset = AnchorPreset.Parse("bottom-center"); }
+            AnchorResolver.Resolve(preset, out var aMin, out var aMax, out var pivot);
+            _indicator.anchorMin = aMin; _indicator.anchorMax = aMax; _indicator.pivot = pivot;
+            float rowW = _cards.Count * _dotSize.x + (_cards.Count - 1) * _dotSpacing;
+            _indicator.sizeDelta = new Vector2(rowW, _dotSize.y);
+            _indicator.anchoredPosition = MarginOffset(_dotMargin, pivot);
+
+            var layout = _indicator.gameObject.GetComponent<HorizontalLayoutGroup>()
+                         ?? _indicator.gameObject.AddComponent<HorizontalLayoutGroup>();
+            layout.spacing = _dotSpacing;
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childControlWidth = false;
+            layout.childControlHeight = false;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
+
+            var abs = StateColorSet.Resolve(_dotHoverColor, _dotPressedColor, null, null);
+            var emptyChildren = System.Array.Empty<IControl>();
+            for (int i = 0; i < _cards.Count; i++)
+            {
+                int captured = i;
+                var dotRt = ProceduralBuilders.AddChild(_indicator, "Dot");
+                dotRt.sizeDelta = _dotSize;
+                var le = dotRt.gameObject.AddComponent<LayoutElement>();
+                le.preferredWidth = _dotSize.x; le.preferredHeight = _dotSize.y;
+
+                var img = dotRt.gameObject.AddComponent<UnityImage>();
+                img.color = _dotBaseColor;
+                img.raycastTarget = true;
+                if (_dotSprite != null)
+                {
+                    img.sprite = _dotSprite;
+                    img.type = _dotSprite.border != Vector4.zero ? UnityImage.Type.Sliced : UnityImage.Type.Simple;
+                }
+                ImageTint.Apply(img, _dotTint);
+
+                var btn = dotRt.gameObject.AddComponent<PuiButton>();
+                btn.targetGraphic = img;
+                btn.onClick.AddListener(() => GoTo(captured, animated: true));
+
+                var reactor = StateTintInstaller.Install(dotRt.gameObject, btn, emptyChildren,
+                    abs, default, _dotSelectedColor, selected: captured == _current);
+
+                _dotImages.Add(img);
+                _dotReactors.Add(reactor);
+            }
+            RefreshDotSelection();
+        }
+
+        // 把 dots= 的 margin（T,R,B,L，支持 '_'）转成相对锚点的偏移。只取与 pivot 同侧的两个分量。
+        private static Vector2 MarginOffset(string margin, Vector2 pivot)
+        {
+            if (string.IsNullOrEmpty(margin)) return Vector2.zero;
+            var p = margin.Split(',');
+            float T = ParseSlot(p, 0), R = ParseSlot(p, 1), B = ParseSlot(p, 2), L = ParseSlot(p, 3);
+            // pivot.y: 0=底(用 B 上推), 1=顶(用 T 下推); pivot.x: 0=左(用 L 右推), 1=右(用 R 左推)
+            float x = pivot.x <= 0f ? L : (pivot.x >= 1f ? -R : 0f);
+            float y = pivot.y <= 0f ? B : (pivot.y >= 1f ? -T : 0f);
+            return new Vector2(x, y);
+        }
+
+        private static float ParseSlot(string[] parts, int i)
+        {
+            if (i >= parts.Length) return 0f;
+            var s = parts[i].Trim();
+            if (s == "_" || s.Length == 0) return 0f;
+            return float.TryParse(s, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0f;
+        }
+
+        // 当前页变化时刷新各 dot 的选中态：reactor 选中基色 + 可选 overrideSprite 换图。
+        private void RefreshDotSelection()
+        {
+            if (_dotImages.Count == 0 || _current == _lastDotCurrent) return;
+            _lastDotCurrent = _current;
+            for (int i = 0; i < _dotImages.Count; i++)
+            {
+                _dotReactors[i]?.SetSelected(i == _current);
+                if (_dotImages[i] != null)
+                    _dotImages[i].overrideSprite =
+                        (i == _current && _dotSelectedSprite != null) ? _dotSelectedSprite : null;
+            }
+        }
 
         // —— 翻页 ——
         // 翻到 index：loop 取最短环向，非 loop 钳位。animated=true 用 LitMotion 把 _scroll
