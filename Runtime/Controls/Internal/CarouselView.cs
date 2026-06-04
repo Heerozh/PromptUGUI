@@ -47,9 +47,11 @@ namespace PromptUGUI.Controls.Internal
         private bool _animating;
         private MotionHandle _handle;
 
-        // 拖动翻页状态
+        // 拖动翻页状态（像素级跟手：把屏幕指针映射进 viewport 本地坐标，与卡片 anchoredPosition
+        // 同一坐标系，CanvasScaler.scaleFactor≠1 时也 1:1 跟手，不变快/变慢——同 ScrollRect 的做法）
         private float _dragStartScroll;
-        private float _dragAccumX;
+        private Vector2 _dragStartLocal;   // 按下时指针在 viewport 本地坐标
+        private float _dragLocalX;         // 距按下点的本地 X 位移（钳进 ±一页），EndDrag 判翻页用
         private const float SnapThreshold = 0.2f;   // 翻页所需位移占页宽比例
 
         // 指示点样式
@@ -430,7 +432,11 @@ namespace PromptUGUI.Controls.Internal
             _animating = false;
             _dragging = true;
             _dragStartScroll = _scroll;
-            _dragAccumX = 0f;
+            _dragLocalX = 0f;
+            // 记录按下点在 viewport 本地坐标（同 ScrollRect）：之后用本地位移翻页，而不是把屏幕
+            // 像素 delta 直接当本地单位——后者会随 CanvasScaler.scaleFactor 变快/变慢。
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                _viewport, e.position, e.pressEventCamera, out _dragStartLocal);
             _elapsed = 0f;
             ForwardToParent(e, ExecuteEvents.beginDragHandler);
         }
@@ -439,12 +445,17 @@ namespace PromptUGUI.Controls.Internal
         {
             ForwardToParent(e, ExecuteEvents.dragHandler);   // outer ScrollRect scrolls its (orthogonal) axis
             if (_cards.Count == 0) return;
-            _dragAccumX += e.delta.x;                         // only the X component drives the carousel
+            // 把指针映射进 viewport 本地坐标，取与按下点的本地 X 位移：这是"手指实际走过多少本地单位"，
+            // 已隐式除掉 CanvasScaler.scaleFactor / 相机 / 旋转 → 被抓住的像素 1:1 跟手，不变快/变慢。
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                    _viewport, e.position, e.pressEventCamera, out var local))
+                return;
+            float dxLocal = local.x - _dragStartLocal.x;     // 只取 X（与滚动轴一致）
             // Clamp the drag to ±1 page: you can reveal at most the neighbour, never slide to a far
-            // page and then snap back to the adjacent one. Clamping the accumulator (not just _scroll)
-            // keeps reverse motion responsive — dragging back immediately moves off the boundary.
-            _dragAccumX = Mathf.Clamp(_dragAccumX, -_pageWidth, _pageWidth);
-            _scroll = _dragStartScroll - _dragAccumX / _pageWidth;   // 右拖(dx>0)显示上一张 → _scroll 减小
+            // page and then snap back to the adjacent one. dxLocal 是相对按下点的绝对位移（非累加），
+            // 反向拖会立即减小 |dxLocal| → 跟手不黏。
+            _dragLocalX = Mathf.Clamp(dxLocal, -_pageWidth, _pageWidth);
+            _scroll = _dragStartScroll - _dragLocalX / _pageWidth;   // 右拖(dx>0)显示上一张 → _scroll 减小
             Reposition();
         }
 
@@ -453,13 +464,13 @@ namespace PromptUGUI.Controls.Internal
             ForwardToParent(e, ExecuteEvents.endDragHandler);
             _dragging = false;
             int target = _current;
-            if (_dragAccumX <= -_pageWidth * SnapThreshold) target = _current + 1;
-            else if (_dragAccumX >= _pageWidth * SnapThreshold) target = _current - 1;
+            if (_dragLocalX <= -_pageWidth * SnapThreshold) target = _current + 1;
+            else if (_dragLocalX >= _pageWidth * SnapThreshold) target = _current - 1;
             GoTo(target, animated: true);
         }
 
-        // 竖向为主的拖动不属于轮播 — 转发给父级让外层 ScrollRect/ScrollList 滚动
-        // （Unity 把整条拖动序列交给最深的 IBeginDragHandler，空 return 会吞掉事件）。
+        // 整段拖动都转发给父级：carousel 只取 X 分量翻页，外层 ScrollRect/ScrollList 取自己的轴
+        // （Unity 把整条拖动序列交给最深的 IBeginDragHandler，不转发会吞掉外层的滚动）。
         private void ForwardToParent<T>(PointerEventData e, ExecuteEvents.EventFunction<T> fn)
             where T : IEventSystemHandler
         {

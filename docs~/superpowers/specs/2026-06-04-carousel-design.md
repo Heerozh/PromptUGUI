@@ -65,6 +65,7 @@
 | CAR-D9 | 自动播放暂停 / 恢复 | 拖动按下时暂停；松手 / 任何手动跳转后**重置**计时器从 0 再数 `interval` | 用户正在看 / 操作时不打断；要永久停用 `Playing=false` 或 `interval=0` |
 | CAR-D10 | 吸附判定 | 松手时按 `位移 > 页宽 × 0.2` **或** flick 速度超阈值 → 翻到相邻页；否则回弹当前页；LitMotion 补间 `transition` 秒（默认 `0.3`，OutCubic） | 翻页吸附标准做法；阈值 + 速度双判定手感好 |
 | CAR-D11 | 拖动只取 X 轴（无主轴锁，v1.1 修订） | `OnBeginDrag` **不**按首帧方向判定主轴；carousel 始终用拖动的 X 分量翻页，整段拖动同时 `ExecuteEvents.ExecuteHierarchy` 转发给外层——外层竖向 ScrollList 取 Y、carousel 取 X，各走各轴 | 首帧方向锁会把「先竖后横」的斜拖整段锁死、手感差；只看 X + 转发既保证横向永远响应、又让嵌套的竖向滚动照常（原首帧主轴锁废弃）|
+| CAR-D11b | 拖动像素级跟手（v1.1 修订） | 拖动用 `RectTransformUtility.ScreenPointToLocalPointInRectangle` 把指针映射进 viewport 本地坐标，按「与按下点的本地 X 位移」翻页，**不**直接用屏幕 `eventData.delta`；被抓住的像素 1:1 跟随手指 | 屏幕像素 ≠ 本地单位（差一个 `CanvasScaler.scaleFactor`）；直接用屏幕 delta 会让卡片比手指快/慢（像素艺术缩放下 scaleFactor 几乎不为 1）；映射进本地空间隐式除掉 scaleFactor / 相机 / 旋转——同 uGUI `ScrollRect` 的做法 |
 | CAR-D12 | 卡片内可点击元素 | 卡内 `<Btn>` 等正常可点：Unity 事件系统按 drag-threshold 区分——轻点 → Btn 的 click，拖动 → viewport 的 IDragHandler | 需求场景里卡片带 `<Btn>`（`btnSeasonJourney`）；无需特殊处理 |
 | CAR-D13 | 卡片来源 | 静态 XML 子 **或** `itemTemplate` + `BindItems`，两种都支持；混用时 BindItems 赢（先 Dispose 静态卡再重建） | 与 TabBar / ScrollList 心智一致；`itemTemplate` 默认 `"Frame"` |
 | CAR-D14 | 卡片是被托管的页 | 作者**不能**在卡片上写 `anchor` / `margin` / `size`（CarouselView 按视口尺寸排）；Carousel 加进「子由父托管」集合 + lint | 与 TabBar 子项规则一致；手写会被覆盖，提前 lint 拦下 |
@@ -295,13 +296,17 @@ if (_elapsed >= _interval) { _elapsed = 0f; GoTo(_current + 1, animated:true); }
 ### 7.3 拖动翻页（CAR-D10/D11/D12）
 
 ```
-OnBeginDrag:  无主轴锁：_dragging=true、取消在播补间，并把 begin 转发给外层
+OnBeginDrag:  无主轴锁：_dragging=true、取消在播补间、转发 begin 给外层；记下按下点
+              在 viewport 本地坐标 _dragStartLocal（ScreenPointToLocalPointInRectangle）
               （carousel 只取拖动 X 分量；外层 ScrollList 取 Y，各走各轴；CAR-D11）
-OnDrag:       _dragAccumX += eventData.delta.x（跟手），并 clamp 到 ±1 页（_pageWidth）
-              —— 拖动最多露出相邻页，不能拖到更远的页再吸附回相邻页（钳累加器而非
-              仅钳 _scroll，反向拖立即响应，无死区）
+OnDrag:       把指针映射进 viewport 本地坐标，取与按下点的本地 X 位移
+              _dragLocalX = local.x - _dragStartLocal.x（像素级跟手：已隐式除掉
+              CanvasScaler.scaleFactor / 相机 / 旋转，被抓住的像素 1:1 跟随手指、不变快变慢
+              —— 同 ScrollRect 的做法，而非直接拿屏幕 eventData.delta 当本地单位；CAR-D11b），
+              再 clamp 到 ±1 页（_pageWidth）—— 最多露出相邻页，不能拖到更远的页再吸附回
+              相邻页；_dragLocalX 是相对按下点的绝对位移，反向拖立即响应、无死区
 OnEndDrag:    _dragging=false
-              翻页判定：|累计位移| > 页宽×0.2  ||  |flick 速度| > 阈值
+              翻页判定：|_dragLocalX| ≥ 页宽×0.2
                 → GoTo(current ± 1)        （方向看位移符号）
                 否则 → 回弹 GoTo(current)
 ```
@@ -469,7 +474,8 @@ internal sealed class CarouselView : MonoBehaviour,
 {
     // 字段：_viewport / _strip / _indicator / _cards / _dots
     //       _current / _count / _interval / _loop / _transition / _playing
-    //       _elapsed / _dragging / _animating / _stripDragX / _pageWidth
+    //       _elapsed / _dragging / _animating / _pageWidth
+    //       _dragStartScroll / _dragStartLocal / _dragLocalX（拖动：本地坐标跟手，见 §7.3）
     //       _dotColors / _dotSprite / _dotTint / _dotSize / _dotSpacing / _dotMargin / _dotsAnchor
     public RectTransform StripRect => _strip;
     public int CurrentIndex => _current;
