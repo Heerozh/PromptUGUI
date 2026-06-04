@@ -109,6 +109,14 @@ namespace PromptUGUI.Controls.Internal
             => _absolutes.For(state)
                ?? ((_selected && _selectedBase.HasValue) ? _selectedBase.Value : _baseColor);
 
+        /// <summary>
+        /// True when a colour transition has a fully-transparent endpoint. Such a transition must
+        /// SNAP, not tween: a straight RGBA lerp between a transparent colour and an opaque one drags
+        /// RGB through black (a visible flicker — e.g. a transparent Tab fading into its selectedColor
+        /// on select). Opaque ↔ opaque transitions (hover / press feedback) still fade.
+        /// </summary>
+        internal static bool CrossesTransparency(Color from, Color to) => from.a <= 0f || to.a <= 0f;
+
         private void OnState(InteractState state)
         {
             if (_graphic == null) return;
@@ -116,7 +124,7 @@ namespace PromptUGUI.Controls.Internal
 
             if (_handle.IsActive()) _handle.TryCancel();
 
-            if (TestForceInstant || _fade <= 0f)
+            if (TestForceInstant || _fade <= 0f || CrossesTransparency(_graphic.color, target))
             {
                 _graphic.color = target;
                 return;
