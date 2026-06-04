@@ -27,6 +27,7 @@ namespace PromptUGUI.Application
             reg.Register<Dropdown>("Dropdown", null, runtimeStateAttr: "value");
             reg.Register<ScrollList>("ScrollList", null);
             reg.Register<InputField>("InputField", null, defaultTextAttr: "text");
+            reg.Register<Carousel>("Carousel", null);
         }
     }
 }
