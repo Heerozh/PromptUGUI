@@ -64,7 +64,7 @@
 | CAR-D8 | 自动播放计时基准 | `Time.unscaledDeltaTime`，在 `CarouselView.Update()` 累加 | UI banner 不该随 `Time.timeScale=0`（游戏暂停）冻结；WebGL 安全（无 .NET 线程，走 Unity Update 循环） |
 | CAR-D9 | 自动播放暂停 / 恢复 | 拖动按下时暂停；松手 / 任何手动跳转后**重置**计时器从 0 再数 `interval` | 用户正在看 / 操作时不打断；要永久停用 `Playing=false` 或 `interval=0` |
 | CAR-D10 | 吸附判定 | 松手时按 `位移 > 页宽 × 0.2` **或** flick 速度超阈值 → 翻到相邻页；否则回弹当前页；LitMotion 补间 `transition` 秒（默认 `0.3`，OutCubic） | 翻页吸附标准做法；阈值 + 速度双判定手感好 |
-| CAR-D11 | 拖动主轴锁 | `OnBeginDrag` 判断主轴；非水平方向不处理、不 eat 事件 | carousel 放进竖向 `<ScrollList>` 时竖向滑动交还外层，不互抢 |
+| CAR-D11 | 拖动只取 X 轴（无主轴锁，v1.1 修订） | `OnBeginDrag` **不**按首帧方向判定主轴；carousel 始终用拖动的 X 分量翻页，整段拖动同时 `ExecuteEvents.ExecuteHierarchy` 转发给外层——外层竖向 ScrollList 取 Y、carousel 取 X，各走各轴 | 首帧方向锁会把「先竖后横」的斜拖整段锁死、手感差；只看 X + 转发既保证横向永远响应、又让嵌套的竖向滚动照常（原首帧主轴锁废弃）|
 | CAR-D12 | 卡片内可点击元素 | 卡内 `<Btn>` 等正常可点：Unity 事件系统按 drag-threshold 区分——轻点 → Btn 的 click，拖动 → viewport 的 IDragHandler | 需求场景里卡片带 `<Btn>`（`btnSeasonJourney`）；无需特殊处理 |
 | CAR-D13 | 卡片来源 | 静态 XML 子 **或** `itemTemplate` + `BindItems`，两种都支持；混用时 BindItems 赢（先 Dispose 静态卡再重建） | 与 TabBar / ScrollList 心智一致；`itemTemplate` 默认 `"Frame"` |
 | CAR-D14 | 卡片是被托管的页 | 作者**不能**在卡片上写 `anchor` / `margin` / `size`（CarouselView 按视口尺寸排）；Carousel 加进「子由父托管」集合 + lint | 与 TabBar 子项规则一致；手写会被覆盖，提前 lint 拦下 |
@@ -295,8 +295,8 @@ if (_elapsed >= _interval) { _elapsed = 0f; GoTo(_current + 1, animated:true); }
 ### 7.3 拖动翻页（CAR-D10/D11/D12）
 
 ```
-OnBeginDrag:  若 |delta.x| < |delta.y| → 主轴非水平，return（不 eat，交外层；CAR-D11）
-              否则 _dragging=true，取消在播的补间
+OnBeginDrag:  无主轴锁：_dragging=true、取消在播补间，并把 begin 转发给外层
+              （carousel 只取拖动 X 分量；外层 ScrollList 取 Y，各走各轴；CAR-D11）
 OnDrag:       _dragAccumX += eventData.delta.x（跟手），并 clamp 到 ±1 页（_pageWidth）
               —— 拖动最多露出相邻页，不能拖到更远的页再吸附回相邻页（钳累加器而非
               仅钳 _scroll，反向拖立即响应，无死区）
@@ -402,7 +402,7 @@ void Rebuild<T,TSlot>(IReadOnlyList<T> items, Action<TSlot,T> bind) where TSlot 
 | `interval` 负数 | 视为 `0`（关闭） |
 | `BindItems` 传空列表 | `ClearCards`；`Current=-1`；`OnCurrentChanged.OnNext(-1)`；Indicator 隐藏 |
 | 拖到一半 Screen 被 Close | `CarouselView` 随 GameObject Destroy；LitMotion handle `TryCancel`（同 Animation）；R3 订阅 `AddTo(screen)` 释放 |
-| carousel 嵌在竖向 ScrollList 里、用户竖滑 | `OnBeginDrag` 主轴非水平 → 不处理，事件冒泡给外层 ScrollRect（CAR-D11） |
+| carousel 嵌在竖向 ScrollList 里、用户竖滑 | carousel 只取 X（竖滑 X≈0 不翻页）；整段拖动转发给外层 ScrollRect → 外层正常竖向滚动（CAR-D11） |
 | resize 时正在补间 | `OnRectTransformDimensionsChange` 取消补间，瞬移到 `_current`（CAR-D6） |
 | 卡内 `<Btn>` 点击 vs 翻页拖动 | EventSystem drag-threshold 区分；无需特殊代码（CAR-D12） |
 
@@ -554,7 +554,7 @@ self-check 入口追加 `Carousel` 分支调用 `CarouselRules`。
 - **per-card 不同尺寸 / 自适应高度**——所有卡 = 视口尺寸。
 - **指示点用数字 / 缩略图 / 进度条形态**——v1 只有点（sprite + 状态色）；复杂指示器自己用 `OnCurrentChanged` 画。
 - **键盘 / 手柄导航**——v1 只有指针拖动 + dot 点击；要方向键自己接 `Next`/`Previous`。
-- **嵌套 Carousel**——不阻拦，但拖动主轴锁（CAR-D11）只区分水平/垂直，同向嵌套需作者自理。
+- **嵌套 Carousel**——不阻拦；carousel 只取 X 轴 + 整段转发（CAR-D11），同向嵌套（横向 carousel 套横向滚动）语义模糊，需作者自理。
 - **自动播放方向反转 / 来回弹（ping-pong）**——v1 单向递增（loop 绕回，非 loop 停尾）。
 
 ---

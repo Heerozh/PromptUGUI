@@ -98,18 +98,29 @@ namespace PromptUGUI.Tests.PlayMode.Controls
         }
 
         [UnityTest]
-        public IEnumerator Vertical_Drag_Is_Ignored()
+        public IEnumerator Diagonal_Drag_Still_Scrolls_Horizontally()
         {
+            // The user's case: a gesture that STARTS vertical (up) then goes horizontal (left) must
+            // still scroll. The old first-frame axis lock would dead-lock the whole gesture.
             var car = Open("interval='0' transition='0.01'");
+            yield return null;
             var view = car.GameObject.GetComponent<PromptUGUI.Controls.Internal.CarouselView>();
             var begin = (UnityEngine.EventSystems.IBeginDragHandler)view;
-            var es = new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current)
-            { delta = new UnityEngine.Vector2(2f, 80f) };       // 竖向为主
-            begin.OnBeginDrag(es);
-            ((UnityEngine.EventSystems.IDragHandler)view).OnDrag(es);
-            ((UnityEngine.EventSystems.IEndDragHandler)view).OnEndDrag(es);
-            yield return null;
-            Assert.AreEqual(0, car.Current, "vertical drag not consumed");
+            var drag = (UnityEngine.EventSystems.IDragHandler)view;
+            var end = (UnityEngine.EventSystems.IEndDragHandler)view;
+
+            var up = new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current)
+            { delta = new UnityEngine.Vector2(0f, 80f) };       // gesture starts going straight up
+            begin.OnBeginDrag(up);
+            drag.OnDrag(up);                                    // vertical-only frame — no horizontal move
+            var left = new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current)
+            { delta = new UnityEngine.Vector2(-120f, 0f) };     // then drags left, past the page threshold
+            drag.OnDrag(left);
+            end.OnEndDrag(left);
+            yield return new UnityEngine.WaitForSecondsRealtime(0.05f);
+
+            Assert.AreEqual(1, car.Current,
+                "a drag starting vertical then going horizontal still advances (no first-frame axis lock-out)");
         }
 
         [UnityTest]

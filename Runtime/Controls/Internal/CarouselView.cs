@@ -50,7 +50,6 @@ namespace PromptUGUI.Controls.Internal
         // 拖动翻页状态
         private float _dragStartScroll;
         private float _dragAccumX;
-        private bool _dragActive;     // 本次拖动是否按主轴锁通过
         private const float SnapThreshold = 0.2f;   // 翻页所需位移占页宽比例
 
         // 指示点样式
@@ -422,36 +421,37 @@ namespace PromptUGUI.Controls.Internal
 
         void IBeginDragHandler.OnBeginDrag(PointerEventData e)
         {
-            // 主轴锁：竖向为主则不接管（交还外层 ScrollList）。
-            _dragActive = Mathf.Abs(e.delta.x) >= Mathf.Abs(e.delta.y);
-            if (!_dragActive) { ForwardToParent(e, ExecuteEvents.beginDragHandler); return; }
+            // No axis lock: the carousel always acts on the horizontal (X) component of ANY drag, so a
+            // gesture that starts vertical and then goes horizontal still scrolls — no dead gestures from
+            // a brittle first-frame direction guess. The whole drag is forwarded up too, so an outer
+            // (e.g. vertical) ScrollList scrolls its own axis from the same gesture (it ignores our X;
+            // we ignore its Y).
             if (_handle.IsActive()) _handle.TryCancel();
             _animating = false;
             _dragging = true;
             _dragStartScroll = _scroll;
             _dragAccumX = 0f;
             _elapsed = 0f;
+            ForwardToParent(e, ExecuteEvents.beginDragHandler);
         }
 
         void IDragHandler.OnDrag(PointerEventData e)
         {
-            if (!_dragActive) { ForwardToParent(e, ExecuteEvents.dragHandler); return; }
+            ForwardToParent(e, ExecuteEvents.dragHandler);   // outer ScrollRect scrolls its (orthogonal) axis
             if (_cards.Count == 0) return;
-            _dragAccumX += e.delta.x;
+            _dragAccumX += e.delta.x;                         // only the X component drives the carousel
             // Clamp the drag to ±1 page: you can reveal at most the neighbour, never slide to a far
             // page and then snap back to the adjacent one. Clamping the accumulator (not just _scroll)
             // keeps reverse motion responsive — dragging back immediately moves off the boundary.
             _dragAccumX = Mathf.Clamp(_dragAccumX, -_pageWidth, _pageWidth);
-            // 右拖（dx>0）显示上一张 → _scroll 减小。
-            _scroll = _dragStartScroll - _dragAccumX / _pageWidth;
+            _scroll = _dragStartScroll - _dragAccumX / _pageWidth;   // 右拖(dx>0)显示上一张 → _scroll 减小
             Reposition();
         }
 
         void IEndDragHandler.OnEndDrag(PointerEventData e)
         {
-            if (!_dragActive) { ForwardToParent(e, ExecuteEvents.endDragHandler); return; }
+            ForwardToParent(e, ExecuteEvents.endDragHandler);
             _dragging = false;
-            _dragActive = false;
             int target = _current;
             if (_dragAccumX <= -_pageWidth * SnapThreshold) target = _current + 1;
             else if (_dragAccumX >= _pageWidth * SnapThreshold) target = _current - 1;
