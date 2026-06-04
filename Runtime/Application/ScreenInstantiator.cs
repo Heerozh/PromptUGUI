@@ -195,6 +195,9 @@ namespace PromptUGUI.Application
             else if (node.Tag == "TabBar")
                 foreach (var issue in TabRules.CheckTabBar(node))
                     Debug.LogWarning(issue.Message);
+            else if (node.Tag == "Carousel")
+                foreach (var issue in PromptUGUI.Lint.CarouselRules.CheckCarousel(node))
+                    Debug.LogWarning(issue.Message);
 
             var entry = _registry.Resolve(node.Tag);
 
@@ -237,10 +240,15 @@ namespace PromptUGUI.Application
                 control.ReplaceScopedIds(childScope);
             }
 
-            var selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar";
+            var selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "Carousel";
             foreach (var c in node.Children)
+            {
+                if (node.Tag == "Carousel")
+                    foreach (var issue in PromptUGUI.Lint.CarouselRules.CheckCard(c))
+                        Debug.LogWarning(issue.Message);
                 InstantiateRecursive(c, control.ChildHostTransform, selfIsLayoutGroup, childScope, nodeMap,
                                      parentControl: control, applyOrder: applyOrder);
+            }
 
             // Apply 放在子树递归之后：OnAfterApply（如 Trigger.SubscribeClick）可以安全访问
             // 已完全实例化的子节点（通过 ScopedIds / GetComponentsInChildren 等）。

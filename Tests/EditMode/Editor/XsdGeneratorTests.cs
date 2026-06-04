@@ -910,6 +910,17 @@ namespace PromptUGUI.Tests.Editor
             // base is optional on <Theme>
             StringAssert.Contains("name=\"base\"", xsd);
         }
+
+        [Test]
+        public void Carousel_element_and_dot_attrs_present_in_xsd()
+        {
+            var r = new ControlRegistry();
+            r.Register<Carousel>("Carousel", null);
+            var xsd = XsdGenerator.Generate(r);
+            StringAssert.Contains("name=\"Carousel\"", xsd);
+            StringAssert.Contains("name=\"itemTemplate\"", xsd);
+            StringAssert.Contains("name=\"dotSelectedColor\"", xsd);
+        }
     }
 
     public class TestPrimaryButton : Control

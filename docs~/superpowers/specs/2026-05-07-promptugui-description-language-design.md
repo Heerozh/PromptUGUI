@@ -160,6 +160,7 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 | `<ScrollList>` | 滚动列表（BindItems 推送数据；itemTemplate 引用 Template/Control 类） | ScrollRect + Mask |
 | `<TabBar>` | Tab 容器；私有 ToggleGroup + Horizontal/VerticalLayoutGroup；纯布局,无自身视觉；支持 `itemTemplate` + `BindItems` 动态构建 | RectTransform + ToggleGroup + LayoutGroup（详见 [`2026-05-27-tabbar-design.md`](2026-05-27-tabbar-design.md)） |
 | `<Tab>` | `<TabBar>` 子节点；可点击容器（接子，Frame 式叠放）；uGUI Toggle + 懒建 label + 可选 icon；`color` / `sprite` / `selectedSprite` 自管视觉（共享样式用 Template）；`bind="frame_id"` 声明式切换 Frame 可见性 | RectTransform + UnityImage + UnityToggle |
+| `<Carousel>` | 水平翻页轮播卡容器；自动播放 + 拖动 + 无限循环 + 状态化指示点；itemTemplate + BindItems 动态卡片；当前页是运行期独占状态（resize 不重置） | RectTransform + RectMask2D + 自管卡条（详见 [`2026-06-04-carousel-design.md`](2026-06-04-carousel-design.md)） |
 
 `<Btn>` 提供"按钮"这一通用交互原语：可作为 Template 根，配合 `<Image>` / `<Text>` 子节点组合出 PrimaryButton / DangerButton / IconButton 等业务变体而无需额外 prefab。`Btn` 内部用 R3 `Subject<Unit>` 暴露 `OnClick`（与 §9.4 的"事件统一为 `Observable<T>`"约束一致）。
 
