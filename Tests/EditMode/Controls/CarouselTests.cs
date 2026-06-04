@@ -144,5 +144,23 @@ namespace PromptUGUI.Tests.EditMode.Controls
             UI.Variants.Set("big", true);   // 运行期没动过 current → variant 覆盖正常生效
             Assert.AreEqual(2, car.Current);
         }
+
+        [Test]
+        public void Resize_Reflows_Cards_To_New_Page_Width_Keeping_Current()
+        {
+            var car = Open("<Carousel id='car' size='200x100'><Image/><Image/><Image/></Carousel>");
+            car.GoTo(1, animated: false);
+            // 改 root 尺寸，模拟窗口/锚点变化触发的几何变更。
+            var rt = car.RectTransform;
+            rt.sizeDelta = new Vector2(320f, 100f);
+            // Unity 的 OnRectTransformDimensionsChange 在脱离 Canvas 的孤立 GameObject 上
+            // 不会自动触发（同 RectDimensionsRelay 的 seam）；用 internal 测试入口显式派发。
+            var view = car.GameObject.GetComponent<PromptUGUI.Controls.Internal.CarouselView>();
+            view.InvokeRectChangedForTests();
+            var strip = car.GameObject.transform.Find("Viewport/Strip");
+            var card0 = (RectTransform)strip.GetChild(0);
+            Assert.AreEqual(320f, card0.rect.width, 0.5f, "cards re-sized to new page width");
+            Assert.AreEqual(1, car.Current, "current preserved across resize");
+        }
     }
 }

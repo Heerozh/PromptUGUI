@@ -342,7 +342,23 @@ namespace PromptUGUI.Controls.Internal
                 GoTo(_current + 1, animated: true);
             }
         }
-        protected override void OnRectTransformDimensionsChange() { /* Task 9 */ }
+        // RectTransform 几何变更（窗口 resize / 锚点重算）→ 重算页宽高并以保住的 _current 瞬移重排。
+        // UIBehaviour 可靠收到该回调（plain MonoBehaviour 不一定），所以 CarouselView : UIBehaviour。
+        protected override void OnRectTransformDimensionsChange()
+        {
+            base.OnRectTransformDimensionsChange();
+            if (_root == null || !isActiveAndEnabled) return;
+            // Don't reflow mid-drag: RelayoutNow snaps _scroll to _current, which would jump the strip
+            // out from under the finger. Stale page width self-corrects on the next layout / ReSolve.
+            if (_dragging) return;
+            if (_root.rect.width <= 0f) return;
+            RelayoutNow();
+        }
+
+        // EditMode 测试 seam：Unity 的 OnRectTransformDimensionsChange 在脱离 Canvas 的
+        // 孤立 GameObject 上不会自动触发，与 RectDimensionsRelay.InvokeRectChangedForTests 同构。
+        internal void InvokeRectChangedForTests() => OnRectTransformDimensionsChange();
+
         void IInitializePotentialDragHandler.OnInitializePotentialDrag(PointerEventData e)
             => ForwardToParent(e, ExecuteEvents.initializePotentialDrag);
 
