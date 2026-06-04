@@ -324,5 +324,28 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreSame(stub, bg.overrideSprite, "selectedSprite swap survives ReSolve");
             Assert.AreEqual(Selectable.Transition.None, toggle.transition, "transition stays None across ReSolve");
         }
+
+        // overrideSprite shares the Image's single `type` field, so the swap must re-derive 9-slice
+        // vs simple from the displayed sprite. A bordered selectedSprite on a sprite="" tab (whose
+        // normal type is Simple) must render Sliced while selected, and revert to Simple when not.
+        [Test]
+        public void Tab_SelectedSprite_With9SliceBorder_RendersSliced()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var tex = new Texture2D(16, 16);
+            var bordered = Sprite.Create(tex, new Rect(0, 0, 16, 16), new Vector2(0.5f, 0.5f), 100f, 0,
+                SpriteMeshType.FullRect, new Vector4(4, 4, 4, 4));
+            UI.SpriteResolver = key => key == "ui:tab_sel" ? bordered : null;
+            var t = OpenTab("<Tab id='t' sprite='' selectedSprite='ui:tab_sel'/>");
+            var bg = t.GameObject.GetComponent<UnityImage>();
+
+            Assert.AreEqual(UnityImage.Type.Simple, bg.type, "empty normal sprite -> Simple while not selected");
+            t.IsOn = true;
+            Assert.AreSame(bordered, bg.overrideSprite);
+            Assert.AreEqual(UnityImage.Type.Sliced, bg.type, "selected bordered sprite renders 9-sliced");
+            t.IsOn = false;
+            Assert.AreEqual(UnityImage.Type.Simple, bg.type, "reverts to Simple for the empty normal sprite");
+        }
     }
 }

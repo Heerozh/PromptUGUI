@@ -229,7 +229,16 @@ namespace PromptUGUI.Controls
         private void ApplySelectedSprite()
         {
             if (_bg == null) return;
-            _bg.overrideSprite = (IsOn && _selectedSprite != null) ? _selectedSprite : null;
+            var showSelected = IsOn && _selectedSprite != null;
+            _bg.overrideSprite = showSelected ? _selectedSprite : null;
+            // overrideSprite shares the Image's single `type` field with `sprite`, so re-derive
+            // 9-slice vs simple from whichever sprite is now displayed (the override when selected,
+            // else the authored bg sprite) — otherwise a bordered selectedSprite over a Simple-typed
+            // normal bg (e.g. sprite="") would render un-sliced. Mirrors ApplyBgSprite's rule.
+            var shown = showSelected ? _selectedSprite : _bg.sprite;
+            _bg.type = shown != null && shown.border != Vector4.zero
+                ? UnityImage.Type.Sliced
+                : UnityImage.Type.Simple;
         }
 
         [UIAttr(IsColor = true), Preserve]
