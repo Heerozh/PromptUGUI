@@ -86,7 +86,14 @@ namespace PromptUGUI.Controls.Internal
         public void SetTransition(float v) => _transition = Mathf.Max(0f, v);
 
         // —— 卡片管理 ——
-        public void SetStaticCards(IReadOnlyList<IControl> children) { /* Task 2 */ }
+        // 首次 OnAfterApply 把已建好的静态子卡（在 Strip 下）收进 _cards；只跑一次，
+        // 且 BindItems 调过之后（_bound）不再收（避免 ReSolve 时把已 Dispose 的旧引用收回）。
+        public void SetStaticCards(IReadOnlyList<IControl> children)
+        {
+            if (_staticCollected || _bound) return;
+            _staticCollected = true;
+            foreach (var c in children) _cards.Add(c);
+        }
         public void AddCard(IControl card) { _cards.Add(card); }
         public void ClearCards() { /* Task 5 */ }
 
@@ -102,8 +109,40 @@ namespace PromptUGUI.Controls.Internal
         public void GoTo(int index, bool animated) { /* Task 3 */ }
         public void Next(bool animated) => GoTo(_current + 1, animated);
         public void Previous(bool animated) => GoTo(_current - 1, animated);
-        private void Reposition() { /* Task 3 */ }
-        public void RelayoutNow() { /* Task 2/3 */ }
+        // 按连续位置 _scroll 把每张卡放到正确 x。无限循环用 Mathf.Repeat 把偏移
+        // 折进 [-N/2, N/2)，越界的卡瞬移到另一侧（N>=3 时在屏外发生，不可见）。
+        private void Reposition()
+        {
+            int n = _cards.Count;
+            if (n == 0) return;
+            for (int i = 0; i < n; i++)
+            {
+                var card = _cards[i] as Control;
+                if (card?.GameObject == null) continue;
+                float off = i - _scroll;
+                if (_loop) off = Mathf.Repeat(off + n * 0.5f, n) - n * 0.5f;
+                var rt = card.RectTransform;
+                rt.anchorMin = new Vector2(0.5f, 0.5f);
+                rt.anchorMax = new Vector2(0.5f, 0.5f);
+                rt.pivot = new Vector2(0.5f, 0.5f);
+                rt.sizeDelta = new Vector2(_pageWidth, _pageHeight);
+                rt.anchoredPosition = new Vector2(off * _pageWidth, 0f);
+            }
+            RefreshDotSelection();
+        }
+
+        // 重算页宽高 + 重排卡片。OnAfterApply（初始 / ReSolve）与 resize 都调它。
+        public void RelayoutNow()
+        {
+            var r = _root.rect;
+            _pageWidth = r.width > 0f ? r.width : 1f;
+            _pageHeight = r.height > 0f ? r.height : 1f;
+            if (_cards.Count > 0)
+                _current = _loop ? ((_current % _cards.Count) + _cards.Count) % _cards.Count
+                                 : Mathf.Clamp(_current, 0, _cards.Count - 1);
+            _scroll = _current;
+            Reposition();
+        }
         public void StartAutoplayIfNeeded() => _elapsed = 0f;
 
         // —— Unity 生命周期（体在后续 Task）——

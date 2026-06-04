@@ -58,6 +58,19 @@ namespace PromptUGUI.Controls
         // 静态 XML 子卡 + BindItems 建的卡都进 Strip。
         protected internal override Transform ChildHostTransform => _strip;
 
+        [UIAttr, Preserve]
+        public string ItemTemplate
+        {
+            set { _itemTemplate = string.IsNullOrEmpty(value) ? "Frame" : value; _factory = null; }
+        }
+
+        internal override void OnAfterApply()
+        {
+            base.OnAfterApply();
+            _view.SetStaticCards(Children);
+            _view.RelayoutNow();
+        }
+
         public int Count => _view.CardCount;
         public Observable<int> OnCurrentChanged => _currentChanged;
 

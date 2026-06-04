@@ -41,5 +41,24 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var img = viewport.GetComponent<UnityImage>();
             Assert.IsTrue(img != null && img.raycastTarget, "transparent raycast catcher for drag");
         }
+
+        [Test]
+        public void Static_Children_Become_Cards_Under_Strip()
+        {
+            var car = Open("<Carousel id='car' size='200x100'><Image/><Image/><Image/></Carousel>");
+            Assert.AreEqual(3, car.Count);
+            var strip = car.GameObject.transform.Find("Viewport/Strip");
+            Assert.AreEqual(3, strip.childCount, "3 cards parented under Strip");
+        }
+
+        [Test]
+        public void Cards_Sized_To_Viewport()
+        {
+            var car = Open("<Carousel id='car' size='200x100'><Image/><Image/></Carousel>");
+            var strip = car.GameObject.transform.Find("Viewport/Strip");
+            var card0 = (RectTransform)strip.GetChild(0);
+            Assert.AreEqual(200f, card0.rect.width, 0.5f, "card width == viewport width");
+            Assert.AreEqual(100f, card0.rect.height, 0.5f, "card height == viewport height");
+        }
     }
 }
