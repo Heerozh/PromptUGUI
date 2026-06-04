@@ -162,13 +162,20 @@ namespace PromptUGUI.Controls.Internal
 
             _slices = new Sprite[3];
             var tr = _dotSprite.textureRect;
+            var b = _dotSprite.border;          // (left, bottom, right, top) px — the source 9-slice border
             float third = tr.width / 3f;
             var pivot = new Vector2(0.5f, 0.5f);
             for (int s = 0; s < 3; s++)
             {
                 var rect = new Rect(tr.x + third * s, tr.y, third, tr.height);
+                // Carry the source 9-slice border so segments don't stretch: the left cap keeps the
+                // left border, the right cap keeps the right border, internal cut edges get 0 (the
+                // tileable part stretches), and top/bottom carry to every segment.
+                float left = s == 0 ? Mathf.Min(b.x, third) : 0f;
+                float right = s == 2 ? Mathf.Min(b.z, third) : 0f;
+                var border = new Vector4(left, b.y, right, b.w);
                 _slices[s] = Sprite.Create(_dotSprite.texture, rect, pivot,
-                    _dotSprite.pixelsPerUnit, 0, SpriteMeshType.FullRect);
+                    _dotSprite.pixelsPerUnit, 0, SpriteMeshType.FullRect, border);
                 _slices[s].name = _dotSprite.name + "_tri" + s;
             }
             _sliceSource = _dotSprite;

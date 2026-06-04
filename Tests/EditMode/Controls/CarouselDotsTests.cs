@@ -159,5 +159,27 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreSame(before, after,
                 "same source sprite => slices are reused across ReSolve (no destroy/recreate churn or leak)");
         }
+
+        [Test]
+        public void TriSlice_Carries_9Slice_Border_Per_Segment()
+        {
+            // 30x10 bar with a 9-slice border: left=6, bottom=2, right=6, top=2.
+            var tex = new Texture2D(30, 10);
+            var src = Sprite.Create(tex, new Rect(0, 0, 30, 10), new Vector2(0.5f, 0.5f),
+                100f, 0, SpriteMeshType.FullRect, new Vector4(6, 2, 6, 2));
+            _temp.Add(tex); _temp.Add(src);
+            UI.SpriteResolver = key => key == "test:bar" ? src : null;
+
+            var car = Open("dots='bottom-center' dotSprite='test:bar' dotTriSlice='true'");
+            var d0 = Indicator(car).GetChild(0).GetComponent<UnityImage>();
+            var d1 = Indicator(car).GetChild(1).GetComponent<UnityImage>();
+            var d2 = Indicator(car).GetChild(2).GetComponent<UnityImage>();
+
+            // left cap keeps left border + inner cut = 0; top/bottom carry to every segment.
+            Assert.AreEqual(new Vector4(6, 2, 0, 2), d0.sprite.border, "left segment border");
+            Assert.AreEqual(new Vector4(0, 2, 0, 2), d1.sprite.border, "middle stretches horizontally");
+            Assert.AreEqual(new Vector4(0, 2, 6, 2), d2.sprite.border, "right segment keeps right border");
+            Assert.AreEqual(UnityImage.Type.Sliced, d0.type, "bordered sub-sprite renders 9-sliced, not stretched");
+        }
     }
 }

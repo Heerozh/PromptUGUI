@@ -150,7 +150,7 @@ C# 端 `BindItems` 推数据、点数自动 = 卡数（见 §5.3）。
 | `dotHoverColor` | color | (none) | **可选**：鼠标悬停点的色（点可点击，CAR-D16） |
 | `dotPressedColor` | color | (none) | **可选**：按下点的色 |
 | `dotTint` | `multiply` \| `linear` | `multiply` | 点 bg 的 tint 混合模式（需求 #5），同 Tab/Btn `tint` |
-| `dotTriSlice` | bool | `false` | 把单张 `dotSprite` 横向等比切成 3 段（左帽 / 可平铺中段 / 右帽）分摊到各点，整排连成一条 `<= == == == =>`。2 点 = 左+右；N≥3 = 左 + 中×(N-2) + 右（≤1 卡指示点本就隐藏）。sprite 须设计成 3 等宽段、中段可平铺；atlas sprite 不能旋转/tight-pack（轴对齐子矩形才好切）。选中态仍走**颜色**，不需要额外的 selected 切图。实现：`Sprite.Create` 切 3 个子 sprite（见 CAR-D23），每个点仍是普通 Image，状态着色/tint/点击不变 |
+| `dotTriSlice` | bool | `false` | 把单张 `dotSprite` 横向等比切成 3 段（左帽 / 可平铺中段 / 右帽）分摊到各点，整排连成一条 `<= == == == =>`。2 点 = 左+右；N≥3 = 左 + 中×(N-2) + 右（≤1 卡指示点本就隐藏）。sprite 须设计成 3 等宽段、中段可平铺；atlas sprite 不能旋转/tight-pack（轴对齐子矩形才好切）。选中态仍走**颜色**，不需要额外的 selected 切图。**源图的 9-slice 边框按段保留**：左帽段保留 left border、右帽段保留 right border、内部切口边 = 0（可拉伸），top/bottom 全段保留——否则段会被整体拉伸。实现：`Sprite.Create`（带 border）切 3 个子 sprite（见 CAR-D23），每个点仍是普通 Image，状态着色/tint/点击不变 |
 
 约束：
 
