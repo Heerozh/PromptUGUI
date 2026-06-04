@@ -99,6 +99,9 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve] public string DotPressedColor { set => _dotPressedColor = value; }
         [UIAttr, Preserve] public string DotTint { set => _dotTint = value; }
 
+        [UIAttr, Preserve] public float Interval { set => _view.SetInterval(value); }
+        public bool Playing { get => _view.Playing; set => _view.Playing = value; }
+
         internal override void OnAfterApply()
         {
             base.OnAfterApply();

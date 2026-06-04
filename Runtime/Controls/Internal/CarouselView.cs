@@ -326,7 +326,16 @@ namespace PromptUGUI.Controls.Internal
         public void StartAutoplayIfNeeded() => _elapsed = 0f;
 
         // —— Unity 生命周期（体在后续 Task）——
-        private void Update() { /* Task 7 */ }
+        private void Update()
+        {
+            if (!_playing || _interval <= 0f || _cards.Count <= 1 || _dragging || _animating) return;
+            _elapsed += UnityEngine.Time.unscaledDeltaTime;
+            if (_elapsed >= _interval)
+            {
+                _elapsed = 0f;
+                GoTo(_current + 1, animated: true);
+            }
+        }
         protected override void OnRectTransformDimensionsChange() { /* Task 9 */ }
         void IBeginDragHandler.OnBeginDrag(PointerEventData e) { /* Task 8 */ }
         void IDragHandler.OnDrag(PointerEventData e) { /* Task 8 */ }
