@@ -76,6 +76,7 @@
 | CAR-D20 | 页变化事件 | `OnCurrentChanged: Observable<int>`，任何来源（auto / drag / dot-click / code）都 fire，相同值去重 | 给业务接「当前第几张」（埋点 / 联动） |
 | CAR-D21 | `Current` setter | XML / Variant 写 `current="2"` → `GoTo(2, animated:false)`；运行期 `car.Current` 是 getter | 初始页可声明；运行期改过后 ReSolve 不打回（CAR-D5） |
 | CAR-D22 | BindItems 重建保 current | 重建后若 `新 Count > 旧 current` 保持 current，否则 clamp 到 `Count-1`（空列表 → -1 / 视口空） | 数据刷新不该粗暴跳回第 0 张 |
+| CAR-D23 | 三段式指示点（`dotTriSlice`，v1.1 追加） | 用 `Sprite.Create` 把 `dotSprite` 切成左/中/右 3 个子 sprite 分配给各点，**不用** RectMask2D | RectMask2D 方案每点要多一层超宽子 Image + mask + 单独 raycast 图形，还要把状态着色重接到子 Image；`Sprite.Create` 让每个点仍是普通 Image，现有 `dotColor`/`dotSelectedColor`/`dotTint`/点击/reactor 全部零改动。子 sprite 缓存按源 sprite 复用、`OnDestroy` 释放，避免 ReSolve 反复分配。1 个 bool 开关，不新增 sprite 属性（选中态走颜色） |
 
 ---
 
@@ -149,6 +150,7 @@ C# 端 `BindItems` 推数据、点数自动 = 卡数（见 §5.3）。
 | `dotHoverColor` | color | (none) | **可选**：鼠标悬停点的色（点可点击，CAR-D16） |
 | `dotPressedColor` | color | (none) | **可选**：按下点的色 |
 | `dotTint` | `multiply` \| `linear` | `multiply` | 点 bg 的 tint 混合模式（需求 #5），同 Tab/Btn `tint` |
+| `dotTriSlice` | bool | `false` | 把单张 `dotSprite` 横向等比切成 3 段（左帽 / 可平铺中段 / 右帽）分摊到各点，整排连成一条 `<= == == == =>`。2 点 = 左+右；N≥3 = 左 + 中×(N-2) + 右（≤1 卡指示点本就隐藏）。sprite 须设计成 3 等宽段、中段可平铺；atlas sprite 不能旋转/tight-pack（轴对齐子矩形才好切）。选中态仍走**颜色**，不需要额外的 selected 切图。实现：`Sprite.Create` 切 3 个子 sprite（见 CAR-D23），每个点仍是普通 Image，状态着色/tint/点击不变 |
 
 约束：
 

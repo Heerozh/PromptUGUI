@@ -65,6 +65,9 @@ namespace PromptUGUI.Controls.Internal
         private string _dotHoverColor;
         private string _dotPressedColor;
         private Color? _dotSelectedColor;
+        private bool _dotTriSlice;
+        private Sprite[] _slices;       // [left, mid, right] sub-sprites of _dotSprite when tri-sliced
+        private Sprite _sliceSource;    // the sprite _slices was cut from (rebuild only when this changes)
 
         private bool _staticCollected;
         private bool _bound;
@@ -128,7 +131,8 @@ namespace PromptUGUI.Controls.Internal
         // —— 指示点 ——
         public void ConfigureDots(string anchor, Vector2 size, float spacing, string margin,
                                   Sprite sprite, Sprite selectedSprite, string tint,
-                                  Color baseColor, string hover, string pressed, Color? selected)
+                                  Color baseColor, string hover, string pressed, Color? selected,
+                                  bool triSlice)
         {
             _dotsAnchor = anchor;
             _dotSize = size;
@@ -141,7 +145,44 @@ namespace PromptUGUI.Controls.Internal
             _dotHoverColor = hover;
             _dotPressedColor = pressed;
             _dotSelectedColor = selected;
+            _dotTriSlice = triSlice;
+            RebuildSlices();
         }
+
+        // Cut dotSprite into 3 equal horizontal sub-sprites [left cap | tileable middle | right cap].
+        // Built once and reused; only re-cut when triSlice toggles or the source sprite changes, so a
+        // ReSolve doesn't churn Sprite objects. Sub-sprites are owned here and destroyed on teardown.
+        private void RebuildSlices()
+        {
+            if (!_dotTriSlice || _dotSprite == null || _dotSprite != _sliceSource) DestroySlices();
+            if (!_dotTriSlice || _dotSprite == null || _slices != null) return;
+
+            _slices = new Sprite[3];
+            var tr = _dotSprite.textureRect;
+            float third = tr.width / 3f;
+            var pivot = new Vector2(0.5f, 0.5f);
+            for (int s = 0; s < 3; s++)
+            {
+                var rect = new Rect(tr.x + third * s, tr.y, third, tr.height);
+                _slices[s] = Sprite.Create(_dotSprite.texture, rect, pivot,
+                    _dotSprite.pixelsPerUnit, 0, SpriteMeshType.FullRect);
+                _slices[s].name = _dotSprite.name + "_tri" + s;
+            }
+            _sliceSource = _dotSprite;
+        }
+
+        private void DestroySlices()
+        {
+            if (_slices != null)
+                foreach (var s in _slices)
+                    if (s != null) { if (UnityEngine.Application.isPlaying) Destroy(s); else DestroyImmediate(s); }
+            _slices = null;
+            _sliceSource = null;
+        }
+
+        // Which slice a dot shows: first = left cap (0), last = right cap (2), the rest = middle (1).
+        private static int SegmentIndex(int dotIndex, int dotCount)
+            => dotIndex == 0 ? 0 : (dotIndex == dotCount - 1 ? 2 : 1);
 
         // 按卡数建/拆指示点。dots= 空 或 卡数<=1 → 隐藏整排。每个 dot = Image + PuiButton
         // (点击跳转 + 提供 hover/pressed 的 IStateSource) + StateTintReactor (状态着色)。
@@ -193,10 +234,12 @@ namespace PromptUGUI.Controls.Internal
                 var img = dotRt.gameObject.AddComponent<UnityImage>();
                 img.color = _dotBaseColor;
                 img.raycastTarget = true;
-                if (_dotSprite != null)
+                // Tri-slice: this dot shows its left/middle/right segment; else the whole sprite.
+                var shown = (_dotTriSlice && _slices != null) ? _slices[SegmentIndex(i, _cards.Count)] : _dotSprite;
+                if (shown != null)
                 {
-                    img.sprite = _dotSprite;
-                    img.type = _dotSprite.border != Vector4.zero ? UnityImage.Type.Sliced : UnityImage.Type.Simple;
+                    img.sprite = shown;
+                    img.type = shown.border != Vector4.zero ? UnityImage.Type.Sliced : UnityImage.Type.Simple;
                 }
                 ImageTint.Apply(img, _dotTint);
 
@@ -410,6 +453,7 @@ namespace PromptUGUI.Controls.Internal
         protected override void OnDestroy()
         {
             if (_handle.IsActive()) _handle.TryCancel();
+            DestroySlices();
             base.OnDestroy();
         }
     }

@@ -70,5 +70,65 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Indicator(car).GetChild(2).GetComponent<Button>().onClick.Invoke();
             Assert.AreEqual(2, car.Current);
         }
+
+        // A 30x10 bar so each horizontal third is exactly 10px wide — makes the slice math assertable.
+        private static Sprite MakeBarSprite()
+            => Sprite.Create(new Texture2D(30, 10), new Rect(0, 0, 30, 10), new Vector2(0.5f, 0.5f), 100f);
+
+        [Test]
+        public void TriSlice_Splits_Sprite_Into_Left_Mid_Right()
+        {
+            var src = MakeBarSprite();
+            UI.SpriteResolver = key => key == "test:bar" ? src : null;
+            var car = Open("dots='bottom-center' dotSprite='test:bar' dotTriSlice='true'");
+
+            var s0 = Indicator(car).GetChild(0).GetComponent<UnityImage>().sprite;
+            var s1 = Indicator(car).GetChild(1).GetComponent<UnityImage>().sprite;
+            var s2 = Indicator(car).GetChild(2).GetComponent<UnityImage>().sprite;
+
+            Assert.AreNotSame(src, s0, "tri-slice assigns a sub-sprite, not the full source");
+            Assert.AreEqual(0f, s0.rect.x, 0.5f, "left segment starts at x=0");
+            Assert.AreEqual(10f, s1.rect.x, 0.5f, "mid segment starts at x=10");
+            Assert.AreEqual(20f, s2.rect.x, 0.5f, "right segment starts at x=20");
+            Assert.AreEqual(10f, s0.rect.width, 0.5f, "each segment is 1/3 of the sprite width");
+        }
+
+        [Test]
+        public void Without_TriSlice_Dots_Use_Full_Sprite()
+        {
+            var src = MakeBarSprite();
+            UI.SpriteResolver = key => key == "test:bar" ? src : null;
+            var car = Open("dots='bottom-center' dotSprite='test:bar'");
+
+            var s0 = Indicator(car).GetChild(0).GetComponent<UnityImage>().sprite;
+            Assert.AreSame(src, s0, "no dotTriSlice => the full source sprite on every dot");
+        }
+
+        [Test]
+        public void TriSlice_Middle_Dots_Share_The_Mid_Segment()
+        {
+            var src = MakeBarSprite();
+            UI.SpriteResolver = key => key == "test:bar" ? src : null;
+            var xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Carousel id='car' size='200x100' dots='bottom-center' dotSprite='test:bar' dotTriSlice='true'>
+    <Image/><Image/><Image/><Image/><Image/>
+  </Carousel>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var ind = Indicator(UI.Open("S").Get<Carousel>("car"));
+            Assert.AreEqual(5, ind.childCount);
+
+            var s0 = ind.GetChild(0).GetComponent<UnityImage>().sprite;
+            var s1 = ind.GetChild(1).GetComponent<UnityImage>().sprite;
+            var s3 = ind.GetChild(3).GetComponent<UnityImage>().sprite;
+            var s4 = ind.GetChild(4).GetComponent<UnityImage>().sprite;
+
+            Assert.AreSame(s1, s3, "all middle dots share the one mid sub-sprite");
+            Assert.AreNotSame(s0, s1, "left cap differs from mid");
+            Assert.AreNotSame(s4, s1, "right cap differs from mid");
+            Assert.AreEqual(0f, s0.rect.x, 0.5f, "dot 0 = left cap");
+            Assert.AreEqual(20f, s4.rect.x, 0.5f, "last dot = right cap");
+        }
     }
 }

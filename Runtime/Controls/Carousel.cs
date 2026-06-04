@@ -35,6 +35,7 @@ namespace PromptUGUI.Controls
         private string _dotSelectedColor;
         private string _dotHoverColor;
         private string _dotPressedColor;
+        private bool _dotTriSlice;
 
         public override Vector2? GetNativeSize() => new Vector2(200f, 120f);
 
@@ -98,6 +99,9 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve] public string DotHoverColor { set => _dotHoverColor = value; }
         [UIAttr(IsColor = true), Preserve] public string DotPressedColor { set => _dotPressedColor = value; }
         [UIAttr, Preserve] public string DotTint { set => _dotTint = value; }
+        // Slice the single dotSprite into 3 horizontal segments (left cap / tileable middle / right cap)
+        // spread across the dots, so the row reads as one connected bar like  <= == == == =>  .
+        [UIAttr, Preserve] public bool DotTriSlice { set => _dotTriSlice = value; }
 
         [UIAttr, Preserve] public float Interval { set => _view.SetInterval(value); }
         public bool Playing { get => _view.Playing; set => _view.Playing = value; }
@@ -113,7 +117,8 @@ namespace PromptUGUI.Controls
                 _dotTint,
                 string.IsNullOrWhiteSpace(_dotColor) ? Color.white : UI.Theme.Resolve(_dotColor),
                 _dotHoverColor, _dotPressedColor,
-                string.IsNullOrWhiteSpace(_dotSelectedColor) ? (Color?)null : UI.Theme.Resolve(_dotSelectedColor));
+                string.IsNullOrWhiteSpace(_dotSelectedColor) ? (Color?)null : UI.Theme.Resolve(_dotSelectedColor),
+                _dotTriSlice);
             _view.RebuildIndicator();
             _view.RelayoutNow();
         }
