@@ -320,6 +320,8 @@ namespace PromptUGUI.Controls.Internal
         {
             if (_handle.IsActive()) _handle.TryCancel();
             _animating = false;
+            // Viewport stretch-fills root with zero offsets (see OnAttached), so root.rect == viewport.rect.
+            // If the Viewport is ever inset from root, switch this to the viewport's rect.
             var r = _root.rect;
             _pageWidth = r.width > 0f ? r.width : 1f;
             _pageHeight = r.height > 0f ? r.height : 1f;
@@ -331,7 +333,7 @@ namespace PromptUGUI.Controls.Internal
         }
         public void StartAutoplayIfNeeded() => _elapsed = 0f;
 
-        // —— Unity 生命周期（体在后续 Task）——
+        // —— Unity 生命周期 ——
         private void Update()
         {
             if (!_playing || _interval <= 0f || _cards.Count <= 1 || _dragging || _animating) return;
