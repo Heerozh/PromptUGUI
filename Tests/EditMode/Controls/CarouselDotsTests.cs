@@ -10,8 +10,17 @@ namespace PromptUGUI.Tests.EditMode.Controls
 {
     public class CarouselDotsTests
     {
+        private readonly System.Collections.Generic.List<Object> _temp = new();
+
         [SetUp] public void SetUp() { UI.ResetForTests(); StateTintReactor.TestForceInstant = true; }
-        [TearDown] public void TearDown() { StateTintReactor.TestForceInstant = false; UI.ResetForTests(); }
+        [TearDown]
+        public void TearDown()
+        {
+            StateTintReactor.TestForceInstant = false;
+            UI.ResetForTests();
+            foreach (var o in _temp) if (o != null) Object.DestroyImmediate(o);
+            _temp.Clear();
+        }
 
         private static Carousel Open(string attrs)
         {
@@ -72,8 +81,13 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         // A 30x10 bar so each horizontal third is exactly 10px wide — makes the slice math assertable.
-        private static Sprite MakeBarSprite()
-            => Sprite.Create(new Texture2D(30, 10), new Rect(0, 0, 30, 10), new Vector2(0.5f, 0.5f), 100f);
+        private Sprite MakeBarSprite()
+        {
+            var tex = new Texture2D(30, 10);
+            var sp = Sprite.Create(tex, new Rect(0, 0, 30, 10), new Vector2(0.5f, 0.5f), 100f);
+            _temp.Add(tex); _temp.Add(sp);
+            return sp;
+        }
 
         [Test]
         public void TriSlice_Splits_Sprite_Into_Left_Mid_Right()
@@ -129,6 +143,21 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreNotSame(s4, s1, "right cap differs from mid");
             Assert.AreEqual(0f, s0.rect.x, 0.5f, "dot 0 = left cap");
             Assert.AreEqual(20f, s4.rect.x, 0.5f, "last dot = right cap");
+        }
+
+        [Test]
+        public void TriSlice_Sub_Sprites_Reused_Across_ReSolve()
+        {
+            var src = MakeBarSprite();
+            UI.SpriteResolver = key => key == "test:bar" ? src : null;
+            var car = Open("dots='bottom-center' dotSprite='test:bar' dotTriSlice='true'");
+            var before = Indicator(car).GetChild(0).GetComponent<UnityImage>().sprite;
+
+            UI.Variants.Set("x", true);   // forces Screen.ReSolve -> ConfigureDots + RebuildIndicator
+
+            var after = Indicator(car).GetChild(0).GetComponent<UnityImage>().sprite;
+            Assert.AreSame(before, after,
+                "same source sprite => slices are reused across ReSolve (no destroy/recreate churn or leak)");
         }
     }
 }

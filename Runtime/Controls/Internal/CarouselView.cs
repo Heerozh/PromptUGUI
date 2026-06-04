@@ -147,6 +147,9 @@ namespace PromptUGUI.Controls.Internal
             _dotSelectedColor = selected;
             _dotTriSlice = triSlice;
             RebuildSlices();
+            if (triSlice && selectedSprite != null)
+                Debug.LogWarning("<Carousel>: dotSelectedSprite is ignored when dotTriSlice is on " +
+                    "(tri-slice selection is colour-only via dotSelectedColor).");
         }
 
         // Cut dotSprite into 3 equal horizontal sub-sprites [left cap | tileable middle | right cap].
@@ -286,8 +289,10 @@ namespace PromptUGUI.Controls.Internal
             {
                 _dotReactors[i]?.SetSelected(i == _current);
                 if (_dotImages[i] != null)
+                    // selectedSprite swap is suppressed under tri-slice (it would replace the dot's
+                    // 1/3 slice with a full-width sprite and break the connected bar) — selection is colour-only.
                     _dotImages[i].overrideSprite =
-                        (i == _current && _dotSelectedSprite != null) ? _dotSelectedSprite : null;
+                        (!_dotTriSlice && i == _current && _dotSelectedSprite != null) ? _dotSelectedSprite : null;
             }
         }
 
