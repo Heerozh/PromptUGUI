@@ -17,7 +17,7 @@ namespace PromptUGUI.Controls.Internal
     /// 真实运行状态（_current / _scroll / 计时器）都在这里，跨 Screen.ReSolve 存活。
     /// </summary>
     internal sealed class CarouselView : UIBehaviour,
-        IBeginDragHandler, IDragHandler, IEndDragHandler
+        IInitializePotentialDragHandler, IBeginDragHandler, IDragHandler, IEndDragHandler
     {
         private RectTransform _root;
         private RectTransform _viewport;
@@ -46,6 +46,12 @@ namespace PromptUGUI.Controls.Internal
         private bool _dragging;
         private bool _animating;
         private MotionHandle _handle;
+
+        // 拖动翻页状态
+        private float _dragStartScroll;
+        private float _dragAccumX;
+        private bool _dragActive;     // 本次拖动是否按主轴锁通过
+        private const float SnapThreshold = 0.2f;   // 翻页所需位移占页宽比例
 
         // 指示点样式
         private string _dotsAnchor;
@@ -337,9 +343,51 @@ namespace PromptUGUI.Controls.Internal
             }
         }
         protected override void OnRectTransformDimensionsChange() { /* Task 9 */ }
-        void IBeginDragHandler.OnBeginDrag(PointerEventData e) { /* Task 8 */ }
-        void IDragHandler.OnDrag(PointerEventData e) { /* Task 8 */ }
-        void IEndDragHandler.OnEndDrag(PointerEventData e) { /* Task 8 */ }
+        void IInitializePotentialDragHandler.OnInitializePotentialDrag(PointerEventData e)
+            => ForwardToParent(e, ExecuteEvents.initializePotentialDrag);
+
+        void IBeginDragHandler.OnBeginDrag(PointerEventData e)
+        {
+            // 主轴锁：竖向为主则不接管（交还外层 ScrollList）。
+            _dragActive = Mathf.Abs(e.delta.x) >= Mathf.Abs(e.delta.y);
+            if (!_dragActive) { ForwardToParent(e, ExecuteEvents.beginDragHandler); return; }
+            if (_handle.IsActive()) _handle.TryCancel();
+            _animating = false;
+            _dragging = true;
+            _dragStartScroll = _scroll;
+            _dragAccumX = 0f;
+            _elapsed = 0f;
+        }
+
+        void IDragHandler.OnDrag(PointerEventData e)
+        {
+            if (!_dragActive) { ForwardToParent(e, ExecuteEvents.dragHandler); return; }
+            if (_cards.Count == 0) return;
+            _dragAccumX += e.delta.x;
+            // 右拖（dx>0）显示上一张 → _scroll 减小。
+            _scroll = _dragStartScroll - _dragAccumX / _pageWidth;
+            Reposition();
+        }
+
+        void IEndDragHandler.OnEndDrag(PointerEventData e)
+        {
+            if (!_dragActive) { ForwardToParent(e, ExecuteEvents.endDragHandler); return; }
+            _dragging = false;
+            _dragActive = false;
+            int target = _current;
+            if (_dragAccumX <= -_pageWidth * SnapThreshold) target = _current + 1;
+            else if (_dragAccumX >= _pageWidth * SnapThreshold) target = _current - 1;
+            GoTo(target, animated: true);
+        }
+
+        // 竖向为主的拖动不属于轮播 — 转发给父级让外层 ScrollRect/ScrollList 滚动
+        // （Unity 把整条拖动序列交给最深的 IBeginDragHandler，空 return 会吞掉事件）。
+        private void ForwardToParent<T>(PointerEventData e, ExecuteEvents.EventFunction<T> fn)
+            where T : IEventSystemHandler
+        {
+            var parent = transform.parent;
+            if (parent != null) ExecuteEvents.ExecuteHierarchy(parent.gameObject, e, fn);
+        }
 
         protected override void OnDestroy()
         {
