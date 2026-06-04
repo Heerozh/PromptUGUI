@@ -163,39 +163,54 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Tab_SelectedSprite_Creates_Overlay_Wired_To_Toggle_Graphic()
+        public void Tab_SelectedSprite_Swaps_OverrideSprite_When_IsOn()
         {
             LogAssert.Expect(LogType.Warning,
                 new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
             var stub = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
             UI.SpriteResolver = key => key == "ui:tab_sel" ? stub : null;
             var t = OpenTab("<Tab id='t' selectedSprite='ui:tab_sel'/>");
-            var overlay = t.GameObject.transform.Find("Overlay") as RectTransform;
-            Assert.IsNotNull(overlay, "Overlay RT created");
-            var img = overlay.GetComponent<UnityImage>();
-            Assert.AreSame(stub, img.sprite);
-            Assert.IsFalse(img.raycastTarget, "Overlay does not block raycasts");
+            var bg = t.GameObject.GetComponent<UnityImage>();
             var toggle = t.GameObject.GetComponent<UnityToggle>();
-            Assert.AreSame(img, toggle.graphic, "UnityToggle.graphic = overlay");
+            var authored = bg.sprite; // built-in 9-slice default, must stay untouched
+
+            Assert.IsNull(t.GameObject.transform.Find("Overlay"), "no Overlay child in the single-image model");
+            Assert.IsNull(toggle.graphic, "UnityToggle.graphic stays null (no overlay)");
+            Assert.AreEqual(Selectable.Transition.None, toggle.transition, "selectedSprite flips transition off ColorTint");
+
+            // Image.overrideSprite getter returns m_OverrideSprite ?? sprite, so "no override in
+            // effect" appears as the authored sprite falling through — same observable contract as Btn.
+            Assert.AreEqual(authored, bg.overrideSprite, "not selected -> no overrideSprite (falls back to authored)");
+            t.IsOn = true;
+            Assert.AreSame(stub, bg.overrideSprite, "selected -> bg shows selectedSprite via overrideSprite");
+            Assert.AreEqual(authored, bg.sprite, "authored sprite is untouched during selection");
+            t.IsOn = false;
+            Assert.AreEqual(authored, bg.overrideSprite, "deselected -> override cleared, getter falls back to authored sprite");
+            Assert.AreEqual(authored, bg.sprite, "authored sprite still untouched after deselect");
         }
 
         [Test]
-        public void Tab_Without_SelectedSprite_Has_No_Overlay()
+        public void Tab_Without_SelectedSprite_No_Swap()
         {
             LogAssert.Expect(LogType.Warning,
                 new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
             var t = OpenTab("<Tab id='t'/>");
-            Assert.IsNull(t.GameObject.transform.Find("Overlay"), "no Overlay when selectedSprite absent");
+            var bg = t.GameObject.GetComponent<UnityImage>();
+            var authored = bg.sprite;
+            t.IsOn = true;
+            Assert.AreEqual(authored, bg.overrideSprite, "no selectedSprite -> no swap even when selected (falls back to authored)");
         }
 
         [Test]
-        public void Tab_Empty_SelectedSprite_Does_Not_Create_Overlay()
+        public void Tab_Empty_SelectedSprite_No_Swap()
         {
             LogAssert.Expect(LogType.Warning,
                 new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
             var t = OpenTab("<Tab id='t' selectedSprite=''/>");
-            Assert.IsNull(t.GameObject.transform.Find("Overlay"),
-                "empty selectedSprite is no-op (tightened semantics)");
+            var bg = t.GameObject.GetComponent<UnityImage>();
+            var authored = bg.sprite;
+            t.IsOn = true;
+            Assert.AreEqual(authored, bg.overrideSprite, "empty selectedSprite is a no-op even when selected (falls back to authored)");
         }
 
         [Test]
@@ -229,13 +244,15 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Tab_None_SelectedSprite_Does_Not_Create_Overlay()
+        public void Tab_None_SelectedSprite_No_Swap()
         {
             LogAssert.Expect(LogType.Warning,
                 new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
             var t = OpenTab("<Tab id='t' selectedSprite='none'/>");
-            Assert.IsNull(t.GameObject.transform.Find("Overlay"),
-                "selectedSprite='none' is a no-op like empty — no empty overlay created");
+            var bg = t.GameObject.GetComponent<UnityImage>();
+            var authored = bg.sprite;
+            t.IsOn = true;
+            Assert.AreEqual(authored, bg.overrideSprite, "selectedSprite='none' is a no-op even when selected (falls back to authored)");
         }
 
         [Test]
@@ -282,6 +299,53 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var t = OpenTab("<Tab id='t' color='#00000000'/>");
             var bg = t.GameObject.GetComponent<UnityImage>();
             Assert.AreEqual(0f, bg.color.a);
+        }
+
+        [Test]
+        public void Tab_SelectedSprite_SurvivesReSolve()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var stub = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            UI.SpriteResolver = key => key == "ui:tab_sel" ? stub : null;
+            var xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Tab id='t' selectedSprite='ui:tab_sel'/></Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var t = screen.Get<Tab>("t");
+            var bg = t.GameObject.GetComponent<UnityImage>();
+            var toggle = t.GameObject.GetComponent<UnityToggle>();
+            t.IsOn = true;
+            Assert.AreSame(stub, bg.overrideSprite);
+            Assert.AreEqual(Selectable.Transition.None, toggle.transition);
+
+            screen.ReSolve();
+
+            Assert.AreSame(stub, bg.overrideSprite, "selectedSprite swap survives ReSolve");
+            Assert.AreEqual(Selectable.Transition.None, toggle.transition, "transition stays None across ReSolve");
+        }
+
+        // overrideSprite shares the Image's single `type` field, so the swap must re-derive 9-slice
+        // vs simple from the displayed sprite. A bordered selectedSprite on a sprite="" tab (whose
+        // normal type is Simple) must render Sliced while selected, and revert to Simple when not.
+        [Test]
+        public void Tab_SelectedSprite_With9SliceBorder_RendersSliced()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var tex = new Texture2D(16, 16);
+            var bordered = Sprite.Create(tex, new Rect(0, 0, 16, 16), new Vector2(0.5f, 0.5f), 100f, 0,
+                SpriteMeshType.FullRect, new Vector4(4, 4, 4, 4));
+            UI.SpriteResolver = key => key == "ui:tab_sel" ? bordered : null;
+            var t = OpenTab("<Tab id='t' sprite='' selectedSprite='ui:tab_sel'/>");
+            var bg = t.GameObject.GetComponent<UnityImage>();
+
+            Assert.AreEqual(UnityImage.Type.Simple, bg.type, "empty normal sprite -> Simple while not selected");
+            t.IsOn = true;
+            Assert.AreSame(bordered, bg.overrideSprite);
+            Assert.AreEqual(UnityImage.Type.Sliced, bg.type, "selected bordered sprite renders 9-sliced");
+            t.IsOn = false;
+            Assert.AreEqual(UnityImage.Type.Simple, bg.type, "reverts to Simple for the empty normal sprite");
         }
     }
 }

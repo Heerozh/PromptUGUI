@@ -9,8 +9,10 @@ namespace PromptUGUI.Controls.Internal
     /// <summary>
     /// Drives a single <see cref="Graphic"/>'s colour from the owning <see cref="IStateSource"/>'s
     /// <see cref="InteractState"/> stream. On each state it tweens the graphic toward
-    /// <c>(absolute ?? baseColor) × (modulate ?? white)</c>. Absolutes are applied only to the
-    /// control's <c>targetGraphic</c>; modulates fan out to every descendant graphic.
+    /// <c>(absolute ?? selectionBase) × (modulate ?? white)</c>, where <c>selectionBase</c> is the
+    /// selected base (Tab/Toggle <c>selectedColor</c>) while the source is selected, else the captured
+    /// base colour. Absolutes and the selected base are applied only to the control's
+    /// <c>targetGraphic</c>; modulates fan out to every descendant graphic.
     /// </summary>
     /// <remarks>
     /// The base (authored) colour is captured ONCE on first init and never re-captured: a
@@ -33,6 +35,8 @@ namespace PromptUGUI.Controls.Internal
         private Graphic _graphic;
         private bool _baseCaptured;
         private Color _baseColor = Color.white;
+        private Color? _selectedBase;       // base while the source is selected (Tab/Toggle isOn); null ⇒ none
+        private bool _selected;             // pushed by the owning control via SetSelected
 
         private StateColorSet _absolutes;   // per-state ABSOLUTE base override (targetGraphic only)
         private StateColorSet _modulates;   // per-state relative MULTIPLIER (null entry = white identity)
@@ -61,7 +65,7 @@ namespace PromptUGUI.Controls.Internal
         /// (Re)set the per-state absolute overrides + relative multipliers + fade. Safe to call
         /// repeatedly (Variant ReSolve): the base colour stays captured from the first init.
         /// </summary>
-        public void Configure(StateColorSet absolutes, StateColorSet modulates, float fade)
+        public void Configure(StateColorSet absolutes, StateColorSet modulates, float fade, Color? selectedBase = null, bool selected = false)
         {
             // Assign the colour sets BEFORE EnsureInit subscribes: the OnState subscription replays
             // the source's current state synchronously, so if the control is already in a non-Normal
@@ -71,6 +75,8 @@ namespace PromptUGUI.Controls.Internal
             _absolutes = absolutes;
             _modulates = modulates;
             _fade = fade;
+            _selectedBase = selectedBase;
+            _selected = selected;
 
             var firstInit = _graphic == null;
             EnsureInit();
@@ -84,8 +90,32 @@ namespace PromptUGUI.Controls.Internal
                 OnState(_source.Current);
         }
 
+        /// <summary>
+        /// Pushed by the owning Tab/Toggle on every isOn change (and re-asserted on ReSolve): selects
+        /// the selection-aware base. Repaints the current state so a selected control at rest shows
+        /// its selected base immediately. Read as a push (not from the broadcaster) because the
+        /// broadcaster suppresses Selected under a transient state and does not re-emit on isOn-only
+        /// changes.
+        /// </summary>
+        public void SetSelected(bool on)
+        {
+            _selected = on;
+            if (_source != null) OnState(_source.Current);
+        }
+
         private Color MultiplierFor(InteractState state) => _modulates.For(state) ?? Color.white;
-        private Color BaseFor(InteractState state) => _absolutes.For(state) ?? _baseColor;
+
+        private Color BaseFor(InteractState state)
+            => _absolutes.For(state)
+               ?? ((_selected && _selectedBase.HasValue) ? _selectedBase.Value : _baseColor);
+
+        /// <summary>
+        /// True when a colour transition has a fully-transparent endpoint. Such a transition must
+        /// SNAP, not tween: a straight RGBA lerp between a transparent colour and an opaque one drags
+        /// RGB through black (a visible flicker — e.g. a transparent Tab fading into its selectedColor
+        /// on select). Opaque ↔ opaque transitions (hover / press feedback) still fade.
+        /// </summary>
+        internal static bool CrossesTransparency(Color from, Color to) => from.a <= 0f || to.a <= 0f;
 
         private void OnState(InteractState state)
         {
@@ -94,7 +124,7 @@ namespace PromptUGUI.Controls.Internal
 
             if (_handle.IsActive()) _handle.TryCancel();
 
-            if (TestForceInstant || _fade <= 0f)
+            if (TestForceInstant || _fade <= 0f || CrossesTransparency(_graphic.color, target))
             {
                 _graphic.color = target;
                 return;

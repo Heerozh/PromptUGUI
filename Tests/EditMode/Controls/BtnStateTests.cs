@@ -319,6 +319,25 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(authored, bg.sprite, "authored sprite still untouched after release");
         }
 
+        // User scenario: transparent normal (sprite="") + a bordered pressedSprite swapped in on press.
+        // overrideSprite shares the Image's single `type` field, so the pressed image must render 9-sliced.
+        [Test]
+        public void PressedSprite_With9SliceBorder_OnTransparentNormal_RendersSliced()
+        {
+            var tex = new Texture2D(16, 16);
+            var bordered = Sprite.Create(tex, new Rect(0, 0, 16, 16), new Vector2(0.5f, 0.5f), 100f, 0,
+                SpriteMeshType.FullRect, new Vector4(4, 4, 4, 4));
+            UI.SpriteResolver = _ => bordered;
+
+            var btn = BuildBtn("sprite='' pressedSprite='ui:pressed'");
+            var bg = btn.GameObject.GetComponent<UnityImage>();
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+
+            puiBtn.SimulateState(Pressed);
+            Assert.AreEqual(bordered, bg.overrideSprite, "Pressed shows the bordered pressedSprite");
+            Assert.AreEqual(UnityImage.Type.Sliced, bg.type, "bordered pressedSprite renders 9-sliced");
+        }
+
         [Test]
         public void PressedSprite_DisablesDefaultColorTint()
         {

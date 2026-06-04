@@ -11,6 +11,7 @@ namespace PromptUGUI.Controls
     public sealed class Toggle : Control
     {
         private UnityImage _bg;
+        private StateTintReactor _bgReactor;
         private UnityImage _checkmark;
         private PuiToggle _toggle;
         private TMP_Text _label;
@@ -84,7 +85,7 @@ namespace PromptUGUI.Controls
 
             ApplyFont();
 
-            _toggle.onValueChanged.AddListener(v => _changed.OnNext(v));
+            _toggle.onValueChanged.AddListener(v => { _changed.OnNext(v); _bgReactor?.SetSelected(v); });
             PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
         }
 
@@ -179,9 +180,14 @@ namespace PromptUGUI.Controls
         {
             base.OnAfterApply();
             _toggle.interactable = Interactable;
-            var abs = StateColorSet.Resolve(_hoverColor, _pressedColor, _selectedColor, _disabledColor);
+            // selectedColor is the selection-aware BASE (not a Selected-state absolute); selectedModulate
+            // stays the Selected multiplier. Toggle keeps its Checkmark overlay unchanged.
+            var abs = StateColorSet.Resolve(_hoverColor, _pressedColor, null, _disabledColor);
             var mod = StateColorSet.Resolve(_hoverModulate, _pressedModulate, _selectedModulate, _disabledModulate);
-            StateTintInstaller.Install(GameObject, _toggle, Children, abs, mod);
+            Color? selectedBase = string.IsNullOrWhiteSpace(_selectedColor)
+                ? (Color?)null
+                : UI.Theme.Resolve(_selectedColor);
+            _bgReactor = StateTintInstaller.Install(GameObject, _toggle, Children, abs, mod, selectedBase, IsOn);
         }
 
         public override Vector2? GetNativeSize()
