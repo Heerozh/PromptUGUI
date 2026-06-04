@@ -152,6 +152,9 @@ await SpriteResolverHelpers.UseAddressableSpriteSetResolver(
 
 > 一个 label 可对应多个 SpriteSet。可 `await`（无空图闪烁），也可 fire-and-forget（加载中 `<Icon>` 静默留空、下完自动重刷）。
 
+**Sprite命名最佳实践：** 大模型选 sprite 时看不到图，只看得到那个字符串名字。因此命名要按语义角色/意图起，绝不要按外观（蓝、圆、3号、frame_02）起。
+比如低存在感的图标按钮： `UI:Button/SmallIcon-Ghost-Frame` / `UI:Button/SmallIcon-Ghost-MaskBg`.
+
 ---
 
 ## 5. 多国语言 & 字体
