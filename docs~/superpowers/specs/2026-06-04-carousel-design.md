@@ -297,7 +297,9 @@ if (_elapsed >= _interval) { _elapsed = 0f; GoTo(_current + 1, animated:true); }
 ```
 OnBeginDrag:  若 |delta.x| < |delta.y| → 主轴非水平，return（不 eat，交外层；CAR-D11）
               否则 _dragging=true，取消在播的补间
-OnDrag:       _stripX += eventData.delta.x（跟手）；clamp（loop=false 时两端加阻尼）
+OnDrag:       _dragAccumX += eventData.delta.x（跟手），并 clamp 到 ±1 页（_pageWidth）
+              —— 拖动最多露出相邻页，不能拖到更远的页再吸附回相邻页（钳累加器而非
+              仅钳 _scroll，反向拖立即响应，无死区）
 OnEndDrag:    _dragging=false
               翻页判定：|累计位移| > 页宽×0.2  ||  |flick 速度| > 阈值
                 → GoTo(current ± 1)        （方向看位移符号）

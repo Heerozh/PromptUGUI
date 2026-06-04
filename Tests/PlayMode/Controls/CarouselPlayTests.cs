@@ -81,6 +81,23 @@ namespace PromptUGUI.Tests.PlayMode.Controls
         }
 
         [UnityTest]
+        public IEnumerator Drag_Cannot_Exceed_One_Page()
+        {
+            var car = Open("interval='0' transition='0.01'");
+            yield return null;   // let layout settle so _pageWidth is the real viewport width
+            var view = car.GameObject.GetComponent<PromptUGUI.Controls.Internal.CarouselView>();
+            var begin = (UnityEngine.EventSystems.IBeginDragHandler)view;
+            var drag = (UnityEngine.EventSystems.IDragHandler)view;
+            var es = new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current)
+            { delta = new UnityEngine.Vector2(-10000f, 0f) };   // drag far more than one page
+            begin.OnBeginDrag(es);
+            drag.OnDrag(es);
+            // Mid-drag the visible scroll must not slide past one page from the start (start = page 0).
+            Assert.LessOrEqual(Mathf.Abs(view.ScrollForTests), 1.0001f,
+                "drag is clamped to ±1 page — can't drag to a far page then snap back to the neighbor");
+        }
+
+        [UnityTest]
         public IEnumerator Vertical_Drag_Is_Ignored()
         {
             var car = Open("interval='0' transition='0.01'");

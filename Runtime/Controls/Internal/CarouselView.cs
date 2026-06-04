@@ -74,6 +74,7 @@ namespace PromptUGUI.Controls.Internal
 
         public Action<int> OnCurrent { get; set; }
         public RectTransform StripRect => _strip;
+        internal float ScrollForTests => _scroll;   // test seam: observe the live (mid-drag) scroll position
         public int CardCount => _cards.Count;
         public int CurrentIndex => _current;
 
@@ -437,6 +438,10 @@ namespace PromptUGUI.Controls.Internal
             if (!_dragActive) { ForwardToParent(e, ExecuteEvents.dragHandler); return; }
             if (_cards.Count == 0) return;
             _dragAccumX += e.delta.x;
+            // Clamp the drag to ±1 page: you can reveal at most the neighbour, never slide to a far
+            // page and then snap back to the adjacent one. Clamping the accumulator (not just _scroll)
+            // keeps reverse motion responsive — dragging back immediately moves off the boundary.
+            _dragAccumX = Mathf.Clamp(_dragAccumX, -_pageWidth, _pageWidth);
             // 右拖（dx>0）显示上一张 → _scroll 减小。
             _scroll = _dragStartScroll - _dragAccumX / _pageWidth;
             Reposition();
