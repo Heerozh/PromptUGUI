@@ -95,7 +95,27 @@ namespace PromptUGUI.Controls.Internal
             foreach (var c in children) _cards.Add(c);
         }
         public void AddCard(IControl card) { _cards.Add(card); }
-        public void ClearCards() { /* Task 5 */ }
+
+        public void ClearCards()
+        {
+            _bound = true;   // 标记已动态绑定：之后 ReSolve 的 SetStaticCards 不再收旧引用
+            foreach (var c in _cards) c.Dispose();
+            _cards.Clear();
+        }
+
+        // BindItems 重建完：钳当前页进新范围，重建指示点，重排，重启自动播放计时。
+        public void OnItemsRebuilt()
+        {
+            int prev = _current;
+            if (_cards.Count == 0) { _current = -1; _scroll = 0f; }
+            else _current = Mathf.Clamp(_current < 0 ? 0 : _current, 0, _cards.Count - 1);
+            RebuildIndicator();
+            RelayoutNow();
+            StartAutoplayIfNeeded();
+            // Emit when the committed page changed (empty -> -1, or clamped into a smaller deck),
+            // mirroring GoTo's change-guarded emission so OnCurrentChanged stays in sync after a rebuild.
+            if (_current != prev) OnCurrent?.Invoke(_current);
+        }
 
         // —— 指示点 ——
         public void ConfigureDots(string anchor, Vector2 size, float spacing, string margin,

@@ -94,9 +94,67 @@ namespace PromptUGUI.Controls
         public void Previous(bool animated = true) => _view.Previous(animated);
         public Observable<int> OnCurrentChanged => _currentChanged;
 
+        public IDisposable BindItems<T>(
+            Observable<IReadOnlyList<T>> source,
+            Action<IControl, T> bind)
+            => BindItems<T, IControl>(source, bind);
+
+        public IDisposable BindItems<T, TSlot>(
+            Observable<IReadOnlyList<T>> source,
+            Action<TSlot, T> bind) where TSlot : class, IControl
+        {
+            _itemsSub?.Dispose();
+            _itemsSub = source.Subscribe(items => Rebuild(items, bind));
+            return _itemsSub;
+        }
+
+        private void Rebuild<T, TSlot>(IReadOnlyList<T> items, Action<TSlot, T> bind)
+            where TSlot : class, IControl
+        {
+            if (_factory == null) _factory = ResolveFactory(_itemTemplate);
+            _view.ClearCards();
+            for (int i = 0; i < items.Count; i++)
+            {
+                var node = _factory(_strip);
+                if (node is TSlot typed) bind(typed, items[i]);
+                else throw new InvalidCastException(
+                    $"itemTemplate='{_itemTemplate}' instantiated {node.GetType().Name}, " +
+                    $"but BindItems expected {typeof(TSlot).Name}");
+                _view.AddCard(node);
+            }
+            _view.OnItemsRebuilt();
+        }
+
+        private Func<RectTransform, IControl> ResolveFactory(string tag)
+        {
+            var owner = UI.OwnerScreenOf(this);
+            if (owner?.Def?.Templates != null && owner.Def.Templates.TryGetValue(tag, out var tpl))
+            {
+                return parent =>
+                {
+                    var instantiator = UI.GetInstantiator();
+                    return instantiator.InstantiateNode(tpl.Body, parent, owner);
+                };
+            }
+            if (UI.Registry.Has(tag))
+            {
+                return parent =>
+                {
+                    var instantiator = UI.GetInstantiator();
+                    var node = new ElementNode(tag);
+                    return instantiator.InstantiateNode(node, parent, owner);
+                };
+            }
+            throw new ParseException(
+                $"<Carousel itemTemplate='{tag}'>: tag is neither a registered Control nor a Template");
+        }
+
         public override void Dispose()
         {
             _itemsSub?.Dispose();
+            // Dynamically-bound cards aren't in Screen._nodeMap, so dispose them explicitly
+            // (matches ScrollList.Dispose -> ClearSlots); static cards double-dispose safely.
+            _view.ClearCards();
             _currentChanged.Dispose();
             base.Dispose();
         }
