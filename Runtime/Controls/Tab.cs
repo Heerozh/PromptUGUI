@@ -13,7 +13,7 @@ namespace PromptUGUI.Controls
     public sealed class Tab : Control
     {
         private UnityImage _bg;
-        private UnityImage _overlay;
+        private UnityEngine.Sprite _selectedSprite;   // resolved selectedSprite, swapped onto _bg.overrideSprite while IsOn
         private UnityImage _icon;
         private TMP_Text _label;
         private PuiToggle _toggle;
@@ -77,6 +77,7 @@ namespace PromptUGUI.Controls
             _changed.OnNext(isOn);
             if (isOn) _selected.OnNext(Unit.Default);
             ApplyBindFrame(isOn);
+            ApplySelectedSprite();
         }
 
         private void ApplyBindFrame(bool isOn)
@@ -205,11 +206,28 @@ namespace PromptUGUI.Controls
         {
             set
             {
-                // "" / "none" → no selected-state overlay. There is no default overlay to
-                // clear, so this is a plain no-op (don't materialise an empty overlay).
-                if (string.IsNullOrEmpty(value) || value == "none") return;
-                EnsureOverlay(UI.ResolveSprite(value));
+                // "" / "none" → no selected sprite (no swap). No default overlay to clear.
+                if (string.IsNullOrEmpty(value) || value == "none")
+                {
+                    _selectedSprite = null;
+                    ApplySelectedSprite();
+                    return;
+                }
+                _selectedSprite = UI.ResolveSprite(value);
+                // Mirror <Btn pressedSprite>: the swapped sprite IS the selected feedback, so take the
+                // bg off uGUI's built-in ColorTint to avoid double-tinting it.
+                _toggle.transition = Selectable.Transition.None;
+                ApplySelectedSprite();
             }
+        }
+
+        // Show the selected sprite by overriding the bg's displayed sprite while IsOn — the authored
+        // `sprite` (_bg.sprite) is never touched. Keyed on IsOn (persistent), so hover/press of the
+        // selected tab (transient state only) never disturb it.
+        private void ApplySelectedSprite()
+        {
+            if (_bg == null) return;
+            _bg.overrideSprite = (IsOn && _selectedSprite != null) ? _selectedSprite : null;
         }
 
         [UIAttr(IsColor = true), Preserve]
@@ -221,8 +239,9 @@ namespace PromptUGUI.Controls
         /// <summary>
         /// Blend mode for how <see cref="Color"/> combines with the bg sprite — same
         /// <c>multiply</c> / <c>linear</c> (Linear Light) choice as <see cref="Btn"/> / <see cref="Image"/>.
-        /// Applies to <c>_bg</c> only (where <see cref="Color"/> lands); the selectedSprite overlay is
-        /// not tinted. Orthogonal to the state-colour reactors (which drive <c>color</c>, not material).
+        /// Applies to <c>_bg</c> (where <see cref="Color"/> lands); since <c>selectedSprite</c> swaps the
+        /// bg's own <c>overrideSprite</c>, the selected sprite is tinted too. Orthogonal to the
+        /// state-colour reactors (which drive <c>color</c>, not material).
         /// </summary>
         [UIAttr, Preserve]
         public string Tint
@@ -235,25 +254,6 @@ namespace PromptUGUI.Controls
             if (sprite == null) return;
             _bg.sprite = sprite;
             _bg.type = sprite.border != Vector4.zero ? UnityImage.Type.Sliced : UnityImage.Type.Simple;
-        }
-
-        private void EnsureOverlay(UnityEngine.Sprite selectedSprite)
-        {
-            if (_overlay == null)
-            {
-                _overlay = ProceduralBuilders.AddImage(RectTransform, "Overlay", raycast: false);
-                _overlay.rectTransform.SetSiblingIndex(0);   // draw under Label / Icon
-                var rt = _overlay.rectTransform;
-                rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
-                rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
-                _toggle.graphic = _overlay;
-                _toggle.toggleTransition = UnityToggle.ToggleTransition.None;   // instant; TB-D5
-            }
-            if (selectedSprite == null) return;
-            _overlay.sprite = selectedSprite;
-            _overlay.type = selectedSprite.border != Vector4.zero
-                ? UnityImage.Type.Sliced
-                : UnityImage.Type.Simple;
         }
 
         /// <summary>Absolute bg colour while Hover.</summary>
@@ -286,6 +286,11 @@ namespace PromptUGUI.Controls
             var abs = StateColorSet.Resolve(_hoverColor, _pressedColor, _selectedColor, _disabledColor);
             var mod = StateColorSet.Resolve(_hoverModulate, _pressedModulate, _selectedModulate, _disabledModulate);
             StateTintInstaller.Install(GameObject, _toggle, Children, abs, mod);
+            // selectedSprite takes the bg off ColorTint (the swap IS the selected feedback); re-assert
+            // here so a ReSolve where the colour installer bails early can't leave it on ColorTint.
+            // Mirrors Btn.OnAfterApply's pressedSprite re-assert.
+            if (_selectedSprite != null) _toggle.transition = Selectable.Transition.None;
+            ApplySelectedSprite();
         }
 
         public override void Dispose()
