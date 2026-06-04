@@ -78,7 +78,17 @@ namespace PromptUGUI.Controls
         }
 
         public int Count => _view.CardCount;
-        public int Current => _view.CurrentIndex;
+
+        [UIAttr, Preserve]
+        public int Current
+        {
+            get => _view.CurrentIndex;
+            set => _view.GoTo(value, animated: false);
+        }
+
+        internal override string PeekRuntimeState()
+            => _view.CurrentIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
         public void GoTo(int index, bool animated = true) => _view.GoTo(index, animated);
         public void Next(bool animated = true) => _view.Next(animated);
         public void Previous(bool animated = true) => _view.Previous(animated);

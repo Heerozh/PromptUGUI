@@ -113,5 +113,36 @@ namespace PromptUGUI.Tests.EditMode.Controls
             car.GoTo(1, animated: false);
             Assert.AreEqual(1, count, "repeated same index fires once");
         }
+
+        [Test]
+        public void Initial_Current_From_Xml_Attribute()
+        {
+            var car = Open("<Carousel id='car' size='200x100' current='2'><Image/><Image/><Image/></Carousel>");
+            Assert.AreEqual(2, car.Current);
+        }
+
+        [Test]
+        public void Runtime_Current_Survives_ReSolve()
+        {
+            var car = Open("<Carousel id='car' size='200x100' current='0'><Image/><Image/><Image/></Carousel>");
+            car.GoTo(2, animated: false);
+            // ReSolve（resize / Variant / Theme 同一通道）：切一个无关 Variant 触发 Screen.ReSolve。
+            UI.Variants.Set("dummy", true);
+            Assert.AreEqual(2, car.Current, "runtime-changed current is NOT snapped back to declared 0");
+        }
+
+        [Test]
+        public void Variant_Override_Applies_When_Current_Untouched()
+        {
+            var xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Carousel id='car' size='200x100' current='0' current.big='2'><Image/><Image/><Image/></Carousel>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var car = UI.Open("S").Get<Carousel>("car");
+            Assert.AreEqual(0, car.Current);
+            UI.Variants.Set("big", true);   // 运行期没动过 current → variant 覆盖正常生效
+            Assert.AreEqual(2, car.Current);
+        }
     }
 }
