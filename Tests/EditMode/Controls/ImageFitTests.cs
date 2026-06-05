@@ -85,7 +85,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
 </Screen></PromptUGUI>";
             UI.LoadDocument("t", xml);
             var img = UI.Open("S").Get<PromptUGUIImage>("i");
-            Assert.IsNotNull(img.GameObject.GetComponent<AspectRatioFitter>());
+            var arf = img.GameObject.GetComponent<AspectRatioFitter>();
+            Assert.IsNotNull(arf);
+            Assert.AreEqual(1f, arf.aspectRatio, 0.001f, "aspectRatio stays at default (1) when no sprite");
         }
 
         [Test]
@@ -108,6 +110,19 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             UI.Variants.Set("mobile", false);
             Assert.IsTrue(arf.enabled, "back to base cover → fitter re-enabled");
+            var unityImg = img.GameObject.GetComponent<Image>();
+            var expected = unityImg.sprite.rect.width / unityImg.sprite.rect.height;
+            Assert.AreEqual(expected, arf.aspectRatio, 0.001f, "aspectRatio restored on re-enable");
+        }
+
+        [Test]
+        public void Contain_AspectRatio_MatchesSpriteRect()
+        {
+            var img = Build("contain");
+            var unityImg = img.GameObject.GetComponent<Image>();
+            var arf = img.GameObject.GetComponent<AspectRatioFitter>();
+            var expected = unityImg.sprite.rect.width / unityImg.sprite.rect.height;
+            Assert.AreEqual(expected, arf.aspectRatio, 0.001f);
         }
     }
 }

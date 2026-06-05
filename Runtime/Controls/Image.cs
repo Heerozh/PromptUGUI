@@ -29,6 +29,9 @@ namespace PromptUGUI.Controls
         private PointerEventRelay EnsureRelay()
             => _pointerRelay ??= GameObject.AddComponent<PointerEventRelay>();
 
+        private AspectRatioFitter EnsureFitter()
+            => _fitter ??= GameObject.AddComponent<AspectRatioFitter>();
+
         public Observable<Unit> OnPointerEnter => EnsureRelay().OnPointerEnter;
         public Observable<Unit> OnPointerExit => EnsureRelay().OnPointerExit;
         public Observable<Unit> OnPointerDown => EnsureRelay().OnPointerDown;
@@ -83,9 +86,6 @@ namespace PromptUGUI.Controls
                 }
             }
         }
-
-        private AspectRatioFitter EnsureFitter()
-            => _fitter ??= GameObject.AddComponent<AspectRatioFitter>();
 
         [UIAttr, Preserve]
         public string Mask
