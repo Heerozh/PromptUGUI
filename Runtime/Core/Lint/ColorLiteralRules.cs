@@ -22,6 +22,18 @@ namespace PromptUGUI.Lint
             if (!node.Attributes.TryGetValue("color", out var value)) yield break;
             if (string.IsNullOrEmpty(value)) yield break;
 
+            // Reference-site /alpha suffix ("black/0.5"): strip it before the hex check.
+            // A malformed suffix on a hex literal is flagged at build time; on a bare word
+            // it's left to the runtime resolver (tokens aren't statically checked anyway).
+            if (!ColorParser.TrySplitAlpha(value, out var baseValue, out _, out var alphaErr))
+            {
+                if (value[0] == '#')
+                    yield return new LintIssue(ColorLiteralCode, node.Tag, node.Id,
+                        $"<{node.Tag} id='{node.Id}'>: {alphaErr}");
+                yield break;
+            }
+            value = baseValue;
+
             // Bare words (tokens) are not checked statically.
             if (value[0] != '#') yield break;
 

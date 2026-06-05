@@ -120,6 +120,35 @@ namespace PromptUGUI.Tests.EditMode.Lint
         }
 
         [Test]
+        public void Hex_With_Alpha_Suffix_No_Issue()
+        {
+            // Reference-site /alpha suffix must be stripped before the hex check.
+            var n = new IR.ElementNode("Image") { Id = "test" };
+            n.Attributes["color"] = "#ff0000/0.3";
+            var issues = ColorLiteralRules.Check(n).ToList();
+            Assert.IsEmpty(issues);
+        }
+
+        [Test]
+        public void Token_With_Alpha_Suffix_No_Issue()
+        {
+            var n = new IR.ElementNode("Image") { Id = "test" };
+            n.Attributes["color"] = "primary/0.5";
+            var issues = ColorLiteralRules.Check(n).ToList();
+            Assert.IsEmpty(issues);
+        }
+
+        [Test]
+        public void Hex_With_OutOfRange_Alpha_Suffix_Flagged()
+        {
+            var n = new IR.ElementNode("Image") { Id = "bad" };
+            n.Attributes["color"] = "#ff0000/9";  // alpha must be 0..1
+            var issues = ColorLiteralRules.Check(n).ToList();
+            Assert.AreEqual(1, issues.Count);
+            Assert.AreEqual(ColorLiteralRules.ColorLiteralCode, issues[0].Code);
+        }
+
+        [Test]
         public void IRWalker_Integration_TokenWord_NoDispatch()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
