@@ -60,6 +60,17 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Image_Token_With_Alpha_Suffix_End_To_End()
+        {
+            SeedLight("#ff8800");
+            var s = Open("<Image id='x' color='primary/0.5'/>");
+            var img = s.Get<Image>("x").GameObject.GetComponent<UnityImage>();
+            Assert.AreEqual(1f, img.color.r, 0.005f);          // token RGB preserved
+            Assert.AreEqual(0x88 / 255f, img.color.g, 0.005f);
+            Assert.AreEqual(0.5f, img.color.a, 0.001f);        // alpha from suffix
+        }
+
+        [Test]
         public void Text_Token_Resolves()
         {
             SeedLight("#222222");

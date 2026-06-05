@@ -549,6 +549,21 @@ If you register a token named `red`, then `color="red"` resolves to that token (
 
 `color.dark="..."` works as expected for variant overrides — value goes through the same token → literal resolution chain.
 
+### Alpha suffix (opacity)
+
+Append `/<0..1>` to any color **reference** to set its opacity. The suffix REPLACES the resolved color's alpha (Unity `Color.a` semantics, like Flutter `withOpacity`) — it does not multiply:
+
+```xml
+<Frame color="black/0.5"/>     <!-- black backdrop at 50% opacity -->
+<Image color="primary/0.8"/>   <!-- theme token's RGB, alpha forced to 0.8 -->
+<Text  color="#ff0000/0.3" text="faint"/>
+```
+
+- Works on **every** color-valued attribute (one resolution chokepoint): `color`, the state colors `hoverColor` / `pressedColor` / `selectedColor` / `disabledColor`, `*Modulate`, variant overrides (`color.dark="primary/0.5"`), and `<Animation char-color="primary/1:primary/0">` (fade out).
+- Replace, not multiply: a token whose own value carries alpha (e.g. `scrim = #00000080`) referenced as `scrim/1` comes out **fully opaque**.
+- Value is a `0..1` float. Out of range or malformed (`/1.5`, `/abc`, `/`, no color before `/`) → `ParseException` with node context.
+- Suffix is **reference-only**. Definition-side `<Color value="...">` does NOT take a suffix — bake alpha into the hex there (`value="#00000080"`) if you want a baked-alpha token.
+
 ### Error codes
 
 - `<Theme>: missing required attribute 'name'`
@@ -559,7 +574,8 @@ If you register a token named `red`, then `color="red"` resolves to that token (
 - `<Theme name="X" base="Y">: base theme 'Y' not found`
 - `<Theme> base cycle starting at 'X': ...`
 - (Runtime, when value can't resolve) `<Image id='X'> attribute color="Y": unknown color token "Y" (no entry in theme 'Z', not a valid hex/named literal)`
-- (Lint) `PUI-COLOR-LITERAL-INVALID` — static check: `color="#..."` literal that doesn't parse
+- (Runtime, bad alpha suffix) `color "black/1.5": alpha 1.5 is out of range — must be 0..1`
+- (Lint) `PUI-COLOR-LITERAL-INVALID` — static check: `color="#..."` literal that doesn't parse, or a hex literal with an out-of-range / malformed `/alpha` suffix
 
 ## Tint blend modes
 

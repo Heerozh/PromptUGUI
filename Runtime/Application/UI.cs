@@ -437,6 +437,20 @@ namespace PromptUGUI.Application
             {
                 if (string.IsNullOrEmpty(value))
                     throw new System.Exception("empty color value");
+
+                // Reference-site alpha suffix: "black/0.5" → resolve "black", then set a = 0.5.
+                // The suffix REPLACES the resolved colour's own alpha (Color.a semantics),
+                // so a 50%-opaque token referenced as "scrim/1" comes out fully opaque.
+                if (!Parser.ColorParser.TrySplitAlpha(value, out var baseValue, out var alpha, out var err))
+                    throw new System.Exception(err);
+
+                var resolved = ResolveBase(baseValue);
+                if (alpha.HasValue) resolved.a = alpha.Value;
+                return resolved;
+            }
+
+            private static UnityEngine.Color ResolveBase(string value)
+            {
                 if (Current != null)
                 {
                     var hit = ThemeStore.Instance.LookupChained(Current, value);
