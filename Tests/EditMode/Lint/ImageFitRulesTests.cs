@@ -22,6 +22,8 @@ namespace PromptUGUI.Tests.EditMode.Lint
             var issues = ImageFitRules.CheckVariant(n).ToList();
             Assert.AreEqual(1, issues.Count);
             Assert.AreEqual(ImageFitRules.VariantCode, issues[0].Code);
+            Assert.AreEqual("Image", issues[0].Tag);
+            Assert.AreEqual("i", issues[0].Id);
             StringAssert.Contains("cover", issues[0].Message);
         }
 
@@ -116,6 +118,29 @@ namespace PromptUGUI.Tests.EditMode.Lint
             var issues = ImageFitRules.CheckGeometry(n).ToList();
             Assert.AreEqual(1, issues.Count);
             StringAssert.Contains("width", issues[0].Message);
+        }
+
+        [Test]
+        public void TwoFitVariants_OnlyOneIssue()
+        {
+            // yield break enforces one issue per Image even with multiple fit overrides.
+            var n = Img();
+            n.VariantOverrides["type"] =
+                new List<(string, string)> { ("mobile", "cover"), ("tablet", "contain") };
+            Assert.AreEqual(1, ImageFitRules.CheckVariant(n).Count());
+        }
+
+        [Test]
+        public void VariantOnlyFitType_WithSize_NoGeometryIssue()
+        {
+            // Geometry rule gates on BASE type being fit. A variant-only fit type is already
+            // flagged by FIT-VARIANT (which owns the node); the size isn't inert when the
+            // variant is off, so FIT-GEOMETRY deliberately stays silent here.
+            var n = Img();
+            n.VariantOverrides["type"] =
+                new List<(string, string)> { ("mobile", "cover") };
+            n.Attributes["size"] = "200x200";
+            Assert.IsEmpty(ImageFitRules.CheckGeometry(n));
         }
     }
 }
