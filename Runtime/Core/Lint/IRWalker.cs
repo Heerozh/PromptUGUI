@@ -43,8 +43,14 @@ namespace PromptUGUI.Lint
                 foreach (var issue in MaskAttributeRules.CheckFrame(node))
                     yield return issue;
             else if (node.Tag == "Image")
+            {
                 foreach (var issue in MaskAttributeRules.CheckImage(node))
                     yield return issue;
+                foreach (var issue in ImageFitRules.CheckVariant(node))
+                    yield return issue;
+                foreach (var issue in ImageFitRules.CheckGeometry(node))
+                    yield return issue;
+            }
             else if (node.Tag == "Progress")
                 foreach (var issue in ProgressAttributeRules.CheckProgress(node))
                     yield return issue;

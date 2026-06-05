@@ -187,8 +187,13 @@ namespace PromptUGUI.Application
                 foreach (var issue in MaskAttributeRules.CheckFrame(node))
                     Debug.LogWarning(issue.Message);
             else if (node.Tag == "Image")
+            {
                 foreach (var issue in MaskAttributeRules.CheckImage(node))
                     Debug.LogWarning(issue.Message);
+                // FIT-VARIANT only — FIT-GEOMETRY is CLI-only (inert, zero runtime cost).
+                foreach (var issue in ImageFitRules.CheckVariant(node))
+                    Debug.LogWarning(issue.Message);
+            }
             else if (node.Tag == "Progress")
                 foreach (var issue in ProgressAttributeRules.CheckProgress(node))
                     Debug.LogWarning(issue.Message);

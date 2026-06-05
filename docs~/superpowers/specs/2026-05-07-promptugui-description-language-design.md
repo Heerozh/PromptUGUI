@@ -192,7 +192,7 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 ### 5.3 控件特有属性
 
 由各标签自行声明：
-- `<Image sprite="bg/main" color="#FFFFFFAA" type="sliced|simple|filled|tiled"/>`
+- `<Image sprite="bg/main" color="#FFFFFFAA" type="sliced|simple|filled|tiled|contain|cover"/>`（`contain`/`cover` 等比适配，相对父级框，裁切作者用父级 `mask="rect"` 负责）
   - `color` 值解析：主题 token（经 `UI.Theme.Current` 与 base 链查表）→ 字面 `ColorUtility.TryParseHtmlString`；详见 [`2026-05-28-color-tokens-design.md`](2026-05-28-color-tokens-design.md)
 - `<Image mask="rect|self" showMask="true|false" maskPadding="T,R,B,L"/>` — 见 [`2026-05-16-frame-image-mask-design.md`](2026-05-16-frame-image-mask-design.md)
 - `<Image ... tint="multiply|linear"/>` — Image 混合材质：`multiply`（默认，UI/Default）或 `linear`（Linear Light，128 灰中性）。这些控件通用：Image / Icon / Btn / Toggle / Slider / Dropdown / ScrollList / InputField / Progress；`<Text>`（TMP 独立 shader）与 `<Tab>`（v1 暂不支持）除外。见 [`2026-05-28-image-tint-blend-mode-design.md`](2026-05-28-image-tint-blend-mode-design.md)
