@@ -14,6 +14,7 @@ namespace PromptUGUI.Controls
         private UnityImage _img;
         private PointerEventRelay _pointerRelay;
         private bool _typeExplicit;
+        private AspectRatioFitter _fitter;
         private RectMask2D _rectMask;
         private UnityEngine.UI.Mask _stencilMask;     // populated by Task 8
         private string _pendingMaskPadding;
@@ -56,15 +57,35 @@ namespace PromptUGUI.Controls
             set
             {
                 _typeExplicit = true;
-                _img.type = value switch
+                switch (value)
                 {
-                    "sliced" => UnityImage.Type.Sliced,
-                    "tiled" => UnityImage.Type.Tiled,
-                    "filled" => UnityImage.Type.Filled,
-                    _ => UnityImage.Type.Simple,
-                };
+                    case "contain":
+                    case "cover":
+                        // Fit 模式：sprite 完整画进 ARF 算好的 rect（9-slice 对 contain/cover 无意义）。
+                        // 框 = 父级 rect，由 AspectRatioFitter 相对父级驱动；Image 自身 anchor/size 被接管。
+                        _img.type = UnityImage.Type.Simple;
+                        var f = EnsureFitter();
+                        f.enabled = true;
+                        f.aspectMode = value == "cover"
+                            ? AspectRatioFitter.AspectMode.EnvelopeParent
+                            : AspectRatioFitter.AspectMode.FitInParent;
+                        break;
+                    default:
+                        _img.type = value switch
+                        {
+                            "sliced" => UnityImage.Type.Sliced,
+                            "tiled" => UnityImage.Type.Tiled,
+                            "filled" => UnityImage.Type.Filled,
+                            _ => UnityImage.Type.Simple,
+                        };
+                        if (_fitter != null) _fitter.enabled = false;
+                        break;
+                }
             }
         }
+
+        private AspectRatioFitter EnsureFitter()
+            => _fitter ??= GameObject.AddComponent<AspectRatioFitter>();
 
         [UIAttr, Preserve]
         public string Mask
@@ -111,6 +132,14 @@ namespace PromptUGUI.Controls
 
         internal override void OnAfterApply()
         {
+            // Fit 模式：用最终 sprite 算 aspectRatio（Sprite/Type setter 同循环、顺序不保证，
+            // 这里在所有 setter 之后跑；sprite 变化（含 variant 换图）也会重算）。
+            if (_fitter != null && _fitter.enabled && _img.sprite != null)
+            {
+                var r = _img.sprite.rect;
+                if (r.height > 0f) _fitter.aspectRatio = r.width / r.height;
+            }
+
             // Auto-pick Sliced for 9-slice sprites when author didn't write type=.
             // Sprite border is set in the Sprite Editor; non-zero on any edge means the
             // asset was authored for 9-slice rendering.
