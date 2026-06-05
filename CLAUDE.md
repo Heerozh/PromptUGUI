@@ -16,7 +16,7 @@ The library is **content-agnostic at runtime**: it never reads the filesystem it
 
 The LLM-facing authoring guide is split into three skills under `.claude/skills/`. **Any functional change or addition must be reflected in the relevant skill(s) in the same PR (in english).**
 
-- `authoring-promptugui-xml/SKILL.md` — XML markup: built-in tags, attributes, anchor / size / margin / Variant / Template / Import / `if=` / `<Icon>` / i18n markup / XML parse errors.
+- `authoring-promptugui-xml/SKILL.md` — XML markup: built-in tag catalog, common attributes, anchor / size / margin / layout groups / Image fit / mask / Canvas-scaler / Variant / Template / Import / `if=` / `<Icon>` tag / i18n markup / Color tokens / XML parse errors. Per-control & per-feature deep dives live in `authoring-promptugui-xml/reference/*.md` (loaded on demand via pointers in the main doc): `animations.md` (`<Trigger>` / `<Animation>`), `states.md` (Btn/Tab/Toggle state visuals — `*Color` / `*Modulate` / `<Show on="state-*">` / `pressedSprite` / `selectedSprite`), `controls-tabs.md`, `controls-carousel.md`, `controls-progress.md`, `icons.md` (SpriteSet discovery & icon-name resolution).
 - `scripting-promptugui-csharp/SKILL.md` — C# bridge: `UI.*`, `IScreen`, `IControl`, `ControlRegistry`, `Variants`, `[UIAttr]` / `[Bind]`, `BindItems` / `BindOptions`, Resources-backed icon / .po loading, `UI.CanvasConfigurator`.
 - `using-promptugui-addressables/SKILL.md` — Addressables-backed loaders for `.ui.xml`, `.po`, and icon atlases (gated by `PROMPTUGUI_HAS_ADDRESSABLES`).
 
@@ -28,6 +28,7 @@ Triggers requiring a SKILL update (route to the relevant file):
 - Public C# API surface changes (anything callers touch: `UI.*`, `IScreen`, `IControl`, `ControlRegistry`, `Variants`, `[UIAttr]` / `[Bind]`) → C# skill (Addressables skill if the change is `PROMPTUGUI_HAS_ADDRESSABLES`-gated)
 - Changes to the `id` path / scoping rules → both XML (declaration) and C# (`Get<T>` path) skills
 - New / changed parser-time errors that authors will hit → XML skill
+- Changes to a control / feature that has its own `reference/*.md` → edit **that file**, not (only) the main `SKILL.md`: `<Trigger>` / `<Animation>` → `reference/animations.md`; Btn/Tab/Toggle state visuals (`*Color` / `*Modulate` / `<Show on="state-*">` / `pressedSprite` / `selectedSprite`) → `reference/states.md`; `<TabBar>` / `<Tab>` → `reference/controls-tabs.md`; `<Carousel>` → `reference/controls-carousel.md`; `<Progress>` → `reference/controls-progress.md`; icon-name / SpriteSet discovery → `reference/icons.md`. Keep the main-doc primitive-catalog row + stub pointer in sync when attributes are added/removed.
 
 Internal refactors, test-only changes, performance work, and Editor tooling that doesn't affect XML or the public API do **not** require a SKILL update.
 
