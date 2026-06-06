@@ -1,5 +1,6 @@
 using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
+using PromptUGUI.Layout;
 using PromptUGUI.Registry;
 using UnityEngine;
 using UnityEngine.UI;
@@ -10,6 +11,10 @@ namespace PromptUGUI.Controls
     public sealed class RawImage : Control
     {
         private UnityRawImage _raw;
+        private RectMask2D _rectMask;
+        private Mask _stencilMask;
+        private string _pendingMaskPadding;
+        private bool? _pendingShowMask;
 
         public override void OnAttached()
         {
@@ -79,6 +84,49 @@ namespace PromptUGUI.Controls
                         if (_fitter != null) _fitter.enabled = false;
                         break;
                 }
+            }
+        }
+
+        [UIAttr, Preserve]
+        public string Mask
+        {
+            set
+            {
+                if (value == "rect")
+                {
+                    _rectMask ??= GameObject.AddComponent<RectMask2D>();
+                    if (!string.IsNullOrEmpty(_pendingMaskPadding))
+                        _rectMask.padding = MaskPaddingParser.Parse(_pendingMaskPadding);
+                }
+                else if (value == "self")
+                {
+                    _stencilMask ??= GameObject.AddComponent<Mask>();
+                    if (_pendingShowMask.HasValue)
+                        _stencilMask.showMaskGraphic = _pendingShowMask.Value;
+                }
+            }
+        }
+
+        [UIAttr, Preserve]
+        public string ShowMask
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value)) return;
+                _pendingShowMask = bool.Parse(value);
+                if (_stencilMask != null)
+                    _stencilMask.showMaskGraphic = _pendingShowMask.Value;
+            }
+        }
+
+        [UIAttr, Preserve]
+        public string MaskPadding
+        {
+            set
+            {
+                _pendingMaskPadding = value;
+                if (_rectMask != null)
+                    _rectMask.padding = MaskPaddingParser.Parse(value);
             }
         }
     }
