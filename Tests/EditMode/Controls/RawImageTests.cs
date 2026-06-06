@@ -115,5 +115,19 @@ namespace PromptUGUI.Tests.EditMode.Controls
             using var _ = r.OnPointerEnter.Subscribe(__ => { });
             Assert.IsNotNull(r.GameObject.GetComponent<PointerEventRelay>());
         }
+
+        [Test]
+        public void GetNativeSize_NullWhenNoTexture()
+        {
+            Assert.IsFalse(Build().GetNativeSize().HasValue);
+        }
+
+        [Test]
+        public void GetNativeSize_ReturnsTextureDimensions()
+        {
+            var r = Build();
+            r.Texture = new Texture2D(120, 60);
+            Assert.AreEqual(new Vector2(120f, 60f), r.GetNativeSize().Value);
+        }
     }
 }

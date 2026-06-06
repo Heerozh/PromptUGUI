@@ -139,5 +139,12 @@ namespace PromptUGUI.Controls
                     _rectMask.padding = MaskPaddingParser.Parse(value);
             }
         }
+
+        public override Vector2? GetNativeSize()
+        {
+            if (_raw == null || _raw.texture == null) return null;
+            // RawImage 无 pixelsPerUnit；texture 像素 1:1 映射 UI 单位（同 RawImage.SetNativeSize）。
+            return new Vector2(_raw.texture.width, _raw.texture.height);
+        }
     }
 }
