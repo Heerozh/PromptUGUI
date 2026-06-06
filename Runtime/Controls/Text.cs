@@ -146,6 +146,28 @@ namespace PromptUGUI.Controls
             set => _tmp.textWrappingMode = value ? TextWrappingModes.Normal : TextWrappingModes.NoWrap;
         }
 
+        // What to do once auto-sizing (if any) has done its best and the text still doesn't fit the
+        // rect. Orthogonal to `wrap` and `autosize`. Omitting the attribute leaves TMP's default
+        // (Overflow) untouched, so existing UIs are unaffected.
+        [UIAttr, Preserve]
+        public string Overflow
+        {
+            set => _tmp.overflowMode = ParseOverflow(value);
+        }
+
+        internal static TextOverflowModes ParseOverflow(string value)
+        {
+            switch ((value ?? "").Trim().ToLowerInvariant())
+            {
+                case "overflow": return TextOverflowModes.Overflow;
+                case "ellipsis": return TextOverflowModes.Ellipsis;
+                case "truncate": return TextOverflowModes.Truncate;
+                default:
+                    throw new ArgumentException(
+                        $"overflow value '{value}' is not one of overflow|ellipsis|truncate");
+            }
+        }
+
         [UIAttr, Preserve]
         public bool RaycastTarget
         {
