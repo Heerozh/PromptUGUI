@@ -190,5 +190,10 @@ namespace PromptUGUI.Controls
             _tmp.ForceMeshUpdate();
             return new Vector2(_tmp.preferredWidth, _tmp.preferredHeight);
         }
+
+        // TMP_Text is itself a live ILayoutElement, so inside a V/HStack an author-omitted axis is left
+        // to TMP's own dynamic measurement instead of a frozen native snapshot — height then follows the
+        // wrapped content. See Control.UsesIntrinsicLayoutSize. Free-positioning still uses GetNativeSize.
+        protected internal override bool UsesIntrinsicLayoutSize => true;
     }
 }

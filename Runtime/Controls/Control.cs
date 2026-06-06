@@ -144,6 +144,19 @@ namespace PromptUGUI.Controls
 
         public virtual UnityEngine.Vector2? GetNativeSize() => null;
 
+        // BCS-D7 follow-up: when true, this control already carries a component that is itself a live
+        // UnityEngine.UI.ILayoutElement (e.g. TMP on <Text>) and reports its preferred size dynamically
+        // as the LayoutGroup pass constrains the cross axis. For such controls the one-time GetNativeSize
+        // snapshot is not just redundant but harmful — pinned onto an explicit LayoutElement (priority 1)
+        // it OUTRANKS the component's own intrinsic report (priority 0) and freezes the axis at its
+        // instantiation-time measurement, so e.g. a wrap="true" <Text> can never grow past one line.
+        // Controls that report this leave any author-omitted axis at the -1 sentinel inside a V/HStack,
+        // letting the intrinsic ILayoutElement drive it. Default false: composite controls like <Btn>,
+        // whose GetNativeSize computes "label width + padding" that no intrinsic ILayoutElement reports,
+        // still need the snapshot. Only affects the LayoutGroup path (ApplyLayoutElement); free-positioning
+        // still uses GetNativeSize so an omitted-size <Text> doesn't collapse to an invisible (0,0).
+        protected internal virtual bool UsesIntrinsicLayoutSize => false;
+
         // DSS-D14: 作者省略 anchor= 时的默认 preset。基类返回 top-left（沿用既有行为）；
         // 容器类（Frame）覆写按 sizeSpec.HasWidth/HasHeight 决定每轴 stretch 还是 top/left。
         protected virtual AnchorPreset GetDefaultAnchor(SizeSpec sizeSpec)
@@ -303,7 +316,9 @@ namespace PromptUGUI.Controls
             // 任一轴没写 → 询问 GetNativeSize 作为该轴 fallback；写了的轴保留作者值。
             // 决策 LGC-D9: 没 native 时该轴留在 -1 哨兵值，让 Image/TMP 自带 ILayoutElement 主导。
             // 决策 LGC-D10: 每次都先把两轴全置 -1，清掉前一次 Variant 的残留约束。
-            var needNativeFallback = !sizeSpec.HasWidth || !sizeSpec.HasHeight;
+            // UsesIntrinsicLayoutSize controls (e.g. <Text>) skip the native snapshot on any omitted
+            // axis and leave it at the -1 sentinel so their own live ILayoutElement drives that axis.
+            var needNativeFallback = (!sizeSpec.HasWidth || !sizeSpec.HasHeight) && !UsesIntrinsicLayoutSize;
             var native = needNativeFallback ? GetNativeSize() : null;
             var hasNative = native.HasValue;
 
