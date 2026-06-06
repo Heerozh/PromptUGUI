@@ -75,6 +75,32 @@ namespace PromptUGUI.Tests.EditMode.Controls
             StringAssert.Contains("bottm", ex.Message);
         }
 
+        // --- overflow: maps onto TMP's overflowMode (the "what to do once text still doesn't fit"
+        // layer). Orthogonal to wrap (line-wrapping) and autosize (the "try to squeeze it in" layer).
+        [TestCase("overflow", TextOverflowModes.Overflow)]
+        [TestCase("ellipsis", TextOverflowModes.Ellipsis)]
+        [TestCase("truncate", TextOverflowModes.Truncate)]
+        public void Overflow_MapsToTmpOverflowMode(string token, TextOverflowModes mode)
+        {
+            var t = OpenText($"overflow='{token}'");
+            Assert.AreEqual(mode, t.TmpComponent.overflowMode);
+        }
+
+        // Tokens are case-insensitive, mirroring align.
+        [Test]
+        public void Overflow_IsCaseInsensitive()
+        {
+            var t = OpenText("overflow='Ellipsis'");
+            Assert.AreEqual(TextOverflowModes.Ellipsis, t.TmpComponent.overflowMode);
+        }
+
+        [Test]
+        public void Overflow_UnknownToken_Throws()
+        {
+            var ex = Assert.Throws<ParseException>(() => OpenText("overflow='clip'"));
+            StringAssert.Contains("clip", ex.Message);
+        }
+
         [Test]
         public void Visual_ColorDefaultsToDarkGrey()
         {

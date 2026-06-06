@@ -152,12 +152,15 @@ TMP_Text。文本简写：`<Text>Hello</Text>` ≡ `<Text text="Hello"/>`。
 | `fontSize` | int | — | |
 | `color` | hex / CSS named / theme token | — | 见 **Color Tokens** |
 | `align` | TMP 对齐 | `left`+`middle` | 一个水平 token `left` / `center` / `right` / `justified` / `flush` / `geo`，和/或一个垂直 token `top` / `middle` / `bottom` / `baseline` / `midline` / `capline`，连字符或空格连接、顺序无关（`bottom-right` / `top-center` / `capline-flush`）；只给水平保持垂直 `middle`，只给垂直保持水平 `left`；未知 token = parse error |
-| `wrap` | bool | — | |
+| `wrap` | bool | `true` | `false`=不换行（NoWrap）；常配 `overflow="ellipsis"` 做单行省略号 |
+| `overflow` | `overflow` / `ellipsis` / `truncate` | `overflow` | 文字塞不下框后的收尾：`overflow`=溢出框外（TMP 默认）、`ellipsis`=尾部 `…`、`truncate`=硬裁切无 `…`；未知值 = parse error |
 | `raycastTarget` | bool | — | |
 | `font` | string | `default` | Settings 里的 font type |
 | `autosize` | bool | `false` | 开 TMP auto-size（仅 WD% 形式——字宽最多压 50%，字号不变） |
 | `tr` | bool | `true` | `false`=跳过 i18n 提取 |
 | `ctx` | string | — | msgctxt 消歧同 msgid |
+
+**`autosize` / `overflow` 是两层，会叠加（不是二选一）**：TMP 先用 `autosize`「努力塞进去」（压字宽），塞不下再由 `overflow` 决定怎么收尾。单行省略号的标准写法：`<Text wrap="false" overflow="ellipsis"/>`；想先压扁再省略：`<Text wrap="false" autosize="true" overflow="ellipsis"/>`。**坑**：`ellipsis` / `truncate` 只在文本框「定宽」时才触发——若这个 `<Text>` 靠 native-size 撑开（框跟着文字变宽，如 Frame 里不写 `width`、或挂了 ContentSizeFitter），就永远不溢出、省略号也不出现；用 `anchor="stretch"`+`margin` 或显式 `width` 把宽度钉死。
 
 ### `<VStack>`
 
