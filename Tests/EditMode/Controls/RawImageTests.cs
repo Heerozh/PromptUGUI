@@ -90,5 +90,19 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var r = Build("type='simple'");
             Assert.IsNull(r.GameObject.GetComponent<AspectRatioFitter>());
         }
+
+        [Test]
+        public void TintLinear_UsesLinearLightTintMaterial()
+        {
+            var raw = Build("tint='linear'").GameObject.GetComponent<UnityRawImage>();
+            Assert.AreEqual("UI/LinearLightTint", raw.material.shader.name);
+        }
+
+        [Test]
+        public void TintMultiply_UsesDefaultMaterial()
+        {
+            var raw = Build("tint='multiply'").GameObject.GetComponent<UnityRawImage>();
+            Assert.AreEqual(raw.defaultMaterial, raw.material);
+        }
     }
 }

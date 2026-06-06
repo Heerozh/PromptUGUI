@@ -1,4 +1,5 @@
 using PromptUGUI.Application;
+using PromptUGUI.Controls.Internal;
 using PromptUGUI.Registry;
 using UnityEngine;
 using UnityEngine.UI;
@@ -30,6 +31,12 @@ namespace PromptUGUI.Controls
         public string Color
         {
             set => _raw.color = UI.Theme.Resolve(value);
+        }
+
+        [UIAttr, Preserve]
+        public string Tint
+        {
+            set => ImageTint.Apply(_raw, value);
         }
 
         private AspectRatioFitter _fitter;
