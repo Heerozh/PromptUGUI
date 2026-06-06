@@ -83,6 +83,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 | `<Frame>` | 空容器，可选 `mask="rect"` |
 | `<SafeArea>` | 撑满父级、按设备安全区内缩（见本节末 **Safe area** 小节） |
 | `<Image>` | uGUI Image：sprite + 等比适配 + mask |
+| `<RawImage>` | uGUI RawImage：C# 设 Texture（动态图）+ contain/cover 适配 + mask |
 | `<Text>` | TMP 文本：富对齐 + i18n |
 | `<VStack>` | 纵向布局组 |
 | `<HStack>` | 横向布局组 |
@@ -124,6 +125,22 @@ uGUI Image，从 `Resources` 加载 sprite；可选 `RectMask2D`（`mask="rect"`
 | `showMask` | bool | `true` | 仅 `mask="self"` |
 | `maskPadding` | `T,R,B,L` | — | 仅 `mask="rect"` |
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
+
+### `<RawImage>`
+
+uGUI `RawImage`，渲染**运行时动态加载的 `Texture`**（头像 / 下载图 / 截图 / `RenderTexture`）。图源**只能从 C# 设**——没有 `sprite` / SpriteSet、没有 XML 图源属性：`screen.Get<RawImage>("id").Texture = tex;`（见 scripting-promptugui-csharp）。
+
+| 属性 | 类型 / 取值 | 默认 | 说明 |
+|---|---|---|---|
+| `color` | hex / CSS named / theme token | `#ffffff` | 乘色；无 texture 时仍按 color 画纯色 quad（要初始隐形写 `color="#00000000"`） |
+| `type` | `contain` / `cover` | — | 等比适配，相对**父 rect**（同 `<Image>`）：`contain` 内嵌留边、`cover` 填满溢出；`cover` 裁切由父级 `mask="rect"` 负责。**仅这两个值**——`simple` / `sliced` / `tiled` / `filled` 是 sprite 专有，写了会 warning 并回退普通模式。适配模式下自身 `anchor` / `size` / `width` / `height` / `margin` 被 `AspectRatioFitter` 接管失效 |
+| `tint` | `multiply` / `linear` | `multiply` | 见 **Tint blend modes** |
+| `mask` | `rect` / `self` | — | 同 `<Image>` |
+| `showMask` | bool | `true` | 仅 `mask="self"` |
+| `maskPadding` | `T,R,B,L` | — | 仅 `mask="rect"` |
+
+- texture 由 C# 在 Open 后设置，故 `size="native"`（读 texture 像素宽高）仅在实例化前已同步赋 texture 时有值；常态请显式写 `size` 或用 `type="contain"/"cover"`。
+- 别在 `<VStack>` / `<HStack>` / `<Grid>` 直接子节点上用 fit 模式（`AspectRatioFitter` 与 LayoutGroup 抢布局）——套一层 `<Frame>`。
 
 ### `<Text>`
 
@@ -393,6 +410,7 @@ Other notes:
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `<Frame>`      | `RectTransform` 单独；可选 `RectMask2D`（写 `mask="rect"` 时挂）                                                                                                                                                                                               | —                                                                                                                                                                                                                                                                                      | —                                                                                                                           |
 | `<Image>`      | `Image` + (lazy) `PointerEventRelay`（被 hover/press trigger 引用为源时挂上）；可选 `RectMask2D`（`mask="rect"`）或 stencil `Mask`（`mask="self"`，用自身 sprite 作 mask 形状）                                                                                | —                                                                                                                                                                                                                                                                                      | `OnPointerEnter` / `OnPointerExit` / `OnPointerDown` ← Relay                                                                |
+| `<RawImage>`   | `RawImage` + (lazy) `PointerEventRelay`；可选 `AspectRatioFitter`（`type=contain/cover`）/ `RectMask2D`（`mask="rect"`）/ stencil `Mask`（`mask="self"`）；图源 = C# `Texture` 属性                                                                            | —                                                                                                                                                                                                                                                                                      | `OnPointerEnter` / `OnPointerExit` / `OnPointerDown` ← Relay                                                                |
 | `<Text>`       | `TextMeshProUGUI`                                                                                                                                                                                                                                              | —                                                                                                                                                                                                                                                                                      | —                                                                                                                           |
 | `<VStack>`     | `VerticalLayoutGroup`（硬编码 `childControlWidth/Height=true`、`childForceExpand*=false`）                                                                                                                                                                     | —                                                                                                                                                                                                                                                                                      | —                                                                                                                           |
 | `<HStack>`     | `HorizontalLayoutGroup`（同 VStack）                                                                                                                                                                                                                           | —                                                                                                                                                                                                                                                                                      | —                                                                                                                           |
