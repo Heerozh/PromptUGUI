@@ -2,13 +2,14 @@ using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
 using PromptUGUI.Layout;
 using PromptUGUI.Registry;
+using R3;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityRawImage = UnityEngine.UI.RawImage;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class RawImage : Control
+    public sealed class RawImage : Control, IPointerEventSource
     {
         private UnityRawImage _raw;
         private RectMask2D _rectMask;
@@ -21,6 +22,15 @@ namespace PromptUGUI.Controls
             _raw = GameObject.GetComponent<UnityRawImage>()
                    ?? GameObject.AddComponent<UnityRawImage>();
         }
+
+        private PointerEventRelay _pointerRelay;
+
+        private PointerEventRelay EnsureRelay()
+            => _pointerRelay ??= GameObject.AddComponent<PointerEventRelay>();
+
+        public Observable<Unit> OnPointerEnter => EnsureRelay().OnPointerEnter;
+        public Observable<Unit> OnPointerExit => EnsureRelay().OnPointerExit;
+        public Observable<Unit> OnPointerDown => EnsureRelay().OnPointerDown;
 
         /// <summary>
         /// 显示的 texture。由 C# 设置（下载图 / RenderTexture 等），无对应 XML 属性。

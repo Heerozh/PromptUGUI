@@ -1,6 +1,8 @@
 using System.Text.RegularExpressions;
 using NUnit.Framework;
 using PromptUGUI.Application;
+using PromptUGUI.Controls.Internal;
+using R3;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
@@ -103,6 +105,15 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var raw = Build("tint='multiply'").GameObject.GetComponent<UnityRawImage>();
             Assert.AreEqual(raw.defaultMaterial, raw.material);
+        }
+
+        [Test]
+        public void OnPointerEnter_Subscription_AttachesRelay()
+        {
+            var r = Build();
+            Assert.IsNull(r.GameObject.GetComponent<PointerEventRelay>());
+            using var _ = r.OnPointerEnter.Subscribe(__ => { });
+            Assert.IsNotNull(r.GameObject.GetComponent<PointerEventRelay>());
         }
     }
 }
