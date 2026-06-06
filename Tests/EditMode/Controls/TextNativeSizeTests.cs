@@ -94,8 +94,12 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Text_in_HStack_no_size_gets_LayoutElement_with_native_preferred()
+        public void Text_in_HStack_no_size_defers_both_axes_to_tmp()
         {
+            // New contract: <Text> in a LayoutGroup never pins a one-time native snapshot — TMP is
+            // itself a live ILayoutElement and drives both axes, so the size tracks content (e.g. a
+            // wider runtime string widens the slot, a wrapped string grows the height). With both
+            // axes omitted nothing else needs an LE, so none is attached.
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
   <HStack id='stack' width='400' height='44'>
@@ -106,12 +110,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var screen = UI.Open("S");
             var text = screen.Get<Text>("t");
             var le = text.GameObject.GetComponent<LayoutElement>();
-            Assert.IsNotNull(le, "Text under LayoutGroup with no size should auto-attach LE reporting GetNativeSize");
-            var native = text.GetNativeSize().Value;
-            Assert.AreEqual(native.x, le.preferredWidth, 0.5f);
-            Assert.AreEqual(native.y, le.preferredHeight, 0.5f);
-            Assert.AreEqual(-1f, le.flexibleWidth);
-            Assert.AreEqual(-1f, le.flexibleHeight);
+            Assert.IsNull(le,
+                "Text with both axes omitted pins no LayoutElement — its own TMP ILayoutElement drives both axes");
         }
 
         [Test]
@@ -153,7 +153,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Text_in_HStack_height_only_LE_preferredWidth_is_native()
+        public void Text_in_HStack_height_only_defers_width_to_tmp()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
@@ -165,16 +165,15 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var screen = UI.Open("S");
             var text = screen.Get<Text>("t");
             var le = text.GameObject.GetComponent<LayoutElement>();
-            Assert.IsNotNull(le, "Text under LayoutGroup with partial size should still get LE");
-            var native = text.GetNativeSize().Value;
-            Assert.AreEqual(native.x, le.preferredWidth, 0.5f,
-                "omitted width → preferredWidth = native");
+            Assert.IsNotNull(le, "explicit height still needs an LE to pin that axis");
+            Assert.AreEqual(-1f, le.preferredWidth,
+                "omitted width stays at the -1 sentinel → TMP's intrinsic ILayoutElement drives width");
             Assert.AreEqual(12f, le.preferredHeight, 0.5f,
                 "explicit height → preferredHeight = author value");
         }
 
         [Test]
-        public void Text_in_VStack_width_only_LE_preferredHeight_is_native()
+        public void Text_in_VStack_width_only_defers_height_to_tmp()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
@@ -187,11 +186,34 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var text = screen.Get<Text>("t");
             var le = text.GameObject.GetComponent<LayoutElement>();
             Assert.IsNotNull(le);
-            var native = text.GetNativeSize().Value;
             Assert.AreEqual(100f, le.preferredWidth, 0.5f,
                 "explicit width → preferredWidth = author value");
-            Assert.AreEqual(native.y, le.preferredHeight, 0.5f,
-                "omitted height → preferredHeight = native");
+            Assert.AreEqual(-1f, le.preferredHeight,
+                "omitted height defers to TMP's intrinsic ILayoutElement (was: frozen single-line native)");
+        }
+
+        [Test]
+        public void Text_in_VStack_width_stretch_defers_height_to_tmp()
+        {
+            // The headline case: a stretch-width body label whose height must follow the wrapped
+            // content. preferredHeight stays at the -1 sentinel so TMP measures the wrapped height
+            // against the stretched width during the VerticalLayoutGroup pass.
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <VStack id='stack' width='200' height='400'>
+    <Text id='t' tr='false' width='stretch' wrap='true'>本段正文足够长，会在受限的宽度下自动换行成多行</Text>
+  </VStack>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var text = screen.Get<Text>("t");
+            var le = text.GameObject.GetComponent<LayoutElement>();
+            Assert.IsNotNull(le, "width=stretch needs an LE to carry the flexible width");
+            Assert.AreEqual(0f, le.preferredWidth, "stretch → preferredWidth 0");
+            Assert.AreEqual(1f, le.flexibleWidth, "stretch → flexibleWidth 1");
+            Assert.AreEqual(-1f, le.preferredHeight,
+                "omitted height must stay -1 so TMP's own ILayoutElement drives the wrapped height");
+            Assert.AreEqual(-1f, le.flexibleHeight);
         }
     }
 }

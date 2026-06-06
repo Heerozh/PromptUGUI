@@ -153,6 +153,8 @@ UI.Close("MainMenu");                                      // destroys GameObjec
 
 Note: when a Template invocation carries `id="bagPanel"`, that id is **transferred to the template body's single root element** automatically — `screen.Get<TitledPanel>("bagPanel")` returns the root. Use the path form (`"bagPanel/close"`) only when reaching into an element that has its own id **inside** the template body.
 
+Note: inside a template body always write a **literal** id (e.g. `id="close"`) — never parameterize it as `id="{{param}}"`. The `{{...}}` substitution only touches attribute values and text content; it **never** applies to `id`, so a parameterized id stays the literal string. You don't need it: each invocation has its **own id scope**, so the same `id="close"` across many instances never collides — disambiguate from C# with the `instanceId/close` path above.
+
 ## Events & subscriptions
 
 Control-level events are R3 `Observable<T>` — never `event` or `Action`:
