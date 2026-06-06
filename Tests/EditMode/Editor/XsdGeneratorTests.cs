@@ -32,6 +32,18 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void RawImage_element_appears_with_reflected_attrs()
+        {
+            // RawImage isn't a hardcoded primitive — it flows through the reflected
+            // `customs` path, so its element + [UIAttr] attrs appear automatically.
+            var r = new ControlRegistry();
+            r.Register<RawImage>("RawImage", null);
+            var xsd = XsdGenerator.Generate(r);
+            StringAssert.Contains("name=\"RawImage\"", xsd);   // element emitted
+            StringAssert.Contains("name=\"showMask\"", xsd);   // [UIAttr] reflected (camelCase ShowMask)
+        }
+
+        [Test]
         public void Generate_to_file_produces_readable_file()
         {
             var r = new ControlRegistry();
