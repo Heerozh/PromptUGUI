@@ -458,7 +458,7 @@ Other notes:
 
 | Attribute | Format | Notes |
 |---|---|---|
-| `id="..."` | string | Unique within Screen / Template instance scope. Lift to dedicated handle for `Get<T>`. |
+| `id="..."` | string | Unique within Screen / Template instance scope. Lift to dedicated handle for `Get<T>`. Inside a `<Template>` write a **literal** id — never `id="{{param}}"` (id is not substituted); instances are isolated per call. |
 | `anchor="..."` | preset | See "Anchor system" below. Default `top-left`. |
 | `size="WxH"` | `240x80` | Both dimensions in pixels (numeric only — keywords `stretch` / `N%` are **not** accepted here, use per-axis attrs). **Forbidden on stretched axes.** |
 | `width="W"` / `height="H"` | float / `stretch[*N]` / `N%` | Numeric is base. `stretch` / `stretch*N` is LayoutGroup-only — see "Stretch keyword". `N%` is free-positioning-only — see "Fractional %". **Numeric forbidden on stretched anchor axes.** |
@@ -595,6 +595,7 @@ Rules:
 - `<Param>` must come **before** any body element. `default` makes the parameter optional; missing default = required.
 - Body must have **exactly one** root element (here: the outer `<VStack>`).
 - `{{paramName}}` substitutes inside attribute values and text content. **Pure string substitution** — no expressions, no `{{a + b}}`.
+- **`id` is never substituted — use instance isolation, not a param.** `id` is a dedicated handle stored apart from attributes, so `{{param}}` does **not** apply to it: `id="{{sendId}}"` stays the literal string `{{sendId}}`. You don't need a parameterized id anyway — each template invocation gets its **own isolated id scope**, so a hard-coded `id="send"` is collision-free even when the template is used many times. Reach an inner id from C# with the path form `instanceId/send` (give the **invocation** an `id`). See **scripting-promptugui-csharp**.
 - `if="{{p}}"` drops the element when the substituted value is falsy (empty, `false`, `0`, `null`). Only `if=` is allowed; no `else`, no `for`.
 - `<Slot/>` appears **at most once**. Children passed at the call site replace it.
 
