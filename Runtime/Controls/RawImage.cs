@@ -1,3 +1,5 @@
+using PromptUGUI.Application;
+using PromptUGUI.Registry;
 using UnityEngine;
 using UnityRawImage = UnityEngine.UI.RawImage;
 
@@ -21,6 +23,12 @@ namespace PromptUGUI.Controls
         {
             get => _raw.texture;
             set => _raw.texture = value;
+        }
+
+        [UIAttr(IsColor = true), Preserve]
+        public string Color
+        {
+            set => _raw.color = UI.Theme.Resolve(value);
         }
     }
 }

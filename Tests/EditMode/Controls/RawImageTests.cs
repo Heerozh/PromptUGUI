@@ -35,5 +35,12 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreSame(tex, r.Texture);
             Assert.AreSame(tex, r.GameObject.GetComponent<UnityRawImage>().texture);
         }
+
+        [Test]
+        public void Color_Applies_To_RawImage()
+        {
+            var r = Build("color='#ff0000'");
+            Assert.AreEqual(Color.red, r.GameObject.GetComponent<UnityRawImage>().color);
+        }
     }
 }
