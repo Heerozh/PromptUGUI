@@ -146,6 +146,7 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 |---|---|---|
 | `<Frame>` | 纯定位容器，无视觉；可选 `mask="rect"` 启用 RectMask2D | RectTransform（+ 可选 RectMask2D） |
 | `<Image>` | 图像 / 9-slice / 纯色块 | Image |
+| `<RawImage>` | 运行时动态 `Texture`（头像 / 下载图 / RenderTexture）；图源仅 C# `Texture` 属性，非 sprite；`type=contain\|cover` 等比适配 + mask（详见 [`2026-06-06-rawimage-control-design.md`](2026-06-06-rawimage-control-design.md)） | RawImage |
 | `<Text>` | 文本 | TMP_Text |
 | `<VStack>` | 纵向自动排布 | RectTransform + VerticalLayoutGroup |
 | `<HStack>` | 横向自动排布 | RectTransform + HorizontalLayoutGroup |
