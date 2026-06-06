@@ -6,8 +6,8 @@ using R3;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
-using UnityRawImage = UnityEngine.UI.RawImage;
 using PromptUGUIRawImage = PromptUGUI.Controls.RawImage;
+using UnityRawImage = UnityEngine.UI.RawImage;
 
 namespace PromptUGUI.Tests.EditMode.Controls
 {
