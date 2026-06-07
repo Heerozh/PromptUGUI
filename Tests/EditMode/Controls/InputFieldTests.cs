@@ -463,5 +463,28 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var f = UI.Open("S").Get<PInputField>("f");
             Assert.IsTrue(f.GameObject.GetComponent<TMP_InputField>().interactable);
         }
+
+        // --- TextValue getter ---------------------------------------------------
+
+        [Test]
+        public void TextValue_Getter_RoundtripsSetValue()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <InputField id='f'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var f = UI.Open("S").Get<PInputField>("f");
+            f.TextValue = "abc";
+            Assert.AreEqual("abc", f.TextValue);
+        }
+
+        [Test]
+        public void TextValue_Getter_BeforeAttach_ReturnsNull()
+        {
+            // _input is null before OnAttached → getter must defend, not NRE.
+            var f = new PInputField();
+            Assert.IsNull(f.TextValue);
+        }
     }
 }

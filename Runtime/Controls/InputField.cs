@@ -139,6 +139,7 @@ namespace PromptUGUI.Controls
         [UIAttr("text"), Preserve]
         public string TextValue
         {
+            get => _input != null ? _input.text : null;
             set => _input.text = value ?? string.Empty;
         }
 
