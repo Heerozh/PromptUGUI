@@ -221,7 +221,7 @@ public string TextValue {
 | 回车后又点 OK | 第二次 `close` 被模态系统幂等忽略 |
 | `contentType` 传非法值 | `InputField.ContentType` setter 抛 `ArgumentException`（既有行为）→ 走模态 Bind 异常路径（MessageBox spec §4.4：close Screen + SetException + pump 下一个） |
 | 覆盖 XML 缺 `field` id | `screen.Get<InputField>("field")` 抛 KeyNotFound → 同上异常路径 |
-| Locale / Variant 切换 | InputBox 是普通 Screen，ReSolve 原地生效（输入框文本由 `RuntimeStateAttr` 机制保住，不被 ReSolve 重置——既有行为） |
+| Locale / Variant 切换 | InputBox 是普通 Screen，ReSolve 原地生效。输入框文本不被 ReSolve 重置——但**不是**靠 `RuntimeStateAttr`：`InputField` 没有注册 runtimeStateAttr（见 `BuiltinPrimitives.cs`，对比 Toggle/Tab/Slider/Dropdown 都注册了）。真实原因是内置 `InputBox.ui.xml` 的 `<InputField id="field">` 上**没有 `text=` 属性**，ReSolve 因此根本不调 `TextValue` setter。⚠️ 反过来：若用户覆盖 XML 时给 field 写了字面 `text="…"`，开着对话框切 Locale 会清掉已输入内容——v1 不处理，作者覆盖 XML 时勿在 field 上写 `text=`。 |
 | ESC | `TryEscape` 返回 `null`（取消），仅顶层 modal 响应（既有 `ModalEscapeListener`） |
 
 无新增模态基础设施，故 ESC / sortingOrder / 队列 / teardown / hot-reload 全部沿用 MessageBox 已验证的路径，本特性不重测。
