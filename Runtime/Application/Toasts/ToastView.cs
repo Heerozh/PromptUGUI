@@ -44,8 +44,6 @@ namespace PromptUGUI.Application.Toasts
             if (snap && _content != null) _content.anchoredPosition = target;
         }
 
-        internal float MeasuredHeight => _content != null ? _content.rect.height : 0f;
-
         internal bool IsEvicting => _phase == Phase.FadeOut || _phase == Phase.Done;
 
         // 管理器分配的堆叠目标位（materialize/reflow 时即确定，不依赖 Update）。供测试断言。

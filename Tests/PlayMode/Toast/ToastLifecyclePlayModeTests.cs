@@ -2,7 +2,6 @@ using System.Collections;
 using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Application.Toasts;
-using PromptUGUI.Controls;
 using UnityEngine;
 using UnityEngine.TestTools;
 

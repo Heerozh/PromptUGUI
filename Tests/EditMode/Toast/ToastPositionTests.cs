@@ -50,8 +50,10 @@ namespace PromptUGUI.Tests.Toast
         public void Vector2_implicitly_converts()
         {
             ToastPosition p = new Vector2(10, 20);   // 隐式
-            p.TryResolve(MakeCanvasRect(100, 100), 0f, out var r);
+            var rt = MakeCanvasRect(100, 100);
+            p.TryResolve(rt, 0f, out var r);
             Assert.AreEqual(new Vector2(10, 20), r.BasePos);
+            Object.DestroyImmediate(rt.gameObject);
         }
 
         [Test]
