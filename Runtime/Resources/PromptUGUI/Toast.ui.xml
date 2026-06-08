@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PromptUGUI version="1">
+  <Screen name="PromptUGUI/Toast.ui" reference="1920x1080" reference.portrait="1080x1920">
+    <!-- 管理器把 id="text" 当文本节点（写 TextValue + 测 GetNativeSize），并接管它的
+         anchor/pivot/anchoredPosition/sizeDelta。默认无 id="content" 包裹 → 直接定位文本本身。
+         换肤示例（加圆角底 pill）见 C# SKILL 的 Toast 节。 -->
+    <Text id="text" anchor="center" align="center" fontSize="40" color="white"/>
+  </Screen>
+</PromptUGUI>
