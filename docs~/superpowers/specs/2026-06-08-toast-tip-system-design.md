@@ -114,11 +114,21 @@ public static partial class UI {
             ToastStackMode mode = ToastStackMode.Default,
             float holdSeconds   = 0f,
             Action<IScreen> configure = null);
+
+        // —— 控件引用便捷重载 ——
+        // 用专用重载而非隐式转换：C# 禁止“到/从接口类型”的用户自定义转换运算符（CS0552），
+        // 故 IControl 不能走隐式转换，只能由这个重载（或显式 ToastPosition.At(control)）承接。
+        public static void Show(
+            string text,
+            IControl control,
+            ToastStackMode mode = ToastStackMode.Default,
+            float holdSeconds   = 0f,
+            Action<IScreen> configure = null);
     }
 }
 ```
 
-两个重载不冲突：`Show("a","b")` 精确匹配 string 重载；引用 / `Vector2` / `ToastPosition` 走 canonical 重载（靠 `ToastPosition` 的隐式转换，§4）。**不**提供 `string → ToastPosition` 隐式转换（避免到处把字符串悄悄当位置），路径只能经由这个显式 string 重载或 `ToastPosition.At(string)`。
+三个重载互不冲突（重载决议唯一）：`Show("a","b")` 精确匹配 string 重载；`Show("a", someBtn)` 匹配 IControl 重载；`Show("a", ToastPosition.Top)` / `Show("a", new Vector2(...))`（`Vector2` 隐式转 `ToastPosition`）走 canonical 重载。`string` 重载与 `IControl` 重载的第二参**无默认值**（必填），故 `Show("a")` 与 `Show("a", mode: ...)` 只能落到 canonical 重载。**不**提供 `string → ToastPosition` 隐式转换（避免到处把字符串悄悄当位置）。
 
 `holdSeconds > 0` 直接用它当停留时长，覆盖文本长度公式；`= 0`（默认）走 `ToastDuration.Compute`。`configure` 在文本写入后调用，拿到 live toast `IScreen`，可临时改色/加节点，与 Loading/模态的 `configure` 同形。
 
@@ -164,12 +174,13 @@ public readonly struct ToastPosition {
     public static ToastPosition At(IControl control);
     public static ToastPosition At(string controlPath);
 
-    public static implicit operator ToastPosition(Vector2 coords);    // 隐式
-    public static implicit operator ToastPosition(IControl control); // 隐式
+    public static implicit operator ToastPosition(Vector2 coords);   // 隐式（struct，合法）
+    // 注：C# 不允许“到/从接口类型”的用户自定义转换运算符（CS0552），故无 IControl 隐式转换。
+    //     IControl 由 UI.Toast.Show 的专用重载承接（§3.1），或显式 ToastPosition.At(control)。
 }
 ```
 
-> 隐式转换：`Vector2 → ToastPosition` 与 `IControl → ToastPosition`。**没有** `string → ToastPosition`（见 §3.1）。
+> 隐式转换仅 `Vector2 → ToastPosition`。`IControl` 与 `string` 各由 `UI.Toast.Show` 的专用重载承接（§3.1），均不做隐式转换。
 
 ### 4.1 解析（在"显示时刻"，于 toast 自己的 Canvas 坐标系）
 
