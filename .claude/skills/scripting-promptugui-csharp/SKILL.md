@@ -501,6 +501,9 @@ CUSTOM         class X : Control { override OnAttached() { ... } }
 MODAL          var r = await MessageBox.Open(text, MsgBtn.OK|MsgBtn.Cancel, icon, title)
                MessageBox.Open(text, [(label,key),...], icon, title, mode)  custom labels
                MessageBox.Open(text, ..., mode: ModalMode.Queued)  排队,不叠加
+               var s = await InputBox.Open(title, message, initial, placeholder,
+                                           contentType, okLabel, cancelLabel, mode)
+                       // confirm → text ("" if empty); cancel/ESC → null
                ESC priority   Cancel > No > Close   (OK-only → no-op)
                override XML   MessageBox.XmlSrc = "MyUI/Modals/Foo.ui"   (keep .ui suffix)
                               prereq #1  resolver registered + (Addressables) address pre-registered
@@ -521,8 +524,9 @@ LOADING        var h = Loading.Open(text); h.Close()        idempotent; h.IsClos
 
 ## Modal dialogs
 
-PromptUGUI ships a generic modal stack in `PromptUGUI.Application.Modals` plus two
-builtin overlays: a `MessageBox` dialog and a `Loading` spinner. **Every modal IS a real
+PromptUGUI ships a generic modal stack in `PromptUGUI.Application.Modals` plus three
+builtin overlays: a `MessageBox` dialog, an `InputBox` text prompt, and a `Loading`
+spinner. **Every modal IS a real
 `Screen` instantiated from `.ui.xml`** — anchor / margin / Variant / locale / `<Icon>`
 all work normally. The modal subsystem only adds: stack management, ESC handling, and a
 sortingOrder band above regular Screens.
@@ -544,6 +548,15 @@ var r2 = await MessageBox.Open(UI.Tr("File not found."),
 // Optional icon and title; ModalMode.Queued waits behind any current dialog
 await MessageBox.Open("Saved.", MsgBtn.OK,
     icon: "ui:check", title: "Done", mode: ModalMode.Queued);
+
+// InputBox: text prompt. Returns the text on confirm/Enter, null on cancel/ESC.
+// "" (empty) is distinct from null — empty submit vs cancelled.
+string name = await InputBox.Open(UI.Tr("Your name?"), placeholder: UI.Tr("e.g. Link"));
+if (name != null) game.PlayerName = name;
+
+// password prompt with a sub-message line
+string pw = await InputBox.Open(UI.Tr("Enter password"),
+    message: UI.Tr("at least 8 chars"), contentType: "password");
 ```
 
 ### API surface (`PromptUGUI.Application.Modals`)
@@ -562,6 +575,21 @@ public static class MessageBox {
         IEnumerable<(string label, MsgBtn key)> buttons,   // also sets the .Buttons mask
         string icon = null, string title = null,
         ModalMode mode = ModalMode.Popup);
+}
+
+public static class InputBox {
+    public static string XmlSrc { get; set; } = "PromptUGUI/Modals/InputBox.ui";
+
+    // confirm/Enter → entered text ("" if empty); cancel/ESC → null
+    public static Awaitable<string> Open(
+        string title,
+        string message     = null,   // optional line under the title
+        string initial     = null,   // prefill text
+        string placeholder = null,
+        string contentType = null,   // InputField.contentType, e.g. "password" / "email"
+        string okLabel     = null,
+        string cancelLabel = null,
+        ModalMode mode     = ModalMode.Popup);
 }
 
 [Flags] public enum MsgBtn { None=0, OK=1, Cancel=2, Yes=4, No=8, Close=16 }
@@ -640,7 +668,7 @@ public sealed class NamePickerRequest : ModalRequest<string> {
     public override string XmlSrc => "MyUI/Modals/NamePicker.ui";
     public override void Bind(IScreen screen, Action<string> close) {
         screen.Get<Btn>("ok").OnClick.Subscribe(_ =>
-            close(screen.Get<InputField>("input").Text)).AddTo(screen);
+            close(screen.Get<InputField>("input").TextValue)).AddTo(screen);
         screen.Get<Btn>("cancel").OnClick.Subscribe(_ => close(null)).AddTo(screen);
     }
     public override bool TryEscape(out string r) { r = null; return true; }  // ESC → null
@@ -648,6 +676,10 @@ public sealed class NamePickerRequest : ModalRequest<string> {
 
 var name = await UI.Modal.OpenAsync(new NamePickerRequest());
 ```
+
+> `InputField.TextValue` is the read/write current-text property (the same one bound by
+> the XML `text=` attribute). For the common "prompt the user for a string" case, prefer
+> the builtin `InputBox.Open(...)` over hand-rolling a `ModalRequest<string>`.
 
 Custom modal `XmlSrc` keys go through the caller's `UI.SourceResolver` like any other
 Screen (the `PromptUGUI/` prefix is reserved — those keys load synchronously from the
