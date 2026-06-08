@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using PromptUGUI.Application;
 using UnityEngine;
 
 namespace PromptUGUI.Editor
@@ -51,6 +52,28 @@ namespace PromptUGUI.Editor
                 return new List<Glyph>();
             }
             return ordered;
+        }
+
+        /// <summary>Flatten flagged sets into (set, bareName, sprite) candidates. Only
+        /// unambiguous bare basenames become inline glyph names — path-only keys (those
+        /// containing '/') and bare names that collide <i>within</i> a set are dropped by the
+        /// reused BuildLookup promotion rule.</summary>
+        public static List<(string set, string name, Sprite sprite)> CollectCandidates(
+            IReadOnlyList<SpriteSet> flaggedSets)
+        {
+            var result = new List<(string, string, Sprite)>();
+            foreach (var set in flaggedSets)
+            {
+                if (set == null || string.IsNullOrEmpty(set.SetName)) continue;
+                var entries = SpriteAtlasSyncer.EnumerateSpriteSources(set.SourceFolderPath);
+                var lookup = SpriteAtlasSyncer.BuildLookup(entries, out _);
+                foreach (var kv in lookup)
+                {
+                    if (kv.Key.IndexOf('/') >= 0) continue;    // path-only → not inline-addressable
+                    result.Add((set.SetName, kv.Key, kv.Value));
+                }
+            }
+            return result;
         }
     }
 }
