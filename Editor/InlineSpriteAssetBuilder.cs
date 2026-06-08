@@ -15,7 +15,7 @@ namespace PromptUGUI.Editor
     /// The pure <see cref="BuildInlineGlyphTable"/> is unit-tested; the asset I/O lives in
     /// <see cref="Generate"/> / <see cref="RegenerateFromProject"/>.
     /// </summary>
-    public static partial class InlineSpriteAssetBuilder
+    public static class InlineSpriteAssetBuilder
     {
         public struct Glyph
         {
