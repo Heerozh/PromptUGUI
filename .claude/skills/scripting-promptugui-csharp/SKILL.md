@@ -504,6 +504,11 @@ MODAL          var r = await MessageBox.Open(text, MsgBtn.OK|MsgBtn.Cancel, icon
                var s = await InputBox.Open(title, message, initial, placeholder,
                                            contentType, okLabel, cancelLabel, mode)
                        // confirm → text ("" if empty); cancel/ESC → null
+                       // Enter respects ok.Interactable (disable ok → Enter gated too)
+               configure:     Action<IScreen> trailing arg on every Open (MessageBox/InputBox/Loading)
+                              // post-bind hook → live Screen; reach any control w/o subclassing
+                              // e.g. InputBox.Open(t, configure: s => s.Get<Btn>("ok").Interactable = false)
+                              // base ModalRequest<T>.Configure field → custom modals get it free
                ESC priority   Cancel > No > Close   (OK-only → no-op)
                override XML   MessageBox.XmlSrc = "MyUI/Modals/Foo.ui"   (keep .ui suffix)
                               prereq #1  resolver registered + (Addressables) address pre-registered
@@ -516,7 +521,7 @@ MODAL          var r = await MessageBox.Open(text, MsgBtn.OK|MsgBtn.Cancel, icon
                               override TryEscape(out T) to map ESC → result
                UI.Modal.CloseAll()                          cancel all (OperationCanceledException)
                UI.Modal.SortingOrderBase = 1000             default; configurator can't pin sortingOrder
-LOADING        var h = Loading.Open(text); h.Close()        idempotent; h.IsClosed
+LOADING        var h = Loading.Open(text, configure); h.Close()  idempotent; h.IsClosed
                Loading.XmlSrc = "MyUI/Modals/Foo.ui"        override; only <Text id="text"> recognised
                Loading.SortingOrder = 500                   overlay 层带,低于 dialog
                concurrent Open() → independent overlays at the same band (no ref-count)
@@ -562,25 +567,33 @@ string pw = await InputBox.Open(UI.Tr("Enter password"),
 ### API surface (`PromptUGUI.Application.Modals`)
 
 ```csharp
+// Every Open helper takes a trailing `configure: Action<IScreen>` — a post-bind hook that
+// hands you the live modal Screen so you can reach ANY control without subclassing (disable
+// the OK Btn, wire field validation, restyle, …). It runs AFTER the builtin Bind, so it
+// overrides builtin wiring. See "Customizing a builtin modal" below.
 public static class MessageBox {
     public static string XmlSrc { get; set; } = "PromptUGUI/Modals/MessageBox.ui";
 
     public static Awaitable<MsgBtn> Open(
         string text, MsgBtn buttons = MsgBtn.OK,
         string icon = null, string title = null,
-        ModalMode mode = ModalMode.Popup);
+        ModalMode mode = ModalMode.Popup,
+        Action<IScreen> configure = null);
 
     public static Awaitable<MsgBtn> Open(
         string text,
         IEnumerable<(string label, MsgBtn key)> buttons,   // also sets the .Buttons mask
         string icon = null, string title = null,
-        ModalMode mode = ModalMode.Popup);
+        ModalMode mode = ModalMode.Popup,
+        Action<IScreen> configure = null);
 }
 
 public static class InputBox {
     public static string XmlSrc { get; set; } = "PromptUGUI/Modals/InputBox.ui";
 
     // confirm/Enter → entered text ("" if empty); cancel/ESC → null
+    // Enter (OnSubmit) respects the ok Btn's Interactable — disabling ok in `configure`
+    // gates Enter too, so OK is the single source of truth for "can submit".
     public static Awaitable<string> Open(
         string title,
         string message     = null,   // optional line under the title
@@ -589,7 +602,8 @@ public static class InputBox {
         string contentType = null,   // InputField.contentType, e.g. "password" / "email"
         string okLabel     = null,
         string cancelLabel = null,
-        ModalMode mode     = ModalMode.Popup);
+        ModalMode mode     = ModalMode.Popup,
+        Action<IScreen> configure = null);
 }
 
 [Flags] public enum MsgBtn { None=0, OK=1, Cancel=2, Yes=4, No=8, Close=16 }
@@ -598,7 +612,7 @@ public enum ModalMode { Popup = 0, Queued = 1 }
 public static class Loading {
     public static string XmlSrc { get; set; } = "PromptUGUI/Modals/Loading.ui";
     public static int SortingOrder { get; set; } = 500;   // keep < SortingOrderBase
-    public static LoadingHandle Open(string text = null);
+    public static LoadingHandle Open(string text = null, Action<IScreen> configure = null);
 }
 
 public sealed class LoadingHandle {
@@ -646,6 +660,38 @@ UI.Modal.SortingOrderBase` so dialogs opened during a Loading appear above it.
 - **Locale / Variant**: a dialog is a regular `Screen` — `UI.Locale.Set(...)` and
   `UI.Variants.Set(...)` ReSolve open modals in place, no rebuild. Fonts swap on locale
   switch like in any other Screen (`<Text font="title">` etc.).
+
+### Customizing a builtin modal (the `configure` hook)
+
+Every builtin `Open` (`MessageBox` / `InputBox` / `Loading`) takes a trailing
+`configure: Action<IScreen>`. It fires **once, right after the builtin Bind**, with the
+live modal `Screen` — so you reach any control via `screen.Get<T>(id)` and customize
+without writing a `ModalRequest<T>` subclass. Because it runs after Bind, it overrides
+builtin wiring (labels, etc.) rather than being overwritten.
+
+```csharp
+// Disable OK until the field is non-empty. Disabling the OK Btn gates BOTH click and Enter
+// (InputBox's OnSubmit checks ok.Interactable), and greys the button (runtime Btn.Interactable
+// drives the Selectable, not just the CanvasGroup).
+string name = await InputBox.Open(UI.Tr("Your name?"), configure: screen => {
+    var ok    = screen.Get<Btn>("ok");
+    var field = screen.Get<InputField>("field");
+    ok.Interactable = false;
+    field.OnValueChanged
+         .Subscribe(v => ok.Interactable = !string.IsNullOrWhiteSpace(v))
+         .AddTo(screen);
+});
+```
+
+The hook is declared once on the base `ModalRequest<TResult>` as a public
+`Action<IScreen> Configure` field (the builtin helpers just thread their `configure`
+param into it), so **custom `ModalRequest<T>` subclasses inherit it for free** — set
+`new MyRequest { Configure = s => … }`. Subscriptions made in the hook should still
+`.AddTo(screen)`. A throwing `configure` cancels that modal's await (logged for Loading).
+
+> **Btn.Interactable at runtime**: setting it from code (here or anywhere) now drives the
+> underlying Button — greying it + emitting `InteractState.Disabled` — and blocks raycasts
+> via the CanvasGroup. Same end state as the XML `interactable="false"` attr.
 
 ### Cancelling
 

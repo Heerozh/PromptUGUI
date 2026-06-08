@@ -42,6 +42,8 @@ namespace PromptUGUI.Application.Modals
                 _tcs.TrySetResult(result);
                 onClose?.Invoke();
             });
+            // Caller customization layers on top of (after) the request's own Bind.
+            _request.Configure?.Invoke(screen);
         }
 
         public bool TryEscape(Action wakePump)

@@ -35,12 +35,13 @@ namespace PromptUGUI.Application.Modals
             if (Placeholder != null) field.Placeholder = Placeholder;
             field.TextValue = Initial ?? "";
 
-            // 回车 = 确定；OnSubmit 直接给出当前文本。
-            field.OnSubmit.Subscribe(v => close(v)).AddTo(screen);
-
             var ok = screen.Get<PromptUGUI.Controls.Btn>("ok");
             if (!string.IsNullOrEmpty(OkLabel)) ok.Text = OkLabel;
             ok.OnClick.Subscribe(_ => close(field.TextValue)).AddTo(screen);
+
+            // 回车 = 确定，但尊重 OK 的禁用态：Configure 钩子里把 ok.Interactable 置 false 做校验门控时，
+            // 回车也一并被挡（否则光禁用按钮挡不住 OnSubmit，禁用就成了半成品）。
+            field.OnSubmit.Where(_ => ok.Interactable).Subscribe(v => close(v)).AddTo(screen);
 
             var cancel = screen.Get<PromptUGUI.Controls.Btn>("cancel");
             if (!string.IsNullOrEmpty(CancelLabel)) cancel.Text = CancelLabel;
@@ -67,7 +68,8 @@ namespace PromptUGUI.Application.Modals
             string contentType = null,
             string okLabel = null,
             string cancelLabel = null,
-            ModalMode mode = ModalMode.Popup)
+            ModalMode mode = ModalMode.Popup,
+            System.Action<IScreen> configure = null)
             => UI.Modal.OpenAsync(new InputBoxRequest
             {
                 Title = title,
@@ -77,6 +79,7 @@ namespace PromptUGUI.Application.Modals
                 ContentType = contentType,
                 OkLabel = okLabel,
                 CancelLabel = cancelLabel,
+                Configure = configure,
             }, mode);
     }
 }

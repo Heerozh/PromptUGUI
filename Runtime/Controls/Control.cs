@@ -31,7 +31,7 @@ namespace PromptUGUI.Controls
             set => GameObject.SetActive(!value);
         }
 
-        public bool Interactable
+        public virtual bool Interactable
         {
             get => CanvasGroup.interactable;
             set { CanvasGroup.interactable = value; CanvasGroup.blocksRaycasts = value; }

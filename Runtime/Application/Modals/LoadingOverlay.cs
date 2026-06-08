@@ -15,6 +15,7 @@ namespace PromptUGUI.Application.Modals
         {
             public string Src;
             public string Text;
+            public Action<IScreen> Configure;   // 可选 post-bind 钩子
             public Screen Screen;     // 实例化前为 null
             public string Key;        // _open instance key,实例化前为 null
             public bool Closed;
@@ -38,9 +39,9 @@ namespace PromptUGUI.Application.Modals
             }
         }
 
-        internal static LoadingHandle Open(string text)
+        internal static LoadingHandle Open(string text, Action<IScreen> configure = null)
         {
-            var entry = new LoadingEntry { Src = Loading.XmlSrc, Text = text };
+            var entry = new LoadingEntry { Src = Loading.XmlSrc, Text = text, Configure = configure };
             var handle = new LoadingHandle(entry);
             _entries.Add(entry);
             _pending.Enqueue(entry);
@@ -100,6 +101,7 @@ namespace PromptUGUI.Application.Modals
                         canvas.sortingOrder = Loading.SortingOrder;
 
                         BindText(screen, entry.Text);
+                        entry.Configure?.Invoke(screen);   // post-bind 钩子,与 dialog 路径一致
                     }
                     catch (Exception ex)
                     {

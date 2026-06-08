@@ -12,8 +12,13 @@ namespace PromptUGUI.Application.Modals
         /// <summary>overlay 的 sortingOrder。须低于 <see cref="UI.Modal.SortingOrderBase"/>(默认 1000)。</summary>
         public static int SortingOrder { get; set; } = 500;
 
-        public static LoadingHandle Open(string text = null)
-            => LoadingOverlay.Open(text);
+        /// <param name="configure">
+        /// Optional post-bind hook receiving the live overlay <see cref="IScreen"/> — same shape as
+        /// the dialog modals' <c>configure</c>. Runs after the builtin text bind, so it can reach
+        /// any control (custom spinner, extra text, …) without subclassing.
+        /// </param>
+        public static LoadingHandle Open(string text = null, System.Action<IScreen> configure = null)
+            => LoadingOverlay.Open(text, configure);
     }
 
     /// <summary>

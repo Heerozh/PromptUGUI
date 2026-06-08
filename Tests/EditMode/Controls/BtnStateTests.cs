@@ -158,6 +158,41 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void RuntimeInteractableFalse_DrivesButtonAndEmitsDisabled()
+        {
+            // Setting Btn.Interactable from code (e.g. a modal Configure hook) must bridge to
+            // Button.interactable too — not just the CanvasGroup — so the button greys out and
+            // OnState emits Disabled, matching the interactable='false' XML path. Before the
+            // Btn override this only touched CanvasGroup, leaving the button un-greyed.
+            var btn = BuildBtn();
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+            Assert.IsTrue(puiBtn.interactable, "precondition: starts interactable");
+
+            btn.Interactable = false;
+
+            Assert.IsFalse(puiBtn.interactable,
+                "runtime Interactable=false should drive Button.interactable");
+            InteractState seen = (InteractState)(-1);
+            using var _ = btn.OnState.Subscribe(s => seen = s);
+            Assert.AreEqual(InteractState.Disabled, seen);
+        }
+
+        [Test]
+        public void RuntimeInteractableTrue_ReEnablesButton()
+        {
+            var btn = BuildBtn();
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+            btn.Interactable = false;
+            btn.Interactable = true;
+
+            Assert.IsTrue(puiBtn.interactable,
+                "runtime Interactable=true should re-enable Button.interactable");
+            InteractState seen = (InteractState)(-1);
+            using var _ = btn.OnState.Subscribe(s => seen = s);
+            Assert.AreEqual(InteractState.Normal, seen);
+        }
+
+        [Test]
         public void PlainBtn_BackCompat_TargetGraphicIsBgAndTransitionIsColorTint()
         {
             var btn = BuildBtn();
