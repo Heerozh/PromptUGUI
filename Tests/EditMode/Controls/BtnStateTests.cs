@@ -440,6 +440,73 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(authored, bg.overrideSprite, "pressedSprite='none' => no swap on press");
         }
 
+        [Test]
+        public void DisabledSprite_SwapsBgOverrideWhenDisabled_RevertsWhenEnabled()
+        {
+            var stub = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            UI.SpriteResolver = _ => stub;
+
+            var btn = BuildBtn("disabledSprite='ui:disabled'");
+            var bg = btn.GameObject.GetComponent<UnityImage>();
+            var authored = bg.sprite;
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+
+            Assert.AreEqual(authored, bg.overrideSprite, "no override while interactable");
+
+            puiBtn.SimulateState(Disabled);
+            Assert.AreEqual(stub, bg.overrideSprite, "Disabled shows disabledSprite via overrideSprite");
+            Assert.AreEqual(authored, bg.sprite, "authored sprite untouched while disabled");
+
+            puiBtn.SimulateState(Normal);
+            Assert.AreEqual(authored, bg.overrideSprite, "back to base sprite when re-enabled");
+        }
+
+        [Test]
+        public void DisabledSprite_DisablesDefaultColorTint()
+        {
+            var stub = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            UI.SpriteResolver = _ => stub;
+
+            var btn = BuildBtn("disabledSprite='ui:disabled'");
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+            Assert.AreEqual(Selectable.Transition.None, puiBtn.transition,
+                "a disabledSprite must switch the Btn off uGUI's built-in ColorTint (no double-darken)");
+        }
+
+        // Disabled and Pressed are mutually exclusive states; the resolver prioritises Disabled.
+        [Test]
+        public void DisabledAndPressedSprite_EachStateShowsItsOwnSprite()
+        {
+            var pressed = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            var disabled = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            UI.SpriteResolver = key => key == "ui:disabled" ? disabled : pressed;
+
+            var btn = BuildBtn("pressedSprite='ui:pressed' disabledSprite='ui:disabled'");
+            var bg = btn.GameObject.GetComponent<UnityImage>();
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+
+            puiBtn.SimulateState(Pressed);
+            Assert.AreEqual(pressed, bg.overrideSprite, "Pressed shows pressedSprite");
+
+            puiBtn.SimulateState(Disabled);
+            Assert.AreEqual(disabled, bg.overrideSprite, "Disabled shows disabledSprite");
+        }
+
+        [Test]
+        public void DisabledSprite_None_NoSwapAndKeepsColorTint()
+        {
+            var btn = BuildBtn("disabledSprite='none'");
+            var bg = btn.GameObject.GetComponent<UnityImage>();
+            var authored = bg.sprite;
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+
+            Assert.AreEqual(Selectable.Transition.ColorTint, puiBtn.transition,
+                "disabledSprite='none' must not disable the default ColorTint");
+
+            puiBtn.SimulateState(Disabled);
+            Assert.AreEqual(authored, bg.overrideSprite, "disabledSprite='none' => no swap when disabled");
+        }
+
         private static void AssertColorsEqual(Color expected, Color actual)
         {
             Assert.That(actual.r, Is.EqualTo(expected.r).Within(0.001f), "r");

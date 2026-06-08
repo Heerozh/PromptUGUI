@@ -27,6 +27,21 @@ namespace PromptUGUI.Tests.EditMode.Controls
             return UI.Open("S").Get<Toggle>("tg");
         }
 
+        // Setting Interactable from code must drive the underlying Toggle (grey + Disabled),
+        // not just the base CanvasGroup — symmetry with the XML interactable="false" path.
+        [Test]
+        public void RuntimeInteractableFalse_BridgesToToggleAndEmitsDisabled()
+        {
+            var tg = BuildToggle("");
+            var pt = tg.GameObject.GetComponent<PuiToggle>();
+            Assert.IsTrue(pt.interactable, "precondition: starts interactable");
+
+            tg.Interactable = false;
+
+            Assert.IsFalse(pt.interactable, "runtime Interactable=false should drive Toggle.interactable");
+            Assert.AreEqual(InteractState.Disabled, pt.Current);
+        }
+
         [Test]
         public void PressedModulate_SwitchesTransitionNone_AndInstallsReactors()
         {
