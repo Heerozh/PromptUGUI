@@ -1431,7 +1431,7 @@ UI.Toast.Show("Level up!", ToastPosition.Top);
 UI.Toast.Show("Crit!", new Vector2(0, 200));             // reference-resolution coords (center origin, +y up)
 UI.Toast.Show("+10", someControl);                       // at a control (IControl reference)
 UI.Toast.Show("+10 coins <sprite name=\"coin\">", "Hud/rewardBtn");  // at a control by path
-UI.Toast.Show("Combo!", ToastStackMode.Sequential);      // wait for prior toasts to clear first
+UI.Toast.Show("Combo!", mode: ToastStackMode.Sequential);  // wait for prior toasts to clear first
 UI.Toast.Show("Held 3s", ToastPosition.Center, holdSeconds: 3f);
 ```
 
@@ -1445,7 +1445,7 @@ destroyed) falls back to `DefaultPosition` with a `Debug.LogWarning` — it neve
 away; same position = one stack, capped at `MaxVisible`) or `Sequential` (queues until all visible
 tips clear). Toasts at different positions form independent stacks.
 
-**Duration** — `holdSeconds` defaults to `clamp(HoldMin, HoldBase + textLength*HoldPerChar, HoldMax)`;
+**Duration** — `holdSeconds` defaults to `Mathf.Clamp(HoldBase + textLength*HoldPerChar, HoldMin, HoldMax)`;
 pass a positive `holdSeconds` to override. Fade uses unscaled time (works while the game is paused).
 
 **Skinning** — `UI.Toast.XmlSrc` (default `"PromptUGUI/Toast.ui"`) points at a `.ui.xml` whose
