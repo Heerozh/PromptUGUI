@@ -63,6 +63,24 @@ namespace PromptUGUI.Controls
         public Observable<InteractState> OnState => _btn.OnState;
 
         /// <summary>
+        /// Runtime override so setting <see cref="Interactable"/> from code (e.g. a modal
+        /// <c>Configure</c> hook gating the OK button) also drives the underlying
+        /// <see cref="UnityEngine.UI.Button"/> — greying it out + emitting
+        /// <see cref="InteractState.Disabled"/> — not just the base CanvasGroup. Mirrors the
+        /// XML-attr path (<see cref="OnAfterApply"/>), so code-applied and Variant-applied
+        /// disables look identical. The CanvasGroup side (from base) still blocks raycasts.
+        /// </summary>
+        public override bool Interactable
+        {
+            get => base.Interactable;
+            set
+            {
+                base.Interactable = value;
+                if (_btn != null) _btn.interactable = value;
+            }
+        }
+
+        /// <summary>
         /// Bridges the common <c>interactable</c> attribute (already applied by
         /// <see cref="ControlAttributeApplier"/> via <c>ApplyCommon</c> → base
         /// <see cref="Control.Interactable"/>, CanvasGroup-backed) to the underlying
