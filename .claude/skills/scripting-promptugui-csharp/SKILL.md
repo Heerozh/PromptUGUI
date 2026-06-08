@@ -689,9 +689,10 @@ param into it), so **custom `ModalRequest<T>` subclasses inherit it for free** �
 `new MyRequest { Configure = s => … }`. Subscriptions made in the hook should still
 `.AddTo(screen)`. A throwing `configure` cancels that modal's await (logged for Loading).
 
-> **Btn.Interactable at runtime**: setting it from code (here or anywhere) now drives the
-> underlying Button — greying it + emitting `InteractState.Disabled` — and blocks raycasts
-> via the CanvasGroup. Same end state as the XML `interactable="false"` attr.
+> **`Interactable` at runtime (Btn / Tab / Toggle)**: setting it from code (here or anywhere)
+> now drives the underlying uGUI Selectable — greying it + emitting `InteractState.Disabled` —
+> and blocks raycasts via the CanvasGroup. Same end state as the XML `interactable="false"`
+> attr. (Other controls' runtime `Interactable` is CanvasGroup-only — blocks input, no grey.)
 
 ### Cancelling
 

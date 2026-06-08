@@ -196,6 +196,7 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 | `color` | hex / CSS named / theme token | — | 背景基色，见 **Color Tokens** |
 | `sprite` | sprite key | — | 背景图 |
 | `pressedSprite` | sprite key | — | 按下换 bg `overrideSprite`、松开还原（不动 `sprite`）；自动切 Btn off uGUI ColorTint 避免双重变暗；`""` / `none`=不换；与 `pressedModulate` 叠加；见 states.md |
+| `disabledSprite` | sprite key | — | Disabled 态换 bg `overrideSprite`（`interactable="false"` 或运行时 `Btn.Interactable=false`）；同 `pressedSprite` 契约；与 `pressedSprite` 共存（Disabled 优先）；仅 `<Btn>`；见 states.md |
 | `hoverColor` · `pressedColor` · `disabledColor` | hex / CSS / token | — | **绝对**单态 bg 色（仅 targetGraphic，不扩散） |
 | `hoverModulate` · `pressedModulate` · `disabledModulate` | hex / CSS / token | white | **相对**乘子，扩散到 bg + 所有子 Graphic |
 | `fontSize` | int | — | 仅作用于自动 label；其它 Text 属性（`align` / `wrap`）需显式 `<Text>` 子节点 |
@@ -1077,7 +1078,7 @@ I18N XML      <Text>...</Text>                 extract + translate
 
 ## State visuals (Btn / Tab / Toggle)
 
-`<Btn>` / `<Tab>` / `<Toggle>` 广播 uGUI 交互状态，三种响应（递进）：① `*Color`（绝对 bg 基色）/ `*Modulate`（相对乘子，向子树扩散，`stateReact="false"` 退出）；② `<Show on="state-*">` 按状态换整块美术（`<Btn pressedSprite>` / `<Tab selectedSprite>` 是单图简写）；③ `<Trigger>` / `<Animation on="state-*">` 状态触发动效。**用任何 `*Color` / `*Modulate` / `selectedColor` / `<Show on=state-*>` / `pressedSprite` / `selectedSprite` 前，先读 [`reference/states.md`](reference/states.md)。**
+`<Btn>` / `<Tab>` / `<Toggle>` 广播 uGUI 交互状态，三种响应（递进）：① `*Color`（绝对 bg 基色）/ `*Modulate`（相对乘子，向子树扩散，`stateReact="false"` 退出）；② `<Show on="state-*">` 按状态换整块美术（`<Btn pressedSprite>` / `<Btn disabledSprite>` / `<Tab selectedSprite>` 是单图简写）；③ `<Trigger>` / `<Animation on="state-*">` 状态触发动效。**用任何 `*Color` / `*Modulate` / `selectedColor` / `<Show on=state-*>` / `pressedSprite` / `selectedSprite` 前，先读 [`reference/states.md`](reference/states.md)。**
 
 ## Worked end-to-end example (XML)
 

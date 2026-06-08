@@ -1,6 +1,6 @@
 # State visuals (Btn / Tab / Toggle)
 
-> Part of the **authoring-promptugui-xml** skill. Main reference: [`../SKILL.md`](../SKILL.md). Read this before using any `*Color` / `*Modulate` / `selectedColor` / `<Show on="state-*">` / `pressedSprite` / `selectedSprite`. For the `state-*` `on=` event values and `<Trigger>` / `<Animation>`, see [`animations.md`](animations.md).
+> Part of the **authoring-promptugui-xml** skill. Main reference: [`../SKILL.md`](../SKILL.md). Read this before using any `*Color` / `*Modulate` / `selectedColor` / `<Show on="state-*">` / `pressedSprite` / `disabledSprite` / `selectedSprite`. For the `state-*` `on=` event values and `<Trigger>` / `<Animation>`, see [`animations.md`](animations.md).
 
 `<Btn>`, `<Tab>`, and `<Toggle>` all broadcast their uGUI interaction state. `<Btn>` emits `Normal` / `Hover` / `Pressed` / `Disabled` (Selectable's `Selected` is folded into `Normal`). `<Tab>` and `<Toggle>` also emit `Selected` (= the active/`isOn` control at rest; transient Hover/Pressed/Disabled override it and it reverts on release). Three ways to react, in increasing power:
 
@@ -55,10 +55,12 @@ They compose: per state, `displayed = (absolute ?? color) × (modulate ?? white)
 
 Here PC `state-hover` has no explicit block, so the `state-normal` artwork covers it too; add a `<Show on="state-hover">` to give hover its own art.
 
-**Single-bg shorthand — `pressedSprite`.** When the only per-state change is the button's own bg image, `<Btn pressedSprite="ui:play-pressed">` is the one-attribute form of a `state-normal`/`state-pressed` `<Show>` pair: it swaps the bg's `overrideSprite` while Pressed and reverts on release (the authored `sprite` is never touched). Setting it auto-switches the Btn off uGUI's built-in ColorTint (so the pressed art isn't additionally darkened), and it composes with `pressedColor` / `pressedModulate` (swap + tint/modulate stack). `""` / `none` = no swap. For swapping whole child subtrees (icon + label together, or more than two states), use `<Show>` instead. `<Tab selectedSprite>` is the same `overrideSprite`-swap mechanism keyed on `isOn` (the selected look) instead of `Pressed`.
+**Single-bg shorthand — `pressedSprite` / `disabledSprite`.** When the only per-state change is the button's own bg image, `<Btn pressedSprite="ui:play-pressed">` is the one-attribute form of a `state-normal`/`state-pressed` `<Show>` pair: it swaps the bg's `overrideSprite` while Pressed and reverts on release (the authored `sprite` is never touched). Setting it auto-switches the Btn off uGUI's built-in ColorTint (so the pressed art isn't additionally darkened), and it composes with `pressedColor` / `pressedModulate` (swap + tint/modulate stack). `""` / `none` = no swap. For swapping whole child subtrees (icon + label together, or more than two states), use `<Show>` instead. `<Tab selectedSprite>` is the same `overrideSprite`-swap mechanism keyed on `isOn` (the selected look) instead of `Pressed`.
+
+`<Btn disabledSprite="ui:play-disabled">` is the identical mechanism for the **Disabled** state (greyed-out art instead of just a darkened tint). Same contract as `pressedSprite` — swaps `overrideSprite` while disabled (`interactable="false"`, or runtime `Btn.Interactable=false`), reverts when re-enabled, takes the Btn off ColorTint, `""` / `none` = no swap. Disabled and Pressed are mutually exclusive states, so the two attributes coexist (Disabled wins). Only `<Btn>` has `disabledSprite` (like `pressedSprite`); for Tab/Toggle use `disabledColor` / `disabledModulate` or a `<Show on="state-disabled">`.
 
 ```xml
-<Btn sprite="ui:play-normal" pressedSprite="ui:play-pressed">Play</Btn>
+<Btn sprite="ui:play-normal" pressedSprite="ui:play-pressed" disabledSprite="ui:play-disabled">Play</Btn>
 ```
 
 ## 3. State-triggered animation — `<Trigger>` / `<Animation on="state-...">`

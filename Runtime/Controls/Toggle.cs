@@ -176,6 +176,22 @@ namespace PromptUGUI.Controls
         /// <summary>Broadcasts the Toggle's interaction state. Selected = checked (isOn) and at rest.</summary>
         public Observable<InteractState> OnState => _toggle.OnState;
 
+        /// <summary>
+        /// Runtime override so setting <see cref="Interactable"/> from code also drives the
+        /// underlying Toggle — greying it + emitting <see cref="InteractState.Disabled"/> — not
+        /// just the base CanvasGroup. Mirrors the XML-attr path (<see cref="OnAfterApply"/>) and
+        /// <c>Btn.Interactable</c>, so code- and Variant-applied disables look identical.
+        /// </summary>
+        public override bool Interactable
+        {
+            get => base.Interactable;
+            set
+            {
+                base.Interactable = value;
+                if (_toggle != null) _toggle.interactable = value;
+            }
+        }
+
         internal override void OnAfterApply()
         {
             base.OnAfterApply();

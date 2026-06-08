@@ -159,6 +159,21 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(InteractState.Disabled, pt.Current);
         }
 
+        // Runtime symmetry with the XML attr above: setting Interactable from code must drive
+        // the underlying Toggle too (grey + Disabled), not just the base CanvasGroup.
+        [Test]
+        public void RuntimeInteractableFalse_BridgesToToggleAndEmitsDisabled()
+        {
+            var tab = BuildTab("");
+            var pt = tab.GameObject.GetComponent<PuiToggle>();
+            Assert.IsTrue(pt.interactable, "precondition: starts interactable");
+
+            tab.Interactable = false;
+
+            Assert.IsFalse(pt.interactable, "runtime Interactable=false should drive Toggle.interactable");
+            Assert.AreEqual(InteractState.Disabled, pt.Current);
+        }
+
         [Test]
         public void ShowInsideTab_ResolvesTabAsStateSource()
         {
