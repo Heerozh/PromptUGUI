@@ -43,6 +43,7 @@ namespace PromptUGUI.Editor
                 foreach (var s in SpriteAtlasSyncer.FindAllSpriteSets()) sets.Add(s);
                 if (sets.Count == 0) return;
                 SpriteAtlasSyncer.SyncAll(sets);
+                ScheduleInlineRegen();
                 UI.HotReload.NotifySpriteAssetsChanged();
                 return;
             }
@@ -51,19 +52,43 @@ namespace PromptUGUI.Editor
             // when only pixels change, so call PackAtlases directly on the affected
             // SpriteSets' atlases — same effect as clicking "Pack Preview" by hand.
             var atlases = new System.Collections.Generic.List<UnityEngine.U2D.SpriteAtlas>();
+            var inlineDirty = false;
             foreach (var set in SpriteAtlasSyncer.FindAllSpriteSets())
             {
-                if (set == null || set.Atlas == null) continue;
+                if (set == null) continue;
                 var folder = set.SourceFolderPath;
                 if (string.IsNullOrEmpty(folder)) continue;
                 var prefix = folder.EndsWith("/", StringComparison.Ordinal) ? folder : folder + "/";
-                if (AnyUnder(prefix, imported)) atlases.Add(set.Atlas);
+                if (!AnyUnder(prefix, imported)) continue;
+                // A flagged set bakes its own copy of the pixels into the inline TMP asset,
+                // so a source change there (new/edited emoji) must rebuild it — independent
+                // of whether the set has a .spriteatlas.
+                if (set.GenerateTmpSpriteAsset) inlineDirty = true;
+                if (set.Atlas != null) atlases.Add(set.Atlas);
             }
+            if (inlineDirty) ScheduleInlineRegen();
             if (atlases.Count == 0) return;
 
             UnityEditor.U2D.SpriteAtlasUtility.PackAtlases(
                 atlases.ToArray(),
                 EditorUserBuildSettings.activeBuildTarget);
+        }
+
+        // Regenerating the inline TMP_SpriteAsset creates/imports assets, which is UNSAFE to do
+        // re-entrantly from inside OnPostprocessAllAssets — it corrupts the asset currently being
+        // imported (sub-asset links detach). Defer to the next editor tick, after the import
+        // settles; debounce so a multi-asset import batch triggers a single rebuild.
+        private static bool _inlineRegenScheduled;
+
+        private static void ScheduleInlineRegen()
+        {
+            if (_inlineRegenScheduled) return;
+            _inlineRegenScheduled = true;
+            EditorApplication.delayCall += () =>
+            {
+                _inlineRegenScheduled = false;
+                InlineSpriteAssetBuilder.RegenerateFromProject();
+            };
         }
 
         // Excludes `.spriteatlas` / `.spriteatlasv2` so the atlas asset we just

@@ -22,6 +22,13 @@ namespace PromptUGUI.Tests.Editor
                 AssetDatabase.CreateFolder("Assets", "__test_iconsync__");
         }
 
+        // KNOWN FLAKE (environmental, not a real failure): the AssetDatabase.DeleteAsset calls
+        // below run the project's AssetPostprocessors, including the IDE integration's project-file
+        // sync (e.g. Rider's CodeEditorProjectSync). When the IDE has Assembly-CSharp.csproj open,
+        // that sync can throw "IOException: Sharing violation on ...csproj", which Unity's test
+        // runner reports as an unhandled log message and fails whichever test is in teardown
+        // (often Scan_follows_template_param_full_placeholder). It is unrelated to PromptUGUI —
+        // re-run, or close the IDE while running these tests.
         [TearDown]
         public void Teardown()
         {

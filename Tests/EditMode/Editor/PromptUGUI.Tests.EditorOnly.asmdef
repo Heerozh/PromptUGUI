@@ -4,6 +4,7 @@
     "references": [
         "PromptUGUI.Runtime",
         "PromptUGUI.Editor",
+        "Unity.TextMeshPro",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

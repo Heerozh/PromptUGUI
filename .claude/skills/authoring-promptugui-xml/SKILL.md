@@ -376,6 +376,8 @@ References a sprite from a project-level SpriteSet (shared icons, by-name lookup
 
 **Discovering available icons** — 要查项目里有哪些 `setName:icon-name` 组合、以及 icon 名如何解析（相对 sourceFolder 路径、bare basename 简写、Template-Param 替换、sync 工具行为），见 [`reference/icons.md`](reference/icons.md)。
 
+**Inline icons inside text** (`<sprite name="coin">` 图文混排，行内跟随文字换行) — tick **Generate Tmp Sprite Asset** on a SpriteSet, re-sync, then use native TMP `<sprite>` markup in any `<Text>` / `<Btn text>`; see [`reference/icons.md`](reference/icons.md) → "Inline sprites in text".
+
 ### Safe area
 
 Wrap UI in `<SafeArea>` and put a `margin` on it to control inset. Per-edge `inset = max(designMargin_i, Screen.safeArea_i)` — the safe-area inset absorbs the design margin (not adds to it), so the same XML looks right on PC and on notched devices:

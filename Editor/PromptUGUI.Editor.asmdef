@@ -3,6 +3,7 @@
     "rootNamespace": "PromptUGUI.Editor",
     "references": [
         "PromptUGUI.Runtime",
+        "Unity.TextMeshPro",
         "Unity.Addressables",
         "Unity.Addressables.Editor",
         "Unity.ResourceManager",

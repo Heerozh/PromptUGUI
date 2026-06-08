@@ -34,3 +34,23 @@ Icon name in XML = PNG path **relative to the SpriteSet's sourceFolder**, with `
 - Partial placeholder — `<Icon name="solar:{{x}}"/>`. Treats each invocation arg as the icon-name half, paired with the literal `solar` set.
 
 Anything else inside a Template body (`{{a}}:{{b}}`, `solar:{{a}}-{{b}}`, multi-placeholder) is unanalyzable — the syncer logs a warning. Same for forwarded args (one Template's Param fed verbatim into another's). For unanalyzable cases, list final values in `SpriteSet.alwaysInclude`. Outside a `<Template>` (a literal `<Icon name="ui:{{x}}"/>` directly in a Screen) is always unanalyzable too.
+
+## Inline sprites in text (`<sprite name="...">`, 图文混排)
+
+`<Icon>` places a standalone image; to drop a SpriteSet icon **inside a text run** — a coin right after a button label, or chat emoji that wrap together with the words — use TextMeshPro's native inline sprite markup instead.
+
+**Setup (once per icon group):** tick **Generate Tmp Sprite Asset** on the SpriteSet asset (Inspector — it renders right under the default fields), then run `Tools → PromptUGUI → Sprite → Sync Atlases`. The sync bakes every *flagged* set's sprites into one global `TMP_SpriteAsset` and assigns it as the project's TextMeshPro **default sprite asset**. Only flagged sets are baked — window borders, button 9-slices, and other non-icon sprites stay out of it. The *whole* flagged set is baked (not only the icons referenced from `.ui.xml`), so emoji chosen at runtime work too.
+
+**Authoring (no new XML attribute — plain TMP rich-text in any `text=`):**
+
+```xml
+<Btn text="Confirm &lt;sprite name=&quot;coin&quot;&gt;"/>
+<Text text="lol &lt;sprite name=&quot;smile&quot;&gt; nice"/>
+```
+
+(`&lt;` / `&quot;` are just the XML escapes for `<` / `"` — the runtime text is `Confirm <sprite name="coin">`.)
+
+- The glyph name is the icon's **bare basename** (`coin`, `smile`) — the same bare name `<Icon>` accepts as a shortcut.
+- Names must be **unique across all flagged sets**. A collision aborts the sync with an error (`[InlineSprite] glyph name collision ...`) — rename the offending sprite.
+- The baked sheet is point-filtered and uncompressed (crisp for pixel-art).
+- Independent of the per-set `.spriteatlas` (which still serves `<Image>` / `<Icon>`): a flagged set does not need its icons referenced anywhere to be baked. The generated asset lives at `Assets/PromptUGUI.Generated/InlineSprites.asset`.

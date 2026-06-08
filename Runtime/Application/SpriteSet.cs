@@ -19,6 +19,11 @@ namespace PromptUGUI.Application
         [SerializeField] private SpriteAtlas atlas;
         [SerializeField] private List<string> alwaysInclude = new();
 
+        // Editor-only opt-in: when true, this set's sprites are baked into the global
+        // inline TMP_SpriteAsset by SpriteAtlasSyncer / InlineSpriteAssetBuilder so they
+        // can be used as <sprite name="..."> inside <Text>/<Btn>. Runtime ignores this.
+        [SerializeField] private bool generateTmpSpriteAsset;
+
         // Sync 工具填入的 (key → sprite)；同 setName 内 key 唯一。
         // 同名 PNG 散落在不同子目录时，每条 PNG 至少出现一次以路径形作为 key
         // （e.g. "UI/heart"），不冲突时还会再补一条裸名别名（e.g. "heart"）。
@@ -55,6 +60,7 @@ namespace PromptUGUI.Application
         public string SetName => setName;
         public SpriteAtlas Atlas => atlas;
         public IReadOnlyList<string> AlwaysInclude => alwaysInclude;
+        public bool GenerateTmpSpriteAsset => generateTmpSpriteAsset;
 
         /// <summary>(key → Sprite) — 运行时由 SpriteResolverHelpers 直接读取，
         /// 跨过 SpriteAtlas 内部以 sprite name 索引时遇到的撞名歧义。</summary>
