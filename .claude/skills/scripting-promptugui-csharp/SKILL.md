@@ -927,6 +927,58 @@ Two caveats specific to modals/overlays:
    tune `UI.Modal.SortingOrderBase` / `Loading.SortingOrder` instead. `renderMode` /
    `worldCamera` / `planeDistance` / `pixelPerfect` etc. are still honored.
 
+## Toast (transient tips)
+
+`UI.Toast.Show(...)` shows a short, borderless, **non-interactive** text tip that fades out on
+its own and **stacks** when called repeatedly. It is **not** a modal — it sits above everything
+(`SortingOrder` 2000), never blocks input, and there is no result to await.
+
+```csharp
+UI.Toast.Show("Saved");                                  // bottom-center, stacked, auto duration
+UI.Toast.Show("Level up!", ToastPosition.Top);
+UI.Toast.Show("Crit!", new Vector2(0, 200));             // reference-resolution coords (center origin, +y up)
+UI.Toast.Show("+10", someControl);                       // at a control (IControl reference)
+UI.Toast.Show("+10 coins <sprite name=\"coin\">", "Hud/rewardBtn");  // at a control by path
+UI.Toast.Show("Combo!", ToastStackMode.Sequential);      // wait for prior toasts to clear first
+UI.Toast.Show("Held 3s", ToastPosition.Center, holdSeconds: 3f);
+```
+
+**Positioning** — `ToastPosition`: presets `Top` / `Bottom` / `Center`; `At(Vector2)` exact coords;
+`At(IControl)` / `At(string path)` at a control. The path form is `"<screenName>/<idPath>"` —
+resolved at show time by longest-prefix screen-name match against open screens, then id-path
+drill-down (same scheme as `screen.Get("a/b")`). A failed path (screen closed, id missing, control
+destroyed) falls back to `DefaultPosition` with a `Debug.LogWarning` — it never throws.
+
+**Stacking** — `ToastStackMode`: `Stacked` (default; new tip pops in at the anchor, older ones slide
+away; same position = one stack, capped at `MaxVisible`) or `Sequential` (queues until all visible
+tips clear). Toasts at different positions form independent stacks.
+
+**Duration** — `holdSeconds` defaults to `clamp(HoldMin, HoldBase + textLength*HoldPerChar, HoldMax)`;
+pass a positive `holdSeconds` to override. Fade uses unscaled time (works while the game is paused).
+
+**Skinning** — `UI.Toast.XmlSrc` (default `"PromptUGUI/Toast.ui"`) points at a `.ui.xml` whose
+`<Screen name>` must byte-equal `XmlSrc`. The manager writes the text into `id="text"` and
+repositions/sizes `id="content"` (falling back to `id="text"` when there is no wrapper). The default
+template is a bare `<Text id="text">`. To add a rounded pill background, wrap it:
+
+```xml
+<Screen name="MyUI/Toast.ui" reference="1920x1080" reference.portrait="1080x1920">
+  <Image id="content" sprite="MyUI/pill.png#pill_9slice" type="sliced">
+    <Text id="text" anchor="stretch" align="center" fontSize="40" color="white"/>
+  </Image>
+</Screen>
+```
+
+Then `UI.Toast.XmlSrc = "MyUI/Toast.ui";`. Inline `<sprite>`, i18n and autosize all work because the
+tip is a normal `<Text>`.
+
+**Tunable knobs** (static, on `UI.Toast`): `XmlSrc`, `SortingOrder`, `DefaultPosition`,
+`DefaultStackMode`, `MaxVisible`, `FadeInSeconds`, `FadeOutSeconds`, `Spacing`, `EdgeInset`,
+`Padding`, `HoldBase`, `HoldPerChar`, `HoldMin`, `HoldMax`.
+
+The optional trailing `configure: Action<IScreen>` runs after the text is bound, giving access to the
+live toast `IScreen` (recolor, add nodes) — same shape as the modal `configure` hook.
+
 ## `<Trigger>` and `<Animation>` from C#
 
 XML declares the trigger condition and effect; C# subscribes when game logic needs to react on top.
