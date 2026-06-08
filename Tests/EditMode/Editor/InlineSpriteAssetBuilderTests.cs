@@ -69,13 +69,36 @@ namespace PromptUGUI.Tests.Editor
 
         private const string TestRoot = "Assets/__test_inlinesprite__";
         private readonly List<string> _cleanup = new List<string>();
+        private TMPro.TMP_SpriteAsset _origDefaultSpriteAsset;
+
+        [SetUp]
+        public void SetUp()
+        {
+            _origDefaultSpriteAsset = TMPro.TMP_Settings.defaultSpriteAsset;
+        }
 
         [TearDown]
         public void Teardown()
         {
+            // Generate() rewrites the HOST project's TMP default sprite asset. Restore the
+            // captured original before deleting the temp asset so nothing is left referencing
+            // a deleted asset (harmless no-op for the pure tests that never call Generate).
+            var settings = TMPro.TMP_Settings.instance;
+            if (settings != null)
+            {
+                var so = new UnityEditor.SerializedObject(settings);
+                var prop = so.FindProperty("m_defaultSpriteAsset");
+                if (prop != null)
+                {
+                    prop.objectReferenceValue = _origDefaultSpriteAsset;
+                    so.ApplyModifiedPropertiesWithoutUndo();
+                }
+            }
+
             foreach (var p in _cleanup) AssetDatabase.DeleteAsset(p);
             _cleanup.Clear();
             if (AssetDatabase.IsValidFolder(TestRoot)) AssetDatabase.DeleteAsset(TestRoot);
+            AssetDatabase.SaveAssets();
         }
 
         private string WriteSpritePng(string folder, string name)
@@ -123,6 +146,36 @@ namespace PromptUGUI.Tests.Editor
 
             CollectionAssert.AreEquivalent(new[] { "coin", "smile" }, names);
             Assert.That(candidates.TrueForAll(c => c.set == "ui"));
+        }
+
+        // ── Generate integration tests ──────────────────────────────────────────
+
+        [Test]
+        public void Generate_creates_sprite_asset_with_expected_characters_and_sets_tmp_default()
+        {
+            AssetDatabase.CreateFolder("Assets", "__test_inlinesprite__");
+            WriteSpritePng(TestRoot, "coin");
+            WriteSpritePng(TestRoot, "smile");
+            var set = MakeFlaggedSet("ui", TestRoot);
+            var outPath = $"{TestRoot}/InlineSprites.asset";
+            _cleanup.Add(outPath);
+
+            var asset = InlineSpriteAssetBuilder.Generate(new[] { set }, outPath);
+
+            Assert.IsNotNull(asset);
+            var names = new List<string>();
+            foreach (var ch in asset.spriteCharacterTable) names.Add(ch.name);
+            CollectionAssert.AreEquivalent(new[] { "coin", "smile" }, names);
+            Assert.AreEqual(asset.spriteCharacterTable.Count, asset.spriteGlyphTable.Count);
+            Assert.IsNotNull(asset.spriteSheet, "must have a packed texture");
+            Assert.AreSame(asset, TMPro.TMP_Settings.defaultSpriteAsset);
+        }
+
+        [Test]
+        public void Generate_returns_null_when_no_glyphs()
+        {
+            Assert.IsNull(InlineSpriteAssetBuilder.Generate(
+                new PromptUGUI.Application.SpriteSet[0], $"{TestRoot}/none.asset"));
         }
     }
 }

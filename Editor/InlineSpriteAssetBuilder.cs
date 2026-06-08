@@ -1,6 +1,10 @@
 using System.Collections.Generic;
+using System.IO;
 using PromptUGUI.Application;
+using TMPro;
+using UnityEditor;
 using UnityEngine;
+using UnityEngine.TextCore;
 
 namespace PromptUGUI.Editor
 {
@@ -74,6 +78,131 @@ namespace PromptUGUI.Editor
                 }
             }
             return result;
+        }
+
+        /// <summary>Collect → merge (abort on collision) → pack a dedicated point-filtered
+        /// RGBA32 sheet → build glyph/character tables → save the <c>.asset</c> (texture +
+        /// material as sub-assets) → wire as the global <see cref="TMP_Settings"/> default
+        /// sprite asset. Returns the asset, or <c>null</c> when there are no glyphs (or a
+        /// name collision aborted the merge — already logged, nothing written).</summary>
+        public static TMP_SpriteAsset Generate(
+            IReadOnlyList<SpriteSet> flaggedSets, string outputPath)
+        {
+            var candidates = CollectCandidates(flaggedSets);
+            var glyphs = BuildInlineGlyphTable(candidates, out var collisions);
+            if (collisions.Count > 0) return null;   // already logged; do not half-write
+            if (glyphs.Count == 0) return null;
+
+            // 1) Pack the source sprites into one point-filtered RGBA32 sheet. Read via a
+            //    RenderTexture blit so non-readable source textures still work.
+            var copies = new Texture2D[glyphs.Count];
+            for (var i = 0; i < glyphs.Count; i++) copies[i] = ReadableCopy(glyphs[i].sprite);
+            var sheet = new Texture2D(2, 2, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+            var uv = sheet.PackTextures(copies, 2, 4096, false);
+            sheet.Apply(false, false);
+            sheet.name = Path.GetFileNameWithoutExtension(outputPath) + " Atlas";
+            foreach (var c in copies) Object.DestroyImmediate(c);
+
+            var texW = sheet.width;
+            var texH = sheet.height;
+
+            // 2) Build glyph + character tables (GlyphRect origin is bottom-left, matching UV).
+            var glyphTable = new List<TMP_SpriteGlyph>(glyphs.Count);
+            var charTable = new List<TMP_SpriteCharacter>(glyphs.Count);
+            for (var i = 0; i < glyphs.Count; i++)
+            {
+                var r = uv[i];
+                int x = Mathf.RoundToInt(r.x * texW), y = Mathf.RoundToInt(r.y * texH);
+                int w = Mathf.RoundToInt(r.width * texW), h = Mathf.RoundToInt(r.height * texH);
+                var glyph = new TMP_SpriteGlyph(
+                    (uint)i,
+                    new GlyphMetrics(w, h, 0f, h, w),     // bearingX 0, bearingY h (baseline-sit), advance w
+                    new GlyphRect(x, y, w, h),
+                    1.0f, 0)
+                { sprite = glyphs[i].sprite };
+                glyphTable.Add(glyph);
+
+                charTable.Add(new TMP_SpriteCharacter(0xFFFE, glyph)
+                {
+                    name = glyphs[i].name,
+                    glyphIndex = (uint)i,
+                });
+            }
+
+            // 3) Assemble the asset (+ material). Overwrite in place: delete the old file so
+            //    stale sub-assets don't accumulate, then re-point TMP default (handles GUID).
+            if (AssetDatabase.LoadAssetAtPath<TMP_SpriteAsset>(outputPath) != null)
+                AssetDatabase.DeleteAsset(outputPath);
+            EnsureFolder(Path.GetDirectoryName(outputPath).Replace('\\', '/'));
+
+            var spriteAsset = ScriptableObject.CreateInstance<TMP_SpriteAsset>();
+            spriteAsset.name = Path.GetFileNameWithoutExtension(outputPath);
+            SetVersion(spriteAsset, "1.1.0");        // TMP_Asset.version setter is internal
+            spriteAsset.spriteSheet = sheet;
+            // spriteGlyphTable / spriteCharacterTable have internal setters; their getters
+            // expose the live backing lists, so fill those in place.
+            spriteAsset.spriteGlyphTable.Clear();
+            spriteAsset.spriteGlyphTable.AddRange(glyphTable);
+            spriteAsset.spriteCharacterTable.Clear();
+            spriteAsset.spriteCharacterTable.AddRange(charTable);
+
+            var mat = new Material(Shader.Find("TextMeshPro/Sprite")) { name = spriteAsset.name + " Material" };
+            mat.SetTexture(ShaderUtilities.ID_MainTex, sheet);
+            spriteAsset.material = mat;
+
+            AssetDatabase.CreateAsset(spriteAsset, outputPath);
+            AssetDatabase.AddObjectToAsset(sheet, spriteAsset);
+            AssetDatabase.AddObjectToAsset(mat, spriteAsset);
+            spriteAsset.UpdateLookupTables();
+            EditorUtility.SetDirty(spriteAsset);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.ImportAsset(outputPath);
+
+            // 4) Wire as the global default sprite asset.
+            SetDefaultSpriteAsset(spriteAsset);
+            return spriteAsset;
+        }
+
+        private static Texture2D ReadableCopy(Sprite sprite)
+        {
+            var tex = sprite.texture;
+            var rect = sprite.textureRect;
+            int w = Mathf.RoundToInt(rect.width), h = Mathf.RoundToInt(rect.height);
+            var rt = RenderTexture.GetTemporary(tex.width, tex.height, 0, RenderTextureFormat.ARGB32);
+            Graphics.Blit(tex, rt);
+            var prev = RenderTexture.active;
+            RenderTexture.active = rt;
+            var copy = new Texture2D(w, h, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+            copy.ReadPixels(new Rect(rect.x, rect.y, w, h), 0, 0);
+            copy.Apply();
+            RenderTexture.active = prev;
+            RenderTexture.ReleaseTemporary(rt);
+            return copy;
+        }
+
+        // TMP_Asset.version has an internal setter, so set the backing field via SerializedObject.
+        private static void SetVersion(TMP_SpriteAsset asset, string version)
+        {
+            var so = new SerializedObject(asset);
+            var prop = so.FindProperty("m_Version");
+            if (prop != null) { prop.stringValue = version; so.ApplyModifiedPropertiesWithoutUndo(); }
+        }
+
+        private static void SetDefaultSpriteAsset(TMP_SpriteAsset asset)
+        {
+            var settings = TMP_Settings.instance;
+            if (settings == null) return;
+            var so = new SerializedObject(settings);
+            var prop = so.FindProperty("m_defaultSpriteAsset");
+            if (prop != null) { prop.objectReferenceValue = asset; so.ApplyModifiedPropertiesWithoutUndo(); }
+        }
+
+        private static void EnsureFolder(string folder)
+        {
+            if (string.IsNullOrEmpty(folder) || AssetDatabase.IsValidFolder(folder)) return;
+            var parent = Path.GetDirectoryName(folder).Replace('\\', '/');
+            EnsureFolder(parent);
+            AssetDatabase.CreateFolder(parent, Path.GetFileName(folder));
         }
     }
 }
