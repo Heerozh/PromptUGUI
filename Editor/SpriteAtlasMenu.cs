@@ -17,6 +17,7 @@ namespace PromptUGUI.Editor
                 return;
             }
             SpriteAtlasSyncer.SyncAll(sets);
+            InlineSpriteAssetBuilder.RegenerateFromProject();
             UI.HotReload.NotifySpriteAssetsChanged();
             Debug.Log($"[PromptUGUI] Synced {sets.Count} SpriteSet(s)");
         }
@@ -33,6 +34,7 @@ namespace PromptUGUI.Editor
                 return;
             }
             SpriteAtlasSyncer.SyncAll(picked);
+            InlineSpriteAssetBuilder.RegenerateFromProject();
             UI.HotReload.NotifySpriteAssetsChanged();
         }
 

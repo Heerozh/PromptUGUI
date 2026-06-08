@@ -80,6 +80,22 @@ namespace PromptUGUI.Editor
             return result;
         }
 
+        /// <summary>Fixed output location for the single global inline sprite asset, in the
+        /// host project (not the package). Mirrors where generated atlases live — next to
+        /// nothing in particular, so a stable dedicated folder is used.</summary>
+        public const string OutputPath = "Assets/PromptUGUI.Generated/InlineSprites.asset";
+
+        /// <summary>Rebuild the global inline sprite asset from every flagged SpriteSet in the
+        /// project. No flagged sets → no asset created, TMP settings left untouched.</summary>
+        public static TMP_SpriteAsset RegenerateFromProject()
+        {
+            var flagged = new List<PromptUGUI.Application.SpriteSet>();
+            foreach (var s in SpriteAtlasSyncer.FindAllSpriteSets())
+                if (s != null && s.GenerateTmpSpriteAsset) flagged.Add(s);
+            if (flagged.Count == 0) return null;
+            return Generate(flagged, OutputPath);
+        }
+
         /// <summary>Collect → merge (abort on collision) → pack a dedicated point-filtered
         /// RGBA32 sheet → build glyph/character tables → save the <c>.asset</c> (texture +
         /// material as sub-assets) → wire as the global <see cref="TMP_Settings"/> default

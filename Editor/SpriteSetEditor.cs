@@ -63,6 +63,7 @@ namespace PromptUGUI.Editor
             if (GUILayout.Button("Sync This Set"))
             {
                 SpriteAtlasSyncer.SyncAll(new[] { set });
+                InlineSpriteAssetBuilder.RegenerateFromProject();
             }
 
             EditorGUILayout.Space();
