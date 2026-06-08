@@ -779,6 +779,43 @@ namespace PromptUGUI.Application
             _open.TryGetValue(screenName, out var s) ? s : null;
 
         /// <summary>
+        /// 解析 "&lt;screenName&gt;/&lt;idPath&gt;" → 控件 RectTransform。screen 名按 _open 实际注册键
+        /// 做"最长前缀匹配"（screen 名本身可含斜杠，故不能数斜杠），其后 / 起为 id-path。
+        /// idPath 为空 → 该 Screen root。任一步未命中 → false（Toast 控件定位据此退回默认位）。
+        /// </summary>
+        internal static bool TryResolvePath(string path, out UnityEngine.RectTransform rect)
+        {
+            rect = null;
+            if (string.IsNullOrEmpty(path)) return false;
+
+            string bestKey = null;
+            foreach (var key in _open.Keys)
+            {
+                bool match = path == key
+                    || path.StartsWith(key + "/", System.StringComparison.Ordinal);
+                if (match && (bestKey == null || key.Length > bestKey.Length))
+                    bestKey = key;
+            }
+            if (bestKey == null) return false;
+
+            var screen = _open[bestKey];
+            if (path.Length == bestKey.Length)   // path == screen 名，无 id-path → root
+            {
+                rect = screen.RootGameObject.GetComponent<UnityEngine.RectTransform>();
+                return rect != null;
+            }
+
+            string idPath = path.Substring(bestKey.Length + 1);
+            try
+            {
+                var ctl = screen.Get(idPath);
+                rect = ctl?.RectTransform;
+                return rect != null;
+            }
+            catch (System.Collections.Generic.KeyNotFoundException) { return false; }
+        }
+
+        /// <summary>
         /// Clears all commons-pool entries and dep-graph commons sources.
         /// Loaded Screens, depGraph.ScreenDeps, SourceResolver, Registry are preserved.
         /// Use when re-bootstrapping commons (e.g., to swap as= namespace).
