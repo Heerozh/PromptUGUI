@@ -158,6 +158,7 @@ namespace PromptUGUI.Application
                 {
                     var active = await Activate(target[i], query);
                     _chain.Add(active);
+                    if (active.Def.Kind == RouteKind.Prompt) StartPrompt(active, query);
                 }
 
                 // 目标落在公共前缀里(Open 某个祖先)→ 刷新目标 OnEnter
@@ -182,6 +183,7 @@ namespace PromptUGUI.Application
                     case RouteKind.Page: return await ActivatePage(def, query, modal: false);
                     case RouteKind.Modal: return await ActivatePage(def, query, modal: true);
                     case RouteKind.Tab: return ActivateTab(def, query);
+                    case RouteKind.Prompt: return ActivatePrompt(def);
                     default:
                         throw new RouteException($"route '{def.Name}': kind not yet supported");
                 }
@@ -194,6 +196,11 @@ namespace PromptUGUI.Application
                     case RouteKind.Page:
                     case RouteKind.Modal:
                         UI.Close(a.ScreenKey);
+                        break;
+                    case RouteKind.Prompt:
+                        a.Deactivated = true;          // 告诉 SelfPop 让位:reconcile 负责移除
+                        a.PromptCts?.Cancel();
+                        a.PromptCts?.Dispose();
                         break;
                 }
             }
@@ -254,6 +261,50 @@ namespace PromptUGUI.Application
                         return _chain[i].ScreenKey;
                 throw new RouteException(
                     $"tab route '{tabDef.Name}': no Page/Modal host ancestor active");
+            }
+
+            // —— Prompt —— 无 src,由 run handler 支撑;入链后由 StartPrompt 起跑。
+            private static ActiveNode ActivatePrompt(RouteNode def)
+            {
+                return new ActiveNode
+                {
+                    Def = def,
+                    PromptCts = new System.Threading.CancellationTokenSource(),
+                };
+            }
+
+            private static void StartPrompt(ActiveNode node, RouteQuery query)
+            {
+                _ = RunPrompt(node, query);
+            }
+
+            private static async Awaitable RunPrompt(ActiveNode node, RouteQuery query)
+            {
+                try
+                {
+                    await node.Def.Run(query, node.PromptCts.Token);
+                }
+                catch (OperationCanceledException) { /* 被导航走 */ }
+                catch (Exception ex)
+                {
+                    UnityEngine.Debug.LogError($"prompt route '{node.Def.Name}' run failed: {ex}");
+                }
+                finally
+                {
+                    SelfPop(node);
+                }
+            }
+
+            // run 正常结束 → 自动出栈(仅当它仍是栈顶且未被 reconcile 接管移除)。
+            private static void SelfPop(ActiveNode node)
+            {
+                if (node.Deactivated) return;   // reconcile 正在移除它
+                if (_chain.Count > 0 && _chain[_chain.Count - 1] == node)
+                {
+                    _chain.RemoveAt(_chain.Count - 1);
+                    node.PromptCts?.Dispose();
+                    Changed?.Invoke();
+                }
             }
 
             // 当前链路里已有的 Modal 节点数(此节点尚未入链)→ modal 带内的层序偏移。
