@@ -181,6 +181,7 @@ namespace PromptUGUI.Application
                 {
                     case RouteKind.Page: return await ActivatePage(def, query, modal: false);
                     case RouteKind.Modal: return await ActivatePage(def, query, modal: true);
+                    case RouteKind.Tab: return ActivateTab(def, query);
                     default:
                         throw new RouteException($"route '{def.Name}': kind not yet supported");
                 }
@@ -225,6 +226,34 @@ namespace PromptUGUI.Application
                 }
                 def.OnEnter?.Invoke(screen, query);
                 return new ActiveNode { Def = def, ScreenKey = screenName };
+            }
+
+            // —— Tab —— 宿主 = 链路里最近的已激活 Page/Modal(此刻已在 _chain 中,因 bottom-up 激活)
+            private static ActiveNode ActivateTab(RouteNode def, RouteQuery query)
+            {
+                var hostKey = ResolveHostScreenKey(def);
+                var host = UI.Get(hostKey)
+                    ?? throw new RouteException(
+                        $"tab route '{def.Name}': host screen '{hostKey}' not open");
+                PromptUGUI.Controls.Tab tab;
+                try { tab = host.Get<PromptUGUI.Controls.Tab>(def.TabId); }
+                catch (Exception ex)
+                {
+                    throw new RouteException(
+                        $"tab route '{def.Name}': tab '{def.TabId}' not found in host '{hostKey}'", ex);
+                }
+                tab.IsOn = true;
+                def.OnEnter?.Invoke(host, query);
+                return new ActiveNode { Def = def, ScreenKey = hostKey };
+            }
+
+            private static string ResolveHostScreenKey(RouteNode tabDef)
+            {
+                for (int i = _chain.Count - 1; i >= 0; i--)
+                    if (_chain[i].Def.Kind == RouteKind.Page || _chain[i].Def.Kind == RouteKind.Modal)
+                        return _chain[i].ScreenKey;
+                throw new RouteException(
+                    $"tab route '{tabDef.Name}': no Page/Modal host ancestor active");
             }
 
             // 当前链路里已有的 Modal 节点数(此节点尚未入链)→ modal 带内的层序偏移。
