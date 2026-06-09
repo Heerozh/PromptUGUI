@@ -236,3 +236,54 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
     }
 }
+
+namespace PromptUGUI.Tests.EditMode.Controls
+{
+    using UnityEngine;
+
+    public class MarkdownImageTests
+    {
+        [SetUp] public void SetUp() => UI.ResetForTests();
+        [TearDown] public void TearDown() => UI.ResetForTests();
+
+        private const string Xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Markdown id='md' anchor='stretch'/></Screen></PromptUGUI>";
+
+        [Test]
+        public void Image_request_resolves_texture_into_rawimage()
+        {
+            var fake = new FakeMarkdownRenderer();
+            var root = FakeMarkdownRenderer.Vs();
+            var img = new ElementNode("RawImage");
+            img.Id = "img0";
+            img.Attributes["type"] = "contain";
+            img.Attributes["width"] = "stretch";
+            img.Attributes["height"] = "100";
+            root.Children.Add(img);
+            fake.Result = new MarkdownRenderResult
+            {
+                Root = root,
+                Images = new System.Collections.Generic.List<ImageRequest> { new ImageRequest("img0", "u", "alt") }
+            };
+            UI.Markdown.Renderer = fake;
+
+            var tex = new Texture2D(2, 2);
+            UI.Markdown.ImageResolver = _ => Completed(tex);
+
+            UI.LoadDocument("t", Xml);
+            var md = UI.Open("S").Get<Markdown>("md");
+            md.Text = "![alt](u)";
+
+            // resolver is synchronously completed -> texture applied (assert on the uGUI component)
+            var raw = md.GameObject.GetComponentInChildren<UnityEngine.UI.RawImage>(true);
+            Assert.AreEqual(tex, raw.texture);
+        }
+
+        private static Awaitable<Texture2D> Completed(Texture2D t)
+        {
+            var s = new AwaitableCompletionSource<Texture2D>();
+            s.SetResult(t);
+            return s.Awaitable;
+        }
+    }
+}

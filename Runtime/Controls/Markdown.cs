@@ -133,6 +133,28 @@ namespace PromptUGUI.Controls
             _renderedRoot = inst.InstantiateNode(result.Root, _viewport, owner);
             SetAsContent(_renderedRoot);
             InstallLinkClickers(_renderedRoot);
+            if (result.Images != null)
+                foreach (var req in result.Images)
+                    _ = LoadImageAsync(_renderGen, req);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_renderedRoot.RectTransform);
+        }
+
+        private async Awaitable LoadImageAsync(int gen, ImageRequest req)
+        {
+            var resolver = ImageResolver ?? UI.Markdown.ImageResolver;
+            if (resolver == null) return;   // alt placeholder stays
+            Texture2D tex;
+            try { tex = await resolver(req.Url); }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"<Markdown> image '{req.Url}' failed: {e.Message}");
+                return;
+            }
+            if (gen != _renderGen || tex == null || _renderedRoot == null) return;   // stale / failed
+            RawImage img;
+            try { img = _renderedRoot.Get<RawImage>(req.NodeId); }
+            catch { return; }
+            img.Texture = tex;
             LayoutRebuilder.ForceRebuildLayoutImmediate(_renderedRoot.RectTransform);
         }
 
