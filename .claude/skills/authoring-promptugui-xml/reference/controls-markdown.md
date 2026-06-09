@@ -49,6 +49,8 @@ More at [the homepage](https://example.com).
 
 The XML parser delivers the CDATA content as the element's text; the parser maps it through the `defaultTextAttr:"text"` registration, exactly as `<Text>Hello</Text>` works for `<Text>`.
 
+**Indentation is safe.** You may indent the CDATA body to line up with the surrounding XML — the parser strips the common leading indentation shared by all lines before the Markdown is parsed. Without this, uniformly-indented Markdown would be mis-read as an [indented code block](https://spec.commonmark.org/0.30/#indented-code-blocks) (4+ leading spaces), collapsing the whole document into one monospace block. Relative indentation is preserved, so an intentionally-deeper-indented fenced/code section still works.
+
 ### Combined style attributes
 
 Frequently-used style items can be set on the tag itself; full styling lives in C# `MarkdownStyle` (`md.Style` / `UI.Markdown.DefaultStyle`):
