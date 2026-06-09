@@ -574,6 +574,32 @@ LOADING        var h = Loading.Open(text, configure); h.Close()  idempotent; h.I
                Loading.XmlSrc = "MyUI/Modals/Foo.ui"        override; only <Text id="text"> recognised
                Loading.SortingOrder = 500                   overlay 层带,低于 dialog
                concurrent Open() → independent overlays at the same band (no ref-count)
+
+ROUTER         UI.Router.Scheme = "myapp"                   optional scheme enforcement (null = any/none)
+               UI.Router.Map(name, src, screen=null,        register a Page or Modal destination
+                             present=Page, parent=null,
+                             onEnter: (screen,q)=>{})
+               UI.Router.MapTab(name, parent, tabId,        register a Tab destination (selects <Tab> in host)
+                                onEnter: (screen,q)=>{})
+               UI.Router.MapPrompt(name, parent, run)       register a Prompt (async flow, no screen)
+                             run = async (RouteQuery q, CancellationToken ct) => { ... }
+               UI.Router.IsMapped(name)                     bool
+               UI.Router.Clear()                            remove all registrations
+
+               await UI.Router.Open("name")                 reconcile chain to name
+               await UI.Router.Open("name", query)          with RouteQuery
+               await UI.Router.Navigate("myapp://name?k=v") parse URL then Open
+               await UI.Router.Back()                       navigate to parent; no-op at root
+               await UI.Router.Reset()                      close entire chain
+
+               UI.Router.Current                            top name (null when empty)
+               UI.Router.Chain                              IReadOnlyList<string> root→top
+               UI.Router.Changed                            event Action; fires after each reconcile
+
+               q.Get("k", fallback)  q.GetInt("k", 0)      RouteQuery read helpers
+               q.Has("k")  q["k"]  q.Raw                   (IReadOnlyDictionary<string,string>)
+
+               pass ct: to InputBox.Open/MessageBox.Open    so Prompt run can cancel the dialog cleanly
 ```
 
 ## Modal dialogs
@@ -1027,6 +1053,170 @@ tip is a normal `<Text>`.
 
 The optional trailing `configure: Action<IScreen>` runs after the text is bound, giving access to the
 live toast `IScreen` (recolor, add nodes) — same shape as the modal `configure` hook.
+
+## Router navigation
+
+`UI.Router` is an **optional, declarative navigation layer** on top of the raw `UI.Open` / `UI.Close` API. You register every navigable destination **once at boot** with a stable opaque `name`; the router then reconciles the screen chain on each navigation call.
+
+### Mental model
+
+Every destination carries a canonical `parent` (declared at registration, never encoded in the URL). `Open("details")` walks the parent chain from the root to `"details"` and **reconciles** the live chain: it closes the non-shared tail (in reverse order) and opens the missing tail (bottom-up). Navigating via a button and navigating via a deep-link both call `Open` — identical chain → identical result. Ad-hoc modals (`MessageBox`, `InputBox`, `Loading`, `Toast`) that happen to be open at navigation time are closed first (equivalent to the user dismissing them before navigating), so a deep-link cannot bypass them unpredictably.
+
+`Navigate(url)` parses `<scheme>://<name>?<query>` (or just `<name>?<query>` when no scheme enforcement is needed) and calls `Open`. All of:
+
+```csharp
+await UI.Router.Open("details");
+await UI.Router.Navigate("myapp://details?id=42");
+```
+
+produce the same result when `"details"` is registered with the same parent chain.
+
+### Registration (call once at boot)
+
+```csharp
+using PromptUGUI.Application;
+
+// Full-screen page
+UI.Router.Map("home", src: "screens/Home");
+
+// Full-screen page with a parent (shown after home in the chain)
+UI.Router.Map("details", src: "screens/Details", parent: "home",
+    onEnter: (screen, q) => screen.Get<Text>("title").TextValue = q.Get("name", "—"));
+
+// Overlay/panel rendered above its parent chain (modal-style Canvas)
+UI.Router.Map("settings", src: "screens/Settings",
+    present: RoutePresent.Modal, parent: "home");
+
+// Tab inside a TabBar on the host Page/Modal (host is the nearest Page/Modal ancestor)
+UI.Router.MapTab("deals", parent: "home", tabId: "bar/deals");
+
+// Prompt: an async flow (InputBox / MessageBox / custom); no src, no screen
+UI.Router.MapPrompt("rename", parent: "home", run: async (q, ct) =>
+{
+    var name = await InputBox.Open("New name", initial: PlayerName, ct: ct);
+    if (name != null) await Api.Rename(name);
+});
+
+// Optional scheme enforcement (null = accept any / no scheme)
+UI.Router.Scheme = "myapp";
+
+// Utilities
+UI.Router.IsMapped("home");   // bool
+UI.Router.Clear();            // remove all registrations (does not close active chain)
+```
+
+**`Map` parameters** (full signature):
+```
+UI.Router.Map(name, src, screen = null, present = RoutePresent.Page, parent = null, onEnter = null)
+```
+- `name` — stable opaque destination id used in URLs and `Open()` calls.
+- `src` — `.ui.xml` src key (resolved on first navigation to that route, not at registration).
+- `screen` — name of the `<Screen>` to open inside the document. When null, the document must have exactly one `<Screen>`; if it has multiple, specify this explicitly.
+- `present` — `RoutePresent.Page` (default) or `RoutePresent.Modal` (overlay panel with sorting-order bump and ESC→Back).
+- `parent` — parent route name (`null` = root). Declared at registration; not encoded in URLs.
+- `onEnter` — `Action<IScreen, RouteQuery>` called each time this node is entered or re-entered.
+
+**`MapTab` parameters**:
+```
+UI.Router.MapTab(name, parent, tabId, onEnter = null)
+```
+- `parent` — required; must resolve to a Page/Modal ancestor in the chain.
+- `tabId` — screen-relative control id-path (e.g. `"topbar/deals"`) of the `<Tab>` to select. A Tab node can itself be the `parent` of deeper routes.
+- `onEnter` — `Action<IScreen, RouteQuery>` called with the host Page/Modal screen.
+
+**`MapPrompt` parameters**:
+```
+UI.Router.MapPrompt(name, parent, run)
+```
+- `run` — `RoutePromptRun` = `Awaitable Run(RouteQuery query, CancellationToken ct)`. The node stays active while `run` runs; it auto-pops from the chain when `run` returns. Navigating away cancels `ct` — pass it to `InputBox.Open(..., ct: ct)` so the dialog cancels cleanly.
+- A Prompt cannot be the `parent` of another route.
+
+### Navigation API
+
+All navigation methods return `Awaitable` that completes when the reconcile is done:
+
+```csharp
+await UI.Router.Open("details");                              // by name
+await UI.Router.Open("details", new RouteQuery(dict));        // name + pre-built query
+await UI.Router.Navigate("myapp://details?id=42&tab=info");   // URL form
+
+await UI.Router.Back();    // navigate to Current's parent; no-op at root
+await UI.Router.Reset();   // close the entire chain (does not clear registrations)
+```
+
+**State** (synchronous, no await):
+
+```csharp
+string name     = UI.Router.Current;   // top-of-chain name; null when empty
+IReadOnlyList<string> chain = UI.Router.Chain;   // root→top, e.g. ["home","details"]
+UI.Router.Changed += () => Debug.Log(UI.Router.Current);  // event Action; fires after every reconcile
+```
+
+### Four presentations
+
+| Kind | Registration | What opens | Deactivated by |
+|---|---|---|---|
+| **Page** | `Map(present: RoutePresent.Page)` | `UI.Open(screenName)` — full-screen Canvas | `UI.Close(screenName)` |
+| **Modal** | `Map(present: RoutePresent.Modal)` | Same as Page + `overrideSorting`, `ModalEscapeListener` (ESC→`Back()`) | `UI.Close(screenName)` |
+| **Tab** | `MapTab(tabId: ...)` | Selects the `<Tab>` (`tab.IsOn = true`) in the host Page/Modal | Tab is deselected (the host Page/Modal is closed if it leaves the chain) |
+| **Prompt** | `MapPrompt(run: ...)` | Runs `run` async; no screen of its own | `run` returns normally (self-pop) or `ct` is cancelled (navigated away) |
+
+### RouteQuery
+
+Query params come from a URL's `?k=v&...` or from the `RouteQuery` you pass to `Open(name, query)`.
+
+```csharp
+RouteQuery q;                             // received in onEnter or run
+
+q.Has("id")                              // bool
+q.Get("id")                              // string or null
+q.Get("id", fallback: "default")         // string (with default)
+q.GetInt("page", fallback: 0)            // int (TryParse, fallback on failure)
+q["id"]                                  // same as Get(key) — string or null
+q.Raw                                    // IReadOnlyDictionary<string, string>
+```
+
+### Rename pattern — button and deep-link share one Prompt
+
+```csharp
+// Registration (boot)
+UI.Router.MapPrompt("rename", parent: "home", run: async (q, ct) =>
+{
+    var name = await InputBox.Open("New name", initial: PlayerName, ct: ct);
+    if (name != null) await Api.Rename(name);
+});
+
+// Button (in-game)
+screen.Get<Btn>("renameBtn").OnClick
+      .Subscribe(_ => UI.Router.Open("rename"))
+      .AddTo(screen);
+
+// Deep-link (e.g., from a login flow that detected an illegal name)
+await UI.Router.Navigate("myapp://rename?reason=illegal");
+```
+
+Both paths run the same `run` delegate. The `reason` query param is available inside `run` via `q.Get("reason")` if needed.
+
+### Coexistence rules
+
+- **Open router destinations only via the router** — calling `UI.Open("myScreen")` directly on a router-managed screen bypasses reconciliation and corrupts the chain state.
+- **Modal route's close button should call `UI.Router.Back()`**, not `UI.Close(...)`. The ESC listener already does this automatically.
+- **Ad-hoc overlays** (`MessageBox`, `InputBox`, `Loading`, `Toast`) remain entirely outside the router. They are closed during reconcile if they block navigation — this is by design.
+- At teardown (`UI.UnloadAll()` / `UI.ResetForTests()`), all active router screens are closed and any running Prompt `ct` tokens are cancelled.
+
+### CancellationToken on modal Open helpers
+
+`MessageBox.Open` and `InputBox.Open` accept an optional trailing `ct: CancellationToken`. When navigation cancels a Prompt's `ct`, pass it through to cleanly dismiss the dialog:
+
+```csharp
+UI.Router.MapPrompt("confirm-delete", parent: "home", run: async (q, ct) =>
+{
+    var r = await MessageBox.Open("Delete account?", MsgBtn.Yes | MsgBtn.Cancel, ct: ct);
+    if (r == MsgBtn.Yes) await Api.DeleteAccount();
+});
+```
+
+Navigating away while the dialog is open cancels `ct`, the dialog throws `OperationCanceledException`, and the Prompt exits cleanly.
 
 ## `<Trigger>` and `<Animation>` from C#
 
