@@ -72,7 +72,7 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 
 `<Import>`, `<Theme>`, `<Screen>`, `<Template>` are the **only** elements allowed at the top level. Comments use standard `<!-- -->`.
 
-## Built-in primitives (18)
+## Built-in primitives (19)
 
 **默认视觉主题**：白底 sliced + #323232 深字（同 Unity 6 标准 UI prefab）。`color=` / `sprite=` 单点 override，整体深色覆写 `ProceduralBuilders` 常量或用 Variant `color.dark="..."`。想完全去掉自带 sliced 底（只留纯色或透明）写 `sprite="none"`（等价于 `sprite=""`）——见下方"内置控件 `sprite=` 解析"说明。
 
@@ -100,6 +100,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 | `<Tab>` | 选项卡（`bind` 显隐 `<Frame>`） |
 | `<Carousel>` | 翻页轮播卡 |
 | `<Show>` | 按状态显隐子树的无视觉 wrapper |
+| `<Markdown>` | Renders a Markdown document into a scrollable subtree  |
 
 > `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` / `<TabBar>` are reference implementations. For project-specific differentiation (pixel border, press feedback, custom popup chrome) subclass and override `OnAttached` — see scripting-promptugui-csharp.
 
@@ -992,6 +993,10 @@ PromptUGUI never auto-enables masking — you must opt in via `mask=`. Two reaso
 ## Carousel（轮播卡）
 
 `<Carousel>` 水平翻页轮播：自动播放 + 拖动吸附 + 无限循环 + 状态化指示点；卡片用 `itemTemplate` + C# `BindItems` 或静态子卡；当前页 `current` 是运行期独占状态（resize / Variant / Theme 不重置）。属性见上方 **Built-in primitives** 目录的 `<Carousel>` 行。**写动态/静态卡、配置 dots、查卡片布局约束与 lint 规则前，先读 [`reference/controls-carousel.md`](reference/controls-carousel.md)。**
+
+## Markdown
+
+`<Markdown>` Markdown document → scrollable subtree (headings/paragraphs/lists/blockquote/code/table/HR/image/links). Primary use case is dynamic load: leave the element empty in XML and set content from C# (`md.Text = …` / `md.BindText(stream)`). Static documents can be inlined via CDATA. Soft-depends on Markdig (`PROMPTUGUI_HAS_MARKDIG`); without it the raw text is shown as plain `<Text>`. **For dynamic/static usage patterns, attribute table, supported Markdown subset, block→control mapping, lossy notes, lint rules, and Markdig install + the PROMPTUGUI_HAS_MARKDIG gate, see [`reference/controls-markdown.md`](reference/controls-markdown.md).**
 
 ## Quick reference (cheatsheet)
 

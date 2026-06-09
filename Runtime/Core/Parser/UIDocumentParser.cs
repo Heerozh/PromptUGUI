@@ -424,8 +424,9 @@ namespace PromptUGUI.Parser
                 // source files (e.g. <Text>\n  {{label}}\n</Text>) is never wanted —
                 // it would otherwise leak into TrResolver's lookup key and the final
                 // rendered string (since runtime uses TextContentRaw as the format).
-                node.TextContent = el.InnerText.Trim();
-                node.TextContentRaw = el.InnerText.Trim();
+                var dedented = StripCommonIndent(el.InnerText).Trim();
+                node.TextContent = dedented;
+                node.TextContentRaw = dedented;
             }
 
             foreach (XmlNode c in el.ChildNodes)
@@ -569,6 +570,29 @@ namespace PromptUGUI.Parser
                     $"{contextLabel}: invalid value '{raw}' " +
                     $"(expected a positive number like '0.5', a device-density like '2x', " +
                     $"or a canvas-relative scale like '0.5r')");
+        }
+
+        // Strip the common leading-whitespace indentation shared by all non-blank lines so that
+        // multi-line CDATA/text content indented to match the surrounding XML does not carry that
+        // indentation into the content. Without this, whitespace-significant content (e.g.
+        // <Markdown>) mis-parses XML-aligned lines as an indented code block. Single-line and
+        // already-flush content are unaffected. (textwrap.dedent semantics; preserves relative indent.)
+        private static string StripCommonIndent(string s)
+        {
+            if (string.IsNullOrEmpty(s) || s.IndexOf('\n') < 0) return s;
+            var lines = s.Replace("\r\n", "\n").Split('\n');
+            int min = int.MaxValue;
+            foreach (var line in lines)
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                int i = 0;
+                while (i < line.Length && (line[i] == ' ' || line[i] == '\t')) i++;
+                if (i < min) min = i;
+            }
+            if (min == int.MaxValue || min == 0) return string.Join("\n", lines);
+            for (int k = 0; k < lines.Length; k++)
+                lines[k] = string.IsNullOrWhiteSpace(lines[k]) ? "" : lines[k].Substring(min);
+            return string.Join("\n", lines);
         }
 
         private static bool IsValidIconName(string name)

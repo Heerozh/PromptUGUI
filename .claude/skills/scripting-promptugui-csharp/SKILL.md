@@ -290,6 +290,55 @@ car.OnCurrentChanged
 
 `current` is a **runtime-owned state** (same as Tab `isOn`): resize / Variant / Theme ReSolve does NOT reset the page. `current.<variant>` initial overrides still apply when the user has not navigated at runtime; once navigated, the user's choice wins.
 
+### Markdown
+
+`<Markdown>` renders a Markdown document into a built-in scrollable subtree. The primary path is dynamic: set content from C# after the screen opens.
+
+```csharp
+var md = screen.Get<Markdown>("patchNotes");
+
+// Dynamic load (primary path)
+md.Text = await Http.GetString(url);            // set triggers full re-render; get returns the source string
+md.BindText(localizedMarkdownStream).AddTo(screen);  // reactive — re-renders on each push (i18n / live)
+
+// Link clicks
+md.OnLinkClicked
+  .Subscribe(Application.OpenURL)
+  .AddTo(screen);                               // fires with the raw url string; default does NOT open browser
+
+// Per-control style (null falls back to UI.Markdown.DefaultStyle)
+md.Style = MarkdownStyle.CreateDefault();
+md.Style.HeadingSizes = new float[] { 28, 24, 20, 18, 16, 14 };
+
+// Per-control image resolver (null falls back to UI.Markdown.ImageResolver)
+md.ImageResolver = myLocalResolver;
+
+// Global setup (call once at boot)
+UI.Markdown.UseWebImageResolver();              // built-in http(s)/file downloader + URL→Texture cache
+UI.Markdown.DefaultStyle = MarkdownStyle.CreateDefault();  // global baseline
+UI.Markdown.ImageResolver = myResolver;         // global fallback resolver
+```
+
+**Key properties and methods:**
+
+| Member | Description |
+|---|---|
+| `md.Text { get; set; }` | Markdown source string. `set` triggers a full synchronous re-render of the subtree (text is immediate; images load async). `get` returns the last-set source. |
+| `md.BindText(Observable<string>)` | Subscribes to a stream and re-renders on each push. Returns `IDisposable` — always `.AddTo(screen)`. |
+| `md.OnLinkClicked` | `Observable<string>` — emits the raw `url` string from `[text](url)` when the user taps a link. Default: no-op. Wire to `Application.OpenURL` or your own router. |
+| `md.Style` | Per-control `MarkdownStyle` override. `null` = use `UI.Markdown.DefaultStyle`. |
+| `md.ImageResolver` | `Func<string, Awaitable<Texture2D>>` per-control image resolver. `null` = use `UI.Markdown.ImageResolver`. |
+| `UI.Markdown.Renderer` | `IMarkdownRenderer` — auto-set by `MarkdigBootstrap` when Markdig is installed. `null` = plain-text fallback. |
+| `UI.Markdown.DefaultStyle` | Global `MarkdownStyle` baseline; `MarkdownStyle.CreateDefault()` out of the box. |
+| `UI.Markdown.ImageResolver` | Global image resolver fallback. Set once at boot. |
+| `UI.Markdown.UseWebImageResolver()` | Installs a built-in `UnityWebRequestTexture`-backed resolver with URL→`Texture2D` cache. WebGL-safe (`Awaitable`, no `System.Threading`). |
+
+**`text` is runtime content**: a value set from C# at runtime survives resize / Variant / Theme ReSolve. The DefaultText lock prevents the XML-declared value from overwriting runtime content (same mechanism as `<Text text>`). Variant overrides on `text.<variant>` still apply when the user has not yet set `Text` from C#; once set from C#, the runtime value wins.
+
+**Image loading**: `Text` set renders text immediately. Block-level images (`![ ](url)`) are loaded asynchronously by the configured `ImageResolver`. Each image shows alt text as a placeholder until the texture arrives. A render-generation token (`_renderGen`) ensures that textures arriving late (after a re-render or `Dispose`) are discarded safely. Without a registered resolver, images remain as alt-text placeholders.
+
+**Requires Markdig**: see *Setup — installing Markdig* in authoring-promptugui-xml → [`reference/controls-markdown.md`](../authoring-promptugui-xml/reference/controls-markdown.md). Without Markdig (`UI.Markdown.Renderer == null`) `<Markdown>` displays the raw source as a single plain `<Text wrap>` and logs a one-time `Debug.LogWarning`.
+
 ## Variant switching at runtime
 
 ```csharp

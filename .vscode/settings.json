@@ -16,5 +16,12 @@
             "systemId": "UnityProjects~/PromptUGUIDev/Assets/PromptUGUI.gen.xsd"
         }
     ],
-    "dotnet.defaultSolution": ".lint/PromptUGUI.Lint.slnx"
+    "dotnet.defaultSolution": ".lint/PromptUGUI.Lint.slnx",
+    "[markdown]": {
+        "editor.formatOnSave": false
+    },
+    "[skill]": {
+        "editor.formatOnSave": false
+    },
+    "markdown.extension.tableFormatter.enabled": false
 }

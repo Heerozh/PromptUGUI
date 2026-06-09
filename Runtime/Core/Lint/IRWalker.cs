@@ -60,6 +60,9 @@ namespace PromptUGUI.Lint
             else if (node.Tag == "Carousel")
                 foreach (var issue in CarouselRules.CheckCarousel(node))
                     yield return issue;
+            else if (node.Tag == "Markdown")
+                foreach (var issue in MarkdownRules.CheckMarkdown(node))
+                    yield return issue;
 
             // CLI-only: pure containers carry no Graphic; sprite/color silently dropped.
             // Intentionally NOT dispatched from ScreenInstantiator — see rule's XML docs.

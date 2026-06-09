@@ -285,9 +285,9 @@ C# Code:
   - 像素艺术风格UI支持
   - 自动XSD Schema语法检查 + 内置语法检查 CLI
 - **控件完善**
-  - 基础UI元素支持（Btn/Image/Frame/InputField/Toggle/Dropdown/Slider/ScrollList等）
-  - 复合UI元素支持（Progress/TabBar等）
-  - 特殊UI元素：Carousel 轮播卡片组件，用于显示Banner公告等；
+  - 基础UI元素支持（Btn/Image/Frame/InputField/Toggle/Dropdown/Slider/ScrollList/Progress/TabBar等）
+  - Carousel 轮播卡片组件，用于显示Banner公告等；
+  - Markdown文本组件，支持markdown全解析，包括网络图片等；
   - 布局元素（HStack/VStack/Grid等）
   - 高扩展性，允许模板/Prefab模板
 - **自动sprite/icon引用**

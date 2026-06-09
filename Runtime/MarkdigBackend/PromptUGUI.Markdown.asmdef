@@ -1,0 +1,14 @@
+{
+    "name": "PromptUGUI.Markdown",
+    "rootNamespace": "PromptUGUI.MarkdigBackend",
+    "references": ["PromptUGUI.Runtime"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": ["Markdig.Signed.dll"],
+    "autoReferenced": true,
+    "defineConstraints": ["PROMPTUGUI_HAS_MARKDIG"],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
