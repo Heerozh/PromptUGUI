@@ -91,11 +91,16 @@ internal static class MarkdigBootstrap
 #if UNITY_EDITOR
     [UnityEditor.InitializeOnLoadMethod]
 #endif
-    static void Install() => PromptUGUI.Application.UI.Markdown.Renderer ??= new MarkdigRenderer();
+    static void Install()
+    {
+        Inject();
+        PromptUGUI.Application.UI.OnReset += Inject;   // 每次 ResetForTests 后重注入（测试隔离）
+    }
+    static void Inject() => PromptUGUI.Application.UI.Markdown.Renderer ??= new MarkdigRenderer();
 }
 ```
 
-`MarkdigRenderer` 无状态，一次注入即可。`UI.ResetForTests()` **不**清 `Renderer`（它在 domain load 时注入、需跨 reset 存活），只重置 `ImageResolver` + `DefaultStyle` + 清图缓存。
+`MarkdigRenderer` 无状态。`UI.ResetForTests()` **清** `Renderer` + `ImageResolver` + `DefaultStyle` + 图缓存；门控 asmdef 既在 domain load 注入、又订阅 `UI.OnReset` 在每次 reset 末尾（§UI.cs `OnReset?.Invoke()`）重注入。好处：测试里临时设的假 renderer 在下次 reset 后被真 renderer 取代，全量套件隔离干净；没装 Markdig 的工程 `OnReset` 无此订阅 → `Renderer` 保持 null → 降级。`UI.OnReset` 需从 `internal` 放宽到 `public`（或加 public 注册 API）让门控 asmdef 订阅。
 
 ---
 
@@ -195,12 +200,13 @@ public static partial class UI
 {
     public static class Markdown
     {
-        public static IMarkdownRenderer Renderer { get; set; }   // 由门控 asmdef 注入；ResetForTests 不清
+        public static IMarkdownRenderer Renderer { get; set; }   // 门控 asmdef 在 domain load + 每次 OnReset 后注入
         public static MarkdownStyle DefaultStyle { get; set; } = MarkdownStyle.CreateDefault();
         public static Func<string, Awaitable<Texture2D>> ImageResolver { get; set; }
 
         public static void UseWebImageResolver();   // 装内置 UnityWebRequestTexture + URL→Texture 缓存
-        // internal: ResetForTestsInternal() 清 ImageResolver + 重置 DefaultStyle + 清图缓存（不清 Renderer）
+        // internal: ResetForTestsInternal() 清 Renderer + ImageResolver + 重置 DefaultStyle + 清图缓存
+        //           （门控 asmdef 经 UI.OnReset 在本次 reset 末尾重注入真 Renderer）
     }
 }
 ```
