@@ -49,6 +49,7 @@ namespace PromptUGUI.MarkdigBackend
                     return NewText(RenderInline(h.Inline),
                         _style.HeadingSizes[Mathf.Clamp(h.Level, 1, 6) - 1], bold: true);
                 case ParagraphBlock p:
+                    if (IsLoneImage(p, out var blockImg)) return RenderBlockImage(blockImg);
                     return NewText(RenderInline(p.Inline), _style.BodySize);
                 case ListBlock list:
                     return RenderList(list, 0);
@@ -101,6 +102,9 @@ namespace PromptUGUI.MarkdigBackend
                     break;
                 case TaskList _:
                     break;  // checkbox shown as the list marker, not inline
+                case LinkInline img when img.IsImage:
+                    AppendInlineImage(sb, img);
+                    break;
                 case LinkInline link when !link.IsImage:
                     sb.Append("<link=\"").Append(link.Url).Append("\"><color=")
                       .Append(ToHex(_style.LinkColor)).Append("><u>");
@@ -290,6 +294,53 @@ namespace PromptUGUI.MarkdigBackend
             var sb = new StringBuilder();
             foreach (var block in cell)
                 if (block is ParagraphBlock p) sb.Append(RenderInline(p.Inline));
+            return sb.ToString();
+        }
+
+        private static bool IsLoneImage(ParagraphBlock p, out LinkInline img)
+        {
+            img = null;
+            if (p.Inline == null) return false;
+            LinkInline found = null;
+            int count = 0;
+            foreach (var inline in p.Inline)
+            {
+                if (inline is LiteralInline lit && string.IsNullOrWhiteSpace(lit.Content.ToString())) continue;
+                if (inline is LinkInline l && l.IsImage) { found = l; count++; }
+                else { count = 99; break; }
+            }
+            img = found;
+            return count == 1 && found != null;
+        }
+
+        private ElementNode RenderBlockImage(LinkInline image)
+        {
+            string id = "mdimg" + (_imageSeq++);
+            var n = new ElementNode("RawImage");
+            n.Id = id;
+            n.Attributes["type"] = "contain";
+            n.Attributes["width"] = "stretch";
+            n.Attributes["height"] = "120";
+            _images.Add(new ImageRequest(id, image.Url ?? "", GetText(image)));
+            return n;
+        }
+
+        private void AppendInlineImage(StringBuilder sb, LinkInline img)
+        {
+            string url = img.Url ?? "";
+            if (url.Length > 0 && url.IndexOf('/') < 0 && url.IndexOf(':') < 0)
+                sb.Append("<sprite name=\"").Append(url).Append("\">");
+            else
+                sb.Append(Escape(GetText(img)));
+        }
+
+        private static string GetText(ContainerInline c)
+        {
+            if (c == null) return "";
+            var sb = new StringBuilder();
+            foreach (var inline in c)
+                if (inline is LiteralInline lit) sb.Append(lit.Content.ToString());
+                else if (inline is ContainerInline cc) sb.Append(GetText(cc));
             return sb.ToString();
         }
     }

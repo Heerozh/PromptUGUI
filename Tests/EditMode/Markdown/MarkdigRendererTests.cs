@@ -147,5 +147,33 @@ namespace PromptUGUI.Tests.Markdown
             // 3 rows -> 3 HStacks
             Assert.AreEqual(3, Count(root, n => n.Tag == "HStack"));
         }
+
+        [Test]
+        public void Block_image_emits_rawimage_and_image_request()
+        {
+            var renderer = new PromptUGUI.MarkdigBackend.MarkdigRenderer();
+            var result = renderer.Render("![alt text](https://x.test/a.png)", MarkdownStyle.CreateDefault());
+            var raw = Find(result.Root, "RawImage", null);
+            Assert.IsNotNull(raw);
+            Assert.AreEqual(1, result.Images.Count);
+            Assert.AreEqual("https://x.test/a.png", result.Images[0].Url);
+            Assert.AreEqual(raw.Id, result.Images[0].NodeId);
+        }
+
+        [Test]
+        public void Inline_image_bare_name_becomes_sprite_tag()
+        {
+            var root = Render("coin ![c](coin) here");
+            Assert.IsNotNull(Find(root, "Text", "<sprite name=\"coin\">"));
+        }
+
+        [Test]
+        public void Inline_image_url_falls_back_to_alt_text()
+        {
+            var root = Render("x ![pic](https://x.test/p.png) y");
+            var t = Find(root, "Text", "pic");
+            Assert.IsNotNull(t);
+            Assert.IsFalse(t.TextContent.Contains("<sprite"));
+        }
     }
 }
