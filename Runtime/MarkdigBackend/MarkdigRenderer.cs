@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using Markdig;
+using Markdig.Extensions.TaskLists;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 using PromptUGUI.IR;
@@ -48,6 +49,8 @@ namespace PromptUGUI.MarkdigBackend
                         _style.HeadingSizes[Mathf.Clamp(h.Level, 1, 6) - 1], bold: true);
                 case ParagraphBlock p:
                     return NewText(RenderInline(p.Inline), _style.BodySize);
+                case ListBlock list:
+                    return RenderList(list, 0);
                 default:
                     return null; // HtmlBlock etc dropped (MD-D17)
             }
@@ -85,6 +88,14 @@ namespace PromptUGUI.MarkdigBackend
                 case LineBreakInline _:
                     sb.Append('\n');
                     break;
+                case TaskList _:
+                    break;  // checkbox shown as the list marker, not inline
+                case LinkInline link when !link.IsImage:
+                    sb.Append("<link=\"").Append(link.Url).Append("\"><color=")
+                      .Append(ToHex(_style.LinkColor)).Append("><u>");
+                    foreach (var child in link) AppendInline(sb, child);
+                    sb.Append("</u></color></link>");
+                    break;
                 case ContainerInline cont:   // unknown container -> recurse
                     foreach (var child in cont) AppendInline(sb, child);
                     break;
@@ -115,6 +126,61 @@ namespace PromptUGUI.MarkdigBackend
             n.Attributes["tr"] = "false";
             n.TextContent = bold ? $"<b>{richText}</b>" : richText;
             return n;
+        }
+
+        private ElementNode RenderList(ListBlock list, int depth)
+        {
+            var v = NewVStack(_style.BlockSpacing * 0.5f);
+            int number = ParseStart(list.OrderedStart);
+            foreach (var item in list)
+            {
+                if (item is not ListItemBlock li) continue;
+
+                string marker;
+                var task = GetTaskState(li);
+                if (task.HasValue) marker = task.Value ? _style.CheckedGlyph : _style.UncheckedGlyph;
+                else if (list.IsOrdered) { marker = number + "."; number++; }
+                else marker = _style.BulletGlyph;
+
+                var row = new ElementNode("HStack");
+                row.Attributes["width"] = "stretch";
+                row.Attributes["spacing"] = "6";
+                row.Attributes["childAlign"] = "upper-left";
+
+                if (depth > 0)
+                {
+                    var spacer = new ElementNode("Frame");
+                    spacer.Attributes["width"] = (_style.ListIndent * depth).ToString(CultureInfo.InvariantCulture);
+                    spacer.Attributes["height"] = "1";
+                    row.Children.Add(spacer);
+                }
+
+                var bullet = NewText(Escape(marker), _style.BodySize);
+                bullet.Attributes["width"] = "24";
+                row.Children.Add(bullet);
+
+                var content = NewVStack(_style.BlockSpacing * 0.5f);
+                content.Attributes["width"] = "stretch";
+                foreach (var child in li)
+                {
+                    if (child is ListBlock nested) content.Children.Add(RenderList(nested, depth + 1));
+                    else { var n = RenderBlock(child); if (n != null) content.Children.Add(n); }
+                }
+                row.Children.Add(content);
+                v.Children.Add(row);
+            }
+            return v;
+        }
+
+        private static int ParseStart(string s) => int.TryParse(s, out var n) ? n : 1;
+
+        private static bool? GetTaskState(ListItemBlock li)
+        {
+            if (li.Count > 0 && li[0] is ParagraphBlock p && p.Inline != null)
+                foreach (var inline in p.Inline)
+                    if (inline is TaskList tl) return tl.Checked;
+                    else break;   // task marker is the first inline only
+            return null;
         }
 
         private static string Escape(string s) =>

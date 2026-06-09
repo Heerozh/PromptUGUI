@@ -47,5 +47,45 @@ namespace PromptUGUI.Tests.Markdown
             StringAssert.Contains("&lt;", t.TextContent);       // escaped '<'
             StringAssert.Contains("&amp;", t.TextContent);      // escaped '&'
         }
+
+        // count nodes matching a predicate
+        private static int Count(ElementNode n, System.Func<ElementNode, bool> pred)
+        {
+            int c = pred(n) ? 1 : 0;
+            foreach (var ch in n.Children) c += Count(ch, pred);
+            return c;
+        }
+
+        [Test]
+        public void Link_emits_link_tag()
+        {
+            var root = Render("see [docs](https://x.test)");
+            var t = Find(root, "Text", "<link=\"https://x.test\">");
+            Assert.IsNotNull(t);
+        }
+
+        [Test]
+        public void Unordered_list_makes_a_row_per_item_with_bullets()
+        {
+            var root = Render("- one\n- two\n- three");
+            var bullets = Count(root, n => n.Tag == "Text" && n.TextContent != null && n.TextContent.Contains("•"));
+            Assert.AreEqual(3, bullets);
+        }
+
+        [Test]
+        public void Ordered_list_numbers_items()
+        {
+            var root = Render("1. a\n2. b");
+            Assert.IsNotNull(Find(root, "Text", "1."));
+            Assert.IsNotNull(Find(root, "Text", "2."));
+        }
+
+        [Test]
+        public void Task_list_uses_check_glyphs()
+        {
+            var root = Render("- [x] done\n- [ ] todo");
+            Assert.IsNotNull(Find(root, "Text", "☑")); // ☑
+            Assert.IsNotNull(Find(root, "Text", "☐")); // ☐
+        }
     }
 }
