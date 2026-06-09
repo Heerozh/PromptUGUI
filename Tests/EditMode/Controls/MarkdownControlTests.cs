@@ -285,4 +285,18 @@ namespace PromptUGUI.Tests.EditMode.Controls
             return s.Awaitable;
         }
     }
+
+    public class MarkdownWebResolverTests
+    {
+        [SetUp] public void SetUp() => UI.ResetForTests();
+        [TearDown] public void TearDown() => UI.ResetForTests();
+
+        [Test]
+        public void UseWebImageResolver_sets_resolver()
+        {
+            Assert.IsNull(UI.Markdown.ImageResolver);
+            UI.Markdown.UseWebImageResolver();
+            Assert.IsNotNull(UI.Markdown.ImageResolver);
+        }
+    }
 }
