@@ -933,6 +933,20 @@ namespace PromptUGUI.Tests.Editor
             StringAssert.Contains("name=\"itemTemplate\"", xsd);
             StringAssert.Contains("name=\"dotSelectedColor\"", xsd);
         }
+
+        [Test]
+        public void Markdown_element_and_attrs_present_in_xsd()
+        {
+            // Markdown is registered via reflection (not hardcoded), so its element
+            // and [UIAttr] attributes appear automatically in the generated schema.
+            var r = new ControlRegistry();
+            r.Register<Markdown>("Markdown", null, defaultTextAttr: "text");
+            var xsd = XsdGenerator.Generate(r);
+            StringAssert.Contains("name=\"Markdown\"", xsd);
+            StringAssert.Contains("name=\"bodyFont\"", xsd);
+            StringAssert.Contains("name=\"codeFont\"", xsd);
+            StringAssert.Contains("name=\"linkColor\"", xsd);
+        }
     }
 
     public class TestPrimaryButton : Control
