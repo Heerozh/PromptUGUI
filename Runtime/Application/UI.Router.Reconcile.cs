@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using PromptUGUI.Application.Modals;
 using UnityEngine;
 
 namespace PromptUGUI.Application
@@ -178,7 +179,8 @@ namespace PromptUGUI.Application
             {
                 switch (def.Kind)
                 {
-                    case RouteKind.Page: return await ActivatePage(def, query);
+                    case RouteKind.Page: return await ActivatePage(def, query, modal: false);
+                    case RouteKind.Modal: return await ActivatePage(def, query, modal: true);
                     default:
                         throw new RouteException($"route '{def.Name}': kind not yet supported");
                 }
@@ -189,6 +191,7 @@ namespace PromptUGUI.Application
                 switch (a.Def.Kind)
                 {
                     case RouteKind.Page:
+                    case RouteKind.Modal:
                         UI.Close(a.ScreenKey);
                         break;
                 }
@@ -201,14 +204,39 @@ namespace PromptUGUI.Application
                 if (screen != null) a.Def.OnEnter(screen, query);
             }
 
-            // —— Page ——
-            private static async Awaitable<ActiveNode> ActivatePage(RouteNode def, RouteQuery query)
+            // —— Page / Modal ——
+            private static async Awaitable<ActiveNode> ActivatePage(
+                RouteNode def, RouteQuery query, bool modal)
             {
                 var screenName = await EnsureLoaded(def);
                 var screen = UI.Open(screenName);
+                if (modal)
+                {
+                    var canvas = screen.RootGameObject.GetComponent<Canvas>();
+                    canvas.overrideSorting = true;
+                    canvas.sortingOrder = UI.Modal.SortingOrderBase + CountModalsInChain();
+                    var esc = screen.RootGameObject.AddComponent<ModalEscapeListener>();
+                    var captured = def.Name;
+                    esc.OnEscape = () =>
+                    {
+                        // 只栈顶 routed modal 响应;有 ad-hoc 模态在上时让位给它
+                        if (IsTop(captured) && !UI.Modal.IsAnyOpen) _ = Back();
+                    };
+                }
                 def.OnEnter?.Invoke(screen, query);
                 return new ActiveNode { Def = def, ScreenKey = screenName };
             }
+
+            // 当前链路里已有的 Modal 节点数(此节点尚未入链)→ modal 带内的层序偏移。
+            private static int CountModalsInChain()
+            {
+                int n = 0;
+                foreach (var a in _chain) if (a.Def.Kind == RouteKind.Modal) n++;
+                return n;
+            }
+
+            private static bool IsTop(string name) =>
+                _chain.Count > 0 && _chain[_chain.Count - 1].Def.Name == name;
 
             // 加载 def.Src 一次,解析出要 Open 的 screen 名。
             private static async Awaitable<string> EnsureLoaded(RouteNode def)
