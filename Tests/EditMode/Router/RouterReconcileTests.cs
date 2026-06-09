@@ -126,5 +126,25 @@ namespace PromptUGUI.Tests.Router
             UI.Router.Open("shop").GetAwaiter().GetResult();
             Assert.GreaterOrEqual(fired, 1);
         }
+
+        [Test]
+        public void ConcurrentOpen_LatestWins_BothAwaitablesComplete()
+        {
+            var a = UI.Router.Open("item");
+            var b = UI.Router.Open("battle");
+            b.GetAwaiter().GetResult();
+            a.GetAwaiter().GetResult();   // 被取代的也应完成,不挂死
+            CollectionAssert.AreEqual(new[] { "home", "battle" }, UI.Router.Chain.ToList());
+        }
+
+        [Test]
+        public void ResetForTests_ClearsChain()
+        {
+            UI.Router.Open("shop").GetAwaiter().GetResult();
+            Assert.IsNotEmpty(UI.Router.Chain.ToList());
+            UI.ResetForTests();
+            Assert.IsEmpty(UI.Router.Chain.ToList());
+            Assert.IsNull(UI.Router.Current);
+        }
     }
 }

@@ -35,9 +35,68 @@ namespace PromptUGUI.Application
                 }
             }
 
-            public static async Awaitable Open(string name, RouteQuery query = null)
+            private static (string name, RouteQuery query)? _pending;
+            private static readonly List<AwaitableCompletionSource> _waiters = new();
+            private static bool _reconciling;
+            private static int _epoch;
+
+            public static Awaitable Open(string name, RouteQuery query = null)
             {
-                await Reconcile(name, query ?? RouteQuery.Empty);
+                var tcs = new AwaitableCompletionSource();
+                _waiters.Add(tcs);
+                _pending = (name, query ?? RouteQuery.Empty);
+                if (!_reconciling) _ = Pump();
+                return tcs.Awaitable;
+            }
+
+            private static async Awaitable Pump()
+            {
+                _reconciling = true;
+                int epoch = _epoch;
+                Exception error = null;
+                try
+                {
+                    while (_pending != null)
+                    {
+                        if (epoch != _epoch) return;   // 被 teardown 抛弃
+                        var t = _pending.Value;
+                        _pending = null;
+                        error = null;
+                        try { await Reconcile(t.name, t.query); }
+                        catch (Exception ex) { error = ex; }
+                    }
+                }
+                finally
+                {
+                    if (epoch == _epoch)
+                    {
+                        _reconciling = false;
+                        var done = _waiters.ToArray();
+                        _waiters.Clear();
+                        foreach (var w in done)
+                        {
+                            if (error != null) w.TrySetException(error);
+                            else w.TrySetResult();
+                        }
+                    }
+                }
+            }
+
+            // 抛弃进行中的 pump:自增 epoch 让它恢复即退;完成所有等待者。
+            // cancel=true(teardown)→ 抛 OCE;cancel=false(Reset)→ 正常完成。
+            private static void AbandonPump(bool cancel)
+            {
+                _epoch++;
+                _reconciling = false;
+                _pending = null;
+                var done = _waiters.ToArray();
+                _waiters.Clear();
+                foreach (var w in done)
+                {
+                    if (cancel) w.TrySetException(
+                        new OperationCanceledException("Router torn down"));
+                    else w.TrySetResult();
+                }
             }
 
             private static async Awaitable Reconcile(string name, RouteQuery query)
@@ -142,6 +201,7 @@ namespace PromptUGUI.Application
             // _open 循环统一销毁。保留注册表(配置)。
             internal static void CancelAllForTeardown()
             {
+                AbandonPump(cancel: true);
                 foreach (var a in _chain)
                 {
                     a.PromptCts?.Cancel();
