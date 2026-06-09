@@ -4,7 +4,7 @@
 **状态**: 设计阶段（待 review，未进入实施）
 **作用域**:
 
-1. 新增 `Runtime/Controls/Markdown.cs`（Control 壳：`text`/`Text`/`BindText`/`Style`/`OnLinkClicked`；set 时重渲整棵子树；异步图加载；无 renderer 时原文降级）
+1. 新增 `Runtime/Controls/Markdown.cs`（Control 壳：`text`/`Text`/`BindText`/`Style`/`OnLinkClicked`；`OnAttached` 建内置竖向 ScrollRect 脚手架（Viewport+RectMask2D，§7.0）；set 时重渲整棵子树；异步图加载；无 renderer 时原文降级）
 2. 新增 `Runtime/Markdown/IMarkdownRenderer.cs`（接口 `MarkdownRenderResult Render(string md, MarkdownStyle style)`，命名空间 `PromptUGUI`）
 3. 新增 `Runtime/Markdown/MarkdownStyle.cs` + `MarkdownRenderResult.cs`（纯 POCO；命名空间 `PromptUGUI`）
 4. 新增 `Runtime/Application/UI.Markdown.cs`（`UI` 嵌套静态类：`Renderer` 注入点 / `DefaultStyle` / `ImageResolver` / `UseWebImageResolver()`；同 `UI.Locale` / `UI.Theme` / `UI.Toast` 风格）
@@ -67,7 +67,7 @@ screen.Get<Markdown>("patchNotes").Text = await Http.GetString(patchNotesUrl);
 | MD-D21 | 重渲生命周期 | `Text` set / `BindText` 推值 → Dispose 旧渲染根 + 重新 `InstantiateNode`；动态子节点不在 `Screen._nodeMap`，控件 `Dispose` 时显式释放（同 Carousel/ScrollList） | 简单正确；变 Variant 不重建（内容锁 MD-D9），只有内容真变才重渲 |
 | MD-D22 | 异步竞态 | 每次重渲自增一个 `_renderGen` 令牌；图 async 回来先比对令牌，过期则丢弃（不 set 到已重建/已销毁的 RawImage） | 防快速连续 setText / Close 时旧图回填到新树 |
 | MD-D23 | 文本转义 | renderer 产出的**字面文本段**把 `&`/`<`/`>` 转义成 `&amp;`/`&lt;`/`&gt;`（TMP 解码），防 markdown 正文里的 `<`/`&` 破坏 TMP 标签 | 正确性必需；TMP 富文本对未转义 `<` 会当标签吃掉 |
-| MD-D24 | 文档高度 / 滚动 | 渲染根 = `<VStack anchor="top-stretch">` + 竖向 `ContentSizeFitter`：宽度跟控件、**高度跟内容**（自顶向下生长）；超出可视区的长文档由作者把 `<Markdown>` 放进滚动容器解决，**内置滚动 v1 不做** | 文档高度天然不定，撑不进固定 frame；让高度跟内容 + 作者控制 frame 最简单；内置 scroll 留 v2 |
+| MD-D24 | 文档高度 / 滚动 | 控件**自带竖向 `ScrollRect`**（无开关，默认就套）：`OnAttached` 建 `Viewport(RectMask2D)` + 渲染根作为 `ScrollRect.content`（`anchor=top-stretch`、pivot 顶、竖向 `ContentSizeFitter`），宽度跟视口、高度跟内容；超视口自动可滚 | 用到 Markdown 基本不会只有一两行，文档高度天然不定；默认内置滚动省去作者每次手套容器，比加 `scroll=` 开关更省心；复用 ScrollList 同款 ScrollRect+Viewport+Content 模式 |
 
 ---
 
@@ -279,6 +279,22 @@ md 串 ──Markdig.Parse──> MarkdownDocument(AST) ──遍历──> Elem
 
 renderer（门控 asmdef）只产 IR + 图请求；控件（Runtime）负责实例化 + async 图。
 
+### 7.0 程序化层级（固定，MD-D24）
+
+```
+Markdown (root RectTransform + ScrollRect[vertical only])
+└── Viewport (RectTransform + RectMask2D, anchor stretch)        ← ChildHostTransform；裁掉出框内容
+    └── Root  (VStack, anchor top-stretch, pivot 顶,             ← renderer 产出；= ScrollRect.content
+              VerticalLayoutGroup + ContentSizeFitter[vertical])    高度跟内容、宽度跟视口
+        ├── block 0  (Text / RawImage / Grid / 嵌套 VStack …)
+        ├── block 1
+        └── …
+```
+
+- `OnAttached`：建 `Viewport`(RectMask2D，stretch 填满 root) + `ScrollRect`(`horizontal=false`、`vertical=true`、`viewport=Viewport`)；`ChildHostTransform` 指向 `Viewport`。
+- 每次重渲：把新 `Root` 实例化进 `Viewport`、设 `ScrollRect.content = Root.RectTransform`、滚动位置归顶（§9.1）。
+- 自建 ScrollRect（同 Carousel 自建 Viewport/Strip），不复用 `<ScrollList>` 控件——结构同款但 ScrollList 走 itemTemplate+BindItems 的列表语义，这里是单棵渲染树。
+
 ### 7.1 块级映射
 
 | Markdown 块 | ElementNode | 备注 |
@@ -343,10 +359,11 @@ async Awaitable LoadImageAsync(int gen, ImageRequest req)
 2. Dispose 旧 `_renderedRoot`（连带其子树；动态建的不在 `Screen._nodeMap`，必须显式 Dispose，同 Carousel/ScrollList）。
 3. `renderer = UI.Markdown.Renderer`；为空 → 降级（MD-D5）：`_renderedRoot = InstantiateNode(<Text wrap text=原文>, host, owner)` + 一次性 warning，返回。
 4. `var result = renderer.Render(Text, Style ?? UI.Markdown.DefaultStyle)`。
-5. `_renderedRoot = InstantiateNode(result.Root, ChildHostTransform, UI.OwnerScreenOf(this))`。
-6. 对 `result.Images` 逐个 `_ = LoadImageAsync(_renderGen, req)`。
+5. `_renderedRoot = InstantiateNode(result.Root, ChildHostTransform, UI.OwnerScreenOf(this))`（`ChildHostTransform` = `Viewport`，§7.0）。
+6. `_scrollRect.content = _renderedRoot.RectTransform`；`_scrollRect.verticalNormalizedPosition = 1f`（新内容滚动归顶）。
+7. 对 `result.Images` 逐个 `_ = LoadImageAsync(_renderGen, req)`。
 
-`ChildHostTransform` = 控件自身 `RectTransform`。renderer 产的 `Root` 是 `<VStack anchor="top-stretch" spacing=BlockSpacing>` + 竖向 `ContentSizeFitter`：宽度填满控件、高度跟内容自顶向下生长（MD-D24）。
+降级路径（步骤 3）同样把兜底 `<Text>` 实例化进 `Viewport` 并设为 `ScrollRect.content`。renderer 产的 `Root` 是 `<VStack anchor="top-stretch" pivot 顶 spacing=BlockSpacing>` + 竖向 `ContentSizeFitter`：宽度跟视口、高度跟内容自顶向下生长，超视口由 ScrollRect 滚动（MD-D24 / §7.0）。
 
 **重渲时机（合并，避免一次 apply 里多次重渲）**：所有会影响渲染的 setter（`Text` + 样式属性）只**标脏**；初始 apply 期间不立即渲染，统一在 `OnAfterApply()`（晚于 `ApplyCommon`，控件已定尺寸）`RenderIfDirty()` 一次。控件已 live 之后（运行期 `Text=` / `BindText` 推值）setter 直接 `RenderIfDirty()` 同步重渲。用一个 `_applied` 标志区分两阶段。
 
@@ -430,7 +447,7 @@ async Awaitable LoadImageAsync(int gen, ImageRequest req)
 - **语法高亮**——代码块只给等宽 + 底色，不解析语言做着色。
 - **行内图任意 web 纹理**——只支持命中 TMP sprite 的行内图；其余有损（MD-D16）。
 - **HTML 渲染**——剥离（MD-D17）。
-- **内置滚动**——控件高度跟内容（MD-D24）；长文档由作者套滚动容器；`<Markdown scroll>` 自带 ScrollRect 留 v2。
+- **横向滚动**——内置 ScrollRect 仅竖向（MD-D24）；超宽表格 / `wrap=false` 长代码行被 `RectMask2D` 横向裁掉；横向滚动（代码/表格）留 v2。
 - **超大文档虚拟化 / 懒渲染 / 分页**——首版一次性建全树；超大文档作者自行分段。
 - **可点击任务列表**——`[x]` 仅作字形展示，不可勾选。
 - **脚注 / 定义列表 / 数学公式 / 表情 emoji shortcode**——Markdig 扩展，首版不接。
@@ -452,5 +469,6 @@ async Awaitable LoadImageAsync(int gen, ImageRequest req)
 | 独立 asmdef 在没装 Markdig 的机器上编不过 | `defineConstraints` 保证符号未定义时该 asmdef 整体不编译；检测器保证符号 ON ⟺ Markdig 在场 |
 | `InstantiateNode` 动态子树的 id（图节点）作用域 | 复用 Carousel 已验证路径（`card.Get<Text>("title")` 同款）；plan 加断言 |
 | 样式属性变更需重渲才生效，易漏 | §9.2 标脏 + `OnAfterApply` 统一重渲一次；文档写明"样式变更触发重渲" |
+| 嵌套布局（ScrollRect.content 的 ContentSizeFitter + 多层 VStack/列表/引用的 LayoutGroup + 异步图改高）布局时序导致 content 高度算错 / 滚动条不更新 | 实例化后 `LayoutRebuilder.ForceRebuildLayoutImmediate(content)`；图 swap 后再强制重算一次；plan 加 PlayMode 烟雾测（长文档可滚到底、图回填后高度增长） |
 | Markdig IL2CPP code-stripping | mini-skill 提示按需加 `link.xml`；Markdig 纯托管、无反射重灾区，风险低 |
 | XSD 不自动更新 | 同所有新 `[UIAttr]`，手动 regenerate（CLAUDE.md 已说明）|
