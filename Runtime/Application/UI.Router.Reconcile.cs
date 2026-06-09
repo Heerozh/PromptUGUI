@@ -35,6 +35,23 @@ namespace PromptUGUI.Application
                 }
             }
 
+            public static Awaitable Back()
+            {
+                if (_chain.Count == 0) return AwaitableHelpers.Completed();
+                var parent = _chain[_chain.Count - 1].Def.Parent;
+                if (parent == null) return AwaitableHelpers.Completed();   // 已在根
+                return Open(parent);
+            }
+
+            public static Awaitable Reset()
+            {
+                AbandonPump(cancel: false);
+                for (int i = _chain.Count - 1; i >= 0; i--) Deactivate(_chain[i]);
+                _chain.Clear();
+                Changed?.Invoke();
+                return AwaitableHelpers.Completed();
+            }
+
             private static (string name, RouteQuery query)? _pending;
             private static readonly List<AwaitableCompletionSource> _waiters = new();
             private static bool _reconciling;

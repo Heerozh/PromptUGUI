@@ -146,5 +146,36 @@ namespace PromptUGUI.Tests.Router
             Assert.IsEmpty(UI.Router.Chain.ToList());
             Assert.IsNull(UI.Router.Current);
         }
+
+        [Test]
+        public void Back_GoesToParent()
+        {
+            UI.Router.Open("item").GetAwaiter().GetResult();   // home/shop/item
+            UI.Router.Back().GetAwaiter().GetResult();
+            CollectionAssert.AreEqual(new[] { "home", "shop" }, UI.Router.Chain.ToList());
+        }
+
+        [Test]
+        public void Back_AtRoot_IsNoop()
+        {
+            UI.Router.Open("home").GetAwaiter().GetResult();
+            UI.Router.Back().GetAwaiter().GetResult();
+            CollectionAssert.AreEqual(new[] { "home" }, UI.Router.Chain.ToList());
+        }
+
+        [Test]
+        public void Back_EmptyChain_IsNoop()
+            => Assert.DoesNotThrow(() => UI.Router.Back().GetAwaiter().GetResult());
+
+        [Test]
+        public void Reset_ClosesWholeChain()
+        {
+            UI.Router.Open("item").GetAwaiter().GetResult();
+            UI.Router.Reset().GetAwaiter().GetResult();
+            Assert.IsEmpty(UI.Router.Chain.ToList());
+            Assert.IsNull(UI.Get("home"));
+            Assert.IsNull(UI.Get("shop"));
+            Assert.IsNull(UI.Get("item"));
+        }
     }
 }
