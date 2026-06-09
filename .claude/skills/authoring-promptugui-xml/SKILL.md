@@ -100,7 +100,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 | `<Tab>` | 选项卡（`bind` 显隐 `<Frame>`） |
 | `<Carousel>` | 翻页轮播卡 |
 | `<Show>` | 按状态显隐子树的无视觉 wrapper |
-| `<Markdown>` | Renders a Markdown document into a scrollable subtree (headings/paragraphs/lists/quote/code/table/hr/image/links). Content via `text=` (CDATA) or C# `Text`. Soft-depends on Markdig. Attributes: `text`, `bodyFont`, `codeFont`, `linkColor`, `spacing`, `wrap` → see [`reference/controls-markdown.md`](reference/controls-markdown.md) |
+| `<Markdown>` | Renders a Markdown document into a scrollable subtree  |
 
 > `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` / `<TabBar>` are reference implementations. For project-specific differentiation (pixel border, press feedback, custom popup chrome) subclass and override `OnAttached` — see scripting-promptugui-csharp.
 
@@ -997,23 +997,6 @@ PromptUGUI never auto-enables masking — you must opt in via `mask=`. Two reaso
 ## Markdown
 
 `<Markdown>` Markdown document → scrollable subtree (headings/paragraphs/lists/blockquote/code/table/HR/image/links). Primary use case is dynamic load: leave the element empty in XML and set content from C# (`md.Text = …` / `md.BindText(stream)`). Static documents can be inlined via CDATA. Soft-depends on Markdig (`PROMPTUGUI_HAS_MARKDIG`); without it the raw text is shown as plain `<Text>`. **For dynamic/static usage patterns, attribute table, supported Markdown subset, block→control mapping, lossy notes, lint rules, and Markdig install + the PROMPTUGUI_HAS_MARKDIG gate, see [`reference/controls-markdown.md`](reference/controls-markdown.md).**
-
-Quick example:
-
-```xml
-<!-- Dynamic: fill from C# at runtime -->
-<Markdown id="patchNotes" anchor="stretch" margin="16"/>
-
-<!-- Static: inline with CDATA -->
-<Markdown id="about" anchor="stretch" margin="16"><![CDATA[
-# About
-**Bold** and a [link](https://example.com).
-]]></Markdown>
-```
-
-- `<Markdown>` content comes from `text=`; child XML elements are **ignored** (lint `PUI-MARKDOWN-NO-CHILDREN`).
-- `text` set from C# survives resize / Variant / Theme ReSolve (DefaultText lock — same as `<Text>`).
-- Built-in vertical `ScrollRect`; no horizontal scroll.
 
 ## Quick reference (cheatsheet)
 
