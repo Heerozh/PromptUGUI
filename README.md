@@ -33,8 +33,8 @@ More flexible than UI Toolkit, easier for custom styling, and tightly integrated
 - **Full-featured modal dialog system**
   - Async, blocking-style call site: `var result = await MessageBox.Open(...)`
   - Concurrent calls are queued so dialogs never collide
+  - Toast popup, loading spinner modal built-in supported
   - Subclass for highly customized dialogs
-
 
 ## Install / Upgrade
 
@@ -281,12 +281,19 @@ C# Code:
 
 - **极简的XML描述语言，符合大模型习惯**
   - 支持热重载，改完立刻反馈
-  - 支持响应式UI
+  - 全响应式UI支持，自动根据屏幕和设备切换布局
+  - 像素艺术风格UI支持
   - 自动XSD Schema语法检查 + 内置语法检查 CLI
+- **控件完善**
+  - 基础UI元素支持（Btn/Image/Frame/InputField/Toggle/Dropdown/Slider/ScrollList等）
+  - 复合UI元素支持（Progress/TabBar等）
+  - 特殊UI元素：Carousel 轮播卡片组件，用于显示Banner公告等；
+  - 布局元素（HStack/VStack/Grid等）
   - 高扩展性，允许模板/Prefab模板
 - **自动sprite/icon引用**
   - 可配置SpriteSet，后xml里用`<Icon name="solar:Forward" />`或`<Image sprite="ui:dialog" />`引用
   - 只打包用到的
+  - 支持TMP图文混排
   - 大模型极其擅长此种方式
 - **全自动多国语言系统**
   - 自动提取界面文本，以及代码中`UI.Tr()`包裹的字符串
@@ -302,6 +309,7 @@ C# Code:
 - **完善的 Model 模态对话框系统**
   - 异步堵塞式书写方便： `var result = await MessageBox.Open(...)`
   - 多次调用通过队列依次弹出避免冲突
+  - Toast小信息弹出提示系统，Loading转圈模态窗口等等内置支持
   - 可继承实现高度自定义的对话框
 
 
