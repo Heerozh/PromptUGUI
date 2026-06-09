@@ -4,6 +4,7 @@ using PromptUGUI;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
 using PromptUGUI.IR;
+using R3;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -184,6 +185,54 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var second = md.GameObject.GetComponent<UnityEngine.UI.ScrollRect>().content;
             Assert.AreNotSame(first, second);          // new content instantiated
             Assert.IsTrue(first == null);              // old root GameObject destroyed (Unity null)
+        }
+    }
+}
+
+namespace PromptUGUI.Tests.EditMode.Controls
+{
+    public class MarkdownBindAndLinkTests
+    {
+        [SetUp] public void SetUp() { UI.ResetForTests(); UI.Markdown.Renderer = new FakeMarkdownRenderer(); }
+        [TearDown] public void TearDown() => UI.ResetForTests();
+
+        private const string Xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Markdown id='md' anchor='stretch'/></Screen></PromptUGUI>";
+
+        private Markdown Open() { UI.LoadDocument("t", Xml); return UI.Open("S").Get<Markdown>("md"); }
+
+        [Test]
+        public void BindText_pushes_value_into_Text()
+        {
+            var md = Open();
+            var subject = new Subject<string>();
+            md.BindText(subject);
+            subject.OnNext("from stream");
+            Assert.AreEqual("from stream", md.Text);
+        }
+
+        [Test]
+        public void OnLinkClicked_fires_via_test_seam()
+        {
+            var md = Open();
+            string got = null;
+            md.OnLinkClicked.Subscribe(u => got = u);
+            md.RaiseLinkClickedForTests("https://x.test");
+            Assert.AreEqual("https://x.test", got);
+        }
+
+        [Test]
+        public void Link_clicker_attached_to_rendered_texts()
+        {
+            var fake = (FakeMarkdownRenderer)UI.Markdown.Renderer;
+            var root = FakeMarkdownRenderer.Vs();
+            root.Children.Add(FakeMarkdownRenderer.Text("p", "<link=\"u\">x</link>"));
+            fake.Result = new MarkdownRenderResult { Root = root, Images = new System.Collections.Generic.List<ImageRequest>() };
+
+            var md = Open();
+            md.Text = "x";
+            var tmp = md.GameObject.GetComponentInChildren<TMPro.TMP_Text>();
+            Assert.IsNotNull(tmp.GetComponent<PromptUGUI.Controls.Internal.MarkdownLinkClicker>());
         }
     }
 }

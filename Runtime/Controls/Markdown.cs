@@ -3,6 +3,7 @@ using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
 using PromptUGUI.IR;
 using PromptUGUI.Registry;
+using R3;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -23,6 +24,11 @@ namespace PromptUGUI.Controls
         private bool _dirty;
         private string _source = "";
         private MarkdownStyle _style;
+
+        // --- Task 5 fields ---
+        private readonly Subject<string> _linkClicked = new();
+        public Observable<string> OnLinkClicked => _linkClicked;
+        public Func<string, Awaitable<Texture2D>> ImageResolver { get; set; }
 
         public override void OnAttached()
         {
@@ -70,6 +76,22 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public bool Wrap { set { Style.ParagraphWrap = value; MarkDirty(); } }
 
+        // --- Task 5 members ---
+
+        public IDisposable BindText(Observable<string> source) => source.Subscribe(s => Text = s);
+
+        internal void RaiseLinkClickedForTests(string url) => _linkClicked.OnNext(url);
+
+        private void InstallLinkClickers(IControl root)
+        {
+            foreach (var tmp in root.GameObject.GetComponentsInChildren<TMP_Text>(true))
+            {
+                var clicker = tmp.gameObject.GetComponent<MarkdownLinkClicker>()
+                              ?? tmp.gameObject.AddComponent<MarkdownLinkClicker>();
+                clicker.Init(tmp, url => _linkClicked.OnNext(url));
+            }
+        }
+
         internal override void OnAfterApply()
         {
             _applied = true;
@@ -110,6 +132,7 @@ namespace PromptUGUI.Controls
             var result = renderer.Render(_source, Style);
             _renderedRoot = inst.InstantiateNode(result.Root, _viewport, owner);
             SetAsContent(_renderedRoot);
+            InstallLinkClickers(_renderedRoot);
             LayoutRebuilder.ForceRebuildLayoutImmediate(_renderedRoot.RectTransform);
         }
 
@@ -126,6 +149,7 @@ namespace PromptUGUI.Controls
         public override void Dispose()
         {
             _renderGen++;
+            _linkClicked.Dispose();
             if (_renderedRoot != null) { _renderedRoot.Dispose(); _renderedRoot = null; }
             base.Dispose();
         }
