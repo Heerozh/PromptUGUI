@@ -15,18 +15,17 @@ namespace PromptUGUI.Controls
         private ScrollRect _scroll;
         private RectTransform _viewport;
 
-        // --- Task 4 fields ---
         private IControl _renderedRoot;
-        // Render-generation token: bumped on each render / dispose; read by async image loading
-        // (a later task) to drop results that arrive after a newer render replaced the subtree.
+        // Render-generation token: bumped on each render / dispose; async image loads drop
+        // results that arrive after a newer render replaced the subtree.
         private int _renderGen;
         private bool _applied;
         private bool _dirty;
         private string _source = "";
         private MarkdownStyle _style;
 
-        // --- Task 5 fields ---
         private readonly Subject<string> _linkClicked = new();
+        private IDisposable _textSub;
         public Observable<string> OnLinkClicked => _linkClicked;
         public Func<string, Awaitable<Texture2D>> ImageResolver { get; set; }
 
@@ -44,8 +43,6 @@ namespace PromptUGUI.Controls
 
         protected internal override Transform ChildHostTransform => _viewport;
 
-        // --- Task 4 members ---
-
         public MarkdownStyle Style
         {
             get => _style ??= UI.Markdown.DefaultStyle.Clone();
@@ -56,29 +53,74 @@ namespace PromptUGUI.Controls
         public string Text
         {
             get => _source;
-            set { _source = value ?? ""; MarkDirty(); }
+            set { var v = value ?? ""; if (v == _source) return; _source = v; MarkDirty(); }
         }
 
         internal override string PeekDefaultText() => _source;
 
         [UIAttr, Preserve]
-        public string BodyFont { set { Style.BodyFont = string.IsNullOrEmpty(value) ? "default" : value; MarkDirty(); } }
+        public string BodyFont
+        {
+            set
+            {
+                var v = string.IsNullOrEmpty(value) ? "default" : value;
+                if (v == Style.BodyFont) return;
+                Style.BodyFont = v;
+                MarkDirty();
+            }
+        }
 
         [UIAttr, Preserve]
-        public string CodeFont { set { Style.CodeFont = string.IsNullOrEmpty(value) ? "default" : value; MarkDirty(); } }
+        public string CodeFont
+        {
+            set
+            {
+                var v = string.IsNullOrEmpty(value) ? "default" : value;
+                if (v == Style.CodeFont) return;
+                Style.CodeFont = v;
+                MarkDirty();
+            }
+        }
 
         [UIAttr(IsColor = true), Preserve]
-        public string LinkColor { set { if (!string.IsNullOrEmpty(value)) Style.LinkColor = value; MarkDirty(); } }
+        public string LinkColor
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value) || value == Style.LinkColor) return;
+                Style.LinkColor = value;
+                MarkDirty();
+            }
+        }
 
         [UIAttr, Preserve]
-        public float Spacing { set { Style.BlockSpacing = value; MarkDirty(); } }
+        public float Spacing
+        {
+            set
+            {
+                if (value == Style.BlockSpacing) return;
+                Style.BlockSpacing = value;
+                MarkDirty();
+            }
+        }
 
         [UIAttr, Preserve]
-        public bool Wrap { set { Style.ParagraphWrap = value; MarkDirty(); } }
+        public bool Wrap
+        {
+            set
+            {
+                if (value == Style.ParagraphWrap) return;
+                Style.ParagraphWrap = value;
+                MarkDirty();
+            }
+        }
 
-        // --- Task 5 members ---
-
-        public IDisposable BindText(Observable<string> source) => source.Subscribe(s => Text = s);
+        public IDisposable BindText(Observable<string> source)
+        {
+            _textSub?.Dispose();
+            _textSub = source.Subscribe(s => Text = s);
+            return _textSub;
+        }
 
         internal void RaiseLinkClickedForTests(string url) => _linkClicked.OnNext(url);
 
@@ -126,6 +168,7 @@ namespace PromptUGUI.Controls
                 raw.TextContent = _source;
                 _renderedRoot = inst.InstantiateNode(raw, _viewport, owner);
                 SetAsContent(_renderedRoot);
+                LayoutRebuilder.ForceRebuildLayoutImmediate(_renderedRoot.RectTransform);
                 return;
             }
 
@@ -171,6 +214,7 @@ namespace PromptUGUI.Controls
         public override void Dispose()
         {
             _renderGen++;
+            _textSub?.Dispose();
             _linkClicked.Dispose();
             if (_renderedRoot != null) { _renderedRoot.Dispose(); _renderedRoot = null; }
             base.Dispose();

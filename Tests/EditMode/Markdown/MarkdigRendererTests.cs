@@ -88,14 +88,11 @@ namespace PromptUGUI.Tests.Markdown
             Assert.IsNotNull(Find(root, "Text", "☐")); // ☐
         }
     }
-}
 
-namespace PromptUGUI.Tests.Markdown
-{
-    public partial class MarkdigRendererBlockTests
+    public class MarkdigRendererBlockTests
     {
         private static ElementNode Render(string md)
-            => new PromptUGUI.MarkdigBackend.MarkdigRenderer().Render(md, MarkdownStyle.CreateDefault()).Root;
+            => new MarkdigRenderer().Render(md, MarkdownStyle.CreateDefault()).Root;
         private static ElementNode Find(ElementNode n, string tag, string needle)
         {
             if (n.Tag == tag && ((needle == null) || (n.TextContent != null && n.TextContent.Contains(needle)))) return n;
@@ -151,7 +148,7 @@ namespace PromptUGUI.Tests.Markdown
         [Test]
         public void Block_image_emits_rawimage_and_image_request()
         {
-            var renderer = new PromptUGUI.MarkdigBackend.MarkdigRenderer();
+            var renderer = new MarkdigRenderer();
             var result = renderer.Render("![alt text](https://x.test/a.png)", MarkdownStyle.CreateDefault());
             var raw = Find(result.Root, "RawImage", null);
             Assert.IsNotNull(raw);

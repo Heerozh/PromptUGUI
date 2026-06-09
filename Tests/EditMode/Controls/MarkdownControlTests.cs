@@ -93,8 +93,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
         public MarkdownRenderResult Result;
         public string LastMarkdown;
         public MarkdownStyle LastStyle;
+        public int RenderCount;
         public MarkdownRenderResult Render(string md, MarkdownStyle style)
         {
+            RenderCount++;
             LastMarkdown = md; LastStyle = style;
             return Result ?? new MarkdownRenderResult { Root = Vs(), Images = new List<ImageRequest>() };
         }
@@ -185,11 +187,30 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreNotSame(first, second);          // new content instantiated
             Assert.IsTrue(first == null);              // old root GameObject destroyed (Unity null)
         }
-    }
-}
 
-namespace PromptUGUI.Tests.EditMode.Controls
-{
+        [Test]
+        public void ReSolve_with_unchanged_attrs_does_not_re_render()
+        {
+            // Set up a screen with static-CDATA text and spacing attrs (like a real XML-declared Markdown).
+            const string XmlWithAttrs = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Markdown id='md' anchor='stretch' text='x' spacing='4'/></Screen></PromptUGUI>";
+            var fake = new FakeMarkdownRenderer();
+            UI.Markdown.Renderer = fake;
+            UI.LoadDocument("t", XmlWithAttrs);
+            var iscreen = UI.Open("S");
+            var md = iscreen.Get<Markdown>("md");
+
+            // Record render count after Open (attributes applied once).
+            var countAfterOpen = fake.RenderCount;
+
+            // Trigger a ReSolve — same attribute values, nothing changed.
+            ((PromptUGUI.Application.Screen)iscreen).ReSolve();
+
+            Assert.AreEqual(countAfterOpen, fake.RenderCount,
+                "ReSolve with unchanged attrs must not trigger a re-render");
+        }
+    }
+
     public class MarkdownBindAndLinkTests
     {
         [SetUp] public void SetUp() { UI.ResetForTests(); UI.Markdown.Renderer = new FakeMarkdownRenderer(); }
@@ -208,6 +229,21 @@ namespace PromptUGUI.Tests.EditMode.Controls
             md.BindText(subject);
             subject.OnNext("from stream");
             Assert.AreEqual("from stream", md.Text);
+        }
+
+        [Test]
+        public void BindText_disposes_previous_subscription_on_rebind()
+        {
+            var md = Open();
+            var sub1 = new Subject<string>();
+            var sub2 = new Subject<string>();
+            md.BindText(sub1);
+            md.BindText(sub2);   // replaces sub1
+            sub1.OnNext("from old");
+            // old subscription is disposed — Text must NOT have been updated
+            Assert.AreNotEqual("from old", md.Text);
+            sub2.OnNext("from new");
+            Assert.AreEqual("from new", md.Text);
         }
 
         [Test]
@@ -234,11 +270,6 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsNotNull(tmp.GetComponent<PromptUGUI.Controls.Internal.MarkdownLinkClicker>());
         }
     }
-}
-
-namespace PromptUGUI.Tests.EditMode.Controls
-{
-    using UnityEngine;
 
     public class MarkdownImageTests
     {

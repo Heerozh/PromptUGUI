@@ -22,8 +22,16 @@ namespace PromptUGUI.Editor
             var list = new List<string>(defines.Split(';', StringSplitOptions.RemoveEmptyEntries));
             var has = list.Contains(Symbol);
 
-            if (present && !has) { list.Add(Symbol); PlayerSettings.SetScriptingDefineSymbols(group, string.Join(";", list)); }
-            else if (!present && has) { list.Remove(Symbol); PlayerSettings.SetScriptingDefineSymbols(group, string.Join(";", list)); }
+            if (present && !has)
+            {
+                list.Add(Symbol);
+                PlayerSettings.SetScriptingDefineSymbols(group, string.Join(";", list));
+            }
+            else if (!present && has)
+            {
+                list.Remove(Symbol);
+                PlayerSettings.SetScriptingDefineSymbols(group, string.Join(";", list));
+            }
         }
 
         private static bool HasMarkdig()

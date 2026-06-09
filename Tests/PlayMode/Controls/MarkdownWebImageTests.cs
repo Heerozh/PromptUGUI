@@ -2,9 +2,9 @@ using System.Collections;
 using System.IO;
 using NUnit.Framework;
 using PromptUGUI.Application;
-using UnityApplication = UnityEngine.Application;
 using UnityEngine;
 using UnityEngine.TestTools;
+using UnityApplication = UnityEngine.Application;
 
 namespace PromptUGUI.Tests.PlayMode
 {

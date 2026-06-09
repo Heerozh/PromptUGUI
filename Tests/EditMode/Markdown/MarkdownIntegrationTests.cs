@@ -12,7 +12,7 @@ namespace PromptUGUI.Tests.Markdown
         [SetUp] public void SetUp() => UI.ResetForTests();   // real MarkdigRenderer re-injected via OnReset
         [TearDown] public void TearDown() => UI.ResetForTests();
 
-        const string Xml = @"<?xml version='1.0' encoding='utf-8'?>
+        private const string Xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'><Markdown id='md' anchor='stretch'/></Screen></PromptUGUI>";
 
         private Controls.Markdown Open()
