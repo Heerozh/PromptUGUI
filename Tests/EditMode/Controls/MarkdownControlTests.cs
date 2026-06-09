@@ -1,7 +1,9 @@
+using System.Collections.Generic;
 using NUnit.Framework;
 using PromptUGUI;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
+using PromptUGUI.IR;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -82,6 +84,106 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsFalse(scroll.horizontal);
             Assert.IsTrue(scroll.vertical);
             Assert.IsNotNull(md.GameObject.transform.Find("Viewport"));
+        }
+    }
+
+    // Shared fake renderer + tree builders for Phase A control tests.
+    internal sealed class FakeMarkdownRenderer : IMarkdownRenderer
+    {
+        public MarkdownRenderResult Result;
+        public string LastMarkdown;
+        public MarkdownStyle LastStyle;
+        public MarkdownRenderResult Render(string md, MarkdownStyle style)
+        {
+            LastMarkdown = md; LastStyle = style;
+            return Result ?? new MarkdownRenderResult { Root = Vs(), Images = new List<ImageRequest>() };
+        }
+        public static ElementNode Vs()
+        {
+            var n = new ElementNode("VStack");
+            n.Attributes["anchor"] = "top-stretch";
+            return n;
+        }
+        public static ElementNode Text(string id, string text)
+        {
+            var n = new ElementNode("Text");
+            n.Id = id;
+            n.Attributes["wrap"] = "true";
+            n.TextContent = text;
+            return n;
+        }
+    }
+
+    public class MarkdownRenderDispatchTests
+    {
+        [SetUp] public void SetUp() => UI.ResetForTests();
+        [TearDown] public void TearDown() => UI.ResetForTests();
+
+        private const string Xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Markdown id='md' anchor='stretch'/></Screen></PromptUGUI>";
+
+        private Markdown Open()
+        {
+            UI.LoadDocument("t", Xml);
+            return UI.Open("S").Get<Markdown>("md");
+        }
+
+        [Test]
+        public void Setting_Text_with_renderer_instantiates_tree_as_scroll_content()
+        {
+            var fake = new FakeMarkdownRenderer();
+            var root = FakeMarkdownRenderer.Vs();
+            root.Children.Add(FakeMarkdownRenderer.Text("p", "hello"));
+            fake.Result = new MarkdownRenderResult { Root = root, Images = new List<ImageRequest>() };
+            UI.Markdown.Renderer = fake;
+
+            var md = Open();
+            md.Text = "# hello";
+
+            Assert.AreEqual("# hello", fake.LastMarkdown);
+            var scroll = md.GameObject.GetComponent<UnityEngine.UI.ScrollRect>();
+            Assert.IsNotNull(scroll.content, "content should be the rendered root");
+            Assert.IsNotNull(scroll.content.GetComponent<UnityEngine.UI.ContentSizeFitter>());
+            // dynamic ids live on the rendered root's ScopedIds (not the control's); assert via the TMP tree
+            var tmp = md.GameObject.GetComponentInChildren<TMPro.TMP_Text>();
+            Assert.AreEqual("hello", tmp.text);
+        }
+
+        [Test]
+        public void Degrade_to_raw_text_when_no_renderer()
+        {
+            UI.Markdown.Renderer = null;
+            var md = Open();
+            md.Text = "# raw <b>";
+            // one Text child under Viewport holding the raw string
+            var tmp = md.GameObject.GetComponentInChildren<TMPro.TMP_Text>();
+            Assert.IsNotNull(tmp);
+            StringAssert.Contains("raw", tmp.text);
+        }
+
+        [Test]
+        public void PeekDefaultText_reflects_runtime_text_for_lock()
+        {
+            // ControlAttributeApplier compares PeekDefaultText() to the last applied value on ReSolve;
+            // when it differs (runtime-set), the XML-declared text is NOT re-applied (same lock as <Text>).
+            // PeekDefaultText is internal — visible because Runtime exposes internals to PromptUGUI.Tests.EditMode.
+            UI.Markdown.Renderer = new FakeMarkdownRenderer();
+            var md = Open();
+            md.Text = "runtime value";
+            Assert.AreEqual("runtime value", md.PeekDefaultText());
+        }
+
+        [Test]
+        public void Re_render_replaces_and_disposes_old_content()
+        {
+            UI.Markdown.Renderer = new FakeMarkdownRenderer(); // returns a fresh root each Render()
+            var md = Open();
+            md.Text = "first";
+            var first = md.GameObject.GetComponent<UnityEngine.UI.ScrollRect>().content;
+            md.Text = "second";
+            var second = md.GameObject.GetComponent<UnityEngine.UI.ScrollRect>().content;
+            Assert.AreNotSame(first, second);          // new content instantiated
+            Assert.IsTrue(first == null);              // old root GameObject destroyed (Unity null)
         }
     }
 }
