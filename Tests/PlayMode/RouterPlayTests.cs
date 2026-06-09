@@ -83,5 +83,29 @@ namespace PromptUGUI.Tests.PlayMode
             Assert.AreEqual("newName", applied);
             CollectionAssert.AreEqual(new[] { "home" }, new List<string>(UI.Router.Chain));  // 自动出栈
         }
+
+        [UnityTest]
+        public IEnumerator Teardown_DuringAsyncPageLoad_NoCorruptionNoLeak()
+        {
+            var gate = new AwaitableCompletionSource<string>();
+            UI.ResetForTests();
+            UI.SourceResolver = src =>
+                src == "home" ? gate.Awaitable : AwaitableHelpers.Completed<string>(null);
+            UI.Router.Map("home", "home");
+
+            _ = UI.Router.Open("home");           // suspends at LoadDocumentAsync("home")
+            yield return null;
+            Assert.IsEmpty(new List<string>(UI.Router.Chain));   // not added yet (still loading)
+
+            UI.ResetForTests();                    // teardown mid-load → AbandonPump bumps epoch, clears chain
+
+            gate.SetResult(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='home'><Image id='bg' anchor='stretch'/></Screen></PromptUGUI>");
+            for (int i = 0; i < 5; i++) yield return null;   // let the orphaned continuation run
+
+            // WITH the fix: reconcile bails → chain stays empty, no leaked screen.
+            Assert.IsEmpty(new List<string>(UI.Router.Chain));
+            Assert.IsNull(UI.Get("home"));
+        }
     }
 }

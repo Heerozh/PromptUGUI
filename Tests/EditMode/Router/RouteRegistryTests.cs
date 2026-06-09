@@ -65,5 +65,52 @@ namespace PromptUGUI.Tests.Router
         [Test]
         public void Open_Unmapped_Throws()
             => Assert.ThrowsAsync<RouteException>(async () => await UI.Router.Open("ghost"));
+
+        [Test]
+        public void MapTab_NullParent_Throws()
+            => Assert.Throws<RouteException>(() => UI.Router.MapTab("t", null, "bar/x"));
+
+        [Test]
+        public void MapTab_NullTabId_Throws()
+            => Assert.Throws<RouteException>(() => UI.Router.MapTab("t", "home", null));
+
+        [Test]
+        public void MapPrompt_NullRun_Throws()
+            => Assert.Throws<RouteException>(() => UI.Router.MapPrompt("p", "home", null));
+
+        [Test]
+        public void Open_MultiScreenSrc_NoExplicitScreen_Throws()
+        {
+            var files = new System.Collections.Generic.Dictionary<string, string>
+            {
+                ["multi"] = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='A'><Image id='x' anchor='stretch'/></Screen>
+  <Screen name='B'><Image id='x' anchor='stretch'/></Screen>
+</PromptUGUI>",
+            };
+            UI.SourceResolver = src =>
+                AwaitableHelpers.Completed(files.TryGetValue(src, out var v) ? v : null);
+            UI.Router.Map("m", "multi");   // no screen= → ambiguous
+            Assert.ThrowsAsync<RouteException>(async () => await UI.Router.Open("m"));
+        }
+
+        [Test]
+        public void Open_TabIdNotFound_Throws()
+        {
+            var files = new System.Collections.Generic.Dictionary<string, string>
+            {
+                ["home"] = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='home'><Image id='bg' anchor='stretch'/></Screen></PromptUGUI>",
+                ["shop"] = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='shop'><Image id='x' anchor='stretch'/></Screen></PromptUGUI>",
+            };
+            UI.SourceResolver = src =>
+                AwaitableHelpers.Completed(files.TryGetValue(src, out var v) ? v : null);
+            UI.Router.Map("home", "home");
+            UI.Router.Map("shop", "shop", parent: "home");
+            UI.Router.MapTab("shop/deals", parent: "shop", tabId: "bar/deals");   // no such tab in shop
+            Assert.ThrowsAsync<RouteException>(async () => await UI.Router.Open("shop/deals"));
+        }
     }
 }

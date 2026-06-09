@@ -86,7 +86,7 @@ namespace PromptUGUI.Application
                         var t = _pending.Value;
                         _pending = null;
                         error = null;
-                        try { await Reconcile(t.name, t.query); }
+                        try { await Reconcile(t.name, t.query, epoch); }
                         catch (Exception ex) { error = ex; }
                     }
                 }
@@ -123,7 +123,7 @@ namespace PromptUGUI.Application
                 }
             }
 
-            private static async Awaitable Reconcile(string name, RouteQuery query)
+            private static async Awaitable Reconcile(string name, RouteQuery query, int epoch)
             {
                 var target = ResolveChain(name);   // 校验 + 根→叶
 
@@ -157,6 +157,16 @@ namespace PromptUGUI.Application
                 for (int i = k; i < target.Count; i++)
                 {
                     var active = await Activate(target[i], query);
+                    if (epoch != _epoch)
+                    {
+                        // 异步加载期间发生了 teardown/Reset:_chain 已被清空,别再塞回陈旧节点。
+                        // 关掉这个孤儿(Page/Modal 已 UI.Open),Prompt 释放其 CTS,避免泄漏。
+                        if (active.Def.Kind == RouteKind.Page || active.Def.Kind == RouteKind.Modal)
+                            UI.Close(active.ScreenKey);
+                        else
+                            active.PromptCts?.Dispose();
+                        return;
+                    }
                     _chain.Add(active);
                     if (active.Def.Kind == RouteKind.Prompt) StartPrompt(active, query);
                 }
