@@ -340,6 +340,7 @@ namespace PromptUGUI.Application
                 AbandonPump(cancel: true);
                 foreach (var a in _chain)
                 {
+                    a.Deactivated = true;          // 防止 SelfPop 续体在 Cancel 同步回调里修改 _chain
                     a.PromptCts?.Cancel();
                     a.PromptCts?.Dispose();
                 }
