@@ -66,6 +66,12 @@ namespace PromptUGUI.Application
                 return tcs.Awaitable;
             }
 
+            public static async Awaitable Navigate(string url)
+            {
+                var (name, query) = ParseUrl(url);
+                await Open(name, query);
+            }
+
             private static async Awaitable Pump()
             {
                 _reconciling = true;
@@ -139,6 +145,11 @@ namespace PromptUGUI.Application
                 var removed = new List<ActiveNode>();
                 for (int i = k; i < _chain.Count; i++) removed.Add(_chain[i]);
                 if (removed.Count > 0) _chain.RemoveRange(k, removed.Count);
+
+                // §3.3:顶上压着的 ad-hoc 临时模态(不属 router)先关掉 —— 等价"用户先关弹窗再导航"。
+                // 尾部已先于此移除,故即便 CloseAll 同步唤醒某 Prompt 续体,其 SelfPop 也已 no-op。
+                // SameChain 早退路径不经过这里:重复导航到正在显示的同一链路不会误关其对话框。
+                if (UI.Modal.IsAnyOpen) UI.Modal.CloseAll();
 
                 for (int i = removed.Count - 1; i >= 0; i--) Deactivate(removed[i]);
 

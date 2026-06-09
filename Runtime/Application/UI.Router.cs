@@ -94,6 +94,29 @@ namespace PromptUGUI.Application
                             $"route '{name}': prompt '{chain[i].Name}' cannot be a parent");
                 return chain;
             }
+            // <scheme>://<name>?<query>,或无 scheme 的 <name>?<query>。
+            // ://(若有)与 ? 之间整段当 name(含斜杠不拆)。
+            internal static (string name, RouteQuery query) ParseUrl(string url)
+            {
+                if (string.IsNullOrEmpty(url)) throw new RouteException("navigate: empty url");
+                var rest = url;
+                int s = url.IndexOf("://", StringComparison.Ordinal);
+                if (s >= 0)
+                {
+                    var scheme = url.Substring(0, s);
+                    if (Scheme != null && !string.Equals(scheme, Scheme, StringComparison.Ordinal))
+                        throw new RouteException($"navigate: scheme '{scheme}' != Router.Scheme '{Scheme}'");
+                    rest = url.Substring(s + 3);
+                }
+                else if (Scheme != null)
+                    throw new RouteException($"navigate: url '{url}' missing scheme '{Scheme}'");
+
+                int q = rest.IndexOf('?');
+                var name = q >= 0 ? rest.Substring(0, q) : rest;
+                var qs = q >= 0 ? rest.Substring(q + 1) : "";
+                if (name.Length == 0) throw new RouteException($"navigate: url '{url}' has empty route name");
+                return (name, RouteQuery.ParseQueryString(qs));
+            }
         }
     }
 }
