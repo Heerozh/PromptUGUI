@@ -126,5 +126,26 @@ namespace PromptUGUI.Tests.Markdown
             var root = Render("a\n\n---\n\nb");
             Assert.IsNotNull(Find(root, "Image", null));
         }
+
+        private static int Count(ElementNode n, System.Func<ElementNode, bool> pred)
+        {
+            int c = pred(n) ? 1 : 0;
+            foreach (var ch in n.Children) c += Count(ch, pred);
+            return c;
+        }
+
+        [Test]
+        public void Table_renders_rows_of_stretch_cells_with_bold_header()
+        {
+            var root = Render("| A | B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |");
+            // header cells bold
+            Assert.IsNotNull(Find(root, "Text", "<b>A</b>"));
+            Assert.IsNotNull(Find(root, "Text", "<b>B</b>"));
+            // body cells present
+            Assert.IsNotNull(Find(root, "Text", "1"));
+            Assert.IsNotNull(Find(root, "Text", "4"));
+            // 3 rows -> 3 HStacks
+            Assert.AreEqual(3, Count(root, n => n.Tag == "HStack"));
+        }
     }
 }

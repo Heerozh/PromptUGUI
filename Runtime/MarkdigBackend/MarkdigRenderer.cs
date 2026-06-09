@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using Markdig;
+using Markdig.Extensions.Tables;
 using Markdig.Extensions.TaskLists;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
@@ -59,6 +60,8 @@ namespace PromptUGUI.MarkdigBackend
                     return RenderCode(cb);
                 case ThematicBreakBlock _:
                     return RenderHr();
+                case Table table:
+                    return RenderTable(table);
                 default:
                     return null; // HtmlBlock etc dropped (MD-D17)
             }
@@ -248,6 +251,45 @@ namespace PromptUGUI.MarkdigBackend
                 sb.Append(lines.Lines[i].Slice.ToString());
                 if (i < lines.Count - 1) sb.Append('\n');
             }
+            return sb.ToString();
+        }
+
+        private ElementNode RenderTable(Table table)
+        {
+            int cols = 0;
+            foreach (var rowObj in table)
+                if (rowObj is TableRow r) cols = Mathf.Max(cols, r.Count);
+
+            var grid = NewVStack(2f);
+            grid.Attributes["width"] = "stretch";
+
+            foreach (var rowObj in table)
+            {
+                if (rowObj is not TableRow row) continue;
+                var hstack = new ElementNode("HStack");
+                hstack.Attributes["width"] = "stretch";
+                hstack.Attributes["spacing"] = "4";
+                hstack.Attributes["childAlign"] = "upper-left";
+
+                for (int c = 0; c < cols; c++)
+                {
+                    string text = "";
+                    if (c < row.Count && row[c] is TableCell cell)
+                        text = RenderCell(cell);
+                    var t = NewText(text, _style.BodySize, bold: row.IsHeader);
+                    t.Attributes["width"] = "stretch";   // equal columns
+                    hstack.Children.Add(t);
+                }
+                grid.Children.Add(hstack);
+            }
+            return grid;
+        }
+
+        private string RenderCell(TableCell cell)
+        {
+            var sb = new StringBuilder();
+            foreach (var block in cell)
+                if (block is ParagraphBlock p) sb.Append(RenderInline(p.Inline));
             return sb.ToString();
         }
     }
