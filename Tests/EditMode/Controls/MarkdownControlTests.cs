@@ -45,18 +45,17 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Reset_clears_ImageResolver_and_Renderer()
+        public void Reset_clears_ImageResolver_and_reinjects_Renderer()
         {
             UI.Markdown.ImageResolver = _ => null;
-            UI.Markdown.Renderer = new StubRenderer();   // non-null so reset->null is observable
+            UI.Markdown.Renderer = null;      // clear it; bootstrap re-injects via OnReset
             UI.ResetForTests();
             Assert.IsNull(UI.Markdown.ImageResolver);
-            Assert.IsNull(UI.Markdown.Renderer);
-        }
-
-        private sealed class StubRenderer : IMarkdownRenderer
-        {
-            public MarkdownRenderResult Render(string markdown, MarkdownStyle style) => new();
+#if PROMPTUGUI_HAS_MARKDIG
+            Assert.IsNotNull(UI.Markdown.Renderer);   // Markdig backend re-injects on UI.OnReset
+#else
+            Assert.IsNull(UI.Markdown.Renderer);       // no backend -> stays null (degrade)
+#endif
         }
     }
 
