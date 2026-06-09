@@ -22,6 +22,23 @@ namespace PromptUGUI.Tests.Parser
         }
 
         [Test]
+        public void Markdown_WithIndentedMultilineCData_StripsCommonIndent()
+        {
+            var xml = "<?xml version='1.0' encoding='utf-8'?>\n"
+                + "<PromptUGUI version='1'>\n  <Screen name='S'>\n"
+                + "    <Markdown><![CDATA[\n    # Title\n\n    **bold** body\n    | A | B |\n    |---|---|\n    | 1 | 2 |\n]]></Markdown>\n"
+                + "  </Screen>\n</PromptUGUI>";
+            var doc = UIDocumentParser.Parse(xml);
+            var md = doc.Screens[0].Root.Children[0];
+            Assert.AreEqual("Markdown", md.Tag);
+            // common 4-space indent stripped from ALL lines:
+            StringAssert.StartsWith("# Title", md.TextContent);                 // line 1 flush (was already)
+            StringAssert.Contains("\n**bold** body", md.TextContent);          // line 3 now flush (NOT "\n    **bold**")
+            StringAssert.DoesNotContain("\n    ", md.TextContent);             // no 4-space-indented line remains
+            StringAssert.Contains("| A | B |", md.TextContent);
+        }
+
+        [Test]
         public void Text_WithMixedTextAndCdata_StillForbidden()
         {
             var xml = @"<?xml version='1.0' encoding='utf-8'?>
