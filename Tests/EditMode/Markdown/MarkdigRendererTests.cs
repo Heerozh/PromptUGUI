@@ -89,3 +89,42 @@ namespace PromptUGUI.Tests.Markdown
         }
     }
 }
+
+namespace PromptUGUI.Tests.Markdown
+{
+    public partial class MarkdigRendererBlockTests
+    {
+        private static ElementNode Render(string md)
+            => new PromptUGUI.MarkdigBackend.MarkdigRenderer().Render(md, MarkdownStyle.CreateDefault()).Root;
+        private static ElementNode Find(ElementNode n, string tag, string needle)
+        {
+            if (n.Tag == tag && ((needle == null) || (n.TextContent != null && n.TextContent.Contains(needle)))) return n;
+            foreach (var c in n.Children) { var r = Find(c, tag, needle); if (r != null) return r; }
+            return null;
+        }
+
+        [Test]
+        public void Code_fence_uses_mark_and_code_font()
+        {
+            var root = Render("```\nint x = 1;\n```");
+            var t = Find(root, "Text", "int x = 1;");
+            Assert.IsNotNull(t);
+            StringAssert.Contains("<mark=", t.TextContent);
+        }
+
+        [Test]
+        public void Blockquote_has_bar_image()
+        {
+            var root = Render("> quoted");
+            Assert.IsNotNull(Find(root, "Image", null)); // the quote bar
+            Assert.IsNotNull(Find(root, "Text", "quoted"));
+        }
+
+        [Test]
+        public void Thematic_break_is_thin_image()
+        {
+            var root = Render("a\n\n---\n\nb");
+            Assert.IsNotNull(Find(root, "Image", null));
+        }
+    }
+}

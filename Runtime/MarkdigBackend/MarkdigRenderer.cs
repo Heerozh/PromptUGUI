@@ -51,6 +51,14 @@ namespace PromptUGUI.MarkdigBackend
                     return NewText(RenderInline(p.Inline), _style.BodySize);
                 case ListBlock list:
                     return RenderList(list, 0);
+                case QuoteBlock q:
+                    return RenderQuote(q);
+                case FencedCodeBlock fc:
+                    return RenderCode(fc);
+                case CodeBlock cb:
+                    return RenderCode(cb);
+                case ThematicBreakBlock _:
+                    return RenderHr();
                 default:
                     return null; // HtmlBlock etc dropped (MD-D17)
             }
@@ -190,6 +198,57 @@ namespace PromptUGUI.MarkdigBackend
         {
             var c = PromptUGUI.Application.UI.Theme.Resolve(colorToken);
             return "#" + ColorUtility.ToHtmlStringRGBA(c);
+        }
+
+        private ElementNode RenderQuote(QuoteBlock q)
+        {
+            var row = new ElementNode("HStack");
+            row.Attributes["width"] = "stretch";
+            row.Attributes["spacing"] = "8";
+            row.Attributes["childAlign"] = "upper-left";
+
+            var bar = new ElementNode("Image");
+            bar.Attributes["width"] = _style.HrThickness.ToString(CultureInfo.InvariantCulture);
+            bar.Attributes["height"] = "stretch";
+            bar.Attributes["color"] = _style.QuoteBarColor;
+            row.Children.Add(bar);
+
+            var content = NewVStack(_style.BlockSpacing);
+            content.Attributes["width"] = "stretch";
+            foreach (var child in q) { var n = RenderBlock(child); if (n != null) content.Children.Add(n); }
+            row.Children.Add(content);
+            return row;
+        }
+
+        private ElementNode RenderCode(LeafBlock code)
+        {
+            var n = NewText("", _style.BodySize);
+            n.Attributes["font"] = _style.CodeFont;
+            n.Attributes["wrap"] = "false";
+            n.TextContent = "<mark=" + ToHex(_style.CodeBackground) + ">" + Escape(GetCodeText(code)) + "</mark>";
+            return n;
+        }
+
+        private ElementNode RenderHr()
+        {
+            var img = new ElementNode("Image");
+            img.Attributes["width"] = "stretch";
+            img.Attributes["height"] = _style.HrThickness.ToString(CultureInfo.InvariantCulture);
+            img.Attributes["color"] = _style.HrColor;
+            return img;
+        }
+
+        private static string GetCodeText(LeafBlock leaf)
+        {
+            var lines = leaf.Lines;
+            if (lines.Lines == null) return "";
+            var sb = new StringBuilder();
+            for (int i = 0; i < lines.Count; i++)
+            {
+                sb.Append(lines.Lines[i].Slice.ToString());
+                if (i < lines.Count - 1) sb.Append('\n');
+            }
+            return sb.ToString();
         }
     }
 }
