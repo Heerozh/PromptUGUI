@@ -1,0 +1,22 @@
+{
+    "name": "PromptUGUI.Tests.EditMode.Markdown",
+    "rootNamespace": "PromptUGUI.Tests.Markdown",
+    "references": [
+        "PromptUGUI.Runtime",
+        "PromptUGUI.Markdown",
+        "PromptUGUI.Editor",
+        "Unity.TextMeshPro",
+        "UnityEngine.UI",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": ["nunit.framework.dll"],
+    "autoReferenced": false,
+    "defineConstraints": ["UNITY_INCLUDE_TESTS", "PROMPTUGUI_HAS_MARKDIG"],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
