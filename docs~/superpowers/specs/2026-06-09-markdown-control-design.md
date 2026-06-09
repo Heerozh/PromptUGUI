@@ -11,7 +11,7 @@
 5. `Runtime/Application/BuiltinPrimitives.cs` 注册 `Markdown`（`defaultTextAttr:"text"`）
 6. `Runtime/Application/ScreenInstantiator.cs` + `Runtime/Core/Lint/`：`<Markdown>` 不应有子**元素**（内容来自 text），新增 lint `PUI-MARKDOWN-NO-CHILDREN`（warning）
 7. 新增 `Runtime/MarkdigBackend/PromptUGUI.Markdown.asmdef`（`defineConstraints:["PROMPTUGUI_HAS_MARKDIG"]`、`overrideReferences:true`、`precompiledReferences:["Markdig.dll"]`、refs `PromptUGUI.Runtime`）+ `MarkdigRenderer.cs`（遍历 Markdig AST → `ElementNode` 树；命名空间 `PromptUGUI.MarkdigBackend`，避免与控件类 `Markdown` 撞名）+ 自注册 hook
-8. 新增 `Editor/MarkdigDetector.cs`（扫到 `Markdig` 程序集 → 给工程加 `PROMPTUGUI_HAS_MARKDIG`，扫不到 → 移除；`[InitializeOnLoadMethod]`）
+8. 新增 `Editor/MarkdigDetector.cs`（扫到 `Markdig` 或 `Markdig.Signed` 程序集 → 给工程加 `PROMPTUGUI_HAS_MARKDIG`，扫不到 → 移除；`[InitializeOnLoad]` 类 + 静态构造函数）
 9. 新增测试 asmdef `Tests/EditMode/Markdown/PromptUGUI.Tests.EditMode.Markdown.asmdef`（`defineConstraints` 同上，镜像 Addressables 测试 asmdef）+ renderer 树形断言 + 控件集成测试；PlayMode 异步图测试
 10. SKILL：`authoring-promptugui-xml`（目录行 + 新增 `reference/controls-markdown.md`）、`scripting-promptugui-csharp`（`Text`/`BindText`/`OnLinkClicked`/`Style`/`UI.Markdown.*`）、新增 mini-skill `using-promptugui-markdown`（Markdig 安装 + 符号，镜像 `using-promptugui-addressables`）
 11. 主 spec `2026-05-07-promptugui-description-language-design.md` §5（控件表）追加一行
@@ -46,7 +46,7 @@ screen.Get<Markdown>("patchNotes").Text = await Http.GetString(patchNotesUrl);
 |---|---|---|---|
 | MD-D1 | 渲染路线 | 块级：Markdig AST → `ElementNode` IR 子树 → `InstantiateNode` → 现有控件 | 复用整条实例化 / 布局 / 属性 / Variant 管线；控件壳只干"调 renderer + 喂 InstantiateNode"两件事；放弃在单 TMP 拼全文（放不下图 / 表 / 代码块底） |
 | MD-D2 | 解析器 | Markdig（NuGet），不自写 | 完整 CommonMark + GFM；边角 case 不踩坑；renderer 只负责 AST→IR 翻译 |
-| MD-D3 | Markdig 分发 | 软依赖 + `PROMPTUGUI_HAS_MARKDIG` 符号门控 + 独立 asmdef（defineConstraint + `precompiledReferences:["Markdig.dll"]`）+ editor 自动检测器 | 镜像 `PROMPTUGUI_HAS_ADDRESSABLES`；核心包零二进制、零强制依赖；Markdig 不是 UPM 包 → versionDefines 抓不到、Runtime asmdef 不能直接引 → 必须独立 asmdef 隔离 DLL 引用 |
+| MD-D3 | Markdig 分发 | 软依赖 + `PROMPTUGUI_HAS_MARKDIG` 符号门控 + 独立 asmdef（defineConstraint + `precompiledReferences:["Markdig.Signed.dll"]`）+ editor 自动检测器 | 镜像 `PROMPTUGUI_HAS_ADDRESSABLES`；核心包零二进制、零强制依赖；Markdig 不是 UPM 包 → versionDefines 抓不到、Runtime asmdef 不能直接引 → 必须独立 asmdef 隔离 DLL 引用 |
 | MD-D4 | 控件本体放哪 | `Markdown : Control` 放 **Runtime，始终编译**（只碰 Runtime 类型 + `IMarkdownRenderer` 接口，不引 Markdig）；只有 `MarkdigRenderer`（碰 Markdig AST 类型）放门控 asmdef | 标签始终可解析（不会"unknown tag"炸 XML）；主测试套件始终能编控件测试；注册行无需 `#if`；比 Addressables 的"helper 直接 `#if` 掉"更稳——因为这是个**控件/标签**，优雅降级 > 标签消失 |
 | MD-D5 | 无 Markdig 降级 | `UI.Markdown.Renderer == null`（未装/未注入）→ 把原始 markdown 当纯文本塞进一个 `<Text wrap>` 子节点 + 一次性 `Debug.LogWarning`（提示装 Markdig + 定义符号） | 不炸、有可读兜底；符号 ON ⟺ Markdig 在场 ⟺ 门控 asmdef 编得过 ⟺ `MarkdigRenderer` 自注入 |
 | MD-D6 | renderer 接口契约 | `MarkdownRenderResult Render(string md, MarkdownStyle style)`；返回 `{ ElementNode Root; IReadOnlyList<ImageRequest> Images }`，纯函数、只产 IR + 图请求，不碰 GameObject | renderer 在门控 asmdef 里，返回 Runtime 公开 IR；高度可测（断言树形）；async 图加载留给控件（Runtime），resolver 可注入 |
@@ -76,10 +76,10 @@ screen.Get<Markdown>("patchNotes").Text = await Http.GetString(patchNotesUrl);
 | 放哪 | 内容 | 依赖 Markdig？ |
 |---|---|---|
 | **Runtime**（始终编译，无 Markdig 引用） | `Markdown : Control`、`IMarkdownRenderer`、`MarkdownStyle`、`MarkdownRenderResult`、`ImageRequest`、`UI.Markdown` 静态门面、`BuiltinPrimitives` 注册行、lint | 否 |
-| **`PromptUGUI.Markdown` asmdef**（`defineConstraints:["PROMPTUGUI_HAS_MARKDIG"]` + `precompiledReferences:["Markdig.dll"]` + refs `PromptUGUI.Runtime`） | `MarkdigRenderer : IMarkdownRenderer`（命名空间 `PromptUGUI.MarkdigBackend`）+ 自注册 hook | 是 |
+| **`PromptUGUI.Markdown` asmdef**（`defineConstraints:["PROMPTUGUI_HAS_MARKDIG"]` + `precompiledReferences:["Markdig.Signed.dll"]` + refs `PromptUGUI.Runtime`） | `MarkdigRenderer : IMarkdownRenderer`（命名空间 `PromptUGUI.MarkdigBackend`）+ 自注册 hook | 是 |
 | **PromptUGUI.Editor** | `MarkdigDetector`：`AppDomain` 扫到 `Markdig` 程序集 → 加 `PROMPTUGUI_HAS_MARKDIG`，否则移除 | — |
 
-**符号怎么定义？** Markdig 非 UPM 包，`versionDefines` 抓不到（它只认 manifest 里的 UPM 包名），所以不能像 Addressables 那样自动 versionDefine。改由 `Editor/MarkdigDetector.cs`（`[InitializeOnLoadMethod]`）扫 `AppDomain.CurrentDomain.GetAssemblies()`，发现 `Markdig` 就往 `PlayerSettings` 的 Scripting Define Symbols 加 `PROMPTUGUI_HAS_MARKDIG`、消失就移除。这样"装了 Markdig（NuGetForUnity / DLL）→ 自动点亮"，无需用户手动配符号。
+**符号怎么定义？** Markdig 非 UPM 包，`versionDefines` 抓不到（它只认 manifest 里的 UPM 包名），所以不能像 Addressables 那样自动 versionDefine。改由 `Editor/MarkdigDetector.cs`（`[InitializeOnLoad]` 类 + 静态构造函数）扫 `AppDomain.CurrentDomain.GetAssemblies()`，发现 `Markdig` 或 `Markdig.Signed` 就往 `PlayerSettings` 的 Scripting Define Symbols 加 `PROMPTUGUI_HAS_MARKDIG`、消失就移除。这样"装了 Markdig（NuGetForUnity / DLL）→ 自动点亮"，无需用户手动配符号。
 
 **`MarkdigRenderer` 自注入时机**（Play + Edit/Test 都要）：
 
@@ -312,8 +312,8 @@ Markdown (root RectTransform + ScrollRect[vertical only])
 | 有序列表 | 同上，符号为 `"1."` 递增 | start 跟 Markdig |
 | 任务列表项 | 项符号换 CheckedGlyph/UncheckedGlyph | MD-D19，非交互 |
 | 引用 `>` | `<HStack>`：左 `<Image width=HrThickness color=QuoteBarColor>` + 右 `<VStack>`（递归块） | 可嵌套 |
-| 围栏代码块 ``` | `<Frame color=CodeBackground>` + `<Text font=CodeFont wrap=false>` | 语言标记首版忽略（无语法高亮）|
-| 分割线 `---` | `<Image height=HrThickness color=HrColor anchor=top-stretch>` | |
+| 围栏代码块 ``` | `<Text font=CodeFont wrap=false>`，代码背景色通过行内 TMP `<mark=…>` 标签应用（无独立容器节点）| 语言标记首版忽略（无语法高亮）|
+| 分割线 `---` | `<Image width=stretch height=HrThickness color=HrColor>` | |
 | 块级图 `![alt](url)` | `<RawImage type="contain">` + 生成 id → `ImageRequest` | 纹理 async 设入（§8）|
 | GFM 表格 | `<VStack>` → 每行 `<HStack>` → 每格 `<Text width="stretch" wrap>`；表头行加粗 | MD-D18；等分列、无边框线 |
 | HtmlBlock | 当纯文本（剥标签）/ 丢弃 | MD-D17 |

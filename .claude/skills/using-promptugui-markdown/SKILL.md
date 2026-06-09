@@ -29,14 +29,15 @@ The process is fully automatic once Markdig is in the project — no manual symb
 
 1. Install NuGetForUnity in your Unity project (available on GitHub or the Asset Store).
 2. In Unity: **NuGet → Manage NuGet Packages → search "Markdig" → Install**.
-   - Both **Markdig** and **Markdig.Signed** work. The host project here uses **Markdig.Signed**; the namespace is `Markdig` in both cases, so the code is identical.
-3. NuGetForUnity places `Markdig.dll` (netstandard2.0) under `Assets/Packages/Markdig/` (or similar).
+   - This project uses **Markdig.Signed** (the signed NuGet package). Install **Markdig.Signed** to match; the namespace is `Markdig` in both cases, so the C# code is identical.
+   - If you install the **unsigned Markdig** package instead (DLL named `Markdig.dll`), you must change `Runtime/MarkdigBackend/PromptUGUI.Markdown.asmdef`'s `precompiledReferences` from `["Markdig.Signed.dll"]` to `["Markdig.dll"]`; the asmdef ships referencing `Markdig.Signed.dll` and will not compile against the unsigned DLL without this change.
+3. NuGetForUnity places the DLL (netstandard2.0) under `Assets/Packages/Markdig.Signed/` (or similar).
 4. Unity compiles, the editor auto-detector runs, `PROMPTUGUI_HAS_MARKDIG` is added, and `MarkdigRenderer` is registered.
 
 ### Option B: Manual DLL drop
 
-1. Obtain `Markdig.dll` for the **netstandard2.0** target framework from the [Markdig NuGet page](https://www.nuget.org/packages/Markdig) or [GitHub releases](https://github.com/xoofx/markdig/releases).
-2. Drop the file anywhere under `Assets/` (e.g. `Assets/Plugins/Markdig.dll`).
+1. Obtain `Markdig.Signed.dll` for the **netstandard2.0** target framework from the [Markdig.Signed NuGet page](https://www.nuget.org/packages/Markdig.Signed) or [Markdig GitHub releases](https://github.com/xoofx/markdig/releases). If you use the unsigned `Markdig.dll` instead, edit `Runtime/MarkdigBackend/PromptUGUI.Markdown.asmdef` and change `precompiledReferences` to `["Markdig.dll"]`.
+2. Drop the file anywhere under `Assets/` (e.g. `Assets/Plugins/Markdig.Signed.dll`).
 3. Unity imports it; the editor auto-detector finds it on the next domain reload and defines `PROMPTUGUI_HAS_MARKDIG`.
 
 ### Manual symbol (fallback / CI)
@@ -47,7 +48,7 @@ If the auto-detector does not fire (e.g., unusual CI environment), define `PROMP
 
 ## What the auto-detector does
 
-`PromptUGUI.Editor.MarkdigDetector` runs as an `[InitializeOnLoadMethod]` in the Editor. It scans `AppDomain.CurrentDomain.GetAssemblies()` for an assembly named `Markdig` (or `Markdig.Signed`):
+`PromptUGUI.Editor.MarkdigDetector` is an `[InitializeOnLoad]` class with a static constructor that runs in the Editor on every domain reload. It scans `AppDomain.CurrentDomain.GetAssemblies()` for an assembly named `Markdig` or `Markdig.Signed`:
 
 - **Found**: adds `PROMPTUGUI_HAS_MARKDIG` to `PlayerSettings` Scripting Define Symbols for the active build target → triggers a recompile.
 - **Not found**: removes `PROMPTUGUI_HAS_MARKDIG` if present → triggers a recompile.
@@ -61,7 +62,7 @@ The detector runs on every domain reload (domain load after script compile, ente
 | Component | Location | Behavior |
 |---|---|---|
 | `MarkdigRenderer` | `Runtime/MarkdigBackend/` (gated asmdef `PromptUGUI.Markdown`) | Walks Markdig AST → `ElementNode` IR subtree + `ImageRequest[]`. Registered with `UI.Markdown.Renderer` at domain load and after each `UI.ResetForTests()`. |
-| `PromptUGUI.Markdown` asmdef | `Runtime/MarkdigBackend/PromptUGUI.Markdown.asmdef` | `defineConstraints: ["PROMPTUGUI_HAS_MARKDIG"]`, `precompiledReferences: ["Markdig.dll"]`, references `PromptUGUI.Runtime`. Compiled only when the symbol is defined. |
+| `PromptUGUI.Markdown` asmdef | `Runtime/MarkdigBackend/PromptUGUI.Markdown.asmdef` | `defineConstraints: ["PROMPTUGUI_HAS_MARKDIG"]`, `precompiledReferences: ["Markdig.Signed.dll"]` (the signed NuGet package; change to `"Markdig.dll"` if using the unsigned variant), references `PromptUGUI.Runtime`. Compiled only when the symbol is defined. |
 | `PromptUGUI.Tests.EditMode.Markdown` asmdef | `Tests/EditMode/Markdown/` | Same `defineConstraints`. Contains renderer tree-shape tests and control integration tests. |
 
 ---

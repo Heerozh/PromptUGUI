@@ -68,7 +68,7 @@ Frequently-used style items can be set on the tag itself; full styling lives in 
 | `text` | Markdown source string (CDATA for inline) | `""` | Document content. Registered as `defaultTextAttr`, so inline element text and CDATA flow into it automatically. A value set from C# at runtime survives resize / Variant / Theme ReSolve (the DefaultText lock — same mechanism as `<Text text>`). |
 | `bodyFont` | font type name | `"default"` | Body text and heading font, resolved via `FontApplier`. |
 | `codeFont` | font type name | `"default"` | Inline code and fenced code block font. Use a monospace font type. |
-| `linkColor` | color token / hex / CSS name / `/alpha` suffix | theme link color | Link text color, applied as TMP `<color=…>` inside `<link>` spans. |
+| `linkColor` | color token / hex / CSS name / `/alpha` suffix | `#4EA1FF` | Link text color, applied as TMP `<color=…>` inside `<link>` spans. |
 | `spacing` | float | `MarkdownStyle` default | Vertical spacing between top-level blocks (pixels). |
 | `wrap` | bool | `true` | Whether paragraph text wraps. `false` makes long paragraphs clip horizontally (the internal `ScrollRect` is vertical-only). |
 
@@ -118,8 +118,8 @@ Frequently-used style items can be set on the tag itself; full styling lives in 
 | Ordered list | Same as unordered; bullet is `"1."`, `"2."`, … (start offset from Markdig) | |
 | Task list item | Bullet glyph replaced by `CheckedGlyph` (`"☑"`) or `UncheckedGlyph` (`"☐"`) | Display-only — not a live `<Toggle>` |
 | Blockquote `>` | `<HStack>` — left `<Image width=HrThickness color=QuoteBarColor>` + right `<VStack>` (recursive blocks) | Can nest |
-| Fenced code block | `<Frame color=CodeBackground>` + inner `<Text font=CodeFont wrap=false>` | Language tag ignored; no syntax highlighting |
-| Horizontal rule `---` | `<Image height=HrThickness color=HrColor anchor=top-stretch>` | |
+| Fenced code block | `<Text font=CodeFont wrap=false>` with code background applied via inline TMP `<mark=…>` tag (no separate container) | Language tag ignored; no syntax highlighting |
+| Horizontal rule `---` | `<Image width=stretch height=HrThickness color=HrColor>` | |
 | Block-level image `![alt](url)` | `<RawImage type="contain">` + generated id → `ImageRequest` | Texture loaded async; alt text shown as placeholder until texture arrives |
 | GFM table | `<VStack>` → each row `<HStack>` → each cell `<Text width="stretch" wrap>` | Header row is bold; equal-width columns (`width="stretch"`); no cell border lines (v1) |
 | HTML block | Plain text (tags stripped) or discarded | MD-D17 |
