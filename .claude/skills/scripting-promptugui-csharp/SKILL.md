@@ -337,7 +337,7 @@ UI.Markdown.ImageResolver = myResolver;         // global fallback resolver
 
 **Image loading**: `Text` set renders text immediately. Block-level images (`![ ](url)`) are loaded asynchronously by the configured `ImageResolver`. Each image shows alt text as a placeholder until the texture arrives. A render-generation token (`_renderGen`) ensures that textures arriving late (after a re-render or `Dispose`) are discarded safely. Without a registered resolver, images remain as alt-text placeholders.
 
-**Requires Markdig**: see the `using-promptugui-markdown` skill. Without Markdig (`UI.Markdown.Renderer == null`) `<Markdown>` displays the raw source as a single plain `<Text wrap>` and logs a one-time `Debug.LogWarning`.
+**Requires Markdig**: see *Setup — installing Markdig* in authoring-promptugui-xml → [`reference/controls-markdown.md`](../authoring-promptugui-xml/reference/controls-markdown.md). Without Markdig (`UI.Markdown.Renderer == null`) `<Markdown>` displays the raw source as a single plain `<Text wrap>` and logs a one-time `Debug.LogWarning`.
 
 ## Variant switching at runtime
 

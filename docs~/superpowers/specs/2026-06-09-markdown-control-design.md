@@ -13,7 +13,7 @@
 7. 新增 `Runtime/MarkdigBackend/PromptUGUI.Markdown.asmdef`（`defineConstraints:["PROMPTUGUI_HAS_MARKDIG"]`、`overrideReferences:true`、`precompiledReferences:["Markdig.dll"]`、refs `PromptUGUI.Runtime`）+ `MarkdigRenderer.cs`（遍历 Markdig AST → `ElementNode` 树；命名空间 `PromptUGUI.MarkdigBackend`，避免与控件类 `Markdown` 撞名）+ 自注册 hook
 8. 新增 `Editor/MarkdigDetector.cs`（扫到 `Markdig` 或 `Markdig.Signed` 程序集 → 给工程加 `PROMPTUGUI_HAS_MARKDIG`，扫不到 → 移除；`[InitializeOnLoad]` 类 + 静态构造函数）
 9. 新增测试 asmdef `Tests/EditMode/Markdown/PromptUGUI.Tests.EditMode.Markdown.asmdef`（`defineConstraints` 同上，镜像 Addressables 测试 asmdef）+ renderer 树形断言 + 控件集成测试；PlayMode 异步图测试
-10. SKILL：`authoring-promptugui-xml`（目录行 + 新增 `reference/controls-markdown.md`）、`scripting-promptugui-csharp`（`Text`/`BindText`/`OnLinkClicked`/`Style`/`UI.Markdown.*`）、新增 mini-skill `using-promptugui-markdown`（Markdig 安装 + 符号，镜像 `using-promptugui-addressables`）
+10. SKILL：`authoring-promptugui-xml`（目录行 + 新增 `reference/controls-markdown.md`）、`scripting-promptugui-csharp`（`Text`/`BindText`/`OnLinkClicked`/`Style`/`UI.Markdown.*`）；Markdig 安装 + `PROMPTUGUI_HAS_MARKDIG` 符号说明并入 `reference/controls-markdown.md` 的 Setup 小节（Markdown 只是控件，不单开顶层 skill）
 11. 主 spec `2026-05-07-promptugui-description-language-design.md` §5（控件表）追加一行
 12. XSD 生成器随新 `[UIAttr]` 手动 regenerate + substring 断言
 
@@ -431,16 +431,17 @@ async Awaitable LoadImageAsync(int gen, ImageRequest req)
 ### 13.2 `authoring-promptugui-xml/SKILL.md`
 
 1. Built-in primitives 表追加 `<Markdown>` 行（attrs 见 §5）。
-2. 主文档加 stub 指针 → 新增 `reference/controls-markdown.md`：动态/静态/CDATA 用例、属性、支持的 markdown 子集与有损项（HTML 剥离、行内图、无语法高亮）、lint code、"内容来自 text、子元素被忽略"、"软依赖 Markdig，见 using-promptugui-markdown skill"。
+2. 主文档加 stub 指针 → 新增 `reference/controls-markdown.md`：动态/静态/CDATA 用例、属性、支持的 markdown 子集与有损项（HTML 剥离、行内图、无语法高亮）、lint code、"内容来自 text、子元素被忽略"，**以及 Markdig 安装 + `PROMPTUGUI_HAS_MARKDIG` 符号门控的 "Setup" 小节**（直接并入本 reference，不单开 skill）。
 
 ### 13.3 `scripting-promptugui-csharp/SKILL.md`
 
 - 新增 `Markdown` 段：`Text` get/set（动态灌入主路径）、`BindText`、`OnLinkClicked`、`Style`、逐控件 `ImageResolver`；`UI.Markdown.DefaultStyle` / `UseWebImageResolver` / 全局 `ImageResolver`。
 - 一句：`text` 是运行期内容，set 后 resize/Variant/Theme 不打回（同 `<Text>` 的 DefaultText 锁）。
 
-### 13.4 新增 mini-skill `using-promptugui-markdown/SKILL.md`（镜像 `using-promptugui-addressables`）
+### 13.4 Markdig 安装 / 符号 → 并入 `reference/controls-markdown.md` 的 "Setup" 小节（不单开 skill）
 
-- 装 Markdig（NuGetForUnity / 手放 DLL）；editor 自动定义 `PROMPTUGUI_HAS_MARKDIG`（或手动配）；门控 asmdef 自动点亮 `MarkdigRenderer`；未装时 `<Markdown>` 原文降级。
+- 装 Markdig（NuGetForUnity / 手放 DLL；宿主用签名变体 `Markdig.Signed`）；editor `MarkdigDetector` 自动定义 `PROMPTUGUI_HAS_MARKDIG`（或手动配）；门控 asmdef 自动点亮 `MarkdigRenderer`；未装时 `<Markdown>` 原文降级。
+- **不像 Addressables 那样单开顶层 skill**：Markdown 只是一个控件，安装/符号说明作为它 reference 文档的一个小节即可（避免 skill 目录膨胀）。
 
 ### 13.5 XSD
 

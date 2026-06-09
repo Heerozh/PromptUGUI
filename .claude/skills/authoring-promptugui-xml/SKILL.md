@@ -996,7 +996,7 @@ PromptUGUI never auto-enables masking — you must opt in via `mask=`. Two reaso
 
 ## Markdown
 
-`<Markdown>` Markdown document → scrollable subtree (headings/paragraphs/lists/blockquote/code/table/HR/image/links). Primary use case is dynamic load: leave the element empty in XML and set content from C# (`md.Text = …` / `md.BindText(stream)`). Static documents can be inlined via CDATA. Soft-depends on Markdig (`PROMPTUGUI_HAS_MARKDIG`); without it the raw text is shown as plain `<Text>`. **For dynamic/static usage patterns, attribute table, supported Markdown subset, block→control mapping, lossy notes, and lint rules, see [`reference/controls-markdown.md`](reference/controls-markdown.md). For installing Markdig and the PROMPTUGUI_HAS_MARKDIG gate, see the `using-promptugui-markdown` skill.**
+`<Markdown>` Markdown document → scrollable subtree (headings/paragraphs/lists/blockquote/code/table/HR/image/links). Primary use case is dynamic load: leave the element empty in XML and set content from C# (`md.Text = …` / `md.BindText(stream)`). Static documents can be inlined via CDATA. Soft-depends on Markdig (`PROMPTUGUI_HAS_MARKDIG`); without it the raw text is shown as plain `<Text>`. **For dynamic/static usage patterns, attribute table, supported Markdown subset, block→control mapping, lossy notes, lint rules, and Markdig install + the PROMPTUGUI_HAS_MARKDIG gate, see [`reference/controls-markdown.md`](reference/controls-markdown.md).**
 
 Quick example:
 

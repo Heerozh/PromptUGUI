@@ -4,7 +4,7 @@
 
 `<Markdown>` parses a Markdown string and renders it block-by-block into a built-in vertical `ScrollRect`, reusing the existing `Text` / `RawImage` / `VStack` / `HStack` / `Frame` / `Grid` primitives. The parsed blocks are stacked vertically; the control's own `ScrollRect` lets the document scroll when it exceeds the available height.
 
-Requires Markdig — see the [`using-promptugui-markdown`](../../using-promptugui-markdown/SKILL.md) skill. Without Markdig the control shows the raw Markdown text as a plain `<Text>`.
+Requires Markdig (a soft dependency gated by the `PROMPTUGUI_HAS_MARKDIG` compile symbol) — see [Setup — installing Markdig](#setup--installing-markdig) at the end of this doc. Without Markdig the control shows the raw Markdown text as a plain `<Text>`.
 
 ---
 
@@ -178,12 +178,44 @@ Content comes from `text=`; child XML elements are silently ignored at runtime (
 
 ---
 
-## Requires Markdig
+## Setup — installing Markdig
 
-Rendering requires the Markdig package, which is a soft dependency gated by the `PROMPTUGUI_HAS_MARKDIG` compile symbol. Without Markdig:
+Rendering requires the **Markdig** package — a soft dependency gated by the `PROMPTUGUI_HAS_MARKDIG` compile symbol. The `<Markdown>` control class is always compiled and the XML tag is always valid; Markdig is only needed for actual rendering. **Without it**, `<Markdown>` shows the raw Markdown source as a single plain `<Text wrap>` node and emits a one-time `Debug.LogWarning`.
 
-- `<Markdown>` is still a valid XML tag (the control class is always compiled).
-- The raw Markdown source string is displayed as a single plain `<Text wrap>` node.
-- A one-time `Debug.LogWarning` is emitted pointing to the install instructions.
+### Why a separate install step?
 
-See the [`using-promptugui-markdown`](../../using-promptugui-markdown/SKILL.md) skill for installation and the editor auto-detector.
+Markdig is not a UPM package, so it can't be declared in `Packages/manifest.json` and Unity's `versionDefines` can't auto-detect it. Instead: you add the Markdig DLL, and the editor auto-detector (`PromptUGUI.Editor.MarkdigDetector`) finds it in the loaded `AppDomain` and sets `PROMPTUGUI_HAS_MARKDIG`, which gates the `PromptUGUI.Markdown` asmdef that compiles `MarkdigRenderer` and auto-registers it with `UI.Markdown.Renderer`. Fully automatic once Markdig is in the project — no manual symbol editing required.
+
+### Install
+
+**Option A — NuGetForUnity (recommended):** Unity → **NuGet → Manage NuGet Packages → search "Markdig" → Install**.
+
+- This project references **Markdig.Signed** (the signed NuGet package). Install **Markdig.Signed** to match; the namespace is `Markdig` either way, so the C# is identical.
+- If you install the **unsigned Markdig** (DLL `Markdig.dll`), change `Runtime/MarkdigBackend/PromptUGUI.Markdown.asmdef`'s `precompiledReferences` from `["Markdig.Signed.dll"]` to `["Markdig.dll"]` — the asmdef ships referencing the signed DLL and won't compile against the unsigned one otherwise.
+
+**Option B — manual DLL:** drop `Markdig.Signed.dll` (netstandard2.0 target) anywhere under `Assets/` (e.g. `Assets/Plugins/`). The auto-detector picks it up on the next domain reload. (Unsigned `Markdig.dll` → edit the asmdef as above.)
+
+**Manual symbol (CI fallback):** if the auto-detector doesn't fire (unusual CI environment), define `PROMPTUGUI_HAS_MARKDIG` in **Project Settings → Player → Scripting Define Symbols** for each build target where Markdig is present.
+
+### The auto-detector
+
+`PromptUGUI.Editor.MarkdigDetector` — an `[InitializeOnLoad]` class with a static constructor — runs on every Editor domain reload, scans `AppDomain.CurrentDomain.GetAssemblies()` for an assembly named `Markdig` or `Markdig.Signed`, and adds/removes `PROMPTUGUI_HAS_MARKDIG` for the active build target accordingly (each change triggers a recompile). Installing or removing Markdig is picked up automatically.
+
+### What the symbol lights up
+
+| Component | Location | Behavior |
+|---|---|---|
+| `MarkdigRenderer` | `Runtime/MarkdigBackend/` (gated asmdef) | Walks Markdig AST → `ElementNode` IR subtree + `ImageRequest[]`. Registered with `UI.Markdown.Renderer` at domain load and after each `UI.ResetForTests()` (via `MarkdigBootstrap` + `UI.OnReset`). |
+| `PromptUGUI.Markdown` asmdef | `Runtime/MarkdigBackend/PromptUGUI.Markdown.asmdef` | `defineConstraints: ["PROMPTUGUI_HAS_MARKDIG"]`, `precompiledReferences: ["Markdig.Signed.dll"]` (change to `"Markdig.dll"` for the unsigned variant), references `PromptUGUI.Runtime`. Compiled only when the symbol is defined. |
+| `PromptUGUI.Tests.EditMode.Markdown` asmdef | `Tests/EditMode/Markdown/` | Same `defineConstraints`; renderer tree-shape + control integration tests. |
+
+### IL2CPP / managed stripping
+
+Markdig is pure managed code (no unsafe blocks, no P/Invoke); IL2CPP compiles it normally. If managed stripping (Medium/High) removes it and `<Markdown>` falls back to plain text in an IL2CPP build (the warning fires because `UI.Markdown.Renderer` is null), add a `link.xml` anywhere under `Assets/`:
+
+```xml
+<linker>
+  <assembly fullname="Markdig" preserve="all"/>
+  <assembly fullname="Markdig.Signed" preserve="all"/>
+</linker>
+```
