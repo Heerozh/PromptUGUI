@@ -1,6 +1,9 @@
 using NUnit.Framework;
 using PromptUGUI;
 using PromptUGUI.Application;
+using PromptUGUI.Controls;
+using UnityEngine;
+using UnityEngine.UI;
 
 namespace PromptUGUI.Tests.EditMode.Controls
 {
@@ -51,6 +54,34 @@ namespace PromptUGUI.Tests.EditMode.Controls
         private sealed class StubRenderer : IMarkdownRenderer
         {
             public MarkdownRenderResult Render(string markdown, MarkdownStyle style) => new();
+        }
+    }
+
+    public class MarkdownControlScaffoldTests
+    {
+        [SetUp] public void SetUp() => UI.ResetForTests();
+        [TearDown] public void TearDown() => UI.ResetForTests();
+
+        private const string Xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'><Markdown id='md' anchor='stretch'/></Screen></PromptUGUI>";
+
+        [Test]
+        public void Markdown_tag_is_registered()
+        {
+            Assert.IsTrue(UI.Registry.Has("Markdown"));
+        }
+
+        [Test]
+        public void Markdown_builds_scrollrect_with_viewport()
+        {
+            UI.LoadDocument("t", Xml);
+            var screen = UI.Open("S");
+            var md = screen.Get<Markdown>("md");
+            var scroll = md.GameObject.GetComponent<ScrollRect>();
+            Assert.IsNotNull(scroll);
+            Assert.IsFalse(scroll.horizontal);
+            Assert.IsTrue(scroll.vertical);
+            Assert.IsNotNull(md.GameObject.transform.Find("Viewport"));
         }
     }
 }
