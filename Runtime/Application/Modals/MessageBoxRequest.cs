@@ -72,7 +72,8 @@ namespace PromptUGUI.Application.Modals
         public static UnityEngine.Awaitable<MsgBtn> Open(
             string text, MsgBtn buttons = MsgBtn.OK, string icon = null, string title = null,
             ModalMode mode = ModalMode.Popup,
-            System.Action<IScreen> configure = null)
+            System.Action<IScreen> configure = null,
+            System.Threading.CancellationToken ct = default)
             => UI.Modal.OpenAsync(new MessageBoxRequest
             {
                 Text = text,
@@ -80,14 +81,15 @@ namespace PromptUGUI.Application.Modals
                 Icon = icon,
                 Title = title,
                 Configure = configure,
-            }, mode);
+            }, mode, ct);
 
         public static UnityEngine.Awaitable<MsgBtn> Open(
             string text,
             System.Collections.Generic.IEnumerable<(string label, MsgBtn key)> buttons,
             string icon = null, string title = null,
             ModalMode mode = ModalMode.Popup,
-            System.Action<IScreen> configure = null)
+            System.Action<IScreen> configure = null,
+            System.Threading.CancellationToken ct = default)
         {
             var list = new System.Collections.Generic.List<(string, MsgBtn)>(buttons);
             var mask = MsgBtn.None;
@@ -100,7 +102,7 @@ namespace PromptUGUI.Application.Modals
                 Icon = icon,
                 Title = title,
                 Configure = configure,
-            }, mode);
+            }, mode, ct);
         }
     }
 }

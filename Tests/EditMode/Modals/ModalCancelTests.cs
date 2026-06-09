@@ -55,5 +55,19 @@ namespace PromptUGUI.Tests.Modals
 
             Assert.Throws<OperationCanceledException>(() => t1.GetAwaiter().GetResult());
         }
+
+        [Test]
+        public void OpenAsync_CancellationToken_CancelsAndClosesModal()
+        {
+            var cts = new System.Threading.CancellationTokenSource();
+            var box = MessageBox.Open("hi", MsgBtn.OK, ct: cts.Token);
+            Assert.IsTrue(UI.Modal.IsAnyOpen);
+
+            cts.Cancel();
+
+            Assert.IsFalse(UI.Modal.IsAnyOpen);
+            Assert.Throws<System.OperationCanceledException>(() => box.GetAwaiter().GetResult());
+            cts.Dispose();
+        }
     }
 }
