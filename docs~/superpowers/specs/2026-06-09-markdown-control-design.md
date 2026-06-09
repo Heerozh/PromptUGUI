@@ -61,7 +61,7 @@ screen.Get<Markdown>("patchNotes").Text = await Http.GetString(patchNotesUrl);
 | MD-D15 | 链接 | `<link="url">` + 颜色 + 下划线；点击命中（`TMP_TextUtilities.FindIntersectingLink`）→ `OnLinkClicked: Observable<string>`；默认**不**自动开 URL | 内部锚点 vs 外链路由交给业务；不替用户决定 |
 | MD-D16 | 行内图 | 单独成段的 `![]()` → 块级 `<RawImage>`（无损）；夹在文字中间的行内图：url 命中已知 TMP sprite name → `<sprite name=..>`（复用 `generateTmpSpriteAsset`），否则**丢弃 + 警告**（有损） | TMP 单 mesh 放不下任意 web 纹理；行内图在文档里罕见，可控有损 |
 | MD-D17 | HTML | 不支持：HtmlBlock / HtmlInline 剥标签，只保留其纯文本 | 用户明确不需要；纯 uGUI 渲染 HTML 不现实 |
-| MD-D18 | 表格 | GFM 表格 → `<Grid>`（需 Markdig `.UsePipeTables()`）；表头行加粗；列数 = 表头列数 | 纳入首版；Grid 现成 |
+| MD-D18 | 表格 | GFM 表格 → `<VStack>`（每行一个 `<HStack>`，每格 `<Text width="stretch" wrap>` 等分列宽）；表头行加粗；列数 = 各行最大格数 | 纳入首版；等分 `stretch` 列比 `GridLayoutGroup` 定长 cell 更适合变宽文本（自动行高、填满宽度、可换行）；无单元格边框线（v1 有损）；解析需 `.UseAdvancedExtensions()`（含 PipeTables + TaskLists + 删除线）|
 | MD-D19 | 任务列表 | `[x]`/`[ ]` → 列表项符号换成勾选字形 `☑`/`☐`（非交互） | 纳入首版；首版不做活 Toggle（渲染文档无需勾选交互） |
 | MD-D20 | 样式 | `MarkdownStyle`（纯 C# POCO）+ `UI.Markdown.DefaultStyle` 全局 + 控件 `Style` 覆盖；少量常用项开成 XML 属性 | 字体走 `FontApplier`、颜色走 `UI.Theme.Resolve`；完整控制走 C# |
 | MD-D21 | 重渲生命周期 | `Text` set / `BindText` 推值 → Dispose 旧渲染根 + 重新 `InstantiateNode`；动态子节点不在 `Screen._nodeMap`，控件 `Dispose` 时显式释放（同 Carousel/ScrollList） | 简单正确；变 Variant 不重建（内容锁 MD-D9），只有内容真变才重渲 |
@@ -309,7 +309,7 @@ Markdown (root RectTransform + ScrollRect[vertical only])
 | 围栏代码块 ``` | `<Frame color=CodeBackground>` + `<Text font=CodeFont wrap=false>` | 语言标记首版忽略（无语法高亮）|
 | 分割线 `---` | `<Image height=HrThickness color=HrColor anchor=top-stretch>` | |
 | 块级图 `![alt](url)` | `<RawImage type="contain">` + 生成 id → `ImageRequest` | 纹理 async 设入（§8）|
-| GFM 表格 | `<Grid>`（列数=表头列）；表头行 `<Text><b>`，其余 `<Text>` | MD-D18 |
+| GFM 表格 | `<VStack>` → 每行 `<HStack>` → 每格 `<Text width="stretch" wrap>`；表头行加粗 | MD-D18；等分列、无边框线 |
 | HtmlBlock | 当纯文本（剥标签）/ 丢弃 | MD-D17 |
 
 ### 7.2 行内映射（编成一个 TMP 富文本串，MD-D13）
