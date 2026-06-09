@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using PromptUGUI;
+using PromptUGUI.Application;
 
 namespace PromptUGUI.Tests.EditMode.Controls
 {
@@ -21,6 +22,35 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var b = a.Clone();
             b.HeadingSizes[0] = 999f;
             Assert.AreNotEqual(999f, a.HeadingSizes[0]);
+        }
+    }
+
+    public class UIMarkdownFacadeTests
+    {
+        [SetUp] public void SetUp() => UI.ResetForTests();
+        [TearDown] public void TearDown() => UI.ResetForTests();
+
+        [Test]
+        public void DefaultStyle_is_non_null_after_reset()
+        {
+            UI.Markdown.DefaultStyle = null;     // dirty it, then reset must restore a default
+            UI.ResetForTests();
+            Assert.IsNotNull(UI.Markdown.DefaultStyle);
+        }
+
+        [Test]
+        public void Reset_clears_ImageResolver_and_Renderer()
+        {
+            UI.Markdown.ImageResolver = _ => null;
+            UI.Markdown.Renderer = new StubRenderer();   // non-null so reset->null is observable
+            UI.ResetForTests();
+            Assert.IsNull(UI.Markdown.ImageResolver);
+            Assert.IsNull(UI.Markdown.Renderer);
+        }
+
+        private sealed class StubRenderer : IMarkdownRenderer
+        {
+            public MarkdownRenderResult Render(string markdown, MarkdownStyle style) => new();
         }
     }
 }

@@ -1000,7 +1000,7 @@ namespace PromptUGUI.Application
         // ResetForTests 末尾触发；let helpers (e.g. AddressableSpriteResolverHelper)
         // 释放 Addressables 句柄等外部资源。订阅者必须在 ResetForTests 自身把状态
         // 清空之后再跑，所以 Invoke 放在方法尾部。
-        internal static event System.Action OnReset;
+        public static event System.Action OnReset;
 
         // 仅测试使用
         internal static void ResetForTests()
@@ -1008,6 +1008,7 @@ namespace PromptUGUI.Application
             Locale.ResetForTestsInternal();
             Orientation.ResetForTestsInternal();
             Theme.ResetForTestsInternal();
+            Markdown.ResetForTestsInternal();
             TranslationStore.Instance.UnloadAll();
             Modal.CancelAllForTeardown();
             Modals.LoadingOverlay.CancelAllForTeardown();
