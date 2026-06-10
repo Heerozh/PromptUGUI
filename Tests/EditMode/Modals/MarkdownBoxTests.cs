@@ -163,5 +163,16 @@ namespace PromptUGUI.Tests.Modals
             Assert.AreEqual("# T", Md().Text);
             Assert.IsFalse(UI.Modal.TopScreen.Get<PText>("title").GameObject.activeSelf);
         }
+
+        // 默认链接行为 = UI.Markdown.HandleLink(spec 2026-06-10-markdown-box-loader §5)
+        [Test]
+        public void Default_link_handler_routes_through_HandleLink()
+        {
+            var opened = new List<string>();
+            UI.Markdown.OpenUrlHookForTests = url => opened.Add(url);
+            UI.Modal.OpenAsync(new MarkdownBoxRequest { Text = "x" });
+            Md().RaiseLinkClickedForTests("https://x");
+            CollectionAssert.AreEqual(new[] { "https://x" }, opened);
+        }
     }
 }

@@ -7,7 +7,7 @@ namespace PromptUGUI.Application.Modals
     {
         public string Text;                       // markdown 源文
         public string Title;                      // null/空 → 隐藏标题行
-        public Action<string> OnLinkClicked;      // null → 默认 Application.OpenURL
+        public Action<string> OnLinkClicked;      // null → 默认 UI.Markdown.HandleLink
 
         public override string XmlSrc => MarkdownBox.XmlSrc;
 
@@ -20,12 +20,12 @@ namespace PromptUGUI.Application.Modals
             var md = screen.Get<PromptUGUI.Controls.Markdown>("markdown");
             md.Text = Text ?? "";
             // C#9:lambda 无自然委托类型,不能写 `OnLinkClicked ?? (url => ...)`,
-            // 在订阅内分支即可。传了 OnLinkClicked 则完全接管,不叠加默认 OpenURL。
+            // 在订阅内分支即可。传了 OnLinkClicked 则完全接管,不叠加默认分发。
             var onLink = OnLinkClicked;
             md.OnLinkClicked.Subscribe(url =>
             {
                 if (onLink != null) onLink(url);
-                else UnityEngine.Application.OpenURL(url);
+                else UI.Markdown.HandleLink(url);
             }).AddTo(screen);
 
             screen.Get<PromptUGUI.Controls.Btn>("close")
