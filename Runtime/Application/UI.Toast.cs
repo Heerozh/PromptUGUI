@@ -29,9 +29,11 @@ namespace PromptUGUI.Application
             public static float HoldMax { get; set; } = 5.0f;
 
             // canonical：preset / Vector2(隐式) / ToastPosition.At(...)
+            // color：色值 token（"red" / "#ff0000" / 主题色 / "red/0.5" alpha 后缀），null=保留模板默认色。
+            // 它是 configure 之前应用的语法糖 → configure 仍能最后覆盖整条文字色。
             public static void Show(string text, ToastPosition position = default,
                 ToastStackMode mode = ToastStackMode.Default, float holdSeconds = 0f,
-                Action<IScreen> configure = null)
+                Action<IScreen> configure = null, string color = null)
             {
                 if (position.IsUnspecified) position = DefaultPosition;
                 if (mode == ToastStackMode.Default)
@@ -45,20 +47,21 @@ namespace PromptUGUI.Application
                     Mode = mode,
                     Hold = hold,
                     Configure = configure,
+                    Color = color,
                 });
             }
 
             // 控件路径字符串（"<screenName>/<idPath>"）
             public static void Show(string text, string controlPath,
                 ToastStackMode mode = ToastStackMode.Default, float holdSeconds = 0f,
-                Action<IScreen> configure = null)
-                => Show(text, ToastPosition.At(controlPath), mode, holdSeconds, configure);
+                Action<IScreen> configure = null, string color = null)
+                => Show(text, ToastPosition.At(controlPath), mode, holdSeconds, configure, color);
 
             // 控件引用（专用重载，因 IControl 不能隐式转 ToastPosition — CS0552）
             public static void Show(string text, IControl control,
                 ToastStackMode mode = ToastStackMode.Default, float holdSeconds = 0f,
-                Action<IScreen> configure = null)
-                => Show(text, ToastPosition.At(control), mode, holdSeconds, configure);
+                Action<IScreen> configure = null, string color = null)
+                => Show(text, ToastPosition.At(control), mode, holdSeconds, configure, color);
         }
     }
 }
