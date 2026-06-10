@@ -1,3 +1,4 @@
+using System.Reflection;
 using NUnit.Framework;
 using PromptUGUI.Controls.Internal;
 using TMPro;
@@ -77,6 +78,55 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(0f, bare.preferredWidth);
             Assert.AreEqual(0f, bare.preferredHeight);
             Object.DestroyImmediate(bare.gameObject);
+        }
+
+        // TMP の maxWidth/maxHeight は protected フィールド m_maxWidth/m_maxHeight で管理され、
+        // public setter がない。リフレクションで直接書いて番兵値を注入する。
+        private static void SetTmpMaxWidth(TMP_Text tmp, float value)
+        {
+            var fi = typeof(TMP_Text).GetField("m_maxWidth", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(fi, "TMP_Text.m_maxWidth field not found — API may have changed");
+            fi.SetValue(tmp, value);
+        }
+
+        private static void SetTmpMaxHeight(TMP_Text tmp, float value)
+        {
+            var fi = typeof(TMP_Text).GetField("m_maxHeight", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(fi, "TMP_Text.m_maxHeight field not found — API may have changed");
+            fi.SetValue(tmp, value);
+        }
+
+        [Test]
+        public void Default_negative_max_sentinel_passes_through_unscaled()
+        {
+            _inner.localScale = new Vector3(0.5f, 0.5f, 1f);
+            // TMP の maxWidth/maxHeight デフォルトは 0（no setter）。
+            // 番兵として負値を注入し、乗算されずそのまま透過されることを確認する。
+            SetTmpMaxWidth(_tmp, -1f);
+            SetTmpMaxHeight(_tmp, -1f);
+            Assert.AreEqual(-1f, _bridge.maxWidth, 1e-6f);
+            Assert.AreEqual(-1f, _bridge.maxHeight, 1e-6f);
+        }
+
+        [Test]
+        public void Positive_max_scales_like_preferred()
+        {
+            _inner.localScale = new Vector3(0.5f, 0.5f, 1f);
+            // TMP の maxWidth/maxHeight に setter がないためリフレクションで設定する。
+            SetTmpMaxWidth(_tmp, 300f);
+            SetTmpMaxHeight(_tmp, 80f);
+            Assert.AreEqual(150f, _bridge.maxWidth, 1e-3f);
+            Assert.AreEqual(40f, _bridge.maxHeight, 1e-3f);
+        }
+
+        [Test]
+        public void Destroyed_tmp_reports_fallbacks_not_throw()
+        {
+            Object.DestroyImmediate(_tmp.gameObject);   // Unity fake-null 路径（BindItems 拆卡时实际会发生）
+            Assert.AreEqual(0f, _bridge.preferredWidth);
+            Assert.AreEqual(0f, _bridge.minHeight);
+            Assert.AreEqual(-1f, _bridge.flexibleWidth);
+            Assert.AreEqual(-1f, _bridge.maxWidth);
         }
     }
 }

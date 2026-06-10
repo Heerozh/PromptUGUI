@@ -26,16 +26,18 @@ namespace PromptUGUI.Controls.Internal
             _inner = inner;
         }
 
+        // scale 是 uniform（Screen 只写 (v,v,1)），读 .x 代表两轴均正确。
         private float S => _inner != null ? _inner.localScale.x : 1f;
 
         public float minWidth => _tmp != null ? _tmp.minWidth * S : 0f;
         public float preferredWidth => _tmp != null ? _tmp.preferredWidth * S : 0f;
         public float flexibleWidth => _tmp != null ? _tmp.flexibleWidth : -1f;
-        public float maxWidth => _tmp != null ? _tmp.maxWidth * S : -1f;
+        // max 的"无上限"哨兵是负数——不能乘 S（-1×0.5=-0.5；S→0 时更会翻成"硬上限 0"）。
+        public float maxWidth { get { if (_tmp == null) return -1f; var m = _tmp.maxWidth; return m < 0f ? m : m * S; } }
         public float minHeight => _tmp != null ? _tmp.minHeight * S : 0f;
         public float preferredHeight => _tmp != null ? _tmp.preferredHeight * S : 0f;
         public float flexibleHeight => _tmp != null ? _tmp.flexibleHeight : -1f;
-        public float maxHeight => _tmp != null ? _tmp.maxHeight * S : -1f;
+        public float maxHeight { get { if (_tmp == null) return -1f; var m = _tmp.maxHeight; return m < 0f ? m : m * S; } }
         public int layoutPriority => 0;
 
         public void CalculateLayoutInputHorizontal() { }
@@ -60,6 +62,8 @@ namespace PromptUGUI.Controls.Internal
             MarkParentForRebuild();
         }
 
+        // wrapper 自身没有 ILayoutGroup，LayoutRebuilder.MarkLayoutForRebuild 会向上
+        // walk 直到找到真正的 LayoutGroup——所以标记 wrapper 本身即可传播到外层组。
         internal void MarkParentForRebuild()
         {
             LayoutRebuilder.MarkLayoutForRebuild((RectTransform)transform);
