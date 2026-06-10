@@ -151,5 +151,137 @@ namespace PromptUGUI.Tests.Application
             Assert.AreNotEqual(c.RectTransform, c.LayoutHost);
             Assert.AreEqual(0.5f, c.RectTransform.localScale.x, 1e-5f);
         }
+
+        [Test]
+        public void Inner_text_inflated_by_box_preserving_compensation()
+        {
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='auto' reference='1920x1080'>
+    <VStack anchor='top-stretch' height='200' margin='0,0,_,0'>
+      <Text id='t' width='stretch' wrap='true' scale='0.5'>hello</Text>
+    </VStack>
+  </Screen>
+</PromptUGUI>");
+            var rt = GetControl(screen, "t").RectTransform;
+            // stretch 基线 span 1 → /0.5 = 2，关于中心放宽 → [-0.5, 1.5]，两轴同。
+            Assert.AreEqual(0.5f, rt.localScale.x, 1e-6f);
+            Assert.AreEqual(-0.5f, rt.anchorMin.x, 1e-5f);
+            Assert.AreEqual(1.5f, rt.anchorMax.x, 1e-5f);
+            Assert.AreEqual(-0.5f, rt.anchorMin.y, 1e-5f);
+            Assert.AreEqual(1.5f, rt.anchorMax.y, 1e-5f);
+            Assert.AreEqual(0f, rt.sizeDelta.x, 1e-4f);
+            Assert.AreEqual(0f, rt.sizeDelta.y, 1e-4f);
+        }
+
+        [Test]
+        public void Hidden_attr_deactivates_wrapper()
+        {
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='auto' reference='1920x1080'>
+    <VStack anchor='top-stretch' height='200' margin='0,0,_,0'>
+      <Text id='t' width='stretch' scale='0.5' hidden='true'>hello</Text>
+    </VStack>
+  </Screen>
+</PromptUGUI>");
+            var c = GetControl(screen, "t");
+            Assert.IsFalse(c.LayoutHost.gameObject.activeSelf,
+                "hidden 必须作用在 wrapper，否则空 wrapper 仍占行高");
+            Assert.IsTrue(c.GameObject.activeSelf);
+        }
+
+        [Test]
+        public void Variant_flip_resets_and_reapplies_idempotently()
+        {
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='auto' reference='1920x1080'>
+    <VStack anchor='top-stretch' height='200' margin='0,0,_,0'>
+      <Text id='t' width='stretch' scale='0.5' scale.mobile=''>hello</Text>
+    </VStack>
+  </Screen>
+</PromptUGUI>");
+            var rt = GetControl(screen, "t").RectTransform;
+            Assert.AreEqual(0.5f, rt.localScale.x, 1e-6f);
+
+            UI.Variants.Set("mobile", true);   // scale 清空 → 恒等 + stretch 基线
+            Assert.AreEqual(1f, rt.localScale.x, 1e-6f);
+            Assert.AreEqual(0f, rt.anchorMin.x, 1e-5f);
+            Assert.AreEqual(1f, rt.anchorMax.x, 1e-5f);
+
+            UI.Variants.Set("mobile", false);  // 回到 0.5 + 膨胀
+            Assert.AreEqual(0.5f, rt.localScale.x, 1e-6f);
+            Assert.AreEqual(-0.5f, rt.anchorMin.x, 1e-5f);
+
+            // 显式双跑 ReSolve：补偿不得跨次累积（幂等）。
+            screen.ReSolve();
+            screen.ReSolve();
+            Assert.AreEqual(-0.5f, rt.anchorMin.x, 1e-5f);
+            Assert.AreEqual(1.5f, rt.anchorMax.x, 1e-5f);
+            Assert.AreEqual(0.5f, rt.localScale.x, 1e-6f);
+        }
+
+        [Test]
+        public void Relative_scale_in_wrapper_recomputes_with_factor()
+        {
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(5760f, 3240f); // factor 3
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>
+    <VStack anchor='top-stretch' height='200' margin='0,0,_,0'>
+      <Text id='t' width='stretch' wrap='true' scale='0.5r'>hello</Text>
+    </VStack>
+  </Screen>
+</PromptUGUI>");
+            var rt = GetControl(screen, "t").RectTransform;
+            // round(3×0.5)=2 → localScale 2/3；膨胀 span = 1/(2/3) = 1.5 → [-0.25, 1.25]。
+            Assert.AreEqual(2f / 3f, rt.localScale.x, 1e-5f);
+            Assert.AreEqual(-0.25f, rt.anchorMin.x, 1e-5f);
+            Assert.AreEqual(1.25f, rt.anchorMax.x, 1e-5f);
+
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(3840f, 2160f); // factor 2
+            screen.ReSolve();
+            // round(2×0.5)=1 → localScale 0.5 → [-0.5, 1.5]。
+            Assert.AreEqual(0.5f, rt.localScale.x, 1e-5f);
+            Assert.AreEqual(-0.5f, rt.anchorMin.x, 1e-5f);
+        }
+
+        [Test]
+        public void Text_with_scale_in_HStack_gets_wrapper()
+        {
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='auto' reference='1920x1080'>
+    <HStack anchor='top-stretch' height='40' margin='0,0,_,0'>
+      <Text id='t' scale='0.5'>hello</Text>
+    </HStack>
+  </Screen>
+</PromptUGUI>");
+            var c = GetControl(screen, "t");
+            Assert.AreNotEqual(c.RectTransform, c.LayoutHost,
+                "HorizontalOrVerticalLayoutGroup 条件须同时覆盖 HStack");
+        }
+
+        [Test]
+        public void Wrapper_keeps_sibling_order()
+        {
+            // [Frame, Text scale, Frame] —— wrapper 必须顶在 Text 原来的中间槽位
+            //（ApplyAddBlock 的 SetSiblingIndex 流程依赖这个不变量）。
+            var screen = OpenScreen(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='auto' reference='1920x1080'>
+    <VStack anchor='top-stretch' height='200' margin='0,0,_,0'>
+      <Frame id='a' height='10'/>
+      <Text id='t' width='stretch' scale='0.5'>hello</Text>
+      <Frame id='b' height='10'/>
+    </VStack>
+  </Screen>
+</PromptUGUI>");
+            var c = GetControl(screen, "t");
+            Assert.AreEqual(1, c.LayoutHost.GetSiblingIndex());
+            Assert.AreEqual(0, GetControl(screen, "a").RectTransform.GetSiblingIndex());
+            Assert.AreEqual(2, GetControl(screen, "b").RectTransform.GetSiblingIndex());
+        }
     }
 }

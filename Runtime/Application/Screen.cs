@@ -268,10 +268,20 @@ namespace PromptUGUI.Application
                 ApplyScaleToNode(kv.Key, kv.Value, dynamicBaseline: true);
         }
 
+        private void ApplyScaleToNode(ElementNode node, Control control, bool dynamicBaseline)
+        {
+            ApplyScaleToNodeCore(node, control, dynamicBaseline);
+            // STW-D7(2): wrapper 模式下 scale 变更（Variant / resize 重算 Nx、<r>r）后内层
+            // localScale 已变，但 TMP 文本没变 → TEXT_CHANGED 不会响——这里替它把父
+            // LayoutGroup 标脏，让 bridge 的 ×s 新值参与下一次布局 pass。
+            if (control._layoutHostForScaleDirty != null)
+                UnityEngine.UI.LayoutRebuilder.MarkLayoutForRebuild(control._layoutHostForScaleDirty);
+        }
+
         // dynamicBaseline: 静态节点（_nodeMap）靠 ReSolve 的 ApplyCommon 把 RectTransform
         // 重置到 margin-resolved 基线，box-preserving 补偿才幂等；动态子树节点属性只在
         // 实例化时 Apply 一次，没有这个重置——首次应用前捕获基线，之后每次先还原。
-        private void ApplyScaleToNode(ElementNode node, Control control, bool dynamicBaseline)
+        private void ApplyScaleToNodeCore(ElementNode node, Control control, bool dynamicBaseline)
         {
             var declaredBase = node.Attributes.ContainsKey("scale");
             var declaredVariant = node.VariantOverrides.ContainsKey("scale");

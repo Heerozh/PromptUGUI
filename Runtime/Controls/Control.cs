@@ -31,6 +31,9 @@ namespace PromptUGUI.Controls
         internal GameObject HostGameObject
             => _layoutHost != null ? _layoutHost.gameObject : GameObject;
 
+        /// <summary>wrapper 存在时返回它（scale 变更脏标用），否则 null。仅 Screen 读。</summary>
+        internal RectTransform _layoutHostForScaleDirty => _layoutHost;
+
         /// <summary>
         /// Whether this control's <see cref="UnityEngine.UI.Graphic"/> participates in a parent
         /// Btn / Tab / Toggle's state-driven <c>*Modulate</c> tint fan-out. Set

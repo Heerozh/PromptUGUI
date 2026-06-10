@@ -509,7 +509,7 @@ namespace PromptUGUI.Parser
                 if (node.VariantOverrides.TryGetValue("scale", out var psVariants))
                 {
                     foreach (var (variant, value) in psVariants)
-                        ValidateScale(value, $"{nodeContext} scale.{variant}");
+                        ValidateScale(value, $"{nodeContext} scale.{variant}", isVariantOverride: true);
                 }
             }
 
@@ -525,7 +525,7 @@ namespace PromptUGUI.Parser
                 $"{contextLabel}: invalid value '{raw}' (expected 'auto' or 'pixel')");
         }
 
-        private static void ValidateScale(string raw, string contextLabel)
+        private static void ValidateScale(string raw, string contextLabel, bool isVariantOverride = false)
         {
             // scale="N" sets RectTransform.localScale = N (relative to layout box; works in
             // any scale-mode). Must be a positive float. N=1 is the no-op identity.
@@ -536,11 +536,15 @@ namespace PromptUGUI.Parser
             // round(canvasFactor × r) / canvasFactor at runtime — scales with the factor but the
             // net physical-px/unit snaps to the nearest integer, keeping pixel alignment while
             // still responding to window size. See 2026-06-01-scale-canvas-relative-snap-design.md.
+            // scale.variant="" (empty, variant override only) means "clear / restore identity".
             if (string.IsNullOrEmpty(raw))
+            {
+                if (isVariantOverride) return;   // empty variant override → identity at runtime
                 throw new ParseException(
                     $"{contextLabel}: value cannot be empty " +
                     $"(expected a positive number like '0.5', a device-density like '2x', " +
                     $"or a canvas-relative scale like '0.5r')");
+            }
 
             if (raw.Length >= 2 && raw[raw.Length - 1] == 'x')
             {
