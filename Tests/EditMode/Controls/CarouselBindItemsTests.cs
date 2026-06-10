@@ -68,6 +68,26 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void ReSolve_After_BindItems_Replaced_Static_Cards_Does_Not_Throw()
+        {
+            // 静态 XML 卡被 BindItems 重建销毁后，其 ElementNode 仍留在 Screen._nodeMap；
+            // resize / Variant / Theme 触发的 ReSolve 不得对已销毁的 RectTransform 重新 Apply。
+            var xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Carousel id='car' size='200x100'><Frame id='banner0'/><Frame id='banner1'/></Carousel>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var car = screen.Get<Carousel>("car");
+            using var sub = car.BindItems(
+                Observable.Return<IReadOnlyList<string>>(new[] { "a" }),
+                (IControl card, string s) => { });
+
+            Assert.DoesNotThrow(() => screen.ReSolve());
+            Assert.AreEqual(1, car.Count, "dynamic cards survive the ReSolve");
+        }
+
+        [Test]
         public void BindItems_Rebuild_That_Clamps_Current_Fires_OnCurrentChanged()
         {
             var car = Open("<Carousel id='car' size='200x100'><Image/><Image/><Image/></Carousel>");

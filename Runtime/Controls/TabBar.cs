@@ -31,6 +31,10 @@ namespace PromptUGUI.Controls
         // both on dynamic Rebuild and on static OnAfterApply so reapply replaces them.
         private CompositeDisposable _tabSubs;
 
+        // BindItems 接管卡片来源后置位：之后 ReSolve 触发的 CollectStaticTabs 不得把
+        // 已 Dispose 的静态 Tab 收回 _tabs（镜像 CarouselView._bound）。
+        private bool _bound;
+
         public override void OnAttached()
         {
             _group = GameObject.AddComponent<ToggleGroup>();
@@ -129,6 +133,7 @@ namespace PromptUGUI.Controls
 
         private void ClearTabs()
         {
+            _bound = true;
             _tabSubs?.Dispose();
             _tabSubs = null;
             foreach (var t in _tabs) t.Dispose();
@@ -216,6 +221,7 @@ namespace PromptUGUI.Controls
 
         private void CollectStaticTabs()
         {
+            if (_bound) return;
             _tabs.Clear();
             foreach (var child in Children)
             {
