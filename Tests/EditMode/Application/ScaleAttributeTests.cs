@@ -90,6 +90,9 @@ namespace PromptUGUI.Tests.Application
 </PromptUGUI>";
             var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
             StringAssert.Contains("scale", ex.Message);
+            // Confirm that the rejection is specifically about the empty value, not some
+            // other validation path (e.g. negative / non-numeric) that also mentions "scale".
+            StringAssert.Contains("empty", ex.Message);
         }
 
         [Test]

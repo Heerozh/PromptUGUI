@@ -272,8 +272,9 @@ namespace PromptUGUI.Application
         {
             ApplyScaleToNodeCore(node, control, dynamicBaseline);
             // STW-D7(2): wrapper 模式下 scale 变更（Variant / resize 重算 Nx、<r>r）后内层
-            // localScale 已变，但 TMP 文本没变 → TEXT_CHANGED 不会响——这里替它把父
-            // LayoutGroup 标脏，让 bridge 的 ×s 新值参与下一次布局 pass。
+            // localScale 已变，但 TMP 文本没变 → TEXT_CHANGED 不会响——这里替它标脏
+            // wrapper（_layoutHostForScaleDirty），LayoutRebuilder 自动上溯到外层 LayoutGroup，
+            // 让 bridge 的 ×s 新值参与下一次布局 pass。
             if (control._layoutHostForScaleDirty != null)
                 UnityEngine.UI.LayoutRebuilder.MarkLayoutForRebuild(control._layoutHostForScaleDirty);
         }
