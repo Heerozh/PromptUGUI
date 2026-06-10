@@ -13,7 +13,8 @@ namespace PromptUGUI.Application.Modals
         /// <see cref="IScreen"/>. Lets callers reach any control (disable the OK <c>Btn</c>, wire
         /// field validation, restyle, …) without subclassing. Runs after Bind so it overrides
         /// builtin wiring rather than being overwritten by it. The builtin <c>MessageBox.Open</c> /
-        /// <c>InputBox.Open</c> helpers expose it as a <c>configure</c> parameter.
+        /// <c>InputBox.Open</c> / <c>MarkdownBox.Open</c> / <c>Loading.Open</c> helpers expose it as
+        /// a <c>configure</c> parameter.
         /// </summary>
         public Action<IScreen> Configure;
 

@@ -568,6 +568,7 @@ MODAL          var r = await MessageBox.Open(text, MsgBtn.OK|MsgBtn.Cancel, icon
                               else: InvalidKeyException / "Modal screen 'X' not loaded; call LoadDocument first"
                               (do NOT call LoadDocument manually — auto via ModalDocCache.EnsureLoaded)
                required ids   text  title  ok  cancel  yes  no  close   (icon optional)
+                              MarkdownBox required ids: title  markdown  close  backdrop  (backdrop = Image, click closes)
                backdrop       author writes <Image anchor="stretch"/> — NOT auto-injected
                UI.Modal.OpenAsync(new MyRequest(), ModalMode.Popup) custom ModalRequest<T>
                               override TryEscape(out T) to map ESC → result

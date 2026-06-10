@@ -152,5 +152,16 @@ namespace PromptUGUI.Tests.Modals
             UI.Modal.TopScreen.Get<PBtn>("close").SimulateClick();
             Assert.IsTrue(task.GetAwaiter().GetResult());
         }
+
+        // 第一个带 margin.portrait 的内置模态:开着公告翻转横竖屏,ReSolve 不得动运行时状态。
+        [Test]
+        public void Variant_flip_keeps_text_and_hidden_title()
+        {
+            MarkdownBox.XmlSrc = "PromptUGUI/Modals/MarkdownBox.ui";
+            UI.Modal.OpenAsync(new MarkdownBoxRequest { Text = "# T" });   // no Title
+            UI.Variants.Set("portrait", true);   // triggers ReSolve
+            Assert.AreEqual("# T", Md().Text);
+            Assert.IsFalse(UI.Modal.TopScreen.Get<PText>("title").GameObject.activeSelf);
+        }
     }
 }
