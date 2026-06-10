@@ -37,6 +37,18 @@ namespace PromptUGUI.Application
 
         internal Controls.Internal.ToggleGroupRegistry ToggleGroups { get; private set; }
 
+        // BindItems / Markdown 等经 ScreenInstantiator.InstantiateNode 动态实例化的子树。
+        // 它们不能进 _nodeMap（同一 ElementNode 会对应 N 个卡片实例），但 scale 仍须由
+        // Screen 统一应用——Nx / <r>r 依赖 _canvasFactor，且 resize / Variant ReSolve 要重算。
+        // 只登记含 scale 声明（base 或 variant）的子树；卡片被 BindItems 重建销毁后由
+        // PruneDeadDynamicSubtrees 按 Root.GameObject == null 剔除。
+        private sealed class DynamicSubtree
+        {
+            public Control Root;
+            public Dictionary<ElementNode, Control> Nodes;
+        }
+        private readonly List<DynamicSubtree> _dynamicSubtrees = new();
+
         // 已实例化的 Add 块（不论当前是否可见）。Strategy C：首次进入激活才实例化；
         // 之后 toggle 仅切根 GameObject 的 SetActive，永不 Destroy/移除字典项；
         // 只在 Close 时随 RootGameObject 整体销毁。
@@ -243,55 +255,110 @@ namespace PromptUGUI.Application
         // variant override are still tracked (resolves to null → identity reset).
         private void ApplyScales()
         {
-            if (_nodeMap.Count == 0) return;
             foreach (var kv in _nodeMap)
+                ApplyScaleToNode(kv.Key, kv.Value, dynamicBaseline: false);
+            PruneDeadDynamicSubtrees();
+            foreach (var subtree in _dynamicSubtrees)
+                ApplyScalesTo(subtree.Nodes);
+        }
+
+        private void ApplyScalesTo(Dictionary<ElementNode, Control> nodes)
+        {
+            foreach (var kv in nodes)
+                ApplyScaleToNode(kv.Key, kv.Value, dynamicBaseline: true);
+        }
+
+        // dynamicBaseline: 静态节点（_nodeMap）靠 ReSolve 的 ApplyCommon 把 RectTransform
+        // 重置到 margin-resolved 基线，box-preserving 补偿才幂等；动态子树节点属性只在
+        // 实例化时 Apply 一次，没有这个重置——首次应用前捕获基线，之后每次先还原。
+        private void ApplyScaleToNode(ElementNode node, Control control, bool dynamicBaseline)
+        {
+            var declaredBase = node.Attributes.ContainsKey("scale");
+            var declaredVariant = node.VariantOverrides.ContainsKey("scale");
+            if (!declaredBase && !declaredVariant) return;
+
+            var raw = PromptUGUI.Variants.VariantResolver.ResolveAttribute(
+                node, "scale", Variants);
+            var rt = control.RectTransform;
+            if (rt == null) return;
+
+            if (dynamicBaseline)
             {
-                var node = kv.Key;
-                var declaredBase = node.Attributes.ContainsKey("scale");
-                var declaredVariant = node.VariantOverrides.ContainsKey("scale");
-                if (!declaredBase && !declaredVariant) continue;
-
-                var raw = PromptUGUI.Variants.VariantResolver.ResolveAttribute(
-                    node, "scale", Variants);
-                var rt = kv.Value.RectTransform;
-                if (rt == null) continue;
-
-                if (TryParseDeviceScale(raw, out var devN))
+                if (control._dynamicScaleBaseline is { } b)
                 {
-                    var f = _canvasFactor > 0f ? _canvasFactor : 1f;
-                    var dv = devN / f;
-                    rt.localScale = new Vector3(dv, dv, 1f);
-                    ApplyBoxPreservingCompensation(rt, dv);
-                    continue;
+                    rt.anchorMin = b.AnchorMin;
+                    rt.anchorMax = b.AnchorMax;
+                    rt.sizeDelta = b.SizeDelta;
+                    rt.anchoredPosition = b.AnchoredPosition;
                 }
-
-                if (TryParseRelativeScale(raw, out var relR))
+                else
                 {
-                    var f = _canvasFactor > 0f ? _canvasFactor : 1f;
-                    // round-half-up to the nearest integer effective (>= 1), then divide the
-                    // factor back out: net physical-px/unit = effective (integer → pixel-aligned),
-                    // and grows with f (responds to window size). See CRS-D3/D4/D5.
-                    var eff = Mathf.Max(1f, Mathf.Floor(f * relR + 0.5f));
-                    var dv = eff / f;
-                    rt.localScale = new Vector3(dv, dv, 1f);
-                    ApplyBoxPreservingCompensation(rt, dv);
-                    continue;
+                    control._dynamicScaleBaseline =
+                        (rt.anchorMin, rt.anchorMax, rt.sizeDelta, rt.anchoredPosition);
                 }
-
-                if (string.IsNullOrEmpty(raw)
-                    || !float.TryParse(raw, System.Globalization.NumberStyles.Float,
-                                       System.Globalization.CultureInfo.InvariantCulture, out var v)
-                    || v <= 0f)
-                {
-                    // Unresolved / non-numeric (e.g. <Animation scale="1:0.5">) → identity.
-                    // ApplyCommon already restored the baseline geometry, so leave it untouched.
-                    rt.localScale = Vector3.one;
-                    continue;
-                }
-
-                rt.localScale = new Vector3(v, v, 1f);
-                ApplyBoxPreservingCompensation(rt, v);
             }
+
+            if (TryParseDeviceScale(raw, out var devN))
+            {
+                var f = _canvasFactor > 0f ? _canvasFactor : 1f;
+                var dv = devN / f;
+                rt.localScale = new Vector3(dv, dv, 1f);
+                ApplyBoxPreservingCompensation(rt, dv);
+                return;
+            }
+
+            if (TryParseRelativeScale(raw, out var relR))
+            {
+                var f = _canvasFactor > 0f ? _canvasFactor : 1f;
+                // round-half-up to the nearest integer effective (>= 1), then divide the
+                // factor back out: net physical-px/unit = effective (integer → pixel-aligned),
+                // and grows with f (responds to window size). See CRS-D3/D4/D5.
+                var eff = Mathf.Max(1f, Mathf.Floor(f * relR + 0.5f));
+                var dv = eff / f;
+                rt.localScale = new Vector3(dv, dv, 1f);
+                ApplyBoxPreservingCompensation(rt, dv);
+                return;
+            }
+
+            if (string.IsNullOrEmpty(raw)
+                || !float.TryParse(raw, System.Globalization.NumberStyles.Float,
+                                   System.Globalization.CultureInfo.InvariantCulture, out var v)
+                || v <= 0f)
+            {
+                // Unresolved / non-numeric (e.g. <Animation scale="1:0.5">) → identity.
+                // The baseline geometry was restored above (dynamic) or by ApplyCommon (static).
+                rt.localScale = Vector3.one;
+                return;
+            }
+
+            rt.localScale = new Vector3(v, v, 1f);
+            ApplyBoxPreservingCompensation(rt, v);
+        }
+
+        // ScreenInstantiator.InstantiateNode（BindItems / Markdown 动态实例化）完成后调用。
+        // 无 scale 声明的子树不登记（绝大多数列表卡片），零额外开销。
+        internal void RegisterDynamicSubtree(Control root, Dictionary<ElementNode, Control> nodes)
+        {
+            PruneDeadDynamicSubtrees();
+            var hasScale = false;
+            foreach (var node in nodes.Keys)
+            {
+                if (!hasScale && (node.Attributes.ContainsKey("scale")
+                                  || node.VariantOverrides.ContainsKey("scale")))
+                    hasScale = true;
+                // 动态子树可能是 Screen 里唯一的 factor scale 来源；resize 门控必须看到它。
+                if (DeclaresFactorScale(node)) _hasFactorScale = true;
+            }
+            if (!hasScale) return;
+            _dynamicSubtrees.Add(new DynamicSubtree { Root = root, Nodes = nodes });
+            ApplyScalesTo(nodes);
+        }
+
+        private void PruneDeadDynamicSubtrees()
+        {
+            for (var i = _dynamicSubtrees.Count - 1; i >= 0; i--)
+                if (_dynamicSubtrees[i].Root.GameObject == null)
+                    _dynamicSubtrees.RemoveAt(i);
         }
 
         // Sets _hasFactorScale if any currently-instantiated node uses a factor-dependent scale
@@ -300,11 +367,17 @@ namespace PromptUGUI.Application
         // nodes stay in _nodeMap, so the flag is effectively sticky once any such node exists.
         private void RecomputeFactorScale()
         {
-            _hasFactorScale = false;
+            _hasFactorScale = HasFactorScaleNode();
+        }
+
+        private bool HasFactorScaleNode()
+        {
             foreach (var node in _nodeMap.Keys)
-            {
-                if (DeclaresFactorScale(node)) { _hasFactorScale = true; break; }
-            }
+                if (DeclaresFactorScale(node)) return true;
+            foreach (var subtree in _dynamicSubtrees)
+                foreach (var node in subtree.Nodes.Keys)
+                    if (DeclaresFactorScale(node)) return true;
+            return false;
         }
 
         // Whether a node declares a factor-dependent scale (Nx or <r>r) in its base attribute
@@ -468,6 +541,7 @@ namespace PromptUGUI.Application
             _byId.Clear();
             _nodeMap.Clear();
             _addInstances.Clear();
+            _dynamicSubtrees.Clear();
             ToggleGroups?.Clear();
             ToggleGroups = null;
         }

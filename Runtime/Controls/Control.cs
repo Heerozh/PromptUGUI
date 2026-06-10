@@ -89,6 +89,17 @@ namespace PromptUGUI.Controls
         internal string _lastAppliedRuntimeState;
 
         /// <summary>
+        /// 动态子树（BindItems / Markdown 经 ScreenInstantiator.InstantiateNode 实例化）里
+        /// 声明了 scale 的节点的几何基线。静态节点每次 ReSolve 先经 ApplyCommon 重置
+        /// RectTransform 再做 box-preserving 补偿；动态节点属性只在实例化时 Apply 一次,
+        /// 所以 Screen.ApplyScales 首次应用前捕获基线、之后每次先还原, 保证补偿不跨
+        /// resize / Variant 切换累积。仅 <see cref="PromptUGUI.Application.Screen"/> 读写。
+        /// </summary>
+        internal (UnityEngine.Vector2 AnchorMin, UnityEngine.Vector2 AnchorMax,
+                  UnityEngine.Vector2 SizeDelta, UnityEngine.Vector2 AnchoredPosition)?
+            _dynamicScaleBaseline;
+
+        /// <summary>
         /// 返回 control 当前运行时独占状态值的归一化字符串 (e.g. Tab.isOn → "true"/"false",
         /// Slider.value → invariant float)。没有 RuntimeStateAttr 的控件返回 null。
         /// 仅 <see cref="ControlAttributeApplier"/> 用于检测 runtime 覆写。

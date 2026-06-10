@@ -40,7 +40,6 @@ namespace PromptUGUI.Application
         /// </summary>
         public IControl InstantiateNode(ElementNode node, RectTransform parent, Screen owner)
         {
-            _ = owner; // 保留参数：未来可注入 owner-scoped lookups
             var scope = new Dictionary<string, IControl>();
             var nodeMap = new Dictionary<ElementNode, Control>();
             var parentIsLayoutGroup = parent.GetComponent<UnityEngine.UI.LayoutGroup>() != null;
@@ -60,6 +59,10 @@ namespace PromptUGUI.Application
             // 让 caller (ScrollList BindItems 回调) 能 root.Get<T>("id") 命中子节点。
             // 若根本身的 id 出现在 scope 中（与自己同名场景），不影响——ScopedIds 是 IControl 的查询面。
             rootControl.ReplaceScopedIds(scope);
+            // 动态子树登记到 owner Screen：scale（尤其 Nx / <r>r 依赖 canvasFactor）由
+            // Screen.ApplyScales 统一应用，并参与 resize / Variant ReSolve 重算。
+            // owner 为 null（裸用 instantiator 的调用方）时跳过，scale 不生效。
+            owner?.RegisterDynamicSubtree(rootControl, nodeMap);
             return rootControl;
         }
 
