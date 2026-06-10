@@ -495,7 +495,7 @@ namespace PromptUGUI.Controls
 
         public virtual void Dispose()
         {
-            if (GameObject == null) return;
+            if (HostGameObject == null) return;
             // 与 Screen.Close 一致：EditMode 下用 DestroyImmediate，避免 "Destroy may not be called" 警告。
             // 销毁宿主 GO（wrapper 存在时即 wrapper，内层随子级联销毁）——BindItems 重建
             // 经 Dispose 走这里，不会把 wrapper 留在 LayoutGroup 里占行高。

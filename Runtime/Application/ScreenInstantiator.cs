@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 using PromptUGUI.Controls;
+using PromptUGUI.Controls.Internal;
 using PromptUGUI.IR;
 using PromptUGUI.Lint;
 using PromptUGUI.Registry;
@@ -52,7 +53,7 @@ namespace PromptUGUI.Application
             var rootGo = parent.GetChild(prevChildCount).gameObject;
             Control rootControl = null;
             foreach (var kv in nodeMap)
-                if (kv.Value.GameObject == rootGo) { rootControl = kv.Value; break; }
+                if (kv.Value.HostGameObject == rootGo) { rootControl = kv.Value; break; }
             if (rootControl == null) return null;
 
             // 无论节点是否标了 IsTemplateInstanceRoot，对外把整个 scope 接到根；
@@ -231,6 +232,27 @@ namespace PromptUGUI.Application
             if (entry.Prefab != null)
                 BindFields(control, go);
             control.AttachTo(go);
+            // STW-D8: V/HStack 直下声明了 scale 的 <Text> → 插 wrapper + 布局桥，让
+            // LayoutGroup 量到 "TMP preferred × s"（半密度渲染 + 整行宽换行 + 行高随内容）。
+            // 条件 3 看 base 或任意 variant 覆盖——variant 运行期才激活而 GO 永不重建，
+            // 创建期必须备好；scale 未解析时桥 ×1 透传（≡ 裸 TMP）。Grid 不在内
+            // （GetComponent<HorizontalOrVerticalLayoutGroup> 对 GridLayoutGroup 返回 null）。
+            if (control is Text textControl
+                && parent.GetComponent<UnityEngine.UI.HorizontalOrVerticalLayoutGroup>() != null
+                && (node.Attributes.ContainsKey("scale")
+                    || node.VariantOverrides.ContainsKey("scale")))
+            {
+                var wrapperGo = new GameObject(
+                    (node.Id ?? node.Tag) + " [scale-host]", typeof(RectTransform));
+                var wrapperRt = (RectTransform)wrapperGo.transform;
+                wrapperRt.SetParent(parent, worldPositionStays: false);
+                // go 此前是 parent 的末位 child；移入 wrapper 后 wrapper 顶上同一末位，
+                // 兄弟顺序不变（ApplyAddBlock 的 SetSiblingIndex 流程因此无需感知 wrapper）。
+                go.transform.SetParent(wrapperRt, worldPositionStays: false);
+                wrapperGo.AddComponent<ScaledTextLayoutBridge>()
+                         .Configure(textControl.TmpComponent, control.RectTransform);
+                control.LayoutHost = wrapperRt;
+            }
             parentControl?.AddChild(control);
 
             if (!string.IsNullOrEmpty(node.Id))
