@@ -141,5 +141,16 @@ namespace PromptUGUI.Tests.Modals
                 () => task.GetAwaiter().GetResult());
             Assert.IsFalse(UI.Modal.IsAnyOpen);
         }
+
+        [Test]
+        public void Default_xml_src_loads_builtin_template()
+        {
+            MarkdownBox.XmlSrc = "PromptUGUI/Modals/MarkdownBox.ui";
+            var task = UI.Modal.OpenAsync(new MarkdownBoxRequest { Text = "# T", Title = "公告" });
+            Assert.AreEqual("# T", Md().Text);
+            Assert.IsTrue(UI.Modal.TopScreen.Get<PText>("title").GameObject.activeSelf);
+            UI.Modal.TopScreen.Get<PBtn>("close").SimulateClick();
+            Assert.IsTrue(task.GetAwaiter().GetResult());
+        }
     }
 }
