@@ -1016,6 +1016,7 @@ UI.Toast.Show("+10", someControl);                       // at a control (IContr
 UI.Toast.Show("+10 coins <sprite name=\"coin\">", "Hud/rewardBtn");  // at a control by path
 UI.Toast.Show("Combo!", mode: ToastStackMode.Sequential);  // wait for prior toasts to clear first
 UI.Toast.Show("Held 3s", ToastPosition.Center, holdSeconds: 3f);
+UI.Toast.Show("Save failed", color: "red");              // recolor the whole tip (pass named)
 ```
 
 **Positioning** — `ToastPosition`: presets `Top` / `Bottom` / `Center`; `At(Vector2)` exact coords;
@@ -1050,6 +1051,13 @@ tip is a normal `<Text>`.
 **Tunable knobs** (static, on `UI.Toast`): `XmlSrc`, `SortingOrder`, `DefaultPosition`,
 `DefaultStackMode`, `MaxVisible`, `FadeInSeconds`, `FadeOutSeconds`, `Spacing`, `EdgeInset`,
 `Padding`, `HoldBase`, `HoldPerChar`, `HoldMin`, `HoldMax`.
+
+**Color** — the optional trailing `color` param recolors the whole tip. It takes the same color-token
+string as the XML `color=` attribute (named `"red"`, hex `"#ff0000"`, theme tokens, with `/alpha`
+suffix); `null` (default) keeps the template's color. Because the second positional arg is a
+`ToastPosition` / control path / control, **pass it named** (`color: "red"`). It is sugar applied to
+`id="text"` *before* `configure`, so a `configure` hook can still override it; for per-word coloring,
+use TMP rich text in the message (`"<color=red>…</color>"`) instead — the two compose.
 
 The optional trailing `configure: Action<IScreen>` runs after the text is bound, giving access to the
 live toast `IScreen` (recolor, add nodes) — same shape as the modal `configure` hook.

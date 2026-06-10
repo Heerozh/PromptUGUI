@@ -134,5 +134,31 @@ namespace PromptUGUI.Tests.Toast
             Assert.DoesNotThrow(() => UI.Toast.Show("x", "Nope/x"));
             Assert.AreEqual(1, ToastOverlay.ActiveCount);
         }
+
+        [Test]
+        public void Color_param_overrides_text_node_color()
+        {
+            UI.Toast.Show("出错了", color: "red");
+            var screen = System.Linq.Enumerable.First(ToastOverlay.ActiveScreens);
+            Assert.AreEqual(UnityEngine.Color.red, screen.Get<Text>("text").TmpComponent.color);
+        }
+
+        [Test]
+        public void No_color_keeps_xml_default()
+        {
+            UI.Toast.Show("plain");   // 不传 color → 保留模板里的 white
+            var screen = System.Linq.Enumerable.First(ToastOverlay.ActiveScreens);
+            Assert.AreEqual(UnityEngine.Color.white, screen.Get<Text>("text").TmpComponent.color);
+        }
+
+        [Test]
+        public void Configure_runs_after_color_and_can_override()
+        {
+            // color 是 configure 之前应用的语法糖 → configure 仍能最后覆盖
+            UI.Toast.Show("x", color: "red",
+                configure: s => s.Get<Text>("text").Color = "#00ff00");
+            var screen = System.Linq.Enumerable.First(ToastOverlay.ActiveScreens);
+            Assert.AreEqual(UnityEngine.Color.green, screen.Get<Text>("text").TmpComponent.color);
+        }
     }
 }

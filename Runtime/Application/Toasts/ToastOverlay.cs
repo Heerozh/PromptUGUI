@@ -19,6 +19,7 @@ namespace PromptUGUI.Application.Toasts
             public ToastStackMode Mode;
             public float Hold;
             public Action<IScreen> Configure;
+            public string Color;
         }
 
         private sealed class LiveToast
@@ -115,6 +116,7 @@ namespace PromptUGUI.Application.Toasts
             }
 
             textCtl.TextValue = entry.Text ?? "";
+            if (!string.IsNullOrEmpty(entry.Color)) textCtl.Color = entry.Color;
             entry.Configure?.Invoke(screen);
 
             // 尺寸：content = 文字 native + 2*Padding
