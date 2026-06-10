@@ -31,12 +31,13 @@
     <Image id="backdrop" anchor="stretch" color="#000000FE"/>
 
     <Image id="dialog" sprite="PromptUGUI/Defaults/pugui.png#pugui_9slice_round"
-           anchor="stretch" margin="480,160" margin.portrait="80,240">
+           anchor="stretch" margin="160,480" margin.portrait="240,80">
       <VStack anchor="stretch" margin="24" spacing="12">
         <Text id="title" fontSize="24" height="40"/>
         <Markdown id="markdown" width="stretch" height="stretch"/>
       </VStack>
-      <Btn id="close" anchor="top-right" size="36x36" margin="12" sprite="">✕</Btn>
+      <Btn id="close" anchor="top-right" size="36x36" margin="12"
+           sprite="" color="#00000000" fontSize="28">×</Btn>
     </Image>
   </Screen>
 </PromptUGUI>
@@ -44,9 +45,9 @@
 
 要点:
 
-- **尺寸自适应**:不学 MessageBox 的固定 `size="640x300"`,dialog 用 `anchor="stretch"` + margin(横屏左右 480/上下 160;竖屏 Variant 翻转为 80/240)。公告内容量大,自适应两种朝向比固定尺寸合理;个别调用想改尺寸用 `configure` 钩子。
+- **尺寸自适应**:不学 MessageBox 的固定 `size="640x300"`,dialog 用 `anchor="stretch"` + margin。双分量 margin 语义为 `上下,左右`:横屏上下 160/左右 480;竖屏 Variant 翻转为上下 240/左右 80。公告内容量大,自适应两种朝向比固定尺寸合理;个别调用想改尺寸用 `configure` 钩子。
 - **标题重排**:`title` 在 VStack 内,未设置时 `SetActive(false)` → VStack 自动重排,`markdown`(stretch)占满整个内容区。与 `MessageBoxRequest` 现有的隐藏模式一致。
-- **✕ 浮层**:`close` 按钮是 `dialog` 的直接子节点(不在 VStack 内),`anchor="top-right"` 浮在内容之上 —— 始终存在、与 Markdown 区重叠、不随标题移动。透明背景(`sprite=""`)+ "✕" 文字。
+- **× 浮层**:`close` 按钮是 `dialog` 的直接子节点(不在 VStack 内),`anchor="top-right"` 浮在内容之上 —— 始终存在、与 Markdown 区重叠、不随标题移动。透明背景需要 `sprite=""` **加** `color="#00000000"`(只去 sprite 仍是白色实心矩形;alpha 0 的 Image 依旧接收 raycast,点击不受影响)。字形用 Latin-1 的 `×`(U+00D7)而非 `✕`(U+2715)—— 默认 TMP 字体不含后者。
 
 ## 3. C# API
 
