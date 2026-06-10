@@ -844,6 +844,7 @@ namespace PromptUGUI.Application
         /// </summary>
         public static void UnloadAll()
         {
+            Router.CancelAllForTeardown();
             Modal.CancelAllForTeardown();
             Modals.LoadingOverlay.CancelAllForTeardown();
             Toasts.ToastOverlay.CancelAllForTeardown();
@@ -1010,6 +1011,7 @@ namespace PromptUGUI.Application
             Theme.ResetForTestsInternal();
             Markdown.ResetForTestsInternal();
             TranslationStore.Instance.UnloadAll();
+            Router.ResetForTestsInternal();
             Modal.CancelAllForTeardown();
             Modals.LoadingOverlay.CancelAllForTeardown();
             Toasts.ToastOverlay.CancelAllForTeardown();

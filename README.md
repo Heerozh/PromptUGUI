@@ -273,9 +273,10 @@ C# Code:
 
 一个让 Unity 6+ 的 UI 可以用大模型进行开发的解决方案。
 
-提供极其精简的 UI 描述语言 `.ui.xml` 和一个运行时解析器，翻译成uGUI结构。
+通过描述语言 `.ui.xml` 和一个运行时解析器，翻译成uGUI结构。
+整体架构全面且简洁，适合大模型直接书写而脱离MCP。
 
-比UI Toolkit更自由，更容易实现自定的样式，和GameObject体系结合更紧密。
+比UI Toolkit更自由，和GameObject体系结合更紧密。
 
 ## 功能特性
 
@@ -284,10 +285,10 @@ C# Code:
   - 全响应式UI支持，自动根据屏幕和设备切换布局
   - 像素艺术风格UI支持
   - 自动XSD Schema语法检查 + 内置语法检查 CLI
-- **控件完善**
+- **控件丰富**
   - 基础UI元素支持（Btn/Image/Frame/InputField/Toggle/Dropdown/Slider/ScrollList/Progress/TabBar等）
   - Carousel 轮播卡片组件，用于显示Banner公告等；
-  - Markdown文本组件，支持markdown全解析，包括网络图片等；
+  - Markdown文本组件，支持markdown全解析(除html标签)，支持网络图片等；
   - 布局元素（HStack/VStack/Grid等）
   - 高扩展性，允许模板/Prefab模板
 - **自动sprite/icon引用**
@@ -311,6 +312,11 @@ C# Code:
   - 多次调用通过队列依次弹出避免冲突
   - Toast小信息弹出提示系统，Loading转圈模态窗口等等内置支持
   - 可继承实现高度自定义的对话框
+- **Deep Linking** 支持，专业的 Router 系统
+  - 所有UI都应该由Router打开/管理
+  - 可通过 appid://ui_name?param=value 的形式定位到对应功能模块
+  - 自动处理层级依赖关系，导航时会自动关闭冲突的UI，防止独占UI重叠。
+  - 适合外部链接跳转、公告/活动跳转、装备信息跳转、外部操作后返回游戏等场景。
 
 
 ## 安装/升级方法

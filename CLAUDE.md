@@ -152,7 +152,7 @@ Two entry points to this pipeline:
 
 The host Unity project is at `C:\xsoft\PromptUGUIDev`; this repo is referenced as a UPM package via `file://`. R3 (Cysharp) is provided by NuGetForUnity in the host project.
 
-**Always test via UnityMCP, not batch-mode Unity.** Tools (deferred — load with `ToolSearch(query="select:run_tests,refresh_unity,read_console", max_results=3)`):
+**Always test via UnityMCP, not batch-mode Unity.** Tools (deferred — load with `ToolSearch(query="select:mcp__UnityMCP__run_tests,mcp__UnityMCP__get_test_job,mcp__UnityMCP__refresh_unity,mcp__UnityMCP__read_console", max_results=4)` — `select:` matches on the **full** `mcp__UnityMCP__*` names; the short form won't resolve):
 
 ```
 mcp__UnityMCP__refresh_unity(compile="request", mode="force", scope="all", wait_for_ready=true)
@@ -162,7 +162,7 @@ mcp__UnityMCP__run_tests(mode="PlayMode", assembly_names=["PromptUGUI.Tests.Play
 mcp__UnityMCP__read_console(action="get", types=["error"])
 ```
 
-Filter to a single test class with `filter="ClassName"` (matches by name fragment).
+`run_tests` is **async**: it returns a `job_id` immediately — poll `mcp__UnityMCP__get_test_job(job_id=...)` until it completes to read pass/fail counts. Filter to a single test class with `group_names=["ClassName"]` (or specific tests via `test_names=[...]`); there is **no** `filter` parameter.
 
 After any source edit, refresh first, then check console for compile errors before running tests.
 

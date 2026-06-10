@@ -43,15 +43,38 @@ namespace PromptUGUI.Application
                 _stack.Count > 0 ? _stack[_stack.Count - 1].Screen : null;
 
             public static Awaitable<TResult> OpenAsync<TResult>(
-                ModalRequest<TResult> request, ModalMode mode = ModalMode.Popup)
+                ModalRequest<TResult> request, ModalMode mode = ModalMode.Popup,
+                System.Threading.CancellationToken ct = default)
             {
                 if (request == null) throw new ArgumentNullException(nameof(request));
                 var (entry, awaitable) = ModalEntry<TResult>.Create(request);
+                if (ct.CanBeCanceled)
+                    ct.Register(() => CancelEntry(entry, new OperationCanceledException(ct)));
                 if (mode == ModalMode.Queued && !IsIdle())
                     _waiting.Enqueue(entry);
                 else
                     QueueForMaterialize(entry);
                 return awaitable;
+            }
+
+            // 取消某个 entry,不论它在 stack / pending / inflight / waiting 哪一态。
+            // 在 stack 上 → 同 close:resolve + 销毁 Screen + 弹栈 + 提升等待队列。
+            // 其余态 → 仅 Cancel(标记 Resolved);pump 与 PromoteWaiting 出队时跳过 Resolved。
+            internal static void CancelEntry(IModalEntry entry, Exception ex)
+            {
+                for (int i = 0; i < _stack.Count; i++)
+                {
+                    if (_stack[i].Entry == entry)
+                    {
+                        var slot = _stack[i];
+                        entry.Cancel(ex);
+                        RemoveSlot(slot);
+                        RefreshTopListener();
+                        PromoteWaiting();
+                        return;
+                    }
+                }
+                entry.Cancel(ex);
             }
 
             // dialog 系统完全空闲:无在屏、无待实例化、无 in-flight、pump 未运行。

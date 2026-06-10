@@ -9,6 +9,13 @@ namespace PromptUGUI.Application
     /// </summary>
     internal static class AwaitableHelpers
     {
+        internal static Awaitable Completed()
+        {
+            var src = new AwaitableCompletionSource();
+            src.SetResult();
+            return src.Awaitable;
+        }
+
         internal static Awaitable<T> Completed<T>(T value)
         {
             var src = new AwaitableCompletionSource<T>();

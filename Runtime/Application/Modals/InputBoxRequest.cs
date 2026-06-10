@@ -69,7 +69,8 @@ namespace PromptUGUI.Application.Modals
             string okLabel = null,
             string cancelLabel = null,
             ModalMode mode = ModalMode.Popup,
-            System.Action<IScreen> configure = null)
+            System.Action<IScreen> configure = null,
+            System.Threading.CancellationToken ct = default)
             => UI.Modal.OpenAsync(new InputBoxRequest
             {
                 Title = title,
@@ -80,6 +81,6 @@ namespace PromptUGUI.Application.Modals
                 OkLabel = okLabel,
                 CancelLabel = cancelLabel,
                 Configure = configure,
-            }, mode);
+            }, mode, ct);
     }
 }
