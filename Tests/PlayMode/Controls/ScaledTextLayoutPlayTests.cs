@@ -11,6 +11,7 @@ namespace PromptUGUI.Tests.PlayMode
     // 运行时改文本后行高跟随（bridge 的 TEXT_CHANGED 脏标传播）。
     public class ScaledTextLayoutPlayTests
     {
+        [SetUp] public void SetUp() => UI.ResetForTests();
         [TearDown] public void TearDown() => UI.ResetForTests();
 
         private const string Xml = @"<?xml version='1.0' encoding='utf-8'?>
@@ -25,7 +26,6 @@ namespace PromptUGUI.Tests.PlayMode
         [UnityTest]
         public IEnumerator Row_height_matches_scaled_preferred_and_grows_with_text()
         {
-            UI.ResetForTests();
             UI.LoadDocument("test", Xml);
             var screen = UI.Open("S");
             var text = screen.Get<Text>("t");
@@ -48,8 +48,13 @@ namespace PromptUGUI.Tests.PlayMode
             // 动态改文本 → TEXT_CHANGED → bridge 标脏 → 下一帧行高增长。
             text.TextValue = string.Concat(
                 System.Linq.Enumerable.Repeat("hello world ", 40));
-            yield return null;
-            Canvas.ForceUpdateCanvases();
+            // TEXT_CHANGED 在 graphic rebuild 阶段才 fire，桥的标脏要到下一次 canvas update
+            // 才进布局队列——编辑器失焦跳帧时单帧等待会读到旧高度，有界轮询加固。
+            for (int i = 0; i < 10 && wrapper.rect.height <= rowHeight + 0.5f; i++)
+            {
+                yield return null;
+                Canvas.ForceUpdateCanvases();
+            }
             Assert.Greater(wrapper.rect.height, rowHeight,
                 "longer text must grow the row height");
             Assert.AreEqual(tmp.preferredHeight * 0.5f, wrapper.rect.height, 1f);
