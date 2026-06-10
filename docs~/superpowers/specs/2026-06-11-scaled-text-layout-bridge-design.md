@@ -54,7 +54,7 @@
 
 `ScreenInstantiator.InstantiateRecursive` 创建 GO 时，三条件同时满足则在 Text GO 外插一个 wrapper：
 
-1. 控件实例 `is Controls.Text`（含子类）；
+1. 控件实例 `is Controls.Text`（`Text` 是 sealed，即内置 `<Text>` 本尊；其他控件不在范围，见 §1.3）；
 2. 父 transform 带 `HorizontalOrVerticalLayoutGroup`（覆盖 V/HStack、ScrollList Content、TabBar 根、Markdown 内部栈；排除 Grid）；
 3. 节点声明了 `scale`——base 属性**或任意 variant 覆盖**（variant 运行期才激活而 GO 永不重建，必须创建期备好）。
 
@@ -129,7 +129,7 @@ priority 0 被 wrapper 上标准 LayoutElement（priority 1）逐属性压过：
 3. `AddComponent<ScaledTextLayoutBridge>()` 并注入 TMP / 内层 RT 引用；
 4. `control.LayoutHost = wrapperRT`。
 
-prefab 注册的 Text 子类同样适用（包装发生在 `Object.Instantiate` 之后，对 prefab 内部结构无感知）。动态路径（BindItems / Markdown 的 `InstantiateNode`）共用本方法，零特判；`RegisterDynamicSubtree` → `ApplyScalesTo` 的 `_dynamicScaleBaseline` 捕获/还原的是内层 RT 的 stretch 基线，机制不变。
+prefab 形式注册的 `Text` tag 同样适用（包装发生在 `Object.Instantiate` 之后，对 prefab 内部结构无感知）。动态路径（BindItems / Markdown 的 `InstantiateNode`）共用本方法，零特判；`RegisterDynamicSubtree` → `ApplyScalesTo` 的 `_dynamicScaleBaseline` 捕获/还原的是内层 RT 的 stretch 基线，机制不变。
 
 ## 4. 边界情形
 
@@ -162,7 +162,7 @@ prefab 注册的 Text 子类同样适用（包装发生在 `Object.Instantiate` 
 
 **EditMode**（`PromptUGUI.Tests.EditMode`，`UI.ResetForTests()` 惯例）：
 
-1. 包装条件矩阵：Text+VStack+scale → 有 wrapper（GO 名 / LayoutHost != RectTransform）；无 scale / Frame 父 / Grid 父 → 无；仅 variant 声明 → 有；Text 子类（注册自定义 tag）→ 有。
+1. 包装条件矩阵：Text+VStack+scale → 有 wrapper（GO 名 / LayoutHost != RectTransform）；无 scale / Frame 父 / Grid 父 / 非 Text 控件 → 无；仅 variant 声明 → 有。
 2. 路由：`width="stretch"` 落 wrapper LE（preferred=0/flexible=1）；显式 height 钉 wrapper LE `min=preferred`；省略轴 wrapper LE 留 -1；`hidden` 切 wrapper active；内层 RT = stretch 基线 + 膨胀后 anchors（断言模式复用既有 scale 测试）。
 3. 桥数学：preferred/min × s、flexible 透传、scale 未解析时 ×1、`Nx` / `<r>r` 下 s = 实际 localScale。
 4. ReSolve 幂等：variant 翻转 scale、模拟 factor 变化（`0.5r`）后内层 anchors / wrapper LE 稳定（连跑两次 ReSolve 结果相同）。
