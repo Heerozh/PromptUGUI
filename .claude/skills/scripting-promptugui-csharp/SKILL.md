@@ -303,7 +303,7 @@ md.BindText(localizedMarkdownStream).AddTo(screen);  // reactive — re-renders 
 
 // Link clicks
 md.OnLinkClicked
-  .Subscribe(Application.OpenURL)
+  .Subscribe(url => UI.Markdown.HandleLink(url))
   .AddTo(screen);                               // fires with the raw url string; default does NOT open browser
 
 // Per-control style (null falls back to UI.Markdown.DefaultStyle)
@@ -325,7 +325,7 @@ UI.Markdown.ImageResolver = myResolver;         // global fallback resolver
 |---|---|
 | `md.Text { get; set; }` | Markdown source string. `set` triggers a full synchronous re-render of the subtree (text is immediate; images load async). `get` returns the last-set source. |
 | `md.BindText(Observable<string>)` | Subscribes to a stream and re-renders on each push. Returns `IDisposable` — always `.AddTo(screen)`. |
-| `md.OnLinkClicked` | `Observable<string>` — emits the raw `url` string from `[text](url)` when the user taps a link. Default: no-op. Wire to `Application.OpenURL` or your own router. |
+| `md.OnLinkClicked` | `Observable<string>` — emits the raw `url` string from `[text](url)` when the user taps a link. Default: no-op. Wire to `UI.Markdown.HandleLink` or your own router. |
 | `md.Style` | Per-control `MarkdownStyle` override. `null` = use `UI.Markdown.DefaultStyle`. |
 | `md.ImageResolver` | `Func<string, Awaitable<Texture2D>>` per-control image resolver. `null` = use `UI.Markdown.ImageResolver`. |
 | `UI.Markdown.Renderer` | `IMarkdownRenderer` — auto-set by `MarkdigBootstrap` when Markdig is installed. `null` = plain-text fallback. |
@@ -572,7 +572,7 @@ MODAL          var r = await MessageBox.Open(text, MsgBtn.OK|MsgBtn.Cancel, icon
                        // Enter respects ok.Interactable (disable ok → Enter gated too)
                await MarkdownBox.Open(markdown, title, onLinkClicked, mode, configure, ct)
                               // 无按钮富文本框(公告/邮件);×/点背景/ESC 三通道关闭,关闭即完成
-                              // onLinkClicked null → 链接默认 Application.OpenURL
+                              // onLinkClicked null → 链接默认 UI.Markdown.HandleLink
                await MarkdownBox.Open(loader, title, ...)  // loader: Func<CT,Awaitable<string>>
                               // 先显示 loadingText 占位,完成后热替换;关窗自动取消 loader 的 ct
                await MarkdownBox.OpenUrl(url, title, ...)  // 裸 GET 糖;鉴权内容用 Open(loader)
@@ -666,7 +666,7 @@ string pw = await InputBox.Open(UI.Tr("Enter password"),
 // closes via the × button, clicking the backdrop, or ESC. Completes when closed.
 await MarkdownBox.Open(noticeMarkdown, title: UI.Tr("Notice"));
 
-// Custom link routing (replaces the default Application.OpenURL):
+// Custom link routing (replaces the default UI.Markdown.HandleLink dispatch):
 await MarkdownBox.Open(mailBody, title: mail.Subject,
     onLinkClicked: url => MyRouter.HandleDeepLink(url));
 

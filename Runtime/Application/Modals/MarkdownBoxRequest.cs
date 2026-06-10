@@ -29,8 +29,18 @@ namespace PromptUGUI.Application.Modals
             {
                 md.Text = LoadingText;
                 var cts = new CancellationTokenSource();
-                // 关窗(×/backdrop/ESC/外部 ct)→ Screen Dispose → 取消加载
-                Disposable.Create(() => cts.Cancel()).AddTo(screen);
+                // 关窗(×/backdrop/ESC/外部 ct)→ Screen Dispose → 取消加载。
+                // Cancel 会同步重抛 ct.Register 回调里的用户异常,而 Screen.Close 的
+                // dispose 循环没有 try/catch——这里兜住,别让一个坏回调中断关窗。
+                Disposable.Create(() =>
+                {
+                    try { cts.Cancel(); }
+                    catch (Exception e)
+                    {
+                        UnityEngine.Debug.LogError($"MarkdownBox: loader cancel threw: {e}");
+                    }
+                    cts.Dispose();
+                }).AddTo(screen);
                 _ = FillAsync(md, Loader, cts.Token);
             }
             else
@@ -65,7 +75,8 @@ namespace PromptUGUI.Application.Modals
             Func<CancellationToken, UnityEngine.Awaitable<string>> loader,
             CancellationToken ct)
         {
-            string result;
+            string result = null;
+            string error = null;
             try
             {
                 result = await loader(ct);
@@ -78,11 +89,19 @@ namespace PromptUGUI.Application.Modals
             {
                 if (ct.IsCancellationRequested) return;
                 UnityEngine.Debug.LogWarning($"MarkdownBox loader failed: {ex.Message}");
-                md.Text = "**Failed to load.**\n\n" + ex.Message;
-                return;
+                error = "**Failed to load.**\n\n" + ex.Message;
             }
             if (ct.IsCancellationRequested) return;  // 迟到的结果:控件已销毁,不得触碰
-            md.Text = result;
+            // 渲染同步发生在 setter 里;调用点是 fire-and-forget,异常必须落日志
+            // (LogError 同时让 LogAssert 把"取消守卫失效误触已销毁控件"变成测试失败)。
+            try
+            {
+                md.Text = error ?? result;
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogError($"MarkdownBox: render failed: {ex}");
+            }
         }
     }
 

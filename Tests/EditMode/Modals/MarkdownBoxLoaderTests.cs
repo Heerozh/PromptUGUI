@@ -128,5 +128,13 @@ namespace PromptUGUI.Tests.Modals
             task.GetAwaiter().GetResult();
             Assert.IsFalse(UI.Modal.IsAnyOpen);
         }
+
+        [Test]
+        public void Facade_custom_loading_text_used()
+        {
+            var acs = new AwaitableCompletionSource<string>();
+            MarkdownBox.Open(_ => acs.Awaitable, loadingText: "请稍候");
+            Assert.AreEqual("请稍候", Md().Text);
+        }
     }
 }
