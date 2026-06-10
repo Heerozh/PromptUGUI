@@ -554,7 +554,10 @@ MODAL          var r = await MessageBox.Open(text, MsgBtn.OK|MsgBtn.Cancel, icon
                                            contentType, okLabel, cancelLabel, mode)
                        // confirm → text ("" if empty); cancel/ESC → null
                        // Enter respects ok.Interactable (disable ok → Enter gated too)
-               configure:     Action<IScreen> trailing arg on every Open (MessageBox/InputBox/Loading)
+               await MarkdownBox.Open(markdown, title, onLinkClicked, mode, configure, ct)
+                              // 无按钮富文本框(公告/邮件);×/点背景/ESC 三通道关闭,关闭即完成
+                              // onLinkClicked null → 链接默认 Application.OpenURL
+               configure:     Action<IScreen> trailing arg on every Open (MessageBox/InputBox/Loading/MarkdownBox)
                               // post-bind hook → live Screen; reach any control w/o subclassing
                               // e.g. InputBox.Open(t, configure: s => s.Get<Btn>("ok").Interactable = false)
                               // base ModalRequest<T>.Configure field → custom modals get it free
@@ -604,9 +607,10 @@ ROUTER         UI.Router.Scheme = "myapp"                   optional scheme enfo
 
 ## Modal dialogs
 
-PromptUGUI ships a generic modal stack in `PromptUGUI.Application.Modals` plus three
-builtin overlays: a `MessageBox` dialog, an `InputBox` text prompt, and a `Loading`
-spinner. **Every modal IS a real
+PromptUGUI ships a generic modal stack in `PromptUGUI.Application.Modals` plus four
+builtin overlays: a `MessageBox` dialog, an `InputBox` text prompt, a `MarkdownBox`
+read-only rich-text viewer (announcements / mail, built on the `<Markdown>` control),
+and a `Loading` spinner. **Every modal IS a real
 `Screen` instantiated from `.ui.xml`** — anchor / margin / Variant / locale / `<Icon>`
 all work normally. The modal subsystem only adds: stack management, ESC handling, and a
 sortingOrder band above regular Screens.
@@ -637,6 +641,14 @@ if (name != null) game.PlayerName = name;
 // password prompt with a sub-message line
 string pw = await InputBox.Open(UI.Tr("Enter password"),
     message: UI.Tr("at least 8 chars"), contentType: "password");
+
+// MarkdownBox: read-only rich-text viewer (announcements / mail). No buttons;
+// closes via the × button, clicking the backdrop, or ESC. Completes when closed.
+await MarkdownBox.Open(noticeMarkdown, title: UI.Tr("Notice"));
+
+// Custom link routing (replaces the default Application.OpenURL):
+await MarkdownBox.Open(mailBody, title: mail.Subject,
+    onLinkClicked: url => MyRouter.HandleDeepLink(url));
 ```
 
 ### API surface (`PromptUGUI.Application.Modals`)
@@ -679,6 +691,18 @@ public static class InputBox {
         string cancelLabel = null,
         ModalMode mode     = ModalMode.Popup,
         Action<IScreen> configure = null);
+}
+
+public static class MarkdownBox {
+    public static string XmlSrc { get; set; } = "PromptUGUI/Modals/MarkdownBox.ui";
+    // Returns a non-generic Awaitable: completes when the box is closed
+    // (× button / backdrop click / ESC). No buttons can be configured.
+    public static Awaitable Open(
+        string markdown, string title = null,
+        Action<string> onLinkClicked = null,        // null → Application.OpenURL
+        ModalMode mode = ModalMode.Popup,
+        Action<IScreen> configure = null,
+        CancellationToken ct = default);
 }
 
 [Flags] public enum MsgBtn { None=0, OK=1, Cancel=2, Yes=4, No=8, Close=16 }
@@ -735,10 +759,16 @@ UI.Modal.SortingOrderBase` so dialogs opened during a Loading appear above it.
 - **Locale / Variant**: a dialog is a regular `Screen` — `UI.Locale.Set(...)` and
   `UI.Variants.Set(...)` ReSolve open modals in place, no rebuild. Fonts swap on locale
   switch like in any other Screen (`<Text font="title">` etc.).
+- **MarkdownBox** has no result value — it returns a non-generic `Awaitable` that
+  completes when the box closes. `title: null` hides the title row and the markdown area
+  expands to fill. The × close button always floats top-right above the content. To
+  resize the box, use `configure` (e.g. `s.Get<Controls.Image>("dialog")`…). Links
+  default to `Application.OpenURL`; pass a non-null `onLinkClicked` to fully replace
+  that behaviour.
 
 ### Customizing a builtin modal (the `configure` hook)
 
-Every builtin `Open` (`MessageBox` / `InputBox` / `Loading`) takes a trailing
+Every builtin `Open` (`MessageBox` / `InputBox` / `MarkdownBox` / `Loading`) takes a trailing
 `configure: Action<IScreen>`. It fires **once, right after the builtin Bind**, with the
 live modal `Screen` — so you reach any control via `screen.Get<T>(id)` and customize
 without writing a `ModalRequest<T>` subclass. Because it runs after Bind, it overrides
