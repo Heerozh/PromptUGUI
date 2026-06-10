@@ -15,6 +15,37 @@ namespace PromptUGUI.Application
             public static MarkdownStyle DefaultStyle { get; set; } = MarkdownStyle.CreateDefault();
             public static Func<string, Awaitable<Texture2D>> ImageResolver { get; set; }
 
+            /// <summary>Default link policy for markdown links: a url carrying the configured
+            /// <see cref="UI.Router.Scheme"/> navigates via <see cref="UI.Router"/>; anything
+            /// else opens in the system browser. <c>MarkdownBox</c> uses this when no
+            /// <c>onLinkClicked</c> is given; standalone &lt;Markdown&gt; screens can call it
+            /// from their own <c>OnLinkClicked</c> subscription.</summary>
+            public static void HandleLink(string url)
+            {
+                if (string.IsNullOrEmpty(url)) return;
+                var scheme = UI.Router.Scheme;
+                if (!string.IsNullOrEmpty(scheme) &&
+                    url.StartsWith(scheme + "://", StringComparison.Ordinal))
+                {
+                    // 失败只 LogError,不回落 OpenURL——深链交给系统浏览器只会更糟。
+                    _ = NavigateLogged(url);
+                    return;
+                }
+                if (OpenUrlHookForTests != null) OpenUrlHookForTests(url);
+                else UnityEngine.Application.OpenURL(url);
+            }
+
+            internal static Action<string> OpenUrlHookForTests;
+
+            private static async Awaitable NavigateLogged(string url)
+            {
+                try { await UI.Router.Navigate(url); }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"HandleLink: navigate '{url}' failed: {ex.Message}");
+                }
+            }
+
             private static readonly Dictionary<string, Texture2D> WebCache = new Dictionary<string, Texture2D>();
 
             public static void UseWebImageResolver()
@@ -44,6 +75,7 @@ namespace PromptUGUI.Application
                 Renderer = null;            // re-injected by the gated asmdef via UI.OnReset (end of reset)
                 DefaultStyle = MarkdownStyle.CreateDefault();
                 ImageResolver = null;
+                OpenUrlHookForTests = null;
                 foreach (var t in WebCache.Values)
                     if (t != null)
                     {

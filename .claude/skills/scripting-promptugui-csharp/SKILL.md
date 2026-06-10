@@ -303,7 +303,7 @@ md.BindText(localizedMarkdownStream).AddTo(screen);  // reactive — re-renders 
 
 // Link clicks
 md.OnLinkClicked
-  .Subscribe(Application.OpenURL)
+  .Subscribe(url => UI.Markdown.HandleLink(url))
   .AddTo(screen);                               // fires with the raw url string; default does NOT open browser
 
 // Per-control style (null falls back to UI.Markdown.DefaultStyle)
@@ -325,13 +325,22 @@ UI.Markdown.ImageResolver = myResolver;         // global fallback resolver
 |---|---|
 | `md.Text { get; set; }` | Markdown source string. `set` triggers a full synchronous re-render of the subtree (text is immediate; images load async). `get` returns the last-set source. |
 | `md.BindText(Observable<string>)` | Subscribes to a stream and re-renders on each push. Returns `IDisposable` — always `.AddTo(screen)`. |
-| `md.OnLinkClicked` | `Observable<string>` — emits the raw `url` string from `[text](url)` when the user taps a link. Default: no-op. Wire to `Application.OpenURL` or your own router. |
+| `md.OnLinkClicked` | `Observable<string>` — emits the raw `url` string from `[text](url)` when the user taps a link. Default: no-op. Wire to `UI.Markdown.HandleLink` or your own router. |
 | `md.Style` | Per-control `MarkdownStyle` override. `null` = use `UI.Markdown.DefaultStyle`. |
 | `md.ImageResolver` | `Func<string, Awaitable<Texture2D>>` per-control image resolver. `null` = use `UI.Markdown.ImageResolver`. |
 | `UI.Markdown.Renderer` | `IMarkdownRenderer` — auto-set by `MarkdigBootstrap` when Markdig is installed. `null` = plain-text fallback. |
 | `UI.Markdown.DefaultStyle` | Global `MarkdownStyle` baseline; `MarkdownStyle.CreateDefault()` out of the box. |
 | `UI.Markdown.ImageResolver` | Global image resolver fallback. Set once at boot. |
 | `UI.Markdown.UseWebImageResolver()` | Installs a built-in `UnityWebRequestTexture`-backed resolver with URL→`Texture2D` cache. WebGL-safe (`Awaitable`, no `System.Threading`). |
+
+**`UI.Markdown.HandleLink(string url)`** — the default link policy, also usable from
+your own `OnLinkClicked` subscriptions on standalone `<Markdown>` screens. If
+`UI.Router.Scheme` is set and the url starts with `<Scheme>://`, it navigates via
+`UI.Router.Navigate` (failures are logged, NOT handed to the system browser);
+everything else goes to `Application.OpenURL`. Note this changed MarkdownBox's default:
+with a Router scheme configured, deep links inside markdown now navigate instead of
+opening a browser. Want `.md` links to open nested MarkdownBoxes? That's one line:
+`onLinkClicked: url => { if (url.EndsWith(".md")) _ = MarkdownBox.OpenUrl(url); else UI.Markdown.HandleLink(url); }`
 
 **`text` is runtime content**: a value set from C# at runtime survives resize / Variant / Theme ReSolve. The DefaultText lock prevents the XML-declared value from overwriting runtime content (same mechanism as `<Text text>`). Variant overrides on `text.<variant>` still apply when the user has not yet set `Text` from C#; once set from C#, the runtime value wins.
 
@@ -526,6 +535,13 @@ DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                TabBar query: .Count / .SelectedIndex (-1 if empty) / .SelectedTab / .GetAt(i)
                Carousel query: .Count / .Current (get/set) / .Playing (get/set) / .GoTo(i,animated) / .Next() / .Previous()
 
+MARKDOWN       md.Text = "…"                                 set → full re-render (runtime-owned)
+               md.BindText(Observable<string>).AddTo(screen) reactive re-render
+               md.OnLinkClicked.Subscribe(url=>…).AddTo(screen)
+               UI.Markdown.UseWebImageResolver()             install http(s) image downloader
+               UI.Markdown.DefaultStyle = …                  global style baseline
+               UI.Markdown.HandleLink(url)      // 默认链接分发:Router scheme → Navigate,否则 OpenURL
+
 VARIANT        UI.Variants.Set("name", true|false)            re-applies, no rebuild
 ORIENTATION    UI.Orientation.IsPortrait                      auto-tracked: portrait / landscape variants
                UI.Orientation.Set(bool)                       manual override
@@ -554,7 +570,13 @@ MODAL          var r = await MessageBox.Open(text, MsgBtn.OK|MsgBtn.Cancel, icon
                                            contentType, okLabel, cancelLabel, mode)
                        // confirm → text ("" if empty); cancel/ESC → null
                        // Enter respects ok.Interactable (disable ok → Enter gated too)
-               configure:     Action<IScreen> trailing arg on every Open (MessageBox/InputBox/Loading)
+               await MarkdownBox.Open(markdown, title, onLinkClicked, mode, configure, ct)
+                              // 无按钮富文本框(公告/邮件);×/点背景/ESC 三通道关闭,关闭即完成
+                              // onLinkClicked null → 链接默认 UI.Markdown.HandleLink
+               await MarkdownBox.Open(loader, title, ...)  // loader: Func<CT,Awaitable<string>>
+                              // 先显示 loadingText 占位,完成后热替换;关窗自动取消 loader 的 ct
+               await MarkdownBox.OpenUrl(url, title, ...)  // 裸 GET 糖;鉴权内容用 Open(loader)
+               configure:     Action<IScreen> trailing arg on every Open (MessageBox/InputBox/Loading/MarkdownBox)
                               // post-bind hook → live Screen; reach any control w/o subclassing
                               // e.g. InputBox.Open(t, configure: s => s.Get<Btn>("ok").Interactable = false)
                               // base ModalRequest<T>.Configure field → custom modals get it free
@@ -565,6 +587,7 @@ MODAL          var r = await MessageBox.Open(text, MsgBtn.OK|MsgBtn.Cancel, icon
                               else: InvalidKeyException / "Modal screen 'X' not loaded; call LoadDocument first"
                               (do NOT call LoadDocument manually — auto via ModalDocCache.EnsureLoaded)
                required ids   text  title  ok  cancel  yes  no  close   (icon optional)
+                              MarkdownBox required ids: title  markdown  close  backdrop  (backdrop = Image, click closes)
                backdrop       author writes <Image anchor="stretch"/> — NOT auto-injected
                UI.Modal.OpenAsync(new MyRequest(), ModalMode.Popup) custom ModalRequest<T>
                               override TryEscape(out T) to map ESC → result
@@ -604,9 +627,10 @@ ROUTER         UI.Router.Scheme = "myapp"                   optional scheme enfo
 
 ## Modal dialogs
 
-PromptUGUI ships a generic modal stack in `PromptUGUI.Application.Modals` plus three
-builtin overlays: a `MessageBox` dialog, an `InputBox` text prompt, and a `Loading`
-spinner. **Every modal IS a real
+PromptUGUI ships a generic modal stack in `PromptUGUI.Application.Modals` plus four
+builtin overlays: a `MessageBox` dialog, an `InputBox` text prompt, a `MarkdownBox`
+read-only rich-text viewer (announcements / mail, built on the `<Markdown>` control),
+and a `Loading` spinner. **Every modal IS a real
 `Screen` instantiated from `.ui.xml`** — anchor / margin / Variant / locale / `<Icon>`
 all work normally. The modal subsystem only adds: stack management, ESC handling, and a
 sortingOrder band above regular Screens.
@@ -637,6 +661,21 @@ if (name != null) game.PlayerName = name;
 // password prompt with a sub-message line
 string pw = await InputBox.Open(UI.Tr("Enter password"),
     message: UI.Tr("at least 8 chars"), contentType: "password");
+
+// MarkdownBox: read-only rich-text viewer (announcements / mail). No buttons;
+// closes via the × button, clicking the backdrop, or ESC. Completes when closed.
+await MarkdownBox.Open(noticeMarkdown, title: UI.Tr("Notice"));
+
+// Custom link routing (replaces the default UI.Markdown.HandleLink dispatch):
+await MarkdownBox.Open(mailBody, title: mail.Subject,
+    onLinkClicked: url => MyRouter.HandleDeepLink(url));
+
+// Deferred content: opens immediately showing "*Loading…*", swaps in the markdown
+// when the fetch completes, and cancels the fetch if the user closes the box first.
+await MarkdownBox.OpenUrl("https://cdn.example.com/notice.md", title: UI.Tr("Notice"));
+
+// Authenticated content: bring your own loader (the ct is cancelled on close).
+await MarkdownBox.Open(ct => Api.FetchMailBodyAsync(mailId, ct), title: mail.Subject);
 ```
 
 ### API surface (`PromptUGUI.Application.Modals`)
@@ -679,6 +718,29 @@ public static class InputBox {
         string cancelLabel = null,
         ModalMode mode     = ModalMode.Popup,
         Action<IScreen> configure = null);
+}
+
+public static class MarkdownBox {
+    public static string XmlSrc { get; set; } = "PromptUGUI/Modals/MarkdownBox.ui";
+    // Returns a non-generic Awaitable: completes when the box is closed
+    // (× button / backdrop click / ESC). No buttons can be configured.
+    public static Awaitable Open(
+        string markdown, string title = null,
+        Action<string> onLinkClicked = null,        // null → UI.Markdown.HandleLink
+        ModalMode mode = ModalMode.Popup,
+        Action<IScreen> configure = null,
+        CancellationToken ct = default);
+    // Deferred content: shows loadingText (default "*Loading…*") until loader
+    // completes, then hot-swaps. The loader's ct is cancelled when the box closes
+    // (any channel). Loader errors render "**Failed to load.**" + message — catch
+    // inside your loader to customize.
+    public static Awaitable Open(
+        Func<CancellationToken, Awaitable<string>> loader, string title = null,
+        Action<string> onLinkClicked = null, string loadingText = null,
+        ModalMode mode = ModalMode.Popup, Action<IScreen> configure = null,
+        CancellationToken ct = default);
+    // Plain unauthenticated GET sugar over Open(loader).
+    public static Awaitable OpenUrl(string url, /* same trailing params */);
 }
 
 [Flags] public enum MsgBtn { None=0, OK=1, Cancel=2, Yes=4, No=8, Close=16 }
@@ -735,10 +797,16 @@ UI.Modal.SortingOrderBase` so dialogs opened during a Loading appear above it.
 - **Locale / Variant**: a dialog is a regular `Screen` — `UI.Locale.Set(...)` and
   `UI.Variants.Set(...)` ReSolve open modals in place, no rebuild. Fonts swap on locale
   switch like in any other Screen (`<Text font="title">` etc.).
+- **MarkdownBox** has no result value — it returns a non-generic `Awaitable` that
+  completes when the box closes. `title: null` hides the title row and the markdown area
+  expands to fill. The × close button always floats top-right above the content. To
+  resize the box, use `configure` (e.g. `s.Get<Controls.Image>("dialog")`…). Links
+  default to `UI.Markdown.HandleLink` (see below); pass a non-null `onLinkClicked` to fully replace
+  that behaviour.
 
 ### Customizing a builtin modal (the `configure` hook)
 
-Every builtin `Open` (`MessageBox` / `InputBox` / `Loading`) takes a trailing
+Every builtin `Open` (`MessageBox` / `InputBox` / `MarkdownBox` / `Loading`) takes a trailing
 `configure: Action<IScreen>`. It fires **once, right after the builtin Bind**, with the
 live modal `Screen` — so you reach any control via `screen.Get<T>(id)` and customize
 without writing a `ModalRequest<T>` subclass. Because it runs after Bind, it overrides
