@@ -68,6 +68,7 @@ Unity 6 `AddComponent<VerticalLayoutGroup>()` 给出的默认值是 `childContro
 | LGC-D14 | PlayMode 验证 | 已有 PlayMode `VStackTests` / `HStackTests` 加一条 "real LayoutGroup pass 后子节点 rect.size 等于声明值" | EditMode 测组件存在性 + 数值；PlayMode 跑真 LayoutRebuilder.ForceRebuildLayoutImmediate 验布局结果 |
 | LGC-D15 | SKILL.md 更新 | 在 §"In a layout group" 段落加一句："子节点的 `size` / `width` / `height` 会写入 `LayoutElement.preferredX / flexibleX=0`，所以固定尺寸 = 在子节点上直接写 size/width/height 即可" | §6.5 语义没变（spec 早写了）；但当前 SKILL 没解释"为什么固定尺寸有效"，作者会困惑。归到 CLAUDE.md "新 / 改属性语义" 触发条件下 |
 | LGC-D16 | 兼容性兜底 | 不留兜底属性 | 用户说"现在没多少 ui，影响不大"。在 v1.x 阶段直接调整默认行为，避免长期带一个 force-expand-by-default 的兼容 flag |
+| LGC-D17 | 显式非 flexible 尺寸是否钉 `minWidth` / `minHeight` | 钉：`minX = sizeSpec.X`（与 preferredX 同值）；stretch/`stretch*N`、native fallback、cross-axis fill 三种轴保持 `minX=-1`（可收缩）；重置路径同 preferred/flexible 一并清回 -1 | 只钉 preferred 时 LayoutGroup 在空间紧张下会用共享插值系数把固定尺寸子节点一起压缩（min 默认 -1=0 → 有收缩余地），违背 LGC-D2/D3 的"固定即固定"语义。钉 min 让"strictly NxN"对压缩也成立——固定尺寸尾随控件（如 intrinsic-width `<Text>` 后的 edit `<Btn>`）不再被增长的文本挤扁，让位的是 min=0 的文本。stretch 的本意就是可压到 0，故不钉 |
 
 ---
 
