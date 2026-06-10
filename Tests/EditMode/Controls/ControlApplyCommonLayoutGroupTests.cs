@@ -293,6 +293,85 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Btn_in_HStack_with_size_pins_minWidth_and_minHeight()
+        {
+            // 固定 size 的 LayoutGroup 子节点必须钉死 min = preferred，否则当 HStack 被父级
+            // 限宽、总 preferred 超出可用宽时，HorizontalLayoutGroup 会用共享插值系数把它
+            // 一起压扁（min 默认 -1=0 → 有收缩余地）。钉 min 让"strictly NxN"对压缩也成立。
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <HStack id='stack' width='200' height='200'>
+    <Btn id='b' size='64x64'/>
+  </HStack>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var btn = screen.Get<Btn>("b");
+            var le = btn.GameObject.GetComponent<LayoutElement>();
+            Assert.AreEqual(64f, le.minWidth, "fixed size pins minWidth = preferred (no shrink)");
+            Assert.AreEqual(64f, le.minHeight, "fixed size pins minHeight = preferred (no shrink)");
+        }
+
+        [Test]
+        public void Btn_in_VStack_with_width_stretch_leaves_minWidth_unpinned()
+        {
+            // stretch 的本意就是"可被压到 0、按权重分配剩余空间" → minWidth 不能被钉，保持 -1。
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <VStack id='stack' width='380' height='180'>
+    <Btn id='b' width='stretch' height='46'/>
+  </VStack>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var btn = screen.Get<Btn>("b");
+            var le = btn.GameObject.GetComponent<LayoutElement>();
+            Assert.AreEqual(-1f, le.minWidth, "stretch axis stays shrinkable (minWidth=-1)");
+            Assert.AreEqual(46f, le.minHeight, "explicit numeric height still pins minHeight");
+        }
+
+        [Test]
+        public void Btn_in_VStack_native_fallback_axis_leaves_min_unpinned()
+        {
+            // 显式轴钉 min；native 兜底轴（这里 height=Btn native 44）不钉 min，保持 -1，
+            // 让自带 ILayoutElement 仍有收缩话语权。
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <VStack id='stack' width='200' height='200'>
+    <Btn id='b' width='100'/>
+  </VStack>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var btn = screen.Get<Btn>("b");
+            var le = btn.GameObject.GetComponent<LayoutElement>();
+            Assert.AreEqual(100f, le.minWidth, "explicit width pins minWidth");
+            Assert.AreEqual(-1f, le.minHeight, "native-filled height axis stays unpinned (minHeight=-1)");
+        }
+
+        [Test]
+        public void Variant_switch_from_size_to_stretch_resets_minWidth()
+        {
+            // 切到 stretch 变体后 minWidth 必须从 64 重置回 -1（清掉前一轮固定 size 的 min 残留），
+            // 否则 stretch 子节点会被错误地钉死成不可收缩。
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <VStack id='stack' width='200' height='200'>
+    <Btn id='b' size='64x64' size.mobile='' width.mobile='stretch' height.mobile='46'/>
+  </VStack>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            UI.Variants.Set("mobile", false);
+            var screen = UI.Open("S");
+            var btn = screen.Get<Btn>("b");
+            var le = btn.GameObject.GetComponent<LayoutElement>();
+            Assert.AreEqual(64f, le.minWidth, "desktop: fixed size pins minWidth");
+
+            UI.Variants.Set("mobile", true);
+            Assert.AreEqual(-1f, le.minWidth, "mobile stretch: minWidth must reset to -1 (shrinkable again)");
+        }
+
+        [Test]
         public void LayoutElement_inside_VStack_skips_rect_anchored_and_size_writes()
         {
             // Author-supplied anchor/margin under a LayoutGroup is ignored by design (spec §6.5).

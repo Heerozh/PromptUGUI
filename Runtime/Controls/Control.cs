@@ -335,6 +335,8 @@ namespace PromptUGUI.Controls
                     le.preferredHeight = -1;
                     le.flexibleWidth = -1;
                     le.flexibleHeight = -1;
+                    le.minWidth = -1;
+                    le.minHeight = -1;
                 }
                 return;
             }
@@ -344,6 +346,11 @@ namespace PromptUGUI.Controls
             le.preferredHeight = -1;
             le.flexibleWidth = -1;
             le.flexibleHeight = -1;
+            // 决策 LGC-D17: 显式、非 flexible 的尺寸要钉 min = preferred，否则 LayoutGroup 空间
+            // 紧张时会用共享插值系数把固定尺寸子节点一起压缩（min 默认 -1=0 → 有收缩余地），
+            // 违背"strictly NxN"契约。stretch/native fallback/cross-fill 轴保持 -1（可收缩）。
+            le.minWidth = -1;
+            le.minHeight = -1;
 
             if (sizeSpec.HasWidth)
             {
@@ -359,6 +366,7 @@ namespace PromptUGUI.Controls
                 {
                     le.preferredWidth = sizeSpec.Width;
                     le.flexibleWidth = 0;
+                    le.minWidth = sizeSpec.Width;
                 }
             }
             else if (hasNative)
@@ -378,6 +386,7 @@ namespace PromptUGUI.Controls
                 {
                     le.preferredHeight = sizeSpec.Height;
                     le.flexibleHeight = 0;
+                    le.minHeight = sizeSpec.Height;
                 }
             }
             else if (hasNative)
