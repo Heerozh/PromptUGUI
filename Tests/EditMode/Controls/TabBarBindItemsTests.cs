@@ -56,6 +56,29 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void ReSolve_After_BindItems_Replaced_Static_Tabs_Keeps_Dynamic_Tabs()
+        {
+            // 与 Carousel 同构：静态 <Tab> 被 BindItems 重建销毁后 ReSolve 不得崩溃；
+            // 且 OnAfterApply 的 CollectStaticTabs 不得把已销毁的静态 Tab 收回 _tabs、
+            // 丢掉动态建的 Tab。
+            var xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar'><Tab text='static1'/><Tab text='static2'/></TabBar>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var bar = screen.Get<TabBar>("bar");
+            using var sub = bar.BindItems(
+                Observable.Return<IReadOnlyList<string>>(new[] { "dyn1", "dyn2" }),
+                (Tab tab, string s) => tab.Text = s);
+
+            Assert.DoesNotThrow(() => screen.ReSolve());
+            Assert.AreEqual(2, bar.Count, "dynamic tabs survive the ReSolve");
+            Assert.AreEqual("dyn1", bar.GetAt(0).GameObject.transform.Find("Label")
+                .GetComponent<TMPro.TMP_Text>().text);
+        }
+
+        [Test]
         public void BindItems_With_Custom_Template_Resolves_Tab_Via_GetComponentInChildren()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>

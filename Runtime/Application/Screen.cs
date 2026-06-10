@@ -529,6 +529,9 @@ namespace PromptUGUI.Application
                 var node = kv.Key;
                 if (inactiveNodes.Contains(node)) continue;
                 var control = kv.Value;
+                // BindItems 重建（Carousel/TabBar）会销毁静态 XML 卡的 GameObject，
+                // 但其 ElementNode 仍留在 _nodeMap —— 跳过已销毁的控件（同 ApplyScales 的 rt==null 防御）。
+                if (control.GameObject == null) continue;
                 var entry = _registry.Resolve(node.Tag);
                 ControlAttributeApplier.Apply(node, control, entry, Variants, initial: false);
             }
