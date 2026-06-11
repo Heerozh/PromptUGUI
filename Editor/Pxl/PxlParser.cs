@@ -9,7 +9,7 @@ namespace PromptUGUI.Editor
     {
         public readonly int Line;
         public PxlParseException(int line, string message)
-            : base($"line {line}: {message}") { Line = line; }
+            : base(line > 0 ? $"line {line}: {message}" : message) { Line = line; }
     }
 
     internal sealed class PxlDocument

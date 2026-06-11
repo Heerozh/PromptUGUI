@@ -8,7 +8,8 @@ namespace PromptUGUI.Editor
     /// <summary>chars 映射 → 具体颜色。palette 模式（doc.PaletteRef != null）下
     /// hex 的 RGB 必须命中色板（忽略 alpha）——把全项目调色板一致性从 LLM 自觉
     /// 变成管线强制（spec §3）。错误用 PxlParseException(line=0)：此阶段无行号，
-    /// 消息携带 char 键与值上下文足以定位。</summary>
+    /// 消息携带 char 键与值上下文足以定位。
+    /// 调用方契约：palette 参数当且仅当 doc.PaletteRef != null 时非 null（由 PxlImporter 保证）。</summary>
     internal static class PxlColorResolver
     {
         public static Dictionary<char, Color32> Resolve(PxlDocument doc, GplPalette palette)
@@ -45,12 +46,12 @@ namespace PromptUGUI.Editor
         {
             var hex = value.Substring(1);
             if ((hex.Length != 6 && hex.Length != 8) ||
-                !uint.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out _))
+                !uint.TryParse(hex, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out _))
             {
                 throw new PxlParseException(0,
                     $"chars '{key}': '{value}' is not #RRGGBB / #RRGGBBAA");
             }
-            byte P(int i) => byte.Parse(hex.Substring(i, 2), NumberStyles.HexNumber,
+            byte P(int i) => byte.Parse(hex.Substring(i, 2), NumberStyles.AllowHexSpecifier,
                 CultureInfo.InvariantCulture);
             return new Color32(P(0), P(2), P(4), hex.Length == 8 ? P(6) : (byte)255);
         }

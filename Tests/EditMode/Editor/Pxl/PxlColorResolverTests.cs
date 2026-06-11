@@ -83,5 +83,30 @@ namespace PromptUGUI.Tests.Editor
             Assert.Throws<PxlParseException>(
                 () => PxlColorResolver.Resolve(Doc(('K', "#12345")), null));
         }
+
+        [Test]
+        public void Resolve_hex_with_inner_whitespace_throws()
+        {
+            Assert.Throws<PxlParseException>(
+                () => PxlColorResolver.Resolve(Doc(('K', "# a1c2c")), null));
+        }
+
+        [Test]
+        public void Resolve_palette_hex_matches_unnamed_entry()
+        {
+            var doc = Doc(('G', "#646464")); // 100,100,100 无名条目，只能被 hex 命中
+            doc.PaletteRef = "main";
+            var map = PxlColorResolver.Resolve(doc, Palette());
+            Assert.AreEqual(new Color32(100, 100, 100, 255), map['G']);
+        }
+
+        [Test]
+        public void Resolve_palette_name_is_normalized()
+        {
+            var doc = Doc(('K', "Dark Blue")); // .gpl 里是 dark-blue
+            doc.PaletteRef = "main";
+            var map = PxlColorResolver.Resolve(doc, Palette());
+            Assert.AreEqual(new Color32(26, 28, 44, 255), map['K']);
+        }
     }
 }
