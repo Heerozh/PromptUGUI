@@ -27,6 +27,8 @@ namespace PromptUGUI.Application.Tutorial
             return HitTest(local);
         }
 
+        // 命中测试用未夹紧的 _hole(网格用夹紧版):洞恒为 目标 rect+padding,与本 rect 同属
+        // overlay 画布、必然相交,故不存在"完全在 rect 外"的洞 → 二者不会分歧。
         private bool HitTest(Vector2 local) => !(_hole.HasValue && _hole.Value.Contains(local));
 
         protected override void OnPopulateMesh(VertexHelper vh)

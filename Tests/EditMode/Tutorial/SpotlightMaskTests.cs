@@ -63,5 +63,13 @@ namespace PromptUGUI.Tests.Tutorial
             Assert.AreEqual(0, _mask.PopulateMeshVertexCountForTests());
             Assert.IsFalse(_mask.HitTestForTests(Vector2.zero));
         }
+
+        [Test]
+        public void Hole_OverRightEdge_DropsRightBand_12Verts()
+        {
+            // 洞越过右缘 (xMax=450 > rect 400):右带退化被丢,留上/下/左三带
+            _mask.SetHole(new Rect(350, -25, 100, 50));
+            Assert.AreEqual(12, _mask.PopulateMeshVertexCountForTests());
+        }
     }
 }
