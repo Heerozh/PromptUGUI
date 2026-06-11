@@ -99,6 +99,13 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Parse_palette_name_with_space_throws()
+        {
+            Assert.Throws<PxlParseException>(() => PxlParser.Parse(
+                "palette: @my pal\nchars:\n  K: #000000\ngrid:\n  K\n"));
+        }
+
+        [Test]
         public void Parse_implicit_then_explicit_section_throws()
         {
             Assert.Throws<PxlParseException>(() => PxlParser.Parse(

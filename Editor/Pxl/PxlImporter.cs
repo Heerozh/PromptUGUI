@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
@@ -43,6 +44,11 @@ namespace PromptUGUI.Editor
                 // 色板改动 → 所有引用它的 .pxl 自动重导入（全项目换色一次完成）。
                 ctx.DependsOnSourceAsset(gplPath);
                 try { palette = GplPalette.Parse(File.ReadAllText(gplPath)); }
+                catch (IOException ex)
+                {
+                    ctx.LogImportError($"{gplPath}: cannot read: {ex.Message}");
+                    return;
+                }
                 catch (System.FormatException ex)
                 {
                     ctx.LogImportError($"{gplPath}: {ex.Message}");
@@ -50,7 +56,7 @@ namespace PromptUGUI.Editor
                 }
             }
 
-            System.Collections.Generic.Dictionary<char, Color32> colors;
+            Dictionary<char, Color32> colors;
             try { colors = PxlColorResolver.Resolve(doc, palette); }
             catch (PxlParseException ex)
             {
@@ -77,7 +83,7 @@ namespace PromptUGUI.Editor
         }
 
         private static Texture2D BuildTexture(PxlSection section,
-            System.Collections.Generic.IReadOnlyDictionary<char, Color32> colors, string name)
+            IReadOnlyDictionary<char, Color32> colors, string name)
         {
             var w = section.Width;
             var h = section.Height;
@@ -98,7 +104,8 @@ namespace PromptUGUI.Editor
         }
 
         /// <summary>按文件名（去扩展名）全项目找 &lt;name&gt;.gpl。0 个或多个都报错
-        /// （error out 参数带候选列表）。</summary>
+        /// （error out 参数带候选列表）。
+        /// 查找本身无依赖边——.gpl 新增/删除/移动由 GplPostprocessor 兜底重导入。</summary>
         private static string FindPalettePath(string paletteRef, out string error)
         {
             var matches = AssetDatabase.FindAssets(paletteRef)
@@ -113,6 +120,48 @@ namespace PromptUGUI.Editor
                 ? $"palette '@{paletteRef}' not found (no '{paletteRef}.gpl' in project)"
                 : $"palette '@{paletteRef}' is ambiguous: {string.Join(", ", matches)}";
             return null;
+        }
+    }
+
+    /// <summary>FindAssets-based palette lookup has no asset-dependency edge for the
+    /// lookup itself: a .gpl appearing (fixing a missing-palette error), disappearing,
+    /// or moving would otherwise leave dependent .pxl assets stale until a manual
+    /// reimport. Force-reimport every .pxl whenever any .gpl changes shape.
+    /// (.gpl content edits are already covered by ctx.DependsOnSourceAsset.)
+    /// Note: when a .gpl content edit reimports dependents via DependsOnSourceAsset,
+    /// the .gpl itself appears in importedAssets → this postprocessor re-queues all
+    /// .pxl once more; that is an idempotent no-op import storm only on palette
+    /// changes, acceptable for Editor tooling.</summary>
+    internal sealed class GplPostprocessor : UnityEditor.AssetPostprocessor
+    {
+        private static void OnPostprocessAllAssets(
+            string[] importedAssets, string[] deletedAssets,
+            string[] movedAssets, string[] movedFromAssetPaths)
+        {
+            if (!AnyGpl(importedAssets) && !AnyGpl(deletedAssets) &&
+                !AnyGpl(movedAssets) && !AnyGpl(movedFromAssetPaths))
+            {
+                return;
+            }
+            // Use GetAllAssetPaths instead of FindAssets("t:Texture2D") so that
+            // broken .pxl files (failed import → DefaultAsset, not Texture2D) are
+            // also re-queued — exactly the case we must recover when a missing palette
+            // reappears.
+            foreach (var path in AssetDatabase.GetAllAssetPaths())
+            {
+                if (!path.EndsWith(".pxl", System.StringComparison.Ordinal)) continue;
+                AssetDatabase.ImportAsset(path);
+            }
+        }
+
+        private static bool AnyGpl(string[] paths)
+        {
+            foreach (var p in paths)
+            {
+                if (p != null && p.EndsWith(".gpl", System.StringComparison.Ordinal))
+                    return true;
+            }
+            return false;
         }
     }
 }

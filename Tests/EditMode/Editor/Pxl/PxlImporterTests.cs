@@ -88,9 +88,12 @@ namespace PromptUGUI.Tests.Editor
             Assert.IsNotNull(AssetDatabase.LoadAssetAtPath<Sprite>(ok));
 
             LogAssert.ignoreFailingMessages = true;
-            var bad = Write("bad.pxl", "palette: @main\nchars:\n  K: #010203\ngrid:\n  K\n");
-            LogAssert.ignoreFailingMessages = false;
-            Assert.IsNull(AssetDatabase.LoadAssetAtPath<Sprite>(bad), "off-palette must fail import");
+            try
+            {
+                var bad = Write("bad.pxl", "palette: @main\nchars:\n  K: #010203\ngrid:\n  K\n");
+                Assert.IsNull(AssetDatabase.LoadAssetAtPath<Sprite>(bad), "off-palette must fail import");
+            }
+            finally { LogAssert.ignoreFailingMessages = false; }
         }
 
         [Test]
@@ -112,18 +115,44 @@ namespace PromptUGUI.Tests.Editor
         public void Import_parse_error_fails_import_with_logged_error()
         {
             LogAssert.ignoreFailingMessages = true;
-            var path = Write("broken.pxl", "chars:\n  K: #000000\ngrid:\n  KK\n  K\n");
-            LogAssert.ignoreFailingMessages = false;
-            Assert.IsNull(AssetDatabase.LoadAssetAtPath<Texture2D>(path));
+            try
+            {
+                LogAssert.Expect(LogType.Error,
+                    new System.Text.RegularExpressions.Regex("row width"));
+                var path = Write("broken.pxl", "chars:\n  K: #000000\ngrid:\n  KK\n  K\n");
+                Assert.IsNull(AssetDatabase.LoadAssetAtPath<Texture2D>(path));
+            }
+            finally { LogAssert.ignoreFailingMessages = false; }
         }
 
         [Test]
         public void Import_missing_palette_fails_import()
         {
             LogAssert.ignoreFailingMessages = true;
-            var path = Write("orphan.pxl", "palette: @nosuch\nchars:\n  K: #000000\ngrid:\n  K\n");
-            LogAssert.ignoreFailingMessages = false;
-            Assert.IsNull(AssetDatabase.LoadAssetAtPath<Texture2D>(path));
+            try
+            {
+                var path = Write("orphan.pxl", "palette: @nosuch\nchars:\n  K: #000000\ngrid:\n  K\n");
+                Assert.IsNull(AssetDatabase.LoadAssetAtPath<Texture2D>(path));
+            }
+            finally { LogAssert.ignoreFailingMessages = false; }
+        }
+
+        [Test]
+        public void Import_gpl_added_later_recovers_broken_pxl()
+        {
+            string path;
+            LogAssert.ignoreFailingMessages = true;
+            try
+            {
+                path = Write("late.pxl", "palette: @latepal\nchars:\n  K: #1a1c2c\ngrid:\n  K\n");
+                Assert.IsNull(AssetDatabase.LoadAssetAtPath<Texture2D>(path));
+            }
+            finally { LogAssert.ignoreFailingMessages = false; }
+
+            Write("latepal.gpl", "GIMP Palette\n26 28 44\tdark-blue\n");
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            Assert.IsNotNull(AssetDatabase.LoadAssetAtPath<Texture2D>(path),
+                "adding the missing .gpl must re-trigger the broken .pxl import");
         }
     }
 }

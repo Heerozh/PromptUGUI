@@ -104,7 +104,15 @@ namespace PromptUGUI.Editor
                     if (!v.StartsWith("@", StringComparison.Ordinal) || v.Length < 2)
                         throw new PxlParseException(lineNo,
                             $"palette must be '@<name>' (a project .gpl reference), got '{v}'");
-                    doc.PaletteRef = v.Substring(1);
+                    var name = v.Substring(1);
+                    foreach (var c in name)
+                    {
+                        if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                              (c >= '0' && c <= '9') || c == '_' || c == '-'))
+                            throw new PxlParseException(lineNo,
+                                $"palette name '@{name}' may only contain [A-Za-z0-9_-]");
+                    }
+                    doc.PaletteRef = name;
                     continue;
                 }
                 if (line.StartsWith("ppu:", StringComparison.Ordinal))
