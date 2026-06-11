@@ -11,6 +11,66 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [SetUp] public void SetUp() => UI.ResetForTests();
         [TearDown] public void TearDown() => UI.ResetForTests();
 
+        private ScrollList OpenList(string attrs = "")
+        {
+            string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='Slot'><Frame/></Template>
+  <Screen name='S'><ScrollList id='sl' itemTemplate='Slot' " + attrs + @"/></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            return UI.Open("S").Get<ScrollList>("sl");
+        }
+
+        private static UnityEngine.RectTransform ViewportOf(ScrollList sl) =>
+            (UnityEngine.RectTransform)sl.GameObject.transform.Find("Viewport");
+
+        [Test]
+        public void Mask_empty_swaps_stencil_for_RectMask2D()
+        {
+            var sl = OpenList(@"mask=''");
+            var vp = ViewportOf(sl).gameObject;
+            var rectMask = vp.GetComponent<UnityEngine.UI.RectMask2D>();
+            Assert.IsNotNull(rectMask);
+            Assert.IsTrue(rectMask.enabled);
+            var mask = vp.GetComponent<UnityEngine.UI.Mask>();
+            Assert.IsTrue(mask == null || !mask.enabled, "stencil Mask must be off");
+            var img = vp.GetComponent<UnityEngine.UI.Image>();
+            Assert.IsTrue(img == null || !img.enabled, "viewport Image must be off (RectMask2D has no showMaskGraphic)");
+        }
+
+        [Test]
+        public void Mask_custom_sprite_replaces_default_mask_sprite()
+        {
+            var sl = OpenList(@"mask='PromptUGUI/Defaults/pugui#pugui_9slice_round'");
+            var vp = ViewportOf(sl).gameObject;
+            var mask = vp.GetComponent<UnityEngine.UI.Mask>();
+            Assert.IsNotNull(mask);
+            Assert.IsTrue(mask.enabled);
+            Assert.IsFalse(mask.showMaskGraphic);
+            var img = vp.GetComponent<UnityEngine.UI.Image>();
+            Assert.AreEqual("pugui_9slice_round", img.sprite.name);
+            Assert.AreEqual(1f, img.color.a, "alpha=1 critical (4af322b)");
+            Assert.AreEqual(UnityEngine.UI.Image.Type.Sliced, img.type, "AutoSlice: border 非零 → Sliced");
+            Assert.IsNull(vp.GetComponent<UnityEngine.UI.RectMask2D>());
+        }
+
+        [Test]
+        public void Mask_toggles_between_states_without_leftover_components()
+        {
+            var sl = OpenList();
+            var vp = ViewportOf(sl).gameObject;
+            sl.Mask = "";                                              // 圆角 → 直角
+            sl.Mask = "PromptUGUI/Defaults/pugui#pugui_9slice_round";  // 直角 → 自定义
+            sl.Mask = "";                                              // 自定义 → 直角
+
+            Assert.AreEqual(1, vp.GetComponents<UnityEngine.UI.RectMask2D>().Length, "no duplicates");
+            Assert.AreEqual(1, vp.GetComponents<UnityEngine.UI.Mask>().Length, "lazy-add keeps single instance");
+            Assert.IsTrue(vp.GetComponent<UnityEngine.UI.RectMask2D>().enabled);
+            Assert.IsFalse(vp.GetComponent<UnityEngine.UI.Mask>().enabled);
+            Assert.IsFalse(vp.GetComponent<UnityEngine.UI.Image>().enabled);
+        }
+
         [Test]
         public void BindItems_template_creates_one_slot_per_data_item()
         {

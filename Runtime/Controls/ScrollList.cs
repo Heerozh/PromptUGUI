@@ -185,6 +185,13 @@ namespace PromptUGUI.Controls
             set => _bg.sprite = UI.ResolveSprite(value);
         }
 
+        [UIAttr(IsSprite = true), Preserve]
+        public string Mask
+        {
+            set => ProceduralBuilders.ApplyViewportMask(
+                _viewport, value, ProceduralBuilders.SpriteMaskRoundedRect);
+        }
+
         private Func<RectTransform, IControl> ResolveFactory(string tag)
         {
             if (string.IsNullOrEmpty(tag)) return null;
