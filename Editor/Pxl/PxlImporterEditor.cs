@@ -134,17 +134,24 @@ namespace PromptUGUI.Editor
             var pngs = new Dictionary<string, PxlPngSync.PngImage>();
             foreach (var file in Directory.GetFiles(dir, BaseName + "*.png"))
             {
+                // try/finally：单个坏/被锁 PNG 不泄漏 Texture2D 也不中止整批 sync。
                 var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-                if (!ImageConversion.LoadImage(tex, File.ReadAllBytes(file)))
-                { DestroyImmediate(tex); continue; }
-                var bottomUp = tex.GetPixels32();
-                var topDown = new Color32[tex.width * tex.height];
-                for (var y = 0; y < tex.height; y++)
-                    System.Array.Copy(bottomUp, (tex.height - 1 - y) * tex.width,
-                        topDown, y * tex.width, tex.width);
-                pngs[Path.GetFileName(file)] =
-                    new PxlPngSync.PngImage(tex.width, tex.height, topDown);
-                DestroyImmediate(tex);
+                try
+                {
+                    if (!ImageConversion.LoadImage(tex, File.ReadAllBytes(file))) continue;
+                    var bottomUp = tex.GetPixels32();
+                    var topDown = new Color32[tex.width * tex.height];
+                    for (var y = 0; y < tex.height; y++)
+                        System.Array.Copy(bottomUp, (tex.height - 1 - y) * tex.width,
+                            topDown, y * tex.width, tex.width);
+                    pngs[Path.GetFileName(file)] =
+                        new PxlPngSync.PngImage(tex.width, tex.height, topDown);
+                }
+                catch (IOException ex)
+                {
+                    Debug.LogWarning($"[Pxl] skipped unreadable PNG '{file}': {ex.Message}");
+                }
+                finally { DestroyImmediate(tex); }
             }
 
             var text = File.ReadAllText(AssetPath);
