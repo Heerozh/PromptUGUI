@@ -160,6 +160,44 @@ namespace PromptUGUI.Editor
             return plan;
         }
 
+        /// <summary>文本手术：替换各更新节的 grid 行区间 + 在 chars 块末尾追加新条目。
+        /// 其余内容（header/注释/未匹配节）逐字节保留。输入 CRLF 统一为 LF（spec §6）。
+        /// 夹在 grid 行之间的注释行位于替换区间内，会随替换消失（spec §4.3 取舍）。</summary>
+        public static string Apply(string pxlText, SyncPlan plan)
+        {
+            if (plan.Errors.Count > 0)
+                throw new InvalidOperationException("cannot apply a plan with errors");
+
+            var lines = new List<string>(
+                pxlText.TrimStart('﻿').Replace("\r\n", "\n").Split('\n'));
+
+            // 收集编辑（1-based 行号），按起始行从大到小执行，前面的索引不受影响。
+            var edits = new List<(int start, int end, List<string> replacement)>();
+            foreach (var u in plan.Updates)
+            {
+                var replacement = new List<string>(u.Rows.Count);
+                foreach (var row in u.Rows) replacement.Add("  " + row);
+                edits.Add((u.Section.GridStartLine, u.Section.GridEndLine, replacement));
+            }
+            if (plan.NewChars.Count > 0)
+            {
+                // 把"在 anchor 行后插入"建模为"替换 anchor 行 = 原行 + 新条目行"。
+                var anchor = plan.CharsInsertAfterLine;
+                var replacement = new List<string> { lines[anchor - 1] };
+                foreach (var (ch, value) in plan.NewChars)
+                    replacement.Add($"  {ch}: {value}");
+                edits.Add((anchor, anchor, replacement));
+            }
+
+            edits.Sort((a, b) => b.start.CompareTo(a.start));
+            foreach (var (start, end, replacement) in edits)
+            {
+                lines.RemoveRange(start - 1, end - start + 1);
+                lines.InsertRange(start - 1, replacement);
+            }
+            return string.Join("\n", lines);
+        }
+
         // 新 chars 条目的值写法：palette 模式且整 alpha 且命中有名条目 → 色名；否则 hex。
         private static string ValueFor(Color32 px, GplPalette palette)
         {

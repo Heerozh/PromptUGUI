@@ -144,5 +144,117 @@ namespace PromptUGUI.Tests.Editor
             var plan = PxlPngSync.BuildPlan("grid:\n  .\n", "d", pngs, null);
             Assert.IsTrue(plan.Errors.Any(e => e.Contains("chars:")));
         }
+
+        // ---- Apply（文本手术）----
+
+        [Test]
+        public void Apply_roundtrip_is_byte_identical()
+        {
+            // spec §4.4 不变量 1：Export → 不改 PNG → Sync → 文本逐字节不变
+            const string text =
+                "# header comment\npalette: @p\nppu: 16\nchars:\n  K: night\n  W: #f4f4f4\n" +
+                "[a]\nborder: 1,1,1,1\ngrid:\n  KKK\n  KWK\n  KKK\n\n[b]\ngrid:\n  WW\n";
+            var palette = GplPalette.Parse("GIMP Palette\n26 28 44\tnight\n244 244 244\tpaper\n");
+            var doc = PxlParser.Parse(text);
+            var colors = PxlColorResolver.Resolve(doc, palette);
+            var pngs = new Dictionary<string, PxlPngSync.PngImage>();
+            foreach (var (s, i) in doc.Sections.Select((s, i) => (s, i)))
+            {
+                var bytes = PxlPngExporter.EncodeSection(s, colors);
+                var tex = new Texture2D(2, 2);
+                ImageConversion.LoadImage(tex, bytes);
+                var bottomUp = tex.GetPixels32();
+                var topDown = new Color32[tex.width * tex.height];
+                for (var y = 0; y < tex.height; y++)
+                    System.Array.Copy(bottomUp, (tex.height - 1 - y) * tex.width,
+                        topDown, y * tex.width, tex.width);
+                pngs[PxlPngExporter.FileNameFor("d", s)] =
+                    new PxlPngSync.PngImage(tex.width, tex.height, topDown);
+                Object.DestroyImmediate(tex);
+            }
+            var plan = PxlPngSync.BuildPlan(text, "d", pngs, palette);
+            Assert.IsEmpty(plan.Errors);
+            Assert.AreEqual(text, PxlPngSync.Apply(text, plan));
+        }
+
+        [Test]
+        public void Apply_updates_grid_preserves_everything_else()
+        {
+            const string text =
+                "# keep me\nchars:\n  K: #000000\n  W: #ffffff\n[a]\ngrid:\n  KW\n  WK\n\n[b]\ngrid:\n  K\n";
+            var pngs = new Dictionary<string, PxlPngSync.PngImage>
+            {
+                ["d.a.png"] = Img(2, 2, W, W, W, W),
+            };
+            var plan = PxlPngSync.BuildPlan(text, "d", pngs, null);
+            var result = PxlPngSync.Apply(text, plan);
+            Assert.AreEqual(
+                "# keep me\nchars:\n  K: #000000\n  W: #ffffff\n[a]\ngrid:\n  WW\n  WW\n\n[b]\ngrid:\n  K\n",
+                result);
+        }
+
+        [Test]
+        public void Apply_resize_changes_row_count()
+        {
+            const string text = "chars:\n  K: #000000\ngrid:\n  K\n";
+            var pngs = new Dictionary<string, PxlPngSync.PngImage>
+            {
+                ["d.png"] = Img(2, 3, K, K, K, K, K, K),
+            };
+            var plan = PxlPngSync.BuildPlan(text, "d", pngs, null);
+            Assert.AreEqual("chars:\n  K: #000000\ngrid:\n  KK\n  KK\n  KK\n",
+                PxlPngSync.Apply(text, plan));
+        }
+
+        [Test]
+        public void Apply_appends_new_chars_after_last_entry()
+        {
+            const string text = "chars:\n  K: #000000\ngrid:\n  K\n";
+            var red = new Color32(255, 0, 0, 255);
+            var pngs = new Dictionary<string, PxlPngSync.PngImage> { ["d.png"] = Img(1, 1, red) };
+            var plan = PxlPngSync.BuildPlan(text, "d", pngs, null);
+            Assert.AreEqual("chars:\n  K: #000000\n  A: #ff0000\ngrid:\n  A\n",
+                PxlPngSync.Apply(text, plan));
+        }
+
+        [Test]
+        public void Apply_result_reimports_with_identical_pixels()
+        {
+            // spec §4.4 不变量 2（像素保真）+ 3（确定性）
+            const string text = "chars:\n  K: #000000\ngrid:\n  K.\n  .K\n";
+            var blue = new Color32(0, 0, 255, 255);
+            var pngs = new Dictionary<string, PxlPngSync.PngImage>
+            {
+                ["d.png"] = Img(2, 2, blue, T, T, K),
+            };
+            var r1 = PxlPngSync.Apply(text, PxlPngSync.BuildPlan(text, "d", pngs, null));
+            var r2 = PxlPngSync.Apply(text, PxlPngSync.BuildPlan(text, "d", pngs, null));
+            Assert.AreEqual(r1, r2);
+            var doc = PxlParser.Parse(r1);
+            var colors = PxlColorResolver.Resolve(doc, null);
+            var s = doc.Sections[0];
+            Assert.AreEqual(blue, colors[s.Rows[0][0]]);
+            Assert.AreEqual((byte)0, colors[s.Rows[0][1]].a);
+            Assert.AreEqual(K, colors[s.Rows[1][1]]);
+        }
+
+        [Test]
+        public void Apply_crlf_input_normalized_to_lf()
+        {
+            var text = "chars:\r\n  K: #000000\r\ngrid:\r\n  K\r\n";
+            var pngs = new Dictionary<string, PxlPngSync.PngImage> { ["d.png"] = Img(1, 1, W) };
+            var plan = PxlPngSync.BuildPlan(text, "d", pngs, null);
+            var result = PxlPngSync.Apply(text, plan);
+            StringAssert.DoesNotContain("\r", result);
+        }
+
+        [Test]
+        public void Apply_throws_when_plan_has_errors()
+        {
+            var plan = new PxlPngSync.SyncPlan();
+            plan.Errors.Add("boom");
+            Assert.Throws<System.InvalidOperationException>(
+                () => PxlPngSync.Apply("chars:\n  K: #000000\ngrid:\n  K\n", plan));
+        }
     }
 }
