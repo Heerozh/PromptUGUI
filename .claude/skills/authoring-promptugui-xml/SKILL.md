@@ -248,7 +248,7 @@ TMP_Dropdown。R3 `OnSelected: int`。选项 C# 侧 `BindOptions(...)` 注入。
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
 | `popupSprite` | sprite key | — | Skins the popup list background (the closed button keeps using `sprite`/`color`). |
 | `popupColor` | hex / CSS / token | — | Tints the popup list background. |
-| `popupMask` | sprite key | rounded | Popup viewport clip shape; same three states as `<ScrollList mask>` (`""` = square RectMask2D). |
+| `popupMask` | sprite key | follows `popupSprite` | Popup viewport clip shape; same semantics as `<ScrollList mask>`. Unset auto-tracks `popupSprite` (sprite → rounded stencil; `popupSprite=""` → square `RectMask2D`); explicit `popupMask=` (incl. `""`) opts out. |
 
 ### `<ScrollList>`
 
@@ -265,7 +265,7 @@ ScrollRect + Mask。项 C# 侧 `BindItems(...)` 注入。`itemTemplate` 引用 `
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
 | `frame` | sprite key | — | Border layer drawn above content & scrollbar, outside the mask — scrolling content never overlaps it. Lazily created. Note: `tint=` affects only the background, not the frame. |
 | `frameColor` | hex / CSS / token | — | Tints the frame layer; setting it alone also activates the layer. |
-| `mask` | sprite key | rounded | Viewport clip shape. `mask="custom#slice"` = stencil mask with that sprite (auto-sliced); `mask=""` = square `RectMask2D` clip (cheaper; keeps a transparent list's corners square). Unset keeps the built-in rounded mask. Unlike `<Image>`/`<Frame>`, `rect`/`self` are **not** keywords here — this `mask` takes a sprite key, so use `mask=""` for a square clip. |
+| `mask` | sprite key | follows `sprite` | Viewport clip shape. `mask="custom#slice"` = stencil mask with that sprite (auto-sliced); `mask=""` = square `RectMask2D` clip (cheaper). **Unset auto-tracks the bg `sprite`**: a sprite present (incl. the default) → rounded stencil; `sprite=""`/`sprite="none"` → square, so a transparent list's corners stay square without writing `mask=""`. Explicit `mask=` (any value, incl. `""`) opts out of auto-tracking. Unlike `<Image>`/`<Frame>`, `rect`/`self` are **not** keywords here — `mask` takes a sprite key. |
 
 ### `<InputField>`
 
