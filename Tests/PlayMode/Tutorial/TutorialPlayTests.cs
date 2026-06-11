@@ -40,8 +40,12 @@ namespace PromptUGUI.Tests.PlayMode.Tutorial
             Vector2 inside = RectTransformUtility.WorldToScreenPoint(null, target.RectTransform.position);
             Assert.IsFalse(view.Mask.IsRaycastLocationValid(inside, null),
                 "洞内:filter 应返回 false(穿透到真实控件)");
-            // 洞外点 = 屏幕角落(远离居中目标的洞)
-            Vector2 outside = new Vector2(2f, 2f);
+            // 洞外点:由实时洞矩形右缘 + 余量(mask 本地坐标)反推屏幕坐标,
+            // 与分辨率无关(不依赖固定屏幕角落),保证恒在洞外。
+            var hole = view.Mask.HoleForTests.Value;
+            Vector3 outsideWorld = view.Mask.rectTransform.TransformPoint(
+                new Vector3(hole.xMax + 50f, hole.center.y, 0f));
+            Vector2 outside = RectTransformUtility.WorldToScreenPoint(null, outsideWorld);
             Assert.IsTrue(view.Mask.IsRaycastLocationValid(outside, null),
                 "洞外:filter 应返回 true(拦截)");
 
