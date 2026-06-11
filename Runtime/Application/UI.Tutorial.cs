@@ -21,6 +21,7 @@ namespace PromptUGUI.Application
             internal static TutorialFlow Active;
             private static TutorialOverlayView _view;
             private static string _overlayKey;
+            private static readonly Func<string, bool> _rejectAll = _ => false;
 
             public static bool IsActive => Active != null;
             internal static bool IsBlockingInput => _view != null && _view.IsBlockingStep;
@@ -43,6 +44,34 @@ namespace PromptUGUI.Application
             {
                 if (_overlayKey != null) UI.CloseModalScreen(_overlayKey);
                 _overlayKey = null; _view = null;
+            }
+
+            /// <summary>
+            /// 跑一段引导:body 内一步一 await。id 用于断点续(load/save 委托)。
+            /// 整段独占(重入抛 InvalidOperationException);try/finally 保证 guard 注销 + overlay 销毁。
+            /// </summary>
+            public static async Awaitable Run(string id, Func<TutorialFlow, Awaitable> body)
+            {
+                if (id == null) throw new ArgumentNullException(nameof(id));
+                if (body == null) throw new ArgumentNullException(nameof(body));
+                if (Active != null)
+                    throw new InvalidOperationException("UI.Tutorial.Run: a tutorial is already running");
+
+                int resume = _load?.Invoke(id) ?? 0;
+                var flow = new TutorialFlow(id, resume, _save);
+                Active = flow;
+                Router.AddGuard(_rejectAll);
+                try
+                {
+                    await body(flow);
+                    _save?.Invoke(id, int.MaxValue);   // 整段完成哨兵
+                }
+                finally
+                {
+                    Router.RemoveGuard(_rejectAll);
+                    DestroyOverlay();
+                    Active = null;
+                }
             }
 
             internal static void ResetForTestsInternal()
