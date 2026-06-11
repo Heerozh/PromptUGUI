@@ -55,20 +55,6 @@ namespace PromptUGUI.Controls.Internal
             img.type = UnityImage.Type.Sliced;
         }
 
-        /// <summary>
-        /// 给 stencil Mask 用的 graphic 应用专门的 mask sprite (pugui_9slice_mask)。
-        /// 这张 sprite 跟 round 不同：border=2、Simple type 整张拉伸，让 stencil 的圆角形状
-        /// 跟 RT 大小成比例可见 (default Unity Scroll View 用单独 UIMask sprite 同样思路)。
-        /// </summary>
-        public static void ApplyDefaultMaskSprite(UnityImage img)
-        {
-            if (img == null || img.sprite != null) return;
-            var s = GetDefaultSprite(SpriteMaskRoundedRect);
-            if (s == null) return;
-            img.sprite = s;
-            img.type = UnityImage.Type.Sliced;
-        }
-
         /// <summary>给 Image 应用 simple sprite 兜底（caret / checkmark 等无边界形状）。</summary>
         public static void ApplyDefaultSimpleSprite(UnityImage img, string spriteName, bool preserveAspect = false)
         {
