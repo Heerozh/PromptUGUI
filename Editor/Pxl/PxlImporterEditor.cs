@@ -63,8 +63,12 @@ namespace PromptUGUI.Editor
             using (new EditorGUI.DisabledScope(_doc == null))
             using (new EditorGUILayout.HorizontalScope())
             {
-                if (GUILayout.Button("Export PNG...")) ExportPng();
-                if (GUILayout.Button("Sync from PNG...")) SyncFromPng();
+                // 不能在 IMGUI 布局块内同步弹模态面板：SaveFolderPanel/OpenFolderPanel/
+                // DisplayDialog 会泵送事件、打断 GUILayout 的 layout-group 栈，退出 using 时
+                // EndLayoutGroup 抛 "BeginLayoutGroup must be called first"。延后到下一个
+                // editor tick、完全脱离 OnGUI 后再执行（仓库既有 delayCall 惯例）。
+                if (GUILayout.Button("Export PNG...")) EditorApplication.delayCall += ExportPng;
+                if (GUILayout.Button("Sync from PNG...")) EditorApplication.delayCall += SyncFromPng;
             }
             EditorGUILayout.HelpBox(
                 "All settings (ppu / border / palette / pixels) live in the .pxl text file.",
@@ -102,6 +106,7 @@ namespace PromptUGUI.Editor
 
         private void ExportPng()
         {
+            if (this == null || _doc == null) return; // delayCall 触发前 editor 可能已销毁/重载
             var dir = EditorUtility.SaveFolderPanel("Export .pxl sections as PNG",
                 EditorPrefs.GetString(PrefKey, ""), "");
             if (string.IsNullOrEmpty(dir)) return;
@@ -127,6 +132,7 @@ namespace PromptUGUI.Editor
 
         private void SyncFromPng()
         {
+            if (this == null || _doc == null) return; // delayCall 触发前 editor 可能已销毁/重载
             var dir = EditorUtility.OpenFolderPanel("Sync .pxl from PNG",
                 EditorPrefs.GetString(PrefKey, ""), "");
             if (string.IsNullOrEmpty(dir)) return;
