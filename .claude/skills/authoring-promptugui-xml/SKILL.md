@@ -265,7 +265,7 @@ ScrollRect + Mask。项 C# 侧 `BindItems(...)` 注入。`itemTemplate` 引用 `
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
 | `frame` | sprite key | — | Border layer drawn above content & scrollbar, outside the mask — scrolling content never overlaps it. Lazily created. Note: `tint=` affects only the background, not the frame. |
 | `frameColor` | hex / CSS / token | — | Tints the frame layer; setting it alone also activates the layer. |
-| `mask` | sprite key | rounded | Viewport clip shape. `mask="custom#slice"` = stencil mask with that sprite (auto-sliced); `mask=""` = square `RectMask2D` clip (cheaper; keeps a transparent list's corners square). Unset keeps the built-in rounded mask. |
+| `mask` | sprite key | rounded | Viewport clip shape. `mask="custom#slice"` = stencil mask with that sprite (auto-sliced); `mask=""` = square `RectMask2D` clip (cheaper; keeps a transparent list's corners square). Unset keeps the built-in rounded mask. Unlike `<Image>`/`<Frame>`, `rect`/`self` are **not** keywords here — this `mask` takes a sprite key, so use `mask=""` for a square clip. |
 
 ### `<InputField>`
 
