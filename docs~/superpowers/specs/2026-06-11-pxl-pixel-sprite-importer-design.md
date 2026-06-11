@@ -34,15 +34,19 @@ LLM 写下一个 `.pxl` 文件放进 SpriteSet sourceFolder → Unity 自动导�
 ## 2. `.pxl` 文件格式
 
 ```
-palette: @main              # 可选；引用项目级 main.gpl。省略 = 纯内联模式
-ppu: 16                     # 可选；缺省 100（Unity TextureImporter 惯例值）
+# 注释仅支持整行（trim 后以 # 开头）；行尾注释不可用
+# palette: 可选；引用项目级 main.gpl。省略 = 纯内联模式
+palette: @main
+# ppu: 可选；缺省 100（Unity TextureImporter 惯例值）
+ppu: 16
 chars:
   .: transparent
-  K: dark-blue              # @palette 模式：按 .gpl 内颜色名引用
-  W: #f4f4f4                # 内联 hex；palette 模式下 hex 必须存在于色板，否则 import error
+  K: dark-blue
+  W: #f4f4f4
 
 [normal]
-border: 4,4,4,4             # 可选，9-slice（L,B,R,T 同 Unity Sprite border 序）；每节独立
+# border: 可选，9-slice（L,B,R,T 同 Unity Sprite border 序）；每节独立；须在 grid 前
+border: 4,4,4,4
 grid:
   ..KKKKKK..
   .KWWWWWWK.
@@ -59,7 +63,7 @@ grid:
 
 规则：
 
-- **网格**：单字符 = `chars` 中一项；`.` 固定为透明（保留字符）；每行宽度必须一致（不一致 = import error 报行号）；各节尺寸可不同。grid 行允许统一缩进（取首行缩进为基准剥除）。
+- **网格**：单字符 = `chars` 中一项；`.` 固定为透明（保留字符）；每行宽度必须一致（不一致 = import error 报行号）；各节尺寸可不同。grid 行首尾空白一律 trim（缩进随意，空格不是合法网格字符）；空行结束 grid 块。
 - **分节**：`[节名]` 起一节，节名限 `[A-Za-z0-9_-]+`。**单 sprite 文件可整体省略 `[节名]`**（隐式单节）。
 - **key 派生**（icon 名 / atlas key）：
   - 单节文件：`相对 sourceFolder 路径去扩展名`——与现有 PNG 规则一致（`Buttons/ok.pxl` → `Buttons/ok`，不冲突时另补裸名别名 `ok`）。
