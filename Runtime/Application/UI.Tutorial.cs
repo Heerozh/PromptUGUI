@@ -18,9 +18,6 @@ namespace PromptUGUI.Application
             public static void UseProgressStore(Func<string, int> load, Action<string, int> save)
             { _load = load; _save = save; }
 
-            internal static Func<string, int> Load => _load;
-            internal static Action<string, int> Save => _save;
-
             internal static TutorialFlow Active;
             private static TutorialOverlayView _view;
             private static string _overlayKey;

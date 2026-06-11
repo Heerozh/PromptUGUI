@@ -73,12 +73,18 @@ namespace PromptUGUI.Application.Tutorial
                     return;
                 }
             }
+            // 解析成功的同一 tick 故意不 return,继续往下:让激活当帧就为真的 When 谓词即时推进。
             if (_targetLive)
             {
                 if (_cfg.Target != null && _targetRect == null) { LeaveActive(); return; }
                 if (_cfg.Target != null) UpdateVisuals();
-                if (_cfg.AdvanceKind == Advance.Kind.WhenK && _cfg.Predicate != null && _cfg.Predicate())
-                    Complete();
+                if (_cfg.AdvanceKind == Advance.Kind.WhenK && _cfg.Predicate != null)
+                {
+                    bool done;
+                    try { done = _cfg.Predicate(); }
+                    catch (Exception ex) { Fail(ex); return; }   // 作者谓词抛错 → 一次性 Fail,不逐帧刷日志(与 Until 对齐)
+                    if (done) Complete();
+                }
             }
         }
 
@@ -151,10 +157,12 @@ namespace PromptUGUI.Application.Tutorial
 
         private void LateUpdate() => Tick(Time.unscaledDeltaTime);
 
+        // 每帧调用,复用同一数组避免 GC(Tick 主线程同步,无重入)。
+        private static readonly Vector3[] s_corners = new Vector3[4];
+
         internal static Rect WorldRectToLocal(RectTransform target, RectTransform overlayRect)
         {
-            var corners = new Vector3[4];
-            target.GetWorldCorners(corners);
+            target.GetWorldCorners(s_corners);
             var srcCanvas = target.GetComponentInParent<Canvas>();
             Camera srcCam = srcCanvas != null ? srcCanvas.worldCamera : null;
             var dstCanvas = overlayRect.GetComponentInParent<Canvas>();
@@ -162,7 +170,7 @@ namespace PromptUGUI.Application.Tutorial
             Vector2 min = new(float.MaxValue, float.MaxValue), max = new(float.MinValue, float.MinValue);
             for (int i = 0; i < 4; i++)
             {
-                Vector2 sp = RectTransformUtility.WorldToScreenPoint(srcCam, corners[i]);
+                Vector2 sp = RectTransformUtility.WorldToScreenPoint(srcCam, s_corners[i]);
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(overlayRect, sp, dstCam, out var lp);
                 min = Vector2.Min(min, lp); max = Vector2.Max(max, lp);
             }
