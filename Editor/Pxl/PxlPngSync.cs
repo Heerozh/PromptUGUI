@@ -67,6 +67,8 @@ namespace PromptUGUI.Editor
                 if (!colorToChar.ContainsKey(c)) colorToChar[c] = ch; // 先声明者占据颜色
             }
 
+            // 跨节全局推进（不 per-section 重置）：chars: 块是文档级共享，新颜色按
+            // 节序 × 光栅序（y 外 x 内）确定性分配 → 往返幂等的基石（spec §4.4）。
             var alphabetCursor = 0;
             var matchedFiles = new HashSet<string>(StringComparer.Ordinal);
 
