@@ -947,6 +947,23 @@ namespace PromptUGUI.Tests.Editor
             StringAssert.Contains("name=\"codeFont\"", xsd);
             StringAssert.Contains("name=\"linkColor\"", xsd);
         }
+
+        [Test]
+        public void ScrollList_and_Dropdown_skin_attrs_in_schema()
+        {
+            // Tasks 3-5 added skin attrs via [UIAttr]; the reflected `customs` path emits them
+            // automatically — this is the regression anchor proving they reach the schema.
+            var r = new ControlRegistry();
+            r.Register<ScrollList>("ScrollList", null);
+            r.Register<Dropdown>("Dropdown", null);
+            var xsd = XsdGenerator.Generate(r);
+            StringAssert.Contains("name=\"frame\"", xsd);
+            StringAssert.Contains("name=\"frameColor\"", xsd);
+            StringAssert.Contains("name=\"mask\"", xsd);
+            StringAssert.Contains("name=\"popupSprite\"", xsd);
+            StringAssert.Contains("name=\"popupColor\"", xsd);
+            StringAssert.Contains("name=\"popupMask\"", xsd);
+        }
     }
 
     public class TestPrimaryButton : Control
