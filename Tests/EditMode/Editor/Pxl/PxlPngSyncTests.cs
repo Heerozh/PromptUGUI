@@ -256,5 +256,16 @@ namespace PromptUGUI.Tests.Editor
             Assert.Throws<System.InvalidOperationException>(
                 () => PxlPngSync.Apply("chars:\n  K: #000000\ngrid:\n  K\n", plan));
         }
+
+        [Test]
+        public void BuildPlan_offpalette_chars_entry_errors_not_throws()
+        {
+            // chars 层面就越板（#010203 不在板上）：Resolve 会抛，BuildPlan 须转成 Errors 而非抛出
+            var palette = GplPalette.Parse("GIMP Palette\n26 28 44\tnight\n");
+            var text = "palette: @p\nchars:\n  K: #010203\ngrid:\n  K\n";
+            var pngs = new Dictionary<string, PxlPngSync.PngImage> { ["d.png"] = Img(1, 1, K) };
+            var plan = PxlPngSync.BuildPlan(text, "d", pngs, palette);
+            Assert.IsNotEmpty(plan.Errors);
+        }
     }
 }

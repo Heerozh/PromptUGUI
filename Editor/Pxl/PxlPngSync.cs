@@ -57,7 +57,13 @@ namespace PromptUGUI.Editor
                 doc.CharsLastEntryLine != 0 ? doc.CharsLastEntryLine : doc.CharsHeaderLine;
 
             // 颜色→字符反查：按声明顺序，先声明者占据颜色（'.' 透明单独处理）。
-            var resolved = PxlColorResolver.Resolve(doc, palette);
+            System.Collections.Generic.Dictionary<char, Color32> resolved;
+            try { resolved = PxlColorResolver.Resolve(doc, palette); }
+            catch (PxlParseException ex)
+            {
+                plan.Errors.Add($"cannot resolve colors: {ex.Message}");
+                return plan;
+            }
             var colorToChar = new Dictionary<Color32, char>();
             var usedChars = new HashSet<char>(doc.CharOrder) { '.', '#', '[', ']' };
             foreach (var ch in doc.CharOrder)

@@ -42,6 +42,7 @@ namespace PromptUGUI.Editor
                     if (_palettePath == null) { _parseError = error; return; }
                     _palette = GplPalette.Parse(File.ReadAllText(_palettePath));
                 }
+                PxlColorResolver.Resolve(doc, _palette); // 触发颜色/调色板校验：越板色等让 _doc 保持 null → 按钮禁用（与导入失败态一致）
                 _doc = doc;
             }
             catch (PxlParseException ex) { _parseError = ex.Message; }
