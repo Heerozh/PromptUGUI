@@ -151,6 +151,23 @@ namespace PromptUGUI.Tests.Tutorial
         }
 
         [Test]
+        public void UnloadAll_MidRun_ClearsActive_AndReleasesGuard()
+        {
+            var run = UI.Tutorial.Run("t1", async t => await t.Step(null, text: "a"));
+            UI.Tutorial.TickForTests(0.016f);
+            Assert.IsTrue(UI.Tutorial.IsActive);
+
+            UI.UnloadAll();   // 生产 teardown 路径(区别于 ResetForTests)
+
+            Assert.IsFalse(UI.Tutorial.IsActive, "UnloadAll 应清掉进行中的引导");
+            Assert.IsNull(UI.Tutorial.ViewForTests);
+            // _rejectAll guard 应已注销 → 导航不再被拒(home 路由 + resolver 在 UnloadAll 后仍在)
+            UI.Router.Open("home").GetAwaiter().GetResult();
+            Assert.AreEqual("home", UI.Router.Current);
+            _ = run;   // 挂起的 Run 被 teardown 抹掉,不 await
+        }
+
+        [Test]
         public void EscDuringBlockStep_DoesNotCloseModal()
         {
             var run = UI.Tutorial.Run("t1", async t => await t.Step(null, text: "a"));

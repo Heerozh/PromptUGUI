@@ -74,9 +74,18 @@ namespace PromptUGUI.Application
                 }
             }
 
+            // UI.UnloadAll 调用:抹掉进行中的 Run —— 注销内部 guard + 清状态(镜像 Run 的 finally)。
+            // overlay Screen 在 _open 里,由 UnloadAll/ResetForTests 的 _open 循环统一关。
+            internal static void CancelAllForTeardown()
+            {
+                Router.RemoveGuard(_rejectAll);   // 幂等:不在表里则 no-op
+                Active = null; _view = null; _overlayKey = null;
+            }
+
             internal static void ResetForTestsInternal()
             {
-                Active = null; _view = null; _overlayKey = null; _load = null; _save = null;
+                CancelAllForTeardown();
+                _load = null; _save = null;
                 // 复位作者可改的换肤静态,避免跨测试泄漏(同 MessageBox.XmlSrc 那类陷阱)。
                 XmlSrc = "PromptUGUI/Tutorial/TutorialOverlay.ui";
                 SortingOrder = 3000;

@@ -853,6 +853,7 @@ namespace PromptUGUI.Application
             Modal.CancelAllForTeardown();
             Modals.LoadingOverlay.CancelAllForTeardown();
             Toasts.ToastOverlay.CancelAllForTeardown();
+            Tutorial.CancelAllForTeardown();
             Modals.ModalDocCache.Clear();
             foreach (var s in _open.Values) s.Close();
             _open.Clear();

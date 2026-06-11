@@ -95,7 +95,7 @@ await UI.Tutorial.Run("first-purchase", async t =>
 1. **指针**:overlay Canvas `overrideSorting = true`,`sortingOrder = TutorialSortingOrderBase`(常量,取值高于 `UI.Modal.SortingOrderBase + 合理栈深`,如 Modal 基数 + 1000)。全屏 `SpotlightMask` 是 raycast target,吃掉一切指针事件——除洞内。
 2. **挖洞穿透**:`SpotlightMask : MaskableGraphic, ICanvasRaycastFilter`,`IsRaycastLocationValid` 在洞矩形(目标 rect + padding,overlay 本地坐标)内返回 **false** → raycast 穿透到下层真实控件。`Advance.TapTarget` 因此不需要任何 hack:直接订阅目标控件自身的点击(`Btn.OnClick`;非 Btn 目标退化为在目标 GameObject 上临时挂 `IPointerClickHandler` 监听组件,步骤结束移除)。
 3. **导航/deeplink**:新增 `UI.Router.AddGuard` / `RemoveGuard`(§4)。引导注册"全拒"guard;`t.Navigate` 内部置 bypass 标记后调 `UI.Router.Open`,guard 检查标记放行。
-4. **ESC/手柄**:overlay 根挂 `ModalEscapeListener` 同款双轨监听(New Input System / Legacy),Block 步骤期间吞掉 escape 不做任何事(防止 ESC 关掉引导底下的 Modal)。
+4. **ESC/手柄**:不在 overlay 上自挂监听(各 `ModalEscapeListener` 是独立全局监听,引导侧"吞"拦不住底层 Modal 实例触发)。改为在 ESC 的两个落点加门:`UI.Modal.OnEscapePressed` 与 `UI.Router.Reconcile` 的 routed-modal ESC lambda 首行都判 `if (UI.Tutorial.IsBlockingInput) return;` —— Block 步骤期间 ESC 不关下层 Modal。引导本身无 ESC 监听(只能走完步骤推进)。
 
 Hint 模式:`SpotlightMask.enabled = false` + `raycastTarget = false`,ESC 监听不吞,guard 仍注册(整段 `Run` 期间导航锁定保持一致——弱引导步骤玩家可以无视提示,但不能 deeplink 跳走打断脚本时序)。
 
