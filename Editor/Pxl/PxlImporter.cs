@@ -82,7 +82,7 @@ namespace PromptUGUI.Editor
             ctx.SetMainObject(main);
         }
 
-        private static Texture2D BuildTexture(PxlSection section,
+        internal static Texture2D BuildTexture(PxlSection section,
             IReadOnlyDictionary<char, Color32> colors, string name)
         {
             var w = section.Width;
@@ -106,7 +106,7 @@ namespace PromptUGUI.Editor
         /// <summary>按文件名（去扩展名）全项目找 &lt;name&gt;.gpl。0 个或多个都报错
         /// （error out 参数带候选列表）。
         /// 查找本身无依赖边——.gpl 新增/删除/移动由 GplPostprocessor 兜底重导入。</summary>
-        private static string FindPalettePath(string paletteRef, out string error)
+        internal static string FindPalettePath(string paletteRef, out string error)
         {
             var matches = AssetDatabase.FindAssets(paletteRef)
                 .Select(AssetDatabase.GUIDToAssetPath)
