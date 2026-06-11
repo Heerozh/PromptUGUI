@@ -111,5 +111,22 @@ namespace PromptUGUI.Tests.Editor
             Assert.Throws<PxlParseException>(() => PxlParser.Parse(
                 "chars:\n  K: #000000\nbogus directive\ngrid:\n  K\n"));
         }
+
+        [Test]
+        public void Parse_invalid_ppu_throws()
+        {
+            Assert.Throws<PxlParseException>(() => PxlParser.Parse(
+                "ppu: 0\nchars:\n  K: #000000\ngrid:\n  K\n"));
+            Assert.Throws<PxlParseException>(() => PxlParser.Parse(
+                "ppu: abc\nchars:\n  K: #000000\ngrid:\n  K\n"));
+        }
+
+        [Test]
+        public void Parse_border_after_grid_throws()
+        {
+            var ex = Assert.Throws<PxlParseException>(() => PxlParser.Parse(
+                "chars:\n  K: #000000\ngrid:\n  K\n\nborder: 0,0,0,0\n"));
+            StringAssert.Contains("border must come before grid", ex.Message);
+        }
     }
 }

@@ -40,6 +40,7 @@ namespace PromptUGUI.Editor
 
         public static PxlDocument Parse(string text)
         {
+            text = text.TrimStart('﻿'); // 容错裸 BOM（StreamReader 会剥，但字符串入口不保证）
             var doc = new PxlDocument();
             var lines = text.Replace("\r\n", "\n").Split('\n');
 
@@ -54,8 +55,9 @@ namespace PromptUGUI.Editor
                 var lineNo = i + 1;
                 var line = lines[i].Trim();
                 if (line.Length == 0) { inGrid = false; continue; }
-                if (line[0] == '#') continue; // 整行注释；'#' 因此禁作 chars key
+                if (line[0] == '#') continue; // 整行注释（含 chars 块内：'#: x' 整行被跳过，'#' 不可能成为 chars key）
 
+                // 段头匹配优先于 grid 行收集：grid 内的 '[x]' 行会结束当前节并开新节（'['/']' 不应用作 chars key）。
                 var m = SectionHeader.Match(line);
                 if (m.Success)
                 {
@@ -85,8 +87,6 @@ namespace PromptUGUI.Editor
                     {
                         var key = cm.Groups[1].Value[0];
                         var value = cm.Groups[2].Value.Trim();
-                        if (key == '#')
-                            throw new PxlParseException(lineNo, "'#' is reserved for comments");
                         if (key == '.' && value != "transparent")
                             throw new PxlParseException(lineNo,
                                 "'.' is reserved for transparent and cannot be redefined");
@@ -97,6 +97,7 @@ namespace PromptUGUI.Editor
                     inChars = false; // 掉出 chars 块，按普通行继续解析
                 }
 
+                // palette:/ppu: 重复声明 last-wins；同节 border: 在 grid 前重复声明同样 last-wins。
                 if (line.StartsWith("palette:", StringComparison.Ordinal))
                 {
                     var v = line.Substring("palette:".Length).Trim();
@@ -134,7 +135,7 @@ namespace PromptUGUI.Editor
                     continue;
                 }
 
-                throw new PxlParseException(lineNo, $"unrecognized line '{line}'");
+                throw new PxlParseException(lineNo, $"unrecognized line '{line}' (note: a blank line ends a grid: block)");
             }
 
             FinishSection(section, lines.Length);
