@@ -18,6 +18,11 @@ namespace PromptUGUI.Editor
         public float Ppu = 100f;
         public readonly Dictionary<char, string> Chars = new(); // char → "transparent" | 色名 | #hex
         public readonly List<PxlSection> Sections = new();
+
+        // —— 以下为 Sync from PNG 文本手术用的源码定位信息（internal 用途，格式语义无关）——
+        public int CharsHeaderLine;      // `chars:` 行号（1-based，last-wins）；0 = 无
+        public int CharsLastEntryLine;   // 最后一条 chars 条目行号；0 = 无条目
+        public readonly List<char> CharOrder = new(); // 声明顺序（颜色→字符反查取先声明者）
     }
 
     internal sealed class PxlSection
@@ -26,6 +31,9 @@ namespace PromptUGUI.Editor
         public Vector4 Border;               // L,B,R,T（Unity Sprite border 序）
         public int Width, Height;
         public readonly List<string> Rows = new(); // top-down，已 trim
+
+        // grid 行在源文本中的 1-based 行区间（含端点；含夹在中间的注释行——sync 替换时一并消失）
+        public int GridStartLine, GridEndLine;
     }
 
     /// <summary>.pxl 文本 → IR。网格语法沿 XPM 惯用法：单字符=色板项、'.'=透明、
@@ -92,6 +100,8 @@ namespace PromptUGUI.Editor
                                 "'.' is reserved for transparent and cannot be redefined");
                         if (key != '.' && !doc.Chars.TryAdd(key, value))
                             throw new PxlParseException(lineNo, $"duplicate chars key '{key}'");
+                        if (key != '.') doc.CharOrder.Add(key);
+                        doc.CharsLastEntryLine = lineNo;
                         continue;
                     }
                     inChars = false; // 掉出 chars 块，按普通行继续解析
@@ -124,7 +134,7 @@ namespace PromptUGUI.Editor
                     doc.Ppu = ppu;
                     continue;
                 }
-                if (line == "chars:") { inChars = true; continue; }
+                if (line == "chars:") { inChars = true; doc.CharsHeaderLine = lineNo; continue; }
 
                 if (line.StartsWith("border:", StringComparison.Ordinal))
                 {
@@ -177,6 +187,8 @@ namespace PromptUGUI.Editor
             if (section.Rows.Count == 0) section.Width = row.Length;
             section.Rows.Add(row);
             section.Height = section.Rows.Count;
+            if (section.GridStartLine == 0) section.GridStartLine = lineNo;
+            section.GridEndLine = lineNo;
         }
 
         private static Vector4 ParseBorder(string v, int lineNo)
