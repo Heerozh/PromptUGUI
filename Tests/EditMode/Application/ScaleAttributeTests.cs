@@ -81,6 +81,31 @@ namespace PromptUGUI.Tests.Application
             Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
         }
 
+        [Test]
+        public void Parser_rejects_empty_base_scale()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'><Frame id='f' scale=''/></Screen>
+</PromptUGUI>";
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(xml));
+            StringAssert.Contains("scale", ex.Message);
+            // Confirm that the rejection is specifically about the empty value, not some
+            // other validation path (e.g. negative / non-numeric) that also mentions "scale".
+            StringAssert.Contains("empty", ex.Message);
+        }
+
+        [Test]
+        public void Parser_accepts_empty_scale_variant_override()
+        {
+            // scale.mobile='' = 该 variant 下清掉 base scale（恒等）——与 size.mobile='' 同约定。
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'><Frame id='f' scale='0.5' scale.mobile=''/></Screen>
+</PromptUGUI>";
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(xml));
+        }
+
         // <Animation scale> uses 'from:to' keyframe syntax (parsed by AnimationSpec at
         // runtime), not the static positive-float form — parser must defer.
         [Test]

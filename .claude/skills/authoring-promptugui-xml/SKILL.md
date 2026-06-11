@@ -891,7 +891,7 @@ Caveats:
 - **N must be a positive integer.** `scale="1.5x"` is a parse error — use the plain multiplier `scale="1.5"` for non-aligned scaling. A non-integer N cannot be pixel-aligned.
 - **`Nx` is truly crisp only in `scale-mode="pixel"`** (integer factor + `Canvas.pixelPerfect` snaps vertices). In `auto` mode the _size_ is still exactly N device-px per design-unit, but the element's position can land on a sub-pixel (auto mode does not snap), so text may be slightly soft.
 - `Nx` only locks density. The font must also be authored so 1 source pixel = 1 design-unit — i.e. set `fontSize` to the font's native pixel height. A `fontSize` that differs from native still misaligns.
-- Box-preserving behavior and the LayoutGroup-skip caveat below apply identically to `Nx` (the inflation uses `1 / localScale`).
+- Box-preserving behavior and the auto-bridge / LayoutGroup-skip caveats below apply identically to `Nx` (the inflation uses `1 / localScale`).
 
 ### Canvas-relative snapped (`scale="<r>r"`)
 
@@ -921,15 +921,16 @@ Caveats:
 - **r may exceed 1** (`2r` grows twice as fast and stays aligned), and may be fractional (`0.25r`, `1.5r`). `r` must be positive; the suffix is lowercase `r` only — matching device-density's lowercase `x` (`0.5R` is a parse error).
 - **Truly crisp only in `scale-mode="pixel"`** (integer factor + `Canvas.pixelPerfect`). In `auto` mode the net is still integer but position can land sub-pixel — same caveat as `Nx`.
 - **Composes with `UI.PixelScalePowerOfTwo` / `UI.MinPixelScale`**: `<r>r` reads the final effective factor, so it snaps relative to whatever factor those settings produce.
-- Box-preserving behavior and the LayoutGroup-skip caveat below apply identically (the inflation uses `1 / localScale`).
+- Box-preserving behavior and the auto-bridge / LayoutGroup-skip caveats below apply identically (the inflation uses `1 / localScale`).
 
 **Where to put `scale`**:
 
 - Directly on a `<Text>` / `<Image>` (single-element use) — works under any free-positioning parent (`<Frame>` / `<Screen>` / `<SafeArea>` / `<Tab>` / `<Toggle>`); anchor / margin / wrapping all behave against the visual box.
 - Container `<Frame>` (for multi-element groups) — the whole subtree renders at density `N` inside the Frame's declared box.
-- **On a direct child of `<VStack>` / `<HStack>` / `<Grid>`, box-preserving is skipped** (the LayoutGroup owns the child's geometry). `localScale` still applies, but the group measures with the _unscaled_ `RT.rect`, so a `scale="0.5"` child still reserves its full unscaled slot (the "small text gap" footgun). Wrap in a `<Frame size="..." scale="0.5">` if you want the group to see the intended size.
+- **A `<Text>` declaring `scale` (base or any variant override) as a direct child of `<VStack>` / `<HStack>` is auto-bridged** — the library inserts an invisible layout host (`"<id> [scale-host]"` in the Hierarchy; tag-named if no id) so the group measures the text's *visual* size (`TMP preferred × scale`): `width="stretch"` / fixed width works, the text wraps against its full inflated width, and the row height grows with the wrapped content (auto-height multiline keeps working, now at density — chat-message body text is the canonical use). Omitted axes stay TMP-driven; explicit `width=` / `height=` still pin the axis. Works for all three forms (`N` / `Nx` / `<r>r`) and recomputes on resize / Variant flips. C#-visible side effect: `Get<Text>(id).RectTransform.parent` is the auto host, not the stack.
+- **On a direct child of `<Grid>`, or any non-`<Text>` control in a layout group, box-preserving is skipped** (the LayoutGroup owns the child's geometry). `localScale` still applies, but the group measures with the _unscaled_ `RT.rect`, so a `scale="0.5"` child still reserves its full unscaled slot (the "small text gap" footgun). Wrap in a `<Frame size="..." scale="0.5">` if you want the group to see the intended size.
 
-**Variant-overridable**: `scale.mobile="0.5"` / `scale.portrait="2x"` follow the standard variant override shape. When a variant where `scale` is unresolved becomes active, `localScale` resets to 1 **and** the box-preserving inflation is removed (geometry returns to its plain margin-resolved baseline).
+**Variant-overridable**: `scale.mobile="0.5"` / `scale.portrait="2x"` follow the standard variant override shape. When a variant where `scale` is unresolved becomes active, `localScale` resets to 1 **and** the box-preserving inflation is removed (geometry returns to its plain margin-resolved baseline). Clearing under a variant is legal: `scale.mobile=""` restores identity (same convention as `size.mobile=""`); an empty BASE `scale=""` remains a parse error.
 
 ## Modal / Loading screens (XML contract)
 

@@ -12,6 +12,27 @@ namespace PromptUGUI.Controls
         public GameObject GameObject { get; private set; }
         public RectTransform RectTransform { get; private set; }
         private CanvasGroup _canvasGroup;
+        private RectTransform _layoutHost;
+
+        /// <summary>
+        /// LayoutGroup 量算用的宿主 RectTransform，默认 = 自身 RectTransform。
+        /// V/HStack 直下声明了 scale 的 &lt;Text&gt; 由 ScreenInstantiator 指向自动插入的
+        /// wrapper（spec STW-D4）：ApplyCommon 的父级判断、LayoutElement 落点、Hidden 的
+        /// SetActive、Dispose 的销毁对象都以它为准；内层 RectTransform 只承载视觉与
+        /// box-preserving 膨胀。
+        /// </summary>
+        internal RectTransform LayoutHost
+        {
+            get => _layoutHost != null ? _layoutHost : RectTransform;
+            set => _layoutHost = value;
+        }
+
+        /// <summary>包装时 = wrapper GO（SetActive / Destroy 的作用对象），否则 = 自身 GameObject。</summary>
+        internal GameObject HostGameObject
+            => _layoutHost != null ? _layoutHost.gameObject : GameObject;
+
+        /// <summary>wrapper 存在时返回它（scale 变更脏标用），否则 null。仅 Screen 读。</summary>
+        internal RectTransform _layoutHostForScaleDirty => _layoutHost;
 
         /// <summary>
         /// Whether this control's <see cref="UnityEngine.UI.Graphic"/> participates in a parent
@@ -27,8 +48,8 @@ namespace PromptUGUI.Controls
 
         public bool Hidden
         {
-            get => !GameObject.activeSelf;
-            set => GameObject.SetActive(!value);
+            get => !HostGameObject.activeSelf;
+            set => HostGameObject.SetActive(!value);
         }
 
         public virtual bool Interactable
@@ -195,8 +216,8 @@ namespace PromptUGUI.Controls
 
             // spec §6.5: 父级是 VStack/HStack 时走 LayoutElement 通道；
             // GridLayoutGroup 例外（它直接用 cellSize，LayoutElement 在它下面被忽略）。
-            var parentLg = RectTransform.parent != null
-                ? RectTransform.parent.GetComponent<UnityEngine.UI.LayoutGroup>()
+            var parentLg = LayoutHost.parent != null
+                ? LayoutHost.parent.GetComponent<UnityEngine.UI.LayoutGroup>()
                 : null;
             var parentIsGrid = parentLg is UnityEngine.UI.GridLayoutGroup;
             var parentIsAutoLayout = parentLg != null && !parentIsGrid;
@@ -222,6 +243,17 @@ namespace PromptUGUI.Controls
                 ApplyLayoutElement(sizeSpec, preset);
                 // anchor / pivot / sizeDelta / anchoredPosition: LayoutGroup 接管几何。
                 // 作者写 anchor/margin 已经被 ScreenInstantiator 警告（spec §6.5）；这里静默跳过。
+                // STW-D4: wrapper 模式下内层 RT 重置为全 stretch 基线——这是 ApplyScales
+                // box-preserving 膨胀的输入（"ApplyCommon 先重置、ApplyScales 再膨胀"契约；
+                // wrapper 本身的几何由 LayoutGroup 驱动）。
+                if (_layoutHost != null)
+                {
+                    RectTransform.anchorMin = Vector2.zero;
+                    RectTransform.anchorMax = Vector2.one;
+                    RectTransform.pivot = new Vector2(0.5f, 0.5f);
+                    RectTransform.sizeDelta = Vector2.zero;
+                    RectTransform.anchoredPosition = Vector2.zero;
+                }
             }
             else
             {
@@ -317,8 +349,8 @@ namespace PromptUGUI.Controls
             // DSS-D16: 父级 V/HStack 的 cross 轴上，作者没写 size 且 preset 默认 stretch（来自 GetDefaultAnchor）
             // → LE 在该轴 preferred=0, flexible=1（CSS flex `align-items: stretch` 直译）。
             // 只 Frame 默认 anchor 会让 preset.Stretch* 在没 size 时为 true；其他控件保持 (Top, Left)，不触发。
-            var parentHv = RectTransform.parent != null
-                ? RectTransform.parent.GetComponent<UnityEngine.UI.HorizontalOrVerticalLayoutGroup>()
+            var parentHv = LayoutHost.parent != null
+                ? LayoutHost.parent.GetComponent<UnityEngine.UI.HorizontalOrVerticalLayoutGroup>()
                 : null;
             var fillCrossX = parentHv is UnityEngine.UI.VerticalLayoutGroup && preset.StretchX && !sizeSpec.HasWidth;
             var fillCrossY = parentHv is UnityEngine.UI.HorizontalLayoutGroup && preset.StretchY && !sizeSpec.HasHeight;
@@ -337,7 +369,7 @@ namespace PromptUGUI.Controls
             // 都不需要时若有残留 LE（Variant 切换可能挂过）→ 清回 -1。
             var needLE = sizeSpec.HasWidth || sizeSpec.HasHeight || hasNative || fillCrossX || fillCrossY;
 
-            var le = GameObject.GetComponent<UnityEngine.UI.LayoutElement>();
+            var le = LayoutHost.gameObject.GetComponent<UnityEngine.UI.LayoutElement>();
             if (!needLE)
             {
                 if (le != null)
@@ -352,7 +384,7 @@ namespace PromptUGUI.Controls
                 return;
             }
 
-            le ??= GameObject.AddComponent<UnityEngine.UI.LayoutElement>();
+            le ??= LayoutHost.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
             le.preferredWidth = -1;
             le.preferredHeight = -1;
             le.flexibleWidth = -1;
@@ -466,10 +498,12 @@ namespace PromptUGUI.Controls
 
         public virtual void Dispose()
         {
-            if (GameObject == null) return;
+            if (HostGameObject == null) return;
             // 与 Screen.Close 一致：EditMode 下用 DestroyImmediate，避免 "Destroy may not be called" 警告。
-            if (UnityEngine.Application.isPlaying) Object.Destroy(GameObject);
-            else Object.DestroyImmediate(GameObject);
+            // 销毁宿主 GO（wrapper 存在时即 wrapper，内层随子级联销毁）——BindItems 重建
+            // 经 Dispose 走这里，不会把 wrapper 留在 LayoutGroup 里占行高。
+            if (UnityEngine.Application.isPlaying) Object.Destroy(HostGameObject);
+            else Object.DestroyImmediate(HostGameObject);
         }
     }
 }

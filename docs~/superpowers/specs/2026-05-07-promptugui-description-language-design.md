@@ -237,6 +237,7 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 - `scale-mode="auto|pixel"`（可选，支持 `.variant`）：`pixel` 切 CanvasScaler 到 `ConstantPixelSize` + 整数倍 `scaleFactor`（用于像素艺术）。详见 [`2026-05-25-pixel-perfect-scaling-design.md`](2026-05-25-pixel-perfect-scaling-design.md)。
 - 元素级 `scale="Nx"`（N 正整数，支持 `.variant`）：设备像素密度形态，`localScale = N / canvasFactor`（每个设计单位渲染 N 个物理像素，canvas factor 变化时重算），用于 `scale-mode="pixel"` 下位图字的像素对齐。普通 `scale="N"`（正浮点）仍是 factor-independent 的 box-preserving 渲染密度乘数。详见 [`2026-05-31-scale-device-density-design.md`](2026-05-31-scale-device-density-design.md)。
 - 元素级 `scale="<r>r"`（r 正浮点，小写 `r`，支持 `.variant`）：画布相对吸附形态，`localScale = max(1, round(canvasFactor × r)) / canvasFactor`——缩放跟随 factor（随窗口长大），但净物理像素/设计单位吸附到整数保持像素对齐，填补 `scale="N"`（响应但奇数 factor 糊）与 `scale="Nx"`（恒定不长大）之间。详见 [`2026-06-01-scale-canvas-relative-snap-design.md`](2026-06-01-scale-canvas-relative-snap-design.md)。
+- V/HStack 直下声明了 scale 的 `<Text>` 自动桥接（实例化期 wrapper + `ILayoutElement` 报告 `TMP preferred × s`）：占位 = 视觉、按整行宽换行、行高随内容；三种形态（`N` / `Nx` / `<r>r`）一致，resize / Variant 重算。其余控件与 Grid 子节点维持 LayoutGroup-skip（footgun 文档化）。详见 [`2026-06-11-scaled-text-layout-bridge-design.md`](2026-06-11-scaled-text-layout-bridge-design.md)。
 
 ### 5.7 `<Trigger>` / `<Animation>`（事件订阅 + LitMotion 动画，since 2026-05-14）
 
