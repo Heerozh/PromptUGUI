@@ -40,9 +40,16 @@
 
 | 写法 | 行为 |
 |---|---|
-| 未写 | 维持各自现状：ScrollList = stencil Mask + `pugui_9slice_mask`（border=2 Sliced）；Dropdown popup = stencil Mask + `pugui_9slice_round`（Sliced）。向后兼容，现有 UI 视觉零变化。 |
-| `mask="路径#名字"` | stencil Mask 保留，Viewport Image 换成指定 sprite + `AutoSlice`；`showMaskGraphic=false` 不变。sprite 解析失败走现有 `UI.ResolveSprite` 失败路径（与 `sprite=` 同行为），无新错误类型。 |
-| `mask=""` | 拆掉 stencil Mask + Viewport Image，挂 `RectMask2D` 直角裁剪。省一个 drawcall + 一张 mask 图；透明列表不再被圆角咬角。 |
+| 未写（自动跟随 bg sprite） | mask 形状跟随背景：`sprite` 有图（含默认圆角底）→ stencil Mask（ScrollList=`pugui_9slice_mask`，Dropdown popup=`pugui_9slice_round`，Sliced）；`sprite=""` / `sprite="none"`（背景清成 null）→ `RectMask2D` 直角。默认 ScrollList/Dropdown 带默认底 sprite → 圆角，**现有 UI 视觉零变化**；只有"清了背景"这一种情况从圆角自动变直角。 |
+| `mask="路径#名字"`（显式） | stencil Mask 保留，Viewport Image 换成指定 sprite + `AutoSlice`；`showMaskGraphic=false` 不变。sprite 解析失败走现有 `UI.ResolveSprite` 失败路径（与 `sprite=` 同行为），无新错误类型。**显式即脱离自动跟随**。 |
+| `mask=""`（显式） | 拆掉 stencil Mask + Viewport Image，挂 `RectMask2D` 直角裁剪。省一个 drawcall + 一张 mask 图。**显式 `""` 永远直角，即使背景有 sprite**。 |
+
+**自动跟随（InputField 范式）**：起因——`sprite=""` 只清背景 `_bg`（退成直角实心矩形），mask 若恒留圆角则内容被"无主"圆角裁剪、与直角背景错配。解法对齐 `<InputField>` 的"text-area mask inset 跟随边框 sprite"先例：**未显式写 `mask` 时，mask 形状跟随 `sprite` 是否有图**。一旦显式写过 `mask=`（任意值含 `""`）即 latch 为显式，之后不再自动跟随。
+
+- 跟踪 `_maskExplicit`（bool）：`Mask` setter 置 true。
+- 在 `OnAfterApply`（每次 apply / ReSolve 后，`ControlAttributeApplier` 保证晚于所有 setter）reconcile：`if (!_maskExplicit) ApplyViewportMask(viewport, bgSprite != null ? null : "", default)`。`sprite=` 与 `mask=` setter 顺序无所谓——OnAfterApply 统一收口。
+- 幂等：null/"" 两分支重复调用结果不变；Variant 把 `sprite.portrait=""` 时 ReSolve 自动让 mask 退直角。
+- 启发式边界：只区分"有 sprite→圆角 / 无 sprite→直角"；自定义方角面板 sprite 仍得圆角 mask，需要时用显式 `mask=` 覆盖。
 
 **Variant 可逆切换**：ReSolve 可能让 mask 值在三态间任意方向变化（圆角 → 直角 → 自定义 sprite 来回切）。实现用 **lazy-add + `enabled` 开关**（首次需要时 `AddComponent`，之后只切 `enabled`），不 Destroy——对齐"Variants don't rebuild GameObjects"惯例，也避免 PlayMode 下 `Destroy` 延迟销毁导致同帧来回切换读到待销毁组件。
 
