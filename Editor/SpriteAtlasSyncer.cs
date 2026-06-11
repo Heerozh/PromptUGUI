@@ -392,6 +392,19 @@ namespace PromptUGUI.Editor
                     throw new OperationCanceledException();
                 }
                 EnsureSpriteImporter(assetPath);
+                // .pxl（PxlImporter）：每节一个 Sprite sub-asset。隐式单节的 sprite.name
+                // == 文件 basename → key 与 PNG 规则一致（pathKey）；显式多节 → pathKey/节名。
+                if (AssetImporter.GetAtPath(assetPath) is PxlImporter)
+                {
+                    var relPxl = assetPath.Substring(folderPrefix.Length);
+                    var pxlKey = relPxl.Substring(0, relPxl.Length - Path.GetExtension(relPxl).Length);
+                    var pxlBase = Path.GetFileNameWithoutExtension(assetPath);
+                    foreach (var s in AssetDatabase.LoadAllAssetsAtPath(assetPath).OfType<Sprite>())
+                    {
+                        result.Add((s.name == pxlBase ? pxlKey : $"{pxlKey}/{s.name}", s));
+                    }
+                    continue;
+                }
 #if PROMPTUGUI_HAS_ASEPRITE
                 // MF-D4: multi-sprite Aseprite is rejected at validation time; skip it
                 // here so a stray first-sprite doesn't sneak into the SpriteSet via
@@ -895,11 +908,33 @@ namespace PromptUGUI.Editor
         private static void ApplyTemplateFilterMode(SpriteAtlas atlas, string folderAssetPath)
         {
             var firstTexture = FindFirstTexture(folderAssetPath);
-            if (firstTexture == null) return;
+            if (firstTexture == null)
+            {
+                // 纯 .pxl 文件夹：PxlImporter 贴图恒为 point-filter 像素画 → atlas 跟随。
+                if (HasPxlSource(folderAssetPath))
+                {
+                    var pxlTs = atlas.GetTextureSettings();
+                    pxlTs.filterMode = FilterMode.Point;
+                    atlas.SetTextureSettings(pxlTs);
+                }
+                return;
+            }
             if (AssetImporter.GetAtPath(firstTexture) is not TextureImporter ti) return;
             var ts = atlas.GetTextureSettings();
             ts.filterMode = ti.filterMode;
             atlas.SetTextureSettings(ts);
+        }
+
+        private static bool HasPxlSource(string folderAssetPath)
+        {
+            if (string.IsNullOrEmpty(folderAssetPath)) return false;
+            if (!AssetDatabase.IsValidFolder(folderAssetPath)) return false;
+            foreach (var g in AssetDatabase.FindAssets("t:Texture2D", new[] { folderAssetPath }))
+            {
+                if (AssetImporter.GetAtPath(AssetDatabase.GUIDToAssetPath(g)) is PxlImporter)
+                    return true;
+            }
+            return false;
         }
     }
 }
