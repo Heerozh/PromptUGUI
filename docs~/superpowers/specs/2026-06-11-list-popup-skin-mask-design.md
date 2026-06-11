@@ -40,11 +40,11 @@
 
 | 写法 | 行为 |
 |---|---|
-| 未写 | 维持各自现状：ScrollList = stencil Mask + `pugui_9slice_mask`（Simple 整图拉伸圆角）；Dropdown popup = stencil Mask + `pugui_9slice_round`（Sliced）。向后兼容，现有 UI 视觉零变化。 |
+| 未写 | 维持各自现状：ScrollList = stencil Mask + `pugui_9slice_mask`（border=2 Sliced）；Dropdown popup = stencil Mask + `pugui_9slice_round`（Sliced）。向后兼容，现有 UI 视觉零变化。 |
 | `mask="路径#名字"` | stencil Mask 保留，Viewport Image 换成指定 sprite + `AutoSlice`；`showMaskGraphic=false` 不变。sprite 解析失败走现有 `UI.ResolveSprite` 失败路径（与 `sprite=` 同行为），无新错误类型。 |
 | `mask=""` | 拆掉 stencil Mask + Viewport Image，挂 `RectMask2D` 直角裁剪。省一个 drawcall + 一张 mask 图；透明列表不再被圆角咬角。 |
 
-**Variant 可逆切换**：ReSolve 可能让 mask 值在三态间任意方向变化（圆角 → 直角 → 自定义 sprite 来回切）。setter 必须按需 `AddComponent` / `Destroy` 且不残留组件（EditMode 下用 `DestroyImmediate`，同 `Screen.Close` 的分支惯例）。
+**Variant 可逆切换**：ReSolve 可能让 mask 值在三态间任意方向变化（圆角 → 直角 → 自定义 sprite 来回切）。实现用 **lazy-add + `enabled` 开关**（首次需要时 `AddComponent`，之后只切 `enabled`），不 Destroy——对齐"Variants don't rebuild GameObjects"惯例，也避免 PlayMode 下 `Destroy` 延迟销毁导致同帧来回切换读到待销毁组件。
 
 ## 3. 共享实现
 
