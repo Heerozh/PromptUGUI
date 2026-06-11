@@ -54,3 +54,11 @@ Anything else inside a Template body (`{{a}}:{{b}}`, `solar:{{a}}-{{b}}`, multi-
 - Names must be **unique across all flagged sets**. A collision aborts the sync with an error (`[InlineSprite] glyph name collision ...`) — rename the offending sprite.
 - The baked sheet is point-filtered and uncompressed (crisp for pixel-art).
 - Independent of the per-set `.spriteatlas` (which still serves `<Image>` / `<Icon>`): a flagged set does not need its icons referenced anywhere to be baked. The generated asset lives at `Assets/PromptUGUI.Generated/InlineSprites.asset`.
+
+## `.pxl` text sprites
+
+A SpriteSet `sourceFolder` may also contain `.pxl` files — LLM-authored pixel-grid
+text that imports directly as point-filtered Sprites (with 9-slice border / PPU
+declared in-file). Multi-section files contribute `path/section` keys (unique bare
+section names work as aliases). Full format and drawing guidance: the
+**authoring-promptugui-pxl** skill.
