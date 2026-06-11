@@ -246,6 +246,9 @@ TMP_Dropdown。R3 `OnSelected: int`。选项 C# 侧 `BindOptions(...)` 注入。
 | `sprite` | sprite key | — | |
 | `font` | string | `default` | |
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
+| `popupSprite` | sprite key | — | Skins the popup list background (the closed button keeps using `sprite`/`color`). |
+| `popupColor` | hex / CSS / token | — | Tints the popup list background. |
+| `popupMask` | sprite key | rounded | Popup viewport clip shape; same three states as `<ScrollList mask>` (`""` = square RectMask2D). |
 
 ### `<ScrollList>`
 
@@ -260,6 +263,9 @@ ScrollRect + Mask。项 C# 侧 `BindItems(...)` 注入。`itemTemplate` 引用 `
 | `color` | hex / CSS / token | — | 见 **Color Tokens** |
 | `sprite` | sprite key | — | |
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
+| `frame` | sprite key | — | Border layer drawn above content & scrollbar, outside the mask — scrolling content never overlaps it. Lazily created. Note: `tint=` affects only the background, not the frame. |
+| `frameColor` | hex / CSS / token | — | Tints the frame layer; setting it alone also activates the layer. |
+| `mask` | sprite key | rounded | Viewport clip shape. `mask="custom#slice"` = stencil mask with that sprite (auto-sliced); `mask=""` = square `RectMask2D` clip (cheaper; keeps a transparent list's corners square). Unset keeps the built-in rounded mask. |
 
 ### `<InputField>`
 
