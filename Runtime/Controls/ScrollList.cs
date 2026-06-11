@@ -16,6 +16,7 @@ namespace PromptUGUI.Controls
     {
         private UnityImage _bg;
         private UnityImage _frame;
+        private bool _maskExplicit;
         private ScrollRect _scroll;
         private RectTransform _viewport;
         private RectTransform _content;
@@ -189,8 +190,12 @@ namespace PromptUGUI.Controls
         [UIAttr(IsSprite = true), Preserve]
         public string Mask
         {
-            set => ProceduralBuilders.ApplyViewportMask(
-                _viewport, value, ProceduralBuilders.SpriteMaskRoundedRect);
+            set
+            {
+                _maskExplicit = true;
+                ProceduralBuilders.ApplyViewportMask(
+                    _viewport, value, ProceduralBuilders.SpriteMaskRoundedRect);
+            }
         }
 
         private UnityImage EnsureFrame()
@@ -220,6 +225,12 @@ namespace PromptUGUI.Controls
         internal override void OnAfterApply()
         {
             base.OnAfterApply();
+            // mask 未显式写时跟随 bg sprite：有图→圆角 stencil，sprite=""→直角 RectMask2D
+            // （对齐 InputField 的 mask-tracks-border 先例；显式 mask= 一旦写过即 latch，跳过这里）。
+            if (!_maskExplicit)
+                ProceduralBuilders.ApplyViewportMask(
+                    _viewport, _bg != null && _bg.sprite != null ? null : "",
+                    ProceduralBuilders.SpriteMaskRoundedRect);
             // Scrollbar 由 Direction setter 懒建，可能晚于 frame 入树 —— 每轮 apply 后把 frame 钉回最顶。
             if (_frame != null) _frame.transform.SetAsLastSibling();
         }

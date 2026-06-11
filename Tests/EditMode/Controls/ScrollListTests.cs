@@ -294,5 +294,54 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var sl = OpenList();
             Assert.IsNull(sl.GameObject.transform.Find("Frame"), "frame layer is lazy");
         }
+
+        [Test]
+        public void Mask_unset_auto_squares_when_sprite_empty()
+        {
+            // sprite="" clears the bg → mask must auto-follow to square (no orphan rounded clip)
+            var sl = OpenList(@"sprite='' color='#00000000'");
+            var vp = ViewportOf(sl).gameObject;
+            Assert.IsTrue(vp.GetComponent<UnityEngine.UI.RectMask2D>() != null
+                          && vp.GetComponent<UnityEngine.UI.RectMask2D>().enabled,
+                "sprite='' with no explicit mask should auto-square the viewport clip");
+            var mask = vp.GetComponent<UnityEngine.UI.Mask>();
+            Assert.IsTrue(mask == null || !mask.enabled, "stencil Mask must be off when auto-squared");
+        }
+
+        [Test]
+        public void Mask_unset_stays_rounded_when_sprite_present()
+        {
+            // default list (bg has the default rounded sprite) keeps the rounded stencil — back-compat
+            var sl = OpenList();
+            var vp = ViewportOf(sl).gameObject;
+            var mask = vp.GetComponent<UnityEngine.UI.Mask>();
+            Assert.IsNotNull(mask);
+            Assert.IsTrue(mask.enabled, "default bg sprite present → rounded stencil mask");
+            Assert.IsNull(vp.GetComponent<UnityEngine.UI.RectMask2D>());
+        }
+
+        [Test]
+        public void Explicit_mask_wins_over_sprite_autotrack()
+        {
+            // explicit mask='...' must NOT be overridden by the sprite='' auto-track
+            var sl = OpenList(@"sprite='' mask='PromptUGUI/Defaults/pugui#pugui_9slice_round'");
+            var vp = ViewportOf(sl).gameObject;
+            var mask = vp.GetComponent<UnityEngine.UI.Mask>();
+            Assert.IsNotNull(mask);
+            Assert.IsTrue(mask.enabled, "explicit mask sprite wins despite sprite=''");
+            Assert.AreEqual("pugui_9slice_round", vp.GetComponent<UnityEngine.UI.Image>().sprite.name);
+            Assert.IsNull(vp.GetComponent<UnityEngine.UI.RectMask2D>());
+        }
+
+        [Test]
+        public void Explicit_empty_mask_stays_square_even_with_sprite_present()
+        {
+            // mask='' is explicit → square, even though the default bg sprite is present (NOT auto-rounded)
+            var sl = OpenList(@"mask=''");
+            var vp = ViewportOf(sl).gameObject;
+            Assert.IsTrue(vp.GetComponent<UnityEngine.UI.RectMask2D>().enabled);
+            var mask = vp.GetComponent<UnityEngine.UI.Mask>();
+            Assert.IsTrue(mask == null || !mask.enabled);
+        }
     }
 }
