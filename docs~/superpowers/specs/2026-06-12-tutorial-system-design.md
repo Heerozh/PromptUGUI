@@ -136,14 +136,15 @@ public static partial class UI
       <Image id="bubble" sprite="PromptUGUI/Defaults/pugui.png#pugui_9slice_round" color="#222222EE">
         <Text id="bubbleText" anchor="stretch" margin="16" fontSize="22" align="center"/>
       </Image>
-      <Image id="finger" sprite="PromptUGUI/Tutorial/finger.pxl" size="48x48"/>
+      <!-- finger: 复用内置 caret(本身朝下);视图按 FingerAngle+180 旋转使其指向目标 -->
+      <Image id="finger" sprite="PromptUGUI/Defaults/pugui.png#pugui_caret" size="48x48"/>
     </Frame>
   </Screen>
 </PromptUGUI>
 ```
 
 - 遮罩颜色、气泡皮肤、手指 sprite 都在 XML 里,用户照 Modal 的老办法整张覆盖换肤。
-- 手指默认资产用 `.pxl` 画(自家管线狗粮);四方位通过旋转/翻转同一张 sprite。
+- 手指默认资产复用内置 caret 子精灵 `PromptUGUI/Defaults/pugui.png#pugui_caret`(本身朝下的下拉箭头);`.pxl` 需宿主工程 SpriteSet + Sync Atlases 工具,无法零配置作为内置资产从包 Resources 运行时加载,故不用。四方位通过旋转同一张 sprite 实现,换肤仍是"整张覆盖 overlay XML"。
 - `SpotlightMask` 组件不是 XML 控件(无作者可写面),由 `TutorialOverlayView` 在 `mask` 节点的 GameObject 上 AddComponent 并接管渲染;遮罩色取 XML 里 mask 节点的 color 属性约定(读 `Frame` 背景色,缺省 `#000000B0`)。
 
 ### 5.2 SpotlightMask
