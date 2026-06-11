@@ -8,6 +8,8 @@ namespace PromptUGUI.Application.Tutorial
     /// </summary>
     internal static class TutorialPlacement
     {
+        private static readonly Side[] _autoOrder = { Side.Top, Side.Bottom, Side.Left, Side.Right };
+
         internal readonly struct Result
         {
             public readonly Side Side;
@@ -23,14 +25,12 @@ namespace PromptUGUI.Application.Tutorial
         {
             if (place != Side.Auto) return Build(place, target, bubbleSize, gap, overlay);
 
+            // Build 的双轴夹紧保证任意一侧气泡都不出屏,故选边只剩一个判据:
+            // 选目标与屏幕边之间剩余空间最大的一侧(平局取 _autoOrder 在前者 → Top)。
             Side best = Side.Top;
-            float bestScore = float.MinValue;
-            foreach (var s in new[] { Side.Top, Side.Bottom, Side.Left, Side.Right })
+            float bestRoom = float.MinValue;
+            foreach (var s in _autoOrder)
             {
-                var r = Build(s, target, bubbleSize, gap, overlay);
-                var bubble = new Rect(r.BubblePos - bubbleSize / 2f, bubbleSize);
-                float overflow = Overflow(bubble, overlay);
-                // 零溢出里选剩余空间最大;有溢出则溢出最小
                 float room = s switch
                 {
                     Side.Top => overlay.yMax - target.yMax,
@@ -38,8 +38,7 @@ namespace PromptUGUI.Application.Tutorial
                     Side.Left => target.xMin - overlay.xMin,
                     _ => overlay.xMax - target.xMax,
                 };
-                float score = overflow > 0f ? -1000f - overflow : room;
-                if (score > bestScore) { bestScore = score; best = s; }
+                if (room > bestRoom) { bestRoom = room; best = s; }
             }
             return Build(best, target, bubbleSize, gap, overlay);
         }
@@ -67,14 +66,11 @@ namespace PromptUGUI.Application.Tutorial
                     finger = new Vector2(t.xMax + gap / 2f, c.y);
                     angle = 90f; break;
             }
-            // 沿副轴夹紧让气泡不出屏(主轴出屏由 Auto 评分排除)
+            // 双轴夹紧气泡中心,使气泡恒不越过 overlay(由此每侧 overflow 必为 0,
+            // 选边判据简化为剩余空间最大,见 Choose)。
             bubble.x = Mathf.Clamp(bubble.x, overlay.xMin + b.x / 2f, overlay.xMax - b.x / 2f);
             bubble.y = Mathf.Clamp(bubble.y, overlay.yMin + b.y / 2f, overlay.yMax - b.y / 2f);
             return new Result(s, bubble, finger, angle);
         }
-
-        private static float Overflow(Rect r, Rect bounds) =>
-            Mathf.Max(0f, bounds.xMin - r.xMin) + Mathf.Max(0f, r.xMax - bounds.xMax)
-            + Mathf.Max(0f, bounds.yMin - r.yMin) + Mathf.Max(0f, r.yMax - bounds.yMax);
     }
 }

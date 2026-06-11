@@ -162,7 +162,8 @@ public static partial class UI
 - **等待目标出现**:`Step` 进入时逐帧尝试 `UI.TryResolvePath(target)`,成功且 `GameObject != null` 才开始显示;超过 `timeout` 抛 `TimeoutException`(-1 无限等)。覆盖异步开屏、BindItems 列表项晚到等场景。
 - **逐帧跟随**:`TutorialOverlayView.LateUpdate` 每帧重算目标 rect → overlay 本地坐标(ToastPosition 三段式:`TransformPoint` 世界坐标 → `WorldToScreenPoint` → `ScreenPointToLocalPointInRectangle`,取 rect 四角而非中心点),更新洞与气泡/手指。resize、ReSolve、Variant 切换、目标自身动画全自动跟上,无需订阅事件。
 - **失效重等**:目标 GameObject 中途被销毁(BindItems 重建等)→ 退回"等待目标出现"状态重新解析路径;期间洞收起(整屏遮罩),气泡保留。
-- **气泡避让(`Side.Auto`)**:在 Top/Bottom/Left/Right 四向中,计算气泡放在该侧后与 overlay 边界的溢出量,选溢出为零且剩余空间最大的一侧;全部溢出则取溢出最小者。手指贴在气泡与目标之间,按方位旋转(Top→手指朝下,依此类推)。`place` 显式指定则跳过计算。
+- **气泡避让(`Side.Auto`)**:在 Top/Bottom/Left/Right 四向中,选目标与 overlay 边界之间剩余空间最大的一侧。手指贴在气泡与目标之间,按方位旋转(Top→手指朝下,依此类推)。`place` 显式指定则跳过计算。
+  - 实现勘误(2026-06-12):气泡中心在每侧均做双轴夹紧,保证恒不越过全屏 overlay,因此"溢出量"对任意现实输入恒为 0 —— 选边判据退化为单一的"剩余空间最大",不再需要原设想的"溢出为零优先 / 全溢出取最小"二级评分(那条分支在夹紧前提下永不可达,已从代码移除)。
 - **纯说明页**:无洞;气泡屏幕居中,手指隐藏。
 
 ## 6. 生命周期与时序

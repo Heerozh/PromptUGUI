@@ -41,6 +41,27 @@ namespace PromptUGUI.Tests.Tutorial
         }
 
         [Test]
+        public void Auto_TargetNearLeftEdge_PlacesRight()
+        {
+            // 竖屏 overlay,目标贴左缘 → Right 剩余空间最大(验证 room 的横轴分支)
+            var portrait = new Rect(-540, -960, 1080, 1920);
+            var target = new Rect(-520, -30, 60, 60);
+            var r = TutorialPlacement.Choose(portrait, target, Bubble, Gap, Side.Auto);
+            Assert.AreEqual(Side.Right, r.Side);
+            Assert.Greater(r.BubblePos.x, target.xMax);
+        }
+
+        [Test]
+        public void Build_BubblePos_ExactSpacing()
+        {
+            // 锁定间距公式:Top 气泡中心 y = target.yMax + gap + 半气泡;x 对齐目标中心
+            var target = new Rect(-50, -30, 100, 60);   // yMax = 30
+            var r = TutorialPlacement.Choose(Overlay, target, Bubble, Gap, Side.Top);
+            Assert.AreEqual(30f + Gap + Bubble.y / 2f, r.BubblePos.y, 1e-3f);
+            Assert.AreEqual(target.center.x, r.BubblePos.x, 1e-3f);
+        }
+
+        [Test]
         public void ExplicitPlace_Respected()
         {
             var target = new Rect(-50, -30, 100, 60);
