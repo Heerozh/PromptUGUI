@@ -60,6 +60,7 @@ namespace PromptUGUI.Application
 
             public static Awaitable Open(string name, RouteQuery query = null)
             {
+                CheckGuards(name);
                 var tcs = new AwaitableCompletionSource();
                 _waiters.Add(tcs);
                 _pending = (name, query ?? RouteQuery.Empty);
@@ -364,6 +365,8 @@ namespace PromptUGUI.Application
             {
                 CancelAllForTeardown();
                 _routes.Clear();
+                _guards.Clear();
+                _bypassGuardsOnce = false;
                 Scheme = null;
                 Changed = null;
             }
