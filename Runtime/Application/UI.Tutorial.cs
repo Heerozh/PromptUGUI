@@ -48,7 +48,7 @@ namespace PromptUGUI.Application
 
             /// <summary>
             /// 跑一段引导:body 内一步一 await。id 用于断点续(load/save 委托)。
-            /// 整段独占(重入抛 InvalidOperationException);try/finally 保证 guard 注销 + overlay 销毁。
+            /// 整段独占(重入抛 InvalidOperationException);try/finally 保证 guard 注销 + overlay 销毁 + Active 复位。
             /// </summary>
             public static async Awaitable Run(string id, Func<TutorialFlow, Awaitable> body)
             {
@@ -75,7 +75,13 @@ namespace PromptUGUI.Application
             }
 
             internal static void ResetForTestsInternal()
-            { Active = null; _view = null; _overlayKey = null; _load = null; _save = null; }
+            {
+                Active = null; _view = null; _overlayKey = null; _load = null; _save = null;
+                // 复位作者可改的换肤静态,避免跨测试泄漏(同 MessageBox.XmlSrc 那类陷阱)。
+                XmlSrc = "PromptUGUI/Tutorial/TutorialOverlay.ui";
+                SortingOrder = 3000;
+                MaskColor = "#000000B0";
+            }
 
             // —— 测试钩子 —— //
             internal static TutorialFlow BeginSessionForTests()
