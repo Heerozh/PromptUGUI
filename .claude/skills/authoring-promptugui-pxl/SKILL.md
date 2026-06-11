@@ -114,7 +114,40 @@ You are drawing, not just encoding. Apply these when composing a grid:
 - **Design at the smallest size that reads**; let PPU / PromptUGUI scaling handle display size. A crisp 12×12 scaled up beats a fuzzy 48×48.
 - Use `.` (transparent) for *outside the silhouette* only — don't fake glow/anti-aliasing with semi-transparent pixels inside the shape; pixel art stays hard-edged (the importer is point-filtered for a reason).
 
-## Errors & self-verification
+## Round-trip with art tools
+
+Selecting a `.pxl` asset in the Project window shows a custom Inspector — not the default ScriptedImporter settings panel. The importer has no editable settings (everything lives in the `.pxl` text), so the panel is read-only: it lists the palette reference, each section's name/dimensions/border, and a small sprite thumbnail per section. Two buttons appear below:
+
+**Export PNG...** — opens a folder picker, then writes one PNG per section into that folder. Naming contract:
+
+- Explicit sections → `<basename>.<section>.png` (e.g. `ok.normal.png`, `ok.pressed.png`)
+- Implicit single section → `<basename>.png` (e.g. `ok.png`)
+
+After export, Finder/Explorer opens on the folder. Edit the PNGs in Aseprite or any pixel editor. Aseprite reads `.gpl` palettes natively, so palette-mode round-trips are seamless.
+
+**Do not export into a SpriteSet `sourceFolder`** — the Inspector warns you if you pick one. Exported PNGs would be ingested as new sprite sources, creating duplicate keys and packing conflicts. Use a scratch folder outside the sprite pipeline.
+
+**Sync from PNG...** — opens a folder picker (defaults to the last export folder), then:
+
+1. Matches each `.pxl` section to its PNG by the same naming contract above.
+2. Maps PNG pixels back to `chars:` characters: full-transparent pixels → `.`; other pixels matched by RGBA to the existing `chars:` table (earliest declaration wins for duplicate colors); genuinely new colors get a freshly allocated character from the alphabet (`A-Z`, `a-z`, `0-9`, printable ASCII) appended to the `chars:` block.
+3. Shows a summary dialog (sections updated, new chars, skipped sections, unmatched PNGs) before writing anything. Cancel keeps the file untouched.
+4. Rewrites **only the grid rows** of matched sections in-place, plus any new `chars:` entries. Everything else — `ppu:`, `border:`, `palette:`, comments, unmatched sections, section order — survives unchanged. The `.pxl` remains the single source of truth for all metadata.
+
+**What sync enforces (abort with a dialog, nothing written):**
+
+| Condition | Fix |
+|---|---|
+| Off-palette color in palette mode (RGB not in the `.gpl`) | Add the color to the `.gpl`, or fix it in the art tool |
+| Resize makes the existing `border:` exceed the new size | Edit the `border:` line in `.pxl` first |
+| Too many distinct colors — alphabet exhausted | The art is not limited-palette pixel art; quantize first |
+| New colors appear but the file has no `chars:` block | Add a `chars:` block (even empty) before syncing |
+
+**Structural edits stay in text.** Adding, removing, or renaming sections is a `.pxl` text edit — sync only updates sections that already exist and have a matching PNG. Unmatched PNGs and sections with no matching PNG are reported in the summary but not auto-created.
+
+**Gotcha — comments between grid rows are lost.** Comment lines sitting *inside* a grid span (between grid rows) fall within the replaced range and are dropped when that section is synced. Comments in the file header, in the `chars:` block, and between sections survive intact. Avoid placing comments inside grids if you plan to sync.
+
+
 
 Import errors land in the **Unity Console with line numbers** and fail the asset — no Sprite is produced (and Sync Atlases / `<Icon>` resolution will then miss the key). After writing a file, check the Console; after fixing, the reimport is automatic on save.
 
