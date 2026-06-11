@@ -12,6 +12,64 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [SetUp] public void SetUp() => UI.ResetForTests();
         [TearDown] public void TearDown() => UI.ResetForTests();
 
+        private Dropdown OpenDropdown(string attrs = "")
+        {
+            string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'><Dropdown id='dd' " + attrs + @"/></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            return UI.Open("S").Get<Dropdown>("dd");
+        }
+
+        private static UnityEngine.Transform TemplateOf(Dropdown dd) =>
+            dd.GameObject.transform.Find("Template");
+
+        [Test]
+        public void PopupSprite_and_color_apply_to_template_bg()
+        {
+            var dd = OpenDropdown(@"popupSprite='PromptUGUI/Defaults/pugui#pugui_9slice_mask' popupColor='#00FF00'");
+            var bg = TemplateOf(dd).GetComponent<UnityEngine.UI.Image>();
+            Assert.AreEqual("pugui_9slice_mask", bg.sprite.name);
+            Assert.AreEqual(0f, bg.color.r);
+            Assert.AreEqual(1f, bg.color.g);
+        }
+
+        [Test]
+        public void Popup_defaults_unchanged_without_popup_attrs()
+        {
+            var dd = OpenDropdown();
+            var bg = TemplateOf(dd).GetComponent<UnityEngine.UI.Image>();
+            Assert.AreEqual(UnityEngine.Color.white, bg.color);  // DefaultPopupBgColor
+            Assert.AreEqual("pugui_9slice_round", bg.sprite.name);
+            var vp = TemplateOf(dd).Find("Viewport").gameObject;
+            Assert.IsTrue(vp.GetComponent<UnityEngine.UI.Mask>().enabled);
+            Assert.IsNull(vp.GetComponent<UnityEngine.UI.RectMask2D>());
+        }
+
+        [Test]
+        public void PopupMask_empty_swaps_stencil_for_RectMask2D()
+        {
+            var dd = OpenDropdown(@"popupMask=''");
+            var vp = TemplateOf(dd).Find("Viewport").gameObject;
+            Assert.IsTrue(vp.GetComponent<UnityEngine.UI.RectMask2D>().enabled);
+            var mask = vp.GetComponent<UnityEngine.UI.Mask>();
+            Assert.IsTrue(mask == null || !mask.enabled);
+            var img = vp.GetComponent<UnityEngine.UI.Image>();
+            Assert.IsTrue(img == null || !img.enabled);
+        }
+
+        [Test]
+        public void PopupMask_custom_sprite_applies_to_viewport()
+        {
+            var dd = OpenDropdown(@"popupMask='PromptUGUI/Defaults/pugui#pugui_9slice_mask'");
+            var vp = TemplateOf(dd).Find("Viewport").gameObject;
+            var img = vp.GetComponent<UnityEngine.UI.Image>();
+            Assert.AreEqual("pugui_9slice_mask", img.sprite.name);
+            Assert.IsTrue(vp.GetComponent<UnityEngine.UI.Mask>().enabled);
+            Assert.IsFalse(vp.GetComponent<UnityEngine.UI.Mask>().showMaskGraphic);
+        }
+
         [Test]
         public void BindOptions_strings_populates_tmp_dropdown()
         {

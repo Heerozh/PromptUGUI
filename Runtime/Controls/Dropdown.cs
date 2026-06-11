@@ -204,6 +204,29 @@ namespace PromptUGUI.Controls
             set => _bg.sprite = UI.ResolveSprite(value);
         }
 
+        [UIAttr(IsSprite = true), Preserve]
+        public string PopupSprite
+        {
+            set
+            {
+                _templateBg.sprite = UI.ResolveSprite(value);
+                ProceduralBuilders.AutoSlice(_templateBg);
+            }
+        }
+
+        [UIAttr(IsColor = true), Preserve]
+        public string PopupColor
+        {
+            set => _templateBg.color = UI.Theme.Resolve(value);
+        }
+
+        [UIAttr(IsSprite = true), Preserve]
+        public string PopupMask
+        {
+            set => ProceduralBuilders.ApplyViewportMask(
+                _popupViewport, value, ProceduralBuilders.SpriteRoundedRect);
+        }
+
         [UIAttr, Preserve]
         public string Font
         {
