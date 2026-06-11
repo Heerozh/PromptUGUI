@@ -74,7 +74,9 @@ namespace PromptUGUI.Lint
             // dropped (spec §6.2). Self-relative — about the node's own anchor + margin.
             // Skipped under a layout group: margin is wholly ignored there and PUI-LAYOUT-MARGIN
             // already owns that message, so an inert-side error would be a redundant second hit.
-            if (!parentIsLayoutGroup)
+            // Exception: a flow="false" child is back in free-positioning semantics — margin is
+            // meaningful again, so the inert-side check applies after all.
+            if (!parentIsLayoutGroup || LayoutGroupChildRules.MightBeOutOfFlow(node))
                 foreach (var issue in MarginAnchorRules.Check(node))
                     yield return issue;
 
@@ -98,6 +100,13 @@ namespace PromptUGUI.Lint
             {
                 if (isLayoutGroup)
                     foreach (var issue in LayoutGroupChildRules.CheckChild(child))
+                        yield return issue;
+                else
+                    // 'flow' under a non-layout-group parent is inert — flag it. Dispatched
+                    // from the child loop only (parent tag truly known): template-body roots,
+                    // <Add> roots and screen roots are exempt automatically — their real
+                    // parent is resolved at invocation/runtime and may well be an HStack.
+                    foreach (var issue in LayoutGroupChildRules.CheckNonLayoutChild(child))
                         yield return issue;
                 if (node.Tag == "Carousel")
                     foreach (var issue in CarouselRules.CheckCard(child))

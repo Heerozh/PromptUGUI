@@ -185,6 +185,12 @@ namespace PromptUGUI.Application
                 foreach (var issue in LayoutGroupChildRules.CheckChild(node))
                     Debug.LogWarning(issue.Message);
             }
+            else
+            {
+                // 运行时父级已确凿（按组件判断）：非 layout-group 下的 'flow' 是 inert 属性。
+                foreach (var issue in LayoutGroupChildRules.CheckNonLayoutChild(node))
+                    Debug.LogWarning(issue.Message);
+            }
 
             // Per-tag self-checks (mirror of IRWalker dispatch; runtime warns)
             if (node.Tag == "Frame")
@@ -237,8 +243,11 @@ namespace PromptUGUI.Application
             // 条件 3 看 base 或任意 variant 覆盖——variant 运行期才激活而 GO 永不重建，
             // 创建期必须备好；scale 未解析时桥 ×1 透传（≡ 裸 TMP）。Grid 不在内
             // （GetComponent<HorizontalOrVerticalLayoutGroup> 对 GridLayoutGroup 返回 null）。
+            // flow="false"（且没有 variant 能翻回流内）的 Text 不被 LayoutGroup 量算，
+            // wrapper 反而会变成一个没人定位的中间层（自由定位写的是内层 RT）—— 跳过。
             if (control is Text textControl
                 && parent.GetComponent<UnityEngine.UI.HorizontalOrVerticalLayoutGroup>() != null
+                && !LayoutGroupChildRules.AlwaysOutOfFlow(node)
                 && (node.Attributes.ContainsKey("scale")
                     || node.VariantOverrides.ContainsKey("scale")))
             {
