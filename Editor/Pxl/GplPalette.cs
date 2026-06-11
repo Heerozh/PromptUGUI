@@ -5,11 +5,12 @@ using UnityEngine;
 namespace PromptUGUI.Editor
 {
     /// <summary>GIMP Palette (.gpl) 文本解析。社区标准格式：Aseprite 原生读写、
-    /// Lospec 全站可下载。条目 = "R G B [name]"，name 可缺省（缺省条目只能被 hex 命中）。</summary>
+    /// Lospec 全站可下载。条目 = "R G B [name]"，name 可缺省（缺省条目只能被 hex 命中）。
+    /// 同名条目 last-wins（Entries 保留全部，按名查找取最后一个）。</summary>
     internal sealed class GplPalette
     {
-        public readonly List<(Color32 color, string name)> Entries = new List<(Color32 color, string name)>();
-        private readonly Dictionary<string, Color32> _byName = new Dictionary<string, Color32>(StringComparer.Ordinal);
+        public readonly List<(Color32 color, string name)> Entries = new();
+        private readonly Dictionary<string, Color32> _byName = new(StringComparer.Ordinal);
 
         public static GplPalette Parse(string text)
         {
