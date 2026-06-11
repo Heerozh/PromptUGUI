@@ -16,6 +16,7 @@ namespace PromptUGUI.Controls
         private UnityImage _bg;
         private UnityImage _templateBg;
         private RectTransform _popupViewport;
+        private bool _popupMaskExplicit;
         private TMP_Dropdown _tmp;
         private string _fontType = "default";
         private readonly Subject<int> _selected = new();
@@ -223,8 +224,23 @@ namespace PromptUGUI.Controls
         [UIAttr(IsSprite = true), Preserve]
         public string PopupMask
         {
-            set => ProceduralBuilders.ApplyViewportMask(
-                _popupViewport, value, ProceduralBuilders.SpriteRoundedRect);
+            set
+            {
+                _popupMaskExplicit = true;
+                ProceduralBuilders.ApplyViewportMask(
+                    _popupViewport, value, ProceduralBuilders.SpriteRoundedRect);
+            }
+        }
+
+        internal override void OnAfterApply()
+        {
+            base.OnAfterApply();
+            // popupMask 未显式写时跟随 popup bg sprite：有图→圆角 stencil，popupSprite=""→直角 RectMask2D
+            // （对齐 ScrollList.mask / InputField 的 mask-tracks-border 先例；显式 popupMask= 一旦写过即跳过）。
+            if (!_popupMaskExplicit)
+                ProceduralBuilders.ApplyViewportMask(
+                    _popupViewport, _templateBg != null && _templateBg.sprite != null ? null : "",
+                    ProceduralBuilders.SpriteRoundedRect);
         }
 
         [UIAttr, Preserve]

@@ -71,6 +71,51 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void PopupMask_unset_auto_squares_when_popupSprite_empty()
+        {
+            var dd = OpenDropdown(@"popupSprite=''");
+            var vp = TemplateOf(dd).Find("Viewport").gameObject;
+            Assert.IsTrue(vp.GetComponent<UnityEngine.UI.RectMask2D>() != null
+                          && vp.GetComponent<UnityEngine.UI.RectMask2D>().enabled,
+                "popupSprite='' with no explicit popupMask should auto-square the popup viewport clip");
+            var mask = vp.GetComponent<UnityEngine.UI.Mask>();
+            Assert.IsTrue(mask == null || !mask.enabled, "stencil Mask must be off when auto-squared");
+        }
+
+        [Test]
+        public void PopupMask_unset_stays_rounded_when_popupSprite_present()
+        {
+            var dd = OpenDropdown();  // default popup bg has the rounded sprite
+            var vp = TemplateOf(dd).Find("Viewport").gameObject;
+            var mask = vp.GetComponent<UnityEngine.UI.Mask>();
+            Assert.IsNotNull(mask);
+            Assert.IsTrue(mask.enabled, "default popup bg sprite present → rounded stencil mask");
+            Assert.IsNull(vp.GetComponent<UnityEngine.UI.RectMask2D>());
+        }
+
+        [Test]
+        public void Explicit_popupMask_wins_over_popupSprite_autotrack()
+        {
+            var dd = OpenDropdown(@"popupSprite='' popupMask='PromptUGUI/Defaults/pugui#pugui_9slice_mask'");
+            var vp = TemplateOf(dd).Find("Viewport").gameObject;
+            var mask = vp.GetComponent<UnityEngine.UI.Mask>();
+            Assert.IsNotNull(mask);
+            Assert.IsTrue(mask.enabled, "explicit popupMask wins despite popupSprite=''");
+            Assert.AreEqual("pugui_9slice_mask", vp.GetComponent<UnityEngine.UI.Image>().sprite.name);
+            Assert.IsNull(vp.GetComponent<UnityEngine.UI.RectMask2D>());
+        }
+
+        [Test]
+        public void Explicit_empty_popupMask_stays_square_even_with_popupSprite_present()
+        {
+            var dd = OpenDropdown(@"popupMask=''");  // default popup bg sprite present, but explicit '' wins
+            var vp = TemplateOf(dd).Find("Viewport").gameObject;
+            Assert.IsTrue(vp.GetComponent<UnityEngine.UI.RectMask2D>().enabled);
+            var mask = vp.GetComponent<UnityEngine.UI.Mask>();
+            Assert.IsTrue(mask == null || !mask.enabled);
+        }
+
+        [Test]
         public void BindOptions_strings_populates_tmp_dropdown()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
