@@ -784,8 +784,13 @@ namespace PromptUGUI.Application
         /// idPath 为空 → 该 Screen root。任一步未命中 → false（Toast 控件定位据此退回默认位）。
         /// </summary>
         internal static bool TryResolvePath(string path, out UnityEngine.RectTransform rect)
+            => TryResolvePath(path, out _, out rect);
+
+        /// <summary>同 TryResolvePath，但回传 IControl（path==screen 名时 control=null、rect=root）。</summary>
+        internal static bool TryResolvePath(string path, out PromptUGUI.Controls.IControl control,
+            out UnityEngine.RectTransform rect)
         {
-            rect = null;
+            control = null; rect = null;
             if (string.IsNullOrEmpty(path)) return false;
 
             string bestKey = null;
@@ -808,8 +813,8 @@ namespace PromptUGUI.Application
             string idPath = path.Substring(bestKey.Length + 1);
             try
             {
-                var ctl = screen.Get(idPath);
-                rect = ctl?.RectTransform;
+                control = screen.Get(idPath);
+                rect = control?.RectTransform;
                 return rect != null;
             }
             catch (System.Collections.Generic.KeyNotFoundException) { return false; }
