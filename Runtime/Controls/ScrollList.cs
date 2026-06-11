@@ -15,7 +15,10 @@ namespace PromptUGUI.Controls
     public sealed class ScrollList : Control
     {
         private UnityImage _bg;
+        private UnityImage _frame;
+        private bool _maskExplicit;
         private ScrollRect _scroll;
+        private RectTransform _viewport;
         private RectTransform _content;
         private LayoutGroup _layoutGroup;
         private string _direction = "vertical";
@@ -45,20 +48,13 @@ namespace PromptUGUI.Controls
             ProceduralBuilders.ApplyDefaultSlicedSprite(_bg);
             _scroll = GameObject.GetComponent<ScrollRect>() ?? GameObject.AddComponent<ScrollRect>();
 
-            var viewport = ProceduralBuilders.AddChild(RectTransform, "Viewport");
-            viewport.pivot = new Vector2(0f, 1f);
-            // Viewport: stencil Mask + alpha=1 mask sprite + showMaskGraphic=false (跟 Unity 默认 Scroll View 思路一致)。
-            // 用专门的 pugui_9slice_mask sprite 而非 bg 用的 pugui_9slice_round —— 后者 9-slice 圆角才 2×2 像素，
-            // 视觉上 stencil 圆角效果不可见。pugui_9slice_mask 是 Simple type 整张拉伸，圆角弧度跟 RT 大小成比例可见。
-            // alpha=1 关键，避免 4af322b 的 UI/Default shader alpha-discard。
-            var viewportImg = viewport.gameObject.AddComponent<UnityImage>();
-            viewportImg.color = UnityEngine.Color.white;
-            ProceduralBuilders.ApplyDefaultMaskSprite(viewportImg);
-            var viewportMask = viewport.gameObject.AddComponent<Mask>();
-            viewportMask.showMaskGraphic = false;
-            _scroll.viewport = viewport;
+            _viewport = ProceduralBuilders.AddChild(RectTransform, "Viewport");
+            _viewport.pivot = new Vector2(0f, 1f);
+            // Viewport mask 三态 + 默认 pugui_9slice_mask 圆角，见 ApplyViewportMask 注释 / spec §2.3。
+            ProceduralBuilders.ApplyViewportMask(_viewport, null, ProceduralBuilders.SpriteMaskRoundedRect);
+            _scroll.viewport = _viewport;
 
-            _content = ProceduralBuilders.AddChild(viewport, "Content");
+            _content = ProceduralBuilders.AddChild(_viewport, "Content");
             _scroll.content = _content;
 
             _scroll.movementType = ScrollRect.MovementType.Elastic;
@@ -189,6 +185,54 @@ namespace PromptUGUI.Controls
         public string Sprite
         {
             set => _bg.sprite = UI.ResolveSprite(value);
+        }
+
+        [UIAttr(IsSprite = true), Preserve]
+        public string Mask
+        {
+            set
+            {
+                _maskExplicit = true;
+                ProceduralBuilders.ApplyViewportMask(
+                    _viewport, value, ProceduralBuilders.SpriteMaskRoundedRect);
+            }
+        }
+
+        private UnityImage EnsureFrame()
+        {
+            // 边框层：内容/滚动条之上、不被 mask（spec §2.1）。懒创建；层序由 OnAfterApply 钉住。
+            _frame ??= ProceduralBuilders.AddImage(RectTransform, "Frame", raycast: false);
+            return _frame;
+        }
+
+        [UIAttr(IsSprite = true), Preserve]
+        public string Frame
+        {
+            set
+            {
+                var img = EnsureFrame();
+                img.sprite = UI.ResolveSprite(value);
+                ProceduralBuilders.AutoSlice(img);
+            }
+        }
+
+        [UIAttr(IsColor = true), Preserve]
+        public string FrameColor
+        {
+            set => EnsureFrame().color = UI.Theme.Resolve(value);
+        }
+
+        internal override void OnAfterApply()
+        {
+            base.OnAfterApply();
+            // mask 未显式写时跟随 bg sprite：有图→圆角 stencil，sprite=""→直角 RectMask2D
+            // （对齐 InputField 的 mask-tracks-border 先例；显式 mask= 一旦写过即 latch，跳过这里）。
+            if (!_maskExplicit)
+                ProceduralBuilders.ApplyViewportMask(
+                    _viewport, _bg != null && _bg.sprite != null ? null : "",
+                    ProceduralBuilders.SpriteMaskRoundedRect);
+            // Scrollbar 由 Direction setter 懒建，可能晚于 frame 入树 —— 每轮 apply 后把 frame 钉回最顶。
+            if (_frame != null) _frame.transform.SetAsLastSibling();
         }
 
         private Func<RectTransform, IControl> ResolveFactory(string tag)

@@ -98,7 +98,7 @@ namespace PromptUGUI.Controls
                 if (string.IsNullOrEmpty(value)) return;
                 _bg.sprite = UI.ResolveSprite(value);
                 _bg.gameObject.SetActive(true);
-                AutoSlice(_bg);
+                ProceduralBuilders.AutoSlice(_bg);
                 ReconcileMaskVisibility();
             }
         }
@@ -122,7 +122,7 @@ namespace PromptUGUI.Controls
                 if (string.IsNullOrEmpty(value)) return;
                 _frame.sprite = UI.ResolveSprite(value);
                 _frame.gameObject.SetActive(true);
-                AutoSlice(_frame);
+                ProceduralBuilders.AutoSlice(_frame);
             }
         }
 
@@ -150,26 +150,18 @@ namespace PromptUGUI.Controls
                     _stencilMask = maskRt.gameObject.AddComponent<UnityEngine.UI.Mask>();
                 }
                 _maskGraphic.sprite = UI.ResolveSprite(value);
-                AutoSlice(_maskGraphic);
+                ProceduralBuilders.AutoSlice(_maskGraphic);
                 ReconcileMaskVisibility();
             }
         }
 
         internal override void OnAfterApply()
         {
-            AutoSlice(_bg);
-            AutoSlice(_frame);
-            AutoSlice(_maskGraphic);
+            ProceduralBuilders.AutoSlice(_bg);
+            ProceduralBuilders.AutoSlice(_frame);
+            ProceduralBuilders.AutoSlice(_maskGraphic);
             ReconcileMaskVisibility();
             ReconcileFill();
-        }
-
-        private static void AutoSlice(UnityImage img)
-        {
-            if (img == null || img.sprite == null) return;
-            img.type = img.sprite.border != Vector4.zero
-                ? UnityImage.Type.Sliced
-                : UnityImage.Type.Simple;
         }
 
         private void ReconcileMaskVisibility()

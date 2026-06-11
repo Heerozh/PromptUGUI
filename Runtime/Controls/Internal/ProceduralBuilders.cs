@@ -55,20 +55,6 @@ namespace PromptUGUI.Controls.Internal
             img.type = UnityImage.Type.Sliced;
         }
 
-        /// <summary>
-        /// 给 stencil Mask 用的 graphic 应用专门的 mask sprite (pugui_9slice_mask)。
-        /// 这张 sprite 跟 round 不同：border=2、Simple type 整张拉伸，让 stencil 的圆角形状
-        /// 跟 RT 大小成比例可见 (default Unity Scroll View 用单独 UIMask sprite 同样思路)。
-        /// </summary>
-        public static void ApplyDefaultMaskSprite(UnityImage img)
-        {
-            if (img == null || img.sprite != null) return;
-            var s = GetDefaultSprite(SpriteMaskRoundedRect);
-            if (s == null) return;
-            img.sprite = s;
-            img.type = UnityImage.Type.Sliced;
-        }
-
         /// <summary>给 Image 应用 simple sprite 兜底（caret / checkmark 等无边界形状）。</summary>
         public static void ApplyDefaultSimpleSprite(UnityImage img, string spriteName, bool preserveAspect = false)
         {
@@ -78,6 +64,53 @@ namespace PromptUGUI.Controls.Internal
             img.sprite = s;
             img.type = UnityImage.Type.Simple;
             img.preserveAspect = preserveAspect;
+        }
+
+        /// <summary>sprite 有 border → Sliced，否则 Simple；null sprite 不动（镜像原 Progress 私有版规则）。</summary>
+        public static void AutoSlice(UnityImage img)
+        {
+            if (img == null || img.sprite == null) return;
+            img.type = img.sprite.border != Vector4.zero
+                ? UnityImage.Type.Sliced
+                : UnityImage.Type.Simple;
+        }
+
+        /// <summary>
+        /// Viewport mask 三态（spec 2026-06-11-list-popup-skin-mask §2.3）：
+        /// value == null → 默认 sprite + stencil Mask（OnAttached 初始形态）；
+        /// value == ""   → RectMask2D 直角裁剪（stencil Mask + Image 关 enabled）；
+        /// 其他          → 指定 sprite + stencil Mask（UI.ResolveSprite 失败路径同 sprite=）。
+        /// lazy-add + enabled 开关，不 Destroy —— Variant ReSolve 可在三态间任意来回切，
+        /// 也避免 PlayMode 下 Destroy 延迟销毁导致同帧切换读到待销毁组件。
+        /// </summary>
+        public static void ApplyViewportMask(RectTransform viewport, string value, string defaultSpriteName)
+        {
+            var go = viewport.gameObject;
+            var img = go.GetComponent<UnityImage>();
+            var mask = go.GetComponent<Mask>();
+            var rectMask = go.GetComponent<RectMask2D>();
+
+            if (value != null && value.Length == 0)
+            {
+                if (mask != null) mask.enabled = false;
+                if (img != null) img.enabled = false;
+                if (rectMask == null) rectMask = go.AddComponent<RectMask2D>();
+                rectMask.enabled = true;
+                return;
+            }
+
+            if (rectMask != null) rectMask.enabled = false;
+            if (img == null) img = go.AddComponent<UnityImage>();
+            img.enabled = true;
+            // alpha=1 关键：alpha<1 触发 UI/Default shader 的 alpha-discard，把 stencil 写飞 (4af322b)。
+            img.color = Color.white;
+            img.sprite = value == null
+                ? GetDefaultSprite(defaultSpriteName)
+                : PromptUGUI.Application.UI.ResolveSprite(value);
+            AutoSlice(img);
+            if (mask == null) mask = go.AddComponent<Mask>();
+            mask.enabled = true;
+            mask.showMaskGraphic = false;
         }
 
         internal static void ResetDefaultSpriteCacheForTests() => _defaultSprites = null;

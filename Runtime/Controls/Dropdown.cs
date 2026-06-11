@@ -14,6 +14,9 @@ namespace PromptUGUI.Controls
     public sealed class Dropdown : Control
     {
         private UnityImage _bg;
+        private UnityImage _templateBg;
+        private RectTransform _popupViewport;
+        private bool _popupMaskExplicit;
         private TMP_Dropdown _tmp;
         private string _fontType = "default";
         private readonly Subject<int> _selected = new();
@@ -61,31 +64,27 @@ namespace PromptUGUI.Controls
             template.sizeDelta = new Vector2(0f, 150f);
             template.anchoredPosition = new Vector2(0f, 2f);
             template.gameObject.SetActive(false);
-            var templateBg = template.gameObject.AddComponent<UnityImage>();
-            templateBg.color = ProceduralBuilders.DefaultPopupBgColor;
-            ProceduralBuilders.ApplyDefaultSlicedSprite(templateBg);
+            _templateBg = template.gameObject.AddComponent<UnityImage>();
+            _templateBg.color = ProceduralBuilders.DefaultPopupBgColor;
+            ProceduralBuilders.ApplyDefaultSlicedSprite(_templateBg);
             var templateScroll = template.gameObject.AddComponent<UnityEngine.UI.ScrollRect>();
             templateScroll.horizontal = false;
             templateScroll.movementType = UnityEngine.UI.ScrollRect.MovementType.Clamped;
 
-            // Viewport: stencil Mask + sliced Image (alpha=1, showMaskGraphic=false) ── 跟默认 prefab 一致。
+            // Viewport: popup viewport mask 三态 + 默认 pugui_9slice_round，spec §2.3。
             // CRITICAL: alpha 必须为 1。alpha=0.01 会触发 UI/Default shader 的 alpha-discard，
             // 把 stencil 写飞 (4af322b 之前的 bug)。
-            var viewport = ProceduralBuilders.AddChild(template, "Viewport");
-            viewport.anchorMin = new Vector2(0f, 0f);
-            viewport.anchorMax = new Vector2(1f, 1f);
-            viewport.pivot = new Vector2(0f, 1f);
-            viewport.offsetMin = Vector2.zero;
-            viewport.offsetMax = Vector2.zero;
-            viewport.sizeDelta = new Vector2(-18f, 0f);  // 留 18px 给 Vertical Scrollbar (Task 8 加)
-            var viewportImg = viewport.gameObject.AddComponent<UnityImage>();
-            viewportImg.color = UnityEngine.Color.white;  // alpha=1 关键
-            ProceduralBuilders.ApplyDefaultSlicedSprite(viewportImg);
-            var viewportMask = viewport.gameObject.AddComponent<UnityEngine.UI.Mask>();
-            viewportMask.showMaskGraphic = false;
+            _popupViewport = ProceduralBuilders.AddChild(template, "Viewport");
+            _popupViewport.anchorMin = new Vector2(0f, 0f);
+            _popupViewport.anchorMax = new Vector2(1f, 1f);
+            _popupViewport.pivot = new Vector2(0f, 1f);
+            _popupViewport.offsetMin = Vector2.zero;
+            _popupViewport.offsetMax = Vector2.zero;
+            _popupViewport.sizeDelta = new Vector2(-18f, 0f);  // 留 18px 给 Vertical Scrollbar
+            ProceduralBuilders.ApplyViewportMask(_popupViewport, null, ProceduralBuilders.SpriteRoundedRect);
 
             // Content (top-anchored; height grows to fit items via TMP_Dropdown's runtime sizing).
-            var content = ProceduralBuilders.AddChild(viewport, "Content");
+            var content = ProceduralBuilders.AddChild(_popupViewport, "Content");
             content.anchorMin = new Vector2(0f, 1f);
             content.anchorMax = new Vector2(1f, 1f);
             content.pivot = new Vector2(0.5f, 1f);
@@ -160,7 +159,7 @@ namespace PromptUGUI.Controls
             templateScroll.verticalScrollbarVisibility = UnityEngine.UI.ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
             templateScroll.verticalScrollbarSpacing = -3f;
 
-            templateScroll.viewport = viewport;
+            templateScroll.viewport = _popupViewport;
             templateScroll.content = content;
 
             _tmp.template = template;
@@ -204,6 +203,44 @@ namespace PromptUGUI.Controls
         public string Sprite
         {
             set => _bg.sprite = UI.ResolveSprite(value);
+        }
+
+        [UIAttr(IsSprite = true), Preserve]
+        public string PopupSprite
+        {
+            set
+            {
+                _templateBg.sprite = UI.ResolveSprite(value);
+                ProceduralBuilders.AutoSlice(_templateBg);
+            }
+        }
+
+        [UIAttr(IsColor = true), Preserve]
+        public string PopupColor
+        {
+            set => _templateBg.color = UI.Theme.Resolve(value);
+        }
+
+        [UIAttr(IsSprite = true), Preserve]
+        public string PopupMask
+        {
+            set
+            {
+                _popupMaskExplicit = true;
+                ProceduralBuilders.ApplyViewportMask(
+                    _popupViewport, value, ProceduralBuilders.SpriteRoundedRect);
+            }
+        }
+
+        internal override void OnAfterApply()
+        {
+            base.OnAfterApply();
+            // popupMask 未显式写时跟随 popup bg sprite：有图→圆角 stencil，popupSprite=""→直角 RectMask2D
+            // （对齐 ScrollList.mask / InputField 的 mask-tracks-border 先例；显式 popupMask= 一旦写过即跳过）。
+            if (!_popupMaskExplicit)
+                ProceduralBuilders.ApplyViewportMask(
+                    _popupViewport, _templateBg != null && _templateBg.sprite != null ? null : "",
+                    ProceduralBuilders.SpriteRoundedRect);
         }
 
         [UIAttr, Preserve]
