@@ -197,7 +197,7 @@ namespace PromptUGUI.Controls
         // 通用属性应用（由 ScreenInstantiator 在子类自身属性应用之后调用）
         public void ApplyCommon(string anchor, string size, string width, string height,
                                 string margin, string pivot,
-                                bool? hidden, bool interactable)
+                                bool? hidden, bool interactable, bool flow = true)
         {
             var sizeSpec = SizeSpec.Parse(size, width, height);
 
@@ -222,11 +222,29 @@ namespace PromptUGUI.Controls
             var parentIsGrid = parentLg is UnityEngine.UI.GridLayoutGroup;
             var parentIsAutoLayout = parentLg != null && !parentIsGrid;
 
+            // flow="false"：子节点退出排版流。LayoutGroup（含 Grid）收集 rectChildren 时跳过
+            // ignoreLayout 的子节点 → 它既不占排版空间也不贡献 preferred，anchor / margin /
+            // size 走下面的自由定位分支，恢复完整语义（典型：Stack 里铺满的背景层 / 角标）。
+            // 回流时清回 false（不摘组件），保 Variant 切换 / ReSolve 幂等。
+            if (parentLg != null)
+            {
+                var flowLe = LayoutHost.gameObject.GetComponent<UnityEngine.UI.LayoutElement>();
+                if (!flow)
+                {
+                    flowLe ??= LayoutHost.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
+                    flowLe.ignoreLayout = true;
+                }
+                else if (flowLe != null)
+                {
+                    flowLe.ignoreLayout = false;
+                }
+            }
+
             // 百分比 ('%') 在任何 LayoutGroup 容器（V/HStack 或 Grid）里都无法表达：
             // - V/HStack 用的是 flex 权重，不是父尺寸百分比；
             // - Grid 用的是 cellSize，子节点的 anchor 直接被 GridLayoutGroup 覆写。
             // 给出可操作的提示：用加权 stretch + spacer 兄弟，或者移到自由定位父级。
-            if ((parentIsAutoLayout || parentIsGrid)
+            if ((parentIsAutoLayout || parentIsGrid) && flow
                 && (sizeSpec.IsFractionalWidth || sizeSpec.IsFractionalHeight))
             {
                 throw new System.ArgumentException(
@@ -238,7 +256,7 @@ namespace PromptUGUI.Controls
                     "Or move the child to a free-positioning parent (Frame/Screen) where '%' maps to anchor fractions.");
             }
 
-            if (parentIsAutoLayout)
+            if (parentIsAutoLayout && flow)
             {
                 ApplyLayoutElement(sizeSpec, preset);
                 // anchor / pivot / sizeDelta / anchoredPosition: LayoutGroup 接管几何。

@@ -318,6 +318,8 @@ margin="16,8,4,12"    T=16, R=8, B=4, L=12
 
 容器自身仍用 `anchor` + `size`/`margin` 在父级里定位。
 
+**例外：`flow="false"`（出流子节点，FLW）。** 子节点声明 `flow="false"` 后退出排版流：实现为 `LayoutElement.ignoreLayout=true`，布局组在定位与量算 preferred 时都跳过它；`anchor` / `margin` / `N%` 对它恢复完整自由定位语义（相对布局组自身的 rect），上述警告与 `%` 禁令一并解除。`width="stretch"` 仍非法（流外没有 flex 权重，应改用 `anchor="stretch"`）。典型用途：hug 尺寸的 Stack 内铺满的 9-slice 背景层 / 角标。在非布局组父级下 `flow` 是 inert 属性（lint `PUI-FLOW-OUTSIDE-GROUP`）。可被 Variant 覆盖（`flow.portrait="false"`），切换走标准 ReSolve 重解算。
+
 ---
 
 ## 7. Template：复用与组合

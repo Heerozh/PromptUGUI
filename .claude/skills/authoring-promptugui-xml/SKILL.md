@@ -454,6 +454,7 @@ Other notes:
 | `pivot="x,y"`               | `RectTransform.pivot`（不写则从 anchor 推）                                                                                                                                                                                                                                                                         |
 | `hidden="true"`             | `GameObject.SetActive(false)`                                                                                                                                                                                                                                                                                       |
 | `interactable="false"`      | `CanvasGroup.interactable=false` + `blocksRaycasts=false`（首次访问按需 add `CanvasGroup`；级联到所有后代，比 `Selectable.interactable` 范围更大）                                                                                                                                                                  |
+| `flow="false"`              | `LayoutElement.ignoreLayout=true`（仅父级是 LayoutGroup 时有意义）—— LayoutGroup 收集 rectChildren 时跳过该子节点，`anchor` / `margin` / `size` 改走自由定位分支写 RectTransform                                                                                                                                       |
 
 **不变量与易踩坑**
 
@@ -477,6 +478,7 @@ Other notes:
 | `hidden="true"` | bool | Initial `SetActive(false)`. |
 | `interactable="false"` | bool | Initial `CanvasGroup.interactable=false` + `blocksRaycasts=false`. On `<Btn>` it **also** sets `Button.interactable=false` → the Btn enters its Disabled state (see `reference/states.md`). |
 | `stateReact="false"` | bool (default `true`) | Opts this node **and its whole subtree** out of an ancestor `<Btn>` / `<Tab>` / `<Toggle>`'s `*Modulate` fan-out. Has no effect on `*Color` (absolute — bg only, never fanned out). See `reference/states.md`. |
+| `flow="false"` | bool (default `true`) | **Layout-group children only** (direct child of `<VStack>` / `<HStack>` / `<Grid>`). Opts the child **out of the layout flow**: the group neither positions it nor counts it toward its own preferred size, and `anchor` / `margin` / `N%` regain full free-positioning semantics against the group's rect. Use for a 9-slice background layer / badge / overlay inside a hug-sized stack — see **Out-of-flow children** below. Inert under a free-positioning parent (`PUI-FLOW-OUTSIDE-GROUP`). Variant-overridable (`flow.portrait="false"`). |
 | `scale="N"` / `scale="Nx"` / `scale="<r>r"` | float `N` / `Nx` (int) / `<r>r` (float) | Three forms: `N` = box-preserving (a render-density knob, **not** a resize knob); `Nx` = N physical px per design-unit (constant across factors, **doesn't grow with the window**); `<r>r` = `r×` the canvas factor **snapped to an integer** (**grows with the window yet stays pixel-aligned**). `scale="2"` ≠ `scale="2x"`. Full formulas / examples / caveats: see **Relative scale** / **Device-density** / **Canvas-relative snapped** below. |
 
 **margin & consumed sides.** A margin only offsets from a side the `anchor` **consumes**: a **stretched** axis reads both its slots, a **point** anchor (`top` / `bottom` / `left` / `right`) reads only its own side, a **centered** axis reads neither. So `anchor="bottom-right" margin="60,_,_,_"` puts 60 in the **top** slot → silently dropped (a `bottom` anchor reads only the bottom slot; write `margin="_,_,60,_"` to push it up). The lint CLI flags a non-zero value on an unconsumed side as **`PUI-MARGIN-INERT-SIDE`** (CLI-only; 4-component + explicit-`anchor` form only — symmetric 1-/2-component shorthands always land on the consumed side and are not flagged).
@@ -527,6 +529,28 @@ Vertical: same idea (`top` → upper, `bottom` → lower, `center` → middle).
 **Inside `<Grid>`**, the parent's `cellSize` is authoritative — a child's `size` is silently ignored.
 
 **Cross-axis alignment** of layout-group children is set on the parent via `childAlign` (defaults: VStack `upper-center`, HStack `middle-left`). Override the whole group, not per child — uGUI LayoutGroup doesn't support per-child cross-axis alignment.
+
+**Out-of-flow children (`flow="false"`)** — a `<VStack>` / `<HStack>` / `<Grid>` child with `flow="false"` opts out of the layout flow entirely: the group skips it when positioning children **and** when computing its own preferred size (`LayoutElement.ignoreLayout` under the hood). The child positions itself against the group's rect with normal free-positioning semantics — `anchor` / `margin` / `N%` are legal again (no `PUI-LAYOUT-ANCHOR` / `PUI-LAYOUT-MARGIN`; `PUI-MARGIN-INERT-SIDE` applies again instead). `width="stretch"` stays forbidden — out of flow there is no flex weight; use `anchor="stretch"`.
+
+The killer use case: a **hug-width stack with a 9-slice skin**. Nested stacks hug for free — a width-less `<HStack>` inside a `<VStack>` is sized to padding + spacing + the sum of its children's preferred widths (no ContentSizeFitter needed) — so put the skin **inside** the stack as out-of-flow stretch layers:
+
+```xml
+<VStack anchor="stretch" margin="8,8,_,8" spacing="4" childAlign="upper-left">
+  <!-- timeBox hugs: width = padding + icon 12 + spacing 4 + scaled text width, live -->
+  <HStack id="timeBox" height="18" spacing="4" padding="3,6,3,3">
+    <Image anchor="stretch" flow="false" sprite="UI:Box-Secondary-Frame" color="primary-dark" tint="linear"/>
+    <Image anchor="stretch" flow="false" sprite="UI:Box-Secondary-Bg" mask="self" color="primary-darken/0.5" tint="linear"/>
+    <Icon name="Solar16Bold:Time/Clock Circle" color="on-primary" size="12x12"/>
+    <Text id="time" fontSize="12" color="on-primary" scale="0.5r" tr="false">18天 05:26:45</Text>
+  </HStack>
+</VStack>
+```
+
+When the countdown text changes (or the locale swaps), the text's preferred width re-reports and `timeBox` re-hugs automatically; both background layers stretch over whatever that is without inflating it.
+
+- `flow="false"` under a free-positioning parent (`<Frame>` / `<Screen>` / `<Image>`) is inert → `PUI-FLOW-OUTSIDE-GROUP` (CLI error / runtime warning). anchor/margin already work there — just drop the attribute.
+- Variant-overridable: `flow.portrait="false"` pulls a child out of flow in one variant only; flipping back re-enters the flow (geometry re-resolves on the normal ReSolve path).
+- A `<Text scale=...>` child that is statically `flow="false"` (no variant override) skips the scale-host measuring wrapper — it isn't measured by the group; free-positioning scale semantics apply instead.
 
 ## Layout group 放置配方（HStack / VStack）
 
@@ -1033,6 +1057,7 @@ STATE         stateReact="false"  opt node+subtree out of *Modulate fan-out (no 
               详见 reference/states.md（状态化视觉）· reference/animations.md（Trigger/Animation）
 
 COMMON ATTRS  id  anchor  size|width|height  margin  pivot  hidden  interactable  stateReact
+STACK-CHILD   flow="false"  → out of layout flow (ignoreLayout; anchor/margin legal again)
 STACK-ONLY    padding  spacing                                    (VStack/HStack/Grid)
 
 ANCHOR        "<v>-<h>"     v ∈ {top, center, bottom, stretch}

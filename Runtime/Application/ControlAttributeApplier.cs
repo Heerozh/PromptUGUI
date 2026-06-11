@@ -104,12 +104,14 @@ namespace PromptUGUI.Application
             var pivot = VariantResolver.ResolveAttribute(node, "pivot", variants);
             var hiddenStr = VariantResolver.ResolveAttribute(node, "hidden", variants);
             var interactableStr = VariantResolver.ResolveAttribute(node, "interactable", variants);
+            var flowStr = VariantResolver.ResolveAttribute(node, "flow", variants);
             bool? hidden = hiddenStr == null ? null : hiddenStr == "true";
             var interactable = interactableStr != "false";
+            var flow = flowStr != "false";
 
             try
             {
-                control.ApplyCommon(anchor, size, width, height, margin, pivot, hidden, interactable);
+                control.ApplyCommon(anchor, size, width, height, margin, pivot, hidden, interactable, flow);
                 control.OnAfterApply();
             }
             catch (Exception ex) when (!(ex is ParseException))
@@ -149,7 +151,7 @@ namespace PromptUGUI.Application
         {
             return name switch
             {
-                "anchor" or "size" or "width" or "height" or "margin" or "pivot" or "hidden" or "interactable" => true,
+                "anchor" or "size" or "width" or "height" or "margin" or "pivot" or "hidden" or "interactable" or "flow" => true,
                 // 'scale' deliberately NOT listed: it is applied by Screen.ApplyScales (independent
                 // of the ApplyCommon path) for controls without their own setter, and dispatched
                 // through the normal [UIAttr("scale")] loop for controls that handle it themselves
