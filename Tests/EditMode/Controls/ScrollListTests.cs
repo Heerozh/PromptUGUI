@@ -262,6 +262,22 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Frame_stays_topmost_after_horizontal_scrollbar_created()
+        {
+            // direction='horizontal' re-runs ApplyDirection → EnsureHorizontalScrollbar appends a
+            // NEW last-sibling AFTER the frame already exists; only OnAfterApply's re-pin keeps the
+            // border on top. (The default vertical path builds its scrollbar before the frame, so it
+            // wouldn't catch a missing re-pin — this case does.)
+            var sl = OpenList(@"frame='PromptUGUI/Defaults/pugui#pugui_9slice_round' direction='horizontal'");
+            var root = sl.GameObject.transform;
+            var frame = root.Find("Frame");
+            Assert.IsNotNull(frame);
+            Assert.IsNotNull(root.Find("Scrollbar Horizontal"), "horizontal scrollbar should exist in this direction");
+            Assert.AreEqual(root.childCount - 1, frame.GetSiblingIndex(),
+                "frame must remain the last sibling even though the horizontal scrollbar was created after it");
+        }
+
+        [Test]
         public void FrameColor_alone_activates_frame_layer()
         {
             var sl = OpenList(@"frameColor='#FF0000'");
