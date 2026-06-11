@@ -15,6 +15,7 @@ namespace PromptUGUI.Controls
     public sealed class ScrollList : Control
     {
         private UnityImage _bg;
+        private UnityImage _frame;
         private ScrollRect _scroll;
         private RectTransform _viewport;
         private RectTransform _content;
@@ -190,6 +191,37 @@ namespace PromptUGUI.Controls
         {
             set => ProceduralBuilders.ApplyViewportMask(
                 _viewport, value, ProceduralBuilders.SpriteMaskRoundedRect);
+        }
+
+        private UnityImage EnsureFrame()
+        {
+            // 边框层：内容/滚动条之上、不被 mask（spec §2.1）。懒创建；层序由 OnAfterApply 钉住。
+            _frame ??= ProceduralBuilders.AddImage(RectTransform, "Frame", raycast: false);
+            return _frame;
+        }
+
+        [UIAttr(IsSprite = true), Preserve]
+        public string Frame
+        {
+            set
+            {
+                var img = EnsureFrame();
+                img.sprite = UI.ResolveSprite(value);
+                ProceduralBuilders.AutoSlice(img);
+            }
+        }
+
+        [UIAttr(IsColor = true), Preserve]
+        public string FrameColor
+        {
+            set => EnsureFrame().color = UI.Theme.Resolve(value);
+        }
+
+        internal override void OnAfterApply()
+        {
+            base.OnAfterApply();
+            // Scrollbar 由 Direction setter 懒建，可能晚于 frame 入树 —— 每轮 apply 后把 frame 钉回最顶。
+            if (_frame != null) _frame.transform.SetAsLastSibling();
         }
 
         private Func<RectTransform, IControl> ResolveFactory(string tag)

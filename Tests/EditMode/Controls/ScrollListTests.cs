@@ -241,5 +241,42 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var sr = sl.GameObject.GetComponent<UnityEngine.UI.ScrollRect>();
             Assert.AreSame(scrollbar, sr.horizontalScrollbar);
         }
+
+        [Test]
+        public void Frame_creates_topmost_nonraycast_layer()
+        {
+            var sl = OpenList(@"frame='PromptUGUI/Defaults/pugui#pugui_9slice_round'");
+            var root = sl.GameObject.transform;
+            var frame = root.Find("Frame");
+            Assert.IsNotNull(frame, "frame= should lazily create the Frame layer");
+            Assert.AreEqual(root.childCount - 1, frame.GetSiblingIndex(), "frame must be the last sibling (above Viewport & Scrollbar)");
+            var img = frame.GetComponent<UnityEngine.UI.Image>();
+            Assert.IsFalse(img.raycastTarget);
+            Assert.AreEqual("pugui_9slice_round", img.sprite.name);
+            Assert.AreEqual(UnityEngine.UI.Image.Type.Sliced, img.type);
+            var rt = (UnityEngine.RectTransform)frame;
+            Assert.AreEqual(UnityEngine.Vector2.zero, rt.anchorMin);
+            Assert.AreEqual(UnityEngine.Vector2.one, rt.anchorMax);
+            Assert.AreEqual(UnityEngine.Vector2.zero, rt.offsetMin);
+            Assert.AreEqual(UnityEngine.Vector2.zero, rt.offsetMax);
+        }
+
+        [Test]
+        public void FrameColor_alone_activates_frame_layer()
+        {
+            var sl = OpenList(@"frameColor='#FF0000'");
+            var frame = sl.GameObject.transform.Find("Frame");
+            Assert.IsNotNull(frame);
+            var img = frame.GetComponent<UnityEngine.UI.Image>();
+            Assert.AreEqual(1f, img.color.r);
+            Assert.AreEqual(0f, img.color.g);
+        }
+
+        [Test]
+        public void No_frame_attr_means_no_frame_node()
+        {
+            var sl = OpenList();
+            Assert.IsNull(sl.GameObject.transform.Find("Frame"), "frame layer is lazy");
+        }
     }
 }
