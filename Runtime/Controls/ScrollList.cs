@@ -16,6 +16,7 @@ namespace PromptUGUI.Controls
     {
         private UnityImage _bg;
         private ScrollRect _scroll;
+        private RectTransform _viewport;
         private RectTransform _content;
         private LayoutGroup _layoutGroup;
         private string _direction = "vertical";
@@ -45,20 +46,13 @@ namespace PromptUGUI.Controls
             ProceduralBuilders.ApplyDefaultSlicedSprite(_bg);
             _scroll = GameObject.GetComponent<ScrollRect>() ?? GameObject.AddComponent<ScrollRect>();
 
-            var viewport = ProceduralBuilders.AddChild(RectTransform, "Viewport");
-            viewport.pivot = new Vector2(0f, 1f);
-            // Viewport: stencil Mask + alpha=1 mask sprite + showMaskGraphic=false (跟 Unity 默认 Scroll View 思路一致)。
-            // 用专门的 pugui_9slice_mask sprite 而非 bg 用的 pugui_9slice_round —— 后者 9-slice 圆角才 2×2 像素，
-            // 视觉上 stencil 圆角效果不可见。pugui_9slice_mask 是 Simple type 整张拉伸，圆角弧度跟 RT 大小成比例可见。
-            // alpha=1 关键，避免 4af322b 的 UI/Default shader alpha-discard。
-            var viewportImg = viewport.gameObject.AddComponent<UnityImage>();
-            viewportImg.color = UnityEngine.Color.white;
-            ProceduralBuilders.ApplyDefaultMaskSprite(viewportImg);
-            var viewportMask = viewport.gameObject.AddComponent<Mask>();
-            viewportMask.showMaskGraphic = false;
-            _scroll.viewport = viewport;
+            _viewport = ProceduralBuilders.AddChild(RectTransform, "Viewport");
+            _viewport.pivot = new Vector2(0f, 1f);
+            // Viewport mask 三态 + 默认 pugui_9slice_mask 圆角，见 ApplyViewportMask 注释 / spec §2.3。
+            ProceduralBuilders.ApplyViewportMask(_viewport, null, ProceduralBuilders.SpriteMaskRoundedRect);
+            _scroll.viewport = _viewport;
 
-            _content = ProceduralBuilders.AddChild(viewport, "Content");
+            _content = ProceduralBuilders.AddChild(_viewport, "Content");
             _scroll.content = _content;
 
             _scroll.movementType = ScrollRect.MovementType.Elastic;

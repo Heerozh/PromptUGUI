@@ -89,6 +89,44 @@ namespace PromptUGUI.Controls.Internal
                 : UnityImage.Type.Simple;
         }
 
+        /// <summary>
+        /// Viewport mask 三态（spec 2026-06-11-list-popup-skin-mask §2.3）：
+        /// value == null → 默认 sprite + stencil Mask（OnAttached 初始形态）；
+        /// value == ""   → RectMask2D 直角裁剪（stencil Mask + Image 关 enabled）；
+        /// 其他          → 指定 sprite + stencil Mask（UI.ResolveSprite 失败路径同 sprite=）。
+        /// lazy-add + enabled 开关，不 Destroy —— Variant ReSolve 可在三态间任意来回切，
+        /// 也避免 PlayMode 下 Destroy 延迟销毁导致同帧切换读到待销毁组件。
+        /// </summary>
+        public static void ApplyViewportMask(RectTransform viewport, string value, string defaultSpriteName)
+        {
+            var go = viewport.gameObject;
+            var img = go.GetComponent<UnityImage>();
+            var mask = go.GetComponent<Mask>();
+            var rectMask = go.GetComponent<RectMask2D>();
+
+            if (value != null && value.Length == 0)
+            {
+                if (mask != null) mask.enabled = false;
+                if (img != null) img.enabled = false;
+                if (rectMask == null) rectMask = go.AddComponent<RectMask2D>();
+                rectMask.enabled = true;
+                return;
+            }
+
+            if (rectMask != null) rectMask.enabled = false;
+            if (img == null) img = go.AddComponent<UnityImage>();
+            img.enabled = true;
+            // alpha=1 关键：alpha<1 触发 UI/Default shader 的 alpha-discard，把 stencil 写飞 (4af322b)。
+            img.color = Color.white;
+            img.sprite = value == null
+                ? GetDefaultSprite(defaultSpriteName)
+                : PromptUGUI.Application.UI.ResolveSprite(value);
+            AutoSlice(img);
+            if (mask == null) mask = go.AddComponent<Mask>();
+            mask.enabled = true;
+            mask.showMaskGraphic = false;
+        }
+
         internal static void ResetDefaultSpriteCacheForTests() => _defaultSprites = null;
 
         public static RectTransform AddChild(RectTransform parent, string name)
