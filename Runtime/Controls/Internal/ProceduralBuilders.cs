@@ -80,6 +80,15 @@ namespace PromptUGUI.Controls.Internal
             img.preserveAspect = preserveAspect;
         }
 
+        /// <summary>sprite 有 border → Sliced，否则 Simple；null sprite 不动（镜像原 Progress 私有版规则）。</summary>
+        public static void AutoSlice(UnityImage img)
+        {
+            if (img == null || img.sprite == null) return;
+            img.type = img.sprite.border != Vector4.zero
+                ? UnityImage.Type.Sliced
+                : UnityImage.Type.Simple;
+        }
+
         internal static void ResetDefaultSpriteCacheForTests() => _defaultSprites = null;
 
         public static RectTransform AddChild(RectTransform parent, string name)
