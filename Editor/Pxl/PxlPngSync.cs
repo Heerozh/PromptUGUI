@@ -166,7 +166,8 @@ namespace PromptUGUI.Editor
         public static string Apply(string pxlText, SyncPlan plan)
         {
             if (plan.Errors.Count > 0)
-                throw new InvalidOperationException("cannot apply a plan with errors");
+                throw new InvalidOperationException(
+                    "cannot apply a plan with errors: " + string.Join("; ", plan.Errors));
 
             var lines = new List<string>(
                 pxlText.TrimStart('﻿').Replace("\r\n", "\n").Split('\n'));
