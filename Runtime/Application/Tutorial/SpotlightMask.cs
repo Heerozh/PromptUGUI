@@ -63,6 +63,8 @@ namespace PromptUGUI.Application.Tutorial
         }
 
         // —— 测试钩子 —— //
+        internal Rect? HoleForTests => _hole;
+
         internal bool HitTestForTests(Vector2 local) => HitTest(local);
 
         internal int PopulateMeshVertexCountForTests()
