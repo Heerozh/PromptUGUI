@@ -24,7 +24,7 @@ namespace PromptUGUI.Application
 
             public static void RemoveGuard(Func<string, bool> guard) => _guards.Remove(guard);
 
-            /// <summary>下一次 Open 跳过整条 guard 链并复位(Tutorial 内部导航用)。</summary>
+            /// <summary>下一次 Open 调用跳过整条 guard 链并复位(无论该 Open 成功与否;Tutorial 内部导航用)。</summary>
             internal static void BypassGuardsOnce() => _bypassGuardsOnce = true;
 
             private static void CheckGuards(string name)

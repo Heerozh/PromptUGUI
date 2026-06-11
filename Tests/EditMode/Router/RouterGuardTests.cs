@@ -59,6 +59,21 @@ namespace PromptUGUI.Tests.Router
         }
 
         [Test]
+        public void Guard_LaterGuardRejects_BlocksChain()
+        {
+            UI.Router.Open("home").GetAwaiter().GetResult();
+            UI.Router.AddGuard(_ => true);    // 先放行
+            UI.Router.AddGuard(_ => false);   // 后拒绝 → 整链被拦
+            Assert.Throws<NavigationRejectedException>(
+                () => UI.Router.Open("shop").GetAwaiter().GetResult());
+            CollectionAssert.AreEqual(new[] { "home" }, UI.Router.Chain);
+        }
+
+        [Test]
+        public void AddGuard_Null_Throws() =>
+            Assert.Throws<System.ArgumentNullException>(() => UI.Router.AddGuard(null));
+
+        [Test]
         public void RemoveGuard_RestoresNavigation()
         {
             System.Func<string, bool> g = _ => false;
