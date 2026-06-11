@@ -130,14 +130,17 @@ public static partial class UI
 <?xml version="1.0" encoding="utf-8"?>
 <PromptUGUI version="1">
   <Screen name="PromptUGUI/Tutorial/TutorialOverlay.ui" reference="1920x1080" reference.portrait="1080x1920">
-    <!-- SpotlightMask 由 C# 在 mask 节点上挂载;XML 只占位提供颜色等可换肤项 -->
+    <!-- mask: 纯 RectTransform 容器(Frame 无 Graphic);C# 在其 GameObject 挂 SpotlightMask + 应用 MaskColor -->
     <Frame id="mask" anchor="stretch"/>
-    <Frame id="bubbleRoot" size="0x0">
-      <Image id="bubble" sprite="PromptUGUI/Defaults/pugui.png#pugui_9slice_round" color="#222222EE">
-        <Text id="bubbleText" anchor="stretch" margin="16" fontSize="22" align="center"/>
+    <!-- bubbleRoot: 气泡+手指容器,锚点居中(对齐 TutorialPlacement 中心原点坐标系);C# 每帧摆位 -->
+    <Frame id="bubbleRoot" anchor="center" size="0x0">
+      <Image id="bubble" anchor="center" size="300x100"
+             sprite="PromptUGUI/Defaults/pugui.png#pugui_9slice_round" color="#222222EE">
+        <Text id="bubbleText" anchor="stretch" margin="16" fontSize="22" align="center" color="white"/>
       </Image>
       <!-- finger: 复用内置 caret(本身朝下);视图按 FingerAngle+180 旋转使其指向目标 -->
-      <Image id="finger" sprite="PromptUGUI/Defaults/pugui.png#pugui_caret" size="48x48"/>
+      <Image id="finger" anchor="center" size="48x48"
+             sprite="PromptUGUI/Defaults/pugui.png#pugui_caret"/>
     </Frame>
   </Screen>
 </PromptUGUI>
