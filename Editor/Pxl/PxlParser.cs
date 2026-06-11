@@ -21,8 +21,10 @@ namespace PromptUGUI.Editor
 
         // —— 以下为 Sync from PNG 文本手术用的源码定位信息（internal 用途，格式语义无关）——
         public int CharsHeaderLine;      // `chars:` 行号（1-based，last-wins）；0 = 无
-        public int CharsLastEntryLine;   // 最后一条 chars 条目行号；0 = 无条目
-        public readonly List<char> CharOrder = new(); // 声明顺序（颜色→字符反查取先声明者）
+        public int CharsLastEntryLine;   // 最后一条 chars 条目行号；0 = 无条目。
+                                         // 多 chars: 块（罕见，last-wins）时本对仅指向最后一块；
+                                         // sync 用它作"追加新条目"的锚点（append-only，不替换整块 → 不丢前块数据）。
+        public readonly List<char> CharOrder = new(); // 声明顺序，跨所有 chars: 块全局（颜色→字符反查取先声明者）
     }
 
     internal sealed class PxlSection
@@ -32,7 +34,8 @@ namespace PromptUGUI.Editor
         public int Width, Height;
         public readonly List<string> Rows = new(); // top-down，已 trim
 
-        // grid 行在源文本中的 1-based 行区间（含端点；含夹在中间的注释行——sync 替换时一并消失）
+        // grid 行在源文本中的 1-based 行区间（含端点；含夹在中间的注释行——sync 替换时一并消失）；
+        // 0 = 无 grid 行（FinishSection 已保证不会返回这种节）
         public int GridStartLine, GridEndLine;
     }
 
