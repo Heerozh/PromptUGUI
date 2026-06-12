@@ -1,0 +1,176 @@
+# . in BindModalPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:122
+msgid "# 富文本\n\n支持 **加粗** / *斜体* / [链接](https://example.com)\n\n- 列表项一\n- 列表项二"
+msgstr "# Rich Text\n\nSupports **Bold** / *Italic* / [Link](https://example.com)\n\n- List Item One\n- List Item Two"
+
+# . in BindListPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:97
+msgid "Anti-Aliasing"
+msgstr "Anti-Aliasing"
+
+# . in BindListPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:98
+msgid "Bloom"
+msgstr "Bloom"
+
+# . in BindListPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:99
+msgid "Depth of Field"
+msgstr "Depth of Field"
+
+# . in BindFormPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:55
+msgid "High"
+msgstr "High"
+
+# . in BindFormPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:55
+msgid "Low"
+msgstr "Low"
+
+# . in BindModalPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:123
+msgid "MarkdownBox"
+msgstr "MarkdownBox"
+
+# . in BindFormPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:55
+msgid "Medium"
+msgstr "Medium"
+
+# . in BindModalPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:110
+msgid "MessageBox 返回 {0}"
+msgstr "MessageBox returned {0}"
+
+# . in BindListPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:99
+msgid "Motion Blur"
+msgstr "Motion Blur"
+
+# . in BindListPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:98
+msgid "Particles"
+msgstr "Particles"
+
+# . in BindListPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:98
+msgid "Post Processing"
+msgstr "Post Processing"
+
+# . in BindListPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:98
+msgid "Reflections"
+msgstr "Reflections"
+
+# . in BindListPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:97
+msgid "Shadows"
+msgstr "Shadows"
+
+# . in BindListPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:97
+msgid "Texture Quality"
+msgstr "Texture Quality"
+
+# . in BindFormPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:55
+msgid "Ultra"
+msgstr "Ultra"
+
+# . in BindListPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:97
+msgid "VSync"
+msgstr "VSync"
+
+# . in BindListPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:85
+msgid "XML 直接生成 uGUI"
+msgstr "XML generates uGUI directly"
+
+# . in BindModalPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:115
+msgid "e.g. Link"
+msgstr "e.g. Link"
+
+# . in BindModalPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:116
+msgid "你好，{0}！"
+msgstr "Hello, {0}!"
+
+# . in BindModalPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:115
+msgid "你的名字？"
+msgstr "What's your name?"
+
+# . in RunTutorial()
+# . 非激活页的控件路径解析不到 —— 第一步先把表单页带出来
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:148
+msgid "先切到「表单输入」页"
+msgstr "First switch to the \"Form Input\" page"
+
+# . in RunTutorial()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:155
+msgid "切到「模态提示」页"
+msgstr "Switch to the \"Modal Prompt\" page"
+
+# . in BindModalPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:128
+msgid "加载中…"
+msgstr "Loading..."
+
+# . in RunTutorial()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:151
+msgid "勾选静音开关"
+msgstr "Check the mute switch"
+
+# . in RunTutorial()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:149
+msgid "在这里输入你的名字"
+msgstr "Enter your name here"
+
+# . in BindModalPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:116
+msgid "已取消"
+msgstr "Cancelled"
+
+# . in RunTutorial()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:157
+msgid "引导完成，尽情探索吧！"
+msgstr "Tutorial complete, feel free to explore!"
+
+# . in RunTutorial()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:153
+msgid "拖动滑杆调整音量"
+msgstr "Drag the slider to adjust volume"
+
+# . in BindListPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:84
+msgid "欢迎使用 PromptUGUI"
+msgstr "Welcome to PromptUGUI"
+
+# . in RunTutorial()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:156
+msgid "点这里弹一条 Toast"
+msgstr "Click here to show a Toast"
+
+# . in BindModalPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:109
+msgid "确认"
+msgstr "Confirm"
+
+# . in BindModalPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:109
+msgid "要保存更改吗？"
+msgstr "Save changes?"
+
+# . in BindListPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:86
+msgid "轮播卡自动播放"
+msgstr "Carousel auto-play"
+
+# . in BindModalPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:134
+msgid "这是一条 Toast！"
+msgstr "This is a Toast!"
+

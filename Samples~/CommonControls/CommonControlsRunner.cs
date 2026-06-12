@@ -52,7 +52,7 @@ namespace PromptUGUI.Samples.CommonControls
 
             var quality = screen.Get<Dropdown>("quality");
             quality.BindOptions(Observable.Return<IEnumerable<string>>(
-                new[] { "Low", "Medium", "High", "Ultra" }));
+                new[] { UI.Tr("Low"), UI.Tr("Medium"), UI.Tr("High"), UI.Tr("Ultra") }));
             quality.OnSelected.Subscribe(i => Debug.Log($"[Sample] quality = {i}")).AddTo(screen);
         }
 
@@ -81,9 +81,9 @@ namespace PromptUGUI.Samples.CommonControls
             screen.Get<Carousel>("banner").BindItems(
                 Observable.Return<IReadOnlyList<(string title, string color)>>(new[]
                 {
-                    ("欢迎使用 PromptUGUI", "#F2B24C"),
-                    ("XML 直接生成 uGUI", "#8FCF6A"),
-                    ("轮播卡自动播放", "#F28C6A"),
+                    (UI.Tr("欢迎使用 PromptUGUI"), "#F2B24C"),
+                    (UI.Tr("XML 直接生成 uGUI"), "#8FCF6A"),
+                    (UI.Tr("轮播卡自动播放"), "#F28C6A"),
                 }),
                 (IControl card, (string title, string color) item) =>
                 {
@@ -94,9 +94,9 @@ namespace PromptUGUI.Samples.CommonControls
             screen.Get<ScrollList>("list").BindItems(
                 Observable.Return<IReadOnlyList<string>>(new[]
                 {
-                    "VSync", "Anti-Aliasing", "Shadows", "Texture Quality",
-                    "Particles", "Reflections", "Post Processing", "Bloom",
-                    "Motion Blur", "Depth of Field"
+                    UI.Tr("VSync"), UI.Tr("Anti-Aliasing"), UI.Tr("Shadows"), UI.Tr("Texture Quality"),
+                    UI.Tr("Particles"), UI.Tr("Reflections"), UI.Tr("Post Processing"), UI.Tr("Bloom"),
+                    UI.Tr("Motion Blur"), UI.Tr("Depth of Field")
                 }),
                 (IControl slot, string text) => slot.Get<Text>("label").TextValue = text);
         }
@@ -106,32 +106,32 @@ namespace PromptUGUI.Samples.CommonControls
         {
             screen.Get<Btn>("msgBoxBtn").OnClick.Subscribe(async _ =>
             {
-                var r = await MessageBox.Open("要保存更改吗？", MsgBtn.OK | MsgBtn.Cancel, title: "确认");
-                UI.Toast.Show($"MessageBox 返回 {r}");
+                var r = await MessageBox.Open(UI.Tr("要保存更改吗？"), MsgBtn.OK | MsgBtn.Cancel, title: UI.Tr("确认"));
+                UI.Toast.Show(string.Format(UI.Tr("MessageBox 返回 {0}"), r));
             }).AddTo(screen);
 
             screen.Get<Btn>("inputBoxBtn").OnClick.Subscribe(async _ =>
             {
-                var s = await InputBox.Open("你的名字？", placeholder: "e.g. Link");
-                UI.Toast.Show(s == null ? "已取消" : $"你好，{s}！");
+                var s = await InputBox.Open(UI.Tr("你的名字？"), placeholder: UI.Tr("e.g. Link"));
+                UI.Toast.Show(s == null ? UI.Tr("已取消") : string.Format(UI.Tr("你好，{0}！"), s));
             }).AddTo(screen);
 
             screen.Get<Btn>("mdBoxBtn").OnClick.Subscribe(async _ =>
             {
                 await MarkdownBox.Open(
-                    "# 富文本\n\n支持 **加粗** / *斜体* / [链接](https://example.com)\n\n- 列表项一\n- 列表项二",
-                    title: "MarkdownBox");
+                    UI.Tr("# 富文本\n\n支持 **加粗** / *斜体* / [链接](https://example.com)\n\n- 列表项一\n- 列表项二"),
+                    title: UI.Tr("MarkdownBox"));
             }).AddTo(screen);
 
             screen.Get<Btn>("loadingBtn").OnClick.Subscribe(async _ =>
             {
-                var h = Loading.Open("加载中…");
+                var h = Loading.Open(UI.Tr("加载中…"));
                 await Awaitable.WaitForSecondsAsync(2f);
                 h.Close();
             }).AddTo(screen);
 
             screen.Get<Btn>("toastBtn").OnClick
-                  .Subscribe(_ => UI.Toast.Show("这是一条 Toast！")).AddTo(screen);
+                  .Subscribe(_ => UI.Toast.Show(UI.Tr("这是一条 Toast！"))).AddTo(screen);
         }
 
         // 新手引导：七步跨页脚本。不注册 UseProgressStore —— 每次点按钮都从头跑，可反复体验。
@@ -145,16 +145,16 @@ namespace PromptUGUI.Samples.CommonControls
             await UI.Tutorial.Run("common-controls-intro", async t =>
             {
                 // 非激活页的控件路径解析不到 —— 第一步先把表单页带出来
-                await t.Step("CommonControls/tabForm", text: "先切到「表单输入」页");
-                await t.Step("CommonControls/username", text: "在这里输入你的名字",
+                await t.Step("CommonControls/tabForm", text: UI.Tr("先切到「表单输入」页"));
+                await t.Step("CommonControls/username", text: UI.Tr("在这里输入你的名字"),
                              advance: Advance.When(() => !string.IsNullOrEmpty(username.TextValue)));
-                await t.Step("CommonControls/muteAudio", text: "勾选静音开关");
+                await t.Step("CommonControls/muteAudio", text: UI.Tr("勾选静音开关"));
                 var v0 = vol.Value;
-                await t.Step("CommonControls/masterVol", text: "拖动滑杆调整音量",
+                await t.Step("CommonControls/masterVol", text: UI.Tr("拖动滑杆调整音量"),
                              advance: Advance.When(() => Mathf.Abs(vol.Value - v0) > 0.01f));
-                await t.Step("CommonControls/tabModal", text: "切到「模态提示」页");
-                await t.Step("CommonControls/toastBtn", text: "点这里弹一条 Toast");
-                await t.Step(null, text: "引导完成，尽情探索吧！", advance: Advance.TapAnywhere);
+                await t.Step("CommonControls/tabModal", text: UI.Tr("切到「模态提示」页"));
+                await t.Step("CommonControls/toastBtn", text: UI.Tr("点这里弹一条 Toast"));
+                await t.Step(null, text: UI.Tr("引导完成，尽情探索吧！"), advance: Advance.TapAnywhere);
             });
         }
 
