@@ -856,7 +856,7 @@ Append a comma between two colour values to produce a **vertical two-stop gradie
 
 **Where gradients are NOT supported** (runtime error; static lint):
 - `*Modulate` attributes (`hoverModulate`, `pressedModulate`, `selectedModulate`, `disabledModulate`) — these are solid-only multipliers; a gradient value is rejected (lint `PUI-GRADIENT-MODULATE`)
-- Rich-text `<Animation char-color>` and inline `<c=>` segment colours
+- `<Animation char-color="from:to">` — the per-character animation colour; each side is a solid
 - `<InputField>` `textColor` / `placeholderColor` / `caretColor` / `selectionColor` — caret/selection are TMP `Color` fields with no vertices; editable text stays solid
 - `<Carousel>` `dotColor` / `dotSelectedColor` — the dots stay solid
 
