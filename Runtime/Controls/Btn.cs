@@ -18,6 +18,7 @@ namespace PromptUGUI.Controls
         private readonly Subject<Unit> _click = new();
         private PointerEventRelay _pointerRelay;
         private Sprite _pressedSprite;
+        private bool _pressedSpriteAuthored;
         private Sprite _disabledSprite;
         private IDisposable _stateSpriteSub;
 
@@ -193,6 +194,7 @@ namespace PromptUGUI.Controls
         {
             set
             {
+                _pressedSpriteAuthored = true;
                 // "" / "none" => no pressed swap (mirrors Tab.selectedSprite). Otherwise resolve
                 // through the same path as `sprite`; a Variant ReSolve re-invokes this setter.
                 _pressedSprite = string.IsNullOrEmpty(value) || value == "none"
@@ -219,10 +221,22 @@ namespace PromptUGUI.Controls
 
         // Swaps the bg's overrideSprite (never its authored `sprite`) so revert is overrideSprite=null.
         // Priority Disabled > Pressed (states are mutually exclusive); authored bg.sprite shows otherwise.
+        // Pressed falls back to the built-in pressed skin when the author customized nothing
+        // (keeps ColorTint — only AUTHORED pressed/disabled sprites flip transition=None in OnAfterApply).
         private void ApplyStateSprite(InteractState state)
             => _bg.overrideSprite = state == InteractState.Disabled ? _disabledSprite
-                                  : state == InteractState.Pressed ? _pressedSprite
+                                  : state == InteractState.Pressed ? (_pressedSprite ?? DefaultPressedSprite())
                                   : null;
+
+        private Sprite DefaultPressedSprite()
+        {
+            if (_pressedSpriteAuthored) return null;
+            var round = PromptUGUI.Controls.Internal.ProceduralBuilders.GetDefaultSprite(
+                PromptUGUI.Controls.Internal.ProceduralBuilders.SpriteRoundedRect);
+            if (round == null || _bg.sprite != round) return null;   // 作者换过 sprite= → 让位
+            return PromptUGUI.Controls.Internal.ProceduralBuilders.GetDefaultSprite(
+                PromptUGUI.Controls.Internal.ProceduralBuilders.SpritePressed);
+        }
 
         public override Vector2? GetNativeSize()
         {

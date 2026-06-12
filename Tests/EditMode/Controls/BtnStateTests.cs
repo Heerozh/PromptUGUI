@@ -492,6 +492,50 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(disabled, bg.overrideSprite, "Disabled shows disabledSprite");
         }
 
+        // ---- Default pressed-state fallback (built-in pugui_9slice_pressed skin) ----
+
+        [Test]
+        public void DefaultBtn_PressedFallsBackToBuiltinPressedSprite()
+        {
+            var btn = BuildBtn("");
+            var bg = btn.GameObject.GetComponent<UnityImage>();
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+
+            puiBtn.SimulateState(Pressed);
+            Assert.AreEqual("pugui_9slice_pressed", bg.overrideSprite.name);
+            puiBtn.SimulateState(Normal);
+            Assert.AreEqual(bg.sprite, bg.overrideSprite, "release 后回落 base sprite");
+        }
+
+        [Test]
+        public void DefaultBtn_PressedFallback_KeepsColorTintTransition()
+        {
+            var btn = BuildBtn("");
+            Assert.AreEqual(Selectable.Transition.ColorTint,
+                btn.GameObject.GetComponent<PuiButton>().transition,
+                "默认兜底不得触发 transition=None（hover 反馈保留）");
+        }
+
+        [Test]
+        public void AuthoredSprite_SuppressesDefaultPressedFallback()
+        {
+            var stub = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            UI.SpriteResolver = _ => stub;
+            var btn = BuildBtn("sprite='ui:custom'");
+            var bg = btn.GameObject.GetComponent<UnityImage>();
+            btn.GameObject.GetComponent<PuiButton>().SimulateState(Pressed);
+            Assert.AreEqual(bg.sprite, bg.overrideSprite, "自定皮肤按钮没有内置按下图");
+        }
+
+        [Test]
+        public void PressedSpriteEmpty_SuppressesDefaultPressedFallback()
+        {
+            var btn = BuildBtn("pressedSprite=''");
+            var bg = btn.GameObject.GetComponent<UnityImage>();
+            btn.GameObject.GetComponent<PuiButton>().SimulateState(Pressed);
+            Assert.AreEqual(bg.sprite, bg.overrideSprite, "显式 ''/none = 关闭换图，包括默认兜底");
+        }
+
         [Test]
         public void DisabledSprite_None_NoSwapAndKeepsColorTint()
         {
