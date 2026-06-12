@@ -56,7 +56,10 @@ namespace PromptUGUI.Controls.Internal
                 _baseCaptured = true;
             }
 
-            _source = GetComponentInParent<IStateSource>();
+            // includeInactive: the source control may be on a TabBar-bound page that is hidden
+            // (SetActive(false)) at Open — without this the *Modulate fan-out would silently never
+            // subscribe (EnsureInit is guarded, so it would stay dead even after the page is shown).
+            _source = GetComponentInParent<IStateSource>(true);
             if (_source != null)
                 _sub = _source.OnState.Subscribe(OnState);
         }
