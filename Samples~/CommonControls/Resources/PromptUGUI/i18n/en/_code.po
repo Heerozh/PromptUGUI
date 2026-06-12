@@ -174,3 +174,8 @@ msgstr "Carousel auto-play"
 msgid "这是一条 Toast！"
 msgstr "This is a Toast!"
 
+
+# . in BindModalPage()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:124
+msgid "未检测到 Markdig，Markdown 富文本功能不可用。\n请通过 NuGetForUnity 安装 Markdig.Signed 后重试。"
+msgstr "Markdig not detected — Markdown rich text is unavailable.\nInstall Markdig.Signed via NuGetForUnity and try again."

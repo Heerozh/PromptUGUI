@@ -118,6 +118,14 @@ namespace PromptUGUI.Samples.CommonControls
 
             screen.Get<Btn>("mdBoxBtn").OnClick.Subscribe(async _ =>
             {
+                if (UI.Markdown.Renderer == null)   // 没装 Markdig（NuGetForUnity: Markdig.Signed）时会退化成纯文本
+                {
+                    await MessageBox.Open(
+                        UI.Tr("未检测到 Markdig，Markdown 富文本功能不可用。\n请通过 NuGetForUnity 安装 Markdig.Signed 后重试。"),
+                        MsgBtn.OK, title: UI.Tr("MarkdownBox"));
+                    return;
+                }
+
                 await MarkdownBox.Open(
                     UI.Tr("# 富文本\n\n支持 **加粗** / *斜体* / [链接](https://example.com)\n\n- 列表项一\n- 列表项二"),
                     title: UI.Tr("MarkdownBox"));
