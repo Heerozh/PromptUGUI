@@ -109,7 +109,11 @@ namespace PromptUGUI.Controls.Internal
         {
             if (string.IsNullOrEmpty(sourceId))
             {
-                var ancestor = trigger.GameObject.GetComponentInParent<IStateSource>();
+                // includeInactive: the source ancestor exists regardless of whether its subtree is
+                // currently shown — a state-* Show/Trigger on a TabBar-bound page that isn't the
+                // initially-selected tab is SetActive(false) at Open, and the default active-only
+                // walk would otherwise miss the Btn/Tab/Toggle ancestor and throw.
+                var ancestor = trigger.GameObject.GetComponentInParent<IStateSource>(true);
                 if (ancestor == null)
                     throw new InvalidOperationException(
                         $"<Trigger on=\"state-...\"> in '{trigger.Id ?? trigger.GameObject.name}': " +

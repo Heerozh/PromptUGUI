@@ -24,6 +24,17 @@ namespace PromptUGUI.Tests.Tutorial
         [TearDown] public void TearDown() => Object.DestroyImmediate(_canvasGo);
 
         [Test]
+        public void AddComponent_AutoAddsCanvasRenderer_soGraphicRaycasterWontThrow()
+        {
+            // GraphicRaycaster.Raycast reads graphic.canvasRenderer.cull every frame; a Graphic
+            // with no CanvasRenderer throws MissingComponentException on every pointer raycast.
+            // Graphic itself only requires RectTransform — each concrete uGUI graphic (Image/Text/…)
+            // declares [RequireComponent(typeof(CanvasRenderer))] on ITSELF, so SpotlightMask must too.
+            Assert.IsNotNull(_mask.GetComponent<CanvasRenderer>(),
+                "SpotlightMask must auto-add a CanvasRenderer (it is a live, raycastable Graphic).");
+        }
+
+        [Test]
         public void NoHole_BlocksEverywhere()
         {
             _mask.SetHole(null);
