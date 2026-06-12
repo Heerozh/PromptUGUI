@@ -63,11 +63,12 @@ Here PC `state-hover` has no explicit block, so the `state-normal` artwork cover
 <Btn sprite="ui:play-normal" pressedSprite="ui:play-pressed" disabledSprite="ui:play-disabled">Play</Btn>
 ```
 
-**Default pressed fallback.** A `<Btn>` that carries no author-supplied `sprite=` and no explicit `pressedSprite=` automatically receives the built-in pressed 9-slice (`pugui_9slice_pressed`) as a fallback pressed skin. The fallback is a visual courtesy — it does **not** switch the Btn off uGUI's built-in ColorTint; `pressedColor` / `pressedModulate` compose on top of it as usual (unlike an explicit `pressedSprite`, which flips the Btn off ColorTint to avoid double-darkening). The fallback yields as soon as any of the following is true:
+**Default pressed fallback.** A `<Btn>` that carries no author-supplied `sprite=` and no explicit `pressedSprite=` automatically receives the built-in pressed 9-slice (`pugui_9slice_pressed`) as a fallback pressed skin. The fallback is a visual courtesy — it does **not** switch the Btn off uGUI's built-in ColorTint; `pressedColor` / `pressedModulate` compose on top of it as usual (unlike an explicit `pressedSprite=` or `disabledSprite=`, which flip the Btn off ColorTint to avoid double-darkening). The fallback yields as soon as any of the following is true:
 
 - The author writes a custom `sprite=` (the default bg skin is overridden, so the fallback pressed skin no longer pairs with it).
 - The author writes an explicit `pressedSprite=` with any value, including `pressedSprite=""` or `pressedSprite="none"` (opt-out).
-- The author writes an explicit `disabledSprite=` (the Btn is already off ColorTint; the fallback would be redundant and confusing).
+
+Note: an authored `disabledSprite=` also switches the Btn off ColorTint (same `OnAfterApply` rule), but it does **not** suppress the pressed fallback — a Btn with only `disabledSprite=` still swaps to the built-in pressed skin while pressed; write `pressedSprite=""` to opt out.
 
 In short: write `pressedSprite=""` or `pressedSprite="none"` to explicitly disable the built-in fallback and keep the default skin unchanged on press.
 
