@@ -36,10 +36,11 @@ namespace PromptUGUI.Application
 
         private static Dictionary<string, Sprite> BuildLookup(IEnumerable<SpriteSet> sets)
         {
-            // Reads SpriteSet.Entries (filled by the Editor sync tool) instead of
+            // Reads SpriteSet.EntriesWithMeta (filled by the Editor sync tool) instead of
             // iterating the SpriteAtlas directly. The atlas's per-sprite .name can
             // collide when two PNGs in different subfolders share a basename;
-            // Entries carry the canonical pathKey + bare alias the syncer chose.
+            // entries carry the canonical pathKey + bare alias the syncer chose, plus
+            // the tiled hint to register into SpriteRenderHints.
             var map = new Dictionary<string, Sprite>(StringComparer.Ordinal);
             var seenSet = new HashSet<string>(StringComparer.Ordinal);
             UI.LoadedSpriteSetNames.Clear();
