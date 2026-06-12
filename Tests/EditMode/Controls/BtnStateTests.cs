@@ -537,6 +537,15 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void TransparentSprite_SuppressesDefaultPressedFallback()
+        {
+            var btn = BuildBtn("sprite=''");
+            var bg = btn.GameObject.GetComponent<UnityImage>();
+            btn.GameObject.GetComponent<PuiButton>().SimulateState(Pressed);
+            Assert.AreEqual(bg.sprite, bg.overrideSprite, "透明按钮（sprite=''）按下不得冒出内置按下皮");
+        }
+
+        [Test]
         public void DisabledSprite_None_NoSwapAndKeepsColorTint()
         {
             var btn = BuildBtn("disabledSprite='none'");

@@ -230,6 +230,7 @@ namespace PromptUGUI.Controls
 
         private Sprite DefaultPressedSprite()
         {
+            // authored ''/none 也算 opt-out（此时 _pressedSprite 同为 null，仅此标志能区分"从未写过"）
             if (_pressedSpriteAuthored) return null;
             var round = PromptUGUI.Controls.Internal.ProceduralBuilders.GetDefaultSprite(
                 PromptUGUI.Controls.Internal.ProceduralBuilders.SpriteRoundedRect);
