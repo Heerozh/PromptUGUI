@@ -33,9 +33,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
         public void Palette_GlyphColor_IsDarkGrey()
         {
             var c = ProceduralBuilders.DefaultGlyphColor;
-            Assert.That(c.r, Is.EqualTo(0.196f).Within(0.001f));
-            Assert.That(c.g, Is.EqualTo(0.196f).Within(0.001f));
-            Assert.That(c.b, Is.EqualTo(0.196f).Within(0.001f));
+            Assert.That(c.r, Is.EqualTo(0.290f).Within(0.001f));
+            Assert.That(c.g, Is.EqualTo(0.200f).Within(0.001f));
+            Assert.That(c.b, Is.EqualTo(0.133f).Within(0.001f));
             Assert.AreEqual(1f, c.a);
         }
 
@@ -43,9 +43,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
         public void Palette_LabelColor_IsDarkGrey()
         {
             var c = ProceduralBuilders.DefaultLabelColor;
-            Assert.That(c.r, Is.EqualTo(0.196f).Within(0.001f));
-            Assert.That(c.g, Is.EqualTo(0.196f).Within(0.001f));
-            Assert.That(c.b, Is.EqualTo(0.196f).Within(0.001f));
+            Assert.That(c.r, Is.EqualTo(0.290f).Within(0.001f));
+            Assert.That(c.g, Is.EqualTo(0.200f).Within(0.001f));
+            Assert.That(c.b, Is.EqualTo(0.133f).Within(0.001f));
             Assert.AreEqual(1f, c.a);
         }
 
@@ -53,7 +53,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         public void Palette_PlaceholderColor_IsDarkGreyHalfAlpha()
         {
             var c = ProceduralBuilders.DefaultPlaceholderColor;
-            Assert.That(c.r, Is.EqualTo(0.196f).Within(0.001f));
+            Assert.That(c.r, Is.EqualTo(0.290f).Within(0.001f));
             Assert.That(c.a, Is.EqualTo(0.5f).Within(0.001f));
         }
 

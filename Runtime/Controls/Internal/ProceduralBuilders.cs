@@ -9,7 +9,7 @@ namespace PromptUGUI.Controls.Internal
     internal static class ProceduralBuilders
     {
         // 默认配色对齐 Unity 6 标准控件（菜单 GameObject → UI → … 创建出来的 prefab）
-        // 全部白底 sliced + #323232 深字；sprite 由 atlas tint 表现明暗。
+        // 全部白底 sliced + #4A3322 暖深棕字；sprite 由 atlas tint 表现明暗。
         public static readonly Color DefaultBtnColor = Color.white;
         public static readonly Color DefaultControlBgColor = Color.white;
         public static readonly Color DefaultTrackColor = Color.white;
@@ -17,9 +17,9 @@ namespace PromptUGUI.Controls.Internal
         public static readonly Color DefaultHandleColor = Color.white;
         public static readonly Color DefaultPopupBgColor = Color.white;
         public static readonly Color DefaultContainerColor = new(1f, 1f, 1f, 0.392f);
-        // 单一深灰色源（#323232），让 glyph / label / placeholder 三个语义角色共用同一基色
+        // 单一暖深棕色源（#4A3322），匹配种田风奶油皮肤；让 glyph / label / placeholder 三个语义角色共用同一基色
         // 单点修改：换主题色只动这一行
-        private static readonly Color s_darkGrey = new(0.196f, 0.196f, 0.196f, 1f);
+        private static readonly Color s_darkGrey = new(0.290f, 0.200f, 0.133f, 1f);
         public static readonly Color DefaultGlyphColor = s_darkGrey;
         public static readonly Color DefaultLabelColor = s_darkGrey;
         public static readonly Color DefaultPlaceholderColor = new(s_darkGrey.r, s_darkGrey.g, s_darkGrey.b, 0.5f);
@@ -29,6 +29,9 @@ namespace PromptUGUI.Controls.Internal
         public const string SpriteMaskRoundedRect = "pugui_9slice_mask";
         public const string SpriteCaret = "pugui_caret";
         public const string SpriteCheckmark = "pugui_checkmark";
+        public const string SpriteInset = "pugui_9slice_inset";
+        public const string SpritePressed = "pugui_9slice_pressed";
+        public const string SpriteKnob = "pugui_knob";
 
         private const string DefaultSpritesPath = "PromptUGUI/Defaults/pugui";
         private static Dictionary<string, Sprite> _defaultSprites;
@@ -50,6 +53,16 @@ namespace PromptUGUI.Controls.Internal
         {
             if (img == null || img.sprite != null) return;
             var s = GetDefaultSprite(SpriteRoundedRect);
+            if (s == null) return;
+            img.sprite = s;
+            img.type = UnityImage.Type.Sliced;
+        }
+
+        /// <summary>凹形容器（输入框/滑轨/列表底）的 9-slice 兜底；规则同 ApplyDefaultSlicedSprite。</summary>
+        public static void ApplyDefaultInsetSprite(UnityImage img)
+        {
+            if (img == null || img.sprite != null) return;
+            var s = GetDefaultSprite(SpriteInset);
             if (s == null) return;
             img.sprite = s;
             img.type = UnityImage.Type.Sliced;
