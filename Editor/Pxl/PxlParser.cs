@@ -31,6 +31,7 @@ namespace PromptUGUI.Editor
     {
         public string Name;                  // null = 隐式单节
         public Vector4 Border;               // L,B,R,T（Unity Sprite border 序）
+        public bool Tiled;                   // tiled: true — 运行时按 Image.Type.Tiled 渲染的提示
         public int Width, Height;
         public readonly List<string> Rows = new(); // top-down，已 trim
 
@@ -145,6 +146,22 @@ namespace PromptUGUI.Editor
                     if (section.Rows.Count > 0)
                         throw new PxlParseException(lineNo, "border must come before grid");
                     section.Border = ParseBorder(line.Substring("border:".Length).Trim(), lineNo);
+                    continue;
+                }
+                if (line.StartsWith("tiled:", StringComparison.Ordinal))
+                {
+                    // grid: 之前可反复声明，last-wins，同 border:。
+                    section = EnsureSection(doc, section, ref sawImplicitContent);
+                    if (section.Rows.Count > 0)
+                        throw new PxlParseException(lineNo, "tiled must come before grid");
+                    var tv = line.Substring("tiled:".Length).Trim();
+                    section.Tiled = tv switch
+                    {
+                        "true" => true,
+                        "false" => false,
+                        _ => throw new PxlParseException(lineNo,
+                            $"invalid tiled value '{tv}' (expected true|false)"),
+                    };
                     continue;
                 }
                 if (line == "grid:")

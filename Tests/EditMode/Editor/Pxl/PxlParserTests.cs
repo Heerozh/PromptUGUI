@@ -135,5 +135,52 @@ namespace PromptUGUI.Tests.Editor
                 "chars:\n  K: #000000\ngrid:\n  K\n\nborder: 0,0,0,0\n"));
             StringAssert.Contains("border must come before grid", ex.Message);
         }
+
+        [Test]
+        public void Parse_tiled_true_sets_section_flag()
+        {
+            var doc = PxlParser.Parse("chars:\n  K: #000000\n\n[a]\nborder: 1,1,1,1\ntiled: true\ngrid:\n  KKK\n  KKK\n  KKK\n");
+            Assert.IsTrue(doc.Sections[0].Tiled);
+        }
+
+        [Test]
+        public void Parse_tiled_defaults_false()
+        {
+            var doc = PxlParser.Parse("chars:\n  K: #000000\n\n[a]\ngrid:\n  KK\n  KK\n");
+            Assert.IsFalse(doc.Sections[0].Tiled);
+        }
+
+        [Test]
+        public void Parse_tiled_false_explicit_accepted()
+        {
+            var doc = PxlParser.Parse("chars:\n  K: #000000\n\n[a]\ntiled: false\ngrid:\n  KK\n  KK\n");
+            Assert.IsFalse(doc.Sections[0].Tiled);
+        }
+
+        [Test]
+        public void Parse_tiled_invalid_value_reports_line()
+        {
+            var ex = Assert.Throws<PxlParseException>(() =>
+                PxlParser.Parse("chars:\n  K: #000000\n\n[a]\ntiled: yes\ngrid:\n  KK\n  KK\n"));
+            StringAssert.Contains("invalid tiled value 'yes'", ex.Message);
+            StringAssert.Contains("line 5", ex.Message);
+        }
+
+        [Test]
+        public void Parse_tiled_after_grid_throws()
+        {
+            // Blank line ends the grid; a later tiled: on the same section must hit the
+            // "tiled must come before grid" guard (Rows already populated).
+            var ex = Assert.Throws<PxlParseException>(() =>
+                PxlParser.Parse("chars:\n  K: #000000\n\n[a]\ngrid:\n  KK\n  KK\n\ntiled: true\n"));
+            StringAssert.Contains("tiled must come before grid", ex.Message);
+        }
+
+        [Test]
+        public void Parse_tiled_implicit_section_supported()
+        {
+            var doc = PxlParser.Parse("chars:\n  K: #000000\n\ntiled: true\ngrid:\n  KK\n  KK\n");
+            Assert.IsTrue(doc.Sections[0].Tiled);
+        }
     }
 }

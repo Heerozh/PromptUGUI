@@ -1,0 +1,92 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d34ab5c6513e65b4497659dd376d6ea7, type: 3}
+  m_Name: farm
+  m_EditorClassIdentifier: PromptUGUI.Runtime::PromptUGUI.Application.SpriteSet
+  setName: farm
+  atlas: {fileID: 4343727234628468602, guid: cb2f357ebb7051747b3cd0b1823ce649, type: 2}
+  alwaysInclude: []
+  generateTmpSpriteAsset: 0
+  entries:
+  - key: crops/strawberry
+    sprite: {fileID: 6051404646482987322, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: crops/wheat
+    sprite: {fileID: -8827232178786053898, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: crops/watermelon
+    sprite: {fileID: -2121056816349745006, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: crops/sunflower
+    sprite: {fileID: -4956282018316935132, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: crops/grape
+    sprite: {fileID: 108566834224758175, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: crops/turnip
+    sprite: {fileID: 6061771559911817710, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: crops/pumpkin
+    sprite: {fileID: 5448784098124822628, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: crops/tomato
+    sprite: {fileID: 5481853894613533732, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: crops/carrot
+    sprite: {fileID: -9133205770265997170, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: crops/corn
+    sprite: {fileID: -1667197454111312221, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: crops/eggplant
+    sprite: {fileID: -6368116060139219187, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: crops/apple
+    sprite: {fileID: -327891350732577185, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: strawberry
+    sprite: {fileID: 6051404646482987322, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: wheat
+    sprite: {fileID: -8827232178786053898, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: watermelon
+    sprite: {fileID: -2121056816349745006, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: sunflower
+    sprite: {fileID: -4956282018316935132, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: grape
+    sprite: {fileID: 108566834224758175, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: turnip
+    sprite: {fileID: 6061771559911817710, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: pumpkin
+    sprite: {fileID: 5448784098124822628, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: tomato
+    sprite: {fileID: 5481853894613533732, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: carrot
+    sprite: {fileID: -9133205770265997170, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: corn
+    sprite: {fileID: -1667197454111312221, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: eggplant
+    sprite: {fileID: -6368116060139219187, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  - key: apple
+    sprite: {fileID: -327891350732577185, guid: 9600f3f2a96e1434791a9ccaacf4dbec, type: 3}
+    tiled: 0
+  sourceFolder: {fileID: 102900000, guid: 4b4d43123d96a2841b98cda357141123, type: 3}

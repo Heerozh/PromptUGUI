@@ -1,6 +1,7 @@
 using System.IO;
 using System.Linq;
 using NUnit.Framework;
+using PromptUGUI.Application;
 using PromptUGUI.Editor;
 using UnityEditor;
 using UnityEngine;
@@ -153,6 +154,49 @@ namespace PromptUGUI.Tests.Editor
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
             Assert.IsNotNull(AssetDatabase.LoadAssetAtPath<Texture2D>(path),
                 "adding the missing .gpl must re-trigger the broken .pxl import");
+        }
+
+        [Test]
+        public void Import_tiled_section_creates_hints_subasset()
+        {
+            var path = Write("hint.pxl",
+                "chars:\n  K: #000000\n\n[a]\ntiled: true\ngrid:\n  KK\n  KK\n\n[b]\ngrid:\n  KK\n  KK\n");
+            var hints = AssetDatabase.LoadAllAssetsAtPath(path)
+                .OfType<PxlSpriteHints>().SingleOrDefault();
+            Assert.IsNotNull(hints, "tiled section -> hints sub-asset");
+            var sprites = AssetDatabase.LoadAllAssetsAtPath(path).OfType<Sprite>().ToList();
+            var a = sprites.Single(s => s.name == "a");
+            CollectionAssert.AreEquivalent(new[] { a }, hints.TiledSprites,
+                "only the tiled section's sprite is referenced");
+        }
+
+        [Test]
+        public void Import_no_tiled_sections_no_hints_subasset()
+        {
+            var path = Write("plain.pxl", "chars:\n  K: #000000\n\ngrid:\n  KK\n  KK\n");
+            Assert.IsNull(AssetDatabase.LoadAllAssetsAtPath(path)
+                .OfType<PxlSpriteHints>().SingleOrDefault());
+        }
+
+        [Test]
+        public void ResolveSprite_resources_path_registers_tiled_hint()
+        {
+            UI.ResetForTests();
+            try
+            {
+                if (!AssetDatabase.IsValidFolder($"{TmpDir}/Resources"))
+                    AssetDatabase.CreateFolder(TmpDir, "Resources");
+                var abs = Path.Combine(UnityEngine.Application.dataPath, "__test_pxl__/Resources", "rt.pxl");
+                File.WriteAllText(abs,
+                    "chars:\n  K: #000000\n\n[a]\nborder: 1,1,1,1\ntiled: true\ngrid:\n  KKK\n  KKK\n  KKK\n");
+                AssetDatabase.ImportAsset($"{TmpDir}/Resources/rt.pxl",
+                    ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
+
+                var sprite = UI.ResolveSprite("rt#a");
+                Assert.IsNotNull(sprite);
+                Assert.IsTrue(PromptUGUI.Application.Internal.SpriteRenderHints.IsTiled(sprite));
+            }
+            finally { UI.ResetForTests(); }
         }
     }
 }

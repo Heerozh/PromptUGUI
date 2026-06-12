@@ -192,11 +192,9 @@ namespace PromptUGUI.Controls
             }
             else // scale (default)
             {
-                // Reset away from Filled, then pick Simple/Sliced per sprite border.
+                // Reset away from Filled, then pick type via DeriveType (hint tiled → Tiled, border → Sliced, else Simple).
                 _fill.fillAmount = 1f;
-                _fill.type = (_fill.sprite != null && _fill.sprite.border != Vector4.zero)
-                    ? UnityImage.Type.Sliced
-                    : UnityImage.Type.Simple;
+                _fill.type = Controls.Internal.ProceduralBuilders.DeriveType(_fill.sprite);
                 (rt.anchorMin, rt.anchorMax) = _direction switch
                 {
                     "horizontal" => (Vector2.zero, new Vector2(_value, 1f)),

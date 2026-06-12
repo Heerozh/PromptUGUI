@@ -236,7 +236,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var p = Open("<Progress id='p' value='0.5' fill='PromptUGUI/Defaults/pugui#pugui_9slice_round'/>");
             var fill = p.GameObject.transform.Find("MaskWrapper/Fill").GetComponent<UnityImage>();
-            Assert.AreEqual(UnityImage.Type.Sliced, fill.type);
+            Assert.AreEqual(UnityImage.Type.Tiled, fill.type, "pugui_9slice_round 有 tiled hint → Tiled");
         }
 
         [Test]
@@ -264,7 +264,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsTrue(bg.gameObject.activeSelf, "Bg activated by bg=");
             var img = bg.GetComponent<UnityImage>();
             Assert.IsNotNull(img.sprite);
-            Assert.AreEqual(UnityImage.Type.Sliced, img.type, "9-slice sprite auto-Sliced");
+            Assert.AreEqual(UnityImage.Type.Tiled, img.type, "pugui_9slice_round 有 tiled hint → Tiled");
         }
 
         [Test]
@@ -294,7 +294,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsTrue(frame.gameObject.activeSelf);
             var img = frame.GetComponent<UnityImage>();
             Assert.IsNotNull(img.sprite);
-            Assert.AreEqual(UnityImage.Type.Sliced, img.type, "9-slice sprite auto-Sliced");
+            Assert.AreEqual(UnityImage.Type.Tiled, img.type, "pugui_9slice_round 有 tiled hint → Tiled");
             Assert.IsFalse(img.raycastTarget, "Frame must not eat input (PB-D16)");
         }
 

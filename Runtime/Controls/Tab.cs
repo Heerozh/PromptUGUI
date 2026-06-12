@@ -98,7 +98,22 @@ namespace PromptUGUI.Controls
                 _bindResolved = true;
                 _bindId = null;     // prevent re-warn
             }
-            if (_boundFrame != null) _boundFrame.GameObject.SetActive(isOn);
+            if (_boundFrame == null) return;
+            // Hiding a bound page during Screen.Open's apply pass would deactivate it before
+            // its own auto-sized descendants (e.g. a <Btn> label TMP added via AddComponent)
+            // are applied; a TMP created on an inactive GameObject never runs Awake/OnEnable
+            // and mis-measures its preferredWidth. Defer the initial hide until Open finishes
+            // measuring. Shows stay immediate (keeping the page active to measure), as do all
+            // runtime toggles / ReSolve (the deferral window is only open during Open). The
+            // deferred action re-reads IsOn at drain time rather than hard-coding SetActive
+            // (false): the auto-select reconcile can queue a hide for a tab that is then
+            // selected (so its page must end up shown) — syncing to the final IsOn is correct
+            // for both, and idempotent with the immediate show above.
+            var frame = _boundFrame;
+            if (!isOn && UI.OwnerScreenOf(this) is PromptUGUI.Application.Screen owner)
+                owner.DeferDuringOpen(() => { if (frame != null) frame.GameObject.SetActive(IsOn); });
+            else
+                frame.GameObject.SetActive(isOn);
         }
 
         internal void ForceSyncBindFrame(bool isOn) => ApplyBindFrame(isOn);
@@ -243,7 +258,7 @@ namespace PromptUGUI.Controls
             // Authored selectedSprite carries its own type; otherwise fall back to the base type
             // (default skin = Tiled — blanket "border -> Sliced" would un-tile the textured edges).
             _bg.type = showSelected
-                ? (_selectedSprite.border != Vector4.zero ? UnityImage.Type.Sliced : UnityImage.Type.Simple)
+                ? ProceduralBuilders.DeriveType(_selectedSprite)
                 : _baseType;
         }
 
@@ -270,7 +285,7 @@ namespace PromptUGUI.Controls
         {
             if (sprite == null) return;
             _bg.sprite = sprite;
-            _bg.type = sprite.border != Vector4.zero ? UnityImage.Type.Sliced : UnityImage.Type.Simple;
+            _bg.type = ProceduralBuilders.DeriveType(sprite);
             _baseType = _bg.type;
         }
 

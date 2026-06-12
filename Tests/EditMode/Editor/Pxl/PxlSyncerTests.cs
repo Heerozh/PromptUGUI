@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NUnit.Framework;
@@ -94,6 +95,20 @@ namespace PromptUGUI.Tests.Editor
             ImportAll();
             Assert.AreEqual(0, SpriteAtlasSyncer.ResetTextureImportSettings(TestRoot),
                 ".pxl has no TextureImporter; reset must skip it");
+        }
+
+        [Test]
+        public void EnumerateSpriteSources_collects_tiled_sprites()
+        {
+            WritePxl("vineframe.pxl",
+                "chars:\n  K: #000000\n\n[vine]\nborder: 1,1,1,1\ntiled: true\ngrid:\n  KKK\n  KKK\n  KKK\n\n[flat]\ngrid:\n  KK\n  KK\n");
+            ImportAll();
+            var tiled = new HashSet<Sprite>();
+            var entries = SpriteAtlasSyncer.EnumerateSpriteSources(TestRoot, null, tiled);
+            var vine = entries.Single(e => e.pathKey == "vineframe/vine").sprite;
+            var flat = entries.Single(e => e.pathKey == "vineframe/flat").sprite;
+            Assert.IsTrue(tiled.Contains(vine));
+            Assert.IsFalse(tiled.Contains(flat));
         }
 
         [Test]

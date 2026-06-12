@@ -144,10 +144,7 @@ namespace PromptUGUI.Controls
             // Sprite border is set in the Sprite Editor; non-zero on any edge means the
             // asset was authored for 9-slice rendering.
             if (_typeExplicit) return;
-            var s = _img.sprite;
-            _img.type = (s != null && s.border != Vector4.zero)
-                ? UnityImage.Type.Sliced
-                : UnityImage.Type.Simple;
+            _img.type = Internal.ProceduralBuilders.DeriveType(_img.sprite);
         }
 
         public override Vector2? GetNativeSize()

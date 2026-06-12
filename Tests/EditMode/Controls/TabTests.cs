@@ -348,6 +348,26 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(UnityImage.Type.Simple, bg.type, "reverts to Simple for the empty normal sprite");
         }
 
+        // Sibling of the above: a hint-registered (.pxl tiled:true) selectedSprite renders Tiled while
+        // selected — ApplySelectedSprite derives via DeriveType, so the hint beats the border.
+        [Test]
+        public void Tab_SelectedSprite_TiledHint_RendersTiled()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var tex = new Texture2D(16, 16);
+            var bordered = Sprite.Create(tex, new Rect(0, 0, 16, 16), new Vector2(0.5f, 0.5f), 100f, 0,
+                SpriteMeshType.FullRect, new Vector4(4, 4, 4, 4));
+            PromptUGUI.Application.Internal.SpriteRenderHints.Register(bordered);
+            UI.SpriteResolver = key => key == "ui:tab_sel" ? bordered : null;
+            var t = OpenTab("<Tab id='t' sprite='' selectedSprite='ui:tab_sel'/>");
+            var bg = t.GameObject.GetComponent<UnityImage>();
+
+            t.IsOn = true;
+            Assert.AreSame(bordered, bg.overrideSprite);
+            Assert.AreEqual(UnityImage.Type.Tiled, bg.type, "hint-registered selectedSprite renders Tiled");
+        }
+
         // Default-skin tab (no sprite=, no selectedSprite=): the built-in wood frame renders Tiled
         // (moss/grain edges tile, ApplyDefaultSlicedSprite). Selecting/deselecting must NOT flip it
         // to Sliced — ApplySelectedSprite re-derives the type and has to fall back to the base type,

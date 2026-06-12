@@ -373,6 +373,26 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(UnityImage.Type.Sliced, bg.type, "bordered pressedSprite renders 9-sliced");
         }
 
+        // Sibling of the above: when the bordered pressedSprite is hint-registered (.pxl tiled:true),
+        // the authored-override branch of ApplyStateSprite derives Tiled (hint beats border).
+        [Test]
+        public void PressedSprite_TiledHint_RendersTiled()
+        {
+            var tex = new Texture2D(16, 16);
+            var bordered = Sprite.Create(tex, new Rect(0, 0, 16, 16), new Vector2(0.5f, 0.5f), 100f, 0,
+                SpriteMeshType.FullRect, new Vector4(4, 4, 4, 4));
+            PromptUGUI.Application.Internal.SpriteRenderHints.Register(bordered);
+            UI.SpriteResolver = _ => bordered;
+
+            var btn = BuildBtn("sprite='' pressedSprite='ui:pressed'");
+            var bg = btn.GameObject.GetComponent<UnityImage>();
+            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
+
+            puiBtn.SimulateState(Pressed);
+            Assert.AreEqual(bordered, bg.overrideSprite);
+            Assert.AreEqual(UnityImage.Type.Tiled, bg.type, "hint-registered pressedSprite renders Tiled");
+        }
+
         [Test]
         public void PressedSprite_DisablesDefaultColorTint()
         {

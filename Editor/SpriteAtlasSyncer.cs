@@ -366,7 +366,8 @@ namespace PromptUGUI.Editor
         /// <param name="progressLabel">When non-null, drives a cancelable progress bar
         /// and throws <see cref="OperationCanceledException"/> if the user cancels.</param>
         public static List<(string pathKey, Sprite sprite)> EnumerateSpriteSources(
-            string folderAssetPath, string progressLabel = null)
+            string folderAssetPath, string progressLabel = null,
+            HashSet<Sprite> tiledOut = null)
         {
             var result = new List<(string, Sprite)>();
             if (string.IsNullOrEmpty(folderAssetPath)) return result;
@@ -399,10 +400,13 @@ namespace PromptUGUI.Editor
                     var relPxl = assetPath.Substring(folderPrefix.Length);
                     var pxlKey = relPxl.Substring(0, relPxl.Length - Path.GetExtension(relPxl).Length);
                     var pxlBase = Path.GetFileNameWithoutExtension(assetPath);
-                    foreach (var s in AssetDatabase.LoadAllAssetsAtPath(assetPath).OfType<Sprite>())
-                    {
+                    var objs = AssetDatabase.LoadAllAssetsAtPath(assetPath);
+                    foreach (var s in objs.OfType<Sprite>())
                         result.Add((s.name == pxlBase ? pxlKey : $"{pxlKey}/{s.name}", s));
-                    }
+                    if (tiledOut != null)
+                        foreach (var h in objs.OfType<PromptUGUI.Application.PxlSpriteHints>())
+                            foreach (var ts in h.TiledSprites)
+                                if (ts != null) tiledOut.Add(ts);
                     continue;
                 }
 #if PROMPTUGUI_HAS_ASEPRITE
@@ -802,7 +806,8 @@ namespace PromptUGUI.Editor
                         continue;
                     }
                     var label = $"Set {i + 1}/{setList.Count} '{set.SetName}'";
-                    var entries = EnumerateSpriteSources(folder, label);
+                    var tiledSprites = new HashSet<Sprite>();
+                    var entries = EnumerateSpriteSources(folder, label, tiledSprites);
                     var lookup = BuildLookup(entries, out var bareCandidates);
 
                     var needed = new HashSet<string>();
@@ -844,11 +849,11 @@ namespace PromptUGUI.Editor
                     // Persist the (key → Sprite) projection SpriteResolverHelpers reads at
                     // runtime: every key in `lookup` (pathKey + unique bare alias) that
                     // resolves to a picked sprite gets one entry on the SpriteSet.
-                    var iconSetEntries = new List<(string key, Sprite sprite)>();
+                    var iconSetEntries = new List<(string key, Sprite sprite, bool tiled)>();
                     foreach (var kv in lookup)
                     {
                         if (!picked.Contains(kv.Value)) continue;
-                        iconSetEntries.Add((kv.Key, kv.Value));
+                        iconSetEntries.Add((kv.Key, kv.Value, tiledSprites.Contains(kv.Value)));
                     }
                     set.SetEntriesInternal(iconSetEntries);
 

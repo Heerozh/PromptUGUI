@@ -35,6 +35,14 @@ namespace PromptUGUI.Application
         // (zero behavior change).
         private bool _hasFactorScale;
 
+        // Non-null only during Open()'s apply pass. Tab.bind queues its initial page-hide
+        // here (see DeferDuringOpen) so a bound page is not deactivated before its own
+        // auto-sized descendants finish measuring: a <Btn>/<Toggle>/<Dropdown> label is a
+        // TMP created via AddComponent in the apply pass, and a TMP added to an already
+        // inactive GameObject never runs Awake/OnEnable, so its preferredWidth measures
+        // garbage that freezes into the LayoutElement. Drained right after ApplyScales.
+        private List<Action> _deferredOpenActions;
+
         internal Controls.Internal.ToggleGroupRegistry ToggleGroups { get; private set; }
 
         // BindItems / Markdown 等经 ScreenInstantiator.InstantiateNode 动态实例化的子树。
@@ -147,7 +155,10 @@ namespace PromptUGUI.Application
             // (incl. Add blocks above) is built. See the SetActive(false) note above.
             root.SetActive(true);
             // Attributes applied last, on the now-Awake/active components, in the same
-            // DFS post-order the recursion would have used inline.
+            // DFS post-order the recursion would have used inline. Open the deferral window
+            // first: any bound-page hide a TabBar triggers mid-pass is queued, not run, so
+            // every control measures its content while still active.
+            _deferredOpenActions = new List<Action>();
             foreach (var node in result.ApplyOrder)
                 ControlAttributeApplier.Apply(node, _nodeMap[node],
                                               _registry.Resolve(node.Tag), Variants);
@@ -155,9 +166,24 @@ namespace PromptUGUI.Application
             // (so it doesn't fight ApplyCommon writes).
             RecomputeFactorScale();
             ApplyScales();
+            // Measuring is done (apply pass + ApplyScales). Run the deferred initial hides
+            // now, then close the window so all later (runtime) toggles hide immediately.
+            var deferredHides = _deferredOpenActions;
+            _deferredOpenActions = null;
+            foreach (var hide in deferredHides) hide();
             _variantSub = Variants.Changed.Subscribe(_ => ReSolve());
             _themeHandler = _ => ReSolve();
             UI.Theme.Changed += _themeHandler;
+        }
+
+        // Run <paramref name="action"/> after Open()'s measuring pass, or immediately if no
+        // Open is in progress (runtime toggles / ReSolve). Used by Tab.bind to postpone the
+        // initial deactivation of an unselected page so its auto-sized descendants measure
+        // while active. See the _deferredOpenActions field note.
+        internal void DeferDuringOpen(Action action)
+        {
+            if (_deferredOpenActions != null) _deferredOpenActions.Add(action);
+            else action();
         }
 
         private void ApplyCanvasScaler(UnityEngine.UI.CanvasScaler scaler)

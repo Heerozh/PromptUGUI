@@ -412,6 +412,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fd717e9221e73d847981eaa94384b1eb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PromptUGUI.Samples.CommonControls.CommonControlsRunner
+  spriteSets:
+  - {fileID: 11400000, guid: e6e6943674de6484a94ca62b946b431d, type: 2}
 --- !u!4 &1579209940
 Transform:
   m_ObjectHideFlags: 0

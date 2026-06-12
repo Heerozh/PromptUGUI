@@ -35,6 +35,20 @@ namespace PromptUGUI.Controls.Internal
 
         private const string DefaultSpritesPath = "PromptUGUI/Defaults/pugui";
         private static Dictionary<string, Sprite> _defaultSprites;
+        private static bool _defaultHintsRegistered;
+
+        /// <summary>pugui.pxl 的 tiled hint 自举：注册进 SpriteRenderHints。
+        /// 无论默认皮肤经 GetDefaultSprite 还是经 UI.ResolveSprite 解析，DeriveType 都能正确判定，
+        /// 故从这两处各调用一次（_defaultHintsRegistered 标志防重复注册）。
+        /// 仅覆盖库自带默认皮肤；用户 pxl 的 tiled 注册仍由 ResolveSprite/BuildLookup 路径负责。</summary>
+        private static void EnsureDefaultHintsRegistered()
+        {
+            if (_defaultHintsRegistered) return;
+            _defaultHintsRegistered = true;
+            var hintAssets = Resources.LoadAll<PromptUGUI.Application.PxlSpriteHints>(DefaultSpritesPath);
+            for (var i = 0; i < hintAssets.Length; i++)
+                PromptUGUI.Application.Internal.SpriteRenderHints.Register(hintAssets[i]);
+        }
 
         public static Sprite GetDefaultSprite(string name)
         {
@@ -44,30 +58,45 @@ namespace PromptUGUI.Controls.Internal
                 var loaded = Resources.LoadAll<Sprite>(DefaultSpritesPath);
                 foreach (var s in loaded)
                     if (s != null) _defaultSprites[s.name] = s;
+                EnsureDefaultHintsRegistered();
             }
             return _defaultSprites.TryGetValue(name, out var sprite) ? sprite : null;
         }
 
+        /// <summary>唯一的 Image.Type 推导点(spec pxl-tiled-hint §6):
+        /// hint 标 tiled → Tiled；有 border → Sliced；否则 Simple。
+        /// 内部调用 EnsureDefaultHintsRegistered 以兼容未经 GetDefaultSprite 加载的 sprite
+        /// （如 Progress/ScrollList 经 UI.ResolveSprite 直接解析 pugui 资产的情形）。</summary>
+        public static UnityImage.Type DeriveType(Sprite s)
+        {
+            EnsureDefaultHintsRegistered();
+            if (s == null) return UnityImage.Type.Simple;
+            if (PromptUGUI.Application.Internal.SpriteRenderHints.IsTiled(s)) return UnityImage.Type.Tiled;
+            return s.border != Vector4.zero ? UnityImage.Type.Sliced : UnityImage.Type.Simple;
+        }
+
         /// <summary>给 Image 应用 9-slice 圆角 sprite 兜底；调用者后续 sprite= 仍可 override。
         /// Tiled 而非 Sliced：钉木框边带有方向性纹理（青苔/木纹），平铺保形不拉糊；
-        /// 带 border 的 Tiled = 四角固定 + 边/中心平铺（几何重复，不依赖 wrap mode，进图集安全）。</summary>
+        /// 带 border 的 Tiled = 四角固定 + 边/中心平铺（几何重复，不依赖 wrap mode，进图集安全）。
+        /// Image.Type 由 DeriveType(sprite) 推导 —— 依赖 pugui.pxl tiled: true hint 登记。</summary>
         public static void ApplyDefaultSlicedSprite(UnityImage img)
         {
             if (img == null || img.sprite != null) return;
             var s = GetDefaultSprite(SpriteRoundedRect);
             if (s == null) return;
             img.sprite = s;
-            img.type = UnityImage.Type.Tiled;
+            img.type = DeriveType(s);
         }
 
-        /// <summary>凹形容器（输入框/滑轨/列表底）的 9-slice 兜底；规则同 ApplyDefaultSlicedSprite。</summary>
+        /// <summary>凹形容器（输入框/滑轨/列表底）的 9-slice 兜底；Image.Type 由 DeriveType 推导
+        /// (inset 无 tiled hint → 有 border → Sliced)。</summary>
         public static void ApplyDefaultInsetSprite(UnityImage img)
         {
             if (img == null || img.sprite != null) return;
             var s = GetDefaultSprite(SpriteInset);
             if (s == null) return;
             img.sprite = s;
-            img.type = UnityImage.Type.Sliced;
+            img.type = DeriveType(s);
         }
 
         /// <summary>给 Image 应用 simple sprite 兜底（caret / checkmark 等无边界形状）。</summary>
@@ -81,13 +110,12 @@ namespace PromptUGUI.Controls.Internal
             img.preserveAspect = preserveAspect;
         }
 
-        /// <summary>sprite 有 border → Sliced，否则 Simple；null sprite 不动（镜像原 Progress 私有版规则）。</summary>
+        /// <summary>null sprite 不动；否则 type = DeriveType(sprite)
+        /// (hint tiled → Tiled, border → Sliced, else Simple)。</summary>
         public static void AutoSlice(UnityImage img)
         {
             if (img == null || img.sprite == null) return;
-            img.type = img.sprite.border != Vector4.zero
-                ? UnityImage.Type.Sliced
-                : UnityImage.Type.Simple;
+            img.type = DeriveType(img.sprite);
         }
 
         /// <summary>
@@ -128,7 +156,11 @@ namespace PromptUGUI.Controls.Internal
             mask.showMaskGraphic = false;
         }
 
-        internal static void ResetDefaultSpriteCacheForTests() => _defaultSprites = null;
+        internal static void ResetDefaultSpriteCacheForTests()
+        {
+            _defaultSprites = null;
+            _defaultHintsRegistered = false;
+        }
 
         public static RectTransform AddChild(RectTransform parent, string name)
         {

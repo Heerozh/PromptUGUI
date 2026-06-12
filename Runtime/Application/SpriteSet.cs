@@ -33,6 +33,7 @@ namespace PromptUGUI.Application
         {
             public string key;
             public Sprite sprite;
+            public bool tiled;   // pxl `tiled: true` 提示，Sync Atlases 烙入(List 序列化向后兼容，旧资产读出 false)
         }
         [SerializeField] private List<Entry> entries = new();
 
@@ -48,11 +49,11 @@ namespace PromptUGUI.Application
             EditorUtility.SetDirty(this);
         }
 
-        internal void SetEntriesInternal(IList<(string key, Sprite sprite)> es)
+        internal void SetEntriesInternal(IList<(string key, Sprite sprite, bool tiled)> es)
         {
             entries.Clear();
             for (var i = 0; i < es.Count; i++)
-                entries.Add(new Entry { key = es[i].key, sprite = es[i].sprite });
+                entries.Add(new Entry { key = es[i].key, sprite = es[i].sprite, tiled = es[i].tiled });
             EditorUtility.SetDirty(this);
         }
 #endif
@@ -69,6 +70,16 @@ namespace PromptUGUI.Application
             get
             {
                 foreach (var e in entries) yield return (e.key, e.sprite);
+            }
+        }
+
+        /// <summary>带 tiled 元数据的完整条目枚举，供 BuildLookup 登记 SpriteRenderHints 用。
+        /// Runtime-visible（不在 #if UNITY_EDITOR 块内）。</summary>
+        internal IEnumerable<(string key, Sprite sprite, bool tiled)> EntriesWithMeta
+        {
+            get
+            {
+                foreach (var e in entries) yield return (e.key, e.sprite, e.tiled);
             }
         }
     }

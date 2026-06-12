@@ -152,9 +152,9 @@ namespace PromptUGUI.Tests.PlayMode
             _toCleanup.Add(setPath);
             var loaded = AssetDatabase.LoadAssetAtPath<SpriteSet>(setPath);
             // Bypass the editor sync tool: populate entries directly so the runtime
-            // resolver (which reads SpriteSet.Entries) can resolve these by-name.
-            var entries = new List<(string key, Sprite sprite)>();
-            for (var i = 0; i < iconNames.Length; i++) entries.Add((iconNames[i], sprites[i]));
+            // resolver (which reads SpriteSet.EntriesWithMeta) can resolve these by-name.
+            var entries = new List<(string key, Sprite sprite, bool tiled)>();
+            for (var i = 0; i < iconNames.Length; i++) entries.Add((iconNames[i], sprites[i], false));
             loaded.SetEntriesInternal(entries);
             return (loaded, atlas);
         }
