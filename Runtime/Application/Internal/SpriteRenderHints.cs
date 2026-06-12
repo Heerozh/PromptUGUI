@@ -12,12 +12,20 @@ namespace PromptUGUI.Application.Internal
     {
         // 存 EntityId 而非 Sprite 引用：HashSet<Sprite> 会强引用、把 tiled 资产永久钉住
         // (Clear() 仅测试调用)。EntityId 是 IEquatable 值类型，无 Unity Object 的 fake-null /
-        // GetHashCode 覆盖问题；GetInstanceID() 在 Unity 6 已废弃 → 用 GetEntityId()。
+        // GetHashCode 覆盖问题。EntityId/GetEntityId() 是 6000.1 新增，6000.0 回退 int 实例 id。
+#if UNITY_6000_1_OR_NEWER
         private static readonly HashSet<EntityId> _tiledIds = new();
+
+        private static EntityId IdOf(Sprite s) => s.GetEntityId();
+#else
+        private static readonly HashSet<int> _tiledIds = new();
+
+        private static int IdOf(Sprite s) => s.GetInstanceID();
+#endif
 
         public static void Register(Sprite s)
         {
-            if (s != null) _tiledIds.Add(s.GetEntityId());
+            if (s != null) _tiledIds.Add(IdOf(s));
         }
 
         public static void Register(PxlSpriteHints hints)
@@ -28,7 +36,7 @@ namespace PromptUGUI.Application.Internal
         }
 
         public static bool IsTiled(Sprite s) =>
-            s != null && _tiledIds.Contains(s.GetEntityId());
+            s != null && _tiledIds.Contains(IdOf(s));
 
         public static void Clear() => _tiledIds.Clear();
     }

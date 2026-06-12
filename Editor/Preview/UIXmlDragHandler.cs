@@ -16,12 +16,21 @@ namespace PromptUGUI.Editor.Preview
     {
         static UIXmlDragHandler()
         {
+#if UNITY_6000_1_OR_NEWER
             DragAndDrop.AddDropHandlerV2(HierarchyDrop);
             DragAndDrop.AddDropHandlerV2(SceneDrop);
+#else
+            DragAndDrop.AddDropHandler(HierarchyDrop);
+            DragAndDrop.AddDropHandler(SceneDrop);
+#endif
         }
 
         private static DragAndDropVisualMode HierarchyDrop(
+#if UNITY_6000_1_OR_NEWER
             UnityEngine.EntityId dropTargetEntityId,
+#else
+            int dropTargetEntityId,
+#endif
             HierarchyDropFlags dropMode,
             Transform parentForDraggedObjects,
             bool perform)
@@ -33,7 +42,11 @@ namespace PromptUGUI.Editor.Preview
                 Transform parent = parentForDraggedObjects;
                 if (parent == null)
                 {
+#if UNITY_6000_1_OR_NEWER
                     var target = EditorUtility.EntityIdToObject(dropTargetEntityId) as GameObject;
+#else
+                    var target = EditorUtility.InstanceIDToObject(dropTargetEntityId) as GameObject;
+#endif
                     if (target != null) parent = target.transform;
                 }
                 SpawnHost(asset, parent);
