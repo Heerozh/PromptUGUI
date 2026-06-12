@@ -442,8 +442,9 @@ namespace PromptUGUI.Application
             /// <summary>
             /// Looks up a color token in the current theme.
             /// For gradient tokens, returns the Top stop (the public surface always returns
-            /// a single <see cref="UnityEngine.Color"/>). Use <c>ThemeStore.Instance.LookupChained</c>
-            /// directly when a <see cref="ColorSpec"/> with both stops is needed.
+            /// a single <see cref="UnityEngine.Color"/>). Internal callers that need a
+            /// <see cref="ColorSpec"/> with both stops should use
+            /// <c>UI.Theme.ResolveSpec</c> (arriving in a later task).
             /// </summary>
             public static UnityEngine.Color? Lookup(string token)
             {
@@ -913,6 +914,22 @@ namespace PromptUGUI.Application
         }
 
         /// <summary>
+        /// Parses a raw color string (hex, named, or "top,bottom" gradient) from a
+        /// <c>&lt;Color value="…"/&gt;</c> attribute into a <see cref="ColorSpec"/>.
+        /// Called from both <see cref="RegisterThemesAndAutoSet"/> and
+        /// <see cref="ReplaceThemesAndNotify"/> so the two theme-registration paths
+        /// share identical parsing logic and can't silently diverge.
+        /// </summary>
+        private static ColorSpec ParseThemeColor(string raw)
+        {
+            Parser.ColorParser.TrySplitGradient(raw, out var topRaw, out var bottomRaw, out _);
+            UnityEngine.ColorUtility.TryParseHtmlString(topRaw, out var top);
+            if (bottomRaw == null) return ColorSpec.Solid(top);
+            UnityEngine.ColorUtility.TryParseHtmlString(bottomRaw, out var bottom);
+            return ColorSpec.Gradient(top, bottom);
+        }
+
+        /// <summary>
         /// Shared helper: parse colors from <paramref name="loaded"/>.Themes,
         /// register each into <see cref="ThemeStore"/>, resolve base-chains, and
         /// auto-select when exactly one theme is available. Called from both
@@ -926,19 +943,7 @@ namespace PromptUGUI.Application
                 var colors = new System.Collections.Generic.Dictionary<string, ColorSpec>(
                     theme.Colors.Count);
                 foreach (var ce in theme.Colors)
-                {
-                    Parser.ColorParser.TrySplitGradient(ce.Value, out var topRaw, out var bottomRaw, out _);
-                    UnityEngine.ColorUtility.TryParseHtmlString(topRaw, out var top);
-                    if (bottomRaw == null)
-                    {
-                        colors[ce.Name] = ColorSpec.Solid(top);
-                    }
-                    else
-                    {
-                        UnityEngine.ColorUtility.TryParseHtmlString(bottomRaw, out var bottom);
-                        colors[ce.Name] = ColorSpec.Gradient(top, bottom);
-                    }
-                }
+                    colors[ce.Name] = ParseThemeColor(ce.Value);
                 ThemeStore.Instance.Register(theme.Name, theme.BaseName, colors, themeSrc);
             }
             ThemeStore.Instance.ResolveBases();
@@ -1003,19 +1008,7 @@ namespace PromptUGUI.Application
                 var colors = new System.Collections.Generic.Dictionary<string, ColorSpec>(
                     theme.Colors.Count);
                 foreach (var ce in theme.Colors)
-                {
-                    Parser.ColorParser.TrySplitGradient(ce.Value, out var topRaw, out var bottomRaw, out _);
-                    UnityEngine.ColorUtility.TryParseHtmlString(topRaw, out var top);
-                    if (bottomRaw == null)
-                    {
-                        colors[ce.Name] = ColorSpec.Solid(top);
-                    }
-                    else
-                    {
-                        UnityEngine.ColorUtility.TryParseHtmlString(bottomRaw, out var bottom);
-                        colors[ce.Name] = ColorSpec.Gradient(top, bottom);
-                    }
-                }
+                    colors[ce.Name] = ParseThemeColor(ce.Value);
                 if (!bySrc.TryGetValue(themeSrc, out var list))
                     bySrc[themeSrc] = list = new();
                 list.Add((theme.Name, theme.BaseName, colors));

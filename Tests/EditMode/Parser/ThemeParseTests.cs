@@ -152,6 +152,15 @@ namespace PromptUGUI.Tests.Parser
         }
 
         [Test]
+        public void Gradient_Invalid_Bottom_Segment_Throws()
+        {
+            // bad token in the bottom segment → invalid color literal
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(
+                Header + "<Theme name='l'><Color name='g' value='red,badtoken'/></Theme>" + Footer));
+            StringAssert.Contains("invalid color literal", ex.Message);
+        }
+
+        [Test]
         public void Gradient_Alpha_Suffix_In_Segment_Throws()
         {
             // /alpha not allowed at definition site; #fff/0.5 fails TryParseHtmlString

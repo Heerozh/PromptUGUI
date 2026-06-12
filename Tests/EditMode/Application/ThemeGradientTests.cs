@@ -41,6 +41,25 @@ namespace PromptUGUI.Tests.Application
         // ── load-path tests (via XML round-trip through UI infrastructure) ──
 
         [Test]
+        public void LoadDocumentAsync_RegistersGradient_EndToEnd()
+        {
+            // Round-trips through the real pipeline: SourceResolver → LoadDocumentAsync
+            // → RegisterThemesAndAutoSet → ParseThemeColor → ThemeStore.
+            var xml = Header +
+                "<Theme name='t'><Color name='grad' value='#ffffff,#000000'/></Theme>" +
+                "<Screen name='s'><Frame/></Screen>" +
+                Footer;
+            UI.SourceResolver = _ => AwaitableHelpers.Completed(xml);
+            UI.LoadDocumentAsync("main").GetAwaiter().GetResult();
+
+            var spec = ThemeStore.Instance.LookupChained("t", "grad");
+            Assert.IsTrue(spec.HasValue, "gradient token must be registered after LoadDocumentAsync");
+            Assert.IsTrue(spec.Value.IsGradient);
+            Assert.AreEqual(Color.white, spec.Value.Top);
+            Assert.AreEqual(Color.black, spec.Value.Bottom);
+        }
+
+        [Test]
         public void Load_GradientToken_IsGradient_Top_White_Bottom_Black()
         {
             var xml = Header +
@@ -142,6 +161,7 @@ namespace PromptUGUI.Tests.Application
         {
             var half = new Color(0.5f, 0.5f, 0.5f, 1f);
             var spec = ColorSpec.Gradient(Color.white, Color.white).Multiply(half);
+            Assert.IsTrue(spec.IsGradient, "Multiply must preserve IsGradient");
             Assert.AreEqual(half, spec.Top);
             Assert.AreEqual(half, spec.Bottom);
         }
