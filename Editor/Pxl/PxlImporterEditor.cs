@@ -88,18 +88,25 @@ namespace PromptUGUI.Editor
             EditorGUILayout.LabelField("Sections", EditorStyles.boldLabel);
             var sprites = AssetDatabase.LoadAllAssetsAtPath(AssetPath)
                 .OfType<Sprite>().ToDictionary(s => s.name, s => s);
+            var hints = AssetDatabase.LoadAllAssetsAtPath(AssetPath)
+                .OfType<PromptUGUI.Application.PxlSpriteHints>().FirstOrDefault();
+            var tiledNames = hints != null
+                ? new System.Collections.Generic.HashSet<string>(
+                    hints.TiledSprites.Select(sp => sp.name))
+                : null;
             foreach (var s in _doc.Sections)
             {
                 var name = s.Name ?? BaseName;
                 var border = s.Border == Vector4.zero
                     ? "—"
                     : $"{s.Border.x},{s.Border.y},{s.Border.z},{s.Border.w}";
+                var tiledSuffix = tiledNames != null && tiledNames.Contains(name) ? "  tiled" : "";
                 using (new EditorGUILayout.HorizontalScope())
                 {
                     var rect = GUILayoutUtility.GetRect(32, 32, GUILayout.Width(32));
                     if (sprites.TryGetValue(name, out var sp) && sp.texture != null)
                         GUI.DrawTexture(rect, sp.texture, ScaleMode.ScaleToFit);
-                    EditorGUILayout.LabelField($"[{name}]  {s.Width}×{s.Height}  border: {border}");
+                    EditorGUILayout.LabelField($"[{name}]  {s.Width}×{s.Height}  border: {border}{tiledSuffix}");
                 }
             }
         }

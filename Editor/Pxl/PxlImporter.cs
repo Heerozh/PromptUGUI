@@ -66,6 +66,7 @@ namespace PromptUGUI.Editor
 
             var basename = Path.GetFileNameWithoutExtension(ctx.assetPath);
             Texture2D main = null;
+            List<Sprite> tiledSprites = null;
             foreach (var section in doc.Sections)
             {
                 var name = section.Name ?? basename;
@@ -77,7 +78,15 @@ namespace PromptUGUI.Editor
                 sprite.name = name;
                 ctx.AddObjectToAsset($"tex:{name}", tex);
                 ctx.AddObjectToAsset($"sprite:{name}", sprite);
+                if (section.Tiled) (tiledSprites ??= new List<Sprite>()).Add(sprite);
                 if (main == null) main = tex;
+            }
+            if (tiledSprites != null)
+            {
+                var hints = ScriptableObject.CreateInstance<PromptUGUI.Application.PxlSpriteHints>();
+                hints.name = "__pxl_hints";
+                hints.SetTiledSpritesInternal(tiledSprites);
+                ctx.AddObjectToAsset("__pxl_hints", hints);
             }
             ctx.SetMainObject(main);
         }
