@@ -251,7 +251,7 @@ namespace PromptUGUI.Controls.Internal
                 if (shown != null)
                 {
                     img.sprite = shown;
-                    img.type = shown.border != Vector4.zero ? UnityImage.Type.Sliced : UnityImage.Type.Simple;
+                    img.type = ProceduralBuilders.DeriveType(shown);
                 }
                 ImageTint.Apply(img, _dotTint);
 

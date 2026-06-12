@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using PromptUGUI.Application;
+using PromptUGUI.Application.Internal;
 using UnityEngine;
 using UnityEngine.UI;
 using PromptUGUIImage = PromptUGUI.Controls.Image;
@@ -123,6 +124,43 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var arf = img.GameObject.GetComponent<AspectRatioFitter>();
             var expected = unityImg.sprite.rect.width / unityImg.sprite.rect.height;
             Assert.AreEqual(expected, arf.aspectRatio, 0.001f);
+        }
+
+        [Test]
+        public void Image_autopick_tiled_for_hinted_sprite()
+        {
+            // Use a plain (no-border) sprite registered as tiled — DeriveType returns Tiled for registered sprites
+            // regardless of border (see DefaultSkinTests.DeriveType_four_branches).
+            var sp = UnityEngine.Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            SpriteRenderHints.Register(sp);
+            UI.SpriteResolver = _ => sp;
+
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Image id='i' sprite='ui:x'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var img = UI.Open("S").Get<PromptUGUIImage>("i");
+            Assert.AreEqual(Image.Type.Tiled, img.GameObject.GetComponent<Image>().type,
+                "hint-registered sprite must auto-pick Tiled");
+        }
+
+        [Test]
+        public void Image_explicit_type_overrides_hint()
+        {
+            // Even a tiled-hinted sprite must not override an explicit type= attribute.
+            var sp = UnityEngine.Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            SpriteRenderHints.Register(sp);
+            UI.SpriteResolver = _ => sp;
+
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Image id='i' sprite='ui:x' type='sliced'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var img = UI.Open("S").Get<PromptUGUIImage>("i");
+            Assert.AreEqual(Image.Type.Sliced, img.GameObject.GetComponent<Image>().type,
+                "explicit type= must override the tiled hint");
         }
     }
 }

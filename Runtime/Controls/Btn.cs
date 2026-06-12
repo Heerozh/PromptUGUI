@@ -243,7 +243,7 @@ namespace PromptUGUI.Controls
             _bg.overrideSprite = authored
                 ?? (state == InteractState.Pressed ? DefaultPressedSprite() : null);
             _bg.type = authored != null
-                ? (authored.border != Vector4.zero ? UnityImage.Type.Sliced : UnityImage.Type.Simple)
+                ? PromptUGUI.Controls.Internal.ProceduralBuilders.DeriveType(authored)
                 : _baseType;
         }
 

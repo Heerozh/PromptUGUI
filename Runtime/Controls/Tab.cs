@@ -243,7 +243,7 @@ namespace PromptUGUI.Controls
             // Authored selectedSprite carries its own type; otherwise fall back to the base type
             // (default skin = Tiled — blanket "border -> Sliced" would un-tile the textured edges).
             _bg.type = showSelected
-                ? (_selectedSprite.border != Vector4.zero ? UnityImage.Type.Sliced : UnityImage.Type.Simple)
+                ? ProceduralBuilders.DeriveType(_selectedSprite)
                 : _baseType;
         }
 
@@ -270,7 +270,7 @@ namespace PromptUGUI.Controls
         {
             if (sprite == null) return;
             _bg.sprite = sprite;
-            _bg.type = sprite.border != Vector4.zero ? UnityImage.Type.Sliced : UnityImage.Type.Simple;
+            _bg.type = ProceduralBuilders.DeriveType(sprite);
             _baseType = _bg.type;
         }
 
