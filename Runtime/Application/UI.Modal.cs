@@ -164,6 +164,7 @@ namespace PromptUGUI.Application
 
             private static void OnEscapePressed(Slot slot)
             {
+                if (Tutorial.IsBlockingInput) return;   // Block 引导期间吞 ESC(不关下层模态)
                 if (_stack.Count == 0 || _stack[_stack.Count - 1] != slot) return;
                 slot.Entry.TryEscape(() => OnEntryClosed(slot));
             }

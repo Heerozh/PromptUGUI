@@ -9,8 +9,30 @@ namespace PromptUGUI.Application
         {
             private static readonly Dictionary<string, RouteNode> _routes = new();
 
+            private static readonly List<Func<string, bool>> _guards = new();
+            private static bool _bypassGuardsOnce;
+
             /// <summary>Navigate(url) 校验的 scheme;null = 不校验(接受任意 scheme 或无 scheme)。</summary>
             public static string Scheme { get; set; }
+
+            /// <summary>导航前置守卫:任一返回 false → Open/Navigate/Back 抛 NavigationRejectedException。</summary>
+            public static void AddGuard(Func<string, bool> guard)
+            {
+                if (guard == null) throw new ArgumentNullException(nameof(guard));
+                _guards.Add(guard);
+            }
+
+            public static void RemoveGuard(Func<string, bool> guard) => _guards.Remove(guard);
+
+            /// <summary>下一次 Open 调用跳过整条 guard 链并复位(无论该 Open 成功与否;Tutorial 内部导航用)。</summary>
+            internal static void BypassGuardsOnce() => _bypassGuardsOnce = true;
+
+            private static void CheckGuards(string name)
+            {
+                if (_bypassGuardsOnce) { _bypassGuardsOnce = false; return; }
+                foreach (var g in _guards)
+                    if (!g(name)) throw new NavigationRejectedException(name);
+            }
 
             public static void Map(string name, string src, string screen = null,
                 RoutePresent present = RoutePresent.Page, string parent = null,

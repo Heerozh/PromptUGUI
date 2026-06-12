@@ -60,6 +60,7 @@ namespace PromptUGUI.Application
 
             public static Awaitable Open(string name, RouteQuery query = null)
             {
+                CheckGuards(name);
                 var tcs = new AwaitableCompletionSource();
                 _waiters.Add(tcs);
                 _pending = (name, query ?? RouteQuery.Empty);
@@ -237,6 +238,7 @@ namespace PromptUGUI.Application
                     var captured = def.Name;
                     esc.OnEscape = () =>
                     {
+                        if (UI.Tutorial.IsBlockingInput) return;
                         // 只栈顶 routed modal 响应;有 ad-hoc 模态在上时让位给它
                         if (IsTop(captured) && !UI.Modal.IsAnyOpen) _ = Back();
                     };
@@ -364,6 +366,8 @@ namespace PromptUGUI.Application
             {
                 CancelAllForTeardown();
                 _routes.Clear();
+                _guards.Clear();
+                _bypassGuardsOnce = false;
                 Scheme = null;
                 Changed = null;
             }

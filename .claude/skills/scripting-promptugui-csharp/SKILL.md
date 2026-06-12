@@ -1228,6 +1228,22 @@ IReadOnlyList<string> chain = UI.Router.Chain;   // root→top, e.g. ["home","de
 UI.Router.Changed += () => Debug.Log(UI.Router.Current);  // event Action; fires after every reconcile
 ```
 
+### Navigation guards
+
+Register a predicate that vetoes navigation before it runs. Any guard returning `false` makes the next `Open` / `Navigate` / `Back` throw `NavigationRejectedException` **synchronously** — the chain is unchanged and `Changed` does not fire.
+
+```csharp
+// Block leaving the current screen while there are unsaved changes.
+Func<string, bool> guard = name => !HasUnsavedChanges;   // false → rejected
+UI.Router.AddGuard(guard);
+// ...later
+UI.Router.RemoveGuard(guard);   // removed by reference — keep the delegate instance
+```
+
+- The guard receives the **target route name**. Keep guards pure (no navigation side effects).
+- `AddGuard(null)` throws `ArgumentNullException`. Guards are cleared on `UI.ResetForTests()`.
+- The tutorial system (below) uses a guard internally to lock navigation for the duration of a `Run`.
+
 ### Four presentations
 
 | Kind | Registration | What opens | Deactivated by |
@@ -1293,6 +1309,80 @@ UI.Router.MapPrompt("confirm-delete", parent: "home", run: async (q, ct) =>
 ```
 
 Navigating away while the dialog is open cancels `ct`, the dialog throws `OperationCanceledException`, and the Prompt exits cleanly.
+
+## Tutorial (onboarding / coach marks)
+
+`UI.Tutorial.Run` plays a step-by-step coach-mark sequence. Each step spotlights a control — a translucent full-screen mask with a hole punched over the target — shows a speech bubble + pointing finger, and blocks all other input (clicks **and** deep-link navigation) until the step is satisfied. Targets use the same `"screenName/idPath"` path as Toast (`UI.TryResolvePath`), so a step can point at any control in any open screen.
+
+### Progress persistence (optional)
+
+Register load/save delegates — where progress lives is the caller's concern (same philosophy as `SourceResolver`). Without them, every `Run` starts from the beginning.
+
+```csharp
+UI.Tutorial.UseProgressStore(
+    load: id => PlayerPrefs.GetInt("tut_" + id, 0),
+    save: (id, n) => PlayerPrefs.SetInt("tut_" + id, n));
+```
+
+### Running a sequence
+
+```csharp
+await UI.Tutorial.Run("first-purchase", async t =>
+{
+    await t.Step("main/shopBtn", text: "Tap here to open the shop");
+    await t.Step("shop/items/0/buyBtn", text: "Buy this one");
+    await t.Step(null, text: "Nice work!", advance: Advance.TapAnywhere);   // caption-only page
+    await t.Step("main/bagBtn", text: "Check your bag", mode: TutorialMode.Hint,
+                 advance: Advance.When(() => bagOpened));
+});
+```
+
+- `Run(id, body)` wraps the whole session: it creates the overlay, registers a navigation guard, and on completion **or** exception tears everything down (try/finally). It is globally exclusive — a nested/concurrent `Run` throws `InvalidOperationException`.
+- **Resume:** `Run` reads `load(id)` and fast-forwards already-completed steps (they complete instantly, no visuals). Each finished step saves `index+1`; the whole run saves `int.MaxValue` on success. Advancing the *game* state to the resume point is the script's job — use `t.Navigate(...)` between steps to set the stage (deep-link reconcile makes "already there" a no-op).
+- There is no `CancellationToken` and no built-in skip button in v1: a tutorial runs to completion or the process exits (and resumes next launch via the store).
+
+### `Step` parameters
+
+```csharp
+Awaitable Step(
+    string target,                          // "screenName/idPath"; null = caption-only (no hole/finger)
+    string text = null,                     // bubble text (goes through i18n); null = no bubble
+    TutorialMode mode = TutorialMode.Block, // Block = spotlight + input lock; Hint = bubble/finger only, no lock
+    Advance advance = default,              // default: target != null → TapTarget, else → TapAnywhere
+    Side place = Side.Auto,                 // bubble/finger side: Auto avoids screen edges, or Top/Bottom/Left/Right
+    float padding = 8f,                     // hole inset beyond the target rect (design units)
+    float timeout = -1f);                   // seconds to wait for the target to appear; -1 = forever
+```
+
+**Advance modes:**
+
+| `Advance` | Step completes when… |
+|---|---|
+| `Advance.TapTarget` | the user clicks the target control (default when `target != null`) |
+| `Advance.TapAnywhere` | the user clicks anywhere (default when `target == null`; requires `Block`) |
+| `Advance.When(() => bool)` | a predicate, polled each frame, returns true |
+| `Advance.Until(() => Awaitable)` | an awaitable you supply completes |
+
+- The target need not exist yet: the step waits (full-screen mask, no hole) until the path resolves, then opens the hole. If the target is destroyed mid-step (e.g. a list rebuild), the step returns to waiting. `timeout >= 0` makes waiting fail with `TimeoutException`.
+- The overlay follows the target **every frame**, so resize / orientation change / target animation track automatically.
+- `Hint` mode shows the bubble + finger but does **not** block input (the player may ignore it); the navigation lock still holds for the whole `Run`.
+
+### Navigating during a tutorial
+
+A `Run` locks the router (an internal reject-all guard), so any direct `UI.Router.Open` / `Navigate` throws `NavigationRejectedException`. To move between screens as part of the script, use `t.Navigate(...)` — it bypasses the guard for that one call:
+
+```csharp
+await UI.Tutorial.Run("intro", async t =>
+{
+    await t.Step("home/playBtn", text: "Start a match");
+    await t.Navigate("battle");                        // scripted nav — allowed past the lock
+    await t.Step("battle/skillBtn", text: "Use your skill");
+});
+```
+
+### Skinning
+
+The overlay is a built-in `.ui.xml` you can replace wholesale (same as the modals): set `UI.Tutorial.XmlSrc` to your own Resources path. The screen must expose ids `mask` (a `<Frame>` the mask renders into), `bubbleRoot`, `bubble`, `bubbleText`, and `finger`. Also tunable: `UI.Tutorial.MaskColor` (default `"#000000B0"`) and `UI.Tutorial.SortingOrder` (default `3000`, above modals and toasts). `UI.Tutorial.IsActive` reports whether a tutorial is currently running.
 
 ## `<Trigger>` and `<Animation>` from C#
 
