@@ -1016,6 +1016,7 @@ namespace PromptUGUI.Application
             Orientation.ResetForTestsInternal();
             Theme.ResetForTestsInternal();
             Markdown.ResetForTestsInternal();
+            Internal.SpriteRenderHints.Clear();
             TranslationStore.Instance.UnloadAll();
             Router.ResetForTestsInternal();
             Tutorial.ResetForTestsInternal();
