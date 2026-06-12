@@ -37,9 +37,10 @@ namespace PromptUGUI.Controls.Internal
         private static Dictionary<string, Sprite> _defaultSprites;
         private static bool _defaultHintsRegistered;
 
-        /// <summary>pugui.pxl の tiled hint 自举：SpriteRenderHints に登記。
-        /// GetDefaultSprite 経由でも ResolveSprite 経由でも DeriveType が正しく動くよう、
-        /// 二箇所から呼び出される（_defaultHintsRegistered フラグで二重登記防止）。</summary>
+        /// <summary>pugui.pxl 的 tiled hint 自举：注册进 SpriteRenderHints。
+        /// 无论默认皮肤经 GetDefaultSprite 还是经 UI.ResolveSprite 解析，DeriveType 都能正确判定，
+        /// 故从这两处各调用一次（_defaultHintsRegistered 标志防重复注册）。
+        /// 仅覆盖库自带默认皮肤；用户 pxl 的 tiled 注册仍由 ResolveSprite/BuildLookup 路径负责。</summary>
         private static void EnsureDefaultHintsRegistered()
         {
             if (_defaultHintsRegistered) return;
