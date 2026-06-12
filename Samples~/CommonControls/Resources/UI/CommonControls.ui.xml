@@ -9,40 +9,44 @@
     </HStack>
   </Template>
 
-  <!-- Carousel 卡片模板（bg 颜色 / 标题由 C# BindItems 填） -->
+  <!-- Carousel 卡片模板（bg tint / 标题由 C# BindItems 填） -->
   <Template name="DemoCard">
     <Frame>
-      <Image id="bg" anchor="stretch" color="#444444"/>
+      <Image id="bg" anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round"/>
       <Text id="title" anchor="center" fontSize="22" raycastTarget="false"/>
     </Frame>
   </Template>
 
   <Screen name="CommonControls" reference="640x360" reference.portrait="360x640" scale-mode="pixel">
-    <Image anchor="stretch" color="#202020"/>
+    <!-- 背景：天空 + 草地两层 -->
+    <Image anchor="stretch" color="#BDE3EC"/>
+    <Image anchor="bottom-stretch" height="56" color="#8FCF6A" raycastTarget="false"/>
     <SafeArea>
 
-      <!-- 顶部固定：标题 + 常驻新手引导按钮 -->
+      <!-- 顶部固定：木牌标题 + 常驻新手引导按钮（Btn 不写 color，吃默认皮肤） -->
       <HStack anchor="top-stretch" height="44" padding="8" spacing="8">
-        <Text fontSize="22">Common Controls Demo</Text>
+        <Image sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="#E8B86B" width="220" height="30">
+          <Text anchor="center" fontSize="18" raycastTarget="false">Common Controls Demo</Text>
+        </Image>
         <Frame width="0"/>
-        <Btn id="tutorialBtn" width="100" height="28" fontSize="16" color="#3B82F6"
-             pressedModulate="#BBBBBB">新手引导</Btn>
+        <Btn id="tutorialBtn" width="100" height="28" fontSize="16">新手引导</Btn>
       </HStack>
 
       <!-- TabBar 分页（bind= 切页；Tab 是 layout child，只写 width/height） -->
       <TabBar id="tabs" anchor="top-stretch" height="32" margin="44,8,0,8">
-        <Tab id="tabForm"    width="84" text="表单输入" fontSize="15" color="#333333"
-             selectedColor="#3B82F6" bind="pageForm" isOn="true"/>
-        <Tab id="tabDisplay" width="84" text="展示反馈" fontSize="15" color="#333333"
-             selectedColor="#3B82F6" bind="pageDisplay"/>
-        <Tab id="tabList"    width="84" text="列表轮播" fontSize="15" color="#333333"
-             selectedColor="#3B82F6" bind="pageList"/>
-        <Tab id="tabModal"   width="84" text="模态提示" fontSize="15" color="#333333"
-             selectedColor="#3B82F6" bind="pageModal"/>
+        <Tab id="tabForm"    width="84" text="表单输入" fontSize="15"
+             selectedColor="#CDEBA8" bind="pageForm" isOn="true"/>
+        <Tab id="tabDisplay" width="84" text="展示反馈" fontSize="15"
+             selectedColor="#CDEBA8" bind="pageDisplay"/>
+        <Tab id="tabList"    width="84" text="列表轮播" fontSize="15"
+             selectedColor="#CDEBA8" bind="pageList"/>
+        <Tab id="tabModal"   width="84" text="模态提示" fontSize="15"
+             selectedColor="#CDEBA8" bind="pageModal"/>
       </TabBar>
 
       <!-- ① 表单输入（原 Settings 内容保留） -->
       <Frame id="pageForm" anchor="stretch" margin="84,8,8,8">
+        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" raycastTarget="false"/>
         <VStack anchor="stretch" spacing="12" padding="8">
           <InputField id="username" placeholder="Username" width="240" height="30"/>
           <Toggle id="muteAudio">静音</Toggle>
@@ -53,23 +57,23 @@
 
       <!-- ② 展示反馈 -->
       <Frame id="pageDisplay" anchor="stretch" margin="84,8,8,8">
+        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" raycastTarget="false"/>
         <VStack anchor="stretch" spacing="10" padding="8">
-          <Progress id="progress" height="16" value="0.3" bgColor="#222222" fillColor="#3CC3F0"/>
+          <Progress id="progress" height="16" value="0.3" bgColor="#E8CFA0" fillColor="#58A63C"/>
           <HStack height="28" spacing="8">
-            <Btn id="progMinus" width="64" height="28" fontSize="15" color="#555555" pressedModulate="#BBBBBB">-10%</Btn>
-            <Btn id="progPlus"  width="64" height="28" fontSize="15" color="#555555" pressedModulate="#BBBBBB">+10%</Btn>
+            <Btn id="progMinus" width="64" height="28" fontSize="15">-10%</Btn>
+            <Btn id="progPlus"  width="64" height="28" fontSize="15">+10%</Btn>
             <Frame width="0"/>
           </HStack>
           <!-- RawImage：纹理由 C# 生成后喂入 -->
           <RawImage id="gradient" height="40"/>
           <!-- Animation：点击按钮自身 pulse（VStack 内包 Animation 是文档认可的模式）
-               + 状态可视化：hoverColor / pressedModulate / <Show on="state-hover"> 角标 -->
+               + 状态可视化：<Show on="state-hover"> 草莓角标（SpriteSet farm: 引用示例） -->
           <Animation type="pulse" on="click" duration="0.3s">
-            <Btn id="pulseBtn" width="120" height="30" color="#3B82F6"
-                 hoverColor="#5B9CF8" pressedModulate="#BBBBBB">
+            <Btn id="pulseBtn" width="120" height="30">
               <Text anchor="center" fontSize="15" raycastTarget="false">点我弹跳</Text>
               <Show on="state-hover">
-                <Image anchor="top-right" size="10x10" color="#F59E0B" raycastTarget="false"/>
+                <Image anchor="top-right" size="12x12" sprite="farm:strawberry" raycastTarget="false"/>
               </Show>
             </Btn>
           </Animation>
@@ -80,16 +84,18 @@
 
       <!-- ③ 列表轮播 -->
       <Frame id="pageList" anchor="stretch" margin="84,8,8,8">
+        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" raycastTarget="false"/>
         <VStack anchor="stretch" spacing="10" padding="8">
+          <!-- farm: SpriteSet 12 作物橱窗 -->
           <Grid columns="6" cellSize="32x32" spacing="4" height="72">
-            <Image color="#EF4444"/><Image color="#F59E0B"/><Image color="#10B981"/>
-            <Image color="#3B82F6"/><Image color="#8B5CF6"/><Image color="#EC4899"/>
-            <Image color="#F87171"/><Image color="#FBBF24"/><Image color="#34D399"/>
-            <Image color="#60A5FA"/><Image color="#A78BFA"/><Image color="#F472B6"/>
+            <Image sprite="farm:carrot"/><Image sprite="farm:tomato"/><Image sprite="farm:wheat"/>
+            <Image sprite="farm:apple"/><Image sprite="farm:corn"/><Image sprite="farm:pumpkin"/>
+            <Image sprite="farm:strawberry"/><Image sprite="farm:eggplant"/><Image sprite="farm:sunflower"/>
+            <Image sprite="farm:grape"/><Image sprite="farm:watermelon"/><Image sprite="farm:turnip"/>
           </Grid>
           <Carousel id="banner" height="90" itemTemplate="DemoCard"
                     interval="3" loop="true" transition="0.3"
-                    dots="bottom-center" dotColor="#666666" dotSelectedColor="#FFFFFF"/>
+                    dots="bottom-center" dotColor="#C8A878" dotSelectedColor="#5A3A20"/>
           <ScrollList id="list" width="stretch" height="stretch" itemTemplate="OptionRow"
                       spacing="4" padding="8"/>
         </VStack>
@@ -97,12 +103,14 @@
 
       <!-- ④ 模态提示 -->
       <Frame id="pageModal" anchor="stretch" margin="84,8,8,8">
+        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" raycastTarget="false"/>
         <VStack anchor="stretch" spacing="10" padding="8">
-          <Btn id="msgBoxBtn"   height="30" fontSize="15" color="#3B82F6" pressedModulate="#BBBBBB">MessageBox</Btn>
-          <Btn id="inputBoxBtn" height="30" fontSize="15" color="#3B82F6" pressedModulate="#BBBBBB">InputBox</Btn>
-          <Btn id="mdBoxBtn"    height="30" fontSize="15" color="#3B82F6" pressedModulate="#BBBBBB">MarkdownBox</Btn>
-          <Btn id="loadingBtn"  height="30" fontSize="15" color="#3B82F6" pressedModulate="#BBBBBB">Loading (2s)</Btn>
-          <Btn id="toastBtn"    height="30" fontSize="15" color="#10B981" pressedModulate="#BBBBBB">Toast</Btn>
+          <Btn id="msgBoxBtn"   height="30" fontSize="15">MessageBox</Btn>
+          <Btn id="inputBoxBtn" height="30" fontSize="15">InputBox</Btn>
+          <Btn id="mdBoxBtn"    height="30" fontSize="15">MarkdownBox</Btn>
+          <Btn id="loadingBtn"  height="30" fontSize="15">Loading (2s)</Btn>
+          <!-- 演示 color= tint 仍可用：默认皮肤上叠一层绿 tint -->
+          <Btn id="toastBtn"    height="30" fontSize="15" color="#A8D88C">Toast</Btn>
         </VStack>
       </Frame>
 

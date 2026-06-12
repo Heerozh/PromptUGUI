@@ -80,9 +80,9 @@ namespace PromptUGUI.Samples.CommonControls
             screen.Get<Carousel>("banner").BindItems(
                 Observable.Return<IReadOnlyList<(string title, string color)>>(new[]
                 {
-                    ("欢迎使用 PromptUGUI", "#3B5BA5"),
-                    ("XML 直接生成 uGUI", "#7C4DA5"),
-                    ("轮播卡自动播放", "#2F8F6B"),
+                    ("欢迎使用 PromptUGUI", "#F2B24C"),
+                    ("XML 直接生成 uGUI", "#8FCF6A"),
+                    ("轮播卡自动播放", "#F28C6A"),
                 }),
                 (IControl card, (string title, string color) item) =>
                 {
