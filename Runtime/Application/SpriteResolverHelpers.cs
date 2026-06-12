@@ -56,9 +56,10 @@ namespace PromptUGUI.Application
                         $"Duplicate SpriteSet name '{set.SetName}'");
                 UI.LoadedSpriteSetNames.Add(set.SetName);
 
-                foreach (var (key, sprite) in set.Entries)
+                foreach (var (key, sprite, tiled) in set.EntriesWithMeta)
                 {
                     if (sprite == null) continue;
+                    if (tiled) Internal.SpriteRenderHints.Register(sprite);
                     map[$"{set.SetName}:{key}"] = sprite;
                 }
             }

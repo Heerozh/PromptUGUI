@@ -844,11 +844,12 @@ namespace PromptUGUI.Editor
                     // Persist the (key → Sprite) projection SpriteResolverHelpers reads at
                     // runtime: every key in `lookup` (pathKey + unique bare alias) that
                     // resolves to a picked sprite gets one entry on the SpriteSet.
-                    var iconSetEntries = new List<(string key, Sprite sprite)>();
+                    var iconSetEntries = new List<(string key, Sprite sprite, bool tiled)>();
                     foreach (var kv in lookup)
                     {
                         if (!picked.Contains(kv.Value)) continue;
-                        iconSetEntries.Add((kv.Key, kv.Value));
+                        // TODO(pxl-tiled-hint Task 7): real tiled flag
+                        iconSetEntries.Add((kv.Key, kv.Value, false));
                     }
                     set.SetEntriesInternal(iconSetEntries);
 
