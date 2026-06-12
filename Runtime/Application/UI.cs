@@ -97,7 +97,10 @@ namespace PromptUGUI.Application
 
             int hashIdx = value.IndexOf('#');
             if (hashIdx < 0)
+            {
+                RegisterPxlHints(value);
                 return UnityEngine.Resources.Load<UnityEngine.Sprite>(value);
+            }
 
             var path = value.Substring(0, hashIdx);
             var sliceName = value.Substring(hashIdx + 1);
@@ -109,6 +112,7 @@ namespace PromptUGUI.Application
             var dotIdx = path.LastIndexOf('.');
             if (dotIdx > slashIdx && dotIdx > 0)
                 path = path.Substring(0, dotIdx);
+            RegisterPxlHints(path);
             var all = UnityEngine.Resources.LoadAll<UnityEngine.Sprite>(path);
             if (all == null || all.Length == 0)
                 return null;
@@ -121,6 +125,14 @@ namespace PromptUGUI.Application
                 $"sprite '{value}': slice '{sliceName}' not found in '{path}'. " +
                 $"Available: {string.Join(", ", names)}");
             return null;
+        }
+
+        // .pxl 导入的 tiled 提示子资产与 Sprite 同 Resources 路径；LoadAll 有 Unity 资源缓存，重复调用廉价。
+        private static void RegisterPxlHints(string resourcesPath)
+        {
+            var hints = UnityEngine.Resources.LoadAll<PxlSpriteHints>(resourcesPath);
+            for (int i = 0; i < hints.Length; i++)
+                Internal.SpriteRenderHints.Register(hints[i]);
         }
 
         // Shared between UI.ResolveSprite and Icon.Name. Splits the `set:key` form

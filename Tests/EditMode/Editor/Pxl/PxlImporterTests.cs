@@ -177,5 +177,26 @@ namespace PromptUGUI.Tests.Editor
             Assert.IsNull(AssetDatabase.LoadAllAssetsAtPath(path)
                 .OfType<PxlSpriteHints>().SingleOrDefault());
         }
+
+        [Test]
+        public void ResolveSprite_resources_path_registers_tiled_hint()
+        {
+            UI.ResetForTests();
+            try
+            {
+                if (!AssetDatabase.IsValidFolder($"{TmpDir}/Resources"))
+                    AssetDatabase.CreateFolder(TmpDir, "Resources");
+                var abs = Path.Combine(UnityEngine.Application.dataPath, "__test_pxl__/Resources", "rt.pxl");
+                File.WriteAllText(abs,
+                    "chars:\n  K: #000000\n\n[a]\nborder: 1,1,1,1\ntiled: true\ngrid:\n  KKK\n  KKK\n  KKK\n");
+                AssetDatabase.ImportAsset($"{TmpDir}/Resources/rt.pxl",
+                    ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
+
+                var sprite = UI.ResolveSprite("rt#a");
+                Assert.IsNotNull(sprite);
+                Assert.IsTrue(PromptUGUI.Application.Internal.SpriteRenderHints.IsTiled(sprite));
+            }
+            finally { UI.ResetForTests(); }
+        }
     }
 }
