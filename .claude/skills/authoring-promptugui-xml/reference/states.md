@@ -6,9 +6,9 @@
 
 ## 1. State colour — two families
 
-**Absolute `*Color`** (`hoverColor` / `pressedColor` / `selectedColor` / `disabledColor`) sets the per-state colour of the control's base graphic (`targetGraphic` / bg) **only** — the same graphic that `color=` targets. It does **not** fan out to descendants. Normal has no `*Color` (use `color=`). Accepts the same value forms as `color` (hex / CSS named / theme token).
+**Absolute `*Color`** (`hoverColor` / `pressedColor` / `selectedColor` / `disabledColor`) sets the per-state colour of the control's base graphic (`targetGraphic` / bg) **only** — the same graphic that `color=` targets. It does **not** fan out to descendants. Normal has no `*Color` (use `color=`). Accepts the same value forms as `color` (hex / CSS named / theme token), **including gradients** (`hoverColor="#fff,#aaa"`). A state transition into or out of a gradient **snaps** (no ~0.1s fade); solid ↔ solid transitions still fade. See [Color Tokens → Gradients](../SKILL.md#gradients) for the full grammar.
 
-**Relative `*Modulate`** (`hoverModulate` / `pressedModulate` / `selectedModulate` / `disabledModulate`) is a **relative multiplier** (Godot `modulate` semantics: white = identity, the normal uGUI ColorTint model). It fans out to the bg **and every descendant Graphic** (label, icons, nested images), switching the control off uGUI's built-in ColorTint, and the tint **fades** over ~0.1s.
+**Relative `*Modulate`** (`hoverModulate` / `pressedModulate` / `selectedModulate` / `disabledModulate`) is a **relative multiplier** (Godot `modulate` semantics: white = identity, the normal uGUI ColorTint model). It fans out to the bg **and every descendant Graphic** (label, icons, nested images), switching the control off uGUI's built-in ColorTint, and the tint **fades** over ~0.1s. `*Modulate` is **solid-only** — a gradient value is a parse error (lint `PUI-GRADIENT-MODULATE`); use `*Color` when you need a per-state gradient.
 
 They compose: per state, `displayed = (absolute ?? color) × (modulate ?? white)`.
 
