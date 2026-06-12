@@ -1,0 +1,113 @@
+# PromptUGUI 默认控件皮肤 — 种田风像素（spec 2026-06-12-farm-pixel-skin §3）
+# 奶油底 + 暖木描边 + 叶绿点缀。mask 必须纯白（stencil, 4af322b）。
+ppu: 100
+chars:
+  K: #5A3A20
+  W: #8B5E3C
+  w: #C68B52
+  H: #FFFBEA
+  F: #FFF1D2
+  f: #EFD9A8
+  I: #E8CFA0
+  P: #F0DBAE
+  G: #58A63C
+  g: #7CC850
+  M: #FFFFFF
+
+[pugui_9slice_round]
+border: 4,4,4,4
+grid:
+  ..KKKKKKKK..
+  .KHHHHHHHHK.
+  KHHFFFFFFFfK
+  KHFFFFFFFFfK
+  KHFFFFFFFFfK
+  KHFFFFFFFFfK
+  KHFFFFFFFFfK
+  KHFFFFFFFFfK
+  KHFFFFFFFFfK
+  KHfFFFFFFffK
+  .KffffffffK.
+  ..KKKKKKKK..
+
+[pugui_9slice_pressed]
+border: 4,4,4,4
+grid:
+  ..KKKKKKKK..
+  .KffffffffK.
+  KffPPPPPPPHK
+  KfPPPPPPPPHK
+  KfPPPPPPPPHK
+  KfPPPPPPPPHK
+  KfPPPPPPPPHK
+  KfPPPPPPPPHK
+  KfPPPPPPPPHK
+  KfPPPPPPPHHK
+  .KHHHHHHHHK.
+  ..KKKKKKKK..
+
+[pugui_9slice_inset]
+border: 4,4,4,4
+grid:
+  ..KKKKKKKK..
+  .KWWWWWWWWK.
+  KWWIIIIIIIfK
+  KWIIIIIIIIfK
+  KWIIIIIIIIfK
+  KWIIIIIIIIfK
+  KWIIIIIIIIfK
+  KWIIIIIIIIfK
+  KWIIIIIIIIfK
+  KWIIIIIIIffK
+  .KffffffffK.
+  ..KKKKKKKK..
+
+[pugui_knob]
+grid:
+  ...KKKKK...
+  ..KwwwwwK..
+  .KwHHHHwwK.
+  KwHHFFFFwwK
+  KwHFFFFFFwK
+  KwHFFFFFFwK
+  KwHFFFFFFwK
+  KwwFFFFFwwK
+  .KwwFFFwwK.
+  ..KwwwwwK..
+  ...KKKKK...
+
+[pugui_9slice_mask]
+border: 4,4,4,4
+grid:
+  ..MMMMMMMM..
+  .MMMMMMMMMM.
+  MMMMMMMMMMMM
+  MMMMMMMMMMMM
+  MMMMMMMMMMMM
+  MMMMMMMMMMMM
+  MMMMMMMMMMMM
+  MMMMMMMMMMMM
+  MMMMMMMMMMMM
+  MMMMMMMMMMMM
+  .MMMMMMMMMM.
+  ..MMMMMMMM..
+
+[pugui_caret]
+grid:
+  KKKKKKK
+  KwwwwwK
+  .KwwwK.
+  ..KwK..
+  ...K...
+
+[pugui_checkmark]
+grid:
+  .......K.
+  ......KgK
+  .....KgK.
+  .K..KgK..
+  KgK.KgK..
+  KggKgK...
+  .KgggK...
+  ..KgK....
+  ...K.....
