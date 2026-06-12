@@ -41,7 +41,7 @@ grid:
 - 位置：section 内、`grid:` 之前，与 `border:` 同级；两者顺序不限。
 - 取值：`true` / `false`（默认 false）。其他值 = 带行号的导入错误
   （`invalid tiled value '...' (expected true|false)`）。
-- 重复声明 = 错误（同 `border:` 的重复规则）。
+- 重复声明 last-wins（同 `border:` 的既有规则：grid 前重复声明取最后一个）。
 - **允许无 border**：整图无缝纹理（草地、水面填充）也可平铺。PxlImporter 一律
   `SpriteMeshType.FullRect`，borderless Tiled 走几何重复，合法。
 - 隐式单 section 文件同样支持（指令直接放 header 之后）。
