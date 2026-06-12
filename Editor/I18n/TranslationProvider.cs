@@ -12,13 +12,13 @@ namespace PromptUGUI.Editor.I18n
         public string model = "deepseek-v4-flash";
         [TextArea(6, 20)]
         public string systemPrompt =
-@"你正在为一款游戏翻译 UI 字符串到 {{targetLocale}}。
+@"You are translating a game's UI strings into {{targetLocale}}.
 
-规则：
-1. 保留所有 {{x}} 模板占位符与 {0} {1:C} 等 C# 格式占位符不变
-2. 保留 TMP 富文本标签（<sprite>、<color>、<b>、<size>、<link> 等）的字面形式与属性值不变（特别是 name=""..."", color=""..."" 等属性内的值是资源 ID，不是文本）；位置可调以符合目标语言语序
-3. 参考 sibling strings 推断风格一致性
-4. 源文本可能混合多种语言；按目标 locale 翻译整体含义
-5. 简短直接；UI 空间有限";
+Rules:
+1. Keep all {{x}} template placeholders and C# format placeholders such as {0}, {1:C} unchanged
+2. Keep TMP rich-text tags (<sprite>, <color>, <b>, <size>, <link>, etc.) and their attribute values literal and unchanged (in particular, values inside attributes like name=""..."" and color=""..."" are resource IDs, not text); their position may be reordered to match the target language's word order
+3. Refer to the sibling strings to infer a consistent style
+4. The source text may mix multiple languages; translate the overall meaning into the target locale
+5. Keep it short and direct; UI space is limited";
     }
 }

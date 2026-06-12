@@ -2,7 +2,7 @@
     "name": "com.promptugui.core",
     "version": "1.0.0",
     "displayName": "PromptUGUI",
-    "description": "XML-driven uGUI for Unity 6+",
+    "description": "Comprehensive solution for LLM to write uGUI, it not only for assembling the structure and writing code, but also allows the LLM to generate images directly.",
     "unity": "6000.0",
     "dependencies": {
         "com.unity.ugui": "2.0.0",
