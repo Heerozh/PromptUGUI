@@ -24,21 +24,21 @@ namespace PromptUGUI.Tests.Application
         public void ReplaceFromSrc_Updates_Token_Value_And_Notifies()
         {
             // Seed: 'light' theme with primary=#ff8800 registered against src='themes/main'.
-            var v1 = new Dictionary<string, Color>();
-            ColorUtility.TryParseHtmlString("#ff8800", out var c1); v1["primary"] = c1;
+            var v1 = new Dictionary<string, ColorSpec>();
+            ColorUtility.TryParseHtmlString("#ff8800", out var c1); v1["primary"] = ColorSpec.Solid(c1);
             ThemeStore.Instance.Register("light", null, v1, "themes/main");
             ThemeStore.Instance.ResolveBases();
             UI.Theme.Set("light");
 
             // Simulate hot reload: same src, new value for primary.
-            var v2 = new Dictionary<string, Color>();
-            ColorUtility.TryParseHtmlString("#00ff00", out var c2); v2["primary"] = c2;
+            var v2 = new Dictionary<string, ColorSpec>();
+            ColorUtility.TryParseHtmlString("#00ff00", out var c2); v2["primary"] = ColorSpec.Solid(c2);
 
             string fired = null;
             UI.Theme.Changed += n => fired = n;
 
             ThemeStore.Instance.ReplaceFromSrc("themes/main",
-                new List<(string, string, IReadOnlyDictionary<string, Color>)>
+                new List<(string, string, IReadOnlyDictionary<string, ColorSpec>)>
                 {
                     ("light", null, v2)
                 });
@@ -53,8 +53,8 @@ namespace PromptUGUI.Tests.Application
         public void RaiseChangedIfCurrent_NonCurrent_Does_Not_Fire()
         {
             // Seed two themes; Current = 'light'.
-            var v = new Dictionary<string, Color>();
-            ColorUtility.TryParseHtmlString("#ff8800", out var c); v["primary"] = c;
+            var v = new Dictionary<string, ColorSpec>();
+            ColorUtility.TryParseHtmlString("#ff8800", out var c); v["primary"] = ColorSpec.Solid(c);
             ThemeStore.Instance.Register("light", null, v, "themes/main");
             ThemeStore.Instance.Register("dark", null, v, "themes/main");
             ThemeStore.Instance.ResolveBases();

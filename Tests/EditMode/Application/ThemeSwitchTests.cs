@@ -14,12 +14,12 @@ namespace PromptUGUI.Tests.EditMode.Application
 
         private static void RegisterTwoThemes()
         {
-            var light = new Dictionary<string, Color>();
-            ColorUtility.TryParseHtmlString("#ff8800", out var lp); light["primary"] = lp;
+            var light = new Dictionary<string, ColorSpec>();
+            ColorUtility.TryParseHtmlString("#ff8800", out var lp); light["primary"] = ColorSpec.Solid(lp);
             ThemeStore.Instance.Register("light", null, light, "test");
 
-            var dark = new Dictionary<string, Color>();
-            ColorUtility.TryParseHtmlString("#cc6600", out var dp); dark["primary"] = dp;
+            var dark = new Dictionary<string, ColorSpec>();
+            ColorUtility.TryParseHtmlString("#cc6600", out var dp); dark["primary"] = ColorSpec.Solid(dp);
             ThemeStore.Instance.Register("dark", null, dark, "test");
             ThemeStore.Instance.ResolveBases();
         }

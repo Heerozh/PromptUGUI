@@ -13,9 +13,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
         private static void Seed(string token, string hex)
         {
-            var d = new Dictionary<string, Color>();
+            var d = new Dictionary<string, ColorSpec>();
             ColorUtility.TryParseHtmlString(hex, out var c);
-            d[token] = c;
+            d[token] = ColorSpec.Solid(c);
             ThemeStore.Instance.Register("t", null, d, "test");
             ThemeStore.Instance.ResolveBases();
             UI.Theme.Set("t");

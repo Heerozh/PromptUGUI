@@ -439,10 +439,17 @@ namespace PromptUGUI.Application
                 Changed?.Invoke(name);
             }
 
+            /// <summary>
+            /// Looks up a color token in the current theme.
+            /// For gradient tokens, returns the Top stop (the public surface always returns
+            /// a single <see cref="UnityEngine.Color"/>). Use <c>ThemeStore.Instance.LookupChained</c>
+            /// directly when a <see cref="ColorSpec"/> with both stops is needed.
+            /// </summary>
             public static UnityEngine.Color? Lookup(string token)
             {
                 if (Current == null) return null;
-                return ThemeStore.Instance.LookupChained(Current, token);
+                var spec = ThemeStore.Instance.LookupChained(Current, token);
+                return spec.HasValue ? spec.Value.Top : (UnityEngine.Color?)null;
             }
 
             public static UnityEngine.Color Resolve(string value)
@@ -466,7 +473,7 @@ namespace PromptUGUI.Application
                 if (Current != null)
                 {
                     var hit = ThemeStore.Instance.LookupChained(Current, value);
-                    if (hit.HasValue) return hit.Value;
+                    if (hit.HasValue) return hit.Value.Top;
                 }
                 if (UnityEngine.ColorUtility.TryParseHtmlString(value, out var c))
                     return c;
@@ -916,12 +923,21 @@ namespace PromptUGUI.Application
         {
             foreach (var (theme, themeSrc) in loaded.Themes)
             {
-                var colors = new System.Collections.Generic.Dictionary<string, UnityEngine.Color>(
+                var colors = new System.Collections.Generic.Dictionary<string, ColorSpec>(
                     theme.Colors.Count);
                 foreach (var ce in theme.Colors)
                 {
-                    UnityEngine.ColorUtility.TryParseHtmlString(ce.Value, out var c);
-                    colors[ce.Name] = c;
+                    Parser.ColorParser.TrySplitGradient(ce.Value, out var topRaw, out var bottomRaw, out _);
+                    UnityEngine.ColorUtility.TryParseHtmlString(topRaw, out var top);
+                    if (bottomRaw == null)
+                    {
+                        colors[ce.Name] = ColorSpec.Solid(top);
+                    }
+                    else
+                    {
+                        UnityEngine.ColorUtility.TryParseHtmlString(bottomRaw, out var bottom);
+                        colors[ce.Name] = ColorSpec.Gradient(top, bottom);
+                    }
                 }
                 ThemeStore.Instance.Register(theme.Name, theme.BaseName, colors, themeSrc);
             }
@@ -981,15 +997,24 @@ namespace PromptUGUI.Application
             var bySrc = new System.Collections.Generic.Dictionary<
                 string,
                 System.Collections.Generic.List<(string name, string baseName,
-                    System.Collections.Generic.IReadOnlyDictionary<string, UnityEngine.Color> colors)>>();
+                    System.Collections.Generic.IReadOnlyDictionary<string, ColorSpec> colors)>>();
             foreach (var (theme, themeSrc) in loaded.Themes)
             {
-                var colors = new System.Collections.Generic.Dictionary<string, UnityEngine.Color>(
+                var colors = new System.Collections.Generic.Dictionary<string, ColorSpec>(
                     theme.Colors.Count);
                 foreach (var ce in theme.Colors)
                 {
-                    UnityEngine.ColorUtility.TryParseHtmlString(ce.Value, out var c);
-                    colors[ce.Name] = c;
+                    Parser.ColorParser.TrySplitGradient(ce.Value, out var topRaw, out var bottomRaw, out _);
+                    UnityEngine.ColorUtility.TryParseHtmlString(topRaw, out var top);
+                    if (bottomRaw == null)
+                    {
+                        colors[ce.Name] = ColorSpec.Solid(top);
+                    }
+                    else
+                    {
+                        UnityEngine.ColorUtility.TryParseHtmlString(bottomRaw, out var bottom);
+                        colors[ce.Name] = ColorSpec.Gradient(top, bottom);
+                    }
                 }
                 if (!bySrc.TryGetValue(themeSrc, out var list))
                     bySrc[themeSrc] = list = new();

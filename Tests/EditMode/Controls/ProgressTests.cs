@@ -435,9 +435,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
         private static void SeedLight(string primaryHex)
         {
-            var d = new Dictionary<string, Color>();
+            var d = new Dictionary<string, ColorSpec>();
             ColorUtility.TryParseHtmlString(primaryHex, out var c);
-            d["primary"] = c;
+            d["primary"] = ColorSpec.Solid(c);
             ThemeStore.Instance.Register("light", null, d, "test");
             ThemeStore.Instance.ResolveBases();
             UI.Theme.Set("light");
