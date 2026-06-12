@@ -162,8 +162,11 @@ namespace PromptUGUI.Tests.Editor
         [Test]
         public void Parse_tiled_after_grid_throws()
         {
-            Assert.Throws<PxlParseException>(() =>
-                PxlParser.Parse("chars:\n  K: #000000\n\n[a]\ngrid:\n  KK\n  KK\ntiled: true\n"));
+            // Blank line ends the grid; a later tiled: on the same section must hit the
+            // "tiled must come before grid" guard (Rows already populated).
+            var ex = Assert.Throws<PxlParseException>(() =>
+                PxlParser.Parse("chars:\n  K: #000000\n\n[a]\ngrid:\n  KK\n  KK\n\ntiled: true\n"));
+            StringAssert.Contains("tiled must come before grid", ex.Message);
         }
 
         [Test]
