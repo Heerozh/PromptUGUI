@@ -46,9 +46,12 @@ namespace PromptUGUI.Tests.Controls
         [UnityTest]
         public IEnumerator Type_auto_detects_Sliced_when_sprite_has_border()
         {
+            // Uses the inset skin: bordered but NOT tiled-hinted, so DeriveType picks Sliced.
+            // (pugui_9slice_round carries `tiled: true` now → it would auto-pick Tiled, which is
+            // covered separately in ImageFitTests.Image_autopick_tiled_for_hinted_sprite.)
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
-  <Image id='bg' anchor='stretch' sprite='PromptUGUI/Defaults/pugui.png#pugui_9slice_round'/>
+  <Image id='bg' anchor='stretch' sprite='PromptUGUI/Defaults/pugui.png#pugui_9slice_inset'/>
 </Screen></PromptUGUI>";
             UI.LoadDocument("test", xml);
             var screen = UI.Open("S");
