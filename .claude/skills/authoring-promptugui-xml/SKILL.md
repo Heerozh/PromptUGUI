@@ -121,7 +121,7 @@ uGUI Image，从 `Resources` 加载 sprite；可选 `RectMask2D`（`mask="rect"`
 |---|---|---|---|
 | `sprite` | sprite key | — | |
 | `color` | hex / CSS named / theme token | — | runtime theme token 优先于字面量；见 **Color Tokens** |
-| `type` | `simple` / `sliced` / `tiled` / `filled` / `contain` / `cover` | 自动 | 省略→sprite 有非零 border 取 `sliced`、否则 `simple`。`contain` / `cover` 是相对**父 rect** 的等比适配（`AspectRatioFitter`）：`contain` 内嵌留边、`cover` 填满溢出；尺寸设在**父级**，`cover` 时父级加 `mask="rect"` 裁切。适配模式下 Image 自身 `anchor` / `size` / `width` / `height` / `margin` 被接管失效（`PUI-IMAGE-FIT-GEOMETRY`）；不可 variant 覆盖（`PUI-IMAGE-FIT-VARIANT`）；勿直接作 `<VStack>` / `<HStack>` / `<Grid>` 子节点，套 `<Frame>` |
+| `type` | `simple` / `sliced` / `tiled` / `filled` / `contain` / `cover` | 自动 | 省略→sprite 有非零 border 取 `sliced`、否则 `simple`。`.pxl` 中声明 `tiled: true` 的 sprite 在每个 consumer 上自动渲染为 `tiled`，无需写 `type=`；显式写 `type=` 仍可覆盖。`contain` / `cover` 是相对**父 rect** 的等比适配（`AspectRatioFitter`）：`contain` 内嵌留边、`cover` 填满溢出；尺寸设在**父级**，`cover` 时父级加 `mask="rect"` 裁切。适配模式下 Image 自身 `anchor` / `size` / `width` / `height` / `margin` 被接管失效（`PUI-IMAGE-FIT-GEOMETRY`）；不可 variant 覆盖（`PUI-IMAGE-FIT-VARIANT`）；勿直接作 `<VStack>` / `<HStack>` / `<Grid>` 子节点，套 `<Frame>` |
 | `mask` | `rect` / `self` | — | |
 | `showMask` | bool | `true` | 仅 `mask="self"` |
 | `maskPadding` | `T,R,B,L` | — | 仅 `mask="rect"` |

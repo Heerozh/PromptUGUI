@@ -74,6 +74,7 @@ A line whose **first non-whitespace character is `#`** is a comment, anywhere in
 ### Per-section directives
 
 - `border: L,B,R,T` — optional 9-slice border, four non-negative ints in **Unity sprite-border order: left, bottom, right, top**. Must appear **before** `grid:`. Constraints: `L+R ≤ width`, `B+T ≤ height`. Omit for a non-sliced sprite.
+- `tiled: true` — optional render hint (default false). Every consumer (`<Image>`, `<Btn>`, `<Tab>`, default skins, Carousel cards) automatically renders this sprite with `Image.Type.Tiled` — corners stay fixed while edge strips and the center **repeat** instead of stretching. Use it for edges with a directional pattern that must not distort: vines, moss, wood grain, chains. Works with or without `border:` (borderless ⇒ the whole sprite tiles, e.g. a seamless grass fill). An explicit `type=` in the XML still overrides the hint. Must appear before `grid:`; like `border:`, a repeated declaration is last-wins.
 - `grid:` — the pixel rows follow, one line per row, one character per pixel, **top-down**. Rules:
   - Every row must have **exactly the same width** as the first row (the #1 authoring error — count characters).
   - Every non-`.` character must already be declared in `chars:`.
@@ -109,6 +110,7 @@ You are drawing, not just encoding. Apply these when composing a grid:
 - **1px outline** around the shape, usually the darkest palette color. It's what makes a small sprite read against any background.
 - **Limited ramp**: 2–4 shades per material (highlight / base / shadow). More shades at this size = mud.
 - **9-slice design**: the **corners carry all the detail** (rounded corners, rivets, notches). The **edge strips between the borders must tile** — keep each edge uniform along its axis (a horizontal edge strip should have identical columns; a vertical strip identical rows). The **center must tile or be flat** — a flat fill is safest and lets the button stretch to any size.
+- **Tiled edges** (`tiled: true`): design each edge strip as a seamless **repeating unit** — the pattern must loop cleanly across the strip's own length, and BOTH ends of the strip must return to the plain outline + base fill so the corners and the next repeat join invisibly. A strip that's busy at one end and empty at the other will show a visible seam every tile.
 - **Button states**: pressed = swap the highlight and shadow edges (bevel inverts) and/or darken the face; optionally shift the content 1px down. Hover = lighter face. Keep the outline identical across states so the silhouette doesn't jump.
 - **Centered glyphs want odd dimensions** (e.g. 9×9, 13×13) so there's a true center pixel.
 - **Design at the smallest size that reads**; let PPU / PromptUGUI scaling handle display size. A crisp 12×12 scaled up beats a fuzzy 48×48.
