@@ -30,30 +30,30 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Palette_GlyphColor_IsDarkGrey()
+        public void Palette_GlyphColor_IsThemeInk()
         {
             var c = ProceduralBuilders.DefaultGlyphColor;
-            Assert.That(c.r, Is.EqualTo(0.196f).Within(0.001f));
-            Assert.That(c.g, Is.EqualTo(0.196f).Within(0.001f));
-            Assert.That(c.b, Is.EqualTo(0.196f).Within(0.001f));
+            Assert.That(c.r, Is.EqualTo(0.290f).Within(0.001f));
+            Assert.That(c.g, Is.EqualTo(0.200f).Within(0.001f));
+            Assert.That(c.b, Is.EqualTo(0.133f).Within(0.001f));
             Assert.AreEqual(1f, c.a);
         }
 
         [Test]
-        public void Palette_LabelColor_IsDarkGrey()
+        public void Palette_LabelColor_IsThemeInk()
         {
             var c = ProceduralBuilders.DefaultLabelColor;
-            Assert.That(c.r, Is.EqualTo(0.196f).Within(0.001f));
-            Assert.That(c.g, Is.EqualTo(0.196f).Within(0.001f));
-            Assert.That(c.b, Is.EqualTo(0.196f).Within(0.001f));
+            Assert.That(c.r, Is.EqualTo(0.290f).Within(0.001f));
+            Assert.That(c.g, Is.EqualTo(0.200f).Within(0.001f));
+            Assert.That(c.b, Is.EqualTo(0.133f).Within(0.001f));
             Assert.AreEqual(1f, c.a);
         }
 
         [Test]
-        public void Palette_PlaceholderColor_IsDarkGreyHalfAlpha()
+        public void Palette_PlaceholderColor_IsThemeInkHalfAlpha()
         {
             var c = ProceduralBuilders.DefaultPlaceholderColor;
-            Assert.That(c.r, Is.EqualTo(0.196f).Within(0.001f));
+            Assert.That(c.r, Is.EqualTo(0.290f).Within(0.001f));
             Assert.That(c.a, Is.EqualTo(0.5f).Within(0.001f));
         }
 

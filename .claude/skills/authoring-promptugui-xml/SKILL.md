@@ -74,7 +74,7 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 
 ## Built-in primitives (19)
 
-**默认视觉主题**：白底 sliced + #323232 深字（同 Unity 6 标准 UI prefab）。`color=` / `sprite=` 单点 override，整体深色覆写 `ProceduralBuilders` 常量或用 Variant `color.dark="..."`。想完全去掉自带 sliced 底（只留纯色或透明）写 `sprite="none"`（等价于 `sprite=""`）——见下方"内置控件 `sprite=` 解析"说明。
+**默认视觉主题**：farm-style 像素 9-slice（奶油面 + 木描边），label / glyph 默认暖深棕（`#4A3322`）。`color=` / `sprite=` 单点 override，整体深色覆写 `ProceduralBuilders` 常量或用 Variant `color.dark="..."`。想完全去掉自带 sliced 底（只留纯色或透明）写 `sprite="none"`（等价于 `sprite=""`）——见下方"内置控件 `sprite=` 解析"说明。
 
 Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；各控件属性详见下方对应 `### <Tag>` 小节（`<Icon>` / `<SafeArea>` 的小节在本节末尾）：
 

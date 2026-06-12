@@ -43,7 +43,7 @@ namespace PromptUGUI.Controls
             // Root: sliced bg + TMP_InputField
             _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
             _bg.color = ProceduralBuilders.DefaultControlBgColor;
-            ProceduralBuilders.ApplyDefaultSlicedSprite(_bg);
+            ProceduralBuilders.ApplyDefaultInsetSprite(_bg);
 
             // Text Area: stretch to the field; the inset (offsets + mask overscan) is derived
             // from sprite/padding state in ApplyTextAreaPadding — default = historical prefab

@@ -40,7 +40,7 @@ namespace PromptUGUI.Controls
             bgRt.offsetMax = Vector2.zero;
             _bg = bgRt.gameObject.AddComponent<UnityImage>();
             _bg.color = ProceduralBuilders.DefaultTrackColor;
-            ProceduralBuilders.ApplyDefaultSlicedSprite(_bg);
+            ProceduralBuilders.ApplyDefaultInsetSprite(_bg);
 
             // Fill Area：跟 Background 同样 Y 内缩，X 两侧各留 10px (handle 半径)
             var fillArea = ProceduralBuilders.AddChild(RectTransform, "Fill Area");
@@ -70,8 +70,7 @@ namespace PromptUGUI.Controls
             handleRt.sizeDelta = new Vector2(20f, 0f);
             _handle.color = ProceduralBuilders.DefaultHandleColor;
             // Handle 用 simple type；preserveAspect=false 跟默认 Knob 一致。
-            // atlas 无专用 knob sprite (D8)，临时复用 pugui_9slice_round 当圆角矩形 knob，视觉合理。
-            ProceduralBuilders.ApplyDefaultSimpleSprite(_handle, ProceduralBuilders.SpriteRoundedRect);
+            ProceduralBuilders.ApplyDefaultSimpleSprite(_handle, ProceduralBuilders.SpriteKnob);
 
             _slider = GameObject.GetComponent<UnitySlider>() ?? GameObject.AddComponent<UnitySlider>();
             _slider.targetGraphic = _handle;

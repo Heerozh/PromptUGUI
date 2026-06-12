@@ -347,5 +347,25 @@ namespace PromptUGUI.Tests.EditMode.Controls
             t.IsOn = false;
             Assert.AreEqual(UnityImage.Type.Simple, bg.type, "reverts to Simple for the empty normal sprite");
         }
+
+        // Default-skin tab (no sprite=, no selectedSprite=): the built-in wood frame renders Tiled
+        // (moss/grain edges tile, ApplyDefaultSlicedSprite). Selecting/deselecting must NOT flip it
+        // to Sliced — ApplySelectedSprite re-derives the type and has to fall back to the base type,
+        // not blanket "border -> Sliced".
+        [Test]
+        public void Tab_DefaultSkin_StaysTiled_AcrossSelection()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t' selectedColor='#CDEBA8'/>");
+            var bg = t.GameObject.GetComponent<UnityImage>();
+
+            Assert.AreEqual("pugui_9slice_round", bg.sprite.name);
+            Assert.AreEqual(UnityImage.Type.Tiled, bg.type, "default wood-frame skin tiles its textured edges");
+            t.IsOn = true;
+            Assert.AreEqual(UnityImage.Type.Tiled, bg.type, "selection must not flip the default skin to Sliced");
+            t.IsOn = false;
+            Assert.AreEqual(UnityImage.Type.Tiled, bg.type, "deselection keeps the default skin Tiled");
+        }
     }
 }

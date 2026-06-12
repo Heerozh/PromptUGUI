@@ -45,7 +45,7 @@ namespace PromptUGUI.Controls
         {
             _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
             _bg.color = ProceduralBuilders.DefaultContainerColor;
-            ProceduralBuilders.ApplyDefaultSlicedSprite(_bg);
+            ProceduralBuilders.ApplyDefaultInsetSprite(_bg);
             _scroll = GameObject.GetComponent<ScrollRect>() ?? GameObject.AddComponent<ScrollRect>();
 
             _viewport = ProceduralBuilders.AddChild(RectTransform, "Viewport");
@@ -314,7 +314,7 @@ namespace PromptUGUI.Controls
             rt.sizeDelta = new Vector2(20f, 0f);
             var bg = rt.gameObject.AddComponent<UnityImage>();
             bg.color = UnityEngine.Color.white;
-            ProceduralBuilders.ApplyDefaultSlicedSprite(bg);
+            ProceduralBuilders.ApplyDefaultInsetSprite(bg);
             _vertScrollbar = rt.gameObject.AddComponent<Scrollbar>();
             _vertScrollbar.direction = Scrollbar.Direction.BottomToTop;
 
@@ -348,7 +348,7 @@ namespace PromptUGUI.Controls
             rt.sizeDelta = new Vector2(0f, 20f);
             var bg = rt.gameObject.AddComponent<UnityImage>();
             bg.color = UnityEngine.Color.white;
-            ProceduralBuilders.ApplyDefaultSlicedSprite(bg);
+            ProceduralBuilders.ApplyDefaultInsetSprite(bg);
             _horizScrollbar = rt.gameObject.AddComponent<Scrollbar>();
             _horizScrollbar.direction = Scrollbar.Direction.LeftToRight;
 
