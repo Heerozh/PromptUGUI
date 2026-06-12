@@ -105,10 +105,30 @@ namespace PromptUGUI.Editor
                 {
                     var rect = GUILayoutUtility.GetRect(32, 32, GUILayout.Width(32));
                     if (sprites.TryGetValue(name, out var sp) && sp.texture != null)
-                        GUI.DrawTexture(rect, sp.texture, ScaleMode.ScaleToFit);
+                        DrawSpritePreview(rect, sp);
                     EditorGUILayout.LabelField($"[{name}]  {s.Width}×{s.Height}  border: {border}{tiledSuffix}");
                 }
             }
+        }
+
+        /// <summary>画 sprite 自身的贴图区域而非整张 texture：SpriteAtlasSyncer 把
+        /// Sliced 等 sprite 打进图集后，sprite.texture 变成整张图集页，直接 DrawTexture
+        /// 会让所有 .pxl 显示同一张图。tight-packed 时 textureRect 不可用，退回整图。</summary>
+        private static void DrawSpritePreview(Rect rect, Sprite sp)
+        {
+            if (sp.packed && sp.packingMode != SpritePackingMode.Rectangle)
+            {
+                GUI.DrawTexture(rect, sp.texture, ScaleMode.ScaleToFit);
+                return;
+            }
+            var tr = sp.textureRect;
+            var uv = new Rect(tr.x / sp.texture.width, tr.y / sp.texture.height,
+                tr.width / sp.texture.width, tr.height / sp.texture.height);
+            // 保持宽高比（ScaleToFit 等价）
+            var scale = Mathf.Min(rect.width / tr.width, rect.height / tr.height);
+            var size = new Vector2(tr.width, tr.height) * scale;
+            var fitted = new Rect(rect.center - size / 2f, size);
+            GUI.DrawTextureWithTexCoords(fitted, sp.texture, uv);
         }
 
         private void ExportPng()
