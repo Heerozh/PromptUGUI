@@ -8,6 +8,10 @@ namespace PromptUGUI.Application.Tutorial
     /// 洞内不渲染、IsRaycastLocationValid 返回 false → 点击穿透到下层真实控件。
     /// 不用 shader/stencil,WebGL 安全。
     /// </summary>
+    // Graphic 只 RequireComponent(RectTransform);CanvasRenderer 由各具体 graphic(Image/Text…)
+    // 各自声明,自定义 Graphic 子类必须自己加,否则 AddComponent 不补 CanvasRenderer →
+    // GraphicRaycaster 每帧读 canvasRenderer.cull 抛 MissingComponentException。
+    [RequireComponent(typeof(CanvasRenderer))]
     internal sealed class SpotlightMask : MaskableGraphic, ICanvasRaycastFilter
     {
         private Rect? _hole;   // 本地坐标(pivot 居中)
