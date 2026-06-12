@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using LitMotion;
+using PromptUGUI.Application;
 using PromptUGUI.IR;
 using PromptUGUI.Layout;
 using UnityEngine;
@@ -236,7 +237,7 @@ namespace PromptUGUI.Controls.Internal
             layout.childForceExpandWidth = false;
             layout.childForceExpandHeight = false;
 
-            var abs = StateColorSet.Resolve(_dotHoverColor, _dotPressedColor, null, null);
+            var abs = StateColorSet.ResolveAbsolutes(_dotHoverColor, _dotPressedColor, null, null);
             var emptyChildren = System.Array.Empty<IControl>();
             for (int i = 0; i < _cards.Count; i++)
             {
@@ -262,8 +263,11 @@ namespace PromptUGUI.Controls.Internal
                 btn.targetGraphic = img;
                 btn.onClick.AddListener(() => GoTo(captured, animated: true));
 
+                ColorSpec? dotSelBase = _dotSelectedColor.HasValue
+                    ? ColorSpec.Solid(_dotSelectedColor.Value)
+                    : (ColorSpec?)null;
                 var reactor = StateTintInstaller.Install(dotRt.gameObject, btn, emptyChildren,
-                    abs, default, _dotSelectedColor, selected: captured == _current);
+                    abs, default, dotSelBase, selected: captured == _current);
 
                 _dotImages.Add(img);
                 _dotReactors.Add(reactor);

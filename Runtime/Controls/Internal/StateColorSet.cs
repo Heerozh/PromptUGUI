@@ -4,20 +4,19 @@ using UnityEngine;
 namespace PromptUGUI.Controls.Internal
 {
     /// <summary>
-    /// Four optional colours keyed by <see cref="InteractState"/> (Hover / Pressed / Selected /
+    /// Four optional colour specs keyed by <see cref="InteractState"/> (Hover / Pressed / Selected /
     /// Disabled; Normal has no entry). Used twice by <see cref="StateTintReactor"/>: as per-state
-    /// ABSOLUTE base overrides (applied only to the control's <c>targetGraphic</c>) and as per-state
-    /// relative MULTIPLIERS (white = identity, fanned out to the whole subtree). A null entry means
-    /// "no override for that state".
+    /// ABSOLUTE base overrides (targetGraphic only — gradients allowed) and as per-state relative
+    /// MULTIPLIERS (white = identity, solid-only, fanned out to the whole subtree). null = no override.
     /// </summary>
     internal readonly struct StateColorSet
     {
-        public readonly Color? Hover;
-        public readonly Color? Pressed;
-        public readonly Color? Selected;
-        public readonly Color? Disabled;
+        public readonly ColorSpec? Hover;
+        public readonly ColorSpec? Pressed;
+        public readonly ColorSpec? Selected;
+        public readonly ColorSpec? Disabled;
 
-        public StateColorSet(Color? hover, Color? pressed, Color? selected, Color? disabled)
+        public StateColorSet(ColorSpec? hover, ColorSpec? pressed, ColorSpec? selected, ColorSpec? disabled)
         {
             Hover = hover;
             Pressed = pressed;
@@ -25,7 +24,7 @@ namespace PromptUGUI.Controls.Internal
             Disabled = disabled;
         }
 
-        public Color? For(InteractState state) => state switch
+        public ColorSpec? For(InteractState state) => state switch
         {
             InteractState.Hover => Hover,
             InteractState.Pressed => Pressed,
@@ -37,14 +36,20 @@ namespace PromptUGUI.Controls.Internal
         // "HasAny" (not "Any") so a use-site like `set.HasAny` never reads as a LINQ Enumerable.Any call.
         public bool HasAny => Hover.HasValue || Pressed.HasValue || Selected.HasValue || Disabled.HasValue;
 
-        /// <summary>Resolve four raw attribute strings (hex / CSS named / theme token; null / empty /
-        /// whitespace ⇒ no override) into resolved colours via <see cref="UI.Theme"/>.</summary>
-        public static StateColorSet Resolve(string hover, string pressed, string selected, string disabled)
-            => new(R(hover), R(pressed), R(selected), R(disabled));
+        /// <summary>Absolute per-state base overrides — gradients allowed (spec §5). null/empty/whitespace
+        /// ⇒ no override. Resolved via <see cref="UI.Theme.ResolveSpec"/>.</summary>
+        public static StateColorSet ResolveAbsolutes(string hover, string pressed, string selected, string disabled)
+            => new(RSpec(hover), RSpec(pressed), RSpec(selected), RSpec(disabled));
 
-        // IsNullOrWhiteSpace (not IsNullOrEmpty): a whitespace-only attribute value from XML is
-        // treated as "no override" rather than passed to Theme.Resolve, which would error.
-        private static Color? R(string v)
-            => string.IsNullOrWhiteSpace(v) ? (Color?)null : UI.Theme.Resolve(v);
+        /// <summary>Relative per-state multipliers — SOLID ONLY (spec §6). A gradient value throws via
+        /// <see cref="UI.Theme.Resolve"/> ("does not support gradient colors"). null/empty/whitespace ⇒ none.</summary>
+        public static StateColorSet ResolveModulates(string hover, string pressed, string selected, string disabled)
+            => new(RSolid(hover), RSolid(pressed), RSolid(selected), RSolid(disabled));
+
+        // IsNullOrWhiteSpace (not IsNullOrEmpty): a whitespace-only XML attr value is "no override".
+        private static ColorSpec? RSpec(string v)
+            => string.IsNullOrWhiteSpace(v) ? (ColorSpec?)null : UI.Theme.ResolveSpec(v);
+        private static ColorSpec? RSolid(string v)
+            => string.IsNullOrWhiteSpace(v) ? (ColorSpec?)null : ColorSpec.Solid(UI.Theme.Resolve(v));
     }
 }

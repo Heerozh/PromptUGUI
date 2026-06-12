@@ -1,5 +1,6 @@
 using System;
 using LitMotion;
+using PromptUGUI.Application;
 using R3;
 using UnityEngine;
 using UnityEngine.UI;
@@ -34,8 +35,8 @@ namespace PromptUGUI.Controls.Internal
 
         private Graphic _graphic;
         private bool _baseCaptured;
-        private Color _baseColor = Color.white;
-        private Color? _selectedBase;       // base while the source is selected (Tab/Toggle isOn); null ⇒ none
+        private ColorSpec _baseColor = ColorSpec.Solid(Color.white);
+        private ColorSpec? _selectedBase;   // base while the source is selected (Tab/Toggle isOn); null ⇒ none
         private bool _selected;             // pushed by the owning control via SetSelected
 
         private StateColorSet _absolutes;   // per-state ABSOLUTE base override (targetGraphic only)
@@ -52,7 +53,7 @@ namespace PromptUGUI.Controls.Internal
             _graphic = GetComponent<Graphic>();
             if (_graphic != null && !_baseCaptured)
             {
-                _baseColor = _graphic.color;
+                _baseColor = ColorApplier.Peek(_graphic);
                 _baseCaptured = true;
             }
 
@@ -68,7 +69,7 @@ namespace PromptUGUI.Controls.Internal
         /// (Re)set the per-state absolute overrides + relative multipliers + fade. Safe to call
         /// repeatedly (Variant ReSolve): the base colour stays captured from the first init.
         /// </summary>
-        public void Configure(StateColorSet absolutes, StateColorSet modulates, float fade, Color? selectedBase = null, bool selected = false)
+        public void Configure(StateColorSet absolutes, StateColorSet modulates, float fade, ColorSpec? selectedBase = null, bool selected = false)
         {
             // Assign the colour sets BEFORE EnsureInit subscribes: the OnState subscription replays
             // the source's current state synchronously, so if the control is already in a non-Normal
@@ -106,9 +107,9 @@ namespace PromptUGUI.Controls.Internal
             if (_source != null) OnState(_source.Current);
         }
 
-        private Color MultiplierFor(InteractState state) => _modulates.For(state) ?? Color.white;
+        private Color MultiplierFor(InteractState state) => _modulates.For(state)?.Top ?? Color.white;
 
-        private Color BaseFor(InteractState state)
+        private ColorSpec BaseFor(InteractState state)
             => _absolutes.For(state)
                ?? ((_selected && _selectedBase.HasValue) ? _selectedBase.Value : _baseColor);
 
@@ -123,17 +124,22 @@ namespace PromptUGUI.Controls.Internal
         private void OnState(InteractState state)
         {
             if (_graphic == null) return;
-            var target = BaseFor(state) * MultiplierFor(state);
+            var target = BaseFor(state).Multiply(MultiplierFor(state));   // premultiply modulate into both stops
 
             if (_handle.IsActive()) _handle.TryCancel();
 
-            if (TestForceInstant || _fade <= 0f || CrossesTransparency(_graphic.color, target))
+            var current = ColorApplier.Peek(_graphic);
+            // Gradients snap: there's no Color-lerp for a vertex gradient. Solid↔solid (non-transparent)
+            // keeps the existing fade. Mirrors the CrossesTransparency snap precedent.
+            if (TestForceInstant || _fade <= 0f
+                || target.IsGradient || current.IsGradient
+                || CrossesTransparency(current.Top, target.Top))
             {
-                _graphic.color = target;
+                ColorApplier.Apply(_graphic, target);
                 return;
             }
 
-            _handle = LMotion.Create(_graphic.color, target, _fade)
+            _handle = LMotion.Create(_graphic.color, target.Top, _fade)
                 .Bind(_graphic, static (c, g) => g.color = c);
         }
 
