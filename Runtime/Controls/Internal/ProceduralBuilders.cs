@@ -70,10 +70,9 @@ namespace PromptUGUI.Controls.Internal
         public static UnityImage.Type DeriveType(Sprite s)
         {
             EnsureDefaultHintsRegistered();
-            return s == null ? UnityImage.Type.Simple :
-                   PromptUGUI.Application.Internal.SpriteRenderHints.IsTiled(s) ? UnityImage.Type.Tiled :
-                   s.border != Vector4.zero ? UnityImage.Type.Sliced :
-                                                                                                 UnityImage.Type.Simple;
+            if (s == null) return UnityImage.Type.Simple;
+            if (PromptUGUI.Application.Internal.SpriteRenderHints.IsTiled(s)) return UnityImage.Type.Tiled;
+            return s.border != Vector4.zero ? UnityImage.Type.Sliced : UnityImage.Type.Simple;
         }
 
         /// <summary>给 Image 应用 9-slice 圆角 sprite 兜底；调用者后续 sprite= 仍可 override。

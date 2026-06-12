@@ -120,7 +120,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 ProceduralBuilders.ApplyDefaultInsetSprite(img);
                 Assert.IsNotNull(img.sprite, "default inset sprite must resolve");
                 Assert.AreEqual("pugui_9slice_inset", img.sprite.name);
-                Assert.AreEqual(UnityEngine.UI.Image.Type.Sliced, img.type);
+                Assert.AreEqual(UnityEngine.UI.Image.Type.Sliced, img.type,
+                    "inset 无 tiled hint → DeriveType 落到 border → Sliced");
             }
             finally { Object.DestroyImmediate(go); }
         }
