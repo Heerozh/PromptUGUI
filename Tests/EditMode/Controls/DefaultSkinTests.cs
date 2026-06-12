@@ -30,11 +30,15 @@ namespace PromptUGUI.Tests.EditMode.Controls
         public void ApplyDefaultInsetSprite_SetsInsetSliced()
         {
             var go = new GameObject("img", typeof(RectTransform));
-            var img = go.AddComponent<UnityEngine.UI.Image>();
-            ProceduralBuilders.ApplyDefaultInsetSprite(img);
-            Assert.AreEqual("pugui_9slice_inset", img.sprite.name);
-            Assert.AreEqual(UnityEngine.UI.Image.Type.Sliced, img.type);
-            Object.DestroyImmediate(go);
+            try
+            {
+                var img = go.AddComponent<UnityEngine.UI.Image>();
+                ProceduralBuilders.ApplyDefaultInsetSprite(img);
+                Assert.IsNotNull(img.sprite, "default inset sprite must resolve");
+                Assert.AreEqual("pugui_9slice_inset", img.sprite.name);
+                Assert.AreEqual(UnityEngine.UI.Image.Type.Sliced, img.type);
+            }
+            finally { Object.DestroyImmediate(go); }
         }
     }
 }

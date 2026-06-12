@@ -30,7 +30,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Palette_GlyphColor_IsDarkGrey()
+        public void Palette_GlyphColor_IsThemeInk()
         {
             var c = ProceduralBuilders.DefaultGlyphColor;
             Assert.That(c.r, Is.EqualTo(0.290f).Within(0.001f));
@@ -40,7 +40,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Palette_LabelColor_IsDarkGrey()
+        public void Palette_LabelColor_IsThemeInk()
         {
             var c = ProceduralBuilders.DefaultLabelColor;
             Assert.That(c.r, Is.EqualTo(0.290f).Within(0.001f));
@@ -50,7 +50,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Palette_PlaceholderColor_IsDarkGreyHalfAlpha()
+        public void Palette_PlaceholderColor_IsThemeInkHalfAlpha()
         {
             var c = ProceduralBuilders.DefaultPlaceholderColor;
             Assert.That(c.r, Is.EqualTo(0.290f).Within(0.001f));

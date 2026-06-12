@@ -19,10 +19,10 @@ namespace PromptUGUI.Controls.Internal
         public static readonly Color DefaultContainerColor = new(1f, 1f, 1f, 0.392f);
         // 单一暖深棕色源（#4A3322），匹配种田风奶油皮肤；让 glyph / label / placeholder 三个语义角色共用同一基色
         // 单点修改：换主题色只动这一行
-        private static readonly Color s_darkGrey = new(0.290f, 0.200f, 0.133f, 1f);
-        public static readonly Color DefaultGlyphColor = s_darkGrey;
-        public static readonly Color DefaultLabelColor = s_darkGrey;
-        public static readonly Color DefaultPlaceholderColor = new(s_darkGrey.r, s_darkGrey.g, s_darkGrey.b, 0.5f);
+        private static readonly Color s_inkColor = new(0.290f, 0.200f, 0.133f, 1f);
+        public static readonly Color DefaultGlyphColor = s_inkColor;
+        public static readonly Color DefaultLabelColor = s_inkColor;
+        public static readonly Color DefaultPlaceholderColor = new(s_inkColor.r, s_inkColor.g, s_inkColor.b, 0.5f);
 
         // pugui.png 像素图集中的精灵名（参见 Runtime/Resources/PromptUGUI/Defaults/pugui.png.meta）
         public const string SpriteRoundedRect = "pugui_9slice_round";
