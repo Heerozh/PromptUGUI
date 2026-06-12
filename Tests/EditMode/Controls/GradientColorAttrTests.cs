@@ -148,5 +148,68 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 Open("<Btn id='b' hoverModulate='#ffffff,#000000'>x</Btn>"));
             StringAssert.Contains("does not support gradient", ex.Message);
         }
+
+        // 8. Text gradient — enables TMP VertexGradient, top=white, bottom=black, color==white
+        [Test]
+        public void Text_Gradient_SetsTmpVertexGradient()
+        {
+            var s = Open("<Text id='t' color='#ffffff,#000000'>hello</Text>");
+            var tmp = s.Get<PromptUGUI.Controls.Text>("t").GameObject
+                       .GetComponentInChildren<TMPro.TMP_Text>();
+            Assert.IsNotNull(tmp, "TMP_Text component must be present");
+            Assert.IsTrue(tmp.enableVertexGradient, "enableVertexGradient must be true for gradient");
+            Assert.AreEqual(Color.white, tmp.colorGradient.topLeft, "topLeft must be white");
+            Assert.AreEqual(Color.white, tmp.colorGradient.topRight, "topRight must be white");
+            Assert.AreEqual(Color.black, tmp.colorGradient.bottomLeft, "bottomLeft must be black");
+            Assert.AreEqual(Color.black, tmp.colorGradient.bottomRight, "bottomRight must be black");
+            Assert.AreEqual(Color.white, tmp.color, "color must be white when gradient is active");
+        }
+
+        // 9. Text solid color — no VertexGradient, color==red
+        [Test]
+        public void Text_Solid_NoVertexGradient()
+        {
+            var s = Open("<Text id='t' color='#ff0000'>hi</Text>");
+            var tmp = s.Get<PromptUGUI.Controls.Text>("t").GameObject
+                       .GetComponentInChildren<TMPro.TMP_Text>();
+            Assert.IsNotNull(tmp, "TMP_Text component must be present");
+            Assert.IsFalse(tmp.enableVertexGradient, "enableVertexGradient must be false for solid color");
+            Assert.AreEqual(Color.red, tmp.color, "solid color must be applied directly");
+        }
+
+        // 10. Text Variant round-trip: gradient→solid reverts enableVertexGradient; solid→gradient restores it
+        [Test]
+        public void Text_Variant_GradientToSolid_RevertsVertexGradient()
+        {
+            var s = Open("<Text id='t' color='#ffffff,#000000' color.mobile='#ff0000'>x</Text>");
+            var tmp = s.Get<PromptUGUI.Controls.Text>("t").GameObject
+                       .GetComponentInChildren<TMPro.TMP_Text>();
+            Assert.IsNotNull(tmp, "TMP_Text component must be present");
+
+            // Baseline: gradient active
+            Assert.IsTrue(tmp.enableVertexGradient, "enableVertexGradient must be true at baseline");
+            Assert.AreEqual(Color.white, tmp.colorGradient.topLeft, "gradient top must be white at baseline");
+            Assert.AreEqual(Color.black, tmp.colorGradient.bottomRight, "gradient bottom must be black at baseline");
+
+            try
+            {
+                // Activate mobile variant → solid red, gradient disabled
+                UI.Variants.Set("mobile", true);
+
+                Assert.IsFalse(tmp.enableVertexGradient, "enableVertexGradient must be false after switching to solid variant");
+                Assert.AreEqual(Color.red, tmp.color, "solid variant color must be applied");
+
+                // Deactivate → gradient restored
+                UI.Variants.Set("mobile", false);
+
+                Assert.IsTrue(tmp.enableVertexGradient, "enableVertexGradient must be re-enabled after restoring gradient variant");
+                Assert.AreEqual(Color.white, tmp.colorGradient.topLeft, "gradient top must be white after restore");
+                Assert.AreEqual(Color.black, tmp.colorGradient.bottomRight, "gradient bottom must be black after restore");
+            }
+            finally
+            {
+                UI.Variants.Set("mobile", false);
+            }
+        }
     }
 }
