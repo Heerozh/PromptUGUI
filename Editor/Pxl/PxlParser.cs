@@ -150,11 +150,11 @@ namespace PromptUGUI.Editor
                 }
                 if (line.StartsWith("tiled:", StringComparison.Ordinal))
                 {
+                    // grid: 之前可反复声明，last-wins，同 border:。
                     section = EnsureSection(doc, section, ref sawImplicitContent);
                     if (section.Rows.Count > 0)
                         throw new PxlParseException(lineNo, "tiled must come before grid");
                     var tv = line.Substring("tiled:".Length).Trim();
-                    // 重复声明 last-wins，同 border:
                     section.Tiled = tv switch
                     {
                         "true" => true,

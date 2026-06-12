@@ -151,6 +151,13 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Parse_tiled_false_explicit_accepted()
+        {
+            var doc = PxlParser.Parse("chars:\n  K: #000000\n\n[a]\ntiled: false\ngrid:\n  KK\n  KK\n");
+            Assert.IsFalse(doc.Sections[0].Tiled);
+        }
+
+        [Test]
         public void Parse_tiled_invalid_value_reports_line()
         {
             var ex = Assert.Throws<PxlParseException>(() =>
