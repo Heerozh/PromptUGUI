@@ -124,6 +124,44 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Btn_on_hidden_tab_page_measures_same_as_active_page()
+        {
+            // Regression: a TabBar deactivates its non-selected bound pages from
+            // TabBar.OnAfterApply — which runs DURING the apply pass, before those pages'
+            // own Btn descendants are applied (TabBar precedes the pages in document order).
+            // A Btn's auto label is created via AddComponent<TMP> in EnsureLabel; on a
+            // GameObject that is already inactive, TMP's Awake/OnEnable never runs, so
+            // GetNativeSize measures a garbage (~1/10) preferredWidth that gets frozen into
+            // LayoutElement.preferredWidth → the page, once shown, has an undersized button
+            // whose text overflows. The same Btn on the SELECTED page measures correctly;
+            // the hidden-page Btn must match it.
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='tabs' anchor='top-stretch' height='32'>
+    <Tab id='tabA' width='84' text='A' isOn='true' bind='pageA'/>
+    <Tab id='tabB' width='84' text='B' bind='pageB'/>
+  </TabBar>
+  <Frame id='pageA' anchor='stretch' margin='32,0,0,0'>
+    <VStack anchor='stretch'><Btn id='activeBtn'>MessageBox</Btn></VStack>
+  </Frame>
+  <Frame id='pageB' anchor='stretch' margin='32,0,0,0'>
+    <VStack anchor='stretch'><Btn id='hiddenBtn'>MessageBox</Btn></VStack>
+  </Frame>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+
+            var activeLE = screen.Get<Btn>("activeBtn").GameObject.GetComponent<LayoutElement>();
+            var hiddenLE = screen.Get<Btn>("hiddenBtn").GameObject.GetComponent<LayoutElement>();
+            Assert.IsNotNull(activeLE);
+            Assert.IsNotNull(hiddenLE);
+            Assert.Greater(activeLE.preferredWidth, 32f,
+                "sanity: active-page Btn measures label+padding, well above the 32 padding floor");
+            Assert.AreEqual(activeLE.preferredWidth, hiddenLE.preferredWidth, 0.5f,
+                "a Btn on an initially-hidden tab page must measure the same width as the same Btn on the active page");
+        }
+
+        [Test]
         public void Btn_in_HStack_variant_text_change_updates_preferred()
         {
             // BCS-D9: ApplyCommon 在 Variant 切换时重跑 → GetNativeSize 重算 → LE.preferred 跟随
