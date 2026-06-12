@@ -11,13 +11,20 @@ namespace PromptUGUI.Samples.CommonControls
     /// 全控件橱窗：TabBar 四页演示所有内置控件 + 内置模态 / Toast / UI.Tutorial 新手引导。
     /// 使用步骤：
     ///   1. 场景里建空 GameObject，挂本组件
-    ///   2. 按 Play；点右上角「新手引导」体验引导（可反复触发）
+    ///   2. 把 FarmSpriteSet.asset 拖到 Inspector 的 Sprite Sets 字段
+    ///   3. 按 Play；点右上角「新手引导」体验引导（可反复触发）
     /// </summary>
     public sealed class CommonControlsRunner : MonoBehaviour
     {
+        [SerializeField] SpriteSet[] spriteSets;   // 拖 FarmSpriteSet.asset
+
         async void Start()
         {
             UI.UseResourcesResolver("UI");
+
+            if (spriteSets != null && spriteSets.Length > 0)
+                SpriteResolverHelpers.UseSpriteSetResolver(spriteSets);
+
             await UI.LoadDocumentAsync("CommonControls.ui");
             var screen = UI.Open("CommonControls");
 
