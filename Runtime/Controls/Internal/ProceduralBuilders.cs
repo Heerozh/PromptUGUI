@@ -24,7 +24,7 @@ namespace PromptUGUI.Controls.Internal
         public static readonly Color DefaultLabelColor = s_inkColor;
         public static readonly Color DefaultPlaceholderColor = new(s_inkColor.r, s_inkColor.g, s_inkColor.b, 0.5f);
 
-        // pugui.png 像素图集中的精灵名（参见 Runtime/Resources/PromptUGUI/Defaults/pugui.png.meta）
+        // pugui.pxl 像素图集中的精灵名（section 名 = sprite 名，参见 Runtime/Resources/PromptUGUI/Defaults/pugui.pxl）
         public const string SpriteRoundedRect = "pugui_9slice_round";
         public const string SpriteMaskRoundedRect = "pugui_9slice_mask";
         public const string SpriteCaret = "pugui_caret";

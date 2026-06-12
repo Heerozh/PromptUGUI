@@ -136,7 +136,7 @@ namespace PromptUGUI.Controls
             scrollbarRt.anchoredPosition = Vector2.zero;
             var scrollbarBg = scrollbarRt.gameObject.AddComponent<UnityImage>();
             scrollbarBg.color = ProceduralBuilders.DefaultControlBgColor; // white
-            ProceduralBuilders.ApplyDefaultSlicedSprite(scrollbarBg);
+            ProceduralBuilders.ApplyDefaultInsetSprite(scrollbarBg);
             var scrollbar = scrollbarRt.gameObject.AddComponent<UnityEngine.UI.Scrollbar>();
             scrollbar.direction = UnityEngine.UI.Scrollbar.Direction.BottomToTop;
             scrollbar.value = 0f;
