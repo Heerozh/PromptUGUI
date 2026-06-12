@@ -285,6 +285,10 @@ C# Code:
   - 全响应式UI支持，自动根据屏幕和设备切换布局
   - 像素艺术风格UI支持
   - 自动XSD Schema语法检查 + 内置语法检查 CLI
+- **提供X PixMap/GIMP 风格的Sprite图像描述语言**
+  - 同样是大模型熟悉的文本格式
+  - 无须生图模型，可通过文字描述让Code Agent直接为UI出图，修改风格
+  - This is the way
 - **控件丰富**
   - 基础UI元素支持（Btn/Image/Frame/InputField/Toggle/Dropdown/Slider/ScrollList/Progress/TabBar等）
   - Carousel 轮播卡片组件，用于显示Banner公告等；
