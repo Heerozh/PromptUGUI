@@ -165,5 +165,97 @@ namespace PromptUGUI.Tests.Application
             Assert.AreEqual(half, spec.Top);
             Assert.AreEqual(half, spec.Bottom);
         }
+
+        // ── UI.Theme.ResolveSpec / Resolve tests ──────────────────────────────
+
+        [Test]
+        public void ResolveSpec_LiteralGradient_IsGradient_Top_White_Bottom_Black()
+        {
+            var spec = UI.Theme.ResolveSpec("#ffffff,#000000");
+            Assert.IsTrue(spec.IsGradient);
+            Assert.AreEqual(Color.white, spec.Top);
+            Assert.AreEqual(Color.black, spec.Bottom);
+        }
+
+        [Test]
+        public void ResolveSpec_GradientToken_IsGradient()
+        {
+            SeedGradient("t", null, "grad", "#ffffff", "#000000");
+            UI.Theme.Set("t");
+            var spec = UI.Theme.ResolveSpec("grad");
+            Assert.IsTrue(spec.IsGradient);
+        }
+
+        [Test]
+        public void ResolveSpec_GradientToken_WithAlpha_BothStopsAlpha()
+        {
+            SeedGradient("t", null, "grad", "#ffffff", "#000000");
+            UI.Theme.Set("t");
+            var spec = UI.Theme.ResolveSpec("grad/0.5");
+            Assert.IsTrue(spec.IsGradient);
+            Assert.AreEqual(0.5f, spec.Top.a, 0.001f);
+            Assert.AreEqual(0.5f, spec.Bottom.a, 0.001f);
+        }
+
+        [Test]
+        public void ResolveSpec_PerSegmentAlpha_OnlyAffectsThatStop()
+        {
+            // "#ffffff/0.5,#000000" → Top.a ≈ 0.5, Bottom.a ≈ 1
+            var spec = UI.Theme.ResolveSpec("#ffffff/0.5,#000000");
+            Assert.IsTrue(spec.IsGradient);
+            Assert.AreEqual(0.5f, spec.Top.a, 0.001f);
+            Assert.AreEqual(1.0f, spec.Bottom.a, 0.001f);
+        }
+
+        [Test]
+        public void ResolveSpec_NestedGradientToken_Throws_ContainsCannotNest()
+        {
+            SeedGradient("t", null, "grad", "#ffffff", "#000000");
+            UI.Theme.Set("t");
+            // "grad,#000000" — the first segment resolves to a gradient token; must error
+            var ex = Assert.Throws<System.Exception>(() => UI.Theme.ResolveSpec("grad,#000000"));
+            StringAssert.Contains("cannot nest", ex.Message);
+        }
+
+        [Test]
+        public void Resolve_LiteralGradient_Throws_ContainsDoesNotSupport()
+        {
+            var ex = Assert.Throws<System.Exception>(() => UI.Theme.Resolve("#ffffff,#000000"));
+            StringAssert.Contains("does not support gradient", ex.Message);
+        }
+
+        [Test]
+        public void Resolve_GradientToken_Throws_ContainsDoesNotSupport()
+        {
+            SeedGradient("t", null, "grad", "#ffffff", "#000000");
+            UI.Theme.Set("t");
+            var ex = Assert.Throws<System.Exception>(() => UI.Theme.Resolve("grad"));
+            StringAssert.Contains("does not support gradient", ex.Message);
+        }
+
+        [Test]
+        public void ResolveSpec_SolidLiteral_NotGradient_TopIsRed()
+        {
+            var spec = UI.Theme.ResolveSpec("#ff0000");
+            Assert.IsFalse(spec.IsGradient);
+            Assert.AreEqual(new Color32(0xff, 0x00, 0x00, 0xff), (Color32)spec.Top);
+        }
+
+        [Test]
+        public void Resolve_SolidLiteral_ReturnsRed_NoRegression()
+        {
+            var c = UI.Theme.Resolve("#ff0000");
+            Assert.AreEqual(new Color32(0xff, 0x00, 0x00, 0xff), (Color32)c);
+        }
+
+        [Test]
+        public void ResolveSpec_SoftFail_UnknownTheme_ReturnsSolidWhite()
+        {
+            // Set a theme name that has no registered theme → soft-fail path
+            UI.Theme.Set("nope");
+            var spec = UI.Theme.ResolveSpec("anytoken");
+            Assert.IsFalse(spec.IsGradient, "soft-fail must return Solid (not gradient)");
+            Assert.AreEqual(Color.white, spec.Top);
+        }
     }
 }
