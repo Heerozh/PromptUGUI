@@ -218,6 +218,17 @@ namespace PromptUGUI.Tests.Application
         }
 
         [Test]
+        public void ResolveSpec_NestedGradientToken_WithAlpha_Throws_ContainsCannotNest()
+        {
+            SeedGradient("t", null, "grad", "#ffffff", "#000000");
+            UI.Theme.Set("t");
+            // "grad/0.5,#000000" — alpha-split happens before the IsGradient guard;
+            // the base "grad" still resolves to a gradient token and must error
+            var ex = Assert.Throws<System.Exception>(() => UI.Theme.ResolveSpec("grad/0.5,#000000"));
+            StringAssert.Contains("cannot nest", ex.Message);
+        }
+
+        [Test]
         public void Resolve_LiteralGradient_Throws_ContainsDoesNotSupport()
         {
             var ex = Assert.Throws<System.Exception>(() => UI.Theme.Resolve("#ffffff,#000000"));

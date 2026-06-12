@@ -4,7 +4,7 @@ namespace PromptUGUI.Application
 {
     /// <summary>
     /// A resolved colour value: solid, or a two-stop vertical gradient (Top → Bottom).
-    /// Produced by <c>UI.Theme.ResolveSpec</c> (arriving in a later task); applied by <c>ColorApplier</c>
+    /// Produced by <c>UI.Theme.ResolveSpec</c>; applied by <c>ColorApplier</c>
     /// (vertex-tint slot) or the TMP vertex-gradient path in <c>Text</c>.
     /// Solid values keep <see cref="Bottom"/> == <see cref="Top"/> so consumers that
     /// only need one colour can read Top unconditionally.

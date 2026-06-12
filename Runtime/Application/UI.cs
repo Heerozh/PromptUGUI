@@ -444,7 +444,7 @@ namespace PromptUGUI.Application
             /// For gradient tokens, returns the Top stop (the public surface always returns
             /// a single <see cref="UnityEngine.Color"/>). Internal callers that need a
             /// <see cref="ColorSpec"/> with both stops should use
-            /// <c>UI.Theme.ResolveSpec</c> (arriving in a later task).
+            /// <c>UI.Theme.ResolveSpec</c>.
             /// </summary>
             public static UnityEngine.Color? Lookup(string token)
             {
@@ -476,8 +476,9 @@ namespace PromptUGUI.Application
                 return ColorSpec.Gradient(top.Top, bottom.Top);
             }
 
-            /// <summary>One segment: token / literal + optional /alpha. Solid unless the whole
-            /// segment is a gradient token AND allowGradientToken.</summary>
+            /// <summary>Resolve one segment: token / literal + optional /alpha. Returns a gradient only
+            /// when the resolved token is itself a gradient AND <paramref name="allowGradientToken"/> is
+            /// true; if it's a gradient token but nesting isn't allowed, throws.</summary>
             private static ColorSpec ResolveSingle(string value, bool allowGradientToken)
             {
                 if (!Parser.ColorParser.TrySplitAlpha(value, out var baseValue, out var alpha, out var err))
@@ -486,7 +487,7 @@ namespace PromptUGUI.Application
                 var spec = ResolveBaseSpec(baseValue);
                 if (spec.IsGradient && !allowGradientToken)
                     throw new System.Exception(
-                        $"color \"{value}\": token resolves to a gradient — gradients cannot nest inside a gradient");
+                        $"color segment \"{value}\": token resolves to a gradient — gradients cannot nest inside a gradient");
                 if (alpha.HasValue)
                 {
                     var t = spec.Top; t.a = alpha.Value;
