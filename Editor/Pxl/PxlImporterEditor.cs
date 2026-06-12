@@ -86,9 +86,9 @@ namespace PromptUGUI.Editor
                 EditorGUIUtility.PingObject(AssetDatabase.LoadAssetAtPath<Object>(_palettePath));
 
             EditorGUILayout.LabelField("Sections", EditorStyles.boldLabel);
-            var sprites = AssetDatabase.LoadAllAssetsAtPath(AssetPath)
-                .OfType<Sprite>().ToDictionary(s => s.name, s => s);
-            var hints = AssetDatabase.LoadAllAssetsAtPath(AssetPath)
+            var subAssets = AssetDatabase.LoadAllAssetsAtPath(AssetPath);
+            var sprites = subAssets.OfType<Sprite>().ToDictionary(s => s.name, s => s);
+            var hints = subAssets
                 .OfType<PromptUGUI.Application.PxlSpriteHints>().FirstOrDefault();
             var tiledNames = hints != null
                 ? new System.Collections.Generic.HashSet<string>(
