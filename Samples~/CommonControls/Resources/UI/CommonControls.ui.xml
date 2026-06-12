@@ -56,8 +56,8 @@
         <VStack anchor="stretch" spacing="10" padding="8">
           <Progress id="progress" height="16" value="0.3" bgColor="#222222" fillColor="#3CC3F0"/>
           <HStack height="28" spacing="8">
-            <Btn id="progMinus" width="64" fontSize="15" color="#555555" pressedModulate="#BBBBBB">-10%</Btn>
-            <Btn id="progPlus"  width="64" fontSize="15" color="#555555" pressedModulate="#BBBBBB">+10%</Btn>
+            <Btn id="progMinus" width="64" height="28" fontSize="15" color="#555555" pressedModulate="#BBBBBB">-10%</Btn>
+            <Btn id="progPlus"  width="64" height="28" fontSize="15" color="#555555" pressedModulate="#BBBBBB">+10%</Btn>
             <Frame width="0"/>
           </HStack>
           <!-- RawImage：纹理由 C# 生成后喂入 -->
