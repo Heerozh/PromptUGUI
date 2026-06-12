@@ -27,7 +27,7 @@
         },
         {
             "displayName": "Common Controls Demo",
-            "description": "Toggle / Slider / Dropdown / ScrollList 四个常用控件示例",
+            "description": "TabBar 四页全控件橱窗：表单 / 展示反馈 / 列表轮播 / 模态提示 + UI.Tutorial 新手引导",
             "path": "Samples~/CommonControls"
         }
     ]
