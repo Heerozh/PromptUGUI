@@ -173,6 +173,9 @@ namespace PromptUGUI.Controls.Internal
                 // Carry the source 9-slice border so segments don't stretch: the left cap keeps the
                 // left border, the right cap keeps the right border, internal cut edges get 0 (the
                 // tileable part stretches), and top/bottom carry to every segment.
+                // Note: these are fresh Sprite.Create instances with new EntityIds, so they do NOT
+                // inherit the source sprite's tiled hint — tri-slice segments render Sliced (middle
+                // stretches) by design; the whole-sprite dot path (else branch) honors the tiled hint.
                 float left = s == 0 ? Mathf.Min(b.x, third) : 0f;
                 float right = s == 2 ? Mathf.Min(b.z, third) : 0f;
                 var border = new Vector4(left, b.y, right, b.w);
