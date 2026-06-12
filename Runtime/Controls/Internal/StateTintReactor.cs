@@ -19,7 +19,9 @@ namespace PromptUGUI.Controls.Internal
     /// The base (authored) colour is captured ONCE on first init and never re-captured: a
     /// re-<see cref="Configure"/> (e.g. a Variant ReSolve) must not promote the currently-tinted
     /// colour into the new base. A state with no absolute and no modulate returns the graphic to
-    /// its base colour.
+    /// its base colour. Base/absolute/selected colours may be gradients (landed via
+    /// <see cref="ColorApplier"/>); a transition with a gradient endpoint snaps instead of fading
+    /// (no Color-lerp for a vertex gradient — see <c>OnState</c>). Modulates stay solid.
     /// </remarks>
     internal sealed class StateTintReactor : MonoBehaviour
     {

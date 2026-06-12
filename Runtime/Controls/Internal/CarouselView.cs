@@ -263,6 +263,8 @@ namespace PromptUGUI.Controls.Internal
                 btn.targetGraphic = img;
                 btn.onClick.AddListener(() => GoTo(captured, animated: true));
 
+                // Dots are solid-only per spec §5; wrap the already-solid selected base as a
+                // ColorSpec just to satisfy the shared installer's ColorSpec? signature.
                 ColorSpec? dotSelBase = _dotSelectedColor.HasValue
                     ? ColorSpec.Solid(_dotSelectedColor.Value)
                     : (ColorSpec?)null;
