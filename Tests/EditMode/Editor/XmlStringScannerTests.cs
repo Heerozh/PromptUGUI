@@ -31,6 +31,30 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Scan_ToggleContent_ExtractsMsgid()
+        {
+            // <Toggle> renders its element content as a visible TMP label
+            // (defaultTextAttr "text"), exactly like <Btn>. The label is a real
+            // user-facing string and must be extracted.
+            var xml = "<PromptUGUI version='1'><Screen name='X'>" +
+                      "<Toggle id='muteAudio'>静音</Toggle></Screen></PromptUGUI>";
+            var found = XmlStringScanner.Scan(xml, "screens/X").ToList();
+            Assert.AreEqual(1, found.Count);
+            Assert.AreEqual("静音", found[0].Msgid);
+        }
+
+        [Test]
+        public void Scan_TabTextAttribute_ExtractsMsgid()
+        {
+            // <Tab text='...'> is the tab's visible label (defaultTextAttr "text").
+            var xml = "<PromptUGUI version='1'><Screen name='X'>" +
+                      "<TabBar><Tab id='t' text='表单输入'/></TabBar></Screen></PromptUGUI>";
+            var msgids = XmlStringScanner.Scan(xml, "screens/X")
+                .Select(e => e.Msgid).ToList();
+            Assert.Contains("表单输入", msgids);
+        }
+
+        [Test]
         public void Scan_TextAttribute_AlsoExtracts()
         {
             var xml = "<PromptUGUI version='1'><Screen name='X'>" +

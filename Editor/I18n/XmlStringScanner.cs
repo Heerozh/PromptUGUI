@@ -13,8 +13,12 @@ namespace PromptUGUI.Editor.I18n
     /// </summary>
     internal static class XmlStringScanner
     {
-        // Tags whose textContent and "text" attr are translatable.
-        private static readonly HashSet<string> TextHostingTags = new() { "Text", "Btn" };
+        // Tags whose textContent and "text" attr are translatable: built-ins that render
+        // their element content / "text" attr as a static, user-facing label (defaultTextAttr
+        // "text"). Deliberately NOT every control with a default-text attr — InputField's
+        // "text" is the editable value (its i18n target is the "placeholder" attr) and
+        // Markdown's "text" is dynamic source content, so neither is harvested here.
+        private static readonly HashSet<string> TextHostingTags = new() { "Text", "Btn", "Toggle", "Tab" };
 
         public static IEnumerable<ExtractedString> Scan(string xmlSource, string localePartition)
             => Scan(xmlSource, localePartition, externalTemplates: null);
