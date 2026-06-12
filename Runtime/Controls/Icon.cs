@@ -45,7 +45,7 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve]
         public string Color
         {
-            set => _img.color = UI.Theme.Resolve(value);
+            set => Internal.ColorApplier.Apply(_img, UI.Theme.ResolveSpec(value));
         }
 
         [UIAttr, Preserve]
