@@ -1017,6 +1017,7 @@ namespace PromptUGUI.Application
             Theme.ResetForTestsInternal();
             Markdown.ResetForTestsInternal();
             Internal.SpriteRenderHints.Clear();
+            Controls.Internal.ProceduralBuilders.ResetDefaultSpriteCacheForTests();
             TranslationStore.Instance.UnloadAll();
             Router.ResetForTestsInternal();
             Tutorial.ResetForTestsInternal();

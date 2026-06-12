@@ -51,7 +51,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var img = vp.GetComponent<UnityEngine.UI.Image>();
             Assert.AreEqual("pugui_9slice_round", img.sprite.name);
             Assert.AreEqual(1f, img.color.a, "alpha=1 critical (4af322b)");
-            Assert.AreEqual(UnityEngine.UI.Image.Type.Sliced, img.type, "AutoSlice: border 非零 → Sliced");
+            Assert.AreEqual(UnityEngine.UI.Image.Type.Tiled, img.type, "pugui_9slice_round 有 tiled hint → Tiled");
             Assert.IsNull(vp.GetComponent<UnityEngine.UI.RectMask2D>());
         }
 
@@ -253,7 +253,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var img = frame.GetComponent<UnityEngine.UI.Image>();
             Assert.IsFalse(img.raycastTarget);
             Assert.AreEqual("pugui_9slice_round", img.sprite.name);
-            Assert.AreEqual(UnityEngine.UI.Image.Type.Sliced, img.type);
+            Assert.AreEqual(UnityEngine.UI.Image.Type.Tiled, img.type, "pugui_9slice_round 有 tiled hint → Tiled");
             var rt = (UnityEngine.RectTransform)frame;
             Assert.AreEqual(UnityEngine.Vector2.zero, rt.anchorMin);
             Assert.AreEqual(UnityEngine.Vector2.one, rt.anchorMax);

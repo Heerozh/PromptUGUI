@@ -20,6 +20,7 @@ chars:
 # 条带两端必须收回纯轮廓+底色，保证与四角及下一周期无缝衔接。
 [pugui_9slice_round]
 border: 5,5,5,5
+tiled: true
 grid:
   ..KKKKKGGKKKKGGGKKKKKK..
   .KwwwwwggwWWwgggwwwwwwK.
@@ -48,6 +49,7 @@ grid:
 
 [pugui_9slice_pressed]
 border: 5,5,5,5
+tiled: true
 grid:
   ..KKKKKGGKKKKGGGKKKKKK..
   .KWWWWWggWKKWgggWWWWWWK.

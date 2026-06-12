@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using PromptUGUI.Application;
+using PromptUGUI.Application.Internal;
 using PromptUGUI.Controls.Internal;
 using UnityEngine;
 
@@ -122,6 +123,27 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 Assert.AreEqual(UnityEngine.UI.Image.Type.Sliced, img.type);
             }
             finally { Object.DestroyImmediate(go); }
+        }
+
+        [Test]
+        public void DeriveType_four_branches()
+        {
+            Assert.AreEqual(UnityEngine.UI.Image.Type.Simple, ProceduralBuilders.DeriveType(null));
+
+            var plain = Sprite.Create(new Texture2D(4, 4), new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f));
+            Assert.AreEqual(UnityEngine.UI.Image.Type.Simple, ProceduralBuilders.DeriveType(plain));
+
+            var bordered = Sprite.Create(new Texture2D(8, 8), new Rect(0, 0, 8, 8), new Vector2(0.5f, 0.5f),
+                100f, 0, SpriteMeshType.FullRect, new Vector4(2, 2, 2, 2));
+            Assert.AreEqual(UnityEngine.UI.Image.Type.Sliced, ProceduralBuilders.DeriveType(bordered));
+
+            SpriteRenderHints.Register(bordered);
+            Assert.AreEqual(UnityEngine.UI.Image.Type.Tiled, ProceduralBuilders.DeriveType(bordered),
+                "hint 优先于 border 推导");
+
+            SpriteRenderHints.Register(plain);
+            Assert.AreEqual(UnityEngine.UI.Image.Type.Tiled, ProceduralBuilders.DeriveType(plain),
+                "无 border 也可平铺(整图无缝纹理)");
         }
     }
 }
