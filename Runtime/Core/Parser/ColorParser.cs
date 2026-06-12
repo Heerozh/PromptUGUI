@@ -86,6 +86,42 @@ namespace PromptUGUI.Parser
             return true;
         }
 
+        /// <summary>
+        /// Splits an optional two-stop gradient value on ','. <c>"#fff,#000"</c> → top <c>"#fff"</c>,
+        /// bottom <c>"#000"</c>; no comma → top = raw, bottom = null. Segments are trimmed (authors
+        /// write <c>"a, b"</c>). Each segment still carries its own token / <c>/alpha</c> form —
+        /// this method does NOT validate segment contents, only the split shape.
+        /// Returns false when there are &gt;2 segments or any segment is empty.
+        /// </summary>
+        public static bool TrySplitGradient(string raw, out string top, out string bottom, out string error)
+        {
+            top = raw;
+            bottom = null;
+            error = null;
+            if (string.IsNullOrEmpty(raw)) return true;   // empty handled by caller
+
+            var comma = raw.IndexOf(',');
+            if (comma < 0) return true;
+
+            if (raw.IndexOf(',', comma + 1) >= 0)
+            {
+                error = $"color \"{raw}\": gradient supports exactly two colours (top,bottom)";
+                return false;
+            }
+
+            var head = raw.Substring(0, comma).Trim();
+            var tail = raw.Substring(comma + 1).Trim();
+            if (head.Length == 0 || tail.Length == 0)
+            {
+                error = $"color \"{raw}\": gradient segment is empty — expected \"top,bottom\"";
+                return false;
+            }
+
+            top = head;
+            bottom = tail;
+            return true;
+        }
+
         private static bool IsHexDigit(char c)
         {
             return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
