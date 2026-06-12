@@ -21,6 +21,7 @@ namespace PromptUGUI.Samples.CommonControls
         async void Start()
         {
             UI.UseResourcesResolver("UI");
+            await UI.Locale.SetToSystemDefaultAsync("en");
 
             if (spriteSets != null && spriteSets.Length > 0)
                 SpriteResolverHelpers.UseSpriteSetResolver(spriteSets);

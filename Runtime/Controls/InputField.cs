@@ -76,7 +76,7 @@ namespace PromptUGUI.Controls
 
             _input.textComponent = _text;
             _input.placeholder = _placeholder;
-            _input.caretColor = ProceduralBuilders.DefaultGlyphColor;
+            _input.caretColor = ProceduralBuilders.DefaultLabelColor;
             _input.customCaretColor = false;
             _input.selectionColor = new Color(0.659f, 0.808f, 1f, 0.753f);
             _input.onValueChanged.AddListener(v => _changed.OnNext(v));

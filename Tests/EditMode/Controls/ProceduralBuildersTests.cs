@@ -30,13 +30,11 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Palette_GlyphColor_IsThemeInk()
+        public void Palette_GlyphColor_IsWhitePassthrough()
         {
+            // glyph 像素图（checkmark / caret）自带配色，tint 必须纯白直通
             var c = ProceduralBuilders.DefaultGlyphColor;
-            Assert.That(c.r, Is.EqualTo(0.290f).Within(0.001f));
-            Assert.That(c.g, Is.EqualTo(0.200f).Within(0.001f));
-            Assert.That(c.b, Is.EqualTo(0.133f).Within(0.001f));
-            Assert.AreEqual(1f, c.a);
+            Assert.AreEqual(Color.white, c);
         }
 
         [Test]

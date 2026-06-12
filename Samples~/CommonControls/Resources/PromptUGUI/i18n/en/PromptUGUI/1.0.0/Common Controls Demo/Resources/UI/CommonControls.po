@@ -1,0 +1,82 @@
+# . CommonControls screen, Btn#progPlus text
+# . sibling: -10%
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
+msgid "+10%"
+msgstr "+10%"
+
+# . CommonControls screen, Btn#progMinus text
+# . sibling: +10%
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
+msgid "-10%"
+msgstr "-10%"
+
+# . CommonControls screen, Text text
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
+msgid "Common Controls Demo"
+msgstr "Common Controls Demo"
+
+# . CommonControls screen, Btn#inputBoxBtn text
+# . sibling: MessageBox, MarkdownBox, Loading (2s)
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
+msgid "InputBox"
+msgstr "InputBox"
+
+# . CommonControls screen, Btn#loadingBtn text
+# . sibling: MessageBox, InputBox, MarkdownBox
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
+msgid "Loading (2s)"
+msgstr "Loading (2s)"
+
+# . CommonControls screen, Btn#mdBoxBtn text
+# . sibling: MessageBox, InputBox, Loading (2s)
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
+msgid "MarkdownBox"
+msgstr "MarkdownBox"
+
+# . CommonControls screen, Btn#msgBoxBtn text
+# . sibling: InputBox, MarkdownBox, Loading (2s)
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
+msgid "MessageBox"
+msgstr "MessageBox"
+
+# . CommonControls screen, Btn#toastBtn text
+# . sibling: MessageBox, InputBox, MarkdownBox
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
+msgid "Toast"
+msgstr "Toast"
+
+# . CommonControls screen, Tab#tabList text-attr
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
+msgid "列表轮播"
+msgstr "List Carousel"
+
+# . CommonControls screen, Tab#tabDisplay text-attr
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
+msgid "展示反馈"
+msgstr "Display Feedback"
+
+# . CommonControls screen, Btn#tutorialBtn text
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
+msgid "新手引导"
+msgstr "Tutorial"
+
+# . CommonControls screen, Tab#tabModal text-attr
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
+msgid "模态提示"
+msgstr "Modal Prompt"
+
+# . CommonControls screen, Text text
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
+msgid "点我弹跳"
+msgstr "Click to Bounce"
+
+# . CommonControls screen, Tab#tabForm text-attr
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
+msgid "表单输入"
+msgstr "Form Input"
+
+# . CommonControls screen, Toggle#muteAudio text
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
+msgid "静音"
+msgstr "Mute"
+
