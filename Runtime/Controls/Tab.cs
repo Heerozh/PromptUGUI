@@ -14,6 +14,9 @@ namespace PromptUGUI.Controls
     {
         private UnityImage _bg;
         private UnityEngine.Sprite _selectedSprite;   // resolved selectedSprite, swapped onto _bg.overrideSprite while IsOn
+        // bg 在未被 selectedSprite 覆盖时的 Image.Type：默认皮肤=Tiled（青苔/木纹边平铺），
+        // 作者 sprite= 后由 border 推导（Sliced/Simple）。镜像 Btn._baseType。
+        private UnityImage.Type _baseType;
         private StateTintReactor _bgReactor;
         private UnityImage _icon;
         private TMP_Text _label;
@@ -41,6 +44,7 @@ namespace PromptUGUI.Controls
             _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
             _bg.color = ProceduralBuilders.DefaultBtnColor;
             ProceduralBuilders.ApplyDefaultSlicedSprite(_bg);
+            _baseType = _bg.type;
 
             _toggle = GameObject.GetComponent<PuiToggle>() ?? GameObject.AddComponent<PuiToggle>();
             _toggle.targetGraphic = _bg;
@@ -197,6 +201,7 @@ namespace PromptUGUI.Controls
                 {
                     _bg.sprite = null;
                     _bg.type = UnityImage.Type.Simple;
+                    _baseType = UnityImage.Type.Simple;
                     return;
                 }
                 ApplyBgSprite(UI.ResolveSprite(value));
@@ -235,10 +240,11 @@ namespace PromptUGUI.Controls
             // 9-slice vs simple from whichever sprite is now displayed (the override when selected,
             // else the authored bg sprite) — otherwise a bordered selectedSprite over a Simple-typed
             // normal bg (e.g. sprite="") would render un-sliced. Mirrors ApplyBgSprite's rule.
-            var shown = showSelected ? _selectedSprite : _bg.sprite;
-            _bg.type = shown != null && shown.border != Vector4.zero
-                ? UnityImage.Type.Sliced
-                : UnityImage.Type.Simple;
+            // Authored selectedSprite carries its own type; otherwise fall back to the base type
+            // (default skin = Tiled — blanket "border -> Sliced" would un-tile the textured edges).
+            _bg.type = showSelected
+                ? (_selectedSprite.border != Vector4.zero ? UnityImage.Type.Sliced : UnityImage.Type.Simple)
+                : _baseType;
         }
 
         [UIAttr(IsColor = true), Preserve]
@@ -265,6 +271,7 @@ namespace PromptUGUI.Controls
             if (sprite == null) return;
             _bg.sprite = sprite;
             _bg.type = sprite.border != Vector4.zero ? UnityImage.Type.Sliced : UnityImage.Type.Simple;
+            _baseType = _bg.type;
         }
 
         /// <summary>Absolute bg colour while Hover.</summary>

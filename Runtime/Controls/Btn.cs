@@ -19,6 +19,8 @@ namespace PromptUGUI.Controls
         private PointerEventRelay _pointerRelay;
         private Sprite _pressedSprite;
         private bool _pressedSpriteAuthored;
+        // bg 在无 state override 时的 Image.Type：默认皮肤=Tiled，作者 sprite= 后由 AutoSlice 决定。
+        private UnityImage.Type _baseType;
         private Sprite _disabledSprite;
         private IDisposable _stateSpriteSub;
 
@@ -48,6 +50,7 @@ namespace PromptUGUI.Controls
             _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
             _bg.color = PromptUGUI.Controls.Internal.ProceduralBuilders.DefaultBtnColor;
             PromptUGUI.Controls.Internal.ProceduralBuilders.ApplyDefaultSlicedSprite(_bg);
+            _baseType = _bg.type;
             _btn = GameObject.GetComponent<PuiButton>() ?? GameObject.AddComponent<PuiButton>();
             _btn.targetGraphic = _bg;
             _btn.onClick.AddListener(() => _click.OnNext(Unit.Default));
@@ -186,7 +189,14 @@ namespace PromptUGUI.Controls
         [UIAttr(IsSprite = true), Preserve]
         public string Sprite
         {
-            set => _bg.sprite = UI.ResolveSprite(value);
+            set
+            {
+                _bg.sprite = UI.ResolveSprite(value);
+                // 作者 sprite 按 border 选 Sliced/Simple（默认钉木框的 Tiled 只属于内置皮肤）；
+                // 透明 normal（""）不动 type，留给 ApplyStateSprite 按 override 调。
+                PromptUGUI.Controls.Internal.ProceduralBuilders.AutoSlice(_bg);
+                _baseType = _bg.type;
+            }
         }
 
         [UIAttr(IsSprite = true), Preserve]
@@ -223,10 +233,19 @@ namespace PromptUGUI.Controls
         // Priority Disabled > Pressed (states are mutually exclusive); authored bg.sprite shows otherwise.
         // Pressed falls back to the built-in pressed skin when the author customized nothing
         // (keeps ColorTint — only AUTHORED pressed/disabled sprites flip transition=None in OnAfterApply).
+        // overrideSprite 与 type 共用一个 Image：AUTHORED override 按自己的 border 选 Sliced/Simple
+        // （内置 pressed 兜底沿用基础 type=Tiled），松开后回落 _baseType。
         private void ApplyStateSprite(InteractState state)
-            => _bg.overrideSprite = state == InteractState.Disabled ? _disabledSprite
-                                  : state == InteractState.Pressed ? (_pressedSprite ?? DefaultPressedSprite())
-                                  : null;
+        {
+            var authored = state == InteractState.Disabled ? _disabledSprite
+                         : state == InteractState.Pressed ? _pressedSprite
+                         : null;
+            _bg.overrideSprite = authored
+                ?? (state == InteractState.Pressed ? DefaultPressedSprite() : null);
+            _bg.type = authored != null
+                ? (authored.border != Vector4.zero ? UnityImage.Type.Sliced : UnityImage.Type.Simple)
+                : _baseType;
+        }
 
         private Sprite DefaultPressedSprite()
         {

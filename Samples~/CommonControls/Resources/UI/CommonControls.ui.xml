@@ -12,7 +12,7 @@
   <!-- Carousel 卡片模板（bg tint / 标题由 C# BindItems 填） -->
   <Template name="DemoCard">
     <Frame>
-      <Image id="bg" anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round"/>
+      <Image id="bg" anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" type="tiled"/>
       <Text id="title" anchor="center" fontSize="22" raycastTarget="false"/>
     </Frame>
   </Template>
@@ -25,7 +25,7 @@
 
       <!-- 顶部固定：木牌标题 + 常驻新手引导按钮（Btn 不写 color，吃默认皮肤） -->
       <HStack anchor="top-stretch" height="44" padding="8" spacing="8">
-        <Image sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="#E8B86B" width="220" height="30">
+        <Image sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" type="tiled" color="#E8B86B" width="220" height="30">
           <Text anchor="center" fontSize="18" raycastTarget="false">Common Controls Demo</Text>
         </Image>
         <Frame width="0"/>
@@ -46,7 +46,7 @@
 
       <!-- ① 表单输入（原 Settings 内容保留） -->
       <Frame id="pageForm" anchor="stretch" margin="84,8,8,8">
-        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" raycastTarget="false"/>
+        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" type="tiled" raycastTarget="false"/>
         <VStack anchor="stretch" spacing="12" padding="8">
           <InputField id="username" placeholder="Username" width="240" height="30"/>
           <Toggle id="muteAudio">静音</Toggle>
@@ -57,7 +57,7 @@
 
       <!-- ② 展示反馈 -->
       <Frame id="pageDisplay" anchor="stretch" margin="84,8,8,8">
-        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" raycastTarget="false"/>
+        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" type="tiled" raycastTarget="false"/>
         <VStack anchor="stretch" spacing="10" padding="8">
           <Progress id="progress" height="16" value="0.3" bgColor="#E8CFA0" fillColor="#58A63C"/>
           <HStack height="28" spacing="8">
@@ -84,7 +84,7 @@
 
       <!-- ③ 列表轮播 -->
       <Frame id="pageList" anchor="stretch" margin="84,8,8,8">
-        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" raycastTarget="false"/>
+        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" type="tiled" raycastTarget="false"/>
         <VStack anchor="stretch" spacing="10" padding="8">
           <!-- farm: SpriteSet 12 作物橱窗 -->
           <Grid columns="6" cellSize="32x32" spacing="4" height="72">
@@ -103,7 +103,7 @@
 
       <!-- ④ 模态提示 -->
       <Frame id="pageModal" anchor="stretch" margin="84,8,8,8">
-        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" raycastTarget="false"/>
+        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" type="tiled" raycastTarget="false"/>
         <VStack anchor="stretch" spacing="10" padding="8">
           <Btn id="msgBoxBtn"   height="30" fontSize="15">MessageBox</Btn>
           <Btn id="inputBoxBtn" height="30" fontSize="15">InputBox</Btn>

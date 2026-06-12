@@ -48,14 +48,16 @@ namespace PromptUGUI.Controls.Internal
             return _defaultSprites.TryGetValue(name, out var sprite) ? sprite : null;
         }
 
-        /// <summary>给 Image 应用 9-slice 圆角 sprite 兜底；调用者后续 sprite= 仍可 override。</summary>
+        /// <summary>给 Image 应用 9-slice 圆角 sprite 兜底；调用者后续 sprite= 仍可 override。
+        /// Tiled 而非 Sliced：钉木框边带有方向性纹理（青苔/木纹），平铺保形不拉糊；
+        /// 带 border 的 Tiled = 四角固定 + 边/中心平铺（几何重复，不依赖 wrap mode，进图集安全）。</summary>
         public static void ApplyDefaultSlicedSprite(UnityImage img)
         {
             if (img == null || img.sprite != null) return;
             var s = GetDefaultSprite(SpriteRoundedRect);
             if (s == null) return;
             img.sprite = s;
-            img.type = UnityImage.Type.Sliced;
+            img.type = UnityImage.Type.Tiled;
         }
 
         /// <summary>凹形容器（输入框/滑轨/列表底）的 9-slice 兜底；规则同 ApplyDefaultSlicedSprite。</summary>

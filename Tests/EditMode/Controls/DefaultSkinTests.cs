@@ -35,6 +35,24 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void ApplyDefaultSlicedSprite_SetsRoundTiled()
+        {
+            // 默认钉木框边带有方向性纹理（青苔/木纹）—— Tiled 平铺而不是 Sliced 拉伸；
+            // 带 border 的 Tiled = 四角固定 + 边/中心平铺，纯色中心视觉不变。
+            var go = new GameObject("img", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+            try
+            {
+                var img = go.GetComponent<UnityEngine.UI.Image>();
+                ProceduralBuilders.ApplyDefaultSlicedSprite(img);
+                Assert.IsNotNull(img.sprite, "default round sprite must resolve");
+                Assert.AreEqual("pugui_9slice_round", img.sprite.name);
+                Assert.AreNotEqual(Vector4.zero, img.sprite.border, "tiling needs the 9-slice border to pin corners");
+                Assert.AreEqual(UnityEngine.UI.Image.Type.Tiled, img.type);
+            }
+            finally { Object.DestroyImmediate(go); }
+        }
+
+        [Test]
         public void InputField_DefaultBg_IsInset()
         {
             var screen = OpenScreen("<InputField id='f' width='200' height='40'/>");
