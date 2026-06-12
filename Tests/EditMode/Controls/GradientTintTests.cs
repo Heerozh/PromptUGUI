@@ -116,6 +116,18 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Set_SameValue_IsIdempotent()
+        {
+            // Driving graphic.SetVerticesDirty is hard to observe directly in EditMode;
+            // assert the value-level idempotency: Set then Set-same leaves Top/Bottom equal.
+            var fx = _go.AddComponent<GradientTint>();
+            fx.Set(Color.red, Color.blue);
+            fx.Set(Color.red, Color.blue);   // same values — early-return path
+            Assert.AreEqual(Color.red, fx.Top);
+            Assert.AreEqual(Color.blue, fx.Bottom);
+        }
+
+        [Test]
         public void MidVertex_HalfwayLerps()
         {
             var fx = _go.AddComponent<GradientTint>();
