@@ -236,13 +236,29 @@ namespace PromptUGUI.Controls
 
         private void ApplyDirection()
         {
+            var wantVertical = _direction == "vertical";
+
+            // Idempotent: re-applying the SAME direction (an explicit base value, or any ReSolve) must
+            // reuse the existing group, never destroy+recreate. Object.Destroy is deferred to end-of-frame
+            // in play mode, so a destroy-then-AddComponent in one frame collides with the not-yet-removed
+            // group (LayoutGroup is [DisallowMultipleComponent]); the add fails and the deferred destroy
+            // then strands the TabBar with no layout group (every Tab piles up at the origin).
+            if (_layout != null && (_layout is VerticalLayoutGroup) == wantVertical)
+            {
+                ApplySpacingPadding();
+                return;
+            }
+
+            // Genuine H<->V swap: destroy synchronously so the [DisallowMultipleComponent] slot is free
+            // before AddComponent. DestroyImmediate in BOTH modes — Object.Destroy's deferral is exactly
+            // what broke this in play mode, and this runs off the app/ReSolve call stack (never a
+            // physics/animation/OnValidate callback), where DestroyImmediate on a component is safe.
             if (_layout != null)
             {
-                if (UnityEngine.Application.isPlaying) UnityEngine.Object.Destroy((Component)_layout);
-                else UnityEngine.Object.DestroyImmediate((Component)_layout);
+                UnityEngine.Object.DestroyImmediate((Component)_layout);
                 _layout = null;
             }
-            _layout = _direction == "vertical"
+            _layout = wantVertical
                 ? (LayoutGroup)GameObject.AddComponent<VerticalLayoutGroup>()
                 : GameObject.AddComponent<HorizontalLayoutGroup>();
             ApplySpacingPadding();

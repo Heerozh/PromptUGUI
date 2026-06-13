@@ -155,6 +155,47 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsNotNull(bar.GameObject.GetComponent<VerticalLayoutGroup>(), "VLG present");
         }
 
+        // Regression (user report): adding direction="horizontal" crammed every Tab at the origin and
+        // logged "Can't add 'HorizontalLayoutGroup' ... already added". Root cause: ApplyDirection always
+        // destroyed+recreated the LayoutGroup, and Object.Destroy is DEFERRED to end-of-frame in play mode,
+        // so the same-frame AddComponent collided with the not-yet-removed group ([DisallowMultipleComponent]);
+        // the add failed and the deferred destroy then left the TabBar with NO layout group. Invisible in
+        // EditMode (DestroyImmediate is synchronous), so we lock the mode-independent contract: re-applying
+        // the SAME direction must reuse the existing group (a no-op on the component), never destroy+recreate.
+        [Test]
+        public void TabBar_ReapplySameDirection_ReusesLayoutGroup()
+        {
+            var bar = OpenBar("<TabBar id='bar' direction='horizontal'/>");
+            var go = bar.GameObject;
+            var first = go.GetComponent<HorizontalLayoutGroup>();
+            Assert.IsNotNull(first, "HLG present after open");
+
+            bar.Direction = "horizontal";   // mirrors ReSolve / explicit base re-apply of the unchanged value
+
+            Assert.AreSame(first, go.GetComponent<HorizontalLayoutGroup>(),
+                "same-direction re-apply must reuse the existing LayoutGroup (no destroy+recreate)");
+            Assert.AreEqual(1, go.GetComponents<LayoutGroup>().Length, "exactly one LayoutGroup");
+        }
+
+        // Guard the genuine H<->V swap (the portrait-variant flip): exactly one correct group each way,
+        // no orphaned/duplicate group. Exercises the DestroyImmediate-always swap path in both modes.
+        [Test]
+        public void TabBar_DirectionSwap_KeepsExactlyOneLayoutGroup()
+        {
+            var bar = OpenBar("<TabBar id='bar' direction='horizontal'/>");
+            var go = bar.GameObject;
+
+            bar.Direction = "vertical";
+            Assert.IsNull(go.GetComponent<HorizontalLayoutGroup>(), "HLG gone after swap to vertical");
+            Assert.IsNotNull(go.GetComponent<VerticalLayoutGroup>(), "VLG present after swap");
+            Assert.AreEqual(1, go.GetComponents<LayoutGroup>().Length, "exactly one group after swap");
+
+            bar.Direction = "horizontal";
+            Assert.IsNull(go.GetComponent<VerticalLayoutGroup>(), "VLG gone after swap back");
+            Assert.IsNotNull(go.GetComponent<HorizontalLayoutGroup>(), "HLG present after swap back");
+            Assert.AreEqual(1, go.GetComponents<LayoutGroup>().Length, "exactly one group after swap back");
+        }
+
         [Test]
         public void TabBar_Spacing_And_Padding_Apply_To_LayoutGroup()
         {
