@@ -43,7 +43,7 @@
   <Template name="DemoCard">
     <Frame>
       <Image id="bg" anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round"/>
-      <Text id="title" anchor="center" fontSize="22" raycastTarget="false"/>
+      <Text id="title" anchor="stretch" align="middle-center" fontSize="12" raycastTarget="false"/>
     </Frame>
   </Template>
 
