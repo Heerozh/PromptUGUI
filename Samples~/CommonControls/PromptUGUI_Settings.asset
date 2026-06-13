@@ -18,10 +18,10 @@ MonoBehaviour:
   - locale: zh
     fonts:
     - type: default
-      font: {fileID: 0}
+      font: {fileID: 11400000, guid: 0e120fae9d7eab845b13d31cde014276, type: 2}
       material: {fileID: 0}
   - locale: en
     fonts:
     - type: default
-      font: {fileID: 0}
+      font: {fileID: 11400000, guid: 0e120fae9d7eab845b13d31cde014276, type: 2}
       material: {fileID: 0}
