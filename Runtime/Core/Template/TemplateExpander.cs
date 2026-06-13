@@ -6,7 +6,9 @@ namespace PromptUGUI.Template
     public static class TemplateExpander
     {
         // 通用属性集合：模板调用上写的这些不算 Param
-        private static readonly HashSet<string> CommonAttrs = new() {
+        // internal (not private) so the lint layer's PUI-VARIANT-NO-BASE mirror can be drift-guarded
+        // against it (VariantBaseRules.InvocationMergeableOntoTemplateRoot) — see VariantBaseRulesTests.
+        internal static readonly HashSet<string> CommonAttrs = new() {
             "anchor", "size", "width", "height", "margin", "pivot",
             "padding", "spacing",
             "hidden", "interactable",

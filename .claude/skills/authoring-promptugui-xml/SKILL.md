@@ -674,7 +674,8 @@ The `size.mobile=""` clears the base `size=` under that variant — required bec
 
 Variant overrides on `<Icon name="...">` swap the sprite at runtime: `<Icon name="ui:sun" name.dark="ui:moon"/>`.
 
-**Pair a *control-specific* attribute's `.variant` override with a base value — it does not auto-revert otherwise.** The common geometry attrs (`anchor` / `size` / `width` / `height` / `margin` / `pivot` / `hidden` / `interactable` / `flow`, plus `scale`) self-heal: a base-less `.variant` override (e.g. `height.portrait="132"` with no base `height`) cleanly returns to the control's default when the variant deactivates. But a **control-specific** attribute — anything mapped to a control's own setter, e.g. `<TabBar>` / `<ScrollList>` `direction` / `spacing` / `itemTemplate`, or `color` / `sprite` / `tint` on any control — does **not** revert when its variant deactivates *unless a base value is present*: the ReSolve re-apply pass skips a control attribute that resolves to nothing (there is no generic "reset to default" signal for an arbitrary setter), so the last-applied value persists. Write `direction="horizontal" direction.portrait="vertical"`, **not** `direction.portrait="vertical"` alone — otherwise a window resized portrait→landscape stays stuck in the vertical layout. This is the same "set-only on Variant clear" limitation the `*Color` / `pressedSprite` state attributes have; neither the parser nor the lint CLI flags a missing base.
+**Pair a *control-specific* `.variant` override with a base value.**
+Otherwise lint cli will report `PUI-VARIANT-NO-BASE` on this.
 
 ### Block form — only `<Add>`
 

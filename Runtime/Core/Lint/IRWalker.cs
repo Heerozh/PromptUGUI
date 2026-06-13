@@ -13,13 +13,13 @@ namespace PromptUGUI.Lint
         {
             foreach (var screen in doc.Screens)
             {
-                foreach (var issue in WalkNode(screen.Root, inTemplateBody: false, hasStateSourceAncestor: false, parentIsLayoutGroup: false))
+                foreach (var issue in WalkNode(screen.Root, inTemplateBody: false, hasStateSourceAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false))
                     yield return issue;
 
                 foreach (var variant in screen.Variants)
                     foreach (var add in variant.Adds)
                         foreach (var addChild in add.Children)
-                            foreach (var issue in WalkNode(addChild, inTemplateBody: false, hasStateSourceAncestor: false, parentIsLayoutGroup: false))
+                            foreach (var issue in WalkNode(addChild, inTemplateBody: false, hasStateSourceAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false))
                                 yield return issue;
             }
 
@@ -29,13 +29,15 @@ namespace PromptUGUI.Lint
                 // hierarchy. The PARENT check is meaningless here: TabBar.CollectStaticTabs
                 // walks Template-expanded wrappers recursively, so a Frame>Tab pattern
                 // inside a Template body is intentional structure, not a misuse.
+                // The body node IS the template's instance root (isTemplateBodyRoot) — a template
+                // invocation may merge CommonAttrs onto it, which PUI-VARIANT-NO-BASE must account for.
                 if (template.Body != null)
-                    foreach (var issue in WalkNode(template.Body, inTemplateBody: true, hasStateSourceAncestor: false, parentIsLayoutGroup: false))
+                    foreach (var issue in WalkNode(template.Body, inTemplateBody: true, hasStateSourceAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: true))
                         yield return issue;
             }
         }
 
-        private static IEnumerable<LintIssue> WalkNode(ElementNode node, bool inTemplateBody, bool hasStateSourceAncestor, bool parentIsLayoutGroup)
+        private static IEnumerable<LintIssue> WalkNode(ElementNode node, bool inTemplateBody, bool hasStateSourceAncestor, bool parentIsLayoutGroup, bool isTemplateBodyRoot)
         {
             // Per-tag self-checks (mirror of ScreenInstantiator dispatch; CLI errors).
             // Self-relative — about the node itself, unlike parent-relative LayoutGroupChildRules.
@@ -84,6 +86,13 @@ namespace PromptUGUI.Lint
             foreach (var issue in ColorLiteralRules.Check(node))
                 yield return issue;
 
+            // CLI-only: a control-specific attr with a `.variant` override but no base value won't
+            // revert when the variant deactivates (set-only). Self-relative — about the node's own attrs.
+            // Gated on built-in tags (rule decides) + the template-instance-root signal (invocation may
+            // supply CommonAttr bases). See VariantBaseRules for the verified self-heal whitelist.
+            foreach (var issue in VariantBaseRules.Check(node, isTemplateBodyRoot))
+                yield return issue;
+
             // Static reject: a gradient value on a *Modulate multiplier (solid-only, spec §6).
             foreach (var issue in GradientModulateRules.Check(node))
                 yield return issue;
@@ -126,7 +135,7 @@ namespace PromptUGUI.Lint
                         TabRules.TabParentCode, child.Tag, child.Id,
                         $"<Tab id='{child.Id}'>: must be a direct child of <TabBar>; current parent is <{node.Tag}>. " +
                         "Mutual exclusion and shared visuals will not apply.");
-                foreach (var issue in WalkNode(child, inTemplateBody, childHasStateSourceAncestor, parentIsLayoutGroup: isLayoutGroup))
+                foreach (var issue in WalkNode(child, inTemplateBody, childHasStateSourceAncestor, parentIsLayoutGroup: isLayoutGroup, isTemplateBodyRoot: false))
                     yield return issue;
             }
         }

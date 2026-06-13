@@ -616,8 +616,9 @@ namespace PromptUGUI.Application
         public void ReSolve()
         {
             // Collect nodes belonging to currently-inactive Add blocks so we can skip
-            // re-applying attributes to them below. Their SetActive(false) state must
-            // not be overwritten by ApplyCommon's unconditional Hidden assignment.
+            // re-applying attributes to them below. Their SetActive(false) state must not be
+            // clobbered by ApplyCommon — a node declaring hidden="false" would be un-hidden
+            // (Hidden is written only when declared), and interactable/geometry rewrite unconditionally.
             var inactiveNodes = new HashSet<ElementNode>();
             foreach (var block in Def.Variants)
             {
@@ -633,8 +634,9 @@ namespace PromptUGUI.Application
                 }
             }
             // Strategy C: _nodeMap includes nodes from currently-hidden Add blocks.
-            // Skip attribute re-application for inactive Add block nodes to avoid
-            // ApplyCommon's Hidden=false overwriting the SetActive(false) set above.
+            // Skip attribute re-application for inactive Add block nodes to avoid ApplyCommon
+            // un-hiding a node that declares hidden="false" (Hidden is applied only when the node
+            // declares it — `if (hidden.HasValue)` in Control.ApplyCommon — see spec §8.3).
             foreach (var kv in _nodeMap)
             {
                 var node = kv.Key;
