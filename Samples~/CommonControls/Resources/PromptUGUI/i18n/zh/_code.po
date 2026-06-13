@@ -13,6 +13,11 @@ msgstr "抗锯齿"
 msgid "Bloom"
 msgstr "泛光"
 
+# . in BindThemeSwitcher()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:48
+msgid "Dark"
+msgstr "暗色"
+
 # . in BindListPage()
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:99
 msgid "Depth of Field"
@@ -22,6 +27,11 @@ msgstr "景深"
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:55
 msgid "High"
 msgstr "高"
+
+# . in BindThemeSwitcher()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:48
+msgid "Light"
+msgstr "亮色"
 
 # . in BindFormPage()
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:55

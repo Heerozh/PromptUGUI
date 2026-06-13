@@ -1,6 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PromptUGUI version="1">
 
+  <!-- ───────── 主题（亮/暗）─────────
+       页面内所有颜色都走命名 token；C# 调 UI.Theme.Set("light"/"dark") 切换，
+       已打开的 Screen 会自动 ReSolve 重新着色。
+       规则：背景类木面（天空/草地/标题牌/面板）夜间压暗，可交互木控件（按钮/Tab/输入框）
+       保持亮木「夜间点亮」，文字一律墨色——坐落的都是暖木面，夜里依旧清晰。 -->
+  <Theme name="light">
+    <Color name="sky"           value="#BDE3EC"/>
+    <Color name="grass"         value="#8FCF6A"/>
+    <Color name="plaque"        value="#E8B86B"/>
+    <Color name="panel"         value="#FFFFFF"/>
+    <Color name="tab-selected"  value="#CDEBA8"/>
+    <Color name="progress-bg"   value="#E8CFA0"/>
+    <Color name="progress-fill" value="#58A63C"/>
+    <Color name="dot"           value="#C8A878"/>
+    <Color name="dot-selected"  value="#5A3A20"/>
+    <Color name="accent"        value="#A8D88C"/>
+  </Theme>
+  <Theme name="dark">
+    <Color name="sky"           value="#1E2A44"/>
+    <Color name="grass"         value="#33523A"/>
+    <Color name="plaque"        value="#C8954D"/>
+    <Color name="panel"         value="#C2A276"/>
+    <Color name="tab-selected"  value="#5E7A42"/>
+    <Color name="progress-bg"   value="#3C3326"/>
+    <Color name="progress-fill" value="#7CC24F"/>
+    <Color name="dot"           value="#5C4E3C"/>
+    <Color name="dot-selected"  value="#EAC78C"/>
+    <Color name="accent"        value="#6FA85A"/>
+  </Theme>
+
   <!-- ScrollList 行模板 -->
   <Template name="OptionRow">
     <HStack height="32" spacing="8">
@@ -19,34 +49,36 @@
 
   <Screen name="CommonControls" reference="640x360" reference.portrait="360x640" scale-mode="pixel">
     <!-- 背景：天空 + 草地两层 -->
-    <Image anchor="stretch" color="#BDE3EC"/>
-    <Image anchor="bottom-stretch" height="56" color="#8FCF6A" raycastTarget="false"/>
+    <Image anchor="stretch" color="sky"/>
+    <Image anchor="bottom-stretch" height="56" color="grass" raycastTarget="false"/>
     <SafeArea>
 
       <!-- 顶部固定：木牌标题 + 常驻新手引导按钮（Btn 不写 color，吃默认皮肤） -->
       <HStack anchor="top-stretch" height="44" padding="8" spacing="8">
-        <Image sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="#E8B86B" width="220" height="30">
-          <Text anchor="center" fontSize="18" raycastTarget="false">Common Controls Demo</Text>
+        <Image sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="plaque" width="220" width.portrait="132" height="30">
+          <Text anchor="center" fontSize="18" fontSize.portrait="12" raycastTarget="false">Common Controls Demo</Text>
         </Image>
         <Frame width="0"/>
-        <Btn id="tutorialBtn" width="100" height="28" fontSize="16">新手引导</Btn>
+        <Btn id="tutorialBtn" width="100" width.portrait="86" height="28" fontSize="16">新手引导</Btn>
+        <!-- 主题切换：选项「亮色/暗色」由 C# BindThemeSwitcher 填充 → UI.Theme.Set -->
+        <Dropdown id="theme" width="84" height="28"/>
       </HStack>
 
       <!-- TabBar 分页（bind= 切页；Tab 是 layout child，只写 width/height） -->
       <TabBar id="tabs" anchor="top-stretch" height="32" margin="44,8,0,8">
         <Tab id="tabForm"    width="84" text="表单输入" fontSize="15"
-             selectedColor="#CDEBA8" bind="pageForm" isOn="true"/>
+             selectedColor="tab-selected" bind="pageForm" isOn="true"/>
         <Tab id="tabDisplay" width="84" text="展示反馈" fontSize="15"
-             selectedColor="#CDEBA8" bind="pageDisplay"/>
+             selectedColor="tab-selected" bind="pageDisplay"/>
         <Tab id="tabList"    width="84" text="列表轮播" fontSize="15"
-             selectedColor="#CDEBA8" bind="pageList"/>
+             selectedColor="tab-selected" bind="pageList"/>
         <Tab id="tabModal"   width="84" text="模态提示" fontSize="15"
-             selectedColor="#CDEBA8" bind="pageModal"/>
+             selectedColor="tab-selected" bind="pageModal"/>
       </TabBar>
 
       <!-- ① 表单输入（原 Settings 内容保留） -->
       <Frame id="pageForm" anchor="stretch" margin="84,8,8,8">
-        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" raycastTarget="false"/>
+        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="panel" raycastTarget="false"/>
         <VStack anchor="stretch" spacing="12" padding="8">
           <InputField id="username" placeholder="Username" width="240" height="30"/>
           <Toggle id="muteAudio">静音</Toggle>
@@ -57,9 +89,9 @@
 
       <!-- ② 展示反馈 -->
       <Frame id="pageDisplay" anchor="stretch" margin="84,8,8,8">
-        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" raycastTarget="false"/>
+        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="panel" raycastTarget="false"/>
         <VStack anchor="stretch" spacing="10" padding="8">
-          <Progress id="progress" height="16" value="0.3" bgColor="#E8CFA0" fillColor="#58A63C"/>
+          <Progress id="progress" height="16" value="0.3" bgColor="progress-bg" fillColor="progress-fill"/>
           <HStack height="28" spacing="8">
             <Btn id="progMinus" width="64" height="28" fontSize="15">-10%</Btn>
             <Btn id="progPlus"  width="64" height="28" fontSize="15">+10%</Btn>
@@ -84,7 +116,7 @@
 
       <!-- ③ 列表轮播 -->
       <Frame id="pageList" anchor="stretch" margin="84,8,8,8">
-        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" raycastTarget="false"/>
+        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="panel" raycastTarget="false"/>
         <VStack anchor="stretch" spacing="10" padding="8">
           <!-- farm: SpriteSet 12 作物橱窗 -->
           <Grid columns="6" cellSize="32x32" spacing="4" height="72">
@@ -95,7 +127,7 @@
           </Grid>
           <Carousel id="banner" height="90" itemTemplate="DemoCard"
                     interval="3" loop="true" transition="0.3"
-                    dots="bottom-center" dotColor="#C8A878" dotSelectedColor="#5A3A20"/>
+                    dots="bottom-center" dotColor="dot" dotSelectedColor="dot-selected"/>
           <ScrollList id="list" width="stretch" height="stretch" itemTemplate="OptionRow"
                       spacing="4" padding="8"/>
         </VStack>
@@ -103,14 +135,14 @@
 
       <!-- ④ 模态提示 -->
       <Frame id="pageModal" anchor="stretch" margin="84,8,8,8">
-        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" raycastTarget="false"/>
+        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="panel" raycastTarget="false"/>
         <VStack anchor="stretch" spacing="10" padding="8">
           <Btn id="msgBoxBtn"   height="30" fontSize="15">MessageBox</Btn>
           <Btn id="inputBoxBtn" height="30" fontSize="15">InputBox</Btn>
           <Btn id="mdBoxBtn"    height="30" fontSize="15">MarkdownBox</Btn>
           <Btn id="loadingBtn"  height="30" fontSize="15">Loading (2s)</Btn>
-          <!-- 演示 color= tint 仍可用：默认皮肤上叠一层绿 tint -->
-          <Btn id="toastBtn"    height="30" fontSize="15" color="#A8D88C">Toast</Btn>
+          <!-- 演示 color= tint 仍可用：默认皮肤上叠一层主题强调色 tint -->
+          <Btn id="toastBtn"    height="30" fontSize="15" color="accent">Toast</Btn>
         </VStack>
       </Frame>
 

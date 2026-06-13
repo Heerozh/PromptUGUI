@@ -27,8 +27,10 @@ namespace PromptUGUI.Samples.CommonControls
                 SpriteResolverHelpers.UseSpriteSetResolver(spriteSets);
 
             await UI.LoadDocumentAsync("CommonControls.ui");
+            UI.Theme.Set("light");   // 注册了 light+dark 两个主题，AutoSet 不自动选，显式设默认
             var screen = UI.Open("CommonControls");
 
+            BindThemeSwitcher(screen);
             BindFormPage(screen);
             BindDisplayPage(screen);
             BindListPage(screen);
@@ -36,6 +38,15 @@ namespace PromptUGUI.Samples.CommonControls
 
             screen.Get<Btn>("tutorialBtn").OnClick
                   .Subscribe(_ => RunTutorial(screen)).AddTo(screen);
+        }
+
+        // 右上角主题下拉：亮色 / 暗色 → UI.Theme.Set，已打开的 Screen 自动 ReSolve 重新着色
+        static void BindThemeSwitcher(IScreen screen)
+        {
+            var theme = screen.Get<Dropdown>("theme");
+            theme.BindOptions(Observable.Return<IEnumerable<string>>(
+                new[] { UI.Tr("Light"), UI.Tr("Dark") }));
+            theme.OnSelected.Subscribe(i => UI.Theme.Set(i == 0 ? "light" : "dark")).AddTo(screen);
         }
 
         // ① 表单输入：值变化全部打 log
