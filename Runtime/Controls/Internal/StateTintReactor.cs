@@ -141,8 +141,12 @@ namespace PromptUGUI.Controls.Internal
                 return;
             }
 
+            // _graphic 可能在 tween 结束前被销毁（如 Carousel 指示点在 locale/Theme/resize 触发的
+            // ReSolve 中被 RebuildIndicator 重建）。LitMotion 的逐帧回调靠 Unity 隐式 bool 判空跳过已
+            // 销毁的目标，避免写已销毁对象抛 MissingReferenceException（宿主 OnDestroy 的 TryCancel 在
+            // Play 模式延迟销毁时存在竞态，不足以独力兜底）。
             _handle = LMotion.Create(_graphic.color, target.Top, _fade)
-                .Bind(_graphic, static (c, g) => g.color = c);
+                .Bind(_graphic, static (c, g) => { if (g) g.color = c; });
         }
 
         private void OnDestroy()

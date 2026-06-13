@@ -389,6 +389,19 @@ var text = string.Format(c, UI.Tr("Total: {0:C}"), price);
 
 Locale switching rides the Variant pipeline — already-open Screens auto-ReSolve. `UI.Locale.Set("zh-Hans")` internally registers `zh-Hans` as an active Variant; don't reuse that name for non-locale state.
 
+**`text=` declared in XML auto-retranslates on ReSolve; C#-pushed dynamic text does NOT.** ReSolve only re-applies *XML-declared* values through the translation table — it never re-runs your `BindOptions` / `BindItems` / `TextValue =` calls. So a one-shot `Observable.Return(new[] { UI.Tr("Light"), UI.Tr("Dark") })` snapshots the *current* locale's strings and is stuck there after a language switch. Drive translatable dynamic content off a stream that re-emits on locale change:
+
+```csharp
+static Observable<Unit> LocaleTicks =>
+    Observable.FromEvent(h => UI.Locale.Changed += h, h => UI.Locale.Changed -= h)
+              .Prepend(Unit.Default);   // emit once now + on every UI.Locale.Changed
+
+dropdown.BindOptions(LocaleTicks.Select(_ => (IEnumerable<string>)
+    new[] { UI.Tr("Light"), UI.Tr("Dark") })).AddTo(screen);
+```
+
+`Dropdown.BindOptions` clears+refills then `RefreshShownValue()` without touching the selected index, so re-emitting an equal-length list just re-captions (no spurious `OnSelected`). `BindItems` re-emits rebuild the child items — correct, but it resets list scroll / carousel page, so only re-emit what actually needs retranslating.
+
 `SetToSystemDefault()` / the boot-time `InitializeIfNeeded()` match `Application.systemLanguage` against your configured locales with **RFC 4647 truncation fallback**: an unmatched `zh-Hant-TW` is retried as `zh-Hant`, then `zh`. So a single configured `zh` catches every Chinese system (`systemLanguage` always reports `zh-Hans`/`zh-Hant`, never bare `zh`) — you don't need one entry per script. The matched **configured** spelling is what's used (so `.po` paths resolve), exact beats parent, and it only truncates the *request* — a generic `zh` system won't match a more specific configured `zh-Hans`.
 
 **.po file location (Resources-backed)**: by default `.po` files live in `Assets/Resources/PromptUGUI/i18n/<locale>/` or `/PromptUGUI/i18n-custom/<locale>/`. Files anywhere under those paths are picked up by `Resources.LoadAll<TextAsset>`; subfolder names are ignored.

@@ -18,6 +18,14 @@ namespace PromptUGUI.Samples.CommonControls
     {
         [SerializeField] SpriteSet[] spriteSets;   // 拖 FarmSpriteSet.asset
 
+        // 切语言时会重发的脉冲：立即发一次 + 每次 UI.Locale.Changed 再发一次。
+        // 用它驱动所有"文字需随 locale 重译"的 BindOptions / BindItems —— ReSolve 只重译 XML 里
+        // 声明的 text=，不会重跑 C# 绑定 lambda，所以动态绑定里的 UI.Tr(...) 必须自己挂到这个流上，
+        // 否则 Observable.Return 只发一次、永远停在第一个 locale 的字符串。
+        static Observable<Unit> LocaleTicks =>
+            Observable.FromEvent(h => UI.Locale.Changed += h, h => UI.Locale.Changed -= h)
+                      .Prepend(Unit.Default);
+
         async void Start()
         {
             UI.UseResourcesResolver("UI");
@@ -44,8 +52,8 @@ namespace PromptUGUI.Samples.CommonControls
         static void BindThemeSwitcher(IScreen screen)
         {
             var theme = screen.Get<Dropdown>("theme");
-            theme.BindOptions(Observable.Return<IEnumerable<string>>(
-                new[] { UI.Tr("Light"), UI.Tr("Dark") }));
+            theme.BindOptions(LocaleTicks.Select(_ => (IEnumerable<string>)
+                new[] { UI.Tr("Light"), UI.Tr("Dark") })).AddTo(screen);
             theme.OnSelected.Subscribe(i => UI.Theme.Set(i == 0 ? "light" : "dark")).AddTo(screen);
         }
 
@@ -62,8 +70,8 @@ namespace PromptUGUI.Samples.CommonControls
                   .Subscribe(v => Debug.Log($"[Sample] master vol = {v:F2}")).AddTo(screen);
 
             var quality = screen.Get<Dropdown>("quality");
-            quality.BindOptions(Observable.Return<IEnumerable<string>>(
-                new[] { UI.Tr("Low"), UI.Tr("Medium"), UI.Tr("High"), UI.Tr("Ultra") }));
+            quality.BindOptions(LocaleTicks.Select(_ => (IEnumerable<string>)
+                new[] { UI.Tr("Low"), UI.Tr("Medium"), UI.Tr("High"), UI.Tr("Ultra") })).AddTo(screen);
             quality.OnSelected.Subscribe(i => Debug.Log($"[Sample] quality = {i}")).AddTo(screen);
         }
 
@@ -90,7 +98,7 @@ namespace PromptUGUI.Samples.CommonControls
         static void BindListPage(IScreen screen)
         {
             screen.Get<Carousel>("banner").BindItems(
-                Observable.Return<IReadOnlyList<(string title, string color)>>(new[]
+                LocaleTicks.Select(_ => (IReadOnlyList<(string title, string color)>)new[]
                 {
                     (UI.Tr("欢迎使用 PromptUGUI"), "#F2B24C"),
                     (UI.Tr("XML 直接生成 uGUI"), "#8FCF6A"),
@@ -100,16 +108,16 @@ namespace PromptUGUI.Samples.CommonControls
                 {
                     card.Get<Text>("title").TextValue = item.title;
                     card.Get<Image>("bg").Color = item.color;
-                });
+                }).AddTo(screen);
 
             screen.Get<ScrollList>("list").BindItems(
-                Observable.Return<IReadOnlyList<string>>(new[]
+                LocaleTicks.Select(_ => (IReadOnlyList<string>)new[]
                 {
                     UI.Tr("VSync"), UI.Tr("Anti-Aliasing"), UI.Tr("Shadows"), UI.Tr("Texture Quality"),
                     UI.Tr("Particles"), UI.Tr("Reflections"), UI.Tr("Post Processing"), UI.Tr("Bloom"),
                     UI.Tr("Motion Blur"), UI.Tr("Depth of Field")
                 }),
-                (IControl slot, string text) => slot.Get<Text>("label").TextValue = text);
+                (IControl slot, string text) => slot.Get<Text>("label").TextValue = text).AddTo(screen);
         }
 
         // ④ 模态提示：四种内置模态 + Toast，结果用 Toast 回显
