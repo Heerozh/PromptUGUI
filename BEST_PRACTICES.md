@@ -90,9 +90,62 @@ screen.Get<ScrollList>("inv").BindItems(player.Inventory, (slot, item) =>
 }).AddTo(screen);
 ```
 
+> For anything beyond one or two screens, drive opening / closing through `UI.Router` (§3) instead of calling `UI.Open` directly all over your code — the `Get` / `AddTo` / `BindItems` wiring above is identical either way.
+
 ---
 
-## 3. Theme Colors
+## 3. Router / Deep Link Navigation
+
+**Manage every screen through `UI.Router` — don't scatter raw `UI.Open` / `UI.Close` calls around your code.** Register each navigable destination **once at boot** with a stable opaque `name` and a canonical `parent`; from then on you navigate by name. The router reconciles the live screen chain on each call, so opening via a button and opening via a deep-link run the *same* code path and always land in the identical state.
+
+```csharp
+// Boot: declare the whole navigation graph once
+UI.Router.Scheme = "myapp";                                    // optional deep-link scheme
+
+UI.Router.Map("home",     src: "screens/Home");                // root page
+UI.Router.Map("details",  src: "screens/Details", parent: "home",
+    onEnter: (s, q) => s.Get<Text>("title").TextValue = q.Get("name", "—"));
+UI.Router.Map("settings", src: "screens/Settings",
+    present: RoutePresent.Modal, parent: "home");              // overlay panel, ESC→Back
+UI.Router.MapTab("deals", parent: "home", tabId: "bar/deals"); // selects a <Tab> inside home
+UI.Router.MapPrompt("rename", parent: "home", run: async (q, ct) =>
+{                                                              // async flow, no screen of its own
+    var name = await InputBox.Open("New name", initial: PlayerName, ct: ct);
+    if (name != null) await Api.Rename(name);
+});
+```
+
+```csharp
+// Navigate by name — a button and a deep-link give the identical result
+await UI.Router.Open("details");
+await UI.Router.Navigate("myapp://details?id=42");             // deep-link / URL form
+await UI.Router.Back();                                        // to parent; no-op at root
+await UI.Router.Reset();                                       // close the whole chain
+
+UI.Router.Current;   // top-of-chain name (null when empty)
+UI.Router.Chain;     // root→top, e.g. ["home","details"]
+UI.Router.Changed += () => Persist(UI.Router.Chain);           // fires after every reconcile
+```
+
+**Four presentations:** `Page` (full-screen), `Modal` (overlay, ESC→`Back()`), `Tab` (selects a `<Tab>` in its host Page/Modal), `Prompt` (an `async` flow such as `InputBox` / `MessageBox` — self-pops when it returns).
+
+**Coexistence rules (hard):**
+
+- **Open a router-managed screen only via the router.** A direct `UI.Open(...)` on it bypasses reconciliation and corrupts the chain. §2's wiring (`Get<T>` / `.AddTo` / `BindItems`) is unchanged — do it in `onEnter` or right after `Open` returns.
+- **A Modal route's close button calls `UI.Router.Back()`**, not `UI.Close(...)` (the ESC listener already does this).
+- **Ad-hoc overlays** (`MessageBox` / `InputBox` / `Loading` / `Toast`) stay outside the router; a reconcile auto-closes them, so a deep-link can't slip underneath them.
+- **One destination, two entry points.** Register a flow once (the `rename` Prompt above) and fire it from both `OnClick` and `Navigate(...)` — never duplicate the open logic.
+
+**Guards** veto navigation synchronously — e.g. block leaving a screen with unsaved edits:
+
+```csharp
+Func<string, bool> guard = target => !HasUnsavedChanges;       // false → NavigationRejectedException
+UI.Router.AddGuard(guard);                                     // RemoveGuard(guard) by reference
+```
+
+---
+
+## 4. Theme Colors
 
 **Colors go through theme tokens — don't hard-code hex.** Define named colors in `<Theme>`; any `color=` attribute references them by name. When you switch themes, every screen re-colors automatically.
 
@@ -127,7 +180,7 @@ UI.Theme.Set("dark");   // switch at runtime; open screens refresh automatically
 
 ---
 
-## 4. SpriteSet (Icons / Atlases)
+## 5. Sprites: author with `.pxl`, pack with SpriteSet
 
 **Build a SpriteSet for shared icons and UI slices** (`Create → PromptUGUI → Sprite Set`, set `setName` + a source directory), reference them by name in XML, and **only the sprites actually referenced by XML are shipped** (package-time pruning):
 
@@ -142,6 +195,41 @@ UI.Theme.Set("dark");   // switch at runtime; open screens refresh automatically
     - **`ui/dialog` format** → goes through `Resources.Load` (good for one-offs / prototyping).
 - After changes, run `Tools → PromptUGUI → Sprite → Sync Atlases` to pack the referenced sprites.
 
+**Author your sprites as `.pxl` pixel-grid text — the recommended way to make all UI art** (icons, 9-slice frames / borders, button skins, badges). A `.pxl` is plain text: a palette plus a character grid, one character per pixel. Drop it into a SpriteSet's source folder and Unity imports it as a point-filtered Sprite that **Sync Atlases packs exactly like a PNG** and XML references by the same `set:key`.
+
+```
+# Frames/panel.pxl — 8×8 rounded frame, 3px 9-slice border
+palette: @ui
+ppu: 16
+chars:
+  K: night
+  H: cloud
+border: 3,3,3,3
+grid:
+  .KKKKKK.
+  KHHHHHHK
+  KHHHHHHK
+  KHHHHHHK
+  KHHHHHHK
+  KHHHHHHK
+  KHHHHHHK
+  .KKKKKK.
+```
+
+```xml
+<Image sprite="UI:Frames/panel" mask="self"/>
+```
+
+Why `.pxl` is the default for sprite art:
+
+- **It's text the model can write and self-check** — re-read the grid row by row, fix individual pixels; import errors carry line numbers.
+- **9-slice `border:`, `ppu:`, and a `tiled: true` hint live in the file.** `tiled` auto-renders the sprite with `Image.Type.Tiled` (corners fixed, edges / center repeat) — exactly what directional borders need (vines, wood grain, chains).
+- **A `.gpl` palette enforces project-wide color consistency** — edit the palette once and every `.pxl` that references it recolors.
+- **It round-trips with art tools** — the `.pxl` Inspector has *Export PNG* / *Sync from PNG* (the `.pxl` text stays the source of truth for `border` / `ppu` / palette).
+- **Sweet spot ≤48×48** — UI chrome, not large illustrations. Design at the smallest size that reads and let `ppu` / scaling handle display size.
+
+> Full format, palette workflow, and pixel-art craft rules live in the **authoring-promptugui-pxl** skill.
+
 **AA: one label gathers a whole group of SpriteSets.** Tag the SpriteSet assets with an Addressables label, and Addressables automatically pulls in the SpriteAtlases they depend on:
 
 ```csharp
@@ -154,7 +242,7 @@ await SpriteResolverHelpers.UseAddressableSpriteSetResolver(
 
 ---
 
-## 5. Localization & Fonts
+## 6. Localization & Fonts
 
 Always set up localization — PromptUGUI supports automatic translation, so localization is free.
 
@@ -189,7 +277,7 @@ await UI.Locale.SetAsync("en");   // waits for download + refresh to finish (use
 
 ---
 
-## 6. XML Authoring Best Practices
+## 7. XML Authoring Best Practices
 
 **`<Screen>`: use `reference` + `reference.portrait` so one XML serves both landscape and portrait.** `reference` is the design resolution; the CanvasScaler switches to scale-with-screen and auto-locks the edge by orientation (lock width when W≥H, lock height when H>W). `portrait` / `landscape` are orientation variants the library **tracks automatically** (see Variant below).
 
@@ -291,7 +379,7 @@ public sealed class Badge : Control
 
 ---
 
-## 7. Modal Dialogs
+## 8. Modal Dialogs
 
 **MessageBox is async and blocking — `await` the result directly:**
 
@@ -323,7 +411,7 @@ finally { loading.Close(); }
 
 ---
 
-## 8. Animation (Optional)
+## 9. Animation (Optional)
 
 **Entrance animation: wrap an element in `<Animation>`; with `on="open"` it plays automatically.**
 

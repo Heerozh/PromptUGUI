@@ -90,9 +90,62 @@ screen.Get<ScrollList>("inv").BindItems(player.Inventory, (slot, item) =>
 }).AddTo(screen);
 ```
 
+> 超过一两个界面，就用 `UI.Router`（§3）统一驱动开关，而不是到处直接 `UI.Open` —— 上面的 `Get` / `AddTo` / `BindItems` 接线两种方式完全一样。
+
 ---
 
-## 3. 主题颜色
+## 3. Router 深度链接导航
+
+**所有界面都通过 `UI.Router` 管理，不要到处散落 `UI.Open` / `UI.Close`。** 在 boot 里**一次性**用稳定的 `name` + 固定的 `parent` 注册每个可导航目标，之后一律按名字导航。每次调用 router 都会 reconcile（重整）当前界面链 —— 点按钮打开和深度链接打开走的是**同一条**代码路径，结果永远一致。
+
+```csharp
+// Boot：一次性声明整张导航图
+UI.Router.Scheme = "myapp";                                    // 可选的深链 scheme
+
+UI.Router.Map("home",     src: "screens/Home");                // 根页面
+UI.Router.Map("details",  src: "screens/Details", parent: "home",
+    onEnter: (s, q) => s.Get<Text>("title").TextValue = q.Get("name", "—"));
+UI.Router.Map("settings", src: "screens/Settings",
+    present: RoutePresent.Modal, parent: "home");              // 覆盖式面板，ESC→Back
+UI.Router.MapTab("deals", parent: "home", tabId: "bar/deals"); // 选中 home 里的某个 <Tab>
+UI.Router.MapPrompt("rename", parent: "home", run: async (q, ct) =>
+{                                                              // 纯异步流程，没有自己的界面
+    var name = await InputBox.Open("新名字", initial: PlayerName, ct: ct);
+    if (name != null) await Api.Rename(name);
+});
+```
+
+```csharp
+// 按名导航 —— 按钮和深链结果完全一致
+await UI.Router.Open("details");
+await UI.Router.Navigate("myapp://details?id=42");             // 深度链接 / URL 形式
+await UI.Router.Back();                                        // 回父节点；根节点时空操作
+await UI.Router.Reset();                                       // 关闭整条链
+
+UI.Router.Current;   // 链顶名字（空链时 null）
+UI.Router.Chain;     // root→top，如 ["home","details"]
+UI.Router.Changed += () => Persist(UI.Router.Chain);           // 每次 reconcile 后触发
+```
+
+**四种呈现方式：** `Page`（全屏）、`Modal`（覆盖式，ESC→`Back()`）、`Tab`（选中宿主 Page/Modal 里的 `<Tab>`）、`Prompt`（如 `InputBox` / `MessageBox` 的异步流程，返回即自动出栈）。
+
+**共存硬规矩：**
+
+- **router 管理的界面只能经 router 打开。** 直接 `UI.Open(...)` 会绕过 reconcile、破坏链状态。§2 的接线（`Get<T>` / `.AddTo` / `BindItems`）照旧 —— 写在 `onEnter` 里或 `Open` 返回之后即可。
+- **Modal 路由的关闭按钮调 `UI.Router.Back()`**，不是 `UI.Close(...)`（ESC 监听已自动这么做）。
+- **临时浮层**（`MessageBox` / `InputBox` / `Loading` / `Toast`）不归 router 管，reconcile 时会被自动关掉，所以深链无法从它们底下溜过去。
+- **同一目标、两个入口。** 流程只注册一次（如上面的 `rename` Prompt），`OnClick` 和 `Navigate(...)` 都触发它 —— 绝不复制打开逻辑。
+
+**Guard** 同步否决导航 —— 比如有未保存改动时禁止离开：
+
+```csharp
+Func<string, bool> guard = target => !HasUnsavedChanges;       // 返回 false → 抛 NavigationRejectedException
+UI.Router.AddGuard(guard);                                     // RemoveGuard(guard) 按引用移除
+```
+
+---
+
+## 4. 主题颜色
 
 **颜色走主题 token，不要硬编码十六进制。** 在 `<Theme>` 里定义命名色，任意 `color=` 属性按名引用；切主题时所有界面自动重新着色。
 
@@ -127,7 +180,7 @@ UI.Theme.Set("dark");   // 运行时切换，已打开界面自动重刷
 
 ---
 
-## 4. SpriteSet（图标 / 图集）
+## 5. 精灵：用 .pxl 制作 + SpriteSet 打包
 
 **共享图标和 UI 切片建 SpriteSet**（`Create → PromptUGUI → Sprite Set`，设 `setName` + 源目录），XML 里按名引用，打包时**只含被 XML 引用到的图**（package-time pruning）：
 
@@ -141,6 +194,41 @@ UI.Theme.Set("dark");   // 运行时切换，已打开界面自动重刷
     - **`setName:icon-name`格式** 走SpriteSet图集
     - **`ui/dialog` 格式** 走 `Resources.Load`（适合一次性 / 原型）。
 - 改完跑 `Tools → PromptUGUI → Sprite → Sync Atlases` 打包引用到的图。
+
+**所有 UI 美术（图标、9-slice 边框、按钮皮肤、徽标）优先用 `.pxl` 像素网格文本来制作。** `.pxl` 是纯文本：一份调色板 + 一张字符网格，一个字符一个像素。把它丢进 SpriteSet 的源目录，Unity 就把它导入成点采样 Sprite，**Sync Atlases 打包方式和 PNG 完全一样**，XML 也用同样的 `set:key` 引用。
+
+```
+# Frames/panel.pxl —— 8×8 圆角边框，3px 9-slice
+palette: @ui
+ppu: 16
+chars:
+  K: night
+  H: cloud
+border: 3,3,3,3
+grid:
+  .KKKKKK.
+  KHHHHHHK
+  KHHHHHHK
+  KHHHHHHK
+  KHHHHHHK
+  KHHHHHHK
+  KHHHHHHK
+  .KKKKKK.
+```
+
+```xml
+<Image sprite="UI:Frames/panel" mask="self"/>
+```
+
+为什么 `.pxl` 是制作精灵的首选：
+
+- **是大模型能写、能自查的纯文本** —— 可逐行重读网格、逐像素修；导入报错带行号。
+- **9-slice `border:`、`ppu:`、`tiled: true` 提示都写在文件里。** `tiled` 会让 sprite 自动用 `Image.Type.Tiled` 渲染（四角固定、边/中心重复）—— 正是有方向纹理的边框（藤蔓、木纹、锁链）需要的。
+- **`.gpl` 调色板强制全项目配色一致** —— 改一次调色板，所有引用它的 `.pxl` 一起换色。
+- **可与美术工具往返** —— `.pxl` 的 Inspector 有 *Export PNG* / *Sync from PNG*（`.pxl` 文本始终是 `border` / `ppu` / palette 的事实来源）。
+- **甜区 ≤48×48** —— UI 装饰件，不是大插画。用能看清的最小尺寸画，显示大小交给 `ppu` / 缩放。
+
+> 完整格式、调色板工作流和像素画规范见 **authoring-promptugui-pxl** skill。
 
 **依然是推荐使用AA包** ：把 SpriteSet 设为Addressable，给 SpriteSet 资源打 Addressables label，Addressables 自动拉取依赖的 SpriteAtlas：
 
@@ -157,7 +245,7 @@ await SpriteResolverHelpers.UseAddressableSpriteSetResolver(
 
 ---
 
-## 5. 多国语言 & 字体
+## 6. 多国语言 & 字体
 
 始终设置多国语言，PromptUGUI 支持自动翻译，多国语言是免费的。
 
@@ -192,7 +280,7 @@ await UI.Locale.SetAsync("en");   // 等下载 + 重刷完成（之后要立刻�
 
 ---
 
-## 6. XML 书写最佳实践
+## 7. XML 书写最佳实践
 
 **`<Screen>`：用 `reference` + `reference.portrait` 让一份 XML 同时供横竖屏。** `reference` 是设计分辨率，CanvasScaler 切到按屏缩放，并按朝向自动锁边（W≥H 锁宽、H>W 锁高）。`portrait` / `landscape` 是库**自动跟踪**的朝向变体（见下方 Variant）。
 
@@ -326,7 +414,7 @@ PromptUGUI 把所有内置控件 + 反射注册的自定义控件 + 扫描到的
 
 ---
 
-## 7. 模态对话框
+## 8. 模态对话框
 
 **请使用内置的 MessageBox， 天然异步阻塞式，直接 `await` 拿结果：**
 
@@ -358,7 +446,7 @@ finally { loading.Close(); }
 
 ---
 
-## 8. 触发器
+## 9. 触发器
 
 目前有2种触发器，`<Animation>` 负责动画，和 `<Show>` 负责隐藏/展示子节点。
 
