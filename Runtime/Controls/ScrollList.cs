@@ -68,18 +68,30 @@ namespace PromptUGUI.Controls
 
         private void ApplyDirection()
         {
-            if (_layoutGroup != null)
+            var wantHorizontal = _direction == "horizontal";
+
+            // Ensure Content carries the right LayoutGroup type, reusing it when unchanged. Object.Destroy is
+            // deferred to end-of-frame in play mode, so a destroy-then-AddComponent in one frame collides with
+            // the not-yet-removed group (LayoutGroup is [DisallowMultipleComponent]) — the add fails and the
+            // deferred destroy then strands Content with no layout group (items collapse). Only swap on a real
+            // type change, and DestroyImmediate so the slot is free before AddComponent (safe here: off the
+            // app/ReSolve call stack, never a physics/animation/OnValidate callback). Mirrors TabBar.ApplyDirection.
+            if (_layoutGroup == null || (_layoutGroup is HorizontalLayoutGroup) != wantHorizontal)
             {
-                if (UnityEngine.Application.isPlaying)
-                    UnityEngine.Object.Destroy(_layoutGroup);
-                else
+                if (_layoutGroup != null)
+                {
                     UnityEngine.Object.DestroyImmediate(_layoutGroup);
-                _layoutGroup = null;
+                    _layoutGroup = null;
+                }
+                _layoutGroup = wantHorizontal
+                    ? (LayoutGroup)_content.gameObject.AddComponent<HorizontalLayoutGroup>()
+                    : _content.gameObject.AddComponent<VerticalLayoutGroup>();
             }
+
             var fitter = _content.GetComponent<ContentSizeFitter>()
                          ?? _content.gameObject.AddComponent<ContentSizeFitter>();
 
-            if (_direction == "horizontal")
+            if (wantHorizontal)
             {
                 _scroll.horizontal = true;
                 _scroll.vertical = false;
@@ -89,7 +101,6 @@ namespace PromptUGUI.Controls
                 _content.pivot = new Vector2(0f, 0.5f);
                 _content.sizeDelta = Vector2.zero;
                 _content.anchoredPosition = Vector2.zero;
-                _layoutGroup = _content.gameObject.AddComponent<HorizontalLayoutGroup>();
                 fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
                 fitter.verticalFit = ContentSizeFitter.FitMode.Unconstrained;
             }
@@ -103,13 +114,12 @@ namespace PromptUGUI.Controls
                 _content.pivot = new Vector2(0.5f, 1f);
                 _content.sizeDelta = Vector2.zero;
                 _content.anchoredPosition = Vector2.zero;
-                _layoutGroup = _content.gameObject.AddComponent<VerticalLayoutGroup>();
                 fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
                 fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             }
             ApplySpacingPadding();
 
-            if (_direction == "horizontal")
+            if (wantHorizontal)
             {
                 EnsureHorizontalScrollbar();
                 if (_vertScrollbar != null) _vertScrollbar.gameObject.SetActive(false);

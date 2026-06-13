@@ -277,6 +277,44 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 "frame must remain the last sibling even though the horizontal scrollbar was created after it");
         }
 
+        // Same class of bug as TabBar (see TabBarTests): ApplyDirection destroyed+recreated the LayoutGroup
+        // (on the Content child) every call. Object.Destroy is deferred to end-of-frame in play mode, so a
+        // same-frame AddComponent collides with the not-yet-removed group ([DisallowMultipleComponent]); the
+        // add fails and the deferred destroy then strands Content with NO layout group (items collapse).
+        // Invisible in EditMode (DestroyImmediate is synchronous), so we lock the mode-independent contract:
+        // re-applying the SAME direction must reuse the existing group, never destroy+recreate.
+        [Test]
+        public void ScrollList_ReapplySameDirection_ReusesLayoutGroup()
+        {
+            var sl = OpenList(@"direction='vertical'");
+            var content = sl.GameObject.transform.Find("Viewport/Content");
+            var first = content.GetComponent<UnityEngine.UI.VerticalLayoutGroup>();
+            Assert.IsNotNull(first, "VLG present on Content after open");
+
+            sl.Direction = "vertical";   // mirrors ReSolve / explicit base re-apply of the unchanged value
+
+            Assert.AreSame(first, content.GetComponent<UnityEngine.UI.VerticalLayoutGroup>(),
+                "same-direction re-apply must reuse the existing LayoutGroup (no destroy+recreate)");
+            Assert.AreEqual(1, content.GetComponents<UnityEngine.UI.LayoutGroup>().Length, "exactly one LayoutGroup");
+        }
+
+        [Test]
+        public void ScrollList_DirectionSwap_KeepsExactlyOneLayoutGroup()
+        {
+            var sl = OpenList(@"direction='vertical'");
+            var content = sl.GameObject.transform.Find("Viewport/Content");
+
+            sl.Direction = "horizontal";
+            Assert.IsNull(content.GetComponent<UnityEngine.UI.VerticalLayoutGroup>(), "VLG gone after swap to horizontal");
+            Assert.IsNotNull(content.GetComponent<UnityEngine.UI.HorizontalLayoutGroup>(), "HLG present after swap");
+            Assert.AreEqual(1, content.GetComponents<UnityEngine.UI.LayoutGroup>().Length, "exactly one group after swap");
+
+            sl.Direction = "vertical";
+            Assert.IsNull(content.GetComponent<UnityEngine.UI.HorizontalLayoutGroup>(), "HLG gone after swap back");
+            Assert.IsNotNull(content.GetComponent<UnityEngine.UI.VerticalLayoutGroup>(), "VLG present after swap back");
+            Assert.AreEqual(1, content.GetComponents<UnityEngine.UI.LayoutGroup>().Length, "exactly one group after swap back");
+        }
+
         [Test]
         public void FrameColor_alone_activates_frame_layer()
         {
