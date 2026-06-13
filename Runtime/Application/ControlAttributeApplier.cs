@@ -147,17 +147,11 @@ namespace PromptUGUI.Application
             return $"<{node.Tag}{id}>";
         }
 
-        public static bool IsCommonAttribute(string name)
-        {
-            return name switch
-            {
-                "anchor" or "size" or "width" or "height" or "margin" or "pivot" or "hidden" or "interactable" or "flow" => true,
-                // 'scale' deliberately NOT listed: it is applied by Screen.ApplyScales (independent
-                // of the ApplyCommon path) for controls without their own setter, and dispatched
-                // through the normal [UIAttr("scale")] loop for controls that handle it themselves
-                // (e.g. <Animation>, which interprets scale="from:to" as keyframe values).
-                _ => false,
-            };
-        }
+        // Single source of truth lives in PromptUGUI.IR.CommonAttributes (Core/IR) so the lint CLI can
+        // read the same set without compiling Application. 'scale' is deliberately NOT in that set: it is
+        // applied by Screen.ApplyScales (independent of the ApplyCommon path) for controls without their own
+        // setter, and dispatched through the normal [UIAttr("scale")] loop for controls that handle it
+        // themselves (e.g. <Animation>, which interprets scale="from:to" as keyframe values).
+        public static bool IsCommonAttribute(string name) => CommonAttributes.Contains(name);
     }
 }

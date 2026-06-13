@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
+using PromptUGUI.Application;
 using PromptUGUI.IR;
 using PromptUGUI.Lint;
 using PromptUGUI.Parser;
@@ -246,6 +247,48 @@ namespace PromptUGUI.Tests.EditMode.Lint
             var n = Node("TabBar");
             n.VariantOverrides["direction"] = V("portrait", "vertical");
             Assert.AreEqual(1, VariantBaseRules.Check(n, isTemplateBodyRoot: true).Count());
+        }
+
+        // ===== single source of truth: self-heal set is DERIVED from the shared common-attr set =====
+
+        [Test]
+        public void SelfHealSet_DerivedFromSharedCommonAttributes()
+        {
+            // Iterates the shared authority, so a future attr ADDED to CommonAttributes.All is covered
+            // automatically — no edit to the lint needed. Every common attr self-heals EXCEPT `hidden`
+            // (applied conditionally in ApplyCommon), which is the one documented exception.
+            foreach (var attr in CommonAttributes.All)
+            {
+                var n = Node("Frame");
+                n.VariantOverrides[attr] = V("portrait", "x");
+                if (attr == "hidden")
+                    Assert.IsNotEmpty(VariantBaseRules.Check(n),
+                        "hidden is the common-but-NOT-self-healing exception (Control.cs `if (hidden.HasValue)`)");
+                else
+                    Assert.IsEmpty(VariantBaseRules.Check(n),
+                        $"'{attr}' is a self-healing common attr (recomputed every ApplyCommon pass)");
+            }
+        }
+
+        [Test]
+        public void Scale_SelfHeals_EvenThoughNotACommonAttr()
+        {
+            // scale is the other exception: NOT in CommonAttributes.All (handled by Screen.ApplyScales,
+            // not ApplyCommon) yet it self-heals (localScale reset to identity when unresolved).
+            Assert.IsFalse(CommonAttributes.All.Contains("scale"));
+            var n = Node("Text");
+            n.VariantOverrides["scale"] = V("portrait", "2x");
+            Assert.IsEmpty(VariantBaseRules.Check(n));
+        }
+
+        [Test]
+        public void RuntimeAndLint_ShareCommonAttributeAuthority()
+        {
+            // ControlAttributeApplier (runtime dispatch) and the lint derive from the SAME set, so they
+            // cannot drift: if one says an attr is common, so does the other.
+            foreach (var attr in CommonAttributes.All)
+                Assert.IsTrue(ControlAttributeApplier.IsCommonAttribute(attr),
+                    $"'{attr}' is in CommonAttributes.All but ControlAttributeApplier disagrees");
         }
 
         [Test]

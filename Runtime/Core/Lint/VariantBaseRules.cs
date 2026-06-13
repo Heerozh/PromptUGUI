@@ -28,12 +28,18 @@ namespace PromptUGUI.Lint
     {
         public const string NoBaseCode = "PUI-VARIANT-NO-BASE";
 
-        // Attrs whose base-less variant override cleanly reverts (the runtime's generic reset path) —
-        // see the class doc for the per-attribute justification (verified against ApplyCommon / ApplyScales).
-        private static readonly HashSet<string> SelfHealing = new()
-        {
-            "anchor", "size", "width", "height", "margin", "pivot", "interactable", "flow", "scale",
-        };
+        // An attribute self-heals iff the runtime unconditionally re-applies it when its variant clears.
+        // DERIVED from the shared PromptUGUI.IR.CommonAttributes set (the ApplyCommon path) — a new common
+        // attr added there is picked up here automatically, no edit needed — with two intrinsic exceptions:
+        //   - `hidden` IS a common attr but is applied conditionally (`if (hidden.HasValue)` in Control.cs),
+        //     so a null-resolving hidden is SKIPPED, not reset → it does NOT self-heal.
+        //   - `scale` is NOT a common attr (handled by Screen.ApplyScales, not ApplyCommon) but DOES
+        //     self-heal (localScale reset to identity when unresolved).
+        // These two are the only points where "is a common attr" ≠ "self-heals"; both are exercised by
+        // VariantBaseRulesTests so a future runtime change that moves an attr across the line trips a test.
+        private static bool SelfHeals(string attr)
+            => attr == "scale"
+               || (attr != "hidden" && CommonAttributes.Contains(attr));
 
         // Never reach a control setter (resolved at parse / expansion / instantiation time), so a
         // ".variant" form is meaningless rather than a revert bug.
@@ -73,7 +79,7 @@ namespace PromptUGUI.Lint
             {
                 var attr = kv.Key;
                 if (HasBase(n, attr)) continue;
-                if (SelfHealing.Contains(attr)) continue;
+                if (SelfHeals(attr)) continue;
                 if (NotSetters.Contains(attr)) continue;
                 if (MaskFamily.Contains(attr)) continue;
                 if (isTemplateBodyRoot && InvocationMergeableOntoTemplateRoot.Contains(attr)) continue;
