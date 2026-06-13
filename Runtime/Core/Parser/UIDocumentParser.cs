@@ -113,9 +113,13 @@ namespace PromptUGUI.Parser
                 if (!KebabRx.IsMatch(cn))
                     throw new ParseException(
                         $"<Color name=\"{cn}\">: token name must be kebab-case [a-z0-9-]");
-                if (!ColorParser.TryParseHtmlString(cv))
+                if (!ColorParser.TrySplitGradient(cv, out var gTop, out var gBottom, out var gErr))
+                    throw new ParseException($"<Color name=\"{cn}\" value=\"{cv}\">: {gErr}");
+                if (!ColorParser.TryParseHtmlString(gTop)
+                    || (gBottom != null && !ColorParser.TryParseHtmlString(gBottom)))
                     throw new ParseException(
-                        $"<Color name=\"{cn}\" value=\"{cv}\">: invalid color literal");
+                        $"<Color name=\"{cn}\" value=\"{cv}\">: invalid color literal" +
+                        (gBottom != null ? " (each gradient segment must be a hex/named literal — no tokens, no /alpha)" : ""));
                 if (!seen.Add(cn))
                     throw new ParseException(
                         $"<Theme name=\"{name}\"> declares '{cn}' twice");

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using PromptUGUI.Application;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -19,7 +20,7 @@ namespace PromptUGUI.Controls.Internal
             IReadOnlyList<IControl> children,
             StateColorSet absolutes,
             StateColorSet modulates,
-            Color? selectedBase = null,
+            ColorSpec? selectedBase = null,
             bool selected = false)
         {
             if (!absolutes.HasAny && !modulates.HasAny && !selectedBase.HasValue) return null;
@@ -45,7 +46,7 @@ namespace PromptUGUI.Controls.Internal
                 // Absolutes + selectedBase apply ONLY to the control's base graphic (targetGraphic) —
                 // fanning them out would paint label/icon the bg colour. Descendants get the multiplier only.
                 var abs = isTarget ? absolutes : default;
-                var selBase = isTarget ? selectedBase : null;
+                ColorSpec? selBase = isTarget ? selectedBase : null;
                 var reactor = InstallReactor(g, abs, modulates, fade, selBase, selected);
                 if (isTarget) targetReactor = reactor;
             }
@@ -73,7 +74,7 @@ namespace PromptUGUI.Controls.Internal
                 CollectBlocked(child as Control, blocked);
         }
 
-        private static StateTintReactor InstallReactor(Graphic graphic, StateColorSet absolutes, StateColorSet modulates, float fade, Color? selectedBase, bool selected)
+        private static StateTintReactor InstallReactor(Graphic graphic, StateColorSet absolutes, StateColorSet modulates, float fade, ColorSpec? selectedBase, bool selected)
         {
             if (graphic == null) return null;
             var reactor = graphic.GetComponent<StateTintReactor>()

@@ -19,8 +19,12 @@ namespace PromptUGUI.Tests.Application
 
         private static void Seed(string name, string baseName, params (string k, string v)[] entries)
         {
-            var d = new Dictionary<string, Color>();
-            foreach (var (k, v) in entries) { ColorUtility.TryParseHtmlString(v, out var c); d[k] = c; }
+            var d = new Dictionary<string, ColorSpec>();
+            foreach (var (k, v) in entries)
+            {
+                ColorUtility.TryParseHtmlString(v, out var c);
+                d[k] = ColorSpec.Solid(c);
+            }
             ThemeStore.Instance.Register(name, baseName, d, src: "test");
             ThemeStore.Instance.ResolveBases();
         }

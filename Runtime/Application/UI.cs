@@ -439,29 +439,74 @@ namespace PromptUGUI.Application
                 Changed?.Invoke(name);
             }
 
+            /// <summary>
+            /// Looks up a color token in the current theme.
+            /// For gradient tokens, returns the Top stop (the public surface always returns
+            /// a single <see cref="UnityEngine.Color"/>). Internal callers that need a
+            /// <see cref="ColorSpec"/> with both stops should use
+            /// <c>UI.Theme.ResolveSpec</c>.
+            /// </summary>
             public static UnityEngine.Color? Lookup(string token)
             {
                 if (Current == null) return null;
-                return ThemeStore.Instance.LookupChained(Current, token);
+                var spec = ThemeStore.Instance.LookupChained(Current, token);
+                return spec.HasValue ? spec.Value.Top : (UnityEngine.Color?)null;
             }
 
-            public static UnityEngine.Color Resolve(string value)
+            /// <summary>
+            /// Resolve a colour value that may be a two-stop vertical gradient ("top,bottom").
+            /// Each segment independently supports theme tokens, hex/named literals and the
+            /// /alpha suffix. A whole-value token may itself BE a gradient token; "/alpha" on
+            /// it replaces BOTH stops' alpha. A gradient token used as ONE segment of another
+            /// gradient is an error (no nested gradients).
+            /// </summary>
+            internal static ColorSpec ResolveSpec(string value)
             {
                 if (string.IsNullOrEmpty(value))
                     throw new System.Exception("empty color value");
 
-                // Reference-site alpha suffix: "black/0.5" → resolve "black", then set a = 0.5.
-                // The suffix REPLACES the resolved colour's own alpha (Color.a semantics),
-                // so a 50%-opaque token referenced as "scrim/1" comes out fully opaque.
+                if (!Parser.ColorParser.TrySplitGradient(value, out var topRaw, out var bottomRaw, out var gErr))
+                    throw new System.Exception(gErr);
+
+                if (bottomRaw == null)
+                    return ResolveSingle(topRaw, allowGradientToken: true);
+
+                var top = ResolveSingle(topRaw, allowGradientToken: false);
+                var bottom = ResolveSingle(bottomRaw, allowGradientToken: false);
+                return ColorSpec.Gradient(top.Top, bottom.Top);
+            }
+
+            /// <summary>Resolve one segment: token / literal + optional /alpha. Returns a gradient only
+            /// when the resolved token is itself a gradient AND <paramref name="allowGradientToken"/> is
+            /// true; if it's a gradient token but nesting isn't allowed, throws.</summary>
+            private static ColorSpec ResolveSingle(string value, bool allowGradientToken)
+            {
                 if (!Parser.ColorParser.TrySplitAlpha(value, out var baseValue, out var alpha, out var err))
                     throw new System.Exception(err);
 
-                var resolved = ResolveBase(baseValue);
-                if (alpha.HasValue) resolved.a = alpha.Value;
-                return resolved;
+                var spec = ResolveBaseSpec(baseValue);
+                if (spec.IsGradient && !allowGradientToken)
+                    throw new System.Exception(
+                        $"color segment \"{value}\": token resolves to a gradient — gradients cannot nest inside a gradient");
+                if (alpha.HasValue)
+                {
+                    var t = spec.Top; t.a = alpha.Value;
+                    var b = spec.Bottom; b.a = alpha.Value;
+                    spec = spec.IsGradient ? ColorSpec.Gradient(t, b) : ColorSpec.Solid(t);
+                }
+                return spec;
             }
 
-            private static UnityEngine.Color ResolveBase(string value)
+            public static UnityEngine.Color Resolve(string value)
+            {
+                var spec = ResolveSpec(value);
+                if (spec.IsGradient)
+                    throw new System.Exception(
+                        $"color \"{value}\": this attribute does not support gradient colors");
+                return spec.Top;
+            }
+
+            private static ColorSpec ResolveBaseSpec(string value)
             {
                 if (Current != null)
                 {
@@ -469,7 +514,7 @@ namespace PromptUGUI.Application
                     if (hit.HasValue) return hit.Value;
                 }
                 if (UnityEngine.ColorUtility.TryParseHtmlString(value, out var c))
-                    return c;
+                    return ColorSpec.Solid(c);
                 // Soft-fail for the in-flight load case: Current was Set but its
                 // named theme isn't registered yet (e.g. Theme.Set("dark") fired
                 // before LoadCommonLibraryAsync completed, or the user pre-Set a
@@ -478,7 +523,7 @@ namespace PromptUGUI.Application
                 // pass calls RaiseChangedIfCurrent and fires Theme.Changed.
                 if (Current != null
                     && !System.Linq.Enumerable.Contains(ThemeStore.Instance.Available, Current))
-                    return UnityEngine.Color.white;
+                    return ColorSpec.Solid(UnityEngine.Color.white);
                 throw new System.Exception(
                     $"unknown color token \"{value}\" (no entry in theme " +
                     $"'{Current ?? "(none)"}', not a valid hex/named literal)");
@@ -906,6 +951,22 @@ namespace PromptUGUI.Application
         }
 
         /// <summary>
+        /// Parses a raw color string (hex, named, or "top,bottom" gradient) from a
+        /// <c>&lt;Color value="…"/&gt;</c> attribute into a <see cref="ColorSpec"/>.
+        /// Called from both <see cref="RegisterThemesAndAutoSet"/> and
+        /// <see cref="ReplaceThemesAndNotify"/> so the two theme-registration paths
+        /// share identical parsing logic and can't silently diverge.
+        /// </summary>
+        private static ColorSpec ParseThemeColor(string raw)
+        {
+            Parser.ColorParser.TrySplitGradient(raw, out var topRaw, out var bottomRaw, out _);
+            UnityEngine.ColorUtility.TryParseHtmlString(topRaw, out var top);
+            if (bottomRaw == null) return ColorSpec.Solid(top);
+            UnityEngine.ColorUtility.TryParseHtmlString(bottomRaw, out var bottom);
+            return ColorSpec.Gradient(top, bottom);
+        }
+
+        /// <summary>
         /// Shared helper: parse colors from <paramref name="loaded"/>.Themes,
         /// register each into <see cref="ThemeStore"/>, resolve base-chains, and
         /// auto-select when exactly one theme is available. Called from both
@@ -916,13 +977,10 @@ namespace PromptUGUI.Application
         {
             foreach (var (theme, themeSrc) in loaded.Themes)
             {
-                var colors = new System.Collections.Generic.Dictionary<string, UnityEngine.Color>(
+                var colors = new System.Collections.Generic.Dictionary<string, ColorSpec>(
                     theme.Colors.Count);
                 foreach (var ce in theme.Colors)
-                {
-                    UnityEngine.ColorUtility.TryParseHtmlString(ce.Value, out var c);
-                    colors[ce.Name] = c;
-                }
+                    colors[ce.Name] = ParseThemeColor(ce.Value);
                 ThemeStore.Instance.Register(theme.Name, theme.BaseName, colors, themeSrc);
             }
             ThemeStore.Instance.ResolveBases();
@@ -981,16 +1039,13 @@ namespace PromptUGUI.Application
             var bySrc = new System.Collections.Generic.Dictionary<
                 string,
                 System.Collections.Generic.List<(string name, string baseName,
-                    System.Collections.Generic.IReadOnlyDictionary<string, UnityEngine.Color> colors)>>();
+                    System.Collections.Generic.IReadOnlyDictionary<string, ColorSpec> colors)>>();
             foreach (var (theme, themeSrc) in loaded.Themes)
             {
-                var colors = new System.Collections.Generic.Dictionary<string, UnityEngine.Color>(
+                var colors = new System.Collections.Generic.Dictionary<string, ColorSpec>(
                     theme.Colors.Count);
                 foreach (var ce in theme.Colors)
-                {
-                    UnityEngine.ColorUtility.TryParseHtmlString(ce.Value, out var c);
-                    colors[ce.Name] = c;
-                }
+                    colors[ce.Name] = ParseThemeColor(ce.Value);
                 if (!bySrc.TryGetValue(themeSrc, out var list))
                     bySrc[themeSrc] = list = new();
                 list.Add((theme.Name, theme.BaseName, colors));

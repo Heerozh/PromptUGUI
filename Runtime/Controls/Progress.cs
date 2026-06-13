@@ -87,7 +87,7 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve]
         public string FillColor
         {
-            set => _fill.color = UI.Theme.Resolve(value);
+            set => Internal.ColorApplier.Apply(_fill, UI.Theme.ResolveSpec(value));
         }
 
         [UIAttr(IsSprite = true), Preserve]
@@ -108,7 +108,7 @@ namespace PromptUGUI.Controls
         {
             set
             {
-                _bg.color = UI.Theme.Resolve(value);
+                Internal.ColorApplier.Apply(_bg, UI.Theme.ResolveSpec(value));
                 _bg.gameObject.SetActive(true);
                 ReconcileMaskVisibility();
             }
@@ -131,7 +131,7 @@ namespace PromptUGUI.Controls
         {
             set
             {
-                _frame.color = UI.Theme.Resolve(value);
+                Internal.ColorApplier.Apply(_frame, UI.Theme.ResolveSpec(value));
                 _frame.gameObject.SetActive(true);
             }
         }

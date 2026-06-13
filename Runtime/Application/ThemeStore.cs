@@ -17,7 +17,7 @@ namespace PromptUGUI.Application
         {
             public string Name;
             public string BaseName;
-            public Dictionary<string, Color> Colors;
+            public Dictionary<string, ColorSpec> Colors;
             public string Src;
             public Entry ResolvedBase;
         }
@@ -27,7 +27,7 @@ namespace PromptUGUI.Application
         public IReadOnlyCollection<string> Available => _themes.Keys;
 
         public void Register(string name, string baseName,
-                             IReadOnlyDictionary<string, Color> colors, string src)
+                             IReadOnlyDictionary<string, ColorSpec> colors, string src)
         {
             if (_themes.TryGetValue(name, out var existing) && existing.Src != src)
                 throw new ParseException(
@@ -46,13 +46,13 @@ namespace PromptUGUI.Application
             {
                 Name = name,
                 BaseName = baseName,
-                Colors = new Dictionary<string, Color>(colors),
+                Colors = new Dictionary<string, ColorSpec>(colors),
                 Src = src,
             };
         }
 
         public void ReplaceFromSrc(string src,
-            IReadOnlyList<(string name, string baseName, IReadOnlyDictionary<string, Color> colors)> blocks)
+            IReadOnlyList<(string name, string baseName, IReadOnlyDictionary<string, ColorSpec> colors)> blocks)
         {
             // Hot reload: drop everything previously from src, then register new.
             var toRemove = new List<string>();
@@ -89,7 +89,7 @@ namespace PromptUGUI.Application
             }
         }
 
-        public Color? LookupChained(string themeName, string token)
+        public ColorSpec? LookupChained(string themeName, string token)
         {
             if (!_themes.TryGetValue(themeName, out var e)) return null;
             for (var cur = e; cur != null; cur = cur.ResolvedBase)

@@ -149,7 +149,7 @@ Text family default: looks for the unique `<Text>` in the subtree. Multiple `<Te
 
 ```xml
 <Animation count="0:1000" format="{0:N0}" duration="2s">
-  <Animation char-color="1,1,1,1:1,0.8,0.2,1" char-stagger="0.05s" delay="2s" duration="0.4s">
+  <Animation char-color="#ffffff:#ffcc33" char-stagger="0.05s" delay="2s" duration="0.4s">
     <Text id="score">0</Text>
   </Animation>
 </Animation>

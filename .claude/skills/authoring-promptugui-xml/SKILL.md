@@ -829,6 +829,41 @@ Append `/<0..1>` to any color **reference** to set its opacity. The suffix REPLA
 - Value is a `0..1` float. Out of range or malformed (`/1.5`, `/abc`, `/`, no color before `/`) → `ParseException` with node context.
 - Suffix is **reference-only**. Definition-side `<Color value="...">` does NOT take a suffix — bake alpha into the hex there (`value="#00000080"`) if you want a baked-alpha token.
 
+### Gradients
+
+Append a comma between two colour values to produce a **vertical two-stop gradient** (top colour, bottom colour). Gradients are a value-syntax extension — no new attributes.
+
+**Definition site** (`<Color value="...">` inside `<Theme>`): both segments must be plain literals (hex or CSS-named). No theme tokens, no `/alpha` suffix here — bake alpha into the hex if needed:
+
+```xml
+<Theme name="default">
+  <Color name="gold-grad" value="#ffe08a,#b8860b"/>
+</Theme>
+```
+
+**Reference site** (any colour attribute): each segment independently supports theme tokens, hex/named literals, and `/alpha`. You can mix:
+
+```xml
+<Text  color="gold-grad">Title</Text>         <!-- token → gradient -->
+<Icon  color="white,#aaa"/>                   <!-- two literals, inline -->
+<Image color="accent,accent-dark/0.5"/>       <!-- mix token + token/alpha -->
+<Btn   color="gold-grad/0.5"/>               <!-- /alpha on gradient token → BOTH stops' alpha replaced -->
+```
+
+**Where gradients work** — every attribute that paints a `Graphic`:
+- `color` on `<Image>` / `<Icon>` / `<RawImage>` / `<Btn>` / `<Tab>` / `<Toggle>` / `<Dropdown>` (+ `popupColor`) / `<Progress>` (`color`, `bgColor`, `frameColor`) / `<ScrollList>` (`color`, `frameColor`) / `<Slider>` (`bgColor`) / `<InputField>` (bg only, see below) / `<Text>`
+- Absolute state colours: `hoverColor` / `pressedColor` / `selectedColor` / `disabledColor`
+
+**Where gradients are NOT supported** (runtime error; static lint):
+- `*Modulate` attributes (`hoverModulate`, `pressedModulate`, `selectedModulate`, `disabledModulate`) — these are solid-only multipliers; a gradient value is rejected (lint `PUI-GRADIENT-MODULATE`)
+- `<Animation char-color="from:to">` — the per-character animation colour; each side is a solid
+- `<InputField>` `textColor` / `placeholderColor` / `caretColor` / `selectionColor` — caret/selection are TMP `Color` fields with no vertices; editable text stays solid
+- `<Carousel>` `dotColor` / `dotSelectedColor` — the dots stay solid
+
+**`<Text>` per-character gradient.** On `<Text>` the gradient is TMP-native and applied per-character — each glyph's vertices run top→bottom independently. This makes a solid "gold-foil" title effect without a single stretched gradient across the text block.
+
+**State-colour transition timing.** A state transition whose start or end colour is a gradient **snaps** immediately (no ~0.1s fade) — there is no colour-lerp for a vertex gradient. Solid ↔ solid transitions still fade as before.
+
 ### Error codes
 
 - `<Theme>: missing required attribute 'name'`
@@ -841,6 +876,11 @@ Append `/<0..1>` to any color **reference** to set its opacity. The suffix REPLA
 - (Runtime, when value can't resolve) `<Image id='X'> attribute color="Y": unknown color token "Y" (no entry in theme 'Z', not a valid hex/named literal)`
 - (Runtime, bad alpha suffix) `color "black/1.5": alpha 1.5 is out of range — must be 0..1`
 - (Lint) `PUI-COLOR-LITERAL-INVALID` — static check: `color="#..."` literal that doesn't parse, or a hex literal with an out-of-range / malformed `/alpha` suffix
+- `<Color name="X" value="A,B,C">: gradient supports exactly two colours (top,bottom)` — also fires for empty segments (e.g. `value="#fff,"`, `value=",#000"`)
+- (Lint, CLI) `PUI-COLOR-GRADIENT-MALFORMED` — malformed gradient shape on a `color` attribute (wrong segment count or empty segment)
+- (Lint, CLI) `PUI-GRADIENT-MODULATE` — a gradient value on a `*Modulate` attribute
+- (Runtime) `color "...": this attribute does not support gradient colors` — gradient on a solid-only attribute (`*Modulate`, caret/selection colours, etc.)
+- (Runtime) `color "...": token resolves to a gradient — gradients cannot nest inside a gradient` — one segment of a gradient reference resolves to another gradient token
 
 ## Tint blend modes
 

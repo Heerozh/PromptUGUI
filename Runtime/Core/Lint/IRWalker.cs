@@ -84,6 +84,10 @@ namespace PromptUGUI.Lint
             foreach (var issue in ColorLiteralRules.Check(node))
                 yield return issue;
 
+            // Static reject: a gradient value on a *Modulate multiplier (solid-only, spec §6).
+            foreach (var issue in GradientModulateRules.Check(node))
+                yield return issue;
+
             // Ancestor-aware (like PUI-TAB-PARENT, but upward): a bare state-* trigger /
             // animation / show resolves to its nearest clickable (<Btn>/<Tab>/<Toggle>) ancestor
             // at runtime. With no such ancestor it hard-throws (TriggerSourceResolver.FindStateSource);

@@ -172,7 +172,7 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve]
         public string Color
         {
-            set => _bg.color = UI.Theme.Resolve(value);
+            set => Internal.ColorApplier.Apply(_bg, UI.Theme.ResolveSpec(value));
         }
 
         [UIAttr, Preserve]
@@ -219,7 +219,7 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve]
         public string FrameColor
         {
-            set => EnsureFrame().color = UI.Theme.Resolve(value);
+            set => Internal.ColorApplier.Apply(EnsureFrame(), UI.Theme.ResolveSpec(value));
         }
 
         internal override void OnAfterApply()

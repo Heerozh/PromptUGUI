@@ -12,13 +12,13 @@ namespace PromptUGUI.Tests.Application
         [SetUp] public void SetUp() => ThemeStore.Instance.Clear();
         [TearDown] public void TearDown() => ThemeStore.Instance.Clear();
 
-        private static Dictionary<string, Color> Map(params (string k, string v)[] entries)
+        private static Dictionary<string, ColorSpec> Map(params (string k, string v)[] entries)
         {
-            var d = new Dictionary<string, Color>();
+            var d = new Dictionary<string, ColorSpec>();
             foreach (var (k, v) in entries)
             {
                 ColorUtility.TryParseHtmlString(v, out var c);
-                d[k] = c;
+                d[k] = ColorSpec.Solid(c);
             }
             return d;
         }
@@ -30,7 +30,7 @@ namespace PromptUGUI.Tests.Application
             ThemeStore.Instance.ResolveBases();
             var c = ThemeStore.Instance.LookupChained("light", "primary");
             Assert.IsTrue(c.HasValue);
-            Assert.AreEqual(new Color32(0xff, 0x88, 0x00, 0xff), (Color32)c.Value);
+            Assert.AreEqual(new Color32(0xff, 0x88, 0x00, 0xff), (Color32)c.Value.Top);
         }
 
         [Test]
@@ -44,7 +44,7 @@ namespace PromptUGUI.Tests.Application
             Assert.IsTrue(bg.HasValue);
             // primary in dark → returns dark's
             var p = ThemeStore.Instance.LookupChained("dark", "primary");
-            Assert.AreEqual(new Color32(0xcc, 0x66, 0x00, 0xff), (Color32)p.Value);
+            Assert.AreEqual(new Color32(0xcc, 0x66, 0x00, 0xff), (Color32)p.Value.Top);
         }
 
         [Test]
@@ -97,7 +97,7 @@ namespace PromptUGUI.Tests.Application
             ThemeStore.Instance.ResolveBases();
 
             var c = ThemeStore.Instance.LookupChained("light", "primary");
-            Assert.AreEqual(new Color32(0x00, 0xff, 0x00, 0xff), (Color32)c.Value);
+            Assert.AreEqual(new Color32(0x00, 0xff, 0x00, 0xff), (Color32)c.Value.Top);
         }
     }
 }

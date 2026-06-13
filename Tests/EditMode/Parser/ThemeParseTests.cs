@@ -108,5 +108,65 @@ namespace PromptUGUI.Tests.Parser
             Assert.DoesNotThrow(() => UIDocumentParser.Parse(
                 Header + "<Theme name='l'><Color name='primary' value='Red'/></Theme>" + Footer));
         }
+
+        // ── gradient definition-site parse errors ──
+
+        [Test]
+        public void Gradient_Valid_Two_Stop_Parses()
+        {
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(
+                Header + "<Theme name='l'><Color name='g' value='#ffffff,#000000'/></Theme>" + Footer));
+        }
+
+        [Test]
+        public void Gradient_Named_Colors_Both_Valid_Parses()
+        {
+            // "red,black" — both are Unity-supported named colors → valid gradient
+            Assert.DoesNotThrow(() => UIDocumentParser.Parse(
+                Header + "<Theme name='l'><Color name='g' value='red,black'/></Theme>" + Footer));
+        }
+
+        [Test]
+        public void Gradient_Three_Segments_Throws()
+        {
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(
+                Header + "<Theme name='l'><Color name='g' value='#fff,#000,#111'/></Theme>" + Footer));
+            StringAssert.Contains("gradient", ex.Message);
+        }
+
+        [Test]
+        public void Gradient_Trailing_Comma_Throws()
+        {
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(
+                Header + "<Theme name='l'><Color name='g' value='#fff,'/></Theme>" + Footer));
+            StringAssert.Contains("gradient", ex.Message);
+        }
+
+        [Test]
+        public void Gradient_Invalid_Top_Segment_Throws()
+        {
+            // "sometoken" is not a hex/named literal → invalid color literal
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(
+                Header + "<Theme name='l'><Color name='g' value='sometoken,black'/></Theme>" + Footer));
+            StringAssert.Contains("invalid color literal", ex.Message);
+        }
+
+        [Test]
+        public void Gradient_Invalid_Bottom_Segment_Throws()
+        {
+            // bad token in the bottom segment → invalid color literal
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(
+                Header + "<Theme name='l'><Color name='g' value='red,badtoken'/></Theme>" + Footer));
+            StringAssert.Contains("invalid color literal", ex.Message);
+        }
+
+        [Test]
+        public void Gradient_Alpha_Suffix_In_Segment_Throws()
+        {
+            // /alpha not allowed at definition site; #fff/0.5 fails TryParseHtmlString
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(
+                Header + "<Theme name='l'><Color name='g' value='#fff/0.5,#000'/></Theme>" + Footer));
+            StringAssert.Contains("invalid color literal", ex.Message);
+        }
     }
 }

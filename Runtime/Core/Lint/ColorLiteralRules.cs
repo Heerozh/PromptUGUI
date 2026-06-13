@@ -5,23 +5,43 @@ using PromptUGUI.Parser;
 namespace PromptUGUI.Lint
 {
     /// <summary>
-    /// Static check on <c>color="..."</c> attribute values. Only flags hex literals
-    /// that fail to parse (values starting with '#'). Bare words are deliberately not
-    /// flagged — they may be tokens registered in a theme file not visible to this
-    /// lint pass.
+    /// Static check on <c>color="..."</c> attribute values. Checks gradient structure first
+    /// (more than two segments, or an empty segment → <c>PUI-COLOR-GRADIENT-MALFORMED</c>),
+    /// then validates each segment as a hex literal that must parse. Bare words (tokens) are
+    /// deliberately not flagged — they may be tokens registered in a theme file not visible
+    /// to this lint pass.
     ///
-    /// Consumed by both <c>IRWalker</c> (UIXmlLint CLI, build-time errors) and
-    /// <c>ScreenInstantiator</c> (runtime warnings). Single source of truth.
+    /// Consumed by <c>IRWalker</c> (UIXmlLint CLI, build-time errors). CLI-only; not
+    /// dispatched from <c>ScreenInstantiator</c> (the runtime already hard-throws on
+    /// malformed gradients at apply time).
     /// </summary>
     public static class ColorLiteralRules
     {
         public const string ColorLiteralCode = "PUI-COLOR-LITERAL-INVALID";
+        public const string GradientMalformedCode = "PUI-COLOR-GRADIENT-MALFORMED";
 
         public static IEnumerable<LintIssue> Check(ElementNode node)
         {
             if (!node.Attributes.TryGetValue("color", out var value)) yield break;
             if (string.IsNullOrEmpty(value)) yield break;
 
+            // Gradient shape first: >2 segments or an empty segment is structurally invalid
+            // regardless of whether segments are tokens or hex (tokens can't fix a bad shape).
+            if (!ColorParser.TrySplitGradient(value, out var top, out var bottom, out var gErr))
+            {
+                yield return new LintIssue(GradientMalformedCode, node.Tag, node.Id,
+                    $"<{node.Tag} id='{node.Id}'>: {gErr}");
+                yield break;
+            }
+
+            foreach (var issue in CheckSegment(top, node)) yield return issue;
+            if (bottom != null)
+                foreach (var issue in CheckSegment(bottom, node)) yield return issue;
+        }
+
+        // Existing single-colour validation, now applied per gradient segment.
+        private static IEnumerable<LintIssue> CheckSegment(string value, ElementNode node)
+        {
             // Reference-site /alpha suffix ("black/0.5"): strip it before the hex check.
             // A malformed suffix on a hex literal is flagged at build time; on a bare word
             // it's left to the runtime resolver (tokens aren't statically checked anyway).

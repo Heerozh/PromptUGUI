@@ -265,7 +265,7 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve]
         public string Color
         {
-            set => _bg.color = UI.Theme.Resolve(value);
+            set => Internal.ColorApplier.Apply(_bg, UI.Theme.ResolveSpec(value));
         }
 
         /// <summary>
@@ -334,11 +334,11 @@ namespace PromptUGUI.Controls
             _toggle.interactable = Interactable;
             // selectedColor is the selection-aware BASE (not a Selected-state absolute), so pass null
             // for the Selected absolute; selectedModulate stays the Selected multiplier.
-            var abs = StateColorSet.Resolve(_hoverColor, _pressedColor, null, _disabledColor);
-            var mod = StateColorSet.Resolve(_hoverModulate, _pressedModulate, _selectedModulate, _disabledModulate);
-            Color? selectedBase = string.IsNullOrWhiteSpace(_selectedColor)
-                ? (Color?)null
-                : UI.Theme.Resolve(_selectedColor);
+            var abs = StateColorSet.ResolveAbsolutes(_hoverColor, _pressedColor, null, _disabledColor);
+            var mod = StateColorSet.ResolveModulates(_hoverModulate, _pressedModulate, _selectedModulate, _disabledModulate);
+            ColorSpec? selectedBase = string.IsNullOrWhiteSpace(_selectedColor)
+                ? (ColorSpec?)null
+                : UI.Theme.ResolveSpec(_selectedColor);
             _bgReactor = StateTintInstaller.Install(GameObject, _toggle, Children, abs, mod, selectedBase, IsOn);
             if (_selectedSprite != null) _toggle.transition = Selectable.Transition.None;
             ApplySelectedSprite();

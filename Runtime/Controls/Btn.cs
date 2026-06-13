@@ -99,8 +99,8 @@ namespace PromptUGUI.Controls
         {
             base.OnAfterApply();
             _btn.interactable = Interactable;
-            var abs = StateColorSet.Resolve(_hoverColor, _pressedColor, null, _disabledColor);
-            var mod = StateColorSet.Resolve(_hoverModulate, _pressedModulate, null, _disabledModulate);
+            var abs = StateColorSet.ResolveAbsolutes(_hoverColor, _pressedColor, null, _disabledColor);
+            var mod = StateColorSet.ResolveModulates(_hoverModulate, _pressedModulate, null, _disabledModulate);
             StateTintInstaller.Install(GameObject, _btn, Children, abs, mod);
             // A pressed/disabled sprite is itself a state visual: drop uGUI's built-in ColorTint so the
             // swapped image isn't double-darkened. Set-only, matching the state-colour path
@@ -164,7 +164,7 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve]
         public string Color
         {
-            set => _bg.color = UI.Theme.Resolve(value);
+            set => Internal.ColorApplier.Apply(_bg, UI.Theme.ResolveSpec(value));
         }
 
         /// <summary>Absolute bg colour while Hover.</summary>
