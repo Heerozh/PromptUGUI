@@ -479,6 +479,8 @@ var closeBtn = dialog.Get("close");          // 模板内部
 
 需要不同优先级，调整声明顺序即可。
 
+> **基础值与控件私有属性的复位边界。** 上面「都不真则用基础值」隐含一个前提：基础值存在。公共几何属性（`anchor` / `size` / `width` / `height` / `margin` / `pivot` / `hidden` / `interactable` / `flow`，以及 `scale`）即使**没有**基础值，变体失活时也会干净地回到控件默认——ReSolve 把它们整体重交给 `ApplyCommon` / `ApplyScales` 重算（见 scale-device-density 设计的 `Variant_reset_restores_base_geometry`）。但**控件私有属性**（映射到控件自身 `[UIAttr]` setter 的，如 `<TabBar>` / `<ScrollList>` 的 `direction` / `spacing`、各控件的 `color` / `sprite` 等）在**只有 `.variant` 覆盖、没有基础值**时，变体失活**不会**回滚：ReSolve 的重应用对「解算为空」的控件属性直接 `continue` 跳过（没有针对任意 setter 的通用「回默认」信号），于是停在最后一次应用的值。因此控件私有属性的 `.variant` 覆盖应**始终配一个基础值**（如 `direction="horizontal" direction.portrait="vertical"`）。这与 `*Color` / `pressedSprite` 的「set-only，变体清除不回滚」属同一类已知限制（见 `2026-06-01-btn-pressed-sprite-design.md`）；真正想 sticky 的运行期值另有 `RuntimeStateAttr`（`isOn` / `value` / `current`）机制。解析器与 lint CLI 都不会报这个缺失。
+
 ### 8.4 块形式：仅 `<Add>`
 
 ```xml
