@@ -150,6 +150,14 @@ namespace PromptUGUI.Controls.Internal
         }
 
         /// <summary>
+        /// 播放期浅拷贝。所有字段都是值类型或不可变 string，MemberwiseClone 即等价深拷贝。
+        /// Driver 在拷贝上 ExpandPreset，使作者声明的原始 spec 的 family 标志保持纯净，
+        /// 这样 ReSolve（主题/语言/Variant/缩放）再次 Validate 时不会把已展开的低层标志
+        /// 误判成第二个 family。见 <see cref="Validate"/> 与 AnimationDriver.Play。
+        /// </summary>
+        public AnimationSpec Clone() => (AnimationSpec)MemberwiseClone();
+
+        /// <summary>
         /// 把 TypeRaw 展开成等价的低层属性 (HasTranslate/HasFade/...)。
         /// 调用后 Family 保持 Preset；Driver 用展开后的低层值生成 motion。
         /// </summary>

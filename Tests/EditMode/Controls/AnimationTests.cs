@@ -61,5 +61,25 @@ namespace PromptUGUI.Tests.EditMode.Controls
             // If snapshot equality works, repeated ReSolve + Fire is harmless.
             Assert.DoesNotThrow(() => { anim.Fire(); screen.ReSolve(); anim.Fire(); });
         }
+
+        [Test]
+        public void Animation_preset_survives_ReSolve_after_it_has_played()
+        {
+            // Repro for the editor theme-switch crash: a preset (<Animation type="pulse">)
+            // that has fired once must survive ReSolve (theme / locale / variant / resize).
+            // The driver expands the preset into low-level motions; that expansion must NOT
+            // pollute the persistent spec, otherwise re-Validate on ReSolve sees both the
+            // preset family AND the expanded low-level family → "three attribute families
+            // are mutually exclusive" ParseException.
+            UI.LoadDocument("t", $"{Header}" +
+                "<Animation id='a' type='pulse' duration='0.3s' on='manual'><Frame id='f'/></Animation>" +
+                $"{Footer}");
+            var screen = UI.Open("S");
+            var anim = screen.Get<Animation>("a");
+            anim.Fire();   // ExpandPreset runs inside the driver here
+
+            Assert.DoesNotThrow(() => screen.ReSolve(),
+                "A played preset animation must not corrupt its spec; ReSolve re-Validate must pass");
+        }
     }
 }

@@ -20,6 +20,12 @@ namespace PromptUGUI.Controls.Internal
             switch (spec.Family)
             {
                 case AnimationFamily.Preset:
+                    // ExpandPreset mutates Has*/From/To. Run it on a copy so the authored
+                    // spec — which Screen.ReSolve re-Validates on every theme/locale/variant/
+                    // resize change — is never polluted with the expanded low-level flags.
+                    // Otherwise a played preset reads as "preset + low-level" and trips the
+                    // mutual-exclusion check in AnimationSpec.Validate.
+                    spec = spec.Clone();
                     spec.ExpandPreset();
                     goto case AnimationFamily.LowLevel;
 
