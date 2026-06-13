@@ -210,9 +210,12 @@ namespace PromptUGUI.Controls
         {
             if (_label != null && !string.IsNullOrEmpty(_label.text))
             {
-                _label.ForceMeshUpdate();
-                var w = _label.preferredWidth + CheckmarkZoneWidth + RightPadding;
-                var h = Mathf.Max(MinTapHeight, _label.preferredHeight + VerticalPadding * 2f);
+                // Unconstrained natural size — NOT _label.preferredHeight, which TMP measures at the
+                // live label-rect width. On a ReSolve that width is the previous solve's value, so a
+                // grown label would wrap and inflate the height. Mirrors Text.GetNativeSize.
+                var pref = _label.GetPreferredValues(_label.text);
+                var w = pref.x + CheckmarkZoneWidth + RightPadding;
+                var h = Mathf.Max(MinTapHeight, pref.y + VerticalPadding * 2f);
                 return new Vector2(w, h);
             }
             return new Vector2(DefaultIconOnlySize, DefaultIconOnlySize);

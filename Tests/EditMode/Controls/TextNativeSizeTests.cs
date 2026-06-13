@@ -30,6 +30,62 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Text_GetNativeSize_height_independent_of_current_rect_width()
+        {
+            // Regression (zh→en locale switch): GetNativeSize read TMP.preferredHeight, which TMP
+            // measures at the live RectTransform width. On a ReSolve the rect still holds the PREVIOUS
+            // solve's width; a short→long text change (narrow zh → wide en) then wrapped the new text
+            // against the stale narrow width and DOUBLED the reported height (the demo plaque <Text>
+            // jumped 21→42 px). The native size must be the text's unwrapped natural height, not a
+            // height measured at whatever width the rect currently happens to have.
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Text id='t' tr='false' fontSize='18'>Common Controls Demo</Text>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var text = screen.Get<Text>("t");
+            var rt = text.RectTransform;
+
+            rt.sizeDelta = new Vector2(1000f, 30f);   // wide: text fits on one line
+            var wide = text.GetNativeSize().Value.y;
+
+            rt.sizeDelta = new Vector2(24f, 30f);      // narrow: would wrap if height tracked the rect
+            var narrow = text.GetNativeSize().Value.y;
+
+            Assert.AreEqual(wide, narrow, 0.5f,
+                "GetNativeSize height must be the text's unwrapped natural height, independent of the " +
+                "RectTransform's current (possibly stale) width");
+        }
+
+        [Test]
+        public void Text_free_positioned_height_does_not_double_after_resolve_grows_text()
+        {
+            // End-to-end of the zh→en regression: a free-positioned <Text> whose text grows short→long
+            // on ReSolve must not double its sizeDelta height. (A Variant override stands in for the
+            // locale switch; both go through ControlAttributeApplier — re-apply text, THEN ApplyCommon
+            // → GetNativeSize, while the RectTransform still holds the previous narrow width.)
+            // A single line of text has the same height for any glyph count, so the short and the
+            // (re-solved) long text — both single-line at their natural width — must report equal height.
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Text id='label' tr='false' anchor='center' fontSize='18' text='OK' text.long='Common Controls Demo'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+
+            UI.Variants.Set("long", false);
+            var screen = UI.Open("S");
+            var shortH = screen.Get<Text>("label").RectTransform.sizeDelta.y;   // one-line height of "OK"
+
+            UI.Variants.Set("long", true);   // ReSolve: text OK → long while rect width is the narrow 'OK' width
+            var longH = screen.Get<Text>("label").RectTransform.sizeDelta.y;
+
+            Assert.AreEqual(shortH, longH, 0.5f,
+                "a free-positioned Text re-solved from short→long text must stay one line " +
+                "(regression: stale-width wrapping doubled the height 21→42)");
+        }
+
+        [Test]
         public void Text_empty_GetNativeSize_returns_null()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>

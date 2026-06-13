@@ -201,8 +201,14 @@ namespace PromptUGUI.Controls
         public override Vector2? GetNativeSize()
         {
             if (_tmp == null || string.IsNullOrEmpty(_tmp.text)) return null;
-            _tmp.ForceMeshUpdate();
-            return new Vector2(_tmp.preferredWidth, _tmp.preferredHeight);
+            // Measure the text's *unconstrained* natural size (TMP's k_LargePositiveVector2 margin),
+            // NOT _tmp.preferredHeight — that getter measures against the live RectTransform width.
+            // On a ReSolve (e.g. locale switch) the rect still holds the PREVIOUS solve's width, so a
+            // short→long text change (narrow zh → wide en) wrapped the new text against that stale
+            // narrow width and doubled the reported height (the demo plaque <Text anchor="center">
+            // jumped 21→42 px on zh→en). GetPreferredValues ignores the rect, giving the true
+            // unwrapped height — consistent with the fresh-build path (rect width 0 → also unconstrained).
+            return _tmp.GetPreferredValues(_tmp.text);
         }
 
         // TMP_Text is itself a live ILayoutElement, so inside a V/HStack an author-omitted axis is left

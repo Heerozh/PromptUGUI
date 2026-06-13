@@ -262,9 +262,12 @@ namespace PromptUGUI.Controls
         {
             if (_autoLabel != null && !string.IsNullOrEmpty(_autoLabel.text))
             {
-                _autoLabel.ForceMeshUpdate();
-                var w = _autoLabel.preferredWidth + HorizontalPadding * 2f;
-                var h = Mathf.Max(MinTapHeight, _autoLabel.preferredHeight + VerticalPadding * 2f);
+                // Unconstrained natural size — NOT _autoLabel.preferredHeight, which TMP measures at
+                // the live label-rect width. On a ReSolve that width is the previous solve's value, so
+                // a grown label would wrap and inflate the height. Mirrors Text.GetNativeSize.
+                var pref = _autoLabel.GetPreferredValues(_autoLabel.text);
+                var w = pref.x + HorizontalPadding * 2f;
+                var h = Mathf.Max(MinTapHeight, pref.y + VerticalPadding * 2f);
                 return new Vector2(w, h);
             }
             return new Vector2(DefaultIconBtnWidth, MinTapHeight);
