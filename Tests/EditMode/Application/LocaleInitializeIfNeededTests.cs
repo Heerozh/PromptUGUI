@@ -35,6 +35,16 @@ namespace PromptUGUI.Tests.Application
         }
 
         [Test]
+        public void TruncatesToParent_WhenOnlyParentConfigured_NoWarning()
+        {
+            // zh-Hans → zh via RFC 4647 lookup. A successful (approximate) match
+            // is not a miss, so no "丢失" warning fires.
+            UI.Locale.InitializeIfNeededCore(
+                SystemLanguage.ChineseSimplified, new[] { "en", "zh" });
+            Assert.AreEqual("zh", UI.Locale.Current);
+        }
+
+        [Test]
         public void Warns_AndFallsBack_WhenSystemMappedButNotConfigured()
         {
             LogAssert.Expect(LogType.Warning, new Regex(
