@@ -22,6 +22,24 @@ namespace PromptUGUI.Tests.Application
         }
 
         [Test]
+        public void Core_TruncatesToParent_WhenOnlyParentConfigured()
+        {
+            // System reports zh-Hans, only the generic "zh" is configured →
+            // RFC 4647 lookup truncates and matches "zh" (no need for "en" fallback).
+            UI.Locale.SetToSystemDefaultCore(
+                SystemLanguage.ChineseSimplified, new[] { "en", "zh" }, fallback: "en");
+            Assert.AreEqual("zh", UI.Locale.Current);
+        }
+
+        [Test]
+        public void Core_PrefersExactOverParent_WhenBothConfigured()
+        {
+            UI.Locale.SetToSystemDefaultCore(
+                SystemLanguage.ChineseSimplified, new[] { "zh", "zh-Hans" }, fallback: "en");
+            Assert.AreEqual("zh-Hans", UI.Locale.Current);
+        }
+
+        [Test]
         public void Core_FallsBackToParam_WhenSystemMappedButNotConfigured()
         {
             UI.Locale.SetToSystemDefaultCore(

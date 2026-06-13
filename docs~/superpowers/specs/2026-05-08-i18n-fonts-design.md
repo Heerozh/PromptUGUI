@@ -52,6 +52,7 @@ PromptUGUI 已有 Variant 系统（每个 Variant 触发已 open Screen 的 ReSo
 | I18N-D18 | 表优先级 | i18n-custom 覆盖 i18n | 手写是逆水身，永远高于自动抽取 |
 | I18N-D19 | TMP 富文本 | CDATA 内嵌；改 parser 一处把 CDATA 计入 textContent | 标准 XML；mixed-content 禁令保留 |
 | I18N-D20 | locale 作 Variant 名 | 直接用 locale 字符串作 Variant 名（无 `_locale:` 前缀） | 与 `font.zh-Hans="..."` 这种自定义 .var 写法天然吻合 |
+| I18N-D21 | 系统语言→Configured 匹配 | RFC 4647 *lookup* 截断回退：精确不命中就逐级砍掉末尾 `-子标签` 再找（`zh-Hant-TW → zh-Hant → zh`），返回命中的**配置项原文**；只截断**请求**侧，泛请求不扩展去匹配更细的配置 | `Application.systemLanguage` 永远给 `zh-Hans`/`zh-Hant`（见映射表），配置只写 `zh` 也能开箱命中；与 D12 无关（D12 是翻译查找不跨 locale，这里是 locale 选择） |
 
 ---
 
@@ -328,7 +329,7 @@ namespace PromptUGUI.Application {
 
 `SetToSystemDefault(fallback = null)` 是低阶 API：
 
-1. 若 `MapSystemLanguage(systemLanguage)` 返回非 null 且命中 `Configured` → `Set(命中的)`
+1. 若 `MapSystemLanguage(systemLanguage)` 返回非 null 且经 `LocaleHelpers.MatchWithFallback` 命中 `Configured`（RFC 4647 截断回退，D21；返回命中的配置项原文以便 .po 路径仍可解析） → `Set(命中的)`
 2. 否则若 `fallback != null` → `Set(fallback)`（即使 `fallback` 不在 `Configured` 中也接受 — 与 `Set` 一致的"信任 caller"立场）
 3. 否则 → `Set(MapSystemLanguage(systemLanguage))`（保留"宁愿不翻译也不阻塞"逃生口；映射返回 null 时 `Current` 留为 null，所有 msgid 透出原文）
 
@@ -341,8 +342,8 @@ namespace PromptUGUI.Application {
 `InitializeIfNeeded()` 是高阶启动初始化 API（D11）：
 1. 若 `Current != null` → 直接返回（已经被 app / 之前的初始化设过）
 2. 若 `Configured.Count == 0` → 静默返回（没有任何配置 locale 时 PromptUGUI 不发表意见）
-3. 否则把 `Application.systemLanguage` 经 `MapSystemLanguage` 映射成 BCP-47：
-   - 命中 `Configured` → `Set(命中的)`
+3. 否则把 `Application.systemLanguage` 经 `MapSystemLanguage` 映射成 BCP-47，再经 `LocaleHelpers.MatchWithFallback` 匹配 `Configured`（RFC 4647 截断回退，D21）：
+   - 命中（含 `zh-Hans→zh` 这类截断命中，属正常匹配不报警） → `Set(命中的)`
    - 不命中（含映射返回 `null`） → `Debug.LogWarning("[PromptUGUI] 丢失 'X', falling back to 'Y'")` 后 `Set(Configured[0])`
 
 PromptUGUI runtime 内部用 `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]` 在 Player / Play Mode 启动时自动跑一次 `InitializeIfNeeded()`。app 之后调 `UI.Locale.Set(savedPreference)` 会自然覆盖（含 PO 表 unload / reload）。可测性：内部 `InitializeIfNeededCore(SystemLanguage)` 接受参数注入，公共 `InitializeIfNeeded()` 读 `Application.systemLanguage` 转发。

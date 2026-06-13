@@ -54,9 +54,9 @@ This demo interface was created entirely by Code Agent, including the border ima
   - Subclass for highly customized dialogs
 - **Deep Linking** support via a professional Router system
   - Every UI should be opened / managed by the Router
-  - Locate the matching feature module through `appid://ui_name?param=value`
-  - Automatically handles hierarchy dependencies — navigation closes conflicting UIs so exclusive UIs never overlap
-  - Ideal for external link jumps, announcement / event jumps, equipment-info jumps, returning to the game after an external operation, and similar scenarios
+  - And open UI through `appid://ui_name?param=value` links
+  - Automatically handles hierarchy dependencies — navigation closes conflicting UIs so exclusive UIs never overlap, suits new-player tutorial creation
+  - Also supports external link jumps, good for announcement / event jumps, equipment-info share links, etc.
 
 ## Install / Upgrade
 
@@ -344,11 +344,11 @@ C# Code:
   - 多次调用通过队列依次弹出避免冲突
   - Toast小信息弹出提示系统，Loading转圈模态窗口等等内置支持
   - 可继承实现高度自定义的对话框
-- **Deep Linking** 支持，专业的 Router 系统
-  - 所有UI都应该由Router打开/管理
-  - 可通过 appid://ui_name?param=value 的形式定位到对应功能模块
-  - 自动处理层级依赖关系，导航时会自动关闭冲突的UI，防止独占UI重叠。
-  - 适合外部链接跳转、公告/活动跳转、装备信息跳转、外部操作后返回游戏等场景。
+- **Deep Linking** ，专业的 Router 系统
+  - 所有UI都应该由Router打开/管理，提供统一的导航链接
+  - 然后通过 appid://ui_name?param=value 形式的链接打开对应功能模块
+  - 自动处理层级依赖关系，导航时会自动关闭冲突的UI，防止独占UI重叠。新手引导更容易制作。
+  - 除了内部互相跳转，也支持从外部打开，实现公告/活动跳转、装备信息分享链接、外部操作后返回游戏等场景。
 
 
 ## 安装/升级方法

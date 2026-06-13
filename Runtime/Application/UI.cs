@@ -312,11 +312,8 @@ namespace PromptUGUI.Application
                 string fallback)
             {
                 var sysBcp47 = LocaleHelpers.MapSystemLanguage(systemLanguage);
-                if (sysBcp47 != null && configured != null)
-                {
-                    for (var i = 0; i < configured.Count; i++)
-                        if (configured[i] == sysBcp47) return sysBcp47;
-                }
+                var matched = LocaleHelpers.MatchWithFallback(sysBcp47, configured);
+                if (matched != null) return matched;
                 return fallback ?? sysBcp47;
             }
 
@@ -330,16 +327,11 @@ namespace PromptUGUI.Application
                 if (Current != null) return;
                 if (configured == null || configured.Count == 0) return;
                 var sysBcp47 = LocaleHelpers.MapSystemLanguage(systemLanguage);
-                if (sysBcp47 != null)
+                var matched = LocaleHelpers.MatchWithFallback(sysBcp47, configured);
+                if (matched != null)
                 {
-                    for (var i = 0; i < configured.Count; i++)
-                    {
-                        if (configured[i] == sysBcp47)
-                        {
-                            Set(sysBcp47);
-                            return;
-                        }
-                    }
+                    Set(matched);
+                    return;
                 }
                 var displayName = sysBcp47 ?? systemLanguage.ToString();
                 UnityEngine.Debug.LogWarning(

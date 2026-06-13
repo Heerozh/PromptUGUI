@@ -389,6 +389,8 @@ var text = string.Format(c, UI.Tr("Total: {0:C}"), price);
 
 Locale switching rides the Variant pipeline — already-open Screens auto-ReSolve. `UI.Locale.Set("zh-Hans")` internally registers `zh-Hans` as an active Variant; don't reuse that name for non-locale state.
 
+`SetToSystemDefault()` / the boot-time `InitializeIfNeeded()` match `Application.systemLanguage` against your configured locales with **RFC 4647 truncation fallback**: an unmatched `zh-Hant-TW` is retried as `zh-Hant`, then `zh`. So a single configured `zh` catches every Chinese system (`systemLanguage` always reports `zh-Hans`/`zh-Hant`, never bare `zh`) — you don't need one entry per script. The matched **configured** spelling is what's used (so `.po` paths resolve), exact beats parent, and it only truncates the *request* — a generic `zh` system won't match a more specific configured `zh-Hans`.
+
 **.po file location (Resources-backed)**: by default `.po` files live in `Assets/Resources/PromptUGUI/i18n/<locale>/` or `/PromptUGUI/i18n-custom/<locale>/`. Files anywhere under those paths are picked up by `Resources.LoadAll<TextAsset>`; subfolder names are ignored.
 
 For Addressables-backed `.po` loading (`UI.Locale.UseAddressableResolver`, `Locale:<locale>` labels, `SetAsync`), see **using-promptugui-addressables**.
