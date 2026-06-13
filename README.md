@@ -4,20 +4,37 @@
 
 A solution that enables Unity 6+ UI development through LLM.
 
-It provides an extremely concise UI description language `.ui.xml` and a runtime parser that translates it into a uGUI hierarchy.
+It provides an extremely concise UI description language `.ui.xml` & `.pxl` , and a runtime parser that translates it into a uGUI hierarchy + Sprite images.
 
 More flexible than UI Toolkit, easier for custom styling, and tightly integrated with the GameObject system.
+
+## WebGL Demo Page
+
+This demo interface was created entirely by Code Agent, including the border images, icons, and more.
+
+<https://heerozh.github.io/pugui/>
 
 ## Features
 
 - **Minimal XML description language, tailored to how LLMs write**
   - Hot reload — edit, save, see the result instantly
-  - Reactive UI support
+  - Fully reactive UI support — automatically switches layout to match the screen and device
+  - Pixel-art-style UI support
   - Automatic XSD schema validation + built-in syntax-check CLI
+- **Sprite image description language in the X PixMap / GIMP style**
+  - Another text format LLMs are already familiar with
+  - No image-generation model required — a Code Agent can draw UI art and adjust its style straight from text descriptions
+  - This is the way
+- **Rich control set**
+  - Built-in basic UI elements (Btn / Image / Frame / InputField / Toggle / Dropdown / Slider / ScrollList / Progress / TabBar, etc.)
+  - Carousel card component for showing banners, announcements, and the like
+  - Markdown text component with full markdown parsing (except HTML tags), including remote images
+  - Layout elements (HStack / VStack / Grid, etc.)
   - Highly extensible — supports Templates / Prefab templates
 - **Automatic sprite / icon resolution**
   - Configure a SpriteSet, then reference icons in XML via `<Icon name="solar:Forward" />` or `<Image sprite="ui:dialog" />`
   - Only the sprites actually used are bundled
+  - Supports TMP inline text-and-image layout
   - LLMs handle this style of authoring extremely well
 - **Fully automated i18n**
   - Auto-extracts UI text plus strings wrapped with `UI.Tr()` in C# code
@@ -33,8 +50,13 @@ More flexible than UI Toolkit, easier for custom styling, and tightly integrated
 - **Full-featured modal dialog system**
   - Async, blocking-style call site: `var result = await MessageBox.Open(...)`
   - Concurrent calls are queued so dialogs never collide
-  - Toast popup, loading spinner modal built-in supported
+  - Built-in Toast popup notifications and loading-spinner modal support
   - Subclass for highly customized dialogs
+- **Deep Linking** support via a professional Router system
+  - Every UI should be opened / managed by the Router
+  - Locate the matching feature module through `appid://ui_name?param=value`
+  - Automatically handles hierarchy dependencies — navigation closes conflicting UIs so exclusive UIs never overlap
+  - Ideal for external link jumps, announcement / event jumps, equipment-info jumps, returning to the game after an external operation, and similar scenarios
 
 ## Install / Upgrade
 
@@ -273,10 +295,16 @@ C# Code:
 
 一个让 Unity 6+ 的 UI 可以用大模型进行开发的解决方案。
 
-通过描述语言 `.ui.xml` 和一个运行时解析器，翻译成uGUI结构。
+通过描述语言 `.ui.xml` 以及 `.pxl` 和一个运行时解析器，翻译成uGUI结构 + Sprite图像。
 整体架构全面且简洁，适合大模型直接书写而脱离MCP。
 
 比UI Toolkit更自由，和GameObject体系结合更紧密。
+
+## WebGL演示页面
+
+此演示界面全由Code Agent编写，甚至包括边框图像，Icon等等。
+
+<https://heerozh.github.io/pugui/>
 
 ## 功能特性
 
