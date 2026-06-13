@@ -65,19 +65,28 @@
       </HStack>
 
       <!-- TabBar 分页（bind= 切页；Tab 是 layout child，只写 width/height） -->
-      <TabBar id="tabs" anchor="top-stretch" height="32" margin="44,8,0,8">
-        <Tab id="tabForm"    width="84" text="表单输入" fontSize="15"
+      <!-- 响应式：横屏顶部一行四个；竖屏（手机）变左侧竖轨——窄轨道(width 36)让 Tab 的 CJK label 逐字换行成竖排文字，
+           内容区右移(各 page 的 margin.portrait 左边距 = 轨道左 8 + 轨道宽 36 + 间隙 8 = 52)。
+           竖排靠「轨道宽落在 (字号, 2×字号) 之间」触发 TMP 逐字换行：width 36 / fontSize.portrait 22 → 稳定 1 字 1 行。
+           注意 direction / spacing 必须显式写基础值：它们是控件私有 [UIAttr]，变体未命中时 applier 直接跳过
+           （不像 anchor/width/height/margin 等公共属性会回落重算），不写基础值则横竖屏来回切后会卡在竖排。 -->
+      <TabBar id="tabs" anchor="top-stretch" anchor.portrait="stretch-left"
+              height="32" height.portrait="" width.portrait="36"
+              direction="horizontal" direction.portrait="vertical"
+              spacing="0" spacing.portrait="4"
+              margin="44,8,0,8" margin.portrait="44,_,8,8">
+        <Tab id="tabForm"    width="84" width.portrait="stretch" height.portrait="120" text="表单输入" fontSize="15" fontSize.portrait="22"
              selectedColor="tab-selected" bind="pageForm" isOn="true"/>
-        <Tab id="tabDisplay" width="84" text="展示反馈" fontSize="15"
+        <Tab id="tabDisplay" width="84" width.portrait="stretch" height.portrait="120" text="展示反馈" fontSize="15" fontSize.portrait="22"
              selectedColor="tab-selected" bind="pageDisplay"/>
-        <Tab id="tabList"    width="84" text="列表轮播" fontSize="15"
+        <Tab id="tabList"    width="84" width.portrait="stretch" height.portrait="120" text="列表轮播" fontSize="15" fontSize.portrait="22"
              selectedColor="tab-selected" bind="pageList"/>
-        <Tab id="tabModal"   width="84" text="模态提示" fontSize="15"
+        <Tab id="tabModal"   width="84" width.portrait="stretch" height.portrait="120" text="模态提示" fontSize="15" fontSize.portrait="22"
              selectedColor="tab-selected" bind="pageModal"/>
       </TabBar>
 
       <!-- ① 表单输入（原 Settings 内容保留） -->
-      <Frame id="pageForm" anchor="stretch" margin="84,8,8,8">
+      <Frame id="pageForm" anchor="stretch" margin="84,8,8,8" margin.portrait="52,8,8,52">
         <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="panel" raycastTarget="false"/>
         <VStack anchor="stretch" spacing="12" padding="8">
           <InputField id="username" placeholder="Username" width="240" height="30"/>
@@ -88,7 +97,7 @@
       </Frame>
 
       <!-- ② 展示反馈 -->
-      <Frame id="pageDisplay" anchor="stretch" margin="84,8,8,8">
+      <Frame id="pageDisplay" anchor="stretch" margin="84,8,8,8" margin.portrait="52,8,8,52">
         <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="panel" raycastTarget="false"/>
         <VStack anchor="stretch" spacing="10" padding="8">
           <Progress id="progress" height="16" value="0.3" bgColor="progress-bg" fillColor="progress-fill"/>
@@ -115,7 +124,7 @@
       </Frame>
 
       <!-- ③ 列表轮播 -->
-      <Frame id="pageList" anchor="stretch" margin="84,8,8,8">
+      <Frame id="pageList" anchor="stretch" margin="84,8,8,8" margin.portrait="52,8,8,52">
         <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="panel" raycastTarget="false"/>
         <VStack anchor="stretch" spacing="10" padding="8">
           <!-- farm: SpriteSet 12 作物橱窗 -->
@@ -134,7 +143,7 @@
       </Frame>
 
       <!-- ④ 模态提示 -->
-      <Frame id="pageModal" anchor="stretch" margin="84,8,8,8">
+      <Frame id="pageModal" anchor="stretch" margin="84,8,8,8" margin.portrait="52,8,8,52">
         <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="panel" raycastTarget="false"/>
         <VStack anchor="stretch" spacing="10" padding="8">
           <Btn id="msgBoxBtn"   height="30" fontSize="15">MessageBox</Btn>
