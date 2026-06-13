@@ -14,6 +14,9 @@ namespace PromptUGUI.Lint
         public const string AnchorCode = "PUI-LAYOUT-ANCHOR";
         public const string MarginCode = "PUI-LAYOUT-MARGIN";
         public const string FlowOutsideCode = "PUI-FLOW-OUTSIDE-GROUP";
+        public const string GridChildSizeCode = "PUI-GRID-CHILD-SIZE";
+
+        private static readonly string[] SizeAttrs = { "size", "width", "height" };
 
         /// <summary>
         /// True when this child opts out of the layout flow in at least one configuration:
@@ -69,6 +72,33 @@ namespace PromptUGUI.Lint
                     $"<{child.Tag} id='{child.Id}'>: 'margin' is ignored because the parent is a layout group (VStack/HStack/Grid), which spaces children automatically. " +
                     $"Fix: remove the 'margin' attribute and use the parent stack's 'padding' / 'spacing' for gaps; " +
                     $"or, if you need margin-based offsets, move this element out of the layout group (e.g. into a <Frame>).");
+        }
+
+        /// <summary>
+        /// Child of a <c>&lt;Grid&gt;</c> specifically: its own <c>size</c> / <c>width</c> / <c>height</c> is
+        /// silently overridden by <c>GridLayoutGroup.cellSize</c> (the cell size is uniform, set on the parent).
+        /// Unlike <c>&lt;VStack&gt;</c> / <c>&lt;HStack&gt;</c> — where a child's size IS the main-axis size — so
+        /// this is dispatched ONLY for Grid parents (IRWalker), not from <c>CheckChild</c>.
+        /// CLI-only: "author wrote something we ignore" with no visible defect, like PUI-CONTAINER-VISUAL-ATTR.
+        /// </summary>
+        public static IEnumerable<LintIssue> CheckGridChild(ElementNode child)
+        {
+            // flow="false" (or a variant taking over flow): the child leaves the grid's flow, so
+            // GridLayoutGroup skips it and its own size is meaningful again — not a misuse.
+            if (MightBeOutOfFlow(child)) yield break;
+
+            var offenders = new List<string>();
+            foreach (var attr in SizeAttrs)
+                if (child.Attributes.ContainsKey(attr) || child.VariantOverrides.ContainsKey(attr))
+                    offenders.Add(attr);
+
+            if (offenders.Count > 0)
+                yield return new LintIssue(
+                    GridChildSizeCode, child.Tag, child.Id,
+                    $"<{child.Tag} id='{child.Id}'>: {string.Join(" / ", offenders)} is ignored because the parent is a <Grid>, " +
+                    "whose GridLayoutGroup gives every child a uniform cell size. " +
+                    "Fix: set the cell size on the parent (<Grid cellSize=\"WxH\">); " +
+                    "or, for a non-uniform size, move this element out of the Grid (e.g. into a <Frame>).");
         }
     }
 }

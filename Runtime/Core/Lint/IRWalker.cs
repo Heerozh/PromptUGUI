@@ -124,6 +124,11 @@ namespace PromptUGUI.Lint
                 if (node.Tag == "Carousel")
                     foreach (var issue in CarouselRules.CheckCard(child))
                         yield return issue;
+                // CLI-only: a direct <Grid> child's own size/width/height is overridden by cellSize.
+                // Grid-specific (V/HStack children's size IS meaningful), so gated on the parent tag here.
+                if (node.Tag == "Grid")
+                    foreach (var issue in LayoutGroupChildRules.CheckGridChild(child))
+                        yield return issue;
                 // Exempt Template-instance roots and bodies: <Tab> wrapped in a
                 // Template (e.g. <Template name='FileTab'><Frame><Tab/>...) is
                 // intentional — TabBar.CollectStaticTabs walks wrappers via FindTabIn.
