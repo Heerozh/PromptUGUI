@@ -167,31 +167,31 @@ facade 见 §3（`CenteredSlideBox.Open` 就是它，照 MessageBox 风格）。
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <PromptUGUI version="1">
+  <!-- 通用卡片：封面 + 标题。⚠️ <Template> 必须是文档顶层元素（<Screen> 的兄弟，
+       不能嵌进 <Screen> —— 解析器只从 <PromptUGUI> 直接子提取模板）。换皮 = 换这段 + 整个 XmlSrc（CSB-D6）-->
+  <Template name="Card">
+    <Frame size="240x320">
+      <Image id="cover" anchor="stretch"/>
+      <Text  id="name"  anchor="bottom-stretch" height="40" align="center" tr="false"/>
+    </Frame>
+  </Template>
+
   <Screen name="CenteredSlideBox">
-    <!-- 全屏 backdrop（点它取消）；半透明黑 -->
-    <Image id="backdrop" anchor="stretch" color="#000000A0">
-      <!-- panel：居中容器 -->
-      <Frame id="panel" anchor="center" size="720x460">
-        <Text id="title" anchor="top-stretch" height="48" align="center" tr="false"/>
-        <Btn  id="close" anchor="top-right" size="36x36" margin="6,6,_,_">×</Btn>
+    <!-- ⚠️ backdrop 与 panel 是兄弟（backdrop 在底层、panel 在上层），不能把 panel 嵌进 backdrop——
+         否则点 panel 任意处都会冒泡到 backdrop 的 OnPointerDown 误关。点 backdrop 空白区取消。 -->
+    <Image id="backdrop" anchor="stretch" color="#000000A0"/>
+    <Frame id="panel" anchor="center" size="720x460">
+      <Text id="title" anchor="top-stretch" height="48" align="center" tr="false"/>
+      <Btn  id="close" anchor="top-right" size="36x36" margin="6,6,_,_">×</Btn>
 
-        <Carousel id="cards" anchor="stretch" margin="56,16,72,16"
-                  fill="false" interval="0" loop="true"
-                  spacing="24" edgeScale="0.82" edgeAlpha="0.45"
-                  itemTemplate="Card"
-                  dots="bottom-center" dotColor="#666" dotSelectedColor="#fff"/>
+      <Carousel id="cards" anchor="stretch" margin="56,16,72,16"
+                fill="false" interval="0" loop="true"
+                spacing="24" edgeScale="0.82" edgeAlpha="0.45"
+                itemTemplate="Card"
+                dots="bottom-center" dotColor="#666" dotSelectedColor="#fff"/>
 
-        <Btn id="confirm" anchor="bottom-center" size="160x48" margin="_,_,12,_">OK</Btn>
-      </Frame>
-    </Image>
-
-    <!-- 通用卡片：封面 + 标题。换皮 = 换这段 + 整个 XmlSrc（CSB-D6）-->
-    <Template name="Card">
-      <Frame size="240x320">
-        <Image id="cover" anchor="stretch"/>
-        <Text  id="name"  anchor="bottom-stretch" height="40" align="center" tr="false"/>
-      </Frame>
-    </Template>
+      <Btn id="confirm" anchor="bottom-center" size="160x48" margin="_,_,12,_">OK</Btn>
+    </Frame>
   </Screen>
 </PromptUGUI>
 ```
