@@ -288,6 +288,8 @@ car.OnCurrentChanged
    .AddTo(screen);                 // Observable<int>：任意来源的页变化，dedup 相同值
 ```
 
+> 居中选择器（`<Carousel fill="false">`，见 XML skill）的左右翻页箭头：放两个 `<Btn>`，`OnClick` 绑 `car.Previous()` / `car.Next()`——已是 public 方法，无需新 API。
+
 `current` is a **runtime-owned state** (same as Tab `isOn`): resize / Variant / Theme ReSolve does NOT reset the page. `current.<variant>` initial overrides still apply when the user has not navigated at runtime; once navigated, the user's choice wins.
 
 ### Markdown
@@ -591,7 +593,11 @@ MODAL          var r = await MessageBox.Open(text, MsgBtn.OK|MsgBtn.Cancel, icon
                await MarkdownBox.Open(loader, title, ...)  // loader: Func<CT,Awaitable<string>>
                               // 先显示 loadingText 占位,完成后热替换;关窗自动取消 loader 的 ct
                await MarkdownBox.OpenUrl(url, title, ...)  // 裸 GET 糖;鉴权内容用 Open(loader)
-               configure:     Action<IScreen> trailing arg on every Open (MessageBox/InputBox/Loading/MarkdownBox)
+               var lv = await CenteredSlideBox.Open(items, bind, title, confirmLabel, mode, configure, ct)
+                              // 居中卡片选择器(关卡/角色弹窗,内含 fill=false peek Carousel);T:class
+                              // 返回选中对象(取消 ×/背景/ESC → null);bind 填内置卡槽 cover/name(同 BindItems)
+                              // 点侧卡居中,点居中卡 or 确认按钮 = 确认;换皮 CenteredSlideBox.XmlSrc 指自己 XML
+               configure:     Action<IScreen> trailing arg on every Open (MessageBox/InputBox/Loading/MarkdownBox/CenteredSlideBox)
                               // post-bind hook → live Screen; reach any control w/o subclassing
                               // e.g. InputBox.Open(t, configure: s => s.Get<Btn>("ok").Interactable = false)
                               // base ModalRequest<T>.Configure field → custom modals get it free
@@ -603,6 +609,7 @@ MODAL          var r = await MessageBox.Open(text, MsgBtn.OK|MsgBtn.Cancel, icon
                               (do NOT call LoadDocument manually — auto via ModalDocCache.EnsureLoaded)
                required ids   text  title  ok  cancel  yes  no  close   (icon optional)
                               MarkdownBox required ids: title  markdown  close  backdrop  (backdrop = Image, click closes)
+                              CenteredSlideBox required ids: title  close  confirm  cards(Carousel fill=false itemTemplate)  backdrop  + 卡槽(默认 cover/name)
                backdrop       author writes <Image anchor="stretch"/> — NOT auto-injected
                UI.Modal.OpenAsync(new MyRequest(), ModalMode.Popup) custom ModalRequest<T>
                               override TryEscape(out T) to map ESC → result
@@ -642,10 +649,11 @@ ROUTER         UI.Router.Scheme = "myapp"                   optional scheme enfo
 
 ## Modal dialogs
 
-PromptUGUI ships a generic modal stack in `PromptUGUI.Application.Modals` plus four
+PromptUGUI ships a generic modal stack in `PromptUGUI.Application.Modals` plus five
 builtin overlays: a `MessageBox` dialog, an `InputBox` text prompt, a `MarkdownBox`
 read-only rich-text viewer (announcements / mail, built on the `<Markdown>` control),
-and a `Loading` spinner. **Every modal IS a real
+a `CenteredSlideBox` card selector (level / character picker, built on the `fill="false"`
+peek `<Carousel>`), and a `Loading` spinner. **Every modal IS a real
 `Screen` instantiated from `.ui.xml`** — anchor / margin / Variant / locale / `<Icon>`
 all work normally. The modal subsystem only adds: stack management, ESC handling, and a
 sortingOrder band above regular Screens.
@@ -691,6 +699,25 @@ await MarkdownBox.OpenUrl("https://cdn.example.com/notice.md", title: UI.Tr("Not
 
 // Authenticated content: bring your own loader (the ct is cancelled on close).
 await MarkdownBox.Open(ct => Api.FetchMailBodyAsync(mailId, ct), title: mail.Subject);
+
+// CenteredSlideBox: centered card selector (level / character picker). Generic items +
+// a bind callback (same shape as Carousel.BindItems). Returns the SELECTED item on
+// confirm, null on cancel (× / backdrop / ESC). Tap a side card to centre it; tap the
+// centred card or the confirm button to pick it. T must be a reference type.
+var level = await CenteredSlideBox.Open(levels,
+    bind: (card, lv) => {
+        card.Get<Text>("name").TextValue = lv.Name;   // fill the built-in card slots
+        card.Get<Image>("cover").Sprite  = lv.Cover;
+    },
+    title: UI.Tr("Select level"));
+if (level != null) game.StartLevel(level);            // got the whole object; id = level.Id
+
+// Default skin is a FINITE list (no wrap-around). Want a looping carousel instead?
+//   configure: s => s.Get<Carousel>("cards").Loop = true
+
+// Different card style? point CenteredSlideBox.XmlSrc at your own .ui, keeping the id
+// contract: backdrop / panel / title / close / confirm / cards (Carousel fill="false")
+// + your card template's slots.
 ```
 
 ### API surface (`PromptUGUI.Application.Modals`)

@@ -27,6 +27,16 @@ namespace PromptUGUI.Tests.EditMode.Controls
             return UI.Open("S").Get<Carousel>("car");
         }
 
+        private static Carousel OpenCards(string attrs, string cards)
+        {
+            var xml = $@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Carousel id='car' size='200x100' {attrs}>{cards}</Carousel>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            return UI.Open("S").Get<Carousel>("car");
+        }
+
         private static RectTransform Viewport(CarouselView v) => (RectTransform)v.StripRect.parent;
 
         // viewport 本地坐标点 → 屏幕点（overlay: world==screen px；含 lossyScale）。
@@ -122,6 +132,34 @@ namespace PromptUGUI.Tests.EditMode.Controls
             ((IEndDragHandler)view).OnEndDrag(Ev(pLeft, Vector2.zero));
             Assert.AreEqual(1, car.Current,
                 "a drag starting vertical then going horizontal still advances (no first-frame axis lock-out)");
+        }
+
+        [Test]
+        public void Peek_Drag_Threshold_Scales_With_Card_Stride()
+        {
+            // 视口 200，卡宽 100，spacing 0 → 步距 100、阈值 0.2*100 = 20。
+            // 拖 -30：> 卡步距阈值（翻页），但 < 旧视口阈值 0.2*200=40（旧逻辑会回弹）。
+            var car = OpenCards("fill='false' spacing='0' interval='0'",
+                "<Frame size='100x80'/><Frame size='100x80'/><Frame size='100x80'/>");
+            DragLocal(car.GameObject.GetComponent<CarouselView>(), -30f);
+            Assert.AreEqual(1, car.Current, "drag threshold uses card stride (100), not viewport width (200)");
+        }
+
+        [Test]
+        public void Peek_EdgeScale_Interpolates_Linearly_At_Fractional_Offset()
+        {
+            // 半步距拖动 → _scroll≈0.5，焦点卡 off≈-0.5 → t=0.5 → scale=Lerp(1,0.6,0.5)=0.8。
+            // 端点 0/1 已有 CarouselPeekTests 覆盖；这里钉住 CAR-D32 的「线性」中间值（防 edgeEase 重构悄悄破坏）。
+            var car = OpenCards("fill='false' spacing='0' edgeScale='0.6' interval='0'",
+                "<Frame size='100x80'/><Frame size='100x80'/><Frame size='100x80'/>");
+            var view = car.GameObject.GetComponent<CarouselView>();
+            var p0 = ScreenAt(view, Vector2.zero);
+            var pHalf = ScreenAt(view, new Vector2(-50f, 0f));   // 半个 100px 步距
+            ((IBeginDragHandler)view).OnBeginDrag(Ev(p0, Vector2.zero));
+            ((IDragHandler)view).OnDrag(Ev(pHalf, pHalf - p0));   // 不 End，保留分数 _scroll
+            var card0 = (RectTransform)view.StripRect.GetChild(0);
+            Assert.AreEqual(0.8f, card0.localScale.x, 0.01f,
+                "edgeScale interpolates linearly at fractional offset (Lerp(1,0.6,0.5)=0.8)");
         }
 
         [Test]

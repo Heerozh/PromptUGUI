@@ -98,7 +98,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 | `<Progress>` | 只读线性进度条 |
 | `<TabBar>` | 互斥选项卡容器 |
 | `<Tab>` | 选项卡（`bind` 显隐 `<Frame>`） |
-| `<Carousel>` | 翻页轮播卡 |
+| `<Carousel>` | 翻页轮播卡（+ `fill="false"` 居中选择器） |
 | `<Show>` | 按状态显隐子树的无视觉 wrapper |
 | `<Markdown>` | Renders a Markdown document into a scrollable subtree  |
 
@@ -340,7 +340,7 @@ Tab 容器；私有 `ToggleGroup`（`allowSwitchOff=false`）+ `Horizontal` / `V
 
 ### `<Carousel>`
 
-水平翻页轮播卡容器：自动播放 + 拖动 + 无限循环 + 状态化指示点。卡片用 `itemTemplate` + C# `BindItems`（同 ScrollList / TabBar）或静态子卡。每张卡排成视口大小——卡片**不能**写 `anchor` / `margin` / `size`（`PUI-LAYOUT-ANCHOR` / `PUI-LAYOUT-MARGIN` / `PUI-CAROUSEL-CARD-SIZE`）。当前页 `current` 是**运行期独占状态**（resize / Variant / Theme 不重置）。**详见 [`reference/controls-carousel.md`](reference/controls-carousel.md)。**
+水平翻页轮播卡容器：自动播放 + 拖动 + 无限循环 + 状态化指示点。卡片用 `itemTemplate` + C# `BindItems`（同 ScrollList / TabBar）或静态子卡。默认 `fill="true"` 每张卡排成视口大小，卡片**不能**写 `size`（`PUI-CAROUSEL-CARD-SIZE`）；`fill="false"` 切「居中选择器」——卡片用自身 `size`、邻卡两侧露出、焦点卡可放大(`edgeScale`)/相邻渐隐(`edgeAlpha`)。卡片始终不能写 `anchor` / `margin`（`PUI-LAYOUT-ANCHOR` / `PUI-LAYOUT-MARGIN`）。当前页 `current` 是**运行期独占状态**（resize / Variant / Theme 不重置）。**详见 [`reference/controls-carousel.md`](reference/controls-carousel.md)。**
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
@@ -348,6 +348,11 @@ Tab 容器；私有 `ToggleGroup`（`allowSwitchOff=false`）+ `Horizontal` / `V
 | `interval` | 秒 | `5` | `0`=关自动播放 |
 | `loop` | bool | `true` | |
 | `transition` | 秒 | `0.3` | 吸附补间 |
+| `fill` | bool | `true` | `false`=居中选择器（卡用自身 `size`，邻卡露出）；仅 `false` 时 `spacing`/`edgeScale`/`edgeAlpha` 生效 |
+| `spacing` | px | `0` | 相邻卡间距（仅 `fill="false"`） |
+| `edgeScale` | float | `1.0` | 边卡缩放，焦点卡 1，按距中心插值（仅 `fill="false"`） |
+| `edgeAlpha` | float | `1.0` | 边卡不透明度，焦点卡 1，按距中心插值（仅 `fill="false"`） |
+| `softness` | int | `0` | 视口左右边缘羽化淡出宽度（写视口 `RectMask2D.softness.x`，设计单位）：靠近视口边缘的卡片**像素**渐隐——空间淡出（溶进背景），区别于 `edgeAlpha` 的整卡变暗。不被 `fill` 门控 |
 | `current` | int | — | 初始页；runtime-owned |
 | `dots` | anchor 关键字（如 `bottom-center`） | — | 空 / `none`=不显示；非法 → runtime 回退 `bottom-center` + `PUI-CAROUSEL-DOTS-ANCHOR` |
 | `dotSize` | `WxH` | `8x8` | |

@@ -24,6 +24,7 @@ namespace PromptUGUI.Controls.Internal
         private RectTransform _viewport;
         private RectTransform _strip;
         private RectTransform _indicator;
+        private RectMask2D _mask;   // 视口裁剪遮罩(Carousel.OnAttached 建)；softness.x = 水平边缘羽化
 
         private readonly List<IControl> _cards = new();
         private readonly List<UnityImage> _dotImages = new();
@@ -35,6 +36,15 @@ namespace PromptUGUI.Controls.Internal
         private int _lastDotCurrent = -2;
         private float _pageWidth = 1f;
         private float _pageHeight = 1f;
+
+        // peek 布局（CAR-D25/D27）
+        private bool _fill = true;          // 默认 v1 全幅
+        private float _spacing = 0f;        // fill=false 时相邻卡间距
+        private float _edgeScale = 1f;      // CAR-D32: 边卡缩放；焦点卡 1，邻卡线性插值到此值
+        private float _edgeAlpha = 1f;      // 边卡透明度；焦点卡 1，邻卡线性插值到此值（懒加 CanvasGroup）
+        private float _cardW = 1f;          // 卡槽宽（fill=true → 视口；false → resolved 卡尺寸）
+        private float _cardH = 1f;
+        private float _stride = 1f;         // 相邻卡中心距（fill=true → 视口宽；false → _cardW+_spacing）
 
         // 行为参数
         private float _interval = 5f;
@@ -52,8 +62,8 @@ namespace PromptUGUI.Controls.Internal
         // 同一坐标系，CanvasScaler.scaleFactor≠1 时也 1:1 跟手，不变快/变慢——同 ScrollRect 的做法）
         private float _dragStartScroll;
         private Vector2 _dragStartLocal;   // 按下时指针在 viewport 本地坐标
-        private float _dragLocalX;         // 距按下点的本地 X 位移（钳进 ±一页），EndDrag 判翻页用
-        private const float SnapThreshold = 0.2f;   // 翻页所需位移占页宽比例
+        private float _dragLocalX;         // 距按下点的本地 X 位移（钳进 ±一步距），EndDrag 判翻页用
+        private const float SnapThreshold = 0.2f;   // 翻页所需位移占卡步距比例（fill=true 时步距==视口宽）
 
         // 指示点样式
         private string _dotsAnchor;
@@ -92,12 +102,24 @@ namespace PromptUGUI.Controls.Internal
             _viewport = viewport;
             _strip = strip;
             _indicator = indicator;
+            _mask = viewport.GetComponent<RectMask2D>();
         }
 
         // —— 行为参数 setter（Carousel 转发）——
         public void SetInterval(float v) => _interval = v;
         public void SetLoop(bool v) => _loop = v;
         public void SetTransition(float v) => _transition = Mathf.Max(0f, v);
+        public void SetFill(bool v) => _fill = v;
+        public void SetSpacing(float v) => _spacing = Mathf.Max(0f, v);
+        public void SetEdgeScale(float v) => _edgeScale = Mathf.Max(0f, v);   // 挡负值（负 localScale 翻转几何）；允许 >1
+        public void SetEdgeAlpha(float v) => _edgeAlpha = Mathf.Clamp01(v);
+        // 视口 RectMask2D 的水平边缘羽化(softness.x)：靠近视口左右边缘的卡片像素渐隐——
+        // 空间淡出(融进背景)，区别于 edgeAlpha 的整卡变暗。y 保持 0(只左右淡，不切顶底)。
+        public void SetSoftness(int v)
+        {
+            if (_mask == null) return;
+            _mask.softness = new Vector2Int(Mathf.Max(0, v), _mask.softness.y);
+        }
 
         // —— 卡片管理 ——
         // 首次 OnAfterApply 把已建好的静态子卡（在 Strip 下）收进 _cards；只跑一次，
@@ -375,10 +397,49 @@ namespace PromptUGUI.Controls.Internal
                 rt.anchorMin = new Vector2(0.5f, 0.5f);
                 rt.anchorMax = new Vector2(0.5f, 0.5f);
                 rt.pivot = new Vector2(0.5f, 0.5f);
-                rt.sizeDelta = new Vector2(_pageWidth, _pageHeight);
-                rt.anchoredPosition = new Vector2(off * _pageWidth, 0f);
+                rt.sizeDelta = new Vector2(_cardW, _cardH);
+                rt.anchoredPosition = new Vector2(off * _stride, 0f);
+                // 总是写 localScale/alpha（每帧自复位）；值按 _fill 门控：fill=true → 强制 1
+                // （edge* 仅 fill=false 生效，CAR-D27/D29），既保 v1 逐字等价、又复位上一轮 peek 残留。
+                float t = Mathf.Clamp01(Mathf.Abs(off));
+                float s = _fill ? 1f : Mathf.Lerp(1f, _edgeScale, t);
+                rt.localScale = new Vector3(s, s, 1f);
+                ApplyAlpha(card, _fill ? 1f : Mathf.Lerp(1f, _edgeAlpha, t));
             }
             RefreshDotSelection();
+        }
+
+        // a<1 才设 alpha；a==1 时复位回不透明（focus / peek→fill 切换 / fill 模式）。
+        // 注：卡片通常已带 CanvasGroup（Control.Interactable 在 ApplyCommon 里预建），故 AddComponent
+        // 分支只是防御性兜底（极少触发）；只写 alpha，不碰 interactable/blocksRaycasts。
+        private static void ApplyAlpha(Control card, float a)
+        {
+            var go = card.GameObject;
+            var cg = go.GetComponent<CanvasGroup>();
+            if (a < 1f)
+            {
+                if (cg == null) cg = go.AddComponent<CanvasGroup>();
+                cg.alpha = a;
+            }
+            else if (cg != null)
+            {
+                cg.alpha = 1f;
+            }
+        }
+
+        // peek 假定卡等尺寸：取第 0 张卡的 resolved 尺寸作槽位（在 Reposition 之前调，
+        // 此时卡的 size= 已由 apply 落到 sizeDelta）。落空（裸 Frame）兜视口，永不为 0。
+        // 注：读 rect —— 仅对 point-anchored 卡 == 作者声明尺寸；stretch-anchored 卡会量到
+        // Strip 尺寸而非卡自身尺寸（spec 假定卡等尺寸、不写 anchor，可接受）。
+        private void MeasureCard(out float w, out float h)
+        {
+            w = _pageWidth; h = _pageHeight;
+            if (_cards.Count > 0 && _cards[0] is Control c0 && c0.GameObject != null)
+            {
+                var rect = c0.RectTransform.rect;
+                if (rect.width > 0f) w = rect.width;
+                if (rect.height > 0f) h = rect.height;
+            }
         }
 
         // 重算页宽高 + 重排卡片。OnAfterApply（初始 / ReSolve）与 resize 都调它。
@@ -391,6 +452,8 @@ namespace PromptUGUI.Controls.Internal
             var r = _root.rect;
             _pageWidth = r.width > 0f ? r.width : 1f;
             _pageHeight = r.height > 0f ? r.height : 1f;
+            if (_fill) { _cardW = _pageWidth; _cardH = _pageHeight; _stride = _pageWidth; }
+            else { MeasureCard(out _cardW, out _cardH); _stride = _cardW + _spacing; }
             if (_cards.Count > 0)
                 _current = _loop ? ((_current % _cards.Count) + _cards.Count) % _cards.Count
                                  : Mathf.Clamp(_current, 0, _cards.Count - 1);
@@ -460,11 +523,11 @@ namespace PromptUGUI.Controls.Internal
                     _viewport, e.position, e.pressEventCamera, out var local))
                 return;
             float dxLocal = local.x - _dragStartLocal.x;     // 只取 X（与滚动轴一致）
-            // Clamp the drag to ±1 page: you can reveal at most the neighbour, never slide to a far
+            // Clamp the drag to ±1 card stride: you can reveal at most the neighbour, never slide to a far
             // page and then snap back to the adjacent one. dxLocal 是相对按下点的绝对位移（非累加），
             // 反向拖会立即减小 |dxLocal| → 跟手不黏。
-            _dragLocalX = Mathf.Clamp(dxLocal, -_pageWidth, _pageWidth);
-            _scroll = _dragStartScroll - _dragLocalX / _pageWidth;   // 右拖(dx>0)显示上一张 → _scroll 减小
+            _dragLocalX = Mathf.Clamp(dxLocal, -_stride, _stride);
+            _scroll = _dragStartScroll - _dragLocalX / _stride;   // 右拖(dx>0)显示上一张 → _scroll 减小
             Reposition();
         }
 
@@ -473,8 +536,8 @@ namespace PromptUGUI.Controls.Internal
             ForwardToParent(e, ExecuteEvents.endDragHandler);
             _dragging = false;
             int target = _current;
-            if (_dragLocalX <= -_pageWidth * SnapThreshold) target = _current + 1;
-            else if (_dragLocalX >= _pageWidth * SnapThreshold) target = _current - 1;
+            if (_dragLocalX <= -_stride * SnapThreshold) target = _current + 1;
+            else if (_dragLocalX >= _stride * SnapThreshold) target = _current - 1;
             GoTo(target, animated: true);
         }
 

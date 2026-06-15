@@ -43,18 +43,45 @@ namespace PromptUGUI.Lint
                     $"<Carousel id='{n.Id}'>: dots='{d}' is not an anchor keyword (e.g. bottom-center) or empty/none. Runtime falls back to bottom-center.");
         }
 
-        // parent-relative: 检查 Carousel 的一个直接子（卡片）是否写了 size/width/height。
-        public static IEnumerable<LintIssue> CheckCard(ElementNode child)
+        public const string PeekNoSizeCode = "PUI-CAROUSEL-PEEK-NO-SIZE";
+
+        // peek 模式下「无原生尺寸的常见容器卡根」：不写 size 会兜成视口、不 peek，故提示。
+        // 这是精选的常见容器子集，并非全部 null-native tag —— SafeArea/TabBar/Tab/Markdown 等也
+        // 无 GetNativeSize override，但作为轮播卡根极罕见，不在此列（runtime 仍优雅兜底为视口）。
+        // Image/Text/Progress/Icon 等自带原生尺寸，放过。
+        private static readonly HashSet<string> NoNativeSizeContainers = new HashSet<string>
+        { "Frame", "VStack", "HStack", "Grid" };
+
+        private static bool HasOwnSize(ElementNode n)
+            => n.Attributes.ContainsKey("size")
+            || n.Attributes.ContainsKey("width")
+            || n.Attributes.ContainsKey("height")
+            || n.VariantOverrides.ContainsKey("size")
+            || n.VariantOverrides.ContainsKey("width")
+            || n.VariantOverrides.ContainsKey("height");
+
+        // parent-relative：检查 Carousel 的一个直接子（卡片）。需要父 Carousel 读 `fill`：
+        // fill=true（默认）禁止卡片写 size；fill="false"（peek）放开，但对「无原生尺寸容器且没写 size」
+        // 的卡给 warning。fill 只读基础属性（base）——peek carousel 的 fill="false" 一定写在 base。
+        public static IEnumerable<LintIssue> CheckCard(ElementNode carousel, ElementNode child)
         {
-            if (child.Attributes.ContainsKey("size")
-                || child.Attributes.ContainsKey("width")
-                || child.Attributes.ContainsKey("height")
-                || child.VariantOverrides.ContainsKey("size")
-                || child.VariantOverrides.ContainsKey("width")
-                || child.VariantOverrides.ContainsKey("height"))
+            bool peek = carousel.Attributes.TryGetValue("fill", out var f) && f == "false";
+            if (!peek)
+            {
+                if (HasOwnSize(child))
+                    yield return new LintIssue(
+                        CardSizeCode, child.Tag, child.Id,
+                        $"<{child.Tag} id='{child.Id}'>: a Carousel card is sized to the viewport by the control; " +
+                        "remove size/width/height (or set fill=\"false\" for a peek selector).");
+            }
+            else if (!HasOwnSize(child) && NoNativeSizeContainers.Contains(child.Tag))
+            {
                 yield return new LintIssue(
-                    CardSizeCode, child.Tag, child.Id,
-                    $"<{child.Tag} id='{child.Id}'>: a Carousel card is sized to the viewport by the control; remove size/width/height.");
+                    PeekNoSizeCode, child.Tag, child.Id,
+                    $"<{child.Tag} id='{child.Id}'>: fill=\"false\" card has no size and no native size; " +
+                    "it will fill the viewport and neighbours won't peek. Add size= on the card root, " +
+                    "or use a control with a native size (e.g. <Image>).");
+            }
         }
     }
 }
