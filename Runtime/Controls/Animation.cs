@@ -12,25 +12,25 @@ namespace PromptUGUI.Controls
         private RectTransform _offsetProxy;
         private CanvasGroup _cg;
         private MotionHandle[] _current;
-        private readonly AnimationSpec _spec = new AnimationSpec();
+        private readonly AnimationSpec _animSpec = new AnimationSpec();
         private AnimationSpec.AnimationSnapshot _lastApplied;
 
         protected internal override Transform ChildHostTransform => _offsetProxy;
 
-        [UIAttr("type"), Preserve] public string TypeAttr { set => _spec.SetType(value); }
-        [UIAttr("translate"), Preserve] public string TranslateAttr { set => _spec.SetTranslate(value); }
-        [UIAttr("scale"), Preserve] public string ScaleAttr { set => _spec.SetScale(value); }
-        [UIAttr("rotate"), Preserve] public string RotateAttr { set => _spec.SetRotate(value); }
-        [UIAttr("fade"), Preserve] public string FadeAttr { set => _spec.SetFade(value); }
-        [UIAttr("duration"), Preserve] public string DurationAttr { set => _spec.SetDuration(value); }
-        [UIAttr("delay"), Preserve] public string DelayAttr { set => _spec.SetDelay(value); }
-        [UIAttr("easing"), Preserve] public string EasingAttr { set => _spec.SetEasing(value); }
-        [UIAttr("loop"), Preserve] public string LoopAttr { set => _spec.SetLoop(value); }
-        [UIAttr("count"), Preserve] public string CountAttr { set => _spec.SetCount(value); }
-        [UIAttr("format"), Preserve] public string FormatAttr { set => _spec.SetFormat(value); }
-        [UIAttr("target"), Preserve] public string TargetAttr { set => _spec.SetTarget(value); }
-        [UIAttr("char-color"), Preserve] public string CharColorAttr { set => _spec.SetCharColor(value); }
-        [UIAttr("char-stagger"), Preserve] public string CharStaggerAttr { set => _spec.SetCharStagger(value); }
+        [UIAttr("type"), Preserve] public string TypeAttr { set => _animSpec.SetType(value); }
+        [UIAttr("translate"), Preserve] public string TranslateAttr { set => _animSpec.SetTranslate(value); }
+        [UIAttr("scale"), Preserve] public string ScaleAttr { set => _animSpec.SetScale(value); }
+        [UIAttr("rotate"), Preserve] public string RotateAttr { set => _animSpec.SetRotate(value); }
+        [UIAttr("fade"), Preserve] public string FadeAttr { set => _animSpec.SetFade(value); }
+        [UIAttr("duration"), Preserve] public string DurationAttr { set => _animSpec.SetDuration(value); }
+        [UIAttr("delay"), Preserve] public string DelayAttr { set => _animSpec.SetDelay(value); }
+        [UIAttr("easing"), Preserve] public string EasingAttr { set => _animSpec.SetEasing(value); }
+        [UIAttr("loop"), Preserve] public string LoopAttr { set => _animSpec.SetLoop(value); }
+        [UIAttr("count"), Preserve] public string CountAttr { set => _animSpec.SetCount(value); }
+        [UIAttr("format"), Preserve] public string FormatAttr { set => _animSpec.SetFormat(value); }
+        [UIAttr("target"), Preserve] public string TargetAttr { set => _animSpec.SetTarget(value); }
+        [UIAttr("char-color"), Preserve] public string CharColorAttr { set => _animSpec.SetCharColor(value); }
+        [UIAttr("char-stagger"), Preserve] public string CharStaggerAttr { set => _animSpec.SetCharStagger(value); }
 
         public override void OnAttached()
         {
@@ -50,15 +50,15 @@ namespace PromptUGUI.Controls
         {
             // on="loop" implies yoyo unless user explicitly set loop=
             if (TriggerKind == PromptUGUI.Controls.Internal.TriggerKind.Loop
-                && _spec.LoopMode == PromptUGUI.Controls.Internal.LoopMode.None)
+                && _animSpec.LoopMode == PromptUGUI.Controls.Internal.LoopMode.None)
             {
-                _spec.LoopMode = PromptUGUI.Controls.Internal.LoopMode.Yoyo;
+                _animSpec.LoopMode = PromptUGUI.Controls.Internal.LoopMode.Yoyo;
             }
             // Retrieve the CanvasGroup that ApplyCommon already added via Control.Interactable.
             _cg = GameObject.GetComponent<CanvasGroup>();
             if (_cg == null) _cg = GameObject.AddComponent<CanvasGroup>();
-            _spec.Validate();
-            var snap = _spec.Snapshot();
+            _animSpec.Validate();
+            var snap = _animSpec.Snapshot();
             if (!snap.Equals(_lastApplied))
             {
                 CancelCurrent();
@@ -70,32 +70,32 @@ namespace PromptUGUI.Controls
         protected override void OnTriggerFired()
         {
             CancelCurrent();
-            _current = AnimationDriver.Play(_spec, _offsetProxy, _cg, ResolveTextTarget());
+            _current = AnimationDriver.Play(_animSpec, _offsetProxy, _cg, ResolveTextTarget());
         }
 
         private TMP_Text ResolveTextTarget()
         {
-            if (_spec.Family != Internal.AnimationFamily.Text) return null;
-            if (!string.IsNullOrEmpty(_spec.TargetId))
+            if (_animSpec.Family != Internal.AnimationFamily.Text) return null;
+            if (!string.IsNullOrEmpty(_animSpec.TargetId))
             {
                 var screen = UI.OwnerScreenOf(this)
                     ?? throw new System.InvalidOperationException(
-                        $"<Animation target=\"@{_spec.TargetId}\">: owner Screen not found");
+                        $"<Animation target=\"@{_animSpec.TargetId}\">: owner Screen not found");
                 // Use screen.Get<Text> first (works after Screen._byId is populated).
                 // If called during instantiation (on="open" fires inside InstantiateInto
                 // before _byId is populated), fall back to transform-tree lookup by name —
                 // GameObject names match element ids (ScreenInstantiator assigns go.name = node.Id).
                 try
                 {
-                    return screen.Get<Text>(_spec.TargetId).TmpComponent;
+                    return screen.Get<Text>(_animSpec.TargetId).TmpComponent;
                 }
                 catch (System.Collections.Generic.KeyNotFoundException)
                 {
                     // Fallback: during on="open" instantiation, _byId not yet populated.
                     // Find by GameObject name (ids are assigned as go.name by ScreenInstantiator).
-                    return FindTmpInTree(screen.RootGameObject.transform, _spec.TargetId)
+                    return FindTmpInTree(screen.RootGameObject.transform, _animSpec.TargetId)
                         ?? throw new System.InvalidOperationException(
-                            $"<Animation target=\"@{_spec.TargetId}\">: id '{_spec.TargetId}' not found in screen");
+                            $"<Animation target=\"@{_animSpec.TargetId}\">: id '{_animSpec.TargetId}' not found in screen");
                 }
             }
             return Internal.AnimationTargetResolver.FindTextInSubtree(this);
