@@ -4,9 +4,11 @@ using PromptUGUI.Application;
 using PromptUGUI.Application.Modals;
 using PromptUGUI.Controls;
 using PromptUGUI.Controls.Internal;
+using TMPro;
 using UnityEngine.EventSystems;
 using PBtn = PromptUGUI.Controls.Btn;
 using PImage = PromptUGUI.Controls.Image;
+using PText = PromptUGUI.Controls.Text;
 
 namespace PromptUGUI.Tests.Modals
 {
@@ -143,6 +145,58 @@ namespace PromptUGUI.Tests.Modals
             CardButton(2).onClick.Invoke();        // 点侧卡 2 → 居中它
             Assert.AreEqual(2, car.Current, "side-card tap centers it");
             Assert.IsTrue(UI.Modal.IsAnyOpen, "side-card tap must NOT confirm/close");
+        }
+
+        [Test]
+        public void Null_Title_Hides_Title_Node()
+        {
+            UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
+            { Items = ThreeLevels(), BindCard = (c, l) => { }, Title = null });
+            Assert.IsFalse(UI.Modal.TopScreen.Get<PText>("title").GameObject.activeSelf);
+        }
+
+        [Test]
+        public void ConfirmLabel_Overrides_Button_Text()
+        {
+            UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
+            { Items = ThreeLevels(), BindCard = (c, l) => { }, ConfirmLabel = "开始" });
+            Assert.AreEqual("开始",
+                UI.Modal.TopScreen.Get<PBtn>("confirm").GameObject.GetComponentInChildren<TMP_Text>().text);
+        }
+
+        [Test]
+        public void Empty_Items_Disables_Confirm()
+        {
+            UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
+            { Items = new List<Lv>(), BindCard = (c, l) => { } });
+            Assert.IsFalse(UI.Modal.TopScreen.Get<PBtn>("confirm").Interactable);
+        }
+
+        [Test]
+        public void Bind_Fills_Card_Slots()
+        {
+            var items = ThreeLevels();
+            UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
+            {
+                Items = items,
+                BindCard = (card, lv) => card.Get<PText>("name").TextValue = lv.Name,
+            });
+            var card0 = (UnityEngine.RectTransform)Cards().GameObject.transform.Find("Viewport/Strip").GetChild(0);
+            Assert.AreEqual("Alpha", card0.GetComponentInChildren<TMP_Text>().text);
+        }
+
+        [Test]
+        public void Configure_Runs_After_Bind()
+        {
+            var bindRan = false;
+            var configureSawBind = false;
+            UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
+            {
+                Items = ThreeLevels(),
+                BindCard = (c, l) => bindRan = true,
+                Configure = _ => configureSawBind = bindRan,   // configure 在 Bind 之后跑 → bindRan 已 true
+            });
+            Assert.IsTrue(configureSawBind, "Configure hook runs AFTER Bind (BindCard 已执行)");
         }
     }
 }

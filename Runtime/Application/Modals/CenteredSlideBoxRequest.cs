@@ -46,6 +46,7 @@ namespace PromptUGUI.Application.Modals
 
             var ok = screen.Get<Btn>("confirm");
             if (!string.IsNullOrEmpty(ConfirmLabel)) ok.Text = ConfirmLabel;
+            if (Items.Count == 0) ok.Interactable = false;
             ok.OnClick.Subscribe(_ =>
             {
                 int cur = car.Current;
