@@ -8,7 +8,7 @@
   </Template>
   <Screen name="PromptUGUI/Modals/CenteredSlideBox.ui">
     <Image id="backdrop" anchor="stretch" color="#000000A0"/>
-    <Frame id="panel" anchor="center" size="720x460">
+    <Frame id="panel" anchor="stretch">
       <Text id="title" anchor="top-stretch" height="48" align="center" tr="false"/>
       <Btn  id="close" anchor="top-right" size="36x36" margin="6,6,_,_">x</Btn>
       <Carousel id="cards" anchor="stretch" margin="56,16,72,16"
