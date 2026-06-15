@@ -283,7 +283,7 @@ namespace PromptUGUI.Application
             foreach (var c in node.Children)
             {
                 if (node.Tag == "Carousel")
-                    foreach (var issue in PromptUGUI.Lint.CarouselRules.CheckCard(c))
+                    foreach (var issue in PromptUGUI.Lint.CarouselRules.CheckCard(node, c))
                         Debug.LogWarning(issue.Message);
                 InstantiateRecursive(c, control.ChildHostTransform, selfIsLayoutGroup, childScope, nodeMap,
                                      parentControl: control, applyOrder: applyOrder);

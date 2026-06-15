@@ -122,7 +122,7 @@ namespace PromptUGUI.Lint
                     foreach (var issue in LayoutGroupChildRules.CheckNonLayoutChild(child))
                         yield return issue;
                 if (node.Tag == "Carousel")
-                    foreach (var issue in CarouselRules.CheckCard(child))
+                    foreach (var issue in CarouselRules.CheckCard(node, child))
                         yield return issue;
                 // CLI-only: a direct <Grid> child's own size/width/height is overridden by cellSize.
                 // Grid-specific (V/HStack children's size IS meaningful), so gated on the parent tag here.
