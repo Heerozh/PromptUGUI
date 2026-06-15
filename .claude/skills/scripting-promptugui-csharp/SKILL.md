@@ -649,10 +649,11 @@ ROUTER         UI.Router.Scheme = "myapp"                   optional scheme enfo
 
 ## Modal dialogs
 
-PromptUGUI ships a generic modal stack in `PromptUGUI.Application.Modals` plus four
+PromptUGUI ships a generic modal stack in `PromptUGUI.Application.Modals` plus five
 builtin overlays: a `MessageBox` dialog, an `InputBox` text prompt, a `MarkdownBox`
 read-only rich-text viewer (announcements / mail, built on the `<Markdown>` control),
-and a `Loading` spinner. **Every modal IS a real
+a `CenteredSlideBox` card selector (level / character picker, built on the `fill="false"`
+peek `<Carousel>`), and a `Loading` spinner. **Every modal IS a real
 `Screen` instantiated from `.ui.xml`** — anchor / margin / Variant / locale / `<Icon>`
 all work normally. The modal subsystem only adds: stack management, ESC handling, and a
 sortingOrder band above regular Screens.
@@ -698,6 +699,22 @@ await MarkdownBox.OpenUrl("https://cdn.example.com/notice.md", title: UI.Tr("Not
 
 // Authenticated content: bring your own loader (the ct is cancelled on close).
 await MarkdownBox.Open(ct => Api.FetchMailBodyAsync(mailId, ct), title: mail.Subject);
+
+// CenteredSlideBox: centered card selector (level / character picker). Generic items +
+// a bind callback (same shape as Carousel.BindItems). Returns the SELECTED item on
+// confirm, null on cancel (× / backdrop / ESC). Tap a side card to centre it; tap the
+// centred card or the confirm button to pick it. T must be a reference type.
+var level = await CenteredSlideBox.Open(levels,
+    bind: (card, lv) => {
+        card.Get<Text>("name").TextValue = lv.Name;   // fill the built-in card slots
+        card.Get<Image>("cover").Sprite  = lv.Cover;
+    },
+    title: UI.Tr("Select level"));
+if (level != null) game.StartLevel(level);            // got the whole object; id = level.Id
+
+// Different card style? point CenteredSlideBox.XmlSrc at your own .ui, keeping the id
+// contract: backdrop / panel / title / close / confirm / cards (Carousel fill="false")
+// + your card template's slots.
 ```
 
 ### API surface (`PromptUGUI.Application.Modals`)
