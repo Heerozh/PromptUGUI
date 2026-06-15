@@ -44,6 +44,19 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Carousel_peek_attributes_appear_in_xsd()
+        {
+            // peek-mode attrs are [UIAttr] on Carousel → reflected through the customs path.
+            var r = new ControlRegistry();
+            r.Register<Carousel>("Carousel", null);
+            var xsd = XsdGenerator.Generate(r);
+            StringAssert.Contains("name=\"fill\"", xsd);
+            StringAssert.Contains("name=\"spacing\"", xsd);
+            StringAssert.Contains("name=\"edgeScale\"", xsd);
+            StringAssert.Contains("name=\"edgeAlpha\"", xsd);
+        }
+
+        [Test]
         public void Generate_to_file_produces_readable_file()
         {
             var r = new ControlRegistry();
