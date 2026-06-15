@@ -80,6 +80,9 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public float EdgeScale { set => _view.SetEdgeScale(value); }
 
+        [UIAttr, Preserve]
+        public float EdgeAlpha { set => _view.SetEdgeAlpha(value); }
+
         [UIAttr, Preserve] public string Dots { set => _dotsAnchor = value; }
         [UIAttr, Preserve]
         public string DotSize

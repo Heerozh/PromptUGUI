@@ -40,6 +40,7 @@ namespace PromptUGUI.Controls.Internal
         private bool _fill = true;          // 默认 v1 全幅
         private float _spacing = 0f;        // fill=false 时相邻卡间距
         private float _edgeScale = 1f;      // CAR-D32: 边卡缩放；焦点卡 1，邻卡线性插值到此值
+        private float _edgeAlpha = 1f;      // 边卡透明度；焦点卡 1，邻卡线性插值到此值（懒加 CanvasGroup）
         private float _cardW = 1f;          // 卡槽宽（fill=true → 视口；false → resolved 卡尺寸）
         private float _cardH = 1f;
         private float _stride = 1f;         // 相邻卡中心距（fill=true → 视口宽；false → _cardW+_spacing）
@@ -109,6 +110,7 @@ namespace PromptUGUI.Controls.Internal
         public void SetFill(bool v) => _fill = v;
         public void SetSpacing(float v) => _spacing = Mathf.Max(0f, v);
         public void SetEdgeScale(float v) => _edgeScale = Mathf.Max(0f, v);   // 挡负值（负 localScale 翻转几何）；允许 >1
+        public void SetEdgeAlpha(float v) => _edgeAlpha = Mathf.Clamp01(v);
 
         // —— 卡片管理 ——
         // 首次 OnAfterApply 把已建好的静态子卡（在 Strip 下）收进 _cards；只跑一次，
@@ -394,8 +396,27 @@ namespace PromptUGUI.Controls.Internal
                 float t = Mathf.Clamp01(Mathf.Abs(off));
                 float s = Mathf.Lerp(1f, _edgeScale, t);
                 rt.localScale = new Vector3(s, s, 1f);   // z=1（uGUI 约定，同 Screen.cs）；省每帧临时 Vector3
+                ApplyAlpha(card, Mathf.Lerp(1f, _edgeAlpha, t));
             }
             RefreshDotSelection();
+        }
+
+        // a<1 才设 alpha；a==1 时复位回不透明（focus / peek→fill 切换 / fill 模式）。
+        // 注：卡片通常已带 CanvasGroup（Control.Interactable 在 ApplyCommon 里预建），故 AddComponent
+        // 分支只是防御性兜底（极少触发）；只写 alpha，不碰 interactable/blocksRaycasts。
+        private static void ApplyAlpha(Control card, float a)
+        {
+            var go = card.GameObject;
+            var cg = go.GetComponent<CanvasGroup>();
+            if (a < 1f)
+            {
+                if (cg == null) cg = go.AddComponent<CanvasGroup>();
+                cg.alpha = a;
+            }
+            else if (cg != null)
+            {
+                cg.alpha = 1f;
+            }
         }
 
         // peek 假定卡等尺寸：取第 0 张卡的 resolved 尺寸作槽位（在 Reposition 之前调，
