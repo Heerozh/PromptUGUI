@@ -390,13 +390,12 @@ namespace PromptUGUI.Controls.Internal
                 rt.pivot = new Vector2(0.5f, 0.5f);
                 rt.sizeDelta = new Vector2(_cardW, _cardH);
                 rt.anchoredPosition = new Vector2(off * _stride, 0f);
-                // CAR-D32: unconditional write — when _edgeScale==1 this resolves to 1 on every pass,
-                // which self-resets any scale left by a previous peek configuration (fill=true or edgeScale=1
-                // variant) without needing an explicit reset path.
+                // 总是写 localScale/alpha（每帧自复位）；值按 _fill 门控：fill=true → 强制 1
+                // （edge* 仅 fill=false 生效，CAR-D27/D29），既保 v1 逐字等价、又复位上一轮 peek 残留。
                 float t = Mathf.Clamp01(Mathf.Abs(off));
-                float s = Mathf.Lerp(1f, _edgeScale, t);
-                rt.localScale = new Vector3(s, s, 1f);   // z=1（uGUI 约定，同 Screen.cs）；省每帧临时 Vector3
-                ApplyAlpha(card, Mathf.Lerp(1f, _edgeAlpha, t));
+                float s = _fill ? 1f : Mathf.Lerp(1f, _edgeScale, t);
+                rt.localScale = new Vector3(s, s, 1f);
+                ApplyAlpha(card, _fill ? 1f : Mathf.Lerp(1f, _edgeAlpha, t));
             }
             RefreshDotSelection();
         }

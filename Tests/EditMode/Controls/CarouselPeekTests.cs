@@ -99,5 +99,33 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(1f, cg0.alpha, 0.001f, "fill-mode focus card alpha is 1 (edgeAlpha inert)");
             Assert.AreEqual(1f, cg1.alpha, 0.001f, "fill-mode neighbour card alpha is 1 (edgeAlpha inert)");
         }
+
+        [Test]
+        public void Fill_Toggled_Via_Variant_Resets_Scale_And_Alpha()
+        {
+            var car = Open("<Carousel id='car' size='400x100' fill='false' fill.big='true' " +
+                           "edgeScale='0.8' edgeAlpha='0.4' loop='true'>" +
+                           "<Frame size='120x80'/><Frame size='120x80'/><Frame size='120x80'/></Carousel>");
+            Assert.AreEqual(0.8f, Card(car, 1).localScale.x, 0.001f, "peek: neighbour shrunk");
+
+            UI.Variants.Set("big", true);   // fill -> true -> ReSolve -> Reposition resets
+
+            Assert.AreEqual(1f, Card(car, 1).localScale.x, 0.001f, "fill=true resets card scale to 1");
+            var cg = Card(car, 1).GetComponent<CanvasGroup>();
+            Assert.IsTrue(cg != null, "card carries a CanvasGroup");
+            Assert.AreEqual(1f, cg.alpha, 0.001f, "fill=true resets card alpha to 1");
+        }
+
+        [Test]
+        public void Resize_Does_Not_Duplicate_CanvasGroup()
+        {
+            var car = Open("<Carousel id='car' size='400x100' fill='false' edgeAlpha='0.4' loop='true'>" +
+                           "<Frame size='120x80'/><Frame size='120x80'/><Frame size='120x80'/></Carousel>");
+            var card1 = (RectTransform)car.GameObject.transform.Find("Viewport/Strip").GetChild(1);
+            var view = car.GameObject.GetComponent<CarouselView>();
+            view.InvokeRectChangedForTests();
+            view.InvokeRectChangedForTests();
+            Assert.AreEqual(1, card1.GetComponents<CanvasGroup>().Length, "no duplicate CanvasGroup across reflows");
+        }
     }
 }
