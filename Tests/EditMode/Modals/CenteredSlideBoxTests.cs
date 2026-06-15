@@ -3,7 +3,9 @@ using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Application.Modals;
 using PromptUGUI.Controls;
+using UnityEngine.EventSystems;
 using PBtn = PromptUGUI.Controls.Btn;
+using PImage = PromptUGUI.Controls.Image;
 
 namespace PromptUGUI.Tests.Modals
 {
@@ -69,6 +71,48 @@ namespace PromptUGUI.Tests.Modals
             UI.Modal.TopScreen.Get<PBtn>("confirm").SimulateClick();
             Assert.AreSame(items[1], task.GetAwaiter().GetResult(),
                 "confirm returns the centered item");
+        }
+
+        [Test]
+        public void Click_Close_Returns_Null()
+        {
+            var task = UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
+                { Items = ThreeLevels(), BindCard = (c, l) => { } });
+            UI.Modal.TopScreen.Get<PBtn>("close").SimulateClick();
+            Assert.IsNull(task.GetAwaiter().GetResult());
+            Assert.IsFalse(UI.Modal.IsAnyOpen);
+        }
+
+        [Test]
+        public void Backdrop_PointerDown_Returns_Null()
+        {
+            var task = UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
+                { Items = ThreeLevels(), BindCard = (c, l) => { } });
+            var backdrop = UI.Modal.TopScreen.Get<PImage>("backdrop");
+            ExecuteEvents.Execute(backdrop.GameObject,
+                new PointerEventData(EventSystem.current), ExecuteEvents.pointerDownHandler);
+            Assert.IsNull(task.GetAwaiter().GetResult());
+            Assert.IsFalse(UI.Modal.IsAnyOpen);
+        }
+
+        [Test]
+        public void Escape_Via_Listener_Returns_Null_And_Closes()
+        {
+            var task = UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
+                { Items = ThreeLevels(), BindCard = (c, l) => { } });
+            var listener = UI.Modal.TopScreen.RootGameObject.GetComponent<ModalEscapeListener>();
+            Assert.IsNotNull(listener);
+            listener.FireForTests();
+            Assert.IsNull(task.GetAwaiter().GetResult());
+            Assert.IsFalse(UI.Modal.IsAnyOpen);
+        }
+
+        [Test]
+        public void TryEscape_Returns_Null_And_True()
+        {
+            var req = new CenteredSlideBoxRequest<Lv>();
+            Assert.IsTrue(req.TryEscape(out var r));
+            Assert.IsNull(r);
         }
     }
 }

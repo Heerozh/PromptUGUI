@@ -15,14 +15,18 @@ namespace PromptUGUI.Application.Modals
 
         public override string XmlSrc => XmlSrcOverride ?? CenteredSlideBox.XmlSrc;
 
+        public override bool TryEscape(out T result) { result = null; return true; }
+
         public override void Bind(IScreen screen, Action<T> close)
         {
             var titleCtl = screen.Get<Text>("title");
             if (string.IsNullOrEmpty(Title)) titleCtl.GameObject.SetActive(false);
             else titleCtl.TextValue = Title;
 
-            // 取消通道：×（背景 / ESC 在后续 Task 接）
+            // 取消通道：× / 背景 / ESC → null
             screen.Get<Btn>("close").OnClick.Subscribe(_ => close(null)).AddTo(screen);
+            screen.Get<PromptUGUI.Controls.Image>("backdrop")
+                .OnPointerDown.Subscribe(_ => close(null)).AddTo(screen);
 
             // null Items 视作空（Open(null,…) 不该在 Carousel.Rebuild 里 NRE；空列表「禁确认」是 Task 4）
             Items ??= System.Array.Empty<T>();
