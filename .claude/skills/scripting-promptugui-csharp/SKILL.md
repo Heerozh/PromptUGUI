@@ -593,7 +593,11 @@ MODAL          var r = await MessageBox.Open(text, MsgBtn.OK|MsgBtn.Cancel, icon
                await MarkdownBox.Open(loader, title, ...)  // loader: Func<CT,Awaitable<string>>
                               // 先显示 loadingText 占位,完成后热替换;关窗自动取消 loader 的 ct
                await MarkdownBox.OpenUrl(url, title, ...)  // 裸 GET 糖;鉴权内容用 Open(loader)
-               configure:     Action<IScreen> trailing arg on every Open (MessageBox/InputBox/Loading/MarkdownBox)
+               var lv = await CenteredSlideBox.Open(items, bind, title, confirmLabel, mode, configure, ct)
+                              // 居中卡片选择器(关卡/角色弹窗,内含 fill=false peek Carousel);T:class
+                              // 返回选中对象(取消 ×/背景/ESC → null);bind 填内置卡槽 cover/name(同 BindItems)
+                              // 点侧卡居中,点居中卡 or 确认按钮 = 确认;换皮 CenteredSlideBox.XmlSrc 指自己 XML
+               configure:     Action<IScreen> trailing arg on every Open (MessageBox/InputBox/Loading/MarkdownBox/CenteredSlideBox)
                               // post-bind hook → live Screen; reach any control w/o subclassing
                               // e.g. InputBox.Open(t, configure: s => s.Get<Btn>("ok").Interactable = false)
                               // base ModalRequest<T>.Configure field → custom modals get it free
@@ -605,6 +609,7 @@ MODAL          var r = await MessageBox.Open(text, MsgBtn.OK|MsgBtn.Cancel, icon
                               (do NOT call LoadDocument manually — auto via ModalDocCache.EnsureLoaded)
                required ids   text  title  ok  cancel  yes  no  close   (icon optional)
                               MarkdownBox required ids: title  markdown  close  backdrop  (backdrop = Image, click closes)
+                              CenteredSlideBox required ids: title  close  confirm  cards(Carousel fill=false itemTemplate)  backdrop  + 卡槽(默认 cover/name)
                backdrop       author writes <Image anchor="stretch"/> — NOT auto-injected
                UI.Modal.OpenAsync(new MyRequest(), ModalMode.Popup) custom ModalRequest<T>
                               override TryEscape(out T) to map ESC → result
