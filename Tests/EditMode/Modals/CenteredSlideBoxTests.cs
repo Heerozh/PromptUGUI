@@ -190,13 +190,25 @@ namespace PromptUGUI.Tests.Modals
         {
             var bindRan = false;
             var configureSawBind = false;
+            Carousel cardsFromConfigure = null;
             UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
             {
                 Items = ThreeLevels(),
                 BindCard = (c, l) => bindRan = true,
-                Configure = _ => configureSawBind = bindRan,   // configure 在 Bind 之后跑 → bindRan 已 true
+                Configure = s => { configureSawBind = bindRan; cardsFromConfigure = s.Get<Carousel>("cards"); },
             });
             Assert.IsTrue(configureSawBind, "Configure hook runs AFTER Bind (BindCard 已执行)");
+            Assert.IsNotNull(cardsFromConfigure, "Configure 能够到控件（如 carousel）去调 peek 参数");
+        }
+
+        [Test]
+        public void Single_Item_Confirm_Returns_It()
+        {
+            var items = new List<Lv> { new Lv { Id = "solo", Name = "Solo" } };
+            var task = UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
+                { Items = items, BindCard = (c, l) => { } });
+            UI.Modal.TopScreen.Get<PBtn>("confirm").SimulateClick();
+            Assert.AreSame(items[0], task.GetAwaiter().GetResult());
         }
     }
 }

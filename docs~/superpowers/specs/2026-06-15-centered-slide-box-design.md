@@ -93,7 +93,7 @@ if (picked != null) StartLevel(picked);     // 选中对象；要 id 就 picked.
 ## 4. 内部：`CenteredSlideBoxRequest<T>`
 
 ```csharp
-internal sealed class CenteredSlideBoxRequest<T> : ModalRequest<T> where T : class
+public sealed class CenteredSlideBoxRequest<T> : ModalRequest<T> where T : class   // public（同其它 modal request）：命名变体 facade / 测试直接 new
 {
     public IReadOnlyList<T> Items;
     public Action<IControl, T> BindCard;
@@ -196,7 +196,7 @@ facade 见 §3（`CenteredSlideBox.Open` 就是它，照 MessageBox 风格）。
 </PromptUGUI>
 ```
 
-**id 契约**（换皮 XML 必须保留）：`backdrop`(Image) / `panel` / `title`(Text) / `close`(Btn) / `confirm`(Btn) / `cards`(Carousel `fill="false" itemTemplate="…"`) + 卡模板里 bind 用到的槽位（默认 `cover`/`name`）。卡模板根的 `size=` 决定卡尺寸（peek MeasureCard 读它）。尺寸/配色/peek 参数都是合理默认，想调走 `configure`。
+**id 契约**（换皮 XML 必须保留）：`backdrop`(Image) / `panel` / `title`(Text) / `close`(Btn) / `confirm`(Btn) / `cards`(Carousel `fill="false" itemTemplate="…"`) + 卡模板里 bind 用到的槽位（默认 `cover`/`name`）。卡模板根的 `size=` 决定卡尺寸（peek MeasureCard 读它）。⚠️ **换皮卡片的根应是无 Graphic 的容器**（`<Frame>`/Stack）——`AttachCardClick` 会给卡根补一层透明 raycast `Image`（color 置 0）；若卡根本身是带可见 sprite 的 `<Image>`，会被这层置成透明。尺寸/配色/peek 参数都是合理默认，想调走 `configure`。
 
 > 内置 XML 会过 UIXmlLint（吃自己的 `fill="false"` + 带 `size` 的卡 = 狗粮验证 peek 模式 lint 门控正确）。
 
