@@ -182,6 +182,7 @@ for each card i:
 - **localScale 总是写、不短路**：fill=true 或 `edgeScale=1` 时 `s=1`，正好把上一轮 peek 留下的缩放复位——避免 Variant 把 `fill` 从 false 切回 true 时卡片卡在缩放态（本仓库典型的 ReSolve/variant 复位坑，见 [[project_variant_control_attr_needs_base]] 同类）。代价仅一次廉价赋值。
 - `ApplyAlpha(card, a)`：`a < 1` 时才 `EnsureCanvasGroup`（懒加、缓存、不 Destroy）并设 alpha；`a == 1` 时若卡上**已有** CanvasGroup 则复位 alpha=1，否则不挂。→ 纯 fill carousel 永不挂 CanvasGroup；peek→fill 切换时已有的 CanvasGroup 被复位。
 - 于是 `fill="true"`（`_stride=_cardW=_pageWidth`、`edge*=1`）→ 与 v1 `Reposition` **视觉逐字等价**：localScale 复位 1、无新增 CanvasGroup。
+- **严格 byte-identity 注脚**：fill=true 下 `Reposition` 每帧仍把卡根 `localScale` 写成 `(1,1,1)`（v1 从不碰 localScale）。对正常卡根（无 `scale=`）是 no-op；但若 fill 卡根带 density `scale=`，会被下一次 drag/autoplay/GoTo 的 Reposition 覆盖（这些路径后面不跟 ApplyScales）。这是退化情形（视口大小的 banner 卡根写 density scale 本就溢出 mask、下条也劝阻），换来的是 Variant 把 fill 切回 true 时复位 peek 残留缩放（ReSolve 幂等）——此权衡刻意保留，不为它放弃复位。
 - **localScale 归属**：fill=false 下 Carousel 写卡根 localScale，作者别在卡根再用 density `scale=`（会被覆盖）；要 density 缩放写卡的里层节点。文档 + CAR-D31 邻近处提示。
 
 ### 6.4 `MeasureCard()`（CAR-D26）
@@ -220,7 +221,7 @@ fill=true 时 `_stride == _pageWidth`，拖动行为逐字不变。其余（像�
 1. **`PUI-CAROUSEL-CARD-SIZE` 加 fill 门控**（`CheckCard`）：仅当父 Carousel **未声明 `fill="false"`**（即 fill=true 缺省）时，才对卡片的 `size`/`width`/`height` 报 error。`fill="false"` 下卡片写尺寸合法、不报。
    - 注意 `CheckCard` 现在按「直接子」单独检查（`CarouselRules.cs:47`），拿不到父的 `fill`。实现上让父 self-check（`CheckCarousel`）把 `fill` 读出来，遍历直接子时按模式决定是否对每个子跑 `CheckCard` 的 size 分支——即把 size 检查从「子规则」上移到「父驱动子」，与现有 `IRWalker` 的父子遍历一致。plan 阶段定具体串法（IRWalker 已持父节点）。
 2. **新增 `PUI-CAROUSEL-PEEK-NO-SIZE`（warning，CAR-D31）**：`fill="false"` 的直接子卡既无 `size`/`width`/`height`（含 variant 覆盖）→ warning「该卡无尺寸，将兜成视口大小、邻卡不会 peek；给卡根写 size= 或换自带原生尺寸的控件（如 Image）」。
-   - 局限：lint 是纯 IR 静态分析，看不到运行期 `GetNativeSize()`。故只对「XML 里没写 size 的卡」warn；其中 `<Image src=...>` 这种其实有原生尺寸的会被误 warn。**折中**：只在卡根 tag 是「已知无原生尺寸」的容器（`Frame` / `VStack` / `HStack` / `Grid`）时才 warn，其余 tag 放过。这样既抓住主坑（裸 Frame），又不误伤 Image/Text 卡。tag 白名单与 `BuiltinTags` 同源。
+   - 局限：lint 是纯 IR 静态分析，看不到运行期 `GetNativeSize()`。故只对「XML 里没写 size 的卡」warn；其中 `<Image src=...>` 这种其实有原生尺寸的会被误 warn。**折中**：只在卡根 tag 是「已知无原生尺寸」的容器（`Frame` / `VStack` / `HStack` / `Grid`）时才 warn，其余 tag 放过。这样既抓住主坑（裸 Frame），又不误伤 Image/Text 卡。该白名单是**精选常见容器子集**——SafeArea/TabBar/Tab/Markdown 等也无 native size，但作为轮播卡根极罕见，不列入（runtime 仍优雅兜底为视口）。
 
 更新后规则表：
 

@@ -45,8 +45,10 @@ namespace PromptUGUI.Lint
 
         public const string PeekNoSizeCode = "PUI-CAROUSEL-PEEK-NO-SIZE";
 
-        // 无 GetNativeSize() override 的纯容器（Control 基类返回 null）：peek 模式下这种卡根
-        // 不写 size 会兜成视口尺寸（不 peek）。Image/Text/Progress/Icon 等自带原生尺寸，放过。
+        // peek 模式下「无原生尺寸的常见容器卡根」：不写 size 会兜成视口、不 peek，故提示。
+        // 这是精选的常见容器子集，并非全部 null-native tag —— SafeArea/TabBar/Tab/Markdown 等也
+        // 无 GetNativeSize override，但作为轮播卡根极罕见，不在此列（runtime 仍优雅兜底为视口）。
+        // Image/Text/Progress/Icon 等自带原生尺寸，放过。
         private static readonly HashSet<string> NoNativeSizeContainers = new HashSet<string>
         { "Frame", "VStack", "HStack", "Grid" };
 

@@ -146,6 +146,23 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Peek_EdgeScale_Interpolates_Linearly_At_Fractional_Offset()
+        {
+            // 半步距拖动 → _scroll≈0.5，焦点卡 off≈-0.5 → t=0.5 → scale=Lerp(1,0.6,0.5)=0.8。
+            // 端点 0/1 已有 CarouselPeekTests 覆盖；这里钉住 CAR-D32 的「线性」中间值（防 edgeEase 重构悄悄破坏）。
+            var car = OpenCards("fill='false' spacing='0' edgeScale='0.6' interval='0'",
+                "<Frame size='100x80'/><Frame size='100x80'/><Frame size='100x80'/>");
+            var view = car.GameObject.GetComponent<CarouselView>();
+            var p0 = ScreenAt(view, Vector2.zero);
+            var pHalf = ScreenAt(view, new Vector2(-50f, 0f));   // 半个 100px 步距
+            ((IBeginDragHandler)view).OnBeginDrag(Ev(p0, Vector2.zero));
+            ((IDragHandler)view).OnDrag(Ev(pHalf, pHalf - p0));   // 不 End，保留分数 _scroll
+            var card0 = (RectTransform)view.StripRect.GetChild(0);
+            Assert.AreEqual(0.8f, card0.localScale.x, 0.01f,
+                "edgeScale interpolates linearly at fractional offset (Lerp(1,0.6,0.5)=0.8)");
+        }
+
+        [Test]
         public void Vertical_Drag_Forwarded_To_Parent()
         {
             var car = Open("interval='0'");
