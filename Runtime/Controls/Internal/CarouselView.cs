@@ -24,6 +24,7 @@ namespace PromptUGUI.Controls.Internal
         private RectTransform _viewport;
         private RectTransform _strip;
         private RectTransform _indicator;
+        private RectMask2D _mask;   // 视口裁剪遮罩(Carousel.OnAttached 建)；softness.x = 水平边缘羽化
 
         private readonly List<IControl> _cards = new();
         private readonly List<UnityImage> _dotImages = new();
@@ -101,6 +102,7 @@ namespace PromptUGUI.Controls.Internal
             _viewport = viewport;
             _strip = strip;
             _indicator = indicator;
+            _mask = viewport.GetComponent<RectMask2D>();
         }
 
         // —— 行为参数 setter（Carousel 转发）——
@@ -111,6 +113,13 @@ namespace PromptUGUI.Controls.Internal
         public void SetSpacing(float v) => _spacing = Mathf.Max(0f, v);
         public void SetEdgeScale(float v) => _edgeScale = Mathf.Max(0f, v);   // 挡负值（负 localScale 翻转几何）；允许 >1
         public void SetEdgeAlpha(float v) => _edgeAlpha = Mathf.Clamp01(v);
+        // 视口 RectMask2D 的水平边缘羽化(softness.x)：靠近视口左右边缘的卡片像素渐隐——
+        // 空间淡出(融进背景)，区别于 edgeAlpha 的整卡变暗。y 保持 0(只左右淡，不切顶底)。
+        public void SetSoftness(int v)
+        {
+            if (_mask == null) return;
+            _mask.softness = new Vector2Int(Mathf.Max(0, v), _mask.softness.y);
+        }
 
         // —— 卡片管理 ——
         // 首次 OnAfterApply 把已建好的静态子卡（在 Strip 下）收进 _cards；只跑一次，

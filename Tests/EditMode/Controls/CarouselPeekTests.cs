@@ -127,5 +127,17 @@ namespace PromptUGUI.Tests.EditMode.Controls
             view.InvokeRectChangedForTests();
             Assert.AreEqual(1, card1.GetComponents<CanvasGroup>().Length, "no duplicate CanvasGroup across reflows");
         }
+
+        [Test]
+        public void Softness_Sets_Viewport_RectMask2D_Softness_X()
+        {
+            var car = Open("<Carousel id='car' size='400x100' fill='false' softness='120'>" +
+                           "<Frame size='120x80'/><Frame size='120x80'/></Carousel>");
+            var mask = car.GameObject.transform.Find("Viewport")
+                .GetComponent<UnityEngine.UI.RectMask2D>();
+            Assert.IsNotNull(mask, "viewport carries the RectMask2D");
+            Assert.AreEqual(120, mask.softness.x, "softness attr drives horizontal edge-fade (softness.x)");
+            Assert.AreEqual(0, mask.softness.y, "vertical softness stays 0 (edges fade left/right only)");
+        }
     }
 }

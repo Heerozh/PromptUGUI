@@ -83,6 +83,10 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public float EdgeAlpha { set => _view.SetEdgeAlpha(value); }
 
+        // 视口左右边缘的羽化淡出宽度(softness.x,设计单位)：卡片靠近屏幕边缘的像素渐隐。
+        [UIAttr, Preserve]
+        public int Softness { set => _view.SetSoftness(value); }
+
         [UIAttr, Preserve] public string Dots { set => _dotsAnchor = value; }
         [UIAttr, Preserve]
         public string DotSize

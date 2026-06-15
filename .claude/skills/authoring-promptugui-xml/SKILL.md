@@ -352,6 +352,7 @@ Tab 容器；私有 `ToggleGroup`（`allowSwitchOff=false`）+ `Horizontal` / `V
 | `spacing` | px | `0` | 相邻卡间距（仅 `fill="false"`） |
 | `edgeScale` | float | `1.0` | 边卡缩放，焦点卡 1，按距中心插值（仅 `fill="false"`） |
 | `edgeAlpha` | float | `1.0` | 边卡不透明度，焦点卡 1，按距中心插值（仅 `fill="false"`） |
+| `softness` | int | `0` | 视口左右边缘羽化淡出宽度（写视口 `RectMask2D.softness.x`，设计单位）：靠近视口边缘的卡片**像素**渐隐——空间淡出（溶进背景），区别于 `edgeAlpha` 的整卡变暗。不被 `fill` 门控 |
 | `current` | int | — | 初始页；runtime-owned |
 | `dots` | anchor 关键字（如 `bottom-center`） | — | 空 / `none`=不显示；非法 → runtime 回退 `bottom-center` + `PUI-CAROUSEL-DOTS-ANCHOR` |
 | `dotSize` | `WxH` | `8x8` | |
