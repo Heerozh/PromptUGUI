@@ -206,7 +206,7 @@ namespace PromptUGUI.Tests.Modals
         {
             var items = new List<Lv> { new Lv { Id = "solo", Name = "Solo" } };
             var task = UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
-                { Items = items, BindCard = (c, l) => { } });
+            { Items = items, BindCard = (c, l) => { } });
             UI.Modal.TopScreen.Get<PBtn>("confirm").SimulateClick();
             Assert.AreSame(items[0], task.GetAwaiter().GetResult());
         }
