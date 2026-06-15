@@ -555,9 +555,9 @@ self-check 入口追加 `Carousel` 分支调用 `CarouselRules`。
 ## 12. Out of Scope
 
 - **竖向轮播 / `direction`**——CAR-D19 留 v2；web banner 全横向。
-- **「peek」露边**（同时露出相邻卡的一小条）——v1 全幅翻页；以后可加 `peek` / `padding` 属性。
-- **cross-fade / 缩放等转场**——v1 只有 slide；要 fade 后续加 `transition-style`。
-- **per-card 不同尺寸 / 自适应高度**——所有卡 = 视口尺寸。
+- **「peek」露边**（同时露出相邻卡的一小条）——v1 全幅翻页；→ **v2 已做**（`fill="false"`），见 [`2026-06-15-carousel-peek-mode-design.md`](2026-06-15-carousel-peek-mode-design.md)。
+- **cross-fade / 缩放等转场**——v1 只有 slide 吸附；卡间 cross-fade（`transition-style`）仍未做，但**焦点缩放 + 邻卡渐隐**已由 v2 `edgeScale` / `edgeAlpha` 实现，见 [`2026-06-15-carousel-peek-mode-design.md`](2026-06-15-carousel-peek-mode-design.md)。
+- **per-card 不同尺寸 / 自适应高度**——v1 所有卡 = 视口尺寸；v2 peek 模式卡片用**自身** `size`（但仍假定各卡等尺寸——非等尺寸卡未支持），见 [`2026-06-15-carousel-peek-mode-design.md`](2026-06-15-carousel-peek-mode-design.md)。
 - **指示点用数字 / 缩略图 / 进度条形态**——v1 只有点（sprite + 状态色）；复杂指示器自己用 `OnCurrentChanged` 画。
 - **键盘 / 手柄导航**——v1 只有指针拖动 + dot 点击；要方向键自己接 `Next`/`Previous`。
 - **嵌套 Carousel**——不阻拦；carousel 只取 X 轴 + 整段转发（CAR-D11），同向嵌套（横向 carousel 套横向滚动）语义模糊，需作者自理。

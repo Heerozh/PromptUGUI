@@ -288,6 +288,8 @@ car.OnCurrentChanged
    .AddTo(screen);                 // Observable<int>：任意来源的页变化，dedup 相同值
 ```
 
+> 居中选择器（`<Carousel fill="false">`，见 XML skill）的左右翻页箭头：放两个 `<Btn>`，`OnClick` 绑 `car.Previous()` / `car.Next()`——已是 public 方法，无需新 API。
+
 `current` is a **runtime-owned state** (same as Tab `isOn`): resize / Variant / Theme ReSolve does NOT reset the page. `current.<variant>` initial overrides still apply when the user has not navigated at runtime; once navigated, the user's choice wins.
 
 ### Markdown
