@@ -32,7 +32,8 @@ namespace PromptUGUI.Tests.PlayMode.Modals
   </Screen>
 </PromptUGUI>";
 
-        [SetUp] public void SetUp()
+        [SetUp]
+        public void SetUp()
         {
             UI.ResetForTests();
             var files = new Dictionary<string, string> { ["test/SlideBoxP"] = Xml };
@@ -46,7 +47,7 @@ namespace PromptUGUI.Tests.PlayMode.Modals
         {
             var items = new List<Lv> { new Lv { Id = "a" }, new Lv { Id = "b" }, new Lv { Id = "c" } };
             var task = UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
-                { Items = items, BindCard = (c, l) => { } });
+            { Items = items, BindCard = (c, l) => { } });
             UI.Modal.TopScreen.Get<Carousel>("cards").GoTo(2, animated: false);
             UI.Modal.TopScreen.Get<PBtn>("confirm").SimulateClick();
             Assert.AreSame(items[2], task.GetAwaiter().GetResult());
