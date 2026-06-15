@@ -49,5 +49,24 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(200f, Card(car, 1).anchoredPosition.x, 0.5f,
                 "fill-mode neighbour at one full viewport (stride==viewport, regression lock)");
         }
+
+        [Test]
+        public void Peek_EdgeScale_Shrinks_Neighbours_Focus_Full()
+        {
+            var car = Open("<Carousel id='car' size='400x100' fill='false' edgeScale='0.8' loop='true'>" +
+                           "<Frame size='120x80'/><Frame size='120x80'/><Frame size='120x80'/></Carousel>");
+            Assert.AreEqual(1f, Card(car, 0).localScale.x, 0.001f, "focus card (off 0) full scale");
+            Assert.AreEqual(0.8f, Card(car, 1).localScale.x, 0.001f, "neighbour (off 1) shrunk to edgeScale");
+        }
+
+        [Test]
+        public void Peek_EdgeScale_Reapplied_On_GoTo_Self_Resets()
+        {
+            var car = Open("<Carousel id='car' size='400x100' fill='false' edgeScale='0.8' loop='true'>" +
+                           "<Frame size='120x80'/><Frame size='120x80'/><Frame size='120x80'/></Carousel>");
+            Assert.AreEqual(0.8f, Card(car, 1).localScale.x, 0.001f, "initially a neighbour");
+            car.GoTo(1, animated: false);   // card1 becomes focus
+            Assert.AreEqual(1f, Card(car, 1).localScale.x, 0.001f, "scale re-written every Reposition (self-resets to 1)");
+        }
     }
 }

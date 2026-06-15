@@ -39,6 +39,7 @@ namespace PromptUGUI.Controls.Internal
         // peek 布局（CAR-D25/D27）
         private bool _fill = true;          // 默认 v1 全幅
         private float _spacing = 0f;        // fill=false 时相邻卡间距
+        private float _edgeScale = 1f;      // CAR-D32: 边卡缩放；焦点卡 1，邻卡线性插值到此值
         private float _cardW = 1f;          // 卡槽宽（fill=true → 视口；false → resolved 卡尺寸）
         private float _cardH = 1f;
         private float _stride = 1f;         // 相邻卡中心距（fill=true → 视口宽；false → _cardW+_spacing）
@@ -107,6 +108,7 @@ namespace PromptUGUI.Controls.Internal
         public void SetTransition(float v) => _transition = Mathf.Max(0f, v);
         public void SetFill(bool v) => _fill = v;
         public void SetSpacing(float v) => _spacing = Mathf.Max(0f, v);
+        public void SetEdgeScale(float v) => _edgeScale = Mathf.Max(0f, v);   // 挡负值（负 localScale 翻转几何）；允许 >1
 
         // —— 卡片管理 ——
         // 首次 OnAfterApply 把已建好的静态子卡（在 Strip 下）收进 _cards；只跑一次，
@@ -386,6 +388,12 @@ namespace PromptUGUI.Controls.Internal
                 rt.pivot = new Vector2(0.5f, 0.5f);
                 rt.sizeDelta = new Vector2(_cardW, _cardH);
                 rt.anchoredPosition = new Vector2(off * _stride, 0f);
+                // CAR-D32: unconditional write — when _edgeScale==1 this resolves to 1 on every pass,
+                // which self-resets any scale left by a previous peek configuration (fill=true or edgeScale=1
+                // variant) without needing an explicit reset path.
+                float t = Mathf.Clamp01(Mathf.Abs(off));
+                float s = Mathf.Lerp(1f, _edgeScale, t);
+                rt.localScale = new Vector3(s, s, 1f);   // z=1（uGUI 约定，同 Screen.cs）；省每帧临时 Vector3
             }
             RefreshDotSelection();
         }

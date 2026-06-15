@@ -77,6 +77,9 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public float Spacing { set => _view.SetSpacing(value); }
 
+        [UIAttr, Preserve]
+        public float EdgeScale { set => _view.SetEdgeScale(value); }
+
         [UIAttr, Preserve] public string Dots { set => _dotsAnchor = value; }
         [UIAttr, Preserve]
         public string DotSize
