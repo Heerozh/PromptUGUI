@@ -3,6 +3,7 @@ using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Application.Modals;
 using PromptUGUI.Controls;
+using PromptUGUI.Controls.Internal;
 using UnityEngine.EventSystems;
 using PBtn = PromptUGUI.Controls.Btn;
 using PImage = PromptUGUI.Controls.Image;
@@ -77,7 +78,7 @@ namespace PromptUGUI.Tests.Modals
         public void Click_Close_Returns_Null()
         {
             var task = UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
-                { Items = ThreeLevels(), BindCard = (c, l) => { } });
+            { Items = ThreeLevels(), BindCard = (c, l) => { } });
             UI.Modal.TopScreen.Get<PBtn>("close").SimulateClick();
             Assert.IsNull(task.GetAwaiter().GetResult());
             Assert.IsFalse(UI.Modal.IsAnyOpen);
@@ -87,7 +88,7 @@ namespace PromptUGUI.Tests.Modals
         public void Backdrop_PointerDown_Returns_Null()
         {
             var task = UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
-                { Items = ThreeLevels(), BindCard = (c, l) => { } });
+            { Items = ThreeLevels(), BindCard = (c, l) => { } });
             var backdrop = UI.Modal.TopScreen.Get<PImage>("backdrop");
             ExecuteEvents.Execute(backdrop.GameObject,
                 new PointerEventData(EventSystem.current), ExecuteEvents.pointerDownHandler);
@@ -99,7 +100,7 @@ namespace PromptUGUI.Tests.Modals
         public void Escape_Via_Listener_Returns_Null_And_Closes()
         {
             var task = UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
-                { Items = ThreeLevels(), BindCard = (c, l) => { } });
+            { Items = ThreeLevels(), BindCard = (c, l) => { } });
             var listener = UI.Modal.TopScreen.RootGameObject.GetComponent<ModalEscapeListener>();
             Assert.IsNotNull(listener);
             listener.FireForTests();
@@ -113,6 +114,35 @@ namespace PromptUGUI.Tests.Modals
             var req = new CenteredSlideBoxRequest<Lv>();
             Assert.IsTrue(req.TryEscape(out var r));
             Assert.IsNull(r);
+        }
+
+        // 取卡 i 的 PuiButton（AttachCardClick 挂在卡根）。
+        private static PuiButton CardButton(int i)
+            => UI.Modal.TopScreen.Get<Carousel>("cards").GameObject
+                 .transform.Find("Viewport/Strip").GetChild(i)
+                 .GetComponent<PuiButton>();
+
+        [Test]
+        public void Tap_Centered_Card_Returns_It()
+        {
+            var items = ThreeLevels();
+            var task = UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
+            { Items = items, BindCard = (c, l) => { } });
+            // current 默认 0；点第 0 张（居中）→ 确认返回它
+            CardButton(0).onClick.Invoke();
+            Assert.AreSame(items[0], task.GetAwaiter().GetResult());
+        }
+
+        [Test]
+        public void Tap_Side_Card_Centers_It_Without_Returning()
+        {
+            var task = UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
+            { Items = ThreeLevels(), BindCard = (c, l) => { } });
+            var car = Cards();
+            Assert.AreEqual(0, car.Current);
+            CardButton(2).onClick.Invoke();        // 点侧卡 2 → 居中它
+            Assert.AreEqual(2, car.Current, "side-card tap centers it");
+            Assert.IsTrue(UI.Modal.IsAnyOpen, "side-card tap must NOT confirm/close");
         }
     }
 }

@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using PromptUGUI.Controls;
+using PromptUGUI.Controls.Internal;
 using R3;
+using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Application.Modals
 {
@@ -32,12 +34,14 @@ namespace PromptUGUI.Application.Modals
             Items ??= System.Array.Empty<T>();
 
             var car = screen.Get<Carousel>("cards");
+            int idx = 0;
             car.BindItems(
                 Observable.Return((IReadOnlyList<T>)Items),
                 (IControl card, T item) =>
                 {
+                    int i = idx++;
                     BindCard?.Invoke(card, item);
-                    // 卡片点击（A+C）在 Task 3 接：那时引入 per-card index + AttachCardClick
+                    AttachCardClick(card, i, car, close);
                 }).AddTo(screen);
 
             var ok = screen.Get<Btn>("confirm");
@@ -47,6 +51,24 @@ namespace PromptUGUI.Application.Modals
                 int cur = car.Current;
                 if (cur >= 0 && cur < Items.Count) close(Items[cur]);
             }).AddTo(screen);
+        }
+
+        // 每张卡挂透明 raycast catcher + PuiButton：click(非拖动) → 居中或确认。
+        // 点居中卡 = 确认；点侧卡 = GoTo 居中。拖动不被 PuiButton 处理 → 冒泡给 CarouselView。
+        private void AttachCardClick(IControl card, int i, Carousel car, Action<T> close)
+        {
+            var go = card.GameObject;
+            var img = go.GetComponent<UnityImage>() ?? go.AddComponent<UnityImage>();
+            img.color = new UnityEngine.Color(0f, 0f, 0f, 0f);   // 透明，仅 raycast
+            img.raycastTarget = true;
+            // 卡 GO 每次 BindItems 重建都是全新的（旧的由 ClearCards 销毁），故无条件 AddComponent 安全、不重复挂。
+            var btn = go.AddComponent<PuiButton>();
+            btn.targetGraphic = img;
+            btn.onClick.AddListener(() =>
+            {
+                if (car.Current == i) close(Items[i]);     // 点居中卡 = 确认
+                else car.GoTo(i, animated: true);          // 点侧卡 = 居中
+            });
         }
     }
 
