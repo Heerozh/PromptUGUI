@@ -39,5 +39,20 @@ namespace PromptUGUI.Tests.Modals
             Assert.AreSame(items[0], task.GetAwaiter().GetResult(),
                 "确认返回居中(默认 current=0)项");
         }
+
+        [Test]
+        public void Default_Skin_Does_Not_Loop()
+        {
+            var items = new[] { "1", "2", "3" };
+            var task = CenteredSlideBox.Open(items, (card, s) => { });
+            var cards = UI.Modal.TopScreen.Get<Carousel>("cards");
+
+            cards.GoTo(99, animated: false);   // 远超界
+            Assert.AreEqual(2, cards.Current,
+                "默认皮肤应关闭循环:越界 GoTo 钳位到末张(2),而非环绕回 0");
+
+            UI.Modal.TopScreen.Get<PBtn>("confirm").SimulateClick();
+            task.GetAwaiter().GetResult();
+        }
     }
 }

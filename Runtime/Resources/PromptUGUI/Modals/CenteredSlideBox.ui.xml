@@ -12,7 +12,7 @@
       <Text id="title" anchor="top-stretch" height="48" align="center" tr="false"/>
       <Btn  id="close" anchor="top-right" size="36x36" margin="6,6,_,_">x</Btn>
       <Carousel id="cards" anchor="stretch" margin="56,16,72,16"
-                fill="false" interval="0" loop="true"
+                fill="false" interval="0" loop="false"
                 spacing="24" edgeScale="0.82" edgeAlpha="0.45"
                 itemTemplate="Card"
                 dots="bottom-center" dotColor="#666666" dotSelectedColor="#ffffff"/>

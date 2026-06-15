@@ -712,6 +712,9 @@ var level = await CenteredSlideBox.Open(levels,
     title: UI.Tr("Select level"));
 if (level != null) game.StartLevel(level);            // got the whole object; id = level.Id
 
+// Default skin is a FINITE list (no wrap-around). Want a looping carousel instead?
+//   configure: s => s.Get<Carousel>("cards").Loop = true
+
 // Different card style? point CenteredSlideBox.XmlSrc at your own .ui, keeping the id
 // contract: backdrop / panel / title / close / confirm / cards (Carousel fill="false")
 // + your card template's slots.
