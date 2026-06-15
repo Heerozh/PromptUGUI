@@ -27,6 +27,16 @@ namespace PromptUGUI.Tests.EditMode.Controls
             return UI.Open("S").Get<Carousel>("car");
         }
 
+        private static Carousel OpenCards(string attrs, string cards)
+        {
+            var xml = $@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Carousel id='car' size='200x100' {attrs}>{cards}</Carousel>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            return UI.Open("S").Get<Carousel>("car");
+        }
+
         private static RectTransform Viewport(CarouselView v) => (RectTransform)v.StripRect.parent;
 
         // viewport 本地坐标点 → 屏幕点（overlay: world==screen px；含 lossyScale）。
@@ -122,6 +132,17 @@ namespace PromptUGUI.Tests.EditMode.Controls
             ((IEndDragHandler)view).OnEndDrag(Ev(pLeft, Vector2.zero));
             Assert.AreEqual(1, car.Current,
                 "a drag starting vertical then going horizontal still advances (no first-frame axis lock-out)");
+        }
+
+        [Test]
+        public void Peek_Drag_Threshold_Scales_With_Card_Stride()
+        {
+            // 视口 200，卡宽 100，spacing 0 → 步距 100、阈值 0.2*100 = 20。
+            // 拖 -30：> 卡步距阈值（翻页），但 < 旧视口阈值 0.2*200=40（旧逻辑会回弹）。
+            var car = OpenCards("fill='false' spacing='0' interval='0'",
+                "<Frame size='100x80'/><Frame size='100x80'/><Frame size='100x80'/>");
+            DragLocal(car.GameObject.GetComponent<CarouselView>(), -30f);
+            Assert.AreEqual(1, car.Current, "drag threshold uses card stride (100), not viewport width (200)");
         }
 
         [Test]

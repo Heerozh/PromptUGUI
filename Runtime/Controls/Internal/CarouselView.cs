@@ -61,8 +61,8 @@ namespace PromptUGUI.Controls.Internal
         // 同一坐标系，CanvasScaler.scaleFactor≠1 时也 1:1 跟手，不变快/变慢——同 ScrollRect 的做法）
         private float _dragStartScroll;
         private Vector2 _dragStartLocal;   // 按下时指针在 viewport 本地坐标
-        private float _dragLocalX;         // 距按下点的本地 X 位移（钳进 ±一页），EndDrag 判翻页用
-        private const float SnapThreshold = 0.2f;   // 翻页所需位移占页宽比例
+        private float _dragLocalX;         // 距按下点的本地 X 位移（钳进 ±一步距），EndDrag 判翻页用
+        private const float SnapThreshold = 0.2f;   // 翻页所需位移占卡步距比例（fill=true 时步距==视口宽）
 
         // 指示点样式
         private string _dotsAnchor;
@@ -515,11 +515,11 @@ namespace PromptUGUI.Controls.Internal
                     _viewport, e.position, e.pressEventCamera, out var local))
                 return;
             float dxLocal = local.x - _dragStartLocal.x;     // 只取 X（与滚动轴一致）
-            // Clamp the drag to ±1 page: you can reveal at most the neighbour, never slide to a far
+            // Clamp the drag to ±1 card stride: you can reveal at most the neighbour, never slide to a far
             // page and then snap back to the adjacent one. dxLocal 是相对按下点的绝对位移（非累加），
             // 反向拖会立即减小 |dxLocal| → 跟手不黏。
-            _dragLocalX = Mathf.Clamp(dxLocal, -_pageWidth, _pageWidth);
-            _scroll = _dragStartScroll - _dragLocalX / _pageWidth;   // 右拖(dx>0)显示上一张 → _scroll 减小
+            _dragLocalX = Mathf.Clamp(dxLocal, -_stride, _stride);
+            _scroll = _dragStartScroll - _dragLocalX / _stride;   // 右拖(dx>0)显示上一张 → _scroll 减小
             Reposition();
         }
 
@@ -528,8 +528,8 @@ namespace PromptUGUI.Controls.Internal
             ForwardToParent(e, ExecuteEvents.endDragHandler);
             _dragging = false;
             int target = _current;
-            if (_dragLocalX <= -_pageWidth * SnapThreshold) target = _current + 1;
-            else if (_dragLocalX >= _pageWidth * SnapThreshold) target = _current - 1;
+            if (_dragLocalX <= -_stride * SnapThreshold) target = _current + 1;
+            else if (_dragLocalX >= _stride * SnapThreshold) target = _current - 1;
             GoTo(target, animated: true);
         }
 
