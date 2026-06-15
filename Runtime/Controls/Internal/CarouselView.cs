@@ -36,6 +36,13 @@ namespace PromptUGUI.Controls.Internal
         private float _pageWidth = 1f;
         private float _pageHeight = 1f;
 
+        // peek 布局（CAR-D25/D27）
+        private bool _fill = true;          // 默认 v1 全幅
+        private float _spacing = 0f;        // fill=false 时相邻卡间距
+        private float _cardW = 1f;          // 卡槽宽（fill=true → 视口；false → resolved 卡尺寸）
+        private float _cardH = 1f;
+        private float _stride = 1f;         // 相邻卡中心距（fill=true → 视口宽；false → _cardW+_spacing）
+
         // 行为参数
         private float _interval = 5f;
         private bool _loop = true;
@@ -98,6 +105,8 @@ namespace PromptUGUI.Controls.Internal
         public void SetInterval(float v) => _interval = v;
         public void SetLoop(bool v) => _loop = v;
         public void SetTransition(float v) => _transition = Mathf.Max(0f, v);
+        public void SetFill(bool v) => _fill = v;
+        public void SetSpacing(float v) => _spacing = Mathf.Max(0f, v);
 
         // —— 卡片管理 ——
         // 首次 OnAfterApply 把已建好的静态子卡（在 Strip 下）收进 _cards；只跑一次，
@@ -375,10 +384,25 @@ namespace PromptUGUI.Controls.Internal
                 rt.anchorMin = new Vector2(0.5f, 0.5f);
                 rt.anchorMax = new Vector2(0.5f, 0.5f);
                 rt.pivot = new Vector2(0.5f, 0.5f);
-                rt.sizeDelta = new Vector2(_pageWidth, _pageHeight);
-                rt.anchoredPosition = new Vector2(off * _pageWidth, 0f);
+                rt.sizeDelta = new Vector2(_cardW, _cardH);
+                rt.anchoredPosition = new Vector2(off * _stride, 0f);
             }
             RefreshDotSelection();
+        }
+
+        // peek 假定卡等尺寸：取第 0 张卡的 resolved 尺寸作槽位（在 Reposition 之前调，
+        // 此时卡的 size= 已由 apply 落到 sizeDelta）。落空（裸 Frame）兜视口，永不为 0。
+        // 注：读 rect —— 仅对 point-anchored 卡 == 作者声明尺寸；stretch-anchored 卡会量到
+        // Strip 尺寸而非卡自身尺寸（spec 假定卡等尺寸、不写 anchor，可接受）。
+        private void MeasureCard(out float w, out float h)
+        {
+            w = _pageWidth; h = _pageHeight;
+            if (_cards.Count > 0 && _cards[0] is Control c0 && c0.GameObject != null)
+            {
+                var rect = c0.RectTransform.rect;
+                if (rect.width > 0f) w = rect.width;
+                if (rect.height > 0f) h = rect.height;
+            }
         }
 
         // 重算页宽高 + 重排卡片。OnAfterApply（初始 / ReSolve）与 resize 都调它。
@@ -391,6 +415,8 @@ namespace PromptUGUI.Controls.Internal
             var r = _root.rect;
             _pageWidth = r.width > 0f ? r.width : 1f;
             _pageHeight = r.height > 0f ? r.height : 1f;
+            if (_fill) { _cardW = _pageWidth; _cardH = _pageHeight; _stride = _pageWidth; }
+            else { MeasureCard(out _cardW, out _cardH); _stride = _cardW + _spacing; }
             if (_cards.Count > 0)
                 _current = _loop ? ((_current % _cards.Count) + _cards.Count) % _cards.Count
                                  : Mathf.Clamp(_current, 0, _cards.Count - 1);

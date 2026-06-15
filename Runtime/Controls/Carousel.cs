@@ -71,6 +71,12 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public float Transition { set => _view.SetTransition(value); }
 
+        [UIAttr, Preserve]
+        public bool Fill { set => _view.SetFill(value); }
+
+        [UIAttr, Preserve]
+        public float Spacing { set => _view.SetSpacing(value); }
+
         [UIAttr, Preserve] public string Dots { set => _dotsAnchor = value; }
         [UIAttr, Preserve]
         public string DotSize
