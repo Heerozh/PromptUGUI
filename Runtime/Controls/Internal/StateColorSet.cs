@@ -51,5 +51,10 @@ namespace PromptUGUI.Controls.Internal
             => string.IsNullOrWhiteSpace(v) ? (ColorSpec?)null : UI.Theme.ResolveSpec(v);
         private static ColorSpec? RSolid(string v)
             => string.IsNullOrWhiteSpace(v) ? (ColorSpec?)null : ColorSpec.Solid(UI.Theme.Resolve(v));
+
+        /// <summary>把禁用槽的 <c>none</c> 哨兵归一化为 null（不进颜色管线，避免 <see cref="UI.Theme.Resolve"/>
+        /// 对非颜色值抛异常）。仅用于 <c>disabledModulate</c>："none" ⇒ 显式关闭禁用态视觉。</summary>
+        internal static string NoneToNull(string v)
+            => string.Equals(v, "none", System.StringComparison.OrdinalIgnoreCase) ? null : v;
     }
 }
