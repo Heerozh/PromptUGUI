@@ -157,5 +157,36 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(before, innerBg.material, "嵌套 Btn 图形不被外层去色");
         }
 
+        // ── Task 5: capture-once 跨 ReSolve ─────────────────────────────────
+
+        [Test]
+        public void CaptureOnce_DisabledThenReSolve_ThenEnable_RevertsToDefault()
+        {
+            var btn = BuildBtn("interactable='false'");  // 持久禁用
+            var bg = BgOf(btn);
+            Assert.AreEqual("UI/Grayscale", bg.material.shader.name, "前置：已去色");
+
+            UI.Variants.Set("dark", true);   // ReSolve（OnAfterApply 重跑）
+            Assert.AreEqual("UI/Grayscale", bg.material.shader.name, "ReSolve 中仍禁用 → 维持去色");
+
+            btn.Interactable = true;          // 重新启用
+            Assert.AreEqual(bg.defaultMaterial, bg.material,
+                "capture-once：还原回原始默认材质，而非卡在灰度");
+        }
+
+        [Test]
+        public void CaptureOnce_WithTintLinear_RevertsToAuthoredMaterial()
+        {
+            var btn = BuildBtn("interactable='false' tint='linear'");
+            var bg = BgOf(btn);
+            Assert.AreEqual("UI/Grayscale", bg.material.shader.name, "禁用 → 去色（覆盖 linear）");
+
+            UI.Variants.Set("dark", true);    // tint setter 重跑把材质复位成 linear，灰度须重新盖回
+            Assert.AreEqual("UI/Grayscale", bg.material.shader.name, "ReSolve 后仍禁用 → 重新去色");
+
+            btn.Interactable = true;
+            Assert.AreEqual("UI/LinearLightTint", bg.material.shader.name,
+                "还原回作者材质（linear），而非默认或灰度");
+        }
     }
 }
