@@ -20,12 +20,16 @@ namespace PromptUGUI.MarkdigBackend
         private List<ImageRequest> _images;
         // Sequence counter for generated block-image node ids; consumed when image blocks are rendered.
         private int _imageSeq;
+        // Bold wrapper open/close tags, recomputed once per Render from _style.BoldStyle.
+        private string _boldOpen = "<b>";
+        private string _boldClose = "</b>";
 
         public MarkdownRenderResult Render(string markdown, MarkdownStyle style)
         {
             _style = style ?? MarkdownStyle.CreateDefault();
             _images = new List<ImageRequest>();
             _imageSeq = 0;
+            ComputeBoldWrap();
 
             var root = NewVStack(_style.BlockSpacing);
             root.Attributes["anchor"] = "top-stretch";
@@ -103,10 +107,20 @@ namespace PromptUGUI.MarkdigBackend
                     break;
                 case EmphasisInline em:
                     {
-                        string tag = em.DelimiterChar == '~' ? "s" : (em.DelimiterCount >= 2 ? "b" : "i");
-                        sb.Append('<').Append(tag).Append('>');
-                        foreach (var child in em) AppendInline(sb, child);
-                        sb.Append("</").Append(tag).Append('>');
+                        bool isBold = em.DelimiterChar != '~' && em.DelimiterCount >= 2;
+                        if (isBold)
+                        {
+                            sb.Append(_boldOpen);
+                            foreach (var child in em) AppendInline(sb, child);
+                            sb.Append(_boldClose);
+                        }
+                        else
+                        {
+                            string tag = em.DelimiterChar == '~' ? "s" : "i";
+                            sb.Append('<').Append(tag).Append('>');
+                            foreach (var child in em) AppendInline(sb, child);
+                            sb.Append("</").Append(tag).Append('>');
+                        }
                         break;
                     }
                 case LineBreakInline _:
@@ -155,9 +169,44 @@ namespace PromptUGUI.MarkdigBackend
             // Inline <color=LinkColor> spans still override it per-link. Empty -> no color= -> the node
             // inherits ProceduralBuilders.DefaultLabelColor (the library-wide default ink color).
             if (!string.IsNullOrEmpty(_style.BodyColor)) n.Attributes["color"] = _style.BodyColor;
-            n.TextContent = bold ? $"<b>{richText}</b>" : richText;
+            n.TextContent = bold ? WrapBold(richText) : richText;
             return n;
         }
+
+        // Parse _style.BoldStyle (space-separated keyword/color tokens) into an open/close tag pair.
+        private void ComputeBoldWrap()
+        {
+            var spec = string.IsNullOrWhiteSpace(_style.BoldStyle) ? "bold" : _style.BoldStyle;
+            var open = new StringBuilder();
+            var close = new StringBuilder();
+            foreach (var tok in spec.Split(new[] { ' ', '\t', '\n', '\r' },
+                                           System.StringSplitOptions.RemoveEmptyEntries))
+            {
+                switch (tok.ToLowerInvariant())
+                {
+                    case "none":
+                        _boldOpen = ""; _boldClose = "";
+                        return;
+                    case "bold":
+                        open.Append("<b>"); close.Insert(0, "</b>"); break;
+                    case "italic":
+                        open.Append("<i>"); close.Insert(0, "</i>"); break;
+                    case "underline":
+                        open.Append("<u>"); close.Insert(0, "</u>"); break;
+                    case "strikethrough":
+                    case "strike":
+                        open.Append("<s>"); close.Insert(0, "</s>"); break;
+                    default:
+                        // Unknown token: ignored here. Color-token handling added in Task 3.
+                        break;
+                }
+            }
+            _boldOpen = open.ToString();
+            _boldClose = close.ToString();
+        }
+
+        private string WrapBold(string inner) =>
+            _boldOpen.Length == 0 ? inner : _boldOpen + inner + _boldClose;
 
         private ElementNode RenderList(ListBlock list, int depth)
         {
