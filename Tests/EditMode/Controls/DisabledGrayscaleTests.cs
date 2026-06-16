@@ -184,10 +184,25 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Tab_DisabledColor_Authored_SuppressesGrayscale()
+        {
+            var tab = BuildTab("disabledColor='#800000'");
+            Assert.IsNull(tab.GameObject.GetComponent<PromptUGUI.Controls.Internal.DisabledGrayscaleController>(),
+                "Tab 写了 disabledColor 不应装灰度控制器");
+        }
+
+        [Test]
         public void Tab_DisabledModulateNone_OptsOut()
         {
             var tab = BuildTab("disabledModulate='none'");
-            Assert.IsNull(tab.GameObject.GetComponent<PromptUGUI.Controls.Internal.DisabledGrayscaleController>());
+            var bg = tab.GameObject.GetComponent<UnityEngine.UI.Image>();
+            var pui = tab.GameObject.GetComponent<PromptUGUI.Controls.Internal.PuiToggle>();
+            Assert.IsNull(tab.GameObject.GetComponent<PromptUGUI.Controls.Internal.DisabledGrayscaleController>(),
+                "none = 显式关，不装灰度控制器");
+            Assert.AreEqual(UnityEngine.UI.Selectable.Transition.ColorTint, pui.transition,
+                "none 不应触发颜色路径（transition 仍 ColorTint）");
+            pui.SimulateState(Disabled);
+            Assert.AreEqual(bg.defaultMaterial, bg.material, "none：Tab 禁用态无去色");
         }
 
         // ── Task 7: Toggle ───────────────────────────────────────────────────
@@ -214,10 +229,22 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Toggle_DisabledColor_Authored_SuppressesGrayscale()
+        {
+            var tog = BuildToggle("disabledColor='#800000'");
+            Assert.IsNull(tog.GameObject.GetComponent<PromptUGUI.Controls.Internal.DisabledGrayscaleController>(),
+                "Toggle 写了 disabledColor 不应装灰度控制器");
+        }
+
+        [Test]
         public void Toggle_DisabledModulateNone_OptsOut()
         {
             var tog = BuildToggle("disabledModulate='none'");
-            Assert.IsNull(tog.GameObject.GetComponent<PromptUGUI.Controls.Internal.DisabledGrayscaleController>());
+            var bg = tog.GameObject.transform.Find("Background").GetComponent<UnityEngine.UI.Image>();
+            Assert.IsNull(tog.GameObject.GetComponent<PromptUGUI.Controls.Internal.DisabledGrayscaleController>(),
+                "none = 显式关，不装灰度控制器");
+            tog.Interactable = false;
+            Assert.AreEqual(bg.defaultMaterial, bg.material, "none：Toggle 禁用态无去色");
         }
 
         // ── Task 5: capture-once 跨 ReSolve ─────────────────────────────────
