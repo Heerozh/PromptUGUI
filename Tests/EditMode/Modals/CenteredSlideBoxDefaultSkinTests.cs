@@ -41,6 +41,31 @@ namespace PromptUGUI.Tests.Modals
         }
 
         [Test]
+        public void Default_Skin_Pixel_Mode_Honors_Reference_Not_Error_Fallback()
+        {
+            // 复现宿主(像素游戏 DefaultScaleMode=Pixel)报的错:默认皮肤
+            // CenteredSlideBox.ui.xml 缺 reference → ApplyPixel 落到 LogError +
+            // scaleFactor=1 的兜底分支(Screen.cs ApplyPixel)。其余 6 个内置 <Screen>
+            // 都声明 reference="1920x1080"。3840x2160 画布 / 1920x1080 设计 = 整数因子 2;
+            // 缺 reference 时为 1(且记一条 error 让本测试自动失败)。
+            UI.DefaultScaleMode = ScaleMode.Pixel;
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(3840f, 2160f);
+
+            var items = new[] { "1", "2", "3" };
+            var task = CenteredSlideBox.Open(items, (card, s) => { });
+
+            var scaler = UI.Modal.TopScreen.RootGameObject
+                .GetComponent<UnityEngine.UI.CanvasScaler>();
+            Assert.AreEqual(UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize,
+                scaler.uiScaleMode);
+            Assert.AreEqual(2f, scaler.scaleFactor, 1e-6f,
+                "像素模式下应按 reference=1920x1080 算出整数因子 2;若为 1 说明默认皮肤缺 reference 走了兜底");
+
+            UI.Modal.TopScreen.Get<PBtn>("confirm").SimulateClick();
+            task.GetAwaiter().GetResult();
+        }
+
+        [Test]
         public void Default_Skin_Does_Not_Loop()
         {
             var items = new[] { "1", "2", "3" };

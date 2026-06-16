@@ -6,7 +6,7 @@
       <Text  id="name"  anchor="bottom-stretch" height="40" align="center" tr="false"/>
     </Frame>
   </Template>
-  <Screen name="PromptUGUI/Modals/CenteredSlideBox.ui">
+  <Screen name="PromptUGUI/Modals/CenteredSlideBox.ui" reference="1920x1080" reference.portrait="1080x1920">
     <Image id="backdrop" anchor="stretch" color="#000000A0"/>
     <Frame id="panel" anchor="stretch">
       <Text id="title" anchor="top-stretch" height="48" align="center" tr="false"/>
