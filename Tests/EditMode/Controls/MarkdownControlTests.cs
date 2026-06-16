@@ -36,6 +36,12 @@ namespace PromptUGUI.Tests.EditMode.Controls
             b.HeadingScales[0] = 999f;
             Assert.AreNotEqual(999f, a.HeadingScales[0]);
         }
+
+        [Test]
+        public void CreateDefault_boldStyle_is_bold()
+        {
+            Assert.AreEqual("bold", MarkdownStyle.CreateDefault().BoldStyle);
+        }
     }
 
     public class UIMarkdownFacadeTests
@@ -91,6 +97,17 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsFalse(scroll.horizontal);
             Assert.IsTrue(scroll.vertical);
             Assert.IsNotNull(md.GameObject.transform.Find("Viewport"));
+        }
+
+        [Test]
+        public void BoldStyle_attribute_flows_to_style()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='B'><Markdown id='md' anchor='stretch' boldStyle='underline #ffcc00'/></Screen></PromptUGUI>";
+            UI.LoadDocument("b", xml);
+            var screen = UI.Open("B");
+            var md = screen.Get<Markdown>("md");
+            Assert.AreEqual("underline #ffcc00", md.Style.BoldStyle);
         }
     }
 

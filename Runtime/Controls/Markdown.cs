@@ -105,6 +105,17 @@ namespace PromptUGUI.Controls
         }
 
         [UIAttr, Preserve]
+        public string BoldStyle
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value) || value == Style.BoldStyle) return;
+                Style.BoldStyle = value;
+                MarkDirty();
+            }
+        }
+
+        [UIAttr, Preserve]
         public float FontSize
         {
             set

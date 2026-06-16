@@ -10,6 +10,13 @@ namespace PromptUGUI.Tests.Markdown
         private static ElementNode Render(string md)
             => new MarkdigRenderer().Render(md, MarkdownStyle.CreateDefault()).Root;
 
+        private static ElementNode Render(string md, string boldStyle)
+        {
+            var style = MarkdownStyle.CreateDefault();
+            style.BoldStyle = boldStyle;
+            return new MarkdigRenderer().Render(md, style).Root;
+        }
+
         // depth-first find first node with tag whose TextContent contains `needle`
         private static ElementNode Find(ElementNode n, string tag, string needle)
         {
@@ -180,6 +187,90 @@ namespace PromptUGUI.Tests.Markdown
             style.Padding = 8;
             var root = new MarkdigRenderer().Render("hi", style).Root;
             Assert.AreEqual("8", root.Attributes["padding"]);
+        }
+
+        [Test]
+        public void BoldStyle_default_still_wraps_bold()
+        {
+            var root = Render("**x**", "bold");
+            Assert.GreaterOrEqual(Count(root, n => n.Tag == "Text" && n.TextContent != null && n.TextContent.Contains("<b>")), 1);
+        }
+
+        [Test]
+        public void BoldStyle_underline_uses_u_not_b()
+        {
+            var root = Render("**x**", "underline");
+            Assert.GreaterOrEqual(Count(root, n => n.Tag == "Text" && n.TextContent != null && n.TextContent.Contains("<u>")), 1);
+            Assert.AreEqual(0, Count(root, n => n.Tag == "Text" && n.TextContent != null && n.TextContent.Contains("<b>")));
+        }
+
+        [Test]
+        public void BoldStyle_none_strips_bold()
+        {
+            var root = Render("**x**", "none");
+            Assert.AreEqual(0, Count(root, n => n.Tag == "Text" && n.TextContent != null && n.TextContent.Contains("<b>")));
+            Assert.AreEqual(0, Count(root, n => n.Tag == "Text" && n.TextContent != null && n.TextContent.Contains("<u>")));
+        }
+
+        [Test]
+        public void BoldStyle_two_keywords_nest_in_order()
+        {
+            var t = Find(Render("**x**", "bold underline"), "Text", "<b>");
+            Assert.IsNotNull(t);
+            StringAssert.Contains("<b><u>x</u></b>", t.TextContent);   // open in order, close reversed
+        }
+
+        [Test]
+        public void BoldStyle_applies_to_headings()
+        {
+            var root = Render("# Title", "underline");
+            Assert.GreaterOrEqual(Count(root, n => n.Tag == "Text" && n.TextContent != null && n.TextContent.Contains("<u>")), 1);
+            Assert.AreEqual(0, Count(root, n => n.Tag == "Text" && n.TextContent != null && n.TextContent.Contains("<b>")));
+        }
+
+        [Test]
+        public void BoldStyle_applies_to_table_headers()
+        {
+            // header row is bold by default; "none" must strip it
+            const string md = "| a | b |\n|---|---|\n| 1 | 2 |";
+            Assert.GreaterOrEqual(Count(Render(md, "bold"), n => n.Tag == "Text" && n.TextContent != null && n.TextContent.Contains("<b>")), 1);
+            Assert.AreEqual(0, Count(Render(md, "none"), n => n.Tag == "Text" && n.TextContent != null && n.TextContent.Contains("<b>")));
+        }
+
+        [Test]
+        public void BoldStyle_color_hex_emits_color_tag()
+        {
+            var t = Find(Render("**x**", "#ffcc00"), "Text", "<color=");
+            Assert.IsNotNull(t);
+            StringAssert.Contains("<color=#FFCC00FF>", t.TextContent);   // ToHex uppercases, appends FF alpha
+            StringAssert.DoesNotContain("<b>", t.TextContent);
+        }
+
+        [Test]
+        public void BoldStyle_color_alpha_suffix_replaces_alpha()
+        {
+            var t = Find(Render("**x**", "#ff0000/0.4"), "Text", "<color=");
+            Assert.IsNotNull(t);
+            StringAssert.Contains("<color=#FF000066>", t.TextContent);   // 0.4*255 = 102 = 0x66
+        }
+
+        [Test]
+        public void BoldStyle_underline_plus_color_nests()
+        {
+            var t = Find(Render("**x**", "underline #ffcc00"), "Text", "<u>");
+            Assert.IsNotNull(t);
+            StringAssert.Contains("<u><color=#FFCC00FF>x</color></u>", t.TextContent);
+        }
+
+        [Test]
+        public void BoldStyle_invalid_token_does_not_throw_and_renders_plain()
+        {
+            // 'bogus' is neither a keyword nor a resolvable color. Render must NOT throw (the try/catch
+            // in the color branch swallows UI.Theme.Resolve's exception) and must still emit the text.
+            Assert.DoesNotThrow(() => Render("**x**", "bogus"));
+            var t = Find(Render("**x**", "bogus"), "Text", "x");
+            Assert.IsNotNull(t);
+            StringAssert.DoesNotContain("<b>", t.TextContent);
         }
     }
 
