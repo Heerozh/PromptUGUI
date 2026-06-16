@@ -197,7 +197,20 @@ namespace PromptUGUI.MarkdigBackend
                     case "strike":
                         open.Append("<s>"); close.Insert(0, "</s>"); break;
                     default:
-                        // Unknown token: ignored here. Color-token handling added in Task 3.
+                        // Treat as a single solid color via the standard pipeline (theme token /
+                        // hex / CSS name / "/alpha"). try/catch so a typo'd token warns + is skipped
+                        // rather than throwing out of Render (UI.Theme.Resolve throws on unknown/gradient).
+                        try
+                        {
+                            var hex = ToHex(tok);
+                            open.Append("<color=").Append(hex).Append('>');
+                            close.Insert(0, "</color>");
+                        }
+                        catch (System.Exception e)
+                        {
+                            Debug.LogWarning($"<Markdown> boldStyle token '{tok}' is not a known keyword " +
+                                $"or resolvable color; ignored. ({e.Message})");
+                        }
                         break;
                 }
             }
