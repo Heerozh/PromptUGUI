@@ -159,6 +159,37 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 "嵌套 Btn 图形不被外层去色（材质保持默认）");
         }
 
+        // ── Task 6: Tab ──────────────────────────────────────────────────────
+
+        private static Tab BuildTab(string attrs = "")
+        {
+            UI.LoadDocument("t",
+                "<?xml version='1.0' encoding='utf-8'?><PromptUGUI version='1'>" +
+                $"<Screen name='S'><TabBar id='bar'><Tab id='t' {attrs}>Edit</Tab></TabBar></Screen></PromptUGUI>");
+            return UI.Open("S").Get<Tab>("bar/t");
+        }
+
+        [Test]
+        public void Tab_Disabled_DesaturatesBg_RevertsOnNormal()
+        {
+            var tab = BuildTab();
+            var bg = tab.GameObject.GetComponent<UnityEngine.UI.Image>();
+            var pui = tab.GameObject.GetComponent<PromptUGUI.Controls.Internal.PuiToggle>();
+
+            pui.SimulateState(Disabled);
+            Assert.AreEqual("UI/Grayscale", bg.material.shader.name);
+
+            pui.SimulateState(Normal);
+            Assert.AreEqual(bg.defaultMaterial, bg.material);
+        }
+
+        [Test]
+        public void Tab_DisabledModulateNone_OptsOut()
+        {
+            var tab = BuildTab("disabledModulate='none'");
+            Assert.IsNull(tab.GameObject.GetComponent<PromptUGUI.Controls.Internal.DisabledGrayscaleController>());
+        }
+
         // ── Task 5: capture-once 跨 ReSolve ─────────────────────────────────
 
         [Test]
