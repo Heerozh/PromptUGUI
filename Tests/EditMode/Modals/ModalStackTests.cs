@@ -1,7 +1,10 @@
 using System;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Application.Modals;
+using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace PromptUGUI.Tests.Modals
 {
@@ -83,6 +86,8 @@ namespace PromptUGUI.Tests.Modals
         [Test]
         public void Bind_exception_cancels_that_modal_and_pumps_next()
         {
+            // pump 现在 Debug.LogError 这个 open 失败（boom 来自 Bind）。
+            LogAssert.Expect(LogType.Error, new Regex("failed to open"));
             var t1 = UI.Modal.OpenAsync(new FakeRequest
             {
                 OnBind = (_, __) => throw new InvalidOperationException("boom"),

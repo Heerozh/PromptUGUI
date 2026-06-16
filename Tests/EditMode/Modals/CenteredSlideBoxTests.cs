@@ -1,11 +1,14 @@
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Application.Modals;
 using PromptUGUI.Controls;
 using PromptUGUI.Controls.Internal;
 using TMPro;
+using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.TestTools;
 using PBtn = PromptUGUI.Controls.Btn;
 using PImage = PromptUGUI.Controls.Image;
 using PText = PromptUGUI.Controls.Text;
@@ -300,6 +303,8 @@ namespace PromptUGUI.Tests.Modals
         {
             // 测试 XML 只有 3 槽；传 4 个 → binder 抛 InvalidOperationException。
             // 整个 OpenAsync 放进 lambda：无论同步抛还是 faulted awaitable 都被捕获。
+            // pump 现在也会 Debug.LogError 这个 open 失败（faulted awaitable 常被 fire-and-forget 吞掉）。
+            LogAssert.Expect(LogType.Error, new Regex("failed to open"));
             Assert.Throws<System.InvalidOperationException>(() =>
             {
                 var task = UI.Modal.OpenAsync(new CenteredSlideBoxMultiRequest<Lv>
@@ -324,6 +329,7 @@ namespace PromptUGUI.Tests.Modals
         public void Multi_Request_Empty_Buttons_Throws_From_Binder()
         {
             // 绕过 facade 直接 new request、Buttons 空 → binder 兜底抛 ArgumentException（faulted awaitable）。
+            LogAssert.Expect(LogType.Error, new Regex("failed to open"));
             Assert.Throws<System.ArgumentException>(() =>
             {
                 var task = UI.Modal.OpenAsync(new CenteredSlideBoxMultiRequest<Lv>
