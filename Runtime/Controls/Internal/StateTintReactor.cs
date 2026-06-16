@@ -37,6 +37,7 @@ namespace PromptUGUI.Controls.Internal
 
         private Graphic _graphic;
         private bool _baseCaptured;
+        private int _bornFrame = int.MinValue;
         private ColorSpec _baseColor = ColorSpec.Solid(Color.white);
         private ColorSpec? _selectedBase;   // base while the source is selected (Tab/Toggle isOn); null ⇒ none
         private bool _selected;             // pushed by the owning control via SetSelected
@@ -57,6 +58,7 @@ namespace PromptUGUI.Controls.Internal
             {
                 _baseColor = ColorApplier.Peek(_graphic);
                 _baseCaptured = true;
+                _bornFrame = BornFrame.Capture();   // first init = the build frame
             }
 
             // includeInactive: the source control may be on a TabBar-bound page that is hidden
@@ -132,10 +134,13 @@ namespace PromptUGUI.Controls.Internal
 
             var current = ColorApplier.Peek(_graphic);
             // Gradients snap: there's no Color-lerp for a vertex gradient. Solid↔solid (non-transparent)
-            // keeps the existing fade. Mirrors the CrossesTransparency snap precedent.
+            // keeps the existing fade. Mirrors the CrossesTransparency snap precedent. A change in the
+            // born frame (before the first rendered frame — e.g. a modal Configure hook) also snaps, so
+            // the control shows its final state on frame 1 instead of fading in from its base. See BornFrame.
             if (TestForceInstant || _fade <= 0f
                 || target.IsGradient || current.IsGradient
-                || CrossesTransparency(current.Top, target.Top))
+                || CrossesTransparency(current.Top, target.Top)
+                || BornFrame.IsCurrent(_bornFrame))
             {
                 ColorApplier.Apply(_graphic, target);
                 return;

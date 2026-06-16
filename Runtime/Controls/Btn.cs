@@ -100,13 +100,18 @@ namespace PromptUGUI.Controls
             base.OnAfterApply();
             _btn.interactable = Interactable;
             var abs = StateColorSet.ResolveAbsolutes(_hoverColor, _pressedColor, null, _disabledColor);
-            var mod = StateColorSet.ResolveModulates(_hoverModulate, _pressedModulate, null, _disabledModulate);
+            var mod = StateColorSet.ResolveModulates(_hoverModulate, _pressedModulate, null, StateColorSet.NoneToNull(_disabledModulate));
             StateTintInstaller.Install(GameObject, _btn, Children, abs, mod);
             // A pressed/disabled sprite is itself a state visual: drop uGUI's built-in ColorTint so the
             // swapped image isn't double-darkened. Set-only, matching the state-colour path
             // (StateTintInstaller flips transition to None when any *Color / *Modulate is present).
             if (_pressedSprite != null || _disabledSprite != null)
                 _btn.transition = UnityEngine.UI.Selectable.Transition.None;
+            // 默认禁用外观：作者未声明任何 disabled* 时整控件去色。与 transition 无关（ColorTint/None 皆可）。
+            if (string.IsNullOrWhiteSpace(_disabledColor)
+                && string.IsNullOrWhiteSpace(_disabledModulate)
+                && _disabledSprite == null)
+                DisabledGrayscaleInstaller.Install(GameObject, _btn, Children);
         }
 
         private TMP_Text EnsureLabel()

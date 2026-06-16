@@ -62,6 +62,7 @@ namespace PromptUGUI.Tests.PlayMode.Controls
         public IEnumerator Tween_Does_Not_Crash_When_Host_GameObject_Destroyed()
         {
             var (go, _, src) = MakeTinted();
+            yield return null;                 // advance past the born frame so the push starts a real tween (not the born-frame instant-snap)
             src.Push(InteractState.Hover);     // 起一个 10s 颜色 tween
             yield return null;                 // 让 tween 跑起来
             UnityEngine.Object.Destroy(go);    // play 模式：帧末销毁
@@ -76,6 +77,7 @@ namespace PromptUGUI.Tests.PlayMode.Controls
         public IEnumerator Tween_Does_Not_Crash_When_Graphic_Component_Destroyed()
         {
             var (go, img, src) = MakeTinted();
+            yield return null;                 // advance past the born frame so the push starts a real tween (not the born-frame instant-snap)
             src.Push(InteractState.Hover);
             yield return null;
             UnityEngine.Object.Destroy(img);   // 只销毁 Image

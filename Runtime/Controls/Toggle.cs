@@ -207,11 +207,14 @@ namespace PromptUGUI.Controls
             // selectedColor is the selection-aware BASE (not a Selected-state absolute); selectedModulate
             // stays the Selected multiplier. Toggle keeps its Checkmark overlay unchanged.
             var abs = StateColorSet.ResolveAbsolutes(_hoverColor, _pressedColor, null, _disabledColor);
-            var mod = StateColorSet.ResolveModulates(_hoverModulate, _pressedModulate, _selectedModulate, _disabledModulate);
+            var mod = StateColorSet.ResolveModulates(_hoverModulate, _pressedModulate, _selectedModulate, StateColorSet.NoneToNull(_disabledModulate));
             ColorSpec? selectedBase = string.IsNullOrWhiteSpace(_selectedColor)
                 ? (ColorSpec?)null
                 : UI.Theme.ResolveSpec(_selectedColor);
             _bgReactor = StateTintInstaller.Install(GameObject, _toggle, Children, abs, mod, selectedBase, IsOn);
+            // 默认禁用外观：作者未声明任何 disabled* 时整控件去色。
+            if (string.IsNullOrWhiteSpace(_disabledColor) && string.IsNullOrWhiteSpace(_disabledModulate))
+                DisabledGrayscaleInstaller.Install(GameObject, _toggle, Children);
         }
 
         public override Vector2? GetNativeSize()

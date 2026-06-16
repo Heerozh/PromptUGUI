@@ -6,11 +6,15 @@
 
 ## 1. State colour — two families
 
-**Absolute `*Color`** (`hoverColor` / `pressedColor` / `selectedColor` / `disabledColor`) sets the per-state colour of the control's base graphic (`targetGraphic` / bg) **only** — the same graphic that `color=` targets. It does **not** fan out to descendants. Normal has no `*Color` (use `color=`). Accepts the same value forms as `color` (hex / CSS named / theme token), **including gradients** (`hoverColor="#fff,#aaa"`). A state transition into or out of a gradient **snaps** (no ~0.1s fade); solid ↔ solid transitions still fade. See [Color Tokens → Gradients](../SKILL.md#gradients) for the full grammar.
+**Absolute `*Color`** (`hoverColor` / `pressedColor` / `selectedColor` / `disabledColor`) sets the per-state colour of the control's base graphic (`targetGraphic` / bg) **only** — the same graphic that `color=` targets. It does **not** fan out to descendants. Normal has no `*Color` (use `color=`). Accepts the same value forms as `color` (hex / CSS named / theme token), **including gradients** (`hoverColor="#fff,#aaa"`). A state transition into or out of a gradient **snaps** (no ~0.1s fade); solid ↔ solid transitions still fade **after the first frame** (the state a control is *first shown in* always snaps — see [First-frame establishment](#first-frame-establishment) below). See [Color Tokens → Gradients](../SKILL.md#gradients) for the full grammar.
 
-**Relative `*Modulate`** (`hoverModulate` / `pressedModulate` / `selectedModulate` / `disabledModulate`) is a **relative multiplier** (Godot `modulate` semantics: white = identity, the normal uGUI ColorTint model). It fans out to the bg **and every descendant Graphic** (label, icons, nested images), switching the control off uGUI's built-in ColorTint, and the tint **fades** over ~0.1s. `*Modulate` is **solid-only** — a gradient value is a parse error (lint `PUI-GRADIENT-MODULATE`); use `*Color` when you need a per-state gradient.
+**Relative `*Modulate`** (`hoverModulate` / `pressedModulate` / `selectedModulate` / `disabledModulate`) is a **relative multiplier** (Godot `modulate` semantics: white = identity, the normal uGUI ColorTint model). It fans out to the bg **and every descendant Graphic** (label, icons, nested images), switching the control off uGUI's built-in ColorTint, and the tint **fades** over ~0.1s (after the first frame; see [First-frame establishment](#first-frame-establishment)). `*Modulate` is **solid-only** — a gradient value is a parse error (lint `PUI-GRADIENT-MODULATE`); use `*Color` when you need a per-state gradient.
 
 They compose: per state, `displayed = (absolute ?? color) × (modulate ?? white)`.
+
+### First-frame establishment
+
+The state a control is **first shown in** is applied **instantly**, never faded — mirroring uGUI's instant-at-`OnEnable` for serialized state. So a control that opens already in a non-Normal state shows it on frame 1, with no flash of the enabled look first: a `<Tab>` / `<Toggle>` authored `isOn`, or a `<Btn>` that a modal `Configure` hook disables right after `Open` (`okBtn.Interactable = false`). Only state *changes* made after the control is already on-screen — hover, press, a runtime `interactable` flip in response to a click — fade over ~0.1s.
 
 `selectedColor` / `selectedModulate` are meaningful only on `<Tab>` / `<Toggle>`. `selectedColor` is the **selection-aware base** — the bg base colour while the control is the active/`isOn` one; hover/pressed/disabled compose on top (so a selected control with no `hoverColor` stays at `selectedColor`). A `<Btn>` has no selected state and ignores them.
 
@@ -31,6 +35,20 @@ They compose: per state, `displayed = (absolute ?? color) × (modulate ?? white)
 - `interactable="false"` on the Btn also sets `Button.interactable=false`, so it enters the Disabled state — `disabledColor` / `disabledModulate` apply and `state-disabled` fires (on top of the existing CanvasGroup raycast block; the two compose).
 - Variant-overridable like any `[UIAttr]` colour (the reactor re-resolves on ReSolve; the captured base colour is never re-captured).
 - For per-state **absolute** recolouring of multiple graphics (not just the bg), use `<Show>` instead — `*Color` is bg-only by design (painting the label the same colour as bg makes it invisible).
+
+### Default disabled appearance (grayscale)
+
+When a `<Btn>` / `<Tab>` / `<Toggle>` enters the Disabled state and **no** `disabledColor`, `disabledModulate`, or `disabledSprite` (Btn only) is authored, the entire control — background sprite, labels, icons — is desaturated to **true grayscale** automatically. This is a shader-based luminance desaturation (not a colour multiply), so it produces a neutral grey regardless of the original colour. Authors write nothing on child nodes; the effect fans out to the whole control subtree with the same pruning as `*Modulate`: `stateReact="false"` subtrees are skipped, and nested `<Btn>` / `<Tab>` / `<Toggle>` controls are pruned (they manage their own disabled appearance).
+
+**Overriding the default.** Writing any of the following replaces the grayscale default with the authored path instead:
+
+- `disabledColor="…"` — sets an absolute bg colour for the Disabled state (bg only, no fan-out).
+- `disabledModulate="…"` — applies a relative colour multiplier fanned out to the whole subtree (the normal `*Modulate` path).
+- `disabledSprite="…"` — swaps the bg `overrideSprite` while disabled (`<Btn>` only).
+
+**Opting out entirely.** `disabledModulate="none"` disables the default grayscale **and** bypasses the colour multiplier path — the control shows no disabled visual at all.
+
+**Hover and press are unaffected.** The grayscale controller only activates on the Disabled state. uGUI's built-in ColorTint (hover darkening, pressed darkening) continues to run on top when the control is enabled; it does not interact with the grayscale effect.
 
 **Opting out of `*Modulate` fan-out — `stateReact="false"`**: a **common attribute** (any element, default `true`) that opts a node **and its whole subtree** out of an ancestor Btn's `*Modulate` fan-out. Has no effect on `*Color` (absolute — never fanned out). The installer prunes that subtree, so those graphics keep their authored colour through hover / press / disable. (A nested `<Btn>` is auto-pruned — it owns its own graphics.)
 

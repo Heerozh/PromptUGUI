@@ -29,7 +29,7 @@ namespace PromptUGUI.Controls.Internal
 
             var blocked = new HashSet<GameObject>();
             foreach (var child in children)
-                CollectBlocked(child as Control, blocked);
+                StateSubtree.CollectBlocked(child as Control, blocked);
 
             var fade = StateTintReactor.DefaultFade;
             var target = selectable.targetGraphic;
@@ -51,27 +51,6 @@ namespace PromptUGUI.Controls.Internal
                 if (isTarget) targetReactor = reactor;
             }
             return targetReactor;
-        }
-
-        private static void CollectBlocked(Control control, HashSet<GameObject> blocked)
-        {
-            if (control == null) return;
-            var optedOut = !control.StateReact;
-            var nestedSource = control.GameObject != null
-                               && control.GameObject.GetComponent<IStateSource>() != null;
-            if (optedOut || nestedSource)
-            {
-                if (control.GameObject != null)
-                {
-                    foreach (var g in control.GameObject.GetComponentsInChildren<Graphic>(includeInactive: true))
-                        blocked.Add(g.gameObject);
-                    blocked.Add(control.GameObject);
-                }
-                return;
-            }
-
-            foreach (var child in control.Children)
-                CollectBlocked(child as Control, blocked);
         }
 
         private static StateTintReactor InstallReactor(Graphic graphic, StateColorSet absolutes, StateColorSet modulates, float fade, ColorSpec? selectedBase, bool selected)
