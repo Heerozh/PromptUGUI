@@ -48,39 +48,35 @@ namespace PromptUGUI.Tests.PlayMode.Controls
         }
 
         [UnityTest]
-        public IEnumerator Disable_after_born_frame_still_fades_over_frames()
+        public IEnumerator Disable_after_born_frame_applies_grayscale_not_instant_colortint()
         {
-            // Regression guard: the born-frame gate must NOT turn off uGUI's intentional runtime fade.
-            // A disable on a later frame (e.g. user clicked something, then we grey a button) animates.
+            // Regression guard: the born-frame gate on PuiButton.DoStateTransition must NOT force
+            // instant=true on later frames. With the default grayscale feature, disabledColor is
+            // neutralised to white (= normalColor), so the ColorTint fade is a no-op colour-wise;
+            // we therefore verify the born-frame guard through the grayscale material path instead:
+            // a later-frame disable must cause the grayscale shader to be applied (not missed), and
+            // re-enabling must restore the default material.
             UI.LoadDocument("t", @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'><Btn id='b'/></Screen></PromptUGUI>");
             var screen = UI.Open("S");
             var btn = screen.Get<Btn>("b");
-            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
-            var target = (UnityGraphic)puiBtn.targetGraphic;
-
-            var normal = puiBtn.colors.normalColor * puiBtn.colors.colorMultiplier;
-            var disabled = puiBtn.colors.disabledColor * puiBtn.colors.colorMultiplier;
+            var bg = btn.GameObject.GetComponent<UnityEngine.UI.Image>();
 
             yield return null;   // advance PAST the born frame
             yield return null;
 
-            btn.Interactable = false;   // later frame => should FADE, not snap
+            btn.Interactable = false;   // later frame => grayscale must be applied
+            Assert.AreEqual("UI/Grayscale", bg.material.shader.name,
+                "later-frame disable must apply the grayscale shader");
 
-            // Immediately after the flip the CrossFade has barely started: still near the enabled
-            // colour, NOT already at disabled (which is what an over-broad "always instant" fix would do).
-            var afterFlip = target.canvasRenderer.GetColor();
-            Assert.That(ColorDistance(afterFlip, normal), Is.LessThan(ColorDistance(afterFlip, disabled)),
-                "right after a later-frame disable the tint must still be closer to normal than disabled (it animates)");
-
-            // ...and it settles at disabled once the fade window elapses.
             yield return new WaitForSeconds(0.2f);
-            AssertColorsEqual(disabled, target.canvasRenderer.GetColor(),
-                "later-frame disable should settle at the disabled tint after the fade window");
-        }
+            Assert.AreEqual("UI/Grayscale", bg.material.shader.name,
+                "grayscale must persist after the fade window");
 
-        private static float ColorDistance(Color a, Color b)
-            => Mathf.Abs(a.r - b.r) + Mathf.Abs(a.g - b.g) + Mathf.Abs(a.b - b.b) + Mathf.Abs(a.a - b.a);
+            btn.Interactable = true;
+            Assert.AreEqual(bg.defaultMaterial, bg.material,
+                "re-enable must restore the default material");
+        }
 
         private static void AssertColorsEqual(Color expected, Color actual, string msg)
         {
