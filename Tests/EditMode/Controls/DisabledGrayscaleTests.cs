@@ -82,5 +82,80 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual("UI/Grayscale", BgOf(btn).material.shader.name,
                 "interactable='false' 首装即处于 Disabled，订阅重放应立即去色");
         }
+
+        // ── Task 4: 边界 —— 覆盖 / none / 剪枝 ──────────────────────────────
+
+        private static Btn BuildBtnXml(string attrs, string body)
+        {
+            UI.LoadDocument("t",
+                "<?xml version='1.0' encoding='utf-8'?><PromptUGUI version='1'>" +
+                $"<Screen name='S'><Btn id='b' {attrs}>{body}</Btn></Screen></PromptUGUI>");
+            return UI.Open("S").Get<Btn>("b");
+        }
+
+        [Test]
+        public void DisabledColor_Authored_SuppressesGrayscale()
+        {
+            var btn = BuildBtn("disabledColor='#800000'");
+            Assert.IsNull(btn.GameObject.GetComponent<PromptUGUI.Controls.Internal.DisabledGrayscaleController>(),
+                "写了 disabledColor 不应装灰度控制器");
+            PuiOf(btn).SimulateState(Disabled);
+            Assert.AreEqual(BgOf(btn).defaultMaterial, BgOf(btn).material, "走颜色路径，bg 不换灰度材质");
+        }
+
+        [Test]
+        public void DisabledModulateColor_Authored_SuppressesGrayscale()
+        {
+            var btn = BuildBtn("disabledModulate='#888888'");
+            Assert.IsNull(btn.GameObject.GetComponent<PromptUGUI.Controls.Internal.DisabledGrayscaleController>());
+            PuiOf(btn).SimulateState(Disabled);
+            Assert.AreEqual(BgOf(btn).defaultMaterial, BgOf(btn).material);
+        }
+
+        [Test]
+        public void DisabledSprite_Authored_SuppressesGrayscale()
+        {
+            var stub = UnityEngine.Sprite.Create(UnityEngine.Texture2D.whiteTexture,
+                new UnityEngine.Rect(0, 0, 1, 1), UnityEngine.Vector2.zero);
+            UI.SpriteResolver = _ => stub;
+            var btn = BuildBtn("disabledSprite='ui:x'");
+            Assert.IsNull(btn.GameObject.GetComponent<PromptUGUI.Controls.Internal.DisabledGrayscaleController>());
+            PuiOf(btn).SimulateState(Disabled);
+            Assert.AreEqual(BgOf(btn).defaultMaterial, BgOf(btn).material, "disabledSprite 走 overrideSprite，不换灰度材质");
+        }
+
+        [Test]
+        public void DisabledModulateNone_OptsOut_NoGrayscale_NoColor_NoThrow()
+        {
+            var btn = BuildBtn("disabledModulate='none'");
+            Assert.IsNull(btn.GameObject.GetComponent<PromptUGUI.Controls.Internal.DisabledGrayscaleController>(),
+                "none = 显式关，不装灰度控制器");
+            Assert.AreEqual(UnityEngine.UI.Selectable.Transition.ColorTint, PuiOf(btn).transition,
+                "none 不应触发颜色路径（transition 仍 ColorTint）");
+            PuiOf(btn).SimulateState(Disabled);
+            Assert.AreEqual(BgOf(btn).defaultMaterial, BgOf(btn).material, "none：禁用态无任何表现");
+        }
+
+        [Test]
+        public void StateReactFalse_Child_NotDesaturated()
+        {
+            var btn = BuildBtnXml("", "<Image id='keep' color='#FF0000' stateReact='false'/>");
+            var keep = btn.Get<Image>("keep").GameObject.GetComponent<UnityEngine.UI.Image>();
+            var before = keep.material;
+            PuiOf(btn).SimulateState(Disabled);
+            Assert.AreEqual(before, keep.material, "stateReact='false' 子节点禁用时不换材质");
+        }
+
+        [Test]
+        public void NestedBtn_IsBoundary_InnerNotDesaturatedByOuter()
+        {
+            var outer = BuildBtnXml("", "<Btn id='inner'>x</Btn>");
+            var inner = outer.Get<Btn>("inner");
+            var innerBg = inner.GameObject.GetComponent<UnityEngine.UI.Image>();
+            var before = innerBg.material;
+            PuiOf(outer).SimulateState(Disabled);
+            Assert.AreEqual(before, innerBg.material, "嵌套 Btn 图形不被外层去色");
+        }
+
     }
 }
