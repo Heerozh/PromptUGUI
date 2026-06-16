@@ -32,7 +32,11 @@ namespace PromptUGUI.Tests.Modals
       <Btn  id='close' anchor='top-right' size='32x32'>x</Btn>
       <Carousel id='cards' anchor='stretch' margin='48,8,64,8'
                 fill='false' interval='0' itemTemplate='Card'/>
-      <Btn  id='confirm' anchor='bottom-center' size='140x40'>OK</Btn>
+      <HStack id='buttons' anchor='bottom-center' height='40' spacing='8'>
+        <Btn id='button0' size='140x40'>OK</Btn>
+        <Btn id='button1' size='140x40'/>
+        <Btn id='button2' size='140x40'/>
+      </HStack>
     </Frame>
   </Screen>
 </PromptUGUI>";
@@ -71,7 +75,7 @@ namespace PromptUGUI.Tests.Modals
                 BindCard = (card, lv) => { },
             });
             Cards().GoTo(1, animated: false);                  // 把第 1 项居中
-            UI.Modal.TopScreen.Get<PBtn>("confirm").SimulateClick();
+            UI.Modal.TopScreen.Get<PBtn>("button0").SimulateClick();
             Assert.AreSame(items[1], task.GetAwaiter().GetResult(),
                 "confirm returns the centered item");
         }
@@ -161,7 +165,7 @@ namespace PromptUGUI.Tests.Modals
             UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
             { Items = ThreeLevels(), BindCard = (c, l) => { }, ConfirmLabel = "开始" });
             Assert.AreEqual("开始",
-                UI.Modal.TopScreen.Get<PBtn>("confirm").GameObject.GetComponentInChildren<TMP_Text>().text);
+                UI.Modal.TopScreen.Get<PBtn>("button0").GameObject.GetComponentInChildren<TMP_Text>().text);
         }
 
         [Test]
@@ -169,7 +173,7 @@ namespace PromptUGUI.Tests.Modals
         {
             UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
             { Items = new List<Lv>(), BindCard = (c, l) => { } });
-            Assert.IsFalse(UI.Modal.TopScreen.Get<PBtn>("confirm").Interactable);
+            Assert.IsFalse(UI.Modal.TopScreen.Get<PBtn>("button0").Interactable);
         }
 
         [Test]
@@ -207,7 +211,7 @@ namespace PromptUGUI.Tests.Modals
             var items = new List<Lv> { new Lv { Id = "solo", Name = "Solo" } };
             var task = UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
             { Items = items, BindCard = (c, l) => { } });
-            UI.Modal.TopScreen.Get<PBtn>("confirm").SimulateClick();
+            UI.Modal.TopScreen.Get<PBtn>("button0").SimulateClick();
             Assert.AreSame(items[0], task.GetAwaiter().GetResult());
         }
     }

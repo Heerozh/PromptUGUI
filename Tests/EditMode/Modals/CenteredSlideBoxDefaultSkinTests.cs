@@ -35,7 +35,7 @@ namespace PromptUGUI.Tests.Modals
             Assert.IsNotNull(UI.Modal.TopScreen.Get<Carousel>("cards"),
                 "应能取到默认皮肤里的 cards Carousel");
 
-            UI.Modal.TopScreen.Get<PBtn>("confirm").SimulateClick();
+            UI.Modal.TopScreen.Get<PBtn>("button0").SimulateClick();
             Assert.AreSame(items[0], task.GetAwaiter().GetResult(),
                 "确认返回居中(默认 current=0)项");
         }
@@ -61,7 +61,7 @@ namespace PromptUGUI.Tests.Modals
             Assert.AreEqual(2f, scaler.scaleFactor, 1e-6f,
                 "像素模式下应按 reference=1920x1080 算出整数因子 2;若为 1 说明默认皮肤缺 reference 走了兜底");
 
-            UI.Modal.TopScreen.Get<PBtn>("confirm").SimulateClick();
+            UI.Modal.TopScreen.Get<PBtn>("button0").SimulateClick();
             task.GetAwaiter().GetResult();
         }
 
@@ -76,7 +76,7 @@ namespace PromptUGUI.Tests.Modals
             Assert.AreEqual(2, cards.Current,
                 "默认皮肤应关闭循环:越界 GoTo 钳位到末张(2),而非环绕回 0");
 
-            UI.Modal.TopScreen.Get<PBtn>("confirm").SimulateClick();
+            UI.Modal.TopScreen.Get<PBtn>("button0").SimulateClick();
             task.GetAwaiter().GetResult();
         }
     }
