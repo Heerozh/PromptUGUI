@@ -221,7 +221,8 @@ namespace PromptUGUI.Tests.Modals
             var items = ThreeLevels();
             var task = UI.Modal.OpenAsync(new CenteredSlideBoxMultiRequest<Lv>
             {
-                Items = items, BindCard = (c, l) => { },
+                Items = items,
+                BindCard = (c, l) => { },
                 Buttons = new[] { ("A", "a"), ("B", "b") },
             });
             Cards().GoTo(1, animated: false);
@@ -236,7 +237,8 @@ namespace PromptUGUI.Tests.Modals
         {
             UI.Modal.OpenAsync(new CenteredSlideBoxMultiRequest<Lv>
             {
-                Items = ThreeLevels(), BindCard = (c, l) => { },
+                Items = ThreeLevels(),
+                BindCard = (c, l) => { },
                 Buttons = new[] { ("A", "a"), ("B", "b") },
             });
             var car = Cards();
@@ -251,7 +253,8 @@ namespace PromptUGUI.Tests.Modals
         {
             var task = UI.Modal.OpenAsync(new CenteredSlideBoxMultiRequest<Lv>
             {
-                Items = ThreeLevels(), BindCard = (c, l) => { },
+                Items = ThreeLevels(),
+                BindCard = (c, l) => { },
                 Buttons = new[] { ("A", "a"), ("B", "b") },
             });
             UI.Modal.TopScreen.Get<PBtn>("close").SimulateClick();
@@ -266,7 +269,8 @@ namespace PromptUGUI.Tests.Modals
         {
             UI.Modal.OpenAsync(new CenteredSlideBoxMultiRequest<Lv>
             {
-                Items = ThreeLevels(), BindCard = (c, l) => { },
+                Items = ThreeLevels(),
+                BindCard = (c, l) => { },
                 Buttons = new[] { ("A", "a"), ("B", "b") },   // 2 个 → button2 隐藏
             });
             var top = UI.Modal.TopScreen;
@@ -286,7 +290,8 @@ namespace PromptUGUI.Tests.Modals
             {
                 var task = UI.Modal.OpenAsync(new CenteredSlideBoxMultiRequest<Lv>
                 {
-                    Items = ThreeLevels(), BindCard = (c, l) => { },
+                    Items = ThreeLevels(),
+                    BindCard = (c, l) => { },
                     Buttons = new[] { ("A", "a"), ("B", "b"), ("C", "c"), ("D", "d") },
                 });
                 task.GetAwaiter().GetResult();
@@ -309,7 +314,8 @@ namespace PromptUGUI.Tests.Modals
             {
                 var task = UI.Modal.OpenAsync(new CenteredSlideBoxMultiRequest<Lv>
                 {
-                    Items = ThreeLevels(), BindCard = (c, l) => { },
+                    Items = ThreeLevels(),
+                    BindCard = (c, l) => { },
                     Buttons = System.Array.Empty<(string, string)>(),
                 });
                 task.GetAwaiter().GetResult();

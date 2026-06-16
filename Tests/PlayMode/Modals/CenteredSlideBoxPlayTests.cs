@@ -63,7 +63,8 @@ namespace PromptUGUI.Tests.PlayMode.Modals
             var items = new List<Lv> { new Lv { Id = "a" }, new Lv { Id = "b" }, new Lv { Id = "c" } };
             var task = UI.Modal.OpenAsync(new CenteredSlideBoxMultiRequest<Lv>
             {
-                Items = items, BindCard = (c, l) => { },
+                Items = items,
+                BindCard = (c, l) => { },
                 Buttons = new[] { ("Go", "go"), ("Hard", "hard") },
             });
             UI.Modal.TopScreen.Get<Carousel>("cards").GoTo(2, animated: false);
