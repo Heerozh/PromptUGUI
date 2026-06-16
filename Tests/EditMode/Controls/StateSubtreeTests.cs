@@ -1,4 +1,3 @@
-using System.Linq;
 using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
@@ -32,7 +31,11 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var innerBg = btn.Get<Btn>("inner").GameObject.GetComponent<Graphic>();
             var rootBg = btn.GameObject.GetComponent<Graphic>();
 
+            var textGraphic = btn.Get<PromptUGUI.Controls.Text>("t").GameObject.GetComponent<Graphic>();
+            Assert.IsNotNull(textGraphic, "Text 的 TMP_Text 应是 Graphic");
+
             Assert.Contains(rootBg, graphics, "root bg 应在内");
+            Assert.Contains(textGraphic, graphics, "普通（未剪枝）Text 后代应在内");
             Assert.IsFalse(graphics.Contains(keep), "stateReact='false' 子树应被剪掉");
             Assert.IsFalse(graphics.Contains(innerBg), "嵌套 IStateSource 应被剪掉");
         }
