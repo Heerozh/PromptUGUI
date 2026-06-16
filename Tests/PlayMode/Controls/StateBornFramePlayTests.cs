@@ -5,78 +5,91 @@ using PromptUGUI.Controls;
 using PromptUGUI.Controls.Internal;
 using UnityEngine;
 using UnityEngine.TestTools;
-using UnityGraphic = UnityEngine.UI.Graphic;
+using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Tests.PlayMode.Controls
 {
-    // Born-frame instant rule over REAL frames (the native uGUI ColorTint flicker is play-mode only —
-    // in EditMode uGUI's TweenRunner completes a CrossFade immediately, so the fade can only be
-    // observed with a running player loop).
+    // Born-frame instant rule over REAL frames (a tween only animates with a running player loop;
+    // in EditMode LMotion / uGUI's TweenRunner complete immediately). The complementary born-frame
+    // SNAP unit test lives in EditMode StateBornFrameTests.
     //
-    // A plain <Btn> (no *Color/*Modulate) keeps uGUI's built-in ColorTint transition, so its disabled
-    // greying is a CrossFadeColor on the targetGraphic's CanvasRenderer — exactly the path a modal
-    // Configure hook hits when it sets Btn.Interactable = false right after Open.
+    // The disabled axis is exercised through a Btn with disabledModulate set: that keeps the
+    // StateTintReactor driving the bg colour (a real ~0.1s LMotion fade), the path the born-frame
+    // gate governs. A plain Btn's disabled look is the default grayscale material swap, which is
+    // always instant and born-frame-independent, so it cannot exercise the snap-vs-fade gate.
     public class StateBornFramePlayTests
     {
+        // base (#FFFFFF white) × #808080 multiplier = the disabled-modulate target.
+        private static readonly Color Half = new Color(0.5019608f, 0.5019608f, 0.5019608f, 1f);
+
         [SetUp]
-        public void SetUp() => UI.ResetForTests();
+        public void SetUp()
+        {
+            UI.ResetForTests();
+            // The ONLY thing allowed to make these transitions instant is the born-frame gate under
+            // test — never the test-only force-instant escape hatch.
+            StateTintReactor.TestForceInstant = false;
+        }
 
         [TearDown]
-        public void TearDown() => UI.ResetForTests();
+        public void TearDown()
+        {
+            UI.ResetForTests();
+            StateTintReactor.TestForceInstant = false;
+        }
 
         [UnityTest]
-        public IEnumerator Disable_in_born_frame_snaps_to_disabled_tint_instantly()
+        public IEnumerator Disable_in_born_frame_snaps_instantly()
         {
             UI.LoadDocument("t", @"<?xml version='1.0' encoding='utf-8'?>
-<PromptUGUI version='1'><Screen name='S'><Btn id='b'/></Screen></PromptUGUI>");
+<PromptUGUI version='1'><Screen name='S'><Btn id='b' disabledModulate='#808080'/></Screen></PromptUGUI>");
             var screen = UI.Open("S");
             var btn = screen.Get<Btn>("b");
-            var puiBtn = btn.GameObject.GetComponent<PuiButton>();
-            var target = (UnityGraphic)puiBtn.targetGraphic;
-            Assert.IsNotNull(target, "PuiButton should have a targetGraphic (the bg)");
+            var bg = btn.GameObject.GetComponent<UnityImage>();
+            var baseColor = bg.color;
+            var disabled = baseColor * Half;
 
-            var disabled = puiBtn.colors.disabledColor * puiBtn.colors.colorMultiplier;
-
-            // Disable in the SAME (born) frame as Open — before any yield. uGUI's play-mode
-            // interactable setter does DoStateTransition(Disabled, instant:false) = a 0.1s CrossFade;
-            // the born-frame gate must coerce it to instant so frame 1 already shows disabled.
+            // Disable in the SAME (born) frame as Open — before any yield. The born-frame gate must
+            // coerce the reactor to snap, so frame 1 already shows the disabled modulate.
             btn.Interactable = false;
 
-            AssertColorsEqual(disabled, target.canvasRenderer.GetColor(),
-                "born-frame disable must snap to the disabled tint, not start a fade from the enabled look");
+            AssertColorsEqual(disabled, bg.color,
+                "born-frame disable must snap to the disabled modulate, not start a fade from the enabled colour");
             yield break;
         }
 
         [UnityTest]
-        public IEnumerator Disable_after_born_frame_applies_grayscale_not_instant_colortint()
+        public IEnumerator Disable_after_born_frame_fades_over_frames()
         {
-            // Regression guard: the born-frame gate on PuiButton.DoStateTransition must NOT force
-            // instant=true on later frames. With the default grayscale feature, disabledColor is
-            // neutralised to white (= normalColor), so the ColorTint fade is a no-op colour-wise;
-            // we therefore verify the born-frame guard through the grayscale material path instead:
-            // a later-frame disable must cause the grayscale shader to be applied (not missed), and
-            // re-enabling must restore the default material.
+            // Regression guard: the born-frame gate must NOT turn off the intentional runtime fade on
+            // later frames (e.g. a modal Configure hook that greys a button a few frames after Open).
             UI.LoadDocument("t", @"<?xml version='1.0' encoding='utf-8'?>
-<PromptUGUI version='1'><Screen name='S'><Btn id='b'/></Screen></PromptUGUI>");
+<PromptUGUI version='1'><Screen name='S'><Btn id='b' disabledModulate='#808080'/></Screen></PromptUGUI>");
             var screen = UI.Open("S");
             var btn = screen.Get<Btn>("b");
-            var bg = btn.GameObject.GetComponent<UnityEngine.UI.Image>();
+            var bg = btn.GameObject.GetComponent<UnityImage>();
+            var baseColor = bg.color;
+            var disabled = baseColor * Half;
 
             yield return null;   // advance PAST the born frame
             yield return null;
 
-            btn.Interactable = false;   // later frame => grayscale must be applied
-            Assert.AreEqual("UI/Grayscale", bg.material.shader.name,
-                "later-frame disable must apply the grayscale shader");
+            btn.Interactable = false;   // later frame => should FADE, not snap
 
+            // Immediately after the flip the fade has barely started: still near the enabled colour,
+            // NOT already at disabled (which an over-broad "always instant" gate would wrongly do).
+            var afterFlip = bg.color;
+            Assert.That(ColorDistance(afterFlip, baseColor), Is.LessThan(ColorDistance(afterFlip, disabled)),
+                "right after a later-frame disable the colour must still be closer to base than disabled (it animates)");
+
+            // ...and it settles at the disabled modulate once the fade window elapses.
             yield return new WaitForSeconds(0.2f);
-            Assert.AreEqual("UI/Grayscale", bg.material.shader.name,
-                "grayscale must persist after the fade window");
-
-            btn.Interactable = true;
-            Assert.AreEqual(bg.defaultMaterial, bg.material,
-                "re-enable must restore the default material");
+            AssertColorsEqual(disabled, bg.color,
+                "later-frame disable should settle at the disabled modulate after the fade window");
         }
+
+        private static float ColorDistance(Color a, Color b)
+            => Mathf.Abs(a.r - b.r) + Mathf.Abs(a.g - b.g) + Mathf.Abs(a.b - b.b) + Mathf.Abs(a.a - b.a);
 
         private static void AssertColorsEqual(Color expected, Color actual, string msg)
         {
