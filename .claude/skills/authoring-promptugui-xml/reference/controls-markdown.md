@@ -76,6 +76,7 @@ Frequently-used style items can be set on the tag itself; full styling lives in 
 | `spacing` | float | `MarkdownStyle` default | Vertical spacing between top-level blocks (pixels). |
 | `padding` | int (px) | `2` | Inner inset of the rendered content within the built-in scroll viewport (applied as the document-root `<VStack>`'s `padding`). The default `2` gives **outlined / stroked fonts** room so the viewport `RectMask2D` doesn't clip the first/last glyph outlines at the edges. Maps to `MarkdownStyle.Padding`. Set `0` for flush content. |
 | `wrap` | bool | `true` | Whether paragraph text wraps. `false` makes long paragraphs clip horizontally (the internal `ScrollRect` is vertical-only). |
+| `boldStyle` | space-separated tokens | `bold` | How **bold** renders — governs inline `**bold**`, **headings**, and **table headers** (the three places that otherwise emit TMP `<b>`). Tokens combine: style keywords `bold` / `underline` / `italic` / `strikethrough` (and `none` = strip), plus at most one color value (theme token / hex / CSS name / `/alpha` suffix). E.g. `boldStyle="underline #ffcc00"` → underline + gold; `boldStyle="none"` → plain (headings still magnify via `scale`). Default `bold` = TMP `<b>` (faux-bold — looks poor on pixel fonts, hence this attribute). Maps to `MarkdownStyle.BoldStyle`. |
 
 > Complete styling (heading **scale** ladder `HeadingScales`, quote bar color, code block background, list indent, bullet glyph, task-list glyphs, HR color / thickness) is controlled via C# `MarkdownStyle`. See **scripting-promptugui-csharp → Markdown** for the full API.
 
@@ -119,7 +120,7 @@ Frequently-used style items can be set on the tag itself; full styling lives in 
 | Markdown block | Generated ElementNode | Notes |
 |---|---|---|
 | Document root | `<VStack spacing=BlockSpacing padding=Padding>` (the `ScrollRect.content`) | Anchor `top-stretch`, pivot top, `ContentSizeFitter` vertical; width tracks viewport, height tracks content. `padding` insets content off the viewport `RectMask2D` so outlined-font glyph edges aren't clipped (default 2) |
-| Heading h1–h6 | `<Text fontSize=BodySize scale=HeadingScales[n-1]>` + `<b>` inline wrap | Magnified via RectTransform `localScale` (the V/HStack scale-wrapper + `ScaledTextLayoutBridge` reserve the visual size), **not** a larger font size → pixel fonts stay crisp. `scale 1` (h6 default) emits no `scale=`/wrapper. font=BodyFont |
+| Heading h1–h6 | `<Text fontSize=BodySize scale=HeadingScales[n-1]>` + `<b>` inline wrap | Magnified via RectTransform `localScale` (the V/HStack scale-wrapper + `ScaledTextLayoutBridge` reserve the visual size), **not** a larger font size → pixel fonts stay crisp. `scale 1` (h6 default) emits no `scale=`/wrapper. font=BodyFont. Bold wrap governed by `boldStyle` (default `<b>`). |
 | Paragraph | `<Text wrap>` with inline rich-text string | See inline mapping below |
 | Unordered list | `<VStack>` — each item is `<HStack>` (bullet `<Text>`) + (content `<Text>`) | Nested lists: content cell contains another `<VStack>`; indent = `ListIndent × depth` |
 | Ordered list | Same as unordered; bullet is `"1."`, `"2."`, … (start offset from Markdig) | |
@@ -128,7 +129,7 @@ Frequently-used style items can be set on the tag itself; full styling lives in 
 | Fenced code block | `<Text font=CodeFont wrap=false>` with code background applied via inline TMP `<mark=…>` tag (no separate container) | Language tag ignored; no syntax highlighting |
 | Horizontal rule `---` | `<Image width=stretch height=HrThickness color=HrColor>` | |
 | Block-level image `![alt](url)` | `<RawImage type="contain">` + generated id → `ImageRequest` | Texture loaded async; alt text shown as placeholder until texture arrives |
-| GFM table | `<VStack>` → each row `<HStack>` → each cell `<Text width="stretch" wrap>` | Header row is bold; equal-width columns (`width="stretch"`); no cell border lines (v1) |
+| GFM table | `<VStack>` → each row `<HStack>` → each cell `<Text width="stretch" wrap>` | Header row uses the `boldStyle` wrap (default bold); equal-width columns (`width="stretch"`); no cell border lines (v1) |
 | HTML block | Plain text (tags stripped) or discarded | MD-D17 |
 
 ### Inline → TMP rich-text mapping
@@ -138,7 +139,7 @@ Inline content within a single paragraph or heading is compiled into one TMP ric
 | Markdown inline | TMP output |
 |---|---|
 | Literal text | Escaped: `&` → `&amp;`, `<` → `&lt;`, `>` → `&gt;` (prevents TMP from consuming raw `<` as a tag) |
-| `**bold**` | `<b>…</b>` |
+| `**bold**` | `boldStyle` wrap (default `<b>…</b>`; e.g. `<u>…</u>` / `<color=…>…</color>` / combined) |
 | `*italic*` | `<i>…</i>` |
 | `~~strike~~` | `<s>…</s>` |
 | `` `code` `` | `<mark=CodeBackground><font="CodeFont">…</font></mark>` |
