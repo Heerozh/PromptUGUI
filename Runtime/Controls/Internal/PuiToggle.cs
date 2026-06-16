@@ -12,6 +12,7 @@ namespace PromptUGUI.Controls.Internal
     internal sealed class PuiToggle : UnityToggle, IStateSource
     {
         private readonly StateBroadcaster _broadcaster = new();
+        private int _bornFrame = int.MinValue;
 
         public Observable<InteractState> OnState => _broadcaster.OnState;
         public InteractState Current => _broadcaster.Current;
@@ -28,8 +29,17 @@ namespace PromptUGUI.Controls.Internal
             _broadcaster.SetOn(isOn);
         }
 
+        protected override void OnEnable()
+        {
+            _bornFrame = BornFrame.Capture();
+            base.OnEnable();   // paints currentSelectionState instantly (uGUI default)
+        }
+
         protected override void DoStateTransition(SelectionState state, bool instant)
         {
+            // A state change in the born frame (e.g. a modal Configure hook flipping interactable
+            // right after Open) must be instant, not faded in from the freshly-painted enabled look.
+            instant |= BornFrame.IsCurrent(_bornFrame);
             base.DoStateTransition(state, instant);
             _broadcaster.SetTransient(StateBroadcaster.MapTransient((int)state));
         }

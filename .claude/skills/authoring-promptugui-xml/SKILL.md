@@ -872,7 +872,7 @@ Append a comma between two colour values to produce a **vertical two-stop gradie
 
 **`<Text>` per-character gradient.** On `<Text>` the gradient is TMP-native and applied per-character — each glyph's vertices run top→bottom independently. This makes a solid "gold-foil" title effect without a single stretched gradient across the text block.
 
-**State-colour transition timing.** A state transition whose start or end colour is a gradient **snaps** immediately (no ~0.1s fade) — there is no colour-lerp for a vertex gradient. Solid ↔ solid transitions still fade as before.
+**State-colour transition timing.** A state transition whose start or end colour is a gradient **snaps** immediately (no ~0.1s fade) — there is no colour-lerp for a vertex gradient. So does the state a control is **first shown in** (a control opened already disabled/selected — e.g. a modal `Configure` hook setting `Interactable = false` — shows that state on frame 1, not faded in from Normal). Other solid ↔ solid transitions still fade as before. See `reference/states.md` → *First-frame establishment*.
 
 ### Error codes
 
