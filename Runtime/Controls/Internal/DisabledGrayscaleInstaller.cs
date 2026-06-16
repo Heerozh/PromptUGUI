@@ -12,7 +12,7 @@ namespace PromptUGUI.Controls.Internal
     /// </summary>
     internal static class DisabledGrayscaleInstaller
     {
-        public static void Install(GameObject root, Selectable selectable, IReadOnlyList<IControl> children)
+        internal static void Install(GameObject root, Selectable selectable, IReadOnlyList<IControl> children)
         {
             var colors = selectable.colors;
             colors.disabledColor = Color.white;
