@@ -43,16 +43,19 @@ namespace PromptUGUI.Tests.Markdown
         }
 
         [Test]
-        public void Paragraph_inline_maps_to_tmp_tags_and_escapes()
+        public void Paragraph_inline_maps_to_tmp_tags_and_noparse_wraps_specials()
         {
             var root = Render("a **b** _c_ ~~d~~ `e` 1<2 & 3");
             var t = Find(root, "Text", "b</b>");
             Assert.IsNotNull(t);
             StringAssert.Contains("<i>c</i>", t.TextContent);
             StringAssert.Contains("<s>d</s>", t.TextContent);
-            StringAssert.Contains("<mark=", t.TextContent);    // inline code background
-            StringAssert.Contains("&lt;", t.TextContent);       // escaped '<'
-            StringAssert.Contains("&amp;", t.TextContent);      // escaped '&'
+            StringAssert.Contains("<mark=", t.TextContent);          // inline code background
+            // TMP does not decode &lt;/&amp; — literal specials are wrapped in <noparse> and kept raw.
+            StringAssert.Contains("<noparse>", t.TextContent);
+            StringAssert.Contains("1<2", t.TextContent);             // raw '<', not &lt;
+            StringAssert.DoesNotContain("&lt;", t.TextContent);
+            StringAssert.DoesNotContain("&amp;", t.TextContent);
         }
 
         // count nodes matching a predicate
@@ -292,6 +295,29 @@ namespace PromptUGUI.Tests.Markdown
             var t = Find(root, "Text", "int x = 1;");
             Assert.IsNotNull(t);
             StringAssert.Contains("<mark=", t.TextContent);
+        }
+
+        [Test]
+        public void Code_fence_with_angle_brackets_renders_raw_via_noparse()
+        {
+            // Regression: TMP does not decode &lt;/&gt;, so a code fence of XML must keep raw '<'/'>'
+            // inside <noparse>, not entity-escape them (else the user sees literal "&lt;").
+            var root = Render("```xml\n<?xml version=\"1.0\"?>\n```");
+            var t = Find(root, "Text", "<?xml");
+            Assert.IsNotNull(t);
+            StringAssert.Contains("<noparse>", t.TextContent);
+            StringAssert.Contains("<?xml version=\"1.0\"?>", t.TextContent);
+            StringAssert.DoesNotContain("&lt;", t.TextContent);
+        }
+
+        [Test]
+        public void Inline_code_with_tag_renders_raw_via_noparse()
+        {
+            var root = Render("use `<color=red>` token");
+            var t = Find(root, "Text", "<color=red>");
+            Assert.IsNotNull(t);
+            StringAssert.Contains("<noparse><color=red></noparse>", t.TextContent);
+            StringAssert.DoesNotContain("&lt;", t.TextContent);
         }
 
         [Test]

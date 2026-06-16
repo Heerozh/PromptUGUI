@@ -98,11 +98,11 @@ namespace PromptUGUI.MarkdigBackend
             switch (inline)
             {
                 case LiteralInline lit:
-                    sb.Append(Escape(lit.Content.ToString()));
+                    sb.Append(Lit(lit.Content.ToString()));
                     break;
                 case CodeInline code:
                     sb.Append("<mark=").Append(ToHex(_style.CodeBackground)).Append("><font=\"")
-                      .Append(_style.CodeFont).Append("\">").Append(Escape(code.Content))
+                      .Append(_style.CodeFont).Append("\">").Append(Lit(code.Content))
                       .Append("</font></mark>");
                     break;
                 case EmphasisInline em:
@@ -248,7 +248,7 @@ namespace PromptUGUI.MarkdigBackend
                     row.Children.Add(spacer);
                 }
 
-                var bullet = NewText(Escape(marker), _style.BodySize);
+                var bullet = NewText(Lit(marker), _style.BodySize);
                 bullet.Attributes["width"] = "24";
                 row.Children.Add(bullet);
 
@@ -276,8 +276,21 @@ namespace PromptUGUI.MarkdigBackend
             return null;
         }
 
-        private static string Escape(string s) =>
-            s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+        // TMP's rich-text parser consumes *tags* but does NOT decode named HTML entities — an
+        // entity-escaped '<' renders literally as "&lt;" (verified on Unity's bundled TMP). So to show
+        // a literal '<', '>' or '&' we wrap the run in <noparse>…</noparse> (TMP suppresses tag parsing
+        // inside the span and emits the raw character) instead of entity-escaping it. Only wrap when a
+        // special char is present so tag-free text stays clean and the generated TMP tags around it
+        // (e.g. <b>…</b>, <mark>…</mark>) keep parsing normally.
+        // Caveat: a literal run containing the substring "</noparse>" would close the span early; TMP
+        // offers no escape for that and it is vanishingly rare in code/prose, so it is accepted.
+        private static string Lit(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return s ?? "";
+            return (s.IndexOf('<') >= 0 || s.IndexOf('>') >= 0 || s.IndexOf('&') >= 0)
+                ? "<noparse>" + s + "</noparse>"
+                : s;
+        }
 
         private static string ToHex(string colorToken)
         {
@@ -310,7 +323,7 @@ namespace PromptUGUI.MarkdigBackend
             var n = NewText("", _style.BodySize);
             n.Attributes["font"] = _style.CodeFont;
             n.Attributes["wrap"] = "false";
-            n.TextContent = "<mark=" + ToHex(_style.CodeBackground) + ">" + Escape(GetCodeText(code)) + "</mark>";
+            n.TextContent = "<mark=" + ToHex(_style.CodeBackground) + ">" + Lit(GetCodeText(code)) + "</mark>";
             return n;
         }
 
@@ -409,7 +422,7 @@ namespace PromptUGUI.MarkdigBackend
             if (url.Length > 0 && url.IndexOf('/') < 0 && url.IndexOf(':') < 0)
                 sb.Append("<sprite name=\"").Append(url).Append("\">");
             else
-                sb.Append(Escape(GetText(img)));
+                sb.Append(Lit(GetText(img)));
         }
 
         private static string GetText(ContainerInline c)
