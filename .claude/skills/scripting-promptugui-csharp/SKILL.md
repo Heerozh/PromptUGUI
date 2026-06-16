@@ -310,7 +310,9 @@ md.OnLinkClicked
 
 // Per-control style (null falls back to UI.Markdown.DefaultStyle)
 md.Style = MarkdownStyle.CreateDefault();
-md.Style.HeadingSizes = new float[] { 28, 24, 20, 18, 16, 14 };
+md.Style.BodySize = 18;                          // base font size for ALL text (body + headings). XML attr: fontSize=
+md.Style.HeadingScales = new float[] { 2.5f, 2f, 1.75f, 1.5f, 1.25f, 1f };  // per-level h1..h6 transform scale over BodySize — headings magnify via localScale (font stays native size → pixel-font-crisp). Integer scales = pixel-perfect.
+md.Style.BodyColor = "primary";                 // base text color for all body text (paragraphs/headings/lists/…); "" = default ink. Links keep LinkColor
 
 // Per-control image resolver (null falls back to UI.Markdown.ImageResolver)
 md.ImageResolver = myLocalResolver;

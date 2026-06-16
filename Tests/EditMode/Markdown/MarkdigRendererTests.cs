@@ -87,6 +87,81 @@ namespace PromptUGUI.Tests.Markdown
             Assert.IsNotNull(Find(root, "Text", "☑")); // ☑
             Assert.IsNotNull(Find(root, "Text", "☐")); // ☐
         }
+
+        [Test]
+        public void BodyColor_set_applies_color_attr_to_body_text()
+        {
+            var style = MarkdownStyle.CreateDefault();
+            style.BodyColor = "#FF0000";
+            var root = new MarkdigRenderer().Render("hello", style).Root;
+            var t = Find(root, "Text", "hello");
+            Assert.IsNotNull(t);
+            Assert.AreEqual("#FF0000", t.Attributes["color"]);
+        }
+
+        [Test]
+        public void BodyColor_set_also_colors_headings()
+        {
+            var style = MarkdownStyle.CreateDefault();
+            style.BodyColor = "primary";
+            var root = new MarkdigRenderer().Render("# Title", style).Root;
+            var t = Find(root, "Text", "Title");
+            Assert.IsNotNull(t);
+            Assert.AreEqual("primary", t.Attributes["color"]);
+        }
+
+        [Test]
+        public void BodyColor_default_empty_emits_no_color_attr()
+        {
+            // Backward compat: unset BodyColor -> no color= -> body inherits ProceduralBuilders.DefaultLabelColor.
+            var root = Render("hello");
+            var t = Find(root, "Text", "hello");
+            Assert.IsNotNull(t);
+            Assert.IsFalse(t.Attributes.ContainsKey("color"));
+        }
+
+        // ---- headings magnify via transform scale (pixel-font-crisp), not a larger font size ----
+
+        [Test]
+        public void Heading_magnifies_via_scale_not_large_fontsize()
+        {
+            var root = Render("# Title");                       // default: BodySize 16, HeadingScales[0]=2
+            var t = Find(root, "Text", "Title");
+            Assert.IsNotNull(t);
+            Assert.AreEqual("16", t.Attributes["fontSize"]);    // body font size, NOT 32
+            Assert.AreEqual("2", t.Attributes["scale"]);        // h1 transform scale → visual 32
+        }
+
+        [Test]
+        public void Heading_level_three_uses_its_scale()
+        {
+            var root = Render("### Sub");                       // h3 → HeadingScales[2]=1.5
+            var t = Find(root, "Text", "Sub");
+            Assert.IsNotNull(t);
+            Assert.AreEqual("1.5", t.Attributes["scale"]);
+        }
+
+        [Test]
+        public void Heading_six_default_scale_one_omits_scale_attr()
+        {
+            var root = Render("###### Tiny");                   // h6 → HeadingScales[5]=1 → no wrapper
+            var t = Find(root, "Text", "Tiny");
+            Assert.IsNotNull(t);
+            Assert.IsFalse(t.Attributes.ContainsKey("scale"));
+            Assert.AreEqual("16", t.Attributes["fontSize"]);
+        }
+
+        [Test]
+        public void Heading_fontsize_follows_bodysize()
+        {
+            var style = MarkdownStyle.CreateDefault();
+            style.BodySize = 24;
+            var root = new MarkdigRenderer().Render("# Title", style).Root;
+            var t = Find(root, "Text", "Title");
+            Assert.IsNotNull(t);
+            Assert.AreEqual("24", t.Attributes["fontSize"]);    // heading font tracks body size
+            Assert.AreEqual("2", t.Attributes["scale"]);        // scale unaffected → visual 48
+        }
     }
 
     public class MarkdigRendererBlockTests

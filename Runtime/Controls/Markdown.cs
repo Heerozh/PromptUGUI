@@ -93,6 +93,28 @@ namespace PromptUGUI.Controls
             }
         }
 
+        [UIAttr(IsColor = true), Preserve]
+        public string BodyColor
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value) || value == Style.BodyColor) return;
+                Style.BodyColor = value;
+                MarkDirty();
+            }
+        }
+
+        [UIAttr, Preserve]
+        public float FontSize
+        {
+            set
+            {
+                if (value == Style.BodySize) return;
+                Style.BodySize = value;
+                MarkDirty();
+            }
+        }
+
         [UIAttr, Preserve]
         public float Spacing
         {

@@ -13,11 +13,12 @@ namespace PromptUGUI.Tests.EditMode.Controls
     public class MarkdownStyleTests
     {
         [Test]
-        public void CreateDefault_has_six_heading_sizes_descending()
+        public void CreateDefault_has_six_heading_scales_descending()
         {
             var s = MarkdownStyle.CreateDefault();
-            Assert.AreEqual(6, s.HeadingSizes.Length);
-            Assert.Greater(s.HeadingSizes[0], s.HeadingSizes[5]);
+            Assert.AreEqual(6, s.HeadingScales.Length);
+            Assert.Greater(s.HeadingScales[0], s.HeadingScales[5]);
+            Assert.AreEqual(1f, s.HeadingScales[5]);   // h6 = body size (scale 1)
             Assert.IsTrue(s.ParagraphWrap);
         }
 
@@ -26,8 +27,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var a = MarkdownStyle.CreateDefault();
             var b = a.Clone();
-            b.HeadingSizes[0] = 999f;
-            Assert.AreNotEqual(999f, a.HeadingSizes[0]);
+            b.HeadingScales[0] = 999f;
+            Assert.AreNotEqual(999f, a.HeadingScales[0]);
         }
     }
 
@@ -186,6 +187,28 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var second = md.GameObject.GetComponent<UnityEngine.UI.ScrollRect>().content;
             Assert.AreNotSame(first, second);          // new content instantiated
             Assert.IsTrue(first == null);              // old root GameObject destroyed (Unity null)
+        }
+
+        [Test]
+        public void BodyColor_attr_forwards_to_render_style()
+        {
+            var fake = new FakeMarkdownRenderer();
+            UI.Markdown.Renderer = fake;
+            var md = Open();
+            md.BodyColor = "#FF0000";
+            md.Text = "hi";
+            Assert.AreEqual("#FF0000", fake.LastStyle.BodyColor);
+        }
+
+        [Test]
+        public void FontSize_attr_forwards_to_render_style()
+        {
+            var fake = new FakeMarkdownRenderer();
+            UI.Markdown.Renderer = fake;
+            var md = Open();
+            md.FontSize = 20;
+            md.Text = "hi";
+            Assert.AreEqual(20f, fake.LastStyle.BodySize);
         }
 
         [Test]

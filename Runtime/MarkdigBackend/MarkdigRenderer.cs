@@ -46,8 +46,16 @@ namespace PromptUGUI.MarkdigBackend
             switch (block)
             {
                 case HeadingBlock h:
-                    return NewText(RenderInline(h.Inline),
-                        _style.HeadingSizes[Mathf.Clamp(h.Level, 1, 6) - 1], bold: true);
+                    {
+                        // Headings render at BodySize and magnify via RectTransform.localScale (the `scale`
+                        // attribute) — the font is never resized, so bitmap/pixel fonts stay crisp. The
+                        // V/HStack scale-wrapper + ScaledTextLayoutBridge reserve the visual (scaled) size.
+                        var hn = NewText(RenderInline(h.Inline), _style.BodySize, bold: true);
+                        var scale = _style.HeadingScales[Mathf.Clamp(h.Level, 1, 6) - 1];
+                        if (!Mathf.Approximately(scale, 1f))   // scale 1 → no wrapper needed
+                            hn.Attributes["scale"] = scale.ToString(CultureInfo.InvariantCulture);
+                        return hn;
+                    }
                 case ParagraphBlock p:
                     if (IsLoneImage(p, out var blockImg)) return RenderBlockImage(blockImg);
                     return NewText(RenderInline(p.Inline), _style.BodySize);
@@ -139,6 +147,10 @@ namespace PromptUGUI.MarkdigBackend
             n.Attributes["wrap"] = _style.ParagraphWrap ? "true" : "false";
             n.Attributes["align"] = "top-left";
             n.Attributes["tr"] = "false";
+            // Body text color: when set, applied as the TMP vertex color on every generated Text node.
+            // Inline <color=LinkColor> spans still override it per-link. Empty -> no color= -> the node
+            // inherits ProceduralBuilders.DefaultLabelColor (the library-wide default ink color).
+            if (!string.IsNullOrEmpty(_style.BodyColor)) n.Attributes["color"] = _style.BodyColor;
             n.TextContent = bold ? $"<b>{richText}</b>" : richText;
             return n;
         }

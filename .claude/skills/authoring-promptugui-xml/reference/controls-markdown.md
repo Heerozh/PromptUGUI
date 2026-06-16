@@ -57,8 +57,8 @@ Frequently-used style items can be set on the tag itself; full styling lives in 
 
 ```xml
 <Markdown id="doc" anchor="stretch"
-          bodyFont="default" codeFont="mono"
-          linkColor="primary" spacing="8" wrap="true"/>
+          fontSize="16" bodyFont="default" codeFont="mono"
+          bodyColor="ink" linkColor="primary" spacing="8" wrap="true"/>
 ```
 
 ---
@@ -68,13 +68,17 @@ Frequently-used style items can be set on the tag itself; full styling lives in 
 | Attribute | Type / values | Default | Effect |
 |---|---|---|---|
 | `text` | Markdown source string (CDATA for inline) | `""` | Document content. Registered as `defaultTextAttr`, so inline element text and CDATA flow into it automatically. A value set from C# at runtime survives resize / Variant / Theme ReSolve (the DefaultText lock — same mechanism as `<Text text>`). |
+| `fontSize` | float (px) | `16` | Base font size for **all** text. Headings render at this size and magnify via transform `scale` (see block mapping), so changing `fontSize` scales the whole document — headings included, proportions preserved. Maps to `MarkdownStyle.BodySize`. |
 | `bodyFont` | font type name | `"default"` | Body text and heading font, resolved via `FontApplier`. |
 | `codeFont` | font type name | `"default"` | Inline code and fenced code block font. Use a monospace font type. |
+| `bodyColor` | color token / hex / CSS name / `/alpha` suffix | *(unset)* | Base text color for **all** generated body text (paragraphs, headings, lists, blockquotes, table cells, code). Applied as the TMP vertex color on each `<Text>` node. Unset → no `color=` is emitted, so body inherits the library-wide default ink color (`ProceduralBuilders.DefaultLabelColor`, a warm dark brown). `linkColor` still overrides per-link (inline `<color>` wins over the node color). |
 | `linkColor` | color token / hex / CSS name / `/alpha` suffix | `#4EA1FF` | Link text color, applied as TMP `<color=…>` inside `<link>` spans. |
 | `spacing` | float | `MarkdownStyle` default | Vertical spacing between top-level blocks (pixels). |
 | `wrap` | bool | `true` | Whether paragraph text wraps. `false` makes long paragraphs clip horizontally (the internal `ScrollRect` is vertical-only). |
 
-> Complete styling (heading size ladder, quote bar color, code block background, list indent, bullet glyph, task-list glyphs, HR color / thickness) is controlled via C# `MarkdownStyle`. See **scripting-promptugui-csharp → Markdown** for the full API.
+> Complete styling (heading **scale** ladder `HeadingScales`, quote bar color, code block background, list indent, bullet glyph, task-list glyphs, HR color / thickness) is controlled via C# `MarkdownStyle`. See **scripting-promptugui-csharp → Markdown** for the full API.
+
+> **Headings magnify via transform scale, not font size.** Each heading renders at `BodySize` and is scaled up by `RectTransform.localScale` (`HeadingScales[level]`, default `{2, 1.75, 1.5, 1.25, 1.125, 1}` for h1–h6). Because the font is never re-sized, **bitmap / pixel fonts stay crisp** (the glyph is sampled at its native size and the quad is scaled). Integer scales (h1 = 2×, h6 = 1×) are pixel-perfect; non-integer levels are slightly soft on pixel fonts — set integer `HeadingScales` if you need every level pixel-perfect. This is the default for all fonts (the difference is negligible for SDF/vector fonts). At the default `BodySize 16` the visual ladder is the legacy `{32,28,24,20,18,16}`, unchanged.
 
 **Color attribute resolution** follows the standard pipeline: token → `UI.Theme.Resolve` base chain → hex literal → CSS named color → `/alpha` suffix replaces alpha component. Example: `linkColor="primary/0.8"`.
 
@@ -114,7 +118,7 @@ Frequently-used style items can be set on the tag itself; full styling lives in 
 | Markdown block | Generated ElementNode | Notes |
 |---|---|---|
 | Document root | `<VStack spacing=BlockSpacing>` (the `ScrollRect.content`) | Anchor `top-stretch`, pivot top, `ContentSizeFitter` vertical; width tracks viewport, height tracks content |
-| Heading h1–h6 | `<Text>` with `fontSize=HeadingSizes[n-1]` and `<b>` inline wrap | font=BodyFont |
+| Heading h1–h6 | `<Text fontSize=BodySize scale=HeadingScales[n-1]>` + `<b>` inline wrap | Magnified via RectTransform `localScale` (the V/HStack scale-wrapper + `ScaledTextLayoutBridge` reserve the visual size), **not** a larger font size → pixel fonts stay crisp. `scale 1` (h6 default) emits no `scale=`/wrapper. font=BodyFont |
 | Paragraph | `<Text wrap>` with inline rich-text string | See inline mapping below |
 | Unordered list | `<VStack>` — each item is `<HStack>` (bullet `<Text>`) + (content `<Text>`) | Nested lists: content cell contains another `<VStack>`; indent = `ListIndent × depth` |
 | Ordered list | Same as unordered; bullet is `"1."`, `"2."`, … (start offset from Markdig) | |
