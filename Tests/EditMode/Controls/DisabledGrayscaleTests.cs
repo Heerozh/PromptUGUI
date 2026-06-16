@@ -107,7 +107,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
         public void DisabledModulateColor_Authored_SuppressesGrayscale()
         {
             var btn = BuildBtn("disabledModulate='#888888'");
-            Assert.IsNull(btn.GameObject.GetComponent<PromptUGUI.Controls.Internal.DisabledGrayscaleController>());
+            Assert.IsNull(btn.GameObject.GetComponent<PromptUGUI.Controls.Internal.DisabledGrayscaleController>(),
+                "disabledModulate=<色> 不应装灰度控制器");
             PuiOf(btn).SimulateState(Disabled);
             Assert.AreEqual(BgOf(btn).defaultMaterial, BgOf(btn).material);
         }
@@ -119,7 +120,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 new UnityEngine.Rect(0, 0, 1, 1), UnityEngine.Vector2.zero);
             UI.SpriteResolver = _ => stub;
             var btn = BuildBtn("disabledSprite='ui:x'");
-            Assert.IsNull(btn.GameObject.GetComponent<PromptUGUI.Controls.Internal.DisabledGrayscaleController>());
+            Assert.IsNull(btn.GameObject.GetComponent<PromptUGUI.Controls.Internal.DisabledGrayscaleController>(),
+                "disabledSprite 不应装灰度控制器");
             PuiOf(btn).SimulateState(Disabled);
             Assert.AreEqual(BgOf(btn).defaultMaterial, BgOf(btn).material, "disabledSprite 走 overrideSprite，不换灰度材质");
         }
@@ -141,9 +143,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var btn = BuildBtnXml("", "<Image id='keep' color='#FF0000' stateReact='false'/>");
             var keep = btn.Get<Image>("keep").GameObject.GetComponent<UnityEngine.UI.Image>();
-            var before = keep.material;
             PuiOf(btn).SimulateState(Disabled);
-            Assert.AreEqual(before, keep.material, "stateReact='false' 子节点禁用时不换材质");
+            Assert.AreEqual(keep.defaultMaterial, keep.material,
+                "stateReact='false' 子节点禁用时材质保持默认（未被去色）");
         }
 
         [Test]
@@ -152,9 +154,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var outer = BuildBtnXml("", "<Btn id='inner'>x</Btn>");
             var inner = outer.Get<Btn>("inner");
             var innerBg = inner.GameObject.GetComponent<UnityEngine.UI.Image>();
-            var before = innerBg.material;
             PuiOf(outer).SimulateState(Disabled);
-            Assert.AreEqual(before, innerBg.material, "嵌套 Btn 图形不被外层去色");
+            Assert.AreEqual(innerBg.defaultMaterial, innerBg.material,
+                "嵌套 Btn 图形不被外层去色（材质保持默认）");
         }
 
         // ── Task 5: capture-once 跨 ReSolve ─────────────────────────────────
