@@ -2,6 +2,7 @@ using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
 using R3;
+using TMPro;
 
 namespace PromptUGUI.Tests.EditMode.Controls
 {
@@ -9,6 +10,20 @@ namespace PromptUGUI.Tests.EditMode.Controls
     {
         [SetUp] public void SetUp() => UI.ResetForTests();
         [TearDown] public void TearDown() => UI.ResetForTests();
+
+        [Test]
+        public void TextColor_sets_label_color()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Toggle id='t' text='Hi' textColor='#FF0000'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var label = UI.Open("S").Get<Toggle>("t").GameObject.GetComponentInChildren<TMP_Text>();
+            Assert.AreEqual(1f, label.color.r);
+            Assert.AreEqual(0f, label.color.g);
+            Assert.AreEqual(0f, label.color.b);
+        }
 
         [Test]
         public void Parses_isOn_initial_value()

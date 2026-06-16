@@ -25,6 +25,18 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void TextColor_sets_label_color()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t' text='Hi' textColor='#FF0000'/>");
+            var label = t.GameObject.GetComponentInChildren<TMP_Text>();
+            Assert.AreEqual(1f, label.color.r);
+            Assert.AreEqual(0f, label.color.g);
+            Assert.AreEqual(0f, label.color.b);
+        }
+
+        [Test]
         public void Tab_Has_Bg_And_Toggle()
         {
             // Suppress the no-ancestor warning fired by OnAttached.
