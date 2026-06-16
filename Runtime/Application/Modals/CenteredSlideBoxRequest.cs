@@ -16,6 +16,9 @@ namespace PromptUGUI.Application.Modals
             IReadOnlyList<(string label, string key)> buttons, string xmlSrcForError,
             Action<T, string> onConfirm, Action onCancel) where T : class
         {
+            if (buttons == null || buttons.Count == 0)        // facade 已挡空；这是直接 new request 的兜底（CSB-D14）
+                throw new ArgumentException("CenteredSlideBox requires at least one button.", nameof(buttons));
+
             // —— title ——
             var titleCtl = screen.Get<Text>("title");
             if (string.IsNullOrEmpty(title)) titleCtl.GameObject.SetActive(false);
@@ -108,6 +111,25 @@ namespace PromptUGUI.Application.Modals
                    onCancel: () => close(null));
     }
 
+    // 多按钮：返回 SlideSelection<T>（选中卡 + 按钮 key）。
+    public sealed class CenteredSlideBoxMultiRequest<T> : ModalRequest<SlideSelection<T>> where T : class
+    {
+        public IReadOnlyList<T> Items;
+        public Action<IControl, T> BindCard;
+        public string Title;
+        public IReadOnlyList<(string label, string key)> Buttons;   // facade 保证非空
+        public string XmlSrcOverride;
+
+        public override string XmlSrc => XmlSrcOverride ?? CenteredSlideBox.XmlSrc;
+
+        public override bool TryEscape(out SlideSelection<T> result) { result = default; return true; }
+
+        public override void Bind(IScreen screen, Action<SlideSelection<T>> close)
+            => CenteredSlideBoxBinder.Bind(screen, Items, BindCard, Title, Buttons, XmlSrc,
+                   onConfirm: (item, key) => close(new SlideSelection<T>(item, key)),
+                   onCancel: () => close(default));
+    }
+
     public static class CenteredSlideBox
     {
         // 必须带 .ui 后缀（Unity 只剥 .ui.xml 的最后 .xml）。可写 = 换皮入口。
@@ -131,5 +153,30 @@ namespace PromptUGUI.Application.Modals
                 ConfirmLabel = confirmLabel,
                 Configure = configure,
             }, mode, ct);
+
+        // 多按钮 → 返回 (选中对象, 按钮 key)。buttons 必填且非空。
+        public static UnityEngine.Awaitable<SlideSelection<T>> Open<T>(
+            IReadOnlyList<T> items,
+            Action<IControl, T> bind,
+            IEnumerable<(string label, string key)> buttons,
+            string title = null,
+            ModalMode mode = ModalMode.Popup,
+            Action<IScreen> configure = null,
+            System.Threading.CancellationToken ct = default
+        ) where T : class
+        {
+            var list = new List<(string label, string key)>(
+                buttons ?? throw new ArgumentNullException(nameof(buttons)));
+            if (list.Count == 0)
+                throw new ArgumentException("buttons must be non-empty", nameof(buttons));
+            return UI.Modal.OpenAsync(new CenteredSlideBoxMultiRequest<T>
+            {
+                Items = items,
+                BindCard = bind,
+                Title = title,
+                Buttons = list,
+                Configure = configure,
+            }, mode, ct);
+        }
     }
 }
