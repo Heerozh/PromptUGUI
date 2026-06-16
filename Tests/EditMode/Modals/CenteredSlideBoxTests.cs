@@ -282,6 +282,20 @@ namespace PromptUGUI.Tests.Modals
         }
 
         [Test]
+        public void Multi_Button_Empty_Items_Disables_All_Visible_Buttons()
+        {
+            UI.Modal.OpenAsync(new CenteredSlideBoxMultiRequest<Lv>
+            {
+                Items = new List<Lv>(),
+                BindCard = (c, l) => { },
+                Buttons = new[] { ("A", "a"), ("B", "b") },   // §7：空 items → 所有可见按钮禁用
+            });
+            var top = UI.Modal.TopScreen;
+            Assert.IsFalse(top.Get<PBtn>("button0").Interactable);
+            Assert.IsFalse(top.Get<PBtn>("button1").Interactable);
+        }
+
+        [Test]
         public void Multi_Button_Over_Count_Throws()
         {
             // 测试 XML 只有 3 槽；传 4 个 → binder 抛 InvalidOperationException。

@@ -600,7 +600,7 @@ MODAL          var r = await MessageBox.Open(text, MsgBtn.OK|MsgBtn.Cancel, icon
                var (item,key) = await CenteredSlideBox.Open(items, bind, buttons, title, mode, configure, ct)
                               // multi-button overload → SlideSelection<T>(.Item/.Button/.Cancelled)
                               // ≥2 buttons: tap-centred-card shortcut disabled (must click a button); side-tap still centres
-                              // label i18n-translated; key is stable branch discriminator; cancel → .Cancelled(Button==null)
+                              // label shown as-is (wrap UI.Tr for i18n); key = stable branch discriminator; cancel → .Cancelled(Button==null)
                               // default skin: button0..button4 (5 slots); >5 → InvalidOperationException; empty → ArgumentException
                               // custom XmlSrc: add button{i} ids; skin id changed confirm→button0 vs single-button overload
                configure:     Action<IScreen> trailing arg on every Open (MessageBox/InputBox/Loading/MarkdownBox/CenteredSlideBox)
@@ -723,7 +723,7 @@ if (level != null) game.StartLevel(level);            // got the whole object; i
 //   configure: s => s.Get<Carousel>("cards").Loop = true
 
 // Multi-button overload: returns SlideSelection<T> (.Item, .Button, .Cancelled).
-// label is i18n-translated; key is the stable branch discriminator (never use label as key).
+// label is shown as-is — wrap in UI.Tr(...) for i18n; key is the stable branch discriminator (never use label as key).
 // With ≥2 buttons the "tap centred card = confirm" shortcut is auto-disabled — the user
 // MUST click a button. Tapping a side card still centres it. Cancel (× / backdrop / ESC)
 // → result.Cancelled == true (Button == null, Item == null).
@@ -823,7 +823,7 @@ public static class CenteredSlideBox {
 
     // Multi-button overload: returns SlideSelection<T>.
     // ≥2 buttons disables the "tap centred card" shortcut — user must click a button.
-    // label is displayed (i18n-translated); key is the stable branch discriminator.
+    // label is shown as-is (wrap in UI.Tr for i18n); key is the stable branch discriminator.
     // Default skin exposes button0..button4 (5 slots).
     // Throws InvalidOperationException if buttons.Count exceeds available skin slots.
     // Throws ArgumentException if buttons is empty.
