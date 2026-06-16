@@ -30,6 +30,10 @@ namespace PromptUGUI.MarkdigBackend
             var root = NewVStack(_style.BlockSpacing);
             root.Attributes["anchor"] = "top-stretch";
             root.Attributes["pivot"] = "0.5,1";
+            // Inset the content within the scroll viewport so the viewport RectMask2D doesn't clip
+            // outlined/stroked glyph edges at the first/last character and top/bottom line.
+            if (_style.Padding != 0)
+                root.Attributes["padding"] = _style.Padding.ToString(CultureInfo.InvariantCulture);
 
             var doc = Markdig.Markdown.Parse(markdown ?? "", Pipeline);
             foreach (var block in doc)

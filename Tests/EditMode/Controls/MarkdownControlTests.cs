@@ -23,6 +23,12 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void CreateDefault_padding_is_two()
+        {
+            Assert.AreEqual(2, MarkdownStyle.CreateDefault().Padding);
+        }
+
+        [Test]
         public void Clone_is_deep_for_heading_array()
         {
             var a = MarkdownStyle.CreateDefault();
@@ -209,6 +215,17 @@ namespace PromptUGUI.Tests.EditMode.Controls
             md.FontSize = 20;
             md.Text = "hi";
             Assert.AreEqual(20f, fake.LastStyle.BodySize);
+        }
+
+        [Test]
+        public void Padding_attr_forwards_to_render_style()
+        {
+            var fake = new FakeMarkdownRenderer();
+            UI.Markdown.Renderer = fake;
+            var md = Open();
+            md.Padding = 5;
+            md.Text = "hi";
+            Assert.AreEqual(5, fake.LastStyle.Padding);
         }
 
         [Test]

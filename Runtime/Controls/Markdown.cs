@@ -127,6 +127,17 @@ namespace PromptUGUI.Controls
         }
 
         [UIAttr, Preserve]
+        public int Padding
+        {
+            set
+            {
+                if (value == Style.Padding) return;
+                Style.Padding = value;
+                MarkDirty();
+            }
+        }
+
+        [UIAttr, Preserve]
         public bool Wrap
         {
             set

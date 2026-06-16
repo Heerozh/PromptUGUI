@@ -16,6 +16,9 @@ namespace PromptUGUI
         public string CodeBackground = "#00000020";
         public string QuoteBarColor = "#888888";
         public float BlockSpacing = 8f;
+        // Inner padding (px) insetting the rendered content within the scroll viewport. Default 2 gives
+        // outlined/stroked fonts room so the viewport RectMask2D doesn't clip the first/last glyph outlines.
+        public int Padding = 2;
         public float ListIndent = 24f;
         public string BulletGlyph = "•";       // U+2022
         public string CheckedGlyph = "☑";      // U+2611

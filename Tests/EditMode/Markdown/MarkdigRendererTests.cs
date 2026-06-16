@@ -162,6 +162,25 @@ namespace PromptUGUI.Tests.Markdown
             Assert.AreEqual("24", t.Attributes["fontSize"]);    // heading font tracks body size
             Assert.AreEqual("2", t.Attributes["scale"]);        // scale unaffected → visual 48
         }
+
+        // ---- content padding insets the document inside the scroll viewport (outline room) ----
+
+        [Test]
+        public void Root_vstack_has_default_padding_two()
+        {
+            var root = Render("hi");
+            Assert.AreEqual("VStack", root.Tag);
+            Assert.AreEqual("2", root.Attributes["padding"]);
+        }
+
+        [Test]
+        public void Root_vstack_padding_from_style()
+        {
+            var style = MarkdownStyle.CreateDefault();
+            style.Padding = 8;
+            var root = new MarkdigRenderer().Render("hi", style).Root;
+            Assert.AreEqual("8", root.Attributes["padding"]);
+        }
     }
 
     public class MarkdigRendererBlockTests
