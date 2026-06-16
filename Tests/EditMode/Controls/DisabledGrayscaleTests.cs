@@ -190,6 +190,36 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsNull(tab.GameObject.GetComponent<PromptUGUI.Controls.Internal.DisabledGrayscaleController>());
         }
 
+        // ── Task 7: Toggle ───────────────────────────────────────────────────
+
+        private static Toggle BuildToggle(string attrs = "")
+        {
+            UI.LoadDocument("t",
+                "<?xml version='1.0' encoding='utf-8'?><PromptUGUI version='1'>" +
+                $"<Screen name='S'><Toggle id='t' {attrs}>On</Toggle></Screen></PromptUGUI>");
+            return UI.Open("S").Get<Toggle>("t");
+        }
+
+        [Test]
+        public void Toggle_Disabled_DesaturatesBg_RevertsOnEnable()
+        {
+            var tog = BuildToggle();
+            var bg = tog.GameObject.transform.Find("Background").GetComponent<UnityEngine.UI.Image>();
+
+            tog.Interactable = false;
+            Assert.AreEqual("UI/Grayscale", bg.material.shader.name);
+
+            tog.Interactable = true;
+            Assert.AreEqual(bg.defaultMaterial, bg.material);
+        }
+
+        [Test]
+        public void Toggle_DisabledModulateNone_OptsOut()
+        {
+            var tog = BuildToggle("disabledModulate='none'");
+            Assert.IsNull(tog.GameObject.GetComponent<PromptUGUI.Controls.Internal.DisabledGrayscaleController>());
+        }
+
         // ── Task 5: capture-once 跨 ReSolve ─────────────────────────────────
 
         [Test]
