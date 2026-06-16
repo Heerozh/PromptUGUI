@@ -131,6 +131,13 @@ namespace PromptUGUI.Application
                         }
                         catch (Exception ex)
                         {
+                            // The Open(...) awaitable is faulted below (entry.Cancel), but callers commonly
+                            // await fire-and-forget (or in an async void), and an unobserved Awaitable drops
+                            // its exception silently — so the modal just "never opens" with no diagnostic.
+                            // Surface it. Cancellation is normal control flow, not a failure, so skip it.
+                            if (ex is not OperationCanceledException)
+                                Debug.LogError($"[PromptUGUI] Modal '{entry.XmlSrc}' failed to open; its " +
+                                               $"Open(...) awaitable is faulted with this exception:\n{ex}");
                             entry.Cancel(ex);
                             if (slot != null) RemoveSlot(slot);
                         }
