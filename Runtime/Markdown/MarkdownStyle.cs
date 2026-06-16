@@ -13,6 +13,11 @@ namespace PromptUGUI
         public string CodeFont = "default";
         public string LinkColor = "#4EA1FF";
         public string BodyColor = "";   // empty = inherit ProceduralBuilders.DefaultLabelColor (body text gets no color=)
+        // How **bold** (and headings / table headers) render. Space-separated tokens: style keywords
+        // {bold, underline, italic, strikethrough, none} + at most one color value (theme token / hex /
+        // CSS name / "/alpha" suffix). Combinable, e.g. "underline #ffcc00". Default "bold" → TMP <b>
+        // (unchanged). "none" → strip. A color token → <color=…>. Parsed by MarkdigRenderer.ComputeBoldWrap.
+        public string BoldStyle = "bold";
         public string CodeBackground = "#00000020";
         public string QuoteBarColor = "#888888";
         public float BlockSpacing = 8f;

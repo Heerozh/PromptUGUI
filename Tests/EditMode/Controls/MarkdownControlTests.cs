@@ -36,6 +36,12 @@ namespace PromptUGUI.Tests.EditMode.Controls
             b.HeadingScales[0] = 999f;
             Assert.AreNotEqual(999f, a.HeadingScales[0]);
         }
+
+        [Test]
+        public void CreateDefault_boldStyle_is_bold()
+        {
+            Assert.AreEqual("bold", MarkdownStyle.CreateDefault().BoldStyle);
+        }
     }
 
     public class UIMarkdownFacadeTests
