@@ -117,6 +117,14 @@ namespace PromptUGUI.Controls
             }
         }
 
+        /// <summary>Label text color (theme token / hex / CSS / gradient / <c>/alpha</c>);
+        /// distinct from the background <c>color</c>. Empty = default ink.</summary>
+        [UIAttr(IsColor = true), Preserve]
+        public string TextColor
+        {
+            set => LabelColorApplier.Apply(_label, value);
+        }
+
         [UIAttr(IsColor = true), Preserve]
         public string Color
         {

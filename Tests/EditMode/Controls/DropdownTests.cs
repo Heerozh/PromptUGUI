@@ -26,6 +26,16 @@ namespace PromptUGUI.Tests.EditMode.Controls
             dd.GameObject.transform.Find("Template");
 
         [Test]
+        public void TextColor_sets_caption_color()
+        {
+            var dd = OpenDropdown("textColor='#FF0000'");
+            var caption = dd.GameObject.GetComponentInChildren<TMPro.TMP_Dropdown>().captionText;
+            Assert.AreEqual(1f, caption.color.r);
+            Assert.AreEqual(0f, caption.color.g);
+            Assert.AreEqual(0f, caption.color.b);
+        }
+
+        [Test]
         public void PopupSprite_and_color_apply_to_template_bg()
         {
             var dd = OpenDropdown(@"popupSprite='PromptUGUI/Defaults/pugui#pugui_9slice_mask' popupColor='#00FF00'");

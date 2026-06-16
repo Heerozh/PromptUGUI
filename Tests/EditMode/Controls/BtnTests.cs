@@ -28,6 +28,32 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void TextColor_sets_label_color()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Btn id='b' textColor='#FF0000'>Hi</Btn>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var label = UI.Open("S").Get<Btn>("b").GameObject.GetComponentInChildren<TMP_Text>();
+            Assert.AreEqual(1f, label.color.r);
+            Assert.AreEqual(0f, label.color.g);
+            Assert.AreEqual(0f, label.color.b);
+        }
+
+        [Test]
+        public void TextColor_unset_keeps_default_label_color()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Btn id='b'>Hi</Btn>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var label = UI.Open("S").Get<Btn>("b").GameObject.GetComponentInChildren<TMP_Text>();
+            Assert.AreEqual(ProceduralBuilders.DefaultLabelColor, label.color);
+        }
+
+        [Test]
         public void Default_Bg_Has_Sprite()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>

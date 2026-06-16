@@ -253,6 +253,14 @@ namespace PromptUGUI.Controls
             }
         }
 
+        /// <summary>Caption text color (theme token / hex / CSS / gradient / <c>/alpha</c>);
+        /// distinct from the background <c>color</c>. Empty = default ink.</summary>
+        [UIAttr(IsColor = true), Preserve]
+        public string TextColor
+        {
+            set => LabelColorApplier.Apply(_tmp.captionText, value);
+        }
+
         public Observable<int> OnSelected => _selected;
 
         public IDisposable BindOptions(Observable<IEnumerable<string>> source) =>

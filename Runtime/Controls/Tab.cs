@@ -183,6 +183,14 @@ namespace PromptUGUI.Controls
             set => EnsureLabel().fontSize = value;
         }
 
+        /// <summary>Label text color (theme token / hex / CSS / gradient / <c>/alpha</c>);
+        /// distinct from the background <c>color</c>. Empty = default ink.</summary>
+        [UIAttr(IsColor = true), Preserve]
+        public string TextColor
+        {
+            set => LabelColorApplier.Apply(EnsureLabel(), value);
+        }
+
         [UIAttr(IsSprite = true), Preserve]
         public string Icon
         {

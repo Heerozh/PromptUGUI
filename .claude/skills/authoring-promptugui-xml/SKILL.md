@@ -202,6 +202,7 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 | `hoverModulate` · `pressedModulate` · `disabledModulate` | hex / CSS / token | white | **相对**乘子，扩散到 bg + 所有子 Graphic |
 | `fontSize` | int | — | 仅作用于自动 label；其它 Text 属性（`align` / `wrap`）需显式 `<Text>` 子节点 |
 | `font` | string | `default` | Settings 里的 font type |
+| `textColor` | hex / CSS / token | — | **label 文字色**（区别于 `color`=背景）；支持渐变 / `/alpha`；空=默认 ink |
 | `tr` | bool | `true` | `false`=跳过 i18n |
 | `ctx` | string | — | msgctxt 消歧 |
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
@@ -218,6 +219,7 @@ Image + uGUI Toggle + 自动 label。R3 `OnValueChanged: bool`。`<Toggle>静音
 | `color` | hex / CSS / token | — | 见 **Color Tokens** |
 | `sprite` | Resources 路径 | — | checkmark sprite |
 | `font` | string | `default` | |
+| `textColor` | hex / CSS / token | — | **label 文字色**（区别于 `color`=背景）；支持渐变 / `/alpha`；空=默认 ink |
 | `hoverColor` · `pressedColor` · `selectedColor` · `disabledColor` | hex / CSS / token | — | **绝对**单态 bg 色（仅 targetGraphic，不扩散）；`selectedColor`=勾选时 bg 基色（同 `<Tab>` 的 selection-aware base，hover/pressed/disabled 叠在上面）；见 states.md |
 | `hoverModulate` · `pressedModulate` · `selectedModulate` · `disabledModulate` | hex / CSS / token | white | **相对**乘子，扩散到 bg + 所有子 Graphic；子节点 `stateReact="false"` 退出；见 states.md |
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
@@ -245,6 +247,7 @@ TMP_Dropdown。R3 `OnSelected: int`。选项 C# 侧 `BindOptions(...)` 注入。
 | `color` | hex / CSS / token | — | 见 **Color Tokens** |
 | `sprite` | sprite key | — | |
 | `font` | string | `default` | |
+| `textColor` | hex / CSS / token | — | **caption 文字色**（区别于 `color`=背景）；支持渐变 / `/alpha`；空=默认 ink |
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
 | `popupSprite` | sprite key | — | Skins the popup list background (the closed button keeps using `sprite`/`color`). |
 | `popupColor` | hex / CSS / token | — | Tints the popup list background. |
@@ -331,6 +334,7 @@ Tab 容器；私有 `ToggleGroup`（`allowSwitchOff=false`）+ `Horizontal` / `V
 | `color` | hex / CSS / token | — | `#00000000`=透明但可点 |
 | `font` | string | `default` | |
 | `fontSize` | int | — | |
+| `textColor` | hex / CSS / token | — | **label 文字色**（区别于 `color`=背景）；支持渐变 / `/alpha`；空=默认 ink |
 | `icon` | sprite key | — | 左对齐 24×24，间隙 4px |
 | `sprite` | sprite key | — | 常态 bg；`""` / `none` 移除自带 9-slice 底 |
 | `selectedSprite` | sprite key | — | 选中（`isOn`）时把 bg `overrideSprite` 换成它、取消选中还原——无独立 overlay；keyed on `isOn` 故 hover/press 不扰动；设了切 transition off ColorTint（同 `<Btn pressedSprite>`）；`""` / `none`=不换 |
