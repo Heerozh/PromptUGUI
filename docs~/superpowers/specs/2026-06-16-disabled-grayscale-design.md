@@ -69,8 +69,8 @@ wantGrayscale =
   color.rgb   = lerp(color.rgb, luma.xxx, _Strength);          // _Strength=1 ⇒ 全灰
   ```
 
-  暴露 `_Strength ("Desaturate", Range(0,1)) = 1`，留作日后微调（例如"灰 + 略压暗"），本次 material 固定 `_Strength=1`。
-- `Runtime/Resources/PromptUGUI/Material/UI-Grayscale.mat`：用该 shader、`_Strength=1`。两个文件都要带 `.meta` sidecar 一并提交。
+  暴露 `_Strength ("Desaturate", Range(0,1)) = 1`，留作日后微调（例如"灰 + 略压暗"），默认 `_Strength=1` 即全灰。
+- **不单独提供 `.mat` 资源**：shader 放 Resources（`Resources.Load<Shader>("PromptUGUI/Material/UI-Grayscale")`，不被构建剥离），运行期 `new Material(shader)` 懒建一份进程内共享实例（比 `ImageTint` 加载 `.mat` 更省事、免去手写 `.mat` YAML 的 shader GUID 引用）。shader 的 `.meta` sidecar 一并提交。
 
 ### 3.2 共享子树遍历（重构）
 
@@ -86,7 +86,7 @@ wantGrayscale =
   - 顺序关键：**先捕获、再订阅**（订阅 `IStateSource.OnState` 会同步重放当前状态；若控件首装即处于 Disabled，重放必须看到已捕获的原始态，否则会把灰度态当原始态捕获——与 `StateTintReactor.Configure` 防的是同一类 bug）。
 - 订阅 `GetComponentInParent<IStateSource>(true).OnState`（`includeInactive:true`——源可能在初始隐藏的 TabBar 绑定页上，同 `StateTintReactor`）。
 - 回调：`state == Disabled` → 对每个受控 graphic 施加灰度；否则 → 还原。
-  - 施加：非 TMP → `graphic.material = 灰度材质`（进程内共享单例，`Resources.Load` 懒加载，同 `ImageTint`）；TMP → `tmp.color = 该色的亮度灰`。
+  - 施加：非 TMP → `graphic.material = 灰度材质`（进程内共享单例，从 Resources 加载 shader 后 `new Material` 懒建）；TMP → `tmp.color = 该色的亮度灰`。
   - 还原：恢复捕获的原始 `material` / `color`。
 - **销毁安全**：每次访问 graphic 前判空（`if (g)`）——Carousel 指示点等会在 ReSolve 中重建带受控 graphic 的对象（同 `StateTintReactor` 的 `if (g)` 兜底）。
 - capture-once + 每次 `Configure` 重新收集列表：ReSolve 时新出现的 graphic（如绑定内容）补捕获，已捕获的保留首次原始态——避免"禁用中 ReSolve 把灰度态误捕为原始态"（无 `tint=` 的 graphic 在 ReSolve 不会被 applier 复位）。
@@ -103,7 +103,7 @@ wantGrayscale =
 
 EditMode（加在 state-visuals 测试同处，`UI.ResetForTests()` setUp/tearDown）：
 
-1. **默认生效**：纯 `<Btn text="X">`，`Interactable=false`（或 `interactable="false"`）→ bg `Image.material` == 灰度材质（`Resources.Load<Material>("PromptUGUI/Material/UI-Grayscale")`，非空）；label `TMP.color` == 原色亮度灰。
+1. **默认生效**：纯 `<Btn text="X">`，`Interactable=false`（或 `interactable="false"`）→ bg `Image.material.shader.name == "UI/Grayscale"`；label `TMP.color` == 原色亮度灰。
 2. **还原**：`Interactable=true` → bg `material` 回到原始（`null`）；label color 回原色。
 3. **`disabledColor` 覆盖**：`<Btn disabledColor="#800000">` 禁用 → bg material **不是**灰度材质；走颜色路径（transition==None）。
 4. **`disabledModulate=<色>` 覆盖**：同上，不去色。
@@ -114,7 +114,7 @@ EditMode（加在 state-visuals 测试同处，`UI.ResetForTests()` setUp/tearDo
 9. **capture-once 跨 ReSolve**：禁用 → 触发 ReSolve（Variant/Theme）→ 再启用 → material 正确回到原始（不卡在灰度）。
 10. **hover/press 保留**：纯 Btn（默认灰度）→ `_btn.transition == ColorTint`（未被翻 None）。
 11. **Tab/Toggle**：禁用 `<Tab>` / `<Toggle>` → bg 灰度材质；启用还原。
-12. **资源加载**：灰度 material 非空、其 `shader.name == "UI/Grayscale"`。
+12. **资源加载**：`Resources.Load<Shader>("PromptUGUI/Material/UI-Grayscale")` 非空；运行期共享灰度 material 非空、其 `shader.name == "UI/Grayscale"`。
 
 PlayMode（最小冒烟，遵循"全套验证"约定）：活 Canvas + EventSystem 下，禁用一个按钮 → bg material 为灰度材质、无报错；启用还原。
 
