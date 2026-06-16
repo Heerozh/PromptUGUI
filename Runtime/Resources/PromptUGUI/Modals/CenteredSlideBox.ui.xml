@@ -6,7 +6,7 @@
       <Text  id="name"  anchor="bottom-stretch" height="40" align="center" tr="false"/>
     </Frame>
   </Template>
-  <Screen name="PromptUGUI/Modals/CenteredSlideBox.ui">
+  <Screen name="PromptUGUI/Modals/CenteredSlideBox.ui" reference="1920x1080" reference.portrait="1080x1920">
     <Image id="backdrop" anchor="stretch" color="#000000A0"/>
     <Frame id="panel" anchor="stretch">
       <Text id="title" anchor="top-stretch" height="48" align="center" tr="false"/>
@@ -16,7 +16,13 @@
                 spacing="24" edgeScale="0.82" softness="240"
                 itemTemplate="Card"
                 dots="bottom-center" dotColor="#666666" dotSelectedColor="#ffffff"/>
-      <Btn id="confirm" anchor="bottom-center" size="160x48" margin="_,_,12,_">OK</Btn>
+      <HStack id="buttons" anchor="bottom-center" height="48" margin="_,_,16,_" spacing="16">
+        <Btn id="button0" size="160x48">OK</Btn>
+        <Btn id="button1" size="160x48"/>
+        <Btn id="button2" size="160x48"/>
+        <Btn id="button3" size="160x48"/>
+        <Btn id="button4" size="160x48"/>
+      </HStack>
     </Frame>
   </Screen>
 </PromptUGUI>

@@ -27,7 +27,11 @@ namespace PromptUGUI.Tests.PlayMode.Modals
       <Btn  id='close' anchor='top-right' size='32x32'>x</Btn>
       <Carousel id='cards' anchor='stretch' margin='48,8,64,8'
                 fill='false' interval='0' itemTemplate='Card'/>
-      <Btn  id='confirm' anchor='bottom-center' size='140x40'>OK</Btn>
+      <HStack id='buttons' anchor='bottom-center' height='40' spacing='8'>
+        <Btn id='button0' size='140x40'>OK</Btn>
+        <Btn id='button1' size='140x40'/>
+        <Btn id='button2' size='140x40'/>
+      </HStack>
     </Frame>
   </Screen>
 </PromptUGUI>";
@@ -49,8 +53,25 @@ namespace PromptUGUI.Tests.PlayMode.Modals
             var task = UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
             { Items = items, BindCard = (c, l) => { } });
             UI.Modal.TopScreen.Get<Carousel>("cards").GoTo(2, animated: false);
-            UI.Modal.TopScreen.Get<PBtn>("confirm").SimulateClick();
+            UI.Modal.TopScreen.Get<PBtn>("button0").SimulateClick();
             Assert.AreSame(items[2], task.GetAwaiter().GetResult());
+        }
+
+        [Test]
+        public void Multi_Button_GoTo_Click_Returns_Item_And_Key_NoCrash()
+        {
+            var items = new List<Lv> { new Lv { Id = "a" }, new Lv { Id = "b" }, new Lv { Id = "c" } };
+            var task = UI.Modal.OpenAsync(new CenteredSlideBoxMultiRequest<Lv>
+            {
+                Items = items,
+                BindCard = (c, l) => { },
+                Buttons = new[] { ("Go", "go"), ("Hard", "hard") },
+            });
+            UI.Modal.TopScreen.Get<Carousel>("cards").GoTo(2, animated: false);
+            UI.Modal.TopScreen.Get<PBtn>("button1").SimulateClick();
+            var sel = task.GetAwaiter().GetResult();
+            Assert.AreSame(items[2], sel.Item);
+            Assert.AreEqual("hard", sel.Button);
         }
     }
 }

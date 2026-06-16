@@ -32,7 +32,11 @@ namespace PromptUGUI.Tests.Modals
       <Btn  id='close' anchor='top-right' size='32x32'>x</Btn>
       <Carousel id='cards' anchor='stretch' margin='48,8,64,8'
                 fill='false' interval='0' itemTemplate='Card'/>
-      <Btn  id='confirm' anchor='bottom-center' size='140x40'>OK</Btn>
+      <HStack id='buttons' anchor='bottom-center' height='40' spacing='8'>
+        <Btn id='button0' size='140x40'>OK</Btn>
+        <Btn id='button1' size='140x40'/>
+        <Btn id='button2' size='140x40'/>
+      </HStack>
     </Frame>
   </Screen>
 </PromptUGUI>";
@@ -71,7 +75,7 @@ namespace PromptUGUI.Tests.Modals
                 BindCard = (card, lv) => { },
             });
             Cards().GoTo(1, animated: false);                  // 把第 1 项居中
-            UI.Modal.TopScreen.Get<PBtn>("confirm").SimulateClick();
+            UI.Modal.TopScreen.Get<PBtn>("button0").SimulateClick();
             Assert.AreSame(items[1], task.GetAwaiter().GetResult(),
                 "confirm returns the centered item");
         }
@@ -161,7 +165,7 @@ namespace PromptUGUI.Tests.Modals
             UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
             { Items = ThreeLevels(), BindCard = (c, l) => { }, ConfirmLabel = "开始" });
             Assert.AreEqual("开始",
-                UI.Modal.TopScreen.Get<PBtn>("confirm").GameObject.GetComponentInChildren<TMP_Text>().text);
+                UI.Modal.TopScreen.Get<PBtn>("button0").GameObject.GetComponentInChildren<TMP_Text>().text);
         }
 
         [Test]
@@ -169,7 +173,7 @@ namespace PromptUGUI.Tests.Modals
         {
             UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
             { Items = new List<Lv>(), BindCard = (c, l) => { } });
-            Assert.IsFalse(UI.Modal.TopScreen.Get<PBtn>("confirm").Interactable);
+            Assert.IsFalse(UI.Modal.TopScreen.Get<PBtn>("button0").Interactable);
         }
 
         [Test]
@@ -207,8 +211,141 @@ namespace PromptUGUI.Tests.Modals
             var items = new List<Lv> { new Lv { Id = "solo", Name = "Solo" } };
             var task = UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv>
             { Items = items, BindCard = (c, l) => { } });
-            UI.Modal.TopScreen.Get<PBtn>("confirm").SimulateClick();
+            UI.Modal.TopScreen.Get<PBtn>("button0").SimulateClick();
             Assert.AreSame(items[0], task.GetAwaiter().GetResult());
+        }
+
+        [Test]
+        public void Multi_Button_Click_Returns_Item_And_Key()
+        {
+            var items = ThreeLevels();
+            var task = UI.Modal.OpenAsync(new CenteredSlideBoxMultiRequest<Lv>
+            {
+                Items = items,
+                BindCard = (c, l) => { },
+                Buttons = new[] { ("A", "a"), ("B", "b") },
+            });
+            Cards().GoTo(1, animated: false);
+            UI.Modal.TopScreen.Get<PBtn>("button1").SimulateClick();
+            var sel = task.GetAwaiter().GetResult();
+            Assert.AreSame(items[1], sel.Item);
+            Assert.AreEqual("b", sel.Button);
+        }
+
+        [Test]
+        public void Multi_Button_Tap_Centered_Card_Is_NoOp()
+        {
+            UI.Modal.OpenAsync(new CenteredSlideBoxMultiRequest<Lv>
+            {
+                Items = ThreeLevels(),
+                BindCard = (c, l) => { },
+                Buttons = new[] { ("A", "a"), ("B", "b") },
+            });
+            var car = Cards();
+            Assert.AreEqual(0, car.Current);
+            CardButton(0).onClick.Invoke();                 // 多按钮点居中卡 → 无操作
+            Assert.AreEqual(0, car.Current);
+            Assert.IsTrue(UI.Modal.IsAnyOpen, "多按钮时点居中卡不该确认/关闭");
+        }
+
+        [Test]
+        public void Multi_Button_Cancel_Returns_Cancelled()
+        {
+            var task = UI.Modal.OpenAsync(new CenteredSlideBoxMultiRequest<Lv>
+            {
+                Items = ThreeLevels(),
+                BindCard = (c, l) => { },
+                Buttons = new[] { ("A", "a"), ("B", "b") },
+            });
+            UI.Modal.TopScreen.Get<PBtn>("close").SimulateClick();
+            var sel = task.GetAwaiter().GetResult();
+            Assert.IsTrue(sel.Cancelled);
+            Assert.IsNull(sel.Item);
+            Assert.IsNull(sel.Button);
+        }
+
+        [Test]
+        public void Multi_Button_Hides_Unused_Slots()
+        {
+            UI.Modal.OpenAsync(new CenteredSlideBoxMultiRequest<Lv>
+            {
+                Items = ThreeLevels(),
+                BindCard = (c, l) => { },
+                Buttons = new[] { ("A", "a"), ("B", "b") },   // 2 个 → button2 隐藏
+            });
+            var top = UI.Modal.TopScreen;
+            Assert.IsTrue(top.Get<PBtn>("button0").GameObject.activeSelf);
+            Assert.IsTrue(top.Get<PBtn>("button1").GameObject.activeSelf);
+            Assert.IsFalse(top.Get<PBtn>("button2").GameObject.activeSelf);
+            Assert.AreEqual("A", top.Get<PBtn>("button0").GameObject.GetComponentInChildren<TMP_Text>().text);
+            Assert.AreEqual("B", top.Get<PBtn>("button1").GameObject.GetComponentInChildren<TMP_Text>().text);
+        }
+
+        [Test]
+        public void Multi_Button_Empty_Items_Disables_All_Visible_Buttons()
+        {
+            UI.Modal.OpenAsync(new CenteredSlideBoxMultiRequest<Lv>
+            {
+                Items = new List<Lv>(),
+                BindCard = (c, l) => { },
+                Buttons = new[] { ("A", "a"), ("B", "b") },   // §7：空 items → 所有可见按钮禁用
+            });
+            var top = UI.Modal.TopScreen;
+            Assert.IsFalse(top.Get<PBtn>("button0").Interactable);
+            Assert.IsFalse(top.Get<PBtn>("button1").Interactable);
+        }
+
+        [Test]
+        public void Multi_Button_Over_Count_Throws()
+        {
+            // 测试 XML 只有 3 槽；传 4 个 → binder 抛 InvalidOperationException。
+            // 整个 OpenAsync 放进 lambda：无论同步抛还是 faulted awaitable 都被捕获。
+            Assert.Throws<System.InvalidOperationException>(() =>
+            {
+                var task = UI.Modal.OpenAsync(new CenteredSlideBoxMultiRequest<Lv>
+                {
+                    Items = ThreeLevels(),
+                    BindCard = (c, l) => { },
+                    Buttons = new[] { ("A", "a"), ("B", "b"), ("C", "c"), ("D", "d") },
+                });
+                task.GetAwaiter().GetResult();
+            });
+        }
+
+        [Test]
+        public void Multi_Button_Empty_List_Throws_ArgumentException()
+        {
+            Assert.Throws<System.ArgumentException>(() =>
+                CenteredSlideBox.Open(ThreeLevels(), (c, l) => { },
+                    buttons: System.Array.Empty<(string, string)>()));
+        }
+
+        [Test]
+        public void Multi_Request_Empty_Buttons_Throws_From_Binder()
+        {
+            // 绕过 facade 直接 new request、Buttons 空 → binder 兜底抛 ArgumentException（faulted awaitable）。
+            Assert.Throws<System.ArgumentException>(() =>
+            {
+                var task = UI.Modal.OpenAsync(new CenteredSlideBoxMultiRequest<Lv>
+                {
+                    Items = ThreeLevels(),
+                    BindCard = (c, l) => { },
+                    Buttons = System.Array.Empty<(string, string)>(),
+                });
+                task.GetAwaiter().GetResult();
+            });
+        }
+
+        [Test]
+        public void Multi_Button_Facade_Returns_Key()
+        {
+            var items = ThreeLevels();
+            var task = CenteredSlideBox.Open(items, (c, l) => { },
+                buttons: new[] { ("A", "a"), ("B", "b") });
+            UI.Modal.TopScreen.Get<PBtn>("button0").SimulateClick();
+            var sel = task.GetAwaiter().GetResult();
+            Assert.AreSame(items[0], sel.Item);
+            Assert.AreEqual("a", sel.Button);
         }
     }
 }

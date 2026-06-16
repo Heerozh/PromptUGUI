@@ -597,6 +597,12 @@ MODAL          var r = await MessageBox.Open(text, MsgBtn.OK|MsgBtn.Cancel, icon
                               // 居中卡片选择器(关卡/角色弹窗,内含 fill=false peek Carousel);T:class
                               // 返回选中对象(取消 ×/背景/ESC → null);bind 填内置卡槽 cover/name(同 BindItems)
                               // 点侧卡居中,点居中卡 or 确认按钮 = 确认;换皮 CenteredSlideBox.XmlSrc 指自己 XML
+               var (item,key) = await CenteredSlideBox.Open(items, bind, buttons, title, mode, configure, ct)
+                              // multi-button overload → SlideSelection<T>(.Item/.Button/.Cancelled)
+                              // ≥2 buttons: tap-centred-card shortcut disabled (must click a button); side-tap still centres
+                              // label shown as-is (wrap UI.Tr for i18n); key = stable branch discriminator; cancel → .Cancelled(Button==null)
+                              // default skin: button0..button4 (5 slots); >5 → InvalidOperationException; empty → ArgumentException
+                              // custom XmlSrc: add button{i} ids; skin id changed confirm→button0 vs single-button overload
                configure:     Action<IScreen> trailing arg on every Open (MessageBox/InputBox/Loading/MarkdownBox/CenteredSlideBox)
                               // post-bind hook → live Screen; reach any control w/o subclassing
                               // e.g. InputBox.Open(t, configure: s => s.Get<Btn>("ok").Interactable = false)
@@ -609,7 +615,8 @@ MODAL          var r = await MessageBox.Open(text, MsgBtn.OK|MsgBtn.Cancel, icon
                               (do NOT call LoadDocument manually — auto via ModalDocCache.EnsureLoaded)
                required ids   text  title  ok  cancel  yes  no  close   (icon optional)
                               MarkdownBox required ids: title  markdown  close  backdrop  (backdrop = Image, click closes)
-                              CenteredSlideBox required ids: title  close  confirm  cards(Carousel fill=false itemTemplate)  backdrop  + 卡槽(默认 cover/name)
+                              CenteredSlideBox required ids: title  close  button0..button4  cards(Carousel fill=false itemTemplate)  backdrop  + 卡槽(默认 cover/name)
+                              // both overloads use button0..; single-button's confirmLabel just sets button0's text (no separate confirm id)
                backdrop       author writes <Image anchor="stretch"/> — NOT auto-injected
                UI.Modal.OpenAsync(new MyRequest(), ModalMode.Popup) custom ModalRequest<T>
                               override TryEscape(out T) to map ESC → result
@@ -715,8 +722,24 @@ if (level != null) game.StartLevel(level);            // got the whole object; i
 // Default skin is a FINITE list (no wrap-around). Want a looping carousel instead?
 //   configure: s => s.Get<Carousel>("cards").Loop = true
 
+// Multi-button overload: returns SlideSelection<T> (.Item, .Button, .Cancelled).
+// label is shown as-is — wrap in UI.Tr(...) for i18n; key is the stable branch discriminator (never use label as key).
+// With ≥2 buttons the "tap centred card = confirm" shortcut is auto-disabled — the user
+// MUST click a button. Tapping a side card still centres it. Cancel (× / backdrop / ESC)
+// → result.Cancelled == true (Button == null, Item == null).
+// Default skin provides button0..button4 (5 slots). Passing more → InvalidOperationException
+// (override XmlSrc and add button{i} ids). Empty buttons list → ArgumentException.
+// NOTE: custom skins from the single-button era used id="confirm" — rename it to "button0".
+var (level, action) = await CenteredSlideBox.Open(
+    levels, BindCard,
+    buttons: new[] { (UI.Tr("Play now"), "play"), (UI.Tr("Harder difficulty"), "hard") },
+    title: UI.Tr("Pick a level"));
+if (action == null) return;            // cancelled
+if (action == "play") StartLevel(level);
+// else action == "hard" → StartLevel(level, hard: true)
+
 // Different card style? point CenteredSlideBox.XmlSrc at your own .ui, keeping the id
-// contract: backdrop / panel / title / close / confirm / cards (Carousel fill="false")
+// contract: backdrop / panel / title / close / button0..buttonN / cards (Carousel fill="false")
 // + your card template's slots.
 ```
 
@@ -783,6 +806,43 @@ public static class MarkdownBox {
         CancellationToken ct = default);
     // Plain unauthenticated GET sugar over Open(loader).
     public static Awaitable OpenUrl(string url, /* same trailing params */);
+}
+
+public static class CenteredSlideBox {
+    public static string XmlSrc { get; set; } = "PromptUGUI/Modals/CenteredSlideBox.ui";
+
+    // Single-button overload: returns the selected item, or null on cancel.
+    // Tap a side card to centre it; tap the centred card OR the confirm button to pick.
+    public static Awaitable<T> Open<T>(
+        IReadOnlyList<T> items, Action<IControl, T> bind,
+        string title         = null,
+        string confirmLabel  = null,
+        ModalMode mode       = ModalMode.Popup,
+        Action<IScreen> configure = null,
+        CancellationToken ct = default) where T : class;
+
+    // Multi-button overload: returns SlideSelection<T>.
+    // ≥2 buttons disables the "tap centred card" shortcut — user must click a button.
+    // label is shown as-is (wrap in UI.Tr for i18n); key is the stable branch discriminator.
+    // Default skin exposes button0..button4 (5 slots).
+    // Throws InvalidOperationException if buttons.Count exceeds available skin slots.
+    // Throws ArgumentException if buttons is empty.
+    public static Awaitable<SlideSelection<T>> Open<T>(
+        IReadOnlyList<T> items, Action<IControl, T> bind,
+        IEnumerable<(string label, string key)> buttons,
+        string title         = null,
+        ModalMode mode       = ModalMode.Popup,
+        Action<IScreen> configure = null,
+        CancellationToken ct = default) where T : class;
+}
+
+// Result of the multi-button CenteredSlideBox.Open overload.
+// Supports deconstruction: var (item, key) = await CenteredSlideBox.Open(...).
+public readonly struct SlideSelection<T> where T : class {
+    public T    Item      { get; }   // selected object; null if cancelled
+    public string Button  { get; }   // clicked button key; null if cancelled
+    public bool Cancelled { get; }   // == Button == null; true on ×/backdrop/ESC
+    public void Deconstruct(out T item, out string button);
 }
 
 [Flags] public enum MsgBtn { None=0, OK=1, Cancel=2, Yes=4, No=8, Close=16 }

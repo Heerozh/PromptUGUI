@@ -1,54 +1,54 @@
-# PromptUGUI 安装指南（写给 AI 助手）
+# PromptUGUI Installation Guide (for AI Assistants)
 
-> 本文档写给 AI 编程助手（Claude Code / Copilot / Cursor 等）。
-> 当用户说"帮我装一下 PromptUGUI"或把这份文件给你时，按以下步骤**顺序**执行，每步做完对应验证再进下一步。
+> This document is written for AI coding assistants (Claude Code / Copilot / Cursor, etc.).
+> When the user says "help me install PromptUGUI" or hands you this file, follow the steps below **in order**, verifying each step before moving on to the next.
 
-所有路径以**用户的 Unity 项目根目录**（`<project root>`，即 `Packages/`、`Assets/` 所在层）为基准。
+All paths are relative to the **user's Unity project root** (`<project root>`, i.e. the level where `Packages/` and `Assets/` live).
 
-## 前置条件
+## Prerequisites
 
-1. Unity 6000.0+ 项目
-2. `<project root>/Packages/manifest.json` 存在
-3. R3（Cysharp）已装好——PromptUGUI 运行时依赖。通常通过 NuGetForUnity 安装 `R3` 包；如未装，先告诉用户装好再继续
-4. .Net SDK 10，这是很重要的，脱离Unity检查lint需要。如未装，先告诉用户装好再继续：
+1. A Unity 6000.0+ project
+2. `<project root>/Packages/manifest.json` exists
+3. R3 (Cysharp) is installed — the PromptUGUI runtime depends on it. It is usually installed as the `R3` package via NuGetForUnity; if it isn't installed, tell the user to install it before continuing.
+4. .NET SDK 10 — this is important; it is needed to check lint outside of Unity. If it isn't installed, tell the user to install it before continuing:
     Windows: winget install Microsoft.DotNet.SDK.10
     macOS: brew install --cask dotnet-sdk
     linux: sudo apt-get update && sudo apt-get install -y dotnet-sdk-10.0
-5. (可选) 确认系统可以执行`xmllint`，如果不行，最后总结时提醒用户安装。
+5. (Optional) Confirm that `xmllint` can be run on the system; if not, remind the user to install it in the final summary.
 
-## 步骤 1：把包加到 manifest
+## Step 1: Add the package to the manifest
 
-读 `<project root>/Packages/manifest.json`，在 `dependencies` 对象里加2行（任一如已存在则跳过）：
+Read `<project root>/Packages/manifest.json` and add 2 lines to the `dependencies` object (skip either line if it already exists):
 
 ```json
 "com.promptugui.core": "https://github.com/heerozh/PromptUGUI.git"
 "com.annulusgames.lit-motion": "https://github.com/annulusgames/LitMotion.git?path=src/LitMotion/Assets/LitMotion"
 ```
 
-也可以让用户走 Unity → Window → Package Manager → "+" → "Add package from git URL"，URL 同上。
+Alternatively, have the user go to Unity → Window → Package Manager → "+" → "Add package from git URL", using the same URLs.
 
-**验证**：等 Unity 完成 import（可调 `mcp__UnityMCP__refresh_unity(compile="request", mode="standard", wait_for_ready=true)`），确认 `<project root>/Library/PackageCache/com.promptugui.core@<hash>/` 目录存在(hash为随机值)，含 `Runtime/`、`Editor/`、`package.json`。
+**Verification**: Wait for Unity to finish importing (you can call `mcp__UnityMCP__refresh_unity(compile="request", mode="standard", wait_for_ready=true)`), then confirm that the `<project root>/Library/PackageCache/com.promptugui.core@<hash>/` directory exists (the hash is a random value) and contains `Runtime/`, `Editor/`, and `package.json`.
 
-## 步骤 2：复制 LLM Skills 到用户项目
+## Step 2: Copy the LLM Skills into the user's project
 
-包内自带四个给 LLM 读的 skill，路径：
+The package ships four skills for LLMs to read, at these paths:
 
 ```
-<project root>/Library/PackageCache/com.promptugui.core@<hash>/.claude/skills/authoring-promptugui-xml/SKILL.md      # XML 编写
-<project root>/Library/PackageCache/com.promptugui.core@<hash>/.claude/skills/authoring-promptugui-pxl/SKILL.md      # .pxl 像素图（9-slice 边框 / 按钮皮肤 / 图标的网格文本格式）
-<project root>/Library/PackageCache/com.promptugui.core@<hash>/.claude/skills/scripting-promptugui-csharp/SKILL.md   # C# bridge（UI.Open / Get<T> / R3 / BindItems / 自定义 Control）
-<project root>/Library/PackageCache/com.promptugui.core@<hash>/.claude/skills/using-promptugui-addressables/SKILL.md # Addressables 集成（.ui.xml / .po / IconSet）
+<project root>/Library/PackageCache/com.promptugui.core@<hash>/.claude/skills/authoring-promptugui-xml/SKILL.md      # XML authoring
+<project root>/Library/PackageCache/com.promptugui.core@<hash>/.claude/skills/authoring-promptugui-pxl/SKILL.md      # .pxl pixel art (grid-text format for 9-slice borders / button skins / icons)
+<project root>/Library/PackageCache/com.promptugui.core@<hash>/.claude/skills/scripting-promptugui-csharp/SKILL.md   # C# bridge (UI.Open / Get<T> / R3 / BindItems / custom Control)
+<project root>/Library/PackageCache/com.promptugui.core@<hash>/.claude/skills/using-promptugui-addressables/SKILL.md # Addressables integration (.ui.xml / .po / IconSet)
 ```
 
-把整个 skills 目录复制到用户项目的 `.claude/skills/` 下（**项目作用域**，跟仓库走，团队共享）：
+Copy the entire skills directory into the user's project under `.claude/skills/` (**project scope**, tracked with the repo, shared by the team):
 
-**Unix / macOS / WSL：**
+**Unix / macOS / WSL:**
 ```bash
 mkdir -p .claude/skills
 cp -r Library/PackageCache/com.promptugui.core@<hash>/.claude/skills/* .claude/skills/
 ```
 
-**Windows PowerShell：**
+**Windows PowerShell:**
 ```powershell
 New-Item -ItemType Directory -Force -Path .claude/skills | Out-Null
 Copy-Item -Recurse -Force `
@@ -56,61 +56,63 @@ Copy-Item -Recurse -Force `
   .claude/skills/
 ```
 
-如目标已存在，覆盖即可（**幂等**——包升级时 skill 也要跟着升级，重新跑这一步）。
+If the target already exists, just overwrite it (**idempotent** — when the package is upgraded the skills must be upgraded too, so re-run this step).
 
-> 备选：如果用户希望这些 skill 跨所有项目可用，复制到 `~/.claude/skills/` 而不是项目内 `.claude/skills/`。默认推荐项目作用域。
+> Alternative: if the user wants these skills available across all projects, copy them to `~/.claude/skills/` instead of the project-local `.claude/skills/`. Project scope is the recommended default.
 
-**验证**：确认 `.claude/skills/` 下 `authoring-promptugui-xml/`、`authoring-promptugui-pxl/`、`scripting-promptugui-csharp/`、`using-promptugui-addressables/` 四个目录都存在，每个目录里的 `SKILL.md` 第 1 行都是 `---`（YAML frontmatter 起始）。
+**Verification**: Confirm that the four directories `authoring-promptugui-xml/`, `authoring-promptugui-pxl/`, `scripting-promptugui-csharp/`, and `using-promptugui-addressables/` all exist under `.claude/skills/`, and that line 1 of each directory's `SKILL.md` is `---` (the start of the YAML frontmatter).
 
-## 步骤 3：注入项目级 CLAUDE.md 约定
+## Step 3: Inject project-level CLAUDE.md conventions
 
-使用 PromptUGUI 的项目里，所有面向玩家的文本都应走 `Tr(...)` 包裹（i18n 约定，由项目自己接入翻译表，包本身不强制）。这个约定要让**所有 AI 会话默认知道**——写到项目根的 `CLAUDE.md`。
+In a project that uses PromptUGUI, all player-facing text should be wrapped with `Tr(...)` (an i18n convention; the project wires up its own translation table — the package itself does not enforce it). This convention should be known **by default in all AI sessions**, so write it into the project root's `CLAUDE.md`.
 
-**操作**：
-- 如果 `<project root>/CLAUDE.md` 不存在 → 创建，写入下面整段
-- 如果存在 → 先 grep `Tr() 包裹约定`，已存在跳过此步（**幂等**）；不存在则**追加**到文件末尾，**不要覆盖**既有内容
+**Actions**:
+- If `<project root>/CLAUDE.md` does not exist → create it and write the entire block below.
+- If it exists → first grep for `Tr() Wrapping Convention`; if it's already present, skip this step (**idempotent**); if not, **append** it to the end of the file — **do not overwrite** existing content.
 
-要追加（或写入）的内容：
+Content to append (or write):
 
 ```markdown
-## i18n: Tr() 包裹约定
+## i18n: Tr() Wrapping Convention
 
-项目里凡是会出现在 UI 上、玩家能读到的C#代码中的字符串，都用 `UI.Tr(...)` 包裹(`PromptUGUI.Application` namespace下)。
+In this project, every string in C# code that appears on the UI and can be read by the player is wrapped with `UI.Tr(...)` (in the `PromptUGUI.Application` namespace).
 
-**要包裹**：
-- C# 给 UI 控件赋值的字符串：`label.Text = Tr("Start Game")`
-- 错误提示弹窗、tooltip 文案
+**Wrap these**:
+- Strings assigned to UI controls in C#: `label.Text = Tr("Start Game")`
+- Error dialog messages, tooltip text
 
-**不要包裹**：
-- `.ui.xml` 里无须包裹
-- `Debug.Log`、异常消息、内部日志
-- 文件路径、URL、asset 键、format specifier、JSON / SQL 片段
-- `nameof(...)`、反射 identifier
-- 单字符 / 纯标点 / 纯数字字符串
+**Do not wrap these**:
+- No wrapping needed in `.ui.xml`
+- `Debug.Log`, exception messages, internal logs
+- File paths, URLs, asset keys, format specifiers, JSON / SQL fragments
+- `nameof(...)`, reflection identifiers
+- Single-character / punctuation-only / numeric-only strings
 
-**判断标准**：玩家能在屏幕上看到 → 包；工程内部用 → 不包。
+**Rule of thumb**: if the player can see it on screen → wrap it; if it's only used internally by the engineering → don't wrap it.
+
+We don't need to modify the i18n `po` files; translation is handled automatically by an LLM in CI later.
 ```
 
-**验证**：再读 `CLAUDE.md`，确认含 `Tr() 包裹约定` 字样且原有内容未丢失。
+**Verification**: Read `CLAUDE.md` again and confirm it contains the text `Tr() Wrapping Convention` and that the existing content was not lost.
 
-## 步骤 4：整体验收
+## Step 4: Final acceptance check
 
-依次确认：
+Confirm in order:
 
-1. ✓ `Library/PackageCache/com.promptugui.core@<hash>/Runtime/` 存在
-2. ✓ `.claude/skills/` 下 `authoring-promptugui-xml/`、`authoring-promptugui-pxl/`、`scripting-promptugui-csharp/`、`using-promptugui-addressables/` 四个 SKILL.md 都存在，frontmatter 完整
-3. ✓ `CLAUDE.md` 含 Tr() 包裹约定章节，原内容保留
-4. ✓ 检查 `dotnet --list-sdks` 是否安装了 10 版本。
-5. ✓ （可选）`mcp__UnityMCP__refresh_unity(compile="request", mode="standard")` 后 `mcp__UnityMCP__read_console(action="get", types=["error"])` 无编译错误
-6. ✓ （可选）检查`xmllint`是否可执行，提醒用户安装
+1. ✓ `Library/PackageCache/com.promptugui.core@<hash>/Runtime/` exists
+2. ✓ The four SKILL.md files under `.claude/skills/` — `authoring-promptugui-xml/`, `authoring-promptugui-pxl/`, `scripting-promptugui-csharp/`, `using-promptugui-addressables/` — all exist, with complete frontmatter
+3. ✓ `CLAUDE.md` contains the Tr() wrapping convention section, with the original content preserved
+4. ✓ Check whether `dotnet --list-sdks` shows a version 10 installed.
+5. ✓ (Optional) After `mcp__UnityMCP__refresh_unity(compile="request", mode="standard")`, `mcp__UnityMCP__read_console(action="get", types=["error"])` reports no compile errors
+6. ✓ (Optional) Check whether `xmllint` is runnable, and remind the user to install it
 
-全部通过即安装完成。下次会话 Claude Code 会自动加载 `CLAUDE.md`；用户编辑 `.ui.xml` 时 `authoring-promptugui-xml` 触发，创建/编辑 `.pxl` 像素图（9-slice 边框、按钮皮肤、图标）时 `authoring-promptugui-pxl` 触发，写 C# 调用 `UI.*` 时 `scripting-promptugui-csharp` 触发，集成 Unity Addressables 时 `using-promptugui-addressables` 触发。
+Once all pass, installation is complete. In the next session Claude Code will load `CLAUDE.md` automatically; when the user edits `.ui.xml` the `authoring-promptugui-xml` skill triggers, when creating/editing `.pxl` pixel art (9-slice borders, button skins, icons) the `authoring-promptugui-pxl` skill triggers, when writing C# that calls `UI.*` the `scripting-promptugui-csharp` skill triggers, and when integrating Unity Addressables the `using-promptugui-addressables` skill triggers.
 
-## 升级 / 卸载
+## Upgrade / Uninstall
 
-**升级包**（`git pull` 等价于 manifest 里 commit 推进）：重跑**步骤 2**——把包内最新 skill 覆盖到 `.claude/skills/`。CLAUDE.md 章节通常无需变动，除非 release notes 提到约定变更。
+**Upgrade the package** (equivalent to a `git pull` advancing the commit referenced in the manifest): re-run **Step 2** — overwrite `.claude/skills/` with the latest skills from the package. The CLAUDE.md section usually doesn't need to change, unless the release notes mention a convention change.
 
-**卸载**：
-1. 从 `manifest.json` 删除 `com.promptugui.core`
-2. 删除 `.claude/skills/authoring-promptugui-xml/`、`.claude/skills/authoring-promptugui-pxl/`、`.claude/skills/scripting-promptugui-csharp/`、`.claude/skills/using-promptugui-addressables/`
-3. 从 `CLAUDE.md` 删除 `## i18n: Tr() 包裹约定` 章节（如果项目里别的库也共用同名约定，保留）
+**Uninstall**:
+1. Remove `com.promptugui.core` from `manifest.json`
+2. Delete `.claude/skills/authoring-promptugui-xml/`, `.claude/skills/authoring-promptugui-pxl/`, `.claude/skills/scripting-promptugui-csharp/`, and `.claude/skills/using-promptugui-addressables/`
+3. Remove the `## i18n: Tr() Wrapping Convention` section from `CLAUDE.md` (if another library in the project shares the same-named convention, keep it)
