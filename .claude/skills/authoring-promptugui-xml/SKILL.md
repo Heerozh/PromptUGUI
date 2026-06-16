@@ -190,7 +190,7 @@ TMP_Text。文本简写：`<Text>Hello</Text>` ≡ `<Text text="Hello"/>`。
 
 ### `<Btn>`
 
-Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内部 TMP label 子节点；可作 template root 或注册 prefab tag。不写 size 时按文字宽 + 左右 16 padding、上下 max(44, 文字高+12) 自适应；icon-only（无 text）回退 80×44。`interactable="false"` 同时驱动 `Button.interactable` → 进入 Disabled 态（`disabledColor` / `disabledModulate` 生效、`state-disabled` fire），叠加 CanvasGroup raycast block。状态化视觉见 [`reference/states.md`](reference/states.md)。
+Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内部 TMP label 子节点；可作 template root 或注册 prefab tag。不写 size 时按文字宽 + 左右 16 padding、上下 max(44, 文字高+12) 自适应；icon-only（无 text）回退 80×44。`interactable="false"` 同时驱动 `Button.interactable` → 进入 Disabled 态（`disabledColor` / `disabledModulate` 生效、`state-disabled` fire），叠加 CanvasGroup raycast block；无任何 `disabled*` 时整控件默认灰度（see reference/states.md）。状态化视觉见 [`reference/states.md`](reference/states.md)。
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
@@ -1100,6 +1100,7 @@ TEXT SHORT    <Text>Hi</Text> ≡ <Text text="Hi"/>     (also <Btn>, <Toggle>, <
 BTN STATE     *Color (hoverColor/pressedColor/disabledColor)         absolute per-state bg colour (targetGraphic only, no fan-out)
               *Modulate (hoverModulate/pressedModulate/disabledModulate)  relative multiplier, fanned out to bg + all descendants, fade ~0.1s
               displayed = (absolute ?? color) × (modulate ?? white)
+              disabled default: whole-control grayscale (shader desaturation) when no disabled* authored; override with any disabled*; opt out: disabledModulate="none" — see reference/states.md
 TAB/TOGGLE    + selectedColor (selection-aware bg base while active/isOn) / selectedModulate; <Tab selectedSprite>=overrideSprite swap on isOn (no overlay)
 STATE         stateReact="false"  opt node+subtree out of *Modulate fan-out (no effect on *Color — absolute is bg-only)
               on="state-normal|hover|pressed|selected|disabled[@id]"  on <Trigger>/<Animation>/<Show>; resolves UPWARD to nearest <Btn>/<Tab>/<Toggle>; fires on enter

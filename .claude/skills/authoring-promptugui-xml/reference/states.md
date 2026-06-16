@@ -36,6 +36,20 @@ The state a control is **first shown in** is applied **instantly**, never faded 
 - Variant-overridable like any `[UIAttr]` colour (the reactor re-resolves on ReSolve; the captured base colour is never re-captured).
 - For per-state **absolute** recolouring of multiple graphics (not just the bg), use `<Show>` instead — `*Color` is bg-only by design (painting the label the same colour as bg makes it invisible).
 
+### Default disabled appearance (grayscale)
+
+When a `<Btn>` / `<Tab>` / `<Toggle>` enters the Disabled state and **no** `disabledColor`, `disabledModulate`, or `disabledSprite` (Btn only) is authored, the entire control — background sprite, labels, icons — is desaturated to **true grayscale** automatically. This is a shader-based luminance desaturation (not a colour multiply), so it produces a neutral grey regardless of the original colour. Authors write nothing on child nodes; the effect fans out to the whole control subtree with the same pruning as `*Modulate`: `stateReact="false"` subtrees are skipped, and nested `<Btn>` / `<Tab>` / `<Toggle>` controls are pruned (they manage their own disabled appearance).
+
+**Overriding the default.** Writing any of the following replaces the grayscale default with the authored path instead:
+
+- `disabledColor="…"` — sets an absolute bg colour for the Disabled state (bg only, no fan-out).
+- `disabledModulate="…"` — applies a relative colour multiplier fanned out to the whole subtree (the normal `*Modulate` path).
+- `disabledSprite="…"` — swaps the bg `overrideSprite` while disabled (`<Btn>` only).
+
+**Opting out entirely.** `disabledModulate="none"` disables the default grayscale **and** bypasses the colour multiplier path — the control shows no disabled visual at all.
+
+**Hover and press are unaffected.** The grayscale controller only activates on the Disabled state. uGUI's built-in ColorTint (hover darkening, pressed darkening) continues to run on top when the control is enabled; it does not interact with the grayscale effect.
+
 **Opting out of `*Modulate` fan-out — `stateReact="false"`**: a **common attribute** (any element, default `true`) that opts a node **and its whole subtree** out of an ancestor Btn's `*Modulate` fan-out. Has no effect on `*Color` (absolute — never fanned out). The installer prunes that subtree, so those graphics keep their authored colour through hover / press / disable. (A nested `<Btn>` is auto-pruned — it owns its own graphics.)
 
 ```xml
