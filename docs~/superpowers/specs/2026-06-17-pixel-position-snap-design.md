@@ -139,7 +139,7 @@ Pixel 模式下，库创建的每个 TMP 文本，其渲染原点自动落在设
 
 仅影响 **Pixel 模式**屏幕：TMP 文本从"可能随尺寸亚像素发糊"变为"稳定落格清晰"——纯修复，方向只更符合意图。Auto 模式无变化。无新增 XML/API；唯一 opt-out 是关 `pixelPerfect`（既有杠杆）。非 XML builtin tag → **无需同步 `Runtime/Core/Lint/BuiltinTags.cs`**。
 
-**性能**：每个 TMP 文本一个 `LateUpdate`；每帧计算参考点屏幕位置（2 次廉价变换调用），已对齐则提前返回（不写入）。静态屏开销低但非零——未做签名缓存，经判定收益有限、避免复杂度与风险。几十上百文本量级在 Profile 下可忽略；若将来成为热点可加 `sqrMagnitude` 签名缓存。
+**性能**：每个 TMP 文本一个 `LateUpdate`，每帧执行约 2 次廉价变换调用 + 一次 `localPosition` 写入。**静态屏的每帧写入无法跳过**——父级 ScrollRect 移动元素的世界坐标而不改变其 `localPosition`，故吸附必须每帧重算（"已对齐"保护的是 `rt.position` 写入，不能跳过 `localPosition` 恢复 + 参考点求值）；不触发 layout/canvas 重构，开销低但非零，属有意为之（正确性优先于微优化）。几十上百文本量级在 Profile 下可忽略；若将来成为热点可加签名缓存（需同时解决 ScrollRect 可见性问题）。
 
 ### 5.2 文档同步
 

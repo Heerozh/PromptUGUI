@@ -26,6 +26,10 @@ namespace PromptUGUI.Controls.Internal
         protected override void OnCanvasHierarchyChanged() => _canvas = null;
         protected override void OnTransformParentChanged() => _canvas = null;
 
+        // 重新激活（Tab 页切换、对象池复用）后强制重取基线——隐藏期间 layout 可能已改 localPosition，
+        // 避免用陈旧 _baseLocalPos 吸附。
+        protected override void OnEnable() => _hasBase = false;
+
         private void LateUpdate() => Snap();
 
         // 运行期自门控于 canvas.pixelPerfect（关掉它 = 同时关吸附，复用既有 opt-out，PPS-D7）。
