@@ -86,7 +86,7 @@ Pixel 模式下，库创建的每个 TMP 文本，其渲染原点自动落在设
 - 用 `RectTransformUtility.ScreenPointToWorldPointInRectangle(canvasRect, screenRounded, camera, out snapWorld)` 反算回世界坐标；
 - `rt.position += (snapWorld - refWorld)`——平移整个 RT 使参考点落格；
 - 已落格保护：`(snapWorld - refWorld).sqrMagnitude < 1e-4f` 则提前返回，不写入。
-- **幂等**：落格后下一帧同样 `sqrMagnitude < 1e-4f`，提前返回（不累积）。
+- 静态屏稳定：落格后下一帧仍 `sqrMagnitude < 1e-4f` → 提前返回、不重复写入。（注意：仅此"已落格"保护**不足以**防累积——慢速滚动时每帧亚像素位移使参考点反复"刚好偏离格"、每帧都写入，故必须配合下面的基线追踪。）
 
 **非累积基线追踪（防慢速滚动脱轨 bug）**：吸附偏移是瞬时视觉修正，不属于元素的逻辑位置。实现采用基线追踪策略：每帧记住"逻辑 `localPosition`（不含上一帧偏移）"作为 `_baseLocalPos`；若当前 `localPosition == _baseLocalPos + _lastOffset`（误差 < 1e-6），则外部未改动，直接恢复到 `_baseLocalPos` 再重新吸附——修正不叠加；若等式被打破（layout / resize / ReSolve 动了 `localPosition`），则重新取基线（无陈旧残差）。滚动改的是父级 content 的 `anchoredPosition`，不动子节点的 `localPosition`，因此慢速滚动（< 0.5px/帧，每帧修正量相同）不会让修正累积为漂移——文字跟随滚动移动，不被"钉"在初始屏幕像素上。
 
