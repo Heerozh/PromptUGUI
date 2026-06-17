@@ -88,7 +88,7 @@ Pixel 模式下，库创建的每个 TMP 文本，其渲染原点自动落在设
 - 已落格保护：`(snapWorld - refWorld).sqrMagnitude < 1e-4f` 则提前返回，不写入。
 - **幂等**：落格后下一帧同样 `sqrMagnitude < 1e-4f`，提前返回（不累积）。
 
-**为何 `LateUpdate` + 缓存比较**：`LateUpdate` 在 Update 之后；`hasChanged` 是全进程共享的单一 bool（被别处读/重置会互相干扰），故用自有缓存判断"是否移动过"。布局重排相对 `LateUpdate` 的精确时序（uGUI 布局在 `willRenderCanvases` 阶段重建）可能让吸附滞后 1 帧 → 静态屏 1~2 帧内收敛、稳定后正确；resize 拖动中至多 1 帧延迟（不可见）。**确切时序由 PlayMode 测试（resize→清晰）钉死**，若出现可见滞后再改挂 `Canvas.willRenderCanvases` 回调。
+**为何 `LateUpdate`、为何不用 `hasChanged`**：`LateUpdate` 在 Update 之后；`hasChanged` 是全进程共享的单一 bool（被别处读/重置会互相干扰），故不依赖它——每帧直接重算参考点屏幕坐标、已落格则提前返回（不写入），无额外缓存状态。布局重排相对 `LateUpdate` 的精确时序（uGUI 布局在 `willRenderCanvases` 阶段重建）可能让吸附滞后 1 帧 → 静态屏 1~2 帧内收敛、稳定后正确；resize 拖动中至多 1 帧延迟（不可见）。**确切时序由 PlayMode 测试（resize→清晰）钉死**，若出现可见滞后再改挂 `Canvas.willRenderCanvases` 回调。
 
 ### 3.3 对齐感知参考点（PPS-D4，取代 brainstorm 的"吸偶数宽"）
 
@@ -109,7 +109,7 @@ Pixel 模式下，库创建的每个 TMP 文本，其渲染原点自动落在设
 
 ### 3.4 与 `scale` / scaled-text wrapper 的叠加（PPS-D5）
 
-- `scale` 管密度（`localScale`），`PixelSnap` 管位置，正交。`PixelAdjustPoint` 用目标 transform 计算，自动含 `localScale`。
+- `scale` 管密度（`localScale`），`PixelSnap` 管位置，正交。吸附经目标 transform 的 `TransformPoint`/`WorldToScreenPoint` 计算，自动含 `localScale`。
 - ReSolve 时 `ApplyCommon` 把 RT 重置到 margin 基线、`ApplyScales` 再膨胀；`PixelSnap` 的 `localPosition` 微调随之被抹掉，下一帧 `LateUpdate` 重吸（不累积、收敛）。
 - scaled-text wrapper 模式（V/HStack 直下 scaled `<Text>`）：`PixelSnap` 挂在**内层 TMP** 上、吸内层原点；wrapper 的位置由布局驱动，内层在 wrapper 内 stretch，吸附是内层 `localPosition` 的亚像素微调，共存无冲突。
 
@@ -119,7 +119,7 @@ Pixel 模式下，库创建的每个 TMP 文本，其渲染原点自动落在设
 |---|---|
 | Auto 模式（非 pixel） | Screen 不挂 PixelSnap → 零开销、零变化 |
 | Pixel 模式 + CanvasConfigurator 关掉 `pixelPerfect`（求平滑 tween） | 组件在但门控返回 → inert（与既有 opt-out 杠杆一致，PPS-D7） |
-| World Space canvas | `PixelAdjustPoint` 本就 no-op，门控直接返回 |
+| World Space canvas | 门控 `renderMode == WorldSpace` 直接返回（pixelPerfect 在世界空间本就无意义） |
 | 居中/右对齐 + 奇内容宽像素字 | 按 rect 几何吸 → 可能 ≤0.5px 残差（文档化，后续增强） |
 | `<Text scale=…>`（含 Nx/`<r>r`/wrapper） | 吸内层 TMP 原点，与密度正交叠加 |
 | 动态文本（BindItems/Markdown） | `RegisterDynamicSubtree` 在 Pixel 模式补扫描挂载 |
