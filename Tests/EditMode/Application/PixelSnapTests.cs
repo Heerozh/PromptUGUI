@@ -197,5 +197,28 @@ namespace PromptUGUI.Tests.Application
             Assert.IsNull(tmp.GetComponent<PixelSnap>(), "auto 模式不应挂");
             UI.ResetForTests();
         }
+
+        // ---- Task 8: ReSolve re-attaches (runtime scale-mode flip / Add-block activation) ----
+        [Test]
+        public void ReSolve_ScaleModeFlipsToPixel_AttachesPixelSnap()
+        {
+            UI.ResetForTests();
+            UI.CanvasSizeOverride = () => new Vector2(5760f, 3240f); // factor 3 in pixel mode
+            var xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='auto' scale-mode.portrait='pixel' reference='1920x1080'>
+    <Text id='t'>hi</Text>
+  </Screen>
+</PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = (PromptUGUI.Application.Screen)UI.Open("S");
+            var tmp = screen.RootGameObject.GetComponentInChildren<TMP_Text>(true);
+            Assert.IsNull(tmp.GetComponent<PixelSnap>(), "auto 模式开屏时不应有 PixelSnap");
+
+            UI.Variants.Set("portrait", true);   // scale-mode.portrait='pixel' → ReSolve, _isPixelMode=true
+            Assert.IsNotNull(tmp.GetComponent<PixelSnap>(),
+                "翻到 pixel 变体后 ReSolve 应补挂 PixelSnap");
+            UI.ResetForTests();
+        }
     }
 }

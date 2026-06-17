@@ -68,6 +68,7 @@ Pixel 模式下，库创建的每个 TMP 文本，其渲染原点自动落在设
 
 - **静态**：`Open` 构建完、`ApplyScales` 之后，若 `ResolveScaleMode() == Pixel`，对 `root.GetComponentsInChildren<TMP_Text>(includeInactive: true)` 每个**幂等**确保挂一个 `PixelSnap`（已有则跳过；注入该 TMP 引用）。控件类型无关——`<Text>`、Btn/Tab/Toggle/Dropdown 的 label、InputField 文本、`<Markdown>` 片段全覆盖。
 - **动态**：`RegisterDynamicSubtree`（`BindItems` / `<Markdown>` 的 `InstantiateNode` 后调用）在 Pixel 模式下扫描新子树的 `TMP_Text` 并补挂。
+- **ReSolve**：`ReSolve` 在 `ApplyScales` 之后也调用 `AttachPixelSnaps(RootGameObject)`（幂等重扫描），覆盖两类情形：运行时首次激活的 `<Add when="...">` 块（Strategy C：首次激活在 ReSolve 内通过 `InstantiateRecursive` 完成，绕开 `RegisterDynamicSubtree`）；以及运行时 `scale-mode` auto→pixel 变体翻转（`ApplyCanvasScaler` 将 `_isPixelMode` 设为 `true`，但 `Open` 时未扫描）。
 - **Auto 模式**：不扫描、不挂 → 零开销、零行为变化（满足目标 6）。
 
 > `includeInactive: true` 是必须的——初始隐藏的 Tab 页里的文本也要在显示时落格（镜像 common-controls-sample 抓到的 inactive-bound-page 坑）。
@@ -78,10 +79,14 @@ Pixel 模式下，库创建的每个 TMP 文本，其渲染原点自动落在设
 
 **门控**：`canvas == null || !canvas.pixelPerfect || canvas.renderMode == WorldSpace` → 直接返回（PPS-D7）。
 
-**时序（`LateUpdate`，缓存比较，不碰共享 `transform.hasChanged` 标志）**：
-- 缓存 `_lastSnapKey`（参考点的世界坐标 + rect 尺寸的量化签名）；本帧重算参考点世界坐标，若与缓存一致则 return（绝大多数静态帧零原生调用）；
-- 否则用 **`RectTransformUtility.PixelAdjustPoint`**（与 `pixelPerfect` 同一套原生数学，版本一致、不自己重写设备像素公式）求参考点落格所需的修正量，叠加到 `RectTransform.localPosition`；写完更新缓存。
-- **幂等**：每帧的目标是"吸到最近的格点"，重复运行不累积（落格后下一帧签名不变即跳过 → 收敛、稳定）。
+**时序（`LateUpdate`，不碰共享 `transform.hasChanged` 标志）**：
+- 每帧计算对齐感知参考点（局部坐标，见 §3.3）；
+- 用 `RectTransformUtility.WorldToScreenPoint(camera, refWorld)` 把参考点转成屏幕坐标（Overlay canvas 传 `null` camera，Camera-Space 传 `worldCamera`）；
+- 对屏幕坐标各分量 `Mathf.Round`，得目标整数屏幕像素；
+- 用 `RectTransformUtility.ScreenPointToWorldPointInRectangle(canvasRect, screenRounded, camera, out snapWorld)` 反算回世界坐标；
+- `rt.position += (snapWorld - refWorld)`——平移整个 RT 使参考点落格；
+- 已落格保护：`(snapWorld - refWorld).sqrMagnitude < 1e-4f` 则提前返回，不写入。
+- **幂等**：落格后下一帧同样 `sqrMagnitude < 1e-4f`，提前返回（不累积）。
 
 **为何 `LateUpdate` + 缓存比较**：`LateUpdate` 在 Update 之后；`hasChanged` 是全进程共享的单一 bool（被别处读/重置会互相干扰），故用自有缓存判断"是否移动过"。布局重排相对 `LateUpdate` 的精确时序（uGUI 布局在 `willRenderCanvases` 阶段重建）可能让吸附滞后 1 帧 → 静态屏 1~2 帧内收敛、稳定后正确；resize 拖动中至多 1 帧延迟（不可见）。**确切时序由 PlayMode 测试（resize→清晰）钉死**，若出现可见滞后再改挂 `Canvas.willRenderCanvases` 回调。
 
@@ -119,7 +124,7 @@ Pixel 模式下，库创建的每个 TMP 文本，其渲染原点自动落在设
 | `<Text scale=…>`（含 Nx/`<r>r`/wrapper） | 吸内层 TMP 原点，与密度正交叠加 |
 | 动态文本（BindItems/Markdown） | `RegisterDynamicSubtree` 在 Pixel 模式补扫描挂载 |
 | 运行时改文本内容 | 块宽变 → 参考点签名变 → 下一帧重吸 |
-| ReSolve（Variant/theme/resize 重算） | ApplyCommon 重置、PixelSnap 下一帧重吸 |
+| ReSolve（Variant/theme/resize 重算） | ApplyCommon 重置、`AttachPixelSnaps(RootGameObject)` 幂等补挂新增文本、PixelSnap 下一帧重吸 |
 | 画布 resize（无 scale 的中心锚点文字） | Unity 锚点系统重定位 → transform 变 → PixelSnap 重吸（**本 bug 的修复点**，独立于 `_hasFactorScale` ReSolve 门控） |
 | 旋转/倾斜（`<Animation>` 旋转文字） | 只吸位置参考点；动画进行中 ≤1px 抖动不可见，静止时正确 |
 | hot reload | 整树重建 → Screen 重新扫描挂载 |
@@ -131,7 +136,7 @@ Pixel 模式下，库创建的每个 TMP 文本，其渲染原点自动落在设
 
 仅影响 **Pixel 模式**屏幕：TMP 文本从"可能随尺寸亚像素发糊"变为"稳定落格清晰"——纯修复，方向只更符合意图。Auto 模式无变化。无新增 XML/API；唯一 opt-out 是关 `pixelPerfect`（既有杠杆）。非 XML builtin tag → **无需同步 `Runtime/Core/Lint/BuiltinTags.cs`**。
 
-**性能**：每个 TMP 文本一个 `LateUpdate`，靠缓存签名比较短路；仅在位置真变化时调一次原生 `PixelAdjustPoint`。静态屏收敛后近零开销；几十上百文本量级可忽略。
+**性能**：每个 TMP 文本一个 `LateUpdate`；每帧计算参考点屏幕位置（2 次廉价变换调用），已对齐则提前返回（不写入）。静态屏开销低但非零——未做签名缓存，经判定收益有限、避免复杂度与风险。几十上百文本量级在 Profile 下可忽略；若将来成为热点可加 `sqrMagnitude` 签名缓存。
 
 ### 5.2 文档同步
 

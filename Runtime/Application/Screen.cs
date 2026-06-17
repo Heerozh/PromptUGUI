@@ -667,6 +667,7 @@ namespace PromptUGUI.Application
             RecomputeFactorScale();
             ApplyCanvasScaler(RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>());
             ApplyScales();
+            AttachPixelSnaps(RootGameObject);
         }
 
         // deferApplyTo 非 null（Screen.Open 首次构建）：Add 子树属性 Apply 延迟收进该列表，
