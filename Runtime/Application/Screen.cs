@@ -391,6 +391,7 @@ namespace PromptUGUI.Application
         // 无 scale 声明的子树不登记（绝大多数列表卡片），零额外开销。
         internal void RegisterDynamicSubtree(Control root, Dictionary<ElementNode, Control> nodes)
         {
+            AttachPixelSnaps(root.GameObject);
             PruneDeadDynamicSubtrees();
             var hasScale = false;
             foreach (var node in nodes.Keys)

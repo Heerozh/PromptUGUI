@@ -133,6 +133,32 @@ namespace PromptUGUI.Tests.Application
             Object.DestroyImmediate(root);
         }
 
+        // ---- Task 5: 动态子树挂载 ----
+        [Test]
+        public void BindItems_PixelMode_DynamicTextGetsPixelSnap()
+        {
+            UI.ResetForTests();
+            UI.CanvasSizeOverride = () => new Vector2(5760f, 3240f); // factor 3
+            var xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='Row'><Frame width='200' height='50'><Text id='label'>x</Text></Frame></Template>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>
+    <ScrollList id='list' itemTemplate='Row'/>
+  </Screen>
+</PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var list = screen.Get<PromptUGUI.Controls.ScrollList>("list");
+            PromptUGUI.Controls.IControl captured = null;
+            list.BindItems(
+                R3.Observable.Return<System.Collections.Generic.IReadOnlyList<string>>(new[] { "a" }),
+                (PromptUGUI.Controls.IControl slot, string s) => captured = slot);
+            var label = captured.Get<PromptUGUI.Controls.Text>("label");
+            Assert.IsNotNull(label.GameObject.GetComponent<PixelSnap>(),
+                "动态实例化的文本也应挂 PixelSnap");
+            UI.ResetForTests();
+        }
+
         // ---- Task 4: Screen 静态挂载 ----
         private static PromptUGUI.Application.Screen OpenPixel(string body)
         {
