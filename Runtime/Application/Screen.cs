@@ -27,6 +27,7 @@ namespace PromptUGUI.Application
         private IDisposable _variantSub;
         private System.Action<string> _themeHandler;
         private bool _isReapplyingScaler;
+        private bool _isPixelMode;
         // The pixel/auto factor that ApplyCanvasScaler last applied; 'Nx' scale divides by it.
         private float _canvasFactor = 1f;
         // True if any node declares a factor-dependent scale — scale="Nx" or scale="<r>r"
@@ -166,6 +167,7 @@ namespace PromptUGUI.Application
             // (so it doesn't fight ApplyCommon writes).
             RecomputeFactorScale();
             ApplyScales();
+            AttachPixelSnaps(root);
             // Measuring is done (apply pass + ApplyScales). Run the deferred initial hides
             // now, then close the window so all later (runtime) toggles hide immediately.
             var deferredHides = _deferredOpenActions;
@@ -189,6 +191,7 @@ namespace PromptUGUI.Application
         private void ApplyCanvasScaler(UnityEngine.UI.CanvasScaler scaler)
         {
             var mode = ResolveScaleMode();
+            _isPixelMode = mode == ScaleMode.Pixel;
             // scale-mode=pixel naturally pairs with Canvas.pixelPerfect — scale-mode
             // handles the integer outer scale, pixelPerfect snaps each UI vertex inside
             // to integer pixels (anchor/margin math can otherwise leave sub-pixel
@@ -288,6 +291,18 @@ namespace PromptUGUI.Application
                 ApplyScalesTo(subtree.Nodes);
         }
 
+        // Pixel 模式下给子树里每个 TMP 文本挂 PixelSnap——Canvas.pixelPerfect 不吸 TMP 字形，
+        // 这里把文本渲染原点吸到设备整数像素。幂等（已挂则跳过）；Auto 模式 no-op。
+        // 见 spec 2026-06-17-pixel-position-snap (PPS-D1/D2)。
+        private void AttachPixelSnaps(UnityEngine.GameObject subtreeRoot)
+        {
+            if (!_isPixelMode || subtreeRoot == null) return;
+            var texts = subtreeRoot.GetComponentsInChildren<TMPro.TMP_Text>(includeInactive: true);
+            foreach (var t in texts)
+                if (t.GetComponent<Controls.Internal.PixelSnap>() == null)
+                    t.gameObject.AddComponent<Controls.Internal.PixelSnap>();
+        }
+
         private void ApplyScalesTo(Dictionary<ElementNode, Control> nodes)
         {
             foreach (var kv in nodes)
@@ -376,6 +391,7 @@ namespace PromptUGUI.Application
         // 无 scale 声明的子树不登记（绝大多数列表卡片），零额外开销。
         internal void RegisterDynamicSubtree(Control root, Dictionary<ElementNode, Control> nodes)
         {
+            AttachPixelSnaps(root.GameObject);
             PruneDeadDynamicSubtrees();
             var hasScale = false;
             foreach (var node in nodes.Keys)
@@ -651,6 +667,7 @@ namespace PromptUGUI.Application
             RecomputeFactorScale();
             ApplyCanvasScaler(RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>());
             ApplyScales();
+            AttachPixelSnaps(RootGameObject);
         }
 
         // deferApplyTo 非 null（Screen.Open 首次构建）：Add 子树属性 Apply 延迟收进该列表，

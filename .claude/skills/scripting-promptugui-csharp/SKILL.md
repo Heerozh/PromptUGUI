@@ -82,6 +82,12 @@ The callback fires once per `Open()` (so also re-fires on hot-reload, since relo
 
 **Power-of-two-only scaling `UI.PixelScalePowerOfTwo`** (`bool`, default `false`): when `true`, the Pixel-mode `scaleFactor` is constrained to a power-of-two ladder `…0.25, 0.5, 1, 2, 4, 8…`. The magnify segment snaps **down** to the largest power of two ≤ the fit-inside ratio, so a 3×-capable screen renders at 2×, 5× at 4× — content still fits inside (rounds down, never overflows; the slack is absorbed by `anchor="stretch"` / letterboxing). The sub-1× fallback is already `1/2^n`, so it is unchanged; only the integer magnify steps `3, 5, 6, 7, …` are removed. Applied **before** `MinPixelScale`, which still floors the snapped result — pair it with a power-of-two `MinPixelScale` to stay on-ladder. Pixel-mode only; Auto mode ignores it.
 
+> In Pixel mode (`scale-mode="pixel"`) the library auto-attaches a `PixelSnap` to
+> every TMP text so glyph origins land on whole device pixels (Canvas.pixelPerfect
+> does not pixel-adjust TMP). To opt out for a screen that needs smooth tweens,
+> disable `pixelPerfect` on that Canvas inside `UI.CanvasConfigurator` — that also
+> disables the text snap.
+
 ## Sprite resolver (Resources-backed)
 
 Needed if your XML uses `<Icon>` or any `sprite="ns:name"` form:
