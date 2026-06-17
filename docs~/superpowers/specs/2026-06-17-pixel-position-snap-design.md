@@ -79,7 +79,7 @@ Pixel 模式下，库创建的每个 TMP 文本，其渲染原点自动落在设
 
 **门控**：`canvas == null || !canvas.pixelPerfect || canvas.renderMode == WorldSpace` → 直接返回（PPS-D7）。
 
-**时序（`LateUpdate`，不碰共享 `transform.hasChanged` 标志）**：
+**時序（`LateUpdate`，不碰共享 `transform.hasChanged` 标志）**：
 - 每帧计算对齐感知参考点（局部坐标，见 §3.3）；
 - 用 `RectTransformUtility.WorldToScreenPoint(camera, refWorld)` 把参考点转成屏幕坐标（Overlay canvas 传 `null` camera，Camera-Space 传 `worldCamera`）；
 - 对屏幕坐标各分量 `Mathf.Round`，得目标整数屏幕像素；
@@ -87,6 +87,8 @@ Pixel 模式下，库创建的每个 TMP 文本，其渲染原点自动落在设
 - `rt.position += (snapWorld - refWorld)`——平移整个 RT 使参考点落格；
 - 已落格保护：`(snapWorld - refWorld).sqrMagnitude < 1e-4f` 则提前返回，不写入。
 - **幂等**：落格后下一帧同样 `sqrMagnitude < 1e-4f`，提前返回（不累积）。
+
+**非累积基线追踪（防慢速滚动脱轨 bug）**：吸附偏移是瞬时视觉修正，不属于元素的逻辑位置。实现采用基线追踪策略：每帧记住"逻辑 `localPosition`（不含上一帧偏移）"作为 `_baseLocalPos`；若当前 `localPosition == _baseLocalPos + _lastOffset`（误差 < 1e-6），则外部未改动，直接恢复到 `_baseLocalPos` 再重新吸附——修正不叠加；若等式被打破（layout / resize / ReSolve 动了 `localPosition`），则重新取基线（无陈旧残差）。滚动改的是父级 content 的 `anchoredPosition`，不动子节点的 `localPosition`，因此慢速滚动（< 0.5px/帧，每帧修正量相同）不会让修正累积为漂移——文字跟随滚动移动，不被"钉"在初始屏幕像素上。
 
 **为何 `LateUpdate`、为何不用 `hasChanged`**：`LateUpdate` 在 Update 之后；`hasChanged` 是全进程共享的单一 bool（被别处读/重置会互相干扰），故不依赖它——每帧直接重算参考点屏幕坐标、已落格则提前返回（不写入），无额外缓存状态。布局重排相对 `LateUpdate` 的精确时序（uGUI 布局在 `willRenderCanvases` 阶段重建）可能让吸附滞后 1 帧 → 静态屏 1~2 帧内收敛、稳定后正确；resize 拖动中至多 1 帧延迟（不可见）。**确切时序由 PlayMode 测试（resize→清晰）钉死**，若出现可见滞后再改挂 `Canvas.willRenderCanvases` 回调。
 
@@ -126,6 +128,7 @@ Pixel 模式下，库创建的每个 TMP 文本，其渲染原点自动落在设
 | 运行时改文本内容 | 块宽变 → 参考点签名变 → 下一帧重吸 |
 | ReSolve（Variant/theme/resize 重算） | ApplyCommon 重置、`AttachPixelSnaps(RootGameObject)` 幂等补挂新增文本、PixelSnap 下一帧重吸 |
 | 画布 resize（无 scale 的中心锚点文字） | Unity 锚点系统重定位 → transform 变 → PixelSnap 重吸（**本 bug 的修复点**，独立于 `_hasFactorScale` ReSolve 门控） |
+| ScrollRect 内文本 + 慢速滚动（< 0.5px/帧） | 非累积基线追踪：文字随滚动移动、不被钉在初始像素、localPosition 不漂移 |
 | 旋转/倾斜（`<Animation>` 旋转文字） | 只吸位置参考点；动画进行中 ≤1px 抖动不可见，静止时正确 |
 | hot reload | 整树重建 → Screen 重新扫描挂载 |
 | `Screen.Close` / Dispose | 组件随 GO 销毁 |

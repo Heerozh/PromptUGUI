@@ -220,5 +220,52 @@ namespace PromptUGUI.Tests.Application
                 "翻到 pixel 变体后 ReSolve 应补挂 PixelSnap");
             UI.ResetForTests();
         }
+
+        // ---- Task 9: slow scroll must not detach text from scroll content ----
+        [Test]
+        public void Snap_SlowScrollInParent_TextFollowsScroll_NoDetach()
+        {
+            var go = new GameObject("c");
+            var canvas = go.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.scaleFactor = 3f;
+            canvas.pixelPerfect = true;
+            var content = new GameObject("content").AddComponent<RectTransform>();
+            content.SetParent(go.transform, false);
+            content.anchorMin = content.anchorMax = Vector2.zero;
+            content.pivot = Vector2.zero;
+            var t = new GameObject("txt");
+            t.transform.SetParent(content, false);
+            var tmp = t.AddComponent<TextMeshProUGUI>();
+            var rt = tmp.rectTransform;
+            rt.anchorMin = rt.anchorMax = Vector2.zero;
+            rt.pivot = Vector2.zero;
+            rt.sizeDelta = new Vector2(10f, 16f);
+            rt.anchoredPosition = new Vector2(5f, 5f);
+            var snap = t.AddComponent<PixelSnap>();
+            Canvas.ForceUpdateCanvases();
+
+            snap.Snap();
+            Canvas.ForceUpdateCanvases();
+            var localStartY = rt.localPosition.y;
+            var screenStartY = RectTransformUtility.WorldToScreenPoint(null, rt.TransformPoint(Vector3.zero)).y;
+
+            // slow scroll: parent content moves +0.1 design units (=0.3 screen px @sf3) per frame, 30 frames = 9px
+            for (int i = 0; i < 30; i++)
+            {
+                content.anchoredPosition += new Vector2(0f, 0.1f);
+                Canvas.ForceUpdateCanvases();
+                snap.Snap();
+                Canvas.ForceUpdateCanvases();
+            }
+
+            var localEndY = rt.localPosition.y;
+            var screenEndY = RectTransformUtility.WorldToScreenPoint(null, rt.TransformPoint(Vector3.zero)).y;
+            // text must FOLLOW the scroll (~+9px), not stay pinned (~0); and its local offset within
+            // content must NOT drift (no detach).
+            Assert.AreEqual(9f, screenEndY - screenStartY, 1.5f, "text should follow scroll, not stay pinned");
+            Assert.AreEqual(localStartY, localEndY, 1f, "text local position must not drift off the scroll content");
+            Object.DestroyImmediate(go);
+        }
     }
 }

@@ -12,6 +12,9 @@ namespace PromptUGUI.Controls.Internal
         private RectTransform _rt;
         private TMP_Text _text;
         private Canvas _canvas;
+        private Vector3 _baseLocalPos;
+        private Vector3 _lastOffset;
+        private bool _hasBase;
 
         protected override void Awake()
         {
@@ -36,9 +39,23 @@ namespace PromptUGUI.Controls.Internal
                 || _canvas.renderMode == RenderMode.WorldSpace)
                 return;
 
-            var localRef = ReferencePoint(
-                _rt.rect, _text.horizontalAlignment, _text.verticalAlignment);
+            // 非累积：吸附偏移是"瞬时视觉修正"，不属于元素的逻辑位置。每帧先还原逻辑
+            // localPosition（layout/scroll 设定、不含上一帧偏移的值）再重新 fresh 吸附。
+            // 滚动改的是父级 content.anchoredPosition、不动本子节点的 localPosition——故外部
+            // 未改动时 localPosition 仍 == base+lastOffset，base 保持不变，逐帧修正不叠加，
+            // 不会把文字从滚动内容上"钉住"剥离（慢速滚动卡死 bug）。外部（layout/resize/
+            // ReSolve）改了 localPosition 时等式被打破 → 重新取基线（无陈旧残差）。
+            if (!_hasBase
+                || (_rt.localPosition - (_baseLocalPos + _lastOffset)).sqrMagnitude > 1e-6f)
+            {
+                _baseLocalPos = _rt.localPosition;
+                _hasBase = true;
+            }
+            _rt.localPosition = _baseLocalPos;
+
+            var localRef = ReferencePoint(_rt.rect, _text.horizontalAlignment, _text.verticalAlignment);
             SnapToPixelGrid(_rt, _canvas, localRef);
+            _lastOffset = _rt.localPosition - _baseLocalPos;
         }
 
         // 参考点 = TMP 把文本块相对 rect 摆放所依据的边/中心（PPS-D4）。
