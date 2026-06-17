@@ -28,9 +28,20 @@ namespace PromptUGUI.Controls.Internal
 
         // 重新激活（Tab 页切换、对象池复用）后强制重取基线——隐藏期间 layout 可能已改 localPosition，
         // 避免用陈旧 _baseLocalPos 吸附。
-        protected override void OnEnable() => _hasBase = false;
+        protected override void OnEnable()
+        {
+            _hasBase = false;
+            // 在 willRenderCanvases（PostLateUpdate，晚于所有 LateUpdate）里吸附，确保跑在
+            // ScrollRect 惯性移动 content（其自身 LateUpdate）与布局重建之后——否则吸附会用
+            // 移动前的陈旧位置，惯性滚动时文字逐帧渲染偏离整数像素而发糊/斜（LateUpdate 间
+            // 执行顺序不确定）。
+            Canvas.willRenderCanvases += Snap;
+        }
 
-        private void LateUpdate() => Snap();
+        protected override void OnDisable()
+        {
+            Canvas.willRenderCanvases -= Snap;
+        }
 
         // 运行期自门控于 canvas.pixelPerfect（关掉它 = 同时关吸附，复用既有 opt-out，PPS-D7）。
         internal void Snap()

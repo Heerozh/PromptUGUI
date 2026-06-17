@@ -44,7 +44,7 @@ Pixel 模式下，库创建的每个 TMP 文本，其渲染原点自动落在设
 
 ## 2. 方案概览（PPS-D1：只补 TMP 文本，自包含组件）
 
-新增内部组件 `PixelSnap : UIBehaviour`，挂在库创建的每个 `TMP_Text` 上（仅 Pixel 模式，PPS-D2），在 `LateUpdate` 里把该文本的**对齐感知参考点**吸到设备整数像素网格（PPS-D3/D4），运行期自门控于 `canvas.pixelPerfect`（PPS-D7）。
+新增内部组件 `PixelSnap : UIBehaviour`，挂在库创建的每个 `TMP_Text` 上（仅 Pixel 模式，PPS-D2），在 `Canvas.willRenderCanvases`（PostLateUpdate）里把该文本的**对齐感知参考点**吸到设备整数像素网格（PPS-D3/D4），运行期自门控于 `canvas.pixelPerfect`（PPS-D7）。
 
 ```
 <Text>/label/Markdown 片段 (TMP_Text)
@@ -79,7 +79,7 @@ Pixel 模式下，库创建的每个 TMP 文本，其渲染原点自动落在设
 
 **门控**：`canvas == null || !canvas.pixelPerfect || canvas.renderMode == WorldSpace` → 直接返回（PPS-D7）。
 
-**時序（`LateUpdate`，不碰共享 `transform.hasChanged` 标志）**：
+**時序（`Canvas.willRenderCanvases`，PostLateUpdate，不碰共享 `transform.hasChanged` 标志）**：
 - 每帧计算对齐感知参考点（局部坐标，见 §3.3）；
 - 用 `RectTransformUtility.WorldToScreenPoint(camera, refWorld)` 把参考点转成屏幕坐标（Overlay canvas 传 `null` camera，Camera-Space 传 `worldCamera`）；
 - 对屏幕坐标各分量 `Mathf.Round`，得目标整数屏幕像素；
@@ -90,7 +90,7 @@ Pixel 模式下，库创建的每个 TMP 文本，其渲染原点自动落在设
 
 **非累积基线追踪（防慢速滚动脱轨 bug）**：吸附偏移是瞬时视觉修正，不属于元素的逻辑位置。实现采用基线追踪策略：每帧记住"逻辑 `localPosition`（不含上一帧偏移）"作为 `_baseLocalPos`；若当前 `localPosition == _baseLocalPos + _lastOffset`（误差 < 1e-6），则外部未改动，直接恢复到 `_baseLocalPos` 再重新吸附——修正不叠加；若等式被打破（layout / resize / ReSolve 动了 `localPosition`），则重新取基线（无陈旧残差）。滚动改的是父级 content 的 `anchoredPosition`，不动子节点的 `localPosition`，因此慢速滚动（< 0.5px/帧，每帧修正量相同）不会让修正累积为漂移——文字跟随滚动移动，不被"钉"在初始屏幕像素上。
 
-**为何 `LateUpdate`、为何不用 `hasChanged`**：`LateUpdate` 在 Update 之后；`hasChanged` 是全进程共享的单一 bool（被别处读/重置会互相干扰），故不依赖它——每帧直接重算参考点屏幕坐标、已落格则提前返回（不写入），无额外缓存状态。布局重排相对 `LateUpdate` 的精确时序（uGUI 布局在 `willRenderCanvases` 阶段重建）可能让吸附滞后 1 帧 → 静态屏 1~2 帧内收敛、稳定后正确；resize 拖动中至多 1 帧延迟（不可见）。**确切时序由 PlayMode 测试（resize→清晰）钉死**，若出现可见滞后再改挂 `Canvas.willRenderCanvases` 回调。
+**为何 `Canvas.willRenderCanvases`、为何不用 `hasChanged`**：`willRenderCanvases` 是 Unity 的 PostLateUpdate 阶段静态事件，在**所有**组件的 `LateUpdate` 和布局重建均完成后、canvas 实际渲染之前触发——设置 transform 在该帧渲染中即生效（网格坐标是局部空间，transform 矩阵在绘制时才应用）。使用 `LateUpdate` 有一个关键问题：`ScrollRect` 在自己的 `LateUpdate` 中通过惯性移动 content 的 `anchoredPosition`，而两个组件的 `LateUpdate` 执行顺序在 Unity 中是**未定义**的——若 `PixelSnap.LateUpdate` 先跑，吸附用的是 ScrollRect 移动前的陈旧位置，本帧渲染前 ScrollRect 再移动 content，吸附偏移不再正确 → 惯性滚动时文字每帧偏离整数像素网格而发糊/斜；静止时 ScrollRect 不移动，吸附永远用最终位置，故只有滚动时可见。改挂 `willRenderCanvases` 后，吸附必然跑在 ScrollRect 惯性移动之后，逐帧落格。`hasChanged` 是全进程共享的单一 bool（被别处读/重置会互相干扰），故不依赖它——每帧直接重算参考点屏幕坐标、已落格则提前返回（不写入），无额外缓存状态。UIBehaviour.`OnDisable`（含销毁前调用）中必须反订阅 `Canvas.willRenderCanvases -= Snap`，避免对禁用/已销毁对象调用。
 
 ### 3.3 对齐感知参考点（PPS-D4，取代 brainstorm 的"吸偶数宽"）
 
@@ -112,7 +112,7 @@ Pixel 模式下，库创建的每个 TMP 文本，其渲染原点自动落在设
 ### 3.4 与 `scale` / scaled-text wrapper 的叠加（PPS-D5）
 
 - `scale` 管密度（`localScale`），`PixelSnap` 管位置，正交。吸附经目标 transform 的 `TransformPoint`/`WorldToScreenPoint` 计算，自动含 `localScale`。
-- ReSolve 时 `ApplyCommon` 把 RT 重置到 margin 基线、`ApplyScales` 再膨胀；`PixelSnap` 的 `localPosition` 微调随之被抹掉，下一帧 `LateUpdate` 重吸（不累积、收敛）。
+- ReSolve 时 `ApplyCommon` 把 RT 重置到 margin 基线、`ApplyScales` 再膨胀；`PixelSnap` 的 `localPosition` 微调随之被抹掉，下一帧 `willRenderCanvases` 重吸（不累积、收敛）。
 - scaled-text wrapper 模式（V/HStack 直下 scaled `<Text>`）：`PixelSnap` 挂在**内层 TMP** 上、吸内层原点；wrapper 的位置由布局驱动，内层在 wrapper 内 stretch，吸附是内层 `localPosition` 的亚像素微调，共存无冲突。
 
 ## 4. 边界情形
@@ -128,6 +128,7 @@ Pixel 模式下，库创建的每个 TMP 文本，其渲染原点自动落在设
 | 运行时改文本内容 | 块宽变 → 参考点签名变 → 下一帧重吸 |
 | ReSolve（Variant/theme/resize 重算） | ApplyCommon 重置、`AttachPixelSnaps(RootGameObject)` 幂等补挂新增文本、PixelSnap 下一帧重吸 |
 | 画布 resize（无 scale 的中心锚点文字） | Unity 锚点系统重定位 → transform 变 → PixelSnap 重吸（**本 bug 的修复点**，独立于 `_hasFactorScale` ReSolve 门控） |
+| ScrollRect 惯性滚动（Y 持续变化） | 在 willRenderCanvases 吸附（晚于 ScrollRect 的 LateUpdate 内容移动）→ 逐帧落格、不发糊 |
 | ScrollRect 内文本 + 慢速滚动（< 0.5px/帧） | 非累积基线追踪：文字随滚动移动、不被钉在初始像素、localPosition 不漂移 |
 | 旋转/倾斜（`<Animation>` 旋转文字） | 只吸位置参考点；动画进行中 ≤1px 抖动不可见，静止时正确 |
 | hot reload | 整树重建 → Screen 重新扫描挂载 |
@@ -139,7 +140,7 @@ Pixel 模式下，库创建的每个 TMP 文本，其渲染原点自动落在设
 
 仅影响 **Pixel 模式**屏幕：TMP 文本从"可能随尺寸亚像素发糊"变为"稳定落格清晰"——纯修复，方向只更符合意图。Auto 模式无变化。无新增 XML/API；唯一 opt-out 是关 `pixelPerfect`（既有杠杆）。非 XML builtin tag → **无需同步 `Runtime/Core/Lint/BuiltinTags.cs`**。
 
-**性能**：每个 TMP 文本一个 `LateUpdate`，每帧执行约 2 次廉价变换调用 + 一次 `localPosition` 写入。**静态屏的每帧写入无法跳过**——父级 ScrollRect 移动元素的世界坐标而不改变其 `localPosition`，故吸附必须每帧重算（"已对齐"保护的是 `rt.position` 写入，不能跳过 `localPosition` 恢复 + 参考点求值）；不触发 layout/canvas 重构，开销低但非零，属有意为之（正确性优先于微优化）。几十上百文本量级在 Profile 下可忽略；若将来成为热点可加签名缓存（需同时解决 ScrollRect 可见性问题）。
+**性能**：每个 TMP 文本订阅一个 `Canvas.willRenderCanvases` 回调，每帧执行约 2 次廉价变换调用 + 一次 `localPosition` 写入。**静态屏的每帧写入无法跳过**——父级 ScrollRect 移动元素的世界坐标而不改变其 `localPosition`，故吸附必须每帧重算（"已对齐"保护的是 `rt.position` 写入，不能跳过 `localPosition` 恢复 + 参考点求值）；不触发 layout/canvas 重构，开销低但非零，属有意为之（正确性优先于微优化）。几十上百文本量级在 Profile 下可忽略；若将来成为热点可加签名缓存（需同时解决 ScrollRect 可见性问题）。
 
 ### 5.2 文档同步
 

@@ -42,6 +42,71 @@ namespace PromptUGUI.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator Snap_DuringInertialScroll_TextStaysOnGrid()
+        {
+            var go = new GameObject("canvas");
+            var canvas = go.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.scaleFactor = 3f;
+            canvas.pixelPerfect = true;
+            var canvasRT = (RectTransform)go.transform;
+            canvasRT.sizeDelta = new Vector2(300f, 300f);
+
+            var viewport = new GameObject("viewport").AddComponent<RectTransform>();
+            viewport.SetParent(go.transform, false);
+            viewport.anchorMin = Vector2.zero; viewport.anchorMax = Vector2.one;
+            viewport.sizeDelta = Vector2.zero;
+            viewport.gameObject.AddComponent<UnityEngine.UI.RectMask2D>();
+
+            var content = new GameObject("content").AddComponent<RectTransform>();
+            content.SetParent(viewport, false);
+            content.anchorMin = new Vector2(0f, 1f); content.anchorMax = new Vector2(0f, 1f);
+            content.pivot = new Vector2(0f, 1f);
+            content.sizeDelta = new Vector2(100f, 2000f);
+            content.anchoredPosition = Vector2.zero;
+
+            var t = new GameObject("txt"); t.transform.SetParent(content, false);
+            var tmp = t.AddComponent<TextMeshProUGUI>();
+            var rt = tmp.rectTransform;
+            rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(0f, 1f);
+            rt.pivot = new Vector2(0f, 1f);
+            rt.sizeDelta = new Vector2(80f, 20f);
+            rt.anchoredPosition = new Vector2(5.3f, -5.3f); // fractional so snapping is non-trivial
+            t.AddComponent<PromptUGUI.Controls.Internal.PixelSnap>();
+
+            var sr = go.AddComponent<UnityEngine.UI.ScrollRect>();
+            sr.viewport = viewport; sr.content = content;
+            sr.horizontal = false; sr.vertical = true;
+            sr.movementType = UnityEngine.UI.ScrollRect.MovementType.Unrestricted;
+            sr.inertia = true;
+            Canvas.ForceUpdateCanvases();
+            yield return null;
+
+            System.Func<float> contentY = () => content.anchoredPosition.y;
+            System.Func<Vector2> refScreen = () =>
+            {
+                var localRef = PromptUGUI.Controls.Internal.PixelSnap.ReferencePoint(
+                    rt.rect, tmp.horizontalAlignment, tmp.verticalAlignment);
+                return RectTransformUtility.WorldToScreenPoint(null, rt.TransformPoint((Vector3)localRef));
+            };
+
+            var y0 = contentY();
+            sr.velocity = new Vector2(0f, 900f);   // launch inertial scroll
+            bool moved = false;
+            int offGridFrames = 0;
+            for (int i = 0; i < 30; i++)
+            {
+                yield return null;                  // frame end: ScrollRect.LateUpdate moved, willRenderCanvases snapped
+                if (Mathf.Abs(contentY() - y0) > 1f) moved = true;
+                var p = refScreen();
+                if (Mathf.Abs(p.x - Mathf.Round(p.x)) > 0.05f || Mathf.Abs(p.y - Mathf.Round(p.y)) > 0.05f)
+                    offGridFrames++;
+            }
+            Assert.IsTrue(moved, "ScrollRect inertia should have moved the content (test not vacuous)");
+            Assert.AreEqual(0, offGridFrames, "text reference must stay on the integer device-pixel grid during inertial scroll");
+        }
+
+        [UnityTest]
         public IEnumerator LayoutGroupChildText_SnapsAndStaysStable()
         {
             UI.CanvasSizeOverride = () => new Vector2(5760f, 3240f); // factor 3
