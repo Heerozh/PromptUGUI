@@ -9,6 +9,38 @@ namespace PromptUGUI.Controls.Internal
     [DisallowMultipleComponent]
     internal sealed class PixelSnap : UIBehaviour
     {
+        private RectTransform _rt;
+        private TMP_Text _text;
+        private Canvas _canvas;
+
+        protected override void Awake()
+        {
+            _rt = (RectTransform)transform;
+            _text = GetComponent<TMP_Text>();
+        }
+
+        // 父链变化 → 下次 Snap 重新解析所属 Canvas。
+        protected override void OnCanvasHierarchyChanged() => _canvas = null;
+        protected override void OnTransformParentChanged() => _canvas = null;
+
+        private void LateUpdate() => Snap();
+
+        // 运行期自门控于 canvas.pixelPerfect（关掉它 = 同时关吸附，复用既有 opt-out，PPS-D7）。
+        internal void Snap()
+        {
+            if (_rt == null) _rt = (RectTransform)transform;
+            if (_text == null) _text = GetComponent<TMP_Text>();
+            if (_canvas == null) _canvas = GetComponentInParent<Canvas>(true);
+            if (_text == null || _canvas == null
+                || !_canvas.pixelPerfect
+                || _canvas.renderMode == RenderMode.WorldSpace)
+                return;
+
+            var localRef = ReferencePoint(
+                _rt.rect, _text.horizontalAlignment, _text.verticalAlignment);
+            SnapToPixelGrid(_rt, _canvas, localRef);
+        }
+
         // 参考点 = TMP 把文本块相对 rect 摆放所依据的边/中心（PPS-D4）。
         internal static Vector2 ReferencePoint(
             Rect rect, HorizontalAlignmentOptions h, VerticalAlignmentOptions v)

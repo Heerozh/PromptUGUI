@@ -84,5 +84,52 @@ namespace PromptUGUI.Tests.Application
             Assert.AreEqual(pos1.y, rt.position.y, 1e-4f);
             Object.DestroyImmediate(root);
         }
+
+        // ---- Task 3: 组件 Snap() ----
+        private static (GameObject root, TextMeshProUGUI tmp, PixelSnap snap) MakeText(
+            Vector2 anchoredPos, bool pixelPerfect)
+        {
+            var go = new GameObject("c");
+            var canvas = go.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.scaleFactor = 3f;
+            canvas.pixelPerfect = pixelPerfect;
+            var t = new GameObject("txt");
+            t.transform.SetParent(go.transform, false);
+            var tmp = t.AddComponent<TextMeshProUGUI>();   // 默认 TopLeft 对齐
+            var rt = tmp.rectTransform;
+            rt.anchorMin = rt.anchorMax = Vector2.zero;
+            rt.pivot = Vector2.zero;
+            rt.sizeDelta = new Vector2(10f, 16f);
+            rt.anchoredPosition = anchoredPos;
+            var snap = t.AddComponent<PixelSnap>();
+            Canvas.ForceUpdateCanvases();
+            return (go, tmp, snap);
+        }
+
+        [Test]
+        public void Snap_PixelPerfectOn_SnapsLeftTopReferenceToInteger()
+        {
+            var (root, tmp, snap) = MakeText(new Vector2(7.3f, 4.1f), pixelPerfect: true);
+            snap.Snap();
+            Canvas.ForceUpdateCanvases();
+            // TopLeft → 参考点 (xMin, yMax) = (0,16) → 屏幕 (21.9, (4.1+16)*3=60.3) → (22,60)
+            var after = RectTransformUtility.WorldToScreenPoint(
+                null, tmp.rectTransform.TransformPoint((Vector3)tmp.rectTransform.rect.min
+                       + Vector3.up * tmp.rectTransform.rect.height));
+            Assert.AreEqual(22f, after.x, 0.01f);
+            Assert.AreEqual(60f, after.y, 0.01f);
+            Object.DestroyImmediate(root);
+        }
+
+        [Test]
+        public void Snap_PixelPerfectOff_NoOp()
+        {
+            var (root, tmp, snap) = MakeText(new Vector2(7.3f, 4.1f), pixelPerfect: false);
+            var before = tmp.rectTransform.position;
+            snap.Snap();
+            Assert.AreEqual(before, tmp.rectTransform.position);   // 门控：不动
+            Object.DestroyImmediate(root);
+        }
     }
 }
