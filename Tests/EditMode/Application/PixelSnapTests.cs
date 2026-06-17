@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
 using TMPro;
 using UnityEngine;
@@ -130,6 +131,45 @@ namespace PromptUGUI.Tests.Application
             snap.Snap();
             Assert.AreEqual(before, tmp.rectTransform.position);   // 门控：不动
             Object.DestroyImmediate(root);
+        }
+
+        // ---- Task 4: Screen 静态挂载 ----
+        private static PromptUGUI.Application.Screen OpenPixel(string body)
+        {
+            UI.CanvasSizeOverride = () => new Vector2(5760f, 3240f); // /1920x1080 → factor 3
+            var xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='pixel' reference='1920x1080'>" + body + @"</Screen>
+</PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            return (PromptUGUI.Application.Screen)UI.Open("S");
+        }
+
+        [Test]
+        public void Open_PixelMode_AttachesPixelSnapToText()
+        {
+            UI.ResetForTests();
+            var screen = OpenPixel("<Text id='t'>hi</Text>");
+            var tmp = screen.RootGameObject.GetComponentInChildren<TMP_Text>(true);
+            Assert.IsNotNull(tmp);
+            Assert.IsNotNull(tmp.GetComponent<PixelSnap>(), "pixel 模式应挂 PixelSnap");
+            UI.ResetForTests();
+        }
+
+        [Test]
+        public void Open_AutoMode_DoesNotAttachPixelSnap()
+        {
+            UI.ResetForTests();
+            UI.CanvasSizeOverride = () => new Vector2(1920f, 1080f);
+            var xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' scale-mode='auto' reference='1920x1080'><Text id='t'>hi</Text></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = (PromptUGUI.Application.Screen)UI.Open("S");
+            var tmp = screen.RootGameObject.GetComponentInChildren<TMP_Text>(true);
+            Assert.IsNull(tmp.GetComponent<PixelSnap>(), "auto 模式不应挂");
+            UI.ResetForTests();
         }
     }
 }
