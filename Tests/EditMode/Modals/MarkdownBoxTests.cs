@@ -145,6 +145,10 @@ namespace PromptUGUI.Tests.Modals
         [Test]
         public void Default_xml_src_loads_builtin_template()
         {
+            // 默认皮肤的 dialog 现在包在 <SafeArea> 内并被渲染;退化的测试画布(横屏 reference
+            // 套在竖屏 Game view → 1920×4155)把 Tiled 9-slice 大面板拉到超出贴片预算,触发
+            // 良性的 "Too many sprite tiles"(真机尺寸无此问题)。容忍这条环境相关日志。
+            UnityEngine.TestTools.LogAssert.ignoreFailingMessages = true;
             MarkdownBox.XmlSrc = "PromptUGUI/Modals/MarkdownBox.ui";
             var task = UI.Modal.OpenAsync(new MarkdownBoxRequest { Text = "# T", Title = "公告" });
             Assert.AreEqual("# T", Md().Text);
@@ -157,6 +161,9 @@ namespace PromptUGUI.Tests.Modals
         [Test]
         public void Variant_flip_keeps_text_and_hidden_title()
         {
+            // 见 Default_xml_src_loads_builtin_template:SafeArea 内渲染的大 Tiled 面板在
+            // 退化测试画布上触发良性的 "Too many sprite tiles",容忍之。
+            UnityEngine.TestTools.LogAssert.ignoreFailingMessages = true;
             MarkdownBox.XmlSrc = "PromptUGUI/Modals/MarkdownBox.ui";
             UI.Modal.OpenAsync(new MarkdownBoxRequest { Text = "# T" });   // no Title
             UI.Variants.Set("portrait", true);   // triggers ReSolve
