@@ -1,5 +1,6 @@
 using System;
 using PromptUGUI.Controls;
+using PromptUGUI.Controls.Internal;
 using UnityEngine;
 
 namespace PromptUGUI.Application.Tutorial
@@ -17,6 +18,7 @@ namespace PromptUGUI.Application.Tutorial
 
         internal SpotlightMask Mask;
         private RectTransform _overlayRect, _bubbleRootRt, _bubbleRt, _fingerRt;
+        private Canvas _canvas;
         private Text _bubbleText;
 
         private StepConfig _cfg;
@@ -32,6 +34,7 @@ namespace PromptUGUI.Application.Tutorial
             Mask.color = UI.Theme.Resolve(UI.Tutorial.MaskColor);
             Mask.raycastTarget = true;
             _overlayRect = screen.RootGameObject.GetComponent<RectTransform>();
+            _canvas = screen.RootGameObject.GetComponent<Canvas>();
             _bubbleRootRt = screen.Get<IControl>("bubbleRoot").RectTransform;
             _bubbleRt = screen.Get<IControl>("bubble").RectTransform;
             _bubbleText = screen.Get<Text>("bubbleText");
@@ -113,7 +116,10 @@ namespace PromptUGUI.Application.Tutorial
                 local.width + 2f * _cfg.Padding, local.height + 2f * _cfg.Padding);
             if (_cfg.Mode == TutorialMode.Block) Mask.SetHole(hole);
             if (!_bubbleRootRt.gameObject.activeSelf) return;   // 无文案 → 不摆气泡/手指
-            var r = TutorialPlacement.Choose(_overlayRect.rect, local, _bubbleRt.rect.size,
+            // 气泡/手指夹进安全区(遮罩+挖洞仍走全屏 _overlayRect.rect),避开 notch / 挖孔 / Home 条。
+            float sf = _canvas != null ? _canvas.scaleFactor : 1f;
+            var safeOverlay = ApplySafeInset(_overlayRect.rect, sf);
+            var r = TutorialPlacement.Choose(safeOverlay, local, _bubbleRt.rect.size,
                 FingerGap, _cfg.Place);
             _bubbleRootRt.anchoredPosition = r.BubblePos;
             _fingerRt.gameObject.SetActive(true);
@@ -156,6 +162,21 @@ namespace PromptUGUI.Application.Tutorial
         private void Fail(Exception ex) { if (_stepActive) { _stepActive = false; _acs.TrySetException(ex); } }
 
         private void LateUpdate() => Tick(Time.unscaledDeltaTime);
+
+        // 把全屏 overlay 矩形按设备安全区(notch / 挖孔 / Home 条)内缩成气泡可落位的安全矩形。
+        // 遮罩 / 挖洞仍用全屏坐标,只有气泡 + 手指被夹进这个安全矩形(见 UpdateVisuals)。
+        // 复用 SafeAreaTracker 的内缩算法 + 测试注入钩子;PC(inset=0)下原样返回 full。
+        internal static Rect ApplySafeInset(Rect full, float scaleFactor)
+        {
+            float sf = SafeAreaTracker.ScaleFactorOverride != null
+                ? SafeAreaTracker.ScaleFactorOverride()
+                : scaleFactor;
+            var (l, r, b, t) = SafeAreaTracker.ComputeInsetsDesignPx(
+                SafeAreaTracker.ResolveSafeAreaStatic(),
+                SafeAreaTracker.ResolveScreenSizeStatic(),
+                sf);
+            return Rect.MinMaxRect(full.xMin + l, full.yMin + b, full.xMax - r, full.yMax - t);
+        }
 
         // 每帧调用,复用同一数组避免 GC(Tick 主线程同步,无重入)。
         private static readonly Vector3[] s_corners = new Vector3[4];

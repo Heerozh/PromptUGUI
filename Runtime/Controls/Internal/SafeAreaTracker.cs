@@ -83,11 +83,8 @@ namespace PromptUGUI.Controls.Internal
             _lastScaleFactor = sf;
             _hasApplied = true;
 
-            // device-px safe-area → 4 个 inset 距屏幕各边的距离,再除 scaleFactor 拿到 design px
-            var insetL = safe.xMin / sf;
-            var insetR = (screenSize.x - safe.xMax) / sf;
-            var insetB = safe.yMin / sf;
-            var insetT = (screenSize.y - safe.yMax) / sf;
+            // device-px safe-area → 4 个 inset 距屏幕各边的距离,再除 scaleFactor 拿到 design px(共用算法)
+            var (insetL, insetR, insetB, insetT) = ComputeInsetsDesignPx(safe, screenSize, sf);
 
             // 设计 margin: ApplyCommon 写出来的 offsetMin/Max 等价于 (l, b) / (-r, -t)。
             // _hasDesignMargin=false 时（OnEnable 先于第一次 OnAfterApply 调 Apply 的同帧）按 0 取,
@@ -108,13 +105,32 @@ namespace PromptUGUI.Controls.Internal
             _rt.offsetMax = new Vector2(-finR, -finT);
         }
 
-        private Rect ResolveSafeArea() =>
+        // device-px safeArea + 屏幕尺寸 + scaleFactor → 4 边 design-px inset(left/right/bottom/top)。
+        // SafeArea 控件(Apply)与 Tutorial 气泡安全区(TutorialOverlayView.ApplySafeInset)共用此算法。
+        internal static (float left, float right, float bottom, float top) ComputeInsetsDesignPx(
+            Rect safe, Vector2 screenSize, float scaleFactor)
+        {
+            if (screenSize.x <= 0f || screenSize.y <= 0f || scaleFactor <= 0f)
+                return (0f, 0f, 0f, 0f);
+            return (
+                safe.xMin / scaleFactor,
+                (screenSize.x - safe.xMax) / scaleFactor,
+                safe.yMin / scaleFactor,
+                (screenSize.y - safe.yMax) / scaleFactor);
+        }
+
+        // override-aware 静态解析,供 Tutorial 气泡复用同一份设备状态(及测试注入钩子)。
+        internal static Rect ResolveSafeAreaStatic() =>
             SafeAreaOverride != null ? SafeAreaOverride() : Screen.safeArea;
 
-        private Vector2 ResolveScreenSize() =>
+        internal static Vector2 ResolveScreenSizeStatic() =>
             ScreenSizeOverride != null
                 ? ScreenSizeOverride()
                 : new Vector2(Screen.width, Screen.height);
+
+        private Rect ResolveSafeArea() => ResolveSafeAreaStatic();
+
+        private Vector2 ResolveScreenSize() => ResolveScreenSizeStatic();
 
         private float ResolveScaleFactor()
         {
