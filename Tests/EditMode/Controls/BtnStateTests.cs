@@ -193,6 +193,37 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void InteractableFalseXml_KeepsBlocksRaycasts()
+        {
+            // A disabled Btn must still ABSORB the pointer, never become click-through. Otherwise the
+            // click falls through to whatever sits behind it — e.g. a modal's full-screen backdrop whose
+            // OnPointerDown cancels — which is the "clicking a disabled CenteredSlideBox button closes the
+            // window" bug. `interactable='false'` greys + suppresses onClick via CanvasGroup.interactable;
+            // it must NOT also drop CanvasGroup.blocksRaycasts (standard Unity disabled-Selectable still
+            // eats the raycast).
+            var btn = BuildBtn("interactable='false'");
+            var cg = btn.GameObject.GetComponent<CanvasGroup>();
+            Assert.IsNotNull(cg, "disabling routes through the CanvasGroup-backed common attr");
+            Assert.IsFalse(cg.interactable, "interactable='false' should disable the CanvasGroup");
+            Assert.IsTrue(cg.blocksRaycasts,
+                "disabled Btn must keep blocking raycasts so the click can't leak to a backdrop behind it");
+        }
+
+        [Test]
+        public void RuntimeInteractableFalse_KeepsBlocksRaycasts()
+        {
+            // Same contract as the XML path, but disabled from code (e.g. a modal Configure hook gating
+            // a button). blocksRaycasts must stay true so the disabled button still swallows the click.
+            var btn = BuildBtn();
+            btn.Interactable = false;
+
+            var cg = btn.GameObject.GetComponent<CanvasGroup>();
+            Assert.IsFalse(cg.interactable, "runtime Interactable=false should disable the CanvasGroup");
+            Assert.IsTrue(cg.blocksRaycasts,
+                "runtime-disabled Btn must keep blocking raycasts (no click-through to backdrop)");
+        }
+
+        [Test]
         public void PlainBtn_BackCompat_TargetGraphicIsBgAndTransitionIsColorTint()
         {
             var btn = BuildBtn();
