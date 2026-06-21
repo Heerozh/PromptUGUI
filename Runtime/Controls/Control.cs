@@ -55,7 +55,12 @@ namespace PromptUGUI.Controls
         public virtual bool Interactable
         {
             get => CanvasGroup.interactable;
-            set { CanvasGroup.interactable = value; CanvasGroup.blocksRaycasts = value; }
+            // Only flips interactable, NOT blocksRaycasts: a disabled control must still SWALLOW the
+            // pointer (standard Unity disabled-Selectable behaviour), else the click leaks through to
+            // whatever sits behind it — e.g. a modal backdrop whose OnPointerDown cancels (clicking a
+            // disabled CenteredSlideBox button used to close the window). Toast-style click-through
+            // overlays set blocksRaycasts=false directly on their own CanvasGroup instead.
+            set => CanvasGroup.interactable = value;
         }
 
         private CanvasGroup CanvasGroup => _canvasGroup ??= GameObject.AddComponent<CanvasGroup>();
