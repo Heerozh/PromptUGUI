@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    UIXmlLint: stand-alone CLI that parses .ui.xml files and reports lint
+    violations. Runs OUTSIDE Unity (pure .NET) so authors / LLMs without an
+    open Unity instance can validate XML before runtime.
+
+    Compile set: only the truly self-contained Core subset of the Runtime
+    asmdef (Parser / IR / Lint). Template/Variants were excluded — those
+    still type-reference PromptUGUI.Application (DocumentLoader, VariantStore)
+    even though the *algorithm* is pure. The lint CLI only walks raw IR; it
+    doesn't run TemplateExpander or VariantResolver, so we don't need them.
+    The result is verified pure C# — no Unity types, no Awaitable, no Debug.*.
+
+    Rule code is shared with ScreenInstantiator via PromptUGUI.Lint
+    (LayoutGroupChildRules etc.) — single source of truth. The CLI surfaces
+    each LintIssue as an error (non-zero exit code); ScreenInstantiator
+    surfaces the same rule as a Debug.LogWarning to avoid breaking Open().
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>UIXmlLint</AssemblyName>
+    <RootNamespace>PromptUGUI.UIXmlLint</RootNamespace>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\Runtime\Core\Parser\**\*.cs" />
+    <Compile Include="..\..\Runtime\Core\IR\**\*.cs" />
+    <Compile Include="..\..\Runtime\Core\Lint\**\*.cs" />
+    <Compile Include="*.cs" />
+  </ItemGroup>
+
+  <!--
+    Directory.Build.props (at .lint/) adds a global R3 PackageReference for
+    the stub Roslyn-workspace csprojs. UIXmlLint doesn't use R3 (the compiled
+    Core subset doesn't reference it) — drop it to keep the published binary
+    minimal.
+  -->
+  <ItemGroup>
+    <PackageReference Remove="R3" />
+  </ItemGroup>
+
+</Project>
