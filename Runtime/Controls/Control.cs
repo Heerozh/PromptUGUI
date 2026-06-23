@@ -45,6 +45,7 @@ namespace PromptUGUI.Controls
         public bool StateReact { get; set; } = true;
 
         private readonly List<IControl> _children = new();
+        private System.Collections.Generic.List<System.IDisposable> _subscriptions;
 
         public bool Hidden
         {
@@ -519,12 +520,30 @@ namespace PromptUGUI.Controls
             }
         }
 
+        /// <summary>把 R3 订阅绑到本 Control 生命周期（卡片重建 / 关窗时随 Dispose 释放）。对称 Screen.Track。</summary>
+        public void Track(System.IDisposable d)
+            => (_subscriptions ??= new System.Collections.Generic.List<System.IDisposable>()).Add(d);
+
+        // 释放自身订阅袋 + 递归子树兜底：动态卡子树的内层 Control 不会被单独 Dispose（只销毁根 GO 级联），
+        // 故 .AddTo(innerControl) 必须靠这条递归，否则泄漏。只碰订阅袋，不额外销毁 GO（GO 由根 Destroy 级联）。
+        private void DisposeSubscriptionsRecursive()
+        {
+            if (_subscriptions != null)
+            {
+                for (int i = _subscriptions.Count - 1; i >= 0; i--) _subscriptions[i]?.Dispose();
+                _subscriptions.Clear();
+                _subscriptions = null;
+            }
+            foreach (var c in _children)
+                if (c is Control cc) cc.DisposeSubscriptionsRecursive();
+        }
+
         public virtual void Dispose()
         {
+            // 先退订（自身 + 子树）——teardown 可能读 GO；避免往半销毁 GO fire。
+            DisposeSubscriptionsRecursive();
             if (HostGameObject == null) return;
-            // 与 Screen.Close 一致：EditMode 下用 DestroyImmediate，避免 "Destroy may not be called" 警告。
-            // 销毁宿主 GO（wrapper 存在时即 wrapper，内层随子级联销毁）——BindItems 重建
-            // 经 Dispose 走这里，不会把 wrapper 留在 LayoutGroup 里占行高。
+            // 与 Screen.Close 一致：EditMode 用 DestroyImmediate。
             if (UnityEngine.Application.isPlaying) Object.Destroy(HostGameObject);
             else Object.DestroyImmediate(HostGameObject);
         }

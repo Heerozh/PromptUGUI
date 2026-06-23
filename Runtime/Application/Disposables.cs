@@ -15,5 +15,11 @@ namespace PromptUGUI.Application
             ((Screen)screen).Track(disposable);
             return disposable;
         }
+
+        public static T AddTo<T>(this T disposable, Controls.IControl control) where T : IDisposable
+        {
+            ((Controls.Control)control).Track(disposable);
+            return disposable;
+        }
     }
 }
