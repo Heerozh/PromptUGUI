@@ -571,14 +571,15 @@ EVENTS (R3)    .OnClick                Btn
                .OnCurrentChanged       Carousel:int (any-source page change, deduped)
                .OnEndEdit / .OnSubmit  InputField:string
                .Subscribe(...).AddTo(screen)   tie lifetime — ALWAYS
-               .Subscribe(...).AddTo(control)  per-card/per-control lifetime (BindItems 内订阅用它)
+               .Subscribe(...).AddTo(control)  per-card/per-control lifetime (use inside BindItems)
                Progress                display-only; .Value = 0.42f (Clamp01); no event
 
 DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                ScrollList.BindItems(Observable<IReadOnlyList<T>>, (slot,t)=>...)
                TabBar.BindItems(Observable<IReadOnlyList<T>>, (Tab tab,t)=>...)
                                        or BindItems<T,TSlot>(...) for wrapped templates
-               Carousel.BindItems(Observable<IReadOnlyList<T>>, (IControl card,t)=>..., key: o=>o.Id (反应式身份保持))
+               Carousel.BindItems(Observable<IReadOnlyList<T>>, (IControl card,t)=>...[, key: o=>o.Id])
+                                                              // key optional: re-centre the centred card by identity on re-emit
                                        or BindItems<T,TSlot>(...) for typed card template
                .AddTo(screen)
                TabBar query: .Count / .SelectedIndex (-1 if empty) / .SelectedTab / .GetAt(i)
