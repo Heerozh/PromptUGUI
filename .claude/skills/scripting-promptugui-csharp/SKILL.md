@@ -203,6 +203,27 @@ State is driven by the Selectable machine and is disabled-aware (a disabled cont
 
 `screen.Track(disposable)` (or the `.AddTo(screen)` extension) ties a subscription to Screen lifetime. **Always do this** — leaked R3 subscriptions hold the GameObject alive after Close, and the next Open will produce phantom callbacks against the old (destroyed) GameObject.
 
+### Per-control subscription lifetime (`.AddTo(control)`)
+
+`.AddTo(screen)` ties a subscription to **Screen** lifetime. For per-item live
+data inside a `BindItems` / modal-card binder, tie it to the **card** instead so
+it's disposed when that card is rebuilt (list membership change) or the screen
+closes — whichever comes first:
+
+```csharp
+list.BindItems(items, (slot, item) => {
+    var label = slot.Get<Text>("label");                 // cache the handle
+    item.Count.Subscribe(n => label.TextValue = $"x{n}") // R3 field on the item VM
+        .AddTo(slot);                                    // ← card lifetime, NOT screen
+});
+```
+
+`.AddTo(control)` works on any `IControl` (mirrors `.AddTo(screen)`). Disposing a
+control disposes its tracked subscriptions, recursively including child controls.
+Using `.AddTo(screen)` for per-card subscriptions leaks across list rebuilds
+(old cards are destroyed but their subscriptions keep firing into dead controls
+until the screen closes).
+
 ## Screen-level hooks
 
 `screen.RectTransformDimensionsChanged` is the same as the Canvas's `screen.RootGameObject.RectTransformDimensionsChanged` — useful for re-layout reactions that span multiple controls.
@@ -550,13 +571,14 @@ EVENTS (R3)    .OnClick                Btn
                .OnCurrentChanged       Carousel:int (any-source page change, deduped)
                .OnEndEdit / .OnSubmit  InputField:string
                .Subscribe(...).AddTo(screen)   tie lifetime — ALWAYS
+               .Subscribe(...).AddTo(control)  per-card/per-control lifetime (BindItems 内订阅用它)
                Progress                display-only; .Value = 0.42f (Clamp01); no event
 
 DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                ScrollList.BindItems(Observable<IReadOnlyList<T>>, (slot,t)=>...)
                TabBar.BindItems(Observable<IReadOnlyList<T>>, (Tab tab,t)=>...)
                                        or BindItems<T,TSlot>(...) for wrapped templates
-               Carousel.BindItems(Observable<IReadOnlyList<T>>, (IControl card,t)=>...)
+               Carousel.BindItems(Observable<IReadOnlyList<T>>, (IControl card,t)=>..., key: o=>o.Id (反应式身份保持))
                                        or BindItems<T,TSlot>(...) for typed card template
                .AddTo(screen)
                TabBar query: .Count / .SelectedIndex (-1 if empty) / .SelectedTab / .GetAt(i)
@@ -607,6 +629,7 @@ MODAL          var r = await MessageBox.Open(text, MsgBtn.OK|MsgBtn.Cancel, icon
                               // 居中卡片选择器(关卡/角色弹窗,内含 fill=false peek Carousel);T:class
                               // 返回选中对象(取消 ×/背景/ESC → null);bind 填内置卡槽 cover/name(同 BindItems)
                               // 点侧卡居中,点居中卡 or 确认按钮 = 确认;换皮 CenteredSlideBox.XmlSrc 指自己 XML
+                              // items 可传 Observable<IReadOnlyList<T>> (反应式) + key: o=>o.Id 身份保持居中
                var (item,key) = await CenteredSlideBox.Open(items, bind, buttons, title, mode, configure, ct)
                               // multi-button overload → SlideSelection<T>(.Item/.Button/.Cancelled)
                               // ≥2 buttons: tap-centred-card shortcut disabled (must click a button); side-tap still centres
@@ -748,6 +771,23 @@ if (action == null) return;            // cancelled
 if (action == "play") StartLevel(level);
 // else action == "hard" → StartLevel(level, hard: true)
 
+// Reactive items: the card set changes live (orders appear/disappear) AND each
+// card's fields tick. Pass Observable<IReadOnlyList<T>> for membership; subscribe
+// per-card fields inside `bind` with .AddTo(card). `key` keeps the centred card
+// by identity across membership changes (so confirm submits the object the user sees).
+var picked = await CenteredSlideBox.Open(
+    items: liveOrders,                       // Observable<IReadOnlyList<OrderVM>>
+    bind: (card, vm) => {
+        var price = card.Get<Text>("price"); // cache; don't Get every tick
+        vm.Price.Subscribe(p => price.TextValue = p.ToString("C")).AddTo(card);
+    },
+    title: UI.Tr("Select order"),
+    key: o => o.Id);                         // identity for centred-card preservation
+// Membership change (add/remove/reorder) triggers a full card rebuild (NOT keyed diff).
+// For high-frequency lists, use ScrollList instead.
+// Per-card live fields: subscribe in bind + .AddTo(card); card is disposed on rebuild or close.
+// Cache card.Get<T>(...) handles outside the per-tick callback.
+
 // Different card style? point CenteredSlideBox.XmlSrc at your own .ui, keeping the id
 // contract: backdrop / panel / title / close / button0..buttonN / cards (Carousel fill="false")
 // + your card template's slots.
@@ -821,7 +861,7 @@ public static class MarkdownBox {
 public static class CenteredSlideBox {
     public static string XmlSrc { get; set; } = "PromptUGUI/Modals/CenteredSlideBox.ui";
 
-    // Single-button overload: returns the selected item, or null on cancel.
+    // Static single-button overload: returns the selected item, or null on cancel.
     // Tap a side card to centre it; tap the centred card OR the confirm button to pick.
     public static Awaitable<T> Open<T>(
         IReadOnlyList<T> items, Action<IControl, T> bind,
@@ -831,7 +871,7 @@ public static class CenteredSlideBox {
         Action<IScreen> configure = null,
         CancellationToken ct = default) where T : class;
 
-    // Multi-button overload: returns SlideSelection<T>.
+    // Static multi-button overload: returns SlideSelection<T>.
     // ≥2 buttons disables the "tap centred card" shortcut — user must click a button.
     // label is shown as-is (wrap in UI.Tr for i18n); key is the stable branch discriminator.
     // Default skin exposes button0..button4 (5 slots).
@@ -843,6 +883,31 @@ public static class CenteredSlideBox {
         string title         = null,
         ModalMode mode       = ModalMode.Popup,
         Action<IScreen> configure = null,
+        CancellationToken ct = default) where T : class;
+
+    // Reactive single-button overload: items is Observable<IReadOnlyList<T>>.
+    // On each re-emit the card set is fully rebuilt; `key` re-centres the previously-centred
+    // card by identity (Func<T,object>; e.g. key: o => o.Id). Key not found → clamp to nearest.
+    // ≤1 OnCurrentChanged per emit. Subscribe per-card live fields inside `bind` with .AddTo(card).
+    // Membership change = full rebuild (NOT keyed diff); for high-frequency lists use ScrollList.
+    // Static overloads are unchanged; `key` exists only on reactive overloads (static lists never rebuild).
+    public static Awaitable<T> Open<T>(
+        Observable<IReadOnlyList<T>> items, Action<IControl, T> bind,
+        string title         = null,
+        string confirmLabel  = null,
+        ModalMode mode       = ModalMode.Popup,
+        Action<IScreen> configure = null,
+        Func<T, object> key  = null,
+        CancellationToken ct = default) where T : class;
+
+    // Reactive multi-button overload: same reactive semantics + `key` as the single-button form.
+    public static Awaitable<SlideSelection<T>> Open<T>(
+        Observable<IReadOnlyList<T>> items, Action<IControl, T> bind,
+        IEnumerable<(string label, string key)> buttons,
+        string title         = null,
+        ModalMode mode       = ModalMode.Popup,
+        Action<IScreen> configure = null,
+        Func<T, object> key  = null,
         CancellationToken ct = default) where T : class;
 }
 
