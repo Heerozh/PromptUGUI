@@ -101,3 +101,29 @@ In short: write `pressedSprite=""` or `pressedSprite="none"` to explicitly disab
   <Text anchor="center">Tap</Text>
 </Btn>
 ```
+
+## 4. Press offset — `pressedOffset` / `selectedOffset`
+
+A **tactile / physical-button** effect: while Pressed, the control's child content (label, icons, nested content) shifts by a fixed pixel offset — the background frame (the control's own bg `Image`) stays put — giving a "depressed into the button" feel. Shared by `<Btn>` / `<Tab>` / `<Toggle>`.
+
+| Attribute | Controls | Meaning |
+| --- | --- | --- |
+| `pressedOffset="x,y"` | Btn / Tab / Toggle | Content offset while **Pressed**. |
+| `selectedOffset="x,y"` | Tab / Toggle | Content offset held while **Selected** (`isOn`). `<Btn>` has no selected state and does not have this attribute. |
+
+```xml
+<Btn pressedOffset="0,-4">Buy</Btn>                    <!-- press: content sinks 4px -->
+<Tab pressedOffset="0,-2" selectedOffset="0,-3"/>      <!-- press sinks 2px; stays sunk 3px while selected -->
+```
+
+- **Sign is Unity's: negative `y` = down**, positive `x` = right (same convention as `<Animation translate>`). So "sink 4px" is `0,-4`, not `0,4`. This is the most common foot-gun.
+- **Instant, never tweened.** The offset snaps on state enter and snaps back on release (physical-button semantics + pixel-art-friendly; authored offsets are integer pixels). This deliberately differs from `*Color`'s ~0.1s fade.
+- `""` / `none` = no offset for that state.
+- **First-frame:** a `<Tab>` / `<Toggle>` authored `isOn` shows its `selectedOffset` on frame 1 (no animate-in).
+- **Selected being pressed:** pressing an already-selected `<Tab>` / `<Toggle>` shows `pressedOffset` while held, then reverts to `selectedOffset` on release. If you set `selectedOffset` but **not** `pressedOffset`, pressing a selected control momentarily pops the content back to zero — set both (often the same value) to avoid the pop.
+- **Composition:** independent of `<Animation translate>` (which moves its own proxy — the two stack), of `*Color` / `*Modulate` / `pressedSprite` (different channels), and of `tint`. All compose.
+- `stateReact="false"` does **not** exempt a child from the offset (it only governs `*Modulate` colour fan-out). The holder is a rigid translate — all content moves together.
+- Variant-overridable like any `[UIAttr]` (`pressedOffset.dark="0,-8"`).
+- **Disabled** has no offset (content rests at zero).
+
+Implementation: the control lazily wraps its content in a full-stretch holder (only when an offset is authored) and a `PressOffsetController` drives that holder's `anchoredPosition` from the control's `OnState` stream — same broadcaster the `*Color` family uses.
