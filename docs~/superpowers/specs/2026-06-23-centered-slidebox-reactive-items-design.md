@@ -182,9 +182,11 @@ public static Awaitable<SlideSelection<T>> Open<T>(
 
 > 命名澄清：多按钮的 `buttons` 里每个元素的 `key` 是"按钮分支判别符"（既有语义），与本设计新增的 `Func<T,object> key`（身份选择器）是两个无关概念。代码中前者是 `(label, key)` 元组字段，后者是形参 `key`。
 
-请求对象 `CenteredSlideBoxRequest<T>` / `CenteredSlideBoxMultiRequest<T>` 字段调整：
-- `IReadOnlyList<T> Items` → `Observable<IReadOnlyList<T>> ItemsSource`（静态重载用 `Observable.Return(items)` 填）；
+请求对象 `CenteredSlideBoxRequest<T>` / `CenteredSlideBoxMultiRequest<T>` 字段调整（**保留** `Items`、**新增** `ItemsSource` + `Key`——这两个 request 类是 public 且被现有测试直接构造，重命名会破坏公共 API / 测试，故新增而非替换）：
+- 保留 `IReadOnlyList<T> Items`（静态调用方继续用）；
+- 新增 `Observable<IReadOnlyList<T>> ItemsSource`（反应式调用方用，优先）；
 - 新增 `Func<T, object> Key`。
+- `Bind` 归一化：`var source = ItemsSource ?? Observable.Return<IReadOnlyList<T>>(Items ?? Array.Empty<T>());`。
 
 ### 5.2 `CenteredSlideBoxBinder` 改造（RI-D12/D13）
 
