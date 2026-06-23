@@ -158,19 +158,51 @@ namespace PromptUGUI.Controls
 
         public IDisposable BindItems<T>(
             Observable<IReadOnlyList<T>> source,
-            Action<IControl, T> bind)
-            => BindItems<T, IControl>(source, bind);
+            Action<IControl, T> bind,
+            Func<T, object> key = null)
+            => BindItems<T, IControl>(source, bind, key);
 
         public IDisposable BindItems<T, TSlot>(
             Observable<IReadOnlyList<T>> source,
-            Action<TSlot, T> bind) where TSlot : class, IControl
+            Action<TSlot, T> bind,
+            Func<T, object> key = null) where TSlot : class, IControl
         {
             _itemsSub?.Dispose();
-            _itemsSub = source.Subscribe(items => Rebuild(items, bind));
+            IReadOnlyList<T> prev = null;
+            _itemsSub = source.Subscribe(items =>
+            {
+                items ??= System.Array.Empty<T>();
+                int? desired = ComputeDesiredIndex(prev, items, key);
+                Rebuild(items, bind, desired);
+                prev = items;
+            });
             return _itemsSub;
         }
 
-        private void Rebuild<T, TSlot>(IReadOnlyList<T> items, Action<TSlot, T> bind)
+        // 重建前：按 key（无 key 则按默认相等/引用）在新列表找回"上一帧的居中项"。命中 → 其新 index；
+        // 不命中（被删 / 引用对不上 / key 返回 null）→ null，由 OnItemsRebuilt 走就近夹位。
+        private int? ComputeDesiredIndex<T>(IReadOnlyList<T> prev, IReadOnlyList<T> next, Func<T, object> key)
+        {
+            if (prev == null) return null;
+            int cur = _view.CurrentIndex;
+            if (cur < 0 || cur >= prev.Count) return null;
+            var centered = prev[cur];
+            if (key != null)
+            {
+                var ck = key(centered);
+                if (ck == null) return null;                          // null key → 不做身份保持（避免 null==null 误命中）
+                for (int i = 0; i < next.Count; i++)
+                    if (Equals(ck, key(next[i]))) return i;
+            }
+            else
+            {
+                for (int i = 0; i < next.Count; i++)
+                    if (EqualityComparer<T>.Default.Equals(centered, next[i])) return i;
+            }
+            return null;
+        }
+
+        private void Rebuild<T, TSlot>(IReadOnlyList<T> items, Action<TSlot, T> bind, int? desiredIndex)
             where TSlot : class, IControl
         {
             if (_factory == null) _factory = ResolveFactory(_itemTemplate);
@@ -184,7 +216,7 @@ namespace PromptUGUI.Controls
                     $"but BindItems expected {typeof(TSlot).Name}");
                 _view.AddCard(node);
             }
-            _view.OnItemsRebuilt();
+            _view.OnItemsRebuilt(desiredIndex);
         }
 
         private Func<RectTransform, IControl> ResolveFactory(string tag)
