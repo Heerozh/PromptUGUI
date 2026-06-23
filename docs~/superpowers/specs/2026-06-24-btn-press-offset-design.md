@@ -110,15 +110,17 @@ struct/class StateOffsetSet {
 **`StateOffsetInstaller`（静态）**
 ```
 // 返回 holder（可能为 null）。go = 控件 GO；existing = 控件已缓存的 holder（首次为 null）。
-static RectTransform Install(GameObject go, RectTransform existing, IReadOnlyList<IControl> children, StateOffsetSet offsets) {
+static RectTransform Install(GameObject go, RectTransform existing, StateOffsetSet offsets) {
     if (!offsets.HasAny && existing == null) return null;        // 从未设 → 不建
-    var holder = existing ?? CreateHolderAndReparent(go, children);
+    var holder = existing ?? CreateHolder(go);                   // 建空 holder（全拉伸，仿 _offsetProxy）
+    SweepDirectChildrenInto(go, holder);                        // 把 go 的直接子节点（除 holder）搬进 holder
     var ctrl = holder.GetComponent<PressOffsetController>() ?? holder.gameObject.AddComponent<PressOffsetController>();
-    ctrl.Configure(offsets);                                     // offsets 全空也 Configure → For 全 zero → 归位
+    ctrl.Configure(offsets);                                    // offsets 全空也 Configure → For 全 zero → 归位
     return holder;
 }
 ```
-- `CreateHolderAndReparent`：**先快照** `go.transform` 当前所有子 transform（在建 holder 之前取，避免把 holder 自己也扫进去）→ 建全拉伸 RectTransform（anchorMin=0 / anchorMax=1 / offset=0 / pivot=0.5，仿 `_offsetProxy`，命名如 `"_offsetHolder"`）→ 把快照按序 `SetParent(holder,false)`（即 label / icon + 显式子节点；背景 Image / PuiButton / CanvasGroup 是组件不是子节点，留在原地）。
+- `CreateHolder`：建全拉伸 RectTransform（anchorMin=0 / anchorMax=1 / offset=0 / pivot=0.5，仿 `_offsetProxy`，命名 `"_offsetHolder"`），作为 go 的子节点。
+- `SweepDirectChildrenInto`：快照 `go.transform` 当前直接子节点 → **跳过 holder 自身** → 按序 `SetParent(holder,false)`（label / icon + 显式子节点；背景 Image / PuiButton / CanvasGroup 是组件不是子节点，不动）。**每次 Install 都跑**：首次把内容搬入；ReSolve 时内容已在 holder 内、且新子节点经 `ChildHostTransform` 直接落 holder，故通常 no-op；唯一非平凡场景是"内容在晚于 holder 创建的某个 Variant ReSolve 才首次出现为直挂子节点"——此时被扫入，集中覆盖该边界（无需改各控件的 `EnsureLabel`）。
 
 ### 4.2 控件侧改动（Btn / Tab / Toggle 各自，极小）
 
@@ -127,16 +129,16 @@ static RectTransform Install(GameObject go, RectTransform existing, IReadOnlyLis
 2. `override Transform ChildHostTransform => _offsetHolder != null ? _offsetHolder : RectTransform;`（让后续 Add 块也落进 holder）
 3. 加属性 setter（存进 `_pressedOffset` / `_selectedOffset` 字段，解析 `"x,y"`）。
 4. 在**已有的** `OnAfterApply` 里、`StateTintInstaller.Install` **之前**接一行：
-   `_offsetHolder = StateOffsetInstaller.Install(GameObject, _offsetHolder, Children, new StateOffsetSet{...});`
+   `_offsetHolder = StateOffsetInstaller.Install(GameObject, _offsetHolder, new StateOffsetSet{...});`
 
 `Btn` 只有 `pressedOffset`；`Tab`/`Toggle` 有 `pressedOffset` + `selectedOffset`。
 
-5. **label/icon 改挂 `ChildHostTransform`**：三控件的 `EnsureLabel`（及 Tab/Toggle 的 icon 创建）当前把子物体挂在 `RectTransform`（控件自身 GO）。改为挂 `ChildHostTransform`，使其在 holder 已存在时直接落进 holder。覆盖一个边界：label/icon 在某个非默认 Variant 的 ReSolve 里**晚于** holder 创建才首次出现时，仍能正确随按压位移（否则会变成 holder 外的直挂子节点、不跟着动）。holder 未建时 `ChildHostTransform == RectTransform`，行为与现状完全一致。
+控件的 `EnsureLabel` / icon 创建**无需改动**：它们仍挂在 `RectTransform`，由 installer 的 `SweepDirectChildrenInto` 在 `OnAfterApply` 统一扫进 holder（label 在 `OnAfterApply` 前已建好；晚于 holder 出现的也被后续 ReSolve 的 sweep 接住）。`stateReact="false"` **不**豁免位移（它只管 `*Modulate` 扇出；holder 是刚体平移，整块内容一起动）。
 
 ## 5. 数据流 / 生命周期
 
-- **懒建**（贴合库里「不挂空转 MonoBehaviour/GO」取舍）：`ChildHostTransform` 在实例化期被读取（属性应用之前），故初始子节点先挂到控件自身 RectTransform；到 `OnAfterApply`（`pressedOffset`/`selectedOffset` 已知、label/子节点已建好）时，若有位移则建 holder + reparent。
-- **ReSolve 幂等**：holder 已存在 → `existing` 非空 → 跳过建/搬，只 `Configure` 新 offsets。
+- **懒建**（贴合库里「不挂空转 MonoBehaviour/GO」取舍）：`ChildHostTransform` 在实例化期被读取（属性应用之前），故初始子节点先挂到控件自身 RectTransform；到 `OnAfterApply`（`pressedOffset`/`selectedOffset` 已知、label/子节点已建好）时，若有位移则建 holder 并把直接子节点扫入。
+- **ReSolve 幂等**：holder 已存在 → `existing` 非空 → 不重建（`CreateHolder` 跳过），`SweepDirectChildrenInto` 通常 no-op（内容已在 holder 内），只 `Configure` 新 offsets。
 - **顺序**：holder 建/搬在 `StateTintInstaller.Install` 之前。后者 `GetComponentsInChildren<Graphic>` 递归遍历不受中间层影响，逻辑 `Children` 列表也不变 → 颜色 / 去色 / id-path / 布局全不受影响（holder 全拉伸 = 与控件同矩形，子节点锚点解析结果一致）。
 - **raycast 不变**：holder 无 Graphic → 不拦截 raycast；背景 Image（在父 GO）照常被 PuiButton 接收点击。
 - **状态映射**：`For`：Pressed→`pressedOffset??zero`；Selected→`selectedOffset??zero`；Normal/Hover/Disabled→`zero`。
