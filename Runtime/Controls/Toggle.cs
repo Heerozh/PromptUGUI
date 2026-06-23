@@ -29,6 +29,10 @@ namespace PromptUGUI.Controls
         private string _pressedModulate;
         private string _selectedModulate;
         private string _disabledModulate;
+        // Press/select content-offset (see StateOffsetInstaller). _offsetHolder lazily created.
+        private Vector2? _pressedOffset;
+        private Vector2? _selectedOffset;
+        private RectTransform _offsetHolder;
 
         // Bound to OnAttached layout — changing these without changing OnAttached breaks the formula.
         // CheckmarkZoneWidth = Background sizeDelta.x (20) + 3px gap = Label offsetMin.x (23)
@@ -181,6 +185,11 @@ namespace PromptUGUI.Controls
         /// <summary>Relative colour multiplier while Disabled.</summary>
         [UIAttr(IsColor = true), Preserve] public string DisabledModulate { set => _disabledModulate = value; }
 
+        /// <summary>Content offset (px, Unity sign: negative y = down) while Pressed. <c>""</c>/<c>none</c>=none.</summary>
+        [UIAttr, Preserve] public string PressedOffset { set => _pressedOffset = StateOffsetSet.Parse(value); }
+        /// <summary>Content offset held while Selected (isOn). Composes with pressedOffset (Pressed wins).</summary>
+        [UIAttr, Preserve] public string SelectedOffset { set => _selectedOffset = StateOffsetSet.Parse(value); }
+
         /// <summary>Broadcasts the Toggle's interaction state. Selected = checked (isOn) and at rest.</summary>
         public Observable<InteractState> OnState => _toggle.OnState;
 
@@ -200,10 +209,14 @@ namespace PromptUGUI.Controls
             }
         }
 
+        protected internal override Transform ChildHostTransform
+            => _offsetHolder != null ? _offsetHolder : RectTransform;
+
         internal override void OnAfterApply()
         {
             base.OnAfterApply();
             _toggle.interactable = Interactable;
+            _offsetHolder = StateOffsetInstaller.Install(GameObject, _offsetHolder, new StateOffsetSet(_pressedOffset, _selectedOffset));
             // selectedColor is the selection-aware BASE (not a Selected-state absolute); selectedModulate
             // stays the Selected multiplier. Toggle keeps its Checkmark overlay unchanged.
             var abs = StateColorSet.ResolveAbsolutes(_hoverColor, _pressedColor, null, _disabledColor);
