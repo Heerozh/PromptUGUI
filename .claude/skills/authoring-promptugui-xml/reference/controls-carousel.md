@@ -37,6 +37,23 @@ screen.Get<Carousel>("banner")
       }).AddTo(screen);
 ```
 
+`BindItems` 的第三个可选参 `Func<T,object> key`（如 `key: x => x.Id`）：源 Observable
+重新 emit（成员增删/换序）时，重建后按 key 把"上一帧居中的那张卡"重新居中；命中不到
+（被删/无 key 引用对不上）则就近夹位。一次 emit 至多触发一次 `OnCurrentChanged`。
+卡内实时字段在 `bind` 里订阅并 `.AddTo(card)`（重建/关窗自动退订）。
+
+```csharp
+screen.Get<Carousel>("sel")
+      .BindItems(
+          liveItems,                           // Observable<IReadOnlyList<T>>
+          (IControl card, MyItem item) => {
+              var lbl = card.Get<Text>("label");
+              item.Name.Subscribe(n => lbl.TextValue = n).AddTo(card);  // .AddTo(card), not screen
+          },
+          key: x => x.Id)                      // re-centre by identity across membership changes
+      .AddTo(screen);
+```
+
 ## 静态卡（§3.2）
 
 ```xml

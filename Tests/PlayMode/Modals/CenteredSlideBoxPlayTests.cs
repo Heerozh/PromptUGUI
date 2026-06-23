@@ -73,5 +73,18 @@ namespace PromptUGUI.Tests.PlayMode.Modals
             Assert.AreSame(items[2], sel.Item);
             Assert.AreEqual("hard", sel.Button);
         }
+
+        [Test]
+        public void Reactive_Rebuild_Then_Confirm_NoCrash()
+        {
+            var subject = new R3.Subject<IReadOnlyList<Lv>>();
+            var task = CenteredSlideBox.Open(subject, (c, l) => { }, key: o => o.Id);
+            subject.OnNext(new List<Lv> { new Lv { Id = "a" }, new Lv { Id = "b" } });
+            subject.OnNext(new List<Lv> { new Lv { Id = "a" }, new Lv { Id = "b" }, new Lv { Id = "c" } });
+            UI.Modal.TopScreen.Get<Carousel>("cards").GoTo(2, animated: false);
+            UI.Modal.TopScreen.Get<PBtn>("button0").SimulateClick();
+            var picked = task.GetAwaiter().GetResult();
+            Assert.AreEqual("c", picked.Id);
+        }
     }
 }

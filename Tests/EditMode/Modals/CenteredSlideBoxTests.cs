@@ -353,5 +353,75 @@ namespace PromptUGUI.Tests.Modals
             Assert.AreSame(items[0], sel.Item);
             Assert.AreEqual("a", sel.Button);
         }
+
+        // —— 反应式 items（Task 3）——
+        [Test]
+        public void Reactive_Open_Renders_On_First_Emit()
+        {
+            var subject = new R3.Subject<IReadOnlyList<Lv>>();
+            CenteredSlideBox.Open(subject, (c, l) => { });
+            Assert.AreEqual(0, Cards().Count, "首发前无卡");
+            subject.OnNext(ThreeLevels());
+            Assert.AreEqual(3, Cards().Count, "首 emit 渲染卡片");
+        }
+
+        [Test]
+        public void Reactive_Membership_Change_Rebuilds_Cards()
+        {
+            var subject = new R3.Subject<IReadOnlyList<Lv>>();
+            CenteredSlideBox.Open(subject, (c, l) => { });
+            subject.OnNext(ThreeLevels());
+            Assert.AreEqual(3, Cards().Count);
+            subject.OnNext(new List<Lv> { new Lv { Id = "x", Name = "X" } });
+            Assert.AreEqual(1, Cards().Count, "成员变化触发重建");
+        }
+
+        [Test]
+        public void Reactive_Confirm_Returns_Centered_Item_After_Reorder()
+        {
+            var subject = new R3.Subject<IReadOnlyList<Lv>>();
+            var task = CenteredSlideBox.Open(subject, (c, l) => { }, key: o => o.Id);
+            var first = ThreeLevels();                       // a,b,c
+            subject.OnNext(first);
+            Cards().GoTo(1, animated: false);               // 居中 b
+            var reordered = new List<Lv> { first[0], first[2], first[1] };  // a,c,b → b 到 index 2
+            subject.OnNext(reordered);
+            Assert.AreEqual(2, Cards().Current, "身份保持：b 跟随到新 index");
+            UI.Modal.TopScreen.Get<PBtn>("button0").SimulateClick();
+            Assert.AreSame(first[1], task.GetAwaiter().GetResult(), "确认返回最新列表里的居中项 b");
+        }
+
+        [Test]
+        public void Reactive_Empty_Emit_Disables_Then_NonEmpty_Enables()
+        {
+            var subject = new R3.Subject<IReadOnlyList<Lv>>();
+            CenteredSlideBox.Open(subject, (c, l) => { });
+            subject.OnNext(new List<Lv>());                 // 空 → 禁用
+            Assert.IsFalse(UI.Modal.TopScreen.Get<PBtn>("button0").Interactable);
+            subject.OnNext(ThreeLevels());                  // 非空 → 启用
+            Assert.IsTrue(UI.Modal.TopScreen.Get<PBtn>("button0").Interactable);
+        }
+
+        [Test]
+        public void Reactive_Multi_Button_Returns_Item_And_Key()
+        {
+            var subject = new R3.Subject<IReadOnlyList<Lv>>();
+            var task = CenteredSlideBox.Open(subject, (c, l) => { },
+                buttons: new[] { ("A", "a"), ("B", "b") }, key: o => o.Id);
+            var items = ThreeLevels();
+            subject.OnNext(items);
+            Cards().GoTo(1, animated: false);
+            UI.Modal.TopScreen.Get<PBtn>("button1").SimulateClick();
+            var sel = task.GetAwaiter().GetResult();
+            Assert.AreSame(items[1], sel.Item);
+            Assert.AreEqual("b", sel.Button);
+        }
+
+        [Test]
+        public void Reactive_Null_Items_Throws_ArgumentNullException()
+        {
+            Assert.Throws<System.ArgumentNullException>(() =>
+                CenteredSlideBox.Open((R3.Observable<IReadOnlyList<Lv>>)null, (c, l) => { }));
+        }
     }
 }

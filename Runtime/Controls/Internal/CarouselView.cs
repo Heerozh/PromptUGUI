@@ -139,17 +139,19 @@ namespace PromptUGUI.Controls.Internal
             _cards.Clear();
         }
 
-        // BindItems 重建完：钳当前页进新范围，重建指示点，重排，重启自动播放计时。
-        public void OnItemsRebuilt()
+        // BindItems 重建完：定位当前页（给定 desiredIndex 用它、否则保旧页夹位），重建指示点，重排，重启自动播放计时。
+        public void OnItemsRebuilt(int? desiredIndex = null)
         {
             int prev = _current;
             if (_cards.Count == 0) { _current = -1; _scroll = 0f; }
-            else _current = Mathf.Clamp(_current < 0 ? 0 : _current, 0, _cards.Count - 1);
+            else if (desiredIndex.HasValue)
+                _current = Mathf.Clamp(desiredIndex.Value, 0, _cards.Count - 1);
+            else
+                _current = Mathf.Clamp(_current < 0 ? 0 : _current, 0, _cards.Count - 1);
             RebuildIndicator();
             RelayoutNow();
             StartAutoplayIfNeeded();
-            // Emit when the committed page changed (empty -> -1, or clamped into a smaller deck),
-            // mirroring GoTo's change-guarded emission so OnCurrentChanged stays in sync after a rebuild.
+            // 仅当提交页真正变化时 fire（空→-1 / 夹位 / 身份跟随），与 GoTo 的 change-guarded 一致 → 一次 emit ≤ 一次。
             if (_current != prev) OnCurrent?.Invoke(_current);
         }
 
