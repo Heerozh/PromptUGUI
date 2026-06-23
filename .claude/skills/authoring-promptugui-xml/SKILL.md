@@ -223,7 +223,7 @@ Image + uGUI Toggle + 自动 label。R3 `OnValueChanged: bool`。`<Toggle>静音
 | `textColor` | hex / CSS / token | — | **label 文字色**（区别于 `color`=背景）；支持渐变 / `/alpha`；空=默认 ink |
 | `hoverColor` · `pressedColor` · `selectedColor` · `disabledColor` | hex / CSS / token | — | **绝对**单态 bg 色（仅 targetGraphic，不扩散）；`selectedColor`=勾选时 bg 基色（同 `<Tab>` 的 selection-aware base，hover/pressed/disabled 叠在上面）；见 states.md |
 | `hoverModulate` · `pressedModulate` · `selectedModulate` · `disabledModulate` | hex / CSS / token | white | **相对**乘子，扩散到 bg + 所有子 Graphic；子节点 `stateReact="false"` 退出；见 states.md |
-| `pressedOffset` · `selectedOffset` | `x,y` px | — | 子内容位移（content-holder 平移；**负 y=下**）；瞬移；`selectedOffset`=选中(`isOn`)保持按入；Pressed 优先；`""`/`none`=不动；见 states.md |
+| `pressedOffset` · `selectedOffset` | `x,y` px | — | 子内容位移（content-holder 平移；**Unity 符号 负 y=下**）；瞬移；`selectedOffset`=选中(`isOn`)保持按入；Pressed 优先；`""`/`none`=不动；见 states.md |
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
 
 ### `<Slider>`
@@ -342,7 +342,7 @@ Tab 容器；私有 `ToggleGroup`（`allowSwitchOff=false`）+ `Horizontal` / `V
 | `selectedSprite` | sprite key | — | 选中（`isOn`）时把 bg `overrideSprite` 换成它、取消选中还原——无独立 overlay；keyed on `isOn` 故 hover/press 不扰动；设了切 transition off ColorTint（同 `<Btn pressedSprite>`）；`""` / `none`=不换 |
 | `hoverColor` · `pressedColor` · `selectedColor` · `disabledColor` | hex / CSS / token | — | **绝对**单态 bg 色（仅 targetGraphic，不扩散）；`selectedColor`=**选中时** bg 基色（hover/pressed/disabled 叠在上面）；见 states.md |
 | `hoverModulate` · `pressedModulate` · `selectedModulate` · `disabledModulate` | hex / CSS / token | white | **相对**乘子，扩散到 bg + 所有子 Graphic；子节点 `stateReact="false"` 退出；见 states.md |
-| `pressedOffset` · `selectedOffset` | `x,y` px | — | 子内容位移（content-holder 平移；**负 y=下**）；瞬移；`selectedOffset`=选中(`isOn`)保持按入；Pressed 优先；`""`/`none`=不动；见 states.md |
+| `pressedOffset` · `selectedOffset` | `x,y` px | — | 子内容位移（content-holder 平移；**Unity 符号 负 y=下**）；瞬移；`selectedOffset`=选中(`isOn`)保持按入；Pressed 优先；`""`/`none`=不动；见 states.md |
 | `tint` | `multiply` / `linear` | — | 作用于 bg（`selectedSprite` 换的也是 bg sprite，故选中图也被 tint）；见 **Tint blend modes** |
 
 ### `<Carousel>`

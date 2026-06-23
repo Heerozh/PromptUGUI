@@ -1,6 +1,6 @@
 # State visuals (Btn / Tab / Toggle)
 
-> Part of the **authoring-promptugui-xml** skill. Main reference: [`../SKILL.md`](../SKILL.md). Read this before using any `*Color` / `*Modulate` / `selectedColor` / `<Show on="state-*">` / `pressedSprite` / `disabledSprite` / `selectedSprite`. For the `state-*` `on=` event values and `<Trigger>` / `<Animation>`, see [`animations.md`](animations.md).
+> Part of the **authoring-promptugui-xml** skill. Main reference: [`../SKILL.md`](../SKILL.md). Read this before using any `*Color` / `*Modulate` / `selectedColor` / `<Show on="state-*">` / `pressedSprite` / `disabledSprite` / `selectedSprite` / `pressedOffset` / `selectedOffset`. For the `state-*` `on=` event values and `<Trigger>` / `<Animation>`, see [`animations.md`](animations.md).
 
 `<Btn>`, `<Tab>`, and `<Toggle>` all broadcast their uGUI interaction state. `<Btn>` emits `Normal` / `Hover` / `Pressed` / `Disabled` (Selectable's `Selected` is folded into `Normal`). `<Tab>` and `<Toggle>` also emit `Selected` (= the active/`isOn` control at rest; transient Hover/Pressed/Disabled override it and it reverts on release). Three ways to react, in increasing power:
 
