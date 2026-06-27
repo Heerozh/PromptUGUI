@@ -10,7 +10,7 @@ namespace PromptUGUI.Editor.ConsoleLog
     /// </summary>
     internal static class CopyConsoleLogMenu
     {
-        private const string MenuPath = "Tools/PromptUGUI/Copy Selected Console Log (LLM)";
+        private const string MenuPath = "Tools/PromptUGUI/Copy Selected Console Log (For LLM)";
 
         [MenuItem(MenuPath, priority = 2000)]
         private static void CopySelected()
