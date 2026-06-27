@@ -152,6 +152,36 @@ namespace PromptUGUI.Tests.PlayMode.Controls
         }
 
         [UnityTest]
+        public IEnumerator Fade_motion_stops_when_target_destroyed_outside_close()
+        {
+            // Repro for the scene-unload crash: MissingReferenceException on CanvasGroup.set_alpha.
+            // Animation is a plain C# object (not a MonoBehaviour) — when its GameObject is destroyed
+            // OUTSIDE the Screen.Close()/Dispose() path (e.g. an async scene load aborted half-way, or
+            // a scene unloaded), CancelCurrent() never runs. Without binding the motion's lifetime to
+            // the target GameObject, the LitMotion fade handle keeps ticking in the global
+            // MotionDispatcher and writes alpha to the destroyed CanvasGroup on the next frame; LitMotion
+            // surfaces that via Debug.LogException, which the Unity Test Framework treats as a failure.
+            // The .AddTo lifetime link makes the linker's OnDestroy cancel the handle first → no tick.
+            UI.LoadDocument("t", $"{Header}" +
+                "<Animation id='a' fade='0:1' duration='10s' on='open'><Frame id='f'/></Animation>" +
+                $"{Footer}");
+            var screen = UI.Open("S");
+            var go = screen.Get<Animation>("a").GameObject;
+
+            // Let the motion tick at least one frame so it is genuinely live.
+            yield return null;
+
+            // Simulate destruction that bypasses Screen.Close() (e.g. SceneManager.UnloadScene).
+            Object.Destroy(go);
+
+            // Pump several frames so LitMotion's update runner would tick the orphaned motion.
+            // If the handle survived destruction it would log a MissingReferenceException here.
+            yield return null;
+            yield return null;
+            yield return null;
+        }
+
+        [UnityTest]
         public IEnumerator Count_with_target_refs_screen_scope_Text()
         {
             UI.LoadDocument("t", $"{Header}" +

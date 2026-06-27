@@ -40,7 +40,12 @@ namespace PromptUGUI.Controls.Internal
                             case LoopMode.Restart: b = b.WithLoops(-1, LoopType.Restart); break;
                             case LoopMode.Count: b = b.WithLoops(spec.LoopCount, LoopType.Restart); break;
                         }
-                        handles.Add(b.Bind(offsetProxy, (v, rt) => rt.anchoredPosition = v));
+                        // .AddTo ties the motion's lifetime to the target GameObject so it is
+                        // auto-cancelled when the GO is destroyed outside the Screen.Close()/Dispose()
+                        // path (async scene load aborted, scene unload, editor stop). Without it the
+                        // handle keeps ticking in the global MotionDispatcher and writes to a
+                        // destroyed component → MissingReferenceException.
+                        handles.Add(b.Bind(offsetProxy, (v, rt) => rt.anchoredPosition = v).AddTo(offsetProxy.gameObject));
                     }
                     if (spec.HasScale)
                     {
@@ -55,7 +60,7 @@ namespace PromptUGUI.Controls.Internal
                             case LoopMode.Restart: b = b.WithLoops(-1, LoopType.Restart); break;
                             case LoopMode.Count: b = b.WithLoops(spec.LoopCount, LoopType.Restart); break;
                         }
-                        handles.Add(b.Bind(offsetProxy, (v, rt) => rt.localScale = v));
+                        handles.Add(b.Bind(offsetProxy, (v, rt) => rt.localScale = v).AddTo(offsetProxy.gameObject));
                     }
                     if (spec.HasRotate)
                     {
@@ -67,7 +72,7 @@ namespace PromptUGUI.Controls.Internal
                             case LoopMode.Restart: b = b.WithLoops(-1, LoopType.Restart); break;
                             case LoopMode.Count: b = b.WithLoops(spec.LoopCount, LoopType.Restart); break;
                         }
-                        handles.Add(b.Bind(offsetProxy, (v, rt) => rt.localEulerAngles = new Vector3(0, 0, v)));
+                        handles.Add(b.Bind(offsetProxy, (v, rt) => rt.localEulerAngles = new Vector3(0, 0, v)).AddTo(offsetProxy.gameObject));
                     }
                     if (spec.HasFade)
                     {
@@ -79,7 +84,7 @@ namespace PromptUGUI.Controls.Internal
                             case LoopMode.Restart: b = b.WithLoops(-1, LoopType.Restart); break;
                             case LoopMode.Count: b = b.WithLoops(spec.LoopCount, LoopType.Restart); break;
                         }
-                        handles.Add(b.Bind(canvasGroup, (v, cg) => cg.alpha = v));
+                        handles.Add(b.Bind(canvasGroup, (v, cg) => cg.alpha = v).AddTo(canvasGroup.gameObject));
                     }
                     break;
 
@@ -97,7 +102,7 @@ namespace PromptUGUI.Controls.Internal
                             case LoopMode.Restart: b = b.WithLoops(-1, LoopType.Restart); break;
                             case LoopMode.Count: b = b.WithLoops(spec.LoopCount, LoopType.Restart); break;
                         }
-                        handles.Add(b.BindToText(textTarget, spec.Format));
+                        handles.Add(b.BindToText(textTarget, spec.Format).AddTo(textTarget.gameObject));
                     }
                     if (spec.HasCharColor)
                     {
@@ -119,7 +124,7 @@ namespace PromptUGUI.Controls.Internal
                                 case LoopMode.Restart: b = b.WithLoops(-1, LoopType.Restart); break;
                                 case LoopMode.Count: b = b.WithLoops(spec.LoopCount, LoopType.Restart); break;
                             }
-                            handles.Add(b.BindToTMPCharColor(textTarget, charIdx));
+                            handles.Add(b.BindToTMPCharColor(textTarget, charIdx).AddTo(textTarget.gameObject));
                         }
                     }
                     break;
