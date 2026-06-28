@@ -9,17 +9,24 @@ namespace PromptUGUI.Lint
     /// </summary>
     public static class IRWalker
     {
+        /// <summary>Sentinel empty set passed for template bodies (no screen id context).</summary>
+        private static readonly HashSet<string> s_emptyIds = new HashSet<string>();
+
         public static IEnumerable<LintIssue> Walk(UIDocument doc)
         {
             foreach (var screen in doc.Screens)
             {
-                foreach (var issue in WalkNode(screen.Root, inTemplateBody: false, hasStateSourceAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false))
+                // Collect all ids in this Screen once (pre-expansion, best-effort) for
+                // PUI-NAV-UNKNOWN-TARGET. Add-directive children are part of the same Screen scope.
+                var screenIds = CollectScreenIds(screen);
+
+                foreach (var issue in WalkNode(screen.Root, inTemplateBody: false, hasStateSourceAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false, screenIds: screenIds))
                     yield return issue;
 
                 foreach (var variant in screen.Variants)
                     foreach (var add in variant.Adds)
                         foreach (var addChild in add.Children)
-                            foreach (var issue in WalkNode(addChild, inTemplateBody: false, hasStateSourceAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false))
+                            foreach (var issue in WalkNode(addChild, inTemplateBody: false, hasStateSourceAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false, screenIds: screenIds))
                                 yield return issue;
             }
 
@@ -31,13 +38,33 @@ namespace PromptUGUI.Lint
                 // inside a Template body is intentional structure, not a misuse.
                 // The body node IS the template's instance root (isTemplateBodyRoot) — a template
                 // invocation may merge CommonAttrs onto it, which PUI-VARIANT-NO-BASE must account for.
+                // s_emptyIds: template bodies don't belong to a specific Screen — skip nav-target check.
                 if (template.Body != null)
-                    foreach (var issue in WalkNode(template.Body, inTemplateBody: true, hasStateSourceAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: true))
+                    foreach (var issue in WalkNode(template.Body, inTemplateBody: true, hasStateSourceAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: true, screenIds: s_emptyIds))
                         yield return issue;
             }
         }
 
-        private static IEnumerable<LintIssue> WalkNode(ElementNode node, bool inTemplateBody, bool hasStateSourceAncestor, bool parentIsLayoutGroup, bool isTemplateBodyRoot)
+        private static HashSet<string> CollectScreenIds(ScreenDef screen)
+        {
+            var ids = new HashSet<string>();
+            CollectIds(screen.Root, ids);
+            foreach (var variant in screen.Variants)
+                foreach (var add in variant.Adds)
+                    foreach (var child in add.Children)
+                        CollectIds(child, ids);
+            return ids;
+        }
+
+        private static void CollectIds(ElementNode node, HashSet<string> ids)
+        {
+            if (!string.IsNullOrEmpty(node.Id))
+                ids.Add(node.Id);
+            foreach (var child in node.Children)
+                CollectIds(child, ids);
+        }
+
+        private static IEnumerable<LintIssue> WalkNode(ElementNode node, bool inTemplateBody, bool hasStateSourceAncestor, bool parentIsLayoutGroup, bool isTemplateBodyRoot, HashSet<string> screenIds)
         {
             // Per-tag self-checks (mirror of ScreenInstantiator dispatch; CLI errors).
             // Self-relative — about the node itself, unlike parent-relative LayoutGroupChildRules.
@@ -85,6 +112,16 @@ namespace PromptUGUI.Lint
             // Static color literal validation: hex values starting with '#' must parse.
             foreach (var issue in ColorLiteralRules.Check(node))
                 yield return issue;
+
+            // Universal: nav*/focus on a non-Selectable tag. Also wired in ScreenInstantiator.
+            foreach (var issue in NavTargetRules.CheckNav(node))
+                yield return issue;
+
+            // CLI-only: navUp/navDown/navLeft/navRight value not found in the same Screen's id set.
+            // Skipped in Template bodies (no screen-id context).
+            if (!inTemplateBody)
+                foreach (var issue in NavTargetRules.CheckNavTarget(node, screenIds))
+                    yield return issue;
 
             // CLI-only: a control-specific attr with a `.variant` override but no base value won't
             // revert when the variant deactivates (set-only). Self-relative — about the node's own attrs.
@@ -140,7 +177,7 @@ namespace PromptUGUI.Lint
                         TabRules.TabParentCode, child.Tag, child.Id,
                         $"<Tab id='{child.Id}'>: must be a direct child of <TabBar>; current parent is <{node.Tag}>. " +
                         "Mutual exclusion and shared visuals will not apply.");
-                foreach (var issue in WalkNode(child, inTemplateBody, childHasStateSourceAncestor, parentIsLayoutGroup: isLayoutGroup, isTemplateBodyRoot: false))
+                foreach (var issue in WalkNode(child, inTemplateBody, childHasStateSourceAncestor, parentIsLayoutGroup: isLayoutGroup, isTemplateBodyRoot: false, screenIds: screenIds))
                     yield return issue;
             }
         }

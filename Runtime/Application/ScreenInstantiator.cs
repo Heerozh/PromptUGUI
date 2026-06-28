@@ -214,6 +214,12 @@ namespace PromptUGUI.Application
                 foreach (var issue in PromptUGUI.Lint.CarouselRules.CheckCarousel(node))
                     Debug.LogWarning(issue.Message);
 
+            // Universal: nav*/focus on a non-Selectable tag (e.g. <Frame navUp="x">).
+            // NavTargetRules.CheckNavTarget (unknown id) is CLI-only; runtime already
+            // hard-throws in ExplicitNavigationResolver for missing ids.
+            foreach (var issue in NavTargetRules.CheckNav(node))
+                Debug.LogWarning(issue.Message);
+
             var entry = _registry.Resolve(node.Tag);
 
             GameObject go;
