@@ -61,16 +61,18 @@ namespace PromptUGUI.Controls.Internal
             var composite = t == InteractState.Normal
                 ? (_isOn ? InteractState.Selected : InteractState.Normal)
                 : t;
-            _state.Value = composite;
+            _state.Value = composite;                     // drives OnState reactors (distinct-until-changed)
             for (int i = 0; i < _showReevaluators.Count; i++)
-                _showReevaluators[i].Invoke();
+                _showReevaluators[i].Invoke();            // drives <Show> blocks
         }
 
         /// <summary>
         /// Maps a uGUI <see cref="UnityEngine.UI.Selectable.SelectionState"/> ordinal to a transient
-        /// <see cref="InteractState"/> (navigation-Selected folds to Normal). Takes the int ordinal
-        /// because the protected SelectionState type cannot appear in a non-Selectable class's
-        /// accessible signature (CS0051). Ordinals: Normal=0 Highlighted=1 Pressed=2 Selected=3 Disabled=4.
+        /// <see cref="InteractState"/>. Navigation-Selected (ordinal 3) maps to
+        /// <see cref="InteractState.Focused"/>; <see cref="Recompute"/> folds it to Normal in Pointer
+        /// mode (spec §3). Takes the int ordinal because the protected SelectionState type cannot appear
+        /// in a non-Selectable class's accessible signature (CS0051).
+        /// Ordinals: Normal=0 Highlighted=1 Pressed=2 Selected=3 Disabled=4.
         /// </summary>
         public static InteractState MapTransient(int selectionStateOrdinal) => selectionStateOrdinal switch
         {
