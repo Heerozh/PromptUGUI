@@ -93,12 +93,48 @@ namespace PromptUGUI.Application
                 }
             }
 
+            // ── Selection containment (modal focus trap) ──────────────────────────────────
+            // Non-null = EventSystem selection must stay within this GameObject's subtree.
+            // Enforced every frame from NavigationController.Update (inside #if ENABLE_INPUT_SYSTEM).
+            // Uses only EventSystem + Selectable; no InputSystem types → no #if needed here.
+
+            internal static UnityEngine.GameObject ContainmentRoot { get; set; }
+
+            internal static void EnforceContainment()
+            {
+                var root = ContainmentRoot;
+                if (root == null) return;
+                // EventSystem.current is null in EditMode; mirror Screen.FindEventSystem fallback.
+                var es = UnityEngine.EventSystems.EventSystem.current
+                         ?? UnityEngine.Object.FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>();
+                if (es == null) return;
+                var sel = es.currentSelectedGameObject;
+                if (sel != null && sel.transform.IsChildOf(root.transform)) return;
+                var pick = FirstFocusableUnder(root);
+                if (pick != null) es.SetSelectedGameObject(pick);
+            }
+
+            internal static void EnforceContainmentForTests() => EnforceContainment();
+
+            internal static UnityEngine.GameObject FirstFocusableUnder(UnityEngine.GameObject root)
+            {
+                var all = root.GetComponentsInChildren<UnityEngine.UI.Selectable>(false);
+                foreach (var s in all)
+                    if (s.IsActive() && s.IsInteractable()
+                        && s.navigation.mode != UnityEngine.UI.Navigation.Mode.None)
+                        return s.gameObject;
+                return null;
+            }
+
+            // ─────────────────────────────────────────────────────────────────────────────
+
             internal static void ResetForTestsInternal()
             {
                 Mode = NavMode.Pointer;
                 if (Controller != null) UnityEngine.Object.DestroyImmediate(Controller);
                 Controller = null;
                 IsEnabled = false;
+                ContainmentRoot = null;
                 _defaultCursorNode = null;
                 _defaultCursorLoaded = false;
                 DefaultCursorSrc = null;

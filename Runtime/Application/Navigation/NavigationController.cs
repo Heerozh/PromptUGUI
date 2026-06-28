@@ -12,6 +12,9 @@ namespace PromptUGUI.Application.Navigation
 
         private void Update()
         {
+            // Detect input device, then fall through to EnforceContainment regardless.
+            // (Early returns would skip the containment check the same frame a directional
+            // key navigates the selection out of the modal.)
             var gp = Gamepad.current;
             if (gp != null && (gp.leftStick.ReadValue().sqrMagnitude > 0.25f
                                || gp.dpad.ReadValue().sqrMagnitude > 0.25f
@@ -19,25 +22,32 @@ namespace PromptUGUI.Application.Navigation
                                || gp.buttonEast.wasPressedThisFrame))
             {
                 UI.Navigation.NoteDirectionalInput();
-                return;
             }
-            var kb = Keyboard.current;
-            if (kb != null && (kb.leftArrowKey.wasPressedThisFrame || kb.rightArrowKey.wasPressedThisFrame
-                               || kb.upArrowKey.wasPressedThisFrame || kb.downArrowKey.wasPressedThisFrame
-                               || kb.tabKey.wasPressedThisFrame || kb.enterKey.wasPressedThisFrame))
+            else
             {
-                UI.Navigation.NoteDirectionalInput();
-                return;
+                var kb = Keyboard.current;
+                if (kb != null && (kb.leftArrowKey.wasPressedThisFrame || kb.rightArrowKey.wasPressedThisFrame
+                                   || kb.upArrowKey.wasPressedThisFrame || kb.downArrowKey.wasPressedThisFrame
+                                   || kb.tabKey.wasPressedThisFrame || kb.enterKey.wasPressedThisFrame))
+                {
+                    UI.Navigation.NoteDirectionalInput();
+                }
+                else
+                {
+                    var mouse = Mouse.current;
+                    if (mouse != null && (mouse.delta.ReadValue().sqrMagnitude > MouseMoveThreshold * MouseMoveThreshold
+                                          || mouse.leftButton.wasPressedThisFrame))
+                    {
+                        UI.Navigation.NotePointerInput();
+                    }
+                    else if (Touchscreen.current != null && Touchscreen.current.primaryTouch.press.wasPressedThisFrame)
+                    {
+                        UI.Navigation.NotePointerInput();
+                    }
+                }
             }
-            var mouse = Mouse.current;
-            if (mouse != null && (mouse.delta.ReadValue().sqrMagnitude > MouseMoveThreshold * MouseMoveThreshold
-                                  || mouse.leftButton.wasPressedThisFrame))
-            {
-                UI.Navigation.NotePointerInput();
-                return;
-            }
-            if (Touchscreen.current != null && Touchscreen.current.primaryTouch.press.wasPressedThisFrame)
-                UI.Navigation.NotePointerInput();
+
+            UI.Navigation.EnforceContainment();
         }
     }
 }
