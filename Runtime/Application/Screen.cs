@@ -15,6 +15,7 @@ namespace PromptUGUI.Application
         public GameObject RootGameObject { get; }
         public T Get<T>(string id) where T : class, IControl;
         public IControl Get(string id);
+        public void Focus(string idPath);
     }
 
     public sealed class Screen : IScreen
@@ -182,6 +183,7 @@ namespace PromptUGUI.Application
             var deferredHides = _deferredOpenActions;
             _deferredOpenActions = null;
             foreach (var hide in deferredHides) hide();
+            ApplyInitialFocus();
             _variantSub = Variants.Changed.Subscribe(_ => ReSolve());
             _themeHandler = _ => ReSolve();
             UI.Theme.Changed += _themeHandler;
@@ -660,6 +662,73 @@ namespace PromptUGUI.Application
                 current = next;
             }
             return current;
+        }
+
+        /// <summary>Programmatically move EventSystem selection to the control at <paramref name="idPath"/>.</summary>
+        public void Focus(string idPath)
+        {
+            var go = Get(idPath).GameObject;
+            FindEventSystem()?.SetSelectedGameObject(go);
+        }
+
+        /// <summary>Called at the end of <see cref="Open"/> when <see cref="UI.Navigation"/> is enabled.
+        /// Selects the first control with <c>focus="true"</c> (raw attribute, not registered),
+        /// or the first focusable control in document order.</summary>
+        internal void ApplyInitialFocus()
+        {
+            if (!UI.Navigation.IsEnabled) return;
+            var es = FindEventSystem();
+            if (es == null) return;
+
+            // Build reverse map GameObject → ElementNode from _nodeMap.
+            // Iteration order of _nodeMap (Dictionary) is not guaranteed by the C# spec, so we
+            // do NOT use it for ordering here. The map is used only for attribute lookup and to
+            // distinguish known Control GOs from internal child GOs of composite controls
+            // (e.g. TMP_Dropdown's template items have their own Selectables).
+            var goToNode = new Dictionary<UnityEngine.GameObject, ElementNode>();
+            foreach (var kv in _nodeMap)
+                if (kv.Value.GameObject != null)
+                    goToNode[kv.Value.GameObject] = kv.Key;
+
+            // GetComponentsInChildren returns Selectables in depth-first pre-order,
+            // which is document order — the authoritative traversal for initial focus.
+            var selectables = RootGameObject.GetComponentsInChildren<UnityEngine.UI.Selectable>(
+                includeInactive: false);
+
+            UnityEngine.GameObject pick = null;
+
+            // Pass 1: control marked focus="true" (raw attribute, silently ignored by ControlAttributeApplier
+            // because it is not registered via [UIAttr] on any control's Meta).
+            foreach (var sel in selectables)
+            {
+                if (!goToNode.TryGetValue(sel.gameObject, out var node)) continue;
+                if (!node.Attributes.TryGetValue("focus", out var f) || f != "true") continue;
+                if (IsFocusable(_nodeMap[node])) { pick = sel.gameObject; break; }
+            }
+
+            // Pass 2: first focusable control in document order
+            if (pick == null)
+                foreach (var sel in selectables)
+                {
+                    if (!goToNode.TryGetValue(sel.gameObject, out var node2)) continue;
+                    if (IsFocusable(_nodeMap[node2])) { pick = sel.gameObject; break; }
+                }
+
+            if (pick != null) es.SetSelectedGameObject(pick);
+        }
+
+        // EventSystem.current is null in EditMode (no game loop, no activeScene EventSystem set).
+        // Fall back to FindAnyObjectByType which locates the instance we created in Navigation.Enable().
+        private static UnityEngine.EventSystems.EventSystem FindEventSystem() =>
+            UnityEngine.EventSystems.EventSystem.current
+            ?? UnityEngine.Object.FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>();
+
+        private static bool IsFocusable(Controls.Control c)
+        {
+            if (c.GameObject == null) return false;
+            var sel = c.GameObject.GetComponent<UnityEngine.UI.Selectable>();
+            return sel != null && sel.IsActive() && sel.IsInteractable()
+                   && sel.navigation.mode != UnityEngine.UI.Navigation.Mode.None;
         }
 
         public void Track(IDisposable d) => _subscriptions.Add(d);
