@@ -124,8 +124,27 @@ namespace PromptUGUI.Application
                 }
             }
 
+            // reconnect 自检:运行时若有 routed Page/Modal 的 root 被外部销毁(场景重载,未走 Router)而
+            // Router 未被告知,_chain 与 _open 脱节 —— reconcile 会静默拿到 null(RefreshTarget 跳过)或
+            // 走错早退,表现为界面空白却无报错。这里 fail-fast 带指引,把沉默失效变成可见的 RouteException。
+            private static void AssertChainNotStale()
+            {
+                foreach (var a in _chain)
+                {
+                    if (a.Def.Kind != RouteKind.Page && a.Def.Kind != RouteKind.Modal) continue;
+                    var s = UI.Get(a.ScreenKey);
+                    if (s == null || s.RootGameObject == null)
+                        throw new RouteException(
+                            $"Routed screen '{a.ScreenKey}' was destroyed outside the Router " +
+                            "(typically a scene reload / reconnect). The Router's active chain is now " +
+                            "stale, so navigation can't reconcile. Call UI.UnloadAll() at your reconnect " +
+                            "boundary before re-registering routes and navigating again.");
+                }
+            }
+
             private static async Awaitable Reconcile(string name, RouteQuery query, int epoch)
             {
+                AssertChainNotStale();
                 var target = ResolveChain(name);   // 校验 + 根→叶
 
                 // 完全相同的链路 = 无结构变化:跳过(后续 Task 6 的)临时模态清理,只刷新栈顶。

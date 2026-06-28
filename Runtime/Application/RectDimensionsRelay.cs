@@ -9,6 +9,13 @@ namespace PromptUGUI.Application
     {
         public Action OnDimensionsChanged;
 
+        // root GameObject 被销毁(场景重载 / 手动 Destroy)时触发。让 Screen 能在 GO 生命周期
+        // 结束时反订阅进程级静态事件(UI.Theme.Changed / Variants.Changed)并从 UI._open 注销——
+        // 否则残留订阅会在下次 Theme/Variants.Changed 派发时解引用已销毁的 root 而抛 MissingReference。
+        public Action OnDestroyed;
+
+        private void OnDestroy() => OnDestroyed?.Invoke();
+
         // Unity 在很多场景都会触发 OnRectTransformDimensionsChange(CanvasScaler.scaleFactor
         // 赋值后 Canvas RT 自动 resize、子节点布局重排级联到父等),即使 rect 实际尺寸没变也调。
         // 缓存上次尺寸比较,没变就不向订阅者派发——避免 Pixel mode 每帧反复跑 ApplyPixel。

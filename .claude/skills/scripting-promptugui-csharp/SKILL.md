@@ -677,6 +677,7 @@ ROUTER         UI.Router.Scheme = "myapp"                   optional scheme enfo
                await UI.Router.Navigate("myapp://name?k=v") parse URL then Open
                await UI.Router.Back()                       navigate to parent; no-op at root
                await UI.Router.Reset()                      close entire chain
+               UI.UnloadAll() (reconnect boundary)          full reset: chain+docs+open before re-Map; Clear()/Reset() alone NOT enough
 
                UI.Router.Current                            top name (null when empty)
                UI.Router.Chain                              IReadOnlyList<string> root→top
@@ -1473,6 +1474,23 @@ Both paths run the same `run` delegate. The `reason` query param is available in
 - **Modal route's close button should call `UI.Router.Back()`**, not `UI.Close(...)`. The ESC listener already does this automatically.
 - **Ad-hoc overlays** (`MessageBox`, `InputBox`, `Loading`, `Toast`) remain entirely outside the router. They are closed during reconcile if they block navigation — this is by design.
 - At teardown (`UI.UnloadAll()` / `UI.ResetForTests()`), all active router screens are closed and any running Prompt `ct` tokens are cancelled.
+
+### Teardown & reconnect (runtime scene reload)
+
+Router state is **process-global and survives scene reloads**: registrations (`Map`), the active chain, and the loaded-document cache all live in static fields. After a runtime **scene reload / reconnect** that destroys your routed screens' GameObjects, reset that state before navigating again — otherwise the active chain points at screens that no longer exist.
+
+```csharp
+// At your reconnect / scene-reload boundary, BEFORE re-registering routes:
+UI.UnloadAll();              // closes open screens + clears _docs, the active chain, and the loaded-src cache
+UI.Router.Clear();           // remove stale registrations (Map throws on a duplicate name)
+RegisterAllRoutes();         // your Map(...) calls again
+await UI.Router.Open("home");
+```
+
+- **`UI.UnloadAll()` is the full reset** — closes all open screens and clears the document cache, the router's active chain, and its loaded-src cache. This mirrors what the library does automatically when **entering Play mode** (`OnEnteringPlayMode → UnloadAll`); a *runtime* reconnect is a boundary the library can't see, so you mark it yourself.
+- **`UI.Router.Clear()` only removes registrations** (`_routes`); it does **not** touch the active chain or loaded-document cache. `UI.Router.Reset()` closes the active chain but keeps registrations and the loaded-src cache. **Neither alone is enough for a reconnect — use `UnloadAll()`.**
+- **If you skip the reset**, the next `Open` / `Navigate` throws `RouteException`: *"Routed screen 'X' was destroyed outside the Router (typically a scene reload / reconnect)… Call `UI.UnloadAll()` …"*. The router self-checks its active chain against the open screens at the start of every reconcile and **fails fast with this guidance instead of silently rendering a blank screen**.
+- **Raw `LoadDocumentAsync` (no router):** the equivalent reconnect reset is `UI.UnloadDocument(name)` before re-loading. A duplicate `LoadDocumentAsync` of an already-registered screen throws `"Screen 'X' already loaded"` **by design** — the document cache is intentionally not silently overwritten.
 
 ### CancellationToken on modal Open helpers
 

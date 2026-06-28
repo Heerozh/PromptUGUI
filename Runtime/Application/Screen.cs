@@ -26,6 +26,12 @@ namespace PromptUGUI.Application
         private readonly List<IDisposable> _subscriptions = new();
         private IDisposable _variantSub;
         private System.Action<string> _themeHandler;
+        // _closing: Close() 主动销毁 GO 时置位,区分 relay.OnDestroy 是 Close 触发(其自身已注销/清理)
+        // 还是外部销毁(场景重载,需哨兵代为注销)。_detached: DetachGlobals 已执行(幂等)。
+        private bool _closing;
+        private bool _detached;
+        // 由 UI.Open / OpenModalScreen 注入:root 被外部销毁时把本 Screen 从 UI._open 注销。
+        internal System.Action<Screen> OnDetachedExternally;
         private bool _isReapplyingScaler;
         private bool _isPixelMode;
         // The pixel/auto factor that ApplyCanvasScaler last applied; 'Nx' scale divides by it.
@@ -137,6 +143,9 @@ namespace PromptUGUI.Application
 
             var relay = root.AddComponent<RectDimensionsRelay>();
             relay.OnDimensionsChanged = OnCanvasDimensionsChanged;
+            // root 被外部销毁(场景重载等,未走 Close)时自动反订阅全局事件 + 从 _open 注销,
+            // 否则残留的 _themeHandler / _variantSub 会在下次 Changed 派发时撞已销毁 root。
+            relay.OnDestroyed = OnRootDestroyedExternally;
 
             // deferApply: the InstantiateInto recursion attaches every control but does
             // NOT apply attributes yet — nodes are collected into result.ApplyOrder
@@ -563,8 +572,12 @@ namespace PromptUGUI.Application
             finally { _isReapplyingScaler = false; }
         }
 
-        public void Close()
+        // 反订阅 Screen 对进程级静态事件(UI.Theme.Changed / Variants.Changed)及自身注册的所有
+        // 订阅,使 GO 销毁后这些事件不再回调到本 Screen。幂等(Close 与哨兵 OnDestroy 都可能调用)。
+        private void DetachGlobals()
         {
+            if (_detached) return;
+            _detached = true;
             _variantSub?.Dispose();
             _variantSub = null;
             if (_themeHandler != null)
@@ -577,6 +590,30 @@ namespace PromptUGUI.Application
             // 主动清空订阅,避免 GO 销毁过程中 Unity 再触发 OnRectTransformDimensionsChange 时
             // 还把回调派给已 Close 的 Screen 上的 stale 订阅者。
             RectTransformDimensionsChanged = null;
+        }
+
+        // relay(RectDimensionsRelay)的 OnDestroy 回调:RootGameObject 被外部销毁(场景重载 / 手动
+        // Destroy,未走 Close)时触发。Close() 自身销毁 GO 也会触发,但那条路径 _closing==true 直接
+        // 返回——Close 已负责注销与清理,且此处再改 _open 可能撞正在迭代 _open.Values 的清理循环。
+        private void OnRootDestroyedExternally()
+        {
+            if (_closing) return;
+            DetachGlobals();
+            RootGameObject = null;
+            OnDetachedExternally?.Invoke(this);   // 让 UI 把本 Screen 从 _open 注销
+            // GO 已随场景销毁,子 control 的 motion 由 .AddTo(go) 链在各自 OnDestroy 取消;这里只弃掉
+            // C# 侧引用让整棵树可被 GC——不调 Destroy/Dispose(GO 正在销毁中,解引用会再次抛异常)。
+            _byId.Clear();
+            _nodeMap.Clear();
+            _addInstances.Clear();
+            _dynamicSubtrees.Clear();
+            ToggleGroups = null;
+        }
+
+        public void Close()
+        {
+            _closing = true;
+            DetachGlobals();
             // Dispose all controls before destroying the GameObject so that running
             // motions (e.g. LitMotion handles) are cancelled before the objects
             // become invalid. DestroyImmediate / Destroy are deferred in PlayMode,
@@ -631,6 +668,10 @@ namespace PromptUGUI.Application
 
         public void ReSolve()
         {
+            // root 被外部销毁(场景重载)而 Screen 未走 Close 时,任何静态事件回调(Theme/Variants
+            // .Changed)都不应再触达 ReSolve 解引用已销毁的 RootGameObject。哨兵(relay.OnDestroy)
+            // 正常会先反订阅,这里是兜底:EditMode 不跑 OnDestroy、或哨兵时序未及的路径也安全。
+            if (RootGameObject == null) return;
             // Collect nodes belonging to currently-inactive Add blocks so we can skip
             // re-applying attributes to them below. Their SetActive(false) state must not be
             // clobbered by ApplyCommon — a node declaring hidden="false" would be un-hidden
