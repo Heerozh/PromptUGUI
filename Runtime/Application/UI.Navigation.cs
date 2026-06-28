@@ -16,7 +16,7 @@ namespace PromptUGUI.Application
             internal static NavMode Mode { get; set; } = NavMode.Pointer;
             internal static bool IsDirectional => Mode == NavMode.Directional;
 
-            internal static bool IsEnabled { get; private set; }
+            public static bool IsEnabled { get; private set; }
             internal static NavigationController Controller { get; private set; }
 
             public static void Enable()

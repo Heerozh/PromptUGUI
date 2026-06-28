@@ -60,9 +60,9 @@ The hover tint appears only in Directional mode. Switching back to a mouse remov
 
 The cursor child subtree accepts the full XML feature set — `<Image>`, `<Icon>`, `<Animation>` for an idle bob or pulse, Variants, etc. The `<FocusCursor>` element itself does NOT accept `anchor`, `size`, or `margin`; those are managed by the runtime overlay.
 
-The library renders **one cursor overlay per Screen**. Only the **first child** of `<FocusCursor>` is used; additional children are silently ignored in v1.
+The library renders **one cursor overlay per Screen**. Only the **first child** of `<FocusCursor>` is used; additional children are silently ignored in v1. If more than one `<FocusCursor>` appears in a Screen, the **first** one in document order is used; later declarations are silently ignored.
 
-`<FocusCursor>` is parsed as a structural Screen annotation (removed from the control tree). It is NOT a registered control and does NOT appear in `screen.Get<T>(id)`. You cannot place `id=` on it.
+`<FocusCursor>` is parsed as a structural Screen annotation (removed from the control tree). It is NOT a registered control and does NOT appear in `screen.Get<T>(id)`. You cannot place `id=` on it. Ids placed on elements inside the `<FocusCursor>` child subtree are also not accessible via `screen.Get<T>()` — the entire overlay subtree is hoisted outside the control tree.
 
 ### Built-in default cursor
 
@@ -89,6 +89,7 @@ See [`animations.md`](animations.md) for the full `on="loop"` and `<Animation>` 
 
 ```xml
 <Template name="PulseCursor">
+  <!-- pulse preset: yoyo scale to 1.05× (slight throb) -->
   <Animation type="pulse" duration="0.8s" on="loop">
     <Image anchor="center" size="20x20" sprite="ui:cursor-gem"/>
   </Animation>
@@ -120,7 +121,7 @@ If no control carries `focus="true"`, the **first focusable control in document 
 
 ### Limitation: BindItems-generated controls
 
-`focus="true"` only works on controls in the **static node map** — controls declared directly in the XML. It does NOT apply to controls created dynamically via `BindItems` (items inside `<ScrollList>`, `<Carousel>`, or `<TabBar>`), because those controls are not in the parsed node tree at Screen-open time. To focus a dynamic control, call `screen.Focus("id")` from C# after binding.
+`focus="true"` only works on controls in the **static node map** — controls declared directly in the XML. It does NOT apply to controls created dynamically via `BindItems` (items inside `<ScrollList>`, `<Carousel>`, or `<TabBar>`), because those controls are not in the parsed node tree at Screen-open time. To focus a named static control from C# call `screen.Focus("id")` after binding; `screen.Focus` throws `KeyNotFoundException` if the id is not in the static node map (BindItems-generated items are never there). Called before `UI.UseGamepadNavigation()`, `Focus` still sets the EventSystem selection but no cursor overlay appears. To hand directional-navigation scroll control to a dynamic list, focus the list container itself (e.g. `screen.Focus("itemList")`).
 
 ---
 
@@ -168,6 +169,19 @@ Pin specific directional inputs to a target control by id:
 
 Writing nav attributes on a non-selectable tag (`<Frame>`, `<Image>`, `<Text>`, etc.) is a no-op at runtime and triggers `PUI-NAV-ON-NON-SELECTABLE` in the lint CLI and a runtime warning.
 
+**Template invocations:** `focus` and `nav*` are **not** in the auto-forward set for Template invocations (unlike `anchor`, `size`, `margin`, `hidden`, `interactable`). Writing them directly on an invocation throws a parse error at expansion time. Expose them as `<Param>` values in the template body:
+
+```xml
+<Template name="MenuBtn">
+  <Param name="label"/>
+  <Param name="focus" default="false"/>
+  <Btn focus="{{focus}}" size="280x64">{{label}}</Btn>
+</Template>
+
+<MenuBtn id="play" label="Play" focus="true"/>  <!-- valid: focus is a declared Param -->
+<MenuBtn id="quit" label="Quit"/>
+```
+
 ---
 
 ## Modal focus trap
@@ -205,10 +219,15 @@ No XML markup is required for any of this — the modal stack wires the trap aut
 <?xml version="1.0" encoding="utf-8"?>
 <PromptUGUI version="1">
 
-  <!-- Reusable menu button template -->
+  <!--
+    Reusable menu button template.
+    focus and color are NOT auto-forwarded from invocations — declare them as <Param>.
+  -->
   <Template name="MenuBtn">
     <Param name="label"/>
-    <Btn color="#3B82F6" size="280x64"
+    <Param name="focus" default="false"/>
+    <Param name="color" default="#3B82F6"/>
+    <Btn color="{{color}}" size="280x64" focus="{{focus}}"
          hoverModulate="#dddddd" pressedModulate="#aaaaaa">
       <Text anchor="center" fontSize="22" color="#FFFFFF">{{label}}</Text>
     </Btn>
@@ -216,7 +235,7 @@ No XML markup is required for any of this — the modal stack wires the trap aut
 
   <Screen name="MainMenu" reference="1920x1080">
 
-    <!-- Custom cursor: a gem that pulses while idle -->
+    <!-- Custom cursor: a gem that pulses while idle (pulse preset: yoyo scale to 1.05×) -->
     <FocusCursor side="left" offset="-8,0">
       <Animation type="pulse" duration="0.7s" on="loop">
         <Image anchor="center" size="24x24" sprite="ui:cursor-gem"/>
@@ -271,10 +290,13 @@ async void OpenSettings()
     await MessageBox.Open("Settings coming soon!", MsgBtn.OK);
 }
 
-// Programmatic focus from C# — e.g. after a BindItems call fills a list:
-void FocusFirstItem(IScreen screen)
+// Programmatic focus from C# — valid only for controls in the static node map:
+void SetInitialFocus(IScreen screen)
 {
-    screen.Focus("itemList/0");  // moves EventSystem selection to that control
+    screen.Focus("play");  // moves EventSystem selection to the named static control
+    // BindItems-generated items are NOT in the static node map and cannot be focused
+    // by id or numeric index — there is no such index path form. Focus the list
+    // container itself ("itemList") to hand scroll control to the ScrollList widget.
 }
 ```
 

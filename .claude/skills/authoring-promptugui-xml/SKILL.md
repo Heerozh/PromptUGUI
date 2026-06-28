@@ -101,7 +101,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 | `<Carousel>` | 翻页轮播卡（+ `fill="false"` 居中选择器） |
 | `<Show>` | 按状态显隐子树的无视觉 wrapper |
 | `<Markdown>` | Renders a Markdown document into a scrollable subtree  |
-| `<FocusCursor>` | Screen-level cursor overlay for directional (gamepad / keyboard) navigation |
+| `<FocusCursor>` | Screen-level cursor overlay for directional navigation. **Not a registered control** — not `Get<T>`-able; removed from the control tree before instantiation. → `reference/navigation.md` |
 
 > `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` / `<TabBar>` are reference implementations. For project-specific differentiation (pixel border, press feedback, custom popup chrome) subclass and override `OnAttached` — see scripting-promptugui-csharp.
 
@@ -493,6 +493,8 @@ Other notes:
 | `focus="true"` | bool | **Selectable controls only** (`<Btn>` / `<Tab>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<InputField>` / `<ScrollList>`). Marks this control as the initial EventSystem selection when the Screen opens in Directional navigation mode. First `focus="true"` in document order wins. Does NOT apply to `BindItems`-generated dynamic controls. No-op when `UI.UseGamepadNavigation()` has not been called. → [`reference/navigation.md`](reference/navigation.md) |
 | `nav="none"` | `"none"` | **Selectable controls only.** Removes the control from the directional navigation graph — arrow keys / gamepad skip it entirely (neither focused to nor from). The control remains clickable via pointer. |
 | `navUp` / `navDown` / `navLeft` / `navRight` | element `id` | **Selectable controls only.** Explicit directional-navigation override: pins the neighbor in that cardinal direction. Unspecified directions auto-fill geometrically (writing only `navDown="id"` does NOT dead-end up/left/right). Missing `id` → runtime `KeyNotFoundException` + CLI `PUI-NAV-UNKNOWN-TARGET`. Variant-overridable (`navDown.mobile="id2"`). → [`reference/navigation.md`](reference/navigation.md) |
+
+**Template invocations and nav attributes:** `focus` and `nav*` are **not** in the auto-merge set for Template invocations (unlike `anchor` / `size` / `margin` / `hidden` / `interactable`). Writing them directly on an invocation throws a parse error. Expose them via `<Param>` instead — e.g. `<Param name="focus" default="false"/>` in the template, then `focus="{{focus}}"` on the selectable root in the body. → [`reference/navigation.md`](reference/navigation.md)
 
 **margin & consumed sides.** A margin only offsets from a side the `anchor` **consumes**: a **stretched** axis reads both its slots, a **point** anchor (`top` / `bottom` / `left` / `right`) reads only its own side, a **centered** axis reads neither. So `anchor="bottom-right" margin="60,_,_,_"` puts 60 in the **top** slot → silently dropped (a `bottom` anchor reads only the bottom slot; write `margin="_,_,60,_"` to push it up). The lint CLI flags a non-zero value on an unconsumed side as **`PUI-MARGIN-INERT-SIDE`** (CLI-only; 4-component + explicit-`anchor` form only — symmetric 1-/2-component shorthands always land on the consumed side and are not flagged).
 
