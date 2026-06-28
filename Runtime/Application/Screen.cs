@@ -42,6 +42,7 @@ namespace PromptUGUI.Application
         // recompute) on canvas resize; others keep the lightweight ApplyCanvasScaler-only path
         // (zero behavior change).
         private bool _hasFactorScale;
+        private RectTransform _cursorOverlay;
 
         // Non-null only during Open()'s apply pass. Tab.bind queues its initial page-hide
         // here (see DeferDuringOpen) so a bound page is not deactivated before its own
@@ -185,6 +186,8 @@ namespace PromptUGUI.Application
             foreach (var hide in deferredHides) hide();
             Navigation.ExplicitNavigationResolver.Resolve(this, _nodeMap, Variants);
             ApplyInitialFocus();
+            if (UI.Navigation.IsEnabled)
+                SetupFocusCursor(Def.FocusCursor ?? UI.Navigation.DefaultCursorNode);
             _variantSub = Variants.Changed.Subscribe(_ => ReSolve());
             _themeHandler = _ => ReSolve();
             UI.Theme.Changed += _themeHandler;
@@ -670,6 +673,27 @@ namespace PromptUGUI.Application
         {
             var go = Get(idPath).GameObject;
             FindEventSystem()?.SetSelectedGameObject(go);
+        }
+
+        /// <summary>建立光标 overlay：顶层非布局 RectTransform + CanvasGroup，将光标子树实例化其中，
+        /// 并挂 <see cref="Navigation.FocusCursorView"/> 占位（Task 7 填充行为）。</summary>
+        internal void SetupFocusCursor(ElementNode cursorNode)
+        {
+            if (cursorNode == null || cursorNode.Children == null || cursorNode.Children.Count == 0) return;
+            var overlayGo = new GameObject("__FocusCursor",
+                typeof(RectTransform),
+                typeof(UnityEngine.CanvasGroup));
+            _cursorOverlay = (RectTransform)overlayGo.transform;
+            _cursorOverlay.SetParent(RootGameObject.transform, worldPositionStays: false);
+            _cursorOverlay.SetAsLastSibling();                       // 画在内容之上
+            _cursorOverlay.anchorMin = _cursorOverlay.anchorMax = new Vector2(0.5f, 0.5f);
+            _cursorOverlay.sizeDelta = Vector2.zero;
+            var le = overlayGo.AddComponent<UnityEngine.UI.LayoutElement>();
+            le.ignoreLayout = true;
+            // 光标视觉子树（取第一个子节点；多于一个时其余忽略——v1 单子约定）
+            _instantiator.InstantiateNode(cursorNode.Children[0], _cursorOverlay, this);
+            var view = overlayGo.AddComponent<Navigation.FocusCursorView>();
+            view.Init(this, _cursorOverlay, cursorNode);             // Task 7 让它动
         }
 
         /// <summary>Called at the end of <see cref="Open"/> when <see cref="UI.Navigation"/> is enabled.

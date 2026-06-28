@@ -70,6 +70,9 @@ namespace PromptUGUI.Application
                 src?.RefreshState();
             }
 
+            /// <summary>全局默认光标节点（Task 8 替换为懒加载内置光标；当前返回 null）。</summary>
+            internal static IR.ElementNode DefaultCursorNode => null;
+
             internal static void ResetForTestsInternal()
             {
                 Mode = NavMode.Pointer;
