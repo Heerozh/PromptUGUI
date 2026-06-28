@@ -14,6 +14,7 @@ namespace PromptUGUI.Tests.PlayMode.Navigation
         [UnityTest]
         public IEnumerator GamepadInput_FlipsToDirectional()
         {
+#if ENABLE_INPUT_SYSTEM
             UI.ResetForTests();
             var pad = InputSystem.AddDevice<Gamepad>();
             UI.UseGamepadNavigation();
@@ -22,6 +23,9 @@ namespace PromptUGUI.Tests.PlayMode.Navigation
             yield return null;
             Assert.AreEqual(UI.Navigation.NavMode.Directional, UI.Navigation.Mode);
             UI.ResetForTests();
+#else
+            yield break;
+#endif
         }
     }
 }
