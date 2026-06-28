@@ -591,10 +591,9 @@ namespace PromptUGUI.Application
         // 重复 load 已存在的 screen 是有意拒绝(显式生命周期管理,不静默替换旧定义)。报错带上正确操作,
         // 否则作者(尤其在 reconnect / 每次场景加载都 load 的流程里)只看到 "already loaded" 无从下手。
         private static string AlreadyLoadedMessage(string screenName) =>
-            $"Screen '{screenName}' already loaded. You likely loaded it on a previous scene without unloading." +
+            $"Screen '{screenName}' already loaded. You likely loaded it on a previous scene without unloading. " +
             $"Call UI.UnloadDocument(\"{screenName}\") (or UI.UnloadAll()) " +
-            "before LoadDocument(Async). Reloading is intentionally rejected so the previous definition " +
-            "is not silently replaced.";
+            "before LoadDocument(Async). Also, best to use UI.Router instead of UI.LoadDocument. ";
 
         public static void LoadDocument(string label, string xml)
         {
