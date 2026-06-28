@@ -60,7 +60,7 @@ The hover tint appears only in Directional mode. Switching back to a mouse remov
 
 The cursor child subtree accepts the full XML feature set — `<Image>`, `<Icon>`, `<Animation>` for an idle bob or pulse, Variants, etc. The `<FocusCursor>` element itself does NOT accept `anchor`, `size`, or `margin`; those are managed by the runtime overlay.
 
-The library renders **one cursor overlay per Screen**. Only the **first child** of `<FocusCursor>` is used; additional children are silently ignored in v1. If more than one `<FocusCursor>` appears in a Screen, the **first** one in document order is used; later declarations are silently ignored.
+The library renders **one cursor overlay per Screen**. Only the **first child** of `<FocusCursor>` is used; additional children are silently ignored in v1. If more than one `<FocusCursor>` appears in a Screen, the **last** one in document order is used; earlier declarations are silently ignored.
 
 `<FocusCursor>` is parsed as a structural Screen annotation (removed from the control tree). It is NOT a registered control and does NOT appear in `screen.Get<T>(id)`. You cannot place `id=` on it. Ids placed on elements inside the `<FocusCursor>` child subtree are also not accessible via `screen.Get<T>()` — the entire overlay subtree is hoisted outside the control tree.
 
@@ -169,7 +169,7 @@ Pin specific directional inputs to a target control by id:
 
 Writing nav attributes on a non-selectable tag (`<Frame>`, `<Image>`, `<Text>`, etc.) is a no-op at runtime and triggers `PUI-NAV-ON-NON-SELECTABLE` in the lint CLI and a runtime warning.
 
-**Template invocations:** `focus` and `nav*` are **not** in the auto-forward set for Template invocations (unlike `anchor`, `size`, `margin`, `hidden`, `interactable`). Writing them directly on an invocation throws a parse error at expansion time. Expose them as `<Param>` values in the template body:
+**Template invocations:** `focus` and `nav*` are **not** in the auto-forward set for Template invocations (unlike `anchor`, `size`, `margin`, `hidden`, `interactable`). Writing them directly on an invocation throws a `TemplateException` ("unknown attribute") at expansion time. Expose them as `<Param>` values in the template body:
 
 ```xml
 <Template name="MenuBtn">
@@ -198,7 +198,7 @@ No XML markup is required for any of this — the modal stack wires the trap aut
 
 | Code | Category | Description |
 | --- | --- | --- |
-| `PUI-NAV-ON-NON-SELECTABLE` | CLI + runtime warning | `nav*` or `focus` on a tag with no uGUI `Selectable` component at runtime. Silently ignored at runtime; the rule surfaces the mistake early. |
+| `PUI-NAV-ON-NON-SELECTABLE` | CLI + runtime warning | `nav*` or `focus` on a tag with no uGUI `Selectable` component at runtime. The nav attribute is a no-op (no crash), but a `Debug.LogWarning` is logged at Screen instantiation. |
 | `PUI-NAV-UNKNOWN-TARGET` | CLI only | A `navUp/navDown/navLeft/navRight` value that does not match any `id` in the same Screen. The runtime throws `KeyNotFoundException` on open; the CLI catches this statically. |
 
 ---
