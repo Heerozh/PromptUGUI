@@ -101,6 +101,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 | `<Carousel>` | 翻页轮播卡（+ `fill="false"` 居中选择器） |
 | `<Show>` | 按状态显隐子树的无视觉 wrapper |
 | `<Markdown>` | Renders a Markdown document into a scrollable subtree  |
+| `<FocusCursor>` | Screen-level cursor overlay for directional (gamepad / keyboard) navigation |
 
 > `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` / `<TabBar>` are reference implementations. For project-specific differentiation (pixel border, press feedback, custom popup chrome) subclass and override `OnAttached` — see scripting-promptugui-csharp.
 
@@ -489,6 +490,9 @@ Other notes:
 | `stateReact="false"` | bool (default `true`) | Opts this node **and its whole subtree** out of an ancestor `<Btn>` / `<Tab>` / `<Toggle>`'s `*Modulate` fan-out. Has no effect on `*Color` (absolute — bg only, never fanned out). See `reference/states.md`. |
 | `flow="false"` | bool (default `true`) | **Layout-group children only** (direct child of `<VStack>` / `<HStack>` / `<Grid>`). Opts the child **out of the layout flow**: the group neither positions it nor counts it toward its own preferred size, and `anchor` / `margin` / `N%` regain full free-positioning semantics against the group's rect. Use for a 9-slice background layer / badge / overlay inside a hug-sized stack — see **Out-of-flow children** below. Inert under a free-positioning parent (`PUI-FLOW-OUTSIDE-GROUP`). Variant-overridable (`flow.portrait="false"`). |
 | `scale="N"` / `scale="Nx"` / `scale="<r>r"` | float `N` / `Nx` (int) / `<r>r` (float) | Three forms: `N` = box-preserving (a render-density knob, **not** a resize knob); `Nx` = N physical px per design-unit (constant across factors, **doesn't grow with the window**); `<r>r` = `r×` the canvas factor **snapped to an integer** (**grows with the window yet stays pixel-aligned**). `scale="2"` ≠ `scale="2x"`. Full formulas / examples / caveats: see **Relative scale** / **Device-density** / **Canvas-relative snapped** below. |
+| `focus="true"` | bool | **Selectable controls only** (`<Btn>` / `<Tab>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<InputField>` / `<ScrollList>`). Marks this control as the initial EventSystem selection when the Screen opens in Directional navigation mode. First `focus="true"` in document order wins. Does NOT apply to `BindItems`-generated dynamic controls. No-op when `UI.UseGamepadNavigation()` has not been called. → [`reference/navigation.md`](reference/navigation.md) |
+| `nav="none"` | `"none"` | **Selectable controls only.** Removes the control from the directional navigation graph — arrow keys / gamepad skip it entirely (neither focused to nor from). The control remains clickable via pointer. |
+| `navUp` / `navDown` / `navLeft` / `navRight` | element `id` | **Selectable controls only.** Explicit directional-navigation override: pins the neighbor in that cardinal direction. Unspecified directions auto-fill geometrically (writing only `navDown="id"` does NOT dead-end up/left/right). Missing `id` → runtime `KeyNotFoundException` + CLI `PUI-NAV-UNKNOWN-TARGET`. Variant-overridable (`navDown.mobile="id2"`). → [`reference/navigation.md`](reference/navigation.md) |
 
 **margin & consumed sides.** A margin only offsets from a side the `anchor` **consumes**: a **stretched** axis reads both its slots, a **point** anchor (`top` / `bottom` / `left` / `right`) reads only its own side, a **centered** axis reads neither. So `anchor="bottom-right" margin="60,_,_,_"` puts 60 in the **top** slot → silently dropped (a `bottom` anchor reads only the bottom slot; write `margin="_,_,60,_"` to push it up). The lint CLI flags a non-zero value on an unconsumed side as **`PUI-MARGIN-INERT-SIDE`** (CLI-only; 4-component + explicit-`anchor` form only — symmetric 1-/2-component shorthands always land on the consumed side and are not flagged).
 
@@ -1079,6 +1083,10 @@ PromptUGUI never auto-enables masking — you must opt in via `mask=`. Two reaso
 
 `<Markdown>` Markdown document → scrollable subtree (headings/paragraphs/lists/blockquote/code/table/HR/image/links). Primary use case is dynamic load: leave the element empty in XML and set content from C# (`md.Text = …` / `md.BindText(stream)`). Static documents can be inlined via CDATA. Soft-depends on Markdig (`PROMPTUGUI_HAS_MARKDIG`); without it the raw text is shown as plain `<Text>`. **For dynamic/static usage patterns, attribute table, supported Markdown subset, block→control mapping, lossy notes, lint rules, and Markdig install + the PROMPTUGUI_HAS_MARKDIG gate, see [`reference/controls-markdown.md`](reference/controls-markdown.md).**
 
+## Gamepad / Keyboard Navigation
+
+`<FocusCursor>` is a **`<Screen>`-level child element** (not a registered control — removed from the control tree by the parser, NOT instantiated at the cursor position). Its first child subtree is the cursor visual, which the library slides to the focused control's edge each frame. Navigation must be enabled from C# via `UI.UseGamepadNavigation()` once at startup (New Input System only). `focus="true"` marks the initial selection on open; `nav="none"` removes a control from the navigation graph; `navUp/navDown/navLeft/navRight="id"` pin explicit directional targets (unspecified directions auto-fill geometrically; only `<Btn>` / `<Tab>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<InputField>` / `<ScrollList>` accept these attributes — `PUI-NAV-ON-NON-SELECTABLE` catches misuse). A built-in default cursor is used when `<FocusCursor>` is omitted. Modal focus trap (navigation contained inside the active modal, restored on close) is automatic. **Full attribute table, cursor animation, explicit nav overrides, modal trap, lint rules, complete XML + C# examples: [`reference/navigation.md`](reference/navigation.md).**
+
 ## Quick reference (cheatsheet)
 
 ```
@@ -1158,6 +1166,17 @@ I18N XML      <Text>...</Text>                 extract + translate
               <Text tr="false">...</Text>      skip
               <Text font="title">...</Text>    font type
               <Text ctx="door">Open</Text>     msgctxt disambiguation
+
+GAMEPAD NAV   UI.UseGamepadNavigation()        enable once at startup (new Input System only, idempotent)
+              <FocusCursor side="left" offset="-4,0">  Screen-level cursor overlay (direct <Screen> child)
+                <Image anchor="center" size="24x24" sprite="ui:cursor"/>
+              </FocusCursor>                   cursor slides to focused control edge; built-in default if omitted
+              focus="true"                     mark initial selection on Screen open (selectable tags only)
+              nav="none"                       remove from nav graph (selectable tags only)
+              navUp/navDown/navLeft/navRight="id"  explicit neighbor (unspecified = geometric auto-fill)
+              PUI-NAV-ON-NON-SELECTABLE        nav*/focus on non-selectable tag (Frame/Image/Text/etc.)
+              PUI-NAV-UNKNOWN-TARGET           navX="id" where id not in same Screen
+              details: reference/navigation.md
 ```
 
 ## Triggers and Animations
