@@ -53,12 +53,17 @@ namespace PromptUGUI.Controls.Internal
         // indicator lives on the independent Toggle.graphic channel, so active-ness is never lost.
         private void Recompute()
         {
-            var composite = _transient == InteractState.Normal
+            // Focus is visible only in Directional input mode; in Pointer mode it folds to Normal so a
+            // mouse click doesn't leave the control stuck-highlighted (spec §3).
+            var t = _transient;
+            if (t == InteractState.Focused && !PromptUGUI.Application.UI.Navigation.IsDirectional)
+                t = InteractState.Normal;
+            var composite = t == InteractState.Normal
                 ? (_isOn ? InteractState.Selected : InteractState.Normal)
-                : _transient;
-            _state.Value = composite;                 // drives OnState reactors (distinct-until-changed)
+                : t;
+            _state.Value = composite;
             for (int i = 0; i < _showReevaluators.Count; i++)
-                _showReevaluators[i].Invoke();        // drives <Show> blocks
+                _showReevaluators[i].Invoke();
         }
 
         /// <summary>
@@ -72,10 +77,15 @@ namespace PromptUGUI.Controls.Internal
             0 => InteractState.Normal,
             1 => InteractState.Hover,
             2 => InteractState.Pressed,
-            3 => InteractState.Normal,
+            3 => InteractState.Focused,
             4 => InteractState.Disabled,
             _ => InteractState.Normal,
         };
+
+        /// <summary>Re-runs Recompute without changing the held transient. Called by
+        /// <see cref="IStateSource.RefreshState"/> when <c>UI.Navigation.Mode</c> flips while the
+        /// control already holds a <see cref="InteractState.Focused"/> transient (spec §3).</summary>
+        public void Refresh() => Recompute();
 
         public void Dispose() => _state.Dispose();
     }

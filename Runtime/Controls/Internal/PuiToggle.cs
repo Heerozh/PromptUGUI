@@ -18,6 +18,7 @@ namespace PromptUGUI.Controls.Internal
         public InteractState Current => _broadcaster.Current;
         public void RegisterShow(InteractState state, Action reevaluate) => _broadcaster.RegisterShow(state, reevaluate);
         public bool IsShowStateClaimed(InteractState state) => _broadcaster.IsShowStateClaimed(state);
+        public void RefreshState() => _broadcaster.Refresh();
 
         /// <summary>
         /// Wires the checked dimension. Called by the owning control (Tab/Toggle) in OnAttached

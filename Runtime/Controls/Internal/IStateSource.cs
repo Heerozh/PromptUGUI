@@ -15,5 +15,8 @@ namespace PromptUGUI.Controls.Internal
         public InteractState Current { get; }
         public void RegisterShow(InteractState state, Action reevaluate);
         public bool IsShowStateClaimed(InteractState state);
+        /// <summary>Re-evaluate the transient state from the live Selectable SelectionState (used when
+        /// the navigation Mode flips while this control stays selected — spec §3).</summary>
+        public void RefreshState();
     }
 }

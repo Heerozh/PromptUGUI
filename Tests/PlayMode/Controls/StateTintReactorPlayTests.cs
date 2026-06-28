@@ -28,6 +28,7 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             public void Push(InteractState st) { Current = st; _s.OnNext(st); }
             public void RegisterShow(InteractState state, Action reevaluate) { }
             public bool IsShowStateClaimed(InteractState state) => false;
+            public void RefreshState() { }
         }
 
         [SetUp]

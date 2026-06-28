@@ -1097,6 +1097,7 @@ namespace PromptUGUI.Application
             TranslationStore.Instance.UnloadAll();
             Router.ResetForTestsInternal();
             Tutorial.ResetForTestsInternal();
+            Navigation.ResetForTestsInternal();
             Modal.CancelAllForTeardown();
             Modals.LoadingOverlay.CancelAllForTeardown();
             Toasts.ToastOverlay.CancelAllForTeardown();
