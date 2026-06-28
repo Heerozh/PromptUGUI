@@ -65,8 +65,10 @@ namespace PromptUGUI.Tests.EditMode.Navigation
             UI.Variants.Set("mobile", true);
             var bSel = s.Get<Btn>("B").GameObject.GetComponent<Selectable>();
             Assert.AreSame(bSel, aSel.navigation.selectOnDown, "selectOnDown must wire to B after activation");
-            // B could not have equalled the pre-activation geometric value (it didn't exist then).
-            Assert.AreNotSame(beforeActivation, bSel, "selectOnDown must have changed from the pre-activation value to B");
+            // The direction's value must have actually transitioned across activation: compare the
+            // nav direction before vs after (not before vs bSel, which is trivially true since B
+            // didn't exist pre-activation and so could never equal the captured value).
+            Assert.AreNotSame(beforeActivation, aSel.navigation.selectOnDown, "selectOnDown must have changed from the pre-activation value to B");
         }
 
         [Test]

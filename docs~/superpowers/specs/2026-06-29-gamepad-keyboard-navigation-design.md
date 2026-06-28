@@ -268,7 +268,7 @@ Modal 关闭(RemoveSlot)
 | 屏上无任何可聚焦控件 | 不设选区;光标隐藏 |
 | `nav="none"` 控件 | 不被导航到、也不向外导航(`FindSelectable` 跳过) |
 | 只写 `navUp` | 其余三向自动补 Automatic 邻居,不死路 |
-| `navUp="不存在的id"` | id 解析抛 `KeyNotFoundException`(同 `Screen.Get`);CLI lint 可提前抓(§14) |
+| `navUp="不存在的id"`(typo 或目标在未激活 variant 块内) | 该方向静默回落几何邻居(运行时**不抛**);未激活块内的目标在激活(ReSolve)时自愈;CLI lint(`PUI-NAV-UNKNOWN-TARGET`)提前抓 typo(§14) |
 | 模态叠模态 | 限制根 = 栈顶;逃逸吸回栈顶;逐层关闭逐层还原 |
 | Carousel(非 Selectable) | v1 不参与手柄导航(§13);其内部"上一张/下一张"靠自身既有交互 |
 | resize / Variant 切换 | 光标逐帧跟随;`ExplicitNavigationResolver` 重算;选区不变(`currentSelectedGameObject` 是 GO 引用,ReSolve 不重建 GO) |
@@ -280,7 +280,7 @@ Modal 关闭(RemoveSlot)
 1. `MapTransient`:ordinal 3 → `Focused`(回归:旧行为是 `Normal`);其余 ordinal 不变。
 2. 复合 + 模式门控:`Mode=Pointer` 时 transient `Focused` → `Current=Normal`(isOn=false)/`Selected`(isOn=true);`Mode=Directional` 时 → `Current=Focused`;`Disabled`/`Pressed` 始终压过 `Focused`。
 3. `StateTintReactor.MultiplierFor(Focused) == MultiplierFor(Hover)`(同源);hover 未设时 `Focused` 为单位白(不变色)。
-4. `ExplicitNavigationResolver`:`nav="none"` → `mode==None`;`navUp="id"` → `mode==Explicit` 且 up 接对目标、其余三向 = 几何邻居;`navUp` 指 ScopedId 正确解析;`navUp` 指不存在 id 抛 `KeyNotFoundException`。
+4. `ExplicitNavigationResolver`:`nav="none"` → `mode==None`;`navUp="id"` → `mode==Explicit` 且 up 接对目标、其余三向 = 几何邻居;`navUp` 指 ScopedId 正确解析;`navUp` 指不存在 id → 静默回落几何(运行时**不抛**,Mode 仍 `Explicit`);`navDown` 指未激活 variant 块目标不崩、激活时自愈。
 5. 初始焦点:`focus="true"` 选中该控件;无标记选文档序第一个可聚焦;多标记取第一个。
 6. 选区限制守卫(纯逻辑):给定限制根 + 一个根外 GO,断言"逃逸"判定为真并返回吸回目标。
 7. `FocusCursorView` 定位(给定目标 rect + overlay 尺寸 + side/offset):光标落点正确、像素吸附为整数。
