@@ -150,7 +150,7 @@ Pin specific directional inputs to a target control by id:
 
 **Unspecified directions auto-fill.** Writing only `navDown="settings"` on `play` does **not** dead-end up, left, or right — those three still resolve via uGUI's geometric neighbor algorithm. Only the directions you explicitly write are pinned.
 
-**Missing id = runtime exception.** If a `navUp/navDown/navLeft/navRight` value does not match any `id` in the same Screen, `ExplicitNavigationResolver` throws `KeyNotFoundException` at Screen-open time. The CLI lint rule `PUI-NAV-UNKNOWN-TARGET` catches this statically before runtime.
+**Missing or inactive id = geometric fallback.** If a `navUp/navDown/navLeft/navRight` value does not match any currently-active `id` in the Screen — either because it lives inside an inactive variant `<Add>` block, or because it is a typo — that direction silently falls back to uGUI's geometric neighbour algorithm. The runtime never throws for a missing nav target. An inactive-block target self-heals automatically: when the block activates (variant change → ReSolve), the direction is re-wired to the real target. Use the CLI lint rule `PUI-NAV-UNKNOWN-TARGET` to catch typos statically before runtime.
 
 **Variant-overridable.** Use `navDown.mobile="id2"` to change the target under a variant, following normal variant rules.
 
@@ -199,7 +199,7 @@ No XML markup is required for any of this — the modal stack wires the trap aut
 | Code | Category | Description |
 | --- | --- | --- |
 | `PUI-NAV-ON-NON-SELECTABLE` | CLI + runtime warning | `nav*` or `focus` on a tag with no uGUI `Selectable` component at runtime. The nav attribute is a no-op (no crash), but a `Debug.LogWarning` is logged at Screen instantiation. |
-| `PUI-NAV-UNKNOWN-TARGET` | CLI only | A `navUp/navDown/navLeft/navRight` value that does not match any `id` in the same Screen. The runtime throws `KeyNotFoundException` on open; the CLI catches this statically. |
+| `PUI-NAV-UNKNOWN-TARGET` | CLI only | A `navUp/navDown/navLeft/navRight` value that does not match any `id` in the same Screen. At runtime the direction falls back to geometric (no throw); catch typos with this lint rule before shipping. |
 
 ---
 

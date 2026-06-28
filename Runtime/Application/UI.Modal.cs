@@ -119,7 +119,10 @@ namespace PromptUGUI.Application
                             UnityEngine.GameObject prevSelected = null;
                             if (UI.Navigation.IsEnabled)
                             {
-                                var esNow = UnityEngine.EventSystems.EventSystem.current;
+                                // EventSystem.current is null in EditMode (no game loop);
+                                // mirror the Screen.FindEventSystem / UI.Navigation fallback.
+                                var esNow = UnityEngine.EventSystems.EventSystem.current
+                                            ?? UnityEngine.Object.FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>();
                                 prevSelected = esNow != null ? esNow.currentSelectedGameObject : null;
                             }
 
@@ -206,7 +209,9 @@ namespace PromptUGUI.Application
                 {
                     UI.Navigation.ContainmentRoot = _stack.Count > 0
                         ? _stack[_stack.Count - 1].Screen.RootGameObject : null;  // 还原到新栈顶或解除
-                    var es = UnityEngine.EventSystems.EventSystem.current;
+                    // EventSystem.current is null in EditMode; mirror Screen.FindEventSystem fallback.
+                    var es = UnityEngine.EventSystems.EventSystem.current
+                             ?? UnityEngine.Object.FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>();
                     if (es != null && slot.PrevSelected != null)
                         es.SetSelectedGameObject(slot.PrevSelected);
                 }

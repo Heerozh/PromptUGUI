@@ -668,6 +668,14 @@ namespace PromptUGUI.Application
             return current;
         }
 
+        /// <summary>Non-throwing single-segment id lookup. Returns <c>true</c> and the live
+        /// control when it is currently active in this screen. Returns <c>false</c> when the
+        /// id is absent — either in a deactivated variant Add block or undeclared entirely.
+        /// Used by <see cref="Navigation.ExplicitNavigationResolver"/> to avoid crashing on
+        /// nav targets that are inactive at the moment of wiring.</summary>
+        internal bool TryGet(string id, out IControl control) =>
+            _byId.TryGetValue(id, out control);
+
         /// <summary>Programmatically move EventSystem selection to the control at <paramref name="idPath"/>.</summary>
         public void Focus(string idPath)
         {
@@ -803,7 +811,7 @@ namespace PromptUGUI.Application
             ApplyCanvasScaler(RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>());
             ApplyScales();
             AttachPixelSnaps(RootGameObject);
-            Navigation.ExplicitNavigationResolver.Resolve(this, _nodeMap, Variants);
+            Navigation.ExplicitNavigationResolver.Resolve(this, _nodeMap, Variants, inactiveNodes);
         }
 
         // deferApplyTo 非 null（Screen.Open 首次构建）：Add 子树属性 Apply 延迟收进该列表，
