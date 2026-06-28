@@ -183,6 +183,7 @@ namespace PromptUGUI.Application
             var deferredHides = _deferredOpenActions;
             _deferredOpenActions = null;
             foreach (var hide in deferredHides) hide();
+            Navigation.ExplicitNavigationResolver.Resolve(this, _nodeMap, Variants);
             ApplyInitialFocus();
             _variantSub = Variants.Changed.Subscribe(_ => ReSolve());
             _themeHandler = _ => ReSolve();
@@ -778,6 +779,7 @@ namespace PromptUGUI.Application
             ApplyCanvasScaler(RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>());
             ApplyScales();
             AttachPixelSnaps(RootGameObject);
+            Navigation.ExplicitNavigationResolver.Resolve(this, _nodeMap, Variants);
         }
 
         // deferApplyTo 非 null（Screen.Open 首次构建）：Add 子树属性 Apply 延迟收进该列表，
