@@ -70,8 +70,28 @@ namespace PromptUGUI.Application
                 src?.RefreshState();
             }
 
-            /// <summary>全局默认光标节点（Task 8 替换为懒加载内置光标；当前返回 null）。</summary>
-            internal static IR.ElementNode DefaultCursorNode => null;
+            private static IR.ElementNode _defaultCursorNode;
+            private static bool _defaultCursorLoaded;
+
+            /// <summary>自定义全局光标 src 键（null = 内置）。非 null 时由调用方 SourceResolver 懒加载（v1 占位）。</summary>
+            public static string DefaultCursorSrc { get; set; }
+
+            /// <summary>全局默认光标节点：懒加载内置 FocusCursor.ui.xml，缓存后返回。</summary>
+            internal static IR.ElementNode DefaultCursorNode
+            {
+                get
+                {
+                    if (_defaultCursorLoaded) return _defaultCursorNode;
+                    _defaultCursorLoaded = true;
+                    var ta = UnityEngine.Resources.Load<UnityEngine.TextAsset>(
+                        "PromptUGUI/Navigation/FocusCursor.ui");
+                    if (ta == null) return null;
+                    var doc = Parser.UIDocumentParser.Parse(ta.text);
+                    foreach (var sc in doc.Screens)
+                        if (sc.FocusCursor != null) { _defaultCursorNode = sc.FocusCursor; break; }
+                    return _defaultCursorNode;
+                }
+            }
 
             internal static void ResetForTestsInternal()
             {
@@ -79,6 +99,9 @@ namespace PromptUGUI.Application
                 if (Controller != null) UnityEngine.Object.DestroyImmediate(Controller);
                 Controller = null;
                 IsEnabled = false;
+                _defaultCursorNode = null;
+                _defaultCursorLoaded = false;
+                DefaultCursorSrc = null;
 #if !ENABLE_INPUT_SYSTEM
                 _warnedNoInputSystem = false;
 #endif
