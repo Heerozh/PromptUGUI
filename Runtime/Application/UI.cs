@@ -770,6 +770,9 @@ namespace PromptUGUI.Application
 
             var inst = new ScreenInstantiator(Registry, VariantStore);
             var screen = new Screen(def, inst, Registry, VariantStore);
+            // root 被外部销毁(场景重载,未走 Close)时把本 Screen 从 _open 注销,避免 _open 残留
+            // GO 已死的 Screen(下次 Open 同名会返回死 Screen)以及静态事件对它的强引用泄漏。
+            screen.OnDetachedExternally = s => RemoveFromOpenIfSame(screenName, s);
             // 在 Open() 之前登记到 _open，让 controls 在 OnAttached / setter 阶段
             // 通过 UI.OwnerScreenOf 反查到本 Screen（例如 Toggle.Group 的 Group 解析）。
             _open[screenName] = screen;
@@ -794,6 +797,14 @@ namespace PromptUGUI.Application
             }
         }
 
+        // Screen 的 root 被外部销毁(未走 Close)时由哨兵回调,把它从 _open 注销——仅当当前登记的
+        // 仍是它本身,避免误删一个已用同名 key 重新 Open 的新 Screen。
+        private static void RemoveFromOpenIfSame(string key, Screen screen)
+        {
+            if (_open.TryGetValue(key, out var current) && ReferenceEquals(current, screen))
+                _open.Remove(key);
+        }
+
         private static int _modalInstanceSeq;
 
         /// <summary>
@@ -809,6 +820,7 @@ namespace PromptUGUI.Application
             var key = docName + "#m" + (++_modalInstanceSeq);
             var inst = new ScreenInstantiator(Registry, VariantStore);
             var screen = new Screen(def, inst, Registry, VariantStore);
+            screen.OnDetachedExternally = s => RemoveFromOpenIfSame(key, s);
             _open[key] = screen;                 // Open() 前登记,让 OwnerScreenOf 反查得到
             try { screen.Open(); }
             catch { _open.Remove(key); throw; }
