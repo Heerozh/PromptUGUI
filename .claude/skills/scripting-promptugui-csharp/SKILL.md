@@ -1566,6 +1566,16 @@ Available on `IScreen`. Throws `KeyNotFoundException` if the id is not in the Sc
 
 While a modal is open, directional navigation is **contained inside it** — arrow keys and gamepad stick cannot reach controls behind the modal. On close, the previously-selected control is restored. No code or XML markup is required; the modal stack wires this automatically.
 
+### InputField two-level edit model
+
+**InputField uses a two-level model under directional navigation.** When `UI.UseGamepadNavigation()`
+is active, navigating (d-pad / arrows) onto a text field **focuses** it without entering edit mode, so
+directional input keeps moving between controls. Press **Submit** (gamepad A / keyboard Enter) on the
+focused field to **enter edit mode** (caret active); press **Cancel** (gamepad B / keyboard Esc) — or
+Enter on a single-line field — to confirm and return to navigation. A **pointer click** still enters
+edit immediately (mouse UX unchanged). No markup is required; the behavior is automatic when navigation
+is enabled.
+
 ## Tutorial (onboarding / coach marks)
 
 `UI.Tutorial.Run` plays a step-by-step coach-mark sequence. Each step spotlights a control — a translucent full-screen mask with a hole punched over the target — shows a speech bubble + pointing finger, and blocks all other input (clicks **and** deep-link navigation) until the step is satisfied. Targets use the same `"screenName/idPath"` path as Toast (`UI.TryResolvePath`), so a step can point at any control in any open screen.

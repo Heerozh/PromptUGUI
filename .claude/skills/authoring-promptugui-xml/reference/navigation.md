@@ -184,6 +184,16 @@ Writing nav attributes on a non-selectable tag (`<Frame>`, `<Image>`, `<Text>`, 
 
 ---
 
+## Text fields (two-level edit)
+
+A `<InputField>` participates in directional navigation like any selectable, but with a two-level model:
+directional input **navigates onto and off** a focused field without typing into it; press **Submit**
+(A / Enter) to **enter edit mode**, and **Cancel** (B / Esc), or Enter on a single-line field, to leave it.
+This mirrors console UIs and keeps arrow keys from getting trapped in the field. Pointer click still edits
+immediately. (Active only when `UI.UseGamepadNavigation()` is enabled.)
+
+---
+
 ## Modal focus trap
 
 While a modal is open (MessageBox, InputBox, MarkdownBox, CenteredSlideBox, or any custom modal), directional navigation is **trapped inside the modal**. Arrow keys and gamepad stick cannot reach controls behind the modal, even if they are physically adjacent on screen. This is enforced every frame by `NavigationController`.
