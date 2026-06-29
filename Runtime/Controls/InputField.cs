@@ -92,6 +92,9 @@ namespace PromptUGUI.Controls
 
             ApplyFont();
             PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
+
+            var navGate = GameObject.AddComponent<Internal.InputFieldNavGate>();
+            navGate.Init(_input);
         }
 
         private void ApplyFont()
@@ -135,6 +138,10 @@ namespace PromptUGUI.Controls
             _input.interactable = Interactable;
             ApplyTextAreaPadding();
         }
+
+        // True when the underlying field is in edit mode (caret active). Used by the
+        // two-level navigation gate and its tests.
+        internal bool IsEditing => _input != null && _input.isFocused;
 
         [UIAttr("text"), Preserve]
         public string TextValue
