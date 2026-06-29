@@ -99,5 +99,53 @@ namespace PromptUGUI.Tests.PlayMode.Navigation
 
             Assert.IsTrue(fired, "confirm-Submit on an editing field must fire the business event");
         }
+
+        [UnityTest]
+        public IEnumerator PointerSelect_StillEntersEditImmediately()
+        {
+            UI.UseGamepadNavigation();
+            UI.Navigation.NotePointerInput();                  // Mode = Pointer
+            var s = Open("<InputField id='f'/>");
+            var field = s.Get<InputField>("f");
+            var es = EventSystem.current;
+            // 指针点击路径：直接走 TMP 的 OnPointerClick → 默认激活，gate 不抑制
+            ExecuteEvents.Execute(field.GameObject, new PointerEventData(es), ExecuteEvents.pointerClickHandler);
+            yield return null; yield return null;
+            Assert.IsTrue(field.IsEditing, "pointer click must enter edit immediately (mouse UX unchanged)");
+        }
+
+        [UnityTest]
+        public IEnumerator NavDisabled_DefaultBehaviorUnchanged()
+        {
+            // 不调 UseGamepadNavigation：gate 挂着但 IsEnabled=false → OnSelect 不抑制
+            var s = Open("<InputField id='f'/>");
+            var field = s.Get<InputField>("f");
+            // SetSelectedGameObject 同步触发 OnSelect（即使无 InputModule），bare EventSystem 即可
+            if (EventSystem.current == null)
+                new GameObject("ES_NavDisabled", typeof(EventSystem));
+            EventSystem.current.SetSelectedGameObject(field.GameObject);
+            yield return null; yield return null;
+            // 桌面默认：选中即编辑；gate 因 IsEnabled=false 不撤销
+            Assert.IsTrue(field.IsEditing, "with nav disabled, default TMP behavior must be untouched");
+        }
+
+        [UnityTest]
+        public IEnumerator Cancel_ExitsEditMode()
+        {
+            UI.UseGamepadNavigation();
+            UI.Navigation.NoteDirectionalInput();
+            var s = Open("<InputField id='f'/>");
+            var field = s.Get<InputField>("f");
+            var es = EventSystem.current;
+            es.SetSelectedGameObject(field.GameObject);
+            yield return null; yield return null;
+            ExecuteEvents.Execute(field.GameObject, new BaseEventData(es), ExecuteEvents.submitHandler);  // 进编辑
+            yield return null; yield return null;
+            Assert.IsTrue(field.IsEditing, "precondition: editing");
+
+            ExecuteEvents.Execute(field.GameObject, new BaseEventData(es), ExecuteEvents.cancelHandler);  // Esc/B
+            yield return null; yield return null;
+            Assert.IsFalse(field.IsEditing, "Cancel/Esc must exit edit mode back to navigation");
+        }
     }
 }
