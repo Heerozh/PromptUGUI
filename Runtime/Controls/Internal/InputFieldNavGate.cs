@@ -53,11 +53,27 @@ namespace PromptUGUI.Controls.Internal
                 _input.DeactivateInputField();
                 _suppressUntilDeactivated = false;
             }
+            // Pointer 模式被点中（用户改用鼠标）→ 放弃抑制，保留编辑。
+            // (Symmetric with LateUpdate's escape-hatch — T1-M2 fold-in.)
+            else if (!UI.Navigation.IsDirectional)
+            {
+                _suppressUntilDeactivated = false;
+            }
         }
 
         public void OnSubmit(BaseEventData eventData)
         {
-            // Task 2 实现：未编辑 + 导航启用 → 进编辑。此处先留空，Task 1 只管抑制。
+            if (!UI.Navigation.IsEnabled) return;
+            if (_input == null || !_input.IsInteractable()) return;
+            if (!_input.isFocused)
+            {
+                // TMP's own ISubmitHandler (runs before this gate in component order)
+                // already called ActivateInputField().  We call it again to be safe if
+                // execution order ever changes, and to own the "enter edit" intent clearly.
+                _input.ActivateInputField();
+                _suppressUntilDeactivated = false;
+            }
+            // Already editing: let TMP's default OnSubmit handle confirm/newline.
         }
 
         public void OnDeselect(BaseEventData eventData) => _suppressUntilDeactivated = false;

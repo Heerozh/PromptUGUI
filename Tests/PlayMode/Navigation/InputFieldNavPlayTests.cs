@@ -2,6 +2,7 @@ using System.Collections;
 using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
+using R3;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.TestTools;
@@ -36,6 +37,43 @@ namespace PromptUGUI.Tests.PlayMode.Navigation
 
             Assert.IsFalse(field.IsEditing,
                 "directional-select must NOT activate edit mode (two-level nav)");
+        }
+
+        [UnityTest]
+        public IEnumerator Submit_OnFocusedNotEditingField_EntersEditMode()
+        {
+            UI.UseGamepadNavigation();
+            UI.Navigation.NoteDirectionalInput();
+            var s = Open("<InputField id='f'/>");
+            var field = s.Get<InputField>("f");
+            var es = EventSystem.current;
+            es.SetSelectedGameObject(field.GameObject);
+            yield return null; yield return null;
+            Assert.IsFalse(field.IsEditing, "precondition: selected-not-editing");
+
+            ExecuteEvents.Execute(field.GameObject, new BaseEventData(es), ExecuteEvents.submitHandler);
+            yield return null; yield return null;
+
+            Assert.IsTrue(field.IsEditing, "Submit must enter edit mode");
+        }
+
+        [UnityTest]
+        public IEnumerator Submit_ToEnterEdit_DoesNotFireSubmitEvent()
+        {
+            UI.UseGamepadNavigation();
+            UI.Navigation.NoteDirectionalInput();
+            var s = Open("<InputField id='f'/>");
+            var field = s.Get<InputField>("f");
+            bool fired = false;
+            field.OnSubmit.Subscribe(_ => fired = true).AddTo(s);
+            var es = EventSystem.current;
+            es.SetSelectedGameObject(field.GameObject);
+            yield return null; yield return null;
+
+            ExecuteEvents.Execute(field.GameObject, new BaseEventData(es), ExecuteEvents.submitHandler);
+            yield return null;
+
+            Assert.IsFalse(fired, "entering edit via Submit must not fire the OnSubmit business event");
         }
     }
 }
