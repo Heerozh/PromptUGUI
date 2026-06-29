@@ -43,7 +43,15 @@ namespace PromptUGUI.Template
                                         new HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey>());
                     if (ec != null) newRoot.Children.Add(ec);
                 }
-                var newScreen = new ScreenDef(s.Name, newRoot) { CanvasMode = s.CanvasMode };
+                var newScreen = new ScreenDef(s.Name, newRoot)
+                {
+                    CanvasMode = s.CanvasMode,
+                    // <FocusCursor> is extracted from Root.Children by the parser and must be
+                    // forwarded here; otherwise SetupFocusCursor receives null and no overlay is built.
+                    FocusCursor = s.FocusCursor == null ? null
+                        : ExpandTree(s.FocusCursor, loaded.Templates,
+                                     new HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey>()),
+                };
                 // 把全局 Template 表附到本 Screen，供 ScrollList 等运行时控件按 tag 反查。
                 foreach (var kv in loaded.Templates)
                     newScreen.Templates[kv.Key.ToString()] = kv.Value;

@@ -128,6 +128,9 @@ namespace PromptUGUI.Controls.Internal
         private void OnState(InteractState state)
         {
             if (_graphic == null) return;
+            // Focus reuses the hover visual (spec §4.3). The composite already folds Focused→Normal in
+            // Pointer mode, so this only fires for an actually-directional-focused control.
+            if (state == InteractState.Focused) state = InteractState.Hover;
             var target = BaseFor(state).Multiply(MultiplierFor(state));   // premultiply modulate into both stops
 
             if (_handle.IsActive()) _handle.TryCancel();

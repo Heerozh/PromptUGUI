@@ -34,6 +34,11 @@ public static class UIBoot
 
         // ⑤ 应用语言：同步返回，.po 后台异步加载
         UI.Locale.Set(UserConfig.Language);
+
+        // ⑥（可选）启用手柄 / 键盘方向导航 + 焦点光标。opt-in：装上设备检测 + 确保单个
+        //    EventSystem。鼠标保持 Pointer 模式；按方向键/摇杆才切到 Directional 并在焦点控件上
+        //    显示光标。不调这一句，整套导航特性处于休眠。
+        UI.UseGamepadNavigation();
     }
 }
 ```

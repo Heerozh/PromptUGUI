@@ -235,6 +235,13 @@ namespace PromptUGUI.Parser
                     rootNode.Children.Add(ParseElement(child_el, idsInScreen));
                 }
             }
+            // <FocusCursor> 是 Screen 级声明，不进控件树（否则会被当未知控件实例化报错）。抽到 ScreenDef。
+            for (int i = rootNode.Children.Count - 1; i >= 0; i--)
+            {
+                if (rootNode.Children[i].Tag != "FocusCursor") continue;
+                if (screen.FocusCursor == null) screen.FocusCursor = rootNode.Children[i];
+                rootNode.Children.RemoveAt(i);
+            }
             doc.Screens.Add(screen);
         }
 

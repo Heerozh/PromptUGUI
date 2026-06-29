@@ -187,7 +187,7 @@ screen.Get<InputField>("playerName").OnEndEdit
 
 **RawImage** — 显示运行时加载的 `Texture`（不是 sprite）：`screen.Get<RawImage>("avatar").Texture = tex;`（`Texture2D` / `RenderTexture` 均可）。`Texture` 是普通 C# 属性（get/set），**不是** XML 属性 —— XML 端只声明位置 / `color` / `type=contain|cover` / `mask`。重新赋值会自动按新 texture 重算 `type=contain/cover` 的纵横比。典型用法是把异步加载结果推进去：`LoadAsync(url).Subscribe(t => raw.Texture = t).AddTo(screen)`。
 
-**`Btn.OnState` / `Tab.OnState` / `Toggle.OnState`** — each control broadcasts its uGUI interaction state as `Observable<InteractState>` (`InteractState { Normal, Hover, Pressed, Selected, Disabled }`). `Selected` = the active/`isOn` control at rest; transient Hover/Pressed/Disabled override it and revert on release; a momentary `<Btn>` never emits `Selected`. The observable replays the current value to new subscribers, so you can react in C# to press / hover / select / disable — complementing the XML-side `*Color` / `*Modulate` state colours and `<Show>` artwork swap (see authoring-promptugui-xml → "Btn state visuals"):
+**`Btn.OnState` / `Tab.OnState` / `Toggle.OnState`** — each control broadcasts its uGUI interaction state as `Observable<InteractState>` (`InteractState { Normal, Hover, Pressed, Selected, Disabled, Focused }` — `Focused` is Directional nav mode only; reuses the hover visual). `Selected` = the active/`isOn` control at rest; transient Hover/Pressed/Disabled override it and revert on release; a momentary `<Btn>` never emits `Selected`. The observable replays the current value to new subscribers, so you can react in C# to press / hover / select / disable / focus — complementing the XML-side `*Color` / `*Modulate` state colours and `<Show>` artwork swap (see authoring-promptugui-xml → "Btn state visuals"):
 
 ```csharp
 screen.Get<Btn>("buy").OnState
@@ -563,8 +563,9 @@ GET            screen.Get<Btn>("id")                          typed
                screen.Get<Btn>("outerId/innerId")             path into Template body
 
 EVENTS (R3)    .OnClick                Btn
-               .OnState                Btn/Tab/Toggle:InteractState (Normal/Hover/Pressed/Selected/Disabled; replays current)
+               .OnState                Btn/Tab/Toggle:InteractState (Normal/Hover/Pressed/Selected/Disabled/Focused; replays current)
                                         Selected = active/isOn at rest; <Btn> never emits Selected
+                                        Focused = Directional nav mode only; reuses hover visual
                .OnValueChanged         Toggle:bool / Slider:float / InputField:string / Tab:bool
                .OnSelected             Dropdown:int / Tab:Unit (on=true only)
                .OnSelectionChanged     TabBar:Tab (the newly-on Tab, or null when emptied)
@@ -591,6 +592,16 @@ MARKDOWN       md.Text = "…"                                 set → full re-r
                UI.Markdown.UseWebImageResolver()             install http(s) image downloader
                UI.Markdown.DefaultStyle = …                  global style baseline
                UI.Markdown.HandleLink(url)      // 默认链接分发:Router scheme → Navigate,否则 OpenURL
+
+NAV            UI.UseGamepadNavigation()                       enable gamepad/keyboard nav (idempotent; new Input System only)
+               UI.Navigation.Enable()                          identical alias (UI.Navigation is a nested static class)
+               UI.Navigation.IsEnabled                         bool; true after Enable()
+               screen.Focus("id" | "outer/inner")             programmatic EventSystem selection; throws KeyNotFoundException on missing id
+                                                               // called before Enable() → sets EventSystem sel but no cursor visual
+               InteractState.Focused                           active in Directional mode; reuses hover visual (no focusColor in v1)
+               OnState.Where(s=>s==InteractState.Focused)      subscribe like hover/pressed
+               modal trap + restore                            automatic — no code needed
+               XML: focus="true" nav="none" navUp/navDown/navLeft/navRight="id"   → reference/navigation.md
 
 VARIANT        UI.Variants.Set("name", true|false)            re-applies, no rebuild
 ORIENTATION    UI.Orientation.IsPortrait                      auto-tracked: portrait / landscape variants
@@ -1505,6 +1516,55 @@ UI.Router.MapPrompt("confirm-delete", parent: "home", run: async (q, ct) =>
 ```
 
 Navigating away while the dialog is open cancels `ct`, the dialog throws `OperationCanceledException`, and the Prompt exits cleanly.
+
+## Gamepad / Keyboard Navigation
+
+Enable directional (gamepad / keyboard) navigation once at startup, before any Screen opens:
+
+```csharp
+UI.UseGamepadNavigation();   // idempotent; creates EventSystem + InputSystemUIInputModule if missing
+// Equivalent long-form (same call):
+UI.Navigation.Enable();
+```
+
+`UI.Navigation` is a nested static class (like `UI.Modal` / `UI.Toast`). It also exposes `UI.Navigation.IsEnabled` (`bool`, `true` after `Enable()`).
+
+**New Input System only** (`com.unity.inputsystem`). Without it `UseGamepadNavigation()` logs one `Debug.LogWarning` and returns — navigation is fully disabled, no exception. If an `EventSystem` already exists in the scene, the method adds `InputSystemUIInputModule` to it; otherwise it creates a new `EventSystem` GameObject with both components.
+
+### Navigation modes (automatic)
+
+| Trigger | Mode |
+| --- | --- |
+| Gamepad left-stick / d-pad / South (confirm) / East (back); keyboard arrow keys, Tab, Enter | **Directional** — cursor visible, selected control shows hover visual |
+| Mouse move / mouse click, or touch | **Pointer** — cursor hidden, no highlight from selection |
+
+Mode is detected per-frame by `NavigationController` (a `MonoBehaviour` on the `EventSystem` GO). No code is required beyond the one-time `Enable()` call.
+
+### `InteractState.Focused`
+
+In Directional mode, the currently-selected control enters `InteractState.Focused`. In v1 this **reuses the control's hover visual** (`hoverColor` / `hoverModulate`) — there is no separate `focusColor` attribute. Subscribe like any state:
+
+```csharp
+screen.Get<Btn>("play").OnState
+      .Where(s => s == InteractState.Focused)
+      .Subscribe(_ => sfx.PlayFocusSfx())
+      .AddTo(screen);
+```
+
+### `screen.Focus(string idPath)` — programmatic selection
+
+Move the EventSystem selection to a control from C#:
+
+```csharp
+screen.Focus("play");             // plain id
+screen.Focus("panel/confirmBtn"); // path into a template instance
+```
+
+Available on `IScreen`. Throws `KeyNotFoundException` if the id is not in the Screen's static node map (same contract as `Get<T>`). When called before `UI.UseGamepadNavigation()`, `Focus` still sets the EventSystem selection but no cursor overlay is visible. BindItems-generated items are never in the static map — focus their container instead.
+
+### Modal focus trap (automatic)
+
+While a modal is open, directional navigation is **contained inside it** — arrow keys and gamepad stick cannot reach controls behind the modal. On close, the previously-selected control is restored. No code or XML markup is required; the modal stack wires this automatically.
 
 ## Tutorial (onboarding / coach marks)
 

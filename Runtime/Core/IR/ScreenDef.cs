@@ -16,6 +16,10 @@ namespace PromptUGUI.IR
         /// </summary>
         public Dictionary<string, TemplateDef> Templates { get; } = new();
 
+        /// <summary>该 Screen 声明的 &lt;FocusCursor&gt; 节点（解析时从 Root.Children 抽出）；null = 未声明，
+        /// 运行时回退全局默认光标（spec §5.2）。</summary>
+        public ElementNode FocusCursor { get; set; }
+
         public ScreenDef(string name, ElementNode root)
         {
             Name = name;

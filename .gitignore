@@ -126,6 +126,9 @@ InitTestScene*.unity*
 # Personal Claude Code settings
 .claude/settings.local.json
 
+# Subagent-driven-development scratch workspace (briefs, reports, packages, ledger)
+.superpowers/
+
 # dotnet build artifacts under .lint/ (UIXmlLint + lint workspace `dotnet format` cache)
 .lint/**/bin/
 .lint/**/obj/

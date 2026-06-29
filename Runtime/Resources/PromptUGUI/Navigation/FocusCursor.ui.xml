@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PromptUGUI version="1">
+  <Screen name="PromptUGUI/Navigation/FocusCursor.ui">
+    <FocusCursor side="left" offset="-4,0">
+      <Image anchor="center" size="24x24" sprite="PromptUGUI/Defaults/pugui#pugui_caret"/>
+    </FocusCursor>
+  </Screen>
+</PromptUGUI>

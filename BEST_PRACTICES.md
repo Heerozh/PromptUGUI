@@ -34,6 +34,12 @@ public static class UIBoot
 
         // ⑤ Apply the locale: returns synchronously, .po loads in the background
         UI.Locale.Set(UserConfig.Language);
+
+        // ⑥ (Optional) Enable gamepad / keyboard directional navigation + the focus cursor.
+        //    Opt-in: installs device detection + ensures a single EventSystem. The mouse stays in
+        //    Pointer mode; a d-pad / stick / arrow press switches to Directional and shows the
+        //    cursor on the focused control. Without this call the navigation feature stays dormant.
+        UI.UseGamepadNavigation();
     }
 }
 ```

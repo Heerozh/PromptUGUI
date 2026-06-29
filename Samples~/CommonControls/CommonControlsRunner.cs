@@ -29,6 +29,10 @@ namespace PromptUGUI.Samples.CommonControls
         async void Start()
         {
             UI.UseResourcesResolver("UI");
+            // 手柄/键盘方向导航（opt-in）：装上设备检测 + 单 EventSystem，按方向键/摇杆即进 Directional
+            // 模式并显示默认焦点光标。必须在 UI.Open 之前调用——初始焦点与光标 overlay 在 Open 时按
+            // IsEnabled 建立。鼠标仍照常工作（Pointer 模式），方向输入才切换。
+            UI.UseGamepadNavigation();
             await UI.Locale.SetToSystemDefaultAsync("en");
 
             if (spriteSets != null && spriteSets.Length > 0)

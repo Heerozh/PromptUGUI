@@ -15,6 +15,7 @@ namespace PromptUGUI.Application
         public GameObject RootGameObject { get; }
         public T Get<T>(string id) where T : class, IControl;
         public IControl Get(string id);
+        public void Focus(string idPath);
     }
 
     public sealed class Screen : IScreen
@@ -41,6 +42,7 @@ namespace PromptUGUI.Application
         // recompute) on canvas resize; others keep the lightweight ApplyCanvasScaler-only path
         // (zero behavior change).
         private bool _hasFactorScale;
+        private RectTransform _cursorOverlay;
 
         // Non-null only during Open()'s apply pass. Tab.bind queues its initial page-hide
         // here (see DeferDuringOpen) so a bound page is not deactivated before its own
@@ -182,6 +184,10 @@ namespace PromptUGUI.Application
             var deferredHides = _deferredOpenActions;
             _deferredOpenActions = null;
             foreach (var hide in deferredHides) hide();
+            Navigation.ExplicitNavigationResolver.Resolve(this, _nodeMap, Variants);
+            ApplyInitialFocus();
+            if (UI.Navigation.IsEnabled)
+                SetupFocusCursor(Def.FocusCursor ?? UI.Navigation.DefaultCursorNode);
             _variantSub = Variants.Changed.Subscribe(_ => ReSolve());
             _themeHandler = _ => ReSolve();
             UI.Theme.Changed += _themeHandler;
@@ -662,6 +668,102 @@ namespace PromptUGUI.Application
             return current;
         }
 
+        /// <summary>Non-throwing single-segment id lookup. Returns <c>true</c> and the live
+        /// control when it is currently active in this screen. Returns <c>false</c> when the
+        /// id is absent — either in a deactivated variant Add block or undeclared entirely.
+        /// Used by <see cref="Navigation.ExplicitNavigationResolver"/> to avoid crashing on
+        /// nav targets that are inactive at the moment of wiring.</summary>
+        internal bool TryGet(string id, out IControl control) =>
+            _byId.TryGetValue(id, out control);
+
+        /// <summary>Programmatically move EventSystem selection to the control at <paramref name="idPath"/>.</summary>
+        public void Focus(string idPath)
+        {
+            var go = Get(idPath).GameObject;
+            FindEventSystem()?.SetSelectedGameObject(go);
+        }
+
+        /// <summary>建立光标 overlay：顶层非布局 RectTransform + CanvasGroup，将光标子树实例化其中，
+        /// 并挂 <see cref="Navigation.FocusCursorView"/> 占位（Task 7 填充行为）。</summary>
+        internal void SetupFocusCursor(ElementNode cursorNode)
+        {
+            if (cursorNode == null || cursorNode.Children == null || cursorNode.Children.Count == 0) return;
+            var overlayGo = new GameObject("__FocusCursor",
+                typeof(RectTransform),
+                typeof(UnityEngine.CanvasGroup));
+            _cursorOverlay = (RectTransform)overlayGo.transform;
+            _cursorOverlay.SetParent(RootGameObject.transform, worldPositionStays: false);
+            _cursorOverlay.SetAsLastSibling();                       // 画在内容之上
+            _cursorOverlay.anchorMin = _cursorOverlay.anchorMax = new Vector2(0.5f, 0.5f);
+            _cursorOverlay.sizeDelta = Vector2.zero;
+            var le = overlayGo.AddComponent<UnityEngine.UI.LayoutElement>();
+            le.ignoreLayout = true;
+            // 光标视觉子树（取第一个子节点；多于一个时其余忽略——v1 单子约定）
+            _instantiator.InstantiateNode(cursorNode.Children[0], _cursorOverlay, this);
+            var view = overlayGo.AddComponent<Navigation.FocusCursorView>();
+            view.Init(this, _cursorOverlay, cursorNode);             // Task 7 让它动
+        }
+
+        /// <summary>Called at the end of <see cref="Open"/> when <see cref="UI.Navigation"/> is enabled.
+        /// Selects the first control with <c>focus="true"</c> (raw attribute, not registered),
+        /// or the first focusable control in document order.</summary>
+        internal void ApplyInitialFocus()
+        {
+            if (!UI.Navigation.IsEnabled) return;
+            var es = FindEventSystem();
+            if (es == null) return;
+
+            // Build reverse map GameObject → ElementNode from _nodeMap.
+            // Iteration order of _nodeMap (Dictionary) is not guaranteed by the C# spec, so we
+            // do NOT use it for ordering here. The map is used only for attribute lookup and to
+            // distinguish known Control GOs from internal child GOs of composite controls
+            // (e.g. TMP_Dropdown's template items have their own Selectables).
+            var goToNode = new Dictionary<UnityEngine.GameObject, ElementNode>();
+            foreach (var kv in _nodeMap)
+                if (kv.Value.GameObject != null)
+                    goToNode[kv.Value.GameObject] = kv.Key;
+
+            // GetComponentsInChildren returns Selectables in depth-first pre-order,
+            // which is document order — the authoritative traversal for initial focus.
+            var selectables = RootGameObject.GetComponentsInChildren<UnityEngine.UI.Selectable>(
+                includeInactive: false);
+
+            UnityEngine.GameObject pick = null;
+
+            // Pass 1: control marked focus="true" (raw attribute, silently ignored by ControlAttributeApplier
+            // because it is not registered via [UIAttr] on any control's Meta).
+            foreach (var sel in selectables)
+            {
+                if (!goToNode.TryGetValue(sel.gameObject, out var node)) continue;
+                if (!node.Attributes.TryGetValue("focus", out var f) || f != "true") continue;
+                if (IsFocusable(_nodeMap[node])) { pick = sel.gameObject; break; }
+            }
+
+            // Pass 2: first focusable control in document order
+            if (pick == null)
+                foreach (var sel in selectables)
+                {
+                    if (!goToNode.TryGetValue(sel.gameObject, out var node2)) continue;
+                    if (IsFocusable(_nodeMap[node2])) { pick = sel.gameObject; break; }
+                }
+
+            if (pick != null) es.SetSelectedGameObject(pick);
+        }
+
+        // EventSystem.current is null in EditMode (no game loop, no activeScene EventSystem set).
+        // Fall back to FindAnyObjectByType which locates the instance we created in Navigation.Enable().
+        private static UnityEngine.EventSystems.EventSystem FindEventSystem() =>
+            UnityEngine.EventSystems.EventSystem.current
+            ?? UnityEngine.Object.FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>();
+
+        private static bool IsFocusable(Controls.Control c)
+        {
+            if (c.GameObject == null) return false;
+            var sel = c.GameObject.GetComponent<UnityEngine.UI.Selectable>();
+            return sel != null && sel.IsActive() && sel.IsInteractable()
+                   && sel.navigation.mode != UnityEngine.UI.Navigation.Mode.None;
+        }
+
         public void Track(IDisposable d) => _subscriptions.Add(d);
 
         public void Dispose() => Close();
@@ -709,6 +811,7 @@ namespace PromptUGUI.Application
             ApplyCanvasScaler(RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>());
             ApplyScales();
             AttachPixelSnaps(RootGameObject);
+            Navigation.ExplicitNavigationResolver.Resolve(this, _nodeMap, Variants, inactiveNodes);
         }
 
         // deferApplyTo 非 null（Screen.Open 首次构建）：Add 子树属性 Apply 延迟收进该列表，

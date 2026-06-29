@@ -67,8 +67,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(InteractState.Hover, StateBroadcaster.MapTransient(Highlighted));
             Assert.AreEqual(InteractState.Pressed, StateBroadcaster.MapTransient(Pressed));
             Assert.AreEqual(InteractState.Disabled, StateBroadcaster.MapTransient(Disabled));
-            // Momentary button must not keep a sticky highlight after a touch tap.
-            Assert.AreEqual(InteractState.Normal, StateBroadcaster.MapTransient(Selected));
+            // Navigation-Selected maps to Focused (Recompute folds to Normal in Pointer mode).
+            Assert.AreEqual(InteractState.Focused, StateBroadcaster.MapTransient(Selected));
         }
 
         [Test]

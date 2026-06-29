@@ -15,6 +15,7 @@ namespace PromptUGUI.Application
                 public readonly Screen Screen;
                 public readonly string Key;
                 public ModalEscapeListener Escape;
+                public UnityEngine.GameObject PrevSelected;
                 public Slot(IModalEntry entry, Screen screen, string key)
                 {
                     Entry = entry; Screen = screen; Key = key;
@@ -113,6 +114,18 @@ namespace PromptUGUI.Application
                             await ModalDocCache.EnsureLoaded(entry.XmlSrc);
                             if (entry.Resolved) continue;   // CloseAll 在 await 期间取消
 
+                            // Capture the pre-open selection BEFORE screen.Open() runs
+                            // ApplyInitialFocus() and changes EventSystem.currentSelectedGameObject.
+                            UnityEngine.GameObject prevSelected = null;
+                            if (UI.Navigation.IsEnabled)
+                            {
+                                // EventSystem.current is null in EditMode (no game loop);
+                                // mirror the Screen.FindEventSystem / UI.Navigation fallback.
+                                var esNow = UnityEngine.EventSystems.EventSystem.current
+                                            ?? UnityEngine.Object.FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>();
+                                prevSelected = esNow != null ? esNow.currentSelectedGameObject : null;
+                            }
+
                             var (screen, key) = OpenModalScreen(entry.XmlSrc);
                             slot = new Slot(entry, screen, key);
                             _stack.Add(slot);
@@ -127,6 +140,17 @@ namespace PromptUGUI.Application
                             slot.Escape = listener;
 
                             entry.RunBind(screen, () => OnEntryClosed(capturedSlot));
+
+                            if (UI.Navigation.IsEnabled)
+                            {
+                                slot.PrevSelected = prevSelected;
+                                // Re-apply after RunBind: Bind may show/hide buttons, so the
+                                // initial focus set by screen.Open() might be on a now-hidden
+                                // control. This ensures the first *visible* focusable is selected.
+                                screen.ApplyInitialFocus();
+                                UI.Navigation.ContainmentRoot = screen.RootGameObject;  // trap 到本模态
+                            }
+
                             RefreshTopListener();   // 激活刚压入的新栈顶,禁用原栈顶的 ESC listener
                         }
                         catch (Exception ex)
@@ -180,6 +204,17 @@ namespace PromptUGUI.Application
             {
                 _stack.Remove(slot);
                 CloseModalScreen(slot.Key);               // 销毁 Screen GameObject
+
+                if (UI.Navigation.IsEnabled)
+                {
+                    UI.Navigation.ContainmentRoot = _stack.Count > 0
+                        ? _stack[_stack.Count - 1].Screen.RootGameObject : null;  // 还原到新栈顶或解除
+                    // EventSystem.current is null in EditMode; mirror Screen.FindEventSystem fallback.
+                    var es = UnityEngine.EventSystems.EventSystem.current
+                             ?? UnityEngine.Object.FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>();
+                    if (es != null && slot.PrevSelected != null)
+                        es.SetSelectedGameObject(slot.PrevSelected);
+                }
             }
 
             private static void RefreshTopListener()

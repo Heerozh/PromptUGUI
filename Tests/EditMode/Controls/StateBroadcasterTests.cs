@@ -10,12 +10,12 @@ namespace PromptUGUI.Tests.EditMode.Controls
         private const int Normal = 0, Highlighted = 1, Pressed = 2, NavSelected = 3, Disabled = 4;
 
         [Test]
-        public void MapTransient_FoldsNavSelectedToNormal()
+        public void MapTransient_NavSelectedMapsToPendingFocused()
         {
             Assert.AreEqual(InteractState.Normal, StateBroadcaster.MapTransient(Normal));
             Assert.AreEqual(InteractState.Hover, StateBroadcaster.MapTransient(Highlighted));
             Assert.AreEqual(InteractState.Pressed, StateBroadcaster.MapTransient(Pressed));
-            Assert.AreEqual(InteractState.Normal, StateBroadcaster.MapTransient(NavSelected));
+            Assert.AreEqual(InteractState.Focused, StateBroadcaster.MapTransient(NavSelected));
             Assert.AreEqual(InteractState.Disabled, StateBroadcaster.MapTransient(Disabled));
         }
 
