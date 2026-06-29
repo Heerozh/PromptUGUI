@@ -163,13 +163,12 @@ Current      = (effTransient == Normal) ? (isOn ? Selected : Normal) : effTransi
 - 在 Pointer 模式下设置选区**无视觉副作用**(`Focused` 被门控折回 `Normal`、光标隐藏),故开屏即设是安全的。
 - 多个 `focus="true"`:取第一个;CLI lint 可出重复警告(§14,可选)。
 
-### 6.2 模态 trap(选区限制)
+### 6.2 模态 trap(导航笼 + 选区限制)
 
-uGUI 的 `Automatic` 导航**不认 Canvas 排序/raycast 遮挡**——方向键能从模态"逃"到背后的按钮(指针被 backdrop 吃掉,但键盘/手柄不会)。故需显式限制:
+uGUI 的 `Automatic` 导航**不认 Canvas 排序/raycast 遮挡**——方向键能从模态"逃"到背后的按钮(指针被 backdrop 吃掉,但键盘/手柄不会)。实测病征:背后一页的某按钮在屏幕坐标上比模态内的相邻按钮更"贴"焦点控件,几何搜索就选了它 → 选区逃出模态 → 守卫吸回栈顶模态首个可聚焦控件 → **焦点黏在首按钮、方向键到不了同模态的其它按钮**。两层防护:
 
-- 导航控制器维护"当前限制根":有模态开启时 = **栈顶模态的 Screen 根**(复用 `UI.Modal._stack` + `RefreshTopListener` 同款"仅栈顶生效"),否则 = 普通开启屏。
-- 每帧(或选区变更时)校验 `currentSelectedGameObject` 是否在限制根子树内;**逃逸则吸回**栈顶模态的初始/上次焦点。
-- 这是 trap 的最小可靠实现,不改 uGUI 的 `FindSelectable`,只做"事后纠偏"。
+- **导航笼(主):** 模态绑定完成后由 `UI.Modal` 调 `Screen.ConfineNavigationToSelf` → `ExplicitNavigationResolver` 的 confine 分支把模态内每个可聚焦控件转成 `Explicit` 导航,四向邻居用**限定在模态子树候选内**的几何打分算出(复刻 uGUI `FindSelectable`/`GetPointOnRectEdge` 的评分,但只在子树里挑)。于是方向键从根上到不了模态外,且模态内相邻控件可靠互达。几何须在布局稳定后取,故 confine 分支先 `Canvas.ForceUpdateCanvases()`(开屏时叠加 canvas 尚未定尺寸 + HStack 未排版);resize/ReSolve 经 `Screen.NavConfineRoot` 重算。
+- **吸回(兜底):** 导航控制器维护"当前限制根" = 栈顶模态 Screen 根(复用 `UI.Modal._stack` + `RefreshTopListener` 同款"仅栈顶生效");每帧校验 `currentSelectedGameObject` 在限制根子树内,逃逸则吸回。装笼后正常不再触发,留作兜底。
 
 ### 6.3 关闭还原
 
@@ -318,7 +317,7 @@ Modal 关闭(RemoveSlot)
 | 解封 `Selected→Focused` 让鼠标点完粘高亮 | §3 模式门控:Pointer 模式照旧折回 `Normal`;回归测试 #2 覆盖 |
 | `InteractState` 追加值漏改某 `switch`(穷举) | 编译/测试驱动:`StateTintReactor`/`<Show>`/triggers 都 `switch` 它,缺分支编译告警或测试失败;新值置末尾、`default` 兜底 |
 | uGUI `FindSelectableOnX` 在布局未稳时算错邻居 | `ExplicitNavigationResolver` 在 Screen 打开/重排**末尾**跑;resize/ReSolve 重算 |
-| 模态 trap"事后纠偏"有一帧选区在外 | 守卫每帧吸回;一帧延迟无实际可操作窗口(同帧无输入处理)。彻底零延迟需重写 `FindSelectable`,留非目标 |
+| 模态方向键逃到背后控件 / 焦点黏首按钮 | §6.2 导航笼:模态内控件转 `Explicit` + 子树内几何邻居,从根上不外溢、模态内可靠互达;每帧吸回降为兜底(装笼后正常不触发) |
 | 设备检测误判(同时插手柄又动鼠标) | 以"最近一次事件设备"为准,逐帧更新;边界是用户主动切设备,符合直觉 |
 | `<FocusCursor>` hoist 进 overlay 与 scale/PixelSnap 交互 | 复用 `InstantiateNode` 的 `_dynamicSubtrees` 既有 scale 路径 + `PixelSnap`;EditMode #7/#8 覆盖定位与 hoist |
 | New Input System 未装时整个特性编译/运行 | `#if ENABLE_INPUT_SYSTEM` 全包;`#else` no-op + 一次性警告;不进硬依赖 |

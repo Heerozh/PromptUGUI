@@ -144,6 +144,12 @@ namespace PromptUGUI.Application
                             if (UI.Navigation.IsEnabled)
                             {
                                 slot.PrevSelected = prevSelected;
+                                // Cage directional nav inside this modal — Bind has finalized which
+                                // buttons are shown, so the geometric neighbours wire up correctly.
+                                // Without this, uGUI's scene-wide search lets a modal button's
+                                // neighbour be a control on the page behind it (focus escapes, then
+                                // the trap snaps back to the first button → "stuck on OK").
+                                screen.ConfineNavigationToSelf();
                                 // Re-apply after RunBind: Bind may show/hide buttons, so the
                                 // initial focus set by screen.Open() might be on a now-hidden
                                 // control. This ensures the first *visible* focusable is selected.
