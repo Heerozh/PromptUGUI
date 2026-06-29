@@ -36,6 +36,10 @@ This demo interface was created entirely by Code Agent, including the border ima
   - Only the sprites actually used are bundled
   - Supports TMP inline text-and-image layout
   - LLMs handle this style of authoring extremely well
+- **Gamepad / keyboard navigation**
+  - Directional navigation (d-pad / arrow keys) is fully supported
+  - with automatic focus management and visual Cursor feedback
+  - auto hide Cursor when pointer/mouse is used, auto show Cursor when directional navigation is used
 - **Fully automated i18n**
   - Auto-extracts UI text plus strings wrapped with `UI.Tr()` in C# code
   - Sends the strings (with surrounding context) to any OpenAI-compatible model for translation; source text may freely mix languages
@@ -328,6 +332,10 @@ C# Code:
   - 只打包用到的
   - 支持TMP图文混排
   - 大模型极其擅长此种方式
+- **手柄/键盘导航**
+  - 完整支持方向键/摇杆导航
+  - 自动管理焦点和光标显示
+  - 当使用鼠标/指针时自动隐藏光标，当使用方向键/摇杆时自动显示光标
 - **全自动多国语言系统**
   - 自动提取界面文本，以及代码中`UI.Tr()`包裹的字符串
   - 自动携带上下文交给OpenAI兼容的模型自动翻译，原文可任意语言混写

@@ -81,7 +81,15 @@ namespace PromptUGUI.Controls
             _input.selectionColor = new Color(0.659f, 0.808f, 1f, 0.753f);
             _input.onValueChanged.AddListener(v => _changed.OnNext(v));
             _input.onEndEdit.AddListener(v => _endEdit.OnNext(v));
-            _input.onSubmit.AddListener(v => _submit.OnNext(v));
+            // Gate: when Navigation is enabled and the field is not yet focused, Submit is
+            // the two-level "enter edit" gesture.  TMP fires onSubmit synchronously before
+            // InputFieldNavGate.OnSubmit runs, so we check isFocused here at listener time
+            // to suppress the business event for that transition.
+            _input.onSubmit.AddListener(v =>
+            {
+                if (UI.Navigation.IsEnabled && !_input.isFocused) return;
+                _submit.OnNext(v);
+            });
 
             // AddComponent<TMP_InputField> 在 active GO 上立刻触发 OnEnable, 那一刻
             // textComponent/placeholder/textViewport 都还是 null, RegisterDirtyVerticesCallback
@@ -92,6 +100,9 @@ namespace PromptUGUI.Controls
 
             ApplyFont();
             PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
+
+            var navGate = GameObject.AddComponent<Internal.InputFieldNavGate>();
+            navGate.Init(_input);
         }
 
         private void ApplyFont()
@@ -135,6 +146,10 @@ namespace PromptUGUI.Controls
             _input.interactable = Interactable;
             ApplyTextAreaPadding();
         }
+
+        // True when the underlying field is in edit mode (caret active). Used by the
+        // two-level navigation gate and its tests.
+        internal bool IsEditing => _input != null && _input.isFocused;
 
         [UIAttr("text"), Preserve]
         public string TextValue
@@ -318,6 +333,15 @@ namespace PromptUGUI.Controls
         public override void Dispose()
         {
             PromptUGUI.Application.UI.Locale.Changed -= ApplyFont;
+            // Remove TMP UnityEvent listeners before disposing R3 subjects so that TMP
+            // callbacks firing during object destruction (e.g. DeactivateInputField in
+            // OnDestroy) can't call OnNext on a disposed subject.
+            if (_input != null)
+            {
+                _input.onValueChanged.RemoveAllListeners();
+                _input.onEndEdit.RemoveAllListeners();
+                _input.onSubmit.RemoveAllListeners();
+            }
             _changed.Dispose();
             _endEdit.Dispose();
             _submit.Dispose();
