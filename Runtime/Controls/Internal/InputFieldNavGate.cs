@@ -65,15 +65,13 @@ namespace PromptUGUI.Controls.Internal
         {
             if (!UI.Navigation.IsEnabled) return;
             if (_input == null || !_input.IsInteractable()) return;
+            // Enter-edit: TMP's own OnSubmit (runs first) already scheduled activation
+            // (m_ShouldActivateNextUpdate). Do NOT ActivateInputField() here — on a single-line
+            // *confirm* TMP has already DeactivateInputField()'d synchronously, so re-activating
+            // would bounce the field back into edit instead of returning to navigation. We only
+            // clear the suppress flag so the gate doesn't fight TMP's intentional activation.
             if (!_input.isFocused)
-            {
-                // TMP's own ISubmitHandler (runs before this gate in component order)
-                // already called ActivateInputField().  We call it again to be safe if
-                // execution order ever changes, and to own the "enter edit" intent clearly.
-                _input.ActivateInputField();
                 _suppressUntilDeactivated = false;
-            }
-            // Already editing: let TMP's default OnSubmit handle confirm/newline.
         }
 
         public void OnDeselect(BaseEventData eventData) => _suppressUntilDeactivated = false;

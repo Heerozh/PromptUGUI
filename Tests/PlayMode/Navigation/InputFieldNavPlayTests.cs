@@ -147,5 +147,26 @@ namespace PromptUGUI.Tests.PlayMode.Navigation
             yield return null; yield return null;
             Assert.IsFalse(field.IsEditing, "Cancel/Esc must exit edit mode back to navigation");
         }
+
+        [UnityTest]
+        public IEnumerator Submit_ConfirmOnSingleLineField_ExitsEditMode()
+        {
+            UI.UseGamepadNavigation();
+            UI.Navigation.NoteDirectionalInput();
+            var s = Open("<InputField id='f' lineType='single'/>");
+            var field = s.Get<InputField>("f");
+            var es = EventSystem.current;
+            es.SetSelectedGameObject(field.GameObject);
+            yield return null; yield return null;
+            // Enter edit, then confirm.
+            ExecuteEvents.Execute(field.GameObject, new BaseEventData(es), ExecuteEvents.submitHandler);
+            yield return null; yield return null;
+            Assert.IsTrue(field.IsEditing, "precondition: editing");
+
+            ExecuteEvents.Execute(field.GameObject, new BaseEventData(es), ExecuteEvents.submitHandler);  // confirm
+            yield return null; yield return null;
+
+            Assert.IsFalse(field.IsEditing, "single-line confirm-Submit must return to navigation, not bounce back to edit");
+        }
     }
 }
