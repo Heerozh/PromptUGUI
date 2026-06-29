@@ -811,7 +811,27 @@ namespace PromptUGUI.Application
             ApplyCanvasScaler(RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>());
             ApplyScales();
             AttachPixelSnaps(RootGameObject);
-            Navigation.ExplicitNavigationResolver.Resolve(this, _nodeMap, Variants, inactiveNodes);
+            Navigation.ExplicitNavigationResolver.Resolve(this, _nodeMap, Variants, inactiveNodes, NavConfineRoot);
+        }
+
+        /// <summary>
+        /// Non-null = directional navigation is confined to this GameObject's subtree (a modal).
+        /// Set by <see cref="ConfineNavigationToSelf"/>; consumed by ReSolve so resizes re-cage.
+        /// </summary>
+        internal UnityEngine.GameObject NavConfineRoot { get; private set; }
+
+        /// <summary>
+        /// Cage directional navigation inside this screen so it cannot escape to controls on the
+        /// page behind it (modal focus correctness — see <see cref="Navigation.ExplicitNavigationResolver"/>).
+        /// Called by <see cref="UI.Modal"/> after the modal binds (buttons shown/hidden finalized).
+        /// </summary>
+        internal void ConfineNavigationToSelf()
+        {
+            NavConfineRoot = RootGameObject;
+            // The resolver forces a canvas update in confine mode so the geometric neighbours are
+            // computed against a current layout (the modal's overlay canvas is sized there too).
+            Navigation.ExplicitNavigationResolver.Resolve(this, _nodeMap, Variants,
+                inactiveNodes: null, confineRoot: NavConfineRoot);
         }
 
         // deferApplyTo 非 null（Screen.Open 首次构建）：Add 子树属性 Apply 延迟收进该列表，

@@ -196,11 +196,11 @@ immediately. (Active only when `UI.UseGamepadNavigation()` is enabled.)
 
 ## Modal focus trap
 
-While a modal is open (MessageBox, InputBox, MarkdownBox, CenteredSlideBox, or any custom modal), directional navigation is **trapped inside the modal**. Arrow keys and gamepad stick cannot reach controls behind the modal, even if they are physically adjacent on screen. This is enforced every frame by `NavigationController`.
+While a modal is open (MessageBox, InputBox, MarkdownBox, CenteredSlideBox, or any custom modal), directional navigation is **confined to the modal**. Arrow keys and gamepad stick move freely among the modal's own controls but can never reach a control on the page behind the modal — even when a background control is physically closer on screen than the modal's own neighbour (uGUI's automatic navigation searches the whole scene and does not respect the modal boundary on its own).
 
-On close, the selection is **restored** to the control that was focused when the modal opened.
+This is achieved by wiring the modal's focusables into a self-contained navigation graph when it opens (re-wired on resize); `NavigationController` additionally snaps any stray selection back inside every frame as a backstop. On close, the selection is **restored** to the control that was focused when the modal opened.
 
-No XML markup is required for any of this — the modal stack wires the trap automatically.
+No XML markup is required for any of this — the modal stack wires it automatically.
 
 ---
 
