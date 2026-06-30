@@ -15,10 +15,17 @@ namespace PromptUGUI.Application.Navigation
             // Detect input device, then fall through to EnforceContainment regardless.
             // (Early returns would skip the containment check the same frame a directional
             // key navigates the selection out of the modal.)
+            // Submit-class inputs (gamepad South / keyboard Enter) intentionally do NOT flip the
+            // mode here. If they did, the same-frame race with InputSystemUIInputModule's Submit
+            // dispatch could let the OnSubmit wake-gate read a stale Directional and act on a hidden
+            // focus. Only genuine *movement* establishes Directional; Submit is woken via the gate
+            // (PuiButton/PuiToggle.OnSubmit → UI.Navigation.TryWakeOnSubmit). buttonEast (Cancel/Back)
+            // stays — a focus-independent back input that, lacking any ICancelHandler, cannot act on a
+            // stale focus; it only re-establishes Directional. (Modals close on Esc / gamepad Start via
+            // ModalEscapeListener, not on East.)
             var gp = Gamepad.current;
             if (gp != null && (gp.leftStick.ReadValue().sqrMagnitude > 0.25f
                                || gp.dpad.ReadValue().sqrMagnitude > 0.25f
-                               || gp.buttonSouth.wasPressedThisFrame
                                || gp.buttonEast.wasPressedThisFrame))
             {
                 UI.Navigation.NoteDirectionalInput();
@@ -28,7 +35,7 @@ namespace PromptUGUI.Application.Navigation
                 var kb = Keyboard.current;
                 if (kb != null && (kb.leftArrowKey.wasPressedThisFrame || kb.rightArrowKey.wasPressedThisFrame
                                    || kb.upArrowKey.wasPressedThisFrame || kb.downArrowKey.wasPressedThisFrame
-                                   || kb.tabKey.wasPressedThisFrame || kb.enterKey.wasPressedThisFrame))
+                                   || kb.tabKey.wasPressedThisFrame))
                 {
                     UI.Navigation.NoteDirectionalInput();
                 }

@@ -63,6 +63,7 @@ C# 表面只加 `UI.UseGamepadNavigation(...)` + `Screen.Focus(...)`(§8)。
 **`UI.Navigation.Mode`(internal 信号,枚举 `{ Pointer, Directional }`)**:
 - 初值 `Pointer`。
 - 翻 `Directional`:收到来自 `Gamepad` 的摇杆/方向键/按钮,或 `Keyboard` 的导航键(方向键 / Tab / Submit / Cancel / WASD)事件。
+  > **【2026-06-30 修订,见 `2026-06-30-nav-hidden-submit-wake-design.md`】** Submit/确认输入(`Keyboard.enterKey` / `Gamepad.buttonSouth`)**已从方向触发器中移除**——隐藏光标时它们不再翻 `Directional`,而是经 `UI.Navigation.TryWakeOnSubmit` 唤回光标(首次确认只唤醒不触发)。`buttonEast`(Back)与所有移动输入仍翻 `Directional`。
 - 翻 `Pointer`:`Mouse` 移动(delta 超阈值)/ 点击,或 `Touchscreen` 触摸。
 - 检测实现:新 Input System 的 `InputSystem.onEvent`(轻量,按产生事件的设备分类)或逐帧轮询 `Gamepad.current` / `Keyboard.current` / `Pointer.current` 的 `lastUpdateTime`。具体取舍留实施计划;spec 只约定行为。
 

@@ -15,11 +15,13 @@ The library switches between two modes automatically based on the last device us
 | Mode | Triggered by |
 | --- | --- |
 | **Pointer** | Mouse move, mouse click, or touchscreen tap |
-| **Directional** | Gamepad left-stick / d-pad / South (confirm) / East (back); keyboard arrow keys, Tab, Enter |
+| **Directional** | Gamepad left-stick / d-pad / East (back); keyboard arrow keys, Tab |
 
 In **Pointer** mode the focus cursor is hidden and no selected control shows a highlight — the mouse pointer is the sole feedback. In **Directional** mode the cursor appears and the selected control shows its hover visual.
 
 Touch-only devices (phones, tablets with no mouse attached) remain in Pointer mode at all times; the cursor and the directional highlight never appear on them.
+
+**Confirming while the cursor is hidden wakes it first.** If the player last used the mouse (Pointer mode, cursor hidden) but a control is still selected from earlier directional input, the **first** Submit (gamepad A / keyboard Enter) only **wakes the cursor back onto that control without activating it** — press Submit again to act. This stops a confirm from silently triggering an invisible, stale focus (for example firing Cancel when the player expected OK). Mouse clicks and Cancel / Back (gamepad B) are unaffected. Submit / confirm therefore no longer appears in the Directional-trigger table above — it wakes the cursor rather than flipping the mode.
 
 ---
 
