@@ -96,6 +96,8 @@ namespace PromptUGUI.Editor
                     ("sprite", "xs:string", (string)null),
                     // Pressed-state bg swap ([UIAttr] Btn.PressedSprite).
                     ("pressedSprite", "xs:string", (string)null),
+                    // Press-offset content shift ([UIAttr] Btn.PressedOffset). Tab/Toggle get theirs by reflection.
+                    ("pressedOffset", "xs:string", (string)null),
                     // State-driven absolute [UIAttr]s (Btn.HoverColor/PressedColor/DisabledColor).
                     // Btn is hardcoded here (not reflected), so list them explicitly.
                     ("hoverColor", "xs:string", (string)null),

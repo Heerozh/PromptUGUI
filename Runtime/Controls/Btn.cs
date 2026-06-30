@@ -32,6 +32,10 @@ namespace PromptUGUI.Controls
         private string _hoverModulate;
         private string _pressedModulate;
         private string _disabledModulate;
+        // Press-offset: content-holder shift while Pressed. _offsetHolder lazily created by
+        // StateOffsetInstaller (full-stretch wrapper around the content; bg stays on this GO).
+        private Vector2? _pressedOffset;
+        private RectTransform _offsetHolder;
 
         private const float HorizontalPadding = 16f;
         private const float VerticalPadding = 6f;
@@ -67,6 +71,11 @@ namespace PromptUGUI.Controls
         /// </summary>
         public Observable<InteractState> OnState => _btn.OnState;
 
+        // Children parent into the press-offset holder when it exists (so Add blocks land inside too),
+        // else directly onto this GO (identical to the default Control behaviour — no holder, no cost).
+        protected internal override Transform ChildHostTransform
+            => _offsetHolder != null ? _offsetHolder : RectTransform;
+
         /// <summary>
         /// Runtime override so setting <see cref="Interactable"/> from code (e.g. a modal
         /// <c>Configure</c> hook gating the OK button) also drives the underlying
@@ -99,6 +108,7 @@ namespace PromptUGUI.Controls
         {
             base.OnAfterApply();
             _btn.interactable = Interactable;
+            _offsetHolder = StateOffsetInstaller.Install(GameObject, _offsetHolder, new StateOffsetSet(_pressedOffset, null));
             var abs = StateColorSet.ResolveAbsolutes(_hoverColor, _pressedColor, null, _disabledColor);
             var mod = StateColorSet.ResolveModulates(_hoverModulate, _pressedModulate, null, StateColorSet.NoneToNull(_disabledModulate));
             StateTintInstaller.Install(GameObject, _btn, Children, abs, mod);
@@ -192,6 +202,9 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve] public string PressedModulate { set => _pressedModulate = value; }
         /// <summary>Relative colour multiplier while Disabled.</summary>
         [UIAttr(IsColor = true), Preserve] public string DisabledModulate { set => _disabledModulate = value; }
+
+        /// <summary>Content offset (pixels, Unity sign: negative y = down) while Pressed. <c>""</c> / <c>none</c> = none.</summary>
+        [UIAttr, Preserve] public string PressedOffset { set => _pressedOffset = StateOffsetSet.Parse(value); }
 
         [UIAttr, Preserve]
         public string Tint
