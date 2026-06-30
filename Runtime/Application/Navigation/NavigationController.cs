@@ -20,7 +20,9 @@ namespace PromptUGUI.Application.Navigation
             // dispatch could let the OnSubmit wake-gate read a stale Directional and act on a hidden
             // focus. Only genuine *movement* establishes Directional; Submit is woken via the gate
             // (PuiButton/PuiToggle.OnSubmit → UI.Navigation.TryWakeOnSubmit). buttonEast (Cancel/Back)
-            // stays — it is orthogonal to focus and handled by the modal escape listener.
+            // stays — a focus-independent back input that, lacking any ICancelHandler, cannot act on a
+            // stale focus; it only re-establishes Directional. (Modals close on Esc / gamepad Start via
+            // ModalEscapeListener, not on East.)
             var gp = Gamepad.current;
             if (gp != null && (gp.leftStick.ReadValue().sqrMagnitude > 0.25f
                                || gp.dpad.ReadValue().sqrMagnitude > 0.25f

@@ -106,7 +106,7 @@ buttonEast（Cancel/Back）保持不变                                   （取
 | 未调 `UseGamepadNavigation`（`IsEnabled==false`） | `TryWakeOnSubmit` 立即返回 `false` → 完全旧行为，零影响 |
 | 已 `Directional`（光标可见）按确认 | 守卫返回 `false` → 正常点击/toggle（无额外延迟） |
 | 鼠标直接点按钮（任何模式） | 走 `OnPointerClick`，不经本守卫 → 照常触发 |
-| 取消键（ESC / 手柄 B = `buttonEast`） | **不经本守卫**：取消由模态的 `ModalEscapeListener`/`Cancel` action 处理，语义与焦点无关（关栈顶模态），光标隐藏时也应照常生效 → 故 `buttonEast` 保留在模式翻转列表、且 Cancel 不要求「先唤醒」 |
+| 手柄 B（`buttonEast`，back 语义） | **不经本守卫**：库内无 `ICancelHandler` 实现，故 East 不会作用在任何（隐藏的）焦点上——它只重新建立 `Directional`，因此保留在模式翻转列表无害。（模态关闭走 `ModalEscapeListener` 绑定的 Esc / 手柄 Start，**非** East。） |
 | 空格确认（Submit action 默认绑定之一） | 空格本就不在 `NavigationController` 触发列表 → `Pointer` 模式按空格同样走守卫唤醒，无需额外改动 |
 | 屏上无选区（`currentSelectedGameObject==null`） | 不派发 `OnSubmit` → 守卫不运行；按确认无反应（与现状一致，按方向键开始导航） |
 | **模态/屏刚打开、用户首次就按确认键**（从未拨过方向键，`Pointer` 初值、光标隐藏、初始焦点已设在 OK） | 第一次确认**唤回光标到 OK、不确认**，需第二次确认才点 OK。这是「先唤回」规则的统一后果（修复前是首次回车直接点 OK，类似 Windows 默认按钮）。属**有意的行为变更**——用户选定「光标不可见时确认必须先唤醒」，故快速 Enter 关对话框从冷态起需两下 |
