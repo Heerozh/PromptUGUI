@@ -107,38 +107,66 @@ namespace PromptUGUI.Application
                 }
             }
 
-            // ── Selection containment (modal focus trap) ──────────────────────────────────
-            // Non-null = EventSystem selection must stay within this GameObject's subtree.
-            // Enforced every frame from NavigationController.Update (inside #if ENABLE_INPUT_SYSTEM).
+            // ── Selection containment + focus recovery ────────────────────────────────────
+            // ContainmentRoot non-null (a modal is open) = EventSystem selection must stay within
+            // that subtree. Enforced every frame from NavigationController.Update.
             // Uses only EventSystem + Selectable; no InputSystem types → no #if needed here.
 
             internal static UnityEngine.GameObject ContainmentRoot { get; set; }
 
+            // Last live focus seen while enforcing — the anchor a full-screen page re-acquires when a
+            // pointer click on the background / a non-Selectable child clears the EventSystem selection
+            // (uGUI deselects) and the user then resumes with directional input. Without recovery the
+            // directional InputModule has no current selection to move from and navigation goes dead.
+            private static UnityEngine.GameObject _lastFocused;
+
             internal static void EnforceContainment()
             {
-                var root = ContainmentRoot;
-                if (root == null) return;
                 // EventSystem.current is null in EditMode; mirror Screen.FindEventSystem fallback.
                 var es = UnityEngine.EventSystems.EventSystem.current
                          ?? UnityEngine.Object.FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>();
                 if (es == null) return;
                 var sel = es.currentSelectedGameObject;
-                if (sel != null && sel.transform.IsChildOf(root.transform)) return;
-                var pick = FirstFocusableUnder(root);
-                if (pick != null) es.SetSelectedGameObject(pick);
+                var root = ContainmentRoot;
+
+                if (root != null)
+                {
+                    // Modal focus trap: selection must stay within the modal subtree.
+                    if (sel != null && sel.transform.IsChildOf(root.transform)) { Remember(sel); return; }
+                    var pick = FirstFocusableUnder(root);
+                    if (pick != null) { es.SetSelectedGameObject(pick); _lastFocused = pick; }
+                    return;
+                }
+
+                // Full-screen page: remember the live focus; when it is lost (click on the background)
+                // and the user is driving with directional input, recall it so navigation never goes
+                // dead. In Pointer mode the deselect is intentional (cursor hidden) — leave it cleared.
+                if (sel != null) { Remember(sel); return; }
+                if (!IsDirectional) return;
+                if (IsFocusable(_lastFocused)) es.SetSelectedGameObject(_lastFocused);
             }
 
             internal static void EnforceContainmentForTests() => EnforceContainment();
+
+            private static void Remember(UnityEngine.GameObject go)
+            {
+                if (IsFocusable(go)) _lastFocused = go;
+            }
 
             internal static UnityEngine.GameObject FirstFocusableUnder(UnityEngine.GameObject root)
             {
                 var all = root.GetComponentsInChildren<UnityEngine.UI.Selectable>(false);
                 foreach (var s in all)
-                    if (s.IsActive() && s.IsInteractable()
-                        && s.navigation.mode != UnityEngine.UI.Navigation.Mode.None)
-                        return s.gameObject;
+                    if (IsFocusable(s)) return s.gameObject;
                 return null;
             }
+
+            private static bool IsFocusable(UnityEngine.GameObject go) =>
+                go != null && IsFocusable(go.GetComponent<UnityEngine.UI.Selectable>());
+
+            private static bool IsFocusable(UnityEngine.UI.Selectable s) =>
+                s != null && s.IsActive() && s.IsInteractable()
+                && s.navigation.mode != UnityEngine.UI.Navigation.Mode.None;
 
             // ─────────────────────────────────────────────────────────────────────────────
 
@@ -149,6 +177,7 @@ namespace PromptUGUI.Application
                 Controller = null;
                 IsEnabled = false;
                 ContainmentRoot = null;
+                _lastFocused = null;
                 _defaultCursorNode = null;
                 _defaultCursorLoaded = false;
                 DefaultCursorSrc = null;
