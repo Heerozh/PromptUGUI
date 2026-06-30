@@ -54,6 +54,20 @@ namespace PromptUGUI.Application
             internal static void NotePointerInput() => SetMode(NavMode.Pointer);
             internal static void NoteDirectionalInput() => SetMode(NavMode.Directional);
 
+            /// <summary>
+            /// 控件 <c>OnSubmit</c> 的唤醒门：导航启用且当前为 Pointer 模式（焦点光标隐藏）时，
+            /// 把这次确认解释为「先唤回光标」而非「点击隐藏焦点」——翻 Directional 让光标重现，
+            /// 返回 true 让调用方吞掉本次 Submit。其余情况返回 false（照常点击）。
+            /// 见 spec 2026-06-30-nav-hidden-submit-wake。
+            /// </summary>
+            internal static bool TryWakeOnSubmit()
+            {
+                if (!IsEnabled) return false;
+                if (IsDirectional) return false;
+                NoteDirectionalInput();
+                return true;
+            }
+
             private static void SetMode(NavMode m)
             {
                 if (Mode == m) return;

@@ -1,5 +1,7 @@
 using System;
+using PromptUGUI.Application;
 using R3;
+using UnityEngine.EventSystems;
 using UnityToggle = UnityEngine.UI.Toggle;
 
 namespace PromptUGUI.Controls.Internal
@@ -43,6 +45,16 @@ namespace PromptUGUI.Controls.Internal
             instant |= BornFrame.IsCurrent(_bornFrame);
             base.DoStateTransition(state, instant);
             _broadcaster.SetTransient(StateBroadcaster.MapTransient((int)state));
+        }
+
+        /// <summary>
+        /// 鼠标用过后焦点光标隐藏时，第一次 Submit 只唤回光标、不翻转 isOn（见 nav-hidden-submit-wake）。
+        /// 仅拦键盘/手柄确认；鼠标点击走 OnPointerClick 不受影响。盖 Tab 与 Toggle。
+        /// </summary>
+        public override void OnSubmit(BaseEventData eventData)
+        {
+            if (UI.Navigation.TryWakeOnSubmit()) return;
+            base.OnSubmit(eventData);
         }
 
         /// <summary>Test hook: drive a transition without a live EventSystem (ordinal — the test
