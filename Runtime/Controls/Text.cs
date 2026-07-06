@@ -157,7 +157,11 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public bool Wrap
         {
+#if UNITY_2023_1_OR_NEWER
             set => _tmp.textWrappingMode = value ? TextWrappingModes.Normal : TextWrappingModes.NoWrap;
+#else
+            set => _tmp.enableWordWrapping = value;
+#endif
         }
 
         // What to do once auto-sizing (if any) has done its best and the text still doesn't fit the

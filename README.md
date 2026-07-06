@@ -2,7 +2,7 @@
 
 [English](#promptugui) | [中文](#promptugui-中文)
 
-A solution that enables Unity 6+ UI development through LLM.
+A solution that enables Unity 2022.3+ / Unity 6+ UI development through LLM.
 
 It provides an extremely concise UI description language `.ui.xml` & `.pxl` , and a runtime parser that translates it into a uGUI hierarchy + Sprite images.
 
@@ -85,6 +85,8 @@ Install NuGetForUnity: https://github.com/GlitchEnzo/NuGetForUnity
 Install R3: https://github.com/Cysharp/R3
 
 Install LitMotion: https://github.com/annulusgames/LitMotion.git
+
+Install UniTask — **only on Unity 2022.3** (Unity 6+ uses the native `Awaitable` API and needs no extra dependency): https://github.com/Cysharp/UniTask
 
 
 1. UPM
@@ -297,7 +299,7 @@ C# Code:
 
 [English](#promptugui) | [中文](#promptugui-中文)
 
-一个让 Unity 6+ 的 UI 可以用大模型进行开发的解决方案。
+一个让 Unity 2022.3+ / Unity 6+ 的 UI 可以用大模型进行开发的解决方案。
 
 通过描述语言 `.ui.xml` 以及 `.pxl` 和一个运行时解析器，翻译成uGUI结构 + Sprite图像。
 整体架构全面且简洁，适合大模型直接书写而脱离MCP。
@@ -382,6 +384,8 @@ Install NuGetForUnity: https://github.com/GlitchEnzo/NuGetForUnity
 Install R3: https://github.com/Cysharp/R3
 
 Install LitMotion: https://github.com/annulusgames/LitMotion.git
+
+Install UniTask —— **仅 Unity 2022.3 需要**（Unity 6+ 用原生 `Awaitable`，无需额外依赖）: https://github.com/Cysharp/UniTask
 
 
 1. UPM

@@ -1,0 +1,15 @@
+{
+    "name": "PromptUGUI.Tests.Compat",
+    "rootNamespace": "PromptUGUI.Tests.Compat",
+    "references": ["PromptUGUI.Compat.UniTask", "UniTask", "UnityEngine.TestRunner", "UnityEditor.TestRunner"],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "overrideReferences": true,
+    "precompiledReferences": ["nunit.framework.dll"],
+    "autoReferenced": false,
+    "defineConstraints": ["UNITY_INCLUDE_TESTS", "PROMPTUGUI_HAS_UNITASK", "!UNITY_6000_0_OR_NEWER"],
+    "versionDefines": [
+        { "name": "com.cysharp.unitask", "expression": "2.0.0", "define": "PROMPTUGUI_HAS_UNITASK" }
+    ],
+    "noEngineReferences": false
+}
