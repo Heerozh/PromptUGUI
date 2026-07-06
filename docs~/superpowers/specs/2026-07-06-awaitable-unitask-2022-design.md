@@ -194,3 +194,15 @@ public struct AwaitableAsyncMethodBuilder<T>
 6. `#if !UNITY_6000_0_OR_NEWER` 门控的 shim 验证测试（§9）。
 7. 2022 主验证：整包 console 洁净（Awaitable 错误清零）+ Compat 行为测试 + 全量既有套件在 2022 跑绿（§9）。
 8. 次验证：把 MCP 切回 Unity 6，全套件 + console 洁净，确认 Awaitable 后端未受影响（§9）。
+
+## 11. 实现修正与验证结果（2026-07-06 真机双后端）
+
+实现时以下几处偏离了原设计（都已在真机验证）：
+
+1. **asmdef 引用不传递**（原 §3 说 Runtime 靠 `autoReferenced` 自动看见 Compat——错）。`autoReferenced` 只让**预定义程序集**（Assembly-CSharp）自动引用；自定义 asmdef 之间必须显式引用。⇒ **每个在签名里用到 `Awaitable` 的程序集都显式引用 `PromptUGUI.Compat.UniTask`**：`Runtime` + `Tests.EditMode` + `Tests.PlayMode`。
+2. **`await Awaitable` 泄漏 `UniTask.Awaiter`**（`GetAwaiter()` 返回 UniTask 的 awaiter，编译器需其可访问）⇒ 这些程序集**再加 `UniTask` 引用**。**实测 Unity 6（未装 UniTask）：0 错误、0 告警**——缺失的 `UniTask` 引用与被门控的 `Compat` 引用都被 Unity **静默丢弃**。故未采用 class-awaiter 隐藏方案（原 §5 note 的备选），保持简单。
+3. **`AwaitableCompletionSource` 还需 `TrySetResult`/`TrySetException`/`TrySetCanceled`**（原 §4 审计只列了 `Set*`；库两者都用）——shim 两套都实现。
+4. **TMP straggler（Awaitable 之外的唯一 6-only 依赖）**：`Text.cs`/`InputField.cs` 的 `textWrappingMode`/`TextWrappingModes` 是 TMP 3.2（Unity 2023.1+）API，2022 旧 TMP 用 `enableWordWrapping` ⇒ 按 `#if UNITY_2023_1_OR_NEWER` 条件化（改了这 2 个既有文件，是 §2 非目标里「全库审计」由 Task 4 整包编译自然暴露的）。
+5. **测试基建（2022 侧，非包代码）**：新测试集要进 `package.json` `testables` **且重启编辑器**才被 Test Runner 发现；跑既有套件需 `com.unity.test-framework` ≥ 1.4（旧 1.1.33/ext.nunit 1.0.6 无 `Assert.ThrowsAsync`）；新工程须先 **Import TMP Essentials**（否则 Text/Btn 实例化 NRE，仅全量跑时暴露）。
+
+**验证结果**：Unity 2022.3 + UniTask — 整包+全程序集编译，EditMode **2372/2372**，PlayMode **169/171**（2 个 InputFieldNav 失败=2022 InputSystem/TMP 输入时序，零 async，非 shim）。Unity 6 原生 Awaitable — 0 错误/告警，EditMode **2274/2274**，PlayMode **171/171**（含那 2 个 nav，坐实其为 2022 环境特有）。

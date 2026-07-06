@@ -63,7 +63,7 @@ Prefer to use (if `com.unity.addressables` package is installed) Addressables-ba
 The async API returns `UnityEngine.Awaitable` / `Awaitable<T>` (e.g. `UI.LoadDocumentAsync`, modal `Open`, `SourceResolver` = `Func<string, Awaitable<string>>`).
 
 - **Unity 6+**: uses the native `UnityEngine.Awaitable` — no extra dependency.
-- **Unity 2022.3**: `Awaitable` does not exist in the engine, so install **UniTask** (`com.cysharp.unitask`, via OpenUPM). PromptUGUI ships a transparent `UnityEngine.Awaitable` / `AwaitableCompletionSource` polyfill (in the `PromptUGUI.Compat.UniTask` assembly, gated to `#if !UNITY_6000_0_OR_NEWER`) backed by UniTask. Missing UniTask on 2022 → one clear `#error` telling you to install it.
+- **Unity 2022.3**: `Awaitable` does not exist in the engine, so install **UniTask** (`com.cysharp.unitask` — git UPM URL `https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask`, or OpenUPM). PromptUGUI ships a transparent `UnityEngine.Awaitable` / `AwaitableCompletionSource` polyfill (in the `PromptUGUI.Compat.UniTask` assembly, gated to `#if !UNITY_6000_0_OR_NEWER`) backed by UniTask. Missing UniTask on 2022 → one clear `#error` telling you to install it.
 
 **The public C# API is identical on both** — write `async Awaitable<T> Foo()`, `await UI.LoadDocumentAsync(...)`, `new AwaitableCompletionSource<T>()`, `.GetAwaiter().GetResult()` exactly the same way regardless of Unity version. On 2022 the shim also provides implicit `Awaitable<T>` ↔ `UniTask<T>` conversions, so an existing `UniTask<T>`-returning method plugs into a resolver via a lambda: `UI.SourceResolver = s => LoadXmlUniTask(s);`.
 
