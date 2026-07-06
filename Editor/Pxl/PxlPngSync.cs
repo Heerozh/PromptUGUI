@@ -37,10 +37,8 @@ namespace PromptUGUI.Editor
             public int CharsInsertAfterLine;                      // Apply 追加新 chars 条目的锚点行
         }
 
-        // 新字符分配字母表：A-Z a-z 0-9，再排除保留字符的其余可打印 ASCII。
-        private const string Alphabet =
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" +
-            "!\"$%&'()*+,-/:;<=>?@\\^_`{|}~";
+        // 新字符分配字母表：A-Z a-z 0-9，再排除保留字符的其余可打印 ASCII（PxlChars 单一来源）。
+        private const string Alphabet = PxlChars.Alphabet;
 
         public static SyncPlan BuildPlan(string pxlText, string baseName,
             IReadOnlyDictionary<string, PngImage> pngs, GplPalette palette)
