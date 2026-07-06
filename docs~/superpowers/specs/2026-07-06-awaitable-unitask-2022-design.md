@@ -44,7 +44,7 @@
 
 **非目标（留口不做）**
 
-- 不给 shim 加 Awaitable 的帧/计时静态 API（库里 0 使用）。2022 用户要就直接用 UniTask。日后如需可在同一 shim 追加。
+- ~~不给 shim 加 Awaitable 的帧/计时静态 API（库里 0 使用）。~~ **【2026-07-06 修正】** 此判断过窄——库自己不用，但**消费者代码/samples 会用**（sample 的 `Awaitable.WaitForSecondsAsync`，PR #95 合并后暴露）。已补 PlayerLoop 系静态助手 `NextFrameAsync`/`EndOfFrameAsync`/`FixedUpdateAsync`/`WaitForSecondsAsync`（→ `UniTask.NextFrame`/`Yield(PlayerLoopTiming.*)`/`Delay`，WebGL 安全）。线程切换类（`MainThreadAsync`/`BackgroundThreadAsync`）仍不加（违背 WebGL 无线程原则）。
 - 不做全库 2022 兼容大审计。基于 §1.1，Awaitable 是异步路径唯一的 6-only 依赖；其余包（LitMotion 最低 2021.3 / Addressables / Newtonsoft / uGUI 2.0）均支持 2022.3，在 §9 的 2022 验证步骤一并确认。
 - UniTask 不做硬 UPM 依赖（不在 Unity registry）。
 - 后端选择**版本驱动**，不提供「Unity 6 上也强制走 UniTask」的 define（已与用户确认）。
