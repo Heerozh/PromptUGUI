@@ -8,7 +8,9 @@
         "Unity.TextMeshPro",
         "UnityEngine.UI",
         "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner"
+        "UnityEditor.TestRunner",
+        "PromptUGUI.Compat.UniTask",
+        "UniTask"
     ],
     "includePlatforms": ["Editor"],
     "excludePlatforms": [],
