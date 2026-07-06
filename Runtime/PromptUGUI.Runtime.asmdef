@@ -9,7 +9,9 @@
     "Unity.ResourceManager",
     "Unity.InputSystem",
     "LitMotion",
-    "LitMotion.Extensions"
+    "LitMotion.Extensions",
+    "PromptUGUI.Compat.UniTask",
+    "UniTask"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

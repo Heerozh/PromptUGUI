@@ -6,7 +6,9 @@
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner",
     "Unity.TextMeshPro",
-    "Unity.Addressables"
+    "Unity.Addressables",
+    "PromptUGUI.Compat.UniTask",
+    "UniTask"
   ],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
