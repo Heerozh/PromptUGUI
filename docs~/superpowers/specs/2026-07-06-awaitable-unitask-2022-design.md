@@ -149,7 +149,14 @@ public struct AwaitableAsyncMethodBuilder<T>
 
 一条清晰报错替代几百个 CS0246。为让护栏在 Runtime 里看得见该 define，**`PromptUGUI.Runtime.asmdef` 的 `versionDefines` 也补上** `{ com.cysharp.unitask ≥ 2.0.0 → PROMPTUGUI_HAS_UNITASK }`。
 
-**package.json**——`"unity": "6000.0"` → `"2022.3"`。UniTask 无法列为 `dependencies`（不在 Unity registry），故不改 `dependencies`，改由文档说明。
+**package.json**——`"unity": "6000.0"` → `"2022.3"`（本库唯一要改的一处）。UniTask 无法列为 `dependencies`（不在 Unity registry），改由文档说明。
+
+依赖也须同时兼容两版本（2026-07-06 在真实 2022 工程实测确认）——这部分**由用户在 Windows 侧管理，本计划不改 `dependencies`**：
+
+- `com.unity.ugui`：`"2.0.0"` → `"1.0.0"`。UPM 把 dependency 版本当「最低版本」：Unity 6 解析到内置 2.0.0、2022 解析到 1.0.0 → **一份 manifest 通吃**。
+- `com.annulusgames.lit-motion`：git URL → `"2.0.2"`（用户确认两版本均可解析）。
+
+> 教训：`ugui 2.0.0` 需 Unity 2023.2+，是 2022 加载本包的第一道坎；先把 deps 降到可解析，2022 才会「编到 Awaitable 才失败」（而非「包根本加载不了」）。
 
 **文档**——README + `scripting-promptugui-csharp` skill 加一节「Unity 2022 支持」：说明装 UniTask（OpenUPM）即可，公共 API 无差异。公共 API 签名不变，其余 skill 无需改。
 
@@ -160,18 +167,22 @@ public struct AwaitableAsyncMethodBuilder<T>
 - **重复类型风险**：仅当 2022 工程里**另有**一个包也往 `UnityEngine` 塞 `Awaitable` 才冲突——概率极低；真遇到再文档指引。Unity 6 上因整个 asmdef 被约束掉，绝不可能与 Unity 原生 `Awaitable` 撞。
 - **单次消费语义**：UniTask 与 Unity Awaitable 同为「只能 await 一次」，shim 包装不改变该语义，与现状一致。
 
-## 9. 测试计划（含硬限制，如实说明）
+## 9. 测试计划
 
-**Unity 6 宿主（可 MCP 自动化，本 PR 的回归证据）**
+> **环境更新（2026-07-06）**：MCP 现已切到一个真实 **Unity 2022.3 + UniTask** 工程，且该工程通过 bind-mount（`C:\xsoft\PromptUGUI` == 仓库 `/workspace-PromptUGUI`）直接编译本包源码。因此原「宿主是 Unity 6、shim 无法在宿主编译/测试」的硬限制**已解除**：可在 2022 上跑真·红→绿 TDD。核心机制已用隔离 spike（独立 asmdef 只引用 UniTask）实测通过——`[AsyncMethodBuilder]` 自定义类型 + 转发 `AsyncUniTaskMethodBuilder<T>` + 隐式转换 + `async`/`await` 全绿，且 `AsyncMethodBuilderAttribute` 跨程序集可访问（**故无需自补该 attribute**）。
 
-- 现有全部 EditMode / EditorOnly / PlayMode 套件保持绿（源码未动，天然成立，仍需实跑确认无意外）。
-- 新 asmdef + 护栏 + package.json 改动后 refresh，`read_console` 无新 error/warning。
+**主验证：Unity 2022 + UniTask（MCP 当前指向，可自动化）**
 
-**Unity 2022 + UniTask（宿主上无法自动化——这是硬限制）**
+- 加 shim 前：`read_console` 里全是 `Awaitable` / `Awaitable<>` / `AwaitableCompletionSource` 的 CS0246/CS0234（已实测，且**仅**这三种类型缺失 → 佐证 Awaitable 是唯一 6-only 依赖）。这是天然的整包级 RED。
+- 逐步加 shim：每加一块 refresh，看对应错误消失 → 整包级 GREEN。
+- shim 行为测试放 `Tests/EditMode/Compat/`，`#if !UNITY_6000_0_OR_NEWER` 门控，覆盖：`async Awaitable<T>` 经 builder 产出并 `await` / 同步 `GetResult()` / `AwaitableCompletionSource<T>` 桥 / 双向隐式转换。在 2022 上 `run_tests` 实跑绿。
+- 全量既有 EditMode/PlayMode 套件在 2022 上跑（UniTask 后端），作回归。
 
-- shim **在 Unity 6 上根本无法编译**（`UnityEngine.Awaitable` 已存在→重复类型），只能在真实 2022 工程验证。
-- shim 验证测试写成 `#if !UNITY_6000_0_OR_NEWER` 门控（放 `Tests/EditMode/Compat/`），覆盖：`async Awaitable<T>` 经 builder 产出并 `await` / 同步 `GetResult()` / `AwaitableCompletionSource<T>` 桥 / 双向隐式转换。它们在 Unity 6 宿主上不参与编译、不运行；在 2022 工程打开时才跑。
-- **最终由用户在自己的 Unity 2022 工程里过一遍**：shim 编译通过、构建成功、冒烟（加载文档 + 开一个模态）。已与用户确认接受此边界。
+**次验证：Unity 6（Awaitable 后端，需把 MCP 切回 6 或用户自测）**
+
+- shim 源全在 `#if !UNITY_6000_0_OR_NEWER` 内 → 6 上不参与编译；现有 71 文件 + 测试一字未改 → Awaitable 后端**天然不受影响**。仍应在收尾时把 MCP 切回 Unity 6 跑一次全套件 + console 洁净，作最终双后端确认。
+
+> **工作树卫生（bind-mount 副作用）**：2022 编辑器 refresh 会把包里几百个极简 `.meta` 展开成完整 `MonoImporter` 块（GUID 不变，无害 churn）；Unity 6 又会改回去。**提交时只显式 `git add` 目标源文件 + 新文件的 `.meta`，绝不 `git add -A`**；收尾用 `git checkout -- '**/*.meta'` 丢弃既有文件的 meta churn（新文件的 meta 已先行显式提交）。
 
 ## 10. 实现顺序（给 plan 的提示）
 
@@ -181,5 +192,5 @@ public struct AwaitableAsyncMethodBuilder<T>
 4. `UniTaskRequirement.cs` 护栏 + `PromptUGUI.Runtime.asmdef` versionDefine（§7）。
 5. `package.json` min-version + README/C# skill 文档节（§7）。
 6. `#if !UNITY_6000_0_OR_NEWER` 门控的 shim 验证测试（§9）。
-7. Unity 6 宿主回归：refresh + 全套件 + console 洁净（§9）。
-8. 交付 → 用户 2022 工程最终验证（§9）。
+7. 2022 主验证：整包 console 洁净（Awaitable 错误清零）+ Compat 行为测试 + 全量既有套件在 2022 跑绿（§9）。
+8. 次验证：把 MCP 切回 Unity 6，全套件 + console 洁净，确认 Awaitable 后端未受影响（§9）。
