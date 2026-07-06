@@ -58,6 +58,17 @@ async void Start() {
 
 Prefer to use (if `com.unity.addressables` package is installed) Addressables-backed `.ui.xml` loading (`UI.UseAddressableResolver()` + `AssetReferenceT<TextAsset>`), see the **using-promptugui-addressables** skill.
 
+## Unity version support (async backend)
+
+The async API returns `UnityEngine.Awaitable` / `Awaitable<T>` (e.g. `UI.LoadDocumentAsync`, modal `Open`, `SourceResolver` = `Func<string, Awaitable<string>>`).
+
+- **Unity 6+**: uses the native `UnityEngine.Awaitable` — no extra dependency.
+- **Unity 2022.3**: `Awaitable` does not exist in the engine, so install **UniTask** (`com.cysharp.unitask`, via OpenUPM). PromptUGUI ships a transparent `UnityEngine.Awaitable` / `AwaitableCompletionSource` polyfill (in the `PromptUGUI.Compat.UniTask` assembly, gated to `#if !UNITY_6000_0_OR_NEWER`) backed by UniTask. Missing UniTask on 2022 → one clear `#error` telling you to install it.
+
+**The public C# API is identical on both** — write `async Awaitable<T> Foo()`, `await UI.LoadDocumentAsync(...)`, `new AwaitableCompletionSource<T>()`, `.GetAwaiter().GetResult()` exactly the same way regardless of Unity version. On 2022 the shim also provides implicit `Awaitable<T>` ↔ `UniTask<T>` conversions, so an existing `UniTask<T>`-returning method plugs into a resolver via a lambda: `UI.SourceResolver = s => LoadXmlUniTask(s);`.
+
+> Any assembly of yours that itself *names* `Awaitable` in a signature on Unity 2022 must reference the `PromptUGUI.Compat.UniTask` and `UniTask` asmdefs (asmdef references are not transitive). Running PromptUGUI's own test suite on 2022 also needs `com.unity.test-framework` ≥ 1.4.
+
 ## Canvas configuration
 
 Each `Screen.Open()` creates its own root Canvas (+ `CanvasScaler` + `GraphicRaycaster`). The render mode comes from the XML `canvas` attribute on `<Screen>` (`overlay` / `camera` / `world`, default `overlay`). For everything _else_ — pinning a `worldCamera`, setting `sortingOrder` / `planeDistance`, swapping render mode at runtime, etc. — register a configurator. The configurator runs **after** the XML-declared mode is applied, so it can override anything:
