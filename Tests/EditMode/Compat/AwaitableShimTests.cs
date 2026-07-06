@@ -42,6 +42,32 @@ namespace PromptUGUI.Tests.Compat
             a.GetAwaiter().GetResult(); // completes without throwing
             Assert.Pass();
         }
+
+        [Test]
+        public void CompletionSource_Generic_SetResult_SyncUnwrap()
+        {
+            var src = new AwaitableCompletionSource<int>();
+            src.SetResult(11);
+            var v = src.Awaitable.GetAwaiter().GetResult();
+            Assert.AreEqual(11, v);
+        }
+
+        [Test]
+        public void CompletionSource_NonGeneric_SetResult_Completes()
+        {
+            var src = new AwaitableCompletionSource();
+            src.SetResult();
+            src.Awaitable.GetAwaiter().GetResult(); // no throw
+            Assert.Pass();
+        }
+
+        [Test]
+        public void CompletionSource_Generic_SetException_Throws()
+        {
+            var src = new AwaitableCompletionSource<int>();
+            src.SetException(new System.IO.IOException("boom"));
+            Assert.Throws<System.IO.IOException>(() => src.Awaitable.GetAwaiter().GetResult());
+        }
     }
 }
 #endif

@@ -7,7 +7,9 @@
     "UnityEditor.TestRunner",
     "Unity.TextMeshPro",
     "Unity.InputSystem",
-    "Unity.InputSystem.TestFramework"
+    "Unity.InputSystem.TestFramework",
+    "PromptUGUI.Compat.UniTask",
+    "UniTask"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
