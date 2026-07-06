@@ -10,6 +10,7 @@ namespace PromptUGUI.Editor
         private const string DefaultScreenFilename = "NewUI.ui.xml";
         private const string DefaultTemplateFilename = "NewTemplate.ui.xml";
         private const string DefaultThemeFilename = "NewTheme.ui.xml";
+        private const string DefaultPxlFilename = "NewSprite.pxl";
 
         // Prepended to every generated .ui.xml so an AI/LLM editing the file knows
         // to load the authoring skill first. const string concat keeps it DRY.
@@ -66,6 +67,26 @@ namespace PromptUGUI.Editor
 </PromptUGUI>
 ";
 
+        // A ready-to-import starter sprite: a small two-tone heart icon. `.pxl` comments
+        // start with '#'; the header points editors at the authoring skill (mirrors XmlHeader).
+        // Grid rows are trimmed at parse time, so the 2-space indent is purely cosmetic.
+        internal const string PxlContent =
+@"# PromptUGUI .pxl pixel sprite — use the `authoring-promptugui-pxl` skill to learn how to edit it.
+ppu: 100
+chars:
+  R: #E84A3F
+  r: #F47C6A
+
+grid:
+  .RR...RR.
+  RrrRRRRRR
+  RRRRRRRRR
+  .RRRRRRR.
+  ..RRRRR..
+  ...RRR...
+  ....R....
+";
+
         [MenuItem("Assets/Create/PromptUGUI/UI XML", false, 81)]
         private static void CreateUiXml() => Create(DefaultScreenFilename, ScreenContent);
 
@@ -74,6 +95,9 @@ namespace PromptUGUI.Editor
 
         [MenuItem("Assets/Create/PromptUGUI/UI Theme", false, 83)]
         private static void CreateUiTheme() => Create(DefaultThemeFilename, ThemeContent);
+
+        [MenuItem("Assets/Create/PromptUGUI/Pxl Sprite", false, 84)]
+        private static void CreatePxl() => Create(DefaultPxlFilename, PxlContent);
 
         private static void Create(string filename, string content)
         {
