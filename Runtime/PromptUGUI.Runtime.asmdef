@@ -27,6 +27,11 @@
       "name": "com.unity.2d.aseprite",
       "expression": "1.0.0",
       "define": "PROMPTUGUI_HAS_ASEPRITE"
+    },
+    {
+      "name": "com.cysharp.unitask",
+      "expression": "2.0.0",
+      "define": "PROMPTUGUI_HAS_UNITASK"
     }
   ],
   "noEngineReferences": false

@@ -1,0 +1,15 @@
+{
+    "name": "PromptUGUI.Compat.UniTask",
+    "rootNamespace": "",
+    "references": ["UniTask"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "autoReferenced": true,
+    "defineConstraints": ["PROMPTUGUI_HAS_UNITASK", "!UNITY_6000_0_OR_NEWER"],
+    "versionDefines": [
+        { "name": "com.cysharp.unitask", "expression": "2.0.0", "define": "PROMPTUGUI_HAS_UNITASK" }
+    ],
+    "noEngineReferences": false
+}
