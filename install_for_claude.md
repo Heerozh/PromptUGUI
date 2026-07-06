@@ -7,7 +7,7 @@ All paths are relative to the **user's Unity project root** (`<project root>`, i
 
 ## Prerequisites
 
-1. A Unity 6000.0+ project
+1. A Unity 2022.3+ project (Unity 2022.3 LTS or Unity 6+)
 2. `<project root>/Packages/manifest.json` exists
 3. R3 (Cysharp) is installed — the PromptUGUI runtime depends on it. It is usually installed as the `R3` package via NuGetForUnity; if it isn't installed, tell the user to install it before continuing.
 4. .NET SDK 10 — this is important; it is needed to check lint outside of Unity. If it isn't installed, tell the user to install it before continuing:
@@ -26,6 +26,14 @@ Read `<project root>/Packages/manifest.json` and add 2 lines to the `dependencie
 ```
 
 Alternatively, have the user go to Unity → Window → Package Manager → "+" → "Add package from git URL", using the same URLs.
+
+**Unity 2022.3 only — add UniTask.** PromptUGUI needs an async backend on Unity versions below 6 (where the engine has no native `UnityEngine.Awaitable` type). Detect the version: read `<project root>/ProjectSettings/ProjectVersion.txt` and look at `m_EditorVersion`. **If it starts with `2022`** (i.e. below Unity 6), also add this line to `dependencies`:
+
+```json
+"com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask"
+```
+
+**On Unity 6+ do NOT add UniTask** — PromptUGUI transparently uses the engine's native `Awaitable` API and needs no extra dependency. (If UniTask is missing on a Unity 2022 project, compilation fails with one clear message: `#error PromptUGUI on Unity 2022 requires UniTask ...` — installing the line above resolves it.)
 
 **Verification**: Wait for Unity to finish importing (you can call `mcp__UnityMCP__refresh_unity(compile="request", mode="standard", wait_for_ready=true)`), then confirm that the `<project root>/Library/PackageCache/com.promptugui.core@<hash>/` directory exists (the hash is a random value) and contains `Runtime/`, `Editor/`, and `package.json`.
 
@@ -103,7 +111,7 @@ Confirm in order:
 2. ✓ The four SKILL.md files under `.claude/skills/` — `authoring-promptugui-xml/`, `authoring-promptugui-pxl/`, `scripting-promptugui-csharp/`, `using-promptugui-addressables/` — all exist, with complete frontmatter
 3. ✓ `CLAUDE.md` contains the Tr() wrapping convention section, with the original content preserved
 4. ✓ Check whether `dotnet --list-sdks` shows a version 10 installed.
-5. ✓ (Optional) After `mcp__UnityMCP__refresh_unity(compile="request", mode="standard")`, `mcp__UnityMCP__read_console(action="get", types=["error"])` reports no compile errors
+5. ✓ (Optional) After `mcp__UnityMCP__refresh_unity(compile="request", mode="standard")`, `mcp__UnityMCP__read_console(action="get", types=["error"])` reports no compile errors (on a Unity 2022 project, a `requires UniTask` error here means the UniTask line from Step 1 is still missing — add it)
 6. ✓ (Optional) Check whether `xmllint` is runnable, and remind the user to install it
 
 Once all pass, installation is complete. In the next session Claude Code will load `CLAUDE.md` automatically; when the user edits `.ui.xml` the `authoring-promptugui-xml` skill triggers, when creating/editing `.pxl` pixel art (9-slice borders, button skins, icons) the `authoring-promptugui-pxl` skill triggers, when writing C# that calls `UI.*` the `scripting-promptugui-csharp` skill triggers, and when integrating Unity Addressables the `using-promptugui-addressables` skill triggers.
