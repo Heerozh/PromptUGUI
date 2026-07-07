@@ -121,7 +121,7 @@ For icons, prefer publicly known icon packs or use consistent names so the LLM r
 
 In practice you'd write something like `await SpriteResolverHelpers.UseAddressableSpriteSetResolver(new[] { "SpriteSetsA-Common", $"SpriteSetsA-{currentLang}" }, Addressables.MergeMode.Union);` so only the common atlas plus the current-language atlas are loaded.
 
-### 2. Configure fonts and localization (optional)
+### 2. Configure fonts and localization
 
 Project window → right-click → Create → PromptUGUI → Settings. Configure the font Types (`font="NormalText"` refers to the Type name) and the languages you want to support.
 
@@ -412,26 +412,23 @@ Use `PromptUGUI.Application` namespace's `UI.Tr("...")` to wrap all player-facin
 
 ### 1. 创建SpriteSet
 
-Project 右键 → Create → PromptUGUI → Sprite Set，设置图标以及界面元素的图集。
+Project 右键 → Create → PromptUGUI → Sprite Set，设置图标以及界面元素的图集。让大模型知道图片放哪。
 
-图标建议使用公开图集，或起名一致，让大模型认识。比如可拖一个PNG图标集目录（比如Font Awesome）到Project，并设为SpriteSet Folder，此后Skill会自动发现你所拥有的所有图标。当然最后打包只含用到的图标/Sprite。
+比如可拖一个PNG图标集目录（比如Font Awesome）到Project，并设为SpriteSet Folder，此后Skill会自动发现你所拥有的所有图标。当然最后打包只含用到的图标/Sprite。
 
-### 2. 设置字体和多国语言 (可选)
+### 2. 设置字体和多国语言
 
 Project 右键 → Create → PromptUGUI → Settings，设置有哪些字体Type (`font="NormalText"`使用的就是Type名) ，以及需要哪些语言。
 
 设置好即可，以后一键翻译会自动提取界面文本和代码中`UI.Tr()`包裹的字符串。
 
-
 ### 3. 创建UI
 
 Project 右键 → Create → PromptUGUI → UI XML。
 
-让大模型按你的要求（Figma > 截图）写UI。
+然后让大模型按你的要求（Figma > 截图）写UI。代码也交给大模型，Skills包含了所有细节，可直接问大模型。
 
 第一个界面大模型没有参考，选用的图素都是默认值，你需要手动修改或个别一一指示，之后会更顺利。
-
-代码交给大模型，Skills包含了所有细节，可直接问大模型。
 
 ### 文档
 
