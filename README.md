@@ -306,6 +306,8 @@ C# Code:
 
 比UI Toolkit更自由，和GameObject体系结合更紧密。
 
+简介视频： <https://www.bilibili.com/video/BV1zzM369Exa/>
+
 ## WebGL演示页面
 
 此演示界面全由Code Agent编写，甚至包括边框图像，Icon等等。
