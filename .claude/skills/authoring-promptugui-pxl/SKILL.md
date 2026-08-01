@@ -60,7 +60,7 @@ grid:
   - a palette color name (only valid in `palette: @...` mode)
   - `#RRGGBB` or `#RRGGBBAA` (exact 6 or 8 hex digits, no spaces)
 
-  `.` is **always transparent and reserved** — you never need to declare it, and redefining it to anything but `transparent` is an error. Duplicate keys are errors. Don't use `[`, `]`, `#`, `.`, or whitespace as chars keys (`#` lines are comments; `[x]`-shaped grid rows would parse as section headers).
+  `.` is **always transparent and reserved** — you never need to declare it, and redefining it to anything but `transparent` is an error. Duplicate keys are errors. Don't use `[`, `]`, `#`, `:`, `.`, or whitespace as chars keys (`#` lines are comments; `[x]`-shaped grid rows would parse as section headers; a `:` key would let a grid row parse as a `layer:` header).
 
 ### Comments
 
@@ -80,6 +80,62 @@ A line whose **first non-whitespace character is `#`** is a comment, anywhere in
   - Every non-`.` character must already be declared in `chars:`.
   - Leading/trailing whitespace is trimmed, so uniform indentation is fine; spaces cannot be pixels.
   - A **blank line ENDS the grid**. Don't split a grid with an empty line — the rows after the blank become "unrecognized line" errors. One `grid:` per section.
+
+## Layers (optional)
+
+By default a section's `grid:` *is* the sprite. You can instead build it up in layers — fill, then bevel, then detail — and let the importer composite them:
+
+```
+[normal]
+border: 3,3,3,3
+grid:              # the anonymous BOTTOM layer — its syntax doesn't change at all
+  KKKKKK
+  KMMMMK
+  KMMMMK
+  KKKKKK
+layer: highlight   # stacked on top
+  ......
+  .HHH..
+  ......
+  ......
+```
+
+…which composites to:
+
+```
+  KKKKKK
+  KHHHMK
+  KMMMMK
+  KKKKKK
+```
+
+**Why bother**: editing one layer never disturbs another. Move the outline without rewriting the fill it used to cover; darken the shadow without first working out which cells were shadow. That is the entire benefit — a sprite simple enough to write in one pass (most ≤16×16 icons) is *less* work flat, so don't reach for layers by default. Adding layers to an existing flat sprite is pure appending: keep `grid:` as-is and add `layer:` blocks under it.
+
+For refined, fully-shaded art (~24×24 and up — build-button icons, portraits, decorated props) there is an established five-layer painting workflow — `silhouette → base → aa → shade → highlight`, with per-layer color budgets and a render-and-look check after every layer: see `reference/layered-painting.md`.
+
+### Rules
+
+- **Compositing is pure overwrite.** A non-`.` character on an upper layer replaces the character underneath. There is deliberately **no alpha blending**: it would composite colors that are not on the palette and make the `chars:` table grow without bound.
+- **`.` means pass-through**, not transparent — it shows whatever is below.
+- **A char declared `transparent` is an ERASER.** `X: transparent` is a non-`.` character, so it *overwrites* lower layers rather than passing through — that is how you punch a hole through everything below. (In a flat single-layer sprite it behaves like `.`, as before.)
+- **`grid:`, if present, is the bottom layer and must come before every `layer:`.** A section may equally have only `layer:` blocks and no `grid:`.
+- **Declaration order is bottom → top.**
+- **Layer names are required**, match `[A-Za-z0-9_-]+`, and must be unique within their section. Different sections may reuse a name (`[normal]` and `[pressed]` can each have a `base`).
+- **All layers in a section must be exactly the same size.** There are no offsets — a layer that only touches one corner still spells out the whole grid with `.`.
+- `border:` / `tiled:` still come before the section's first pixel block.
+- Layers and flat sections mix freely in one file: draw `[normal]` in layers and `[disabled]` flat.
+
+### The composite is never written back to the file
+
+The `.pxl` stores **only** layers; the importer composites in memory. You therefore **cannot read the result out of the file you just wrote** — the two CLI flags below exist for precisely that, and skipping them means shipping art you have never seen:
+
+- `--layers` — renders every layer separately plus the composite
+- `--emit-flat` — prints the composite as `.pxl` text, so you can check character by character which column that highlight actually landed on
+
+Two more consequences:
+
+- **`Sync from PNG` cannot touch a layered section.** A flattened PNG cannot be decomposed back into layers, so those sections are reported as `skipped (has layers)` and left untouched (flat sections in the same file still sync). `Export PNG...` still exports the composite normally.
+- A layer that is entirely `.` contributes nothing; the CLI warns about it (usually a row of art you forgot to write).
 
 ## Sprite keys (how XML refers to the result)
 
@@ -107,14 +163,14 @@ Palettes use the **GIMP Palette** format — the community standard: Lospec pale
 
 You are drawing, not just encoding. Apply these when composing a grid:
 
-- **1px outline** around the shape, usually the darkest palette color. It's what makes a small sprite read against any background.
-- **Limited ramp**: 2–4 shades per material (highlight / base / shadow). More shades at this size = mud.
+- **1px outline** around the shape, usually the darkest palette color. It's what makes a small sprite read against any background. In refined layered art, additionally swap the outline pixels on the light-source side to a highlight color (**selective outlining / "selout"**, done in a top `highlight` layer) — a lit top edge is what lifts an icon off a dark button face. Recolor boundary pixels only; never move them.
+- **Limited ramp**: 2–4 shades per material (highlight / base / shadow) for simple flat sprites. Refined layered art budgets differently — ≤5 *new* colors per layer, reuse-first, ~12–16 total at 32×32 (see `reference/layered-painting.md`).
 - **9-slice design**: the **corners carry all the detail** (rounded corners, rivets, notches). The **edge strips between the borders must tile** — keep each edge uniform along its axis (a horizontal edge strip should have identical columns; a vertical strip identical rows). The **center must tile or be flat** — a flat fill is safest and lets the button stretch to any size.
 - **Tiled edges** (`tiled: true`): design each edge strip as a seamless **repeating unit** — the pattern must loop cleanly across the strip's own length, and BOTH ends of the strip must return to the plain outline + base fill so the corners and the next repeat join invisibly. A strip that's busy at one end and empty at the other will show a visible seam every tile.
 - **Button states**: pressed = swap the highlight and shadow edges (bevel inverts) and/or darken the face; optionally shift the content 1px down. Hover = lighter face. Keep the outline identical across states so the silhouette doesn't jump.
 - **Centered glyphs want odd dimensions** (e.g. 9×9, 13×13) so there's a true center pixel.
 - **Design at the smallest size that reads**; let PPU / PromptUGUI scaling handle display size. A crisp 12×12 scaled up beats a fuzzy 48×48.
-- Use `.` (transparent) for *outside the silhouette* only — don't fake glow/anti-aliasing with semi-transparent pixels inside the shape; pixel art stays hard-edged (the importer is point-filtered for a reason).
+- Use `.` (transparent) for *outside the silhouette* only — don't fake glow/anti-aliasing with semi-transparent pixels inside the shape; pixel art stays hard-edged (the importer is point-filtered for a reason). Anti-aliasing with *opaque* mid-tone colors on **internal** color boundaries is fine (and expected in refined art) — but never anti-alias the outer edge against transparency: the runtime background is unknown, and those pixels become dirty fringe on any other background.
 
 ## Look at what you drew (`PxlPreview` CLI)
 
@@ -136,6 +192,8 @@ One PNG per `.pxl`: every section side by side in file order, on a transparency 
 |---|---|
 | `--scale N` (1..64, default 8) | Small glyphs need 16+; a 48×48 frame reads fine at 6. |
 | `--guides` | Overlays the 9-slice split lines — the fastest way to confirm the corners fall *inside* the border box and the edge strips are uniform between the lines. |
+| `--layers` | One row per section: every layer bottom-to-top, then the composite. **Mandatory for any file with `layer:` blocks** — the composite exists nowhere else. Eraser pixels (a `transparent` char) show as magenta so an eraser layer can't be mistaken for an empty one. |
+| `--emit-flat` | Also prints the composite as `.pxl` text on stdout. The render answers "does it look right"; this answers "which column did that pixel land on". |
 | `--out-dir DIR` | Default is a temp folder. **Never aim it at a SpriteSet `sourceFolder`** — the PNGs would be ingested as sprite sources and collide with the `.pxl`'s own keys. |
 | `--palette FILE` | Skip the `@name` project search and name the `.gpl` directly. |
 
@@ -189,9 +247,15 @@ Import errors land in the **Unity Console with line numbers** and fail the asset
 | `unrecognized line '...' (note: a blank line ends a grid: block)` | Usually a blank line inside a grid — grid rows must be contiguous. |
 | `cannot mix implicit (headerless) content with [section] headers` | Started drawing before the first `[section]` — add a header to the first sprite too. |
 | `'.' is reserved for transparent` / `duplicate chars key` / `duplicate section name` | Self-explanatory — rename. |
+| `grid: must come before any layer: block` | `grid:` is the bottom layer — move it above the `layer:` blocks (or rename it to a `layer:` of its own). |
+| `layer 'X' has N rows but grid: has M` | Layers in one section must all be the same size — pad the short layer with `.` rows. |
+| `layer name '...' must be non-empty and match [A-Za-z0-9_-]` | `layer:` needs a name; no spaces or punctuation. |
+| `duplicate layer name 'X' in section` | Layer names are unique per section (reuse across sections is fine). |
+| `':' cannot be a chars key` | Pick another character — `:` is reserved so grid rows can't be mistaken for `layer:` headers. |
+| `section '[x]' has no grid: or layer: block` | The section declares metadata but no pixels. |
 
 **Self-verify before reporting done**, in this order:
 
-1. **Re-read the grid** row by row — same width everywhere, outline closed, no stray pixels, edge strips uniform along their axis.
-2. **Render it and look at it** — `dotnet run --project .lint/PxlPreview -- <file>.pxl --scale 16 --guides`, then read the PNG it prints. A clean parse says nothing about whether the art reads; step 1 cannot catch an inverted bevel, a muddy ramp, or corners bleeding past the 9-slice split. Do not claim a sprite looks right without having looked at it.
+1. **Re-read the grid** row by row — same width everywhere, outline closed, no stray pixels, edge strips uniform along their axis. For a layered file this only checks each layer in isolation; the composite lives nowhere in the text, so add `--emit-flat` and read that too.
+2. **Render it and look at it** — `dotnet run --project .lint/PxlPreview -- <file>.pxl --scale 16 --guides`, then read the PNG it prints. Add `--layers` for any file with `layer:` blocks. A clean parse says nothing about whether the art reads; step 1 cannot catch an inverted bevel, a muddy ramp, or corners bleeding past the 9-slice split. Do not claim a sprite looks right without having looked at it.
 3. **Confirm in Unity** — Console clean, and the sprite shows up under the expected `set:key`.

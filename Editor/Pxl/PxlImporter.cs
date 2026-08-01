@@ -11,7 +11,7 @@ namespace PromptUGUI.Editor
     /// 每节一张 point-filter Texture2D + Sprite sub-asset。main asset = 首节
     /// Texture2D，保证 SpriteAtlasSyncer 的 FindAssets("t:Texture2D") 能发现。
     /// Texture 保持 readable：InlineSpriteAssetBuilder 烘焙图文混排时要读像素。</summary>
-    [ScriptedImporter(1, "pxl")]
+    [ScriptedImporter(2, "pxl")]
     internal sealed class PxlImporter : ScriptedImporter
     {
         public override void OnImportAsset(AssetImportContext ctx)

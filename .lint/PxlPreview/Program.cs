@@ -13,6 +13,7 @@ namespace PromptUGUI.PxlPreview
             var opt = new RenderOptions();
             string outDir = null;
             string paletteOverride = null;
+            var emitFlat = false;
             var inputs = new List<string>();
 
             for (var i = 0; i < args.Length; i++)
@@ -40,6 +41,12 @@ namespace PromptUGUI.PxlPreview
                         break;
                     case "--guides":
                         opt.Guides = true;
+                        break;
+                    case "--layers":
+                        opt.Layers = true;
+                        break;
+                    case "--emit-flat":
+                        emitFlat = true;
                         break;
                     case "--help":
                     case "-h":
@@ -77,7 +84,7 @@ namespace PromptUGUI.PxlPreview
             var failed = 0;
             foreach (var path in paths)
             {
-                if (!RenderFile(path, outDir, paletteOverride, opt, used)) failed++;
+                if (!RenderFile(path, outDir, paletteOverride, opt, emitFlat, used)) failed++;
             }
 
             if (failed > 0)
@@ -91,7 +98,8 @@ namespace PromptUGUI.PxlPreview
 
         private static void PrintUsage()
         {
-            Console.Error.WriteLine("Usage: PxlPreview <path>... [--scale N] [--out-dir DIR] [--palette FILE] [--guides]");
+            Console.Error.WriteLine("Usage: PxlPreview <path>... [--scale N] [--out-dir DIR] [--palette FILE]");
+            Console.Error.WriteLine("                           [--guides] [--layers] [--emit-flat]");
             Console.Error.WriteLine();
             Console.Error.WriteLine("Renders each .pxl to one PNG (all sections side by side, on a transparency");
             Console.Error.WriteLine("checkerboard, labelled) so the art can be looked at instead of read as text.");
@@ -102,6 +110,12 @@ namespace PromptUGUI.PxlPreview
             Console.Error.WriteLine("  --out-dir DIR where PNGs are written (default: <temp>/pxlpreview)");
             Console.Error.WriteLine("  --palette F   use this .gpl instead of searching the project for @<name>");
             Console.Error.WriteLine("  --guides      overlay the 9-slice border split lines");
+            Console.Error.WriteLine("  --layers      one row per section: every layer, then the composite");
+            Console.Error.WriteLine("  --emit-flat   also print the composite grid as .pxl text on stdout");
+            Console.Error.WriteLine();
+            Console.Error.WriteLine("A .pxl with layer: blocks never stores the composite — the importer composes");
+            Console.Error.WriteLine("it in memory. --layers is the only way to see one layer on its own, and");
+            Console.Error.WriteLine("--emit-flat the only way to read the composite character by character.");
             Console.Error.WriteLine();
             Console.Error.WriteLine("Never point --out-dir at a SpriteSet sourceFolder: the PNGs would be ingested");
             Console.Error.WriteLine("as new sprite sources and collide with the .pxl's own keys.");
@@ -131,7 +145,7 @@ namespace PromptUGUI.PxlPreview
         }
 
         private static bool RenderFile(string path, string outDir, string paletteOverride,
-            RenderOptions opt, HashSet<string> used)
+            RenderOptions opt, bool emitFlat, HashSet<string> used)
         {
             string text;
             try { text = File.ReadAllText(path); }
@@ -201,9 +215,58 @@ namespace PromptUGUI.PxlPreview
                 if (s.Border.x != 0 || s.Border.y != 0 || s.Border.z != 0 || s.Border.w != 0)
                     line += $"  border {(int)s.Border.x},{(int)s.Border.y},{(int)s.Border.z},{(int)s.Border.w}";
                 if (s.Tiled) line += "  tiled";
+                if (s.Layers.Count > 1) line += $"  {s.Layers.Count} layers";
                 Console.Out.WriteLine(line);
             }
+            WarnEmptyLayers(path, doc);
+            if (emitFlat) EmitFlat(path, doc);
             return true;
+        }
+
+        /// <summary>A layer whose every cell is '.' contributes nothing to the composite.
+        /// Usually a forgotten row of art; occasionally a deliberate placeholder — so it
+        /// is a warning on stderr, not a failure (exit code untouched).</summary>
+        private static void WarnEmptyLayers(string path, PxlDocument doc)
+        {
+            foreach (var s in doc.Sections)
+            {
+                if (s.Layers.Count < 2) continue; // a lone layer being blank is the author's business
+                foreach (var l in s.Layers)
+                {
+                    var blank = true;
+                    foreach (var row in l.Rows)
+                    {
+                        foreach (var c in row)
+                        {
+                            if (c != '.') { blank = false; break; }
+                        }
+                        if (!blank) break;
+                    }
+                    if (blank)
+                    {
+                        Console.Error.WriteLine(
+                            $"{path}: line {l.HeaderLine}: warning: layer '{l.Name ?? "(grid)"}' " +
+                            $"in section '[{s.Name ?? "(implicit)"}]' is fully transparent " +
+                            "(contributes nothing to the composite)");
+                    }
+                }
+            }
+        }
+
+        /// <summary>Prints the composite as .pxl-shaped text. The file itself never stores
+        /// it (layers are the single source of truth), so this is the only way to check the
+        /// composite character by character — the render answers "does it look right", this
+        /// answers "which column did that highlight actually land on".</summary>
+        private static void EmitFlat(string path, PxlDocument doc)
+        {
+            Console.Out.WriteLine();
+            Console.Out.WriteLine($"# --- flattened: {path} ---");
+            foreach (var s in doc.Sections)
+            {
+                if (s.Name != null) Console.Out.WriteLine($"[{s.Name}]");
+                Console.Out.WriteLine("grid:");
+                foreach (var row in s.Rows) Console.Out.WriteLine("  " + row);
+            }
         }
 
         /// <summary>Same basename in two folders would otherwise overwrite silently

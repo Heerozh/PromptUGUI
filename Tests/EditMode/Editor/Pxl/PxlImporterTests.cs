@@ -53,6 +53,26 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Import_layered_section_bakes_flattened_pixels()
+        {
+            // spec 2026-08-01-pxl-layers：合成只在内存里做，importer 走同一条像素路径。
+            // 'X: transparent' 在上层是橡皮擦 —— 覆盖下层而非穿透。
+            var path = Write("layered.pxl",
+                "chars:\n  K: #102030\n  W: #ffffff\n  X: transparent\n" +
+                "grid:\n  KK\n  KK\n" +
+                "layer: hi\n  W.\n  .X\n");
+            var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            Assert.IsNotNull(tex, "layered file must import (no grid: rewrite needed)");
+            Assert.AreEqual(2, tex.width);
+            Assert.AreEqual(2, tex.height);
+            // grid 顶行 = texture y=1
+            Assert.AreEqual(new Color32(0xff, 0xff, 0xff, 255), (Color32)tex.GetPixel(0, 1));
+            Assert.AreEqual(new Color32(0x10, 0x20, 0x30, 255), (Color32)tex.GetPixel(1, 1));
+            Assert.AreEqual(new Color32(0x10, 0x20, 0x30, 255), (Color32)tex.GetPixel(0, 0));
+            Assert.AreEqual(0, ((Color32)tex.GetPixel(1, 0)).a, "X erased the lower layer");
+        }
+
+        [Test]
         public void Import_border_and_ppu_land_on_sprite()
         {
             var path = Write("framed.pxl",
