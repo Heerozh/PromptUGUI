@@ -111,6 +111,8 @@ layer: highlight   # stacked on top
 
 **Why bother**: editing one layer never disturbs another. Move the outline without rewriting the fill it used to cover; darken the shadow without first working out which cells were shadow. That is the entire benefit — a sprite simple enough to write in one pass (most ≤16×16 icons) is *less* work flat, so don't reach for layers by default. Adding layers to an existing flat sprite is pure appending: keep `grid:` as-is and add `layer:` blocks under it.
 
+For refined, fully-shaded art (~24×24 and up — build-button icons, portraits, decorated props) there is an established five-layer painting workflow — `silhouette → base → aa → shade → highlight`, with per-layer color budgets and a render-and-look check after every layer: see `reference/layered-painting.md`.
+
 ### Rules
 
 - **Compositing is pure overwrite.** A non-`.` character on an upper layer replaces the character underneath. There is deliberately **no alpha blending**: it would composite colors that are not on the palette and make the `chars:` table grow without bound.
@@ -161,14 +163,14 @@ Palettes use the **GIMP Palette** format — the community standard: Lospec pale
 
 You are drawing, not just encoding. Apply these when composing a grid:
 
-- **1px outline** around the shape, usually the darkest palette color. It's what makes a small sprite read against any background.
-- **Limited ramp**: 2–4 shades per material (highlight / base / shadow). More shades at this size = mud.
+- **1px outline** around the shape, usually the darkest palette color. It's what makes a small sprite read against any background. In refined layered art, additionally swap the outline pixels on the light-source side to a highlight color (**selective outlining / "selout"**, done in a top `highlight` layer) — a lit top edge is what lifts an icon off a dark button face. Recolor boundary pixels only; never move them.
+- **Limited ramp**: 2–4 shades per material (highlight / base / shadow) for simple flat sprites. Refined layered art budgets differently — ≤5 *new* colors per layer, reuse-first, ~12–16 total at 32×32 (see `reference/layered-painting.md`).
 - **9-slice design**: the **corners carry all the detail** (rounded corners, rivets, notches). The **edge strips between the borders must tile** — keep each edge uniform along its axis (a horizontal edge strip should have identical columns; a vertical strip identical rows). The **center must tile or be flat** — a flat fill is safest and lets the button stretch to any size.
 - **Tiled edges** (`tiled: true`): design each edge strip as a seamless **repeating unit** — the pattern must loop cleanly across the strip's own length, and BOTH ends of the strip must return to the plain outline + base fill so the corners and the next repeat join invisibly. A strip that's busy at one end and empty at the other will show a visible seam every tile.
 - **Button states**: pressed = swap the highlight and shadow edges (bevel inverts) and/or darken the face; optionally shift the content 1px down. Hover = lighter face. Keep the outline identical across states so the silhouette doesn't jump.
 - **Centered glyphs want odd dimensions** (e.g. 9×9, 13×13) so there's a true center pixel.
 - **Design at the smallest size that reads**; let PPU / PromptUGUI scaling handle display size. A crisp 12×12 scaled up beats a fuzzy 48×48.
-- Use `.` (transparent) for *outside the silhouette* only — don't fake glow/anti-aliasing with semi-transparent pixels inside the shape; pixel art stays hard-edged (the importer is point-filtered for a reason).
+- Use `.` (transparent) for *outside the silhouette* only — don't fake glow/anti-aliasing with semi-transparent pixels inside the shape; pixel art stays hard-edged (the importer is point-filtered for a reason). Anti-aliasing with *opaque* mid-tone colors on **internal** color boundaries is fine (and expected in refined art) — but never anti-alias the outer edge against transparency: the runtime background is unknown, and those pixels become dirty fringe on any other background.
 
 ## Look at what you drew (`PxlPreview` CLI)
 
