@@ -9,7 +9,7 @@ description: Use when creating or editing PromptUGUI .pxl pixel-grid sprite file
 
 Sweet spot: **UI chrome ≤48×48** — 9-slice frames, button skins, icons, badges, small decorations. NOT for large illustrations; a big grid is unmanageable text and pixel art quality drops with size anyway.
 
-The text IS the image: you can re-read your own output row by row and fix individual pixels. Import errors carry line numbers, so the loop is write → check Console → revise.
+The text IS the image: you can re-read your own output row by row and fix individual pixels. Import errors carry line numbers, and the `PxlPreview` CLI renders the grid to a PNG you can actually look at — so the loop is **write → render → look → revise**. Reading characters catches ragged rows; only looking at the render catches "the bevel points the wrong way".
 
 ## File format
 
@@ -116,6 +116,31 @@ You are drawing, not just encoding. Apply these when composing a grid:
 - **Design at the smallest size that reads**; let PPU / PromptUGUI scaling handle display size. A crisp 12×12 scaled up beats a fuzzy 48×48.
 - Use `.` (transparent) for *outside the silhouette* only — don't fake glow/anti-aliasing with semi-transparent pixels inside the shape; pixel art stays hard-edged (the importer is point-filtered for a reason).
 
+## Look at what you drew (`PxlPreview` CLI)
+
+Run this after writing or editing any `.pxl`, before reporting done. It needs no Unity instance and no Unity install — just a `dotnet` SDK:
+
+```bash
+dotnet run --project .lint/PxlPreview -- Buttons/ok.pxl            # -> <temp>/pxlpreview/ok.preview.png
+dotnet run --project .lint/PxlPreview -- Buttons/ok.pxl --scale 16 --guides
+dotnet run --project .lint/PxlPreview -- Assets/UI/ --out-dir /tmp/pxl-check   # whole tree
+```
+
+(Paths are relative to the PromptUGUI repo root. From a Unity project that consumes the UPM package, the project is at `Packages/com.heerozh.promptugui/.lint/PxlPreview`.)
+
+It prints the PNG's absolute path — **then read that PNG as an image**. That is the point of the tool: judging shading ramps, bevel direction, outline closure, silhouette consistency across states, or whether an edge strip really tiles is impossible from the character grid, and those are exactly the mistakes that survive a text re-read.
+
+One PNG per `.pxl`: every section side by side in file order, on a transparency checkerboard, labelled `name WxH bL,B,R,T`. So `normal` vs `pressed` is one glance — check the outline is identical and only the bevel/face changed.
+
+| Option | Use it for |
+|---|---|
+| `--scale N` (1..64, default 8) | Small glyphs need 16+; a 48×48 frame reads fine at 6. |
+| `--guides` | Overlays the 9-slice split lines — the fastest way to confirm the corners fall *inside* the border box and the edge strips are uniform between the lines. |
+| `--out-dir DIR` | Default is a temp folder. **Never aim it at a SpriteSet `sourceFolder`** — the PNGs would be ingested as sprite sources and collide with the `.pxl`'s own keys. |
+| `--palette FILE` | Skip the `@name` project search and name the `.gpl` directly. |
+
+It is also the `.pxl` linter: it compiles the importer's own parser / palette / colour-resolution sources, so every error below surfaces here first, with the same message and line number, and exit code 1 — no Unity Console round trip. Details: `.lint/PxlPreview/README.md`.
+
 ## Round-trip with art tools
 
 Selecting a `.pxl` asset in the Project window shows a custom Inspector — not the default ScriptedImporter settings panel. The importer has no editable settings (everything lives in the `.pxl` text), so the panel is read-only: it lists the palette reference, each section's name/dimensions/border, and a small sprite thumbnail per section. Two buttons appear below:
@@ -165,4 +190,8 @@ Import errors land in the **Unity Console with line numbers** and fail the asset
 | `cannot mix implicit (headerless) content with [section] headers` | Started drawing before the first `[section]` — add a header to the first sprite too. |
 | `'.' is reserved for transparent` / `duplicate chars key` / `duplicate section name` | Self-explanatory — rename. |
 
-**Self-verify before reporting done**: the grid is the image. Re-read your own output row by row — check the outline is closed, edge strips are uniform (9-slice), every row is the same width, and there are no stray pixels. Then confirm the Unity Console is clean and the sprite shows up under the expected `set:key`.
+**Self-verify before reporting done**, in this order:
+
+1. **Re-read the grid** row by row — same width everywhere, outline closed, no stray pixels, edge strips uniform along their axis.
+2. **Render it and look at it** — `dotnet run --project .lint/PxlPreview -- <file>.pxl --scale 16 --guides`, then read the PNG it prints. A clean parse says nothing about whether the art reads; step 1 cannot catch an inverted bevel, a muddy ramp, or corners bleeding past the 9-slice split. Do not claim a sprite looks right without having looked at it.
+3. **Confirm in Unity** — Console clean, and the sprite shows up under the expected `set:key`.

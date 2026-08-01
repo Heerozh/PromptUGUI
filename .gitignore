@@ -53,6 +53,8 @@ ExportedObj/
 !/.lint/*.csproj
 !/.lint/*.sln
 !/.lint/*.slnx
+# Standalone CLI tools live one level deeper (UIXmlLint/, PxlPreview/).
+!/.lint/**/*.csproj
 /.lint/bin/
 /.lint/obj/
 # Per-developer Unity install paths (copy Local.props.example to set yours).
