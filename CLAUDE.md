@@ -98,6 +98,20 @@ dotnet run --project .lint/UIXmlLint -- Runtime/Resources/                   # �
 
 规则代码在 `Runtime/Core/Lint/`（纯 C#），跟 `ScreenInstantiator` 的 warning 路径共用同一份实现 —— 新增规则时只改一处。详见 `.lint/UIXmlLint/README.md`。
 
+### `.pxl` 渲染预览（PxlPreview CLI）
+
+写完或编辑任何 `.pxl` 之后，渲染成 PNG **然后真的去看那张图**——像素画的明暗、斜面方向、9-slice 边条是否均匀，逐行读字符是判断不出来的：
+
+```bash
+dotnet run --project .lint/PxlPreview -- Runtime/Resources/PromptUGUI/Defaults/pugui.pxl
+dotnet run --project .lint/PxlPreview -- Assets/UI/Buttons/ok.pxl --scale 16 --guides
+dotnet run --project .lint/PxlPreview -- Assets/UI/ --out-dir /tmp/pxl-check    # 整个目录递归
+```
+
+每个 `.pxl` 出一张 PNG（各 section 横向并排 + 透明棋盘格 + 标签），路径打到 stdout；`--guides` 叠加 9-slice 分割线。同时它也是 `.pxl` 的 linter：直接编译 `Editor/Pxl/` 里导入器自己的 `PxlParser` / `GplPalette` / `PxlColorResolver`，所以报错信息和行号跟 Unity 导入完全一致，exit code 非零。
+
+那三个共享源文件只依赖 `Color32` / `Vector4` 两个 UnityEngine 值类型，由 `.lint/PxlPreview/UnityValueShims.cs` 顶替 —— **改这三个文件时别引入新的 Unity 类型**，否则 CLI 编译不过（届时应该把该文件提纯，而不是往 shim 里加东西）。详见 `.lint/PxlPreview/README.md`。
+
 ## Pipeline (mental model)
 
 ```

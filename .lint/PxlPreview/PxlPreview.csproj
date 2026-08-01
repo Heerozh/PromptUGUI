@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    PxlPreview: stand-alone CLI that renders .pxl pixel-grid files to PNG so the
+    art can be LOOKED AT (and the parse / palette errors read) without an open
+    Unity instance. The .pxl text is the image, but nobody — human or LLM — can
+    judge shading, bevels or 9-slice edge strips by reading characters.
+
+    Compile set: the three Unity-agnostic .pxl sources straight out of
+    Editor/Pxl/ — PxlParser (grid + section structure), GplPalette (.gpl) and
+    PxlColorResolver (chars -> colour, incl. the off-palette enforcement).
+    Compiling the importer's own sources, rather than reimplementing the format,
+    is what keeps this preview honest: if the importer rejects a file, so does
+    this tool, with the same message and line number.
+
+    Those three files reference exactly two UnityEngine value types (Color32,
+    Vector4); UnityValueShims.cs supplies them. Everything else here (renderer,
+    PNG encoder, tiny font) is CLI-local and pure BCL, so the tool runs anywhere
+    `dotnet` runs — System.Drawing would have pinned it to Windows.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>PxlPreview</AssemblyName>
+    <RootNamespace>PromptUGUI.PxlPreview</RootNamespace>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\Editor\Pxl\PxlParser.cs" />
+    <Compile Include="..\..\Editor\Pxl\GplPalette.cs" />
+    <Compile Include="..\..\Editor\Pxl\PxlColorResolver.cs" />
+    <Compile Include="*.cs" />
+  </ItemGroup>
+
+  <!--
+    Directory.Build.props hands every .lint project an R3 PackageReference plus
+    (when Local.props points at a Unity install) wildcard <Reference>s to the
+    real UnityEngine / UnityEditor DLLs. Neither is wanted here: R3 is unused,
+    and the real UnityEngine.dll would collide with UnityValueShims.cs (CS0433).
+    Stripping them also keeps the tool buildable on machines with no Unity.
+  -->
+  <ItemGroup>
+    <PackageReference Remove="R3" />
+    <Reference Remove="@(Reference)" />
+  </ItemGroup>
+
+</Project>
