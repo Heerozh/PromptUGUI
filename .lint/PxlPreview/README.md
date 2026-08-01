@@ -16,12 +16,14 @@ first, with the same message and line number, and a non-zero exit code.
 
 ## How it stays honest
 
-The CLI compiles the importer's own sources — `PxlParser`, `GplPalette`,
-`PxlColorResolver` from `Editor/Pxl/` — rather than reimplementing the format.
-A file this tool accepts is a file the ScriptedImporter accepts, and the
-colours are resolved through the same palette-enforcement path.
+The CLI compiles the importer's own sources — `PxlParser`, `PxlFlattener`,
+`GplPalette`, `PxlColorResolver` from `Editor/Pxl/` — rather than
+reimplementing the format. A file this tool accepts is a file the
+ScriptedImporter accepts, the colours are resolved through the same
+palette-enforcement path, and layers composite through the same code that bakes
+the texture.
 
-Those three sources touch exactly two UnityEngine value types (`Color32`,
+Those sources touch exactly two UnityEngine value types (`Color32`,
 `Vector4`); `UnityValueShims.cs` supplies them so the files compile verbatim
 outside Unity. Everything else — renderer, PNG encoder, 3x5 label font — is
 CLI-local and pure BCL, so the tool runs wherever `dotnet` runs (System.Drawing
@@ -40,6 +42,9 @@ dotnet run --project .lint/PxlPreview -- Buttons/ok.pxl --scale 16 --guides
 
 # A whole directory (recurses for *.pxl) into a chosen folder
 dotnet run --project .lint/PxlPreview -- Assets/UI/ --out-dir /tmp/pxl-check
+
+# A layered file: every layer separately, plus the composite as text
+dotnet run --project .lint/PxlPreview -- Buttons/ok.pxl --layers --emit-flat
 ```
 
 | Option | Meaning |
@@ -48,12 +53,30 @@ dotnet run --project .lint/PxlPreview -- Assets/UI/ --out-dir /tmp/pxl-check
 | `--out-dir DIR` / `-o DIR` | Where PNGs are written (default `<temp>/pxlpreview`). |
 | `--palette FILE` | Use this `.gpl` instead of searching the project for `@<name>`. |
 | `--guides` | Overlay the 9-slice border split lines in magenta. |
+| `--layers` | One row per section: every layer bottom-to-top, then the composite. |
+| `--emit-flat` | Also print the composite as `.pxl` text on stdout. |
 
 Output: **one PNG per `.pxl`**, named `<basename>.preview.png`, with every
 section laid out left-to-right in file order, each on a transparency
 checkerboard under a `name WxH bL,B,R,T` label. One image per file is what
 makes state comparison (`normal` vs `pressed`) a single glance. The absolute
 PNG path is printed to stdout, followed by one metadata line per section.
+
+## Layers
+
+A `.pxl` with `layer:` blocks stores **only** the layers — the composite is
+built in memory at import time and written nowhere. That makes these two flags
+the only way to inspect such a file:
+
+- `--layers` gives each section its own row: every layer on its own, then the
+  composite. A pixel that erases lower layers (a char declared `transparent`)
+  is drawn as a magenta block, so an eraser layer can't be mistaken for an
+  empty one.
+- `--emit-flat` prints the composite as `.pxl`-shaped text, for checking the
+  result character by character.
+
+A layer that is entirely `.` is reported as a warning on stderr (it contributes
+nothing to the composite) without affecting the exit code.
 
 Exit codes:
 

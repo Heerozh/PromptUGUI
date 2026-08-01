@@ -6,14 +6,15 @@
     Unity instance. The .pxl text is the image, but nobody — human or LLM — can
     judge shading, bevels or 9-slice edge strips by reading characters.
 
-    Compile set: the three Unity-agnostic .pxl sources straight out of
-    Editor/Pxl/ — PxlParser (grid + section structure), GplPalette (.gpl) and
-    PxlColorResolver (chars -> colour, incl. the off-palette enforcement).
-    Compiling the importer's own sources, rather than reimplementing the format,
-    is what keeps this preview honest: if the importer rejects a file, so does
-    this tool, with the same message and line number.
+    Compile set: the four Unity-agnostic .pxl sources straight out of
+    Editor/Pxl/ — PxlParser (grid + section structure), PxlFlattener (layer
+    compositing), GplPalette (.gpl) and PxlColorResolver (chars -> colour, incl.
+    the off-palette enforcement). Compiling the importer's own sources, rather
+    than reimplementing the format, is what keeps this preview honest: if the
+    importer rejects a file, so does this tool, with the same message and line
+    number, and the layer view shows the exact composite the importer will bake.
 
-    Those three files reference exactly two UnityEngine value types (Color32,
+    Those files reference exactly two UnityEngine value types (Color32,
     Vector4); UnityValueShims.cs supplies them. Everything else here (renderer,
     PNG encoder, tiny font) is CLI-local and pure BCL, so the tool runs anywhere
     `dotnet` runs — System.Drawing would have pinned it to Windows.
@@ -28,6 +29,7 @@
 
   <ItemGroup>
     <Compile Include="..\..\Editor\Pxl\PxlParser.cs" />
+    <Compile Include="..\..\Editor\Pxl\PxlFlattener.cs" />
     <Compile Include="..\..\Editor\Pxl\GplPalette.cs" />
     <Compile Include="..\..\Editor\Pxl\PxlColorResolver.cs" />
     <Compile Include="*.cs" />

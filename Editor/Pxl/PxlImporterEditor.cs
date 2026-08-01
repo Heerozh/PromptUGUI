@@ -101,12 +101,15 @@ namespace PromptUGUI.Editor
                     ? "—"
                     : $"{s.Border.x},{s.Border.y},{s.Border.z},{s.Border.w}";
                 var tiledSuffix = tiledNames != null && tiledNames.Contains(name) ? "  tiled" : "";
+                // 层数是 Sync 可用性的直接指示：>1 的节永不被 Sync from PNG 回写。
+                var layerSuffix = s.Layers.Count > 1 ? $"  {s.Layers.Count} layers" : "";
                 using (new EditorGUILayout.HorizontalScope())
                 {
                     var rect = GUILayoutUtility.GetRect(32, 32, GUILayout.Width(32));
                     if (sprites.TryGetValue(name, out var sp) && sp.texture != null)
                         DrawSpritePreview(rect, sp);
-                    EditorGUILayout.LabelField($"[{name}]  {s.Width}×{s.Height}  border: {border}{tiledSuffix}");
+                    EditorGUILayout.LabelField(
+                        $"[{name}]  {s.Width}×{s.Height}  border: {border}{tiledSuffix}{layerSuffix}");
                 }
             }
         }
@@ -199,8 +202,14 @@ namespace PromptUGUI.Editor
             }
             if (plan.Updates.Count == 0)
             {
+                // 全是多层节时，"没找到 PNG" 是误导——PNG 可能就在那儿，只是不可用。
                 EditorUtility.DisplayDialog("Sync from PNG",
-                    "No matching PNGs found (naming: <basename>.<section>.png).", "OK");
+                    plan.LayeredSections.Count > 0
+                        ? "Nothing to sync: " +
+                          string.Join(", ", plan.LayeredSections.Select(s => $"[{s}]")) +
+                          " are driven by layer: blocks, and a flattened PNG cannot be " +
+                          "decomposed back into layers. Edit the layers in the .pxl text."
+                        : "No matching PNGs found (naming: <basename>.<section>.png).", "OK");
                 return;
             }
 
@@ -212,6 +221,8 @@ namespace PromptUGUI.Editor
                 summary.AppendLine("new chars: " +
                     string.Join(", ", plan.NewChars.Select(c => $"{c.ch}={c.value}")));
             foreach (var m in plan.MissingSections) summary.AppendLine($"skipped (no PNG): [{m}]");
+            foreach (var l in plan.LayeredSections)
+                summary.AppendLine($"skipped (has layers): [{l}]");
             foreach (var e in plan.ExtraPngs) summary.AppendLine($"unmatched PNG: {e}");
 
             if (!EditorUtility.DisplayDialog("Sync from PNG?", summary.ToString(), "Sync", "Cancel"))

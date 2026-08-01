@@ -267,5 +267,64 @@ namespace PromptUGUI.Tests.Editor
             var plan = PxlPngSync.BuildPlan(text, "d", pngs, palette);
             Assert.IsNotEmpty(plan.Errors);
         }
+
+        // —— 图层（spec 2026-08-01-pxl-layers §5）：合成图 PNG 反推不出图层，
+        // 多层节一律跳过；同文件的扁平节照常 sync。——
+
+        [Test]
+        public void BuildPlan_layered_section_is_skipped_not_synced()
+        {
+            const string text =
+                "chars:\n  K: #000000\n  W: #ffffff\n" +
+                "[a]\ngrid:\n  KK\nlayer: hi\n  W.\n";
+            var pngs = new Dictionary<string, PxlPngSync.PngImage>
+            {
+                ["d.a.png"] = Img(2, 1, W, W),
+            };
+            var plan = PxlPngSync.BuildPlan(text, "d", pngs, null);
+            Assert.IsEmpty(plan.Errors);
+            Assert.IsEmpty(plan.Updates, "a layered section must never be rewritten");
+            Assert.AreEqual(new[] { "a" }, plan.LayeredSections.ToArray());
+            Assert.IsEmpty(plan.MissingSections, "it had a PNG — it is skipped, not missing");
+            Assert.IsEmpty(plan.ExtraPngs, "its PNG is accounted for, not 'unmatched'");
+        }
+
+        [Test]
+        public void BuildPlan_flat_section_still_syncs_alongside_layered_one()
+        {
+            const string text =
+                "chars:\n  K: #000000\n  W: #ffffff\n" +
+                "[a]\ngrid:\n  KK\nlayer: hi\n  W.\n" +
+                "[b]\ngrid:\n  K\n";
+            var pngs = new Dictionary<string, PxlPngSync.PngImage>
+            {
+                ["d.a.png"] = Img(2, 1, W, W),
+                ["d.b.png"] = Img(1, 1, W),
+            };
+            var plan = PxlPngSync.BuildPlan(text, "d", pngs, null);
+            Assert.IsEmpty(plan.Errors);
+            Assert.AreEqual(new[] { "a" }, plan.LayeredSections.ToArray());
+            Assert.AreEqual(1, plan.Updates.Count);
+            Assert.AreEqual("b", plan.Updates[0].Section.Name);
+            Assert.AreEqual("W", plan.Updates[0].Rows.Single());
+        }
+
+        [Test]
+        public void Apply_leaves_layered_section_untouched()
+        {
+            const string text =
+                "chars:\n  K: #000000\n  W: #ffffff\n" +
+                "[a]\ngrid:\n  KK\nlayer: hi\n  W.\n" +
+                "[b]\ngrid:\n  K\n";
+            var pngs = new Dictionary<string, PxlPngSync.PngImage>
+            {
+                ["d.a.png"] = Img(2, 1, W, W),
+                ["d.b.png"] = Img(1, 1, W),
+            };
+            var result = PxlPngSync.Apply(text, PxlPngSync.BuildPlan(text, "d", pngs, null));
+            StringAssert.Contains("layer: hi\n  W.\n", result);
+            StringAssert.Contains("[a]\ngrid:\n  KK\n", result);
+            StringAssert.Contains("[b]\ngrid:\n  W\n", result);
+        }
     }
 }

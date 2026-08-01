@@ -31,6 +31,7 @@ namespace PromptUGUI.Editor
         {
             public readonly List<SectionUpdate> Updates = new();
             public readonly List<string> MissingSections = new(); // 没找到 PNG 的节（显示名）
+            public readonly List<string> LayeredSections = new(); // 多层节：合成图反推不出图层，跳过
             public readonly List<string> ExtraPngs = new();       // 前缀匹配但无对应节
             public readonly List<(char ch, string value)> NewChars = new();
             public readonly List<string> Errors = new();          // 非空 = 不可执行
@@ -79,6 +80,17 @@ namespace PromptUGUI.Editor
             foreach (var section in doc.Sections)
             {
                 var fileName = PxlPngExporter.FileNameFor(baseName, section);
+
+                // 多层节永不回写：合成后的 PNG 反推不出图层，这是信息丢失而非实现难度
+                // （spec 2026-08-01-pxl-layers §5）。判定先于 PNG 匹配——有对应 PNG 也跳过，
+                // 且该 PNG 记为已匹配，免得又在 "unmatched PNG" 里出现一次误导用户。
+                if (section.Layers.Count > 1)
+                {
+                    plan.LayeredSections.Add(section.Name ?? baseName);
+                    matchedFiles.Add(fileName);
+                    continue;
+                }
+
                 if (!pngs.TryGetValue(fileName, out var img))
                 {
                     plan.MissingSections.Add(section.Name ?? baseName);
