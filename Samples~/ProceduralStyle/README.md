@@ -63,7 +63,18 @@ ProceduralStyle.ui （默认 Overlay）  ← 玻璃放这儿
 几帧之后糊成一团。运行时会 warn 一次。
 
 `canvas="camera"` 的 Screen 需要一个相机引用，而 XML 里写不了引用 —— 由 runner 的
-`UI.CanvasConfigurator` 补上，用的就是 `UI.Glass.Camera`（默认 `Camera.main`）那一台。
+`UI.CanvasConfigurator` 补上，用的就是 `UI.Glass.Camera`（默认 `Camera.main`）那一台：
+
+```csharp
+UI.CanvasConfigurator = (canvas, _) => canvas.worldCamera = camera;   // 无条件
+```
+
+**别写成 `if (canvas.renderMode == RenderMode.ScreenSpaceCamera) { … }`。** Unity 的
+`renderMode` **getter** 在 `worldCamera` 为空时会谎报成 `ScreenSpaceOverlay`（模式其实记在内部，
+一赋相机就恢复），所以那个判断在配置器里**永远不命中**，Backdrop 会静默留在 Overlay ——
+画面照样显示，只是不再被相机渲染，于是玻璃采集不到它，看起来就像「玻璃对背景图不起作用」。
+给真·Overlay 的 canvas 赋 `worldCamera` 是无害的（Unity 会忽略），所以无条件赋值即可。
+真漏了的话 `Screen.Open` 会 warn 一条。
 
 ## 壁纸从哪来
 

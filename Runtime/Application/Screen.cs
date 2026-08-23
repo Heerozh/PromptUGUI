@@ -130,6 +130,21 @@ namespace PromptUGUI.Application
             ApplyCanvasScaler(root.GetComponent<UnityEngine.UI.CanvasScaler>());
             UI.CanvasConfigurator?.Invoke(canvas, Def.Name);
 
+            // canvas="camera" 没拿到相机 = 静默变回 Overlay，而且现场毫无线索：Unity 的
+            // Canvas.renderMode **getter** 在 worldCamera 为空时会谎报成 ScreenSpaceOverlay
+            // （内部其实记着 Camera 模式，一赋相机就恢复）。于是配置器里那句看似正确的
+            // `if (canvas.renderMode == ScreenSpaceCamera)` 永远不命中，Screen 就一直是
+            // Overlay —— 它照样能显示，只是不再被相机渲染，玻璃 backdrop、后处理、
+            // RenderTexture 输出全都拿不到它。这条 warning 就是为了别再让人从画面倒推。
+            if (Def.CanvasMode == CanvasMode.Camera && canvas.worldCamera == null)
+                Debug.LogWarning(
+                    $"[PromptUGUI] Screen '{Def.Name}' declares canvas=\"camera\" but no worldCamera " +
+                    "was assigned, so it silently falls back to Screen Space-Overlay. Assign one in " +
+                    "UI.CanvasConfigurator — unconditionally, e.g. `canvas.worldCamera = myCamera;`. " +
+                    "Do NOT gate it on `canvas.renderMode == RenderMode.ScreenSpaceCamera`: Unity's " +
+                    "getter reports Overlay until a camera is set, so that check can never pass. " +
+                    "(Assigning worldCamera to a genuinely Overlay canvas is harmless — it is ignored.)");
+
             // 缺少 EventSystem 时按钮等不会响应任何指针事件,这是常见的踩坑点。
             // 仅在 PlayMode 提示;EditMode 测试不需要 EventSystem。
             if (UnityEngine.Application.isPlaying &&

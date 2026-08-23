@@ -38,11 +38,11 @@ namespace PromptUGUI.Samples.ProceduralStyle
             // Backdrop 用的就是玻璃采集的那台相机（UI.Glass.Camera 默认 = Camera.main），
             // 于是壁纸进得了 backdrop，玻璃就看得见它。
             var camera = EnsureMainCamera();
-            UI.CanvasConfigurator = (canvas, _) =>
-            {
-                if (canvas.renderMode == RenderMode.ScreenSpaceCamera)
-                    canvas.worldCamera = camera;
-            };
+            // 无条件赋值，**不要**写成 if (canvas.renderMode == ScreenSpaceCamera)：
+            // Unity 的 renderMode getter 在 worldCamera 为空时谎报成 Overlay，那个判断
+            // 永远不命中，Backdrop 就会静默留在 Overlay、永远进不了玻璃的采集。
+            // 给真·Overlay 的 canvas 赋 worldCamera 是无害的，会被忽略。
+            UI.CanvasConfigurator = (canvas, _) => canvas.worldCamera = camera;
 
             await UI.LoadDocumentAsync("Backdrop.ui");
             var backdrop = UI.Open("Backdrop");

@@ -86,13 +86,21 @@ Each `Screen.Open()` creates its own root Canvas (+ `CanvasScaler` + `GraphicRay
 
 ```csharp
 UI.CanvasConfigurator = (canvas, screenName) => {
-    if (canvas.renderMode == RenderMode.ScreenSpaceCamera) {
-        canvas.worldCamera = uiCamera;       // Camera ref must come from C# — not XML
-        canvas.planeDistance = 10f;
-    }
+    canvas.worldCamera = uiCamera;      // unconditional — see the trap below
+    canvas.planeDistance = 10f;
     canvas.sortingOrder = screenName == "Settings" ? 100 : 0;  // popups above main
 };
 ```
+
+> **Never gate the assignment on `canvas.renderMode == RenderMode.ScreenSpaceCamera`.** Unity's
+> `renderMode` **getter** reports `ScreenSpaceOverlay` for as long as `worldCamera` is null — even
+> right after the setter was given `ScreenSpaceCamera` (the mode is remembered internally and snaps
+> back the moment a camera is assigned). So that check can never pass inside the configurator, the
+> camera never gets assigned, and a `canvas="camera"` Screen silently stays Overlay. It still draws,
+> which is what makes this so hard to spot — but it is no longer rendered *by a camera*, so glass
+> backdrops, post-processing and RenderTexture capture all lose it. Assigning `worldCamera` to a
+> genuinely Overlay canvas is harmless (Unity ignores it), so just assign it unconditionally.
+> `Screen.Open` logs a warning if a `canvas="camera"` Screen ends up with no camera.
 
 The callback fires once per `Open()` (so also re-fires on hot-reload, since reload = close + reopen). The library never auto-creates Cameras — assigning `worldCamera` is the user's job. With no configurator and no `canvas=` attribute, every Screen is `ScreenSpaceOverlay`, `sortingOrder=0`.
 
