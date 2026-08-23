@@ -221,7 +221,11 @@ namespace PromptUGUI.Samples.ProceduralStyle
 
         // Bing 每日图。刻意**运行时下载**而不是把图提交进仓库：这些壁纸是有版权的，
         // 一个 UPM 包不该把它们随包分发。顺带这也演示了 <RawImage> 显示下载图。
-        const string BingArchiveUrl = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1";
+        // mkt=en-US 不是随手加的：接口会按区域返回本地化的版权串，而这个 demo 刻意不带字体资源
+        // （零资源依赖是它的卖点），Unity 内置的 LiberationSans 没有中日韩字形 —— 中文版权串
+        // 会整串渲染成方框。
+        const string BingArchiveUrl =
+            "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=en-US";
 
         [System.Serializable]
         sealed class BingImage

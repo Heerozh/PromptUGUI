@@ -2,6 +2,7 @@ using System.IO;
 using NUnit.Framework;
 using PromptUGUI.Application;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace PromptUGUI.Tests.EditMode.Controls
 {
@@ -34,6 +35,20 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [SetUp]
         public void SetUp()
         {
+            // These render real URP frames, so they only mean anything where URP is the pipeline
+            // actually rendering. A project can have the URP package installed and still render with
+            // Built-in (no URP asset assigned) — there RenderPipelineManager.beginCameraRendering
+            // never fires, glass correctly degrades, and asserting on blur would be asserting on the
+            // host project's settings rather than on this package.
+            // Matched by name so the test assembly needs no URP reference of its own.
+            var pipeline = GraphicsSettings.currentRenderPipeline;
+            if (pipeline == null || pipeline.GetType().Name != "UniversalRenderPipelineAsset")
+                Assert.Ignore("Glass rendering needs URP to be the active render pipeline; this " +
+                              "project renders with " +
+                              (pipeline == null ? "the Built-in pipeline" : pipeline.GetType().Name) +
+                              ". Assign a Universal Render Pipeline Asset in Project Settings > " +
+                              "Graphics to run these.");
+
             UI.ResetForTests();
             GlassRuntime.RenderOutsidePlayModeForTests = true;
 

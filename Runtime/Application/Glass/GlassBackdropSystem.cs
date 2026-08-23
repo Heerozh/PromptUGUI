@@ -78,6 +78,15 @@ namespace PromptUGUI.Application.Glass
 
             if (active)
             {
+                // The pipeline check has to happen HERE and not only inside the camera callback:
+                // under the Built-in pipeline `beginCameraRendering` never fires at all, so a check
+                // that lives in the callback can never run — in precisely the case that most needs
+                // explaining. `PROMPTUGUI_HAS_URP` only says the *package* is installed; a project
+                // can have URP in its manifest and still render with Built-in because no URP asset
+                // is assigned, and then glass degrades in total silence.
+                WarnIfNotUniversal();
+                // Subscribe regardless: the event is inert under Built-in, and staying subscribed
+                // means glass starts working on its own if the pipeline is swapped later.
                 RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
                 return;
             }
@@ -107,14 +116,7 @@ namespace PromptUGUI.Application.Glass
             }
             if (camera != target) return;
 
-            if (GraphicsSettings.currentRenderPipeline is not UniversalRenderPipelineAsset)
-            {
-                WarnOnce(ref _warnedNotUniversal,
-                    "PromptUGUI: glass needs the Universal Render Pipeline to be the active pipeline. " +
-                    "Glass panels are drawing their fallback.");
-                GlassRuntime.SetBackdropAvailable(false);
-                return;
-            }
+            if (!WarnIfNotUniversal()) return;
 
             if (!EnsureResources(target)) return;
 
@@ -125,6 +127,24 @@ namespace PromptUGUI.Application.Glass
             renderer.EnqueuePass(_pass ??= new GlassBackdropPass());
             _enqueued++;
             WarnIfNothingEverRecords();
+        }
+
+        /// <summary>
+        /// Returns true when URP is the pipeline actually rendering, warning once if it is not.
+        /// </summary>
+        private static bool WarnIfNotUniversal()
+        {
+            if (GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset) return true;
+
+            WarnOnce(ref _warnedNotUniversal,
+                "PromptUGUI: glass needs the Universal Render Pipeline to be the pipeline actually " +
+                "rendering, and it is not — every glass panel is drawing its fallback. Having the URP " +
+                "package installed is not enough: assign a Universal Render Pipeline Asset under " +
+                "Project Settings > Graphics (and per-level under Quality). A project with URP in its " +
+                "manifest but no asset assigned renders with Built-in, where the capture hook " +
+                "(RenderPipelineManager.beginCameraRendering) never fires at all.");
+            GlassRuntime.SetBackdropAvailable(false);
+            return false;
         }
 
         /// <summary>
