@@ -141,10 +141,29 @@ namespace PromptUGUI.Controls
             set => ImageTint.Apply(_bg, value);
         }
 
+        /// <summary>
+        /// 勾选框（20×20 box）的 sprite —— 与 <c>color</c> 指向同一层，跟其它所有控件一致。
+        /// 注意这是行为修正：它过去指向 checkmark，跟 <c>color</c> 指的不是一层。
+        /// 想换对勾图形用 <c>checkmark</c>。
+        /// </summary>
         [UIAttr(IsSprite = true), Preserve]
         public string Sprite
         {
+            set => _bg.sprite = UI.ResolveSprite(value);
+        }
+
+        /// <summary>对勾图形的 sprite。<c>""</c> = 无图（纯色方块）。</summary>
+        [UIAttr(IsSprite = true), Preserve]
+        public string Checkmark
+        {
             set => _checkmark.sprite = UI.ResolveSprite(value);
+        }
+
+        /// <summary>对勾颜色；支持 token / <c>/alpha</c> / 渐变。</summary>
+        [UIAttr(IsColor = true), Preserve]
+        public string CheckmarkColor
+        {
+            set => Internal.ColorApplier.Apply(_checkmark, UI.Theme.ResolveSpec(value));
         }
 
         [UIAttr, Preserve]

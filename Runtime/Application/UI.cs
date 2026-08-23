@@ -11,6 +11,7 @@ namespace PromptUGUI.Application
         private static readonly Dictionary<string, ScreenDef> _docs = new();
         private static readonly Dictionary<string, Screen> _open = new();
         private static readonly System.Collections.Generic.Dictionary<DocumentLoader.TemplateKey, IR.TemplateDef> _commonsPool = new();
+        private static readonly System.Collections.Generic.Dictionary<DocumentLoader.StyleKey, IR.StyleDef> _commonsStyles = new();
         private static readonly DepGraph _depGraph = new();
 
         public static System.Func<string, UnityEngine.Awaitable<string>> SourceResolver { get; set; }
@@ -618,7 +619,7 @@ namespace PromptUGUI.Application
                 throw new System.InvalidOperationException(
                     "UI.SourceResolver must be set before LoadDocumentAsync");
 
-            var loaded = await DocumentLoader.LoadAndMergeAsync(src, SourceResolver, _commonsPool);
+            var loaded = await DocumentLoader.LoadAndMergeAsync(src, SourceResolver, _commonsPool, _commonsStyles);
             RegisterThemesAndAutoSet(loaded);
             var expanded = PromptUGUI.Template.TemplateExpander.Expand(loaded);
 
@@ -650,7 +651,7 @@ namespace PromptUGUI.Application
                 throw new System.InvalidOperationException(
                     "UI.SourceResolver must be set before ReloadAsync");
 
-            var loaded = await DocumentLoader.LoadAndMergeAsync(dep.EntrySrc, SourceResolver, _commonsPool);
+            var loaded = await DocumentLoader.LoadAndMergeAsync(dep.EntrySrc, SourceResolver, _commonsPool, _commonsStyles);
             // Re-register Theme blocks on reload. Mirror LoadDocumentAsync's
             // RegisterThemesAndAutoSet call but route through ReplaceFromSrc so
             // edited color values overwrite the previous (name, src) entries
@@ -707,10 +708,28 @@ namespace PromptUGUI.Application
                 staged.Add((rebasedKey, kv.Value));
             }
 
+            var stagedStyles = new System.Collections.Generic.List<(DocumentLoader.StyleKey Key, IR.StyleDef Def)>();
+            foreach (var kv in loaded.Styles)
+            {
+                var rebasedKey = @as == null
+                    ? kv.Key
+                    : new DocumentLoader.StyleKey(@as, kv.Key.Name);
+                if (_commonsStyles.ContainsKey(rebasedKey))
+                    throw new PromptUGUI.Template.TemplateException(
+                        $"common library conflict: style '{rebasedKey}' already in commons pool");
+                stagedStyles.Add((rebasedKey, kv.Value));
+            }
+
             foreach (var (key, def) in staged)
             {
                 def.OriginSrc = src;
                 _commonsPool[key] = def;
+            }
+
+            foreach (var (key, def) in stagedStyles)
+            {
+                def.OriginSrc = src;
+                _commonsStyles[key] = def;
             }
 
             // Register or replace <Theme> blocks. On first load, Register is used
@@ -745,6 +764,12 @@ namespace PromptUGUI.Application
                 if (kv.Value.OriginSrc == src) stashed.Add(kv);
             foreach (var kv in stashed) _commonsPool.Remove(kv.Key);
 
+            var stashedStyles = new System.Collections.Generic.List<
+                System.Collections.Generic.KeyValuePair<DocumentLoader.StyleKey, IR.StyleDef>>();
+            foreach (var kv in _commonsStyles)
+                if (kv.Value.OriginSrc == src) stashedStyles.Add(kv);
+            foreach (var kv in stashedStyles) _commonsStyles.Remove(kv.Key);
+
             var prevDeps = _depGraph.SrcToDeps.TryGetValue(src, out var d)
                 ? new System.Collections.Generic.HashSet<string>(d) : null;
             _depGraph.CommonsSources.Remove(src);
@@ -757,6 +782,7 @@ namespace PromptUGUI.Application
             catch
             {
                 foreach (var kv in stashed) _commonsPool[kv.Key] = kv.Value;
+                foreach (var kv in stashedStyles) _commonsStyles[kv.Key] = kv.Value;
                 _depGraph.CommonsSources.Add(src);
                 if (prevDeps != null) _depGraph.SrcToDeps[src] = prevDeps;
                 throw;
@@ -894,6 +920,7 @@ namespace PromptUGUI.Application
         public static void UnloadAllCommonLibraries()
         {
             _commonsPool.Clear();
+            _commonsStyles.Clear();
             _depGraph.CommonsSources.Clear();
             // Remove commons srcs from _srcToDeps; leave screen-related entries intact.
             var commonsSrcs = new System.Collections.Generic.List<string>();
@@ -925,6 +952,7 @@ namespace PromptUGUI.Application
             _open.Clear();
             _docs.Clear();
             _commonsPool.Clear();
+            _commonsStyles.Clear();
             _depGraph.Clear();
         }
 
@@ -1109,6 +1137,8 @@ namespace PromptUGUI.Application
             VariantStore.Reset();
             Registry = CreateRegistryWithBuiltins();
             _commonsPool.Clear();
+            _commonsStyles.Clear();
+            Controls.Internal.ProceduralMaterialCache.ResetForTests();
             _depGraph.Clear();
             SourceResolver = null;
             SpriteResolver = null;

@@ -25,6 +25,10 @@ namespace PromptUGUI.Template
             var result = new UIDocument { Version = 1 };
             foreach (var kv in loaded.Templates)
                 result.Templates[kv.Key.ToString()] = kv.Value;   // 调试可读，运行时不再用
+            foreach (var kv in loaded.Styles)
+                result.Styles[kv.Key.ToString()] = kv.Value;      // 同上：诊断用，展开产物已不含 class
+
+            var styles = loaded.Styles;
 
             foreach (var s in loaded.Screens)
             {
@@ -39,7 +43,7 @@ namespace PromptUGUI.Template
                 foreach (var c in s.Root.Children)
                 {
                     EnsureNoSlot(c, $"Screen '{s.Name}'");
-                    var ec = ExpandTree(c, loaded.Templates,
+                    var ec = ExpandTree(c, loaded.Templates, styles,
                                         new HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey>());
                     if (ec != null) newRoot.Children.Add(ec);
                 }
@@ -49,7 +53,7 @@ namespace PromptUGUI.Template
                     // <FocusCursor> is extracted from Root.Children by the parser and must be
                     // forwarded here; otherwise SetupFocusCursor receives null and no overlay is built.
                     FocusCursor = s.FocusCursor == null ? null
-                        : ExpandTree(s.FocusCursor, loaded.Templates,
+                        : ExpandTree(s.FocusCursor, loaded.Templates, styles,
                                      new HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey>()),
                 };
                 // 把全局 Template 表附到本 Screen，供 ScrollList 等运行时控件按 tag 反查。
@@ -68,7 +72,7 @@ namespace PromptUGUI.Template
                         foreach (var ch in add.Children)
                         {
                             EnsureNoSlot(ch, $"<Variant when='{block.When}'> in Screen '{s.Name}'");
-                            var ec = ExpandTree(ch, loaded.Templates,
+                            var ec = ExpandTree(ch, loaded.Templates, styles,
                                                 new HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey>());
                             if (ec != null) newAdd.Children.Add(ec);
                         }
@@ -94,6 +98,8 @@ namespace PromptUGUI.Template
             foreach (var s in doc.Screens) loaded.Screens.Add(s);
             foreach (var kv in doc.Templates)
                 loaded.Templates[new PromptUGUI.Application.DocumentLoader.TemplateKey(null, kv.Key)] = kv.Value;
+            foreach (var kv in doc.Styles)
+                loaded.Styles[new PromptUGUI.Application.DocumentLoader.StyleKey(null, kv.Key)] = kv.Value;
             return Expand(loaded);
         }
 
@@ -123,33 +129,36 @@ namespace PromptUGUI.Template
         private static ElementNode ExpandTree(
             ElementNode src,
             IReadOnlyDictionary<PromptUGUI.Application.DocumentLoader.TemplateKey, TemplateDef> templates,
+            IReadOnlyDictionary<PromptUGUI.Application.DocumentLoader.StyleKey, StyleDef> styles,
             HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey> visiting)
         {
 
             var key = new PromptUGUI.Application.DocumentLoader.TemplateKey(src.Namespace, src.Tag);
             if (templates.TryGetValue(key, out var tpl))
-                return ExpandInvocation(src, tpl, key, templates, visiting);
+                return ExpandInvocation(StyleMerger.Apply(src, styles, tpl), tpl, key,
+                                        templates, styles, visiting);
 
             // Namespace was specified but no matching template → error
             if (src.Namespace != null)
                 throw new TemplateException(
                     $"unknown template '{src.Namespace}.{src.Tag}'");
 
-            var dst = new ElementNode(src.Tag, src.Namespace)
+            var merged = StyleMerger.Apply(src, styles, null);
+            var dst = new ElementNode(merged.Tag, merged.Namespace)
             {
-                Id = src.Id,
-                TextContent = src.TextContent,
-                TextContentRaw = src.TextContentRaw ?? src.TextContent,
-                IsTemplateInstanceRoot = src.IsTemplateInstanceRoot,
+                Id = merged.Id,
+                TextContent = merged.TextContent,
+                TextContentRaw = merged.TextContentRaw ?? merged.TextContent,
+                IsTemplateInstanceRoot = merged.IsTemplateInstanceRoot,
             };
-            foreach (var kv in src.Attributes)
+            foreach (var kv in merged.Attributes)
                 dst.Attributes[kv.Key] = kv.Value;
-            foreach (var kv in src.AttributesRaw)
+            foreach (var kv in merged.AttributesRaw)
                 dst.AttributesRaw[kv.Key] = kv.Value;
-            CopyVariantOverrides(src, dst);
-            foreach (var c in src.Children)
+            CopyVariantOverrides(merged, dst);
+            foreach (var c in merged.Children)
             {
-                var ec = ExpandTree(c, templates, visiting);
+                var ec = ExpandTree(c, templates, styles, visiting);
                 if (ec != null) dst.Children.Add(ec);
             }
             return dst;
@@ -160,6 +169,7 @@ namespace PromptUGUI.Template
             TemplateDef tpl,
             PromptUGUI.Application.DocumentLoader.TemplateKey key,
             IReadOnlyDictionary<PromptUGUI.Application.DocumentLoader.TemplateKey, TemplateDef> templates,
+            IReadOnlyDictionary<PromptUGUI.Application.DocumentLoader.StyleKey, StyleDef> styles,
             HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey> visiting)
         {
 
@@ -205,11 +215,11 @@ namespace PromptUGUI.Template
                 var slotContent = new List<ElementNode>();
                 foreach (var c in invocation.Children)
                 {
-                    var ec = ExpandTree(c, templates, visiting);
+                    var ec = ExpandTree(c, templates, styles, visiting);
                     if (ec != null) slotContent.Add(ec);
                 }
 
-                var instanceRoot = ExpandNode(tpl.Body, args, slotContent, templates, visiting) ?? throw new TemplateException(
+                var instanceRoot = ExpandNode(tpl.Body, args, slotContent, templates, styles, visiting) ?? throw new TemplateException(
                         $"<{tpl.Name}>: template body root was excluded by if; not allowed");
                 instanceRoot.IsTemplateInstanceRoot = true;
                 if (!string.IsNullOrEmpty(invocation.Id))
@@ -243,6 +253,7 @@ namespace PromptUGUI.Template
             IReadOnlyDictionary<string, string> args,
             IReadOnlyList<ElementNode> slotContent,
             IReadOnlyDictionary<PromptUGUI.Application.DocumentLoader.TemplateKey, TemplateDef> templates,
+            IReadOnlyDictionary<PromptUGUI.Application.DocumentLoader.StyleKey, StyleDef> styles,
             HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey> visiting)
         {
 
@@ -256,7 +267,10 @@ namespace PromptUGUI.Template
 
             var key2 = new PromptUGUI.Application.DocumentLoader.TemplateKey(prepared.Namespace, prepared.Tag);
             if (templates.ContainsKey(key2))
-                return ExpandTree(prepared, templates, visiting);
+                return ExpandTree(prepared, templates, styles, visiting);
+
+            // After substitution, so class="{{skin}}" picks a style by template argument.
+            prepared = StyleMerger.Apply(prepared, styles, null);
 
             var dst = new ElementNode(prepared.Tag, prepared.Namespace)
             {
@@ -283,7 +297,7 @@ namespace PromptUGUI.Template
                             dst.Children.Add(DeepClone(sc));
                     continue;
                 }
-                var ec = ExpandNode(c, args, slotContent, templates, visiting);
+                var ec = ExpandNode(c, args, slotContent, templates, styles, visiting);
                 if (ec != null) dst.Children.Add(ec);
             }
             return dst;

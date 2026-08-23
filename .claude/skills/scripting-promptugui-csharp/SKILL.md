@@ -44,15 +44,26 @@ UI.UseResourcesResolver("UI");                             // sets SourceResolve
 UI.Registry.Register<MyCustomControl>("MyTag", myPrefab);  // optional; built-ins are pre-registered
 
 async void Start() {
-    await UI.LoadCommonLibraryAsync("common/Buttons");     // optional, populates the commons pool
-    await UI.LoadDocumentAsync("screens/MainMenu");        // load "{rootPath}/screens/MainMenu.ui.xml"; enables hot-reload
+    await UI.LoadCommonLibraryAsync("common/Buttons.ui");  // optional, populates the commons pool
+    await UI.LoadDocumentAsync("screens/MainMenu.ui");     // loads Resources/{rootPath}/screens/MainMenu.ui.xml — keep the .ui, see below
     // or, sync raw-XML form (no resolver, no hot-reload):
     // UI.LoadDocument("MainMenu", xmlString);
     var screen = UI.Open("MainMenu");
 }
 ```
 
-**Commons pool**: `await UI.LoadCommonLibraryAsync("ui/common", @as: null)` populates a global template pool merged into every Screen automatically (no `<Import>` needed at call sites). Use for project-wide shared widgets.
+**src keys carry `.ui`** (Resources resolver). Unity's Resources lookup name strips only the **final** extension, so `Resources/UI/Home.ui.xml` is addressable as `UI/Home.ui` — never `UI/Home`. After `UseResourcesResolver("UI")`, write the src relative to that root and keep the `.ui`:
+
+```csharp
+UI.UseResourcesResolver("UI");
+await UI.LoadDocumentAsync("Home.ui");          // ✓ Resources/UI/Home.ui.xml
+await UI.LoadDocumentAsync("Home");             // ✗ IOException: Resources lookup failed: UI/Home
+await UI.LoadDocumentAsync("UI/Home.ui");       // ✗ the root is prepended for you → UI/UI/Home.ui
+```
+
+The same key shape applies to `<Import src="...">` inside those documents, to `LoadCommonLibraryAsync`, and to every modal `XmlSrc`. The library's own built-ins follow it (`MessageBox.XmlSrc = "PromptUGUI/Modals/MessageBox.ui"`). Addressables is a different namespace — there the src is the Address you registered, verbatim.
+
+**Commons pool**: `await UI.LoadCommonLibraryAsync("ui/common.ui", @as: null)` populates a global template pool merged into every Screen automatically (no `<Import>` needed at call sites). Use for project-wide shared widgets.
 
 **Hot-reload** is enabled automatically when you load via `LoadDocumentAsync` (resolver-backed). The sync `UI.LoadDocument(label, xml)` overload bypasses the resolver — handy for raw-XML tests but **cannot be hot-reloaded**.
 
@@ -485,7 +496,7 @@ Common pattern with Addressables: fire-and-forget the load from `[RuntimeInitial
 static void Boot()
 {
     UI.UseAddressableResolver();
-    _ = UI.LoadCommonLibraryAsync("themes/main");  // fire and forget
+    _ = UI.LoadCommonLibraryAsync("themes/main.ui");  // fire and forget
     UI.Theme.Set("dark");                          // queued; takes effect once "dark" registers
 }
 ```
@@ -526,7 +537,9 @@ UI.Registry.Register<MyControl>("MyControl", optionalPrefab: null);
 - Supported types: `string` / `int` / `float` / `bool`. Use string + parse internally for everything else.
 - `[UIAttr(IsSprite = true)]` marks an attribute whose value is a sprite reference resolved via `UI.ResolveSprite` (or `UI.SpriteResolver` for atlas-only `ns:name` lookups). The Editor "Sync Sprite Sets" feature reads this flag to discover which attribute names per tag carry sprite refs, so the atlas auto-packs sprites referenced via non-`sprite` attribute names too (e.g. `<Progress fill='ui:foo' bg='ui:bar' frame='ui:baz' mask='ui:qux'/>`). Custom controls whose setter calls `UI.ResolveSprite` should set the flag; without it, only the conventional attribute name `sprite` is scanned and you'll see "missing sprite" warnings at sync time.
 - `[Bind]` on a field auto-wires a child component from a Prefab by child name. Useful when the control has a non-trivial Prefab structure.
-- `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` are reference implementations — for project-specific differentiation (pixel border, press feedback, custom popup chrome), subclass and override `OnAttached`; don't modify the base controls.
+- `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` are reference implementations, and **every built-in control is `sealed`** — you cannot subclass them. Two options, in order:
+  1. **Re-skin from XML.** Each inner layer has a `<layer>` (sprite) / `<layer>Color` attribute pair: `<Slider fill= fillColor= handle= handleColor=>`, `<Toggle checkmark= checkmarkColor=>`, `<Dropdown arrow= arrowColor= itemColor= itemTextColor= checkmark* scrollbar*>`, `<ScrollList scrollbar* scrollbarHandle*>`, `<Progress fill= bg= frame= mask=>`. `""` clears a sprite, giving a flat colour-only layer. This covers pixel borders, flat/glass looks and per-theme recolouring without any C#.
+  2. **Replace the tag.** For structural changes (different popup layout, extra chrome, new interaction), write your own `Control` and register it over the built-in tag before any Screen opens: `UI.Registry.Register<MyDropdown>("Dropdown")`. XML keeps saying `<Dropdown>`; the registry decides which class builds it. Don't modify the base controls.
 - **IL2CPP Managed Stripping (Medium+)**: setter-only `[UIAttr]` properties get their `PropertyInfo` metadata stripped (`Type.GetProperties()` returns nothing for them), reflection misses the property, attribute silently reverts to default in Player builds with no error log. **Pair every `[UIAttr]` and `[Bind]` with `[Preserve]`**: `[UIAttr, Preserve] public string Color { set { ... } }`. `PromptUGUI.Registry.PreserveAttribute` is name-matched by Mono.Linker (any class named exactly `PreserveAttribute`, inheritance does **not** count). All built-in controls already do this; custom controls must too.
 
 ### Color attributes on custom controls
@@ -562,8 +575,8 @@ If `UI.Theme.Resolve` throws, the exception flows through the reflection setter 
 SETUP          UI.UseResourcesResolver("UI")
                UI.Registry.Register<T>("Tag", optionalPrefab)
                SpriteResolverHelpers.UseSpriteSetResolver([spriteSets])
-               await UI.LoadCommonLibraryAsync("common/Foo")
-               await UI.LoadDocumentAsync("screens/Main")
+               await UI.LoadCommonLibraryAsync("common/Foo.ui")
+               await UI.LoadDocumentAsync("screens/Main.ui")   src keeps .ui — Resources strips only .xml
                UI.LoadDocument("Label", xmlString)            sync, no hot-reload
 
 OPEN/CLOSE     var screen = UI.Open("Name");                  returns IScreen
@@ -1105,7 +1118,7 @@ runtime. Walking through both BEFORE you change `MessageBox.XmlSrc` saves a roun
    Resources (no resolver involved — the `Resources/PromptUGUI/...` tree shipped with the
    package). **Every other key** flows through `UI.SourceResolver`:
     - Resources resolver: `UI.UseResourcesResolver(rootPath)` — `XmlSrc` is the path under
-      `Resources/{rootPath}/...` (no `.ui.xml` extension).
+      `Resources/{rootPath}/...`, **keeping the `.ui`** and dropping only `.xml`.
     - Addressables resolver: `UI.UseAddressableResolver()` — `XmlSrc` is an Addressables
       **Address**, not a filesystem path. **The asset MUST be added to an Addressables
       group with its Address set to exactly your `XmlSrc` string.** "The .ui.xml file

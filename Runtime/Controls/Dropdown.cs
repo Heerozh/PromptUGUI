@@ -15,6 +15,14 @@ namespace PromptUGUI.Controls
     {
         private UnityImage _bg;
         private UnityImage _templateBg;
+        // 内部图层。TMP_Dropdown 每次展开都从 template 子树克隆选项行，所以改 _itemBg /
+        // _itemCheckmark / _itemLabel 会作用于之后所有选项；已展开的那批实例不受影响。
+        private UnityImage _arrow;
+        private UnityImage _itemBg;
+        private UnityImage _itemCheckmark;
+        private TMP_Text _itemLabel;
+        private UnityImage _scrollbarBg;
+        private UnityImage _scrollbarHandle;
         private RectTransform _popupViewport;
         private bool _popupMaskExplicit;
         private TMP_Dropdown _tmp;
@@ -47,7 +55,8 @@ namespace PromptUGUI.Controls
             _tmp.captionText = label;
 
             // Caret on the right edge.
-            var arrow = ProceduralBuilders.AddImage(RectTransform, "Arrow", raycast: false);
+            _arrow = ProceduralBuilders.AddImage(RectTransform, "Arrow", raycast: false);
+            var arrow = _arrow;
             arrow.color = ProceduralBuilders.DefaultGlyphColor;
             ProceduralBuilders.ApplyDefaultSimpleSprite(arrow, ProceduralBuilders.SpriteCaret);
             arrow.rectTransform.anchorMin = new Vector2(1f, 0.5f);
@@ -101,7 +110,8 @@ namespace PromptUGUI.Controls
 
             // Item Background: 独立子节点，simple + 无 sprite + #F5F5F5 (highlighted-tinted 色带)
             var itemBgRt = ProceduralBuilders.AddChild(item, "Item Background");
-            var itemBg = itemBgRt.gameObject.AddComponent<UnityImage>();
+            _itemBg = itemBgRt.gameObject.AddComponent<UnityImage>();
+            var itemBg = _itemBg;
             itemBg.type = UnityImage.Type.Simple;
             itemBg.sprite = null;
             itemBg.color = new UnityEngine.Color(0.961f, 0.961f, 0.961f, 1f);
@@ -109,7 +119,8 @@ namespace PromptUGUI.Controls
             itemToggle.targetGraphic = itemBg;
 
             // Item checkmark anchored on the left side of the item.
-            var itemCheckmark = ProceduralBuilders.AddImage(item, "Item Checkmark", raycast: false);
+            _itemCheckmark = ProceduralBuilders.AddImage(item, "Item Checkmark", raycast: false);
+            var itemCheckmark = _itemCheckmark;
             itemCheckmark.color = ProceduralBuilders.DefaultGlyphColor;
             ProceduralBuilders.ApplyDefaultSimpleSprite(itemCheckmark, ProceduralBuilders.SpriteCheckmark);
             itemCheckmark.rectTransform.anchorMin = new Vector2(0f, 0.5f);
@@ -120,7 +131,8 @@ namespace PromptUGUI.Controls
             itemToggle.graphic = itemCheckmark;
 
             // Item label fills the rest of the item.
-            var itemLabel = ProceduralBuilders.AddText(item, "Item Label");
+            _itemLabel = ProceduralBuilders.AddText(item, "Item Label");
+            var itemLabel = _itemLabel;
             itemLabel.alignment = TextAlignmentOptions.Left;
             itemLabel.rectTransform.anchorMin = new Vector2(0f, 0f);
             itemLabel.rectTransform.anchorMax = new Vector2(1f, 1f);
@@ -134,7 +146,8 @@ namespace PromptUGUI.Controls
             scrollbarRt.pivot = new Vector2(1f, 1f);
             scrollbarRt.sizeDelta = new Vector2(20f, 0f);
             scrollbarRt.anchoredPosition = Vector2.zero;
-            var scrollbarBg = scrollbarRt.gameObject.AddComponent<UnityImage>();
+            _scrollbarBg = scrollbarRt.gameObject.AddComponent<UnityImage>();
+            var scrollbarBg = _scrollbarBg;
             scrollbarBg.color = ProceduralBuilders.DefaultControlBgColor; // white
             ProceduralBuilders.ApplyDefaultInsetSprite(scrollbarBg);
             var scrollbar = scrollbarRt.gameObject.AddComponent<UnityEngine.UI.Scrollbar>();
@@ -145,7 +158,8 @@ namespace PromptUGUI.Controls
             var slidingArea = ProceduralBuilders.AddChild(scrollbarRt, "Sliding Area");
             slidingArea.sizeDelta = new Vector2(-20f, -20f);
 
-            var sbHandle = ProceduralBuilders.AddImage(slidingArea, "Handle");
+            _scrollbarHandle = ProceduralBuilders.AddImage(slidingArea, "Handle");
+            var sbHandle = _scrollbarHandle;
             sbHandle.color = UnityEngine.Color.white;
             ProceduralBuilders.ApplyDefaultSlicedSprite(sbHandle);
             sbHandle.rectTransform.anchorMin = new Vector2(0f, 0f);
@@ -259,6 +273,94 @@ namespace PromptUGUI.Controls
         public string TextColor
         {
             set => LabelColorApplier.Apply(_tmp.captionText, value);
+        }
+
+        // 内部图层：与 <Progress> 同一套命名规约 —— 每层一对 `<layer>` (sprite) + `<layer>Color`。
+        // 弹窗内的三层（item 高亮带 / item 对勾 / item 文字）改的是 TMP_Dropdown 的 template，
+        // 之后每次展开克隆出来的选项行都继承；已展开的那批实例不受影响。
+
+        /// <summary>下拉箭头的 sprite。<c>""</c> = 隐藏箭头（无图的 Image 会画成实心方块，故直接关组件）。</summary>
+        [UIAttr(IsSprite = true), Preserve]
+        public string Arrow
+        {
+            set
+            {
+                var sprite = UI.ResolveSprite(value);
+                _arrow.sprite = sprite;
+                // 箭头是字形不是底板：没有图就没有意义，留着会变成一个实心方块。
+                _arrow.enabled = sprite != null;
+            }
+        }
+
+        /// <summary>下拉箭头颜色；支持 token / <c>/alpha</c> / 渐变。</summary>
+        [UIAttr(IsColor = true), Preserve]
+        public string ArrowColor
+        {
+            set => Internal.ColorApplier.Apply(_arrow, UI.Theme.ResolveSpec(value));
+        }
+
+        /// <summary>
+        /// 选项行的高亮底色（hover / 选中时由 uGUI Toggle 的 ColorTint 乘上去）。
+        /// 不设时是硬编码的浅灰 <c>#F5F5F5</c> —— 深色主题下必须显式改。
+        /// </summary>
+        [UIAttr(IsColor = true), Preserve]
+        public string ItemColor
+        {
+            set => Internal.ColorApplier.Apply(_itemBg, UI.Theme.ResolveSpec(value));
+        }
+
+        /// <summary>选中项左侧对勾的 sprite。<c>""</c> = 无图。</summary>
+        [UIAttr(IsSprite = true), Preserve]
+        public string Checkmark
+        {
+            set
+            {
+                var sprite = UI.ResolveSprite(value);
+                _itemCheckmark.sprite = sprite;
+                _itemCheckmark.enabled = sprite != null;
+            }
+        }
+
+        /// <summary>选中项对勾的颜色。</summary>
+        [UIAttr(IsColor = true), Preserve]
+        public string CheckmarkColor
+        {
+            set => Internal.ColorApplier.Apply(_itemCheckmark, UI.Theme.ResolveSpec(value));
+        }
+
+        /// <summary>选项行文字色（区别于 <c>textColor</c> —— 那是收起状态的 caption）。</summary>
+        [UIAttr(IsColor = true), Preserve]
+        public string ItemTextColor
+        {
+            set => LabelColorApplier.Apply(_itemLabel, value);
+        }
+
+        /// <summary>弹窗滚动条轨道的 sprite。</summary>
+        [UIAttr(IsSprite = true), Preserve]
+        public string Scrollbar
+        {
+            set => _scrollbarBg.sprite = UI.ResolveSprite(value);
+        }
+
+        /// <summary>弹窗滚动条轨道的颜色。</summary>
+        [UIAttr(IsColor = true), Preserve]
+        public string ScrollbarColor
+        {
+            set => Internal.ColorApplier.Apply(_scrollbarBg, UI.Theme.ResolveSpec(value));
+        }
+
+        /// <summary>弹窗滚动条滑块的 sprite。</summary>
+        [UIAttr(IsSprite = true), Preserve]
+        public string ScrollbarHandle
+        {
+            set => _scrollbarHandle.sprite = UI.ResolveSprite(value);
+        }
+
+        /// <summary>弹窗滚动条滑块的颜色。</summary>
+        [UIAttr(IsColor = true), Preserve]
+        public string ScrollbarHandleColor
+        {
+            set => Internal.ColorApplier.Apply(_scrollbarHandle, UI.Theme.ResolveSpec(value));
         }
 
         public Observable<int> OnSelected => _selected;

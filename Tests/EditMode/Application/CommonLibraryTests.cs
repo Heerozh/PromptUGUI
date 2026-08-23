@@ -183,16 +183,44 @@ namespace PromptUGUI.Tests.Application
         }
 
         [Test]
-        public void UseResourcesResolver_AssetPathToSrc_strips_prefix()
+        public void UseResourcesResolver_AssetPathToSrc_strips_prefix_but_keeps_ui_suffix()
         {
+            // src 带 ".ui"：Unity 的 Resources 查找名只剥最后一个扩展名，所以
+            // Resources/UI/MainMenu.ui.xml 的资源名是 "UI/MainMenu.ui"。反向映射必须
+            // 产出同一个字符串，否则跟 DepGraph 的 key 对不上、热重载静默失效。
             UI.UseResourcesResolver("UI");
             var fn = UI.HotReload.AssetPathToSrc;
             Assert.IsNotNull(fn);
-            Assert.AreEqual("MainMenu",
+            Assert.AreEqual("MainMenu.ui",
                 fn("Assets/Resources/UI/MainMenu.ui.xml"));
-            Assert.AreEqual("subdir/X",
+            Assert.AreEqual("subdir/X.ui",
                 fn("Assets/Samples/PromptUGUI/0.0.0/Demo/Resources/UI/subdir/X.ui.xml"));
             Assert.IsNull(fn("Assets/Other/Foo.txt"));
+            Assert.IsNull(fn("Assets/Resources/UI/NotADocument.xml"),
+                "只认 .ui.xml —— 普通 .xml 不是 PromptUGUI 文档");
+        }
+
+        [Test]
+        public void UseResourcesResolver_AssetPathToSrc_RoundTripsToTheDepGraphKey()
+        {
+            // 回归护栏：反向映射的产物必须能直接喂回 LoadDocumentAsync —— 即它跟调用方
+            // 注册进 DepGraph 的 key 逐字相同。这两条一旦分叉，热重载不会报错，只是不再触发。
+            UI.UseResourcesResolver("UI");
+            var src = UI.HotReload.AssetPathToSrc("Assets/Resources/UI/Home.ui.xml");
+
+            var seen = (string)null;
+            UI.SourceResolver = s =>
+            {
+                seen = s;
+                return AwaitableHelpers.Completed(
+                    "<?xml version='1.0'?><PromptUGUI version='1'>" +
+                    "<Screen name='Home'><Frame/></Screen></PromptUGUI>");
+            };
+            UI.LoadDocumentAsync(src).GetAwaiter().GetResult();
+
+            Assert.AreEqual(src, seen);
+            Assert.AreEqual(src, UI.HotReload.AssetPathToSrc("Assets/Resources/UI/Home.ui.xml"),
+                "同一份资源反复反推必须稳定");
         }
 
         [Test]

@@ -75,13 +75,13 @@
               direction="horizontal" direction.portrait="vertical"
               spacing="0" spacing.portrait="4"
               margin="44,8,0,8" margin.portrait="44,_,8,8">
-        <Tab id="tabForm"    width="84" width.portrait="stretch" height.portrait="120" text="表单输入" fontSize="15" fontSize.portrait="22"
+        <Tab id="tabForm"    width="stretch" width.portrait="stretch" height.portrait="120" text="表单输入" fontSize="15" fontSize.portrait="22"
              selectedColor="tab-selected" bind="pageForm" isOn="true"/>
-        <Tab id="tabDisplay" width="84" width.portrait="stretch" height.portrait="120" text="展示反馈" fontSize="15" fontSize.portrait="22"
+        <Tab id="tabDisplay" width="stretch" width.portrait="stretch" height.portrait="120" text="展示反馈" fontSize="15" fontSize.portrait="22"
              selectedColor="tab-selected" bind="pageDisplay"/>
-        <Tab id="tabList"    width="84" width.portrait="stretch" height.portrait="120" text="列表轮播" fontSize="15" fontSize.portrait="22"
+        <Tab id="tabList"    width="stretch" width.portrait="stretch" height.portrait="120" text="列表轮播" fontSize="15" fontSize.portrait="22"
              selectedColor="tab-selected" bind="pageList"/>
-        <Tab id="tabModal"   width="84" width.portrait="stretch" height.portrait="120" text="模态提示" fontSize="15" fontSize.portrait="22"
+        <Tab id="tabModal"   width="stretch" width.portrait="stretch" height.portrait="120" text="模态提示" fontSize="15" fontSize.portrait="22"
              selectedColor="tab-selected" bind="pageModal"/>
       </TabBar>
 

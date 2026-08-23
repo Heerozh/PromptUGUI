@@ -30,6 +30,12 @@ namespace PromptUGUI.Lint
                                 yield return issue;
             }
 
+            // <Style> is not an ElementNode, so its attribute values never reach WalkNode —
+            // they get their own pass so a bad radius in a style is caught where it's written.
+            foreach (var style in doc.Styles.Values)
+                foreach (var issue in StyleRules.CheckStyle(style))
+                    yield return issue;
+
             foreach (var template in doc.Templates.Values)
             {
                 // Template bodies live in declaration-space, not in any actual TabBar
@@ -111,6 +117,11 @@ namespace PromptUGUI.Lint
 
             // Static color literal validation: hex values starting with '#' must parse.
             foreach (var issue in ColorLiteralRules.Check(node))
+                yield return issue;
+
+            // class="" plus the value grammar of the procedural visual attrs (radius / borderWidth /
+            // glow) — pure syntax, so the CLI can reject it without a Unity instance.
+            foreach (var issue in StyleRules.Check(node))
                 yield return issue;
 
             // Universal: nav*/focus on a non-Selectable tag. Also wired in ScreenInstantiator.

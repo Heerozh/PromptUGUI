@@ -55,7 +55,7 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <PromptUGUI version="1">
-  <Import src="common/Buttons" as="ui"/>
+  <Import src="common/Buttons.ui" as="ui"/>
   <Screen   name="MainMenu"> ... </Screen>
   <Template name="TitledPanel"> ... </Template>
 </PromptUGUI>
@@ -69,8 +69,9 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 | `<Color name=... value=...>`                                                                         | Inside `<Theme>`. Defines a named color token.            | `name` is kebab-case `[a-z0-9-]`. `value` is hex (`#rgb` / `#rrggbb` / `#rrggbbaa`) or a Unity CSS named color (`red` / `white` / ...).                                                                                                                                                       |
 | `<Screen name="..." [canvas="..."] [reference="..."] [scale-mode="..."] [reference.portrait="..."]>` | A complete UI scene; opened by code with `UI.Open(name)`. | One Screen = one Canvas. Names unique across all loaded files. `canvas="overlay\|camera\|world"`, default `overlay`. Optional `reference="WxH"` (+ `.variant`) switches CanvasScaler to ScaleWithScreenSize. Optional `scale-mode="auto\|pixel"` (+ `.variant`); pixel = integer scaleFactor. |
 | `<Template name="...">`                                                                              | Reusable subtree, expanded at parse time.                 | Body must have **exactly one root element**.                                                                                                                                                                                                                                                  |
+| `<Style name="...">`                                                                                 | Named attribute pack, pulled in with `class="..."`.       | Top-level, no children. `name` is kebab-case `[a-z0-9-]`. See **Style & class**.                                                                                                                                                                                                              |
 
-`<Import>`, `<Theme>`, `<Screen>`, `<Template>` are the **only** elements allowed at the top level. Comments use standard `<!-- -->`.
+`<Import>`, `<Theme>`, `<Screen>`, `<Style>`, `<Template>` are the **only** elements allowed at the top level. Comments use standard `<!-- -->`.
 
 ## Built-in primitives (19)
 
@@ -80,7 +81,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 
 | Tag | 用途 |
 |---|---|
-| `<Frame>` | 空容器，可选 `mask="rect"` |
+| `<Frame>` | 容器；可选程序化视觉（`color` / `radius` / `borderWidth` / `glow`）+ `mask="rect"` |
 | `<SafeArea>` | 撑满父级、按设备安全区内缩（见本节末 **Safe area** 小节） |
 | `<Image>` | uGUI Image：sprite + 等比适配 + mask |
 | `<RawImage>` | uGUI RawImage：C# 设 Texture（动态图）+ contain/cover 适配 + mask |
@@ -103,16 +104,36 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 | `<Markdown>` | Renders a Markdown document into a scrollable subtree  |
 | `<FocusCursor>` | Screen-level cursor overlay for directional navigation. **Not a registered control** — not `Get<T>`-able; removed from the control tree before instantiation. → `reference/navigation.md` |
 
-> `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` / `<TabBar>` are reference implementations. For project-specific differentiation (pixel border, press feedback, custom popup chrome) subclass and override `OnAttached` — see scripting-promptugui-csharp.
+> Re-skinning a built-in: every inner layer has an XML hook — `<Slider fill= handle=>`, `<Toggle checkmark=>`, `<Dropdown arrow= itemColor= scrollbar*=>`, `<ScrollList scrollbar*=>`, `<Progress fill= bg= frame=>`. Each takes a `<layer>` (sprite) / `<layer>Color` pair, and `""` clears the sprite for a flat look. Reach for those first. They are still *reference implementations*: for structural changes (a different popup layout, extra chrome) write your own `Control` and register it over the tag — `UI.Registry.Register<MyDropdown>("Dropdown")`. The built-ins are `sealed`, so you replace rather than subclass; see scripting-promptugui-csharp.
 
 ### `<Frame>`
 
-空容器；可选 `RectMask2D`（`mask="rect"`）。
+Container. With none of the visual attributes below it is a bare `RectTransform` — no `Graphic`, no cost. Write any of them and Frame draws itself procedurally (rounded-rect SDF shader, no sprite): fill, corner radius, inner border, outer glow. Optional `RectMask2D` (`mask="rect"`).
+
+There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAINER-VISUAL-ATTR`) — use `<Image>` for sprite-based skins. A Frame never blocks clicks even when it draws; for a tinted clickable region use `<Btn>`.
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
 | `mask` | `rect` | — | 加 `RectMask2D` 裁剪子节点 |
 | `maskPadding` | `T,R,B,L`（`_`=占位） | — | 仅 `mask="rect"` 时有效 |
+| `color` | hex / CSS named / theme token / `A,B` 渐变 / `/alpha` | — (无填充) | Fill. Same value grammar as everywhere else — see **Color Tokens**; a comma value is a top→bottom gradient |
+| `radius` | `R` / `TL,TR,BR,BL` / `pill` | `0` | Corner radius in px. Four values follow CSS `border-radius` order (clockwise from top-left). `pill` = fully rounded ends. Values larger than the shape are clamped, not an error |
+| `borderWidth` | px | `0` | Inner border — drawn **inward** from the rect edge (CSS `border-box`), so it never changes layout |
+| `borderColor` | hex / CSS / token / `/alpha`. **纯色 only** | `white` | 渐变值 = parse error |
+| `glow` | px | `0` | Outer glow radius. Inflates the drawn quad by this much (layout rect unchanged) |
+| `glowColor` | hex / CSS / token / `/alpha`. **纯色 only** | 跟随 `color` | Unset → the fill colour at full alpha, so `glow="12"` alone reads as "this shape glows" |
+
+```xml
+<Frame color="surface/0.9" radius="16" borderWidth="1" borderColor="stroke/0.15"/>
+<Frame radius="pill" color="accent,accent-dark"/>          <!-- 胶囊 + 上下渐变 -->
+<Frame borderWidth="2" borderColor="#fff"/>                <!-- 无填充 = 空心描边框 -->
+<Frame color="danger" radius="20" glow="18"/>              <!-- 发光 -->
+<Frame color="#1b263b" radius="0,0,16,16"/>                <!-- 只圆下面两角 -->
+```
+
+- Only `glow` is affected by a **祖先** `RectMask2D` clipping the extra quad away; a Frame's own `mask="rect"` clips its children, never itself.
+- Colour / radius / border changes are material-only — a Variant flip or a colour animation never rebuilds the canvas mesh. Frames sharing identical values (typically via `class=`) share one material and keep batching.
+- Layout-only containers (`<VStack>` / `<HStack>` / `<Grid>` / `<SafeArea>`) draw nothing — wrap them in a `<Frame>` for a background.
 
 ### `<Image>`
 
@@ -218,8 +239,9 @@ Image + uGUI Toggle + 自动 label。R3 `OnValueChanged: bool`。`<Toggle>静音
 | `text` | string | — | |
 | `isOn` | bool | `false` | |
 | `group` | string | — | 互斥键 |
-| `color` | hex / CSS / token | — | 见 **Color Tokens** |
-| `sprite` | Resources 路径 | — | checkmark sprite |
+| `color` | hex / CSS / token | — | **勾选框**（左侧 20×20 box）底色；见 **Color Tokens** |
+| `sprite` | sprite key | — | **勾选框** sprite。⚠️ **行为已变**：它过去指向 checkmark（跟 `color` 不是同一层），现在与 `color` 同层、与全库其它控件一致。换对勾图形请用 `checkmark` |
+| `checkmark` · `checkmarkColor` | sprite key / color | — | **对勾**图形与颜色。`checkmark=""` 去图 |
 | `font` | string | `default` | |
 | `textColor` | hex / CSS / token | — | **label 文字色**（区别于 `color`=背景）；支持渐变 / `/alpha`；空=默认 ink |
 | `hoverColor` · `pressedColor` · `selectedColor` · `disabledColor` | hex / CSS / token | — | **绝对**单态 bg 色（仅 targetGraphic，不扩散）；`selectedColor`=勾选时 bg 基色（同 `<Tab>` 的 selection-aware base，hover/pressed/disabled 叠在上面）；见 states.md |
@@ -236,8 +258,10 @@ Image + uGUI Slider。R3 `OnValueChanged: float`。不写 size 时按方向给�
 | `min` · `max` · `value` | float | — | |
 | `wholeNumbers` | bool | — | |
 | `direction` | `horizontal` / `vertical` / `reverse-horizontal` / `reverse-vertical` | `horizontal` | |
-| `color` | hex / CSS / token | — | 见 **Color Tokens** |
-| `sprite` | sprite key | — | |
+| `color` | hex / CSS / token | — | **轨道**底色；见 **Color Tokens** |
+| `sprite` | sprite key | — | 轨道 sprite |
+| `fill` · `fillColor` | sprite key / color | — | **已填充段**。`fill=""` 去图 = 纯色进度段 |
+| `handle` · `handleColor` | sprite key / color | — | **滑块**。`handle=""` 去图 = 纯色方块 |
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
 
 ### `<Dropdown>`
@@ -255,6 +279,14 @@ TMP_Dropdown。R3 `OnSelected: int`。选项 C# 侧 `BindOptions(...)` 注入。
 | `popupSprite` | sprite key | — | Skins the popup list background (the closed button keeps using `sprite`/`color`). |
 | `popupColor` | hex / CSS / token | — | Tints the popup list background. |
 | `popupMask` | sprite key | follows `popupSprite` | Popup viewport clip shape; same semantics as `<ScrollList mask>`. Unset auto-tracks `popupSprite` (sprite → rounded stencil; `popupSprite=""` → square `RectMask2D`); explicit `popupMask=` (incl. `""`) opts out. |
+| `arrow` · `arrowColor` | sprite key / color | — | 收起状态右侧的下拉箭头。`arrow=""` **隐藏**箭头（无图的 Image 会画成实心方块，所以直接关组件），要自定义就给自己的 chevron |
+| `itemColor` | hex / CSS / token | `#F5F5F5` | 弹窗里**每一行的高亮底色**（hover / 选中时由 uGUI 乘上去）。默认是硬编码浅灰，**深色主题必须显式改** |
+| `itemTextColor` | hex / CSS / token | — | 弹窗**选项行**文字色（区别于 `textColor` —— 那是收起状态的 caption） |
+| `checkmark` · `checkmarkColor` | sprite key / color | — | 选中项左侧的对勾。`checkmark=""` 隐藏 |
+| `scrollbar` · `scrollbarColor` | sprite key / color | — | 弹窗滚动条**轨道** |
+| `scrollbarHandle` · `scrollbarHandleColor` | sprite key / color | — | 弹窗滚动条**滑块** |
+
+- 弹窗内那几层（`itemColor` / `itemTextColor` / `checkmark*`）改的是 `TMP_Dropdown` 的**模板**，之后每次展开克隆出来的选项行都继承；**已经展开着的那批实例不会跟着变**（ReSolve 通常发生在关闭态，实际不成问题）。
 
 ### `<ScrollList>`
 
@@ -271,6 +303,8 @@ ScrollRect + Mask。项 C# 侧 `BindItems(...)` 注入。`itemTemplate` 引用 `
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
 | `frame` | sprite key | — | Border layer drawn above content & scrollbar, outside the mask — scrolling content never overlaps it. Lazily created. Note: `tint=` affects only the background, not the frame. |
 | `frameColor` | hex / CSS / token | — | Tints the frame layer; setting it alone also activates the layer. |
+| `scrollbar` · `scrollbarColor` | sprite key / color | — | 滚动条**轨道**。两个方向共用一份皮肤；滚动条是懒建的，属性先写后建也生效 |
+| `scrollbarHandle` · `scrollbarHandleColor` | sprite key / color | — | 滚动条**滑块** |
 | `mask` | sprite key | follows `sprite` | Viewport clip shape. `mask="custom#slice"` = stencil mask with that sprite (auto-sliced); `mask=""` = square `RectMask2D` clip (cheaper). **Unset auto-tracks the bg `sprite`**: a sprite present (incl. the default) → rounded stencil; `sprite=""`/`sprite="none"` → square, so a transparent list's corners stay square without writing `mask=""`. Explicit `mask=` (any value, incl. `""`) opts out of auto-tracking. Unlike `<Image>`/`<Frame>`, `rect`/`self` are **not** keywords here — `mask` takes a sprite key. |
 
 ### `<InputField>`
@@ -471,7 +505,8 @@ Other notes:
 
 **不变量与易踩坑**
 
-- 纯容器（`<Frame>` / `<*Stack>` / `<Grid>` / `<SafeArea>`）根上**没有** `Image`，本身不可见。要底色有两种写法,**优先用前者**:(1) 背景区域跟内容同区 → 直接拿 `<Image>` 当容器: `<Image sprite="...">...content...</Image>`(`<Image>` 是普通 Control,允许子节点,少一层节点);(2) 背景比内容更大(整屏底图 + 居中面板这类) → `<Image anchor="stretch"/>` 当**兄弟**放在内容之前(`<SafeArea>` 是唯一不可见还必须用兄弟模式的特例,因为它的 RectTransform 已经被 safeArea 偏移占用)。
+- 容器根上**都没有** `Image`,所以 `sprite=` 在它们上面一律无效。要 **sprite 底图**有两种写法,**优先用前者**:(1) 背景区域跟内容同区 → 直接拿 `<Image>` 当容器: `<Image sprite="...">...content...</Image>`(`<Image>` 是普通 Control,允许子节点,少一层节点);(2) 背景比内容更大(整屏底图 + 居中面板这类) → `<Image anchor="stretch"/>` 当**兄弟**放在内容之前(`<SafeArea>` 是唯一不可见还必须用兄弟模式的特例,因为它的 RectTransform 已经被 safeArea 偏移占用)。
+- 要**纯色 / 圆角 / 描边 / 发光**这类无图素底,直接写在 `<Frame>` 上(`color` / `radius` / `borderWidth` / `glow`,见 `<Frame>` 小节)——`<Frame>` 自己会画。`<*Stack>` / `<Grid>` / `<SafeArea>` 仍然只管排版、画不出任何东西,要底就外面套一层 `<Frame>`。
 - `<Btn>` 的 Label 是 lazy：写 `<Btn/>`（无 `text=`、无子 `<Text>`、无内联文本）不会有 Label 子 GO；之后 C# 设 `BtnInstance.Text = "x"` 才会现场补一个。
 - `<Toggle>` 的 `targetGraphic` / `graphic` 在 `OnAttached` 内已绑死（Background / Checkmark），外部别再设；`group=` 不直接绑 Unity `ToggleGroup`，而是落到 `Screen.ToggleGroups.GetOrCreate(name)` 这个 Screen 范围的共享池里。
 - `<ScrollList>` 的 item 子节点在 `OnAttached` 阶段是空的，必须在 C# 端 `BindItems(observable, (slot, item) => ...)` 之后才出现；hot-reload 后也要重新 Bind。
@@ -488,6 +523,7 @@ Other notes:
 | `width="W"` / `height="H"` | float / `stretch[*N]` / `N%` | Numeric is base. `stretch` / `stretch*N` is LayoutGroup-only — see "Stretch keyword". `N%` is free-positioning-only — see "Fractional %". **Numeric forbidden on stretched anchor axes.** |
 | `margin="..."` | 1/2/4 floats | Distance from anchor inward, positive. `"_"` = 0 placeholder. **4-component order `top,right,bottom,left`** (1 = all sides, 2 = `vertical,horizontal`). A margin only offsets from a side the `anchor` **consumes** — see **margin & consumed sides** below. |
 | `pivot="x,y"` | `0..1, 0..1` | Defaults derive from `anchor`; rarely needed. |
+| `class="a b"` | style names, space-separated | Pulls in `<Style>` attribute packs. Inline attributes win; later classes beat earlier ones. See **Style & class**. |
 | `hidden="true"` | bool | Initial `SetActive(false)`. |
 | `interactable="false"` | bool | Initial `CanvasGroup.interactable=false`, leaving `blocksRaycasts=true` — a disabled subtree still **absorbs** clicks, never passing them through to a backdrop behind it (standard Unity disabled semantics; for click-through set `blocksRaycasts=false` on the CanvasGroup yourself, as the Toast overlay does). On `<Btn>` it **also** sets `Button.interactable=false` → the Btn enters its Disabled state (see `reference/states.md`). |
 | `stateReact="false"` | bool (default `true`) | Opts this node **and its whole subtree** out of an ancestor `<Btn>` / `<Tab>` / `<Toggle>`'s `*Modulate` fan-out. Has no effect on `*Color` (absolute — bg only, never fanned out). See `reference/states.md`. |
@@ -624,6 +660,43 @@ Aliases: `center` = `center-center`; `stretch` = `fill` = `stretch-stretch`.
 ```
 
 `margin` semantics: always **inward from the anchor**, regardless of which corner. `top-right margin="16"` = 16px down + 16px left. The implementation handles sign conversion internally.
+
+## Style & class
+
+`<Style>` names a bag of attributes; `class="..."` pulls it onto a node. That is the whole feature — **not** a style engine: no selectors, no cascade, no inheritance. Because it is just attribute merging, it works on **every tag and every attribute** (including `.variant` suffixes), and nothing about it survives into the runtime tree.
+
+```xml
+<Style name="card" color="surface/0.85" radius="16" borderWidth="1" borderColor="stroke/0.15"/>
+<Style name="card-tight" radius="8" radius.mobile="4" padding="8,8,8,8"/>
+
+<Screen name="Home">
+  <Frame class="card" anchor="top-stretch" height="220" margin="16,16,_,16">…</Frame>
+  <Frame class="card card-tight">…</Frame>          <!-- 多 class：右覆盖左 -->
+</Screen>
+```
+
+**Declaring**
+
+- Top level only, alongside `<Import>` / `<Theme>` / `<Screen>` / `<Template>`. No children.
+- `name` is kebab-case `[a-z0-9-]`, unique per document.
+- Any attribute name is legal, `attr.variant` included. Four are rejected — `id` / `if` / `class` / `bind`: they identify a node or decide whether it exists, and a style is shared by many nodes. A style cannot reference another style; compose with multiple classes instead.
+
+**Merging** — precedence, highest first:
+
+```
+inline 属性  >  右边的 class  >  左边的 class
+```
+
+- **Atomic per attribute name.** Writing `radius=` inline claims the whole `radius` slot, so a style's `radius.mobile` does not sneak in beside it. Same when one class redeclares a name another class set.
+- A style's `.variant` entries merge into the node verbatim and resolve through the normal Variant machinery (last-active-wins).
+- **不适用即忽略**, like CSS: a control without that attribute silently drops it. One `card` style can dress a `<Frame>`, a `<Btn>` and a `<Text>`, each taking what it has.
+- On a **Template invocation**, the pack is filtered to that template's `<Param>`s plus the common attributes (`anchor` / `size` / `width` / `height` / `margin` / `pivot` / `padding` / `spacing` / `hidden` / `interactable`); anything else is dropped silently rather than raising the "unknown attribute" error an inline attribute would. Variant suffixes only pass through for common attributes.
+- `class="{{param}}"` inside a `<Template>` body is fine — the class name is substituted first, so a template can take its skin as a parameter.
+- `<Screen>` takes no `class` (it is not a control). `class=""` (no names) and an unknown style name are both errors.
+
+**Sharing** works exactly like `<Template>`: styles travel through `<Import>`, land in the commons pool, hot-reload with their file, and a name colliding between commons and the entry document is a hard error. A namespaced commons library is referenced with a colon — `class="ui:card"` — mirroring the `Set:Name` form used for sprites and icons (tags use a dot, `ui.TitledPanel`; class references use a colon).
+
+Swapping which commons library is loaded therefore re-skins everything at once.
 
 ## Templates
 
@@ -774,8 +847,8 @@ The extractor pulls each CDATA block as a single complete msgid; runtime transla
 ## Import & namespaces
 
 ```xml
-<Import src="common/Buttons"/>          <!-- merge templates into local namespace -->
-<Import src="common/Panels" as="ui"/>   <!-- prefix-qualified -->
+<Import src="common/Buttons.ui"/>          <!-- merge templates into local namespace -->
+<Import src="common/Panels.ui" as="ui"/>   <!-- prefix-qualified -->
 
 <Screen name="X">
   <PrimaryButton/>          <!-- from Buttons (unqualified) -->
@@ -784,9 +857,10 @@ The extractor pulls each CDATA block as a single complete msgid; runtime transla
 ```
 
 - `src` is an opaque key passed to the user's `UI.SourceResolver` (`Func<string, Awaitable<string>>`) — could be a Resources path, an Addressables key, anything. The library never touches the filesystem itself.
+- **With the Resources resolver, `src` keeps the `.ui` and is relative to the resolver root.** Unity's Resources lookup name strips only the final extension, so `Resources/UI/Skin.ui.xml` is addressable as `UI/Skin.ui`; after `UseResourcesResolver("UI")` the root is prepended for you. So `src="Skin.ui"` ✓, while `src="Skin"` and `src="UI/Skin.ui"` both raise `IOException: Resources lookup failed: …`. `<Import>` uses the same key shape as `LoadDocumentAsync` — whatever your C# passes there, an Import next to it looks the same.
 - Imports merge **recursively**; cycles are detected.
-- Imported files cannot contain `<Screen>` — only `<Template>`.
-- Same-named templates from two imports without `as=` → conflict error. Resolve with `as="ns"` on one of them.
+- Imported files cannot contain `<Screen>` — only `<Template>` / `<Style>` / `<Theme>`.
+- Same-named templates from two imports without `as=` → conflict error. Resolve with `as="ns"` on one of them. Styles behave the same way (`class="ns:name"` to reference a namespaced one).
 
 There's also a **commons pool** populated C#-side that's merged into every Screen automatically — see scripting-promptugui-csharp.
 
@@ -813,7 +887,7 @@ Define named colors in `<Theme>` blocks; reference them by name in any color att
 
 - `<Theme>` MUST have `name`. Optional `base="other-theme"` makes missing tokens fall back along the chain.
 - `<Color>` MUST have `name` (kebab-case, `[a-z0-9-]`) and `value` (hex / CSS-named, anything Unity's `ColorUtility.TryParseHtmlString` accepts).
-- Theme XML loads via `UI.LoadCommonLibraryAsync(...)` at boot, or via `<Import src="themes/main"/>` from any screen's `.ui.xml` — both register the same `ThemeStore`.
+- Theme XML loads via `UI.LoadCommonLibraryAsync(...)` at boot, or via `<Import src="themes/main.ui"/>` from any screen's `.ui.xml` — both register the same `ThemeStore`.
 
 ### Reference
 
@@ -1100,7 +1174,16 @@ MCP FEEDBACK  every .ui.xml write  →  refresh_unity + read_console (error,warn
 .NET LINT     every .ui.xml write  →  dotnet run --project Library/PackageCache/com.promptugui.core@<hash>/.lint/UIXmlLint -- <path/to/your.ui.xml>
 
 ROOT          <PromptUGUI version="1"> ... </PromptUGUI>
-TOP LEVEL     <Import src="" [as=""]/>  <Screen name="" [canvas="overlay|camera|world"]>  <Template name="">
+TOP LEVEL     <Import src="" [as=""]/>  <Screen name="" [canvas="overlay|camera|world"]>  <Template name="">  <Style name="">
+
+STYLE/CLASS   <Style name="card" color="surface/0.85" radius="16" borderWidth="1"/>   named attribute pack, top level, no children
+              <Frame class="card" height="220"/>      inline > right class > left class, atomic per attribute name
+              works on any tag/attribute (.variant included); a control without that attribute ignores it
+              commons + Import + hot reload like <Template>; namespaced ref uses a colon: class="ui:card"
+
+FRAME VISUAL  <Frame color="surface/0.9" radius="16" borderWidth="1" borderColor="stroke/0.15" glow="0"/>
+              radius: R | TL,TR,BR,BL (CSS clockwise) | pill      border draws INWARD    glow inflates the quad
+              no visual attrs → bare RectTransform (zero cost)    sprite= still does nothing (use <Image>)
 
 BUILT-INS     <Frame> <Image> <Text> <VStack> <HStack> <Grid> <Btn> <Icon>
               <Toggle> <Slider> <Dropdown> <ScrollList> <InputField>
@@ -1120,7 +1203,7 @@ STATE         stateReact="false"  opt node+subtree out of *Modulate fan-out (no 
               state-selected is meaningful only on <Tab>/<Toggle> source; <Btn> never emits it
               详见 reference/states.md（状态化视觉）· reference/animations.md（Trigger/Animation）
 
-COMMON ATTRS  id  anchor  size|width|height  margin  pivot  hidden  interactable  stateReact
+COMMON ATTRS  id  anchor  size|width|height  margin  pivot  hidden  interactable  stateReact  class
 STACK-CHILD   flow="false"  → out of layout flow (ignoreLayout; anchor/margin legal again)
 STACK-ONLY    padding  spacing                                    (VStack/HStack/Grid)
 
@@ -1158,7 +1241,7 @@ VARIANT BLK   <Variant when="name">
               </Variant>
 NEVER VARY    id, tag name, <Param default>
 
-IMPORT        <Import src="..." [as="ns"]/>
+IMPORT        <Import src="path/File.ui" [as="ns"]/>   Resources: src keeps .ui, relative to resolver root
 USE           <ns.TagName/>             (when prefixed)
 
 SCREEN ATTRS  canvas="overlay|camera|world"    default overlay; renderMode only
@@ -1182,6 +1265,11 @@ GAMEPAD NAV   UI.UseGamepadNavigation()        enable once at startup (new Input
               PUI-NAV-ON-NON-SELECTABLE        nav*/focus on non-selectable tag (Frame/Image/Text/etc.)
               PUI-NAV-UNKNOWN-TARGET           navX="id" where id not in same Screen
               details: reference/navigation.md
+
+STYLE LINT    PUI-CLASS-EMPTY                  class="" / whitespace-only — names no style
+              PUI-PROCEDURAL-VALUE             bad radius / borderWidth / glow value (also checked inside <Style>)
+              PUI-CONTAINER-VISUAL-ATTR        sprite= on any container; color/radius/border/glow on *Stack/Grid/SafeArea
+              (unknown class name is a RUNTIME error — the CLI can't see the commons pool)
 ```
 
 ## Triggers and Animations
