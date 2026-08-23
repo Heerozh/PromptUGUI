@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Procedural Style Demo —— Common Controls Demo 的同内容改版，视觉全部由
+  <Style> + <Frame> 的程序化绘制（圆角 / 描边 / 渐变 / 辉光）提供，一张图素都没有。
+
+  本文件刻意不写任何颜色、圆角、描边数值：所有外观都来自 UI/Skin-Flat 里的 <Style>。
+  换皮肤 = 改下面那一行 Import。
+
+  界面文案用英文：本 demo 不带字体资源（零资源依赖是它的卖点之一），
+  而 Unity 内置 TMP 默认字体没有中日韩字形。
+-->
+<PromptUGUI version="1">
+
+  <Import src="UI/Skin-Flat"/>
+
+  <!-- ScrollList 行模板 -->
+  <Template name="OptionRow">
+    <HStack height="34" spacing="8">
+      <Frame class="card" anchor="stretch" flow="false"/>
+      <Frame width="10"/>
+      <Text id="label" fontSize="16" color="ink"/>
+      <Frame width="0"/>
+      <Frame class="chip" width="46" height="20">
+        <Text anchor="center" fontSize="12" color="accent" raycastTarget="false" tr="false">ON</Text>
+      </Frame>
+      <Frame width="10"/>
+    </HStack>
+  </Template>
+
+  <!-- Carousel 卡片模板：形由 class 给，底色由 C# BindItems 按条目改写 -->
+  <Template name="DemoCard">
+    <Frame>
+      <Frame id="bg" class="card" anchor="stretch"/>
+      <Text id="title" anchor="stretch" align="middle-center" fontSize="18" color="ink" raycastTarget="false"/>
+    </Frame>
+  </Template>
+
+  <!-- 样式画廊的一格：一块示范形体 + 标题。skin 是模板参数 → class="{{skin}}" -->
+  <Template name="SwatchCell">
+    <Param name="skin"/>
+    <Param name="caption"/>
+    <VStack spacing="6">
+      <Frame class="{{skin}}" height="stretch"/>
+      <Text height="16" fontSize="12" align="top-center" color="ink-dim" tr="false">{{caption}}</Text>
+    </VStack>
+  </Template>
+
+  <Screen name="ProceduralStyle" reference="960x540" reference.portrait="540x960">
+
+    <!-- 整屏渐变底：一个 Frame 就够，不需要图 -->
+    <Frame class="app-bg" anchor="stretch"/>
+
+    <SafeArea>
+
+      <!-- ───────── 顶栏 ───────── -->
+      <Frame class="app-bar" anchor="top-stretch" height="56">
+        <HStack anchor="stretch" padding="10,14,10,14" spacing="10">
+          <Frame class="chip" width="112" height="26">
+            <Text anchor="center" fontSize="13" color="accent" raycastTarget="false" tr="false">PromptUGUI</Text>
+          </Frame>
+          <Text width="220" fontSize="20" align="middle-left" color="ink" tr="false">Procedural Style</Text>
+          <Frame width="0"/>
+          <Btn id="tutorialBtn" width="104" height="32" sprite="none" color="#00000000"
+               hoverModulate="#c8c8c8" pressedModulate="#a0a0a0">
+            <Frame class="btn-ghost" anchor="stretch"/>
+            <Text anchor="center" fontSize="15" color="ink" raycastTarget="false">Tutorial</Text>
+          </Btn>
+          <Frame class="well" width="104" height="32">
+            <Dropdown id="theme" anchor="stretch" margin="1,1,1,1"
+                      sprite="none" color="#00000000" textColor="ink" fontSize="14"
+                      popupSprite="" popupColor="surface-2"/>
+          </Frame>
+        </HStack>
+      </Frame>
+
+      <!-- ───────── TabBar ─────────
+           轨道底是一个 class="tab-track" 的 Frame，TabBar 叠在它上面。
+           竖屏改左侧竖轨（direction / spacing 必须写基础值：控件私有 [UIAttr]
+           在变体未命中时不会回落重算）。 -->
+      <Frame class="tab-track" anchor="top-stretch" anchor.portrait="stretch-left"
+             height="40" height.portrait="" width.portrait="48"
+             margin="64,14,_,14" margin.portrait="64,_,14,14"/>
+      <TabBar id="tabs" anchor="top-stretch" anchor.portrait="stretch-left"
+              height="36" height.portrait="" width.portrait="44"
+              direction="horizontal" direction.portrait="vertical"
+              spacing="4" spacing.portrait="4"
+              margin="66,18,_,18" margin.portrait="66,_,18,18">
+        <Tab id="tabForm"    width="stretch" height="36" height.portrait="110" bind="pageForm" isOn="true"
+             text="Form" fontSize="15" fontSize.portrait="20"
+             sprite="none" color="#00000000" selectedColor="accent/0.3" textColor="ink"/>
+        <Tab id="tabDisplay" width="stretch" height="36" height.portrait="110" bind="pageDisplay"
+             text="Display" fontSize="15" fontSize.portrait="20"
+             sprite="none" color="#00000000" selectedColor="accent/0.3" textColor="ink"/>
+        <Tab id="tabList"    width="stretch" height="36" height.portrait="110" bind="pageList"
+             text="List" fontSize="15" fontSize.portrait="20"
+             sprite="none" color="#00000000" selectedColor="accent/0.3" textColor="ink"/>
+        <Tab id="tabStyle"   width="stretch" height="36" height.portrait="110" bind="pageStyle"
+             text="Styles" fontSize="15" fontSize.portrait="20"
+             sprite="none" color="#00000000" selectedColor="accent/0.3" textColor="ink"/>
+        <Tab id="tabModal"   width="stretch" height="36" height.portrait="110" bind="pageModal"
+             text="Modals" fontSize="15" fontSize.portrait="20"
+             sprite="none" color="#00000000" selectedColor="accent/0.3" textColor="ink"/>
+      </TabBar>
+
+      <!-- ───────── ① Form ───────── -->
+      <Frame id="pageForm" class="panel" anchor="stretch" margin="112,14,14,14" margin.portrait="116,14,14,76">
+        <VStack anchor="stretch" spacing="12" padding="16">
+          <Text height="20" fontSize="15" color="ink-dim" tr="false">Controls run sprite="none"; the rounded shell is a Frame with class="well"</Text>
+
+          <Frame class="well" height="40">
+            <InputField id="username" anchor="stretch" margin="1,10,1,10"
+                        sprite="none" color="#00000000" fontSize="16"
+                        textColor="ink" placeholderColor="ink-dim" caretColor="accent"
+                        placeholder="Username"/>
+          </Frame>
+
+          <Frame class="card" height="40">
+            <Toggle id="muteAudio" anchor="stretch" margin="_,12,_,12"
+                    sprite="none" color="#00000000" textColor="ink" fontSize="16">Mute audio</Toggle>
+          </Frame>
+
+          <Frame class="well" height="40">
+            <Slider id="masterVol" anchor="stretch" margin="_,14,_,14"
+                    sprite="" min="0" max="1" value="0.8"/>
+          </Frame>
+
+          <Frame class="well" height="40">
+            <Dropdown id="quality" anchor="stretch" margin="1,1,1,1"
+                      sprite="none" color="#00000000" textColor="ink" fontSize="16"
+                      popupSprite="" popupColor="surface-2"/>
+          </Frame>
+
+          <Frame class="divider" height="1"/>
+
+          <HStack height="40" spacing="10">
+            <Btn id="saveBtn" width="120" height="40" sprite="none" color="#00000000"
+                 hoverModulate="#d2d2d2" pressedModulate="#a8a8a8">
+              <Frame class="btn-primary" anchor="stretch"/>
+              <Text anchor="center" fontSize="16" color="on-accent" raycastTarget="false">Save</Text>
+            </Btn>
+            <Btn id="resetBtn" width="120" height="40" sprite="none" color="#00000000"
+                 hoverModulate="#d2d2d2" pressedModulate="#a8a8a8">
+              <Frame class="btn-ghost" anchor="stretch"/>
+              <Text anchor="center" fontSize="16" color="ink" raycastTarget="false">Reset</Text>
+            </Btn>
+            <Frame width="0"/>
+          </HStack>
+        </VStack>
+      </Frame>
+
+      <!-- ───────── ② Display ───────── -->
+      <Frame id="pageDisplay" class="panel" anchor="stretch" margin="112,14,14,14" margin.portrait="116,14,14,76">
+        <VStack anchor="stretch" spacing="12" padding="16">
+          <!-- 轨道由外层 well 的 Frame 提供，所以 Progress 只保留 fill 一层（fill="" = 无图，纯色） -->
+          <Frame class="well" height="20">
+            <Progress id="progress" anchor="stretch" margin="2,2,2,2"
+                      value="0.3" fill="" fillColor="accent,accent-2"/>
+          </Frame>
+
+          <HStack height="34" spacing="10">
+            <Btn id="progMinus" width="86" height="34" sprite="none" color="#00000000"
+                 hoverModulate="#d2d2d2" pressedModulate="#a8a8a8">
+              <Frame class="btn-ghost" anchor="stretch"/>
+              <Text anchor="center" fontSize="15" color="ink" raycastTarget="false" tr="false">-10%</Text>
+            </Btn>
+            <Btn id="progPlus" width="86" height="34" sprite="none" color="#00000000"
+                 hoverModulate="#d2d2d2" pressedModulate="#a8a8a8">
+              <Frame class="btn-ghost" anchor="stretch"/>
+              <Text anchor="center" fontSize="15" color="ink" raycastTarget="false" tr="false">+10%</Text>
+            </Btn>
+            <Frame width="0"/>
+          </HStack>
+
+          <!-- RawImage：纹理由 C# 生成；外面套 well 拿圆角描边 -->
+          <Frame class="well" height="52">
+            <RawImage id="gradient" anchor="stretch" margin="2,2,2,2"/>
+          </Frame>
+
+          <!-- hero 样式自带 glow；<Show on="state-hover"> 挂一个胶囊角标 -->
+          <Animation type="pulse" on="click" duration="0.3s">
+            <Btn id="pulseBtn" width="170" height="42" sprite="none" color="#00000000"
+                 hoverModulate="#dcdcdc" pressedModulate="#b0b0b0">
+              <Frame class="hero" anchor="stretch"/>
+              <Text anchor="center" fontSize="16" color="on-accent" raycastTarget="false">Bounce me</Text>
+              <Show on="state-hover">
+                <Frame class="chip" anchor="top-right" size="18x18"/>
+              </Show>
+            </Btn>
+          </Animation>
+
+          <!-- Markdown 套在 card 里：宿主没装 Markdig（或没配字体）时它会退化甚至不出字，
+               有个卡片壳兜底，版面不会塌成一片空白。 -->
+          <Frame class="card" height="stretch">
+            <Markdown id="md" anchor="stretch" margin="10,12,10,12" tr="false"
+                      bodyColor="ink" linkColor="accent" fontSize="16">**Markdown** control: *italic* / `code` / [links](https://example.com)</Markdown>
+          </Frame>
+        </VStack>
+      </Frame>
+
+      <!-- ───────── ③ List ───────── -->
+      <Frame id="pageList" class="panel" anchor="stretch" margin="112,14,14,14" margin.portrait="116,14,14,76">
+        <VStack anchor="stretch" spacing="12" padding="16">
+          <!-- 纯程序化色板：同一个 class，只改 inline radius -->
+          <Grid columns="6" cellSize="52x52" spacing="8" height="52">
+            <Frame class="card"/>
+            <Frame class="card" radius="pill"/>
+            <Frame class="card" radius="0"/>
+            <Frame class="card" radius="20,0,20,0"/>
+            <Frame class="btn-ghost"/>
+            <Frame class="hero"/>
+          </Grid>
+
+          <Carousel id="banner" height="110" itemTemplate="DemoCard"
+                    interval="3" loop="true" transition="0.3"
+                    dots="bottom-center" dotColor="stroke/0.4" dotSelectedColor="accent"/>
+
+          <ScrollList id="list" width="stretch" height="stretch" itemTemplate="OptionRow"
+                      sprite="none" color="#00000000" spacing="6" padding="4"/>
+        </VStack>
+      </Frame>
+
+      <!-- ───────── ④ Styles ─────────
+           这一页是新系统本身的说明书：同一个 <Frame>，只换 class / radius，形体全变。 -->
+      <Frame id="pageStyle" class="panel" anchor="stretch" margin="112,14,14,14" margin.portrait="116,14,14,76">
+        <VStack anchor="stretch" spacing="10" padding="16">
+          <Text height="20" fontSize="15" color="ink-dim" tr="false">One &lt;Frame&gt; per cell — only the class differs. Each cell's style name is a Template param.</Text>
+
+          <Grid columns="5" cellSize="164x84" spacing="10" height="84">
+            <SwatchCell skin="panel"       caption="panel"/>
+            <SwatchCell skin="card"        caption="card"/>
+            <SwatchCell skin="well"        caption="well"/>
+            <SwatchCell skin="btn-primary" caption="btn-primary"/>
+            <SwatchCell skin="btn-ghost"   caption="btn-ghost"/>
+          </Grid>
+
+          <Grid columns="5" cellSize="164x84" spacing="10" height="84">
+            <SwatchCell skin="chip"        caption="chip — radius=pill"/>
+            <SwatchCell skin="hero"        caption="hero — glow"/>
+            <SwatchCell skin="app-bg"      caption="app-bg — gradient"/>
+            <SwatchCell skin="app-bar"     caption="app-bar — 0,0,20,20"/>
+            <SwatchCell skin="tab-track"   caption="tab-track"/>
+          </Grid>
+
+          <Frame class="divider" height="1"/>
+
+          <!-- 合并优先级：右边的 class 压过左边，inline 压过全部 -->
+          <HStack height="stretch" spacing="10">
+            <Frame class="card btn-primary" width="stretch">
+              <Text anchor="center" fontSize="13" color="on-accent" align="center" wrap="true"
+                    raycastTarget="false" tr="false">class="card btn-primary"&#10;right class wins</Text>
+            </Frame>
+            <Frame class="card btn-primary" radius="pill" width="stretch">
+              <Text anchor="center" fontSize="13" color="on-accent" align="center" wrap="true"
+                    raycastTarget="false" tr="false">+ inline radius="pill"&#10;inline beats both</Text>
+            </Frame>
+            <Frame class="card" borderWidth="3" borderColor="accent-2" width="stretch">
+              <Text anchor="center" fontSize="13" color="ink" align="center" wrap="true"
+                    raycastTarget="false" tr="false">class="card"&#10;+ inline thick border</Text>
+            </Frame>
+          </HStack>
+        </VStack>
+      </Frame>
+
+      <!-- ───────── ⑤ Modals ───────── -->
+      <Frame id="pageModal" class="panel" anchor="stretch" margin="112,14,14,14" margin.portrait="116,14,14,76">
+        <VStack anchor="stretch" spacing="10" padding="16">
+          <Btn id="msgBoxBtn" width="stretch" height="40" sprite="none" color="#00000000"
+               hoverModulate="#d2d2d2" pressedModulate="#a8a8a8">
+            <Frame class="btn-ghost" anchor="stretch"/>
+            <Text anchor="center" fontSize="16" color="ink" raycastTarget="false" tr="false">MessageBox</Text>
+          </Btn>
+          <Btn id="inputBoxBtn" width="stretch" height="40" sprite="none" color="#00000000"
+               hoverModulate="#d2d2d2" pressedModulate="#a8a8a8">
+            <Frame class="btn-ghost" anchor="stretch"/>
+            <Text anchor="center" fontSize="16" color="ink" raycastTarget="false" tr="false">InputBox</Text>
+          </Btn>
+          <Btn id="mdBoxBtn" width="stretch" height="40" sprite="none" color="#00000000"
+               hoverModulate="#d2d2d2" pressedModulate="#a8a8a8">
+            <Frame class="btn-ghost" anchor="stretch"/>
+            <Text anchor="center" fontSize="16" color="ink" raycastTarget="false" tr="false">MarkdownBox</Text>
+          </Btn>
+          <Btn id="loadingBtn" width="stretch" height="40" sprite="none" color="#00000000"
+               hoverModulate="#d2d2d2" pressedModulate="#a8a8a8">
+            <Frame class="btn-ghost" anchor="stretch"/>
+            <Text anchor="center" fontSize="16" color="ink" raycastTarget="false" tr="false">Loading (2s)</Text>
+          </Btn>
+          <Btn id="toastBtn" width="stretch" height="40" sprite="none" color="#00000000"
+               hoverModulate="#d2d2d2" pressedModulate="#a8a8a8">
+            <Frame class="btn-primary" anchor="stretch"/>
+            <Text anchor="center" fontSize="16" color="on-accent" raycastTarget="false" tr="false">Toast</Text>
+          </Btn>
+          <Frame height="0"/>
+        </VStack>
+      </Frame>
+
+    </SafeArea>
+  </Screen>
+</PromptUGUI>

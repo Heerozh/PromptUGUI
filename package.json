@@ -25,6 +25,11 @@
             "displayName": "Common Controls Demo",
             "description": "Four-Page TabBar Showcase: Forms / Display & Feedback / List & Carousel / Modal Alerts + UI Tutorial (Onboarding)",
             "path": "Samples~/CommonControls"
+        },
+        {
+            "displayName": "Procedural Style Demo",
+            "description": "The same control showcase skinned entirely with <Style> + procedural Frame visuals (rounded corners, borders, gradients, glow) — zero sprites. The whole look lives in one importable skin file.",
+            "path": "Samples~/ProceduralStyle"
         }
     ]
 }

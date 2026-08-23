@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  皮肤层：这个文件是整套 demo 唯一决定「长什么样」的地方。
+  ProceduralStyle.ui.xml 里一个颜色、一个圆角都不写，只写 class="…"。
+
+  想换风格（例如后续的玻璃拟态）：照抄本文件的 <Style> 名字清单、换掉里面的属性，
+  然后改主文档那一行 <Import src="UI/Skin-Flat"/> 指向新文件即可 —— 版面、控件、
+  C# 绑定全都不用动。<Theme> 也一并放这儿，于是「配色」和「材质」一起换。
+
+  <Style> 名字就是皮肤的契约。新皮肤必须实现下面这 12 个名字。
+-->
+<PromptUGUI version="1">
+
+  <!-- ───────── 配色 token ─────────
+       两套主题共用同一组 token 名，C# 调 UI.Theme.Set("night"/"day") 切换，
+       已打开的 Screen 自动 ReSolve 重新着色（不重建 GameObject）。 -->
+  <Theme name="night">
+    <Color name="bg-top"        value="#1B2030"/>
+    <Color name="bg-bottom"     value="#0E1119"/>
+    <Color name="surface"       value="#28304A"/>
+    <Color name="surface-2"     value="#323C5C"/>
+    <Color name="stroke"        value="#8FA0D0"/>
+    <Color name="ink"           value="#EEF1FA"/>
+    <Color name="ink-dim"       value="#9AA6C4"/>
+    <Color name="accent"        value="#5B8CFF"/>
+    <Color name="accent-2"      value="#43D9AD"/>
+    <Color name="danger"        value="#FF6B81"/>
+    <Color name="on-accent"     value="#0B1020"/>
+  </Theme>
+
+  <Theme name="day">
+    <Color name="bg-top"        value="#EEF2FB"/>
+    <Color name="bg-bottom"     value="#D8E0F0"/>
+    <Color name="surface"       value="#FFFFFF"/>
+    <Color name="surface-2"     value="#F2F5FC"/>
+    <Color name="stroke"        value="#4A5878"/>
+    <Color name="ink"           value="#1A2138"/>
+    <Color name="ink-dim"       value="#5C6785"/>
+    <Color name="accent"        value="#2F6BFF"/>
+    <Color name="accent-2"      value="#12A87E"/>
+    <Color name="danger"        value="#E23D57"/>
+    <Color name="on-accent"     value="#FFFFFF"/>
+  </Theme>
+
+  <!-- ───────── 形体 ─────────
+       全部由 <Frame> 自己用 SDF 画：无 sprite、无 9-slice、任意尺寸不失真。 -->
+
+  <!-- 整屏底：纵向双色渐变（逗号色值 = 上→下） -->
+  <Style name="app-bg"     color="bg-top,bg-bottom"/>
+
+  <!-- 顶栏：只圆下面两角，贴着屏幕上沿 -->
+  <Style name="app-bar"    color="surface/0.96" radius="0,0,20,20"
+                           borderWidth="1" borderColor="stroke/0.18"/>
+
+  <!-- 主面板 / 页面容器 -->
+  <Style name="panel"      color="surface/0.9" radius="18"
+                           borderWidth="1" borderColor="stroke/0.16"/>
+
+  <!-- 面板里的次级卡片 -->
+  <Style name="card"       color="surface-2/0.9" radius="12"
+                           borderWidth="1" borderColor="stroke/0.14"/>
+
+  <!-- 输入控件的外壳：控件本身 sprite="none" 透明，圆角描边由这层给 -->
+  <Style name="well"       color="bg-bottom/0.55" radius="10"
+                           borderWidth="1" borderColor="stroke/0.22"/>
+
+  <!-- 标签 / 徽章：胶囊 -->
+  <Style name="chip"       color="accent/0.18" radius="pill"
+                           borderWidth="1" borderColor="accent/0.5"/>
+
+  <!-- 按钮三型 -->
+  <Style name="btn-primary" color="accent"       radius="10"/>
+  <Style name="btn-ghost"   color="#00000000"    radius="10"
+                            borderWidth="1" borderColor="stroke/0.35"/>
+  <Style name="btn-danger"  color="danger"       radius="10"/>
+
+  <!-- 1px 分隔线（高度由用处给） -->
+  <Style name="divider"    color="stroke/0.18"/>
+
+  <!-- TabBar 轨道底。radius 用 14 而不是 pill：Tab 自己画不出圆角（它是 Image 不是
+       Frame），pill 的大端头会让两端那两个方角 Tab 露在轨道外面。 -->
+  <Style name="tab-track"  color="bg-bottom/0.45" radius="14"
+                           borderWidth="1" borderColor="stroke/0.12"/>
+
+  <!-- 重点物件：自带辉光。glow 只在形状外侧衰减，会被祖先 RectMask2D 裁掉 -->
+  <Style name="hero"       color="accent-2" radius="14"
+                           glow="18" glowColor="accent-2"/>
+
+</PromptUGUI>
