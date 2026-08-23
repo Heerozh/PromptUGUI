@@ -83,12 +83,16 @@ namespace PromptUGUI.Controls.Internal
             base.OnEnable();
             EnsureCanvasChannels();
             SyncGlassCount();
+            // A block hidden by a Variant drops out of its weld group's fused shape and back in
+            // again — the group has to re-pack either way.
+            if (Group != null) Group.MarkMembersDirty();
             FlushParams();
         }
 
         protected override void OnDisable()
         {
             SyncGlassCount();
+            if (Group != null) Group.MarkMembersDirty();
             base.OnDisable();
         }
 

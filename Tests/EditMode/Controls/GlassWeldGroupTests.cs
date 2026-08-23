@@ -245,6 +245,29 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void HiddenBlock_DropsOutOfTheFusedShape()
+        {
+            // A Variant that hides one block must not leave the group drawing glass where there is
+            // no longer a block — the fused outline has to shrink with it.
+            var s = Open(TwoBlocks);
+            var group = GroupOf(s, "g");
+            Assert.AreEqual(2, group.MaterialForTests.GetInt("_WeldCount"));
+
+            s.Get<Frame>("b").GameObject.SetActive(false);
+            group.FlushGroup();
+
+            Assert.AreEqual(1, group.MaterialForTests.GetInt("_WeldCount"));
+
+            var vh = new VertexHelper();
+            group.BuildMeshForTests(vh);
+            var v = default(UIVertex);
+            vh.PopulateUIVertex(ref v, 2);
+            var rects = group.MaterialForTests.GetVectorArray("_WeldRects");
+            Assert.AreEqual(rects[0].y + rects[0].w, v.position.y, 0.01f,
+                "the mesh must now cover only the block that is still visible");
+        }
+
+        [Test]
         public void NotWelding_EmitsNoGeometry()
         {
             var s = Open(@"<?xml version='1.0' encoding='utf-8'?>

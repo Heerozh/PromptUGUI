@@ -61,6 +61,7 @@ namespace PromptUGUI.Controls.Internal
         private float _weld;
         private bool _membersDirty = true;
         private Rect _lastBounds;
+        private int _activeCount;
 
         private static bool _warnedTooManyMembers;
 
@@ -130,9 +131,16 @@ namespace PromptUGUI.Controls.Internal
             SetMaterialDirty();
         }
 
+        /// <summary>
+        /// Something about the membership, a member's rect or a member's parameters changed. Both
+        /// dirty flags are raised here rather than inside <see cref="FlushGroup"/>: the flush runs
+        /// from <see cref="UpdateMaterial"/>, i.e. from inside uGUI's rebuild loop, and registering
+        /// for a rebuild from in there makes uGUI complain.
+        /// </summary>
         internal void MarkMembersDirty()
         {
             _membersDirty = true;
+            SetVerticesDirty();
             SetMaterialDirty();
         }
 
@@ -217,32 +225,33 @@ namespace PromptUGUI.Controls.Internal
 
             if (!IsWelding)
             {
-                if (_lastBounds != default)
-                {
-                    _lastBounds = default;
-                    SetVerticesDirty();
-                }
+                _activeCount = 0;
+                _lastBounds = default;
                 return;
             }
 
             EnsureMaterial();
 
-            var count = _members.Count;
+            var count = 0;
             var bounds = default(Rect);
-            for (var i = 0; i < count; i++)
+            foreach (var member in _members)
             {
-                var member = _members[i];
+                // A block hidden by a Variant (or destroyed out from under us) must drop out of the
+                // fused shape — otherwise the group keeps drawing glass where nothing is left.
+                if (member == null || !member.isActiveAndEnabled) continue;
+
                 var p = member.CurrentParams;
                 GetLocalRect(member.rectTransform, rectTransform, out var center, out var half);
 
-                _rects[i] = new Vector4(center.x, center.y, half.x, half.y);
-                _radii[i] = ResolveRadius(p, half);
-                _tintTop[i] = p.FillTop;
-                _tintBottom[i] = p.FillBottom;
-                _depths[i] = new Vector4(p.GlassParams.Depth, 0f, 0f, 0f);
+                _rects[count] = new Vector4(center.x, center.y, half.x, half.y);
+                _radii[count] = ResolveRadius(p, half);
+                _tintTop[count] = p.FillTop;
+                _tintBottom[count] = p.FillBottom;
+                _depths[count] = new Vector4(p.GlassParams.Depth, 0f, 0f, 0f);
 
                 var r = new Rect(center.x - half.x, center.y - half.y, half.x * 2f, half.y * 2f);
-                bounds = i == 0 ? r : Union(bounds, r);
+                bounds = count == 0 ? r : Union(bounds, r);
+                count++;
             }
             // Unused slots must still hold something the shader will never select; an empty rect at
             // the origin is harmless because the loop stops at _WeldCount.
@@ -265,18 +274,13 @@ namespace PromptUGUI.Controls.Internal
 
             ApplyGroupParams();
 
-            // Geometry only changes when the union bounds do — a recoloured or re-frosted group
-            // keeps its mesh.
-            if (bounds != _lastBounds)
-            {
-                _lastBounds = bounds;
-                SetVerticesDirty();
-            }
-            if (m_Material != _material)
-            {
-                m_Material = _material;
-                SetMaterialDirty();
-            }
+            _activeCount = count;
+            _lastBounds = bounds;
+
+            // Assign the backing field, not the `material` property: the property setter calls
+            // SetMaterialDirty, which would re-enter this during a canvas rebuild. The dirty flags
+            // were already raised by MarkMembersDirty.
+            m_Material = _material;
         }
 
         /// <summary>
@@ -371,6 +375,7 @@ namespace PromptUGUI.Controls.Internal
             if (!IsWelding) return;
 
             FlushGroup();
+            if (_activeCount == 0) return;
             var bounds = _lastBounds;
             if (bounds.width <= 0f || bounds.height <= 0f) return;
 
