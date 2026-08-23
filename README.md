@@ -20,6 +20,7 @@ This demo interface was created entirely by Code Agent, including the border ima
   - Hot reload — edit, save, see the result instantly
   - Fully reactive UI support — automatically switches layout to match the screen and device
   - Pixel-art-style UI support
+  - Liquid-glass-style UI support
   - Automatic XSD schema validation + built-in syntax-check CLI
 - **Sprite image description language in the X PixMap / GIMP style**
   - Another text format LLMs are already familiar with
@@ -320,6 +321,7 @@ C# Code:
   - 支持热重载，改完立刻反馈
   - 全响应式UI支持，自动根据屏幕和设备切换布局
   - 像素艺术风格UI支持
+  - 液态玻璃风格UI支持
   - 自动XSD Schema语法检查 + 内置语法检查 CLI
 - **提供X PixMap/GIMP 风格的Sprite图像描述语言**
   - 同样是大模型熟悉的文本格式
