@@ -36,6 +36,8 @@ namespace PromptUGUI.Lint
         private static readonly string[] ProceduralAttrs =
         {
             "color", "radius", "borderWidth", "borderColor", "glow", "glowColor",
+            "glass", "frost", "depth", "dispersion", "lightAngle", "lightIntensity",
+            "saturation", "noise", "weld",
         };
 
         public static bool AppliesTo(string tag) => tag == "Frame" || LayoutOnlyTags.Contains(tag);

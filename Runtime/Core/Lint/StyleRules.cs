@@ -103,6 +103,20 @@ namespace PromptUGUI.Lint
                         $"{context}: {attrName}=\"{value}\" must not be negative");
                 yield break;
             }
+
+            // Glass values share the runtime parser, so the CLI rejects exactly what the setter
+            // would have thrown on — including each attribute's own range.
+            if (GlassAttrParser.IsNumericAttr(baseName))
+            {
+                if (!GlassAttrParser.TryParseValue(baseName, value, out _, out var glassError))
+                    yield return new LintIssue(ProceduralValueCode, tag, id,
+                        $"{context}: {glassError}");
+                yield break;
+            }
+
+            if (baseName == GlassAttrParser.Glass
+                && !GlassAttrParser.TryParseFlag(baseName, value, out _, out var flagError))
+                yield return new LintIssue(ProceduralValueCode, tag, id, $"{context}: {flagError}");
         }
 
         private static IEnumerable<(string Name, string Value)> AllValues(ElementNode n)

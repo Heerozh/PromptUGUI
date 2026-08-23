@@ -1,0 +1,118 @@
+# Glass fill (`<Frame glass="true">`)
+
+A glass Frame shows a blurred copy of the camera image inside its shape, with light catching its
+edges. It is the same rounded-rect SDF as a normal procedural Frame — `radius`, `borderWidth`,
+`glow` all behave identically — only the *fill* changes.
+
+The look it aims at is a thin, flat frosted sheet (Figma-style glass), not a thick liquid lens. The
+interior is deliberately flat: refraction and lighting happen only within `depth` pixels of the edge.
+That is the whole difference between "thin pane" and "jelly".
+
+```xml
+<Style name="glass-card" glass="true" radius="16" frost="0.6"
+       color="white/0.06" borderWidth="1" borderColor="white/0.25"/>
+
+<Frame class="glass-card" anchor="top-stretch" height="220" margin="16,16,_,16">
+  <Text anchor="center">Inventory</Text>
+</Frame>
+```
+
+## Attributes
+
+All live on `<Frame>`, all work through `<Style>` / `class=`, Variant suffixes and ReSolve like any
+other attribute. Writing any of them without `glass="true"` is a lint error
+(`PUI-GLASS-PARAM-NO-GLASS`) — they never reach the shader in that state.
+
+| 属性 | 取值 | 默认 | 说明 |
+|---|---|---|---|
+| `glass` | `true` / `false` | `false` | Turns the fill into glass. Anything other than `true`/`false` is a parse error |
+| `frost` | `0`–`1` | `0.5` | Blur amount. `0` is the lightest frost available, not "clear" |
+| `depth` | px | `4` | Thickness: the width of the refracting bevel at the edge. `0` = perfectly flat, no edge refraction and no edge lighting |
+| `dispersion` | `0`–`1` | `0` | Chromatic fringing in the bevel. Costs three backdrop samples instead of one — leave at `0` unless you want it |
+| `lightAngle` | 度 | `0` | Light direction. `0` = straight up, growing clockwise. Any value, including negatives and >360 |
+| `lightIntensity` | `0`–`1` | `0.6` | Edge highlight strength. `0` turns the lighting layer off |
+| `saturation` | `≥0` | `1.15` | Backdrop vibrancy. `1` = untouched, `0` = greyscale. This is what makes glass look lit rather than washed out — reach for it before reaching for `dispersion` |
+| `noise` | `0`–`1` | `0.02` | Frosted grain. Doubles as dithering against banding on large blurred areas |
+
+Reused unchanged: `color` (tint painted over the glass — comma gradients and `/alpha` work exactly as
+elsewhere), `radius`, `borderWidth` / `borderColor`, `glow` / `glowColor`.
+
+Keep the tint alpha low (`white/0.06`, `#39f/0.15`). A tint at high alpha stops reading as glass and
+starts reading as a coloured panel with a blur behind it.
+
+## What the glass can see — read this before debugging a "broken" panel
+
+The backdrop is **the capture camera's finished image**: the game world plus every Screen
+Space-Camera canvas on that camera. It is captured after post-processing, so glass shows the graded
+picture the player sees.
+
+**Overlay canvases are not in it.** uGUI has no grab pass, so a glass panel can never see its own
+siblings on the same Overlay canvas.
+
+That gives one rule and one trap:
+
+- **Rule.** Leave the glass Screen on the default Overlay canvas. Put UI that should appear blurred
+  *behind* the glass on a `CanvasMode.Camera` Screen. For the common case — a glass resource bar over
+  the game world — the defaults are already correct and there is nothing to configure.
+- **Trap.** A glass panel on a Camera-mode canvas rendered by the *capture* camera samples a picture
+  that already contains itself, and smears over a few frames. The runtime warns once when it sees
+  this.
+
+Two glass panels also cannot see each other: both sample the same capture, taken before either drew.
+Overlap them and the upper one shows the world, not the panel beneath. Fuse them with `weld` instead.
+
+## Fusing panels: `weld`
+
+A main bar with a smaller secondary block hanging off it looks wrong when a border or a gap divides
+them. `weld` merges the shapes with an SDF smooth-min so they read as one continuous pane, and lets
+their **thickness** — not a line — say which is primary.
+
+```xml
+<Frame weld="10" frost="0.5" lightAngle="-30" anchor="top-stretch" height="104">
+  <Frame glass="true" anchor="top-stretch" height="64" radius="0,0,16,16" depth="6"
+         color="white/0.06"/>
+  <Frame glass="true" anchor="top-right" size="180,40" radius="12" depth="3"
+         color="#39f/0.15"/>
+</Frame>
+```
+
+- `weld` is the fusing radius in px: how far from the junction the two shapes blend together.
+- Members are the **direct children** with `glass="true"`, at most 8. Fewer than two and nothing
+  fuses (the child just draws itself).
+- The welded Frame is a **carrier, not a shape**: `weld` plus `glass="true"` on one node is an error,
+  and the carrier's own `color` / `radius` are ignored — the fused outline comes from the children.
+- Members stay ordinary nodes throughout: they lay out normally, hold children, and answer
+  `Get<T>` as usual. Only their drawing moves to the group.
+
+Where each parameter goes:
+
+| 写在 | 参数 |
+|---|---|
+| 容器（带 `weld` 的 Frame） | `frost` `dispersion` `lightAngle` `lightIntensity` `saturation` `noise`, and `borderWidth` / `borderColor` / `glow` / `glowColor` for the fused outline |
+| 每个玻璃子级 | `radius` `depth` `color` |
+
+The split is physical, not arbitrary: two halves of one continuous pane cannot be frosted differently
+or lit from different angles, while the thickness step between them is the entire point. Putting one
+on the wrong node is a lint error (`PUI-GLASS-WELD-PARAM-PLACEMENT`).
+
+## When there is no backdrop
+
+Glass degrades to a plain translucent panel — the shape, tint, border and glow still draw, the blur
+does not — whenever:
+
+- the project has no URP ≥ 17 (the capture pass does not even compile in);
+- URP is installed but is not the active render pipeline;
+- there is no capture camera (no `MainCamera` tag and no `UI.Glass.Camera`);
+- `UI.Glass.Enabled` is off — the intended way to wire glass to a quality setting;
+- you are in the Editor and not in Play mode. Glass does not preview outside play.
+
+Nothing throws and nothing needs a fallback authored by hand. Design so the panel still reads at a
+low tint alpha and the layout survives without the blur.
+
+## Cost
+
+The capture is one fixed cost per frame — three blits at a quarter resolution on each axis — shared
+by every glass panel on screen, and it does not exist at all when no glass panel is visible. Glass
+panels of identical style share one material and batch, same as ordinary procedural Frames. Per
+panel, `dispersion > 0` is the only setting that meaningfully raises the fragment cost (three
+backdrop samples instead of one).

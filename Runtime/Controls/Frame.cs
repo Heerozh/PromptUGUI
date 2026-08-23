@@ -17,6 +17,7 @@ namespace PromptUGUI.Controls
         private RectMask2D _rectMask;
         private string _pendingMaskPadding;
         private ProceduralPanel _panel;
+        private GlassGroupPanel _group;
 
         private ProceduralPanel Panel => _panel ??= GameObject.AddComponent<ProceduralPanel>();
 
@@ -100,6 +101,101 @@ namespace PromptUGUI.Controls
         public string GlowColor
         {
             set => Panel.SetGlowColor(UI.Theme.Resolve(value));
+        }
+
+        /// <summary>
+        /// 玻璃模式：填充改为采样模糊后的 backdrop + 边缘折射 / 打光，形状仍是同一套 SDF。
+        /// 见 <c>UI.Glass</c>：没有可用 backdrop（无 URP / 关闭画质选项 / 无相机）时自动退化成
+        /// 半透明面板。
+        /// </summary>
+        [UIAttr, Preserve]
+        public string Glass
+        {
+            set => Panel.SetGlass(GlassAttrParser.ParseFlag(GlassAttrParser.Glass, value));
+        }
+
+        /// <summary>磨砂强度 0–1。</summary>
+        [UIAttr, Preserve]
+        public string Frost
+        {
+            set => Panel.SetFrost(GlassAttrParser.ParseValue(GlassAttrParser.Frost, value));
+        }
+
+        /// <summary>玻璃厚度（px）：边缘折射带的宽度。0 = 完全平板，无折射也无边缘打光。</summary>
+        [UIAttr, Preserve]
+        public string Depth
+        {
+            set => Panel.SetDepth(GlassAttrParser.ParseValue(GlassAttrParser.Depth, value));
+        }
+
+        /// <summary>色散强度 0–1：折射带内 RGB 分量的偏移差。</summary>
+        [UIAttr, Preserve]
+        public string Dispersion
+        {
+            set => Panel.SetDispersion(GlassAttrParser.ParseValue(GlassAttrParser.Dispersion, value));
+        }
+
+        /// <summary>光源方向（度）：0 = 正上方，顺时针增。</summary>
+        [UIAttr, Preserve]
+        public string LightAngle
+        {
+            set => Panel.SetLightAngle(GlassAttrParser.ParseValue(GlassAttrParser.LightAngle, value));
+        }
+
+        /// <summary>边缘高光强度 0–1。0 = 关闭打光层。</summary>
+        [UIAttr, Preserve]
+        public string LightIntensity
+        {
+            set => Panel.SetLightIntensity(
+                GlassAttrParser.ParseValue(GlassAttrParser.LightIntensity, value));
+        }
+
+        /// <summary>backdrop 饱和度乘子（vibrancy）。1 = 原样，0 = 灰度。</summary>
+        [UIAttr, Preserve]
+        public string Saturation
+        {
+            set => Panel.SetSaturation(GlassAttrParser.ParseValue(GlassAttrParser.Saturation, value));
+        }
+
+        /// <summary>磨砂颗粒强度 0–1：兼作去 banding。</summary>
+        [UIAttr, Preserve]
+        public string Noise
+        {
+            set => Panel.SetNoise(GlassAttrParser.ParseValue(GlassAttrParser.Noise, value));
+        }
+
+        /// <summary>
+        /// 融合半径（px）：把本 Frame 的**直接玻璃子级**焊成一整片连续玻璃，交界处用厚度台阶而不是
+        /// 分割线区分。写了 weld 的 Frame 自身不画玻璃，只当承载者；组级参数（frost / lightAngle /
+        /// lightIntensity / saturation / noise / dispersion 和描边、发光）写在它身上，
+        /// 逐块参数（radius / depth / color）写在子级身上。
+        /// </summary>
+        [UIAttr, Preserve]
+        public string Weld
+        {
+            set
+            {
+                var weld = GlassAttrParser.ParseValue(GlassAttrParser.Weld, value);
+                // weld="" / "0" 是作者取消融合的唯一写法（Variant 只能改值不能删属性），
+                // 此时不为它凭空建组。
+                if (weld <= 0f && _group == null) return;
+                _group ??= GlassGroupPanel.Attach(GameObject);
+                _group.SetWeld(weld);
+            }
+        }
+
+        /// <summary>
+        /// 属性应用是无序的（<c>ControlAttributeApplier</c> 遍历的是 HashSet），而且一次实例化会连写
+        /// 十几个视觉属性。setter 只打脏标记，材质在这里统一解算一次 —— 顺带让 <c>glass</c> 写在
+        /// <c>frost</c> 前面还是后面都不再有区别。
+        ///
+        /// 子树先于本节点实例化完毕（<c>ScreenInstantiator</c> 把 Apply 放在递归之后），所以这里
+        /// 也是收集 weld 成员的正确时机；ReSolve 会再跑一次，Variant 新增的块因此能被接上。
+        /// </summary>
+        internal override void OnAfterApply()
+        {
+            _panel?.FlushParams();
+            _group?.SyncMembers(_panel);
         }
 
         private static float ParsePixels(string value, string attrName)

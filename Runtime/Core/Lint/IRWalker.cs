@@ -120,8 +120,16 @@ namespace PromptUGUI.Lint
                 yield return issue;
 
             // class="" plus the value grammar of the procedural visual attrs (radius / borderWidth /
-            // glow) — pure syntax, so the CLI can reject it without a Unity instance.
+            // glow / the glass parameters) — pure syntax, so the CLI can reject it without a Unity
+            // instance.
             foreach (var issue in StyleRules.Check(node))
+                yield return issue;
+
+            // CLI-only: glass parameters on a node that never enters glass mode, and weld groups
+            // whose members or parameter placement can't work. All silent at runtime.
+            foreach (var issue in GlassRules.Check(node))
+                yield return issue;
+            foreach (var issue in GlassRules.CheckWeldGroup(node))
                 yield return issue;
 
             // Universal: nav*/focus on a non-Selectable tag. Also wired in ScreenInstantiator.

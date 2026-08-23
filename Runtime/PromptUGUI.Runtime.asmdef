@@ -11,7 +11,9 @@
     "LitMotion",
     "LitMotion.Extensions",
     "PromptUGUI.Compat.UniTask",
-    "UniTask"
+    "UniTask",
+    "Unity.RenderPipelines.Universal.Runtime",
+    "Unity.RenderPipelines.Core.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
@@ -34,6 +36,11 @@
       "name": "com.cysharp.unitask",
       "expression": "2.0.0",
       "define": "PROMPTUGUI_HAS_UNITASK"
+    },
+    {
+      "name": "com.unity.render-pipelines.universal",
+      "expression": "17.0.0",
+      "define": "PROMPTUGUI_HAS_URP"
     }
   ],
   "noEngineReferences": false

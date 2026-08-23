@@ -1138,6 +1138,9 @@ namespace PromptUGUI.Application
             Registry = CreateRegistryWithBuiltins();
             _commonsPool.Clear();
             _commonsStyles.Clear();
+            // After the _open loop above: closing Screens destroys their panels, which is what
+            // decrements the glass panel count — resetting before that would leave it negative.
+            GlassRuntime.ResetForTestsInternal();
             Controls.Internal.ProceduralMaterialCache.ResetForTests();
             _depGraph.Clear();
             SourceResolver = null;

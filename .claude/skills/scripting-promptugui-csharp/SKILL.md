@@ -110,6 +110,34 @@ The callback fires once per `Open()` (so also re-fires on hot-reload, since relo
 > disable `pixelPerfect` on that Canvas inside `UI.CanvasConfigurator` — that also
 > disables the text snap.
 
+## Glass (`UI.Glass`)
+
+`<Frame glass="true">` samples a blurred copy of a camera's finished image. The capture pass is
+injected at runtime — nothing to add to the URP Renderer asset — and only exists while a glass panel
+is on screen. Two knobs:
+
+```csharp
+UI.Glass.Enabled = qualityLevel >= QualityLevel.High;  // quality setting; off = plain translucent panels
+UI.Glass.Camera  = gameplayCamera;                     // null (default) = Camera.main
+bool blurring = UI.Glass.IsActive;                     // read-only: is a backdrop actually being published
+```
+
+- **`Enabled`** stops the capture and blur work entirely and makes every glass panel draw its
+  fallback. It costs no material churn and no canvas rebuild, so it is safe to flip at runtime.
+- **`Camera`** picks the capture source. Set it for split-screen or multi-camera rigs; leave it null
+  otherwise.
+- **`IsActive`** is false whenever glass has degraded — no URP ≥ 17, URP not the active pipeline, no
+  capture camera, `Enabled` off, or not in Play mode (glass does not render in the Editor outside
+  play).
+
+The backdrop contains the game world plus that camera's Screen Space-Camera canvases, but **not**
+Overlay canvases — uGUI has no grab pass. Keep glass Screens on the default Overlay canvas and put
+UI that should appear blurred behind them on a `CanvasMode.Camera` Screen (see
+`UI.CanvasConfigurator` above for pinning its `worldCamera`). A glass panel on a canvas rendered *by*
+the capture camera samples itself and smears; the runtime warns once if it sees that.
+
+Authoring, tuning parameters and welded groups: [authoring-promptugui-xml `reference/glass.md`](../authoring-promptugui-xml/reference/glass.md).
+
 ## Sprite resolver (Resources-backed)
 
 Needed if your XML uses `<Icon>` or any `sprite="ns:name"` form:
