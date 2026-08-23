@@ -3,15 +3,20 @@
   Procedural Style Demo —— Common Controls Demo 的同内容改版，视觉全部由
   <Style> + <Frame> 的程序化绘制（圆角 / 描边 / 渐变 / 辉光）提供，一张图素都没有。
 
-  本文件刻意不写任何颜色、圆角、描边数值：所有外观都来自 Skin-Flat.ui 里的 <Style>。
-  换皮肤 = 改下面那一行 Import。
+  本文件刻意不写任何颜色、圆角、描边数值：所有外观都来自 skin 文件里的 <Style>。
+  换皮肤 = 改下面那一行 Import：
+
+      Skin-Glass.ui  磨砂玻璃（当前）—— 需要 Backdrop 那张壁纸垫在后面
+      Skin-Flat.ui   扁平实心      —— 自带整屏渐变底，不需要壁纸
+
+  版面、控件、C# 绑定一行都不用动。
 
   界面文案用英文：本 demo 不带字体资源（零资源依赖是它的卖点之一），
   而 Unity 内置 TMP 默认字体没有中日韩字形。
 -->
 <PromptUGUI version="1">
 
-  <Import src="Skin-Flat.ui"/>
+  <Import src="Skin-Glass.ui"/>
 
   <!-- ScrollList 行模板 -->
   <Template name="OptionRow">
@@ -47,7 +52,8 @@
 
   <Screen name="ProceduralStyle" reference="960x540" reference.portrait="540x960">
 
-    <!-- 整屏渐变底：一个 Frame 就够，不需要图 -->
+    <!-- 整屏底。flat 皮肤下这是纵向渐变的实心底；glass 皮肤下它变成一层压暗的
+         暗场，露出后面 Backdrop 的壁纸 —— 玻璃背后必须真有画面才叫玻璃。 -->
     <Frame class="app-bg" anchor="stretch"/>
 
     <SafeArea>

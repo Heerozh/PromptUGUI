@@ -122,6 +122,9 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 | `borderColor` | hex / CSS / token / `/alpha`. **纯色 only** | `white` | 渐变值 = parse error |
 | `glow` | px | `0` | Outer glow radius. Inflates the drawn quad by this much (layout rect unchanged) |
 | `glowColor` | hex / CSS / token / `/alpha`. **纯色 only** | 跟随 `color` | Unset → the fill colour at full alpha, so `glow="12"` alone reads as "this shape glows" |
+| `glass` | `true` / `false` | `false` | Frosted-glass fill: the shape shows a blurred copy of the camera image instead of a flat colour. `color` becomes a tint on top of it. → `reference/glass.md` |
+| `frost` · `depth` · `dispersion` · `lightAngle` · `lightIntensity` · `saturation` · `noise` | 数值 | 见 glass.md | Glass tuning. Ignored without `glass="true"` (`PUI-GLASS-PARAM-NO-GLASS`) |
+| `weld` | px | `0` | Fuses this Frame's **direct glass children** into one continuous pane. → `reference/glass.md` |
 
 ```xml
 <Frame color="surface/0.9" radius="16" borderWidth="1" borderColor="stroke/0.15"/>
@@ -129,6 +132,7 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 <Frame borderWidth="2" borderColor="#fff"/>                <!-- 无填充 = 空心描边框 -->
 <Frame color="danger" radius="20" glow="18"/>              <!-- 发光 -->
 <Frame color="#1b263b" radius="0,0,16,16"/>                <!-- 只圆下面两角 -->
+<Frame glass="true" radius="16" frost="0.6"/>              <!-- 磨砂玻璃，见 glass.md -->
 ```
 
 - Only `glow` is affected by a **祖先** `RectMask2D` clipping the extra quad away; a Frame's own `mask="rect"` clips its children, never itself.

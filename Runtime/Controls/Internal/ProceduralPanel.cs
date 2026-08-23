@@ -1,3 +1,4 @@
+using PromptUGUI.Application;
 using PromptUGUI.Parser;
 using UnityEngine;
 using UnityEngine.UI;
@@ -6,14 +7,19 @@ namespace PromptUGUI.Controls.Internal
 {
     /// <summary>
     /// Draws a rounded rectangle — fill (optionally a vertical gradient), inner border and outer
-    /// glow — straight from a signed distance field, with no sprite involved. Lazily attached by
-    /// <see cref="Frame"/> the first time the author writes one of the procedural visual attributes;
-    /// a Frame without them stays the pure RectTransform container it has always been.
+    /// glow — straight from a signed distance field, with no sprite involved. With
+    /// <c>glass="true"</c> the fill becomes a blurred sample of the captured backdrop plus edge
+    /// refraction and lighting; the shape, border and glow are the same SDF either way. Lazily
+    /// attached by <see cref="Frame"/> the first time the author writes one of the procedural visual
+    /// attributes; a Frame without them stays the pure RectTransform container it has always been.
     ///
     /// Performance shape (this is the whole point of the split between vertex and material data):
     /// <list type="bullet">
     /// <item>Colour / radius / border / glow-colour changes touch only the material, so a Variant
     /// flip or a colour tween never rebuilds the canvas mesh.</item>
+    /// <item>Attribute writes only flag the material dirty; the parameters are resolved once per
+    /// canvas rebuild (see <see cref="FlushParams"/>), so applying fourteen attributes at
+    /// instantiation costs one material lookup, not fourteen.</item>
     /// <item>Geometry is dirtied only when the glow radius (which inflates the quad) or overall
     /// visibility changes.</item>
     /// <item>A fully transparent panel emits no geometry at all — zero overdraw, which is the
@@ -38,10 +44,30 @@ namespace PromptUGUI.Controls.Internal
         private float _borderWidth;
         private float _glowSize;
 
+        private bool _glass;
+        private float _frost = GlassAttrParser.DefaultFrost;
+        private float _depth = GlassAttrParser.DefaultDepth;
+        private float _dispersion = GlassAttrParser.DefaultDispersion;
+        private float _lightAngle = GlassAttrParser.DefaultLightAngle;
+        private float _lightIntensity = GlassAttrParser.DefaultLightIntensity;
+        private float _saturation = GlassAttrParser.DefaultSaturation;
+        private float _noise = GlassAttrParser.DefaultNoise;
+
         private PanelParams _key;
         private bool _hasKey;
+        private bool _paramsDirty = true;
         private bool _lastVisible;
         private float _lastGlowGeometry;
+        private bool _countedAsGlass;
+        private bool _suppressed;
+
+        private static bool _warnedFeedbackLoop;
+
+        /// <summary>
+        /// Set while this panel is a member of a <see cref="GlassGroupPanel"/>: the group draws the
+        /// fused shape, so this panel contributes parameters but no geometry of its own.
+        /// </summary>
+        internal GlassGroupPanel Group { get; set; }
 
         protected override void Awake()
         {
@@ -56,13 +82,25 @@ namespace PromptUGUI.Controls.Internal
         {
             base.OnEnable();
             EnsureCanvasChannels();
-            ApplyParams();
+            SyncGlassCount();
+            // A block hidden by a Variant drops out of its weld group's fused shape and back in
+            // again — the group has to re-pack either way.
+            if (Group != null) Group.MarkMembersDirty();
+            FlushParams();
+        }
+
+        protected override void OnDisable()
+        {
+            SyncGlassCount();
+            if (Group != null) Group.MarkMembersDirty();
+            base.OnDisable();
         }
 
         protected override void OnTransformParentChanged()
         {
             base.OnTransformParentChanged();
             EnsureCanvasChannels();
+            WarnOnBackdropFeedbackLoop();
         }
 
         protected override void OnCanvasHierarchyChanged()
@@ -71,8 +109,21 @@ namespace PromptUGUI.Controls.Internal
             EnsureCanvasChannels();
         }
 
+        /// <summary>Re-arms the warn-once diagnostics; see <c>GlassRuntime</c>.</summary>
+        internal static void ResetDiagnostics() => _warnedFeedbackLoop = false;
+
         protected override void OnDestroy()
         {
+            // Leave the weld group before disappearing, so it never walks a destroyed member.
+            var group = Group;
+            Group = null;
+            if (group != null) group.MarkMembersDirty();
+
+            if (_countedAsGlass)
+            {
+                _countedAsGlass = false;
+                GlassRuntime.PanelDeactivated();
+            }
             if (_hasKey)
             {
                 ProceduralMaterialCache.Release(_key);
@@ -99,44 +150,100 @@ namespace PromptUGUI.Controls.Internal
         {
             _fillTop = top;
             _fillBottom = bottom;
-            ApplyParams();
+            MarkDirty();
         }
 
         public void SetRadius(RadiusSpec radius)
         {
             _radius = radius;
-            ApplyParams();
+            MarkDirty();
         }
 
         public void SetBorderWidth(float width)
         {
             _borderWidth = Mathf.Max(0f, width);
-            ApplyParams();
+            MarkDirty();
         }
 
         public void SetBorderColor(Color color)
         {
             _borderColor = color;
-            ApplyParams();
+            MarkDirty();
         }
 
         public void SetGlowSize(float size)
         {
             _glowSize = Mathf.Max(0f, size);
-            ApplyParams();
+            MarkDirty();
         }
 
         public void SetGlowColor(Color color)
         {
             _glowColor = color;
             _glowColorExplicit = true;
-            ApplyParams();
+            MarkDirty();
         }
+
+        public void SetGlass(bool glass)
+        {
+            if (_glass == glass) return;
+            _glass = glass;
+            SyncGlassCount();
+            WarnOnBackdropFeedbackLoop();
+            // Membership in a weld group is decided by this flag, and ReSolve applies the container
+            // before its children — so the group has already synced against the old value and only
+            // finds out if we tell it.
+            NotifyWeldGroup();
+            MarkDirty();
+        }
+
+        /// <summary>
+        /// Tells the weld group covering this panel that its membership may have changed. When the
+        /// panel is already a member the group is known; when it is turning glass ON for the first
+        /// time it is not, so the group is looked up among the parent's children — that is where
+        /// <see cref="GlassGroupPanel.Attach"/> puts it.
+        /// </summary>
+        private void NotifyWeldGroup()
+        {
+            var group = Group;
+            if (group == null)
+            {
+                var parent = transform.parent;
+                if (parent == null) return;
+                for (var i = 0; i < parent.childCount; i++)
+                    if (parent.GetChild(i).TryGetComponent<GlassGroupPanel>(out var found))
+                    {
+                        group = found;
+                        break;
+                    }
+            }
+            if (group != null) group.RequestMemberRescan();
+        }
+
+        public void SetFrost(float v) { _frost = v; MarkDirty(); }
+        public void SetDepth(float v) { _depth = v; MarkDirty(); }
+        public void SetDispersion(float v) { _dispersion = v; MarkDirty(); }
+        public void SetLightAngle(float v) { _lightAngle = v; MarkDirty(); }
+        public void SetLightIntensity(float v) { _lightIntensity = v; MarkDirty(); }
+        public void SetSaturation(float v) { _saturation = v; MarkDirty(); }
+        public void SetNoise(float v) { _noise = v; MarkDirty(); }
+
+        internal bool IsGlass => _glass;
+
+        /// <summary>
+        /// The glass values as written, regardless of whether glass mode is on. A weld container is
+        /// not itself glass but carries the group-level parameters, so the group reads them here —
+        /// <see cref="CurrentParams"/> deliberately zeroes them outside glass mode to protect the
+        /// material cache.
+        /// </summary>
+        internal GlassParams RawGlassParams => new(_frost, _depth, _dispersion, _lightAngle,
+                                                   _lightIntensity, _saturation, _noise);
 
         // Test observability — EditMode asserts read the resolved parameters without needing a
         // canvas rebuild to have run.
         internal PanelParams CurrentParams => BuildParams();
         internal bool IsPanelVisible => ComputeVisible();
+        internal bool IsSuppressed => _suppressed;
 
         /// <summary>Runs the geometry pass on demand — EditMode has no canvas rebuild loop.</summary>
         internal void BuildMeshForTests(VertexHelper vh) => OnPopulateMesh(vh);
@@ -151,22 +258,72 @@ namespace PromptUGUI.Controls.Internal
                 ? _glowColor
                 : (_fillTop.a > 0f ? new Color(_fillTop.r, _fillTop.g, _fillTop.b, 1f) : Color.white);
 
+            // Glass values are zeroed when the mode is off: they change nothing about how an opaque
+            // panel draws, so letting them into the key would split the material cache into entries
+            // that render identically — two draw calls where there should be one.
+            var glassParams = _glass
+                ? new GlassParams(_frost, _depth, _dispersion, _lightAngle,
+                                  _lightIntensity, _saturation, _noise)
+                : GlassParams.None;
+
             return new PanelParams(
                 _fillTop, _fillBottom, _borderColor, glow,
                 new Vector4(_radius.TopLeft, _radius.TopRight, _radius.BottomRight, _radius.BottomLeft),
-                _radius.IsPill, _borderWidth, _glowSize);
+                _radius.IsPill, _borderWidth, _glowSize, _glass, glassParams);
+        }
+
+        /// <summary>
+        /// Hands drawing over to a <see cref="GlassGroupPanel"/> (or takes it back). A suppressed
+        /// panel emits no geometry and holds no material — it exists only to carry its parameters
+        /// into the group, while staying a normal RectTransform for layout and children.
+        /// </summary>
+        internal void SetSuppressed(bool suppressed)
+        {
+            if (_suppressed == suppressed) return;
+            _suppressed = suppressed;
+
+            if (suppressed && _hasKey)
+            {
+                ProceduralMaterialCache.Release(_key);
+                _hasKey = false;
+                m_Material = null;
+            }
+            _paramsDirty = true;
+            _lastVisible = ComputeVisible();
+            SetVerticesDirty();
+            SetMaterialDirty();
         }
 
         private bool ComputeVisible()
         {
+            if (_suppressed) return false;
+            // The blurred backdrop is itself the visual, so a glass panel with no fill still draws.
+            if (_glass) return true;
             if (_fillTop.a > 0f || _fillBottom.a > 0f) return true;
             if (_borderWidth > 0f && _borderColor.a > 0f) return true;
             if (_glowSize > 0f) return true;
             return false;
         }
 
-        private void ApplyParams()
+        private void SyncGlassCount()
         {
+            var shouldCount = _glass && isActiveAndEnabled;
+            if (shouldCount == _countedAsGlass) return;
+            _countedAsGlass = shouldCount;
+            if (shouldCount) GlassRuntime.PanelActivated();
+            else GlassRuntime.PanelDeactivated();
+        }
+
+        /// <summary>
+        /// Records that the parameters changed, without touching the material. Resolving is deferred
+        /// to <see cref="FlushParams"/> so a run of attribute writes — instantiation applies up to
+        /// fourteen of them — collapses into a single cache lookup.
+        /// </summary>
+        private void MarkDirty()
+        {
+            _paramsDirty = true;
+            if (Group != null) Group.MarkMembersDirty();
+
             var visible = ComputeVisible();
             if (visible != _lastVisible || !Mathf.Approximately(_glowSize, _lastGlowGeometry))
             {
@@ -174,6 +331,33 @@ namespace PromptUGUI.Controls.Internal
                 _lastGlowGeometry = _glowSize;
                 SetVerticesDirty();
             }
+
+            SetMaterialDirty();
+        }
+
+        protected override void OnRectTransformDimensionsChange()
+        {
+            base.OnRectTransformDimensionsChange();
+            // The group packs every member's rect into its uniforms, so a member that moves or
+            // resizes has to re-publish. Its own geometry is rect-relative and needs nothing.
+            if (Group != null) Group.MarkMembersDirty();
+        }
+
+        /// <summary>
+        /// Resolves the current parameters into a shared material. Called once per canvas rebuild,
+        /// and eagerly by <c>Frame.OnAfterApply</c> so freshly instantiated panels have their
+        /// material before anything renders.
+        /// </summary>
+        /// <param name="fromRebuild">
+        /// True when called from <see cref="UpdateMaterial"/>. Re-registering for a graphic rebuild
+        /// from inside the rebuild loop makes uGUI complain, so the dirty flag is skipped there —
+        /// the caller is already about to push the material through.
+        /// </param>
+        internal void FlushParams(bool fromRebuild = false)
+        {
+            if (_suppressed) return;
+            if (!_paramsDirty && _hasKey) return;
+            _paramsDirty = false;
 
             var next = BuildParams();
             if (_hasKey && next.Equals(_key)) return;
@@ -187,7 +371,35 @@ namespace PromptUGUI.Controls.Internal
             // Assign the backing field rather than the `material` property: the property setter
             // calls SetMaterialDirty, which would re-enter this during a canvas rebuild.
             m_Material = mat;
-            SetMaterialDirty();
+            if (!fromRebuild) SetMaterialDirty();
+        }
+
+        protected override void UpdateMaterial()
+        {
+            FlushParams(fromRebuild: true);
+            base.UpdateMaterial();
+        }
+
+        /// <summary>
+        /// A glass panel on a canvas rendered <em>by</em> the capture camera samples a backdrop that
+        /// already contains itself — the feedback smears over a few frames. Not an error (a
+        /// multi-camera rig can legitimately capture a different camera), so it warns once.
+        /// </summary>
+        private void WarnOnBackdropFeedbackLoop()
+        {
+            if (!_glass || _warnedFeedbackLoop) return;
+            var c = canvas;
+            if (c == null || c.renderMode == RenderMode.ScreenSpaceOverlay) return;
+            var capture = GlassRuntime.Camera != null ? GlassRuntime.Camera : Camera.main;
+            if (capture == null || c.worldCamera != capture) return;
+
+            _warnedFeedbackLoop = true;
+            Debug.LogWarning(
+                $"PromptUGUI: glass Frame '{name}' is on a canvas rendered by the same camera the " +
+                "glass backdrop is captured from, so it will sample a blurred copy of itself and " +
+                "smear over successive frames. Put glass Screens on an Overlay canvas (the default) " +
+                "and give UI that should appear blurred behind them CanvasMode.Camera, or point " +
+                "UI.Glass.Camera at a different camera.", this);
         }
 
         protected override void OnPopulateMesh(VertexHelper vh)

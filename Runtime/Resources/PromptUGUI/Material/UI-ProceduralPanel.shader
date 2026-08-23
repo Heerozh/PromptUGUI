@@ -72,6 +72,7 @@ Shader "UI/ProceduralPanel"
 
             #include "UnityCG.cginc"
             #include "UnityUI.cginc"
+            #include "UI-PanelSDF.cginc"
 
             #pragma multi_compile_local _ UNITY_UI_CLIP_RECT
             #pragma multi_compile_local _ UNITY_UI_ALPHACLIP
@@ -117,37 +118,13 @@ Shader "UI/ProceduralPanel"
                 return OUT;
             }
 
-            // iq 的圆角矩形 SDF，四角半径独立。p 以矩形中心为原点，b 为半尺寸。
-            // 返回值：负=内部，正=外部，绝对值≈到边界的像素距离。
-            float sdRoundBox(float2 p, float2 b, float4 r)
-            {
-                // 象限选角：右半区取 (TR, BR)，左半区取 (TL, BL)；再按上下二选一。
-                float2 side = (p.x > 0.0) ? float2(r.y, r.z) : float2(r.x, r.w);
-                float radius = (p.y > 0.0) ? side.x : side.y;
-                float2 q = abs(p) - b + radius;
-                return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - radius;
-            }
-
-            // 直 alpha 的 source-over 合成。
-            float4 over(float4 src, float4 dst)
-            {
-                float a = src.a + dst.a * (1.0 - src.a);
-                float3 rgb = (src.rgb * src.a + dst.rgb * dst.a * (1.0 - src.a)) / max(a, 1e-5);
-                return float4(rgb, a);
-            }
-
             fixed4 frag(v2f IN) : SV_Target
             {
                 float2 p = IN.shape.xy;
                 float2 b = IN.shape.zw;
 
-                // pill 在这里解算而不是在 C# 里：它依赖 rect 尺寸，提前算掉会让同一 style
-                // 的不同尺寸面板拿到不同材质参数，白白丢掉材质共享。
-                float shortest = min(b.x, b.y);
-                float4 r = (_Pill > 0.5) ? shortest.xxxx : _Radius;
-                r = clamp(r, 0.0, shortest);
-
-                float d = sdRoundBox(p, b, r);
+                float4 r = PuguiResolveRadius(_Radius, _Pill, b);
+                float d = PuguiSdRoundBox(p, b, r);
                 float fw = max(fwidth(d), 1e-4);
 
                 float inside = saturate(0.5 - d / fw);
@@ -163,7 +140,7 @@ Shader "UI/ProceduralPanel"
                     float g = saturate(1.0 - d / _GlowSize);
                     float4 glow = _GlowColor;
                     glow.a *= g * g * (1.0 - inside);
-                    col = over(col, glow);
+                    col = PuguiOver(col, glow);
                 }
 
                 // 内描边：向内绘制（border-box 直觉），压在填充之上。
@@ -173,7 +150,7 @@ Shader "UI/ProceduralPanel"
                 {
                     float4 border = _BorderColor;
                     border.a *= inside * saturate(0.5 + (d + _BorderWidth) / fw);
-                    col = over(border, col);
+                    col = PuguiOver(border, col);
                 }
 
                 // 顶点色 = Graphic.color × CanvasRenderer/CanvasGroup alpha。

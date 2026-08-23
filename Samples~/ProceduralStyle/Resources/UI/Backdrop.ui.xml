@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  玻璃背后的那张画面。
+
+  这个 Screen 是 canvas="camera" —— 这一点是整个 glass demo 的关键，不是随手写的：
+  玻璃采样的是**相机渲完那一刻的画面**，里面有游戏世界和挂在该相机上的所有
+  Screen Space-Camera canvas，但**没有 Overlay canvas**（uGUI 没有 grab pass，
+  同一个 Overlay canvas 里的玻璃永远看不见自己的兄弟节点）。
+
+  于是分工是：
+    - 想被玻璃模糊掉的东西  → canvas="camera"（本文件）
+    - 玻璃本身              → 默认的 Overlay（ProceduralStyle.ui.xml）
+
+  反过来写会形成反馈回环：玻璃所在的 canvas 由采集相机渲染时，它采到的是含自己上一帧
+  像素的画面，几帧之后糊成一团。运行时会 warn 一次。
+
+  worldCamera 必须由 C# 指定（XML 里没有相机引用），见 ProceduralStyleRunner
+  的 UI.CanvasConfigurator。
+-->
+<PromptUGUI version="1">
+
+  <Screen name="Backdrop" canvas="camera" reference="960x540" reference.portrait="540x960">
+
+    <!-- cover 是相对**父 rect** 等比填满并溢出，裁切由父级的 mask="rect" 负责 -->
+    <Frame anchor="stretch" mask="rect">
+      <RawImage id="wall" type="cover"/>
+    </Frame>
+
+    <!-- 图片版权署名。它在这个 canvas 上，所以**会被玻璃模糊掉** ——
+         把 Modals 页的面板拖到它上面就能直接看到这件事。 -->
+    <Text id="credit" anchor="bottom-stretch" height="18" margin="_,12,8,12"
+          align="middle-right" fontSize="11" color="#ffffffb0" tr="false"/>
+
+  </Screen>
+
+</PromptUGUI>

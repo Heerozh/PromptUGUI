@@ -86,13 +86,21 @@ Each `Screen.Open()` creates its own root Canvas (+ `CanvasScaler` + `GraphicRay
 
 ```csharp
 UI.CanvasConfigurator = (canvas, screenName) => {
-    if (canvas.renderMode == RenderMode.ScreenSpaceCamera) {
-        canvas.worldCamera = uiCamera;       // Camera ref must come from C# — not XML
-        canvas.planeDistance = 10f;
-    }
+    canvas.worldCamera = uiCamera;      // unconditional — see the trap below
+    canvas.planeDistance = 10f;
     canvas.sortingOrder = screenName == "Settings" ? 100 : 0;  // popups above main
 };
 ```
+
+> **Never gate the assignment on `canvas.renderMode == RenderMode.ScreenSpaceCamera`.** Unity's
+> `renderMode` **getter** reports `ScreenSpaceOverlay` for as long as `worldCamera` is null — even
+> right after the setter was given `ScreenSpaceCamera` (the mode is remembered internally and snaps
+> back the moment a camera is assigned). So that check can never pass inside the configurator, the
+> camera never gets assigned, and a `canvas="camera"` Screen silently stays Overlay. It still draws,
+> which is what makes this so hard to spot — but it is no longer rendered *by a camera*, so glass
+> backdrops, post-processing and RenderTexture capture all lose it. Assigning `worldCamera` to a
+> genuinely Overlay canvas is harmless (Unity ignores it), so just assign it unconditionally.
+> `Screen.Open` logs a warning if a `canvas="camera"` Screen ends up with no camera.
 
 The callback fires once per `Open()` (so also re-fires on hot-reload, since reload = close + reopen). The library never auto-creates Cameras — assigning `worldCamera` is the user's job. With no configurator and no `canvas=` attribute, every Screen is `ScreenSpaceOverlay`, `sortingOrder=0`.
 
@@ -109,6 +117,34 @@ The callback fires once per `Open()` (so also re-fires on hot-reload, since relo
 > does not pixel-adjust TMP). To opt out for a screen that needs smooth tweens,
 > disable `pixelPerfect` on that Canvas inside `UI.CanvasConfigurator` — that also
 > disables the text snap.
+
+## Glass (`UI.Glass`)
+
+`<Frame glass="true">` samples a blurred copy of a camera's finished image. The capture pass is
+injected at runtime — nothing to add to the URP Renderer asset — and only exists while a glass panel
+is on screen. Two knobs:
+
+```csharp
+UI.Glass.Enabled = qualityLevel >= QualityLevel.High;  // quality setting; off = plain translucent panels
+UI.Glass.Camera  = gameplayCamera;                     // null (default) = Camera.main
+bool blurring = UI.Glass.IsActive;                     // read-only: is a backdrop actually being published
+```
+
+- **`Enabled`** stops the capture and blur work entirely and makes every glass panel draw its
+  fallback. It costs no material churn and no canvas rebuild, so it is safe to flip at runtime.
+- **`Camera`** picks the capture source. Set it for split-screen or multi-camera rigs; leave it null
+  otherwise.
+- **`IsActive`** is false whenever glass has degraded — no URP ≥ 17, URP not the active pipeline, no
+  capture camera, `Enabled` off, or not in Play mode (glass does not render in the Editor outside
+  play).
+
+The backdrop contains the game world plus that camera's Screen Space-Camera canvases, but **not**
+Overlay canvases — uGUI has no grab pass. Keep glass Screens on the default Overlay canvas and put
+UI that should appear blurred behind them on a `CanvasMode.Camera` Screen (see
+`UI.CanvasConfigurator` above for pinning its `worldCamera`). A glass panel on a canvas rendered *by*
+the capture camera samples itself and smears; the runtime warns once if it sees that.
+
+Authoring, tuning parameters and welded groups: [authoring-promptugui-xml `reference/glass.md`](../authoring-promptugui-xml/reference/glass.md).
 
 ## Sprite resolver (Resources-backed)
 

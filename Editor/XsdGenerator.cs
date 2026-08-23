@@ -82,7 +82,9 @@ namespace PromptUGUI.Editor
                 WriteAdd(writer);
 
                 // 8 primitives + their attributes
-                // Frame's procedural visual layer (ProceduralPanel) — fill / shape / border / glow.
+                // Frame's procedural visual layer (ProceduralPanel) — fill / shape / border / glow,
+                // plus the glass fill mode and its weld groups. Frame is hand-listed rather than
+                // reflected from [UIAttr], so every attribute added to it has to be added here too.
                 WriteControl(writer, "Frame", new[]
                 {
                     ("color", "xs:string", (string)null),
@@ -91,6 +93,15 @@ namespace PromptUGUI.Editor
                     ("borderColor", "xs:string", (string)null),
                     ("glow", "xs:string", (string)null),
                     ("glowColor", "xs:string", (string)null),
+                    ("glass", "xs:string", (string)null),
+                    ("frost", "xs:string", (string)null),
+                    ("depth", "xs:string", (string)null),
+                    ("dispersion", "xs:string", (string)null),
+                    ("lightAngle", "xs:string", (string)null),
+                    ("lightIntensity", "xs:string", (string)null),
+                    ("saturation", "xs:string", (string)null),
+                    ("noise", "xs:string", (string)null),
+                    ("weld", "xs:string", (string)null),
                 });
                 WriteControl(writer, "Image", new[] { ("color", "xs:string", (string)null), ("sprite", "xs:string", (string)null), ("type", "xs:string", (string)null) });
                 WriteControl(writer, "Text", new[] { ("align", "xs:string", (string)null), ("color", "xs:string", (string)null), ("fontSize", "xs:int", (string)null), ("text", "xs:string", (string)null), ("wrap", "xs:string", (string)null), ("raycastTarget", "xs:string", (string)null) }, textContent: true);
