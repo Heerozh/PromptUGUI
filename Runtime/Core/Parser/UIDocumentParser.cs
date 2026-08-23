@@ -36,6 +36,9 @@ namespace PromptUGUI.Parser
                     case "Template":
                         ParseTemplate(el, doc);
                         break;
+                    case "Style":
+                        ParseStyle(el, doc);
+                        break;
                     case "Import":
                         ParseImport(el, doc);
                         break;
@@ -136,6 +139,12 @@ namespace PromptUGUI.Parser
                 throw new ParseException("<Screen> requires name attribute");
             if (!screenNames.Add(name))
                 throw new ParseException($"Duplicate <Screen name='{name}'>");
+            // <Screen> is not a control node — it carries no Graphic and no attribute pack could
+            // apply to it. Erroring beats the silent drop the attribute allowlist below would do.
+            if (el.HasAttribute("class"))
+                throw new ParseException(
+                    $"<Screen name='{name}'>: 'class' is not allowed on <Screen> " +
+                    "(a Screen is not a control; put class= on a child element)");
 
             var idsInScreen = new System.Collections.Generic.HashSet<string>();
             var rootNode = new ElementNode("__screen_root__");
@@ -305,6 +314,81 @@ namespace PromptUGUI.Parser
 
             tpl.Body = body;
             doc.Templates[name] = tpl;
+        }
+
+        /// <summary>
+        /// Structural attributes that decide a node's identity or existence rather than its look.
+        /// A style is broadcast onto many nodes, so letting it carry these would either collide
+        /// (two nodes with the same id) or silently delete subtrees (a shared <c>if</c>).
+        /// </summary>
+        private static readonly string[] StyleForbiddenAttrs = { "id", "if", "class", "bind" };
+
+        private static void ParseStyle(XmlElement el, UIDocument doc)
+        {
+            var name = el.GetAttribute("name");
+            if (string.IsNullOrEmpty(name))
+                throw new ParseException("<Style>: missing required attribute 'name'");
+            if (!KebabRx.IsMatch(name))
+                throw new ParseException(
+                    $"<Style name=\"{name}\">: style name must be kebab-case [a-z0-9-]");
+            if (doc.Styles.ContainsKey(name))
+                throw new ParseException($"duplicate <Style name=\"{name}\"> within document");
+
+            foreach (XmlNode c in el.ChildNodes)
+            {
+                if (c is XmlElement child)
+                    throw new ParseException(
+                        $"<Style name=\"{name}\">: unexpected child <{child.Name}> " +
+                        "(a style is an attribute pack and takes no children)");
+            }
+
+            var style = new StyleDef(name);
+
+            foreach (XmlAttribute attr in el.Attributes)
+            {
+                if (attr.Name == "name") continue;
+
+                var attrDot = attr.Name.IndexOf('.');
+                var baseName = attrDot < 0 ? attr.Name : attr.Name.Substring(0, attrDot);
+
+                foreach (var forbidden in StyleForbiddenAttrs)
+                {
+                    if (baseName != forbidden) continue;
+                    throw new ParseException(
+                        $"<Style name=\"{name}\">: '{attr.Name}' is not a style attribute — " +
+                        $"'{forbidden}' identifies a node, and a style is shared by many nodes");
+                }
+
+                if (attrDot < 0)
+                {
+                    style.Attributes[attr.Name] = attr.Value;
+                    continue;
+                }
+
+                if (attrDot == 0 || attrDot == attr.Name.Length - 1)
+                    throw new ParseException(
+                        $"<Style name=\"{name}\">: malformed attribute '{attr.Name}' " +
+                        "(variant suffix must be 'name.variant')");
+
+                var variant = attr.Name.Substring(attrDot + 1);
+                if (variant.Contains('.'))
+                    throw new ParseException(
+                        $"<Style name=\"{name}\">: attribute '{attr.Name}' has '.' inside the variant " +
+                        "name (use '-' for compound names like 'mobile-portrait')");
+
+                if (!style.VariantOverrides.TryGetValue(baseName, out var list))
+                {
+                    list = new System.Collections.Generic.List<(string, string)>();
+                    style.VariantOverrides[baseName] = list;
+                }
+                list.Add((variant, attr.Value));
+            }
+
+            if (style.Attributes.Count == 0 && style.VariantOverrides.Count == 0)
+                throw new ParseException(
+                    $"<Style name=\"{name}\">: declares no attributes");
+
+            doc.Styles[name] = style;
         }
 
         private static void ParseVariantBlock(XmlElement el, ScreenDef screen,

@@ -20,6 +20,7 @@ namespace PromptUGUI.Application
             public HashSet<string> AllSrcs = new();
             public List<ScreenDef> Screens = new();
             public Dictionary<TemplateKey, TemplateDef> Templates = new();
+            public Dictionary<StyleKey, StyleDef> Styles = new();
             // Each entry carries the original src so cross-doc duplicate detection
             // can name both conflicting files in the error message.
             public List<(IR.ThemeBlock Theme, string Src)> Themes = new();
@@ -36,6 +37,35 @@ namespace PromptUGUI.Application
                 (Namespace?.GetHashCode() ?? 0) * 397 ^ (Name?.GetHashCode() ?? 0);
             public override string ToString() =>
                 Namespace == null ? Name : $"{Namespace}.{Name}";
+        }
+
+        /// <summary>
+        /// Mirrors <see cref="TemplateKey"/> for <c>&lt;Style&gt;</c>. Namespaced references are
+        /// written <c>class="ui:card"</c> — a colon, not the dot templates use for tags, matching
+        /// the <c>Set:Name</c> form authors already write for sprite / icon references.
+        /// </summary>
+        internal readonly struct StyleKey : IEquatable<StyleKey>
+        {
+            public const char NamespaceSeparator = ':';
+
+            public readonly string Namespace;
+            public readonly string Name;
+            public StyleKey(string ns, string name) { Namespace = ns; Name = name; }
+            public bool Equals(StyleKey o) => Namespace == o.Namespace && Name == o.Name;
+            public override bool Equals(object o) => o is StyleKey k && Equals(k);
+            public override int GetHashCode() =>
+                (Namespace?.GetHashCode() ?? 0) * 397 ^ (Name?.GetHashCode() ?? 0);
+            public override string ToString() =>
+                Namespace == null ? Name : $"{Namespace}{NamespaceSeparator}{Name}";
+
+            /// <summary>Splits an author-written <c>class</c> entry into (namespace, name).</summary>
+            public static StyleKey ParseReference(string reference)
+            {
+                var sep = reference.IndexOf(NamespaceSeparator);
+                return sep < 0
+                    ? new StyleKey(null, reference)
+                    : new StyleKey(reference.Substring(0, sep), reference.Substring(sep + 1));
+            }
         }
 
         internal static async Awaitable<LoadedDoc> LoadAsync(
@@ -57,7 +87,8 @@ namespace PromptUGUI.Application
         internal static async Awaitable<LoadedDoc> LoadAndMergeAsync(
             string src,
             Func<string, Awaitable<string>> resolver,
-            IReadOnlyDictionary<TemplateKey, TemplateDef> commonsPool)
+            IReadOnlyDictionary<TemplateKey, TemplateDef> commonsPool,
+            IReadOnlyDictionary<StyleKey, StyleDef> commonsStyles = null)
         {
             var loaded = await LoadAsync(src, resolver, allowScreens: true);
 
@@ -67,6 +98,16 @@ namespace PromptUGUI.Application
                     throw new TemplateException(
                         $"template '{kv.Key}' conflicts with commons pool");
                 loaded.Templates[kv.Key] = kv.Value;
+            }
+            if (commonsStyles != null)
+            {
+                foreach (var kv in commonsStyles)
+                {
+                    if (loaded.Styles.ContainsKey(kv.Key))
+                        throw new TemplateException(
+                            $"style '{kv.Key}' conflicts with commons pool");
+                    loaded.Styles[kv.Key] = kv.Value;
+                }
             }
             return loaded;
         }
@@ -116,6 +157,15 @@ namespace PromptUGUI.Application
                     throw new TemplateException(
                         $"duplicate template '{key}' (loaded from src='{src}')");
                 agg.Templates[key] = kv.Value;
+            }
+
+            foreach (var kv in doc.Styles)
+            {
+                var key = new StyleKey(applyNamespace, kv.Key);
+                if (agg.Styles.ContainsKey(key))
+                    throw new TemplateException(
+                        $"duplicate style '{key}' (loaded from src='{src}')");
+                agg.Styles[key] = kv.Value;
             }
 
             foreach (var theme in doc.Themes)

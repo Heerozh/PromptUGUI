@@ -7,11 +7,11 @@ using PromptUGUI.Lint;
 namespace PromptUGUI.Tests.EditMode.Lint
 {
     /// <summary>
-    /// Pure containers (`Frame` / `VStack` / `HStack` / `Grid` / `SafeArea`) carry no `Graphic`
-    /// component on their root — `sprite=` / `color=` would be silently dropped by
-    /// <see cref="PromptUGUI.Application.ControlAttributeApplier"/>. The CLI surfaces this so
-    /// the author hears about it at write time instead of staring at an invisible background.
-    /// (`mask=` is fine — it adds a `RectMask2D`, not a `Graphic`.)
+    /// `Frame` draws fill / radius / border / glow procedurally (ProceduralPanel), so those
+    /// attributes are legitimate on it — but it still carries no `Image`, so `sprite=` is dropped.
+    /// `VStack` / `HStack` / `Grid` / `SafeArea` remain layout-only and drop every visual attribute.
+    /// The CLI surfaces both so the author hears about it at write time instead of staring at an
+    /// invisible background. (`mask=` is fine — it adds a `RectMask2D`, not a `Graphic`.)
     /// </summary>
     public class PureContainerVisualAttrRulesTests
     {
@@ -28,27 +28,29 @@ namespace PromptUGUI.Tests.EditMode.Lint
             StringAssert.Contains("Image", issues[0].Message);
         }
 
-        [Test]
-        public void Frame_Color_VisualAttrIssue()
+        [TestCase("color")]
+        [TestCase("radius")]
+        [TestCase("borderWidth")]
+        [TestCase("borderColor")]
+        [TestCase("glow")]
+        [TestCase("glowColor")]
+        public void Frame_ProceduralVisualAttrs_NoIssue(string attr)
         {
+            // Frame 现在自己画这些 —— 曾经的 "silently ignored" 警告已经过时。
             var n = new ElementNode("Frame");
-            n.Attributes["color"] = "#222";
-            var issues = PureContainerVisualAttrRules.Check(n).ToList();
-            Assert.AreEqual(1, issues.Count);
-            Assert.AreEqual(PureContainerVisualAttrRules.VisualAttrCode, issues[0].Code);
-            StringAssert.Contains("color", issues[0].Message);
+            n.Attributes[attr] = "1";
+            Assert.IsEmpty(PureContainerVisualAttrRules.Check(n));
         }
 
         [Test]
-        public void Frame_SpriteAndColor_TwoIssues()
+        public void Frame_SpriteAndColor_OnlySpriteIssue()
         {
             var n = new ElementNode("Frame");
             n.Attributes["sprite"] = "ui:card";
             n.Attributes["color"] = "#222";
             var issues = PureContainerVisualAttrRules.Check(n).ToList();
-            Assert.AreEqual(2, issues.Count);
-            Assert.IsTrue(issues.All(i => i.Code == PureContainerVisualAttrRules.VisualAttrCode));
-            CollectionAssert.AreEquivalent(new[] { "sprite", "color" }, ExtractAttrNames(issues));
+            Assert.AreEqual(1, issues.Count);
+            StringAssert.Contains("'sprite'", issues[0].Message);
         }
 
         [Test]
@@ -70,7 +72,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("HStack")]
         [TestCase("Grid")]
         [TestCase("SafeArea")]
-        public void OtherPureContainers_Sprite_Issue(string tag)
+        public void LayoutOnlyContainers_Sprite_Issue(string tag)
         {
             var n = new ElementNode(tag);
             n.Attributes["sprite"] = "ui:card";
@@ -78,6 +80,33 @@ namespace PromptUGUI.Tests.EditMode.Lint
             Assert.AreEqual(1, issues.Count);
             Assert.AreEqual(PureContainerVisualAttrRules.VisualAttrCode, issues[0].Code);
             StringAssert.Contains(tag, issues[0].Message);
+        }
+
+        [TestCase("VStack", "color")]
+        [TestCase("HStack", "radius")]
+        [TestCase("Grid", "borderWidth")]
+        [TestCase("SafeArea", "glow")]
+        public void LayoutOnlyContainers_ProceduralAttrs_Issue(string tag, string attr)
+        {
+            // 这些容器既没 Graphic 也没 ProceduralPanel —— 指路"套一层 Frame"。
+            var n = new ElementNode(tag);
+            n.Attributes[attr] = "8";
+            var issues = PureContainerVisualAttrRules.Check(n).ToList();
+            Assert.AreEqual(1, issues.Count);
+            StringAssert.Contains("'" + attr + "'", issues[0].Message);
+            StringAssert.Contains("Frame", issues[0].Message);
+        }
+
+        [Test]
+        public void LayoutOnlyContainer_SpriteAndColor_TwoIssues()
+        {
+            var n = new ElementNode("VStack");
+            n.Attributes["sprite"] = "ui:card";
+            n.Attributes["color"] = "#222";
+            var issues = PureContainerVisualAttrRules.Check(n).ToList();
+            Assert.AreEqual(2, issues.Count);
+            Assert.IsTrue(issues.All(i => i.Code == PureContainerVisualAttrRules.VisualAttrCode));
+            CollectionAssert.AreEquivalent(new[] { "sprite", "color" }, ExtractAttrNames(issues));
         }
 
         [TestCase("Image")]

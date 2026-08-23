@@ -72,6 +72,7 @@ namespace PromptUGUI.Editor
                 WritePromptUGUIRoot(writer);
                 WriteImport(writer);
                 WriteScreen(writer);
+                WriteStyle(writer);
                 WriteTemplate(writer);
                 WriteTheme(writer);
                 WriteColor(writer);
@@ -81,7 +82,16 @@ namespace PromptUGUI.Editor
                 WriteAdd(writer);
 
                 // 8 primitives + their attributes
-                WriteControl(writer, "Frame", Array.Empty<(string, string, string)>());
+                // Frame's procedural visual layer (ProceduralPanel) — fill / shape / border / glow.
+                WriteControl(writer, "Frame", new[]
+                {
+                    ("color", "xs:string", (string)null),
+                    ("radius", "xs:string", (string)null),
+                    ("borderWidth", "xs:string", (string)null),
+                    ("borderColor", "xs:string", (string)null),
+                    ("glow", "xs:string", (string)null),
+                    ("glowColor", "xs:string", (string)null),
+                });
                 WriteControl(writer, "Image", new[] { ("color", "xs:string", (string)null), ("sprite", "xs:string", (string)null), ("type", "xs:string", (string)null) });
                 WriteControl(writer, "Text", new[] { ("align", "xs:string", (string)null), ("color", "xs:string", (string)null), ("fontSize", "xs:int", (string)null), ("text", "xs:string", (string)null), ("wrap", "xs:string", (string)null), ("raycastTarget", "xs:string", (string)null) }, textContent: true);
                 WriteControl(writer, "VStack", Array.Empty<(string, string, string)>());
@@ -222,7 +232,10 @@ namespace PromptUGUI.Editor
             "padding","spacing","hidden","interactable","scale","flow",
             // Control.StateReact ([UIAttr] on the base) — opts a graphic out of a parent
             // Btn's state-tint fan-out; applies to every control, so it's a common attr.
-            "stateReact" };
+            "stateReact",
+            // <Style> reference. Consumed by TemplateExpander (StyleMerger) before any control
+            // sees it, so it is legal on every element regardless of tag.
+            "class" };
         private static readonly HashSet<string> _commonAttrSet =
             new HashSet<string>(_commonAttrNames, StringComparer.Ordinal);
 
@@ -250,7 +263,7 @@ namespace PromptUGUI.Editor
             w.WriteStartElement("xs", "complexType", null);
             w.WriteStartElement("xs", "choice", null);
             w.WriteAttributeString("maxOccurs", "unbounded");
-            foreach (var name in new[] { "Import", "Screen", "Template", "Theme" })
+            foreach (var name in new[] { "Import", "Screen", "Style", "Template", "Theme" })
             {
                 w.WriteStartElement("xs", "element", null);
                 w.WriteAttributeString("ref", name);
@@ -279,6 +292,26 @@ namespace PromptUGUI.Editor
                 w.WriteAttributeString("type", "xs:string");
                 w.WriteEndElement();
             }
+            w.WriteEndElement();
+            w.WriteEndElement();
+        }
+
+        private static void WriteStyle(XmlWriter w)
+        {
+            // A style is an open attribute pack: any attribute name any control accepts is legal
+            // here, including `.variant` suffixes. Only `name` is schema-known; the rest ride
+            // xs:anyAttribute, same as Template Params do.
+            w.WriteStartElement("xs", "element", null);
+            w.WriteAttributeString("name", "Style");
+            w.WriteStartElement("xs", "complexType", null);
+            w.WriteStartElement("xs", "attribute", null);
+            w.WriteAttributeString("name", "name");
+            w.WriteAttributeString("use", "required");
+            w.WriteAttributeString("type", "xs:string");
+            w.WriteEndElement();
+            w.WriteStartElement("xs", "anyAttribute", null);
+            w.WriteAttributeString("processContents", "lax");
+            w.WriteEndElement();
             w.WriteEndElement();
             w.WriteEndElement();
         }
