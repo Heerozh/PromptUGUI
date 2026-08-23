@@ -102,9 +102,20 @@ does not — whenever:
 
 - the project has no URP ≥ 17 (the capture pass does not even compile in);
 - URP is installed but is not the active render pipeline;
+- **URP is running in Compatibility Mode (Render Graph disabled)** — see below;
 - there is no capture camera (no `MainCamera` tag and no `UI.Glass.Camera`);
 - `UI.Glass.Enabled` is off — the intended way to wire glass to a quality setting;
 - you are in the Editor and not in Play mode. Glass does not preview outside play.
+
+**Render Graph is required.** The capture is a `ScriptableRenderPass` that only implements
+`RecordRenderGraph`; under Compatibility Mode URP calls the deprecated `Execute` path instead, so
+the pass is enqueued every frame and never runs. Nothing errors — the glass just quietly stays in
+fallback, which is very easy to misread as "the blur is broken". This bites hardest on Unity
+6000.0–6000.3, where *Project Settings → Graphics → Render Graph → Compatibility Mode* still exists
+and may be on. After ~60 such frames the runtime logs a warning naming this cause.
+
+Quickest way to tell the two apart: `UI.Glass.IsActive` is `false` whenever glass has degraded, for
+any of the reasons above.
 
 Nothing throws and nothing needs a fallback authored by hand. Design so the panel still reads at a
 low tint alpha and the layout survives without the blur.

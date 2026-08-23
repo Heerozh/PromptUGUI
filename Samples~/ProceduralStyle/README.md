@@ -89,11 +89,18 @@ runner 运行时去拉 **Bing 每日图**，拉不到就用内置的程序化暮
 以下任一条件不满足，玻璃就画成半透明面板（形状 / 描边 / 发光照旧），不报错：
 
 - 工程没装 URP ≥ 17，或 URP 不是当前激活管线
+- **URP 跑在 Compatibility Mode（Render Graph 关闭）** —— 见下
 - 场景里没有采集相机（runner 会兜底建一台）
 - `UI.Glass.Enabled = false`（画质选项就该接这里）
 - **不在 Play 模式** —— 玻璃不在编辑器里预览
 
 想确认当前到底有没有在模糊：读 `UI.Glass.IsActive`。
+
+**玻璃需要 Render Graph。** 采集 pass 只实现了 `RecordRenderGraph`；Compatibility Mode 下 URP 走的是
+废弃的 `Execute` 路径，于是 pass 每帧照常入队、却一次都不会跑 —— 不报错，玻璃就一直停在退化态，
+很容易被误读成「模糊坏了」。**Unity 6000.0–6000.3 尤其要注意**，那几个版本
+*Project Settings → Graphics → Render Graph* 里的 Compatibility Mode 开关还在，而且可能是开着的。
+连续约 60 帧只入队不执行之后，运行时会 warn 一条点名这个原因。
 
 ## 玻璃皮肤里的几个取舍
 

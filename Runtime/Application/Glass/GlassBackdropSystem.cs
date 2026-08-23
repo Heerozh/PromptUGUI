@@ -64,6 +64,12 @@ namespace PromptUGUI.Application.Glass
 
         private static bool _warnedNoCamera;
         private static bool _warnedNotUniversal;
+        private static bool _warnedNoRenderGraph;
+
+        // Enqueued-vs-recorded counters, watching for "the pass goes in but never runs".
+        private const int NoRecordGraceFrames = 60;
+        private static int _enqueued;
+        private static int _recorded;
 
         internal static void SetActive(bool active)
         {
@@ -77,6 +83,8 @@ namespace PromptUGUI.Application.Glass
             }
 
             RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
+            _enqueued = 0;
+            _recorded = 0;
             ReleaseResources();
         }
 
@@ -108,11 +116,6 @@ namespace PromptUGUI.Application.Glass
                 return;
             }
 
-            // Note on URP Compatibility Mode (the deprecated non-RenderGraph path, removed in
-            // 6000.4): there is deliberately no check for it. Under it RecordRenderGraph is simply
-            // never called, nothing publishes a backdrop, and panels keep drawing their fallback —
-            // the degradation is already correct, and probing for it means calling an API Unity has
-            // since marked obsolete.
             if (!EnsureResources(target)) return;
 
             var data = target.GetUniversalAdditionalCameraData();
@@ -120,6 +123,33 @@ namespace PromptUGUI.Application.Glass
             if (renderer == null) return;
 
             renderer.EnqueuePass(_pass ??= new GlassBackdropPass());
+            _enqueued++;
+            WarnIfNothingEverRecords();
+        }
+
+        /// <summary>
+        /// Catches "the pass is enqueued every frame but never actually runs".
+        ///
+        /// The known cause is URP's Compatibility Mode (Render Graph disabled), where only the
+        /// deprecated <c>Execute</c> path is called and <c>RecordRenderGraph</c>
+        /// never is — so nothing publishes a backdrop and every glass panel silently draws its
+        /// fallback. This is checked by observation rather than by reading
+        /// <c>RenderGraphSettings.enableRenderCompatibilityMode</c>: that property is
+        /// <c>[Obsolete]</c> from 6000.4 on (it still means something on 6000.0–6000.3, which is
+        /// exactly where this bites), and counting covers any other reason the pass might be
+        /// dropped too.
+        /// </summary>
+        private static void WarnIfNothingEverRecords()
+        {
+            if (_warnedNoRenderGraph || _recorded > 0 || _enqueued < NoRecordGraceFrames) return;
+            _warnedNoRenderGraph = true;
+            Debug.LogWarning(
+                $"PromptUGUI: the glass backdrop pass has been enqueued for {_enqueued} frames but " +
+                "has never been recorded, so no backdrop is being produced and every glass panel is " +
+                "drawing its fallback. The usual cause is URP running in Compatibility Mode " +
+                "(Project Settings > Graphics > Render Graph, or on Unity 6000.0–6000.3 the " +
+                "'Compatibility Mode (Render Graph Disabled)' toggle): glass needs Render Graph. " +
+                "Enable it, or set UI.Glass.Enabled = false to opt out cleanly.");
         }
 
         /// <summary>
@@ -228,6 +258,8 @@ namespace PromptUGUI.Application.Glass
             public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
             {
                 if (_light == null || _heavy == null || _scratch == null) return;
+
+                _recorded++;
 
                 var resources = frameData.Get<UniversalResourceData>();
                 var source = resources.activeColorTexture;
