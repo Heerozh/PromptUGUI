@@ -63,7 +63,9 @@ Template root and put its content **inside** the Tab (children overlay the bg, F
 </TabBar>
 ```
 
-TabBar collects the Tab whether it is the Template root (as here) or nested inside a wrapper; auto-select and `OnSelectionChanged` work the same either way. Lint rules `PUI-TABBAR-CHILD` and `PUI-TAB-PARENT` are suppressed for Template-instance roots. The Tab's `width`/`height` is its layout-group cell size; its children use their own `anchor` / `margin` (Tab is not a layout group). Keep decorative children `raycastTarget=false` (`<Icon>` already is; add it on `<Text>`) so clicks fall through to the containing Tab.
+TabBar collects the Tab whether it is the Template root (as here) or nested inside a wrapper; auto-select and `OnSelectionChanged` work the same either way. Lint rules `PUI-TABBAR-CHILD` and `PUI-TAB-PARENT` are suppressed for Template-instance roots. The Tab's `width`/`height` is its layout-group cell size; its children use their own `anchor` / `margin` (Tab is not a layout group). Omit them and the Tab sizes to its own label (plus padding, min 44px tap target) — it never collapses to zero. `width="stretch"` splits the bar's remaining space evenly, exactly as in `<HStack>`.
+
+> ⚠️ **Behaviour change.** `width` / `height` on a `<Tab>` used to be silently ignored — TabBar's layout group was left at Unity's default `childControlWidth/Height = false`, which only positions children and never resizes them, so every Tab stayed at the default 100×100 (overflowing the bar and overlapping its neighbours). TabBar now configures the group like `<VStack>` / `<HStack>` do, so the values you write actually land. Existing TabBars will shift — toward what the markup always said. Keep decorative children `raycastTarget=false` (`<Icon>` already is; add it on `<Text>`) so clicks fall through to the containing Tab.
 
 For dynamic data, use `BindItems` with `itemTemplate="FileTab"` (the same Template works for both patterns).
 

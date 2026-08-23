@@ -104,7 +104,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 | `<Markdown>` | Renders a Markdown document into a scrollable subtree  |
 | `<FocusCursor>` | Screen-level cursor overlay for directional navigation. **Not a registered control** — not `Get<T>`-able; removed from the control tree before instantiation. → `reference/navigation.md` |
 
-> `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` / `<TabBar>` are reference implementations. For project-specific differentiation (pixel border, press feedback, custom popup chrome) subclass and override `OnAttached` — see scripting-promptugui-csharp.
+> Re-skinning a built-in: every inner layer has an XML hook — `<Slider fill= handle=>`, `<Toggle checkmark=>`, `<Dropdown arrow= itemColor= scrollbar*=>`, `<ScrollList scrollbar*=>`, `<Progress fill= bg= frame=>`. Each takes a `<layer>` (sprite) / `<layer>Color` pair, and `""` clears the sprite for a flat look. Reach for those first. They are still *reference implementations*: for structural changes (a different popup layout, extra chrome) write your own `Control` and register it over the tag — `UI.Registry.Register<MyDropdown>("Dropdown")`. The built-ins are `sealed`, so you replace rather than subclass; see scripting-promptugui-csharp.
 
 ### `<Frame>`
 
@@ -239,8 +239,9 @@ Image + uGUI Toggle + 自动 label。R3 `OnValueChanged: bool`。`<Toggle>静音
 | `text` | string | — | |
 | `isOn` | bool | `false` | |
 | `group` | string | — | 互斥键 |
-| `color` | hex / CSS / token | — | 见 **Color Tokens** |
-| `sprite` | Resources 路径 | — | checkmark sprite |
+| `color` | hex / CSS / token | — | **勾选框**（左侧 20×20 box）底色；见 **Color Tokens** |
+| `sprite` | sprite key | — | **勾选框** sprite。⚠️ **行为已变**：它过去指向 checkmark（跟 `color` 不是同一层），现在与 `color` 同层、与全库其它控件一致。换对勾图形请用 `checkmark` |
+| `checkmark` · `checkmarkColor` | sprite key / color | — | **对勾**图形与颜色。`checkmark=""` 去图 |
 | `font` | string | `default` | |
 | `textColor` | hex / CSS / token | — | **label 文字色**（区别于 `color`=背景）；支持渐变 / `/alpha`；空=默认 ink |
 | `hoverColor` · `pressedColor` · `selectedColor` · `disabledColor` | hex / CSS / token | — | **绝对**单态 bg 色（仅 targetGraphic，不扩散）；`selectedColor`=勾选时 bg 基色（同 `<Tab>` 的 selection-aware base，hover/pressed/disabled 叠在上面）；见 states.md |
@@ -257,8 +258,10 @@ Image + uGUI Slider。R3 `OnValueChanged: float`。不写 size 时按方向给�
 | `min` · `max` · `value` | float | — | |
 | `wholeNumbers` | bool | — | |
 | `direction` | `horizontal` / `vertical` / `reverse-horizontal` / `reverse-vertical` | `horizontal` | |
-| `color` | hex / CSS / token | — | 见 **Color Tokens** |
-| `sprite` | sprite key | — | |
+| `color` | hex / CSS / token | — | **轨道**底色；见 **Color Tokens** |
+| `sprite` | sprite key | — | 轨道 sprite |
+| `fill` · `fillColor` | sprite key / color | — | **已填充段**。`fill=""` 去图 = 纯色进度段 |
+| `handle` · `handleColor` | sprite key / color | — | **滑块**。`handle=""` 去图 = 纯色方块 |
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
 
 ### `<Dropdown>`
@@ -276,6 +279,14 @@ TMP_Dropdown。R3 `OnSelected: int`。选项 C# 侧 `BindOptions(...)` 注入。
 | `popupSprite` | sprite key | — | Skins the popup list background (the closed button keeps using `sprite`/`color`). |
 | `popupColor` | hex / CSS / token | — | Tints the popup list background. |
 | `popupMask` | sprite key | follows `popupSprite` | Popup viewport clip shape; same semantics as `<ScrollList mask>`. Unset auto-tracks `popupSprite` (sprite → rounded stencil; `popupSprite=""` → square `RectMask2D`); explicit `popupMask=` (incl. `""`) opts out. |
+| `arrow` · `arrowColor` | sprite key / color | — | 收起状态右侧的下拉箭头。`arrow=""` **隐藏**箭头（无图的 Image 会画成实心方块，所以直接关组件），要自定义就给自己的 chevron |
+| `itemColor` | hex / CSS / token | `#F5F5F5` | 弹窗里**每一行的高亮底色**（hover / 选中时由 uGUI 乘上去）。默认是硬编码浅灰，**深色主题必须显式改** |
+| `itemTextColor` | hex / CSS / token | — | 弹窗**选项行**文字色（区别于 `textColor` —— 那是收起状态的 caption） |
+| `checkmark` · `checkmarkColor` | sprite key / color | — | 选中项左侧的对勾。`checkmark=""` 隐藏 |
+| `scrollbar` · `scrollbarColor` | sprite key / color | — | 弹窗滚动条**轨道** |
+| `scrollbarHandle` · `scrollbarHandleColor` | sprite key / color | — | 弹窗滚动条**滑块** |
+
+- 弹窗内那几层（`itemColor` / `itemTextColor` / `checkmark*`）改的是 `TMP_Dropdown` 的**模板**，之后每次展开克隆出来的选项行都继承；**已经展开着的那批实例不会跟着变**（ReSolve 通常发生在关闭态，实际不成问题）。
 
 ### `<ScrollList>`
 
@@ -292,6 +303,8 @@ ScrollRect + Mask。项 C# 侧 `BindItems(...)` 注入。`itemTemplate` 引用 `
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
 | `frame` | sprite key | — | Border layer drawn above content & scrollbar, outside the mask — scrolling content never overlaps it. Lazily created. Note: `tint=` affects only the background, not the frame. |
 | `frameColor` | hex / CSS / token | — | Tints the frame layer; setting it alone also activates the layer. |
+| `scrollbar` · `scrollbarColor` | sprite key / color | — | 滚动条**轨道**。两个方向共用一份皮肤；滚动条是懒建的，属性先写后建也生效 |
+| `scrollbarHandle` · `scrollbarHandleColor` | sprite key / color | — | 滚动条**滑块** |
 | `mask` | sprite key | follows `sprite` | Viewport clip shape. `mask="custom#slice"` = stencil mask with that sprite (auto-sliced); `mask=""` = square `RectMask2D` clip (cheaper). **Unset auto-tracks the bg `sprite`**: a sprite present (incl. the default) → rounded stencil; `sprite=""`/`sprite="none"` → square, so a transparent list's corners stay square without writing `mask=""`. Explicit `mask=` (any value, incl. `""`) opts out of auto-tracking. Unlike `<Image>`/`<Frame>`, `rect`/`self` are **not** keywords here — `mask` takes a sprite key. |
 
 ### `<InputField>`

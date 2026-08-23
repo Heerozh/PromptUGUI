@@ -129,6 +129,37 @@ namespace PromptUGUI.Controls
             set => _bg.sprite = UI.ResolveSprite(value);
         }
 
+        // 内部图层：与 <Progress> 同一套命名规约 —— 每层一对 `<layer>` (sprite) + `<layer>Color`。
+        // 空串清掉 sprite（UI.ResolveSprite 对 null/empty 直接返回 null），纯色轨道 / 滑块由此而来。
+
+        /// <summary>已填充段的 sprite。<c>""</c> = 无图（纯色），同 <c>&lt;Progress fill&gt;</c>。</summary>
+        [UIAttr(IsSprite = true), Preserve]
+        public string Fill
+        {
+            set => _fill.sprite = UI.ResolveSprite(value);
+        }
+
+        /// <summary>已填充段的颜色；支持 token / <c>/alpha</c> / 渐变。</summary>
+        [UIAttr(IsColor = true), Preserve]
+        public string FillColor
+        {
+            set => Internal.ColorApplier.Apply(_fill, UI.Theme.ResolveSpec(value));
+        }
+
+        /// <summary>滑块的 sprite。<c>""</c> = 无图（纯色方块）。</summary>
+        [UIAttr(IsSprite = true), Preserve]
+        public string Handle
+        {
+            set => _handle.sprite = UI.ResolveSprite(value);
+        }
+
+        /// <summary>滑块颜色；支持 token / <c>/alpha</c> / 渐变。</summary>
+        [UIAttr(IsColor = true), Preserve]
+        public string HandleColor
+        {
+            set => Internal.ColorApplier.Apply(_handle, UI.Theme.ResolveSpec(value));
+        }
+
         public Observable<float> OnValueChanged => _changed;
 
         public override void Dispose()

@@ -68,7 +68,10 @@
           <Frame class="well" width="104" height="32">
             <Dropdown id="theme" anchor="stretch" margin="1,1,1,1"
                       sprite="none" color="#00000000" textColor="ink" fontSize="14"
-                      popupSprite="" popupColor="surface-2"/>
+                      arrow="" popupSprite="" popupColor="surface-2"
+                      itemColor="surface-2" itemTextColor="ink" checkmarkColor="accent"
+                      scrollbar="" scrollbarColor="bg-bottom/0.6"
+                      scrollbarHandle="" scrollbarHandleColor="ink-dim"/>
           </Frame>
         </HStack>
       </Frame>
@@ -114,20 +117,31 @@
                         placeholder="Username"/>
           </Frame>
 
+          <!-- checkmark 保留默认字形只改色；sprite="" 去掉勾选框自己的 9-slice 底 -->
           <Frame class="card" height="40">
             <Toggle id="muteAudio" anchor="stretch" margin="_,12,_,12"
-                    sprite="none" color="#00000000" textColor="ink" fontSize="16">Mute audio</Toggle>
+                    sprite="" color="bg-bottom/0.6" checkmarkColor="accent"
+                    textColor="ink" fontSize="16">Mute audio</Toggle>
           </Frame>
 
+          <!-- 轨道 / 已填充段 / 滑块三层各自去图上色 -->
           <Frame class="well" height="40">
             <Slider id="masterVol" anchor="stretch" margin="_,14,_,14"
-                    sprite="" min="0" max="1" value="0.8"/>
+                    min="0" max="1" value="0.8"
+                    sprite="" color="bg-bottom/0.6"
+                    fill="" fillColor="accent"
+                    handle="" handleColor="ink-dim"/>
           </Frame>
 
+          <!-- arrow="" 隐藏默认像素箭头（真实项目换成自己的 chevron）；
+               item* 三个属性管弹窗里每一行的高亮带 / 对勾 / 文字色 -->
           <Frame class="well" height="40">
             <Dropdown id="quality" anchor="stretch" margin="1,1,1,1"
                       sprite="none" color="#00000000" textColor="ink" fontSize="16"
-                      popupSprite="" popupColor="surface-2"/>
+                      arrow="" popupSprite="" popupColor="surface-2"
+                      itemColor="surface-2" itemTextColor="ink" checkmarkColor="accent"
+                      scrollbar="" scrollbarColor="bg-bottom/0.6"
+                      scrollbarHandle="" scrollbarHandleColor="ink-dim"/>
           </Frame>
 
           <Frame class="divider" height="1"/>
@@ -215,7 +229,9 @@
                     dots="bottom-center" dotColor="stroke/0.4" dotSelectedColor="accent"/>
 
           <ScrollList id="list" width="stretch" height="stretch" itemTemplate="OptionRow"
-                      sprite="none" color="#00000000" spacing="6" padding="4"/>
+                      sprite="none" color="#00000000" spacing="6" padding="4"
+                      scrollbar="" scrollbarColor="bg-bottom/0.6"
+                      scrollbarHandle="" scrollbarHandleColor="ink-dim"/>
         </VStack>
       </Frame>
 

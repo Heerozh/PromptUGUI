@@ -24,6 +24,12 @@ namespace PromptUGUI.Controls
         private string _direction = "vertical";
         private Scrollbar _vertScrollbar;
         private Scrollbar _horizScrollbar;
+        // 滚动条由 Direction setter 懒建（且 direction 切换会启用另一根），所以皮肤属性
+        // 存原始字符串、建完再回放 —— 同 _spacing / _padding 的 pending 模式。
+        private string _scrollbarSprite;
+        private string _scrollbarColor;
+        private string _scrollbarHandleSprite;
+        private string _scrollbarHandleColor;
         private string _itemTemplate;
         private float _spacing;
         private string _padding;
@@ -345,6 +351,7 @@ namespace PromptUGUI.Controls
             _scroll.verticalScrollbar = _vertScrollbar;
             _scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
             _scroll.verticalScrollbarSpacing = -3f;
+            ApplyScrollbarSkin();
         }
 
         private void EnsureHorizontalScrollbar()
@@ -377,6 +384,70 @@ namespace PromptUGUI.Controls
             _scroll.horizontalScrollbar = _horizScrollbar;
             _scroll.horizontalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
             _scroll.horizontalScrollbarSpacing = -3f;
+            ApplyScrollbarSkin();
+        }
+
+        // 内部图层：与 <Progress> 同一套命名规约 —— 每层一对 `<layer>` (sprite) + `<layer>Color`。
+        // 两根滚动条共用同一份皮肤：作者关心的是"滚动条长什么样"，不是横竖各一套。
+
+        /// <summary>
+        /// 滚动条轨道的 sprite。<c>""</c> = 无图（纯色）。
+        /// 属性名不能叫 <c>Scrollbar</c> —— 会在本类内遮蔽 <see cref="UnityEngine.UI.Scrollbar"/>
+        /// 类型名，字段和方法签名全部编译不过；XML 属性名由 <c>[UIAttr("scrollbar")]</c> 显式给。
+        /// </summary>
+        [UIAttr("scrollbar", IsSprite = true), Preserve]
+        public string ScrollbarSprite
+        {
+            set { _scrollbarSprite = value; ApplyScrollbarSkin(); }
+        }
+
+        /// <summary>滚动条轨道的颜色；支持 token / <c>/alpha</c> / 渐变。</summary>
+        [UIAttr(IsColor = true), Preserve]
+        public string ScrollbarColor
+        {
+            set { _scrollbarColor = value; ApplyScrollbarSkin(); }
+        }
+
+        /// <summary>滚动条滑块的 sprite。</summary>
+        [UIAttr(IsSprite = true), Preserve]
+        public string ScrollbarHandle
+        {
+            set { _scrollbarHandleSprite = value; ApplyScrollbarSkin(); }
+        }
+
+        /// <summary>滚动条滑块的颜色。</summary>
+        [UIAttr(IsColor = true), Preserve]
+        public string ScrollbarHandleColor
+        {
+            set { _scrollbarHandleColor = value; ApplyScrollbarSkin(); }
+        }
+
+        private void ApplyScrollbarSkin()
+        {
+            ApplyScrollbarSkin(_vertScrollbar);
+            ApplyScrollbarSkin(_horizScrollbar);
+        }
+
+        private void ApplyScrollbarSkin(Scrollbar bar)
+        {
+            if (bar == null) return;
+
+            var track = bar.GetComponent<UnityImage>();
+            if (track != null)
+            {
+                if (_scrollbarSprite != null) track.sprite = UI.ResolveSprite(_scrollbarSprite);
+                if (_scrollbarColor != null)
+                    Internal.ColorApplier.Apply(track, UI.Theme.ResolveSpec(_scrollbarColor));
+            }
+
+            var handle = bar.handleRect != null
+                ? bar.handleRect.GetComponent<UnityImage>() : null;
+            if (handle != null)
+            {
+                if (_scrollbarHandleSprite != null) handle.sprite = UI.ResolveSprite(_scrollbarHandleSprite);
+                if (_scrollbarHandleColor != null)
+                    Internal.ColorApplier.Apply(handle, UI.Theme.ResolveSpec(_scrollbarHandleColor));
+            }
         }
 
         public override void Dispose()

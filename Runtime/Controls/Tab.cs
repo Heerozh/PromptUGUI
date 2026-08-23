@@ -44,6 +44,29 @@ namespace PromptUGUI.Controls
         private Vector2? _selectedOffset;
         private RectTransform _offsetHolder;
 
+        // Mirrors Btn: a Tab has no content-driven intrinsic size of its own, so an author who
+        // omits width/height gets "as wide as the label + padding", never zero. This matters since
+        // TabBar's LayoutGroup started honouring LayoutElement (childControlWidth=true) — without a
+        // native size an unsized Tab's preferred width would resolve to 0 and the tab would vanish.
+        private const float MinTapHeight = 44f;
+        private const float LabelPaddingX = 14f;
+        private const float LabelPaddingY = 6f;
+        private const float DefaultIconTabWidth = 64f;
+
+        public override Vector2? GetNativeSize()
+        {
+            if (_label != null && !string.IsNullOrEmpty(_label.text))
+            {
+                // Unconstrained natural size — NOT _label.preferredWidth, which TMP measures at the
+                // live label-rect width; on a ReSolve that is the previous solve's value, so a grown
+                // label would wrap and inflate the height. Mirrors Btn / Text.GetNativeSize.
+                var pref = _label.GetPreferredValues(_label.text);
+                return new Vector2(pref.x + LabelPaddingX * 2f,
+                                   Mathf.Max(MinTapHeight, pref.y + LabelPaddingY * 2f));
+            }
+            return new Vector2(DefaultIconTabWidth, MinTapHeight);
+        }
+
         public override void OnAttached()
         {
             _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();

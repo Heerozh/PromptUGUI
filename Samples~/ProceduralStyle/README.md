@@ -42,18 +42,26 @@ btn-primary  btn-ghost  btn-danger  divider  tab-track  hero
 - `class="{{skin}}"` —— 皮肤名作模板参数（`SwatchCell` 模板）
 - `<Import>` 带过来的 `<Style>` —— 和 `<Template>` 一样可以放进共享库
 
-## 已知缺口（在库里修好之前，`ProceduralStyleRunner.ApplyLibraryWorkarounds` 绕过）
+## 内置控件怎么跟着一起扁平化
 
-1. **`<Tab>` 的 `width` / `height` 不生效。** `TabBar` 建的 Layout Group 用 Unity 默认的
-   `childControlWidth/Height = false`，这种模式下只摆位置、不改尺寸，所以每个 Tab 的实际
-   RectTransform 一直是默认 100×100。runner 里把这两个开关打开后 XML 写的值才落到 rect 上。
-   （这个问题同样影响现有的 Common Controls Demo。）
+程序化视觉（圆角 / 描边 / 辉光）目前只有 `<Frame>` 有，所以带交互的控件都是
+**"透明控件 + 一层 `class="…"` 的 Frame 当外壳"**的写法。这个组合顺带演示了
+`hoverModulate` / `pressedModulate` 会扩散到子树里的 Frame 上 —— 按钮按下时整块外壳一起变暗。
 
-2. **部分内置控件的内部图层仍带默认像素皮。** Slider 的滑轨/滑块、Dropdown 的箭头、
-   Toggle 的对勾由控件 `OnAttached` 写死，没有 XML 属性可改 —— XML 的 `sprite=` 只作用于
-   控件最外层那张背景 `Image`。skill 建议"subclass 并 override `OnAttached`"，但这些控件
-   全是 `sealed` 的，那条路走不通；runner 里按 GameObject 名字遍历改。
+控件**内部**的图层（Slider 的轨道/已填充段/滑块、Toggle 的对勾、Dropdown 的箭头和弹窗、
+滚动条）各有一对 `<layer>` / `<layer>Color` 属性，全在 XML 里搞定，本 demo 没有一行
+C# 皮肤代码：
 
-程序化视觉目前只有 `<Frame>` 有，所以带交互的控件都是"透明控件 + 一层 `class="…"` 的 Frame
-当外壳"的写法 —— 这个组合也顺带演示了 `hoverModulate` / `pressedModulate` 会扩散到子树里的
-Frame 上，按钮按下时整块外壳一起变暗。
+```xml
+<Slider sprite="" color="bg-bottom/0.6" fill="" fillColor="accent"
+        handle="" handleColor="ink-dim"/>
+<Toggle sprite="" color="bg-bottom/0.6" checkmarkColor="accent"/>
+<Dropdown arrow="" itemColor="surface-2" itemTextColor="ink"
+          scrollbar="" scrollbarColor="bg-bottom/0.6"/>
+```
+
+`""` = 去掉那一层的 sprite，只留纯色 —— 扁平外观基本靠它。`arrow=""` 是隐藏箭头
+（无图的 Image 会画成实心方块），真实项目应该换成自己的 chevron sprite 或图标字体。
+
+注意 `Image.color` 是**乘法**：带颜色的 sprite（默认皮的箭头、对勾）只能被染暗、染不成
+别的色相。要彻底换色就得换图。

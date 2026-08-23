@@ -37,7 +37,6 @@ namespace PromptUGUI.Samples.ProceduralStyle
             UI.Theme.Set("night");   // Skin-Flat 注册了 night + day 两套 token
             var screen = UI.Open("ProceduralStyle");
 
-            ApplyLibraryWorkarounds(screen);
             BindThemeSwitcher(screen);
             BindFormPage(screen);
             BindDisplayPage(screen);
@@ -46,67 +45,6 @@ namespace PromptUGUI.Samples.ProceduralStyle
 
             screen.Get<Btn>("tutorialBtn").OnClick
                   .Subscribe(_ => RunTutorial(screen)).AddTo(screen);
-        }
-
-        /// <summary>
-        /// 两处库层面的缺口，在修好之前只能在这里绕过。两个都跟 &lt;Style&gt; 系统无关 ——
-        /// 是本 demo 想做扁平外观时撞上的既有问题。
-        ///
-        /// **① &lt;Tab&gt; 的 width / height 不生效。**
-        /// TabBar 建的 Horizontal/VerticalLayoutGroup 用的是 Unity 默认值
-        /// <c>childControlWidth/Height = false</c>，这种模式下 LayoutGroup 只**摆位置**、
-        /// 不**改尺寸**，所以 XML 写的 width/height 只影响间距分配，每个 Tab 的实际
-        /// RectTransform 一直是默认的 100×100（撑穿轨道、互相重叠）。
-        /// 打开 childControl* 后 XML 写的值才真正落到 rect 上。
-        ///
-        /// **② 内部图层还带默认像素皮。**
-        /// Slider 的滑轨/滑块、Dropdown 的箭头、Toggle 的对勾由控件 OnAttached 写死，
-        /// 没有 XML 属性可改（XML 的 sprite= 只作用于控件最外层那张背景 Image）。
-        /// skill 建议「subclass 并 override OnAttached」，但这些控件全是 sealed 的，
-        /// 那条路走不通；只能按 GameObject 名字（来自 ProceduralBuilders）遍历改。
-        /// </summary>
-        static void ApplyLibraryWorkarounds(IScreen screen)
-        {
-            var root = ((Control)screen.Get<Slider>("masterVol")).GameObject.transform.root;
-
-            // ① 让 <Tab width/height> 真的生效。TabBar 每次切换 direction 会重建
-            // LayoutGroup（横竖屏切换时），所以横竖屏来回切之后需要再调一次。
-            var tabLayout = screen.Get<TabBar>("tabs").GameObject
-                                  .GetComponent<UnityEngine.UI.HorizontalOrVerticalLayoutGroup>();
-            if (tabLayout != null)
-            {
-                tabLayout.childControlWidth = true;
-                tabLayout.childControlHeight = true;
-            }
-
-            // ② 拉平内部图层
-            foreach (var img in root.GetComponentsInChildren<UnityEngine.UI.Image>(true))
-            {
-                switch (img.gameObject.name)
-                {
-                    case "Background":   // Slider 轨道
-                        img.sprite = null;
-                        img.color = UI.Theme.Resolve("bg-bottom/0.6");
-                        break;
-                    case "Fill":         // Slider 已填充段
-                        img.sprite = null;
-                        img.color = UI.Theme.Resolve("accent");
-                        break;
-                    case "Handle":       // Slider 滑块 + ScrollList/Dropdown 的滚动条滑块
-                        img.sprite = null;
-                        img.color = UI.Theme.Resolve("ink-dim");
-                        break;
-                    case "Checkmark":    // Toggle 对勾：保留字形，只改色
-                        img.color = UI.Theme.Resolve("accent");
-                        break;
-                    case "Arrow":        // Dropdown 下拉箭头
-                        // 直接隐藏。它是**有颜色**的像素三角，而 Image.color 是乘法，
-                        // 染不成灰；去掉 sprite 又会变成一个实心方块。真实项目应该
-                        // 换成自己的 chevron sprite 或图标字体。
-                        img.enabled = false;
-                        break;
-                }
-            }
         }
 
         // 顶栏下拉：夜间 / 白天 → UI.Theme.Set。
