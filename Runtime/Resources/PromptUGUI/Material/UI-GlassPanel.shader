@@ -167,23 +167,26 @@ Shader "UI/GlassPanel"
 
                 // 玻璃体：只有拿得到 backdrop 才画，否则 base 留空 —— 下面的 tint 直接落在
                 // 透明底上，结果与不透明面板逐像素一致，这就是降级视觉。
+                // 导数必须在分支外求：分支条件逐像素成立，而非均匀控制流里的 ddx/ddy 是未定义
+                // 行为。这里只取它的**长度**（一个屏幕像素等于多少画布单位），长度与光栅 Y 轴
+                // 朝向无关，所以跨平台一致；方向另外用局部空间中心差分求（见 PuguiSdNormal）。
+                float2 gradScreen = float2(ddx(d), ddy(d));
+                float unitsPerPixel = max(length(gradScreen), 1e-5);
+
                 float4 base = float4(0.0, 0.0, 0.0, 0.0);
                 if (_PUGUI_GlassBackdropAvailable > 0.5 && inside > 0.0)
                 {
                     float2 uv = IN.screenPos.xy / max(IN.screenPos.w, 1e-5);
 
-                    // SDF 的屏幕空间梯度就是边缘外法线；顺便拿到"一个屏幕像素等于多少画布单位"，
-                    // 于是 depth 这个画布单位的厚度能换算成屏幕像素的偏移量。
-                    float2 grad = float2(ddx(d), ddy(d));
-                    float gl = max(length(grad), 1e-5);
-                    float2 n = grad / gl;
+                    // 画布空间外法线：+Y 就是界面正上方，与 lightAngle 的定义同一套坐标系。
+                    float2 n = PuguiSdNormal(p, b, r);
 
                     // 折射带：仅 -depth < d < 0。band 在带外沿=1、带内沿=0。
                     float band = depth > 0.0 ? saturate(1.0 + d / depth) * inside : 0.0;
                     // 二次曲线让内部严格保持平整 —— 这是"薄玻璃"而非"果冻"的关键。
                     float bevel = band * band;
 
-                    float2 offset = n * bevel * (depth / gl) * 0.5 / _ScreenParams.xy;
+                    float2 offset = n * bevel * (depth / unitsPerPixel) * 0.5 / _ScreenParams.xy;
 
                     float3 rgb;
                     if (dispersion > 0.0)

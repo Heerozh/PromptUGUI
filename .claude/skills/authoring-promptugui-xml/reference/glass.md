@@ -77,12 +77,16 @@ their **thickness** — not a line — say which is primary.
 ```
 
 - `weld` is the fusing radius in px: how far from the junction the two shapes blend together.
-- Members are the **direct children** with `glass="true"`, at most 8. Fewer than two and nothing
-  fuses (the child just draws itself).
-- The welded Frame is a **carrier, not a shape**: `weld` plus `glass="true"` on one node is an error,
-  and the carrier's own `color` / `radius` are ignored — the fused outline comes from the children.
+- Members are the **direct children** with `glass="true"`, from 2 to 8 of them. A group with fewer
+  than two (or more than eight) is a lint error — at runtime the lone child simply draws itself and
+  the ninth block onwards stays unfused, so nothing breaks, but a group that fuses nothing is a
+  mistake worth naming.
+- The welded Frame is a **carrier, not a shape**: `weld` plus `glass="true"` on one node is a lint
+  error, and the carrier's own `color` / `radius` / `depth` are ignored — the fused outline comes
+  from the children.
 - Members stay ordinary nodes throughout: they lay out normally, hold children, and answer
   `Get<T>` as usual. Only their drawing moves to the group.
+- A Variant may turn a block's `glass` on or off, or hide it: the group re-fuses in the same pass.
 
 Where each parameter goes:
 
@@ -92,8 +96,28 @@ Where each parameter goes:
 | 每个玻璃子级 | `radius` `depth` `color` |
 
 The split is physical, not arbitrary: two halves of one continuous pane cannot be frosted differently
-or lit from different angles, while the thickness step between them is the entire point. Putting one
-on the wrong node is a lint error (`PUI-GLASS-WELD-PARAM-PLACEMENT`).
+or lit from different angles, while the thickness step between them is the entire point. A border on
+one member would draw precisely the dividing line the weld exists to remove, which is why the outline
+is the carrier's. Putting one on the wrong node is a lint error
+(`PUI-GLASS-WELD-PARAM-PLACEMENT`) — the attribute is silently ignored at runtime.
+
+## Lint codes
+
+The CLI (`dotnet run --project .lint/UIXmlLint -- <path>`) exits non-zero on any of these. Every one
+of them is silent at runtime, which is why they exist.
+
+| Code | Means |
+|---|---|
+| `PUI-GLASS-PARAM-NO-GLASS` | a glass parameter on a node that never enters glass mode |
+| `PUI-GLASS-WELD-SELF` | `weld` and `glass="true"` on the same node |
+| `PUI-GLASS-WELD-MEMBERS` | a weld group with fewer than 2 or more than 8 glass children |
+| `PUI-GLASS-WELD-PARAM-PLACEMENT` | a group-level parameter on a member, or a per-block one on the carrier |
+| `PUI-PROCEDURAL-VALUE` | a glass value outside its range, or not a finite number |
+
+These read attributes as they will be **after** `class=` is merged, so carrying `glass="true"` in a
+`<Style>` works exactly like writing it inline. Where a class names a style the linted file does not
+declare — the usual case for an imported skin library — nothing about that node can be proven, so
+the structural codes above stay quiet rather than guess.
 
 ## When there is no backdrop
 
@@ -104,8 +128,13 @@ does not — whenever:
 - URP is installed but is not the active render pipeline;
 - **URP is running in Compatibility Mode (Render Graph disabled)** — see below;
 - there is no capture camera (no `MainCamera` tag and no `UI.Glass.Camera`);
+- the capture camera stopped rendering — disabled for a cutscene, or its GameObject deactivated;
 - `UI.Glass.Enabled` is off — the intended way to wire glass to a quality setting;
 - you are in the Editor and not in Play mode. Glass does not preview outside play.
+
+Whatever the cause, a backdrop that stops being refreshed is dropped within a frame or two rather
+than left on screen as a frozen still — so the fallback is what you see, not the last thing the
+camera happened to render.
 
 **Render Graph is required.** The capture is a `ScriptableRenderPass` that only implements
 `RecordRenderGraph`; under Compatibility Mode URP calls the deprecated `Execute` path instead, so

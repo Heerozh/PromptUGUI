@@ -109,8 +109,16 @@ namespace PromptUGUI.Controls.Internal
             EnsureCanvasChannels();
         }
 
+        /// <summary>Re-arms the warn-once diagnostics; see <c>GlassRuntime</c>.</summary>
+        internal static void ResetDiagnostics() => _warnedFeedbackLoop = false;
+
         protected override void OnDestroy()
         {
+            // Leave the weld group before disappearing, so it never walks a destroyed member.
+            var group = Group;
+            Group = null;
+            if (group != null) group.MarkMembersDirty();
+
             if (_countedAsGlass)
             {
                 _countedAsGlass = false;
@@ -182,7 +190,34 @@ namespace PromptUGUI.Controls.Internal
             _glass = glass;
             SyncGlassCount();
             WarnOnBackdropFeedbackLoop();
+            // Membership in a weld group is decided by this flag, and ReSolve applies the container
+            // before its children — so the group has already synced against the old value and only
+            // finds out if we tell it.
+            NotifyWeldGroup();
             MarkDirty();
+        }
+
+        /// <summary>
+        /// Tells the weld group covering this panel that its membership may have changed. When the
+        /// panel is already a member the group is known; when it is turning glass ON for the first
+        /// time it is not, so the group is looked up among the parent's children — that is where
+        /// <see cref="GlassGroupPanel.Attach"/> puts it.
+        /// </summary>
+        private void NotifyWeldGroup()
+        {
+            var group = Group;
+            if (group == null)
+            {
+                var parent = transform.parent;
+                if (parent == null) return;
+                for (var i = 0; i < parent.childCount; i++)
+                    if (parent.GetChild(i).TryGetComponent<GlassGroupPanel>(out var found))
+                    {
+                        group = found;
+                        break;
+                    }
+            }
+            if (group != null) group.RequestMemberRescan();
         }
 
         public void SetFrost(float v) { _frost = v; MarkDirty(); }

@@ -117,6 +117,14 @@ namespace PromptUGUI.Parser
                 error = $"radius=\"{raw}\": {corner} segment '{s}' is not a number";
                 return false;
             }
+            // "NaN" / "Infinity" parse fine under InvariantCulture, and NaN also slips past the
+            // negative test below (every comparison with NaN is false).
+            if (float.IsNaN(result) || float.IsInfinity(result))
+            {
+                result = 0f;
+                error = $"radius=\"{raw}\": {corner} segment '{s}' is not a finite number";
+                return false;
+            }
             if (result < 0f)
             {
                 error = $"radius=\"{raw}\": {corner} segment '{s}' is negative";

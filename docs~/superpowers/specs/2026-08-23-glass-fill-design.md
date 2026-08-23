@@ -139,9 +139,9 @@ fallback 切换 = 材质 keyword 翻转，实现上进 `PanelParams` key（一�
 </Frame>
 ```
 
-- `weld`（px）写在父 Frame：smin 的焊接半径，控制交界圆角。写了 weld 的 Frame 自身不得 `glass="true"`（parse error）——它是承载者不是形状。
+- `weld`（px）写在父 Frame：smin 的焊接半径，控制交界圆角。写了 weld 的 Frame 自身不得 `glass="true"`（**lint error**，见 §15.1——运行时容忍并按承载者处理）——它是承载者不是形状。
 - **组级参数**（物理上必须一致）写在父上：`frost` / `lightAngle` / `lightIntensity` / `saturation` / `noise`；**逐块参数**写在子上：`radius` / `depth` / `color`（tint 逐块）/ `borderWidth` / `borderColor`。子上写组级参数 → lint warn + 忽略。
-- 参与者 = **直接子级**中 `glass="true"` 的 Frame，上限 8 块（超出 parse error）。子 Frame 照常参与布局、放内容、被 `Get<T>` 找到——只是玻璃视觉由组统一画。
+- 参与者 = **直接子级**中 `glass="true"` 的 Frame，上限 8 块（超出为 **lint error**，见 §15.1——运行时超额成员自己画，不阻断开屏）。子 Frame 照常参与布局、放内容、被 `Get<T>` 找到——只是玻璃视觉由组统一画。
 
 ### 7.2 实现
 
@@ -276,3 +276,100 @@ RenderGraph 的临时纹理活不过当帧，而 Overlay canvas 在图之外渲�
   - `weld` 0 / 14 / 30 三档：0 时两块各自独立、中间一条明显断缝；30 时融成一整片连续 L 形，
     交界处是平滑凹角，**没有任何分割线**；14 介于两者之间。融合按设计工作。
   - tint 叠加、fallback（关掉 `UI.Glass.Enabled` 后中心回到纯黑）均符合预期。
+
+## 15. 代码审查修复（2026-08-24）
+
+多智能体审查（`5af1619..HEAD`，high 档）报出 15 项，13 项确认。全部已修，测试从 2208 涨到 2251。
+下面按"为什么原来是错的"分组，附带两处补记的 §13 遗漏。
+
+### 15.1 补记：两处错误契约在实施时降级为 lint（原 §13 漏记）
+
+本 spec §7.1 把 **weld 与 glass 同节点**、**成员超过 8 块** 定为 parse error，实施时都改成了
+lint + 运行时容忍（超额成员自己画）。改得对——parse error 会让一个能跑的布局直接开不了屏，
+而这两种写法都有确定且无害的运行时行为——但 §7.1 正文一直停留在旧契约，照它写测试会得到
+相反的期望。正文已随本次修复更新。
+
+### 15.2 ReSolve 是前序遍历，weld 成员资格滞后一整轮（最严重）
+
+`Screen.ReSolve` 遍历 `_nodeMap` 的**插入序**，也就是父先子后；而 Screen 首次构建走的是后序
+`ApplyOrder`。`Frame.OnAfterApply` 的注释假设两条路径同序，于是：Variant 把某个子级的 `glass`
+翻转时，容器的 `SyncMembers` **已经**按旧值同步完了。后果是被取消玻璃的块继续以融合玻璃渲染
+（而它自己的属性说它是普通 Frame），或新玻璃块当轮不融合、留下 weld 本该消灭的那条缝。
+
+修法：`ProceduralPanel.SetGlass` 主动通知所在（或所在父级下的）`GlassGroupPanel` 重扫成员
+（`RequestMemberRescan`）。已是成员时组已知；首次变玻璃时到父级子物体里找组——`Attach` 就放在那儿。
+不改 ReSolve 的遍历序：那是全局行为，为一个控件改它风险远大于收益。
+
+### 15.3 weld 容器被无条件 suppress，渲染结果依赖历史
+
+`SyncMembers` 一进门就 `_container?.SetSuppressed(true)`，与是否真的在融合无关。于是一个组只要
+存在过，容器自身的描边/发光就**永久**消失；更糟的是取消 weld 的两条路径终态相反——直接 setter
+走 `ReleaseMembers` 解除抑制，而 Variant 走 `OnAfterApply → SyncMembers` 又抑制回去。同样的解算
+属性、不同的历史、不同的画面。既有测试恰好只走了 setter 那条路径，把 bug 盖住了。
+
+修法：`SetSuppressed(active)`，`active` 就是"真的在融合"。
+
+### 15.4 backdrop 停产后冻结成一张死图
+
+可用标记由采集 pass 锁存 true，而清除只发生在"采集被停"或"相机为 null"两条路径上。相机对象
+还在、只是被禁用（过场、加载界面）时，`beginCameraRendering` 仍为其他相机触发但在
+`camera != target` 处提前返回——没有任何人清除标记，所有玻璃永远采样最后那一帧，
+`UI.Glass.IsActive` 还报 true。
+
+修法用**看结果新鲜度**而不是逐个枚举原因：`GlassRuntime` 记录最后发布帧号，挂
+`Canvas.willRenderCanvases`（它每帧都跑，即使一台相机都没渲染——这恰恰是全相机禁用时唯一能观测
+到的钩子）做 2 帧陈旧判定。一个看门狗同时覆盖相机禁用/销毁、管线切换、Compatibility Mode。
+另加一条即时路径：目标相机 `!isActiveAndEnabled` 时当场清标记，不必等看门狗。
+
+### 15.5 lint 看不见 `<Style>`/`class` 带来的 glass（把正确布局判成硬错误）
+
+`GlassRules` 只读节点自身的 `Attributes`/`VariantOverrides`，而 `glass="true"` 经 `<Style>` 到达
+是本库自己的样例和 glass.md 都在推荐的写法。于是 `<Frame weld>` 下两个 `class="card"` 子级被数成
+0 个玻璃子级 → `PUI-GLASS-WELD-MEMBERS` 硬错误，CLI 非零退出——而 CLAUDE.md 要求每次编辑
+`.ui.xml` 后都跑 CLI。假阳性比它要防的静默属性更贵。
+
+修法：新增 `StyleAttributeView`（`Core/Lint/`），按 `StyleMerger` 的同一套优先级（inline > 右
+class > 左 class，按属性名原子）解析"这个节点最终会有哪些属性"，`IRWalker` 从 `doc.Styles` 建好
+传下去。**解析不了的一律沉默**：class 指向本文件没声明的样式（十有八九来自 import，单文件 CLI
+永远看不到）或值里还有 `{{param}}` 时，结构性规则整条跳过而不是猜——与 `StyleRules` 刻意不做
+"未知 class 名"检查同一个道理。
+
+### 15.6 shader 法线取自光栅空间导数（跨平台翻转 + 分支内导数）
+
+`float2 grad = float2(ddx(d), ddy(d))` 有两个问题：`lightAngle` 是**画布空间**概念（0 = 界面正
+上方），而光栅 Y 轴朝向逐平台不同（D3D/Metal 向下、GL/GLES/WebGL 向上），于是高光和折射方向在
+GL 目标上整个上下翻转——同一份 XML 在 WebGL 构建里长得不一样且不报错，而 WebGL 是本项目明示的
+支持目标；此外该语句位于逐像素的 `inside > 0` 分支内，非均匀控制流里的导数是未定义行为。
+
+修法：`PuguiSdNormal` 改成圆角矩形 SDF 的**解析**法线（直接对 `PuguiSdRoundBox` 求导），画布空间、
+零额外 SDF 求值、不依赖任何平台约定。融合组更省：把各成员的解析法线按 pass-2 **已经算好**的那组
+权重混合即可——这正是 smin 对梯度做的事，高光照旧沿融合外轮廓平滑流动。屏幕导数只留下取
+`length()` 换算"一屏幕像素等于多少画布单位"，长度与轴向无关，且已提到分支外。
+
+补了一条真渲染回归测试 `EdgeHighlight_LandsOnTheSideTheLightComesFrom`：`lightAngle` 0 与 180
+各渲一帧、比上下半幅亮度差。既有渲染测试用了 `lightAngle` 却从不断言高光落在哪侧——正是这个
+缺口让平台翻转能一路绿灯。
+
+### 15.7 其余（同批修掉）
+
+| 问题 | 修法 |
+|---|---|
+| `<Add at='start'>` 把 `GlassWeld` 子物体挤离 sibling 0，融合玻璃盖住新增内容 | `SyncMembers` 每次重申 index 0，不再假设 |
+| 已销毁成员触发 `MissingReferenceException`，`ParseException` 包装后杀死整轮 ReSolve | `previous` 循环 + `Frame.OnAfterApply` 全改 Unity `== null` 判断；`ProceduralPanel.OnDestroy` 主动退组 |
+| `frost="NaN"` / `depth="Infinity"` 穿过校验直达 shader（`v < min \|\| v > max` 对 NaN 恒 false） | `GlassAttrParser` / `RadiusParser` / `Frame.ParsePixels` 三处补有限性检查 |
+| 成员上写 `borderWidth`/`glow` 被静默吃掉且无 lint | 并入 `GroupAttrs`，按 `PUI-GLASS-WELD-PARAM-PLACEMENT` 报 |
+| XSD 生成器漏了全部 9 个玻璃属性（Frame 是手写列表、非反射） | 补齐，并在注释里点明"Frame 加属性必须同步这里" |
+| 五个 warn-once 静态不复位，关域重载时二次 Play 起诊断全哑 | `GlassRuntime.ResetAll` 统一清，挂 `[RuntimeInitializeOnLoadMethod]` + `ResetForTests` |
+| 成员纯位移（尺寸不变）不触发重打包，融合形状留在旧位置 | `GlassGroupPanel.LateUpdate` 比对已打包的 rect，变了才 dirty |
+| glass.md 说单成员 weld 是良性的，lint 却报硬错误；四个错误码任何文档都查不到 | glass.md 更正 + 新增 Lint codes 一节 |
+
+### 15.8 验证
+
+- EditMode 2251 / 2251 通过（原 2208 + 新增 43）。新增测试文件：`GlassWeldLifecycleTests`
+  （6 条：Variant 双向翻转成员、weld 取消、销毁成员、Add 块索引）、`GlassRulesStyleAwareTests`
+  （11 条：class 带 glass 的各条路径 + 无法解析时沉默）、`NumericGuardTests`（12 条）、
+  `GlassBackdropWatchdogTests`（4 条），外加 `GlassRenderTests` 的高光方向回归。
+- `dotnet format --verify-no-changes --severity warn` 干净；UIXmlLint CLI 重新编译，对
+  `Samples~/ProceduralStyle/Resources/UI/` 四个文件零 issue。
+- 离屏渲染肉眼复核：单面板亮边仍在左上（`lightAngle='-35'`）、圆角与 1px 描边正常、面板外干净；
+  weld 组仍是连续 L 形、交界无分割线、厚度台阶可辨。解析法线没有改变观感。

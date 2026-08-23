@@ -25,10 +25,19 @@ namespace PromptUGUI.Application
         private static readonly int BackdropAvailableId =
             Shader.PropertyToID(BackdropAvailableProperty);
 
+        /// <summary>
+        /// How many frames a published backdrop stays trusted without being refreshed. One frame of
+        /// slack is required — the watchdog runs before the cameras render, so in any given frame the
+        /// newest backdrop is legitimately from the frame before.
+        /// </summary>
+        private const int StaleAfterFrames = 2;
+
         private static int _activePanels;
         private static bool _backdropAvailable;
         private static bool _enabled = true;
         private static bool _captureRunning;
+        private static int _lastPublishFrame = int.MinValue;
+        private static bool _watchdogHooked;
 
         /// <summary>Live glass panels. Test-only observability.</summary>
         internal static int ActivePanelCount => _activePanels;
@@ -72,6 +81,7 @@ namespace PromptUGUI.Application
         /// <summary>Called by the capture pass once it has published a usable backdrop.</summary>
         internal static void SetBackdropAvailable(bool available)
         {
+            if (available) _lastPublishFrame = Time.frameCount;
             if (_backdropAvailable == available) return;
             _backdropAvailable = available;
             Push();
@@ -79,6 +89,33 @@ namespace PromptUGUI.Application
 
         internal static void SetBackdropAvailableForTests(bool available)
             => SetBackdropAvailable(available);
+
+        /// <summary>Publishes with an explicit frame stamp so the watchdog can be driven in tests.</summary>
+        internal static void PublishBackdropForTests(int frame)
+        {
+            _backdropAvailable = true;
+            _lastPublishFrame = frame;
+            Push();
+        }
+
+        /// <summary>
+        /// Drops a backdrop nobody is refreshing any more.
+        ///
+        /// <para>Availability is latched by the capture pass, so every way production can stop
+        /// without the capture being stopped — the capture camera disabled for a cutscene or
+        /// destroyed, the render pipeline swapped, URP running in Compatibility Mode where
+        /// <c>RecordRenderGraph</c> is never called — would otherwise leave every glass panel
+        /// sampling one frozen frame indefinitely, with <c>UI.Glass.IsActive</c> still claiming all
+        /// is well. Watching the freshness of the result covers all of those at once, which is why
+        /// this is one watchdog rather than a check per cause.</para>
+        /// </summary>
+        internal static void TickBackdropWatchdog(int currentFrame)
+        {
+            if (!_backdropAvailable) return;
+            if (currentFrame - _lastPublishFrame < StaleAfterFrames) return;
+            _backdropAvailable = false;
+            Push();
+        }
 
         private static void SyncCapture()
         {
@@ -88,16 +125,44 @@ namespace PromptUGUI.Application
 #if PROMPTUGUI_HAS_URP
             Glass.GlassBackdropSystem.SetActive(wanted);
 #endif
+            HookWatchdog(wanted);
             // Stopping the capture invalidates whatever texture was published; say so immediately
             // rather than leaving panels sampling a stale frame.
             if (!wanted) SetBackdropAvailable(false);
         }
 
+        /// <summary>
+        /// The watchdog rides <c>Canvas.willRenderCanvases</c> because it has to tick even when no
+        /// camera renders at all — an Overlay-only frame with every camera disabled is exactly one of
+        /// the cases that strands a frozen backdrop, and a camera callback cannot observe it.
+        /// </summary>
+        private static void HookWatchdog(bool hook)
+        {
+            if (hook == _watchdogHooked) return;
+            _watchdogHooked = hook;
+            if (hook) Canvas.willRenderCanvases += OnWillRenderCanvases;
+            else Canvas.willRenderCanvases -= OnWillRenderCanvases;
+        }
+
+        private static void OnWillRenderCanvases() => TickBackdropWatchdog(Time.frameCount);
+
         private static void Push()
             => Shader.SetGlobalFloat(BackdropAvailableId,
                                      _enabled && _backdropAvailable ? 1f : 0f);
 
-        internal static void ResetForTestsInternal()
+        internal static void ResetForTestsInternal() => ResetAll();
+
+        /// <summary>
+        /// Statics do not survive a domain reload — but with <em>Enter Play Mode Options</em> set to
+        /// skip it they survive every play session after the first, and the warn-once diagnostics
+        /// below are the ones that explain why glass silently degraded. Left latched, they fire in
+        /// the first session of an editor run and then leave every later reproduction in exactly the
+        /// silence they exist to break.
+        /// </summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetOnPlayStart() => ResetAll();
+
+        private static void ResetAll()
         {
             _activePanels = 0;
             _enabled = true;
@@ -105,7 +170,15 @@ namespace PromptUGUI.Application
             RenderOutsidePlayModeForTests = false;
             SyncCapture();
             _backdropAvailable = false;
+            _lastPublishFrame = int.MinValue;
             Push();
+
+            // Warn-once latches live next to the state they describe, so they are cleared with it.
+            Controls.Internal.ProceduralPanel.ResetDiagnostics();
+            Controls.Internal.GlassGroupPanel.ResetDiagnostics();
+#if PROMPTUGUI_HAS_URP
+            Glass.GlassBackdropSystem.ResetDiagnostics();
+#endif
         }
     }
 }

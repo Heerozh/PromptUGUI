@@ -14,19 +14,23 @@ namespace PromptUGUI.Lint
 
         public static IEnumerable<LintIssue> Walk(UIDocument doc)
         {
+            // Rules that reason about a node's configuration (rather than one written value) have to
+            // see attributes arriving through class= as well — see StyleAttributeView.
+            var styles = new StyleAttributeView(doc.Styles);
+
             foreach (var screen in doc.Screens)
             {
                 // Collect all ids in this Screen once (pre-expansion, best-effort) for
                 // PUI-NAV-UNKNOWN-TARGET. Add-directive children are part of the same Screen scope.
                 var screenIds = CollectScreenIds(screen);
 
-                foreach (var issue in WalkNode(screen.Root, inTemplateBody: false, hasStateSourceAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false, screenIds: screenIds))
+                foreach (var issue in WalkNode(screen.Root, inTemplateBody: false, hasStateSourceAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false, screenIds: screenIds, styles: styles))
                     yield return issue;
 
                 foreach (var variant in screen.Variants)
                     foreach (var add in variant.Adds)
                         foreach (var addChild in add.Children)
-                            foreach (var issue in WalkNode(addChild, inTemplateBody: false, hasStateSourceAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false, screenIds: screenIds))
+                            foreach (var issue in WalkNode(addChild, inTemplateBody: false, hasStateSourceAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false, screenIds: screenIds, styles: styles))
                                 yield return issue;
             }
 
@@ -46,7 +50,7 @@ namespace PromptUGUI.Lint
                 // invocation may merge CommonAttrs onto it, which PUI-VARIANT-NO-BASE must account for.
                 // s_emptyIds: template bodies don't belong to a specific Screen — skip nav-target check.
                 if (template.Body != null)
-                    foreach (var issue in WalkNode(template.Body, inTemplateBody: true, hasStateSourceAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: true, screenIds: s_emptyIds))
+                    foreach (var issue in WalkNode(template.Body, inTemplateBody: true, hasStateSourceAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: true, screenIds: s_emptyIds, styles: styles))
                         yield return issue;
             }
         }
@@ -70,7 +74,7 @@ namespace PromptUGUI.Lint
                 CollectIds(child, ids);
         }
 
-        private static IEnumerable<LintIssue> WalkNode(ElementNode node, bool inTemplateBody, bool hasStateSourceAncestor, bool parentIsLayoutGroup, bool isTemplateBodyRoot, HashSet<string> screenIds)
+        private static IEnumerable<LintIssue> WalkNode(ElementNode node, bool inTemplateBody, bool hasStateSourceAncestor, bool parentIsLayoutGroup, bool isTemplateBodyRoot, HashSet<string> screenIds, StyleAttributeView styles)
         {
             // Per-tag self-checks (mirror of ScreenInstantiator dispatch; CLI errors).
             // Self-relative — about the node itself, unlike parent-relative LayoutGroupChildRules.
@@ -127,9 +131,9 @@ namespace PromptUGUI.Lint
 
             // CLI-only: glass parameters on a node that never enters glass mode, and weld groups
             // whose members or parameter placement can't work. All silent at runtime.
-            foreach (var issue in GlassRules.Check(node))
+            foreach (var issue in GlassRules.Check(node, styles))
                 yield return issue;
-            foreach (var issue in GlassRules.CheckWeldGroup(node))
+            foreach (var issue in GlassRules.CheckWeldGroup(node, styles))
                 yield return issue;
 
             // Universal: nav*/focus on a non-Selectable tag. Also wired in ScreenInstantiator.
@@ -196,7 +200,7 @@ namespace PromptUGUI.Lint
                         TabRules.TabParentCode, child.Tag, child.Id,
                         $"<Tab id='{child.Id}'>: must be a direct child of <TabBar>; current parent is <{node.Tag}>. " +
                         "Mutual exclusion and shared visuals will not apply.");
-                foreach (var issue in WalkNode(child, inTemplateBody, childHasStateSourceAncestor, parentIsLayoutGroup: isLayoutGroup, isTemplateBodyRoot: false, screenIds: screenIds))
+                foreach (var issue in WalkNode(child, inTemplateBody, childHasStateSourceAncestor, parentIsLayoutGroup: isLayoutGroup, isTemplateBodyRoot: false, screenIds: screenIds, styles: styles))
                     yield return issue;
             }
         }

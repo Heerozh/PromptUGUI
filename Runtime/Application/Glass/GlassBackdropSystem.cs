@@ -114,6 +114,14 @@ namespace PromptUGUI.Application.Glass
                 GlassRuntime.SetBackdropAvailable(false);
                 return;
             }
+            // A target that still exists but no longer renders — disabled for a cutscene, or its
+            // GameObject deactivated — never reaches RecordRenderGraph again. Saying so here is
+            // immediate; the frame watchdog in GlassRuntime would otherwise take a frame or two.
+            if (!target.isActiveAndEnabled)
+            {
+                GlassRuntime.SetBackdropAvailable(false);
+                return;
+            }
             if (camera != target) return;
 
             if (!WarnIfNotUniversal()) return;
@@ -259,6 +267,19 @@ namespace PromptUGUI.Application.Glass
             if (flag) return;
             flag = true;
             Debug.LogWarning(message);
+        }
+
+        /// <summary>
+        /// Re-arms the warn-once diagnostics. Called from <see cref="GlassRuntime"/> on play start
+        /// and on test reset — see the note there on domain reload being optional.
+        /// </summary>
+        internal static void ResetDiagnostics()
+        {
+            _warnedNoCamera = false;
+            _warnedNotUniversal = false;
+            _warnedNoRenderGraph = false;
+            _enqueued = 0;
+            _recorded = 0;
         }
 
         /// <summary>

@@ -175,6 +175,7 @@ Shader "UI/GlassGroup"
                 float wsum = 0.0;
                 float depth = 0.0;
                 float4 tint = 0.0;
+                float2 nrm = 0.0;
                 for (int j = 0; j < _WeldCount; j++)
                 {
                     float dj = MemberSd(j, p);
@@ -183,11 +184,17 @@ Shader "UI/GlassGroup"
                     float tj = saturate((p.y - (rect.y - rect.w)) / max(2.0 * rect.w, 1e-4));
                     tint += lerp(_WeldTintBottom[j], _WeldTintTop[j], tj) * w;
                     depth += _WeldDepths[j].x * w;
+                    // 融合形状的法线 = 各块法线按同一组权重的混合。这正是 smin 对梯度做的事，
+                    // 于是焊缝处法线平滑过渡、高光自然绕着融合后的外轮廓走 —— 而且不用多求一次
+                    // SDF。解析法线的理由（跨平台一致 + 分支安全）见 UI-PanelSDF.cginc。
+                    nrm += PuguiSdNormal(p - rect.xy, rect.zw, _WeldRadii[j]) * w;
                     wsum += w;
                 }
                 float inv = 1.0 / max(wsum, 1e-5);
                 tint *= inv;
                 depth *= inv;
+                float nlen = length(nrm);
+                float2 fusedNormal = nlen < 1e-6 ? float2(0.0, 1.0) : nrm / nlen;
 
                 float fw = max(fwidth(d), 1e-4);
                 float inside = saturate(0.5 - d / fw);
@@ -202,19 +209,22 @@ Shader "UI/GlassGroup"
                 float intensity  = _GlassB.z;
                 float saturation = _GlassB.w;
 
+                // 分支外求导：分支条件逐像素成立，非均匀控制流里的 ddx/ddy 未定义。这里只取
+                // 长度（一屏幕像素等于多少画布单位），与光栅 Y 轴朝向无关，跨平台一致。
+                float2 gradScreen = float2(ddx(d), ddy(d));
+                float unitsPerPixel = max(length(gradScreen), 1e-5);
+
                 float4 base = float4(0.0, 0.0, 0.0, 0.0);
                 if (_PUGUI_GlassBackdropAvailable > 0.5 && inside > 0.0)
                 {
                     float2 uv = IN.screenPos.xy / max(IN.screenPos.w, 1e-5);
 
-                    float2 grad = float2(ddx(d), ddy(d));
-                    float gl = max(length(grad), 1e-5);
-                    float2 n = grad / gl;
+                    float2 n = fusedNormal;
 
                     float band = depth > 0.0 ? saturate(1.0 + d / depth) * inside : 0.0;
                     float bevel = band * band;
 
-                    float2 offset = n * bevel * (depth / gl) * 0.5 / _ScreenParams.xy;
+                    float2 offset = n * bevel * (depth / unitsPerPixel) * 0.5 / _ScreenParams.xy;
 
                     float3 rgb;
                     if (dispersion > 0.0)

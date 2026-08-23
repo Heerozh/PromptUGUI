@@ -11,6 +11,11 @@ namespace PromptUGUI.Lint
     ///
     /// Pure C#, dispatched from <see cref="IRWalker"/> — every failure mode below is silent at
     /// runtime (an attribute nothing reads), so the CLI is the only place an author finds out.
+    ///
+    /// <para>All of it goes through a <see cref="StyleAttributeView"/> rather than reading
+    /// <see cref="ElementNode.Attributes"/> directly: glass is carried by <c>&lt;Style&gt;</c> /
+    /// <c>class=</c> at least as often as inline, and a rule that cannot see styles reports working
+    /// layouts as broken.</para>
     /// </summary>
     public static class GlassRules
     {
@@ -26,14 +31,16 @@ namespace PromptUGUI.Lint
         public const int MaxWeldMembers = 8;
 
         /// <summary>
-        /// Parameters that describe the glass sheet and the light on it. Physically these have to
-        /// agree across a welded group — two halves of one continuous pane cannot be frosted
-        /// differently — so the group container owns them.
+        /// Parameters that describe the glass sheet and the light on it, plus the outline drawn
+        /// around it. Physically these have to agree across a welded group — two halves of one
+        /// continuous pane cannot be frosted differently, and a per-block border would draw exactly
+        /// the dividing line the weld exists to remove — so the group container owns them.
         /// </summary>
         private static readonly string[] GroupAttrs =
         {
             GlassAttrParser.Frost, GlassAttrParser.Dispersion, GlassAttrParser.LightAngle,
             GlassAttrParser.LightIntensity, GlassAttrParser.Saturation, GlassAttrParser.Noise,
+            "borderWidth", "borderColor", "glow", "glowColor",
         };
 
         /// <summary>
@@ -44,11 +51,20 @@ namespace PromptUGUI.Lint
         private static readonly string[] MemberAttrs = { GlassAttrParser.Depth, "color", "radius" };
 
         public static IEnumerable<LintIssue> Check(ElementNode n)
-        {
-            var isWeldGroup = Declares(n, GlassAttrParser.Weld);
-            var declaresGlassFlag = Declares(n, GlassAttrParser.Glass);
+            => Check(n, StyleAttributeView.Empty);
 
-            if (isWeldGroup && IsGlassTrue(n))
+        public static IEnumerable<LintIssue> Check(ElementNode n, StyleAttributeView styles)
+        {
+            styles ??= StyleAttributeView.Empty;
+
+            // A class this document cannot resolve may carry any of these attributes; nothing here
+            // can be proven, so say nothing rather than guess.
+            if (styles.IsUncertain(n)) yield break;
+
+            var isWeldGroup = styles.Declares(n, GlassAttrParser.Weld);
+            var declaresGlassFlag = styles.Declares(n, GlassAttrParser.Glass);
+
+            if (isWeldGroup && IsGlassTrue(n, styles))
                 yield return new LintIssue(
                     WeldSelfCode, n.Tag, n.Id,
                     $"<{n.Tag} id='{n.Id}'>: 'weld' and glass=\"true\" on the same node. " +
@@ -60,7 +76,7 @@ namespace PromptUGUI.Lint
             {
                 foreach (var attr in MemberAttrs)
                 {
-                    if (!Declares(n, attr)) continue;
+                    if (!styles.Declares(n, attr)) continue;
                     yield return new LintIssue(
                         WeldParamPlacementCode, n.Tag, n.Id,
                         $"<{n.Tag} id='{n.Id}'>: '{attr}' is a per-block parameter and is ignored " +
@@ -77,7 +93,7 @@ namespace PromptUGUI.Lint
             foreach (var attr in GlassAttrParser.NumericAttrs)
             {
                 if (attr == GlassAttrParser.Weld) continue;
-                if (!Declares(n, attr)) continue;
+                if (!styles.Declares(n, attr)) continue;
                 yield return new LintIssue(
                     ParamWithoutGlassCode, n.Tag, n.Id,
                     $"<{n.Tag} id='{n.Id}'>: '{attr}' is ignored without glass=\"true\" — " +
@@ -86,23 +102,34 @@ namespace PromptUGUI.Lint
             }
         }
 
+        public static IEnumerable<LintIssue> CheckWeldGroup(ElementNode n)
+            => CheckWeldGroup(n, StyleAttributeView.Empty);
+
         /// <summary>
         /// Parent-relative checks for a node carrying <c>weld</c>. Dispatched separately because the
         /// members are its direct children, which a per-node rule cannot see.
         /// </summary>
-        public static IEnumerable<LintIssue> CheckWeldGroup(ElementNode n)
+        public static IEnumerable<LintIssue> CheckWeldGroup(ElementNode n, StyleAttributeView styles)
         {
-            if (!Declares(n, GlassAttrParser.Weld)) yield break;
+            styles ??= StyleAttributeView.Empty;
+            if (styles.IsUncertain(n)) yield break;
+            if (!styles.Declares(n, GlassAttrParser.Weld)) yield break;
 
             var members = 0;
+            // A child whose classes cannot be resolved might or might not be glass, which makes the
+            // member count unknowable — placement issues on the children that ARE definitely glass
+            // are still worth reporting, so only the count check is dropped.
+            var countIsKnowable = true;
+
             foreach (var child in n.Children)
             {
-                if (!IsGlassTrue(child)) continue;
+                if (styles.IsUncertain(child)) { countIsKnowable = false; continue; }
+                if (!IsGlassTrue(child, styles)) continue;
                 members++;
 
                 foreach (var attr in GroupAttrs)
                 {
-                    if (!Declares(child, attr)) continue;
+                    if (!styles.Declares(child, attr)) continue;
                     yield return new LintIssue(
                         WeldParamPlacementCode, child.Tag, child.Id,
                         $"<{child.Tag} id='{child.Id}'>: '{attr}' is a group-level parameter and is " +
@@ -110,6 +137,8 @@ namespace PromptUGUI.Lint
                         $"share it. Move '{attr}' onto the <{n.Tag}> that carries 'weld'.");
                 }
             }
+
+            if (!countIsKnowable) yield break;
 
             if (members > MaxWeldMembers)
                 yield return new LintIssue(
@@ -126,18 +155,19 @@ namespace PromptUGUI.Lint
                     "the child draw itself.");
         }
 
-        private static bool Declares(ElementNode n, string attr)
-            => n.Attributes.ContainsKey(attr) || n.VariantOverrides.ContainsKey(attr);
-
-        private static bool IsGlassTrue(ElementNode n)
+        private static bool IsGlassTrue(ElementNode n, StyleAttributeView styles)
         {
-            if (n.Attributes.TryGetValue(GlassAttrParser.Glass, out var v)
-                && GlassAttrParser.TryParseFlag(GlassAttrParser.Glass, v, out var on, out _) && on)
+            styles.Resolve(n, GlassAttrParser.Glass, out var baseValue, out var variants);
+
+            if (GlassAttrParser.TryParseFlag(GlassAttrParser.Glass, baseValue, out var on, out _)
+                && on)
                 return true;
-            if (!n.VariantOverrides.TryGetValue(GlassAttrParser.Glass, out var overrides)) return false;
-            foreach (var (_, value) in overrides)
-                if (GlassAttrParser.TryParseFlag(GlassAttrParser.Glass, value, out var vOn, out _) && vOn)
+
+            foreach (var (_, value) in variants)
+                if (GlassAttrParser.TryParseFlag(GlassAttrParser.Glass, value, out var vOn, out _)
+                    && vOn)
                     return true;
+
             return false;
         }
     }

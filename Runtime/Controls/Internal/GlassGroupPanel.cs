@@ -152,8 +152,11 @@ namespace PromptUGUI.Controls.Internal
         internal void SyncMembers(ProceduralPanel containerPanel)
         {
             _container = containerPanel;
-            // The container Frame is the carrier, not a block: it must not draw a panel of its own.
-            _container?.SetSuppressed(true);
+
+            // The fused pane draws behind everything the blocks contain, which is only true while
+            // this child holds sibling index 0. A Variant <Add at='start'> renumbers the container's
+            // children knowing nothing about it, so the invariant is re-asserted rather than assumed.
+            if (transform.GetSiblingIndex() != 0) transform.SetSiblingIndex(0);
 
             var previous = ListPool.Rent();
             previous.AddRange(_members);
@@ -188,8 +191,17 @@ namespace PromptUGUI.Controls.Internal
             var active = welding && _members.Count >= 2;
             if (!active) _members.Clear();
 
+            // The container is a carrier only while the group actually fuses something. Suppressing
+            // it unconditionally would mean a group that once existed permanently erases the
+            // container's own panel — and the two ways to cancel a weld (the setter directly, or a
+            // Variant going through OnAfterApply) would end in opposite states.
+            if (_container != null) _container.SetSuppressed(active);
+
             foreach (var panel in previous)
             {
+                // Unity objects read as null once destroyed; touching one throws and takes the whole
+                // ReSolve pass down with it, not just this group.
+                if (panel == null) continue;
                 if (_members.Contains(panel)) continue;
                 panel.Group = null;
                 panel.SetSuppressed(false);
@@ -214,8 +226,23 @@ namespace PromptUGUI.Controls.Internal
                 panel.SetSuppressed(false);
             }
             _members.Clear();
-            _container?.SetSuppressed(false);
+            if (_container != null) _container.SetSuppressed(false);
         }
+
+        /// <summary>
+        /// Re-scans membership after something outside the container changed a child's glass flag.
+        ///
+        /// <para>Needed because <c>ReSolve</c> re-applies attributes parent-before-children (it walks
+        /// the node map in insertion order, unlike the post-order used when the Screen is first
+        /// built): by the time a Variant turns a block's <c>glass</c> on or off, this group has
+        /// already synced against the previous value. Without the block telling the group, a
+        /// de-glassed block keeps rendering as fused glass — and a newly glass one stays outside the
+        /// weld, leaving the seam the weld exists to remove — until some later ReSolve.</para>
+        /// </summary>
+        internal void RequestMemberRescan() => SyncMembers(_container);
+
+        /// <summary>Re-arms the warn-once diagnostics; see <c>GlassRuntime</c>.</summary>
+        internal static void ResetDiagnostics() => _warnedTooManyMembers = false;
 
         /// <summary>Re-packs member data into the material. Idempotent and cheap when nothing moved.</summary>
         internal void FlushGroup()
@@ -331,6 +358,39 @@ namespace PromptUGUI.Controls.Internal
         {
             FlushGroup();
             base.UpdateMaterial();
+        }
+
+        /// <summary>
+        /// Catches members that moved without resizing. <c>OnRectTransformDimensionsChange</c> covers
+        /// a member being resized, but a pure translation — a layout group re-flowing after a sibling
+        /// appears, a position tween — fires nothing at all, and the fused shape would stay behind at
+        /// the old coordinates until the next ReSolve.
+        ///
+        /// <para>The check is a handful of vector compares against the rects already packed last
+        /// flush, and only groups run it (there are ones of those, not hundreds), so "costs nothing
+        /// when nothing moved" stays true.</para>
+        /// </summary>
+        private void LateUpdate()
+        {
+            if (_membersDirty || !IsWelding) return;
+
+            var i = 0;
+            foreach (var member in _members)
+            {
+                if (member == null || !member.isActiveAndEnabled) continue;
+                if (i >= _activeCount) { MarkMembersDirty(); return; }
+
+                GetLocalRect(member.rectTransform, rectTransform, out var center, out var half);
+                var packed = _rects[i];
+                if (!Mathf.Approximately(packed.x, center.x) || !Mathf.Approximately(packed.y, center.y)
+                    || !Mathf.Approximately(packed.z, half.x) || !Mathf.Approximately(packed.w, half.y))
+                {
+                    MarkMembersDirty();
+                    return;
+                }
+                i++;
+            }
+            if (i != _activeCount) MarkMembersDirty();
         }
 
         private static Vector4 ResolveRadius(in PanelParams p, Vector2 half)

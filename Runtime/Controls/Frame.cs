@@ -194,8 +194,12 @@ namespace PromptUGUI.Controls
         /// </summary>
         internal override void OnAfterApply()
         {
-            _panel?.FlushParams();
-            _group?.SyncMembers(_panel);
+            // Unity `== null` rather than `?.`: these components read as null once destroyed (a
+            // Screen torn down out from under a pending ReSolve), and `?.` uses CLR semantics, which
+            // would happily call into the carcass and throw MissingReferenceException — aborting the
+            // whole ReSolve pass, not just this Frame.
+            if (_panel != null) _panel.FlushParams();
+            if (_group != null) _group.SyncMembers(_panel != null ? _panel : null);
         }
 
         private static float ParsePixels(string value, string attrName)
@@ -206,6 +210,9 @@ namespace PromptUGUI.Controls
                                 CultureInfo.InvariantCulture, out var px))
                 throw new ParseException(
                     $"{attrName}=\"{value}\": expected a number of pixels (e.g. \"1\", \"2.5\")");
+            // "NaN" / "Infinity" parse fine, and NaN slips past the negative test below.
+            if (float.IsNaN(px) || float.IsInfinity(px))
+                throw new ParseException($"{attrName}=\"{value}\": must be a finite number");
             if (px < 0f)
                 throw new ParseException($"{attrName}=\"{value}\": must not be negative");
             return px;

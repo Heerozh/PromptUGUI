@@ -165,6 +165,66 @@ namespace PromptUGUI.Tests.EditMode.Controls
             AssertNotTheErrorShader(c);
         }
 
+        /// <summary>
+        /// Mean luminance of the top and bottom halves of a rendered frame. Everything about the
+        /// panel except the edge lighting is vertically symmetric, so the difference between the two
+        /// isolates the lighting term.
+        /// </summary>
+        private (float Top, float Bottom) RenderHalfLuma(string xml)
+        {
+            Open(xml);
+            _capture.Render();
+            Canvas.ForceUpdateCanvases();
+            _ui.Render();
+
+            var tex = new Texture2D(Size, Size, TextureFormat.RGBA32, false);
+            var previous = RenderTexture.active;
+            RenderTexture.active = _uiRt;
+            tex.ReadPixels(new Rect(0, 0, Size, Size), 0, 0);
+            tex.Apply();
+            RenderTexture.active = previous;
+
+            var pixels = tex.GetPixels();
+            Object.DestroyImmediate(tex);
+
+            float top = 0f, bottom = 0f;
+            for (var y = 0; y < Size; y++)
+            {
+                for (var x = 0; x < Size; x++)
+                {
+                    var c = pixels[y * Size + x];
+                    var luma = c.r * 0.2126f + c.g * 0.7152f + c.b * 0.0722f;
+                    // GetPixels is bottom-up.
+                    if (y >= Size / 2) top += luma; else bottom += luma;
+                }
+            }
+            var half = Size * Size * 0.5f;
+            return (top / half, bottom / half);
+        }
+
+        private static string GlassPanelLitFrom(float angle) => $@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='g' glass='true' anchor='center' width='160' height='120' radius='24'
+         frost='0.6' depth='10' lightAngle='{angle}' lightIntensity='1'/>
+</Screen></PromptUGUI>";
+
+        [Test]
+        public void EdgeHighlight_LandsOnTheSideTheLightComesFrom()
+        {
+            // lightAngle is defined in canvas space — 0 is straight up. Deriving the edge normal from
+            // raster-space ddx/ddy instead would satisfy every other test here while putting the
+            // highlight on the wrong edge on any platform whose raster Y runs the other way
+            // (GL / GLES / WebGL, all shipping targets for this package). Comparing the two angles
+            // against each other keeps this independent of the panel's exact pixel bounds.
+            var litFromAbove = RenderHalfLuma(GlassPanelLitFrom(0f));
+            var litFromBelow = RenderHalfLuma(GlassPanelLitFrom(180f));
+
+            Assert.Greater(litFromAbove.Top, litFromAbove.Bottom,
+                "lightAngle=0 is straight up, so the top bevel must be the bright one");
+            Assert.Greater(litFromBelow.Bottom, litFromBelow.Top,
+                "lightAngle=180 must move the highlight to the bottom bevel");
+        }
+
         [Test]
         public void OutsideTheShape_NothingIsDrawn()
         {

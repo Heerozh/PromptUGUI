@@ -70,6 +70,16 @@ namespace PromptUGUI.Parser
                 return false;
             }
 
+            // InvariantCulture's float parser accepts "NaN" / "Infinity", and the range test below
+            // is false for NaN whatever the bounds are — so without this both walk straight into a
+            // shader uniform and produce undefined output with no diagnostic anywhere.
+            if (float.IsNaN(result) || float.IsInfinity(result))
+            {
+                result = fallback;
+                error = $"{attrName}=\"{value}\": must be a finite number";
+                return false;
+            }
+
             if (result < min || result > max)
             {
                 var range = float.IsPositiveInfinity(max)
