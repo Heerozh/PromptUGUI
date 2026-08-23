@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  玻璃皮肤 —— Skin-Flat.ui 的替身。实现同样那 12 个 <Style> 名字和同一组配色 token，
+  于是 ProceduralStyle.ui.xml 的版面、控件、C# 绑定一行都不用动，只换主文档那一行 Import。
+
+  和 flat 皮肤唯一的结构性差别：玻璃需要「后面真的有东西」。整屏底 app-bg 在这里几乎
+  透明，露出 Backdrop 那个 canvas="camera" 的壁纸；玻璃采样的正是相机拍到的那张画面。
+  详见 Backdrop.ui.xml 顶部的注释与 README 的「玻璃看得见什么」一节。
+
+  形体参数只写在这里：版面文件依旧一个数字都没有。
+-->
+<PromptUGUI version="1">
+
+  <!-- ───────── 配色 token ─────────
+       名字与 Skin-Flat 完全一致（版面里 color="ink" / popupColor="surface-2" 这类
+       直接引用必须继续解析得到），值换成适合压在照片上的玻璃配色。
+
+       玻璃的着色几乎都在 tint 上，所以 tint token 自带 alpha —— 主题切换换的是
+       「玻璃多厚、字多深」，而圆角 / 磨砂 / 打光角度这些形体参数完全不动。 -->
+  <Theme name="night">
+    <!-- 压在壁纸上的暗场：上深下浅。Bing 每日图什么亮度都可能，这一层是文字可读性的
+         唯一保障 —— 玻璃自己的 tint 太淡，撑不住这件事。 -->
+    <Color name="bg-top"        value="#05070FD1"/>
+    <Color name="bg-bottom"     value="#05070F70"/>
+    <!-- 玻璃自身的 tint（低 alpha 是关键：高了就不像玻璃，像糊了张色纸） -->
+    <Color name="glass-tint"    value="#FFFFFF14"/>
+    <Color name="glass-tint-2"  value="#FFFFFF1F"/>
+    <Color name="glass-sunk"    value="#00000038"/>
+    <Color name="glass-edge"    value="#FFFFFF47"/>
+    <!-- chip 单列 token：它的文字色由版面写死成 accent，底色必须跟 accent 拉开明度，
+         否则暗主题好看、亮主题就变成蓝字压蓝底 -->
+    <Color name="chip-fill"     value="#6EA8FF40"/>
+    <Color name="chip-edge"     value="#6EA8FF8C"/>
+    <!-- 不透明的实体面（下拉弹窗这类不能透光的层） -->
+    <Color name="surface"       value="#161C2EF2"/>
+    <Color name="surface-2"     value="#1E263CF2"/>
+    <Color name="stroke"        value="#FFFFFF"/>
+    <Color name="ink"           value="#F4F7FF"/>
+    <Color name="ink-dim"       value="#F4F7FFAD"/>
+    <Color name="accent"        value="#6EA8FF"/>
+    <Color name="accent-2"      value="#4BE6BC"/>
+    <Color name="danger"        value="#FF7A8E"/>
+    <Color name="on-accent"     value="#08101F"/>
+  </Theme>
+
+  <Theme name="day">
+    <!-- 亮场不能压太狠：白得过头，玻璃就没东西可模糊，整屏退化成灰面板 -->
+    <Color name="bg-top"        value="#FFFFFF8F"/>
+    <Color name="bg-bottom"     value="#FFFFFF3D"/>
+    <Color name="glass-tint"    value="#FFFFFF70"/>
+    <Color name="glass-tint-2"  value="#FFFFFF8A"/>
+    <!-- 亮主题的凹槽要用**深**色：白色叠白色不会显得凹进去 -->
+    <Color name="glass-sunk"    value="#26304D2B"/>
+    <Color name="glass-edge"    value="#FFFFFFC4"/>
+    <Color name="chip-fill"     value="#FFFFFF9E"/>
+    <Color name="chip-edge"     value="#1F5BE07A"/>
+    <Color name="surface"       value="#FFFFFFF2"/>
+    <Color name="surface-2"     value="#F4F7FEF2"/>
+    <Color name="stroke"        value="#26304D"/>
+    <Color name="ink"           value="#141C33"/>
+    <Color name="ink-dim"       value="#141C33A8"/>
+    <Color name="accent"        value="#1F5BE0"/>
+    <Color name="accent-2"      value="#0C8E6A"/>
+    <Color name="danger"        value="#D32B47"/>
+    <Color name="on-accent"     value="#FFFFFF"/>
+  </Theme>
+
+  <!-- ───────── 形体 ─────────
+       整套皮肤共用一个光源方向：-35° = 光从左上角打下来（0 是正上方，顺时针为正）。
+       全组一致才像同一个房间里的同一片玻璃 —— 逐块各打各的光会立刻穿帮。 -->
+
+  <!-- 整屏底：不是玻璃，是压在壁纸上的暗场。玻璃背后必须真有画面，
+       所以这一层刻意只做「压暗」不做「遮挡」。 -->
+  <Style name="app-bg"      color="bg-top,bg-bottom"/>
+
+  <!-- 顶栏：贴着屏幕上沿，只圆下面两角。frost 调高一点，让顶栏文字不被壁纸细节干扰 -->
+  <Style name="app-bar"     glass="true" radius="0,0,20,20"
+                            color="glass-tint" frost="0.75" depth="6"
+                            lightAngle="-35" lightIntensity="0.55"
+                            borderWidth="1" borderColor="glass-edge"/>
+
+  <!-- 主面板：大面积，磨砂中等，厚度最大 —— 它是这一屏最「靠前」的那层玻璃 -->
+  <Style name="panel"       glass="true" radius="18"
+                            color="glass-tint" frost="0.62" depth="8"
+                            lightAngle="-35" lightIntensity="0.6"
+                            borderWidth="1" borderColor="glass-edge"/>
+
+  <!-- 面板里的次级卡片：比 panel 薄（depth 3 对 8），叠上去时厚度差自己就把层级说清楚了 -->
+  <Style name="card"        glass="true" radius="12"
+                            color="glass-tint-2" frost="0.45" depth="3"
+                            lightAngle="-35" lightIntensity="0.5"
+                            borderWidth="1" borderColor="glass-edge"/>
+
+  <!-- 输入控件外壳：tint 用 glass-sunk（暗），读起来是「凹进去的槽」而不是浮起来的片 -->
+  <Style name="well"        glass="true" radius="10"
+                            color="glass-sunk" frost="0.9" depth="2"
+                            lightAngle="-35" lightIntensity="0.35"
+                            borderWidth="1" borderColor="glass-edge"/>
+
+  <!-- 标签 / 徽章：胶囊彩色玻璃 -->
+  <Style name="chip"        glass="true" radius="pill"
+                            color="chip-fill" frost="0.5" depth="4"
+                            lightAngle="-35" lightIntensity="0.6"
+                            borderWidth="1" borderColor="chip-edge"/>
+
+  <!-- 按钮三型：彩色玻璃。tint alpha 比面板高不少 —— 按钮要在照片上一眼可辨，
+       但仍然透光，所以还是玻璃不是色块。 -->
+  <Style name="btn-primary" glass="true" radius="10"
+                            color="accent/0.55" frost="0.5" depth="6"
+                            lightAngle="-35" lightIntensity="0.75"
+                            borderWidth="1" borderColor="#ffffff/0.4"/>
+  <Style name="btn-ghost"   glass="true" radius="10"
+                            color="glass-tint" frost="0.4" depth="4"
+                            lightAngle="-35" lightIntensity="0.6"
+                            borderWidth="1" borderColor="glass-edge"/>
+  <Style name="btn-danger"  glass="true" radius="10"
+                            color="danger/0.55" frost="0.5" depth="6"
+                            lightAngle="-35" lightIntensity="0.75"
+                            borderWidth="1" borderColor="#ffffff/0.4"/>
+
+  <!-- 1px 分隔线：不值得为它开一块玻璃（一块玻璃 = 一次 backdrop 采样） -->
+  <Style name="divider"     color="glass-edge"/>
+
+  <!-- TabBar 轨道底：凹槽，磨砂拉满 —— 选中态的 Tab 色块压在上面才够清楚 -->
+  <Style name="tab-track"   glass="true" radius="14"
+                            color="glass-sunk" frost="0.95" depth="2"
+                            lightAngle="-35" lightIntensity="0.35"
+                            borderWidth="1" borderColor="glass-edge"/>
+
+  <!-- 重点物件：厚彩色玻璃 + 外发光。glow 画在形状外侧，会被祖先 RectMask2D 裁掉 -->
+  <Style name="hero"        glass="true" radius="14"
+                            color="accent-2/0.45" frost="0.4" depth="10"
+                            lightAngle="-35" lightIntensity="0.85" dispersion="0.25"
+                            glow="18" glowColor="accent-2"
+                            borderWidth="1" borderColor="#ffffff/0.35"/>
+
+</PromptUGUI>

@@ -4,6 +4,7 @@ using PromptUGUI.Application.Modals;
 using PromptUGUI.Controls;
 using R3;
 using UnityEngine;
+using UnityEngine.Networking;
 
 namespace PromptUGUI.Samples.ProceduralStyle
 {
@@ -33,9 +34,25 @@ namespace PromptUGUI.Samples.ProceduralStyle
             UI.UseResourcesResolver("UI");
             UI.UseGamepadNavigation();
 
+            // canvas="camera" 的 Screen 需要一个相机引用，而 XML 里没法写引用。
+            // Backdrop 用的就是玻璃采集的那台相机（UI.Glass.Camera 默认 = Camera.main），
+            // 于是壁纸进得了 backdrop，玻璃就看得见它。
+            var camera = EnsureMainCamera();
+            UI.CanvasConfigurator = (canvas, _) =>
+            {
+                if (canvas.renderMode == RenderMode.ScreenSpaceCamera)
+                    canvas.worldCamera = camera;
+            };
+
+            await UI.LoadDocumentAsync("Backdrop.ui");
+            var backdrop = UI.Open("Backdrop");
+
             await UI.LoadDocumentAsync("ProceduralStyle.ui");
-            UI.Theme.Set("night");   // Skin-Flat 注册了 night + day 两套 token
+            UI.Theme.Set("night");   // 两套皮肤都注册了 night + day 两套 token
             var screen = UI.Open("ProceduralStyle");
+
+            // 壁纸不阻塞界面：先用内置渐变顶上，下载回来再换。
+            _ = LoadWallpaper(backdrop);
 
             BindThemeSwitcher(screen);
             BindFormPage(screen);
@@ -198,6 +215,123 @@ namespace PromptUGUI.Samples.ProceduralStyle
                 await t.Step("ProceduralStyle/toastBtn", text: UI.Tr("Tap here to fire a toast"));
                 await t.Step(null, text: UI.Tr("Tour complete — explore away!"), advance: Advance.TapAnywhere);
             });
+        }
+
+        // ───────── 玻璃背后的那张画面 ─────────
+
+        // Bing 每日图。刻意**运行时下载**而不是把图提交进仓库：这些壁纸是有版权的，
+        // 一个 UPM 包不该把它们随包分发。顺带这也演示了 <RawImage> 显示下载图。
+        const string BingArchiveUrl = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1";
+
+        [System.Serializable]
+        sealed class BingImage
+        {
+            public string url;         // 相对路径，要拼上 https://www.bing.com
+            public string copyright;   // "标题 (© 摄影师/图库)"
+        }
+
+        [System.Serializable]
+        sealed class BingArchive { public BingImage[] images; }
+
+        static async Awaitable LoadWallpaper(IScreen backdrop)
+        {
+            var wall = backdrop.Get<RawImage>("wall");
+            // 先挂上内置渐变：下载失败 / 断网 / 平台不给联网时，界面也不会是一片黑，
+            // 而且玻璃立刻就有东西可模糊。
+            wall.Texture = MakeDuskTexture();
+
+            try
+            {
+                using var meta = UnityWebRequest.Get(BingArchiveUrl);
+                if (!await Send(meta)) return;
+
+                var archive = JsonUtility.FromJson<BingArchive>(meta.downloadHandler.text);
+                if (archive?.images == null || archive.images.Length == 0) return;
+                var picked = archive.images[0];
+                if (string.IsNullOrEmpty(picked.url)) return;
+
+                using var image = UnityWebRequestTexture.GetTexture("https://www.bing.com" + picked.url);
+                if (!await Send(image)) return;
+
+                wall.Texture = DownloadHandlerTexture.GetContent(image);
+                backdrop.Get<Text>("credit").TextValue = picked.copyright;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"[Sample] Bing wallpaper unavailable ({e.Message}); " +
+                                 "keeping the built-in gradient.");
+            }
+        }
+
+        // UnityWebRequest 的 await 桥：项目禁用 Task，所以走 AwaitableCompletionSource
+        static async Awaitable<bool> Send(UnityWebRequest req)
+        {
+            var op = req.SendWebRequest();
+            var acs = new AwaitableCompletionSource<bool>();
+            op.completed += _ => acs.SetResult(true);
+            if (!op.isDone) await acs.Awaitable;
+            return req.result == UnityWebRequest.Result.Success;
+        }
+
+        // 没有 Camera.main 的空场景也能直接跑：canvas="camera" 的 Backdrop 没相机就不渲染，
+        // 玻璃也会因为采不到画面而退化成半透明面板。
+        static Camera EnsureMainCamera()
+        {
+            if (Camera.main != null) return Camera.main;
+
+            var go = new GameObject("Main Camera") { tag = "MainCamera" };
+            var cam = go.AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = Color.black;
+            Debug.Log("[Sample] No MainCamera in the scene — created one for the glass backdrop.");
+            return cam;
+        }
+
+        // 内置兜底壁纸：暮色渐变 + 几团柔光。两条刻意的取舍：
+        //   细节要多 —— 平坦的纯色底模糊之后还是纯色，根本看不出玻璃在工作；
+        //   颜色要收 —— 它只是没网时的替补，抢戏就把玻璃的层次全盖掉了（饱和度压在 0.5 以内）。
+        static Texture2D MakeDuskTexture()
+        {
+            const int w = 320, h = 180;
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+
+            // (中心 u, 中心 v, 半径, 色相, 强度)
+            var blobs = new[]
+            {
+                new Vector4(0.22f, 0.72f, 0.34f, 0.54f), new Vector4(0.78f, 0.30f, 0.28f, 0.94f),
+                new Vector4(0.52f, 0.86f, 0.22f, 0.46f), new Vector4(0.90f, 0.78f, 0.18f, 0.62f),
+            };
+
+            for (var y = 0; y < h; y++)
+            {
+                var v = y / (float)(h - 1);
+                for (var x = 0; x < w; x++)
+                {
+                    var u = x / (float)(w - 1);
+
+                    // 底：上暗下亮的暮色，色相从靛蓝滑到青
+                    var hue = Mathf.Lerp(0.66f, 0.52f, v);
+                    var sat = Mathf.Lerp(0.52f, 0.34f, v);
+                    var val = Mathf.Lerp(0.09f, 0.30f, v);
+
+                    foreach (var b in blobs)
+                    {
+                        var d = new Vector2((u - b.x) * 1.78f, v - b.y).magnitude / b.z;
+                        var fall = Mathf.Exp(-d * d * 2.2f);
+                        hue = Mathf.Lerp(hue, b.w, fall * 0.55f);
+                        val += fall * 0.26f;
+                        sat -= fall * 0.14f;
+                    }
+
+                    // 高频细纹：给 frost 一点真正可以抹掉的东西
+                    val += (Mathf.Sin(u * 47f) * Mathf.Sin(v * 61f)) * 0.012f;
+
+                    tex.SetPixel(x, y, Color.HSVToRGB(
+                        Mathf.Repeat(hue, 1f), Mathf.Clamp01(sat), Mathf.Clamp01(val)));
+                }
+            }
+            tex.Apply();
+            return tex;
         }
 
         // 128x32 HSV 横向渐变，演示 RawImage 显示运行时生成的 Texture
