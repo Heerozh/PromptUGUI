@@ -13,7 +13,7 @@ namespace PromptUGUI.Samples.ProceduralStyle
     /// 一张图素、一个 9-slice 都没有。
     ///
     /// 换皮肤只改 XML：<c>ProceduralStyle.ui.xml</c> 顶部那一行
-    /// <c>&lt;Import src="UI/Skin-Flat"/&gt;</c> 指向另一份实现了同样 12 个
+    /// <c>&lt;Import src="Skin-Flat.ui"/&gt;</c> 指向另一份实现了同样 12 个
     /// <c>&lt;Style&gt;</c> 名字的文件即可 —— 版面、控件、本文件的绑定代码一行都不用动。
     ///
     /// 使用步骤：场景里建空 GameObject 挂本组件，按 Play。

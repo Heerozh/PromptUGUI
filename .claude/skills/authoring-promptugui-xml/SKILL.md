@@ -55,7 +55,7 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <PromptUGUI version="1">
-  <Import src="common/Buttons" as="ui"/>
+  <Import src="common/Buttons.ui" as="ui"/>
   <Screen   name="MainMenu"> ... </Screen>
   <Template name="TitledPanel"> ... </Template>
 </PromptUGUI>
@@ -847,8 +847,8 @@ The extractor pulls each CDATA block as a single complete msgid; runtime transla
 ## Import & namespaces
 
 ```xml
-<Import src="common/Buttons"/>          <!-- merge templates into local namespace -->
-<Import src="common/Panels" as="ui"/>   <!-- prefix-qualified -->
+<Import src="common/Buttons.ui"/>          <!-- merge templates into local namespace -->
+<Import src="common/Panels.ui" as="ui"/>   <!-- prefix-qualified -->
 
 <Screen name="X">
   <PrimaryButton/>          <!-- from Buttons (unqualified) -->
@@ -857,9 +857,10 @@ The extractor pulls each CDATA block as a single complete msgid; runtime transla
 ```
 
 - `src` is an opaque key passed to the user's `UI.SourceResolver` (`Func<string, Awaitable<string>>`) — could be a Resources path, an Addressables key, anything. The library never touches the filesystem itself.
+- **With the Resources resolver, `src` keeps the `.ui` and is relative to the resolver root.** Unity's Resources lookup name strips only the final extension, so `Resources/UI/Skin.ui.xml` is addressable as `UI/Skin.ui`; after `UseResourcesResolver("UI")` the root is prepended for you. So `src="Skin.ui"` ✓, while `src="Skin"` and `src="UI/Skin.ui"` both raise `IOException: Resources lookup failed: …`. `<Import>` uses the same key shape as `LoadDocumentAsync` — whatever your C# passes there, an Import next to it looks the same.
 - Imports merge **recursively**; cycles are detected.
-- Imported files cannot contain `<Screen>` — only `<Template>`.
-- Same-named templates from two imports without `as=` → conflict error. Resolve with `as="ns"` on one of them.
+- Imported files cannot contain `<Screen>` — only `<Template>` / `<Style>` / `<Theme>`.
+- Same-named templates from two imports without `as=` → conflict error. Resolve with `as="ns"` on one of them. Styles behave the same way (`class="ns:name"` to reference a namespaced one).
 
 There's also a **commons pool** populated C#-side that's merged into every Screen automatically — see scripting-promptugui-csharp.
 
@@ -886,7 +887,7 @@ Define named colors in `<Theme>` blocks; reference them by name in any color att
 
 - `<Theme>` MUST have `name`. Optional `base="other-theme"` makes missing tokens fall back along the chain.
 - `<Color>` MUST have `name` (kebab-case, `[a-z0-9-]`) and `value` (hex / CSS-named, anything Unity's `ColorUtility.TryParseHtmlString` accepts).
-- Theme XML loads via `UI.LoadCommonLibraryAsync(...)` at boot, or via `<Import src="themes/main"/>` from any screen's `.ui.xml` — both register the same `ThemeStore`.
+- Theme XML loads via `UI.LoadCommonLibraryAsync(...)` at boot, or via `<Import src="themes/main.ui"/>` from any screen's `.ui.xml` — both register the same `ThemeStore`.
 
 ### Reference
 
@@ -1240,7 +1241,7 @@ VARIANT BLK   <Variant when="name">
               </Variant>
 NEVER VARY    id, tag name, <Param default>
 
-IMPORT        <Import src="..." [as="ns"]/>
+IMPORT        <Import src="path/File.ui" [as="ns"]/>   Resources: src keeps .ui, relative to resolver root
 USE           <ns.TagName/>             (when prefixed)
 
 SCREEN ATTRS  canvas="overlay|camera|world"    default overlay; renderMode only

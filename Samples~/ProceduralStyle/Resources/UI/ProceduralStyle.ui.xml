@@ -3,7 +3,7 @@
   Procedural Style Demo —— Common Controls Demo 的同内容改版，视觉全部由
   <Style> + <Frame> 的程序化绘制（圆角 / 描边 / 渐变 / 辉光）提供，一张图素都没有。
 
-  本文件刻意不写任何颜色、圆角、描边数值：所有外观都来自 UI/Skin-Flat 里的 <Style>。
+  本文件刻意不写任何颜色、圆角、描边数值：所有外观都来自 Skin-Flat.ui 里的 <Style>。
   换皮肤 = 改下面那一行 Import。
 
   界面文案用英文：本 demo 不带字体资源（零资源依赖是它的卖点之一），
@@ -11,7 +11,7 @@
 -->
 <PromptUGUI version="1">
 
-  <Import src="UI/Skin-Flat"/>
+  <Import src="Skin-Flat.ui"/>
 
   <!-- ScrollList 行模板 -->
   <Template name="OptionRow">

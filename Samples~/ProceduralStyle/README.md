@@ -29,7 +29,7 @@ btn-primary  btn-ghost  btn-danger  divider  tab-track  hero
 然后改主文档顶部那一行：
 
 ```xml
-<Import src="UI/Skin-Flat"/>   →   <Import src="UI/Skin-Glass"/>
+<Import src="Skin-Flat.ui"/>   →   <Import src="Skin-Glass.ui"/>
 ```
 
 版面、控件、C# 绑定一行都不用动。`<Theme>` 也放在 skin 文件里，所以"配色"和"材质"是一起换的。
