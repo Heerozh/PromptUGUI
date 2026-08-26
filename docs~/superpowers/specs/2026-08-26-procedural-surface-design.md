@@ -115,7 +115,14 @@ Btn (GameObject)
 
 ## 8. 状态视觉怎么组合
 
-- **`*Color` / `*Modulate` 直接可用**：它们驱动的是 `Graphic.color`，而 `ProceduralPanel` 是 `MaskableGraphic`。前提是 `targetGraphic` 指到 `__surface__`。
+- **`*Color` / `*Modulate` 要分开落，不能像 Image 那样预乘。** 本节最初写的是「它们驱动的是 `Graphic.color`，而 `ProceduralPanel` 是 `MaskableGraphic`，所以直接可用」—— **这句是错的**，示例跑起来 hover 玻璃按钮时暴露出来。
+
+  面板把作者写的样子放在**材质**里，`Graphic.color` 是叠在上面的**乘子**（shader 里 `col *= IN.color`）—— 正是这个拆分让同 style 的面板共用一份材质、保持合批。而 Image 没有这个拆分：那里 `Graphic.color` **就是**填充。所以 `StateTintReactor` 那句「把 modulate 预乘进 base、结果写给 `.color`」在 Image 上对、在这里错两次：
+
+  1. base 会被应用两遍（一次当填充、一次当顶点色），`color="#3366ff"` 渲染成它自己的平方；
+  2. 写进乘子通道的「绝对」hoverColor 根本不绝对 —— 它只是把底下的东西压暗，在玻璃上就是给模糊的 backdrop 上色，而不是改玻璃本身的 tint。
+
+  正确做法：**绝对色驱动 fill，modulate 留在顶点色**。代价是绝对色变化**不再淡入**（fill 是材质参数，逐帧补间会通过 `ProceduralMaterialCache` 每帧铸一份材质；状态是离散的，所以缓存里是每状态一份而不是每帧一份）。modulate 照常淡入。
 - **`targetGraphic` 的迁移必须是「算出来的」，不能一次性设。** 变体把程序化模式开了又关时，targetGraphic 要跟着回到原 Image；留在已隐藏的层上就是一个不可逆状态。这正是本周刚修的那一类缺陷（`Btn.ReconcileTransition`、`Progress.ReconcileLayers`、`StateTintReactor` 的基色），同样的形状：**从当前声明推，不从一次性快照推。**
 - **`pressedSprite` / `disabledSprite` / `selectedSprite` 在程序化表面上没有意义** —— 它们是 `Image.overrideSprite` 交换。判为矛盾声明（lint 报）。它们与 ColorTint 的让位逻辑已经是算出来的（M2.5），这里要一并纳入同一个 `Reconcile`。
 - **Disabled 去色要换实现，不能沿用材质替换。** 见 §13.5 —— 这是本设计里唯一一处会**弄坏现有功能**的交互，M1 必须一起做。

@@ -38,8 +38,24 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
         internal const string SurfaceName = "__Surface";
 
-        [SetUp] public void SetUp() => UI.ResetForTests();
-        [TearDown] public void TearDown() => UI.ResetForTests();
+        // Selectable.SelectionState is protected, so the ordinals are spelled out — same as
+        // BtnStateTests.
+        private const int NormalState = 0;
+        private const int Highlighted = 1;
+
+        [SetUp]
+        public void SetUp()
+        {
+            UI.ResetForTests();
+            StateTintReactor.TestForceInstant = false;
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            UI.ResetForTests();
+            StateTintReactor.TestForceInstant = false;
+        }
 
         private static Btn Load(string btnAttrs)
         {
@@ -374,6 +390,103 @@ namespace PromptUGUI.Tests.EditMode.Controls
             UI.Variants.Set("mobile", false);
             Assert.AreEqual(UnityEngine.UI.Selectable.Transition.None, btn.transition,
                 "…and back again");
+        }
+
+        // ===== state colours on a procedural surface land in two different places =====
+        //
+        // A panel keeps its authored look in its MATERIAL and treats Graphic.color as a multiplier
+        // (`col *= IN.color` in the shader) — the split that lets panels sharing a style share one
+        // material. An Image has no such split: there, Graphic.color IS the fill. So the reactor's
+        // "premultiply the modulate into the base and write the product to .color" is right for an
+        // Image and wrong here, twice over:
+        //   • the base would be applied as the fill AND as the tint, so color="#3366ff" renders as
+        //     its own square;
+        //   • an "absolute" hoverColor written to a multiplier channel is not absolute — it darkens
+        //     whatever is underneath, which on glass tints the blurred backdrop instead of the pane.
+
+        private static ProceduralPanel TargetPanel(Btn b) =>
+            b.GameObject.GetComponent<PuiButton>().targetGraphic as ProceduralPanel;
+
+        [Test]
+        public void ProceduralMode_AuthoredColour_LandsInTheFillOnly()
+        {
+            StateTintReactor.TestForceInstant = true;
+            var b = Load("radius='8' color='#3366ff' hoverColor='#ff0000'");
+            var panel = TargetPanel(b);
+
+            Assert.AreEqual(new Color32(0x33, 0x66, 0xff, 0xff), (Color32)panel.CurrentParams.FillTop);
+            Assert.AreEqual(Color.white, panel.color,
+                "the vertex tint must stay identity, or the authored colour is applied twice and the "
+                + "button renders as its own square");
+        }
+
+        [Test]
+        public void ProceduralMode_HoverColour_IsAbsolute()
+        {
+            StateTintReactor.TestForceInstant = true;
+            var b = Load("radius='8' color='#3366ff' hoverColor='#ff0000'");
+            var panel = TargetPanel(b);
+
+            b.GameObject.GetComponent<PuiButton>().SimulateState(
+                Highlighted);
+
+            Assert.AreEqual(new Color32(0xff, 0x00, 0x00, 0xff), (Color32)panel.CurrentParams.FillTop,
+                "hoverColor is documented as ABSOLUTE — it must BE the colour, not multiply into it");
+            Assert.AreEqual(Color.white, panel.color);
+        }
+
+        [Test]
+        public void ProceduralMode_HoverModulate_StaysAMultiplier()
+        {
+            StateTintReactor.TestForceInstant = true;
+            var b = Load("radius='8' color='#3366ff' hoverModulate='#808080'");
+            var panel = TargetPanel(b);
+
+            b.GameObject.GetComponent<PuiButton>().SimulateState(
+                Highlighted);
+
+            Assert.AreEqual(new Color32(0x33, 0x66, 0xff, 0xff), (Color32)panel.CurrentParams.FillTop,
+                "a modulate must not touch the fill…");
+            Assert.AreEqual(new Color32(0x80, 0x80, 0x80, 0xff), (Color32)panel.color,
+                "…it is exactly what the vertex channel is for");
+        }
+
+        [Test]
+        public void ProceduralMode_StateColours_RevertExactly()
+        {
+            StateTintReactor.TestForceInstant = true;
+            var b = Load("radius='8' color='#3366ff' hoverColor='#ff0000'");
+            var panel = TargetPanel(b);
+            var btn = b.GameObject.GetComponent<PuiButton>();
+
+            btn.SimulateState(Highlighted);
+            btn.SimulateState(NormalState);
+
+            Assert.AreEqual(new Color32(0x33, 0x66, 0xff, 0xff), (Color32)panel.CurrentParams.FillTop);
+            Assert.AreEqual(Color.white, panel.color);
+        }
+
+        /// <summary>
+        /// The case that prompted all of this: on glass, the state colour has to move the pane's own
+        /// tint. Written to the multiplier channel it would instead darken the blurred backdrop —
+        /// which reads as "hover does something vaguely wrong" rather than "hover changes the colour".
+        /// </summary>
+        [Test]
+        public void GlassSurface_HoverColour_MovesTheGlassTint()
+        {
+            StateTintReactor.TestForceInstant = true;
+            var b = Load("radius='8' glass='true' color='white/0.22' hoverColor='#ffcc00/0.5'");
+            var panel = TargetPanel(b);
+
+            b.GameObject.GetComponent<PuiButton>().SimulateState(
+                Highlighted);
+
+            var fill = panel.CurrentParams.FillTop;
+            Assert.AreEqual(1f, fill.r, 0.01f);
+            Assert.AreEqual(0.8f, fill.g, 0.02f);
+            Assert.AreEqual(0f, fill.b, 0.01f);
+            Assert.AreEqual(0.5f, fill.a, 0.01f);
+            Assert.IsTrue(panel.CurrentParams.Glass, "…and it is still glass");
         }
     }
 }

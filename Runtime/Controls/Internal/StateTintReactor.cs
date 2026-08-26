@@ -39,6 +39,7 @@ namespace PromptUGUI.Controls.Internal
         internal static bool TestForceInstant;
 
         private Graphic _graphic;
+        private ProceduralPanel _panel;     // non-null ⇒ the target draws procedurally
         private bool _baseCaptured;
         private int _bornFrame = int.MinValue;
         private ColorSpec _baseColor = ColorSpec.Solid(Color.white);
@@ -57,6 +58,7 @@ namespace PromptUGUI.Controls.Internal
         {
             if (_graphic != null) return;
             _graphic = GetComponent<Graphic>();
+            _panel = _graphic as ProceduralPanel;
             if (_graphic != null)
             {
                 // Fallback capture: only for a graphic whose owner pushed no authored colour.
@@ -154,6 +156,13 @@ namespace PromptUGUI.Controls.Internal
             // Focus reuses the hover visual (spec §4.3). The composite already folds Focused→Normal in
             // Pointer mode, so this only fires for an actually-directional-focused control.
             if (state == InteractState.Focused) state = InteractState.Hover;
+
+            if (_panel != null)
+            {
+                ApplyToPanel(state);
+                return;
+            }
+
             var target = BaseFor(state).Multiply(MultiplierFor(state));   // premultiply modulate into both stops
 
             if (_handle.IsActive()) _handle.TryCancel();
@@ -177,6 +186,46 @@ namespace PromptUGUI.Controls.Internal
             // 销毁的目标，避免写已销毁对象抛 MissingReferenceException（宿主 OnDestroy 的 TryCancel 在
             // Play 模式延迟销毁时存在竞态，不足以独力兜底）。
             _handle = LMotion.Create(_graphic.color, target.Top, _fade)
+                .Bind(_graphic, static (c, g) => { if (g) g.color = c; });
+        }
+
+        /// <summary>
+        /// A procedural surface splits the two halves instead of premultiplying them, because they
+        /// land in two different places.
+        ///
+        /// <para>The panel's authored look lives in its MATERIAL and <c>Graphic.color</c> is a
+        /// multiplier layered on top (<c>col *= IN.color</c> in the shader) — the split that lets
+        /// every panel sharing a style share one material and keep batching. Premultiplying the way
+        /// an Image needs would apply the base twice: once as the fill, once as the vertex tint, so
+        /// <c>color="#3366ff"</c> renders as its own square. And an "absolute" hoverColor written to
+        /// a multiplier channel is not absolute at all — it darkens whatever is underneath, which on
+        /// glass means tinting the blurred backdrop rather than the pane.</para>
+        ///
+        /// <para>So: absolutes drive the fill, modulates stay on the vertex colour. The one thing
+        /// lost is the fade on an absolute change — the fill is a material parameter, and tweening it
+        /// per frame would mint a material per frame through <c>ProceduralMaterialCache</c>. State
+        /// changes are discrete and infrequent, so the cache sees one entry per state, not one per
+        /// frame. Modulates still fade, since they are pure vertex colour.</para>
+        /// </summary>
+        private void ApplyToPanel(InteractState state)
+        {
+            if (_handle.IsActive()) _handle.TryCancel();
+
+            var basis = BaseFor(state);
+            _panel.SetFill(basis.Top, basis.Bottom);
+            _panel.FlushParams();
+
+            var multiplier = MultiplierFor(state);
+            var current = _graphic.color;
+            if (TestForceInstant || _fade <= 0f
+                || CrossesTransparency(current, multiplier)
+                || BornFrame.IsCurrent(_bornFrame))
+            {
+                _graphic.color = multiplier;
+                return;
+            }
+
+            _handle = LMotion.Create(current, multiplier, _fade)
                 .Bind(_graphic, static (c, g) => { if (g) g.color = c; });
         }
 

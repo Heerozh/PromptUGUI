@@ -90,7 +90,21 @@ Note: an authored `disabledSprite=` also switches the Btn off ColorTint (same `O
 
 In short: write `pressedSprite=""` or `pressedSprite="none"` to explicitly disable the built-in fallback and keep the default skin unchanged on press.
 
-**Not available on a procedural surface.** All three are `Image.overrideSprite` swaps, and a control
+**On a procedural surface, `*Color` and `*Modulate` land in two different places.** A panel keeps its
+authored look in its **material** and treats `Graphic.color` as a **multiplier** (`col *= IN.color`)
+— the split that lets every panel sharing a style share one material and keep batching. So:
+
+- `*Color` (absolute) drives the panel's **fill**, and stays genuinely absolute. On glass this moves
+  the pane's own tint, which is what "hover changes the colour" has to mean there.
+- `*Modulate` (relative) stays on `Graphic.color`, exactly as it does on an Image.
+
+One consequence worth knowing: **an absolute change snaps instead of fading** on a procedural
+surface. The fill is a material parameter, and tweening it per frame would mint a material per frame
+through the shared cache; state changes are discrete, so the cache sees one entry per state instead.
+`*Modulate` still fades — it is pure vertex colour. If you want a fading hover on a glass control,
+reach for `hoverModulate` rather than `hoverColor`.
+
+**State SPRITES are not available on a procedural surface.** All three are `Image.overrideSprite` swaps, and a control
 drawing procedurally (`<Btn radius=…>` / `glass=…`, see the main SKILL) has no Image showing — the
 combination is a contradiction and reports `PUI-PROC-STATE-SPRITE-CONFLICT`. Use `pressedColor` /
 `disabledColor` / `selectedColor`, their `*Modulate` counterparts, or `<Show on="state-*">`, all of
