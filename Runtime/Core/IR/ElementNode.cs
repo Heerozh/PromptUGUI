@@ -12,6 +12,15 @@ namespace PromptUGUI.IR
         public List<ElementNode> Children { get; }
 
         /// <summary>
+        /// The src this node's markup was written in, stamped by <c>UIDocumentParser.Parse(xml, src)</c>
+        /// and carried through every expansion copy. Lint reports against it so a finding inside an
+        /// imported Template body names the file the author has to open, not the entry document that
+        /// merely invoked it. Null when the caller parsed without a src (the caller's own path is
+        /// then the only sensible attribution).
+        /// </summary>
+        public string OriginSrc { get; set; }
+
+        /// <summary>
         /// Pre-substitution textContent. Filled by parser AND TemplateExpander preserves it through
         /// to expanded nodes (parser fills raw, expander leaves it alone but updates TextArgs).
         /// Only Text/Btn-shaped controls consume this; other tags ignore.

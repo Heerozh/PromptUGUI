@@ -9,7 +9,46 @@ namespace PromptUGUI.Parser
         private static readonly Regex KebabRx =
             new Regex("^[a-z0-9]+(-[a-z0-9]+)*$", RegexOptions.Compiled);
 
-        public static UIDocument Parse(string xml)
+        /// <summary>
+        /// <paramref name="src"/> is the resolver key / path this xml came from. Supplying it stamps
+        /// every produced <see cref="ElementNode"/> with <see cref="ElementNode.OriginSrc"/> so lint
+        /// findings can name the file the markup was written in — which is not the entry document
+        /// once <c>&lt;Import&gt;</c> and Template inlining are in play. Omitting it is fine and
+        /// leaves the origins null.
+        /// </summary>
+        public static UIDocument Parse(string xml, string src = null)
+        {
+            var doc = ParseCore(xml);
+            if (src != null) StampOrigin(doc, src);
+            return doc;
+        }
+
+        // Every ElementNode the document owns. Stamping here — one walk after parsing — keeps `src`
+        // out of the dozen private parse methods that would otherwise have to thread it through.
+        private static void StampOrigin(UIDocument doc, string src)
+        {
+            foreach (var screen in doc.Screens)
+            {
+                StampSubtree(screen.Root, src);
+                StampSubtree(screen.FocusCursor, src);
+                foreach (var variant in screen.Variants)
+                    foreach (var add in variant.Adds)
+                        foreach (var child in add.Children)
+                            StampSubtree(child, src);
+            }
+            foreach (var template in doc.Templates.Values)
+                StampSubtree(template.Body, src);
+        }
+
+        private static void StampSubtree(ElementNode node, string src)
+        {
+            if (node == null) return;
+            node.OriginSrc = src;
+            foreach (var child in node.Children)
+                StampSubtree(child, src);
+        }
+
+        private static UIDocument ParseCore(string xml)
         {
             var xdoc = new XmlDocument();
             xdoc.LoadXml(xml);

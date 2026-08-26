@@ -64,7 +64,7 @@ namespace PromptUGUI.Application
                     $"SourceResolver returned null/empty for src='{src}'");
 
             UIDocument doc;
-            try { doc = UIDocumentParser.Parse(xml); }
+            try { doc = UIDocumentParser.Parse(xml, src); }
             catch (ParseException) { throw; }
             catch (Exception e)
             {

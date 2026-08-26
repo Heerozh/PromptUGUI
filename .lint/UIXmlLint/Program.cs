@@ -95,7 +95,9 @@ namespace PromptUGUI.UIXmlLint
             foreach (var issue in DocumentLinter.Walk(doc, SrcKeyOf(path),
                                                       closure == null ? null : s => Lookup(closure, s)))
             {
-                Console.Error.WriteLine($"{path}: [{issue.Code}] {issue.Message}");
+                // Origin is the file the markup was WRITTEN in — for a finding inside an imported
+                // Template body that is the library, not the entry document that invoked it.
+                Console.Error.WriteLine($"{issue.Origin ?? path}: [{issue.Code}] {issue.Message}");
                 count++;
             }
             return count;
@@ -120,7 +122,7 @@ namespace PromptUGUI.UIXmlLint
 
             try
             {
-                var doc = UIDocumentParser.Parse(xml);
+                var doc = UIDocumentParser.Parse(xml, path);
                 failed = false;
                 return doc;
             }
@@ -162,7 +164,9 @@ namespace PromptUGUI.UIXmlLint
                 if (file == null) { unresolved = imp.Src; return false; }
 
                 UIDocument child;
-                try { child = UIDocumentParser.Parse(File.ReadAllText(file)); }
+                // Stamped with the RESOLVED path, not imp.Src: OriginSrc exists so a finding can
+                // name a file the author can open, while imp.Src stays the assembler's lookup key.
+                try { child = UIDocumentParser.Parse(File.ReadAllText(file), file); }
                 catch (Exception) { unresolved = imp.Src; return false; }
 
                 // Record before recursing so a cyclic Import terminates here; DocumentAssembler owns

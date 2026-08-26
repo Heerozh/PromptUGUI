@@ -42,9 +42,27 @@ document simply skips the expanded pass (a note on stdout says so) and keeps
 exactly the pre-existing raw-IR behaviour — failing a today-clean file over an
 environment gap would cost more than the missed coverage.
 
+### Which file a finding is reported against
+
+Once imports are followed, the node a rule complains about is often **not** in
+the file being linted — it was written in a library and inlined here. Every
+`ElementNode` therefore carries `OriginSrc` (stamped by
+`UIDocumentParser.Parse(xml, src)`, propagated through every expansion copy),
+and the CLI reports against it:
+
+```
+$ UIXmlLint uses-tmpl.ui.xml
+tmpl.ui.xml: [PUI-MASK-FRAME-SELF] <Frame id='card'>: mask="self" requires ...
+```
+
+The mistake is in `tmpl.ui.xml`; `uses-tmpl.ui.xml` merely invoked the template.
+Findings in the linted file itself are unaffected — they report against it as
+before.
+
 The two-pass logic lives in `Runtime/Core/Lint/DocumentLinter.cs`, not in
 `Program.cs`, so it is covered by `PromptUGUI.Tests.EditMode`
-(`DocumentLinterTests`). The CLI owns only I/O and the src → path guess.
+(`DocumentLinterTests`, `LintOriginTests`). The CLI owns only I/O and the
+src → path guess.
 
 Some rules are **CLI-only** — they catch author confusion that runtime
 silently absorbs (e.g. `sprite=` on `<Frame>` is dropped without a visible

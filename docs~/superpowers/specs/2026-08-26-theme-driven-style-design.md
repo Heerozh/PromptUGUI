@@ -420,4 +420,23 @@ M0 与 M1 都不依赖主题特性、都能独立合入主干。M1 是 M2 的硬
 
 验证：EditMode 2256 → 2252 passed / 0 failed / 4 skipped（4 skipped 是 M0 的 red）；EditorOnly 308/308；`dotnet format --verify-no-changes --severity warn` 无输出；CLI 对仓库全部 13 个 `.ui.xml` 仍然零 issue（无回归），对专门造的 fixture 正确报出 3 条并 exit 1。新测试的有效性用「临时摘掉展开遍」验证过：6 条里 4 条转红，另 2 条（去重、无法解析时降级）本就该两边成立。
 
-**尚未做**：§9.4 的 `--theme` 与三条主题规则属于 M2；§9.5 提到的 origin 溯源（issue 来自 commons 文件时的归属）也还没做 —— 现在展开遍报出的 issue 一律挂在入口文件路径下，跨文件时会指错文件。M2 之前应补。
+**尚未做**：§9.4 的 `--theme` 与三条主题规则属于 M2。
+
+### M1 追加：origin 溯源（§9.5）
+
+`ElementNode.OriginSrc` 由 `UIDocumentParser.Parse(xml, src)` 一次性打戳（解析后遍历整份文档，避免把 `src` 穿过十几个私有解析方法），并在展开期的全部 6 个 clone 点逐层传递（`TemplateExpander` ×5 + `StyleMerger.CloneWithoutClass`）。`LintIssue` 增 `Origin`，由 `IRWalker` **集中**打戳 —— 规则一行不用改，新规则自动获得正确归属。
+
+一个不显然的点：`LayoutGroupChildRules` 这类规则在**父节点的帧**里运行却是在说**子节点**，所以不能继承父节点的 origin，那 5 处显式用 `child.OriginSrc`（`LintOriginTests.ChildTargetedRule_IsAttributedToTheChild_NotItsParent` 钉住）。`<Style>` 不是 ElementNode，用它自己已有的 `StyleDef.OriginSrc`。
+
+CLI 端给 import 打戳时用的是**解析出来的磁盘路径**而非 `imp.Src`：`src` 是 resolver key，作者打不开；lookup 键仍用 `imp.Src` 不变。
+
+效果：
+
+```
+$ UIXmlLint uses-tmpl.ui.xml
+tmpl.ui.xml: [PUI-MASK-FRAME-SELF] <Frame id='card'>: mask="self" requires ...
+```
+
+**行号仍然没有**，本次也没做：`LintIssue` 从来就没有行号，`XmlDocument` 的节点默认不实现 `IXmlLineInfo`，要拿到得换一套读取方式。同一个模板被调用多次时，"哪一次调用"也仍不可区分（需要模板调用链，`TextArgs` 有原料但没接）。这两条都留给需要时再说。
+
+验证：EditMode 2262 → 2258 passed / 0 failed / 4 skipped；EditorOnly 308/308；`dotnet format` 无输出；CLI 对仓库 13 个文件仍零 issue；跨文件 fixture 正确指向库文件。有效性用「摘掉模板内联时的 origin 传递」验证：6 条里 3 条转红，失败信息正是这个 bug 本身（`Expected: "skin.ui" But was: "main.ui"`）。

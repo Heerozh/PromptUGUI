@@ -598,7 +598,7 @@ namespace PromptUGUI.Application
 
         public static void LoadDocument(string label, string xml)
         {
-            var raw = UIDocumentParser.Parse(xml);
+            var raw = UIDocumentParser.Parse(xml, label);
             var doc = PromptUGUI.Template.TemplateExpander.Expand(raw);
             foreach (var s in doc.Screens)
             {

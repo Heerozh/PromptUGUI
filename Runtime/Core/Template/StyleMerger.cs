@@ -123,6 +123,7 @@ namespace PromptUGUI.Template
         {
             var dst = new ElementNode(src.Tag, src.Namespace)
             {
+                OriginSrc = src.OriginSrc,
                 Id = src.Id,
                 TextContent = src.TextContent,
                 TextContentRaw = src.TextContentRaw,

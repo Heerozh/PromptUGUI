@@ -32,7 +32,10 @@ namespace PromptUGUI.Template
 
             foreach (var s in loaded.Screens)
             {
-                var newRoot = new ElementNode(s.Root.Tag, s.Root.Namespace);
+                var newRoot = new ElementNode(s.Root.Tag, s.Root.Namespace)
+                {
+                    OriginSrc = s.Root.OriginSrc,
+                };
                 // Screen-level attributes (e.g. reference=, reference.<variant>=) live on
                 // ScreenDef.Root and must survive expansion so runtime VariantResolver can read them.
                 foreach (var kv in s.Root.Attributes)
@@ -146,6 +149,7 @@ namespace PromptUGUI.Template
             var merged = StyleMerger.Apply(src, styles, null);
             var dst = new ElementNode(merged.Tag, merged.Namespace)
             {
+                OriginSrc = merged.OriginSrc,
                 Id = merged.Id,
                 TextContent = merged.TextContent,
                 TextContentRaw = merged.TextContentRaw ?? merged.TextContent,
@@ -274,6 +278,7 @@ namespace PromptUGUI.Template
 
             var dst = new ElementNode(prepared.Tag, prepared.Namespace)
             {
+                OriginSrc = prepared.OriginSrc,
                 Id = prepared.Id,
                 TextContent = Substitution.Apply(prepared.TextContent, args),
                 TextContentRaw = src.TextContentRaw ?? src.TextContent,
@@ -308,6 +313,7 @@ namespace PromptUGUI.Template
         {
             var dst = new ElementNode(src.Tag, src.Namespace)
             {
+                OriginSrc = src.OriginSrc,
                 Id = src.Id,
                 TextContent = src.TextContent,
             };
@@ -339,6 +345,7 @@ namespace PromptUGUI.Template
         {
             var dst = new ElementNode(src.Tag, src.Namespace)
             {
+                OriginSrc = src.OriginSrc,
                 Id = src.Id,
                 TextContent = src.TextContent,
                 TextContentRaw = src.TextContentRaw ?? src.TextContent,
