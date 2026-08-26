@@ -57,6 +57,8 @@ namespace PromptUGUI.Application
             // Control-specific attributes: union of base + variant keys.
             var allKeys = new HashSet<string>(node.Attributes.Keys);
             foreach (var k in node.VariantOverrides.Keys) allKeys.Add(k);
+            control.OnBeforeApply();
+
             foreach (var attrName in allKeys)
             {
                 if (IsCommonAttribute(attrName)) continue;

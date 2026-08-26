@@ -92,9 +92,20 @@ namespace PromptUGUI.Controls.Internal
                 var c = kv.Value;
                 if (c.Graphic == null) continue;   // 销毁安全
                 if (c.IsTmp)
+                {
                     ((TMP_Text)c.Graphic).color = _grayed ? Desaturate(c.Color) : c.Color;
+                }
+                else if (c.Graphic is ProceduralPanel panel)
+                {
+                    // A procedural surface greys itself from the inside. Swapping its material for
+                    // UI-Grayscale would throw away the shape, border, glow and glass along with the
+                    // colour — and FlushParams would write the SDF material straight back anyway.
+                    panel.SetDisabledGrayscale(_grayed);
+                }
                 else
+                {
                     c.Graphic.material = _grayed ? SharedMaterial : c.Material;
+                }
             }
         }
 

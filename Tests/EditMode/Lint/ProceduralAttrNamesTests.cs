@@ -68,15 +68,30 @@ namespace PromptUGUI.Tests.EditMode.Lint
             foreach (var (tag, entry) in UI.Registry.All)
             {
                 if (tag == "Frame") continue;
+                if (ProceduralSurfaceRules.SurfaceTags.Contains(tag)) continue;
                 foreach (var attr in ProceduralAttrNames.NeedsPanel)
                     if (entry.Meta.HasAttribute(attr))
                         offenders.Add($"{tag}.{attr}");
             }
 
             CollectionAssert.IsEmpty(offenders,
-                "a control other than <Frame> now accepts a panel-requiring attribute, so "
-                + "PureContainerVisualAttrRules reports a working attribute as ignored — drop that "
-                + "control from the rule (procedural-surface spec §14 M4)");
+                "this control accepts a panel-requiring attribute but is not in "
+                + "ProceduralSurfaceRules.SurfaceTags, so PureContainerVisualAttrRules still reports "
+                + "a working attribute as silently ignored. Add it there (spec §14 M2/M4)");
+        }
+
+        /// <summary>The other direction: a tag claimed as procedural that in fact is not.</summary>
+        [Test]
+        public void EverySurfaceTag_ReallyHasTheAttributes()
+        {
+            foreach (var tag in ProceduralSurfaceRules.SurfaceTags)
+            {
+                var entry = UI.Registry.Resolve(tag);
+                Assert.IsNotNull(entry, $"'{tag}' is not a registered control at all");
+                Assert.IsTrue(entry.Meta.HasAttribute("radius"),
+                    $"<{tag}> is listed as having a procedural surface but does not accept 'radius' — "
+                    + "the linter would stay silent about attributes that really are dropped");
+            }
         }
 
         [Test]

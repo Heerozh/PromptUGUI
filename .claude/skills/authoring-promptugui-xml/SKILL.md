@@ -144,9 +144,11 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 - Colour / radius / border changes are material-only — a Variant flip or a colour animation never rebuilds the canvas mesh. Frames sharing identical values (typically via `class=`) share one material and keep batching.
 - Layout-only containers (`<VStack>` / `<HStack>` / `<Grid>` / `<SafeArea>`) draw nothing — wrap them in a `<Frame>` for a background.
 
-> **`<Frame>` is the only tag that draws procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `glass` (+ its tuning params) / `weld` exist **nowhere else**. On `<Btn>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<Image>` … they are accepted by the parser and then silently dropped — `PUI-CONTAINER-VISUAL-ATTR` is the only thing that tells you. `color` and `sprite` do reach those controls; the shape attributes do not.
+> **Which tags draw procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `glass` (+ its tuning params) work on **`<Frame>` and `<Btn>`**. On every other control — `<Toggle>`, `<Slider>`, `<Dropdown>`, `<Image>` … — they are accepted by the parser and then silently dropped; `PUI-CONTAINER-VISUAL-ATTR` is the only thing that tells you. `color` and `sprite` do reach those controls; the shape attributes do not (yet — more controls are being wired up).
 >
-> This holds for `<Style>` / `class=` too: a pack that carries `radius` skins a `<Frame>` and does nothing at all to a `<Btn>` wearing the same class. To give a control a shaped background today, put a stretched `<Frame>` **inside** it (a Frame never blocks clicks) — see the recipe under **Mask & clipping**.
+> `weld` is `<Frame>`-only in all cases: it fuses a Frame's direct glass **children**, and a control has none.
+>
+> This holds for `<Style>` / `class=` too: a pack carrying `radius` skins a `<Frame>` and a `<Btn>` alike, and does nothing to a `<Toggle>` wearing the same class. For a shaped background on a control that is not wired up yet, put a stretched `<Frame>` **inside** it (a Frame never blocks clicks) — see the recipe under **Mask & clipping**.
 
 ### `<Image>`
 
@@ -242,6 +244,18 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 | `tr` | bool | `true` | `false`=跳过 i18n |
 | `ctx` | string | — | msgctxt 消歧 |
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
+| `radius` | `R` / `TL,TR,BR,BL` / `pill` | — | **程序化表面**：写了它（或下面任一）Btn 就改用自绘的圆角矩形 SDF 画背景，语义与 `<Frame>` 完全一致。背景 Image 让位但不销毁，点击照常 |
+| `borderWidth` · `borderColor` | px / 颜色 | `0` / `white` | 内描边，向内绘制、不改布局 |
+| `glow` · `glowColor` | px / 颜色 | `0` / 跟随 `color` | 外发光 |
+| `glass` | `true` / `false` | `false` | 磨砂玻璃背景，`color` 变成其上的 tint。→ `reference/glass.md` |
+| `frost` · `depth` · `dispersion` · `lightAngle` · `lightIntensity` · `saturation` · `noise` | 数值 | 见 glass.md | 玻璃调参 |
+
+程序化模式下：`color` 成为 SDF 的填充色（不写就沿用 Btn 自带的默认色，所以 `<Btn radius="8">` 是个圆角按钮而不是隐形按钮）；`sprite` 是**矛盾声明**（`PUI-PROC-SPRITE-CONFLICT`，`sprite="none"` / `""` 不算）；`pressedSprite` / `disabledSprite` 同样矛盾（`PUI-PROC-STATE-SPRITE-CONFLICT`）—— 它们换的是 `Image.overrideSprite`，SDF 面上没有那个东西，改用 `pressedColor` / `disabledColor` 或 `<Show on="state-*">`。`hoverColor` 等状态色照常生效。禁用态自动去饱和（玻璃另外变薄），形状保持。
+
+```xml
+<Btn radius="pill" color="accent" hoverColor="accent-light">确定</Btn>
+<Btn radius="12" glass="true" borderWidth="1" borderColor="white/0.5">玻璃按钮</Btn>
+```
 
 ### `<Toggle>`
 

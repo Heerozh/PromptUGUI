@@ -122,6 +122,10 @@ namespace PromptUGUI.Lint
 
             // CLI-only: pure containers carry no Graphic; sprite/color silently dropped.
             // Intentionally NOT dispatched from ScreenInstantiator — see rule's XML docs.
+            if (ProceduralSurfaceRules.AppliesTo(node.Tag))
+                foreach (var issue in ProceduralSurfaceRules.Check(node, styles))
+                    yield return issue;
+
             if (PureContainerVisualAttrRules.AppliesTo(node.Tag))
                 foreach (var issue in PureContainerVisualAttrRules.Check(node))
                     yield return issue;

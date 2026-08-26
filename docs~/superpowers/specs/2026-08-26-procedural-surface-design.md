@@ -252,12 +252,30 @@ clip(maskCoverage - 0.5);
 |---|---|---|
 | ~~**M-lint**~~ ✅ | §12.1 + §12.2：`PureContainerVisualAttrRules` 第三档 + SKILL 边界话 | 无，可先合 |
 | ~~**M-mask**~~ ✅ | §9 全部：shader 四行、`PUI-MASK-FRAME-SELF` 收窄、`Frame.Mask` 认 `"self"`、两条新规则、SKILL | 无，可先合 |
-| **M0 Red test** | 钉住 §7 / §8 的契约：程序化属性在 Image 系控件上生效、变体来回切幂等、`sprite` 冲突报错、`pressedSprite` 冲突报错、Disabled 往返不掉形状 | 无 |
-| **M1 表面抽象 + 打通一个控件** | 把 `Frame` 的懒挂逻辑提成共享件，`Btn` 第一个接上（主表面在自身节点，最简单的形状）；**§13.5 的 Disabled 分支一起做** | M0 |
+| ~~**M0 Red test**~~ ✅ | 钉住 §7 / §8 的契约（25 条，落地时 21 红 4 绿） | 无 |
+| ~~**M1 表面抽象 + 打通一个控件**~~ ✅ | `ProceduralSurface` + `ProceduralControl` 基类，`Btn` 第一个接上；§13.5 的 Disabled 分支一起做 | M0 |
 | **M2 铺开** | Toggle / Slider / Dropdown / InputField / ScrollList / Progress —— 主表面在子节点的那几个 | M1 |
 | **M3 内层形状** | §6 的 `fillRadius` / `handleRadius` / `frameRadius` / `maskRadius`，`mode="fill"` 冲突规则 | M2 |
 | **M4 lint + SKILL** | 逐个控件从 §12.1 那一档里摘出去（不再是错误），改成 §7 / §8 的冲突规则；SKILL 改写边界描述。**不会漏**：`OnlyFrame_HasThePanelRequiringAttributes` 在 M1 接上第一个控件时就会失败 | M3 |
 
 **M-lint 与 M-mask 都不依赖本特性，已先于 M0 合入。** 在本特性落地前，`<Btn radius="8">` 确实是错的，早一天报错早一天省事；而 §9 那条圆角裁剪今天就该能用。
+
+### M0 / M1 实施记录
+
+**`__Surface` 命名**：spec 原稿写的是 `__surface__`，实际用 `__Surface` —— 跟着仓库已出货的 `__FocusCursor`，而不是跟着我自己的草稿。
+
+**模式是「当前解析值」的问题，不是「写没写」的问题。** 一度以为变体只能改值不能删属性、所以程序化模式一旦打开就关不掉、§8 的 targetGraphic 迁移问题不存在。`VariantResolverTests.Variant_only_attr_returns_override_when_active` 推翻了这个假设：**只有变体、没有基值**的属性是合法的，`radius.mobile='8'` 在 mobile 关掉时模式真的会翻回去。
+
+而 `ControlAttributeApplier` 表达「这个属性现在没有值」的方式是 `if (v == null) continue;` —— **不调 setter**，也就是说「作者不再声明它」是以沉默的形式到达的。于是给 `Control` 加了 `OnBeforeApply()`：每轮开头清掉本轮标记，各 setter 重新声明，`OnAfterApply` 按当下为真的东西 reconcile。这就是 §8 那条「从当前声明推、不 latch」的落地形式。
+
+**退位是把 alpha 归零，不是 `enabled = false`。** uGUI 只对**启用**的 Graphic 做射线检测，而面板是 `raycastTarget = false` —— 把 Image 关掉会让控件完全收不到点击，而且不报任何错。同理退位要**每轮重放**：控件自己的 `color=` setter 排在 `Reconcile` 之前，会把 alpha 又写回去。
+
+**属性声明放在 `ProceduralControl` 基类上一次搞定。** `ControlMeta.Build` 用的是 `BindingFlags.Public | BindingFlags.Instance`，**包含继承来的属性**，所以子类白拿 13 个。`color` 刻意不在基类里：在 `Frame` 上它会挂面板（Frame 没别的东西可上色），在 Image 系控件上它只是普通 tint，不该把控件拖进程序化模式。
+
+**M-lint 那一档按预期缩小了，而守卫按预期先报警。** `OnlyFrame_HasThePanelRequiringAttributes` 在 Btn 接上的那一刻失败 —— 正是它存在的意义。现在它跟 `ProceduralSurfaceRules.SurfaceTags` 双向对表：接了线没登记（规则继续误报可用属性）和登记了没接线（规则对真坏掉的属性闭嘴）都会挂。
+
+**`weld` 是那一档留下的唯一例外。** 控件接上程序化表面之后，`weld` 仍然无效（它融的是 Frame 的直接玻璃**子级**，控件没有），所以 tier 2 对已接线的控件只报 `weld` 这一条，不是整体闭嘴。这条是被自己的测试 `("Btn","weld")` 抓出来的。
+
+**一处测试前提作废，如实改掉**：`StyleIntegrationTests.Style_AppliesToAnyControl_IgnoringAttributesItDoesNotHave` 的注释原文是「`radius` means nothing to `<Btn>`」—— 那正是本里程碑要删掉的边界。改成 `Style_SkinsAFrameAndAControlAlike`（同一个 pack 现在真的能同时换掉 Frame 和 Btn 的形状），另补一条用 `weld` 演示原来那个「控件没有的属性照样被忽略」的性质。
 
 M-mask 实施中发现的一件 spec 没写到的事，记在这里：**shader 那四行还不够。** `ProceduralPanel.ComputeVisible()` 会把「什么都不画」的面板整个剔掉几何，而 stencil 是 fragment 写的 —— 于是「隐形的圆角裁剪器」一个像素都不剩。补了 `SetMaskSource`，遮罩源照常出几何。这条是 render test 抓出来的：光看 C# 状态（Mask 挂上了、graphic 指对了、`MaskEnabled` 为 true）全是绿的，和当年缺 `[RequireComponent(CanvasRenderer)]` 那次同一类。

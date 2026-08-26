@@ -19,11 +19,17 @@ That is the whole difference between "thin pane" and "jelly".
 
 ## Attributes
 
-All live on `<Frame>` — **and only there**. A glass attribute on `<Btn>`, `<Toggle>`, `<Image>` or
-any other tag is silently dropped (`PUI-CONTAINER-VISUAL-ATTR`); only Frame attaches the panel that
-draws them. That is true of `class=` as well: a pack carrying `glass="true"` frosts a `<Frame>` and
-does nothing to a `<Btn>` wearing the same class. For a glass-looking control today, put a stretched
-glass `<Frame>` **inside** it — a Frame never blocks clicks.
+These live on `<Frame>` and `<Btn>`. On any other tag — `<Toggle>`, `<Slider>`, `<Image>` … — a
+glass attribute is silently dropped (`PUI-CONTAINER-VISUAL-ATTR`), because only those two attach the
+panel that draws it. That is true of `class=` as well: a pack carrying `glass="true"` frosts a
+`<Frame>` and a `<Btn>` alike and does nothing to a `<Toggle>` wearing the same class. For a
+glass-looking control that is not wired up yet, put a stretched glass `<Frame>` **inside** it — a
+Frame never blocks clicks.
+
+On a `<Btn>` the glass replaces the background Image (which stands down but is never destroyed, so
+the button still takes clicks and a Variant can hand the bitmap back). `sprite=` alongside it is a
+contradiction — `PUI-PROC-SPRITE-CONFLICT`. Disabled glass desaturates *and* thins: a dead control
+should not look like a live refracting pane.
 
 On a Frame they work through `<Style>` / `class=`, Variant suffixes and ReSolve like any other
 attribute. Writing any of them without `glass="true"` is a lint error
@@ -140,6 +146,8 @@ of them is silent at runtime, which is why they exist.
 | `PUI-GLASS-WELD-MEMBERS` | a weld group with fewer than 2 or more than 8 glass children |
 | `PUI-GLASS-WELD-PARAM-PLACEMENT` | a group-level parameter on a member, or a per-block one on the carrier |
 | `PUI-MASK-WELD-SELF` | `mask="self"` on a `weld` carrier — the fused pane is on a child |
+| `PUI-PROC-SPRITE-CONFLICT` | `sprite=` on a control that is drawing procedurally |
+| `PUI-PROC-STATE-SPRITE-CONFLICT` | `pressedSprite` / `disabledSprite` on a procedural surface |
 | `PUI-PROCEDURAL-VALUE` | a glass value outside its range, or not a finite number |
 
 These read attributes as they will be **after** `class=` is merged, so carrying `glass="true"` in a

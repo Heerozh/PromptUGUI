@@ -33,10 +33,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
     /// </summary>
     public class ProceduralSurfaceContractTests
     {
-        // Lint codes are spelled out rather than referenced: M0 introduces no production code, so
-        // there is nothing to reference yet. M4 swaps these for the constants.
-        private const string SpriteConflictCode = "PUI-PROC-SPRITE-CONFLICT";
-        private const string StateSpriteConflictCode = "PUI-PROC-STATE-SPRITE-CONFLICT";
+        private const string SpriteConflictCode = ProceduralSurfaceRules.SpriteConflictCode;
+        private const string StateSpriteConflictCode = ProceduralSurfaceRules.StateSpriteConflictCode;
 
         internal const string SurfaceName = "__Surface";
 

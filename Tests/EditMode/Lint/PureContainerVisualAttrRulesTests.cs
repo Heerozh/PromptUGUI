@@ -157,9 +157,9 @@ namespace PromptUGUI.Tests.EditMode.Lint
         // 需要 ProceduralPanel，而全仓只有 <Frame> 会挂 —— 于是 <Btn radius="8"> 三道关卡全部放行，
         // 彻底静默。这是农场/玻璃示例实战撞出来的。
 
-        [TestCase("Btn", "radius")]
-        [TestCase("Btn", "borderWidth")]
-        [TestCase("Btn", "glass")]
+        [TestCase("Toggle", "borderWidth")]
+        [TestCase("Toggle", "glass")]
+        [TestCase("Tab", "radius")]
         [TestCase("Toggle", "radius")]
         [TestCase("Slider", "glow")]
         [TestCase("Dropdown", "borderColor")]
@@ -169,7 +169,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("Image", "radius")]
         [TestCase("RawImage", "glow")]
         [TestCase("Text", "radius")]
-        [TestCase("Btn", "weld")]
+        [TestCase("Toggle", "weld")]
         public void ImageBackedControl_ProceduralAttr_VisualAttrIssue(string tag, string attr)
         {
             var n = new ElementNode(tag) { Id = "x" };
@@ -205,6 +205,22 @@ namespace PromptUGUI.Tests.EditMode.Lint
         }
 
         [Test]
+        public void ControlWithASurface_StopsBeingReported_ExceptForWeld()
+        {
+            // <Btn> draws procedurally now, so the shape attributes work…
+            var ok = new ElementNode("Btn") { Id = "b" };
+            ok.Attributes["radius"] = "8";
+            Assert.IsEmpty(PureContainerVisualAttrRules.Check(ok));
+
+            // …but weld fuses a Frame's glass CHILDREN, which a control does not have (spec §13.2).
+            var weld = new ElementNode("Btn") { Id = "b" };
+            weld.Attributes["weld"] = "16";
+            var issues = PureContainerVisualAttrRules.Check(weld).ToList();
+            Assert.AreEqual(1, issues.Count);
+            StringAssert.Contains("weld", issues[0].Message);
+        }
+
+        [Test]
         public void UnknownTag_SaysNothing()
         {
             // 模板调用：CLI 在展开前看不见它的 body，断言什么都是猜。
@@ -217,7 +233,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [Test]
         public void ImageBackedControl_ReportsEveryOffendingAttr_NotJustTheFirst()
         {
-            var n = new ElementNode("Btn") { Id = "b" };
+            var n = new ElementNode("Toggle") { Id = "t" };
             n.Attributes["radius"] = "8";
             n.Attributes["glow"] = "4";
             Assert.AreEqual(2, PureContainerVisualAttrRules.Check(n).Count());
@@ -226,7 +242,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [Test]
         public void ImageBackedControl_VariantOverride_IsAlsoReported()
         {
-            var n = new ElementNode("Btn") { Id = "b" };
+            var n = new ElementNode("Toggle") { Id = "t" };
             n.VariantOverrides["radius"] = new List<(string, string)> { ("mobile", "8") };
             Assert.AreEqual(1, PureContainerVisualAttrRules.Check(n).Count());
         }

@@ -1,4 +1,3 @@
-using System.Globalization;
 using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
 using PromptUGUI.IR;
@@ -142,7 +141,7 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public string BorderWidth
         {
-            set => Panel.SetBorderWidth(ParsePixels(value, "borderWidth"));
+            set => Panel.SetBorderWidth(ProceduralValueParser.Pixels(value, "borderWidth"));
         }
 
         /// <summary>描边色。纯色 only —— 渐变值由 <c>UI.Theme.Resolve</c> 报错。</summary>
@@ -156,7 +155,7 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public string Glow
         {
-            set => Panel.SetGlowSize(ParsePixels(value, "glow"));
+            set => Panel.SetGlowSize(ProceduralValueParser.Pixels(value, "glow"));
         }
 
         /// <summary>发光色。纯色 only；不写时跟随填充色（无填充则白）。</summary>
@@ -268,20 +267,5 @@ namespace PromptUGUI.Controls
             ReconcileMask();
         }
 
-        private static float ParsePixels(string value, string attrName)
-        {
-            // Variant 只能改值不能删属性，空串是作者退回"无"的唯一写法（同 RadiusParser）。
-            if (string.IsNullOrWhiteSpace(value)) return 0f;
-            if (!float.TryParse(value.Trim(), NumberStyles.Float,
-                                CultureInfo.InvariantCulture, out var px))
-                throw new ParseException(
-                    $"{attrName}=\"{value}\": expected a number of pixels (e.g. \"1\", \"2.5\")");
-            // "NaN" / "Infinity" parse fine, and NaN slips past the negative test below.
-            if (float.IsNaN(px) || float.IsInfinity(px))
-                throw new ParseException($"{attrName}=\"{value}\": must be a finite number");
-            if (px < 0f)
-                throw new ParseException($"{attrName}=\"{value}\": must not be negative");
-            return px;
-        }
     }
 }

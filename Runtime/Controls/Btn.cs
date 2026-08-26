@@ -9,7 +9,7 @@ using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class Btn : Control, IPointerEventSource
+    public sealed class Btn : ProceduralControl, IPointerEventSource
     {
         private UnityImage _bg;
         private PuiButton _btn;
@@ -48,6 +48,11 @@ namespace PromptUGUI.Controls
         public Observable<Unit> OnPointerEnter => EnsureRelay().OnPointerEnter;
         public Observable<Unit> OnPointerExit => EnsureRelay().OnPointerExit;
         public Observable<Unit> OnPointerDown => EnsureRelay().OnPointerDown;
+
+        // <Btn> keeps its background Image on its own node, so the procedural surface becomes a
+        // child of the Btn itself and covers exactly the same rect.
+        private protected override GameObject SurfaceHost => GameObject;
+        private protected override UnityEngine.UI.Selectable SurfaceSelectable => _btn;
 
         public override void OnAttached()
         {
@@ -197,7 +202,11 @@ namespace PromptUGUI.Controls
                 // reactor its base. Reading the graphic back instead would pick up whatever tint the
                 // reactor last painted. See StateTintReactor's remarks.
                 _color = value;
-                Internal.ColorApplier.Apply(_bg, UI.Theme.ResolveSpec(value));
+                var spec = UI.Theme.ResolveSpec(value);
+                Internal.ColorApplier.Apply(_bg, spec);
+                // §7: color is the fill in BOTH modes. Handing it to the surface as well costs
+                // nothing when there is no surface and keeps the two in step when there is.
+                Surface.SetFill(spec.Top, spec.Bottom);
             }
         }
 
