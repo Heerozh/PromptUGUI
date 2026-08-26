@@ -136,5 +136,91 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.Less(corner.r + corner.g + corner.b, 0.15f,
                 $"…while keeping its rounded shape, got {corner}");
         }
+
+        /// <summary>
+        /// Renders one control and reports whether the given corner of its rect is painted.
+        /// </summary>
+        private bool CornerIsPainted(string markup, bool leftEnd, string dumpName)
+        {
+            UI.UnloadAll();
+            UI.LoadDocument("t", $@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>{markup}</Screen></PromptUGUI>");
+            var screen = UI.Open("S");
+
+            var canvas = screen.RootGameObject.GetComponentInParent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceCamera;
+            canvas.worldCamera = _ui;
+            canvas.planeDistance = 10f;
+
+            Canvas.ForceUpdateCanvases();
+            _ui.Render();
+
+            var tex = new Texture2D(Size, Size, TextureFormat.RGBA32, false);
+            var previous = RenderTexture.active;
+            RenderTexture.active = _uiRt;
+            tex.ReadPixels(new Rect(0, 0, Size, Size), 0, 0);
+            tex.Apply();
+            RenderTexture.active = previous;
+
+            try
+            {
+                var path = Path.Combine(UnityEngine.Application.temporaryCachePath, dumpName);
+                File.WriteAllBytes(path, tex.EncodeToPNG());
+                Debug.Log($"PromptUGUI progress-mask render dump: {path}");
+
+                var rt = (RectTransform)((PromptUGUI.Controls.Control)(object)
+                    screen.Get<PromptUGUI.Controls.Control>("p")).GameObject.transform;
+                var corners = new Vector3[4];
+                rt.GetWorldCorners(corners);
+                var a = RectTransformUtility.WorldToScreenPoint(_ui, corners[0]);
+                var c = RectTransformUtility.WorldToScreenPoint(_ui, corners[2]);
+                var rect = Rect.MinMaxRect(
+                    Mathf.Min(a.x, c.x), Mathf.Min(a.y, c.y), Mathf.Max(a.x, c.x), Mathf.Max(a.y, c.y));
+
+                // 2px inside the very corner of the rect — outside a large radius, inside a square one.
+                var x = leftEnd ? (int)rect.xMin + 2 : (int)rect.xMax - 2;
+                var px = tex.GetPixel(x, (int)rect.yMin + 2);
+                return px.r + px.g + px.b > 0.25f;
+            }
+            finally
+            {
+                Object.DestroyImmediate(tex);
+            }
+        }
+
+        private const string RoundBar =
+            "<Progress id='p' anchor='center' width='200' height='40' {0} " +
+            "bgColor='#22345a' fillColor='#ffcc33' value='0.55'/>";
+
+        /// <summary>
+        /// The point of auto-tracking the mask (spec §6). <c>radius=</c> alone shapes only the bg,
+        /// and the fill is a square-cornered Image drawn on top of it — so without the mask the bar
+        /// comes out rounded at its trailing end and square at its leading one.
+        /// </summary>
+        [Test]
+        public void ProgressRadius_RoundsBothEnds()
+        {
+            Assert.IsFalse(
+                CornerIsPainted(string.Format(RoundBar, "radius='20'"), leftEnd: true,
+                                "promptugui-progress-rounded.png"),
+                "the leading end must be clipped by the auto-tracked mask");
+            Assert.IsFalse(
+                CornerIsPainted(string.Format(RoundBar, "radius='20'"), leftEnd: false,
+                                "promptugui-progress-rounded2.png"),
+                "…and so must the trailing end");
+        }
+
+        /// <summary>
+        /// …and opting out really does opt out. This is the pair that proves auto-tracking is doing
+        /// the work: the two markups differ by nothing but <c>maskRadius=""</c>.
+        /// </summary>
+        [Test]
+        public void ProgressMaskRadiusEmpty_LeavesTheLeadingEndSquare()
+        {
+            Assert.IsTrue(
+                CornerIsPainted(string.Format(RoundBar, "radius='20' maskRadius=\'\'"), leftEnd: true,
+                                "promptugui-progress-optout.png"),
+                "with the mask opted out, radius= shapes only the bg and the fill covers that corner");
+        }
     }
 }

@@ -1,5 +1,6 @@
 using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
+using PromptUGUI.Parser;
 using PromptUGUI.Registry;
 using UnityEngine;
 using UnityImage = UnityEngine.UI.Image;
@@ -95,8 +96,23 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve]
         public string FillColor
         {
-            set => Internal.ColorApplier.Apply(_fill, UI.Theme.ResolveSpec(value));
+            set
+            {
+                var spec = UI.Theme.ResolveSpec(value);
+                Internal.ColorApplier.Apply(_fill, spec);
+                FillSurface.SetFill(spec.Top, spec.Bottom);
+            }
         }
+
+        /// <summary>已填充段的圆角。内层只给形状 —— 见 spec §6。</summary>
+        [UIAttr, Preserve]
+        public string FillRadius
+        {
+            set { var v = RadiusParser.Parse(value); FillSurface.Declare(p => p.SetRadius(v)); }
+        }
+
+        private Internal.ProceduralSurface _fillSurface;
+        private Internal.ProceduralSurface FillSurface => _fillSurface ??= AddInnerSurface(_fill.gameObject);
 
         [UIAttr(IsSprite = true), Preserve]
         public string Bg
@@ -140,17 +156,55 @@ namespace PromptUGUI.Controls
         {
             set
             {
-                Internal.ColorApplier.Apply(_frame, UI.Theme.ResolveSpec(value));
+                var spec = UI.Theme.ResolveSpec(value);
+                Internal.ColorApplier.Apply(_frame, spec);
+                FrameSurface.SetFill(spec.Top, spec.Bottom);
                 _frameColor = true;
                 ReconcileLayers();
             }
         }
+
+        /// <summary>边框层的圆角。</summary>
+        [UIAttr, Preserve]
+        public string FrameRadius
+        {
+            set { var v = RadiusParser.Parse(value); FrameSurface.Declare(p => p.SetRadius(v)); }
+        }
+
+        private Internal.ProceduralSurface _frameSurface;
+        private Internal.ProceduralSurface FrameSurface => _frameSurface ??= AddInnerSurface(_frame.gameObject);
+
+        /// <summary>
+        /// 把 bg + fill 一起裁成一个圆角形状 —— 这才是「端到端都圆的进度条」的做法。
+        /// <c>radius=</c> 只管 bg 那一层，而 fill 是压在它上面的另一张方角 Image。
+        ///
+        /// <para>不写时**自动跟随 <c>radius</c>**（同 <c>&lt;ScrollList mask&gt;</c> 跟随 bg sprite、
+        /// <c>&lt;Dropdown popupMask&gt;</c> 跟随 popupSprite 的既有规约）。显式写了任何值 ——
+        /// 包括 <c>""</c> —— 就退出自动跟随。与 <c>mask=</c> 互斥：一个 GameObject 上只能有一个
+        /// Graphic。</para>
+        /// </summary>
+        [UIAttr, Preserve]
+        public string MaskRadius
+        {
+            set
+            {
+                _maskRadiusExplicit = true;
+                _maskRadius = string.IsNullOrWhiteSpace(value) ? null : (RadiusSpec?)RadiusParser.Parse(value);
+                ReconcileProceduralMask();
+            }
+        }
+
+        private bool _maskRadiusExplicit;
+        private bool _maskSpriteExplicit;
+        private RadiusSpec? _maskRadius;
+        private Internal.ProceduralPanel _maskPanel;
 
         [UIAttr(IsSprite = true), Preserve]
         public string Mask
         {
             set
             {
+                _maskSpriteExplicit = true;
                 if (string.IsNullOrEmpty(value)) return;
                 if (_maskGraphic == null)
                 {
@@ -170,6 +224,7 @@ namespace PromptUGUI.Controls
             // Base first: ReconcileLayers below reads SurfaceIsDrawing, which is only settled once
             // the surface has reconciled this pass.
             base.OnAfterApply();
+            ReconcileProceduralMask();
             ProceduralBuilders.AutoSlice(_bg);
             ProceduralBuilders.AutoSlice(_frame);
             ProceduralBuilders.AutoSlice(_maskGraphic);
@@ -200,8 +255,56 @@ namespace PromptUGUI.Controls
 
         private void ReconcileMaskVisibility()
         {
-            if (_stencilMask != null)
-                _stencilMask.showMaskGraphic = !_bg.gameObject.activeSelf;
+            if (_stencilMask == null) return;
+            // Only the SPRITE mask keeps its dual role (PB-D9: with no bg authored, the mask sprite
+            // doubles as the track). A procedural mask is a pure clipper — bg is the track, and
+            // painting the mask as well would just stack two shapes on top of each other.
+            _stencilMask.showMaskGraphic = _maskGraphic != null && !_bg.gameObject.activeSelf;
+        }
+
+        /// <summary>
+        /// Clips bg AND fill to one rounded shape — the only way to get a bar that is rounded at
+        /// both ends, since <c>radius=</c> shapes the bg alone and the fill is a square-cornered
+        /// Image on top of it.
+        ///
+        /// <para>Recomputed every pass rather than latched, so a Variant that changes the radius (or
+        /// stops declaring one) is honoured. Never destroys: the panel and Mask are created once and
+        /// only enabled/disabled after that.</para>
+        /// </summary>
+        private void ReconcileProceduralMask()
+        {
+            // Unset maskRadius auto-tracks radius=, matching <ScrollList mask> / <Dropdown popupMask>.
+            var spec = _maskRadiusExplicit ? _maskRadius : DeclaredRadius;
+            // An authored sprite mask owns the Graphic slot on MaskWrapper, and Graphic is
+            // [DisallowMultipleComponent] — so it wins outright and lint reports the pair.
+            var want = spec.HasValue && !_maskSpriteExplicit;
+
+            if (!want)
+            {
+                if (_maskPanel != null)
+                {
+                    _maskPanel.SetMaskSource(false);
+                    _maskPanel.enabled = false;
+                    if (_stencilMask != null && _maskGraphic == null) _stencilMask.enabled = false;
+                }
+                return;
+            }
+
+            var wrapper = (RectTransform)_fill.transform.parent;
+            if (_maskPanel == null)
+            {
+                if (wrapper.GetComponent<UnityEngine.UI.Graphic>() != null) return;
+                _maskPanel = wrapper.gameObject.AddComponent<Internal.ProceduralPanel>();
+                _stencilMask ??= wrapper.gameObject.AddComponent<UnityEngine.UI.Mask>();
+            }
+
+            _maskPanel.enabled = true;
+            // The clip is the SHAPE, so the panel has to emit geometry even though it paints
+            // nothing — the stencil is written by its fragments.
+            _maskPanel.SetMaskSource(true);
+            _maskPanel.SetRadius(spec.Value);
+            _maskPanel.FlushParams();
+            _stencilMask.enabled = true;
         }
 
         private void ReconcileFill()

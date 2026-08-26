@@ -255,7 +255,7 @@ clip(maskCoverage - 0.5);
 | ~~**M0 Red test**~~ ✅ | 钉住 §7 / §8 的契约（25 条，落地时 21 红 4 绿） | 无 |
 | ~~**M1 表面抽象 + 打通一个控件**~~ ✅ | `ProceduralSurface` + `ProceduralControl` 基类，`Btn` 第一个接上；§13.5 的 Disabled 分支一起做 | M0 |
 | ~~**M2 铺开**~~ ✅ | Tab / Toggle / Slider / Dropdown / InputField / ScrollList / Progress | M1 |
-| **M3 内层形状** | §6 的 `fillRadius` / `handleRadius` / `frameRadius` / `maskRadius`，`mode="fill"` 冲突规则 | M2 |
+| ~~**M3 内层形状**~~ ✅ | §6 的 `fillRadius` / `handleRadius` / `frameRadius` / `maskRadius`，`mode="fill"` 冲突规则 | M2 |
 | **M4 lint + SKILL** | 逐个控件从 §12.1 那一档里摘出去（不再是错误），改成 §7 / §8 的冲突规则；SKILL 改写边界描述。**不会漏**：`OnlyFrame_HasThePanelRequiringAttributes` 在 M1 接上第一个控件时就会失败 | M3 |
 
 **M-lint 与 M-mask 都不依赖本特性，已先于 M0 合入。** 在本特性落地前，`<Btn radius="8">` 确实是错的，早一天报错早一天省事；而 §9 那条圆角裁剪今天就该能用。
@@ -290,5 +290,19 @@ clip(maskCoverage - 0.5);
 - `Progress` 的 `Bg` 层出厂就是 `SetActive(false)`，只有写了 `bg=`/`bgColor=` 才亮。表面住在那一层里面，所以 `ReconcileLayers` 得把 `SurfaceIsDrawing` 也算进去，否则形状被画在一个不可见的层里。`OnAfterApply` 必须**先** `base`（表面 reconcile）**再** `ReconcileLayers`，顺序反了就读到上一轮的状态。为此给 `ProceduralControl` 加了不分配的 `SurfaceIsDrawing`（`Surface` 属性会懒建对象，用在这里会让每个 Progress 都白建一个）。
 
 **`<Progress radius=>` 只圆 bg 那一层**，而 fill 是压在上面另一张方角 Image，所以进度条长成只有尾端是圆的。渲染确认过。这不是缺陷，是 `radius` 的作用范围 —— 也正是 §6 把 `maskRadius` 定为圆角进度条推荐路径的原因（M3）。已写进 `reference/controls-progress.md`，免得被当 bug 报。
+
+### M3 实施记录
+
+内层每层一个自己的 `ProceduralSurface`（`AddInnerSurface`，不带 Selectable），跟主表面一起参与同一轮 `BeginPass` / `Reconcile`。新增属性正好是 §6 说的那四个：Slider `fillRadius` / `handleRadius`，Progress `fillRadius` / `frameRadius` / `maskRadius`。
+
+**`maskRadius` 改成自动跟随 `radius`**，spec 原稿把它写成一个纯手写属性。改的理由：`<Progress radius="12">` 单独用会渲染成**只有尾端是圆的**进度条（M2 那张图），而没有哪个作者写 `radius` 时是想要这个。自动跟随不是新发明 —— `<ScrollList mask>` 跟随 bg sprite、`<Dropdown popupMask>` 跟随 `popupSprite`，仓库里已经是既有规约，连「显式写任何值（含 `""`）即退出跟随」的语义都照搬。
+
+渲染验过三行，**第一行和第二行只差一个 `maskRadius=""`**：`radius='22'` 两端都圆；加上 `maskRadius=''` 变成左端方、右端圆；单写 `maskRadius='22'` 也两端都圆。这是自动跟随确实在起作用的最直接证据，已固化成 render test。
+
+**程序化 mask 是纯裁剪器**（`showMaskGraphic=false`），底交给 `bgColor`。sprite 版 `mask=` 保留它原有的双重身份（PB-D9：没写 bg 时 mask sprite 兼当底），所以 `ReconcileMaskVisibility` 要按 `_maskGraphic != null` 分流。这里也依赖 M-mask 那条 `SetMaskSource` —— 不画东西的裁剪面必须照常出几何。
+
+两条新 lint：`PUI-PROG-FILL-RADIUS-MODE`（`mode="fill"` 靠 `Image.fillAmount`，SDF 面没有对应物 —— 这是少见的**真做不到**而不是「不推荐」）、`PUI-PROG-MASK-RADIUS-CONFLICT`（一个 GameObject 一个 Graphic，sprite 赢）。
+
+`dotnet format` 抓到 Slider.cs 的 using 顺序 —— `dotnet format style` 修掉了。
 
 M-mask 实施中发现的一件 spec 没写到的事，记在这里：**shader 那四行还不够。** `ProceduralPanel.ComputeVisible()` 会把「什么都不画」的面板整个剔掉几何，而 stencil 是 fragment 写的 —— 于是「隐形的圆角裁剪器」一个像素都不剩。补了 `SetMaskSource`，遮罩源照常出几何。这条是 render test 抓出来的：光看 C# 状态（Mask 挂上了、graphic 指对了、`MaskEnabled` 为 true）全是绿的，和当年缺 `[RequireComponent(CanvasRenderer)]` 那次同一类。

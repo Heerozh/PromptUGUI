@@ -277,7 +277,23 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 - 背景 Image 只是让位（贴图清空、alpha 归零），**不销毁** —— 所以变体来回切能精确还原，控件也照常收得到点击。
 - `weld` 不进控件：它融的是 `<Frame>` 的直接玻璃**子级**。
 
-**`<Progress radius=>` 只圆 bg 那一层**，而 fill 是压在上面的另一张 Image，所以进度条会只有尾端是圆的。要整条端到端都圆，用 `mask=` 把 bg + fill 一起裁（见 `reference/controls-progress.md`）。
+**内层也能给形状，但只给形状。** `<Slider>` 与 `<Progress>` 的内部图层各多一个 `<layer>Radius`，和已有的 `<layer>Color` 配成对：
+
+| 控件 | 内层属性 |
+|---|---|
+| `<Slider>` | `fillRadius`（已填充段）· `handleRadius`（滑块，`pill` = 圆钮）|
+| `<Progress>` | `fillRadius` · `frameRadius` · `maskRadius`（把 bg + fill 一起裁）|
+
+**内层不给玻璃**，这不是为了省属性而是语义问题：backdrop 采集不含 UI 自身，所以压在玻璃轨道上的玻璃 fill 采的是同一张 backdrop，两层长得一模一样、进度条直接消失。颜色那一半 `fillColor` / `handleColor` 早就支持 token / `/alpha` / 渐变。
+
+**`<Progress radius=>` 会自动把 mask 也圆掉。** `radius` 本身只管 bg 那一层，而 fill 是压在上面的另一张方角 Image —— 单靠它进度条会只有尾端是圆的。所以 `maskRadius` 不写时**自动跟随 `radius`**（同 `<ScrollList mask>` 跟随 bg sprite 的既有规约），bg 与 fill 一起被裁成同一形状，fill 的推进边保持方的。显式写 `maskRadius`（含 `""`）退出跟随；与 `mask=` 互斥（`PUI-PROG-MASK-RADIUS-CONFLICT`）。
+
+```xml
+<Progress value="0.6" radius="14" bgColor="#22345a" fillColor="#ffcc33"/>   <!-- 两端都圆 -->
+<Slider radius="pill" fillRadius="pill" handleRadius="pill" handleColor="#fff"/>
+```
+
+`fillRadius` 与 `<Progress mode="fill">` **不能共存**（`PUI-PROG-FILL-RADIUS-MODE`）：那个模式靠 `Image.fillAmount` 画填充，SDF 面没有对应物。默认的 `mode="scale"` 是改锚点，没问题。
 
 ### `<Toggle>`
 

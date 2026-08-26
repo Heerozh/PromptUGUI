@@ -29,9 +29,26 @@ namespace PromptUGUI.Controls
     public abstract class ProceduralControl : Control
     {
         private ProceduralSurface _surface;
+        private System.Collections.Generic.List<ProceduralSurface> _inner;
 
         internal ProceduralSurface Surface =>
             _surface ??= new ProceduralSurface(SurfaceHost, SurfaceSelectable);
+
+        /// <summary>
+        /// Creates and registers a surface for a layer INSIDE the control — a Slider's fill, a
+        /// Progress's frame. Registered so it takes part in the same per-pass reconcile as the
+        /// primary one; call it once per layer and cache the result.
+        ///
+        /// <para>No <c>Selectable</c>: an inner layer is never what the control's state colours
+        /// drive. And only <c>&lt;layer&gt;Radius</c> reaches these (spec §6) — glass on an inner
+        /// layer would sample the same backdrop as the layer beneath it and come out identical.</para>
+        /// </summary>
+        private protected ProceduralSurface AddInnerSurface(GameObject host)
+        {
+            var surface = new ProceduralSurface(host, null);
+            (_inner ??= new System.Collections.Generic.List<ProceduralSurface>()).Add(surface);
+            return surface;
+        }
 
         /// <summary>
         /// The GameObject whose <c>Image</c> is this control's primary surface. Usually the control's
@@ -57,20 +74,37 @@ namespace PromptUGUI.Controls
         internal override void OnBeforeApply()
         {
             base.OnBeforeApply();
+            DeclaredRadius = null;
             _surface?.BeginPass();
+            if (_inner != null)
+                for (var i = 0; i < _inner.Count; i++) _inner[i].BeginPass();
         }
 
         internal override void OnAfterApply()
         {
             base.OnAfterApply();
             _surface?.Reconcile();
+            if (_inner != null)
+                for (var i = 0; i < _inner.Count; i++) _inner[i].Reconcile();
         }
+
+        /// <summary>
+        /// The radius declared THIS pass, or null. Exposed for the one control that needs to compose
+        /// with it — <c>Progress</c> auto-tracks its clipping mask off it — and cleared every pass so
+        /// it answers "what is declared now", never "what was declared once".
+        /// </summary>
+        private protected RadiusSpec? DeclaredRadius { get; private set; }
 
         /// <summary>圆角半径：单值 / <c>TL,TR,BR,BL</c>（CSS border-radius 顺序）/ <c>pill</c>。</summary>
         [UIAttr, Preserve]
         public string Radius
         {
-            set { var v = RadiusParser.Parse(value); Surface.Declare(p => p.SetRadius(v)); }
+            set
+            {
+                var v = RadiusParser.Parse(value);
+                DeclaredRadius = v;
+                Surface.Declare(p => p.SetRadius(v));
+            }
         }
 
         /// <summary>内描边宽度（px，向内绘制，不影响布局）。</summary>
