@@ -38,10 +38,19 @@ namespace PromptUGUI.Controls.Internal
             return rt;
         }
 
-        // Move every direct child of `go` (except the holder) into the holder, preserving sibling order.
-        // Snapshot first: SetParent mutates the child list mid-iteration. On ReSolve the content is
-        // already inside the holder → no-op; a child that first appears later (a Variant ReSolve) is
-        // swept in then. The bg Image / PuiButton / CanvasGroup are components on `go`, not children.
+        // Move every direct child of `go` (except the holder and the procedural surface) into the
+        // holder, preserving sibling order. Snapshot first: SetParent mutates the child list
+        // mid-iteration. On ReSolve the content is already inside the holder → no-op; a child that
+        // first appears later (a Variant ReSolve) is swept in then. The bg Image / PuiButton /
+        // CanvasGroup are components on `go`, not children.
+        //
+        // The procedural surface is exempt because it is the bg Image's STAND-IN, and the Image is
+        // exempt for free by being a component rather than a child. Sweeping it in gets both halves
+        // wrong: it would shift with the press offset (the sprite skin's background never does — only
+        // the content moves), and it lands at the END of the holder, painting over the label. That
+        // second one only bites when the surface appears AFTER the holder already exists — i.e. on a
+        // theme switch, never on a screen opened straight into the procedural skin, which is why
+        // every test and every direct-open check missed it.
         private static void SweepDirectChildrenInto(GameObject go, RectTransform holder)
         {
             var parent = go.transform;
@@ -50,7 +59,9 @@ namespace PromptUGUI.Controls.Internal
             for (int i = 0; i < count; i++)
             {
                 var child = parent.GetChild(i);
-                if (child != holder) moved.Add(child);
+                if (child == holder) continue;
+                if (child.name == ProceduralSurface.NodeName) continue;
+                moved.Add(child);
             }
             foreach (var child in moved)
                 child.SetParent(holder, worldPositionStays: false);

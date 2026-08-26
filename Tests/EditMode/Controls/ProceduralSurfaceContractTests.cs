@@ -59,6 +59,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
         private static Btn Load(string btnAttrs)
         {
+            UI.UnloadAll();   // some tests build two screens to compare them
             var xml = $@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
   <Btn id='b' anchor='center' size='120x40' {btnAttrs} text='OK'/>
@@ -538,6 +539,56 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             Assert.AreEqual(new Color32(0xF5, 0xE6, 0xC8, 0xff), (Color32)bg.color,
                 "detaching must be reversible, or the round trip loses hover entirely");
+        }
+
+        // ===== the surface is the Image's stand-in, so it lives where the Image lives =====
+
+        /// <summary>
+        /// <c>StateOffsetInstaller</c> sweeps a control's direct children into a content holder so
+        /// one shift moves them all on press. The bg Image escapes that sweep for free — it is a
+        /// COMPONENT, not a child. Its procedural stand-in is a child, so without an exemption it
+        /// gets swept in, and two things break at once: it would shift with the press (the sprite
+        /// skin's background never does), and it lands at the END of the holder, painting over the
+        /// label.
+        ///
+        /// <para>Only reproducible when the surface appears AFTER the holder already exists — a
+        /// theme switch. Open straight into the procedural skin and the surface is swept in first,
+        /// landing at index 0, which looks correct. Hence the variant flip here.</para>
+        /// </summary>
+        [Test]
+        public void Surface_StaysOutsideTheContentHolder_EvenWhenItAppearsLater()
+        {
+            var b = Load("radius.mobile='8' pressedOffset='0,-1'");
+            var holder = b.GameObject.transform.Find("_offsetHolder");
+            Assume.That(holder, Is.Not.Null, "guard: pressedOffset built the holder up front");
+
+            UI.Variants.Set("mobile", true);
+
+            var surface = b.GameObject.transform.Find(SurfaceName);
+            Assert.IsNotNull(surface,
+                "the surface must be a direct child of the control, like the Image it replaces — "
+                + "not swept into the content holder");
+            Assert.AreEqual(0, surface.GetSiblingIndex(), "…and drawn behind everything");
+            Assert.Less(surface.GetSiblingIndex(), holder.GetSiblingIndex(),
+                "the label lives in the holder; a surface above it would paint over the text");
+        }
+
+        [Test]
+        public void Surface_LayerOrderIsTheSame_WhicheverWayYouGotThere()
+        {
+            // Straight into the procedural skin…
+            var direct = Load("radius='8' pressedOffset='0,-1'");
+            var directIndex = direct.GameObject.transform.Find(SurfaceName).GetSiblingIndex();
+            var directParent = direct.GameObject.transform.Find(SurfaceName).parent.name;
+
+            // …versus arriving via a variant flip.
+            var flipped = Load("radius.mobile='8' pressedOffset='0,-1'");
+            UI.Variants.Set("mobile", true);
+            var flippedNode = flipped.GameObject.transform.Find(SurfaceName);
+
+            Assert.IsNotNull(flippedNode);
+            Assert.AreEqual(directParent, flippedNode.parent.name);
+            Assert.AreEqual(directIndex, flippedNode.GetSiblingIndex());
         }
     }
 }

@@ -278,5 +278,62 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual("UI/LinearLightTint", bg.material.shader.name,
                 "还原回作者材质（linear），而非默认或灰度");
         }
+
+        // ===== capture-once must not outlive the value it captured =====
+
+        private static Btn LoadThemed(string themedLabelColour)
+        {
+            var xml = @"<?xml version='1.0'?><PromptUGUI version='1'>
+  <Style name='btn' color='#E8D2A8' textColor='#4A3018'/>
+  <Theme name='farm'><Color name='ink' value='#000'/></Theme>
+  <Theme name='glass'><Style name='btn' color='#334455' textColor='" + themedLabelColour + @"'/></Theme>
+  <Screen name='S'><Btn id='b' class='btn'>Hi</Btn></Screen>
+</PromptUGUI>";
+            UI.SourceResolver = _ => AwaitableHelpers.Completed(xml);
+            UI.LoadDocumentAsync("d").GetAwaiter().GetResult();
+            UI.Theme.Set("farm");
+            return UI.Open("S").Get<Btn>("b");
+        }
+
+        /// <summary>
+        /// A theme switch used to lose every label colour, and only on controls that author no
+        /// <c>disabled*</c> — i.e. the default ones.
+        ///
+        /// <para>This controller captures each graphic's original once and, on every re-Configure
+        /// (which a ReSolve triggers), wrote the capture back. For a TMP label that write IS the
+        /// colour, so it landed right after <c>textColor</c>'s setter and reverted it to the previous
+        /// theme's value. The bg escaped only because the non-TMP branch writes <c>material</c>
+        /// rather than <c>color</c>, so nothing about the symptom pointed here.</para>
+        ///
+        /// <para>Not greyed ⇒ what is on screen is what the attribute pipeline just wrote ⇒ that is
+        /// the value worth capturing.</para>
+        /// </summary>
+        [Test]
+        public void ThemeSwitch_UpdatesTheLabelColour_DespiteTheCaptureOnceOriginal()
+        {
+            var b = LoadThemed("#1C2B33");
+            Assume.That(b.GameObject.GetComponent<PromptUGUI.Controls.Internal.DisabledGrayscaleController>(), Is.Not.Null,
+                "guard: no disabled* authored, so the default grayscale controller is installed");
+            Assume.That((Color32)LabelOf(b).color, Is.EqualTo(new Color32(0x4A, 0x30, 0x18, 0xff)));
+
+            UI.Theme.Set("glass");
+
+            Assert.AreEqual(new Color32(0x1C, 0x2B, 0x33, 0xff), (Color32)LabelOf(b).color,
+                "the label has to follow the theme like every other colour");
+        }
+
+        /// <summary>…and the refreshed capture is what a later disable/enable restores.</summary>
+        [Test]
+        public void AfterAThemeSwitch_DisableAndEnable_RestoresTheNewColour()
+        {
+            var b = LoadThemed("#1C2B33");
+            UI.Theme.Set("glass");
+
+            PuiOf(b).SimulateState(Disabled);
+            PuiOf(b).SimulateState(Normal);
+
+            Assert.AreEqual(new Color32(0x1C, 0x2B, 0x33, 0xff), (Color32)LabelOf(b).color,
+                "restoring must return to the CURRENT theme's colour, not the one captured at build");
+        }
     }
 }

@@ -111,6 +111,13 @@ namespace PromptUGUI.Controls.Internal
             if (_node != null && _node.activeSelf != on) _node.SetActive(on);
             _active = on;
 
+            // Re-asserted every pass, not just at creation: the control may grow a content holder
+            // (StateOffsetInstaller) AFTER the surface exists, and a new sibling appended above the
+            // surface would paint over it. Cheap — SetSiblingIndex on an already-correct index is a
+            // no-op.
+            if (_node != null && _node.transform.GetSiblingIndex() != 0)
+                _node.transform.SetSiblingIndex(0);
+
             if (on)
             {
                 // The panel is the only thing drawing, so it inherits the control's colour — with no
