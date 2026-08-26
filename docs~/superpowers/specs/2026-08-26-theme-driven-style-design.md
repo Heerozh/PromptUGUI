@@ -745,3 +745,29 @@ M2.2 把 §4.3 收紧成"主题样式只对 `StyleKey(null, name)` 生效"，理
 **顺带踩到并修掉的第二处**：`_bornFrame` 的时间戳原本挂在 `!_baseCaptured` 那个分支里。声明了 `color=` 的控件进来时 `_baseCaptured` 已经是 true，戳就没盖上 → 首帧 snap 判定失效 → `isOn="true"` 的 Tab 不再瞬间显示 `selectedColor`，而是去起一个 EditMode 里永远不推进的 tween。**全套 2342 个测试一个都没抓到**，因为状态测试统统开着 `TestForceInstant`，它会短路掉 BornFrame 判断；是拿真实示例跑 execute_code 才看见的。补了 `StateBornFrameTests.AnAuthoredBase_StillStampsTheBornFrame`（那个类的 `TestForceInstant` 恒为 false，正是为这条留的口子）。
 
 验证：EditMode 2348/2348、PlayMode 171/171、EditorOnly 308/308，0 failed 0 skipped；`dotnet format --verify-no-changes --severity warn` 无输出；UIXmlLint 对 `Runtime/Resources/` 与改写后的示例文档均零 issue。示例的 `CommonControlsRunner.cs` 不在任何编译集里（`Samples~` 对 Unity 与 lint 都不可见），改完用 Roslyn 对着宿主工程实际加载的程序集单独编了一遍：0 error。
+
+### 追加：两条会误报的 lint 规则（示例撞出来的）
+
+`PUI-PROG-NO-FILL` 和 `PUI-MASK-SELF-NO-SPRITE` 都是「属性 A 写了，但它需要的 B 不在」这种**报缺失**的形状 —— 而它们读的是 `ElementNode.Attributes`，看不见 `class=` 带进来的东西。于是：
+
+```xml
+<Style name="prog" fillColor="#58A63C"/>
+<Progress class="prog" value="0.4"/>   <!-- 误报 PUI-PROG-NO-FILL -->
+
+<Style name="pane" sprite="ui:panel"/>
+<Image class="pane" mask="self"/>      <!-- 误报 PUI-MASK-SELF-NO-SPRITE -->
+```
+
+两遍走查也救不回来：raw 遍看不见 pack、判它有问题，expanded 遍看得见、判它没问题，而 `DocumentLinter` 按 issue 去重 —— raw 遍的结论照样输出，CLI 于是给一个非零 exit code。**报缺失的规则必须走 `StyleAttributeView`**（`GlassRules` 一直是这么做的，它的类注释里就写着理由："a rule blind to styles reports a correct layout as broken"），只是这两条当初没接上。
+
+接上之后：解析不到的 class 让节点变成 `IsUncertain` → 闭嘴；解析得到、且 pack 里确实没有那个属性 → 照常报。`DocumentLinterTests` 三条钉住（两条不该报、一条该报）。
+
+**同一形状的其余规则**（`CarouselRules` 的无尺寸、`ImageFitRules`）没有误报，因为它们检查的属性要么不常写进样式包，要么本来就走 `VariantOverrides` 一起判。真要普查得逐条过一遍，不在本次范围。
+
+### 追加：内置控件上写错属性名是静默的
+
+改示例时写了 `<ScrollList scrollbarSprite="none">`，运行期什么都没发生 —— `ScrollList.ScrollbarSprite` 的 XML 名其实是 **`scrollbar`**（`[UIAttr(IsSprite)]` 会剥掉尾部 `Sprite`，好让它和 `<Dropdown scrollbar=>` 对齐）。`ControlAttributeApplier` 对认不出的属性名是 `continue`，parser 不管（它不知道控件有哪些属性），lint 也不管（`Core/Lint` 是纯 C#，反射不到 Unity 侧的控件）。
+
+现有的出口是 XSD 生成器（IDE 里补全 + 校验）。要让 CLI 也能查，得把「标签 → 属性名」这张表生成到 `Core/Lint` 能读的地方 —— 独立一条，不在本次范围。
+
+验证（追加轮）：EditMode 2351/2351、PlayMode 171/171、EditorOnly 308/308，0 failed 0 skipped；`dotnet format` 无输出；UIXmlLint 零 issue。示例的两套皮逐层核对：33 个内层图，28 层随主题变化并完整往返，剩下 5 层本来就不可见（stencil mask 源、未启用的 Progress frame、透明 viewport）。

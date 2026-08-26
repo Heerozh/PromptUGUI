@@ -53,13 +53,22 @@ namespace PromptUGUI.Lint
         }
 
         public static IEnumerable<LintIssue> CheckImage(ElementNode n)
+            => CheckImage(n, StyleAttributeView.Empty);
+
+        public static IEnumerable<LintIssue> CheckImage(ElementNode n, StyleAttributeView styles)
         {
+            styles ??= StyleAttributeView.Empty;
             foreach (var issue in CheckVariantOverrides(n)) yield return issue;
 
-            n.Attributes.TryGetValue("mask", out var mask);
-            var hasSprite = n.Attributes.ContainsKey("sprite");
-            var hasPadding = n.Attributes.ContainsKey("maskPadding");
-            var hasShowMask = n.Attributes.ContainsKey("showMask");
+            // Read through class=: SelfNoSpriteCode reports an attribute that is ABSENT, and a skin
+            // carrying the sprite in a <Style> is the idiomatic form — reading only the node reports
+            // a correct document as broken. The other three checks go through the same view so a
+            // class-supplied mask is judged the same way an inline one is.
+            if (styles.IsUncertain(n)) yield break;
+            styles.Resolve(n, "mask", out var mask, out _);
+            var hasSprite = styles.Declares(n, "sprite");
+            var hasPadding = styles.Declares(n, "maskPadding");
+            var hasShowMask = styles.Declares(n, "showMask");
 
             if (!string.IsNullOrEmpty(mask) && mask != "rect" && mask != "self")
             {

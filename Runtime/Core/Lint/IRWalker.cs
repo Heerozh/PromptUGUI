@@ -97,7 +97,7 @@ namespace PromptUGUI.Lint
                     yield return issue;
             else if (node.Tag == "Image")
             {
-                foreach (var issue in MaskAttributeRules.CheckImage(node))
+                foreach (var issue in MaskAttributeRules.CheckImage(node, styles))
                     yield return issue;
                 foreach (var issue in ImageFitRules.CheckVariant(node))
                     yield return issue;
@@ -108,7 +108,7 @@ namespace PromptUGUI.Lint
                 foreach (var issue in MaskAttributeRules.CheckRawImage(node))
                     yield return issue;
             else if (node.Tag == "Progress")
-                foreach (var issue in ProgressAttributeRules.CheckProgress(node))
+                foreach (var issue in ProgressAttributeRules.CheckProgress(node, styles))
                     yield return issue;
             else if (node.Tag == "TabBar")
                 foreach (var issue in TabRules.CheckTabBar(node))

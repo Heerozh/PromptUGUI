@@ -25,7 +25,11 @@ namespace PromptUGUI.Lint
         };
 
         public static IEnumerable<LintIssue> CheckProgress(ElementNode n)
+            => CheckProgress(n, StyleAttributeView.Empty);
+
+        public static IEnumerable<LintIssue> CheckProgress(ElementNode n, StyleAttributeView styles)
         {
+            styles ??= StyleAttributeView.Empty;
             // value range (literal only — dynamic bindings parse as non-numeric and skip)
             if (n.Attributes.TryGetValue("value", out var rawValue)
                 && float.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out var v)
@@ -73,10 +77,14 @@ namespace PromptUGUI.Lint
                     "(value / fill / bg / mode / direction) are safe in variants.");
             }
 
-            // no fill (warning when value is set but no fill or fillColor)
+            // No fill: a warning about an attribute that is ABSENT, so it has to see through class=
+            // — a skin that carries fillColor in a <Style> is the idiomatic form, and reading only
+            // the node would report it as broken (the CLI turns that into a non-zero exit code).
+            // A class this document cannot resolve makes the answer unknowable; stay quiet.
             if (n.Attributes.ContainsKey("value")
-                && !n.Attributes.ContainsKey("fill")
-                && !n.Attributes.ContainsKey("fillColor"))
+                && !styles.IsUncertain(n)
+                && !styles.Declares(n, "fill")
+                && !styles.Declares(n, "fillColor"))
             {
                 yield return new LintIssue(
                     NoFillCode, n.Tag, n.Id,
