@@ -440,3 +440,23 @@ tmpl.ui.xml: [PUI-MASK-FRAME-SELF] <Frame id='card'>: mask="self" requires ...
 **行号仍然没有**，本次也没做：`LintIssue` 从来就没有行号，`XmlDocument` 的节点默认不实现 `IXmlLineInfo`，要拿到得换一套读取方式。同一个模板被调用多次时，"哪一次调用"也仍不可区分（需要模板调用链，`TextArgs` 有原料但没接）。这两条都留给需要时再说。
 
 验证：EditMode 2262 → 2258 passed / 0 failed / 4 skipped；EditorOnly 308/308；`dotnet format` 无输出；CLI 对仓库 13 个文件仍零 issue；跨文件 fixture 正确指向库文件。有效性用「摘掉模板内联时的 origin 传递」验证：6 条里 3 条转红，失败信息正是这个 bug 本身（`Expected: "skin.ui" But was: "main.ui"`）。
+
+### M2.1 / M2.2（分支 `test/attr-reversibility-red`）
+
+**路线调整（§4.2 / §5 的实现顺序）**：设计里主题 pack 是在**展开期**折进 `class=` 的，M2.3 的运行时重合并再负责后续切换。实现时发现这会有两条路径做同一件事，而且展开期那条拿不到 commons 主题 —— `LoadCommonLibraryAsync` 注册的主题在 `ThemeStore` 里，不在后续某次 `LoadedDoc.Themes` 中。改为：**展开期照旧只合全局 pack，主题层完全由重合并那一步负责**（它本来就要在 Open 时跑一次）。一条路径，`ThemeStore` 是唯一真相源，M2.4 的 `--theme` 也复用同一个函数。
+
+**§4.3 收紧为明确规则**：设计里"主题内 `<Style>` 不参与 `as=` 命名空间"写得含糊。落实为：**主题样式只对 `StyleKey(null, name)` 生效** —— `as="ui"` 导入的 commons 库其样式键是 `StyleKey("ui", name)`，主题没有自己的命名空间去匹配，所以「给带命名空间的样式换肤」目前不支持。写进了 `ThemeStyleResolver` 的注释与测试。要支持得先给 `<Theme>` 一个命名空间概念，另议。
+
+产出：
+
+| 文件 | 内容 |
+|---|---|
+| `Runtime/Core/IR/ThemeBlock.cs` | `Styles` 字段 |
+| `Runtime/Core/Parser/UIDocumentParser.cs` | `ParseStylePack` 抽取共用；`<Theme>` 接受 `<Style>`；`ThemeStyleForbiddenAttrs` + 分组理由文案；`StampOrigin` 顺带给 `StyleDef` 打戳 |
+| `Runtime/Application/ThemeStore.cs` · `UI.cs` | 携带主题样式；`Register` 加只有颜色的兼容重载（既有 ~20 处调用点不动） |
+| `Runtime/Core/Template/ThemeStyleResolver.cs` | 有效 pack 折叠：全局当隐式根 → base 链 root-first → 激活主题；按属性名原子；无主题/无主题样式时原样返回不分配 |
+| `Tests/EditMode/Parser/ThemeStyleParsingTests.cs` · `Template/ThemeStyleResolverTests.cs` | 22 + 11 条 |
+
+验证：EditMode 2295 → 2291 passed / 0 failed / 4 skipped；`dotnet format` 无输出；UIXmlLint 13 个文件零 issue。
+
+**剩余**：M2.3（保留 `class` + inline 快照、`ThemeStyleApplier` 重合并、接 Open 与 `Theme.Changed`）、M2.4（三条 lint 规则 + `--theme` + SKILL）。
