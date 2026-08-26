@@ -59,7 +59,7 @@
 
 0.449 ms 是**上界**：现在的 `StyleMerger.Apply` 每节点都 `CloneWithoutClass`（新建 ElementNode + 拷贝全部字典）；运行时重合并不需要克隆。
 
-**顺带记录**（不在本 spec 范围，另开 issue）：ReSolve 在 LayoutGroup 内是 O(N²)——100/200/400 节点分别 8.7/31.5/118.2 ms；同样节点数换成普通 `<Frame>` 父节点是 1.1/2.0/4.3 ms，完全线性。二次项来自 LayoutGroup 的重复 rebuild，与程序化属性无关（裸 Frame 也一样二次）。
+**顺带记录**（不在本 spec 范围，另开 issue）：ReSolve 在 LayoutGroup 内是 O(N²)——100/200/400 节点分别 8.7/31.5/118.2 ms；同样节点数换成普通 `<Frame>` 父节点是 1.1/2.0/4.3 ms，完全线性。二次项来自 LayoutGroup 的重复 rebuild，与程序化属性无关（裸 Frame 也一样二次）。（**归因错了，后已查实并修掉稳态那一半——见文末《LayoutGroup 里的 ReSolve —— 那个 O(N²) 的真身》**）
 
 ## 3. 语法：`<Theme>` 内嵌 `<Style>`
 
@@ -591,6 +591,89 @@ multi.ui.xml:4: [PUI-MASK-FRAME-SELF] <Frame id='b'>: mask="self" … (via multi
 
 **一个反直觉的交互，测试抓的**：`ApplyScalesTo` 的 `dynamicBaseline` 我一开始改成了 `false`（理由是 `ApplyCommon` 现在会重跑）。`BindItems_card_box_preserving_does_not_accumulate_across_resizes` 立刻红了（-0.5 → -2.5，补偿累积 5 次）—— 因为 **resize 路径恰恰跳过了重放**，`ApplyCommon` 并没有跑，那份捕获基线仍然是让 resize 幂等的唯一依靠。退回 `true`：真跑过 `ApplyCommon` 的地方，基线是同一个几何，还原上去是 no-op。
 
-**遗留**：500 行的列表切一次 Variant 仍要半秒。`ScrollList` 不做虚拟化（一条数据一个 slot），这种规模本身就有别的问题；真正的解法是 LayoutGroup 的 O(N²)，独立一条。
+**遗留**：500 行的列表切一次 Variant 仍要半秒。`ScrollList` 不做虚拟化（一条数据一个 slot），这种规模本身就有别的问题；真正的解法是 LayoutGroup 的 O(N²)，独立一条。（**见文末追加：稳态那一半已修；真改尺寸那一半剩 Unity 自身单次 mark 的 O(N)。**）
 
 验证：EditMode 2334/2334、PlayMode 171/171、EditorOnly 308/308，0 failed 0 skipped；`dotnet format` 无输出；UIXmlLint 13 个文件零 issue。
+
+### 追加：LayoutGroup 里的 ReSolve —— 那个 O(N²) 的真身
+
+§2 顺带记的那条（"二次项来自 LayoutGroup 的重复 rebuild，与程序化属性无关"）**归因错了**。二次项确实全在 LayoutGroup 一侧，但按下扳机的是**我们自己的写法**。
+
+`ApplyLayoutElement` 里有一句 LGC-D10 的注释——"每次都先把两轴全置 -1，清掉前一次 Variant 的残留约束"。代码照做：先把六个属性写成 -1，再写真值。
+
+而 `LayoutElement` 的 setter 自带 change guard：
+
+```csharp
+public virtual float preferredWidth {
+    set { if (SetPropertyUtility.SetStruct(ref m_PreferredWidth, value)) SetDirty(); }
+}
+protected void SetDirty() {
+    if (IsActive()) LayoutRebuilder.MarkLayoutForRebuild(transform as RectTransform);
+}
+```
+
+**"先置 -1 再写回"恰好把这个 guard 绕开了**：值明明一个没变，每个属性却变了两次。稳态 ReSolve 因此每节点白脏约 6 次，而单次 `MarkLayoutForRebuild` 一点都不便宜（下面有数）。
+
+**修法**：六个值先算进局部变量，最后一次性写（`WriteLayoutElement`）。-1 基线仍在，只是活在局部变量里——LGC-D10 / LGC-D17 的语义一字未动，`Variant_switch_from_size_to_stretch_resets_minWidth` 那类测试照绿。
+
+**稳态 ReSolve（值一个没变）：**
+
+| N | 改前 | 改后 | |
+|---|---|---|---|
+| 100 | 6.32 ms | **0.23 ms** | 27× |
+| 200 | 22.77 ms | **0.47 ms** | 48× |
+| 400 | 87.03 ms | **0.65 ms** | 134× |
+| 800 | — | 1.30 ms | |
+
+每节点 2.3 / 2.3 / 1.6 / 1.6 μs —— **平的**。稳态下的二次项没了。
+
+§15 那个反直觉的分组实验（400 个节点拆成 1/4/10/20/40 组，67 → 97 ms，越碎越慢）也一起消失：0.72 / 0.71 / 0.75 / 0.76 / 0.77 ms。那份"深度敏感"完全来自 `MarkLayoutForRebuild` 的父链上溯；不脏了，也就不敏感了。
+
+**剩下的：值真的变了的时候**
+
+| N | width 变体翻转 | color 变体翻转 | width 变但 LayoutGroup 被销毁 |
+|---|---|---|---|
+| 100 | 1.34 ms | 0.41 ms | 0.20 ms |
+| 200 | 3.88 ms | 0.80 ms | 0.41 ms |
+| 400 | 14.13 ms | 1.57 ms | 0.83 ms |
+
+只有走 LayoutElement 的那条超线性；不碰布局的属性（color）和摘掉 LayoutGroup 后都是线性的。
+
+固定 N=400、只让前 M 个节点变：1.86 / 2.55 / 4.36 / 8.06 / 15.57 ms（M=25/50/100/200/400）——对 M **完全线性**，约 37 μs 一个；但每个改动节点的代价随 N 涨（13.4 → 19.4 → 38.9 μs）。所以准确说是 **O(N × M)**（N=布局根子树大小，M=真正改值的节点数）；整表换皮时 M=N，才表现为 N²。
+
+**这一段是 Unity 自己的**，纯 uGUI 微基准（完全不碰 PromptUGUI）复现：
+
+| 布局根子树 | `MarkLayoutForRebuild`×N | 每次 | 写**新**值×N | 写**同**值×N |
+|---|---|---|---|---|
+| 100 | 0.35 ms | 3.5 μs | 0.37 ms | 0.000 ms |
+| 200 | 1.32 ms | 6.6 μs | 1.35 ms | 0.001 ms |
+| 400 | 5.16 ms | 12.9 μs | 5.15 ms | 0.002 ms |
+| 800 | 20.07 ms | 25.1 μs | 20.03 ms | 0.004 ms |
+
+写新值 ≈ 纯 Mark（setter 的开销就是那次 mark）；写同值 ≈ 0（guard 完全有效——上面的修法就是靠它）。固定 50 次调用、只变兄弟数：2.1 / 3.4 / 6.2 / 12.1 / 23.8 μs，单次 mark 严格 O(布局根子树大小)。
+
+**拆小组不是解法**（纯 Unity 复现）：400 个节点全改，1/4/10/20/40 组 → 5.13 / 5.51 / 6.19 / 7.16 / 8.69 ms。嵌套只是把布局根推得更外，还多付上溯。
+
+**已测量、未实施的后续**：写这批值之前 `layoutGroup.enabled = false`，写完 `= true`。关掉后子节点的 mark 找不到有效的父布局组、各自成根（便宜），重新启用时 `LayoutGroup.OnEnable` 统一脏一次。
+
+| N | 直接写 | 关组再写 | |
+|---|---|---|---|
+| 200 | 1.26 ms | 0.15 ms | 8.3× |
+| 400 | 5.03 ms | 0.30 ms | 16.8× |
+| 800 | 19.93 ms | 0.58 ms | 34.1× |
+
+线性（0.75 μs/节点），队列里仍然只留 1 条。代价是 ReSolve 期间 LayoutGroup 处于禁用态——嵌套布局组、`OnDisable` 自己也会脏一次、以及这中间别的代码观察布局的可能性，都得先想清楚。**独立一条，不在本次范围内。**
+
+**§15 那张列表表格重测**（`ScrollList` 绑定行，行都在 content 的 `VerticalLayoutGroup` 里）：
+
+| 行数 | 状态路径 改前 | 状态路径 改后 | | resize 路径 |
+|---|---|---|---|---|
+| 50 | 6.11 ms | **0.22 ms** | 28× | 0.01 ms |
+| 200 | 86.31 ms | **0.87 ms** | 99× | 0.05 ms |
+| 500 | 506.23 ms | **2.16 ms** | 234× | 0.11 ms |
+
+每行 4.4 / 4.4 / 4.3 μs —— 线性。§15 那条"500 行切一次 Variant 仍要半秒"的遗留就此关掉：`ReSolve(replayDynamicSubtrees: false)` 那道 resize 闸门仍然值得留着（它省的是另一笔），但它不再是唯一挡在半秒面前的东西。
+
+**契约测试**：`LayoutRebuildDirtyTests` 拿 `CanvasUpdateRegistry` 的布局队列做 seam（它按 layout root 去重，所以读的是"有没有脏"而不是"脏了几次"——后者才是契约）。三条：稳态 ReSolve 必须一次不脏；自由定位父节点作对照（本来就不脏，是它点出了元凶）；真改尺寸必须照常脏，否则"便宜"就只是"坏了"。
+
+验证：EditMode 2337/2337、PlayMode 171/171、EditorOnly 308/308，0 failed 0 skipped；`dotnet format --verify-no-changes --severity warn` 无输出。
