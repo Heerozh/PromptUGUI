@@ -1,0 +1,203 @@
+using System.Collections.Generic;
+using PromptUGUI.IR;
+using PromptUGUI.Template;
+
+namespace PromptUGUI.Lint
+{
+    /// <summary>
+    /// Rules for theme-scoped <c>&lt;Style&gt;</c> packs (2026-08-26 spec §6.1, §7). Both catch
+    /// mistakes whose only runtime symptom is "some attribute silently keeps the previous theme's
+    /// value", which is close to undebuggable from the outside — the reason the spec makes them
+    /// static constraints rather than documentation.
+    /// </summary>
+    /// <remarks>
+    /// Internal, unlike the other rule classes: <see cref="StyleKey"/> is internal, and widening it
+    /// to the public API just to type one lint parameter would be the tail wagging the dog. The only
+    /// consumers are <see cref="DocumentLinter"/> and the tests, both of which see internals.
+    /// </remarks>
+    internal static class ThemeStyleRules
+    {
+        public const string ShapeCode = "PUI-THEME-STYLE-SHAPE";
+        public const string OnInvocationCode = "PUI-THEME-STYLE-ON-INVOCATION";
+        public const string NoBaselineCode = "PUI-THEME-STYLE-NO-BASELINE";
+
+        /// <summary>
+        /// §4.2. Expansion resolves <c>class=</c> against the GLOBAL style pool; the theme layer only
+        /// re-derives values afterwards. A style that exists solely inside a <c>&lt;Theme&gt;</c> is
+        /// therefore unreferenceable — <c>class="pixel-only"</c> throws "unknown style" at expansion,
+        /// with a message that cannot mention the theme it was actually written in.
+        ///
+        /// <para>Reported even when nothing references it, because both readings are worth knowing:
+        /// unreferenced means dead, referenced means broken. The fix is the same either way and is
+        /// the discipline §6.1 rests on — declare the global <c>&lt;Style&gt;</c> as the baseline and
+        /// let each theme override values on top of it.</para>
+        /// </summary>
+        public static IEnumerable<LintIssue> CheckBaselines(
+            IReadOnlyDictionary<StyleKey, StyleDef> globalStyles,
+            IReadOnlyDictionary<string, ThemeBlock> themes)
+        {
+            if (themes == null) yield break;
+
+            var reported = new HashSet<string>();
+            foreach (var themeName in Sorted(themes.Keys))
+            {
+                foreach (var styleName in Sorted(themes[themeName].Styles.Keys))
+                {
+                    if (globalStyles != null && globalStyles.ContainsKey(new StyleKey(null, styleName)))
+                        continue;
+                    if (!reported.Add(styleName)) continue;
+
+                    yield return new LintIssue(
+                        NoBaselineCode, "Theme", styleName,
+                        $"<Theme name='{themeName}'> declares <Style name='{styleName}'> but there is " +
+                        "no global <Style> of that name. class= resolves against the global pool at " +
+                        "expansion, so this pack can never be reached. Declare the global " +
+                        $"<Style name='{styleName}'> with the full attribute set and let each theme " +
+                        "override the few values that differ.");
+                }
+            }
+        }
+
+        /// <summary>
+        /// §6.1. Every theme must resolve the same attribute-NAME set for a given style, because
+        /// <c>ControlAttributeApplier</c> only replays attributes that resolve to a value: a name
+        /// present under theme A and absent under theme B is never reset when you switch to B, so the
+        /// control silently keeps A's value.
+        ///
+        /// <para>Only compared ACROSS themes. The global <c>&lt;Style&gt;</c> is the implicit root of
+        /// every chain, so each theme's set already contains it; and with fewer than two themes there
+        /// is no switch to go wrong.</para>
+        /// </summary>
+        public static IEnumerable<LintIssue> CheckShape(
+            IReadOnlyDictionary<StyleKey, StyleDef> globalStyles,
+            IReadOnlyDictionary<string, ThemeBlock> themes)
+        {
+            if (themes == null || themes.Count < 2) yield break;
+
+            var touched = new HashSet<string>();
+            foreach (var theme in themes.Values)
+                foreach (var name in theme.Styles.Keys)
+                    touched.Add(name);
+            if (touched.Count == 0) yield break;
+
+            // theme name -> its resolved table, computed once each.
+            var resolved = new Dictionary<string, IReadOnlyDictionary<StyleKey, StyleDef>>(themes.Count);
+            foreach (var themeName in themes.Keys)
+                resolved[themeName] = ThemeStyleResolver.Resolve(globalStyles, themes, themeName);
+
+            foreach (var styleName in Sorted(touched))
+            {
+                var key = new StyleKey(null, styleName);
+                string referenceTheme = null;
+                HashSet<string> referenceNames = null;
+
+                foreach (var themeName in Sorted(resolved.Keys))
+                {
+                    var names = NamesOf(resolved[themeName], key);
+                    if (referenceNames == null)
+                    {
+                        referenceTheme = themeName;
+                        referenceNames = names;
+                        continue;
+                    }
+                    if (referenceNames.SetEquals(names)) continue;
+
+                    var onlyA = Missing(referenceNames, names);
+                    var onlyB = Missing(names, referenceNames);
+                    yield return new LintIssue(
+                        ShapeCode, "Theme", styleName,
+                        $"<Style name='{styleName}'> resolves to different attributes under " +
+                        $"'{referenceTheme}' and '{themeName}': " +
+                        Describe(referenceTheme, onlyA) + Describe(themeName, onlyB) +
+                        "An attribute one theme sets and the other does not is never reset on a " +
+                        "switch — the control keeps the old value. Give it a baseline in the global " +
+                        $"<Style name='{styleName}'>, or declare it in every theme.");
+                    break;   // one report per style name is enough to act on
+                }
+            }
+        }
+
+        /// <summary>
+        /// §7. A theme-scoped style on a Template INVOCATION does not follow the theme. Half of the
+        /// pack becomes <c>&lt;Param&gt;</c> values, which <c>Substitution</c> bakes into the body's
+        /// attribute strings at expansion; the other half is merged onto the instance root, and the
+        /// invocation node itself no longer exists afterwards, so there is nothing left to re-derive
+        /// from. The author gets a skin that silently refuses to change.
+        ///
+        /// <para>The fix is to move the <c>class=</c> down onto a node inside the template body,
+        /// where it is an ordinary node attribute and re-merges like any other.</para>
+        /// </summary>
+        public static IEnumerable<LintIssue> CheckInvocations(
+            ElementNode root,
+            IReadOnlyCollection<string> templateTags,
+            IReadOnlyCollection<string> themeStyleNames)
+        {
+            if (root == null || templateTags == null || templateTags.Count == 0
+                || themeStyleNames == null || themeStyleNames.Count == 0)
+                yield break;
+
+            var tags = new HashSet<string>(templateTags);
+            var themed = new HashSet<string>(themeStyleNames);
+            foreach (var issue in Walk(root, tags, themed)) yield return issue;
+        }
+
+        private static IEnumerable<LintIssue> Walk(
+            ElementNode node, HashSet<string> tags, HashSet<string> themed)
+        {
+            var tag = new TemplateKey(node.Namespace, node.Tag).ToString();
+            if (tags.Contains(tag)
+                && node.Attributes.TryGetValue(StyleMerger.ClassAttr, out var classValue)
+                && classValue != null)
+            {
+                foreach (var reference in classValue.Split(
+                             new[] { ' ', '\t', '\n', '\r' }, System.StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var key = StyleKey.ParseReference(reference);
+                    // Theme styles address the un-namespaced pool only (spec §4.3), so ui:card can
+                    // never be themed and is not what this rule is about.
+                    if (key.Namespace != null || !themed.Contains(key.Name)) continue;
+
+                    yield return new LintIssue(
+                        OnInvocationCode, node.Tag, node.Id,
+                        $"<{tag}> is a Template invocation, and class=\"{reference}\" names a style " +
+                        "some <Theme> overrides — but a pack applied here is baked in at expansion " +
+                        "and will NOT follow a theme switch. Move class= onto a node inside " +
+                        $"<Template name='{node.Tag}'>, or use a style no theme overrides.");
+                    break;
+                }
+            }
+
+            foreach (var child in node.Children)
+                foreach (var issue in Walk(child, tags, themed))
+                    yield return issue;
+        }
+
+        private static HashSet<string> NamesOf(
+            IReadOnlyDictionary<StyleKey, StyleDef> table, StyleKey key)
+        {
+            var names = new HashSet<string>();
+            if (table != null && table.TryGetValue(key, out var style))
+                foreach (var name in style.DeclaredNames) names.Add(name);
+            return names;
+        }
+
+        private static List<string> Missing(HashSet<string> from, HashSet<string> other)
+        {
+            var only = new List<string>();
+            foreach (var name in from)
+                if (!other.Contains(name)) only.Add(name);
+            only.Sort(System.StringComparer.Ordinal);
+            return only;
+        }
+
+        private static string Describe(string themeName, List<string> only) =>
+            only.Count == 0 ? "" : $"only '{themeName}' sets {string.Join(", ", only)}. ";
+
+        private static List<string> Sorted(IEnumerable<string> names)
+        {
+            var list = new List<string>(names);
+            list.Sort(System.StringComparer.Ordinal);
+            return list;
+        }
+    }
+}

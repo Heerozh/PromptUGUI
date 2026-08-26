@@ -484,3 +484,30 @@ tmpl.ui.xml: [PUI-MASK-FRAME-SELF] <Frame id='card'>: mask="self" requires ...
 产出：`ElementNode.StyleAttrNames`、`StyleMerger.ReMerge` / `ComputePack` / `CloneForMerge`、`Core/Template/ThemeStyleApplier`、`ScreenDef.Styles`、`ThemeStore.AnyThemeStyles` / `ResolveStyles`、`Screen.ReMergeThemeStyles`，加 `Tests/EditMode/Application/ThemeStyleSwitchTests.cs`（8 条）。
 
 验证：EditMode 2303 → 2299 passed / 0 failed / 4 skipped；EditorOnly 308/308；`dotnet format` 无输出；UIXmlLint 仓库 13 个文件仍零 issue，fixture 的跨 import / class 供给报错全部照常。
+
+### M2.4（分支 `test/attr-reversibility-red`）
+
+lint 规则 + SKILL。三处与设计不同：
+
+**1. `PUI-THEME-STYLE-IF-PARAM` 取消。** M2.3 之后它**永远不可能触发**：`if` 在样式黑名单里（普通节点走不通），而唯一的 Param 通道是模板调用点 —— 那已经被 `PUI-THEME-STYLE-ON-INVOCATION` 整个盖住（M2.3 的偏离让这条规则从「只管 Param 那半」扩到了「调用点上的 theme-scoped class 一律不跟随」）。写一条永远不响的规则是负债，不写。
+
+**2. `--theme` 不做成 flag。** 既然主题层是「展开后重合并」，CLI 直接**对文档声明的每个主题各走一遍展开树并去重** —— 不用作者记参数，主题改不动的东西也不会多出输出。`ThemeStyleRulesTests.ProblemVisibleOnlyUnderOneTheme_IsStillFound` 钉住：只在某一个皮肤下才成立的 `sprite` on `<VStack>`，单看一个状态会整个漏掉。
+
+**3. 新增第三条规则 `PUI-THEME-STYLE-NO-BASELINE`。** 写测试时才发现设计没想清楚的一个点：**只在主题里声明、没有全局对应的样式，`class=` 根本引用不到** —— 展开期只认全局池，会抛 unknown style，而那条信息没法提到它其实写在哪个 `<Theme>` 里。这个行为本身是对的（全局样式当基线正是 §6.1 成立的前提），缺的是可操作的诊断。顺带把主题规则移到了**尝试展开之前**，否则展开失败会把它们整个短路掉。
+
+规则位置：`ThemeStyleRules` 是 `internal`（其余规则类都是 public）—— `StyleKey` 是 internal，为了给一个 lint 参数标类型就把它提到公共 API 是本末倒置；消费者只有 `DocumentLinter` 和测试。
+
+产出：`Runtime/Core/Lint/ThemeStyleRules.cs`（三条规则）、`DocumentLinter` 接入 + 逐主题走查、`Tests/EditMode/Lint/ThemeStyleRulesTests.cs`（12 条）、`authoring-promptugui-xml/SKILL.md` 新增 **Theme-scoped styles** 一节 + 顶层元素表 + lint 速查、`scripting-promptugui-csharp/SKILL.md` 的 `UI.Theme.Set` 说明。
+
+验证：EditMode 2315 → 2311 passed / 0 failed / 4 skipped；`dotnet format` 无输出；UIXmlLint 仓库 13 个文件仍零 issue，themed fixture 上 SHAPE 与 ON-INVOCATION 两条都正确触发。
+
+---
+
+## 16. 现状小结
+
+M0 / M1 / M2 全部落地。§9.4 的 `--theme` 以「自动逐主题走查」代替，§6.2 的规则取消（见 M2.4）。仍然开着的：
+
+- **§8 A 类三处 setter 可逆性**：red test 挂着 `[Ignore]`，修复未做。
+- **`itemTemplate` 的 `class=` 从来没生效过**（M2.3 发现的既有缺口，与主题无关）。
+- **lint 无行号**；同一模板多次调用时不可区分是哪一次（M1 记录）。
+- **带命名空间的样式不能被主题覆盖**（M2.2 的 §4.3 收紧）。

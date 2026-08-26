@@ -501,6 +501,13 @@ For Addressables-backed `.po` loading (`UI.Locale.UseAddressableResolver`, `Loca
 
 ## Theme switching
 
+`UI.Theme.Set` re-derives **colour tokens and `<Style>` packs** — a theme that declares `<Style>`
+children re-skins sprites, radii, font sizes and everything else `class=` can carry, in place: the
+attributes are replayed through the same path a resize takes, so **no GameObject is rebuilt** and
+your `Get<T>` references and R3 subscriptions survive. Cost is one extra pass over the `class=` nodes
+on top of the ReSolve a theme switch already triggered; a project whose themes carry only `<Color>`
+pays nothing. See authoring-promptugui-xml → **Theme-scoped styles**.
+
 `UI.Theme.Set` is order-independent — it never blocks on the load. You can fire it before `LoadCommonLibraryAsync` resolves; when the named theme registers, `Theme.Changed` re-fires and open Screens repaint. While pending, color attribute resolution falls back to `Color.white` for token names (literal hex / CSS named values resolve as usual).
 
 ```csharp

@@ -54,32 +54,128 @@ namespace PromptUGUI.Lint
 
             // Expansion throws instead of collecting, and C# forbids `yield return` inside a catch,
             // so stage the outcome first and emit it below.
-            UIDocument expanded = null;
-            LintIssue? expansionFailure = null;
+            LoadedDoc loaded = null;
+            LintIssue? failure = null;
             try
             {
-                var loaded = DocumentAssembler.Assemble(
+                loaded = DocumentAssembler.Assemble(
                     entrySrc,
                     s => s == entrySrc ? doc : imports?.Invoke(s),
                     allowScreens: true);
+            }
+            catch (Exception ex) when (ex is TemplateException || ex is ParseException)
+            {
+                failure = new LintIssue(ExpansionCode, null, null, ex.Message);
+            }
+            if (failure.HasValue)
+            {
+                yield return failure.Value;
+                yield break;
+            }
+
+            // Theme rules run BEFORE expansion is attempted: the most common thing they diagnose —
+            // a theme style with no global baseline — is itself what makes expansion throw, and
+            // reporting only "unknown style 'card'" would send the author looking in the wrong place.
+            var themes = ThemesByName(loaded);
+
+            foreach (var issue in ThemeStyleRules.CheckBaselines(loaded.Styles, themes))
+                if (seen.Add(KeyOf(issue)))
+                    yield return issue;
+
+            foreach (var issue in ThemeStyleRules.CheckShape(loaded.Styles, themes))
+                if (seen.Add(KeyOf(issue)))
+                    yield return issue;
+
+            foreach (var issue in CheckInvocationsAcross(loaded, themes))
+                if (seen.Add(KeyOf(issue)))
+                    yield return issue;
+
+            UIDocument expanded = null;
+            try
+            {
                 expanded = TemplateExpander.Expand(loaded);
             }
             catch (Exception ex) when (ex is TemplateException || ex is ParseException)
             {
                 // Reaching UI.Open() to learn that a template or style name does not resolve is the
                 // slowest feedback loop there is; surfacing it at write time is the point of a CLI.
-                expansionFailure = new LintIssue(ExpansionCode, null, null, ex.Message);
+                failure = new LintIssue(ExpansionCode, null, null, ex.Message);
             }
-
-            if (expansionFailure.HasValue)
+            if (failure.HasValue)
             {
-                yield return expansionFailure.Value;
+                yield return failure.Value;
                 yield break;
             }
 
             foreach (var issue in IRWalker.Walk(expanded))
                 if (seen.Add(KeyOf(issue)))
                     yield return issue;
+
+            // Rules that reason about a node's resolved configuration (GlassRules above all) can only
+            // answer for ONE skin at a time. Re-derive the tree under each theme and walk again;
+            // dedup means a theme that changes nothing relevant costs nothing but the walk. No flag
+            // to remember: the themes a document can reach are already declared in it.
+            foreach (var themeName in SortedKeys(themes))
+            {
+                ThemeStyleApplierForLint(expanded, loaded.Styles, themes, themeName);
+                foreach (var issue in IRWalker.Walk(expanded))
+                    if (seen.Add(KeyOf(issue)))
+                        yield return issue;
+            }
+        }
+
+        private static Dictionary<string, ThemeBlock> ThemesByName(LoadedDoc loaded)
+        {
+            var themes = new Dictionary<string, ThemeBlock>();
+            foreach (var (theme, _) in loaded.Themes)
+                themes[theme.Name] = theme;   // a cross-file duplicate already threw in Assemble
+            return themes;
+        }
+
+        private static IEnumerable<LintIssue> CheckInvocationsAcross(
+            LoadedDoc loaded, Dictionary<string, ThemeBlock> themes)
+        {
+            var themeStyleNames = new HashSet<string>();
+            foreach (var theme in themes.Values)
+                foreach (var name in theme.Styles.Keys)
+                    themeStyleNames.Add(name);
+            if (themeStyleNames.Count == 0) yield break;
+
+            var tags = new List<string>();
+            foreach (var key in loaded.Templates.Keys) tags.Add(key.ToString());
+
+            // Invocations only exist BEFORE expansion, so this walks the assembled-but-raw screens.
+            foreach (var screen in loaded.Screens)
+            {
+                foreach (var issue in ThemeStyleRules.CheckInvocations(screen.Root, tags, themeStyleNames))
+                    yield return issue;
+                foreach (var block in screen.Variants)
+                    foreach (var add in block.Adds)
+                        foreach (var child in add.Children)
+                            foreach (var issue in ThemeStyleRules.CheckInvocations(child, tags, themeStyleNames))
+                                yield return issue;
+            }
+            foreach (var tpl in loaded.Templates.Values)
+                foreach (var issue in ThemeStyleRules.CheckInvocations(tpl.Body, tags, themeStyleNames))
+                    yield return issue;
+        }
+
+        private static void ThemeStyleApplierForLint(
+            UIDocument expanded,
+            IReadOnlyDictionary<StyleKey, StyleDef> globalStyles,
+            IReadOnlyDictionary<string, ThemeBlock> themes,
+            string themeName)
+        {
+            var effective = ThemeStyleResolver.Resolve(globalStyles, themes, themeName);
+            foreach (var screen in expanded.Screens)
+                ThemeStyleApplier.Apply(screen, effective);
+        }
+
+        private static List<string> SortedKeys(Dictionary<string, ThemeBlock> themes)
+        {
+            var names = new List<string>(themes.Keys);
+            names.Sort(System.StringComparer.Ordinal);
+            return names;
         }
 
         // Identical message => same finding, whichever pass produced it. Code/Tag/Id alone would
