@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using PromptUGUI.IR;
 using PromptUGUI.Parser;
 using UnityEngine;
 
@@ -18,6 +19,7 @@ namespace PromptUGUI.Application
             public string Name;
             public string BaseName;
             public Dictionary<string, ColorSpec> Colors;
+            public Dictionary<string, StyleDef> Styles;
             public string Src;
             public Entry ResolvedBase;
         }
@@ -26,8 +28,14 @@ namespace PromptUGUI.Application
 
         public IReadOnlyCollection<string> Available => _themes.Keys;
 
+        /// <summary>Colour-only overload: a theme that declares no style packs.</summary>
         public void Register(string name, string baseName,
                              IReadOnlyDictionary<string, ColorSpec> colors, string src)
+            => Register(name, baseName, colors, styles: null, src);
+
+        public void Register(string name, string baseName,
+                             IReadOnlyDictionary<string, ColorSpec> colors,
+                             IReadOnlyDictionary<string, StyleDef> styles, string src)
         {
             if (_themes.TryGetValue(name, out var existing) && existing.Src != src)
                 throw new ParseException(
@@ -47,12 +55,17 @@ namespace PromptUGUI.Application
                 Name = name,
                 BaseName = baseName,
                 Colors = new Dictionary<string, ColorSpec>(colors),
+                Styles = styles == null
+                    ? new Dictionary<string, StyleDef>()
+                    : new Dictionary<string, StyleDef>(styles),
                 Src = src,
             };
         }
 
         public void ReplaceFromSrc(string src,
-            IReadOnlyList<(string name, string baseName, IReadOnlyDictionary<string, ColorSpec> colors)> blocks)
+            IReadOnlyList<(string name, string baseName,
+                           IReadOnlyDictionary<string, ColorSpec> colors,
+                           IReadOnlyDictionary<string, StyleDef> styles)> blocks)
         {
             // Hot reload: drop everything previously from src, then register new.
             var toRemove = new List<string>();
@@ -60,7 +73,7 @@ namespace PromptUGUI.Application
                 if (kv.Value.Src == src) toRemove.Add(kv.Key);
             foreach (var k in toRemove) _themes.Remove(k);
             foreach (var b in blocks)
-                Register(b.name, b.baseName, b.colors, src);
+                Register(b.name, b.baseName, b.colors, b.styles, src);
             ResolveBases();
         }
 

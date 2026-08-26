@@ -1018,7 +1018,7 @@ namespace PromptUGUI.Application
                     theme.Colors.Count);
                 foreach (var ce in theme.Colors)
                     colors[ce.Name] = ParseThemeColor(ce.Value);
-                ThemeStore.Instance.Register(theme.Name, theme.BaseName, colors, themeSrc);
+                ThemeStore.Instance.Register(theme.Name, theme.BaseName, colors, theme.Styles, themeSrc);
             }
             ThemeStore.Instance.ResolveBases();
 
@@ -1076,7 +1076,8 @@ namespace PromptUGUI.Application
             var bySrc = new System.Collections.Generic.Dictionary<
                 string,
                 System.Collections.Generic.List<(string name, string baseName,
-                    System.Collections.Generic.IReadOnlyDictionary<string, ColorSpec> colors)>>();
+                    System.Collections.Generic.IReadOnlyDictionary<string, ColorSpec> colors,
+                    System.Collections.Generic.IReadOnlyDictionary<string, IR.StyleDef> styles)>>();
             foreach (var (theme, themeSrc) in loaded.Themes)
             {
                 var colors = new System.Collections.Generic.Dictionary<string, ColorSpec>(
@@ -1085,7 +1086,7 @@ namespace PromptUGUI.Application
                     colors[ce.Name] = ParseThemeColor(ce.Value);
                 if (!bySrc.TryGetValue(themeSrc, out var list))
                     bySrc[themeSrc] = list = new();
-                list.Add((theme.Name, theme.BaseName, colors));
+                list.Add((theme.Name, theme.BaseName, colors, theme.Styles));
             }
             foreach (var kv in bySrc)
                 ThemeStore.Instance.ReplaceFromSrc(kv.Key, kv.Value);
@@ -1096,7 +1097,7 @@ namespace PromptUGUI.Application
             {
                 foreach (var list in bySrc.Values)
                 {
-                    foreach (var (themeName, _, _) in list)
+                    foreach (var (themeName, _, _, _) in list)
                     {
                         if (themeName == Theme.Current)
                         {
