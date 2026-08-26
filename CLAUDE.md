@@ -48,7 +48,7 @@ Internal refactors, test-only changes, performance work, and Editor tooling that
 `Runtime/` is split into:
 - `Core/IR/` — pure POCOs (`UIDocument`, `ScreenDef`, `TemplateDef`, `ElementNode`, `ImportRef`, `VariantBlock`, `AddDirective`, `StyleDef`, `ThemeBlock`) + 合并产物 `LoadedDoc` 与它的键 `TemplateKey` / `StyleKey`
 - `Core/Parser/` — `UIDocumentParser` (XML → IR) + `ParseException`
-- `Core/Template/` — `DocumentAssembler` (Import 闭包合并 → `LoadedDoc`) + `TemplateExpander` (inlines Template invocations) + `StyleMerger` (`class=` 属性包合并) + `Substitution` / `Truthy`
+- `Core/Template/` — `DocumentAssembler` (Import 闭包合并 → `LoadedDoc`) + `TemplateExpander` (inlines Template invocations；并为 `itemTemplate=` 预展开一份 per-Screen 的 `ScreenDef.Templates`) + `StyleMerger` (`class=` 属性包合并 + 切主题重算) + `ThemeStyleResolver` / `ThemeStyleApplier` + `Substitution` / `Truthy`
 - `Core/Variants/` — `VariantResolver` (last-active-wins for `attr.var` overrides)
 - `Core/Layout/` — `AnchorResolver` / `MarginResolver` / `SizeSpec`
 - `Controls/` — built-in primitives (`Frame`, `Image`, `Text`, `VStack`, `HStack`, `Grid`, `Btn`) + the `Control` base class

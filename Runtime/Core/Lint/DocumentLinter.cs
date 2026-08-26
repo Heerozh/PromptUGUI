@@ -117,7 +117,26 @@ namespace PromptUGUI.Lint
             // to remember: the themes a document can reach are already declared in it.
             foreach (var themeName in SortedKeys(themes))
             {
-                ThemeStyleApplierForLint(expanded, loaded.Styles, themes, themeName);
+                // Re-deriving under a theme can throw the same way expansion can (an unresolvable
+                // class name). Report it and move on rather than taking the whole run down — a
+                // linter that dies on its input tells the author nothing about the other files.
+                LintIssue? themeFailure = null;
+                try
+                {
+                    ThemeStyleApplierForLint(expanded, loaded.Styles, themes, themeName);
+                }
+                catch (Exception ex) when (ex is TemplateException || ex is ParseException)
+                {
+                    themeFailure = new LintIssue(
+                        ExpansionCode, "Theme", themeName,
+                        $"re-deriving styles under <Theme name='{themeName}'> failed: {ex.Message}");
+                }
+                if (themeFailure.HasValue)
+                {
+                    if (seen.Add(KeyOf(themeFailure.Value))) yield return themeFailure.Value;
+                    continue;
+                }
+
                 foreach (var issue in IRWalker.Walk(expanded))
                     if (seen.Add(KeyOf(issue)))
                         yield return issue;

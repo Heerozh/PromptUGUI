@@ -534,6 +534,24 @@ M0 / M1 / M2 全部落地，§8 的可逆性缺陷全部修完，测试套件无
 
 仍然开着的：
 
-- **`itemTemplate` 的 `class=` 从来没生效过**（M2.3 发现的既有缺口，与主题无关）。
 - **lint 无行号**；同一模板多次调用时不可区分是哪一次（M1 记录）。
+- **动态子树不参与 ReSolve 的属性重放**（见下，修 `itemTemplate` 时查实的）。
 - **带命名空间的样式不能被主题覆盖**（M2.2 的 §4.3 收紧）。
+
+### 追加：`itemTemplate` 走完整展开
+
+`ScreenDef.Templates` 原本存的是 `loaded.Templates` 的**原始 body**，而 `ScrollList` / `TabBar` / `Carousel` 直接拿它实例化。展开该做的事一件都没做：`class=` 没合并、`{{param}}` 没替换、嵌套模板调用没内联。
+
+**症状比记录的严重，也和记录的不同。** 实测（`slots=0` + 控制台）：后两者会在 bind 内部抛（`unregistered tag 'Inner'`、`unknown color token "{{tint}}"`），但 R3 把异常路由给未处理异常处理器 —— 调用方**正常返回，列表是空的**，控制台那条错误既不提列表也不提模板。不是「静默不生效」，是「空列表 + 一条指不到现场的日志」。
+
+改法：`TemplateExpander` 增 `BuildRuntimeTemplates`，用模板自己的 `<Param>` 默认值当实参预展开一份，存进 `ScreenDef.Templates`。
+
+三个必须做对的点：
+
+1. **有必填 `<Param>` 的模板不能急切展开** —— 它们可能只作普通调用用、从不当 itemTemplate，展开会把今天能跑的工程炸掉。这类保留 body 原样；真被用作 itemTemplate 时由 `ItemTemplateGuard` 在 `Open` 处报错说清楚是哪个模板的哪个参数。展开抛异常（如循环引用）同样回退，保证**不新增任何 load 期失败**。
+2. **每个条目都是 ScreenDef 自己拥有的副本**（必填 Param 那类走 `DeepClone`），不是共享的（可能来自 commons 池的）`TemplateDef`。这正是让切主题能就地重算这些 body 而不跨文档泄漏的前提 —— M2.3 当时拒绝碰它们的理由随之消失，`ThemeStyleApplier` 现在也走 `def.Templates`。
+3. **`BodyExpanded` 标志**：保留原样的 body 里 `class="{{skin}}"` 还是占位符，拿它查样式会抛 `unknown style '{{skin}}'`。这个是**回归跑 CLI 时崩出来的**（exit 134，正好是自带 ProceduralStyle 样例的形状），运行时同一条路也会崩。顺带给 `DocumentLinter` 的逐主题重算加了 try/catch —— lint 工具不该被它正要诊断的 markup 弄死。
+
+**顺带查实、未修**：`_dynamicSubtrees` 在 `Screen` 里只被 `ApplyScalesTo` 和 `HasFactorScaleNode` 用到，`ControlAttributeApplier.Apply` 只在实例化时对它们跑过一次 —— 也就是说 **`BindItems` 出来的行，切主题 / 切 Variant / resize 都不会重放属性**，连颜色 token 都不跟随。这在今天就成立，是比 `class=` 更大的一条，独立于本次修复（原分析里的 1-B）。本次修复让**之后新绑的行**拿到当前皮肤，已绑的行仍需要 1-B。
+
+验证：EditMode 2323/2323、PlayMode 171/171、EditorOnly 308/308，0 failed 0 skipped；`dotnet format` 无输出；UIXmlLint 13 个文件零 issue、exit 0。

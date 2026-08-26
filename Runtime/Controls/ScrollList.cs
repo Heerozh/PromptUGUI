@@ -258,6 +258,7 @@ namespace PromptUGUI.Controls
             // 1) Template
             if (owner?.Def?.Templates != null && owner.Def.Templates.TryGetValue(tag, out var tpl))
             {
+                Internal.ItemTemplateGuard.EnsureInstantiable(tag, tpl);
                 return parent =>
                 {
                     var instantiator = PromptUGUI.Application.UI.GetInstantiator();

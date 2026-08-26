@@ -29,6 +29,7 @@ namespace PromptUGUI.Template
                 result.Styles[kv.Key.ToString()] = kv.Value;      // 同上：诊断用，展开产物已不含 class
 
             var styles = loaded.Styles;
+            var runtimeTemplates = BuildRuntimeTemplates(loaded, styles);
 
             foreach (var s in loaded.Screens)
             {
@@ -60,7 +61,7 @@ namespace PromptUGUI.Template
                                      new HashSet<TemplateKey>()),
                 };
                 // 把全局 Template 表附到本 Screen，供 ScrollList 等运行时控件按 tag 反查。
-                foreach (var kv in loaded.Templates)
+                foreach (var kv in runtimeTemplates)
                     newScreen.Templates[kv.Key.ToString()] = kv.Value;
                 // 同理附上样式表：切主题时要把主题 pack 折在它之上重算 class=。
                 foreach (var kv in styles)
@@ -107,6 +108,63 @@ namespace PromptUGUI.Template
             foreach (var kv in doc.Styles)
                 loaded.Styles[new StyleKey(null, kv.Key)] = kv.Value;
             return Expand(loaded);
+        }
+
+        /// <summary>
+        /// The Template table a Screen carries for RUNTIME instantiation (<c>itemTemplate=</c>).
+        /// <c>ScrollList</c> / <c>TabBar</c> / <c>Carousel</c> hand the body straight to
+        /// <c>ScreenInstantiator</c>, so everything expansion normally does has to have happened
+        /// already — <c>class=</c> merged, <c>{{param}}</c> substituted, nested invocations inlined.
+        /// Handing over the raw body meant the first two silently produced wrong values and the third
+        /// threw <c>unregistered tag</c> inside the bind, where R3 swallows it into a console error
+        /// and leaves the list empty.
+        ///
+        /// <para>With no invocation to supply them, a template's own <c>&lt;Param&gt;</c> defaults ARE
+        /// the arguments. A required Param has no such value, so those templates cannot be expanded
+        /// here — they are kept as a deep copy instead, and rejected by name if actually used as an
+        /// itemTemplate. Expansion failures fall back the same way: a template that is only ever
+        /// invoked normally must not start failing at load.</para>
+        ///
+        /// <para>Every entry is a copy the ScreenDef OWNS, never the shared (possibly commons-pool)
+        /// TemplateDef — that is what lets a theme switch re-merge these bodies in place without
+        /// leaking across documents.</para>
+        /// </summary>
+        private static Dictionary<PromptUGUI.IR.TemplateKey, TemplateDef> BuildRuntimeTemplates(
+            PromptUGUI.IR.LoadedDoc loaded,
+            IReadOnlyDictionary<PromptUGUI.IR.StyleKey, StyleDef> styles)
+        {
+            var result = new Dictionary<PromptUGUI.IR.TemplateKey, TemplateDef>(loaded.Templates.Count);
+            foreach (var kv in loaded.Templates)
+            {
+                var tpl = kv.Value;
+                var copy = new TemplateDef(tpl.Name) { OriginSrc = tpl.OriginSrc };
+                copy.Params.AddRange(tpl.Params);
+
+                var args = new Dictionary<string, string>();
+                var expandable = tpl.Body != null;
+                foreach (var p in tpl.Params)
+                {
+                    if (!p.HasDefault) { expandable = false; break; }
+                    args[p.Name] = p.DefaultValue;
+                }
+
+                ElementNode body = null;
+                if (expandable)
+                {
+                    try
+                    {
+                        body = ExpandNode(tpl.Body, args, slotContent: null, loaded.Templates, styles,
+                                          new HashSet<PromptUGUI.IR.TemplateKey>());
+                    }
+                    catch (TemplateException) { body = null; }
+                    catch (Parser.ParseException) { body = null; }
+                }
+
+                copy.Body = body ?? (tpl.Body == null ? null : DeepClone(tpl.Body));
+                copy.BodyExpanded = body != null;
+                result[kv.Key] = copy;
+            }
+            return result;
         }
 
         private static void ValidateSlotCount(TemplateDef tpl)
