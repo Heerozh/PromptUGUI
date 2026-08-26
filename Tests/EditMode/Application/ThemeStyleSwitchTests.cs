@@ -51,6 +51,63 @@ namespace PromptUGUI.Tests.EditMode.Application
             </Theme>
             <Screen name='S'><Image id='c' class='card'/></Screen>";
 
+        // A style that lives in a commons library imported as="ui" is addressed class="ui:card", and
+        // its identity INCLUDES the namespace. A theme therefore has to name it the same way to
+        // override it — spelling it 'card' would be a different style that nothing references.
+        [Test]
+        public void ANamespacedCommonsStyle_CanBeOverriddenByATheme()
+        {
+            UseFiles(new Dictionary<string, string>
+            {
+                ["lib"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                              <Style name='card' color='#112233'/>
+                            </PromptUGUI>",
+                ["main"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                              <Theme name='modern'><Color name='ink' value='#000'/></Theme>
+                              <Theme name='pixel'><Style name='ui:card' color='#445566'/></Theme>
+                              <Screen name='S'><Image id='c' class='ui:card'/></Screen>
+                            </PromptUGUI>",
+            });
+            UI.LoadCommonLibraryAsync("lib", "ui").GetAwaiter().GetResult();
+            UI.LoadDocumentAsync("main").GetAwaiter().GetResult();
+            UI.Theme.Set("modern");
+            var screen = UI.Open("S");
+            Assume.That(ColorOf(screen, "c"), Is.EqualTo("112233"), "guard: the library value landed");
+
+            UI.Theme.Set("pixel");
+
+            Assert.AreEqual("445566", ColorOf(screen, "c"),
+                "an imported skin library is exactly what a theme most wants to re-skin");
+        }
+
+        // …and the namespace is not decoration: a theme naming the bare 'card' declares a DIFFERENT
+        // style, and must leave ui:card alone.
+        [Test]
+        public void ABareThemeStyle_DoesNotReachItsNamespacedNamesake()
+        {
+            UseFiles(new Dictionary<string, string>
+            {
+                ["lib"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                              <Style name='card' color='#112233'/>
+                            </PromptUGUI>",
+                ["main"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
+                              <Style name='card' color='#778899'/>
+                              <Theme name='modern'><Color name='ink' value='#000'/></Theme>
+                              <Theme name='pixel'><Style name='card' color='#445566'/></Theme>
+                              <Screen name='S'><Image id='c' class='ui:card'/></Screen>
+                            </PromptUGUI>",
+            });
+            UI.LoadCommonLibraryAsync("lib", "ui").GetAwaiter().GetResult();
+            UI.LoadDocumentAsync("main").GetAwaiter().GetResult();
+            UI.Theme.Set("modern");
+            var screen = UI.Open("S");
+
+            UI.Theme.Set("pixel");
+
+            Assert.AreEqual("112233", ColorOf(screen, "c"),
+                "'card' and 'ui:card' are two styles, and the node references the namespaced one");
+        }
+
         [Test]
         public void SwitchingTheme_ReDerivesTheClassPack()
         {

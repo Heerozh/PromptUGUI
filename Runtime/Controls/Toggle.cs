@@ -132,8 +132,22 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve]
         public string Color
         {
-            set => Internal.ColorApplier.Apply(_bg, UI.Theme.ResolveSpec(value));
+            set
+            {
+                // Held, not just applied: StateTintInstaller needs the DECLARATION to hand the state
+                // reactor its base. Reading the graphic back instead would pick up whatever tint the
+                // reactor last painted. See StateTintReactor's remarks.
+                _color = value;
+                Internal.ColorApplier.Apply(_bg, UI.Theme.ResolveSpec(value));
+            }
         }
+
+        private string _color;
+
+        /// <summary>What <c>color=</c> currently declares, or null when the author declared none —
+        /// then the reactor keeps the control's own built-in bg colour as its base.</summary>
+        private ColorSpec? AuthoredBase()
+            => string.IsNullOrWhiteSpace(_color) ? (ColorSpec?)null : UI.Theme.ResolveSpec(_color);
 
         [UIAttr, Preserve]
         public string Tint
@@ -243,7 +257,8 @@ namespace PromptUGUI.Controls
             ColorSpec? selectedBase = string.IsNullOrWhiteSpace(_selectedColor)
                 ? (ColorSpec?)null
                 : UI.Theme.ResolveSpec(_selectedColor);
-            _bgReactor = StateTintInstaller.Install(GameObject, _toggle, Children, abs, mod, selectedBase, IsOn);
+            _bgReactor = StateTintInstaller.Install(GameObject, _toggle, Children, abs, mod, selectedBase, IsOn,
+                authoredBase: AuthoredBase());
             // 默认禁用外观：作者未声明任何 disabled* 时整控件去色。
             if (string.IsNullOrWhiteSpace(_disabledColor) && string.IsNullOrWhiteSpace(_disabledModulate))
                 DisabledGrayscaleInstaller.Install(GameObject, _toggle, Children);

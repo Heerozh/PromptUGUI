@@ -21,7 +21,8 @@ namespace PromptUGUI.Controls.Internal
             StateColorSet absolutes,
             StateColorSet modulates,
             ColorSpec? selectedBase = null,
-            bool selected = false)
+            bool selected = false,
+            ColorSpec? authoredBase = null)
         {
             if (!absolutes.HasAny && !modulates.HasAny && !selectedBase.HasValue) return null;
 
@@ -47,18 +48,23 @@ namespace PromptUGUI.Controls.Internal
                 // fanning them out would paint label/icon the bg colour. Descendants get the multiplier only.
                 var abs = isTarget ? absolutes : default;
                 ColorSpec? selBase = isTarget ? selectedBase : null;
-                var reactor = InstallReactor(g, abs, modulates, fade, selBase, selected);
+                // The control's color= describes ITS bg. A descendant carries its own, which this
+                // code cannot see, so those keep the first-init Peek.
+                ColorSpec? authored = isTarget ? authoredBase : null;
+                var reactor = InstallReactor(g, abs, modulates, fade, selBase, selected, authored);
                 if (isTarget) targetReactor = reactor;
             }
             return targetReactor;
         }
 
-        private static StateTintReactor InstallReactor(Graphic graphic, StateColorSet absolutes, StateColorSet modulates, float fade, ColorSpec? selectedBase, bool selected)
+        private static StateTintReactor InstallReactor(Graphic graphic, StateColorSet absolutes,
+            StateColorSet modulates, float fade, ColorSpec? selectedBase, bool selected,
+            ColorSpec? authoredBase)
         {
             if (graphic == null) return null;
             var reactor = graphic.GetComponent<StateTintReactor>()
                           ?? graphic.gameObject.AddComponent<StateTintReactor>();
-            reactor.Configure(absolutes, modulates, fade, selectedBase, selected);
+            reactor.Configure(absolutes, modulates, fade, selectedBase, selected, authoredBase);
             return reactor;
         }
     }

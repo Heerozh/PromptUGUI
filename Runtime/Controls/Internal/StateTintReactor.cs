@@ -16,10 +16,13 @@ namespace PromptUGUI.Controls.Internal
     /// <c>targetGraphic</c>; modulates fan out to every descendant graphic.
     /// </summary>
     /// <remarks>
-    /// The base (authored) colour is captured ONCE on first init and never re-captured: a
-    /// re-<see cref="Configure"/> (e.g. a Variant ReSolve) must not promote the currently-tinted
-    /// colour into the new base. A state with no absolute and no modulate returns the graphic to
-    /// its base colour. Base/absolute/selected colours may be gradients (landed via
+    /// The base (authored) colour comes from the owning control's live <c>color=</c> declaration,
+    /// pushed in through <see cref="Configure"/>. It is NOT re-read off the graphic: on a
+    /// re-<see cref="Configure"/> (a Variant / theme / resize ReSolve) the graphic may be showing a
+    /// TINT — the control is hovered — and promoting that would bake the hover colour in for good.
+    /// Peeking the graphic stays the fallback, captured once, for a graphic nobody authored a colour
+    /// for (a control's built-in bg, or a descendant that only carries the modulate fan-out).
+    /// A state with no absolute and no modulate returns the graphic to its base colour. Base/absolute/selected colours may be gradients (landed via
     /// <see cref="ColorApplier"/>); a transition with a gradient endpoint snaps instead of fading
     /// (no Color-lerp for a vertex gradient — see <c>OnState</c>). Modulates stay solid.
     /// </remarks>
@@ -54,10 +57,19 @@ namespace PromptUGUI.Controls.Internal
         {
             if (_graphic != null) return;
             _graphic = GetComponent<Graphic>();
-            if (_graphic != null && !_baseCaptured)
+            if (_graphic != null)
             {
-                _baseColor = ColorApplier.Peek(_graphic);
-                _baseCaptured = true;
+                // Fallback capture: only for a graphic whose owner pushed no authored colour.
+                if (!_baseCaptured)
+                {
+                    _baseColor = ColorApplier.Peek(_graphic);
+                    _baseCaptured = true;
+                }
+                // Stamped unconditionally, and NOT inside the capture above — a control that
+                // declares color= arrives with _baseCaptured already true, and hanging the stamp off
+                // that would leave _bornFrame unset. The born-frame gate would then never fire and a
+                // Tab declared isOn="true" would tween toward its selectedColor instead of showing
+                // it on frame 1. This runs once: EnsureInit returns early once _graphic is set.
                 _bornFrame = BornFrame.Capture();   // first init = the build frame
             }
 
@@ -70,11 +82,22 @@ namespace PromptUGUI.Controls.Internal
         }
 
         /// <summary>
-        /// (Re)set the per-state absolute overrides + relative multipliers + fade. Safe to call
-        /// repeatedly (Variant ReSolve): the base colour stays captured from the first init.
+        /// (Re)set the per-state absolute overrides + relative multipliers + fade, and the authored
+        /// base. Safe to call repeatedly (Variant / theme / resize ReSolve): pass the control's
+        /// current <c>color=</c> as <paramref name="authoredBase"/> and the base follows it; pass
+        /// null and the first-init Peek stands.
         /// </summary>
-        public void Configure(StateColorSet absolutes, StateColorSet modulates, float fade, ColorSpec? selectedBase = null, bool selected = false)
+        public void Configure(StateColorSet absolutes, StateColorSet modulates, float fade,
+            ColorSpec? selectedBase = null, bool selected = false, ColorSpec? authoredBase = null)
         {
+            // The declaration wins over the pixels. Marking it captured also makes EnsureInit skip
+            // its Peek on first init — the authored value is already the right answer there.
+            if (authoredBase.HasValue)
+            {
+                _baseColor = authoredBase.Value;
+                _baseCaptured = true;
+            }
+
             // Assign the colour sets BEFORE EnsureInit subscribes: the OnState subscription replays
             // the source's current state synchronously, so if the control is already in a non-Normal
             // state at first install (e.g. a Tab declared isOn="true", shown Selected at Open and never

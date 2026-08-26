@@ -125,6 +125,33 @@ namespace PromptUGUI.Tests.EditMode.Parser
             StringAssert.Contains("attribute pack", ex.Message);
         }
 
+        // A style's identity includes its namespace, so a theme must be able to spell one — an
+        // imported skin library is exactly what a theme most wants to re-skin.
+        [Test]
+        public void ThemeStyle_MayNameAnImportedPackWithItsNamespace()
+        {
+            var theme = Theme("<Theme name='pixel'><Style name='ui:card' radius='0'/></Theme>");
+            Assert.IsTrue(theme.Styles.ContainsKey("ui:card"),
+                "kept as written — the resolver parses it the way class= parses a reference");
+        }
+
+        // …but a top-level <Style> may not: its namespace comes from the as= of whoever imports the
+        // document. A colon there would produce a pack nothing can address.
+        [Test]
+        public void GlobalStyle_WithANamespacedName_IsAnError()
+        {
+            var ex = ParseFails("<Style name='ui:card' radius='0'/>");
+            StringAssert.Contains("as=", ex.Message,
+                "the message has to say where a namespace actually comes from");
+        }
+
+        [Test]
+        public void ThemeStyle_WithAMalformedNamespace_IsAnError()
+        {
+            var ex = ParseFails("<Theme name='pixel'><Style name='UI:card' radius='0'/></Theme>");
+            StringAssert.Contains("kebab-case", ex.Message);
+        }
+
         [Test]
         public void ThemeStyle_NonKebabName_IsAnError()
         {

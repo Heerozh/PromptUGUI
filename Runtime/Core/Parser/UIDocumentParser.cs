@@ -156,7 +156,8 @@ namespace PromptUGUI.Parser
                     // A theme's style pack overrides the global <Style> of the same name rather than
                     // replacing it, so a theme spells out only what differs (spec §4.2).
                     var themeStyle = ParseStylePack(
-                        child, $"<Theme name=\"{name}\"> ", ThemeStyleForbiddenAttrs);
+                        child, $"<Theme name=\"{name}\"> ", ThemeStyleForbiddenAttrs,
+                        allowNamespace: true);
                     if (block.Styles.ContainsKey(themeStyle.Name))
                         throw new ParseException(
                             $"<Theme name=\"{name}\"> declares <Style name=\"{themeStyle.Name}\"> twice");
@@ -426,14 +427,49 @@ namespace PromptUGUI.Parser
         /// theme-nested style names its theme; <paramref name="forbidden"/> is the only other thing
         /// that differs between the two (see <see cref="ThemeStyleForbiddenAttrs"/>).
         /// </summary>
-        private static StyleDef ParseStylePack(XmlElement el, string ownerPrefix, string[] forbidden)
+        /// <summary>
+        /// A style's identity INCLUDES its namespace: a commons library imported <c>as="ui"</c> keys
+        /// its packs <c>ui:card</c> and that is how <c>class=</c> reaches them. So a theme override
+        /// must be able to spell the namespace too — an imported skin library is exactly what a theme
+        /// most wants to re-skin.
+        ///
+        /// <para>A TOP-LEVEL <c>&lt;Style&gt;</c> may not: its namespace comes from the <c>as=</c> of
+        /// whoever imports the document, never from the name it writes for itself. Saying so beats
+        /// letting the colon through and producing a style nothing can address.</para>
+        /// </summary>
+        private static void ValidateStyleName(string name, string ownerPrefix, bool allowNamespace)
+        {
+            var sep = name.IndexOf(':');
+            if (sep < 0)
+            {
+                if (!KebabRx.IsMatch(name))
+                    throw new ParseException(
+                        $"{ownerPrefix}<Style name=\"{name}\">: style name must be kebab-case [a-z0-9-]");
+                return;
+            }
+
+            if (!allowNamespace)
+                throw new ParseException(
+                    $"{ownerPrefix}<Style name=\"{name}\">: a top-level style takes a bare name — " +
+                    "its namespace comes from the as= of whoever <Import>s this document, not from " +
+                    "the name written here. (A <Style> INSIDE a <Theme> may write 'ns:name' to " +
+                    "override an imported pack.)");
+
+            var ns = name.Substring(0, sep);
+            var local = name.Substring(sep + 1);
+            if (!KebabRx.IsMatch(ns) || !KebabRx.IsMatch(local))
+                throw new ParseException(
+                    $"{ownerPrefix}<Style name=\"{name}\">: both halves of a namespaced style name " +
+                    "must be kebab-case [a-z0-9-] (expected 'namespace:style')");
+        }
+
+        private static StyleDef ParseStylePack(
+            XmlElement el, string ownerPrefix, string[] forbidden, bool allowNamespace = false)
         {
             var name = el.GetAttribute("name");
             if (string.IsNullOrEmpty(name))
                 throw new ParseException($"{ownerPrefix}<Style>: missing required attribute 'name'");
-            if (!KebabRx.IsMatch(name))
-                throw new ParseException(
-                    $"{ownerPrefix}<Style name=\"{name}\">: style name must be kebab-case [a-z0-9-]");
+            ValidateStyleName(name, ownerPrefix, allowNamespace);
 
             foreach (XmlNode c in el.ChildNodes)
             {

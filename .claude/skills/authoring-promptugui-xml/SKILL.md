@@ -69,7 +69,7 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 | `<Color name=... value=...>`                                                                         | Inside `<Theme>`. Defines a named color token.            | `name` is kebab-case `[a-z0-9-]`. `value` is hex (`#rgb` / `#rrggbb` / `#rrggbbaa`) or a Unity CSS named color (`red` / `white` / ...).                                                                                                                                                       |
 | `<Screen name="..." [canvas="..."] [reference="..."] [scale-mode="..."] [reference.portrait="..."]>` | A complete UI scene; opened by code with `UI.Open(name)`. | One Screen = one Canvas. Names unique across all loaded files. `canvas="overlay\|camera\|world"`, default `overlay`. Optional `reference="WxH"` (+ `.variant`) switches CanvasScaler to ScaleWithScreenSize. Optional `scale-mode="auto\|pixel"` (+ `.variant`); pixel = integer scaleFactor. |
 | `<Template name="...">`                                                                              | Reusable subtree, expanded at parse time.                 | Body must have **exactly one root element**.                                                                                                                                                                                                                                                  |
-| `<Style name="...">`                                                                                 | Named attribute pack, pulled in with `class="..."`.       | Top-level, no children. `name` is kebab-case `[a-z0-9-]`. See **Style & class**.                                                                                                                                                                                                              |
+| `<Style name="...">`                                                                                 | Named attribute pack, pulled in with `class="..."`.       | Top-level **or** inside `<Theme>`, no children. `name` is kebab-case `[a-z0-9-]`; inside a `<Theme>` it may also be `ns:name` to override an imported pack. See **Style & class** and **Theme-scoped styles**.                                                                                 |
 
 `<Import>`, `<Theme>`, `<Screen>`, `<Style>`, `<Template>` are the **only** elements allowed at the top level. Comments use standard `<!-- -->`.
 
@@ -748,8 +748,20 @@ becomes `<Param>` values that get baked into the body at expansion, and the invo
 afterwards, so nothing re-derives. Put the `class=` on a node **inside** the template body instead.
 `PUI-THEME-STYLE-ON-INVOCATION` flags it.
 
-Theme styles address the **un-namespaced** style pool only — `class="ui:card"` (from a library
-imported with `as="ui"`) cannot be themed.
+**A theme names a style the way `class=` names it, namespace included.** A pack that arrives through
+an `<Import as="ui">` is `ui:card` everywhere, so that is what a theme writes to override it —
+re-skinning an imported library is exactly what themes are for:
+
+```xml
+<Theme name="pixel">
+  <Style name="ui:card" radius="0" borderWidth="2"/>   <!-- overrides the imported pack -->
+  <Style name="card"    radius="0"/>                   <!-- a DIFFERENT style: this document's own -->
+</Theme>
+```
+
+The namespace is part of the identity: `card` and `ui:card` never fold into each other. A **top-level**
+`<Style>` still takes a bare name — its namespace comes from the `as=` of whoever imports the
+document, never from the name it writes for itself, and a colon there is a parse error.
 
 ## Templates
 

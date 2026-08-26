@@ -43,7 +43,8 @@ namespace PromptUGUI.Lint
             {
                 foreach (var styleName in Sorted(themes[themeName].Styles.Keys))
                 {
-                    if (globalStyles != null && globalStyles.ContainsKey(new StyleKey(null, styleName)))
+                    if (globalStyles != null
+                        && globalStyles.ContainsKey(StyleKey.ParseReference(styleName)))
                         continue;
                     if (!reported.Add(styleName)) continue;
 
@@ -87,7 +88,7 @@ namespace PromptUGUI.Lint
 
             foreach (var styleName in Sorted(touched))
             {
-                var key = new StyleKey(null, styleName);
+                var key = StyleKey.ParseReference(styleName);
                 string referenceTheme = null;
                 HashSet<string> referenceNames = null;
 
@@ -152,10 +153,9 @@ namespace PromptUGUI.Lint
                 foreach (var reference in classValue.Split(
                              new[] { ' ', '\t', '\n', '\r' }, System.StringSplitOptions.RemoveEmptyEntries))
                 {
-                    var key = StyleKey.ParseReference(reference);
-                    // Theme styles address the un-namespaced pool only (spec §4.3), so ui:card can
-                    // never be themed and is not what this rule is about.
-                    if (key.Namespace != null || !themed.Contains(key.Name)) continue;
+                    // Compared as written: a theme names its override the same way class= names
+                    // the reference, namespace included.
+                    if (!themed.Contains(reference)) continue;
 
                     yield return new LintIssue(
                         OnInvocationCode, node.Tag, node.Id,

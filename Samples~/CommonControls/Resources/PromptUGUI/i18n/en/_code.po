@@ -13,25 +13,25 @@ msgstr "Anti-Aliasing"
 msgid "Bloom"
 msgstr "Bloom"
 
-# . in BindThemeSwitcher()
-# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:48
-msgid "Dark"
-msgstr "Dark"
-
 # . in BindListPage()
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:99
 msgid "Depth of Field"
 msgstr "Depth of Field"
 
+# . in BindSkinSwitcher()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:69
+msgid "Farm"
+msgstr "Farm"
+
+# . in BindSkinSwitcher()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:69
+msgid "Glass"
+msgstr "Glass"
+
 # . in BindFormPage()
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:55
 msgid "High"
 msgstr "High"
-
-# . in BindThemeSwitcher()
-# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:48
-msgid "Light"
-msgstr "Light"
 
 # . in BindFormPage()
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:55
