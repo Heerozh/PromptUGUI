@@ -41,6 +41,11 @@ namespace PromptUGUI.Lint
         public bool IsUncertain(ElementNode n)
         {
             if (n == null) return false;
+            // An expanded node keeps its class= (a theme switch re-merges from it), but its pack is
+            // already folded into Attributes — nothing about it is unknown, whatever this document
+            // happens to declare. Without this the expanded lint pass would go quiet again exactly
+            // where following <Import> made it able to speak.
+            if (n.StyleAttrNames != null) return false;
             if (!n.Attributes.TryGetValue(StyleClassAttr, out var value)) return false;
             if (value == null) return false;
             if (value.Contains("{{")) return true;

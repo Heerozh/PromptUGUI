@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using PromptUGUI.IR;
 using PromptUGUI.Parser;
 using UnityEngine;
 
@@ -18,6 +19,7 @@ namespace PromptUGUI.Application
             public string Name;
             public string BaseName;
             public Dictionary<string, ColorSpec> Colors;
+            public Dictionary<string, StyleDef> Styles;
             public string Src;
             public Entry ResolvedBase;
         }
@@ -26,8 +28,14 @@ namespace PromptUGUI.Application
 
         public IReadOnlyCollection<string> Available => _themes.Keys;
 
+        /// <summary>Colour-only overload: a theme that declares no style packs.</summary>
         public void Register(string name, string baseName,
                              IReadOnlyDictionary<string, ColorSpec> colors, string src)
+            => Register(name, baseName, colors, styles: null, src);
+
+        public void Register(string name, string baseName,
+                             IReadOnlyDictionary<string, ColorSpec> colors,
+                             IReadOnlyDictionary<string, StyleDef> styles, string src)
         {
             if (_themes.TryGetValue(name, out var existing) && existing.Src != src)
                 throw new ParseException(
@@ -47,12 +55,17 @@ namespace PromptUGUI.Application
                 Name = name,
                 BaseName = baseName,
                 Colors = new Dictionary<string, ColorSpec>(colors),
+                Styles = styles == null
+                    ? new Dictionary<string, StyleDef>()
+                    : new Dictionary<string, StyleDef>(styles),
                 Src = src,
             };
         }
 
         public void ReplaceFromSrc(string src,
-            IReadOnlyList<(string name, string baseName, IReadOnlyDictionary<string, ColorSpec> colors)> blocks)
+            IReadOnlyList<(string name, string baseName,
+                           IReadOnlyDictionary<string, ColorSpec> colors,
+                           IReadOnlyDictionary<string, StyleDef> styles)> blocks)
         {
             // Hot reload: drop everything previously from src, then register new.
             var toRemove = new List<string>();
@@ -60,7 +73,7 @@ namespace PromptUGUI.Application
                 if (kv.Value.Src == src) toRemove.Add(kv.Key);
             foreach (var k in toRemove) _themes.Remove(k);
             foreach (var b in blocks)
-                Register(b.name, b.baseName, b.colors, src);
+                Register(b.name, b.baseName, b.colors, b.styles, src);
             ResolveBases();
         }
 
@@ -87,6 +100,44 @@ namespace PromptUGUI.Application
                             string.Join(" → ", seen) + $" → {cur.Name}");
                 }
             }
+        }
+
+        /// <summary>
+        /// True when any registered theme declares a <c>&lt;Style&gt;</c>. Screens check this before
+        /// re-deriving their <c>class=</c> nodes, so a project that themes only colours — every
+        /// project until now — pays nothing on Open or ReSolve.
+        /// </summary>
+        public bool AnyThemeStyles
+        {
+            get
+            {
+                foreach (var e in _themes.Values)
+                    if (e.Styles != null && e.Styles.Count > 0) return true;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// <paramref name="globalStyles"/> with the active theme's packs folded over it. Returns the
+        /// argument itself when nothing applies, which callers use as a cheap "nothing to re-merge".
+        /// </summary>
+        public IReadOnlyDictionary<StyleKey, StyleDef> ResolveStyles(
+            IReadOnlyDictionary<StyleKey, StyleDef> globalStyles, string activeTheme)
+        {
+            if (string.IsNullOrEmpty(activeTheme) || !_themes.ContainsKey(activeTheme))
+                return globalStyles;
+
+            // ThemeStyleResolver walks base= chains itself and lives in Core so the lint CLI shares
+            // it; hand it a view of what this store holds.
+            var view = new Dictionary<string, ThemeBlock>(_themes.Count);
+            foreach (var e in _themes.Values)
+            {
+                var block = new ThemeBlock { Name = e.Name, BaseName = e.BaseName };
+                if (e.Styles != null)
+                    foreach (var kv in e.Styles) block.Styles[kv.Key] = kv.Value;
+                view[e.Name] = block;
+            }
+            return Template.ThemeStyleResolver.Resolve(globalStyles, view, activeTheme);
         }
 
         public ColorSpec? LookupChained(string themeName, string token)

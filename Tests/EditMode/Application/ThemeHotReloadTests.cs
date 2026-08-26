@@ -38,9 +38,10 @@ namespace PromptUGUI.Tests.Application
             UI.Theme.Changed += n => fired = n;
 
             ThemeStore.Instance.ReplaceFromSrc("themes/main",
-                new List<(string, string, IReadOnlyDictionary<string, ColorSpec>)>
+                new List<(string, string, IReadOnlyDictionary<string, ColorSpec>,
+                          IReadOnlyDictionary<string, PromptUGUI.IR.StyleDef>)>
                 {
-                    ("light", null, v2)
+                    ("light", null, v2, null)
                 });
             UI.Theme.RaiseChangedIfCurrent("light");
 

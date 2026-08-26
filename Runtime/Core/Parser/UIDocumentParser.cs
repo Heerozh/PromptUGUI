@@ -9,7 +9,54 @@ namespace PromptUGUI.Parser
         private static readonly Regex KebabRx =
             new Regex("^[a-z0-9]+(-[a-z0-9]+)*$", RegexOptions.Compiled);
 
-        public static UIDocument Parse(string xml)
+        /// <summary>
+        /// <paramref name="src"/> is the resolver key / path this xml came from. Supplying it stamps
+        /// every produced <see cref="ElementNode"/> with <see cref="ElementNode.OriginSrc"/> so lint
+        /// findings can name the file the markup was written in — which is not the entry document
+        /// once <c>&lt;Import&gt;</c> and Template inlining are in play. Omitting it is fine and
+        /// leaves the origins null.
+        /// </summary>
+        public static UIDocument Parse(string xml, string src = null)
+        {
+            var doc = ParseCore(xml);
+            if (src != null) StampOrigin(doc, src);
+            return doc;
+        }
+
+        // Every ElementNode the document owns. Stamping here — one walk after parsing — keeps `src`
+        // out of the dozen private parse methods that would otherwise have to thread it through.
+        private static void StampOrigin(UIDocument doc, string src)
+        {
+            foreach (var screen in doc.Screens)
+            {
+                StampSubtree(screen.Root, src);
+                StampSubtree(screen.FocusCursor, src);
+                foreach (var variant in screen.Variants)
+                    foreach (var add in variant.Adds)
+                        foreach (var child in add.Children)
+                            StampSubtree(child, src);
+            }
+            foreach (var template in doc.Templates.Values)
+                StampSubtree(template.Body, src);
+
+            // <Style> is not an ElementNode but IS a lint target (StyleRules.CheckStyle), and
+            // IRWalker attributes those findings via StyleDef.OriginSrc.
+            foreach (var style in doc.Styles.Values)
+                style.OriginSrc = src;
+            foreach (var theme in doc.Themes)
+                foreach (var style in theme.Styles.Values)
+                    style.OriginSrc = src;
+        }
+
+        private static void StampSubtree(ElementNode node, string src)
+        {
+            if (node == null) return;
+            node.OriginSrc = src;
+            foreach (var child in node.Children)
+                StampSubtree(child, src);
+        }
+
+        private static UIDocument ParseCore(string xml)
         {
             var xdoc = new XmlDocument();
             xdoc.LoadXml(xml);
@@ -102,10 +149,24 @@ namespace PromptUGUI.Parser
             foreach (XmlNode c in el.ChildNodes)
             {
                 if (c is not XmlElement child) continue;
+
+                if (child.Name == "Style")
+                {
+                    // A theme's style pack overrides the global <Style> of the same name rather than
+                    // replacing it, so a theme spells out only what differs (spec §4.2).
+                    var themeStyle = ParseStylePack(
+                        child, $"<Theme name=\"{name}\"> ", ThemeStyleForbiddenAttrs);
+                    if (block.Styles.ContainsKey(themeStyle.Name))
+                        throw new ParseException(
+                            $"<Theme name=\"{name}\"> declares <Style name=\"{themeStyle.Name}\"> twice");
+                    block.Styles[themeStyle.Name] = themeStyle;
+                    continue;
+                }
+
                 if (child.Name != "Color")
                     throw new ParseException(
                         $"<Theme name=\"{name}\">: unexpected child <{child.Name}> " +
-                        $"(only <Color> allowed)");
+                        $"(only <Color> and <Style> allowed)");
                 var cn = child.GetAttribute("name");
                 var hasValue = child.HasAttribute("value");
                 var cv = child.GetAttribute("value");
@@ -323,22 +384,60 @@ namespace PromptUGUI.Parser
         /// </summary>
         private static readonly string[] StyleForbiddenAttrs = { "id", "if", "class", "bind" };
 
+        /// <summary>
+        /// A theme-scoped <c>&lt;Style&gt;</c> rejects everything a global one does, plus two groups
+        /// that only become a problem once a pack can change while a Screen is open. See spec §6.3.
+        /// </summary>
+        private static readonly string[] ThemeStyleForbiddenAttrs =
+        {
+            "id", "if", "class", "bind",
+            "text", "isOn", "value", "current",
+            "mask", "showMask", "maskPadding",
+        };
+
+        private static string ForbiddenAttrReason(string name) => name switch
+        {
+            "id" or "if" or "class" or "bind" =>
+                "identifies a node, and a style is shared by many nodes",
+            "text" or "isOn" or "value" or "current" =>
+                "is runtime-owned state - ControlAttributeApplier stops replaying it once code has "
+                + "taken it over, so a theme's value would be swallowed some of the time, which is "
+                + "worse than never applying",
+            "mask" or "showMask" or "maskPadding" =>
+                "switches mask mode, which PUI-MASK-VARIANT already declares unsupported in v1 "
+                + "(it would need AddComponent / Destroy while the Screen is open); a theme must not "
+                + "become a second door into the same unsupported operation",
+            _ => "is not allowed here",
+        };
+
         private static void ParseStyle(XmlElement el, UIDocument doc)
+        {
+            var style = ParseStylePack(el, ownerPrefix: "", StyleForbiddenAttrs);
+            if (doc.Styles.ContainsKey(style.Name))
+                throw new ParseException($"duplicate <Style name=\"{style.Name}\"> within document");
+            doc.Styles[style.Name] = style;
+        }
+
+        /// <summary>
+        /// The <c>&lt;Style&gt;</c> attribute-pack grammar, shared by the top-level element and the
+        /// theme-scoped one. <paramref name="ownerPrefix"/> is prepended to every diagnostic so a
+        /// theme-nested style names its theme; <paramref name="forbidden"/> is the only other thing
+        /// that differs between the two (see <see cref="ThemeStyleForbiddenAttrs"/>).
+        /// </summary>
+        private static StyleDef ParseStylePack(XmlElement el, string ownerPrefix, string[] forbidden)
         {
             var name = el.GetAttribute("name");
             if (string.IsNullOrEmpty(name))
-                throw new ParseException("<Style>: missing required attribute 'name'");
+                throw new ParseException($"{ownerPrefix}<Style>: missing required attribute 'name'");
             if (!KebabRx.IsMatch(name))
                 throw new ParseException(
-                    $"<Style name=\"{name}\">: style name must be kebab-case [a-z0-9-]");
-            if (doc.Styles.ContainsKey(name))
-                throw new ParseException($"duplicate <Style name=\"{name}\"> within document");
+                    $"{ownerPrefix}<Style name=\"{name}\">: style name must be kebab-case [a-z0-9-]");
 
             foreach (XmlNode c in el.ChildNodes)
             {
                 if (c is XmlElement child)
                     throw new ParseException(
-                        $"<Style name=\"{name}\">: unexpected child <{child.Name}> " +
+                        $"{ownerPrefix}<Style name=\"{name}\">: unexpected child <{child.Name}> " +
                         "(a style is an attribute pack and takes no children)");
             }
 
@@ -351,12 +450,12 @@ namespace PromptUGUI.Parser
                 var attrDot = attr.Name.IndexOf('.');
                 var baseName = attrDot < 0 ? attr.Name : attr.Name.Substring(0, attrDot);
 
-                foreach (var forbidden in StyleForbiddenAttrs)
+                foreach (var banned in forbidden)
                 {
-                    if (baseName != forbidden) continue;
+                    if (baseName != banned) continue;
                     throw new ParseException(
-                        $"<Style name=\"{name}\">: '{attr.Name}' is not a style attribute — " +
-                        $"'{forbidden}' identifies a node, and a style is shared by many nodes");
+                        $"{ownerPrefix}<Style name=\"{name}\">: '{attr.Name}' is not a style " +
+                        $"attribute — '{banned}' {ForbiddenAttrReason(banned)}");
                 }
 
                 if (attrDot < 0)
@@ -367,14 +466,14 @@ namespace PromptUGUI.Parser
 
                 if (attrDot == 0 || attrDot == attr.Name.Length - 1)
                     throw new ParseException(
-                        $"<Style name=\"{name}\">: malformed attribute '{attr.Name}' " +
+                        $"{ownerPrefix}<Style name=\"{name}\">: malformed attribute '{attr.Name}' " +
                         "(variant suffix must be 'name.variant')");
 
                 var variant = attr.Name.Substring(attrDot + 1);
                 if (variant.Contains('.'))
                     throw new ParseException(
-                        $"<Style name=\"{name}\">: attribute '{attr.Name}' has '.' inside the variant " +
-                        "name (use '-' for compound names like 'mobile-portrait')");
+                        $"{ownerPrefix}<Style name=\"{name}\">: attribute '{attr.Name}' has '.' inside " +
+                        "the variant name (use '-' for compound names like 'mobile-portrait')");
 
                 if (!style.VariantOverrides.TryGetValue(baseName, out var list))
                 {
@@ -386,9 +485,9 @@ namespace PromptUGUI.Parser
 
             if (style.Attributes.Count == 0 && style.VariantOverrides.Count == 0)
                 throw new ParseException(
-                    $"<Style name=\"{name}\">: declares no attributes");
+                    $"{ownerPrefix}<Style name=\"{name}\">: declares no attributes");
 
-            doc.Styles[name] = style;
+            return style;
         }
 
         private static void ParseVariantBlock(XmlElement el, ScreenDef screen,

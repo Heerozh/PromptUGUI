@@ -65,7 +65,7 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `<PromptUGUI version="1">`                                                                           | Root, **always**.                                         | NOT `<UI>`. `version="1"` is required.                                                                                                                                                                                                                                                        |
 | `<Import src="..." [as="ns"]/>`                                                                      | Pull templates from another file.                         | Top-level only. `as=` adds namespace prefix.                                                                                                                                                                                                                                                  |
-| `<Theme name=... base=...?>`                                                                         | Top-level. Declares a named color theme.                  | `base` (optional) inherits tokens from another theme by name. Children must be `<Color>` only.                                                                                                                                                                                                |
+| `<Theme name=... base=...?>`                                                                         | Top-level. Declares a named skin: color tokens + style packs. | `base` (optional) inherits from another theme by name. Children are `<Color>` and/or `<Style>`. See **Color Tokens** and **Theme-scoped styles**.                                                                                                                                          |
 | `<Color name=... value=...>`                                                                         | Inside `<Theme>`. Defines a named color token.            | `name` is kebab-case `[a-z0-9-]`. `value` is hex (`#rgb` / `#rrggbb` / `#rrggbbaa`) or a Unity CSS named color (`red` / `white` / ...).                                                                                                                                                       |
 | `<Screen name="..." [canvas="..."] [reference="..."] [scale-mode="..."] [reference.portrait="..."]>` | A complete UI scene; opened by code with `UI.Open(name)`. | One Screen = one Canvas. Names unique across all loaded files. `canvas="overlay\|camera\|world"`, default `overlay`. Optional `reference="WxH"` (+ `.variant`) switches CanvasScaler to ScaleWithScreenSize. Optional `scale-mode="auto\|pixel"` (+ `.variant`); pixel = integer scaleFactor. |
 | `<Template name="...">`                                                                              | Reusable subtree, expanded at parse time.                 | Body must have **exactly one root element**.                                                                                                                                                                                                                                                  |
@@ -698,9 +698,56 @@ inline 属性  >  右边的 class  >  左边的 class
 - `class="{{param}}"` inside a `<Template>` body is fine — the class name is substituted first, so a template can take its skin as a parameter.
 - `<Screen>` takes no `class` (it is not a control). `class=""` (no names) and an unknown style name are both errors.
 
-**Sharing** works exactly like `<Template>`: styles travel through `<Import>`, land in the commons pool, hot-reload with their file, and a name colliding between commons and the entry document is a hard error. A namespaced commons library is referenced with a colon — `class="ui:card"` — mirroring the `Set:Name` form used for sprites and icons (tags use a dot, `ui.TitledPanel`; class references use a colon).
+**Sharing** works exactly like `<Template>`: styles travel through `<Import>`, land in the commons pool, hot-reload with their file, and a name colliding between commons and the entry document is a hard error. An unknown style name is caught by the lint CLI as `PUI-EXPAND` whenever it can read the imported files from disk; otherwise it surfaces at `UI.Open()`. A namespaced commons library is referenced with a colon — `class="ui:card"` — mirroring the `Set:Name` form used for sprites and icons (tags use a dot, `ui.TitledPanel`; class references use a colon).
 
 Swapping which commons library is loaded therefore re-skins everything at once.
+
+### Theme-scoped styles
+
+A `<Theme>` may declare `<Style>` packs alongside its `<Color>` tokens. Because `class=` is an
+attribute macro, this gives a theme the **whole attribute surface** — sprite, radius, font size,
+padding, glass parameters — not just colours. Switching `UI.Theme.Current` re-derives every `class=`
+node and replays the attributes; **no GameObject is rebuilt**, so references and subscriptions live.
+
+```xml
+<Style name="card" sprite="ui:panel" color="surface/0.85" radius="16" borderWidth="1"/>
+
+<Theme name="modern">
+  <Color name="surface" value="#f7f8fa"/>
+</Theme>
+<Theme name="pixel" base="modern">
+  <Color name="surface" value="#e8d8b0"/>
+  <Style name="card" sprite="px:panel" radius="0" borderWidth="2"/>   <!-- only what differs -->
+</Theme>
+```
+
+**The global `<Style>` is the implicit root of every theme chain.** Folding order is
+`global → base= chain → active theme`, atomic per attribute name (same rule multiple classes get).
+Three consequences worth internalising:
+
+- A theme spells out only what differs; everything else comes from the global pack.
+- **Always declare the global `<Style>` with the full attribute set.** An attribute one theme sets
+  and another doesn't is never reset on a switch — the control keeps the old value. `PUI-THEME-STYLE-SHAPE`
+  catches this; `PUI-THEME-STYLE-NO-BASELINE` catches a style that exists only inside a theme
+  (unreachable — `class=` resolves against the global pool).
+- A project with no theme styles costs exactly nothing; this is all opt-in.
+
+**Rejected inside a `<Theme>`'s `<Style>`** (all parse errors; a global `<Style>` still accepts the
+last two groups):
+
+| Group | Names | Why |
+|---|---|---|
+| node identity | `id` `if` `class` `bind` | same as a global `<Style>` |
+| runtime-owned state | `text` `isOn` `value` `current` | the applier stops replaying these once code sets them, so a theme's value would be swallowed *some* of the time |
+| mask family | `mask` `showMask` `maskPadding` | `PUI-MASK-VARIANT` already rejects switching mask mode per state; a theme must not be a second door into it |
+
+**Don't put a themed `class=` on a Template invocation** (`<ui.Card class="skin"/>`): half the pack
+becomes `<Param>` values that get baked into the body at expansion, and the invocation node is gone
+afterwards, so nothing re-derives. Put the `class=` on a node **inside** the template body instead.
+`PUI-THEME-STYLE-ON-INVOCATION` flags it.
+
+Theme styles address the **un-namespaced** style pool only — `class="ui:card"` (from a library
+imported with `as="ui"`) cannot be themed.
 
 ## Templates
 
@@ -892,6 +939,7 @@ Define named colors in `<Theme>` blocks; reference them by name in any color att
 - `<Theme>` MUST have `name`. Optional `base="other-theme"` makes missing tokens fall back along the chain.
 - `<Color>` MUST have `name` (kebab-case, `[a-z0-9-]`) and `value` (hex / CSS-named, anything Unity's `ColorUtility.TryParseHtmlString` accepts).
 - Theme XML loads via `UI.LoadCommonLibraryAsync(...)` at boot, or via `<Import src="themes/main.ui"/>` from any screen's `.ui.xml` — both register the same `ThemeStore`.
+- A `<Theme>` can also carry `<Style>` packs, which turns a theme from "swap the palette" into "swap the skin" — see **Theme-scoped styles** below.
 
 ### Reference
 
@@ -1273,7 +1321,13 @@ GAMEPAD NAV   UI.UseGamepadNavigation()        enable once at startup (new Input
 STYLE LINT    PUI-CLASS-EMPTY                  class="" / whitespace-only — names no style
               PUI-PROCEDURAL-VALUE             bad radius / borderWidth / glow value (also checked inside <Style>)
               PUI-CONTAINER-VISUAL-ATTR        sprite= on any container; color/radius/border/glow on *Stack/Grid/SafeArea
-              (unknown class name is a RUNTIME error — the CLI can't see the commons pool)
+                                               — also fires when the attribute arrives through class=
+              PUI-EXPAND                       unknown template / style name, or an <Import> cycle
+              (PUI-EXPAND needs the imported files on disk; with an Addressables / custom resolver
+               the CLI skips that check and the name stays a runtime error)
+              PUI-THEME-STYLE-NO-BASELINE      <Style> declared only inside a <Theme> — unreachable
+              PUI-THEME-STYLE-SHAPE            two themes resolve a style to different attribute sets
+              PUI-THEME-STYLE-ON-INVOCATION    themed class= on a Template invocation won't re-skin
 ```
 
 ## Triggers and Animations

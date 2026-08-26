@@ -76,6 +76,39 @@ namespace PromptUGUI.UIXmlLint
 
         private static int LintFile(string path)
         {
+            var doc = TryParse(path, out var parseFailed);
+            if (parseFailed) return 1;
+
+            // Everything about WHICH rules run and how the two passes dedup lives in
+            // PromptUGUI.Lint.DocumentLinter, so it is covered by PromptUGUI.Tests.EditMode. The CLI
+            // owns only I/O: reading files and guessing src -> path (the runtime resolves src through
+            // a caller-supplied SourceResolver, which has no on-disk ground truth).
+            var closure = TryLoadImportClosure(path, doc, out var unresolved);
+            if (closure == null)
+            {
+                Console.Out.WriteLine(
+                    $"{path}: skipping expanded pass - cannot resolve <Import src=\"{unresolved}\"> " +
+                    "on disk (Addressables / custom resolver?). Raw-IR rules still applied.");
+            }
+
+            var count = 0;
+            foreach (var issue in DocumentLinter.Walk(doc, SrcKeyOf(path),
+                                                      closure == null ? null : s => Lookup(closure, s)))
+            {
+                // Origin is the file the markup was WRITTEN in — for a finding inside an imported
+                // Template body that is the library, not the entry document that invoked it.
+                Console.Error.WriteLine($"{issue.Origin ?? path}: [{issue.Code}] {issue.Message}");
+                count++;
+            }
+            return count;
+        }
+
+        private static UIDocument Lookup(Dictionary<string, UIDocument> closure, string src)
+            => closure.TryGetValue(src, out var d) ? d : null;
+
+        private static UIDocument TryParse(string path, out bool failed)
+        {
+            failed = true;
             string xml;
             try
             {
@@ -84,32 +117,95 @@ namespace PromptUGUI.UIXmlLint
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"{path}: read failed: {ex.Message}");
-                return 1;
+                return null;
             }
 
-            UIDocument doc;
             try
             {
-                doc = UIDocumentParser.Parse(xml);
+                var doc = UIDocumentParser.Parse(xml, path);
+                failed = false;
+                return doc;
             }
             catch (ParseException ex)
             {
                 Console.Error.WriteLine($"{path}: parse error: {ex.Message}");
-                return 1;
+                return null;
             }
             catch (System.Xml.XmlException ex)
             {
                 Console.Error.WriteLine($"{path}: xml error (line {ex.LineNumber}, pos {ex.LinePosition}): {ex.Message}");
-                return 1;
+                return null;
             }
-
-            var count = 0;
-            foreach (var issue in IRWalker.Walk(doc))
-            {
-                Console.Error.WriteLine($"{path}: [{issue.Code}] {issue.Message}");
-                count++;
-            }
-            return count;
         }
+
+        /// <summary>
+        /// Parses everything reachable through <c>&lt;Import&gt;</c>. Returns null (with the offending
+        /// src) as soon as one cannot be found on disk — a partial closure would make
+        /// <c>DocumentLinter</c> report a phantom "unknown template" for a name that resolves fine at
+        /// runtime, so it is all or nothing.
+        /// </summary>
+        private static Dictionary<string, UIDocument> TryLoadImportClosure(
+            string path, UIDocument doc, out string unresolved)
+        {
+            var closure = new Dictionary<string, UIDocument>();
+            unresolved = null;
+            return Prefetch(path, doc, closure, ref unresolved) ? closure : null;
+        }
+
+        private static bool Prefetch(
+            string importingPath, UIDocument doc,
+            Dictionary<string, UIDocument> closure, ref string unresolved)
+        {
+            foreach (var imp in doc.Imports)
+            {
+                if (closure.ContainsKey(imp.Src)) continue;
+
+                var file = ResolveSrc(imp.Src, importingPath);
+                if (file == null) { unresolved = imp.Src; return false; }
+
+                UIDocument child;
+                // Stamped with the RESOLVED path, not imp.Src: OriginSrc exists so a finding can
+                // name a file the author can open, while imp.Src stays the assembler's lookup key.
+                try { child = UIDocumentParser.Parse(File.ReadAllText(file), file); }
+                catch (Exception) { unresolved = imp.Src; return false; }
+
+                // Record before recursing so a cyclic Import terminates here; DocumentAssembler owns
+                // the diagnostic itself, so the CLI and the runtime word it identically.
+                closure[imp.Src] = child;
+                if (!Prefetch(file, child, closure, ref unresolved)) return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// The runtime resolves <c>src</c> through a caller-supplied <c>SourceResolver</c>, so there
+        /// is no single ground truth on disk. Approximate the shipped Resources resolver
+        /// (<c>UseResourcesResolver(root)</c> maps src to <c>root/src</c>) by trying the importing
+        /// file's own directory first, then each ancestor up to and including a <c>Resources</c> one.
+        /// </summary>
+        private static string ResolveSrc(string src, string importingPath)
+        {
+            if (string.IsNullOrEmpty(src)) return null;
+            var dir = Path.GetDirectoryName(Path.GetFullPath(importingPath));
+
+            while (!string.IsNullOrEmpty(dir))
+            {
+                var withExt = Path.Combine(dir, src + ".xml");
+                if (File.Exists(withExt)) return withExt;
+                var verbatim = Path.Combine(dir, src);
+                if (File.Exists(verbatim)) return verbatim;
+
+                if (string.Equals(Path.GetFileName(dir), "Resources", StringComparison.Ordinal))
+                    break;
+                dir = Path.GetDirectoryName(dir);
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// A stable identity for the entry document. It is only ever compared against
+        /// <c>&lt;Import src&gt;</c> values, which are resolver keys, so a full path cannot collide.
+        /// </summary>
+        private static string SrcKeyOf(string path) => Path.GetFullPath(path);
     }
 }

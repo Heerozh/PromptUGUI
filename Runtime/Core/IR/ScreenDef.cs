@@ -16,6 +16,14 @@ namespace PromptUGUI.IR
         /// </summary>
         public Dictionary<string, TemplateDef> Templates { get; } = new();
 
+        /// <summary>
+        /// The document's global <c>&lt;Style&gt;</c> table, attached by
+        /// <c>TemplateExpander.Expand</c> for the same reason <see cref="Templates"/> is: the runtime
+        /// needs it after the LoadedDoc is gone. A theme switch folds its packs over this table and
+        /// re-merges every <c>class=</c> node in the Screen.
+        /// </summary>
+        internal Dictionary<StyleKey, StyleDef> Styles { get; } = new();
+
         /// <summary>该 Screen 声明的 &lt;FocusCursor&gt; 节点（解析时从 Root.Children 抽出）；null = 未声明，
         /// 运行时回退全局默认光标（spec §5.2）。</summary>
         public ElementNode FocusCursor { get; set; }

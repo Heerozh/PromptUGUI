@@ -59,17 +59,17 @@ namespace PromptUGUI.Editor.I18n
         {
             try
             {
-                var loaded = new DocumentLoader.LoadedDoc { EntrySrc = "<scan>" };
+                var loaded = new LoadedDoc { EntrySrc = "<scan>" };
                 foreach (var s in doc.Screens) loaded.Screens.Add(s);
                 if (externalTemplates != null)
                 {
                     foreach (var kv in externalTemplates)
-                        loaded.Templates[new DocumentLoader.TemplateKey(null, kv.Key)] = kv.Value;
+                        loaded.Templates[new TemplateKey(null, kv.Key)] = kv.Value;
                 }
                 // File-local templates win over external when names collide — same precedence
                 // the runtime loader applies for entry-file templates over commons.
                 foreach (var kv in doc.Templates)
-                    loaded.Templates[new DocumentLoader.TemplateKey(null, kv.Key)] = kv.Value;
+                    loaded.Templates[new TemplateKey(null, kv.Key)] = kv.Value;
                 return TemplateExpander.Expand(loaded);
             }
             catch (TemplateException)

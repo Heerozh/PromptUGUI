@@ -268,13 +268,14 @@ namespace PromptUGUI.Controls
                 if (string.IsNullOrEmpty(value) || value == "none")
                 {
                     _selectedSprite = null;
+                    ReconcileTransition();
                     ApplySelectedSprite();
                     return;
                 }
                 _selectedSprite = UI.ResolveSprite(value);
                 // Mirror <Btn pressedSprite>: the swapped sprite IS the selected feedback, so take the
                 // bg off uGUI's built-in ColorTint to avoid double-tinting it.
-                _toggle.transition = Selectable.Transition.None;
+                ReconcileTransition();
                 ApplySelectedSprite();
             }
         }
@@ -385,12 +386,27 @@ namespace PromptUGUI.Controls
                 ? (ColorSpec?)null
                 : UI.Theme.ResolveSpec(_selectedColor);
             _bgReactor = StateTintInstaller.Install(GameObject, _toggle, Children, abs, mod, selectedBase, IsOn);
-            if (_selectedSprite != null) _toggle.transition = Selectable.Transition.None;
+            ReconcileTransition();
             ApplySelectedSprite();
             // 默认禁用外观：作者未声明任何 disabled* 时整控件去色。
             if (string.IsNullOrWhiteSpace(_disabledColor) && string.IsNullOrWhiteSpace(_disabledModulate))
                 DisabledGrayscaleInstaller.Install(GameObject, _toggle, Children);
         }
+
+        /// <summary>
+        /// uGUI's ColorTint and our own state visuals are mutually exclusive owners of the bg: a
+        /// selected sprite or an installed <see cref="StateTintReactor"/> IS the feedback, so the
+        /// built-in tint would double it.
+        ///
+        /// <para>Computed rather than set one-way. Clearing <c>selectedSprite</c> — a Variant flip, a
+        /// theme switch — used to leave the Tab on <c>Transition.None</c> with nothing replacing it,
+        /// i.e. no hover or press feedback at all and no attribute the author could write to get it
+        /// back.</para>
+        /// </summary>
+        private void ReconcileTransition() =>
+            _toggle.transition = _bgReactor != null || _selectedSprite != null
+                ? Selectable.Transition.None
+                : Selectable.Transition.ColorTint;
 
         public override void Dispose()
         {
