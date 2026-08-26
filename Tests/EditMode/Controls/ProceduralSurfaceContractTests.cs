@@ -316,5 +316,64 @@ namespace PromptUGUI.Tests.EditMode.Controls
                          "<Style name='glassy' radius='8' glass='true'/>"),
                     SpriteConflictCode));
         }
+
+        // ===== §8: a state sprite that cannot show must not take the control off ColorTint =====
+
+        /// <summary>
+        /// The composition §8 asks for, and the one that bites hardest if it is missed.
+        ///
+        /// <para>An authored <c>pressedSprite</c> switches uGUI's built-in ColorTint off, so the
+        /// swapped art is not additionally darkened. But in procedural mode the Image it swaps is
+        /// retired and invisible — so the swap shows nothing, ColorTint is gone, and the button ends
+        /// up with <b>no press feedback at all</b> and no attribute the author could write to get it
+        /// back. Exactly the irreversible-latch shape <c>Btn.ReconcileTransition</c> was written to
+        /// avoid; the surface has to be part of the same computation.</para>
+        /// </summary>
+        [Test]
+        public void ProceduralMode_StateSprite_DoesNotStripColorTint()
+        {
+            UI.SpriteResolver = _ => Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            var b = Load("radius='8' pressedSprite='ui:pressed'");
+
+            Assert.AreEqual(UnityEngine.UI.Selectable.Transition.ColorTint,
+                b.GameObject.GetComponent<PuiButton>().transition,
+                "the sprite swap is invisible here, so giving up ColorTint for it leaves the button "
+                + "with no feedback whatsoever");
+        }
+
+        /// <summary>GUARD: outside procedural mode the old behaviour is exactly as it was.</summary>
+        [Test]
+        public void WithoutASurface_StateSprite_StillStripsColorTint()
+        {
+            UI.SpriteResolver = _ => Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            var b = Load("pressedSprite='ui:pressed'");
+
+            Assert.AreEqual(UnityEngine.UI.Selectable.Transition.None,
+                b.GameObject.GetComponent<PuiButton>().transition,
+                "an Image-backed Btn still hands feedback to the sprite swap");
+        }
+
+        /// <summary>
+        /// …and it is COMPUTED, not latched: a Variant that turns the surface off has to hand
+        /// feedback back to the sprite swap, and turning it on again has to take it back.
+        /// </summary>
+        [Test]
+        public void StateSpriteAndSurface_ComposeBothWays()
+        {
+            UI.SpriteResolver = _ => Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.zero);
+            var b = Load("radius.mobile='8' pressedSprite='ui:pressed'");
+            var btn = b.GameObject.GetComponent<PuiButton>();
+
+            Assert.AreEqual(UnityEngine.UI.Selectable.Transition.None, btn.transition,
+                "mode off → the sprite swap owns feedback");
+
+            UI.Variants.Set("mobile", true);
+            Assert.AreEqual(UnityEngine.UI.Selectable.Transition.ColorTint, btn.transition,
+                "mode on → the swap is invisible, so ColorTint comes back");
+
+            UI.Variants.Set("mobile", false);
+            Assert.AreEqual(UnityEngine.UI.Selectable.Transition.None, btn.transition,
+                "…and back again");
+        }
     }
 }

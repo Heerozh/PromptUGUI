@@ -1,6 +1,6 @@
 # 程序化表面：让任何控件都能被换出形状
 
-> 状态：设计稿。实施前需要 plan。
+> 状态：**已实现**（M-lint / M-mask / M0–M4 全部合入，见 §14）。本文保留设计推理与实施记录。
 > 相关：`2026-08-26-theme-driven-style-design.md`（主题驱动样式）、PR #100（玻璃填充）。
 
 ## 1. 问题
@@ -256,7 +256,7 @@ clip(maskCoverage - 0.5);
 | ~~**M1 表面抽象 + 打通一个控件**~~ ✅ | `ProceduralSurface` + `ProceduralControl` 基类，`Btn` 第一个接上；§13.5 的 Disabled 分支一起做 | M0 |
 | ~~**M2 铺开**~~ ✅ | Tab / Toggle / Slider / Dropdown / InputField / ScrollList / Progress | M1 |
 | ~~**M3 内层形状**~~ ✅ | §6 的 `fillRadius` / `handleRadius` / `frameRadius` / `maskRadius`，`mode="fill"` 冲突规则 | M2 |
-| **M4 lint + SKILL** | 逐个控件从 §12.1 那一档里摘出去（不再是错误），改成 §7 / §8 的冲突规则；SKILL 改写边界描述。**不会漏**：`OnlyFrame_HasThePanelRequiringAttributes` 在 M1 接上第一个控件时就会失败 | M3 |
+| ~~**M4 收尾**~~ ✅ | §8 的状态 sprite × ColorTint 组合、每个控件小节的边界指路、spec 状态 | M3 |
 
 **M-lint 与 M-mask 都不依赖本特性，已先于 M0 合入。** 在本特性落地前，`<Btn radius="8">` 确实是错的，早一天报错早一天省事；而 §9 那条圆角裁剪今天就该能用。
 
@@ -304,5 +304,17 @@ clip(maskCoverage - 0.5);
 两条新 lint：`PUI-PROG-FILL-RADIUS-MODE`（`mode="fill"` 靠 `Image.fillAmount`，SDF 面没有对应物 —— 这是少见的**真做不到**而不是「不推荐」）、`PUI-PROG-MASK-RADIUS-CONFLICT`（一个 GameObject 一个 Graphic，sprite 赢）。
 
 `dotnet format` 抓到 Slider.cs 的 using 顺序 —— `dotnet format style` 修掉了。
+
+### M4 实施记录
+
+原计划的 M4 里，「逐个控件从 §12.1 那一档摘出去」和「§7 / §8 的冲突规则」**在 M1/M2 就自动完成了** —— 前者是因为把 `AppliesTo` 写成查 `SurfaceTags` 而不是硬编码名单，后者是 M1 顺手做掉的。剩下的是一条真缺陷加两处文档。
+
+**真缺陷：状态 sprite 会把控件从 ColorTint 上摘下来，即使它根本显示不出来。** `<Btn radius="8" pressedSprite="ui:x">` 实测 `transition = None` —— 而 `pressedSprite` 换的那张 Image 在程序化模式下已经退位、alpha 为 0，所以按下去**什么反馈都没有**，而且没有任何属性能把它要回来。这正是 `Btn.ReconcileTransition` 当年为了避免而写的那个死角，从另一个方向又走进来了一次。
+
+修法是把表面纳入同一个计算：状态 sprite 只在**它真的能显示**时才拿走 ColorTint。`Btn` 与 `Tab` 各一行。三条测试钉住：程序化模式下 ColorTint 保留、非程序化模式行为逐字不变（守卫）、变体来回切两个方向都对。
+
+这条值得记住的地方在于 —— **lint 早就报了这个组合**（`PUI-PROC-STATE-SPRITE-CONFLICT`），但报错不等于运行时可以摆烂：作者忽略警告时得到的应该是「sprite 没生效」，不是「整个按钮失去反馈」。
+
+**文档**：七个控件各自的属性表都补了一行指路。之前只有共享的「程序化表面」一节和 Frame 附近的边界说明 —— 而只翻 `<Slider>` 那一节的读者看不到它们，那恰恰是 SKILL 要防的失败模式。
 
 M-mask 实施中发现的一件 spec 没写到的事，记在这里：**shader 那四行还不够。** `ProceduralPanel.ComputeVisible()` 会把「什么都不画」的面板整个剔掉几何，而 stencil 是 fragment 写的 —— 于是「隐形的圆角裁剪器」一个像素都不剩。补了 `SetMaskSource`，遮罩源照常出几何。这条是 render test 抓出来的：光看 C# 状态（Mask 挂上了、graphic 指对了、`MaskEnabled` 为 true）全是绿的，和当年缺 `[RequireComponent(CanvasRenderer)]` 那次同一类。

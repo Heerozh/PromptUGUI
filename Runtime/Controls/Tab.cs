@@ -424,7 +424,10 @@ namespace PromptUGUI.Controls
         /// back.</para>
         /// </summary>
         private void ReconcileTransition() =>
-            _toggle.transition = _bgReactor != null || _selectedSprite != null
+            // A procedural surface retires the Image selectedSprite swaps, so the swap shows
+            // nothing — handing feedback to it would leave the Tab with none at all. Same reasoning
+            // as the paragraph above, one step further.
+            _toggle.transition = _bgReactor != null || (!SurfaceIsDrawing && _selectedSprite != null)
                 ? Selectable.Transition.None
                 : Selectable.Transition.ColorTint;
 

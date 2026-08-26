@@ -122,10 +122,16 @@ namespace PromptUGUI.Controls
             // the swapped image isn't double-darkened. COMPUTED, not set one-way — clearing the
             // sprite (a Variant flip, a theme switch) has to hand feedback back to ColorTint, or the
             // Btn is left with none at all and no attribute can restore it.
-            _btn.transition =
-                bgReactor != null || _pressedSprite != null || _disabledSprite != null
-                    ? UnityEngine.UI.Selectable.Transition.None
-                    : UnityEngine.UI.Selectable.Transition.ColorTint;
+            //
+            // A procedural surface counts as clearing them: the Image those sprites swap is retired
+            // and invisible while it draws, so the swap shows nothing. Giving up ColorTint for a
+            // visual that cannot appear is the same dead end from the other direction, and it moves
+            // with the surface, so it is computed here rather than latched.
+            var stateSpriteShows = !SurfaceIsDrawing
+                                   && (_pressedSprite != null || _disabledSprite != null);
+            _btn.transition = bgReactor != null || stateSpriteShows
+                ? UnityEngine.UI.Selectable.Transition.None
+                : UnityEngine.UI.Selectable.Transition.ColorTint;
             // 默认禁用外观：作者未声明任何 disabled* 时整控件去色。与 transition 无关（ColorTint/None 皆可）。
             if (string.IsNullOrWhiteSpace(_disabledColor)
                 && string.IsNullOrWhiteSpace(_disabledModulate)

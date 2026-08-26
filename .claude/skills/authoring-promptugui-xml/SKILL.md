@@ -301,6 +301,7 @@ Image + uGUI Toggle + 自动 label。R3 `OnValueChanged: bool`。`<Toggle>静音
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
+| `radius` · `borderWidth` · `glass` … | 同 `<Frame>` | — | **程序化表面**（覆盖**勾选框**，不含 label）→ 见 **程序化表面** 一节 |
 | `text` | string | — | |
 | `isOn` | bool | `false` | |
 | `group` | string | — | 互斥键 |
@@ -320,6 +321,7 @@ Image + uGUI Slider。R3 `OnValueChanged: float`。不写 size 时按方向给�
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
+| `radius` · `borderWidth` · `glass` … | 同 `<Frame>` | — | **程序化表面**（覆盖**轨道**）→ 见 **程序化表面** 一节。滑块/填充另有 `handleRadius` / `fillRadius` |
 | `min` · `max` · `value` | float | — | |
 | `wholeNumbers` | bool | — | |
 | `direction` | `horizontal` / `vertical` / `reverse-horizontal` / `reverse-vertical` | `horizontal` | |
@@ -335,6 +337,7 @@ TMP_Dropdown。R3 `OnSelected: int`。选项 C# 侧 `BindOptions(...)` 注入。
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
+| `radius` · `borderWidth` · `glass` … | 同 `<Frame>` | — | **程序化表面**（闭合态背景）→ 见 **程序化表面** 一节 |
 | `value` | int | — | 初始索引 |
 | `color` | hex / CSS / token | — | 见 **Color Tokens** |
 | `sprite` | sprite key | — | |
@@ -359,6 +362,7 @@ ScrollRect + Mask。项 C# 侧 `BindItems(...)` 注入。`itemTemplate` 引用 `
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
+| `radius` · `borderWidth` · `glass` … | 同 `<Frame>` | — | **程序化表面**（背景）→ 见 **程序化表面** 一节 |
 | `itemTemplate` | tag name | — | 必填 |
 | `direction` | `vertical` / `horizontal` | `vertical` | |
 | `spacing` | float | — | |
@@ -378,6 +382,7 @@ TMP_InputField；R3 `OnValueChanged` / `OnEndEdit` / `OnSubmit: string`。`<Inpu
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
+| `radius` · `borderWidth` · `glass` … | 同 `<Frame>` | — | **程序化表面**（背景）→ 见 **程序化表面** 一节 |
 | `text` | string | — | |
 | `placeholder` | string | — | |
 | `contentType` | `standard` / `autocorrected` / `integer-number` / `decimal-number` / `alphanumeric` / `name` / `email` / `password` / `pin` / `custom` | — | |
@@ -404,6 +409,7 @@ TMP_InputField；R3 `OnValueChanged` / `OnEndEdit` / `OnSubmit: string`。`<Inpu
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
+| `radius` · `fillRadius` · `frameRadius` · `maskRadius` | 同 `<Frame>` 的 radius | — | **程序化表面**：`radius` 管 bg 层并自动圆化 mask（两端都圆）→ 见 **程序化表面** 一节 |
 | `value` | float `[0..1]` | `0` | |
 | `fill` · `bg` · `frame` · `mask` | sprite key | — | 各图层 sprite |
 | `fillColor` | hex / CSS / token | — | |
@@ -430,6 +436,7 @@ Tab 容器；私有 `ToggleGroup`（`allowSwitchOff=false`）+ `Horizontal` / `V
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
+| `radius` · `borderWidth` · `glass` … | 同 `<Frame>` | — | **程序化表面**（背景）→ 见 **程序化表面** 一节 |
 | `text` | string | — | |
 | `isOn` | bool | `false` | |
 | `bind` | id | — | 选中显隐的兄弟 `<Frame>` |
