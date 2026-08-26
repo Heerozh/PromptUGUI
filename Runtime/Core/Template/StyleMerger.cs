@@ -197,6 +197,8 @@ namespace PromptUGUI.Template
             var dst = new ElementNode(src.Tag, src.Namespace)
             {
                 OriginSrc = src.OriginSrc,
+                Line = src.Line,
+                InvokedAt = src.InvokedAt,
                 StyleAttrNames = src.StyleAttrNames,
                 Id = src.Id,
                 TextContent = src.TextContent,

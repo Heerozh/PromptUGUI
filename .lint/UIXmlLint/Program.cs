@@ -24,9 +24,14 @@ namespace PromptUGUI.UIXmlLint
                 return 2;
             }
 
+            // Deduplicate ACROSS entry files, not just within one. Linting a directory walks both
+            // a library and the document that imports it, and the expanded pass attributes a finding
+            // to where it was written — so the same defect would otherwise be printed once per entry
+            // file that reaches it. Origin + line is what makes that identity precise enough to fold.
+            var reported = new HashSet<string>();
             var errorCount = 0;
             foreach (var path in paths)
-                errorCount += LintFile(path);
+                errorCount += LintFile(path, reported);
 
             if (errorCount > 0)
             {
@@ -74,7 +79,7 @@ namespace PromptUGUI.UIXmlLint
             return result;
         }
 
-        private static int LintFile(string path)
+        private static int LintFile(string path, HashSet<string> reported)
         {
             var doc = TryParse(path, out var parseFailed);
             if (parseFailed) return 1;
@@ -97,7 +102,14 @@ namespace PromptUGUI.UIXmlLint
             {
                 // Origin is the file the markup was WRITTEN in — for a finding inside an imported
                 // Template body that is the library, not the entry document that invoked it.
-                Console.Error.WriteLine($"{issue.Origin ?? path}: [{issue.Code}] {issue.Message}");
+                // "file:line:" is the shape editors and terminals turn into a jump.
+                var where = issue.Origin ?? path;
+                if (issue.Line > 0) where += ":" + issue.Line;
+                // The declaration site stays primary — that is where the edit goes. The invocation
+                // is context, and only worth printing when it names a different place.
+                var via = issue.Via != null && issue.Via != where ? $" (via {issue.Via})" : "";
+                if (!reported.Add(where + via + "|" + issue.Code + "|" + issue.Message)) continue;
+                Console.Error.WriteLine($"{where}: [{issue.Code}] {issue.Message}{via}");
                 count++;
             }
             return count;

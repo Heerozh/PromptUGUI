@@ -36,6 +36,7 @@ namespace PromptUGUI.Template
                 var newRoot = new ElementNode(s.Root.Tag, s.Root.Namespace)
                 {
                     OriginSrc = s.Root.OriginSrc,
+                    Line = s.Root.Line,
                 };
                 // Screen-level attributes (e.g. reference=, reference.<variant>=) live on
                 // ScreenDef.Root and must survive expansion so runtime VariantResolver can read them.
@@ -167,6 +168,13 @@ namespace PromptUGUI.Template
             return result;
         }
 
+        private static void StampInvokedAt(ElementNode node, string site)
+        {
+            node.InvokedAt = site;
+            foreach (var child in node.Children)
+                StampInvokedAt(child, site);
+        }
+
         private static void ValidateSlotCount(TemplateDef tpl)
         {
             var count = 0;
@@ -211,6 +219,8 @@ namespace PromptUGUI.Template
             var dst = new ElementNode(merged.Tag, merged.Namespace)
             {
                 OriginSrc = merged.OriginSrc,
+                Line = merged.Line,
+                InvokedAt = merged.InvokedAt,
                 StyleAttrNames = merged.StyleAttrNames,
                 Id = merged.Id,
                 TextContent = merged.TextContent,
@@ -309,6 +319,12 @@ namespace PromptUGUI.Template
                     list.AddRange(kv.Value);
                 }
 
+                // Overwrite rather than fill-in-if-empty: nested invocations expanded first and
+                // stamped themselves, but an inner site is the same for every instance and so cannot
+                // distinguish them. The outermost one runs last and wins.
+                if (invocation.Line > 0 && invocation.OriginSrc != null)
+                    StampInvokedAt(instanceRoot, $"{invocation.OriginSrc}:{invocation.Line}");
+
                 return instanceRoot;
             }
             finally
@@ -344,6 +360,8 @@ namespace PromptUGUI.Template
             var dst = new ElementNode(prepared.Tag, prepared.Namespace)
             {
                 OriginSrc = prepared.OriginSrc,
+                Line = prepared.Line,
+                InvokedAt = prepared.InvokedAt,
                 StyleAttrNames = prepared.StyleAttrNames,
                 Id = prepared.Id,
                 TextContent = Substitution.Apply(prepared.TextContent, args),
@@ -380,6 +398,8 @@ namespace PromptUGUI.Template
             var dst = new ElementNode(src.Tag, src.Namespace)
             {
                 OriginSrc = src.OriginSrc,
+                Line = src.Line,
+                InvokedAt = src.InvokedAt,
                 StyleAttrNames = src.StyleAttrNames,
                 Id = src.Id,
                 TextContent = src.TextContent,
@@ -413,6 +433,8 @@ namespace PromptUGUI.Template
             var dst = new ElementNode(src.Tag, src.Namespace)
             {
                 OriginSrc = src.OriginSrc,
+                Line = src.Line,
+                InvokedAt = src.InvokedAt,
                 StyleAttrNames = src.StyleAttrNames,
                 Id = src.Id,
                 TextContent = src.TextContent,

@@ -534,7 +534,6 @@ M0 / M1 / M2 全部落地，§8 的可逆性缺陷全部修完，测试套件无
 
 仍然开着的：
 
-- **lint 无行号**；同一模板多次调用时不可区分是哪一次（M1 记录）。
 - **动态子树不参与 ReSolve 的属性重放**（见下，修 `itemTemplate` 时查实的）。
 - **带命名空间的样式不能被主题覆盖**（M2.2 的 §4.3 收紧）。
 
@@ -555,3 +554,20 @@ M0 / M1 / M2 全部落地，§8 的可逆性缺陷全部修完，测试套件无
 **顺带查实、未修**：`_dynamicSubtrees` 在 `Screen` 里只被 `ApplyScalesTo` 和 `HasFactorScaleNode` 用到，`ControlAttributeApplier.Apply` 只在实例化时对它们跑过一次 —— 也就是说 **`BindItems` 出来的行，切主题 / 切 Variant / resize 都不会重放属性**，连颜色 token 都不跟随。这在今天就成立，是比 `class=` 更大的一条，独立于本次修复（原分析里的 1-B）。本次修复让**之后新绑的行**拿到当前皮肤，已绑的行仍需要 1-B。
 
 验证：EditMode 2323/2323、PlayMode 171/171、EditorOnly 308/308，0 failed 0 skipped；`dotnet format` 无输出；UIXmlLint 13 个文件零 issue、exit 0。
+
+### 追加：lint 的源位置（行号 + 调用点）
+
+M1 里我判断「要拿到行号得换一套读取方式」，那个结论偏保守 —— 确实不用重写 parser。`XmlDocument.Load(XmlReader)` 在读到元素时才调 `CreateElement`，此刻 reader 正停在该元素上，所以一个 `XmlDocument` 子类 + 一个记住位置的 `XmlElement` 子类就够，**零参数穿透**（`ParseElement` 本来就拿着那个 `XmlElement`）。把 700 行 `XmlElement` 代码搬到 `XDocument` 换同样的信息是不划算的。
+
+`ElementNode.Line` 跟着 `OriginSrc` 走同样的展开传递路径。输出变成 `file:line: [CODE] msg`。
+
+**第二半：同一模板多次调用。** `ElementNode.InvokedAt` 记「产生这个节点的模板调用点」，`ExpandInvocation` 在实例根子树上打戳。关键决定是**覆盖而非填空**：嵌套调用先展开、先打了戳，但内层调用点对每个实例都一样、区分不了；最外层最后跑，覆盖后正好是能区分实例的那个。输出里声明点仍是主位（改代码去那儿），调用点作为 `(via file:line)` 补在后面。
+
+```
+multi.ui.xml:4: [PUI-MASK-FRAME-SELF] <Frame id='a'>: mask="self" … (via multi.ui.xml:7)
+multi.ui.xml:4: [PUI-MASK-FRAME-SELF] <Frame id='b'>: mask="self" … (via multi.ui.xml:8)
+```
+
+**顺带**：有了精确的 `origin:line` 身份，CLI 改成**跨入口文件去重**。之前 lint 一个目录时，库和 import 它的文档各作为入口跑一次，同一个缺陷会打两遍（实测 7 → 6）。
+
+验证：EditMode 2329/2329、EditorOnly 308/308，0 failed 0 skipped；`dotnet format` 无输出；UIXmlLint 仓库 13 个文件零 issue。
