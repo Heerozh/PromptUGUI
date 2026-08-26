@@ -113,6 +113,13 @@ namespace PromptUGUI.Controls.Internal
 
             var firstInit = _graphic == null;
             EnsureInit();
+            // Re-attach after a Detach: EnsureInit returns early once _graphic is known, so the
+            // subscription it normally makes would never be remade.
+            if (!firstInit && _source == null)
+            {
+                _source = GetComponentInParent<IStateSource>(true);
+                if (_source != null) _sub = _source.OnState.Subscribe(OnState);
+            }
 
             // On a *re*-Configure (Variant / Theme / window-resize ReSolve) the OnState subscription
             // does NOT replay and the broadcaster's state value is unchanged — yet ControlAttributeApplier
@@ -121,6 +128,26 @@ namespace PromptUGUI.Controls.Internal
             // First install is already painted by the subscription replay above, so only repaint here.
             if (!firstInit && _source != null)
                 OnState(_source.Current);
+        }
+
+        /// <summary>
+        /// Stops driving this graphic and leaves it exactly as it is.
+        ///
+        /// <para>Called when the control's <c>targetGraphic</c> moves elsewhere — a procedural
+        /// surface taking over from the Image it retires. The reactor that used to own the Image is
+        /// still subscribed to the state stream, and on the next hover it writes the old theme's
+        /// colour back over the retirement: the Image reappears at full alpha in the previous skin's
+        /// colour, drawn as a hard rectangle behind the rounded surface. Un-reproducible if you open
+        /// straight into the second skin, which is why it survived until someone switched themes.</para>
+        ///
+        /// <para>A later <see cref="Configure"/> re-attaches, so a switch back is symmetric.</para>
+        /// </summary>
+        internal void Detach()
+        {
+            if (_handle.IsActive()) _handle.TryCancel();
+            _sub?.Dispose();
+            _sub = null;
+            _source = null;
         }
 
         /// <summary>

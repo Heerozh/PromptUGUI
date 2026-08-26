@@ -488,5 +488,56 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(0.5f, fill.a, 0.01f);
             Assert.IsTrue(panel.CurrentParams.Glass, "…and it is still glass");
         }
+
+        // ===== the graphic that stands down must stop being driven =====
+
+        /// <summary>
+        /// Only reproducible by going THROUGH the other skin, which is why it shipped.
+        ///
+        /// <para><c>StateTintInstaller</c> installs a reactor on the control's <c>targetGraphic</c>.
+        /// When a procedural surface takes over, targetGraphic moves to the panel and a second
+        /// reactor appears there — but the first one, still sitting on the now-retired Image and
+        /// still subscribed to the state stream, keeps writing. The next hover repaints the Image at
+        /// FULL ALPHA in the previous skin's colour, and it draws as a hard rectangle behind the
+        /// rounded surface. Open straight into the second skin and there is nothing to go stale, so
+        /// every test that did so passed.</para>
+        /// </summary>
+        [Test]
+        public void WhenTheSurfaceTakesOver_TheRetiredImageStopsBeingDriven()
+        {
+            StateTintReactor.TestForceInstant = true;
+            var b = Load("radius.mobile='8' color='#E8D2A8' hoverColor='#F5E6C8'");
+            var bg = b.GameObject.GetComponent<UnityImage>();
+            var btn = b.GameObject.GetComponent<PuiButton>();
+
+            // Mode off: the Image IS the visible layer, and the reactor rightly drives it.
+            btn.SimulateState(Highlighted);
+            Assume.That(bg.color.a, Is.EqualTo(1f).Within(0.001f), "guard: the Image is live here");
+            btn.SimulateState(NormalState);
+
+            UI.Variants.Set("mobile", true);      // the surface takes over
+            btn.SimulateState(Highlighted);
+
+            Assert.AreEqual(0f, bg.color.a, 0.001f,
+                "the retired Image must stay retired — a stale reactor repainting it puts the old "
+                + "skin's colour back as a hard rectangle behind the rounded surface");
+        }
+
+        /// <summary>…and it has to come back when the surface stands down again.</summary>
+        [Test]
+        public void WhenTheSurfaceStandsDown_TheImageIsDrivenAgain()
+        {
+            StateTintReactor.TestForceInstant = true;
+            var b = Load("radius.mobile='8' color='#E8D2A8' hoverColor='#F5E6C8'");
+            var bg = b.GameObject.GetComponent<UnityImage>();
+            var btn = b.GameObject.GetComponent<PuiButton>();
+
+            UI.Variants.Set("mobile", true);
+            UI.Variants.Set("mobile", false);
+            btn.SimulateState(Highlighted);
+
+            Assert.AreEqual(new Color32(0xF5, 0xE6, 0xC8, 0xff), (Color32)bg.color,
+                "detaching must be reversible, or the round trip loses hover entirely");
+        }
     }
 }
