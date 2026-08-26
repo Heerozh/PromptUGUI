@@ -42,6 +42,25 @@ document simply skips the expanded pass (a note on stdout says so) and keeps
 exactly the pre-existing raw-IR behaviour — failing a today-clean file over an
 environment gap would cost more than the missed coverage.
 
+### Where a finding points
+
+Output is `file:line: [CODE] message`, the shape editors and terminals turn into a jump:
+
+```
+$ UIXmlLint multi.ui.xml
+multi.ui.xml:4: [PUI-MASK-FRAME-SELF] <Frame id='a'>: mask="self" … (via multi.ui.xml:7)
+multi.ui.xml:4: [PUI-MASK-FRAME-SELF] <Frame id='b'>: mask="self" … (via multi.ui.xml:8)
+```
+
+The primary position is where the markup was **declared** — that is where the edit goes. `(via …)`
+is the Template invocation that produced this instance, printed only when a template is involved:
+without it, ten invocations of one template produce ten findings that read identically. Nested
+invocations record the OUTERMOST site, since inner ones are the same for every instance.
+
+Line numbers come from a `LineInfoXmlDocument` that overrides `CreateElement` while the reader is
+still on the element — `XmlDocument` nodes carry no position of their own, and this was cheaper than
+porting the parser to `XDocument` for the same information.
+
 ### Which file a finding is reported against
 
 Once imports are followed, the node a rule complains about is often **not** in
@@ -59,9 +78,13 @@ The mistake is in `tmpl.ui.xml`; `uses-tmpl.ui.xml` merely invoked the template.
 Findings in the linted file itself are unaffected — they report against it as
 before.
 
+Findings are deduplicated **across** entry files, not just within one: linting a directory walks
+both a library and the document importing it, and the expanded pass attributes a finding to where it
+was written, so the same defect would otherwise print once per entry file that reaches it.
+
 The two-pass logic lives in `Runtime/Core/Lint/DocumentLinter.cs`, not in
 `Program.cs`, so it is covered by `PromptUGUI.Tests.EditMode`
-(`DocumentLinterTests`, `LintOriginTests`). The CLI owns only I/O and the
+(`DocumentLinterTests`, `LintOriginTests`, `LintSourcePositionTests`). The CLI owns only I/O and the
 src → path guess.
 
 Some rules are **CLI-only** — they catch author confusion that runtime

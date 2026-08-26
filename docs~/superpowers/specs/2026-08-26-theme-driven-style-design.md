@@ -534,6 +534,63 @@ M0 / M1 / M2 全部落地，§8 的可逆性缺陷全部修完，测试套件无
 
 仍然开着的：
 
-- **`itemTemplate` 的 `class=` 从来没生效过**（M2.3 发现的既有缺口，与主题无关）。
-- **lint 无行号**；同一模板多次调用时不可区分是哪一次（M1 记录）。
 - **带命名空间的样式不能被主题覆盖**（M2.2 的 §4.3 收紧）。
+
+### 追加：`itemTemplate` 走完整展开
+
+`ScreenDef.Templates` 原本存的是 `loaded.Templates` 的**原始 body**，而 `ScrollList` / `TabBar` / `Carousel` 直接拿它实例化。展开该做的事一件都没做：`class=` 没合并、`{{param}}` 没替换、嵌套模板调用没内联。
+
+**症状比记录的严重，也和记录的不同。** 实测（`slots=0` + 控制台）：后两者会在 bind 内部抛（`unregistered tag 'Inner'`、`unknown color token "{{tint}}"`），但 R3 把异常路由给未处理异常处理器 —— 调用方**正常返回，列表是空的**，控制台那条错误既不提列表也不提模板。不是「静默不生效」，是「空列表 + 一条指不到现场的日志」。
+
+改法：`TemplateExpander` 增 `BuildRuntimeTemplates`，用模板自己的 `<Param>` 默认值当实参预展开一份，存进 `ScreenDef.Templates`。
+
+三个必须做对的点：
+
+1. **有必填 `<Param>` 的模板不能急切展开** —— 它们可能只作普通调用用、从不当 itemTemplate，展开会把今天能跑的工程炸掉。这类保留 body 原样；真被用作 itemTemplate 时由 `ItemTemplateGuard` 在 `Open` 处报错说清楚是哪个模板的哪个参数。展开抛异常（如循环引用）同样回退，保证**不新增任何 load 期失败**。
+2. **每个条目都是 ScreenDef 自己拥有的副本**（必填 Param 那类走 `DeepClone`），不是共享的（可能来自 commons 池的）`TemplateDef`。这正是让切主题能就地重算这些 body 而不跨文档泄漏的前提 —— M2.3 当时拒绝碰它们的理由随之消失，`ThemeStyleApplier` 现在也走 `def.Templates`。
+3. **`BodyExpanded` 标志**：保留原样的 body 里 `class="{{skin}}"` 还是占位符，拿它查样式会抛 `unknown style '{{skin}}'`。这个是**回归跑 CLI 时崩出来的**（exit 134，正好是自带 ProceduralStyle 样例的形状），运行时同一条路也会崩。顺带给 `DocumentLinter` 的逐主题重算加了 try/catch —— lint 工具不该被它正要诊断的 markup 弄死。
+
+**顺带查实、未修**：`_dynamicSubtrees` 在 `Screen` 里只被 `ApplyScalesTo` 和 `HasFactorScaleNode` 用到，`ControlAttributeApplier.Apply` 只在实例化时对它们跑过一次 —— 也就是说 **`BindItems` 出来的行，切主题 / 切 Variant / resize 都不会重放属性**，连颜色 token 都不跟随。这在今天就成立，是比 `class=` 更大的一条，独立于本次修复（原分析里的 1-B）。本次修复让**之后新绑的行**拿到当前皮肤，已绑的行仍需要 1-B。
+
+验证：EditMode 2323/2323、PlayMode 171/171、EditorOnly 308/308，0 failed 0 skipped；`dotnet format` 无输出；UIXmlLint 13 个文件零 issue、exit 0。
+
+### 追加：lint 的源位置（行号 + 调用点）
+
+M1 里我判断「要拿到行号得换一套读取方式」，那个结论偏保守 —— 确实不用重写 parser。`XmlDocument.Load(XmlReader)` 在读到元素时才调 `CreateElement`，此刻 reader 正停在该元素上，所以一个 `XmlDocument` 子类 + 一个记住位置的 `XmlElement` 子类就够，**零参数穿透**（`ParseElement` 本来就拿着那个 `XmlElement`）。把 700 行 `XmlElement` 代码搬到 `XDocument` 换同样的信息是不划算的。
+
+`ElementNode.Line` 跟着 `OriginSrc` 走同样的展开传递路径。输出变成 `file:line: [CODE] msg`。
+
+**第二半：同一模板多次调用。** `ElementNode.InvokedAt` 记「产生这个节点的模板调用点」，`ExpandInvocation` 在实例根子树上打戳。关键决定是**覆盖而非填空**：嵌套调用先展开、先打了戳，但内层调用点对每个实例都一样、区分不了；最外层最后跑，覆盖后正好是能区分实例的那个。输出里声明点仍是主位（改代码去那儿），调用点作为 `(via file:line)` 补在后面。
+
+```
+multi.ui.xml:4: [PUI-MASK-FRAME-SELF] <Frame id='a'>: mask="self" … (via multi.ui.xml:7)
+multi.ui.xml:4: [PUI-MASK-FRAME-SELF] <Frame id='b'>: mask="self" … (via multi.ui.xml:8)
+```
+
+**顺带**：有了精确的 `origin:line` 身份，CLI 改成**跨入口文件去重**。之前 lint 一个目录时，库和 import 它的文档各作为入口跑一次，同一个缺陷会打两遍（实测 7 → 6）。
+
+验证：EditMode 2329/2329、EditorOnly 308/308，0 failed 0 skipped；`dotnet format` 无输出；UIXmlLint 仓库 13 个文件零 issue。
+
+### 追加：动态子树参与 ReSolve 的属性重放
+
+修 `itemTemplate` 时查实的那条：`BindItems` 建出来的行在实例化后就冻住，不跟 Variant、不随主题重绘、resize 不重解算。
+
+**根因不是 ReSolve 漏了它们，是它们压根没进那张表。** `RegisterDynamicSubtree` 有一句 `if (!hasScale) return;` —— `_dynamicSubtrees` 当初只为 `ApplyScales` 服务，所以**只登记声明了 `scale` 的子树**。典型的列表行一个都不在里面。把列表语义从「需要重算 scale 的子树」拓宽成「所有活着的动态子树」，再加 `ReSolveDynamicSubtrees()`。
+
+**代价是实打实的，测了：**
+
+| 行数 | resize 路径 | 状态路径（Variant / 主题） |
+|---|---|---|
+| 50 | 0.02 ms | 6.1 ms |
+| 200 | 0.08 ms | 86.3 ms |
+| 500 | 0.16 ms | 506.2 ms |
+
+超线性，还是 LayoutGroup 那个 O(N²)（行都在 ScrollList content 的 VerticalLayoutGroup 里）。500 行单次重放半秒，不能无条件跑。
+
+**所以 `ReSolve(bool replayDynamicSubtrees = true)` 按原因分流**：窗口 resize 传 `false` —— 行所依赖的状态并没有变（它对画布尺寸的依赖只有 `scale="Nx"` / `<r>r`，那由 `ApplyScales` 单独处理且照常跑），而 resize 是成串到来的。转屏仍然能到达行，因为那是切 Variant，走状态路径。resize 因此从「将要 554 ms」变成 **0.16 ms**。
+
+**一个反直觉的交互，测试抓的**：`ApplyScalesTo` 的 `dynamicBaseline` 我一开始改成了 `false`（理由是 `ApplyCommon` 现在会重跑）。`BindItems_card_box_preserving_does_not_accumulate_across_resizes` 立刻红了（-0.5 → -2.5，补偿累积 5 次）—— 因为 **resize 路径恰恰跳过了重放**，`ApplyCommon` 并没有跑，那份捕获基线仍然是让 resize 幂等的唯一依靠。退回 `true`：真跑过 `ApplyCommon` 的地方，基线是同一个几何，还原上去是 no-op。
+
+**遗留**：500 行的列表切一次 Variant 仍要半秒。`ScrollList` 不做虚拟化（一条数据一个 slot），这种规模本身就有别的问题；真正的解法是 LayoutGroup 的 O(N²)，独立一条。
+
+验证：EditMode 2334/2334、PlayMode 171/171、EditorOnly 308/308，0 failed 0 skipped；`dotnet format` 无输出；UIXmlLint 13 个文件零 issue。

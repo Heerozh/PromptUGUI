@@ -14,17 +14,29 @@ namespace PromptUGUI.Lint
         /// </summary>
         public string Origin { get; }
 
-        public LintIssue(string code, string tag, string id, string message, string origin = null)
+        /// <summary>1-based line in <see cref="Origin"/>, or 0 when unknown.</summary>
+        public int Line { get; }
+
+        /// <summary>
+        /// <c>file:line</c> of the Template invocation this node came from, or null. Distinguishes
+        /// instances when one template is invoked many times; see <see cref="IR.ElementNode.InvokedAt"/>.
+        /// </summary>
+        public string Via { get; }
+
+        public LintIssue(string code, string tag, string id, string message,
+                         string origin = null, int line = 0, string via = null)
         {
             Code = code;
             Tag = tag;
             Id = id;
             Message = message;
             Origin = origin;
+            Line = line;
+            Via = via;
         }
 
-        /// <summary>Same finding, attributed to <paramref name="origin"/>.</summary>
-        public LintIssue WithOrigin(string origin) =>
-            new LintIssue(Code, Tag, Id, Message, origin);
+        /// <summary>Same finding, attributed to a place in the source.</summary>
+        public LintIssue WithSource(string origin, int line, string via = null) =>
+            new LintIssue(Code, Tag, Id, Message, origin, line, via);
     }
 }

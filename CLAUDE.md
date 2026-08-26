@@ -48,7 +48,7 @@ Internal refactors, test-only changes, performance work, and Editor tooling that
 `Runtime/` is split into:
 - `Core/IR/` — pure POCOs (`UIDocument`, `ScreenDef`, `TemplateDef`, `ElementNode`, `ImportRef`, `VariantBlock`, `AddDirective`, `StyleDef`, `ThemeBlock`) + 合并产物 `LoadedDoc` 与它的键 `TemplateKey` / `StyleKey`
 - `Core/Parser/` — `UIDocumentParser` (XML → IR) + `ParseException`
-- `Core/Template/` — `DocumentAssembler` (Import 闭包合并 → `LoadedDoc`) + `TemplateExpander` (inlines Template invocations) + `StyleMerger` (`class=` 属性包合并) + `Substitution` / `Truthy`
+- `Core/Template/` — `DocumentAssembler` (Import 闭包合并 → `LoadedDoc`) + `TemplateExpander` (inlines Template invocations；并为 `itemTemplate=` 预展开一份 per-Screen 的 `ScreenDef.Templates`) + `StyleMerger` (`class=` 属性包合并 + 切主题重算) + `ThemeStyleResolver` / `ThemeStyleApplier` + `Substitution` / `Truthy`
 - `Core/Variants/` — `VariantResolver` (last-active-wins for `attr.var` overrides)
 - `Core/Layout/` — `AnchorResolver` / `MarginResolver` / `SizeSpec`
 - `Controls/` — built-in primitives (`Frame`, `Image`, `Text`, `VStack`, `HStack`, `Grid`, `Btn`) + the `Control` base class
@@ -104,7 +104,7 @@ dotnet run --project .lint/UIXmlLint -- Runtime/Resources/                   # �
 
 规则代码在 `Runtime/Core/Lint/`（纯 C#），跟 `ScreenInstantiator` 的 warning 路径共用同一份实现 —— 新增规则时只改一处。
 
-CLI 对每份文档跑**两遍**（`Core/Lint/DocumentLinter.cs`，按 issue 去重）：**raw**（作者写的原样，能看到 `if="false"` 背后和没人调用的模板）+ **expanded**（`ScreenInstantiator` 真正构建的那棵树，能看到模板调用的真实父子关系、`class=` 带来的属性、以及 `GlassRules` 这类规则开口前必须知道的最终形态）。两者互不包含。它会跟着 `<Import>` 读盘（按「导入方所在目录 → 逐级上溯到 `Resources/`」猜 `src`）；**解析不到的 import 不算错误**，那份文档只是跳过展开遍、退回今天的行为（Addressables / 自定义 resolver 的工程没有磁盘形态）。展开失败（未知模板/样式名、Import 循环）报 `PUI-EXPAND`。**报错归属按 `ElementNode.OriginSrc`**（`Parse(xml, src)` 打戳、展开期逐层传递）—— 问题出在被 import 的库里就报那个库的文件名，不是入口文件。详见 `.lint/UIXmlLint/README.md`。
+CLI 对每份文档跑**两遍**（`Core/Lint/DocumentLinter.cs`，按 issue 去重）：**raw**（作者写的原样，能看到 `if="false"` 背后和没人调用的模板）+ **expanded**（`ScreenInstantiator` 真正构建的那棵树，能看到模板调用的真实父子关系、`class=` 带来的属性、以及 `GlassRules` 这类规则开口前必须知道的最终形态）。两者互不包含。它会跟着 `<Import>` 读盘（按「导入方所在目录 → 逐级上溯到 `Resources/`」猜 `src`）；**解析不到的 import 不算错误**，那份文档只是跳过展开遍、退回今天的行为（Addressables / 自定义 resolver 的工程没有磁盘形态）。展开失败（未知模板/样式名、Import 循环）报 `PUI-EXPAND`。输出是 `file:line: [CODE] msg`；**归属按 `ElementNode.OriginSrc` + `Line`**（`Parse(xml, src)` 打戳、展开期逐层传递）—— 问题出在被 import 的库里就报那个库的文件行号，不是入口文件。模板参与时追一段 `(via file:line)` 指出是哪一次调用（记最外层，内层每个实例都一样、区分不了）。跨入口文件去重。详见 `.lint/UIXmlLint/README.md`。
 
 ### `.pxl` 渲染预览（PxlPreview CLI）
 

@@ -29,12 +29,14 @@ namespace PromptUGUI.Template
                 result.Styles[kv.Key.ToString()] = kv.Value;      // 同上：诊断用，展开产物已不含 class
 
             var styles = loaded.Styles;
+            var runtimeTemplates = BuildRuntimeTemplates(loaded, styles);
 
             foreach (var s in loaded.Screens)
             {
                 var newRoot = new ElementNode(s.Root.Tag, s.Root.Namespace)
                 {
                     OriginSrc = s.Root.OriginSrc,
+                    Line = s.Root.Line,
                 };
                 // Screen-level attributes (e.g. reference=, reference.<variant>=) live on
                 // ScreenDef.Root and must survive expansion so runtime VariantResolver can read them.
@@ -60,7 +62,7 @@ namespace PromptUGUI.Template
                                      new HashSet<TemplateKey>()),
                 };
                 // 把全局 Template 表附到本 Screen，供 ScrollList 等运行时控件按 tag 反查。
-                foreach (var kv in loaded.Templates)
+                foreach (var kv in runtimeTemplates)
                     newScreen.Templates[kv.Key.ToString()] = kv.Value;
                 // 同理附上样式表：切主题时要把主题 pack 折在它之上重算 class=。
                 foreach (var kv in styles)
@@ -109,6 +111,70 @@ namespace PromptUGUI.Template
             return Expand(loaded);
         }
 
+        /// <summary>
+        /// The Template table a Screen carries for RUNTIME instantiation (<c>itemTemplate=</c>).
+        /// <c>ScrollList</c> / <c>TabBar</c> / <c>Carousel</c> hand the body straight to
+        /// <c>ScreenInstantiator</c>, so everything expansion normally does has to have happened
+        /// already — <c>class=</c> merged, <c>{{param}}</c> substituted, nested invocations inlined.
+        /// Handing over the raw body meant the first two silently produced wrong values and the third
+        /// threw <c>unregistered tag</c> inside the bind, where R3 swallows it into a console error
+        /// and leaves the list empty.
+        ///
+        /// <para>With no invocation to supply them, a template's own <c>&lt;Param&gt;</c> defaults ARE
+        /// the arguments. A required Param has no such value, so those templates cannot be expanded
+        /// here — they are kept as a deep copy instead, and rejected by name if actually used as an
+        /// itemTemplate. Expansion failures fall back the same way: a template that is only ever
+        /// invoked normally must not start failing at load.</para>
+        ///
+        /// <para>Every entry is a copy the ScreenDef OWNS, never the shared (possibly commons-pool)
+        /// TemplateDef — that is what lets a theme switch re-merge these bodies in place without
+        /// leaking across documents.</para>
+        /// </summary>
+        private static Dictionary<PromptUGUI.IR.TemplateKey, TemplateDef> BuildRuntimeTemplates(
+            PromptUGUI.IR.LoadedDoc loaded,
+            IReadOnlyDictionary<PromptUGUI.IR.StyleKey, StyleDef> styles)
+        {
+            var result = new Dictionary<PromptUGUI.IR.TemplateKey, TemplateDef>(loaded.Templates.Count);
+            foreach (var kv in loaded.Templates)
+            {
+                var tpl = kv.Value;
+                var copy = new TemplateDef(tpl.Name) { OriginSrc = tpl.OriginSrc };
+                copy.Params.AddRange(tpl.Params);
+
+                var args = new Dictionary<string, string>();
+                var expandable = tpl.Body != null;
+                foreach (var p in tpl.Params)
+                {
+                    if (!p.HasDefault) { expandable = false; break; }
+                    args[p.Name] = p.DefaultValue;
+                }
+
+                ElementNode body = null;
+                if (expandable)
+                {
+                    try
+                    {
+                        body = ExpandNode(tpl.Body, args, slotContent: null, loaded.Templates, styles,
+                                          new HashSet<PromptUGUI.IR.TemplateKey>());
+                    }
+                    catch (TemplateException) { body = null; }
+                    catch (Parser.ParseException) { body = null; }
+                }
+
+                copy.Body = body ?? (tpl.Body == null ? null : DeepClone(tpl.Body));
+                copy.BodyExpanded = body != null;
+                result[kv.Key] = copy;
+            }
+            return result;
+        }
+
+        private static void StampInvokedAt(ElementNode node, string site)
+        {
+            node.InvokedAt = site;
+            foreach (var child in node.Children)
+                StampInvokedAt(child, site);
+        }
+
         private static void ValidateSlotCount(TemplateDef tpl)
         {
             var count = 0;
@@ -153,6 +219,8 @@ namespace PromptUGUI.Template
             var dst = new ElementNode(merged.Tag, merged.Namespace)
             {
                 OriginSrc = merged.OriginSrc,
+                Line = merged.Line,
+                InvokedAt = merged.InvokedAt,
                 StyleAttrNames = merged.StyleAttrNames,
                 Id = merged.Id,
                 TextContent = merged.TextContent,
@@ -251,6 +319,12 @@ namespace PromptUGUI.Template
                     list.AddRange(kv.Value);
                 }
 
+                // Overwrite rather than fill-in-if-empty: nested invocations expanded first and
+                // stamped themselves, but an inner site is the same for every instance and so cannot
+                // distinguish them. The outermost one runs last and wins.
+                if (invocation.Line > 0 && invocation.OriginSrc != null)
+                    StampInvokedAt(instanceRoot, $"{invocation.OriginSrc}:{invocation.Line}");
+
                 return instanceRoot;
             }
             finally
@@ -286,6 +360,8 @@ namespace PromptUGUI.Template
             var dst = new ElementNode(prepared.Tag, prepared.Namespace)
             {
                 OriginSrc = prepared.OriginSrc,
+                Line = prepared.Line,
+                InvokedAt = prepared.InvokedAt,
                 StyleAttrNames = prepared.StyleAttrNames,
                 Id = prepared.Id,
                 TextContent = Substitution.Apply(prepared.TextContent, args),
@@ -322,6 +398,8 @@ namespace PromptUGUI.Template
             var dst = new ElementNode(src.Tag, src.Namespace)
             {
                 OriginSrc = src.OriginSrc,
+                Line = src.Line,
+                InvokedAt = src.InvokedAt,
                 StyleAttrNames = src.StyleAttrNames,
                 Id = src.Id,
                 TextContent = src.TextContent,
@@ -355,6 +433,8 @@ namespace PromptUGUI.Template
             var dst = new ElementNode(src.Tag, src.Namespace)
             {
                 OriginSrc = src.OriginSrc,
+                Line = src.Line,
+                InvokedAt = src.InvokedAt,
                 StyleAttrNames = src.StyleAttrNames,
                 Id = src.Id,
                 TextContent = src.TextContent,

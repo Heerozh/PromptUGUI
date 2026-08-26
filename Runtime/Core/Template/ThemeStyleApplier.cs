@@ -32,6 +32,16 @@ namespace PromptUGUI.Template
                 foreach (var add in block.Adds)
                     foreach (var child in add.Children)
                         ApplySubtree(child, styles);
+
+            // itemTemplate bodies too: rows bound AFTER a theme switch are instantiated from these.
+            // Safe to write in place only because BuildRuntimeTemplates gave the ScreenDef its own
+            // copies — the shared (possibly commons-pool) TemplateDefs are never touched.
+            //
+            // BodyExpanded gates it: a body kept raw (required <Param>) can still read
+            // class="{{skin}}", and looking THAT up as a style name throws "unknown style '{{skin}}'".
+            foreach (var tpl in def.Templates.Values)
+                if (tpl.BodyExpanded)
+                    ApplySubtree(tpl.Body, styles);
         }
 
         private static void ApplySubtree(ElementNode node, IReadOnlyDictionary<StyleKey, StyleDef> styles)

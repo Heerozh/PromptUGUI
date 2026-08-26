@@ -58,8 +58,7 @@ namespace PromptUGUI.Parser
 
         private static UIDocument ParseCore(string xml)
         {
-            var xdoc = new XmlDocument();
-            xdoc.LoadXml(xml);
+            var xdoc = LineInfoXmlDocument.Parse(xml);
 
             var root = xdoc.DocumentElement;
             if (root == null || root.Name != "PromptUGUI")
@@ -135,6 +134,8 @@ namespace PromptUGUI.Parser
             doc.Imports.Add(new IR.ImportRef(src, ns));
         }
 
+        private static int LineOf(XmlElement el) => el is LineInfoElement li ? li.Line : 0;
+
         private static ThemeBlock ParseTheme(XmlElement el)
         {
             var name = el.GetAttribute("name");
@@ -208,7 +209,8 @@ namespace PromptUGUI.Parser
                     "(a Screen is not a control; put class= on a child element)");
 
             var idsInScreen = new System.Collections.Generic.HashSet<string>();
-            var rootNode = new ElementNode("__screen_root__");
+            // The synthetic root stands in for <Screen> itself, so point at that.
+            var rootNode = new ElementNode("__screen_root__") { Line = LineOf(el) };
             var screen = new ScreenDef(name, rootNode);
 
             var canvasAttr = el.GetAttribute("canvas");
@@ -549,7 +551,7 @@ namespace PromptUGUI.Parser
                 ns = tag.Substring(0, dot);
                 tag = tag.Substring(dot + 1);
             }
-            var node = new ElementNode(tag, ns);
+            var node = new ElementNode(tag, ns) { Line = LineOf(el) };
 
             foreach (XmlAttribute attr in el.Attributes)
             {

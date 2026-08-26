@@ -12,6 +12,18 @@ namespace PromptUGUI.IR
         public List<ElementNode> Children { get; }
 
         /// <summary>
+        /// Where the Template invocation that produced this node was written, preformatted as
+        /// <c>file:line</c>; null on nodes that were not produced by one.
+        ///
+        /// <para><see cref="OriginSrc"/> plus <see cref="Line"/> say where the markup was DECLARED,
+        /// which is where a fix goes. That is not enough on its own when one template is invoked ten
+        /// times and a single instance is wrong — all ten findings would read identically. This says
+        /// WHICH instance. It records the OUTERMOST invocation deliberately: nested ones are
+        /// structural and identical across instances, so they cannot tell two apart.</para>
+        /// </summary>
+        public string InvokedAt { get; set; }
+
+        /// <summary>
         /// Which attribute names the <c>class=</c> pack contributed at the last merge. Non-null iff
         /// the node's class has been resolved (an empty set is a real answer: every packed name was
         /// already spelled out inline).
@@ -22,6 +34,13 @@ namespace PromptUGUI.IR
         /// clean slate without a separate snapshot of the author's own values.</para>
         /// </summary>
         public System.Collections.Generic.HashSet<string> StyleAttrNames { get; set; }
+
+        /// <summary>
+        /// 1-based line in <see cref="OriginSrc"/> where this node's opening tag starts; 0 when
+        /// unknown (a synthesised node, or a caller that parsed without line info). Travels with
+        /// <see cref="OriginSrc"/> through expansion so a lint finding can name a place, not a file.
+        /// </summary>
+        public int Line { get; set; }
 
         /// <summary>
         /// The src this node's markup was written in, stamped by <c>UIDocumentParser.Parse(xml, src)</c>

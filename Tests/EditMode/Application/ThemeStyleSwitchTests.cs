@@ -159,6 +159,25 @@ namespace PromptUGUI.Tests.EditMode.Application
             Assert.AreEqual("445566", ColorOf(screen, "c"), "and reverts to the pack's base");
         }
 
+        // Regression: the theme re-merge walks itemTemplate bodies so rows bound after a switch get
+        // the current skin. A body kept RAW — because a required <Param> left nothing to substitute —
+        // still reads class="{{skin}}", and looking that up as a style name threw
+        // "unknown style '{{skin}}'", taking down UI.Open and the lint CLI alike. This is the shape
+        // of the shipped ProceduralStyle sample, which is how it was caught.
+        [Test]
+        public void RawItemTemplateBody_WithAPlaceholderClass_SurvivesTheThemeReMerge()
+        {
+            Assert.DoesNotThrow(() => Load(@"
+                <Style name='card' color='#112233'/>
+                <Theme name='pixel'><Style name='card' color='#445566'/></Theme>
+                <Template name='Skinned'><Param name='skin'/><Frame id='b' class='{{skin}}'/></Template>
+                <Screen name='S'><Image id='c' class='card'/></Screen>"));
+
+            UI.Theme.Set("pixel");
+            Assert.AreEqual("445566", ColorOf(UI.Open("S"), "c"),
+                "and the rest of the Screen still re-skins normally");
+        }
+
         // Every project written before this feature: styles but no theme styles. Nothing may change.
         [Test]
         public void ColourOnlyThemes_LeaveClassBehaviourUntouched()

@@ -698,6 +698,8 @@ inline 属性  >  右边的 class  >  左边的 class
 - `class="{{param}}"` inside a `<Template>` body is fine — the class name is substituted first, so a template can take its skin as a parameter.
 - `<Screen>` takes no `class` (it is not a control). `class=""` (no names) and an unknown style name are both errors.
 
+**`itemTemplate=` 也走完整展开**：`<ScrollList>` / `<TabBar>` / `<Carousel>` 用的模板体和别处一样会合并 `class=`、替换 `{{param}}`、内联嵌套模板调用。因为没有调用点提供实参，模板自己的 `<Param default=...>` 就是实参 —— 所以**当作 itemTemplate 用的模板，每个 `<Param>` 都必须有 `default=`**，否则 `UI.Open` 会直接报错说清楚是哪个模板的哪个参数。
+
 **Sharing** works exactly like `<Template>`: styles travel through `<Import>`, land in the commons pool, hot-reload with their file, and a name colliding between commons and the entry document is a hard error. An unknown style name is caught by the lint CLI as `PUI-EXPAND` whenever it can read the imported files from disk; otherwise it surfaces at `UI.Open()`. A namespaced commons library is referenced with a colon — `class="ui:card"` — mirroring the `Set:Name` form used for sprites and icons (tags use a dot, `ui.TitledPanel`; class references use a colon).
 
 Swapping which commons library is loaded therefore re-skins everything at once.

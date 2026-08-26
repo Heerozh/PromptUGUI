@@ -38,7 +38,7 @@ namespace PromptUGUI.Lint
             // they get their own pass so a bad radius in a style is caught where it's written.
             foreach (var style in doc.Styles.Values)
                 foreach (var issue in StyleRules.CheckStyle(style))
-                    yield return issue.WithOrigin(style.OriginSrc);
+                    yield return issue.WithSource(style.OriginSrc, 0);
 
             foreach (var template in doc.Templates.Values)
             {
@@ -85,7 +85,7 @@ namespace PromptUGUI.Lint
         private static IEnumerable<LintIssue> WalkNode(ElementNode node, bool inTemplateBody, bool hasStateSourceAncestor, bool parentIsLayoutGroup, bool isTemplateBodyRoot, HashSet<string> screenIds, StyleAttributeView styles)
         {
             foreach (var issue in WalkNodeCore(node, inTemplateBody, hasStateSourceAncestor, parentIsLayoutGroup, isTemplateBodyRoot, screenIds, styles))
-                yield return issue.Origin == null ? issue.WithOrigin(node.OriginSrc) : issue;
+                yield return issue.Origin == null ? issue.WithSource(node.OriginSrc, node.Line, node.InvokedAt) : issue;
         }
 
         private static IEnumerable<LintIssue> WalkNodeCore(ElementNode node, bool inTemplateBody, bool hasStateSourceAncestor, bool parentIsLayoutGroup, bool isTemplateBodyRoot, HashSet<string> screenIds, StyleAttributeView styles)
@@ -190,22 +190,22 @@ namespace PromptUGUI.Lint
             {
                 if (isLayoutGroup)
                     foreach (var issue in LayoutGroupChildRules.CheckChild(child))
-                        yield return issue.WithOrigin(child.OriginSrc);
+                        yield return issue.WithSource(child.OriginSrc, child.Line, child.InvokedAt);
                 else
                     // 'flow' under a non-layout-group parent is inert — flag it. Dispatched
                     // from the child loop only (parent tag truly known): template-body roots,
                     // <Add> roots and screen roots are exempt automatically — their real
                     // parent is resolved at invocation/runtime and may well be an HStack.
                     foreach (var issue in LayoutGroupChildRules.CheckNonLayoutChild(child))
-                        yield return issue.WithOrigin(child.OriginSrc);
+                        yield return issue.WithSource(child.OriginSrc, child.Line, child.InvokedAt);
                 if (node.Tag == "Carousel")
                     foreach (var issue in CarouselRules.CheckCard(node, child))
-                        yield return issue.WithOrigin(child.OriginSrc);
+                        yield return issue.WithSource(child.OriginSrc, child.Line, child.InvokedAt);
                 // CLI-only: a direct <Grid> child's own size/width/height is overridden by cellSize.
                 // Grid-specific (V/HStack children's size IS meaningful), so gated on the parent tag here.
                 if (node.Tag == "Grid")
                     foreach (var issue in LayoutGroupChildRules.CheckGridChild(child))
-                        yield return issue.WithOrigin(child.OriginSrc);
+                        yield return issue.WithSource(child.OriginSrc, child.Line, child.InvokedAt);
                 // Exempt Template-instance roots and bodies: <Tab> wrapped in a
                 // Template (e.g. <Template name='FileTab'><Frame><Tab/>...) is
                 // intentional — TabBar.CollectStaticTabs walks wrappers via FindTabIn.
@@ -217,7 +217,7 @@ namespace PromptUGUI.Lint
                         TabRules.TabParentCode, child.Tag, child.Id,
                         $"<Tab id='{child.Id}'>: must be a direct child of <TabBar>; current parent is <{node.Tag}>. " +
                         "Mutual exclusion and shared visuals will not apply.",
-                        child.OriginSrc);
+                        child.OriginSrc, child.Line, child.InvokedAt);
                 foreach (var issue in WalkNode(child, inTemplateBody, childHasStateSourceAncestor, parentIsLayoutGroup: isLayoutGroup, isTemplateBodyRoot: false, screenIds: screenIds, styles: styles))
                     yield return issue;
             }
