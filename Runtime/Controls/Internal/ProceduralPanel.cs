@@ -60,6 +60,7 @@ namespace PromptUGUI.Controls.Internal
         private float _lastGlowGeometry;
         private bool _countedAsGlass;
         private bool _suppressed;
+        private bool _maskSource;
 
         private static bool _warnedFeedbackLoop;
 
@@ -277,6 +278,19 @@ namespace PromptUGUI.Controls.Internal
         /// panel emits no geometry and holds no material — it exists only to carry its parameters
         /// into the group, while staying a normal RectTransform for layout and children.
         /// </summary>
+        /// <summary>
+        /// Marks the panel as the mask source of a stencil <see cref="UnityEngine.UI.Mask"/> on the
+        /// same GameObject. Driven by <c>Frame.ReconcileMask</c>; see <see cref="ComputeVisible"/>
+        /// for why it matters.
+        /// </summary>
+        internal void SetMaskSource(bool value)
+        {
+            if (_maskSource == value) return;
+            _maskSource = value;
+            _lastVisible = ComputeVisible();
+            SetVerticesDirty();
+        }
+
         internal void SetSuppressed(bool suppressed)
         {
             if (_suppressed == suppressed) return;
@@ -297,6 +311,11 @@ namespace PromptUGUI.Controls.Internal
         private bool ComputeVisible()
         {
             if (_suppressed) return false;
+            // A stencil mask source has to emit geometry even when it paints nothing: the stencil is
+            // written by its fragments, so culling it for being invisible clips every child away.
+            // That is precisely the invisible-rounded-clipper form (mask="self" showMask="false"
+            // with no fill), which is the most useful one.
+            if (_maskSource) return true;
             // The blurred backdrop is itself the visual, so a glass panel with no fill still draws.
             if (_glass) return true;
             if (_fillTop.a > 0f || _fillBottom.a > 0f) return true;

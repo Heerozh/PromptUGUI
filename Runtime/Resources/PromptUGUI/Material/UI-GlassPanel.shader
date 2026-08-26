@@ -250,7 +250,18 @@ Shader "UI/GlassPanel"
                 #endif
 
                 #ifdef UNITY_UI_ALPHACLIP
-                clip(col.a - 0.001);
+                // 只有 stencil 遮罩源会打开这个关键字（uGUI 的 StencilMaterial 只在这次 draw 要写
+                // stencil 时才开），所以下面这段不影响任何正常渲染路径。
+                //
+                // 遮罩形状取 SDF 的实心区，而不是最终 alpha：外发光画在形状**之外**
+                // （glow.a *= g*g*(1-inside)），按 col.a 裁会把遮罩连光晕一起撑大一圈；而没有
+                // 填充的面内部 col.a == 0，按 col.a 裁又会把中间整个裁空 —— 于是「隐形的圆角
+                // 裁剪器」这个最有用的形态反而做不出来。形状就是形状，与画了什么无关。
+                float maskCoverage = inside;
+                #ifdef UNITY_UI_CLIP_RECT
+                maskCoverage *= UnityGet2DClipping(IN.worldPosition.xy, _ClipRect);
+                #endif
+                clip(maskCoverage - 0.5);
                 #endif
 
                 return col;

@@ -81,7 +81,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 
 | Tag | 用途 |
 |---|---|
-| `<Frame>` | 容器；可选程序化视觉（`color` / `radius` / `borderWidth` / `glow`）+ `mask="rect"` |
+| `<Frame>` | 容器；可选程序化视觉（`color` / `radius` / `borderWidth` / `glow`）+ `mask="rect"` / `mask="self"`（裁成自绘形状）|
 | `<SafeArea>` | 撑满父级、按设备安全区内缩（见本节末 **Safe area** 小节） |
 | `<Image>` | uGUI Image：sprite + 等比适配 + mask |
 | `<RawImage>` | uGUI RawImage：C# 设 Texture（动态图）+ contain/cover 适配 + mask |
@@ -108,13 +108,14 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 
 ### `<Frame>`
 
-Container. With none of the visual attributes below it is a bare `RectTransform` — no `Graphic`, no cost. Write any of them and Frame draws itself procedurally (rounded-rect SDF shader, no sprite): fill, corner radius, inner border, outer glow. Optional `RectMask2D` (`mask="rect"`).
+Container. With none of the visual attributes below it is a bare `RectTransform` — no `Graphic`, no cost. Write any of them and Frame draws itself procedurally (rounded-rect SDF shader, no sprite): fill, corner radius, inner border, outer glow. Optional `RectMask2D` (`mask="rect"`), or a stencil clip to its own drawn shape (`mask="self"` — needs one of the visual attributes, since that is what gives the Frame a `Graphic`).
 
 There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAINER-VISUAL-ATTR`) — use `<Image>` for sprite-based skins. A Frame never blocks clicks even when it draws; for a tinted clickable region use `<Btn>`.
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
-| `mask` | `rect` | — | 加 `RectMask2D` 裁剪子节点 |
+| `mask` | `rect` / `self` | — | `rect` = `RectMask2D` 直角裁剪子节点；`self` = stencil `Mask`，把子节点裁成本 Frame 自绘的那个形状（圆角头像 / 圆角滚动区）。`self` 要求写了下面任一视觉属性 —— 否则 Frame 没有 `Graphic`，裁剪静默失效（`PUI-MASK-FRAME-SELF`）。`weld` 承载者也不行（`PUI-MASK-WELD-SELF`）|
+| `showMask` | bool | `true` | 仅 `mask="self"`。`false` = 只裁不画，一个隐形的圆角裁剪器 |
 | `maskPadding` | `T,R,B,L`（`_`=占位） | — | 仅 `mask="rect"` 时有效 |
 | `color` | hex / CSS named / theme token / `A,B` 渐变 / `/alpha` | — (无填充) | Fill. Same value grammar as everywhere else — see **Color Tokens**; a comma value is a top→bottom gradient |
 | `radius` | `R` / `TL,TR,BR,BL` / `pill` | `0` | Corner radius in px. Four values follow CSS `border-radius` order (clockwise from top-left). `pill` = fully rounded ends. Values larger than the shape are clamped, not an error |
@@ -133,9 +134,13 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 <Frame color="danger" radius="20" glow="18"/>              <!-- 发光 -->
 <Frame color="#1b263b" radius="0,0,16,16"/>                <!-- 只圆下面两角 -->
 <Frame glass="true" radius="16" frost="0.6"/>              <!-- 磨砂玻璃，见 glass.md -->
+<Frame radius="pill" mask="self" showMask="false">         <!-- 隐形圆角裁剪器 -->
+  <Image type="cover" sprite="ui:avatar"/>
+</Frame>
 ```
 
-- Only `glow` is affected by a **祖先** `RectMask2D` clipping the extra quad away; a Frame's own `mask="rect"` clips its children, never itself.
+- Only `glow` is affected by a **祖先** `RectMask2D` clipping the extra quad away; a Frame's own `mask="rect"` / `mask="self"` clips its children, never itself.
+- `mask="self"` clips to the **shape**, not to what the Frame paints: an outer `glow` does not widen the clip, and a Frame with a `radius` but no `color` still clips (that is the invisible-clipper form above). So `radius=` alone is enough to define the mask.
 - Colour / radius / border changes are material-only — a Variant flip or a colour animation never rebuilds the canvas mesh. Frames sharing identical values (typically via `class=`) share one material and keep batching.
 - Layout-only containers (`<VStack>` / `<HStack>` / `<Grid>` / `<SafeArea>`) draw nothing — wrap them in a `<Frame>` for a background.
 
@@ -472,7 +477,7 @@ Other notes:
 
 | Tag            | 根节点组件                                                                                                                                                                                                                                                     | 自动子节点                                                                                                                                                                                                                                                                             | R3 事件源                                                                                                                   |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `<Frame>`      | `RectTransform` 单独；可选 `RectMask2D`（写 `mask="rect"` 时挂）                                                                                                                                                                                               | —                                                                                                                                                                                                                                                                                      | —                                                                                                                           |
+| `<Frame>`      | `RectTransform` 单独；可选 `RectMask2D`（写 `mask="rect"` 时挂）或 stencil `Mask`（`mask="self"`，用自绘的 `ProceduralPanel` 当 mask 形状）                                                                                                                                                                                               | —                                                                                                                                                                                                                                                                                      | —                                                                                                                           |
 | `<Image>`      | `Image` + (lazy) `PointerEventRelay`（被 hover/press trigger 引用为源时挂上）；可选 `RectMask2D`（`mask="rect"`）或 stencil `Mask`（`mask="self"`，用自身 sprite 作 mask 形状）                                                                                | —                                                                                                                                                                                                                                                                                      | `OnPointerEnter` / `OnPointerExit` / `OnPointerDown` ← Relay                                                                |
 | `<RawImage>`   | `RawImage` + (lazy) `PointerEventRelay`；可选 `AspectRatioFitter`（`type=contain/cover`）/ `RectMask2D`（`mask="rect"`）/ stencil `Mask`（`mask="self"`）；图源 = C# `Texture` 属性                                                                            | —                                                                                                                                                                                                                                                                                      | `OnPointerEnter` / `OnPointerExit` / `OnPointerDown` ← Relay                                                                |
 | `<Text>`       | `TextMeshProUGUI`                                                                                                                                                                                                                                              | —                                                                                                                                                                                                                                                                                      | —                                                                                                                           |
@@ -1180,6 +1185,8 @@ PromptUGUI never auto-enables masking — you must opt in via `mask=`. Two reaso
 | Cheap rectangular clip (viewport-style)                       | `<Frame mask="rect"/>` or `<Image mask="rect" sprite="..."/>`                                                                      | `RectMask2D`                            |
 | Sprite-shape clip + sprite drawn (rounded card)               | `<Image sprite="round" mask="self"/>`                                                                                              | stencil `Mask`, `showMaskGraphic=true`  |
 | Sprite-shape clip + sprite hidden (viewport with shaped mask) | `<Image sprite="round-mask" mask="self" showMask="false"/>`                                                                        | stencil `Mask`, `showMaskGraphic=false` |
+| Rounded clip with **no sprite at all** (avatar, scroll area)  | `<Frame radius="16" mask="self" showMask="false"/>`                                                                                | stencil `Mask` on the SDF panel         |
+| Rounded card that is both drawn and clipped                   | `<Frame color="surface" radius="16" borderWidth="1" mask="self"/>`                                                                 | stencil `Mask`, `showMaskGraphic=true`  |
 | Decorated outer frame + different inner clip shape            | Nest two `<Image>` — outer has `sprite=` only; inner has `mask="self" sprite=` (different shape) + `margin=` to control inner size | none on outer, stencil on inner         |
 
 **Aspect-fit (`type="cover"` / `"contain"`) clipping**: the library never auto-clips a `cover` Image — its `AspectRatioFitter` sizes the Image to *envelop* its parent, so the overflow is clipped by a `mask="rect"` (`RectMask2D`) you put on the **parent** frame:

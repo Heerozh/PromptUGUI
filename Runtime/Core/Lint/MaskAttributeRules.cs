@@ -16,29 +16,68 @@ namespace PromptUGUI.Lint
         public const string ShowMaskNoSelfCode = "PUI-MASK-SHOWMASK-NO-SELF";
         public const string VariantCode = "PUI-MASK-VARIANT";
         public const string SelfNoSpriteCode = "PUI-MASK-SELF-NO-SPRITE";
+        public const string WeldSelfCode = "PUI-MASK-WELD-SELF";
 
         public static IEnumerable<LintIssue> CheckFrame(ElementNode n)
+            => CheckFrame(n, StyleAttributeView.Empty);
+
+        /// <summary>
+        /// <c>mask="self"</c> puts a uGUI <c>Mask</c> on the node, and <c>Mask</c> asks for a
+        /// <c>Graphic</c> — not, despite the old wording of <see cref="FrameSelfCode"/>, an
+        /// <c>Image</c>. A Frame that writes a procedural visual attribute grows a
+        /// <c>ProceduralPanel</c>, which is a <c>MaskableGraphic</c>, so it can mask, and it clips to
+        /// its own rounded shape. Two structures still cannot, both silently:
+        ///
+        /// <list type="bullet">
+        /// <item>a Frame that draws nothing has no Graphic at all;</item>
+        /// <item>a <c>weld</c> carrier keeps its fused pane on a <c>GlassWeld</c> child (see
+        /// <c>GlassGroupPanel.Attach</c>) and suppresses its own panel while welding, so the node the
+        /// Mask lands on has nothing to write stencil with.</item>
+        /// </list>
+        ///
+        /// <para>Read through <c>class=</c>: skins carry the shape in a <c>&lt;Style&gt;</c>, and a
+        /// rule blind to that reports correct XML as broken.</para>
+        /// </summary>
+        public static IEnumerable<LintIssue> CheckFrame(ElementNode n, StyleAttributeView styles)
         {
+            styles ??= StyleAttributeView.Empty;
             foreach (var issue in CheckVariantOverrides(n)) yield return issue;
 
-            n.Attributes.TryGetValue("mask", out var mask);
-            var hasPadding = n.Attributes.ContainsKey("maskPadding");
+            if (styles.IsUncertain(n)) yield break;
+            styles.Resolve(n, "mask", out var mask, out _);
+            var hasPadding = styles.Declares(n, "maskPadding");
+            var hasShowMask = styles.Declares(n, "showMask");
 
             if (!string.IsNullOrEmpty(mask))
             {
                 if (mask == "self")
                 {
-                    yield return new LintIssue(
-                        FrameSelfCode, n.Tag, n.Id,
-                        $"<Frame id='{n.Id}'>: mask=\"self\" requires an Image graphic on the same GameObject, " +
-                        "but Frame has none. Use <Image mask=\"self\"> for stencil masking, " +
-                        "or <Frame mask=\"rect\"> for rectangular clipping.");
+                    if (Welds(n, styles))
+                    {
+                        yield return new LintIssue(
+                            WeldSelfCode, n.Tag, n.Id,
+                            $"<Frame id='{n.Id}'>: mask=\"self\" cannot use a weld group's fused pane — " +
+                            "it is drawn on a GlassWeld child, and the carrier suppresses its own panel " +
+                            "while welding, so the Mask would clip every child away. " +
+                            "Move mask=\"self\" onto a Frame that draws its own surface, " +
+                            "or use mask=\"rect\" here.");
+                    }
+                    else if (!DrawsItself(n, styles))
+                    {
+                        yield return new LintIssue(
+                            FrameSelfCode, n.Tag, n.Id,
+                            $"<Frame id='{n.Id}'>: mask=\"self\" needs a Graphic on the same GameObject, " +
+                            "and this Frame draws nothing. Give it a procedural surface " +
+                            "(radius / color / borderWidth / glass …) and it clips children to that " +
+                            "shape; or use <Image mask=\"self\"> for a sprite mask, " +
+                            "or <Frame mask=\"rect\"> for a rectangular clip.");
+                    }
                 }
                 else if (mask != "rect")
                 {
                     yield return new LintIssue(
                         ValueCode, n.Tag, n.Id,
-                        $"<Frame id='{n.Id}'>: mask=\"{mask}\" is invalid. Frame allows only mask=\"rect\".");
+                        $"<Frame id='{n.Id}'>: mask=\"{mask}\" is invalid. Frame allows mask=\"rect\" or mask=\"self\".");
                 }
             }
 
@@ -50,7 +89,43 @@ namespace PromptUGUI.Lint
                     "stencil masks have no padding concept. " +
                     "Add mask=\"rect\" or remove maskPadding.");
             }
+
+            if (hasShowMask && mask != "self")
+            {
+                yield return new LintIssue(
+                    ShowMaskNoSelfCode, n.Tag, n.Id,
+                    $"<Frame id='{n.Id}'>: showMask only takes effect with mask=\"self\" (stencil Mask). " +
+                    "RectMask2D has no graphic to show/hide. Add mask=\"self\" or remove showMask.");
+            }
         }
+
+        /// <summary>Any attribute that makes Frame attach a <c>ProceduralPanel</c>.</summary>
+        private static bool DrawsItself(ElementNode n, StyleAttributeView styles)
+        {
+            foreach (var attr in ProceduralAttrNames.PanelAttaching)
+                if (styles.Declares(n, attr)) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// A declared weld with a usable radius anywhere — base value or a variant. <c>weld=""</c> /
+        /// <c>weld="0"</c> is how an author cancels fusing (a Variant can change a value but never
+        /// remove the attribute), and that Frame is an ordinary container again.
+        /// </summary>
+        private static bool Welds(ElementNode n, StyleAttributeView styles)
+        {
+            styles.Resolve(n, "weld", out var value, out var variants);
+            if (IsPositive(value)) return true;
+            foreach (var (_, v) in variants)
+                if (IsPositive(v)) return true;
+            return false;
+        }
+
+        private static bool IsPositive(string value)
+            => !string.IsNullOrWhiteSpace(value)
+               && (!float.TryParse(value.Trim(), System.Globalization.NumberStyles.Float,
+                                   System.Globalization.CultureInfo.InvariantCulture, out var px)
+                   || px > 0f);
 
         public static IEnumerable<LintIssue> CheckImage(ElementNode n)
             => CheckImage(n, StyleAttributeView.Empty);

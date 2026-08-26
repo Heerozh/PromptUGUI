@@ -93,7 +93,7 @@ namespace PromptUGUI.Lint
             // Per-tag self-checks (mirror of ScreenInstantiator dispatch; CLI errors).
             // Self-relative — about the node itself, unlike parent-relative LayoutGroupChildRules.
             if (node.Tag == "Frame")
-                foreach (var issue in MaskAttributeRules.CheckFrame(node))
+                foreach (var issue in MaskAttributeRules.CheckFrame(node, styles))
                     yield return issue;
             else if (node.Tag == "Image")
             {

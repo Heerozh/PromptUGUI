@@ -101,6 +101,27 @@ one member would draw precisely the dividing line the weld exists to remove, whi
 is the carrier's. Putting one on the wrong node is a lint error
 (`PUI-GLASS-WELD-PARAM-PLACEMENT`) — the attribute is silently ignored at runtime.
 
+## Clipping children to the glass shape
+
+A Frame that draws — glass or plain SDF — can also be a stencil mask, so its children are clipped to
+the same rounded shape:
+
+```xml
+<Frame glass="true" radius="20" mask="self">
+  <Image type="cover" sprite="ui:banner"/>   <!-- corners follow the glass -->
+</Frame>
+```
+
+The clip follows the **shape**, not the paint: an outer `glow` does not widen it, and it is correct
+even before the first backdrop capture. `showMask="false"` keeps the clip and draws nothing.
+
+Two placements do **not** work, both silently, so both are lint errors:
+
+- a Frame with no visual attribute at all has no `Graphic` to mask with (`PUI-MASK-FRAME-SELF`);
+- a `weld` carrier draws its fused pane on a `GlassWeld` child and suppresses its own panel while
+  welding, so a mask there would clip every child away (`PUI-MASK-WELD-SELF`). Put `mask="self"` on
+  a member, or wrap the group in a plain rounded `<Frame mask="self">`.
+
 ## Lint codes
 
 The CLI (`dotnet run --project .lint/UIXmlLint -- <path>`) exits non-zero on any of these. Every one
@@ -112,6 +133,7 @@ of them is silent at runtime, which is why they exist.
 | `PUI-GLASS-WELD-SELF` | `weld` and `glass="true"` on the same node |
 | `PUI-GLASS-WELD-MEMBERS` | a weld group with fewer than 2 or more than 8 glass children |
 | `PUI-GLASS-WELD-PARAM-PLACEMENT` | a group-level parameter on a member, or a per-block one on the carrier |
+| `PUI-MASK-WELD-SELF` | `mask="self"` on a `weld` carrier — the fused pane is on a child |
 | `PUI-PROCEDURAL-VALUE` | a glass value outside its range, or not a finite number |
 
 These read attributes as they will be **after** `class=` is merged, so carrying `glass="true"` in a
