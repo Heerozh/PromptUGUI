@@ -382,7 +382,6 @@ namespace PromptUGUI.Controls
             // 决策 LGC-D8 + BCS-D6 + BCS-D7 partial-write:
             // 任一轴没写 → 询问 GetNativeSize 作为该轴 fallback；写了的轴保留作者值。
             // 决策 LGC-D9: 没 native 时该轴留在 -1 哨兵值，让 Image/TMP 自带 ILayoutElement 主导。
-            // 决策 LGC-D10: 每次都先把两轴全置 -1，清掉前一次 Variant 的残留约束。
             // UsesIntrinsicLayoutSize controls (e.g. <Text>) skip the native snapshot on any omitted
             // axis and leave it at the -1 sentinel so their own live ILayoutElement drives that axis.
             var needNativeFallback = (!sizeSpec.HasWidth || !sizeSpec.HasHeight) && !UsesIntrinsicLayoutSize;
@@ -396,28 +395,20 @@ namespace PromptUGUI.Controls
             var le = LayoutHost.gameObject.GetComponent<UnityEngine.UI.LayoutElement>();
             if (!needLE)
             {
-                if (le != null)
-                {
-                    le.preferredWidth = -1;
-                    le.preferredHeight = -1;
-                    le.flexibleWidth = -1;
-                    le.flexibleHeight = -1;
-                    le.minWidth = -1;
-                    le.minHeight = -1;
-                }
+                if (le != null) WriteLayoutElement(le, -1f, -1f, -1f, -1f, -1f, -1f);
                 return;
             }
 
-            le ??= LayoutHost.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
-            le.preferredWidth = -1;
-            le.preferredHeight = -1;
-            le.flexibleWidth = -1;
-            le.flexibleHeight = -1;
+            // 决策 LGC-D10: 两轴都从 -1 基线起算，清掉前一次 Variant 的残留约束。
             // 决策 LGC-D17: 显式、非 flexible 的尺寸要钉 min = preferred，否则 LayoutGroup 空间
             // 紧张时会用共享插值系数把固定尺寸子节点一起压缩（min 默认 -1=0 → 有收缩余地），
             // 违背"strictly NxN"契约。stretch/native fallback/cross-fill 轴保持 -1（可收缩）。
-            le.minWidth = -1;
-            le.minHeight = -1;
+            var prefW = -1f;
+            var prefH = -1f;
+            var flexW = -1f;
+            var flexH = -1f;
+            var minW = -1f;
+            var minH = -1f;
 
             if (sizeSpec.HasWidth)
             {
@@ -426,45 +417,69 @@ namespace PromptUGUI.Controls
                     // stretch / stretch*N: 让 LayoutGroup 把剩余空间按权重分给该子节点（VerticalLayoutGroup 跨轴
                     // 在 flexible>0 时把 requiredSpace 抬到容器内宽，HorizontalLayoutGroup 主轴则按
                     // flexible 权重分配剩余空间）。preferred=0 让 base 部分不抢权重。
-                    le.preferredWidth = 0;
-                    le.flexibleWidth = sizeSpec.WeightWidth;
+                    prefW = 0f;
+                    flexW = sizeSpec.WeightWidth;
                 }
                 else
                 {
-                    le.preferredWidth = sizeSpec.Width;
-                    le.flexibleWidth = 0;
-                    le.minWidth = sizeSpec.Width;
+                    prefW = sizeSpec.Width;
+                    flexW = 0f;
+                    minW = sizeSpec.Width;
                 }
             }
             else if (hasNative)
             {
-                le.preferredWidth = native.Value.x;
-                // flexibleWidth 保持 -1（"无意见"），与历史 both-missing native 路径一致
+                prefW = native.Value.x;
+                // flexW 保持 -1（"无意见"），与历史 both-missing native 路径一致
             }
 
             if (sizeSpec.HasHeight)
             {
                 if (sizeSpec.IsFlexibleHeight)
                 {
-                    le.preferredHeight = 0;
-                    le.flexibleHeight = sizeSpec.WeightHeight;
+                    prefH = 0f;
+                    flexH = sizeSpec.WeightHeight;
                 }
                 else
                 {
-                    le.preferredHeight = sizeSpec.Height;
-                    le.flexibleHeight = 0;
-                    le.minHeight = sizeSpec.Height;
+                    prefH = sizeSpec.Height;
+                    flexH = 0f;
+                    minH = sizeSpec.Height;
                 }
             }
             else if (hasNative)
             {
-                le.preferredHeight = native.Value.y;
+                prefH = native.Value.y;
             }
 
             // DSS-D16: cross 轴 fill — 必须在 HasWidth/HasHeight 与 native 分支之后，
             // 因为它要把 preferred/-1 覆写成 0+flex=1。
-            if (fillCrossX) { le.preferredWidth = 0; le.flexibleWidth = 1; }
-            if (fillCrossY) { le.preferredHeight = 0; le.flexibleHeight = 1; }
+            if (fillCrossX) { prefW = 0f; flexW = 1f; }
+            if (fillCrossY) { prefH = 0f; flexH = 1f; }
+
+            le ??= LayoutHost.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
+            WriteLayoutElement(le, prefW, prefH, flexW, flexH, minW, minH);
+        }
+
+        // 六个值一次算完再写。
+        //
+        // 决策 LGC-D18: LayoutElement 的 setter 自带 change guard —— 只有值真的变了才 SetDirty()
+        // → LayoutRebuilder.MarkLayoutForRebuild：沿父链上溯到最外层布局根，每层
+        // GetComponents(ILayoutGroup)，末尾还要 GetComponents(ILayoutElement) 验证自己。
+        // 之前的写法是"先把六个全置 -1、再写真值"，稳态 ReSolve 里每个属性照样变两次 ——
+        // 一个值没变，却每节点白脏 6 次。先算后写让那个 guard 真正生效：值没变的一遍完全免费。
+        // 契约由 LayoutRebuildDirtyTests 钉住。
+        private static void WriteLayoutElement(UnityEngine.UI.LayoutElement le,
+            float preferredWidth, float preferredHeight,
+            float flexibleWidth, float flexibleHeight,
+            float minWidth, float minHeight)
+        {
+            le.preferredWidth = preferredWidth;
+            le.preferredHeight = preferredHeight;
+            le.flexibleWidth = flexibleWidth;
+            le.flexibleHeight = flexibleHeight;
+            le.minWidth = minWidth;
+            le.minHeight = minHeight;
         }
 
         // 把 anchor 预设里的"端点"对齐方式 + 分数 转成具体的 anchorMin/Max 子区间。
