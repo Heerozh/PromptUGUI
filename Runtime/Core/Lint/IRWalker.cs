@@ -104,6 +104,9 @@ namespace PromptUGUI.Lint
                 foreach (var issue in ImageFitRules.CheckGeometry(node))
                     yield return issue;
             }
+            else if (node.Tag == "RawImage")
+                foreach (var issue in MaskAttributeRules.CheckRawImage(node))
+                    yield return issue;
             else if (node.Tag == "Progress")
                 foreach (var issue in ProgressAttributeRules.CheckProgress(node))
                     yield return issue;

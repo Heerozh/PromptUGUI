@@ -111,12 +111,15 @@ namespace PromptUGUI.Controls
             _offsetHolder = StateOffsetInstaller.Install(GameObject, _offsetHolder, new StateOffsetSet(_pressedOffset, null));
             var abs = StateColorSet.ResolveAbsolutes(_hoverColor, _pressedColor, null, _disabledColor);
             var mod = StateColorSet.ResolveModulates(_hoverModulate, _pressedModulate, null, StateColorSet.NoneToNull(_disabledModulate));
-            StateTintInstaller.Install(GameObject, _btn, Children, abs, mod);
-            // A pressed/disabled sprite is itself a state visual: drop uGUI's built-in ColorTint so the
-            // swapped image isn't double-darkened. Set-only, matching the state-colour path
-            // (StateTintInstaller flips transition to None when any *Color / *Modulate is present).
-            if (_pressedSprite != null || _disabledSprite != null)
-                _btn.transition = UnityEngine.UI.Selectable.Transition.None;
+            var bgReactor = StateTintInstaller.Install(GameObject, _btn, Children, abs, mod);
+            // A pressed/disabled sprite is itself a state visual: drop uGUI's built-in ColorTint so
+            // the swapped image isn't double-darkened. COMPUTED, not set one-way — clearing the
+            // sprite (a Variant flip, a theme switch) has to hand feedback back to ColorTint, or the
+            // Btn is left with none at all and no attribute can restore it.
+            _btn.transition =
+                bgReactor != null || _pressedSprite != null || _disabledSprite != null
+                    ? UnityEngine.UI.Selectable.Transition.None
+                    : UnityEngine.UI.Selectable.Transition.ColorTint;
             // 默认禁用外观：作者未声明任何 disabled* 时整控件去色。与 transition 无关（ColorTint/None 皆可）。
             if (string.IsNullOrWhiteSpace(_disabledColor)
                 && string.IsNullOrWhiteSpace(_disabledModulate)

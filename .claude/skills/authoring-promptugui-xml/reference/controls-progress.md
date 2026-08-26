@@ -31,6 +31,14 @@ Radial fill（冷却环）不在 `<Progress>` 范围；以后用单独的 `<Cool
           bgColor="#000"/>
 ```
 
+## bg / frame 图层的显隐
+
+`bg` / `frame` 图层在**声明了 sprite 或颜色**（`bg` / `bgColor`，`frame` / `frameColor`）时显示，两者都没有时隐藏。这是从当前声明**算出来**的，不是一次性打开：`bg=""` / `bg="none"` 会把图层关掉，所以 Variant 切换、主题换肤、运行时赋值都能把它收回去，不会留着上一次的图素。
+
+```xml
+<Progress bg="ui:track" bg.mobile=""/>   <!-- 手机上不要底图，直接关掉该图层 -->
+```
+
 ## mask × bg 四种组合
 
 | 条件                   | MaskWrapper.UnityImage | MaskWrapper.Mask | MaskWrapper.showMaskGraphic | Bg.SetActive | Frame.SetActive |

@@ -20,6 +20,10 @@ namespace PromptUGUI.Controls
 
         // Attribute state.
         private float _value;
+        // Whether a sprite / colour was authored for each layer; ReconcileLayerVisibility turns the
+        // GameObjects on and off from these so the two setters cannot race each other.
+        private bool _bgSprite, _bgColor, _frameSprite, _frameColor;
+
         private string _direction = "horizontal";
         private string _mode = "scale";
 
@@ -95,11 +99,10 @@ namespace PromptUGUI.Controls
         {
             set
             {
-                if (string.IsNullOrEmpty(value)) return;
-                _bg.sprite = UI.ResolveSprite(value);
-                _bg.gameObject.SetActive(true);
-                ProceduralBuilders.AutoSlice(_bg);
-                ReconcileMaskVisibility();
+                _bgSprite = !(string.IsNullOrEmpty(value) || value == "none");
+                _bg.sprite = _bgSprite ? UI.ResolveSprite(value) : null;
+                if (_bgSprite) ProceduralBuilders.AutoSlice(_bg);
+                ReconcileLayers();
             }
         }
 
@@ -109,8 +112,8 @@ namespace PromptUGUI.Controls
             set
             {
                 Internal.ColorApplier.Apply(_bg, UI.Theme.ResolveSpec(value));
-                _bg.gameObject.SetActive(true);
-                ReconcileMaskVisibility();
+                _bgColor = true;
+                ReconcileLayers();
             }
         }
 
@@ -119,10 +122,10 @@ namespace PromptUGUI.Controls
         {
             set
             {
-                if (string.IsNullOrEmpty(value)) return;
-                _frame.sprite = UI.ResolveSprite(value);
-                _frame.gameObject.SetActive(true);
-                ProceduralBuilders.AutoSlice(_frame);
+                _frameSprite = !(string.IsNullOrEmpty(value) || value == "none");
+                _frame.sprite = _frameSprite ? UI.ResolveSprite(value) : null;
+                if (_frameSprite) ProceduralBuilders.AutoSlice(_frame);
+                ReconcileLayers();
             }
         }
 
@@ -132,7 +135,8 @@ namespace PromptUGUI.Controls
             set
             {
                 Internal.ColorApplier.Apply(_frame, UI.Theme.ResolveSpec(value));
-                _frame.gameObject.SetActive(true);
+                _frameColor = true;
+                ReconcileLayers();
             }
         }
 
@@ -160,8 +164,27 @@ namespace PromptUGUI.Controls
             ProceduralBuilders.AutoSlice(_bg);
             ProceduralBuilders.AutoSlice(_frame);
             ProceduralBuilders.AutoSlice(_maskGraphic);
-            ReconcileMaskVisibility();
+            ReconcileLayers();
             ReconcileFill();
+        }
+
+        /// <summary>
+        /// A layer is shown when EITHER a sprite or a colour was authored for it.
+        ///
+        /// <para>Derived from those flags rather than switched on inside each setter, for two
+        /// reasons. <c>bg=""</c> has to be able to turn the layer back OFF — it could previously only
+        /// ever be switched on, so a Variant flip or a theme switch left a stale sprite showing. And
+        /// because the answer is computed from BOTH flags, the sprite and colour setters no longer
+        /// race each other within one apply pass, whose attribute order is unspecified.</para>
+        ///
+        /// <para>Called from the setters too, not just <c>OnAfterApply</c>: code that assigns
+        /// <c>progress.Bg</c> at runtime never goes through an apply pass.</para>
+        /// </summary>
+        private void ReconcileLayers()
+        {
+            _bg.gameObject.SetActive(_bgSprite || _bgColor);
+            _frame.gameObject.SetActive(_frameSprite || _frameColor);
+            ReconcileMaskVisibility();
         }
 
         private void ReconcileMaskVisibility()

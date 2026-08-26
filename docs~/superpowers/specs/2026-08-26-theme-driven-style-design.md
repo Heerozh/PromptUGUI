@@ -503,11 +503,37 @@ lint 规则 + SKILL。三处与设计不同：
 
 ---
 
+### M2.5 —— §8 的可逆性修复（`[Ignore]` 全部摘掉）
+
+三处 A 类缺陷与 C 类覆盖缺口一并修完，四条 red test 转绿。**三个修复是同一个形状**：把「一次性设置」改成「从当前声明**算出来**」。
+
+| 处 | 改法 |
+|---|---|
+| `Tab.selectedSprite` | 新增 `ReconcileTransition()`：`transition = (reactor 存在 ‖ selectedSprite 存在) ? None : ColorTint`，由 setter 与 `OnAfterApply` 共用 |
+| `Btn.pressedSprite` / `disabledSprite` | 同形。**不在 red test 覆盖范围内，但一起修了** —— 一模一样的缺陷（原注释自己写着 "Set-only"），只修 Tab 没有道理 |
+| `Progress.bg` / `frame` | 新增 `_bgSprite/_bgColor/_frameSprite/_frameColor` 四个标志，图层显隐由 `ReconcileLayers()` 从标志算出 |
+| `RawImage` mask 家族 | 新增 `MaskAttributeRules.CheckRawImage` + `IRWalker` 分发（不能复用 `CheckImage`：RawImage 没有 `sprite=`，`PUI-MASK-SELF-NO-SPRITE` 不适用） |
+
+`Progress` 的改法顺带修掉一个**没人注意到的既有 bug**：`bg` 与 `bgColor` 两个 setter 都在 `SetActive(true)`，而 `ControlAttributeApplier` 遍历属性的顺序来自 `HashSet`，**未定义**。改成从两个标志一起算之后，谁先谁后都一样。
+
+`PUI-PROG-MASK-VARIANT` 的文案说 "other attrs (value / fill / **bg** / mode / direction) are safe in variants" —— 修完 `bg` 之后这句**变成真的了**，不用改。
+
+测试抓到一次回归：可见性搬进 `OnAfterApply` 之后，运行时从 C# 直接赋值 `progress.Bg` 不再触发它。因为答案是从标志算出来的，setter 里直接调 `ReconcileLayers()` 就行 —— 顺序无关，这正是这种写法的好处。
+
+另加两条测试：`Btn` 的对应用例，以及一条守卫 —— **有 `selectedColor` 时清掉 `selectedSprite` 必须保持 `None`**（reactor 仍然在管 bg，交还 ColorTint 会双重着色）。
+
+SKILL：`reference/states.md` 补「ColorTint 的切换是算出来的，可逆」；`reference/controls-progress.md` 新增「bg / frame 图层的显隐」一节。
+
+验证：EditMode **2317/2317**、PlayMode **171/171**、EditorOnly **308/308**，全部 0 failed **0 skipped**；`dotnet format` 无输出；UIXmlLint 13 个文件零 issue。
+
+---
+
 ## 16. 现状小结
 
-M0 / M1 / M2 全部落地。§9.4 的 `--theme` 以「自动逐主题走查」代替，§6.2 的规则取消（见 M2.4）。仍然开着的：
+M0 / M1 / M2 全部落地，§8 的可逆性缺陷全部修完，测试套件无 skipped。§9.4 的 `--theme` 以「自动逐主题走查」代替，§6.2 的规则取消（见 M2.4）。
 
-- **§8 A 类三处 setter 可逆性**：red test 挂着 `[Ignore]`，修复未做。
+仍然开着的：
+
 - **`itemTemplate` 的 `class=` 从来没生效过**（M2.3 发现的既有缺口，与主题无关）。
 - **lint 无行号**；同一模板多次调用时不可区分是哪一次（M1 记录）。
 - **带命名空间的样式不能被主题覆盖**（M2.2 的 §4.3 收紧）。

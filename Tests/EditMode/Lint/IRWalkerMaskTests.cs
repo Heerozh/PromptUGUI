@@ -43,7 +43,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
         public void Walk_NonFrameNonImageTags_NoMaskIssue()
         {
             // <VStack mask="rect"> 不该触发 mask rule（VStack 是纯容器，没有 mask 属性）。
-            // 注意：暴露 mask 的不止 Frame/Image —— RawImage / Progress 也有，见下面的覆盖缺口测试。
+            // 暴露 mask 的是 Frame / Image / RawImage / Progress，各有自己的 Check* 分发。
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S'>
@@ -71,7 +71,6 @@ namespace PromptUGUI.Tests.EditMode.Lint
         /// same, since PUI-PROG-MASK-VARIANT only covers <c>mask</c>).</para>
         /// </summary>
         [Test]
-        [Ignore("Red: spec 2026-08-26 §8 — RawImage mask variants reach neither PUI-MASK-VARIANT nor PUI-VARIANT-NO-BASE. Un-ignore with the fix.")]
         public void Walk_RawImageMaskInVariantOverride_VariantIssue()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>

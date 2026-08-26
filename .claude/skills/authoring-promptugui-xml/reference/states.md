@@ -90,6 +90,8 @@ Note: an authored `disabledSprite=` also switches the Btn off ColorTint (same `O
 
 In short: write `pressedSprite=""` or `pressedSprite="none"` to explicitly disable the built-in fallback and keep the default skin unchanged on press.
 
+**Reversible.** The ColorTint switch is *computed* from what is currently in play, not latched: clearing `pressedSprite` / `disabledSprite` / `selectedSprite` (a Variant flip, a theme switch, a runtime assignment) hands interaction feedback back to uGUI's ColorTint — unless a `*Color` / `*Modulate` / `selectedColor` is still installed, in which case the reactors keep ownership and ColorTint stays off. Without this the control would be left with **no** feedback at all and no attribute the author could write to get it back.
+
 ## 3. State-triggered animation — `<Trigger>` / `<Animation on="state-...">`
 
 `state-normal` / `state-hover` / `state-pressed` / `state-selected` / `state-disabled` (each also `@<id>`) are `on=` values on `<Trigger>` / `<Animation>` / `<Show>` — see the `on=` table in [`animations.md`](animations.md). Source resolution is **upward** to the nearest `<Btn>` / `<Tab>` / `<Toggle>` ancestor (opposite of `click` / `press`), and they fire **on entering** the state. `state-selected` is meaningful only with a `<Tab>` / `<Toggle>` source. Pair a press animation with its revert:

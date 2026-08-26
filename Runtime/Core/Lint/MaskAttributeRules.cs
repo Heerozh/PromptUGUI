@@ -95,6 +95,49 @@ namespace PromptUGUI.Lint
             }
         }
 
+        /// <summary>
+        /// <c>&lt;RawImage&gt;</c> exposes the same mask family as <c>&lt;Image&gt;</c> with the same
+        /// add-only implementation, but its image source is a <c>Texture</c> assigned from C# — there
+        /// is no <c>sprite=</c>, so <see cref="SelfNoSpriteCode"/> cannot apply and the two cannot
+        /// share <see cref="CheckImage"/>.
+        ///
+        /// <para>Without this it fell through BOTH guards: <c>IRWalker</c> dispatched the mask rules
+        /// only for Frame and Image, while <c>VariantBaseRules</c> skips the mask family outright on
+        /// the grounds that <see cref="VariantCode"/> "owns it in ALL cases".</para>
+        /// </summary>
+        public static IEnumerable<LintIssue> CheckRawImage(ElementNode n)
+        {
+            foreach (var issue in CheckVariantOverrides(n)) yield return issue;
+
+            n.Attributes.TryGetValue("mask", out var mask);
+
+            if (!string.IsNullOrEmpty(mask) && mask != "rect" && mask != "self")
+            {
+                yield return new LintIssue(
+                    ValueCode, n.Tag, n.Id,
+                    $"<RawImage id='{n.Id}'>: mask=\"{mask}\" is invalid. " +
+                    "RawImage allows mask=\"rect\" or mask=\"self\".");
+            }
+
+            if (n.Attributes.ContainsKey("maskPadding") && mask != "rect")
+            {
+                yield return new LintIssue(
+                    PaddingNoRectCode, n.Tag, n.Id,
+                    $"<RawImage id='{n.Id}'>: maskPadding only takes effect with mask=\"rect\" " +
+                    "(RectMask2D); stencil Mask (mask=\"self\") has no padding concept. " +
+                    "Add mask=\"rect\" or remove maskPadding.");
+            }
+
+            if (n.Attributes.ContainsKey("showMask") && mask != "self")
+            {
+                yield return new LintIssue(
+                    ShowMaskNoSelfCode, n.Tag, n.Id,
+                    $"<RawImage id='{n.Id}'>: showMask only takes effect with mask=\"self\" " +
+                    "(stencil Mask). RectMask2D has no graphic to show/hide. " +
+                    "Add mask=\"self\" or remove showMask.");
+            }
+        }
+
         private static IEnumerable<LintIssue> CheckVariantOverrides(ElementNode n)
         {
             if (n.VariantOverrides.ContainsKey("mask")

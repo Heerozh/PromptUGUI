@@ -21,9 +21,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
     /// (spec §5) every theme switch walks the same path, which is why these are pinned before that
     /// feature lands.</para>
     ///
-    /// <para><b>The <c>[Ignore]</c>d tests assert the DESIRED behaviour and currently FAIL.</b> The
-    /// fixes are a separate PR (spec §14 M0) — un-ignore each one as its fix lands. They are ignored
-    /// rather than left red so a full-suite run stays a meaningful regression signal.</para>
+    /// <para>These were written first as ignored red tests (spec §14 M0) and un-ignored with the
+    /// fixes. Each defect they pin was one-way state: a setter that could switch a visual ON but had
+    /// no path back, so the control kept the previous value forever. The fixes all take the same
+    /// shape — COMPUTE the state from what is currently authored instead of setting it one way.</para>
     ///
     /// <para>Deliberately NOT here: the <c>mask</c> family. <c>PUI-MASK-VARIANT</c> /
     /// <c>PUI-PROG-MASK-VARIANT</c> already declare per-variant mask switching unsupported in v1 for
@@ -72,7 +73,6 @@ namespace PromptUGUI.Tests.EditMode.Controls
         // ------------------------------------------------------------------
 
         [Test]
-        [Ignore("Red: spec 2026-08-26 §8 — Tab.selectedSprite does not restore Selectable.transition. Un-ignore with the fix.")]
         public void TabSelectedSprite_FlippedToNone_RestoresTransition_LikeFreshBuild()
         {
             StubSprites();
@@ -93,6 +93,46 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 + "left with no hover/press feedback at all, and no attribute the author can write brings it back");
         }
 
+        // Btn has the same shape as Tab: a pressed/disabled sprite takes it off ColorTint so the
+        // swapped image is not double-darkened. It was set one-way too — fixed alongside, since
+        // leaving the sibling control broken would have been arbitrary.
+        [Test]
+        public void BtnPressedSprite_FlippedToNone_RestoresTransition_LikeFreshBuild()
+        {
+            StubSprites();
+
+            var reference = OpenScreen("ref", "R", "<Btn id='b' pressedSprite='none'/>").Get<Btn>("b");
+            var expected = reference.GameObject.GetComponent<Selectable>().transition;
+            Assume.That(expected, Is.EqualTo(Selectable.Transition.ColorTint));
+
+            var btn = OpenScreen("t", "S",
+                    $"<Btn id='b' pressedSprite='ui:down' pressedSprite.{VariantName}='none'/>")
+                .Get<Btn>("b");
+            var selectable = btn.GameObject.GetComponent<Selectable>();
+            Assume.That(selectable.transition, Is.EqualTo(Selectable.Transition.None));
+
+            UI.Variants.Set(VariantName, true);
+
+            Assert.AreEqual(expected, selectable.transition,
+                "clearing pressedSprite must hand feedback back to uGUI's ColorTint");
+        }
+
+        // A state colour keeps the reactors in charge, so clearing the sprite must NOT hand the
+        // visual back to ColorTint — that would double-tint on top of the reactor.
+        [Test]
+        public void ClearingSelectedSprite_KeepsTransitionNone_WhenAStateColourIsStillInPlay()
+        {
+            StubSprites();
+
+            var tab = OpenTab("t", "S",
+                $"selectedColor='#076DD7' selectedSprite='ui:sel' selectedSprite.{VariantName}='none'");
+
+            UI.Variants.Set(VariantName, true);
+
+            Assert.AreEqual(Selectable.Transition.None, TransitionOf(tab),
+                "selectedColor installs a StateTintReactor, which owns the bg visual");
+        }
+
         // ------------------------------------------------------------------
         // Progress.bg / Progress.frame — Progress.cs:94 / :118 do SetActive(true)
         // and early-return on an empty value, so the layer can be switched on but
@@ -101,7 +141,6 @@ namespace PromptUGUI.Tests.EditMode.Controls
         // ------------------------------------------------------------------
 
         [Test]
-        [Ignore("Red: spec 2026-08-26 §8 — Progress.bg cannot be turned off once set. Un-ignore with the fix.")]
         public void ProgressBg_FlippedToEmpty_HidesLayer_LikeFreshBuild()
         {
             StubSprites();
@@ -120,7 +159,6 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        [Ignore("Red: spec 2026-08-26 §8 — Progress.frame cannot be turned off once set. Un-ignore with the fix.")]
         public void ProgressFrame_FlippedToEmpty_HidesLayer_LikeFreshBuild()
         {
             StubSprites();
