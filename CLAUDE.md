@@ -102,7 +102,9 @@ dotnet run --project .lint/UIXmlLint -- Runtime/Resources/PromptUGUI/Modals/Mess
 dotnet run --project .lint/UIXmlLint -- Runtime/Resources/                   # 整个目录递归
 ```
 
-规则代码在 `Runtime/Core/Lint/`（纯 C#），跟 `ScreenInstantiator` 的 warning 路径共用同一份实现 —— 新增规则时只改一处。详见 `.lint/UIXmlLint/README.md`。
+规则代码在 `Runtime/Core/Lint/`（纯 C#），跟 `ScreenInstantiator` 的 warning 路径共用同一份实现 —— 新增规则时只改一处。
+
+CLI 对每份文档跑**两遍**（`Core/Lint/DocumentLinter.cs`，按 issue 去重）：**raw**（作者写的原样，能看到 `if="false"` 背后和没人调用的模板）+ **expanded**（`ScreenInstantiator` 真正构建的那棵树，能看到模板调用的真实父子关系、`class=` 带来的属性、以及 `GlassRules` 这类规则开口前必须知道的最终形态）。两者互不包含。它会跟着 `<Import>` 读盘（按「导入方所在目录 → 逐级上溯到 `Resources/`」猜 `src`）；**解析不到的 import 不算错误**，那份文档只是跳过展开遍、退回今天的行为（Addressables / 自定义 resolver 的工程没有磁盘形态）。展开失败（未知模板/样式名、Import 循环）报 `PUI-EXPAND`。详见 `.lint/UIXmlLint/README.md`。
 
 ### `.pxl` 渲染预览（PxlPreview CLI）
 

@@ -396,3 +396,28 @@ M0 与 M1 都不依赖主题特性、都能独立合入主干。M1 是 M2 的硬
 `[Ignore]` 而非留红：全量跑必须保持是有效的回归信号。修复 PR 逐条摘 `Ignore` 即可。
 
 **本机环境缺口**：没有安装 dotnet SDK，`dotnet format` 与 `UIXmlLint` / `PxlPreview` CLI 在此机器上跑不了。本次改动只有测试文件，已人工核对缩进 / 行尾空白 / 文件结尾换行与同目录既有测试一致。
+
+### M1（分支 `test/attr-reversibility-red`，两个 commit）
+
+§9.3 的三步全部落地，实测行为与设计一致。三处值得记的偏离 / 发现：
+
+**1. `DocumentAssembler` 没有自立命名空间。** 设计里没写它住哪；第一版放 `PromptUGUI.Loading`，编译炸 30 处 —— 那个名字会**遮蔽公共 API `PromptUGUI.Application.Modals.Loading`**（C# 从内往外解析裸标识符，任何 `PromptUGUI.*` 里的 `Loading` 都先命中命名空间）。改放 `PromptUGUI.Template`（它产出的 `LoadedDoc` 正是 `TemplateExpander` 的输入），理由写进了文件头注释。
+
+**2. 两遍走查下沉到 `Core/Lint/DocumentLinter`，而不是留在 `Program.cs`。** 起因是一个实打实的 bug：`count += WalkExpanded(path, doc, Report)` 会先读 `count`（0），再执行右侧（闭包里 `Report` 把 `count` 加到 1），最后 `0 + 0` 把增量覆盖掉 —— 打印了 3 条却汇总成 1 条，**「只有展开遍报错」的文档 exit code 会是 0**。CLI 没有自己的测试工程，这类错误没人挡得住。把逻辑搬进 Core 之后 `PromptUGUI.Tests.EditMode` 能直接测（`DocumentLinterTests`，6 条），`Program.cs` 只剩 I/O 与 src→path 猜测。
+
+**3. 「解析不到的 import 不算错误」是新增的设计决定。** 设计里没考虑：Addressables / 自定义 resolver 的工程根本没有磁盘形态。若按缺失即报错处理，会把今天干净的文件变成构建失败。改为：整条闭包全部解析成功才跑展开遍，否则只跑 raw 并在 stdout 留一行说明。`DocumentLinterTests.UnresolvableImports_SkipExpandedPass_ButKeepRawRules` 钉住这条。
+
+产出：
+
+| 文件 | 内容 |
+|---|---|
+| `Runtime/Core/IR/DocumentKeys.cs` · `LoadedDoc.cs` | 从 `Application.DocumentLoader` 搬出的三个类型 |
+| `Runtime/Core/Template/DocumentAssembler.cs` | Import 闭包合并语义（纯 C#） |
+| `Runtime/Application/DocumentLoader.cs` | 缩成异步预取壳（151 行 → 80 行） |
+| `Runtime/Core/Lint/DocumentLinter.cs` | raw + expanded 两遍 + 去重 + `PUI-EXPAND` |
+| `.lint/UIXmlLint/{UIXmlLint.csproj,Program.cs,README.md}` | 编译集加 `Core/Template`；文件系统 resolver |
+| `Tests/EditMode/Lint/DocumentLinterTests.cs` | 6 条 |
+
+验证：EditMode 2256 → 2252 passed / 0 failed / 4 skipped（4 skipped 是 M0 的 red）；EditorOnly 308/308；`dotnet format --verify-no-changes --severity warn` 无输出；CLI 对仓库全部 13 个 `.ui.xml` 仍然零 issue（无回归），对专门造的 fixture 正确报出 3 条并 exit 1。新测试的有效性用「临时摘掉展开遍」验证过：6 条里 4 条转红，另 2 条（去重、无法解析时降级）本就该两边成立。
+
+**尚未做**：§9.4 的 `--theme` 与三条主题规则属于 M2；§9.5 提到的 origin 溯源（issue 来自 commons 文件时的归属）也还没做 —— 现在展开遍报出的 issue 一律挂在入口文件路径下，跨文件时会指错文件。M2 之前应补。

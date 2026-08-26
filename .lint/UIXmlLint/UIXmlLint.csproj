@@ -5,11 +5,17 @@
     violations. Runs OUTSIDE Unity (pure .NET) so authors / LLMs without an
     open Unity instance can validate XML before runtime.
 
-    Compile set: only the truly self-contained Core subset of the Runtime
-    asmdef (Parser / IR / Lint). Template/Variants were excluded — those
-    still type-reference PromptUGUI.Application (DocumentLoader, VariantStore)
-    even though the *algorithm* is pure. The lint CLI only walks raw IR; it
-    doesn't run TemplateExpander or VariantResolver, so we don't need them.
+    Compile set: the self-contained Core subset of the Runtime asmdef —
+    Parser / IR / Lint / Template. Template joined the set once TemplateKey /
+    StyleKey / LoadedDoc moved to Core/IR and the Import merge algorithm moved
+    to Core/Template/DocumentAssembler, which is what lets the CLI follow
+    <Import> and walk the EXPANDED tree (the same one ScreenInstantiator sees)
+    instead of guessing at an unseen commons library.
+
+    Core/Variants stays out: VariantResolver type-references
+    PromptUGUI.Application.VariantStore, and expansion doesn't need it —
+    variant overrides survive expansion untouched and are resolved at runtime.
+
     The result is verified pure C# — no Unity types, no Awaitable, no Debug.*.
 
     Rule code is shared with ScreenInstantiator via PromptUGUI.Lint
@@ -29,6 +35,7 @@
     <Compile Include="..\..\Runtime\Core\Parser\**\*.cs" />
     <Compile Include="..\..\Runtime\Core\IR\**\*.cs" />
     <Compile Include="..\..\Runtime\Core\Lint\**\*.cs" />
+    <Compile Include="..\..\Runtime\Core\Template\**\*.cs" />
     <Compile Include="*.cs" />
   </ItemGroup>
 

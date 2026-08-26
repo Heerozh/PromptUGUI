@@ -3,11 +3,48 @@
 Standalone `.NET` CLI that lints PromptUGUI `.ui.xml` files **without Unity**.
 
 It compiles the Unity-agnostic Core subset of the PromptUGUI runtime (`Parser` /
-`IR` / `Lint`) and runs the same rule implementations that
+`IR` / `Lint` / `Template`) and runs the same rule implementations that
 `ScreenInstantiator` invokes at Unity runtime — single source of truth, no
 duplicated rule logic. The CLI surfaces every rule violation as an **error**
 (non-zero exit code); the Unity runtime path surfaces them as
 `Debug.LogWarning` so `UI.Open()` is not interrupted.
+
+## Two passes: raw + expanded
+
+`PromptUGUI.Lint.DocumentLinter` walks each document **twice**, deduplicating
+identical findings. Neither view is a superset of the other:
+
+| Pass | Sees | Misses |
+|---|---|---|
+| **raw** (as written) | subtrees behind `if="false"`, templates nobody invokes | anything decided at expansion time |
+| **expanded** (as `ScreenInstantiator` builds it) | a template invocation's real parent/child context, attributes arriving through `class=`, the resolved configuration rules like `GlassRules` need before they will speak at all | code the expander drops |
+
+The expanded pass is why `<VStack class="boxed"/>` now reports
+`PUI-CONTAINER-VISUAL-ATTR` when `boxed` supplies a `sprite` — the raw walk
+reads `n.Attributes`, and before expansion the sprite lives in a `<Style>` the
+node merely references.
+
+Expansion failures (unknown template / style name, Import cycle) surface as
+`PUI-EXPAND` instead of waiting until `UI.Open()` throws at runtime.
+
+## `<Import>` resolution
+
+To lint the expanded tree the CLI has to read the imported files. The runtime
+maps `src` through a caller-supplied `SourceResolver`, so there is no on-disk
+ground truth; the CLI approximates the shipped Resources resolver
+(`UseResourcesResolver(root)` → `root/src`) by trying the importing file's own
+directory first, then each ancestor up to and including a `Resources/` folder,
+with and without a trailing `.xml`.
+
+**An unresolvable `<Import>` is not an error.** A project may serve its commons
+from Addressables or a custom resolver with no filesystem shape at all. Such a
+document simply skips the expanded pass (a note on stdout says so) and keeps
+exactly the pre-existing raw-IR behaviour — failing a today-clean file over an
+environment gap would cost more than the missed coverage.
+
+The two-pass logic lives in `Runtime/Core/Lint/DocumentLinter.cs`, not in
+`Program.cs`, so it is covered by `PromptUGUI.Tests.EditMode`
+(`DocumentLinterTests`). The CLI owns only I/O and the src → path guess.
 
 Some rules are **CLI-only** — they catch author confusion that runtime
 silently absorbs (e.g. `sprite=` on `<Frame>` is dropped without a visible

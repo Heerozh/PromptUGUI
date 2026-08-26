@@ -698,7 +698,7 @@ inline 属性  >  右边的 class  >  左边的 class
 - `class="{{param}}"` inside a `<Template>` body is fine — the class name is substituted first, so a template can take its skin as a parameter.
 - `<Screen>` takes no `class` (it is not a control). `class=""` (no names) and an unknown style name are both errors.
 
-**Sharing** works exactly like `<Template>`: styles travel through `<Import>`, land in the commons pool, hot-reload with their file, and a name colliding between commons and the entry document is a hard error. A namespaced commons library is referenced with a colon — `class="ui:card"` — mirroring the `Set:Name` form used for sprites and icons (tags use a dot, `ui.TitledPanel`; class references use a colon).
+**Sharing** works exactly like `<Template>`: styles travel through `<Import>`, land in the commons pool, hot-reload with their file, and a name colliding between commons and the entry document is a hard error. An unknown style name is caught by the lint CLI as `PUI-EXPAND` whenever it can read the imported files from disk; otherwise it surfaces at `UI.Open()`. A namespaced commons library is referenced with a colon — `class="ui:card"` — mirroring the `Set:Name` form used for sprites and icons (tags use a dot, `ui.TitledPanel`; class references use a colon).
 
 Swapping which commons library is loaded therefore re-skins everything at once.
 
@@ -1273,7 +1273,10 @@ GAMEPAD NAV   UI.UseGamepadNavigation()        enable once at startup (new Input
 STYLE LINT    PUI-CLASS-EMPTY                  class="" / whitespace-only — names no style
               PUI-PROCEDURAL-VALUE             bad radius / borderWidth / glow value (also checked inside <Style>)
               PUI-CONTAINER-VISUAL-ATTR        sprite= on any container; color/radius/border/glow on *Stack/Grid/SafeArea
-              (unknown class name is a RUNTIME error — the CLI can't see the commons pool)
+                                               — also fires when the attribute arrives through class=
+              PUI-EXPAND                       unknown template / style name, or an <Import> cycle
+              (PUI-EXPAND needs the imported files on disk; with an Addressables / custom resolver
+               the CLI skips that check and the name stays a runtime error)
 ```
 
 ## Triggers and Animations
