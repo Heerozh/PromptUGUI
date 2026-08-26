@@ -334,6 +334,12 @@ namespace PromptUGUI.Application
                     t.gameObject.AddComponent<Controls.Internal.PixelSnap>();
         }
 
+        // dynamicBaseline stays TRUE even though ReSolveDynamicSubtrees can now re-run ApplyCommon
+        // on these nodes. The two are not alternatives: the resize path deliberately SKIPS the
+        // attribute replay (it is ~500 ms on a 500-row list), so ApplyCommon has not necessarily run
+        // and the captured baseline is still what keeps the box-preserving compensation from
+        // accumulating across resizes. Where ApplyCommon did run it produced the same geometry, so
+        // restoring the capture on top of it is a no-op.
         private void ApplyScalesTo(Dictionary<ElementNode, Control> nodes)
         {
             foreach (var kv in nodes)
@@ -420,20 +426,21 @@ namespace PromptUGUI.Application
 
         // ScreenInstantiator.InstantiateNode（BindItems / Markdown 动态实例化）完成后调用。
         // 无 scale 声明的子树不登记（绝大多数列表卡片），零额外开销。
+        /// <summary>
+        /// 登记一棵 BindItems 建出来的子树。**每一棵都登记**，不再只登记声明了 <c>scale</c> 的那些 ——
+        /// 这个列表原本只为 <see cref="ApplyScales"/> 服务，于是没有 <c>scale</c> 的行根本不在里面，
+        /// 而 <see cref="ReSolveDynamicSubtrees"/> 要靠它把属性重放到每一行上。少登记的后果是：
+        /// 绑出来的列表不跟 Variant、不随主题重绘、resize 不重解算，连颜色 token 都到不了。
+        /// </summary>
         internal void RegisterDynamicSubtree(Control root, Dictionary<ElementNode, Control> nodes)
         {
             AttachPixelSnaps(root.GameObject);
             PruneDeadDynamicSubtrees();
-            var hasScale = false;
             foreach (var node in nodes.Keys)
             {
-                if (!hasScale && (node.Attributes.ContainsKey("scale")
-                                  || node.VariantOverrides.ContainsKey("scale")))
-                    hasScale = true;
                 // 动态子树可能是 Screen 里唯一的 factor scale 来源；resize 门控必须看到它。
-                if (DeclaresFactorScale(node)) _hasFactorScale = true;
+                if (DeclaresFactorScale(node)) { _hasFactorScale = true; break; }
             }
-            if (!hasScale) return;
             _dynamicSubtrees.Add(new DynamicSubtree { Root = root, Nodes = nodes });
             ApplyScalesTo(nodes);
         }
@@ -586,8 +593,9 @@ namespace PromptUGUI.Application
                 if (_hasFactorScale)
                     // 'Nx' localScale depends on the factor: re-baseline + recompute via the
                     // tested ReSolve path (ApplyCommon → ApplyCanvasScaler → ApplyScales) so the
-                    // box-preserving inflation does not accumulate.
-                    ReSolve();
+                    // box-preserving inflation does not accumulate. Rows are skipped: nothing they
+                    // resolve against changed, and resizes arrive in bursts.
+                    ReSolve(replayDynamicSubtrees: false);
                 else
                     ApplyCanvasScaler(scaler);
             }
@@ -804,7 +812,18 @@ namespace PromptUGUI.Application
 
         public void Dispose() => Close();
 
-        public void ReSolve()
+        /// <summary>
+        /// <paramref name="replayDynamicSubtrees"/> controls whether rows built by <c>BindItems</c>
+        /// get their attributes replayed. They need it when the STATE they resolve against changed —
+        /// a Variant flip, a theme switch — and not on a plain resize, where nothing about a row's
+        /// declared values can have moved (its canvas-dependent <c>scale</c> is handled separately by
+        /// <see cref="ApplyScales"/>, which still runs).
+        ///
+        /// <para>The distinction is worth making because the cost is not small: a 500-row list is
+        /// ~550 ms per replay, and window resizes arrive in bursts. An orientation change reaches
+        /// rows anyway — it flips a Variant, which is the state path.</para>
+        /// </summary>
+        public void ReSolve(bool replayDynamicSubtrees = true)
         {
             // root 被外部销毁(场景重载)而 Screen 未走 Close 时,任何静态事件回调(Theme/Variants
             // .Changed)都不应再触达 ReSolve 解引用已销毁的 RootGameObject。哨兵(relay.OnDestroy)
@@ -844,11 +863,42 @@ namespace PromptUGUI.Application
                 var entry = _registry.Resolve(node.Tag);
                 ControlAttributeApplier.Apply(node, control, entry, Variants, initial: false);
             }
+            if (replayDynamicSubtrees) ReSolveDynamicSubtrees();
             RecomputeFactorScale();
             ApplyCanvasScaler(RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>());
             ApplyScales();
             AttachPixelSnaps(RootGameObject);
             Navigation.ExplicitNavigationResolver.Resolve(this, _nodeMap, Variants, inactiveNodes, NavConfineRoot);
+        }
+
+        /// <summary>
+        /// Replays attributes for rows built by <c>BindItems</c>, the same way the loop above does
+        /// for the static tree. Without it a bound list was frozen at whatever it was instantiated
+        /// with: no Variant, no theme repaint, no re-solve on resize.
+        ///
+        /// <para>Runs BEFORE <see cref="ApplyScales"/>, so the scale compensation reads geometry
+        /// <c>ApplyCommon</c> has just resolved. It does NOT replace the dynamic scale path's own
+        /// captured baseline: the resize path skips this replay entirely, so that capture is still
+        /// what keeps the compensation from accumulating (see <c>ApplyScalesTo</c>).</para>
+        ///
+        /// <para>The subtrees of one list share their ElementNodes — every row is instantiated from
+        /// the same template body — so the same node is applied once per row, each to that row's own
+        /// Control. The runtime-takeover locks are per-Control, which is what keeps a replay from
+        /// snapping bound content back to the declared value.</para>
+        /// </summary>
+        private void ReSolveDynamicSubtrees()
+        {
+            PruneDeadDynamicSubtrees();
+            foreach (var subtree in _dynamicSubtrees)
+            {
+                foreach (var kv in subtree.Nodes)
+                {
+                    var control = kv.Value;
+                    if (control.GameObject == null) continue;
+                    var entry = _registry.Resolve(kv.Key.Tag);
+                    ControlAttributeApplier.Apply(kv.Key, control, entry, Variants, initial: false);
+                }
+            }
         }
 
         /// <summary>

@@ -534,7 +534,6 @@ M0 / M1 / M2 全部落地，§8 的可逆性缺陷全部修完，测试套件无
 
 仍然开着的：
 
-- **动态子树不参与 ReSolve 的属性重放**（见下，修 `itemTemplate` 时查实的）。
 - **带命名空间的样式不能被主题覆盖**（M2.2 的 §4.3 收紧）。
 
 ### 追加：`itemTemplate` 走完整展开
@@ -571,3 +570,27 @@ multi.ui.xml:4: [PUI-MASK-FRAME-SELF] <Frame id='b'>: mask="self" … (via multi
 **顺带**：有了精确的 `origin:line` 身份，CLI 改成**跨入口文件去重**。之前 lint 一个目录时，库和 import 它的文档各作为入口跑一次，同一个缺陷会打两遍（实测 7 → 6）。
 
 验证：EditMode 2329/2329、EditorOnly 308/308，0 failed 0 skipped；`dotnet format` 无输出；UIXmlLint 仓库 13 个文件零 issue。
+
+### 追加：动态子树参与 ReSolve 的属性重放
+
+修 `itemTemplate` 时查实的那条：`BindItems` 建出来的行在实例化后就冻住，不跟 Variant、不随主题重绘、resize 不重解算。
+
+**根因不是 ReSolve 漏了它们，是它们压根没进那张表。** `RegisterDynamicSubtree` 有一句 `if (!hasScale) return;` —— `_dynamicSubtrees` 当初只为 `ApplyScales` 服务，所以**只登记声明了 `scale` 的子树**。典型的列表行一个都不在里面。把列表语义从「需要重算 scale 的子树」拓宽成「所有活着的动态子树」，再加 `ReSolveDynamicSubtrees()`。
+
+**代价是实打实的，测了：**
+
+| 行数 | resize 路径 | 状态路径（Variant / 主题） |
+|---|---|---|
+| 50 | 0.02 ms | 6.1 ms |
+| 200 | 0.08 ms | 86.3 ms |
+| 500 | 0.16 ms | 506.2 ms |
+
+超线性，还是 LayoutGroup 那个 O(N²)（行都在 ScrollList content 的 VerticalLayoutGroup 里）。500 行单次重放半秒，不能无条件跑。
+
+**所以 `ReSolve(bool replayDynamicSubtrees = true)` 按原因分流**：窗口 resize 传 `false` —— 行所依赖的状态并没有变（它对画布尺寸的依赖只有 `scale="Nx"` / `<r>r`，那由 `ApplyScales` 单独处理且照常跑），而 resize 是成串到来的。转屏仍然能到达行，因为那是切 Variant，走状态路径。resize 因此从「将要 554 ms」变成 **0.16 ms**。
+
+**一个反直觉的交互，测试抓的**：`ApplyScalesTo` 的 `dynamicBaseline` 我一开始改成了 `false`（理由是 `ApplyCommon` 现在会重跑）。`BindItems_card_box_preserving_does_not_accumulate_across_resizes` 立刻红了（-0.5 → -2.5，补偿累积 5 次）—— 因为 **resize 路径恰恰跳过了重放**，`ApplyCommon` 并没有跑，那份捕获基线仍然是让 resize 幂等的唯一依靠。退回 `true`：真跑过 `ApplyCommon` 的地方，基线是同一个几何，还原上去是 no-op。
+
+**遗留**：500 行的列表切一次 Variant 仍要半秒。`ScrollList` 不做虚拟化（一条数据一个 slot），这种规模本身就有别的问题；真正的解法是 LayoutGroup 的 O(N²)，独立一条。
+
+验证：EditMode 2334/2334、PlayMode 171/171、EditorOnly 308/308，0 failed 0 skipped；`dotnet format` 无输出；UIXmlLint 13 个文件零 issue。

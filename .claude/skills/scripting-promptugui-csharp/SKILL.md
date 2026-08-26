@@ -501,6 +501,8 @@ For Addressables-backed `.po` loading (`UI.Locale.UseAddressableResolver`, `Loca
 
 ## Theme switching
 
+`BindItems` 建出来的行**跟随 Variant / 主题重解算**（此前它们在实例化后就冻住，连颜色 token 都不跟）。一次重放的代价随行数超线性增长（50 行约 6 ms，500 行约 500 ms），所以**窗口 resize 刻意跳过它** —— 行所依赖的状态并没有变，而 resize 是成串到来的；转屏仍然能到达行，因为那是切 Variant，走状态路径。行数很多时列表本身就该考虑虚拟化。
+
 `UI.Theme.Set` re-derives **colour tokens and `<Style>` packs** — a theme that declares `<Style>`
 children re-skins sprites, radii, font sizes and everything else `class=` can carry, in place: the
 attributes are replayed through the same path a resize takes, so **no GameObject is rebuilt** and
