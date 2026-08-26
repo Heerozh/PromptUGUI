@@ -8,9 +8,14 @@ using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class Toggle : Control
+    public sealed class Toggle : ProceduralControl
     {
         private UnityImage _bg;
+
+        // The checkbox background is a child; the surface goes inside it so it covers exactly
+        // the box and not the label.
+        private protected override GameObject SurfaceHost => _bg.gameObject;
+        private protected override UnityEngine.UI.Selectable SurfaceSelectable => _toggle;
         private StateTintReactor _bgReactor;
         private UnityImage _checkmark;
         private PuiToggle _toggle;
@@ -138,7 +143,9 @@ namespace PromptUGUI.Controls
                 // reactor its base. Reading the graphic back instead would pick up whatever tint the
                 // reactor last painted. See StateTintReactor's remarks.
                 _color = value;
-                Internal.ColorApplier.Apply(_bg, UI.Theme.ResolveSpec(value));
+                var spec = UI.Theme.ResolveSpec(value);
+                Internal.ColorApplier.Apply(_bg, spec);
+                Surface.SetFill(spec.Top, spec.Bottom);
             }
         }
 

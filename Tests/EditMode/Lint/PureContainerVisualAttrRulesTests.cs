@@ -151,26 +151,28 @@ namespace PromptUGUI.Tests.EditMode.Lint
             }
         }
 
-        // ===== 第三档：挂了 Image 的控件（spec §12.1） =====
+        // ===== 第三档：有 Graphic 但还没有程序化表面的标签（spec §12.1） =====
         //
-        // 中间那一档一直没人补：`color` / `sprite` 在这些标签上有效（它们有 Image），但程序化那一组
-        // 需要 ProceduralPanel，而全仓只有 <Frame> 会挂 —— 于是 <Btn radius="8"> 三道关卡全部放行，
-        // 彻底静默。这是农场/玻璃示例实战撞出来的。
+        // 中间那一档一直没人补：`color` / `sprite` 在这些标签上有效，但程序化那一组需要
+        // ProceduralPanel —— 于是 <Btn radius="8"> 曾经三道关卡全部放行，彻底静默。这是农场/玻璃
+        // 示例实战撞出来的。M1/M2 之后 <Btn> 等控件已经真的能画了，这一档只剩下还没接线的标签，
+        // 名单随之收缩；ProceduralAttrNamesTests 负责在有标签挪动时把这里叫醒。
 
-        [TestCase("Toggle", "borderWidth")]
-        [TestCase("Toggle", "glass")]
-        [TestCase("Tab", "radius")]
-        [TestCase("Toggle", "radius")]
-        [TestCase("Slider", "glow")]
-        [TestCase("Dropdown", "borderColor")]
-        [TestCase("InputField", "radius")]
-        [TestCase("ScrollList", "frost")]
-        [TestCase("Progress", "radius")]
-        [TestCase("Image", "radius")]
-        [TestCase("RawImage", "glow")]
+        // Tags with an Image (or at least a Graphic) but no procedural surface — the list shrinks
+        // as controls are wired up, and ProceduralAttrNamesTests is what catches one that moved.
+        // <Image> / <RawImage> stay here on purpose: a sprite IS their point, and a procedural
+        // rectangle is what <Frame> is for.
+        [TestCase("Image", "borderWidth")]
+        [TestCase("RawImage", "glass")]
         [TestCase("Text", "radius")]
-        [TestCase("Toggle", "weld")]
-        public void ImageBackedControl_ProceduralAttr_VisualAttrIssue(string tag, string attr)
+        [TestCase("Carousel", "radius")]
+        [TestCase("Markdown", "glow")]
+        [TestCase("TabBar", "borderColor")]
+        [TestCase("Image", "radius")]
+        [TestCase("Icon", "frost")]
+        [TestCase("RawImage", "radius")]
+        [TestCase("Image", "weld")]
+        public void ControlWithoutASurface_ProceduralAttr_VisualAttrIssue(string tag, string attr)
         {
             var n = new ElementNode(tag) { Id = "x" };
             n.Attributes[attr] = "8";
@@ -186,7 +188,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("Toggle")]
         [TestCase("Image")]
         [TestCase("Progress")]
-        public void ImageBackedControl_Color_NoIssue(string tag)
+        public void ControlWithAnImage_Color_NoIssue(string tag)
         {
             // color 是这一档与纯排版容器的分界线：它们有 Image，所以 color 真的生效。
             var n = new ElementNode(tag);
@@ -197,7 +199,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("Btn")]
         [TestCase("Image")]
         [TestCase("ScrollList")]
-        public void ImageBackedControl_Sprite_NoIssue(string tag)
+        public void ControlWithAnImage_Sprite_NoIssue(string tag)
         {
             var n = new ElementNode(tag);
             n.Attributes["sprite"] = "ui:card";
@@ -231,18 +233,18 @@ namespace PromptUGUI.Tests.EditMode.Lint
         }
 
         [Test]
-        public void ImageBackedControl_ReportsEveryOffendingAttr_NotJustTheFirst()
+        public void ControlWithoutASurface_ReportsEveryOffendingAttr_NotJustTheFirst()
         {
-            var n = new ElementNode("Toggle") { Id = "t" };
+            var n = new ElementNode("Image") { Id = "i" };
             n.Attributes["radius"] = "8";
             n.Attributes["glow"] = "4";
             Assert.AreEqual(2, PureContainerVisualAttrRules.Check(n).Count());
         }
 
         [Test]
-        public void ImageBackedControl_VariantOverride_IsAlsoReported()
+        public void ControlWithoutASurface_VariantOverride_IsAlsoReported()
         {
-            var n = new ElementNode("Toggle") { Id = "t" };
+            var n = new ElementNode("Image") { Id = "i" };
             n.VariantOverrides["radius"] = new List<(string, string)> { ("mobile", "8") };
             Assert.AreEqual(1, PureContainerVisualAttrRules.Check(n).Count());
         }

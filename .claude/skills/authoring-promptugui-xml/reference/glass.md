@@ -19,17 +19,17 @@ That is the whole difference between "thin pane" and "jelly".
 
 ## Attributes
 
-These live on `<Frame>` and `<Btn>`. On any other tag — `<Toggle>`, `<Slider>`, `<Image>` … — a
-glass attribute is silently dropped (`PUI-CONTAINER-VISUAL-ATTR`), because only those two attach the
-panel that draws it. That is true of `class=` as well: a pack carrying `glass="true"` frosts a
-`<Frame>` and a `<Btn>` alike and does nothing to a `<Toggle>` wearing the same class. For a
-glass-looking control that is not wired up yet, put a stretched glass `<Frame>` **inside** it — a
-Frame never blocks clicks.
+These live on `<Frame>` and on every control with a procedural surface — `<Btn>`, `<Tab>`,
+`<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>`, `<Progress>`. On any other tag
+(`<Image>`, `<Text>`, `<Carousel>` …) a glass attribute is silently dropped
+(`PUI-CONTAINER-VISUAL-ATTR`), because nothing there attaches the panel that draws it. Same for
+`class=`: one pack frosts a Frame and a Btn alike and does nothing to an `<Image>` wearing it.
 
-On a `<Btn>` the glass replaces the background Image (which stands down but is never destroyed, so
-the button still takes clicks and a Variant can hand the bitmap back). `sprite=` alongside it is a
-contradiction — `PUI-PROC-SPRITE-CONFLICT`. Disabled glass desaturates *and* thins: a dead control
-should not look like a live refracting pane.
+On a control the glass replaces that control's **primary surface** — the Toggle's checkbox, the
+Slider's track, the Progress bg (see the main SKILL for the full table). The Image it replaces stands
+down but is never destroyed, so the control still takes clicks and a Variant can hand the bitmap
+back. `sprite=` alongside it is a contradiction — `PUI-PROC-SPRITE-CONFLICT`. Disabled glass
+desaturates *and* thins: a dead control should not look like a live refracting pane.
 
 On a Frame they work through `<Style>` / `class=`, Variant suffixes and ReSolve like any other
 attribute. Writing any of them without `glass="true"` is a lint error

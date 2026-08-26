@@ -47,6 +47,13 @@ namespace PromptUGUI.Controls
         /// </summary>
         private protected virtual Selectable SurfaceSelectable => null;
 
+        /// <summary>
+        /// Whether a procedural surface is currently drawing. Deliberately does NOT create one —
+        /// a subclass composing its own layer visibility with the surface must not drag every
+        /// instance into allocating a surface it never asked for.
+        /// </summary>
+        private protected bool SurfaceIsDrawing => _surface != null && _surface.IsActive;
+
         internal override void OnBeforeApply()
         {
             base.OnBeforeApply();

@@ -11,9 +11,12 @@ using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class Dropdown : Control
+    public sealed class Dropdown : ProceduralControl
     {
         private UnityImage _bg;
+
+        private protected override GameObject SurfaceHost => GameObject;
+        private protected override UnityEngine.UI.Selectable SurfaceSelectable => _tmp;
         private UnityImage _templateBg;
         // 内部图层。TMP_Dropdown 每次展开都从 template 子树克隆选项行，所以改 _itemBg /
         // _itemCheckmark / _itemLabel 会作用于之后所有选项；已展开的那批实例不受影响。
@@ -204,7 +207,12 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve]
         public string Color
         {
-            set => Internal.ColorApplier.Apply(_bg, UI.Theme.ResolveSpec(value));
+            set
+            {
+                var spec = UI.Theme.ResolveSpec(value);
+                Internal.ColorApplier.Apply(_bg, spec);
+                Surface.SetFill(spec.Top, spec.Bottom);
+            }
         }
 
         [UIAttr, Preserve]

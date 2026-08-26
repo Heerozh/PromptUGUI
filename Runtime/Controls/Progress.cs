@@ -9,10 +9,14 @@ namespace PromptUGUI.Controls
     /// Linear progress bar (horizontal / vertical, scale or Image.Type.Filled).
     /// Radial fill (cooldown ring) is intentionally out of scope; introduce a
     /// <Cooldown> control instead — see spec PB-D6.
-    public sealed class Progress : Control
+    public sealed class Progress : ProceduralControl
     {
         // Image layers — conditionally null/active per spec §6 activation table.
         private UnityImage _bg;              // null disabled until bg=/bgColor= activates it
+
+        // The primary surface is the Bg layer inside MaskWrapper, so a procedural shape is
+        // clipped by the same mask the fill is. No Selectable: a Progress is display-only.
+        private protected override GameObject SurfaceHost => _bg.gameObject;
         private UnityImage _maskGraphic;     // null until mask= setter runs
         private UnityEngine.UI.Mask _stencilMask;  // pairs with _maskGraphic
         private UnityImage _fill;            // always present (PB-D7)
@@ -111,7 +115,9 @@ namespace PromptUGUI.Controls
         {
             set
             {
-                Internal.ColorApplier.Apply(_bg, UI.Theme.ResolveSpec(value));
+                var spec = UI.Theme.ResolveSpec(value);
+                Internal.ColorApplier.Apply(_bg, spec);
+                Surface.SetFill(spec.Top, spec.Bottom);
                 _bgColor = true;
                 ReconcileLayers();
             }
@@ -161,6 +167,9 @@ namespace PromptUGUI.Controls
 
         internal override void OnAfterApply()
         {
+            // Base first: ReconcileLayers below reads SurfaceIsDrawing, which is only settled once
+            // the surface has reconciled this pass.
+            base.OnAfterApply();
             ProceduralBuilders.AutoSlice(_bg);
             ProceduralBuilders.AutoSlice(_frame);
             ProceduralBuilders.AutoSlice(_maskGraphic);
@@ -182,7 +191,9 @@ namespace PromptUGUI.Controls
         /// </summary>
         private void ReconcileLayers()
         {
-            _bg.gameObject.SetActive(_bgSprite || _bgColor);
+            // …or a procedural surface is drawing: the surface lives INSIDE the Bg layer, so
+            // leaving that layer switched off would hide the shape the author just asked for.
+            _bg.gameObject.SetActive(_bgSprite || _bgColor || SurfaceIsDrawing);
             _frame.gameObject.SetActive(_frameSprite || _frameColor);
             ReconcileMaskVisibility();
         }

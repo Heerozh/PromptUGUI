@@ -8,9 +8,15 @@ using UnitySlider = UnityEngine.UI.Slider;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class Slider : Control
+    public sealed class Slider : ProceduralControl
     {
         private UnityImage _bg;
+
+        // The primary surface is the TRACK (Background), a child. SurfaceSelectable stays null
+        // on purpose (spec §13.1): the Slider's targetGraphic is the Handle, and the handle is
+        // the part that actually reacts to hover/press. Moving it to the track would make the
+        // whole groove flash on hover, which no slider does.
+        private protected override GameObject SurfaceHost => _bg.gameObject;
         private UnityImage _fill;
         private UnityImage _handle;
         private UnitySlider _slider;
@@ -114,7 +120,12 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve]
         public string Color
         {
-            set => Internal.ColorApplier.Apply(_bg, UI.Theme.ResolveSpec(value));
+            set
+            {
+                var spec = UI.Theme.ResolveSpec(value);
+                Internal.ColorApplier.Apply(_bg, spec);
+                Surface.SetFill(spec.Top, spec.Bottom);
+            }
         }
 
         [UIAttr, Preserve]

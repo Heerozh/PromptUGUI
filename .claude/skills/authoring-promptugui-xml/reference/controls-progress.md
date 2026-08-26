@@ -39,6 +39,21 @@ Radial fill（冷却环）不在 `<Progress>` 范围；以后用单独的 `<Cool
 <Progress bg="ui:track" bg.mobile=""/>   <!-- 手机上不要底图，直接关掉该图层 -->
 ```
 
+## 程序化 `radius`：只圆 bg 那一层
+
+`<Progress radius="12">` 走的是主表面 = **bg 层**（见主 SKILL 的「程序化表面」）。而 fill 是压在 bg
+之上的另一张 Image，方角，所以进度条会长成**只有尾端是圆的**那副样子 —— 这不是 bug，是 `radius`
+的作用范围。
+
+要让整条端到端都圆，用 `mask=` 把 bg 与 fill 一起裁：
+
+```xml
+<Progress value="0.6" mask="ui:pill" bgColor="#22345a" fillColor="#ffcc33"/>
+```
+
+`mask=` 挂在 `MaskWrapper` 上，bg 和 fill 同为它的子级，所以两层一起被裁成同一个形状，而 fill 的
+推进边保持方的 —— 那正是进度条该有的观感。
+
 ## mask × bg 四种组合
 
 | 条件                   | MaskWrapper.UnityImage | MaskWrapper.Mask | MaskWrapper.showMaskGraphic | Bg.SetActive | Frame.SetActive |

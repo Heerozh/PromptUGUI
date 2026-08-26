@@ -254,7 +254,7 @@ clip(maskCoverage - 0.5);
 | ~~**M-mask**~~ ✅ | §9 全部：shader 四行、`PUI-MASK-FRAME-SELF` 收窄、`Frame.Mask` 认 `"self"`、两条新规则、SKILL | 无，可先合 |
 | ~~**M0 Red test**~~ ✅ | 钉住 §7 / §8 的契约（25 条，落地时 21 红 4 绿） | 无 |
 | ~~**M1 表面抽象 + 打通一个控件**~~ ✅ | `ProceduralSurface` + `ProceduralControl` 基类，`Btn` 第一个接上；§13.5 的 Disabled 分支一起做 | M0 |
-| **M2 铺开** | Toggle / Slider / Dropdown / InputField / ScrollList / Progress —— 主表面在子节点的那几个 | M1 |
+| ~~**M2 铺开**~~ ✅ | Tab / Toggle / Slider / Dropdown / InputField / ScrollList / Progress | M1 |
 | **M3 内层形状** | §6 的 `fillRadius` / `handleRadius` / `frameRadius` / `maskRadius`，`mode="fill"` 冲突规则 | M2 |
 | **M4 lint + SKILL** | 逐个控件从 §12.1 那一档里摘出去（不再是错误），改成 §7 / §8 的冲突规则；SKILL 改写边界描述。**不会漏**：`OnlyFrame_HasThePanelRequiringAttributes` 在 M1 接上第一个控件时就会失败 | M3 |
 
@@ -277,5 +277,18 @@ clip(maskCoverage - 0.5);
 **`weld` 是那一档留下的唯一例外。** 控件接上程序化表面之后，`weld` 仍然无效（它融的是 Frame 的直接玻璃**子级**，控件没有），所以 tier 2 对已接线的控件只报 `weld` 这一条，不是整体闭嘴。这条是被自己的测试 `("Btn","weld")` 抓出来的。
 
 **一处测试前提作废，如实改掉**：`StyleIntegrationTests.Style_AppliesToAnyControl_IgnoringAttributesItDoesNotHave` 的注释原文是「`radius` means nothing to `<Btn>`」—— 那正是本里程碑要删掉的边界。改成 `Style_SkinsAFrameAndAControlAlike`（同一个 pack 现在真的能同时换掉 Frame 和 Btn 的形状），另补一条用 `weld` 演示原来那个「控件没有的属性照样被忽略」的性质。
+
+### M2 实施记录
+
+七个控件接上，每个只要指出 `SurfaceHost` / `SurfaceSelectable` 再登记进 `ProceduralSurfaceRules.SurfaceTags`。**没有一条既有测试因此挂掉** —— 两轮全量跑下来失败的全是 lint 用例本身用了已接线的标签当例子，属于预期的名单迁移。
+
+**表面挂在「原 Image 所在那一层」的内部**，所以它盖住的正好是 `color=` / `sprite=` 今天上色的那块：Toggle 的形状只覆盖勾选框、不覆盖 label；Slider 只覆盖轨道、不覆盖滑块。这条是渲染出来肉眼确认的，不是推的。
+
+**两个特例**：
+
+- `Slider` 的 `SurfaceSelectable` 故意留空（§13.1）—— targetGraphic 留在滑块上，会响应 hover/press 的本来就是滑块。
+- `Progress` 的 `Bg` 层出厂就是 `SetActive(false)`，只有写了 `bg=`/`bgColor=` 才亮。表面住在那一层里面，所以 `ReconcileLayers` 得把 `SurfaceIsDrawing` 也算进去，否则形状被画在一个不可见的层里。`OnAfterApply` 必须**先** `base`（表面 reconcile）**再** `ReconcileLayers`，顺序反了就读到上一轮的状态。为此给 `ProceduralControl` 加了不分配的 `SurfaceIsDrawing`（`Surface` 属性会懒建对象，用在这里会让每个 Progress 都白建一个）。
+
+**`<Progress radius=>` 只圆 bg 那一层**，而 fill 是压在上面另一张方角 Image，所以进度条长成只有尾端是圆的。渲染确认过。这不是缺陷，是 `radius` 的作用范围 —— 也正是 §6 把 `maskRadius` 定为圆角进度条推荐路径的原因（M3）。已写进 `reference/controls-progress.md`，免得被当 bug 报。
 
 M-mask 实施中发现的一件 spec 没写到的事，记在这里：**shader 那四行还不够。** `ProceduralPanel.ComputeVisible()` 会把「什么都不画」的面板整个剔掉几何，而 stencil 是 fragment 写的 —— 于是「隐形的圆角裁剪器」一个像素都不剩。补了 `SetMaskSource`，遮罩源照常出几何。这条是 render test 抓出来的：光看 C# 状态（Mask 挂上了、graphic 指对了、`MaskEnabled` 为 true）全是绿的，和当年缺 `[RequireComponent(CanvasRenderer)]` 那次同一类。

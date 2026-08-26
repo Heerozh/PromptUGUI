@@ -10,9 +10,12 @@ using UnityToggle = UnityEngine.UI.Toggle;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class Tab : Control
+    public sealed class Tab : ProceduralControl
     {
         private UnityImage _bg;
+
+        private protected override GameObject SurfaceHost => GameObject;
+        private protected override UnityEngine.UI.Selectable SurfaceSelectable => _toggle;
         private UnityEngine.Sprite _selectedSprite;   // resolved selectedSprite, swapped onto _bg.overrideSprite while IsOn
         // bg 在未被 selectedSprite 覆盖时的 Image.Type：默认皮肤=Tiled（青苔/木纹边平铺），
         // 作者 sprite= 后由 border 推导（Sliced/Simple）。镜像 Btn._baseType。
@@ -308,7 +311,9 @@ namespace PromptUGUI.Controls
                 // reactor its base. Reading the graphic back instead would pick up whatever tint the
                 // reactor last painted. See StateTintReactor's remarks.
                 _color = value;
-                Internal.ColorApplier.Apply(_bg, UI.Theme.ResolveSpec(value));
+                var spec = UI.Theme.ResolveSpec(value);
+                Internal.ColorApplier.Apply(_bg, spec);
+                Surface.SetFill(spec.Top, spec.Bottom);
             }
         }
 

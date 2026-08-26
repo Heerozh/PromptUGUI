@@ -144,11 +144,13 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 - Colour / radius / border changes are material-only — a Variant flip or a colour animation never rebuilds the canvas mesh. Frames sharing identical values (typically via `class=`) share one material and keep batching.
 - Layout-only containers (`<VStack>` / `<HStack>` / `<Grid>` / `<SafeArea>`) draw nothing — wrap them in a `<Frame>` for a background.
 
-> **Which tags draw procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `glass` (+ its tuning params) work on **`<Frame>` and `<Btn>`**. On every other control — `<Toggle>`, `<Slider>`, `<Dropdown>`, `<Image>` … — they are accepted by the parser and then silently dropped; `PUI-CONTAINER-VISUAL-ATTR` is the only thing that tells you. `color` and `sprite` do reach those controls; the shape attributes do not (yet — more controls are being wired up).
+> **Which tags draw procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `glass` (+ its tuning params) work on **`<Frame>`, `<Btn>`, `<Tab>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>` and `<Progress>`** — see **Procedural surfaces** below for what they do on a control.
+>
+> On any other tag — `<Image>`, `<RawImage>`, `<Text>`, `<Icon>`, `<TabBar>`, `<Carousel>`, `<Markdown>` — they are accepted by the parser and then silently dropped; `PUI-CONTAINER-VISUAL-ATTR` is the only thing that tells you. (`<Image>` / `<RawImage>` are deliberate: a sprite is their whole point, and a procedural rectangle is what `<Frame>` is for.)
 >
 > `weld` is `<Frame>`-only in all cases: it fuses a Frame's direct glass **children**, and a control has none.
 >
-> This holds for `<Style>` / `class=` too: a pack carrying `radius` skins a `<Frame>` and a `<Btn>` alike, and does nothing to a `<Toggle>` wearing the same class. For a shaped background on a control that is not wired up yet, put a stretched `<Frame>` **inside** it (a Frame never blocks clicks) — see the recipe under **Mask & clipping**.
+> This holds for `<Style>` / `class=` too: one pack now skins a Frame and a Btn alike, and still does nothing to an `<Image>` wearing the same class.
 
 ### `<Image>`
 
@@ -244,18 +246,38 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 | `tr` | bool | `true` | `false`=跳过 i18n |
 | `ctx` | string | — | msgctxt 消歧 |
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
-| `radius` | `R` / `TL,TR,BR,BL` / `pill` | — | **程序化表面**：写了它（或下面任一）Btn 就改用自绘的圆角矩形 SDF 画背景，语义与 `<Frame>` 完全一致。背景 Image 让位但不销毁，点击照常 |
-| `borderWidth` · `borderColor` | px / 颜色 | `0` / `white` | 内描边，向内绘制、不改布局 |
-| `glow` · `glowColor` | px / 颜色 | `0` / 跟随 `color` | 外发光 |
-| `glass` | `true` / `false` | `false` | 磨砂玻璃背景，`color` 变成其上的 tint。→ `reference/glass.md` |
-| `frost` · `depth` · `dispersion` · `lightAngle` · `lightIntensity` · `saturation` · `noise` | 数值 | 见 glass.md | 玻璃调参 |
+| `radius` · `borderWidth` · `borderColor` · `glow` · `glowColor` · `glass` (+ 玻璃调参) | 同 `<Frame>` | — | **程序化表面**，见下节 |
 
-程序化模式下：`color` 成为 SDF 的填充色（不写就沿用 Btn 自带的默认色，所以 `<Btn radius="8">` 是个圆角按钮而不是隐形按钮）；`sprite` 是**矛盾声明**（`PUI-PROC-SPRITE-CONFLICT`，`sprite="none"` / `""` 不算）；`pressedSprite` / `disabledSprite` 同样矛盾（`PUI-PROC-STATE-SPRITE-CONFLICT`）—— 它们换的是 `Image.overrideSprite`，SDF 面上没有那个东西，改用 `pressedColor` / `disabledColor` 或 `<Show on="state-*">`。`hoverColor` 等状态色照常生效。禁用态自动去饱和（玻璃另外变薄），形状保持。
+### 程序化表面（`<Frame>` 之外的控件）
+
+在 `<Btn>` / `<Tab>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<InputField>` / `<ScrollList>` / `<Progress>` 上写 `radius`（或任一其它程序化属性），该控件的**主表面**就改用自绘的圆角矩形 SDF，取值语义与 `<Frame>` 逐字相同。主题因此能换掉控件的**形状**，不只是颜色。
 
 ```xml
 <Btn radius="pill" color="accent" hoverColor="accent-light">确定</Btn>
 <Btn radius="12" glass="true" borderWidth="1" borderColor="white/0.5">玻璃按钮</Btn>
+<Style name="skin" radius="10" borderWidth="1" borderColor="white/0.4"/>   <!-- 一个包换整套 -->
 ```
+
+**主表面是哪一层**，跟 `color=` / `sprite=` 今天作用的层完全一致 —— 所以形状盖住的正好是它们上色的那块：
+
+| 控件 | 主表面 |
+|---|---|
+| `<Btn>` `<Tab>` `<Dropdown>` `<InputField>` `<ScrollList>` | 控件自身的背景 |
+| `<Toggle>` | **勾选框**（不含 label） |
+| `<Slider>` | **轨道**（不含滑块） |
+| `<Progress>` | **bg 层**（在 mask 内） |
+
+规则：
+
+- `color`（Progress 是 `bgColor`）成为 SDF 的填充色；不写就沿用控件自带的默认底色，所以 `<Btn radius="8">` 是个圆角按钮而不是隐形按钮。
+- `sprite` 是**矛盾声明**（`PUI-PROC-SPRITE-CONFLICT`）；`sprite="none"` / `""` 不算 —— 那是「清掉贴图」，跟走程序化一致。
+- `pressedSprite` / `disabledSprite` / `selectedSprite` 同样矛盾（`PUI-PROC-STATE-SPRITE-CONFLICT`）：它们换的是 `Image.overrideSprite`，SDF 面上没有那个东西。改用 `pressedColor` / `disabledColor` / `selectedColor` 或 `<Show on="state-*">`。
+- `hoverColor` 等状态色**照常生效**（`targetGraphic` 跟着表面走）。**例外 `<Slider>`**：它的 `targetGraphic` 留在滑块上，因为会响应 hover/press 的本来就是滑块而不是轨道。
+- 禁用态自动去饱和、玻璃另外变薄，**形状保持**。
+- 背景 Image 只是让位（贴图清空、alpha 归零），**不销毁** —— 所以变体来回切能精确还原，控件也照常收得到点击。
+- `weld` 不进控件：它融的是 `<Frame>` 的直接玻璃**子级**。
+
+**`<Progress radius=>` 只圆 bg 那一层**，而 fill 是压在上面的另一张 Image，所以进度条会只有尾端是圆的。要整条端到端都圆，用 `mask=` 把 bg + fill 一起裁（见 `reference/controls-progress.md`）。
 
 ### `<Toggle>`
 
