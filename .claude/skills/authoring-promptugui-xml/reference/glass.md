@@ -19,8 +19,14 @@ That is the whole difference between "thin pane" and "jelly".
 
 ## Attributes
 
-All live on `<Frame>`, all work through `<Style>` / `class=`, Variant suffixes and ReSolve like any
-other attribute. Writing any of them without `glass="true"` is a lint error
+All live on `<Frame>` — **and only there**. A glass attribute on `<Btn>`, `<Toggle>`, `<Image>` or
+any other tag is silently dropped (`PUI-CONTAINER-VISUAL-ATTR`); only Frame attaches the panel that
+draws them. That is true of `class=` as well: a pack carrying `glass="true"` frosts a `<Frame>` and
+does nothing to a `<Btn>` wearing the same class. For a glass-looking control today, put a stretched
+glass `<Frame>` **inside** it — a Frame never blocks clicks.
+
+On a Frame they work through `<Style>` / `class=`, Variant suffixes and ReSolve like any other
+attribute. Writing any of them without `glass="true"` is a lint error
 (`PUI-GLASS-PARAM-NO-GLASS`) — they never reach the shader in that state.
 
 | 属性 | 取值 | 默认 | 说明 |

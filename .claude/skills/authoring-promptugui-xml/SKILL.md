@@ -144,6 +144,10 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 - Colour / radius / border changes are material-only — a Variant flip or a colour animation never rebuilds the canvas mesh. Frames sharing identical values (typically via `class=`) share one material and keep batching.
 - Layout-only containers (`<VStack>` / `<HStack>` / `<Grid>` / `<SafeArea>`) draw nothing — wrap them in a `<Frame>` for a background.
 
+> **`<Frame>` is the only tag that draws procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `glass` (+ its tuning params) / `weld` exist **nowhere else**. On `<Btn>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<Image>` … they are accepted by the parser and then silently dropped — `PUI-CONTAINER-VISUAL-ATTR` is the only thing that tells you. `color` and `sprite` do reach those controls; the shape attributes do not.
+>
+> This holds for `<Style>` / `class=` too: a pack that carries `radius` skins a `<Frame>` and does nothing at all to a `<Btn>` wearing the same class. To give a control a shaped background today, put a stretched `<Frame>` **inside** it (a Frame never blocks clicks) — see the recipe under **Mask & clipping**.
+
 ### `<Image>`
 
 uGUI Image，从 `Resources` 加载 sprite；可选 `RectMask2D`（`mask="rect"`）或 stencil `Mask`（`mask="self"`，用自身 sprite 当 mask 形状）。

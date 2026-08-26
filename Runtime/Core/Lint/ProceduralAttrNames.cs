@@ -39,5 +39,21 @@ namespace PromptUGUI.Lint
             "glass", "frost", "depth", "dispersion", "lightAngle", "lightIntensity",
             "saturation", "noise", "weld",
         };
+
+        /// <summary>
+        /// <see cref="All"/> minus <c>color</c>: the attributes that do nothing at all without a
+        /// <c>ProceduralPanel</c>, and therefore nothing at all outside <c>&lt;Frame&gt;</c>.
+        ///
+        /// <para><c>color</c> is the one that drops out, because it is a plain tint on any control
+        /// that carries an <c>Image</c>. That single exception is what separates a control like
+        /// <c>&lt;Btn&gt;</c> (has an Image: <c>color</c> and <c>sprite</c> work, the rest is
+        /// dropped) from a layout-only container (has nothing: all of it is dropped).</para>
+        /// </summary>
+        public static readonly string[] NeedsPanel =
+        {
+            "radius", "borderWidth", "borderColor", "glow", "glowColor",
+            "glass", "frost", "depth", "dispersion", "lightAngle", "lightIntensity",
+            "saturation", "noise", "weld",
+        };
     }
 }

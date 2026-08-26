@@ -50,5 +50,44 @@ namespace PromptUGUI.Tests.EditMode.Lint
             Assert.IsTrue(UI.Registry.Resolve("Frame").Meta.HasAttribute("weld"));
             CollectionAssert.DoesNotContain(ProceduralAttrNames.PanelAttaching, "weld");
         }
+
+        /// <summary>
+        /// The premise <c>PUI-CONTAINER-VISUAL-ATTR</c>'s third bucket rests on: only
+        /// <c>&lt;Frame&gt;</c> attaches a <c>ProceduralPanel</c>, so on every other built-in these
+        /// attributes are silently dropped.
+        ///
+        /// <para>This is also the tripwire for the day that stops being true. When a control grows a
+        /// procedural surface (procedural-surface spec M1/M2), this test fails — and the fix is to
+        /// delete that control from the rule, which spec §14 M4 asks for and which is otherwise very
+        /// easy to forget.</para>
+        /// </summary>
+        [Test]
+        public void OnlyFrame_HasThePanelRequiringAttributes()
+        {
+            var offenders = new System.Collections.Generic.List<string>();
+            foreach (var (tag, entry) in UI.Registry.All)
+            {
+                if (tag == "Frame") continue;
+                foreach (var attr in ProceduralAttrNames.NeedsPanel)
+                    if (entry.Meta.HasAttribute(attr))
+                        offenders.Add($"{tag}.{attr}");
+            }
+
+            CollectionAssert.IsEmpty(offenders,
+                "a control other than <Frame> now accepts a panel-requiring attribute, so "
+                + "PureContainerVisualAttrRules reports a working attribute as ignored — drop that "
+                + "control from the rule (procedural-surface spec §14 M4)");
+        }
+
+        [Test]
+        public void NeedsPanel_IsAllMinusColor()
+        {
+            // color 是唯一在 Image 系控件上也有意义的那个，所以它不在 NeedsPanel 里 —— 第三档
+            // 报的正是「除 color 以外」这一组。
+            CollectionAssert.AreEqual(
+                ProceduralAttrNames.All.Where(n => n != "color").ToList(),
+                ProceduralAttrNames.NeedsPanel.ToList());
+            CollectionAssert.DoesNotContain(ProceduralAttrNames.NeedsPanel, "color");
+        }
     }
 }

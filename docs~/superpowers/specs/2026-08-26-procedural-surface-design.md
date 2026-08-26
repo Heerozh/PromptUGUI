@@ -215,10 +215,15 @@ clip(maskCoverage - 0.5);
 
 ## 12. 与 lint / SKILL 的关系
 
-这三条**不依赖本特性**，可以先做；但第一条在本特性落地后要反过来删掉，所以要一起规划：
+这三条**不依赖本特性**，可以先做；但第一条在本特性落地后要反过来删掉，所以要一起规划。
+**1 与 2 已实现**（M-lint），3 仍未做。
 
-1. **`PureContainerVisualAttrRules` 补第三档。** 它已经拿着那份一模一样的程序化属性清单（`color radius borderWidth borderColor glow glowColor glass frost depth dispersion lightAngle lightIntensity saturation noise weld`），也已经在做「这个标签会静默丢弃这些属性」的判断 —— 只是 `AppliesTo` 现在只覆盖 `Frame`（查 `sprite`）和四个纯排版容器（查全部）。缺的是中间那档：**挂了 Image、所以 `color`/`sprite` 有效，但没有 `ProceduralPanel`、所以程序化那一组一律被丢。** 那个类的注释里作者当年明确考虑过 `<Btn>` 并把它排除在 `LayoutOnlyTags` 之外（正确 —— `color` 在 Btn 上有效），但没人补上第三档。
-2. **SKILL 缺一句边界话。** `glass.md` 写的是 "All live on `<Frame>`"，但紧接着 "all work through `<Style>` / `class=` … **like any other attribute**" —— 读起来像是通用的。主 SKILL 从正面说了 Frame 会自绘、从反面说了纯排版容器啥也画不了，唯独中间这档从没人写过。
+1. ~~**`PureContainerVisualAttrRules` 补第三档。**~~ **已做。** 它已经拿着那份一模一样的程序化属性清单（`color radius borderWidth borderColor glow glowColor glass frost depth dispersion lightAngle lightIntensity saturation noise weld`），也已经在做「这个标签会静默丢弃这些属性」的判断 —— 只是 `AppliesTo` 现在只覆盖 `Frame`（查 `sprite`）和四个纯排版容器（查全部）。缺的是中间那档：**挂了 Image、所以 `color`/`sprite` 有效，但没有 `ProceduralPanel`、所以程序化那一组一律被丢。** 那个类的注释里作者当年明确考虑过 `<Btn>` 并把它排除在 `LayoutOnlyTags` 之外（正确 —— `color` 在 Btn 上有效），但没人补上第三档。
+
+   实现时没有手写「哪些标签挂了 Image」的清单，而是把 `AppliesTo` 换成 `BuiltinTags.IsBuiltin` —— 底下的事实只有一条（**只有 Frame 挂 `ProceduralPanel`**），清单会烂而事实不会。报的属性是 `ProceduralAttrNames.NeedsPanel`（= `All` 减去 `color`，因为 `color` 在任何有 Image 的控件上都成立）。
+
+   配套的 `OnlyFrame_HasThePanelRequiringAttributes` 拿活的注册表验证那条事实 —— 于是 **M2 让某个控件长出程序化表面的那天，这个守卫会失败**，把「该去删规则」这件事变成不可能忘。
+2. ~~**SKILL 缺一句边界话。**~~ **已做。** `glass.md` 写的是 "All live on `<Frame>`"，但紧接着 "all work through `<Style>` / `class=` … **like any other attribute**" —— 读起来像是通用的。主 SKILL 从正面说了 Frame 会自绘、从反面说了纯排版容器啥也画不了，唯独中间这档从没人写过。
 3. **更大的洞：内置控件上写错属性名是完全静默的。** 同一轮里我写 `<ScrollList scrollbarSprite="none">` 什么都没发生 —— 它的 XML 名其实是 `scrollbar`（`[UIAttr(IsSprite)]` 会剥掉尾部 `Sprite`，好和 `<Dropdown scrollbar=>` 对齐）。要让 CLI 能查，得把「tag → 属性名」这张表送进 `Core/Lint`。零件都在：`Editor/XsdGenerator.cs` 已经在反射注册表生成 schema，`BuiltinTags` + `BuiltinTagsTests` 是「手工镜像 + 守卫测试」的现成先例。**独立一条，不属于本设计。**
 
 ## 13. 已定的决策
@@ -245,12 +250,14 @@ clip(maskCoverage - 0.5);
 
 | | 内容 | 依赖 |
 |---|---|---|
-| **M-lint** | §12.1 + §12.2：`PureContainerVisualAttrRules` 第三档 + SKILL 边界话 | 无，可先合 |
-| **M-mask** | §9 全部：shader 四行、`PUI-MASK-FRAME-SELF` 收窄、`Frame.Mask` 认 `"self"`、两条新规则、SKILL | 无，可先合 |
+| ~~**M-lint**~~ ✅ | §12.1 + §12.2：`PureContainerVisualAttrRules` 第三档 + SKILL 边界话 | 无，可先合 |
+| ~~**M-mask**~~ ✅ | §9 全部：shader 四行、`PUI-MASK-FRAME-SELF` 收窄、`Frame.Mask` 认 `"self"`、两条新规则、SKILL | 无，可先合 |
 | **M0 Red test** | 钉住 §7 / §8 的契约：程序化属性在 Image 系控件上生效、变体来回切幂等、`sprite` 冲突报错、`pressedSprite` 冲突报错、Disabled 往返不掉形状 | 无 |
 | **M1 表面抽象 + 打通一个控件** | 把 `Frame` 的懒挂逻辑提成共享件，`Btn` 第一个接上（主表面在自身节点，最简单的形状）；**§13.5 的 Disabled 分支一起做** | M0 |
 | **M2 铺开** | Toggle / Slider / Dropdown / InputField / ScrollList / Progress —— 主表面在子节点的那几个 | M1 |
 | **M3 内层形状** | §6 的 `fillRadius` / `handleRadius` / `frameRadius` / `maskRadius`，`mode="fill"` 冲突规则 | M2 |
-| **M4 lint + SKILL** | 删掉 §12.1 那一档（不再是错误），改成 §7 / §8 的冲突规则；SKILL 改写边界描述 | M3 |
+| **M4 lint + SKILL** | 逐个控件从 §12.1 那一档里摘出去（不再是错误），改成 §7 / §8 的冲突规则；SKILL 改写边界描述。**不会漏**：`OnlyFrame_HasThePanelRequiringAttributes` 在 M1 接上第一个控件时就会失败 | M3 |
 
-**M-lint 与 M-mask 都不依赖本特性，可以先于 M0 单独合入。** 在本特性落地前，`<Btn radius="8">` 确实是错的，早一天报错早一天省事；而 §9 那条圆角裁剪今天就该能用。
+**M-lint 与 M-mask 都不依赖本特性，已先于 M0 合入。** 在本特性落地前，`<Btn radius="8">` 确实是错的，早一天报错早一天省事；而 §9 那条圆角裁剪今天就该能用。
+
+M-mask 实施中发现的一件 spec 没写到的事，记在这里：**shader 那四行还不够。** `ProceduralPanel.ComputeVisible()` 会把「什么都不画」的面板整个剔掉几何，而 stencil 是 fragment 写的 —— 于是「隐形的圆角裁剪器」一个像素都不剩。补了 `SetMaskSource`，遮罩源照常出几何。这条是 render test 抓出来的：光看 C# 状态（Mask 挂上了、graphic 指对了、`MaskEnabled` 为 true）全是绿的，和当年缺 `[RequireComponent(CanvasRenderer)]` 那次同一类。

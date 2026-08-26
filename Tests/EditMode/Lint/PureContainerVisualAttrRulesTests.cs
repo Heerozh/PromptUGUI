@@ -150,5 +150,85 @@ namespace PromptUGUI.Tests.EditMode.Lint
                         yield return name;
             }
         }
+
+        // ===== 第三档：挂了 Image 的控件（spec §12.1） =====
+        //
+        // 中间那一档一直没人补：`color` / `sprite` 在这些标签上有效（它们有 Image），但程序化那一组
+        // 需要 ProceduralPanel，而全仓只有 <Frame> 会挂 —— 于是 <Btn radius="8"> 三道关卡全部放行，
+        // 彻底静默。这是农场/玻璃示例实战撞出来的。
+
+        [TestCase("Btn", "radius")]
+        [TestCase("Btn", "borderWidth")]
+        [TestCase("Btn", "glass")]
+        [TestCase("Toggle", "radius")]
+        [TestCase("Slider", "glow")]
+        [TestCase("Dropdown", "borderColor")]
+        [TestCase("InputField", "radius")]
+        [TestCase("ScrollList", "frost")]
+        [TestCase("Progress", "radius")]
+        [TestCase("Image", "radius")]
+        [TestCase("RawImage", "glow")]
+        [TestCase("Text", "radius")]
+        [TestCase("Btn", "weld")]
+        public void ImageBackedControl_ProceduralAttr_VisualAttrIssue(string tag, string attr)
+        {
+            var n = new ElementNode(tag) { Id = "x" };
+            n.Attributes[attr] = "8";
+            var issues = PureContainerVisualAttrRules.Check(n).ToList();
+
+            Assert.AreEqual(1, issues.Count, $"<{tag} {attr}=> should be reported exactly once");
+            Assert.AreEqual(PureContainerVisualAttrRules.VisualAttrCode, issues[0].Code);
+            StringAssert.Contains(attr, issues[0].Message);
+            StringAssert.Contains("Frame", issues[0].Message);
+        }
+
+        [TestCase("Btn")]
+        [TestCase("Toggle")]
+        [TestCase("Image")]
+        [TestCase("Progress")]
+        public void ImageBackedControl_Color_NoIssue(string tag)
+        {
+            // color 是这一档与纯排版容器的分界线：它们有 Image，所以 color 真的生效。
+            var n = new ElementNode(tag);
+            n.Attributes["color"] = "#fff";
+            Assert.IsEmpty(PureContainerVisualAttrRules.Check(n));
+        }
+
+        [TestCase("Btn")]
+        [TestCase("Image")]
+        [TestCase("ScrollList")]
+        public void ImageBackedControl_Sprite_NoIssue(string tag)
+        {
+            var n = new ElementNode(tag);
+            n.Attributes["sprite"] = "ui:card";
+            Assert.IsEmpty(PureContainerVisualAttrRules.Check(n));
+        }
+
+        [Test]
+        public void UnknownTag_SaysNothing()
+        {
+            // 模板调用：CLI 在展开前看不见它的 body，断言什么都是猜。
+            var n = new ElementNode("MyCard") { Id = "c" };
+            n.Attributes["radius"] = "8";
+            Assert.IsFalse(PureContainerVisualAttrRules.AppliesTo("MyCard"));
+            Assert.IsEmpty(PureContainerVisualAttrRules.Check(n));
+        }
+
+        [Test]
+        public void ImageBackedControl_ReportsEveryOffendingAttr_NotJustTheFirst()
+        {
+            var n = new ElementNode("Btn") { Id = "b" };
+            n.Attributes["radius"] = "8";
+            n.Attributes["glow"] = "4";
+            Assert.AreEqual(2, PureContainerVisualAttrRules.Check(n).Count());
+        }
+
+        [Test]
+        public void ImageBackedControl_VariantOverride_IsAlsoReported()
+        {
+            var n = new ElementNode("Btn") { Id = "b" };
+            n.VariantOverrides["radius"] = new List<(string, string)> { ("mobile", "8") };
+            Assert.AreEqual(1, PureContainerVisualAttrRules.Check(n).Count());
+        }
     }
 }
