@@ -460,3 +460,27 @@ tmpl.ui.xml: [PUI-MASK-FRAME-SELF] <Frame id='card'>: mask="self" requires ...
 验证：EditMode 2295 → 2291 passed / 0 failed / 4 skipped；`dotnet format` 无输出；UIXmlLint 13 个文件零 issue。
 
 **剩余**：M2.3（保留 `class` + inline 快照、`ThemeStyleApplier` 重合并、接 Open 与 `Theme.Changed`）、M2.4（三条 lint 规则 + `--theme` + SKILL）。
+
+### M2.3（分支 `test/attr-reversibility-red`）
+
+运行时重合并落地。**实现方式与 §5.1 设计的不同**：设计里是给节点存一份「作者内联属性快照」，重合并时用「快照 ∪ 新 pack」重建。实现时发现那样会**丢掉模板调用点合并到实例根上的公共属性** —— `ExpandInvocation` 在 `StyleMerger` 之后才把 invocation 的 CommonAttrs 写进 `instanceRoot.Attributes`，它们既不在快照里也不在 pack 里。
+
+改为记 `ElementNode.StyleAttrNames`：**上一次 pack 贡献了哪些属性名**。重合并 = 删掉这些名字 → 快照当前剩下的（内联 + invocation 公共属性）→ 铺新 pack。不需要额外的快照字典，一个名字集合就够，而且天然幂等。
+
+其余落地要点：
+
+- **展开产物保留 `class=`**（原来是合并后删掉）。契约变了，`StyleMergeTests` 里三条断言「展开后不含 class」的测试相应改写 —— 真正让这个特性零成本的从来不是删掉 `class`，而是**值已经折成普通属性**，控件与 `ScreenInstantiator` 依旧不知道样式存在。
+- `ExpandInvocation` 要跳过保留下来的 `class`，否则报「unknown attribute 'class'」。
+- **`StyleAttributeView.IsUncertain` 对已合并节点直接返回 false**。否则展开遍看到 `class=` 又会噤声，把 M1 刚拿到的覆盖还回去。实测确认 fixture 里的报错仍然照常触发。
+- 重合并挂在 `Screen.Open` 与 `Screen.ReSolve` 的**开头**，而不是单独的 theme-changed 钩子：它幂等，而 ReSolve 本来就是切主题触发的（`_themeHandler`），一个调用点同时覆盖 resize / Variant / Theme / 首次构建。
+- 两道早退让不用主题样式的工程**一分钱不花**：文档没有 `<Style>`；以及 —— 真正重要的那条 —— `ThemeStore.AnyThemeStyles` 为 false，也就是此特性之前的每一个工程。
+
+实现期抓到的 bug（测试抓的）：`ReMerge` 里判断「节点自己声明过」时查的是**正在被改写**的节点，于是 pack 刚写进去的 base `color` 会让同名的 `color.mobile` 被跳过。`Apply` 查的是合并前的 `src` 所以没这问题。改为先快照 `selfDeclared` 再铺 pack。
+
+**与 §7 的偏离**：设计说调用点 class 的「公共属性那半」可以跟随主题。实现下来**两半都不跟随** —— invocation 节点本身在展开后就不存在了，它的 `class` 无处安放；把它挪到实例根又会和模板体根自己的 `class` 撞车。M2.4 的 `PUI-THEME-STYLE-TEMPLATE-PARAM` 因此要覆盖整个「调用点用 theme-scoped style」的情况，而不只是 Param 那半。
+
+**顺带发现的既有缺口**（与主题无关，未修）：`itemTemplate` 走的是 `InstantiateNode(tpl.Body, ...)`，即**未展开**的模板体 —— 所以 `<Template>` 体内的 `class=` 在被当作 itemTemplate 使用时**从来就没生效过**。重合并没有捎带修它：那些 body 是 `loaded.Templates`（可能就是 commons 池）里共享的原始 IR，就地改写会跨文档泄漏。
+
+产出：`ElementNode.StyleAttrNames`、`StyleMerger.ReMerge` / `ComputePack` / `CloneForMerge`、`Core/Template/ThemeStyleApplier`、`ScreenDef.Styles`、`ThemeStore.AnyThemeStyles` / `ResolveStyles`、`Screen.ReMergeThemeStyles`，加 `Tests/EditMode/Application/ThemeStyleSwitchTests.cs`（8 条）。
+
+验证：EditMode 2303 → 2299 passed / 0 failed / 4 skipped；EditorOnly 308/308；`dotnet format` 无输出；UIXmlLint 仓库 13 个文件仍零 issue，fixture 的跨 import / class 供给报错全部照常。

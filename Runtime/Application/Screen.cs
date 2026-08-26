@@ -101,6 +101,7 @@ namespace PromptUGUI.Application
 
         public void Open()
         {
+            ReMergeThemeStyles();
             var root = new GameObject(Def.Name,
                 typeof(RectTransform),
                 typeof(Canvas),
@@ -779,6 +780,26 @@ namespace PromptUGUI.Application
                    && sel.navigation.mode != UnityEngine.UI.Navigation.Mode.None;
         }
 
+        /// <summary>
+        /// Re-derives every <c>class=</c> node from the active theme's style table. Sits at the head
+        /// of both <see cref="Open"/> and <see cref="ReSolve"/> rather than on a theme-changed hook:
+        /// it is idempotent, and ReSolve is already what a theme switch triggers
+        /// (<c>_themeHandler</c>), so one call site covers resize, Variant, Theme and first build.
+        ///
+        /// <para>Two early-outs keep this free for everyone who does not use theme styles: a Screen
+        /// whose document declares no <c>&lt;Style&gt;</c> at all, and — the case that matters — a
+        /// project where no registered theme carries one, which is every project written before this
+        /// feature existed.</para>
+        /// </summary>
+        private void ReMergeThemeStyles()
+        {
+            if (Def.Styles.Count == 0) return;
+            if (!ThemeStore.Instance.AnyThemeStyles) return;
+
+            var effective = ThemeStore.Instance.ResolveStyles(Def.Styles, UI.Theme.Current);
+            Template.ThemeStyleApplier.Apply(Def, effective);
+        }
+
         public void Track(IDisposable d) => _subscriptions.Add(d);
 
         public void Dispose() => Close();
@@ -789,6 +810,7 @@ namespace PromptUGUI.Application
             // .Changed)都不应再触达 ReSolve 解引用已销毁的 RootGameObject。哨兵(relay.OnDestroy)
             // 正常会先反订阅,这里是兜底:EditMode 不跑 OnDestroy、或哨兵时序未及的路径也安全。
             if (RootGameObject == null) return;
+            ReMergeThemeStyles();
             // Collect nodes belonging to currently-inactive Add blocks so we can skip
             // re-applying attributes to them below. Their SetActive(false) state must not be
             // clobbered by ApplyCommon — a node declaring hidden="false" would be un-hidden

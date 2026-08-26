@@ -62,6 +62,9 @@ namespace PromptUGUI.Template
                 // 把全局 Template 表附到本 Screen，供 ScrollList 等运行时控件按 tag 反查。
                 foreach (var kv in loaded.Templates)
                     newScreen.Templates[kv.Key.ToString()] = kv.Value;
+                // 同理附上样式表：切主题时要把主题 pack 折在它之上重算 class=。
+                foreach (var kv in styles)
+                    newScreen.Styles[kv.Key] = kv.Value;
                 foreach (var block in s.Variants)
                 {
                     var newBlock = new VariantBlock(block.When);
@@ -150,6 +153,7 @@ namespace PromptUGUI.Template
             var dst = new ElementNode(merged.Tag, merged.Namespace)
             {
                 OriginSrc = merged.OriginSrc,
+                StyleAttrNames = merged.StyleAttrNames,
                 Id = merged.Id,
                 TextContent = merged.TextContent,
                 TextContentRaw = merged.TextContentRaw ?? merged.TextContent,
@@ -200,6 +204,9 @@ namespace PromptUGUI.Template
                 {
                     if (CommonAttrs.Contains(kv.Key)) continue;
                     if (args.ContainsKey(kv.Key)) continue;
+                    // StyleMerger has already consumed class= into args / CommonAttrs above and
+                    // leaves the attribute in place so a theme switch can re-derive the pack.
+                    if (kv.Key == StyleMerger.ClassAttr) continue;
                     throw new TemplateException(
                         $"<{tpl.Name}>: unknown attribute '{kv.Key}'");
                 }
@@ -279,6 +286,7 @@ namespace PromptUGUI.Template
             var dst = new ElementNode(prepared.Tag, prepared.Namespace)
             {
                 OriginSrc = prepared.OriginSrc,
+                StyleAttrNames = prepared.StyleAttrNames,
                 Id = prepared.Id,
                 TextContent = Substitution.Apply(prepared.TextContent, args),
                 TextContentRaw = src.TextContentRaw ?? src.TextContent,
@@ -314,6 +322,7 @@ namespace PromptUGUI.Template
             var dst = new ElementNode(src.Tag, src.Namespace)
             {
                 OriginSrc = src.OriginSrc,
+                StyleAttrNames = src.StyleAttrNames,
                 Id = src.Id,
                 TextContent = src.TextContent,
             };
@@ -346,6 +355,7 @@ namespace PromptUGUI.Template
             var dst = new ElementNode(src.Tag, src.Namespace)
             {
                 OriginSrc = src.OriginSrc,
+                StyleAttrNames = src.StyleAttrNames,
                 Id = src.Id,
                 TextContent = src.TextContent,
                 TextContentRaw = src.TextContentRaw ?? src.TextContent,

@@ -9,8 +9,9 @@ namespace PromptUGUI.Template
     /// tree walk, and (because it only ever writes to the copy) a shared commons template body can
     /// never be polluted in place.
     ///
-    /// The expanded tree carries no <c>class</c> attribute, so ScreenInstantiator and everything
-    /// downstream stay unaware that styles exist. That is what makes this feature free at runtime.
+    /// The expanded tree keeps <c>class</c> so a theme switch can re-derive the pack
+    /// (<see cref="ReMerge"/>), but the VALUES are already folded into Attributes — ScreenInstantiator
+    /// and everything downstream still read plain attributes and stay unaware that styles exist.
     /// </summary>
     internal static class StyleMerger
     {
@@ -20,7 +21,8 @@ namespace PromptUGUI.Template
 
         /// <summary>
         /// Returns <paramref name="src"/> unchanged when it carries no <c>class</c> (the common
-        /// case, zero allocation); otherwise a copy with the pack merged in and <c>class</c> removed.
+        /// case, zero allocation); otherwise a copy with the pack merged in, <c>class</c> kept, and
+        /// <see cref="ElementNode.StyleAttrNames"/> recording what the pack contributed.
         /// </summary>
         /// <param name="invocationTarget">
         /// Non-null when <paramref name="src"/> invokes a Template. A style is broadcast, so instead
@@ -36,41 +38,17 @@ namespace PromptUGUI.Template
             if (src == null || !src.Attributes.TryGetValue(ClassAttr, out var classValue))
                 return src;
 
-            var names = classValue == null
-                ? System.Array.Empty<string>()
-                : classValue.Split(ClassSeparators, System.StringSplitOptions.RemoveEmptyEntries);
+            ComputePack(classValue, styles, src, out var packAttrs, out var packVariants);
 
-            if (names.Length == 0)
-                throw new TemplateException(
-                    $"<{src.Tag}>: class=\"{classValue}\" names no style " +
-                    "(write class=\"some-style\" or drop the attribute)");
-
-            // Fold left→right: a later class fully masks an earlier one for any attribute NAME it
-            // declares, in either base or .variant form (same atomic rule inline attributes get).
-            var packAttrs = new Dictionary<string, string>();
-            var packVariants = new Dictionary<string, List<(string Variant, string Value)>>();
-
-            foreach (var reference in names)
-            {
-                var style = Lookup(reference, styles, src);
-                foreach (var name in style.DeclaredNames)
-                {
-                    packAttrs.Remove(name);
-                    packVariants.Remove(name);
-                }
-                foreach (var kv in style.Attributes)
-                    packAttrs[kv.Key] = kv.Value;
-                foreach (var kv in style.VariantOverrides)
-                    packVariants[kv.Key] = new List<(string, string)>(kv.Value);
-            }
-
-            var dst = CloneWithoutClass(src);
+            var dst = CloneForMerge(src);
+            var contributed = new HashSet<string>();
 
             foreach (var kv in packAttrs)
             {
                 if (NodeDeclares(src, kv.Key)) continue;
                 if (invocationTarget != null && !AcceptsBase(kv.Key, invocationTarget)) continue;
                 dst.Attributes[kv.Key] = kv.Value;
+                contributed.Add(kv.Key);
             }
 
             foreach (var kv in packVariants)
@@ -81,9 +59,99 @@ namespace PromptUGUI.Template
                 // broadcast style from turning into that error on an unrelated node.
                 if (invocationTarget != null && !TemplateExpander.CommonAttrs.Contains(kv.Key)) continue;
                 dst.VariantOverrides[kv.Key] = kv.Value;
+                contributed.Add(kv.Key);
             }
 
+            dst.StyleAttrNames = contributed;
             return dst;
+        }
+
+        /// <summary>
+        /// Recomputes an already-expanded node's pack against a different style table — what a theme
+        /// switch runs. Idempotent, and safe to call on a node whose class was never merged.
+        ///
+        /// <para>Correctness rests on <see cref="ElementNode.StyleAttrNames"/>: dropping exactly the
+        /// names the previous pack contributed leaves everything else in place — the author's inline
+        /// attributes, and the common attributes a template invocation merged onto an instance root
+        /// after the style pack was applied. Rebuilding from a snapshot of the inline values instead
+        /// would silently lose that second group.</para>
+        /// </summary>
+        public static void ReMerge(
+            ElementNode node, IReadOnlyDictionary<StyleKey, StyleDef> styles)
+        {
+            if (node == null) return;
+            if (!node.Attributes.TryGetValue(ClassAttr, out var classValue)) return;
+
+            if (node.StyleAttrNames != null)
+            {
+                foreach (var name in node.StyleAttrNames)
+                {
+                    node.Attributes.Remove(name);
+                    node.VariantOverrides.Remove(name);
+                }
+            }
+
+            ComputePack(classValue, styles, node, out var packAttrs, out var packVariants);
+
+            // Snapshot what the NODE declares before laying the pack down. Testing the live node
+            // instead would let the pack's own base value mask its matching .variant entry — Apply
+            // avoids this for free by testing the pre-merge source node.
+            var selfDeclared = new HashSet<string>(node.Attributes.Keys);
+            foreach (var name in node.VariantOverrides.Keys) selfDeclared.Add(name);
+
+            var contributed = new HashSet<string>();
+            foreach (var kv in packAttrs)
+            {
+                if (selfDeclared.Contains(kv.Key)) continue;
+                node.Attributes[kv.Key] = kv.Value;
+                contributed.Add(kv.Key);
+            }
+            foreach (var kv in packVariants)
+            {
+                if (selfDeclared.Contains(kv.Key)) continue;
+                node.VariantOverrides[kv.Key] = kv.Value;
+                contributed.Add(kv.Key);
+            }
+            node.StyleAttrNames = contributed;
+        }
+
+        /// <summary>
+        /// Folds <c>class="a b"</c> left to right. A later class fully masks an earlier one for any
+        /// attribute NAME it declares, in either base or <c>.variant</c> form — the same atomic rule
+        /// inline attributes get.
+        /// </summary>
+        private static void ComputePack(
+            string classValue,
+            IReadOnlyDictionary<StyleKey, StyleDef> styles,
+            ElementNode context,
+            out Dictionary<string, string> packAttrs,
+            out Dictionary<string, List<(string Variant, string Value)>> packVariants)
+        {
+            var names = classValue == null
+                ? System.Array.Empty<string>()
+                : classValue.Split(ClassSeparators, System.StringSplitOptions.RemoveEmptyEntries);
+
+            if (names.Length == 0)
+                throw new TemplateException(
+                    $"<{context.Tag}>: class=\"{classValue}\" names no style " +
+                    "(write class=\"some-style\" or drop the attribute)");
+
+            packAttrs = new Dictionary<string, string>();
+            packVariants = new Dictionary<string, List<(string Variant, string Value)>>();
+
+            foreach (var reference in names)
+            {
+                var style = Lookup(reference, styles, context);
+                foreach (var name in style.DeclaredNames)
+                {
+                    packAttrs.Remove(name);
+                    packVariants.Remove(name);
+                }
+                foreach (var kv in style.Attributes)
+                    packAttrs[kv.Key] = kv.Value;
+                foreach (var kv in style.VariantOverrides)
+                    packVariants[kv.Key] = new List<(string, string)>(kv.Value);
+            }
         }
 
         private static StyleDef Lookup(
@@ -119,21 +187,24 @@ namespace PromptUGUI.Template
             return false;
         }
 
-        private static ElementNode CloneWithoutClass(ElementNode src)
+        /// <summary>
+        /// <c>class=</c> is deliberately KEPT on the copy: a theme switch re-derives the pack from
+        /// it (<see cref="ReMerge"/>). No control declares an attribute by that name, so
+        /// <c>ControlAttributeApplier</c> skips it like any other unknown one.
+        /// </summary>
+        private static ElementNode CloneForMerge(ElementNode src)
         {
             var dst = new ElementNode(src.Tag, src.Namespace)
             {
                 OriginSrc = src.OriginSrc,
+                StyleAttrNames = src.StyleAttrNames,
                 Id = src.Id,
                 TextContent = src.TextContent,
                 TextContentRaw = src.TextContentRaw,
                 IsTemplateInstanceRoot = src.IsTemplateInstanceRoot,
             };
             foreach (var kv in src.Attributes)
-            {
-                if (kv.Key == ClassAttr) continue;
                 dst.Attributes[kv.Key] = kv.Value;
-            }
             foreach (var kv in src.AttributesRaw)
                 dst.AttributesRaw[kv.Key] = kv.Value;
             foreach (var kv in src.VariantOverrides)

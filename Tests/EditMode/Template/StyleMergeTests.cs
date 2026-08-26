@@ -38,14 +38,23 @@ namespace PromptUGUI.Tests.EditMode.Template
             Assert.AreEqual("220", f.Attributes["height"], "inline attributes survive untouched");
         }
 
+        // Contract change (2026-08-26 spec §5): the expanded tree KEEPS class=, because a theme
+        // switch has to re-derive the pack from it. What still holds — and is what actually made the
+        // feature free — is that the VALUES are folded into plain attributes, so no control and no
+        // part of ScreenInstantiator knows styles exist. StyleAttrNames records what the pack put
+        // there, which is how a re-merge knows exactly what to take back out.
         [Test]
-        public void Class_IsConsumed_NotPresentInExpandedTree()
+        public void Class_IsFoldedIntoAttributes_AndKeptForReMerging()
         {
             var doc = Expand(@"
                 <Style name='card' color='#222'/>
                 <Screen name='S'><Frame id='f' class='card'/></Screen>");
-            Assert.IsFalse(FirstChild(doc).Attributes.ContainsKey("class"),
-                "the runtime must never see class= — that is what makes the feature free");
+            var frame = FirstChild(doc);
+
+            Assert.AreEqual("#222", frame.Attributes["color"], "the pack's value is a plain attribute");
+            Assert.AreEqual("card", frame.Attributes["class"], "kept so a theme switch can re-derive");
+            CollectionAssert.AreEquivalent(new[] { "color" }, frame.StyleAttrNames,
+                "exactly what the pack contributed — 'class' itself is not part of the pack");
         }
 
         [Test]
@@ -146,7 +155,7 @@ namespace PromptUGUI.Tests.EditMode.Template
                 <Screen name='S'><Panel id='p'/></Screen>");
             var inner = FirstChild(doc);
             Assert.AreEqual("#222", inner.Attributes["color"]);
-            Assert.IsFalse(inner.Attributes.ContainsKey("class"));
+            CollectionAssert.AreEquivalent(new[] { "color" }, inner.StyleAttrNames);
         }
 
         [Test]
@@ -176,7 +185,7 @@ namespace PromptUGUI.Tests.EditMode.Template
                 </Screen>");
             var added = doc.Screens[0].Variants[0].Adds[0].Children[0];
             Assert.AreEqual("#222", added.Attributes["color"]);
-            Assert.IsFalse(added.Attributes.ContainsKey("class"));
+            CollectionAssert.AreEquivalent(new[] { "color" }, added.StyleAttrNames);
         }
 
         [Test]
