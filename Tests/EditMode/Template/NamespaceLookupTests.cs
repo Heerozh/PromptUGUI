@@ -9,11 +9,11 @@ namespace PromptUGUI.Tests.Template
     public class NamespaceLookupTests
     {
 
-        private DocumentLoader.LoadedDoc Make(
+        private LoadedDoc Make(
             ElementNode rootChild,
             (string ns, string name, ElementNode body)[] templates)
         {
-            var l = new DocumentLoader.LoadedDoc
+            var l = new LoadedDoc
             {
                 EntrySrc = "test",
             };
@@ -23,7 +23,7 @@ namespace PromptUGUI.Tests.Template
             foreach (var (ns, name, body) in templates)
             {
                 var t = new TemplateDef(name) { Body = body };
-                l.Templates[new DocumentLoader.TemplateKey(ns, name)] = t;
+                l.Templates[new TemplateKey(ns, name)] = t;
             }
             return l;
         }
@@ -68,7 +68,7 @@ namespace PromptUGUI.Tests.Template
         {
             var bodyA = new ElementNode("Frame");
             var bodyB = new ElementNode("Image");
-            var l = new DocumentLoader.LoadedDoc
+            var l = new LoadedDoc
             {
                 EntrySrc = "test",
             };
@@ -76,9 +76,9 @@ namespace PromptUGUI.Tests.Template
             screen.Root.Children.Add(new ElementNode("Foo", "a"));
             screen.Root.Children.Add(new ElementNode("Foo", "b"));
             l.Screens.Add(screen);
-            l.Templates[new DocumentLoader.TemplateKey("a", "Foo")] =
+            l.Templates[new TemplateKey("a", "Foo")] =
                 new TemplateDef("Foo") { Body = bodyA };
-            l.Templates[new DocumentLoader.TemplateKey("b", "Foo")] =
+            l.Templates[new TemplateKey("b", "Foo")] =
                 new TemplateDef("Foo") { Body = bodyB };
 
             var expanded = TemplateExpander.Expand(l);

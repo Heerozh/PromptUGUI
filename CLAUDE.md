@@ -46,14 +46,20 @@ Internal refactors, test-only changes, performance work, and Editor tooling that
 `Runtime/AssemblyInfo.cs` exposes internals to `PromptUGUI.Tests.EditMode`, `PromptUGUI.Tests.PlayMode`, `PromptUGUI.Editor`, and `PromptUGUI.Tests.EditMode.Addressables` via `InternalsVisibleTo`.
 
 `Runtime/` is split into:
-- `Core/IR/` — pure POCOs (`UIDocument`, `ScreenDef`, `TemplateDef`, `ElementNode`, `ImportRef`, `VariantBlock`, `AddDirective`)
+- `Core/IR/` — pure POCOs (`UIDocument`, `ScreenDef`, `TemplateDef`, `ElementNode`, `ImportRef`, `VariantBlock`, `AddDirective`, `StyleDef`, `ThemeBlock`) + 合并产物 `LoadedDoc` 与它的键 `TemplateKey` / `StyleKey`
 - `Core/Parser/` — `UIDocumentParser` (XML → IR) + `ParseException`
-- `Core/Template/` — `TemplateExpander` (inlines Template invocations) + `Substitution` / `Truthy`
+- `Core/Template/` — `DocumentAssembler` (Import 闭包合并 → `LoadedDoc`) + `TemplateExpander` (inlines Template invocations) + `StyleMerger` (`class=` 属性包合并) + `Substitution` / `Truthy`
 - `Core/Variants/` — `VariantResolver` (last-active-wins for `attr.var` overrides)
 - `Core/Layout/` — `AnchorResolver` / `MarginResolver` / `SizeSpec`
 - `Controls/` — built-in primitives (`Frame`, `Image`, `Text`, `VStack`, `HStack`, `Grid`, `Btn`) + the `Control` base class
 - `Registry/` — `ControlRegistry` + `ControlMeta` (reflects `[UIAttr]` / `[Bind]`)
 - `Application/` — `UI` static facade (loading/lifecycle), `Screen`, `ScreenInstantiator`, `DocumentLoader`, `DepGraph`, `VariantStore`, `BuiltinPrimitives`
+
+**Core 的 CLI 编译子集必须保持纯 C#。** `Core/IR` / `Core/Parser` / `Core/Template` / `Core/Lint` 这四个目录被 UIXmlLint 直接编译进一个在 Unity 之外运行的 exe —— **不得引用 `UnityEngine`，也不得反向依赖 `PromptUGUI.Application`**。一旦破例，CLI 的编译集就得缩水，规则与运行时的「单一实现」保证随之破裂。
+
+不在该子集内、因此不受此限的：`Core/Layout`（用 `Vector2` / `Vector4`）、`Core/Variants`（依赖 `VariantStore`）。
+
+这条约束决定了 IO 与语义的切线：异步取源（`Awaitable` + `SourceResolver`）留在 `Application/DocumentLoader`，Import 闭包的**合并语义**在 `Core/Template/DocumentAssembler` —— 两条路径（Unity 异步预取 / CLI 文件系统预取）都落到同一份合并实现上。
 
 Write Red test first, and then write implementation. Always use Unity MCP to run tests in the host Unity project.
 If MCP is unavailable, try reconnect or tell user to restart MCP.

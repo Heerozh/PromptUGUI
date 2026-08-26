@@ -18,7 +18,7 @@ namespace PromptUGUI.Template
         /// Real entry point — takes the merged LoadedDoc produced by DocumentLoader.
         /// Uses (Namespace, Name) keyed lookup for template resolution.
         /// </summary>
-        internal static UIDocument Expand(PromptUGUI.Application.DocumentLoader.LoadedDoc loaded)
+        internal static UIDocument Expand(LoadedDoc loaded)
         {
             foreach (var t in loaded.Templates.Values) ValidateSlotCount(t);
 
@@ -44,7 +44,7 @@ namespace PromptUGUI.Template
                 {
                     EnsureNoSlot(c, $"Screen '{s.Name}'");
                     var ec = ExpandTree(c, loaded.Templates, styles,
-                                        new HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey>());
+                                        new HashSet<TemplateKey>());
                     if (ec != null) newRoot.Children.Add(ec);
                 }
                 var newScreen = new ScreenDef(s.Name, newRoot)
@@ -54,7 +54,7 @@ namespace PromptUGUI.Template
                     // forwarded here; otherwise SetupFocusCursor receives null and no overlay is built.
                     FocusCursor = s.FocusCursor == null ? null
                         : ExpandTree(s.FocusCursor, loaded.Templates, styles,
-                                     new HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey>()),
+                                     new HashSet<TemplateKey>()),
                 };
                 // 把全局 Template 表附到本 Screen，供 ScrollList 等运行时控件按 tag 反查。
                 foreach (var kv in loaded.Templates)
@@ -73,7 +73,7 @@ namespace PromptUGUI.Template
                         {
                             EnsureNoSlot(ch, $"<Variant when='{block.When}'> in Screen '{s.Name}'");
                             var ec = ExpandTree(ch, loaded.Templates, styles,
-                                                new HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey>());
+                                                new HashSet<TemplateKey>());
                             if (ec != null) newAdd.Children.Add(ec);
                         }
                         newBlock.Adds.Add(newAdd);
@@ -91,15 +91,15 @@ namespace PromptUGUI.Template
         /// </summary>
         public static UIDocument Expand(UIDocument doc)
         {
-            var loaded = new PromptUGUI.Application.DocumentLoader.LoadedDoc
+            var loaded = new LoadedDoc
             {
                 EntrySrc = "<inline>",
             };
             foreach (var s in doc.Screens) loaded.Screens.Add(s);
             foreach (var kv in doc.Templates)
-                loaded.Templates[new PromptUGUI.Application.DocumentLoader.TemplateKey(null, kv.Key)] = kv.Value;
+                loaded.Templates[new TemplateKey(null, kv.Key)] = kv.Value;
             foreach (var kv in doc.Styles)
-                loaded.Styles[new PromptUGUI.Application.DocumentLoader.StyleKey(null, kv.Key)] = kv.Value;
+                loaded.Styles[new StyleKey(null, kv.Key)] = kv.Value;
             return Expand(loaded);
         }
 
@@ -128,12 +128,12 @@ namespace PromptUGUI.Template
 
         private static ElementNode ExpandTree(
             ElementNode src,
-            IReadOnlyDictionary<PromptUGUI.Application.DocumentLoader.TemplateKey, TemplateDef> templates,
-            IReadOnlyDictionary<PromptUGUI.Application.DocumentLoader.StyleKey, StyleDef> styles,
-            HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey> visiting)
+            IReadOnlyDictionary<TemplateKey, TemplateDef> templates,
+            IReadOnlyDictionary<StyleKey, StyleDef> styles,
+            HashSet<TemplateKey> visiting)
         {
 
-            var key = new PromptUGUI.Application.DocumentLoader.TemplateKey(src.Namespace, src.Tag);
+            var key = new TemplateKey(src.Namespace, src.Tag);
             if (templates.TryGetValue(key, out var tpl))
                 return ExpandInvocation(StyleMerger.Apply(src, styles, tpl), tpl, key,
                                         templates, styles, visiting);
@@ -167,10 +167,10 @@ namespace PromptUGUI.Template
         private static ElementNode ExpandInvocation(
             ElementNode invocation,
             TemplateDef tpl,
-            PromptUGUI.Application.DocumentLoader.TemplateKey key,
-            IReadOnlyDictionary<PromptUGUI.Application.DocumentLoader.TemplateKey, TemplateDef> templates,
-            IReadOnlyDictionary<PromptUGUI.Application.DocumentLoader.StyleKey, StyleDef> styles,
-            HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey> visiting)
+            TemplateKey key,
+            IReadOnlyDictionary<TemplateKey, TemplateDef> templates,
+            IReadOnlyDictionary<StyleKey, StyleDef> styles,
+            HashSet<TemplateKey> visiting)
         {
 
             // Cycle tracking uses (Namespace, Name) key to allow same-named templates across different namespaces
@@ -252,9 +252,9 @@ namespace PromptUGUI.Template
             ElementNode src,
             IReadOnlyDictionary<string, string> args,
             IReadOnlyList<ElementNode> slotContent,
-            IReadOnlyDictionary<PromptUGUI.Application.DocumentLoader.TemplateKey, TemplateDef> templates,
-            IReadOnlyDictionary<PromptUGUI.Application.DocumentLoader.StyleKey, StyleDef> styles,
-            HashSet<PromptUGUI.Application.DocumentLoader.TemplateKey> visiting)
+            IReadOnlyDictionary<TemplateKey, TemplateDef> templates,
+            IReadOnlyDictionary<StyleKey, StyleDef> styles,
+            HashSet<TemplateKey> visiting)
         {
 
             if (src.Attributes.TryGetValue("if", out var rawIf))
@@ -265,7 +265,7 @@ namespace PromptUGUI.Template
 
             ElementNode prepared = SubstituteAttrs(src, args);
 
-            var key2 = new PromptUGUI.Application.DocumentLoader.TemplateKey(prepared.Namespace, prepared.Tag);
+            var key2 = new TemplateKey(prepared.Namespace, prepared.Tag);
             if (templates.ContainsKey(key2))
                 return ExpandTree(prepared, templates, styles, visiting);
 

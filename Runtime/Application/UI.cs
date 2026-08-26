@@ -10,8 +10,8 @@ namespace PromptUGUI.Application
     {
         private static readonly Dictionary<string, ScreenDef> _docs = new();
         private static readonly Dictionary<string, Screen> _open = new();
-        private static readonly System.Collections.Generic.Dictionary<DocumentLoader.TemplateKey, IR.TemplateDef> _commonsPool = new();
-        private static readonly System.Collections.Generic.Dictionary<DocumentLoader.StyleKey, IR.StyleDef> _commonsStyles = new();
+        private static readonly System.Collections.Generic.Dictionary<TemplateKey, IR.TemplateDef> _commonsPool = new();
+        private static readonly System.Collections.Generic.Dictionary<StyleKey, IR.StyleDef> _commonsStyles = new();
         private static readonly DepGraph _depGraph = new();
 
         public static System.Func<string, UnityEngine.Awaitable<string>> SourceResolver { get; set; }
@@ -696,24 +696,24 @@ namespace PromptUGUI.Application
 
             var loaded = await DocumentLoader.LoadAsync(src, SourceResolver, allowScreens: false);
 
-            var staged = new System.Collections.Generic.List<(DocumentLoader.TemplateKey Key, IR.TemplateDef Def)>();
+            var staged = new System.Collections.Generic.List<(TemplateKey Key, IR.TemplateDef Def)>();
             foreach (var kv in loaded.Templates)
             {
                 var rebasedKey = @as == null
                     ? kv.Key
-                    : new DocumentLoader.TemplateKey(@as, kv.Key.Name);
+                    : new TemplateKey(@as, kv.Key.Name);
                 if (_commonsPool.ContainsKey(rebasedKey))
                     throw new PromptUGUI.Template.TemplateException(
                         $"common library conflict: '{rebasedKey}' already in commons pool");
                 staged.Add((rebasedKey, kv.Value));
             }
 
-            var stagedStyles = new System.Collections.Generic.List<(DocumentLoader.StyleKey Key, IR.StyleDef Def)>();
+            var stagedStyles = new System.Collections.Generic.List<(StyleKey Key, IR.StyleDef Def)>();
             foreach (var kv in loaded.Styles)
             {
                 var rebasedKey = @as == null
                     ? kv.Key
-                    : new DocumentLoader.StyleKey(@as, kv.Key.Name);
+                    : new StyleKey(@as, kv.Key.Name);
                 if (_commonsStyles.ContainsKey(rebasedKey))
                     throw new PromptUGUI.Template.TemplateException(
                         $"common library conflict: style '{rebasedKey}' already in commons pool");
@@ -759,13 +759,13 @@ namespace PromptUGUI.Application
 
             // M4 v1 limitation: original `as=` namespace is not preserved across reload.
             var stashed = new System.Collections.Generic.List<
-                System.Collections.Generic.KeyValuePair<DocumentLoader.TemplateKey, IR.TemplateDef>>();
+                System.Collections.Generic.KeyValuePair<TemplateKey, IR.TemplateDef>>();
             foreach (var kv in _commonsPool)
                 if (kv.Value.OriginSrc == src) stashed.Add(kv);
             foreach (var kv in stashed) _commonsPool.Remove(kv.Key);
 
             var stashedStyles = new System.Collections.Generic.List<
-                System.Collections.Generic.KeyValuePair<DocumentLoader.StyleKey, IR.StyleDef>>();
+                System.Collections.Generic.KeyValuePair<StyleKey, IR.StyleDef>>();
             foreach (var kv in _commonsStyles)
                 if (kv.Value.OriginSrc == src) stashedStyles.Add(kv);
             foreach (var kv in stashedStyles) _commonsStyles.Remove(kv.Key);
@@ -1010,7 +1010,7 @@ namespace PromptUGUI.Application
         /// <see cref="LoadCommonLibraryAsync"/> and <see cref="LoadDocumentAsync"/>
         /// so that &lt;Theme&gt; blocks work regardless of which file they live in.
         /// </summary>
-        private static void RegisterThemesAndAutoSet(DocumentLoader.LoadedDoc loaded)
+        private static void RegisterThemesAndAutoSet(LoadedDoc loaded)
         {
             foreach (var (theme, themeSrc) in loaded.Themes)
             {
@@ -1068,7 +1068,7 @@ namespace PromptUGUI.Application
         /// Screens re-color via <see cref="Screen.ReSolve"/>. Theme.Current is
         /// preserved (no AutoSetIfSingleAvailable on reload).
         /// </summary>
-        private static void ReplaceThemesAndNotify(DocumentLoader.LoadedDoc loaded)
+        private static void ReplaceThemesAndNotify(LoadedDoc loaded)
         {
             // Group themes by their originating src so ReplaceFromSrc gets a
             // per-src complete replacement (any theme deleted from the new XML

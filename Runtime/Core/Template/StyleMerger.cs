@@ -30,7 +30,7 @@ namespace PromptUGUI.Template
         /// </param>
         public static ElementNode Apply(
             ElementNode src,
-            IReadOnlyDictionary<Application.DocumentLoader.StyleKey, StyleDef> styles,
+            IReadOnlyDictionary<StyleKey, StyleDef> styles,
             TemplateDef invocationTarget)
         {
             if (src == null || !src.Attributes.TryGetValue(ClassAttr, out var classValue))
@@ -88,10 +88,10 @@ namespace PromptUGUI.Template
 
         private static StyleDef Lookup(
             string reference,
-            IReadOnlyDictionary<Application.DocumentLoader.StyleKey, StyleDef> styles,
+            IReadOnlyDictionary<StyleKey, StyleDef> styles,
             ElementNode context)
         {
-            var key = Application.DocumentLoader.StyleKey.ParseReference(reference);
+            var key = StyleKey.ParseReference(reference);
             if (styles != null && styles.TryGetValue(key, out var style)) return style;
 
             var known = new List<string>();
