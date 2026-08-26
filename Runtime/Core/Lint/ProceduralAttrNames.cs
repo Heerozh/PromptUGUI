@@ -49,6 +49,20 @@ namespace PromptUGUI.Lint
         /// <c>&lt;Btn&gt;</c> (has an Image: <c>color</c> and <c>sprite</c> work, the rest is
         /// dropped) from a layout-only container (has nothing: all of it is dropped).</para>
         /// </summary>
+        /// <summary>
+        /// Shape for a layer INSIDE a control (spec §6) — <c>&lt;layer&gt;Radius</c>, one attribute
+        /// per inner surface. Deliberately shape-only: glass on an inner layer samples the same
+        /// backdrop as the layer beneath it and the two come out identical.
+        ///
+        /// <para>Because each inner surface is driven by exactly one attribute, a base-less
+        /// <c>fillRadius.mobile</c> toggles that surface wholesale and therefore reverts on its own —
+        /// which is what lets <see cref="VariantBaseRules"/> exempt it.</para>
+        /// </summary>
+        public static readonly string[] InnerLayerRadius =
+        {
+            "fillRadius", "handleRadius", "frameRadius", "maskRadius",
+        };
+
         public static readonly string[] NeedsPanel =
         {
             "radius", "borderWidth", "borderColor", "glow", "glowColor",

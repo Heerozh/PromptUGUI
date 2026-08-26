@@ -73,12 +73,24 @@ namespace PromptUGUI.Lint
             }
         }
 
+        /// <summary>
+        /// Whether the node goes procedural in its BASE state — a variant-only entry
+        /// (<c>radius.glass="10"</c> with no plain <c>radius</c>) deliberately does not count.
+        ///
+        /// <para>Because that is precisely how a skin turns the shape on for one variant and leaves
+        /// the sprite alone for the others; the shipped CommonControls sample is built that way. The
+        /// two never apply at once, so reporting them as a contradiction would flag the idiomatic
+        /// form as broken. The cost is that a genuine per-variant clash goes unreported — the
+        /// direction this repo has consistently chosen, since a false positive turns the CLI's
+        /// non-zero exit into a wall for correct XML.</para>
+        /// </summary>
         private static bool DeclaresProcedural(ElementNode n, StyleAttributeView styles)
         {
             foreach (var attr in ProceduralAttrNames.NeedsPanel)
             {
                 if (attr == "weld") continue;   // §13.2 — weld does not cross into controls
-                if (styles.Declares(n, attr)) return true;
+                styles.Resolve(n, attr, out var baseValue, out _);
+                if (baseValue != null) return true;
             }
             return false;
         }
