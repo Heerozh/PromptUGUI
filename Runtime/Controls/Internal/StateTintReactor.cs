@@ -16,10 +16,13 @@ namespace PromptUGUI.Controls.Internal
     /// <c>targetGraphic</c>; modulates fan out to every descendant graphic.
     /// </summary>
     /// <remarks>
-    /// The base (authored) colour is captured ONCE on first init and never re-captured: a
-    /// re-<see cref="Configure"/> (e.g. a Variant ReSolve) must not promote the currently-tinted
-    /// colour into the new base. A state with no absolute and no modulate returns the graphic to
-    /// its base colour. Base/absolute/selected colours may be gradients (landed via
+    /// The base (authored) colour comes from the owning control's live <c>color=</c> declaration,
+    /// pushed in through <see cref="Configure"/>. It is NOT re-read off the graphic: on a
+    /// re-<see cref="Configure"/> (a Variant / theme / resize ReSolve) the graphic may be showing a
+    /// TINT — the control is hovered — and promoting that would bake the hover colour in for good.
+    /// Peeking the graphic stays the fallback, captured once, for a graphic nobody authored a colour
+    /// for (a control's built-in bg, or a descendant that only carries the modulate fan-out).
+    /// A state with no absolute and no modulate returns the graphic to its base colour. Base/absolute/selected colours may be gradients (landed via
     /// <see cref="ColorApplier"/>); a transition with a gradient endpoint snaps instead of fading
     /// (no Color-lerp for a vertex gradient — see <c>OnState</c>). Modulates stay solid.
     /// </remarks>
@@ -36,6 +39,7 @@ namespace PromptUGUI.Controls.Internal
         internal static bool TestForceInstant;
 
         private Graphic _graphic;
+        private ProceduralPanel _panel;     // non-null ⇒ the target draws procedurally
         private bool _baseCaptured;
         private int _bornFrame = int.MinValue;
         private ColorSpec _baseColor = ColorSpec.Solid(Color.white);
@@ -54,10 +58,20 @@ namespace PromptUGUI.Controls.Internal
         {
             if (_graphic != null) return;
             _graphic = GetComponent<Graphic>();
-            if (_graphic != null && !_baseCaptured)
+            _panel = _graphic as ProceduralPanel;
+            if (_graphic != null)
             {
-                _baseColor = ColorApplier.Peek(_graphic);
-                _baseCaptured = true;
+                // Fallback capture: only for a graphic whose owner pushed no authored colour.
+                if (!_baseCaptured)
+                {
+                    _baseColor = ColorApplier.Peek(_graphic);
+                    _baseCaptured = true;
+                }
+                // Stamped unconditionally, and NOT inside the capture above — a control that
+                // declares color= arrives with _baseCaptured already true, and hanging the stamp off
+                // that would leave _bornFrame unset. The born-frame gate would then never fire and a
+                // Tab declared isOn="true" would tween toward its selectedColor instead of showing
+                // it on frame 1. This runs once: EnsureInit returns early once _graphic is set.
                 _bornFrame = BornFrame.Capture();   // first init = the build frame
             }
 
@@ -70,11 +84,22 @@ namespace PromptUGUI.Controls.Internal
         }
 
         /// <summary>
-        /// (Re)set the per-state absolute overrides + relative multipliers + fade. Safe to call
-        /// repeatedly (Variant ReSolve): the base colour stays captured from the first init.
+        /// (Re)set the per-state absolute overrides + relative multipliers + fade, and the authored
+        /// base. Safe to call repeatedly (Variant / theme / resize ReSolve): pass the control's
+        /// current <c>color=</c> as <paramref name="authoredBase"/> and the base follows it; pass
+        /// null and the first-init Peek stands.
         /// </summary>
-        public void Configure(StateColorSet absolutes, StateColorSet modulates, float fade, ColorSpec? selectedBase = null, bool selected = false)
+        public void Configure(StateColorSet absolutes, StateColorSet modulates, float fade,
+            ColorSpec? selectedBase = null, bool selected = false, ColorSpec? authoredBase = null)
         {
+            // The declaration wins over the pixels. Marking it captured also makes EnsureInit skip
+            // its Peek on first init — the authored value is already the right answer there.
+            if (authoredBase.HasValue)
+            {
+                _baseColor = authoredBase.Value;
+                _baseCaptured = true;
+            }
+
             // Assign the colour sets BEFORE EnsureInit subscribes: the OnState subscription replays
             // the source's current state synchronously, so if the control is already in a non-Normal
             // state at first install (e.g. a Tab declared isOn="true", shown Selected at Open and never
@@ -88,6 +113,13 @@ namespace PromptUGUI.Controls.Internal
 
             var firstInit = _graphic == null;
             EnsureInit();
+            // Re-attach after a Detach: EnsureInit returns early once _graphic is known, so the
+            // subscription it normally makes would never be remade.
+            if (!firstInit && _source == null)
+            {
+                _source = GetComponentInParent<IStateSource>(true);
+                if (_source != null) _sub = _source.OnState.Subscribe(OnState);
+            }
 
             // On a *re*-Configure (Variant / Theme / window-resize ReSolve) the OnState subscription
             // does NOT replay and the broadcaster's state value is unchanged — yet ControlAttributeApplier
@@ -96,6 +128,26 @@ namespace PromptUGUI.Controls.Internal
             // First install is already painted by the subscription replay above, so only repaint here.
             if (!firstInit && _source != null)
                 OnState(_source.Current);
+        }
+
+        /// <summary>
+        /// Stops driving this graphic and leaves it exactly as it is.
+        ///
+        /// <para>Called when the control's <c>targetGraphic</c> moves elsewhere — a procedural
+        /// surface taking over from the Image it retires. The reactor that used to own the Image is
+        /// still subscribed to the state stream, and on the next hover it writes the old theme's
+        /// colour back over the retirement: the Image reappears at full alpha in the previous skin's
+        /// colour, drawn as a hard rectangle behind the rounded surface. Un-reproducible if you open
+        /// straight into the second skin, which is why it survived until someone switched themes.</para>
+        ///
+        /// <para>A later <see cref="Configure"/> re-attaches, so a switch back is symmetric.</para>
+        /// </summary>
+        internal void Detach()
+        {
+            if (_handle.IsActive()) _handle.TryCancel();
+            _sub?.Dispose();
+            _sub = null;
+            _source = null;
         }
 
         /// <summary>
@@ -131,6 +183,13 @@ namespace PromptUGUI.Controls.Internal
             // Focus reuses the hover visual (spec §4.3). The composite already folds Focused→Normal in
             // Pointer mode, so this only fires for an actually-directional-focused control.
             if (state == InteractState.Focused) state = InteractState.Hover;
+
+            if (_panel != null)
+            {
+                ApplyToPanel(state);
+                return;
+            }
+
             var target = BaseFor(state).Multiply(MultiplierFor(state));   // premultiply modulate into both stops
 
             if (_handle.IsActive()) _handle.TryCancel();
@@ -154,6 +213,46 @@ namespace PromptUGUI.Controls.Internal
             // 销毁的目标，避免写已销毁对象抛 MissingReferenceException（宿主 OnDestroy 的 TryCancel 在
             // Play 模式延迟销毁时存在竞态，不足以独力兜底）。
             _handle = LMotion.Create(_graphic.color, target.Top, _fade)
+                .Bind(_graphic, static (c, g) => { if (g) g.color = c; });
+        }
+
+        /// <summary>
+        /// A procedural surface splits the two halves instead of premultiplying them, because they
+        /// land in two different places.
+        ///
+        /// <para>The panel's authored look lives in its MATERIAL and <c>Graphic.color</c> is a
+        /// multiplier layered on top (<c>col *= IN.color</c> in the shader) — the split that lets
+        /// every panel sharing a style share one material and keep batching. Premultiplying the way
+        /// an Image needs would apply the base twice: once as the fill, once as the vertex tint, so
+        /// <c>color="#3366ff"</c> renders as its own square. And an "absolute" hoverColor written to
+        /// a multiplier channel is not absolute at all — it darkens whatever is underneath, which on
+        /// glass means tinting the blurred backdrop rather than the pane.</para>
+        ///
+        /// <para>So: absolutes drive the fill, modulates stay on the vertex colour. The one thing
+        /// lost is the fade on an absolute change — the fill is a material parameter, and tweening it
+        /// per frame would mint a material per frame through <c>ProceduralMaterialCache</c>. State
+        /// changes are discrete and infrequent, so the cache sees one entry per state, not one per
+        /// frame. Modulates still fade, since they are pure vertex colour.</para>
+        /// </summary>
+        private void ApplyToPanel(InteractState state)
+        {
+            if (_handle.IsActive()) _handle.TryCancel();
+
+            var basis = BaseFor(state);
+            _panel.SetFill(basis.Top, basis.Bottom);
+            _panel.FlushParams();
+
+            var multiplier = MultiplierFor(state);
+            var current = _graphic.color;
+            if (TestForceInstant || _fade <= 0f
+                || CrossesTransparency(current, multiplier)
+                || BornFrame.IsCurrent(_bornFrame))
+            {
+                _graphic.color = multiplier;
+                return;
+            }
+
+            _handle = LMotion.Create(current, multiplier, _fade)
                 .Bind(_graphic, static (c, g) => { if (g) g.color = c; });
         }
 

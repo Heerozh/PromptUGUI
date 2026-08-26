@@ -37,6 +37,27 @@ namespace PromptUGUI.Tests.EditMode.Controls
             StateTintReactor.TestForceInstant = false;
         }
 
+        // A control declaring BOTH color= and a state colour takes a different route into the
+        // reactor: the authored base is pushed in by the control instead of peeked off the graphic.
+        // The born-frame stamp must not ride along on that capture — a Tab declared isOn="true" has
+        // to show its selectedColor on frame 1, not start a tween that (in EditMode) never advances.
+        [Test]
+        public void AnAuthoredBase_StillStampsTheBornFrame()
+        {
+            UI.LoadDocument("t", @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='tb' width='200' height='20'>
+    <Tab id='t' width='stretch' color='#E8D2A8' selectedColor='#CDEBA8' isOn='true'/>
+  </TabBar>
+</Screen></PromptUGUI>");
+            var screen = UI.Open("S");
+            var bg = screen.Get<Tab>("t").GameObject
+                .GetComponent<UnityEngine.UI.Selectable>().targetGraphic;
+
+            Assert.AreEqual("CDEBA8", ColorUtility.ToHtmlStringRGB(bg.color),
+                "a selected tab shows its selectedColor immediately, not its base");
+        }
+
         [Test]
         public void ReactorStateChange_InBornFrame_SnapsToTarget_NotLeftMidFade()
         {

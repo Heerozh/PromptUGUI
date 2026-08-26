@@ -89,6 +89,18 @@ namespace PromptUGUI.Controls
         /// 让一些控件在 Variant ReSolve / 初始 Apply 完成后做"恢复其它逻辑写入的 RectTransform / 组件状态"
         /// 这类收尾。默认实现为空；目前只有 SafeArea 重写。
         /// </summary>
+        /// <summary>
+        /// Called once at the start of every attribute-application pass, before any setter runs.
+        ///
+        /// <para>Needed because a setter firing is the only signal a control gets that an attribute
+        /// exists — <c>ControlAttributeApplier</c> skips an attribute whose value does not resolve
+        /// (<c>if (v == null) continue;</c>), so "the author stopped declaring this" arrives as
+        /// silence. A control that has to react to absence — the procedural surface turning off when
+        /// a variant-only <c>radius.mobile</c> goes inactive — clears its per-pass state here and
+        /// reconciles in <see cref="OnAfterApply"/>. That is spec §8's "compute, don't latch".</para>
+        /// </summary>
+        internal virtual void OnBeforeApply() { }
+
         internal virtual void OnAfterApply() { }
 
         /// <summary>

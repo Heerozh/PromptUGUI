@@ -131,11 +131,15 @@ namespace PromptUGUI.Tests.Application
             Assert.AreEqual(16f, panel.CurrentParams.Radius.x, "…and it must revert");
         }
 
+        /// <summary>
+        /// One style, many control types — and since <Btn> grew a procedural surface
+        /// (procedural-surface spec M1) that now means the SAME shape, not just the same colour.
+        /// This test used to assert the opposite ("radius means nothing to Btn"); that boundary is
+        /// what the milestone removed.
+        /// </summary>
         [Test]
-        public void Style_AppliesToAnyControl_IgnoringAttributesItDoesNotHave()
+        public void Style_SkinsAFrameAndAControlAlike()
         {
-            // The CSS property: `radius` means nothing to <Btn>, so it is silently dropped, while
-            // `color`, which Btn does have, still lands. One style, many control types.
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Style name='surface' color='#123456' radius='16'/>
@@ -149,9 +153,37 @@ namespace PromptUGUI.Tests.Application
 
             Assert.AreEqual(16f, PanelOf(s.Get<Frame>("f")).CurrentParams.Radius.x);
 
+            var btn = s.Get<Btn>("b").GameObject;
+            var surface = btn.transform.Find("__Surface");
+            Assert.IsNotNull(surface, "the same pack has to reach the Btn's shape too");
+            var panel = surface.GetComponent<PromptUGUI.Controls.Internal.ProceduralPanel>();
+            Assert.AreEqual(16f, panel.CurrentParams.Radius.x);
+            Assert.AreEqual(new Color32(0x12, 0x34, 0x56, 0xff), (Color32)panel.CurrentParams.FillTop);
+
+            Assert.AreEqual(0, btn.GetComponent<UnityEngine.UI.Image>().color.a,
+                "the Image stands down while the surface draws — kept, not destroyed");
+        }
+
+        [Test]
+        public void Style_IgnoresAttributesTheControlDoesNotHave()
+        {
+            // The CSS property proper: `weld` fuses a Frame's glass children and means nothing to a
+            // Btn, so it is dropped there while `color` still lands on both.
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Style name='shared' color='#123456' weld='16'/>
+  <Screen name='S'>
+    <Btn id='b' class='shared'>OK</Btn>
+  </Screen>
+</PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var s = UI.Open("S");
+
             var btnBg = s.Get<Btn>("b").GameObject.GetComponent<UnityEngine.UI.Image>();
             Assert.IsNotNull(btnBg);
-            Assert.AreEqual(new Color32(0x12, 0x34, 0x56, 0xff), (Color32)btnBg.color);
+            Assert.AreEqual(new Color32(0x12, 0x34, 0x56, 0xff), (Color32)btnBg.color,
+                "color lands; weld is silently dropped, which is what PUI-CONTAINER-VISUAL-ATTR "
+                + "reports at lint time");
         }
 
         [Test]

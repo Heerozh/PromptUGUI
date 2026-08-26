@@ -23,6 +23,51 @@ namespace PromptUGUI.Tests.EditMode.Lint
         private static List<LintIssue> Walk(string body) =>
             DocumentLinter.Walk(Parse(body)).ToList();
 
+        // "Attribute A is set but the B it needs is missing" is the one rule shape that turns a
+        // style-blind read into a FALSE POSITIVE — and the CLI turns a false positive into a non-zero
+        // exit code. The raw pass sees no fillColor / no sprite because both arrive through class=,
+        // and dedup then carries that verdict out even though the expanded pass disagrees. Rules of
+        // this shape have to go through StyleAttributeView.
+        [Test]
+        public void ProgressWithItsFillColourInAClass_IsNotReportedAsUnfilled()
+        {
+            var issues = Walk(
+                "<Style name='prog' fillColor='#58A63C'/>"
+                + "<Screen name='S'><Progress id='p' class='prog' height='16' value='0.4'/></Screen>");
+
+            CollectionAssert.IsEmpty(
+                issues.Where(i => i.Code == ProgressAttributeRules.NoFillCode).ToList(),
+                "the class supplies fillColor, so there is nothing wrong with this Progress");
+        }
+
+        [Test]
+        public void MaskSelfWithItsSpriteInAClass_IsNotReportedAsSpriteless()
+        {
+            var issues = Walk(
+                "<Style name='pane' sprite='ui:panel'/>"
+                + "<Screen name='S'><Image id='m' class='pane' mask='self' width='40' height='40'/></Screen>");
+
+            CollectionAssert.IsEmpty(
+                issues.Where(i => i.Code == MaskAttributeRules.SelfNoSpriteCode).ToList(),
+                "the class supplies the sprite the stencil mask needs");
+        }
+
+        // …and the rules must still fire when the attribute really is missing everywhere, class or
+        // not. Otherwise "no false positives" would just mean "no rule".
+        [Test]
+        public void TheSameRulesStillFire_WhenNoClassSuppliesTheMissingAttribute()
+        {
+            var progress = Walk(
+                "<Style name='prog' bgColor='#888'/>"
+                + "<Screen name='S'><Progress id='p' class='prog' height='16' value='0.4'/></Screen>");
+            Assert.AreEqual(1, progress.Count(i => i.Code == ProgressAttributeRules.NoFillCode));
+
+            var mask = Walk(
+                "<Style name='pane' color='#fff'/>"
+                + "<Screen name='S'><Image id='m' class='pane' mask='self' width='40' height='40'/></Screen>");
+            Assert.AreEqual(1, mask.Count(i => i.Code == MaskAttributeRules.SelfNoSpriteCode));
+        }
+
         // A rule that reads the node's written attributes is unaffected by the second pass — and
         // must not start reporting twice now that the tree is walked twice.
         [Test]

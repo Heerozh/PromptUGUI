@@ -126,7 +126,7 @@ public sealed class ThemeBlock
 
 ### 4.3 共享 / 命名空间 / 热重载
 
-全部沿用 `<Theme>` 现有语义：主题跟着 `<Import>` 走、进 commons、跨文件同名硬冲突、`ReplaceFromSrc` 热重载。主题内 `<Style>` 不参与 `as=` 命名空间——它按主题名寻址，`class` 引用的是**样式名**，`ui:card` 这种带命名空间的引用查的仍然是全局 / commons 池。
+全部沿用 `<Theme>` 现有语义：主题跟着 `<Import>` 走、进 commons、跨文件同名硬冲突、`ReplaceFromSrc` 热重载。主题内 `<Style name>` 是一个**引用**，跟 `class=` 用同一套拼法：`card` 指本文档自己的池，`ui:card` 指 `<Import as="ui">` 带进来的那份。命名空间是身份的一部分，`card` 与 `ui:card` 永不互相折叠。**顶层** `<Style>` 仍然只能写裸名——它的命名空间来自导入方的 `as=`，不来自它给自己写的名字，写冒号是 parse error。
 
 ## 5. 运行时重合并
 
@@ -225,12 +225,12 @@ private static readonly string[] ThemeStyleForbiddenAttrs =
 | 位置 | 展开期行为 | 跟随主题 |
 |---|---|---|
 | 模板**体内**的节点 | `TemplateExpander.cs:273` → `StyleMerger.Apply(prepared, styles, null)`，**不过滤**，与普通节点同一行代码 | ✅ 完全一样 |
-| 调用节点的 class → **公共属性**那半 | `ExpandInvocation` 拷到实例根的 `Attributes`（`TemplateExpander.cs:229-231`） | ✅ |
+| 调用节点的 class → **公共属性**那半 | `ExpandInvocation` 拷到实例根的 `Attributes`（`TemplateExpander.cs:229-231`） | ❌ 设计期误判，见 §16 |
 | 调用节点的 class → **Param** 那半 | `Substitution.Apply` 做字符串替换，烘进模板体的属性值 | ⚠️ 见下 |
 
 Param 那半**技术上可解**：`ElementNode.AttributesRaw` 已经存了任何含 `{{...}}` 的属性的替换前原文（`UIDocumentParser.cs:497-502`），`ElementNode.TextArgs` 存了整份实参（`TemplateExpander.cs:288`），i18n 的 locale 切换正是拿这两样重新替换的（`ControlAttributeApplier.cs:76`）。主题重替换可以走同一条路。
 
-**M1 不做**：调用节点上使用 theme-scoped style 且该 style 提供了 Param → lint 报 `PUI-THEME-STYLE-TEMPLATE-PARAM`，引导作者把 class 下沉到模板体内，或改用全局 `<Style>`（全局样式在调用点照常工作，只是不跟随主题）。M2 再打开（§14）。
+**不做，且是永久决定**（M3 已关闭，理由见 §16）：调用节点上使用 theme-scoped style → lint 报 `PUI-THEME-STYLE-ON-INVOCATION`，引导作者把 class 下沉到模板体内，或改用全局 `<Style>`（全局样式在调用点照常工作，只是不跟随主题）。规则覆盖的是整个「调用点上的 theme-scoped class」，不只 Param 那半 —— M2.3 实测两半都不跟随。
 
 安全性记录：`id` **不参与替换**（`SubstituteAttrs` 里是 `Id = src.Id`，只有 `Attributes` / `VariantOverrides` 过 `Substitution.Apply`；`id` 在 parser 阶段就 `continue` 掉、从不进 `Attributes`）。所以主题永远改不到 id，`_byId` / `Get<T>` 的路径不受影响。
 
@@ -363,7 +363,6 @@ PlayMode：一条端到端冒烟——两个主题各带 `<Style name="card">`�
   - 速查区（1181 行起）的 `STYLE/CLASS` 与 `STYLE LINT` 段补三条新规则代码。
 - `scripting-promptugui-csharp/SKILL.md`：`UI.Theme.Current` 的描述从"重新解析颜色"改为"重新解析颜色**与样式包**"，并说明切换成本量级（§5.3）。
 - `.lint/UIXmlLint/README.md`：展开后 lint、`--theme` 参数、两遍去重。
-- 若 §7 的 M2 落地，再补模板 Param 跟随主题的说明。
 
 ## 14. 里程碑拆分
 
@@ -372,7 +371,7 @@ PlayMode：一条端到端冒烟——两个主题各带 `<Style name="card">`�
 | **M0 Red test** | §8 的 A 类 3 条 + C 类 1 条 red test（`Ignore` 挂起），B 类 1 条绿色特征化测试。纯测试，可先合 | 无 |
 | **M1 Lint 展开化** | §9.1–§9.3：搬三个类型、剥离 load/merge、CLI 文件 resolver、`IRWalker` 走展开树、两遍去重 | 无（与主题特性正交，独立有价值） |
 | **M2 主题样式** | §3–§7：IR / parser / ThemeStore / 有效 pack 折叠 / 运行时重合并 / 三条约束 | M1（§9.4 的三条规则要 CLI 能展开） |
-| **M3 模板 Param 跟随** | §7 的 raw + args 重替换，去掉 `PUI-THEME-STYLE-TEMPLATE-PARAM` | M2 |
+| ~~**M3 模板 Param 跟随**~~ | ~~§7 的 raw + args 重替换~~ —— **不做，已关闭，见 §16** | — |
 
 M0 与 M1 都不依赖主题特性、都能独立合入主干。M1 是 M2 的硬前置：没有它，§6.1 / §6.2 两条约束只能靠文档口头约定，而它们的违规表现是"换主题后某个属性静默不还原"——正是最难 debug 的那一类。
 
@@ -445,7 +444,7 @@ tmpl.ui.xml: [PUI-MASK-FRAME-SELF] <Frame id='card'>: mask="self" requires ...
 
 **路线调整（§4.2 / §5 的实现顺序）**：设计里主题 pack 是在**展开期**折进 `class=` 的，M2.3 的运行时重合并再负责后续切换。实现时发现这会有两条路径做同一件事，而且展开期那条拿不到 commons 主题 —— `LoadCommonLibraryAsync` 注册的主题在 `ThemeStore` 里，不在后续某次 `LoadedDoc.Themes` 中。改为：**展开期照旧只合全局 pack，主题层完全由重合并那一步负责**（它本来就要在 Open 时跑一次）。一条路径，`ThemeStore` 是唯一真相源，M2.4 的 `--theme` 也复用同一个函数。
 
-**§4.3 收紧为明确规则**：设计里"主题内 `<Style>` 不参与 `as=` 命名空间"写得含糊。落实为：**主题样式只对 `StyleKey(null, name)` 生效** —— `as="ui"` 导入的 commons 库其样式键是 `StyleKey("ui", name)`，主题没有自己的命名空间去匹配，所以「给带命名空间的样式换肤」目前不支持。写进了 `ThemeStyleResolver` 的注释与测试。要支持得先给 `<Theme>` 一个命名空间概念，另议。
+**§4.3 收紧为明确规则**：设计里"主题内 `<Style>` 不参与 `as=` 命名空间"写得含糊。M2.2 先落成 **主题样式只对 `StyleKey(null, name)` 生效**，把带命名空间的样式换肤挂起。**后已放开**，见文末《主题样式认命名空间》—— 那条限制的理由（"主题没有自己的命名空间"）本身就是个误判：主题样式名从来不是一个声明，而是一个**引用**。
 
 产出：
 
@@ -534,7 +533,27 @@ M0 / M1 / M2 全部落地，§8 的可逆性缺陷全部修完，测试套件无
 
 仍然开着的：
 
-- **带命名空间的样式不能被主题覆盖**（M2.2 的 §4.3 收紧）。
+（无。M3 与「带命名空间的样式不能被主题覆盖」都已关闭 —— 前者不做、后者已放开，各见下。）
+
+M3 已关闭，不再是待办：
+
+### M3 关闭：调用点的 class 不跟随主题，`PUI-THEME-STYLE-ON-INVOCATION` 转正
+
+§14 列的 M3（"§7 的 raw + args 重替换，去掉 `PUI-THEME-STYLE-TEMPLATE-PARAM`"）**不做**。它的设计前提在 M2.3 实施时就塌了一半，重新评估下来代价与收益完全不成比例：
+
+1. **要做的已经不是原来那件事。** §7 认为调用点 class 的「公共属性那半」自动就跟随（`ExpandInvocation` 拷到实例根）。实测**两半都不跟随** —— invocation 节点展开后不存在，它的 `class` 无处安放。M3 因此不是"补上 Param 那半"，是两半都要新建机制。
+
+2. **§7 说的「走 i18n 同一条路」不成立。** `ControlAttributeApplier.cs:73-79` 的 raw + args 重替换**只对 `text` 一个属性开**，还要 `tr` 打开。任意属性的重替换是新机制，不是复用。这是 §7 里最乐观的一句，它是错的。
+
+3. **它会把一条已取消的规则请回来。** M2.4 取消 `PUI-THEME-STYLE-IF-PARAM` 的唯一理由是 `ON-INVOCATION` 整个盖住了它。一旦调用点能跟随主题，主题就能改 Param，Param 就能喂 `if=` → 换主题变成**结构**变化 → 要重建 GameObject。这正是「Variants / Theme 不重建 GameObject」一直在躲的东西。
+
+4. **它需要一条 spec 从没定过的优先级**：实例根上同时存在「调用点的 class」与「模板体根自己的 class」时，谁覆盖谁。
+
+5. **workaround 不是将就，是更对的写法，而且有绿测试钉着。** 把 `class=` 下沉到模板体内的节点上 —— `DynamicSubtreeReSolveTests.BoundRow_RepaintsOnAThemeSwitch`、`ThemeStyleSwitchTests` 一整组就是这个形状。lint 报错本身就带着这句指引。
+
+真正剩下的口子只有一个：第三方 commons 模板体内没写 `class=`、又想从调用点给它换皮。窄，且可由库作者补一个 `class` 解决。
+
+`PUI-THEME-STYLE-ON-INVOCATION` 因此从"临时闸门"转正为**永久约束**，§7 的表格与说明随之订正。
 
 ### 追加：`itemTemplate` 走完整展开
 
@@ -677,3 +696,78 @@ protected void SetDirty() {
 **契约测试**：`LayoutRebuildDirtyTests` 拿 `CanvasUpdateRegistry` 的布局队列做 seam（它按 layout root 去重，所以读的是"有没有脏"而不是"脏了几次"——后者才是契约）。三条：稳态 ReSolve 必须一次不脏；自由定位父节点作对照（本来就不脏，是它点出了元凶）；真改尺寸必须照常脏，否则"便宜"就只是"坏了"。
 
 验证：EditMode 2337/2337、PlayMode 171/171、EditorOnly 308/308，0 failed 0 skipped；`dotnet format --verify-no-changes --severity warn` 无输出。
+
+### 追加：主题样式认命名空间（§4.3 的限制放开）
+
+M2.2 把 §4.3 收紧成"主题样式只对 `StyleKey(null, name)` 生效"，理由写的是「主题没有自己的命名空间去匹配 `StyleKey("ui", name)`」。**这个理由本身是个概念错位**：主题的 `<Style name>` 从来不是一个*声明*，它是一个**引用** —— 跟 `class="ui:card"` 是同一个东西。既然引用侧本来就认命名空间，主题也该认。
+
+而且这条限制正好挡住了最想要它的场景：**从别处 import 进来的皮肤库，恰恰是最需要换肤的那一份**。库的作者管不到你的主题，你也改不了库的文件。
+
+放开后：
+
+```xml
+<Theme name="pixel">
+  <Style name="ui:card" radius="0" borderWidth="2"/>   <!-- 覆盖 <Import as="ui"> 带进来的那份 -->
+  <Style name="card"    radius="0"/>                   <!-- 另一个样式：本文档自己的 -->
+</Theme>
+```
+
+命名空间是身份的一部分，两者永不互相折叠（`ABareThemeStyle_DoesNotReachItsNamespacedNamesake` 钉住）。
+
+**顶层 `<Style>` 仍然只能写裸名**，而且现在是显式 parse error 而不是被 kebab 正则顺带拒掉——它的命名空间来自导入方的 `as=`，不来自它给自己写的名字；写了冒号只会产生一个谁都寻址不到的包，所以报错要说清命名空间到底从哪来。
+
+改动很小，因为**键的类型没动**：`ThemeBlock.Styles` 仍是 `Dictionary<string, StyleDef>`（`StyleKey` 是 internal 而 `ThemeBlock` 是 public，换键类型会撞可见性，跟 `ThemeStyleRules` 当初那个问题同源）。冒号只在**解析边界**上被认出来：
+
+| 处 | 改动 |
+|---|---|
+| `UIDocumentParser.ParseStylePack` | 新增 `allowNamespace`，主题侧传 true；新增 `ValidateStyleName`（两半各自 kebab） |
+| `ThemeStyleResolver.Resolve` | `new StyleKey(null, kv.Key)` → `StyleKey.ParseReference(kv.Key)` |
+| `ThemeStyleRules.CheckBaselines` / `CheckShape` | 同上 |
+| `ThemeStyleRules.CheckInvocations` | 删掉「带命名空间的一律跳过」那条，改为按原样比对 |
+
+### 追加：状态色控件的基色也要可逆（§8 家族里漏掉的第四处）
+
+做农场/玻璃示例时撞出来的：**声明了任何 `*Color` / `*Modulate` / `selectedColor` 的控件，它自己的 `color=` 就再也换不动了。** 玻璃主题给 `<Btn class="btn">` 换了整包属性，`sprite` 换了，`color` 纹丝不动。
+
+跟主题无关，是既有 bug：纯 Variant 一样卡住。
+
+```xml
+<Btn color='#E8D2A8' color.alt='#112233'/>                    <!-- .alt → #112233 ✓ -->
+<Btn color='#E8D2A8' color.alt='#112233' hoverColor='#F5E6C8'/> <!-- .alt → 仍是 #E8D2A8 ✗ -->
+```
+
+**根因**：`StateTintReactor` 的基色是**从图上 Peek 出来的，且只 Peek 一次**。`ControlAttributeApplier` 写完新 `color`，紧接着 `OnAfterApply` → `Configure` → `OnState` 用那份陈旧的 `_baseColor` 原样盖回去。
+
+只 Peek 一次的理由是对的，注释里写着：重新 Configure 时若再 Peek，悬停中的图上是 **tint**，会把 hover 色永久烙成基色。所以修法不是"多 Peek 几次"，而是跟 M2.5 那三处同形 —— **从当前声明推，不从像素快照推**：控件的 `Color` setter 把值存下来，`OnAfterApply` 连同 `selectedColor` 一起交给 `StateTintInstaller`（`authoredBase:` 具名参数）。没声明 `color=` 的图（控件自带底、只吃 modulate 扩散的后代）照旧 Peek 兜底。
+
+`AReApplyWhileHovered_DoesNotPromoteTheTintIntoTheBase` 钉住那条原始理由 —— 它必须一直绿，否则就是拿一个 bug 换另一个。
+
+**顺带踩到并修掉的第二处**：`_bornFrame` 的时间戳原本挂在 `!_baseCaptured` 那个分支里。声明了 `color=` 的控件进来时 `_baseCaptured` 已经是 true，戳就没盖上 → 首帧 snap 判定失效 → `isOn="true"` 的 Tab 不再瞬间显示 `selectedColor`，而是去起一个 EditMode 里永远不推进的 tween。**全套 2342 个测试一个都没抓到**，因为状态测试统统开着 `TestForceInstant`，它会短路掉 BornFrame 判断；是拿真实示例跑 execute_code 才看见的。补了 `StateBornFrameTests.AnAuthoredBase_StillStampsTheBornFrame`（那个类的 `TestForceInstant` 恒为 false，正是为这条留的口子）。
+
+验证：EditMode 2348/2348、PlayMode 171/171、EditorOnly 308/308，0 failed 0 skipped；`dotnet format --verify-no-changes --severity warn` 无输出；UIXmlLint 对 `Runtime/Resources/` 与改写后的示例文档均零 issue。示例的 `CommonControlsRunner.cs` 不在任何编译集里（`Samples~` 对 Unity 与 lint 都不可见），改完用 Roslyn 对着宿主工程实际加载的程序集单独编了一遍：0 error。
+
+### 追加：两条会误报的 lint 规则（示例撞出来的）
+
+`PUI-PROG-NO-FILL` 和 `PUI-MASK-SELF-NO-SPRITE` 都是「属性 A 写了，但它需要的 B 不在」这种**报缺失**的形状 —— 而它们读的是 `ElementNode.Attributes`，看不见 `class=` 带进来的东西。于是：
+
+```xml
+<Style name="prog" fillColor="#58A63C"/>
+<Progress class="prog" value="0.4"/>   <!-- 误报 PUI-PROG-NO-FILL -->
+
+<Style name="pane" sprite="ui:panel"/>
+<Image class="pane" mask="self"/>      <!-- 误报 PUI-MASK-SELF-NO-SPRITE -->
+```
+
+两遍走查也救不回来：raw 遍看不见 pack、判它有问题，expanded 遍看得见、判它没问题，而 `DocumentLinter` 按 issue 去重 —— raw 遍的结论照样输出，CLI 于是给一个非零 exit code。**报缺失的规则必须走 `StyleAttributeView`**（`GlassRules` 一直是这么做的，它的类注释里就写着理由："a rule blind to styles reports a correct layout as broken"），只是这两条当初没接上。
+
+接上之后：解析不到的 class 让节点变成 `IsUncertain` → 闭嘴；解析得到、且 pack 里确实没有那个属性 → 照常报。`DocumentLinterTests` 三条钉住（两条不该报、一条该报）。
+
+**同一形状的其余规则**（`CarouselRules` 的无尺寸、`ImageFitRules`）没有误报，因为它们检查的属性要么不常写进样式包，要么本来就走 `VariantOverrides` 一起判。真要普查得逐条过一遍，不在本次范围。
+
+### 追加：内置控件上写错属性名是静默的
+
+改示例时写了 `<ScrollList scrollbarSprite="none">`，运行期什么都没发生 —— `ScrollList.ScrollbarSprite` 的 XML 名其实是 **`scrollbar`**（`[UIAttr(IsSprite)]` 会剥掉尾部 `Sprite`，好让它和 `<Dropdown scrollbar=>` 对齐）。`ControlAttributeApplier` 对认不出的属性名是 `continue`，parser 不管（它不知道控件有哪些属性），lint 也不管（`Core/Lint` 是纯 C#，反射不到 Unity 侧的控件）。
+
+现有的出口是 XSD 生成器（IDE 里补全 + 校验）。要让 CLI 也能查，得把「标签 → 属性名」这张表生成到 `Core/Lint` 能读的地方 —— 独立一条，不在本次范围。
+
+验证（追加轮）：EditMode 2351/2351、PlayMode 171/171、EditorOnly 308/308，0 failed 0 skipped；`dotnet format` 无输出；UIXmlLint 零 issue。示例的两套皮逐层核对：33 个内层图，28 层随主题变化并完整往返，剩下 5 层本来就不可见（stencil mask 源、未启用的 Progress frame、透明 viewport）。

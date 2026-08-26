@@ -69,7 +69,7 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 | `<Color name=... value=...>`                                                                         | Inside `<Theme>`. Defines a named color token.            | `name` is kebab-case `[a-z0-9-]`. `value` is hex (`#rgb` / `#rrggbb` / `#rrggbbaa`) or a Unity CSS named color (`red` / `white` / ...).                                                                                                                                                       |
 | `<Screen name="..." [canvas="..."] [reference="..."] [scale-mode="..."] [reference.portrait="..."]>` | A complete UI scene; opened by code with `UI.Open(name)`. | One Screen = one Canvas. Names unique across all loaded files. `canvas="overlay\|camera\|world"`, default `overlay`. Optional `reference="WxH"` (+ `.variant`) switches CanvasScaler to ScaleWithScreenSize. Optional `scale-mode="auto\|pixel"` (+ `.variant`); pixel = integer scaleFactor. |
 | `<Template name="...">`                                                                              | Reusable subtree, expanded at parse time.                 | Body must have **exactly one root element**.                                                                                                                                                                                                                                                  |
-| `<Style name="...">`                                                                                 | Named attribute pack, pulled in with `class="..."`.       | Top-level, no children. `name` is kebab-case `[a-z0-9-]`. See **Style & class**.                                                                                                                                                                                                              |
+| `<Style name="...">`                                                                                 | Named attribute pack, pulled in with `class="..."`.       | Top-level **or** inside `<Theme>`, no children. `name` is kebab-case `[a-z0-9-]`; inside a `<Theme>` it may also be `ns:name` to override an imported pack. See **Style & class** and **Theme-scoped styles**.                                                                                 |
 
 `<Import>`, `<Theme>`, `<Screen>`, `<Style>`, `<Template>` are the **only** elements allowed at the top level. Comments use standard `<!-- -->`.
 
@@ -81,7 +81,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 
 | Tag | 用途 |
 |---|---|
-| `<Frame>` | 容器；可选程序化视觉（`color` / `radius` / `borderWidth` / `glow`）+ `mask="rect"` |
+| `<Frame>` | 容器；可选程序化视觉（`color` / `radius` / `borderWidth` / `glow`）+ `mask="rect"` / `mask="self"`（裁成自绘形状）|
 | `<SafeArea>` | 撑满父级、按设备安全区内缩（见本节末 **Safe area** 小节） |
 | `<Image>` | uGUI Image：sprite + 等比适配 + mask |
 | `<RawImage>` | uGUI RawImage：C# 设 Texture（动态图）+ contain/cover 适配 + mask |
@@ -108,13 +108,14 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 
 ### `<Frame>`
 
-Container. With none of the visual attributes below it is a bare `RectTransform` — no `Graphic`, no cost. Write any of them and Frame draws itself procedurally (rounded-rect SDF shader, no sprite): fill, corner radius, inner border, outer glow. Optional `RectMask2D` (`mask="rect"`).
+Container. With none of the visual attributes below it is a bare `RectTransform` — no `Graphic`, no cost. Write any of them and Frame draws itself procedurally (rounded-rect SDF shader, no sprite): fill, corner radius, inner border, outer glow. Optional `RectMask2D` (`mask="rect"`), or a stencil clip to its own drawn shape (`mask="self"` — needs one of the visual attributes, since that is what gives the Frame a `Graphic`).
 
 There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAINER-VISUAL-ATTR`) — use `<Image>` for sprite-based skins. A Frame never blocks clicks even when it draws; for a tinted clickable region use `<Btn>`.
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
-| `mask` | `rect` | — | 加 `RectMask2D` 裁剪子节点 |
+| `mask` | `rect` / `self` | — | `rect` = `RectMask2D` 直角裁剪子节点；`self` = stencil `Mask`，把子节点裁成本 Frame 自绘的那个形状（圆角头像 / 圆角滚动区）。`self` 要求写了下面任一视觉属性 —— 否则 Frame 没有 `Graphic`，裁剪静默失效（`PUI-MASK-FRAME-SELF`）。`weld` 承载者也不行（`PUI-MASK-WELD-SELF`）|
+| `showMask` | bool | `true` | 仅 `mask="self"`。`false` = 只裁不画，一个隐形的圆角裁剪器 |
 | `maskPadding` | `T,R,B,L`（`_`=占位） | — | 仅 `mask="rect"` 时有效 |
 | `color` | hex / CSS named / theme token / `A,B` 渐变 / `/alpha` | — (无填充) | Fill. Same value grammar as everywhere else — see **Color Tokens**; a comma value is a top→bottom gradient |
 | `radius` | `R` / `TL,TR,BR,BL` / `pill` | `0` | Corner radius in px. Four values follow CSS `border-radius` order (clockwise from top-left). `pill` = fully rounded ends. Values larger than the shape are clamped, not an error |
@@ -133,11 +134,23 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 <Frame color="danger" radius="20" glow="18"/>              <!-- 发光 -->
 <Frame color="#1b263b" radius="0,0,16,16"/>                <!-- 只圆下面两角 -->
 <Frame glass="true" radius="16" frost="0.6"/>              <!-- 磨砂玻璃，见 glass.md -->
+<Frame radius="pill" mask="self" showMask="false">         <!-- 隐形圆角裁剪器 -->
+  <Image type="cover" sprite="ui:avatar"/>
+</Frame>
 ```
 
-- Only `glow` is affected by a **祖先** `RectMask2D` clipping the extra quad away; a Frame's own `mask="rect"` clips its children, never itself.
+- Only `glow` is affected by a **祖先** `RectMask2D` clipping the extra quad away; a Frame's own `mask="rect"` / `mask="self"` clips its children, never itself.
+- `mask="self"` clips to the **shape**, not to what the Frame paints: an outer `glow` does not widen the clip, and a Frame with a `radius` but no `color` still clips (that is the invisible-clipper form above). So `radius=` alone is enough to define the mask.
 - Colour / radius / border changes are material-only — a Variant flip or a colour animation never rebuilds the canvas mesh. Frames sharing identical values (typically via `class=`) share one material and keep batching.
 - Layout-only containers (`<VStack>` / `<HStack>` / `<Grid>` / `<SafeArea>`) draw nothing — wrap them in a `<Frame>` for a background.
+
+> **Which tags draw procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `glass` (+ its tuning params) work on **`<Frame>`, `<Btn>`, `<Tab>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>` and `<Progress>`** — see **Procedural surfaces** below for what they do on a control.
+>
+> On any other tag — `<Image>`, `<RawImage>`, `<Text>`, `<Icon>`, `<TabBar>`, `<Carousel>`, `<Markdown>` — they are accepted by the parser and then silently dropped; `PUI-CONTAINER-VISUAL-ATTR` is the only thing that tells you. (`<Image>` / `<RawImage>` are deliberate: a sprite is their whole point, and a procedural rectangle is what `<Frame>` is for.)
+>
+> `weld` is `<Frame>`-only in all cases: it fuses a Frame's direct glass **children**, and a control has none.
+>
+> This holds for `<Style>` / `class=` too: one pack now skins a Frame and a Btn alike, and still does nothing to an `<Image>` wearing the same class.
 
 ### `<Image>`
 
@@ -233,6 +246,54 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 | `tr` | bool | `true` | `false`=跳过 i18n |
 | `ctx` | string | — | msgctxt 消歧 |
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
+| `radius` · `borderWidth` · `borderColor` · `glow` · `glowColor` · `glass` (+ 玻璃调参) | 同 `<Frame>` | — | **程序化表面**，见下节 |
+
+### 程序化表面（`<Frame>` 之外的控件）
+
+在 `<Btn>` / `<Tab>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<InputField>` / `<ScrollList>` / `<Progress>` 上写 `radius`（或任一其它程序化属性），该控件的**主表面**就改用自绘的圆角矩形 SDF，取值语义与 `<Frame>` 逐字相同。主题因此能换掉控件的**形状**，不只是颜色。
+
+```xml
+<Btn radius="pill" color="accent" hoverColor="accent-light">确定</Btn>
+<Btn radius="12" glass="true" borderWidth="1" borderColor="white/0.5">玻璃按钮</Btn>
+<Style name="skin" radius="10" borderWidth="1" borderColor="white/0.4"/>   <!-- 一个包换整套 -->
+```
+
+**主表面是哪一层**，跟 `color=` / `sprite=` 今天作用的层完全一致 —— 所以形状盖住的正好是它们上色的那块：
+
+| 控件 | 主表面 |
+|---|---|
+| `<Btn>` `<Tab>` `<Dropdown>` `<InputField>` `<ScrollList>` | 控件自身的背景 |
+| `<Toggle>` | **勾选框**（不含 label） |
+| `<Slider>` | **轨道**（不含滑块） |
+| `<Progress>` | **bg 层**（在 mask 内） |
+
+规则：
+
+- `color`（Progress 是 `bgColor`）成为 SDF 的填充色；不写就沿用控件自带的默认底色，所以 `<Btn radius="8">` 是个圆角按钮而不是隐形按钮。
+- `sprite` 是**矛盾声明**（`PUI-PROC-SPRITE-CONFLICT`）；`sprite="none"` / `""` 不算 —— 那是「清掉贴图」，跟走程序化一致。
+- `pressedSprite` / `disabledSprite` / `selectedSprite` 同样矛盾（`PUI-PROC-STATE-SPRITE-CONFLICT`）：它们换的是 `Image.overrideSprite`，SDF 面上没有那个东西。改用 `pressedColor` / `disabledColor` / `selectedColor` 或 `<Show on="state-*">`。
+- `hoverColor` 等状态色**照常生效**（`targetGraphic` 跟着表面走）。**例外 `<Slider>`**：它的 `targetGraphic` 留在滑块上，因为会响应 hover/press 的本来就是滑块而不是轨道。
+- 禁用态自动去饱和、玻璃另外变薄，**形状保持**。
+- 背景 Image 只是让位（贴图清空、alpha 归零），**不销毁** —— 所以变体来回切能精确还原，控件也照常收得到点击。
+- `weld` 不进控件：它融的是 `<Frame>` 的直接玻璃**子级**。
+
+**内层也能给形状，但只给形状。** `<Slider>` 与 `<Progress>` 的内部图层各多一个 `<layer>Radius`，和已有的 `<layer>Color` 配成对：
+
+| 控件 | 内层属性 |
+|---|---|
+| `<Slider>` | `fillRadius`（已填充段）· `handleRadius`（滑块，`pill` = 圆钮）|
+| `<Progress>` | `fillRadius` · `frameRadius` · `maskRadius`（把 bg + fill 一起裁）|
+
+**内层不给玻璃**，这不是为了省属性而是语义问题：backdrop 采集不含 UI 自身，所以压在玻璃轨道上的玻璃 fill 采的是同一张 backdrop，两层长得一模一样、进度条直接消失。颜色那一半 `fillColor` / `handleColor` 早就支持 token / `/alpha` / 渐变。
+
+**`<Progress radius=>` 会自动把 mask 也圆掉。** `radius` 本身只管 bg 那一层，而 fill 是压在上面的另一张方角 Image —— 单靠它进度条会只有尾端是圆的。所以 `maskRadius` 不写时**自动跟随 `radius`**（同 `<ScrollList mask>` 跟随 bg sprite 的既有规约），bg 与 fill 一起被裁成同一形状，fill 的推进边保持方的。显式写 `maskRadius`（含 `""`）退出跟随；与 `mask=` 互斥（`PUI-PROG-MASK-RADIUS-CONFLICT`）。
+
+```xml
+<Progress value="0.6" radius="14" bgColor="#22345a" fillColor="#ffcc33"/>   <!-- 两端都圆 -->
+<Slider radius="pill" fillRadius="pill" handleRadius="pill" handleColor="#fff"/>
+```
+
+`fillRadius` 与 `<Progress mode="fill">` **不能共存**（`PUI-PROG-FILL-RADIUS-MODE`）：那个模式靠 `Image.fillAmount` 画填充，SDF 面没有对应物。默认的 `mode="scale"` 是改锚点，没问题。
 
 ### `<Toggle>`
 
@@ -240,6 +301,7 @@ Image + uGUI Toggle + 自动 label。R3 `OnValueChanged: bool`。`<Toggle>静音
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
+| `radius` · `borderWidth` · `glass` … | 同 `<Frame>` | — | **程序化表面**（覆盖**勾选框**，不含 label）→ 见 **程序化表面** 一节 |
 | `text` | string | — | |
 | `isOn` | bool | `false` | |
 | `group` | string | — | 互斥键 |
@@ -259,6 +321,7 @@ Image + uGUI Slider。R3 `OnValueChanged: float`。不写 size 时按方向给�
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
+| `radius` · `borderWidth` · `glass` … | 同 `<Frame>` | — | **程序化表面**（覆盖**轨道**）→ 见 **程序化表面** 一节。滑块/填充另有 `handleRadius` / `fillRadius` |
 | `min` · `max` · `value` | float | — | |
 | `wholeNumbers` | bool | — | |
 | `direction` | `horizontal` / `vertical` / `reverse-horizontal` / `reverse-vertical` | `horizontal` | |
@@ -274,6 +337,7 @@ TMP_Dropdown。R3 `OnSelected: int`。选项 C# 侧 `BindOptions(...)` 注入。
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
+| `radius` · `borderWidth` · `glass` … | 同 `<Frame>` | — | **程序化表面**（闭合态背景）→ 见 **程序化表面** 一节 |
 | `value` | int | — | 初始索引 |
 | `color` | hex / CSS / token | — | 见 **Color Tokens** |
 | `sprite` | sprite key | — | |
@@ -298,6 +362,7 @@ ScrollRect + Mask。项 C# 侧 `BindItems(...)` 注入。`itemTemplate` 引用 `
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
+| `radius` · `borderWidth` · `glass` … | 同 `<Frame>` | — | **程序化表面**（背景）→ 见 **程序化表面** 一节 |
 | `itemTemplate` | tag name | — | 必填 |
 | `direction` | `vertical` / `horizontal` | `vertical` | |
 | `spacing` | float | — | |
@@ -317,6 +382,7 @@ TMP_InputField；R3 `OnValueChanged` / `OnEndEdit` / `OnSubmit: string`。`<Inpu
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
+| `radius` · `borderWidth` · `glass` … | 同 `<Frame>` | — | **程序化表面**（背景）→ 见 **程序化表面** 一节 |
 | `text` | string | — | |
 | `placeholder` | string | — | |
 | `contentType` | `standard` / `autocorrected` / `integer-number` / `decimal-number` / `alphanumeric` / `name` / `email` / `password` / `pin` / `custom` | — | |
@@ -343,6 +409,7 @@ TMP_InputField；R3 `OnValueChanged` / `OnEndEdit` / `OnSubmit: string`。`<Inpu
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
+| `radius` · `fillRadius` · `frameRadius` · `maskRadius` | 同 `<Frame>` 的 radius | — | **程序化表面**：`radius` 管 bg 层并自动圆化 mask（两端都圆）→ 见 **程序化表面** 一节 |
 | `value` | float `[0..1]` | `0` | |
 | `fill` · `bg` · `frame` · `mask` | sprite key | — | 各图层 sprite |
 | `fillColor` | hex / CSS / token | — | |
@@ -369,6 +436,7 @@ Tab 容器；私有 `ToggleGroup`（`allowSwitchOff=false`）+ `Horizontal` / `V
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
+| `radius` · `borderWidth` · `glass` … | 同 `<Frame>` | — | **程序化表面**（背景）→ 见 **程序化表面** 一节 |
 | `text` | string | — | |
 | `isOn` | bool | `false` | |
 | `bind` | id | — | 选中显隐的兄弟 `<Frame>` |
@@ -472,7 +540,7 @@ Other notes:
 
 | Tag            | 根节点组件                                                                                                                                                                                                                                                     | 自动子节点                                                                                                                                                                                                                                                                             | R3 事件源                                                                                                                   |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `<Frame>`      | `RectTransform` 单独；可选 `RectMask2D`（写 `mask="rect"` 时挂）                                                                                                                                                                                               | —                                                                                                                                                                                                                                                                                      | —                                                                                                                           |
+| `<Frame>`      | `RectTransform` 单独；可选 `RectMask2D`（写 `mask="rect"` 时挂）或 stencil `Mask`（`mask="self"`，用自绘的 `ProceduralPanel` 当 mask 形状）                                                                                                                                                                                               | —                                                                                                                                                                                                                                                                                      | —                                                                                                                           |
 | `<Image>`      | `Image` + (lazy) `PointerEventRelay`（被 hover/press trigger 引用为源时挂上）；可选 `RectMask2D`（`mask="rect"`）或 stencil `Mask`（`mask="self"`，用自身 sprite 作 mask 形状）                                                                                | —                                                                                                                                                                                                                                                                                      | `OnPointerEnter` / `OnPointerExit` / `OnPointerDown` ← Relay                                                                |
 | `<RawImage>`   | `RawImage` + (lazy) `PointerEventRelay`；可选 `AspectRatioFitter`（`type=contain/cover`）/ `RectMask2D`（`mask="rect"`）/ stencil `Mask`（`mask="self"`）；图源 = C# `Texture` 属性                                                                            | —                                                                                                                                                                                                                                                                                      | `OnPointerEnter` / `OnPointerExit` / `OnPointerDown` ← Relay                                                                |
 | `<Text>`       | `TextMeshProUGUI`                                                                                                                                                                                                                                              | —                                                                                                                                                                                                                                                                                      | —                                                                                                                           |
@@ -748,8 +816,20 @@ becomes `<Param>` values that get baked into the body at expansion, and the invo
 afterwards, so nothing re-derives. Put the `class=` on a node **inside** the template body instead.
 `PUI-THEME-STYLE-ON-INVOCATION` flags it.
 
-Theme styles address the **un-namespaced** style pool only — `class="ui:card"` (from a library
-imported with `as="ui"`) cannot be themed.
+**A theme names a style the way `class=` names it, namespace included.** A pack that arrives through
+an `<Import as="ui">` is `ui:card` everywhere, so that is what a theme writes to override it —
+re-skinning an imported library is exactly what themes are for:
+
+```xml
+<Theme name="pixel">
+  <Style name="ui:card" radius="0" borderWidth="2"/>   <!-- overrides the imported pack -->
+  <Style name="card"    radius="0"/>                   <!-- a DIFFERENT style: this document's own -->
+</Theme>
+```
+
+The namespace is part of the identity: `card` and `ui:card` never fold into each other. A **top-level**
+`<Style>` still takes a bare name — its namespace comes from the `as=` of whoever imports the
+document, never from the name it writes for itself, and a colon there is a parse error.
 
 ## Templates
 
@@ -1168,6 +1248,8 @@ PromptUGUI never auto-enables masking — you must opt in via `mask=`. Two reaso
 | Cheap rectangular clip (viewport-style)                       | `<Frame mask="rect"/>` or `<Image mask="rect" sprite="..."/>`                                                                      | `RectMask2D`                            |
 | Sprite-shape clip + sprite drawn (rounded card)               | `<Image sprite="round" mask="self"/>`                                                                                              | stencil `Mask`, `showMaskGraphic=true`  |
 | Sprite-shape clip + sprite hidden (viewport with shaped mask) | `<Image sprite="round-mask" mask="self" showMask="false"/>`                                                                        | stencil `Mask`, `showMaskGraphic=false` |
+| Rounded clip with **no sprite at all** (avatar, scroll area)  | `<Frame radius="16" mask="self" showMask="false"/>`                                                                                | stencil `Mask` on the SDF panel         |
+| Rounded card that is both drawn and clipped                   | `<Frame color="surface" radius="16" borderWidth="1" mask="self"/>`                                                                 | stencil `Mask`, `showMaskGraphic=true`  |
 | Decorated outer frame + different inner clip shape            | Nest two `<Image>` — outer has `sprite=` only; inner has `mask="self" sprite=` (different shape) + `margin=` to control inner size | none on outer, stencil on inner         |
 
 **Aspect-fit (`type="cover"` / `"contain"`) clipping**: the library never auto-clips a `cover` Image — its `AspectRatioFitter` sizes the Image to *envelop* its parent, so the overflow is clipped by a `mask="rect"` (`RectMask2D`) you put on the **parent** frame:

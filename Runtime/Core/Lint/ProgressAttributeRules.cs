@@ -17,6 +17,8 @@ namespace PromptUGUI.Lint
         public const string ChildrenCode = "PUI-PROG-CHILDREN";
         public const string MaskVariantCode = "PUI-PROG-MASK-VARIANT";
         public const string NoFillCode = "PUI-PROG-NO-FILL";
+        public const string FillRadiusModeCode = "PUI-PROG-FILL-RADIUS-MODE";
+        public const string MaskRadiusConflictCode = "PUI-PROG-MASK-RADIUS-CONFLICT";
 
         private static readonly HashSet<string> ValidModes = new HashSet<string> { "scale", "fill" };
         private static readonly HashSet<string> ValidDirections = new HashSet<string>
@@ -25,7 +27,11 @@ namespace PromptUGUI.Lint
         };
 
         public static IEnumerable<LintIssue> CheckProgress(ElementNode n)
+            => CheckProgress(n, StyleAttributeView.Empty);
+
+        public static IEnumerable<LintIssue> CheckProgress(ElementNode n, StyleAttributeView styles)
         {
+            styles ??= StyleAttributeView.Empty;
             // value range (literal only — dynamic bindings parse as non-numeric and skip)
             if (n.Attributes.TryGetValue("value", out var rawValue)
                 && float.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out var v)
@@ -54,6 +60,38 @@ namespace PromptUGUI.Lint
                     "Valid: horizontal, vertical, reverse-horizontal, reverse-vertical.");
             }
 
+            // fillRadius needs a fill layer that is a plain rect it can replace. mode="fill" makes
+            // the fill an Image.type=Filled driven by fillAmount, and a ProceduralPanel has no
+            // equivalent — this pair genuinely cannot be made to work, unlike most lint here.
+            if (styles.Declares(n, "fillRadius") && !styles.IsUncertain(n))
+            {
+                styles.Resolve(n, "mode", out var fillMode, out _);
+                if (fillMode == "fill")
+                {
+                    yield return new LintIssue(
+                        FillRadiusModeCode, n.Tag, n.Id,
+                        $"<Progress id='{n.Id}'>: fillRadius cannot work with mode=\"fill\", which " +
+                        "draws the fill through Image.fillAmount — a procedural surface has no such " +
+                        "control. Use the default mode=\"scale\" (the rect is anchored to the value, " +
+                        "which a shape handles fine), or round the whole bar with maskRadius.");
+                }
+            }
+
+            // Two mask sources, one GameObject. Graphic is [DisallowMultipleComponent], so the
+            // sprite wins and the radius is silently dropped.
+            if (!styles.IsUncertain(n) && styles.Declares(n, "maskRadius"))
+            {
+                styles.Resolve(n, "mask", out var maskSprite, out _);
+                if (!string.IsNullOrWhiteSpace(maskSprite) && maskSprite != "none")
+                {
+                    yield return new LintIssue(
+                        MaskRadiusConflictCode, n.Tag, n.Id,
+                        $"<Progress id='{n.Id}'>: mask=\"{maskSprite}\" and maskRadius are two clip " +
+                        "shapes for one layer, and the sprite wins — only one Graphic can live on the " +
+                        "mask node. Drop whichever you did not mean.");
+                }
+            }
+
             // children
             if (n.Children.Count > 0)
             {
@@ -73,10 +111,14 @@ namespace PromptUGUI.Lint
                     "(value / fill / bg / mode / direction) are safe in variants.");
             }
 
-            // no fill (warning when value is set but no fill or fillColor)
+            // No fill: a warning about an attribute that is ABSENT, so it has to see through class=
+            // — a skin that carries fillColor in a <Style> is the idiomatic form, and reading only
+            // the node would report it as broken (the CLI turns that into a non-zero exit code).
+            // A class this document cannot resolve makes the answer unknowable; stay quiet.
             if (n.Attributes.ContainsKey("value")
-                && !n.Attributes.ContainsKey("fill")
-                && !n.Attributes.ContainsKey("fillColor"))
+                && !styles.IsUncertain(n)
+                && !styles.Declares(n, "fill")
+                && !styles.Declares(n, "fillColor"))
             {
                 yield return new LintIssue(
                     NoFillCode, n.Tag, n.Id,

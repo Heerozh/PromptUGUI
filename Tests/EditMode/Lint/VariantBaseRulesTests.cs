@@ -365,5 +365,71 @@ namespace PromptUGUI.Tests.EditMode.Lint
                 @"<Template name='T'><Frame><Btn id='b' hidden.portrait='true'>x</Btn></Frame></Template>");
             Assert.IsTrue(issues.Any(i => i.Code == VariantBaseRules.NoBaseCode));
         }
+
+        // ===== procedural surfaces revert on their own (procedural-surface spec §8) =====
+        //
+        // This rule's premise — "the setter is never called, so the last value sticks" — stops
+        // holding once a control reconciles its surface every pass. `radius.glass="10"` with no base
+        // is not a bug there, it is THE idiom: shape the control under one variant, leave its sprite
+        // alone under the others. The shipped CommonControls sample is written that way, so a false
+        // positive here would fail the CLI on the package's own sample.
+
+        [Test]
+        public void ProceduralOverride_OnAControlWithASurface_NeedsNoBase()
+        {
+            var n = new ElementNode("Btn") { Id = "b" };
+            n.VariantOverrides["radius"] = Overrides("glass", "10");
+            n.VariantOverrides["glass"] = Overrides("glass", "true");
+
+            Assert.IsEmpty(VariantBaseRules.Check(n),
+                "the whole mode toggles with the variant, and turning it off restores the Image");
+        }
+
+        [Test]
+        public void ProceduralOverride_BesideABaseProceduralAttr_StillNeedsABase()
+        {
+            // With a base radius the mode never turns off, so a base-less `glass.mobile` beside it
+            // really does stick. "Wholesale" is the load-bearing word.
+            var n = new ElementNode("Btn") { Id = "b" };
+            n.Attributes["radius"] = "8";
+            n.VariantOverrides["glass"] = Overrides("mobile", "true");
+
+            Assert.AreEqual(1, VariantBaseRules.Check(n).Count());
+        }
+
+        [Test]
+        public void ProceduralOverride_OnFrame_StillNeedsABase()
+        {
+            // Frame hands parameters straight to its panel with no per-pass reconcile, so nothing
+            // there self-heals.
+            var n = new ElementNode("Frame") { Id = "f" };
+            n.VariantOverrides["radius"] = Overrides("mobile", "10");
+
+            Assert.AreEqual(1, VariantBaseRules.Check(n).Count());
+        }
+
+        [Test]
+        public void ProceduralOverride_OnAControlWithoutASurface_StillNeedsABase()
+        {
+            var n = new ElementNode("Image") { Id = "i" };
+            n.VariantOverrides["radius"] = Overrides("mobile", "10");
+
+            Assert.AreEqual(1, VariantBaseRules.Check(n).Count());
+        }
+
+        [Test]
+        public void InnerLayerRadiusOverride_NeedsNoBase()
+        {
+            // One attribute per inner surface, so base-less always means the surface toggles whole.
+            var n = new ElementNode("Slider") { Id = "s" };
+            n.VariantOverrides["fillRadius"] = Overrides("glass", "pill");
+            n.VariantOverrides["handleRadius"] = Overrides("glass", "pill");
+
+            Assert.IsEmpty(VariantBaseRules.Check(n));
+        }
+
+        private static System.Collections.Generic.List<(string Variant, string Value)> Overrides(
+            string variant, string value)
+            => new System.Collections.Generic.List<(string, string)> { (variant, value) };
     }
 }

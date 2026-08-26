@@ -12,9 +12,11 @@ using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class ScrollList : Control
+    public sealed class ScrollList : ProceduralControl
     {
         private UnityImage _bg;
+
+        private protected override GameObject SurfaceHost => GameObject;
         private UnityImage _frame;
         private bool _maskExplicit;
         private ScrollRect _scroll;
@@ -188,7 +190,12 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve]
         public string Color
         {
-            set => Internal.ColorApplier.Apply(_bg, UI.Theme.ResolveSpec(value));
+            set
+            {
+                var spec = UI.Theme.ResolveSpec(value);
+                Internal.ColorApplier.Apply(_bg, spec);
+                Surface.SetFill(spec.Top, spec.Bottom);
+            }
         }
 
         [UIAttr, Preserve]

@@ -9,7 +9,7 @@ using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class InputField : Control
+    public sealed class InputField : ProceduralControl
     {
         private const float DefaultWidth = 160f;
         private const float MinTapHeight = 44f;
@@ -21,6 +21,9 @@ namespace PromptUGUI.Controls
         private static readonly (float t, float r, float b, float l) DefaultPadding = (7f, 10f, 6f, 10f);
 
         private UnityImage _bg;
+
+        private protected override GameObject SurfaceHost => GameObject;
+        private protected override UnityEngine.UI.Selectable SurfaceSelectable => _input;
         private TMP_InputField _input;
         private TMP_Text _placeholder;
         private TMP_Text _text;
@@ -248,7 +251,12 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve]
         public string Color
         {
-            set => Internal.ColorApplier.Apply(_bg, UI.Theme.ResolveSpec(value));
+            set
+            {
+                var spec = UI.Theme.ResolveSpec(value);
+                Internal.ColorApplier.Apply(_bg, spec);
+                Surface.SetFill(spec.Top, spec.Bottom);
+            }
         }
 
         [UIAttr, Preserve]

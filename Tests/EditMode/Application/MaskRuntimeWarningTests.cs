@@ -20,9 +20,11 @@ namespace PromptUGUI.Tests.EditMode.Application
 </Screen></PromptUGUI>";
             UI.LoadDocument("test", xml);
 
-            // 匹配 FrameSelfCode 警告的特征句:Frame ... mask="self" requires an Image graphic
+            // 匹配 FrameSelfCode 警告的特征句:Frame ... mask="self" needs a Graphic
+            // (旧措辞是 "requires an Image graphic" —— 自从 Frame 能自绘 SDF 面之后就不成立了:
+            //  uGUI 的 Mask 要的是 Graphic, 而 ProceduralPanel 就是一个。见 spec §9.1。)
             LogAssert.Expect(LogType.Warning, new Regex(
-                @"<Frame id='f'>.*mask=""self"" requires an Image graphic"));
+                @"<Frame id='f'>.*mask=""self"" needs a Graphic"));
             UI.Open("S");
         }
 

@@ -69,11 +69,21 @@ namespace PromptUGUI.Controls.Internal
                 _source = GetComponentInParent<IStateSource>(true);
                 if (_source != null) _sub = _source.OnState.Subscribe(OnState);
             }
+            else if (_grayed)
+            {
+                // re-Configure（ReSolve）时仍处于 Disabled：属性管线可能已把材质复位（如 tint= setter）。
+                // 按当前 _grayed 强制重涂全部（含本次新捕获的 graphic），不走 OnState 的去抖。
+                ApplyAll();
+            }
             else
             {
-                // re-Configure（ReSolve）：属性管线可能已把材质复位（如 tint= setter）。按当前 _grayed
-                // 强制重涂全部（含本次新捕获的 graphic），不走 OnState 的去抖。
-                ApplyAll();
+                // 不在 Disabled 时的 re-Configure：属性管线**刚刚**写完作者声明的值，所以现在图上的
+                // 就是真相 —— 应该重新捕获，而不是把旧捕获写回去。
+                //
+                // 写回去正是主题切换悄悄丢掉所有 label 字色的原因：capture-once 活得比它捕获的值久，
+                // 于是 textColor 的 setter 刚上色就被这里覆盖回上一套皮的颜色。bg 之所以幸免，只是
+                // 因为非 TMP 分支写的是 material 而不是 color。同一族缺陷：从当前声明推，别 latch。
+                Recapture();
             }
         }
 
@@ -85,6 +95,24 @@ namespace PromptUGUI.Controls.Internal
             ApplyAll();
         }
 
+        /// <summary>
+        /// Refreshes every captured original from what is on screen right now. Only valid while NOT
+        /// greyed — greyed pixels are this controller's own output, and capturing those would bake
+        /// the grey in as the "original".
+        /// </summary>
+        private void Recapture()
+        {
+            var keys = new List<Graphic>(_captured.Keys);
+            foreach (var g in keys)
+            {
+                if (g == null) continue;
+                var tmp = g as TMP_Text;
+                _captured[g] = tmp != null
+                    ? new Captured(g, null, tmp.color, true)
+                    : new Captured(g, g.material, default, false);
+            }
+        }
+
         private void ApplyAll()
         {
             foreach (var kv in _captured)
@@ -92,9 +120,20 @@ namespace PromptUGUI.Controls.Internal
                 var c = kv.Value;
                 if (c.Graphic == null) continue;   // 销毁安全
                 if (c.IsTmp)
+                {
                     ((TMP_Text)c.Graphic).color = _grayed ? Desaturate(c.Color) : c.Color;
+                }
+                else if (c.Graphic is ProceduralPanel panel)
+                {
+                    // A procedural surface greys itself from the inside. Swapping its material for
+                    // UI-Grayscale would throw away the shape, border, glow and glass along with the
+                    // colour — and FlushParams would write the SDF material straight back anyway.
+                    panel.SetDisabledGrayscale(_grayed);
+                }
                 else
+                {
                     c.Graphic.material = _grayed ? SharedMaterial : c.Material;
+                }
             }
         }
 

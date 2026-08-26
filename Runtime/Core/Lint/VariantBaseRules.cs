@@ -75,11 +75,30 @@ namespace PromptUGUI.Lint
             if (!BuiltinTags.IsBuiltin(n.Tag))
                 yield break;
 
+            // A control whose procedural surface toggles WHOLESALE with the variant reverts on its
+            // own, so the base-less form is the correct way to write it — and the idiom a skin wants:
+            // `radius.glass="10"` shapes the control under one variant and leaves its sprite alone
+            // under the others. ProceduralSurface recomputes the mode every pass (procedural-surface
+            // spec §8), and turning it off hides the surface and restores the Image with the sprite
+            // and alpha it had.
+            //
+            // "Wholesale" is the load-bearing word, and why this is a NODE-level question rather than
+            // a per-attribute one. With a base `radius=` present the mode never turns off, so a
+            // base-less `glass.mobile` beside it really would stick — that node is reported as usual.
+            // <Frame> is deliberately not included: its panel takes parameters directly with no
+            // per-pass reconcile, so nothing there self-heals.
+            var proceduralSelfHeals = ProceduralSurfaceRules.AppliesTo(n.Tag)
+                                      && !DeclaresBaseProcedural(n);
+
             foreach (var kv in n.VariantOverrides)
             {
                 var attr = kv.Key;
                 if (HasBase(n, attr)) continue;
                 if (SelfHeals(attr)) continue;
+                if (proceduralSelfHeals && IsProcedural(attr)) continue;
+                // One attribute per inner surface, so base-less always means "this surface toggles
+                // wholesale" — no node-level condition needed.
+                if (ProceduralSurfaceRules.AppliesTo(n.Tag) && IsInnerLayerRadius(attr)) continue;
                 if (NotSetters.Contains(attr)) continue;
                 if (MaskFamily.Contains(attr)) continue;
                 if (isTemplateBodyRoot && InvocationMergeableOntoTemplateRoot.Contains(attr)) continue;
@@ -96,6 +115,31 @@ namespace PromptUGUI.Lint
                     "stuck at its last-applied value after the variant deactivates (e.g. a window resized " +
                     $"portrait→landscape). Add a base '{attr}=...' giving the value to revert to.");
             }
+        }
+
+        private static bool IsInnerLayerRadius(string attr)
+        {
+            foreach (var name in ProceduralAttrNames.InnerLayerRadius)
+                if (name == attr) return true;
+            return false;
+        }
+
+        private static bool IsProcedural(string attr)
+        {
+            foreach (var name in ProceduralAttrNames.NeedsPanel)
+                if (name == attr) return true;
+            return attr == "color";
+        }
+
+        /// <summary>Any procedural attribute with a base value pins the mode on.</summary>
+        private static bool DeclaresBaseProcedural(ElementNode n)
+        {
+            foreach (var name in ProceduralAttrNames.NeedsPanel)
+            {
+                if (name == "weld") continue;
+                if (n.Attributes.ContainsKey(name)) return true;
+            }
+            return false;
         }
 
         private static bool HasBase(ElementNode n, string attr)

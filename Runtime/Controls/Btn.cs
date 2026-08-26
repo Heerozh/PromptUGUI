@@ -9,7 +9,7 @@ using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class Btn : Control, IPointerEventSource
+    public sealed class Btn : ProceduralControl, IPointerEventSource
     {
         private UnityImage _bg;
         private PuiButton _btn;
@@ -48,6 +48,11 @@ namespace PromptUGUI.Controls
         public Observable<Unit> OnPointerEnter => EnsureRelay().OnPointerEnter;
         public Observable<Unit> OnPointerExit => EnsureRelay().OnPointerExit;
         public Observable<Unit> OnPointerDown => EnsureRelay().OnPointerDown;
+
+        // <Btn> keeps its background Image on its own node, so the procedural surface becomes a
+        // child of the Btn itself and covers exactly the same rect.
+        private protected override GameObject SurfaceHost => GameObject;
+        private protected override UnityEngine.UI.Selectable SurfaceSelectable => _btn;
 
         public override void OnAttached()
         {
@@ -111,15 +116,22 @@ namespace PromptUGUI.Controls
             _offsetHolder = StateOffsetInstaller.Install(GameObject, _offsetHolder, new StateOffsetSet(_pressedOffset, null));
             var abs = StateColorSet.ResolveAbsolutes(_hoverColor, _pressedColor, null, _disabledColor);
             var mod = StateColorSet.ResolveModulates(_hoverModulate, _pressedModulate, null, StateColorSet.NoneToNull(_disabledModulate));
-            var bgReactor = StateTintInstaller.Install(GameObject, _btn, Children, abs, mod);
+            var bgReactor = StateTintInstaller.Install(GameObject, _btn, Children, abs, mod,
+                authoredBase: AuthoredBase());
             // A pressed/disabled sprite is itself a state visual: drop uGUI's built-in ColorTint so
             // the swapped image isn't double-darkened. COMPUTED, not set one-way — clearing the
             // sprite (a Variant flip, a theme switch) has to hand feedback back to ColorTint, or the
             // Btn is left with none at all and no attribute can restore it.
-            _btn.transition =
-                bgReactor != null || _pressedSprite != null || _disabledSprite != null
-                    ? UnityEngine.UI.Selectable.Transition.None
-                    : UnityEngine.UI.Selectable.Transition.ColorTint;
+            //
+            // A procedural surface counts as clearing them: the Image those sprites swap is retired
+            // and invisible while it draws, so the swap shows nothing. Giving up ColorTint for a
+            // visual that cannot appear is the same dead end from the other direction, and it moves
+            // with the surface, so it is computed here rather than latched.
+            var stateSpriteShows = !SurfaceIsDrawing
+                                   && (_pressedSprite != null || _disabledSprite != null);
+            _btn.transition = bgReactor != null || stateSpriteShows
+                ? UnityEngine.UI.Selectable.Transition.None
+                : UnityEngine.UI.Selectable.Transition.ColorTint;
             // 默认禁用外观：作者未声明任何 disabled* 时整控件去色。与 transition 无关（ColorTint/None 皆可）。
             if (string.IsNullOrWhiteSpace(_disabledColor)
                 && string.IsNullOrWhiteSpace(_disabledModulate)
@@ -190,8 +202,26 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve]
         public string Color
         {
-            set => Internal.ColorApplier.Apply(_bg, UI.Theme.ResolveSpec(value));
+            set
+            {
+                // Held, not just applied: StateTintInstaller needs the DECLARATION to hand the state
+                // reactor its base. Reading the graphic back instead would pick up whatever tint the
+                // reactor last painted. See StateTintReactor's remarks.
+                _color = value;
+                var spec = UI.Theme.ResolveSpec(value);
+                Internal.ColorApplier.Apply(_bg, spec);
+                // §7: color is the fill in BOTH modes. Handing it to the surface as well costs
+                // nothing when there is no surface and keeps the two in step when there is.
+                Surface.SetFill(spec.Top, spec.Bottom);
+            }
         }
+
+        private string _color;
+
+        /// <summary>What <c>color=</c> currently declares, or null when the author declared none —
+        /// then the reactor keeps the control's own built-in bg colour as its base.</summary>
+        private ColorSpec? AuthoredBase()
+            => string.IsNullOrWhiteSpace(_color) ? (ColorSpec?)null : UI.Theme.ResolveSpec(_color);
 
         /// <summary>Absolute bg colour while Hover.</summary>
         [UIAttr(IsColor = true), Preserve] public string HoverColor { set => _hoverColor = value; }

@@ -13,6 +13,7 @@ namespace PromptUGUI.Samples.CommonControls
     ///   1. 场景里建空 GameObject，挂本组件
     ///   2. 把 FarmSpriteSet.asset 拖到 Inspector 的 Sprite Sets 字段
     ///   3. 按 Play；点右上角「新手引导」体验引导（可反复触发）
+    ///   4. 右上角下拉切「农场 / 玻璃」两套皮肤 —— 同一棵 XML 树，两套 <Style> 属性包
     /// </summary>
     public sealed class CommonControlsRunner : MonoBehaviour
     {
@@ -33,16 +34,22 @@ namespace PromptUGUI.Samples.CommonControls
             // 模式并显示默认焦点光标。必须在 UI.Open 之前调用——初始焦点与光标 overlay 在 Open 时按
             // IsEnabled 建立。鼠标仍照常工作（Pointer 模式），方向输入才切换。
             UI.UseGamepadNavigation();
+            // canvas="camera" 的 Screen 必须拿到相机，否则静默退回 Overlay —— 它照样显示，但不再
+            // 被相机渲染，玻璃就永远采不到它。**无条件**赋值：Canvas.renderMode 的 getter 在
+            // worldCamera 为空时会谎报成 Overlay，拿它做条件永远不命中；给真 Overlay 画布赋相机
+            // 是无害的（被忽略）。
+            UI.CanvasConfigurator = (canvas, _) => canvas.worldCamera = Camera.main;
             await UI.Locale.SetToSystemDefaultAsync("en");
 
             if (spriteSets != null && spriteSets.Length > 0)
                 SpriteResolverHelpers.UseSpriteSetResolver(spriteSets);
 
             await UI.LoadDocumentAsync("CommonControls.ui");
-            UI.Theme.Set("light");   // 注册了 light+dark 两个主题，AutoSet 不自动选，显式设默认
+            SetSkin(glass: false);   // 注册了 farm+glass 两套皮，AutoSet 不自动选，显式设默认
+            UI.Open("Backdrop");     // 相机画布：玻璃能看见的只有相机渲染出来的那张图
             var screen = UI.Open("CommonControls");
 
-            BindThemeSwitcher(screen);
+            BindSkinSwitcher(screen);
             BindFormPage(screen);
             BindDisplayPage(screen);
             BindListPage(screen);
@@ -52,13 +59,30 @@ namespace PromptUGUI.Samples.CommonControls
                   .Subscribe(_ => RunTutorial(screen)).AddTo(screen);
         }
 
-        // 右上角主题下拉：亮色 / 暗色 → UI.Theme.Set，已打开的 Screen 自动 ReSolve 重新着色
-        static void BindThemeSwitcher(IScreen screen)
+        // 右上角皮肤下拉：农场（像素木框）/ 玻璃（磨砂）。换的是整套 <Style> 属性包 —— sprite、
+        // hidden、pressedOffset、glass 参数全在里面，不只是颜色。已打开的 Screen 自动 ReSolve
+        // 重新应用属性，GameObject 一个都不重建（引用与 R3 订阅全部存活）。
+        static void BindSkinSwitcher(IScreen screen)
         {
-            var theme = screen.Get<Dropdown>("theme");
-            theme.BindOptions(LocaleTicks.Select(_ => (IEnumerable<string>)
-                new[] { UI.Tr("Light"), UI.Tr("Dark") })).AddTo(screen);
-            theme.OnSelected.Subscribe(i => UI.Theme.Set(i == 0 ? "light" : "dark")).AddTo(screen);
+            var skin = screen.Get<Dropdown>("skin");
+            skin.BindOptions(LocaleTicks.Select(_ => (IEnumerable<string>)
+                new[] { UI.Tr("Farm"), UI.Tr("Glass") })).AddTo(screen);
+            skin.OnSelected.Subscribe(i => SetSkin(glass: i == 1)).AddTo(screen);
+        }
+
+        // 一套皮 = 一个 <Theme>（颜色 token + <Style> 属性包）+ 一个同名 Variant。
+        //
+        // 为什么要两个开关：scale-mode 写在 <Screen> 上，而 <Screen> 不接受 class= —— 它不是控件，
+        // 挂不住属性包，parser 直接报错。玻璃是高清程序化图形，跟 pixel 那种整数倍缩放天生打架
+        // （圆角和模糊会被整块放大），所以这一项走 Variant：XML 里 scale-mode="pixel"
+        // scale-mode.glass="auto"，两个开关同名，读起来是一件事。
+        //
+        // 玻璃需要 URP ≥ 17 + Render Graph + 一台采集相机（默认 Camera.main）。缺任何一样都会
+        // 静默降级成一块半透明板：形状 / 描边 / 发光都在，只是不模糊。UI.Glass.IsActive 一眼分辨。
+        static void SetSkin(bool glass)
+        {
+            UI.Variants.Set("glass", glass);
+            UI.Theme.Set(glass ? "glass" : "farm");
         }
 
         // ① 表单输入：值变化全部打 log

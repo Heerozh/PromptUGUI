@@ -150,5 +150,103 @@ namespace PromptUGUI.Tests.EditMode.Lint
                         yield return name;
             }
         }
+
+        // ===== 第三档：有 Graphic 但还没有程序化表面的标签（spec §12.1） =====
+        //
+        // 中间那一档一直没人补：`color` / `sprite` 在这些标签上有效，但程序化那一组需要
+        // ProceduralPanel —— 于是 <Btn radius="8"> 曾经三道关卡全部放行，彻底静默。这是农场/玻璃
+        // 示例实战撞出来的。M1/M2 之后 <Btn> 等控件已经真的能画了，这一档只剩下还没接线的标签，
+        // 名单随之收缩；ProceduralAttrNamesTests 负责在有标签挪动时把这里叫醒。
+
+        // Tags with an Image (or at least a Graphic) but no procedural surface — the list shrinks
+        // as controls are wired up, and ProceduralAttrNamesTests is what catches one that moved.
+        // <Image> / <RawImage> stay here on purpose: a sprite IS their point, and a procedural
+        // rectangle is what <Frame> is for.
+        [TestCase("Image", "borderWidth")]
+        [TestCase("RawImage", "glass")]
+        [TestCase("Text", "radius")]
+        [TestCase("Carousel", "radius")]
+        [TestCase("Markdown", "glow")]
+        [TestCase("TabBar", "borderColor")]
+        [TestCase("Image", "radius")]
+        [TestCase("Icon", "frost")]
+        [TestCase("RawImage", "radius")]
+        [TestCase("Image", "weld")]
+        public void ControlWithoutASurface_ProceduralAttr_VisualAttrIssue(string tag, string attr)
+        {
+            var n = new ElementNode(tag) { Id = "x" };
+            n.Attributes[attr] = "8";
+            var issues = PureContainerVisualAttrRules.Check(n).ToList();
+
+            Assert.AreEqual(1, issues.Count, $"<{tag} {attr}=> should be reported exactly once");
+            Assert.AreEqual(PureContainerVisualAttrRules.VisualAttrCode, issues[0].Code);
+            StringAssert.Contains(attr, issues[0].Message);
+            StringAssert.Contains("Frame", issues[0].Message);
+        }
+
+        [TestCase("Btn")]
+        [TestCase("Toggle")]
+        [TestCase("Image")]
+        [TestCase("Progress")]
+        public void ControlWithAnImage_Color_NoIssue(string tag)
+        {
+            // color 是这一档与纯排版容器的分界线：它们有 Image，所以 color 真的生效。
+            var n = new ElementNode(tag);
+            n.Attributes["color"] = "#fff";
+            Assert.IsEmpty(PureContainerVisualAttrRules.Check(n));
+        }
+
+        [TestCase("Btn")]
+        [TestCase("Image")]
+        [TestCase("ScrollList")]
+        public void ControlWithAnImage_Sprite_NoIssue(string tag)
+        {
+            var n = new ElementNode(tag);
+            n.Attributes["sprite"] = "ui:card";
+            Assert.IsEmpty(PureContainerVisualAttrRules.Check(n));
+        }
+
+        [Test]
+        public void ControlWithASurface_StopsBeingReported_ExceptForWeld()
+        {
+            // <Btn> draws procedurally now, so the shape attributes work…
+            var ok = new ElementNode("Btn") { Id = "b" };
+            ok.Attributes["radius"] = "8";
+            Assert.IsEmpty(PureContainerVisualAttrRules.Check(ok));
+
+            // …but weld fuses a Frame's glass CHILDREN, which a control does not have (spec §13.2).
+            var weld = new ElementNode("Btn") { Id = "b" };
+            weld.Attributes["weld"] = "16";
+            var issues = PureContainerVisualAttrRules.Check(weld).ToList();
+            Assert.AreEqual(1, issues.Count);
+            StringAssert.Contains("weld", issues[0].Message);
+        }
+
+        [Test]
+        public void UnknownTag_SaysNothing()
+        {
+            // 模板调用：CLI 在展开前看不见它的 body，断言什么都是猜。
+            var n = new ElementNode("MyCard") { Id = "c" };
+            n.Attributes["radius"] = "8";
+            Assert.IsFalse(PureContainerVisualAttrRules.AppliesTo("MyCard"));
+            Assert.IsEmpty(PureContainerVisualAttrRules.Check(n));
+        }
+
+        [Test]
+        public void ControlWithoutASurface_ReportsEveryOffendingAttr_NotJustTheFirst()
+        {
+            var n = new ElementNode("Image") { Id = "i" };
+            n.Attributes["radius"] = "8";
+            n.Attributes["glow"] = "4";
+            Assert.AreEqual(2, PureContainerVisualAttrRules.Check(n).Count());
+        }
+
+        [Test]
+        public void ControlWithoutASurface_VariantOverride_IsAlsoReported()
+        {
+            var n = new ElementNode("Image") { Id = "i" };
+            n.VariantOverrides["radius"] = new List<(string, string)> { ("mobile", "8") };
+            Assert.AreEqual(1, PureContainerVisualAttrRules.Check(n).Count());
+        }
     }
 }

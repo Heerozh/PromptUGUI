@@ -90,7 +90,31 @@ Note: an authored `disabledSprite=` also switches the Btn off ColorTint (same `O
 
 In short: write `pressedSprite=""` or `pressedSprite="none"` to explicitly disable the built-in fallback and keep the default skin unchanged on press.
 
+**On a procedural surface, `*Color` and `*Modulate` land in two different places.** A panel keeps its
+authored look in its **material** and treats `Graphic.color` as a **multiplier** (`col *= IN.color`)
+— the split that lets every panel sharing a style share one material and keep batching. So:
+
+- `*Color` (absolute) drives the panel's **fill**, and stays genuinely absolute. On glass this moves
+  the pane's own tint, which is what "hover changes the colour" has to mean there.
+- `*Modulate` (relative) stays on `Graphic.color`, exactly as it does on an Image.
+
+One consequence worth knowing: **an absolute change snaps instead of fading** on a procedural
+surface. The fill is a material parameter, and tweening it per frame would mint a material per frame
+through the shared cache; state changes are discrete, so the cache sees one entry per state instead.
+`*Modulate` still fades — it is pure vertex colour. If you want a fading hover on a glass control,
+reach for `hoverModulate` rather than `hoverColor`.
+
+**State SPRITES are not available on a procedural surface.** All three are `Image.overrideSprite` swaps, and a control
+drawing procedurally (`<Btn radius=…>` / `glass=…`, see the main SKILL) has no Image showing — the
+combination is a contradiction and reports `PUI-PROC-STATE-SPRITE-CONFLICT`. Use `pressedColor` /
+`disabledColor` / `selectedColor`, their `*Modulate` counterparts, or `<Show on="state-*">`, all of
+which work unchanged there because the state reactors drive `targetGraphic`, which follows the
+surface. Automatic disabled greying works too: a procedural surface desaturates itself from the
+inside (and glass also thins) rather than by a material swap, so the shape survives.
+
 **Reversible.** The ColorTint switch is *computed* from what is currently in play, not latched: clearing `pressedSprite` / `disabledSprite` / `selectedSprite` (a Variant flip, a theme switch, a runtime assignment) hands interaction feedback back to uGUI's ColorTint — unless a `*Color` / `*Modulate` / `selectedColor` is still installed, in which case the reactors keep ownership and ColorTint stays off. Without this the control would be left with **no** feedback at all and no attribute the author could write to get it back.
+
+**The base colour is reversible too.** A control that declares any `*Color` / `*Modulate` / `selectedColor` hands its bg to a state reactor, and the reactor's *base* — what it paints at rest — is read from the control's live `color=` declaration on every apply. So `color.mobile=` and a theme's `<Style color=>` reach a `<Btn hoverColor=>` / `<Tab selectedColor=>` / `<Toggle>` exactly like they reach a plain `<Image>`. What the reactor never does is read the base back off the graphic: mid-hover the graphic is showing the *tint*, and adopting that would bake the hover colour in permanently. A control that declares no `color=` at all keeps its built-in bg colour as the base.
 
 ## 3. State-triggered animation — `<Trigger>` / `<Animation on="state-...">`
 

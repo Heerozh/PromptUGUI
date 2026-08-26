@@ -1,5 +1,6 @@
 using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
+using PromptUGUI.Parser;
 using PromptUGUI.Registry;
 using R3;
 using UnityEngine;
@@ -8,9 +9,15 @@ using UnitySlider = UnityEngine.UI.Slider;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class Slider : Control
+    public sealed class Slider : ProceduralControl
     {
         private UnityImage _bg;
+
+        // The primary surface is the TRACK (Background), a child. SurfaceSelectable stays null
+        // on purpose (spec §13.1): the Slider's targetGraphic is the Handle, and the handle is
+        // the part that actually reacts to hover/press. Moving it to the track would make the
+        // whole groove flash on hover, which no slider does.
+        private protected override GameObject SurfaceHost => _bg.gameObject;
         private UnityImage _fill;
         private UnityImage _handle;
         private UnitySlider _slider;
@@ -114,7 +121,12 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve]
         public string Color
         {
-            set => Internal.ColorApplier.Apply(_bg, UI.Theme.ResolveSpec(value));
+            set
+            {
+                var spec = UI.Theme.ResolveSpec(value);
+                Internal.ColorApplier.Apply(_bg, spec);
+                Surface.SetFill(spec.Top, spec.Bottom);
+            }
         }
 
         [UIAttr, Preserve]
@@ -143,8 +155,23 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve]
         public string FillColor
         {
-            set => Internal.ColorApplier.Apply(_fill, UI.Theme.ResolveSpec(value));
+            set
+            {
+                var spec = UI.Theme.ResolveSpec(value);
+                Internal.ColorApplier.Apply(_fill, spec);
+                FillSurface.SetFill(spec.Top, spec.Bottom);
+            }
         }
+
+        /// <summary>已填充段的圆角。内层只给形状 —— 见 spec §6。</summary>
+        [UIAttr, Preserve]
+        public string FillRadius
+        {
+            set { var v = RadiusParser.Parse(value); FillSurface.Declare(p => p.SetRadius(v)); }
+        }
+
+        private Internal.ProceduralSurface _fillSurface;
+        private Internal.ProceduralSurface FillSurface => _fillSurface ??= AddInnerSurface(_fill.gameObject);
 
         /// <summary>滑块的 sprite。<c>""</c> = 无图（纯色方块）。</summary>
         [UIAttr(IsSprite = true), Preserve]
@@ -157,8 +184,23 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve]
         public string HandleColor
         {
-            set => Internal.ColorApplier.Apply(_handle, UI.Theme.ResolveSpec(value));
+            set
+            {
+                var spec = UI.Theme.ResolveSpec(value);
+                Internal.ColorApplier.Apply(_handle, spec);
+                HandleSurface.SetFill(spec.Top, spec.Bottom);
+            }
         }
+
+        /// <summary>滑块圆角；<c>pill</c> = 圆钮。</summary>
+        [UIAttr, Preserve]
+        public string HandleRadius
+        {
+            set { var v = RadiusParser.Parse(value); HandleSurface.Declare(p => p.SetRadius(v)); }
+        }
+
+        private Internal.ProceduralSurface _handleSurface;
+        private Internal.ProceduralSurface HandleSurface => _handleSurface ??= AddInnerSurface(_handle.gameObject);
 
         public Observable<float> OnValueChanged => _changed;
 

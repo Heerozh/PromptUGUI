@@ -1,4 +1,3 @@
-using System.Globalization;
 using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
 using PromptUGUI.IR;
@@ -15,7 +14,10 @@ namespace PromptUGUI.Controls
         // 作者写了任一程序化视觉属性（color / radius / border* / glow*）时才 lazy 挂
         // ProceduralPanel —— 没写就一个 Graphic 都不挂，行为与历史完全一致、零成本。
         private RectMask2D _rectMask;
+        private UnityEngine.UI.Mask _stencilMask;
         private string _pendingMaskPadding;
+        private string _maskMode;
+        private bool? _pendingShowMask;
         private ProceduralPanel _panel;
         private GlassGroupPanel _group;
 
@@ -28,18 +30,33 @@ namespace PromptUGUI.Controls
                 sizeSpec.HasHeight ? AnchorVertical.Top : AnchorVertical.Stretch,
                 sizeSpec.HasWidth ? AnchorHorizontal.Left : AnchorHorizontal.Stretch);
 
+        /// <summary>
+        /// <c>rect</c> = RectMask2D（直角裁剪，便宜、可合批）；<c>self</c> = stencil
+        /// <see cref="UnityEngine.UI.Mask"/>，把子内容裁成本 Frame 自绘的那个 SDF 形状 ——
+        /// 圆角头像 / 圆角滚动区就是这么来的。
+        /// </summary>
         [UIAttr, Preserve]
         public string Mask
         {
             set
             {
-                if (value == "rect")
-                {
-                    _rectMask ??= GameObject.AddComponent<RectMask2D>();
-                    if (!string.IsNullOrEmpty(_pendingMaskPadding))
-                        _rectMask.padding = MaskPaddingParser.Parse(_pendingMaskPadding);
-                }
-                // 其他值 (空 / self / 无效): lint 已 warn; runtime 静默忽略 (FIM-D9 safety net)
+                _maskMode = value;
+                ReconcileMask();
+            }
+        }
+
+        /// <summary>
+        /// <c>mask="self"</c> 时遮罩源自身画不画。<c>false</c> = 只写 stencil 不出颜色，
+        /// 也就是一个隐形的圆角裁剪器。默认 <c>true</c>（作者画了面板，别让它凭空消失）。
+        /// </summary>
+        [UIAttr, Preserve]
+        public string ShowMask
+        {
+            set
+            {
+                _pendingShowMask = bool.Parse(value);
+                if (_stencilMask != null)
+                    _stencilMask.showMaskGraphic = _pendingShowMask.Value;
             }
         }
 
@@ -52,6 +69,51 @@ namespace PromptUGUI.Controls
                 if (_rectMask != null)
                     _rectMask.padding = MaskPaddingParser.Parse(value);
             }
+        }
+
+        /// <summary>
+        /// <c>mask=</c> 是一个属性、两套实现，而且它可能先于它依赖的属性到达 ——
+        /// <c>ControlAttributeApplier</c> 遍历的是 HashSet，<c>mask</c> 完全可能排在 <c>radius</c>
+        /// 前面。所以 setter 和 <see cref="OnAfterApply"/> 都调这里，并且**从当前声明推、不latch**
+        /// （spec §8），ReSolve 重放因此是幂等的。
+        ///
+        /// <para><c>self</c> 需要本节点上有 Graphic：uGUI 的 <c>Mask</c> 要的是 <c>Graphic</c> 而不是
+        /// <c>Image</c>，所以懒挂的 <see cref="ProceduralPanel"/> 正好够用。什么都不画的 Frame 没有
+        /// Graphic，weld 承载者的融合面在 <c>GlassWeld</c> 子节点上、自身那块还被 suppress 了 ——
+        /// 两种情况下挂 Mask 都会把子内容全裁没，所以这里干脆不挂（lint 两条都报）。</para>
+        /// </summary>
+        private void ReconcileMask()
+        {
+            if (_maskMode == "rect")
+            {
+                _rectMask ??= GameObject.AddComponent<RectMask2D>();
+                _rectMask.enabled = true;
+                if (!string.IsNullOrEmpty(_pendingMaskPadding))
+                    _rectMask.padding = MaskPaddingParser.Parse(_pendingMaskPadding);
+                DisableStencilMask();
+                return;
+            }
+
+            if (_rectMask != null) _rectMask.enabled = false;
+
+            if (_maskMode == "self" && _panel != null && !_panel.IsSuppressed)
+            {
+                _stencilMask ??= GameObject.AddComponent<UnityEngine.UI.Mask>();
+                _stencilMask.enabled = true;
+                _stencilMask.showMaskGraphic = _pendingShowMask ?? true;
+                // 面板必须知道自己在当遮罩源：它可以什么都不画（无填充的隐形圆角裁剪器），
+                // 但 stencil 是它的 fragment 写的，被当成"不可见"剔掉几何就等于把子内容全裁没。
+                _panel.SetMaskSource(true);
+                return;
+            }
+
+            DisableStencilMask();
+        }
+
+        private void DisableStencilMask()
+        {
+            if (_stencilMask != null) _stencilMask.enabled = false;
+            if (_panel != null) _panel.SetMaskSource(false);
         }
 
         /// <summary>
@@ -79,7 +141,7 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public string BorderWidth
         {
-            set => Panel.SetBorderWidth(ParsePixels(value, "borderWidth"));
+            set => Panel.SetBorderWidth(ProceduralValueParser.Pixels(value, "borderWidth"));
         }
 
         /// <summary>描边色。纯色 only —— 渐变值由 <c>UI.Theme.Resolve</c> 报错。</summary>
@@ -93,7 +155,7 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public string Glow
         {
-            set => Panel.SetGlowSize(ParsePixels(value, "glow"));
+            set => Panel.SetGlowSize(ProceduralValueParser.Pixels(value, "glow"));
         }
 
         /// <summary>发光色。纯色 only；不写时跟随填充色（无填充则白）。</summary>
@@ -200,22 +262,10 @@ namespace PromptUGUI.Controls
             // whole ReSolve pass, not just this Frame.
             if (_panel != null) _panel.FlushParams();
             if (_group != null) _group.SyncMembers(_panel != null ? _panel : null);
+            // 排在 SyncMembers 之后：正在融合的承载者会把自己那块 suppress 掉，而被 suppress 的
+            // 面板不出几何、也不持有材质，当不了遮罩源 —— 这个结论要等 SyncMembers 跑完才成立。
+            ReconcileMask();
         }
 
-        private static float ParsePixels(string value, string attrName)
-        {
-            // Variant 只能改值不能删属性，空串是作者退回"无"的唯一写法（同 RadiusParser）。
-            if (string.IsNullOrWhiteSpace(value)) return 0f;
-            if (!float.TryParse(value.Trim(), NumberStyles.Float,
-                                CultureInfo.InvariantCulture, out var px))
-                throw new ParseException(
-                    $"{attrName}=\"{value}\": expected a number of pixels (e.g. \"1\", \"2.5\")");
-            // "NaN" / "Infinity" parse fine, and NaN slips past the negative test below.
-            if (float.IsNaN(px) || float.IsInfinity(px))
-                throw new ParseException($"{attrName}=\"{value}\": must be a finite number");
-            if (px < 0f)
-                throw new ParseException($"{attrName}=\"{value}\": must not be negative");
-            return px;
-        }
     }
 }

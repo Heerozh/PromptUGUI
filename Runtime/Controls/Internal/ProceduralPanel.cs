@@ -60,6 +60,8 @@ namespace PromptUGUI.Controls.Internal
         private float _lastGlowGeometry;
         private bool _countedAsGlass;
         private bool _suppressed;
+        private bool _maskSource;
+        private bool _grayed;
 
         private static bool _warnedFeedbackLoop;
 
@@ -261,13 +263,35 @@ namespace PromptUGUI.Controls.Internal
             // Glass values are zeroed when the mode is off: they change nothing about how an opaque
             // panel draws, so letting them into the key would split the material cache into entries
             // that render identically — two draw calls where there should be one.
-            var glassParams = _glass
+            GlassParams glassParams = _glass
                 ? new GlassParams(_frost, _depth, _dispersion, _lightAngle,
                                   _lightIntensity, _saturation, _noise)
                 : GlassParams.None;
 
+            var fillTop = _fillTop;
+            var fillBottom = _fillBottom;
+            var border = _borderColor;
+            if (_grayed)
+            {
+                // Disabled greying has to happen HERE, inside the parameters, not by swapping the
+                // material for UI-Grayscale the way DisabledGrayscaleController does for a plain
+                // Image: this material carries the shape, the border and the glass, and replacing it
+                // erases all three. It would also be a losing fight — FlushParams writes the cached
+                // material back on the next parameter change and would undo the greying in turn.
+                fillTop = Desaturate(fillTop);
+                fillBottom = Desaturate(fillBottom);
+                border = Desaturate(border);
+                glow = Desaturate(glow);
+                if (_glass)
+                    // Grey glass AND thin glass: dropping saturation alone still reads as a live,
+                    // refracting pane. A disabled control should look inert, so the bevel goes too.
+                    glassParams = new GlassParams(_frost, _depth * DisabledGlassDepth, _dispersion,
+                                                  _lightAngle, _lightIntensity * DisabledGlassLight,
+                                                  0f, _noise);
+            }
+
             return new PanelParams(
-                _fillTop, _fillBottom, _borderColor, glow,
+                fillTop, fillBottom, border, glow,
                 new Vector4(_radius.TopLeft, _radius.TopRight, _radius.BottomRight, _radius.BottomLeft),
                 _radius.IsPill, _borderWidth, _glowSize, _glass, glassParams);
         }
@@ -277,6 +301,41 @@ namespace PromptUGUI.Controls.Internal
         /// panel emits no geometry and holds no material — it exists only to carry its parameters
         /// into the group, while staying a normal RectTransform for layout and children.
         /// </summary>
+        /// <summary>
+        /// The default disabled look for a procedural surface: desaturated, and for glass also
+        /// thinner and less lit. Driven by <c>DisabledGrayscaleController</c>, which greys plain
+        /// Graphics by material swap — a swap this panel cannot survive (see <see cref="BuildParams"/>).
+        /// </summary>
+        internal void SetDisabledGrayscale(bool value)
+        {
+            if (_grayed == value) return;
+            _grayed = value;
+            MarkDirty();
+            FlushParams();
+        }
+
+        private const float DisabledGlassDepth = 0.35f;
+        private const float DisabledGlassLight = 0.35f;
+
+        private static Color Desaturate(Color c)
+        {
+            var luma = c.r * 0.299f + c.g * 0.587f + c.b * 0.114f;
+            return new Color(luma, luma, luma, c.a);
+        }
+
+        /// <summary>
+        /// Marks the panel as the mask source of a stencil <see cref="UnityEngine.UI.Mask"/> on the
+        /// same GameObject. Driven by <c>Frame.ReconcileMask</c>; see <see cref="ComputeVisible"/>
+        /// for why it matters.
+        /// </summary>
+        internal void SetMaskSource(bool value)
+        {
+            if (_maskSource == value) return;
+            _maskSource = value;
+            _lastVisible = ComputeVisible();
+            SetVerticesDirty();
+        }
+
         internal void SetSuppressed(bool suppressed)
         {
             if (_suppressed == suppressed) return;
@@ -297,6 +356,11 @@ namespace PromptUGUI.Controls.Internal
         private bool ComputeVisible()
         {
             if (_suppressed) return false;
+            // A stencil mask source has to emit geometry even when it paints nothing: the stencil is
+            // written by its fragments, so culling it for being invisible clips every child away.
+            // That is precisely the invisible-rounded-clipper form (mask="self" showMask="false"
+            // with no fill), which is the most useful one.
+            if (_maskSource) return true;
             // The blurred backdrop is itself the visual, so a glass panel with no fill still draws.
             if (_glass) return true;
             if (_fillTop.a > 0f || _fillBottom.a > 0f) return true;

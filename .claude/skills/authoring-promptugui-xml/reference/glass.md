@@ -19,8 +19,20 @@ That is the whole difference between "thin pane" and "jelly".
 
 ## Attributes
 
-All live on `<Frame>`, all work through `<Style>` / `class=`, Variant suffixes and ReSolve like any
-other attribute. Writing any of them without `glass="true"` is a lint error
+These live on `<Frame>` and on every control with a procedural surface — `<Btn>`, `<Tab>`,
+`<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>`, `<Progress>`. On any other tag
+(`<Image>`, `<Text>`, `<Carousel>` …) a glass attribute is silently dropped
+(`PUI-CONTAINER-VISUAL-ATTR`), because nothing there attaches the panel that draws it. Same for
+`class=`: one pack frosts a Frame and a Btn alike and does nothing to an `<Image>` wearing it.
+
+On a control the glass replaces that control's **primary surface** — the Toggle's checkbox, the
+Slider's track, the Progress bg (see the main SKILL for the full table). The Image it replaces stands
+down but is never destroyed, so the control still takes clicks and a Variant can hand the bitmap
+back. `sprite=` alongside it is a contradiction — `PUI-PROC-SPRITE-CONFLICT`. Disabled glass
+desaturates *and* thins: a dead control should not look like a live refracting pane.
+
+On a Frame they work through `<Style>` / `class=`, Variant suffixes and ReSolve like any other
+attribute. Writing any of them without `glass="true"` is a lint error
 (`PUI-GLASS-PARAM-NO-GLASS`) — they never reach the shader in that state.
 
 | 属性 | 取值 | 默认 | 说明 |
@@ -101,6 +113,27 @@ one member would draw precisely the dividing line the weld exists to remove, whi
 is the carrier's. Putting one on the wrong node is a lint error
 (`PUI-GLASS-WELD-PARAM-PLACEMENT`) — the attribute is silently ignored at runtime.
 
+## Clipping children to the glass shape
+
+A Frame that draws — glass or plain SDF — can also be a stencil mask, so its children are clipped to
+the same rounded shape:
+
+```xml
+<Frame glass="true" radius="20" mask="self">
+  <Image type="cover" sprite="ui:banner"/>   <!-- corners follow the glass -->
+</Frame>
+```
+
+The clip follows the **shape**, not the paint: an outer `glow` does not widen it, and it is correct
+even before the first backdrop capture. `showMask="false"` keeps the clip and draws nothing.
+
+Two placements do **not** work, both silently, so both are lint errors:
+
+- a Frame with no visual attribute at all has no `Graphic` to mask with (`PUI-MASK-FRAME-SELF`);
+- a `weld` carrier draws its fused pane on a `GlassWeld` child and suppresses its own panel while
+  welding, so a mask there would clip every child away (`PUI-MASK-WELD-SELF`). Put `mask="self"` on
+  a member, or wrap the group in a plain rounded `<Frame mask="self">`.
+
 ## Lint codes
 
 The CLI (`dotnet run --project .lint/UIXmlLint -- <path>`) exits non-zero on any of these. Every one
@@ -112,6 +145,9 @@ of them is silent at runtime, which is why they exist.
 | `PUI-GLASS-WELD-SELF` | `weld` and `glass="true"` on the same node |
 | `PUI-GLASS-WELD-MEMBERS` | a weld group with fewer than 2 or more than 8 glass children |
 | `PUI-GLASS-WELD-PARAM-PLACEMENT` | a group-level parameter on a member, or a per-block one on the carrier |
+| `PUI-MASK-WELD-SELF` | `mask="self"` on a `weld` carrier — the fused pane is on a child |
+| `PUI-PROC-SPRITE-CONFLICT` | `sprite=` on a control that is drawing procedurally |
+| `PUI-PROC-STATE-SPRITE-CONFLICT` | `pressedSprite` / `disabledSprite` on a procedural surface |
 | `PUI-PROCEDURAL-VALUE` | a glass value outside its range, or not a finite number |
 
 These read attributes as they will be **after** `class=` is merged, so carrying `glass="true"` in a

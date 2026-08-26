@@ -1,35 +1,135 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PromptUGUI version="1">
 
-  <!-- ───────── 主题（亮/暗）─────────
-       页面内所有颜色都走命名 token；C# 调 UI.Theme.Set("light"/"dark") 切换，
-       已打开的 Screen 会自动 ReSolve 重新着色。
-       规则：背景类木面（天空/草地/标题牌/面板）夜间压暗，可交互木控件（按钮/Tab/输入框）
-       保持亮木「夜间点亮」，文字一律墨色——坐落的都是暖木面，夜里依旧清晰。 -->
-  <Theme name="light">
+  <!-- ═══════════ 皮肤：农场（像素）↔ 玻璃（磨砂）═══════════
+       这份示例演示的是 <Style> / class= 这个「属性宏」被 <Theme> 接管之后能做到什么：
+       同一棵 XML 树，一套主题渲染成像素木框，另一套渲染成磨砂玻璃，**不重建任何 GameObject**。
+       C# 调 UI.Theme.Set("farm"/"glass")，已打开的 Screen 自己 ReSolve。
+
+       三条规矩（都有 lint 兜着）：
+       1) 全局 <Style> 是**基线**，<Theme> 里的同名 <Style> 只写差异。基线不能省 ——
+          class= 在展开期只认全局池，只写在 <Theme> 里的样式根本引用不到
+          （lint: PUI-THEME-STYLE-NO-BASELINE）。
+       2) 每个主题必须解出**同一套属性名**。某个名字 A 主题有、B 主题没有，切到 B 时它不会被
+          重置，控件静默留着 A 的值（lint: PUI-THEME-STYLE-SHAPE）。
+       3) class= 要写在**模板体内**的节点上。写在调用点 <Skin class="..."/> 上不跟随主题：
+          invocation 节点展开后就不存在了（lint: PUI-THEME-STYLE-ON-INVOCATION）。 -->
+
+  <!-- 面板底的两层皮。<Image> 有 sprite 没有 glass，<Frame> 反过来 —— 一个节点画不了两套皮，
+       所以叠两层，让主题用 hidden 决定哪层露出来。hidden 是公共属性，<Style> 能设。 -->
+  <Style name="skin-wood"  hidden="false"/>
+  <Style name="skin-glass" hidden="true"
+         frost="0.6" depth="5" lightAngle="-25" lightIntensity="0.55"
+         saturation="1.3" noise="0.03"/>
+
+  <!-- 其余控件**原地**换皮，不用叠层。关键是：内置控件的每一个内层都有 XML 钩子
+       （<Toggle checkmark=>、<Slider fill= handle=>、<Dropdown arrow= popupSprite= scrollbar*=>、
+       <ScrollList scrollbar*=>、<Progress fill= bg= frame=>），所以整套内置控件都能被主题换掉，
+       不只是最外面那张底图。只换外层的话，玻璃皮下面会留一堆木头勾选框和木头滑块。
+
+       农场侧写的就是**内置默认值**（内置皮肤本来就是像素农场风），玻璃侧把 9-slice 结构层清成
+       none + 半透明白，字形（勾、箭头）留着、只改成墨色。 -->
+  <Style name="btn"      sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round"
+         color="#E8D2A8" hoverColor="#F5E6C8" textColor="#4A3018" pressedOffset="0,-1"
+         radius.glass="10" glass.glass="true"
+         borderWidth.glass="1" borderColor.glass="white/0.55"/>
+  <Style name="tab"      sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round"
+         color="#E8D2A8" selectedColor="#CDEBA8" textColor="#4A3018"
+         radius.glass="10,10,0,0" glass.glass="true"
+         borderWidth.glass="1" borderColor.glass="white/0.45"/>
+  <Style name="input"    sprite="PromptUGUI/Defaults/pugui#pugui_9slice_inset" color="white" textColor="#4A3322"
+         radius.glass="8" glass.glass="true"
+         borderWidth.glass="1" borderColor.glass="white/0.5"/>
+  <Style name="toggle"   sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="white" textColor="#4A3322"
+         checkmark="PromptUGUI/Defaults/pugui#pugui_checkmark" checkmarkColor="white"
+         radius.glass="6" glass.glass="true"
+         borderWidth.glass="1" borderColor.glass="white/0.6"/>
+  <Style name="slider"   sprite="PromptUGUI/Defaults/pugui#pugui_9slice_inset" color="white"
+         fill="PromptUGUI/Defaults/pugui#pugui_9slice_round"  fillColor="white"
+         handle="PromptUGUI/Defaults/pugui#pugui_knob"        handleColor="white"
+         radius.glass="pill" glass.glass="true"
+         fillRadius.glass="pill" handleRadius.glass="pill"/>
+  <Style name="dropdown" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="white" textColor="#4A3322"
+         radius.glass="10" glass.glass="true"
+         borderWidth.glass="1" borderColor.glass="white/0.5"
+         arrow="PromptUGUI/Defaults/pugui#pugui_caret"        arrowColor="white"
+         popupSprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" popupColor="white"
+         itemColor="#F5F5F5" itemTextColor="#4A3322"
+         checkmark="PromptUGUI/Defaults/pugui#pugui_checkmark" checkmarkColor="white"
+         scrollbar="PromptUGUI/Defaults/pugui#pugui_9slice_inset"      scrollbarColor="white"
+         scrollbarHandle="PromptUGUI/Defaults/pugui#pugui_9slice_round" scrollbarHandleColor="white"/>
+  <Style name="list"     sprite="PromptUGUI/Defaults/pugui#pugui_9slice_inset" color="white/0.39"
+         radius.glass="12" glass.glass="true"
+         borderWidth.glass="1" borderColor.glass="white/0.4"
+         scrollbar="PromptUGUI/Defaults/pugui#pugui_9slice_inset" scrollbarColor="white"
+         scrollbarHandle="PromptUGUI/Defaults/pugui#pugui_9slice_round" scrollbarHandleColor="white"/>
+  <!-- Progress 的 fill/bg 默认就没有贴图（纯色层），所以这两个包只换颜色 —— 也顺带说明属性包
+       并不强求每个控件都交出 sprite。Carousel 的圆点同理。 -->
+  <Style name="progress" fillColor="#58A63C" bgColor="#E8CFA0"
+         radius.glass="pill"/>
+  <Style name="carousel" dotColor="#C8A878" dotSelectedColor="#5A3A20"/>
+  <!-- 轮播卡只交出 sprite：卡片底色由 C# BindItems 逐条填（运行时接管），主题不该跟它抢。 -->
+  <Style name="card"     sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round"/>
+
+  <!-- 农场：像素木质农场风。全局 <Style> 写的就是它，所以这里只剩颜色 token。 -->
+  <Theme name="farm">
     <Color name="sky"           value="#BDE3EC"/>
     <Color name="grass"         value="#8FCF6A"/>
     <Color name="plaque"        value="#E8B86B"/>
     <Color name="panel"         value="#FFFFFF"/>
-    <Color name="tab-selected"  value="#CDEBA8"/>
-    <Color name="progress-bg"   value="#E8CFA0"/>
-    <Color name="progress-fill" value="#58A63C"/>
-    <Color name="dot"           value="#C8A878"/>
-    <Color name="dot-selected"  value="#5A3A20"/>
     <Color name="accent"        value="#A8D88C"/>
   </Theme>
-  <Theme name="dark">
-    <Color name="sky"           value="#1E2A44"/>
-    <Color name="grass"         value="#33523A"/>
-    <Color name="plaque"        value="#C8954D"/>
-    <Color name="panel"         value="#C2A276"/>
-    <Color name="tab-selected"  value="#5E7A42"/>
-    <Color name="progress-bg"   value="#3C3326"/>
-    <Color name="progress-fill" value="#7CC24F"/>
-    <Color name="dot"           value="#5C4E3C"/>
-    <Color name="dot-selected"  value="#EAC78C"/>
-    <Color name="accent"        value="#6FA85A"/>
+
+  <!-- 玻璃：磨砂玻璃 UI 浮在同一张农场背景上。木层收起、玻璃层露出，
+       sprite 全部清成 none（`/alpha` 后缀只能写在**引用**侧，<Color value> 要把 alpha 烘进 8 位 hex）。 -->
+  <Theme name="glass">
+    <Style name="skin-wood"  hidden="true"/>
+    <Style name="skin-glass" hidden="false"/>
+    <!-- 每个包只写和农场不一样的那几项，其余从全局基线继承 —— 比如 checkmark 的**贴图**两边
+         一样，只有它的**颜色**换成墨色。 -->
+    <Style name="btn"      sprite="none" color="white/0.22" hoverColor="white/0.40"
+           textColor="#1C2B33" pressedOffset="0,0"/>
+    <Style name="tab"      sprite="none" color="white/0.12" selectedColor="white/0.45"
+           textColor="#1C2B33"/>
+    <Style name="input"    sprite="none" color="white/0.28" textColor="#1C2B33"/>
+    <Style name="toggle"   sprite="none" color="white/0.28" textColor="#1C2B33"
+           checkmarkColor="#1C2B33"/>
+    <Style name="slider"   sprite="none" color="white/0.18"
+           fill="none"   fillColor="white/0.75"
+           handle="none" handleColor="white"/>
+    <!-- 弹出层不是玻璃（它是普通 Image，飘在玻璃之上），所以给个接近不透明的浅面保可读。 -->
+    <Style name="dropdown" sprite="none" color="white/0.28" textColor="#1C2B33"
+           arrowColor="#1C2B33"
+           popupSprite="none" popupColor="#EAF2F6"
+           itemColor="#00000000" itemTextColor="#1C2B33"
+           checkmarkColor="#1C2B33"
+           scrollbar="none"       scrollbarColor="white/0.18"
+           scrollbarHandle="none" scrollbarHandleColor="white/0.55"/>
+    <Style name="list"     sprite="none" color="white/0.10"
+           scrollbar="none" scrollbarColor="white/0.18"
+           scrollbarHandle="none" scrollbarHandleColor="white/0.55"/>
+    <Style name="progress" fillColor="white/0.80" bgColor="white/0.20"/>
+    <Style name="carousel" dotColor="white/0.45" dotSelectedColor="#1C2B33"/>
+    <Style name="card"     sprite="none"/>
+
+    <Color name="sky"           value="#BDE3EC"/>
+    <Color name="grass"         value="#8FCF6A"/>
+    <Color name="plaque"        value="#E8B86B"/>
+    <Color name="panel"         value="#FFFFFF"/>
+    <Color name="accent"        value="#FFFFFF4D"/>
   </Theme>
+
+  <!-- 面板底：两层叠着，主题决定露哪层。class= 写在体内的节点上（见文件头第 3 条）。 -->
+  <Template name="Skin">
+    <Param name="tone"   default="panel"/>
+    <Param name="radius" default="14"/>
+    <Frame anchor="stretch">
+      <Image class="skin-wood" anchor="stretch" raycastTarget="false"
+             sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="{{tone}}"/>
+      <Frame class="skin-glass" anchor="stretch" glass="true" radius="{{radius}}"
+             color="white/0.14" borderWidth="1" borderColor="white/0.45"/>
+    </Frame>
+  </Template>
 
   <!-- ScrollList 行模板 -->
   <Template name="OptionRow">
@@ -39,29 +139,56 @@
     </HStack>
   </Template>
 
-  <!-- Carousel 卡片模板（bg tint / 标题由 C# BindItems 填） -->
+  <!-- Carousel 卡片模板（bg 底色 / 标题由 C# BindItems 填） -->
   <Template name="DemoCard">
     <Frame>
-      <Image id="bg" anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round"/>
+      <Image id="bg" class="card" anchor="stretch"/>
       <Text id="title" anchor="stretch" align="middle-center" fontSize="12" raycastTarget="false"/>
     </Frame>
   </Template>
 
-  <Screen name="CommonControls" reference="640x360" reference.portrait="360x640" scale-mode="pixel">
-    <!-- 背景：天空 + 草地两层 -->
-    <Image anchor="stretch" color="sky"/>
+  <!-- 玻璃只看得见「相机渲染出来的那张图」—— Overlay 画布不在里面（uGUI 没有 grab pass），
+       所以玻璃面板永远看不见自己的兄弟节点。背景因此搬到一个 canvas="camera" 的 Screen 上：
+       农场主题下它就是原来的天空草地，玻璃主题下它就是玻璃底下被模糊的那层。
+       C# 里 UI.CanvasConfigurator 无条件给它接上主相机（Canvas.renderMode 的 getter 在没相机时
+       会谎报成 Overlay，别拿它做条件）。
+
+       它**不**跟着切 scale-mode：背景是像素美术，永远整数倍；只有上层 UI 需要高清。
+       两块画布各自一个 CanvasScaler，本来就能各走各的。 -->
+  <Screen name="Backdrop" canvas="camera" reference="640x360" reference.portrait="360x640"
+          scale-mode="pixel">
+    <Image anchor="stretch" color="sky" raycastTarget="false"/>
     <Image anchor="bottom-stretch" height="56" color="grass" raycastTarget="false"/>
+    <!-- 玻璃底下得有点花纹才看得出模糊，摆一排作物 -->
+    <HStack anchor="bottom-stretch" height="32" margin="_,24,12,24" spacing="28">
+      <Image size="32x32" sprite="farm:carrot" raycastTarget="false"/>
+      <Image size="32x32" sprite="farm:tomato" raycastTarget="false"/>
+      <Image size="32x32" sprite="farm:wheat" raycastTarget="false"/>
+      <Image size="32x32" sprite="farm:sunflower" raycastTarget="false"/>
+      <Image size="32x32" sprite="farm:pumpkin" raycastTarget="false"/>
+      <Image size="32x32" sprite="farm:grape" raycastTarget="false"/>
+      <Frame width="stretch"/>
+    </HStack>
+  </Screen>
+
+  <!-- scale-mode 只能靠 Variant 换，不能靠 <Theme>：<Screen> 上写 class= 是 parse error
+       （Screen 不是控件，挂不住属性包）。玻璃是高清程序化图形，跟 pixel 的整数倍缩放天生打架
+       —— 圆角和模糊会被整块放大成锯齿。所以 C# 那边切主题时把同名 Variant 一起翻：
+       UI.Variants.Set("glass", …) + UI.Theme.Set(…)。 -->
+  <Screen name="CommonControls" reference="640x360" reference.portrait="360x640"
+          scale-mode="pixel" scale-mode.glass="auto">
     <SafeArea>
 
-      <!-- 顶部固定：木牌标题 + 常驻新手引导按钮（Btn 不写 color，吃默认皮肤） -->
+      <!-- 顶部固定：木牌/玻璃牌标题 + 常驻新手引导按钮 -->
       <HStack anchor="top-stretch" height="44" padding="8" spacing="8">
-        <Image sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="plaque" width="220" width.portrait="132" height="30">
+        <Frame width="220" width.portrait="132" height="30">
+          <Skin tone="plaque" radius="8"/>
           <Text anchor="center" fontSize="18" fontSize.portrait="12" raycastTarget="false">Common Controls Demo</Text>
-        </Image>
+        </Frame>
         <Frame width="0"/>
-        <Btn id="tutorialBtn" width="100" width.portrait="86" height="28" fontSize="16">新手引导</Btn>
-        <!-- 主题切换：选项「亮色/暗色」由 C# BindThemeSwitcher 填充 → UI.Theme.Set -->
-        <Dropdown id="theme" width="84" height="28"/>
+        <Btn id="tutorialBtn" class="btn" width="100" width.portrait="86" height="28" fontSize="16">新手引导</Btn>
+        <!-- 皮肤切换：选项「农场/玻璃」由 C# BindSkinSwitcher 填充 → UI.Theme.Set + UI.Variants.Set -->
+        <Dropdown id="skin" class="dropdown" width="84" height="28"/>
       </HStack>
 
       <!-- TabBar 分页（bind= 切页；Tab 是 layout child，只写 width/height） -->
@@ -75,35 +202,35 @@
               direction="horizontal" direction.portrait="vertical"
               spacing="0" spacing.portrait="4"
               margin="44,8,0,8" margin.portrait="44,_,8,8">
-        <Tab id="tabForm"    width="stretch" width.portrait="stretch" height.portrait="120" text="表单输入" fontSize="15" fontSize.portrait="22"
-             selectedColor="tab-selected" bind="pageForm" isOn="true"/>
-        <Tab id="tabDisplay" width="stretch" width.portrait="stretch" height.portrait="120" text="展示反馈" fontSize="15" fontSize.portrait="22"
-             selectedColor="tab-selected" bind="pageDisplay"/>
-        <Tab id="tabList"    width="stretch" width.portrait="stretch" height.portrait="120" text="列表轮播" fontSize="15" fontSize.portrait="22"
-             selectedColor="tab-selected" bind="pageList"/>
-        <Tab id="tabModal"   width="stretch" width.portrait="stretch" height.portrait="120" text="模态提示" fontSize="15" fontSize.portrait="22"
-             selectedColor="tab-selected" bind="pageModal"/>
+        <Tab id="tabForm"    class="tab" width="stretch" width.portrait="stretch" height.portrait="120" text="表单输入" fontSize="15" fontSize.portrait="22"
+             bind="pageForm" isOn="true"/>
+        <Tab id="tabDisplay" class="tab" width="stretch" width.portrait="stretch" height.portrait="120" text="展示反馈" fontSize="15" fontSize.portrait="22"
+             bind="pageDisplay"/>
+        <Tab id="tabList"    class="tab" width="stretch" width.portrait="stretch" height.portrait="120" text="列表轮播" fontSize="15" fontSize.portrait="22"
+             bind="pageList"/>
+        <Tab id="tabModal"   class="tab" width="stretch" width.portrait="stretch" height.portrait="120" text="模态提示" fontSize="15" fontSize.portrait="22"
+             bind="pageModal"/>
       </TabBar>
 
       <!-- ① 表单输入（原 Settings 内容保留） -->
       <Frame id="pageForm" anchor="stretch" margin="84,8,8,8" margin.portrait="52,8,8,52">
-        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="panel" raycastTarget="false"/>
+        <Skin/>
         <VStack anchor="stretch" spacing="12" padding="8">
-          <InputField id="username" placeholder="Username" width="240" height="30"/>
-          <Toggle id="muteAudio">静音</Toggle>
-          <Slider id="masterVol" min="0" max="1" value="0.8"/>
-          <Dropdown id="quality"/>
+          <InputField id="username" class="input" placeholder="Username" width="240" height="30"/>
+          <Toggle id="muteAudio" class="toggle">静音</Toggle>
+          <Slider id="masterVol" class="slider" min="0" max="1" value="0.8"/>
+          <Dropdown id="quality" class="dropdown"/>
         </VStack>
       </Frame>
 
       <!-- ② 展示反馈 -->
       <Frame id="pageDisplay" anchor="stretch" margin="84,8,8,8" margin.portrait="52,8,8,52">
-        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="panel" raycastTarget="false"/>
+        <Skin/>
         <VStack anchor="stretch" spacing="10" padding="8">
-          <Progress id="progress" height="16" value="0.3" bgColor="progress-bg" fillColor="progress-fill"/>
+          <Progress id="progress" class="progress" height="16" value="0.3"/>
           <HStack height="28" spacing="8">
-            <Btn id="progMinus" width="64" height="28" fontSize="15">-10%</Btn>
-            <Btn id="progPlus"  width="64" height="28" fontSize="15">+10%</Btn>
+            <Btn id="progMinus" class="btn" width="64" height="28" fontSize="15">-10%</Btn>
+            <Btn id="progPlus"  class="btn" width="64" height="28" fontSize="15">+10%</Btn>
             <Frame width="0"/>
           </HStack>
           <!-- RawImage：纹理由 C# 生成后喂入 -->
@@ -111,7 +238,7 @@
           <!-- Animation：点击按钮自身 pulse（VStack 内包 Animation 是文档认可的模式）
                + 状态可视化：<Show on="state-hover"> 草莓角标（SpriteSet farm: 引用示例） -->
           <Animation type="pulse" on="click" duration="0.3s">
-            <Btn id="pulseBtn" width="120" height="30">
+            <Btn id="pulseBtn" class="btn" width="120" height="30">
               <Text anchor="center" fontSize="15" raycastTarget="false">点我弹跳</Text>
               <Show on="state-hover">
                 <Image anchor="top-right" size="12x12" sprite="farm:strawberry" raycastTarget="false"/>
@@ -125,7 +252,7 @@
 
       <!-- ③ 列表轮播 -->
       <Frame id="pageList" anchor="stretch" margin="84,8,8,8" margin.portrait="52,8,8,52">
-        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="panel" raycastTarget="false"/>
+        <Skin/>
         <VStack anchor="stretch" spacing="10" padding="8">
           <!-- farm: SpriteSet 12 作物橱窗 -->
           <Grid columns="6" cellSize="32x32" spacing="4" height="72">
@@ -134,24 +261,23 @@
             <Image sprite="farm:strawberry"/><Image sprite="farm:eggplant"/><Image sprite="farm:sunflower"/>
             <Image sprite="farm:grape"/><Image sprite="farm:watermelon"/><Image sprite="farm:turnip"/>
           </Grid>
-          <Carousel id="banner" height="90" itemTemplate="DemoCard"
-                    interval="3" loop="true" transition="0.3"
-                    dots="bottom-center" dotColor="dot" dotSelectedColor="dot-selected"/>
-          <ScrollList id="list" width="stretch" height="stretch" itemTemplate="OptionRow"
+          <Carousel id="banner" class="carousel" height="90" itemTemplate="DemoCard"
+                    interval="3" loop="true" transition="0.3" dots="bottom-center"/>
+          <ScrollList id="list" class="list" width="stretch" height="stretch" itemTemplate="OptionRow"
                       spacing="4" padding="8"/>
         </VStack>
       </Frame>
 
       <!-- ④ 模态提示 -->
       <Frame id="pageModal" anchor="stretch" margin="84,8,8,8" margin.portrait="52,8,8,52">
-        <Image anchor="stretch" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="panel" raycastTarget="false"/>
+        <Skin/>
         <VStack anchor="stretch" spacing="10" padding="8">
-          <Btn id="msgBoxBtn"   height="30" fontSize="15">MessageBox</Btn>
-          <Btn id="inputBoxBtn" height="30" fontSize="15">InputBox</Btn>
-          <Btn id="mdBoxBtn"    height="30" fontSize="15">MarkdownBox</Btn>
-          <Btn id="loadingBtn"  height="30" fontSize="15">Loading (2s)</Btn>
-          <!-- 演示 color= tint 仍可用：默认皮肤上叠一层主题强调色 tint -->
-          <Btn id="toastBtn"    height="30" fontSize="15" color="accent">Toast</Btn>
+          <Btn id="msgBoxBtn"   class="btn" height="30" fontSize="15">MessageBox</Btn>
+          <Btn id="inputBoxBtn" class="btn" height="30" fontSize="15">InputBox</Btn>
+          <Btn id="mdBoxBtn"    class="btn" height="30" fontSize="15">MarkdownBox</Btn>
+          <Btn id="loadingBtn"  class="btn" height="30" fontSize="15">Loading (2s)</Btn>
+          <!-- 演示 inline 属性仍然压过属性包：class="btn" 给了 color，这里的 color= 覆盖它 -->
+          <Btn id="toastBtn"    class="btn" height="30" fontSize="15" color="accent">Toast</Btn>
         </VStack>
       </Frame>
 

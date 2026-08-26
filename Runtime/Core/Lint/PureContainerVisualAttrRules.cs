@@ -4,15 +4,38 @@ using PromptUGUI.IR;
 namespace PromptUGUI.Lint
 {
     /// <summary>
-    /// Flags visual attributes that the target tag will silently drop.
+    /// Flags visual attributes that the target tag will silently drop. Three tiers, and the middle
+    /// one is the whole reason this class is not just a list of layout containers:
     ///
-    /// <para><c>Frame</c> grew a procedural visual layer (fill / radius / border / glow, drawn by
+    /// <list type="number">
+    /// <item><c>Frame</c> grew a procedural visual layer (fill / radius / border / glow, drawn by
     /// <c>ProceduralPanel</c>), so those attributes are legitimate on it — but it still has no
-    /// <c>Image</c>, so <c>sprite=</c> is as dead there as it always was.</para>
+    /// <c>Image</c>, so <c>sprite=</c> is as dead there as it always was.</item>
     ///
-    /// <para><c>VStack</c> / <c>HStack</c> / <c>Grid</c> / <c>SafeArea</c> stay pure layout: no
+    /// <item><b>A built-in control that has NOT been given a procedural surface yet</b> carries an
+    /// <c>Image</c> somewhere, so <c>color</c> and <c>sprite</c> work — but it has no
+    /// <c>ProceduralPanel</c>, so <c>radius</c> / <c>borderWidth</c> / <c>glow</c> / <c>glass</c> …
+    /// are dropped. Such an attribute passes the parser, passes <c>ControlAttributeApplier</c>
+    /// (unknown names are skipped, not reported) and reaches nothing. Found the hard way while
+    /// skinning the farm/glass sample. This tier <b>shrinks</b> as controls are wired up — see
+    /// <see cref="ProceduralSurfaceRules.SurfaceTags"/>, which is what it defers to.</item>
+    ///
+    /// <item><c>VStack</c> / <c>HStack</c> / <c>Grid</c> / <c>SafeArea</c> stay pure layout: no
     /// Graphic, no panel, so every visual attribute is dropped by
-    /// <c>ControlAttributeApplier</c>.</para>
+    /// <c>ControlAttributeApplier</c>.</item>
+    /// </list>
+    ///
+    /// <para>Tier 2 is keyed off <see cref="BuiltinTags"/> minus
+    /// <see cref="ProceduralSurfaceRules.SurfaceTags"/>, rather than a hand-kept list of Image-backed
+    /// tags: the two facts underneath are single ones — which tags exist, and which of them draw
+    /// procedurally — and a third list would rot against both.
+    /// <c>ProceduralAttrNamesTests</c> checks the second against the live registry in both
+    /// directions, so a control wired up without being listed (this rule keeps reporting a working
+    /// attribute) and a control listed without being wired up (this rule goes quiet about a broken
+    /// one) both fail the build.</para>
+    ///
+    /// <para>A tag that is not a built-in is a Template invocation whose body the CLI cannot see
+    /// before expansion, so nothing is claimed about it.</para>
     ///
     /// CLI-only: dispatched from <see cref="IRWalker"/>, intentionally NOT from
     /// <c>ScreenInstantiator</c> — silent-drop is correctness-safe (just author confusion),
@@ -33,14 +56,9 @@ namespace PromptUGUI.Lint
         };
 
         // Frame 自己能画的那一组（见 Frame.cs 的 [UIAttr]）。在纯排版容器上写这些同样无效。
-        private static readonly string[] ProceduralAttrs =
-        {
-            "color", "radius", "borderWidth", "borderColor", "glow", "glowColor",
-            "glass", "frost", "depth", "dispersion", "lightAngle", "lightIntensity",
-            "saturation", "noise", "weld",
-        };
+        private static string[] ProceduralAttrs => ProceduralAttrNames.All;
 
-        public static bool AppliesTo(string tag) => tag == "Frame" || LayoutOnlyTags.Contains(tag);
+        public static bool AppliesTo(string tag) => BuiltinTags.IsBuiltin(tag);
 
         public static IEnumerable<LintIssue> Check(ElementNode n)
         {
@@ -57,7 +75,37 @@ namespace PromptUGUI.Lint
                 yield break;
             }
 
-            if (!LayoutOnlyTags.Contains(n.Tag)) yield break;
+            if (!LayoutOnlyTags.Contains(n.Tag))
+            {
+                if (!BuiltinTags.IsBuiltin(n.Tag)) yield break;
+
+                // A control with a procedural surface of its own keeps all of these EXCEPT weld:
+                // weld fuses a Frame's direct glass children into one pane and has no meaning on a
+                // control (spec §13.2), so it stays silently dropped and stays reported.
+                var hasSurface = ProceduralSurfaceRules.AppliesTo(n.Tag);
+
+                // Tier 2: color / sprite land on the control's Image; the procedural group has
+                // nowhere to land.
+                foreach (var attr in ProceduralAttrNames.NeedsPanel)
+                {
+                    if (hasSurface && attr != "weld") continue;
+                    if (!Declares(n, attr)) continue;
+                    yield return new LintIssue(
+                        VisualAttrCode, n.Tag, n.Id,
+                        hasSurface
+                            ? $"<{n.Tag} id='{n.Id}'>: 'weld' is silently ignored — it fuses a " +
+                              "<Frame>'s direct glass children into one continuous pane, and a " +
+                              "control has no such children. Wrap the controls in a " +
+                              "<Frame weld=\"...\"> if you want them to share one pane."
+                            : $"<{n.Tag} id='{n.Id}'>: '{attr}' is silently ignored — this control " +
+                              "has no procedural surface; only <Frame> (and the controls already " +
+                              "wired up) draw rounded rect / border / glow / glass. " +
+                              $"For a shaped background here, put a <Frame anchor=\"stretch\" " +
+                              $"{attr}=\"...\"/> INSIDE the control — a Frame never blocks clicks " +
+                              "— or wrap the control in one.");
+                }
+                yield break;
+            }
 
             if (Declares(n, "sprite"))
                 yield return new LintIssue(

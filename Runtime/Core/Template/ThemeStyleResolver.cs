@@ -50,11 +50,11 @@ namespace PromptUGUI.Template
                         ? new Dictionary<StyleKey, StyleDef>()
                         : new Dictionary<StyleKey, StyleDef>(globalStyles);
 
-                    // Theme styles address the un-namespaced pool. A commons library imported with
-                    // as="ui" keys its styles StyleKey("ui", name) and class="ui:card" reaches them
-                    // directly; a theme has no namespace of its own to match that with, so themed
-                    // overrides of a namespaced style are simply not a thing yet. See spec §4.3.
-                    var key = new StyleKey(null, kv.Key);
+                    // A theme's <Style name> is a REFERENCE, spelled the way class= spells one:
+                    // 'card' for the document's own pool, 'ui:card' for a pack that came in through
+                    // an <Import as="ui">. Namespace is part of the identity, so the two never
+                    // collide. See spec §4.3.
+                    var key = StyleKey.ParseReference(kv.Key);
                     folded[key] = folded.TryGetValue(key, out var lower)
                         ? FoldOver(lower, kv.Value)
                         : kv.Value;

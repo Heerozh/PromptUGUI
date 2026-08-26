@@ -93,11 +93,11 @@ namespace PromptUGUI.Lint
             // Per-tag self-checks (mirror of ScreenInstantiator dispatch; CLI errors).
             // Self-relative — about the node itself, unlike parent-relative LayoutGroupChildRules.
             if (node.Tag == "Frame")
-                foreach (var issue in MaskAttributeRules.CheckFrame(node))
+                foreach (var issue in MaskAttributeRules.CheckFrame(node, styles))
                     yield return issue;
             else if (node.Tag == "Image")
             {
-                foreach (var issue in MaskAttributeRules.CheckImage(node))
+                foreach (var issue in MaskAttributeRules.CheckImage(node, styles))
                     yield return issue;
                 foreach (var issue in ImageFitRules.CheckVariant(node))
                     yield return issue;
@@ -108,7 +108,7 @@ namespace PromptUGUI.Lint
                 foreach (var issue in MaskAttributeRules.CheckRawImage(node))
                     yield return issue;
             else if (node.Tag == "Progress")
-                foreach (var issue in ProgressAttributeRules.CheckProgress(node))
+                foreach (var issue in ProgressAttributeRules.CheckProgress(node, styles))
                     yield return issue;
             else if (node.Tag == "TabBar")
                 foreach (var issue in TabRules.CheckTabBar(node))
@@ -122,6 +122,10 @@ namespace PromptUGUI.Lint
 
             // CLI-only: pure containers carry no Graphic; sprite/color silently dropped.
             // Intentionally NOT dispatched from ScreenInstantiator — see rule's XML docs.
+            if (ProceduralSurfaceRules.AppliesTo(node.Tag))
+                foreach (var issue in ProceduralSurfaceRules.Check(node, styles))
+                    yield return issue;
+
             if (PureContainerVisualAttrRules.AppliesTo(node.Tag))
                 foreach (var issue in PureContainerVisualAttrRules.Check(node))
                     yield return issue;

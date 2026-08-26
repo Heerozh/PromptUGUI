@@ -10,9 +10,12 @@ using UnityToggle = UnityEngine.UI.Toggle;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class Tab : Control
+    public sealed class Tab : ProceduralControl
     {
         private UnityImage _bg;
+
+        private protected override GameObject SurfaceHost => GameObject;
+        private protected override UnityEngine.UI.Selectable SurfaceSelectable => _toggle;
         private UnityEngine.Sprite _selectedSprite;   // resolved selectedSprite, swapped onto _bg.overrideSprite while IsOn
         // bg 在未被 selectedSprite 覆盖时的 Image.Type：默认皮肤=Tiled（青苔/木纹边平铺），
         // 作者 sprite= 后由 border 推导（Sliced/Simple）。镜像 Btn._baseType。
@@ -302,8 +305,24 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve]
         public string Color
         {
-            set => Internal.ColorApplier.Apply(_bg, UI.Theme.ResolveSpec(value));
+            set
+            {
+                // Held, not just applied: StateTintInstaller needs the DECLARATION to hand the state
+                // reactor its base. Reading the graphic back instead would pick up whatever tint the
+                // reactor last painted. See StateTintReactor's remarks.
+                _color = value;
+                var spec = UI.Theme.ResolveSpec(value);
+                Internal.ColorApplier.Apply(_bg, spec);
+                Surface.SetFill(spec.Top, spec.Bottom);
+            }
         }
+
+        private string _color;
+
+        /// <summary>What <c>color=</c> currently declares, or null when the author declared none —
+        /// then the reactor keeps the control's own built-in bg colour as its base.</summary>
+        private ColorSpec? AuthoredBase()
+            => string.IsNullOrWhiteSpace(_color) ? (ColorSpec?)null : UI.Theme.ResolveSpec(_color);
 
         /// <summary>
         /// Blend mode for how <see cref="Color"/> combines with the bg sprite — same
@@ -385,7 +404,8 @@ namespace PromptUGUI.Controls
             ColorSpec? selectedBase = string.IsNullOrWhiteSpace(_selectedColor)
                 ? (ColorSpec?)null
                 : UI.Theme.ResolveSpec(_selectedColor);
-            _bgReactor = StateTintInstaller.Install(GameObject, _toggle, Children, abs, mod, selectedBase, IsOn);
+            _bgReactor = StateTintInstaller.Install(GameObject, _toggle, Children, abs, mod, selectedBase, IsOn,
+                authoredBase: AuthoredBase());
             ReconcileTransition();
             ApplySelectedSprite();
             // 默认禁用外观：作者未声明任何 disabled* 时整控件去色。
@@ -404,7 +424,10 @@ namespace PromptUGUI.Controls
         /// back.</para>
         /// </summary>
         private void ReconcileTransition() =>
-            _toggle.transition = _bgReactor != null || _selectedSprite != null
+            // A procedural surface retires the Image selectedSprite swaps, so the swap shows
+            // nothing — handing feedback to it would leave the Tab with none at all. Same reasoning
+            // as the paragraph above, one step further.
+            _toggle.transition = _bgReactor != null || (!SurfaceIsDrawing && _selectedSprite != null)
                 ? Selectable.Transition.None
                 : Selectable.Transition.ColorTint;
 
