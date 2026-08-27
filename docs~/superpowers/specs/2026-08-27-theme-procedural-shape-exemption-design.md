@@ -245,10 +245,40 @@ Red test 全部落地，**EditMode 2485 passed → 2479 passed / 6 failed**，6 
 
 `dotnet format --verify-no-changes --severity warn` 无输出。
 
-### M1（待做）
+### M1 —— `CheckShape` 的豁免
 
-### M2（待做）
+按 §3.2 落地，形式与 spec 一致：豁免集从 `ProceduralAttrNames` 派生（`NeedsPanel` 去 `weld` + `InnerLayerRadius`），「全有或全无」跨全部主题算一次再进两两比较。
 
-### M3（待做）
+写代码时确认了 §3.2 那段顺序无关性的推导不是纸上谈兵：`CheckShape` 的循环拿排序第一的主题当参照并在首个不一致处 `break`，所以豁免**只能**在循环外算。放进循环就会分别放过 `plain-vs-full` 与 `plain-vs-partial`，永远发现不了 `full` 与 `partial` 彼此不一致 —— `PartialProceduralSet_IsStillReported` 就是钉这个的（主题名刻意排成 `a-plain` 最先）。
 
-### M4（待做）
+EditMode **2485 → 2482 passed / 3 failed**（只剩 M2 的三条）。`UIXmlLint` 对仓库 13 个文件仍零 issue —— 豁免不改变今天的判定。§2.2 那份纯 theme 草稿：**8 条 SHAPE → 0 issue**。
+
+### M2 —— `Restore()` 只还本轮没写过的
+
+按 §5.3，两处加条件，不新增按属性的标志位。实现时确认了两件 spec 里推断过的事：
+
+- `_hasFill` 的语义确实是「本轮声明过颜色吗」—— 八个控件的 `color=` setter（`Btn.cs:215` 等）都是先 `ColorApplier.Apply(_bg, spec)` 再 `Surface.SetFill(...)`，内层（`Slider.FillSurface` / `Progress.FrameSurface`）各有自己的 `_hasFill`，逐层成立。
+- sprite 那半不需要新信号：`Retire()` 每轮把它清成 null，所以关模式那一轮非 null 只可能是本轮 setter 写的。
+
+EditMode **2485/2485**、PlayMode **171/171**、EditorOnly **308/308** 全绿。
+
+### M3 —— 示例转纯 theme
+
+18 行 `attr.glass=` 搬进 `<Theme name="glass">`，文件头三条规矩的第 2 条补上形状例外，`<Screen>` 那段与 `CommonControlsRunner` 的注释改成「变体只剩 scale-mode 一处」的叙事。
+
+**外观不变是验过的，不是眼看的。** 写了个脚本按合并语义（global → theme 覆盖，按属性名原子；老写法再叠上变体命中）把 old/new 两份文件的**解析后属性映射**逐条比：12 个样式 × 2 套皮，**全部逐条相同**。比肉眼比对可靠，也比「跑一遍看看」快。
+
+`UIXmlLint` 13 文件 0 issue，EditMode 2485/2485。
+
+### M4 —— SKILL
+
+- `SKILL.md` 主题一节：「全局 `<Style>` 要写全套属性」加例外段落，讲清「形状属性是开关不是值」、豁免的全有或全无、`sprite` / `color` 不豁免的理由，以及 `<Frame>` 不自愈这条漏报。既有的 `card` / `radius="16"` 例子保留并注明「它落在 `<Frame>` 上所以对」。
+- `reference/glass.md`：新增「One theme glass, another bitmap」一节 —— 这是玻璃最常见的换皮场景，正面给出写法并写明「不要给像素侧加基线」。
+- lint 代码表补豁免说明。
+- `states.md` / `controls-progress.md` 查过，没有需要改指的旧惯用法（`radius.mobile` 那处带基值，是合法的变体写法）。
+
+## 11. 收尾状态
+
+四个里程碑全部完成，三套测试全绿（EditMode 2485 / PlayMode 171 / EditorOnly 308），`UIXmlLint` 13 文件 0 issue，`dotnet format --verify-no-changes --severity warn` 无输出。
+
+分支 `test/theme-procedural-shape-red`，四个 commit 一一对应 M0–M3，M4 并入最后一个。**未合并到 main。**

@@ -791,16 +791,55 @@ node and replays the attributes; **no GameObject is rebuilt**, so references and
 </Theme>
 ```
 
+That baseline `radius="16"` is correct here because `card` lands on a `<Frame>`, which has no sprite
+to lose. On an Image-backed control it would be wrong — see the shape exception below.
+
 **The global `<Style>` is the implicit root of every theme chain.** Folding order is
 `global → base= chain → active theme`, atomic per attribute name (same rule multiple classes get).
 Three consequences worth internalising:
 
 - A theme spells out only what differs; everything else comes from the global pack.
-- **Always declare the global `<Style>` with the full attribute set.** An attribute one theme sets
-  and another doesn't is never reset on a switch — the control keeps the old value. `PUI-THEME-STYLE-SHAPE`
-  catches this; `PUI-THEME-STYLE-NO-BASELINE` catches a style that exists only inside a theme
-  (unreachable — `class=` resolves against the global pool).
+- **Always declare the global `<Style>` with the full attribute set** — with one exception, below.
+  An attribute one theme sets and another doesn't is never reset on a switch — the control keeps the
+  old value. `PUI-THEME-STYLE-SHAPE` catches this; `PUI-THEME-STYLE-NO-BASELINE` catches a style that
+  exists only inside a theme (unreachable — `class=` resolves against the global pool).
 - A project with no theme styles costs exactly nothing; this is all opt-in.
+
+**Exception: never give a shape attribute a baseline on an Image-backed control.** On the controls listed
+under 程序化表面 (`<Btn>` `<Tab>` `<Toggle>` `<Slider>` `<Dropdown>` `<InputField>` `<ScrollList>`
+`<Progress>`), `radius` / `glass` / `border*` / `glow*` / the glass parameters /
+`<layer>Radius` are **switches, not values**: writing one at all attaches the
+SDF face and retires the Image, whatever the value. So `radius=""` as a "baseline" does not mean
+"no radius", it means "this control is procedural in every theme" — and the bitmap skin loses its
+sprite (`PUI-PROC-SPRITE-CONFLICT` then reports the sprite as the contradiction it now is).
+
+Write the whole shape group in the theme that wants it, and **not one attribute of it** in the others:
+
+```xml
+<Style name="btn" sprite="px:btn" color="#E8D2A8"/>          <!-- pixel skin: shape IS the sprite -->
+
+<Theme name="pixel"><Style name="btn" color="#E8D2A8"/></Theme>
+<Theme name="glass">
+  <Style name="btn" sprite="none" color="white/0.22"
+         radius="10" glass="true" borderWidth="1" borderColor="white/0.55"/>
+</Theme>
+```
+
+`PUI-THEME-STYLE-SHAPE` exempts exactly this: `ProceduralSurface` recomputes the mode every pass, so
+a theme that omits the group turns the surface off and hands the Image back, sprite and alpha
+included — it reverts on its own. The exemption is **all-or-nothing**: a theme holding *half* the
+group pins the mode on, its missing half really does stick, and the rule reports the style again.
+`sprite` and `color` are deliberately NOT exempt — leave one of those to the control's built-in
+default in one theme and set it in another and you get a genuine residue.
+
+Two limits worth knowing:
+
+- **`<Frame>` does not self-heal.** It attaches its panel directly and never reconciles the mode per
+  pass, so a shape attribute one theme sets and another omits stays put. `PUI-THEME-STYLE-SHAPE`
+  cannot see which tag a `class=` lands on and will not warn you. On a Frame, declare the shape in
+  every theme (a global baseline is fine there — a Frame has no sprite to lose).
+- The controls' `<layer>Radius` attributes (`fillRadius`, `handleRadius`, `frameRadius`,
+  `maskRadius`) follow the same rule as the outer group: each drives one inner surface wholesale.
 
 **Rejected inside a `<Theme>`'s `<Style>`** (all parse errors; a global `<Style>` still accepts the
 last two groups):
@@ -1411,6 +1450,8 @@ STYLE LINT    PUI-CLASS-EMPTY                  class="" / whitespace-only — na
                the CLI skips that check and the name stays a runtime error)
               PUI-THEME-STYLE-NO-BASELINE      <Style> declared only inside a <Theme> — unreachable
               PUI-THEME-STYLE-SHAPE            two themes resolve a style to different attribute sets
+                                               (shape attrs are exempt when one side has NONE of them
+                                                — that surface toggles wholesale and reverts itself)
               PUI-THEME-STYLE-ON-INVOCATION    themed class= on a Template invocation won't re-skin
 ```
 
