@@ -70,8 +70,14 @@ namespace PromptUGUI.Tests.EditMode.Lint
                 if (tag == "Frame") continue;
                 if (ProceduralSurfaceRules.SurfaceTags.Contains(tag)) continue;
                 foreach (var attr in ProceduralAttrNames.NeedsPanel)
+                {
+                    // <Decor> draws procedurally without being a surface: it accepts the glow pair
+                    // and nothing else, and PureContainerVisualAttrRules exempts exactly that pair.
+                    if (tag == DecorRules.Tag
+                        && DecorRules.SupportedProceduralAttrs.Contains(attr)) continue;
                     if (entry.Meta.HasAttribute(attr))
                         offenders.Add($"{tag}.{attr}");
+                }
             }
 
             CollectionAssert.IsEmpty(offenders,

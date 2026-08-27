@@ -217,4 +217,62 @@ float4 PuguiOver(float4 src, float4 dst)
     return float4(rgb, a);
 }
 
+// ---- 装饰原语（<Decor>）的形状层 ----
+//
+// 三个形状都在**规范朝向**里定义：bracket 抱住自己包围盒的左上角，tick 尖端朝下。
+// 其余槽位（右上角 / 顶边 / 左右边…）不靠材质参数翻转，而是由 DecorPanel 在
+// **顶点**里把局部坐标翻/转到规范朝向 —— 材质因此与槽位无关，四个角括号共用一份材质、
+// 能合到同一个 draw call 里。参数进材质、朝向进顶点，与面板那套分工同源。
+
+// 轴对齐矩形 SDF（iq）。c = 中心，h = 半尺寸。
+float PuguiSdBoxAt(float2 p, float2 c, float2 h)
+{
+    float2 q = abs(p - c) - h;
+    return min(max(q.x, q.y), 0.0) + length(max(q, 0.0));
+}
+
+// L 形折线（角括号），抱住包围盒左上角。b = 包围盒半尺寸，t = 笔画宽。
+// 两条臂各是一个矩形，取 min = 并集；交角处自然接成方头，不需要额外处理。
+float PuguiSdBracket(float2 p, float2 b, float t)
+{
+    float w = clamp(t, 0.0, 2.0 * min(b.x, b.y));
+    float half_w = 0.5 * w;
+    // 横臂贴上沿铺满整宽，竖臂贴左沿铺满整高。
+    float dh = PuguiSdBoxAt(p, float2(0.0, b.y - half_w), float2(b.x, half_w));
+    float dv = PuguiSdBoxAt(p, float2(-b.x + half_w, 0.0), float2(half_w, b.y));
+    return min(dh, dv);
+}
+
+// 等腰三角形（指示三角），底边贴上沿、尖端朝下。b = 包围盒半尺寸。
+// 半平面交：底边 + 左右两条斜边，外区距离取到最近斜边线段的精确距离，
+// 这样 glow 在尖端外侧不会被半平面交低估成一圈方晕。
+float PuguiSdTick(float2 p, float2 b)
+{
+    float2 apex = float2(0.0, -b.y);
+    float2 left = float2(-b.x, b.y);
+    float2 right = float2(b.x, b.y);
+
+    // 到三条边的有符号半平面距离（外法线朝外为正）。
+    float2 el = apex - left;
+    float dl = (p.x - left.x) * el.y - (p.y - left.y) * el.x;
+    float2 er = right - apex;
+    float dr = (p.x - apex.x) * er.y - (p.y - apex.y) * er.x;
+    float2 nl = normalize(el);
+    float2 nr = normalize(er);
+    dl /= max(length(el), 1e-4);
+    dr /= max(length(er), 1e-4);
+    float dtop = p.y - b.y;
+
+    float inside = max(max(dl, dr), dtop);
+
+    // 内部（inside<0）半平面交即精确距离；外部再补上到顶点的精确项。
+    float2 qa = p - apex;
+    float2 ql = p - left;
+    float2 qr = p - right;
+    float dseg = min(min(length(ql - nl * clamp(dot(ql, nl), 0.0, length(el))),
+                         length(qa - nr * clamp(dot(qa, nr), 0.0, length(er)))),
+                     length(float2(clamp(p.x, -b.x, b.x), b.y) - p));
+    return inside < 0.0 ? inside : dseg;
+}
+
 #endif // PROMPTUGUI_PANEL_SDF_INCLUDED

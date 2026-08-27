@@ -126,6 +126,10 @@ namespace PromptUGUI.Lint
                 foreach (var issue in ProceduralSurfaceRules.Check(node, styles))
                     yield return issue;
 
+            if (DecorRules.AppliesTo(node.Tag))
+                foreach (var issue in DecorRules.Check(node, styles))
+                    yield return issue;
+
             if (PureContainerVisualAttrRules.AppliesTo(node.Tag))
                 foreach (var issue in PureContainerVisualAttrRules.Check(node))
                     yield return issue;

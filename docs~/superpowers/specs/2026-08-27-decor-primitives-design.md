@@ -1,6 +1,6 @@
 # 边缘装饰原语 `<Decor>`：bracket / tick / line / sprite —— 形状词汇（第二层）
 
-> 状态：**草案，待评审**。
+> 状态：**已实现**（M0–M4 全部合入，见 §13 实施记录）。本文保留设计推理与实施记录。
 > 相关：`2026-08-27-corner-treatments-design.md`（第一层：角部处理，PR #106）、
 > `2026-08-26-procedural-surface-design.md`（`__Surface` / Strategy C / 状态视觉）、
 > `2026-08-26-theme-driven-style-design.md`（class= 属性包 / 主题重算）。
@@ -79,7 +79,7 @@ lint 与可读性都塌；`class=` 属性包对任意标签生效（`StyleMerger
 |---|---|---|---|---|
 | `kind` | — | `bracket` / `tick` / `line` / `sprite` / `none` | 无（见 §7） | 前三种为 SDF 绘制，`sprite` 为贴图绘制；`none` = 全部实例隐藏（主题去装饰的通道） |
 | `at` | 全部 | 逗号表；bracket 收角 token（`top-left` 等四个），tick / line 收边 token（`top` / `bottom` / `left` / `right`），sprite 角边都收 | bracket / sprite=`top-left,top-right,bottom-right,bottom-left`；tick / line=`bottom` | token 沿用 `AnchorPreset` 词汇（`Core/IR/AnchorPreset.cs`），不另发明缩写 |
-| `size` | 全部 | 数字 / `WxH`；line 另收 `%`（占边长比例）；sprite 另收 `native` | bracket=`12`；tick=`10x6`；line=`100%`；sprite=`native` | bracket：臂长（`WxH`=横竖臂不等）；tick：底×高；line：沿边长度；sprite：显式值=缩放，`native`=原生像素尺寸（同 `<Icon>` 惯例，配合 pixel-snap） |
+| `extent` | 全部 | 数字 / `WxH`；line 另收 `%`（占边长比例）；sprite 另收 `native` | bracket=`12`；tick=`10x6`；line=`100%`；sprite=`native` | bracket：臂长（`WxH`=横竖臂不等）；tick：底×高；line：沿边长度；sprite：显式值=缩放，`native`=原生像素尺寸（同 `<Icon>` 惯例，配合 pixel-snap） |
 | `thickness` | bracket / line | 数字 | `2` | 笔画宽。tick 是实心填充，写了报 lint warning |
 | `color` | 全部 | 同 `color=`（token / `/alpha` / 渐变） | `white` | 复用现有解析路径（`UI.Theme.Resolve` + 渐变）；sprite 上是 tint（`Image.color`），渐变不适用 |
 | `glow` / `glowColor` | SDF kind | 同 `<Frame>` | 同 `<Frame>` | 语义与默认值一字不差，SKILL 指向既有说明。sprite 无 SDF 距离场，写了报 lint warning |
@@ -89,14 +89,15 @@ lint 与可读性都塌；`class=` 属性包对任意标签生效（`StyleMerger
 | `offset` | tick / line | 有符号数字 | `0`（居中） | 沿边方向平移。bracket 写了报 lint warning |
 
 解析错误（parse-time，纯 C# 子集，CLI 同步可见）：未知 kind / 未知 at token /
-kind–at 不匹配（bracket 配边、tick 配角）/ at 重复 token / `%` 用在非 line 的 size /
-`native` 用在非 sprite 的 size / `mirror` 非布尔 /
-数值非有限或为负（thickness / size；inset / offset 允许负）。报错消息列出合法值。
+kind–at 不匹配（bracket 配边、tick 配角）/ at 重复 token / `%` 用在非 line 的 extent /
+`native` 用在非 sprite 的 extent / `mirror` 非布尔 /
+数值非有限或为负（thickness / extent；inset / offset 允许负）。报错消息列出合法值。
 
 ## 5. 语义
 
-**定位：rect 锚定。** 实例锚在宿主矩形的角 / 边中点上，`inset=0` 时压在边线上居中。
-**不贴合** 切角 / 六边形的 SDF 轮廓（§2）。tick 尖端朝外（远离宿主中心）；朝内翻转
+**定位：rect 锚定。** 实例锚在宿主矩形的角 / 边上，`inset=0` 时**齐平贴在内侧**（原稿写的是
+「压在边线上居中」，实现期改掉：居中会让笔画一半悬在宿主外，括号也不再抱住角）。`inset` 正向内、
+负向外。**不贴合** 切角 / 六边形的 SDF 轮廓（§2）。tick 尖端朝外（远离宿主中心）；朝内翻转
 v1 不做，需求出现时加属性。
 
 **sprite 的规范锚点与自动镜像。** 作者按**规范锚点**作画：角饰画左上角、边饰画底边；
@@ -112,8 +113,8 @@ v1 不做，需求出现时加属性。
   但 Decor 不需要作者写 —— 装饰没有参与排版的场景）；
 - `<Show><Decor/></Show>` 不会经 `Trigger.GetNativeSize` 的单子透传把装饰尺寸当内容尺寸
   报给父 Stack（透传读到 null / 零，回退原行为）；
-- 因此 **`anchor` / `size` / `width` / `height` / `margin` / `flow` 在 `<Decor>` 上是矛盾
-  声明**，lint 报错（§7）—— 定位只由 `at` / `inset` / `offset` 表达。
+- 因此 **`anchor` / `size` / `width` / `height` / `margin` / `pivot` / `flow` 在 `<Decor>` 上是
+  矛盾声明**，lint 报错（§7）—— 定位只由 `at` / `inset` / `offset` 表达。
 
 **绘制顺序 = XML 顺序。** uGUI 按层级序绘制，装饰写在内容后面就压在内容上（角括号
 通常写最后）。库不强制排序 —— `__Surface` 恒 index 0 是因为它是「底」，装饰没有恒定的
@@ -195,10 +196,10 @@ Btn
 | 规则 | 遍 | 级别 |
 |---|---|---|
 | `PUI-DECOR-KIND`：`<Decor>` 最终没有 `kind` | expanded（class 合并后才判，主题包可能供值） | error |
-| `PUI-DECOR-LAYOUT-ATTR`：`<Decor>` 上写排版属性（`anchor` / `width` / `height` / `margin` / `flow` —— 注意 `size` 不在列：Decor 的 `size` 是装饰尺寸，与通用排版 `size` 同名不同义，XSD/SKILL 要写清） | raw | error |
+| `PUI-DECOR-LAYOUT-ATTR`：`<Decor>` 上写排版属性（`anchor` / `size` / `width` / `height` / `margin` / `pivot` / `flow`）；`size` 那条额外指路 `extent=` | raw | error |
 | `PUI-DECOR-SPRITE`：`kind="sprite"` 而最终没有 `sprite=` | expanded（同上，主题包可能供值） | error |
 | `PUI-DECOR-ATTR`：kind 不适用的属性（tick+`thickness`、bracket+`offset`、sprite+`glow`/`thickness`、非 sprite+`sprite`/`mirror`） | expanded | warning |
-| 语法类（未知 kind / at 不匹配 / `%` 越界 / 重复 token） | parser（两遍都见） | error |
+| `PUI-DECOR-VALUE`：语法与组合（未知 kind / at 不匹配 kind / `%` 用错 / `native` 用错 / 重复 token） | expanded（复用 parser 的同一份实现） | error |
 
 ## 8. SKILL 更新（每个落地里程碑的同一 PR 内）
 
@@ -253,8 +254,54 @@ Btn
 
 | | 内容 | 依赖 |
 |---|---|---|
-| **M0 Red** | `DecorSpec` 解析全矩阵（§4 逐条）+ 排版中立契约（ignoreLayout / GetNativeSize / Show 透传）| 无 |
-| **M1 打通** | 标签接线 + 实例机制 + **line**（SDF 现成，最小可渲染）+ 材质缓存 + render 基线；SKILL 目录行同 PR | M0 |
-| **M2 刚需形状** | bracket + tick SDF + glow 膨胀 + render tests（参考图三件套复刻）；`reference/decor.md` 同 PR | M1 |
-| **M3 sprite kind** | `sprite` / `mirror` 属性 + 实例双节点 + 镜像 / 旋转变换 + render tests；`reference/decor.md` 的 sprite 节与 pxl SKILL 交叉引用同 PR | M1 |
-| **M4 收尾** | lint 全部（§7）+ `kind="none"` / 主题切换（含 sprite ↔ SDF 整槽切换）/ Variant reconcile 集成测试 + CLAUDE.md 路由行 | M1 |
+| ~~**M0 Red**~~ ✅ | `DecorSpec` 解析全矩阵（§4 逐条）+ 排版中立契约（ignoreLayout / GetNativeSize / Show 透传）| 无 |
+| ~~**M1 打通**~~ ✅ | 标签接线 + 实例机制 + **line**（SDF 现成，最小可渲染）+ 材质缓存 + render 基线；SKILL 目录行同 PR | M0 |
+| ~~**M2 刚需形状**~~ ✅ | bracket + tick SDF + glow 膨胀 + render tests（参考图三件套复刻）；`reference/decor.md` 同 PR | M1 |
+| ~~**M3 sprite kind**~~ ✅ | `sprite` / `mirror` 属性 + 实例双节点 + 镜像 / 旋转变换 + render tests；`reference/decor.md` 的 sprite 节与 pxl SKILL 交叉引用同 PR | M1 |
+| ~~**M4 收尾**~~ ✅ | lint 全部（§7）+ `kind="none"` / 主题切换（含 sprite ↔ SDF 整槽切换）/ Variant reconcile 集成测试 + CLAUDE.md 路由行 | M1 |
+
+
+## 13. 实施记录
+
+**`size` 这个名字根本不可用 —— 是测试打出来的，不是想出来的。** 原稿把同名冲突记为「XSD/SKILL
+要写清」的文档问题。第一轮 render test 全红才看清真相：`size` 是**通用排版属性**，
+`ControlAttributeApplier` 在调控件自己的 setter 之前就把它交给 `ApplyCommon` 了，于是 Decor 的
+`Size` setter **永远收不到值**，作者写 `size="40"` 得到的是 `SizeSpec.Parse("40")` 的报错
+（「cannot specify width/size on a horizontally-stretched axis」）。改名 **`extent`**，
+并把 `size` 一并列进 `PUI-DECOR-LAYOUT-ATTR`，报错里直接指路 `extent=` —— 撞上这个名字的作者
+一次就能改对。
+
+**齐平贴内侧，不是压线居中。** §5 原文写「`inset=0` 时压在边线上居中」。实现时改掉：居中会让
+笔画一半悬在宿主外，角括号也不再抱住角。改成「包围盒齐平贴在角/边内侧，`inset` 正向内负向外」
+—— 一条规则覆盖四种 kind，`inset` 的符号也因此有了明确语义。
+
+**槽位进顶点，不进材质 —— 否则合批的说法是假的。** 原稿 §9 写「四个括号可合批成一个 draw」。
+按最直觉的写法（把翻转当材质参数）四个角就是四份材质、四个 draw。实现改为：三种形状各定义一份
+**规范朝向**（bracket 抱左上角、tick 尖朝下），`DecorPanel.OnPopulateMesh` 把槽位折进写进
+TEXCOORD0 的局部坐标里。材质因此与槽位无关，`FourCornerBrackets_ShareOneMaterial` 钉住这条。
+
+**sprite 的镜像必须用 Transform，不能也走顶点。** 贴图不是解析形状，翻转只能是真的翻转：角靠
+`localScale(±1,±1)`、左右边靠 ±90° 旋转，所以 sprite 实例的槽节点 pivot 取中心并自己算位置，
+与 SDF 实例的「齐平 pivot」两条路径。四分之一转会交换「哪条轴朝向宿主」，`inset` 要清的深度
+随旋转走而不是随 rect 走 —— 这一条是写 `PlaceSprite` 时唯一容易错的地方。
+
+**双层实例槽按需长出。** `Graphic` 是 `[DisallowMultipleComponent]`，SDF 与贴图不能同节点。
+槽节点自己承载 `DecorPanel`，贴图另起一个 `__DecorSprite` 子节点铺满它；两者都懒建、只显隐不
+销毁。只用一种画法的文档永远只建一个节点。
+
+**`ParticipatesInLayout` 是 `Control` 上的新钩子。** 原稿说「复用 `flow="false"` 通道」，但那条
+通道只在作者显式写 `flow="false"` 时才走。加了一个 `protected internal virtual bool
+ParticipatesInLayout`（基类恒 true），`ApplyCommon` 开头 `flow &= ParticipatesInLayout` 一次折进去
+—— LayoutElement、百分比校验、preferred 六值写入三条分支自动一致，不用每处记得再问一遍。
+
+**tier-2 规则被守卫测试逼着长出第三档。** `<Decor glow="6">` 一接上，
+`ProceduralAttrNamesTests.OnlyFrame_HasThePanelRequiringAttributes`（#104 埋的那道防线）立刻失败：
+Decor 接受 `glow` / `glowColor` 却不在 `SurfaceTags` 里，于是 `PureContainerVisualAttrRules` 会把
+两个**能用**的属性报成「静默丢弃」。解法不是把 Decor 塞进 `SurfaceTags`（那会让
+`PUI-PROC-SPRITE-CONFLICT` 去管 Decor 合法的 `sprite=`），而是给规则加一档 Decor 分支 +
+`DecorRules.SupportedProceduralAttrs` 这个单一事实，守卫测试同步认它。**这道防线第二次证明了
+自己的价值**：接线与规则失步在合入前就被拦下。
+
+**渲染是唯一能证伪形状的东西。** 9 条 render test 全部落成几何谓词（bracket 两臂涂了、肘部是空的、
+臂端到此为止；tick 的斜边把底角切掉；50% 的线停在四分之一处），并各自 dump 一张 PNG ——
+`.pxl` 那条「真的去看那张图」的规矩在这里同样适用，四角括号、朝下三角、发光强调线都是肉眼确认过的。
