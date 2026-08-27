@@ -171,16 +171,48 @@ namespace PromptUGUI.Controls.Internal
             _hostImage.color = new Color(c.r, c.g, c.b, 0f);
         }
 
+        /// <summary>
+        /// Hands the Image back — but only what THIS pass did not already write.
+        ///
+        /// <para>The snapshot <see cref="Retire"/> takes is not "the control's built-in default": it
+        /// runs from <see cref="Reconcile"/>, which is <c>OnAfterApply</c>, so it captures whatever
+        /// the author declared on the pass that first turned the surface on. Restoring it blindly
+        /// clobbers the incoming skin — open under a glass theme, switch to the pixel one, and the
+        /// pass has already written the wood sprite and an opaque colour before this runs.</para>
+        ///
+        /// <para>Both halves therefore ask "did this pass declare one?" rather than tracking a new
+        /// flag per attribute. <c>Retire()</c> nulls the sprite every pass it is on, so a non-null
+        /// sprite here can only have come from a setter that ran this pass; <c>_hasFill</c> already
+        /// carries the same answer for the colour, set by the control's <c>color=</c> setter and
+        /// cleared by <see cref="BeginPass"/>.</para>
+        ///
+        /// <para>What stays out of reach is the ASYMMETRIC declaration — one skin sets
+        /// <c>sprite</c> / <c>color</c> and the other leaves it to the control's own default. The
+        /// snapshot then holds the first skin's value, and no amount of looking at the Image can tell
+        /// it apart from a default. Both spellings are reported statically before they can ever run:
+        /// <c>PUI-THEME-STYLE-SHAPE</c> on the theme side (neither <c>sprite</c> nor <c>color</c> is
+        /// in its procedural exemption, precisely so this stays covered) and
+        /// <c>PUI-VARIANT-NO-BASE</c> on the variant side.</para>
+        /// </summary>
         private void Restore()
         {
             if (!_retired || _hostImage == null) return;
             _retired = false;
-            _hostImage.sprite = _retiredSprite;
-            _hostImage.type = _retiredType;
-            // Alpha only: the rgb may legitimately have moved on (a theme switch, a Variant) while
-            // the surface was drawing, and that newer colour is the right one to come back to.
-            var c = _hostImage.color;
-            _hostImage.color = new Color(c.r, c.g, c.b, _retiredColor.a);
+
+            if (_hostImage.sprite == null)
+            {
+                _hostImage.sprite = _retiredSprite;
+                _hostImage.type = _retiredType;
+            }
+
+            // Alpha only, and only when nothing declared a colour: the rgb may legitimately have
+            // moved on (a theme switch, a Variant) while the surface was drawing, and so may the
+            // alpha — `white/0.22` under one skin and an opaque colour under the next.
+            if (!_hasFill)
+            {
+                var c = _hostImage.color;
+                _hostImage.color = new Color(c.r, c.g, c.b, _retiredColor.a);
+            }
         }
 
         private ProceduralPanel EnsurePanel()
