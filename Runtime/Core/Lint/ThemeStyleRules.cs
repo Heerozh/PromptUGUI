@@ -68,6 +68,8 @@ namespace PromptUGUI.Lint
         /// <para>Only compared ACROSS themes. The global <c>&lt;Style&gt;</c> is the implicit root of
         /// every chain, so each theme's set already contains it; and with fewer than two themes there
         /// is no switch to go wrong.</para>
+        ///
+        /// <para>One family is exempt — see <see cref="ShapeOnlyProcedural"/>.</para>
         /// </summary>
         public static IEnumerable<LintIssue> CheckShape(
             IReadOnlyDictionary<StyleKey, StyleDef> globalStyles,
@@ -89,12 +91,20 @@ namespace PromptUGUI.Lint
             foreach (var styleName in Sorted(touched))
             {
                 var key = StyleKey.ParseReference(styleName);
+
+                // Decided across ALL themes before any pair is compared — deliberately not inside
+                // the loop below. That loop measures everything against the first theme in sort
+                // order, so a pairwise test would clear 'plain vs full' and 'plain vs partial'
+                // independently and never notice that 'full' and 'partial' disagree.
+                var exemptProcedural = ProceduralSetIsAllOrNothing(resolved, key);
+
                 string referenceTheme = null;
                 HashSet<string> referenceNames = null;
 
                 foreach (var themeName in Sorted(resolved.Keys))
                 {
                     var names = NamesOf(resolved[themeName], key);
+                    if (exemptProcedural) names.ExceptWith(ShapeOnlyProcedural);
                     if (referenceNames == null)
                     {
                         referenceTheme = themeName;
@@ -170,6 +180,79 @@ namespace PromptUGUI.Lint
             foreach (var child in node.Children)
                 foreach (var issue in Walk(child, tags, themed))
                     yield return issue;
+        }
+
+        /// <summary>
+        /// The attributes that describe a procedural SHAPE, and nothing else. Derived from
+        /// <see cref="ProceduralAttrNames"/> rather than hand-listed, so a new procedural attribute
+        /// lands here the moment it is wired up.
+        ///
+        /// <para><b>Why these are exempt from §6.1.</b> The residue this rule guards against needs an
+        /// attribute that STICKS when a theme stops setting it. These do the opposite:
+        /// <c>ProceduralSurface</c> recomputes the mode every pass from "was the setter called at
+        /// all" (procedural-surface spec §8), so a theme that simply omits them turns the surface off
+        /// and hands the control back to its Image, sprite and alpha included. The twin rule on the
+        /// variant side has said so since procedural surfaces shipped —
+        /// <c>VariantBaseRules.proceduralSelfHeals</c>.</para>
+        ///
+        /// <para>And §6.1's usual advice is actively harmful here: presence, not value, is what
+        /// attaches the surface, so writing <c>radius=""</c> as a "baseline" retires the sprite the
+        /// other theme needs — which <c>PUI-PROC-SPRITE-CONFLICT</c> then reports, correctly.</para>
+        ///
+        /// <para><b>Two deliberate omissions.</b> <c>weld</c> never crosses into a control
+        /// (procedural-surface §13.2), the same reason <c>ProceduralSurfaceRules</c> skips it.
+        /// <c>color</c> is left out even though <c>VariantBaseRules</c> counts it as procedural: on an
+        /// Image-backed control it is an ordinary tint, and the path that would make it self-heal —
+        /// <c>Restore()</c> putting the retired alpha back — is itself the defect the 2026-08-27 spec
+        /// §5 fixes. A theme that stops setting <c>color</c> is a real residue.</para>
+        ///
+        /// <para><b>Known under-report:</b> this rule is style-level and runs before expansion, so it
+        /// cannot see which tag the class lands on. <c>&lt;Frame&gt;</c> attaches its panel directly
+        /// and never reconciles the mode per pass, so it does NOT self-heal — a themed shape on a
+        /// Frame goes unreported. Accepted: <c>VariantBaseRules</c> can exclude Frame only because it
+        /// has a node to look at, and a false positive here would wall off correct XML behind the
+        /// CLI's non-zero exit. See the 2026-08-27 spec §3.3.</para>
+        /// </summary>
+        private static readonly HashSet<string> ShapeOnlyProcedural = BuildShapeOnlyProcedural();
+
+        private static HashSet<string> BuildShapeOnlyProcedural()
+        {
+            var set = new HashSet<string>();
+            foreach (var name in ProceduralAttrNames.NeedsPanel)
+                if (name != "weld") set.Add(name);
+            foreach (var name in ProceduralAttrNames.InnerLayerRadius)
+                set.Add(name);
+            return set;
+        }
+
+        /// <summary>
+        /// Whether every theme's procedural set for this style is either EMPTY or the same one —
+        /// which is what "the surface toggles wholesale" means, and the only shape that self-heals.
+        ///
+        /// <para>A theme holding HALF the set pins the mode on, so the half it omits really is never
+        /// reset; that style goes back to being reported name-for-name. Requiring an empty side too
+        /// is what separates "one skin has a shape, the other has none" from "two skins disagree
+        /// about the shape they both draw".</para>
+        /// </summary>
+        private static bool ProceduralSetIsAllOrNothing(
+            Dictionary<string, IReadOnlyDictionary<StyleKey, StyleDef>> resolved, StyleKey key)
+        {
+            var distinct = new HashSet<string>(System.StringComparer.Ordinal);
+            var sawEmpty = false;
+
+            foreach (var table in resolved.Values)
+            {
+                var shape = new List<string>();
+                foreach (var name in NamesOf(table, key))
+                    if (ShapeOnlyProcedural.Contains(name)) shape.Add(name);
+                shape.Sort(System.StringComparer.Ordinal);
+
+                var canonical = string.Join(",", shape);
+                if (canonical.Length == 0) sawEmpty = true;
+                distinct.Add(canonical);
+            }
+
+            return sawEmpty && distinct.Count <= 2;
         }
 
         private static HashSet<string> NamesOf(
