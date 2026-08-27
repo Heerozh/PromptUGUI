@@ -75,6 +75,25 @@ namespace PromptUGUI.Lint
                 yield break;
             }
 
+            // <Decor> is the third shape of tag: it draws procedurally, but only the glow half of
+            // the set — its shape comes from kind=, not from a radius. Everything else on the list
+            // really is dropped here, so it stays reported, just with a fix that fits a leaf tag.
+            if (n.Tag == DecorRules.Tag)
+            {
+                foreach (var attr in ProceduralAttrNames.NeedsPanel)
+                {
+                    if (DecorRules.SupportedProceduralAttrs.Contains(attr)) continue;
+                    if (!Declares(n, attr)) continue;
+                    yield return new LintIssue(
+                        VisualAttrCode, n.Tag, n.Id,
+                        $"<Decor id='{n.Id}'>: '{attr}' is silently ignored — a decoration's shape " +
+                        "is whatever its kind= names, and it has no surface to put a border, a " +
+                        "glass fill or a weld on. Only glow / glowColor carry over. For a shaped " +
+                        $"panel, put the {attr} on the host <Frame> instead.");
+                }
+                yield break;
+            }
+
             if (!LayoutOnlyTags.Contains(n.Tag))
             {
                 if (!BuiltinTags.IsBuiltin(n.Tag)) yield break;

@@ -73,7 +73,7 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 
 `<Import>`, `<Theme>`, `<Screen>`, `<Style>`, `<Template>` are the **only** elements allowed at the top level. Comments use standard `<!-- -->`.
 
-## Built-in primitives (19)
+## Built-in primitives (20)
 
 **默认视觉主题**：farm-style 像素 9-slice（奶油面 + 木描边），label / glyph 默认暖深棕（`#4A3322`）。`color=` / `sprite=` 单点 override，整体深色覆写 `ProceduralBuilders` 常量或用 Variant `color.dark="..."`。想完全去掉自带 sliced 底（只留纯色或透明）写 `sprite="none"`（等价于 `sprite=""`）——见下方"内置控件 `sprite=` 解析"说明。
 
@@ -101,6 +101,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 | `<Tab>` | 选项卡（`bind` 显隐 `<Frame>`） |
 | `<Carousel>` | 翻页轮播卡（+ `fill="false"` 居中选择器） |
 | `<Show>` | 按状态显隐子树的无视觉 wrapper |
+| `<Decor>` | 角/边装饰：角括号 / 指示三角 / 强调线 / 贴图纹样（不参与排版）→ `reference/decor.md` |
 | `<Markdown>` | Renders a Markdown document into a scrollable subtree  |
 | `<FocusCursor>` | Screen-level cursor overlay for directional navigation. **Not a registered control** — not `Get<T>`-able; removed from the control tree before instantiation. → `reference/navigation.md` |
 
@@ -508,6 +509,16 @@ Tab 容器；私有 `ToggleGroup`（`allowSwitchOff=false`）+ `Horizontal` / `V
 | `dotColor` · `dotSelectedColor` · `dotHoverColor` · `dotPressedColor` | hex / CSS / token | — | 状态色 |
 | `dotTint` | `multiply` / `linear` | — | |
 | `dotTriSlice` | bool | `false` | 把单张 `dotSprite` 横向等比切成 3 段分摊到各点，整排连成一条（左帽 / 可平铺中段 / 右帽；2 点=左+右，N≥3=左+中×(N-2)+右）。sprite 须设计成 3 等宽段、中段可平铺、atlas 内不能旋转打包；源图 9-slice 边框按段保留；选中态走颜色无需额外切图 |
+
+### `<Decor>`
+
+宿主的**非排版装饰**叶子标签：一个节点按 `at=` 展开成 N 个实例（一张卡的四角括号是**一个**元素，不是四个）。`kind="bracket"`（角括号）/ `"tick"`（指示三角，尖端朝外）/ `"line"`（沿边强调线）由 SDF 绘制，`kind="sprite"` 画贴图（`.pxl` 纹样等，**自动镜像**：只画左上角 / 底边一份，其余槽位由库翻转/旋转），`kind="none"` 全部隐藏（主题去装饰的通道）。
+
+装饰自己只负责画和摆，其余全用既有机制组合：状态门控 = `<Show on="state-*">` 包裹，换皮 = `class=` 属性包，平台差异 = `at.mobile=` 等 Variant 覆盖。
+
+尺寸属性叫 **`extent`** 不叫 `size`（`size` 是通用排版属性，先被 `ApplyCommon` 吃掉；而装饰节点恒定铺满宿主，给它写排版属性一律报 `PUI-DECOR-LAYOUT-ATTR`）。定位只由 `at` / `inset`（正向内、负向外）/ `offset`（沿边平移）表达，锚在宿主**矩形**上——不贴合 `cut` / `hexagon` 的斜边轮廓。
+
+**写任何 `<Decor>` 前，先读 [`reference/decor.md`](reference/decor.md)**（含完整属性表、镜像约定配图、五条 lint、合批成本）。
 
 ### `<Show>`
 

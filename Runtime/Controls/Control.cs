@@ -212,11 +212,23 @@ namespace PromptUGUI.Controls
         protected virtual AnchorPreset GetDefaultAnchor(SizeSpec sizeSpec)
             => new(AnchorVertical.Top, AnchorHorizontal.Left);
 
+        /// <summary>
+        /// Whether this control can take part in a parent LayoutGroup's flow at all. False makes
+        /// every <c>flow</c> branch below behave as if the author had written <c>flow="false"</c> —
+        /// for <c>&lt;Decor&gt;</c>, whose instances hang off the host's edges and have no business
+        /// claiming a slot or contributing a preferred size.
+        /// </summary>
+        protected internal virtual bool ParticipatesInLayout => true;
+
         // 通用属性应用（由 ScreenInstantiator 在子类自身属性应用之后调用）
         public void ApplyCommon(string anchor, string size, string width, string height,
                                 string margin, string pivot,
                                 bool? hidden, bool interactable, bool flow = true)
         {
+            // Folded in once, up front, so the LayoutElement / fractional / preferred-size branches
+            // below all read one answer rather than each remembering to ask twice.
+            flow &= ParticipatesInLayout;
+
             var sizeSpec = SizeSpec.Parse(size, width, height);
 
             if (sizeSpec.IsNativeWidth || sizeSpec.IsNativeHeight)

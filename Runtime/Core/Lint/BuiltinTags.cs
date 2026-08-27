@@ -19,7 +19,7 @@ namespace PromptUGUI.Lint
     {
         internal static readonly HashSet<string> All = new()
         {
-            "Frame", "SafeArea", "Trigger", "Show", "Animation",
+            "Frame", "SafeArea", "Trigger", "Show", "Animation", "Decor",
             "Image", "RawImage", "Icon", "Text", "VStack", "HStack", "Grid",
             "Btn", "Toggle", "Tab", "TabBar", "Slider", "Progress",
             "Dropdown", "ScrollList", "InputField", "Carousel", "Markdown",

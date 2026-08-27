@@ -11,6 +11,7 @@ namespace PromptUGUI.Application
             reg.Register<SafeArea>("SafeArea", null);
             reg.Register<Trigger>("Trigger", null);
             reg.Register<Show>("Show", null);
+            reg.Register<Decor>("Decor", null);
             reg.Register<Animation>("Animation", null);
             reg.Register<Image>("Image", null);
             reg.Register<RawImage>("RawImage", null);

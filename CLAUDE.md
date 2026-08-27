@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-PromptUGUI is a Unity 6+ UPM package that translates compact `.ui.xml` files into runtime uGUI hierarchies. Target use case: pixel-art game that ships PC widescreen and mobile portrait from one description.
+PromptUGUI is a Unity 6+ UPM package that translates compact `.ui.xml` files into runtime uGUI hierarchies. Target use case: games that ship PC widescreen and mobile portrait from one description, with fully theme-swappable skins. Supports both **procedural high-definition surfaces** (the `<Style>`/`<Theme>` primitives drive SDF fills, glass, shaped corners and decorations — no textures required); **sprite-based aesthetics** such as pixel art (`.pxl`).
 
 The library is **content-agnostic at runtime**: it never reads the filesystem itself. Callers register a `Func<string, Awaitable<string>> SourceResolver` that maps an opaque `src` key to XML content; how the user obtains that content (Resources, Addressables, custom paths) is their concern. Built-in helpers: `UI.UseResourcesResolver(rootPath)` and (when `com.unity.addressables` ≥ 1.0 is installed) `UI.UseAddressableResolver()`.
 
@@ -28,7 +28,7 @@ Triggers requiring a SKILL update (route to the relevant file):
 - Public C# API surface changes (anything callers touch: `UI.*`, `IScreen`, `IControl`, `ControlRegistry`, `Variants`, `[UIAttr]` / `[Bind]`) → C# skill (Addressables skill if the change is `PROMPTUGUI_HAS_ADDRESSABLES`-gated)
 - Changes to the `id` path / scoping rules → both XML (declaration) and C# (`Get<T>` path) skills
 - New / changed parser-time errors that authors will hit → XML skill
-- Changes to a control / feature that has its own `reference/*.md` → edit **that file**, not (only) the main `SKILL.md`: `<Trigger>` / `<Animation>` → `reference/animations.md`; Btn/Tab/Toggle state visuals (`*Color` / `*Modulate` / `<Show on="state-*">` / `pressedSprite` / `selectedSprite`) → `reference/states.md`; `<TabBar>` / `<Tab>` → `reference/controls-tabs.md`; `<Carousel>` → `reference/controls-carousel.md`; `<Progress>` → `reference/controls-progress.md`; icon-name / SpriteSet discovery → `reference/icons.md`; glass fill (`glass` / `frost` / `depth` / `dispersion` / `lightAngle` / `lightIntensity` / `saturation` / `noise` / `weld`) → `reference/glass.md`. Keep the main-doc primitive-catalog row + stub pointer in sync when attributes are added/removed.
+- Changes to a control / feature that has its own `reference/*.md` → edit **that file**, not (only) the main `SKILL.md`: `<Trigger>` / `<Animation>` → `reference/animations.md`; Btn/Tab/Toggle state visuals (`*Color` / `*Modulate` / `<Show on="state-*">` / `pressedSprite` / `selectedSprite`) → `reference/states.md`; `<TabBar>` / `<Tab>` → `reference/controls-tabs.md`; `<Carousel>` → `reference/controls-carousel.md`; `<Progress>` → `reference/controls-progress.md`; icon-name / SpriteSet discovery → `reference/icons.md`; glass fill (`glass` / `frost` / `depth` / `dispersion` / `lightAngle` / `lightIntensity` / `saturation` / `noise` / `weld`) → `reference/glass.md`；`<Decor>`（角/边装饰：`kind` / `at` / `extent` / `thickness` / `inset` / `offset` / `mirror`）→ `reference/decor.md`. Keep the main-doc primitive-catalog row + stub pointer in sync when attributes are added/removed.
 
 Internal refactors, test-only changes, performance work, and Editor tooling that doesn't affect XML or the public API do **not** require a SKILL update.
 

@@ -147,7 +147,9 @@ Keys follow the same SpriteSet rules as PNGs (see the **authoring-promptugui-xml
 | `Buttons/ok.pxl` | `[pressed]` | `Buttons/ok/pressed` |
 | `Buttons/ok.pxl` | `[ok]` (same as file basename) | `Buttons/ok` (collapses to the plain path key) |
 
-So in XML: `<Btn sprite="ui:Buttons/ok" pressedSprite="ui:Buttons/ok/pressed"/>`. The bare last segment (`pressed`) also works as an alias when it's unambiguous across the whole source folder — same shortcut rule as PNG basenames. Inline TMP sprites (`<sprite name=...>` in text) only ever see **bare names** (the section name, or the file basename for an implicit section).
+So in XML: `<Btn sprite="ui:Buttons/ok" pressedSprite="ui:Buttons/ok/pressed"/>`.
+
+**Decoration art** (corner ornament, edge filigree) is placed by `<Decor kind="sprite" sprite="ui:..."/>`, which mirrors one drawing into every slot — so draw **only** the canonical piece: the **top-left** corner for corner art, the **bottom** edge for edge art. See `reference/decor.md` in the authoring-promptugui-xml skill. The bare last segment (`pressed`) also works as an alias when it's unambiguous across the whole source folder — same shortcut rule as PNG basenames. Inline TMP sprites (`<sprite name=...>` in text) only ever see **bare names** (the section name, or the file basename for an implicit section).
 
 ## Palette workflow (`.gpl`)
 
