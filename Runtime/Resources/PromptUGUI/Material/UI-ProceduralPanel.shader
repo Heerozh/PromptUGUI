@@ -17,9 +17,14 @@ Shader "UI/ProceduralPanel"
         _BorderColor ("Border Color", Color) = (1,1,1,1)
         _GlowColor   ("Glow Color",   Color) = (1,1,1,1)
 
-        // xyzw = top-left, top-right, bottom-right, bottom-left (CSS border-radius 顺序)
-        _Radius      ("Radius TL/TR/BR/BL", Vector) = (0,0,0,0)
-        _Pill        ("Pill Sentinel", Float) = 0
+        // 四个逐角向量一律是 xyzw = top-left, top-right, bottom-right, bottom-left
+        // （CSS border-radius 顺序）。_Radius 是每个角的**水平**伸出量，圆角时即半径。
+        _Radius      ("Corner Width TL/TR/BR/BL",  Vector) = (0,0,0,0)
+        _CornerH     ("Corner Height TL/TR/BR/BL", Vector) = (0,0,0,0)
+        _CornerKind  ("Corner Kind TL/TR/BR/BL (0 round / 1 cut / 2 notch)", Vector) = (0,0,0,0)
+        // 整形哨兵：0 无 / 1 pill / 2 hexagon。两者都依赖 rect 尺寸，逐片元解算。
+        _Shape       ("Shape Sentinel", Float) = 0
+        _HexW        ("Hexagon Tip Reach (0 = auto)", Float) = 0
         _BorderWidth ("Border Width",  Float) = 0
         _GlowSize    ("Glow Size",     Float) = 0
 
@@ -102,7 +107,10 @@ Shader "UI/ProceduralPanel"
             fixed4 _BorderColor;
             fixed4 _GlowColor;
             float4 _Radius;
-            float _Pill;
+            float4 _CornerH;
+            float4 _CornerKind;
+            float _Shape;
+            float _HexW;
             float _BorderWidth;
             float _GlowSize;
 
@@ -123,8 +131,9 @@ Shader "UI/ProceduralPanel"
                 float2 p = IN.shape.xy;
                 float2 b = IN.shape.zw;
 
-                float4 r = PuguiResolveRadius(_Radius, _Pill, b);
-                float d = PuguiSdRoundBox(p, b, r);
+                PuguiCorner corner = PuguiResolveCorner(p, b, _CornerKind, _Radius,
+                                                       _CornerH, _Shape, _HexW);
+                float d = PuguiSdPanel(p, b, corner);
                 float fw = max(fwidth(d), 1e-4);
 
                 float inside = saturate(0.5 - d / fw);

@@ -180,5 +180,57 @@ namespace PromptUGUI.Tests.EditMode.Lint
                         PureContainerVisualAttrRules.VisualAttrCode, "c"),
                     $"<{tag}> draws nothing, so glass on it is silently dropped");
         }
+
+        // ---- corner treatments do not survive the fusion ----
+
+        [TestCase("cut 16")]
+        [TestCase("notch 8")]
+        [TestCase("hexagon")]
+        [TestCase("0, cut 12, 0, 0")]
+        public void CornerTreatmentOnAWeldedBlock_IsFlagged(string radius)
+        {
+            // The group packs one radius vector per member and smooth-unions the fields, which
+            // rounds every corner back off. The block still draws — as a plain round corner — so
+            // this is a warning about a shape the author will not get, not a broken document.
+            Assert.IsTrue(Has(Walk($@"<Frame id='g' weld='16'>
+      <Frame id='a' glass='true' radius='{radius}'/>
+      <Frame id='b' glass='true'/>
+    </Frame>"), GlassRules.WeldCornerCode, "a"));
+        }
+
+        [Test]
+        public void RoundRadiusOnAWeldedBlock_IsFine()
+        {
+            Assert.IsFalse(Has(Walk(@"<Frame id='g' weld='16'>
+      <Frame id='a' glass='true' radius='12'/>
+      <Frame id='b' glass='true' radius='pill'/>
+    </Frame>"), GlassRules.WeldCornerCode));
+        }
+
+        [Test]
+        public void CornerTreatmentOutsideAWeldGroup_IsFine()
+        {
+            Assert.IsFalse(Has(Walk("<Frame id='f' radius='cut 16'/>"), GlassRules.WeldCornerCode));
+        }
+
+        [Test]
+        public void VariantOnlyCornerTreatmentOnAWeldedBlock_IsFlagged()
+        {
+            // Shape and weld can arrive from two different theme packs, so the pairing is at least
+            // as likely to appear in one layout only.
+            Assert.IsTrue(Has(Walk(@"<Frame id='g' weld='16'>
+      <Frame id='a' glass='true' radius.mobile='cut 16'/>
+      <Frame id='b' glass='true'/>
+    </Frame>"), GlassRules.WeldCornerCode, "a"));
+        }
+
+        [Test]
+        public void UnparseableRadiusOnAWeldedBlock_IsLeftToTheSyntaxRules()
+        {
+            Assert.IsFalse(Has(Walk(@"<Frame id='g' weld='16'>
+      <Frame id='a' glass='true' radius='bevel 4'/>
+      <Frame id='b' glass='true'/>
+    </Frame>"), GlassRules.WeldCornerCode));
+        }
     }
 }

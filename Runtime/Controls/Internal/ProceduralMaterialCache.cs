@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using PromptUGUI.Parser;
 using UnityEngine;
 
 namespace PromptUGUI.Controls.Internal
@@ -73,33 +74,54 @@ namespace PromptUGUI.Controls.Internal
         public readonly Color FillBottom;
         public readonly Color BorderColor;
         public readonly Color GlowColor;
-        public readonly Vector4 Radius;
-        public readonly bool Pill;
+        /// <summary>Per-corner horizontal reach in CSS order; the radius when the corner is round.</summary>
+        public readonly Vector4 CornerWidth;
+        /// <summary>Per-corner vertical reach in CSS order; mirrors the width for a round corner.</summary>
+        public readonly Vector4 CornerHeight;
+        /// <summary>Per-corner <see cref="CornerKind"/> in CSS order, as the shader reads them.</summary>
+        public readonly Vector4 CornerKinds;
+        public readonly PanelShape Shape;
+        /// <summary>Hexagon tip reach; 0 means the shader takes half the rect height.</summary>
+        public readonly float HexWidth;
         public readonly float BorderWidth;
         public readonly float GlowSize;
         public readonly bool Glass;
         public readonly GlassParams GlassParams;
 
+        /// <summary>
+        /// Packs a parsed shape into the four vectors the shader reads. Sizes stay in canvas units
+        /// and whole-shape sentinels stay symbolic — both are resolved per-fragment against the live
+        /// rect, which is what keeps two same-styled panels of different sizes on one material.
+        /// </summary>
         public PanelParams(Color fillTop, Color fillBottom, Color borderColor, Color glowColor,
-                           Vector4 radius, bool pill, float borderWidth, float glowSize,
+                           in RadiusSpec radius, float borderWidth, float glowSize,
                            bool glass = false, GlassParams glassParams = default)
         {
             FillTop = fillTop;
             FillBottom = fillBottom;
             BorderColor = borderColor;
             GlowColor = glowColor;
-            Radius = radius;
-            Pill = pill;
+            CornerWidth = new Vector4(radius.TopLeftCorner.Width, radius.TopRightCorner.Width,
+                                      radius.BottomRightCorner.Width, radius.BottomLeftCorner.Width);
+            CornerHeight = new Vector4(radius.TopLeftCorner.Height, radius.TopRightCorner.Height,
+                                       radius.BottomRightCorner.Height, radius.BottomLeftCorner.Height);
+            CornerKinds = new Vector4((float)radius.TopLeftCorner.Kind, (float)radius.TopRightCorner.Kind,
+                                      (float)radius.BottomRightCorner.Kind, (float)radius.BottomLeftCorner.Kind);
+            Shape = radius.Shape;
+            HexWidth = radius.HexWidth;
             BorderWidth = borderWidth;
             GlowSize = glowSize;
             Glass = glass;
             GlassParams = glassParams;
         }
 
+        public bool Pill => Shape == PanelShape.Pill;
+
         public bool Equals(PanelParams o) =>
             FillTop == o.FillTop && FillBottom == o.FillBottom
             && BorderColor == o.BorderColor && GlowColor == o.GlowColor
-            && Radius == o.Radius && Pill == o.Pill
+            && CornerWidth == o.CornerWidth && CornerHeight == o.CornerHeight
+            && CornerKinds == o.CornerKinds && Shape == o.Shape && HexWidth == o.HexWidth
             && BorderWidth == o.BorderWidth && GlowSize == o.GlowSize
             && Glass == o.Glass
             // Short-circuit: an opaque panel's glass block is always None, so there is nothing to
@@ -116,8 +138,11 @@ namespace PromptUGUI.Controls.Internal
                 h = (h * 397) ^ FillBottom.GetHashCode();
                 h = (h * 397) ^ BorderColor.GetHashCode();
                 h = (h * 397) ^ GlowColor.GetHashCode();
-                h = (h * 397) ^ Radius.GetHashCode();
-                h = (h * 397) ^ Pill.GetHashCode();
+                h = (h * 397) ^ CornerWidth.GetHashCode();
+                h = (h * 397) ^ CornerHeight.GetHashCode();
+                h = (h * 397) ^ CornerKinds.GetHashCode();
+                h = (h * 397) ^ Shape.GetHashCode();
+                h = (h * 397) ^ HexWidth.GetHashCode();
                 h = (h * 397) ^ BorderWidth.GetHashCode();
                 h = (h * 397) ^ GlowSize.GetHashCode();
                 h = (h * 397) ^ Glass.GetHashCode();
@@ -153,7 +178,10 @@ namespace PromptUGUI.Controls.Internal
         private static readonly int BorderColorId = Shader.PropertyToID("_BorderColor");
         private static readonly int GlowColorId = Shader.PropertyToID("_GlowColor");
         private static readonly int RadiusId = Shader.PropertyToID("_Radius");
-        private static readonly int PillId = Shader.PropertyToID("_Pill");
+        private static readonly int CornerHeightId = Shader.PropertyToID("_CornerH");
+        private static readonly int CornerKindId = Shader.PropertyToID("_CornerKind");
+        private static readonly int ShapeId = Shader.PropertyToID("_Shape");
+        private static readonly int HexWidthId = Shader.PropertyToID("_HexW");
         private static readonly int BorderWidthId = Shader.PropertyToID("_BorderWidth");
         private static readonly int GlowSizeId = Shader.PropertyToID("_GlowSize");
 
@@ -230,8 +258,11 @@ namespace PromptUGUI.Controls.Internal
             mat.SetColor(FillBottomId, p.FillBottom);
             mat.SetColor(BorderColorId, p.BorderColor);
             mat.SetColor(GlowColorId, p.GlowColor);
-            mat.SetVector(RadiusId, p.Radius);
-            mat.SetFloat(PillId, p.Pill ? 1f : 0f);
+            mat.SetVector(RadiusId, p.CornerWidth);
+            mat.SetVector(CornerHeightId, p.CornerHeight);
+            mat.SetVector(CornerKindId, p.CornerKinds);
+            mat.SetFloat(ShapeId, (float)p.Shape);
+            mat.SetFloat(HexWidthId, p.HexWidth);
             mat.SetFloat(BorderWidthId, p.BorderWidth);
             mat.SetFloat(GlowSizeId, p.GlowSize);
             if (!p.Glass) return;
