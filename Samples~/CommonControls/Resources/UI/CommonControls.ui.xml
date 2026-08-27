@@ -27,7 +27,7 @@
        所以叠两层，让主题用 hidden 决定哪层露出来。hidden 是公共属性，<Style> 能设。 -->
   <Style name="skin-wood"  hidden="false"/>
   <Style name="skin-glass" hidden="true"
-         frost="0.6" depth="5" lightAngle="-25" lightIntensity="0.55"
+         frost="0.6" depth="5" dispersion="0.3" lightAngle="-25" lightIntensity="0.55"
          saturation="1.3" noise="0.03"/>
 
   <!-- 其余控件**原地**换皮，不用叠层。关键是：内置控件的每一个内层都有 XML 钩子
@@ -74,6 +74,9 @@
     <Color name="plaque"        value="#E8B86B"/>
     <Color name="panel"         value="#FFFFFF"/>
     <Color name="accent"        value="#A8D88C"/>
+    <Color name="sky-haze"      value="#DCEFF4"/>
+    <Color name="soil-a"        value="#8B5E3C"/>
+    <Color name="soil-b"        value="#A87E5C"/>
   </Theme>
 
   <!-- 玻璃：磨砂玻璃 UI 浮在同一张农场背景上。木层收起、玻璃层露出，
@@ -123,6 +126,9 @@
     <Color name="plaque"        value="#E8B86B"/>
     <Color name="panel"         value="#FFFFFF"/>
     <Color name="accent"        value="#FFFFFF4D"/>
+    <Color name="sky-haze"      value="#DCEFF4"/>
+    <Color name="soil-a"        value="#8B5E3C"/>
+    <Color name="soil-b"        value="#A87E5C"/>
   </Theme>
 
   <!-- 面板底：两层叠着，主题决定露哪层。class= 写在体内的节点上（见文件头第 3 条）。 -->
@@ -163,18 +169,93 @@
        两块画布各自一个 CanvasScaler，本来就能各走各的。 -->
   <Screen name="Backdrop" canvas="camera" reference="640x360" reference.portrait="360x640"
           scale-mode="pixel">
-    <Image anchor="stretch" color="sky" raycastTarget="false"/>
-    <Image anchor="bottom-stretch" height="56" color="grass" raycastTarget="false"/>
-    <!-- 玻璃底下得有点花纹才看得出模糊，摆一排作物 -->
-    <HStack anchor="bottom-stretch" height="32" margin="_,24,12,24" spacing="28">
-      <Image size="32x32" sprite="farm:carrot" raycastTarget="false"/>
-      <Image size="32x32" sprite="farm:tomato" raycastTarget="false"/>
-      <Image size="32x32" sprite="farm:wheat" raycastTarget="false"/>
-      <Image size="32x32" sprite="farm:sunflower" raycastTarget="false"/>
-      <Image size="32x32" sprite="farm:pumpkin" raycastTarget="false"/>
-      <Image size="32x32" sprite="farm:grape" raycastTarget="false"/>
-      <Frame width="stretch"/>
-    </HStack>
+    <!-- ── 为什么背景要长这样：玻璃是个**采样器**，只能展示它背后有的东西 ──
+         纯色是它的天敌。一片常量色模糊之后还是同一个常量，位移采样也取到同一个颜色，
+         于是 frost / depth / dispersion 三个参数**同时归零**，saturation 也没东西可提 ——
+         面板会退化成「半透明白板 + 一圈高光」，跟普通 <Frame> 长得一样。
+         所以这块背景要在**面板压着的那片区域**同时提供三样东西：
+
+           高频细节 → frost 才有东西可毁          （作物）
+           强边界   → depth/dispersion 才看得出扭曲（田垄之间的高对比横线）
+           饱和色   → saturation 才有东西可提      （crops.pxl 那套饱和配色）
+
+         再加一层缓慢漂移：玻璃底下持续在变，才看得出它是实时采样而不是一张贴图。 -->
+
+    <!-- 天空：竖直渐变。渐变本身对 frost 没用（模糊一条斜坡还是那条斜坡），
+         但它让面板上下缘的折射带取到不同的颜色，边缘立刻有了厚度感。 -->
+    <Image anchor="stretch" color="sky,sky-haze" raycastTarget="false"/>
+
+    <!-- 地平线：玻璃能看到的第一条强边界 -->
+    <Image anchor="top-stretch" margin="94,_,_,_" height="8" color="grass" raycastTarget="false"/>
+
+    <!-- 田垄：深浅交替四条，从地平线一路铺到底 —— 面板 85% 的面积压在这上面。
+         条带**本身**就是 depth 要的强横向边界：一条高对比水平线从面板圆角底下穿过去，
+         折射带会把它扭出一个肉眼可见的弯。作物负责 frost 要毁的高频细节。
+         每条的漂移幅度和时长都不同（越近越快越大）→ 视差。 -->
+    <VStack anchor="stretch" margin="102,0,0,0" margin.portrait="150,0,0,0" spacing="0">
+
+      <Frame width="stretch" height="stretch">
+        <Image anchor="stretch" color="soil-a" raycastTarget="false"/>
+        <Animation anchor="stretch" translate="0,0:10,0" duration="17s" on="loop" easing="in-out-cubic">
+          <HStack anchor="top-stretch" height="22" margin="10,_,_,18" spacing="62" spacing.portrait="34">
+            <Image size="22x22" sprite="farm:wheat" raycastTarget="false"/>
+            <Image size="22x22" sprite="farm:turnip" raycastTarget="false"/>
+            <Image size="22x22" sprite="farm:corn" raycastTarget="false"/>
+            <Image size="22x22" sprite="farm:carrot" raycastTarget="false"/>
+            <Image size="22x22" sprite="farm:wheat" raycastTarget="false"/>
+            <Image size="22x22" sprite="farm:eggplant" raycastTarget="false"/>
+            <Image size="22x22" sprite="farm:corn" raycastTarget="false"/>
+            <Frame width="stretch"/>
+          </HStack>
+        </Animation>
+      </Frame>
+
+      <Frame width="stretch" height="stretch">
+        <Image anchor="stretch" color="soil-b" raycastTarget="false"/>
+        <Animation anchor="stretch" translate="0,0:16,0" duration="14s" on="loop" easing="in-out-cubic">
+          <HStack anchor="top-stretch" height="24" margin="12,_,_,52" spacing="58" spacing.portrait="30">
+            <Image size="24x24" sprite="farm:tomato" raycastTarget="false"/>
+            <Image size="24x24" sprite="farm:sunflower" raycastTarget="false"/>
+            <Image size="24x24" sprite="farm:grape" raycastTarget="false"/>
+            <Image size="24x24" sprite="farm:tomato" raycastTarget="false"/>
+            <Image size="24x24" sprite="farm:apple" raycastTarget="false"/>
+            <Image size="24x24" sprite="farm:sunflower" raycastTarget="false"/>
+            <Frame width="stretch"/>
+          </HStack>
+        </Animation>
+      </Frame>
+
+      <Frame width="stretch" height="stretch">
+        <Image anchor="stretch" color="soil-a" raycastTarget="false"/>
+        <Animation anchor="stretch" translate="0,0:24,0" duration="11s" on="loop" easing="in-out-cubic">
+          <HStack anchor="top-stretch" height="26" margin="14,_,_,24" spacing="54" spacing.portrait="26">
+            <Image size="26x26" sprite="farm:pumpkin" raycastTarget="false"/>
+            <Image size="26x26" sprite="farm:strawberry" raycastTarget="false"/>
+            <Image size="26x26" sprite="farm:watermelon" raycastTarget="false"/>
+            <Image size="26x26" sprite="farm:pumpkin" raycastTarget="false"/>
+            <Image size="26x26" sprite="farm:eggplant" raycastTarget="false"/>
+            <Image size="26x26" sprite="farm:strawberry" raycastTarget="false"/>
+            <Frame width="stretch"/>
+          </HStack>
+        </Animation>
+      </Frame>
+
+      <Frame width="stretch" height="stretch">
+        <Image anchor="stretch" color="soil-b" raycastTarget="false"/>
+        <Animation anchor="stretch" translate="0,0:34,0" duration="9s" on="loop" easing="in-out-cubic">
+          <HStack anchor="top-stretch" height="30" margin="16,_,_,60" spacing="50" spacing.portrait="22">
+            <Image size="30x30" sprite="farm:watermelon" raycastTarget="false"/>
+            <Image size="30x30" sprite="farm:carrot" raycastTarget="false"/>
+            <Image size="30x30" sprite="farm:apple" raycastTarget="false"/>
+            <Image size="30x30" sprite="farm:grape" raycastTarget="false"/>
+            <Image size="30x30" sprite="farm:turnip" raycastTarget="false"/>
+            <Image size="30x30" sprite="farm:tomato" raycastTarget="false"/>
+            <Frame width="stretch"/>
+          </HStack>
+        </Animation>
+      </Frame>
+
+    </VStack>
   </Screen>
 
   <!-- 全文件唯一一处变体，也是主题唯一够不着的东西：scale-mode 挂在 <Screen> 上，而 <Screen>
