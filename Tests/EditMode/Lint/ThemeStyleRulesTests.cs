@@ -35,17 +35,21 @@ namespace PromptUGUI.Tests.EditMode.Lint
                 "both resolve to {color, radius} — the global pack supplies whatever a theme omits");
         }
 
+        // Deliberately NOT a procedural attribute: those toggle the whole surface wholesale and
+        // revert on their own, which is why they are exempt below
+        // (ProceduralShapeOnlyOneThemeSets_IsExempt). `fontSize` is an ordinary setter with no
+        // per-pass reconcile — the residue §6.1 describes is real for it.
         [Test]
         public void AttributeOnlyOneThemeSets_IsReported()
         {
             var issues = Lint(@"
                 <Style name='card' color='#112233'/>
                 <Theme name='light'><Style name='card' color='#fff'/></Theme>
-                <Theme name='dark'><Style name='card' color='#000' glow='8'/></Theme>
-                <Screen name='S'><Image id='c' class='card'/></Screen>");
+                <Theme name='dark'><Style name='card' color='#000' fontSize='18'/></Theme>
+                <Screen name='S'><Text id='c' class='card'/></Screen>");
 
             var issue = issues.Single(i => i.Code == ThemeStyleRules.ShapeCode);
-            StringAssert.Contains("glow", issue.Message);
+            StringAssert.Contains("fontSize", issue.Message);
             StringAssert.Contains("card", issue.Message);
         }
 
@@ -55,15 +59,120 @@ namespace PromptUGUI.Tests.EditMode.Lint
             var issues = Lint(@"
                 <Style name='card' color='#112233'/>
                 <Style name='chip' color='#112233'/>
-                <Theme name='light'><Style name='card' color='#fff'/><Style name='chip' glow='4'/></Theme>
+                <Theme name='light'><Style name='card' color='#fff'/><Style name='chip' fontSize='14'/></Theme>
                 <Theme name='dark'><Style name='card' color='#000'/></Theme>
-                <Screen name='S'><Image id='c' class='chip'/></Screen>");
+                <Screen name='S'><Text id='c' class='chip'/></Screen>");
 
             var issue = issues.Single(i => i.Code == ThemeStyleRules.ShapeCode);
             StringAssert.Contains("chip", issue.Message);
-            StringAssert.Contains("glow", issue.Message);
+            StringAssert.Contains("fontSize", issue.Message);
             Assert.IsFalse(issue.Message.Contains("card"),
                 "'card' resolves to {color} under both themes — the global baseline covers 'dark'");
+        }
+
+        // --- PUI-THEME-STYLE-SHAPE: procedural self-heal exemption (2026-08-27 spec §3) ---
+        //
+        // The twin rule on the variant side (VariantBaseRules.cs) has exempted this shape since
+        // procedural surfaces shipped: a control whose surface toggles WHOLESALE reverts on its own,
+        // because ProceduralSurface recomputes the mode every pass from "was the setter called at
+        // all" and Reconcile puts the retired Image back. A theme that simply omits the shape
+        // attributes produces exactly that signal — StyleMerger.ReMerge drops the names outright, so
+        // the setter is never called. §6.1's "give it a baseline in the global <Style>" advice is
+        // actively WRONG here: writing radius="" is what ATTACHES the surface (presence, not value),
+        // which retires the sprite the other theme needs and trips PUI-PROC-SPRITE-CONFLICT.
+
+        [Test]
+        public void ProceduralShapeOnlyOneThemeSets_IsExempt()
+        {
+            var issues = Lint(@"
+                <Style name='btn' sprite='ui:wood' color='#E8D2A8'/>
+                <Theme name='farm'><Style name='btn' color='#E8D2A8'/></Theme>
+                <Theme name='glass'><Style name='btn' sprite='none' color='#FFFFFF38'
+                       radius='10' glass='true' borderWidth='1' borderColor='#FFFFFF8C'/></Theme>
+                <Screen name='S'><Btn id='b' class='btn'/></Screen>");
+
+            Assert.IsEmpty(issues.Where(i => i.Code == ThemeStyleRules.ShapeCode),
+                "'farm' declares no procedural attribute at all, so the surface turns off wholesale "
+                + "and the Image comes back — nothing is left stuck at the glass values");
+        }
+
+        [Test]
+        public void InnerLayerRadius_IsExempt()
+        {
+            var issues = Lint(@"
+                <Style name='slider' sprite='ui:wood' fill='ui:wood' handle='ui:knob'/>
+                <Theme name='farm'><Style name='slider' sprite='ui:wood'/></Theme>
+                <Theme name='glass'><Style name='slider' sprite='none' fill='none' handle='none'
+                       radius='pill' glass='true' fillRadius='pill' handleRadius='pill'/></Theme>
+                <Screen name='S'><Slider id='s' class='slider'/></Screen>");
+
+            Assert.IsEmpty(issues.Where(i => i.Code == ThemeStyleRules.ShapeCode),
+                "one attribute per inner surface, so a base-less <layer>Radius always means "
+                + "'this surface toggles wholesale' — the same reason VariantBaseRules exempts it");
+        }
+
+        /// <summary>
+        /// Green today and must STAY green: the exemption is all-or-nothing across themes, so a
+        /// theme holding HALF the procedural set pins the mode on and its missing half really does
+        /// stick. Also the order-independence guard — 'a-plain' sorts first and is the theme
+        /// CheckShape compares everything against, so an exemption applied pairwise-against-the-
+        /// reference would skip both comparisons and report nothing at all.
+        /// </summary>
+        [Test]
+        public void PartialProceduralSet_IsStillReported()
+        {
+            var issues = Lint(@"
+                <Style name='btn' color='#E8D2A8'/>
+                <Theme name='a-plain'><Style name='btn' color='#E8D2A8'/></Theme>
+                <Theme name='b-full'><Style name='btn' color='#fff' radius='10' glass='true'/></Theme>
+                <Theme name='c-partial'><Style name='btn' color='#fff' radius='10'/></Theme>
+                <Screen name='S'><Btn id='b' class='btn'/></Screen>");
+
+            Assert.IsNotEmpty(issues.Where(i => i.Code == ThemeStyleRules.ShapeCode),
+                "'c-partial' declares radius, which pins the surface on — so the 'glass' it omits "
+                + "is never reset and the button keeps b-full's frosted fill");
+        }
+
+        /// <summary>
+        /// The report itself stays (fontSize is a genuine residue), but the MESSAGE is RED today: it
+        /// currently names radius too, which sends the author straight at the one baseline that
+        /// breaks the other skin. The exemption must eat names in the procedural family without
+        /// swallowing the ordinary setters sitting beside them.
+        /// </summary>
+        [Test]
+        public void NonProceduralAttributeAlongsideProcedural_IsStillReported()
+        {
+            var issues = Lint(@"
+                <Style name='btn' color='#E8D2A8'/>
+                <Theme name='farm'><Style name='btn' color='#E8D2A8'/></Theme>
+                <Theme name='glass'><Style name='btn' color='#fff' radius='10' fontSize='18'/></Theme>
+                <Screen name='S'><Btn id='b' class='btn'/></Screen>");
+
+            var issue = issues.Single(i => i.Code == ThemeStyleRules.ShapeCode);
+            StringAssert.Contains("fontSize", issue.Message);
+            Assert.IsFalse(issue.Message.Contains("radius"),
+                "radius reverts on its own; naming it in the message would send the author to add "
+                + "the one baseline that breaks the other skin");
+        }
+
+        /// <summary>
+        /// Green today and must stay green. `sprite` is NOT in the exempt family, and that is what
+        /// closes the one hole ProceduralSurface.Restore cannot: it snapshots the host Image at the
+        /// first retire, so a theme that clears the sprite while another declares none at all would
+        /// have nothing to come back to. Reported statically instead.
+        /// </summary>
+        [Test]
+        public void SpriteOnlyOneThemeSets_IsStillReported()
+        {
+            var issues = Lint(@"
+                <Style name='btn' color='#E8D2A8'/>
+                <Theme name='farm'><Style name='btn' color='#E8D2A8'/></Theme>
+                <Theme name='glass'><Style name='btn' color='#fff' sprite='none'
+                       radius='10' glass='true'/></Theme>
+                <Screen name='S'><Btn id='b' class='btn'/></Screen>");
+
+            var issue = issues.Single(i => i.Code == ThemeStyleRules.ShapeCode);
+            StringAssert.Contains("sprite", issue.Message);
         }
 
         // --- PUI-THEME-STYLE-NO-BASELINE (§4.2) ---

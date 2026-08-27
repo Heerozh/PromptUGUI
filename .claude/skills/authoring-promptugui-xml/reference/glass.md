@@ -134,6 +134,35 @@ Two placements do **not** work, both silently, so both are lint errors:
   welding, so a mask there would clip every child away (`PUI-MASK-WELD-SELF`). Put `mask="self"` on
   a member, or wrap the group in a plain rounded `<Frame mask="self">`.
 
+## One theme glass, another bitmap
+
+The common skin-swap: the same `<Btn>` is a 9-sliced pixel sprite under one theme and a frosted pane
+under another. Put the **whole** shape group in the glass theme and **none of it** anywhere else —
+including the global `<Style>`:
+
+```xml
+<Style name="btn" sprite="px:btn" color="#E8D2A8"/>          <!-- pixel: the sprite IS the shape -->
+
+<Theme name="pixel"><Style name="btn" color="#E8D2A8"/></Theme>
+<Theme name="glass">
+  <Style name="btn" sprite="none" color="white/0.22"
+         radius="10" glass="true" frost="0.6" depth="5"
+         borderWidth="1" borderColor="white/0.55"/>
+</Theme>
+```
+
+**Do not give the pixel side a baseline** — not `glass="false"`, not `radius=""`. Presence is what
+attaches the surface, so any of those turns the control procedural in *both* themes and the pixel
+skin loses its sprite; `PUI-PROC-SPRITE-CONFLICT` will then report the sprite. `PUI-THEME-STYLE-SHAPE`
+exempts this asymmetry precisely because the surface toggles wholesale and puts the Image back on its
+own. Half a group is not exempt: leave `glass` in one theme and take `radius` out and the rule
+reports it again, correctly.
+
+On a **`<Frame>`** the advice inverts: its panel is attached once and never reconciled per pass, so a
+shape attribute one theme omits stays put. Declare it in every theme there (a global baseline is
+fine — a Frame has no sprite to lose), and note that the shape rule cannot warn you, because it
+cannot see which tag a `class=` lands on.
+
 ## Lint codes
 
 The CLI (`dotnet run --project .lint/UIXmlLint -- <path>`) exits non-zero on any of these. Every one
