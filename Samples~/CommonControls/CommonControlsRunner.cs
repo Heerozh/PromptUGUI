@@ -72,6 +72,9 @@ namespace PromptUGUI.Samples.CommonControls
 
         // 一套皮 = 一个 <Theme>（颜色 token + <Style> 属性包）+ 一个同名 Variant。
         //
+        // 换皮的部分**全在 Theme 里**：颜色、贴图、圆角、玻璃参数，一个属性都没有走 Variant。
+        // 同名 Variant 只为下面这一件事存在。
+        //
         // 为什么要两个开关：scale-mode 写在 <Screen> 上，而 <Screen> 不接受 class= —— 它不是控件，
         // 挂不住属性包，parser 直接报错。玻璃是高清程序化图形，跟 pixel 那种整数倍缩放天生打架
         // （圆角和模糊会被整块放大），所以这一项走 Variant：XML 里 scale-mode="pixel"
