@@ -98,6 +98,10 @@ their **thickness** — not a line — say which is primary.
   from the children.
 - Members stay ordinary nodes throughout: they lay out normally, hold children, and answer
   `Get<T>` as usual. Only their drawing moves to the group.
+- **Corner treatments do not survive the fusion.** The smooth-min that merges the members rounds
+  every corner back off, so a member written `radius="cut 16"` (or `notch` / `hexagon`) draws with a
+  plain round corner of the same reach. `PUI-WELD-CORNER` warns rather than errors — the shape and
+  the `weld` can easily arrive from two different theme packs. Drop `weld` to keep the shape.
 - A Variant may turn a block's `glass` on or off, or hide it: the group re-fuses in the same pass.
 
 Where each parameter goes:
@@ -174,6 +178,7 @@ of them is silent at runtime, which is why they exist.
 | `PUI-GLASS-WELD-SELF` | `weld` and `glass="true"` on the same node |
 | `PUI-GLASS-WELD-MEMBERS` | a weld group with fewer than 2 or more than 8 glass children |
 | `PUI-GLASS-WELD-PARAM-PLACEMENT` | a group-level parameter on a member, or a per-block one on the carrier |
+| `PUI-WELD-CORNER` | a `cut` / `notch` / `hexagon` radius on a welded block — fusion rounds it off |
 | `PUI-MASK-WELD-SELF` | `mask="self"` on a `weld` carrier — the fused pane is on a child |
 | `PUI-PROC-SPRITE-CONFLICT` | `sprite=` on a control that is drawing procedurally |
 | `PUI-PROC-STATE-SPRITE-CONFLICT` | `pressedSprite` / `disabledSprite` on a procedural surface |

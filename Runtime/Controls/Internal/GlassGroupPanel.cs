@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using PromptUGUI.Parser;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -396,9 +397,18 @@ namespace PromptUGUI.Controls.Internal
         private static Vector4 ResolveRadius(in PanelParams p, Vector2 half)
         {
             var shortest = Mathf.Min(half.x, half.y);
-            // Unlike the single-panel shader, pill is resolved here: the group material is per-group
-            // anyway, so there is no material sharing left to protect by deferring it to the GPU.
-            var r = p.Pill ? new Vector4(shortest, shortest, shortest, shortest) : p.Radius;
+            // Unlike the single-panel shader, the whole-shape sentinels are resolved here: the group
+            // material is per-group anyway, so there is no material sharing left to protect by
+            // deferring them to the GPU.
+            //
+            // Corner treatments do not survive fusion at all. The group packs one radius vector per
+            // member and smooth-unions the fields, and that union rounds every corner back off — so
+            // carrying the kinds through would cost two more uniform arrays and still not draw a
+            // chamfer. They degrade to a round corner of the same reach; PUI-WELD-CORNER says so at
+            // lint time, since the shape and the weld can arrive from two different theme packs.
+            var r = p.Shape != PanelShape.None
+                ? new Vector4(shortest, shortest, shortest, shortest)
+                : p.CornerWidth;
             return new Vector4(
                 Mathf.Clamp(r.x, 0f, shortest), Mathf.Clamp(r.y, 0f, shortest),
                 Mathf.Clamp(r.z, 0f, shortest), Mathf.Clamp(r.w, 0f, shortest));

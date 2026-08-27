@@ -118,7 +118,7 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 | `showMask` | bool | `true` | 仅 `mask="self"`。`false` = 只裁不画，一个隐形的圆角裁剪器 |
 | `maskPadding` | `T,R,B,L`（`_`=占位） | — | 仅 `mask="rect"` 时有效 |
 | `color` | hex / CSS named / theme token / `A,B` 渐变 / `/alpha` | — (无填充) | Fill. Same value grammar as everywhere else — see **Color Tokens**; a comma value is a top→bottom gradient |
-| `radius` | `R` / `TL,TR,BR,BL` / `pill` | `0` | Corner radius in px. Four values follow CSS `border-radius` order (clockwise from top-left). `pill` = fully rounded ends. Values larger than the shape are clamped, not an error |
+| `radius` | corner list / `pill` / `hexagon [W]` | `0` | The panel's **shape**, not only its radius. One value applies to all four corners; four follow CSS `border-radius` order (clockwise from top-left). Each corner is a bare number (round), `cut W[xH]` (chamfer) or `notch W[xH]` (rectangular bite). Sizes are px and are clamped to the rect, never an error. → **Corner treatments** below |
 | `borderWidth` | px | `0` | Inner border — drawn **inward** from the rect edge (CSS `border-box`), so it never changes layout |
 | `borderColor` | hex / CSS / token / `/alpha`. **纯色 only** | `white` | 渐变值 = parse error |
 | `glow` | px | `0` | Outer glow radius. Inflates the drawn quad by this much (layout rect unchanged) |
@@ -133,6 +133,8 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 <Frame borderWidth="2" borderColor="#fff"/>                <!-- 无填充 = 空心描边框 -->
 <Frame color="danger" radius="20" glow="18"/>              <!-- 发光 -->
 <Frame color="#1b263b" radius="0,0,16,16"/>                <!-- 只圆下面两角 -->
+<Frame color="accent" radius="cut 16"/>                    <!-- 四角 45° 斜切 -->
+<Frame color="accent" radius="hexagon"/>                   <!-- 左右收成尖的六边形 -->
 <Frame glass="true" radius="16" frost="0.6"/>              <!-- 磨砂玻璃，见 glass.md -->
 <Frame radius="pill" mask="self" showMask="false">         <!-- 隐形圆角裁剪器 -->
   <Image type="cover" sprite="ui:avatar"/>
@@ -143,6 +145,35 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 - `mask="self"` clips to the **shape**, not to what the Frame paints: an outer `glow` does not widen the clip, and a Frame with a `radius` but no `color` still clips (that is the invisible-clipper form above). So `radius=` alone is enough to define the mask.
 - Colour / radius / border changes are material-only — a Variant flip or a colour animation never rebuilds the canvas mesh. Frames sharing identical values (typically via `class=`) share one material and keep batching.
 - Layout-only containers (`<VStack>` / `<HStack>` / `<Grid>` / `<SafeArea>`) draw nothing — wrap them in a `<Frame>` for a background.
+
+#### Corner treatments — `cut` / `notch` / `hexagon`
+
+`radius` picks each corner's **treatment**, not just a radius, so the whole sci-fi / HUD shape vocabulary is one attribute. It works everywhere `radius` works — including the inner-layer forms (`fillRadius` / `handleRadius` / `frameRadius` / `maskRadius`), which share this grammar.
+
+| Written | Shape |
+|---|---|
+| `16` | round — a quarter circle of radius 16 (what `radius` always meant) |
+| `cut 16` | 45° chamfer, 16 along both edges |
+| `cut 24x16` | chamfer reaching 24 horizontally, 16 vertically — flatter or steeper at will |
+| `notch 12` | a 12×12 rectangular bite out of the corner |
+| `notch 12x6` | 12 wide, 6 deep |
+| `pill` | whole shape: both short-axis ends fully rounded |
+| `hexagon` | whole shape: left and right sides drawn to a point at the vertical centre |
+| `hexagon 32` | the same, with the tips reaching 32 in instead of the default half-height |
+
+```xml
+<Btn radius="cut 16">开始匹配</Btn>                        <!-- 四角斜切 -->
+<Btn radius="cut 16, 8, cut 16, 8">混用</Btn>              <!-- 逐角混用 -->
+<Btn radius="hexagon 40" color="gold">开始匹配</Btn>        <!-- 横幅式六边形 -->
+<Tab radius="cut 14, cut 14, 0, 0">主页</Tab>              <!-- 上两角切 = 梯形页签 -->
+<Frame radius="notch 12, 0, 0, notch 12" borderWidth="2"/>  <!-- 机械感缺口 -->
+```
+
+- **Mix freely per corner**: `radius="cut 16, 8, notch 8, 0"` is four different treatments.
+- **`pill` and `hexagon` are whole-shape keywords** — writing one inside a four-value list is a parse error. Both resolve against the live rect, so they follow a resizing panel on their own; `hexagon` in particular keeps its tips exactly at half height, which hand-written `cut` values would lose the moment the height changed.
+- **Border, glow, glass and `mask="self"` follow the new outline automatically** — no extra attributes, and an inner border keeps its width around a chamfer and around the inner corner of a notch.
+- **One exception: `weld`.** A weld group fuses its members with a smooth union, which rounds every corner back off, so a welded block's treatment degrades to a plain round corner of the same reach. `PUI-WELD-CORNER` warns; see `reference/glass.md`.
+- Keywords are lower-case. `bevel` / `scoop` / `CUT` are parse errors that name the legal words.
 
 > **Which tags draw procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `glass` (+ its tuning params) work on **`<Frame>`, `<Btn>`, `<Tab>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>` and `<Progress>`** — see **Procedural surfaces** below for what they do on a control.
 >
@@ -255,6 +286,7 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 ```xml
 <Btn radius="pill" color="accent" hoverColor="accent-light">确定</Btn>
 <Btn radius="12" glass="true" borderWidth="1" borderColor="white/0.5">玻璃按钮</Btn>
+<Tab radius="cut 14, cut 14, 0, 0">主页</Tab>                              <!-- 梯形页签 -->
 <Style name="skin" radius="10" borderWidth="1" borderColor="white/0.4"/>   <!-- 一个包换整套 -->
 ```
 

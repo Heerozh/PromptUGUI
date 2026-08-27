@@ -72,7 +72,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             var panel = SurfaceUnder(s, "Fill Area/Fill");
             Assert.IsNotNull(panel, "fillRadius must give the filled segment its own surface");
-            Assert.AreEqual(6f, panel.CurrentParams.Radius.x);
+            Assert.AreEqual(6f, panel.CurrentParams.CornerWidth.x);
             Assert.IsTrue(panel.IsPanelVisible, "fillColor has to reach it, or the bar disappears");
         }
 
@@ -100,8 +100,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var s = Load("Slider", "radius='4' fillRadius='6' handleRadius='pill'");
 
-            Assert.AreEqual(4f, SurfaceUnder(s, "Background").CurrentParams.Radius.x);
-            Assert.AreEqual(6f, SurfaceUnder(s, "Fill Area/Fill").CurrentParams.Radius.x);
+            Assert.AreEqual(4f, SurfaceUnder(s, "Background").CurrentParams.CornerWidth.x);
+            Assert.AreEqual(6f, SurfaceUnder(s, "Fill Area/Fill").CurrentParams.CornerWidth.x);
             Assert.IsTrue(SurfaceUnder(s, "Handle Slide Area/Handle").CurrentParams.Pill);
         }
 
@@ -114,7 +114,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             var panel = SurfaceUnder(p, "MaskWrapper/Fill");
             Assert.IsNotNull(panel);
-            Assert.AreEqual(6f, panel.CurrentParams.Radius.x);
+            Assert.AreEqual(6f, panel.CurrentParams.CornerWidth.x);
         }
 
         [Test]
@@ -149,7 +149,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var p = Load("Progress", "radius='4' maskRadius='12' bgColor='#22345a'");
             var mask = p.GameObject.transform.Find("MaskWrapper").GetComponent<UnityEngine.UI.Mask>();
 
-            Assert.AreEqual(12f, ((ProceduralPanel)mask.graphic).CurrentParams.Radius.x);
+            Assert.AreEqual(12f, ((ProceduralPanel)mask.graphic).CurrentParams.CornerWidth.x);
         }
 
         [Test]

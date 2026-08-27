@@ -83,7 +83,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         public void Radius_FourValues_LandInCssOrder()
         {
             var p = PanelOf(Load("color='#fff' radius='1,2,3,4'"));
-            Assert.AreEqual(new Vector4(1f, 2f, 3f, 4f), p.CurrentParams.Radius);
+            Assert.AreEqual(new Vector4(1f, 2f, 3f, 4f), p.CurrentParams.CornerWidth);
             Assert.IsFalse(p.CurrentParams.Pill);
         }
 
@@ -92,7 +92,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var p = PanelOf(Load("color='#fff' radius='pill'"));
             Assert.IsTrue(p.CurrentParams.Pill);
-            Assert.AreEqual(Vector4.zero, p.CurrentParams.Radius);
+            Assert.AreEqual(Vector4.zero, p.CurrentParams.CornerWidth);
         }
 
         [Test]

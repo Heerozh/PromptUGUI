@@ -290,10 +290,8 @@ namespace PromptUGUI.Controls.Internal
                                                   0f, _noise);
             }
 
-            return new PanelParams(
-                fillTop, fillBottom, border, glow,
-                new Vector4(_radius.TopLeft, _radius.TopRight, _radius.BottomRight, _radius.BottomLeft),
-                _radius.IsPill, _borderWidth, _glowSize, _glass, glassParams);
+            return new PanelParams(fillTop, fillBottom, border, glow, _radius,
+                                   _borderWidth, _glowSize, _glass, glassParams);
         }
 
         /// <summary>

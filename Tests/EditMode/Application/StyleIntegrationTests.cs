@@ -41,7 +41,7 @@ namespace PromptUGUI.Tests.Application
             UI.LoadDocumentAsync("main").GetAwaiter().GetResult();
 
             var p = PanelOf(UI.Open("S").Get<Frame>("f"));
-            Assert.AreEqual(16f, p.CurrentParams.Radius.x);
+            Assert.AreEqual(16f, p.CurrentParams.CornerWidth.x);
         }
 
         [Test]
@@ -59,7 +59,7 @@ namespace PromptUGUI.Tests.Application
             UI.LoadCommonLibraryAsync("lib", "ui").GetAwaiter().GetResult();
             UI.LoadDocumentAsync("main").GetAwaiter().GetResult();
 
-            Assert.AreEqual(24f, PanelOf(UI.Open("S").Get<Frame>("f")).CurrentParams.Radius.x);
+            Assert.AreEqual(24f, PanelOf(UI.Open("S").Get<Frame>("f")).CurrentParams.CornerWidth.x);
         }
 
         [Test]
@@ -103,7 +103,7 @@ namespace PromptUGUI.Tests.Application
                             </PromptUGUI>";
             UI.ReloadCommonLibraryAsync("lib").GetAwaiter().GetResult();
 
-            Assert.AreEqual(2f, PanelOf(UI.Open("S").Get<Frame>("f")).CurrentParams.Radius.x);
+            Assert.AreEqual(2f, PanelOf(UI.Open("S").Get<Frame>("f")).CurrentParams.CornerWidth.x);
         }
 
         [Test]
@@ -119,16 +119,16 @@ namespace PromptUGUI.Tests.Application
             var frame = s.Get<Frame>("f");
             var panel = PanelOf(frame);
             var go = frame.GameObject;
-            Assert.AreEqual(16f, panel.CurrentParams.Radius.x);
+            Assert.AreEqual(16f, panel.CurrentParams.CornerWidth.x);
 
             UI.Variants.Set("mobile", true);
 
             Assert.AreSame(go, frame.GameObject, "a Variant flip must never rebuild GameObjects");
             Assert.AreSame(panel, PanelOf(frame), "…nor re-create the panel component");
-            Assert.AreEqual(4f, panel.CurrentParams.Radius.x);
+            Assert.AreEqual(4f, panel.CurrentParams.CornerWidth.x);
 
             UI.Variants.Set("mobile", false);
-            Assert.AreEqual(16f, panel.CurrentParams.Radius.x, "…and it must revert");
+            Assert.AreEqual(16f, panel.CurrentParams.CornerWidth.x, "…and it must revert");
         }
 
         /// <summary>
@@ -151,13 +151,13 @@ namespace PromptUGUI.Tests.Application
             UI.LoadDocument("t", xml);
             var s = UI.Open("S");
 
-            Assert.AreEqual(16f, PanelOf(s.Get<Frame>("f")).CurrentParams.Radius.x);
+            Assert.AreEqual(16f, PanelOf(s.Get<Frame>("f")).CurrentParams.CornerWidth.x);
 
             var btn = s.Get<Btn>("b").GameObject;
             var surface = btn.transform.Find("__Surface");
             Assert.IsNotNull(surface, "the same pack has to reach the Btn's shape too");
             var panel = surface.GetComponent<PromptUGUI.Controls.Internal.ProceduralPanel>();
-            Assert.AreEqual(16f, panel.CurrentParams.Radius.x);
+            Assert.AreEqual(16f, panel.CurrentParams.CornerWidth.x);
             Assert.AreEqual(new Color32(0x12, 0x34, 0x56, 0xff), (Color32)panel.CurrentParams.FillTop);
 
             Assert.AreEqual(0, btn.GetComponent<UnityEngine.UI.Image>().color.a,

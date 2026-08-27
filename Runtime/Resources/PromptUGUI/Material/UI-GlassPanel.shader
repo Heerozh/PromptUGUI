@@ -19,9 +19,14 @@ Shader "UI/GlassPanel"
         _BorderColor ("Border Color", Color) = (1,1,1,1)
         _GlowColor   ("Glow Color",   Color) = (1,1,1,1)
 
-        // xyzw = top-left, top-right, bottom-right, bottom-left (CSS border-radius 顺序)
-        _Radius      ("Radius TL/TR/BR/BL", Vector) = (0,0,0,0)
-        _Pill        ("Pill Sentinel", Float) = 0
+        // 四个逐角向量一律是 xyzw = top-left, top-right, bottom-right, bottom-left
+        // （CSS border-radius 顺序）。_Radius 是每个角的**水平**伸出量，圆角时即半径。
+        _Radius      ("Corner Width TL/TR/BR/BL",  Vector) = (0,0,0,0)
+        _CornerH     ("Corner Height TL/TR/BR/BL", Vector) = (0,0,0,0)
+        _CornerKind  ("Corner Kind TL/TR/BR/BL (0 round / 1 cut / 2 notch)", Vector) = (0,0,0,0)
+        // 整形哨兵：0 无 / 1 pill / 2 hexagon。两者都依赖 rect 尺寸，逐片元解算。
+        _Shape       ("Shape Sentinel", Float) = 0
+        _HexW        ("Hexagon Tip Reach (0 = auto)", Float) = 0
         _BorderWidth ("Border Width",  Float) = 0
         _GlowSize    ("Glow Size",     Float) = 0
 
@@ -110,7 +115,10 @@ Shader "UI/GlassPanel"
             fixed4 _BorderColor;
             fixed4 _GlowColor;
             float4 _Radius;
-            float _Pill;
+            float4 _CornerH;
+            float4 _CornerKind;
+            float _Shape;
+            float _HexW;
             float _BorderWidth;
             float _GlowSize;
             float4 _GlassA;
@@ -152,8 +160,9 @@ Shader "UI/GlassPanel"
                 float2 p = IN.shape.xy;
                 float2 b = IN.shape.zw;
 
-                float4 r = PuguiResolveRadius(_Radius, _Pill, b);
-                float d = PuguiSdRoundBox(p, b, r);
+                PuguiCorner corner = PuguiResolveCorner(p, b, _CornerKind, _Radius,
+                                                       _CornerH, _Shape, _HexW);
+                float d = PuguiSdPanel(p, b, corner);
                 float fw = max(fwidth(d), 1e-4);
                 float inside = saturate(0.5 - d / fw);
 
@@ -179,7 +188,7 @@ Shader "UI/GlassPanel"
                     float2 uv = IN.screenPos.xy / max(IN.screenPos.w, 1e-5);
 
                     // 画布空间外法线：+Y 就是界面正上方，与 lightAngle 的定义同一套坐标系。
-                    float2 n = PuguiSdNormal(p, b, r);
+                    float2 n = PuguiPanelNormal(p, b, corner);
 
                     // 折射带：仅 -depth < d < 0。band 在带外沿=1、带内沿=0。
                     float band = depth > 0.0 ? saturate(1.0 + d / depth) * inside : 0.0;
