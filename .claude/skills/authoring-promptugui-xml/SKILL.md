@@ -454,7 +454,7 @@ TMP_InputField；R3 `OnValueChanged` / `OnEndEdit` / `OnSubmit: string`。`<Inpu
 
 ### `<TabBar>`
 
-Tab 容器；私有 `ToggleGroup`（`allowSwitchOff=false`）+ `Horizontal` / `VerticalLayoutGroup`。纯布局无自身视觉（要背景条套 `<Image>`）。子节点可为直接 `<Tab>` 或含 `<Tab>` 的 Template wrapper（递归收集）。支持 `itemTemplate` + `BindItems`（同 `<ScrollList>`）。作为子节点的布局组——Tab 不能写 `anchor` / `margin`。**详见 [`reference/controls-tabs.md`](reference/controls-tabs.md)。**
+Tab 容器；私有 `ToggleGroup`（`allowSwitchOff=false`）+ `Horizontal` / `VerticalLayoutGroup`。纯布局无自身视觉（要背景条套 `<Image>`）。子节点可为直接 `<Tab>` 或含 `<Tab>` 的 Template wrapper（递归收集）——**wrapper 根必须自己写 `width`/`height`**（如 `width="stretch"`），`<Tab>` 的 native-size 保底只对直接子节点生效，wrapper 漏写会塌成 0 尺寸。支持 `itemTemplate` + `BindItems`（同 `<ScrollList>`）。作为子节点的布局组——Tab 不能写 `anchor` / `margin`。**详见 [`reference/controls-tabs.md`](reference/controls-tabs.md)。**
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|

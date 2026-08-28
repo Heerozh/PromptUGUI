@@ -63,9 +63,27 @@ Template root and put its content **inside** the Tab (children overlay the bg, F
 </TabBar>
 ```
 
-TabBar collects the Tab whether it is the Template root (as here) or nested inside a wrapper; auto-select and `OnSelectionChanged` work the same either way. Lint rules `PUI-TABBAR-CHILD` and `PUI-TAB-PARENT` are suppressed for Template-instance roots. The Tab's `width`/`height` is its layout-group cell size; its children use their own `anchor` / `margin` (Tab is not a layout group). Omit them and the Tab sizes to its own label (plus padding, min 44px tap target) — it never collapses to zero. `width="stretch"` splits the bar's remaining space evenly, exactly as in `<HStack>`.
+TabBar collects the Tab whether it is the Template root (as here) or nested inside a wrapper; auto-select and `OnSelectionChanged` work the same either way. Lint rules `PUI-TABBAR-CHILD` and `PUI-TAB-PARENT` are suppressed for Template-instance roots. The Tab's `width`/`height` is its layout-group cell size; its children use their own `anchor` / `margin` (Tab is not a layout group). Omit them and the Tab sizes to its own label (plus padding, min 44px tap target) — it never collapses to zero, **as long as the `<Tab>` is the Template root** (see the wrapper note below). `width="stretch"` splits the bar's remaining space evenly, exactly as in `<HStack>`.
 
-> ⚠️ **Behaviour change.** `width` / `height` on a `<Tab>` used to be silently ignored — TabBar's layout group was left at Unity's default `childControlWidth/Height = false`, which only positions children and never resizes them, so every Tab stayed at the default 100×100 (overflowing the bar and overlapping its neighbours). TabBar now configures the group like `<VStack>` / `<HStack>` do, so the values you write actually land. Existing TabBars will shift — toward what the markup always said. Keep decorative children `raycastTarget=false` (`<Icon>` already is; add it on `<Text>`) so clicks fall through to the containing Tab.
+> ⚠️ **Wrapper roots must carry the size themselves.** That zero-collapse safety net is `Tab.GetNativeSize()`, and it only fires for the node TabBar actually lays out. Wrap the Tab — `<Frame><Tab .../></Frame>`, the usual way to hang a separator / badge / second layer *outside* the Tab's own bg — and TabBar's layout child is the `<Frame>`, which has no native size at all. With `childControlWidth/Height = true` and nothing written on the wrapper, its preferred size resolves to **0**: every tab collapses and piles up at the same spot. Exactly the `<HStack>` rule, and it bites the same way — **put `width` / `height` (or `width="stretch"`) on the wrapper root, not only on the inner `<Tab>`**:
+>
+> ```xml
+> <Template name="ChannelTab">
+>   <Param name="text"/>
+>   <Param name="sep" default="true"/>
+>   <!-- 尺寸写在 wrapper 上；漏了就塌成 0 宽，三个 tab 重叠在 x=0 -->
+>   <Frame width="stretch" height="18">
+>     <Tab id="tab" anchor="stretch" sprite="" selectedSprite="ui:tab_selected">
+>       <Text anchor="stretch" align="center" fontSize="12" raycastTarget="false">{{text}}</Text>
+>     </Tab>
+>     <Image if="{{sep}}" anchor="stretch-right" width="1" raycastTarget="false"/>
+>   </Frame>
+> </Template>
+> ```
+>
+> The inner `<Tab anchor="stretch">` then fills the wrapper — it is a free-positioned child of a `<Frame>`, not a layout-group child, so `anchor` / `margin` are legal on it there.
+
+> ⚠️ **Behaviour change.** `width` / `height` on a `<Tab>` used to be silently ignored — TabBar's layout group was left at Unity's default `childControlWidth/Height = false`, which only positions children and never resizes them, so every Tab stayed at the default 100×100 (overflowing the bar and overlapping its neighbours). TabBar now configures the group like `<VStack>` / `<HStack>` do, so the values you write actually land. The other half of the same switch: `childForceExpand*` is now `false` where Unity's serialized default is `true`, so Unity no longer forces `flexible = 1` onto every child in `GetChildSizes` — tabs that used to spread out and fill the bar regardless of the markup now sit at their preferred size, packed at the start of the bar (and a sizeless wrapper root, at width 0). Existing TabBars will shift — toward what the markup always said; add `width="stretch"` to get the even split back. Keep decorative children `raycastTarget=false` (`<Icon>` already is; add it on `<Text>`) so clicks fall through to the containing Tab.
 
 For dynamic data, use `BindItems` with `itemTemplate="FileTab"` (the same Template works for both patterns).
 
