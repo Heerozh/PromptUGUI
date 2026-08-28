@@ -14,8 +14,10 @@ Shader "UI/GlassGroup"
 
         _BorderColor ("Border Color", Color) = (1,1,1,1)
         _GlowColor   ("Glow Color",   Color) = (1,1,1,1)
+        _InnerGlowColor ("Inner Glow Color", Color) = (1,1,1,1)
         _BorderWidth ("Border Width",  Float) = 0
         _GlowSize    ("Glow Size",     Float) = 0
+        _InnerGlowSize ("Inner Glow Size", Float) = 0
         _Weld        ("Weld Radius",   Float) = 8
 
         _GlassA ("frost / _ / dispersion / noise", Vector) = (0.5, 0, 0, 0.02)
@@ -98,8 +100,10 @@ Shader "UI/GlassGroup"
 
             fixed4 _BorderColor;
             fixed4 _GlowColor;
+            fixed4 _InnerGlowColor;
             float _BorderWidth;
             float _GlowSize;
+            float _InnerGlowSize;
             float _Weld;
             float4 _GlassA;
             float4 _GlassB;
@@ -258,13 +262,13 @@ Shader "UI/GlassGroup"
                 tint.a *= inside;
                 float4 col = PuguiOver(tint, base);
 
-                if (_GlowSize > 0.0)
-                {
-                    float g = saturate(1.0 - d / _GlowSize);
-                    float4 glow = _GlowColor;
-                    glow.a *= g * g * (1.0 - inside);
-                    col = PuguiOver(col, glow);
-                }
+                // 内发光：外发光的镜像 —— 画在形状内侧、压在填充之上。
+                // 排在外发光之前，让外发光的 under 合成看到「填充 + 内发光」这一个完整实心体
+                // （两者除 AA 那一像素外并不相交，所以顺序只影响那一像素）。
+                col = PuguiApplyInnerGlow(col, d, inside, _InnerGlowSize, _InnerGlowColor);
+
+                // 外发光：仅在形状外侧衰减。
+                col = PuguiApplyOuterGlow(col, d, inside, _GlowSize, _GlowColor);
 
                 // 保底描边沿融合后的外轮廓走，交界内部自然没有它 —— 这正是要的效果。
                 if (_BorderWidth > 0.0)

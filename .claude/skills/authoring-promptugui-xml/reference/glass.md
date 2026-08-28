@@ -2,7 +2,7 @@
 
 A glass Frame shows a blurred copy of the camera image inside its shape, with light catching its
 edges. It is the same rounded-rect SDF as a normal procedural Frame — `radius`, `borderWidth`,
-`glow` all behave identically — only the *fill* changes.
+`glow`, `innerGlow` all behave identically — only the *fill* changes.
 
 The look it aims at is a thin, flat frosted sheet (Figma-style glass), not a thick liquid lens. The
 interior is deliberately flat: refraction and lighting happen only within `depth` pixels of the edge.
@@ -47,7 +47,9 @@ attribute. Writing any of them without `glass="true"` is a lint error
 | `noise` | `0`–`1` | `0.02` | Frosted grain. Doubles as dithering against banding on large blurred areas |
 
 Reused unchanged: `color` (tint painted over the glass — comma gradients and `/alpha` work exactly as
-elsewhere), `radius`, `borderWidth` / `borderColor`, `glow` / `glowColor`.
+elsewhere), `radius`, `borderWidth` / `borderColor`, `glow` / `glowColor`,
+`innerGlow` / `innerGlowColor` (painted over the tint, so it lights the pane's edge without touching
+the backdrop it samples).
 
 Keep the tint alpha low (`white/0.06`, `#39f/0.15`). A tint at high alpha stops reading as glass and
 starts reading as a coloured panel with a blur behind it.
@@ -108,7 +110,7 @@ Where each parameter goes:
 
 | 写在 | 参数 |
 |---|---|
-| 容器（带 `weld` 的 Frame） | `frost` `dispersion` `lightAngle` `lightIntensity` `saturation` `noise`, and `borderWidth` / `borderColor` / `glow` / `glowColor` for the fused outline |
+| 容器（带 `weld` 的 Frame） | `frost` `dispersion` `lightAngle` `lightIntensity` `saturation` `noise`, and `borderWidth` / `borderColor` / `glow` / `glowColor` / `innerGlow` / `innerGlowColor` for the fused outline |
 | 每个玻璃子级 | `radius` `depth` `color` |
 
 The split is physical, not arbitrary: two halves of one continuous pane cannot be frosted differently
@@ -191,8 +193,8 @@ the structural codes above stay quiet rather than guess.
 
 ## When there is no backdrop
 
-Glass degrades to a plain translucent panel — the shape, tint, border and glow still draw, the blur
-does not — whenever:
+Glass degrades to a plain translucent panel — the shape, tint, border and both glows still draw, the
+blur does not — whenever:
 
 - the project has no URP ≥ 17 (the capture pass does not even compile in);
 - URP is installed but is not the active render pipeline;

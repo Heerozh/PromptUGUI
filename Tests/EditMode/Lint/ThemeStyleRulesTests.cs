@@ -97,6 +97,21 @@ namespace PromptUGUI.Tests.EditMode.Lint
         }
 
         [Test]
+        public void InnerGlowOnlyOneThemeSets_IsExempt()
+        {
+            // Same reasoning as every other shape attribute: the theme that writes none of them
+            // turns the surface off wholesale and the Image comes back, so nothing is left stuck.
+            var issues = Lint(@"
+                <Style name='btn' sprite='ui:wood' color='#E8D2A8'/>
+                <Theme name='farm'><Style name='btn' color='#E8D2A8'/></Theme>
+                <Theme name='gold'><Style name='btn' sprite='none' color='#C39A45'
+                       radius='10' innerGlow='14' innerGlowColor='#FFF3C4'/></Theme>
+                <Screen name='S'><Btn id='b' class='btn'/></Screen>");
+
+            Assert.IsEmpty(issues.Where(i => i.Code == ThemeStyleRules.ShapeCode));
+        }
+
+        [Test]
         public void InnerLayerRadius_IsExempt()
         {
             var issues = Lint(@"

@@ -22,7 +22,7 @@ namespace PromptUGUI.Lint
         private static readonly char[] ClassSeparators = { ' ', '\t', '\n', '\r' };
 
         /// <summary>Attributes parsed as a plain non-negative pixel count.</summary>
-        private static readonly string[] PixelAttrs = { "borderWidth", "glow" };
+        private static readonly string[] PixelAttrs = { "borderWidth", "glow", "innerGlow" };
 
         public static IEnumerable<LintIssue> Check(ElementNode n)
         {

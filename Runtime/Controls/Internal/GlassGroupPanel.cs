@@ -42,6 +42,8 @@ namespace PromptUGUI.Controls.Internal
         private static readonly int BorderWidthId = Shader.PropertyToID("_BorderWidth");
         private static readonly int GlowColorId = Shader.PropertyToID("_GlowColor");
         private static readonly int GlowSizeId = Shader.PropertyToID("_GlowSize");
+        private static readonly int InnerGlowColorId = Shader.PropertyToID("_InnerGlowColor");
+        private static readonly int InnerGlowSizeId = Shader.PropertyToID("_InnerGlowSize");
         private static readonly int GlassAId = Shader.PropertyToID("_GlassA");
         private static readonly int GlassBId = Shader.PropertyToID("_GlassB");
 
@@ -330,13 +332,15 @@ namespace PromptUGUI.Controls.Internal
             _material.SetVector(GlassBId,
                 new Vector4(Mathf.Sin(rad), Mathf.Cos(rad), intensity, saturation));
 
-            // Border and glow follow the fused outline, so they are the container's — a per-block
-            // border would draw exactly the dividing line the weld exists to remove.
+            // Border and both glows follow the fused outline, so they are the container's — a
+            // per-block one would draw exactly the dividing line the weld exists to remove.
             var c = _container != null ? _container.CurrentParams : default;
             _material.SetColor(BorderColorId, _container != null ? c.BorderColor : Color.white);
             _material.SetFloat(BorderWidthId, _container != null ? c.BorderWidth : 0f);
             _material.SetColor(GlowColorId, _container != null ? c.GlowColor : Color.white);
             _material.SetFloat(GlowSizeId, _container != null ? c.GlowSize : 0f);
+            _material.SetColor(InnerGlowColorId, _container != null ? c.InnerGlowColor : Color.white);
+            _material.SetFloat(InnerGlowSizeId, _container != null ? c.InnerGlowSize : 0f);
         }
 
         private void EnsureMaterial()

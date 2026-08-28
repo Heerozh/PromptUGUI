@@ -120,6 +120,139 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(new Color(0f, 0f, 1f, 1f), p.CurrentParams.GlowColor);
         }
 
+        // ---- inner glow (spec 2026-08-28) ----
+
+        [Test]
+        public void InnerGlow_ParsesPixels()
+        {
+            Assert.AreEqual(12f, PanelOf(Load("color='#fff' innerGlow='12'")).CurrentParams.InnerGlowSize);
+        }
+
+        [Test]
+        public void InnerGlow_Empty_ResetsToZero()
+        {
+            // A Variant can only change a value, never remove the attribute — "" is the author's
+            // only way back to none (same contract glow and radius have).
+            Assert.AreEqual(0f, PanelOf(Load("color='#fff' innerGlow=''")).CurrentParams.InnerGlowSize);
+        }
+
+        [Test]
+        public void InnerGlow_RejectsNonNumeric()
+        {
+            var ex = Assert.Throws<ParseException>(() => Load("innerGlow='soft'"));
+            StringAssert.Contains("innerGlow", ex.Message);
+        }
+
+        [Test]
+        public void InnerGlow_RejectsNegative()
+        {
+            Assert.Throws<ParseException>(() => Load("innerGlow='-4'"));
+        }
+
+        [Test]
+        public void InnerGlow_RejectsNaN()
+        {
+            Assert.Throws<ParseException>(() => Load("innerGlow='NaN'"));
+        }
+
+        [Test]
+        public void InnerGlowColor_DefaultsToWhite()
+        {
+            // Deliberately NOT the fill colour the way glowColor is: an inner glow in the fill's own
+            // colour is invisible on an opaque fill, which is the overwhelmingly common case. White
+            // reads as "the edge is lit" and shows up on any fill (spec §5.4).
+            var p = PanelOf(Load("color='#ff0000' innerGlow='8'"));
+            Assert.AreEqual(Color.white, p.CurrentParams.InnerGlowColor,
+                "following the fill would make innerGlow='8' alone draw nothing at all");
+        }
+
+        [Test]
+        public void InnerGlowColor_ExplicitWins()
+        {
+            var p = PanelOf(Load("color='#ff0000' innerGlow='8' innerGlowColor='#0000ff/0.5'"));
+            Assert.AreEqual(new Color(0f, 0f, 1f, 0.5f), p.CurrentParams.InnerGlowColor);
+        }
+
+        [Test]
+        public void InnerGlowColor_RejectsGradient()
+        {
+            Assert.Throws<ParseException>(() => Load("innerGlow='8' innerGlowColor='#fff,#000'"));
+        }
+
+        [Test]
+        public void InnerGlowOnly_NoFill_IsVisible()
+        {
+            // A hollow ring of light, same standing as the border-only hollow box above.
+            Assert.IsTrue(PanelOf(Load("innerGlow='8'")).IsPanelVisible);
+        }
+
+        [Test]
+        public void InnerGlow_TransparentColour_IsNotVisible()
+        {
+            Assert.IsFalse(PanelOf(Load("innerGlow='8' innerGlowColor='#ffffff/0'")).IsPanelVisible,
+                "an invisible panel must cost zero overdraw, whatever the size attribute says");
+        }
+
+        [Test]
+        public void InnerGlow_DoesNotInflateMesh()
+        {
+            // The whole point of the mirror: it draws INSIDE the shape, so unlike glow it never
+            // touches the geometry — no extra overdraw, and no ancestor RectMask2D interaction.
+            var f = Load("color='#fff' innerGlow='20' width='100' height='50' anchor='top-left'");
+            var vh = new VertexHelper();
+            PanelOf(f).BuildMeshForTests(vh);
+
+            var v = default(UIVertex);
+            vh.PopulateUIVertex(ref v, 2);
+            Assert.AreEqual(50f, v.uv0.x, 0.01f, "an inner glow must not grow the drawn quad");
+            Assert.AreEqual(25f, v.uv0.y, 0.01f);
+        }
+
+        [Test]
+        public void SameInnerGlow_SharesOneMaterial()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Style name='plate' color='#222' innerGlow='10' innerGlowColor='#fff3c4'/>
+  <Screen name='S'>
+    <Frame id='a' class='plate' height='40'/>
+    <Frame id='b' class='plate' height='90'/>
+  </Screen>
+</PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var s = UI.Open("S");
+            Assert.AreSame(PanelOf(s.Get<Frame>("a")).material, PanelOf(s.Get<Frame>("b")).material);
+        }
+
+        [TestCase("innerGlow='10'", "innerGlow='14'")]
+        [TestCase("innerGlow='10'", "innerGlow='10' innerGlowColor='#f00'")]
+        public void DifferentInnerGlow_SplitsTheMaterial(string a, string b)
+        {
+            // Both halves have to be in the cache key, or two panels that render differently would
+            // be handed the same material.
+            var xml = $@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='a' color='#222' {a}/>
+  <Frame id='b' color='#222' {b}/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var s = UI.Open("S");
+            Assert.AreNotSame(PanelOf(s.Get<Frame>("a")).material, PanelOf(s.Get<Frame>("b")).material);
+        }
+
+        [Test]
+        public void Disabled_DesaturatesTheInnerGlow()
+        {
+            // Greying happens inside the parameters (the material carries the shape and cannot be
+            // swapped) — so every colour has to be walked, including this one.
+            var p = PanelOf(Load("color='#ff0000' innerGlow='8' innerGlowColor='#00ff00'"));
+            p.SetDisabledGrayscale(true);
+
+            var c = p.CurrentParams.InnerGlowColor;
+            Assert.AreEqual(c.r, c.g, 0.001f, $"a disabled surface must not keep a coloured rim, got {c}");
+            Assert.AreEqual(c.g, c.b, 0.001f);
+        }
+
         [Test]
         public void BorderColor_RejectsGradient()
         {

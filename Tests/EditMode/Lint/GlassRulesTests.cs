@@ -123,6 +123,8 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("frost='0.8'")]
         [TestCase("lightAngle='30'")]
         [TestCase("saturation='1.4'")]
+        [TestCase("innerGlow='8'")]
+        [TestCase("innerGlowColor='#fff'")]
         public void GroupParamOnABlock_IsFlagged(string attr)
         {
             // Two halves of one continuous pane cannot be frosted differently or lit from different
@@ -149,6 +151,8 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("frost='heavy'")]
         [TestCase("noise='5'")]
         [TestCase("depth='-3'")]
+        [TestCase("innerGlow='soft'")]
+        [TestCase("innerGlow='-2'")]
         public void BadValues_AreFlagged(string attr)
         {
             Assert.IsTrue(Has(Walk($"<Frame id='f' glass='true' {attr}/>"),

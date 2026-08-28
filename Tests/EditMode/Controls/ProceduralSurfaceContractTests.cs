@@ -115,6 +115,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [TestCase("radius='8'")]
         [TestCase("borderWidth='2' borderColor='#fff'")]
         [TestCase("glow='6'")]
+        [TestCase("innerGlow='6'")]
+        [TestCase("innerGlowColor='#fff'")]
         [TestCase("glass='true'")]
         public void AnyPanelAttachingAttr_AttachesASurface(string attrs)
         {

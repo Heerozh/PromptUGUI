@@ -9,7 +9,7 @@ namespace PromptUGUI.Controls
 {
     /// <summary>
     /// A control whose primary surface can be drawn procedurally instead of by an <c>Image</c> —
-    /// the same rounded-rect SDF (fill / border / glow / glass) <c>&lt;Frame&gt;</c> draws, so a
+    /// the same rounded-rect SDF (fill / border / glows / glass) <c>&lt;Frame&gt;</c> draws, so a
     /// theme can swap a control's <em>shape</em> and not just its colours.
     ///
     /// <para>Declaring any of the attributes below lazily attaches a <see cref="ProceduralSurface"/>;
@@ -24,7 +24,7 @@ namespace PromptUGUI.Controls
     /// <remarks>
     /// The attributes are declared once here rather than per control because
     /// <c>ControlMeta.Build</c> reflects with <c>BindingFlags.Public | BindingFlags.Instance</c>,
-    /// which includes inherited properties — so a subclass gets all thirteen for free.
+    /// which includes inherited properties — so a subclass gets all fifteen for free.
     /// </remarks>
     public abstract class ProceduralControl : Control
     {
@@ -133,6 +133,20 @@ namespace PromptUGUI.Controls
         public string GlowColor
         {
             set { var v = UI.Theme.Resolve(value); Surface.Declare(p => p.SetGlowColor(v)); }
+        }
+
+        /// <summary>内发光宽度（px，从形状边缘向内衰减）。不改几何。</summary>
+        [UIAttr, Preserve]
+        public string InnerGlow
+        {
+            set { var v = ProceduralValueParser.Pixels(value, "innerGlow"); Surface.Declare(p => p.SetInnerGlowSize(v)); }
+        }
+
+        /// <summary>内发光色。纯色 only；默认白。写深色即内阴影。</summary>
+        [UIAttr, Preserve]
+        public string InnerGlowColor
+        {
+            set { var v = UI.Theme.Resolve(value); Surface.Declare(p => p.SetInnerGlowColor(v)); }
         }
 
         /// <summary>玻璃模式：填充改为采样模糊后的 backdrop + 边缘折射 / 打光。</summary>

@@ -22,6 +22,16 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Frame_lists_its_inner_glow_attributes()
+        {
+            // Frame's attribute list is hand-written rather than reflected, so every attribute
+            // added to it has to be added there too or authoring tools flag valid XML as invalid.
+            var xsd = XsdGenerator.Generate(new ControlRegistry());
+            StringAssert.Contains("name=\"innerGlow\"", xsd);
+            StringAssert.Contains("name=\"innerGlowColor\"", xsd);
+        }
+
+        [Test]
         public void Custom_control_appears_with_UIAttr_attributes()
         {
             var r = new ControlRegistry();

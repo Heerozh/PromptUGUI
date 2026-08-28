@@ -153,6 +153,16 @@ namespace PromptUGUI.Tests.EditMode.Lint
         }
 
         [Test]
+        public void InnerGlowOnDecor_IsStillReported()
+        {
+            // A 2px stroke has no inside to light. Only the outer glow pair carries over to a
+            // decoration; the inner one belongs to a surface.
+            CollectionAssert.Contains(
+                Codes("<Decor id='d' kind='bracket' innerGlow='6'/>"),
+                PureContainerVisualAttrRules.VisualAttrCode);
+        }
+
+        [Test]
         public void CleanDecor_HasNoIssues()
         {
             Assert.IsEmpty(IRWalker.Walk(Parse(

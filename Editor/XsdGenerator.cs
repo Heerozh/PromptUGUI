@@ -93,6 +93,8 @@ namespace PromptUGUI.Editor
                     ("borderColor", "xs:string", (string)null),
                     ("glow", "xs:string", (string)null),
                     ("glowColor", "xs:string", (string)null),
+                    ("innerGlow", "xs:string", (string)null),
+                    ("innerGlowColor", "xs:string", (string)null),
                     ("glass", "xs:string", (string)null),
                     ("frost", "xs:string", (string)null),
                     ("depth", "xs:string", (string)null),
