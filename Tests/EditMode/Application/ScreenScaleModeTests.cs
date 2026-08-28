@@ -442,7 +442,7 @@ namespace PromptUGUI.Tests.Application
             var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
             Assert.AreEqual(UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize, scaler.uiScaleMode);
             // Auto leaves scaleFactor at default 1; Unity computes effective scale
-            // internally from referenceResolution + matchWidthOrHeight, not from
+            // internally from referenceResolution + screenMatchMode, not from
             // CanvasScaler.scaleFactor (which only applies in ConstantPixelSize mode).
             Assert.AreEqual(1f, scaler.scaleFactor, 1e-6f);
         }

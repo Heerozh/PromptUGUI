@@ -5,6 +5,15 @@
 **作用域**：在 `<Screen>` 上新增可选属性 `reference="WxH"`，让作者直接在 XML 里声明 CanvasScaler 的参考分辨率，把当前"默认 1:1 物理像素 + CanvasConfigurator 手改"的隐式契约显式化为业内通行的 `ScaleWithScreenSize` 配方。支持 `.variant` 形态，满足"一份 XML 横屏 PC + 竖屏手机"核心用例。
 **依赖**：[`2026-05-07-promptugui-description-language-design.md`](2026-05-07-promptugui-description-language-design.md) §5 / §6（Screen 顶层属性、anchor/size 语义）；现有 `VariantResolver` / `ElementNode.VariantOverrides` 基础设施
 
+> **2026-08-28 修订（RR-D6 已被取代）**：`matchWidthOrHeight` 的按朝向自动推断已下线，
+> 改为 `screenMatchMode = CanvasScaler.ScreenMatchMode.Expand`——`scaleFactor = min(屏宽/参考宽,
+> 屏高/参考高)`，更吃紧的那条边决定缩放。原规则「横屏锁宽、竖屏锁高」等于**锁长边**：设备比参考
+> 更极端时（超宽显示器 21:9、比 16:9 更长的手机），自由的那条短边在设计单位上缩水，作者写死尺寸
+> 的内容被推出屏幕（1080×1920 设计跑 1179×2556 手机上横向丢 ~194 单位；1920×1080 设计跑 2560×1080
+> 上纵向丢 270 单位）。Expand 无需朝向启发式即可保证参考矩形永远完整放得下，且画布两轴测量值仍
+> ≥ 参考尺寸，拉伸锚定的背景照常铺满。要锁死某条边仍走 `CanvasConfigurator`（RR-D7 的逃生口不变）。
+> 本文档以下内容保留原始设计记录，不再反映实现。
+
 ---
 
 ## 1. 背景与目标
@@ -73,7 +82,7 @@
 | RR-D3 | 值格式 | `"WxH"`（两个正浮点 / 整数），`x` 分隔 | 跟 `size=` parser 完全对齐；不接受关键字（无 `auto` / `none`），空串 = "无参考" |
 | RR-D4 | 默认行为（不设） | `ConstantPixelSize, scaleFactor=1`（保持当前行为） | 零迁移；现有项目升级后视觉零变化 |
 | RR-D5 | 设了值的行为 | `ScaleWithScreenSize, referenceResolution=parsed, matchWidthOrHeight=自动推断` | Unity 标准做法，对齐业内 |
-| RR-D6 | matchWidthOrHeight 推断规则 | W ≥ H → 0（锁宽），H > W → 1（锁高） | 横屏锁宽、竖屏锁高是 Unity 教程 / asset store 的事实标准；正方形（极少见）锁宽是稳定 fallback |
+| ~~RR-D6~~ | ~~matchWidthOrHeight 推断规则~~（2026-08-28 取代，见顶部修订）| W ≥ H → 0（锁宽），H > W → 1（锁高） | 横屏锁宽、竖屏锁高是 Unity 教程 / asset store 的事实标准；正方形（极少见）锁宽是稳定 fallback |
 | RR-D7 | matchWidthOrHeight 自定义 | XML 不暴露；走 `CanvasConfigurator` | 99% 用例不需要；不暴露避免 API 噪声 |
 | RR-D8 | Variant 支持 | 是。`reference.mobile="1080x1920"` 等同其他属性 `.variant` 形态 | 项目核心用例"PC 横屏 + 手机竖屏一份 XML"；用户显式同意 |
 | RR-D9 | Variant 清空语义 | `reference.var=""` → 该变体下回到 `ConstantPixelSize` | 跟 `size.var=""` 的"清空"语义一致 |

@@ -287,7 +287,7 @@ await UI.Locale.SetAsync("en");   // 等下载 + 重刷完成（之后要立刻�
 
 ## 7. XML 书写最佳实践
 
-**`<Screen>`：用 `reference` + `reference.portrait` 让一份 XML 同时供横竖屏。** `reference` 是设计分辨率，CanvasScaler 切到按屏缩放，并按朝向自动锁边（W≥H 锁宽、H>W 锁高）。`portrait` / `landscape` 是库**自动跟踪**的朝向变体（见下方 Variant）。
+**`<Screen>`：用 `reference` + `reference.portrait` 让一份 XML 同时供横竖屏。** `reference` 是设计分辨率，CanvasScaler 切到按屏缩放的 Expand 模式：按更吃紧的那条边缩放（`min(屏宽/参考宽, 屏高/参考高)`），整份设计在任何宽高比下都完整放得下、永不被裁，富余空间落在更宽松的那条边上——交给边缘锚定和 `<SafeArea>` 吸收。`portrait` / `landscape` 是库**自动跟踪**的朝向变体（见下方 Variant）。
 
 ```xml
 <Screen name="MainMenu" reference="640x360" reference.portrait="360x640">
