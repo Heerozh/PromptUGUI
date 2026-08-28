@@ -1046,7 +1046,7 @@ Source text goes directly inside `<Text>` / `<Btn>` and serves as the msgid for 
 **Reserved variant namespace**: the library auto-manages two namespaces — authors must NOT reuse these names for business state:
 
 - **Locale**: `UI.Locale.Set("zh-Hans")` internally registers `zh-Hans` (any locale code passed to `UI.Locale.Set`) as an active Variant.
-- **Orientation**: `portrait` and `landscape` are toggled automatically by a global tracker based on `Screen.width` vs `Screen.height` (equal dims → `landscape`, matching the CanvasScaler `match` auto-derivation). They are mutually exclusive. Use them as overrides — e.g. `<Screen reference="1920x1080" reference.portrait="1080x1920">`, `<Btn width="240" width.portrait="stretch"/>`. Portrait-locked games can ignore them (base values apply when no override exists, `landscape` overrides simply never fire). Users who want to fully self-manage can set `UI.Orientation.AutoTrack = false`.
+- **Orientation**: `portrait` and `landscape` are toggled automatically by a global tracker based on `Screen.width` vs `Screen.height` (equal dims → `landscape`, an arbitrary but stable tiebreak — the two are mutually exclusive and one always holds). They are mutually exclusive. Use them as overrides — e.g. `<Screen reference="1920x1080" reference.portrait="1080x1920">`, `<Btn width="240" width.portrait="stretch"/>`. Portrait-locked games can ignore them (base values apply when no override exists, `landscape` overrides simply never fire). Users who want to fully self-manage can set `UI.Orientation.AutoTrack = false`.
 
 ### Inline sprites / TMP rich text
 
@@ -1225,10 +1225,10 @@ Append a comma between two colour values to produce a **vertical two-stop gradie
 ```
 
 - `canvas="overlay|camera|world"`, default `overlay`. Picks the runtime `Canvas.renderMode` for this Screen. Everything else (worldCamera, sortingOrder) is configured C#-side via `UI.CanvasConfigurator`.
-- `reference="WxH"` → CanvasScaler 切到 `ScaleWithScreenSize`，referenceResolution 即该值。`matchWidthOrHeight` 按朝向自动推断：W ≥ H 锁宽（0），H > W 锁高（1）。
+- `reference="WxH"` → CanvasScaler 切到 `ScaleWithScreenSize` + `screenMatchMode=Expand`，referenceResolution 即该值。Expand = `scaleFactor = min(屏宽/参考宽, 屏高/参考高)`：**更吃紧的那条边决定缩放**，所以整个参考矩形在任何宽高比下都放得下，设计不会被作者没预料到的屏幕比例裁掉（超宽显示器、比 16:9 更长的手机）。画布本身仍铺满屏幕（两轴测量值都 ≥ 参考尺寸），拉伸锚定的背景照常填满，富余落在更宽松的那条边上。
 - 未设 / `reference=""` → 保留默认 `ConstantPixelSize, scaleFactor=1` 行为；XML 数字直接 = 设备像素。
 - `.variant` 形态：`reference.mobile="..."` 同其他属性 variant 规则；变体切换时 CanvasScaler 立即重应用。
-- 要 `match=0.5` 折中或改 `referencePixelsPerUnit`：走 `UI.CanvasConfigurator` 手改。**不要在两条路径同时改 CanvasScaler** —— variant flip 时 XML 路径会覆盖 configurator 的改动。
+- 要锁死某条边（`screenMatchMode=MatchWidthOrHeight` + `matchWidthOrHeight=0/0.5/1`）或改 `referencePixelsPerUnit`：走 `UI.CanvasConfigurator` 手改。**不要在两条路径同时改 CanvasScaler** —— variant flip 时 XML 路径会覆盖 configurator 的改动。
 - `scale-mode="auto|pixel"` (+ `.variant`)：默认 `auto` = 上面 `reference` 的连续缩放语义。`pixel` 切到 `ConstantPixelSize` + 整数倍 `scaleFactor`（fit-inside 取小；屏幕 < 设计时 snap 到 1/2、1/4、1/8 等保 2x2 干净降采样）。**必须配 `reference="WxH"`**，否则运行期 `Debug.LogError` 并降级 `scaleFactor=1`。像素美术 / 等距图项目用 —— sprite 永远整数倍渲染到屏幕像素。项目级默认走 C# `UI.DefaultScaleMode = ScaleMode.Pixel`；具体 Screen 想退回连续缩放写 `scale-mode="auto"`。
 
 ### Relative scale (`scale="N"`) — box-preserving

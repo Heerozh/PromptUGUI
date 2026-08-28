@@ -116,7 +116,7 @@ namespace PromptUGUI.Tests.Application
         }
 
         [Test]
-        public void Open_landscape_reference_sets_match_zero()
+        public void Open_landscape_reference_uses_expand()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
@@ -128,11 +128,12 @@ namespace PromptUGUI.Tests.Application
             Assert.AreEqual(UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize,
                             scaler.uiScaleMode);
             Assert.AreEqual(new UnityEngine.Vector2(1920, 1080), scaler.referenceResolution);
-            Assert.AreEqual(0f, scaler.matchWidthOrHeight);
+            Assert.AreEqual(UnityEngine.UI.CanvasScaler.ScreenMatchMode.Expand,
+                            scaler.screenMatchMode);
         }
 
         [Test]
-        public void Open_portrait_reference_sets_match_one()
+        public void Open_portrait_reference_uses_expand()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
@@ -141,11 +142,13 @@ namespace PromptUGUI.Tests.Application
             UI.LoadDocument("t", xml);
             var screen = UI.Open("S");
             var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
-            Assert.AreEqual(1f, scaler.matchWidthOrHeight);
+            Assert.AreEqual(new UnityEngine.Vector2(1080, 1920), scaler.referenceResolution);
+            Assert.AreEqual(UnityEngine.UI.CanvasScaler.ScreenMatchMode.Expand,
+                            scaler.screenMatchMode);
         }
 
         [Test]
-        public void Open_square_reference_sets_match_zero()
+        public void Open_square_reference_uses_expand()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
@@ -154,7 +157,8 @@ namespace PromptUGUI.Tests.Application
             UI.LoadDocument("t", xml);
             var screen = UI.Open("S");
             var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
-            Assert.AreEqual(0f, scaler.matchWidthOrHeight);
+            Assert.AreEqual(UnityEngine.UI.CanvasScaler.ScreenMatchMode.Expand,
+                            scaler.screenMatchMode);
         }
 
         [Test]
@@ -192,13 +196,13 @@ namespace PromptUGUI.Tests.Application
             var screen = UI.Open("S");
             var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
             Assert.AreEqual(new UnityEngine.Vector2(1920, 1080), scaler.referenceResolution);
-            Assert.AreEqual(0f, scaler.matchWidthOrHeight);
 
             UI.Variants.Set("mobile", true);
             try
             {
                 Assert.AreEqual(new UnityEngine.Vector2(1080, 1920), scaler.referenceResolution);
-                Assert.AreEqual(1f, scaler.matchWidthOrHeight);
+                Assert.AreEqual(UnityEngine.UI.CanvasScaler.ScreenMatchMode.Expand,
+                                scaler.screenMatchMode);
             }
             finally { UI.Variants.Set("mobile", false); }
         }
@@ -241,7 +245,46 @@ namespace PromptUGUI.Tests.Application
             UI.Variants.Set("mobile", true);
             UI.Variants.Set("mobile", false);
             Assert.AreEqual(new UnityEngine.Vector2(1920, 1080), scaler.referenceResolution);
-            Assert.AreEqual(0f, scaler.matchWidthOrHeight);
+            Assert.AreEqual(UnityEngine.UI.CanvasScaler.ScreenMatchMode.Expand,
+                            scaler.screenMatchMode);
+        }
+
+        [Test]
+        public void Auto_factor_scales_by_the_tighter_axis_on_a_tall_phone()
+        {
+            // 1080x1920 design on a 1179x2556 phone (taller than 16:9). Width is the
+            // tighter axis (1179/1080 = 1.092 < 2556/1920 = 1.331), so Expand scales by
+            // width and the full 1080 design width still fits; the slack lands on height.
+            // The retired lock-by-orientation rule locked height here and pushed ~194
+            // design units of width off-screen. 'Nx' divides by the cached factor, which
+            // is how the choice becomes observable.
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(1179f, 2556f);
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' reference='1080x1920'><Frame id='f' scale='1x'/></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(1080f / 1179f, rt.localScale.x, 1e-5f);
+        }
+
+        [Test]
+        public void Auto_factor_scales_by_the_tighter_axis_on_an_ultrawide_desktop()
+        {
+            // 1920x1080 design on 2560x1080 (21:9). Height is the tighter axis
+            // (1080/1080 = 1 < 2560/1920 = 1.333), so the full 1080 design height fits
+            // and the extra width is slack. Locking width would have scaled 1.333x and
+            // cropped 270 design units of height.
+            UI.CanvasSizeOverride = () => new UnityEngine.Vector2(2560f, 1080f);
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S' reference='1920x1080'><Frame id='f' scale='1x'/></Screen>
+</PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var rt = screen.Get("f").RectTransform;
+            Assert.AreEqual(1f, rt.localScale.x, 1e-5f);
         }
     }
 }
