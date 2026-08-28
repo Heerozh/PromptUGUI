@@ -229,7 +229,9 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 
 `<Screen>` 上可选属性 `reference="WxH"` 把 CanvasScaler 切到 `ScaleWithScreenSize`，
 `referenceResolution` 即该值。不设 = `ConstantPixelSize, scaleFactor=1`（零迁移默认）。
-`matchWidthOrHeight` 按朝向自动推断：W ≥ H → 0（锁宽），H > W → 1（锁高）。
+`screenMatchMode = Expand`（since 2026-08-28，取代原先按朝向推断 `matchWidthOrHeight` 的规则）：
+`scaleFactor = min(屏宽/参考宽, 屏高/参考高)`，更吃紧的那条边决定缩放，参考矩形在任何
+宽高比下都完整放得下；画布两轴测量值仍 ≥ 参考尺寸，故拉伸锚定的背景照常铺满。
 支持 `.variant` 形态（`reference.mobile="1080x1920"`），变体翻转时通过 `ReSolve`
 立即重应用。完整设计见独立 spec
 [`2026-05-13-screen-reference-resolution-design.md`](2026-05-13-screen-reference-resolution-design.md)。

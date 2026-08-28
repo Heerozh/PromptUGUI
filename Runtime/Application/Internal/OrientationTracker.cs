@@ -40,8 +40,8 @@ namespace PromptUGUI.Application.Internal
                 ? ScreenSizeOverride()
                 : new Vector2(UnityEngine.Screen.width, UnityEngine.Screen.height);
             if (size.x <= 0f || size.y <= 0f) return;
-            // 等宽高视为 landscape：与 `Screen.ApplyCanvasScaler` 里
-            // `size.x >= size.y` 锁宽的判定保持一致。
+            // 等宽高视为 landscape：任意但稳定的 fallback（正方形屏幕极少见），
+            // 两个 reserved variant 必须互斥、总有一个成立。
             UI.Orientation.Set(size.y > size.x);
         }
     }

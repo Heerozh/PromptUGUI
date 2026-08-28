@@ -285,7 +285,7 @@ await UI.Locale.SetAsync("en");   // waits for download + refresh to finish (use
 
 ## 7. XML Authoring Best Practices
 
-**`<Screen>`: use `reference` + `reference.portrait` so one XML serves both landscape and portrait.** `reference` is the design resolution; the CanvasScaler switches to scale-with-screen and auto-locks the edge by orientation (lock width when W≥H, lock height when H>W). `portrait` / `landscape` are orientation variants the library **tracks automatically** (see Variant below).
+**`<Screen>`: use `reference` + `reference.portrait` so one XML serves both landscape and portrait.** `reference` is the design resolution; the CanvasScaler switches to scale-with-screen in Expand mode: it scales by whichever axis is tighter (`min(screenW/refW, screenH/refH)`), so the whole design always fits on any aspect ratio and is never cropped — the slack lands on the looser axis, absorbed by edge anchoring and `<SafeArea>`. `portrait` / `landscape` are orientation variants the library **tracks automatically** (see Variant below).
 
 ```xml
 <Screen name="MainMenu" reference="640x360" reference.portrait="360x640">

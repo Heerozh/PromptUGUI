@@ -258,16 +258,22 @@ namespace PromptUGUI.Application
             var size = parsed.Value;
             scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = size;
-            scaler.matchWidthOrHeight = size.x >= size.y ? 0f : 1f;
-            // Cache the effective factor for 'Nx' scale. Replicates Unity's
-            // ScaleWithScreenSize output at the match endpoints we use (0 → width-locked,
-            // 1 → height-locked). Same screen-size source as pixel mode.
+            // Expand, not a matchWidthOrHeight heuristic: scaleFactor = min(screen/ref per
+            // axis), so whichever axis is tighter drives the scale and the whole reference
+            // rect always fits — the design is never cropped by an aspect the author did
+            // not anticipate (ultrawide desktops, phones taller than 16:9). The canvas
+            // still covers the screen; it just measures >= reference on both axes, so
+            // stretched backgrounds keep filling and the slack lands on the looser axis.
+            // A locked-edge look (or 0.5) is still reachable via CanvasConfigurator.
+            scaler.screenMatchMode = UnityEngine.UI.CanvasScaler.ScreenMatchMode.Expand;
+            // Cache the effective factor for 'Nx' scale — replicates the Expand formula
+            // above. Same screen-size source as pixel mode. Both reference dimensions are
+            // parser-guaranteed positive (ReferenceSyntax); a degenerate screen size falls
+            // back to 1 in ApplyScales, which already guards on factor > 0.
             var screenPx = UI.CanvasSizeOverride != null
                 ? UI.CanvasSizeOverride()
                 : ReadCanvasRectSize();
-            _canvasFactor = size.x >= size.y
-                ? (size.x > 0f ? screenPx.x / size.x : 1f)
-                : (size.y > 0f ? screenPx.y / size.y : 1f);
+            _canvasFactor = UnityEngine.Mathf.Min(screenPx.x / size.x, screenPx.y / size.y);
         }
 
         private void ApplyPixel(UnityEngine.UI.CanvasScaler scaler)
