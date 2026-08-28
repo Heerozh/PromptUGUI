@@ -217,6 +217,38 @@ float4 PuguiOver(float4 src, float4 dst)
     return float4(rgb, a);
 }
 
+// ---- 两层发光 ----
+//
+// 三个面板 shader（不透明 / 玻璃 / 融合）逐字共用这两个函数，而不是各抄一份四行 ——
+// 内外发光必须是**同一条曲线的镜像**：glow 与 innerGlow 等宽时，读起来要是跨越边缘的一整圈
+// 对称光晕，而不是两种手感的光拼在一起。三份复制迟早会漂移成后者。
+//
+// size == 0 必须整段跳过。这是 uniform 分支，全体 fragment 走同一条路径，开销可忽略。
+
+// 外发光：只在形状**外侧**（d > 0）衰减，画在已有内容的**下面**。
+// 平方让边缘更快收住，更像光晕而不是色块。
+float4 PuguiApplyOuterGlow(float4 col, float d, float inside, float size, float4 color)
+{
+    if (size <= 0.0) return col;
+    float g = saturate(1.0 - d / size);
+    color.a *= g * g * (1.0 - inside);
+    return PuguiOver(col, color);
+}
+
+// 内发光：只在形状**内侧**（-size < d < 0）衰减，画在填充之**上**。
+//
+// 起点是形状边缘 d = 0，不是描边内沿（Photoshop Inner Glow 语义）：库里最常见的细半透明描边
+// （white/0.4 之流）下，发光会延续到描边底下、边缘无缝；改成从描边内沿量，那个常见配置里
+// 描边带就会比紧邻的发光暗，边缘冒出一条 1px 暗缝。粗不透明描边会盖掉最外几 px，作者把数值
+// 调大即可 —— 用一个罕见配置的精度换一个常见配置的正确。
+float4 PuguiApplyInnerGlow(float4 col, float d, float inside, float size, float4 color)
+{
+    if (size <= 0.0) return col;
+    float g = saturate(1.0 + d / size);
+    color.a *= g * g * inside;
+    return PuguiOver(color, col);
+}
+
 // ---- 装饰原语（<Decor>）的形状层 ----
 //
 // 三个形状都在**规范朝向**里定义：bracket 抱住自己包围盒的左上角，tick 尖端朝下。

@@ -41,7 +41,7 @@ namespace PromptUGUI.Lint
         {
             GlassAttrParser.Frost, GlassAttrParser.Dispersion, GlassAttrParser.LightAngle,
             GlassAttrParser.LightIntensity, GlassAttrParser.Saturation, GlassAttrParser.Noise,
-            "borderWidth", "borderColor", "glow", "glowColor",
+            "borderWidth", "borderColor", "glow", "glowColor", "innerGlow", "innerGlowColor",
         };
 
         /// <summary>

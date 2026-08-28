@@ -175,6 +175,33 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void InnerGlow_ComesFromTheContainer()
+        {
+            // It follows the FUSED outline, so like the border and the outer glow it belongs to the
+            // container — a per-member inner glow would trace exactly the dividing lines the weld
+            // exists to remove.
+            var mat = GroupOf(Open(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='g' weld='10' innerGlow='12' innerGlowColor='#ff0000' anchor='top-left'
+         width='200' height='100'>
+    <Frame id='a' glass='true' anchor='top-left' width='100' height='40'/>
+    <Frame id='b' glass='true' anchor='bottom-right' width='60' height='30'/>
+  </Frame>
+</Screen></PromptUGUI>"), "g").MaterialForTests;
+
+            Assert.AreEqual(12f, mat.GetFloat("_InnerGlowSize"), 0.001f);
+            Assert.AreEqual(new Color(1f, 0f, 0f, 1f), mat.GetColor("_InnerGlowColor"));
+        }
+
+        [Test]
+        public void InnerGlow_DefaultsToNoneOnTheGroup()
+        {
+            var mat = GroupOf(Open(TwoBlocks), "g").MaterialForTests;
+            Assert.AreEqual(0f, mat.GetFloat("_InnerGlowSize"), 0.001f,
+                "nobody wrote innerGlow, so the fused pane must not sprout one");
+        }
+
+        [Test]
         public void GroupParams_FallBackToDefaultsWithoutAContainerPanel()
         {
             var mat = GroupOf(Open(@"<?xml version='1.0' encoding='utf-8'?>

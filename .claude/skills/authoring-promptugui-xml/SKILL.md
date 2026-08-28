@@ -81,7 +81,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 
 | Tag | 用途 |
 |---|---|
-| `<Frame>` | 容器；可选程序化视觉（`color` / `radius` / `borderWidth` / `glow`）+ `mask="rect"` / `mask="self"`（裁成自绘形状）|
+| `<Frame>` | 容器；可选程序化视觉（`color` / `radius` / `borderWidth` / `glow` / `innerGlow`）+ `mask="rect"` / `mask="self"`（裁成自绘形状）|
 | `<SafeArea>` | 撑满父级、按设备安全区内缩（见本节末 **Safe area** 小节） |
 | `<Image>` | uGUI Image：sprite + 等比适配 + mask |
 | `<RawImage>` | uGUI RawImage：C# 设 Texture（动态图）+ contain/cover 适配 + mask |
@@ -109,7 +109,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 
 ### `<Frame>`
 
-Container. With none of the visual attributes below it is a bare `RectTransform` — no `Graphic`, no cost. Write any of them and Frame draws itself procedurally (rounded-rect SDF shader, no sprite): fill, corner radius, inner border, outer glow. Optional `RectMask2D` (`mask="rect"`), or a stencil clip to its own drawn shape (`mask="self"` — needs one of the visual attributes, since that is what gives the Frame a `Graphic`).
+Container. With none of the visual attributes below it is a bare `RectTransform` — no `Graphic`, no cost. Write any of them and Frame draws itself procedurally (rounded-rect SDF shader, no sprite): fill, corner radius, inner border, inner glow, outer glow. Optional `RectMask2D` (`mask="rect"`), or a stencil clip to its own drawn shape (`mask="self"` — needs one of the visual attributes, since that is what gives the Frame a `Graphic`).
 
 There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAINER-VISUAL-ATTR`) — use `<Image>` for sprite-based skins. A Frame never blocks clicks even when it draws; for a tinted clickable region use `<Btn>`.
 
@@ -124,6 +124,8 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 | `borderColor` | hex / CSS / token / `/alpha`. **纯色 only** | `white` | 渐变值 = parse error |
 | `glow` | px | `0` | Outer glow radius. Inflates the drawn quad by this much (layout rect unchanged) |
 | `glowColor` | hex / CSS / token / `/alpha`. **纯色 only** | 跟随 `color` | Unset → the fill colour at full alpha, so `glow="12"` alone reads as "this shape glows" |
+| `innerGlow` | px | `0` | Inner glow — light falling off **inwards** from the outline. Pure material, so unlike `glow` it never touches the geometry |
+| `innerGlowColor` | hex / CSS / token / `/alpha`. **纯色 only** | `white` | Deliberately *not* the fill: an inner glow in the fill's own colour is invisible on an opaque fill. `/alpha` is the strength knob; a **dark** value is an inset shadow |
 | `glass` | `true` / `false` | `false` | Frosted-glass fill: the shape shows a blurred copy of the camera image instead of a flat colour. `color` becomes a tint on top of it. → `reference/glass.md` |
 | `frost` · `depth` · `dispersion` · `lightAngle` · `lightIntensity` · `saturation` · `noise` | 数值 | 见 glass.md | Glass tuning. Ignored without `glass="true"` (`PUI-GLASS-PARAM-NO-GLASS`) |
 | `weld` | px | `0` | Fuses this Frame's **direct glass children** into one continuous pane. → `reference/glass.md` |
@@ -132,7 +134,11 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 <Frame color="surface/0.9" radius="16" borderWidth="1" borderColor="stroke/0.15"/>
 <Frame radius="pill" color="accent,accent-dark"/>          <!-- 胶囊 + 上下渐变 -->
 <Frame borderWidth="2" borderColor="#fff"/>                <!-- 无填充 = 空心描边框 -->
-<Frame color="danger" radius="20" glow="18"/>              <!-- 发光 -->
+<Frame color="danger" radius="20" glow="18"/>              <!-- 外发光 -->
+<Frame color="#c08f36" radius="hexagon 70" innerGlow="28"
+       innerGlowColor="#fff6cf" borderWidth="2"/>          <!-- 边缘被照亮的金属牌 -->
+<Frame color="surface" radius="12" innerGlow="20"
+       innerGlowColor="black/0.35"/>                       <!-- 深色 = 内阴影 / 边缘暗角 -->
 <Frame color="#1b263b" radius="0,0,16,16"/>                <!-- 只圆下面两角 -->
 <Frame color="accent" radius="cut 16"/>                    <!-- 四角 45° 斜切 -->
 <Frame color="accent" radius="hexagon"/>                   <!-- 左右收成尖的六边形 -->
@@ -142,7 +148,8 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 </Frame>
 ```
 
-- Only `glow` is affected by a **祖先** `RectMask2D` clipping the extra quad away; a Frame's own `mask="rect"` / `mask="self"` clips its children, never itself.
+- Only `glow` is affected by a **祖先** `RectMask2D` clipping the extra quad away; a Frame's own `mask="rect"` / `mask="self"` clips its children, never itself. `innerGlow` paints strictly inside the shape, so nothing clips it and it costs no extra overdraw.
+- **`innerGlow` is measured from the shape edge**, and an inner border is painted on top of it. A thin translucent `borderColor` (`white/0.4` and friends) lets the glow continue seamlessly underneath; a thick opaque border covers the outermost `borderWidth` px of the band, so raise `innerGlow` to compensate.
 - `mask="self"` clips to the **shape**, not to what the Frame paints: an outer `glow` does not widen the clip, and a Frame with a `radius` but no `color` still clips (that is the invisible-clipper form above). So `radius=` alone is enough to define the mask.
 - Colour / radius / border changes are material-only — a Variant flip or a colour animation never rebuilds the canvas mesh. Frames sharing identical values (typically via `class=`) share one material and keep batching.
 - Layout-only containers (`<VStack>` / `<HStack>` / `<Grid>` / `<SafeArea>`) draw nothing — wrap them in a `<Frame>` for a background.
@@ -172,11 +179,11 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 
 - **Mix freely per corner**: `radius="cut 16, 8, notch 8, 0"` is four different treatments.
 - **`pill` and `hexagon` are whole-shape keywords** — writing one inside a four-value list is a parse error. Both resolve against the live rect, so they follow a resizing panel on their own; `hexagon` in particular keeps its tips exactly at half height, which hand-written `cut` values would lose the moment the height changed.
-- **Border, glow, glass and `mask="self"` follow the new outline automatically** — no extra attributes, and an inner border keeps its width around a chamfer and around the inner corner of a notch.
+- **Border, both glows, glass and `mask="self"` follow the new outline automatically** — no extra attributes, and an inner border keeps its width around a chamfer and around the inner corner of a notch.
 - **One exception: `weld`.** A weld group fuses its members with a smooth union, which rounds every corner back off, so a welded block's treatment degrades to a plain round corner of the same reach. `PUI-WELD-CORNER` warns; see `reference/glass.md`.
 - Keywords are lower-case. `bevel` / `scoop` / `CUT` are parse errors that name the legal words.
 
-> **Which tags draw procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `glass` (+ its tuning params) work on **`<Frame>`, `<Btn>`, `<Tab>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>` and `<Progress>`** — see **Procedural surfaces** below for what they do on a control.
+> **Which tags draw procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `innerGlow` / `innerGlowColor` / `glass` (+ its tuning params) work on **`<Frame>`, `<Btn>`, `<Tab>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>` and `<Progress>`** — see **Procedural surfaces** below for what they do on a control.
 >
 > On any other tag — `<Image>`, `<RawImage>`, `<Text>`, `<Icon>`, `<TabBar>`, `<Carousel>`, `<Markdown>` — they are accepted by the parser and then silently dropped; `PUI-CONTAINER-VISUAL-ATTR` is the only thing that tells you. (`<Image>` / `<RawImage>` are deliberate: a sprite is their whole point, and a procedural rectangle is what `<Frame>` is for.)
 >
@@ -278,7 +285,7 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 | `tr` | bool | `true` | `false`=跳过 i18n |
 | `ctx` | string | — | msgctxt 消歧 |
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
-| `radius` · `borderWidth` · `borderColor` · `glow` · `glowColor` · `glass` (+ 玻璃调参) | 同 `<Frame>` | — | **程序化表面**，见下节 |
+| `radius` · `borderWidth` · `borderColor` · `glow` · `glowColor` · `innerGlow` · `innerGlowColor` · `glass` (+ 玻璃调参) | 同 `<Frame>` | — | **程序化表面**，见下节 |
 
 ### 程序化表面（`<Frame>` 之外的控件）
 
@@ -288,6 +295,8 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 <Btn radius="pill" color="accent" hoverColor="accent-light">确定</Btn>
 <Btn radius="12" glass="true" borderWidth="1" borderColor="white/0.5">玻璃按钮</Btn>
 <Tab radius="cut 14, cut 14, 0, 0">主页</Tab>                              <!-- 梯形页签 -->
+<Btn radius="hexagon 70" color="#efdca6,#c08f36" innerGlow="30"
+     innerGlowColor="#fff6cf" borderWidth="2" glow="36">开始匹配</Btn>       <!-- 发光金属牌 -->
 <Style name="skin" radius="10" borderWidth="1" borderColor="white/0.4"/>   <!-- 一个包换整套 -->
 ```
 
@@ -621,7 +630,7 @@ Other notes:
 **不变量与易踩坑**
 
 - 容器根上**都没有** `Image`,所以 `sprite=` 在它们上面一律无效。要 **sprite 底图**有两种写法,**优先用前者**:(1) 背景区域跟内容同区 → 直接拿 `<Image>` 当容器: `<Image sprite="...">...content...</Image>`(`<Image>` 是普通 Control,允许子节点,少一层节点);(2) 背景比内容更大(整屏底图 + 居中面板这类) → `<Image anchor="stretch"/>` 当**兄弟**放在内容之前(`<SafeArea>` 是唯一不可见还必须用兄弟模式的特例,因为它的 RectTransform 已经被 safeArea 偏移占用)。
-- 要**纯色 / 圆角 / 描边 / 发光**这类无图素底,直接写在 `<Frame>` 上(`color` / `radius` / `borderWidth` / `glow`,见 `<Frame>` 小节)——`<Frame>` 自己会画。`<*Stack>` / `<Grid>` / `<SafeArea>` 仍然只管排版、画不出任何东西,要底就外面套一层 `<Frame>`。
+- 要**纯色 / 圆角 / 描边 / 内外发光**这类无图素底,直接写在 `<Frame>` 上(`color` / `radius` / `borderWidth` / `glow` / `innerGlow`,见 `<Frame>` 小节)——`<Frame>` 自己会画。`<*Stack>` / `<Grid>` / `<SafeArea>` 仍然只管排版、画不出任何东西,要底就外面套一层 `<Frame>`。
 - `<Btn>` 的 Label 是 lazy：写 `<Btn/>`（无 `text=`、无子 `<Text>`、无内联文本）不会有 Label 子 GO；之后 C# 设 `BtnInstance.Text = "x"` 才会现场补一个。
 - `<Toggle>` 的 `targetGraphic` / `graphic` 在 `OnAttached` 内已绑死（Background / Checkmark），外部别再设；`group=` 不直接绑 Unity `ToggleGroup`，而是落到 `Screen.ToggleGroups.GetOrCreate(name)` 这个 Screen 范围的共享池里。
 - `<ScrollList>` 的 item 子节点在 `OnAttached` 阶段是空的，必须在 C# 端 `BindItems(observable, (slot, item) => ...)` 之后才出现；hot-reload 后也要重新 Bind。

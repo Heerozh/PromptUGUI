@@ -6,8 +6,8 @@ using UnityEngine.UI;
 namespace PromptUGUI.Controls.Internal
 {
     /// <summary>
-    /// Draws a rounded rectangle — fill (optionally a vertical gradient), inner border and outer
-    /// glow — straight from a signed distance field, with no sprite involved. With
+    /// Draws a rounded rectangle — fill (optionally a vertical gradient), inner border, inner glow
+    /// and outer glow — straight from a signed distance field, with no sprite involved. With
     /// <c>glass="true"</c> the fill becomes a blurred sample of the captured backdrop plus edge
     /// refraction and lighting; the shape, border and glow are the same SDF either way. Lazily
     /// attached by <see cref="Frame"/> the first time the author writes one of the procedural visual
@@ -18,8 +18,8 @@ namespace PromptUGUI.Controls.Internal
     /// <item>Colour / radius / border / glow-colour changes touch only the material, so a Variant
     /// flip or a colour tween never rebuilds the canvas mesh.</item>
     /// <item>Attribute writes only flag the material dirty; the parameters are resolved once per
-    /// canvas rebuild (see <see cref="FlushParams"/>), so applying fourteen attributes at
-    /// instantiation costs one material lookup, not fourteen.</item>
+    /// canvas rebuild (see <see cref="FlushParams"/>), so applying sixteen attributes at
+    /// instantiation costs one material lookup, not sixteen.</item>
     /// <item>Geometry is dirtied only when the glow radius (which inflates the quad) or overall
     /// visibility changes.</item>
     /// <item>A fully transparent panel emits no geometry at all — zero overdraw, which is the
@@ -40,9 +40,13 @@ namespace PromptUGUI.Controls.Internal
         private Color _borderColor = Color.white;
         private Color _glowColor = Color.white;
         private bool _glowColorExplicit;
+        // No "explicit" twin: unlike the outer glow this one does not fall back to the fill, so
+        // white IS the default rather than a stand-in for one (spec 2026-08-28 §5.4).
+        private Color _innerGlowColor = Color.white;
         private RadiusSpec _radius = RadiusSpec.Zero;
         private float _borderWidth;
         private float _glowSize;
+        private float _innerGlowSize;
 
         private bool _glass;
         private float _frost = GlassAttrParser.DefaultFrost;
@@ -186,6 +190,18 @@ namespace PromptUGUI.Controls.Internal
             MarkDirty();
         }
 
+        public void SetInnerGlowSize(float size)
+        {
+            _innerGlowSize = Mathf.Max(0f, size);
+            MarkDirty();
+        }
+
+        public void SetInnerGlowColor(Color color)
+        {
+            _innerGlowColor = color;
+            MarkDirty();
+        }
+
         public void SetGlass(bool glass)
         {
             if (_glass == glass) return;
@@ -271,6 +287,7 @@ namespace PromptUGUI.Controls.Internal
             var fillTop = _fillTop;
             var fillBottom = _fillBottom;
             var border = _borderColor;
+            var innerGlow = _innerGlowColor;
             if (_grayed)
             {
                 // Disabled greying has to happen HERE, inside the parameters, not by swapping the
@@ -282,6 +299,7 @@ namespace PromptUGUI.Controls.Internal
                 fillBottom = Desaturate(fillBottom);
                 border = Desaturate(border);
                 glow = Desaturate(glow);
+                innerGlow = Desaturate(innerGlow);
                 if (_glass)
                     // Grey glass AND thin glass: dropping saturation alone still reads as a live,
                     // refracting pane. A disabled control should look inert, so the bevel goes too.
@@ -290,8 +308,8 @@ namespace PromptUGUI.Controls.Internal
                                                   0f, _noise);
             }
 
-            return new PanelParams(fillTop, fillBottom, border, glow, _radius,
-                                   _borderWidth, _glowSize, _glass, glassParams);
+            return new PanelParams(fillTop, fillBottom, border, glow, innerGlow, _radius,
+                                   _borderWidth, _glowSize, _innerGlowSize, _glass, glassParams);
         }
 
         /// <summary>
@@ -364,6 +382,9 @@ namespace PromptUGUI.Controls.Internal
             if (_fillTop.a > 0f || _fillBottom.a > 0f) return true;
             if (_borderWidth > 0f && _borderColor.a > 0f) return true;
             if (_glowSize > 0f) return true;
+            // A ring of light with no fill behind it is a legitimate look, same standing as the
+            // border-only hollow box above.
+            if (_innerGlowSize > 0f && _innerGlowColor.a > 0f) return true;
             return false;
         }
 
@@ -379,7 +400,7 @@ namespace PromptUGUI.Controls.Internal
         /// <summary>
         /// Records that the parameters changed, without touching the material. Resolving is deferred
         /// to <see cref="FlushParams"/> so a run of attribute writes — instantiation applies up to
-        /// fourteen of them — collapses into a single cache lookup.
+        /// sixteen of them — collapses into a single cache lookup.
         /// </summary>
         private void MarkDirty()
         {

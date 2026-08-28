@@ -71,6 +71,23 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Glass_CarriesTheInnerGlow()
+        {
+            // Same SDF, same four layers of light — only the *fill* differs between the two
+            // shaders, so an inner glow has to reach the glass material identically.
+            var p = PanelOf(Load("glass='true' innerGlow='14' innerGlowColor='#fff3c4/0.8'"));
+            Assert.AreEqual(14f, p.CurrentParams.InnerGlowSize);
+            Assert.AreEqual(new Color(1f, 243f / 255f, 196f / 255f, 0.8f),
+                            p.CurrentParams.InnerGlowColor);
+        }
+
+        [Test]
+        public void GlassInnerGlowOnly_IsStillVisible()
+        {
+            Assert.IsTrue(PanelOf(Load("glass='true' innerGlow='10'")).IsPanelVisible);
+        }
+
+        [Test]
         public void NonGlassPanel_KeepsUsingTheOpaqueShader()
         {
             var f = Load("color='#ff0000' width='100' height='50'");

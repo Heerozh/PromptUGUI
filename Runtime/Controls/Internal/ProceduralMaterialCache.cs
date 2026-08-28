@@ -74,6 +74,12 @@ namespace PromptUGUI.Controls.Internal
         public readonly Color FillBottom;
         public readonly Color BorderColor;
         public readonly Color GlowColor;
+        /// <summary>
+        /// Inner glow tint. Unlike <see cref="GlowColor"/> it does NOT fall back to the fill — an
+        /// inner glow in the fill's own colour is invisible on an opaque fill, which is the common
+        /// case, so the default is plain white (spec 2026-08-28 §5.4).
+        /// </summary>
+        public readonly Color InnerGlowColor;
         /// <summary>Per-corner horizontal reach in CSS order; the radius when the corner is round.</summary>
         public readonly Vector4 CornerWidth;
         /// <summary>Per-corner vertical reach in CSS order; mirrors the width for a round corner.</summary>
@@ -85,6 +91,8 @@ namespace PromptUGUI.Controls.Internal
         public readonly float HexWidth;
         public readonly float BorderWidth;
         public readonly float GlowSize;
+        /// <summary>Inner glow band width, measured inwards from the shape edge.</summary>
+        public readonly float InnerGlowSize;
         public readonly bool Glass;
         public readonly GlassParams GlassParams;
 
@@ -94,13 +102,15 @@ namespace PromptUGUI.Controls.Internal
         /// rect, which is what keeps two same-styled panels of different sizes on one material.
         /// </summary>
         public PanelParams(Color fillTop, Color fillBottom, Color borderColor, Color glowColor,
-                           in RadiusSpec radius, float borderWidth, float glowSize,
+                           Color innerGlowColor, in RadiusSpec radius, float borderWidth,
+                           float glowSize, float innerGlowSize,
                            bool glass = false, GlassParams glassParams = default)
         {
             FillTop = fillTop;
             FillBottom = fillBottom;
             BorderColor = borderColor;
             GlowColor = glowColor;
+            InnerGlowColor = innerGlowColor;
             CornerWidth = new Vector4(radius.TopLeftCorner.Width, radius.TopRightCorner.Width,
                                       radius.BottomRightCorner.Width, radius.BottomLeftCorner.Width);
             CornerHeight = new Vector4(radius.TopLeftCorner.Height, radius.TopRightCorner.Height,
@@ -111,6 +121,7 @@ namespace PromptUGUI.Controls.Internal
             HexWidth = radius.HexWidth;
             BorderWidth = borderWidth;
             GlowSize = glowSize;
+            InnerGlowSize = innerGlowSize;
             Glass = glass;
             GlassParams = glassParams;
         }
@@ -120,9 +131,11 @@ namespace PromptUGUI.Controls.Internal
         public bool Equals(PanelParams o) =>
             FillTop == o.FillTop && FillBottom == o.FillBottom
             && BorderColor == o.BorderColor && GlowColor == o.GlowColor
+            && InnerGlowColor == o.InnerGlowColor
             && CornerWidth == o.CornerWidth && CornerHeight == o.CornerHeight
             && CornerKinds == o.CornerKinds && Shape == o.Shape && HexWidth == o.HexWidth
             && BorderWidth == o.BorderWidth && GlowSize == o.GlowSize
+            && InnerGlowSize == o.InnerGlowSize
             && Glass == o.Glass
             // Short-circuit: an opaque panel's glass block is always None, so there is nothing to
             // compare — and opaque is the overwhelmingly common case.
@@ -138,6 +151,7 @@ namespace PromptUGUI.Controls.Internal
                 h = (h * 397) ^ FillBottom.GetHashCode();
                 h = (h * 397) ^ BorderColor.GetHashCode();
                 h = (h * 397) ^ GlowColor.GetHashCode();
+                h = (h * 397) ^ InnerGlowColor.GetHashCode();
                 h = (h * 397) ^ CornerWidth.GetHashCode();
                 h = (h * 397) ^ CornerHeight.GetHashCode();
                 h = (h * 397) ^ CornerKinds.GetHashCode();
@@ -145,6 +159,7 @@ namespace PromptUGUI.Controls.Internal
                 h = (h * 397) ^ HexWidth.GetHashCode();
                 h = (h * 397) ^ BorderWidth.GetHashCode();
                 h = (h * 397) ^ GlowSize.GetHashCode();
+                h = (h * 397) ^ InnerGlowSize.GetHashCode();
                 h = (h * 397) ^ Glass.GetHashCode();
                 if (Glass) h = (h * 397) ^ GlassParams.GetHashCode();
                 return h;
@@ -177,6 +192,7 @@ namespace PromptUGUI.Controls.Internal
         private static readonly int FillBottomId = Shader.PropertyToID("_FillBottom");
         private static readonly int BorderColorId = Shader.PropertyToID("_BorderColor");
         private static readonly int GlowColorId = Shader.PropertyToID("_GlowColor");
+        private static readonly int InnerGlowColorId = Shader.PropertyToID("_InnerGlowColor");
         private static readonly int RadiusId = Shader.PropertyToID("_Radius");
         private static readonly int CornerHeightId = Shader.PropertyToID("_CornerH");
         private static readonly int CornerKindId = Shader.PropertyToID("_CornerKind");
@@ -184,6 +200,7 @@ namespace PromptUGUI.Controls.Internal
         private static readonly int HexWidthId = Shader.PropertyToID("_HexW");
         private static readonly int BorderWidthId = Shader.PropertyToID("_BorderWidth");
         private static readonly int GlowSizeId = Shader.PropertyToID("_GlowSize");
+        private static readonly int InnerGlowSizeId = Shader.PropertyToID("_InnerGlowSize");
 
         // Seven glass floats ride two vectors: fewer SetX calls, and the light angle arrives as a
         // direction so the shader never runs sin/cos per fragment.
@@ -258,6 +275,7 @@ namespace PromptUGUI.Controls.Internal
             mat.SetColor(FillBottomId, p.FillBottom);
             mat.SetColor(BorderColorId, p.BorderColor);
             mat.SetColor(GlowColorId, p.GlowColor);
+            mat.SetColor(InnerGlowColorId, p.InnerGlowColor);
             mat.SetVector(RadiusId, p.CornerWidth);
             mat.SetVector(CornerHeightId, p.CornerHeight);
             mat.SetVector(CornerKindId, p.CornerKinds);
@@ -265,6 +283,7 @@ namespace PromptUGUI.Controls.Internal
             mat.SetFloat(HexWidthId, p.HexWidth);
             mat.SetFloat(BorderWidthId, p.BorderWidth);
             mat.SetFloat(GlowSizeId, p.GlowSize);
+            mat.SetFloat(InnerGlowSizeId, p.InnerGlowSize);
             if (!p.Glass) return;
 
             var g = p.GlassParams;

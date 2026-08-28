@@ -18,6 +18,7 @@ Shader "UI/GlassPanel"
         _FillBottom  ("Fill Bottom",  Color) = (0,0,0,0)
         _BorderColor ("Border Color", Color) = (1,1,1,1)
         _GlowColor   ("Glow Color",   Color) = (1,1,1,1)
+        _InnerGlowColor ("Inner Glow Color", Color) = (1,1,1,1)
 
         // 四个逐角向量一律是 xyzw = top-left, top-right, bottom-right, bottom-left
         // （CSS border-radius 顺序）。_Radius 是每个角的**水平**伸出量，圆角时即半径。
@@ -29,6 +30,7 @@ Shader "UI/GlassPanel"
         _HexW        ("Hexagon Tip Reach (0 = auto)", Float) = 0
         _BorderWidth ("Border Width",  Float) = 0
         _GlowSize    ("Glow Size",     Float) = 0
+        _InnerGlowSize ("Inner Glow Size", Float) = 0
 
         // 七个玻璃参数打包成两个向量：少几次 SetX，且光照角在 CPU 侧就化成方向，
         // fragment 里不用跑 sin/cos。
@@ -114,6 +116,7 @@ Shader "UI/GlassPanel"
             fixed4 _FillBottom;
             fixed4 _BorderColor;
             fixed4 _GlowColor;
+            fixed4 _InnerGlowColor;
             float4 _Radius;
             float4 _CornerH;
             float4 _CornerKind;
@@ -121,6 +124,7 @@ Shader "UI/GlassPanel"
             float _HexW;
             float _BorderWidth;
             float _GlowSize;
+            float _InnerGlowSize;
             float4 _GlassA;
             float4 _GlassB;
 
@@ -235,14 +239,13 @@ Shader "UI/GlassPanel"
                 tint.a *= inside;
                 float4 col = PuguiOver(tint, base);
 
+                // 内发光：外发光的镜像 —— 画在形状内侧、压在填充之上。
+                // 排在外发光之前，让外发光的 under 合成看到「填充 + 内发光」这一个完整实心体
+                // （两者除 AA 那一像素外并不相交，所以顺序只影响那一像素）。
+                col = PuguiApplyInnerGlow(col, d, inside, _InnerGlowSize, _InnerGlowColor);
+
                 // 外发光：仅在形状外侧衰减。
-                if (_GlowSize > 0.0)
-                {
-                    float g = saturate(1.0 - d / _GlowSize);
-                    float4 glow = _GlowColor;
-                    glow.a *= g * g * (1.0 - inside);
-                    col = PuguiOver(col, glow);
-                }
+                col = PuguiApplyOuterGlow(col, d, inside, _GlowSize, _GlowColor);
 
                 // 内描边：低对比背景下物理高光会消失，而 UI 的边界不能跟着消失 —— 这一层是保底。
                 if (_BorderWidth > 0.0)

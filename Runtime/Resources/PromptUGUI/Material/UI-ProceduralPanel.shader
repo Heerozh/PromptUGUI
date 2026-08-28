@@ -16,6 +16,7 @@ Shader "UI/ProceduralPanel"
         _FillBottom  ("Fill Bottom",  Color) = (0,0,0,0)
         _BorderColor ("Border Color", Color) = (1,1,1,1)
         _GlowColor   ("Glow Color",   Color) = (1,1,1,1)
+        _InnerGlowColor ("Inner Glow Color", Color) = (1,1,1,1)
 
         // 四个逐角向量一律是 xyzw = top-left, top-right, bottom-right, bottom-left
         // （CSS border-radius 顺序）。_Radius 是每个角的**水平**伸出量，圆角时即半径。
@@ -27,6 +28,7 @@ Shader "UI/ProceduralPanel"
         _HexW        ("Hexagon Tip Reach (0 = auto)", Float) = 0
         _BorderWidth ("Border Width",  Float) = 0
         _GlowSize    ("Glow Size",     Float) = 0
+        _InnerGlowSize ("Inner Glow Size", Float) = 0
 
         _StencilComp ("Stencil Comparison", Float) = 8
         _Stencil ("Stencil ID", Float) = 0
@@ -106,6 +108,7 @@ Shader "UI/ProceduralPanel"
             fixed4 _FillBottom;
             fixed4 _BorderColor;
             fixed4 _GlowColor;
+            fixed4 _InnerGlowColor;
             float4 _Radius;
             float4 _CornerH;
             float4 _CornerKind;
@@ -113,6 +116,7 @@ Shader "UI/ProceduralPanel"
             float _HexW;
             float _BorderWidth;
             float _GlowSize;
+            float _InnerGlowSize;
 
             v2f vert(appdata_t v)
             {
@@ -143,14 +147,13 @@ Shader "UI/ProceduralPanel"
                 float4 col = lerp(_FillBottom, _FillTop, t);
                 col.a *= inside;
 
-                // 外发光：仅在形状外侧衰减，平方让边缘更快收住、更像光晕而不是色块。
-                if (_GlowSize > 0.0)
-                {
-                    float g = saturate(1.0 - d / _GlowSize);
-                    float4 glow = _GlowColor;
-                    glow.a *= g * g * (1.0 - inside);
-                    col = PuguiOver(col, glow);
-                }
+                // 内发光：外发光的镜像 —— 画在形状内侧、压在填充之上。
+                // 排在外发光之前，让外发光的 under 合成看到「填充 + 内发光」这一个完整实心体
+                // （两者除 AA 那一像素外并不相交，所以顺序只影响那一像素）。
+                col = PuguiApplyInnerGlow(col, d, inside, _InnerGlowSize, _InnerGlowColor);
+
+                // 外发光：仅在形状外侧衰减。
+                col = PuguiApplyOuterGlow(col, d, inside, _GlowSize, _GlowColor);
 
                 // 内描边：向内绘制（border-box 直觉），压在填充之上。
                 // _BorderWidth==0 时必须整段跳过 —— 否则下面的覆盖率退化成边缘 AA 带，

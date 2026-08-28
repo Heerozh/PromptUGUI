@@ -34,6 +34,8 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("borderColor")]
         [TestCase("glow")]
         [TestCase("glowColor")]
+        [TestCase("innerGlow")]
+        [TestCase("innerGlowColor")]
         public void Frame_ProceduralVisualAttrs_NoIssue(string attr)
         {
             // Frame 现在自己画这些 —— 曾经的 "silently ignored" 警告已经过时。
@@ -86,6 +88,8 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("HStack", "radius")]
         [TestCase("Grid", "borderWidth")]
         [TestCase("SafeArea", "glow")]
+        [TestCase("VStack", "innerGlow")]
+        [TestCase("Grid", "innerGlowColor")]
         public void LayoutOnlyContainers_ProceduralAttrs_Issue(string tag, string attr)
         {
             // 这些容器既没 Graphic 也没 ProceduralPanel —— 指路"套一层 Frame"。
@@ -172,6 +176,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("Icon", "frost")]
         [TestCase("RawImage", "radius")]
         [TestCase("Image", "weld")]
+        [TestCase("Text", "innerGlow")]
         public void ControlWithoutASurface_ProceduralAttr_VisualAttrIssue(string tag, string attr)
         {
             var n = new ElementNode(tag) { Id = "x" };

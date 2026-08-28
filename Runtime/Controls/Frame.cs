@@ -165,6 +165,23 @@ namespace PromptUGUI.Controls
             set => Panel.SetGlowColor(UI.Theme.Resolve(value));
         }
 
+        /// <summary>内发光宽度（px，从形状边缘向内衰减）。不改几何，也不影响布局。</summary>
+        [UIAttr, Preserve]
+        public string InnerGlow
+        {
+            set => Panel.SetInnerGlowSize(ProceduralValueParser.Pixels(value, "innerGlow"));
+        }
+
+        /// <summary>
+        /// 内发光色。纯色 only；默认白 —— 跟随填充色的话，在不透明填充上会完全看不见。
+        /// 写深色即内阴影 / 边缘暗角。
+        /// </summary>
+        [UIAttr, Preserve]
+        public string InnerGlowColor
+        {
+            set => Panel.SetInnerGlowColor(UI.Theme.Resolve(value));
+        }
+
         /// <summary>
         /// 玻璃模式：填充改为采样模糊后的 backdrop + 边缘折射 / 打光，形状仍是同一套 SDF。
         /// 见 <c>UI.Glass</c>：没有可用 backdrop（无 URP / 关闭画质选项 / 无相机）时自动退化成
