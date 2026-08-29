@@ -162,6 +162,12 @@ Plus every common attribute (`anchor` / `size` / `margin` / `hidden` / `interact
 | `transition` | duration | `0.15s` | Open / close animation. `0` snaps |
 | `itemTemplate` | tag / Template | `Tab` | For `BindItems`, same as `<TabBar>` |
 
+The handle is measured from the **selected** tab's text and icon at open time, so it is laid out at
+the right width from the first frame. Like `<Btn>`, its layout box does not re-measure when the
+caption changes at runtime — the caption contents (label, then caret) do follow the new text, but
+neighbours in an `<HStack>` only shift on the next `ReSolve`. Give the handle an explicit `width` if
+your channel names vary wildly in length.
+
 ### `<Tab>` inside a `<TabMenu>`
 
 Identical to a `<Tab>` in a bar, with two differences:

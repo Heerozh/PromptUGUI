@@ -543,6 +543,46 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.GreaterOrEqual(n.Value.y, 44f, "min tap target");
         }
 
+        // Regression: ApplyCommon measures a control BEFORE OnAfterApply fills the caption from the
+        // selected tab, so measuring the (still empty) label handed the layout a handle just wide
+        // enough for the caret — 30px, whatever the channel was called.
+        [Test]
+        public void Handle_is_laid_out_wide_enough_for_its_caption_on_the_first_pass()
+        {
+            var s = Open(@"<HStack anchor='top-stretch' height='64'>
+                             <TabMenu id='m' fontSize='22'>
+                               <Tab id='a' text='A reasonably long channel' isOn='true'/>
+                             </TabMenu>
+                             <Frame width='stretch'/>
+                           </HStack>");
+            Canvas.ForceUpdateCanvases();
+            var m = s.Get<TabMenu>("m");
+
+            Assert.AreEqual(m.GetNativeSize().Value.x, m.RectTransform.rect.width, 1f,
+                "the laid-out handle matches what it asks for — no measuring of an empty caption");
+        }
+
+        [Test]
+        public void Native_size_sees_the_selected_tab_before_the_caption_is_filled()
+        {
+            // Same thing one level down: the measurement peeks at the tabs, and picks the isOn one
+            // rather than blindly the first.
+            var s = Open(@"<TabMenu id='m'>
+                             <Tab id='a' text='x'/>
+                             <Tab id='b' text='A much, much longer name' isOn='true'/>
+                           </TabMenu>");
+            var wide = s.Get<TabMenu>("m").GetNativeSize().Value.x;
+
+            UI.ResetForTests();
+            var s2 = Open(@"<TabMenu id='m'>
+                             <Tab id='a' text='x' isOn='true'/>
+                             <Tab id='b' text='A much, much longer name'/>
+                           </TabMenu>");
+            var narrow = s2.Get<TabMenu>("m").GetNativeSize().Value.x;
+
+            Assert.Greater(wide, narrow, "the selected tab is what the handle has to fit");
+        }
+
         [Test]
         public void Native_width_grows_with_a_longer_caption()
         {

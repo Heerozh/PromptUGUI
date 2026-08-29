@@ -434,13 +434,12 @@ namespace PromptUGUI.Controls
             }
         }
 
-        // Unconstrained natural width — NOT preferredWidth, which TMP measures at the live rect and
+        // Unconstrained natural size — NOT preferredWidth, which TMP measures at the live rect and
         // would feed the previous solve's value back on a ReSolve. Mirrors Btn / Tab / Text.
-        private float LabelWidth()
-            => string.IsNullOrEmpty(_label.text) ? 0f : _label.GetPreferredValues(_label.text).x;
+        private Vector2 MeasureText(string text)
+            => string.IsNullOrEmpty(text) ? Vector2.zero : _label.GetPreferredValues(text);
 
-        private float LabelHeight()
-            => string.IsNullOrEmpty(_label.text) ? 0f : _label.GetPreferredValues(_label.text).y;
+        private float LabelWidth() => MeasureText(_label.text).x;
 
         /// <summary>
         /// The collapsed handle hugs its caption — deliberately the opposite of
@@ -449,10 +448,37 @@ namespace PromptUGUI.Controls
         /// </summary>
         public override Vector2? GetNativeSize()
         {
-            var w = PadX * 2f + LabelWidth();
-            if (_icon != null && _icon.enabled) w += _iconSize + _gap;
+            // The caption is filled in OnAfterApply, which runs AFTER ApplyCommon measures us — so on
+            // the very first pass the label is still empty and measuring it would hand the layout a
+            // handle just wide enough for the caret. Peek at the tabs instead: they are children, so
+            // the DFS post-order apply has already given them their text and isOn.
+            var (text, hasIcon) = _label != null && !string.IsNullOrEmpty(_label.text)
+                ? (_label.text, _icon != null && _icon.enabled)
+                : PeekSelectedContent();
+
+            var size = MeasureText(text);
+            var w = PadX * 2f + size.x;
+            if (hasIcon) w += _iconSize + _gap;
             if (_arrow != null && _arrow.enabled) w += _gap + _arrowSize;
-            return new Vector2(w, Mathf.Max(MinTapHeight, LabelHeight() + PadY * 2f));
+            return new Vector2(w, Mathf.Max(MinTapHeight, size.y + PadY * 2f));
+        }
+
+        /// <summary>
+        /// What the caption is about to show, read straight off the tabs. Mirrors the group's
+        /// auto-select rule (first tab when none is <c>isOn</c>) so the measurement matches whatever
+        /// <see cref="RefreshCaption"/> lands on moments later.
+        /// </summary>
+        private (string Text, bool HasIcon) PeekSelectedContent()
+        {
+            Tab first = null;
+            foreach (var child in Children)
+            {
+                var tab = child as Tab ?? TabGroupCore.FindTabIn(child);
+                if (tab == null) continue;
+                first ??= tab;
+                if (tab.IsOn) return (tab.CaptionText, tab.CaptionIcon != null);
+            }
+            return first != null ? (first.CaptionText, first.CaptionIcon != null) : (null, false);
         }
 
         private void ApplyFont() => FontApplier.Apply(_label, _fontType);

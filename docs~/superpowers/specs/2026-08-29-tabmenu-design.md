@@ -601,5 +601,12 @@ Time.frameCount` → 也返回 true。两种顺序都只关菜单、不关模态
 EditMode 无法给 ScreenSpaceOverlay canvas 一个确定的尺寸，所以 §7.2 的规则落在
 `Internal/PopupPlacer.Solve(handle, panel, canvas, gap)` 里单测；控件侧只测接线。
 
+**14.6 `GetNativeSize` 必须自己去看 Tab，不能读 caption 标签（§6 补充）。**
+`ApplyCommon` 在 `OnAfterApply` 填 caption **之前**测量控件，所以读 `_label.text` 测到的是空串 ——
+把手在 HStack 里被排成 30px（只够内边距 + 箭头），不管频道叫什么。改为回退到 `PeekSelectedContent()`：
+直接走 `Children` 找 `isOn` 的 Tab（没有就取第一个，镜像自动选中规则）读它的 text / icon。
+子节点在 DFS post-order 里已经 apply 完，所以这份数据是准的。
+运行期改 caption 不重排（`LayoutElement` 停在打开时的快照）是 `<Btn>` 同款既有行为，已在 skill 里写明。
+
 **其余按设计实现**：TM-D1…D21 全部照做；§12 的 Out of Scope 一项未做。
-测试：EditMode 2842、PlayMode 176，全绿。
+测试：EditMode 2844、EditorOnly 310、PlayMode 176，全绿。
