@@ -192,7 +192,7 @@ namespace PromptUGUI.Lint
                     yield return issue;
 
             var childHasStateSourceAncestor = hasStateSourceAncestor || StateTriggerRules.IsStateSourceTag(node.Tag);
-            var isLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "Carousel";
+            var isLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "TabMenu" or "Carousel";
             var isTabBar = node.Tag == "TabBar";
             foreach (var child in node.Children)
             {

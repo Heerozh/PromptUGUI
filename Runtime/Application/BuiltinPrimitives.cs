@@ -24,6 +24,7 @@ namespace PromptUGUI.Application
             reg.Register<Toggle>("Toggle", null, defaultTextAttr: "text", runtimeStateAttr: "isOn");
             reg.Register<Tab>("Tab", null, defaultTextAttr: "text", runtimeStateAttr: "isOn");
             reg.Register<TabBar>("TabBar", null);
+            reg.Register<TabMenu>("TabMenu", null);
             reg.Register<Slider>("Slider", null, runtimeStateAttr: "value");
             reg.Register<Progress>("Progress", null, runtimeStateAttr: "value");
             reg.Register<Dropdown>("Dropdown", null, runtimeStateAttr: "value");

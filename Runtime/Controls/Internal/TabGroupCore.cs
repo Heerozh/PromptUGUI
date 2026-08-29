@@ -187,8 +187,38 @@ namespace PromptUGUI.Controls.Internal
                 var captured = t;
                 captured.OnValueChanged
                     .Where(on => on)
-                    .Subscribe(_ => _selectionChanged.OnNext(captured))
+                    .Subscribe(_ =>
+                    {
+                        // Before announcing: SelectedTab reports the FIRST tab whose IsOn is set, so
+                        // a stale second selection would be handed to subscribers.
+                        EnforceExclusive(captured);
+                        _selectionChanged.OnNext(captured);
+                    })
                     .AddTo(_tabSubs);
+            }
+        }
+
+        /// <summary>
+        /// Turns every tab but <paramref name="winner"/> off.
+        /// </summary>
+        /// <remarks>
+        /// The group's <c>ToggleGroup</c> normally does this, but only for tabs that are
+        /// <em>active</em>: uGUI's <c>Toggle.Set</c> gates the <c>NotifyToggleOn</c> call on
+        /// <c>IsActive()</c>, and a toggle also unregisters itself from the group in
+        /// <c>OnDisable</c>. A <see cref="TabMenu"/> keeps its rows inside a collapsed (inactive)
+        /// popup, so a code-driven <c>tab.IsOn = true</c> while the menu is closed would otherwise
+        /// leave the previous tab on as well — two selected tabs, two visible bound pages.
+        ///
+        /// <para>Redundant for <see cref="TabBar"/>, where the ToggleGroup got there first, and
+        /// harmless: assigning <c>isOn</c> a value it already holds returns early in uGUI, so no
+        /// event is re-raised and the recursion terminates immediately.</para>
+        /// </remarks>
+        private void EnforceExclusive(Tab winner)
+        {
+            for (int i = 0; i < _tabs.Count; i++)
+            {
+                var t = _tabs[i];
+                if (!ReferenceEquals(t, winner) && t.IsOn) t.IsOn = false;
             }
         }
 

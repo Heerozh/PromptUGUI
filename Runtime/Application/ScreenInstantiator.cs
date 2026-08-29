@@ -285,7 +285,7 @@ namespace PromptUGUI.Application
                 control.ReplaceScopedIds(childScope);
             }
 
-            var selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "Carousel";
+            var selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "TabMenu" or "Carousel";
             foreach (var c in node.Children)
             {
                 if (node.Tag == "Carousel")
