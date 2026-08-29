@@ -14,9 +14,21 @@ namespace PromptUGUI.Controls.Internal
     internal sealed class PuiToggle : UnityToggle, IStateSource
     {
         private readonly StateBroadcaster _broadcaster = new();
+        private readonly Subject<Unit> _clicked = new();
         private int _bornFrame = int.MinValue;
 
         public Observable<InteractState> OnState => _broadcaster.OnState;
+
+        /// <summary>
+        /// Fires on every activation — pointer click or gamepad/keyboard Submit — <b>including</b>
+        /// one that does not change <c>isOn</c>.
+        ///
+        /// <para><c>onValueChanged</c> cannot serve this: inside a <c>ToggleGroup</c> with
+        /// <c>allowSwitchOff=false</c>, re-picking the already-selected member is swallowed
+        /// (<c>isOn</c> was already true), so nothing is emitted. <see cref="TabMenu"/> needs the
+        /// click regardless — picking the current channel still has to close the menu.</para>
+        /// </summary>
+        internal Observable<Unit> OnClicked => _clicked;
         public InteractState Current => _broadcaster.Current;
         public void RegisterShow(InteractState state, Action reevaluate) => _broadcaster.RegisterShow(state, reevaluate);
         public bool IsShowStateClaimed(InteractState state) => _broadcaster.IsShowStateClaimed(state);
@@ -55,6 +67,18 @@ namespace PromptUGUI.Controls.Internal
         {
             if (UI.Navigation.TryWakeOnSubmit()) return;
             base.OnSubmit(eventData);
+            // After the early return, deliberately: a wake-only Submit recalls the focus cursor
+            // and is NOT an activation (see nav-hidden-submit-wake).
+            _clicked.OnNext(Unit.Default);
+        }
+
+        public override void OnPointerClick(PointerEventData eventData)
+        {
+            base.OnPointerClick(eventData);
+            // Same button filter uGUI's Toggle applies before InternalToggle: a right-click is not
+            // an activation, and firing here would let it close a TabMenu the base ignored.
+            if (eventData.button != PointerEventData.InputButton.Left) return;
+            _clicked.OnNext(Unit.Default);
         }
 
         /// <summary>Test hook: drive a transition without a live EventSystem (ordinal — the test
@@ -62,8 +86,12 @@ namespace PromptUGUI.Controls.Internal
         internal void SimulateState(int selectionStateOrdinal)
             => DoStateTransition((SelectionState)selectionStateOrdinal, instant: true);
 
+        /// <summary>Test hook: raise <see cref="OnClicked"/> without a live EventSystem.</summary>
+        internal void SimulateClickForTests() => _clicked.OnNext(Unit.Default);
+
         protected override void OnDestroy()
         {
+            _clicked.Dispose();
             _broadcaster.Dispose();
             base.OnDestroy();
         }

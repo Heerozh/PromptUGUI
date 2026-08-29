@@ -191,6 +191,7 @@ namespace PromptUGUI.Controls
             {
                 if (string.IsNullOrEmpty(value) && _label == null) return;
                 EnsureLabel().text = value ?? "";
+                ContentChanged?.Invoke();
             }
         }
 
@@ -241,6 +242,7 @@ namespace PromptUGUI.Controls
                     if (_label != null) _label.rectTransform.offsetMin = new Vector2(32f, 0f);
                 }
                 _icon.sprite = UI.ResolveSprite(value);
+                ContentChanged?.Invoke();
             }
         }
 
@@ -388,6 +390,29 @@ namespace PromptUGUI.Controls
 
         public Observable<bool> OnValueChanged => _changed;
         public Observable<Unit> OnSelected => _selected;
+
+        // ── Caption mirroring, for <TabMenu> (spec §5.2) ───────────────────────────────────
+        // A TabMenu's collapsed handle shows whichever Tab is selected. It reads the displayed
+        // text / icon back rather than the declared attribute values, so a caption also tracks a
+        // BindItems bind() or a code-side assignment — anything that reached the live label.
+
+        /// <summary>What the label currently shows, or null when this Tab never grew one.</summary>
+        internal string CaptionText => _label != null ? _label.text : null;
+
+        /// <summary>The icon sprite currently shown, or null when this Tab has no icon.</summary>
+        internal UnityEngine.Sprite CaptionIcon => _icon != null ? _icon.sprite : null;
+
+        /// <summary>Raised whenever <see cref="Text"/> or <see cref="Icon"/> changes what is shown.</summary>
+        internal event System.Action ContentChanged;
+
+        /// <summary>
+        /// Every activation of this Tab, including a click that leaves <c>isOn</c> untouched — see
+        /// <see cref="PuiToggle.OnClicked"/> for why <see cref="OnValueChanged"/> cannot serve.
+        /// </summary>
+        internal Observable<Unit> OnActivated => _toggle.OnClicked;
+
+        /// <summary>Test hook: raise <see cref="OnActivated"/> without a live EventSystem.</summary>
+        internal void SimulateClickForTests() => _toggle.SimulateClickForTests();
 
         protected internal override Transform ChildHostTransform
             => _offsetHolder != null ? _offsetHolder : RectTransform;

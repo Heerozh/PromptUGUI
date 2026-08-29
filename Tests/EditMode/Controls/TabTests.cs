@@ -399,5 +399,54 @@ namespace PromptUGUI.Tests.EditMode.Controls
             t.IsOn = false;
             Assert.AreEqual(UnityImage.Type.Tiled, bg.type, "deselection keeps the default skin Tiled");
         }
+
+        // ── Caption mirroring hooks for <TabMenu> (spec §5.2) ──────────────────────────────
+        // TabMenu shows the SELECTED tab's icon + text as its own caption, so it needs both a
+        // read-back of what a Tab currently displays and a signal for when that changes at
+        // runtime (a BindItems bind(), a code-side tab.Text = ...).
+
+        [Test]
+        public void CaptionText_reads_back_label_and_ContentChanged_fires()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t' text='A'/>");
+            Assert.AreEqual("A", t.CaptionText);
+
+            int fired = 0;
+            t.ContentChanged += () => fired++;
+            t.Text = "B";
+            Assert.AreEqual(1, fired, "Text setter must announce the change");
+            Assert.AreEqual("B", t.CaptionText);
+        }
+
+        [Test]
+        public void CaptionIcon_is_null_without_icon()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t' text='A'/>");
+            Assert.IsNull(t.CaptionIcon, "no icon= means no caption icon to mirror");
+        }
+
+        // A TabMenu collapses when the user picks an item — INCLUDING re-picking the one already
+        // selected. uGUI's ToggleGroup(allowSwitchOff=false) swallows that click (isOn is already
+        // true, so onValueChanged never fires), hence a separate activation channel.
+        [Test]
+        public void OnActivated_fires_on_click_even_when_already_on()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t' text='A' isOn='true'/>");
+
+            int valueChanges = 0, activations = 0;
+            using var vc = t.OnValueChanged.Subscribe(_ => valueChanges++);
+            using var ac = t.OnActivated.Subscribe(_ => activations++);
+
+            t.SimulateClickForTests();
+
+            Assert.AreEqual(1, activations, "clicking an already-selected Tab must still activate");
+            Assert.AreEqual(0, valueChanges, "isOn did not change, so OnValueChanged must stay silent");
+        }
     }
 }
