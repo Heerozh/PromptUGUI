@@ -20,6 +20,9 @@ struct PuguiCorner
 {
     float  kind;
     float2 size;   // x = 沿水平边的伸出量，y = 沿垂直边的伸出量；round 时两者相等
+    // 倒圆半径（spec 2026-08-29）。round 恒为 0；> 0 时 size 已经换算到收缩帧（盒子 b − fillet），
+    // 距离场按「收缩形状的场 − fillet」求值 —— 形态学 opening，每个凸顶点变成与两边相切的圆弧。
+    float  fillet;
 };
 
 // 折叠帧里的角象限距离场。u = abs(p) - b，角在原点、内部为负。
@@ -96,9 +99,25 @@ float2 PuguiSdCutNormal(float2 u, float2 s)
 
     float invL = rsqrt(s.x * s.x + s.y * s.y);
     float dLine = (u.x * s.y + u.y * s.x + s.x * s.y) * invL;
-    // 三条半平面里最靠近 0 的那条就是最近的特征 —— 内外都成立，因为 SDF 本身就是它们的 max。
-    if (dLine >= max(u.x, u.y)) return float2(s.y, s.x) * invL;
-    return (u.x > u.y) ? float2(1.0, 0.0) : float2(0.0, 1.0);
+    float dEdge = max(u.x, u.y);
+
+    // 内侧：三条半平面里最靠近 0 的那条就是最近的特征，SDF 本身就是它们的 max。
+    if (max(dEdge, dLine) <= 0.0)
+    {
+        if (dLine >= dEdge) return float2(s.y, s.x) * invL;
+        return (u.x > u.y) ? float2(1.0, 0.0) : float2(0.0, 1.0);
+    }
+
+    // 外侧：与 PuguiSdCutCorner 同一组候选，谁的距离赢就取谁的方向。斜边线段两端的楔形区里最近点
+    // 是端点，方向从端点指向片元 —— 倒圆之后这片区域正是圆弧带，玻璃打光靠它连续旋转而不是硬切。
+    float2 w = u - float2(-s.x, 0.0);
+    float2 e = float2(s.x, -s.y);
+    float2 toSeg = w - e * saturate(dot(w, e) / dot(e, e));
+    float best = length(toSeg);
+    float2 n = normalize(toSeg + 1e-6);
+    if (u.x <= -s.x && u.y < best) { best = u.y; n = float2(0.0, 1.0); }
+    if (u.y <= -s.y && u.x < best) { n = float2(1.0, 0.0); }
+    return n;
 }
 
 float2 PuguiSdNotchNormal(float2 u, float2 s)
@@ -115,12 +134,58 @@ float2 PuguiSdNotchNormal(float2 u, float2 s)
         : PuguiSdQuadrantNormal(v2);
 }
 
+// ---- 倒圆缺口（spec 2026-08-29 §5.4）------------------------------------------------------------
+//
+// opening 只圆凸顶点：收缩把凹角撑成弧，膨胀又把它缩回尖角。所以凹角走另一条路 —— 缺口腔本身换成
+// 内角倒圆的圆角矩形。这里已在收缩帧（u 是 u + r）：缺口仍是 W×H（两壁与盒子各内移 r，相对位置
+// 不变），凹弧半径是 2r（凹弧被收缩放大一个 r，膨胀时缩回 r）。r == 0 走上面未倒圆的
+// PuguiSdNotchCorner —— 两者数学等价但不保证逐位相等，旧路径必须原样保留。
+float PuguiSdNotchCornerFilleted(float2 u, float2 s, float r)
+{
+    if (min(s.x, s.y) <= 0.0) return PuguiSdQuadrant(u);
+
+    // 缺口让位（PuguiResolveCorner 已把 s 钳进收缩盒），凹弧还得装进缺口里。
+    float rc = min(2.0 * r, min(s.x, s.y));
+
+    // 缺口腔 = 以内角为原点的无限象限 {t >= 0}，原点处倒圆 rc。
+    float2 t = u + s;
+    float dBite = PuguiSdRoundCorner(-t, rc);
+    float dBox = PuguiSdQuadrant(u);
+
+    // 盒内：材料（负）或腔内（正）。两个场各自精确、相减处两条壁与凹弧就是真边界；壁的无限延长段
+    // 都在盒外，盒内的点到它们的垂足永远落在真壁上。
+    if (dBox < 0.0) return max(dBox, -dBite);
+
+    // 盒外：口沿两个凸顶点，沿用未倒圆版本已验证的双象限并集。凹弧只朝腔内，盒外的点永远离口沿
+    // 顶点更近，它不需要参与。
+    float2 v1 = u - float2(-s.x, 0.0);
+    float2 v2 = u - float2(0.0, -s.y);
+    return min(PuguiSdQuadrant(v1), PuguiSdQuadrant(v2));
+}
+
+float2 PuguiSdNotchFilletedNormal(float2 u, float2 s, float r)
+{
+    if (min(s.x, s.y) <= 0.0) return PuguiSdQuadrantNormal(u);
+
+    float rc = min(2.0 * r, min(s.x, s.y));
+    float2 t = u + s;
+    float dBite = PuguiSdRoundCorner(-t, rc);
+    float dBox = PuguiSdQuadrant(u);
+
+    // max(dBox, -dBite) 的梯度：谁赢取谁。-dBite 对 u 的梯度 = 圆角象限场在 -t 处的梯度，
+    // 两次取反抵消，就是 PuguiSdQuadrantNormal(-t + rc)：朝腔内 —— 材料在壁上、在凹弧上的外法线。
+    if (dBox < 0.0)
+        return (dBox >= -dBite) ? PuguiSdQuadrantNormal(u) : PuguiSdQuadrantNormal(-t + rc);
+
+    return PuguiSdNotchNormal(u, s);
+}
+
 // 挑出本片元所属的角，解算整形哨兵，再逐轴 clamp。
 //
 // pill / hexagon 在 GPU 上解算而不是在 C# 里：它们依赖 rect 尺寸，提前算掉会让同一 style
 // 的不同尺寸面板拿到不同材质参数，白白丢掉材质共享（见 ProceduralMaterialCache）。
 PuguiCorner PuguiResolveCorner(float2 p, float2 b, float4 kinds, float4 widths, float4 heights,
-                               float shape, float hexW)
+                               float4 fillets, float shape, float hexW)
 {
     // xyzw = top-left, top-right, bottom-right, bottom-left（CSS border-radius 顺序）。
     bool right = p.x > 0.0;
@@ -128,10 +193,12 @@ PuguiCorner PuguiResolveCorner(float2 p, float2 b, float4 kinds, float4 widths, 
     float2 kSide = right ? float2(kinds.y, kinds.z) : float2(kinds.x, kinds.w);
     float2 wSide = right ? float2(widths.y, widths.z) : float2(widths.x, widths.w);
     float2 hSide = right ? float2(heights.y, heights.z) : float2(heights.x, heights.w);
+    float2 fSide = right ? float2(fillets.y, fillets.z) : float2(fillets.x, fillets.w);
 
     PuguiCorner c;
     c.kind = top ? kSide.x : kSide.y;
     c.size = float2(top ? wSide.x : wSide.y, top ? hSide.x : hSide.y);
+    c.fillet = top ? fSide.x : fSide.y;
 
     if (PUGUI_SHAPE_IS_HEXAGON(shape))
     {
@@ -154,6 +221,40 @@ PuguiCorner PuguiResolveCorner(float2 p, float2 b, float4 kinds, float4 widths, 
     c.size = PUGUI_KIND_IS_ROUND(c.kind)
         ? float2(radius, radius)
         : clamp(c.size, float2(0.0, 0.0), b);
+
+    // ---- 倒圆（spec 2026-08-29 §5）：把角换算到收缩帧 ----
+    // round 没有顶点可倒；尺寸为 0 的处理方式什么也没切、也没有顶点（与 CornerSpec.IsSquare 一致）。
+    float r = c.fillet;
+    if (PUGUI_KIND_IS_ROUND(c.kind) || min(c.size.x, c.size.y) <= 0.0) r = 0.0;
+    r = min(max(r, 0.0), shortest);
+    // notch 到 min(W,H)/2 时两壁恰好被口沿圆弧吃光、凹弧仍是 r，轮廓是光滑的 S 形；再大会在腔底
+    // 出一个 cusp —— 静默钳住比那个难看的退化好。
+    if (PUGUI_KIND_IS_NOTCH(c.kind)) r = min(r, 0.5 * min(c.size.x, c.size.y));
+    if (r > 0.0)
+    {
+        float2 shrunk = b - r;
+        if (PUGUI_KIND_IS_NOTCH(c.kind))
+        {
+            // 收缩帧里缺口仍是 W×H；口沿圆弧不越象限中线，越了就让缺口让位（§5.5）。
+            c.size = min(c.size, shrunk);
+        }
+        else
+        {
+            // 斜边平行内移 r，伸出量按同一系数缩放：k = 1 − r·(W+H−L)/(W·H)。k <= 0 表示斜边被
+            // 两个圆弧吃光，角退化成半径 r 的圆角 —— cut … rN 到普通圆角是一条连续谱（§5.2）。
+            float2 s = c.size;
+            float L = length(s);
+            float k = 1.0 - r * (s.x + s.y - L) / (s.x * s.y);
+            s *= max(k, 0.0);
+            // 轮廓外延不变（§5.3）：斜边顶点会越过象限中线时，按**比例**把斜边平行外移到顶点恰好
+            // 落在中线上 —— 斜率不变、圆弧仍与两边相切、圆弧完整落在本象限，折叠帧前提继续成立。
+            float m = 1.0;
+            if (s.x > 0.0) m = min(m, shrunk.x / s.x);
+            if (s.y > 0.0) m = min(m, shrunk.y / s.y);
+            c.size = s * max(m, 0.0);
+        }
+    }
+    c.fillet = r;
     return c;
 }
 
@@ -162,8 +263,18 @@ float PuguiSdPanel(float2 p, float2 b, PuguiCorner c)
 {
     float2 u = abs(p) - b;
     if (PUGUI_KIND_IS_ROUND(c.kind)) return PuguiSdRoundCorner(u, c.size.x);
-    if (PUGUI_KIND_IS_NOTCH(c.kind)) return PuguiSdNotchCorner(u, c.size);
-    return PuguiSdCutCorner(u, c.size);
+    if (c.fillet <= 0.0)
+    {
+        // 未倒圆：原样的旧路径，逐像素不变的承诺靠的就是这一分支不碰。
+        if (PUGUI_KIND_IS_NOTCH(c.kind)) return PuguiSdNotchCorner(u, c.size);
+        return PuguiSdCutCorner(u, c.size);
+    }
+    // 倒圆 = 形态学 opening：形状先向内收 r（盒子 b − r，斜边 / 缺口已由 PuguiResolveCorner 换算到
+    // 收缩帧），再 d − r 向外放。直边回到原位，每个凸顶点变成与两边相切的 r 圆弧。
+    float2 shrunk = u + c.fillet;
+    if (PUGUI_KIND_IS_NOTCH(c.kind))
+        return PuguiSdNotchCornerFilleted(shrunk, c.size, c.fillet) - c.fillet;
+    return PuguiSdCutCorner(shrunk, c.size) - c.fillet;
 }
 
 // 面板形状的**解析**外法线（画布空间，+Y = 界面正上方）。
@@ -180,6 +291,14 @@ float2 PuguiPanelNormal(float2 p, float2 b, PuguiCorner c)
     float2 u = abs(p) - b;
     float2 g;
     if (PUGUI_KIND_IS_ROUND(c.kind)) g = PuguiSdQuadrantNormal(u + c.size.x);
+    else if (c.fillet > 0.0)
+    {
+        // 收缩帧：膨胀不改变法线方向，收缩形状的法线就是最终形状的法线。
+        float2 shrunk = u + c.fillet;
+        g = PUGUI_KIND_IS_NOTCH(c.kind)
+            ? PuguiSdNotchFilletedNormal(shrunk, c.size, c.fillet)
+            : PuguiSdCutNormal(shrunk, c.size);
+    }
     else if (PUGUI_KIND_IS_NOTCH(c.kind)) g = PuguiSdNotchNormal(u, c.size);
     else g = PuguiSdCutNormal(u, c.size);
 

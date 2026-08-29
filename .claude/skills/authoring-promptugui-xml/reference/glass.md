@@ -101,9 +101,10 @@ their **thickness** — not a line — say which is primary.
 - Members stay ordinary nodes throughout: they lay out normally, hold children, and answer
   `Get<T>` as usual. Only their drawing moves to the group.
 - **Corner treatments do not survive the fusion.** The smooth-min that merges the members rounds
-  every corner back off, so a member written `radius="cut 16"` (or `notch` / `hexagon`) draws with a
-  plain round corner of the same reach. `PUI-WELD-CORNER` warns rather than errors — the shape and
-  the `weld` can easily arrive from two different theme packs. Drop `weld` to keep the shape.
+  every corner back off, so a member written `radius="cut 16"` (or `notch` / `hexagon`, with or
+  without a fillet `rN`) draws with a plain round corner of the same reach. `PUI-WELD-CORNER` warns
+  rather than errors — the shape and the `weld` can easily arrive from two different theme packs.
+  Drop `weld` to keep the shape.
 - A Variant may turn a block's `glass` on or off, or hide it: the group re-fuses in the same pass.
 
 Where each parameter goes:

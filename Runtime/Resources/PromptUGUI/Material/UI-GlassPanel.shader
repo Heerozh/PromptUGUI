@@ -25,6 +25,8 @@ Shader "UI/GlassPanel"
         _Radius      ("Corner Width TL/TR/BR/BL",  Vector) = (0,0,0,0)
         _CornerH     ("Corner Height TL/TR/BR/BL", Vector) = (0,0,0,0)
         _CornerKind  ("Corner Kind TL/TR/BR/BL (0 round / 1 cut / 2 notch)", Vector) = (0,0,0,0)
+        // 逐角倒圆半径（cut / notch / hexagon 的顶点），0 = 尖角。
+        _CornerFillet ("Corner Fillet TL/TR/BR/BL", Vector) = (0,0,0,0)
         // 整形哨兵：0 无 / 1 pill / 2 hexagon。两者都依赖 rect 尺寸，逐片元解算。
         _Shape       ("Shape Sentinel", Float) = 0
         _HexW        ("Hexagon Tip Reach (0 = auto)", Float) = 0
@@ -120,6 +122,7 @@ Shader "UI/GlassPanel"
             float4 _Radius;
             float4 _CornerH;
             float4 _CornerKind;
+            float4 _CornerFillet;
             float _Shape;
             float _HexW;
             float _BorderWidth;
@@ -165,7 +168,7 @@ Shader "UI/GlassPanel"
                 float2 b = IN.shape.zw;
 
                 PuguiCorner corner = PuguiResolveCorner(p, b, _CornerKind, _Radius,
-                                                       _CornerH, _Shape, _HexW);
+                                                       _CornerH, _CornerFillet, _Shape, _HexW);
                 float d = PuguiSdPanel(p, b, corner);
                 float fw = max(fwidth(d), 1e-4);
                 float inside = saturate(0.5 - d / fw);

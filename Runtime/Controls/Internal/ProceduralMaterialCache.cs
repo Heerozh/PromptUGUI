@@ -86,6 +86,8 @@ namespace PromptUGUI.Controls.Internal
         public readonly Vector4 CornerHeight;
         /// <summary>Per-corner <see cref="CornerKind"/> in CSS order, as the shader reads them.</summary>
         public readonly Vector4 CornerKinds;
+        /// <summary>Per-corner fillet radius in CSS order (spec 2026-08-29); 0 = sharp vertices.</summary>
+        public readonly Vector4 CornerFillet;
         public readonly PanelShape Shape;
         /// <summary>Hexagon tip reach; 0 means the shader takes half the rect height.</summary>
         public readonly float HexWidth;
@@ -117,6 +119,8 @@ namespace PromptUGUI.Controls.Internal
                                        radius.BottomRightCorner.Height, radius.BottomLeftCorner.Height);
             CornerKinds = new Vector4((float)radius.TopLeftCorner.Kind, (float)radius.TopRightCorner.Kind,
                                       (float)radius.BottomRightCorner.Kind, (float)radius.BottomLeftCorner.Kind);
+            CornerFillet = new Vector4(radius.TopLeftCorner.Fillet, radius.TopRightCorner.Fillet,
+                                       radius.BottomRightCorner.Fillet, radius.BottomLeftCorner.Fillet);
             Shape = radius.Shape;
             HexWidth = radius.HexWidth;
             BorderWidth = borderWidth;
@@ -133,7 +137,8 @@ namespace PromptUGUI.Controls.Internal
             && BorderColor == o.BorderColor && GlowColor == o.GlowColor
             && InnerGlowColor == o.InnerGlowColor
             && CornerWidth == o.CornerWidth && CornerHeight == o.CornerHeight
-            && CornerKinds == o.CornerKinds && Shape == o.Shape && HexWidth == o.HexWidth
+            && CornerKinds == o.CornerKinds && CornerFillet == o.CornerFillet
+            && Shape == o.Shape && HexWidth == o.HexWidth
             && BorderWidth == o.BorderWidth && GlowSize == o.GlowSize
             && InnerGlowSize == o.InnerGlowSize
             && Glass == o.Glass
@@ -155,6 +160,7 @@ namespace PromptUGUI.Controls.Internal
                 h = (h * 397) ^ CornerWidth.GetHashCode();
                 h = (h * 397) ^ CornerHeight.GetHashCode();
                 h = (h * 397) ^ CornerKinds.GetHashCode();
+                h = (h * 397) ^ CornerFillet.GetHashCode();
                 h = (h * 397) ^ Shape.GetHashCode();
                 h = (h * 397) ^ HexWidth.GetHashCode();
                 h = (h * 397) ^ BorderWidth.GetHashCode();
@@ -196,6 +202,7 @@ namespace PromptUGUI.Controls.Internal
         private static readonly int RadiusId = Shader.PropertyToID("_Radius");
         private static readonly int CornerHeightId = Shader.PropertyToID("_CornerH");
         private static readonly int CornerKindId = Shader.PropertyToID("_CornerKind");
+        private static readonly int CornerFilletId = Shader.PropertyToID("_CornerFillet");
         private static readonly int ShapeId = Shader.PropertyToID("_Shape");
         private static readonly int HexWidthId = Shader.PropertyToID("_HexW");
         private static readonly int BorderWidthId = Shader.PropertyToID("_BorderWidth");
@@ -279,6 +286,7 @@ namespace PromptUGUI.Controls.Internal
             mat.SetVector(RadiusId, p.CornerWidth);
             mat.SetVector(CornerHeightId, p.CornerHeight);
             mat.SetVector(CornerKindId, p.CornerKinds);
+            mat.SetVector(CornerFilletId, p.CornerFillet);
             mat.SetFloat(ShapeId, (float)p.Shape);
             mat.SetFloat(HexWidthId, p.HexWidth);
             mat.SetFloat(BorderWidthId, p.BorderWidth);

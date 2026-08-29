@@ -47,10 +47,22 @@ namespace PromptUGUI.Parser
         public readonly float Width;
         /// <summary>Reach along the vertical edge (for Round: the radius).</summary>
         public readonly float Height;
+        /// <summary>
+        /// Fillet radius for every vertex this treatment creates — the two chamfer ends of a
+        /// <see cref="CornerKind.Cut"/>, the mouth and the reflex corner of a
+        /// <see cref="CornerKind.Notch"/> (spec 2026-08-29 §5). Always zero for
+        /// <see cref="CornerKind.Round"/>, which has no vertex to fillet.
+        /// </summary>
+        public readonly float Fillet;
 
         public CornerSpec(CornerKind kind, float width, float height)
+            : this(kind, width, height, 0f)
         {
-            Kind = kind; Width = width; Height = height;
+        }
+
+        public CornerSpec(CornerKind kind, float width, float height, float fillet)
+        {
+            Kind = kind; Width = width; Height = height; Fillet = fillet;
         }
 
         public static CornerSpec Round(float radius)
@@ -120,10 +132,16 @@ namespace PromptUGUI.Parser
         public static readonly RadiusSpec Zero = new RadiusSpec(0f, 0f, 0f, 0f);
         public static readonly RadiusSpec Pill = new RadiusSpec(0f, 0f, 0f, 0f, true);
 
-        public static RadiusSpec Hexagon(float hexWidth = 0f)
-            => new RadiusSpec(CornerSpec.Square, CornerSpec.Square,
-                              CornerSpec.Square, CornerSpec.Square,
-                              PanelShape.Hexagon, hexWidth);
+        /// <param name="fillet">
+        /// Fillet radius for all six vertices. Rides in the four corners' <see cref="CornerSpec.Fillet"/>
+        /// (their kind and size are overridden by the shader's hexagon sentinel; the fillet is the
+        /// one thing that has to travel from here to the GPU).
+        /// </param>
+        public static RadiusSpec Hexagon(float hexWidth = 0f, float fillet = 0f)
+        {
+            var corner = new CornerSpec(CornerKind.Round, 0f, 0f, fillet);
+            return new RadiusSpec(corner, corner, corner, corner, PanelShape.Hexagon, hexWidth);
+        }
 
         public bool IsPill => Shape == PanelShape.Pill;
 
@@ -143,13 +161,16 @@ namespace PromptUGUI.Parser
     /// radius      := "" | whole-shape | corner-list
     /// whole-shape := "pill" | "hexagon" [ SP number ]
     /// corner-list := segment | segment "," segment "," segment "," segment
-    /// segment     := number | keyword SP size
+    /// whole-shape := "pill" | "hexagon" [ SP number ] [ SP fillet ]
+    /// segment     := number | keyword SP size [ SP fillet ]
     /// keyword     := "cut" | "notch"
     /// size        := number [ "x" number ]
+    /// fillet      := "r" number                       // one glued token: r8
     /// </code>
     /// Keywords are matched case-sensitively and lower-case: an author who writes <c>CUT</c> gets an
     /// error naming the legal words, which is a better outcome than a silent case fix-up that lint
-    /// and runtime then have to agree on forever.
+    /// and runtime then have to agree on forever. The fillet's <c>r</c> is glued to its number for
+    /// the same reason the <c>x</c> in <c>WxH</c> is (spec 2026-08-29 §4).
     /// </remarks>
     public static class RadiusParser
     {
@@ -157,10 +178,12 @@ namespace PromptUGUI.Parser
         public const string HexagonKeyword = "hexagon";
         public const string CutKeyword = "cut";
         public const string NotchKeyword = "notch";
+        public const string FilletPrefix = "r";
 
         private const string LegalCornerWords =
             "a number (round), '" + CutKeyword + " W' / '" + CutKeyword + " WxH', '" +
-            NotchKeyword + " W' / '" + NotchKeyword + " WxH'";
+            NotchKeyword + " W' / '" + NotchKeyword + " WxH' — each optionally followed by a " +
+            "fillet 'rN' (e.g. '" + CutKeyword + " 16 r6')";
 
         /// <summary>Throwing wrapper used by the runtime attribute setters.</summary>
         public static RadiusSpec Parse(string value)
@@ -248,8 +271,8 @@ namespace PromptUGUI.Parser
                 wasWholeShape = true;
                 if (tokens.Length > 1)
                 {
-                    error = $"radius=\"{raw}\": '{PillKeyword}' takes no size — it is always " +
-                            "min(width, height) / 2";
+                    error = $"radius=\"{raw}\": '{PillKeyword}' takes no size or fillet — it is " +
+                            "always min(width, height) / 2, and already all arc";
                     return false;
                 }
                 spec = RadiusSpec.Pill;
@@ -259,27 +282,37 @@ namespace PromptUGUI.Parser
             if (!string.Equals(tokens[0], HexagonKeyword, StringComparison.Ordinal)) return false;
             wasWholeShape = true;
 
-            if (tokens.Length == 1)
+            // hexagon [size] [fillet] — both optional, in that order.
+            var next = 1;
+            var w = 0f;
+            var fillet = 0f;
+            if (next < tokens.Length && !IsFilletToken(tokens[next]))
             {
-                spec = RadiusSpec.Hexagon();
-                return true;
+                if (tokens[next].IndexOf('x') >= 0)
+                {
+                    error = $"radius=\"{raw}\": '{HexagonKeyword}' takes a single horizontal size — " +
+                            "its tip height is always half the rect, so there is no second axis to set";
+                    return false;
+                }
+                if (!TryParseNumber(tokens[next], raw, $"'{HexagonKeyword}' size", out w, out error))
+                    return false;
+                next++;
             }
-            if (tokens.Length > 2)
+            if (next < tokens.Length)
             {
-                error = $"radius=\"{raw}\": '{HexagonKeyword}' takes at most one size " +
-                        $"(write radius=\"{HexagonKeyword}\" or radius=\"{HexagonKeyword} 32\")";
+                if (!TryParseFillet(tokens[next], raw, $"'{HexagonKeyword}'", out fillet, out error))
+                    return false;
+                next++;
+            }
+            if (next < tokens.Length)
+            {
+                error = $"radius=\"{raw}\": '{HexagonKeyword}' takes at most a size then a fillet " +
+                        $"(write radius=\"{HexagonKeyword}\", \"{HexagonKeyword} 32\", " +
+                        $"\"{HexagonKeyword} r6\" or \"{HexagonKeyword} 32 r6\")";
                 return false;
             }
-            if (tokens[1].IndexOf('x') >= 0)
-            {
-                error = $"radius=\"{raw}\": '{HexagonKeyword}' takes a single horizontal size — " +
-                        "its tip height is always half the rect, so there is no second axis to set";
-                return false;
-            }
-            if (!TryParseNumber(tokens[1], raw, $"'{HexagonKeyword}' size", out var w, out error))
-                return false;
 
-            spec = RadiusSpec.Hexagon(w);
+            spec = RadiusSpec.Hexagon(w, fillet);
             return true;
         }
 
@@ -315,17 +348,41 @@ namespace PromptUGUI.Parser
                 return true;
             }
 
-            if (tokens.Length > 2)
+            if (!TryParseKind(tokens[0], out var kind))
             {
-                error = $"radius=\"{raw}\": {corner} segment '{s}' has too many parts — " +
-                        $"expected {LegalCornerWords}";
+                if (IsNumber(tokens[0]) && IsFilletToken(tokens[1]))
+                {
+                    // "16 r4": a round corner is already all arc; there is no vertex to fillet.
+                    error = $"radius=\"{raw}\": {corner} segment '{s}' — a bare number is already " +
+                            $"a round corner and takes no fillet (write '{tokens[0]}' alone)";
+                    return false;
+                }
+                error = $"radius=\"{raw}\": {corner} segment '{s}' starts with an unknown " +
+                        $"keyword '{tokens[0]}' — expected {LegalCornerWords}";
                 return false;
             }
 
-            if (!TryParseKind(tokens[0], out var kind))
+            if (tokens.Length == 2 && IsFilletToken(tokens[1]))
             {
-                error = $"radius=\"{raw}\": {corner} segment '{s}' starts with an unknown " +
-                        $"keyword '{tokens[0]}' — expected {LegalCornerWords}";
+                error = $"radius=\"{raw}\": {corner} segment '{s}' needs a size before the fillet " +
+                        $"(write '{tokens[0]} 16 {tokens[1]}' or '{tokens[0]} 24x16 {tokens[1]}')";
+                return false;
+            }
+
+            if (tokens.Length == 4 && string.Equals(tokens[2], FilletPrefix, StringComparison.Ordinal))
+            {
+                // "cut 16 r 8" is the one malformed shape worth its own message: "too many parts"
+                // would send the author looking at the size.
+                error = $"radius=\"{raw}\": {corner} segment '{s}' — write the fillet as " +
+                        $"'{FilletPrefix}{tokens[3]}' with no space " +
+                        $"(e.g. '{tokens[0]} {tokens[1]} {FilletPrefix}{tokens[3]}')";
+                return false;
+            }
+
+            if (tokens.Length > 3)
+            {
+                error = $"radius=\"{raw}\": {corner} segment '{s}' has too many parts — " +
+                        $"expected {LegalCornerWords}";
                 return false;
             }
 
@@ -333,9 +390,44 @@ namespace PromptUGUI.Parser
                               out error))
                 return false;
 
-            result = new CornerSpec(kind, w, h);
+            var fillet = 0f;
+            if (tokens.Length == 3
+                && !TryParseFillet(tokens[2], raw, $"{corner} segment '{s}'", out fillet, out error))
+                return false;
+
+            result = new CornerSpec(kind, w, h, fillet);
             return true;
         }
+
+        /// <summary>Parses the glued <c>rN</c> fillet token.</summary>
+        private static bool TryParseFillet(string token, string raw, string where,
+                                           out float fillet, out string error)
+        {
+            fillet = 0f;
+            error = null;
+
+            if (!IsFilletToken(token))
+            {
+                error = $"radius=\"{raw}\": {where} has an unexpected trailing part '{token}' — " +
+                        $"a fillet is written '{FilletPrefix}N' (e.g. {FilletPrefix}8)";
+                return false;
+            }
+            if (!TryParseNumber(token.Substring(FilletPrefix.Length), raw, $"{where} fillet",
+                                out fillet, out _))
+            {
+                error = $"radius=\"{raw}\": {where} fillet '{token}' must be '{FilletPrefix}' " +
+                        "followed by a finite non-negative number (e.g. r8, r2.5)";
+                return false;
+            }
+            return true;
+        }
+
+        /// <summary>True for anything that opens like a fillet (<c>r…</c>), well-formed or not.</summary>
+        private static bool IsFilletToken(string token)
+            => token.StartsWith(FilletPrefix, StringComparison.Ordinal);
+
+        private static bool IsNumber(string token)
+            => float.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out _);
 
         /// <summary>Parses <c>W</c> or <c>WxH</c>; a lone size squares itself (45° cut, square notch).</summary>
         private static bool TryParseSize(string token, string raw, string where,
