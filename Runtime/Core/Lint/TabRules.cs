@@ -47,7 +47,7 @@ namespace PromptUGUI.Lint
         /// rather than false-positive. At runtime this runs POST-expansion, where every tag is a
         /// registered builtin, so the non-builtin branch never fires and behaviour is unchanged.
         /// </summary>
-        private static bool SubtreeMayResolveToTab(ElementNode node)
+        public static bool SubtreeMayResolveToTab(ElementNode node)
         {
             if (node.Tag == "Tab") return true;
             if (!BuiltinTags.IsBuiltin(node.Tag)) return true; // Template invocation — unknown expansion

@@ -213,7 +213,14 @@ namespace PromptUGUI.Controls.Internal
         private static float ParseFloat(string s)
             => float.Parse(s, NumberStyles.Float, CultureInfo.InvariantCulture);
 
-        private static float ParseSeconds(string s)
+        /// <summary>
+        /// The one duration grammar every control shares: <c>"0.3s"</c> / <c>"300ms"</c> / a bare
+        /// number of seconds. Internal rather than private so <see cref="TabMenu"/>'s
+        /// <c>transition</c> reads exactly the same way <c>&lt;Animation duration&gt;</c> does —
+        /// a second copy would be a second grammar the day one of them grew a unit.
+        /// </summary>
+        /// <exception cref="System.FormatException">The numeric part is not a number.</exception>
+        internal static float ParseSeconds(string s)
         {
             if (string.IsNullOrEmpty(s)) return 0f;
             s = s.Trim();

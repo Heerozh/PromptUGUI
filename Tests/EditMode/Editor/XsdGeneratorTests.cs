@@ -22,6 +22,17 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Registered_TabMenu_reaches_the_schema_with_its_attributes()
+        {
+            // Reflected, unlike Frame's hand-written list — this guards the registration, so a
+            // <TabMenu> that authoring tools would flag as unknown fails here first.
+            var xsd = XsdGenerator.Generate(PromptUGUI.Application.UI.Registry);
+            StringAssert.Contains("name=\"TabMenu\"", xsd);
+            StringAssert.Contains("name=\"popupWidth\"", xsd);
+            StringAssert.Contains("name=\"transition\"", xsd);
+        }
+
+        [Test]
         public void Frame_lists_its_inner_glow_attributes()
         {
             // Frame's attribute list is hand-written rather than reflected, so every attribute

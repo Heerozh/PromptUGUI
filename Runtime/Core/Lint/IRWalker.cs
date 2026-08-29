@@ -24,13 +24,13 @@ namespace PromptUGUI.Lint
                 // PUI-NAV-UNKNOWN-TARGET. Add-directive children are part of the same Screen scope.
                 var screenIds = CollectScreenIds(screen);
 
-                foreach (var issue in WalkNode(screen.Root, inTemplateBody: false, hasStateSourceAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false, screenIds: screenIds, styles: styles))
+                foreach (var issue in WalkNode(screen.Root, inTemplateBody: false, hasStateSourceAncestor: false, hasMenuAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false, screenIds: screenIds, styles: styles))
                     yield return issue;
 
                 foreach (var variant in screen.Variants)
                     foreach (var add in variant.Adds)
                         foreach (var addChild in add.Children)
-                            foreach (var issue in WalkNode(addChild, inTemplateBody: false, hasStateSourceAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false, screenIds: screenIds, styles: styles))
+                            foreach (var issue in WalkNode(addChild, inTemplateBody: false, hasStateSourceAncestor: false, hasMenuAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false, screenIds: screenIds, styles: styles))
                                 yield return issue;
             }
 
@@ -50,7 +50,7 @@ namespace PromptUGUI.Lint
                 // invocation may merge CommonAttrs onto it, which PUI-VARIANT-NO-BASE must account for.
                 // s_emptyIds: template bodies don't belong to a specific Screen — skip nav-target check.
                 if (template.Body != null)
-                    foreach (var issue in WalkNode(template.Body, inTemplateBody: true, hasStateSourceAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: true, screenIds: s_emptyIds, styles: styles))
+                    foreach (var issue in WalkNode(template.Body, inTemplateBody: true, hasStateSourceAncestor: false, hasMenuAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: true, screenIds: s_emptyIds, styles: styles))
                         yield return issue;
             }
         }
@@ -82,13 +82,13 @@ namespace PromptUGUI.Lint
         /// <para>Issues that already carry an origin come from the recursive call below — a child
         /// stamps itself, so this must not overwrite them.</para>
         /// </summary>
-        private static IEnumerable<LintIssue> WalkNode(ElementNode node, bool inTemplateBody, bool hasStateSourceAncestor, bool parentIsLayoutGroup, bool isTemplateBodyRoot, HashSet<string> screenIds, StyleAttributeView styles)
+        private static IEnumerable<LintIssue> WalkNode(ElementNode node, bool inTemplateBody, bool hasStateSourceAncestor, bool hasMenuAncestor, bool parentIsLayoutGroup, bool isTemplateBodyRoot, HashSet<string> screenIds, StyleAttributeView styles)
         {
-            foreach (var issue in WalkNodeCore(node, inTemplateBody, hasStateSourceAncestor, parentIsLayoutGroup, isTemplateBodyRoot, screenIds, styles))
+            foreach (var issue in WalkNodeCore(node, inTemplateBody, hasStateSourceAncestor, hasMenuAncestor, parentIsLayoutGroup, isTemplateBodyRoot, screenIds, styles))
                 yield return issue.Origin == null ? issue.WithSource(node.OriginSrc, node.Line, node.InvokedAt) : issue;
         }
 
-        private static IEnumerable<LintIssue> WalkNodeCore(ElementNode node, bool inTemplateBody, bool hasStateSourceAncestor, bool parentIsLayoutGroup, bool isTemplateBodyRoot, HashSet<string> screenIds, StyleAttributeView styles)
+        private static IEnumerable<LintIssue> WalkNodeCore(ElementNode node, bool inTemplateBody, bool hasStateSourceAncestor, bool hasMenuAncestor, bool parentIsLayoutGroup, bool isTemplateBodyRoot, HashSet<string> screenIds, StyleAttributeView styles)
         {
             // Per-tag self-checks (mirror of ScreenInstantiator dispatch; CLI errors).
             // Self-relative — about the node itself, unlike parent-relative LayoutGroupChildRules.
@@ -112,6 +112,9 @@ namespace PromptUGUI.Lint
                     yield return issue;
             else if (node.Tag == "TabBar")
                 foreach (var issue in TabRules.CheckTabBar(node))
+                    yield return issue;
+            else if (node.Tag == "TabMenu")
+                foreach (var issue in TabMenuRules.CheckTabMenu(node))
                     yield return issue;
             else if (node.Tag == "Carousel")
                 foreach (var issue in CarouselRules.CheckCarousel(node))
@@ -188,12 +191,18 @@ namespace PromptUGUI.Lint
             // surface it statically here. Exempt Template bodies + instance roots — the clickable
             // ancestor may be supplied only at invocation. @id forms defer to runtime ScopedIds resolution.
             if (!inTemplateBody && !node.IsTemplateInstanceRoot)
+            {
                 foreach (var issue in StateTriggerRules.CheckStateSource(node, hasStateSourceAncestor))
                     yield return issue;
+                // Same shape, same exemptions: expand / collapse resolve upward to a <TabMenu>.
+                foreach (var issue in StateTriggerRules.CheckMenuSource(node, hasMenuAncestor))
+                    yield return issue;
+            }
 
             var childHasStateSourceAncestor = hasStateSourceAncestor || StateTriggerRules.IsStateSourceTag(node.Tag);
-            var isLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "Carousel";
-            var isTabBar = node.Tag == "TabBar";
+            var childHasMenuAncestor = hasMenuAncestor || StateTriggerRules.IsMenuSourceTag(node.Tag);
+            var isLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "TabMenu" or "Carousel";
+            var isTabGroup = node.Tag is "TabBar" or "TabMenu";
             foreach (var child in node.Children)
             {
                 if (isLayoutGroup)
@@ -218,15 +227,15 @@ namespace PromptUGUI.Lint
                 // Template (e.g. <Template name='FileTab'><Frame><Tab/>...) is
                 // intentional — TabBar.CollectStaticTabs walks wrappers via FindTabIn.
                 if (child.Tag == "Tab"
-                    && !isTabBar
+                    && !isTabGroup
                     && !node.IsTemplateInstanceRoot
                     && !inTemplateBody)
                     yield return new LintIssue(
                         TabRules.TabParentCode, child.Tag, child.Id,
-                        $"<Tab id='{child.Id}'>: must be a direct child of <TabBar>; current parent is <{node.Tag}>. " +
+                        $"<Tab id='{child.Id}'>: must be a direct child of <TabBar> or <TabMenu>; current parent is <{node.Tag}>. " +
                         "Mutual exclusion and shared visuals will not apply.",
                         child.OriginSrc, child.Line, child.InvokedAt);
-                foreach (var issue in WalkNode(child, inTemplateBody, childHasStateSourceAncestor, parentIsLayoutGroup: isLayoutGroup, isTemplateBodyRoot: false, screenIds: screenIds, styles: styles))
+                foreach (var issue in WalkNode(child, inTemplateBody, childHasStateSourceAncestor, childHasMenuAncestor, parentIsLayoutGroup: isLayoutGroup, isTemplateBodyRoot: false, screenIds: screenIds, styles: styles))
                     yield return issue;
             }
         }

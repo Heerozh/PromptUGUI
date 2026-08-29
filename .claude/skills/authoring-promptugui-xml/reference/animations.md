@@ -32,7 +32,12 @@
 | `state-selected`   | The nearest ancestor `<Tab>` / `<Toggle>` is the active/`isOn` one at rest; fires on selection and once at open if already on. **Meaningful only with a `<Tab>` / `<Toggle>` source — a `<Btn>` never emits it.** |
 | `state-disabled`   | The nearest ancestor `<Btn>` / `<Tab>` / `<Toggle>` enters Disabled                                                                                                                                               |
 | `state-...@<id>`   | Same, but the source is the `<Btn>` / `<Tab>` / `<Toggle>` with `<id>` (any of the five `state-*` values)                                                                                                         |
+| `expand`           | The nearest **ancestor** `<TabMenu>` opens. Fires on open, not on close                                                                                                                                            |
+| `collapse`         | The nearest ancestor `<TabMenu>` closes                                                                                                                                                                            |
+| `expand@<id>` · `collapse@<id>` | Same, but the source is the `<TabMenu>` with `<id>` in this Trigger's subtree                                                                                                                        |
 | `manual`           | Does not auto-fire; C# must call `Fire()`                                                                                                                                                                         |
+
+**`expand` / `collapse` are not called `open` / `close`** — `on="open"` already means "the Screen opened". They exist because a `<TabMenu>`'s panel is an internal node you cannot wrap in an `<Animation>`; the panel's own entrance is the menu's `transition=` attribute, and these are for animating the **rows** inside it. They resolve upward exactly like `state-*`, and the popup they live in is switched off while collapsed — which the ancestor walk accounts for.
 
 **`state-*` source resolution is UPWARD**: unlike `click` / `hover-enter` / `press` (which search this Trigger's **subtree downward** for a `<Btn>` / `<Image>` source), `state-*` resolves to the nearest `<Btn>` / `<Tab>` / `<Toggle>` **ancestor** (`state-...@<id>` targets a specific source control by id). A bare `state-*` with no `<Btn>` / `<Tab>` / `<Toggle>` ancestor is a runtime error (and `PUI-STATE-NO-SOURCE` in the lint CLI; `@id` forms and Template bodies are exempt). They **fire on entering** the state, so `state-normal` fires once at open and `<Animation on="state-pressed">` plays on press with `<Animation on="state-normal">` as its natural revert.
 
@@ -134,6 +139,19 @@ Text family default: looks for the unique `<Text>` in the subtree. Multiple `<Te
 - `on="click"` requires a unique `<Btn>` descendant; multiple → use `on="click@<id>"` to disambiguate; zero `<Btn>` → error
 
 ## Patterns
+
+**Menu rows entering with the popup** — one `<Animation on="expand">` per row, reused via a Template:
+
+```xml
+<Template name="ChannelRow">
+  <Param name="text"/>
+  <Animation on="expand" type="slidein-left" duration="0.12s">
+    <Tab id="tab" text="{{text}}"/>
+  </Animation>
+</Template>
+
+<TabMenu id="channel" itemTemplate="ChannelRow" popupWidth="240" padding="8"/>
+```
 
 **Menu entry stagger** (v1 has no stagger sugar — write siblings with explicit delays):
 

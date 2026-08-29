@@ -343,6 +343,46 @@ Setting `tab.IsOn = true` triggers mutex (other Tabs flip to false via the TabBa
 
 `bar.BindItems<T, TSlot>` lets the template root be any `IControl`; `bar.BindItems<T>` is shorthand when the template root _is_ a `<Tab>` directly. The `<Tab>` reachable inside the slot is found via `ScopedIds` first, then a recursive child walk — Templates without an id'd Tab still work as long as exactly one `<Tab>` exists in the subtree.
 
+### TabMenu
+
+The same tab group, folded into a popup. **Every selection member above works identically** —
+`OnSelectionChanged`, `SelectedTab`, `SelectedIndex`, `Count`, `GetAt`, both `BindItems` overloads,
+`itemTemplate` — because `<TabBar>` and `<TabMenu>` share one implementation. What it adds is the
+open / closed state:
+
+```csharp
+var menu = screen.Get<TabMenu>("channel");
+
+menu.OnSelectionChanged
+    .Subscribe(tab => Chat.Switch(tab?.Id))
+    .AddTo(screen);
+
+menu.OnExpanded.Subscribe(_ => Sfx.Play("ui_open")).AddTo(screen);
+menu.OnCollapsed.Subscribe(_ => Sfx.Play("ui_close")).AddTo(screen);
+
+menu.IsExpanded;    // read-only
+menu.Expand();      // no-op when already open, or when interactable is false
+menu.Collapse();
+menu.Toggle();      // what clicking the handle does
+
+// Dynamic rows — identical to TabBar:
+menu.BindItems(channels, (Tab tab, Channel c) => { tab.Text = c.Name; tab.Icon = c.IconKey; })
+    .AddTo(screen);
+```
+
+The collapsed handle mirrors the **selected** tab's `text` and `icon`, so `tab.Text = "…"` on the
+selected row re-captions the menu automatically; `menu.RefreshCaption()` exists but you should not
+normally need it.
+
+Picking a row closes the menu — including re-picking the row already selected, which uGUI's
+`ToggleGroup` swallows (no `onValueChanged`) and which `OnSelectionChanged` therefore never sees.
+Setting `tab.IsOn = true` from code closes it too, and works even while the menu is closed: the rows
+live in a deactivated popup where uGUI's own mutual exclusion does not run, so the shared tab-group
+core enforces it instead.
+
+Expanded is runtime state — `screen.ReSolve()` (a resize, a Variant flip, a theme switch) re-measures
+the panel but never closes it.
+
 ### Carousel
 
 ```csharp
@@ -582,8 +622,8 @@ UI.Registry.Register<MyControl>("MyControl", optionalPrefab: null);
 - Supported types: `string` / `int` / `float` / `bool`. Use string + parse internally for everything else.
 - `[UIAttr(IsSprite = true)]` marks an attribute whose value is a sprite reference resolved via `UI.ResolveSprite` (or `UI.SpriteResolver` for atlas-only `ns:name` lookups). The Editor "Sync Sprite Sets" feature reads this flag to discover which attribute names per tag carry sprite refs, so the atlas auto-packs sprites referenced via non-`sprite` attribute names too (e.g. `<Progress fill='ui:foo' bg='ui:bar' frame='ui:baz' mask='ui:qux'/>`). Custom controls whose setter calls `UI.ResolveSprite` should set the flag; without it, only the conventional attribute name `sprite` is scanned and you'll see "missing sprite" warnings at sync time.
 - `[Bind]` on a field auto-wires a child component from a Prefab by child name. Useful when the control has a non-trivial Prefab structure.
-- `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` are reference implementations, and **every built-in control is `sealed`** — you cannot subclass them. Two options, in order:
-  1. **Re-skin from XML.** Each inner layer has a `<layer>` (sprite) / `<layer>Color` attribute pair: `<Slider fill= fillColor= handle= handleColor=>`, `<Toggle checkmark= checkmarkColor=>`, `<Dropdown arrow= arrowColor= itemColor= itemTextColor= checkmark* scrollbar*>`, `<ScrollList scrollbar* scrollbarHandle*>`, `<Progress fill= bg= frame= mask=>`. `""` clears a sprite, giving a flat colour-only layer. This covers pixel borders, flat/glass looks and per-theme recolouring without any C#.
+- `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` / `<TabMenu>` are reference implementations, and **every built-in control is `sealed`** — you cannot subclass them. Two options, in order:
+  1. **Re-skin from XML.** Each inner layer has a `<layer>` (sprite) / `<layer>Color` attribute pair: `<Slider fill= fillColor= handle= handleColor=>`, `<Toggle checkmark= checkmarkColor=>`, `<Dropdown arrow= arrowColor= itemColor= itemTextColor= checkmark* scrollbar*>`, `<TabMenu arrow= arrowColor=>`, `<ScrollList scrollbar* scrollbarHandle*>`, `<Progress fill= bg= frame= mask=>`. `""` clears a sprite, giving a flat colour-only layer. This covers pixel borders, flat/glass looks and per-theme recolouring without any C#.
   2. **Replace the tag.** For structural changes (different popup layout, extra chrome, new interaction), write your own `Control` and register it over the built-in tag before any Screen opens: `UI.Registry.Register<MyDropdown>("Dropdown")`. XML keeps saying `<Dropdown>`; the registry decides which class builds it. Don't modify the base controls.
 - **IL2CPP Managed Stripping (Medium+)**: setter-only `[UIAttr]` properties get their `PropertyInfo` metadata stripped (`Type.GetProperties()` returns nothing for them), reflection misses the property, attribute silently reverts to default in Player builds with no error log. **Pair every `[UIAttr]` and `[Bind]` with `[Preserve]`**: `[UIAttr, Preserve] public string Color { set { ... } }`. `PromptUGUI.Registry.PreserveAttribute` is name-matched by Mono.Linker (any class named exactly `PreserveAttribute`, inheritance does **not** count). All built-in controls already do this; custom controls must too.
 
@@ -637,7 +677,8 @@ EVENTS (R3)    .OnClick                Btn
                                         Focused = Directional nav mode only; reuses hover visual
                .OnValueChanged         Toggle:bool / Slider:float / InputField:string / Tab:bool
                .OnSelected             Dropdown:int / Tab:Unit (on=true only)
-               .OnSelectionChanged     TabBar:Tab (the newly-on Tab, or null when emptied)
+               .OnSelectionChanged     TabBar/TabMenu:Tab (the newly-on Tab, or null when emptied)
+               .OnExpanded/.OnCollapsed TabMenu:Unit (popup opened / closed)
                .OnCurrentChanged       Carousel:int (any-source page change, deduped)
                .OnEndEdit / .OnSubmit  InputField:string
                .Subscribe(...).AddTo(screen)   tie lifetime — ALWAYS
@@ -647,12 +688,14 @@ EVENTS (R3)    .OnClick                Btn
 DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                ScrollList.BindItems(Observable<IReadOnlyList<T>>, (slot,t)=>...)
                TabBar.BindItems(Observable<IReadOnlyList<T>>, (Tab tab,t)=>...)
+               TabMenu.BindItems(...)  same shape — one shared tab-group implementation
                                        or BindItems<T,TSlot>(...) for wrapped templates
                Carousel.BindItems(Observable<IReadOnlyList<T>>, (IControl card,t)=>...[, key: o=>o.Id])
                                                               // key optional: re-centre the centred card by identity on re-emit
                                        or BindItems<T,TSlot>(...) for typed card template
                .AddTo(screen)
-               TabBar query: .Count / .SelectedIndex (-1 if empty) / .SelectedTab / .GetAt(i)
+               TabBar/TabMenu query: .Count / .SelectedIndex (-1 if empty) / .SelectedTab / .GetAt(i)
+               TabMenu state: .IsExpanded / .Expand() / .Collapse() / .Toggle()
                Carousel query: .Count / .Current (get/set) / .Playing (get/set) / .GoTo(i,animated) / .Next() / .Previous()
 
 MARKDOWN       md.Text = "…"                                 set → full re-render (runtime-owned)
