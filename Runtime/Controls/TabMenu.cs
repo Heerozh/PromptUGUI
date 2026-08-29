@@ -343,7 +343,35 @@ namespace PromptUGUI.Controls
         public IDisposable BindItems<T, TSlot>(
             Observable<IReadOnlyList<T>> source,
             Action<TSlot, T> bind) where TSlot : class, IControl
-            => _core.BindItems(source, bind);
+            => _core.BindItems(source, bind, BeforeRebuild, AfterRebuild);
+
+        // A row is built by AddComponent-ing a TMP onto a fresh GameObject. Do that under an
+        // inactive parent — which is exactly what a collapsed popup is — and the TMP never runs
+        // Awake, so it reports a preferred size of 0 for the rest of its life and the row collapses.
+        // Activating for the duration of the rebuild and switching back within the same frame costs
+        // nothing visually (nothing renders between the two) and gets every row measured.
+        private bool _tempActivatedForRebuild;
+
+        private void BeforeRebuild()
+        {
+            if (_popup == null || _popup.gameObject.activeSelf) return;
+            _popup.gameObject.SetActive(true);
+            _tempActivatedForRebuild = true;
+        }
+
+        private void AfterRebuild()
+        {
+            WireActivationSubscriptions();
+            RefreshCaption();
+
+            if (_tempActivatedForRebuild)
+            {
+                _tempActivatedForRebuild = false;
+                _popup.gameObject.SetActive(false);
+                return;
+            }
+            PlacePopup();
+        }
 
         // ── Caption ────────────────────────────────────────────────────────────────────────
 
