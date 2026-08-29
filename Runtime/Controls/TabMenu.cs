@@ -475,8 +475,21 @@ namespace PromptUGUI.Controls
         internal static bool HasExpandedMenu => s_expanded != null;
 
         private GameObject _blocker;
+        private GameObject _prevConfineRoot;
+
+        // True only while Expand() is bringing the panel up. Activating the popup subtree makes uGUI
+        // revalidate the ToggleGroup on enable, which re-announces the already-selected tab — and
+        // "a tab was selected" is otherwise the signal to close. Without this guard a menu closes
+        // itself in the same call that opened it.
+        private bool _expanding;
+        private PromptUGUI.Application.Modals.ModalEscapeListener _escapeListener;
         private readonly Subject<Unit> _expandedSubject = new();
         private readonly Subject<Unit> _collapsedSubject = new();
+
+        // The frame an Escape was already spent on. UI.Modal's handler and this menu's own listener
+        // both answer the same press in an undefined order, so whichever runs second has to see the
+        // press as gone or one key would close the menu and the modal behind it.
+        private static int s_escapeFrame = int.MinValue;
 
         public bool IsExpanded { get; private set; }
 
@@ -497,7 +510,21 @@ namespace PromptUGUI.Controls
             if (s_expanded != null && s_expanded != this) s_expanded.Collapse();
             s_expanded = this;
             IsExpanded = true;
+            _expanding = true;
+            try
+            {
+                ExpandCore();
+            }
+            finally
+            {
+                _expanding = false;
+            }
 
+            _expandedSubject.OnNext(Unit.Default);
+        }
+
+        private void ExpandCore()
+        {
             _popup.gameObject.SetActive(true);
 
             var rootCanvas = RootCanvas();
@@ -507,9 +534,9 @@ namespace PromptUGUI.Controls
 
             EnsureBlocker(rootCanvas, baseOrder + PopupSortingOffset - 1);
             PlacePopup();
+            PushNavigation();
+            EnableEscapeListener(true);
             PlayTransition(expanding: true);
-
-            _expandedSubject.OnNext(Unit.Default);
         }
 
         public void Collapse()
@@ -519,6 +546,8 @@ namespace PromptUGUI.Controls
             if (s_expanded == this) s_expanded = null;
 
             if (_blocker != null) _blocker.SetActive(false);
+            EnableEscapeListener(false);
+            PopNavigation();
             PlayTransition(expanding: false);
 
             _collapsedSubject.OnNext(Unit.Default);
@@ -615,6 +644,106 @@ namespace PromptUGUI.Controls
             if (_popup == null) return;
             _popupCanvas.overrideSorting = false;
             _popup.gameObject.SetActive(false);
+        }
+
+        // ── Directional navigation & Escape ───────────────────────────────────────────────
+
+        /// <summary>
+        /// Cages the focus inside the open panel and lands it on the current choice.
+        /// </summary>
+        /// <remarks>
+        /// Remembers whatever owned the focus before — an enclosing modal, usually — rather than
+        /// assuming "nothing". Restoring to null instead would silently free a modal's trap the
+        /// first time someone opened a menu inside it.
+        /// </remarks>
+        private void PushNavigation()
+        {
+            if (!UI.Navigation.IsEnabled) return;
+
+            // ContainmentRoot is the authority — it is what EnforceContainment reads every frame, and
+            // a caller can set it without going through a Screen (as UI.Modal does).
+            _prevConfineRoot = UI.Navigation.ContainmentRoot;
+            UI.OwnerScreenOf(this)?.ConfineNavigationTo(_popup.gameObject);
+            UI.Navigation.ContainmentRoot = _popup.gameObject;
+
+            var es = FindEventSystem();
+            if (es == null) return;
+            var pick = SelectedTab != null && SelectedTab.GameObject != null
+                ? SelectedTab.GameObject
+                : UI.Navigation.FirstFocusableUnder(_popup.gameObject);
+            if (pick != null) es.SetSelectedGameObject(pick);
+        }
+
+        private void PopNavigation()
+        {
+            if (!UI.Navigation.IsEnabled) return;
+
+            UI.OwnerScreenOf(this)?.ConfineNavigationTo(_prevConfineRoot);
+            UI.Navigation.ContainmentRoot = _prevConfineRoot;
+            _prevConfineRoot = null;
+
+            var es = FindEventSystem();
+            if (es != null && GameObject != null) es.SetSelectedGameObject(GameObject);
+        }
+
+        // EventSystem.current is null in EditMode; mirror Screen.FindEventSystem's fallback.
+        private static UnityEngine.EventSystems.EventSystem FindEventSystem()
+            => UnityEngine.EventSystems.EventSystem.current
+               ?? UnityEngine.Object.FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>();
+
+        private void EnableEscapeListener(bool on)
+        {
+            if (!on)
+            {
+                if (_escapeListener != null) _escapeListener.enabled = false;
+                return;
+            }
+            if (_escapeListener == null)
+            {
+                _escapeListener = _popup.gameObject.AddComponent<PromptUGUI.Application.Modals.ModalEscapeListener>();
+                // Unlike a modal, a menu is dismissed with the gamepad's Cancel button too.
+                _escapeListener.AlsoCancelButton = true;
+                _escapeListener.OnEscape = () => { NoteEscapeConsumed(); Collapse(); };
+            }
+            _escapeListener.enabled = true;
+        }
+
+        private static void NoteEscapeConsumed() => s_escapeFrame = Time.frameCount;
+
+        /// <summary>
+        /// Closes the open menu, if any, and reports whether this Escape belongs to a menu.
+        /// Called first thing by <c>UI.Modal</c>'s Escape handler.
+        /// </summary>
+        internal static bool TryConsumeEscape()
+        {
+            if (s_expanded != null)
+            {
+                NoteEscapeConsumed();
+                s_expanded.Collapse();
+                return true;
+            }
+            // The menu's own listener already handled this very press — swallow it here too.
+            return s_escapeFrame == Time.frameCount;
+        }
+
+        internal void NotifyEscapeConsumedForTests()
+        {
+            NoteEscapeConsumed();
+            Collapse();
+        }
+
+        internal static void ForgetEscapeFrameForTests() => s_escapeFrame = int.MinValue;
+
+        /// <summary>
+        /// Clears the two process-wide bits between tests. Both would otherwise leak: a menu left
+        /// open by one test would be collapsed (on a destroyed object) by the next one's Expand, and
+        /// <c>Time.frameCount</c> barely advances between EditMode tests, so a spent Escape would
+        /// keep reading as spent.
+        /// </summary>
+        internal static void ResetForTestsInternal()
+        {
+            s_expanded = null;
+            s_escapeFrame = int.MinValue;
         }
 
         private Canvas RootCanvas()
@@ -762,6 +891,9 @@ namespace PromptUGUI.Controls
                 _blocker = null;
             }
             CancelMotions();
+            if (UI.Navigation.ContainmentRoot != null && _popup != null
+                && UI.Navigation.ContainmentRoot == _popup.gameObject)
+                UI.Navigation.ContainmentRoot = _prevConfineRoot;
             RepointCaptionSource(null);
             _selectionSub?.Dispose();
             _activationSubs?.Dispose();
@@ -774,7 +906,9 @@ namespace PromptUGUI.Controls
         private void OnSelectionSettled()
         {
             RefreshCaption();
-            Collapse();
+            // Not while opening: see _expanding. Picking a row — by click or from code — is what
+            // closes a menu, and reactivating the panel is neither.
+            if (!_expanding) Collapse();
         }
 
         // Picking a row closes the menu — including a re-pick of the row already selected, which
@@ -784,7 +918,7 @@ namespace PromptUGUI.Controls
             _activationSubs?.Dispose();
             _activationSubs = new CompositeDisposable();
             for (int i = 0; i < _core.Tabs.Count; i++)
-                _core.Tabs[i].OnActivated.Subscribe(_ => Collapse()).AddTo(_activationSubs);
+                _core.Tabs[i].OnActivated.Subscribe(_ => { if (!_expanding) Collapse(); }).AddTo(_activationSubs);
         }
     }
 }

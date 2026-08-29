@@ -201,6 +201,11 @@ namespace PromptUGUI.Application
 
             private static void OnEscapePressed(Slot slot)
             {
+                // An open <TabMenu> is closer to the user than the modal it sits in, so it answers
+                // Escape first. Both listeners hear the same press and their order is undefined, so
+                // this also returns true when the menu already closed itself this frame — otherwise
+                // one press would close the menu AND the modal behind it.
+                if (Controls.TabMenu.TryConsumeEscape()) return;
                 if (Tutorial.IsBlockingInput) return;   // Block 引导期间吞 ESC(不关下层模态)
                 if (_stack.Count == 0 || _stack[_stack.Count - 1] != slot) return;
                 slot.Entry.TryEscape(() => OnEntryClosed(slot));

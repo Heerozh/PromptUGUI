@@ -12,6 +12,13 @@ namespace PromptUGUI.Application.Modals
     {
         internal Action OnEscape;
 
+        /// <summary>
+        /// Also listen on the gamepad's Cancel button. Off for modals — a modal is dismissed with
+        /// Start, and East stays free for the navigation controller to read as "back". A popup that
+        /// is not a modal (an open <see cref="Controls.TabMenu"/>) does want East to close it.
+        /// </summary>
+        internal bool AlsoCancelButton;
+
 #if ENABLE_INPUT_SYSTEM
         private global::UnityEngine.InputSystem.InputAction _action;
         private global::UnityEngine.InputSystem.InputActionMap _map;
@@ -22,6 +29,7 @@ namespace PromptUGUI.Application.Modals
             _action = _map.AddAction("Escape", global::UnityEngine.InputSystem.InputActionType.Button);
             _action.AddBinding("<Keyboard>/escape");
             _action.AddBinding("<Gamepad>/start");
+            if (AlsoCancelButton) _action.AddBinding("<Gamepad>/buttonEast");
             _action.performed += OnPerformed;
             _map.Enable();
         }

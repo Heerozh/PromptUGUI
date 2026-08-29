@@ -918,9 +918,15 @@ namespace PromptUGUI.Application
         /// page behind it (modal focus correctness — see <see cref="Navigation.ExplicitNavigationResolver"/>).
         /// Called by <see cref="UI.Modal"/> after the modal binds (buttons shown/hidden finalized).
         /// </summary>
-        internal void ConfineNavigationToSelf()
+        internal void ConfineNavigationToSelf() => ConfineNavigationTo(RootGameObject);
+
+        /// <summary>
+        /// Cage directional navigation inside <paramref name="root"/> — the whole screen for a modal,
+        /// a single popup panel for an open <see cref="Controls.TabMenu"/>. Pass null to lift the cage.
+        /// </summary>
+        internal void ConfineNavigationTo(UnityEngine.GameObject root)
         {
-            NavConfineRoot = RootGameObject;
+            NavConfineRoot = root;
             // The resolver forces a canvas update in confine mode so the geometric neighbours are
             // computed against a current layout (the modal's overlay canvas is sized there too).
             Navigation.ExplicitNavigationResolver.Resolve(this, _nodeMap, Variants,
