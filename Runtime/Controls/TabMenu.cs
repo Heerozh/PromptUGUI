@@ -56,10 +56,13 @@ namespace PromptUGUI.Controls
         private Tab _captionSource;
         private Action _captionSourceHandler;
         private IDisposable _selectionSub;
+        private CompositeDisposable _activationSubs;
 
         private float _iconSize = 24f;
         private float _arrowSize = 16f;
         private float _gap = 6f;
+        private float _popupWidth;                 // 0 = auto (max of handle width and content)
+        private float _popupGap = 4f;
         private string _fontType = "default";
 
         public TabMenu()
@@ -274,6 +277,14 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public string ItemTemplate { set => _core.ItemTemplate = value; }
 
+        /// <summary>Panel width. Unset (or 0) sizes it to the wider of the handle and its content.</summary>
+        [UIAttr, Preserve]
+        public float PopupWidth { set { _popupWidth = value; PlacePopup(); } }
+
+        /// <summary>Space between handle and panel, on whichever side the panel drops.</summary>
+        [UIAttr, Preserve]
+        public float PopupGap { set { _popupGap = value; PlacePopup(); } }
+
         // ── Selection (delegated to TabGroupCore) ──────────────────────────────────────────
 
         public int Count => _core.Tabs.Count;
@@ -380,9 +391,32 @@ namespace PromptUGUI.Controls
 
         private void ApplyFont() => FontApplier.Apply(_label, _fontType);
 
-        // ── Expand / collapse (Task 5 wires the real behaviour) ────────────────────────────
+        // ── Expand / collapse ──────────────────────────────────────────────────────────────
+
+        /// <summary>Name of the full-screen click catcher, on the root canvas while a menu is open.</summary>
+        internal const string BlockerName = "__TabMenuBlocker";
+
+        /// <summary>
+        /// How far above the root canvas the panel sorts. The catcher sits one below it, so both
+        /// clear the page without reaching the modal band (<c>UI.Modal.SortingOrderBase</c> = 1000).
+        /// </summary>
+        internal static int PopupSortingOffset = 2;
+
+        // At most one menu is open anywhere: the catcher covers the screen, so a second one could
+        // not be reached, and Escape needs a single unambiguous target (TM-D9 / TM-D16).
+        private static TabMenu s_expanded;
+
+        internal static bool HasExpandedMenu => s_expanded != null;
+
+        private GameObject _blocker;
+        private readonly Subject<Unit> _expandedSubject = new();
+        private readonly Subject<Unit> _collapsedSubject = new();
 
         public bool IsExpanded { get; private set; }
+
+        public Observable<Unit> OnExpanded => _expandedSubject;
+
+        public Observable<Unit> OnCollapsed => _collapsedSubject;
 
         public void Toggle()
         {
@@ -391,10 +425,121 @@ namespace PromptUGUI.Controls
 
         public void Expand()
         {
+            if (IsExpanded || !Interactable) return;
+            if (GameObject == null || !GameObject.activeInHierarchy) return;
+
+            if (s_expanded != null && s_expanded != this) s_expanded.Collapse();
+            s_expanded = this;
+            IsExpanded = true;
+
+            _popup.gameObject.SetActive(true);
+
+            var rootCanvas = RootCanvas();
+            var baseOrder = rootCanvas != null ? rootCanvas.sortingOrder : 0;
+            _popupCanvas.overrideSorting = true;
+            _popupCanvas.sortingOrder = baseOrder + PopupSortingOffset;
+
+            EnsureBlocker(rootCanvas, baseOrder + PopupSortingOffset - 1);
+            PlacePopup();
+
+            _expandedSubject.OnNext(Unit.Default);
         }
 
         public void Collapse()
         {
+            if (!IsExpanded) return;
+            IsExpanded = false;
+            if (s_expanded == this) s_expanded = null;
+
+            if (_blocker != null) _blocker.SetActive(false);
+            if (_popup != null)
+            {
+                _popupCanvas.overrideSorting = false;
+                _popup.gameObject.SetActive(false);
+            }
+
+            _collapsedSubject.OnNext(Unit.Default);
+        }
+
+        private Canvas RootCanvas()
+        {
+            var canvas = GameObject.GetComponentInParent<Canvas>(true);
+            return canvas != null ? canvas.rootCanvas : null;
+        }
+
+        // The catcher hangs off the ROOT canvas, not the menu: it has to cover the whole screen, and
+        // a child of the handle could never do that without inheriting its clipping and position.
+        private void EnsureBlocker(Canvas rootCanvas, int sortingOrder)
+        {
+            if (_blocker == null)
+            {
+                var host = rootCanvas != null ? rootCanvas.transform : GameObject.transform.root;
+                _blocker = new GameObject(BlockerName, typeof(RectTransform)) { layer = GameObject.layer };
+                var rt = (RectTransform)_blocker.transform;
+                rt.SetParent(host, false);
+                rt.anchorMin = Vector2.zero;
+                rt.anchorMax = Vector2.one;
+                rt.offsetMin = Vector2.zero;
+                rt.offsetMax = Vector2.zero;
+
+                var img = _blocker.AddComponent<UnityImage>();
+                img.color = new Color(0f, 0f, 0f, 0f);
+                img.raycastTarget = true;
+
+                _blocker.AddComponent<Canvas>().overrideSorting = true;
+                _blocker.AddComponent<GraphicRaycaster>();
+
+                var btn = _blocker.AddComponent<Button>();
+                btn.transition = Selectable.Transition.None;
+                // Invisible and keyboard-unreachable: it exists for the pointer only, and letting
+                // directional navigation land on it would strand the focus on nothing.
+                btn.navigation = new Navigation { mode = Navigation.Mode.None };
+                btn.onClick.AddListener(Collapse);
+            }
+            _blocker.transform.SetAsLastSibling();
+            _blocker.GetComponent<Canvas>().sortingOrder = sortingOrder;
+            _blocker.SetActive(true);
+        }
+
+        /// <summary>
+        /// Sizes the panel and hangs it off the handle, flipping or clamping it back inside the
+        /// canvas when it would otherwise overflow. See <see cref="PopupPlacer"/> for the rules.
+        /// </summary>
+        private void PlacePopup()
+        {
+            if (_popup == null || !IsExpanded) return;
+
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
+            var width = _popupWidth > 0f
+                ? _popupWidth
+                : Mathf.Max(RectTransform.rect.width, LayoutUtility.GetPreferredWidth(_content));
+            var height = LayoutUtility.GetPreferredHeight(_content);
+            _popup.sizeDelta = new Vector2(width, height);
+
+            var rootCanvas = RootCanvas();
+            var placement = rootCanvas != null
+                ? PopupPlacer.Solve(RectInCanvas(RectTransform, rootCanvas),
+                                    new Vector2(width, height),
+                                    ((RectTransform)rootCanvas.transform).rect,
+                                    _popupGap)
+                // No canvas to measure against (a detached test rig): keep the default drop-down.
+                : new PopupPlacement(new Vector2(0f, 0f), new Vector2(0f, 1f),
+                                     new Vector2(0f, -_popupGap), false);
+
+            _popup.anchorMin = placement.Anchor;
+            _popup.anchorMax = placement.Anchor;
+            _popup.pivot = placement.Pivot;
+            _popup.anchoredPosition = placement.AnchoredPosition;
+        }
+
+        private static Rect RectInCanvas(RectTransform rt, Canvas canvas)
+        {
+            var canvasRt = (RectTransform)canvas.transform;
+            var corners = new Vector3[4];
+            rt.GetWorldCorners(corners);
+            var min = canvasRt.InverseTransformPoint(corners[0]);   // bottom-left
+            var max = canvasRt.InverseTransformPoint(corners[2]);   // top-right
+            return new Rect(min.x, min.y, max.x - min.x, max.y - min.y);
         }
 
         // ── Lifecycle ──────────────────────────────────────────────────────────────────────
@@ -406,8 +551,14 @@ namespace PromptUGUI.Controls
             _core.CollectStatic(Children);
             _core.SyncInitialSelection();
             _core.WireTabSubscriptions();
-            _selectionSub ??= _core.SelectionChanged.Subscribe(_ => RefreshCaption());
+            _selectionSub ??= _core.SelectionChanged.Subscribe(_ => OnSelectionSettled());
+            WireActivationSubscriptions();
             RefreshCaption();
+
+            // A variant / theme pass that hides or disables the menu must not leave an orphaned
+            // panel floating over the page.
+            if (IsExpanded && (!Interactable || !GameObject.activeInHierarchy)) Collapse();
+            else PlacePopup();
 
             // The popup must stay active through Open()'s measuring pass: a TMP added by
             // AddComponent on an inactive GameObject never runs Awake and mis-measures its
@@ -425,13 +576,58 @@ namespace PromptUGUI.Controls
             if (!IsExpanded && _popup != null) _popup.gameObject.SetActive(false);
         }
 
+        /// <summary>
+        /// Mirrors <see cref="Btn.Interactable"/>: driving it from code greys the handle through the
+        /// underlying Button as well as the base CanvasGroup — and shuts an open menu, which the
+        /// user can no longer dismiss by clicking a row.
+        /// </summary>
+        public override bool Interactable
+        {
+            get => base.Interactable;
+            set
+            {
+                base.Interactable = value;
+                if (_btn != null) _btn.interactable = value;
+                if (!value) Collapse();
+            }
+        }
+
         public override void Dispose()
         {
             UI.Locale.Changed -= ApplyFont;
+            if (s_expanded == this) s_expanded = null;
+            IsExpanded = false;
+            // The catcher is parented to the root canvas, outside this control's subtree, so the
+            // Screen teardown that destroys everything else would leave it behind.
+            if (_blocker != null)
+            {
+                if (UnityEngine.Application.isPlaying) UnityEngine.Object.Destroy(_blocker);
+                else UnityEngine.Object.DestroyImmediate(_blocker);
+                _blocker = null;
+            }
             RepointCaptionSource(null);
             _selectionSub?.Dispose();
+            _activationSubs?.Dispose();
+            _expandedSubject.Dispose();
+            _collapsedSubject.Dispose();
             _core.Dispose();
             base.Dispose();
+        }
+
+        private void OnSelectionSettled()
+        {
+            RefreshCaption();
+            Collapse();
+        }
+
+        // Picking a row closes the menu — including a re-pick of the row already selected, which
+        // never reaches SelectionChanged (uGUI swallows it, see PuiToggle.OnClicked).
+        private void WireActivationSubscriptions()
+        {
+            _activationSubs?.Dispose();
+            _activationSubs = new CompositeDisposable();
+            for (int i = 0; i < _core.Tabs.Count; i++)
+                _core.Tabs[i].OnActivated.Subscribe(_ => Collapse()).AddTo(_activationSubs);
         }
     }
 }

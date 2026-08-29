@@ -1,6 +1,11 @@
+using System.Linq;
 using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
+using PromptUGUI.Controls.Internal;
+using PromptUGUI.IR;
+using PromptUGUI.Lint;
+using PromptUGUI.Parser;
 using R3;
 using TMPro;
 using UnityEngine;
@@ -38,9 +43,16 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
         internal static RectTransform Popup(TabMenu m) => (RectTransform)m.RectTransform.Find("Popup");
         internal static RectTransform Content(TabMenu m) => (RectTransform)Popup(m).Find("Content");
-        private static TMP_Text Label(TabMenu m) => m.RectTransform.Find("Label").GetComponent<TMP_Text>();
+        private static TMP_Text LabelOf(TabMenu m) => m.RectTransform.Find("Label").GetComponent<TMP_Text>();
         private static UnityImage Arrow(TabMenu m) => m.RectTransform.Find("Arrow").GetComponent<UnityImage>();
         private static UnityImage IconOf(TabMenu m) => m.RectTransform.Find("Icon").GetComponent<UnityImage>();
+
+        private static System.Collections.Generic.List<LintIssue> Walk(string body)
+        {
+            var xml = $@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>{body}</Screen></PromptUGUI>";
+            return IRWalker.Walk(UIDocumentParser.Parse(xml)).ToList();
+        }
 
         // ── Registration & structure ───────────────────────────────────────────────────────
 
@@ -108,10 +120,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var s = Open(TwoTabs);
             var m = s.Get<TabMenu>("m");
-            Assert.AreEqual("World", Label(m).text);
+            Assert.AreEqual("World", LabelOf(m).text);
 
             s.Get<Tab>("b").IsOn = true;
-            Assert.AreEqual("Guild", Label(m).text);
+            Assert.AreEqual("Guild", LabelOf(m).text);
         }
 
         [Test]
@@ -119,7 +131,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var s = Open(TwoTabs);
             s.Get<Tab>("a").Text = "Renamed";
-            Assert.AreEqual("Renamed", Label(s.Get<TabMenu>("m")).text);
+            Assert.AreEqual("Renamed", LabelOf(s.Get<TabMenu>("m")).text);
         }
 
         [Test]
@@ -127,7 +139,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var s = Open(TwoTabs);
             s.Get<Tab>("b").Text = "Elsewhere";
-            Assert.AreEqual("World", Label(s.Get<TabMenu>("m")).text);
+            Assert.AreEqual("World", LabelOf(s.Get<TabMenu>("m")).text);
         }
 
         [Test]
@@ -141,7 +153,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         public void FontSize_applies_to_caption()
         {
             var m = Open(TwoTabs).Get<TabMenu>("m");
-            Assert.AreEqual(22f, Label(m).fontSize);
+            Assert.AreEqual(22f, LabelOf(m).fontSize);
         }
 
         [Test]
@@ -192,7 +204,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var s = Open(@"<TabMenu id='m'><Tab id='a' text='A'/><Tab id='b' text='B'/></TabMenu>");
             Assert.AreEqual(0, s.Get<TabMenu>("m").SelectedIndex);
-            Assert.AreEqual("A", Label(s.Get<TabMenu>("m")).text);
+            Assert.AreEqual("A", LabelOf(s.Get<TabMenu>("m")).text);
         }
 
         [Test]
@@ -214,6 +226,261 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         // ── Native size ────────────────────────────────────────────────────────────────────
+
+        // ── Expand / collapse ─────────────────────────────────────────────────────────────
+
+        private static GameObject Blocker(PuguiScreen s)
+        {
+            var t = s.RootGameObject.transform.Find(TabMenu.BlockerName);
+            return t != null ? t.gameObject : null;
+        }
+
+        [Test]
+        public void Expand_activates_the_popup_and_lifts_it_above_the_page()
+        {
+            var s = Open(TwoTabs);
+            var m = s.Get<TabMenu>("m");
+            var rootOrder = s.RootGameObject.GetComponent<Canvas>().sortingOrder;
+
+            m.Expand();
+
+            Assert.IsTrue(m.IsExpanded);
+            Assert.IsTrue(Popup(m).gameObject.activeSelf);
+            var canvas = Popup(m).GetComponent<Canvas>();
+            Assert.IsTrue(canvas.overrideSorting, "also what frees the panel from an ancestor mask");
+            Assert.AreEqual(rootOrder + TabMenu.PopupSortingOffset, canvas.sortingOrder);
+        }
+
+        [Test]
+        public void Expand_puts_a_click_catcher_under_the_root_canvas()
+        {
+            var s = Open(TwoTabs);
+            var m = s.Get<TabMenu>("m");
+            var rootOrder = s.RootGameObject.GetComponent<Canvas>().sortingOrder;
+
+            m.Expand();
+
+            var blocker = Blocker(s);
+            Assert.IsNotNull(blocker, "the catcher lives on the root canvas, not inside the menu");
+            Assert.IsTrue(blocker.activeSelf);
+            Assert.AreEqual(rootOrder + TabMenu.PopupSortingOffset - 1,
+                            blocker.GetComponent<Canvas>().sortingOrder, "just below the panel");
+            Assert.AreEqual(0f, blocker.GetComponent<UnityImage>().color.a, "invisible…");
+            Assert.IsTrue(blocker.GetComponent<UnityImage>().raycastTarget, "…but catches the click");
+            Assert.AreEqual(UnityEngine.UI.Navigation.Mode.None,
+                            blocker.GetComponent<Button>().navigation.mode,
+                            "never a directional-navigation neighbour");
+        }
+
+        [Test]
+        public void Clicking_the_catcher_collapses()
+        {
+            var s = Open(TwoTabs);
+            var m = s.Get<TabMenu>("m");
+            m.Expand();
+
+            Blocker(s).GetComponent<Button>().onClick.Invoke();
+
+            Assert.IsFalse(m.IsExpanded);
+            Assert.IsFalse(Blocker(s).activeSelf);
+        }
+
+        [Test]
+        public void Collapse_hides_the_popup()
+        {
+            var m = Open(TwoTabs).Get<TabMenu>("m");
+            m.Expand();
+            m.Collapse();
+            Assert.IsFalse(m.IsExpanded);
+            Assert.IsFalse(Popup(m).gameObject.activeSelf);
+        }
+
+        [Test]
+        public void Toggle_flips_the_state()
+        {
+            var m = Open(TwoTabs).Get<TabMenu>("m");
+            m.Toggle();
+            Assert.IsTrue(m.IsExpanded);
+            m.Toggle();
+            Assert.IsFalse(m.IsExpanded);
+        }
+
+        [Test]
+        public void Clicking_the_handle_toggles()
+        {
+            var m = Open(TwoTabs).Get<TabMenu>("m");
+            m.GameObject.GetComponent<Button>().onClick.Invoke();
+            Assert.IsTrue(m.IsExpanded);
+        }
+
+        [Test]
+        public void Picking_a_tab_collapses()
+        {
+            var s = Open(TwoTabs);
+            var m = s.Get<TabMenu>("m");
+            m.Expand();
+
+            s.Get<Tab>("b").IsOn = true;
+
+            Assert.IsFalse(m.IsExpanded, "choosing is the whole point — the menu closes behind it");
+        }
+
+        [Test]
+        public void Re_picking_the_selected_tab_also_collapses()
+        {
+            var s = Open(TwoTabs);
+            var m = s.Get<TabMenu>("m");
+            m.Expand();
+
+            s.Get<Tab>("a").SimulateClickForTests();   // already isOn: no onValueChanged at all
+
+            Assert.IsFalse(m.IsExpanded);
+        }
+
+        [Test]
+        public void Only_one_menu_is_open_at_a_time()
+        {
+            var s = Open(@"
+              <TabMenu id='m1'><Tab id='a' text='A'/></TabMenu>
+              <TabMenu id='m2'><Tab id='b' text='B'/></TabMenu>");
+            var m1 = s.Get<TabMenu>("m1");
+            var m2 = s.Get<TabMenu>("m2");
+
+            m1.Expand();
+            m2.Expand();
+
+            Assert.IsFalse(m1.IsExpanded, "the blocker covers the screen — a second open menu is unreachable");
+            Assert.IsTrue(m2.IsExpanded);
+        }
+
+        [Test]
+        public void OnExpanded_and_OnCollapsed_fire()
+        {
+            var m = Open(TwoTabs).Get<TabMenu>("m");
+            int expanded = 0, collapsed = 0;
+            using var e = m.OnExpanded.Subscribe(_ => expanded++);
+            using var c = m.OnCollapsed.Subscribe(_ => collapsed++);
+
+            m.Expand();
+            m.Expand();       // already open: no second event
+            m.Collapse();
+            m.Collapse();     // already closed: no second event
+
+            Assert.AreEqual(1, expanded);
+            Assert.AreEqual(1, collapsed);
+        }
+
+        [Test]
+        public void A_disabled_menu_does_not_open()
+        {
+            var m = Open(@"<TabMenu id='m' interactable='false'><Tab id='a' text='A'/></TabMenu>")
+                .Get<TabMenu>("m");
+            m.Expand();
+            Assert.IsFalse(m.IsExpanded);
+        }
+
+        [Test]
+        public void Becoming_disabled_closes_an_open_menu()
+        {
+            var m = Open(TwoTabs).Get<TabMenu>("m");
+            m.Expand();
+            m.Interactable = false;
+            Assert.IsFalse(m.IsExpanded);
+        }
+
+        [Test]
+        public void Closing_the_screen_takes_the_catcher_with_it()
+        {
+            var s = Open(TwoTabs);
+            s.Get<TabMenu>("m").Expand();
+            Assert.IsNotNull(Blocker(s));
+
+            s.Close();
+            Assert.IsFalse(TabMenu.HasExpandedMenu, "no dangling global reference to a dead menu");
+        }
+
+        // ── Popup skin & procedural surface (TM-D3) ───────────────────────────────────────
+
+        [Test]
+        public void Color_fills_the_popup_panel_not_the_handle()
+        {
+            var m = Open(@"<TabMenu id='m' color='#FF0000'><Tab id='a' text='X'/></TabMenu>").Get<TabMenu>("m");
+            var panelBg = Popup(m).GetComponent<UnityImage>();
+            Assert.AreEqual(1f, panelBg.color.r);
+            Assert.AreEqual(0f, panelBg.color.g);
+            Assert.AreEqual(0f, m.GameObject.GetComponent<UnityImage>().color.a,
+                            "the handle stays transparent — color= describes the menu");
+        }
+
+        [Test]
+        public void Popup_has_a_default_rounded_skin()
+        {
+            var m = Open(TwoTabs).Get<TabMenu>("m");
+            Assert.AreEqual("pugui_9slice_round", Popup(m).GetComponent<UnityImage>().sprite.name);
+        }
+
+        [Test]
+        public void Sprite_empty_clears_the_popup_skin()
+        {
+            var m = Open(@"<TabMenu id='m' sprite=''><Tab id='a' text='X'/></TabMenu>").Get<TabMenu>("m");
+            var bg = Popup(m).GetComponent<UnityImage>();
+            Assert.IsNull(bg.sprite);
+            Assert.AreEqual(UnityImage.Type.Simple, bg.type);
+        }
+
+        [Test]
+        public void Radius_draws_a_procedural_surface_under_the_popup()
+        {
+            var m = Open(@"<TabMenu id='m' radius='12'><Tab id='a' text='X'/></TabMenu>").Get<TabMenu>("m");
+            Assert.IsNotNull(Popup(m).Find(ProceduralSurface.NodeName), "the panel is the surface host");
+            Assert.IsNull(m.RectTransform.Find(ProceduralSurface.NodeName), "…and the handle draws nothing");
+        }
+
+        [Test]
+        public void No_procedural_attributes_means_no_surface_node()
+        {
+            var m = Open(TwoTabs).Get<TabMenu>("m");
+            Assert.IsNull(Popup(m).Find(ProceduralSurface.NodeName));
+        }
+
+        [Test]
+        public void Padding_and_spacing_land_on_the_popup_layout()
+        {
+            var m = Open(@"<TabMenu id='m' padding='8,12' spacing='4'><Tab id='a' text='X'/></TabMenu>")
+                .Get<TabMenu>("m");
+            var vlg = Content(m).GetComponent<VerticalLayoutGroup>();
+            Assert.AreEqual(4f, vlg.spacing);
+            Assert.AreEqual(8, vlg.padding.top);
+            Assert.AreEqual(8, vlg.padding.bottom);
+            Assert.AreEqual(12, vlg.padding.left);
+            Assert.AreEqual(12, vlg.padding.right);
+        }
+
+        [Test]
+        public void TextColor_paints_the_caption_not_the_panel()
+        {
+            var m = Open(@"<TabMenu id='m' textColor='#00FF00' color='#FF0000'><Tab id='a' text='X'/></TabMenu>")
+                .Get<TabMenu>("m");
+            Assert.AreEqual(1f, LabelOf(m).color.g);
+            Assert.AreEqual(0f, LabelOf(m).color.r);
+        }
+
+        [Test]
+        public void Lint_accepts_procedural_attributes_on_TabMenu()
+        {
+            var issues = Walk("<TabMenu id='m' radius='12' glass='true'><Tab id='a' text='X'/></TabMenu>");
+            Assert.IsFalse(issues.Any(i => i.Code == PureContainerVisualAttrRules.VisualAttrCode),
+                           "TabMenu is a drawing tag: its surface is the popup panel");
+        }
+
+        [Test]
+        public void Lint_accepts_nav_attributes_on_TabMenu()
+        {
+            var issues = Walk(@"<TabMenu id='m' focus='true' navUp='other'><Tab id='a' text='X'/></TabMenu>
+                                <Btn id='other'>x</Btn>");
+            Assert.IsFalse(issues.Any(i => i.Code == NavTargetRules.NonSelectableCode),
+                           "the collapsed handle is a Button — it belongs in the navigation graph");
+        }
 
         [Test]
         public void Native_size_hugs_the_caption()

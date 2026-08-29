@@ -17,9 +17,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
     /// which is what makes the linter stop reporting its shape attributes as ignored — without
     /// arriving here at the same time.
     ///
-    /// <para>Two of them differ on purpose and are called out where it matters:
-    /// <c>&lt;Slider&gt;</c> keeps <c>targetGraphic</c> on its handle (spec §13.1), and
-    /// <c>&lt;Progress&gt;</c> keeps its surface inside a Bg layer that ships switched off.</para>
+    /// <para>Three of them differ on purpose and are called out where it matters:
+    /// <c>&lt;Slider&gt;</c> keeps <c>targetGraphic</c> on its handle (spec §13.1),
+    /// <c>&lt;Progress&gt;</c> keeps its surface inside a Bg layer that ships switched off, and
+    /// <c>&lt;TabMenu&gt;</c>'s surface is its popup panel rather than the face of its handle.</para>
     /// </summary>
     public class ProceduralSurfaceRolloutTests
     {
@@ -140,10 +141,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [Test]
         public void ControlsWithASelectable_MoveTargetGraphicToTheSurface()
         {
-            // …except Slider, below.
+            // …except Slider and TabMenu, below.
             foreach (var tag in Tags)
             {
-                if (tag == "Slider") continue;
+                if (tag == "Slider" || tag == "TabMenu") continue;
                 var c = Load(tag, "radius='8'");
                 var selectable = c.GameObject.GetComponent<Selectable>();
                 if (selectable == null) continue;   // ScrollList / Progress have none of their own
@@ -166,6 +167,24 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             Assert.IsNotNull(PanelIn(c), "guard: the track did go procedural");
             Assert.AreEqual("Handle", slider.targetGraphic.gameObject.name);
+        }
+
+        /// <summary>
+        /// The other controls here draw one face, and the surface replaces it — so the Selectable's
+        /// targetGraphic has to follow. A TabMenu draws two things in two places: a handle that
+        /// hovers and presses, and a menu panel that is what <c>radius</c> / <c>glass</c> describe
+        /// (spec TM-D3). Pointing targetGraphic at the panel would tint the dropped menu on hovering
+        /// the handle; the handle is deliberately transparent, so its caption carries the state.
+        /// </summary>
+        [Test]
+        public void TabMenu_KeepsTargetGraphicOnItsCaption()
+        {
+            var c = Load("TabMenu", "radius='8'");
+            var button = c.GameObject.GetComponent<UnityEngine.UI.Button>();
+
+            Assert.IsNotNull(PanelIn(c), "guard: the panel did go procedural");
+            Assert.AreEqual("Popup", PanelIn(c).transform.parent.name, "…on the popup, not the handle");
+            Assert.AreEqual("Label", button.targetGraphic.gameObject.name);
         }
 
         /// <summary>
