@@ -160,13 +160,14 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 | `<Dropdown>` | 下拉选择（OnSelected: int；BindOptions 推送选项） | TMP_Dropdown |
 | `<ScrollList>` | 滚动列表（BindItems 推送数据；itemTemplate 引用 Template/Control 类） | ScrollRect + Mask |
 | `<TabBar>` | Tab 容器；私有 ToggleGroup + Horizontal/VerticalLayoutGroup；纯布局,无自身视觉；支持 `itemTemplate` + `BindItems` 动态构建 | RectTransform + ToggleGroup + LayoutGroup（详见 [`2026-05-27-tabbar-design.md`](2026-05-27-tabbar-design.md)） |
-| `<Tab>` | `<TabBar>` 子节点；可点击容器（接子，Frame 式叠放）；uGUI Toggle + 懒建 label + 可选 icon；`color` / `sprite` / `selectedSprite` 自管视觉（共享样式用 Template）；`bind="frame_id"` 声明式切换 Frame 可见性 | RectTransform + UnityImage + UnityToggle |
+| `<TabMenu>` | 弹出式 Tab 组：收起=选中 Tab 的 icon+文字+箭头（hug 内容），展开=一列 `<Tab>` 的弹窗面板；**程序化表面 = 弹窗面板**（把手默认透明）；`OnSelectionChanged` / `OnExpanded` / `OnCollapsed`；`itemTemplate` + `BindItems`；与 `<TabBar>` 共用同一份 Tab 组语义 | RectTransform + PuiButton + ToggleGroup + 内部 Popup（Canvas overrideSorting，逃出祖先 mask）（详见 [`2026-08-29-tabmenu-design.md`](2026-08-29-tabmenu-design.md)） |
+| `<Tab>` | `<TabBar>` / `<TabMenu>` 子节点；可点击容器（接子，Frame 式叠放）；uGUI Toggle + 懒建 label + 可选 icon；`color` / `sprite` / `selectedSprite` 自管视觉（共享样式用 Template）；`bind="frame_id"` 声明式切换 Frame 可见性 | RectTransform + UnityImage + UnityToggle |
 | `<Carousel>` | 水平翻页轮播卡容器；自动播放 + 拖动 + 无限循环 + 状态化指示点；itemTemplate + BindItems 动态卡片；当前页是运行期独占状态（resize 不重置） | RectTransform + RectMask2D + 自管卡条（详见 [`2026-06-04-carousel-design.md`](2026-06-04-carousel-design.md)） |
 | `<Markdown>` | Markdown document → scrollable subtree of existing primitives; dynamic `text`, resize-safe; soft-depends Markdig (`PROMPTUGUI_HAS_MARKDIG`) | see [`2026-06-09-markdown-control-design.md`](2026-06-09-markdown-control-design.md) |
 
 `<Btn>` 提供"按钮"这一通用交互原语：可作为 Template 根，配合 `<Image>` / `<Text>` 子节点组合出 PrimaryButton / DangerButton / IconButton 等业务变体而无需额外 prefab。`Btn` 内部用 R3 `Subject<Unit>` 暴露 `OnClick`（与 §9.4 的"事件统一为 `Observable<T>`"约束一致）。
 
-`<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` / `<TabBar>` 默认开启的参考实现（详见 [`2026-05-09-m5-common-controls-design.md`](2026-05-09-m5-common-controls-design.md)）。视觉风格用 `sprite` / `color` 等属性表达；需要项目级强差异化样式（像素描边、按下震动等）时作者继承相应类重写 `OnAttached`。
+`<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` / `<TabBar>` / `<TabMenu>` 默认开启的参考实现（详见 [`2026-05-09-m5-common-controls-design.md`](2026-05-09-m5-common-controls-design.md)）。视觉风格用 `sprite` / `color` 等属性表达；需要项目级强差异化样式（像素描边、按下震动等）时作者继承相应类重写 `OnAttached`。
 
 ### 5.1 通用属性（任何标签可用）
 

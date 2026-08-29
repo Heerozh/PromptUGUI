@@ -1,7 +1,7 @@
 # `<TabMenu>` —— 弹出式 Tab 组（频道切换器 / 折叠导航）
 
 **日期**: 2026-08-29
-**状态**: 设计阶段（决策见 §2，2026-08-29 与作者对齐；待 review，未进入实施）
+**状态**: **已实现**（Task 1–12 一轮做完，见 §14）。决策见 §2，2026-08-29 与作者对齐。
 **相关**: `2026-05-27-tabbar-design.md`（`<TabBar>` / `<Tab>` 的出处，本文复用它的全部选中语义并抽出共享核心）、
 `2026-05-09-m5-common-controls-design.md`（`<Dropdown>` 参考实现 —— 本文 §1 说明为何不在它上面扩）、
 `2026-08-26-procedural-surface-design.md`（`ProceduralControl` / `SurfaceHost`）、
@@ -565,3 +565,41 @@ Selectable 名单加 `<TabMenu>`；新段落「Popup focus trap」：展开时�
 | blocker `Button` 被 `ExplicitNavigationResolver` 当成邻居 | `navigation = Navigation.defaultNavigation` 改为 `None`；`FocusableUnder` 只在 `ContainmentRoot`（面板）下找 |
 | XSD 不自动更新 | 同所有新 `[UIAttr]`：`Tools → PromptUGUI → Schema → Generate XSD`；`XsdGeneratorTests` 加 `TabMenu` 的 substring 断言 |
 | 回滚 | 新文件独立；`TabBar` 委托 `TabGroupCore` 是等价重构，可单独保留 |
+
+---
+
+## 14. 实施记录（与设计的差异）
+
+实施计划：[`../plans/2026-08-29-tabmenu.md`](../plans/2026-08-29-tabmenu.md)。设计整体照做，四处在写代码时被现实修正：
+
+**14.1 互斥不能靠 uGUI 的 ToggleGroup（改动 TM-D4 的隐含前提）。**
+收起态弹窗是 inactive，而 uGUI `Toggle.Set` 把 `NotifyToggleOn` 的调用挡在 `IsActive()` 后面，
+被禁用的 Toggle 也已经从 group 注销。结果：菜单关着时用代码写 `tab.IsOn = true` 会同时选中两项、
+两个 `bind` 页面一起显示。互斥改由 `TabGroupCore` 在发 `SelectionChanged` **之前**自己保证
+（`EnforceExclusive`）—— 对 `<TabBar>` 是幂等 no-op，因为 ToggleGroup 已经先做过。
+`ToggleGroup` 仍然挂着（键盘/手柄路径与既有 Tab 行为依赖它）。
+
+**14.2 「选中即收起」需要一个展开期的重入保护（§7.1 补充）。**
+`Expand()` 里 `SetActive(true)` 弹窗子树，会让 uGUI 在 `OnEnable` 重新校验 ToggleGroup 并**补发**
+一次「已选中」事件。而「选中即收起」把它当成用户选择 —— 菜单在打开它的同一次调用里自己关掉了
+（`execute_code` 实测：`Expand()` 返回后 `IsExpanded` 已是 `false`）。加 `_expanding` 标志，
+展开进行中忽略选中驱动的收起；用户点击与代码设选中两条路径都保留。
+
+**14.3 Esc 让位需要同帧 guard（§7.9 已预见，实测确认必要）。**
+`TabMenu` 自己的 listener 与 `UI.Modal.OnEscapePressed` 响应同一次按键、顺序不定。
+`TryConsumeEscape()` 因此有两段判断：有展开中的菜单 → 收起并返回 true；否则 `s_escapeFrame ==
+Time.frameCount` → 也返回 true。两种顺序都只关菜单、不关模态。
+`s_expanded` / `s_escapeFrame` 纳入 `UI.ResetForTests`（EditMode 里 `Time.frameCount` 几乎不推进，
+不清会让「已消费」永久为真）。
+
+**14.4 `<TabMenu>` 是 `ProceduralSurfaceRollout` 契约的第三个正当例外。**
+其它控件只画一张脸，表面替换它、`targetGraphic` 跟着走。TabMenu 画两处：会 hover/press 的把手，
+和 `radius` / `glass` 描述的弹窗面板。把 `targetGraphic` 指向面板会让「悬停把手」染色整个菜单，
+所以它留在 caption 上。已按 Slider / Progress 的既有写法加具名测试记录（`TabMenu_KeepsTargetGraphicOnItsCaption`）。
+
+**14.5 定位数学抽成纯函数。**
+EditMode 无法给 ScreenSpaceOverlay canvas 一个确定的尺寸，所以 §7.2 的规则落在
+`Internal/PopupPlacer.Solve(handle, panel, canvas, gap)` 里单测；控件侧只测接线。
+
+**其余按设计实现**：TM-D1…D21 全部照做；§12 的 Out of Scope 一项未做。
+测试：EditMode 2842、PlayMode 176，全绿。

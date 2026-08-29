@@ -167,7 +167,22 @@ Pin specific directional inputs to a target control by id:
 | `navLeft` | Selectable controls | element `id` | Explicit left target |
 | `navRight` | Selectable controls | element `id` | Explicit right target |
 
-**Selectable controls** (the only tags that accept these attributes): `<Btn>`, `<Tab>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>`.
+**Selectable controls** (the only tags that accept these attributes): `<Btn>`, `<Tab>`, `<TabMenu>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>`.
+
+## Popup focus trap (`<TabMenu>`)
+
+An open `<TabMenu>` traps directional focus inside its panel, the same way a modal traps it inside
+itself — the panel covers the page and its rows are the only sensible targets. Opening lands the
+focus on the **currently selected** row, not blindly on the first one.
+
+Closing restores whatever owned the focus before, which is not always "nothing": open a menu inside
+a modal and closing it hands the trap back to the modal rather than freeing it. The focus itself
+returns to the handle, so the user resumes where they opened the menu from.
+
+Escape and gamepad **B** both close an open menu, and the press is consumed there — a modal behind
+it survives that press and closes on the next one. The full-screen click-catcher behind the panel is
+excluded from the navigation graph (`Navigation.Mode.None`), so directional input can never land on
+it.
 
 Writing nav attributes on a non-selectable tag (`<Frame>`, `<Image>`, `<Text>`, etc.) is a no-op at runtime and triggers `PUI-NAV-ON-NON-SELECTABLE` in the lint CLI and a runtime warning.
 
