@@ -51,12 +51,18 @@ namespace PromptUGUI.Lint
             if (parts.Length != 4)
                 yield break; // symmetric shorthand always lands on the consumed side.
 
-            // Slot order is top,right,bottom,left (see MarginResolver.ParseMargin).
+            // Slot order is top,right,bottom,left (see MarginResolver.Parse).
             // A stretched axis consumes both its slots; a point anchor only its own side.
-            var consumedTop = preset.StretchY || preset.V == AnchorVertical.Top;
-            var consumedRight = preset.StretchX || preset.H == AnchorHorizontal.Right;
-            var consumedBottom = preset.StretchY || preset.V == AnchorVertical.Bottom;
-            var consumedLeft = preset.StretchX || preset.H == AnchorHorizontal.Left;
+            // A fractional axis (width="46%" / width="clamp(min, N%, max)") behaves like stretch for
+            // margin purposes — the child spans an anchor sub-range and both margins inset into it
+            // (Control.ApplyCommon routes it through MarginResolver's stretch branch) — so it too
+            // consumes both slots.
+            var fracX = IsFractionalAxis(n, "width");
+            var fracY = IsFractionalAxis(n, "height");
+            var consumedTop = preset.StretchY || fracY || preset.V == AnchorVertical.Top;
+            var consumedRight = preset.StretchX || fracX || preset.H == AnchorHorizontal.Right;
+            var consumedBottom = preset.StretchY || fracY || preset.V == AnchorVertical.Bottom;
+            var consumedLeft = preset.StretchX || fracX || preset.H == AnchorHorizontal.Left;
 
             if (!consumedTop && IsNonZero(parts[0]))
                 yield return Inert(n, anchorStr, "top", parts[0], preset, vertical: true);
@@ -67,6 +73,13 @@ namespace PromptUGUI.Lint
             if (!consumedLeft && IsNonZero(parts[3]))
                 yield return Inert(n, anchorStr, "left", parts[3], preset, vertical: false);
         }
+
+        // Base attribute only (same scope as anchor / margin above). '%' and 'clamp(' are the two
+        // value forms that put an axis on the fractional path; both are pure string checks so the
+        // CLI needs no SizeSpec.
+        private static bool IsFractionalAxis(ElementNode n, string attr) =>
+            n.Attributes.TryGetValue(attr, out var v) && !string.IsNullOrEmpty(v)
+            && (v.TrimEnd().EndsWith("%", System.StringComparison.Ordinal) || ClampRules.IsClampValue(v));
 
         private static bool TryParseAnchor(string s, out AnchorPreset p)
         {

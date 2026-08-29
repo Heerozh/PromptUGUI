@@ -97,6 +97,13 @@ namespace PromptUGUI.Application
                 control._lastAppliedDefaultText = final;
             }
 
+            // clamp(...) + scale on one node cannot render correctly (the ClampFitter is the last
+            // writer on that axis and would drop the box-preserving inflation), so it is a hard
+            // error here rather than a ScreenInstantiator warning. Same predicate the CLI uses —
+            // declared, not resolved — so both reject exactly the same documents.
+            foreach (var issue in PromptUGUI.Lint.ClampRules.CheckClampScale(node))
+                throw new ParseException($"[{issue.Code}] {issue.Message}");
+
             // Common attributes
             var anchor = VariantResolver.ResolveAttribute(node, "anchor", variants);
             var size = VariantResolver.ResolveAttribute(node, "size", variants);

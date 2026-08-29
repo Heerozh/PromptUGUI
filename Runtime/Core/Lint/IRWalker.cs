@@ -151,6 +151,12 @@ namespace PromptUGUI.Lint
             foreach (var issue in ColorLiteralRules.Check(node))
                 yield return issue;
 
+            // Universal: clamp(...) on width/height together with scale on the same node. Also a
+            // hard error at runtime (ControlAttributeApplier throws) — the fitter would drop the
+            // box-preserving inflation.
+            foreach (var issue in ClampRules.CheckClampScale(node))
+                yield return issue;
+
             // class="" plus the value grammar of the procedural visual attrs (radius / borderWidth /
             // glow / the glass parameters) — pure syntax, so the CLI can reject it without a Unity
             // instance.
