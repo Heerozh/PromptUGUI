@@ -167,7 +167,7 @@ Shader "UI/GlassPanel"
                 float2 p = IN.shape.xy;
                 float2 b = IN.shape.zw;
 
-                PuguiCorner corner = PuguiResolveCorner(p, b, _CornerKind, _Radius,
+                PuguiQuad corner = PuguiResolveQuad(p, b, _CornerKind, _Radius,
                                                        _CornerH, _CornerFillet, _Shape, _HexW);
                 float d = PuguiSdPanel(p, b, corner);
                 float fw = max(fwidth(d), 1e-4);
