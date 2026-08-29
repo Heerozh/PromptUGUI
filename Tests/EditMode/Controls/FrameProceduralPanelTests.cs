@@ -95,6 +95,57 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(Vector4.zero, p.CurrentParams.CornerWidth);
         }
 
+        // ---- fillet (spec 2026-08-29) ----
+
+        [Test]
+        public void Radius_Fillet_LandsInCssOrder()
+        {
+            var p = PanelOf(Load("color='#fff' radius='cut 8 r2, cut 8 r3, 0, notch 8 r4'"));
+            Assert.AreEqual(new Vector4(2f, 3f, 0f, 4f), p.CurrentParams.CornerFillet);
+            Assert.AreEqual(new Vector4(8f, 8f, 0f, 8f), p.CurrentParams.CornerWidth,
+                "the fillet must not disturb the size it follows");
+        }
+
+        [Test]
+        public void Radius_HexagonFillet_RidesInAllFourCorners()
+        {
+            var p = PanelOf(Load("color='#fff' radius='hexagon 40 r6'"));
+            Assert.AreEqual(new Vector4(6f, 6f, 6f, 6f), p.CurrentParams.CornerFillet);
+            Assert.AreEqual(40f, p.CurrentParams.HexWidth);
+        }
+
+        [Test]
+        public void SameFillet_SharesOneMaterial()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Style name='tab' color='#222' radius='cut 16x99 r8'/>
+  <Screen name='S'>
+    <Frame id='a' class='tab' height='40'/>
+    <Frame id='b' class='tab' height='90'/>
+  </Screen>
+</PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var s = UI.Open("S");
+            Assert.AreSame(PanelOf(s.Get<Frame>("a")).material, PanelOf(s.Get<Frame>("b")).material,
+                "r is a material parameter resolved per-fragment; two sizes must still share");
+        }
+
+        [TestCase("radius='cut 12 r4'", "radius='cut 12 r6'")]
+        [TestCase("radius='cut 12'", "radius='cut 12 r4'")]
+        [TestCase("radius='hexagon 40'", "radius='hexagon 40 r6'")]
+        public void DifferentFillet_SplitsTheMaterial(string a, string b)
+        {
+            var xml = $@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='a' color='#222' {a}/>
+  <Frame id='b' color='#222' {b}/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var s = UI.Open("S");
+            Assert.AreNotSame(PanelOf(s.Get<Frame>("a")).material, PanelOf(s.Get<Frame>("b")).material);
+        }
+
         [Test]
         public void BorderOnly_NoFill_IsVisible()
         {

@@ -51,5 +51,37 @@ namespace PromptUGUI.Tests.EditMode.Parser
             Assert.IsFalse(RadiusParser.Parse("cut 8").IsZero);
             Assert.IsFalse(RadiusParser.Parse("hexagon").IsZero);
         }
+
+        // ---- fillet (spec 2026-08-29) ----
+
+        [Test]
+        public void ThreeArgCornerSpec_AndFactories_HaveNoFillet()
+        {
+            // The fillet field is new; every construction path that predates it must read as sharp.
+            Assert.AreEqual(0f, new CornerSpec(CornerKind.Cut, 8f, 8f).Fillet);
+            Assert.AreEqual(0f, CornerSpec.Round(8f).Fillet);
+            Assert.AreEqual(0f, CornerSpec.Square.Fillet);
+            Assert.AreEqual(0f, RadiusSpec.Hexagon(32f).TopLeftCorner.Fillet);
+            Assert.AreEqual(0f, new RadiusSpec(1f, 2f, 3f, 4f).TopLeftCorner.Fillet);
+        }
+
+        [Test]
+        public void FourArgCornerSpec_CarriesTheFillet()
+        {
+            var c = new CornerSpec(CornerKind.Cut, 16f, 8f, 4f);
+            Assert.AreEqual(CornerKind.Cut, c.Kind);
+            Assert.AreEqual(16f, c.Width);
+            Assert.AreEqual(8f, c.Height);
+            Assert.AreEqual(4f, c.Fillet);
+        }
+
+        [Test]
+        public void ZeroSizedTreatment_WithFillet_IsStillASquareCorner()
+        {
+            // A fillet needs a vertex to round; a treatment that removes nothing has none, and the
+            // shader ignores r on a zero-sized corner for the same reason (spec §5.5).
+            Assert.IsTrue(RadiusParser.Parse("cut 0 r4").IsZero);
+            Assert.IsTrue(RadiusParser.Parse("cut 0 r4").TopLeftCorner.IsSquare);
+        }
     }
 }

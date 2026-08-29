@@ -119,7 +119,7 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 | `showMask` | bool | `true` | 仅 `mask="self"`。`false` = 只裁不画，一个隐形的圆角裁剪器 |
 | `maskPadding` | `T,R,B,L`（`_`=占位） | — | 仅 `mask="rect"` 时有效 |
 | `color` | hex / CSS named / theme token / `A,B` 渐变 / `/alpha` | — (无填充) | Fill. Same value grammar as everywhere else — see **Color Tokens**; a comma value is a top→bottom gradient |
-| `radius` | corner list / `pill` / `hexagon [W]` | `0` | The panel's **shape**, not only its radius. One value applies to all four corners; four follow CSS `border-radius` order (clockwise from top-left). Each corner is a bare number (round), `cut W[xH]` (chamfer) or `notch W[xH]` (rectangular bite). Sizes are px and are clamped to the rect, never an error. → **Corner treatments** below |
+| `radius` | corner list / `pill` / `hexagon [W] [rN]` | `0` | The panel's **shape**, not only its radius. One value applies to all four corners; four follow CSS `border-radius` order (clockwise from top-left). Each corner is a bare number (round), `cut W[xH]` (chamfer) or `notch W[xH]` (rectangular bite), optionally followed by a fillet `rN` that rounds the vertices the treatment creates (`cut 16 r6`). Sizes are px and are clamped to the room the corner has, never an error: a `cut` may run the whole edge when the neighbouring corner leaves it (`cut 16x52` on a 52-tall tab = a full-height slant), half the edge when both corners want it. → **Corner treatments** below |
 | `borderWidth` | px | `0` | Inner border — drawn **inward** from the rect edge (CSS `border-box`), so it never changes layout |
 | `borderColor` | hex / CSS / token / `/alpha`. **纯色 only** | `white` | 渐变值 = parse error |
 | `glow` | px | `0` | Outer glow radius. Inflates the drawn quad by this much (layout rect unchanged) |
@@ -163,25 +163,33 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 | `16` | round — a quarter circle of radius 16 (what `radius` always meant) |
 | `cut 16` | 45° chamfer, 16 along both edges |
 | `cut 24x16` | chamfer reaching 24 horizontally, 16 vertically — flatter or steeper at will |
+| `cut 16x52` (on a 52-tall panel) | a slant running the **whole** side: the chamfer continues past the half-way line into the neighbouring corner's quadrant when that corner leaves it the room (a square or round corner, or a cut that stays under half). Bottom corners written this way = a trapezoid tab |
 | `notch 12` | a 12×12 rectangular bite out of the corner |
 | `notch 12x6` | 12 wide, 6 deep |
+| `cut 16 r6` | the same chamfer with both of its vertices rounded off by radius 6 — the flats stay straight, the corners where they meet become tangent arcs |
+| `notch 12 r4` | a bite whose two mouth corners and inner corner are all rounded by 4 |
 | `pill` | whole shape: both short-axis ends fully rounded |
 | `hexagon` | whole shape: left and right sides drawn to a point at the vertical centre |
 | `hexagon 32` | the same, with the tips reaching 32 in instead of the default half-height |
+| `hexagon 32 r6` | the same, with all six vertices (tips included) rounded by 6 |
 
 ```xml
 <Btn radius="cut 16">开始匹配</Btn>                        <!-- 四角斜切 -->
 <Btn radius="cut 16, 8, cut 16, 8">混用</Btn>              <!-- 逐角混用 -->
 <Btn radius="hexagon 40" color="gold">开始匹配</Btn>        <!-- 横幅式六边形 -->
-<Tab radius="cut 14, cut 14, 0, 0">主页</Tab>              <!-- 上两角切 = 梯形页签 -->
+<Btn radius="hexagon 40 r6" color="gold">开始匹配</Btn>     <!-- 圆滑尖端的六边形 -->
+<Tab radius="cut 14 r4, cut 14 r4, 0, 0">主页</Tab>        <!-- 上两角切 + 顶点倒圆 = 软梯形页签 -->
 <Frame radius="notch 12, 0, 0, notch 12" borderWidth="2"/>  <!-- 机械感缺口 -->
+<Style name="nav-tab" height="52" radius="0, 0, cut 16x52 r9, cut 16x52 r9"/>  <!-- 倒梯形底栏页签：斜边贯穿整高，四个角都圆 -->
 ```
 
 - **Mix freely per corner**: `radius="cut 16, 8, notch 8, 0"` is four different treatments.
+- **A `cut` may reach past the half-way line.** Its reach along an edge is capped at `edge − (what the corner at the other end occupies)` — a round corner occupies its radius, a `cut` / `notch` its own reach, a square corner nothing — so `cut 16x52` on a 52-tall tab with square top corners is a slant from the top corner to the bottom (a real trapezoid), and its `rN` rounds **both** ends, the top one included. When both corners on an edge want more than half, both stop at half (that is how `hexagon` meets in a tip); a `notch` neighbour also stops the cut at half. `round` / `notch` themselves never exceed half.
+- **Fillet `rN`** (`cut 16 r6` / `notch 12 r4` / `hexagon 40 r6`) rounds every vertex the treatment creates with a **tangent arc** of radius N — a fillet on the existing shape, not a different corner shape. What to expect: the arc is tangent to both sides, so it also eats a little into the adjacent straight edge (≈0.41·N on a 45° cut); grow N past what the chamfer can hold (`cut 16` holds ≈27) and the two arcs merge — `cut 16 r30` is exactly `30`, so N is a continuous "how soft" dial; the outline's extents never change (a `hexagon … rN` tip is blunter but still touches the rect edge); on a `notch`, N is capped at half the bite's shorter side, where the bite becomes a smooth S-curve; a chamfer that runs into the neighbouring corner's quadrant carries its N there too, so every vertex in that quadrant — including that corner's own, if it was square or had a smaller N — is rounded by the larger N. `rN` is one glued token (`r6`, like the `x` in `WxH`): `16 r4` (a round corner has nothing to fillet), `pill r4`, `cut 16 r 6` and `cut 16 round 6` are parse errors that say what to write.
 - **`pill` and `hexagon` are whole-shape keywords** — writing one inside a four-value list is a parse error. Both resolve against the live rect, so they follow a resizing panel on their own; `hexagon` in particular keeps its tips exactly at half height, which hand-written `cut` values would lose the moment the height changed.
 - **Border, both glows, glass and `mask="self"` follow the new outline automatically** — no extra attributes, and an inner border keeps its width around a chamfer and around the inner corner of a notch.
 - **One exception: `weld`.** A weld group fuses its members with a smooth union, which rounds every corner back off, so a welded block's treatment degrades to a plain round corner of the same reach. `PUI-WELD-CORNER` warns; see `reference/glass.md`.
-- Keywords are lower-case. `bevel` / `scoop` / `CUT` are parse errors that name the legal words.
+- Keywords are lower-case. `bevel` / `scoop` / `CUT` / `R6` are parse errors that name the legal words.
 
 > **Which tags draw procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `innerGlow` / `innerGlowColor` / `glass` (+ its tuning params) work on **`<Frame>`, `<Btn>`, `<Tab>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>` and `<Progress>`** — see **Procedural surfaces** below for what they do on a control.
 >
