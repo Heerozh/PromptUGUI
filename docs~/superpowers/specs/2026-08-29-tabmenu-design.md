@@ -56,7 +56,7 @@
 | TM-D10 | 收起时机 | 选中任一 Tab（含点已选中的）→ 收起；点 blocker → 收起；Esc / 手柄 B → 收起 | 菜单的通用约定；`closeOnSelect="false"` 留 v2 |
 | TM-D11 | 展开态与 ReSolve | 展开/收起是**运行期状态**：resize / Variant / Theme 的 ReSolve 不改它，只重算面板位置尺寸；不提供 XML `expanded=` | 与 `isOn` / `value` 的「运行期改过就不打回」同款；初始态永远是收起 |
 | TM-D12 | 收起态下的测量 | Screen.Open 的 apply pass 期间弹窗保持 active，测量完成后经 `Screen.DeferDuringOpen` 停用；`BindItems` 重建期间**同帧**临时激活 | `Tab.bind` 的既有先例（`Tab.cs` ApplyBindFrame 注释）：inactive 上 `AddComponent` 的 TMP 不跑 Awake，`preferredWidth` 会算错 |
-| TM-D13 | 过渡动画 | 内置：`transition`（默认 `0.15s`，`0` = 即时）= 面板 `CanvasGroup.alpha 0→1` + 沿展开方向 8px 位移 + 箭头 180° 翻转；收起反放，放完再 `SetActive(false)` | 弹窗面板是内部节点，作者无法用 `<Animation>` 包住它；LitMotion 已是硬依赖。预设名 / 自定义曲线留 v2 |
+| TM-D13 | 过渡动画 | 内置：`transition`（默认 `0.15s`，`0` = 即时）= 面板 `CanvasGroup.alpha 0→1` + 沿展开方向 8px 位移 + 箭头垂直翻转；收起反放，放完再 `SetActive(false)` | 弹窗面板是内部节点，作者无法用 `<Animation>` 包住它；LitMotion 已是硬依赖。预设名 / 自定义曲线留 v2 |
 | TM-D14 | Trigger 事件 | 新 kind `expand` / `collapse`（+ `expand@id` / `collapse@id`），**向上**解析到最近 `<TabMenu>` 祖先，同 `state-*` | 用途是弹窗内**逐项**入场动画（`<Animation on="expand" type="slidein-left" delay="0.05s"><Tab/></Animation>`，即 animations.md 的 Menu entry stagger 模式）和 C# 钩子。不能叫 `open` / `close`：`on="open"` 已是「Screen 打开」 |
 | TM-D15 | 手柄 / 键盘导航 | 展开 → `UI.Navigation.ContainmentRoot` 切到弹窗面板、按 `confineRoot` 重算显式邻居、焦点落到当前选中 Tab；收起 → 恢复之前的 root（模态根或 null）、焦点回触发区 | 复用模态圈闭（`Screen.ConfineNavigationToSelf` → 泛化为 `ConfineNavigationTo(root)`）；blocker 的 Button `navigation = None`，不进导航图 |
 | TM-D16 | Esc 消费 | `UI.Modal.OnEscapePressed` 首行调 `TabMenu.TryConsumeEscape()`：有展开中的就收起并返回；同帧已由 TabMenu 自己的 listener 收起过也返回 | 两个 `ModalEscapeListener` 同帧都会响，顺序不定；不做同帧 guard 会一次 Esc 同时关弹窗和模态 |
@@ -356,7 +356,7 @@ if (overflowRight > 0)                                  → anchoredPosition.x -
 LitMotion，两条 `MotionHandle`（面板、箭头），存在 TabMenu 上，`Dispose` / 下一次过渡前 `TryCancel`：
 
 - 面板：`CanvasGroup.alpha` 0→1；`Popup.anchoredPosition.y` 从终态偏 8px（向下长时 +8、向上翻时 -8）→ 终态；easing `OutCubic`；时长 `transition`。
-- 箭头：`localEulerAngles.z` 0→180（收起 180→0）。
+- 箭头：`localScale.y` 1→-1（收起 -1→1）—— **镜像，不是旋转**，见 §14.7。
 - `transition="0"`：不建 motion，直接写终态。
 - 过渡期间 blocker 已生效、Tab 可点（不等动画）。
 
@@ -607,6 +607,12 @@ EditMode 无法给 ScreenSpaceOverlay canvas 一个确定的尺寸，所以 §7.
 直接走 `Children` 找 `isOn` 的 Tab（没有就取第一个，镜像自动选中规则）读它的 text / icon。
 子节点在 DFS post-order 里已经 apply 完，所以这份数据是准的。
 运行期改 caption 不重排（`LayoutElement` 停在打开时的快照）是 `<Btn>` 同款既有行为，已在 skill 里写明。
+
+**14.7 箭头必须是垂直镜像，不能是 180° 旋转（§7.7 修正，作者实测反馈）。**
+旋转绕 pivot 发生，而箭头的 pivot 是它的**左边缘**（`LayoutCaption` 靠这一点把它按左侧摆在 label 之后）——
+转 180° 会把整个字形甩到摆放点的左边，菜单每次打开箭头都横向跳一下。改成 `localScale.y` 1→-1：
+pivot 的 y 已经居中，纵向镜像不动 x。回归测试同时断言 `anchoredPosition`、世界空间左缘、
+以及 `localEulerAngles.z == 0`（确认是翻转不是旋转）。
 
 **其余按设计实现**：TM-D1…D21 全部照做；§12 的 Out of Scope 一项未做。
 测试：EditMode 2844、EditorOnly 310、PlayMode 176，全绿。

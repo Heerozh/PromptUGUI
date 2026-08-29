@@ -599,7 +599,7 @@ namespace PromptUGUI.Controls
             {
                 _popupCg.alpha = expanding ? 1f : 0f;
                 _popup.anchoredPosition = restPosition;
-                SetArrowAngle(expanding ? 180f : 0f);
+                SetArrowFlip(expanding ? 1f : 0f);
                 if (!expanding) DeactivatePopup();
                 return;
             }
@@ -621,11 +621,11 @@ namespace PromptUGUI.Controls
                 .Bind(_popup, static (v, rt) => { if (rt) rt.anchoredPosition = v; })
                 .AddTo(_popup.gameObject);
 
-            var fromAngle = CurrentArrowAngle();
-            var toAngle = expanding ? 180f : 0f;
-            _arrowMotion = LMotion.Create(fromAngle, toAngle, _transition)
+            var fromFlip = CurrentArrowFlip();
+            var toFlip = expanding ? 1f : 0f;
+            _arrowMotion = LMotion.Create(fromFlip, toFlip, _transition)
                 .WithEase(Ease.OutCubic)
-                .Bind(this, static (v, self) => self.SetArrowAngle(v))
+                .Bind(this, static (v, self) => self.SetArrowFlip(v))
                 .AddTo(_popup.gameObject);
 
             if (!expanding)
@@ -648,14 +648,26 @@ namespace PromptUGUI.Controls
             return _popup.pivot.y > 0.5f ? new Vector2(0f, Distance) : new Vector2(0f, -Distance);
         }
 
-        private float CurrentArrowAngle()
-            => _arrow != null ? Mathf.Repeat(_arrow.rectTransform.localEulerAngles.z, 360f) : 0f;
+        /// <summary>How far through the flip the caret is: 0 = pointing down, 1 = pointing up.</summary>
+        private float CurrentArrowFlip()
+            => _arrow != null ? (1f - _arrow.rectTransform.localScale.y) * 0.5f : 0f;
 
-        private void SetArrowAngle(float degrees)
+        /// <summary>
+        /// Mirrors the caret about its horizontal centre line — a vertical flip, not a rotation.
+        /// </summary>
+        /// <remarks>
+        /// A 180° <c>localEulerAngles.z</c> turn would look the same on a symmetric chevron but is
+        /// wrong here: rotation happens about the pivot, and the caret's pivot is its LEFT edge
+        /// (that is what lets <see cref="LayoutCaption"/> place it by its left side). Turning it
+        /// therefore swings the whole glyph to the left of where it was placed, so the caret visibly
+        /// jumps sideways every time the menu opens. Scaling y about a pivot whose y is already
+        /// centred leaves x untouched.
+        /// </remarks>
+        private void SetArrowFlip(float t)
         {
             if (_arrow == null) return;
-            var e = _arrow.rectTransform.localEulerAngles;
-            _arrow.rectTransform.localEulerAngles = new Vector3(e.x, e.y, degrees);
+            var scale = _arrow.rectTransform.localScale;
+            _arrow.rectTransform.localScale = new Vector3(scale.x, 1f - 2f * t, scale.z);
         }
 
         private void CancelMotions()

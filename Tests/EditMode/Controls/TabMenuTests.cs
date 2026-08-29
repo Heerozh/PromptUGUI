@@ -413,7 +413,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             m.Expand();
 
             Assert.AreEqual(1f, Popup(m).GetComponent<CanvasGroup>().alpha);
-            Assert.AreEqual(180f, ArrowAngle(m), 0.01f, "the caret points up while open");
+            Assert.AreEqual(-1f, ArrowFlip(m), 0.01f, "the caret points up while open");
         }
 
         [Test]
@@ -422,7 +422,35 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var m = Open(@"<TabMenu id='m' transition='0'><Tab id='a' text='A'/></TabMenu>").Get<TabMenu>("m");
             m.Expand();
             m.Collapse();
-            Assert.AreEqual(0f, ArrowAngle(m), 0.01f);
+            Assert.AreEqual(1f, ArrowFlip(m), 0.01f);
+        }
+
+        // Regression: the caret used to turn 180° about localEulerAngles.z. Its pivot is its LEFT
+        // edge (that is what places it by its left side after the label), so turning it swung the
+        // whole glyph to the left of where it was placed — the caret jumped sideways on every open.
+        [Test]
+        public void Flipping_the_caret_leaves_it_exactly_where_it_was()
+        {
+            var m = Open(@"<TabMenu id='m' transition='0'><Tab id='a' text='World'/></TabMenu>")
+                .Get<TabMenu>("m");
+            var arrow = (RectTransform)m.RectTransform.Find("Arrow");
+            var before = arrow.anchoredPosition;
+            var leftEdgeBefore = LeftEdgeOf(arrow);
+
+            m.Expand();
+
+            Assert.AreEqual(before, arrow.anchoredPosition);
+            Assert.AreEqual(leftEdgeBefore, LeftEdgeOf(arrow), 0.01f,
+                            "a vertical flip mirrors about the middle — it must not move in x");
+            Assert.AreEqual(0f, arrow.localEulerAngles.z, 0.01f, "…and it is a flip, not a turn");
+        }
+
+        // World-space left edge, so a pivot-relative move would show up even if anchoredPosition did not.
+        private static float LeftEdgeOf(RectTransform rt)
+        {
+            var corners = new Vector3[4];
+            rt.GetWorldCorners(corners);
+            return Mathf.Min(corners[0].x, corners[2].x);
         }
 
         [Test]
@@ -444,11 +472,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 .Get<TabMenu>("m").TransitionSeconds, 0.0001f);
         }
 
-        private static float ArrowAngle(TabMenu m)
-        {
-            var z = m.RectTransform.Find("Arrow").localEulerAngles.z;
-            return Mathf.Repeat(z, 360f);
-        }
+        // -1 = flipped (menu open), 1 = at rest.
+        private static float ArrowFlip(TabMenu m) => m.RectTransform.Find("Arrow").localScale.y;
 
         // ── Popup skin & procedural surface (TM-D3) ───────────────────────────────────────
 

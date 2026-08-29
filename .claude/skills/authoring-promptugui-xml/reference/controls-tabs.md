@@ -146,7 +146,7 @@ Plus every common attribute (`anchor` / `size` / `margin` / `hidden` / `interact
 | `textColor` | color | ink | Caption colour — distinct from `color`, which fills the panel |
 | `font` | string | `default` | Font slot |
 | `iconSize` | float | `24` | Caption icon edge; the slot takes no space when the selected tab has no `icon` |
-| `arrow` · `arrowColor` | sprite / color | `pugui_caret` | `arrow=""` hides the caret (a sprite-less Image would draw a solid block). Flips 180° while open |
+| `arrow` · `arrowColor` | sprite / color | `pugui_caret` | `arrow=""` hides the caret (a sprite-less Image would draw a solid block). **Flips vertically** while open — mirrored, not rotated, so it never shifts sideways |
 | `arrowSize` | float | `16` | Caret edge |
 | `gap` | float | `6` | Space between icon, label and caret |
 
@@ -167,6 +167,26 @@ the right width from the first frame. Like `<Btn>`, its layout box does not re-m
 caption changes at runtime — the caption contents (label, then caret) do follow the new text, but
 neighbours in an `<HStack>` only shift on the next `ReSolve`. Give the handle an explicit `width` if
 your channel names vary wildly in length.
+
+### Restyling the caret
+
+`arrow=` takes the same sprite key as any other sprite attribute — `ui:chevron` (SpriteSet) or a bare
+`Resources` path — and `arrowColor` / `arrowSize` do the rest. Pack them into a `<Style>` and pull it
+in with `class=` like any other attribute bag:
+
+```xml
+<Style name="menu-caret" arrow="ui:chevron_down" arrowColor="white/0.7" arrowSize="14" gap="8"/>
+
+<TabMenu id="channel" class="menu-caret" fontSize="22">…</TabMenu>
+```
+
+`arrow=""` (or `arrow="none"`) hides it entirely — the caret is a glyph, not a panel, so a
+sprite-less `Image` would render as a solid block rather than nothing.
+
+The caret is a single `Image`, not an authorable subtree: it draws whatever sprite you hand it,
+flipped vertically while the menu is open. If you need two genuinely different glyphs for the two
+states, hide the built-in one (`arrow=""`) and put your own `<Show on="state-*">` pair inside a
+wrapping `<Frame>` next to the menu.
 
 ### `<Tab>` inside a `<TabMenu>`
 
