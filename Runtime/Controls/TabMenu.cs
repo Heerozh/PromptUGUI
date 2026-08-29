@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using LitMotion;
+using LitMotion.Extensions;
 using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
 using PromptUGUI.Registry;
@@ -63,6 +65,10 @@ namespace PromptUGUI.Controls
         private float _gap = 6f;
         private float _popupWidth;                 // 0 = auto (max of handle width and content)
         private float _popupGap = 4f;
+        private float _transition = DefaultTransition;
+        private MotionHandle _fadeMotion;
+        private MotionHandle _slideMotion;
+        private MotionHandle _arrowMotion;
         private string _fontType = "default";
 
         public TabMenu()
@@ -285,6 +291,38 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public float PopupGap { set { _popupGap = value; PlacePopup(); } }
 
+        /// <summary>Default open / close duration when the author writes none.</summary>
+        internal const float DefaultTransition = 0.15f;
+
+        /// <summary>The resolved open / close duration, in seconds. 0 = no animation.</summary>
+        internal float TransitionSeconds => _transition;
+
+        /// <summary>
+        /// Open / close duration: <c>"0.15s"</c> / <c>"150ms"</c> / a bare number of seconds;
+        /// <c>0</c> snaps. The panel is an internal node, so an author cannot wrap it in an
+        /// <c>&lt;Animation&gt;</c> — this is the hook for its own entrance (TM-D13). For animating
+        /// the rows, use <c>&lt;Animation on="expand"&gt;</c> around each <c>&lt;Tab&gt;</c>.
+        /// </summary>
+        [UIAttr, Preserve]
+        public string Transition
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value)) { _transition = DefaultTransition; return; }
+                try
+                {
+                    _transition = Mathf.Max(0f, AnimationSpec.ParseSeconds(value));
+                }
+                catch (FormatException)
+                {
+                    Debug.LogWarning(
+                        $"<TabMenu id='{Id}'> transition='{value}' is not a duration " +
+                        $"('0.15s' / '150ms' / '0.15'); using {DefaultTransition}s.");
+                    _transition = DefaultTransition;
+                }
+            }
+        }
+
         // ── Selection (delegated to TabGroupCore) ──────────────────────────────────────────
 
         public int Count => _core.Tabs.Count;
@@ -441,6 +479,7 @@ namespace PromptUGUI.Controls
 
             EnsureBlocker(rootCanvas, baseOrder + PopupSortingOffset - 1);
             PlacePopup();
+            PlayTransition(expanding: true);
 
             _expandedSubject.OnNext(Unit.Default);
         }
@@ -452,13 +491,102 @@ namespace PromptUGUI.Controls
             if (s_expanded == this) s_expanded = null;
 
             if (_blocker != null) _blocker.SetActive(false);
-            if (_popup != null)
-            {
-                _popupCanvas.overrideSorting = false;
-                _popup.gameObject.SetActive(false);
-            }
+            PlayTransition(expanding: false);
 
             _collapsedSubject.OnNext(Unit.Default);
+        }
+
+        /// <summary>
+        /// Fades and slides the panel in or out and spins the caret, then — on the way out —
+        /// deactivates the panel once the motion lands.
+        /// </summary>
+        /// <remarks>
+        /// Outside play mode the motions are skipped and the end state written directly: LitMotion
+        /// ticks on the player loop, so an EditMode caller would otherwise be left with a panel
+        /// stuck at alpha 0 that never deactivates.
+        /// </remarks>
+        private void PlayTransition(bool expanding)
+        {
+            CancelMotions();
+
+            var slideFrom = SlideOffset();
+            var restPosition = _popup.anchoredPosition;
+
+            if (_transition <= 0f || !UnityEngine.Application.isPlaying)
+            {
+                _popupCg.alpha = expanding ? 1f : 0f;
+                _popup.anchoredPosition = restPosition;
+                SetArrowAngle(expanding ? 180f : 0f);
+                if (!expanding) DeactivatePopup();
+                return;
+            }
+
+            var fromAlpha = expanding ? 0f : _popupCg.alpha;
+            var toAlpha = expanding ? 1f : 0f;
+            _popupCg.alpha = fromAlpha;
+
+            _fadeMotion = LMotion.Create(fromAlpha, toAlpha, _transition)
+                .WithEase(Ease.OutCubic)
+                .Bind(_popupCg, static (v, cg) => { if (cg) cg.alpha = v; })
+                .AddTo(_popup.gameObject);
+
+            var from = expanding ? restPosition + slideFrom : restPosition;
+            var to = expanding ? restPosition : restPosition + slideFrom;
+            _popup.anchoredPosition = from;
+            _slideMotion = LMotion.Create(from, to, _transition)
+                .WithEase(Ease.OutCubic)
+                .Bind(_popup, static (v, rt) => { if (rt) rt.anchoredPosition = v; })
+                .AddTo(_popup.gameObject);
+
+            var fromAngle = CurrentArrowAngle();
+            var toAngle = expanding ? 180f : 0f;
+            _arrowMotion = LMotion.Create(fromAngle, toAngle, _transition)
+                .WithEase(Ease.OutCubic)
+                .Bind(this, static (v, self) => self.SetArrowAngle(v))
+                .AddTo(_popup.gameObject);
+
+            if (!expanding)
+            {
+                // Only the collapse owns the deactivation, and only if it actually finishes: a
+                // re-expand cancels this handle first, so a cancelled close cannot switch off a
+                // panel the user just re-opened.
+                var captured = _fadeMotion;
+                _fadeMotion.GetAwaiter().OnCompleted(() =>
+                {
+                    if (!IsExpanded && captured.Equals(_fadeMotion)) DeactivatePopup();
+                });
+            }
+        }
+
+        // Enters from the side it is anchored to, so the panel appears to unfold out of the handle.
+        private Vector2 SlideOffset()
+        {
+            const float Distance = 8f;
+            return _popup.pivot.y > 0.5f ? new Vector2(0f, Distance) : new Vector2(0f, -Distance);
+        }
+
+        private float CurrentArrowAngle()
+            => _arrow != null ? Mathf.Repeat(_arrow.rectTransform.localEulerAngles.z, 360f) : 0f;
+
+        private void SetArrowAngle(float degrees)
+        {
+            if (_arrow == null) return;
+            var e = _arrow.rectTransform.localEulerAngles;
+            _arrow.rectTransform.localEulerAngles = new Vector3(e.x, e.y, degrees);
+        }
+
+        private void CancelMotions()
+        {
+            if (_fadeMotion.IsActive()) _fadeMotion.TryCancel();
+            if (_slideMotion.IsActive()) _slideMotion.TryCancel();
+            if (_arrowMotion.IsActive()) _arrowMotion.TryCancel();
+        }
+
+        private void DeactivatePopup()
+        {
+            if (_popup == null) return;
+            _popupCanvas.overrideSorting = false;
+            _popup.gameObject.SetActive(false);
         }
 
         private Canvas RootCanvas()
@@ -605,6 +733,7 @@ namespace PromptUGUI.Controls
                 else UnityEngine.Object.DestroyImmediate(_blocker);
                 _blocker = null;
             }
+            CancelMotions();
             RepointCaptionSource(null);
             _selectionSub?.Dispose();
             _activationSubs?.Dispose();

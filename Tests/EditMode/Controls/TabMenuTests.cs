@@ -9,6 +9,7 @@ using PromptUGUI.Parser;
 using R3;
 using TMPro;
 using UnityEngine;
+using UnityEngine.TestTools;
 using UnityEngine.UI;
 using PuguiScreen = PromptUGUI.Application.Screen;
 using UnityImage = UnityEngine.UI.Image;
@@ -397,6 +398,56 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             s.Close();
             Assert.IsFalse(TabMenu.HasExpandedMenu, "no dangling global reference to a dead menu");
+        }
+
+        // ── Transition (TM-D13) ───────────────────────────────────────────────────────────
+        //
+        // EditMode has no player loop, so LitMotion never ticks here — the control writes the end
+        // state directly outside play mode. What these pin down is that state; the interpolation
+        // itself is covered in TabMenuPlayTests.
+
+        [Test]
+        public void Transition_zero_lands_on_the_end_state_immediately()
+        {
+            var m = Open(@"<TabMenu id='m' transition='0'><Tab id='a' text='A'/></TabMenu>").Get<TabMenu>("m");
+            m.Expand();
+
+            Assert.AreEqual(1f, Popup(m).GetComponent<CanvasGroup>().alpha);
+            Assert.AreEqual(180f, ArrowAngle(m), 0.01f, "the caret points up while open");
+        }
+
+        [Test]
+        public void Collapse_restores_the_caret()
+        {
+            var m = Open(@"<TabMenu id='m' transition='0'><Tab id='a' text='A'/></TabMenu>").Get<TabMenu>("m");
+            m.Expand();
+            m.Collapse();
+            Assert.AreEqual(0f, ArrowAngle(m), 0.01f);
+        }
+
+        [Test]
+        public void An_unparseable_transition_falls_back_to_the_default()
+        {
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("transition"));
+            var m = Open(@"<TabMenu id='m' transition='soon'><Tab id='a' text='A'/></TabMenu>")
+                .Get<TabMenu>("m");
+            Assert.AreEqual(TabMenu.DefaultTransition, m.TransitionSeconds, 0.0001f);
+        }
+
+        [Test]
+        public void Transition_accepts_ms_and_bare_seconds()
+        {
+            Assert.AreEqual(0.25f, Open(@"<TabMenu id='m' transition='250ms'><Tab id='a' text='A'/></TabMenu>")
+                .Get<TabMenu>("m").TransitionSeconds, 0.0001f);
+            UI.ResetForTests();
+            Assert.AreEqual(0.4f, Open(@"<TabMenu id='m' transition='0.4'><Tab id='a' text='A'/></TabMenu>")
+                .Get<TabMenu>("m").TransitionSeconds, 0.0001f);
+        }
+
+        private static float ArrowAngle(TabMenu m)
+        {
+            var z = m.RectTransform.Find("Arrow").localEulerAngles.z;
+            return Mathf.Repeat(z, 360f);
         }
 
         // ── Popup skin & procedural surface (TM-D3) ───────────────────────────────────────
