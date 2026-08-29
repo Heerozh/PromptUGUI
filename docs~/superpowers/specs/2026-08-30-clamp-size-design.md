@@ -1,6 +1,6 @@
 # 尺寸钳制 `clamp(min, N%, max)` —— 随父级连续拉伸、但有上下限的宽高（CLP）
 
-> 状态：**草案**（决策见 §10，2026-08-30 与作者对齐）。
+> 状态：**已实现**（M0–M3 一轮做完，见 §13）。决策见 §10，2026-08-30 与作者对齐。
 > 相关：master spec `2026-05-07-promptugui-description-language-design.md` §6.2（size / width / height）、
 > §6.5（布局组内的特殊行为）；`1aaf244`（`N%` 分数尺寸与 `stretch*N` 权重的出处，本文是它的直接续篇：
 > clamp 就是"带上下限的 `%` / `stretch`"）；`2026-08-27-decor-primitives-design.md`（FLW `flow="false"`
@@ -376,7 +376,7 @@ master spec §6.2 末尾加一段 **"`clamp(min, N%, max)` / `clamp(min, stretch
 ## 11. 开放问题（留给 plan / 实现期）
 
 - **`MarginAnchorRules` 不认分数轴**（§5.5 末行）：`%` 今天就有的误报，clamp 继承。修法是把"值以 `%` 结尾或
-  以 `clamp(` 开头"的轴视为消耗两侧 margin 槽（纯字符串判定，10 行）。建议本 PR 顺手修，plan 期确认。
+  以 `clamp(` 开头"的轴视为消耗两侧 margin 槽（纯字符串判定，10 行）。**已采纳，随本 PR 修**（`MarginAnchorRulesTests` 钉住；同时纠正了 `%` 的既有误报）。
 - **CLI 校验 width 值语法**：需要把 `clamp` / `%` / `stretch` 的语法解析下沉到 `Core/Parser`（纯 C#），
   `SizeSpec` 再调它。v2。
 - `DrivenRectTransformTracker`：让 Inspector 显示该轴被驱动。纯体验，不进 v1。
