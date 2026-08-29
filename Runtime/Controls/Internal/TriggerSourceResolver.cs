@@ -133,5 +133,36 @@ namespace PromptUGUI.Controls.Internal
                     $"{ctrl.GetType().Name}, not a state source. state-* triggers require a <Btn>/<Tab>/<Toggle>.");
             return src;
         }
+
+        /// <summary>
+        /// Finds the <see cref="TabMenu"/> an <c>expand</c> / <c>collapse</c> trigger listens to.
+        /// Resolves <b>upward</b>, like <see cref="FindStateSource"/> and for the same reason: the
+        /// natural place for one is on a row inside the menu it belongs to.
+        /// </summary>
+        /// <param name="trigger">触发器控件</param>
+        /// <param name="sourceId">空 → 沿 GameObject 树向上找最近的 TabMenu；非空 → 走 ScopedIds 精确查找 + 类型校验</param>
+        public static TabMenu FindTabMenu(Trigger trigger, string sourceId)
+        {
+            if (string.IsNullOrEmpty(sourceId))
+            {
+                // includeInactive: a collapsed menu's popup — where these triggers live — is
+                // switched off, and the default active-only walk would never reach the marker.
+                var marker = trigger.GameObject.GetComponentInParent<TabMenuMarker>(true);
+                if (marker == null || marker.Owner == null)
+                    throw new InvalidOperationException(
+                        $"<Trigger on=\"expand\"/\"collapse\"> in '{trigger.Id ?? trigger.GameObject.name}': " +
+                        "no <TabMenu> ancestor found. Place it inside one, or use expand@<id>.");
+                return marker.Owner;
+            }
+
+            if (!trigger.ScopedIds.TryGetValue(sourceId, out var ctrl))
+                throw new InvalidOperationException(
+                    $"<Trigger on=\"expand@{sourceId}\"> in '{trigger.Id ?? trigger.GameObject.name}': " +
+                    $"id '{sourceId}' not found in trigger subtree scope");
+
+            return ctrl as TabMenu ?? throw new InvalidOperationException(
+                $"<Trigger on=\"expand@{sourceId}\">: id '{sourceId}' is a " +
+                $"{ctrl.GetType().Name}, not a <TabMenu>. expand / collapse require a <TabMenu>.");
+        }
     }
 }

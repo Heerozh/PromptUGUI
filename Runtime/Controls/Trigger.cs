@@ -72,6 +72,10 @@ namespace PromptUGUI.Controls
                 case TriggerKind.StateDisabled:
                     SubscribeState(_spec.Kind);
                     break;
+                case TriggerKind.Expand:
+                case TriggerKind.Collapse:
+                    SubscribeMenu(_spec.Kind);
+                    break;
                 case TriggerKind.Manual:
                     // no auto-subscribe; awaiting Fire()
                     break;
@@ -102,6 +106,13 @@ namespace PromptUGUI.Controls
                 TriggerKind.Press => src.OnPointerDown,
                 _ => throw new InvalidOperationException("unreachable"),
             };
+            _sourceSub = stream.Subscribe(_ => Fire());
+        }
+
+        private void SubscribeMenu(TriggerKind kind)
+        {
+            var menu = Internal.TriggerSourceResolver.FindTabMenu(this, _spec.SourceId);
+            var stream = kind == TriggerKind.Expand ? menu.OnExpanded : menu.OnCollapsed;
             _sourceSub = stream.Subscribe(_ => Fire());
         }
 

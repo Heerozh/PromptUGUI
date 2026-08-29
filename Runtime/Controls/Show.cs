@@ -54,6 +54,8 @@ namespace PromptUGUI.Controls
             TriggerKind.HoverEnter => _spec.SourceId == null ? "hover-enter" : "hover-enter@" + _spec.SourceId,
             TriggerKind.HoverExit => _spec.SourceId == null ? "hover-exit" : "hover-exit@" + _spec.SourceId,
             TriggerKind.Press => _spec.SourceId == null ? "press" : "press@" + _spec.SourceId,
+            TriggerKind.Expand => _spec.SourceId == null ? "expand" : "expand@" + _spec.SourceId,
+            TriggerKind.Collapse => _spec.SourceId == null ? "collapse" : "collapse@" + _spec.SourceId,
             _ => _spec.Kind.ToString(),
         };
 

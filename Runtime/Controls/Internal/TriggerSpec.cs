@@ -6,12 +6,13 @@ namespace PromptUGUI.Controls.Internal
     {
         Open, Loop, Click, Manual, HoverEnter, HoverExit, Press,
         StateNormal, StateHover, StatePressed, StateSelected, StateDisabled,
+        Expand, Collapse,
     }
 
     internal sealed class TriggerSpec
     {
         public TriggerKind Kind;
-        public string SourceId;  // non-null for Click / HoverEnter / HoverExit / Press / state-* with @id
+        public string SourceId;  // non-null for Click / HoverEnter / HoverExit / Press / state-* / expand / collapse with @id
 
         private static readonly (string prefix, TriggerKind kind)[] s_prefixedKinds = {
             ("click@",          TriggerKind.Click),
@@ -23,6 +24,9 @@ namespace PromptUGUI.Controls.Internal
             ("state-pressed@",  TriggerKind.StatePressed),
             ("state-selected@", TriggerKind.StateSelected),
             ("state-disabled@", TriggerKind.StateDisabled),
+            // Not "open@" / "close@": on="open" already means "the Screen opened".
+            ("expand@",         TriggerKind.Expand),
+            ("collapse@",       TriggerKind.Collapse),
         };
 
         public static TriggerSpec Parse(string value)
@@ -42,6 +46,8 @@ namespace PromptUGUI.Controls.Internal
                 case "state-pressed": return new TriggerSpec { Kind = TriggerKind.StatePressed };
                 case "state-selected": return new TriggerSpec { Kind = TriggerKind.StateSelected };
                 case "state-disabled": return new TriggerSpec { Kind = TriggerKind.StateDisabled };
+                case "expand": return new TriggerSpec { Kind = TriggerKind.Expand };
+                case "collapse": return new TriggerSpec { Kind = TriggerKind.Collapse };
             }
             foreach (var (prefix, kind) in s_prefixedKinds)
             {
@@ -57,7 +63,8 @@ namespace PromptUGUI.Controls.Internal
             throw new ArgumentException(
                 $"Invalid trigger 'on=\"{value}\"' — expected one of: open / loop / click / click@<id> / " +
                 "hover-enter / hover-enter@<id> / hover-exit / hover-exit@<id> / press / press@<id> / " +
-                "state-normal / state-hover / state-pressed / state-selected / state-disabled (each also with @<id>) / manual");
+                "state-normal / state-hover / state-pressed / state-selected / state-disabled (each also with @<id>) / " +
+                "expand / expand@<id> / collapse / collapse@<id> / manual");
         }
     }
 }
