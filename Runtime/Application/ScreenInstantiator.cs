@@ -210,6 +210,9 @@ namespace PromptUGUI.Application
             else if (node.Tag == "TabBar")
                 foreach (var issue in TabRules.CheckTabBar(node))
                     Debug.LogWarning(issue.Message);
+            else if (node.Tag == "TabMenu")
+                foreach (var issue in PromptUGUI.Lint.TabMenuRules.CheckTabMenu(node))
+                    Debug.LogWarning(issue.Message);
             else if (node.Tag == "Carousel")
                 foreach (var issue in PromptUGUI.Lint.CarouselRules.CheckCarousel(node))
                     Debug.LogWarning(issue.Message);

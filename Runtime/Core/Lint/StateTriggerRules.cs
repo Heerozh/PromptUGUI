@@ -25,6 +25,7 @@ namespace PromptUGUI.Lint
     public static class StateTriggerRules
     {
         public const string NoSourceCode = "PUI-STATE-NO-SOURCE";
+        public const string NoMenuCode = "PUI-EXPAND-NO-SOURCE";
 
         private static readonly HashSet<string> StateTriggerTags =
             new HashSet<string> { "Trigger", "Animation", "Show" };
@@ -36,6 +37,9 @@ namespace PromptUGUI.Lint
 
         private static readonly HashSet<string> StateSourceTags =
             new HashSet<string> { "Btn", "Tab", "Toggle" };
+
+        private static readonly HashSet<string> BareMenuValues =
+            new HashSet<string> { "expand", "collapse" };
 
         /// <summary>True if <paramref name="tag"/> instantiates an IStateSource-backed control
         /// (broadcasts InteractState). Extend this set when a new clickable opts in.</summary>
@@ -59,6 +63,28 @@ namespace PromptUGUI.Lint
                 NoSourceCode, n.Tag, n.Id,
                 $"<{n.Tag} on=\"{on}\">: no <Btn>/<Tab>/<Toggle> ancestor. state-* resolves upward to the " +
                 "nearest clickable — place it inside a <Btn>/<Tab>/<Toggle>, or use state-...@<id>.");
+        }
+
+        /// <summary>True if <paramref name="tag"/> instantiates a <c>&lt;TabMenu&gt;</c>, the source
+        /// a bare <c>expand</c> / <c>collapse</c> trigger resolves upward to.</summary>
+        public static bool IsMenuSourceTag(string tag) => tag == "TabMenu";
+
+        /// <summary>
+        /// Yields <see cref="NoMenuCode"/> when <paramref name="n"/> is a bare (no-<c>@id</c>)
+        /// <c>expand</c> / <c>collapse</c> trigger with no <c>&lt;TabMenu&gt;</c> ancestor — the
+        /// same upward-resolution rule <c>state-*</c> follows, and the same runtime hard error.
+        /// </summary>
+        public static IEnumerable<LintIssue> CheckMenuSource(ElementNode n, bool hasMenuAncestor)
+        {
+            if (hasMenuAncestor) yield break;
+            if (!StateTriggerTags.Contains(n.Tag)) yield break;
+            if (!n.Attributes.TryGetValue("on", out var on)) yield break;
+            if (!BareMenuValues.Contains(on)) yield break;
+
+            yield return new LintIssue(
+                NoMenuCode, n.Tag, n.Id,
+                $"<{n.Tag} on=\"{on}\">: no <TabMenu> ancestor. {on} resolves upward to the nearest " +
+                $"menu — place it inside a <TabMenu>, or use {on}@<id>.");
         }
     }
 }
