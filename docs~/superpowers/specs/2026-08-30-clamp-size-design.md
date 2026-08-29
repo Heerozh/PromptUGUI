@@ -420,4 +420,51 @@ master spec §6.2 末尾加一段 **"`clamp(min, N%, max)` / `clamp(min, stretch
 
 ## 13. 实施记录
 
-（实现后填写。）
+一轮做完（M0–M3），2026-08-30。EditMode 全套件 **2941 / 2941 绿**，PlayMode 回调路径 2 / 2 绿，
+UIXmlLint 对内置 8 份文档零新增 issue。分支 `feat/clamp-size`。
+
+### 13.1 `ClampFitter` 路线的三个洞确实都不存在
+
+§2 列的三条（父子顺序、布局组驱动的父、不经 ReSolve 的父级变化）是选组件而不选 Screen 后置 pass 的
+全部理由，每条都钉了测试：
+
+- **父子顺序**：`Nested_clamps_resolve_parent_first` —— 外层 `clamp(100, 50%, 400)` 套内层
+  `clamp(50, 50%, 120)`，apply 是 DFS 后序（子先父后），结果仍然正确（父 800 → 400 / 120，
+  父 300 → 150 / 75）。顺序由 `LayoutRebuilder` 按层深给出，跟 apply 顺序无关。
+- **不经 ReSolve 的父级变化**：`ClampFitterPlayTests.Parent_resize_without_ReSolve_reclamps_via_callback`
+  直接写父 `sizeDelta`，不碰任何 PromptUGUI 路径，子节点照样重算。
+- **布局组驱动的父**：`Clamp_stretch_*` 那组走 `LayoutElement`，没有组件参与。
+
+### 13.2 `Same()` 早退不是优化，是 LGC-D18 的必要条件
+
+`SetAxis` 一开始是无条件 `SetDirty()`。那样每次 ReSolve 都会给每个 clamp 节点入一次布局队列 ——
+`LayoutRebuildDirtyTests` 钉的"稳态 ReSolve 不脏任何东西"契约对 clamp 节点就破了。改成"spec 真变了
+才脏"之后仍然正确，因为漏掉的那一半由 RectTransform 自己补上：
+
+- 值**在区间内** → `ApplyCommon` 写的基线跟组件上一次的输出逐位相同 → rect 没变 → 不需要重算
+  （`ReSolve_with_unchanged_spec_in_range_dirties_nothing`）。
+- 值**被钳住** → `ApplyCommon` 把 rect 写回未钳的 `%` 几何 → rect 变了 → `OnRectTransformDimensionsChange`
+  自己触发 → 下一次 pass 重新钳回来（`ReSolve_twice_is_idempotent`）。
+
+两条路合起来才是完整的：脏标只在"没有别的机制会通知我"时才需要自己打。
+
+### 13.3 `_selfWriting` 是必需的
+
+组件在 pass 里写 `offsetMin/Max` 会**同步**触发自己的 `OnRectTransformDimensionsChange`。没有这个门，
+每次成功的写入都会立刻再入一次队列 —— 不是死循环（第二次 pass 的 `Mathf.Approximately` 早退会终止它），
+但每帧白跑一轮。它跟 §2 否决的那条"回调里写 RT"是两回事：这里的写在 pass 内，门只是抑制自触发。
+
+### 13.4 `%` 的 margin 误报是顺手修掉的
+
+`MarginAnchorRules` 只看 `anchor`，于是 `anchor="bottom-left" width="46%" margin="0,16,0,16"` 一直把右 16
+报成 inert —— 分数轴其实两侧都 inset。§11 提的这条随本 PR 修了（`IsFractionalAxis`：值以 `%` 结尾或以
+`clamp(` 开头），clamp 因此从第一天起就没有这个误报。四个新用例钉住，包括"另一条轴仍然照报"。
+
+### 13.5 实现上的小结论
+
+- `SizeSpec` 的 `ParseAxis` 从六个 `out` 参数收成一个私有 `Axis` struct，clamp 的中段就是**递归调用
+  同一个解析器再加上下限**（`mid.WithBounds(min, max)`）—— `%` / `stretch` 的全部校验自动复用，
+  新代码只处理括号、三段、两端和四条组合规则。
+- 开放端存 ±Infinity 而不是 `bool HasMin`：`Mathf.Clamp` 对它们是恒等，消费侧一个分支都不用写。
+- 布局组那半只有 15 行（`ClampedFlexible`），uGUI 的 `lerp(min, preferred, t)` 本身就是 clamp。
+- `LooksLikeKeyword` 加一个 `clamp` 就让 `size="clamp(...)"` 报对了错 —— 那个函数存在的意义正是这个。
