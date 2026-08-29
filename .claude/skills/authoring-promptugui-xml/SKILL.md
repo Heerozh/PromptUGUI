@@ -654,7 +654,7 @@ Other notes:
 | `id="..."` | string | Unique within Screen / Template instance scope. Lift to dedicated handle for `Get<T>`. Inside a `<Template>` write a **literal** id — never `id="{{param}}"` (id is not substituted); instances are isolated per call. |
 | `anchor="..."` | preset | See "Anchor system" below. Default `top-left`. |
 | `size="WxH"` | `240x80` | Both dimensions in pixels (numeric only — keywords `stretch` / `N%` are **not** accepted here, use per-axis attrs). **Forbidden on stretched axes.** |
-| `width="W"` / `height="H"` | float / `stretch[*N]` / `N%` | Numeric is base. `stretch` / `stretch*N` is LayoutGroup-only — see "Stretch keyword". `N%` is free-positioning-only — see "Fractional %". **Numeric forbidden on stretched anchor axes.** |
+| `width="W"` / `height="H"` | float / `stretch[*N]` / `N%` / `clamp(min, N%\|stretch, max)` | Numeric is base. `stretch` / `stretch*N` is LayoutGroup-only — see "Stretch keyword". `N%` is free-positioning-only — see "Fractional %". `clamp(...)` puts a floor / cap on either — see "Clamp". **Numeric forbidden on stretched anchor axes.** |
 | `margin="..."` | 1/2/4 floats | Distance from anchor inward, positive. `"_"` = 0 placeholder. **4-component order `top,right,bottom,left`** (1 = all sides, 2 = `vertical,horizontal`). A margin only offsets from a side the `anchor` **consumes** — see **margin & consumed sides** below. |
 | `pivot="x,y"` | `0..1, 0..1` | Defaults derive from `anchor`; rarely needed. |
 | `class="a b"` | style names, space-separated | Pulls in `<Style>` attribute packs. Inline attributes win; later classes beat earlier ones. See **Style & class**. |
@@ -691,6 +691,7 @@ Other notes:
 - **Weighted form** `stretch*N` for non-equal splits. `<Frame width="stretch"/> <Btn width="stretch*2"/> <Frame width="stretch"/>` gives a 1:2:1 weight split → 25/50/25. `N` must be > 0 (e.g. `stretch*0.5` halves the weight).
 - Forbidden outside V/HStack (parse error). Use `anchor="X-stretch"` + margin for free-positioning, or `N%` for fractional sizing.
 - Variant-overridable: `width="240" width.mobile="stretch"` flips between fixed and flex.
+- Need a floor or a cap? `clamp(min, stretch, max)` is the only shrinkable range — a plain number is rigid (`min = preferred`), `stretch` has no cap. See "Clamp".
 
 **Fractional `%`** (free-positioning only) — `width="50%"` / `height="33.3%"` on a child of `<Frame>` / `<Screen>` / `<SafeArea>` maps to uGUI's native anchor fractions. The `anchor=` preset decides where in the parent the fraction sits:
 
@@ -713,6 +714,47 @@ Vertical: same idea (`top` → upper, `bottom` → lower, `center` → middle).
 - `margin` further insets _within_ the fractional range (so `width="50%" margin="0,16"` = 50% minus 32px total, still centered).
 - Forbidden inside `<VStack>` / `<HStack>` / `<Grid>` (parse error with guidance). LayoutGroup is weight-based, not percentage-based — use `stretch*N` + spacer siblings there.
 - Forbidden combined with `anchor="X-stretch"` on the same axis (existing "stretched-axis can't have width" rule).
+
+**Clamp — a floor / cap on a `%` or `stretch` axis** — `width="clamp(min, middle, max)"` / `height="clamp(...)"`. `middle` is one of the two variable forms above and keeps its placement rules; clamp only adds a lower and/or upper bound (CSS `clamp()`). `_` opens a bound.
+
+```xml
+<!-- chat panel: 46.4% of the parent, never narrower than 167 nor wider than 250 -->
+<Frame class="panel" anchor="bottom-left" width="clamp(167, 46.4%, 250)" height="clamp(200, 55%, 400)"/>
+<Frame anchor="bottom-left" width="clamp(_, 46%, 250)"/>        <!-- cap only -->
+<Frame anchor="top-center"  width="clamp(320, 60%, _)"/>        <!-- floor only -->
+
+<!-- inside a stack: LayoutElement(min=167, preferred=250, flexible=0) -->
+<HStack anchor="bottom-stretch" height="400">
+  <Frame class="panel" width="clamp(167, stretch, 250)"/>
+  <Frame width="stretch"/>                                      <!-- spacer takes the rest -->
+</HStack>
+
+<Frame width="clamp(167, 46.4%, 250)" width.landscape="250"/>   <!-- a Variant swaps the whole axis -->
+```
+
+Free-positioning — `clamp(min, N%, max)` on a child of `<Frame>` / `<Screen>` / `<SafeArea>` (or a `flow="false"` child):
+
+- `box = clamp(N% × parent, min, max)`; `margin` insets _inside_ the box (same rule as plain `%`). While the value is in range the geometry is bit-identical to `width="N%"`.
+- The box hugs the edge the `anchor` names: `*-left` → left edge, `*-right` → right edge, `center` → centered. A capped `bottom-left` panel stays glued to the left; it does not float inside its 46% span.
+- Re-solved on every parent resize — window, orientation, Variant, SafeArea, animation, popup — by a layout pass (`ILayoutSelfController`), not by a ReSolve. In EditMode tests call `Canvas.ForceUpdateCanvases()` / `LayoutRebuilder.ForceRebuildLayoutImmediate` to observe the clamped size.
+
+Inside `<VStack>` / `<HStack>` — `clamp(min, stretch, max)`:
+
+| Form                       | `LayoutElement.min` | `preferred` | `flexible`          |
+| -------------------------- | ------------------- | ----------- | ------------------- |
+| `clamp(min, stretch, max)` | min                 | max         | 0                   |
+| `clamp(_, stretch, max)`   | −1                  | max         | 0                   |
+| `clamp(min, stretch, _)`   | min                 | 0           | 1 (`stretch*N` → N) |
+
+- A sole child (or one next to a `width="stretch"` spacer) gets exactly `clamp(available, min, max)`. Several shrinkable siblings shrink together in proportion to their `(preferred − min)` (flex-shrink). On the cross axis (`height="clamp(...)"` in an HStack) the child clamps against the group's inner size the same way.
+- The only shrinkable range in a stack: a plain number is rigid (`min = preferred`), `stretch` has no cap.
+
+Rules:
+
+- `min ≤ max`, both finite and ≥ 0; at least one bound (`clamp(_, 46%, _)` is an error — write `46%`); `middle` must be `N%` or `stretch` (a constant needs no clamp); `stretch*N` only with an open max (a weighted stretch cannot be capped).
+- Placement follows the middle term: `clamp(min, N%, max)` inside a stack and `clamp(min, stretch, max)` under a free-positioning parent raise the `%` / `stretch` placement errors, which now point at the other form. `size=` stays numeric-only.
+- **Not combinable with `scale` on the same node** — `PUI-CLAMP-SCALE`, a CLI error and a hard error at `UI.Open` (base or any variant, either attribute): the clamped axis is owned by the layout pass, which would drop `scale`'s box-preserving inflation. Put `scale` on a child (wrap the content).
+- Under the hood: free-positioning → an internal `ClampFitter` component on the node; in a stack → plain `LayoutElement` values, no component.
 
 **Cross-axis alignment** of layout-group children is set on the parent via `childAlign` (defaults: VStack `upper-center`, HStack `middle-left`). Override the whole group, not per child — uGUI LayoutGroup doesn't support per-child cross-axis alignment.
 
@@ -1383,9 +1425,12 @@ PromptUGUI never auto-enables masking — you must opt in via `mask=`. Two reaso
 | Ghost element on variant toggle                                                     | `<Add>` instantiated and never deactivated                                                                                                                                                                                   | This is by design (Strategy C). Use `hidden.variant` if you need a node to disappear.                                                                           |
 | Parser silently merges children                                                     | Wrote `<Btn>开始 <Image/> </Btn>` (text + element mix)                                                                                                                                                                       | Pick one: text shorthand OR child elements. Mixed content is rejected.                                                                                          |
 | Variant changes one attribute but not another                                       | `attr.variant` declared before `attr` (base) in the SAME element                                                                                                                                                             | Fine — declaration order is per-attribute. Just verify the right `.variant` exists.                                                                             |
-| `'stretch' on width/height is only valid inside <VStack>/<HStack>`                  | `<Btn width="stretch"/>` under a `<Frame>` (or other non-LayoutGroup parent)                                                                                                                                                 | Either wrap the Btn in a stack, or switch to free-positioning: `anchor="X-stretch"` + `margin`                                                                  |
+| `'stretch' on width/height is only valid inside <VStack>/<HStack>`                  | `<Btn width="stretch"/>` under a `<Frame>` (or other non-LayoutGroup parent)                                                                                                                                                 | Either wrap the Btn in a stack, or switch to free-positioning: `anchor="X-stretch"` + `margin` — for a bounded range here, `clamp(min, N%, max)`                                                                  |
 | `size 'stretchx72' is numeric-only...`                                              | Trying to put `stretch` or `%` keyword inside compact `size=`                                                                                                                                                                | `size=` is numeric-only. Use per-axis: `width="stretch" height="72"` or `width="50%"`                                                                           |
-| `'%' (fractional) ... cannot be used inside <VStack>/<HStack>/<Grid>`               | `<Btn width="50%"/>` inside a VStack/HStack/Grid                                                                                                                                                                             | LayoutGroup is weight-based: use `stretch*N` + spacer siblings (e.g. spacer/stretch\*2/spacer = 25/50/25), or move the child to a `<Frame>` parent              |
+| `'%' (fractional) ... cannot be used inside <VStack>/<HStack>/<Grid>`               | `<Btn width="50%"/>` inside a VStack/HStack/Grid                                                                                                                                                                             | LayoutGroup is weight-based: use `stretch*N` + spacer siblings (e.g. spacer/stretch\*2/spacer = 25/50/25), or move the child to a `<Frame>` parent — for a bounded range inside the stack, `clamp(min, stretch, max)`              |
+| `[PUI-CLAMP-SCALE] ... clamp(...) and scale="..." on the same node`             | `width` / `height` = `clamp(...)` (base or any variant) together with `scale=` (base or any variant)                                                                                                                       | Move `scale` to a child (wrap the content) or drop the clamp — the clamped axis is owned by the layout pass                                                     |
+| `both bounds open` / `min 300 > max 250` / `weighted stretch cannot be capped` / `clamp takes exactly 3 parts` | Malformed `clamp(min, middle, max)`                                                                                                                                                                                  | See "Clamp": `_` opens ONE bound, `min ≤ max`, `stretch*N` only with an open max, exactly three comma-separated parts, `middle` is `N%` or `stretch`          |
+| Panel too wide on desktop / too narrow on phones                                    | A bare `width="46%"` has no cap; `width.landscape="250"` is a step, not a curve                                                                                                                                       | `width="clamp(167, 46%, 250)"` — continuous between the bounds, hugs the anchored edge when capped                                                            |
 | `stretch*0` / `stretch*-1` / `stretch*` rejected                                    | Invalid weight after `stretch*`                                                                                                                                                                                              | Weight must be a positive number, e.g. `stretch*2` / `stretch*0.5`                                                                                              |
 | `'150%' must be in (0%, 100%]`                                                      | Percentage out of range                                                                                                                                                                                                      | Allowed range is `(0%, 100%]`. For "wider than parent", redesign the layout (likely a typo)                                                                     |
 | UI 在不同屏上视觉大小不一（4K 上变邮票、手机上变巨人）                              | `<Screen>` 没设 `reference=`，走默认 `ConstantPixelSize, scaleFactor=1`，XML 数字直接 = 设备像素                                                                                                                             | 在 `<Screen>` 上加 `reference="1920x1080"`（或你的设计分辨率），切到 `ScaleWithScreenSize`                                                                      |

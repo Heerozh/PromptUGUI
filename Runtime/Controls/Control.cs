@@ -283,12 +283,14 @@ namespace PromptUGUI.Controls
                     "Use a weighted stretch + spacer pattern instead: " +
                     "<Frame width=\"stretch\"/> <Btn width=\"stretch*2\"/> <Frame width=\"stretch\"/> " +
                     "gives a 25/50/25 split. " +
-                    "Or move the child to a free-positioning parent (Frame/Screen) where '%' maps to anchor fractions.");
+                    "Or move the child to a free-positioning parent (Frame/Screen) where '%' maps to anchor fractions. " +
+                    "For a bounded range inside a stack write clamp(min, stretch, max), not clamp(min, N%, max).");
             }
 
             if (parentIsAutoLayout && flow)
             {
                 ApplyLayoutElement(sizeSpec, preset);
+                SyncClampFitter(sizeSpec, preset, margin, freePositioning: false);
                 // anchor / pivot / sizeDelta / anchoredPosition: LayoutGroup 接管几何。
                 // 作者写 anchor/margin 已经被 ScreenInstantiator 警告（spec §6.5）；这里静默跳过。
                 // STW-D4: wrapper 模式下内层 RT 重置为全 stretch 基线——这是 ApplyScales
@@ -311,7 +313,8 @@ namespace PromptUGUI.Controls
                 if (sizeSpec.IsFlexibleWidth || sizeSpec.IsFlexibleHeight)
                     throw new System.ArgumentException(
                         "'stretch' on width/height is only valid inside <VStack>/<HStack>; " +
-                        "use anchor=\"stretch\" (or anchor=\"X-stretch\") + margin for free-positioning containers");
+                        "use anchor=\"stretch\" (or anchor=\"X-stretch\") + margin for free-positioning containers " +
+                        "— for a bounded range here write clamp(min, N%, max), not clamp(min, stretch, max)");
 
                 // BCS-D7: 自由定位 + anchor 两轴都不 stretch + 至少一轴没写 →
                 // 若控件能提供 native size (GetNativeSize)，缺失的轴用 native 填，已写的轴保留作者值。
@@ -376,6 +379,10 @@ namespace PromptUGUI.Controls
                 var lr = MarginResolver.Resolve(effectivePreset, sizeSpec, margin);
                 RectTransform.anchoredPosition = lr.AnchoredPosition;
                 RectTransform.sizeDelta = lr.SizeDelta;
+
+                // clamp(min, N%, max): the baseline above is the plain % geometry; the fitter owns the
+                // clamped axis from here on (spec 2026-08-30-clamp-size-design §5.1 / §6.3).
+                SyncClampFitter(sizeSpec, preset, margin, freePositioning: true);
             }
 
             if (hidden.HasValue) Hidden = hidden.Value;
@@ -441,8 +448,14 @@ namespace PromptUGUI.Controls
                     // stretch / stretch*N: 让 LayoutGroup 把剩余空间按权重分给该子节点（VerticalLayoutGroup 跨轴
                     // 在 flexible>0 时把 requiredSpace 抬到容器内宽，HorizontalLayoutGroup 主轴则按
                     // flexible 权重分配剩余空间）。preferred=0 让 base 部分不抢权重。
-                    prefW = 0f;
-                    flexW = sizeSpec.WeightWidth;
+                    //
+                    // clamp(min, stretch, max)（spec 2026-08-30-clamp-size-design §5.2）：uGUI 主轴按
+                    // lerp(min, preferred, t) 分配、交叉轴取 clamp(内宽, min, preferred)，所以
+                    // min/preferred 就是 clamp 本身；有限上限时 flexible 必须为 0（否则越过 preferred），
+                    // 上限开放时保留权重 —— 那是"带下限的 stretch"。这是 LGC-D17 之外唯一受支持的
+                    // 可收缩区间。
+                    ClampedFlexible(sizeSpec.IsClampedWidth, sizeSpec.MinWidth, sizeSpec.MaxWidth,
+                        sizeSpec.WeightWidth, out prefW, out flexW, out minW);
                 }
                 else
                 {
@@ -461,8 +474,8 @@ namespace PromptUGUI.Controls
             {
                 if (sizeSpec.IsFlexibleHeight)
                 {
-                    prefH = 0f;
-                    flexH = sizeSpec.WeightHeight;
+                    ClampedFlexible(sizeSpec.IsClampedHeight, sizeSpec.MinHeight, sizeSpec.MaxHeight,
+                        sizeSpec.WeightHeight, out prefH, out flexH, out minH);
                 }
                 else
                 {
@@ -485,6 +498,24 @@ namespace PromptUGUI.Controls
             WriteLayoutElement(le, prefW, prefH, flexW, flexH, minW, minH);
         }
 
+        // stretch / stretch*N → (0, weight, -1); clamp(min, stretch, max) → (max, 0, min);
+        // clamp(min, stretch*N, _) → (0, N, min). Open bounds map back to the LayoutElement sentinels.
+        private static void ClampedFlexible(bool clamped, float min, float max, float weight,
+            out float preferred, out float flexible, out float minimum)
+        {
+            if (!clamped)
+            {
+                preferred = 0f;
+                flexible = weight;
+                minimum = -1f;
+                return;
+            }
+            var capped = !float.IsPositiveInfinity(max);
+            preferred = capped ? max : 0f;
+            flexible = capped ? 0f : weight;
+            minimum = float.IsNegativeInfinity(min) ? -1f : min;
+        }
+
         // 六个值一次算完再写。
         //
         // 决策 LGC-D18: LayoutElement 的 setter 自带 change guard —— 只有值真的变了才 SetDirty()
@@ -505,6 +536,54 @@ namespace PromptUGUI.Controls
             le.minWidth = minWidth;
             le.minHeight = minHeight;
         }
+
+        // Attaches / updates / retires the ClampFitter for width="clamp(min, N%, max)" (free-positioning
+        // only — inside a LayoutGroup the clamp lives in LayoutElement min/preferred, see
+        // ApplyLayoutElement). The component stays attached once created and is only enabled/disabled,
+        // so a Variant flip between clamp and numeric keeps ReSolve idempotent (same rule as the
+        // residual LayoutElement reset above). ClampFitter.SetAxis dirties only on a real spec change.
+        private void SyncClampFitter(SizeSpec sizeSpec, AnchorPreset preset, string margin, bool freePositioning)
+        {
+            var fitter = RectTransform.GetComponent<Internal.ClampFitter>();
+            var wantX = freePositioning && sizeSpec.IsClampedWidth;
+            var wantY = freePositioning && sizeSpec.IsClampedHeight;
+            if (!wantX && !wantY)
+            {
+                if (fitter == null) return;
+                fitter.ClearAxis(0);
+                fitter.ClearAxis(1);
+                fitter.enabled = false;
+                return;
+            }
+
+            MarginResolver.Parse(margin, out var mt, out var mr, out var mb, out var ml);
+            fitter ??= RectTransform.gameObject.AddComponent<Internal.ClampFitter>();
+            fitter.enabled = true;
+            if (wantX)
+                fitter.SetAxis(0, true, sizeSpec.WidthFraction, sizeSpec.MinWidth, sizeSpec.MaxWidth,
+                    ml, mr, ToClampAlign(preset.H));
+            else
+                fitter.ClearAxis(0);
+            if (wantY)
+                fitter.SetAxis(1, true, sizeSpec.HeightFraction, sizeSpec.MinHeight, sizeSpec.MaxHeight,
+                    mb, mt, ToClampAlign(preset.V));
+            else
+                fitter.ClearAxis(1);
+        }
+
+        private static Internal.ClampAlign ToClampAlign(AnchorHorizontal h) => h switch
+        {
+            AnchorHorizontal.Left => Internal.ClampAlign.Low,
+            AnchorHorizontal.Right => Internal.ClampAlign.High,
+            _ => Internal.ClampAlign.Center,   // Stretch is rejected by ValidateAgainst before we get here
+        };
+
+        private static Internal.ClampAlign ToClampAlign(AnchorVertical v) => v switch
+        {
+            AnchorVertical.Bottom => Internal.ClampAlign.Low,
+            AnchorVertical.Top => Internal.ClampAlign.High,
+            _ => Internal.ClampAlign.Center,
+        };
 
         // 把 anchor 预设里的"端点"对齐方式 + 分数 转成具体的 anchorMin/Max 子区间。
         // 入参：H/V 的端点（Left/Right/Top/Bottom/Center/Stretch），分数 0..1

@@ -7,142 +7,159 @@ namespace PromptUGUI.Layout
 {
     public readonly struct SizeSpec
     {
-        public float Width { get; }
-        public float Height { get; }
-        public bool HasWidth { get; }
-        public bool HasHeight { get; }
-        public bool IsNativeWidth { get; }
-        public bool IsNativeHeight { get; }
+        // Per-axis parse result. One struct instead of a fistful of out-params: the clamp form
+        // parses its middle term by recursing into the same axis parser and then decorates the
+        // result with bounds, which reads naturally as "take an Axis, return an Axis".
+        private readonly struct Axis
+        {
+            public readonly bool Has;
+            public readonly float Numeric;
+            public readonly bool IsNative;
+            public readonly bool IsFlexible;
+            public readonly float Weight;
+            public readonly bool IsFractional;
+            public readonly float Fraction;
+            public readonly bool IsClamped;
+            public readonly float Min;
+            public readonly float Max;
+
+            public Axis(bool has, float numeric, bool isNative, bool isFlexible, float weight,
+                        bool isFractional, float fraction, bool isClamped, float min, float max)
+            {
+                Has = has; Numeric = numeric; IsNative = isNative;
+                IsFlexible = isFlexible; Weight = weight;
+                IsFractional = isFractional; Fraction = fraction;
+                IsClamped = isClamped; Min = min; Max = max;
+            }
+
+            // Bounds default to the identity of Mathf.Clamp so consumers never branch on IsClamped
+            // just to read them.
+            public static readonly Axis None = new(false, 0f, false, false, 1f, false, 0f, false,
+                float.NegativeInfinity, float.PositiveInfinity);
+
+            public static Axis Fixed(float v) => new(true, v, false, false, 1f, false, 0f, false,
+                float.NegativeInfinity, float.PositiveInfinity);
+
+            public Axis WithNumeric(float v) => new(true, v, false, IsFlexible, Weight,
+                IsFractional, Fraction, IsClamped, Min, Max);
+
+            public Axis WithBounds(float min, float max) => new(Has, Numeric, IsNative, IsFlexible, Weight,
+                IsFractional, Fraction, true, min, max);
+        }
+
+        private readonly Axis _w;
+        private readonly Axis _h;
+
+        public float Width => _w.Numeric;
+        public float Height => _h.Numeric;
+        public bool HasWidth => _w.Has;
+        public bool HasHeight => _h.Has;
+        public bool IsNativeWidth => _w.IsNative;
+        public bool IsNativeHeight => _h.IsNative;
 
         // Flexible (LayoutGroup child): width="stretch" / "stretch*N" → LayoutElement.flexibleX = WeightX.
-        public bool IsFlexibleWidth { get; }
-        public bool IsFlexibleHeight { get; }
-        public float WeightWidth { get; }
-        public float WeightHeight { get; }
+        public bool IsFlexibleWidth => _w.IsFlexible;
+        public bool IsFlexibleHeight => _h.IsFlexible;
+        public float WeightWidth => _w.Weight;
+        public float WeightHeight => _h.Weight;
 
         // Fractional (free-positioning child): width="50%" → child occupies 50% of parent on that axis,
         // positioned by anchor= preset (left/center/right or top/center/bottom).
-        public bool IsFractionalWidth { get; }
-        public bool IsFractionalHeight { get; }
-        public float WidthFraction { get; }
-        public float HeightFraction { get; }
+        public bool IsFractionalWidth => _w.IsFractional;
+        public bool IsFractionalHeight => _h.IsFractional;
+        public float WidthFraction => _w.Fraction;
+        public float HeightFraction => _h.Fraction;
 
-        private SizeSpec(
-            float w, float h, bool hw, bool hh, bool nw, bool nh,
-            bool fw, bool fh, float ww, float wh,
-            bool prw, bool prh, float pw, float ph)
+        // Clamped: width="clamp(min, N%, max)" (free-positioning, IsFractional stays set) or
+        // width="clamp(min, stretch, max)" (LayoutGroup child, IsFlexible stays set). The middle term
+        // keeps its own flags; clamp only adds the bounds. An open bound ('_') is ±Infinity so
+        // Mathf.Clamp(v, Min, Max) is the identity on that side.
+        public bool IsClampedWidth => _w.IsClamped;
+        public bool IsClampedHeight => _h.IsClamped;
+        public float MinWidth => _w.Min;
+        public float MaxWidth => _w.Max;
+        public float MinHeight => _h.Min;
+        public float MaxHeight => _h.Max;
+
+        private SizeSpec(Axis w, Axis h)
         {
-            Width = w; Height = h;
-            HasWidth = hw; HasHeight = hh;
-            IsNativeWidth = nw; IsNativeHeight = nh;
-            IsFlexibleWidth = fw; IsFlexibleHeight = fh;
-            WeightWidth = ww; WeightHeight = wh;
-            IsFractionalWidth = prw; IsFractionalHeight = prh;
-            WidthFraction = pw; HeightFraction = ph;
+            _w = w;
+            _h = h;
         }
 
         public static SizeSpec Parse(string size, string width, string height)
         {
-            float w = 0f, h = 0f;
-            bool hw = false, hh = false;
-            bool nw = false, nh = false;
-            bool fw = false, fh = false;
-            float ww = 1f, wh = 1f;
-            bool prw = false, prh = false;
-            float pw = 0f, ph = 0f;
+            var w = Axis.None;
+            var h = Axis.None;
 
             if (!string.IsNullOrEmpty(size))
             {
                 if (size == "native")
                 {
-                    hw = hh = true;
-                    nw = nh = true;
+                    w = new Axis(true, 0f, true, false, 1f, false, 0f, false,
+                        float.NegativeInfinity, float.PositiveInfinity);
+                    h = w;
                 }
                 else
                 {
-                    // size= stays purely numeric WxH. Keyword forms ('stretch', 'N%') belong on
-                    // per-axis width=/height= attrs so the reading "W by H" stays unambiguous.
+                    // size= stays purely numeric WxH. Keyword forms ('stretch', 'N%', 'clamp(...)') belong
+                    // on per-axis width=/height= attrs so the reading "W by H" stays unambiguous.
                     if (LooksLikeKeyword(size))
                         throw new ArgumentException(
-                            $"size '{size}' is numeric-only ('WxH' or 'native'). For 'stretch' / '%', " +
-                            "use per-axis attrs: width=\"stretch\" / height=\"50%\" etc.");
+                            $"size '{size}' is numeric-only ('WxH' or 'native'). For 'stretch' / '%' / 'clamp(...)', " +
+                            "use per-axis attrs: width=\"stretch\" / height=\"50%\" / width=\"clamp(167, 46%, 250)\" etc.");
                     var x = size.IndexOf('x');
                     if (x <= 0 || x == size.Length - 1)
                         throw new ArgumentException($"size '{size}' must be 'WxH' or 'native'");
-                    w = ParseFloat(size.Substring(0, x), $"size '{size}' width");
-                    h = ParseFloat(size.Substring(x + 1), $"size '{size}' height");
-                    hw = hh = true;
+                    w = Axis.Fixed(ParseFloat(size.Substring(0, x), $"size '{size}' width"));
+                    h = Axis.Fixed(ParseFloat(size.Substring(x + 1), $"size '{size}' height"));
                 }
             }
 
             if (!string.IsNullOrEmpty(width))
             {
-                if (hw) throw new ArgumentException("cannot specify both size and width");
-                ParseAxis(width, "width", out var axisW, out var axisN, out var axisF, out var axisWt,
-                    out var axisPr, out var axisFrac);
-                w = axisW; nw = axisN; fw = axisF; ww = axisWt; prw = axisPr; pw = axisFrac;
-                hw = true;
+                if (w.Has) throw new ArgumentException("cannot specify both size and width");
+                w = ParseAxis(width, "width");
             }
 
             if (!string.IsNullOrEmpty(height))
             {
-                if (hh) throw new ArgumentException("cannot specify both size and height");
-                ParseAxis(height, "height", out var axisH, out var axisN, out var axisF, out var axisWt,
-                    out var axisPr, out var axisFrac);
-                h = axisH; nh = axisN; fh = axisF; wh = axisWt; prh = axisPr; ph = axisFrac;
-                hh = true;
+                if (h.Has) throw new ArgumentException("cannot specify both size and height");
+                h = ParseAxis(height, "height");
             }
 
-            return new SizeSpec(w, h, hw, hh, nw, nh, fw, fh, ww, wh, prw, prh, pw, ph);
+            return new SizeSpec(w, h);
         }
 
         public SizeSpec WithNativeResolved(Vector2 native) =>
             new(
-                IsNativeWidth ? native.x : Width,
-                IsNativeHeight ? native.y : Height,
-                HasWidth, HasHeight,
-                false, false,
-                IsFlexibleWidth, IsFlexibleHeight,
-                WeightWidth, WeightHeight,
-                IsFractionalWidth, IsFractionalHeight,
-                WidthFraction, HeightFraction);
+                _w.IsNative ? _w.WithNumeric(native.x) : _w,
+                _h.IsNative ? _h.WithNumeric(native.y) : _h);
 
         internal static SizeSpec FromNumeric(float w, float h) =>
-            new(w, h, true, true, false, false, false, false, 1f, 1f, false, false, 0f, 0f);
+            new(Axis.Fixed(w), Axis.Fixed(h));
 
         internal SizeSpec WithFallbackForMissing(Vector2 native) =>
             new(
-                HasWidth ? Width : native.x,
-                HasHeight ? Height : native.y,
-                true, true,
-                false, false,
-                IsFlexibleWidth, IsFlexibleHeight,
-                WeightWidth, WeightHeight,
-                IsFractionalWidth, IsFractionalHeight,
-                WidthFraction, HeightFraction);
+                _w.Has ? _w : Axis.Fixed(native.x),
+                _h.Has ? _h : Axis.Fixed(native.y));
 
         private static bool LooksLikeKeyword(string s)
         {
-            // Heuristic for the size= validator: catch 'stretch', 'stretch*N', 'N%', 'NxN%' early
-            // so the error message points at the keyword rule, not at "x is not a number".
-            return s.Contains("stretch") || s.Contains("%");
+            // Heuristic for the size= validator: catch 'stretch', 'stretch*N', 'N%', 'NxN%', 'clamp(...)'
+            // early so the error message points at the keyword rule, not at "x is not a number".
+            return s.Contains("stretch") || s.Contains("%") || s.Contains("clamp");
         }
 
-        private static void ParseAxis(
-            string value, string label,
-            out float numeric, out bool isNative, out bool isFlexible, out float weight,
-            out bool isFractional, out float fraction)
+        private static Axis ParseAxis(string value, string label)
         {
-            numeric = 0f;
-            isNative = false;
-            isFlexible = false;
-            weight = 1f;
-            isFractional = false;
-            fraction = 0f;
+            if (value == "native")
+                return new Axis(true, 0f, true, false, 1f, false, 0f, false,
+                    float.NegativeInfinity, float.PositiveInfinity);
 
-            if (value == "native") { isNative = true; return; }
-
-            if (value == "stretch") { isFlexible = true; return; }
+            if (value == "stretch")
+                return new Axis(true, 0f, false, true, 1f, false, 0f, false,
+                    float.NegativeInfinity, float.PositiveInfinity);
 
             if (value.StartsWith("stretch*", StringComparison.Ordinal))
             {
@@ -156,9 +173,8 @@ namespace PromptUGUI.Layout
                 if (!(wt > 0f) || float.IsInfinity(wt))
                     throw new ArgumentException(
                         $"{label} 'stretch*{tail}': weight must be > 0");
-                isFlexible = true;
-                weight = wt;
-                return;
+                return new Axis(true, 0f, false, true, wt, false, 0f, false,
+                    float.NegativeInfinity, float.PositiveInfinity);
             }
 
             if (value.EndsWith("%", StringComparison.Ordinal))
@@ -173,12 +189,73 @@ namespace PromptUGUI.Layout
                 if (!(pct > 0f) || pct > 100f)
                     throw new ArgumentException(
                         $"{label} '{value}': must be in (0%, 100%]");
-                isFractional = true;
-                fraction = pct / 100f;
-                return;
+                return new Axis(true, 0f, false, false, 1f, true, pct / 100f, false,
+                    float.NegativeInfinity, float.PositiveInfinity);
             }
 
-            numeric = ParseFloat(value, label);
+            if (value.StartsWith("clamp(", StringComparison.Ordinal))
+                return ParseClamp(value, label);
+
+            // 'Clamp(', 'clamp 167 46% 250', 'clamp[...]' — the author meant the function form; say so
+            // instead of "'clamp' is not a number".
+            if (value.StartsWith("clamp", StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException(
+                    $"{label} '{value}': unknown value — the only function form is clamp(min, middle, max), " +
+                    "lowercase, e.g. 'clamp(167, 46%, 250)'");
+
+            return Axis.Fixed(ParseFloat(value, label));
+        }
+
+        // clamp(min, middle, max) — middle is 'N%' (free-positioning) or 'stretch' / 'stretch*N'
+        // (LayoutGroup child); '_' opens a bound. Spec 2026-08-30-clamp-size-design §4.
+        private static Axis ParseClamp(string value, string label)
+        {
+            if (!value.EndsWith(")", StringComparison.Ordinal))
+                throw new ArgumentException(
+                    $"{label} '{value}': missing ')' — write clamp(min, middle, max)");
+
+            var inner = value.Substring("clamp(".Length, value.Length - "clamp(".Length - 1);
+            var parts = inner.Split(',');
+            if (parts.Length != 3)
+                throw new ArgumentException(
+                    $"{label} '{value}': clamp takes exactly 3 parts clamp(min, middle, max), got {parts.Length}");
+
+            var min = ParseBound(parts[0].Trim(), value, label, isMin: true);
+            var max = ParseBound(parts[2].Trim(), value, label, isMin: false);
+
+            var middle = parts[1].Trim();
+            var mid = middle.Length == 0 ? Axis.None : ParseAxis(middle, label);
+            if (!mid.IsFractional && !mid.IsFlexible || mid.IsClamped)
+                throw new ArgumentException(
+                    $"{label} '{value}': middle must be 'N%' (free-positioning) or 'stretch' (inside <VStack>/<HStack>) — " +
+                    "a constant needs no clamp");
+
+            if (mid.IsFlexible && mid.Weight != 1f && !float.IsPositiveInfinity(max))
+                throw new ArgumentException(
+                    $"{label} '{value}': a weighted stretch cannot be capped (flexible > 0 grows past preferred) — " +
+                    "drop the weight or open the max with '_'");
+
+            if (float.IsNegativeInfinity(min) && float.IsPositiveInfinity(max))
+                throw new ArgumentException(
+                    $"{label} '{value}': both bounds open — write '{middle}' instead");
+
+            if (min > max)
+                throw new ArgumentException(
+                    $"{label} '{value}': min {min.ToString(CultureInfo.InvariantCulture)} > max " +
+                    $"{max.ToString(CultureInfo.InvariantCulture)}");
+
+            return mid.WithBounds(min, max);
+        }
+
+        private static float ParseBound(string s, string whole, string label, bool isMin)
+        {
+            if (s == "_") return isMin ? float.NegativeInfinity : float.PositiveInfinity;
+            if (!float.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var v)
+                || float.IsNaN(v) || float.IsInfinity(v) || v < 0f)
+                throw new ArgumentException(
+                    $"{label} '{whole}': {(isMin ? "min" : "max")} '{s}' — bounds must be finite and >= 0 " +
+                    "(or '_' for no bound)");
+            return v;
         }
 
         private static float ParseFloat(string s, string label)

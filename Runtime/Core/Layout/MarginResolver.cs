@@ -20,7 +20,7 @@ namespace PromptUGUI.Layout
 
         public static LayoutResult Resolve(AnchorPreset anchor, SizeSpec size, string margin)
         {
-            ParseMargin(margin, out var t, out var r, out var b, out var l);
+            Parse(margin, out var t, out var r, out var b, out var l);
 
             float anchorX, anchorY;
             float sizeX, sizeY;
@@ -66,7 +66,7 @@ namespace PromptUGUI.Layout
                 new Vector2(sizeX, sizeY));
         }
 
-        private static void ParseMargin(string s, out float t, out float r, out float b, out float l)
+        internal static void Parse(string s, out float t, out float r, out float b, out float l)
         {
             t = r = b = l = 0f;
             if (string.IsNullOrEmpty(s)) return;

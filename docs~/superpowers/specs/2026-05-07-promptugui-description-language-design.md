@@ -284,6 +284,8 @@ Pixel-mode TMP text is additionally pixel-snapped at render time — see
 
 **`native`**：取控件 native size（仅 `<Icon>` 接受；其他控件出现 → ParseException）。常用 `<Icon name="ui:settings"/>`，默认就是 native，作者一般不写 size。
 
+**`clamp(min, N%, max)` / `clamp(min, stretch, max)`（尺寸钳制，CLP）。** `width` / `height` 的值语法接受一个函数形态：中段是 `N%`（自由定位）或 `stretch`（布局组），clamp 只给它加上下限，`_` 开放一端。自由定位下 `box = clamp(N%·父长, min, max)`、margin 在 box 内 inset、贴边由 anchor 决定；几何由节点上的 `ClampFitter`（`ILayoutSelfController`）在布局 pass 里按父 rect 重算——resize / Variant / 弹板 / 动画一律自动跟随，Screen 的 ReSolve 路径不参与。布局组内映射到 `LayoutElement(min, preferred=max, flexible=0)`（上限开放时保留 flexible），是 LGC-D17 之外唯一受支持的可收缩区间。与 `scale` 同节点非法（`PUI-CLAMP-SCALE`，CLI error + 运行时 `ParseException`）。详见 `2026-08-30-clamp-size-design.md`。
+
 ### 6.3 margin —— 统一为"从锚点向内的距离"
 
 ```

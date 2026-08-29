@@ -391,5 +391,90 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreNotEqual(new Vector2(64f, 64f), btn.RectTransform.sizeDelta,
                 "ApplyCommon must not double-write user's size= value into sizeDelta when parent is a LayoutGroup");
         }
+        // ───── clamp(min, stretch, max) — spec 2026-08-30-clamp-size-design §5.2 ─────
+
+        private static string Doc(string body) =>
+            "<?xml version='1.0' encoding='utf-8'?>\n<PromptUGUI version='1'><Screen name='S'>\n"
+            + body + "\n</Screen></PromptUGUI>";
+
+        [TestCase("clamp(167, stretch, 250)", 167f, 250f, 0f)]
+        [TestCase("clamp(_, stretch, 250)", -1f, 250f, 0f)]
+        [TestCase("clamp(167, stretch, _)", 167f, 0f, 1f)]
+        [TestCase("clamp(167, stretch*2, _)", 167f, 0f, 2f)]
+        public void Clamp_stretch_maps_to_LayoutElement_triplet(string width, float min, float pref, float flex)
+        {
+            UI.LoadDocument("test", Doc(
+                $"<HStack id='h' anchor='top-left' width='300' height='50'><Frame id='c' width='{width}' height='40'/></HStack>"));
+            var screen = UI.Open("S");
+            var le = screen.Get<Frame>("c").GameObject.GetComponent<LayoutElement>();
+            Assert.IsNotNull(le);
+            Assert.AreEqual(min, le.minWidth, "minWidth");
+            Assert.AreEqual(pref, le.preferredWidth, "preferredWidth");
+            Assert.AreEqual(flex, le.flexibleWidth, "flexibleWidth");
+        }
+
+        [TestCase(150f, 167f)]   // below min → overflows at min
+        [TestCase(220f, 220f)]   // in range → fills
+        [TestCase(300f, 250f)]   // above max → capped
+        public void Clamp_stretch_sole_child_fills_group_within_bounds(float groupW, float expected)
+        {
+            UI.LoadDocument("test", Doc(
+                $"<HStack id='h' anchor='top-left' width='{groupW}' height='50'><Frame id='c' width='clamp(167, stretch, 250)' height='40'/></HStack>"));
+            var screen = UI.Open("S");
+            LayoutRebuilder.ForceRebuildLayoutImmediate(screen.Get<HStack>("h").RectTransform);
+            Assert.AreEqual(expected, screen.Get<Frame>("c").RectTransform.rect.width, 0.01f);
+        }
+
+        [Test]
+        public void Clamp_stretch_with_spacer_sibling_caps_and_spacer_takes_the_rest()
+        {
+            UI.LoadDocument("test", Doc(
+                "<HStack id='h' anchor='top-left' width='300' height='50'>" +
+                "<Frame id='c' width='clamp(167, stretch, 250)' height='40'/>" +
+                "<Frame id='spacer' width='stretch' height='40'/>" +
+                "</HStack>"));
+            var screen = UI.Open("S");
+            LayoutRebuilder.ForceRebuildLayoutImmediate(screen.Get<HStack>("h").RectTransform);
+            Assert.AreEqual(250f, screen.Get<Frame>("c").RectTransform.rect.width, 0.01f);
+            Assert.AreEqual(50f, screen.Get<Frame>("spacer").RectTransform.rect.width, 0.01f);
+        }
+
+        [TestCase(80f, 100f)]
+        [TestCase(150f, 150f)]
+        [TestCase(300f, 200f)]
+        public void Clamp_stretch_on_cross_axis_of_VStack(float groupW, float expected)
+        {
+            UI.LoadDocument("test", Doc(
+                $"<VStack id='v' anchor='top-left' width='{groupW}' height='200'><Frame id='c' width='clamp(100, stretch, 200)' height='20'/></VStack>"));
+            var screen = UI.Open("S");
+            LayoutRebuilder.ForceRebuildLayoutImmediate(screen.Get<VStack>("v").RectTransform);
+            Assert.AreEqual(expected, screen.Get<Frame>("c").RectTransform.rect.width, 0.01f);
+        }
+
+        [Test]
+        public void Clamp_stretch_under_Grid_throws()
+        {
+            UI.LoadDocument("test", Doc(
+                "<Grid id='grid' columns='2' cellSize='40x40' width='200' height='200'><Frame id='c' width='clamp(167, stretch, 250)'/></Grid>"));
+            Assert.Throws<ParseException>(() => UI.Open("S"));
+        }
+
+        [Test]
+        public void Clamp_stretch_out_of_flow_throws()
+        {
+            UI.LoadDocument("test", Doc(
+                "<VStack id='v' width='200' height='200'><Frame id='c' flow='false' width='clamp(167, stretch, 250)' height='40'/></VStack>"));
+            Assert.Throws<ParseException>(() => UI.Open("S"));
+        }
+
+        [Test]
+        public void Clamp_stretch_in_group_leaves_no_active_ClampFitter()
+        {
+            UI.LoadDocument("test", Doc(
+                "<HStack id='h' anchor='top-left' width='300' height='50'><Frame id='c' width='clamp(167, stretch, 250)' height='40'/></HStack>"));
+            var screen = UI.Open("S");
+            var fitter = screen.Get<Frame>("c").GameObject.GetComponent<PromptUGUI.Controls.Internal.ClampFitter>();
+            Assert.IsTrue(fitter == null || !fitter.enabled, "group clamp lives in LayoutElement, not the fitter");
+        }
     }
 }
