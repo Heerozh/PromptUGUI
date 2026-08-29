@@ -448,8 +448,14 @@ namespace PromptUGUI.Controls
                     // stretch / stretch*N: 让 LayoutGroup 把剩余空间按权重分给该子节点（VerticalLayoutGroup 跨轴
                     // 在 flexible>0 时把 requiredSpace 抬到容器内宽，HorizontalLayoutGroup 主轴则按
                     // flexible 权重分配剩余空间）。preferred=0 让 base 部分不抢权重。
-                    prefW = 0f;
-                    flexW = sizeSpec.WeightWidth;
+                    //
+                    // clamp(min, stretch, max)（spec 2026-08-30-clamp-size-design §5.2）：uGUI 主轴按
+                    // lerp(min, preferred, t) 分配、交叉轴取 clamp(内宽, min, preferred)，所以
+                    // min/preferred 就是 clamp 本身；有限上限时 flexible 必须为 0（否则越过 preferred），
+                    // 上限开放时保留权重 —— 那是"带下限的 stretch"。这是 LGC-D17 之外唯一受支持的
+                    // 可收缩区间。
+                    ClampedFlexible(sizeSpec.IsClampedWidth, sizeSpec.MinWidth, sizeSpec.MaxWidth,
+                        sizeSpec.WeightWidth, out prefW, out flexW, out minW);
                 }
                 else
                 {
@@ -468,8 +474,8 @@ namespace PromptUGUI.Controls
             {
                 if (sizeSpec.IsFlexibleHeight)
                 {
-                    prefH = 0f;
-                    flexH = sizeSpec.WeightHeight;
+                    ClampedFlexible(sizeSpec.IsClampedHeight, sizeSpec.MinHeight, sizeSpec.MaxHeight,
+                        sizeSpec.WeightHeight, out prefH, out flexH, out minH);
                 }
                 else
                 {
@@ -490,6 +496,24 @@ namespace PromptUGUI.Controls
 
             le ??= LayoutHost.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
             WriteLayoutElement(le, prefW, prefH, flexW, flexH, minW, minH);
+        }
+
+        // stretch / stretch*N → (0, weight, -1); clamp(min, stretch, max) → (max, 0, min);
+        // clamp(min, stretch*N, _) → (0, N, min). Open bounds map back to the LayoutElement sentinels.
+        private static void ClampedFlexible(bool clamped, float min, float max, float weight,
+            out float preferred, out float flexible, out float minimum)
+        {
+            if (!clamped)
+            {
+                preferred = 0f;
+                flexible = weight;
+                minimum = -1f;
+                return;
+            }
+            var capped = !float.IsPositiveInfinity(max);
+            preferred = capped ? max : 0f;
+            flexible = capped ? 0f : weight;
+            minimum = float.IsNegativeInfinity(min) ? -1f : min;
         }
 
         // 六个值一次算完再写。

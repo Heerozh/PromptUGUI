@@ -150,5 +150,49 @@ namespace PromptUGUI.Tests.EditMode.Lint
             Assert.AreEqual(1, issues.Count);
             StringAssert.Contains("top", issues[0].Message);
         }
+        // ───── fractional / clamp axes consume both slots (spec 2026-08-30-clamp-size-design §11) ─────
+
+        private static ElementNode SizedNode(string anchor, string margin, string width = null, string height = null)
+        {
+            var n = Node(anchor, margin);
+            if (width != null) n.Attributes["width"] = width;
+            if (height != null) n.Attributes["height"] = height;
+            return n;
+        }
+
+        [TestCase("46%")]
+        [TestCase("clamp(167, 46%, 250)")]
+        public void Fractional_width_consumes_left_and_right_slots(string width)
+        {
+            // bottom-left + right margin: inert for a point anchor, but a % / clamp axis insets from
+            // BOTH sides (MarginResolver's stretch branch) — no issue.
+            var issues = MarginAnchorRules.Check(SizedNode("bottom-left", "0,16,0,16", width: width)).ToList();
+            Assert.IsEmpty(issues);
+        }
+
+        [TestCase("50%")]
+        [TestCase("clamp(200, 55%, 400)")]
+        public void Fractional_height_consumes_top_and_bottom_slots(string height)
+        {
+            var issues = MarginAnchorRules.Check(SizedNode("bottom-left", "12,0,8,0", height: height)).ToList();
+            Assert.IsEmpty(issues);
+        }
+
+        [Test]
+        public void Fractional_width_does_not_excuse_the_other_axis()
+        {
+            // width is fractional, height is numeric: top slot under a bottom anchor is still inert.
+            var issues = MarginAnchorRules.Check(SizedNode("bottom-left", "12,16,0,16", width: "46%", height: "100")).ToList();
+            Assert.AreEqual(1, issues.Count);
+            StringAssert.Contains("top", issues[0].Message);
+        }
+
+        [Test]
+        public void Numeric_width_keeps_the_existing_inert_report()
+        {
+            var issues = MarginAnchorRules.Check(SizedNode("bottom-left", "0,16,0,16", width: "200")).ToList();
+            Assert.AreEqual(1, issues.Count);
+            StringAssert.Contains("right", issues[0].Message);
+        }
     }
 }
