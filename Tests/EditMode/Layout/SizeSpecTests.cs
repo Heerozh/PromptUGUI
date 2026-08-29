@@ -212,5 +212,137 @@ namespace PromptUGUI.Tests.Layout
             var anchor = new AnchorPreset(AnchorVertical.Top, AnchorHorizontal.Stretch);
             Assert.Throws<System.ArgumentException>(() => spec.ValidateAgainst(anchor));
         }
+        // ───── clamp(min, middle, max) ─────
+
+        [Test]
+        public void Clamp_percent_sets_fractional_and_bounds()
+        {
+            var s = SizeSpec.Parse(size: null, width: "clamp(167, 46.4%, 250)", height: null);
+            Assert.IsTrue(s.HasWidth, "clamp is a width assignment");
+            Assert.IsTrue(s.IsClampedWidth);
+            Assert.IsTrue(s.IsFractionalWidth, "middle 'N%' keeps the fractional flag");
+            Assert.AreEqual(0.464f, s.WidthFraction, 0.0001f);
+            Assert.AreEqual(167f, s.MinWidth);
+            Assert.AreEqual(250f, s.MaxWidth);
+            Assert.IsFalse(s.IsFlexibleWidth);
+            Assert.IsFalse(s.HasHeight);
+            Assert.IsFalse(s.IsClampedHeight);
+        }
+
+        [Test]
+        public void Clamp_open_min_is_negative_infinity()
+        {
+            var s = SizeSpec.Parse(size: null, width: "clamp(_, 46%, 250)", height: null);
+            Assert.IsTrue(s.IsClampedWidth);
+            Assert.IsTrue(float.IsNegativeInfinity(s.MinWidth), "'_' min = no lower bound");
+            Assert.AreEqual(250f, s.MaxWidth);
+        }
+
+        [Test]
+        public void Clamp_open_max_is_positive_infinity()
+        {
+            var s = SizeSpec.Parse(size: null, width: "clamp(320, 60%, _)", height: null);
+            Assert.AreEqual(320f, s.MinWidth);
+            Assert.IsTrue(float.IsPositiveInfinity(s.MaxWidth), "'_' max = no upper bound");
+        }
+
+        [Test]
+        public void Clamp_tolerates_whitespace_around_parts()
+        {
+            var s = SizeSpec.Parse(size: null, width: "clamp( 167 , 46% , 250 )", height: null);
+            Assert.IsTrue(s.IsClampedWidth);
+            Assert.AreEqual(167f, s.MinWidth);
+            Assert.AreEqual(0.46f, s.WidthFraction, 0.0001f);
+            Assert.AreEqual(250f, s.MaxWidth);
+        }
+
+        [Test]
+        public void Clamp_stretch_sets_flexible_and_bounds()
+        {
+            var s = SizeSpec.Parse(size: null, width: "clamp(167, stretch, 250)", height: null);
+            Assert.IsTrue(s.IsClampedWidth);
+            Assert.IsTrue(s.IsFlexibleWidth, "middle 'stretch' keeps the flexible flag");
+            Assert.AreEqual(1f, s.WeightWidth);
+            Assert.IsFalse(s.IsFractionalWidth);
+            Assert.AreEqual(167f, s.MinWidth);
+            Assert.AreEqual(250f, s.MaxWidth);
+        }
+
+        [Test]
+        public void Clamp_weighted_stretch_allowed_with_open_max()
+        {
+            var s = SizeSpec.Parse(size: null, width: "clamp(167, stretch*2, _)", height: null);
+            Assert.IsTrue(s.IsClampedWidth);
+            Assert.IsTrue(s.IsFlexibleWidth);
+            Assert.AreEqual(2f, s.WeightWidth);
+            Assert.AreEqual(167f, s.MinWidth);
+            Assert.IsTrue(float.IsPositiveInfinity(s.MaxWidth));
+        }
+
+        [Test]
+        public void Clamp_on_height_axis()
+        {
+            var s = SizeSpec.Parse(size: null, width: null, height: "clamp(200, 55%, 400)");
+            Assert.IsFalse(s.HasWidth);
+            Assert.IsFalse(s.IsClampedWidth);
+            Assert.IsTrue(s.HasHeight);
+            Assert.IsTrue(s.IsClampedHeight);
+            Assert.IsTrue(s.IsFractionalHeight);
+            Assert.AreEqual(0.55f, s.HeightFraction, 0.0001f);
+            Assert.AreEqual(200f, s.MinHeight);
+            Assert.AreEqual(400f, s.MaxHeight);
+        }
+
+        [Test]
+        public void Non_clamp_values_default_to_open_bounds()
+        {
+            // Defaults are the identity for Mathf.Clamp so consumers never need to branch.
+            var s = SizeSpec.Parse(size: null, width: "46%", height: "72");
+            Assert.IsFalse(s.IsClampedWidth);
+            Assert.IsFalse(s.IsClampedHeight);
+            Assert.IsTrue(float.IsNegativeInfinity(s.MinWidth));
+            Assert.IsTrue(float.IsPositiveInfinity(s.MaxWidth));
+            Assert.IsTrue(float.IsNegativeInfinity(s.MinHeight));
+            Assert.IsTrue(float.IsPositiveInfinity(s.MaxHeight));
+        }
+
+        [TestCase("clamp(_, 46%, _)", "both bounds open")]
+        [TestCase("clamp(300, 46%, 250)", "min 300 > max 250")]
+        [TestCase("clamp(-1, 46%, 250)", "finite and >= 0")]
+        [TestCase("clamp(167, 46%, NaN)", "finite and >= 0")]
+        [TestCase("clamp(167, 46%, Infinity)", "finite and >= 0")]
+        [TestCase("clamp(167, 200, 250)", "middle must be")]
+        [TestCase("clamp(167, stretch*2, 250)", "cannot be capped")]
+        [TestCase("clamp(167, 46%)", "exactly 3 parts")]
+        [TestCase("clamp(167, 46%, 250, 1)", "exactly 3 parts")]
+        [TestCase("clamp 167 46% 250", "clamp(min, middle, max)")]
+        [TestCase("Clamp(167, 46%, 250)", "clamp(min, middle, max)")]
+        [TestCase("clamp(167, 46%, 250", "clamp(min, middle, max)")]
+        [TestCase("clamp(167, native, 250)", "middle must be")]
+        [TestCase("clamp(167, , 250)", "middle must be")]
+        public void Throws_on_invalid_clamp(string bad, string messageContains)
+        {
+            var ex = Assert.Throws<System.ArgumentException>(() =>
+                SizeSpec.Parse(size: null, width: bad, height: null));
+            StringAssert.Contains(messageContains, ex.Message);
+        }
+
+        [Test]
+        public void Throws_when_clamp_used_in_size_attribute()
+        {
+            // size= stays numeric-only; the keyword validator must recognise clamp so the error
+            // points at the rule ("use width=/height=") rather than at "x is not a number".
+            var ex = Assert.Throws<System.ArgumentException>(() =>
+                SizeSpec.Parse(size: "clamp(167,46%,250)", width: null, height: null));
+            StringAssert.Contains("numeric-only", ex.Message);
+        }
+
+        [Test]
+        public void Clamp_on_anchor_stretched_axis_throws()
+        {
+            var spec = SizeSpec.Parse(size: null, width: "clamp(167, 46%, 250)", height: null);
+            var anchor = new AnchorPreset(AnchorVertical.Top, AnchorHorizontal.Stretch);
+            Assert.Throws<System.ArgumentException>(() => spec.ValidateAgainst(anchor));
+        }
     }
 }
