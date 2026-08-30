@@ -45,7 +45,12 @@ namespace PromptUGUI.Controls
         [UIAttr(IsColor = true), Preserve]
         public string Color
         {
-            set => Internal.ColorApplier.Apply(_img, UI.Theme.ResolveSpec(value));
+            set
+            {
+                var spec = UI.Theme.ResolveSpec(value);
+                Internal.GradientStopWarning.IfMoved(spec, GameObject, "<Icon> color=");
+                Internal.ColorApplier.Apply(_img, spec);
+            }
         }
 
         [UIAttr, Preserve]

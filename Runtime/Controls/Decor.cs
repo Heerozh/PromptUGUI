@@ -44,8 +44,7 @@ namespace PromptUGUI.Controls
         private DecorSlot[] _authoredSlots;
         private DecorExtentSpec _extent;
         private float _thickness = DefaultThickness;
-        private UnityColor _fillTop = UnityColor.white;
-        private UnityColor _fillBottom = UnityColor.white;
+        private ColorSpec _fill = ColorSpec.Solid(UnityColor.white);
         private float _glow;
         private UnityColor _glowColor;
         private bool _glowColorDeclared;
@@ -84,8 +83,7 @@ namespace PromptUGUI.Controls
             _authoredSlots = null;
             _extent = DecorExtentSpec.None;
             _thickness = DefaultThickness;
-            _fillTop = UnityColor.white;
-            _fillBottom = UnityColor.white;
+            _fill = ColorSpec.Solid(UnityColor.white);
             _glow = 0f;
             _glowColorDeclared = false;
             _inset = 0f;
@@ -145,9 +143,7 @@ namespace PromptUGUI.Controls
         {
             set
             {
-                var spec = UI.Theme.ResolveSpec(value);
-                _fillTop = spec.Top;
-                _fillBottom = spec.Bottom;
+                _fill = UI.Theme.ResolveSpec(value);
             }
         }
 
@@ -262,7 +258,7 @@ namespace PromptUGUI.Controls
 
             panel.SetKind(_kind);
             panel.SetSlot(slot);
-            panel.SetFill(_fillTop, _fillBottom);
+            panel.SetFill(_fill);
             panel.SetThickness(_thickness);
             panel.SetGlowSize(_glow);
             if (_glowColorDeclared) panel.SetGlowColor(_glowColor);
@@ -294,7 +290,7 @@ namespace PromptUGUI.Controls
             inst.Image.sprite = _sprite;
             // On a sprite the fill colour is an ordinary tint, the way it is on every other Image;
             // a gradient has nowhere to go here, so the top stop stands for the whole value.
-            inst.Image.color = _fillTop;
+            inst.Image.color = _fill.Top;
 
             PlaceSprite(inst.Rect, slot, extent);
         }

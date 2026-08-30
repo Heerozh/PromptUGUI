@@ -1,3 +1,4 @@
+using PromptUGUI.Application;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityImage = UnityEngine.UI.Image;
@@ -90,16 +91,14 @@ namespace PromptUGUI.Controls.Internal
         /// of procedural mode by itself — on an Image-backed control <c>color</c> is an ordinary
         /// tint. Remembered either way so a later mode flip can hand it to the right layer.
         /// </summary>
-        internal void SetFill(Color top, Color bottom)
+        internal void SetFill(in ColorSpec fill)
         {
-            _fillTop = top;
-            _fillBottom = bottom;
+            _fill = fill;
             _hasFill = true;
-            if (_panel != null) _panel.SetFill(top, bottom);
+            if (_panel != null) _panel.SetFill(fill);
         }
 
-        private Color _fillTop;
-        private Color _fillBottom;
+        private ColorSpec _fill;
         private bool _hasFill;
 
         /// <summary>Applies whatever the pass declared. Idempotent; safe to call every ReSolve.</summary>
@@ -124,17 +123,21 @@ namespace PromptUGUI.Controls.Internal
                 // explicit color= that is the control's built-in default, which is why
                 // `<Btn radius="8">` is a rounded button rather than an invisible one. Read through
                 // the captured value once retired: the live Image's alpha is zero by then.
-                if (_hasFill) _panel.SetFill(_fillTop, _fillBottom);
+                if (_hasFill) _panel.SetFill(_fill);
                 else if (_hostImage != null)
                 {
                     var c = _retired ? _retiredColor : _hostImage.color;
-                    _panel.SetFill(c, c);
+                    _panel.SetFill(ColorSpec.Solid(c));
                 }
                 Retire();
             }
             else
             {
                 Restore();
+                // Decided, not guessed: the colour is going to the plain Image after all, so a stop
+                // position the author wrote has nowhere to live (spec 2026-08-30 §6.2).
+                if (_hasFill)
+                    GradientStopWarning.IfMoved(_fill, _host, "this control's color=");
             }
 
             if (_selectable != null)

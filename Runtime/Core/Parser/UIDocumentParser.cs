@@ -179,7 +179,10 @@ namespace PromptUGUI.Parser
                 if (!KebabRx.IsMatch(cn))
                     throw new ParseException(
                         $"<Color name=\"{cn}\">: token name must be kebab-case [a-z0-9-]");
-                if (!ColorParser.TrySplitGradient(cv, out var gTop, out var gBottom, out var gErr))
+                // Stop positions come off with the split, so the literal check below sees "#4a6fa5",
+                // not "#4a6fa5 70%" — and a malformed position is reported here rather than as a
+                // baffling "invalid color literal".
+                if (!ColorParser.TrySplitGradient(cv, out var gTop, out var gBottom, out _, out _, out var gErr))
                     throw new ParseException($"<Color name=\"{cn}\" value=\"{cv}\">: {gErr}");
                 if (!ColorParser.TryParseHtmlString(gTop)
                     || (gBottom != null && !ColorParser.TryParseHtmlString(gBottom)))

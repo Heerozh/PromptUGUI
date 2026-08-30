@@ -126,7 +126,7 @@ namespace PromptUGUI.Controls
             set
             {
                 var spec = UI.Theme.ResolveSpec(value);
-                Panel.SetFill(spec.Top, spec.Bottom);
+                Panel.SetFill(spec);
             }
         }
 

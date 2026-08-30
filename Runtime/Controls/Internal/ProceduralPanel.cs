@@ -37,6 +37,8 @@ namespace PromptUGUI.Controls.Internal
     {
         private Color _fillTop = Color.clear;
         private Color _fillBottom = Color.clear;
+        private float _fillStopTop;
+        private float _fillStopBottom = 1f;
         private Color _borderColor = Color.white;
         private Color _glowColor = Color.white;
         private bool _glowColorExplicit;
@@ -152,10 +154,12 @@ namespace PromptUGUI.Controls.Internal
 
         // ---- authoring surface (called from Frame's [UIAttr] setters) ----
 
-        public void SetFill(Color top, Color bottom)
+        public void SetFill(in ColorSpec fill)
         {
-            _fillTop = top;
-            _fillBottom = bottom;
+            _fillTop = fill.Top;
+            _fillBottom = fill.Bottom;
+            _fillStopTop = fill.TopStop;
+            _fillStopBottom = fill.BottomStop;
             MarkDirty();
         }
 
@@ -308,7 +312,8 @@ namespace PromptUGUI.Controls.Internal
                                                   0f, _noise);
             }
 
-            return new PanelParams(fillTop, fillBottom, border, glow, innerGlow, _radius,
+            return new PanelParams(fillTop, fillBottom, _fillStopTop, _fillStopBottom,
+                                   border, glow, innerGlow, _radius,
                                    _borderWidth, _glowSize, _innerGlowSize, _glass, glassParams);
         }
 

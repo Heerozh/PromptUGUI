@@ -239,7 +239,7 @@ namespace PromptUGUI.Controls.Internal
             if (_handle.IsActive()) _handle.TryCancel();
 
             var basis = BaseFor(state);
-            _panel.SetFill(basis.Top, basis.Bottom);
+            _panel.SetFill(basis);
             _panel.FlushParams();
 
             var multiplier = MultiplierFor(state);

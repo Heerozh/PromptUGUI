@@ -18,6 +18,7 @@ Shader "UI/Decor"
 
         _FillTop    ("Fill Top",    Color) = (1,1,1,1)
         _FillBottom ("Fill Bottom", Color) = (1,1,1,1)
+        _FillStops  ("Fill Stops (top,bottom)", Vector) = (0,1,0,0)
         _GlowColor  ("Glow Color",  Color) = (1,1,1,1)
 
         // 1 = bracket, 2 = tick, 3 = line（与 PromptUGUI.Parser.DecorKind 数值一致）
@@ -100,6 +101,7 @@ Shader "UI/Decor"
 
             fixed4 _FillTop;
             fixed4 _FillBottom;
+            float4 _FillStops;
             fixed4 _GlowColor;
             float _Kind;
             float _Thickness;
@@ -131,9 +133,8 @@ Shader "UI/Decor"
                 float fw = max(fwidth(d), 1e-4);
                 float inside = saturate(0.5 - d / fw);
 
-                // 填充：纵向渐变，t=1 在顶部（与逗号色值语法"第一段是顶部色"一致）。
-                float t = saturate((p.y + b.y) / max(2.0 * b.y, 1e-4));
-                float4 col = lerp(_FillBottom, _FillTop, t);
+                // 填充：纵向渐变，第一段色在顶部，色标位置可挪（见 PuguiFillRamp）。
+                float4 col = PuguiFillRamp(p, b, _FillTop, _FillBottom, _FillStops.xy);
                 col.a *= inside;
 
                 if (_GlowSize > 0.0)

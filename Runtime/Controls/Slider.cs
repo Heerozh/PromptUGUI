@@ -125,7 +125,7 @@ namespace PromptUGUI.Controls
             {
                 var spec = UI.Theme.ResolveSpec(value);
                 Internal.ColorApplier.Apply(_bg, spec);
-                Surface.SetFill(spec.Top, spec.Bottom);
+                Surface.SetFill(spec);
             }
         }
 
@@ -159,7 +159,7 @@ namespace PromptUGUI.Controls
             {
                 var spec = UI.Theme.ResolveSpec(value);
                 Internal.ColorApplier.Apply(_fill, spec);
-                FillSurface.SetFill(spec.Top, spec.Bottom);
+                FillSurface.SetFill(spec);
             }
         }
 
@@ -188,7 +188,7 @@ namespace PromptUGUI.Controls
             {
                 var spec = UI.Theme.ResolveSpec(value);
                 Internal.ColorApplier.Apply(_handle, spec);
-                HandleSurface.SetFill(spec.Top, spec.Bottom);
+                HandleSurface.SetFill(spec);
             }
         }
 

@@ -17,6 +17,7 @@ namespace PromptUGUI.Controls.Internal
         {
             if (label == null || string.IsNullOrEmpty(value)) return;
             var spec = UI.Theme.ResolveSpec(value);
+            GradientStopWarning.IfMoved(spec, label, "a label colour");
             if (spec.IsGradient)
             {
                 label.enableVertexGradient = true;

@@ -191,6 +191,11 @@ namespace PromptUGUI.Lint
             foreach (var issue in GradientModulateRules.Check(node))
                 yield return issue;
 
+            // CLI-only: a gradient stop position on a colour the vertex path will paint. Silent at
+            // runtime on the attributes that have no chokepoint to warn from (a checkmark, a popup).
+            foreach (var issue in GradientStopRules.Check(node, styles))
+                yield return issue;
+
             // Ancestor-aware (like PUI-TAB-PARENT, but upward): a bare state-* trigger /
             // animation / show resolves to its nearest clickable (<Btn>/<Tab>/<Toggle>) ancestor
             // at runtime. With no such ancestor it hard-throws (TriggerSourceResolver.FindStateSource);

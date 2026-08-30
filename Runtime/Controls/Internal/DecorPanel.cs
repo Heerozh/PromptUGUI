@@ -1,3 +1,4 @@
+using PromptUGUI.Application;
 using PromptUGUI.Parser;
 using UnityEngine;
 using UnityEngine.UI;
@@ -30,6 +31,8 @@ namespace PromptUGUI.Controls.Internal
         private DecorSlot _slot = DecorSlot.TopLeft;
         private Color _fillTop = Color.white;
         private Color _fillBottom = Color.white;
+        private float _fillStopTop;
+        private float _fillStopBottom = 1f;
         private Color _glowColor = Color.white;
         private bool _glowColorExplicit;
         private float _thickness = 2f;
@@ -102,10 +105,12 @@ namespace PromptUGUI.Controls.Internal
             SetVerticesDirty();
         }
 
-        public void SetFill(Color top, Color bottom)
+        public void SetFill(in ColorSpec fill)
         {
-            _fillTop = top;
-            _fillBottom = bottom;
+            _fillTop = fill.Top;
+            _fillBottom = fill.Bottom;
+            _fillStopTop = fill.TopStop;
+            _fillStopBottom = fill.BottomStop;
             MarkDirty();
         }
 
@@ -150,7 +155,8 @@ namespace PromptUGUI.Controls.Internal
             var glow = _glowColorExplicit
                 ? _glowColor
                 : (_fillTop.a > 0f || _fillBottom.a > 0f ? _fillTop : Color.white);
-            return new DecorParams(_fillTop, _fillBottom, glow, _kind, thickness, _glowSize);
+            return new DecorParams(_fillTop, _fillBottom, _fillStopTop, _fillStopBottom,
+                                   glow, _kind, thickness, _glowSize);
         }
 
         private bool ComputeVisible()

@@ -650,6 +650,21 @@ float4 PuguiApplyInnerGlow(float4 col, float d, float inside, float size, float4
     return PuguiOver(color, col);
 }
 
+// ---- 填充渐变 ----
+//
+// 三个面板 shader（不透明 / 玻璃 / <Decor>）共用，理由同上面两层发光：色标位置
+// （spec 2026-08-30 §7）必须三处逐字一致，否则同一份 color= 在不同表面上渐变到不同的地方。
+//
+// p.y 向上为正，色标却从**顶边**量起（与「逗号第一段是顶部色」同向），所以先翻成 s。
+// stops = (第一色标, 第二色标)，默认 (0,1) 时 u == s，与色标出现之前逐位相同。
+// stops.x == stops.y 是合法的硬边：1e-4 的下限把它收成一个像素以内的跳变。
+float4 PuguiFillRamp(float2 p, float2 b, float4 top, float4 bottom, float2 stops)
+{
+    float s = saturate((b.y - p.y) / max(2.0 * b.y, 1e-4));
+    float u = saturate((s - stops.x) / max(stops.y - stops.x, 1e-4));
+    return lerp(top, bottom, u);
+}
+
 // ---- 装饰原语（<Decor>）的形状层 ----
 //
 // 三个形状都在**规范朝向**里定义：bracket 抱住自己包围盒的左上角，tick 尖端朝下。

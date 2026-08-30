@@ -119,7 +119,7 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 | `mask` | `rect` / `self` | — | `rect` = `RectMask2D` 直角裁剪子节点；`self` = stencil `Mask`，把子节点裁成本 Frame 自绘的那个形状（圆角头像 / 圆角滚动区）。`self` 要求写了下面任一视觉属性 —— 否则 Frame 没有 `Graphic`，裁剪静默失效（`PUI-MASK-FRAME-SELF`）。`weld` 承载者也不行（`PUI-MASK-WELD-SELF`）|
 | `showMask` | bool | `true` | 仅 `mask="self"`。`false` = 只裁不画，一个隐形的圆角裁剪器 |
 | `maskPadding` | `T,R,B,L`（`_`=占位） | — | 仅 `mask="rect"` 时有效 |
-| `color` | hex / CSS named / theme token / `A,B` 渐变 / `/alpha` | — (无填充) | Fill. Same value grammar as everywhere else — see **Color Tokens**; a comma value is a top→bottom gradient |
+| `color` | hex / CSS named / theme token / `A,B` 渐变 / `A 70%,B` 色标 / `/alpha` | — (无填充) | Fill. Same value grammar as everywhere else — see **Color Tokens**; a comma value is a top→bottom gradient, and a `N%` suffix moves where it transitions |
 | `radius` | corner list / `pill` / `hexagon [W] [rN]` | `0` | The panel's **shape**, not only its radius. One value applies to all four corners; four follow CSS `border-radius` order (clockwise from top-left). Each corner is a bare number (round), `cut W[xH]` (chamfer) or `notch W[xH]` (rectangular bite), optionally followed by a fillet `rN` that rounds the vertices the treatment creates (`cut 16 r6`). Sizes are px and are clamped to the room the corner has, never an error: a `cut` may run the whole edge when the neighbouring corner leaves it (`cut 16x52` on a 52-tall tab = a full-height slant), half the edge when both corners want it. → **Corner treatments** below |
 | `borderWidth` | px | `0` | Inner border — drawn **inward** from the rect edge (CSS `border-box`), so it never changes layout |
 | `borderColor` | hex / CSS / token / `/alpha`. **纯色 only** | `white` | 渐变值 = parse error |
@@ -1221,7 +1221,7 @@ Append a comma between two colour values to produce a **vertical two-stop gradie
 ```
 
 **Where gradients work** — every attribute that paints a `Graphic`:
-- `color` on `<Image>` / `<Icon>` / `<RawImage>` / `<Btn>` / `<Tab>` / `<TabMenu>` (popup panel) / `<Toggle>` / `<Dropdown>` (+ `popupColor`) / `<Progress>` (`color`, `bgColor`, `frameColor`) / `<ScrollList>` (`color`, `frameColor`) / `<Slider>` (`bgColor`) / `<InputField>` (bg only, see below) / `<Text>`
+- `color` on `<Image>` / `<Icon>` / `<RawImage>` / `<Btn>` / `<Tab>` / `<TabMenu>` (popup panel) / `<Toggle>` / `<Dropdown>` (+ `popupColor`) / `<Progress>` (`fillColor`, `bgColor`, `frameColor`) / `<ScrollList>` (`color`, `frameColor`) / `<Slider>` (`bgColor`) / `<InputField>` (bg only, see below) / `<Text>`
 - Absolute state colours: `hoverColor` / `pressedColor` / `selectedColor` / `disabledColor`
 
 **Where gradients are NOT supported** (runtime error; static lint):
@@ -1231,6 +1231,19 @@ Append a comma between two colour values to produce a **vertical two-stop gradie
 - `<Carousel>` `dotColor` / `dotSelectedColor` — the dots stay solid
 
 **`<Text>` per-character gradient.** On `<Text>` the gradient is TMP-native and applied per-character — each glyph's vertices run top→bottom independently. This makes a solid "gold-foil" title effect without a single stretched gradient across the text block.
+
+**Stop positions** — where the transition happens. Append a percentage after either colour, CSS `linear-gradient` style, measured **from the top edge**. Omitted, they are `0%` and `100%` (the full-height ramp above):
+
+```xml
+<Frame color="primary 70%, complement"/>       <!-- solid blue down to 70%, gold only in the last 30% -->
+<Frame color="primary 30%, complement 60%"/>   <!-- solid top 30%, solid bottom 40%, blend between -->
+<Frame color="primary 50%, complement 50%"/>   <!-- equal positions = a hard edge, two solid halves -->
+<Color name="panel-grad" value="#4a6fa5 70%,#c9a227"/>   <!-- definition site takes them too -->
+```
+
+Before the first position the top colour is solid; after the second the bottom colour is solid; between them it blends linearly. The second position may not sit above the first (that is an error, not a silent clamp).
+
+> **Stops only work on a procedural surface.** A position exists per pixel, in the SDF shader. A sprite-backed `Graphic` is coloured per *vertex*, and its four corners give the hardware nothing to interpolate a stop through — the ramp comes out full-height whatever you wrote. So stops apply to `<Frame>`, `<Decor>`, and any control **that declares a procedural shape** (`radius` / `glass` / `borderWidth` / `glow…`); on `<Image>` / `<Icon>` / `<RawImage>` / `<Text>`, on a control still drawing its Image, and on inner layers with no `<layer>Radius` of their own, the position is dropped with a runtime warning and a CLI error (`PUI-GRADIENT-STOP-NO-SURFACE`). Plain comma gradients keep working everywhere — this restriction is only about moving the transition.
 
 **State-colour transition timing.** A state transition whose start or end colour is a gradient **snaps** immediately (no ~0.1s fade) — there is no colour-lerp for a vertex gradient. So does the state a control is **first shown in** (a control opened already disabled/selected — e.g. a modal `Configure` hook setting `Interactable = false` — shows that state on frame 1, not faded in from Normal). Other solid ↔ solid transitions still fade as before. See `reference/states.md` → *First-frame establishment*.
 
@@ -1251,6 +1264,11 @@ Append a comma between two colour values to produce a **vertical two-stop gradie
 - (Lint, CLI) `PUI-GRADIENT-MODULATE` — a gradient value on a `*Modulate` attribute
 - (Runtime) `color "...": this attribute does not support gradient colors` — gradient on a solid-only attribute (`*Modulate`, caret/selection colours, etc.)
 - (Runtime) `color "...": token resolves to a gradient — gradients cannot nest inside a gradient` — one segment of a gradient reference resolves to another gradient token
+- (Lint, CLI + runtime warning) `PUI-GRADIENT-STOP-NO-SURFACE` — a gradient stop position on a colour the vertex path will paint (see *Stop positions* above)
+- (Parse / runtime) `color "#fff 70": the stop position must be a percentage (e.g. "70%")`
+- (Parse / runtime) `color "#fff 120%": stop position 120% is out of range — must be 0%..100%`
+- (Parse / runtime) `color "#fff 70%": a stop position needs a two-colour gradient (e.g. "A 70%,B") — a solid colour has no transition point to move`
+- (Parse / runtime) `color "A 70%,B 30%": the second stop position must not sit above the first — the gradient runs top to bottom`
 
 ## Tint blend modes
 
