@@ -39,6 +39,7 @@ namespace PromptUGUI.Controls.Internal
         private Color _fillBottom = Color.clear;
         private float _fillStopTop;
         private float _fillStopBottom = 1f;
+        private float _fillCurve = 1f;
         private Color _borderColor = Color.white;
         private Color _glowColor = Color.white;
         private bool _glowColorExplicit;
@@ -160,6 +161,7 @@ namespace PromptUGUI.Controls.Internal
             _fillBottom = fill.Bottom;
             _fillStopTop = fill.TopStop;
             _fillStopBottom = fill.BottomStop;
+            _fillCurve = fill.Curve;
             MarkDirty();
         }
 
@@ -312,7 +314,7 @@ namespace PromptUGUI.Controls.Internal
                                                   0f, _noise);
             }
 
-            return new PanelParams(fillTop, fillBottom, _fillStopTop, _fillStopBottom,
+            return new PanelParams(fillTop, fillBottom, _fillStopTop, _fillStopBottom, _fillCurve,
                                    border, glow, innerGlow, _radius,
                                    _borderWidth, _glowSize, _innerGlowSize, _glass, glassParams);
         }

@@ -78,6 +78,8 @@ namespace PromptUGUI.Controls.Internal
         public readonly float FillStopTop;
         /// <summary>Where <see cref="FillBottom"/> becomes solid, from the top edge.</summary>
         public readonly float FillStopBottom;
+        /// <summary>Power the ramp is raised to, from a colour hint; 1 = the plain linear ramp.</summary>
+        public readonly float FillCurve;
         public readonly Color BorderColor;
         public readonly Color GlowColor;
         /// <summary>
@@ -109,7 +111,8 @@ namespace PromptUGUI.Controls.Internal
         /// and whole-shape sentinels stay symbolic — both are resolved per-fragment against the live
         /// rect, which is what keeps two same-styled panels of different sizes on one material.
         /// </summary>
-        public PanelParams(Color fillTop, Color fillBottom, float fillStopTop, float fillStopBottom,
+        public PanelParams(Color fillTop, Color fillBottom,
+                           float fillStopTop, float fillStopBottom, float fillCurve,
                            Color borderColor, Color glowColor,
                            Color innerGlowColor, in RadiusSpec radius, float borderWidth,
                            float glowSize, float innerGlowSize,
@@ -119,6 +122,7 @@ namespace PromptUGUI.Controls.Internal
             FillBottom = fillBottom;
             FillStopTop = fillStopTop;
             FillStopBottom = fillStopBottom;
+            FillCurve = fillCurve;
             BorderColor = borderColor;
             GlowColor = glowColor;
             InnerGlowColor = innerGlowColor;
@@ -144,6 +148,7 @@ namespace PromptUGUI.Controls.Internal
         public bool Equals(PanelParams o) =>
             FillTop == o.FillTop && FillBottom == o.FillBottom
             && FillStopTop == o.FillStopTop && FillStopBottom == o.FillStopBottom
+            && FillCurve == o.FillCurve
             && BorderColor == o.BorderColor && GlowColor == o.GlowColor
             && InnerGlowColor == o.InnerGlowColor
             && CornerWidth == o.CornerWidth && CornerHeight == o.CornerHeight
@@ -166,6 +171,7 @@ namespace PromptUGUI.Controls.Internal
                 h = (h * 397) ^ FillBottom.GetHashCode();
                 h = (h * 397) ^ FillStopTop.GetHashCode();
                 h = (h * 397) ^ FillStopBottom.GetHashCode();
+                h = (h * 397) ^ FillCurve.GetHashCode();
                 h = (h * 397) ^ BorderColor.GetHashCode();
                 h = (h * 397) ^ GlowColor.GetHashCode();
                 h = (h * 397) ^ InnerGlowColor.GetHashCode();
@@ -293,7 +299,7 @@ namespace PromptUGUI.Controls.Internal
         {
             mat.SetColor(FillTopId, p.FillTop);
             mat.SetColor(FillBottomId, p.FillBottom);
-            mat.SetVector(FillStopsId, new Vector4(p.FillStopTop, p.FillStopBottom, 0f, 0f));
+            mat.SetVector(FillStopsId, new Vector4(p.FillStopTop, p.FillStopBottom, p.FillCurve, 0f));
             mat.SetColor(BorderColorId, p.BorderColor);
             mat.SetColor(GlowColorId, p.GlowColor);
             mat.SetColor(InnerGlowColorId, p.InnerGlowColor);

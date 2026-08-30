@@ -656,12 +656,19 @@ float4 PuguiApplyInnerGlow(float4 col, float d, float inside, float size, float4
 // （spec 2026-08-30 §7）必须三处逐字一致，否则同一份 color= 在不同表面上渐变到不同的地方。
 //
 // p.y 向上为正，色标却从**顶边**量起（与「逗号第一段是顶部色」同向），所以先翻成 s。
-// stops = (第一色标, 第二色标)，默认 (0,1) 时 u == s，与色标出现之前逐位相同。
+// stops = (第一色标, 第二色标, 曲线指数)，默认 (0,1,1) 时 u == s，与色标出现之前逐位相同。
 // stops.x == stops.y 是合法的硬边：1e-4 的下限把它收成一个像素以内的跳变。
-float4 PuguiFillRamp(float2 p, float2 b, float4 top, float4 bottom, float2 stops)
+//
+// 曲线指数来自 CSS 的 color hint（`A, 70%, B`）：色标是**切**这条 ramp —— 在色标处斜率从 0
+// 突然跳到满值，颜色连续但导数不连续，人眼把这种断点读成一条实际不存在的分界线（马赫带）。
+// 提示改成**弯**它：整段一条幂曲线，处处光滑，于是「大部分是顶色、底色只在底部渗出来」看不出接缝。
+// 指数在 C# 侧由 ColorParser.StopCurveExponent 算好（log0.5/log t），这里只负责代入。
+// == 1.0 时整段跳过：uniform 分支，全体 fragment 同一条路径，且让既有面板逐位不变。
+float4 PuguiFillRamp(float2 p, float2 b, float4 top, float4 bottom, float3 stops)
 {
     float s = saturate((b.y - p.y) / max(2.0 * b.y, 1e-4));
     float u = saturate((s - stops.x) / max(stops.y - stops.x, 1e-4));
+    if (stops.z != 1.0) u = pow(u, stops.z);
     return lerp(top, bottom, u);
 }
 

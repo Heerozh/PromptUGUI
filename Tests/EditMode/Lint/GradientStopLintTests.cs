@@ -51,6 +51,12 @@ namespace PromptUGUI.Tests.EditMode.Lint
             Assert.IsFalse(HasStopIssue("<Image id='g' color='#fff,#000'/>"));
         }
 
+        [Test]
+        public void Hint_OnASpriteGraphic_IsReported()
+        {
+            Assert.IsTrue(HasStopIssue("<Image id='g' color='#fff, 70%, #000'/>"));
+        }
+
         // ── the procedural tags ─────────────────────────────────────────────────
 
         [Test]

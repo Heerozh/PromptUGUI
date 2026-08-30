@@ -16,7 +16,7 @@ Shader "UI/GlassPanel"
 
         _FillTop     ("Fill Top",     Color) = (0,0,0,0)
         _FillBottom  ("Fill Bottom",  Color) = (0,0,0,0)
-        _FillStops  ("Fill Stops (top,bottom)", Vector) = (0,1,0,0)
+        _FillStops  ("Fill Stops (top,bottom,curve)", Vector) = (0,1,1,0)
         _BorderColor ("Border Color", Color) = (1,1,1,1)
         _GlowColor   ("Glow Color",   Color) = (1,1,1,1)
         _InnerGlowColor ("Inner Glow Color", Color) = (1,1,1,1)
@@ -239,7 +239,7 @@ Shader "UI/GlassPanel"
 
                 // 彩色玻璃：tint 压在玻璃体之上，与不透明面板的 color 语义完全一致
                 // （逗号双色渐变照常，第一段在顶部，色标位置同样生效）。
-                float4 tint = PuguiFillRamp(p, b, _FillTop, _FillBottom, _FillStops.xy);
+                float4 tint = PuguiFillRamp(p, b, _FillTop, _FillBottom, _FillStops.xyz);
                 tint.a *= inside;
                 float4 col = PuguiOver(tint, base);
 

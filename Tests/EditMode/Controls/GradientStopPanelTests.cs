@@ -76,6 +76,25 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(0.7f, panel.CurrentParams.FillStopTop, 1e-5f);
         }
 
+        [Test]
+        public void Frame_Hint_ReachesTheMaterialKey()
+        {
+            var p = Load("<Frame id='f' color='#ff0000, 70%, #0000ff'/>")
+                .Get<Frame>("f").GameObject.GetComponent<ProceduralPanel>();
+            // Stops untouched — a hint bends the ramp, it does not cut it.
+            Assert.AreEqual(0f, p.CurrentParams.FillStopTop, 1e-5f);
+            Assert.AreEqual(1f, p.CurrentParams.FillStopBottom, 1e-5f);
+            Assert.AreEqual(0.5f, Mathf.Pow(0.7f, p.CurrentParams.FillCurve), 1e-3f);
+        }
+
+        [Test]
+        public void Frame_NoHint_KeepsTheLinearCurve()
+        {
+            var p = Load("<Frame id='f' color='#ff0000,#0000ff'/>")
+                .Get<Frame>("f").GameObject.GetComponent<ProceduralPanel>();
+            Assert.AreEqual(1f, p.CurrentParams.FillCurve, 1e-6f);
+        }
+
         // ── the material cache keys on them ─────────────────────────────────────
 
         [Test]
@@ -155,6 +174,12 @@ namespace PromptUGUI.Tests.EditMode.Controls
         public void Btn_WithRadius_IsQuiet()
         {
             Assert.IsFalse(WarnedAboutStops("<Btn id='b' radius='8' color='#ff0000 70%,#0000ff'>ok</Btn>"));
+        }
+
+        [Test]
+        public void Image_WithHint_Warns()
+        {
+            Assert.IsTrue(WarnedAboutStops("<Image id='g' color='#ff0000, 70%, #0000ff'/>"));
         }
 
         [Test]

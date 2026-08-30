@@ -46,7 +46,7 @@ attribute. Writing any of them without `glass="true"` is a lint error
 | `saturation` | `≥0` | `1.15` | Backdrop vibrancy. `1` = untouched, `0` = greyscale. This is what makes glass look lit rather than washed out — reach for it before reaching for `dispersion` |
 | `noise` | `0`–`1` | `0.02` | Frosted grain. Doubles as dithering against banding on large blurred areas |
 
-Reused unchanged: `color` (tint painted over the glass — comma gradients, gradient **stop positions** (`"A 70%,B"`, which glass draws per-pixel) and `/alpha` work exactly as
+Reused unchanged: `color` (tint painted over the glass — comma gradients, gradient **stop positions** and **hints** (`"A 70%,B"` / `"A, 70%, B"`, which glass draws per-pixel) and `/alpha` work exactly as
 elsewhere), `radius`, `borderWidth` / `borderColor`, `glow` / `glowColor`,
 `innerGlow` / `innerGlowColor` (painted over the tint, so it lights the pane's edge without touching
 the backdrop it samples).

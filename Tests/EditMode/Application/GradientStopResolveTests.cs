@@ -133,6 +133,75 @@ namespace PromptUGUI.Tests.Application
             StringAssert.Contains("0%..100%", ex.Message);
         }
 
+        // ── colour hint ─────────────────────────────────────────────────────────
+
+        [Test]
+        public void ResolveSpec_Hint_BendsTheRamp()
+        {
+            var spec = UI.Theme.ResolveSpec("#ffffff, 70%, #000000");
+            Assert.IsTrue(spec.IsGradient);
+            Assert.AreEqual(Color.white, spec.Top);
+            Assert.AreEqual(Color.black, spec.Bottom);
+            Assert.AreEqual(0f, spec.TopStop, 1e-5f);
+            Assert.AreEqual(1f, spec.BottomStop, 1e-5f);
+            // Half mix at 70% is the whole point of the hint.
+            Assert.AreEqual(0.5f, Mathf.Pow(0.7f, spec.Curve), 1e-3f);
+            Assert.IsTrue(spec.HasStops, "a hint is just as undrawable on the vertex path as a stop");
+        }
+
+        [Test]
+        public void ResolveSpec_NoHint_IsLinear()
+        {
+            Assert.AreEqual(1f, UI.Theme.ResolveSpec("#ffffff,#000000").Curve, 1e-6f);
+            Assert.AreEqual(1f, UI.Theme.ResolveSpec("#ffffff").Curve, 1e-6f);
+        }
+
+        [Test]
+        public void ResolveSpec_HintAndStops_Compose()
+        {
+            var spec = UI.Theme.ResolveSpec("#ffffff 20%, 60%, #000000");
+            Assert.AreEqual(0.2f, spec.TopStop, 1e-5f);
+            Assert.AreEqual(1f, spec.Curve, 1e-4f, "60% is the midpoint of the 20%..100% ramp");
+        }
+
+        [Test]
+        public void ResolveSpec_HintOutsideStops_Throws()
+        {
+            var ex = Assert.Throws<System.Exception>(
+                () => UI.Theme.ResolveSpec("#ffffff 40%, 20%, #000000"));
+            StringAssert.Contains("between the two stop positions", ex.Message);
+        }
+
+        [Test]
+        public void ResolveSpec_HintToken_KeepsCurveThroughAlpha()
+        {
+            Seed("panel-grad", ColorSpec.Gradient(Color.white, Color.black, 0f, 1f, 1.943f));
+            var spec = UI.Theme.ResolveSpec("panel-grad/0.5");
+            Assert.AreEqual(1.943f, spec.Curve, 1e-3f);
+            Assert.AreEqual(0.5f, spec.Top.a, 1e-3f);
+        }
+
+        [Test]
+        public void Multiply_KeepsCurve()
+        {
+            var spec = ColorSpec.Gradient(Color.white, Color.white, 0f, 1f, 2f).Multiply(Color.red);
+            Assert.AreEqual(2f, spec.Curve, 1e-5f);
+        }
+
+        [Test]
+        public void ThemeToken_MayCarryAHint()
+        {
+            var xml = Header +
+                "<Theme name='t'><Color name='g' value='#ffffff, 70%, #000000'/></Theme>" +
+                "<Screen name='s'><Frame/></Screen>" + Footer;
+            UI.SourceResolver = _ => AwaitableHelpers.Completed(xml);
+            UI.LoadDocumentAsync("main").GetAwaiter().GetResult();
+
+            var spec = ThemeStore.Instance.LookupChained("t", "g");
+            Assert.IsTrue(spec.HasValue);
+            Assert.AreEqual(0.5f, Mathf.Pow(0.7f, spec.Value.Curve), 1e-3f);
+        }
+
         // ── <Color value="…"> definition site ────────────────────────────────────
 
         [Test]

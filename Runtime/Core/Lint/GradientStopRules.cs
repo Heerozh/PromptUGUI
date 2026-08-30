@@ -159,9 +159,8 @@ namespace PromptUGUI.Lint
             // Still a placeholder at this point in expansion — resolve it and it may well be fine.
             if (value.Contains("{{")) return false;
             if (value.IndexOf('%') < 0) return false;
-            if (!ColorParser.TrySplitGradient(value, out _, out _, out var topStop, out var bottomStop, out _))
-                return false;
-            return topStop.HasValue || bottomStop.HasValue;
+            if (!ColorParser.TrySplitGradient(value, out var parts, out _)) return false;
+            return parts.TopStop.HasValue || parts.BottomStop.HasValue || parts.Hint.HasValue;
         }
 
         /// <summary>

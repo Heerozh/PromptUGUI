@@ -32,7 +32,7 @@ CSS 早就把这件事定死了 —— `linear-gradient(blue 70%, gold)`。本�
 |---|---|
 | 新属性 `gradientStops="0.7,1"` | 违反 gradient spec §1「不加属性」。`color` / `hoverColor` / `frameColor` / `popupColor` / `bgColor` / `fillColor` … 每个都得配一份平行属性，且 Variant 覆写要成对写 |
 | `A@0.7,B` | 更短，但 `@` 后面是 0..1 还是百分比会二义；且本仓已经用 `%` 表达比例（`SizeSpec`、`<Decor extent>`），再引入第二套写法 |
-| CSS color-hint `A,70%,B`（中点提示） | 只有一个数，但语义是「50% 混合点在这里」，要非线性指数曲线；且和现有「渐变恰好两段」的报错路径正面冲突，三段值到底是三色还是色标提示无法静态区分 |
+| ~~CSS color-hint `A,70%,B`（中点提示）~~ | ~~只有一个数，但语义是「50% 混合点在这里」，要非线性指数曲线；且和现有「渐变恰好两段」的报错路径正面冲突，三段值到底是三色还是色标提示无法静态区分~~ **这条否决是错的，已在 §14 推翻并实现**：裸 `70%` 段不带颜色，而颜色的三种写法（token `[a-z0-9-]` / hex `#…` / CSS 命名色）都不可能以 `%` 结尾，所以中间段是不是提示零歧义；而且它恰好是本文没解决的那个视觉问题的答案 |
 | `linear-gradient(A 70%, B)` 全写法 | 语义最通用但太长，且逗号语法已经确立，包一层函数是纯噪音 |
 
 ## 3. 语法
@@ -276,3 +276,43 @@ PlayMode：一条 `<Frame glass="true" color="A 70%,B">` 的渲染冒烟 —— 
   `_fillTop`/`_fillBottom` 双字段一并折成一个 `ColorSpec`，15 个控件的调用点各省两个参数。
 - **顺带修文档**：`SKILL.md` 把 `<Progress>` 的渐变属性写成了 `color`，实际是 `fillColor`
   （Progress 没有 `color` 属性）。
+
+## 14. 追加：色标提示（colour hint）——2026-08-30 同日
+
+**问题**：`A 70%, B` 上线后作者反馈「渐变非常突兀，分界线很明确」。不是 bug ——
+色标是**切** ramp：70% 那一行斜率从 0 突然跳到满值，颜色连续但**导数**不连续，
+而人眼对导数断点极其敏感（马赫带），于是看见一条实际不存在的分界线。CSS 的
+`linear-gradient(A 70%, B)` 有完全相同的性质。离线把四种 ramp 用作者的两端色渲染出来
+对比确认了这一点（`0%,100%` / `70%,100%` / `30%,100%` / hint 70%）——第二格逐像素复现了
+作者的截图。
+
+**作者真正要的**是「整段都在过渡，但偏向底部」，CSS 里那是另一个原语：**colour hint**。
+
+```xml
+<Frame color="primary, 70%, complement"/>      <!-- 50% 混合点落在 70% 处，全程无拐点 -->
+<Frame color="primary 20%, 60%, complement"/>  <!-- 与色标可组合；提示在色标的坐标系里 -->
+```
+
+语义与实现：
+
+- 中间一段是**裸百分比**（不带颜色）。零歧义 —— 见 §2 的更正。
+- 解 `t^E = 0.5` 得指数 `E = log(0.5) / log(t)`，`t` 是提示在 **ramp 内部**的归一化位置
+  `(h - a) / (b - a)`。提示落在两色标正中 → `E = 1`，退化成线性，与 CSS 一致。
+- 两端退化（提示压在某个色标上）= 瞬时翻转，指数为 0 或 ∞。把 `t` 夹进开区间内侧
+  （±1e-3）让指数有限，画面上就是硬边，同一张图。
+- 指数在 C# 侧（`ColorParser.StopCurveExponent`，纯 C#，CLI 共享）算好，随
+  `_FillStops.z` 进材质 —— 那个 `float4` 本来就空着两个槽，零新增 uniform。
+  shader 里 `if (stops.z != 1.0) u = pow(u, stops.z);`，uniform 分支，
+  既有面板逐位不变。
+- 提示与色标一样进 `PanelParams` / `DecorParams` 的 key，一样由
+  `PUI-GRADIENT-STOP-NO-SURFACE` 管顶点路径 —— `ColorSpec.HasStops` 的判据加上
+  `Curve != 1`。
+
+顺带把 `TrySplitGradient` 的 out 参数收进 `ColorParser.GradientParts` 结构体：
+第三次加参数时六个 out 已经读不清了，而这四个数（两个色标 + 提示 + 派生指数）本来就
+必须一起看。
+
+**错误**（全部 parse-time / resolve-time）：提示不夹在两色之间、提示落在两色标之外、
+四段以上。三色 `A,B,C` 的旧报错文案加上「可选一个提示百分比」。
+
+**测试**：EditMode 3030/3030。

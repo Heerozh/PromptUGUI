@@ -50,7 +50,7 @@ position** in `at=`, so all four corner brackets of a card are a single element.
 | `at` | all | comma list of `anchor=` words | bracket & sprite: all four corners; tick & line: `bottom` | corners `top-left` `top-right` `bottom-right` `bottom-left`; edges `top` `bottom` `left` `right`. Bracket takes corners, tick / line take edges, sprite takes either |
 | `extent` | all | `W` / `WxH`; `P%` (line); `native` (sprite) | bracket `12`, tick `10x6`, line `100%`, sprite `native` | bracket = arm lengths, tick = base × height, line = run along the edge, sprite = drawn size. **Not `size`** — see below |
 | `thickness` | bracket, line | px | `2` | stroke width |
-| `color` | all | token / hex / CSS name / `/alpha` / comma gradient / `A 70%,B` 色标 | `white` | drawn by the SDF shader, so gradient stop positions apply; on `sprite` it is a plain tint (no gradient) |
+| `color` | all | token / hex / CSS name / `/alpha` / comma gradient / `A 70%,B` 色标 / `A,70%,B` 提示 | `white` | drawn by the SDF shader, so gradient stop positions and colour hints apply; on `sprite` it is a plain tint (no gradient) |
 | `glow` / `glowColor` | SDF kinds | same as `<Frame>` | `0` / follows fill | inflates the drawn quad only, never the layout |
 | `inset` | all | signed px | `0` | positive = inwards from flush, negative = outside the host |
 | `offset` | tick, line | signed px | `0` | slides along the edge from its centre |
