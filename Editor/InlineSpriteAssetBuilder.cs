@@ -97,10 +97,11 @@ namespace PromptUGUI.Editor
         }
 
         /// <summary>Collect → merge (abort on collision) → pack a dedicated point-filtered
-        /// RGBA32 sheet → build glyph/character tables → save the <c>.asset</c> (texture +
-        /// material as sub-assets) → wire as the global <see cref="TMP_Settings"/> default
-        /// sprite asset. Returns the asset, or <c>null</c> when there are no glyphs (or a
-        /// name collision aborted the merge — already logged, nothing written).</summary>
+        /// RGBA32 sheet → build glyph/character tables → write the <c>.asset</c> (texture +
+        /// material as sub-assets, overwritten IN PLACE when the file already exists) → wire
+        /// as the global <see cref="TMP_Settings"/> default sprite asset. Returns the asset,
+        /// or <c>null</c> when there are no glyphs (or a name collision aborted the merge —
+        /// already logged, nothing written).</summary>
         public static TMP_SpriteAsset Generate(
             IReadOnlyList<SpriteSet> flaggedSets, string outputPath)
         {
@@ -145,14 +146,38 @@ namespace PromptUGUI.Editor
                 });
             }
 
-            // 3) Assemble the asset (+ material). Overwrite in place: delete the old file so
-            //    stale sub-assets don't accumulate, then re-point TMP default (handles GUID).
-            if (AssetDatabase.LoadAssetAtPath<TMP_SpriteAsset>(outputPath) != null)
-                AssetDatabase.DeleteAsset(outputPath);
-            EnsureFolder(Path.GetDirectoryName(outputPath).Replace('\\', '/'));
+            // 3) Write the asset (+ texture/material sub-assets). Overwrite the EXISTING
+            //    objects whenever the file already has this builder's shape: Unity hands out a
+            //    fresh local file ID to everything passed to AddObjectToAsset, so recreating
+            //    the sub-assets re-anchors `spriteSheet:` / `m_Material:` on every rebuild and
+            //    churns the file in git even when not a single pixel changed.
+            var spriteAsset = LoadReusable(outputPath, out var sheetAsset, out var mat);
+            var reusing = spriteAsset != null;
+            if (reusing)
+            {
+                // Move the freshly packed pixels into the existing texture object and drop the
+                // temporary one — the asset keeps its identity, only its contents change.
+                sheetAsset.Reinitialize(texW, texH, TextureFormat.RGBA32, false);
+                sheetAsset.filterMode = FilterMode.Point;
+                sheetAsset.SetPixels32(sheet.GetPixels32());
+                sheetAsset.Apply(false, false);
+                Object.DestroyImmediate(sheet);
+                sheet = sheetAsset;
+            }
+            else
+            {
+                // No asset, or one whose shape we cannot safely reuse (wrong type, stale extra
+                // sub-assets) — delete it so nothing accumulates, then build from scratch.
+                if (AssetDatabase.LoadMainAssetAtPath(outputPath) != null)
+                    AssetDatabase.DeleteAsset(outputPath);
+                EnsureFolder(Path.GetDirectoryName(outputPath).Replace('\\', '/'));
+                spriteAsset = ScriptableObject.CreateInstance<TMP_SpriteAsset>();
+                mat = new Material(Shader.Find("TextMeshPro/Sprite"));
+            }
 
-            var spriteAsset = ScriptableObject.CreateInstance<TMP_SpriteAsset>();
             spriteAsset.name = Path.GetFileNameWithoutExtension(outputPath);
+            sheet.name = spriteAsset.name + " Atlas";
+            mat.name = spriteAsset.name + " Material";
             SetVersion(spriteAsset, "1.1.0");        // TMP_Asset.version setter is internal
             spriteAsset.spriteSheet = sheet;
             // spriteGlyphTable / spriteCharacterTable have internal setters; their getters
@@ -161,16 +186,19 @@ namespace PromptUGUI.Editor
             spriteAsset.spriteGlyphTable.AddRange(glyphTable);
             spriteAsset.spriteCharacterTable.Clear();
             spriteAsset.spriteCharacterTable.AddRange(charTable);
-
-            var mat = new Material(Shader.Find("TextMeshPro/Sprite")) { name = spriteAsset.name + " Material" };
             mat.SetTexture(ShaderUtilities.ID_MainTex, sheet);
             spriteAsset.material = mat;
 
-            AssetDatabase.CreateAsset(spriteAsset, outputPath);
-            AssetDatabase.AddObjectToAsset(sheet, spriteAsset);
-            AssetDatabase.AddObjectToAsset(mat, spriteAsset);
+            if (!reusing)
+            {
+                AssetDatabase.CreateAsset(spriteAsset, outputPath);
+                AssetDatabase.AddObjectToAsset(sheet, spriteAsset);
+                AssetDatabase.AddObjectToAsset(mat, spriteAsset);
+            }
             spriteAsset.UpdateLookupTables();
             EditorUtility.SetDirty(spriteAsset);
+            EditorUtility.SetDirty(sheet);
+            EditorUtility.SetDirty(mat);
             AssetDatabase.SaveAssets();
             AssetDatabase.ImportAsset(outputPath);
 
@@ -194,6 +222,34 @@ namespace PromptUGUI.Editor
             RenderTexture.active = prev;
             RenderTexture.ReleaseTemporary(rt);
             return copy;
+        }
+
+        /// <summary>Return the existing asset only when it has exactly the shape this builder
+        /// writes — a <see cref="TMP_SpriteAsset"/> main object plus one <c>Texture2D</c> and
+        /// one <c>Material</c> sub-asset. Missing, wrong type, or carrying anything else
+        /// (stale sub-assets from an older version) yields <c>null</c>, and the caller
+        /// rebuilds from scratch rather than patching an asset it does not understand.</summary>
+        private static TMP_SpriteAsset LoadReusable(string path, out Texture2D sheet, out Material material)
+        {
+            sheet = null;
+            material = null;
+            var main = AssetDatabase.LoadAssetAtPath<TMP_SpriteAsset>(path);
+            if (main == null) return null;
+
+            foreach (var o in AssetDatabase.LoadAllAssetsAtPath(path))
+            {
+                if (o == main) continue;
+                if (o is Texture2D t && sheet == null) { sheet = t; continue; }
+                if (o is Material m && material == null) { material = m; continue; }
+                sheet = null;                        // duplicate or foreign sub-asset
+                material = null;
+                return null;
+            }
+
+            if (sheet != null && material != null) return main;
+            sheet = null;
+            material = null;
+            return null;
         }
 
         // TMP_Asset.version has an internal setter, so set the backing field via SerializedObject.
