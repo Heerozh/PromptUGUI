@@ -14,6 +14,7 @@ Shader "UI/ProceduralPanel"
 
         _FillTop     ("Fill Top",     Color) = (0,0,0,0)
         _FillBottom  ("Fill Bottom",  Color) = (0,0,0,0)
+        _FillStops  ("Fill Stops (top,bottom,curve)", Vector) = (0,1,1,0)
         _BorderColor ("Border Color", Color) = (1,1,1,1)
         _GlowColor   ("Glow Color",   Color) = (1,1,1,1)
         _InnerGlowColor ("Inner Glow Color", Color) = (1,1,1,1)
@@ -108,6 +109,7 @@ Shader "UI/ProceduralPanel"
 
             fixed4 _FillTop;
             fixed4 _FillBottom;
+            float4 _FillStops;
             fixed4 _BorderColor;
             fixed4 _GlowColor;
             fixed4 _InnerGlowColor;
@@ -145,9 +147,8 @@ Shader "UI/ProceduralPanel"
 
                 float inside = saturate(0.5 - d / fw);
 
-                // 填充：纵向渐变，t=1 在顶部（与逗号色值语法"第一段是顶部色"一致）。
-                float t = saturate((p.y + b.y) / max(2.0 * b.y, 1e-4));
-                float4 col = lerp(_FillBottom, _FillTop, t);
+                // 填充：纵向渐变，第一段色在顶部，色标位置可挪（见 PuguiFillRamp）。
+                float4 col = PuguiFillRamp(p, b, _FillTop, _FillBottom, _FillStops.xyz);
                 col.a *= inside;
 
                 // 内发光：外发光的镜像 —— 画在形状内侧、压在填充之上。

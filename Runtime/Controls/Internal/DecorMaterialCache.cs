@@ -16,16 +16,26 @@ namespace PromptUGUI.Controls.Internal
     {
         public readonly Color FillTop;
         public readonly Color FillBottom;
+        /// <summary>Gradient stop positions, 0..1 from the top edge (spec 2026-08-30). 0/1 is the
+        /// full-height ramp, so decor that never asked for stops keys exactly as it did before.</summary>
+        public readonly float FillStopTop;
+        public readonly float FillStopBottom;
+        /// <summary>Power the ramp is raised to, from a colour hint; 1 = the plain linear ramp.</summary>
+        public readonly float FillCurve;
         public readonly Color GlowColor;
         public readonly DecorKind Kind;
         public readonly float Thickness;
         public readonly float GlowSize;
 
-        public DecorParams(Color fillTop, Color fillBottom, Color glowColor,
-                           DecorKind kind, float thickness, float glowSize)
+        public DecorParams(Color fillTop, Color fillBottom,
+                           float fillStopTop, float fillStopBottom, float fillCurve,
+                           Color glowColor, DecorKind kind, float thickness, float glowSize)
         {
             FillTop = fillTop;
             FillBottom = fillBottom;
+            FillStopTop = fillStopTop;
+            FillStopBottom = fillStopBottom;
+            FillCurve = fillCurve;
             GlowColor = glowColor;
             Kind = kind;
             Thickness = thickness;
@@ -33,7 +43,10 @@ namespace PromptUGUI.Controls.Internal
         }
 
         public bool Equals(DecorParams o) =>
-            FillTop == o.FillTop && FillBottom == o.FillBottom && GlowColor == o.GlowColor
+            FillTop == o.FillTop && FillBottom == o.FillBottom
+            && FillStopTop == o.FillStopTop && FillStopBottom == o.FillStopBottom
+            && FillCurve == o.FillCurve
+            && GlowColor == o.GlowColor
             && Kind == o.Kind && Thickness == o.Thickness && GlowSize == o.GlowSize;
 
         public override bool Equals(object o) => o is DecorParams p && Equals(p);
@@ -44,6 +57,9 @@ namespace PromptUGUI.Controls.Internal
             {
                 var h = FillTop.GetHashCode();
                 h = (h * 397) ^ FillBottom.GetHashCode();
+                h = (h * 397) ^ FillStopTop.GetHashCode();
+                h = (h * 397) ^ FillStopBottom.GetHashCode();
+                h = (h * 397) ^ FillCurve.GetHashCode();
                 h = (h * 397) ^ GlowColor.GetHashCode();
                 h = (h * 397) ^ (int)Kind;
                 h = (h * 397) ^ Thickness.GetHashCode();
@@ -65,6 +81,7 @@ namespace PromptUGUI.Controls.Internal
 
         private static readonly int FillTopId = Shader.PropertyToID("_FillTop");
         private static readonly int FillBottomId = Shader.PropertyToID("_FillBottom");
+        private static readonly int FillStopsId = Shader.PropertyToID("_FillStops");
         private static readonly int GlowColorId = Shader.PropertyToID("_GlowColor");
         private static readonly int KindId = Shader.PropertyToID("_Kind");
         private static readonly int ThicknessId = Shader.PropertyToID("_Thickness");
@@ -130,6 +147,7 @@ namespace PromptUGUI.Controls.Internal
         {
             mat.SetColor(FillTopId, p.FillTop);
             mat.SetColor(FillBottomId, p.FillBottom);
+            mat.SetVector(FillStopsId, new Vector4(p.FillStopTop, p.FillStopBottom, p.FillCurve, 0f));
             mat.SetColor(GlowColorId, p.GlowColor);
             mat.SetFloat(KindId, (float)p.Kind);
             mat.SetFloat(ThicknessId, p.Thickness);

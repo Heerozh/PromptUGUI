@@ -212,7 +212,7 @@ namespace PromptUGUI.Controls
                 Internal.ColorApplier.Apply(_bg, spec);
                 // §7: color is the fill in BOTH modes. Handing it to the surface as well costs
                 // nothing when there is no surface and keeps the two in step when there is.
-                Surface.SetFill(spec.Top, spec.Bottom);
+                Surface.SetFill(spec);
             }
         }
 

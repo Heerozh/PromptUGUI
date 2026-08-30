@@ -179,13 +179,16 @@ namespace PromptUGUI.Parser
                 if (!KebabRx.IsMatch(cn))
                     throw new ParseException(
                         $"<Color name=\"{cn}\">: token name must be kebab-case [a-z0-9-]");
-                if (!ColorParser.TrySplitGradient(cv, out var gTop, out var gBottom, out var gErr))
+                // Stop positions come off with the split, so the literal check below sees "#4a6fa5",
+                // not "#4a6fa5 70%" — and a malformed position is reported here rather than as a
+                // baffling "invalid color literal".
+                if (!ColorParser.TrySplitGradient(cv, out var g, out var gErr))
                     throw new ParseException($"<Color name=\"{cn}\" value=\"{cv}\">: {gErr}");
-                if (!ColorParser.TryParseHtmlString(gTop)
-                    || (gBottom != null && !ColorParser.TryParseHtmlString(gBottom)))
+                if (!ColorParser.TryParseHtmlString(g.Top)
+                    || (g.Bottom != null && !ColorParser.TryParseHtmlString(g.Bottom)))
                     throw new ParseException(
                         $"<Color name=\"{cn}\" value=\"{cv}\">: invalid color literal" +
-                        (gBottom != null ? " (each gradient segment must be a hex/named literal — no tokens, no /alpha)" : ""));
+                        (g.Bottom != null ? " (each gradient segment must be a hex/named literal — no tokens, no /alpha)" : ""));
                 if (!seen.Add(cn))
                     throw new ParseException(
                         $"<Theme name=\"{name}\"> declares '{cn}' twice");

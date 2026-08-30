@@ -89,6 +89,7 @@ namespace PromptUGUI.Controls
             set
             {
                 var spec = UI.Theme.ResolveSpec(value);
+                Internal.GradientStopWarning.IfMoved(spec, GameObject, "<Text> color=");
                 if (spec.IsGradient)
                 {
                     _tmp.enableVertexGradient = true;

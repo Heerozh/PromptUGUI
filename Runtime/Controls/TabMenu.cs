@@ -240,7 +240,7 @@ namespace PromptUGUI.Controls
             {
                 var spec = UI.Theme.ResolveSpec(value);
                 ColorApplier.Apply(_popupBg, spec);
-                Surface.SetFill(spec.Top, spec.Bottom);
+                Surface.SetFill(spec);
             }
         }
 
