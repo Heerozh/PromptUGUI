@@ -32,6 +32,14 @@ namespace PromptUGUI.Controls
         [UIAttr("char-color"), Preserve] public string CharColorAttr { set => _animSpec.SetCharColor(value); }
         [UIAttr("char-stagger"), Preserve] public string CharStaggerAttr { set => _animSpec.SetCharStagger(value); }
 
+        /// <summary>Family D: <c>y</c> = grow/shrink the height, <c>x</c> = the width (FND §2.3).</summary>
+        [UIAttr("reveal"), Preserve] public string RevealAttr { set => _animSpec.SetReveal(value); }
+        [UIAttr("reveal-from"), Preserve] public string RevealFromAttr { set => _animSpec.SetRevealFrom(value); }
+        [UIAttr("reveal-to"), Preserve] public string RevealToAttr { set => _animSpec.SetRevealTo(value); }
+
+        /// <summary>The event that plays this animation backwards, from wherever it is (FND §2.4.5).</summary>
+        [UIAttr("reverse-on"), Preserve] public string ReverseOnAttr { set => _animSpec.SetReverseOn(value); }
+
         public override void OnAttached()
         {
             var go = new GameObject("_offsetProxy", typeof(RectTransform));

@@ -173,5 +173,186 @@ namespace PromptUGUI.Tests.EditMode.Controls
             s.ExpandPreset();
             Assert.AreEqual(EasingKind.OutBack, s.Easing);
         }
+
+        // ── Family D: reveal (spec 2026-08-31-hug-reveal-flip-checked-design §2.3) ────────
+
+        [Test]
+        public void Reveal_y_defaults_to_zero_through_hug()
+        {
+            var s = new AnimationSpec(); s.SetReveal("y"); s.Validate();
+
+            Assert.IsTrue(s.HasReveal);
+            Assert.AreEqual(1, s.RevealAxis);
+            Assert.IsFalse(s.RevealFrom.IsHug);
+            Assert.AreEqual(0f, s.RevealFrom.Px);
+            Assert.IsTrue(s.RevealTo.IsHug, "the natural end point is 'as big as the content'");
+            Assert.AreEqual(AnimationFamily.LowLevel, s.Family, "a bare reveal plays through the low-level path");
+        }
+
+        [Test]
+        public void Reveal_x_is_the_width_axis()
+        {
+            var s = new AnimationSpec(); s.SetReveal("x"); s.Validate();
+            Assert.AreEqual(0, s.RevealAxis);
+        }
+
+        [Test]
+        public void Reveal_rejects_any_other_axis()
+        {
+            var s = new AnimationSpec();
+            var ex = Assert.Throws<System.ArgumentException>(() => s.SetReveal("z"));
+            StringAssert.Contains("'y'", ex.Message);
+        }
+
+        [Test]
+        public void Reveal_endpoints_take_pixels_or_hug()
+        {
+            var s = new AnimationSpec();
+            s.SetReveal("y");
+            s.SetRevealFrom("24");
+            s.SetRevealTo("hug");
+            s.Validate();
+
+            Assert.AreEqual(24f, s.RevealFrom.Px);
+            Assert.IsFalse(s.RevealFrom.IsHug);
+            Assert.IsTrue(s.RevealTo.IsHug);
+        }
+
+        [TestCase("")]
+        [TestCase("tall")]
+        [TestCase("-4")]
+        public void Reveal_endpoints_reject_nonsense(string value)
+        {
+            var s = new AnimationSpec();
+            Assert.Throws<System.ArgumentException>(() => s.SetRevealFrom(value));
+        }
+
+        [Test]
+        public void Reveal_rejects_identical_endpoints()
+        {
+            var s = new AnimationSpec();
+            s.SetReveal("y");
+            s.SetRevealFrom("hug");
+            s.SetRevealTo("hug");
+
+            var ex = Assert.Throws<System.ArgumentException>(() => s.Validate());
+            StringAssert.Contains("nothing would move", ex.Message);
+        }
+
+        [Test]
+        public void Reveal_composes_with_a_low_level_channel()
+        {
+            var s = new AnimationSpec();
+            s.SetReveal("y");
+            s.SetFade("0:1");
+            s.Validate();
+
+            Assert.AreEqual(AnimationFamily.LowLevel, s.Family);
+            Assert.IsTrue(s.HasReveal);
+            Assert.IsTrue(s.HasFade);
+        }
+
+        [Test]
+        public void Reveal_and_preset_are_mutually_exclusive()
+        {
+            var s = new AnimationSpec();
+            s.SetReveal("y");
+            s.SetType("fadein");
+
+            var ex = Assert.Throws<System.ArgumentException>(() => s.Validate());
+            StringAssert.Contains("mutually exclusive", ex.Message);
+        }
+
+        [Test]
+        public void Reveal_and_text_family_are_mutually_exclusive()
+        {
+            var s = new AnimationSpec();
+            s.SetReveal("y");
+            s.SetCount("0:10");
+
+            Assert.Throws<System.ArgumentException>(() => s.Validate());
+        }
+
+        // ── reverse-on (§2.3 / §2.4.5) ───────────────────────────────────────────────────
+
+        [Test]
+        public void ReverseOn_parses_an_event_with_a_source_id()
+        {
+            var s = new AnimationSpec();
+            s.SetFade("0:1");
+            s.SetReverseOn("collapse@tasks");
+            s.Validate();
+
+            Assert.IsNotNull(s.ReverseOn);
+            Assert.AreEqual(TriggerKind.Collapse, s.ReverseOn.Kind);
+            Assert.AreEqual("tasks", s.ReverseOn.SourceId);
+        }
+
+        [TestCase("open")]
+        [TestCase("loop")]
+        public void ReverseOn_rejects_the_two_beginnings(string value)
+        {
+            var s = new AnimationSpec();
+            var ex = Assert.Throws<System.ArgumentException>(() => s.SetReverseOn(value));
+            StringAssert.Contains("reverse-on", ex.Message);
+        }
+
+        [Test]
+        public void ReverseOn_and_loop_are_mutually_exclusive()
+        {
+            var s = new AnimationSpec();
+            s.SetFade("0:1");
+            s.SetReverseOn("click");
+            s.SetLoop("yoyo");
+
+            var ex = Assert.Throws<System.ArgumentException>(() => s.Validate());
+            StringAssert.Contains("loop", ex.Message);
+        }
+
+        [Test]
+        public void ReverseOn_and_the_text_family_are_mutually_exclusive()
+        {
+            var s = new AnimationSpec();
+            s.SetCount("0:10");
+            s.SetReverseOn("click");
+
+            Assert.Throws<System.ArgumentException>(() => s.Validate());
+        }
+
+        // ── snapshot / clone carry the new fields ────────────────────────────────────────
+
+        [Test]
+        public void Snapshot_notices_a_changed_reveal_endpoint()
+        {
+            var a = new AnimationSpec(); a.SetReveal("y"); a.Validate();
+            var before = a.Snapshot();
+
+            a.SetRevealTo("120");
+            var after = a.Snapshot();
+
+            Assert.IsFalse(before.Equals(after), "ReSolve must see reveal changes, or it would keep a stale box");
+        }
+
+        [Test]
+        public void Snapshot_notices_a_changed_reverse_on()
+        {
+            var a = new AnimationSpec(); a.SetFade("0:1"); a.SetReverseOn("click"); a.Validate();
+            var before = a.Snapshot();
+
+            a.SetReverseOn("collapse");
+            Assert.IsFalse(before.Equals(a.Snapshot()));
+        }
+
+        [Test]
+        public void Clone_carries_the_reveal_fields()
+        {
+            var a = new AnimationSpec(); a.SetReveal("x"); a.SetRevealTo("80"); a.Validate();
+
+            var copy = a.Clone();
+
+            Assert.IsTrue(copy.HasReveal);
+            Assert.AreEqual(0, copy.RevealAxis);
+            Assert.AreEqual(80f, copy.RevealTo.Px);
+        }
     }
 }

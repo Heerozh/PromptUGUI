@@ -5,6 +5,47 @@ using UnityEngine;
 namespace PromptUGUI.Controls.Internal
 {
     internal enum AnimationFamily { None, Preset, LowLevel, Text }
+
+    /// <summary>
+    /// One end of a <c>reveal</c> (spec 2026-08-31-hug-reveal-flip-checked-design §2.3): either a
+    /// fixed number of pixels or <c>hug</c>, meaning "whatever the child measures at the moment the
+    /// animation fires" — remeasured per fire, never cached, so new rows / a locale switch are picked
+    /// up by the next expand.
+    /// </summary>
+    internal readonly struct RevealValue : IEquatable<RevealValue>
+    {
+        public readonly bool IsHug;
+        public readonly float Px;
+
+        private RevealValue(bool isHug, float px)
+        {
+            IsHug = isHug;
+            Px = px;
+        }
+
+        public static readonly RevealValue Zero = new RevealValue(false, 0f);
+        public static readonly RevealValue Hug = new RevealValue(true, 0f);
+
+        public static RevealValue Parse(string value, string attr)
+        {
+            var v = value?.Trim();
+            if (string.IsNullOrEmpty(v))
+                throw new ArgumentException($"<Animation {attr}=\"\">: expected a number of pixels or 'hug'");
+            if (v == "hug") return Hug;
+            if (!float.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out var px))
+                throw new ArgumentException(
+                    $"<Animation {attr}=\"{value}\">: expected a number of pixels or 'hug'");
+            if (px < 0f)
+                throw new ArgumentException(
+                    $"<Animation {attr}=\"{value}\">: a reveal endpoint cannot be negative");
+            return new RevealValue(false, px);
+        }
+
+        public bool Equals(RevealValue o) => IsHug == o.IsHug && Px.Equals(o.Px);
+        public override bool Equals(object obj) => obj is RevealValue o && Equals(o);
+        public override int GetHashCode() => HashCode.Combine(IsHug, Px);
+        public override string ToString() => IsHug ? "hug" : Px.ToString(CultureInfo.InvariantCulture);
+    }
     internal enum LoopMode { None, Yoyo, Restart, Count }
     internal enum EasingKind
     {
@@ -23,6 +64,13 @@ namespace PromptUGUI.Controls.Internal
         public bool HasTranslate, HasScale, HasRotate, HasFade;
         public bool HasCount, HasCharColor;
 
+        // Family D — reveal (FND §2.3). Composes with the low-level channels above rather than
+        // excluding them: "grow open while fading in" is one animation, not two.
+        public bool HasReveal;
+        public int RevealAxis;                                // 0 = x, 1 = y
+        public RevealValue RevealFrom = RevealValue.Zero;
+        public RevealValue RevealTo = RevealValue.Hug;
+
         // Parsed values
         public Vector2 TranslateFrom, TranslateTo;
         public Vector2 ScaleFrom, ScaleTo;
@@ -40,6 +88,12 @@ namespace PromptUGUI.Controls.Internal
         public LoopMode LoopMode = LoopMode.None;
         public int LoopCount;
         public string TargetId;  // null if no target=
+
+        /// <summary>
+        /// <c>reverse-on=</c> — the event that plays this animation backwards, from wherever it
+        /// currently is (FND §2.4.5). Null when the author did not write one.
+        /// </summary>
+        public TriggerSpec ReverseOn;
 
         public AnimationFamily Family { get; private set; }
 
@@ -66,6 +120,22 @@ namespace PromptUGUI.Controls.Internal
         public void SetLoop(string v) => ParseLoop(v, out LoopMode, out LoopCount);
         public void SetTarget(string v) => TargetId = v?.StartsWith("@") == true ? v.Substring(1) : v;
 
+        public void SetReveal(string v)
+        {
+            RevealAxis = v switch
+            {
+                "y" => 1,
+                "x" => 0,
+                _ => throw new ArgumentException(
+                    $"<Animation reveal=\"{v}\">: expected 'y' (height) or 'x' (width)."),
+            };
+            HasReveal = true;
+        }
+
+        public void SetRevealFrom(string v) => RevealFrom = RevealValue.Parse(v, "reveal-from");
+        public void SetRevealTo(string v) => RevealTo = RevealValue.Parse(v, "reveal-to");
+        public void SetReverseOn(string v) => ReverseOn = TriggerSpec.ParseReverseOn(v);
+
         public void Validate()
         {
             bool preset = !string.IsNullOrEmpty(TypeRaw);
@@ -78,6 +148,33 @@ namespace PromptUGUI.Controls.Internal
                     "<Animation>: three attribute families (preset / low-level transform / text-effect) " +
                     "are mutually exclusive. Use only one.");
 
+            // reveal composes with the low-level channels (FND §2.3) but not with the other two: a
+            // preset IS a low-level bundle with fixed endpoints, and the text family drives a string.
+            if (HasReveal && preset)
+                throw new ArgumentException(
+                    "<Animation>: reveal= and type= are mutually exclusive — a preset is a fixed bundle of " +
+                    "transform channels. Spell the channels out (translate= / fade= / ...) alongside reveal.");
+            if (HasReveal && text)
+                throw new ArgumentException(
+                    "<Animation>: reveal= and count= / char-color= are mutually exclusive — the text family " +
+                    "drives a string, not a box.");
+            if (HasReveal && RevealFrom.Equals(RevealTo))
+                throw new ArgumentException(
+                    $"<Animation reveal-from=\"{RevealFrom}\" reveal-to=\"{RevealTo}\">: the two endpoints are " +
+                    "the same, so nothing would move.");
+
+            if (ReverseOn != null)
+            {
+                if (LoopMode != LoopMode.None)
+                    throw new ArgumentException(
+                        "<Animation>: reverse-on= cannot be combined with loop= — a looping motion has no " +
+                        "resting end state to reverse from.");
+                if (text)
+                    throw new ArgumentException(
+                        "<Animation>: reverse-on= cannot be combined with count= / char-color= — a number " +
+                        "counting backwards (or a per-character colour unwinding) has no stable current value.");
+            }
+
             if (preset)
             {
                 if (Array.IndexOf(ValidPresets, TypeRaw) < 0)
@@ -86,7 +183,9 @@ namespace PromptUGUI.Controls.Internal
                         "Valid: " + string.Join(", ", ValidPresets));
                 Family = AnimationFamily.Preset;
             }
-            else if (lowLevel) Family = AnimationFamily.LowLevel;
+            // A bare reveal (no transform channel alongside) still plays through the LowLevel path —
+            // the driver treats reveal as one more channel there.
+            else if (lowLevel || HasReveal) Family = AnimationFamily.LowLevel;
             else if (text)
             {
                 if (HasCount && HasCharColor)
@@ -120,6 +219,11 @@ namespace PromptUGUI.Controls.Internal
             CharColorTo = CharColorTo,
             CharStaggerSec = CharStaggerSec,
             TargetId = TargetId,
+            HasReveal = HasReveal,
+            RevealAxis = RevealAxis,
+            RevealFrom = RevealFrom,
+            RevealTo = RevealTo,
+            ReverseOnRaw = ReverseOn?.Raw,
         };
 
         public struct AnimationSnapshot : IEquatable<AnimationSnapshot>
@@ -131,6 +235,9 @@ namespace PromptUGUI.Controls.Internal
             public string Format;
             public Color CharColorFrom, CharColorTo; public float CharStaggerSec;
             public string TargetId;
+            public bool HasReveal; public int RevealAxis;
+            public RevealValue RevealFrom, RevealTo;
+            public string ReverseOnRaw;
             public bool Equals(AnimationSnapshot o) =>
                 TypeRaw == o.TypeRaw && Duration == o.Duration && Delay == o.Delay && Easing == o.Easing
                 && LoopMode == o.LoopMode && LoopCount == o.LoopCount
@@ -142,7 +249,10 @@ namespace PromptUGUI.Controls.Internal
                 && Format == o.Format
                 && CharColorFrom == o.CharColorFrom && CharColorTo == o.CharColorTo
                 && CharStaggerSec == o.CharStaggerSec
-                && TargetId == o.TargetId;
+                && TargetId == o.TargetId
+                && HasReveal == o.HasReveal && RevealAxis == o.RevealAxis
+                && RevealFrom.Equals(o.RevealFrom) && RevealTo.Equals(o.RevealTo)
+                && ReverseOnRaw == o.ReverseOnRaw;
             public override bool Equals(object obj) => obj is AnimationSnapshot s && Equals(s);
             public override int GetHashCode() => HashCode.Combine(
                 TypeRaw, Duration, Easing, LoopMode,
