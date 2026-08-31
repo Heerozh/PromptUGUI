@@ -291,6 +291,9 @@ namespace PromptUGUI.Application
             var selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "TabMenu" or "Carousel";
             foreach (var c in node.Children)
             {
+                if (selfIsLayoutGroup)
+                    foreach (var issue in PromptUGUI.Lint.HugRules.CheckHugStretchChild(node, c))
+                        Debug.LogWarning(issue.Message);
                 if (node.Tag == "Carousel")
                     foreach (var issue in PromptUGUI.Lint.CarouselRules.CheckCard(node, c))
                         Debug.LogWarning(issue.Message);

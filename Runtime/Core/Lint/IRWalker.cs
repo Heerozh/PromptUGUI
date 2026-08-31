@@ -157,6 +157,13 @@ namespace PromptUGUI.Lint
             foreach (var issue in ClampRules.CheckClampScale(node))
                 yield return issue;
 
+            // Universal: hug on a tag with no content size, and hug + scale on one node. Both are
+            // hard errors at runtime too (ControlAttributeApplier throws), same predicate.
+            foreach (var issue in HugRules.CheckHugTag(node, styles))
+                yield return issue;
+            foreach (var issue in HugRules.CheckHugScale(node, styles))
+                yield return issue;
+
             // class="" plus the value grammar of the procedural visual attrs (radius / borderWidth /
             // glow / the glass parameters) — pure syntax, so the CLI can reject it without a Unity
             // instance.
@@ -217,8 +224,14 @@ namespace PromptUGUI.Lint
             foreach (var child in node.Children)
             {
                 if (isLayoutGroup)
+                {
                     foreach (var issue in LayoutGroupChildRules.CheckChild(child))
                         yield return issue.WithSource(child.OriginSrc, child.Line, child.InvokedAt);
+                    // A stretch child on the parent's hugged main axis renders at 0 — needs both
+                    // nodes, so it lives here rather than in the per-node block.
+                    foreach (var issue in HugRules.CheckHugStretchChild(node, child, styles))
+                        yield return issue.WithSource(child.OriginSrc, child.Line, child.InvokedAt);
+                }
                 else
                     // 'flow' under a non-layout-group parent is inert — flag it. Dispatched
                     // from the child loop only (parent tag truly known): template-body roots,
