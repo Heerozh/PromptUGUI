@@ -30,7 +30,7 @@ namespace PromptUGUI.Lint
         /// <summary>Tags that have a uGUI <c>Selectable</c> component and therefore accept nav* attrs.</summary>
         private static readonly HashSet<string> SelectableTags = new HashSet<string>
         {
-            "Btn", "Tab", "TabMenu", "Toggle", "Slider", "Dropdown", "InputField", "ScrollList"
+            "Btn", "Tab", "TabMenu", "Collapsible", "Toggle", "Slider", "Dropdown", "InputField", "ScrollList"
         };
 
         /// <summary>All attributes that must appear only on selectable tags.</summary>

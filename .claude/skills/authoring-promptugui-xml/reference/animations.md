@@ -32,15 +32,24 @@
 | `state-selected`   | The nearest ancestor `<Tab>` / `<Toggle>` is the active/`isOn` one at rest; fires on selection and once at open if already on. **Meaningful only with a `<Tab>` / `<Toggle>` source — a `<Btn>` never emits it.** |
 | `state-disabled`   | The nearest ancestor `<Btn>` / `<Tab>` / `<Toggle>` enters Disabled                                                                                                                                               |
 | `state-...@<id>`   | Same, but the source is the `<Btn>` / `<Tab>` / `<Toggle>` with `<id>` (any of the five `state-*` values)                                                                                                         |
-| `expand`           | The nearest **ancestor** `<TabMenu>` opens. Fires on open, not on close                                                                                                                                            |
-| `collapse`         | The nearest ancestor `<TabMenu>` closes                                                                                                                                                                            |
-| `expand@<id>` · `collapse@<id>` | Same, but the source is the `<TabMenu>` with `<id>` in this Trigger's subtree                                                                                                                        |
+| `expand`           | The nearest **ancestor** `<TabMenu>` / `<Collapsible>` opens. Fires on opening, not on closing — and with the content already active, so a row can measure itself                                                                                                                                            |
+| `collapse`         | The nearest ancestor `<TabMenu>` / `<Collapsible>` closes                                                                                                                                                                            |
+| `expand@<id>` · `collapse@<id>` | Same, but the source is the `<TabMenu>` / `<Collapsible>` with `<id>` (lexical scope: subtree → enclosing template instance → screen)                                                                                                                        |
 | `checked`          | The nearest **ancestor** `<Toggle>` / `<Tab>` turns on (`isOn` becomes true). Persistent, not transient — see below                                                                                               |
 | `unchecked`        | The nearest ancestor `<Toggle>` / `<Tab>` turns off                                                                                                                                                               |
 | `checked@<id>` · `unchecked@<id>` | Same, but the source is the `<Toggle>` / `<Tab>` with `<id>`                                                                                                                                       |
 | `manual`           | Does not auto-fire; C# must call `Fire()`                                                                                                                                                                         |
 
-**`expand` / `collapse` are not called `open` / `close`** — `on="open"` already means "the Screen opened". They exist because a `<TabMenu>`'s panel is an internal node you cannot wrap in an `<Animation>`; the panel's own entrance is the menu's `transition=` attribute, and these are for animating the **rows** inside it. They resolve upward exactly like `state-*`, and the popup they live in is switched off while collapsed — which the ancestor walk accounts for.
+**`expand` / `collapse` are not called `open` / `close`** — `on="open"` already means "the Screen opened". They exist because the panel that opens is an internal node you cannot wrap in an `<Animation>`: a `<TabMenu>`'s popup, a `<Collapsible>`'s body. The panel's own entrance is that control's `transition=` attribute; these are for animating the **rows** inside it. They resolve upward exactly like `state-*`, and the subtree they live in is switched off while collapsed — which the ancestor walk accounts for. Establishing the initial look at Screen open is **not** an expand / collapse (a panel that opens folded has not just folded).
+
+```xml
+<!-- A row that slides in with the panel and back out with it — one Animation, both directions -->
+<Template name="TaskRow">
+  <Animation on="expand" reverse-on="collapse" translate="-12,0:0,0" fade="0:1" duration="0.12s">
+    <Btn id="row" width="stretch" height="32"/>
+  </Animation>
+</Template>
+```
 
 **`checked` / `unchecked` are the PERSISTENT pair.** `state-selected` is part of uGUI's transient interaction machine — Hover and Pressed override it while they last, so a block keyed on it blinks out the moment the pointer touches the control. `checked` asks a different question ("is it on?"), which hovering does not change, and it is the one to use for a header that shows or hides a panel. A bare `checked` / `unchecked` with no `<Toggle>` / `<Tab>` ancestor is a runtime error and `PUI-CHECKED-NO-SOURCE` in the lint CLI; a `<Btn>` does **not** count — it has no checked state at all. They fire on the edge, and a control that is ALREADY in that state as the Screen opens dispatches once too — see *First-frame establishment* below.
 

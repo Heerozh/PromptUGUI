@@ -96,14 +96,19 @@ namespace PromptUGUI.Lint
                 "(A <Btn> has no checked state; for press feedback use state-pressed.)");
         }
 
-        /// <summary>True if <paramref name="tag"/> instantiates a <c>&lt;TabMenu&gt;</c>, the source
-        /// a bare <c>expand</c> / <c>collapse</c> trigger resolves upward to.</summary>
-        public static bool IsMenuSourceTag(string tag) => tag == "TabMenu";
+        private static readonly HashSet<string> MenuSourceTags =
+            new HashSet<string> { "TabMenu", "Collapsible" };
+
+        /// <summary>True if <paramref name="tag"/> instantiates something that opens and closes —
+        /// a <c>&lt;TabMenu&gt;</c> popup or a <c>&lt;Collapsible&gt;</c> fold — the source a bare
+        /// <c>expand</c> / <c>collapse</c> trigger resolves upward to.</summary>
+        public static bool IsMenuSourceTag(string tag) => MenuSourceTags.Contains(tag);
 
         /// <summary>
         /// Yields <see cref="NoMenuCode"/> when <paramref name="n"/> is a bare (no-<c>@id</c>)
-        /// <c>expand</c> / <c>collapse</c> trigger with no <c>&lt;TabMenu&gt;</c> ancestor — the
-        /// same upward-resolution rule <c>state-*</c> follows, and the same runtime hard error.
+        /// <c>expand</c> / <c>collapse</c> trigger with no <c>&lt;TabMenu&gt;</c> /
+        /// <c>&lt;Collapsible&gt;</c> ancestor — the same upward-resolution rule <c>state-*</c>
+        /// follows, and the same runtime hard error.
         /// </summary>
         public static IEnumerable<LintIssue> CheckMenuSource(ElementNode n, bool hasMenuAncestor)
         {
@@ -114,8 +119,8 @@ namespace PromptUGUI.Lint
 
             yield return new LintIssue(
                 NoMenuCode, n.Tag, n.Id,
-                $"<{n.Tag} on=\"{on}\">: no <TabMenu> ancestor. {on} resolves upward to the nearest " +
-                $"menu — place it inside a <TabMenu>, or use {on}@<id>.");
+                $"<{n.Tag} on=\"{on}\">: no <TabMenu>/<Collapsible> ancestor. {on} resolves upward to " +
+                $"the nearest one — place it inside a <TabMenu> or a <Collapsible>, or use {on}@<id>.");
         }
     }
 }

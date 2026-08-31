@@ -242,6 +242,16 @@ namespace PromptUGUI.Controls
         /// </summary>
         protected internal virtual bool SelfReportsContentSize => false;
 
+        /// <summary>
+        /// True for a control whose vertical size is not the author's to give — today only
+        /// <c>&lt;Collapsible&gt;</c>, whose height IS its header plus its body. The hug is injected
+        /// in <see cref="ApplyCommon"/> rather than written by the author, so there is one source of
+        /// truth for the panel's height and <c>PUI-COLLAPSIBLE-HEIGHT</c> can reject the other one.
+        /// Skipped when the author anchor-stretches that axis: that is an explicit "the layout owns
+        /// my height", and the fold then simply lives inside whatever height it was given.
+        /// </summary>
+        protected internal virtual bool ForcesHugHeight => false;
+
         // 通用属性应用（由 ScreenInstantiator 在子类自身属性应用之后调用）
         public void ApplyCommon(string anchor, string size, string width, string height,
                                 string margin, string pivot,
@@ -263,6 +273,9 @@ namespace PromptUGUI.Controls
             var preset = string.IsNullOrEmpty(anchor)
                 ? GetDefaultAnchor(sizeSpec)
                 : AnchorPreset.Parse(anchor);
+
+            if (ForcesHugHeight && !preset.StretchY)
+                sizeSpec = sizeSpec.WithHugHeight();
 
             sizeSpec.ValidateAgainst(preset);
 

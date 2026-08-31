@@ -30,8 +30,7 @@ namespace PromptUGUI.Controls.Internal
         {
             if (child == null) return 0f;
 
-            var wasActive = child.gameObject.activeSelf;
-            if (!wasActive) child.gameObject.SetActive(true);
+            var activated = InactiveMeasure.ActivateIfNeeded(child.gameObject);
             try
             {
                 LayoutRebuilder.ForceRebuildLayoutImmediate(child);
@@ -40,7 +39,7 @@ namespace PromptUGUI.Controls.Internal
             }
             finally
             {
-                if (!wasActive) child.gameObject.SetActive(false);
+                InactiveMeasure.Restore(child.gameObject, activated);
             }
         }
 

@@ -48,6 +48,9 @@ namespace PromptUGUI.Layout
 
             public Axis WithBounds(float min, float max) => new(Has, Numeric, IsNative, IsFlexible, Weight,
                 IsFractional, Fraction, true, min, max, IsHug);
+
+            public static readonly Axis Hug = new(true, 0f, false, false, 1f, false, 0f, false,
+                float.NegativeInfinity, float.PositiveInfinity, true);
         }
 
         private readonly Axis _w;
@@ -150,6 +153,14 @@ namespace PromptUGUI.Layout
 
         internal static SizeSpec FromNumeric(float w, float h) =>
             new(Axis.Fixed(w), Axis.Fixed(h));
+
+        /// <summary>
+        /// Replaces the vertical axis with a bare <c>hug</c>. For the one control whose height is
+        /// not the author's to give (<c>&lt;Collapsible&gt;</c> — see
+        /// <c>Control.ForcesHugHeight</c>); anything the author wrote on that axis is a lint /
+        /// runtime error of its own, so overwriting it here is not hiding a legal value.
+        /// </summary>
+        internal SizeSpec WithHugHeight() => new(_w, Axis.Hug);
 
         internal SizeSpec WithFallbackForMissing(Vector2 native) =>
             new(

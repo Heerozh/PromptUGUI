@@ -91,6 +91,10 @@ For dynamic data, use `BindItems` with `itemTemplate="FileTab"` (the same Templa
 
 ## `<TabMenu>` — the folded tab group
 
+> For an **inline** fold — a header bar that stays put and a body that pushes the page down rather
+> than floating over it — use [`<Collapsible>`](controls-collapsible.md). This one is a popup: its
+> own canvas, a full-screen click catcher, one open at a time, closes on choosing.
+
 Collapsed, it is the selected tab's icon + text + a caret; expanded, a panel of `<Tab>` rows drops
 below it. Reach for it when a bar would not fit — a channel switcher in a chat header, a sort order,
 a folded-up navigation.

@@ -182,30 +182,33 @@ namespace PromptUGUI.Controls.Internal
         }
 
         /// <summary>
-        /// Finds the <see cref="TabMenu"/> an <c>expand</c> / <c>collapse</c> trigger listens to.
-        /// Resolves <b>upward</b>, like <see cref="FindStateSource"/> and for the same reason: the
-        /// natural place for one is on a row inside the menu it belongs to.
+        /// Finds the <see cref="IExpandable"/> an <c>expand</c> / <c>collapse</c> trigger listens to
+        /// — a <see cref="TabMenu"/>'s popup or a <see cref="Collapsible"/>'s fold. Resolves
+        /// <b>upward</b>, like <see cref="FindStateSource"/> and for the same reason: the natural
+        /// place for one is on a row inside the thing that opens.
         /// </summary>
         /// <param name="trigger">触发器控件</param>
-        /// <param name="sourceId">空 → 沿 GameObject 树向上找最近的 TabMenu；非空 → 走 ScopedIds 精确查找 + 类型校验</param>
-        public static TabMenu FindTabMenu(Trigger trigger, string sourceId)
+        /// <param name="sourceId">空 → 沿 GameObject 树向上找最近的可展开控件；非空 → 走词法作用域精确查找 + 类型校验</param>
+        public static IExpandable FindExpandable(Trigger trigger, string sourceId)
         {
             if (string.IsNullOrEmpty(sourceId))
             {
-                // includeInactive: a collapsed menu's popup — where these triggers live — is
-                // switched off, and the default active-only walk would never reach the marker.
-                var marker = trigger.GameObject.GetComponentInParent<TabMenuMarker>(true);
+                // includeInactive: a collapsed menu's popup / a collapsed body — where these
+                // triggers live — is switched off, and the default active-only walk would never
+                // reach the marker.
+                var marker = trigger.GameObject.GetComponentInParent<ExpandableMarker>(true);
                 if (marker == null || marker.Owner == null)
                     throw new InvalidOperationException(
                         $"<Trigger on=\"expand\"/\"collapse\"> in '{trigger.Id ?? trigger.GameObject.name}': " +
-                        "no <TabMenu> ancestor found. Place it inside one, or use expand@<id>.");
+                        "no <TabMenu>/<Collapsible> ancestor found. Place it inside one, or use expand@<id>.");
                 return marker.Owner;
             }
 
             var ctrl = ResolveId(trigger, sourceId, "expand/collapse");
-            return ctrl as TabMenu ?? throw new InvalidOperationException(
+            return ctrl as IExpandable ?? throw new InvalidOperationException(
                 $"<Trigger on=\"expand@{sourceId}\">: id '{sourceId}' is a " +
-                $"{ctrl.GetType().Name}, not a <TabMenu>. expand / collapse require a <TabMenu>.");
+                $"{ctrl.GetType().Name}, not a <TabMenu>/<Collapsible>. " +
+                "expand / collapse require one of those.");
         }
     }
 }
