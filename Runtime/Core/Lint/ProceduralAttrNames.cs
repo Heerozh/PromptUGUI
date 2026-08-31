@@ -28,10 +28,11 @@ namespace PromptUGUI.Lint
         };
 
         /// <summary>
-        /// <see cref="PanelAttaching"/> plus <c>weld</c>. Weld is deliberately not above: it builds a
+        /// <see cref="PanelAttaching"/> plus <c>weld</c> and <c>seam</c>. Neither is above: weld builds a
         /// <c>GlassGroupPanel</c> on a <em>child</em> (<c>Graphic</c> is
         /// <c>[DisallowMultipleComponent]</c>, and the carrier may already need a panel of its own
-        /// for the group-level parameters), so a Frame with only <c>weld=</c> still has no Graphic.
+        /// for the group-level parameters), and <c>seam</c> is a value that fused pane reads — so a
+        /// Frame with only <c>weld=</c> / <c>seam=</c> still has no Graphic.
         /// On a layout-only container every one of these is dropped just the same.
         /// </summary>
         public static readonly string[] All =
@@ -39,7 +40,7 @@ namespace PromptUGUI.Lint
             "color", "radius", "borderWidth", "borderColor", "glow", "glowColor",
             "innerGlow", "innerGlowColor",
             "glass", "frost", "depth", "dispersion", "lightAngle", "lightIntensity",
-            "saturation", "noise", "weld",
+            "saturation", "noise", "weld", "seam",
         };
 
         /// <summary>
@@ -70,7 +71,7 @@ namespace PromptUGUI.Lint
             "radius", "borderWidth", "borderColor", "glow", "glowColor",
             "innerGlow", "innerGlowColor",
             "glass", "frost", "depth", "dispersion", "lightAngle", "lightIntensity",
-            "saturation", "noise", "weld",
+            "saturation", "noise", "weld", "seam",
         };
     }
 }

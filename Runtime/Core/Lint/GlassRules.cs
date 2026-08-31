@@ -23,7 +23,7 @@ namespace PromptUGUI.Lint
         public const string WeldSelfCode = "PUI-GLASS-WELD-SELF";
         public const string WeldMembersCode = "PUI-GLASS-WELD-MEMBERS";
         public const string WeldParamPlacementCode = "PUI-GLASS-WELD-PARAM-PLACEMENT";
-        public const string WeldCornerCode = "PUI-WELD-CORNER";
+        public const string SeamWithoutWeldCode = "PUI-GLASS-SEAM-NO-WELD";
 
         /// <summary>
         /// Shader uniform arrays are fixed size; the group shader carries eight slots. Kept in sync
@@ -41,6 +41,7 @@ namespace PromptUGUI.Lint
         {
             GlassAttrParser.Frost, GlassAttrParser.Dispersion, GlassAttrParser.LightAngle,
             GlassAttrParser.LightIntensity, GlassAttrParser.Saturation, GlassAttrParser.Noise,
+            GlassAttrParser.Seam,
             "borderWidth", "borderColor", "glow", "glowColor", "innerGlow", "innerGlowColor",
         };
 
@@ -87,13 +88,23 @@ namespace PromptUGUI.Lint
                 yield break;
             }
 
+            // Only the group shader reads seam, and only a weld container has one. Reported before
+            // the glass check and instead of it: adding glass="true" would not make seam work, so
+            // PUI-GLASS-PARAM-NO-GLASS here would name the wrong fix.
+            if (styles.Declares(n, GlassAttrParser.Seam))
+                yield return new LintIssue(
+                    SeamWithoutWeldCode, n.Tag, n.Id,
+                    $"<{n.Tag} id='{n.Id}'>: 'seam' is the width of the thickness step between two " +
+                    "welded blocks and is ignored without 'weld' — a single pane has no second " +
+                    $"block to be thicker than. Add 'weld' to this <{n.Tag}>, or drop 'seam'.");
+
             // Nothing to say when the author declared `glass` at all: a variant-only
             // glass.mobile="true" is a legitimate way to make a panel glass in one layout.
             if (declaresGlassFlag) yield break;
 
             foreach (var attr in GlassAttrParser.NumericAttrs)
             {
-                if (attr == GlassAttrParser.Weld) continue;
+                if (attr == GlassAttrParser.Weld || attr == GlassAttrParser.Seam) continue;
                 if (!styles.Declares(n, attr)) continue;
                 yield return new LintIssue(
                     ParamWithoutGlassCode, n.Tag, n.Id,
@@ -137,14 +148,6 @@ namespace PromptUGUI.Lint
                         "ignored on a welded block — the blocks are one continuous pane, so they " +
                         $"share it. Move '{attr}' onto the <{n.Tag}> that carries 'weld'.");
                 }
-
-                if (HasCornerTreatment(child, styles))
-                    yield return new LintIssue(
-                        WeldCornerCode, child.Tag, child.Id,
-                        $"<{child.Tag} id='{child.Id}'>: corner treatments do not survive a weld. " +
-                        "The group fuses its members' shapes with a smooth union, which rounds " +
-                        "every corner back off, so this block draws with plain round corners of " +
-                        "the same reach. Drop 'weld' to keep the shape, or write a round radius.");
             }
 
             if (!countIsKnowable) yield break;
@@ -162,37 +165,6 @@ namespace PromptUGUI.Lint
                     $"{(members == 1 ? "child" : "children")} — 'weld' fuses two or more and does " +
                     "nothing here. Give the container more glass children, or drop 'weld' and let " +
                     "the child draw itself.");
-        }
-
-        /// <summary>
-        /// True when this node's <c>radius</c> asks for anything the weld shader cannot draw —
-        /// a per-corner <c>cut</c> / <c>notch</c>, or the <c>hexagon</c> sentinel.
-        /// </summary>
-        /// <remarks>
-        /// Variant values count: shape and weld can arrive from two different theme packs, so the
-        /// pairing is at least as likely to show up in one layout only. A value that does not parse
-        /// is left alone — <see cref="StyleRules"/> already reports the syntax error, and saying it
-        /// twice in two vocabularies helps nobody.
-        /// </remarks>
-        private static bool HasCornerTreatment(ElementNode n, StyleAttributeView styles)
-        {
-            styles.Resolve(n, "radius", out var baseValue, out var variants);
-
-            if (IsTreated(baseValue)) return true;
-            foreach (var (_, value) in variants)
-                if (IsTreated(value))
-                    return true;
-            return false;
-
-            static bool IsTreated(string value)
-            {
-                if (!RadiusParser.TryParse(value, out var spec, out _)) return false;
-                return spec.Shape == PanelShape.Hexagon
-                       || spec.TopLeftCorner.Kind != CornerKind.Round
-                       || spec.TopRightCorner.Kind != CornerKind.Round
-                       || spec.BottomRightCorner.Kind != CornerKind.Round
-                       || spec.BottomLeftCorner.Kind != CornerKind.Round;
-            }
         }
 
         private static bool IsGlassTrue(ElementNode n, StyleAttributeView styles)

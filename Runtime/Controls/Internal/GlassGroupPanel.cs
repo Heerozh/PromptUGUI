@@ -62,6 +62,7 @@ namespace PromptUGUI.Controls.Internal
         private ProceduralPanel _container;
         private Material _material;
         private float _weld;
+        private float _seam = Parser.GlassAttrParser.DefaultSeam;
         private bool _membersDirty = true;
         private Rect _lastBounds;
         private int _activeCount;
@@ -131,6 +132,18 @@ namespace PromptUGUI.Controls.Internal
             // re-applied attributes.
             if (_weld <= 0f) ReleaseMembers();
             SetVerticesDirty();
+            SetMaterialDirty();
+        }
+
+        /// <summary>
+        /// How wide the thickness step between two members is allowed to be. Lives on the group and
+        /// not on a <see cref="ProceduralPanel"/>: a carrier that writes only <c>weld</c> and
+        /// <c>seam</c> has no panel at all, and reading it from there would drop the value.
+        /// </summary>
+        internal void SetSeam(float seam)
+        {
+            if (Mathf.Approximately(_seam, seam)) return;
+            _seam = Mathf.Max(0f, seam);
             SetMaterialDirty();
         }
 
@@ -327,7 +340,7 @@ namespace PromptUGUI.Controls.Internal
             var intensity = _container != null ? g.LightIntensity : Parser.GlassAttrParser.DefaultLightIntensity;
             var saturation = _container != null ? g.Saturation : Parser.GlassAttrParser.DefaultSaturation;
 
-            _material.SetVector(GlassAId, new Vector4(frost, 0f, dispersion, noise));
+            _material.SetVector(GlassAId, new Vector4(frost, _seam, dispersion, noise));
             var rad = angle * Mathf.Deg2Rad;
             _material.SetVector(GlassBId,
                 new Vector4(Mathf.Sin(rad), Mathf.Cos(rad), intensity, saturation));

@@ -34,6 +34,9 @@ namespace PromptUGUI.Tests.EditMode.Parser
         [TestCase(GlassAttrParser.LightAngle, "NaN")]
         [TestCase(GlassAttrParser.Saturation, "Infinity")]
         [TestCase(GlassAttrParser.Weld, "NaN")]
+        [TestCase(GlassAttrParser.Seam, "NaN")]
+        [TestCase(GlassAttrParser.Seam, "Infinity")]
+        [TestCase(GlassAttrParser.Seam, "-1")]
         public void GlassAttrs_RejectNonFiniteValues(string attr, string value)
         {
             Assert.IsFalse(GlassAttrParser.TryParseValue(attr, value, out _, out var error),
@@ -48,6 +51,12 @@ namespace PromptUGUI.Tests.EditMode.Parser
             Assert.AreEqual(0.5f, f, 0.0001f);
             // An angle is cyclic, so large magnitudes stay legal — only non-finite is rejected.
             Assert.IsTrue(GlassAttrParser.TryParseValue(GlassAttrParser.LightAngle, "-720", out _, out _));
+            // A Variant can only overwrite a value, never remove the attribute, so "" has to be the
+            // way back to the default — for seam as for every other glass number.
+            Assert.IsTrue(GlassAttrParser.TryParseValue(GlassAttrParser.Seam, "", out var seam, out _));
+            Assert.AreEqual(GlassAttrParser.DefaultSeam, seam, 0.0001f);
+            Assert.IsTrue(GlassAttrParser.TryParseValue(GlassAttrParser.Seam, "0", out var sharp, out _));
+            Assert.AreEqual(0f, sharp, 0.0001f);
         }
     }
 }

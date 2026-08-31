@@ -20,7 +20,7 @@ Shader "UI/GlassGroup"
         _InnerGlowSize ("Inner Glow Size", Float) = 0
         _Weld        ("Weld Radius",   Float) = 8
 
-        _GlassA ("frost / _ / dispersion / noise", Vector) = (0.5, 0, 0, 0.02)
+        _GlassA ("frost / seam / dispersion / noise", Vector) = (0.5, 3, 0, 0.02)
         _GlassB ("lightDir.xy / intensity / saturation", Vector) = (0, 1, 0.6, 1.15)
 
         _StencilComp ("Stencil Comparison", Float) = 8

@@ -5,7 +5,7 @@ namespace PromptUGUI.Parser
     /// <summary>
     /// Value grammar for the glass attributes (<c>glass</c> / <c>frost</c> / <c>depth</c> /
     /// <c>dispersion</c> / <c>lightAngle</c> / <c>lightIntensity</c> / <c>saturation</c> /
-    /// <c>noise</c> / <c>weld</c>).
+    /// <c>noise</c> / <c>weld</c> / <c>seam</c>).
     ///
     /// Pure C# — no UnityEngine types — so the UIXmlLint CLI shares this exact implementation with
     /// the runtime setters and the two can never drift on either the accepted range or the wording
@@ -22,6 +22,7 @@ namespace PromptUGUI.Parser
         public const string Saturation = "saturation";
         public const string Noise = "noise";
         public const string Weld = "weld";
+        public const string Seam = "seam";
 
         public const float DefaultFrost = 0.5f;
         public const float DefaultDepth = 4f;
@@ -31,11 +32,12 @@ namespace PromptUGUI.Parser
         public const float DefaultSaturation = 1.15f;
         public const float DefaultNoise = 0.02f;
         public const float DefaultWeld = 0f;
+        public const float DefaultSeam = 3f;
 
         /// <summary>Every numeric glass attribute — the set the lint layer validates.</summary>
         public static readonly string[] NumericAttrs =
         {
-            Frost, Depth, Dispersion, LightAngle, LightIntensity, Saturation, Noise, Weld,
+            Frost, Depth, Dispersion, LightAngle, LightIntensity, Saturation, Noise, Weld, Seam,
         };
 
         public static bool IsNumericAttr(string name)
@@ -136,6 +138,9 @@ namespace PromptUGUI.Parser
                 case Depth: min = 0f; max = float.PositiveInfinity; fallback = DefaultDepth; return;
                 case Saturation: min = 0f; max = float.PositiveInfinity; fallback = DefaultSaturation; return;
                 case Weld: min = 0f; max = float.PositiveInfinity; fallback = DefaultWeld; return;
+                // 0 is legal and means "as sharp as this screen can draw it": the group shader
+                // floors it at two device pixels, so the step never thins away to nothing.
+                case Seam: min = 0f; max = float.PositiveInfinity; fallback = DefaultSeam; return;
                 // An angle is cyclic: -30 and 330 are the same light direction, and clamping either
                 // would silently move the highlight. Accept the whole line and wrap in the shader.
                 case LightAngle:

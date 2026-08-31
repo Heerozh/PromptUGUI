@@ -185,56 +185,63 @@ namespace PromptUGUI.Tests.EditMode.Lint
                     $"<{tag}> draws nothing, so glass on it is silently dropped");
         }
 
-        // ---- corner treatments do not survive the fusion ----
+        // ---- seam: the width of the thickness step ----
 
-        [TestCase("cut 16")]
-        [TestCase("notch 8")]
-        [TestCase("hexagon")]
-        [TestCase("0, cut 12, 0, 0")]
-        public void CornerTreatmentOnAWeldedBlock_IsFlagged(string radius)
+        [Test]
+        public void SeamWithoutWeld_IsFlagged()
         {
-            // The group packs one radius vector per member and smooth-unions the fields, which
-            // rounds every corner back off. The block still draws — as a plain round corner — so
-            // this is a warning about a shape the author will not get, not a broken document.
-            Assert.IsTrue(Has(Walk($@"<Frame id='g' weld='16'>
-      <Frame id='a' glass='true' radius='{radius}'/>
+            // Only the group shader reads it: a single pane has no second block to be thicker than.
+            Assert.IsTrue(Has(Walk("<Frame id='f' glass='true' seam='4'/>"),
+                GlassRules.SeamWithoutWeldCode, "f"));
+        }
+
+        [Test]
+        public void SeamWithoutWeld_IsNotAlsoReportedAsAGlassParam()
+        {
+            // One attribute, one diagnostic: PUI-GLASS-PARAM-NO-GLASS would name the wrong fix
+            // (adding glass="true" does not make seam work — adding weld does).
+            var issues = Walk("<Frame id='f' seam='4'/>");
+            Assert.IsTrue(Has(issues, GlassRules.SeamWithoutWeldCode, "f"));
+            Assert.IsFalse(Has(issues, GlassRules.ParamWithoutGlassCode, "f"));
+        }
+
+        [Test]
+        public void SeamOnAWeldContainer_IsFine()
+        {
+            Assert.IsFalse(Has(Walk(@"<Frame id='g' weld='10' seam='4'>
+      <Frame id='a' glass='true' depth='6'/>
+      <Frame id='b' glass='true' depth='2'/>
+    </Frame>"), GlassRules.SeamWithoutWeldCode));
+        }
+
+        [Test]
+        public void SeamOnAVariantOnlyWeldContainer_IsFine()
+        {
+            // weld and seam can arrive from two different theme packs, exactly as shape and weld do.
+            Assert.IsFalse(Has(Walk(@"<Frame id='g' weld.mobile='10' seam='4'>
+      <Frame id='a' glass='true' depth='6'/>
+      <Frame id='b' glass='true' depth='2'/>
+    </Frame>"), GlassRules.SeamWithoutWeldCode));
+        }
+
+        [Test]
+        public void SeamOnABlock_IsFlaggedAsMisplaced()
+        {
+            // One continuous pane is welded one way — seam is the container's.
+            Assert.IsTrue(Has(Walk(@"<Frame id='g' weld='10'>
+      <Frame id='a' glass='true' seam='4'/>
       <Frame id='b' glass='true'/>
-    </Frame>"), GlassRules.WeldCornerCode, "a"));
+    </Frame>"), GlassRules.WeldParamPlacementCode, "a"));
         }
 
-        [Test]
-        public void RoundRadiusOnAWeldedBlock_IsFine()
+        [TestCase("seam='-1'")]
+        [TestCase("seam='wide'")]
+        public void BadSeamValues_AreFlagged(string attr)
         {
-            Assert.IsFalse(Has(Walk(@"<Frame id='g' weld='16'>
-      <Frame id='a' glass='true' radius='12'/>
-      <Frame id='b' glass='true' radius='pill'/>
-    </Frame>"), GlassRules.WeldCornerCode));
-        }
-
-        [Test]
-        public void CornerTreatmentOutsideAWeldGroup_IsFine()
-        {
-            Assert.IsFalse(Has(Walk("<Frame id='f' radius='cut 16'/>"), GlassRules.WeldCornerCode));
-        }
-
-        [Test]
-        public void VariantOnlyCornerTreatmentOnAWeldedBlock_IsFlagged()
-        {
-            // Shape and weld can arrive from two different theme packs, so the pairing is at least
-            // as likely to appear in one layout only.
-            Assert.IsTrue(Has(Walk(@"<Frame id='g' weld='16'>
-      <Frame id='a' glass='true' radius.mobile='cut 16'/>
+            Assert.IsTrue(Has(Walk($@"<Frame id='g' weld='10' {attr}>
+      <Frame id='a' glass='true'/>
       <Frame id='b' glass='true'/>
-    </Frame>"), GlassRules.WeldCornerCode, "a"));
-        }
-
-        [Test]
-        public void UnparseableRadiusOnAWeldedBlock_IsLeftToTheSyntaxRules()
-        {
-            Assert.IsFalse(Has(Walk(@"<Frame id='g' weld='16'>
-      <Frame id='a' glass='true' radius='bevel 4'/>
-      <Frame id='b' glass='true'/>
-    </Frame>"), GlassRules.WeldCornerCode));
+    </Frame>"), StyleRules.ProceduralValueCode, "g"));
         }
     }
 }

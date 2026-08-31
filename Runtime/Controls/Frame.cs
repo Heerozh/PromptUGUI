@@ -20,6 +20,7 @@ namespace PromptUGUI.Controls
         private bool? _pendingShowMask;
         private ProceduralPanel _panel;
         private GlassGroupPanel _group;
+        private float _seam = GlassAttrParser.DefaultSeam;
 
         private ProceduralPanel Panel => _panel ??= GameObject.AddComponent<ProceduralPanel>();
 
@@ -264,6 +265,22 @@ namespace PromptUGUI.Controls
         }
 
         /// <summary>
+        /// 厚度台阶的过渡带宽度（px）：两块厚度不同的玻璃融合时，台阶上高出的一方沿交界现出一道
+        /// 高光、并把背景轻微折一下 —— <c>seam</c> 就是这道台阶从厚走到薄的距离，高光约占其一半。
+        /// 0 = 本机能画的最锐（shader 兜到两个设备像素）。厚度相同的两块之间没有台阶，写多少都一样。
+        ///
+        /// <para>与 <c>weld</c> 一样是组级参数、且**不挂面板**：它只被融合组的 shader 读，单块玻璃
+        /// 没有第二块可比厚度。值存在 Frame 上、由 <see cref="OnAfterApply"/> 推给组，而不是走
+        /// <c>Panel.SetSeam</c> —— 属性应用无序，而只写了 <c>weld</c> + <c>seam</c> 的承载者压根
+        /// 没有 <see cref="ProceduralPanel"/>，从那儿读会把作者写的值悄悄丢掉。</para>
+        /// </summary>
+        [UIAttr, Preserve]
+        public string Seam
+        {
+            set => _seam = GlassAttrParser.ParseValue(GlassAttrParser.Seam, value);
+        }
+
+        /// <summary>
         /// 属性应用是无序的（<c>ControlAttributeApplier</c> 遍历的是 HashSet），而且一次实例化会连写
         /// 十几个视觉属性。setter 只打脏标记，材质在这里统一解算一次 —— 顺带让 <c>glass</c> 写在
         /// <c>frost</c> 前面还是后面都不再有区别。
@@ -278,7 +295,12 @@ namespace PromptUGUI.Controls
             // would happily call into the carcass and throw MissingReferenceException — aborting the
             // whole ReSolve pass, not just this Frame.
             if (_panel != null) _panel.FlushParams();
-            if (_group != null) _group.SyncMembers(_panel != null ? _panel : null);
+            if (_group != null)
+            {
+                // 排在 SyncMembers 之前：组参数就是在那一趟里上传的。
+                _group.SetSeam(_seam);
+                _group.SyncMembers(_panel != null ? _panel : null);
+            }
             // 排在 SyncMembers 之后：正在融合的承载者会把自己那块 suppress 掉，而被 suppress 的
             // 面板不出几何、也不持有材质，当不了遮罩源 —— 这个结论要等 SyncMembers 跑完才成立。
             ReconcileMask();

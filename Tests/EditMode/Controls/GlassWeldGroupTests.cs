@@ -175,6 +175,79 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Seam_ReachesTheGroup()
+        {
+            var mat = GroupOf(Open(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='g' weld='10' seam='6' anchor='top-left' width='200' height='100'>
+    <Frame id='a' glass='true' anchor='top-left' width='100' height='40' depth='6'/>
+    <Frame id='b' glass='true' anchor='top-right' width='60' height='40' depth='2'/>
+  </Frame>
+</Screen></PromptUGUI>"), "g").MaterialForTests;
+
+            Assert.AreEqual(6f, mat.GetVector("_GlassA").y, 0.001f,
+                "seam is how wide the thickness step between two blocks is allowed to be");
+        }
+
+        [Test]
+        public void Seam_DefaultsWithoutBeingWritten()
+        {
+            var mat = GroupOf(Open(TwoBlocks), "g").MaterialForTests;
+            Assert.AreEqual(GlassAttrParser.DefaultSeam, mat.GetVector("_GlassA").y, 0.001f);
+        }
+
+        [Test]
+        public void Seam_SurvivesAContainerWithNoPanelOfItsOwn()
+        {
+            // Nobody wrote frost/border/glow here, so the carrier has no ProceduralPanel at all.
+            // seam still has to arrive: it is the one group parameter an author can write on a bare
+            // weld carrier, and reading it off a panel that was never attached would silently
+            // discard it.
+            var mat = GroupOf(Open(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='g' weld='8' seam='5' anchor='top-left' width='200' height='100'>
+    <Frame id='a' glass='true' anchor='top-left' width='100' height='40' depth='6'/>
+    <Frame id='b' glass='true' anchor='top-right' width='40' height='40' depth='2'/>
+  </Frame>
+</Screen></PromptUGUI>"), "g").MaterialForTests;
+
+            Assert.AreEqual(5f, mat.GetVector("_GlassA").y, 0.001f);
+        }
+
+        [Test]
+        public void Seam_OnAMember_DoesNotReachTheGroup()
+        {
+            // One continuous pane is welded one way; a per-block seam would be two.
+            // PUI-GLASS-WELD-PARAM-PLACEMENT reports it, and the runtime drops it.
+            var mat = GroupOf(Open(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='g' weld='10' anchor='top-left' width='200' height='100'>
+    <Frame id='a' glass='true' seam='9' anchor='top-left' width='100' height='40' depth='6'/>
+    <Frame id='b' glass='true' anchor='top-right' width='60' height='40' depth='2'/>
+  </Frame>
+</Screen></PromptUGUI>"), "g").MaterialForTests;
+
+            Assert.AreEqual(GlassAttrParser.DefaultSeam, mat.GetVector("_GlassA").y, 0.001f);
+        }
+
+        [Test]
+        public void Seam_AloneBuildsNoGroup()
+        {
+            // Mirrors weld: seam is a group parameter, and a Frame that fuses nothing must stay the
+            // plain Frame it is (PUI-GLASS-SEAM-NO-WELD reports the document).
+            var s = Open(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='g' seam='6' anchor='top-left' width='200' height='100'>
+    <Frame id='a' glass='true' anchor='top-left' width='100' height='40'/>
+  </Frame>
+</Screen></PromptUGUI>");
+
+            Assert.IsNull(GroupOf(s, "g"), "seam on its own must not build a weld group");
+            Assert.IsNull(PanelOf(s, "g"),
+                "nor a ProceduralPanel — seam draws nothing by itself, so it attaches no Graphic");
+        }
+
+        [Test]
         public void InnerGlow_ComesFromTheContainer()
         {
             // It follows the FUSED outline, so like the border and the outer glow it belongs to the
