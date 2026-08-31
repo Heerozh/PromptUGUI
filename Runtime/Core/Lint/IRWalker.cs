@@ -164,6 +164,10 @@ namespace PromptUGUI.Lint
             foreach (var issue in HugRules.CheckHugScale(node, styles))
                 yield return issue;
 
+            // Universal: rotation / flip outside the three mesh-generating leaves, and bad values.
+            foreach (var issue in RotateFlipRules.Check(node, styles))
+                yield return issue;
+
             // class="" plus the value grammar of the procedural visual attrs (radius / borderWidth /
             // glow / the glass parameters) — pure syntax, so the CLI can reject it without a Unity
             // instance.

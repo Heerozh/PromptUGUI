@@ -54,7 +54,11 @@ namespace PromptUGUI.Controls.Internal
 
         public bool IsIdentity => _rotation == 0f && !_flipX && !_flipY;
 
-        private static float Normalize(float degrees)
+        /// <summary>Whether these authored values would be a no-op — asked before attaching.</summary>
+        internal static bool IsIdentityValues(float rotation, bool flipX, bool flipY)
+            => Normalize(rotation) == 0f && !flipX && !flipY;
+
+        internal static float Normalize(float degrees)
         {
             var v = degrees % 360f;
             if (v < 0f) v += 360f;

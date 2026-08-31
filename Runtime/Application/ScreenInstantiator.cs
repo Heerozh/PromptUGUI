@@ -217,6 +217,10 @@ namespace PromptUGUI.Application
                 foreach (var issue in PromptUGUI.Lint.CarouselRules.CheckCarousel(node))
                     Debug.LogWarning(issue.Message);
 
+            // Universal: rotation / flip on a tag that generates no mesh — silently dropped otherwise.
+            foreach (var issue in PromptUGUI.Lint.RotateFlipRules.Check(node))
+                Debug.LogWarning(issue.Message);
+
             // Universal: nav*/focus on a non-Selectable tag (e.g. <Frame navUp="x">).
             // NavTargetRules.CheckNavTarget (unknown id) is CLI-only; runtime already
             // hard-throws in ExplicitNavigationResolver for missing ids.
