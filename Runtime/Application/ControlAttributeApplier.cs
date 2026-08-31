@@ -104,6 +104,13 @@ namespace PromptUGUI.Application
             foreach (var issue in PromptUGUI.Lint.ClampRules.CheckClampScale(node))
                 throw new ParseException($"[{issue.Code}] {issue.Message}");
 
+            // A <Collapsible> with an authored height cannot render as anything: the axis is
+            // force-hugged, so the value would be silently dropped every pass. Hard error, same
+            // shape as the clamp/scale contradiction above.
+            foreach (var issue in PromptUGUI.Lint.CollapsibleRules.CheckCollapsible(node))
+                if (issue.Code == PromptUGUI.Lint.CollapsibleRules.HeightCode)
+                    throw new ParseException($"[{issue.Code}] {issue.Message}");
+
             // hug on a tag with no content size cannot be measured at all, and hug + scale has the
             // same last-writer conflict as clamp + scale. Hard errors for the same reason: silently
             // rendering a 0-sized control would be worse than refusing to open.

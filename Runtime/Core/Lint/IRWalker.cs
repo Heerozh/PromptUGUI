@@ -27,6 +27,11 @@ namespace PromptUGUI.Lint
                 foreach (var issue in WalkNode(screen.Root, inTemplateBody: false, hasStateSourceAncestor: false, hasMenuAncestor: false, hasToggleAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false, screenIds: screenIds, styles: styles))
                     yield return issue;
 
+                // Screen-wide, because an accordion is a relationship between siblings that a
+                // per-node rule cannot see.
+                foreach (var issue in CollapsibleRules.CheckGroups(screen.Root))
+                    yield return issue;
+
                 foreach (var variant in screen.Variants)
                     foreach (var add in variant.Adds)
                         foreach (var addChild in add.Children)
@@ -118,6 +123,9 @@ namespace PromptUGUI.Lint
                     yield return issue;
             else if (node.Tag == "Carousel")
                 foreach (var issue in CarouselRules.CheckCarousel(node))
+                    yield return issue;
+            else if (node.Tag == "Collapsible")
+                foreach (var issue in CollapsibleRules.CheckCollapsible(node, styles))
                     yield return issue;
             else if (node.Tag == "Markdown")
                 foreach (var issue in MarkdownRules.CheckMarkdown(node))
@@ -234,10 +242,27 @@ namespace PromptUGUI.Lint
             var childHasStateSourceAncestor = hasStateSourceAncestor || StateTriggerRules.IsStateSourceTag(node.Tag);
             var childHasMenuAncestor = hasMenuAncestor || StateTriggerRules.IsMenuSourceTag(node.Tag);
             var childHasToggleAncestor = hasToggleAncestor || StateTriggerRules.IsToggleSourceTag(node.Tag);
-            var isLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "TabMenu" or "Carousel";
+            var isLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "TabMenu"
+                                         or "Carousel" or "Collapsible";
             var isTabGroup = node.Tag is "TabBar" or "TabMenu";
             foreach (var child in node.Children)
             {
+                foreach (var issue in CollapsibleRules.CheckHeaderOutside(node, child))
+                    yield return issue.WithSource(child.OriginSrc, child.Line, child.InvokedAt);
+
+                // A <Collapsible>'s body children are a column, but its <Header>'s children are
+                // free-positioned inside the bar — so the header subtree is walked as if its parent
+                // were a <Frame>, and the <Header> node itself claims no layout slot of its own.
+                if (node.Tag == "Collapsible" && child.Tag == "Header")
+                {
+                    foreach (var issue in WalkNode(child, inTemplateBody, childHasStateSourceAncestor,
+                                                   childHasMenuAncestor, childHasToggleAncestor,
+                                                   parentIsLayoutGroup: false, isTemplateBodyRoot: false,
+                                                   screenIds: screenIds, styles: styles))
+                        yield return issue;
+                    continue;
+                }
+
                 if (isLayoutGroup)
                 {
                     foreach (var issue in LayoutGroupChildRules.CheckChild(child))

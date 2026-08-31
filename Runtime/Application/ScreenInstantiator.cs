@@ -216,6 +216,14 @@ namespace PromptUGUI.Application
             else if (node.Tag == "Carousel")
                 foreach (var issue in PromptUGUI.Lint.CarouselRules.CheckCarousel(node))
                     Debug.LogWarning(issue.Message);
+            else if (node.Tag == "Collapsible")
+                // The height rule is a hard error (ControlAttributeApplier); the header-structure
+                // ones are warnings — the panel still renders, it just ignores what it cannot use.
+                foreach (var issue in PromptUGUI.Lint.CollapsibleRules.CheckCollapsible(node))
+                {
+                    if (issue.Code == PromptUGUI.Lint.CollapsibleRules.HeightCode) continue;
+                    Debug.LogWarning(issue.Message);
+                }
 
             if (node.Tag == "Animation")
                 foreach (var issue in PromptUGUI.Lint.AnimationRules.CheckAnimation(node))

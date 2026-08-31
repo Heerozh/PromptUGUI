@@ -32,6 +32,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
             return UI.Open("S");
         }
 
+        /// <summary>Opens without returning the Screen — for tests that only care that it throws.</summary>
+        internal static void OpenForLint(string innerXml) => Open(innerXml);
+
         internal static RectTransform Header(Collapsible c) => (RectTransform)c.RectTransform.Find("Header");
         internal static RectTransform Body(Collapsible c) => (RectTransform)c.RectTransform.Find("Body");
         internal static RectTransform Content(Collapsible c) => (RectTransform)Body(c).Find("Content");
