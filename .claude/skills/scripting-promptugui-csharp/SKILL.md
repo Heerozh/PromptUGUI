@@ -1788,6 +1788,39 @@ Works for any `on=` mode. Useful for:
 - Re-firing `on="click"` triggers from code (e.g., on a non-Btn event)
 - Replaying open animations (debug / preview)
 
+### `Animation.Reverse()` / `OnReverse` — play it backwards
+
+```csharp
+var fold = screen.Get<Animation>("task-fold");
+fold.Reverse();                                   // from wherever it currently is
+fold.OnReverse.Subscribe(_ => Log("closing")).AddTo(screen);
+```
+
+The XML counterpart is `reverse-on=` (see the XML skill's `reference/animations.md`); `Reverse()` is what `reverse-on="manual"` is for. The reversal starts from the animation's **current** value, so calling it mid-flight turns the motion around instead of snapping. Declaring `reverse-on` also makes `Fire()` continue from the current value rather than restarting from the authored `from`.
+
+### `Image.Rotation` / `Flip` — mesh-level, and tweenable
+
+```csharp
+var chevron = screen.Get<Icon>("chevron");
+LMotion.Create(0f, 180f, 0.15f)
+    .Bind(v => chevron.Rotation = v)
+    .AddTo(chevron.GameObject);
+```
+
+`Rotation` (clockwise degrees) and `Flip` (`"x"` / `"y"` / `"xy"` / `"none"`) exist on `<Image>` / `<Icon>` / `<RawImage>`. They rewrite the generated mesh about the rect's centre and leave the RectTransform, the layout and the raycast area alone — which is why a rotated control still claims exactly its own slot in a stack, and why animating them does not fight `Screen.ApplyScales` the way a `localScale`-based mirror would.
+
+### Testing `hug` / `reveal` geometry in EditMode
+
+Both are resolved by Unity's layout pass, not by `UI.Open` — so a freshly opened Screen has not applied them yet. Drive one pass before asserting:
+
+```csharp
+UI.Open("S");
+Canvas.ForceUpdateCanvases();                     // now rect / LayoutElement are settled
+Assert.AreEqual(140f, screen.Get<VStack>("v").RectTransform.rect.height, 0.01f);
+```
+
+LitMotion does not tick in EditMode, so the *motion* of a `reveal` only runs in PlayMode tests; its resting state (`reveal-from`) is observable in EditMode.
+
 ### Lifecycle notes
 
 - `Animation` registers as a Control via `BuiltinPrimitives.Register<Animation>("Animation", null)` — already wired into `UI.ResetForTests`

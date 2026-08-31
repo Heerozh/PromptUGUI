@@ -286,6 +286,8 @@ Pixel-mode TMP text is additionally pixel-snapped at render time — see
 
 **`clamp(min, N%, max)` / `clamp(min, stretch, max)`（尺寸钳制，CLP）。** `width` / `height` 的值语法接受一个函数形态：中段是 `N%`（自由定位）或 `stretch`（布局组），clamp 只给它加上下限，`_` 开放一端。自由定位下 `box = clamp(N%·父长, min, max)`、margin 在 box 内 inset、贴边由 anchor 决定；几何由节点上的 `ClampFitter`（`ILayoutSelfController`）在布局 pass 里按父 rect 重算——resize / Variant / 弹板 / 动画一律自动跟随，Screen 的 ReSolve 路径不参与。布局组内映射到 `LayoutElement(min, preferred=max, flexible=0)`（上限开放时保留 flexible），是 LGC-D17 之外唯一受支持的可收缩区间。与 `scale` 同节点非法（`PUI-CLAMP-SCALE`，CLI error + 运行时 `ParseException`）。详见 `2026-08-30-clamp-size-design.md`。
 
+**`hug`（贴合内容，FND）。** `width` / `height` 再加一个关键字：`hug` = 我多大由我的内容决定。只允许在有"内容尺寸"的标签上（`<VStack>` / `<HStack>` / `<Grid>` / `<ScrollList>`，见 `HugRules.HugTags`），别处是 `PUI-HUG-TAG`（CLI error + 运行时 `ParseException`）——`<Frame>` 的子节点是自由定位的，没有可量的内容；叶子的"内容尺寸"就是 `native`。自由定位下复用 `ClampFitter` 的 Hug 模式（`box = clamp(content, min, max)`，贴边同 `%`）；布局组内，V/HStack/Grid 的裸 `hug` 等价于"该轴不写"的哨兵路径，`<ScrollList>` 与任何 `clamp(min, hug, max)` 由内部 `HugElement`（`ILayoutElement`, priority 1）以**刚性** `min = preferred` 发布——hug 是被算出来的常量，不是区间（区别于 `clamp(min, stretch, max)`）。ApplyCommon 不为 hug 轴写基线几何，否则每次 ReSolve 都要靠 fitter 撤销（违反 LGC-D18）。详见 `2026-08-31-hug-reveal-flip-checked-design.md` §1。
+
 ### 6.3 margin —— 统一为"从锚点向内的距离"
 
 ```
