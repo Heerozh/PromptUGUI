@@ -54,6 +54,10 @@ namespace PromptUGUI.Application
 
         internal Controls.Internal.ToggleGroupRegistry ToggleGroups { get; private set; }
 
+        // The accordion pool: same screen-scoped, name-keyed lifecycle as ToggleGroups, but its own
+        // type — uGUI ToggleGroup only coordinates Toggles (spec 2026-08-31-collapsible-design §4.6).
+        internal Controls.Internal.CollapsibleGroupRegistry CollapsibleGroups { get; private set; }
+
         // BindItems / Markdown 等经 ScreenInstantiator.InstantiateNode 动态实例化的子树。
         // 它们不能进 _nodeMap（同一 ElementNode 会对应 N 个卡片实例），但 scale 仍须由
         // Screen 统一应用——Nx / <r>r 依赖 _canvasFactor，且 resize / Variant ReSolve 要重算。
@@ -158,6 +162,7 @@ namespace PromptUGUI.Application
             }
 
             ToggleGroups = new Controls.Internal.ToggleGroupRegistry(root.transform);
+            CollapsibleGroups = new Controls.Internal.CollapsibleGroupRegistry();
 
             var relay = root.AddComponent<RectDimensionsRelay>();
             relay.OnDimensionsChanged = OnCanvasDimensionsChanged;
@@ -652,6 +657,7 @@ namespace PromptUGUI.Application
             _addInstances.Clear();
             _dynamicSubtrees.Clear();
             ToggleGroups = null;
+            CollapsibleGroups = null;
         }
 
         public void Close()
@@ -677,7 +683,9 @@ namespace PromptUGUI.Application
             _addInstances.Clear();
             _dynamicSubtrees.Clear();
             ToggleGroups?.Clear();
+            CollapsibleGroups?.Clear();
             ToggleGroups = null;
+            CollapsibleGroups = null;
         }
 
         public T Get<T>(string idPath) where T : class, IControl

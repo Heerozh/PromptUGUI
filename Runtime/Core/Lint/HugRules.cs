@@ -25,7 +25,7 @@ namespace PromptUGUI.Lint
         /// </summary>
         public static readonly HashSet<string> HugTags = new HashSet<string>(StringComparer.Ordinal)
         {
-            "VStack", "HStack", "Grid", "ScrollList",
+            "VStack", "HStack", "Grid", "ScrollList", "Collapsible",
         };
 
         /// <summary>True when the raw attribute value is a bare hug or a clamp whose middle is hug.</summary>

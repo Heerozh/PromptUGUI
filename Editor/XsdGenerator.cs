@@ -78,6 +78,7 @@ namespace PromptUGUI.Editor
                 WriteColor(writer);
                 WriteParam(writer);
                 WriteSlot(writer);
+                WriteHeader(writer);
                 WriteVariant(writer);
                 WriteAdd(writer);
 
@@ -529,6 +530,25 @@ namespace PromptUGUI.Editor
             w.WriteEndElement();
         }
 
+        // <Header> — the header-bar slot of <Collapsible>. Declared globally and listed in
+        // controlGroup, exactly like <Slot>: the schema says "this element exists and holds
+        // controls", and where it is legal is a lint rule (PUI-HEADER-OUTSIDE), not a grammar.
+        private static void WriteHeader(XmlWriter w)
+        {
+            w.WriteStartElement("xs", "element", null);
+            w.WriteAttributeString("name", "Header");
+            w.WriteStartElement("xs", "complexType", null);
+            w.WriteStartElement("xs", "choice", null);
+            w.WriteAttributeString("maxOccurs", "unbounded");
+            w.WriteAttributeString("minOccurs", "0");
+            w.WriteStartElement("xs", "group", null);
+            w.WriteAttributeString("ref", "controlGroup");
+            w.WriteEndElement();
+            w.WriteEndElement();
+            w.WriteEndElement();
+            w.WriteEndElement();
+        }
+
         private static void WriteVariant(XmlWriter w)
         {
             w.WriteStartElement("xs", "element", null);
@@ -648,7 +668,7 @@ namespace PromptUGUI.Editor
         }
 
         private static readonly string[] first = new[] {
-                "Frame","Image","Icon","Text","VStack","HStack","Grid","Btn","Slot"
+                "Frame","Image","Icon","Text","VStack","HStack","Grid","Btn","Slot","Header"
             };
 
         private static void WriteControlGroup(XmlWriter w, string[] customTags)

@@ -298,9 +298,21 @@ namespace PromptUGUI.Application
                 control.ReplaceScopedIds(childScope);
             }
 
-            var selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "TabMenu" or "Carousel";
+            var selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "TabMenu"
+                                             or "Carousel" or "Collapsible";
             foreach (var c in node.Children)
             {
+                // <Header> is not a control: it names which children make up the header bar. Its
+                // subtree goes to the bar's own host (free-positioning — the bar is not the body
+                // column), and the <Header> node itself never becomes a GameObject.
+                if (c.Tag == "Header" && control is Controls.Collapsible collapsible)
+                {
+                    foreach (var hc in c.Children)
+                        InstantiateRecursive(hc, collapsible.HeaderHost, parentIsLayoutGroup: false,
+                                             childScope, nodeMap,
+                                             parentControl: control, applyOrder: applyOrder);
+                    continue;
+                }
                 if (selfIsLayoutGroup)
                     foreach (var issue in PromptUGUI.Lint.HugRules.CheckHugStretchChild(node, c))
                         Debug.LogWarning(issue.Message);

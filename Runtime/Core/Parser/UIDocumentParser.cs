@@ -397,7 +397,7 @@ namespace PromptUGUI.Parser
         private static readonly string[] ThemeStyleForbiddenAttrs =
         {
             "id", "if", "class", "bind",
-            "text", "isOn", "value", "current",
+            "text", "isOn", "value", "current", "expanded",
             "mask", "showMask", "maskPadding",
         };
 
@@ -405,7 +405,7 @@ namespace PromptUGUI.Parser
         {
             "id" or "if" or "class" or "bind" =>
                 "identifies a node, and a style is shared by many nodes",
-            "text" or "isOn" or "value" or "current" =>
+            "text" or "isOn" or "value" or "current" or "expanded" =>
                 "is runtime-owned state - ControlAttributeApplier stops replaying it once code has "
                 + "taken it over, so a theme's value would be swallowed some of the time, which is "
                 + "worse than never applying",
@@ -591,6 +591,17 @@ namespace PromptUGUI.Parser
                 tag = tag.Substring(dot + 1);
             }
             var node = new ElementNode(tag, ns) { Line = LineOf(el) };
+
+            // <Header> is a structural marker inside <Collapsible>, not a control: it names WHICH
+            // children go into the header bar and nothing else. Everything about the bar itself is
+            // an attribute on the Collapsible, so an attribute here would be a second place to say
+            // the same thing (spec 2026-08-31-collapsible-design §4.2).
+            if (tag == "Header" && ns == null && el.Attributes.Count > 0)
+                throw new ParseException(
+                    "<Header> takes no attributes — it only marks which children make up the header "
+                    + "bar. Size it with headerHeight= on the <Collapsible>, skin it with "
+                    + "headerColor= / headerSprite=, and position its contents on the children "
+                    + "themselves.");
 
             foreach (XmlAttribute attr in el.Attributes)
             {
