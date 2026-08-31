@@ -29,12 +29,18 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
         private static string[] Tags => ProceduralSurfaceRules.SurfaceTags.OrderBy(t => t).ToArray();
 
+        // <Collapsible> owns its own height (header + body, PUI-COLLAPSIBLE-HEIGHT) — it is the one
+        // surface control an author cannot give one to, so this fixture asks for the bar's height
+        // instead and lets the panel work out the rest.
+        private static string SizeAttrsFor(string tag)
+            => tag == "Collapsible" ? "width='160' headerHeight='48'" : "width='160' height='48'";
+
         private static Control Load(string tag, string attrs)
         {
             UI.UnloadAll();
             UI.LoadDocument("t", $@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
-  <{tag} id='x' anchor='center' width='160' height='48' {attrs}/>
+  <{tag} id='x' anchor='center' {SizeAttrsFor(tag)} {attrs}/>
 </Screen></PromptUGUI>");
             return (Control)(object)UI.Open("S").Get<Control>("x");
         }

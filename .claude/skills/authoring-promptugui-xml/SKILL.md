@@ -100,6 +100,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 | `<TabBar>` | 互斥选项卡容器 |
 | `<Tab>` | 选项卡（`bind` 显隐 `<Frame>`） |
 | `<TabMenu>` | 弹出式 Tab 组：收起=选中项 icon+文字+箭头，展开=一列 `<Tab>` |
+| `<Collapsible>` | 内联折叠面板：标题栏常驻、body 可收放（`<Header>` 槽 / `group=` 手风琴）|
 | `<Carousel>` | 翻页轮播卡（+ `fill="false"` 居中选择器） |
 | `<Show>` | 按状态显隐子树的无视觉 wrapper |
 | `<Decor>` | 角/边装饰：角括号 / 指示三角 / 强调线 / 贴图纹样（不参与排版）→ `reference/decor.md` |
@@ -192,7 +193,7 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 - **Border, both glows, glass and `mask="self"` follow the new outline automatically** — no extra attributes, and an inner border keeps its width around a chamfer and around the inner corner of a notch.
 - Keywords are lower-case. `bevel` / `scoop` / `CUT` / `R6` are parse errors that name the legal words.
 
-> **Which tags draw procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `innerGlow` / `innerGlowColor` / `glass` (+ its tuning params) work on **`<Frame>`, `<Btn>`, `<Tab>`, `<TabMenu>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>` and `<Progress>`** — see **Procedural surfaces** below for what they do on a control.
+> **Which tags draw procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `innerGlow` / `innerGlowColor` / `glass` (+ its tuning params) work on **`<Frame>`, `<Btn>`, `<Tab>`, `<TabMenu>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>`, `<Collapsible>` and `<Progress>`** — see **Procedural surfaces** below for what they do on a control.
 >
 > On any other tag — `<Image>`, `<RawImage>`, `<Text>`, `<Icon>`, `<TabBar>`, `<Carousel>`, `<Markdown>` — they are accepted by the parser and then silently dropped; `PUI-CONTAINER-VISUAL-ATTR` is the only thing that tells you. (`<Image>` / `<RawImage>` are deliberate: a sprite is their whole point, and a procedural rectangle is what `<Frame>` is for.)
 >
@@ -319,7 +320,7 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 
 ### 程序化表面（`<Frame>` 之外的控件）
 
-在 `<Btn>` / `<Tab>` / `<TabMenu>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<InputField>` / `<ScrollList>` / `<Progress>` 上写 `radius`（或任一其它程序化属性），该控件的**主表面**就改用自绘的圆角矩形 SDF，取值语义与 `<Frame>` 逐字相同。主题因此能换掉控件的**形状**，不只是颜色。
+在 `<Btn>` / `<Tab>` / `<TabMenu>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<InputField>` / `<ScrollList>` / `<Collapsible>` / `<Progress>` 上写 `radius`（或任一其它程序化属性），该控件的**主表面**就改用自绘的圆角矩形 SDF，取值语义与 `<Frame>` 逐字相同。主题因此能换掉控件的**形状**，不只是颜色。
 
 ```xml
 <Btn radius="pill" color="accent" hoverColor="accent-light">确定</Btn>
@@ -336,6 +337,7 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 |---|---|
 | `<Btn>` `<Tab>` `<Dropdown>` `<InputField>` `<ScrollList>` | 控件自身的背景 |
 | `<TabMenu>` | **弹窗面板**（不是收起状态的把手 —— 把手默认透明，要底就套一层 `<Frame>`） |
+| `<Collapsible>` | **整块面板**（标题栏 + body 一起；标题栏另有 `headerColor` / `headerSprite` 叠在上面） |
 | `<Toggle>` | **勾选框**（不含 label） |
 | `<Slider>` | **轨道**（不含滑块） |
 | `<Progress>` | **bg 层**（在 mask 内） |
@@ -525,6 +527,63 @@ Tab 容器；私有 `ToggleGroup`（`allowSwitchOff=false`）+ `Horizontal` / `V
 | `pressedOffset` · `selectedOffset` | `x,y` px | — | 子内容位移（content-holder 平移；**Unity 符号 负 y=下**）；瞬移；`selectedOffset`=选中(`isOn`)保持按入；Pressed 优先；`""`/`none`=不动；见 states.md |
 | `tint` | `multiply` / `linear` | — | 作用于 bg（`selectedSprite` 换的也是 bg sprite，故选中图也被 tint）；见 **Tint blend modes** |
 
+### `<Collapsible>`
+
+内联折叠面板：标题栏常驻、body 收放，折叠时**下方内容顶上来**（区别于 `<TabMenu>` 的浮层弹窗）。
+标题栏是 `<Btn>` 形态的可点表面（状态广播、per-state 颜色、可聚焦），内容要么走属性三件套
+`text` / `icon` / `arrow`，要么放一个 `<Header>` 子节点自己排——**箭头两种写法都由库画、跟着折叠翻转**。
+**高度恒为「标题栏 + body」**，写 `height=` / `size=` 是 parse error（`PUI-COLLAPSIBLE-HEIGHT`）；
+宽度归作者。`expanded` 是**运行期独占状态**（用户折过之后 ReSolve 不打回）。
+**详见 [`reference/controls-collapsible.md`](reference/controls-collapsible.md)。**
+
+```xml
+<Collapsible id="tasks" text="任务" anchor="top-right" width="150" margin="90,20,_,_"
+             sprite="none" color="surface/0.55" radius="10" headerHeight="24" transition="0.2s">
+  <ScrollList id="list" itemTemplate="TaskRow" width="stretch" height="clamp(_, hug, 200)"
+              sprite="none" scrollbar=""/>
+</Collapsible>
+```
+
+| 属性 | 类型 / 取值 | 默认 | 说明 |
+|---|---|---|---|
+| `text` · `font` · `fontSize` · `textColor` | string / … | — | 标题文字（i18n 同 `<Btn>`）。与 `<Header>` 互斥 |
+| `icon` · `iconColor` | sprite key · color | — | 标题左侧 24×24 图标。与 `<Header>` 互斥 |
+| `arrow` · `arrowColor` · `arrowSize` | sprite key · color · px | `pugui_caret` · glyph · `16` | 右侧箭头；`arrow=""` 隐藏（那块宽度还给标题）。有 `<Header>` 时**照常生效** |
+| `headerHeight` | px | `44` | 标题栏高 |
+| `headerColor` · `headerSprite` | color · sprite key | 透明 · — | 标题栏自己的底，叠在面板表面之上 |
+| `hoverColor` · `pressedColor` · `disabledColor` · `*Modulate` · `pressedOffset` | 同 `<Btn>` | — | 作用于**标题栏**；`*Modulate` 不扩散进 body |
+| `expanded` | bool | `true` | 初始展开；**运行期独占**，`.variant` 可覆盖，Theme `<Style>` 禁止 |
+| `group` | string | — | 手风琴组（Screen 范围）：展开一个自动收起同组其它；允许全部收起 |
+| `transition` | 时长 | `0.2s` | 展开 / 收起过渡；`0` = 瞬切 |
+| `maxHeight` | px | — | body 限高，超出部分可竖向拖动 / 滚轮 |
+| `spacing` · `padding` | 同 `<VStack>` | — | **body** 的行距与内距 |
+| `color` · `sprite` · `tint` · `radius` · `borderWidth` · `glow*` · `innerGlow*` · `glass` … | 同 `<Frame>` / 程序化表面 | 库默认 sliced 底 | **主表面 = 整块面板** |
+| `interactable` | bool | `true` | `false` = 标题栏禁用（点不动、进 Disabled 视觉），级联 body |
+| `focus` · `nav*` | 同其它 Selectable | — | 作用于标题栏；收起时 body 不在导航图里 |
+| `height` / `size`（含 `.variant`） | — | — | **parse error `PUI-COLLAPSIBLE-HEIGHT`** |
+
+`<Header>`（结构元素，非控件）：必须是**第一个**子节点、至多一个、**不接受任何属性**；其余子节点是 body。
+它的子节点**自由定位**（`anchor` / `margin` 合法），宿主是标题栏减去右侧箭头区；body 子节点则是
+`<VStack>` 语义（写 `anchor` / `margin` 报 `PUI-LAYOUT-ANCHOR` / `PUI-LAYOUT-MARGIN`）。
+用了 `<Header>` 就不能再写 `text` / `icon` 那几个（`PUI-COLLAPSIBLE-HEADER-CONFLICT`）。
+
+```xml
+<Collapsible id="tasks" width="150">
+  <Header>
+    <HStack anchor="stretch" padding="0,8" spacing="6">
+      <Icon name="ui:quest" size="14x14"/>
+      <Text width="stretch">任务</Text>
+      <Text id="count" tr="false">3</Text>
+    </HStack>
+  </Header>
+  <TaskRow .../>
+</Collapsible>
+```
+
+动态行不走 `itemTemplate`（v1 没有）——把 `<ScrollList height="clamp(_, hug, N)">` 当 body 子节点用。
+`<Animation on="expand" reverse-on="collapse">` 让行跟着面板进出（`expand` / `collapse` 现在也解析到
+`<Collapsible>`，见 [`reference/animations.md`](reference/animations.md)）。
+
 ### `<Carousel>`
 
 水平翻页轮播卡容器：自动播放 + 拖动 + 无限循环 + 状态化指示点。卡片用 `itemTemplate` + C# `BindItems`（同 ScrollList / TabBar）或静态子卡。默认 `fill="true"` 每张卡排成视口大小，卡片**不能**写 `size`（`PUI-CAROUSEL-CARD-SIZE`）；`fill="false"` 切「居中选择器」——卡片用自身 `size`、邻卡两侧露出、焦点卡可放大(`edgeScale`)/相邻渐隐(`edgeAlpha`)。卡片始终不能写 `anchor` / `margin`（`PUI-LAYOUT-ANCHOR` / `PUI-LAYOUT-MARGIN`）。当前页 `current` 是**运行期独占状态**（resize / Variant / Theme 不重置）。**详见 [`reference/controls-carousel.md`](reference/controls-carousel.md)。**
@@ -642,6 +701,7 @@ Other notes:
 | `<Progress>`   | `RectTransform`（无 Graphic）                                                                                                                                                                                                                                  | `MaskWrapper`(`RectTransform`; 按需挂 `UnityImage` + `Mask`) → `Bg`(`Image`, 按需启用) + `Fill`(`Image`, 永远存在)；`Frame`(`Image`, 按需启用, `raycastTarget=false`)                                                                                                                  | —                                                                                                                           |
 | `<TabBar>`     | `ToggleGroup` + `HorizontalLayoutGroup`（或 `VerticalLayoutGroup` 看 `direction=`）；无自身视觉，纯布局容器                                                                                                                                                    | XML 写的或 `BindItems` 推的 `<Tab>` children；视觉由 Tab 自管,共享样式靠 Template                                                                                                                                                                                                      | `OnSelectionChanged` ← per-Tab `OnValueChanged.Where(on => on)`                                                             |
 | `<Carousel>`   | `RectTransform` + `CarouselView`（UIBehaviour，挂在 root；拖动事件从子卡冒泡上来）                                                                                                                                                        | `Viewport`(`UnityImage`+`RectMask2D`) → `Strip`(`RectTransform`，卡片的 parent)；`Indicator`(`RectTransform` + `HorizontalLayoutGroup`，点排)；每个 dot = `RectTransform`+`UnityImage`+`PuiButton`+`StateTintReactor` | 无独立 R3 事件；C# 端 `OnCurrentChanged: Observable<int>` + `BindItems(...)` |
+| `<Collapsible>` | `UnityImage`(面板底) + `VerticalLayoutGroup`(排 Header / Body) + `ExpandableMarker`；程序化表面挂在这一层 | `Header`(`UnityImage` + `PuiButton` + `LayoutElement`) → `Icon` / `Label` / `Arrow`(+`RotateFlipEffect`) / `Host`(`<Header>` 槽,懒建)；`Body`(`RectMask2D` + `CanvasGroup` + `HugElement` + `LayoutLink`,按需 `ScrollRect`) → `Content`(`VerticalLayoutGroup` + `ContentSizeFitter`) | `OnExpanded` / `OnCollapsed` / `OnToggled: bool`；`OnState` ← Header 的 `PuiButton` |
 | `<Tab>`        | `UnityImage`（bg, `targetGraphic`, supports `overrideSprite` swap while selected）+ `UnityToggle`（`graphic` 未设；配 `selectedSprite` 时 `transition=None`，否则 `transition=ColorTint`）；Toggle 的 `group` 在 `OnAttached` 用 transform-ancestor walk 找 TabBar 的 `ToggleGroup` | 可选 `Label`(`TMP_Text`, stretch fill, `Center` 对齐, raycast off, 懒建—写了 `text`/`fontSize`/`font` 才有)；可选 `Icon`(`Image`, 左 16px + 24×24, 懒建)；外加任意作者子节点（Frame 式叠放在 bg 上）；无 Overlay 自动子节点 | `OnValueChanged: bool` / `OnSelected: Unit`（只在 isOn=true 时 fire）                                                       |
 | `<SafeArea>`   | `RectTransform` + `SafeAreaTracker`（内部 `MonoBehaviour`，订阅设备 safeArea / 旋转 / Device Simulator）                                                                                                                                                       | —                                                                                                                                                                                                                                                                                      | —                                                                                                                           |
 | `<Trigger>`    | `RectTransform` 单独（无视觉、无 layout 行为，仅作 wrapper 划定事件源 scope）                                                                                                                                                                                  | —                                                                                                                                                                                                                                                                                      | `OnFire` ← R3 `Subject<Unit>`，由 `on=`（open/loop/click/hover-enter/hover-exit/press/manual）触发                          |
@@ -686,7 +746,7 @@ Other notes:
 | `stateReact="false"` | bool (default `true`) | Opts this node **and its whole subtree** out of an ancestor `<Btn>` / `<Tab>` / `<Toggle>`'s `*Modulate` fan-out. Has no effect on `*Color` (absolute — bg only, never fanned out). See `reference/states.md`. |
 | `flow="false"` | bool (default `true`) | **Layout-group children only** (direct child of `<VStack>` / `<HStack>` / `<Grid>`). Opts the child **out of the layout flow**: the group neither positions it nor counts it toward its own preferred size, and `anchor` / `margin` / `N%` regain full free-positioning semantics against the group's rect. Use for a 9-slice background layer / badge / overlay inside a hug-sized stack — see **Out-of-flow children** below. Inert under a free-positioning parent (`PUI-FLOW-OUTSIDE-GROUP`). Variant-overridable (`flow.portrait="false"`). |
 | `scale="N"` / `scale="Nx"` / `scale="<r>r"` | float `N` / `Nx` (int) / `<r>r` (float) | Three forms: `N` = box-preserving (a render-density knob, **not** a resize knob); `Nx` = N physical px per design-unit (constant across factors, **doesn't grow with the window**); `<r>r` = `r×` the canvas factor **snapped to an integer** (**grows with the window yet stays pixel-aligned**). `scale="2"` ≠ `scale="2x"`. Full formulas / examples / caveats: see **Relative scale** / **Device-density** / **Canvas-relative snapped** below. |
-| `focus="true"` | bool | **Selectable controls only** (`<Btn>` / `<Tab>` / `<TabMenu>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<InputField>` / `<ScrollList>`). Marks this control as the initial EventSystem selection when the Screen opens in Directional navigation mode. First `focus="true"` in document order wins. Does NOT apply to `BindItems`-generated dynamic controls. No-op when `UI.UseGamepadNavigation()` has not been called. → [`reference/navigation.md`](reference/navigation.md) |
+| `focus="true"` | bool | **Selectable controls only** (`<Btn>` / `<Tab>` / `<TabMenu>` / `<Collapsible>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<InputField>` / `<ScrollList>`). Marks this control as the initial EventSystem selection when the Screen opens in Directional navigation mode. First `focus="true"` in document order wins. Does NOT apply to `BindItems`-generated dynamic controls. No-op when `UI.UseGamepadNavigation()` has not been called. → [`reference/navigation.md`](reference/navigation.md) |
 | `nav="none"` | `"none"` | **Selectable controls only.** Removes the control from the directional navigation graph — arrow keys / gamepad skip it entirely (neither focused to nor from). The control remains clickable via pointer. |
 | `navUp` / `navDown` / `navLeft` / `navRight` | element `id` | **Selectable controls only.** Explicit directional-navigation override: pins the neighbor in that cardinal direction. Unspecified directions auto-fill geometrically (writing only `navDown="id"` does NOT dead-end up/left/right). Missing or inactive-variant `id` → silently falls back to geometric (no runtime throw; inactive-block targets self-heal on the activating ReSolve); CLI `PUI-NAV-UNKNOWN-TARGET` catches typos statically. Variant-overridable (`navDown.mobile="id2"`). → [`reference/navigation.md`](reference/navigation.md) |
 
@@ -698,11 +758,11 @@ Other notes:
 
 `anchor` and `margin` are **NOT** available on `<VStack>` / `<HStack>` / `<Grid>`.
 
-**Inside `<VStack>` / `<HStack>`**, a child's explicit `size` / `width` / `height` is written to `LayoutElement.preferredX` **and `minX`** with `flexibleX=0` (not to `sizeDelta`). So `<Btn size="64x64"/>` inside a VStack is **strictly 64×64** — the layout group will neither stretch **nor shrink** it: the pinned `minX` means even a space-constrained group can't compress it (it overflows the group instead). This is what keeps a fixed-size trailing control at full size — e.g. an edit `<Btn size="12x12"/>` after an intrinsic-width `<Text>` in an `<HStack>`: when the text grows past the available width, the text (whose `minWidth` stays 0) gives way (compresses / ellipsizes), the button does **not**. Only `stretch` / `stretch*N` (`minX` stays `-1`, shrinkable to 0) and the native-fallback axes below remain compressible. **Per-axis native fallback** (CSS `inline-block` 直觉): each axis the author omits is independently filled from the control's intrinsic content size, so `<Btn width="100"/>` keeps `preferredWidth=100` and gets `preferredHeight=44` (Btn's default). Controls that report a native size: `<Btn>`、`<Toggle>`、`<Icon>`、`<Dropdown>`、`<Slider>`、`<ScrollList>`、`<InputField>`、`<TabMenu>`；`<Image>` 当 sprite 非空时 (e.g. `<Btn>OK</Btn>` widens to fit text + padding, default height 44; `<Toggle>静音</Toggle>` widens to fit text + 28 padding, default height 44; `<Dropdown/>` defaults 160×44; `<InputField/>` defaults 160×44; `<Slider/>` defaults 160×44 horizontal or 44×160 vertical; `<ScrollList/>` defaults 160×200 vertical or 200×160 horizontal; `<Image sprite="..."/>` defaults to `sprite.rect.size / pixelsPerUnit`); the native-filled axis keeps `flexibleX=-1` (the LE "no opinion" sentinel) so an intrinsic `ILayoutElement` can still contribute. 无 sprite 的 `<Image/>` 拿不到 native → 那一轴回到 `preferredX=-1` 哨兵，看自带 `ILayoutElement` 报告，空状态多半 0，要可见自己写 size。
+**Inside `<VStack>` / `<HStack>`**, a child's explicit `size` / `width` / `height` is written to `LayoutElement.preferredX` **and `minX`** with `flexibleX=0` (not to `sizeDelta`). So `<Btn size="64x64"/>` inside a VStack is **strictly 64×64** — the layout group will neither stretch **nor shrink** it: the pinned `minX` means even a space-constrained group can't compress it (it overflows the group instead). This is what keeps a fixed-size trailing control at full size — e.g. an edit `<Btn size="12x12"/>` after an intrinsic-width `<Text>` in an `<HStack>`: when the text grows past the available width, the text (whose `minWidth` stays 0) gives way (compresses / ellipsizes), the button does **not**. Only `stretch` / `stretch*N` (`minX` stays `-1`, shrinkable to 0) and the native-fallback axes below remain compressible. **Per-axis native fallback** (CSS `inline-block` 直觉): each axis the author omits is independently filled from the control's intrinsic content size, so `<Btn width="100"/>` keeps `preferredWidth=100` and gets `preferredHeight=44` (Btn's default). Controls that report a native size: `<Btn>`、`<Toggle>`、`<Icon>`、`<Dropdown>`、`<Slider>`、`<ScrollList>`、`<InputField>`、`<TabMenu>`、`<Collapsible>`(caption 宽 + 标题栏高)；`<Image>` 当 sprite 非空时 (e.g. `<Btn>OK</Btn>` widens to fit text + padding, default height 44; `<Toggle>静音</Toggle>` widens to fit text + 28 padding, default height 44; `<Dropdown/>` defaults 160×44; `<InputField/>` defaults 160×44; `<Slider/>` defaults 160×44 horizontal or 44×160 vertical; `<ScrollList/>` defaults 160×200 vertical or 200×160 horizontal; `<Image sprite="..."/>` defaults to `sprite.rect.size / pixelsPerUnit`); the native-filled axis keeps `flexibleX=-1` (the LE "no opinion" sentinel) so an intrinsic `ILayoutElement` can still contribute. 无 sprite 的 `<Image/>` 拿不到 native → 那一轴回到 `preferredX=-1` 哨兵，看自带 `ILayoutElement` 报告，空状态多半 0，要可见自己写 size。
 
 **`<Text>` 是这条规则的例外 —— 在 V/HStack 里它不拍 native 快照。** Because TMP_Text is itself a live `ILayoutElement`, every axis the author omits is left at the `-1` sentinel so TMP drives it **dynamically**: a fixed-width or `width="stretch"` `wrap="true"` `<Text>` grows its **height to fit the wrapped content** (multi-line, and it re-measures whenever the text changes); a bare `<Text>Hi</Text>` with both axes omitted is sized entirely by TMP (no `LayoutElement` is attached). So **auto-height multiline labels come for free — just leave `height` off** (no placeholder-text trick needed). To pin a fixed height instead, write an explicit `height=`. (This only applies inside `<VStack>` / `<HStack>`; in free-positioning — next paragraph — `<Text>` still uses its native size, since `sizeDelta` is set once and an omitted-size label would otherwise be invisible.)
 
-**Inside `<Frame>` / `<Screen>` / `<SafeArea>` (free-positioning)**, a child's `size` / `width` / `height` is written to `RectTransform.sizeDelta`. **Per-axis native fallback**：`anchor` 该轴不 stretch + 该轴没写 size + 控件有 intrinsic content size（`<Btn>`、`<Toggle>`、`<Icon>`、`<Dropdown>`、`<Slider>`、`<ScrollList>`、`<InputField>`(默认 160×44)、`<TabMenu>`(hug caption，最小高 44)；`<Text>` 当 text 非空时取 TMP `preferredWidth/Height`；`<Image>` 当 sprite 非空时取 `sprite.rect.size / pixelsPerUnit`）→ 该轴 `sizeDelta` 用 native 兜底（避免 0 不可见）；写了的那一轴保留作者值。例：`<Text height="12">Lv. 45</Text>` 在 Frame 里 → 高 12 固定、宽按 TMP `preferredWidth` 自适应。空文本 `<Text/>` / 无 sprite 的 `<Image/>` 整体保持 `sizeDelta=(0,0)`，得自己写 `size` 或 `anchor="stretch"` + `margin`。
+**Inside `<Frame>` / `<Screen>` / `<SafeArea>` (free-positioning)**, a child's `size` / `width` / `height` is written to `RectTransform.sizeDelta`. **Per-axis native fallback**：`anchor` 该轴不 stretch + 该轴没写 size + 控件有 intrinsic content size（`<Btn>`、`<Toggle>`、`<Icon>`、`<Dropdown>`、`<Slider>`、`<ScrollList>`、`<InputField>`(默认 160×44)、`<TabMenu>`(hug caption，最小高 44)、`<Collapsible>`(宽=caption；高恒为标题栏+body，与 native 无关)；`<Text>` 当 text 非空时取 TMP `preferredWidth/Height`；`<Image>` 当 sprite 非空时取 `sprite.rect.size / pixelsPerUnit`）→ 该轴 `sizeDelta` 用 native 兜底（避免 0 不可见）；写了的那一轴保留作者值。例：`<Text height="12">Lv. 45</Text>` 在 Frame 里 → 高 12 固定、宽按 TMP `preferredWidth` 自适应。空文本 `<Text/>` / 无 sprite 的 `<Image/>` 整体保持 `sizeDelta=(0,0)`，得自己写 `size` 或 `anchor="stretch"` + `margin`。
 
 **`<Frame>` 默认 anchor 按轴 fill-or-fit**: 作者**没写** `anchor=` 时，Frame 按 size 是否存在分轴决定 —— 写过 `size`/`width`/`height` 的轴默认 top/left + 用作者写的值；没写的轴默认 stretch（填满父）。`<Frame/>` 两轴都 stretch（fill parent），`<Frame width="100"/>` X 轴固定 100、Y 轴 stretch，`<Frame size="100x50"/>` 两轴都 top-left 固定。镜像 CSS 块流：`<div style="width:100px">` 高度按 `auto` 撑开。**显式写 `anchor=`** 仍按原规则严格校验（`anchor="stretch"` + size attr 仍是 parse error）。其他控件维持 `(top, left)` 默认。
 
@@ -1273,7 +1333,7 @@ Append a comma between two colour values to produce a **vertical two-stop gradie
 ```
 
 **Where gradients work** — every attribute that paints a `Graphic`:
-- `color` on `<Image>` / `<Icon>` / `<RawImage>` / `<Btn>` / `<Tab>` / `<TabMenu>` (popup panel) / `<Toggle>` / `<Dropdown>` (+ `popupColor`) / `<Progress>` (`fillColor`, `bgColor`, `frameColor`) / `<ScrollList>` (`color`, `frameColor`) / `<Slider>` (`bgColor`) / `<InputField>` (bg only, see below) / `<Text>`
+- `color` on `<Image>` / `<Icon>` / `<RawImage>` / `<Btn>` / `<Tab>` / `<TabMenu>` (popup panel) / `<Collapsible>` (panel) / `<Toggle>` / `<Dropdown>` (+ `popupColor`) / `<Progress>` (`fillColor`, `bgColor`, `frameColor`) / `<ScrollList>` (`color`, `frameColor`) / `<Slider>` (`bgColor`) / `<InputField>` (bg only, see below) / `<Text>`
 - Absolute state colours: `hoverColor` / `pressedColor` / `selectedColor` / `disabledColor`
 
 **Where gradients are NOT supported** (runtime error; static lint):
@@ -1336,7 +1396,7 @@ The hint bends the whole ramp into a power curve, so there is no kink anywhere. 
 
 ## Tint blend modes
 
-`tint=` chooses how a control's `color` combines with its sprite. Available on these controls: `<Image>`, `<Icon>`, `<Btn>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<ScrollList>`, `<InputField>`, `<Progress>`, `<Tab>`, `<TabMenu>` (its popup panel). On `<Tab>` `tint` applies to the bg; since `selectedSprite` now swaps the bg's own sprite, the selected sprite is tinted too. Not supported on `<Text>` (TMP uses its own shader, not the UI Image shader).
+`tint=` chooses how a control's `color` combines with its sprite. Available on these controls: `<Image>`, `<Icon>`, `<Btn>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<ScrollList>`, `<InputField>`, `<Progress>`, `<Tab>`, `<TabMenu>` (its popup panel), `<Collapsible>` (the whole panel). On `<Tab>` `tint` applies to the bg; since `selectedSprite` now swaps the bg's own sprite, the selected sprite is tinted too. Not supported on `<Text>` (TMP uses its own shader, not the UI Image shader).
 
 | `tint`               | Blend                                                                                                                                  | Use it for                                                                                   |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
@@ -1528,7 +1588,7 @@ PromptUGUI never auto-enables masking — you must opt in via `mask=`. Two reaso
 
 ## Gamepad / Keyboard Navigation
 
-`<FocusCursor>` is a **`<Screen>`-level child element** (not a registered control — removed from the control tree by the parser, NOT instantiated at the cursor position). Its first child subtree is the cursor visual, which the library slides to the focused control's edge each frame. Navigation must be enabled from C# via `UI.UseGamepadNavigation()` once at startup (New Input System only). `focus="true"` marks the initial selection on open; `nav="none"` removes a control from the navigation graph; `navUp/navDown/navLeft/navRight="id"` pin explicit directional targets (unspecified directions auto-fill geometrically; only `<Btn>` / `<Tab>` / `<TabMenu>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<InputField>` / `<ScrollList>` accept these attributes — `PUI-NAV-ON-NON-SELECTABLE` catches misuse). A built-in default cursor is used when `<FocusCursor>` is omitted. Modal focus trap (navigation contained inside the active modal, restored on close) is automatic. **Full attribute table, cursor animation, explicit nav overrides, modal trap, lint rules, complete XML + C# examples: [`reference/navigation.md`](reference/navigation.md).**
+`<FocusCursor>` is a **`<Screen>`-level child element** (not a registered control — removed from the control tree by the parser, NOT instantiated at the cursor position). Its first child subtree is the cursor visual, which the library slides to the focused control's edge each frame. Navigation must be enabled from C# via `UI.UseGamepadNavigation()` once at startup (New Input System only). `focus="true"` marks the initial selection on open; `nav="none"` removes a control from the navigation graph; `navUp/navDown/navLeft/navRight="id"` pin explicit directional targets (unspecified directions auto-fill geometrically; only `<Btn>` / `<Tab>` / `<TabMenu>` / `<Collapsible>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<InputField>` / `<ScrollList>` accept these attributes — `PUI-NAV-ON-NON-SELECTABLE` catches misuse). A built-in default cursor is used when `<FocusCursor>` is omitted. Modal focus trap (navigation contained inside the active modal, restored on close) is automatic. **Full attribute table, cursor animation, explicit nav overrides, modal trap, lint rules, complete XML + C# examples: [`reference/navigation.md`](reference/navigation.md).**
 
 ## Quick reference (cheatsheet)
 
@@ -1554,6 +1614,8 @@ BUILT-INS     <Frame> <Image> <Text> <VStack> <HStack> <Grid> <Btn> <Icon>
               <Progress value="0.6" fill="ui:bar"/>  最简；mask= + 不设 bg → mask sprite 自动可见兼当底；radial 进度环不在 <Progress> 范围
               <TabBar><Tab text="A" sprite="..." selectedSprite="..." bind="frame_a" isOn="true"/>...</TabBar>  互斥 + Tab 自管 sprite/selectedSprite + bind 自动 toggle Frame
               <Carousel itemTemplate="Card" interval="5" dots="bottom-center" dotSprite="ui:dot" dotColor="#888" dotSelectedColor="#fff"/>  翻页 + 自动播放 + 拖动 + 状态化指示点；卡片走 C# BindItems；当前页 resize 不重置
+              <Collapsible text="任务" headerHeight="24" maxHeight="200" group="settings" transition="0.2s">rows</Collapsible>
+                                       内联折叠；高度恒为 header+body（height= 是 PUI-COLLAPSIBLE-HEIGHT）；<Header>…</Header> 换掉自带 caption；expanded 运行期独占
               <Show on="state-pressed">...</Show>  visible-while-state wrapper; siblings mutex; unclaimed states → state-normal fallback
 TEXT SHORT    <Text>Hi</Text> ≡ <Text text="Hi"/>     (also <Btn>, <Toggle>, <InputField>)
 

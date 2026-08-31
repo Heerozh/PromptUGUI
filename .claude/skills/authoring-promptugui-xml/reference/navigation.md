@@ -167,7 +167,11 @@ Pin specific directional inputs to a target control by id:
 | `navLeft` | Selectable controls | element `id` | Explicit left target |
 | `navRight` | Selectable controls | element `id` | Explicit right target |
 
-**Selectable controls** (the only tags that accept these attributes): `<Btn>`, `<Tab>`, `<TabMenu>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>`.
+**Selectable controls** (the only tags that accept these attributes): `<Btn>`, `<Tab>`, `<TabMenu>`, `<Collapsible>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>`.
+
+> `<Collapsible>` is focusable at its **header bar** — that is the control, and it is what Submit
+> folds. There is no trap: an inline panel does not cover the page. A collapsed body is inactive, so
+> its rows simply drop out of the navigation graph and come back when it opens.
 
 ## Popup focus trap (`<TabMenu>`)
 

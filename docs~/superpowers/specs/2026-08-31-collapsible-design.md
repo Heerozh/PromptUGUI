@@ -376,4 +376,71 @@ TM 弹板的 0.15s 略长）；箭头收起态 = 180°；收起完成停用 `Con
 
 ## 13. 实施记录
 
-（实现后追加：与本设计的偏差、实测数据、被推翻的决策。）
+> 状态：**M0–M3 全部实现完毕**（2026-09-01，分支 `feat/collapsible`，提交 `d6f5a51`…）。
+> 全量 EditMode 3341/3341、PlayMode 197/197 绿。
+
+### 13.1 与设计的偏差
+
+1. **`<Header>` 不在 parser 里摘出**（§6 / plan Task 3 原本要在 `ElementNode` 上加 `HeaderChildren`）。
+   改为**保留成普通子节点**，由 `ScreenInstantiator` 在实例化时分流到 `Header/Host`。理由：
+   `TemplateExpander` 对 `Children` 的递归有六处（`ExpandTree` / `DeepClone` / `StampInvokedAt` /
+   `CountSlots` / `EnsureNoSlot` / merge），多带一条平行链路是纯负担；保留成子节点后
+   `{{param}}` / `if=` / `<Slot/>` / 实例隔离**一行不用改就全对**（`CollapsibleHeaderParseTests`
+   里那两条模板用例第一次跑就绿）。parser 只留一条「`<Header>` 不接受任何属性」的硬错误。
+2. **body 的高度用 `HugElement` 发布，不是 `RevealDriver.ApplyBox` 写 `LayoutElement`**（§5.2）。
+   写死的 `LayoutElement` 会把上一次折叠的值冻住：隐藏一行之后面板不缩
+   （`Hiding_a_row_reflows_the_panel_with_nothing_to_notify` 抓到）。改成「布局 pass 里现读内容
+   尺寸」，动画期用 `_boxOverride` 覆盖 —— 于是 BindItems 换行 / 换语言 / 隐藏行全部自动重排，
+   零通知。`RevealDriver` 因此只在挑补间终点时用到（`Measure`）。
+3. **新增 `LayoutLink`**（§6 未预见）。uGUI 的两条布局遍历都会在「没有 layout 组件」的节点断掉：
+   `MarkLayoutForRebuild` 向上只穿过 layout group，`PerformLayoutControl` 直接跳过无 controller
+   节点的整棵子树。body 正是这种节点，于是行的脏标记到不了根列、Content 的 `ContentSizeFitter`
+   也进不了面板自己的 pass。加一个「什么都不控制的 `ILayoutGroup`」把链接上。
+   （`ScrollRect` 恰好实现了 `ILayoutGroup`，所以写了 `maxHeight` 的能跑、没写的不能 —— 这种
+   不对称本身就是 bug 的味道。）
+4. **`Toggle()` 受 `interactable` 门控，`Expand()` / `Collapse()` 不受**（§5.5 未细分）。TabMenu 是
+   `Expand()` 里判。这里的区分是：`interactable="false"` 说的是**这个控件的可操作性**（手势），
+   代码仍应能驱动一个被锁住输入的面板。
+5. **裁剪判据改为「收起 / 折叠中 / 有 maxHeight」，不做实时尺寸比较**（§5.2 原本是
+   `box < contentHeight`）。那个比较只有布局跑过之后才有答案，而 `UpdateClip` 的调用点（开屏的
+   属性 pass、折叠起步）都在布局之前 —— 限高面板开屏时会误判成不裁
+   （`A_capped_body_keeps_clipping` 抓到）。代价是「cap 比内容还高」时多一个闲置 mask。
+6. **完成回调的守卫从「句柄比对」换成单调 token**。TabMenu 用 `captured.Equals(_heightMotion)`；
+   但同步取消时新句柄还没赋值，被取消的那次会看到自己仍是「当前」，于是清掉刚接手的
+   `_boxOverride`（`Re_opening_mid_collapse_reverses_without_a_jump` 抓到，中途反向瞬间跳满）。
+   `_foldToken` 在 `CancelMotions()` **之前**自增，取消者拿到的必然是旧值。
+7. **`Expand()` / `Collapse()` 必须在翻 `IsExpanded` 之前冻住当前 box**（`FreezeCurrentBox`）。
+   否则 `BodyBox()` 的空闲答案已经变成终点，补间起点 == 终点，折叠瞬间跳到 0。
+8. **`CaptionBuilder` 的 pinned 模式用锚点而非手工摆位**（§6）。标题栏宽度由布局 pass 决定，
+   读宿主 rect 就得在 resize 回调里重排；锚点（箭头右钉 + label 双向 stretch）天然跟随。
+9. **不注册 `defaultTextAttr`**：`<Collapsible>任务</Collapsible>` 这种文本简写与「子节点是 body 行」
+   语义打架，`text=` 属性足够。
+10. **TabMenu 的箭头翻转顺带换成 `RotateFlipEffect`**（网格级 180°，绕 rect 中心）。既有三条断言
+    从 `localScale.y` 改为 `Rotation`；「翻转不位移」那条回归测试反而更强了 —— 现在 transform
+    完全不被碰。
+11. `ProceduralSurfaceRolloutTests` 的夹具要按 tag 给尺寸：Collapsible 进 `SurfaceTags` 之后，
+    那套「每个表面控件都写 `height='48'`」的参数化用例会撞 `PUI-COLLAPSIBLE-HEIGHT`。
+
+### 13.2 未做 / 已知限制
+
+- **`state-*@<collapsibleId>` 解析不到**：`FindStateSource` 要求 id 指向的控件**自身 GameObject** 上
+  有 `IStateSource`，而 Collapsible 的 `PuiButton` 在 Header 子节点上。裸 `state-*`（写在 `<Header>`
+  里）正常工作，够覆盖主要场景。要支持 `@id` 得在根上加一个转发组件 —— 留给需求出现时。
+- §11 开放问题 1（箭头收起态 90° 还是 180°）按 spec 定的 180° 落地，未加 `arrowCollapsed=`。
+- §11 开放问题 2（`<Show on="expanded@id">`）未做，理由同 spec。
+- `width="hug"` 允许（Collapsible 进了 `HugTags`），根列的 preferred 宽由标题栏的
+  `LayoutElement.preferredWidth`（caption 宽）撑起；body 的内容宽不参与，够用但不精确。
+
+### 13.3 实测数据
+
+- 新增测试：EditMode 62 条（Collapsible 28 + trigger 8 + group 8 + lint 18）+ parser 6 + CaptionBuilder 12，
+  PlayMode 8 条。
+- 全量：EditMode 3341 条 / 38.6 s，PlayMode 197 条 / 38.3 s。
+- 折叠中途反向的帧间跳变：用例阈值 25 单位（96 高的 body、0.4 s）下稳定通过。
+
+### 13.4 工具链笔记
+
+`read_console` 返回的是**最旧的一页**，不是最新的：新写的 `.cs` 有编译错误时，直接
+`read_console(types=["error"])` 很可能只看到一屏陈年 `UAL0010` 警告，而测试 job 会报
+`total: 0 / Passed`（类根本没进程序集）。**每次 refresh 前先 `read_console(action="clear")`**，
+判绿一律核对 `summary.total`。

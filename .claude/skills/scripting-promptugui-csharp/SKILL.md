@@ -374,6 +374,33 @@ The collapsed handle mirrors the **selected** tab's `text` and `icon`, so `tab.T
 selected row re-captions the menu automatically; `menu.RefreshCaption()` exists but you should not
 normally need it.
 
+### `<Collapsible>` — the inline fold
+
+```csharp
+var panel = screen.Get<Collapsible>("tasks");
+
+panel.OnExpanded / panel.OnCollapsed;   // Observable<Unit> — the same source <Animation on="expand"> listens to
+panel.OnToggled.Subscribe(open => Prefs.TasksOpen = open).AddTo(screen);   // Observable<bool>, the NEW state
+panel.OnState;                          // Observable<InteractState> of the header bar
+
+panel.IsExpanded;                       // read-only — state changes only through the three below
+panel.Expand(); panel.Collapse();       // programmatic: these work even while interactable is false
+panel.Toggle();                         // the gesture — what the header's click and Submit run, and
+                                        // what interactable="false" blocks
+
+panel.Text = "任务"; panel.Icon = "ui:quest";   // built-in caption (skip when you supplied a <Header>)
+screen.Get<Text>("tasks/count");        // a node from inside <Header> — ordinary id scope
+```
+
+Rows come from an ordinary `<ScrollList>` used as the body child rather than an `itemTemplate` of the
+panel's own: `screen.Get<ScrollList>("tasks/list").BindItems(...)`. An **open** panel republishes its
+content's height every layout pass, so pushing new rows through `BindItems`, hiding one, or switching
+locale re-flows it with nothing to call.
+
+`expanded` is runtime-owned (like `isOn` / `value`): once the user has folded the panel, a ReSolve
+will not push the XML's value back. Setting `Expanded` from code plays the transition, same as
+`Expand()` / `Collapse()`.
+
 Picking a row closes the menu — including re-picking the row already selected, which uGUI's
 `ToggleGroup` swallows (no `onValueChanged`) and which `OnSelectionChanged` therefore never sees.
 Setting `tab.IsOn = true` from code closes it too, and works even while the menu is closed: the rows
@@ -696,6 +723,7 @@ DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                .AddTo(screen)
                TabBar/TabMenu query: .Count / .SelectedIndex (-1 if empty) / .SelectedTab / .GetAt(i)
                TabMenu state: .IsExpanded / .Expand() / .Collapse() / .Toggle()
+               Collapsible:   同上 + .OnToggled: Observable<bool> / .Text / .Icon;expanded 运行期独占
                Carousel query: .Count / .Current (get/set) / .Playing (get/set) / .GoTo(i,animated) / .Next() / .Previous()
 
 MARKDOWN       md.Text = "…"                                 set → full re-render (runtime-owned)
