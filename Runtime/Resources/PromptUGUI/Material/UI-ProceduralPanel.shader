@@ -68,7 +68,17 @@ Shader "UI/ProceduralPanel"
         Lighting Off
         ZWrite Off
         ZTest [unity_GUIZTestMode]
-        Blend SrcAlpha OneMinusSrcAlpha
+        // 分离的 alpha 混合因子不是可选项：RGB 照常 source-over，**alpha 通道必须走 One
+        // OneMinusSrcAlpha**。开了 HDR 显示输出后，URP 不再把 overlay UI 直接画进 backbuffer，
+        // 而是画进一张清成透明黑的离屏 RGBA8，再由 SceneUIComposition 合成 —— 那段代码把这张图
+        // 当作「预乘 RGB + 直 alpha」：先 rgb/a 反预乘，再 rgb*a + scene*(1-a)。
+        // 若 alpha 通道也用 SrcAlpha 混，写进去的是 a*a：RGB 因为除回来而恰好抵消，但场景的透出量
+        // 变成 1-a²，于是每个 0<a<1 的像素都多漏进 a(1-a) 份背景（a=0.5 时高达 25%）。
+        // 实心填充与描边 (a=1) 毫发无损，**外发光那整条渐变**、玻璃、以及 1px AA 边却被背景冲淡，
+        // 只剩贴着形状边缘 a→1 的那一圈还是干净的 —— 正是「SDR 正常、HDR 上渐变没了只剩实色描边」。
+        // SDR 路径从不读 dst alpha，这个写法在那边逐位不变。TMP 用 `Blend One OneMinusSrcAlpha`
+        // （直接输出预乘色）绕开了同一个坑，所以文字一直是对的。
+        Blend SrcAlpha OneMinusSrcAlpha, One OneMinusSrcAlpha
         ColorMask [_ColorMask]
 
         Pass
