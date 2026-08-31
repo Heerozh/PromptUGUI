@@ -76,6 +76,11 @@ namespace PromptUGUI.Controls
         private MotionHandle _fadeMotion;
         private MotionHandle _arrowMotion;
 
+        // Bumped by every fold. A cancelled motion's completion still runs, and it runs while the
+        // replacement is still being set up — comparing handles would let it clean up after the fold
+        // that just replaced it. A token captured before the cancel cannot.
+        private int _foldToken;
+
         private readonly Subject<Unit> _expandedSubject = new();
         private readonly Subject<Unit> _collapsedSubject = new();
         private readonly Subject<bool> _toggledSubject = new();
@@ -470,6 +475,7 @@ namespace PromptUGUI.Controls
 
             Groups()?.NotifyExpanding(_groupName, this);
 
+            FreezeCurrentBox();
             IsExpanded = true;
             PlayTransition(expanding: true);
             _expandedSubject.OnNext(Unit.Default);
@@ -480,11 +486,19 @@ namespace PromptUGUI.Controls
         {
             if (!IsExpanded) return;
 
+            FreezeCurrentBox();
             IsExpanded = false;
             PlayTransition(expanding: false);
             _collapsedSubject.OnNext(Unit.Default);
             _toggledSubject.OnNext(false);
         }
+
+        /// <summary>
+        /// Pins the box to what is on screen right now, BEFORE <see cref="IsExpanded"/> flips —
+        /// otherwise the idle answer has already become the destination and the fold would have
+        /// nowhere to travel from (it would snap). A fold already in flight keeps its own value.
+        /// </summary>
+        private void FreezeCurrentBox() => _boxOverride ??= BodyBox(1);
 
         /// <summary>
         /// Runs the three channels of the fold — body height, body fade, caret turn — from wherever
@@ -499,6 +513,7 @@ namespace PromptUGUI.Controls
         /// </remarks>
         private void PlayTransition(bool expanding)
         {
+            var token = ++_foldToken;
             CancelMotions();
 
             // Measuring needs the rows alive (a TMP built under an inactive parent measures 0
@@ -508,7 +523,10 @@ namespace PromptUGUI.Controls
 
             var target = expanding ? CappedContent(RevealDriver.Measure(_content, 1)) : 0f;
 
-            if (_transition <= 0f || !UnityEngine.Application.isPlaying)
+            // Nothing to watch an animation on a panel that is hidden or outside the hierarchy, and
+            // outside play mode LitMotion never ticks at all — write the end state instead of
+            // leaving the body stuck mid-fold forever.
+            if (_transition <= 0f || !UnityEngine.Application.isPlaying || !GameObject.activeInHierarchy)
             {
                 _boxOverride = null;   // hand the axis back to "as tall as the content"
                 MarkBodyDirty();
@@ -543,13 +561,12 @@ namespace PromptUGUI.Controls
 
             // Only a fold that actually FINISHES releases the override (and, closing, switches the
             // rows off) — and only if it is still the current one: folding back mid-transition
-            // cancels this handle first, so a cancelled close cannot switch off a body the user
-            // just re-opened.
-            var captured = _heightMotion;
+            // cancels this handle, whose completion then runs against the token of the fold that
+            // replaced it and stands down.
             var wasExpanding = expanding;
             _heightMotion.GetAwaiter().OnCompleted(() =>
             {
-                if (!captured.Equals(_heightMotion)) return;
+                if (token != _foldToken) return;
                 _boxOverride = null;
                 MarkBodyDirty();
                 if (!wasExpanding && !IsExpanded) _content.gameObject.SetActive(false);
@@ -581,12 +598,21 @@ namespace PromptUGUI.Controls
             if (_body != null) LayoutRebuilder.MarkLayoutForRebuild(_body);
         }
 
-        /// <summary>Clips only while the box is short of the content — capped or mid-fold.</summary>
+        /// <summary>
+        /// Clips whenever the box may be shorter than the content: closed, mid-fold, or capped.
+        ///
+        /// <para>Deliberately not "is the box actually shorter right now" — that answer only exists
+        /// after a layout pass, and this is called from events that happen before one (an attribute
+        /// pass at Open, the start of a fold). A cap that turns out to be taller than its content
+        /// costs one idle mask; getting the mid-fold case wrong shows rows spilling out of the
+        /// panel.</para>
+        /// </summary>
         private void UpdateClip()
         {
             if (_body == null) return;
             var mask = _body.GetComponent<RectMask2D>();
-            if (mask != null) mask.enabled = BodyBox(1) < ContentHeight() - 0.01f;
+            if (mask != null)
+                mask.enabled = _boxOverride.HasValue || !IsExpanded || _maxHeight > 0f;
         }
 
         private void CancelMotions()
@@ -660,6 +686,15 @@ namespace PromptUGUI.Controls
                 _bodyCg.alpha = 1f;
                 _caption.ArrowRotation = 0f;
                 UpdateClip();
+                // An accordion cannot open several at once. Deferred, because "who came first" is
+                // only answerable once every member has registered — that is document order, which
+                // is the order the instantiator applies them in.
+                if (!string.IsNullOrEmpty(_groupName))
+                {
+                    var groupOwner = UI.OwnerScreenOf(this);
+                    if (groupOwner != null) groupOwner.DeferDuringOpen(AdjudicateGroup);
+                    else AdjudicateGroup();
+                }
                 return;
             }
 
@@ -676,6 +711,34 @@ namespace PromptUGUI.Controls
         private void HideBodyIfCollapsed()
         {
             if (!IsExpanded && _content != null) _content.gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// Closes this panel if another member of its group was authored open first. Silent —
+        /// establishing the initial look is not an open / close the author asked for, so no
+        /// <c>collapse</c> fires — but it does say so in the console, because the XML claimed
+        /// something that will not happen (the CLI says the same thing as
+        /// <c>PUI-COLLAPSIBLE-GROUP-MULTI-EXPANDED</c>).
+        /// </summary>
+        private void AdjudicateGroup()
+        {
+            if (!IsExpanded) return;
+            var groups = Groups();
+            var winner = groups?.FirstExpanded(_groupName);
+            if (winner == null || ReferenceEquals(winner, this)) return;
+
+            Debug.LogWarning(
+                $"<Collapsible id='{Id}'> group='{_groupName}': another panel in this accordion is "
+                + $"already open ('{winner.Id}', earlier in document order), so this one opens closed. "
+                + "Write expanded='false' on it to say so.");
+
+            IsExpanded = false;
+            _boxOverride = null;
+            MarkBodyDirty();
+            _bodyCg.alpha = 0f;
+            _caption.ArrowRotation = 180f;
+            UpdateClip();
+            HideBodyIfCollapsed();
         }
 
         private void ApplyHeaderHeight()
