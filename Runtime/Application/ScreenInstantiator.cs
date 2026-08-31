@@ -217,6 +217,12 @@ namespace PromptUGUI.Application
                 foreach (var issue in PromptUGUI.Lint.CarouselRules.CheckCarousel(node))
                     Debug.LogWarning(issue.Message);
 
+            if (node.Tag == "Animation")
+                foreach (var issue in PromptUGUI.Lint.AnimationRules.CheckAnimation(node))
+                    Debug.LogWarning(issue.Message);
+            foreach (var issue in PromptUGUI.Lint.AnimationRules.CheckReverseOnTag(node))
+                Debug.LogWarning(issue.Message);
+
             // Universal: rotation / flip on a tag that generates no mesh — silently dropped otherwise.
             foreach (var issue in PromptUGUI.Lint.RotateFlipRules.Check(node))
                 Debug.LogWarning(issue.Message);

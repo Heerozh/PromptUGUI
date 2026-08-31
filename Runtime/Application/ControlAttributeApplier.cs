@@ -112,6 +112,13 @@ namespace PromptUGUI.Application
             foreach (var issue in PromptUGUI.Lint.HugRules.CheckHugScale(node))
                 throw new ParseException($"[{issue.Code}] {issue.Message}");
 
+            // reveal + scale is the same last-writer conflict; the rest of AnimationRules stays on
+            // the warning channel (a wrong child count still renders something sensible).
+            if (node.Tag == "Animation")
+                foreach (var issue in PromptUGUI.Lint.AnimationRules.CheckAnimation(node))
+                    if (issue.Code == PromptUGUI.Lint.AnimationRules.ScaleCode)
+                        throw new ParseException($"[{issue.Code}] {issue.Message}");
+
             // Common attributes
             var anchor = VariantResolver.ResolveAttribute(node, "anchor", variants);
             var size = VariantResolver.ResolveAttribute(node, "size", variants);

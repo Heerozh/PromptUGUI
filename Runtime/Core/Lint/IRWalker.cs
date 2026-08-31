@@ -122,6 +122,13 @@ namespace PromptUGUI.Lint
             else if (node.Tag == "Markdown")
                 foreach (var issue in MarkdownRules.CheckMarkdown(node))
                     yield return issue;
+            else if (node.Tag == "Animation")
+                foreach (var issue in AnimationRules.CheckAnimation(node))
+                    yield return issue;
+
+            // reverse-on on anything but <Animation> is inert — there is no motion to reverse.
+            foreach (var issue in AnimationRules.CheckReverseOnTag(node))
+                yield return issue;
 
             // CLI-only: pure containers carry no Graphic; sprite/color silently dropped.
             // Intentionally NOT dispatched from ScreenInstantiator — see rule's XML docs.
