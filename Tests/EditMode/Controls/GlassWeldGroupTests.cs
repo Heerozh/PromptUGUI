@@ -190,6 +190,22 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void NegativeSeam_ReachesTheGroupUnclamped()
+        {
+            // The sign is the direction of the step's ramp — clamping it to zero would silently
+            // turn an inward step into the sharpest possible outward one.
+            var mat = GroupOf(Open(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='g' weld='10' seam='-6' anchor='top-left' width='200' height='100'>
+    <Frame id='a' glass='true' anchor='top-left' width='100' height='40' depth='6'/>
+    <Frame id='b' glass='true' anchor='top-right' width='60' height='40' depth='2'/>
+  </Frame>
+</Screen></PromptUGUI>"), "g").MaterialForTests;
+
+            Assert.AreEqual(-6f, mat.GetVector("_GlassA").y, 0.001f);
+        }
+
+        [Test]
         public void Seam_DefaultsWithoutBeingWritten()
         {
             var mat = GroupOf(Open(TwoBlocks), "g").MaterialForTests;

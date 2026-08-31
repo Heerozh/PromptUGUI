@@ -142,14 +142,17 @@ namespace PromptUGUI.Controls.Internal
         }
 
         /// <summary>
-        /// How wide the thickness step between two members is allowed to be. Lives on the group and
-        /// not on a <see cref="ProceduralPanel"/>: a carrier that writes only <c>weld</c> and
-        /// <c>seam</c> has no panel at all, and reading it from there would drop the value.
+        /// How far the thickness step between two members reaches, signed: positive puts its ramp
+        /// outside the raised block's contour, negative inside. Lives on the group and not on a
+        /// <see cref="ProceduralPanel"/>: a carrier that writes only <c>weld</c> and <c>seam</c> has
+        /// no panel at all, and reading it from there would drop the value.
         /// </summary>
         internal void SetSeam(float seam)
         {
             if (Mathf.Approximately(_seam, seam)) return;
-            _seam = Mathf.Max(0f, seam);
+            // Deliberately unclamped: clamping the sign away would silently turn an inward step into
+            // the sharpest possible outward one.
+            _seam = seam;
             SetMaterialDirty();
         }
 
