@@ -104,6 +104,7 @@ namespace PromptUGUI.Editor
                     ("saturation", "xs:string", (string)null),
                     ("noise", "xs:string", (string)null),
                     ("weld", "xs:string", (string)null),
+                    ("seam", "xs:string", (string)null),
                 });
                 WriteControl(writer, "Image", new[] { ("color", "xs:string", (string)null), ("sprite", "xs:string", (string)null), ("type", "xs:string", (string)null) });
                 WriteControl(writer, "Text", new[] { ("align", "xs:string", (string)null), ("color", "xs:string", (string)null), ("fontSize", "xs:int", (string)null), ("text", "xs:string", (string)null), ("wrap", "xs:string", (string)null), ("raycastTarget", "xs:string", (string)null) }, textContent: true);

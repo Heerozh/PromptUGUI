@@ -1,11 +1,23 @@
-// 融合玻璃组：把若干块玻璃当成一整片连续玻璃画出来。
+// 融合玻璃组：把若干块玻璃当成一整片厚薄不均的连续玻璃画出来。
 //
 // 为什么不是「各画各的再拼」：两块玻璃相邻时，用描边或缝隙去分割都很难看。这里对成员的 SDF 做
-// polynomial smooth-min，交界处自然长出圆角过渡；而「哪块是主、哪块是次」改由**厚度**表达 ——
-// 每块自己的 depth 在交界处按距离权重平滑过渡，形成一道斜面台阶，配合 smin 留下的折痕
-// (crease) 轻微压暗，层级读得出来，却一条分割线都没有。
+// polynomial smooth-min，交界处自然长出圆角过渡；而「哪块是主、哪块是次」改由**厚度**表达。
+//
+// 厚度是一张**高度图**：每块把自己的 depth 涂进这片玻璃 —— 块内直到轮廓都是满高，出了轮廓在
+// seam 内按 (1−t)³ 收到零（裙边）—— 按子级声明顺序 source-over 折叠（后涂的覆盖先涂的，
+// 不累加），再按覆盖率归一。于是
+//   · 单块：h 恒等于它自己的 depth —— 外轮廓处没有多余的坡，那一圈仍只由既有斜面负责；
+//   · 相接等厚：归一化让 h 恒定，交界不出沟（对任何剖面都成立：折叠对 depth 是线性的）；
+//   · 相接异厚：悬崖在交界线上，裙边落在先声明的那一侧；
+//   · 重叠：台阶贴着**后声明块的轮廓** —— 厚盖薄是凸台阶，薄盖厚是凹槽。
+// 剖面刻意单侧、最陡处在轮廓上：高光 = 坡度，于是它是「贴着上层块轮廓的一道亮边 + 向外渐隐的
+// 柔光」，而不是横跨整个过渡带的一条均匀宽带（对称 smoothstep 的导数就是那样，宽度只随 seam
+// 走、depth 只改亮度）。坡面按解析梯度求法线，用与外斜面同一套公式打光、并把背景轻微折一下 ——
+// 这就是真实熔接玻璃上那道细高光。厚度相同时梯度严格为零，等厚的组逐像素不变。
 //
 // 边缘打光作用在**融合后**的 SDF 上，所以高光自动沿着融合后的外轮廓流动，穿过交界时不断线。
+// 成员形状走的是单面板同一套角解算（PuguiResolveQuad / PuguiSdPanel / PuguiPanelNormal），
+// cut / notch / hexagon / rN 在融合组里照画 —— 内部台阶正是沿成员自己的轮廓走的。
 Shader "UI/GlassGroup"
 {
     Properties
@@ -20,7 +32,7 @@ Shader "UI/GlassGroup"
         _InnerGlowSize ("Inner Glow Size", Float) = 0
         _Weld        ("Weld Radius",   Float) = 8
 
-        _GlassA ("frost / _ / dispersion / noise", Vector) = (0.5, 0, 0, 0.02)
+        _GlassA ("frost / seam / dispersion / noise", Vector) = (0.5, 3, 0, 0.02)
         _GlassB ("lightDir.xy / intensity / saturation", Vector) = (0, 1, 0.6, 1.15)
 
         _StencilComp ("Stencil Comparison", Float) = 8
@@ -111,11 +123,16 @@ Shader "UI/GlassGroup"
             float4 _GlassB;
 
             // 逐成员数据。长度固定为 8：常量缓冲里的数组不能变长，C# 侧永远补满。
-            float4 _WeldRects[PUGUI_MAX_WELD_MEMBERS];       // xy = 中心（组局部）, zw = 半尺寸
-            float4 _WeldRadii[PUGUI_MAX_WELD_MEMBERS];       // TL,TR,BR,BL（pill 已在 CPU 解算）
+            float4 _WeldRects[PUGUI_MAX_WELD_MEMBERS];        // xy = 中心（组局部）, zw = 半尺寸
+            // 逐角几何，与单面板 shader 的 _Radius / _CornerH / _CornerKind / _CornerFillet 同义、
+            // 同为 CSS 顺序 TL,TR,BR,BL，且同样未经钳制 —— 钳制是角解算器的事，做两遍就会漂移。
+            float4 _WeldCornerW[PUGUI_MAX_WELD_MEMBERS];
+            float4 _WeldCornerH[PUGUI_MAX_WELD_MEMBERS];
+            float4 _WeldCornerKind[PUGUI_MAX_WELD_MEMBERS];
+            float4 _WeldCornerFillet[PUGUI_MAX_WELD_MEMBERS];
             float4 _WeldTintTop[PUGUI_MAX_WELD_MEMBERS];
             float4 _WeldTintBottom[PUGUI_MAX_WELD_MEMBERS];
-            float4 _WeldDepths[PUGUI_MAX_WELD_MEMBERS];      // x = depth
+            float4 _WeldDepths[PUGUI_MAX_WELD_MEMBERS];       // x = depth, y = shape 哨兵, z = hexW
             int _WeldCount;
 
             sampler2D _PUGUI_GlassBackdropA;
@@ -142,10 +159,17 @@ Shader "UI/GlassGroup"
                 return lerp(b, a, h) - k * h * (1.0 - h);
             }
 
-            float MemberSd(int i, float2 p)
+            // 成员的距离场与解析外法线，一次算出两者。解析法线的理由（lightAngle 是画布空间概念、
+            // 光栅 Y 轴朝向逐平台不同；导数指令在非均匀控制流里未定义）见 UI-PanelSDF.cginc。
+            float MemberSd(int i, float2 p, out float2 n)
             {
                 float4 rect = _WeldRects[i];
-                return PuguiSdRoundBox(p - rect.xy, rect.zw, _WeldRadii[i]);
+                float2 q = p - rect.xy;
+                PuguiQuad quad = PuguiResolveQuad(q, rect.zw, _WeldCornerKind[i], _WeldCornerW[i],
+                                                  _WeldCornerH[i], _WeldCornerFillet[i],
+                                                  _WeldDepths[i].y, _WeldDepths[i].z);
+                n = PuguiPanelNormal(q, rect.zw, quad);
+                return PuguiSdPanel(q, rect.zw, quad);
             }
 
             float3 SampleBackdrop(float2 uv, float frost)
@@ -164,43 +188,87 @@ Shader "UI/GlassGroup"
             {
                 float2 p = IN.local;
                 float k = max(_Weld, 1e-4);
-
-                // 第一遍：融合形状 + 硬最小值（后者只用来当权重基准，保证指数不溢出）。
-                float d = MemberSd(0, p);
-                float dmin = d;
-                for (int i = 1; i < _WeldCount; i++)
-                {
-                    float di = MemberSd(i, p);
-                    dmin = min(dmin, di);
-                    d = PuguiSmin(d, di, k);
-                }
-
-                // 第二遍：按「离本块表面多近」加权，把逐块的 depth 与 tint 混成逐像素的值。
-                // 重算一次 SDF 而不是存数组：省掉 indexable temp，代价只是几十条 ALU。
                 float s = 1.0 / k;
+
+                // 分支外求导：分支条件逐像素成立，非均匀控制流里的 ddx/ddy 未定义。对**局部坐标**
+                // 求导（不是对 d），拿到的就是「一屏幕像素等于多少画布单位」，与 SDF 的梯度是否
+                // 恰好为 1 无关 —— 角解算在退化处并不保证这一点。取两轴的 RMS，与光栅 Y 轴朝向
+                // 无关，跨平台一致。
+                float2 dpdx = ddx(p);
+                float2 dpdy = ddy(p);
+                float unitsPerPixel = max(sqrt(0.5 * (dot(dpdx, dpdx) + dot(dpdy, dpdy))), 1e-5);
+                // 0 是合法的 seam，意思是「本机能画的最锐」：兜到两个设备像素，台阶永远不会细到
+                // 消失，也不会因为一个 0 除数炸掉梯度。
+                float seam = max(_GlassA.y, 2.0 * unitsPerPixel);
+
+                // 一趟循环把四件事一起折叠出来。角解算比圆角盒贵得多，所以每个成员的 SDF 与法线
+                // 只求一次 —— 不再像以前那样为了省 indexable temp 而重算第二遍。
+                //
+                //  (1) 融合形状 d：polynomial smooth-min；
+                //  (2) 外斜面用的逐像素 depth 与法线：按「离本块表面多近」的 softmax 权重混合。
+                //      基准 dmin 边走边降，累加器随之按 exp((新-旧)/k) 缩放（在线 softmax），
+                //      指数永不溢出，且不必先跑一遍求最小值；
+                //  (3) 厚度高度图 h 与 tint：软覆盖 r = 块内 1、轮廓外 seam 内 (1−t)³、再外 0，
+                //      按声明顺序 source-over 折叠，最后除以覆盖率 cov 归一。归一是关键 —— 单块
+                //      时 h 恒等于它自己的 depth，外轮廓处不会凭空长出一道坡；
+                //  (4) h 的解析梯度：裙边上 ∇r = −3(1−t)²/seam · n，块内与裙边外为 0，
+                //      折叠式与 h 同构，最后按商法则合成 ∇h。
+                float d = 1e6;
+                float dmin = 1e6;
                 float wsum = 0.0;
                 float depth = 0.0;
-                float4 tint = 0.0;
                 float2 nrm = 0.0;
+                float accH = 0.0;
+                float cov = 0.0;
+                float4 accT = 0.0;
+                float2 gradH = 0.0;
+                float2 gradCov = 0.0;
                 for (int j = 0; j < _WeldCount; j++)
                 {
-                    float dj = MemberSd(j, p);
-                    float w = exp(-(dj - dmin) * s);
+                    float2 nj;
+                    float dj = MemberSd(j, p, nj);
                     float4 rect = _WeldRects[j];
+                    float depthJ = _WeldDepths[j].x;
                     float tj = saturate((p.y - (rect.y - rect.w)) / max(2.0 * rect.w, 1e-4));
-                    tint += lerp(_WeldTintBottom[j], _WeldTintTop[j], tj) * w;
-                    depth += _WeldDepths[j].x * w;
-                    // 融合形状的法线 = 各块法线按同一组权重的混合。这正是 smin 对梯度做的事，
-                    // 于是焊缝处法线平滑过渡、高光自然绕着融合后的外轮廓走 —— 而且不用多求一次
-                    // SDF。解析法线的理由（跨平台一致 + 分支安全）见 UI-PanelSDF.cginc。
-                    nrm += PuguiSdNormal(p - rect.xy, rect.zw, _WeldRadii[j]) * w;
+                    float4 tintJ = lerp(_WeldTintBottom[j], _WeldTintTop[j], tj);
+
+                    d = (j == 0) ? dj : PuguiSmin(d, dj, k);
+
+                    float newMin = min(dmin, dj);
+                    float rescale = (j == 0) ? 0.0 : exp((newMin - dmin) * s);
+                    wsum *= rescale;
+                    depth *= rescale;
+                    nrm *= rescale;
+                    dmin = newMin;
+                    float w = exp(-(dj - dmin) * s);
                     wsum += w;
+                    depth += depthJ * w;
+                    // 融合形状的法线 = 各块法线按同一组权重的混合。这正是 smin 对梯度做的事，
+                    // 于是焊缝处法线平滑过渡、高光自然绕着融合后的外轮廓走。
+                    nrm += nj * w;
+
+                    // 裙边剖面：t = 出轮廓多远 / seam。三次方让最陡处正好压在轮廓上、往外缓缓
+                    // 收掉 —— 高光贴边、柔光向外，seam 是柔光能伸出去多远。
+                    float t = saturate(dj / seam);
+                    float skirt = 1.0 - t;
+                    float r = skirt * skirt * skirt;
+                    float onSkirt = (dj > 0.0 && dj < seam) ? 1.0 : 0.0;
+                    float2 gr = onSkirt * (-3.0 * skirt * skirt / seam) * nj;
+                    gradH   = (1.0 - r) * gradH   + (depthJ - accH) * gr;
+                    gradCov = (1.0 - r) * gradCov + (1.0 - cov) * gr;
+                    accH = lerp(accH, depthJ, r);
+                    accT = lerp(accT, tintJ, r);
+                    cov  = lerp(cov, 1.0, r);
                 }
                 float inv = 1.0 / max(wsum, 1e-5);
-                tint *= inv;
                 depth *= inv;
                 float nlen = length(nrm);
                 float2 fusedNormal = nlen < 1e-6 ? float2(0.0, 1.0) : nrm / nlen;
+
+                float invCov = 1.0 / max(cov, 1e-4);
+                float4 tint = accT * invCov;
+                // 商法则。所有成员之外 cov→0，此处 inside 也是 0，台阶项整个被乘掉。
+                float2 heightGrad = (gradH * cov - accH * gradCov) * invCov * invCov;
 
                 float fw = max(fwidth(d), 1e-4);
                 float inside = saturate(0.5 - d / fw);
@@ -215,10 +283,12 @@ Shader "UI/GlassGroup"
                 float intensity  = _GlassB.z;
                 float saturation = _GlassB.w;
 
-                // 分支外求导：分支条件逐像素成立，非均匀控制流里的 ddx/ddy 未定义。这里只取
-                // 长度（一屏幕像素等于多少画布单位），与光栅 Y 轴朝向无关，跨平台一致。
-                float2 gradScreen = float2(ddx(d), ddy(d));
-                float unitsPerPixel = max(length(gradScreen), 1e-5);
+                // 台阶的坡面：法线朝下坡（从厚块指向薄块），强度是坡度经 Reinhard 压缩 ——
+                // 越陡越亮，但永不封顶成一条平顶亮带（saturate 会），剖面始终是柔的。
+                // 厚度相同时 heightGrad 严格为零，等厚的组一个像素都不变。
+                float slope = length(heightGrad);
+                float stepAmount = slope / (1.0 + slope);
+                float2 stepNormal = slope < 1e-5 ? float2(0.0, 1.0) : -heightGrad / slope;
 
                 float4 base = float4(0.0, 0.0, 0.0, 0.0);
                 if (_PUGUI_GlassBackdropAvailable > 0.5 && inside > 0.0)
@@ -231,6 +301,10 @@ Shader "UI/GlassGroup"
                     float bevel = band * band;
 
                     float2 offset = n * bevel * (depth / unitsPerPixel) * 0.5 / _ScreenParams.xy;
+                    // 台阶也折射：真玻璃的厚度落差会把背景折一下，这一步正是「一道台阶」与
+                    // 「画了条线」的区别。位移峰值约半个 seam，与外斜面同一约定；色散那三次
+                    // 采样自然连它一起分开，不多花一次纹理采样。
+                    offset += stepNormal * stepAmount * (seam / unitsPerPixel) * 0.5 / _ScreenParams.xy;
 
                     float3 rgb;
                     if (dispersion > 0.0)
@@ -251,6 +325,13 @@ Shader "UI/GlassGroup"
                     float ndl = dot(n, lightDir);
                     float spec = pow(saturate(ndl), 4.0) + 0.35 * pow(saturate(-ndl), 4.0);
                     rgb += spec * bevel * intensity;
+
+                    // 厚度台阶上的高光：与外斜面同一条公式，只是作用在高度图的坡面上。高出的
+                    // 一方朝光的那一侧亮起来，背光侧留 0.35 的弱补光 —— 熔接玻璃上那道细线。
+                    float ndlStep = dot(stepNormal, lightDir);
+                    float specStep = pow(saturate(ndlStep), 4.0)
+                                   + 0.35 * pow(saturate(-ndlStep), 4.0);
+                    rgb += specStep * stepAmount * intensity * inside;
 
                     // 接触阴影：焊缝里侧压暗一点点，让两块的厚度差读得出来。没有它，融合处会平得
                     // 像同一块板，主次关系就丢了。

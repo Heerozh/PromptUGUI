@@ -40,6 +40,7 @@ namespace PromptUGUI.Tests.Editor
             var xsd = XsdGenerator.Generate(new ControlRegistry());
             StringAssert.Contains("name=\"innerGlow\"", xsd);
             StringAssert.Contains("name=\"innerGlowColor\"", xsd);
+            StringAssert.Contains("name=\"seam\"", xsd);
         }
 
         [Test]

@@ -130,6 +130,7 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 | `glass` | `true` / `false` | `false` | Frosted-glass fill: the shape shows a blurred copy of the camera image instead of a flat colour. `color` becomes a tint on top of it. → `reference/glass.md` |
 | `frost` · `depth` · `dispersion` · `lightAngle` · `lightIntensity` · `saturation` · `noise` | 数值 | 见 glass.md | Glass tuning. Ignored without `glass="true"` (`PUI-GLASS-PARAM-NO-GLASS`) |
 | `weld` | px | `0` | Fuses this Frame's **direct glass children** into one continuous pane. → `reference/glass.md` |
+| `seam` | px | `3` | In a `weld` group: how far the glow of the thickness step between two blocks of different `depth` reaches out from the raised block's edge (the line itself hugs the edge; brightness comes from the `depth` gap). Ignored without `weld` (`PUI-GLASS-SEAM-NO-WELD`). → `reference/glass.md` |
 
 ```xml
 <Frame color="surface/0.9" radius="16" borderWidth="1" borderColor="stroke/0.15"/>
@@ -189,14 +190,13 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 - **Fillet `rN`** (`cut 16 r6` / `notch 12 r4` / `hexagon 40 r6`) rounds every vertex the treatment creates with a **tangent arc** of radius N — a fillet on the existing shape, not a different corner shape. What to expect: the arc is tangent to both sides, so it also eats a little into the adjacent straight edge (≈0.41·N on a 45° cut); grow N past what the chamfer can hold (`cut 16` holds ≈27) and the two arcs merge — `cut 16 r30` is exactly `30`, so N is a continuous "how soft" dial; the outline's extents never change (a `hexagon … rN` tip is blunter but still touches the rect edge); on a `notch`, N is capped at half the bite's shorter side, where the bite becomes a smooth S-curve; a chamfer that runs into the neighbouring corner's quadrant carries its N there too, so every vertex in that quadrant — including that corner's own, if it was square or had a smaller N — is rounded by the larger N. `rN` is one glued token (`r6`, like the `x` in `WxH`): `16 r4` (a round corner has nothing to fillet), `pill r4`, `cut 16 r 6` and `cut 16 round 6` are parse errors that say what to write.
 - **`pill` and `hexagon` are whole-shape keywords** — writing one inside a four-value list is a parse error. Both resolve against the live rect, so they follow a resizing panel on their own; `hexagon` in particular keeps its tips exactly at half height, which hand-written `cut` values would lose the moment the height changed.
 - **Border, both glows, glass and `mask="self"` follow the new outline automatically** — no extra attributes, and an inner border keeps its width around a chamfer and around the inner corner of a notch.
-- **One exception: `weld`.** A weld group fuses its members with a smooth union, which rounds every corner back off, so a welded block's treatment degrades to a plain round corner of the same reach. `PUI-WELD-CORNER` warns; see `reference/glass.md`.
 - Keywords are lower-case. `bevel` / `scoop` / `CUT` / `R6` are parse errors that name the legal words.
 
 > **Which tags draw procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `innerGlow` / `innerGlowColor` / `glass` (+ its tuning params) work on **`<Frame>`, `<Btn>`, `<Tab>`, `<TabMenu>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>` and `<Progress>`** — see **Procedural surfaces** below for what they do on a control.
 >
 > On any other tag — `<Image>`, `<RawImage>`, `<Text>`, `<Icon>`, `<TabBar>`, `<Carousel>`, `<Markdown>` — they are accepted by the parser and then silently dropped; `PUI-CONTAINER-VISUAL-ATTR` is the only thing that tells you. (`<Image>` / `<RawImage>` are deliberate: a sprite is their whole point, and a procedural rectangle is what `<Frame>` is for.)
 >
-> `weld` is `<Frame>`-only in all cases: it fuses a Frame's direct glass **children**, and a control has none.
+> `weld` and `seam` are `<Frame>`-only in all cases: they describe a group fused from a Frame's direct glass **children**, and a control has none.
 >
 > This holds for `<Style>` / `class=` too: one pack now skins a Frame and a Btn alike, and still does nothing to an `<Image>` wearing the same class.
 
@@ -327,7 +327,7 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 - `hoverColor` 等状态色**照常生效**（`targetGraphic` 跟着表面走）。**例外 `<Slider>`**：它的 `targetGraphic` 留在滑块上，因为会响应 hover/press 的本来就是滑块而不是轨道。
 - 禁用态自动去饱和、玻璃另外变薄，**形状保持**。
 - 背景 Image 只是让位（贴图清空、alpha 归零），**不销毁** —— 所以变体来回切能精确还原，控件也照常收得到点击。
-- `weld` 不进控件：它融的是 `<Frame>` 的直接玻璃**子级**。
+- `weld` / `seam` 不进控件：它们说的是 `<Frame>` 直接玻璃**子级**融成的那一组。
 
 **内层也能给形状，但只给形状。** `<Slider>` 与 `<Progress>` 的内部图层各多一个 `<layer>Radius`，和已有的 `<layer>Color` 配成对：
 

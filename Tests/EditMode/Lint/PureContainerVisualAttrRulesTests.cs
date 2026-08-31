@@ -176,6 +176,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("Icon", "frost")]
         [TestCase("RawImage", "radius")]
         [TestCase("Image", "weld")]
+        [TestCase("Image", "seam")]
         [TestCase("Text", "innerGlow")]
         public void ControlWithoutASurface_ProceduralAttr_VisualAttrIssue(string tag, string attr)
         {

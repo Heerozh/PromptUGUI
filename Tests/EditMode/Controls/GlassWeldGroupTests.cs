@@ -175,6 +175,79 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Seam_ReachesTheGroup()
+        {
+            var mat = GroupOf(Open(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='g' weld='10' seam='6' anchor='top-left' width='200' height='100'>
+    <Frame id='a' glass='true' anchor='top-left' width='100' height='40' depth='6'/>
+    <Frame id='b' glass='true' anchor='top-right' width='60' height='40' depth='2'/>
+  </Frame>
+</Screen></PromptUGUI>"), "g").MaterialForTests;
+
+            Assert.AreEqual(6f, mat.GetVector("_GlassA").y, 0.001f,
+                "seam is how wide the thickness step between two blocks is allowed to be");
+        }
+
+        [Test]
+        public void Seam_DefaultsWithoutBeingWritten()
+        {
+            var mat = GroupOf(Open(TwoBlocks), "g").MaterialForTests;
+            Assert.AreEqual(GlassAttrParser.DefaultSeam, mat.GetVector("_GlassA").y, 0.001f);
+        }
+
+        [Test]
+        public void Seam_SurvivesAContainerWithNoPanelOfItsOwn()
+        {
+            // Nobody wrote frost/border/glow here, so the carrier has no ProceduralPanel at all.
+            // seam still has to arrive: it is the one group parameter an author can write on a bare
+            // weld carrier, and reading it off a panel that was never attached would silently
+            // discard it.
+            var mat = GroupOf(Open(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='g' weld='8' seam='5' anchor='top-left' width='200' height='100'>
+    <Frame id='a' glass='true' anchor='top-left' width='100' height='40' depth='6'/>
+    <Frame id='b' glass='true' anchor='top-right' width='40' height='40' depth='2'/>
+  </Frame>
+</Screen></PromptUGUI>"), "g").MaterialForTests;
+
+            Assert.AreEqual(5f, mat.GetVector("_GlassA").y, 0.001f);
+        }
+
+        [Test]
+        public void Seam_OnAMember_DoesNotReachTheGroup()
+        {
+            // One continuous pane is welded one way; a per-block seam would be two.
+            // PUI-GLASS-WELD-PARAM-PLACEMENT reports it, and the runtime drops it.
+            var mat = GroupOf(Open(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='g' weld='10' anchor='top-left' width='200' height='100'>
+    <Frame id='a' glass='true' seam='9' anchor='top-left' width='100' height='40' depth='6'/>
+    <Frame id='b' glass='true' anchor='top-right' width='60' height='40' depth='2'/>
+  </Frame>
+</Screen></PromptUGUI>"), "g").MaterialForTests;
+
+            Assert.AreEqual(GlassAttrParser.DefaultSeam, mat.GetVector("_GlassA").y, 0.001f);
+        }
+
+        [Test]
+        public void Seam_AloneBuildsNoGroup()
+        {
+            // Mirrors weld: seam is a group parameter, and a Frame that fuses nothing must stay the
+            // plain Frame it is (PUI-GLASS-SEAM-NO-WELD reports the document).
+            var s = Open(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='g' seam='6' anchor='top-left' width='200' height='100'>
+    <Frame id='a' glass='true' anchor='top-left' width='100' height='40'/>
+  </Frame>
+</Screen></PromptUGUI>");
+
+            Assert.IsNull(GroupOf(s, "g"), "seam on its own must not build a weld group");
+            Assert.IsNull(PanelOf(s, "g"),
+                "nor a ProceduralPanel — seam draws nothing by itself, so it attaches no Graphic");
+        }
+
+        [Test]
         public void InnerGlow_ComesFromTheContainer()
         {
             // It follows the FUSED outline, so like the border and the outer glow it belongs to the
@@ -215,25 +288,63 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void MemberPill_IsResolvedOnTheCpu()
+        public void MemberCorners_ArePackedInCssOrder()
         {
-            // The single-panel shader defers pill to keep materials shareable; a group material is
-            // per-group, so there is nothing left to protect and the CPU can just do it.
+            // The group runs the same corner solver as the single-panel shader, so what it needs is
+            // the same four vectors — not a radius the CPU has already flattened to a circle.
+            var s = Open(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='g' weld='10' anchor='top-left' width='200' height='100'>
+    <Frame id='a' glass='true' radius='8, cut 16, 0, 0' anchor='top-left' width='100' height='40'/>
+    <Frame id='b' glass='true' anchor='top-right' width='40' height='40'/>
+  </Frame>
+</Screen></PromptUGUI>");
+            var mat = GroupOf(s, "g").MaterialForTests;
+            var kinds = mat.GetVectorArray("_WeldCornerKind");
+            var widths = mat.GetVectorArray("_WeldCornerW");
+
+            Assert.AreEqual((float)CornerKind.Round, kinds[0].x, 0.01f, "top-left stays round");
+            Assert.AreEqual((float)CornerKind.Cut, kinds[0].y, 0.01f, "top-right is the chamfer");
+            Assert.AreEqual(8f, widths[0].x, 0.01f);
+            Assert.AreEqual(16f, widths[0].y, 0.01f);
+        }
+
+        [Test]
+        public void MemberFillet_IsPacked()
+        {
+            var s = Open(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='g' weld='10' anchor='top-left' width='200' height='100'>
+    <Frame id='a' glass='true' radius='cut 16 r4' anchor='top-left' width='100' height='40'/>
+    <Frame id='b' glass='true' anchor='top-right' width='40' height='40'/>
+  </Frame>
+</Screen></PromptUGUI>");
+            var fillets = GroupOf(s, "g").MaterialForTests.GetVectorArray("_WeldCornerFillet");
+            Assert.AreEqual(4f, fillets[0].x, 0.01f);
+        }
+
+        [Test]
+        public void MemberShape_IsPassedAsASentinel()
+        {
+            // pill and hexagon depend on the rect, so they are solved on the GPU exactly as they are
+            // for a single panel — the group no longer flattens them on the CPU.
             var s = Open(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
   <Frame id='g' weld='10' anchor='top-left' width='200' height='100'>
     <Frame id='a' glass='true' radius='pill' anchor='top-left' width='100' height='40'/>
-    <Frame id='b' glass='true' anchor='top-right' width='40' height='40'/>
+    <Frame id='b' glass='true' radius='hexagon' anchor='top-right' width='40' height='40'/>
   </Frame>
 </Screen></PromptUGUI>");
-            var radii = GroupOf(s, "g").MaterialForTests.GetVectorArray("_WeldRadii");
-            Assert.AreEqual(20f, radii[0].x, 0.01f, "pill on a 100x40 block is half the short side");
-            Assert.AreEqual(20f, radii[0].z, 0.01f);
+            var depths = GroupOf(s, "g").MaterialForTests.GetVectorArray("_WeldDepths");
+            Assert.AreEqual((float)PanelShape.Pill, depths[0].y, 0.01f);
+            Assert.AreEqual((float)PanelShape.Hexagon, depths[1].y, 0.01f);
         }
 
         [Test]
-        public void OversizedRadius_IsClampedToTheBlock()
+        public void OversizedRadius_IsLeftToTheShader()
         {
+            // Clamping to the short side is the corner solver's job, and it is the same solver here
+            // as on a single panel — doing it twice is how the two drift apart.
             var s = Open(@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
   <Frame id='g' weld='10' anchor='top-left' width='200' height='100'>
@@ -241,8 +352,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
     <Frame id='b' glass='true' anchor='top-right' width='40' height='40'/>
   </Frame>
 </Screen></PromptUGUI>");
-            var radii = GroupOf(s, "g").MaterialForTests.GetVectorArray("_WeldRadii");
-            Assert.AreEqual(20f, radii[0].x, 0.01f);
+            var widths = GroupOf(s, "g").MaterialForTests.GetVectorArray("_WeldCornerW");
+            Assert.AreEqual(500f, widths[0].x, 0.01f);
         }
 
         // ---- geometry ----

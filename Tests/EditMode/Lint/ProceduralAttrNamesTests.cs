@@ -34,21 +34,22 @@ namespace PromptUGUI.Tests.EditMode.Lint
         }
 
         [Test]
-        public void All_IsPanelAttachingPlusWeld()
+        public void All_IsPanelAttachingPlusTheTwoGroupAttrs()
         {
             CollectionAssert.AreEqual(
-                ProceduralAttrNames.PanelAttaching.Concat(new[] { "weld" }).ToList(),
+                ProceduralAttrNames.PanelAttaching.Concat(new[] { "weld", "seam" }).ToList(),
                 ProceduralAttrNames.All.ToList(),
-                "weld is the one procedural attribute that does NOT give the Frame a Graphic of its "
-                + "own (GlassGroupPanel.Attach puts the fused pane on a child), which is exactly why "
-                + "the two lists differ");
+                "weld and seam are the two procedural attributes that do NOT give the Frame a "
+                + "Graphic of its own (GlassGroupPanel.Attach puts the fused pane on a child, and "
+                + "seam is a value that pane reads), which is exactly why the two lists differ");
         }
 
-        [Test]
-        public void Weld_IsAFrameAttribute_ButNotPanelAttaching()
+        [TestCase("weld")]
+        [TestCase("seam")]
+        public void GroupAttrs_AreFrameAttributes_ButNotPanelAttaching(string attr)
         {
-            Assert.IsTrue(UI.Registry.Resolve("Frame").Meta.HasAttribute("weld"));
-            CollectionAssert.DoesNotContain(ProceduralAttrNames.PanelAttaching, "weld");
+            Assert.IsTrue(UI.Registry.Resolve("Frame").Meta.HasAttribute(attr));
+            CollectionAssert.DoesNotContain(ProceduralAttrNames.PanelAttaching, attr);
         }
 
         /// <summary>
