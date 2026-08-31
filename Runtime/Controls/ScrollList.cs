@@ -12,9 +12,16 @@ using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class ScrollList : ProceduralControl
+    public sealed class ScrollList : ProceduralControl, IHugContent
     {
         private UnityImage _bg;
+
+        // height="hug" on a list means "as tall as the rows", not "as tall as the viewport I already
+        // am" — so the content node answers, not this rect. SelfReportsContentSize stays false: the
+        // ScrollList root carries no ILayoutElement, so inside a stack a HugElement has to publish it
+        // (FND §1.4.3).
+        float IHugContent.ContentSize(int axis)
+            => _content != null ? LayoutUtility.GetPreferredSize(_content, axis) : 0f;
 
         private protected override GameObject SurfaceHost => GameObject;
         private UnityImage _frame;

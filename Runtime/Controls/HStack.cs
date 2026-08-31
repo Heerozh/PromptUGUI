@@ -4,9 +4,15 @@ using UnityEngine.UI;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class HStack : Control
+    public sealed class HStack : Control, Internal.IHugContent
     {
         private HorizontalLayoutGroup _layout;
+
+        // See VStack: the group already publishes this node's content size to a parent group.
+        protected internal override bool SelfReportsContentSize => true;
+
+        float Internal.IHugContent.ContentSize(int axis)
+            => axis == 0 ? _layout.preferredWidth : _layout.preferredHeight;
 
         public override void OnAttached()
         {
