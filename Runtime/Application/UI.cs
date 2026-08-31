@@ -614,6 +614,41 @@ namespace PromptUGUI.Application
             }
         }
 
+        /// <summary>
+        /// 用已取到的 xml 文本装一份文档，但走和 <see cref="LoadDocumentAsync"/> 同一条合并路径：
+        /// 沿 <c>&lt;Import&gt;</c> 链（经 <see cref="SourceResolver"/>）取依赖、合并 commons 池
+        /// （全局 Template / Style）、注册 Theme 块，再展开模板。
+        /// 给模态框 / 加载遮罩（<c>ModalDocCache</c>）用——它们的源文由 <c>ModalSourceLoader</c>
+        /// 先取到手（内置皮走 Resources，不经 SourceResolver），所以不能直接按 src 走
+        /// <see cref="LoadDocumentAsync"/>；而原先的同步 <see cref="LoadDocument(string, string)"/>
+        /// 只做 Parse + Expand，模态 XML 里既用不了 Import 也用不了 commons 里的共享模板。
+        /// <para>不入 depGraph：模态不参与 <see cref="ReloadAsync"/>，编辑器里由
+        /// <c>ModalDocCache.Invalidate</c> 重载。没有 Import 的文档全程不碰 SourceResolver，
+        /// 内置皮在 EditMode（无 PlayerLoop）下照样同步完成。</para>
+        /// </summary>
+        internal static async UnityEngine.Awaitable LoadDocumentWithCommonsAsync(string label, string xml)
+        {
+            // 入口文档已在手上：resolver 只替 Import 链取源。没有 Import 时永远不会走到 SourceResolver。
+            Func<string, UnityEngine.Awaitable<string>> resolver = s =>
+            {
+                if (s == label) return AwaitableHelpers.Completed(xml);
+                if (SourceResolver == null)
+                    throw new System.InvalidOperationException(
+                        $"UI.SourceResolver must be set to resolve <Import src=\"{s}\"> of '{label}'");
+                return SourceResolver(s);
+            };
+
+            var loaded = await DocumentLoader.LoadAndMergeAsync(label, resolver, _commonsPool, _commonsStyles);
+            RegisterThemesAndAutoSet(loaded);
+            var expanded = PromptUGUI.Template.TemplateExpander.Expand(loaded);
+            foreach (var s in expanded.Screens)
+            {
+                if (_docs.ContainsKey(s.Name))
+                    throw new System.InvalidOperationException(AlreadyLoadedMessage(s.Name));
+                _docs[s.Name] = s;
+            }
+        }
+
         internal static void UnloadDocument(string screenName)
         {
             _docs.Remove(screenName);
