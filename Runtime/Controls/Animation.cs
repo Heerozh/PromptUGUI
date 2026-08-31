@@ -7,13 +7,18 @@ using UnityEngine;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class Animation : Trigger
+    public sealed class Animation : Trigger, Internal.IRevealTarget
     {
         private RectTransform _offsetProxy;
         private CanvasGroup _cg;
         private MotionHandle[] _current;
         private readonly AnimationSpec _animSpec = new AnimationSpec();
         private AnimationSpec.AnimationSnapshot _lastApplied;
+        private System.IDisposable _reverseSub;
+        private readonly R3.Subject<R3.Unit> _reverse = new();
+
+        /// <summary>Fires every time this animation is played backwards (<c>reverse-on=</c> or <see cref="Reverse"/>).</summary>
+        public R3.Observable<R3.Unit> OnReverse => _reverse;
 
         protected internal override Transform ChildHostTransform => _offsetProxy;
 
@@ -86,11 +91,11 @@ namespace PromptUGUI.Controls
                 if (!_revealInitialized)
                 {
                     _revealBox = ResolveReveal(_animSpec.RevealFrom);
-                    _revealAtLargerEnd = IsLarger(_animSpec.RevealFrom, _animSpec.RevealTo);
+                    _revealShowsEverything = _animSpec.RevealFrom.IsHug;
                     _revealInitialized = true;
                 }
                 ApplyRevealBox(_revealBox);
-                RevealDriver.SetClip(RevealHost.gameObject, !_revealAtLargerEnd);
+                RevealDriver.SetClip(RevealHost.gameObject, !_revealShowsEverything);
             }
 
             base.OnAfterApply();  // Trigger handles initial Fire / subscriptions
@@ -100,7 +105,14 @@ namespace PromptUGUI.Controls
 
         private float _revealBox;
         private bool _revealInitialized;
-        private bool _revealAtLargerEnd;
+
+        /// <summary>
+        /// Whether the box currently shows the whole content — true only at a <c>hug</c> endpoint,
+        /// which is the one value that means "exactly as big as what is inside". A numeric endpoint
+        /// may or may not cover the content, so the clip stays on for those: being wrong there would
+        /// spill the overflow across the siblings.
+        /// </summary>
+        private bool _revealShowsEverything;
 
         /// <summary>The node whose size the reveal owns — the layout wrapper when there is one.</summary>
         private RectTransform RevealHost => LayoutHost;
@@ -121,21 +133,30 @@ namespace PromptUGUI.Controls
         private void ApplyRevealBox(float value)
             => RevealDriver.ApplyBox(RevealHost, _animSpec.RevealAxis, value, RevealInLayoutGroup);
 
-        /// <summary>
-        /// Which endpoint is the open one. <c>hug</c> counts as the larger side without measuring:
-        /// the clip only has to be right, and content bigger than a partial reveal is what the
-        /// channel is for. Measuring here would cost a layout rebuild on every ReSolve.
-        /// </summary>
-        private static bool IsLarger(Internal.RevealValue a, Internal.RevealValue b)
-            => a.IsHug ? !b.IsHug : (!b.IsHug && a.Px > b.Px);
+        // ── IRevealTarget ────────────────────────────────────────────────────────────────
 
         /// <summary>Current reveal box — read by the driver so a fire starts from where we are.</summary>
-        internal float RevealBox => _revealBox;
+        float Internal.IRevealTarget.RevealBox => _revealBox;
 
-        internal void SetRevealBox(float value)
+        void Internal.IRevealTarget.SetRevealBox(float value)
         {
             _revealBox = value;
             ApplyRevealBox(value);
+        }
+
+        float Internal.IRevealTarget.ResolveReveal(Internal.RevealValue value) => ResolveReveal(value);
+
+        void Internal.IRevealTarget.SetRevealClip(bool on)
+            => RevealDriver.SetClip(RevealHost.gameObject, on);
+
+        void Internal.IRevealTarget.OnRevealSettled(bool reversed)
+        {
+            // Landed on an endpoint: remember whether it shows everything, so the next ReSolve
+            // re-asserts the same clip state, and drop the mask when nothing is hidden any more
+            // (a live RectMask2D breaks batching for the whole subtree).
+            var landed = reversed ? _animSpec.RevealFrom : _animSpec.RevealTo;
+            _revealShowsEverything = landed.IsHug;
+            RevealDriver.SetClip(RevealHost.gameObject, !_revealShowsEverything);
         }
 
         public override Vector2? GetNativeSize()
@@ -149,11 +170,37 @@ namespace PromptUGUI.Controls
             return size;
         }
 
+        protected override void InitTriggerSubscription()
+        {
+            base.InitTriggerSubscription();
+            if (_animSpec.ReverseOn != null)
+                _reverseSub = SubscribeSpec(_animSpec.ReverseOn, Reverse);
+        }
+
         protected override void OnTriggerFired()
         {
             CancelCurrent();
-            _current = AnimationDriver.Play(_animSpec, _offsetProxy, _cg, ResolveTextTarget());
+            _current = AnimationDriver.Play(_animSpec, Context(), reverse: false);
         }
+
+        /// <summary>
+        /// Plays this animation backwards from wherever it currently is. Called by
+        /// <c>reverse-on=</c>; also the C# entry point for <c>reverse-on="manual"</c>.
+        /// </summary>
+        public void Reverse()
+        {
+            CancelCurrent();
+            _current = AnimationDriver.Play(_animSpec, Context(), reverse: true);
+            _reverse.OnNext(R3.Unit.Default);
+        }
+
+        private Internal.AnimationContext Context() => new Internal.AnimationContext
+        {
+            Proxy = _offsetProxy,
+            Cg = _cg,
+            Text = ResolveTextTarget(),
+            Reveal = this,
+        };
 
         private TMP_Text ResolveTextTarget()
         {
@@ -209,6 +256,8 @@ namespace PromptUGUI.Controls
         public override void Dispose()
         {
             CancelCurrent();
+            _reverseSub?.Dispose();
+            _reverse.Dispose();
             base.Dispose();
         }
     }
