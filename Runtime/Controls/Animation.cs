@@ -71,8 +71,82 @@ namespace PromptUGUI.Controls
             {
                 CancelCurrent();
                 _lastApplied = snap;
+                _revealInitialized = false;   // new endpoints → re-establish the resting box
             }
+
+            // Reveal's resting state is reveal-from, NOT identity: "hidden until something opens it"
+            // is what the channel means, and an on="expand@..." subtree has no business being
+            // visible before the expand (FND §2.4.4). Established BEFORE base.OnAfterApply, because
+            // that is where an on="open" trigger fires — it must start from the resting box.
+            //
+            // Re-asserted on every pass: ApplyCommon has just reset the geometry this owns, so
+            // without this a Variant flip or a resize would snap a half-open panel shut.
+            if (_animSpec.HasReveal)
+            {
+                if (!_revealInitialized)
+                {
+                    _revealBox = ResolveReveal(_animSpec.RevealFrom);
+                    _revealAtLargerEnd = IsLarger(_animSpec.RevealFrom, _animSpec.RevealTo);
+                    _revealInitialized = true;
+                }
+                ApplyRevealBox(_revealBox);
+                RevealDriver.SetClip(RevealHost.gameObject, !_revealAtLargerEnd);
+            }
+
             base.OnAfterApply();  // Trigger handles initial Fire / subscriptions
+        }
+
+        // ── reveal (FND §2.4) ────────────────────────────────────────────────────────────
+
+        private float _revealBox;
+        private bool _revealInitialized;
+        private bool _revealAtLargerEnd;
+
+        /// <summary>The node whose size the reveal owns — the layout wrapper when there is one.</summary>
+        private RectTransform RevealHost => LayoutHost;
+
+        /// <summary>The single authored child (PUI-REVEAL-SINGLE-CHILD guarantees there is one).</summary>
+        private RectTransform RevealChild =>
+            _offsetProxy != null && _offsetProxy.childCount > 0
+                ? (RectTransform)_offsetProxy.GetChild(0)
+                : null;
+
+        private bool RevealInLayoutGroup =>
+            RevealHost.parent != null
+            && RevealHost.parent.GetComponent<UnityEngine.UI.HorizontalOrVerticalLayoutGroup>() != null;
+
+        internal float ResolveReveal(Internal.RevealValue v)
+            => v.IsHug ? RevealDriver.Measure(RevealChild, _animSpec.RevealAxis) : v.Px;
+
+        private void ApplyRevealBox(float value)
+            => RevealDriver.ApplyBox(RevealHost, _animSpec.RevealAxis, value, RevealInLayoutGroup);
+
+        /// <summary>
+        /// Which endpoint is the open one. <c>hug</c> counts as the larger side without measuring:
+        /// the clip only has to be right, and content bigger than a partial reveal is what the
+        /// channel is for. Measuring here would cost a layout rebuild on every ReSolve.
+        /// </summary>
+        private static bool IsLarger(Internal.RevealValue a, Internal.RevealValue b)
+            => a.IsHug ? !b.IsHug : (!b.IsHug && a.Px > b.Px);
+
+        /// <summary>Current reveal box — read by the driver so a fire starts from where we are.</summary>
+        internal float RevealBox => _revealBox;
+
+        internal void SetRevealBox(float value)
+        {
+            _revealBox = value;
+            ApplyRevealBox(value);
+        }
+
+        public override Vector2? GetNativeSize()
+        {
+            var native = base.GetNativeSize();
+            if (!_animSpec.HasReveal || !_revealInitialized || !native.HasValue) return native;
+            // Report the animating box, not the child's full size: a parent group must reserve what
+            // is actually shown right now.
+            var size = native.Value;
+            size[_animSpec.RevealAxis] = _revealBox;
+            return size;
         }
 
         protected override void OnTriggerFired()
