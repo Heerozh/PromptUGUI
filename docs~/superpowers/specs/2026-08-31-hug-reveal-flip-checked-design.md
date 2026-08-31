@@ -547,4 +547,50 @@ subtree, its enclosing template instance, or screen 'X'"。向后兼容：所有
 
 ## 11. 实施记录
 
-（实现后追加：与本设计的偏差、实测数据、被推翻的决策。）
+> 状态：**M1–M4 全部实现完毕**（2026-09-01，分支 `feat/hug-reveal-flip-checked`，
+> 提交 `995a8bb`…`7c7a17f`）。全量 EditMode 3261/3261、PlayMode 189/189 绿。
+
+### 11.1 与设计的偏差
+
+1. **`ApplyCommon` 不再为 hug 轴写基线几何**（§1.4.2 未预见）。设计原文让 hug 走 `MarginResolver`
+   的正常路径再由 fitter 覆盖；实测发现那样每次 ReSolve 都会把 rect 打回 0、再靠 fitter 撤销，
+   于是**必然标脏**，`Steady_state_resolve_with_hug_dirties_nothing` 直接抓到，违反 LGC-D18。
+   现在 hug 轴的 `sizeDelta` / `anchoredPosition` 保持 fitter 上次写入的值不动（`Control.cs`
+   自由定位分支）。anchor / pivot / margin / 内容变化仍会通过 `OnRectTransformDimensionsChange`
+   把 fitter 标脏，所以没有丢更新的路径。
+2. **`ClampFitter.Apply` 的 `parent == null` 早退保留**（§1.5 说"改为仅 Fraction 模式"）。Hug 的
+   High / Center 对齐仍要读父长，早退对两种模式都对。
+3. **`HugElement` 不做"排除自身"的读取器**（§9 开放问题 3 因此失效）。改为：内容尺寸一律由控件的
+   `IHugContent.ContentSize` 提供（V/HStack/Grid 直接读自己 LayoutGroup 的 `preferred*`，
+   ScrollList 读 `_content`），从不走 `LayoutUtility.GetPreferredSize(自己)`，递归在源头就不存在。
+4. **reveal 的裁剪判据是"是否停在 hug 端"，不是"是否停在较大端"**（§2.4.2 的说法过粗）。
+   `reveal-to='90'` 而内容 140 时，较大端仍然遮住内容 —— PlayMode 用例
+   `An_explicit_pixel_endpoint_is_honoured` 抓到。只有 `hug` 端代表"框正好等于内容"，才撤 mask。
+5. **`checked` 的开屏派发靠 `Screen.IsOpening`，不是订阅时的状态比较**（§4.4 只说"进入即触发"）。
+   控件的 `isOn=` 属性在子节点订阅**之后**才应用（属性自底向上），所以 `isOn="true"` 是以边沿形式
+   到达的；只比较订阅时状态会让首帧建立永远不生效（`An_animation_already_in_state_...` 抓到）。
+   新增 `Screen.IsOpening`（`_deferredOpenActions != null`）作为判据。
+6. **`AnimationDriver` 的六处 loop switch 未做 builder 级去重**（§2.5 "顺手"）。LitMotion 的
+   `MotionBuilder` 是 `ref struct`，LangVersion 9 下不能作泛型实参。改为把三路 switch 收成
+   `LoopCountOf` / `LoopTypeOf` 两个纯函数，每条通道一行 `WithLoops(loops, loopType)`
+   （`LoopMode.None` → `(1, Restart)` 正是 LitMotion 的默认值）。
+7. **Task 4 / Task 6 的 lint 规则先写实现后补测试**（plan 要求红先行）。新类型不存在时的"红"只是
+   编译错误，信号弱于断言红；规则本身是纯函数，测试覆盖正反例，判断为可接受的偏差。
+
+### 11.2 顺带发现（未修，记录在案）
+
+- **`<ScrollList>` 的行高来自行自己的 rect，而非 `LayoutElement`。** content 组是
+  `AddComponent<VerticalLayoutGroup>()` 之后从未设 `childControlWidth/Height`，于是行模板写
+  `height='32'` 今天是**静默无效**的（行停在 RectTransform 默认的 100）。hug 如实反映内容尺寸，
+  没有改动这一行为 —— 改它会动到所有既有 ScrollList 的外观，属另一个决策。
+- `EditorOnly` 的 `SpriteAtlasSyncerTests` 会间歇性抛
+  `IOException: Sharing violation on ssw_re_client\Assembly-CSharp.csproj`（每次失败的用例集都不同，
+  2–8 条不等）。持有者是本机运行中的 VS Code C# 语言服务（`dotnet.exe`），与本特性无关。
+
+### 11.3 实测数据
+
+- 全量 EditMode 3261 条 / 37.8 s；PlayMode 189 条 / 36.7 s。
+- reveal 中途反向的最大帧间跳变：用例阈值 25 单位（140 高的面板、0.4 s 时长）下稳定通过，
+  实际观测远小于阈值。
+- hug 的空闲成本：未使用时零组件；使用时每个节点一个 `ILayoutSelfController` / `ILayoutElement`，
+  只在布局 pass 内计算。
