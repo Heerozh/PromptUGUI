@@ -3,13 +3,15 @@
 // 为什么不是「各画各的再拼」：两块玻璃相邻时，用描边或缝隙去分割都很难看。这里对成员的 SDF 做
 // polynomial smooth-min，交界处自然长出圆角过渡；而「哪块是主、哪块是次」改由**厚度**表达。
 //
-// 厚度是一张**高度图**：每块把自己的 depth 涂进这片玻璃 —— 满高的那片在 seam 宽的斜坡上收到零，
-// 斜坡落在轮廓外（seam > 0）还是轮廓内（seam < 0）由符号选，两者是同一条三次曲线的镜像 ——
-// 按子级声明顺序 source-over 折叠（后涂的覆盖先涂的，不累加），再按覆盖率归一。于是
-//   · 单块：h 恒等于它自己的 depth —— 外轮廓处没有多余的坡，那一圈仍只由既有斜面负责；
-//   · 相接等厚：归一化让 h 恒定，交界不出沟（对任何剖面都成立：折叠对 depth 是线性的）；
-//   · 相接异厚：悬崖在交界线上，裙边落在先声明的那一侧；
-//   · 重叠：台阶贴着**后声明块的轮廓** —— 厚盖薄是凸台阶，薄盖厚是凹槽。
+// 厚度按子级声明顺序 source-over 折叠（后涂的覆盖先涂的，不累加）。台阶不是对折叠结果求导，而是
+// **逐条轮廓**累加：每块在自己的轮廓上从身下的高度跨到自己的 depth，跨越发生在一条 seam 宽的斜坡
+// 上，落在轮廓外（seam > 0）还是轮廓内（seam < 0）由符号选，两者是同一条三次曲线的镜像。于是
+//   · 单块：身下没有材料（闸门为 0），外轮廓那一圈仍只由既有斜面负责；
+//   · 相接等厚：厚度差为零，交界不出沟；
+//   · 相接异厚：台阶在交界线上；
+//   · 重叠：台阶贴着**后声明块的轮廓** —— 厚盖薄是凸台阶，薄盖厚是凹槽；
+//   · 上层块的轮廓跑出下层材料之外：闸门跟着覆盖率在 seam 内淡出，台阶柔和收尾而不是被硬切
+//     （那里上层块的边已经是整片玻璃的外轮廓，本来就该交给外斜面）。
 // 剖面刻意单侧、最陡处在轮廓上：高光 = 坡度，于是它是「贴着上层块轮廓的一道亮边 + 渐隐的柔光」，
 // 而不是横跨整个过渡带的一条均匀宽带（对称 smoothstep 的导数就是那样，宽度只随 seam 走、depth
 // 只改亮度）。亮边的位置与符号无关（两条镜像剖面都在轮廓上最陡），符号只决定柔光落在哪一侧。
@@ -212,11 +214,14 @@ Shader "UI/GlassGroup"
                 //  (2) 外斜面用的逐像素 depth 与法线：按「离本块表面多近」的 softmax 权重混合。
                 //      基准 dmin 边走边降，累加器随之按 exp((新-旧)/k) 缩放（在线 softmax），
                 //      指数永不溢出，且不必先跑一遍求最小值；
-                //  (3) 厚度高度图 h 与 tint：软覆盖 r = 块内 1、轮廓外 seam 内 (1−t)³、再外 0，
-                //      按声明顺序 source-over 折叠，最后除以覆盖率 cov 归一。归一是关键 —— 单块
-                //      时 h 恒等于它自己的 depth，外轮廓处不会凭空长出一道坡；
-                //  (4) h 的解析梯度：裙边上 ∇r = −3(1−t)²/seam · n，块内与裙边外为 0，
-                //      折叠式与 h 同构，最后按商法则合成 ∇h。
+                //  (3) 厚度与 tint：软覆盖 c = 块内 1、轮廓外 seam 内 (1−t)³、再外 0，按声明顺序
+                //      source-over 折叠；
+                //  (4) 台阶梯度：**逐条轮廓累加**，不是对折叠出来的高度场求导。每条轮廓贡献
+                //      「它与身下材料的厚度差 × 剖面导数」，并乘一个闸门 = 折叠到它之前的覆盖率
+                //      （身下有多少材料可踩）。闸门只做乘法、不参与求导，这是关键：对高度场求导
+                //      会被商法则把**下层块自己轮廓上的覆盖率梯度**带进来，在上层块覆盖率 < 1 的
+                //      地方（向内剖面的整条斜坡带）漏成一条沿下层块边缘的假线，并在下层材料到头
+                //      处硬切。乘法闸门两个毛病都没有：假线不存在，材料到头时台阶在 seam 内淡出。
                 float d = 1e6;
                 float dmin = 1e6;
                 float wsum = 0.0;
@@ -225,8 +230,7 @@ Shader "UI/GlassGroup"
                 float accH = 0.0;
                 float cov = 0.0;
                 float4 accT = 0.0;
-                float2 gradH = 0.0;
-                float2 gradCov = 0.0;
+                float2 stepGrad = 0.0;
                 for (int j = 0; j < _WeldCount; j++)
                 {
                     float2 nj;
@@ -251,31 +255,35 @@ Shader "UI/GlassGroup"
                     // 于是焊缝处法线平滑过渡、高光自然绕着融合后的外轮廓走。
                     nrm += nj * w;
 
-                    // 斜坡剖面：把距离按符号翻一下，向外与向内就是同一条三次曲线的镜像 ——
-                    // 两者都在**轮廓上**最陡、往远端三次方收掉，所以亮边永远贴着轮廓，
-                    // 变的只是柔光落在轮廓的哪一侧。seam 是那道柔光能伸多远。
+                    // 本块这条轮廓的台阶。斜坡剖面把距离按符号翻一下 —— 向外与向内是同一条三次
+                    // 曲线的镜像，两者都在**轮廓上**最陡、往远端三次方收掉，所以亮边永远贴着轮廓，
+                    // 变的只是柔光落在哪一侧；seam 是那道柔光能伸多远。
+                    //
+                    // 强度 = 厚度差 × 闸门，而 (depthJ − accH/cov)·cov 就是 depthJ·cov − accH，
+                    // 于是连除法都不用。折叠前取值：cov / accH 此刻正是「身下」的覆盖与高度。
+                    // 单块（cov = 0）与等厚（depthJ·cov == accH）都严格得零，无需特判。
                     float dRamp = inward > 0.5 ? -dj : dj;
                     float skirt = 1.0 - saturate(dRamp / seam);
-                    float cube = skirt * skirt * skirt;
-                    float r = inward > 0.5 ? 1.0 - cube : cube;
                     float onRamp = (dRamp > 0.0 && dRamp < seam) ? 1.0 : 0.0;
-                    // 两条剖面的梯度表达式逐字相同（镜像把两处符号翻转抵消掉了）。
-                    float2 gr = onRamp * (-3.0 * skirt * skirt / seam) * nj;
-                    gradH   = (1.0 - r) * gradH   + (depthJ - accH) * gr;
-                    gradCov = (1.0 - r) * gradCov + (1.0 - cov) * gr;
-                    accH = lerp(accH, depthJ, r);
-                    accT = lerp(accT, tintJ, r);
-                    cov  = lerp(cov, 1.0, r);
+                    stepGrad += (depthJ * cov - accH)
+                              * (onRamp * -3.0 * skirt * skirt / seam) * nj;
+
+                    // 折叠用的软覆盖恒取**向外**那条：一块材料一直实到自己的轮廓、再往外软收。
+                    // 这正是让邻块的边不会漏进台阶里的那一半原因（另一半是上面的乘法闸门）。
+                    float tc = saturate(dj / seam);
+                    float sc = 1.0 - tc;
+                    float c = sc * sc * sc;
+                    accH = lerp(accH, depthJ, c);
+                    accT = lerp(accT, tintJ, c);
+                    cov  = lerp(cov, 1.0, c);
                 }
                 float inv = 1.0 / max(wsum, 1e-5);
                 depth *= inv;
                 float nlen = length(nrm);
                 float2 fusedNormal = nlen < 1e-6 ? float2(0.0, 1.0) : nrm / nlen;
 
-                float invCov = 1.0 / max(cov, 1e-4);
-                float4 tint = accT * invCov;
-                // 商法则。所有成员之外 cov→0，此处 inside 也是 0，台阶项整个被乘掉。
-                float2 heightGrad = (gradH * cov - accH * gradCov) * invCov * invCov;
+                float4 tint = accT * (1.0 / max(cov, 1e-4));
+                float2 heightGrad = stepGrad;
 
                 float fw = max(fwidth(d), 1e-4);
                 float inside = saturate(0.5 - d / fw);

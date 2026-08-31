@@ -121,6 +121,11 @@ blocks of equal `depth` — the step is the difference, so there is no line to r
   groove. Two blocks that merely touch keep their heights whatever the order; the crisp edge of the
   step is always the *later* block's contour, and the glow falls on the earlier block (`seam` > 0)
   or on the later one (`seam` < 0).
+- **A step needs something underneath.** It draws the difference between a block and the material
+  below it, so where a raised block's contour runs past the edge of everything beneath, there is no
+  difference left to draw — that stretch of contour is the pane's own outer edge and the ordinary
+  edge lighting takes over. The step fades out over `seam` as the material below runs out, so the
+  handover is smooth; you do not need to shape the lower block to match.
 - Because the step follows the **upper block's own contour**, the block underneath can be the
   simplest rectangle: a raised trapezoid laid over a plain bar produces the trapezoid's diagonal,
   and the bar does not need a matching corner cut out of it.
