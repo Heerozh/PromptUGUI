@@ -307,9 +307,14 @@ namespace PromptUGUI.Tests.EditMode.Controls
   </Frame>
 </Screen></PromptUGUI>";
 
-        // The inner block's left contour: 40px left of centre, halfway up.
-        private const int StepProbeX = Size / 2 - 40;
+        // Just outside the inner block's left contour (40px left of centre), halfway up. The step is
+        // one-sided: the block keeps its full height up to its own contour and the drop happens in a
+        // skirt OUTSIDE it, steepest at the contour — so the pixel that sees the face is the one
+        // sitting on the skirt, not the one inside the block.
+        private const int StepProbeX = Size / 2 - 40 - 2;
         private const int StepProbeY = Size / 2;
+        // Deeper into the same skirt (seam is 12 here): the fade must have taken most of it away.
+        private const int StepFarProbeX = Size / 2 - 40 - 9;
 
         private static float Luma(Color c) => 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
 
@@ -328,6 +333,22 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.Greater(Luma(lit), Luma(away) + 0.05f,
                 $"the thickness step must catch the light on the side it faces, got lit={lit} " +
                 $"away={away}");
+        }
+
+        [Test]
+        public void ThicknessStep_IsBrightAtTheContourAndFadesOutwards()
+        {
+            // The design brief is a fine line hugging the raised block with a soft glow beyond it,
+            // not a uniform band across the whole transition. That is the skirt profile: steepest
+            // at the contour, cubic falloff outside. Two pixels on the same skirt, both lit from
+            // the side the face looks at — the one at the contour must be clearly brighter.
+            Open(string.Format(StepPair, "90", "2"));
+            var near = RenderAndSampleAt(StepProbeX, StepProbeY);
+            var far = RenderAndSampleAt(StepFarProbeX, StepProbeY, "promptugui-glass-seam-profile.png");
+
+            Assert.Greater(Luma(near), Luma(far) + 0.05f,
+                $"the step highlight should peak at the block's contour and fade across the seam, " +
+                $"got near={near} far={far}");
         }
 
         [Test]

@@ -130,7 +130,7 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 | `glass` | `true` / `false` | `false` | Frosted-glass fill: the shape shows a blurred copy of the camera image instead of a flat colour. `color` becomes a tint on top of it. → `reference/glass.md` |
 | `frost` · `depth` · `dispersion` · `lightAngle` · `lightIntensity` · `saturation` · `noise` | 数值 | 见 glass.md | Glass tuning. Ignored without `glass="true"` (`PUI-GLASS-PARAM-NO-GLASS`) |
 | `weld` | px | `0` | Fuses this Frame's **direct glass children** into one continuous pane. → `reference/glass.md` |
-| `seam` | px | `3` | In a `weld` group: how wide the thickness step between two blocks of different `depth` is. Ignored without `weld` (`PUI-GLASS-SEAM-NO-WELD`). → `reference/glass.md` |
+| `seam` | px | `3` | In a `weld` group: how far the glow of the thickness step between two blocks of different `depth` reaches out from the raised block's edge (the line itself hugs the edge; brightness comes from the `depth` gap). Ignored without `weld` (`PUI-GLASS-SEAM-NO-WELD`). → `reference/glass.md` |
 
 ```xml
 <Frame color="surface/0.9" radius="16" borderWidth="1" borderColor="stroke/0.15"/>

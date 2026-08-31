@@ -3,14 +3,17 @@
 // 为什么不是「各画各的再拼」：两块玻璃相邻时，用描边或缝隙去分割都很难看。这里对成员的 SDF 做
 // polynomial smooth-min，交界处自然长出圆角过渡；而「哪块是主、哪块是次」改由**厚度**表达。
 //
-// 厚度是一张**高度图**：每块把自己的 depth 按「以本块轮廓为中心、宽 seam 的软覆盖」涂进这片
-// 玻璃，按子级声明顺序 source-over 折叠（后涂的覆盖先涂的，不累加），再按覆盖率归一。于是
+// 厚度是一张**高度图**：每块把自己的 depth 涂进这片玻璃 —— 块内直到轮廓都是满高，出了轮廓在
+// seam 内按 (1−t)³ 收到零（裙边）—— 按子级声明顺序 source-over 折叠（后涂的覆盖先涂的，
+// 不累加），再按覆盖率归一。于是
 //   · 单块：h 恒等于它自己的 depth —— 外轮廓处没有多余的坡，那一圈仍只由既有斜面负责；
-//   · 相接等厚：覆盖率互补、h 恒定，交界不出沟；
-//   · 相接异厚：一道宽约 seam 的单调台阶；
-//   · 重叠：台阶落在**后声明块的轮廓**上 —— 厚盖薄是凸台阶，薄盖厚是凹槽。
-// 台阶的坡面按解析梯度求出法线，用与外斜面同一套公式打光、并把背景轻微折一下 —— 这就是真实
-// 熔接玻璃上那道细高光。厚度相同时梯度严格为零，等厚的组逐像素不变。
+//   · 相接等厚：归一化让 h 恒定，交界不出沟（对任何剖面都成立：折叠对 depth 是线性的）；
+//   · 相接异厚：悬崖在交界线上，裙边落在先声明的那一侧；
+//   · 重叠：台阶贴着**后声明块的轮廓** —— 厚盖薄是凸台阶，薄盖厚是凹槽。
+// 剖面刻意单侧、最陡处在轮廓上：高光 = 坡度，于是它是「贴着上层块轮廓的一道亮边 + 向外渐隐的
+// 柔光」，而不是横跨整个过渡带的一条均匀宽带（对称 smoothstep 的导数就是那样，宽度只随 seam
+// 走、depth 只改亮度）。坡面按解析梯度求法线，用与外斜面同一套公式打光、并把背景轻微折一下 ——
+// 这就是真实熔接玻璃上那道细高光。厚度相同时梯度严格为零，等厚的组逐像素不变。
 //
 // 边缘打光作用在**融合后**的 SDF 上，所以高光自动沿着融合后的外轮廓流动，穿过交界时不断线。
 // 成员形状走的是单面板同一套角解算（PuguiResolveQuad / PuguiSdPanel / PuguiPanelNormal），
@@ -205,10 +208,10 @@ Shader "UI/GlassGroup"
                 //  (2) 外斜面用的逐像素 depth 与法线：按「离本块表面多近」的 softmax 权重混合。
                 //      基准 dmin 边走边降，累加器随之按 exp((新-旧)/k) 缩放（在线 softmax），
                 //      指数永不溢出，且不必先跑一遍求最小值；
-                //  (3) 厚度高度图 h 与 tint：以本块轮廓为中心、宽 seam 的软覆盖 r，按声明顺序
-                //      source-over 折叠，最后除以覆盖率 cov 归一。归一是关键 —— 单块时 h 恒等于
-                //      它自己的 depth，外轮廓处不会凭空长出一道坡；
-                //  (4) h 的解析梯度：∇r = 6u(1−u)·(−n/seam)（u 被 saturate 夹住的两端自动为 0），
+                //  (3) 厚度高度图 h 与 tint：软覆盖 r = 块内 1、轮廓外 seam 内 (1−t)³、再外 0，
+                //      按声明顺序 source-over 折叠，最后除以覆盖率 cov 归一。归一是关键 —— 单块
+                //      时 h 恒等于它自己的 depth，外轮廓处不会凭空长出一道坡；
+                //  (4) h 的解析梯度：裙边上 ∇r = −3(1−t)²/seam · n，块内与裙边外为 0，
                 //      折叠式与 h 同构，最后按商法则合成 ∇h。
                 float d = 1e6;
                 float dmin = 1e6;
@@ -244,9 +247,13 @@ Shader "UI/GlassGroup"
                     // 于是焊缝处法线平滑过渡、高光自然绕着融合后的外轮廓走。
                     nrm += nj * w;
 
-                    float u = saturate(0.5 - dj / seam);
-                    float r = u * u * (3.0 - 2.0 * u);
-                    float2 gr = (6.0 * u * (1.0 - u)) * (-nj / seam);
+                    // 裙边剖面：t = 出轮廓多远 / seam。三次方让最陡处正好压在轮廓上、往外缓缓
+                    // 收掉 —— 高光贴边、柔光向外，seam 是柔光能伸出去多远。
+                    float t = saturate(dj / seam);
+                    float skirt = 1.0 - t;
+                    float r = skirt * skirt * skirt;
+                    float onSkirt = (dj > 0.0 && dj < seam) ? 1.0 : 0.0;
+                    float2 gr = onSkirt * (-3.0 * skirt * skirt / seam) * nj;
                     gradH   = (1.0 - r) * gradH   + (depthJ - accH) * gr;
                     gradCov = (1.0 - r) * gradCov + (1.0 - cov) * gr;
                     accH = lerp(accH, depthJ, r);
@@ -276,10 +283,11 @@ Shader "UI/GlassGroup"
                 float intensity  = _GlassB.z;
                 float saturation = _GlassB.w;
 
-                // 台阶的坡面：法线朝下坡（从厚块指向薄块），强度就是坡度本身 —— 厚度相同时
-                // heightGrad 严格为零，等厚的组一个像素都不变。
+                // 台阶的坡面：法线朝下坡（从厚块指向薄块），强度是坡度经 Reinhard 压缩 ——
+                // 越陡越亮，但永不封顶成一条平顶亮带（saturate 会），剖面始终是柔的。
+                // 厚度相同时 heightGrad 严格为零，等厚的组一个像素都不变。
                 float slope = length(heightGrad);
-                float stepAmount = saturate(slope);
+                float stepAmount = slope / (1.0 + slope);
                 float2 stepNormal = slope < 1e-5 ? float2(0.0, 1.0) : -heightGrad / slope;
 
                 float4 base = float4(0.0, 0.0, 0.0, 0.0);

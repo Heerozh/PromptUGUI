@@ -45,7 +45,7 @@ attribute. Writing any of them without `glass="true"` is a lint error
 | `lightIntensity` | `0`–`1` | `0.6` | Edge highlight strength. `0` turns the lighting layer off |
 | `saturation` | `≥0` | `1.15` | Backdrop vibrancy. `1` = untouched, `0` = greyscale. This is what makes glass look lit rather than washed out — reach for it before reaching for `dispersion` |
 | `noise` | `0`–`1` | `0.02` | Frosted grain. Doubles as dithering against banding on large blurred areas |
-| `seam` | px | `3` | **`weld` groups only** (`PUI-GLASS-SEAM-NO-WELD` elsewhere). How wide the thickness step between two blocks is; the highlight along it takes about half that. `0` = as sharp as the screen can draw |
+| `seam` | px | `3` | **`weld` groups only** (`PUI-GLASS-SEAM-NO-WELD` elsewhere). How far the thickness step's glow reaches out from the raised block's contour. The bright line itself hugs the contour and takes roughly a third of this; the rest is the fade. `0` = as sharp as the screen can draw |
 
 Reused unchanged: `color` (tint painted over the glass — comma gradients, gradient **stop positions** and **hints** (`"A 70%,B"` / `"A, 70%, B"`, which glass draws per-pixel) and `/alpha` work exactly as
 elsewhere), `radius`, `borderWidth` / `borderColor`, `glow` / `glowColor`,
@@ -98,12 +98,20 @@ is drawn that way: the step's face catches the light on the side it points at an
 backdrop slightly, the way a real weld between two panes of glass does. Nothing is drawn between
 blocks of equal `depth` — the step is the difference, so there is no line to remove.
 
-- `seam` (on the carrier) is how wide that step is. The default `3` reads as a fine line; larger
-  values give a visible bevel. It is independent of `weld`, which controls only how far from the
-  junction the *outlines* merge.
+- The step is **one-sided**: a block keeps its full thickness right up to its own contour, and the
+  drop happens in a skirt *outside* it, steepest at the contour and fading out cubically. So the
+  highlight is a fine line hugging the raised block plus a soft glow beyond it — never a uniform
+  band across the whole transition.
+- `seam` (on the carrier) is how far that glow reaches. The default `3` reads as a fine line with
+  a short glow; larger values lengthen the glow, they do not thicken the line. **Brightness comes
+  from the `depth` difference**, not from `seam`: a gap of 1–2 gives a soft line, 3+ a bright one
+  that stays soft (the strength is compressed, never clipped to a flat-topped band). Both are in
+  canvas units — under a 640-wide reference on a 1920 screen every unit is 3 device pixels. `seam`
+  is independent of `weld`, which controls only how far from the junction the *outlines* merge.
 - **Stacking is declaration order** — where two blocks overlap, the later one's thickness replaces
   the earlier one's rather than adding to it. Thick over thin is a raised step; thin over thick is a
-  groove. Two blocks that merely touch are unaffected by order.
+  groove. Two blocks that merely touch keep their heights whatever the order; the crisp edge of the
+  step is always the *later* block's contour and the glow falls on the earlier one.
 - Because the step follows the **upper block's own contour**, the block underneath can be the
   simplest rectangle: a raised trapezoid laid over a plain bar produces the trapezoid's diagonal,
   and the bar does not need a matching corner cut out of it.
