@@ -51,34 +51,105 @@ namespace PromptUGUI.Controls
 
         protected virtual void InitTriggerSubscription()
         {
-            switch (_spec.Kind)
+            _sourceSub = SubscribeSpec(_spec, Fire, OnTriggerFiredInitial);
+        }
+
+        /// <summary>
+        /// What a <c>checked</c> / <c>unchecked</c> trigger does when the control is ALREADY in that
+        /// state as the Screen opens. Firing normally is right for a <c>&lt;Trigger&gt;</c>;
+        /// <c>&lt;Animation&gt;</c> overrides it to establish the end state without animating —
+        /// a header authored <c>isOn="true"</c> must not spin its chevron on frame 1 (FND-D10).
+        /// </summary>
+        protected virtual void OnTriggerFiredInitial() => Fire();
+
+        /// <summary>Raises <see cref="OnFire"/> without running <see cref="OnTriggerFired"/>.</summary>
+        private protected void RaiseFireOnly() => _fire.OnNext(Unit.Default);
+
+        /// <summary>
+        /// Wires one <see cref="TriggerSpec"/> to one callback and hands back the subscription.
+        /// Factored out of <see cref="InitTriggerSubscription"/> so <c>&lt;Animation&gt;</c> can
+        /// subscribe a second spec — its <c>reverse-on=</c> — through exactly the same resolution
+        /// rules (spec 2026-08-31-hug-reveal-flip-checked-design §2.4.6).
+        /// </summary>
+        private protected IDisposable SubscribeSpec(TriggerSpec spec, Action onFire, Action onInitial = null)
+        {
+            onInitial ??= onFire;
+            switch (spec.Kind)
             {
+                case TriggerKind.Checked:
+                case TriggerKind.Unchecked:
+                    {
+                        // Persistent state, not the transient state-* machine: hovering a checked
+                        // Toggle must not take the block away (FND §4.4).
+                        var want = spec.Kind == TriggerKind.Checked;
+                        var toggle = Internal.TriggerSourceResolver.FindToggleSource(this, spec.SourceId);
+                        if (toggle.IsOn == want) onInitial();
+                        return toggle.OnValueChanged.Subscribe(v =>
+                        {
+                            if (v != want) return;
+                            // A control's isOn= attribute is applied AFTER its children have
+                            // subscribed (attributes go bottom-up), so an authored isOn="true"
+                            // arrives here as an edge, not as the subscribe-time state. Anything
+                            // that lands while the Screen is still opening is still "how it
+                            // starts" and must establish, not animate.
+                            if (PromptUGUI.Application.UI.OwnerScreenOf(this)?.IsOpening == true) onInitial();
+                            else onFire();
+                        });
+                    }
                 case TriggerKind.Open:
                 case TriggerKind.Loop:
-                    Fire();
-                    break;
+                    onFire();
+                    return null;
                 case TriggerKind.Click:
-                    SubscribeClick();
-                    break;
+                    {
+                        var btn = Internal.TriggerSourceResolver.FindBtn(this, spec.SourceId);
+                        return btn.OnClick.Subscribe(_ => onFire());
+                    }
                 case TriggerKind.HoverEnter:
                 case TriggerKind.HoverExit:
                 case TriggerKind.Press:
-                    SubscribePointer(_spec.Kind);
-                    break;
+                    {
+                        var src = Internal.TriggerSourceResolver.FindPointerSource(this, spec.SourceId);
+                        var stream = spec.Kind switch
+                        {
+                            TriggerKind.HoverEnter => src.OnPointerEnter,
+                            TriggerKind.HoverExit => src.OnPointerExit,
+                            _ => src.OnPointerDown,
+                        };
+                        return stream.Subscribe(_ => onFire());
+                    }
                 case TriggerKind.StateNormal:
                 case TriggerKind.StateHover:
                 case TriggerKind.StatePressed:
                 case TriggerKind.StateSelected:
                 case TriggerKind.StateDisabled:
-                    SubscribeState(_spec.Kind);
-                    break;
+                    {
+                        var pui = Internal.TriggerSourceResolver.FindStateSource(this, spec.SourceId);
+                        var target = spec.Kind switch
+                        {
+                            TriggerKind.StateNormal => InteractState.Normal,
+                            TriggerKind.StateHover => InteractState.Hover,
+                            TriggerKind.StatePressed => InteractState.Pressed,
+                            TriggerKind.StateSelected => InteractState.Selected,
+                            _ => InteractState.Disabled,
+                        };
+                        // OnState replays the current value on subscribe, so a trigger whose target
+                        // matches the control's current state fires once at open.
+                        return pui.OnState.Subscribe(s =>
+                        {
+                            if (s == target) onFire();
+                        });
+                    }
                 case TriggerKind.Expand:
                 case TriggerKind.Collapse:
-                    SubscribeMenu(_spec.Kind);
-                    break;
-                case TriggerKind.Manual:
-                    // no auto-subscribe; awaiting Fire()
-                    break;
+                    {
+                        var menu = Internal.TriggerSourceResolver.FindTabMenu(this, spec.SourceId);
+                        var stream = spec.Kind == TriggerKind.Expand ? menu.OnExpanded : menu.OnCollapsed;
+                        return stream.Subscribe(_ => onFire());
+                    }
+                default:
+                    // Manual: no auto-subscribe; awaiting Fire()
+                    return null;
             }
         }
 
@@ -89,52 +160,6 @@ namespace PromptUGUI.Controls
         }
 
         protected virtual void OnTriggerFired() { }
-
-        private void SubscribeClick()
-        {
-            var btn = Internal.TriggerSourceResolver.FindBtn(this, _spec.SourceId);
-            _sourceSub = btn.OnClick.Subscribe(_ => Fire());
-        }
-
-        private void SubscribePointer(TriggerKind kind)
-        {
-            var src = Internal.TriggerSourceResolver.FindPointerSource(this, _spec.SourceId);
-            var stream = kind switch
-            {
-                TriggerKind.HoverEnter => src.OnPointerEnter,
-                TriggerKind.HoverExit => src.OnPointerExit,
-                TriggerKind.Press => src.OnPointerDown,
-                _ => throw new InvalidOperationException("unreachable"),
-            };
-            _sourceSub = stream.Subscribe(_ => Fire());
-        }
-
-        private void SubscribeMenu(TriggerKind kind)
-        {
-            var menu = Internal.TriggerSourceResolver.FindTabMenu(this, _spec.SourceId);
-            var stream = kind == TriggerKind.Expand ? menu.OnExpanded : menu.OnCollapsed;
-            _sourceSub = stream.Subscribe(_ => Fire());
-        }
-
-        private void SubscribeState(TriggerKind kind)
-        {
-            var pui = Internal.TriggerSourceResolver.FindStateSource(this, _spec.SourceId);
-            var target = kind switch
-            {
-                TriggerKind.StateNormal => InteractState.Normal,
-                TriggerKind.StateHover => InteractState.Hover,
-                TriggerKind.StatePressed => InteractState.Pressed,
-                TriggerKind.StateSelected => InteractState.Selected,
-                TriggerKind.StateDisabled => InteractState.Disabled,
-                _ => throw new InvalidOperationException("unreachable"),
-            };
-            // OnState replays the current value on subscribe, so a trigger whose target matches
-            // the button's current state fires once at open ("currently in that state").
-            _sourceSub = pui.OnState.Subscribe(s =>
-            {
-                if (s == target) Fire();
-            });
-        }
 
         public override void Dispose()
         {

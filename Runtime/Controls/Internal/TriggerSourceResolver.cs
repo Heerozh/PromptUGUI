@@ -6,6 +6,34 @@ namespace PromptUGUI.Controls.Internal
     internal static class TriggerSourceResolver
     {
         /// <summary>
+        /// Resolves an <c>@id</c> reference lexically, nearest scope first (spec
+        /// 2026-08-31-hug-reveal-flip-checked-design §4.3): the trigger's own scope, then each
+        /// enclosing control's scope walking outward — which is where a Template instance's shared
+        /// id table lives, so two invocations of one template never see each other's ids — and
+        /// finally the Screen's top-level ids.
+        ///
+        /// <para>This is what lets a trigger point at a SIBLING (<c>&lt;Toggle id='hdr'/&gt;</c> next
+        /// to a <c>&lt;Show on="checked@hdr"&gt;</c>), which the old subtree-only lookup could not
+        /// express at all. Every reference that resolved before still resolves to the same control:
+        /// the subtree is still consulted first.</para>
+        /// </summary>
+        public static IControl ResolveId(Trigger trigger, string id, string onLabel)
+        {
+            if (trigger.ScopedIds.TryGetValue(id, out var found)) return found;
+
+            for (var scope = trigger.Parent; scope != null; scope = scope.Parent)
+                if (scope.ScopedIds.TryGetValue(id, out found)) return found;
+
+            var screen = PromptUGUI.Application.UI.OwnerScreenOf(trigger);
+            if (screen != null && screen.TryGet(id, out found)) return found;
+
+            throw new InvalidOperationException(
+                $"<Trigger on=\"{onLabel}@{id}\"> in '{trigger.Id ?? trigger.GameObject.name}': id '{id}' not " +
+                "found in the trigger's subtree, its enclosing template instance, or screen " +
+                $"'{screen?.Name ?? "?"}'.");
+        }
+
+        /// <summary>
         /// 在 trigger 子树里查找一个 Btn 作为点击事件源。
         /// 必须在子树完全实例化之后调用（即 ControlAttributeApplier.Apply 已放到子树递归之后）。
         /// </summary>
@@ -18,11 +46,13 @@ namespace PromptUGUI.Controls.Internal
 
             if (!string.IsNullOrEmpty(sourceId))
             {
-                if (found.Count == 0)
-                    throw new InvalidOperationException(
-                        $"<Trigger on=\"click@{sourceId}\"> in '{trigger.Id ?? trigger.GameObject.name}': " +
-                        $"id '{sourceId}' not found in trigger subtree");
-                return found[0];
+                // The subtree walk stays first (it reaches a Btn at any depth, which the scope
+                // tables do not), then the lexical lookup takes over for siblings / screen ids.
+                if (found.Count > 0) return found[0];
+                var ctrl = ResolveId(trigger, sourceId, "click");
+                return ctrl as Btn ?? throw new InvalidOperationException(
+                    $"<Trigger on=\"click@{sourceId}\">: id '{sourceId}' is a " +
+                    $"{ctrl.GetType().Name}, not a <Btn>. click requires a <Btn>.");
             }
 
             if (found.Count == 0)
@@ -61,10 +91,7 @@ namespace PromptUGUI.Controls.Internal
         {
             if (!string.IsNullOrEmpty(sourceId))
             {
-                if (!trigger.ScopedIds.TryGetValue(sourceId, out var ctrl))
-                    throw new InvalidOperationException(
-                        $"<Trigger on=\"...@{sourceId}\"> in '{trigger.Id ?? trigger.GameObject.name}': " +
-                        $"id '{sourceId}' not found in trigger subtree scope");
+                var ctrl = ResolveId(trigger, sourceId, "hover-enter/hover-exit/press");
                 return ctrl as IPointerEventSource ?? throw new InvalidOperationException(
                     $"<Trigger on=\"...@{sourceId}\">: id '{sourceId}' is a " +
                     $"{ctrl.GetType().Name}, not supported as pointer event source. Use <Btn> or <Image>.");
@@ -121,17 +148,37 @@ namespace PromptUGUI.Controls.Internal
                 return ancestor;
             }
 
-            if (!trigger.ScopedIds.TryGetValue(sourceId, out var ctrl))
-                throw new InvalidOperationException(
-                    $"<Trigger on=\"state-...@{sourceId}\"> in '{trigger.Id ?? trigger.GameObject.name}': " +
-                    $"id '{sourceId}' not found in trigger subtree scope");
-
+            var ctrl = ResolveId(trigger, sourceId, "state-...");
             var src = ctrl.GameObject.GetComponent<IStateSource>();
             if (src == null)
                 throw new InvalidOperationException(
                     $"<Trigger on=\"state-...@{sourceId}\">: id '{sourceId}' is a " +
                     $"{ctrl.GetType().Name}, not a state source. state-* triggers require a <Btn>/<Tab>/<Toggle>.");
             return src;
+        }
+
+        /// <summary>
+        /// Finds the <see cref="IToggleSource"/> a <c>checked</c> / <c>unchecked</c> trigger listens
+        /// to. Resolves <b>upward</b> like <see cref="FindStateSource"/> — the natural place for one
+        /// is inside the Toggle / Tab it reacts to — but along the control tree rather than the
+        /// GameObject tree, because the state lives on the Control, not on a component.
+        /// </summary>
+        public static IToggleSource FindToggleSource(Trigger trigger, string sourceId)
+        {
+            if (string.IsNullOrEmpty(sourceId))
+            {
+                for (var scope = trigger.Parent; scope != null; scope = scope.Parent)
+                    if (scope is IToggleSource source) return source;
+
+                throw new InvalidOperationException(
+                    $"<Trigger on=\"checked\"/\"unchecked\"> in '{trigger.Id ?? trigger.GameObject.name}': " +
+                    "no <Toggle>/<Tab> ancestor found. Place it inside one, or use checked@<id>.");
+            }
+
+            var ctrl = ResolveId(trigger, sourceId, "checked/unchecked");
+            return ctrl as IToggleSource ?? throw new InvalidOperationException(
+                $"<Trigger on=\"checked@{sourceId}\">: id '{sourceId}' is a " +
+                $"{ctrl.GetType().Name}, not a toggle source. checked / unchecked require a <Toggle> or <Tab>.");
         }
 
         /// <summary>
@@ -155,11 +202,7 @@ namespace PromptUGUI.Controls.Internal
                 return marker.Owner;
             }
 
-            if (!trigger.ScopedIds.TryGetValue(sourceId, out var ctrl))
-                throw new InvalidOperationException(
-                    $"<Trigger on=\"expand@{sourceId}\"> in '{trigger.Id ?? trigger.GameObject.name}': " +
-                    $"id '{sourceId}' not found in trigger subtree scope");
-
+            var ctrl = ResolveId(trigger, sourceId, "expand/collapse");
             return ctrl as TabMenu ?? throw new InvalidOperationException(
                 $"<Trigger on=\"expand@{sourceId}\">: id '{sourceId}' is a " +
                 $"{ctrl.GetType().Name}, not a <TabMenu>. expand / collapse require a <TabMenu>.");

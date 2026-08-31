@@ -26,6 +26,7 @@ namespace PromptUGUI.Lint
     {
         public const string NoSourceCode = "PUI-STATE-NO-SOURCE";
         public const string NoMenuCode = "PUI-EXPAND-NO-SOURCE";
+        public const string NoToggleSourceCode = "PUI-CHECKED-NO-SOURCE";
 
         private static readonly HashSet<string> StateTriggerTags =
             new HashSet<string> { "Trigger", "Animation", "Show" };
@@ -63,6 +64,36 @@ namespace PromptUGUI.Lint
                 NoSourceCode, n.Tag, n.Id,
                 $"<{n.Tag} on=\"{on}\">: no <Btn>/<Tab>/<Toggle> ancestor. state-* resolves upward to the " +
                 "nearest clickable — place it inside a <Btn>/<Tab>/<Toggle>, or use state-...@<id>.");
+        }
+
+        private static readonly HashSet<string> BareCheckedValues =
+            new HashSet<string> { "checked", "unchecked" };
+
+        private static readonly HashSet<string> ToggleSourceTags =
+            new HashSet<string> { "Tab", "Toggle" };
+
+        /// <summary>True if <paramref name="tag"/> instantiates a control with a persistent on/off
+        /// state — the source a bare <c>checked</c> / <c>unchecked</c> trigger resolves upward to.
+        /// <c>&lt;Btn&gt;</c> is deliberately absent: it has no such state.</summary>
+        public static bool IsToggleSourceTag(string tag) => ToggleSourceTags.Contains(tag);
+
+        /// <summary>
+        /// Yields <see cref="NoToggleSourceCode"/> for a bare (no-<c>@id</c>) <c>checked</c> /
+        /// <c>unchecked</c> trigger with no <c>&lt;Toggle&gt;</c> / <c>&lt;Tab&gt;</c> ancestor —
+        /// same upward rule and same runtime hard error as <c>state-*</c>.
+        /// </summary>
+        public static IEnumerable<LintIssue> CheckCheckedSource(ElementNode n, bool hasToggleAncestor)
+        {
+            if (hasToggleAncestor) yield break;
+            if (!StateTriggerTags.Contains(n.Tag)) yield break;
+            if (!n.Attributes.TryGetValue("on", out var on)) yield break;
+            if (!BareCheckedValues.Contains(on)) yield break;
+
+            yield return new LintIssue(
+                NoToggleSourceCode, n.Tag, n.Id,
+                $"<{n.Tag} on=\"{on}\">: no <Toggle>/<Tab> ancestor. {on} follows a persistent on/off " +
+                $"state, which only those two have — place it inside one, or use {on}@<id>. " +
+                "(A <Btn> has no checked state; for press feedback use state-pressed.)");
         }
 
         /// <summary>True if <paramref name="tag"/> instantiates a <c>&lt;TabMenu&gt;</c>, the source

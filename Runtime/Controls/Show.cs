@@ -28,6 +28,17 @@ namespace PromptUGUI.Controls
 
         protected override void InitTriggerSubscription()
         {
+            // Persistent on/off state — a second, independent claim family alongside state-*, with
+            // no Normal fallback: "checked" and "unchecked" are complementary on their own, and a
+            // control being hovered is still checked (FND §4.4).
+            if (_spec.Kind is TriggerKind.Checked or TriggerKind.Unchecked)
+            {
+                var want = _spec.Kind == TriggerKind.Checked;
+                var toggle = TriggerSourceResolver.FindToggleSource(this, _spec.SourceId);
+                toggle.RegisterCheckedShow(want, () => GameObject.SetActive(toggle.IsOn == want));
+                return;
+            }
+
             _myState = _spec.Kind switch
             {
                 TriggerKind.StateNormal => InteractState.Normal,
@@ -37,7 +48,8 @@ namespace PromptUGUI.Controls
                 TriggerKind.StateDisabled => InteractState.Disabled,
                 _ => throw new InvalidOperationException(
                     "<Show> only accepts state-* events (state-normal / state-hover / " +
-                    $"state-pressed / state-selected / state-disabled), got 'on=\"{OnRaw()}\"'."),
+                    "state-pressed / state-selected / state-disabled) or the persistent " +
+                    $"checked / unchecked, got 'on=\"{OnRaw()}\"'."),
             };
 
             _src = TriggerSourceResolver.FindStateSource(this, _spec.SourceId);
@@ -56,6 +68,8 @@ namespace PromptUGUI.Controls
             TriggerKind.Press => _spec.SourceId == null ? "press" : "press@" + _spec.SourceId,
             TriggerKind.Expand => _spec.SourceId == null ? "expand" : "expand@" + _spec.SourceId,
             TriggerKind.Collapse => _spec.SourceId == null ? "collapse" : "collapse@" + _spec.SourceId,
+            TriggerKind.Checked => _spec.SourceId == null ? "checked" : "checked@" + _spec.SourceId,
+            TriggerKind.Unchecked => _spec.SourceId == null ? "unchecked" : "unchecked@" + _spec.SourceId,
             _ => _spec.Kind.ToString(),
         };
 

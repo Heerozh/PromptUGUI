@@ -6,9 +6,16 @@ using UnityEngine.UI;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class Grid : Control
+    public sealed class Grid : Control, Internal.IHugContent
     {
         private GridLayoutGroup _layout;
+
+        // See VStack. GridLayoutGroup derives its preferred size from cellSize + the row count
+        // implied by `columns`, so a hug axis here is a constant for a given child count.
+        protected internal override bool SelfReportsContentSize => true;
+
+        float Internal.IHugContent.ContentSize(int axis)
+            => axis == 0 ? _layout.preferredWidth : _layout.preferredHeight;
 
         public override void OnAttached()
         {

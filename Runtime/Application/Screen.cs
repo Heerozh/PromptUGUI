@@ -219,6 +219,14 @@ namespace PromptUGUI.Application
             else action();
         }
 
+        /// <summary>
+        /// True while <see cref="Open"/> is still applying attributes — i.e. nothing on screen has
+        /// been seen by the user yet. Read by the <c>checked</c> / <c>unchecked</c> triggers to tell
+        /// "this is how the control STARTS" from "the user just flipped it": the first establishes
+        /// its end state, the second animates (FND-D10).
+        /// </summary>
+        internal bool IsOpening => _deferredOpenActions != null;
+
         private void ApplyCanvasScaler(UnityEngine.UI.CanvasScaler scaler)
         {
             var mode = ResolveScaleMode();

@@ -10,7 +10,7 @@ using UnityToggle = UnityEngine.UI.Toggle;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class Tab : ProceduralControl
+    public sealed class Tab : ProceduralControl, Internal.IToggleSource
     {
         private UnityImage _bg;
 
@@ -111,6 +111,7 @@ namespace PromptUGUI.Controls
         private void OnIsOnChanged(bool isOn)
         {
             _changed.OnNext(isOn);
+            NotifyCheckedShows();
             if (isOn) _selected.OnNext(Unit.Default);
             ApplyBindFrame(isOn);
             ApplySelectedSprite();
@@ -390,6 +391,23 @@ namespace PromptUGUI.Controls
 
         public Observable<bool> OnValueChanged => _changed;
         public Observable<Unit> OnSelected => _selected;
+
+        // ── IToggleSource (checked / unchecked, FND §4) ───────────────────────────────────
+
+        private System.Collections.Generic.List<(bool Want, System.Action Act)> _checkedShows;
+
+        void Internal.IToggleSource.RegisterCheckedShow(bool wantOn, System.Action reevaluate)
+        {
+            _checkedShows ??= new System.Collections.Generic.List<(bool, System.Action)>();
+            _checkedShows.Add((wantOn, reevaluate));
+            reevaluate();   // establish the block at open, before anything is clicked
+        }
+
+        private void NotifyCheckedShows()
+        {
+            if (_checkedShows == null) return;
+            foreach (var (_, act) in _checkedShows) act();
+        }
 
         // ── Caption mirroring, for <TabMenu> (spec §5.2) ───────────────────────────────────
         // A TabMenu's collapsed handle shows whichever Tab is selected. It reads the displayed

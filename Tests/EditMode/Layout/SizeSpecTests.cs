@@ -344,5 +344,127 @@ namespace PromptUGUI.Tests.Layout
             var anchor = new AnchorPreset(AnchorVertical.Top, AnchorHorizontal.Stretch);
             Assert.Throws<System.ArgumentException>(() => spec.ValidateAgainst(anchor));
         }
+
+        // ── hug (spec 2026-08-31-hug-reveal-flip-checked-design §1.3) ──────────────────────
+
+        [Test]
+        public void Hug_sets_only_the_hug_flag()
+        {
+            var s = SizeSpec.Parse(size: null, width: "hug", height: null);
+            Assert.IsTrue(s.HasWidth, "hug is an authored size — the axis counts as written");
+            Assert.IsTrue(s.IsHugWidth);
+            Assert.AreEqual(0f, s.Width);
+            Assert.IsFalse(s.IsNativeWidth);
+            Assert.IsFalse(s.IsFlexibleWidth);
+            Assert.IsFalse(s.IsFractionalWidth);
+            Assert.IsFalse(s.IsClampedWidth);
+            Assert.IsFalse(s.HasHeight);
+            Assert.IsFalse(s.IsHugHeight);
+        }
+
+        [Test]
+        public void Hug_on_height_axis()
+        {
+            var s = SizeSpec.Parse(size: null, width: null, height: "hug");
+            Assert.IsTrue(s.IsHugHeight);
+            Assert.IsFalse(s.IsHugWidth);
+        }
+
+        [Test]
+        public void Hug_axes_are_independent()
+        {
+            var s = SizeSpec.Parse(size: null, width: "hug", height: "200");
+            Assert.IsTrue(s.IsHugWidth);
+            Assert.IsFalse(s.IsHugHeight);
+            Assert.AreEqual(200f, s.Height);
+        }
+
+        [Test]
+        public void Clamp_hug_keeps_the_hug_flag_and_bounds()
+        {
+            // Same rule as % / stretch: clamp only ADDS bounds, the middle term keeps its own flag.
+            var s = SizeSpec.Parse(size: null, width: null, height: "clamp(_, hug, 200)");
+            Assert.IsTrue(s.IsHugHeight);
+            Assert.IsTrue(s.IsClampedHeight);
+            Assert.IsFalse(s.IsFractionalHeight);
+            Assert.IsFalse(s.IsFlexibleHeight);
+            Assert.IsTrue(float.IsNegativeInfinity(s.MinHeight));
+            Assert.AreEqual(200f, s.MaxHeight);
+        }
+
+        [Test]
+        public void Clamp_hug_floor_only()
+        {
+            var s = SizeSpec.Parse(size: null, width: null, height: "clamp(100, hug, _)");
+            Assert.IsTrue(s.IsHugHeight);
+            Assert.IsTrue(s.IsClampedHeight);
+            Assert.AreEqual(100f, s.MinHeight);
+            Assert.IsTrue(float.IsPositiveInfinity(s.MaxHeight));
+        }
+
+        [Test]
+        public void Clamp_hug_both_bounds()
+        {
+            var s = SizeSpec.Parse(size: null, width: "clamp(100, hug, 200)", height: null);
+            Assert.IsTrue(s.IsHugWidth);
+            Assert.IsTrue(s.IsClampedWidth);
+            Assert.AreEqual(100f, s.MinWidth);
+            Assert.AreEqual(200f, s.MaxWidth);
+        }
+
+        [TestCase("clamp(_, hug, _)", "both bounds open")]
+        [TestCase("clamp(300, hug, 250)", "min 300 > max 250")]
+        public void Throws_on_invalid_clamp_hug(string bad, string messageContains)
+        {
+            var ex = Assert.Throws<System.ArgumentException>(() =>
+                SizeSpec.Parse(size: null, width: bad, height: null));
+            StringAssert.Contains(messageContains, ex.Message);
+        }
+
+        [TestCase("hug*2")]
+        [TestCase("Hug")]
+        [TestCase("hug%")]
+        [TestCase("hug ")]
+        public void Throws_on_hug_lookalikes(string bad)
+        {
+            Assert.Throws<System.ArgumentException>(() =>
+                SizeSpec.Parse(size: null, width: bad, height: null));
+        }
+
+        [TestCase("hug")]
+        [TestCase("hugxhug")]
+        public void Throws_when_hug_used_in_size_attribute(string bad)
+        {
+            // size= stays numeric-only; the keyword validator must recognise hug so the error
+            // points at the rule ("use width=/height=") rather than at "x is not a number".
+            var ex = Assert.Throws<System.ArgumentException>(() =>
+                SizeSpec.Parse(size: bad, width: null, height: null));
+            StringAssert.Contains("numeric-only", ex.Message);
+        }
+
+        [Test]
+        public void Hug_on_anchor_stretched_axis_throws()
+        {
+            var spec = SizeSpec.Parse(size: null, width: "hug", height: null);
+            var anchor = new AnchorPreset(AnchorVertical.Top, AnchorHorizontal.Stretch);
+            Assert.Throws<System.ArgumentException>(() => spec.ValidateAgainst(anchor));
+        }
+
+        [Test]
+        public void Hug_axis_survives_native_and_fallback_resolution()
+        {
+            // Both helpers key off IsNative / Has; a hug axis is neither native nor missing, so
+            // neither may overwrite it with a measured number.
+            var s = SizeSpec.Parse(size: null, width: "hug", height: null);
+
+            var resolved = s.WithNativeResolved(new UnityEngine.Vector2(33f, 44f));
+            Assert.IsTrue(resolved.IsHugWidth);
+            Assert.AreEqual(0f, resolved.Width);
+
+            var filled = s.WithFallbackForMissing(new UnityEngine.Vector2(33f, 44f));
+            Assert.IsTrue(filled.IsHugWidth, "hug is authored — native fallback must not claim the axis");
+            Assert.AreEqual(0f, filled.Width);
+            Assert.AreEqual(44f, filled.Height, "the omitted axis still takes the native fallback");
+        }
     }
 }

@@ -153,3 +153,31 @@ A **tactile / physical-button** effect: while Pressed, the control's child conte
 - **Disabled** has no offset (content rests at zero).
 
 Implementation: the control lazily wraps its content in a full-stretch holder (only when an offset is authored) and a `PressOffsetController` drives that holder's `anchoredPosition` from the control's `OnState` stream — same broadcaster the `*Color` family uses.
+
+## 5. Persistent state — `checked` / `unchecked`
+
+The four sections above are all about uGUI's **transient** interaction machine, where Hover and Pressed override Selected while they last. That is right for feedback and wrong for structure: a header whose panel is keyed on `state-selected` loses the panel the moment the pointer touches the header.
+
+`checked` / `unchecked` follow `isOn` instead — the persistent question, which hovering does not change. They are `on=` values on `<Trigger>` / `<Animation>` / `<Show>` (each also `@<id>`), and resolve **upward** to the nearest `<Toggle>` / `<Tab>` exactly as `state-*` does. A `<Btn>` is not a source: it has no checked state (`PUI-CHECKED-NO-SOURCE`).
+
+```xml
+<!-- a header that shows a panel: the panel is a SIBLING, reached by @id -->
+<VStack width="150">
+  <Toggle id="hdr" isOn="true" width="stretch" height="24">任务</Toggle>
+  <Show on="checked@hdr">
+    <ScrollList itemTemplate="TaskRow" width="stretch" height="clamp(_, hug, 200)"/>
+  </Show>
+</VStack>
+
+<!-- swapping two blocks in place -->
+<Toggle id="mute" isOn="false">
+  <Show on="checked"><Icon name="ui:speaker-off"/></Show>
+  <Show on="unchecked"><Icon name="ui:speaker-on"/></Show>
+</Toggle>
+```
+
+- **A second, independent claim family.** `<Show on="checked">` and `<Show on="unchecked">` are complementary on their own and have **no Normal fallback** — a persistent state has no "default block". They coexist with the `state-*` blocks on the same control and may nest inside them, and a checked block stays visible while the control is hovered or pressed.
+- **Writing only one of the pair is fine**: the other half is simply "nothing shown".
+- **Every path counts as a change**: a click, `IsOn = …` from C#, or a `ToggleGroup` mate taking the selection away all raise the matching edge.
+- **`interactable="false"` does not enter into it.** A disabled control still has an `isOn`, and `checked` still reflects it — unlike `state-hover` / `state-pressed`, which a disabled control never emits.
+- **First-frame establishment**: a control already in that state as the Screen opens dispatches once, and an `<Animation>` on that dispatch writes its **end state without playing** — an `isOn="true"` header shows its chevron already turned instead of spinning it on frame 1. Every later flip animates normally. See [`animations.md`](animations.md) → *First-frame establishment*.

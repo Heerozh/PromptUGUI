@@ -104,6 +104,21 @@ namespace PromptUGUI.Application
             foreach (var issue in PromptUGUI.Lint.ClampRules.CheckClampScale(node))
                 throw new ParseException($"[{issue.Code}] {issue.Message}");
 
+            // hug on a tag with no content size cannot be measured at all, and hug + scale has the
+            // same last-writer conflict as clamp + scale. Hard errors for the same reason: silently
+            // rendering a 0-sized control would be worse than refusing to open.
+            foreach (var issue in PromptUGUI.Lint.HugRules.CheckHugTag(node))
+                throw new ParseException($"[{issue.Code}] {issue.Message}");
+            foreach (var issue in PromptUGUI.Lint.HugRules.CheckHugScale(node))
+                throw new ParseException($"[{issue.Code}] {issue.Message}");
+
+            // reveal + scale is the same last-writer conflict; the rest of AnimationRules stays on
+            // the warning channel (a wrong child count still renders something sensible).
+            if (node.Tag == "Animation")
+                foreach (var issue in PromptUGUI.Lint.AnimationRules.CheckAnimation(node))
+                    if (issue.Code == PromptUGUI.Lint.AnimationRules.ScaleCode)
+                        throw new ParseException($"[{issue.Code}] {issue.Message}");
+
             // Common attributes
             var anchor = VariantResolver.ResolveAttribute(node, "anchor", variants);
             var size = VariantResolver.ResolveAttribute(node, "size", variants);

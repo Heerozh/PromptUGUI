@@ -106,7 +106,10 @@ namespace PromptUGUI.Editor
                     ("weld", "xs:string", (string)null),
                     ("seam", "xs:string", (string)null),
                 });
-                WriteControl(writer, "Image", new[] { ("color", "xs:string", (string)null), ("sprite", "xs:string", (string)null), ("type", "xs:string", (string)null) });
+                // rotation / flip are mesh-level ([UIAttr] Image.Rotation / Image.Flip). Image is
+                // hand-listed rather than reflected, so they have to be spelled out here; RawImage
+                // gets them for free through ReflectControlAttrs.
+                WriteControl(writer, "Image", new[] { ("color", "xs:string", (string)null), ("sprite", "xs:string", (string)null), ("type", "xs:string", (string)null), ("rotation", "xs:float", (string)null), ("flip", "xs:string", (string)null) });
                 WriteControl(writer, "Text", new[] { ("align", "xs:string", (string)null), ("color", "xs:string", (string)null), ("fontSize", "xs:int", (string)null), ("text", "xs:string", (string)null), ("wrap", "xs:string", (string)null), ("raycastTarget", "xs:string", (string)null) }, textContent: true);
                 WriteControl(writer, "VStack", Array.Empty<(string, string, string)>());
                 WriteControl(writer, "HStack", Array.Empty<(string, string, string)>());
@@ -140,7 +143,7 @@ namespace PromptUGUI.Editor
                 // Second alternative `.*\{\{.*` accepts Template Param placeholders like
                 // `{{iconName}}` or `solar:{{name}}` whose final form is decided at
                 // TemplateExpander time — parser skips format check on those, XSD too.
-                WriteControl(writer, "Icon", new[] { ("name", "xs:string", @"[A-Za-z0-9_\-]+:[^:]+|.*\{\{.*"), ("color", "xs:string", (string)null) });
+                WriteControl(writer, "Icon", new[] { ("name", "xs:string", @"[A-Za-z0-9_\-]+:[^:]+|.*\{\{.*"), ("color", "xs:string", (string)null), ("rotation", "xs:float", (string)null), ("flip", "xs:string", (string)null) });
 
                 // Registered custom controls — exclude primitives, sort by tag
                 var primitives = new HashSet<string> {

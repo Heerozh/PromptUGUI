@@ -6,9 +6,16 @@ using UnityEngine.UI;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class VStack : Control
+    public sealed class VStack : Control, Internal.IHugContent
     {
         private VerticalLayoutGroup _layout;
+
+        // The group IS this node's layout element, so a bare hug inside a stack needs no extra
+        // component (FND §1.4.3); only the free-positioning fitter and a clamped hug read this.
+        protected internal override bool SelfReportsContentSize => true;
+
+        float Internal.IHugContent.ContentSize(int axis)
+            => axis == 0 ? _layout.preferredWidth : _layout.preferredHeight;
 
         public override void OnAttached()
         {

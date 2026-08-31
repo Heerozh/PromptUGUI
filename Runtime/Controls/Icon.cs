@@ -59,6 +59,25 @@ namespace PromptUGUI.Controls
             set => ImageTint.Apply(_img, value);
         }
 
+        private float _rotation;
+        private string _flip;
+
+        /// <summary>Clockwise degrees. Mesh-level: the RectTransform and layout are untouched.</summary>
+        [UIAttr, Preserve]
+        public float Rotation
+        {
+            get => _rotation;
+            set { _rotation = value; Internal.RotateFlipApplier.Apply(_img, _rotation, _flip); }
+        }
+
+        /// <summary><c>x</c> / <c>y</c> / <c>xy</c> / <c>none</c>. Mirrors the mesh about its centre.</summary>
+        [UIAttr, Preserve]
+        public string Flip
+        {
+            get => _flip;
+            set { _flip = value; Internal.RotateFlipApplier.Apply(_img, _rotation, _flip); }
+        }
+
         public override Vector2? GetNativeSize() =>
             _img != null && _img.sprite != null ? (Vector2?)_img.sprite.rect.size : null;
     }

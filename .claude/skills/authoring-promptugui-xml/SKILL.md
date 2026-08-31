@@ -213,6 +213,25 @@ uGUI Image，从 `Resources` 加载 sprite；可选 `RectMask2D`（`mask="rect"`
 | `showMask` | bool | `true` | 仅 `mask="self"` |
 | `maskPadding` | `T,R,B,L` | — | 仅 `mask="rect"` |
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
+| `rotation` | 浮点角度，**顺时针为正** | `0` | 见 **Rotation & flip** |
+| `flip` | `x` / `y` / `xy` / `none` | `none` | 见 **Rotation & flip** |
+
+#### Rotation & flip
+
+`rotation` / `flip` 只在 `<Image>` / `<Icon>` / `<RawImage>` 上（其它标签 = `PUI-FLIP-TAG`：它们不生成网格；要转就转里面那个 `<Image>`）。
+
+```xml
+<Icon name="ui:chevron" rotation="180"/>            <!-- 朝下的箭头改朝上 -->
+<Image sprite="ui:arrow" flip="x"/>                 <!-- 水平镜像，不用再做一张图 -->
+<Icon name="ui:sort" rotation="90" flip="y"/>       <!-- 先镜像后旋转 -->
+<Icon name="ui:x" rotation="0" rotation.portrait="90"/>
+```
+
+They rewrite the **generated mesh** about the rect's centre and touch nothing else: the RectTransform, anchors, margins, pivot, `LayoutElement` and raycast area are exactly as authored. Three consequences worth knowing:
+
+- **A rotated child does not move its siblings.** A parent LayoutGroup measures the un-rotated rect, so the control still claims exactly its own slot. (Turning the transform instead would rotate about the *pivot*, which is derived from the anchor — a `top-left` icon would swing out of its slot.)
+- **A non-square rect turned by a non-90° angle draws outside its rect**, as any rotation would. A parent `mask="rect"` / `mask="self"` clips it correctly.
+- **`Rotation` is settable from C# and cheap to tween** (`LMotion.Create(0f, 180f, 0.2f).Bind(v => icon.Rotation = v)`), which is how a chevron flips as a panel opens. Identity (`rotation="0"` + `flip="none"`) attaches no component at all.
 
 ### `<RawImage>`
 
@@ -226,6 +245,8 @@ uGUI `RawImage`，渲染**运行时动态加载的 `Texture`**（头像 / 下载
 | `mask` | `rect` / `self` | — | 同 `<Image>` |
 | `showMask` | bool | `true` | 仅 `mask="self"` |
 | `maskPadding` | `T,R,B,L` | — | 仅 `mask="rect"` |
+| `rotation` | 浮点角度，顺时针为正 | `0` | 网格级，见 `<Image>` 的 **Rotation & flip** |
+| `flip` | `x` / `y` / `xy` / `none` | `none` | 网格级，见 `<Image>` 的 **Rotation & flip** |
 
 - texture 由 C# 在 Open 后设置，故 `size="native"`（读 texture 像素宽高）仅在实例化前已同步赋 texture 时有值；常态请显式写 `size` 或用 `type="contain"/"cover"`。
 - 别在 `<VStack>` / `<HStack>` / `<Grid>` 直接子节点上用 fit 模式（`AspectRatioFitter` 与 LayoutGroup 抢布局）——套一层 `<Frame>`。
@@ -562,6 +583,8 @@ References a sprite from a project-level SpriteSet (shared icons, by-name lookup
 | `name`    | yes      | —         | Format `ns:icon-name`. `ns` (set name) is strict `[A-Za-z0-9_-]+`; `icon-name` mirrors the filesystem path under `sourceFolder` (no extension) — `/`-separated, may contain spaces, `&`, parens, commas, apostrophes, etc. Only the `:` delimiter is forbidden. Example: `solar:Bold Duotone/Map & Location/Radar 2` |
 | `color`   | no       | `#ffffff` | Multiply tint on the underlying Image. White preserves a colored PNG; non-white tints a mono-mask PNG                                                                                                                                                                                                                |
 | `size`    | no       | `native`  | Numeric / `WxH` / `native` (Icon-only — reads sprite pixel dimensions). For "fill the parent" use `anchor="stretch"` (free-positioning) or wrap the Icon in a V/HStack and use `width="stretch"` / `height="stretch"` (LayoutGroup)                                                                                  |
+| `rotation` | no      | `0`       | Clockwise degrees, mesh-level — see **Rotation & flip** under `<Image>`                                                                                                                                                                                                                                             |
+| `flip`    | no       | `none`    | `x` / `y` / `xy` / `none`, mesh-level — see **Rotation & flip** under `<Image>`                                                                                                                                                                                                                                     |
 
 **Discovering available icons** — 要查项目里有哪些 `setName:icon-name` 组合、以及 icon 名如何解析（相对 sourceFolder 路径、bare basename 简写、Template-Param 替换、sync 工具行为），见 [`reference/icons.md`](reference/icons.md)。
 
@@ -603,7 +626,7 @@ Other notes:
 | Tag            | 根节点组件                                                                                                                                                                                                                                                     | 自动子节点                                                                                                                                                                                                                                                                             | R3 事件源                                                                                                                   |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `<Frame>`      | `RectTransform` 单独；可选 `RectMask2D`（写 `mask="rect"` 时挂）或 stencil `Mask`（`mask="self"`，用自绘的 `ProceduralPanel` 当 mask 形状）                                                                                                                                                                                               | —                                                                                                                                                                                                                                                                                      | —                                                                                                                           |
-| `<Image>`      | `Image` + (lazy) `PointerEventRelay`（被 hover/press trigger 引用为源时挂上）；可选 `RectMask2D`（`mask="rect"`）或 stencil `Mask`（`mask="self"`，用自身 sprite 作 mask 形状）                                                                                | —                                                                                                                                                                                                                                                                                      | `OnPointerEnter` / `OnPointerExit` / `OnPointerDown` ← Relay                                                                |
+| `<Image>`      | `Image` + (lazy) `PointerEventRelay`（被 hover/press trigger 引用为源时挂上）；`rotation`/`flip` 非恒等时挂 `RotateFlipEffect`(`BaseMeshEffect`, internal)；可选 `RectMask2D`（`mask="rect"`）或 stencil `Mask`（`mask="self"`，用自身 sprite 作 mask 形状）                                                                                | —                                                                                                                                                                                                                                                                                      | `OnPointerEnter` / `OnPointerExit` / `OnPointerDown` ← Relay                                                                |
 | `<RawImage>`   | `RawImage` + (lazy) `PointerEventRelay`；可选 `AspectRatioFitter`（`type=contain/cover`）/ `RectMask2D`（`mask="rect"`）/ stencil `Mask`（`mask="self"`）；图源 = C# `Texture` 属性                                                                            | —                                                                                                                                                                                                                                                                                      | `OnPointerEnter` / `OnPointerExit` / `OnPointerDown` ← Relay                                                                |
 | `<Text>`       | `TextMeshProUGUI`                                                                                                                                                                                                                                              | —                                                                                                                                                                                                                                                                                      | —                                                                                                                           |
 | `<VStack>`     | `VerticalLayoutGroup`（硬编码 `childControlWidth/Height=true`、`childForceExpand*=false`）                                                                                                                                                                     | —                                                                                                                                                                                                                                                                                      | —                                                                                                                           |
@@ -622,7 +645,7 @@ Other notes:
 | `<Tab>`        | `UnityImage`（bg, `targetGraphic`, supports `overrideSprite` swap while selected）+ `UnityToggle`（`graphic` 未设；配 `selectedSprite` 时 `transition=None`，否则 `transition=ColorTint`）；Toggle 的 `group` 在 `OnAttached` 用 transform-ancestor walk 找 TabBar 的 `ToggleGroup` | 可选 `Label`(`TMP_Text`, stretch fill, `Center` 对齐, raycast off, 懒建—写了 `text`/`fontSize`/`font` 才有)；可选 `Icon`(`Image`, 左 16px + 24×24, 懒建)；外加任意作者子节点（Frame 式叠放在 bg 上）；无 Overlay 自动子节点 | `OnValueChanged: bool` / `OnSelected: Unit`（只在 isOn=true 时 fire）                                                       |
 | `<SafeArea>`   | `RectTransform` + `SafeAreaTracker`（内部 `MonoBehaviour`，订阅设备 safeArea / 旋转 / Device Simulator）                                                                                                                                                       | —                                                                                                                                                                                                                                                                                      | —                                                                                                                           |
 | `<Trigger>`    | `RectTransform` 单独（无视觉、无 layout 行为，仅作 wrapper 划定事件源 scope）                                                                                                                                                                                  | —                                                                                                                                                                                                                                                                                      | `OnFire` ← R3 `Subject<Unit>`，由 `on=`（open/loop/click/hover-enter/hover-exit/press/manual）触发                          |
-| `<Animation>`  | `RectTransform` + `CanvasGroup`（继承自 Trigger；CanvasGroup 给 `fade=` 用，由 `ApplyCommon` 懒加载）                                                                                                                                                          | `_offsetProxy`(`RectTransform`，anchor stretch、margin=0、pivot=0.5,0.5) — XML 子节点全 parent 到这一层；LitMotion 驱动它的 anchoredPosition / localScale / localEulerAngles                                                                                                           | `OnFire` ← 继承 Trigger；同时由 `on=` 触发 LitMotion `MotionHandle[]`                                                       |
+| `<Animation>`  | `RectTransform` + `CanvasGroup`（继承自 Trigger；CanvasGroup 给 `fade=` 用，由 `ApplyCommon` 懒加载）                                                                                                                                                          | `_offsetProxy`(`RectTransform`，anchor stretch、margin=0、pivot=0.5,0.5) — XML 子节点全 parent 到这一层；LitMotion 驱动它的 anchoredPosition / localScale / localEulerAngles；`reveal=` 另在 LayoutHost 上挂 `RectMask2D`(非静止时 enabled) 并写该轴的 `LayoutElement` / `sizeDelta`                                                                                                           | `OnFire` ← 继承 Trigger；同时由 `on=` 触发 LitMotion `MotionHandle[]`                                                       |
 | `<Show>`       | `RectTransform` 单独（继承自 Trigger；无视觉、无 layout）— 仅是一个按状态 `SetActive` 切换的 wrapper                                                                                                                                                           | —（作者子节点直接挂在它下面，整组随状态显隐）                                                                                                                                                                                                                                          | `OnFire` ← 继承 Trigger；不订阅 `OnState`，由最近 `<Btn>`/`<Tab>`/`<Toggle>` 祖先（`IStateSource`）的状态协调器统一驱动显隐 |
 
 **Common attribute → uGUI 落点**（实现在 `Control.ApplyCommon`；对所有 tag 生效，`<SafeArea>` 例外，整套 anchor/size/width/height/pivot 都被拒绝）
@@ -654,7 +677,7 @@ Other notes:
 | `id="..."` | string | Unique within Screen / Template instance scope. Lift to dedicated handle for `Get<T>`. Inside a `<Template>` write a **literal** id — never `id="{{param}}"` (id is not substituted); instances are isolated per call. |
 | `anchor="..."` | preset | See "Anchor system" below. Default `top-left`. |
 | `size="WxH"` | `240x80` | Both dimensions in pixels (numeric only — keywords `stretch` / `N%` are **not** accepted here, use per-axis attrs). **Forbidden on stretched axes.** |
-| `width="W"` / `height="H"` | float / `stretch[*N]` / `N%` / `clamp(min, N%\|stretch, max)` | Numeric is base. `stretch` / `stretch*N` is LayoutGroup-only — see "Stretch keyword". `N%` is free-positioning-only — see "Fractional %". `clamp(...)` puts a floor / cap on either — see "Clamp". **Numeric forbidden on stretched anchor axes.** |
+| `width="W"` / `height="H"` | float / `stretch[*N]` / `N%` / `hug` / `clamp(min, N%\|stretch\|hug, max)` | Numeric is base. `stretch` / `stretch*N` is LayoutGroup-only — see "Stretch keyword". `N%` is free-positioning-only — see "Fractional %". `hug` sizes the control to its own content — see "Hug". `clamp(...)` puts a floor / cap on any of them — see "Clamp". **Numeric forbidden on stretched anchor axes.** |
 | `margin="..."` | 1/2/4 floats | Distance from anchor inward, positive. `"_"` = 0 placeholder. **4-component order `top,right,bottom,left`** (1 = all sides, 2 = `vertical,horizontal`). A margin only offsets from a side the `anchor` **consumes** — see **margin & consumed sides** below. |
 | `pivot="x,y"` | `0..1, 0..1` | Defaults derive from `anchor`; rarely needed. |
 | `class="a b"` | style names, space-separated | Pulls in `<Style>` attribute packs. Inline attributes win; later classes beat earlier ones. See **Style & class**. |
@@ -755,6 +778,35 @@ Rules:
 - Placement follows the middle term: `clamp(min, N%, max)` inside a stack and `clamp(min, stretch, max)` under a free-positioning parent raise the `%` / `stretch` placement errors, which now point at the other form. `size=` stays numeric-only.
 - **Not combinable with `scale` on the same node** — `PUI-CLAMP-SCALE`, a CLI error and a hard error at `UI.Open` (base or any variant, either attribute): the clamped axis is owned by the layout pass, which would drop `scale`'s box-preserving inflation. Put `scale` on a child (wrap the content).
 - Under the hood: free-positioning → an internal `ClampFitter` component on the node; in a stack → plain `LayoutElement` values, no component.
+
+**Hug — size to content** — `height="hug"` / `width="hug"` makes a container exactly as big as what is inside it. This is the axis you reach for when a panel should end where its rows end.
+
+```xml
+<!-- a HUD panel that is as tall as its rows, whatever the row count -->
+<VStack id="tasks" anchor="top-right" width="150" height="hug" spacing="4" margin="90,20,_,_">
+  <Image anchor="stretch" flow="false" sprite="ui:panel"/>   <!-- the skin follows the hug -->
+  <TaskRow/><TaskRow/><TaskRow/>
+</VStack>
+
+<!-- a list that is as tall as its rows, but never taller than 200 — then it scrolls -->
+<ScrollList id="list" itemTemplate="TaskRow" width="150" height="clamp(_, hug, 200)"/>
+
+<HStack width="hug" height="44" spacing="4">…</HStack>       <!-- as wide as its buttons -->
+<VStack height="200" height.portrait="hug">…</VStack>        <!-- Variant-switchable -->
+```
+
+**Only on the tags that HAVE a content size**: `<VStack>`, `<HStack>`, `<Grid>`, `<ScrollList>`. Everywhere else it is `PUI-HUG-TAG` (CLI error + a hard error at `UI.Open`), because there is nothing to measure: a `<Frame>`'s children are free-positioned (wrap them in a `<VStack>` and hug that), and a leaf's "content size" is what `size="native"` already means.
+
+| Where | What hug means |
+| --- | --- |
+| `<VStack>` / `<HStack>` / `<Grid>` | the group's own preferred size — padding + spacing + the children's preferred sizes |
+| `<ScrollList>` | the content node's preferred size, i.e. the rows — not the viewport it currently is |
+
+- **Free-positioning parent** (`<Frame>` / `<Screen>` / `<SafeArea>`): `box = clamp(content, min, max)`, and the box hugs the edge the `anchor` names — a `top-*` panel grows downward, a `bottom-*` one upward, `center` grows both ways. `margin` insets inside the box, exactly as with `%` and `clamp`. Recomputed by the layout pass, so it follows content changes (a `BindItems` re-emit, a wrapped line, a locale switch) within the same canvas update — in EditMode tests call `Canvas.ForceUpdateCanvases()` to observe it.
+- **Inside a `<VStack>` / `<HStack>`**: a bare `hug` on a layout-group container is exactly the "axis omitted" path spelled out — the group already reports its own preferred size — so it costs nothing and reads better. On a `<ScrollList>`, or with bounds (`clamp(min, hug, max)`), an internal element publishes the (clamped) content size as a **rigid** preferred size (`min = preferred`, `flexible = 0`): a hug size is a computed constant, not a range. That is the difference from `clamp(min, stretch, max)`, which is the one shrinkable range.
+- **A `stretch` child on the hugged axis collapses to 0** — the parent asks its children how big they want to be and a stretch child answers "nothing, plus whatever is left over", of which there is none. `PUI-HUG-STRETCH-CHILD` catches it; give the child a size instead.
+- **Not combinable with `scale` on the same node** — `PUI-HUG-SCALE`, same reason and same remedy as `PUI-CLAMP-SCALE`.
+- `size="hug"` is an error (`size=` stays numeric-only); `hug` on an `anchor="stretch"` axis is the usual stretched-axis error.
 
 **Cross-axis alignment** of layout-group children is set on the parent via `childAlign` (defaults: VStack `upper-center`, HStack `middle-left`). Override the whole group, not per child — uGUI LayoutGroup doesn't support per-child cross-axis alignment.
 
@@ -1450,7 +1502,7 @@ PromptUGUI never auto-enables masking — you must opt in via `mask=`. Two reaso
 | Symptom                                                                             | Cause                                                                                                                                                                                                                        | Fix                                                                                                                                                             |
 | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `cannot specify width/size on a horizontally-stretched axis`                        | `<X anchor="top-stretch" width="200"/>`                                                                                                                                                                                      | Either change anchor, or drop `width`. The stretched axis takes its size from `margin`.                                                                         |
-| HStack/VStack 子节点全挤在一起 / 重叠 / 被压扁                                      | Stack 自己没写 `width=` / `height=`（free-positioning 下 `sizeDelta=(0,0)`），LayoutGroup 把 children 压进 0 宽/0 高 rect                                                                                                    | 给 stack 显式 `width=` / `height=`；或者改成 `anchor="X-stretch"` 让 stack 横跨整轴 + `childAlign=` 控制 children 靠哪边。见 "Layout group 放置配方"            |
+| HStack/VStack 子节点全挤在一起 / 重叠 / 被压扁                                      | Stack 自己没写 `width=` / `height=`（free-positioning 下 `sizeDelta=(0,0)`），LayoutGroup 把 children 压进 0 宽/0 高 rect                                                                                                    | 给 stack 显式 `width=` / `height=`（内容驱动就写 `height="hug"`）；或者改成 `anchor="X-stretch"` 让 stack 横跨整轴 + `childAlign=` 控制 children 靠哪边。见 "Layout group 放置配方"            |
 | `<Text>` 宽度 0 / 渲染一字一行（free-positioning）                                  | `<Text/>` 在 `<Frame>` 等自由定位父级里 **XML 没写 text、运行时才 `text.TextValue = "..."`**。Initial ApplyCommon 看到 `_tmp.text == ""` → `GetNativeSize` 返回 null → `sizeDelta=(0,0)`；之后 C# 改文字不会重跑 ApplyCommon | 三选一：XML 给个非空占位（`<Text>...</Text>`，运行时再覆盖）让 native fallback 算出尺寸；或显式 `width=`/`size=`；或 `anchor="stretch"` + `margin`              |
 | Ghost element on variant toggle                                                     | `<Add>` instantiated and never deactivated                                                                                                                                                                                   | This is by design (Strategy C). Use `hidden.variant` if you need a node to disappear.                                                                           |
 | Parser silently merges children                                                     | Wrote `<Btn>开始 <Image/> </Btn>` (text + element mix)                                                                                                                                                                       | Pick one: text shorthand OR child elements. Mixed content is rejected.                                                                                          |
@@ -1525,8 +1577,12 @@ ALIASES       center  =  center-center
               stretch | fill  =  stretch-stretch
 
 SIZE          size="WxH"          numeric only (no keywords)
-              width="W" / height="H"   numeric, or "stretch[*N]" (LG only), or "N%" (free-positioning only)
+              width="W" / height="H"   numeric, or "stretch[*N]" (LG only), or "N%" (free-positioning only),
+                                       or "hug" (VStack/HStack/Grid/ScrollList only — size to content)
               FORBIDDEN on anchor-stretched axis
+HUG           "hug"            → as big as my content; clamp(min, hug, max) caps it (then ScrollList scrolls)
+                                 PUI-HUG-TAG (wrong tag) / -SCALE (with scale=) / -STRETCH-CHILD (stretch child)
+MESH XFORM    rotation="90" flip="x|y|xy"   <Image>/<Icon>/<RawImage> only; mesh-level, layout untouched
 STRETCH KW    "stretch"        → LayoutElement.flexible*=1   (LayoutGroup child only)
               "stretch*N"      → LayoutElement.flexible*=N   (N > 0; for 1:2:1 splits etc.)
               Free-positioning equivalent: anchor="...-stretch" + margin

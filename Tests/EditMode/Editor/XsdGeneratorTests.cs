@@ -44,6 +44,17 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Image_and_Icon_list_their_rotation_and_flip_attributes()
+        {
+            // Same hand-written-list trap as Frame above: <Image> and <Icon> are not reflected, so
+            // rotation / flip have to be spelled out in XsdGenerator or authoring tools reject
+            // perfectly valid XML. (<RawImage> gets them by reflection — covered below.)
+            var xsd = XsdGenerator.Generate(new ControlRegistry());
+            StringAssert.Contains("name=\"rotation\"", xsd);
+            StringAssert.Contains("name=\"flip\"", xsd);
+        }
+
+        [Test]
         public void Custom_control_appears_with_UIAttr_attributes()
         {
             var r = new ControlRegistry();

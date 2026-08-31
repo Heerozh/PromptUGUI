@@ -22,14 +22,17 @@ namespace PromptUGUI.Layout
             public readonly bool IsClamped;
             public readonly float Min;
             public readonly float Max;
+            public readonly bool IsHug;
 
             public Axis(bool has, float numeric, bool isNative, bool isFlexible, float weight,
-                        bool isFractional, float fraction, bool isClamped, float min, float max)
+                        bool isFractional, float fraction, bool isClamped, float min, float max,
+                        bool isHug = false)
             {
                 Has = has; Numeric = numeric; IsNative = isNative;
                 IsFlexible = isFlexible; Weight = weight;
                 IsFractional = isFractional; Fraction = fraction;
                 IsClamped = isClamped; Min = min; Max = max;
+                IsHug = isHug;
             }
 
             // Bounds default to the identity of Mathf.Clamp so consumers never branch on IsClamped
@@ -41,10 +44,10 @@ namespace PromptUGUI.Layout
                 float.NegativeInfinity, float.PositiveInfinity);
 
             public Axis WithNumeric(float v) => new(true, v, false, IsFlexible, Weight,
-                IsFractional, Fraction, IsClamped, Min, Max);
+                IsFractional, Fraction, IsClamped, Min, Max, IsHug);
 
             public Axis WithBounds(float min, float max) => new(Has, Numeric, IsNative, IsFlexible, Weight,
-                IsFractional, Fraction, true, min, max);
+                IsFractional, Fraction, true, min, max, IsHug);
         }
 
         private readonly Axis _w;
@@ -74,6 +77,14 @@ namespace PromptUGUI.Layout
         // width="clamp(min, stretch, max)" (LayoutGroup child, IsFlexible stays set). The middle term
         // keeps its own flags; clamp only adds the bounds. An open bound ('_') is ±Infinity so
         // Mathf.Clamp(v, Min, Max) is the identity on that side.
+        // Hug (content-fit): width="hug" → the control sizes itself to its own content on that axis.
+        // Only meaningful on the tags that HAVE a content size (VStack / HStack / Grid / ScrollList /
+        // Collapsible — HugRules.HugTags); everywhere else it is a lint/parse error. Combines with
+        // clamp: clamp(min, hug, max) keeps IsHug set and only adds the bounds, exactly like % and
+        // stretch do. Spec 2026-08-31-hug-reveal-flip-checked-design §1.
+        public bool IsHugWidth => _w.IsHug;
+        public bool IsHugHeight => _h.IsHug;
+
         public bool IsClampedWidth => _w.IsClamped;
         public bool IsClampedHeight => _h.IsClamped;
         public float MinWidth => _w.Min;
@@ -102,12 +113,13 @@ namespace PromptUGUI.Layout
                 }
                 else
                 {
-                    // size= stays purely numeric WxH. Keyword forms ('stretch', 'N%', 'clamp(...)') belong
-                    // on per-axis width=/height= attrs so the reading "W by H" stays unambiguous.
+                    // size= stays purely numeric WxH. Keyword forms ('stretch', 'N%', 'hug', 'clamp(...)')
+                    // belong on per-axis width=/height= attrs so the reading "W by H" stays unambiguous.
                     if (LooksLikeKeyword(size))
                         throw new ArgumentException(
-                            $"size '{size}' is numeric-only ('WxH' or 'native'). For 'stretch' / '%' / 'clamp(...)', " +
-                            "use per-axis attrs: width=\"stretch\" / height=\"50%\" / width=\"clamp(167, 46%, 250)\" etc.");
+                            $"size '{size}' is numeric-only ('WxH' or 'native'). For 'stretch' / '%' / 'hug' / " +
+                            "'clamp(...)', use per-axis attrs: width=\"stretch\" / height=\"50%\" / height=\"hug\" / " +
+                            "width=\"clamp(167, 46%, 250)\" etc.");
                     var x = size.IndexOf('x');
                     if (x <= 0 || x == size.Length - 1)
                         throw new ArgumentException($"size '{size}' must be 'WxH' or 'native'");
@@ -146,9 +158,9 @@ namespace PromptUGUI.Layout
 
         private static bool LooksLikeKeyword(string s)
         {
-            // Heuristic for the size= validator: catch 'stretch', 'stretch*N', 'N%', 'NxN%', 'clamp(...)'
-            // early so the error message points at the keyword rule, not at "x is not a number".
-            return s.Contains("stretch") || s.Contains("%") || s.Contains("clamp");
+            // Heuristic for the size= validator: catch 'stretch', 'stretch*N', 'N%', 'NxN%', 'clamp(...)',
+            // 'hug' early so the error message points at the keyword rule, not at "x is not a number".
+            return s.Contains("stretch") || s.Contains("%") || s.Contains("clamp") || s.Contains("hug");
         }
 
         private static Axis ParseAxis(string value, string label)
@@ -160,6 +172,13 @@ namespace PromptUGUI.Layout
             if (value == "stretch")
                 return new Axis(true, 0f, false, true, 1f, false, 0f, false,
                     float.NegativeInfinity, float.PositiveInfinity);
+
+            // 'hug' carries no number of its own — the size comes from the control's content at
+            // layout time (ClampFitter's Hug mode / HugElement). Numeric stays 0 so a consumer that
+            // ignores the flag lands on "nothing authored" rather than a bogus size.
+            if (value == "hug")
+                return new Axis(true, 0f, false, false, 1f, false, 0f, false,
+                    float.NegativeInfinity, float.PositiveInfinity, isHug: true);
 
             if (value.StartsWith("stretch*", StringComparison.Ordinal))
             {
@@ -225,10 +244,10 @@ namespace PromptUGUI.Layout
 
             var middle = parts[1].Trim();
             var mid = middle.Length == 0 ? Axis.None : ParseAxis(middle, label);
-            if (!mid.IsFractional && !mid.IsFlexible || mid.IsClamped)
+            if (!mid.IsFractional && !mid.IsFlexible && !mid.IsHug || mid.IsClamped)
                 throw new ArgumentException(
-                    $"{label} '{value}': middle must be 'N%' (free-positioning) or 'stretch' (inside <VStack>/<HStack>) — " +
-                    "a constant needs no clamp");
+                    $"{label} '{value}': middle must be 'N%' (free-positioning), 'stretch' (inside <VStack>/<HStack>) " +
+                    "or 'hug' (content-fit) — a constant needs no clamp");
 
             if (mid.IsFlexible && mid.Weight != 1f && !float.IsPositiveInfinity(max))
                 throw new ArgumentException(

@@ -217,6 +217,16 @@ namespace PromptUGUI.Application
                 foreach (var issue in PromptUGUI.Lint.CarouselRules.CheckCarousel(node))
                     Debug.LogWarning(issue.Message);
 
+            if (node.Tag == "Animation")
+                foreach (var issue in PromptUGUI.Lint.AnimationRules.CheckAnimation(node))
+                    Debug.LogWarning(issue.Message);
+            foreach (var issue in PromptUGUI.Lint.AnimationRules.CheckReverseOnTag(node))
+                Debug.LogWarning(issue.Message);
+
+            // Universal: rotation / flip on a tag that generates no mesh — silently dropped otherwise.
+            foreach (var issue in PromptUGUI.Lint.RotateFlipRules.Check(node))
+                Debug.LogWarning(issue.Message);
+
             // Universal: nav*/focus on a non-Selectable tag (e.g. <Frame navUp="x">).
             // NavTargetRules.CheckNavTarget (unknown id) is CLI-only; runtime already
             // hard-throws in ExplicitNavigationResolver for missing ids.
@@ -291,6 +301,9 @@ namespace PromptUGUI.Application
             var selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "TabMenu" or "Carousel";
             foreach (var c in node.Children)
             {
+                if (selfIsLayoutGroup)
+                    foreach (var issue in PromptUGUI.Lint.HugRules.CheckHugStretchChild(node, c))
+                        Debug.LogWarning(issue.Message);
                 if (node.Tag == "Carousel")
                     foreach (var issue in PromptUGUI.Lint.CarouselRules.CheckCard(node, c))
                         Debug.LogWarning(issue.Message);

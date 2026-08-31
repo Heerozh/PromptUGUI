@@ -145,7 +145,18 @@ namespace PromptUGUI.Controls
         /// </summary>
         internal virtual string PeekRuntimeState() => null;
 
-        internal void AddChild(IControl child) => _children.Add(child);
+        internal void AddChild(IControl child)
+        {
+            _children.Add(child);
+            if (child is Control c) c.Parent = this;
+        }
+
+        /// <summary>
+        /// The control that owns this one in the description tree (null for a Screen root or a
+        /// dynamically instantiated subtree root). Walked by <c>TriggerSourceResolver</c> to resolve
+        /// an <c>@id</c> lexically — subtree, then each enclosing scope, then the Screen.
+        /// </summary>
+        internal Control Parent { get; private set; }
 
         public IReadOnlyList<IControl> Children => _children;
 
@@ -220,6 +231,17 @@ namespace PromptUGUI.Controls
         /// </summary>
         protected internal virtual bool ParticipatesInLayout => true;
 
+        /// <summary>
+        /// True when this control's own GameObject already publishes its content size to a parent
+        /// LayoutGroup as an <c>ILayoutElement</c> — every layout-group container does, through the
+        /// group component itself. A bare <c>hug</c> on such a control inside a stack is then exactly
+        /// the "author omitted this axis" path and needs no extra component; only a bounded
+        /// <c>clamp(min, hug, max)</c> does. False (the default) means hug has to be published by
+        /// <c>HugElement</c> — a <c>&lt;ScrollList&gt;</c>, whose root is a fixed viewport with no
+        /// layout element on it at all. Spec 2026-08-31-hug-reveal-flip-checked-design §1.4.3.
+        /// </summary>
+        protected internal virtual bool SelfReportsContentSize => false;
+
         // 通用属性应用（由 ScreenInstantiator 在子类自身属性应用之后调用）
         public void ApplyCommon(string anchor, string size, string width, string height,
                                 string margin, string pivot,
@@ -291,6 +313,7 @@ namespace PromptUGUI.Controls
             {
                 ApplyLayoutElement(sizeSpec, preset);
                 SyncClampFitter(sizeSpec, preset, margin, freePositioning: false);
+                SyncHugElement(sizeSpec, inLayoutGroup: true);
                 // anchor / pivot / sizeDelta / anchoredPosition: LayoutGroup 接管几何。
                 // 作者写 anchor/margin 已经被 ScreenInstantiator 警告（spec §6.5）；这里静默跳过。
                 // STW-D4: wrapper 模式下内层 RT 重置为全 stretch 基线——这是 ApplyScales
@@ -377,12 +400,39 @@ namespace PromptUGUI.Controls
                     sizeSpec.IsFractionalWidth ? AnchorHorizontal.Stretch : preset.H);
 
                 var lr = MarginResolver.Resolve(effectivePreset, sizeSpec, margin);
-                RectTransform.anchoredPosition = lr.AnchoredPosition;
-                RectTransform.sizeDelta = lr.SizeDelta;
+
+                // A hug axis has no baseline to write: MarginResolver would put a 0-sized rect there
+                // (hug carries no number), and the fitter would then have to undo it on the next
+                // layout pass — so every ReSolve would dirty the layout even when nothing changed,
+                // breaking LGC-D18. Leave the axis exactly as the fitter last left it; anything that
+                // really changes it (anchor / pivot / margin / content) resizes the rect and dirties
+                // the fitter through OnRectTransformDimensionsChange anyway.
+                var anchoredPosition = lr.AnchoredPosition;
+                var sizeDelta = lr.SizeDelta;
+                if (sizeSpec.IsHugWidth)
+                {
+                    anchoredPosition.x = RectTransform.anchoredPosition.x;
+                    sizeDelta.x = RectTransform.sizeDelta.x;
+                }
+                if (sizeSpec.IsHugHeight)
+                {
+                    anchoredPosition.y = RectTransform.anchoredPosition.y;
+                    sizeDelta.y = RectTransform.sizeDelta.y;
+                }
+                RectTransform.anchoredPosition = anchoredPosition;
+                RectTransform.sizeDelta = sizeDelta;
 
                 // clamp(min, N%, max): the baseline above is the plain % geometry; the fitter owns the
                 // clamped axis from here on (spec 2026-08-30-clamp-size-design §5.1 / §6.3).
-                SyncClampFitter(sizeSpec, preset, margin, freePositioning: true);
+                // hug / clamp(min, hug, max): same component, Hug mode — the baseline it replaces is
+                // the 0-sized point-anchor rect MarginResolver just wrote (FND §1.4.2).
+                //
+                // A Grid child is excluded: GridLayoutGroup owns its children's rects outright
+                // (cellSize), so a fitter there would only fight it — the same reason '%' is rejected
+                // above. Out-of-flow children (flow="false") ARE free-positioning and keep the fitter.
+                var gridDriven = parentIsGrid && flow;
+                SyncClampFitter(sizeSpec, preset, margin, freePositioning: !gridDriven);
+                SyncHugElement(sizeSpec, inLayoutGroup: false);
             }
 
             if (hidden.HasValue) Hidden = hidden.Value;
@@ -407,21 +457,31 @@ namespace PromptUGUI.Controls
             var parentHv = LayoutHost.parent != null
                 ? LayoutHost.parent.GetComponent<UnityEngine.UI.HorizontalOrVerticalLayoutGroup>()
                 : null;
-            var fillCrossX = parentHv is UnityEngine.UI.VerticalLayoutGroup && preset.StretchX && !sizeSpec.HasWidth;
-            var fillCrossY = parentHv is UnityEngine.UI.HorizontalLayoutGroup && preset.StretchY && !sizeSpec.HasHeight;
+            // FND §1.4.3: a hug axis is authored but carries no number — it is published by
+            // HugElement (or, on a self-reporting container, by the node's own LayoutGroup), never
+            // by the LayoutElement written here. Treat it as "not written" throughout this method so
+            // it neither pins a 0 preferred size nor swallows the other axis's native fallback.
+            var hasW = sizeSpec.HasWidth && !sizeSpec.IsHugWidth;
+            var hasH = sizeSpec.HasHeight && !sizeSpec.IsHugHeight;
+
+            var fillCrossX = parentHv is UnityEngine.UI.VerticalLayoutGroup && preset.StretchX && !hasW;
+            var fillCrossY = parentHv is UnityEngine.UI.HorizontalLayoutGroup && preset.StretchY && !hasH;
 
             // 决策 LGC-D8 + BCS-D6 + BCS-D7 partial-write:
             // 任一轴没写 → 询问 GetNativeSize 作为该轴 fallback；写了的轴保留作者值。
             // 决策 LGC-D9: 没 native 时该轴留在 -1 哨兵值，让 Image/TMP 自带 ILayoutElement 主导。
             // UsesIntrinsicLayoutSize controls (e.g. <Text>) skip the native snapshot on any omitted
             // axis and leave it at the -1 sentinel so their own live ILayoutElement drives that axis.
-            var needNativeFallback = (!sizeSpec.HasWidth || !sizeSpec.HasHeight) && !UsesIntrinsicLayoutSize;
+            var needNativeFallback = (!hasW || !hasH) && !UsesIntrinsicLayoutSize;
             var native = needNativeFallback ? GetNativeSize() : null;
             var hasNative = native.HasValue;
 
             // 是否需要 LE：作者写了 size、或 native fallback 命中、或需要 cross 轴 fill。
             // 都不需要时若有残留 LE（Variant 切换可能挂过）→ 清回 -1。
-            var needLE = sizeSpec.HasWidth || sizeSpec.HasHeight || hasNative || fillCrossX || fillCrossY;
+            // hug 轴不算（HugElement 负责），否则纯 hug 的节点会挂一个全 -1 的空 LE。
+            var needLE = hasW || hasH
+                         || (hasNative && !(sizeSpec.IsHugWidth && sizeSpec.IsHugHeight))
+                         || fillCrossX || fillCrossY;
 
             var le = LayoutHost.gameObject.GetComponent<UnityEngine.UI.LayoutElement>();
             if (!needLE)
@@ -441,7 +501,7 @@ namespace PromptUGUI.Controls
             var minW = -1f;
             var minH = -1f;
 
-            if (sizeSpec.HasWidth)
+            if (hasW)
             {
                 if (sizeSpec.IsFlexibleWidth)
                 {
@@ -464,13 +524,13 @@ namespace PromptUGUI.Controls
                     minW = sizeSpec.Width;
                 }
             }
-            else if (hasNative)
+            else if (hasNative && !sizeSpec.IsHugWidth)
             {
                 prefW = native.Value.x;
                 // flexW 保持 -1（"无意见"），与历史 both-missing native 路径一致
             }
 
-            if (sizeSpec.HasHeight)
+            if (hasH)
             {
                 if (sizeSpec.IsFlexibleHeight)
                 {
@@ -484,7 +544,7 @@ namespace PromptUGUI.Controls
                     minH = sizeSpec.Height;
                 }
             }
-            else if (hasNative)
+            else if (hasNative && !sizeSpec.IsHugHeight)
             {
                 prefH = native.Value.y;
             }
@@ -545,8 +605,8 @@ namespace PromptUGUI.Controls
         private void SyncClampFitter(SizeSpec sizeSpec, AnchorPreset preset, string margin, bool freePositioning)
         {
             var fitter = RectTransform.GetComponent<Internal.ClampFitter>();
-            var wantX = freePositioning && sizeSpec.IsClampedWidth;
-            var wantY = freePositioning && sizeSpec.IsClampedHeight;
+            var wantX = freePositioning && (sizeSpec.IsClampedWidth || sizeSpec.IsHugWidth);
+            var wantY = freePositioning && (sizeSpec.IsClampedHeight || sizeSpec.IsHugHeight);
             if (!wantX && !wantY)
             {
                 if (fitter == null) return;
@@ -559,16 +619,67 @@ namespace PromptUGUI.Controls
             MarginResolver.Parse(margin, out var mt, out var mr, out var mb, out var ml);
             fitter ??= RectTransform.gameObject.AddComponent<Internal.ClampFitter>();
             fitter.enabled = true;
+            fitter.ContentSize = HugContent();
             if (wantX)
-                fitter.SetAxis(0, true, sizeSpec.WidthFraction, sizeSpec.MinWidth, sizeSpec.MaxWidth,
-                    ml, mr, ToClampAlign(preset.H));
+                fitter.SetAxis(0, true,
+                    sizeSpec.IsHugWidth ? Internal.ClampMode.Hug : Internal.ClampMode.Fraction,
+                    sizeSpec.WidthFraction,
+                    sizeSpec.MinWidth, sizeSpec.MaxWidth, ml, mr, ToClampAlign(preset.H));
             else
                 fitter.ClearAxis(0);
             if (wantY)
-                fitter.SetAxis(1, true, sizeSpec.HeightFraction, sizeSpec.MinHeight, sizeSpec.MaxHeight,
-                    mb, mt, ToClampAlign(preset.V));
+                fitter.SetAxis(1, true,
+                    sizeSpec.IsHugHeight ? Internal.ClampMode.Hug : Internal.ClampMode.Fraction,
+                    sizeSpec.HeightFraction,
+                    sizeSpec.MinHeight, sizeSpec.MaxHeight, mb, mt, ToClampAlign(preset.V));
             else
                 fitter.ClearAxis(1);
+        }
+
+        // Cached so replaying ApplyCommon doesn't allocate a delegate per pass. Null for controls
+        // that cannot hug — the fitter then falls back to this node's own preferred size, which is
+        // what a layout-group container would have answered anyway.
+        private System.Func<int, float> _hugContent;
+
+        private System.Func<int, float> HugContent()
+            => _hugContent ??= this is Internal.IHugContent h ? h.ContentSize : null;
+
+        /// <summary>
+        /// Attaches / updates / retires the <see cref="Internal.HugElement"/> that publishes a hug
+        /// axis to a parent LayoutGroup (FND §1.4.3). Only needed where the node does not already
+        /// report its own content size (<see cref="SelfReportsContentSize"/>), or where bounds have
+        /// to be applied (<c>clamp(min, hug, max)</c>). Like the ClampFitter it is disabled rather
+        /// than destroyed, so a Variant flip between hug and a number stays idempotent.
+        /// </summary>
+        private void SyncHugElement(SizeSpec sizeSpec, bool inLayoutGroup)
+        {
+            var selfReports = SelfReportsContentSize;
+            var wantX = inLayoutGroup && sizeSpec.IsHugWidth
+                        && (sizeSpec.IsClampedWidth || !selfReports);
+            var wantY = inLayoutGroup && sizeSpec.IsHugHeight
+                        && (sizeSpec.IsClampedHeight || !selfReports);
+
+            var element = LayoutHost.GetComponent<Internal.HugElement>();
+            if (!wantX && !wantY)
+            {
+                if (element == null) return;
+                element.ClearAxis(0);
+                element.ClearAxis(1);
+                element.enabled = false;
+                return;
+            }
+
+            var content = HugContent();
+            element ??= LayoutHost.gameObject.AddComponent<Internal.HugElement>();
+            element.enabled = true;
+            if (wantX)
+                element.SetAxis(0, true, sizeSpec.MinWidth, sizeSpec.MaxWidth, content);
+            else
+                element.ClearAxis(0);
+            if (wantY)
+                element.SetAxis(1, true, sizeSpec.MinHeight, sizeSpec.MaxHeight, content);
+            else
+                element.ClearAxis(1);
         }
 
         private static Internal.ClampAlign ToClampAlign(AnchorHorizontal h) => h switch
