@@ -143,7 +143,7 @@ namespace PromptUGUI.Controls
                 case TriggerKind.Expand:
                 case TriggerKind.Collapse:
                     {
-                        var menu = Internal.TriggerSourceResolver.FindTabMenu(this, spec.SourceId);
+                        var menu = Internal.TriggerSourceResolver.FindExpandable(this, spec.SourceId);
                         var stream = spec.Kind == TriggerKind.Expand ? menu.OnExpanded : menu.OnCollapsed;
                         return stream.Subscribe(_ => onFire());
                     }

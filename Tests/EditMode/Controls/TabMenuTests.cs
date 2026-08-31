@@ -413,7 +413,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             m.Expand();
 
             Assert.AreEqual(1f, Popup(m).GetComponent<CanvasGroup>().alpha);
-            Assert.AreEqual(-1f, ArrowFlip(m), 0.01f, "the caret points up while open");
+            Assert.AreEqual(180f, ArrowFlip(m), 0.01f, "the caret points up while open");
         }
 
         [Test]
@@ -422,12 +422,13 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var m = Open(@"<TabMenu id='m' transition='0'><Tab id='a' text='A'/></TabMenu>").Get<TabMenu>("m");
             m.Expand();
             m.Collapse();
-            Assert.AreEqual(1f, ArrowFlip(m), 0.01f);
+            Assert.AreEqual(0f, ArrowFlip(m), 0.01f);
         }
 
-        // Regression: the caret used to turn 180° about localEulerAngles.z. Its pivot is its LEFT
-        // edge (that is what places it by its left side after the label), so turning it swung the
+        // Regression: the caret must never turn about its TRANSFORM. Its pivot is its LEFT edge
+        // (that is what places it by its left side after the label), so a transform turn swung the
         // whole glyph to the left of where it was placed — the caret jumped sideways on every open.
+        // The mesh-level turn is about the rect's centre and leaves the transform alone.
         [Test]
         public void Flipping_the_caret_leaves_it_exactly_where_it_was()
         {
@@ -472,8 +473,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 .Get<TabMenu>("m").TransitionSeconds, 0.0001f);
         }
 
-        // -1 = flipped (menu open), 1 = at rest.
-        private static float ArrowFlip(TabMenu m) => m.RectTransform.Find("Arrow").localScale.y;
+        // Degrees of the caret's mesh-level turn: 180 = pointing up (menu open), 0 = at rest.
+        private static float ArrowFlip(TabMenu m)
+            => m.RectTransform.Find("Arrow").GetComponent<PromptUGUI.Controls.Internal.RotateFlipEffect>().Rotation;
 
         // ── Popup skin & procedural surface (TM-D3) ───────────────────────────────────────
 

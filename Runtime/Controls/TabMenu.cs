@@ -29,7 +29,7 @@ namespace PromptUGUI.Controls
     /// <c>&lt;Frame&gt;</c> to give the handle a background — the same way <c>&lt;TabBar&gt;</c>
     /// gets a bar background.</para>
     /// </summary>
-    public sealed class TabMenu : ProceduralControl
+    public sealed class TabMenu : ProceduralControl, IExpandable
     {
         // Caption metrics. Fixed like Btn's/Tab's padding constants: the tunable part of the
         // caption is what the author writes (fontSize / iconSize / gap), not its inset.
@@ -39,9 +39,7 @@ namespace PromptUGUI.Controls
         private const float DefaultFontSize = 24f;
 
         private UnityImage _hit;          // transparent, raycastTarget=true: the handle's click area
-        private UnityImage _icon;
-        private UnityImage _arrow;
-        private TMP_Text _label;
+        private CaptionBuilder _caption;  // [icon] label [caret], inline mode — shared with <Collapsible>
         private RectTransform _popup;
         private RectTransform _content;
         private UnityImage _popupBg;
@@ -60,16 +58,12 @@ namespace PromptUGUI.Controls
         private IDisposable _selectionSub;
         private CompositeDisposable _activationSubs;
 
-        private float _iconSize = 24f;
-        private float _arrowSize = 16f;
-        private float _gap = 6f;
         private float _popupWidth;                 // 0 = auto (max of handle width and content)
         private float _popupGap = 4f;
         private float _transition = DefaultTransition;
         private MotionHandle _fadeMotion;
         private MotionHandle _slideMotion;
         private MotionHandle _arrowMotion;
-        private string _fontType = "default";
 
         public TabMenu()
         {
@@ -88,7 +82,7 @@ namespace PromptUGUI.Controls
 
         public override void OnAttached()
         {
-            var marker = GameObject.AddComponent<TabMenuMarker>();
+            var marker = GameObject.AddComponent<ExpandableMarker>();
             marker.Owner = this;
 
             _hit = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
@@ -102,41 +96,16 @@ namespace PromptUGUI.Controls
             BuildPopup();
 
             _btn = GameObject.GetComponent<PuiButton>() ?? GameObject.AddComponent<PuiButton>();
-            _btn.targetGraphic = _label;
+            _btn.targetGraphic = _caption.Label;
             _btn.onClick.AddListener(Toggle);
 
             UI.Locale.Changed += ApplyFont;
         }
 
+        // Inline mode: the caret trails the text, and the handle hugs the row (GetNativeSize).
         private void BuildCaption()
-        {
-            _icon = ProceduralBuilders.AddImage(RectTransform, "Icon", raycast: false);
-            _icon.enabled = false;
-            var irt = _icon.rectTransform;
-            irt.anchorMin = new Vector2(0f, 0.5f);
-            irt.anchorMax = new Vector2(0f, 0.5f);
-            irt.pivot = new Vector2(0f, 0.5f);
-
-            _label = ProceduralBuilders.AddText(RectTransform, "Label");
-            _label.alignment = TextAlignmentOptions.Left;
-            _label.raycastTarget = false;
-            _label.fontSize = DefaultFontSize;
-            _label.text = "";
-            var lrt = _label.rectTransform;
-            lrt.anchorMin = new Vector2(0f, 0.5f);
-            lrt.anchorMax = new Vector2(0f, 0.5f);
-            lrt.pivot = new Vector2(0f, 0.5f);
-
-            _arrow = ProceduralBuilders.AddImage(RectTransform, "Arrow", raycast: false);
-            _arrow.color = ProceduralBuilders.DefaultGlyphColor;
-            ProceduralBuilders.ApplyDefaultSimpleSprite(_arrow, ProceduralBuilders.SpriteCaret);
-            var art = _arrow.rectTransform;
-            art.anchorMin = new Vector2(0f, 0.5f);
-            art.anchorMax = new Vector2(0f, 0.5f);
-            art.pivot = new Vector2(0f, 0.5f);
-
-            ApplyFont();
-        }
+            => _caption = new CaptionBuilder(RectTransform, arrowAtRight: false,
+                padX: PadX, gap: 6f, iconSize: 24f, arrowSize: 16f, fontSize: DefaultFontSize);
 
         private void BuildPopup()
         {
@@ -181,55 +150,45 @@ namespace PromptUGUI.Controls
         [UIAttr("fontSize"), Preserve]
         public float FontSize
         {
-            set { _label.fontSize = value; LayoutCaption(); }
+            set => _caption.SetFontSize(value);
         }
 
         /// <summary>Caption text colour; distinct from <c>color</c>, which fills the popup panel.</summary>
         [UIAttr(IsColor = true), Preserve]
         public string TextColor
         {
-            set => LabelColorApplier.Apply(_label, value);
+            set => LabelColorApplier.Apply(_caption.Label, value);
         }
 
         [UIAttr, Preserve]
         public string Font
         {
-            set
-            {
-                _fontType = string.IsNullOrEmpty(value) ? "default" : value;
-                ApplyFont();
-            }
+            set => _caption.FontType = value;
         }
 
         /// <summary>Caption icon edge length. The slot takes no space when the selected tab has no icon.</summary>
         [UIAttr, Preserve]
-        public float IconSize { set { _iconSize = value; LayoutCaption(); } }
+        public float IconSize { set => _caption.IconSize = value; }
 
         /// <summary>Gap between caption icon, label and caret.</summary>
         [UIAttr, Preserve]
-        public float Gap { set { _gap = value; LayoutCaption(); } }
+        public float Gap { set => _caption.Gap = value; }
 
         /// <summary>Caret edge length.</summary>
         [UIAttr, Preserve]
-        public float ArrowSize { set { _arrowSize = value; LayoutCaption(); } }
+        public float ArrowSize { set => _caption.ArrowSize = value; }
 
         /// <summary>The caret. <c>""</c> hides it — a sprite-less Image renders a solid block.</summary>
         [UIAttr(IsSprite = true), Preserve]
         public string Arrow
         {
-            set
-            {
-                var sprite = UI.ResolveSprite(value);
-                _arrow.sprite = sprite;
-                _arrow.enabled = sprite != null;
-                LayoutCaption();
-            }
+            set => _caption.SetArrowSprite(UI.ResolveSprite(value));
         }
 
         [UIAttr(IsColor = true), Preserve]
         public string ArrowColor
         {
-            set => ColorApplier.Apply(_arrow, UI.Theme.ResolveSpec(value));
+            set => ColorApplier.Apply(_caption.Arrow, UI.Theme.ResolveSpec(value));
         }
 
         /// <summary>The popup panel's fill — <em>not</em> the collapsed handle's (TM-D3).</summary>
@@ -345,18 +304,15 @@ namespace PromptUGUI.Controls
             Action<TSlot, T> bind) where TSlot : class, IControl
             => _core.BindItems(source, bind, BeforeRebuild, AfterRebuild);
 
-        // A row is built by AddComponent-ing a TMP onto a fresh GameObject. Do that under an
-        // inactive parent — which is exactly what a collapsed popup is — and the TMP never runs
-        // Awake, so it reports a preferred size of 0 for the rest of its life and the row collapses.
-        // Activating for the duration of the rebuild and switching back within the same frame costs
-        // nothing visually (nothing renders between the two) and gets every row measured.
+        // A row is built by AddComponent-ing a TMP onto a fresh GameObject, and a TMP built under an
+        // inactive parent — which is exactly what a collapsed popup is — never measures itself again
+        // (see InactiveMeasure). Switch the panel on for the rebuild, off again straight after.
         private bool _tempActivatedForRebuild;
 
         private void BeforeRebuild()
         {
-            if (_popup == null || _popup.gameObject.activeSelf) return;
-            _popup.gameObject.SetActive(true);
-            _tempActivatedForRebuild = true;
+            if (_popup == null) return;
+            _tempActivatedForRebuild = InactiveMeasure.ActivateIfNeeded(_popup.gameObject);
         }
 
         private void AfterRebuild()
@@ -366,8 +322,8 @@ namespace PromptUGUI.Controls
 
             if (_tempActivatedForRebuild)
             {
+                InactiveMeasure.Restore(_popup.gameObject, true);
                 _tempActivatedForRebuild = false;
-                _popup.gameObject.SetActive(false);
                 return;
             }
             PlacePopup();
@@ -385,12 +341,8 @@ namespace PromptUGUI.Controls
             var tab = SelectedTab;
             RepointCaptionSource(tab);
 
-            _label.text = tab != null ? tab.CaptionText ?? "" : "";
-            var sprite = tab != null ? tab.CaptionIcon : null;
-            _icon.sprite = sprite;
-            _icon.enabled = sprite != null;
-
-            LayoutCaption();
+            _caption.SetIconSprite(tab != null ? tab.CaptionIcon : null);
+            _caption.SetText(tab != null ? tab.CaptionText ?? "" : "");
         }
 
         // Only the SELECTED tab's renames reach the caption, so exactly one subscription is live at
@@ -407,41 +359,6 @@ namespace PromptUGUI.Controls
         }
 
         /// <summary>
-        /// Places icon / label / caret in a row, left to right, each slot collapsing to nothing when
-        /// it has no content. Hand-placed rather than run through a HorizontalLayoutGroup so
-        /// <see cref="GetNativeSize"/> can state the same geometry as a closed-form expression.
-        /// </summary>
-        private void LayoutCaption()
-        {
-            var x = PadX;
-            if (_icon != null && _icon.enabled)
-            {
-                _icon.rectTransform.sizeDelta = new Vector2(_iconSize, _iconSize);
-                _icon.rectTransform.anchoredPosition = new Vector2(x, 0f);
-                x += _iconSize + _gap;
-            }
-
-            var textWidth = LabelWidth();
-            _label.rectTransform.sizeDelta = new Vector2(textWidth, _label.rectTransform.sizeDelta.y);
-            _label.rectTransform.anchoredPosition = new Vector2(x, 0f);
-            x += textWidth;
-
-            if (_arrow != null && _arrow.enabled)
-            {
-                x += _gap;
-                _arrow.rectTransform.sizeDelta = new Vector2(_arrowSize, _arrowSize);
-                _arrow.rectTransform.anchoredPosition = new Vector2(x, 0f);
-            }
-        }
-
-        // Unconstrained natural size — NOT preferredWidth, which TMP measures at the live rect and
-        // would feed the previous solve's value back on a ReSolve. Mirrors Btn / Tab / Text.
-        private Vector2 MeasureText(string text)
-            => string.IsNullOrEmpty(text) ? Vector2.zero : _label.GetPreferredValues(text);
-
-        private float LabelWidth() => MeasureText(_label.text).x;
-
-        /// <summary>
         /// The collapsed handle hugs its caption — deliberately the opposite of
         /// <c>&lt;Dropdown&gt;</c>, whose fixed width keeps a form field from twitching as options
         /// change. A channel switcher wants the caret to sit right after the name.
@@ -452,15 +369,14 @@ namespace PromptUGUI.Controls
             // the very first pass the label is still empty and measuring it would hand the layout a
             // handle just wide enough for the caret. Peek at the tabs instead: they are children, so
             // the DFS post-order apply has already given them their text and isOn.
-            var (text, hasIcon) = _label != null && !string.IsNullOrEmpty(_label.text)
-                ? (_label.text, _icon != null && _icon.enabled)
+            var label = _caption.Label;
+            var (text, hasIcon) = label != null && !string.IsNullOrEmpty(label.text)
+                ? (label.text, _caption.Icon != null && _caption.Icon.enabled)
                 : PeekSelectedContent();
 
-            var size = MeasureText(text);
-            var w = PadX * 2f + size.x;
-            if (hasIcon) w += _iconSize + _gap;
-            if (_arrow != null && _arrow.enabled) w += _gap + _arrowSize;
-            return new Vector2(w, Mathf.Max(MinTapHeight, size.y + PadY * 2f));
+            var size = _caption.MeasureText(text);
+            return new Vector2(_caption.ContentWidth(text, hasIcon),
+                               Mathf.Max(MinTapHeight, size.y + PadY * 2f));
         }
 
         /// <summary>
@@ -481,7 +397,7 @@ namespace PromptUGUI.Controls
             return first != null ? (first.CaptionText, first.CaptionIcon != null) : (null, false);
         }
 
-        private void ApplyFont() => FontApplier.Apply(_label, _fontType);
+        private void ApplyFont() => _caption.ApplyFont();
 
         // ── Expand / collapse ──────────────────────────────────────────────────────────────
 
@@ -648,26 +564,26 @@ namespace PromptUGUI.Controls
             return _popup.pivot.y > 0.5f ? new Vector2(0f, Distance) : new Vector2(0f, -Distance);
         }
 
-        /// <summary>How far through the flip the caret is: 0 = pointing down, 1 = pointing up.</summary>
-        private float CurrentArrowFlip()
-            => _arrow != null ? (1f - _arrow.rectTransform.localScale.y) * 0.5f : 0f;
+        /// <summary>How far through the turn the caret is: 0 = pointing down, 1 = pointing up.</summary>
+        private float CurrentArrowFlip() => _caption != null ? _caption.ArrowRotation / 180f : 0f;
 
         /// <summary>
-        /// Mirrors the caret about its horizontal centre line — a vertical flip, not a rotation.
+        /// Turns the caret 180° through its <b>mesh</b>, not its transform.
         /// </summary>
         /// <remarks>
-        /// A 180° <c>localEulerAngles.z</c> turn would look the same on a symmetric chevron but is
-        /// wrong here: rotation happens about the pivot, and the caret's pivot is its LEFT edge
-        /// (that is what lets <see cref="LayoutCaption"/> place it by its left side). Turning it
-        /// therefore swings the whole glyph to the left of where it was placed, so the caret visibly
-        /// jumps sideways every time the menu opens. Scaling y about a pivot whose y is already
-        /// centred leaves x untouched.
+        /// A transform turn (<c>localEulerAngles.z</c>) is wrong here: rotation happens about the
+        /// pivot, and the caret's pivot is its LEFT edge (that is what lets
+        /// <see cref="CaptionBuilder.Layout"/> place it by its left side), so turning it swings the
+        /// whole glyph to the left of where it was placed and the caret visibly jumps sideways on
+        /// every open. <see cref="RotateFlipEffect"/> rotates the vertices about the rect's CENTRE
+        /// and never touches the transform, so a square caret turns in place. (This used to be a
+        /// negative-y <c>localScale</c> for the same reason; the mesh effect replaced it when
+        /// <c>&lt;Collapsible&gt;</c> needed the same caret — one mechanism, spec §6.)
         /// </remarks>
         private void SetArrowFlip(float t)
         {
-            if (_arrow == null) return;
-            var scale = _arrow.rectTransform.localScale;
-            _arrow.rectTransform.localScale = new Vector3(scale.x, 1f - 2f * t, scale.z);
+            if (_caption == null) return;
+            _caption.ArrowRotation = t * 180f;
         }
 
         private void CancelMotions()
