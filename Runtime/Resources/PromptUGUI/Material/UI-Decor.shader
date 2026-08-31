@@ -61,7 +61,9 @@ Shader "UI/Decor"
         Lighting Off
         ZWrite Off
         ZTest [unity_GUIZTestMode]
-        Blend SrcAlpha OneMinusSrcAlpha
+        // alpha 通道走 One OneMinusSrcAlpha：HDR 显示输出下的离屏 UI 合成要求正确的直 alpha，
+        // 理由见 UI-ProceduralPanel.shader 同一行的注释。
+        Blend SrcAlpha OneMinusSrcAlpha, One OneMinusSrcAlpha
         ColorMask [_ColorMask]
 
         Pass
