@@ -126,6 +126,11 @@ TL/BL（TR/BR 同理）的斜切精确相接成尖端，尺寸变化自动跟随
 cut / notch / hexagon 时，**CPU 打包处降级为同 W 的圆角**，lint 报 warning
 `PUI-WELD-CORNER`（不是 error：形状与 weld 可能来自两个主题包的合流，作者未必同屏写过）。
 
+> **已被取代（2026-08-31，[glass-weld-seam](2026-08-31-glass-weld-seam-design.md)）。**
+> 融合组的内部厚度台阶正是沿成员**自己的**轮廓走的，斜边于是成了台阶要画的东西 ——
+> 「复杂度买不到观感」这个前提不再成立。组 shader 改用与单面板同一套角解算，成员的
+> `cut` / `notch` / `hexagon` / `rN` 照画，`PUI-WELD-CORNER` 已删除。
+
 ## 6. 实现地图
 
 ### 6.1 数据流（改动点自上而下）

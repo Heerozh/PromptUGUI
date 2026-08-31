@@ -1,7 +1,7 @@
 # 玻璃融合台阶缝：厚度差的高光与折射 + `seam` + 成员角种类
 
 **日期**：2026-08-31
-**状态**：设计完成，待实施（分支 `feat/glass-seam`）。
+**状态**：已实施（分支 `feat/glass-seam`）。实施期偏离设计的三处记在 §8.1，验证记录在 §8.3。
 **作用域**：在 [glass-fill](2026-08-23-glass-fill-design.md) §7 的 `weld` 融合组之上，把成员之间的**厚度台阶真正画出来**：像真实熔接玻璃那样，高出的一方沿交界有一道细高光、并把背景轻微折一下。为此（1）把逐像素厚度改成一张按**声明顺序覆盖**的高度图；（2）新增承载者属性 `seam`（台阶过渡带宽度，px，默认 3），tint 的分界跟它走；（3）组 shader 的成员形状改用单面板同一套角解算，`cut` / `notch` / `hexagon` / `rN` 全部进融合组，`PUI-WELD-CORNER` 退休。
 **关联**：视觉层次与参数放置继承 glass-fill §7 / §13.5（组级 vs 逐块）；角解算复用 [corner-treatments](2026-08-27-corner-treatments-design.md) 与 [corner-fillet](2026-08-29-corner-fillet-design.md) 的 `PuguiResolveQuad` / `PuguiSdPanel` / `PuguiPanelNormal`；解析法线的理由继承 glass-fill §13.7（跨平台一致 + 分支安全）；真渲染验证义务继承 procedural-style §12.2。
 
@@ -135,3 +135,36 @@ Red first。EditMode：
 - `reference/glass.md`：参数表加 `seam`（承载者栏）；weld 小节改写"厚度台阶"一段（叠放顺序、seam、折射/高光）、删"Corner treatments do not survive" 一条、lint 表删 `PUI-WELD-CORNER` 加 `PUI-GLASS-SEAM-NO-WELD`；
 - `SKILL.md`：Frame 属性表加 `seam` 一行；角处理小节删 "One exception: `weld`" 一条；
 - `2026-08-27-corner-treatments-design.md` §5 补一句"已由本 spec 取代"。
+
+---
+
+## 8. 实施记录
+
+**状态**：已实施，分支 `feat/glass-seam`。
+
+### 8.1 偏离设计的三处
+
+**`seam` 不进 `GlassParams`，存在 Frame 上、由 `OnAfterApply` 推给组（§4.1 原写 `GlassParams.Seam` + `ProceduralPanel`）。**
+按原设计，`ApplyGroupParams` 要从 `_container.RawGlassParams` 读 seam，而 `_container` 只有承载者写了任一挂面板属性时才非空 —— `<Frame weld="10" seam="6">`（不写 frost 等）压根没有 `ProceduralPanel`，作者写的 seam 会被静默丢掉。改为 `Frame._seam` + `GlassGroupPanel.SetSeam`，与 `weld` 同一条路径。副作用是好的：`seam` 因此也真的**不挂面板**，`ProceduralAttrNames.PanelAttaching` 的语义（"写了它 Frame 就有 Graphic"）保持诚实，`All` = `PanelAttaching` + `weld` + `seam`。回归测试 `Seam_SurvivesAContainerWithNoPanelOfItsOwn` / `Seam_AloneBuildsNoGroup` 钉住这两点。
+
+**`PUI-GLASS-SEAM-NO-WELD` 取代而不是叠加 `PUI-GLASS-PARAM-NO-GLASS`。**
+`seam` 无 weld 时，后者会建议"加 `glass="true"`" —— 而那并不能让 seam 生效。`Check` 里对 seam 单独报，并把它从 `NumericAttrs` 的 NO-GLASS 循环里排除（`weld` 早就是这么做的）。
+
+**`unitsPerPixel` 改从局部坐标求导，不是从 `d`。**
+原实现取 `length(float2(ddx(d), ddy(d)))`，隐含假设 `|∇d| == 1`。角解算在退化处（fillet 收缩帧、notch 凹弧）不保证这一点，而 seam 的下限钳制要靠这个值。改成 `sqrt(0.5·(|ddx(p)|² + |ddy(p)|²))`，只依赖插值出来的局部坐标。
+
+### 8.2 两条测试的前提写错了，改的是测试
+
+**"等厚 → 随光照不变"在相接布局下本来就不成立。** 两块边对边相接时，融合 SDF 在交界处只有几个像素深（两个场取 min 不是并集在共享面上的距离），于是**外斜面**的 `band` 与 smin 的 `crease` 在那里都是活的、都吃 `lightAngle` —— 翻转光照测到的是它们，不是台阶。这是既有行为，不是本次引入的。改用**重叠**布局（薄块整个落在厚块里）：大块内部 `d` 深负 → `band = 0`、`crease = 0`，台阶项是唯一随光变化的项。`EqualThickness_DrawsNoStep` 与 `ThicknessStep_LightsTheFaceTheLightFallsOn` 共用这一个场景。
+
+**alpha 判断不了"这个像素画没画"。** UI 相机清成不透明黑，形状外 alpha 也是 1。`CutCornerOnAWeldedBlock_IsActuallyCut` 改判红通道（背景黑 vs 玻璃后面那片橙色世界）。
+
+### 8.3 验证记录
+
+- EditMode 3044 / EditorOnly 313 / PlayMode 178 全通过（新增 15：seam 属性 5、角打包 4、lint 6；替换 2 条 CPU 钳制用例；删除 5 条 `PUI-WELD-CORNER` 用例）。
+- `dotnet run --project .lint/UIXmlLint -- Runtime/Resources/` 无 issue。
+- **离屏渲染肉眼校验**（`Application.temporaryCachePath` 下的 PNG）：
+  - `promptugui-glass-weld.png` 与改动前逐像素对比：**230 个像素不同、最大通道差 83/255，全部集中在两块的交界线上** —— 形状与外轮廓一个像素没动，改动只落在台阶上。默认 `seam="3"` 下那条线约 2px 宽。
+  - `promptugui-glass-seam-lit.png`：薄块凹槽的左右两条竖边各现一道高光（光是水平的，上下边不亮 —— 方向光的正确表现）。
+  - 参考图复刻场景（宽横条 + 右侧 `depth=8` 抬高段 + `radius="0,14,14,cut 34"` 斜边分界，`lightAngle=-40`）：斜边在融合组里保住了，交界处一道细高光沿厚块一侧走，两段仍读作一整片连续玻璃。这正是本 spec 要还原的那张图。
+- **等厚的既有 weld 组**：`EqualThickness_DrawsNoStep` 断言两个相反光照下 |Δluma| < 2/255，即台阶项恒零。tint 过渡宽度从 ~`weld` 收窄到 ~`seam` 是唯一的既有可见变化（§3.2 已定案）。

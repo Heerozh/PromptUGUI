@@ -32,7 +32,10 @@ namespace PromptUGUI.Controls.Internal
         private const string ShaderResourcePath = "PromptUGUI/Material/UI-GlassGroup";
 
         private static readonly int WeldRectsId = Shader.PropertyToID("_WeldRects");
-        private static readonly int WeldRadiiId = Shader.PropertyToID("_WeldRadii");
+        private static readonly int WeldCornerWId = Shader.PropertyToID("_WeldCornerW");
+        private static readonly int WeldCornerHId = Shader.PropertyToID("_WeldCornerH");
+        private static readonly int WeldCornerKindId = Shader.PropertyToID("_WeldCornerKind");
+        private static readonly int WeldCornerFilletId = Shader.PropertyToID("_WeldCornerFillet");
         private static readonly int WeldTintTopId = Shader.PropertyToID("_WeldTintTop");
         private static readonly int WeldTintBottomId = Shader.PropertyToID("_WeldTintBottom");
         private static readonly int WeldDepthsId = Shader.PropertyToID("_WeldDepths");
@@ -54,7 +57,10 @@ namespace PromptUGUI.Controls.Internal
         // Reused every repack — the arrays are always sent full length, so they never reallocate and
         // the group produces no per-frame garbage.
         private readonly Vector4[] _rects = new Vector4[MaxMembers];
-        private readonly Vector4[] _radii = new Vector4[MaxMembers];
+        private readonly Vector4[] _cornerW = new Vector4[MaxMembers];
+        private readonly Vector4[] _cornerH = new Vector4[MaxMembers];
+        private readonly Vector4[] _cornerKind = new Vector4[MaxMembers];
+        private readonly Vector4[] _cornerFillet = new Vector4[MaxMembers];
         private readonly Vector4[] _tintTop = new Vector4[MaxMembers];
         private readonly Vector4[] _tintBottom = new Vector4[MaxMembers];
         private readonly Vector4[] _depths = new Vector4[MaxMembers];
@@ -287,10 +293,17 @@ namespace PromptUGUI.Controls.Internal
                 GetLocalRect(member.rectTransform, rectTransform, out var center, out var half);
 
                 _rects[count] = new Vector4(center.x, center.y, half.x, half.y);
-                _radii[count] = ResolveRadius(p, half);
+                // The same four vectors the single-panel shader gets, unmodified: the group runs the
+                // same corner solver, so clamping to the short side or resolving pill / hexagon here
+                // as well is how the two paths drift apart. Those two ride along as the sentinel in
+                // _WeldDepths.yz, exactly as _Shape / _HexW do for a single panel.
+                _cornerW[count] = p.CornerWidth;
+                _cornerH[count] = p.CornerHeight;
+                _cornerKind[count] = p.CornerKinds;
+                _cornerFillet[count] = p.CornerFillet;
                 _tintTop[count] = p.FillTop;
                 _tintBottom[count] = p.FillBottom;
-                _depths[count] = new Vector4(p.GlassParams.Depth, 0f, 0f, 0f);
+                _depths[count] = new Vector4(p.GlassParams.Depth, (float)p.Shape, p.HexWidth, 0f);
 
                 var r = new Rect(center.x - half.x, center.y - half.y, half.x * 2f, half.y * 2f);
                 bounds = count == 0 ? r : Union(bounds, r);
@@ -301,14 +314,20 @@ namespace PromptUGUI.Controls.Internal
             for (var i = count; i < MaxMembers; i++)
             {
                 _rects[i] = Vector4.zero;
-                _radii[i] = Vector4.zero;
+                _cornerW[i] = Vector4.zero;
+                _cornerH[i] = Vector4.zero;
+                _cornerKind[i] = Vector4.zero;
+                _cornerFillet[i] = Vector4.zero;
                 _tintTop[i] = Vector4.zero;
                 _tintBottom[i] = Vector4.zero;
                 _depths[i] = Vector4.zero;
             }
 
             _material.SetVectorArray(WeldRectsId, _rects);
-            _material.SetVectorArray(WeldRadiiId, _radii);
+            _material.SetVectorArray(WeldCornerWId, _cornerW);
+            _material.SetVectorArray(WeldCornerHId, _cornerH);
+            _material.SetVectorArray(WeldCornerKindId, _cornerKind);
+            _material.SetVectorArray(WeldCornerFilletId, _cornerFillet);
             _material.SetVectorArray(WeldTintTopId, _tintTop);
             _material.SetVectorArray(WeldTintBottomId, _tintBottom);
             _material.SetVectorArray(WeldDepthsId, _depths);
@@ -409,26 +428,6 @@ namespace PromptUGUI.Controls.Internal
                 i++;
             }
             if (i != _activeCount) MarkMembersDirty();
-        }
-
-        private static Vector4 ResolveRadius(in PanelParams p, Vector2 half)
-        {
-            var shortest = Mathf.Min(half.x, half.y);
-            // Unlike the single-panel shader, the whole-shape sentinels are resolved here: the group
-            // material is per-group anyway, so there is no material sharing left to protect by
-            // deferring them to the GPU.
-            //
-            // Corner treatments do not survive fusion at all. The group packs one radius vector per
-            // member and smooth-unions the fields, and that union rounds every corner back off — so
-            // carrying the kinds through would cost two more uniform arrays and still not draw a
-            // chamfer. They degrade to a round corner of the same reach; PUI-WELD-CORNER says so at
-            // lint time, since the shape and the weld can arrive from two different theme packs.
-            var r = p.Shape != PanelShape.None
-                ? new Vector4(shortest, shortest, shortest, shortest)
-                : p.CornerWidth;
-            return new Vector4(
-                Mathf.Clamp(r.x, 0f, shortest), Mathf.Clamp(r.y, 0f, shortest),
-                Mathf.Clamp(r.z, 0f, shortest), Mathf.Clamp(r.w, 0f, shortest));
         }
 
         /// <summary>

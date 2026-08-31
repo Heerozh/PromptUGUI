@@ -45,6 +45,7 @@ attribute. Writing any of them without `glass="true"` is a lint error
 | `lightIntensity` | `0`–`1` | `0.6` | Edge highlight strength. `0` turns the lighting layer off |
 | `saturation` | `≥0` | `1.15` | Backdrop vibrancy. `1` = untouched, `0` = greyscale. This is what makes glass look lit rather than washed out — reach for it before reaching for `dispersion` |
 | `noise` | `0`–`1` | `0.02` | Frosted grain. Doubles as dithering against banding on large blurred areas |
+| `seam` | px | `3` | **`weld` groups only** (`PUI-GLASS-SEAM-NO-WELD` elsewhere). How wide the thickness step between two blocks is; the highlight along it takes about half that. `0` = as sharp as the screen can draw |
 
 Reused unchanged: `color` (tint painted over the glass — comma gradients, gradient **stop positions** and **hints** (`"A 70%,B"` / `"A, 70%, B"`, which glass draws per-pixel) and `/alpha` work exactly as
 elsewhere), `radius`, `borderWidth` / `borderColor`, `glow` / `glowColor`,
@@ -82,13 +83,33 @@ them. `weld` merges the shapes with an SDF smooth-min so they read as one contin
 their **thickness** — not a line — say which is primary.
 
 ```xml
-<Frame weld="10" frost="0.5" lightAngle="-30" anchor="top-stretch" height="104">
+<Frame weld="10" seam="3" frost="0.5" lightAngle="-30" anchor="top-stretch" height="104">
   <Frame glass="true" anchor="top-stretch" height="64" radius="0,0,16,16" depth="6"
          color="white/0.06"/>
   <Frame glass="true" anchor="top-right" size="180,40" radius="12" depth="3"
          color="#39f/0.15"/>
 </Frame>
 ```
+
+### The thickness step
+
+Where two blocks of different `depth` meet, the fused pane is genuinely thicker on one side, and it
+is drawn that way: the step's face catches the light on the side it points at and refracts the
+backdrop slightly, the way a real weld between two panes of glass does. Nothing is drawn between
+blocks of equal `depth` — the step is the difference, so there is no line to remove.
+
+- `seam` (on the carrier) is how wide that step is. The default `3` reads as a fine line; larger
+  values give a visible bevel. It is independent of `weld`, which controls only how far from the
+  junction the *outlines* merge.
+- **Stacking is declaration order** — where two blocks overlap, the later one's thickness replaces
+  the earlier one's rather than adding to it. Thick over thin is a raised step; thin over thick is a
+  groove. Two blocks that merely touch are unaffected by order.
+- Because the step follows the **upper block's own contour**, the block underneath can be the
+  simplest rectangle: a raised trapezoid laid over a plain bar produces the trapezoid's diagonal,
+  and the bar does not need a matching corner cut out of it.
+- Whether the step reads bright or dark depends on `lightAngle`, exactly like the outer edge: a face
+  turned away from the light gets only the weak fill light. A vertical or diagonal seam under an
+  oblique light is the configuration that shows it best.
 
 - `weld` is the fusing radius in px: how far from the junction the two shapes blend together.
 - Members are the **direct children** with `glass="true"`, from 2 to 8 of them. A group with fewer
@@ -100,18 +121,17 @@ their **thickness** — not a line — say which is primary.
   from the children.
 - Members stay ordinary nodes throughout: they lay out normally, hold children, and answer
   `Get<T>` as usual. Only their drawing moves to the group.
-- **Corner treatments do not survive the fusion.** The smooth-min that merges the members rounds
-  every corner back off, so a member written `radius="cut 16"` (or `notch` / `hexagon`, with or
-  without a fillet `rN`) draws with a plain round corner of the same reach. `PUI-WELD-CORNER` warns
-  rather than errors — the shape and the `weld` can easily arrive from two different theme packs.
-  Drop `weld` to keep the shape.
+- **Corner treatments survive the fusion.** Members run the same corner solver as a standalone
+  panel, so `cut` / `notch` / `hexagon` and the fillet `rN` draw as written — on the fused outline
+  and on the internal thickness step alike. Only the immediate neighbourhood of a junction is
+  rounded, by the `weld` smooth-min itself.
 - A Variant may turn a block's `glass` on or off, or hide it: the group re-fuses in the same pass.
 
 Where each parameter goes:
 
 | 写在 | 参数 |
 |---|---|
-| 容器（带 `weld` 的 Frame） | `frost` `dispersion` `lightAngle` `lightIntensity` `saturation` `noise`, and `borderWidth` / `borderColor` / `glow` / `glowColor` / `innerGlow` / `innerGlowColor` for the fused outline |
+| 容器（带 `weld` 的 Frame） | `seam` `frost` `dispersion` `lightAngle` `lightIntensity` `saturation` `noise`, and `borderWidth` / `borderColor` / `glow` / `glowColor` / `innerGlow` / `innerGlowColor` for the fused outline |
 | 每个玻璃子级 | `radius` `depth` `color` |
 
 The split is physical, not arbitrary: two halves of one continuous pane cannot be frosted differently
@@ -181,7 +201,7 @@ of them is silent at runtime, which is why they exist.
 | `PUI-GLASS-WELD-SELF` | `weld` and `glass="true"` on the same node |
 | `PUI-GLASS-WELD-MEMBERS` | a weld group with fewer than 2 or more than 8 glass children |
 | `PUI-GLASS-WELD-PARAM-PLACEMENT` | a group-level parameter on a member, or a per-block one on the carrier |
-| `PUI-WELD-CORNER` | a `cut` / `notch` / `hexagon` radius on a welded block — fusion rounds it off |
+| `PUI-GLASS-SEAM-NO-WELD` | `seam` on a node with no `weld` — only a fused group has a thickness step |
 | `PUI-MASK-WELD-SELF` | `mask="self"` on a `weld` carrier — the fused pane is on a child |
 | `PUI-PROC-SPRITE-CONFLICT` | `sprite=` on a control that is drawing procedurally |
 | `PUI-PROC-STATE-SPRITE-CONFLICT` | `pressedSprite` / `disabledSprite` on a procedural surface |

@@ -112,6 +112,15 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
         /// <summary>Renders the world, then the UI that samples it, and reads the centre pixel.</summary>
         private Color RenderAndSample(string dumpName = null)
+            => RenderAndSampleAt(Size / 2, Size / 2, dumpName);
+
+        /// <summary>
+        /// The same render, read at one chosen pixel. Coordinates are bottom-left origin device
+        /// pixels, and the canvas has no <c>reference=</c>, so it runs ConstantPixelSize at
+        /// scaleFactor 1 — one XML unit is one pixel here, and a centred box's centre is
+        /// <c>(Size / 2, Size / 2)</c>.
+        /// </summary>
+        private Color RenderAndSampleAt(int x, int y, string dumpName = null)
         {
             _capture.Render();          // publishes the blurred backdrop
             Canvas.ForceUpdateCanvases();
@@ -134,9 +143,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 Debug.Log($"PromptUGUI glass render dump: {path}");
             }
 
-            var centre = tex.GetPixel(Size / 2, Size / 2);
+            var sample = tex.GetPixel(x, y);
             Object.DestroyImmediate(tex);
-            return centre;
+            return sample;
         }
 
         private const string GlassPanel = @"<?xml version='1.0' encoding='utf-8'?>
@@ -276,6 +285,96 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             Assert.Greater(c.b, 0.15f, $"the blue tint must be visible, got {c}");
             Assert.Greater(c.r, 0.05f, $"the orange world must still show through it, got {c}");
+        }
+
+        /// <summary>
+        /// A thin block sitting wholly inside a thick one, so the step runs along the inner block's
+        /// own contour — the layout the fusion draws a groove for, and the one that isolates the
+        /// step cleanly.
+        ///
+        /// <para>Deliberately not two blocks meeting edge to edge. There the fused SDF is only a
+        /// few px from zero (min of two fields is not the union's distance across a shared face),
+        /// so the OUTER bevel and the smin crease are both live at the junction and both answer the
+        /// light — a light-flip comparison there measures those, not the step. Deep inside the big
+        /// block <c>band</c> and <c>crease</c> are zero and the step is the only term left.</para>
+        /// </summary>
+        private const string StepPair = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='grp' weld='14' seam='12' frost='0.6' lightAngle='{0}'
+         anchor='center' width='220' height='150'>
+    <Frame id='a' glass='true' anchor='center' width='220' height='150' depth='8'/>
+    <Frame id='b' glass='true' anchor='center' width='80'  height='80'  depth='{1}'/>
+  </Frame>
+</Screen></PromptUGUI>";
+
+        // The inner block's left contour: 40px left of centre, halfway up.
+        private const int StepProbeX = Size / 2 - 40;
+        private const int StepProbeY = Size / 2;
+
+        private static float Luma(Color c) => 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+
+        [Test]
+        public void ThicknessStep_LightsTheFaceTheLightFallsOn()
+        {
+            // The inner block is thinner, so its contour is a groove: the step's face looks inwards,
+            // and light arriving from that side lands on it.
+            Open(string.Format(StepPair, "90", "2"));    // light from the right — onto the face
+            var lit = RenderAndSampleAt(StepProbeX, StepProbeY, "promptugui-glass-seam-lit.png");
+
+            Open(string.Format(StepPair, "-90", "2"));   // light from the left — away from it
+            var away = RenderAndSampleAt(StepProbeX, StepProbeY, "promptugui-glass-seam-away.png");
+
+            AssertNotTheErrorShader(lit);
+            Assert.Greater(Luma(lit), Luma(away) + 0.05f,
+                $"the thickness step must catch the light on the side it faces, got lit={lit} " +
+                $"away={away}");
+        }
+
+        [Test]
+        public void EqualThickness_DrawsNoStep()
+        {
+            // Same geometry, same seam, one depth: the height field is constant, its gradient is
+            // exactly zero, and the two renders have to come out identical. This is what keeps the
+            // feature from quietly drawing the dividing line weld exists to remove.
+            Open(string.Format(StepPair, "90", "8"));
+            var lit = RenderAndSampleAt(StepProbeX, StepProbeY);
+
+            Open(string.Format(StepPair, "-90", "8"));
+            var away = RenderAndSampleAt(StepProbeX, StepProbeY);
+
+            Assert.Less(Mathf.Abs(Luma(lit) - Luma(away)), 2f / 255f,
+                $"two blocks of equal depth have no step to light, got lit={lit} away={away}");
+        }
+
+        [Test]
+        public void CutCornerOnAWeldedBlock_IsActuallyCut()
+        {
+            // Members run the same corner solver as a single panel, so a chamfer survives the
+            // fusion. The probe sits 12px in from both edges of the top-left corner: a 40px cut
+            // removes it (12 + 12 < 40), a 40px round corner keeps it (its centre is 39.6px away).
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='grp' weld='4' frost='0.6' anchor='center' width='220' height='150'>
+    <Frame id='a' glass='true' anchor='top-left' width='110' height='150' radius='{0}' depth='6'/>
+    <Frame id='b' glass='true' anchor='bottom-right' width='40' height='40' depth='2'/>
+  </Frame>
+</Screen></PromptUGUI>";
+
+            // Container spans 220x150 about the centre, so its top-left is (Size/2 - 110, Size/2 + 75).
+            const int probeX = Size / 2 - 110 + 12;
+            const int probeY = Size / 2 + 75 - 12;
+
+            Open(string.Format(xml, "40"));
+            var round = RenderAndSampleAt(probeX, probeY, "promptugui-glass-weld-round.png");
+            Open(string.Format(xml, "cut 40"));
+            var cut = RenderAndSampleAt(probeX, probeY, "promptugui-glass-weld-cut.png");
+
+            // The UI camera clears to opaque black, so alpha says nothing — the world behind the
+            // glass is orange and the background is not.
+            Assert.Greater(round.r, 0.3f, $"a 40px round corner keeps this pixel, got {round}");
+            Assert.Less(cut.r, 0.1f,
+                $"a 40px chamfer removes it — if this pixel is still drawn the group flattened the " +
+                $"corner back to a round one, got {cut}");
         }
 
         [Test]

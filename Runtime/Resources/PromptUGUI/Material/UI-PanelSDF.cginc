@@ -1,6 +1,7 @@
-// 程序化面板的共享形状层：UI-ProceduralPanel 与 UI-GlassPanel 都 include 这份，
-// 保证不透明面板和玻璃面板的圆角、切角、pill / hexagon 解算、抗锯齿宽度逐像素完全一致 ——
-// 两块并排、只有填充方式不同的面板，边缘必须严丝合缝对齐。
+// 程序化面板的共享形状层：UI-ProceduralPanel / UI-GlassPanel / UI-GlassGroup 都 include 这份，
+// 保证不透明面板、玻璃面板和融合玻璃组的圆角、切角、pill / hexagon 解算、抗锯齿宽度逐像素完全
+// 一致 —— 两块并排、只有填充方式不同的面板，边缘必须严丝合缝对齐；融合组里一块玻璃的斜边，也得
+// 和它单独画时是同一条。
 #ifndef PROMPTUGUI_PANEL_SDF_INCLUDED
 #define PROMPTUGUI_PANEL_SDF_INCLUDED
 
@@ -585,27 +586,6 @@ float2 PuguiPanelNormal(float2 p, float2 b, PuguiQuad q)
     }
 
     // abs() 把四个象限折到第一象限求解，这里再折回去。
-    float2 s = float2(p.x >= 0.0 ? 1.0 : -1.0, p.y >= 0.0 ? 1.0 : -1.0);
-    return normalize(s * g);
-}
-
-// ---- 以下两个只剩 weld 融合面在用 -------------------------------------------------------
-// GlassGroupPanel 把成员形状打包成逐成员的 float4 半径数组再做 smooth-union，角部处理在那条
-// 路径上是降级成同 W 圆角的（见 PUI-WELD-CORNER），所以它要的仍是纯圆角版本。
-
-float PuguiSdRoundBox(float2 p, float2 b, float4 r)
-{
-    // 象限选角：右半区取 (TR, BR)，左半区取 (TL, BL)；再按上下二选一。
-    float2 side = (p.x > 0.0) ? float2(r.y, r.z) : float2(r.x, r.w);
-    float radius = (p.y > 0.0) ? side.x : side.y;
-    return PuguiSdRoundCorner(abs(p) - b, radius);
-}
-
-float2 PuguiSdNormal(float2 p, float2 b, float4 r)
-{
-    float2 side = (p.x > 0.0) ? float2(r.y, r.z) : float2(r.x, r.w);
-    float radius = (p.y > 0.0) ? side.x : side.y;
-    float2 g = PuguiSdQuadrantNormal(abs(p) - b + radius);
     float2 s = float2(p.x >= 0.0 ? 1.0 : -1.0, p.y >= 0.0 ? 1.0 : -1.0);
     return normalize(s * g);
 }
