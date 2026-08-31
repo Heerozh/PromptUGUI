@@ -8,6 +8,15 @@ namespace PromptUGUI.Controls.Internal
     internal enum ClampAlign { Low, Center, High }
 
     /// <summary>
+    /// Where a clamped axis gets its unclamped size from: <see cref="Fraction"/> = a share of the
+    /// parent (<c>width="N%"</c> / <c>clamp(min, N%, max)</c>), <see cref="Hug"/> = the control's own
+    /// content (<c>width="hug"</c> / <c>clamp(min, hug, max)</c>). Everything downstream — bounds,
+    /// margins, edge hugging, the offset writes — is identical; only that one term differs.
+    /// Spec 2026-08-31-hug-reveal-flip-checked-design §1.4.2.
+    /// </summary>
+    internal enum ClampMode { Fraction, Hug }
+
+    /// <summary>
     /// Free-positioning half of <c>width="clamp(min, N%, max)"</c> (spec 2026-08-30-clamp-size-design
     /// §5.1 / §6.4). <c>ApplyCommon</c> writes the plain fractional baseline (anchor sub-range, pivot 0.5,
     /// margin offsets) and pushes the spec in here; this component then owns the axis: on every layout
@@ -29,6 +38,7 @@ namespace PromptUGUI.Controls.Internal
         private struct AxisSpec
         {
             public bool On;
+            public ClampMode Mode;
             public float Fraction;
             public float Min;
             public float Max;
@@ -42,12 +52,23 @@ namespace PromptUGUI.Controls.Internal
         private bool _delayedDirty;
         private bool _selfWriting;
 
-        internal void SetAxis(int axis, bool on, float fraction, float min, float max,
+        /// <summary>
+        /// Content size for <see cref="ClampMode.Hug"/>, per axis (0 = X, 1 = Y). Supplied by the
+        /// owning control (<c>IHugContent</c>) because "my content" is not always this RectTransform's
+        /// own preferred size — a <c>&lt;ScrollList&gt;</c> means its inner content node, not the
+        /// viewport. Null falls back to this node's own preferred size, which is what the layout-group
+        /// containers want. Re-assigned by <c>ApplyCommon</c> on every pass, so a domain reload that
+        /// drops the delegate self-heals.
+        /// </summary>
+        internal System.Func<int, float> ContentSize;
+
+        internal void SetAxis(int axis, bool on, ClampMode mode, float fraction, float min, float max,
                               float marginLow, float marginHigh, ClampAlign align)
         {
             var spec = new AxisSpec
             {
                 On = on,
+                Mode = mode,
                 Fraction = fraction,
                 Min = min,
                 Max = max,
@@ -66,19 +87,21 @@ namespace PromptUGUI.Controls.Internal
         }
 
         private static bool Same(in AxisSpec a, in AxisSpec b) =>
-            a.On == b.On && a.Fraction == b.Fraction && a.Min == b.Min && a.Max == b.Max
+            a.On == b.On && a.Mode == b.Mode && a.Fraction == b.Fraction && a.Min == b.Min && a.Max == b.Max
             && a.MarginLow == b.MarginLow && a.MarginHigh == b.MarginHigh && a.Align == b.Align;
 
         internal void ClearAxis(int axis) =>
-            SetAxis(axis, false, 0f, float.NegativeInfinity, float.PositiveInfinity, 0f, 0f, ClampAlign.Low);
+            SetAxis(axis, false, ClampMode.Fraction, 0f, float.NegativeInfinity, float.PositiveInfinity,
+                0f, 0f, ClampAlign.Low);
 
         internal bool AxisEnabled(int axis) => axis == 0 ? _x.On : _y.On;
 
         public void SetLayoutHorizontal() => Apply(0);
         public void SetLayoutVertical() => Apply(1);
 
-        // Spec §5.1:
+        // Spec §5.1 (Fraction) / FND §1.4.2 (Hug):
         //   box  = clamp(f·P, min, max)         open bounds are ±Infinity → identity
+        //        = clamp(content, min, max)     in Hug mode — the only line the mode changes
         //   W    = box − (lo + hi)              margins inset INSIDE the box, as with plain %
         //   low  = lo | P − box + lo | (P − box)/2 + lo   per Low / High / Center alignment
         //   offsetMin = low − a0·P, offsetMax = (low + W) − a1·P
@@ -94,7 +117,10 @@ namespace PromptUGUI.Controls.Internal
             if (parent == null) return;
 
             var p = parent.rect.size[axis];
-            var box = Mathf.Clamp(spec.Fraction * p, spec.Min, spec.Max);
+            // Hug still needs the parent size below (High / Center hug a parent edge), it just
+            // doesn't derive its size from it.
+            var unclamped = spec.Mode == ClampMode.Hug ? Content(axis) : spec.Fraction * p;
+            var box = Mathf.Clamp(unclamped, spec.Min, spec.Max);
             var w = box - (spec.MarginLow + spec.MarginHigh);
             float low;
             switch (spec.Align)
@@ -124,6 +150,19 @@ namespace PromptUGUI.Controls.Internal
             {
                 _selfWriting = false;
             }
+        }
+
+        /// <summary>
+        /// The node's content size on <paramref name="axis"/>. Read inside the layout pass, where
+        /// uGUI has already run <c>CalculateLayoutInput*</c> bottom-up on this node — the same window
+        /// <c>ContentSizeFitter</c> reads its preferred size in. The fitter is an
+        /// <c>ILayoutSelfController</c>, not an <c>ILayoutElement</c>, so reading this node's own
+        /// preferred size cannot recurse into itself.
+        /// </summary>
+        private float Content(int axis)
+        {
+            if (ContentSize != null) return ContentSize(axis);
+            return LayoutUtility.GetPreferredSize((RectTransform)transform, axis);
         }
 
         private void SetDirty()

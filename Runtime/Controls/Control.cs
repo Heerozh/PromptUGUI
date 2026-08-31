@@ -560,13 +560,13 @@ namespace PromptUGUI.Controls
             fitter ??= RectTransform.gameObject.AddComponent<Internal.ClampFitter>();
             fitter.enabled = true;
             if (wantX)
-                fitter.SetAxis(0, true, sizeSpec.WidthFraction, sizeSpec.MinWidth, sizeSpec.MaxWidth,
-                    ml, mr, ToClampAlign(preset.H));
+                fitter.SetAxis(0, true, Internal.ClampMode.Fraction, sizeSpec.WidthFraction,
+                    sizeSpec.MinWidth, sizeSpec.MaxWidth, ml, mr, ToClampAlign(preset.H));
             else
                 fitter.ClearAxis(0);
             if (wantY)
-                fitter.SetAxis(1, true, sizeSpec.HeightFraction, sizeSpec.MinHeight, sizeSpec.MaxHeight,
-                    mb, mt, ToClampAlign(preset.V));
+                fitter.SetAxis(1, true, Internal.ClampMode.Fraction, sizeSpec.HeightFraction,
+                    sizeSpec.MinHeight, sizeSpec.MaxHeight, mb, mt, ToClampAlign(preset.V));
             else
                 fitter.ClearAxis(1);
         }
