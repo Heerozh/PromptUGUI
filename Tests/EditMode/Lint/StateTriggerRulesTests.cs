@@ -150,5 +150,54 @@ namespace PromptUGUI.Tests.EditMode.Lint
             StringAssert.Contains("<Tab>", issue.Message);
             StringAssert.Contains("<Toggle>", issue.Message);
         }
+
+        // ── PUI-CHECKED-NO-SOURCE (FND §4.3) ─────────────────────────────────────────────
+
+        private const string CheckedCode = StateTriggerRules.NoToggleSourceCode;
+
+        [TestCase("checked")]
+        [TestCase("unchecked")]
+        public void Checked_Without_A_Toggle_Ancestor_Is_Flagged(string on)
+        {
+            var doc = Parse($"<Frame><Show on='{on}'/></Frame>");
+            var codes = IRWalker.Walk(doc).Select(i => i.Code).ToList();
+            CollectionAssert.Contains(codes, CheckedCode);
+        }
+
+        [TestCase("Toggle")]
+        [TestCase("Tab")]
+        public void Checked_Inside_A_Toggle_Source_Is_Fine(string tag)
+        {
+            var doc = Parse($"<{tag} id='s'><Show on='checked'><Frame/></Show></{tag}>");
+            var codes = IRWalker.Walk(doc).Select(i => i.Code).ToList();
+            CollectionAssert.DoesNotContain(codes, CheckedCode);
+        }
+
+        [Test]
+        public void Checked_Inside_A_Btn_Is_Still_Flagged()
+        {
+            // A <Btn> broadcasts state-* but has no checked state at all.
+            var doc = Parse("<Btn id='b'><Show on='checked'><Frame/></Show></Btn>");
+            var codes = IRWalker.Walk(doc).Select(i => i.Code).ToList();
+            CollectionAssert.Contains(codes, CheckedCode);
+        }
+
+        [Test]
+        public void Checked_With_An_Id_Is_Deferred_To_Runtime()
+        {
+            var doc = Parse("<Frame><Show on='checked@hdr'><Frame/></Show></Frame>");
+            var codes = IRWalker.Walk(doc).Select(i => i.Code).ToList();
+            CollectionAssert.DoesNotContain(codes, CheckedCode);
+        }
+
+        [Test]
+        public void Checked_Message_Names_Toggle_And_Tab()
+        {
+            var doc = Parse("<Frame><Show on='checked'/></Frame>");
+            var issue = IRWalker.Walk(doc).First(i => i.Code == CheckedCode);
+            StringAssert.Contains("<Toggle>", issue.Message);
+            StringAssert.Contains("<Tab>", issue.Message);
+            StringAssert.Contains("checked@<id>", issue.Message);
+        }
     }
 }
