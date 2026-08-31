@@ -307,6 +307,16 @@ namespace PromptUGUI.Tests.EditMode.Controls
   </Frame>
 </Screen></PromptUGUI>";
 
+        /// <summary>The same scene with the seam left open, for the sign-of-seam test.</summary>
+        private const string StepPairSeam = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='grp' weld='14' seam='{2}' frost='0.6' lightAngle='{0}'
+         anchor='center' width='220' height='150'>
+    <Frame id='a' glass='true' anchor='center' width='220' height='150' depth='8'/>
+    <Frame id='b' glass='true' anchor='center' width='80'  height='80'  depth='{1}'/>
+  </Frame>
+</Screen></PromptUGUI>";
+
         // Just outside the inner block's left contour (40px left of centre), halfway up. The step is
         // one-sided: the block keeps its full height up to its own contour and the drop happens in a
         // skirt OUTSIDE it, steepest at the contour — so the pixel that sees the face is the one
@@ -349,6 +359,30 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.Greater(Luma(near), Luma(far) + 0.05f,
                 $"the step highlight should peak at the block's contour and fade across the seam, " +
                 $"got near={near} far={far}");
+        }
+
+        [Test]
+        public void SeamSign_ChoosesWhichSideOfTheContourTheRampFallsOn()
+        {
+            // Same scene, same light, same |seam| — only the sign differs. Positive puts the ramp
+            // outside the raised block's contour (the glow lands on what surrounds it), negative
+            // puts it inside. Two probes 3px either side of that contour therefore swap places.
+            const int outsideX = Size / 2 - 40 - 3;
+            const int insideX = Size / 2 - 40 + 3;
+
+            Open(string.Format(StepPairSeam, "90", "2", "12"));
+            var outOut = RenderAndSampleAt(outsideX, StepProbeY, "promptugui-glass-seam-outward.png");
+            var outIn = RenderAndSampleAt(insideX, StepProbeY);
+
+            Open(string.Format(StepPairSeam, "90", "2", "-12"));
+            var inOut = RenderAndSampleAt(outsideX, StepProbeY);
+            var inIn = RenderAndSampleAt(insideX, StepProbeY, "promptugui-glass-seam-inward.png");
+
+            AssertNotTheErrorShader(inIn);
+            Assert.Greater(Luma(outOut), Luma(outIn) + 0.03f,
+                $"seam=12 must light the skirt outside the block, got outside={outOut} inside={outIn}");
+            Assert.Greater(Luma(inIn), Luma(inOut) + 0.03f,
+                $"seam=-12 must light the ramp inside the block, got inside={inIn} outside={inOut}");
         }
 
         [Test]

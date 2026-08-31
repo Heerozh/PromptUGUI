@@ -234,14 +234,24 @@ namespace PromptUGUI.Tests.EditMode.Lint
     </Frame>"), GlassRules.WeldParamPlacementCode, "a"));
         }
 
-        [TestCase("seam='-1'")]
         [TestCase("seam='wide'")]
+        [TestCase("seam='NaN'")]
         public void BadSeamValues_AreFlagged(string attr)
         {
             Assert.IsTrue(Has(Walk($@"<Frame id='g' weld='10' {attr}>
       <Frame id='a' glass='true'/>
       <Frame id='b' glass='true'/>
     </Frame>"), StyleRules.ProceduralValueCode, "g"));
+        }
+
+        [Test]
+        public void NegativeSeam_IsFine()
+        {
+            // The sign picks which side of the raised block's contour the step's ramp falls on.
+            Assert.IsFalse(Has(Walk(@"<Frame id='g' weld='10' seam='-4'>
+      <Frame id='a' glass='true' depth='6'/>
+      <Frame id='b' glass='true' depth='2'/>
+    </Frame>"), StyleRules.ProceduralValueCode));
         }
     }
 }

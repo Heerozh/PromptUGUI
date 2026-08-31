@@ -36,7 +36,6 @@ namespace PromptUGUI.Tests.EditMode.Parser
         [TestCase(GlassAttrParser.Weld, "NaN")]
         [TestCase(GlassAttrParser.Seam, "NaN")]
         [TestCase(GlassAttrParser.Seam, "Infinity")]
-        [TestCase(GlassAttrParser.Seam, "-1")]
         public void GlassAttrs_RejectNonFiniteValues(string attr, string value)
         {
             Assert.IsFalse(GlassAttrParser.TryParseValue(attr, value, out _, out var error),
@@ -57,6 +56,10 @@ namespace PromptUGUI.Tests.EditMode.Parser
             Assert.AreEqual(GlassAttrParser.DefaultSeam, seam, 0.0001f);
             Assert.IsTrue(GlassAttrParser.TryParseValue(GlassAttrParser.Seam, "0", out var sharp, out _));
             Assert.AreEqual(0f, sharp, 0.0001f);
+            // Negative is the inward step: the ramp lives inside the raised block instead of
+            // spilling outside it. Sign is a direction here, not an error.
+            Assert.IsTrue(GlassAttrParser.TryParseValue(GlassAttrParser.Seam, "-6", out var inward, out _));
+            Assert.AreEqual(-6f, inward, 0.0001f);
         }
     }
 }

@@ -138,9 +138,13 @@ namespace PromptUGUI.Parser
                 case Depth: min = 0f; max = float.PositiveInfinity; fallback = DefaultDepth; return;
                 case Saturation: min = 0f; max = float.PositiveInfinity; fallback = DefaultSaturation; return;
                 case Weld: min = 0f; max = float.PositiveInfinity; fallback = DefaultWeld; return;
-                // 0 is legal and means "as sharp as this screen can draw it": the group shader
-                // floors it at two device pixels, so the step never thins away to nothing.
-                case Seam: min = 0f; max = float.PositiveInfinity; fallback = DefaultSeam; return;
+                // Signed: the magnitude is how far the thickness step's ramp reaches, the sign is
+                // which side of the raised block's contour it falls on (+ outside, - inside). 0 is
+                // legal and means "as sharp as this screen can draw it" — the group shader floors
+                // the magnitude at two device pixels, so the step never thins away to nothing.
+                case Seam:
+                    min = float.NegativeInfinity; max = float.PositiveInfinity;
+                    fallback = DefaultSeam; return;
                 // An angle is cyclic: -30 and 330 are the same light direction, and clamping either
                 // would silently move the highlight. Accept the whole line and wrap in the shader.
                 case LightAngle:

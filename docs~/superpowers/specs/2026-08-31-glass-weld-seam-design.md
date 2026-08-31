@@ -188,3 +188,24 @@ Red first。EditMode：
 从上层块轮廓向外能伸多远」**，亮边本身约占其三分之一；亮度由 depth 差决定。`EqualThickness_DrawsNoStep`
 不受影响；`ThicknessStep_*` 的探针从轮廓内移到轮廓外 2px（台阶现在整个在块外），并新增
 `ThicknessStep_IsBrightAtTheContourAndFadesOutwards`（同一裙边上贴轮廓的像素明显亮于 3/4 处）。
+
+### 8.5 `seam` 带符号：斜坡落在轮廓外还是轮廓内（第二次上机反馈后）
+
+§8.4 的裙边只朝外：上层块在自己轮廓内是满高，柔光洒在**周围**的块上。客户端顶栏想要相反的落法
+——柔光留在抬高的那块自己身上、周围保持干净。于是把 `seam` 的取值域从 `[0, +∞)` 放宽到整条实轴，
+**符号选边**：
+
+- `seam > 0`：斜坡在轮廓外（原行为）；
+- `seam < 0`：斜坡在轮廓内，`|seam|` 深处才是满高。
+
+两条剖面是同一条三次曲线的镜像。令 `dRamp = seam < 0 ? −d : d`、`skirt = 1 − saturate(dRamp/|seam|)`，
+则 `r = seam < 0 ? 1 − skirt³ : skirt³`，而**梯度表达式逐字相同**（`∇r = −3·skirt²/|seam| · n`，
+镜像把两处符号翻转抵消掉了）。两者都在 `dRamp = 0` 即**轮廓上**最陡 —— 亮边的位置与符号无关，
+变的只是柔光落在哪一侧；离屏扫描证实两张图的峰值都在轮廓 ±1px（197 / 196），衰减方向相反。
+
+§2.1 的四条保证全部不变，理由仍是归一化：单块时 `acc_h = D·r`、`cov = r` ⇒ `h ≡ D`、`∇h ≡ 0`
+（商法则消掉 `r`），与 `r` 的具体形状无关；等厚组同理恒为零。`SetSeam` 的 `Mathf.Max(0f, …)` 钳制
+必须去掉（会把向内悄悄变成最锐的向外），`GlassAttrParser` 的 `Seam` range 改为 `(−∞, +∞)` 有限，
+`PUI-PROCEDURAL-VALUE` 不再把负值当错。新增 `SeamSign_ChoosesWhichSideOfTheContourTheRampFallsOn`
+（同场景同光、仅符号不同，轮廓两侧各 3px 的两个探针恰好互换明暗）与 `NegativeSeam_ReachesTheGroupUnclamped`
+/ `NegativeSeam_IsFine`；`NumericGuardTests` 把 `-1` 从"拒绝"移到"接受"。EditMode 3049 全通过。
