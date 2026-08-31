@@ -158,6 +158,30 @@ namespace PromptUGUI.Controls.Internal
         }
 
         /// <summary>
+        /// Finds the <see cref="IToggleSource"/> a <c>checked</c> / <c>unchecked</c> trigger listens
+        /// to. Resolves <b>upward</b> like <see cref="FindStateSource"/> — the natural place for one
+        /// is inside the Toggle / Tab it reacts to — but along the control tree rather than the
+        /// GameObject tree, because the state lives on the Control, not on a component.
+        /// </summary>
+        public static IToggleSource FindToggleSource(Trigger trigger, string sourceId)
+        {
+            if (string.IsNullOrEmpty(sourceId))
+            {
+                for (var scope = trigger.Parent; scope != null; scope = scope.Parent)
+                    if (scope is IToggleSource source) return source;
+
+                throw new InvalidOperationException(
+                    $"<Trigger on=\"checked\"/\"unchecked\"> in '{trigger.Id ?? trigger.GameObject.name}': " +
+                    "no <Toggle>/<Tab> ancestor found. Place it inside one, or use checked@<id>.");
+            }
+
+            var ctrl = ResolveId(trigger, sourceId, "checked/unchecked");
+            return ctrl as IToggleSource ?? throw new InvalidOperationException(
+                $"<Trigger on=\"checked@{sourceId}\">: id '{sourceId}' is a " +
+                $"{ctrl.GetType().Name}, not a toggle source. checked / unchecked require a <Toggle> or <Tab>.");
+        }
+
+        /// <summary>
         /// Finds the <see cref="TabMenu"/> an <c>expand</c> / <c>collapse</c> trigger listens to.
         /// Resolves <b>upward</b>, like <see cref="FindStateSource"/> and for the same reason: the
         /// natural place for one is on a row inside the menu it belongs to.

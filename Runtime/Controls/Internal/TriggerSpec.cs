@@ -7,6 +7,7 @@ namespace PromptUGUI.Controls.Internal
         Open, Loop, Click, Manual, HoverEnter, HoverExit, Press,
         StateNormal, StateHover, StatePressed, StateSelected, StateDisabled,
         Expand, Collapse,
+        Checked, Unchecked,
     }
 
     internal sealed class TriggerSpec
@@ -31,6 +32,8 @@ namespace PromptUGUI.Controls.Internal
             // Not "open@" / "close@": on="open" already means "the Screen opened".
             ("expand@",         TriggerKind.Expand),
             ("collapse@",       TriggerKind.Collapse),
+            ("checked@",        TriggerKind.Checked),
+            ("unchecked@",      TriggerKind.Unchecked),
         };
 
         /// <summary>
@@ -68,6 +71,8 @@ namespace PromptUGUI.Controls.Internal
                 case "state-disabled": return new TriggerSpec { Kind = TriggerKind.StateDisabled, Raw = value };
                 case "expand": return new TriggerSpec { Kind = TriggerKind.Expand, Raw = value };
                 case "collapse": return new TriggerSpec { Kind = TriggerKind.Collapse, Raw = value };
+                case "checked": return new TriggerSpec { Kind = TriggerKind.Checked, Raw = value };
+                case "unchecked": return new TriggerSpec { Kind = TriggerKind.Unchecked, Raw = value };
             }
             foreach (var (prefix, kind) in s_prefixedKinds)
             {
@@ -84,7 +89,8 @@ namespace PromptUGUI.Controls.Internal
                 $"Invalid trigger 'on=\"{value}\"' — expected one of: open / loop / click / click@<id> / " +
                 "hover-enter / hover-enter@<id> / hover-exit / hover-exit@<id> / press / press@<id> / " +
                 "state-normal / state-hover / state-pressed / state-selected / state-disabled (each also with @<id>) / " +
-                "expand / expand@<id> / collapse / collapse@<id> / manual");
+                "expand / expand@<id> / collapse / collapse@<id> / " +
+                "checked / checked@<id> / unchecked / unchecked@<id> / manual");
         }
     }
 }

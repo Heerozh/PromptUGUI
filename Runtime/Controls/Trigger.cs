@@ -51,8 +51,19 @@ namespace PromptUGUI.Controls
 
         protected virtual void InitTriggerSubscription()
         {
-            _sourceSub = SubscribeSpec(_spec, Fire);
+            _sourceSub = SubscribeSpec(_spec, Fire, OnTriggerFiredInitial);
         }
+
+        /// <summary>
+        /// What a <c>checked</c> / <c>unchecked</c> trigger does when the control is ALREADY in that
+        /// state as the Screen opens. Firing normally is right for a <c>&lt;Trigger&gt;</c>;
+        /// <c>&lt;Animation&gt;</c> overrides it to establish the end state without animating —
+        /// a header authored <c>isOn="true"</c> must not spin its chevron on frame 1 (FND-D10).
+        /// </summary>
+        protected virtual void OnTriggerFiredInitial() => Fire();
+
+        /// <summary>Raises <see cref="OnFire"/> without running <see cref="OnTriggerFired"/>.</summary>
+        private protected void RaiseFireOnly() => _fire.OnNext(Unit.Default);
 
         /// <summary>
         /// Wires one <see cref="TriggerSpec"/> to one callback and hands back the subscription.
@@ -60,10 +71,31 @@ namespace PromptUGUI.Controls
         /// subscribe a second spec — its <c>reverse-on=</c> — through exactly the same resolution
         /// rules (spec 2026-08-31-hug-reveal-flip-checked-design §2.4.6).
         /// </summary>
-        private protected IDisposable SubscribeSpec(TriggerSpec spec, Action onFire)
+        private protected IDisposable SubscribeSpec(TriggerSpec spec, Action onFire, Action onInitial = null)
         {
+            onInitial ??= onFire;
             switch (spec.Kind)
             {
+                case TriggerKind.Checked:
+                case TriggerKind.Unchecked:
+                    {
+                        // Persistent state, not the transient state-* machine: hovering a checked
+                        // Toggle must not take the block away (FND §4.4).
+                        var want = spec.Kind == TriggerKind.Checked;
+                        var toggle = Internal.TriggerSourceResolver.FindToggleSource(this, spec.SourceId);
+                        if (toggle.IsOn == want) onInitial();
+                        return toggle.OnValueChanged.Subscribe(v =>
+                        {
+                            if (v != want) return;
+                            // A control's isOn= attribute is applied AFTER its children have
+                            // subscribed (attributes go bottom-up), so an authored isOn="true"
+                            // arrives here as an edge, not as the subscribe-time state. Anything
+                            // that lands while the Screen is still opening is still "how it
+                            // starts" and must establish, not animate.
+                            if (PromptUGUI.Application.UI.OwnerScreenOf(this)?.IsOpening == true) onInitial();
+                            else onFire();
+                        });
+                    }
                 case TriggerKind.Open:
                 case TriggerKind.Loop:
                     onFire();

@@ -174,7 +174,31 @@ namespace PromptUGUI.Controls
         {
             base.InitTriggerSubscription();
             if (_animSpec.ReverseOn != null)
-                _reverseSub = SubscribeSpec(_animSpec.ReverseOn, Reverse);
+                _reverseSub = SubscribeSpec(_animSpec.ReverseOn, Reverse, () => SnapTo(reverse: true));
+        }
+
+        /// <summary>
+        /// A <c>checked</c> / <c>unchecked</c> trigger whose control is ALREADY in that state at open
+        /// establishes the end state instead of animating into it (FND-D10) — no chevron spinning on
+        /// frame 1, no panel sliding open behind the loading screen.
+        /// </summary>
+        protected override void OnTriggerFiredInitial() => SnapTo(reverse: false);
+
+        private void SnapTo(bool reverse)
+        {
+            // The text family writes a string, so there is no "end state" to establish cheaply —
+            // let it run normally.
+            if (_animSpec.Family == Internal.AnimationFamily.Text)
+            {
+                if (reverse) Reverse();
+                else Fire();
+                return;
+            }
+
+            CancelCurrent();
+            AnimationDriver.WriteEndState(_animSpec, Context(), reverse);
+            if (reverse) _reverse.OnNext(R3.Unit.Default);
+            else RaiseFireOnly();
         }
 
         protected override void OnTriggerFired()

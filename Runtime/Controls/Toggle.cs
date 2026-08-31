@@ -8,7 +8,7 @@ using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class Toggle : ProceduralControl
+    public sealed class Toggle : ProceduralControl, Internal.IToggleSource
     {
         private UnityImage _bg;
 
@@ -94,7 +94,7 @@ namespace PromptUGUI.Controls
 
             ApplyFont();
 
-            _toggle.onValueChanged.AddListener(v => { _changed.OnNext(v); _bgReactor?.SetSelected(v); });
+            _toggle.onValueChanged.AddListener(v => { _changed.OnNext(v); _bgReactor?.SetSelected(v); NotifyCheckedShows(); });
             PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
         }
 
@@ -207,6 +207,23 @@ namespace PromptUGUI.Controls
         }
 
         public Observable<bool> OnValueChanged => _changed;
+
+        // ── IToggleSource (checked / unchecked, FND §4) ───────────────────────────────────
+
+        private System.Collections.Generic.List<(bool Want, System.Action Act)> _checkedShows;
+
+        void Internal.IToggleSource.RegisterCheckedShow(bool wantOn, System.Action reevaluate)
+        {
+            _checkedShows ??= new System.Collections.Generic.List<(bool, System.Action)>();
+            _checkedShows.Add((wantOn, reevaluate));
+            reevaluate();   // establish the block at open, before anything is clicked
+        }
+
+        private void NotifyCheckedShows()
+        {
+            if (_checkedShows == null) return;
+            foreach (var (_, act) in _checkedShows) act();
+        }
 
         /// <summary>Absolute bg colour while Hover.</summary>
         [UIAttr(IsColor = true), Preserve] public string HoverColor { set => _hoverColor = value; }

@@ -172,6 +172,38 @@ namespace PromptUGUI.Controls.Internal
             return handles.ToArray();
         }
 
+        /// <summary>
+        /// Establishes the end state without animating — every channel jumps to the endpoint it
+        /// would have tweened to. Used for the <c>checked</c> / <c>unchecked</c> dispatch that
+        /// happens at Screen open (FND-D10): a header authored <c>isOn="true"</c> should already
+        /// look open, not animate into it on frame 1.
+        /// </summary>
+        public static void WriteEndState(AnimationSpec spec, in AnimationContext ctx, bool reverse)
+        {
+            if (spec.Family == AnimationFamily.Preset)
+            {
+                spec = spec.Clone();
+                spec.ExpandPreset();
+            }
+
+            if (spec.HasTranslate)
+                ctx.Proxy.anchoredPosition = reverse ? spec.TranslateFrom : spec.TranslateTo;
+            if (spec.HasScale)
+            {
+                var s = reverse ? spec.ScaleFrom : spec.ScaleTo;
+                ctx.Proxy.localScale = new Vector3(s.x, s.y, 1f);
+            }
+            if (spec.HasRotate)
+                ctx.Proxy.localEulerAngles = new Vector3(0f, 0f, reverse ? spec.RotateFrom : spec.RotateTo);
+            if (spec.HasFade && ctx.Cg != null)
+                ctx.Cg.alpha = reverse ? spec.FadeFrom : spec.FadeTo;
+            if (spec.HasReveal && ctx.Reveal != null)
+            {
+                ctx.Reveal.SetRevealBox(ctx.Reveal.ResolveReveal(reverse ? spec.RevealFrom : spec.RevealTo));
+                ctx.Reveal.OnRevealSettled(reverse);
+            }
+        }
+
         // LoopMode.None maps to LitMotion's own default (one pass, Restart), so every channel can
         // call WithLoops unconditionally instead of repeating a three-way switch.
         private static int LoopCountOf(AnimationSpec spec) => spec.LoopMode switch
