@@ -13,17 +13,17 @@ namespace PromptUGUI.Controls.Internal
     internal interface IRevealTarget
     {
         /// <summary>The box being shown right now — a reversal starts from here, not from an endpoint.</summary>
-        float RevealBox { get; }
+        public float RevealBox { get; }
 
-        void SetRevealBox(float value);
+        public void SetRevealBox(float value);
 
         /// <summary>Resolves an endpoint, measuring the content when it is <c>hug</c>.</summary>
-        float ResolveReveal(RevealValue value);
+        public float ResolveReveal(RevealValue value);
 
-        void SetRevealClip(bool on);
+        public void SetRevealClip(bool on);
 
         /// <summary>The motion landed on an endpoint: <paramref name="reversed"/> tells which one.</summary>
-        void OnRevealSettled(bool reversed);
+        public void OnRevealSettled(bool reversed);
     }
 
     /// <summary>Everything a spec can drive. Filled by the control, read by the driver.</summary>

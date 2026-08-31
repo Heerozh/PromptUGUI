@@ -69,52 +69,52 @@ namespace PromptUGUI.Controls
                     onFire();
                     return null;
                 case TriggerKind.Click:
-                {
-                    var btn = Internal.TriggerSourceResolver.FindBtn(this, spec.SourceId);
-                    return btn.OnClick.Subscribe(_ => onFire());
-                }
+                    {
+                        var btn = Internal.TriggerSourceResolver.FindBtn(this, spec.SourceId);
+                        return btn.OnClick.Subscribe(_ => onFire());
+                    }
                 case TriggerKind.HoverEnter:
                 case TriggerKind.HoverExit:
                 case TriggerKind.Press:
-                {
-                    var src = Internal.TriggerSourceResolver.FindPointerSource(this, spec.SourceId);
-                    var stream = spec.Kind switch
                     {
-                        TriggerKind.HoverEnter => src.OnPointerEnter,
-                        TriggerKind.HoverExit => src.OnPointerExit,
-                        _ => src.OnPointerDown,
-                    };
-                    return stream.Subscribe(_ => onFire());
-                }
+                        var src = Internal.TriggerSourceResolver.FindPointerSource(this, spec.SourceId);
+                        var stream = spec.Kind switch
+                        {
+                            TriggerKind.HoverEnter => src.OnPointerEnter,
+                            TriggerKind.HoverExit => src.OnPointerExit,
+                            _ => src.OnPointerDown,
+                        };
+                        return stream.Subscribe(_ => onFire());
+                    }
                 case TriggerKind.StateNormal:
                 case TriggerKind.StateHover:
                 case TriggerKind.StatePressed:
                 case TriggerKind.StateSelected:
                 case TriggerKind.StateDisabled:
-                {
-                    var pui = Internal.TriggerSourceResolver.FindStateSource(this, spec.SourceId);
-                    var target = spec.Kind switch
                     {
-                        TriggerKind.StateNormal => InteractState.Normal,
-                        TriggerKind.StateHover => InteractState.Hover,
-                        TriggerKind.StatePressed => InteractState.Pressed,
-                        TriggerKind.StateSelected => InteractState.Selected,
-                        _ => InteractState.Disabled,
-                    };
-                    // OnState replays the current value on subscribe, so a trigger whose target
-                    // matches the control's current state fires once at open.
-                    return pui.OnState.Subscribe(s =>
-                    {
-                        if (s == target) onFire();
-                    });
-                }
+                        var pui = Internal.TriggerSourceResolver.FindStateSource(this, spec.SourceId);
+                        var target = spec.Kind switch
+                        {
+                            TriggerKind.StateNormal => InteractState.Normal,
+                            TriggerKind.StateHover => InteractState.Hover,
+                            TriggerKind.StatePressed => InteractState.Pressed,
+                            TriggerKind.StateSelected => InteractState.Selected,
+                            _ => InteractState.Disabled,
+                        };
+                        // OnState replays the current value on subscribe, so a trigger whose target
+                        // matches the control's current state fires once at open.
+                        return pui.OnState.Subscribe(s =>
+                        {
+                            if (s == target) onFire();
+                        });
+                    }
                 case TriggerKind.Expand:
                 case TriggerKind.Collapse:
-                {
-                    var menu = Internal.TriggerSourceResolver.FindTabMenu(this, spec.SourceId);
-                    var stream = spec.Kind == TriggerKind.Expand ? menu.OnExpanded : menu.OnCollapsed;
-                    return stream.Subscribe(_ => onFire());
-                }
+                    {
+                        var menu = Internal.TriggerSourceResolver.FindTabMenu(this, spec.SourceId);
+                        var stream = spec.Kind == TriggerKind.Expand ? menu.OnExpanded : menu.OnCollapsed;
+                        return stream.Subscribe(_ => onFire());
+                    }
                 default:
                     // Manual: no auto-subscribe; awaiting Fire()
                     return null;
