@@ -36,6 +36,10 @@ namespace PromptUGUI.Controls.Internal
         /// hint curve included) has to survive the round trip.</summary>
         public static ColorSpec Peek(Graphic g)
         {
+            // A procedural panel keeps its colour in the MATERIAL; Graphic.color is the multiplier
+            // (white at rest). Peeking that would hand a white base to a state reactor, which then
+            // paints it into the fill — see StateTintReactor.ApplyToPanel.
+            if (g is ProceduralPanel panel) return panel.Fill;
             var tint = g.GetComponent<GradientTint>();
             return tint != null && tint.enabled
                 ? tint.Spec
