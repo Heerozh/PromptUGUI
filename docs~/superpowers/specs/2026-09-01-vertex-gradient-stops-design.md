@@ -276,9 +276,9 @@ rect** 占位 —— 要更紧凑就给倒影节点显式 `height`。
 ## 14. 实施记录（2026-09-01）
 
 **测试**：EditMode 模式下三个程序集（`Tests.EditMode` + `Tests.EditorOnly` +
-`Tests.EditMode.Addressables`）合计 3723/3723 全绿；PlayMode 198/198 全绿。新增
+`Tests.EditMode.Addressables`）合计 3724/3724 全绿；PlayMode 198/198 全绿。新增
 `ColorSpecEvaluateTests`(7) / `MeshSlicerTests`(7) / `GradientTintStopTests`(11) /
-`GradientFlipOrderTests`(8) / `GradientStopRenderTests`(7) + PlayMode 1 条。
+`GradientFlipOrderTests`(8) / `GradientStopRenderTests`(8) + PlayMode 1 条。
 
 **K 的最终值：8**。`GradientStopRenderTests.Hint_PutsTheHalfwayMixAtTheHint` 用 200px 高的
 `<Image>` 渲染 `#ffffff, 30%, #000000` 并 dump PNG，肉眼看不出折线；数值上相邻切线之间的弦
