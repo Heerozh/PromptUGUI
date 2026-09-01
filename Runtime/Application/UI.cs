@@ -1186,6 +1186,7 @@ namespace PromptUGUI.Application
             // decrements the glass panel count — resetting before that would leave it negative.
             GlassRuntime.ResetForTestsInternal();
             Controls.Internal.ProceduralMaterialCache.ResetForTests();
+            Controls.Internal.FxMaterialCache.ResetForTests();
             _depGraph.Clear();
             SourceResolver = null;
             SpriteResolver = null;
