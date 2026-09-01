@@ -49,6 +49,7 @@ namespace PromptUGUI.Controls
             {
                 var spec = UI.Theme.ResolveSpec(value);
                 Internal.GradientStopWarning.IfMoved(spec, GameObject, "<RawImage> color=");
+                if (spec.IsGradient) Internal.RotateFlipApplier.ReserveSlot(_raw);
                 Internal.ColorApplier.Apply(_raw, spec);
             }
         }

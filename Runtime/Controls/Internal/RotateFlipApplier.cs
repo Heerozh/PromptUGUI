@@ -36,6 +36,20 @@ namespace PromptUGUI.Controls.Internal
             graphic.SetVerticesDirty();
         }
 
+        /// <summary>
+        /// Attaches a DISABLED <see cref="RotateFlipEffect"/> if there is none, so it sits BEFORE any
+        /// mesh effect added afterwards — <c>GradientTint</c>, in practice. uGUI runs mesh effects in
+        /// component-add order, which otherwise follows whichever order the attribute setters happen
+        /// to run in, and a gradient has to read the mesh as finally drawn: the first colour is
+        /// always the top of what you SEE, flipped or not (spec 2026-09-01 VGS §4.4).
+        /// </summary>
+        public static void ReserveSlot(Graphic graphic)
+        {
+            if (graphic == null) return;
+            if (graphic.GetComponent<RotateFlipEffect>() != null) return;
+            graphic.gameObject.AddComponent<RotateFlipEffect>().enabled = false;
+        }
+
         private static void ParseFlip(string value, out bool flipX, out bool flipY)
         {
             flipX = false;
