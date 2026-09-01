@@ -261,7 +261,7 @@ rect** 占位 —— 要更紧凑就给倒影节点显式 `height`。
 
 ## 12. 开放问题（留给 plan / 实现期）
 
-- K = 8 是否在极高的倒影上（>200px）看得出折线 —— 渲染测试里顺手量一下，不够就 12。
+- ~~K = 8 是否在极高的倒影上（>200px）看得出折线~~ —— 已量：200px 高的提示渐变 PNG 上看不出折线，K 保持 8（见 §14）。
 - 链组件重构（`GradientTint` + `RotateFlipEffect` (+ 将来的 `ReflectionEffect`) 合一）—— 有第三个
   网格效果时再做，届时 `ReserveSlot` 自然退役。
 - `MeshSlicer` 是否值得公开给自定义控件作者 —— 先 `internal`。
@@ -272,3 +272,38 @@ rect** 占位 —— 要更紧凑就给倒影节点显式 `height`。
 `reflectLength` / `reflectGap`、顺序保证、lint、渲染测试）。本文落地后它的几何部分可以直接复用
 `MeshSlicer`（半平面裁剪就是同一段代码）。触发重启的信号：`type="cover"` 图要倒影、C# 动态换图的
 物件要倒影、`<Btn>` 内部的图标要随状态调制一起倒影 —— 任一出现即可按那份 spec 出 plan。
+
+## 14. 实施记录（2026-09-01）
+
+**测试**：EditMode 模式下三个程序集（`Tests.EditMode` + `Tests.EditorOnly` +
+`Tests.EditMode.Addressables`）合计 3723/3723 全绿；PlayMode 198/198 全绿。新增
+`ColorSpecEvaluateTests`(7) / `MeshSlicerTests`(7) / `GradientTintStopTests`(11) /
+`GradientFlipOrderTests`(8) / `GradientStopRenderTests`(7) + PlayMode 1 条。
+
+**K 的最终值：8**。`GradientStopRenderTests.Hint_PutsTheHalfwayMixAtTheHint` 用 200px 高的
+`<Image>` 渲染 `#ffffff, 30%, #000000` 并 dump PNG，肉眼看不出折线；数值上相邻切线之间的弦
+在提示处与真值差 < 0.005。§12 第一条据此关闭。
+
+**与设计的偏差**
+
+1. **硬边需要「顶点朝三角形重心微偏」**（`GradientTint.CentroidBias = 1e-3`）。§4.2 假定把新顶点的
+   `y` 精确钉在切线上就够 —— 不够：正好落在切线上的顶点同时属于两侧的三角形，而两侧要的颜色
+   不同，这正是硬边的定义。求值时把 `s` 朝本三角形的重心挪 0.1% 即可各取所需；在 ramp 连续的
+   地方这点位移远小于一个色阶。
+2. **切一个四边形得到 3 + 3 个三角形，不是 2 + 2**。两个三角形共一条对角线，切线各自把它们切成
+   「尖端 + 四边形」。plan 里按顶点数写的断言因此换成了「面积守恒 + 每个三角形整体落在一侧」——
+   本来也更该这么断言，顶点数是在钉三角剖分而不是钉画面。
+3. **运行期 warning 推迟到 Task 6 才删**（plan Task 5 曾允许提前删）。分开做每个提交都是绿的。
+4. **`GradientStopWarning` 文案重写**：旧文案说「只有程序化表面能画色标」，现在只对 TMP 成立。
+
+**顺带发现**
+
+1. **`ColorApplier.Peek` 会把色标抹平**（既有 bug，Task 3 一并修掉）。`StateTintReactor` 捕获基色
+   再带 modulate 重新落地，而 `Peek` 是用 `Top` / `Bottom` 重建 spec 的 —— 任何带色标的
+   `hoverColor` / `pressedColor` 在第一次状态切换后就退回全高 ramp。
+2. **`flip` 与渐变的顺序确实是不确定的**，不是理论担忧：红测试里 `<Image color flip>` 的组件顺序
+   是 `[GradientTint, RotateFlipEffect]`，`<Image flip color>` 则相反 —— 前者把渐变画在镜像之前，
+   两种写法画出来上下颠倒。
+3. **本工程是 linear 色彩空间**。渲染回归里「一半的 ramp」读回 0.53 而不是 0.25，第一版切片
+   用例的阈值因此太松：把 `HasStops` 临时改成 `false` 时它仍然通过。补了「不串色」断言才咬得住 ——
+   渲染测试的阈值必须拿关掉功能的那一版验一遍，否则只是在测试渲染管线还活着。
