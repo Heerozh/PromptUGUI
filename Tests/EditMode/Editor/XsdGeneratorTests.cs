@@ -55,6 +55,18 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Image_and_Icon_list_their_blur_and_glow_attributes()
+        {
+            // Same hand-written-list trap as rotation / flip above: authoring tools validate against
+            // this XSD, so an attribute missing here is rejected in the editor even though the
+            // runtime honours it.
+            var xsd = XsdGenerator.Generate(new ControlRegistry());
+            StringAssert.Contains("name=\"blur\"", xsd);
+            StringAssert.Contains("name=\"glow\"", xsd);
+            StringAssert.Contains("name=\"glowColor\"", xsd);
+        }
+
+        [Test]
         public void Custom_control_appears_with_UIAttr_attributes()
         {
             var r = new ControlRegistry();

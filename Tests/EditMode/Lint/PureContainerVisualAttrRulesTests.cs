@@ -202,6 +202,20 @@ namespace PromptUGUI.Tests.EditMode.Lint
             Assert.IsEmpty(PureContainerVisualAttrRules.Check(n));
         }
 
+        [TestCase("Image", "glow")]
+        [TestCase("Image", "glowColor")]
+        [TestCase("Icon", "glow")]
+        [TestCase("Icon", "glowColor")]
+        public void SpriteGraphic_GlowPair_NoIssue(string tag, string attr)
+        {
+            // The third shape of tag, alongside <Frame> (a surface) and <Decor> (procedural but not
+            // a surface): <Image> / <Icon> cast their glow from the sprite's own silhouette, so the
+            // pair is real there — while radius / borders / glass stay reported (case above).
+            var n = new ElementNode(tag);
+            n.Attributes[attr] = attr == "glow" ? "6" : "#fff";
+            Assert.IsEmpty(PureContainerVisualAttrRules.Check(n));
+        }
+
         [TestCase("Btn")]
         [TestCase("Image")]
         [TestCase("ScrollList")]
@@ -241,9 +255,11 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [Test]
         public void ControlWithoutASurface_ReportsEveryOffendingAttr_NotJustTheFirst()
         {
+            // Two attributes that a sprite graphic really does drop. (It used to be radius + glow;
+            // glow became real on <Image> / <Icon> with spec 2026-09-02, hence borderWidth here.)
             var n = new ElementNode("Image") { Id = "i" };
             n.Attributes["radius"] = "8";
-            n.Attributes["glow"] = "4";
+            n.Attributes["borderWidth"] = "2";
             Assert.AreEqual(2, PureContainerVisualAttrRules.Check(n).Count());
         }
 

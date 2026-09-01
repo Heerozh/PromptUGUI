@@ -68,6 +68,62 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void ImageChild_GreysFromTheInside_KeepingItsOwnEffects()
+        {
+            // An FxImage owns its material (blur / glow / linear tint live in it), so swapping in
+            // UI-Grayscale would throw those away — and the next parameter change would write the fx
+            // material straight back, undoing the greying. It desaturates itself instead
+            // (ISelfGrayscale — the same route ProceduralPanel already takes). spec 2026-09-02 §4.4.
+            var stub = Sprite.Create(new Texture2D(8, 8), new Rect(0f, 0f, 8f, 8f), new Vector2(.5f, .5f));
+            UI.SpriteResolver = _ => stub;
+            try
+            {
+                UI.LoadDocument("t",
+                    "<?xml version='1.0' encoding='utf-8'?><PromptUGUI version='1'><Screen name='S'>" +
+                    "<Btn id='b'><Image id='m' sprite='ui:x' size='16x16' glow='6'/></Btn>" +
+                    "</Screen></PromptUGUI>");
+                var btn = UI.Open("S").Get<Btn>("b");
+                var img = btn.GameObject.transform.Find("m").GetComponent<UnityEngine.UI.Image>();
+                Assert.AreEqual("UI/ImageFx", img.material.shader.name, "前置：fx 材质已在位");
+
+                PuiOf(btn).SimulateState(Disabled);
+                Assert.AreEqual("UI/ImageFx", img.material.shader.name, "禁用不得换掉 fx 材质");
+                Assert.AreEqual(1f, img.material.GetFloat("_Desaturate"), 1e-4f);
+                Assert.AreEqual(6f, img.material.GetFloat("_Glow"), 1e-4f, "光晕没有随禁用丢掉");
+
+                PuiOf(btn).SimulateState(Normal);
+                Assert.AreEqual(0f, img.material.GetFloat("_Desaturate"), 1e-4f);
+                Assert.AreEqual(6f, img.material.GetFloat("_Glow"), 1e-4f);
+            }
+            finally
+            {
+                var tex = stub != null ? stub.texture : null;
+                if (stub != null) Object.DestroyImmediate(stub);
+                if (tex != null) Object.DestroyImmediate(tex);
+            }
+        }
+
+        [Test]
+        public void ImageChild_WithoutFx_StillGreys_ThroughTheFxShader()
+        {
+            // No blur, no glow, no tint: the graphic has no material until the disabled state asks
+            // for one — and it must go back to none when the state clears.
+            UI.LoadDocument("t",
+                "<?xml version='1.0' encoding='utf-8'?><PromptUGUI version='1'><Screen name='S'>" +
+                "<Btn id='b'><Image id='m' size='16x16'/></Btn></Screen></PromptUGUI>");
+            var btn = UI.Open("S").Get<Btn>("b");
+            var img = btn.GameObject.transform.Find("m").GetComponent<UnityEngine.UI.Image>();
+            Assert.AreEqual(img.defaultMaterial, img.material, "前置：无 fx 即无材质");
+
+            PuiOf(btn).SimulateState(Disabled);
+            Assert.AreEqual("UI/ImageFx", img.material.shader.name);
+            Assert.AreEqual(1f, img.material.GetFloat("_Desaturate"), 1e-4f);
+
+            PuiOf(btn).SimulateState(Normal);
+            Assert.AreEqual(img.defaultMaterial, img.material, "还原到不挂任何材质");
+        }
+
+        [Test]
         public void PlainBtn_DefaultGrayscale_KeepsColorTintTransition()
         {
             var btn = BuildBtn();

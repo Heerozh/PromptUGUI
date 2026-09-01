@@ -123,12 +123,13 @@ namespace PromptUGUI.Controls.Internal
                 {
                     ((TMP_Text)c.Graphic).color = _grayed ? Desaturate(c.Color) : c.Color;
                 }
-                else if (c.Graphic is ProceduralPanel panel)
+                else if (c.Graphic is ISelfGrayscale self)
                 {
-                    // A procedural surface greys itself from the inside. Swapping its material for
-                    // UI-Grayscale would throw away the shape, border, glow and glass along with the
-                    // colour — and FlushParams would write the SDF material straight back anyway.
-                    panel.SetDisabledGrayscale(_grayed);
+                    // A graphic that owns its material greys itself from the inside. Swapping in
+                    // UI-Grayscale would throw away what that material carries — a procedural
+                    // surface's shape, border, glow and glass; an FxImage's blur and glow — and its
+                    // own FlushParams would write the material straight back anyway.
+                    self.SetDisabledGrayscale(_grayed);
                 }
                 else
                 {

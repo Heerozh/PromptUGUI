@@ -76,6 +76,10 @@ namespace PromptUGUI.Tests.EditMode.Lint
                     // and nothing else, and PureContainerVisualAttrRules exempts exactly that pair.
                     if (tag == DecorRules.Tag
                         && DecorRules.SupportedProceduralAttrs.Contains(attr)) continue;
+                    // <Image> / <Icon> are the same shape of exception: their glow is cast from the
+                    // sprite's silhouette (spec 2026-09-02), so the pair works without a panel.
+                    if (ImageFxRules.FxTags.Contains(tag)
+                        && ImageFxRules.SupportedProceduralAttrs.Contains(attr)) continue;
                     if (entry.Meta.HasAttribute(attr))
                         offenders.Add($"{tag}.{attr}");
                 }

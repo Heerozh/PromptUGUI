@@ -22,8 +22,11 @@ namespace PromptUGUI.Controls
 
         public override void OnAttached()
         {
+            // FxImage, not a plain Image: with no blur / glow / linear tint written it behaves
+            // exactly like one (no material of its own, mesh untouched), and it is what makes those
+            // attributes possible at all — see FxImage's class note.
             _img = GameObject.GetComponent<UnityImage>()
-                   ?? GameObject.AddComponent<UnityImage>();
+                   ?? GameObject.AddComponent<FxImage>();
         }
 
         private PointerEventRelay EnsureRelay()
@@ -57,6 +60,28 @@ namespace PromptUGUI.Controls
         public string Tint
         {
             set => ImageTint.Apply(_img, value);
+        }
+
+        /// <summary>Blur radius (px). Softens the picture itself; the layout rect is untouched.</summary>
+        [UIAttr, Preserve]
+        public string Blur
+        {
+            set => ImageFxApplier.SetBlur(_img, "Image", value);
+        }
+
+        /// <summary>Outer glow reach (px). Inflates the drawn quad, never the layout rect.</summary>
+        [UIAttr, Preserve]
+        public string Glow
+        {
+            set => ImageFxApplier.SetGlow(_img, "Image", value);
+        }
+
+        /// <summary>Glow colour. Solid only; unwritten, the glow takes the sprite's own blurred
+        /// colour.</summary>
+        [UIAttr(IsColor = true), Preserve]
+        public string GlowColor
+        {
+            set => ImageFxApplier.SetGlowColor(_img, "Image", value);
         }
 
         private float _rotation;
@@ -167,8 +192,14 @@ namespace PromptUGUI.Controls
             // Auto-pick Sliced for 9-slice sprites when author didn't write type=.
             // Sprite border is set in the Sprite Editor; non-zero on any edge means the
             // asset was authored for 9-slice rendering.
-            if (_typeExplicit) return;
-            _img.type = Internal.ProceduralBuilders.DeriveType(_img.sprite);
+            if (!_typeExplicit)
+                _img.type = Internal.ProceduralBuilders.DeriveType(_img.sprite);
+
+            // After the type is final: blur / glow only apply to the Simple quad, and the author
+            // cannot see from the XML that this sprite turned into a 9-slice (lint can't either —
+            // it never loads the asset), so say so once here.
+            ImageFxApplier.WarnIfFxOnNonSimple(_img, "Image");
+            ImageFxApplier.Flush(_img);
         }
 
         public override Vector2? GetNativeSize()

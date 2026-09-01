@@ -108,6 +108,13 @@ namespace PromptUGUI.Lint
                     yield return issue;
                 foreach (var issue in ImageFitRules.CheckGeometry(node))
                     yield return issue;
+                foreach (var issue in ImageFxRules.CheckImage(node, styles))
+                    yield return issue;
+            }
+            else if (node.Tag == "Icon")
+            {
+                foreach (var issue in ImageFxRules.CheckImage(node, styles))
+                    yield return issue;
             }
             else if (node.Tag == "RawImage")
                 foreach (var issue in MaskAttributeRules.CheckRawImage(node))
@@ -181,6 +188,10 @@ namespace PromptUGUI.Lint
 
             // Universal: rotation / flip outside the three mesh-generating leaves, and bad values.
             foreach (var issue in RotateFlipRules.Check(node, styles))
+                yield return issue;
+
+            // Universal: blur= outside the two tags that resample a sprite.
+            foreach (var issue in ImageFxRules.CheckTag(node, styles))
                 yield return issue;
 
             // class="" plus the value grammar of the procedural visual attrs (radius / borderWidth /

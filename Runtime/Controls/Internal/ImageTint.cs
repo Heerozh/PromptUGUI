@@ -18,6 +18,32 @@ namespace PromptUGUI.Controls.Internal
         public static void Apply(Graphic img, string mode)
         {
             if (img == null) return;
+
+            // On an FxImage the material slot is already spoken for — blur, glow and the disabled
+            // grey live in it — so the linear tint becomes one more parameter of that shader instead
+            // of a material to swap in (spec 2026-09-02 §2). Flushed eagerly: a setter re-driven from
+            // C# or a Variant must show immediately, without waiting for a canvas rebuild.
+            if (img is FxImage fx)
+            {
+                switch (mode)
+                {
+                    case null:
+                    case "":
+                    case "multiply":
+                        fx.TintLinear = false;
+                        break;
+                    case "linear":
+                        fx.TintLinear = true;
+                        break;
+                    default:
+                        WarnUnknown(mode);
+                        fx.TintLinear = false;
+                        break;
+                }
+                fx.FlushParams();
+                return;
+            }
+
             switch (mode)
             {
                 case null:
@@ -30,12 +56,15 @@ namespace PromptUGUI.Controls.Internal
                         Resources.Load<Material>(LinearLightTintResourcePath);
                     break;
                 default:
-                    Debug.LogWarning(
-                        $"PromptUGUI: tint=\"{mode}\" is not a recognized value " +
-                        "(expected: multiply, linear). Falling back to multiply.");
+                    WarnUnknown(mode);
                     img.material = null;
                     break;
             }
         }
+
+        private static void WarnUnknown(string mode) =>
+            Debug.LogWarning(
+                $"PromptUGUI: tint=\"{mode}\" is not a recognized value " +
+                "(expected: multiply, linear). Falling back to multiply.");
     }
 }
