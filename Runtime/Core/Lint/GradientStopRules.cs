@@ -5,83 +5,46 @@ using PromptUGUI.Parser;
 namespace PromptUGUI.Lint
 {
     /// <summary>
-    /// A gradient stop position (<c>color="A 70%,B"</c>, spec 2026-08-30) on a colour that will be
-    /// painted by vertex colours rather than the procedural shader.
+    /// A gradient stop position (<c>color="A 70%,B"</c>, spec 2026-08-30) on a colour that lands on
+    /// TMP text, which is the one place left that cannot draw one.
     ///
-    /// <para>A stop only exists per fragment. The vertex path has nothing but the graphic's corner
-    /// vertices to hang it on, so evaluating the ramp there yields the two end colours and the
-    /// hardware interpolates straight between them — the author's position vanishes and the
-    /// gradient comes out spanning the full height. Nothing throws, nothing looks broken; it just
-    /// silently ignores what they wrote, which makes the CLI the place to say so.</para>
+    /// <para>A stop needs somewhere to change over: the procedural shader has every fragment, and
+    /// <c>GradientTint</c> cuts the mesh at the stop so every other Graphic has a vertex row there
+    /// (spec 2026-09-01 VGS). TMP has neither — its gradient is four corner colours per glyph, and a
+    /// glyph is wherever the line-breaker put it — so the position silently vanishes and the ramp
+    /// spans the full height. Nothing throws, nothing looks broken, which makes the CLI the place to
+    /// say so.</para>
     ///
-    /// <para><b>Bias.</b> Every gate below asks "is the surface declared ANYWHERE" — inline, through
-    /// a class, or in a variant — and stays quiet if so. That is the opposite of
-    /// <see cref="ProceduralSurfaceRules"/>, deliberately: there a missing declaration means silence,
-    /// here it means a hard CLI error, so the permissive answer is the safe one in each case. The
-    /// cost is that a stop that only works in one variant goes unreported.</para>
+    /// <para><b>Bias.</b> A node whose <c>class=</c> this document cannot resolve stays quiet: the
+    /// unseen commons may not even set the attribute. That is the opposite of
+    /// <see cref="ProceduralSurfaceRules"/>, deliberately — there a missing declaration means
+    /// silence, here it would mean a hard CLI error, so the permissive answer is the safe one in
+    /// each case.</para>
     /// </summary>
     public static class GradientStopRules
     {
         public const string NoSurfaceCode = "PUI-GRADIENT-STOP-NO-SURFACE";
 
-        /// <summary>Tags with no procedural surface at all — their <c>color</c> is always vertex work.</summary>
+        /// <summary>Tags whose <c>color</c> is TMP text outright.</summary>
         private static readonly Dictionary<string, string> AlwaysVertexTags = new()
         {
-            ["Image"] = "an <Image> paints a sprite through vertex colours, which has no place for a stop",
-            ["Icon"] = "an <Icon> paints a sprite through vertex colours, which has no place for a stop",
-            ["RawImage"] = "a <RawImage> paints a texture through vertex colours, which has no place for a stop",
             ["Text"] = "TMP paints a <Text> gradient per character, and four glyph corners have nowhere to put a stop",
         };
 
         /// <summary>
-        /// Colour attributes that reach the control's PRIMARY surface — the one
-        /// <c>radius</c> / <c>glass</c> / <c>border*</c> / <c>glow*</c> turn on. The absolute state
-        /// colours ride the same layer, so they are gated the same way.
+        /// Colour attributes on a control that reach a TMP label inside it. Every other colour a
+        /// control exposes — its fill, a checkmark, an arrow, a popup, a scrollbar — is a Graphic,
+        /// and those draw stops now whether or not they have a procedural surface.
         /// </summary>
-        private static readonly Dictionary<string, string[]> MainSurfaceAttrs = new()
-        {
-            ["Btn"] = new[] { "color", "hoverColor", "pressedColor", "selectedColor", "disabledColor" },
-            ["Tab"] = new[] { "color", "hoverColor", "pressedColor", "selectedColor", "disabledColor" },
-            ["Toggle"] = new[] { "color", "hoverColor", "pressedColor", "selectedColor", "disabledColor" },
-            ["TabMenu"] = new[] { "color" },
-            ["Collapsible"] = new[] { "color", "hoverColor", "pressedColor", "disabledColor" },
-            ["Slider"] = new[] { "color" },
-            ["Dropdown"] = new[] { "color" },
-            ["InputField"] = new[] { "color" },
-            ["ScrollList"] = new[] { "color" },
-            ["Progress"] = new[] { "bgColor" },
-        };
-
-        /// <summary>
-        /// Colour attributes painting a layer INSIDE a control, each with the one
-        /// <c>&lt;layer&gt;Radius</c> that gives that layer a surface of its own (spec 2026-08-23 §6).
-        /// The control's own <c>radius</c> shapes a different layer and does not count.
-        /// </summary>
-        private static readonly Dictionary<string, (string Attr, string Gate)[]> InnerSurfaceAttrs = new()
-        {
-            ["Slider"] = new[] { ("fillColor", "fillRadius"), ("handleColor", "handleRadius") },
-            ["Progress"] = new[] { ("fillColor", "fillRadius"), ("frameColor", "frameRadius") },
-        };
-
-        /// <summary>
-        /// Colour attributes on a surface-capable control that STILL have no procedural layer under
-        /// any spelling — a checkmark, an arrow, a popup background, a scrollbar, a label. There is
-        /// no attribute that would make these work, so the only fix is dropping the position.
-        /// </summary>
-        private static readonly Dictionary<string, string[]> NeverSurfaceAttrs = new()
+        private static readonly Dictionary<string, string[]> TextAttrs = new()
         {
             ["Btn"] = new[] { "textColor" },
             ["Tab"] = new[] { "textColor" },
-            ["TabMenu"] = new[] { "textColor", "arrowColor" },
-            ["Collapsible"] = new[] { "textColor", "arrowColor", "iconColor", "headerColor" },
-            ["Toggle"] = new[] { "textColor", "checkmarkColor" },
+            ["TabMenu"] = new[] { "textColor" },
+            ["Collapsible"] = new[] { "textColor" },
+            ["Toggle"] = new[] { "textColor" },
             ["InputField"] = new[] { "textColor" },
-            ["ScrollList"] = new[] { "frameColor", "scrollbarColor", "scrollbarHandleColor" },
-            ["Dropdown"] = new[]
-            {
-                "textColor", "itemTextColor", "popupColor", "itemColor", "arrowColor",
-                "checkmarkColor", "scrollbarColor", "scrollbarHandleColor",
-            },
+            ["Dropdown"] = new[] { "textColor", "itemTextColor" },
         };
 
         public static IEnumerable<LintIssue> Check(ElementNode n) => Check(n, StyleAttributeView.Empty);
@@ -90,54 +53,31 @@ namespace PromptUGUI.Lint
         {
             styles ??= StyleAttributeView.Empty;
             if (n == null) yield break;
-            // A class this document cannot resolve may carry the very shape attribute that would
-            // make the stop work; nothing here is provable, so say nothing.
+            // A class this document cannot resolve may not set the attribute at all; nothing here is
+            // provable, so say nothing.
             if (styles.IsUncertain(n)) yield break;
 
             if (AlwaysVertexTags.TryGetValue(n.Tag, out var why) && HasStop(n, styles, "color"))
-                yield return Issue(n, "color", $"{why}. Drop the position, or draw the shape with a " +
-                                              "procedural <Frame> behind it.");
+                yield return Issue(n, "color", $"{why}. Drop the position, or put the shaped ramp on " +
+                                              "a graphic behind the text.");
 
-            if (MainSurfaceAttrs.TryGetValue(n.Tag, out var mainAttrs) && !DeclaresSurface(n, styles))
+            if (TextAttrs.TryGetValue(n.Tag, out var textAttrs))
             {
-                foreach (var attr in mainAttrs)
+                foreach (var attr in textAttrs)
                 {
                     if (!HasStop(n, styles, attr)) continue;
                     yield return Issue(n, attr,
-                        "this control is still drawing its Image, so the fill goes through vertex " +
-                        "colours. Give it a procedural shape (radius / glass / borderWidth / glow) " +
-                        "and the stop works, or drop the position.");
-                }
-            }
-
-            if (InnerSurfaceAttrs.TryGetValue(n.Tag, out var innerAttrs))
-            {
-                foreach (var (attr, gate) in innerAttrs)
-                {
-                    if (styles.Declares(n, gate)) continue;
-                    if (!HasStop(n, styles, attr)) continue;
-                    yield return Issue(n, attr,
-                        $"'{gate}' is what gives this layer a procedural surface of its own — " +
-                        $"without it '{attr}' is a vertex tint. Add '{gate}', or drop the position.");
-                }
-            }
-
-            if (NeverSurfaceAttrs.TryGetValue(n.Tag, out var neverAttrs))
-            {
-                foreach (var attr in neverAttrs)
-                {
-                    if (!HasStop(n, styles, attr)) continue;
-                    yield return Issue(n, attr,
-                        $"'{attr}' paints a plain Graphic that has no procedural surface under any " +
-                        "spelling. Drop the position — the gradient still runs top to bottom.");
+                        $"'{attr}' paints a TMP label, where the gradient is placed per glyph and a " +
+                        "stop has nowhere to live. Drop the position, or put the shaped ramp on a " +
+                        "graphic behind the text.");
                 }
             }
         }
 
         private static LintIssue Issue(ElementNode n, string attr, string advice)
             => new LintIssue(NoSurfaceCode, n.Tag, n.Id,
-                $"<{n.Tag} id='{n.Id}'>: '{attr}' carries a gradient stop position, which only a " +
-                $"procedural surface can draw — {advice}");
+                $"<{n.Tag} id='{n.Id}'>: '{attr}' carries a gradient stop position, which TMP text " +
+                $"cannot draw — {advice}");
 
         /// <summary>
         /// The attribute — base value or any variant override, inline or from a class — names a stop
@@ -163,22 +103,6 @@ namespace PromptUGUI.Lint
             if (value.IndexOf('%') < 0) return false;
             if (!ColorParser.TrySplitGradient(value, out var parts, out _)) return false;
             return parts.TopStop.HasValue || parts.BottomStop.HasValue || parts.Hint.HasValue;
-        }
-
-        /// <summary>
-        /// The permissive twin of <c>ProceduralSurfaceRules.DeclaresProcedural</c>: a variant-only
-        /// <c>radius.mobile</c> counts here, because the stop genuinely works in that variant and a
-        /// hard CLI error over it would be a false positive. <c>weld</c> is excluded for the same
-        /// reason it is there — it builds a group panel on a child, not on this node.
-        /// </summary>
-        private static bool DeclaresSurface(ElementNode n, StyleAttributeView styles)
-        {
-            foreach (var attr in ProceduralAttrNames.NeedsPanel)
-            {
-                if (attr == "weld") continue;
-                if (styles.Declares(n, attr)) return true;
-            }
-            return false;
         }
     }
 }
