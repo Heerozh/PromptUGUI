@@ -41,11 +41,27 @@ namespace PromptUGUI.Controls.Internal
 
             var fade = StateTintReactor.DefaultFade;
             var target = selectable.targetGraphic;
+            // A procedural surface parents its panel under the host whose Image it retired
+            // (ProceduralSurface.EnsurePanel), so while the panel is the targetGraphic that host
+            // Image is the one standing down. Structural, not a flag: the surface is reconciled
+            // every pass and this has to follow it.
+            var retired = target is ProceduralPanel panel ? panel.transform.parent : null;
             StateTintReactor targetReactor = null;
             foreach (var g in root.GetComponentsInChildren<Graphic>(includeInactive: true))
             {
                 if (blocked.Contains(g.gameObject)) continue;
                 var isTarget = ReferenceEquals(g, target);
+                // The retired Image is nobody's target — not the control's (targetGraphic moved to
+                // the panel) and not a fan-out one either. Retirement zeroes Graphic.color's alpha
+                // but leaves the GradientTint a `color="A,B"` put on it intact, so a fan-out
+                // reactor's first-init Peek reads that gradient and re-applies it with
+                // Graphic.color = white: the sprite-less Image draws the tint as a hard rectangle
+                // behind the shaped surface. Same stand-down as the no-modulate branch below.
+                if (!isTarget && retired != null && g is UnityEngine.UI.Image && g.transform == retired)
+                {
+                    g.GetComponent<StateTintReactor>()?.Detach();
+                    continue;
+                }
                 // Descendants only matter for the fan-out multiplier: with no modulates, a descendant
                 // reactor would be a no-op (base × white). Skip them so we don't add idle MonoBehaviours
                 // + OnState subscriptions. The targetGraphic always installs (it carries the absolutes

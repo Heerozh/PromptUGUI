@@ -42,6 +42,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         // BtnStateTests.
         private const int NormalState = 0;
         private const int Highlighted = 1;
+        private const int Pressed = 2;
 
         [SetUp]
         public void SetUp()
@@ -526,6 +527,46 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 + "skin's colour back as a hard rectangle behind the rounded surface");
         }
 
+        /// <summary>
+        /// The same stale-reactor shape reached WITHOUT a skin switch. A <c>*Modulate</c> makes the
+        /// installer fan a reactor out onto every descendant Graphic — and the retired Image is one.
+        /// Its first-init Peek reads the <c>GradientTint</c> that <c>color="A,B"</c> left on the Image
+        /// (retirement zeroes <c>Graphic.color</c>'s alpha, the tint's own alpha is intact), and
+        /// re-applying a gradient sets <c>Graphic.color = white</c>: the sprite-less Image draws the
+        /// tint as a hard rectangle behind the shaped surface. Straight from
+        /// <c>&lt;Tab radius=… color="A,B" pressedModulate=…&gt;</c>.
+        /// </summary>
+        [Test]
+        public void RetiredImage_IsNeverAFanOutTarget_GradientColour()
+        {
+            StateTintReactor.TestForceInstant = true;
+            var b = Load("radius='8' color='#102030,#000000' pressedModulate='#808080'");
+            var bg = b.GameObject.GetComponent<UnityImage>();
+            var btn = b.GameObject.GetComponent<PuiButton>();
+
+            Assert.AreEqual(0f, bg.color.a, 0.001f, "retired at open");
+            btn.SimulateState(Pressed);
+            Assert.AreEqual(0f, bg.color.a, 0.001f,
+                "the fan-out must not repaint the retired Image — it draws the gradient as a hard "
+                + "rectangle behind the shaped surface");
+            btn.SimulateState(NormalState);
+            Assert.AreEqual(0f, bg.color.a, 0.001f, "and not on the way back either");
+        }
+
+        /// <summary>Solid colour, same rule — the retired Image is nobody's fan-out target.</summary>
+        [Test]
+        public void RetiredImage_IsNeverAFanOutTarget_SolidColour()
+        {
+            StateTintReactor.TestForceInstant = true;
+            var b = Load("radius='8' color='#102030' pressedModulate='#808080'");
+            var bg = b.GameObject.GetComponent<UnityImage>();
+            var btn = b.GameObject.GetComponent<PuiButton>();
+
+            btn.SimulateState(Pressed);
+            Assert.AreEqual(0f, bg.color.a, 0.001f);
+            btn.SimulateState(NormalState);
+            Assert.AreEqual(0f, bg.color.a, 0.001f);
+        }
         /// <summary>…and it has to come back when the surface stands down again.</summary>
         [Test]
         public void WhenTheSurfaceStandsDown_TheImageIsDrivenAgain()
