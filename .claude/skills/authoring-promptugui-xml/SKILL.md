@@ -216,6 +216,9 @@ uGUI Image，从 `Resources` 加载 sprite；可选 `RectMask2D`（`mask="rect"`
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
 | `rotation` | 浮点角度，**顺时针为正** | `0` | 见 **Rotation & flip** |
 | `flip` | `x` / `y` / `xy` / `none` | `none` | 见 **Rotation & flip** |
+| `blur` | px 半径 | `0`（不糊） | 见 **Blur & glow** |
+| `glow` | px 半径 | `0`（无光） | 见 **Blur & glow** |
+| `glowColor` | hex / CSS named / theme token，**纯色** | 不写 = 图自身的模糊色 | 见 **Blur & glow** |
 
 #### Rotation & flip
 
@@ -233,6 +236,30 @@ They rewrite the **generated mesh** about the rect's centre and touch nothing el
 - **A rotated child does not move its siblings.** A parent LayoutGroup measures the un-rotated rect, so the control still claims exactly its own slot. (Turning the transform instead would rotate about the *pivot*, which is derived from the anchor — a `top-left` icon would swing out of its slot.)
 - **A non-square rect turned by a non-90° angle draws outside its rect**, as any rotation would. A parent `mask="rect"` / `mask="self"` clips it correctly.
 - **`Rotation` is settable from C# and cheap to tween** (`LMotion.Create(0f, 180f, 0.2f).Bind(v => icon.Rotation = v)`), which is how a chevron flips as a panel opens. Identity (`rotation="0"` + `flip="none"`) attaches no component at all.
+
+#### Blur & glow
+
+`blur` softens the picture itself; `glow` casts light outward from the sprite's own silhouette. Both are radii in design pixels, and both are "the number is the switch" — `0` (or `""`, which is how a Variant or a theme retracts one) draws neither.
+
+```xml
+<Icon name="res:gold" glow="6"/>                              <!-- glows in its own colours -->
+<Icon name="ui:alert" glow="8" glowColor="danger"/>           <!-- a flat silhouette glow -->
+<Image sprite="item:blaster" blur="4"/>                       <!-- a locked item, out of focus -->
+<Image sprite="card:01" type="contain" blur="3" glow="10" glowColor="accent/0.6"/>
+
+<Style name="rare" glow="8" glowColor="gold"/>                <!-- style / theme / Variant as usual -->
+<Theme name="matte"><Style name="rare" glow="0"/></Theme>
+<Icon name="ui:trophy" glow="8" glow.portrait="0"/>
+```
+
+- **`<Image>` / `<Icon>` only** (`PUI-FX-TAG`). `<RawImage>` and `<Btn sprite=>` are not wired up yet.
+- **`type="simple"` only** — `contain` / `cover` count, since they draw one quad too; `sliced` / `tiled` / `filled` are `PUI-FX-TYPE`. A sprite with a 9-slice border becomes `sliced` *automatically* when you write no `type=`, and then draws no effect at all (the runtime warns). Write `type="simple"` to force the plain quad.
+- **`glowColor` unwritten = the sprite's own blurred colour**, so a coloured icon glows in its colours and follows `color=` and state modulates. Written, it is a flat glow in that colour whose alpha is its strength. A `glowColor` with no `glow` is `PUI-FX-ATTR`.
+- **The glow is drawn geometry, not layout.** The rect, `LayoutElement` and the raycast area are exactly as authored — same as `<Frame glow>`, so leave room with `spacing` / `margin` or the next sibling sits on top of the light.
+- **Radii are design px in the element's own space**, so `scale=` scales them with everything else. Over `12` is `PUI-FX-RADIUS`: the sampling kernel starts to band, and big-radius blur (a photo backdrop, say) is not in this milestone.
+- **`mask="self"` on the same node** makes the glow part of the stencil, so children show through it (`PUI-FX-MASK`). Put the mask on a parent `<Frame>`, or the effect on an inner `<Image>`.
+- Works with everything else that colours the graphic: `color=` (including gradients), state `*Modulate`, `tint="linear"`, CanvasGroup alpha and the disabled grey all still apply, and the glow greys with the body. One caveat: a **stop gradient** normalises over the inflated quad, so the picture sees the ramp inset by the radius.
+- **Atlas requirement:** the sprite's atlas must pack without rotation and without tight packing, or the sampling picks up its neighbour. `Sync Atlases` sets that on atlases it creates and warns about existing ones — see `reference/icons.md`.
 
 #### Reflection recipe
 
@@ -666,6 +693,9 @@ References a sprite from a project-level SpriteSet (shared icons, by-name lookup
 | `size`    | no       | `native`  | Numeric / `WxH` / `native` (Icon-only — reads sprite pixel dimensions). For "fill the parent" use `anchor="stretch"` (free-positioning) or wrap the Icon in a V/HStack and use `width="stretch"` / `height="stretch"` (LayoutGroup)                                                                                  |
 | `rotation` | no      | `0`       | Clockwise degrees, mesh-level — see **Rotation & flip** under `<Image>`                                                                                                                                                                                                                                             |
 | `flip`    | no       | `none`    | `x` / `y` / `xy` / `none`, mesh-level — see **Rotation & flip** under `<Image>`                                                                                                                                                                                                                                     |
+| `blur` | no | `0` | px radius; softens the icon itself — see **Blur & glow** under `<Image>` |
+| `glow` | no | `0` | px radius; outer glow cast from the icon's silhouette — see **Blur & glow** |
+| `glowColor` | no | its own colour | solid colour; unwritten, the glow takes the icon's own blurred colour |
 
 **Discovering available icons** — 要查项目里有哪些 `setName:icon-name` 组合、以及 icon 名如何解析（相对 sourceFolder 路径、bare basename 简写、Template-Param 替换、sync 工具行为），见 [`reference/icons.md`](reference/icons.md)。
 
@@ -1667,6 +1697,9 @@ SIZE          size="WxH"          numeric only (no keywords)
 HUG           "hug"            → as big as my content; clamp(min, hug, max) caps it (then ScrollList scrolls)
                                  PUI-HUG-TAG (wrong tag) / -SCALE (with scale=) / -STRETCH-CHILD (stretch child)
 MESH XFORM    rotation="90" flip="x|y|xy"   <Image>/<Icon>/<RawImage> only; mesh-level, layout untouched
+SPRITE FX     blur="4" glow="8" glowColor="accent"   <Image>/<Icon> only, type="simple"/contain/cover only
+              glowColor unwritten = the sprite's own colours; the glow is drawn OUTSIDE the rect
+              (layout unchanged — leave spacing); >12px = PUI-FX-RADIUS; atlas must not rotate/tight-pack
 REFLECTION    <Icon name="x"/> then <Icon name="x" flip="y" color="white/0.35, white/0 50%"/>
               draw order = XML order, so floor <Image> between the two gives reflection < floor < object
               gradient runs on the FINAL mesh: first colour = top of what you see, flipped or not
@@ -1721,8 +1754,15 @@ GAMEPAD NAV   UI.UseGamepadNavigation()        enable once at startup (new Input
               PUI-NAV-UNKNOWN-TARGET           navX="id" where id not in same Screen
               details: reference/navigation.md
 
+SPRITE FX LINT PUI-FX-TAG                      blur= outside <Image> / <Icon> (RawImage / Btn not wired up yet)
+              PUI-FX-TYPE                      blur/glow with type=sliced|tiled|filled (also warned at runtime,
+                                               where a 9-slice sprite's automatic Sliced is visible)
+              PUI-FX-ATTR                      glowColor= with no glow=
+              PUI-FX-MASK                      blur/glow on the same node as mask="self"
+              PUI-FX-RADIUS                    blur/glow over 12px — the kernel starts to band
+
 STYLE LINT    PUI-CLASS-EMPTY                  class="" / whitespace-only — names no style
-              PUI-PROCEDURAL-VALUE             bad radius / borderWidth / glow value (also checked inside <Style>)
+              PUI-PROCEDURAL-VALUE             bad radius / borderWidth / glow / blur value (also inside <Style>)
               PUI-CONTAINER-VISUAL-ATTR        sprite= on any container; color/radius/border/glow on *Stack/Grid/SafeArea
                                                — also fires when the attribute arrives through class=
               PUI-EXPAND                       unknown template / style name, or an <Import> cycle

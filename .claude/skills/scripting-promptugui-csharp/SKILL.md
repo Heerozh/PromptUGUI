@@ -1837,6 +1837,17 @@ LMotion.Create(0f, 180f, 0.15f)
 
 `Rotation` (clockwise degrees) and `Flip` (`"x"` / `"y"` / `"xy"` / `"none"`) exist on `<Image>` / `<Icon>` / `<RawImage>`. They rewrite the generated mesh about the rect's centre and leave the RectTransform, the layout and the raycast area alone — which is why a rotated control still claims exactly its own slot in a stack, and why animating them does not fight `Screen.ApplyScales` the way a `localScale`-based mirror would.
 
+### `Image.Blur` / `Glow` / `GlowColor` — sprite effects, and tweenable
+
+```csharp
+var coin = screen.Get<Icon>("coin");
+LMotion.Create(0f, 8f, 0.2f)
+    .Bind(v => coin.Glow = v)             // pulse the glow as the reward lands
+    .AddTo(coin.GameObject);
+```
+
+`Blur` and `Glow` are pixel radii on `<Image>` / `<Icon>`; `GlowColor` takes a colour string, and `""` puts it back to "the sprite's own blurred colour". Each frame of a tween costs one material-cache lookup (shared per parameter set, no allocation) plus a mesh rebuild, since the radius inflates the drawn quad — about the same as tweening `Rotation`. They apply only where the sprite is drawn as one quad (`type="simple"` / `contain` / `cover`), so a 9-slice sprite draws no effect; see **Blur & glow** in the XML skill.
+
 ### Testing `hug` / `reveal` geometry in EditMode
 
 Both are resolved by Unity's layout pass, not by `UI.Open` — so a freshly opened Screen has not applied them yet. Drive one pass before asserting:
