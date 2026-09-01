@@ -203,6 +203,15 @@ namespace PromptUGUI.Application
                 // FIT-VARIANT only — FIT-GEOMETRY is CLI-only (inert, zero runtime cost).
                 foreach (var issue in ImageFitRules.CheckVariant(node))
                     Debug.LogWarning(issue.Message);
+                // FX-TYPE only: a Sliced sprite draws no blur / glow at all, which is a visual
+                // surprise rather than an authoring nit. The rest of the FX family is CLI-only.
+                foreach (var issue in ImageFxRules.CheckImage(node))
+                    Debug.LogWarning(issue.Message);
+            }
+            else if (node.Tag == "Icon")
+            {
+                foreach (var issue in ImageFxRules.CheckImage(node))
+                    Debug.LogWarning(issue.Message);
             }
             else if (node.Tag == "Progress")
                 foreach (var issue in ProgressAttributeRules.CheckProgress(node))
