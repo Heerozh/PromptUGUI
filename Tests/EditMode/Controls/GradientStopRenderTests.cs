@@ -53,11 +53,14 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         private void Render(string imageAttrs, string dumpName)
+            => RenderBody($"<Image id='g' anchor='center' width='{W}' height='{H}' {imageAttrs}/>", "g", dumpName);
+
+        private void RenderBody(string body, string probeId, string dumpName)
         {
             UI.UnloadAll();
             UI.LoadDocument("t", $@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
-  <Image id='g' anchor='center' width='{W}' height='{H}' {imageAttrs}/>
+  {body}
 </Screen></PromptUGUI>");
             var screen = UI.Open("S");
 
@@ -82,7 +85,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             File.WriteAllBytes(path, _shot.EncodeToPNG());
             Debug.Log($"PromptUGUI gradient-stop render dump: {path}");
 
-            var rt = (RectTransform)screen.Get<PromptUGUI.Controls.Image>("g").GameObject.transform;
+            var rt = (RectTransform)screen.Get<PromptUGUI.Controls.IControl>(probeId).GameObject.transform;
             var corners = new Vector3[4];
             rt.GetWorldCorners(corners);
             var a = RectTransformUtility.WorldToScreenPoint(_ui, corners[0]);
@@ -104,6 +107,22 @@ namespace PromptUGUI.Tests.EditMode.Controls
             y = Mathf.Clamp(y, 0, Size - 1);
             var p = _pixels[y * Size + x];
             return new Color(p.r / 255f, p.g / 255f, p.b / 255f, p.a / 255f);
+        }
+
+        /// <summary>The topmost screen row, scanning down, where blue has overtaken red.</summary>
+        private int TransitionRow()
+        {
+            var x = Mathf.Clamp(Mathf.RoundToInt(Mathf.Lerp(_rect.xMin, _rect.xMax, 0.5f)), 0, Size - 1);
+            var top = Mathf.Clamp(Mathf.RoundToInt(_rect.yMax) - 1, 0, Size - 1);
+            var bottom = Mathf.Clamp(Mathf.RoundToInt(_rect.yMin) + 1, 0, Size - 1);
+            for (var y = top; y >= bottom; y--)
+            {
+                var p = _pixels[y * Size + x];
+                if (p.b > p.r) return y;
+            }
+
+            Assert.Fail("no red-to-blue transition anywhere down the middle column");
+            return -1;
         }
 
         private float[] Column(int samples)
@@ -193,6 +212,26 @@ namespace PromptUGUI.Tests.EditMode.Controls
             for (var i = 0; i < colourFirst.Length; i++)
                 Assert.AreEqual(colourFirst[i], flipFirst[i], 2f / 255f,
                     $"row {i} differs between the two attribute orders");
+        }
+
+        // ── the shader and the vertex path have to agree ────────────────────────
+
+        [Test]
+        public void Frame_And_Image_ChangeOverOnTheSameRow()
+        {
+            // The guarantee that keeps ColorSpec.Evaluate and PuguiFillRamp honest: the same token
+            // on a procedural surface (per fragment) and on a sprite graphic (per vertex) has to
+            // transition at the same pixel, or a Frame and the Image in front of it visibly disagree.
+            const string Ramp = "color='#ff0000 40%,#0000ff 40%'";
+
+            RenderBody($"<Frame id='p' anchor='center' width='{W}' height='{H}' {Ramp}/>", "p", "vgs-same-row-frame.png");
+            var frameRow = TransitionRow();
+
+            RenderBody($"<Image id='p' anchor='center' width='{W}' height='{H}' {Ramp}/>", "p", "vgs-same-row-image.png");
+            var imageRow = TransitionRow();
+
+            Assert.AreEqual(frameRow, imageRow, 1f,
+                $"the shader put the stop at row {frameRow}, the vertex path at {imageRow}");
         }
 
         // ── a mesh that is not one quad ─────────────────────────────────────────
