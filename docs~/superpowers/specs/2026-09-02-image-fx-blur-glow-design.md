@@ -360,3 +360,69 @@ uv0 / uv1 / uv2 / color / worldPosition 透传。fragment 按 §4.3；全部 uni
 | 补间 `Glow` / `Blur` | 每帧一次材质缓存查找（零分配）+ 一次网格重建 |
 | Canvas | `TexCoord2` 新开：画布内每个顶点多一个 float4（`TexCoord1` 已被程序化面板开着） |
 | 图集 | 关 rotation / tight 后打包略松，`padding` 不变 |
+
+## 13. 实施记录（M1，2026-09-02 完成）
+
+分支 `feat/image-fx-blur-glow`，11 个提交（Task 0–11）。全量：EditMode + EditorOnly **3787 绿**、
+PlayMode **200 绿**、`dotnet format --verify-no-changes` 干净、`UIXmlLint` 退出码 0。
+
+### 与设计的偏差
+
+1. **`PUI-FX-VALUE` 并入既有 `PUI-PROCEDURAL-VALUE`**（写 spec 时已改口，见 §6）：`StyleRules.PixelAttrs`
+   本就对 `glow` 做非负像素值校验、且覆盖 `<Style>` 内部，`blur` 加进同一数组即可。规则从六条变五条。
+2. **`FxMaterialCache` 采用复制而非抽公共泛型**（§11.2）：与 `ProceduralMaterialCache` /
+   `DecorMaterialCache` 并列的第三份 ~80 行结构。抽泛型要同时动到玻璃面板的双备用栈，不值得夹带进本期。
+3. **`ImageFxRules` 提前到 Task 4 建文件**（只放 `FxTags` / `SupportedProceduralAttrs` 两个常量，
+   规则本体仍在 Task 6）：`ProceduralAttrNamesTests.OnlyFrame_HasThePanelRequiringAttributes` 这条守卫
+   在 Task 4 就变红了 —— 它要求「任何接受 panel-requiring 属性的控件都必须登记」。这正是它存在的意义，
+   处理方式沿用 `<Decor>` 的先例：`PureContainerVisualAttrRules` 对 `<Image>` / `<Icon>` 豁免 glow 对。
+   同时 `PureContainerVisualAttrRulesTests` 里那条"报全部而非只报第一个"的用例原本用 `radius + glow`
+   举例，`glow` 在这两个标签上合法之后换成了 `radius + borderWidth`。
+4. **采样核权重是均匀圆盘（全 1），不是高斯**。先按 spec 的 `exp(-2r²)` 实现，PNG 目检发现光晕在
+   离边缘 R/2 处就消失 —— 作者写 `glow="8"` 得到的是一圈 4px 硬边。高斯把权重堆在核心，覆盖率衰减
+   远快于"到 R 归零"。改均匀圆盘后覆盖率即"圆盘落进剪影的面积占比"，恰在 d=R 归零，与
+   `PuguiApplyOuterGlow` 的 `g²` 同族（d=0.5R 时本式 0.15 / 参考式 0.25）。代价是模糊比高斯略平，
+   ≤12px 这一档看不出来。
+5. **shader 增加"退化矩形回退"**：`uv1` 的矩形无效（宽或高 ≤ 0）时整段 fx 跳过、按 `UI/Default` 画。
+   设计里没有这条。没有它的话，任何没经过 `FxMesh` 的网格（Sliced / Tiled / sprite mesh，或画布没开
+   TEXCOORD1/2）都会因为"所有 tap 都在矩形外"而被采成全透明 —— sprite 直接消失。C# 侧也做了对应
+   收窄（`BuildParams` 在 `HasGeometryFx == false` 时把两个半径清零，材质不进缓存）。
+6. **`ImageFxApplier` 是新增的第三个 applier**（设计里只提了 setter 直连）：`<Image>` / `<Icon>` 的
+   三个 setter 完全同形，且都要处理"节点上是 prefab 自带的 plain Image"这一路，与
+   `RotateFlipApplier` / `ImageTint` 同一惯例。
+7. **`GradientTint` 内缩（§11.3）实测不显**：`MeshSlicer.Lerp` 已经带 uv0–uv3，守卫测试一写即绿；
+   渐变按含 `pad` 的包围盒归一这件事本身仍在，但在 ≤12px 半径下肉眼不可辨，M1 保持接受。
+
+### 最终采样核与渲染阈值
+
+- 核：中心 1 tap + 24 点 Vogel 圆盘（黄金角 2.39996，`r_i = √((i+0.5)/24)`），权重全 1，共 25 tap。
+  两轮（blur / glow）各自被 `if (R <= 0)` 的 uniform 分支跳过。
+- 光晕曲线：`falloff = saturate(2·coverage)²`。剪影边缘 coverage≈0.5 → 满强度；d=R → 0。
+- `ImageFxRenderTests` 用测试内手搓的 **双 sprite 图集**（左 32×32 透明底白圆盘、右 32×32 纯红），
+  9 条用例。关键阈值都在"功能关掉的那一版"上反向验过：`glow='0'` 时同一像素为背景。
+  探针按**半径相对**取样（`R/2`），不用固定像素距离 —— 首版写死 3px 时 `blur='4'`（= 2 texel）
+  自然测不出来，那是测试的尺度错误不是 shader 的。
+
+### 宿主工程真实图集目检（Task 11）
+
+在 ssw_re_client 里用 `Solar96Bold.spriteatlas` 的真实打包 sprite（在 512×512 图集页里占
+`(264, 176, 84, 84)`）离屏渲染四个 `<Icon>`：无 fx / `glow=8` / `glow=8 glowColor=#3ba7ff` / `blur=6`。
+水平剖面（穿过图标中心向右）：
+
+```
+plain     …26:0.65 28:0.08 30:0.08 …44:0.08     ← 剪影边缘后直接是背景
+glow-self …26:0.77 28:0.36 30:0.25 32:0.13 34:0.08 …44:0.08   ← 单调衰减到背景，中间无异物
+```
+
+即真实图集页上邻居没有漏进来。两点观感记录：
+
+- **自体色光晕会填满内部镂空**（与 Photoshop 的 Outer Glow 同性质：光晕画在本体之下，本体透明处
+  就透出光）。该图标的箭头是白色实心不受影响，但"镂空即图形"的图标配自体色会糊掉内部细节 —— 写
+  显式 `glowColor` 立刻分得开。局部核无法区分"形状外"与"内部孔洞"，这是技术本身的性质，非缺陷。
+- 半透明边缘像素会与身后的光晕合成而变亮（`plain` 0.73 → `glow-self` 1.00），也是正确的 source-over。
+
+### 客户端仓库待办（不在本 PR 内）
+
+`ssw_re_client` 的 `PxlIcon.spriteatlas` 目前 `enableRotation=1 / enableTightPacking=1`（当前
+`spriteCount=0`，尚未 Pack Preview）。要在像素图标上用 blur/glow，需在 SpriteAtlas inspector 里关掉
+两项再 Pack Preview —— Syncer 现在会对已有 atlas 告警但不自动改。`Solar96Bold` 已是 0/0，无需处理。
