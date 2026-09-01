@@ -208,7 +208,7 @@ uGUI Image，从 `Resources` 加载 sprite；可选 `RectMask2D`（`mask="rect"`
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
 | `sprite` | sprite key | — | |
-| `color` | hex / CSS named / theme token | — | runtime theme token 优先于字面量；见 **Color Tokens** |
+| `color` | hex / CSS named / theme token | — | runtime theme token 优先于字面量；见 **Color Tokens**; gradient stop positions / hints render here too |
 | `type` | `simple` / `sliced` / `tiled` / `filled` / `contain` / `cover` | 自动 | 省略→sprite 有非零 border 取 `sliced`、否则 `simple`。`.pxl` 中声明 `tiled: true` 的 sprite 在每个 consumer 上自动渲染为 `tiled`，无需写 `type=`；显式写 `type=` 仍可覆盖。`contain` / `cover` 是相对**父 rect** 的等比适配（`AspectRatioFitter`）：`contain` 内嵌留边、`cover` 填满溢出；尺寸设在**父级**，`cover` 时父级加 `mask="rect"` 裁切。适配模式下 Image 自身 `anchor` / `size` / `width` / `height` / `margin` 被接管失效（`PUI-IMAGE-FIT-GEOMETRY`）；不可 variant 覆盖（`PUI-IMAGE-FIT-VARIANT`）；勿直接作 `<VStack>` / `<HStack>` / `<Grid>` 子节点，套 `<Frame>` |
 | `mask` | `rect` / `self` | — | |
 | `showMask` | bool | `true` | 仅 `mask="self"` |
@@ -234,13 +234,35 @@ They rewrite the **generated mesh** about the rect's centre and touch nothing el
 - **A non-square rect turned by a non-90° angle draws outside its rect**, as any rotation would. A parent `mask="rect"` / `mask="self"` clips it correctly.
 - **`Rotation` is settable from C# and cheap to tween** (`LMotion.Create(0f, 180f, 0.2f).Bind(v => icon.Rotation = v)`), which is how a chevron flips as a panel opens. Identity (`rotation="0"` + `flip="none"`) attaches no component at all.
 
+#### Reflection recipe
+
+There is no `reflect=` attribute: draw order **is** XML order, and a stop gradient can fade a copy out, so a mirror reflection is the same node written twice.
+
+```xml
+<VStack anchor="center" spacing="0">
+  <Icon name="ui:coin" size="64x64"/>
+  <Icon name="ui:coin" size="64x64" flip="y" color="white/0.35, white/0 50%"/>
+</VStack>
+```
+
+The second copy is mirrored, starts at 35% opacity where it meets the original, and is gone by halfway down — and because the ramp ends fully transparent, that lower half is not drawn at all.
+
+**With a floor**, the layering you want is reflection < floor < object, which is just that order in the XML: the reflection node first, the floor `<Image>` next, the object last. Give the floor copy a `mask="rect"` parent covering only the strip below the contact line, so it veils the reflection without covering the object.
+
+What this costs, next to a built-in attribute:
+
+- **Two declarations to keep in sync** — a sprite, size or state change has to be made in both.
+- **The mirror is about the rect's centre**, so art with unequal padding top and bottom lands off the contact line. Trim the sprite, or nudge with `margin`.
+- **The reflection still occupies its whole rect** in a stack even where it draws nothing, so give it a smaller explicit `height` if you want the pair tighter.
+- **Anything C# drives** (a swapped sprite, a state tint) has to be applied to both nodes.
+
 ### `<RawImage>`
 
 uGUI `RawImage`，渲染**运行时动态加载的 `Texture`**（头像 / 下载图 / 截图 / `RenderTexture`）。图源**只能从 C# 设**——没有 `sprite` / SpriteSet、没有 XML 图源属性：`screen.Get<RawImage>("id").Texture = tex;`（见 scripting-promptugui-csharp）。
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
-| `color` | hex / CSS named / theme token | `#ffffff` | 乘色；无 texture 时仍按 color 画纯色 quad（要初始隐形写 `color="#00000000"`） |
+| `color` | hex / CSS named / theme token | `#ffffff` | 乘色；无 texture 时仍按 color 画纯色 quad（要初始隐形写 `color="#00000000"`）; gradient stop positions / hints render here too |
 | `type` | `contain` / `cover` | — | 等比适配，相对**父 rect**（同 `<Image>`）：`contain` 内嵌留边、`cover` 填满溢出；`cover` 裁切由父级 `mask="rect"` 负责。**仅这两个值**——`simple` / `sliced` / `tiled` / `filled` 是 sprite 专有，写了会 warning 并回退普通模式。适配模式下自身 `anchor` / `size` / `width` / `height` / `margin` 被 `AspectRatioFitter` 接管失效 |
 | `tint` | `multiply` / `linear` | `multiply` | 见 **Tint blend modes** |
 | `mask` | `rect` / `self` | — | 同 `<Image>` |
@@ -260,7 +282,7 @@ TMP_Text。文本简写：`<Text>Hello</Text>` ≡ `<Text text="Hello"/>`。
 |---|---|---|---|
 | `text` | string | — | |
 | `fontSize` | int | — | |
-| `color` | hex / CSS named / theme token | — | 见 **Color Tokens** |
+| `color` | hex / CSS named / theme token | — | 见 **Color Tokens**; gradients yes, stop positions / hints NO — TMP colours per glyph (`PUI-GRADIENT-STOP-NO-SURFACE`) |
 | `align` | TMP 对齐 | `left`+`middle` | 一个水平 token `left` / `center` / `right` / `justified` / `flush` / `geo`，和/或一个垂直 token `top` / `middle` / `bottom` / `baseline` / `midline` / `capline`，连字符或空格连接、顺序无关（`bottom-right` / `top-center` / `capline-flush`）；只给水平保持垂直 `middle`，只给垂直保持水平 `left`；未知 token = parse error |
 | `wrap` | bool | `true` | `false`=不换行（NoWrap）；常配 `overflow="ellipsis"` 做单行省略号 |
 | `overflow` | `overflow` / `ellipsis` / `truncate` | `overflow` | 文字塞不下框后的收尾：`overflow`=溢出框外（TMP 默认）、`ellipsis`=尾部 `…`、`truncate`=硬裁切无 `…`；未知值 = parse error |
@@ -640,7 +662,7 @@ References a sprite from a project-level SpriteSet (shared icons, by-name lookup
 | Attribute | Required | Default   | Notes                                                                                                                                                                                                                                                                                                                |
 | --------- | -------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `name`    | yes      | —         | Format `ns:icon-name`. `ns` (set name) is strict `[A-Za-z0-9_-]+`; `icon-name` mirrors the filesystem path under `sourceFolder` (no extension) — `/`-separated, may contain spaces, `&`, parens, commas, apostrophes, etc. Only the `:` delimiter is forbidden. Example: `solar:Bold Duotone/Map & Location/Radar 2` |
-| `color`   | no       | `#ffffff` | Multiply tint on the underlying Image. White preserves a colored PNG; non-white tints a mono-mask PNG                                                                                                                                                                                                                |
+| `color`   | no       | `#ffffff` | Multiply tint on the underlying Image. White preserves a colored PNG; non-white tints a mono-mask PNG; gradient stop positions / hints render here too                                                                                                                                                                                                                |
 | `size`    | no       | `native`  | Numeric / `WxH` / `native` (Icon-only — reads sprite pixel dimensions). For "fill the parent" use `anchor="stretch"` (free-positioning) or wrap the Icon in a V/HStack and use `width="stretch"` / `height="stretch"` (LayoutGroup)                                                                                  |
 | `rotation` | no      | `0`       | Clockwise degrees, mesh-level — see **Rotation & flip** under `<Image>`                                                                                                                                                                                                                                             |
 | `flip`    | no       | `none`    | `x` / `y` / `xy` / `none`, mesh-level — see **Rotation & flip** under `<Image>`                                                                                                                                                                                                                                     |
@@ -1355,7 +1377,7 @@ Append a comma between two colour values to produce a **vertical two-stop gradie
 
 Before the first position the top colour is solid; after the second the bottom colour is solid; between them it blends linearly. The second position may not sit above the first (that is an error, not a silent clamp).
 
-> **Stops only work on a procedural surface.** A position exists per pixel, in the SDF shader. A sprite-backed `Graphic` is coloured per *vertex*, and its four corners give the hardware nothing to interpolate a stop through — the ramp comes out full-height whatever you wrote. So stops apply to `<Frame>`, `<Decor>`, and any control **that declares a procedural shape** (`radius` / `glass` / `borderWidth` / `glow…`); on `<Image>` / `<Icon>` / `<RawImage>` / `<Text>`, on a control still drawing its Image, and on inner layers with no `<layer>Radius` of their own, the position is dropped with a runtime warning and a CLI error (`PUI-GRADIENT-STOP-NO-SURFACE`). Plain comma gradients keep working everywhere — this restriction is only about moving or bending the transition (the colour hint below is gated identically).
+> **Stops and hints work on every graphic.** A procedural surface draws them per pixel in the SDF shader; every other `Graphic` gets them by having its mesh cut at the stop — `<Image>` / `<Icon>` / `<RawImage>`, a control still drawing its Image, `<Progress>` fills, arrows, checkmarks. **TMP text is the one exception** (`<Text color>`, `textColor`, a Dropdown's `itemTextColor`): a TMP gradient is four corner colours per glyph, so a stop has nowhere to live and the position is dropped with a runtime warning and a CLI error (`PUI-GRADIENT-STOP-NO-SURFACE`). Two things follow from cutting the mesh. An end colour that is **fully transparent** (`…, white/0 50%`) drops that part of the geometry outright — no overdraw, and no `mask="rect"` needed to crop it. And the ramp is evaluated on the mesh **as finally drawn**, so `rotation` / `flip` never change which end is "the top": the first colour is the top of what you SEE, whatever order the attributes are written in.
 
 **Colour hint — bias the blend without a seam.** A stop position *cuts* the ramp: above it the colour is flat, below it changes, and that slope discontinuity is read by the eye as a dividing line even though the colour itself is continuous. When you want "mostly the top colour, the bottom one only creeping in near the bottom" with no visible seam, use CSS's **colour hint** instead — a bare percentage as the middle segment, meaning *the two colours are mixed half and half here*:
 
@@ -1385,7 +1407,7 @@ The hint bends the whole ramp into a power curve, so there is no kink anywhere. 
 - (Lint, CLI) `PUI-GRADIENT-MODULATE` — a gradient value on a `*Modulate` attribute
 - (Runtime) `color "...": this attribute does not support gradient colors` — gradient on a solid-only attribute (`*Modulate`, caret/selection colours, etc.)
 - (Runtime) `color "...": token resolves to a gradient — gradients cannot nest inside a gradient` — one segment of a gradient reference resolves to another gradient token
-- (Lint, CLI + runtime warning) `PUI-GRADIENT-STOP-NO-SURFACE` — a gradient stop position on a colour the vertex path will paint (see *Stop positions* above)
+- (Lint, CLI + runtime warning) `PUI-GRADIENT-STOP-NO-SURFACE` — a gradient stop position / hint on TMP text (`<Text>`, `textColor`, `itemTextColor`), which paints per glyph and has nowhere to put one (see *Stop positions* above)
 - (Parse / runtime) `color "#fff 70": the stop position must be a percentage (e.g. "70%")`
 - (Parse / runtime) `color "#fff 120%": stop position 120% is out of range — must be 0%..100%`
 - (Parse / runtime) `color "#fff 70%": a stop position needs a two-colour gradient (e.g. "A 70%,B") — a solid colour has no transition point to move`
@@ -1645,6 +1667,9 @@ SIZE          size="WxH"          numeric only (no keywords)
 HUG           "hug"            → as big as my content; clamp(min, hug, max) caps it (then ScrollList scrolls)
                                  PUI-HUG-TAG (wrong tag) / -SCALE (with scale=) / -STRETCH-CHILD (stretch child)
 MESH XFORM    rotation="90" flip="x|y|xy"   <Image>/<Icon>/<RawImage> only; mesh-level, layout untouched
+REFLECTION    <Icon name="x"/> then <Icon name="x" flip="y" color="white/0.35, white/0 50%"/>
+              draw order = XML order, so floor <Image> between the two gives reflection < floor < object
+              gradient runs on the FINAL mesh: first colour = top of what you see, flipped or not
 STRETCH KW    "stretch"        → LayoutElement.flexible*=1   (LayoutGroup child only)
               "stretch*N"      → LayoutElement.flexible*=N   (N > 0; for 1:2:1 splits etc.)
               Free-positioning equivalent: anchor="...-stretch" + margin

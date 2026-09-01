@@ -49,13 +49,26 @@ namespace PromptUGUI.Application
             => new ColorSpec(top, bottom, topStop, bottomStop, curve, true);
 
         /// <summary>
-        /// The author shaped the ramp — moved a stop, or bent it with a hint. Only the procedural
-        /// shader can draw either: a vertex-coloured Graphic has nothing but corner vertices to place
-        /// them on, so the hardware interpolates straight through and the ramp comes out plain and
-        /// full-height anyway (spec 2026-08-30 §5). Callers on the vertex path use this to warn
-        /// rather than lie.
+        /// The author shaped the ramp — moved a stop, or bent it with a hint. Both the procedural
+        /// shader (per fragment) and <c>GradientTint</c> (by slicing the mesh at the stops, spec
+        /// 2026-09-01 VGS §4.2) can draw that. TMP text cannot: it paints a gradient per glyph, and
+        /// four glyph corners have nowhere to put a stop — that path warns instead of lying.
         /// </summary>
         public bool HasStops => IsGradient && (TopStop != 0f || BottomStop != 1f || Curve != 1f);
+
+        /// <summary>
+        /// The colour at normalized distance <paramref name="s"/> from the TOP edge (0 = top,
+        /// 1 = bottom) — the same ramp <c>PuguiFillRamp</c> (UI-PanelSDF.cginc) draws per fragment,
+        /// evaluated per vertex. Keep the two in step: a &lt;Frame&gt; and an &lt;Image&gt; carrying
+        /// the same token have to change over at the same row of pixels.
+        /// </summary>
+        public Color Evaluate(float s)
+        {
+            var span = Mathf.Max(BottomStop - TopStop, 1e-4f);
+            var u = Mathf.Clamp01((s - TopStop) / span);
+            if (Curve != 1f) u = Mathf.Pow(u, Curve);
+            return Color.Lerp(Top, Bottom, u);
+        }
 
         /// <summary>Component-wise multiply (modulate) a tint colour into both stops. Stop
         /// positions describe the shape of the ramp and are left alone.</summary>

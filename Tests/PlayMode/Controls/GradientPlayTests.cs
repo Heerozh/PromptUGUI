@@ -65,5 +65,33 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             btn.GameObject.GetComponent<UnityEngine.UI.Button>().onClick.Invoke();
             Assert.AreEqual(1, clickCount, "Btn.OnClick must fire when Button.onClick is invoked");
         }
+
+        [UnityTest]
+        public IEnumerator StopGradientImage_SurvivesFrames()
+        {
+            // The reflection recipe, end to end under a real frame loop: a flipped Image whose ramp
+            // fades to nothing halfway down. The slicing path runs during the canvas rebuild, so a
+            // pooled-list or ordering mistake would show up here and nowhere in EditMode.
+            UI.LoadDocument("t", @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Image id='g' width='64' height='64' color='#ffffff,#ffffff/0 50%' flip='y'/>
+</Screen></PromptUGUI>");
+            var screen = UI.Open("S");
+
+            yield return null;
+            yield return null;
+
+            var img = screen.Get<PromptUGUI.Controls.Image>("g").GameObject.GetComponent<UnityImage>();
+            var tint = img.GetComponent<GradientTint>();
+            Assert.IsNotNull(tint);
+            Assert.IsTrue(tint.enabled);
+            Assert.IsTrue(tint.Spec.HasStops, "the stop must survive the frame loop");
+            Assert.AreEqual(0.5f, tint.Spec.BottomStop, 1e-5f);
+
+            var effects = img.GetComponents<UnityEngine.UI.BaseMeshEffect>();
+            Assert.AreEqual(2, effects.Length);
+            Assert.IsInstanceOf<RotateFlipEffect>(effects[0], "the flip has to run first");
+            Assert.IsInstanceOf<GradientTint>(effects[1]);
+        }
     }
 }

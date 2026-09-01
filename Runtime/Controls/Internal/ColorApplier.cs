@@ -18,7 +18,7 @@ namespace PromptUGUI.Controls.Internal
             if (spec.IsGradient)
             {
                 var tint = g.GetComponent<GradientTint>() ?? g.gameObject.AddComponent<GradientTint>();
-                tint.Set(spec.Top, spec.Bottom);
+                tint.Set(spec);
                 tint.enabled = true;
                 g.color = Color.white;
             }
@@ -31,12 +31,14 @@ namespace PromptUGUI.Controls.Internal
         }
 
         /// <summary>Read back the currently-applied value — gradient if a GradientTint is
-        /// enabled, else the plain graphic colour. Used by StateTintReactor base capture.</summary>
+        /// enabled, else the plain graphic colour. Used by StateTintReactor base capture, which
+        /// re-applies what it reads with a modulate on top, so the whole spec (stop positions and
+        /// hint curve included) has to survive the round trip.</summary>
         public static ColorSpec Peek(Graphic g)
         {
             var tint = g.GetComponent<GradientTint>();
             return tint != null && tint.enabled
-                ? ColorSpec.Gradient(tint.Top, tint.Bottom)
+                ? tint.Spec
                 : ColorSpec.Solid(g.color);
         }
     }

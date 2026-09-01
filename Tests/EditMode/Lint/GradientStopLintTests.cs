@@ -8,9 +8,9 @@ namespace PromptUGUI.Tests.EditMode.Lint
 {
     /// <summary>
     /// <c>PUI-GRADIENT-STOP-NO-SURFACE</c>: a gradient stop position only exists per-fragment, in the
-    /// procedural shader. A vertex-coloured Graphic has nothing but corner vertices to hang it on, so
-    /// the ramp comes out spanning the full height whatever the author wrote — silent at runtime,
-    /// which makes the CLI the only place they find out.
+    /// procedural shader — or between vertices, which is why GradientTint slices the mesh at them. TMP
+    /// text is the one path that can do neither: its gradient is placed per glyph, so the ramp comes
+    /// out full-height whatever the author wrote — silent at runtime, which leaves the CLI to say so.
     /// </summary>
     public class GradientStopLintTests
     {
@@ -28,14 +28,14 @@ namespace PromptUGUI.Tests.EditMode.Lint
         private static bool HasStopIssue(string body, string top = "")
             => Walk(body, top).Any(i => i.Code == GradientStopRules.NoSurfaceCode);
 
-        // ── tags with no procedural surface at all ───────────────────────────────
+        // ── the sprite graphics: they slice their own mesh now ──────────────────
 
         [TestCase("<Image id='g' color='#fff 70%,#000'/>")]
         [TestCase("<Icon id='g' name='ui:coin' color='#fff 70%,#000'/>")]
         [TestCase("<RawImage id='g' color='#fff 70%,#000'/>")]
-        public void SpriteGraphic_WithStops_IsReported(string node)
+        public void SpriteGraphic_WithStops_IsFine(string node)
         {
-            Assert.IsTrue(HasStopIssue(node));
+            Assert.IsFalse(HasStopIssue(node));
         }
 
         [Test]
@@ -52,9 +52,9 @@ namespace PromptUGUI.Tests.EditMode.Lint
         }
 
         [Test]
-        public void Hint_OnASpriteGraphic_IsReported()
+        public void Hint_OnASpriteGraphic_IsFine()
         {
-            Assert.IsTrue(HasStopIssue("<Image id='g' color='#fff, 70%, #000'/>"));
+            Assert.IsFalse(HasStopIssue("<Image id='g' color='#fff, 70%, #000'/>"));
         }
 
         // ── the procedural tags ─────────────────────────────────────────────────
@@ -72,12 +72,12 @@ namespace PromptUGUI.Tests.EditMode.Lint
             Assert.IsFalse(HasStopIssue("<Decor id='d' kind='bracket' color='#fff 70%,#000'/>"));
         }
 
-        // ── controls: depends on whether the surface is declared ────────────────
+        // ── controls: the fill renders either way now ───────────────────────────
 
         [Test]
-        public void Btn_WithoutProceduralAttrs_IsReported()
+        public void Btn_WithoutProceduralAttrs_IsFine()
         {
-            Assert.IsTrue(HasStopIssue("<Btn id='b' color='#fff 70%,#000'>ok</Btn>"));
+            Assert.IsFalse(HasStopIssue("<Btn id='b' color='#fff 70%,#000'>ok</Btn>"));
         }
 
         [Test]
@@ -102,61 +102,61 @@ namespace PromptUGUI.Tests.EditMode.Lint
         }
 
         [Test]
-        public void Btn_StateColour_FollowsTheMainSurface()
+        public void Btn_StateColour_IsFine()
         {
-            Assert.IsTrue(HasStopIssue("<Btn id='b' hoverColor='#fff 70%,#000'>ok</Btn>"));
+            Assert.IsFalse(HasStopIssue("<Btn id='b' hoverColor='#fff 70%,#000'>ok</Btn>"));
             Assert.IsFalse(HasStopIssue("<Btn id='b' radius='8' hoverColor='#fff 70%,#000'>ok</Btn>"));
         }
 
         [Test]
-        public void Progress_BgColour_IsTheMainSurface()
+        public void Progress_BgColour_IsFine()
         {
-            Assert.IsTrue(HasStopIssue("<Progress id='p' bgColor='#fff 70%,#000'/>"));
+            Assert.IsFalse(HasStopIssue("<Progress id='p' bgColor='#fff 70%,#000'/>"));
             Assert.IsFalse(HasStopIssue("<Progress id='p' radius='4' bgColor='#fff 70%,#000'/>"));
         }
 
-        // ── inner layers: gated by their own shape attribute ────────────────────
+        // ── inner layers: no shape attribute gates them any more ────────────────
 
         [Test]
-        public void Slider_FillColour_NeedsFillRadius()
+        public void Slider_FillColour_IsFine()
         {
-            Assert.IsTrue(HasStopIssue("<Slider id='s' fillColor='#fff 70%,#000'/>"));
+            Assert.IsFalse(HasStopIssue("<Slider id='s' fillColor='#fff 70%,#000'/>"));
             Assert.IsFalse(HasStopIssue("<Slider id='s' fillRadius='4' fillColor='#fff 70%,#000'/>"));
         }
 
         [Test]
-        public void Slider_HandleColour_NeedsHandleRadius()
+        public void Slider_HandleColour_IsFine()
         {
-            Assert.IsTrue(HasStopIssue("<Slider id='s' handleColor='#fff 70%,#000'/>"));
+            Assert.IsFalse(HasStopIssue("<Slider id='s' handleColor='#fff 70%,#000'/>"));
             Assert.IsFalse(HasStopIssue("<Slider id='s' handleRadius='4' handleColor='#fff 70%,#000'/>"));
         }
 
         [Test]
-        public void Progress_FrameColour_NeedsFrameRadius()
+        public void Progress_FrameColour_IsFine()
         {
-            Assert.IsTrue(HasStopIssue("<Progress id='p' frameColor='#fff 70%,#000'/>"));
+            Assert.IsFalse(HasStopIssue("<Progress id='p' frameColor='#fff 70%,#000'/>"));
             Assert.IsFalse(HasStopIssue("<Progress id='p' frameRadius='4' frameColor='#fff 70%,#000'/>"));
         }
 
         [Test]
-        public void Slider_MainRadius_DoesNotCoverTheFillLayer()
+        public void Slider_MainRadius_NoLongerMatters()
         {
-            // radius shapes the groove, not the filled segment — fillColor still has no surface.
-            Assert.IsTrue(HasStopIssue("<Slider id='s' radius='4' fillColor='#fff 70%,#000'/>"));
+            // It used to matter which layer radius shaped; now neither layer needs one.
+            Assert.IsFalse(HasStopIssue("<Slider id='s' radius='4' fillColor='#fff 70%,#000'/>"));
         }
 
-        // ── inner layers that have no surface under any spelling ────────────────
+        // ── TMP labels: the one thing that still cannot ─────────────────────────
 
         [Test]
-        public void Toggle_CheckmarkColour_IsAlwaysReported()
+        public void Toggle_CheckmarkColour_IsFine()
         {
-            Assert.IsTrue(HasStopIssue("<Toggle id='t' radius='6' checkmarkColor='#fff 70%,#000'/>"));
+            Assert.IsFalse(HasStopIssue("<Toggle id='t' radius='6' checkmarkColor='#fff 70%,#000'/>"));
         }
 
         [Test]
-        public void Dropdown_PopupColour_IsAlwaysReported()
+        public void Dropdown_PopupColour_IsFine()
         {
-            Assert.IsTrue(HasStopIssue("<Dropdown id='d' radius='6' popupColor='#fff 70%,#000'/>"));
+            Assert.IsFalse(HasStopIssue("<Dropdown id='d' radius='6' popupColor='#fff 70%,#000'/>"));
         }
 
         [Test]
@@ -165,12 +165,19 @@ namespace PromptUGUI.Tests.EditMode.Lint
             Assert.IsTrue(HasStopIssue("<Btn id='b' radius='8' textColor='#fff 70%,#000'>ok</Btn>"));
         }
 
+        [Test]
+        public void Dropdown_ItemTextColour_IsReported()
+        {
+            // The list rows are TMP too, and they are the other attribute that reaches one.
+            Assert.IsTrue(HasStopIssue("<Dropdown id='d' radius='6' itemTextColor='#fff 70%,#000'/>"));
+        }
+
         // ── malformed stops belong to the other rule ────────────────────────────
 
         [Test]
         public void MalformedStop_IsAShapeError_NotANoSurfaceOne()
         {
-            var issues = Walk("<Image id='g' color='#fff 70,#000'/>");
+            var issues = Walk("<Text id='t' color='#fff 70,#000'>hi</Text>");
             Assert.IsTrue(issues.Any(i => i.Code == ColorLiteralRules.GradientMalformedCode));
             Assert.IsFalse(issues.Any(i => i.Code == GradientStopRules.NoSurfaceCode),
                 "an unparseable stop has no position to be wrong about");
