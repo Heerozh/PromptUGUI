@@ -96,6 +96,14 @@ namespace PromptUGUI.Tests.EditMode.Controls
                             new FxParams(0f, 6f, Color.green, true, false, false),
                             "an explicit colour is meaningless while the glow takes its own");
 
+            // glowColor="self/0.5": the rgb still cannot show, the strength can.
+            Assert.AreEqual(new FxParams(0f, 6f, new Color(1f, 0f, 0f, 0.5f), true, false, false),
+                            new FxParams(0f, 6f, new Color(0f, 1f, 0f, 0.5f), true, false, false),
+                            "a self glow's rgb is normalised away");
+            Assert.AreNotEqual(new FxParams(0f, 6f, new Color(1f, 1f, 1f, 0.5f), true, false, false),
+                               new FxParams(0f, 6f, Color.white, true, false, false),
+                               "but its strength is a real parameter");
+
             Assert.AreEqual(new FxParams(4f, 0f, Color.red, false, false, false),
                             new FxParams(4f, 0f, Color.green, true, false, false),
                             "with no glow at all, neither the colour nor its source can show");

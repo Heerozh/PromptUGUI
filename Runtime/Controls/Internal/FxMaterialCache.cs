@@ -11,9 +11,10 @@ namespace PromptUGUI.Controls.Internal
     /// picture it draws or how big it is.
     /// </summary>
     /// <remarks>
-    /// Two keys that would draw identical pixels are normalised into one by the constructor: an
-    /// explicit <c>GlowColor</c> is dropped while <see cref="GlowSelf"/> is on (the colour cannot
-    /// show), and the whole glow block is dropped when <see cref="Glow"/> is zero. Letting them
+    /// Two keys that would draw identical pixels are normalised into one by the constructor: the
+    /// <c>GlowColor</c> rgb is dropped while <see cref="GlowSelf"/> is on (the colour cannot show;
+    /// its alpha survives as the strength of <c>glowColor="self/0.5"</c>), and the whole glow block
+    /// is dropped when <see cref="Glow"/> is zero. Letting them
     /// through would split the cache into entries that render the same — two materials, two draw
     /// calls, no visible difference — the same trap <c>PanelParams</c> avoids by zeroing an opaque
     /// panel's glass block.
@@ -24,7 +25,8 @@ namespace PromptUGUI.Controls.Internal
         public readonly float Blur;
         /// <summary>Outer glow reach in canvas units; 0 = no glow.</summary>
         public readonly float Glow;
-        /// <summary>Glow tint; only meaningful while <see cref="GlowSelf"/> is false.</summary>
+        /// <summary>Glow tint. With <see cref="GlowSelf"/> off it is the flat colour; with it on only
+        /// the alpha matters — the strength of the sprite's own colour (rgb normalised to white).</summary>
         public readonly Color GlowColor;
         /// <summary>The author wrote no <c>glowColor</c>: the glow takes the sprite's own blurred
         /// colour, so a coloured icon glows in its colour (spec §4.3).</summary>
@@ -41,7 +43,9 @@ namespace PromptUGUI.Controls.Internal
             Glow = Mathf.Max(0f, glow);
             var hasGlow = Glow > 0f;
             GlowSelf = !hasGlow || glowSelf;
-            GlowColor = hasGlow && !glowSelf ? glowColor : Color.white;
+            GlowColor = !hasGlow ? Color.white
+                      : glowSelf ? new Color(1f, 1f, 1f, glowColor.a)
+                      : glowColor;
             TintLinear = tintLinear;
             Desaturate = desaturate;
         }

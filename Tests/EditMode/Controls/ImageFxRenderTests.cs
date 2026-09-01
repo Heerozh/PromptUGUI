@@ -323,6 +323,29 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void GlowColor_self_dimsTheSpritesOwnGlow_ByItsStrength()
+        {
+            Render(Icon("glow='8' color='#00ff00'"), "pugui-fx-glow-self-full.png");
+            var full = AtPx(DiscRadiusPx + 2f, 0f);
+            Assert.Greater(full.g, 0.15f, "前置：the full-strength self glow is visible");
+
+            Render(Icon("glow='8' color='#00ff00' glowColor='self/0.5'"), "pugui-fx-glow-self-half.png");
+            var half = AtPx(DiscRadiusPx + 2f, 0f);
+            Assert.Greater(half.g, half.r + 0.05f, "still the icon's own (tinted) colour, not a flat one");
+
+            // The strength halves the glow's alpha, i.e. its light over black, in LINEAR terms; the
+            // screenshot's bytes are sRGB-encoded in a linear project, where a linear half reads as
+            // ~0.72 of the full value. Compare in linear.
+            var fullLinear = ToLinear(full.g);
+            var halfLinear = ToLinear(half.g);
+            Assert.Less(halfLinear, fullLinear * 0.65f, "and about half as strong");
+            Assert.Greater(halfLinear, fullLinear * 0.35f);
+        }
+
+        private static float ToLinear(float encoded) =>
+            QualitySettings.activeColorSpace == ColorSpace.Linear ? Mathf.GammaToLinearSpace(encoded) : encoded;
+
+        [Test]
         public void Disabled_GreysTheGlowAsWellAsTheBody()
         {
             var s = Render("<Icon id='i' name='ui:red' anchor='center' size='64x64' glow='8'/>",

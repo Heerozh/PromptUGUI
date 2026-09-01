@@ -266,9 +266,10 @@ Shader "UI/ImageFx"
 
                         if (_GlowSelf > 0.5)
                         {
-                            // 自体色：光晕就是图标自己在这个半径上的平均色，随 color= / 状态调制走。
+                            // 自体色：光晕就是图标自己在这个半径上的平均色，随 color= / 状态调制走；
+                            // _GlowColor.a 是 glowColor="self/0.5" 给的强度（不写 = 1）。
                             half3 rgb = Unpremultiply(g).rgb * IN.color.rgb;
-                            glow = half4(rgb, falloff * IN.color.a);
+                            glow = half4(rgb, _GlowColor.a * falloff * IN.color.a);
                         }
                         else
                         {

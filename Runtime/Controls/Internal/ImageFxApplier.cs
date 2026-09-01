@@ -1,4 +1,5 @@
 using PromptUGUI.Application;
+using PromptUGUI.Parser;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -38,10 +39,30 @@ namespace PromptUGUI.Controls.Internal
             if (!TryFx(graphic, tag, "glowColor", out var fx)) return;
 
             // Variant can only change a value, never remove the attribute, so an empty string is the
-            // author's way back to "no explicit colour" — the same convention as glow="".
-            if (string.IsNullOrWhiteSpace(value)) fx.ClearGlowColor();
-            else fx.SetGlowColor(UI.Theme.Resolve(value));
+            // author's way back to "the sprite's own colour" — the same convention as glow="".
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                fx.ClearGlowColor();
+                return;
+            }
+
+            // "self" / "self/0.5": the sprite's own blurred colour, with the usual /alpha suffix as
+            // its strength — the one knob the unwritten default has no way to turn. Intercepted
+            // before the theme sees it: it is not a colour token, and no theme may redefine it.
+            var trimmed = value.Trim();
+            if (trimmed == SelfKeyword || trimmed.StartsWith(SelfKeyword + "/", System.StringComparison.Ordinal))
+            {
+                if (!ColorParser.TrySplitAlpha(trimmed, out _, out var alpha, out var error))
+                    throw new ParseException($"glowColor=\"{value}\": {error}");
+                fx.SetGlowSelf(alpha ?? 1f);
+                return;
+            }
+
+            fx.SetGlowColor(UI.Theme.Resolve(value));
         }
+
+        /// <summary>The <c>glowColor</c> spelling of "the sprite's own colour" (spec §3).</summary>
+        internal const string SelfKeyword = "self";
 
         /// <summary>Pushes the material through once every attribute has been applied, so a freshly
         /// opened Screen renders correctly without waiting for a canvas rebuild — and re-checks the

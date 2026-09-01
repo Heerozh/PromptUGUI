@@ -83,15 +83,24 @@ namespace PromptUGUI.Controls.Internal
             MarkDirty();
         }
 
-        /// <summary>Drops back to "the glow takes the sprite's own colour", the state a fresh
-        /// instance is in — how a Variant or a theme retracts a <c>glowColor</c>.</summary>
-        public void ClearGlowColor()
+        /// <summary>
+        /// The glow takes the sprite's own blurred colour at <paramref name="strength"/> (0–1):
+        /// <c>glowColor="self/0.5"</c>. Full strength is the state a fresh instance is in.
+        /// </summary>
+        public void SetGlowSelf(float strength)
         {
-            if (!_glowColorExplicit) return;
+            var s = Mathf.Clamp01(strength);
+            if (!_glowColorExplicit && Mathf.Approximately(_glowColor.a, s)) return;
             _glowColorExplicit = false;
-            _glowColor = Color.white;
+            // rgb is irrelevant while the glow is self-coloured (FxParams normalises it away); only
+            // the alpha — the strength — travels to the shader.
+            _glowColor = new Color(1f, 1f, 1f, s);
             MarkDirty();
         }
+
+        /// <summary>Drops back to "the glow takes the sprite's own colour, at full strength", the
+        /// state a fresh instance is in — how a Variant or a theme retracts a <c>glowColor</c>.</summary>
+        public void ClearGlowColor() => SetGlowSelf(1f);
 
         /// <summary><c>tint="linear"</c>; driven by <see cref="ImageTint"/>.</summary>
         public bool TintLinear

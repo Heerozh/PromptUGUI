@@ -218,7 +218,7 @@ uGUI Image，从 `Resources` 加载 sprite；可选 `RectMask2D`（`mask="rect"`
 | `flip` | `x` / `y` / `xy` / `none` | `none` | 见 **Rotation & flip** |
 | `blur` | px 半径 | `0`（不糊） | 见 **Blur & glow** |
 | `glow` | px 半径 | `0`（无光） | 见 **Blur & glow** |
-| `glowColor` | hex / CSS named / theme token，**纯色** | 不写 = 图自身的模糊色 | 见 **Blur & glow** |
+| `glowColor` | hex / CSS named / theme token，**纯色**；或 `self` / `self/0.5` | 不写 = 图自身的模糊色 | 见 **Blur & glow** |
 
 #### Rotation & flip
 
@@ -243,6 +243,7 @@ They rewrite the **generated mesh** about the rect's centre and touch nothing el
 
 ```xml
 <Icon name="res:gold" glow="6"/>                              <!-- glows in its own colours -->
+<Icon name="res:gold" glow="6" glowColor="self/0.5"/>         <!-- its own colours, at half strength -->
 <Icon name="ui:alert" glow="8" glowColor="danger"/>           <!-- a flat silhouette glow -->
 <Image sprite="item:blaster" blur="4"/>                       <!-- a locked item, out of focus -->
 <Image sprite="card:01" type="contain" blur="3" glow="10" glowColor="accent/0.6"/>
@@ -254,7 +255,7 @@ They rewrite the **generated mesh** about the rect's centre and touch nothing el
 
 - **`<Image>` / `<Icon>` only** (`PUI-FX-TAG`). `<RawImage>` and `<Btn sprite=>` are not wired up yet.
 - **`type="simple"` only** — `contain` / `cover` count, since they draw one quad too; `sliced` / `tiled` / `filled` are `PUI-FX-TYPE`. A sprite with a 9-slice border becomes `sliced` *automatically* when you write no `type=`, and then draws no effect at all (the runtime warns). Write `type="simple"` to force the plain quad.
-- **`glowColor` unwritten = the sprite's own blurred colour**, so a coloured icon glows in its colours and follows `color=` and state modulates. Written, it is a flat glow in that colour whose alpha is its strength. A `glowColor` with no `glow` is `PUI-FX-ATTR`.
+- **`glowColor` unwritten = the sprite's own blurred colour**, so a coloured icon glows in its colours and follows `color=` and state modulates. Written, it is a flat glow in that colour whose alpha is its strength. `self` spells the default out and takes the usual `/alpha` suffix as a strength: `glowColor="self/0.5"` is the sprite's own colours at half intensity (the only way to dim a self-coloured glow). `self` is a keyword, not a theme token. A `glowColor` with no `glow` is `PUI-FX-ATTR`.
 - **The glow is drawn geometry, not layout.** The rect, `LayoutElement` and the raycast area are exactly as authored — same as `<Frame glow>`, so leave room with `spacing` / `margin` or the next sibling sits on top of the light.
 - **Radii are design px in the element's own space**, so `scale=` scales them with everything else.
 - **Anything past a few texels wants mipmaps on the sprite's texture** (SpriteAtlas → *Generate Mip Maps*; TextureImporter → *Generate Mipmaps*). The kernel samples the mip level that matches its tap spacing, so with a mip chain any radius is one smooth blur. Without one it samples the full-resolution texture, and past ~3 texels of radius that draws ghost copies of thin strokes; the runtime warns once per texture when it has to fall back like that, and lint flags anything over `6` px as `PUI-FX-RADIUS` as a reminder (it cannot see the texture or the drawn size). Point-filtered (pixel-art) textures cannot use mipmaps for this — keep their radii small. Mipmaps on an atlas cost a third more memory and soften every sprite in it when drawn smaller than 1:1; the atlas also needs Unity's normal padding (≥ 2 texels) and no rotation / tight packing (`reference/icons.md`).
@@ -696,7 +697,7 @@ References a sprite from a project-level SpriteSet (shared icons, by-name lookup
 | `flip`    | no       | `none`    | `x` / `y` / `xy` / `none`, mesh-level — see **Rotation & flip** under `<Image>`                                                                                                                                                                                                                                     |
 | `blur` | no | `0` | px radius; softens the icon itself — see **Blur & glow** under `<Image>` |
 | `glow` | no | `0` | px radius; outer glow cast from the icon's silhouette — see **Blur & glow** |
-| `glowColor` | no | its own colour | solid colour; unwritten, the glow takes the icon's own blurred colour |
+| `glowColor` | no | its own colour | solid colour, or `self` / `self/0.5` (its own colour at a strength); unwritten, the glow takes the icon's own blurred colour |
 
 **Discovering available icons** — 要查项目里有哪些 `setName:icon-name` 组合、以及 icon 名如何解析（相对 sourceFolder 路径、bare basename 简写、Template-Param 替换、sync 工具行为），见 [`reference/icons.md`](reference/icons.md)。
 
@@ -1698,7 +1699,7 @@ SIZE          size="WxH"          numeric only (no keywords)
 HUG           "hug"            → as big as my content; clamp(min, hug, max) caps it (then ScrollList scrolls)
                                  PUI-HUG-TAG (wrong tag) / -SCALE (with scale=) / -STRETCH-CHILD (stretch child)
 MESH XFORM    rotation="90" flip="x|y|xy"   <Image>/<Icon>/<RawImage> only; mesh-level, layout untouched
-SPRITE FX     blur="4" glow="8" glowColor="accent"   <Image>/<Icon> only, type="simple"/contain/cover only
+SPRITE FX     blur="4" glow="8" glowColor="accent|self/0.5"   <Image>/<Icon> only, type="simple"/contain/cover only
               glowColor unwritten = the sprite's own colours; the glow is drawn OUTSIDE the rect
               (layout unchanged — leave spacing); radii past a few texels need mipmaps on the texture
               (>6px = PUI-FX-RADIUS reminder); atlas must not rotate/tight-pack

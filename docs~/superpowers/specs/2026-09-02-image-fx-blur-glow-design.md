@@ -68,6 +68,9 @@ quad 外扩、同一条顶点通道、同一份 shader 骨架、同一组测试�
 <!-- 资源条：选中的图标发自己的颜色（默认 glowColor = 自体模糊色） -->
 <Icon name="res:gold" glow="6"/>
 
+<!-- 自己的颜色，但只要一半亮（M1.1） -->
+<Icon name="res:gold" glow="6" glowColor="self/0.5"/>
+
 <!-- 告警：单色剪影光 -->
 <Icon name="ui:alert" glow="8" glowColor="danger"/>
 
@@ -88,7 +91,7 @@ quad 外扩、同一条顶点通道、同一份 shader 骨架、同一组测试�
 |---|---|---|---|
 | `blur` | 像素半径，`≥ 0` 浮点 | `0`（不糊） | 本体像素按半径做圆盘模糊。数字即开关；`0` / `""` = 关（Variant / 主题退回的通道） |
 | `glow` | 像素半径，`≥ 0` 浮点 | `0`（无光） | 自剪影边缘向外衰减到零的距离，画在本体**下面**。与 `<Frame glow>` 同名同单位 |
-| `glowColor` | 颜色 token / 字面量，**纯色** | 未写 = **自体模糊色** | 写了就是单色剪影光（alpha 是强度）；不写时光晕取图标自己在 `glow` 半径上的模糊色 —— 彩色图标发自己的颜色，与 `<Frame>`「glowColor 不写则跟随填充」同一语义 |
+| `glowColor` | 颜色 token / 字面量，**纯色**；或 `self` / `self/α` | 未写 = **自体模糊色** | 写了就是单色剪影光（alpha 是强度）；不写时光晕取图标自己在 `glow` 半径上的模糊色 —— 彩色图标发自己的颜色，与 `<Frame>`「glowColor 不写则跟随填充」同一语义。`self` 把这个默认写明，`/α` 后缀是自体色的强度（`self/0.5` = 自己的颜色、一半亮）—— 不写默认没有这个旋钮（M1.1 追加）。`self` 在主题解析之前截获，不是颜色 token，主题不能重定义 |
 
 - **仅 `<Image>` `<Icon>`**（M1）。`<RawImage>` 随 M2 的 lod 模糊一起接入（§10）；写在其它标签的 `blur`
   → lint error `PUI-FX-TAG`。`glow` / `glowColor` 在 `<Frame>` / `<Decor>` / `<Btn>` 上已有各自的
@@ -150,8 +153,9 @@ Canvas 需开 `TexCoord1 | TexCoord2`（`ProceduralPanel.EnsureCanvasChannels` �
   三处的光晕**手感一致而非逐位相同**（一个是解析距离，一个是覆盖率）。
   - `glowColor` 写了：`(glowColor.rgb, glowColor.a · g² · 顶点色.a)`；rgb **不**乘顶点色（作者指定的
     就是那个色），alpha 跟随淡出。
-  - 未写（自体色）：rgb = 这一轮的反预乘平均色 × 顶点色.rgb，alpha = `g² · 顶点色.a` —— 图标被
-    `color=` 染成什么色，光晕就跟着什么色。
+  - 未写 / `self`（自体色）：rgb = 这一轮的反预乘平均色 × 顶点色.rgb，alpha = `α · g² · 顶点色.a`
+    （α 是 `self/α` 的强度，未写 = 1）—— 图标被 `color=` 染成什么色，光晕就跟着什么色。`FxParams`
+    在自体色下把 rgb 归一成白、只留 alpha，`self/0.5` 与 `self/0.5` 的任何 rgb 写法共用一个材质。
 - **合成**：`out = PuguiOver(image, glow)`（本体在上）。`_ClipRect` / `UNITY_UI_ALPHACLIP` / Stencil
   与 `UI/Default` 一致，可进 `RectMask2D` / `Mask` 层级。
 - **禁用灰度**：对合成结果整体去饱和（本体与光晕一起灰，`ProceduralPanel` 把 glow 一起 `Desaturate`
@@ -319,6 +323,7 @@ uv0 / uv1 / uv2 / color / worldPosition 透传。fragment 按 §4.3；全部 uni
 1. **落点 = `FxImage` 子类**（`OnPopulateMesh` 后处理 + 自持材质缓存），不走 `BaseMeshEffect` +
    `ReserveSlot`。
 2. **`glowColor` 未写 = 自体模糊色**（bloom 观感），与 Frame「跟随填充」同调；写了才是单色剪影光。
+   M1.1 追加 `glowColor="self"` / `"self/α"`：自体色 + 强度（作者要求，2026-09-02）。
 3. **M1 = `<Icon>` + `<Image>`**。`<RawImage>` 随 M2；`<Btn sprite=>` 底图 glow 另立 spec。
 4. **`> 12px` 只 lint warning，不钳制**；运行时照画。
 5. 属性名 `blur` / `glow` / `glowColor`，px、数字即开关；只支持 `type=simple`；矩形外一律透明
@@ -546,3 +551,10 @@ Texture 对象、热重载、内存 1.33×）与约 250 行。留作 M2 备选�
 没有梳齿；`pugui-fx-mip-bleed.png`（`blur="16"`，lod 2.5，邻居 4 texel 外）灰色光团里没有红。
 
 模拟脚本（numpy，`sim.py` / `probe*.py`）没有入库：它们是一次性的决策依据，结论已固化在 §14.3 的表里。
+
+**追加：`glowColor="self"` / `"self/α"`（作者要求，同日）。** 自体色原本只有「不写」一种拼法，没有强度旋钮。
+`ImageFxApplier.SetGlowColor` 在主题解析之前截获 `self`，用既有的 `ColorParser.TrySplitAlpha` 取 `/α`
+（坏后缀 → `ParseException`，与其它属性同款），落到新增的 `FxImage.SetGlowSelf(strength)`；`ClearGlowColor`
+即 `SetGlowSelf(1)`。`FxParams` 在自体色下把 rgb 归一成白、只留 alpha；shader 自体分支的 alpha 乘
+`_GlowColor.a`。渲染用例比较「一半强度」时要先把读回的 sRGB 字节转线性（线性域减半在 sRGB 域读作 0.72 倍）。
+全量：EditMode + EditorOnly **3806 绿**、PlayMode **200 绿**。

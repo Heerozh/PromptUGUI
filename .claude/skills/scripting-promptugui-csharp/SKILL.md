@@ -1846,7 +1846,7 @@ LMotion.Create(0f, 8f, 0.2f)
     .AddTo(coin.GameObject);
 ```
 
-`Blur` and `Glow` are pixel radii on `<Image>` / `<Icon>`; `GlowColor` takes a colour string, and `""` puts it back to "the sprite's own blurred colour". Each frame of a tween costs one material-cache lookup (shared per parameter set, no allocation) plus a mesh rebuild, since the radius inflates the drawn quad — about the same as tweening `Rotation`. They apply only where the sprite is drawn as one quad (`type="simple"` / `contain` / `cover`), so a 9-slice sprite draws no effect; see **Blur & glow** in the XML skill.
+`Blur` and `Glow` are pixel radii on `<Image>` / `<Icon>`; `GlowColor` takes a colour string, `"self/0.5"` keeps the sprite's own blurred colour at half strength, and `""` puts it back to that colour at full strength. Each frame of a tween costs one material-cache lookup (shared per parameter set, no allocation) plus a mesh rebuild, since the radius inflates the drawn quad — about the same as tweening `Rotation`. They apply only where the sprite is drawn as one quad (`type="simple"` / `contain` / `cover`), so a 9-slice sprite draws no effect; see **Blur & glow** in the XML skill.
 
 ### Testing `hug` / `reveal` geometry in EditMode
 

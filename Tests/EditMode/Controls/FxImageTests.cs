@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
+using PromptUGUI.Parser;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
@@ -148,6 +149,49 @@ namespace PromptUGUI.Tests.EditMode.Controls
             fx.ClearGlowColor();
             fx.FlushParams();
             Assert.AreEqual(1f, fx.material.GetFloat("_GlowSelf"), 1e-4f);
+        }
+
+        [Test]
+        public void GlowColor_self_keeps_the_sprites_colour_but_takes_a_strength()
+        {
+            // "self/0.5": still the sprite's own blurred colour, at half strength — the one knob the
+            // unwritten default has no way to turn.
+            var s = Open("<Icon id='i' name='ui:x' glow='6' glowColor='self/0.5'/>");
+            var icon = s.Get<PromptUGUI.Controls.Icon>("i");
+            var fx = FxOf(icon);
+
+            Assert.AreEqual(1f, fx.material.GetFloat("_GlowSelf"), 1e-4f, "self is not a flat colour");
+            Assert.AreEqual(0.5f, fx.material.GetColor("_GlowColor").a, 1e-4f, "the suffix is the strength");
+
+            // A bare "self" is the default spelled out.
+            icon.GlowColor = "self";
+            fx.FlushParams();
+            Assert.AreEqual(1f, fx.material.GetFloat("_GlowSelf"), 1e-4f);
+            Assert.AreEqual(1f, fx.material.GetColor("_GlowColor").a, 1e-4f);
+
+            icon.GlowColor = "self/0.25";
+            fx.FlushParams();
+            Assert.AreEqual(0.25f, fx.material.GetColor("_GlowColor").a, 1e-4f);
+
+            // A flat colour in between, then "" — the Variant / theme way back — lands on full self.
+            icon.GlowColor = "#ff0000";
+            fx.FlushParams();
+            Assert.AreEqual(0f, fx.material.GetFloat("_GlowSelf"), 1e-4f);
+
+            icon.GlowColor = "";
+            fx.FlushParams();
+            Assert.AreEqual(1f, fx.material.GetFloat("_GlowSelf"), 1e-4f, "empty retracts to self");
+            Assert.AreEqual(1f, fx.material.GetColor("_GlowColor").a, 1e-4f, "… at full strength");
+        }
+
+        [Test]
+        public void GlowColor_self_with_a_bad_strength_is_a_parse_error()
+        {
+            var s = Open("<Icon id='i' name='ui:x' glow='6'/>");
+            var fx = FxOf(s.Get<PromptUGUI.Controls.Icon>("i"));
+
+            Assert.Throws<ParseException>(() => ImageFxApplier.SetGlowColor(fx, "Icon", "self/abc"));
+            Assert.Throws<ParseException>(() => ImageFxApplier.SetGlowColor(fx, "Icon", "self/2"));
         }
 
         [Test]
