@@ -108,6 +108,10 @@ namespace PromptUGUI.Controls.Internal
             if (_grayed == value) return;
             _grayed = value;
             MarkDirty();
+            // Flushed eagerly rather than at the next rebuild: the controller drives this from a
+            // state subscription (never from inside a rebuild), and a control that goes disabled
+            // has to look disabled in the same frame.
+            FlushParams();
         }
 
         /// <summary>How far the drawn quad reaches past the sprite: the larger of the two radii.

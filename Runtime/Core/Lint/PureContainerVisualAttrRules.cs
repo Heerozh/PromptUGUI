@@ -103,10 +103,17 @@ namespace PromptUGUI.Lint
                 // control (spec §13.2), so it stays silently dropped and stays reported.
                 var hasSurface = ProceduralSurfaceRules.AppliesTo(n.Tag);
 
+                // <Image> / <Icon> draw a glow of their own — cast from the sprite's silhouette
+                // rather than from an SDF (spec 2026-09-02) — so the glow pair is real there even
+                // though they have no procedural surface. Same exemption shape as <Decor> above; the
+                // rest of the set still lands nowhere and stays reported.
+                var fxTag = ImageFxRules.FxTags.Contains(n.Tag);
+
                 // Tier 2: color / sprite land on the control's Image; the procedural group has
                 // nowhere to land.
                 foreach (var attr in ProceduralAttrNames.NeedsPanel)
                 {
+                    if (fxTag && ImageFxRules.SupportedProceduralAttrs.Contains(attr)) continue;
                     if (hasSurface && attr != "weld") continue;
                     if (!Declares(n, attr)) continue;
                     yield return new LintIssue(

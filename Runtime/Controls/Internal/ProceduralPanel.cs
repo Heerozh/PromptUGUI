@@ -33,7 +33,7 @@ namespace PromptUGUI.Controls.Internal
     // the first time uGUI rebuilds it, and draws nothing. Note that EditMode tests never run a
     // canvas rebuild, so only a real render (or CanvasRebuildTests) catches its absence.
     [RequireComponent(typeof(CanvasRenderer))]
-    internal sealed class ProceduralPanel : MaskableGraphic
+    internal sealed class ProceduralPanel : MaskableGraphic, ISelfGrayscale
     {
         private ColorSpec _fill = ColorSpec.Solid(Color.clear);
         private Color _fillTop = Color.clear;
@@ -339,7 +339,7 @@ namespace PromptUGUI.Controls.Internal
         /// thinner and less lit. Driven by <c>DisabledGrayscaleController</c>, which greys plain
         /// Graphics by material swap — a swap this panel cannot survive (see <see cref="BuildParams"/>).
         /// </summary>
-        internal void SetDisabledGrayscale(bool value)
+        public void SetDisabledGrayscale(bool value)
         {
             if (_grayed == value) return;
             _grayed = value;

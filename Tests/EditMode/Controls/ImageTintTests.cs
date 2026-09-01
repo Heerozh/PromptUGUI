@@ -48,11 +48,15 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void TintLinear_UsesLinearLightTintMaterial()
+        public void TintLinear_OnAnImage_BecomesAnFxParameter()
         {
+            // On the tags PromptUGUI builds on FxImage, the linear tint is folded into the fx shader
+            // rather than swapping the material slot — that slot is also where blur / glow and the
+            // disabled grey live, and only one of them can hold it (spec 2026-09-02 §2).
             var img = ImageOf(Open("<Image id='i' color='#ffffff' tint='linear'/>"), "i");
             Assert.AreNotEqual(img.defaultMaterial, img.material);
-            Assert.AreEqual("UI/LinearLightTint", img.material.shader.name);
+            Assert.AreEqual("UI/ImageFx", img.material.shader.name);
+            Assert.AreEqual(1f, img.material.GetFloat("_TintLinear"), 1e-4f);
         }
 
         [Test]
@@ -68,7 +72,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var s = Open("<Image id='i' color='#ffffff' tint='linear'/>");
             var img = ImageOf(s, "i");
-            Assert.AreEqual("UI/LinearLightTint", img.material.shader.name);
+            Assert.AreEqual("UI/ImageFx", img.material.shader.name);
 
             // Re-drive the setter to simulate a value change; img is the same live component.
             s.Get<Image>("i").Tint = "multiply";
@@ -116,7 +120,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             LogAssert.Expect(LogType.Error, new Regex("SpriteResolver"));
             var s = Open("<Icon id='i' name='ui:gear' color='#ffffff' tint='linear'/>");
             var img = s.Get<Icon>("i").GameObject.GetComponent<UnityImage>();
-            Assert.AreEqual("UI/LinearLightTint", img.material.shader.name);
+            Assert.AreEqual("UI/ImageFx", img.material.shader.name);
         }
 
         [Test]
@@ -154,7 +158,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             UI.VariantStore.Set("dark", true);
             s.ReSolve();
-            Assert.AreEqual("UI/LinearLightTint", img.material.shader.name, "linear after variant");
+            Assert.AreEqual("UI/ImageFx", img.material.shader.name, "linear after variant");
 
             UI.VariantStore.Set("dark", false);
             s.ReSolve();
