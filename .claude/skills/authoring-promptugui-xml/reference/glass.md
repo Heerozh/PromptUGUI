@@ -44,7 +44,7 @@ attribute. Writing any of them without `glass="true"` is a lint error
 | `lightAngle` | 度 | `0` | Light direction. `0` = straight up, growing clockwise. Any value, including negatives and >360 |
 | `lightIntensity` | `0`–`1` | `0.6` | Edge highlight strength. `0` turns the lighting layer off |
 | `saturation` | `≥0` | `1.15` | Backdrop vibrancy. `1` = untouched, `0` = greyscale. This is what makes glass look lit rather than washed out — reach for it before reaching for `dispersion` |
-| `noise` | `0`–`1` | `0.02` | Frosted grain. Doubles as dithering against banding on large blurred areas |
+| `noise` | `0`–`1` | `0.02` | Frosted grain, scaled by √luminance so it reads the same over dark and bright backdrops (a constant linear amplitude would be ~7× louder on a dark backdrop after the sRGB curve). Doubles as dithering against banding on large blurred areas |
 | `seam` | px, signed | `3` | **`weld` groups only** (`PUI-GLASS-SEAM-NO-WELD` elsewhere). How far the thickness step's glow reaches from the raised block's contour, and — by its **sign** — which side it falls on: `+` outside the block, `−` inside it. The bright line hugs the contour either way and takes roughly a third of the magnitude; the rest is the fade. `0` = as sharp as the screen can draw |
 
 Reused unchanged: `color` (tint painted over the glass — comma gradients, gradient **stop positions** and **hints** (`"A 70%,B"` / `"A, 70%, B"`, which glass draws per-pixel) and `/alpha` work exactly as

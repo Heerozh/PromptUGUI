@@ -233,8 +233,14 @@ Shader "UI/GlassPanel"
                     rgb += spec * bevel * intensity;
 
                     // 磨砂颗粒：兼作 dithering，挡住大面积模糊底上的色带。
-                    rgb += (IGNoise(IN.screenPos.xy / max(IN.screenPos.w, 1e-5) * _ScreenParams.xy)
-                            - 0.5) * noise;
+                    // 幅度按 sqrt(亮度) 缩放：这里是线性空间，而显示曲线（sRGB ≈ γ2.2）会把暗部的
+                    // 线性差值放大 —— 常数 ±0.01 落在 sRGB≈33 的暗底上是 ±14 级、±66% 的相对抖动，
+                    // 落在亮底上却只有 ±2 级，于是深色背景上的玻璃读成一层纱窗。感知幅度恒定的理想
+                    // 缩放是 L^0.545，√L 是它最便宜的近似（一次 dot + 一次 sqrt），全亮度范围都落在
+                    // ±1～2 级 —— 恰好是 dither 该有的量。亮度取叠过高光之后的 rgb，斜面亮边上的
+                    // 颗粒随之同步。
+                    float grainLuma = dot(rgb, float3(0.2126, 0.7152, 0.0722));
+                    rgb += (IGNoise(uv * _ScreenParams.xy) - 0.5) * noise * sqrt(max(grainLuma, 0.0));
 
                     base = float4(rgb, inside);
                 }
