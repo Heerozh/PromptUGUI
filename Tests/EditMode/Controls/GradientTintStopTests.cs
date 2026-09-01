@@ -148,7 +148,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var fx = _go.AddComponent<GradientTint>();
             fx.Set(Color.red, Color.blue);
 
-            var vh = BuildWhiteQuad();
+            using var vh = BuildWhiteQuad();
             fx.ModifyMesh(vh);
 
             Assert.AreEqual(4, vh.currentVertCount, "a plain ramp must not touch the geometry");
@@ -160,7 +160,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var fx = _go.AddComponent<GradientTint>();
             fx.Set(ColorSpec.Gradient(Color.red, Color.blue, 0f, 0.5f));
 
-            var vh = BuildWhiteQuad();
+            using var vh = BuildWhiteQuad();
             fx.ModifyMesh(vh);
             var verts = Read(vh);
 
@@ -178,7 +178,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var fx = _go.AddComponent<GradientTint>();
             fx.Set(ColorSpec.Gradient(Color.red, Color.blue, 0.3f, 0.6f));
 
-            var vh = BuildWhiteQuad();
+            using var vh = BuildWhiteQuad();
             fx.ModifyMesh(vh);
             var verts = Read(vh);
 
@@ -198,7 +198,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var fx = _go.AddComponent<GradientTint>();
             fx.Set(ColorSpec.Gradient(Color.red, Color.blue, 0.5f, 0.5f));
 
-            var vh = BuildWhiteQuad();
+            using var vh = BuildWhiteQuad();
             fx.ModifyMesh(vh);
             var verts = Read(vh);
 
@@ -223,7 +223,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var fx = _go.AddComponent<GradientTint>();
             fx.Set(spec);
 
-            var vh = BuildWhiteQuad();
+            using var vh = BuildWhiteQuad();
             fx.ModifyMesh(vh);
             var verts = Read(vh);
 
@@ -250,7 +250,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var fx = _go.AddComponent<GradientTint>();
             fx.Set(ColorSpec.Gradient(Color.white, new Color(1f, 1f, 1f, 0f), 0f, 0.5f));
 
-            var vh = BuildWhiteQuad();
+            using var vh = BuildWhiteQuad();
             fx.ModifyMesh(vh);
             var verts = Read(vh);
 
@@ -265,7 +265,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var fx = _go.AddComponent<GradientTint>();
             fx.Set(ColorSpec.Gradient(new Color(1f, 1f, 1f, 0f), Color.white, 0.5f, 1f));
 
-            var vh = BuildWhiteQuad();
+            using var vh = BuildWhiteQuad();
             fx.ModifyMesh(vh);
             var verts = Read(vh);
 
@@ -281,7 +281,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var fx = _go.AddComponent<GradientTint>();
             fx.Set(ColorSpec.Gradient(Color.red, Color.blue, 0f, 0.5f));
 
-            var vh = BuildGrid(3);
+            using var vh = BuildGrid(3);
             fx.ModifyMesh(vh);
             var verts = Read(vh);
 
