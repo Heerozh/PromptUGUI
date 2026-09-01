@@ -106,14 +106,14 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Free_positioning_hug_margins_inset_inside_the_content_box()
+        public void Free_positioning_hug_margins_offset_it_without_eating_the_content_box()
         {
             var s = Open(Box(
                 $"<VStack id='v' anchor='top-left' width='150' height='hug' margin='10,_,_,_' spacing='4'>{ThreeRows}</VStack>"));
             var v = s.Get<VStack>("v").RectTransform;
 
-            Assert.AreEqual(130f, v.rect.height, 0.01f, "content box 140 minus the 10 top margin");
-            Assert.AreEqual(590f, Top(v), 0.01f);
+            Assert.AreEqual(140f, v.rect.height, 0.01f, "the whole content box — a margin positions, it does not shrink");
+            Assert.AreEqual(590f, Top(v), 0.01f, "…pushed 10 down from the parent's top edge");
         }
 
         [Test]

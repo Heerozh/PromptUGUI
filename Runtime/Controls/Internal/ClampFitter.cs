@@ -101,9 +101,21 @@ namespace PromptUGUI.Controls.Internal
 
         // Spec §5.1 (Fraction) / FND §1.4.2 (Hug):
         //   box  = clamp(f·P, min, max)         open bounds are ±Infinity → identity
-        //        = clamp(content, min, max)     in Hug mode — the only line the mode changes
-        //   W    = box − (lo + hi)              margins inset INSIDE the box, as with plain %
-        //   low  = lo | P − box + lo | (P − box)/2 + lo   per Low / High / Center alignment
+        //        = clamp(content, min, max)     in Hug mode
+        //   W    = box − (lo + hi)              Fraction: the box is a share of the PARENT, so the
+        //        = box                          margins inset inside it, as with plain %.
+        //                                       Hug: the box is the CONTENT — a definite size, like
+        //                                       a numeric one — so the margins only push it off the
+        //                                       edge they name (what MarginResolver does for
+        //                                       height="40"), never eat into it. Insetting there
+        //                                       made a panel shorter than what is inside it, and
+        //                                       NEGATIVE once the margin outgrew the content: a rect
+        //                                       flipped inside out over its neighbours, still taking
+        //                                       their clicks (<Collapsible>, whose hug is injected,
+        //                                       hit exactly that when folded).
+        //   low  = lo | P − hi − W | (P − W)/2 + (lo − hi)/2   per Low / High / Center alignment
+        //          — written in terms of W, so Fraction lands on exactly the same three numbers as
+        //          before and only Hug moves.
         //   offsetMin = low − a0·P, offsetMax = (low + W) − a1·P
         // Offsets rather than sizeDelta / anchoredPosition: pivot-agnostic, so an author pivot= keeps
         // working. Unclamped this reproduces MarginResolver's stretch branch exactly (offsetMin = lo,
@@ -121,13 +133,13 @@ namespace PromptUGUI.Controls.Internal
             // doesn't derive its size from it.
             var unclamped = spec.Mode == ClampMode.Hug ? Content(axis) : spec.Fraction * p;
             var box = Mathf.Clamp(unclamped, spec.Min, spec.Max);
-            var w = box - (spec.MarginLow + spec.MarginHigh);
+            var w = spec.Mode == ClampMode.Hug ? box : box - (spec.MarginLow + spec.MarginHigh);
             float low;
             switch (spec.Align)
             {
                 case ClampAlign.Low: low = spec.MarginLow; break;
-                case ClampAlign.High: low = p - box + spec.MarginLow; break;
-                default: low = (p - box) * 0.5f + spec.MarginLow; break;
+                case ClampAlign.High: low = p - spec.MarginHigh - w; break;
+                default: low = (p - w) * 0.5f + (spec.MarginLow - spec.MarginHigh) * 0.5f; break;
             }
             var newMin = low - rt.anchorMin[axis] * p;
             var newMax = low + w - rt.anchorMax[axis] * p;

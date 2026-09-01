@@ -63,6 +63,9 @@ runtime. The panel is exactly `headerHeight + body`, and folding it is what chan
 - Want a shorter bar? `headerHeight="24"`.
 - Width is ordinary: a number, `stretch` inside a stack, `N%` / `clamp(...)` free-positioned. Omit it
   and the panel hugs the wider of its caption and its rows.
+- A vertical `margin` only **positions** the panel (`margin="46,6,_,_"` = 46 below the parent's top
+  edge, growing downward from there). It never eats into the height: the panel is `headerHeight +
+  body` at every fold state, collapsed included.
 - Anchor-stretching the vertical axis (`anchor="stretch"`) hands the height back to the layout — the
   fold then happens inside whatever height it was given. Rarely what you want.
 

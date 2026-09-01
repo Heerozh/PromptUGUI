@@ -48,6 +48,29 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void A_margin_positions_the_panel_without_eating_its_height()
+        {
+            // The panel's height is injected hug, so the author cannot write it — which made a
+            // `margin` on the vertical axis silently subtract from it: 24 - 46 < 0 when collapsed,
+            // and a negative box turns the rect upside down over the bar above it, swallowing the
+            // clicks there. The margin positions the panel; it never sizes it.
+            var c = CollapsibleTests.Open(
+                $"<Collapsible id='c' anchor='top-right' width='150' margin='46,6,_,_' " +
+                $"headerHeight='24' transition='0'>{ThreeRows}</Collapsible>")
+                .Get<Collapsible>("c");
+            Drain();
+
+            Assert.AreEqual(24f + 96f, c.RectTransform.rect.height, 0.5f, "header + three rows");
+            Assert.AreEqual(-46f, c.RectTransform.offsetMax.y, 0.5f, "46 below the parent's top edge");
+
+            c.Collapse();
+            Drain();
+
+            Assert.AreEqual(24f, c.RectTransform.rect.height, 0.5f, "collapsed = the header, never negative");
+            Assert.AreEqual(-46f, c.RectTransform.offsetMax.y, 0.5f, "…still hanging off the same edge");
+        }
+
+        [Test]
         public void Hiding_a_row_reflows_the_panel_with_nothing_to_notify()
         {
             var s = CollapsibleTests.Open(
