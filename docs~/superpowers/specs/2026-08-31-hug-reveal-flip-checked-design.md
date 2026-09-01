@@ -123,7 +123,7 @@ lint **`PUI-HUG-STRETCH-CHILD`**（CLI error / 运行时 warning）。`clamp(min
 | 组合 | 结果 |
 |---|---|
 | `hug` × `anchor` 该轴 stretch | parse error（既有规则） |
-| `hug` × `margin` | 盒内缩（同 clamp） |
+| `hug` × `margin` | **外推定位**（同数值尺寸）：margin 把内容盒推离它命名的那条边，不吃尺寸。不同于 `%` / `clamp(min, N%, max)` 的盒内缩 —— 那里的盒子是父尺寸的一份，内缩才对；hug 的盒子就是内容本身，内缩会让控件比自己的内容还小，margin 一旦超过内容更会变负 → rect 上下翻转扣在邻居身上、还吃掉那里的点击（`<Collapsible>` 高度是注入的 hug，收起时正中此坑）。 |
 | `hug` × `scale` | `PUI-HUG-SCALE` |
 | `hug` × `mask="rect"` / `mask="self"` | 正常；裁剪跟着最终 rect |
 | `hug` × `flow="false"` | 允许（出流子节点按自由定位语义，可以 hug） |

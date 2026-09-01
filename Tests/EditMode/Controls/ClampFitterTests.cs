@@ -311,8 +311,13 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(expected, child.rect.height, 0.01f);
         }
 
+        // A content box is a definite size, exactly like a numeric one — so the margin does what it
+        // does for `height="40"`: it pushes the box off the anchored edge. Insetting it (the
+        // Fraction rule, where the box IS a share of the parent) would make the control smaller than
+        // what is inside it, and go NEGATIVE whenever the margin outgrows the content — a rect that
+        // flips inside out over whatever sits above it, still eating the clicks.
         [Test]
-        public void Hug_margins_inset_inside_the_content_box()
+        public void Hug_margins_position_the_content_box_without_shrinking_it()
         {
             var parent = MakeParent(400f, 600f);
             var (child, fitter, _) = MakeHugChild(parent, 1, ClampAlign.High);
@@ -320,8 +325,38 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             LayoutRebuilder.ForceRebuildLayoutImmediate(child);
 
-            Assert.AreEqual(140f - 16f, child.rect.height, 0.01f, "content box 140 minus both margins");
+            Assert.AreEqual(140f, child.rect.height, 0.01f, "the whole content box");
             Assert.AreEqual(600f - 10f, High(child, parent, 1), 0.01f, "top margin from the parent's top edge");
+        }
+
+        [Test]
+        public void Hug_margins_push_off_the_low_edge_too()
+        {
+            var parent = MakeParent(400f, 600f);
+            var (child, fitter, _) = MakeHugChild(parent, 1, ClampAlign.Low);
+            HugAxis(fitter, 1, ClampAlign.Low, marginLow: 6f, marginHigh: 10f);
+
+            LayoutRebuilder.ForceRebuildLayoutImmediate(child);
+
+            Assert.AreEqual(140f, child.rect.height, 0.01f, "the whole content box");
+            Assert.AreEqual(6f, Low(child, parent, 1), 0.01f, "bottom margin from the parent's bottom edge");
+        }
+
+        [Test]
+        public void Hug_margin_smaller_than_the_content_never_inverts_the_rect()
+        {
+            // The <Collapsible> report: a 24-tall collapsed panel 46 below the top used to come out
+            // at 24 - 46 = -22 high, upside down over the bar above it.
+            var parent = MakeParent(400f, 600f);
+            var (child, fitter, _) = MakeHugChild(parent, 1, ClampAlign.High);
+            fitter.ContentSize = _ => 24f;
+            HugAxis(fitter, 1, ClampAlign.High, marginHigh: 46f);
+
+            LayoutRebuilder.ForceRebuildLayoutImmediate(child);
+
+            Assert.AreEqual(24f, child.rect.height, 0.01f, "content, not content minus margin");
+            Assert.AreEqual(600f - 46f, High(child, parent, 1), 0.01f);
+            Assert.AreEqual(600f - 70f, Low(child, parent, 1), 0.01f, "…and it grows DOWNWARD from there");
         }
 
         [Test]
