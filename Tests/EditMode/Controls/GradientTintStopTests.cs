@@ -155,6 +155,41 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Slicing_carries_the_fx_channels_through_untouched()
+        {
+            // blur / glow put the sprite's atlas rect in uv1 and its uv scale in uv2, the same for
+            // every vertex of the quad (spec 2026-09-02 §4.1). A cut here introduces NEW vertices by
+            // interpolating along an edge, so the two channels only survive if MeshSlicer.Lerp
+            // carries them — and a vertex that lost them tells the shader "no rect", which silently
+            // drops the effect on any icon that also has a shaped gradient.
+            var rect = new Vector4(0.1f, 0.2f, 0.3f, 0.4f);
+            var perUnit = new Vector4(0.5f, 0.6f, 0f, 0f);
+
+            var fx = _go.AddComponent<GradientTint>();
+            fx.Set(ColorSpec.Gradient(Color.red, Color.blue, 0.3f, 0.6f));
+
+            using var vh = BuildWhiteQuad();
+            for (var i = 0; i < vh.currentVertCount; i++)
+            {
+                var v = new UIVertex();
+                vh.PopulateUIVertex(ref v, i);
+                v.uv1 = rect;
+                v.uv2 = perUnit;
+                vh.SetUIVertex(v, i);
+            }
+
+            fx.ModifyMesh(vh);
+
+            var verts = Read(vh);
+            Assert.Greater(verts.Count, 6, "前置：a shaped ramp really did cut the mesh");
+            foreach (var v in verts)
+            {
+                Assert.AreEqual(rect, v.uv1, $"uv1 at y={v.position.y}");
+                Assert.AreEqual(perUnit, v.uv2, $"uv2 at y={v.position.y}");
+            }
+        }
+
+        [Test]
         public void Stop_Bottom50_CutsAtTheMidline()
         {
             var fx = _go.AddComponent<GradientTint>();
