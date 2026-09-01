@@ -586,6 +586,46 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void EnsureAtlasAsset_packs_without_rotation_or_tight_packing()
+        {
+            // blur / glow clamp their samples to the sprite's own rectangle, which is only THIS
+            // sprite while neither switch is on: rotation turns the uv axes against the sprite's
+            // (uGUI already draws such entries wrong), and tight packing lets a neighbour sit inside
+            // this sprite's transparent corners — invisible until something blurs the alpha.
+            // spec 2026-09-02 §4.5.
+            var folder = MakeFolder("icons_atlas_packing");
+            var set = MakeIconSetAssetWithFolder("pkset", "pkset", folder);
+            _toCleanup.Add($"{TestRoot}/pkset.spriteatlas");
+
+            var atlas = SpriteAtlasSyncer.EnsureAtlasAsset(set);
+
+            Assert.IsNotNull(atlas);
+            var ps = atlas.GetPackingSettings();
+            Assert.IsFalse(ps.enableRotation, "enableRotation");
+            Assert.IsFalse(ps.enableTightPacking, "enableTightPacking");
+        }
+
+        [Test]
+        public void An_existing_atlas_with_unsafe_packing_is_reported_not_rewritten()
+        {
+            // Changing an existing atlas's packing needs a Pack Preview to take effect and would
+            // silently reshuffle every sprite, so the syncer says so and leaves it to the author.
+            var folder = MakeFolder("icons_atlas_unsafe");
+            var set = MakeIconSetAssetWithFolder("unsafeset", "unsafeset", folder);
+            _toCleanup.Add($"{TestRoot}/unsafeset.spriteatlas");
+            var atlas = SpriteAtlasSyncer.EnsureAtlasAsset(set);
+            var ps = atlas.GetPackingSettings();
+            ps.enableRotation = true;
+            atlas.SetPackingSettings(ps);
+
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("enableRotation"));
+            SpriteAtlasSyncer.WarnIfPackingUnsafe(set.SetName, atlas);
+
+            Assert.IsTrue(atlas.GetPackingSettings().enableRotation,
+                "the setting is the author's to change — Pack Preview has to follow it");
+        }
+
+        [Test]
         public void EnsureAtlasAsset_keeps_default_filter_mode_when_folder_empty()
         {
             // No PNGs to derive FilterMode from → leave the atlas's default untouched

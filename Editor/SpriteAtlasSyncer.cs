@@ -859,6 +859,7 @@ namespace PromptUGUI.Editor
 
                     var atlas = EnsureAtlasAsset(set);
                     if (atlas == null) continue;
+                    WarnIfPackingUnsafe(set.SetName, atlas);
                     var pickedArr = new Sprite[picked.Count];
                     var pi = 0;
                     foreach (var sp in picked) pickedArr[pi++] = sp;
@@ -904,10 +905,56 @@ namespace PromptUGUI.Editor
             var atlasPath = $"{dir}/{set.SetName}.spriteatlas";
             var atlas = new SpriteAtlas();
             AssetDatabase.CreateAsset(atlas, atlasPath);
+            ApplySafePackingSettings(atlas);
             ApplyTemplateFilterMode(atlas, set.SourceFolderPath);
             set.SetAtlasInternal(atlas);
             AssetDatabase.SaveAssets();
             return atlas;
+        }
+
+        /// <summary>
+        /// Packing rules a sprite that may be blurred or made to glow depends on (spec 2026-09-02
+        /// §4.5). Both effects clamp every sample to the sprite's own uv rectangle, which is only
+        /// true of THIS sprite while:
+        /// <list type="bullet">
+        /// <item><c>enableRotation</c> is off — a rotated entry's uv axes run across the sprite's own
+        /// (uGUI's <c>Image</c> already draws those wrong, quite apart from the fx), so the radius
+        /// would be measured along the wrong axis.</item>
+        /// <item><c>enableTightPacking</c> is off — tight packing lets a neighbour's pixels sit inside
+        /// this sprite's transparent corners. Invisible while nothing reads them; a blurred alpha
+        /// reads them, and they surface as a smear of the wrong picture.</item>
+        /// </list>
+        /// Applied to atlases this tool creates. An existing one is only reported
+        /// (<see cref="WarnIfPackingUnsafe"/>): changing it needs a Pack Preview and reshuffles every
+        /// sprite, which is the author's call, not a side effect of a sync.
+        /// </summary>
+        private static void ApplySafePackingSettings(SpriteAtlas atlas)
+        {
+            var ps = atlas.GetPackingSettings();
+            ps.enableRotation = false;
+            ps.enableTightPacking = false;
+            atlas.SetPackingSettings(ps);
+        }
+
+        /// <summary>Reports an atlas whose packing would break blur / glow on its sprites; see
+        /// <see cref="ApplySafePackingSettings"/> for why it does not just fix it.</summary>
+        internal static void WarnIfPackingUnsafe(string setName, SpriteAtlas atlas)
+        {
+            if (atlas == null) return;
+            var ps = atlas.GetPackingSettings();
+            if (!ps.enableRotation && !ps.enableTightPacking) return;
+
+            var offenders = ps.enableRotation && ps.enableTightPacking
+                ? "enableRotation and enableTightPacking are"
+                : ps.enableRotation ? "enableRotation is" : "enableTightPacking is";
+
+            Debug.LogWarning(
+                $"[SpriteSync] '{setName}': {offenders} on in this atlas. blur= / glow= on its " +
+                "sprites sample the atlas around each sprite and rely on the sprite's rectangle " +
+                "holding only that sprite — rotation turns the uv axes, tight packing lets " +
+                "neighbours into the transparent corners. Turn both off in the SpriteAtlas " +
+                "inspector, then Pack Preview. (Nothing is changed automatically: repacking moves " +
+                "every sprite.)");
         }
 
         private static void ApplyTemplateFilterMode(SpriteAtlas atlas, string folderAssetPath)
