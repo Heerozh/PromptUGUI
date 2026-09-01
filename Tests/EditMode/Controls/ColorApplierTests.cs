@@ -106,5 +106,22 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsFalse(spec.IsGradient);
             Assert.AreEqual(Color.green, spec.Top);
         }
+
+        [Test]
+        public void Peek_Gradient_RoundTripsTheStopShape()
+        {
+            // StateTintReactor captures the base spec through Peek and re-applies it modulated.
+            // Flattening the stops here would drop every hovered / pressed gradient back to full
+            // height the first time the control changed state.
+            ColorApplier.Apply(_img, ColorSpec.Gradient(Color.red, Color.blue, 0.3f, 0.6f, 2f));
+
+            var spec = ColorApplier.Peek(_img);
+
+            Assert.IsTrue(spec.IsGradient);
+            Assert.IsTrue(spec.HasStops);
+            Assert.AreEqual(0.3f, spec.TopStop, 1e-5f);
+            Assert.AreEqual(0.6f, spec.BottomStop, 1e-5f);
+            Assert.AreEqual(2f, spec.Curve, 1e-5f);
+        }
     }
 }
