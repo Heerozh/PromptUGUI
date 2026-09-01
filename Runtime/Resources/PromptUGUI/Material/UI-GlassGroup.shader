@@ -352,7 +352,9 @@ Shader "UI/GlassGroup"
                     // 像同一块板，主次关系就丢了。
                     rgb *= 1.0 - crease * 0.45 * inside;
 
-                    rgb += (IGNoise(uv * _ScreenParams.xy) - 0.5) * noise;
+                    // 颗粒幅度按 sqrt(亮度) 缩放，理由见 UI-GlassPanel.shader 同一处的注释。
+                    float grainLuma = dot(rgb, float3(0.2126, 0.7152, 0.0722));
+                    rgb += (IGNoise(uv * _ScreenParams.xy) - 0.5) * noise * sqrt(max(grainLuma, 0.0));
 
                     base = float4(rgb, inside);
                 }
