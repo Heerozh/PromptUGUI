@@ -1187,6 +1187,8 @@ namespace PromptUGUI.Application
             GlassRuntime.ResetForTestsInternal();
             Controls.Internal.ProceduralMaterialCache.ResetForTests();
             Controls.Internal.FxMaterialCache.ResetForTests();
+            Controls.Internal.FxImage.ResetDiagnostics();
+            Controls.Internal.ImageFxApplier.ResetDiagnostics();
             _depGraph.Clear();
             SourceResolver = null;
             SpriteResolver = null;

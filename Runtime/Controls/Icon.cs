@@ -12,8 +12,11 @@ namespace PromptUGUI.Controls
 
         public override void OnAttached()
         {
+            // FxImage, not a plain Image: with no blur / glow / linear tint written it behaves
+            // exactly like one (no material of its own, mesh untouched), and it is what makes those
+            // attributes possible at all — see FxImage's class note.
             _img = GameObject.GetComponent<UnityImage>()
-                   ?? GameObject.AddComponent<UnityImage>();
+                   ?? GameObject.AddComponent<FxImage>();
             _img.preserveAspect = true;
             _img.raycastTarget = false;
             _img.color = UnityEngine.Color.white;
@@ -59,6 +62,28 @@ namespace PromptUGUI.Controls
             set => ImageTint.Apply(_img, value);
         }
 
+        /// <summary>Blur radius (px). Softens the icon itself; the layout rect is untouched.</summary>
+        [UIAttr, Preserve]
+        public string Blur
+        {
+            set => ImageFxApplier.SetBlur(_img, "Icon", value);
+        }
+
+        /// <summary>Outer glow reach (px). Inflates the drawn quad, never the layout rect.</summary>
+        [UIAttr, Preserve]
+        public string Glow
+        {
+            set => ImageFxApplier.SetGlow(_img, "Icon", value);
+        }
+
+        /// <summary>Glow colour. Solid only; unwritten, the glow takes the icon's own blurred
+        /// colour.</summary>
+        [UIAttr(IsColor = true), Preserve]
+        public string GlowColor
+        {
+            set => ImageFxApplier.SetGlowColor(_img, "Icon", value);
+        }
+
         private float _rotation;
         private string _flip;
 
@@ -76,6 +101,14 @@ namespace PromptUGUI.Controls
         {
             get => _flip;
             set { _flip = value; Internal.RotateFlipApplier.Apply(_img, _rotation, _flip); }
+        }
+
+        internal override void OnAfterApply()
+        {
+            // Setters run in an unspecified order and blur / glow depend on the sprite, so the
+            // material is resolved once here — before anything renders, without waiting for a
+            // canvas rebuild.
+            ImageFxApplier.Flush(_img);
         }
 
         public override Vector2? GetNativeSize() =>
