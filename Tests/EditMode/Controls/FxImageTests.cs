@@ -40,12 +40,25 @@ namespace PromptUGUI.Tests.EditMode.Controls
             }
         }
 
-        private static Sprite MakeSprite(Vector4 border = default)
+        private static Sprite MakeSprite(Vector4 border = default, bool mips = true,
+                                         FilterMode filter = FilterMode.Bilinear)
         {
-            var tex = new Texture2D(8, 8);
+            var tex = new Texture2D(8, 8, TextureFormat.RGBA32, mips) { filterMode = filter };
             return Sprite.Create(tex, new Rect(0f, 0f, 8f, 8f), new Vector2(0.5f, 0.5f),
                                  pixelsPerUnit: 1f, extrude: 0, meshType: SpriteMeshType.FullRect,
                                  border: border);
+        }
+
+        /// <summary>Swaps the fixture sprite (and its texture) for the rest of the test.</summary>
+        private void UseSprite(Sprite sprite)
+        {
+            if (_sprite != null)
+            {
+                var tex = _sprite.texture;
+                Object.DestroyImmediate(_sprite);
+                if (tex != null) Object.DestroyImmediate(tex);
+            }
+            _sprite = sprite;
         }
 
         private const string Header = "<?xml version='1.0' encoding='utf-8'?>" +
@@ -257,6 +270,140 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             Assert.AreEqual(1, fx.canvasRenderer.materialCount);
             Assert.AreEqual("UI/ImageFx", fx.canvasRenderer.GetMaterial(0).shader.name);
+        }
+
+        // ---- the mip channel (spec §14) ----
+
+        [Test]
+        public void A_mipmapped_bilinear_sprite_hands_the_shader_its_texel_scale()
+        {
+            // The fixture texture has a mip chain and Bilinear filtering: 8 texels drawn over 40 units
+            // is 0.2 texels per unit, which is what the fragment turns a radius into a lod with.
+            var s = Open("<Icon id='i' name='ui:x' size='40x40' glow='6'/>");
+            var fx = FxOf(s.Get<PromptUGUI.Controls.Icon>("i"));
+
+            using var vh = new VertexHelper();
+            fx.BuildMeshForTests(vh);
+
+            for (var i = 0; i < 4; i++)
+            {
+                Assert.AreEqual(8f / 40f, Vert(vh, i).uv2.z, 1e-4f, $"vertex {i}: texels per unit, x");
+                Assert.AreEqual(8f / 40f, Vert(vh, i).uv2.w, 1e-4f, $"vertex {i}: texels per unit, y");
+            }
+        }
+
+        [Test]
+        public void A_sprite_without_a_mip_chain_keeps_the_plain_kernel()
+        {
+            UseSprite(MakeSprite(mips: false));
+            var s = Open("<Icon id='i' name='ui:x' size='40x40' glow='6'/>");
+            var fx = FxOf(s.Get<PromptUGUI.Controls.Icon>("i"));
+
+            using var vh = new VertexHelper();
+            fx.BuildMeshForTests(vh);
+
+            var uv2 = Vert(vh, 0).uv2;
+            Assert.AreEqual(1f / 40f, uv2.x, 1e-5f, "the uv scale is still there");
+            Assert.AreEqual(0f, uv2.z, "no mip chain: the fragment stays at lod 0");
+            Assert.AreEqual(0f, uv2.w);
+        }
+
+        [Test]
+        public void A_point_filtered_sprite_keeps_the_plain_kernel()
+        {
+            // Point filtering samples its mips nearest too, so a coarser level would only be blockier
+            // — pixel art stays on the lod-0 kernel whether or not the texture has a chain.
+            UseSprite(MakeSprite(filter: FilterMode.Point));
+            var s = Open("<Icon id='i' name='ui:x' size='40x40' glow='6'/>");
+            var fx = FxOf(s.Get<PromptUGUI.Controls.Icon>("i"));
+
+            using var vh = new VertexHelper();
+            fx.BuildMeshForTests(vh);
+
+            Assert.AreEqual(0f, Vert(vh, 0).uv2.z);
+            Assert.AreEqual(0f, Vert(vh, 0).uv2.w);
+        }
+
+        [Test]
+        public void A_radius_the_plain_kernel_cannot_carry_warns_once_per_texture()
+        {
+            UseSprite(MakeSprite(mips: false));
+            var warnings = CaptureMipWarnings(out var stop);
+            try
+            {
+                // 8 texels drawn at 8 units: a 6-unit glow is 6 texels, and at lod 0 the 25 taps sit
+                // over two texels apart there — gaps. Two icons on the same texture: one warning.
+                var s = Open("<Icon id='a' name='ui:x' size='8x8' glow='6'/>" +
+                             "<Icon id='b' name='ui:x' size='8x8' glow='6'/>");
+                using var vh = new VertexHelper();
+                FxOf(s.Get<PromptUGUI.Controls.Icon>("a")).BuildMeshForTests(vh);
+                FxOf(s.Get<PromptUGUI.Controls.Icon>("b")).BuildMeshForTests(vh);
+
+                Assert.AreEqual(1, warnings.Count, "one warning per texture, not one per icon");
+                StringAssert.Contains("Generate Mip Maps", warnings[0], "it names the setting to flip");
+            }
+            finally
+            {
+                stop();
+            }
+        }
+
+        [Test]
+        public void A_radius_the_plain_kernel_can_carry_is_quiet()
+        {
+            UseSprite(MakeSprite(mips: false));
+            var warnings = CaptureMipWarnings(out var stop);
+            try
+            {
+                // 2 texels: taps 0.7 apart, well inside what a bilinear tap covers.
+                var s = Open("<Icon id='a' name='ui:x' size='8x8' glow='2'/>");
+                using var vh = new VertexHelper();
+                FxOf(s.Get<PromptUGUI.Controls.Icon>("a")).BuildMeshForTests(vh);
+
+                Assert.IsEmpty(warnings);
+            }
+            finally
+            {
+                stop();
+            }
+        }
+
+        [Test]
+        public void A_point_filtered_texture_is_told_mipmaps_will_not_help()
+        {
+            // The shape the .pxl importer produces: no chain, Point. Asking for mipmaps would be
+            // wrong advice — nearest-sampled mips are just blockier.
+            UseSprite(MakeSprite(mips: false, filter: FilterMode.Point));
+            var warnings = CaptureMipWarnings(out var stop);
+            try
+            {
+                var s = Open("<Icon id='a' name='ui:x' size='8x8' glow='6'/>");
+                using var vh = new VertexHelper();
+                FxOf(s.Get<PromptUGUI.Controls.Icon>("a")).BuildMeshForTests(vh);
+
+                Assert.AreEqual(1, warnings.Count);
+                StringAssert.Contains("Point", warnings[0]);
+            }
+            finally
+            {
+                stop();
+            }
+        }
+
+        /// <summary>Collects the fx kernel's "needs mipmaps / can't use mipmaps" warnings while the
+        /// test runs. Warnings never fail a test on their own, so counting them is the only way to
+        /// assert "once".</summary>
+        private static System.Collections.Generic.List<string> CaptureMipWarnings(out System.Action stop)
+        {
+            var list = new System.Collections.Generic.List<string>();
+            void OnLog(string message, string stack, LogType type)
+            {
+                if (type == LogType.Warning && message.Contains("PromptUGUI") && message.Contains("blur / glow"))
+                    list.Add(message);
+            }
+            UnityEngine.Application.logMessageReceived += OnLog;
+            stop = () => UnityEngine.Application.logMessageReceived -= OnLog;
+            return list;
         }
 
         // ---- helpers ----

@@ -27,9 +27,13 @@ namespace PromptUGUI.Lint
         public const string MaskCode = "PUI-FX-MASK";
         public const string RadiusCode = "PUI-FX-RADIUS";
 
-        /// <summary>Past this the 25-tap kernel starts to show as banding rather than a smooth
-        /// falloff; large radii need the sampling M2 brings (spec §10).</summary>
-        public const float RadiusSoftLimit = 12f;
+        /// <summary>
+        /// Past this the 25-tap kernel's taps sit further apart than a lod-0 bilinear sample covers,
+        /// so a texture with no mip chain draws ghost copies of thin strokes (spec §14.1). Lint sees
+        /// neither the texture nor the drawn size, so this is a reminder to enable mipmaps; the
+        /// runtime warns precisely, per texture, when it actually falls back (spec §14.5).
+        /// </summary>
+        public const float RadiusSoftLimit = 6f;
 
         /// <summary>The tags built on <c>FxImage</c>, and therefore the only ones where blur / glow
         /// do anything. <c>&lt;RawImage&gt;</c> is deliberately absent — M2.</summary>
@@ -144,8 +148,11 @@ namespace PromptUGUI.Lint
                 yield return new LintIssue(
                     RadiusCode, n.Tag, n.Id,
                     $"<{n.Tag} id='{n.Id}'>: {attr}=\"{Format(value)}\" is past the {Format(RadiusSoftLimit)}px " +
-                    "the sampling kernel covers smoothly — wider radii start to band. Keep it at or " +
-                    $"under {Format(RadiusSoftLimit)}, or wait for the large-radius path.");
+                    "the plain kernel samples without gaps — on a texture with no mipmaps, wider radii " +
+                    "draw ghost copies of thin strokes. Enable mipmaps on the sprite's texture " +
+                    "(SpriteAtlas → Generate Mip Maps; TextureImporter → Generate Mipmaps), or keep it " +
+                    $"at or under {Format(RadiusSoftLimit)}. The runtime warns per texture when it " +
+                    "actually has to fall back.");
             }
         }
 

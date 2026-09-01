@@ -44,12 +44,29 @@ namespace PromptUGUI.Tests.EditMode.Controls
         private Sprite _disc;
         private Sprite _red;
 
+        // The second fixture (spec §14): Bilinear, WITH a mip chain. 128 texels wide: a 64x64 tile
+        // holding one vertical one-texel line, four texels of transparent padding (Unity's default),
+        // then a solid red tile. Drawn at 64 design px, so one texel is one design px.
+        private const int MipTile = 64;
+        private const int MipPadding = 4;
+        private const int MipAtlasWidth = 128;
+        private Texture2D _mipAtlas;
+        private Sprite _line;
+        private Sprite _mipRed;
+
         [SetUp]
         public void SetUp()
         {
             UI.ResetForTests();
             BuildAtlas();
-            UI.SpriteResolver = key => key != null && key.EndsWith("red") ? _red : _disc;
+            BuildMipAtlas();
+            UI.SpriteResolver = key => key switch
+            {
+                "ui:red" => _red,
+                "ui:line" => _line,
+                "ui:mipred" => _mipRed,
+                _ => _disc,
+            };
 
             _uiRt = new RenderTexture(Size, Size, 24) { name = "ImageFxUIRT" };
             _ui = new GameObject("ImageFxUICamera").AddComponent<Camera>();
@@ -73,6 +90,53 @@ namespace PromptUGUI.Tests.EditMode.Controls
             if (_disc != null) Object.DestroyImmediate(_disc);
             if (_red != null) Object.DestroyImmediate(_red);
             if (_atlas != null) Object.DestroyImmediate(_atlas);
+            if (_line != null) Object.DestroyImmediate(_line);
+            if (_mipRed != null) Object.DestroyImmediate(_mipRed);
+            if (_mipAtlas != null) Object.DestroyImmediate(_mipAtlas);
+        }
+
+        /// <summary>
+        /// The mip-path fixture. A one-texel line is the thinnest stroke there is — and the one the
+        /// lod-0 kernel draws 25 separate copies of once its taps sit further apart than the stroke is
+        /// wide (spec §14.1). Transparent texels carry WHITE rgb here, the way the importer's
+        /// alphaIsTransparency dilation leaves them: a straight-alpha mip chain averaged over
+        /// transparent black would darken the blur by itself, and that is the importer's doing, not the
+        /// shader's (the Point fixture above keeps testing the shader's premultiplication).
+        /// </summary>
+        private void BuildMipAtlas()
+        {
+            _mipAtlas = new Texture2D(MipAtlasWidth, MipTile, TextureFormat.RGBA32, mipChain: true)
+            {
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp,
+                name = "ImageFxMipAtlas",
+            };
+
+            var px = new Color32[MipAtlasWidth * MipTile];
+            for (var y = 0; y < MipTile; y++)
+            {
+                for (var x = 0; x < MipAtlasWidth; x++)
+                {
+                    Color32 c;
+                    if (x < MipTile)
+                        c = x == MipTile / 2 ? new Color32(255, 255, 255, 255) : new Color32(255, 255, 255, 0);
+                    else if (x < MipTile + MipPadding)
+                        c = new Color32(255, 255, 255, 0);
+                    else
+                        c = new Color32(255, 0, 0, 255);
+                    px[y * MipAtlasWidth + x] = c;
+                }
+            }
+            _mipAtlas.SetPixels32(px);
+            _mipAtlas.Apply(updateMipmaps: true);
+            Assert.Greater(_mipAtlas.mipmapCount, 1, "前置：the fixture must actually have a mip chain");
+
+            _line = Sprite.Create(_mipAtlas, new Rect(0f, 0f, MipTile, MipTile), new Vector2(.5f, .5f),
+                                  pixelsPerUnit: 1f, extrude: 0, meshType: SpriteMeshType.FullRect);
+            _mipRed = Sprite.Create(_mipAtlas,
+                                    new Rect(MipTile + MipPadding, 0f, MipAtlasWidth - MipTile - MipPadding, MipTile),
+                                    new Vector2(.5f, .5f),
+                                    pixelsPerUnit: 1f, extrude: 0, meshType: SpriteMeshType.FullRect);
         }
 
         /// <summary>
@@ -323,6 +387,62 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 Assert.Greater(Luma(c), 0.9f,
                     $"at the blurred edge ({dx:+0.#;-0.#;0}px) the picture went grey — the blur is " +
                     "averaging transparent black into the colour instead of premultiplying");
+            }
+        }
+
+        // ---- 3b. the mip path (spec §14) ----
+
+        private const string LineIcon = "<Icon id='i' name='ui:line' anchor='center' size='64x64' ";
+
+        [Test]
+        public void Blur_OnAMipmappedSprite_DrawsOneSoftLine_NotTwentyFiveCopies()
+        {
+            // One texel wide, blurred by eight: at lod 0 the 25 taps sit ~2.8 texels apart and each
+            // one sees its own copy of the line, so the cross-section is a comb. With the mip chain the
+            // taps sample a level whose footprint covers that spacing and the comb collapses into one
+            // hump: from the peak outward the profile only ever falls.
+            Render(LineIcon + "blur='8'/>", "pugui-fx-mip-line-blur-8.png");
+
+            const int Reach = 16;
+            var profile = new float[Reach * 2 + 1];
+            var peak = 0;
+            for (var i = 0; i < profile.Length; i++)
+            {
+                profile[i] = Luma(AtPx(i - Reach, 0f));
+                if (profile[i] > profile[peak]) peak = i;
+            }
+            Assert.Greater(profile[peak], 0.05f, "前置：the blurred line is visible at all");
+
+            // The lod-0 kernel re-rises by 17/255 or more here (simulated); one soft hump wobbles by
+            // under 1/255. 4/255 leaves room for the screenshot's own quantisation on both sides.
+            const float Tolerance = 4f / 255f;
+            foreach (var dir in new[] { 1, -1 })
+            {
+                var lowest = profile[peak];
+                for (var i = peak + dir; i >= 0 && i < profile.Length; i += dir)
+                {
+                    Assert.LessOrEqual(profile[i], lowest + Tolerance,
+                        $"{i - Reach:+0;-0}px from the line the profile climbs again after falling — the " +
+                        "taps are drawing separate copies of the stroke instead of one blur");
+                    lowest = Mathf.Min(lowest, profile[i]);
+                }
+            }
+        }
+
+        [Test]
+        public void Blur_OnAMipmappedSprite_StillNeverSamplesTheNeighbour()
+        {
+            // Sixteen texels is lod 2.5: a tap's bilinear read at that level spans nearly six texels,
+            // more than the four of padding, so a tap sitting on the sprite's edge would read the red
+            // tile through the mip chain. The kernel pulls its taps in from the edge for exactly this.
+            Render(LineIcon + "blur='16'/>", "pugui-fx-mip-bleed.png");
+
+            for (var dx = 2f; dx <= 7f; dx += 1f)
+            {
+                var c = AtPx(TileEdgePx + dx, 0f);
+                Assert.LessOrEqual(c.r, Mathf.Max(c.g, c.b) + 0.05f,
+                    $"{dx}px past the sprite's rectangle the blur has gone red — a coarse mip level is " +
+                    "reading the neighbour across the padding");
             }
         }
 

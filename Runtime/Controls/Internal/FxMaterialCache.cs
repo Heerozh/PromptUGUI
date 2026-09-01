@@ -172,6 +172,14 @@ namespace PromptUGUI.Controls.Internal
             foreach (var slot in _live.Values) DestroyMaterial(slot.Material);
             _live.Clear();
             while (_spare.Count > 0) DestroyMaterial(_spare.Pop());
+
+            // Orphans: a HideAndDontSave material outlives the domain reload that wiped the static
+            // tables above (preview an icon with glow in the editor, recompile, run the tests — the
+            // leak counters would report the preview's materials forever). Nothing references them
+            // any more — a graphic that survived the reload re-acquires on its next rebuild — so
+            // sweep them by name. Test-only; the runtime never calls this.
+            foreach (var mat in Resources.FindObjectsOfTypeAll<Material>())
+                if (mat != null && mat.name == MaterialName) DestroyMaterial(mat);
         }
 
         private static void DestroyMaterial(Material mat)

@@ -218,5 +218,54 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(U1, Vert(vh, 0).uv1.z, 1e-5f);
             Assert.AreEqual(PerUnit.x, Vert(vh, 0).uv2.x, 1e-6f, "the scale is a magnitude, never negative");
         }
+
+        // ---- the mip channel: uv2.zw (spec §14.3) ----
+
+        [Test]
+        public void Inflate_records_texels_per_unit_when_told_the_texture_size()
+        {
+            using var vh = BuildQuad();
+
+            FxMesh.Inflate(vh, 6f, new Vector2(400f, 200f));
+
+            // The quad spans a quarter of a 400-texel-wide texture over 60 units: 100 texels per 60
+            // units. The fragment turns a radius into a lod from this.
+            for (var i = 0; i < 4; i++)
+            {
+                var uv2 = Vert(vh, i).uv2;
+                Assert.AreEqual(PerUnit.x, uv2.x, 1e-6f, $"vertex {i}: uv per unit is unchanged");
+                Assert.AreEqual(PerUnit.y, uv2.y, 1e-6f);
+                Assert.AreEqual(100f / W, uv2.z, 1e-5f, $"vertex {i}: texels per unit, x");
+                Assert.AreEqual(50f / H, uv2.w, 1e-5f, $"vertex {i}: texels per unit, y");
+            }
+        }
+
+        [Test]
+        public void Inflate_without_a_texture_size_leaves_the_mip_channel_at_zero()
+        {
+            // Zero is the fragment's cue to stay at lod 0 — the plain kernel, bit for bit.
+            using var vh = BuildQuad();
+
+            FxMesh.Inflate(vh, 6f);
+
+            for (var i = 0; i < 4; i++)
+            {
+                var uv2 = Vert(vh, i).uv2;
+                Assert.AreEqual(PerUnit.x, uv2.x, 1e-6f);
+                Assert.AreEqual(0f, uv2.z, $"vertex {i}: z");
+                Assert.AreEqual(0f, uv2.w, $"vertex {i}: w");
+            }
+        }
+
+        [TestCase(8f, 1f, true)]     // 8 texels: taps ~2.8 apart, a bilinear tap covers ~1 — gaps
+        [TestCase(2f, 1f, false)]    // 2 texels: taps 0.7 apart — covered
+        [TestCase(8f, 0.5f, true)]   // drawn at 2x: still 4 texels
+        [TestCase(5f, 0.5f, false)]  // 2.5 texels
+        [TestCase(0f, 1f, false)]
+        [TestCase(8f, 0f, false)]    // no texture size known: nothing to judge
+        public void NeedsMips_is_whether_the_lod0_kernel_leaves_gaps(float radius, float texelsPerUnit, bool expected)
+        {
+            Assert.AreEqual(expected, FxMesh.NeedsMips(radius, texelsPerUnit));
+        }
     }
 }

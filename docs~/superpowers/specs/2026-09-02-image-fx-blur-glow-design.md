@@ -1,6 +1,7 @@
 # `blur` / `glow` —— `<Image>` / `<Icon>` 的 sprite 级模糊与外发光（M1）
 
-> 状态：**已与作者对齐，M1 立项**（2026-09-02 定案，见 §9）。
+> 状态：**已与作者对齐，M1 立项**（2026-09-02 定案，见 §9）；**M1.1 混合采样**（mip 预滤波，2026-09-02
+> 追加定案，见 §14 —— M1 的 lod 0 核在 R > ~3 texel 时重影，改为「有 mip 用 mip、没 mip 退回」）。
 > 相关：`2026-09-01-graphic-reflection-design.md`（同一组叶子 Graphic 标签；§2 否决「自定义材质」的
 > 理由 —— 与 `UI-LinearLightTint` / `UI-Grayscale` 抢材质槽 —— 本文用 §2 末尾的先例化解；§4.2 / §4.4
 > 的排版 / 点击 / 组合表原则本文沿用）；`2026-08-31-hug-reveal-flip-checked-design.md` §3（`rotation` /
@@ -108,7 +109,7 @@ quad 外扩、同一条顶点通道、同一份 shader 骨架、同一组测试�
 | 数据 | 变化粒度 | 落点 |
 |---|---|---|
 | sprite 在 atlas 里的 UV 矩形 | 每 sprite | 顶点 `uv1 = (uMin, vMin, uMax, vMax)` |
-| uv / 设计 px 换算 | 每实例（随绘制尺寸） | 顶点 `uv2 = (Δu/px, Δv/px, 0, 0)` |
+| uv / 设计 px 换算 | 每实例（随绘制尺寸） | 顶点 `uv2 = (Δu/px, Δv/px, texel/px, texel/px)` —— zw 是 §14.3 的 mip 通道，纹理不可用 mip 时为 0 |
 | `blur` `glow` `glowColor`（含「自体色」标志）、`tint=linear`、禁用灰度 | 作者参数 / 状态 | 材质，`FxMaterialCache` 按参数集共享（§5.2） |
 | `color=` / 状态 `*Modulate` / `GradientTint` / CanvasGroup | 既有机制 | 顶点色 / CanvasRenderer，**不动** |
 
@@ -135,7 +136,7 @@ Canvas 需开 `TexCoord1 | TexCoord2`（`ProceduralPanel.EnsureCanvasChannels` �
 
 - **采样核**：圆盘，半径 R（`blur` 一轮用 `blur`，`glow` 一轮用 `glow`；两轮各自被 `R <= 0` 的 uniform
   分支跳过；两者同开 = 两轮）。tap 数与分布是 plan 期决定（§11.1，初值：中心 + 两环 Vogel 共 25 tap，
-  近高斯权重）。tap 偏移 = 单位圆盘 × R × `uv2.xy`。
+  近高斯权重）。tap 偏移 = 单位圆盘 × R × `uv2.xy`。tap 用 `tex2Dlod`，lod 随 tap 间距走、无 mip 时为 0（§14.3）。
 - **矩形钳制**：tap 的 uv 落在 `uv1` 矩形外 → 该 tap 贡献 (0,0,0,0)，权重照算（不是 clamp 到边，是
   当透明）。本体的单 tap 同样受此判：矩形外的外扩带上本体为透明。
 - **预乘**：blur 累加 `Σw·(rgb·a)` 与 `Σw·a`，末尾反预乘 —— 否则透明像素的 RGB（常是黑 / 垃圾值）
@@ -265,7 +266,7 @@ uv0 / uv1 / uv2 / color / worldPosition 透传。fragment 按 §4.3；全部 uni
 | `PUI-FX-TYPE` | expanded（class 合并后判） | error（运行时 warning） | `blur` / `glow` 与 `type="sliced"` / `"tiled"` / `"filled"` 同节点 |
 | `PUI-FX-ATTR` | expanded | warning | 写了 `glowColor` 但最终没有 `glow`（什么都不会画） |
 | `PUI-FX-MASK` | expanded | warning | `blur` / `glow` 与 `mask="self"` 同节点（§4.4） |
-| `PUI-FX-RADIUS` | expanded | warning | `blur` 或 `glow` `> 12`：M1 采样核之外会出格纹；大半径等 M2 |
+| `PUI-FX-RADIUS` | expanded | warning | `blur` 或 `glow` `> 6`：没有 mipmaps 的纹理上 tap 之间出现空隙（细笔画重影），提醒给 atlas 开 mips。运行时另有按 texel 的精确警告（§14.5） |
 
 ## 7. 测试（Red 先行）
 
@@ -326,9 +327,9 @@ uv0 / uv1 / uv2 / color / worldPosition 透传。fragment 按 §4.3；全部 uni
 
 ## 10. 非目标（M2 及以后，留扩展位）
 
-- **大半径 blur**：非图集纹理 + mip 走 `tex2Dlod(log2 R)` 路径（`<RawImage>` / 移出图集的头像横幅，
-  矩形退化为 [0,1]，精确又便宜）；非要糊图集里的图再上 RT 缓存（§2.1）。底座（外扩、uv1 / uv2、材质
-  缓存、合成）不变，只换 `blur` 那轮的采样核。
+- **大半径 blur**：图集内的大半径已由 §14 的 mip 预滤波覆盖（atlas 开 mips、padding ≥ 2 即可）。剩下的是
+  §14.4 列的两处短板 —— 直 alpha mip 的暗边、Point 图集不能用 mip —— 走运行时预乘金字塔（§14.8）或 RT
+  缓存（§2.1）。底座（外扩、uv1 / uv2、材质缓存、合成）不变，只换 `blur` 那轮的采样源。
 - **`edge="clamp"`**：全出血照片模糊时边缘不淡出而是延展。与大半径同期。
 - **`<RawImage>` 接入**（`FxRawImage`，`uvRect` 即矩形）。
 - **`<Btn sprite=>` 底图 glow**：今天撞 `PUI-PROC-SPRITE-CONFLICT`；把 `_bg` 换成 `FxImage` 并按皮肤
@@ -396,7 +397,8 @@ PlayMode **200 绿**、`dotnet format --verify-no-changes` 干净、`UIXmlLint` 
 ### 最终采样核与渲染阈值
 
 - 核：中心 1 tap + 24 点 Vogel 圆盘（黄金角 2.39996，`r_i = √((i+0.5)/24)`），权重全 1，共 25 tap。
-  两轮（blur / glow）各自被 `if (R <= 0)` 的 uniform 分支跳过。
+  两轮（blur / glow）各自被 `if (R <= 0)` 的 uniform 分支跳过。（M1.1 起 tap 走 `tex2Dlod`，lod 见 §14.3；
+  无 mip 时 lod 0，与这里逐位相同。）
 - 光晕曲线：`falloff = saturate(2·coverage)²`。剪影边缘 coverage≈0.5 → 满强度；d=R → 0。
 - `ImageFxRenderTests` 用测试内手搓的 **双 sprite 图集**（左 32×32 透明底白圆盘、右 32×32 纯红），
   9 条用例。关键阈值都在"功能关掉的那一版"上反向验过：`glow='0'` 时同一像素为背景。
@@ -426,3 +428,121 @@ glow-self …26:0.77 28:0.36 30:0.25 32:0.13 34:0.08 …44:0.08   ← 单调衰�
 `ssw_re_client` 的 `PxlIcon.spriteatlas` 目前 `enableRotation=1 / enableTightPacking=1`（当前
 `spriteCount=0`，尚未 Pack Preview）。要在像素图标上用 blur/glow，需在 SpriteAtlas inspector 里关掉
 两项再 Pack Preview —— Syncer 现在会对已有 atlas 告警但不自动改。`Solar96Bold` 已是 0/0，无需处理。
+
+## 14. M1.1：mip 预滤波的混合采样（2026-09-02 定案）
+
+### 14.1 问题：tap 密度
+
+M1 的核在 lod 0 采样。25 个均匀 tap 的平均间距 ≈ R·√(π/25) ≈ 0.35 R，而 bilinear 单 tap 的足迹只有约
+1 texel —— R 超过约 3 texel 后 tap 之间就有空隙：比间距细的笔画在每个 tap 处各画一份，细线图标在
+`blur="8"` 下成了一圈重影（「玫瑰花环」）。单位是 **texel** 不是设计 px：96 texel 的 sprite 画成 48 px
+时 `blur="3"` 已是 6 texel。
+
+堆 tap 无解：无重影要求间距 ≤ 1 texel，即约 πR² 个 tap（R=8 约 200，R=16 约 800）；模拟里 49 tap 在
+R=8 仍然重影。
+
+### 14.2 否决：纯 mip（单 tap trilinear 取代采样核）
+
+在合成的双 sprite 图集（64 texel 细线图标 + 4 texel padding + 纯红邻居）上与精确圆盘对比：
+
+1. **形状失真**。bilinear 重建的格点间距是 2^lod texel：R=4 时实心圆已成圆角方块、细环成方环；光晕衰减
+   是帐篷形不是圆形。这是单 tap 的本性，不是参数问题。
+2. **串色**。lod ≥ log2(padding) 后一个 mip texel 自身就横跨 sprite 矩形；矩形钳制只能钳 tap 中心，钳不了
+   texel 内部。R=8 邻居已渗入，R=16 整块发红。
+3. **暗边**。Unity 的 mip 是直 alpha 的 box 平均，透明区的 RGB 混进颜色。
+
+所以 mip 只能做「预滤波」，不能做「采样核」。
+
+### 14.3 方案：核不变，tap 改 `tex2Dlod`，lod 跟着 tap 间距走
+
+- **lod** = `max(0, log2(R_texel · 0.3545))`，0.3545 = √(π/25)：让每个 tap 的足迹恰好盖住 tap 间距。
+  blur / glow 两轮各算各的 lod。
+- **半径不补偿**。mip 足迹会让光晕比 R 略宽（约 2^lod/2 texel）；试过按此收缩 tap 半径，与参考的最大
+  alpha 误差反而翻倍（0.045 → 0.097），放弃。
+- **边缘内缩**（只对两轮的 tap；本体单 tap 不缩）。lod L 的 bilinear 读到 tap 两侧各 1.5·2^L texel，超出
+  atlas padding 的部分就是邻居。`inset = max(0, 1.5·2^lod − 2)` texel（2 = Unity SpriteAtlas 的最小
+  padding 档），矩形按 inset 收缩后再钳 tap。lod ≤ 1 时 inset = 0；R_texel = 16（lod 2.5）时 6.5 texel
+  —— 有透明边距的图标看不出，全出血图片的模糊边缘略提前淡出。模拟里串色从 0.019 降到 ≤ 0.002。
+- **无 mips / Point 过滤 → lod 0**，与 M1 逐位相同。**不强制开 mips**（§14.4）。
+- **数据分工**（修订 §4.1）：`uv2 = (Δu/px, Δv/px, texel/px_x, texel/px_y)`。zw 由 C# 判定纹理可用 mip
+  （`mipmapCount > 1` 且 `filterMode != Point`）时填 `perUnit × 纹理尺寸`，否则为 0 —— shader 见 0 即
+  lod 0。仍不依赖 `_MainTex_TexelSize`。本体的单 tap 与退化矩形路径仍用 `tex2D`（硬件 lod，缩小时不走样）。
+
+与精确圆盘的 RMSE（合成图集，预乘 mip；脚本 `sim.py` 见实施记录）：
+
+| R_texel | lod | M1（lod 0） | 纯 mip | 混合 |
+|---|---|---|---|---|
+| 4 | 0.5 | 0.026 | 0.091 | 0.011 |
+| 8 | 1.5 | 0.023 | 0.067 | 0.009 |
+| 16 | 2.5 | 0.021 | 0.067 | 0.008 |
+
+1 texel 竖线、R=8 的横剖面「跌落后再抬升」最大值：M1 17.7/255（重影），混合 0.7/255。
+
+### 14.4 图集要求（修订 §4.5）
+
+- **不强制 mips。** 开了就用；没开退回 M1，运行时按 texel 精确警告（§14.5）。`SpriteAtlasSyncer` 不动
+  `generateMipMaps`。
+- **串色**：内缩假设 padding ≥ 2（Unity 最小档），满足则任意半径不串色；`enableRotation` /
+  `enableTightPacking` 必须关的要求不变。
+- **暗边只影响 blur 的 RGB，glow 不受影响**（glow 只用 alpha）。blur 的颜色取决于导入器的 dilation
+  （`alphaIsTransparency`，Sprite 类型默认开）：实测 ssw_re_client 的 `Solar96Bold` 透明区 RGB 已是 254
+  （干净）；已开 mips 的 `FlagBtn` lod1–3 半透明 texel 比不透明色暗约 15%（源图未完全 dilate）。shader 无法
+  事后弥补 —— 直 alpha box 平均之后信息已丢。
+- **开 mips 的副作用**：`generateMipMaps` 是整个 atlas 的开关，该图集所有 sprite 缩小时都会走 mip（更软、
+  少闪），显存 +1/3。Point 图集不要开：nearest 采 mip 只会更块状，fx 也不会用它。
+
+### 14.5 诊断
+
+| 层 | 条件 | 消息 |
+|---|---|---|
+| 运行时（精确，每张纹理一次） | `FxImage.OnPopulateMesh` 后已知 texel/px；`Pad · texel/px · 0.3545 > 1`（本该 lod > 0）而纹理不可用 mip | Bilinear：需要在 atlas / 导入器开 mipmaps，否则该绘制尺寸下超过限值 px 会出重影，限值随消息给出；Point：mip 帮不上，半径 ≤ 限值，或改 Bilinear + mips |
+| lint（粗）`PUI-FX-RADIUS` | `blur` / `glow` > 6 px | 阈值 12 → 6，文案改成「需要 mipmaps」。lint 看不到资产也看不到绘制缩放，只是提醒；1:1 下 ≤ 6 px 没有 mips 也基本看不出 |
+
+### 14.6 测试
+
+- `FxMeshTests`：给纹理尺寸时 uv2.zw = perUnit × 尺寸；不给时为 0 且 xy 不变；`NeedsMips` 边界。
+- `FxImageTests`：默认 `new Texture2D(8,8)`（带 mip、Bilinear）→ uv2.z = 8/40；无 mip → 0；Point → 0；
+  无 mip 且 1:1 `glow="8"` → 警告一次（同纹理第二个图标不再警告），`glow="2"` 不警告，Point 文案含
+  "Point"。
+- `ImageFxRenderTests` 新增带 mip 的 Bilinear 夹具（64×64 竖线 tile + 4 texel padding + 红块，透明区 RGB
+  预置为白模拟 dilation）：1:1 `blur="8"` 横剖面从峰值向两侧单调（容差 4/255；M1 在此至少 17/255 的再
+  抬升）；`blur="16"` 红块方向 2–7 px 不发红（内缩）。既有 Point 夹具的九条用例不动 —— 它们现在就是
+  「无 mip 退回」路径的回归。
+- `ImageFxRulesTests`：阈值 6，消息含 "mipmap"。
+
+### 14.7 成本
+
+tap 数不变；`tex2Dlod` 在分数 lod 下是 trilinear（两级各一次 bilinear），UI 规模可忽略。无 fx 文档仍零
+开销。uv2 仍是一个 float4，只是 zw 不再空着。
+
+### 14.8 非目标
+
+运行时按图集建预乘高斯金字塔 RT（`_FxTex`，材质按 (参数集, 图集) 共享 —— 不同图集本就分批，不额外破
+合批）：同时解决暗边、Point 图集（RT 自带 Bilinear）与导入设置，代价是 RT 生命周期（编辑器重打包换
+Texture 对象、热重载、内存 1.33×）与约 250 行。留作 M2 备选。
+
+### 14.9 实施记录（2026-09-02 完成）
+
+同分支追加。全量：EditMode + EditorOnly **3803 绿**、PlayMode **200 绿**、`dotnet format --verify-no-changes`
+干净、`UIXmlLint` 退出码 0。Red 先行：C# 侧先落地时，`ImageFxRenderTests` 的「细线无重影」用例按预期
+单独失败（+0px 处剖面再抬升 0.357 > 0.318），换 shader 后转绿；其余 77 条从头到尾绿。
+
+改动落点：`FxMesh.Inflate(vh, pad, textureSize)` 重载 + `TapSpacing` / `NeedsMips`；`FxImage.OnPopulateMesh`
+判 `CanSampleMips`（`mipmapCount > 1` 且非 Point）并按纹理警告一次；`UI-ImageFx.shader` 的 `DiskSample`
+改 `tex2Dlod` + lod + 内缩，本体单 tap 拆成 `SampleBody`（仍 `tex2D`）；`ImageFxRules.RadiusSoftLimit`
+12 → 6；SKILL / icons.md / README 同步。`SpriteAtlasSyncer` 未动。
+
+两点顺手修的：
+
+1. **宿主 Unity 6000.7 alpha 把 `Object.GetInstanceID()` 标成 obsolete-error**。警告去重原本按实例 id，
+   改为直接以 `Texture2D` 对象做 `HashSet` 键（仓库里 `SpriteRenderHints` 的 `#if` 分支是另一种写法）。
+2. **`FxMaterialCache.ResetForTests` 顺带清扫同名孤儿材质**。`HideAndDontSave` 材质能活过域重载，而缓存
+   的静态表被重载清空 —— 在编辑器里预览过一个带 glow 的图标、再重新编译、再跑测试，
+   `FxMaterialCacheTests` 的两条泄漏计数就会永远失败（本次在 ssw_re_client 的 UIPreview 场景上实际撞到，
+   7 个无人引用的 `PromptUGUI/ImageFx`）。这些材质已无人引用（活着的 Graphic 下次重建会重新 Acquire），
+   按名字扫掉即可；仅测试路径调用。
+
+目检（`Application.temporaryCachePath` 下的 dump）：`pugui-fx-mip-line-blur-8.png` 是一条单峰的软线，
+没有梳齿；`pugui-fx-mip-bleed.png`（`blur="16"`，lod 2.5，邻居 4 texel 外）灰色光团里没有红。
+
+模拟脚本（numpy，`sim.py` / `probe*.py`）没有入库：它们是一次性的决策依据，结论已固化在 §14.3 的表里。

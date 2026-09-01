@@ -6,8 +6,12 @@
 // 而是参数，可以任意组合，且同参数集的实例仍共享一个材质、照常合批（FxMaterialCache）。
 //
 // 顶点侧由 FxMesh 供给：uv0 已按半径外推（会越出 sprite 的 UV 矩形，这是故意的），
-// uv1 = sprite 自己的 UV 矩形，uv2 = uv/画布单位换算。矩形之外的 tap 一律当透明 ——
-// 图集里那外面住着别的 sprite。
+// uv1 = sprite 自己的 UV 矩形，uv2.xy = uv/画布单位换算，uv2.zw = texel/画布单位换算
+//（纹理没有可用的 mip 链时为 0）。矩形之外的 tap 一律当透明 —— 图集里那外面住着别的 sprite。
+//
+// 采样核是 25 tap 的均匀圆盘，tap 走 tex2Dlod：半径换成 texel 后，lod 取到让每个 tap 的
+// 足迹恰好盖住 tap 间距（spec §14.3）。没有 mip 就是 lod 0 —— 与 M1 逐位相同，只是 R 超过
+// ~3 texel 后细笔画会在每个 tap 处各画一份（重影）；C# 侧对此按纹理警告一次。
 //
 // 全部为 uniform 分支（`if (_Blur > 0)`），不设 shader 关键字：运行时 new Material 的变体
 // 会被构建剥掉，而 uniform 分支全体 fragment 走同一路径，开销可忽略（UI-ProceduralPanel 同款）。
@@ -87,7 +91,7 @@ Shader "UI/ImageFx"
                 float4 color : COLOR;
                 float2 texcoord : TEXCOORD0;
                 float4 texcoord1 : TEXCOORD1;   // sprite 的 UV 矩形 (uMin, vMin, uMax, vMax)
-                float4 texcoord2 : TEXCOORD2;   // uv / 画布单位 (du, dv, 0, 0)
+                float4 texcoord2 : TEXCOORD2;   // (uv / 画布单位, texel / 画布单位)；zw 无 mip 时为 0
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -98,7 +102,7 @@ Shader "UI/ImageFx"
                 float2 texcoord : TEXCOORD0;
                 float4 worldPosition : TEXCOORD1;
                 float4 rect : TEXCOORD2;
-                float2 perUnit : TEXCOORD3;
+                float4 scale : TEXCOORD3;       // xy = uv / 画布单位，zw = texel / 画布单位
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
@@ -124,7 +128,7 @@ Shader "UI/ImageFx"
                 OUT.vertex = UnityObjectToClipPos(OUT.worldPosition);
                 OUT.texcoord = TRANSFORM_TEX(v.texcoord, _MainTex);
                 OUT.rect = v.texcoord1;
-                OUT.perUnit = v.texcoord2.xy;
+                OUT.scale = v.texcoord2;
                 OUT.color = v.color * _Color;
                 return OUT;
             }
@@ -166,34 +170,63 @@ Shader "UI/ImageFx"
                 float3(+0.21718, -0.96540, 1.00000),
             };
 
+            // 25 tap 在圆盘里的平均间距 ≈ R·√(π/25)（spec §14.3）。与 C# 侧 FxMesh.TapSpacing 同值。
+            #define PUGUI_FX_TAP_SPACING 0.3545
+            // 边缘内缩时假设的 atlas padding（texel）：Unity SpriteAtlas 的最小档。
+            #define PUGUI_FX_MIN_PADDING 2.0
+
             // sprite 矩形之外的一切都是**别的 sprite**（图集里紧邻的邻居），必须读成透明 ——
             // 不是 clamp 到边缘。这是整套 fx 敢把四边形外扩出 sprite 之外的唯一前提。
-            inline half4 SampleClamped(float2 uv, float4 rect)
+            inline half4 SampleClamped(float2 uv, float4 rect, float lod)
             {
                 float2 inside = step(rect.xy, uv) * step(uv, rect.zw);
-                return (tex2D(_MainTex, uv) + _TextureSampleAdd) * (inside.x * inside.y);
+                return (tex2Dlod(_MainTex, float4(uv, 0.0, lod)) + _TextureSampleAdd) * (inside.x * inside.y);
             }
 
             // 一轮圆盘采样，返回**预乘**结果 (rgb·a, a) 的加权平均。
             //
             // 预乘是硬要求：透明像素的 RGB 常是黑或垃圾值，直接平均直 alpha 的颜色会把它们混进来，
             // 在边缘糊出一圈暗环（浅色底上尤其明显）。
-            half4 DiskSample(float2 uv, float4 rect, float2 perUnit, float radius)
+            //
+            // lod：半径换成 texel（scale.zw），取 log2(R_texel × 间距系数) —— 每个 tap 的 bilinear
+            // 足迹恰好盖住相邻 tap 的间距，细笔画不再被逐 tap 复制。scale.zw 为 0（无 mip / Point）
+            // 时 lod 0。半径不做补偿：试过按 mip 足迹收缩 tap 半径，误差反而翻倍。
+            //
+            // 内缩：lod L 的 bilinear 会读到 tap 两侧各 1.5·2^L texel，超出 padding 的那部分就是
+            // 邻居的像素，而矩形钳制只钳得住 tap 中心。所以矩形先按 (1.5·2^L − padding) 收缩再钳
+            // tap。lod ≤ 1 时为 0；有透明边距的图标看不出，全出血图片的模糊边缘略提前淡出。
+            half4 DiskSample(float2 uv, float4 rect, float4 scale, float radius)
             {
-                half4 c = SampleClamped(uv, rect);
+                float texR = radius * max(scale.z, scale.w);
+                float lod = texR > 0.0 ? max(0.0, log2(texR * PUGUI_FX_TAP_SPACING)) : 0.0;
+
+                float insetTexels = max(0.0, 1.5 * exp2(lod) - PUGUI_FX_MIN_PADDING);
+                float2 uvPerTexel = scale.xy / max(scale.zw, 1e-6);
+                // 极小 sprite 配极大半径时别把矩形缩没：最多缩掉每边 1/4。
+                float2 inset = min(insetTexels * uvPerTexel, (rect.zw - rect.xy) * 0.25);
+                float4 r = float4(rect.xy + inset, rect.zw - inset);
+
+                half4 c = SampleClamped(uv, r, lod);
                 half4 sum = half4(c.rgb * c.a, c.a);
                 half wsum = 1.0;
 
                 [unroll]
                 for (int i = 0; i < 24; i++)
                 {
-                    float2 o = kDisk[i].xy * radius * perUnit;
+                    float2 o = kDisk[i].xy * radius * scale.xy;
                     half w = kDisk[i].z;
-                    half4 s = SampleClamped(uv + o, rect);
+                    half4 s = SampleClamped(uv + o, r, lod);
                     sum += half4(s.rgb * s.a, s.a) * w;
                     wsum += w;
                 }
                 return sum / wsum;
+            }
+
+            // 本体的单 tap：不内缩、硬件 lod（缩小绘制时照常走 mip，不走样）。
+            inline half4 SampleBody(float2 uv, float4 rect)
+            {
+                float2 inside = step(rect.xy, uv) * step(uv, rect.zw);
+                return (tex2D(_MainTex, uv) + _TextureSampleAdd) * (inside.x * inside.y);
             }
 
             /// 反预乘：把 (rgb·a, a) 还原成直 alpha 的颜色。
@@ -217,14 +250,14 @@ Shader "UI/ImageFx"
                 }
                 else
                 {
-                    image = SampleClamped(IN.texcoord, IN.rect);
+                    image = SampleBody(IN.texcoord, IN.rect);
 
                     if (_Blur > 0.0)
-                        image = Unpremultiply(DiskSample(IN.texcoord, IN.rect, IN.perUnit, _Blur));
+                        image = Unpremultiply(DiskSample(IN.texcoord, IN.rect, IN.scale, _Blur));
 
                     if (_Glow > 0.0)
                     {
-                        half4 g = DiskSample(IN.texcoord, IN.rect, IN.perUnit, _Glow);
+                        half4 g = DiskSample(IN.texcoord, IN.rect, IN.scale, _Glow);
 
                         // 覆盖率 → 衰减。剪影边缘覆盖率约 0.5，所以 ×2 把边缘顶到 1；平方让边缘更快
                         // 收住，更像光晕而不是色块 —— 与 SDF 面板的 PuguiApplyOuterGlow 同一条曲线。

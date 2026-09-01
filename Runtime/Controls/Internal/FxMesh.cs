@@ -9,13 +9,15 @@ namespace PromptUGUI.Controls.Internal
     /// pushes each corner <c>pad</c> units outward on both axes, extrapolating uv0 by the matching
     /// amount so the fragment can keep sampling the atlas linearly past the sprite's edge.
     ///
-    /// <para>Before moving anything it records the two things the fragment cannot work out for
-    /// itself: the sprite's own UV rectangle into <c>uv1</c> (a tap outside it is a NEIGHBOUR in the
-    /// atlas and must read as empty, which is the whole reason a glow can leave the sprite at all),
-    /// and the uv-per-canvas-unit scale into <c>uv2</c> (a radius is authored in pixels; this is what
-    /// turns it into a uv offset). Both are computed here rather than read from
-    /// <c>_MainTex_TexelSize</c> — see the same reasoning in <c>UI-GlassBlur.shader</c>: a texture
-    /// bound by something other than the usual path is not guaranteed to have it filled in.</para>
+    /// <para>Before moving anything it records the things the fragment cannot work out for itself:
+    /// the sprite's own UV rectangle into <c>uv1</c> (a tap outside it is a NEIGHBOUR in the atlas
+    /// and must read as empty, which is the whole reason a glow can leave the sprite at all), the
+    /// uv-per-canvas-unit scale into <c>uv2.xy</c> (a radius is authored in pixels; this is what turns
+    /// it into a uv offset), and the texels-per-canvas-unit scale into <c>uv2.zw</c> (spec §14.3: a
+    /// radius in texels is what picks the mip level the taps sample; zero tells the fragment the
+    /// texture has no usable mip chain and keeps it at lod 0). All are computed here rather than read
+    /// from <c>_MainTex_TexelSize</c> — see the same reasoning in <c>UI-GlassBlur.shader</c>: a
+    /// texture bound by something other than the usual path is not guaranteed to have it filled in.</para>
     ///
     /// <para>Each vertex is pushed away from its own centre on each channel independently — the uv
     /// side is decided by the uv centre, not by the position centre. Art whose uv runs against its
@@ -25,15 +27,42 @@ namespace PromptUGUI.Controls.Internal
     internal static class FxMesh
     {
         /// <summary>
+        /// Mean spacing of the 25-tap disc's taps as a fraction of its radius: √(π/25). Mirrors the
+        /// constant in <c>UI-ImageFx.shader</c>, where it picks the mip level whose footprint covers
+        /// that spacing (spec §14.3).
+        /// </summary>
+        internal const float TapSpacing = 0.3545f;
+
+        /// <summary>
+        /// Whether a radius of <paramref name="radius"/> canvas units, drawn at
+        /// <paramref name="texelsPerUnit"/>, leaves gaps between the lod-0 kernel's taps — i.e. the
+        /// fragment would want a mip level above 0. Past this point a texture with no mip chain draws
+        /// ghost copies of any stroke thinner than the tap spacing (spec §14.1).
+        /// </summary>
+        internal static bool NeedsMips(float radius, float texelsPerUnit)
+            => radius * texelsPerUnit * TapSpacing > 1f;
+
+        /// <summary>
+        /// Inflates the quad in <paramref name="vh"/> and writes the fx channels, with the mip channel
+        /// (<c>uv2.zw</c>) left at zero: the fragment stays on the lod-0 kernel.
+        /// </summary>
+        public static bool Inflate(VertexHelper vh, float pad) => Inflate(vh, pad, Vector2.zero);
+
+        /// <summary>
         /// Inflates the quad in <paramref name="vh"/> and writes the fx channels.
         /// </summary>
+        /// <param name="textureSize">
+        /// The sprite texture's size in texels when its mip chain may be sampled (it has one, and is
+        /// not Point-filtered); <see cref="Vector2.zero"/> otherwise. Scales <c>uv2.zw</c> to texels
+        /// per canvas unit, or leaves it at zero.
+        /// </param>
         /// <returns>
         /// false — leaving the mesh exactly as it was — unless the mesh is a single quad
         /// (four vertices) covering a non-degenerate area in both space and uv. Sliced, Tiled,
         /// Filled and sprite-mesh geometry all land here, and all are declined: the fx path only
         /// supports <c>type="simple"</c> (spec §3).
         /// </returns>
-        public static bool Inflate(VertexHelper vh, float pad)
+        public static bool Inflate(VertexHelper vh, float pad, Vector2 textureSize)
         {
             if (vh == null || vh.currentVertCount != 4) return false;
 
@@ -63,7 +92,11 @@ namespace PromptUGUI.Controls.Internal
             if (width <= 0f || height <= 0f || uWidth <= 0f || vHeight <= 0f) return false;
 
             var rect = new Vector4(minU, minV, maxU, maxV);
-            var perUnit = new Vector4(uWidth / width, vHeight / height, 0f, 0f);
+            var uPerUnit = uWidth / width;
+            var vPerUnit = vHeight / height;
+            var perUnit = new Vector4(uPerUnit, vPerUnit,
+                                      uPerUnit * Mathf.Max(0f, textureSize.x),
+                                      vPerUnit * Mathf.Max(0f, textureSize.y));
 
             var cx = (minX + maxX) * 0.5f;
             var cy = (minY + maxY) * 0.5f;

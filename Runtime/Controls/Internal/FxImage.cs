@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -43,6 +44,9 @@ namespace PromptUGUI.Controls.Internal
         private float _lastPad;
 
         private static bool _warnedNonQuad;
+        // Keyed on the texture itself rather than an id: GetInstanceID is obsolete-as-error on
+        // Unity 6.7 and its replacement does not exist before it.
+        private static readonly HashSet<Texture2D> _warnedNoMips = new();
 
         /// <summary>Blur radius in canvas units. Clamped at zero; 0 draws the sprite sharp.</summary>
         public float Blur
@@ -135,7 +139,19 @@ namespace PromptUGUI.Controls.Internal
         internal void BuildMeshForTests(VertexHelper vh) => OnPopulateMesh(vh);
 
         /// <summary>Re-arms the warn-once diagnostics; called from <c>UI.ResetForTests</c>.</summary>
-        internal static void ResetDiagnostics() => _warnedNonQuad = false;
+        internal static void ResetDiagnostics()
+        {
+            _warnedNonQuad = false;
+            _warnedNoMips.Clear();
+        }
+
+        /// <summary>
+        /// Whether the fx taps may sample <paramref name="tex"/>'s mip chain (spec §14.3): it has one,
+        /// and it is not Point-filtered — Point samples its mips nearest as well, so a coarser level
+        /// would only be blockier, never smoother.
+        /// </summary>
+        internal static bool CanSampleMips(Texture2D tex)
+            => tex != null && tex.mipmapCount > 1 && tex.filterMode != FilterMode.Point;
 
         protected override void OnEnable()
         {
@@ -173,13 +189,50 @@ namespace PromptUGUI.Controls.Internal
             _lastPad = pad;
             if (pad <= 0f) return;
 
-            if (!FxMesh.Inflate(toFill, pad))
+            var tex = sprite.texture;
+            var mipOk = CanSampleMips(tex);
+            var textureSize = mipOk ? new Vector2(tex.width, tex.height) : Vector2.zero;
+
+            if (!FxMesh.Inflate(toFill, pad, textureSize))
             {
                 WarnOnce(ref _warnedNonQuad,
                     $"PromptUGUI: blur / glow on '{name}' needs the four-vertex quad of a Simple " +
                     $"sprite, but this graphic produced {toFill.currentVertCount} vertices " +
                     "(useSpriteMesh, or a mesh effect that ran first?). The effect is skipped.");
+                return;
             }
+
+            if (!mipOk && tex != null) WarnIfKernelLeavesGaps(toFill, tex, pad);
+        }
+
+        /// <summary>
+        /// The precise half of the "needs mipmaps" diagnostic (spec §14.5; lint's <c>PUI-FX-RADIUS</c>
+        /// is the coarse half, which cannot see the texture or the drawn size). Fires once per texture,
+        /// only when the radius in TEXELS is past what the lod-0 kernel covers without gaps — a 10px
+        /// glow on a sprite drawn at four times its size is fine, the same glow at 1:1 is not.
+        /// </summary>
+        private void WarnIfKernelLeavesGaps(VertexHelper vh, Texture2D tex, float pad)
+        {
+            var v = new UIVertex();
+            vh.PopulateUIVertex(ref v, 0);
+            // uv2.xy is uv per canvas unit; times the texture size that is texels per unit. (zw is
+            // deliberately zero on this path — that is what keeps the fragment at lod 0.)
+            var texelsPerUnit = Mathf.Max(v.uv2.x * tex.width, v.uv2.y * tex.height);
+            if (!FxMesh.NeedsMips(pad, texelsPerUnit)) return;
+            if (!_warnedNoMips.Add(tex)) return;
+
+            var texels = pad * texelsPerUnit;
+            var limitPx = 1f / (FxMesh.TapSpacing * texelsPerUnit);
+            Debug.LogWarning(tex.filterMode == FilterMode.Point
+                ? $"PromptUGUI: blur / glow of {pad:0.#}px on '{name}' is {texels:0.#} texels of the " +
+                  $"Point-filtered texture '{tex.name}' — above ~{limitPx:0.#}px at this size the kernel " +
+                  "draws ghost copies of thin strokes, and mipmaps cannot help a Point texture (they " +
+                  $"are sampled nearest too). Keep the radius at or under {limitPx:0.#}px, or switch " +
+                  "the texture to Bilinear with mipmaps."
+                : $"PromptUGUI: blur / glow of {pad:0.#}px on '{name}' is {texels:0.#} texels of " +
+                  $"'{tex.name}', which has no mipmaps — above ~{limitPx:0.#}px at this size the kernel " +
+                  "draws ghost copies of thin strokes. Enable them (SpriteAtlas → Generate Mip Maps; " +
+                  "TextureImporter → Generate Mipmaps); drawing with the plain kernel until then.");
         }
 
         protected override void UpdateMaterial()
