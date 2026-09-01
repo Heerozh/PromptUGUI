@@ -97,6 +97,7 @@ authored look in its **material** and treats `Graphic.color` as a **multiplier**
 - `*Color` (absolute) drives the panel's **fill**, and stays genuinely absolute. On glass this moves
   the pane's own tint, which is what "hover changes the colour" has to mean there.
 - `*Modulate` (relative) stays on `Graphic.color`, exactly as it does on an Image.
+- A **descendant** that is itself a procedural panel — an accent `<Frame color=>`, a hollow border-only `<Frame>` — keeps its own fill. The fan-out writes only the multiplier onto it; absolutes and the selected base never reach it (they are the control's own fill).
 
 One consequence worth knowing: **an absolute change snaps instead of fading** on a procedural
 surface. The fill is a material parameter, and tweening it per frame would mint a material per frame

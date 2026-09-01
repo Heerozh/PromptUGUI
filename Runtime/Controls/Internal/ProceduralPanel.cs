@@ -35,6 +35,7 @@ namespace PromptUGUI.Controls.Internal
     [RequireComponent(typeof(CanvasRenderer))]
     internal sealed class ProceduralPanel : MaskableGraphic
     {
+        private ColorSpec _fill = ColorSpec.Solid(Color.clear);
         private Color _fillTop = Color.clear;
         private Color _fillBottom = Color.clear;
         private float _fillStopTop;
@@ -157,6 +158,7 @@ namespace PromptUGUI.Controls.Internal
 
         public void SetFill(in ColorSpec fill)
         {
+            _fill = fill;
             _fillTop = fill.Top;
             _fillBottom = fill.Bottom;
             _fillStopTop = fill.TopStop;
@@ -253,6 +255,14 @@ namespace PromptUGUI.Controls.Internal
         public void SetNoise(float v) { _noise = v; MarkDirty(); }
 
         internal bool IsGlass => _glass;
+
+        /// <summary>
+        /// The fill as last authored — what the Frame / surface painted. Read by
+        /// <see cref="ColorApplier.Peek"/>: on a panel the colour lives in the material and
+        /// <c>Graphic.color</c> is only the multiplier (white at rest), so a state reactor that
+        /// peeked <c>Graphic.color</c> for its fallback base would paint white into the fill.
+        /// </summary>
+        internal ColorSpec Fill => _fill;
 
         /// <summary>
         /// The glass values as written, regardless of whether glass mode is on. A weld container is

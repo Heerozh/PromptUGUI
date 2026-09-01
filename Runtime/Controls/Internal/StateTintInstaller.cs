@@ -68,7 +68,9 @@ namespace PromptUGUI.Controls.Internal
                 // The control's color= describes ITS bg. A descendant carries its own, which this
                 // code cannot see, so those keep the first-init Peek.
                 ColorSpec? authored = isTarget ? authoredBase : null;
-                var reactor = InstallReactor(g, abs, modulates, fade, selBase, selected, authored);
+                // Likewise the fill: a descendant panel's fill is that Frame's own color= (or none).
+                var reactor = InstallReactor(g, abs, modulates, fade, selBase, selected, authored,
+                    ownsFill: isTarget);
                 if (isTarget) targetReactor = reactor;
             }
             return targetReactor;
@@ -76,12 +78,12 @@ namespace PromptUGUI.Controls.Internal
 
         private static StateTintReactor InstallReactor(Graphic graphic, StateColorSet absolutes,
             StateColorSet modulates, float fade, ColorSpec? selectedBase, bool selected,
-            ColorSpec? authoredBase)
+            ColorSpec? authoredBase, bool ownsFill)
         {
             if (graphic == null) return null;
             var reactor = graphic.GetComponent<StateTintReactor>()
                           ?? graphic.gameObject.AddComponent<StateTintReactor>();
-            reactor.Configure(absolutes, modulates, fade, selectedBase, selected, authoredBase);
+            reactor.Configure(absolutes, modulates, fade, selectedBase, selected, authoredBase, ownsFill);
             return reactor;
         }
     }

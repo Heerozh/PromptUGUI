@@ -45,6 +45,7 @@ namespace PromptUGUI.Controls.Internal
         private ColorSpec _baseColor = ColorSpec.Solid(Color.white);
         private ColorSpec? _selectedBase;   // base while the source is selected (Tab/Toggle isOn); null ⇒ none
         private bool _selected;             // pushed by the owning control via SetSelected
+        private bool _ownsFill = true;      // false ⇒ fan-out reactor on a descendant: multiplier only
 
         private StateColorSet _absolutes;   // per-state ABSOLUTE base override (targetGraphic only)
         private StateColorSet _modulates;   // per-state relative MULTIPLIER (null entry = white identity)
@@ -89,9 +90,17 @@ namespace PromptUGUI.Controls.Internal
         /// current <c>color=</c> as <paramref name="authoredBase"/> and the base follows it; pass
         /// null and the first-init Peek stands.
         /// </summary>
+        /// <param name="ownsFill">
+        /// True for the control's <c>targetGraphic</c>, whose base / absolutes / selected base ARE its
+        /// fill. False for a fan-out reactor on a descendant: that graphic's fill (a child
+        /// <c>&lt;Frame color=&gt;</c>, or none at all for a hollow border Frame) belongs to its own
+        /// control and is never rewritten here — only the multiplier lands on it.
+        /// </param>
         public void Configure(StateColorSet absolutes, StateColorSet modulates, float fade,
-            ColorSpec? selectedBase = null, bool selected = false, ColorSpec? authoredBase = null)
+            ColorSpec? selectedBase = null, bool selected = false, ColorSpec? authoredBase = null,
+            bool ownsFill = true)
         {
+            _ownsFill = ownsFill;
             // The declaration wins over the pixels. Marking it captured also makes EnsureInit skip
             // its Peek on first init — the authored value is already the right answer there.
             if (authoredBase.HasValue)
@@ -228,6 +237,11 @@ namespace PromptUGUI.Controls.Internal
         /// a multiplier channel is not absolute at all — it darkens whatever is underneath, which on
         /// glass means tinting the blurred backdrop rather than the pane.</para>
         ///
+        /// <para>A fan-out reactor on a DESCENDANT panel (<c>_ownsFill</c> false) leaves the fill
+        /// alone entirely: the child's colour is the child's, and absolutes never fan out. Writing
+        /// the peeked base there painted every accent bar and hollow bracket Frame inside a
+        /// <c>&lt;Btn pressedModulate&gt;</c> opaque white.</para>
+        ///
         /// <para>So: absolutes drive the fill, modulates stay on the vertex colour. The one thing
         /// lost is the fade on an absolute change — the fill is a material parameter, and tweening it
         /// per frame would mint a material per frame through <c>ProceduralMaterialCache</c>. State
@@ -238,9 +252,11 @@ namespace PromptUGUI.Controls.Internal
         {
             if (_handle.IsActive()) _handle.TryCancel();
 
-            var basis = BaseFor(state);
-            _panel.SetFill(basis);
-            _panel.FlushParams();
+            if (_ownsFill)
+            {
+                _panel.SetFill(BaseFor(state));
+                _panel.FlushParams();
+            }
 
             var multiplier = MultiplierFor(state);
             var current = _graphic.color;
