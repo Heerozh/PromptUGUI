@@ -9,7 +9,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
 {
     /// <summary>
     /// Stop positions land in the material key, which is the only place they can be honoured: the
-    /// shader reads them per fragment. The vertex path cannot, and says so out loud.
+    /// shader reads them per fragment. The vertex path draws them too, by slicing the mesh at them
+    /// (VGS); only TMP text still cannot, and that is what says so out loud.
     /// </summary>
     public class GradientStopPanelTests
     {
@@ -121,7 +122,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
         }
 
-        // ── the vertex path says so ─────────────────────────────────────────────
+        // ── only TMP text still says so ─────────────────────────────────────────
 
         /// <summary>
         /// Captures warnings ourselves rather than through <c>LogAssert</c>: the interesting
@@ -146,9 +147,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
             => WarningsWhile(() => Load(body)).Exists(m => m.Contains("PUI-GRADIENT-STOP-NO-SURFACE"));
 
         [Test]
-        public void Image_WithStops_Warns()
+        public void Image_WithStops_IsQuiet()
         {
-            Assert.IsTrue(WarnedAboutStops("<Image id='g' color='#ff0000 70%,#0000ff'/>"));
+            Assert.IsFalse(WarnedAboutStops("<Image id='g' color='#ff0000 70%,#0000ff'/>"));
         }
 
         [Test]
@@ -164,10 +165,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Btn_WithoutProceduralAttrs_Warns()
+        public void Btn_WithoutProceduralAttrs_IsQuiet()
         {
-            // The colour lands on the plain Image; the surface never turned on.
-            Assert.IsTrue(WarnedAboutStops("<Btn id='b' color='#ff0000 70%,#0000ff'>ok</Btn>"));
+            // The colour lands on the plain Image; that path slices the mesh instead.
+            Assert.IsFalse(WarnedAboutStops("<Btn id='b' color='#ff0000 70%,#0000ff'>ok</Btn>"));
         }
 
         [Test]
@@ -177,15 +178,26 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Image_WithHint_Warns()
+        public void Image_WithHint_IsQuiet()
         {
-            Assert.IsTrue(WarnedAboutStops("<Image id='g' color='#ff0000, 70%, #0000ff'/>"));
+            Assert.IsFalse(WarnedAboutStops("<Image id='g' color='#ff0000, 70%, #0000ff'/>"));
         }
 
         [Test]
         public void Text_WithStops_Warns()
         {
             Assert.IsTrue(WarnedAboutStops("<Text id='t' color='#ff0000 70%,#0000ff'>hi</Text>"));
+        }
+
+        [Test]
+        public void Image_WithStops_KeepsThemOnTheTint()
+        {
+            // Quiet because it renders, not because it gave up: the tint carries the shape.
+            var tint = Load("<Image id='g' color='#ff0000 70%,#0000ff'/>")
+                .Get<PromptUGUI.Controls.Image>("g").GameObject.GetComponent<GradientTint>();
+            Assert.IsNotNull(tint);
+            Assert.IsTrue(tint.Spec.HasStops);
+            Assert.AreEqual(0.7f, tint.Spec.TopStop, 1e-5f);
         }
     }
 }

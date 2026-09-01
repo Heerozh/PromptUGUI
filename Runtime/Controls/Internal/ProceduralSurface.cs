@@ -134,10 +134,6 @@ namespace PromptUGUI.Controls.Internal
             else
             {
                 Restore();
-                // Decided, not guessed: the colour is going to the plain Image after all, so a stop
-                // position the author wrote has nowhere to live (spec 2026-08-30 §6.2).
-                if (_hasFill)
-                    GradientStopWarning.IfMoved(_fill, _host, "this control's color=");
             }
 
             if (_selectable != null)
