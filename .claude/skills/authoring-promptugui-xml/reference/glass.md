@@ -266,7 +266,7 @@ low tint alpha and the layout survives without the blur.
 
 ## Cost
 
-The capture is one fixed cost per frame — three blits at a quarter resolution on each axis — shared
+The capture is one fixed cost per frame — six blits at a quarter resolution on each axis — shared
 by every glass panel on screen, and it does not exist at all when no glass panel is visible. Glass
 panels of identical style share one material and batch, same as ordinary procedural Frames. Per
 panel, `dispersion > 0` is the only setting that meaningfully raises the fragment cost (three
