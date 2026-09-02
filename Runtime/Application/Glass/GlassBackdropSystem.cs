@@ -20,7 +20,7 @@ namespace PromptUGUI.Application.Glass
     /// first glass panel appears and stops it when the last one goes away — no glass on screen means
     /// no subscription, no render targets and no blit work at all.</para>
     ///
-    /// <para><b>One capture serves every panel.</b> The cost is a fixed three blits at quarter
+    /// <para><b>One capture serves every panel.</b> The cost is a fixed six blits at quarter
     /// resolution regardless of how many glass panels are on screen.</para>
     /// </summary>
     internal static class GlassBackdropSystem
@@ -33,16 +33,36 @@ namespace PromptUGUI.Application.Glass
         private const string BlurShaderPath = "PromptUGUI/Material/UI-GlassBlur";
 
         /// <summary>
-        /// Capture resolution divisor. A quarter on each axis is 1/16th the fragments, and the
-        /// bilinear downsample is itself most of the blur — this is what keeps the whole chain
-        /// under a third of a millisecond on mobile.
+        /// Capture resolution divisor. A quarter on each axis is 1/16th the fragments — this is
+        /// what keeps the whole chain under a third of a millisecond on mobile.
         /// </summary>
         private const int Downsample = 4;
 
-        // Kawase tap offsets, in texels of each step's own source.
-        private const float DownsampleTaps = 2f;
-        private const float LightBlurTaps = 2f;
-        private const float HeavyBlurTaps = 3.5f;
+        // Kawase tap offsets, in texels of each step's own source. Every blit is the same 4-tap
+        // kernel (UI-GlassBlur.shader), and a 4-tap kernel is only a blur while each tap's bilinear
+        // footprint reaches the next tap. Further apart than that it does not smear whatever is
+        // thinner than the gap, it copies it once per tap — one bright star over the world map
+        // came out as a 4x4 lattice of stars. (The same rule the ImageFx mip prefilter enforces,
+        // image-fx spec §14.1.) Two consequences, and the numbers below are the ones a per-texel
+        // rehearsal of the chain — bilinear semantics, 1D since every step is separable — found to
+        // leave a point light with no rise anywhere on its falloff:
+        //
+        //  * The downsample tap sits 1 SOURCE texel off the block centre, so its four 2x2 bilinear
+        //    reads tile the 4x4 block exactly — the box a mip level 2 would hold. At 2 texels the
+        //    reads land on the block's corners and the two middle rows / columns are never read at
+        //    all, so a small star blinked in and out as the map scrolled it across block edges.
+        //  * Same-resolution passes use half-texel offsets (n + 0.5): every tap then sits on a
+        //    texel corner and bilinear averages 2x2 for it, where an integer offset lands on texel
+        //    centres and degenerates to a point sample. The radius grows pass by pass, each
+        //    kernel's holes filled by the ones before it.
+        //
+        // A is the light frost (σ ≈ 3.5 screen px), B the heavy one (σ ≈ 16.5 px — what the old
+        // chain's radii added up to, minus the holes). The rehearsal rejected the textbook
+        // {0.5, 1.5, 2.5, 3.5}: a lone 1.5 pass straight after 0.5 still dips at the centre (0.29
+        // of peak), and the full sequence keeps a 3% ripple; three 1.5s before the 2.5 do not.
+        private const float DownsampleTaps = 1f;
+        private static readonly float[] LightBlurTaps = { 0.5f };
+        private static readonly float[] HeavyBlurTaps = { 1.5f, 1.5f, 1.5f, 2.5f };
 
         private static bool _active;
         private static GlassBackdropPass _pass;
@@ -56,11 +76,11 @@ namespace PromptUGUI.Application.Glass
         private static int _width;
         private static int _height;
 
-        // One material per step: the tap offset differs per blit, and a material each is both
+        // One material per blit: the tap offset differs per pass, and a material each is both
         // cheaper and safer than threading property blocks through the blit utility.
         private static Material _downsampleMat;
-        private static Material _lightMat;
-        private static Material _heavyMat;
+        private static Material[] _lightMats;
+        private static Material[] _heavyMats;
 
         private static bool _warnedNoCamera;
         private static bool _warnedNotUniversal;
@@ -191,8 +211,8 @@ namespace PromptUGUI.Application.Glass
                 var shader = Resources.Load<Shader>(BlurShaderPath);
                 if (shader == null) return false;
                 _downsampleMat = NewMaterial(shader);
-                _lightMat = NewMaterial(shader);
-                _heavyMat = NewMaterial(shader);
+                _lightMats = NewMaterials(shader, LightBlurTaps.Length);
+                _heavyMats = NewMaterials(shader, HeavyBlurTaps.Length);
             }
 
             var width = Mathf.Max(1, camera.pixelWidth / Downsample);
@@ -213,8 +233,8 @@ namespace PromptUGUI.Application.Glass
             // Tap offsets are expressed in each step's own source UV, so they have to be recomputed
             // whenever the resolution changes.
             SetOffset(_downsampleMat, DownsampleTaps, camera.pixelWidth, camera.pixelHeight);
-            SetOffset(_lightMat, LightBlurTaps, width, height);
-            SetOffset(_heavyMat, HeavyBlurTaps, width, height);
+            SetOffsets(_lightMats, LightBlurTaps, width, height);
+            SetOffsets(_heavyMats, HeavyBlurTaps, width, height);
 
             Shader.SetGlobalTexture(BackdropAId, _light.rt);
             Shader.SetGlobalTexture(BackdropBId, _heavy.rt);
@@ -223,6 +243,13 @@ namespace PromptUGUI.Application.Glass
 
         private static Material NewMaterial(Shader shader)
             => new(shader) { hideFlags = HideFlags.HideAndDontSave };
+
+        private static Material[] NewMaterials(Shader shader, int count)
+        {
+            var mats = new Material[count];
+            for (var i = 0; i < count; i++) mats[i] = NewMaterial(shader);
+            return mats;
+        }
 
         private static RTHandle AllocTarget(int width, int height,
             UnityEngine.Experimental.Rendering.GraphicsFormat format, string name)
@@ -235,6 +262,11 @@ namespace PromptUGUI.Application.Glass
         private static void SetOffset(Material mat, float taps, int sourceWidth, int sourceHeight)
             => mat.SetVector(BlurOffsetId,
                 new Vector4(taps / Mathf.Max(1, sourceWidth), taps / Mathf.Max(1, sourceHeight), 0f, 0f));
+
+        private static void SetOffsets(Material[] mats, float[] taps, int sourceWidth, int sourceHeight)
+        {
+            for (var i = 0; i < mats.Length; i++) SetOffset(mats[i], taps[i], sourceWidth, sourceHeight);
+        }
 
         private static void ReleaseTargets()
         {
@@ -249,8 +281,8 @@ namespace PromptUGUI.Application.Glass
         {
             ReleaseTargets();
             DestroyMaterial(ref _downsampleMat);
-            DestroyMaterial(ref _lightMat);
-            DestroyMaterial(ref _heavyMat);
+            DestroyMaterials(ref _lightMats);
+            DestroyMaterials(ref _heavyMats);
             _pass = null;
         }
 
@@ -260,6 +292,13 @@ namespace PromptUGUI.Application.Glass
             if (UnityEngine.Application.isPlaying) Object.Destroy(mat);
             else Object.DestroyImmediate(mat);
             mat = null;
+        }
+
+        private static void DestroyMaterials(ref Material[] mats)
+        {
+            if (mats == null) return;
+            for (var i = 0; i < mats.Length; i++) DestroyMaterial(ref mats[i]);
+            mats = null;
         }
 
         private static void WarnOnce(ref bool flag, string message)
@@ -283,8 +322,8 @@ namespace PromptUGUI.Application.Glass
         }
 
         /// <summary>
-        /// Downsample, blur, blur again — three blits at a sixteenth of the pixels, shared by every
-        /// glass panel on screen.
+        /// Downsample, the light passes into A, the heavy passes on into B — six blits at a
+        /// sixteenth of the pixels, shared by every glass panel on screen.
         /// </summary>
         private sealed class GlassBackdropPass : ScriptableRenderPass
         {
@@ -310,17 +349,34 @@ namespace PromptUGUI.Application.Glass
                 var heavy = renderGraph.ImportTexture(_heavy);
                 var scratch = renderGraph.ImportTexture(_scratch);
 
+                // The light passes must end in A and the heavy ones in B, bouncing off scratch in
+                // between — so the downsample lands wherever leaves A's last pass writing A.
+                var afterDownsample = LightBlurTaps.Length % 2 == 0 ? light : scratch;
                 renderGraph.AddBlitPass(
-                    new RenderGraphUtils.BlitMaterialParameters(source, light, _downsampleMat, 0),
+                    new RenderGraphUtils.BlitMaterialParameters(source, afterDownsample, _downsampleMat, 0),
                     "PromptUGUI Glass Downsample");
-                renderGraph.AddBlitPass(
-                    new RenderGraphUtils.BlitMaterialParameters(light, scratch, _lightMat, 0),
-                    "PromptUGUI Glass Blur");
-                renderGraph.AddBlitPass(
-                    new RenderGraphUtils.BlitMaterialParameters(scratch, heavy, _heavyMat, 0),
-                    "PromptUGUI Glass Blur Heavy");
+                Chain(renderGraph, _lightMats, afterDownsample, light, scratch, "PromptUGUI Glass Blur A");
+                Chain(renderGraph, _heavyMats, light, heavy, scratch, "PromptUGUI Glass Blur B");
 
                 GlassRuntime.SetBackdropAvailable(true);
+            }
+
+            /// <summary>
+            /// Runs the passes in order starting from <paramref name="from"/>, alternating between
+            /// <paramref name="final"/> and <paramref name="spare"/> so that the last one writes
+            /// <paramref name="final"/>.
+            /// </summary>
+            private static void Chain(RenderGraph renderGraph, Material[] mats, TextureHandle from,
+                TextureHandle final, TextureHandle spare, string name)
+            {
+                var src = from;
+                for (var i = 0; i < mats.Length; i++)
+                {
+                    var dst = (mats.Length - 1 - i) % 2 == 0 ? final : spare;
+                    renderGraph.AddBlitPass(
+                        new RenderGraphUtils.BlitMaterialParameters(src, dst, mats[i], 0), name);
+                    src = dst;
+                }
             }
         }
     }

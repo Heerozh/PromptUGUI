@@ -1,5 +1,8 @@
 // 玻璃 backdrop 的模糊核：Kawase 4-tap，一次 blit 一档。GlassBackdropSystem 把它串成
 // 「降采样 → 轻模糊(A) → 重模糊(B)」，玻璃 shader 再按 frost 在 A/B 之间插值。
+// tap 偏移由 C# 定（GlassBackdropSystem 常量处有推导）：每个 tap 的 bilinear 足迹必须够到
+// 相邻 tap —— 降采样偏移 1 个源纹素恰好拼成 4×4 box，同分辨率的 pass 用半纹素偏移让每个
+// tap 落在纹素角上。偏移一大，四个 tap 就不再是模糊而是四份复制。
 //
 // 刻意写成不含任何 URP / SRP 头文件的纯 CG：这个 shader 躺在 Runtime/Resources 里，会被
 // 每一个装了本包的工程导入。一旦 #include "Packages/com.unity.render-pipelines.core/..."，

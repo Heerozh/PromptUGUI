@@ -463,5 +463,192 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.Greater(c.g, 0.5f, $"a solid green panel must draw green, got {c}");
             Assert.Less(c.r, 0.2f, $"got {c}");
         }
+
+        // ---- Blur kernel ------------------------------------------------------------------------
+        //
+        // The capture chain is a stack of sparse 4-tap Kawase blits, and a sparse kernel only reads
+        // as a blur while every tap's bilinear footprint covers the gap to the next tap — the same
+        // rule the ImageFx mip prefilter enforces (image-fx spec §14.1). Taps further apart than
+        // their footprints do not smear a point light, they copy it, once per tap per pass, into a
+        // lattice of dots. These tests light a few pixels behind the glass and look at the result.
+
+        private const string FlatGlass = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='g' glass='true' anchor='stretch' frost='{0}' depth='0' lightIntensity='0'
+         noise='0' saturation='1'/>
+</Screen></PromptUGUI>";
+
+        /// <summary>
+        /// A black world with each camera kept to its own canvas. The orange world of the colour
+        /// tests would light every pixel of the row these tests measure; and both cameras sit at
+        /// the origin, so by default the capture camera also photographs the glass panel (a
+        /// harmless smear above, but these measure the exact shape of one blob) while the UI camera
+        /// would see the lit square. Moving the capture camera back past its own far plane
+        /// separates the two frustums.
+        /// </summary>
+        private void DarkIsolatedWorld()
+        {
+            _capture.backgroundColor = Color.black;
+            _capture.transform.position = new Vector3(0f, 0f, -_capture.farClipPlane - 100f);
+        }
+
+        /// <summary>
+        /// A white square drawn straight into the capture camera's picture, on a canvas of its own.
+        /// No scaler, so one unit is one device pixel and <paramref name="x"/> / <paramref name="y"/>
+        /// are the bottom-left pixel it covers.
+        /// </summary>
+        private GameObject NewWorldSquare(int x, int y, int size)
+        {
+            var root = new GameObject("WorldSquare");
+            var canvas = root.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceCamera;
+            canvas.worldCamera = _capture;
+            canvas.planeDistance = 10f;
+
+            var square = new GameObject("Square").AddComponent<UnityEngine.UI.Image>();
+            square.transform.SetParent(root.transform, false);
+            square.color = Color.white;
+            var rt = square.rectTransform;
+            rt.anchorMin = rt.anchorMax = Vector2.zero;
+            rt.pivot = Vector2.zero;
+            rt.anchoredPosition = new Vector2(x, y);
+            rt.sizeDelta = new Vector2(size, size);
+            return root;
+        }
+
+        /// <summary>Renders as <see cref="RenderAndSampleAt"/> does and returns one row's luminance.</summary>
+        private float[] RenderRow(int y, string dumpName)
+        {
+            Canvas.ForceUpdateCanvases();   // the square's canvas has to be laid out before it is captured
+            _capture.Render();
+            Canvas.ForceUpdateCanvases();
+            _ui.Render();
+
+            var tex = new Texture2D(Size, Size, TextureFormat.RGBA32, false);
+            var previous = RenderTexture.active;
+            RenderTexture.active = _uiRt;
+            tex.ReadPixels(new Rect(0, 0, Size, Size), 0, 0);
+            tex.Apply();
+            RenderTexture.active = previous;
+
+            var path = Path.Combine(UnityEngine.Application.temporaryCachePath, dumpName);
+            File.WriteAllBytes(path, tex.EncodeToPNG());
+            Debug.Log($"PromptUGUI glass render dump: {path}");
+
+            var row = new float[Size];
+            for (var x = 0; x < Size; x++) row[x] = Luma(tex.GetPixel(x, y));
+            Object.DestroyImmediate(tex);
+            return row;
+        }
+
+        private static int ArgMax(float[] row)
+        {
+            var best = 0;
+            for (var i = 1; i < row.Length; i++) if (row[i] > row[best]) best = i;
+            return best;
+        }
+
+        /// <summary>
+        /// Walks from the peak out to each edge and returns the largest rise after a fall: zero for
+        /// a kernel that only ever descends, most of the peak for a lattice of copies.
+        /// </summary>
+        private static float LargestClimbAwayFromPeak(float[] row, int peak)
+        {
+            var climb = 0f;
+            foreach (var step in new[] { 1, -1 })
+            {
+                var floor = row[peak];
+                for (var x = peak; x >= 0 && x < row.Length; x += step)
+                {
+                    floor = Mathf.Min(floor, row[x]);
+                    climb = Mathf.Max(climb, row[x] - floor);
+                }
+            }
+            return climb;
+        }
+
+        private static int WidthAbove(float[] row, float threshold)
+        {
+            int first = -1, last = -1;
+            for (var x = 0; x < row.Length; x++)
+            {
+                if (row[x] < threshold) continue;
+                if (first < 0) first = x;
+                last = x;
+            }
+            return first < 0 ? 0 : last - first + 1;
+        }
+
+        private static string Describe(float[] row, int around)
+        {
+            var sb = new System.Text.StringBuilder();
+            for (var x = Mathf.Max(0, around - 48); x < Mathf.Min(row.Length, around + 49); x++)
+                sb.Append(Mathf.RoundToInt(row[x] * 255f)).Append(' ');
+            return sb.ToString().TrimEnd();
+        }
+
+        [Test]
+        public void HeavyBlur_SmearsAPointIntoOneBlob_NotALattice()
+        {
+            // A 4x4 white square aligned to the capture's 4x4 downsample blocks — exactly one texel
+            // of the quarter-resolution backdrop — under the heaviest frost. Along the row through
+            // its middle a blur falls away from the peak monotonically on both sides. A kernel whose
+            // taps sit further apart than their footprints instead lays down copies of the square:
+            // the row dips and climbs back up, and that is the 4x4 grid of dots one bright star
+            // turns into over the world map.
+            DarkIsolatedWorld();
+            var square = NewWorldSquare(Size / 2, Size / 2, 4);
+            try
+            {
+                Open(string.Format(FlatGlass, "1"));
+                var row = RenderRow(Size / 2 + 1, "promptugui-glass-blur-point.png");
+                Assert.IsTrue(UI.Glass.IsActive, "the URP capture pass must have published a backdrop");
+
+                var peak = ArgMax(row);
+                Assert.Greater(row[peak], 0.02f, "the lit square must show through the glass, got a dark row");
+
+                var climb = LargestClimbAwayFromPeak(row, peak);
+                Assert.Less(climb, 2f / 255f,
+                    $"a blur only falls away from its peak, but this row climbs back by " +
+                    $"{climb * 255f:F1}/255 — the square is being copied per tap, not smeared. " +
+                    $"Row around the peak: {Describe(row, peak)}");
+                Assert.That(peak, Is.InRange(Size / 2 - 8, Size / 2 + 12),
+                    $"the blob must sit on the square, peak at x={peak}");
+
+                // And it has to be a blur, not the square drawn sharp.
+                Assert.Greater(WidthAbove(row, row[peak] * 0.1f), 24,
+                    $"the heavy frost should spread a 4px square well past 24px, row: {Describe(row, peak)}");
+            }
+            finally
+            {
+                Object.DestroyImmediate(square);
+            }
+        }
+
+        [Test]
+        public void Capture_SeesEveryPixel_NotJustBlockCorners()
+        {
+            // A 2x2 white square on the two middle columns and rows of a 4x4 downsample block. The
+            // downsample's four bilinear taps have to cover the whole block between them; taps that
+            // only read the block's corner pixels never see these two, and a star that small blinks
+            // in and out as the map scrolls it across block boundaries.
+            DarkIsolatedWorld();
+            var square = NewWorldSquare(Size / 2 + 1, Size / 2 + 1, 2);
+            try
+            {
+                Open(string.Format(FlatGlass, "0"));
+                var row = RenderRow(Size / 2 + 1, "promptugui-glass-blur-coverage.png");
+                Assert.IsTrue(UI.Glass.IsActive, "the URP capture pass must have published a backdrop");
+
+                var peak = ArgMax(row);
+                Assert.Greater(row[peak], 0.03f,
+                    $"a 2x2 square on a block's inner pixels never reached the backdrop; row around " +
+                    $"the square: {Describe(row, Size / 2 + 1)}");
+            }
+            finally
+            {
+                Object.DestroyImmediate(square);
+            }
+        }
     }
 }
