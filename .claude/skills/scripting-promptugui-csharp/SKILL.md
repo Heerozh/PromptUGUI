@@ -543,7 +543,12 @@ UI.Locale.SetToSystemDefault();
 
 // Strings extracted from code (these msgid land in the .po alongside XML strings)
 var text = string.Format(c, UI.Tr("Total: {0:C}"), price);
+
+// Inside an interpolation hole is fine — the extractor reads holes, so this msgid lands in the .po
+await MessageBox.Open($"{UI.Tr("Download failed:")}\n{e.Message}");
 ```
+
+**The extractor only sees `UI.Tr("...")` with a *literal* first argument.** `UI.Tr($"Hi {name}")` extracts nothing (there is no constant msgid to translate) — wrap the constant part instead: `string.Format(UI.Tr("Hi {0}"), name)`, or split the sentence across `$"{UI.Tr("...")}{value}"`. `ctx:` must be a literal too.
 
 Locale switching rides the Variant pipeline — already-open Screens auto-ReSolve. `UI.Locale.Set("zh-Hans")` internally registers `zh-Hans` as an active Variant; don't reuse that name for non-locale state.
 
