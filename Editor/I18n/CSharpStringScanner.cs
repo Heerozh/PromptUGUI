@@ -108,7 +108,18 @@ namespace PromptUGUI.Editor.I18n
         private static List<Tok> Tokenize(string src)
         {
             var toks = new List<Tok>();
-            var i = 0;
+            TokenizeInto(src, 0, toks, stopAtCloseBrace: false);
+            return toks;
+        }
+
+        // Appends tokens from `src` starting at `from`. With `stopAtCloseBrace`, returns
+        // at the first `}` that isn't opened inside this run — that's how an interpolation
+        // hole (`$"…{expr}…"`) delegates its expression back to the tokenizer, so `Tr(...)`
+        // calls inside a hole are ordinary tokens. Offsets stay absolute.
+        private static int TokenizeInto(string src, int from, List<Tok> toks, bool stopAtCloseBrace)
+        {
+            var i = from;
+            var braceDepth = 0;
             while (i < src.Length)
             {
                 var ch = src[i];
@@ -147,20 +158,7 @@ namespace PromptUGUI.Editor.I18n
                     if (i + 2 < src.Length && src[i + 1] == '"' && src[i + 2] == '"')
                     {
                         var start = i;
-                        var run = 0;
-                        while (i < src.Length && src[i] == '"') { run++; i++; }
-                        while (i < src.Length)
-                        {
-                            if (src[i] == '"')
-                            {
-                                var close = 0;
-                                var j = i;
-                                while (j < src.Length && src[j] == '"') { close++; j++; }
-                                if (close >= run) { i = j; break; }
-                                i = j;
-                            }
-                            else i++;
-                        }
+                        i = SkipRawString(src, i);
                         toks.Add(new Tok { Kind = TK.RawStr, Start = start });
                         continue;
                     }
@@ -260,23 +258,33 @@ namespace PromptUGUI.Editor.I18n
                         toks.Add(new Tok { Kind = TK.Other, Start = start });
                         continue;
                     }
+                    // `$"""raw"""` — skipped whole; holes there aren't scanned.
+                    if (i + 2 < src.Length && src[i + 1] == '"' && src[i + 2] == '"')
+                    {
+                        i = SkipRawString(src, i);
+                        toks.Add(new Tok { Kind = TK.RawStr, Start = start });
+                        continue;
+                    }
                     i++;
-                    var depth = 0;
+                    // The literal itself is never a msgid (holes make it non-constant),
+                    // but each hole's expression is tokenized inline right after it.
+                    toks.Add(new Tok { Kind = TK.InterpolatedStr, Start = start });
                     while (i < src.Length)
                     {
                         var c = src[i];
                         if (c == '{')
                         {
                             if (i + 1 < src.Length && src[i + 1] == '{') { i += 2; continue; }
-                            depth++; i++; continue;
+                            i = TokenizeInto(src, i + 1, toks, stopAtCloseBrace: true);
+                            if (i < src.Length && src[i] == '}') i++;
+                            continue;
                         }
                         if (c == '}')
                         {
                             if (i + 1 < src.Length && src[i + 1] == '}') { i += 2; continue; }
-                            if (depth > 0) { depth--; i++; continue; }
                             i++; continue;
                         }
-                        if (depth == 0 && c == '"')
+                        if (c == '"')
                         {
                             if (verbatim && i + 1 < src.Length && src[i + 1] == '"') { i += 2; continue; }
                             i++;
@@ -286,7 +294,6 @@ namespace PromptUGUI.Editor.I18n
                         if (!verbatim && (c == '\n' || c == '\r')) break;
                         i++;
                     }
-                    toks.Add(new Tok { Kind = TK.InterpolatedStr, Start = start });
                     continue;
                 }
 
@@ -335,8 +342,17 @@ namespace PromptUGUI.Editor.I18n
                 {
                     case '(': toks.Add(new Tok { Kind = TK.OpenParen, Start = i }); i++; break;
                     case ')': toks.Add(new Tok { Kind = TK.CloseParen, Start = i }); i++; break;
-                    case '{': toks.Add(new Tok { Kind = TK.OpenBrace, Start = i }); i++; break;
-                    case '}': toks.Add(new Tok { Kind = TK.CloseBrace, Start = i }); i++; break;
+                    case '{':
+                        braceDepth++;
+                        toks.Add(new Tok { Kind = TK.OpenBrace, Start = i });
+                        i++;
+                        break;
+                    case '}':
+                        if (stopAtCloseBrace && braceDepth == 0) return i;
+                        if (braceDepth > 0) braceDepth--;
+                        toks.Add(new Tok { Kind = TK.CloseBrace, Start = i });
+                        i++;
+                        break;
                     case '[': toks.Add(new Tok { Kind = TK.OpenBracket, Start = i }); i++; break;
                     case ']': toks.Add(new Tok { Kind = TK.CloseBracket, Start = i }); i++; break;
                     case ';': toks.Add(new Tok { Kind = TK.Semi, Start = i }); i++; break;
@@ -361,7 +377,28 @@ namespace PromptUGUI.Editor.I18n
                         break;
                 }
             }
-            return toks;
+            return i;
+        }
+
+        // `i` points at the first quote of a `"""…"""` run; returns the index just past
+        // the closing run (a run of at least as many quotes as the opener).
+        private static int SkipRawString(string src, int i)
+        {
+            var run = 0;
+            while (i < src.Length && src[i] == '"') { run++; i++; }
+            while (i < src.Length)
+            {
+                if (src[i] == '"')
+                {
+                    var close = 0;
+                    var j = i;
+                    while (j < src.Length && src[j] == '"') { close++; j++; }
+                    if (close >= run) return j;
+                    i = j;
+                }
+                else i++;
+            }
+            return i;
         }
 
         private static int NextSig(List<Tok> toks, int from)

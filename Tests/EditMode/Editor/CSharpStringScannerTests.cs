@@ -120,6 +120,72 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Scan_TrInsideInterpolationHole_Extracted()
+        {
+            var src = @"
+                class X {
+                    void R(System.Exception e) {
+                        var s = $""{UI.Tr(""下载星图失败:"")}\n{e.Message}"";
+                    }
+                }";
+            var es = CSharpStringScanner.Scan(src, "X.cs").Single();
+            Assert.AreEqual("下载星图失败:", es.Msgid);
+            Assert.IsTrue(es.ExtractedComments.Any(c => c.Contains("R")));
+        }
+
+        [Test]
+        public void Scan_TwoTrCallsInOneInterpolatedString_BothExtracted()
+        {
+            var src = "class X { void R(int n) { var s = $\"{UI.Tr(\"a\")} {n} {UI.Tr(\"b\", ctx: \"c\")}\"; } }";
+            var found = CSharpStringScanner.Scan(src, "X.cs").ToList();
+            CollectionAssert.AreEquivalent(new[] { "a", "b" }, found.Select(e => e.Msgid).ToList());
+            Assert.AreEqual("c", found.Single(e => e.Msgid == "b").Msgctxt);
+        }
+
+        [Test]
+        public void Scan_TrInHoleOfVerbatimInterpolatedString_Extracted()
+        {
+            var src = "class X { void R() { var s = $@\"[{UI.Tr(\"x\")}]\"; } }";
+            var es = CSharpStringScanner.Scan(src, "X.cs").Single();
+            Assert.AreEqual("x", es.Msgid);
+        }
+
+        [Test]
+        public void Scan_TrInNestedInterpolationHole_Extracted()
+        {
+            var src = "class X { void R(int n) { var s = $\"{(n > 0 ? $\"{UI.Tr(\"inner\")}\" : \"\")}\"; } }";
+            var found = CSharpStringScanner.Scan(src, "X.cs").ToList();
+            Assert.AreEqual(1, found.Count);
+            Assert.AreEqual("inner", found[0].Msgid);
+        }
+
+        [Test]
+        public void Scan_BraceInsideHoleStringLiteral_DoesNotEndHoleEarly()
+        {
+            var src = "class X { void R() { var s = $\"{UI.Tr(\"a}b\")}\"; var t = UI.Tr(\"after\"); } }";
+            var found = CSharpStringScanner.Scan(src, "X.cs").ToList();
+            CollectionAssert.AreEquivalent(new[] { "a}b", "after" }, found.Select(e => e.Msgid).ToList());
+        }
+
+        [Test]
+        public void Scan_EscapedBracesInInterpolatedString_NotTreatedAsHole()
+        {
+            var src = "class X { void R() { var s = $\"{{ not a hole }}\"; var t = UI.Tr(\"after\"); } }";
+            var found = CSharpStringScanner.Scan(src, "X.cs").ToList();
+            Assert.AreEqual(1, found.Count);
+            Assert.AreEqual("after", found[0].Msgid);
+        }
+
+        [Test]
+        public void Scan_FormatSpecifierInHole_NotExtracted()
+        {
+            var src = "class X { void R(float v) { var s = $\"{v:F2} {UI.Tr(\"unit\")}\"; } }";
+            var found = CSharpStringScanner.Scan(src, "X.cs").ToList();
+            Assert.AreEqual(1, found.Count);
+            Assert.AreEqual("unit", found[0].Msgid);
+        }
+
+        [Test]
         public void Scan_StringContainingDoubleSlash_NotTreatedAsComment()
         {
             var src = "class X { void R() { var fake = \"// not a comment\"; var s = UI.Tr(\"real\"); } }";
