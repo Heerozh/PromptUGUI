@@ -65,6 +65,14 @@ namespace PromptUGUI.Application
         /// </summary>
         internal static bool RenderOutsidePlayModeForTests { get; set; }
 
+        /// <summary>
+        /// Replaces the colour transform the capture applies while downsampling (see
+        /// <c>GlassBackdropDecode</c>). Only the render tests set this: the real transform is
+        /// derived from the HDR display state, which no test can switch on, so they substitute a
+        /// matrix of their own to prove the capture actually applies one.
+        /// </summary>
+        internal static Matrix4x4? BackdropDecodeOverrideForTests { get; set; }
+
         internal static void PanelActivated()
         {
             _activePanels++;
@@ -168,6 +176,7 @@ namespace PromptUGUI.Application
             _enabled = true;
             Camera = null;
             RenderOutsidePlayModeForTests = false;
+            BackdropDecodeOverrideForTests = null;
             SyncCapture();
             _backdropAvailable = false;
             _lastPublishFrame = int.MinValue;
