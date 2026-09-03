@@ -650,5 +650,42 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 Object.DestroyImmediate(square);
             }
         }
+
+        // ---- HDR display decode -----------------------------------------------------------------
+        //
+        // On an HDR display URP hands the capture over already prepared for the display — rotated
+        // into its gamut and scaled to paper-white nits — and the overlay UI the glass draws into
+        // gets that same treatment again at compositing. The capture undoes it once with a matrix
+        // on the downsample blit. GlassBackdropDecodeTests derive the matrix; this proves the blit
+        // applies whatever matrix it is given, which no HDR-less test rig can otherwise observe.
+
+        [Test]
+        public void BackdropDecode_IsAppliedToTheCapture()
+        {
+            // The capture camera moved back past its own far plane photographs nothing but its
+            // flat orange background — a picture whose every channel is known exactly.
+            _capture.transform.position = new Vector3(0f, 0f, -_capture.farClipPlane - 100f);
+            Open(string.Format(FlatGlass, "0"));
+
+            var plain = RenderAndSample().linear;
+            Assert.IsTrue(UI.Glass.IsActive, "the URP capture pass must have published a backdrop");
+            Assert.Greater(plain.r, plain.b, $"the orange world has red over blue, got {plain}");
+
+            // Swap red with blue and halve green: every channel has to move, each by its own rule.
+            var swapAndHalve = Matrix4x4.identity;
+            swapAndHalve.m00 = 0f; swapAndHalve.m02 = 1f;
+            swapAndHalve.m11 = 0.5f;
+            swapAndHalve.m20 = 1f; swapAndHalve.m22 = 0f;
+            GlassRuntime.BackdropDecodeOverrideForTests = swapAndHalve;
+
+            var decoded = RenderAndSample("promptugui-glass-decode.png").linear;
+
+            Assert.AreEqual(plain.r, decoded.b, 0.03f,
+                $"red should have moved into blue; plain {plain}, decoded {decoded}");
+            Assert.AreEqual(plain.b, decoded.r, 0.03f,
+                $"blue should have moved into red; plain {plain}, decoded {decoded}");
+            Assert.AreEqual(plain.g * 0.5f, decoded.g, 0.03f,
+                $"green should have halved; plain {plain}, decoded {decoded}");
+        }
     }
 }

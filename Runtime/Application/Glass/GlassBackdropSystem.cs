@@ -22,6 +22,13 @@ namespace PromptUGUI.Application.Glass
     ///
     /// <para><b>One capture serves every panel.</b> The cost is a fixed six blits at quarter
     /// resolution regardless of how many glass panels are on screen.</para>
+    ///
+    /// <para><b>HDR displays need one extra matrix.</b> Under URP's HDR Output the post-processed
+    /// picture is already rotated into the display's gamut and scaled to paper-white nits, and the
+    /// overlay UI is put through that same transform again at compositing. The downsample blit
+    /// multiplies by the inverse (<see cref="GlassBackdropDecode"/>) so a glass panel reads as the
+    /// scene behind it rather than as a white slab. On an SDR display the matrix is the
+    /// identity.</para>
     /// </summary>
     internal static class GlassBackdropSystem
     {
@@ -29,8 +36,17 @@ namespace PromptUGUI.Application.Glass
         private static readonly int BackdropAId = Shader.PropertyToID("_PUGUI_GlassBackdropA");
         private static readonly int BackdropBId = Shader.PropertyToID("_PUGUI_GlassBackdropB");
         private static readonly int BlurOffsetId = Shader.PropertyToID("_BlurOffset");
+        private static readonly int DecodeId = Shader.PropertyToID("_BackdropDecode");
 
         private const string BlurShaderPath = "PromptUGUI/Material/UI-GlassBlur";
+
+        // UI-GlassBlur.shader: pass 0 is the bare Kawase kernel, pass 1 the same kernel followed by
+        // the _BackdropDecode colour matrix. Only the downsample runs the matrix — it is the one
+        // blit that reads the camera's picture, and the matrix is what puts an HDR display's
+        // display-ready picture back into the space the overlay UI is composited in
+        // (GlassBackdropDecode has the whole story). On an SDR display it is the identity.
+        private const int BlurPass = 0;
+        private const int DownsampleDecodePass = 1;
 
         /// <summary>
         /// Capture resolution divisor. A quarter on each axis is 1/16th the fragments — this is
@@ -81,6 +97,10 @@ namespace PromptUGUI.Application.Glass
         private static Material _downsampleMat;
         private static Material[] _lightMats;
         private static Material[] _heavyMats;
+        // What _downsampleMat currently carries as _BackdropDecode; re-derived every frame so a
+        // display switching HDR on or off, or a Tonemapping override changing paper white, takes
+        // effect at once. Only pushed to the material when it actually changes.
+        private static Matrix4x4 _decode = Matrix4x4.identity;
 
         private static bool _warnedNoCamera;
         private static bool _warnedNotUniversal;
@@ -213,6 +233,9 @@ namespace PromptUGUI.Application.Glass
                 _downsampleMat = NewMaterial(shader);
                 _lightMats = NewMaterials(shader, LightBlurTaps.Length);
                 _heavyMats = NewMaterials(shader, HeavyBlurTaps.Length);
+                // A matrix uniform nobody has set is not the identity; start from one explicitly.
+                _decode = Matrix4x4.identity;
+                _downsampleMat.SetMatrix(DecodeId, _decode);
             }
 
             var width = Mathf.Max(1, camera.pixelWidth / Downsample);
@@ -266,6 +289,47 @@ namespace PromptUGUI.Application.Glass
         private static void SetOffsets(Material[] mats, float[] taps, int sourceWidth, int sourceHeight)
         {
             for (var i = 0; i < mats.Length; i++) SetOffset(mats[i], taps[i], sourceWidth, sourceHeight);
+        }
+
+        /// <summary>
+        /// The colour matrix this frame's downsample has to apply. The two gates mirror the ones
+        /// URP's own LUT pass converts for the display under (<c>ColorGradingLutPass</c>:
+        /// <c>isHDROutputActive</c>, and post-processing on for this camera) — the capture reads
+        /// what that pass, through Uber, left in the colour buffer, so it must undo exactly what
+        /// was applied and nothing else. On an SDR display, or with post-processing off, that is
+        /// nothing.
+        /// </summary>
+        private static Matrix4x4 DecodeFor(UniversalCameraData cameraData)
+        {
+            var overrideForTests = GlassRuntime.BackdropDecodeOverrideForTests;
+            if (overrideForTests.HasValue) return overrideForTests.Value;
+
+            var hdrOutput = cameraData.isHDROutputActive;
+            var postProcessed = cameraData.postProcessEnabled;
+            if (!hdrOutput || !postProcessed) return Matrix4x4.identity;
+
+            return GlassBackdropDecode.For(hdrOutput, postProcessed,
+                                           cameraData.hdrDisplayColorGamut, PaperWhiteNits(cameraData));
+        }
+
+        /// <summary>
+        /// The paper white URP scales both the graded scene and the overlay UI by — mirrors its
+        /// internal <c>GetHDROutputLuminanceParameters</c>: the Tonemapping override's value
+        /// (300 nits by default) unless it asks for the display's own. Read from the volume stack
+        /// URP has already evaluated for this camera, the same one the post-processing pass reads.
+        /// </summary>
+        private static float PaperWhiteNits(UniversalCameraData cameraData)
+        {
+            var tonemapping = VolumeManager.instance.stack?.GetComponent<Tonemapping>();
+            if (tonemapping != null && !tonemapping.detectPaperWhite.value) return tonemapping.paperWhite.value;
+            return cameraData.hdrDisplayInformation.paperWhiteNits;
+        }
+
+        private static void ApplyDecode(Matrix4x4 decode)
+        {
+            if (decode == _decode) return;
+            _decode = decode;
+            _downsampleMat.SetMatrix(DecodeId, decode);
         }
 
         private static void ReleaseTargets()
@@ -345,6 +409,8 @@ namespace PromptUGUI.Application.Glass
                 var source = resources.activeColorTexture;
                 if (!source.IsValid()) return;
 
+                ApplyDecode(DecodeFor(frameData.Get<UniversalCameraData>()));
+
                 var light = renderGraph.ImportTexture(_light);
                 var heavy = renderGraph.ImportTexture(_heavy);
                 var scratch = renderGraph.ImportTexture(_scratch);
@@ -353,7 +419,8 @@ namespace PromptUGUI.Application.Glass
                 // between — so the downsample lands wherever leaves A's last pass writing A.
                 var afterDownsample = LightBlurTaps.Length % 2 == 0 ? light : scratch;
                 renderGraph.AddBlitPass(
-                    new RenderGraphUtils.BlitMaterialParameters(source, afterDownsample, _downsampleMat, 0),
+                    new RenderGraphUtils.BlitMaterialParameters(source, afterDownsample, _downsampleMat,
+                                                                DownsampleDecodePass),
                     "PromptUGUI Glass Downsample");
                 Chain(renderGraph, _lightMats, afterDownsample, light, scratch, "PromptUGUI Glass Blur A");
                 Chain(renderGraph, _heavyMats, light, heavy, scratch, "PromptUGUI Glass Blur B");
@@ -374,7 +441,7 @@ namespace PromptUGUI.Application.Glass
                 {
                     var dst = (mats.Length - 1 - i) % 2 == 0 ? final : spare;
                     renderGraph.AddBlitPass(
-                        new RenderGraphUtils.BlitMaterialParameters(src, dst, mats[i], 0), name);
+                        new RenderGraphUtils.BlitMaterialParameters(src, dst, mats[i], BlurPass), name);
                     src = dst;
                 }
             }

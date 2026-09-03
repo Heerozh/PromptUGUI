@@ -59,7 +59,10 @@ starts reading as a coloured panel with a blur behind it.
 
 The backdrop is **the capture camera's finished image**: the game world plus every Screen
 Space-Camera canvas on that camera. It is captured after post-processing, so glass shows the graded
-picture the player sees.
+picture the player sees. That holds on an HDR display too (URP HDR Output): URP hands the
+post-processed picture over already converted for the display — its gamut, its paper-white nits —
+and the capture converts it back into the space overlay UI is composited in, so the glass matches
+the scene behind it instead of turning into a white slab. Nothing to configure.
 
 **Overlay canvases are not in it.** uGUI has no grab pass, so a glass panel can never see its own
 siblings on the same Overlay canvas.
