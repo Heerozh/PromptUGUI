@@ -14,7 +14,12 @@ namespace PromptUGUI.Editor.I18n
 {
     internal static class StringExtractor
     {
-        private const string DefaultOutputRoot = "Assets/Resources/PromptUGUI/i18n";
+        /// <summary>
+        /// Where extraction writes when nothing tells it otherwise. Shared with
+        /// <c>TranslateLocaleWindow</c> so "where the window looks" can never drift
+        /// from "where Extract writes".
+        /// </summary>
+        internal const string DefaultOutputRoot = "Assets/Resources/PromptUGUI/i18n";
 
         [MenuItem("Tools/PromptUGUI/I18n/1. Extract Strings")]
         public static void ExtractAll()
@@ -46,7 +51,10 @@ namespace PromptUGUI.Editor.I18n
             // to Resources/ when the runtime resolver is the Resources fallback —
             // that contract is the user's responsibility once they opt in to
             // UseAddressableResolver().
-            var labelledByLocale = CollectAddressablePoPathsByLocale();
+            // Folders owned by external tools (spec 2026-09-04 EPR): excluded from the
+            // output-folder election and from orphan reporting, included everywhere else.
+            var externalRoots = settings.externalPoRoots;
+            var labelledByLocale = CollectAddressablePoPathsByLocale(externalRoots);
 
             var activePartitions = new HashSet<string>(byPartition.Keys);
             var writtenPaths = new List<string>();
@@ -76,7 +84,7 @@ namespace PromptUGUI.Editor.I18n
                     File.WriteAllText(path, merged);
                     writtenPaths.Add(path);
                 }
-                orphanCount += ReportOrphanPoFiles(localeDir, activePartitions);
+                orphanCount += ReportOrphanPoFiles(localeDir, activePartitions, externalRoots);
             }
             // Targeted import instead of bulk AssetDatabase.Refresh(): unrelated
             // stale assets in the project can otherwise log "File couldn't be read"
@@ -97,13 +105,21 @@ namespace PromptUGUI.Editor.I18n
         // Pure helper: which .po files under <localeDir> no longer correspond to
         // a partition produced by the current scan. Paths are returned as given
         // (caller-supplied paths), only the relative-key lookup normalizes separators.
+        // <paramref name="externalRoots"/> (PromptUGUISettings.externalPoRoots) are
+        // skipped outright — those files come from tools outside this project and are
+        // never expected to match a partition. The check lives here rather than in the
+        // caller because ReportOrphanPoFiles scans <localeDir> recursively, so an
+        // external root nested inside it (e.g. <localeDir>/_server/) reaches this list.
         internal static IEnumerable<string> FindOrphanPoFiles(
-            IEnumerable<string> poFilePaths, string localeDir, ISet<string> activePartitions)
+            IEnumerable<string> poFilePaths, string localeDir, ISet<string> activePartitions,
+            IEnumerable<string> externalRoots = null)
         {
             var prefixLen = localeDir.Length + 1;
+            var roots = externalRoots == null ? null : new List<string>(externalRoots);
             foreach (var poPath in poFilePaths)
             {
                 var normalized = poPath.Replace('\\', '/');
+                if (AddressablePoLabelSyncer.IsUnderAnyRoot(normalized, roots)) continue;
                 if (normalized.Length <= prefixLen) continue;
                 var rel = normalized.Substring(prefixLen);
                 if (rel.EndsWith(".po")) rel = rel.Substring(0, rel.Length - 3);
@@ -111,12 +127,14 @@ namespace PromptUGUI.Editor.I18n
             }
         }
 
-        private static int ReportOrphanPoFiles(string localeDir, ISet<string> activePartitions)
+        private static int ReportOrphanPoFiles(
+            string localeDir, ISet<string> activePartitions, IEnumerable<string> externalRoots)
         {
             if (!Directory.Exists(localeDir)) return 0;
             var poFiles = Directory.GetFiles(localeDir, "*.po", SearchOption.AllDirectories);
             var count = 0;
-            foreach (var poPath in FindOrphanPoFiles(poFiles, localeDir, activePartitions))
+            foreach (var poPath in FindOrphanPoFiles(
+                         poFiles, localeDir, activePartitions, externalRoots))
             {
                 Debug.LogError(
                     $"[PromptUGUI] Orphan .po file: {poPath.Replace('\\', '/')} — " +
@@ -126,12 +144,20 @@ namespace PromptUGUI.Editor.I18n
             return count;
         }
 
-        private static Dictionary<string, List<string>> CollectAddressablePoPathsByLocale()
+        /// <summary>
+        /// Every Addressables-labelled <c>.po</c> path in the project, bucketed by the
+        /// locale its <c>Locale:&lt;locale&gt;</c> label names, minus anything under
+        /// <paramref name="externalRoots"/>. Shared with <c>TranslateLocaleWindow</c>
+        /// so both resolve the same locale folder. Empty when Addressables isn't installed.
+        /// </summary>
+        internal static Dictionary<string, List<string>> CollectAddressablePoPathsByLocale(
+            IEnumerable<string> externalRoots = null)
         {
             var result = new Dictionary<string, List<string>>();
 #if PROMPTUGUI_HAS_ADDRESSABLES
             var aa = AddressableAssetSettingsDefaultObject.Settings;
             if (aa == null) return result;
+            var roots = externalRoots == null ? null : new List<string>(externalRoots);
             foreach (var group in aa.groups)
             {
                 if (group == null) continue;
@@ -141,6 +167,9 @@ namespace PromptUGUI.Editor.I18n
                     var path = entry.AssetPath;
                     if (string.IsNullOrEmpty(path) ||
                         !path.EndsWith(".po", System.StringComparison.OrdinalIgnoreCase)) continue;
+                    // External .po must not join the output-folder election, or a root
+                    // whose name sorts earlier would silently redirect extraction output.
+                    if (AddressablePoLabelSyncer.IsUnderAnyRoot(path, roots)) continue;
                     foreach (var label in entry.labels)
                     {
                         if (string.IsNullOrEmpty(label) ||

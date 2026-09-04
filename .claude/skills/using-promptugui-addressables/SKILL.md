@@ -58,6 +58,8 @@ Run `Tools → PromptUGUI → I18n → Setup Addressables for Locale PO Files`. 
 
 Non-`Locale` labels you've set yourself (e.g. `UI`, `Stage:1-1`) are preserved.
 
+`.po` sitting under a `PromptUGUISettings.externalPoRoots` folder are labelled like any other — those roots only exclude folders from *extraction*. See **scripting-promptugui-csharp** -> ".po produced by external tools".
+
 ## Icon atlases via Addressables
 
 Tag your SpriteSet assets in Addressables with a label (default: `SpriteSets`). Addressables auto-pulls each referenced SpriteAtlas as a dependency.

@@ -569,6 +569,10 @@ dropdown.BindOptions(LocaleTicks.Select(_ => (IEnumerable<string>)
 
 **.po file location (Resources-backed)**: by default `.po` files live in `Assets/Resources/PromptUGUI/i18n/<locale>/` or `/PromptUGUI/i18n-custom/<locale>/`. Files anywhere under those paths are picked up by `Resources.LoadAll<TextAsset>`; subfolder names are ignored.
 
+**.po produced by external tools**: list their folders in `PromptUGUISettings.externalPoRoots` (project-relative, e.g. `Assets/_Project/i18n_server`). Use this for strings your project's extractor cannot see — typically a game server exporting player-visible text (faction names, generated place names) that reaches the client as `UI.Tr(someVariable)`. Semantics: **excluded from extraction, included everywhere else.** `Tools → PromptUGUI → I18n → 1. Extract Strings` neither writes into those folders, lets them win the output-folder election, nor reports their files as orphans; Addressables labelling, `2. AI Translate Locale...` and the runtime loader treat them exactly like your own `.po`. The layout rule is unchanged — files must still sit at `<root>/<locale>/*.po`, or they get no `Locale:` label. Default is an empty list, i.e. no behaviour change.
+
+> External tools must write their **own** files. Writing extra entries into a partition file that extraction owns (e.g. `_code.po`) still loses them on the next extract — `PoFileWriter.Merge` drops anything the current scan didn't produce.
+
 For Addressables-backed `.po` loading (`UI.Locale.UseAddressableResolver`, `Locale:<locale>` labels, `SetAsync`), see **using-promptugui-addressables**.
 
 ## Theme switching

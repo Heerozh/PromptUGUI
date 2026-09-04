@@ -162,6 +162,30 @@ namespace PromptUGUI.Tests.Addressables
                 "Repeated calls must converge to a single Locale: label.");
         }
 
+        [Test]
+        public void Make_labels_files_under_an_externalPoRoot_too()
+        {
+            // "Exclusion happens only during extraction" (spec 2026-09-04 EPR §3.3):
+            // labelling must stay blind to externalPoRoots, or server-produced .po
+            // would never ship.
+            var externalRoot = $"{FixturesRoot}/_server";
+            var poPath = WriteNestedPo("_server/zh-Hans", "systems.txt");
+            Assert.IsTrue(
+                AddressablePoLabelSyncer.IsUnderAnyRoot(poPath, new[] { externalRoot }),
+                "Pre-condition: the fixture really does sit under the external root, " +
+                "so this test would catch a leak of the extraction-side filter into " +
+                "MakeLocalePoFilesAddressable.");
+
+            AddressablePoLabelSyncer.MakeLocalePoFilesAddressable(
+                new[] { poPath }, Locales);
+
+            var settings = AddressableAssetSettingsDefaultObject.Settings;
+            var entry = settings.FindAssetEntry(AssetDatabase.AssetPathToGUID(poPath));
+            Assert.IsNotNull(entry, "External .po must still be made Addressable.");
+            Assert.IsTrue(entry.labels.Contains("Locale:zh-Hans"),
+                "External .po must still receive the Locale:<locale> label the runtime loads by.");
+        }
+
         private static string WritePo(string subfolder, string fileName)
         {
             // Use AssetDatabase.CreateFolder so Unity discovers the subdir without a
@@ -172,6 +196,25 @@ namespace PromptUGUI.Tests.Addressables
             if (!AssetDatabase.IsValidFolder(folder))
                 AssetDatabase.CreateFolder(FixturesRoot, subfolder);
 
+            var assetPath = $"{folder}/{fileName}";
+            File.WriteAllText(
+                Path.Combine(UnityEngine.Application.dataPath, "..", assetPath), "fixture\n");
+            AssetDatabase.ImportAsset(assetPath);
+            return assetPath;
+        }
+
+        /// <summary>Same as <see cref="WritePo"/> but creates a multi-segment
+        /// subfolder chain (e.g. "_server/zh-Hans") one level at a time.</summary>
+        private static string WriteNestedPo(string relFolder, string fileName)
+        {
+            var folder = FixturesRoot;
+            foreach (var segment in relFolder.Split('/'))
+            {
+                var next = $"{folder}/{segment}";
+                if (!AssetDatabase.IsValidFolder(next))
+                    AssetDatabase.CreateFolder(folder, segment);
+                folder = next;
+            }
             var assetPath = $"{folder}/{fileName}";
             File.WriteAllText(
                 Path.Combine(UnityEngine.Application.dataPath, "..", assetPath), "fixture\n");
