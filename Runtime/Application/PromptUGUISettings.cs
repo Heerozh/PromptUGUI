@@ -26,6 +26,12 @@ namespace PromptUGUI.Application
         public List<string> fontTypes = new() { "default" };
         public List<LocaleConfig> locales = new();
 
+        [Tooltip("Project-relative folders holding .po files produced by external tools " +
+                 "(e.g. a game server exporting runtime-provided strings). Extraction never " +
+                 "writes to or reports on them; labelling and translation still include them. " +
+                 "Files must still sit under a '<locale>' folder: <root>/<locale>/*.po")]
+        public List<string> externalPoRoots = new();
+
         /// <summary>Resolved font + optional material preset for a (locale, type) pair.</summary>
         internal readonly struct FontResolution
         {

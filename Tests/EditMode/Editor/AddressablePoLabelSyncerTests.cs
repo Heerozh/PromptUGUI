@@ -1,3 +1,4 @@
+using System.Linq;
 using NUnit.Framework;
 using PromptUGUI.Editor.I18n;
 
@@ -275,6 +276,147 @@ namespace PromptUGUI.Tests.Editor
                 out var detected);
             Assert.AreEqual("Assets/Resources/PromptUGUI/i18n/zh-Hans", dir);
             Assert.IsEmpty(detected);
+        }
+
+        // ---- externalPoRoots (spec 2026-09-04 EPR) ----
+
+        private static readonly string[] ServerRoot = { "Assets/_Project/i18n_server" };
+
+        [Test]
+        public void IsUnderAnyRoot_returns_true_for_file_directly_under_root()
+        {
+            Assert.IsTrue(AddressablePoLabelSyncer.IsUnderAnyRoot(
+                "Assets/_Project/i18n_server/en/systems.po", ServerRoot));
+        }
+
+        [Test]
+        public void IsUnderAnyRoot_returns_true_for_deeply_nested_file()
+        {
+            Assert.IsTrue(AddressablePoLabelSyncer.IsUnderAnyRoot(
+                "Assets/_Project/i18n_server/en/galaxy/names.po", ServerRoot));
+        }
+
+        [Test]
+        public void IsUnderAnyRoot_returns_true_when_path_equals_root()
+        {
+            Assert.IsTrue(AddressablePoLabelSyncer.IsUnderAnyRoot(
+                "Assets/_Project/i18n_server", ServerRoot),
+                "The root folder itself counts as under the root.");
+        }
+
+        [Test]
+        public void IsUnderAnyRoot_respects_folder_boundaries()
+        {
+            Assert.IsFalse(AddressablePoLabelSyncer.IsUnderAnyRoot(
+                "Assets/_Project/i18n_server_old/en/x.po", ServerRoot),
+                "A sibling folder sharing the root's name as a string prefix is NOT under it.");
+        }
+
+        [Test]
+        public void IsUnderAnyRoot_returns_false_for_unrelated_path()
+        {
+            Assert.IsFalse(AddressablePoLabelSyncer.IsUnderAnyRoot(
+                "Assets/_Project/i18n/en/_code.po", ServerRoot));
+        }
+
+        [Test]
+        public void IsUnderAnyRoot_normalizes_backslashes_on_both_sides()
+        {
+            Assert.IsTrue(AddressablePoLabelSyncer.IsUnderAnyRoot(
+                @"Assets\_Project\i18n_server\en\systems.po",
+                new[] { @"Assets\_Project\i18n_server" }));
+        }
+
+        [Test]
+        public void IsUnderAnyRoot_tolerates_trailing_slash_on_root()
+        {
+            Assert.IsTrue(AddressablePoLabelSyncer.IsUnderAnyRoot(
+                "Assets/_Project/i18n_server/en/systems.po",
+                new[] { "Assets/_Project/i18n_server/" }));
+        }
+
+        [Test]
+        public void IsUnderAnyRoot_returns_false_for_empty_or_null_root_list()
+        {
+            Assert.IsFalse(AddressablePoLabelSyncer.IsUnderAnyRoot(
+                "Assets/_Project/i18n_server/en/systems.po", new string[0]));
+            Assert.IsFalse(AddressablePoLabelSyncer.IsUnderAnyRoot(
+                "Assets/_Project/i18n_server/en/systems.po", null));
+        }
+
+        [Test]
+        public void IsUnderAnyRoot_ignores_null_and_empty_root_entries()
+        {
+            Assert.IsFalse(AddressablePoLabelSyncer.IsUnderAnyRoot(
+                "Assets/UI/en/x.po", new[] { null, "", "   " }),
+                "Blank roots must not degenerate into 'matches everything'.");
+        }
+
+        [Test]
+        public void IsUnderAnyRoot_returns_false_for_empty_path()
+        {
+            Assert.IsFalse(AddressablePoLabelSyncer.IsUnderAnyRoot(null, ServerRoot));
+            Assert.IsFalse(AddressablePoLabelSyncer.IsUnderAnyRoot("", ServerRoot));
+        }
+
+        [Test]
+        public void ExcludeExternalRoots_passes_everything_through_when_roots_empty()
+        {
+            var paths = new[] { "Assets/a/en/x.po", "Assets/b/en/y.po" };
+            CollectionAssert.AreEqual(
+                paths,
+                AddressablePoLabelSyncer.ExcludeExternalRoots(paths, null).ToList());
+        }
+
+        [Test]
+        public void ExcludeExternalRoots_drops_matches_and_preserves_order()
+        {
+            var paths = new[]
+            {
+                "Assets/_Project/i18n/en/_code.po",
+                "Assets/_Project/i18n_server/en/systems.po",
+                "Assets/_Project/i18n/en/screens/MainMenu.po",
+            };
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    "Assets/_Project/i18n/en/_code.po",
+                    "Assets/_Project/i18n/en/screens/MainMenu.po",
+                },
+                AddressablePoLabelSyncer.ExcludeExternalRoots(paths, ServerRoot).ToList());
+        }
+
+        [Test]
+        public void ExcludeExternalRoots_returns_empty_for_null_paths()
+        {
+            CollectionAssert.IsEmpty(
+                AddressablePoLabelSyncer.ExcludeExternalRoots(null, ServerRoot).ToList());
+        }
+
+        [Test]
+        public void ExcludeExternalRoots_then_ResolveOutputDir_keeps_the_project_own_folder()
+        {
+            // Regression guard: Ordinal-wise "i18n-server/en" sorts BEFORE "i18n/en"
+            // ('-' 0x2D < '/' 0x2F), so an unfiltered external root would silently
+            // steal the extraction output directory.
+            var labelled = new[]
+            {
+                "Assets/_Project/i18n-server/en/systems.po",
+                "Assets/_Project/i18n/en/_code.po",
+            };
+            var roots = new[] { "Assets/_Project/i18n-server" };
+
+            var dir = AddressablePoLabelSyncer.ResolveOutputDirForLocale(
+                "en",
+                AddressablePoLabelSyncer.ExcludeExternalRoots(labelled, roots),
+                "Assets/Resources/PromptUGUI/i18n",
+                out var detected);
+
+            Assert.AreEqual("Assets/_Project/i18n/en", dir,
+                "External .po must not participate in the output-folder election.");
+            Assert.AreEqual(1, detected.Count,
+                "With the external folder filtered out only one candidate remains, " +
+                "so extraction must not log the 'Multiple <locale> folders' warning.");
         }
     }
 }

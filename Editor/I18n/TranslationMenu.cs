@@ -38,7 +38,6 @@ namespace PromptUGUI.Editor.I18n
 
     internal sealed class TranslateLocaleWindow : EditorWindow
     {
-        private const string I18nRoot = "Assets/Resources/PromptUGUI/i18n";
         private const int BatchSize = 50;
 
         private string[] _locales = Array.Empty<string>();
@@ -168,15 +167,15 @@ namespace PromptUGUI.Editor.I18n
                     "OK");
                 return;
             }
-            var localeDir = Path.Combine(I18nRoot, locale);
-            var poFiles = Directory.Exists(localeDir)
-                ? Directory.GetFiles(localeDir, "*.po", SearchOption.AllDirectories)
-                : Array.Empty<string>();
+            var searchDirs = ResolveSearchDirs(locale);
+            var poFiles = CollectPoFiles(searchDirs);
             if (poFiles.Length == 0)
             {
                 EditorUtility.DisplayDialog(
                     "PromptUGUI",
-                    $"No .po files for locale '{locale}' under '{localeDir}'. Run Extract Strings first.",
+                    $"No .po files for locale '{locale}' under: " +
+                    $"{string.Join(", ", searchDirs)}.\n\nRun Extract Strings first, or add the " +
+                    "folder holding them to PromptUGUISettings → External Po Roots.",
                     "OK");
                 return;
             }
@@ -315,6 +314,57 @@ namespace PromptUGUI.Editor.I18n
                         _statusLine = $"Done — {_entriesFilled} / {_entriesTotal} filled.";
                 }
             }
+        }
+
+        /// <summary>
+        /// Where this window looks for <paramref name="locale"/>'s .po files: the same
+        /// folder <c>StringExtractor</c> writes to (resolved from Addressables
+        /// <c>Locale:</c> labels, external roots excluded — so the election can't be
+        /// hijacked), plus every <c>externalPoRoots</c>/&lt;locale&gt; folder. Ordinal
+        /// distinct, '/'-normalized.
+        /// </summary>
+        internal static IReadOnlyList<string> ResolveSearchDirs(string locale)
+        {
+            var settings = PromptUGUISettings.Instance;
+            var externalRoots = settings != null ? settings.externalPoRoots : null;
+
+            var labelledByLocale =
+                StringExtractor.CollectAddressablePoPathsByLocale(externalRoots);
+            labelledByLocale.TryGetValue(locale, out var labelled);
+            var dirs = new List<string>
+            {
+                AddressablePoLabelSyncer.ResolveOutputDirForLocale(
+                    locale,
+                    labelled ?? (IEnumerable<string>)Array.Empty<string>(),
+                    StringExtractor.DefaultOutputRoot,
+                    out _),
+            };
+            if (externalRoots != null)
+            {
+                foreach (var root in externalRoots)
+                {
+                    if (string.IsNullOrWhiteSpace(root)) continue;
+                    dirs.Add(root.Replace('\\', '/').TrimEnd('/') + "/" + locale);
+                }
+            }
+            return dirs.Distinct(StringComparer.Ordinal).ToList();
+        }
+
+        private static string[] CollectPoFiles(IReadOnlyList<string> searchDirs)
+        {
+            // Distinct by full path: an external root nested inside the extraction
+            // folder would otherwise queue the same entry twice.
+            var found = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var dir in searchDirs)
+            {
+                if (!Directory.Exists(dir)) continue;
+                foreach (var po in Directory.GetFiles(dir, "*.po", SearchOption.AllDirectories))
+                {
+                    if (seen.Add(Path.GetFullPath(po))) found.Add(po);
+                }
+            }
+            return found.ToArray();
         }
 
         private static List<(string poPath, PoEntry entry)> CollectQueue(string[] poFiles)
