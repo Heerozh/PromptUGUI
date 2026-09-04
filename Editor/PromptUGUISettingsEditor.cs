@@ -15,6 +15,11 @@ namespace PromptUGUI.Editor
 
             EditorGUILayout.Space();
 
+            EditorGUILayout.PropertyField(
+                serializedObject.FindProperty("externalPoRoots"), true);
+
+            EditorGUILayout.Space();
+
             DrawLocales(serializedObject.FindProperty("locales"));
 
             serializedObject.ApplyModifiedProperties();

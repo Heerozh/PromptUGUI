@@ -122,6 +122,50 @@ namespace PromptUGUI.Editor.I18n
         }
 
         /// <summary>
+        /// True if <paramref name="assetPath"/> sits under any of <paramref name="roots"/>
+        /// (a <c>PromptUGUISettings.externalPoRoots</c> entry). Comparison is Ordinal on
+        /// '/'-normalized paths and only matches on folder boundaries, so
+        /// <c>"Assets/i18n_server_old/x.po"</c> is NOT under root <c>"Assets/i18n_server"</c>.
+        /// Blank roots are ignored rather than matching everything.
+        /// </summary>
+        public static bool IsUnderAnyRoot(string assetPath, IEnumerable<string> roots)
+        {
+            if (string.IsNullOrEmpty(assetPath) || roots == null) return false;
+            var path = assetPath.Replace('\\', '/');
+            foreach (var raw in roots)
+            {
+                if (string.IsNullOrWhiteSpace(raw)) continue;
+                var root = raw.Replace('\\', '/').TrimEnd('/');
+                if (root.Length == 0) continue;
+                if (path.Length < root.Length) continue;
+                if (string.CompareOrdinal(path, 0, root, 0, root.Length) != 0) continue;
+                // Equal length = the root folder itself; otherwise demand a '/' so the
+                // match lands on a folder boundary.
+                if (path.Length == root.Length || path[root.Length] == '/') return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// The subset of <paramref name="assetPaths"/> that is NOT under any of
+        /// <paramref name="roots"/>, in input order. A null/empty root list passes
+        /// everything through — the default <c>externalPoRoots</c> is empty, so
+        /// extraction behaves exactly as it did before this option existed.
+        /// </summary>
+        public static IEnumerable<string> ExcludeExternalRoots(
+            IEnumerable<string> assetPaths, IEnumerable<string> roots)
+        {
+            if (assetPaths == null) yield break;
+            // Materialize once: callers may hand us a lazy sequence we'd otherwise
+            // re-enumerate per path.
+            var rootList = roots == null ? null : new List<string>(roots);
+            foreach (var path in assetPaths)
+            {
+                if (!IsUnderAnyRoot(path, rootList)) yield return path;
+            }
+        }
+
+        /// <summary>
         /// True when <paramref name="label"/> starts with <see cref="LabelPrefix"/>
         /// but doesn't match the <paramref name="currentLocale"/>'s expected label.
         /// Used to scrub stale <c>Locale:*</c> labels when a .po asset moves between
