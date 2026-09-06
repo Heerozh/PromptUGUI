@@ -1,6 +1,6 @@
 {
     "name": "com.promptugui.core",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "displayName": "PromptUGUI",
     "description": "Comprehensive solution for LLM to write uGUI, it not only for assembling the structure and writing code, but also allows the LLM to generate images directly.",
     "unity": "2022.3",
