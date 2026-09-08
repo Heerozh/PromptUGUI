@@ -332,14 +332,29 @@ bar.BindItems<MyModel, IControl>(
     (slot, m) => slot.Get<Tab>("tab").Text = m.Name)
    .AddTo(screen);
 
+// Deselect everything — the "no page open" state. Hides every bind-ed Frame and pushes null
+// through OnSelectionChanged. What a panel's own close button calls:
+bar.ClearSelection();
+
 // Query API:
 bar.Count;          // current tab count
-bar.SelectedIndex;  // -1 if none (only possible right after BindItems with empty list)
+bar.SelectedIndex;  // -1 if none: an empty BindItems list, ClearSelection(), or allowSwitchOff
 bar.SelectedTab;    // Tab ref or null
 bar.GetAt(i);
 ```
 
 Setting `tab.IsOn = true` triggers mutex (other Tabs flip to false via the TabBar's private `ToggleGroup`) AND auto-shows the `bind`-ed Frame — no manual `frame.GameObject.SetActive(...)` needed. If `BindItems` is called with an empty list, `OnSelectionChanged` fires with `null` to let subscribers clear UI state. After hot-reload, re-Bind just like ScrollList.
+
+**The empty selection.** `OnSelectionChanged` emits `null` every time the selection goes to none, so
+null-check `tab` in a subscriber. Switching from one tab to another never reports a momentary
+`null`. Three things produce it: an empty `BindItems` list, `ClearSelection()`, and a switch-off
+click when the XML wrote `<TabBar allowSwitchOff="true">` (which also opens the bar with nothing
+selected — see authoring-promptugui-xml). `ClearSelection()` itself needs no attribute: clearing
+from code is always legal, only clearing by *click* is what `allowSwitchOff` governs. It also
+sticks — a bar that has been cleared once stops auto-selecting its first tab for good, so a Variant
+flip / theme switch / resize (each of which re-solves the Screen, and each of which used to re-run
+the auto-select) will not re-open the page the player just closed. Both are on `<TabMenu>` too,
+where the collapsed handle then shows a blank caption.
 
 `bar.BindItems<T, TSlot>` lets the template root be any `IControl`; `bar.BindItems<T>` is shorthand when the template root _is_ a `<Tab>` directly. The `<Tab>` reachable inside the slot is found via `ScopedIds` first, then a recursive child walk — Templates without an id'd Tab still work as long as exactly one `<Tab>` exists in the subtree.
 
@@ -731,6 +746,8 @@ DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                                        or BindItems<T,TSlot>(...) for typed card template
                .AddTo(screen)
                TabBar/TabMenu query: .Count / .SelectedIndex (-1 if empty) / .SelectedTab / .GetAt(i)
+               TabBar/TabMenu selection: .ClearSelection()  deselect all (no attribute needed;
+                                       hides every bind-ed Frame, emits null, survives ReSolve)
                TabMenu state: .IsExpanded / .Expand() / .Collapse() / .Toggle()
                Collapsible:   同上 + .OnToggled: Observable<bool> / .Text / .Icon;expanded 运行期独占
                Carousel query: .Count / .Current (get/set) / .Playing (get/set) / .GoTo(i,animated) / .Next() / .Previous()

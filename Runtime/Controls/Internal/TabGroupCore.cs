@@ -5,6 +5,7 @@ using PromptUGUI.IR;
 using PromptUGUI.Parser;
 using R3;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace PromptUGUI.Controls.Internal
 {
@@ -41,6 +42,16 @@ namespace PromptUGUI.Controls.Internal
         // 已 Dispose 的静态 Tab 收回 _tabs（镜像 CarouselView._bound）。
         private bool _bound;
 
+        // 「无选中」是否是合法静止态。两条来源：作者写的 allowSwitchOff=，或代码调过一次
+        // ClearSelection()。任一成立就关掉 SyncInitialSelection 的补选 —— 它挂在 OnAfterApply
+        // 上，每次 ReSolve（Variant / 主题 / resize）都跑，不关就会把玩家刚关掉的页面选回来。
+        private bool _allowSwitchOff;
+        private bool _selectionCleared;
+
+        // 宿主的 ToggleGroup（TabBar / TabMenu 在 OnAttached 里交过来）。ClearSelection 需要它：
+        // allowSwitchOff=false 时 uGUI 会把「关掉最后一个 on」原地弹回 true。
+        private ToggleGroup _group;
+
         public TabGroupCore(Control owner, Func<RectTransform> itemHost)
         {
             _owner = owner;
@@ -51,6 +62,30 @@ namespace PromptUGUI.Controls.Internal
         {
             set { _itemTemplate = string.IsNullOrEmpty(value) ? "Tab" : value; _factory = null; }
         }
+
+        /// <summary>The owner's mutual-exclusion group, handed over in its <c>OnAttached</c>.</summary>
+        public ToggleGroup Group
+        {
+            set { _group = value; if (_group != null) _group.allowSwitchOff = _allowSwitchOff; }
+        }
+
+        /// <summary>
+        /// Whether "nothing selected" is a legal resting state: the group opens with no tab on
+        /// (unless one declares <c>isOn="true"</c>) and clicking the active tab turns it off.
+        /// Default false — TB-D7's original contract, unchanged for every bar that doesn't ask.
+        /// </summary>
+        public bool AllowSwitchOff
+        {
+            set { _allowSwitchOff = value; if (_group != null) _group.allowSwitchOff = value; }
+        }
+
+        /// <summary>
+        /// Whether an unselected group still auto-selects its first tab. False once the author has
+        /// declared an empty selection legal — either way, what the owner must mirror when it
+        /// predicts the selection ahead of <see cref="SyncInitialSelection"/> (TabMenu's handle
+        /// measures itself that way).
+        /// </summary>
+        public bool AutoSelectsFirst => !_allowSwitchOff && !_selectionCleared;
 
         public IReadOnlyList<Tab> Tabs => _tabs;
 
@@ -186,13 +221,21 @@ namespace PromptUGUI.Controls.Internal
             {
                 var captured = t;
                 captured.OnValueChanged
-                    .Where(on => on)
-                    .Subscribe(_ =>
+                    .Subscribe(on =>
                     {
-                        // Before announcing: SelectedTab reports the FIRST tab whose IsOn is set, so
-                        // a stale second selection would be handed to subscribers.
-                        EnforceExclusive(captured);
-                        _selectionChanged.OnNext(captured);
+                        if (on)
+                        {
+                            // Before announcing: SelectedTab reports the FIRST tab whose IsOn is set,
+                            // so a stale second selection would be handed to subscribers.
+                            EnforceExclusive(captured);
+                            _selectionChanged.OnNext(captured);
+                            return;
+                        }
+                        // A tab going off only means "no selection" when nothing took over. uGUI
+                        // turns the loser off from inside NotifyToggleOn — after the winner's isOn
+                        // already reads true — so an ordinary switch never reaches the emit below;
+                        // only a switch-off click or ClearSelection does.
+                        if (SelectedIndex < 0) _selectionChanged.OnNext(null);
                     })
                     .AddTo(_tabSubs);
             }
@@ -230,10 +273,46 @@ namespace PromptUGUI.Controls.Internal
             foreach (var t in _tabs)
                 if (!t.IsOn) t.ForceSyncBindFrame(isOn: false);
 
-            // (2) Auto-select first if nothing on
-            bool anyOn = false;
-            foreach (var t in _tabs) if (t.IsOn) { anyOn = true; break; }
-            if (!anyOn) _tabs[0].IsOn = true;
+            // (2) Auto-select first if nothing on — unless an empty selection is legal here, in
+            // which case there is nothing to repair and re-selecting tab 0 on every ReSolve would
+            // re-open a page the player just closed.
+            if (SelectedIndex < 0 && AutoSelectsFirst) _tabs[0].IsOn = true;
+        }
+
+        /// <summary>
+        /// Turns every tab off — the "no page open" state a bound page's own close button wants.
+        /// Announces the empty selection as a <c>null</c> on <see cref="SelectionChanged"/>.
+        /// </summary>
+        /// <remarks>
+        /// Legal on any group, with or without <c>allowSwitchOff</c>: clearing from code is a
+        /// deliberate act, only clearing by <em>click</em> is what the attribute governs. Two
+        /// things would otherwise undo it, and both are handled here:
+        /// <list type="bullet">
+        /// <item>uGUI restores the last ON member of a group that forbids switch-off, so the ban is
+        /// lifted for the assignment and restored immediately after.</item>
+        /// <item><see cref="SyncInitialSelection"/> runs on every <c>OnAfterApply</c>, i.e. on every
+        /// ReSolve, so the latch below permanently retires the auto-select for this group. It never
+        /// resets: an owner that has asked for an empty selection once owns the selection from then
+        /// on, including across a <c>BindItems</c> rebuild.</item>
+        /// </list>
+        /// </remarks>
+        public void ClearSelection()
+        {
+            _selectionCleared = true;
+            if (_tabs.Count == 0) return;
+
+            var lifted = _group != null && !_group.allowSwitchOff;
+            if (lifted) _group.allowSwitchOff = true;
+            try
+            {
+                // At most one tab is on, and uGUI ignores a no-op assignment, so exactly one
+                // onValueChanged(false) fires — hence exactly one null on SelectionChanged.
+                foreach (var t in _tabs) t.IsOn = false;
+            }
+            finally
+            {
+                if (lifted) _group.allowSwitchOff = false;
+            }
         }
 
         public void CollectStatic(IReadOnlyList<IControl> children)

@@ -30,6 +30,7 @@ namespace PromptUGUI.Controls
         {
             _group = GameObject.AddComponent<ToggleGroup>();
             _group.allowSwitchOff = false;
+            _core.Group = _group;
             ApplyDirection();
         }
 
@@ -52,6 +53,19 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public string ItemTemplate { set => _core.ItemTemplate = value; }
 
+        /// <summary>
+        /// Makes "no tab selected" a legal resting state: the bar opens with nothing on (unless a
+        /// <c>&lt;Tab&gt;</c> declares <c>isOn="true"</c>) and clicking the active tab turns it
+        /// off again. Default <c>false</c> — a tab bar normally always has exactly one selection.
+        ///
+        /// <para>The case for it is a main-menu function bar: no page open at rest, every page one
+        /// click away, and re-clicking the open one closes it. Pair it with <c>bind=</c> and every
+        /// page follows the bar. Clearing from code needs no attribute — see
+        /// <see cref="ClearSelection"/>.</para>
+        /// </summary>
+        [UIAttr, Preserve]
+        public bool AllowSwitchOff { set => _core.AllowSwitchOff = value; }
+
         public int Count => _core.Tabs.Count;
 
         public int SelectedIndex => _core.SelectedIndex;
@@ -59,6 +73,17 @@ namespace PromptUGUI.Controls
         public Tab SelectedTab => _core.SelectedTab;
 
         public Tab GetAt(int index) => _core.Tabs[index];
+
+        /// <summary>
+        /// Deselects every tab — <see cref="SelectedIndex"/> goes to <c>-1</c>, every bound page
+        /// hides, and <see cref="OnSelectionChanged"/> emits <c>null</c>. What a page's own close
+        /// button calls to hand the bar back to its "nothing open" state.
+        ///
+        /// <para>Works with or without <c>allowSwitchOff</c> — that attribute governs clearing by
+        /// <em>click</em>, not from code — and sticks across ReSolve: once called, this bar stops
+        /// auto-selecting its first tab for good.</para>
+        /// </summary>
+        public void ClearSelection() => _core.ClearSelection();
 
         public IDisposable BindItems<T>(
             Observable<IReadOnlyList<T>> source,
