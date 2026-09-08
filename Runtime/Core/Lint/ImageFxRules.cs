@@ -17,7 +17,12 @@ namespace PromptUGUI.Lint
     ///
     /// <para>The radii themselves are numbers of pixels, and are checked by <c>StyleRules</c>'s
     /// shared pixel-value rule (<c>PUI-PROCEDURAL-VALUE</c>) rather than by a code of this family's
-    /// own: <c>glow</c> was already in that list, and one grammar deserves one message.</para>
+    /// own: <c>glow</c> was already in that list, and one grammar deserves one message. How LARGE a
+    /// radius may be is not judged here at all: it depends on the texture's mip chain and on the
+    /// drawn size, and lint sees neither, so any static threshold would flag a mipmapped atlas as
+    /// loudly as a bare texture. <c>FxImage.WarnIfKernelLeavesGaps</c> owns that verdict alone —
+    /// per texture, in texels, only when the fragment really stays on the lod-0 kernel
+    /// (spec §14.5).</para>
     /// </summary>
     public static class ImageFxRules
     {
@@ -25,15 +30,6 @@ namespace PromptUGUI.Lint
         public const string TypeCode = "PUI-FX-TYPE";
         public const string AttrCode = "PUI-FX-ATTR";
         public const string MaskCode = "PUI-FX-MASK";
-        public const string RadiusCode = "PUI-FX-RADIUS";
-
-        /// <summary>
-        /// Past this the 25-tap kernel's taps sit further apart than a lod-0 bilinear sample covers,
-        /// so a texture with no mip chain draws ghost copies of thin strokes (spec §14.1). Lint sees
-        /// neither the texture nor the drawn size, so this is a reminder to enable mipmaps; the
-        /// runtime warns precisely, per texture, when it actually falls back (spec §14.5).
-        /// </summary>
-        public const float RadiusSoftLimit = 6f;
 
         /// <summary>The tags built on <c>FxImage</c>, and therefore the only ones where blur / glow
         /// do anything. <c>&lt;RawImage&gt;</c> is deliberately absent — M2.</summary>
@@ -55,8 +51,6 @@ namespace PromptUGUI.Lint
         {
             "simple", "contain", "cover",
         };
-
-        private static readonly string[] Radii = { "blur", "glow" };
 
         /// <summary>
         /// CLI, raw pass: <c>blur</c> on a tag that has no <c>FxImage</c> under it. Only
@@ -140,20 +134,6 @@ namespace PromptUGUI.Lint
                         "or the effect on an inner <Image>.");
                 }
             }
-
-            foreach (var attr in Radii)
-            {
-                var value = Number(n, styles, attr);
-                if (value <= RadiusSoftLimit) continue;
-                yield return new LintIssue(
-                    RadiusCode, n.Tag, n.Id,
-                    $"<{n.Tag} id='{n.Id}'>: {attr}=\"{Format(value)}\" is past the {Format(RadiusSoftLimit)}px " +
-                    "the plain kernel samples without gaps — on a texture with no mipmaps, wider radii " +
-                    "draw ghost copies of thin strokes. Enable mipmaps on the sprite's texture " +
-                    "(SpriteAtlas → Generate Mip Maps; TextureImporter → Generate Mipmaps), or keep it " +
-                    $"at or under {Format(RadiusSoftLimit)}. The runtime warns per texture when it " +
-                    "actually has to fall back.");
-            }
         }
 
         /// <summary>The largest value the attribute takes across its base and every variant; 0 when
@@ -182,8 +162,5 @@ namespace PromptUGUI.Lint
                 ? v
                 : 0f;   // not a number: PUI-PROCEDURAL-VALUE owns that message
         }
-
-        private static string Format(float value) =>
-            value.ToString("0.###", CultureInfo.InvariantCulture);
     }
 }

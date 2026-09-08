@@ -101,7 +101,9 @@ quad 外扩、同一条顶点通道、同一份 shader 骨架、同一组测试�
   边框、运行时自动判成 Sliced 的，fx 被忽略并警告一次（lint 看不到 sprite 资产）。
 - 单位是**元素自身空间的设计 px**，与 `<Frame glow="12">` 同一把尺：`scale=` 的 transform 缩放会把
   光晕一起放大；`GetNativeSize()` / 排版尺寸不含光晕。
-- `> 12` 的半径 → lint warning `PUI-FX-RADIUS`（M1 采样核之外会出格纹），运行时照画不钳（§9.4）。
+- 半径大小**不设 lint 阈值**（`PUI-FX-RADIUS` 曾定 12、后改 6，已移除）：够不够用取决于纹理的 mip 链
+  与实际绘制尺寸，lint 两样都看不到，任何静态阈值对开了 mipmap 的图集一样会叫。这条诊断整个归运行时
+  （§14.5），运行时也照画不钳（§9.4）。
 - XSD：`Image` / `Icon` 在 `XsdGenerator` 里是手列的，各补 `blur`（`xs:string`）`glow`（`xs:string`）
   `glowColor`（`xs:string`）。
 
@@ -270,7 +272,7 @@ uv0 / uv1 / uv2 / color / worldPosition 透传。fragment 按 §4.3；全部 uni
 | `PUI-FX-TYPE` | expanded（class 合并后判） | error（运行时 warning） | `blur` / `glow` 与 `type="sliced"` / `"tiled"` / `"filled"` 同节点 |
 | `PUI-FX-ATTR` | expanded | warning | 写了 `glowColor` 但最终没有 `glow`（什么都不会画） |
 | `PUI-FX-MASK` | expanded | warning | `blur` / `glow` 与 `mask="self"` 同节点（§4.4） |
-| `PUI-FX-RADIUS` | expanded | warning | `blur` 或 `glow` `> 6`：没有 mipmaps 的纹理上 tap 之间出现空隙（细笔画重影），提醒给 atlas 开 mips。运行时另有按 texel 的精确警告（§14.5） |
+| ~~`PUI-FX-RADIUS`~~ | — | — | **已移除**：曾在 `blur` / `glow` `> 6` 时提醒开 mipmaps，但 lint 看不到纹理也看不到绘制尺寸，开了 mip 的图集照样被报，且没有任何静音手段。半径大小只由运行时按 texel 判（§14.5） |
 
 ## 7. 测试（Red 先行）
 
@@ -501,7 +503,7 @@ R=8 仍然重影。
 | 层 | 条件 | 消息 |
 |---|---|---|
 | 运行时（精确，每张纹理一次） | `FxImage.OnPopulateMesh` 后已知 texel/px；`Pad · texel/px · 0.3545 > 1`（本该 lod > 0）而纹理不可用 mip | Bilinear：需要在 atlas / 导入器开 mipmaps，否则该绘制尺寸下超过限值 px 会出重影，限值随消息给出；Point：mip 帮不上，半径 ≤ 限值，或改 Bilinear + mips |
-| lint（粗）`PUI-FX-RADIUS` | `blur` / `glow` > 6 px | 阈值 12 → 6，文案改成「需要 mipmaps」。lint 看不到资产也看不到绘制缩放，只是提醒；1:1 下 ≤ 6 px 没有 mips 也基本看不出 |
+| ~~lint（粗）`PUI-FX-RADIUS`~~ | — | **已移除**（原为 `blur` / `glow` > 6 px 的提醒）。lint 看不到资产也看不到绘制缩放，所以它无法区分「没开 mip 的贴图」和「开了 mip 的图集」—— 后者被误报且无从静音，而 CLI 把 issue 一律升成非零退出码。诊断只留运行时这一层 |
 
 ### 14.6 测试
 
@@ -513,7 +515,7 @@ R=8 仍然重影。
   预置为白模拟 dilation）：1:1 `blur="8"` 横剖面从峰值向两侧单调（容差 4/255；M1 在此至少 17/255 的再
   抬升）；`blur="16"` 红块方向 2–7 px 不发红（内缩）。既有 Point 夹具的九条用例不动 —— 它们现在就是
   「无 mip 退回」路径的回归。
-- `ImageFxRulesTests`：阈值 6，消息含 "mipmap"。
+- `ImageFxRulesTests`：任何半径（`7` / `6.5` / `40` 一并）都不产生 issue —— 阈值已随 `PUI-FX-RADIUS` 移除。
 
 ### 14.7 成本
 
