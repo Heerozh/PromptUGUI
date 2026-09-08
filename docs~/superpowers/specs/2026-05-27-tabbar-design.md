@@ -56,8 +56,8 @@
 | TB-D4 | sprite 声明位置 | 仅 TabBar 暴露 `sprite` / `selectedSprite`，所有子 Tab 共享 | 一个 tab bar 内 99% 用例 tabs 长得一样；per-Tab override 留 v2 |
 | TB-D5 | selected 视觉实现 | overlay 图层挂到 `UnityToggle.graphic` 通道，由 Unity 按 isOn 自动显隐 | 复用 UnityToggle 内置机制；不写 isOn listener；transition 默认 `None`（即时切换），未来要 fade 在一个地方改 |
 | TB-D6 | pressed 视觉 | UnityToggle/Selectable 内置 color tint（默认 pressed 色 ≈ 0.78 灰），不暴露 attr | 跟 Btn 一致；author 不需要为 tab 单独学一套；要自定义可后续加 |
-| TB-D7 | `allowSwitchOff` | **不暴露**，固定 `false` | 99% 用例总有一个 tab 选中；需求 #4 "按钮模式"靠"不写 selectedSprite"实现视觉退化，互斥仍在 |
-| TB-D8 | 初始选中 | 解析所有 Tab 后，若没有任何 Tab `isOn="true"` → TabBar 自动把第一个 Tab 置 `IsOn=true` | 避免 Unity ToggleGroup 在 `allowSwitchOff=false` 下首帧仍无选中 + 所有 bind frame 显示的反直觉行为 |
+| TB-D7 | `allowSwitchOff` | ~~**不暴露**，固定 `false`~~ → **2026-09-08 修订：暴露为属性，默认仍 `false`**（见 §2.1） | 99% 用例总有一个 tab 选中；需求 #4 "按钮模式"靠"不写 selectedSprite"实现视觉退化，互斥仍在。剩下的 1%（主界面功能条：常时不开面板）无法用别的手段表达 |
+| TB-D8 | 初始选中 | 解析所有 Tab 后，若没有任何 Tab `isOn="true"` → TabBar 自动把第一个 Tab 置 `IsOn=true`（`allowSwitchOff=true` 或调过 `ClearSelection()` 后关闭，见 §2.1） | 避免 Unity ToggleGroup 在 `allowSwitchOff=false` 下首帧仍无选中 + 所有 bind frame 显示的反直觉行为 |
 | TB-D9 | Bind 解析时机 | Tab.Bind setter 只存字符串；首次 `OnValueChanged` fire 时调 `Screen.Get<Frame>(id)` 缓存 ref；找不到 → warn 一次 + 后续静默 | lazy 避开属性 apply 顺序问题；缓存避免每次 toggle 都查表 |
 | TB-D10 | Bind 失败处理 | warn 一次（设置 `_bindId=null` 防重复 warn），后续静默；找到但不是 Frame → 也 warn | 显示控件失联不应崩 |
 | TB-D11 | itemTemplate 默认 | 不写 = `"Tab"`（直接实例化 Tab 类） | 90% 动态场景 tabs 都长得一样，免去写 `<Template name="X"><Tab/></Template>` 样板 |
@@ -71,6 +71,29 @@
 | TB-D19 | TabBar 下混入非 Tab | runtime 不阻拦（HorizontalLayoutGroup 照常布局非 Tab 节点）；lint warning | 不破坏运行；author 知道后能修 |
 | TB-D20 | Tab 自身是 layout group？ | 否；Tab 内部固定布局（bg/overlay/icon/label），不接 XML 子 | 跟 Btn / Toggle 一致；要复杂内容用 itemTemplate |
 | TB-D21 | Variant override 范围 | 允许 override Tab 的 `text` / `isOn` / `bind` / `icon`；TabBar 上 `sprite` / `selectedSprite` / `direction` 也允许 | 都是值写入；切方向只是换 LayoutGroup（OnAfterApply 一次 reconcile） |
+
+---
+
+## 2.1 修订：`allowSwitchOff`（2026-09-08）
+
+TB-D7 原本把「无选中」当成非法态砍掉了。主界面功能条正好要它：常时不开任何功能界面，点一下开、
+再点一下收，关闭按钮也能把整条打回无选中。今天在库外**无法**表达 —— `tab.IsOn = false` 会被
+uGUI 在 `allowSwitchOff=false` 下原地弹回 true，就算绕过去，`SyncInitialSelection` 挂在
+`OnAfterApply` 上，下一次 ReSolve（Variant / 主题 / resize）又会补选第一个。
+
+| # | 决策 | 选择 | 理由 |
+|---|---|---|---|
+| TB-A1 | 属性名 | `allowSwitchOff`（bool，默认 `false`），`<TabBar>` 与 `<TabMenu>` 同款 | 沿用 TB-D7 的命名与 uGUI 的名字，方便顺着原决策查到这次修订 |
+| TB-A2 | 一个旋钮还是两个 | 一个：`allowSwitchOff=true` 同时关掉 TB-D8 的自动补选 | 自动补选存在的**唯一**理由就是躲开「无选中」这个非法态；这个属性正是宣告它合法，两者不该能各自打开 |
+| TB-A3 | 作者写了 `isOn="true"` | 照旧生效 | 属性关的是 **auto**-select，不是声明式初始选中；「开局就开着某页、但可以关掉」是真实需求 |
+| TB-A4 | 代码侧 API | `TabBar.ClearSelection()` / `TabMenu.ClearSelection()`，**不要求**属性 | 从代码清空是一次明确动作，属性管的是「点击能不能清空」。实现时临时把 group 的 `allowSwitchOff` 抬起来再放回 |
+| TB-A5 | `ClearSelection()` 后的自动补选 | 永久 latch 关闭（含 `BindItems` 重建），不因再次选中而复位 | 否则玩家关掉的页面会被下一次 ReSolve 重新打开 —— 与 `Tab_RuntimeSelection_Survives_ReSolve` 同一条「运行期状态不被声明值打回」原则 |
+| TB-A6 | 事件 | 选中归零时 `OnSelectionChanged` 推 `null` | 空列表 rebuild 早就在推 `null`（TB-D17 已写「可能为 null」），不是新语义。切换 a→b 不会推瞬时 `null`：uGUI 在 winner 的 `isOn` 已为 true 之后才关 loser |
+| TB-A7 | `<TabMenu>` 把手 | 无选中 = 空 caption，且 `GetNativeSize` 不再按第一个 tab 预留宽度 | 把手宽度是照着「即将显示什么」量的；不跟着走就会留一块显示空白的宽条 |
+
+实现落点全在 `TabGroupCore`（两个宿主共用一份）：`AllowSwitchOff` / `Group` 两个入口、
+`SyncInitialSelection` 的补选门、`ClearSelection()`、以及把 per-Tab 订阅的 `.Where(on => on)`
+换成「关掉且没人接手 → 推 null」。
 
 ---
 
@@ -199,7 +222,7 @@ public sealed class TabBar : Control
     [UIAttr, Preserve] public string ItemTemplate { set; } // 默认 "Tab"
 
     public int Count { get; }
-    public int SelectedIndex { get; }    // -1 表示无选中（仅在空列表场景出现，TB-D7 禁了 allowSwitchOff）
+    public int SelectedIndex { get; }    // -1 表示无选中（空列表 / ClearSelection() / allowSwitchOff）
     public Tab SelectedTab { get; }
     public Tab GetAt(int index);
 
@@ -641,7 +664,7 @@ else if (node.Tag == "TabBar")
 ## 12. Out of Scope
 
 - **per-Tab sprite override** —— TB-D4 留 v2；99% 用例 tabs 长得一样
-- **`allowSwitchOff=true`（无任何 tab 选中也合法）** —— TB-D7 砍掉；按钮模式靠"不写 selectedSprite"实现视觉退化
+- ~~**`allowSwitchOff=true`（无任何 tab 选中也合法）** —— TB-D7 砍掉~~ —— **2026-09-08 已交付**，见 §2.1
 - **垂直方向的"侧边栏 tab"完整视觉规范** —— TB-D15 允许 `direction="vertical"` 但 sprite 比例 / label 旋转之类由作者自己处理
 - **Fade transition** —— TB-D5 固定 UnityToggle.Transition.None；要 fade 后续在 TabBar 加 attr
 - **Tab 关闭按钮 / drag-reorder** —— v1 不做

@@ -91,6 +91,7 @@ namespace PromptUGUI.Controls
 
             _group = GameObject.AddComponent<ToggleGroup>();
             _group.allowSwitchOff = false;
+            _core.Group = _group;
 
             BuildCaption();
             BuildPopup();
@@ -242,6 +243,14 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public string ItemTemplate { set => _core.ItemTemplate = value; }
 
+        /// <summary>
+        /// Makes "no tab selected" a legal resting state — same contract as
+        /// <see cref="TabBar.AllowSwitchOff"/>. The collapsed handle then shows an empty caption
+        /// (and hugs just its caret) until something is picked.
+        /// </summary>
+        [UIAttr, Preserve]
+        public bool AllowSwitchOff { set => _core.AllowSwitchOff = value; }
+
         /// <summary>Panel width. Unset (or 0) sizes it to the wider of the handle and its content.</summary>
         [UIAttr, Preserve]
         public float PopupWidth { set { _popupWidth = value; PlacePopup(); } }
@@ -291,6 +300,12 @@ namespace PromptUGUI.Controls
         public Tab SelectedTab => _core.SelectedTab;
 
         public Tab GetAt(int index) => _core.Tabs[index];
+
+        /// <summary>
+        /// Deselects every tab, blanking the caption and hiding every bound page. Same contract as
+        /// <see cref="TabBar.ClearSelection"/>; <see cref="OnSelectionChanged"/> emits <c>null</c>.
+        /// </summary>
+        public void ClearSelection() => _core.ClearSelection();
 
         public Observable<Tab> OnSelectionChanged => _core.SelectionChanged;
 
@@ -382,7 +397,9 @@ namespace PromptUGUI.Controls
         /// <summary>
         /// What the caption is about to show, read straight off the tabs. Mirrors the group's
         /// auto-select rule (first tab when none is <c>isOn</c>) so the measurement matches whatever
-        /// <see cref="RefreshCaption"/> lands on moments later.
+        /// <see cref="RefreshCaption"/> lands on moments later — including the case where that rule
+        /// is off (<c>allowSwitchOff</c> / a cleared selection), where the handle shows nothing and
+        /// must therefore reserve nothing.
         /// </summary>
         private (string Text, bool HasIcon) PeekSelectedContent()
         {
@@ -394,7 +411,9 @@ namespace PromptUGUI.Controls
                 first ??= tab;
                 if (tab.IsOn) return (tab.CaptionText, tab.CaptionIcon != null);
             }
-            return first != null ? (first.CaptionText, first.CaptionIcon != null) : (null, false);
+            return first != null && _core.AutoSelectsFirst
+                ? (first.CaptionText, first.CaptionIcon != null)
+                : (null, false);
         }
 
         private void ApplyFont() => _caption.ApplyFont();

@@ -619,5 +619,60 @@ namespace PromptUGUI.Tests.EditMode.Controls
             s.Get<Tab>("a").Text = "A much, much longer channel name";
             Assert.Greater(m.GetNativeSize().Value.x, before);
         }
+
+        // ── allowSwitchOff / ClearSelection (shared with TabBar via TabGroupCore) ──────────
+
+        [Test]
+        public void AllowSwitchOff_opens_with_no_selection_and_a_blank_caption()
+        {
+            var s = Open(@"
+  <TabMenu id='m' allowSwitchOff='true'>
+    <Tab id='a' text='World' bind='pw'/>
+    <Tab id='b' text='Guild' bind='pg'/>
+  </TabMenu>
+  <Frame id='pw'/>
+  <Frame id='pg'/>");
+            var m = s.Get<TabMenu>("m");
+
+            Assert.IsTrue(m.GameObject.GetComponent<ToggleGroup>().allowSwitchOff);
+            Assert.AreEqual(-1, m.SelectedIndex);
+            Assert.AreEqual("", LabelOf(m).text, "nothing selected — the handle shows nothing");
+            Assert.IsFalse(s.Get<Frame>("pw").GameObject.activeSelf);
+        }
+
+        // The handle measures itself from PeekSelectedContent before the caption is filled in, so
+        // that peek has to mirror the same auto-select rule — otherwise a menu that shows nothing
+        // still reserves the first tab's width.
+        [Test]
+        public void AllowSwitchOff_handle_does_not_reserve_the_first_tabs_width()
+        {
+            var s = Open(@"<TabMenu id='m' allowSwitchOff='true'>
+                             <Tab id='a' text='A much, much longer name'/>
+                           </TabMenu>");
+            var empty = s.Get<TabMenu>("m").GetNativeSize().Value.x;
+
+            UI.ResetForTests();
+            var s2 = Open(@"<TabMenu id='m'>
+                             <Tab id='a' text='A much, much longer name'/>
+                           </TabMenu>");
+            var autoSelected = s2.Get<TabMenu>("m").GetNativeSize().Value.x;
+
+            Assert.Less(empty, autoSelected, "an unselected menu hugs the caret, not the first row");
+        }
+
+        [Test]
+        public void ClearSelection_blanks_the_caption_and_closes_the_bound_page()
+        {
+            var s = Open(TwoTabs);
+            var m = s.Get<TabMenu>("m");
+            Assert.AreEqual("World", LabelOf(m).text);
+
+            m.ClearSelection();
+
+            Assert.AreEqual(-1, m.SelectedIndex);
+            Assert.IsNull(m.SelectedTab);
+            Assert.AreEqual("", LabelOf(m).text);
+            Assert.IsFalse(s.Get<Frame>("pw").GameObject.activeSelf, "the bound page closes with it");
+        }
     }
 }

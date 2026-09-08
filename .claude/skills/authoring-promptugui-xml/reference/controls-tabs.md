@@ -28,9 +28,44 @@
 </Image>
 ```
 
-`bind="frame_id"` 让 Tab 选中时显示、未选时隐藏命名 Frame。lookup 是 lazy 的 —— 首次切换才解析并缓存。Tab `isOn="true"` 在 XML 里指定初始选中；都没写时 TabBar 自动选第一个。`bind=` 省略时只 fire `OnSelected`（C# 端自己处理）。`isOn` 是**运行时独占状态**：声明值是初始选中，但一旦用户/代码运行期改过它，ReSolve（窗口 resize / Variant / Theme 切换）**不会**把它打回声明默认值 —— 用户选中的 Tab 和 `bind` 的页面都保持不变。`isOn.variant`（如 `isOn.portrait`）仍然有效：只要运行期没动过，切到该 Variant 会正常重应用覆盖值；动过之后用户的选择优先。`<Toggle isOn>` 同理。（同款「运行期改过就不打回、没动过 Variant 照常覆盖」也适用于 `<Slider value>` / `<Dropdown value>` / `<Progress value>`。）
+`bind="frame_id"` 让 Tab 选中时显示、未选时隐藏命名 Frame。lookup 是 lazy 的 —— 首次切换才解析并缓存。Tab `isOn="true"` 在 XML 里指定初始选中；都没写时 TabBar 自动选第一个（除非写了 `allowSwitchOff="true"` —— 见 [No selection at all](#no-selection-at-all---allowswitchoff)）。`bind=` 省略时只 fire `OnSelected`（C# 端自己处理）。`isOn` 是**运行时独占状态**：声明值是初始选中，但一旦用户/代码运行期改过它，ReSolve（窗口 resize / Variant / Theme 切换）**不会**把它打回声明默认值 —— 用户选中的 Tab 和 `bind` 的页面都保持不变。`isOn.variant`（如 `isOn.portrait`）仍然有效：只要运行期没动过，切到该 Variant 会正常重应用覆盖值；动过之后用户的选择优先。`<Toggle isOn>` 同理。（同款「运行期改过就不打回、没动过 Variant 照常覆盖」也适用于 `<Slider value>` / `<Dropdown value>` / `<Progress value>`。）
 
 用自定义 `itemTemplate` 时（`<TabBar itemTemplate="MyTabTemplate"/>`），Template body 必须在树里某处包含恰好一个 `<Tab>`（通过 `ScopedIds` 或递归 `Control.Children` walk 在 `BindItems` 时定位）。
+
+### No selection at all — `allowSwitchOff`
+
+By default a tab bar always has exactly one tab selected: nothing is switch-off-able by clicking,
+and a bar where no `<Tab>` declared `isOn="true"` auto-selects its first one. `allowSwitchOff="true"`
+(on `<TabBar>` **and** `<TabMenu>`) makes the empty selection a legal resting state instead — the
+bar opens with **nothing** on, every bound page hidden, and clicking the open tab closes it again.
+
+The case for it is a main-menu function bar: no panel open while you play, every panel one click
+away, and re-clicking the open one puts it away.
+
+```xml
+<TabBar id="fnbar" allowSwitchOff="true" anchor="bottom-stretch" height="56">
+  <Tab text="Bag"   icon="ui:icon_bag"   bind="bag_panel"/>
+  <Tab text="Quest" icon="ui:icon_quest" bind="quest_panel"/>
+  <Tab text="Map"   icon="ui:icon_map"   bind="map_panel"/>
+</TabBar>
+
+<Frame id="bag_panel"   anchor="stretch" margin="0,0,56,0">...</Frame>
+<Frame id="quest_panel" anchor="stretch" margin="0,0,56,0">...</Frame>
+<Frame id="map_panel"   anchor="stretch" margin="0,0,56,0">...</Frame>
+```
+
+- An authored `isOn="true"` still wins — the attribute suppresses the **auto**-select, not a
+  declared one. Write it if you do want a page open on the first frame.
+- `OnSelectionChanged` emits `null` whenever the selection goes to none, so a C# subscriber has to
+  null-check. Switching tabs never reports a momentary `null`.
+- On a `<TabMenu>` the collapsed handle shows an empty caption while nothing is selected (and hugs
+  just its caret, so give it a `width` if the handle must not resize when the first pick lands).
+
+**From C#, no attribute needed:** `bar.ClearSelection()` deselects everything on any bar — that
+attribute governs clearing by *click*. It is what a panel's own close button calls, and it sticks:
+once cleared, that bar stops auto-selecting its first tab for good, so a Variant flip / theme switch
+/ resize (all of which re-solve the Screen) will not re-open the page the player just closed. See
+scripting-promptugui-csharp.
 
 Tab 是 TabBar 的 layout group child —— 不能写 `anchor=` / `margin=`（`HorizontalLayoutGroup` 接管排布；TabBar 在 `selfIsLayoutGroup` 名单里）。
 
@@ -165,6 +200,7 @@ Plus every common attribute (`anchor` / `size` / `margin` / `hidden` / `interact
 | `color` · `sprite` · `tint` | | rounded white | The panel's fill / skin. `sprite=""` = flat colour |
 | `transition` | duration | `0.15s` | Open / close animation. `0` snaps |
 | `itemTemplate` | tag / Template | `Tab` | For `BindItems`, same as `<TabBar>` |
+| `allowSwitchOff` | bool | `false` | Same as `<TabBar>`: makes the empty selection legal, so the handle rests on a blank caption. See [No selection at all](#no-selection-at-all---allowswitchoff) |
 
 The handle is measured from the **selected** tab's text and icon at open time, so it is laid out at
 the right width from the first frame. Like `<Btn>`, its layout box does not re-measure when the

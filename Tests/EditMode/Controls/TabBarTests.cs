@@ -336,5 +336,181 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsFalse(screen.Get<Frame>("fb").GameObject.activeSelf);
             Assert.IsFalse(screen.Get<Frame>("fc").GameObject.activeSelf);
         }
+
+        // ── allowSwitchOff: a bar whose legal resting state is "nothing selected" ──────────
+        // The main-menu function bar — no page open at rest, any page reachable, picking the open
+        // one again closes it. Revises TB-D7 ("allowSwitchOff not exposed, fixed false"); the
+        // default is unchanged, this is opt-in.
+
+        [Test]
+        public void TabBar_AllowSwitchOff_Opens_With_Nothing_Selected()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar' allowSwitchOff='true'>
+    <Tab id='a' bind='fa'/>
+    <Tab id='b' bind='fb'/>
+  </TabBar>
+  <Frame id='fa'/>
+  <Frame id='fb'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var bar = screen.Get<TabBar>("bar");
+
+            Assert.IsTrue(bar.GameObject.GetComponent<ToggleGroup>().allowSwitchOff);
+            Assert.AreEqual(-1, bar.SelectedIndex, "no auto-select: empty IS the resting state here");
+            Assert.IsNull(bar.SelectedTab);
+            Assert.IsFalse(screen.Get<Frame>("fa").GameObject.activeSelf, "no page open at rest");
+            Assert.IsFalse(screen.Get<Frame>("fb").GameObject.activeSelf);
+        }
+
+        [Test]
+        public void TabBar_AllowSwitchOff_Still_Honors_Declared_IsOn()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar' allowSwitchOff='true'><Tab id='a'/><Tab id='b' isOn='true'/></TabBar>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var bar = UI.Open("S").Get<TabBar>("bar");
+            Assert.AreEqual(1, bar.SelectedIndex, "the attr suppresses the AUTO-select, not an authored one");
+        }
+
+        // Clicking the open tab again closes its page: uGUI's InternalToggle drives isOn=false on
+        // the active member, which the default group bounces straight back to true.
+        [Test]
+        public void TabBar_AllowSwitchOff_Deselecting_Active_Tab_Sticks_And_Emits_Null()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar' allowSwitchOff='true'><Tab id='a' bind='fa'/></TabBar>
+  <Frame id='fa'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var bar = screen.Get<TabBar>("bar");
+            var a = screen.Get<Tab>("a");
+
+            a.IsOn = true;
+            Assert.IsTrue(screen.Get<Frame>("fa").GameObject.activeSelf);
+
+            var seen = new System.Collections.Generic.List<Tab>();
+            using var sub = bar.OnSelectionChanged.Subscribe(t => seen.Add(t));
+
+            a.IsOn = false;
+
+            Assert.IsFalse(a.IsOn, "the group must not bounce the last selection back on");
+            Assert.AreEqual(-1, bar.SelectedIndex);
+            Assert.IsFalse(screen.Get<Frame>("fa").GameObject.activeSelf, "bound page closes with it");
+            CollectionAssert.AreEqual(new Tab[] { null }, seen,
+                "a selection that went to none has to reach subscribers too");
+        }
+
+        // Switching a->b must NOT report a momentary null: uGUI turns the loser off while the
+        // winner already reads isOn, so only a genuinely empty group emits null.
+        [Test]
+        public void TabBar_AllowSwitchOff_Switching_Tabs_Emits_Only_The_Winner()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar' allowSwitchOff='true'><Tab id='a'/><Tab id='b'/></TabBar>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var bar = screen.Get<TabBar>("bar");
+            screen.Get<Tab>("a").IsOn = true;
+
+            var seen = new System.Collections.Generic.List<Tab>();
+            using var sub = bar.OnSelectionChanged.Subscribe(t => seen.Add(t));
+            screen.Get<Tab>("b").IsOn = true;
+
+            CollectionAssert.AreEqual(new[] { screen.Get<Tab>("b") }, seen);
+        }
+
+        // The API a page's own close button calls. Works on a DEFAULT bar too: clearing from code
+        // is always legal, only clearing by CLICK needs allowSwitchOff.
+        [Test]
+        public void TabBar_ClearSelection_Deselects_All_And_Emits_Null()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar'>
+    <Tab id='a' bind='fa'/>
+    <Tab id='b' bind='fb'/>
+  </TabBar>
+  <Frame id='fa'/>
+  <Frame id='fb'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var bar = screen.Get<TabBar>("bar");
+            Assert.AreEqual(0, bar.SelectedIndex, "default bar auto-selected the first tab");
+
+            var seen = new System.Collections.Generic.List<Tab>();
+            using var sub = bar.OnSelectionChanged.Subscribe(t => seen.Add(t));
+
+            bar.ClearSelection();
+
+            Assert.AreEqual(-1, bar.SelectedIndex);
+            Assert.IsNull(bar.SelectedTab);
+            Assert.IsFalse(screen.Get<Frame>("fa").GameObject.activeSelf);
+            Assert.IsFalse(screen.Get<Frame>("fb").GameObject.activeSelf);
+            CollectionAssert.AreEqual(new Tab[] { null }, seen);
+        }
+
+        [Test]
+        public void TabBar_ClearSelection_Is_Idempotent()
+        {
+            var bar = OpenBar("<TabBar id='bar'><Tab id='a'/></TabBar>");
+            bar.ClearSelection();
+
+            var seen = new System.Collections.Generic.List<Tab>();
+            using var sub = bar.OnSelectionChanged.Subscribe(t => seen.Add(t));
+            bar.ClearSelection();
+
+            Assert.AreEqual(-1, bar.SelectedIndex);
+            CollectionAssert.IsEmpty(seen, "already empty — nothing changed, nothing announced");
+        }
+
+        // SyncInitialSelection runs on EVERY OnAfterApply, i.e. on every ReSolve (variant / theme /
+        // resize). Without a latch it would quietly re-select tab 0 and re-open the page the player
+        // just closed. The empty-selection twin of Tab_RuntimeSelection_Survives_ReSolve.
+        [Test]
+        public void TabBar_ClearedSelection_Survives_ReSolve()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar'>
+    <Tab id='a' isOn='true' bind='fa'/>
+    <Tab id='b' bind='fb'/>
+  </TabBar>
+  <Frame id='fa'/>
+  <Frame id='fb'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var bar = screen.Get<TabBar>("bar");
+            bar.ClearSelection();
+
+            screen.ReSolve();
+
+            Assert.AreEqual(-1, bar.SelectedIndex, "ReSolve must not resurrect the auto-selection");
+            Assert.IsFalse(screen.Get<Frame>("fa").GameObject.activeSelf, "closed page stays closed");
+            Assert.IsFalse(screen.Get<Frame>("fb").GameObject.activeSelf);
+        }
+
+        [Test]
+        public void TabBar_AllowSwitchOff_Empty_Selection_Survives_ReSolve()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar' allowSwitchOff='true'><Tab id='a'/><Tab id='b'/></TabBar>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            screen.ReSolve();
+            Assert.AreEqual(-1, screen.Get<TabBar>("bar").SelectedIndex);
+        }
     }
 }
