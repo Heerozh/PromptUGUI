@@ -215,9 +215,10 @@ namespace PromptUGUI.Controls.Internal
         }
 
         /// <summary>
-        /// The precise half of the "needs mipmaps" diagnostic (spec §14.5; lint's <c>PUI-FX-RADIUS</c>
-        /// is the coarse half, which cannot see the texture or the drawn size). Fires once per texture,
-        /// only when the radius in TEXELS is past what the lod-0 kernel covers without gaps — a 10px
+        /// The whole "needs mipmaps" diagnostic (spec §14.5). Lint deliberately says nothing about
+        /// radius size: it sees neither the texture nor the drawn scale, so every threshold it could
+        /// pick fires on a mipmapped atlas too. Here both are known. Fires once per texture, only
+        /// when the radius in TEXELS is past what the lod-0 kernel covers without gaps — a 10px
         /// glow on a sprite drawn at four times its size is fine, the same glow at 1:1 is not.
         /// </summary>
         private void WarnIfKernelLeavesGaps(VertexHelper vh, Texture2D tex, float pad)

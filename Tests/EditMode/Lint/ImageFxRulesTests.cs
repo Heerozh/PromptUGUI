@@ -156,30 +156,22 @@ namespace PromptUGUI.Tests.EditMode.Lint
             Assert.IsEmpty(Self(Node("Image", ("sprite", "ui:x"), ("glow", "6"), ("mask", "rect"))));
         }
 
-        // ---- PUI-FX-RADIUS ----
+        // ---- radius: not lint's call ----
 
         [TestCase("blur", "7")]
         [TestCase("glow", "6.5")]
         [TestCase("blur", "40")]
-        public void A_radius_past_the_plain_kernel_is_a_warning_that_asks_for_mipmaps(string attr, string value)
-        {
-            // Lint cannot see the texture, so this is a reminder, not a verdict: past 6px the lod-0
-            // kernel leaves gaps between its taps unless the texture has a mip chain to sample
-            // (spec §14.5). The runtime warns precisely, per texture, when it actually falls back.
-            var issues = Self(Node("Icon", ("name", "ui:x"), (attr, value)));
-
-            Assert.AreEqual(1, issues.Count);
-            Assert.AreEqual(ImageFxRules.RadiusCode, issues[0].Code);
-            StringAssert.Contains("6", issues[0].Message);
-            StringAssert.Contains("mipmap", issues[0].Message.ToLowerInvariant());
-        }
-
         [TestCase("blur", "6")]
         [TestCase("glow", "4")]
         [TestCase("glow", "")]
         [TestCase("blur", "{{r}}")]
-        public void A_radius_the_plain_kernel_can_carry_is_quiet(string attr, string value)
+        public void A_radius_is_never_judged_by_its_size(string attr, string value)
         {
+            // Whether a radius leaves gaps between the kernel's taps depends on the texture's mip
+            // chain and on the drawn size, neither of which lint can see — so a static threshold
+            // nags just as loudly at an atlas that HAS mipmaps, and no number would not. The whole
+            // diagnostic is FxImage.WarnIfKernelLeavesGaps (spec §14.5): per texture, in texels,
+            // and only when the fragment really has to stay on the lod-0 kernel.
             Assert.IsEmpty(Self(Node("Icon", ("name", "ui:x"), (attr, value))));
         }
 

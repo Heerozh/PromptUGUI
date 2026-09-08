@@ -258,7 +258,7 @@ They rewrite the **generated mesh** about the rect's centre and touch nothing el
 - **`glowColor` unwritten = the sprite's own blurred colour**, so a coloured icon glows in its colours and follows `color=` and state modulates. Written, it is a flat glow in that colour whose alpha is its strength. `self` spells the default out and takes the usual `/alpha` suffix as a strength: `glowColor="self/0.5"` is the sprite's own colours at half intensity (the only way to dim a self-coloured glow). `self` is a keyword, not a theme token. A `glowColor` with no `glow` is `PUI-FX-ATTR`.
 - **The glow is drawn geometry, not layout.** The rect, `LayoutElement` and the raycast area are exactly as authored — same as `<Frame glow>`, so leave room with `spacing` / `margin` or the next sibling sits on top of the light.
 - **Radii are design px in the element's own space**, so `scale=` scales them with everything else.
-- **Anything past a few texels wants mipmaps on the sprite's texture** (SpriteAtlas → *Generate Mip Maps*; TextureImporter → *Generate Mipmaps*). The kernel samples the mip level that matches its tap spacing, so with a mip chain any radius is one smooth blur. Without one it samples the full-resolution texture, and past ~3 texels of radius that draws ghost copies of thin strokes; the runtime warns once per texture when it has to fall back like that, and lint flags anything over `6` px as `PUI-FX-RADIUS` as a reminder (it cannot see the texture or the drawn size). Point-filtered (pixel-art) textures cannot use mipmaps for this — keep their radii small. Mipmaps on an atlas cost a third more memory and soften every sprite in it when drawn smaller than 1:1; the atlas also needs Unity's normal padding (≥ 2 texels) and no rotation / tight packing (`reference/icons.md`).
+- **Anything past a few texels wants mipmaps on the sprite's texture** (SpriteAtlas → *Generate Mip Maps*; TextureImporter → *Generate Mipmaps*). The kernel samples the mip level that matches its tap spacing, so with a mip chain any radius is one smooth blur. Without one it samples the full-resolution texture, and past ~3 texels of radius that draws ghost copies of thin strokes; the runtime warns once per texture when it has to fall back like that, and names the limit for that draw size. Lint says nothing about how big a radius is — it sees neither the texture nor the drawn size, so any threshold it picked would nag at a mipmapped atlas too. Point-filtered (pixel-art) textures cannot use mipmaps for this — keep their radii small. Mipmaps on an atlas cost a third more memory and soften every sprite in it when drawn smaller than 1:1; the atlas also needs Unity's normal padding (≥ 2 texels) and no rotation / tight packing (`reference/icons.md`).
 - **`mask="self"` on the same node** makes the glow part of the stencil, so children show through it (`PUI-FX-MASK`). Put the mask on a parent `<Frame>`, or the effect on an inner `<Image>`.
 - Works with everything else that colours the graphic: `color=` (including gradients), state `*Modulate`, `tint="linear"`, CanvasGroup alpha and the disabled grey all still apply, and the glow greys with the body. One caveat: a **stop gradient** normalises over the inflated quad, so the picture sees the ramp inset by the radius.
 - **Atlas requirement:** the sprite's atlas must pack without rotation and without tight packing, or the sampling picks up its neighbour. `Sync Atlases` sets that on atlases it creates and warns about existing ones — see `reference/icons.md`.
@@ -1703,7 +1703,7 @@ MESH XFORM    rotation="90" flip="x|y|xy"   <Image>/<Icon>/<RawImage> only; mesh
 SPRITE FX     blur="4" glow="8" glowColor="accent|self/0.5"   <Image>/<Icon> only, type="simple"/contain/cover only
               glowColor unwritten = the sprite's own colours; the glow is drawn OUTSIDE the rect
               (layout unchanged — leave spacing); radii past a few texels need mipmaps on the texture
-              (>6px = PUI-FX-RADIUS reminder); atlas must not rotate/tight-pack
+              (runtime warns per texture, with the limit for that draw size); atlas must not rotate/tight-pack
 REFLECTION    <Icon name="x"/> then <Icon name="x" flip="y" color="white/0.35, white/0 50%"/>
               draw order = XML order, so floor <Image> between the two gives reflection < floor < object
               gradient runs on the FINAL mesh: first colour = top of what you see, flipped or not
@@ -1763,8 +1763,8 @@ SPRITE FX LINT PUI-FX-TAG                      blur= outside <Image> / <Icon> (R
                                                where a 9-slice sprite's automatic Sliced is visible)
               PUI-FX-ATTR                      glowColor= with no glow=
               PUI-FX-MASK                      blur/glow on the same node as mask="self"
-              PUI-FX-RADIUS                    blur/glow over 6px — needs mipmaps on the texture, or thin
-                                               strokes ghost (runtime warns per texture when it falls back)
+              (no rule on radius SIZE — lint sees neither the texture nor the drawn scale; the runtime
+               warns per texture when the kernel really has to fall back to no mipmaps)
 
 STYLE LINT    PUI-CLASS-EMPTY                  class="" / whitespace-only — names no style
               PUI-PROCEDURAL-VALUE             bad radius / borderWidth / glow / blur value (also inside <Style>)

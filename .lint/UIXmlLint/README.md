@@ -199,6 +199,12 @@ CLI-only to keep `Debug.Log*` noise out of the editor / Player.
 - **No Variant resolution.** Variant `<Add>` subtrees ARE walked (so layout
   violations inside them are caught), but `attr.var` overrides are checked
   using the same rule that base attributes use.
+- **No verdict on how big a `blur=` / `glow=` radius may be.** Whether the
+  kernel's taps leave gaps depends on the sprite texture's mip chain and on the
+  size it is drawn at, and the CLI sees neither — so every static threshold it
+  could pick (there was one, `PUI-FX-RADIUS` at 6px) nags just as loudly at an
+  atlas that *has* mipmaps, with no way to say so. `FxImage` owns that
+  diagnostic alone: at runtime, per texture, measured in texels.
 | `PUI-HUG-TAG`                 | `width` / `height` = `hug` (or `clamp(min, hug, max)`) on a tag with no content size. Only `<VStack>` / `<HStack>` / `<Grid>` / `<ScrollList>` have one: a `<Frame>`'s children are free-positioned (wrap them in a `<VStack>` and hug that), and a leaf's content size is what `size="native"` means. Seen through `class=` too. | CLI error + **runtime throw** (`ParseException` at `UI.Open`) |
 | `PUI-HUG-SCALE`               | A hug axis together with `scale=` on the same node — same last-writer conflict as `PUI-CLAMP-SCALE`. Move `scale` to a child. | CLI error + **runtime throw** |
 | `PUI-HUG-STRETCH-CHILD`       | A `stretch` child on the parent's hugged main axis (`<VStack height="hug">` + `<Btn height="stretch">`). The parent sizes itself to its children, so there is no leftover space and the child renders at 0. Give the child a size, or drop the hug. | CLI error + runtime warning |
@@ -208,7 +214,6 @@ CLI-only to keep `Debug.Log*` noise out of the editor / Player.
 | `PUI-FX-TYPE`                 | `blur=` / `glow=` on an `<Image>` / `<Icon>` whose `type=` is `sliced` / `tiled` / `filled` — those draw many quads and the effect samples one. Judged after `class=` is merged. | CLI + runtime warning    |
 | `PUI-FX-ATTR`                 | `glowColor=` with no `glow=` — nothing is drawn. | **CLI-only**             |
 | `PUI-FX-MASK`                 | `blur=` / `glow=` on the same node as `mask="self"` — the stencil is written by this graphic's own fragments, so the glow becomes part of the mask and children show through it. | **CLI-only**             |
-| `PUI-FX-RADIUS`               | `blur=` / `glow=` over 6px — past what the kernel samples without gaps on a texture that has no mipmaps, so thin strokes come out as ghost copies. A reminder to enable mipmaps on the sprite's texture (lint cannot see it, nor the drawn size); the runtime warns precisely, once per texture, when it actually falls back. Not clamped at runtime. | CLI + runtime warning    |
 | `PUI-REVEAL-SINGLE-CHILD`     | `<Animation reveal=…>` with zero or several children — the child is what gets measured and clipped. Wrap the content in a single `<VStack>` / `<Frame>`. | CLI + runtime warning |
 | `PUI-REVEAL-SIZE-CONFLICT`    | `height=` / `size=` (or a variant of them) on the axis a `reveal=` already owns — the reveal overwrites it on every pass. Drop it, or set the endpoints with `reveal-from` / `reveal-to`. The cross axis is fine. | CLI + runtime warning |
 | `PUI-REVEAL-SCALE`            | `reveal=` together with `scale=` on the same node — the revealed axis is owned by the layout pass. Move `scale` to the revealed child. | CLI error + **runtime throw** |
