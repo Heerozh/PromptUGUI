@@ -131,6 +131,9 @@ namespace PromptUGUI.Lint
             else if (node.Tag == "Carousel")
                 foreach (var issue in CarouselRules.CheckCarousel(node))
                     yield return issue;
+            else if (node.Tag == "ScrollList")
+                foreach (var issue in ScrollListRules.CheckScrollList(node, styles))
+                    yield return issue;
             else if (node.Tag == "Collapsible")
                 foreach (var issue in CollapsibleRules.CheckCollapsible(node, styles))
                     yield return issue;
@@ -254,7 +257,7 @@ namespace PromptUGUI.Lint
             var childHasMenuAncestor = hasMenuAncestor || StateTriggerRules.IsMenuSourceTag(node.Tag);
             var childHasToggleAncestor = hasToggleAncestor || StateTriggerRules.IsToggleSourceTag(node.Tag);
             var isLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "TabMenu"
-                                         or "Carousel" or "Collapsible";
+                                         or "Carousel" or "Collapsible" or "ScrollList";
             var isTabGroup = node.Tag is "TabBar" or "TabMenu";
             foreach (var child in node.Children)
             {
@@ -297,6 +300,12 @@ namespace PromptUGUI.Lint
                 // Grid-specific (V/HStack children's size IS meaningful), so gated on the parent tag here.
                 if (node.Tag == "Grid")
                     foreach (var issue in LayoutGroupChildRules.CheckGridChild(child))
+                        yield return issue.WithSource(child.OriginSrc, child.Line, child.InvokedAt);
+                // A <ScrollList columns=> hosts its children in a GridLayoutGroup too, so cellSize
+                // overrides their own size exactly as in a <Grid>. Gated on the declaration, not the
+                // tag alone — a plain list is a single column, where a child's size IS meaningful.
+                else if (node.Tag == "ScrollList" && ScrollListRules.DeclaresGrid(node, styles))
+                    foreach (var issue in LayoutGroupChildRules.CheckGridChild(child, "ScrollList"))
                         yield return issue.WithSource(child.OriginSrc, child.Line, child.InvokedAt);
                 // Exempt Template-instance roots and bodies: <Tab> wrapped in a
                 // Template (e.g. <Template name='FileTab'><Frame><Tab/>...) is

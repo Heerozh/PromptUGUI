@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
 using PromptUGUI.IR;
@@ -34,27 +35,55 @@ namespace PromptUGUI.Controls
         private Scrollbar _vertScrollbar;
         private Scrollbar _horizScrollbar;
         // 滚动条由 Direction setter 懒建（且 direction 切换会启用另一根），所以皮肤属性
-        // 存原始字符串、建完再回放 —— 同 _spacing / _padding 的 pending 模式。
+        // 存原始字符串、建完再回放 —— 同 spacing / padding 的 pending 模式。
         private string _scrollbarSprite;
         private string _scrollbarColor;
         private string _scrollbarHandleSprite;
         private string _scrollbarHandleColor;
+        private float _scrollbarWidth = 20f;   // 库存 Scroll View prefab 的厚度；改动它是显式的
+        private bool _scrollbarOverlay;
         private string _itemTemplate;
-        private float _spacing;
-        private string _padding;
+        // spacing 两轴分开存：单列只用得上 V、单行只用得上 H，网格两个都用。padding 同理存解析后的
+        // 四段而不是原串 —— 换组之后新组件的 padding 是全零，必须能原样重放。
+        private float _spacingV;
+        private float _spacingH;
+        private int _padT, _padR, _padB, _padL;
+        private int _columns;              // 0 = 不用网格，走 direction 的单列 / 单行
+        private Vector2? _cellSize;
         private Func<RectTransform, IControl> _factory;
         private readonly List<IControl> _slots = new();
+        private bool _staticCollected;
+        private bool _bound;
 
         // DSS-D4: ScrollList 视口默认值（避免 0x0 不可见）；实际项目几乎都会显式写 size。
         private const float DefaultMainAxisLength = 200f;
         private const float DefaultCrossAxisLength = 160f;
 
         public override Vector2? GetNativeSize()
-            => _direction == "horizontal"
+        {
+            // Grid mode: the cells are authoritative across, so the default viewport is exactly wide
+            // enough to hold the columns it was asked for — a flat 160 would clip the 4th of four
+            // 66-wide columns before the author ever saw the list. The main axis stays the plain
+            // default: how many ROWS are visible is a viewport choice, not a content one.
+            // Note the scrollbar is not counted in: unless scrollbarOverlay="true" it still takes
+            // (scrollbarWidth - 3) out of the viewport once the content overflows.
+            if (IsGrid && _cellSize.HasValue)
+            {
+                var w = _padL + _padR
+                        + _columns * _cellSize.Value.x
+                        + Mathf.Max(0, _columns - 1) * _spacingH;
+                return new Vector2(w, DefaultMainAxisLength);
+            }
+            return _direction == "horizontal"
                 ? new Vector2(DefaultMainAxisLength, DefaultCrossAxisLength)
                 : new Vector2(DefaultCrossAxisLength, DefaultMainAxisLength);
+        }
 
         public int SlotCount => _slots.Count;
+
+        // 静态 XML 子卡与 BindItems 建的卡都进 Content（同 Carousel 的 _strip）：挂在 ScrollList
+        // 根上的子节点落在 Viewport 之外 —— 既不被裁剪、也不滚动、也不计入 Content 尺寸。
+        protected internal override Transform ChildHostTransform => _content;
 
         public override void OnAttached()
         {
@@ -78,12 +107,41 @@ namespace PromptUGUI.Controls
             _scroll.decelerationRate = 0.135f;
             _scroll.scrollSensitivity = 1f;
 
-            ApplyDirection();
+            ApplyLayoutMode();
         }
 
-        private void ApplyDirection()
+        /// <summary>
+        /// True when this list lays its items out as a grid: <c>columns</c> ≥ 1 and the direction is
+        /// not horizontal. A row-major grid (<c>rows=</c>) is not in v1, so <c>direction="horizontal"</c>
+        /// wins over <c>columns</c> here — the combination is a lint error
+        /// (<c>PUI-SCROLL-COLUMNS-DIRECTION</c>) rather than a second layout to invent.
+        /// </summary>
+        internal bool IsGrid => _columns >= 1 && _direction != "horizontal";
+
+        /// <summary>
+        /// Configure the Content layout group from this node's own declaration BEFORE its children
+        /// are instantiated into it. The apply pass is DFS post-order, so a child resolves its
+        /// geometry against whatever group Content carries at instantiation time: without this, a
+        /// grid list's children would measure against the boot <c>VerticalLayoutGroup</c> on the
+        /// first pass and against the <c>GridLayoutGroup</c> on every <c>ReSolve</c> after, and a
+        /// <c>&lt;Text scale=&gt;</c> cell would get the scale-host wrapper that <c>&lt;Grid&gt;</c>
+        /// is excluded from. Idempotent — the ordinary setters still run in the apply pass.
+        /// </summary>
+        internal void PreConfigureContent(string direction, string columns)
         {
-            var wantHorizontal = _direction == "horizontal";
+            _direction = string.IsNullOrEmpty(direction) ? "vertical" : direction;
+            if (int.TryParse(columns, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n))
+                _columns = Math.Max(0, n);
+            ApplyLayoutMode();
+        }
+
+        private void ApplyLayoutMode()
+        {
+            var wantGrid = IsGrid;
+            var wantHorizontal = !wantGrid && _direction == "horizontal";
+            var wantType = wantGrid ? typeof(GridLayoutGroup)
+                         : wantHorizontal ? typeof(HorizontalLayoutGroup)
+                         : typeof(VerticalLayoutGroup);
 
             // Ensure Content carries the right LayoutGroup type, reusing it when unchanged. Object.Destroy is
             // deferred to end-of-frame in play mode, so a destroy-then-AddComponent in one frame collides with
@@ -91,16 +149,29 @@ namespace PromptUGUI.Controls
             // deferred destroy then strands Content with no layout group (items collapse). Only swap on a real
             // type change, and DestroyImmediate so the slot is free before AddComponent (safe here: off the
             // app/ReSolve call stack, never a physics/animation/OnValidate callback). Mirrors TabBar.ApplyDirection.
-            if (_layoutGroup == null || (_layoutGroup is HorizontalLayoutGroup) != wantHorizontal)
+            if (_layoutGroup == null || _layoutGroup.GetType() != wantType)
             {
                 if (_layoutGroup != null)
                 {
                     UnityEngine.Object.DestroyImmediate(_layoutGroup);
                     _layoutGroup = null;
                 }
-                _layoutGroup = wantHorizontal
-                    ? (LayoutGroup)_content.gameObject.AddComponent<HorizontalLayoutGroup>()
-                    : _content.gameObject.AddComponent<VerticalLayoutGroup>();
+                _layoutGroup = wantGrid
+                    ? (LayoutGroup)_content.gameObject.AddComponent<GridLayoutGroup>()
+                    : wantHorizontal
+                        ? _content.gameObject.AddComponent<HorizontalLayoutGroup>()
+                        : _content.gameObject.AddComponent<VerticalLayoutGroup>();
+            }
+
+            if (_layoutGroup is GridLayoutGroup grid)
+            {
+                // Column-major wrap from the top-left: rows grow downwards, which is the only
+                // direction this mode scrolls.
+                grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+                grid.constraintCount = _columns;
+                grid.startCorner = GridLayoutGroup.Corner.UpperLeft;
+                grid.startAxis = GridLayoutGroup.Axis.Horizontal;
+                grid.childAlignment = TextAnchor.UpperLeft;
             }
 
             var fitter = _content.GetComponent<ContentSizeFitter>()
@@ -123,7 +194,7 @@ namespace PromptUGUI.Controls
             {
                 _scroll.horizontal = false;
                 _scroll.vertical = true;
-                // 顶部锚点：水平方向铺满 viewport，竖向由 ContentSizeFitter 撑开
+                // 顶部锚点：水平方向铺满 viewport，竖向由 ContentSizeFitter 撑开（网格模式共用这一支）
                 _content.anchorMin = new Vector2(0f, 1f);
                 _content.anchorMax = new Vector2(1f, 1f);
                 _content.pivot = new Vector2(0.5f, 1f);
@@ -132,7 +203,7 @@ namespace PromptUGUI.Controls
                 fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
                 fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             }
-            ApplySpacingPadding();
+            ApplyGroupMetrics();
 
             if (wantHorizontal)
             {
@@ -146,30 +217,47 @@ namespace PromptUGUI.Controls
             }
         }
 
-        private void ApplySpacingPadding()
+        // 每次换组之后都要重放一遍：ControlAttributeApplier 遍历的是 HashSet，属性到达顺序不可依赖，
+        // 所以 setter 只存值、这里统一下发到当前的 LayoutGroup 实例。LayoutGroup 的 setter 走
+        // SetProperty（值相等就不 dirty），因此 ReSolve 里的空转重放不会引发多余的 layout rebuild。
+        private void ApplyGroupMetrics()
         {
+            if (_layoutGroup == null) return;
             switch (_layoutGroup)
             {
-                case HorizontalLayoutGroup h: h.spacing = _spacing; break;
-                case VerticalLayoutGroup v: v.spacing = _spacing; break;
+                // GridLayoutGroup.spacing 是 Vector2 (x = horizontal, y = vertical)
+                case GridLayoutGroup g:
+                    g.spacing = new Vector2(_spacingH, _spacingV);
+                    if (_cellSize.HasValue) g.cellSize = _cellSize.Value;
+                    break;
+                case HorizontalLayoutGroup h: h.spacing = _spacingH; break;
+                case VerticalLayoutGroup v: v.spacing = _spacingV; break;
             }
-            // padding 字符串: "X" | "V,H" | "T,R,B,L"
-            if (string.IsNullOrEmpty(_padding) || _layoutGroup == null) return;
-            var parts = _padding.Split(',');
-            int t = 0, r = 0, b = 0, l = 0;
+            _layoutGroup.padding = new RectOffset(_padL, _padR, _padT, _padB);
+        }
+
+        // "X" | "V,H" —— 与 <Grid spacing> 和两段 padding 同序（竖向在前）。
+        private static void ParseSpacing(string s, out float v, out float h)
+        {
+            v = h = 0f;
+            if (string.IsNullOrEmpty(s)) return;
+            var parts = s.Split(',');
             switch (parts.Length)
             {
-                case 1: int.TryParse(parts[0], out t); r = b = l = t; break;
-                case 2:
-                    int.TryParse(parts[0], out t); b = t;
-                    int.TryParse(parts[1], out r); l = r; break;
-                case 4:
-                    int.TryParse(parts[0], out t);
-                    int.TryParse(parts[1], out r);
-                    int.TryParse(parts[2], out b);
-                    int.TryParse(parts[3], out l); break;
+                case 1: v = h = ParseSpacingPart(parts[0]); return;
+                case 2: v = ParseSpacingPart(parts[0]); h = ParseSpacingPart(parts[1]); return;
+                default:
+                    throw new ArgumentException(
+                    $"spacing '{s}' must be 1 or 2 numbers (a single gap, or \"V,H\")");
             }
-            _layoutGroup.padding = new RectOffset(l, r, t, b);
+        }
+
+        private static float ParseSpacingPart(string p)
+        {
+            p = p.Trim();
+            return (p.Length == 0 || p == "_")
+                ? 0f
+                : float.Parse(p, NumberStyles.Float, CultureInfo.InvariantCulture);
         }
 
         [UIAttr, Preserve]
@@ -185,14 +273,72 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public string Direction
         {
-            set { _direction = string.IsNullOrEmpty(value) ? "vertical" : value; ApplyDirection(); }
+            set { _direction = string.IsNullOrEmpty(value) ? "vertical" : value; ApplyLayoutMode(); }
+        }
+
+        /// <summary>
+        /// Column count. <c>0</c> (the default) lays items out as the single column / row that
+        /// <c>direction</c> describes; anything ≥ 1 switches Content to a <c>GridLayoutGroup</c> and
+        /// makes <c>cellSize</c> required.
+        /// <para>Spell <c>columns="0"</c> out when a variant has to LEAVE the grid — a variant that
+        /// resolves to null is skipped rather than reverted (<c>ControlAttributeApplier</c> does
+        /// <c>if (v == null) continue;</c>), so simply omitting the override would keep the grid.</para>
+        /// </summary>
+        [UIAttr, Preserve]
+        public int Columns
+        {
+            set { _columns = Mathf.Max(0, value); ApplyLayoutMode(); }
+        }
+
+        /// <summary>
+        /// Uniform cell size <c>"WxH"</c> for grid mode; the children's own size is ignored there
+        /// (<c>PUI-GRID-CHILD-SIZE</c>). Required whenever <c>columns</c> is set
+        /// (<c>PUI-SCROLL-COLUMNS-CELLSIZE</c>) — without it every cell falls back to uGUI's 100×100.
+        /// </summary>
+        [UIAttr, Preserve]
+        public string CellSize
+        {
+            set
+            {
+                var parsed = ParseCellSize(value);
+                if (parsed.HasValue) _cellSize = parsed;
+                ApplyGroupMetrics();
+            }
+        }
+
+        // 格式错时告警并保留旧值（同 Carousel.DotSize）：一个笔误不该把整个 Screen 打不开。
+        private static Vector2? ParseCellSize(string value)
+        {
+            var x = value == null ? -1 : value.IndexOf('x');
+            if (x > 0
+                && float.TryParse(value.Substring(0, x), NumberStyles.Float, CultureInfo.InvariantCulture, out var w)
+                && float.TryParse(value.Substring(x + 1), NumberStyles.Float, CultureInfo.InvariantCulture, out var h))
+                return new Vector2(w, h);
+            if (!string.IsNullOrEmpty(value))
+                Debug.LogWarning($"<ScrollList cellSize='{value}'> is not 'WxH'; keeping the previous cell size.");
+            return null;
+        }
+
+        /// <summary>
+        /// Gap between items. One value = both axes; <c>"V,H"</c> = vertical, horizontal — the same
+        /// written order as <c>&lt;Grid spacing&gt;</c> and the two-part <c>padding</c>. A single
+        /// column only ever uses V and a single row only H; grid mode uses both.
+        /// </summary>
+        [UIAttr, Preserve]
+        public string Spacing
+        {
+            set { ParseSpacing(value, out _spacingV, out _spacingH); ApplyGroupMetrics(); }
         }
 
         [UIAttr, Preserve]
-        public float Spacing { set { _spacing = value; ApplySpacingPadding(); } }
-
-        [UIAttr, Preserve]
-        public string Padding { set { _padding = value; ApplySpacingPadding(); } }
+        public string Padding
+        {
+            set
+            {
+                VStack.ParseTRBL(value, out _padT, out _padR, out _padB, out _padL);
+                ApplyGroupMetrics();
+            }
+        }
 
         [UIAttr(IsColor = true), Preserve]
         public string Color
@@ -255,6 +401,14 @@ namespace PromptUGUI.Controls
         internal override void OnAfterApply()
         {
             base.OnAfterApply();
+            // 首次 apply 把静态 XML 子卡收进 _slots —— apply 是 DFS 后序，到这里子节点已全部建好。
+            // 只跑一次（_staticCollected），且 BindItems 调过之后（_bound）不再收：否则 ReSolve 会
+            // 把已 Dispose 的旧引用收回来。同 CarouselView.SetStaticCards。
+            if (!_staticCollected && !_bound)
+            {
+                _staticCollected = true;
+                foreach (var c in Children) _slots.Add(c);
+            }
             // mask 未显式写时跟随 bg sprite：有图→圆角 stencil，sprite=""→直角 RectMask2D
             // （对齐 InputField 的 mask-tracks-border 先例；显式 mask= 一旦写过即 latch，跳过这里）。
             if (!_maskExplicit)
@@ -325,6 +479,9 @@ namespace PromptUGUI.Controls
 
         private void ClearSlots()
         {
+            // 标记已动态绑定：之后 ReSolve 的静态收集不再执行。静态卡在这里被 Dispose，
+            // Screen.ReSolve 靠 `control.GameObject == null` 跳过它们的 ElementNode。
+            _bound = true;
             foreach (var s in _slots)
             {
                 s.Dispose();
@@ -342,7 +499,6 @@ namespace PromptUGUI.Controls
             rt.anchorMin = new Vector2(1f, 0f);
             rt.anchorMax = new Vector2(1f, 1f);
             rt.pivot = new Vector2(1f, 1f);
-            rt.sizeDelta = new Vector2(20f, 0f);
             var bg = rt.gameObject.AddComponent<UnityImage>();
             bg.color = UnityEngine.Color.white;
             ProceduralBuilders.ApplyDefaultInsetSprite(bg);
@@ -350,22 +506,19 @@ namespace PromptUGUI.Controls
             _vertScrollbar.direction = Scrollbar.Direction.BottomToTop;
 
             var sliding = ProceduralBuilders.AddChild(rt, "Sliding Area");
-            sliding.sizeDelta = new Vector2(-20f, -20f);
             var handle = ProceduralBuilders.AddImage(sliding, "Handle");
             handle.color = UnityEngine.Color.white;
             ProceduralBuilders.ApplyDefaultSlicedSprite(handle);
             // Vertical Handle: 默认 prefab anchorMax=(1, 0.2) — X 全 stretch (跨 Sliding Area 宽度，
-            // 配合 sliding.sizeDelta.x=-20 + handle.sizeDelta.x=20 还原 scrollbar 全宽)；
-            // Y 占 sliding 高度的 0%-20% (初始 size=0.2 范围)。
+            // 配合 sliding.sizeDelta.x=-w + handle.sizeDelta.x=w 还原 scrollbar 全宽)；
+            // Y 占 sliding 高度的 0%-20% (初始 size=0.2 范围)。尺寸由 ApplyScrollbarMetrics 下发。
             handle.rectTransform.anchorMin = Vector2.zero;
             handle.rectTransform.anchorMax = new Vector2(1f, 0.2f);
-            handle.rectTransform.sizeDelta = new Vector2(20f, 20f);
             _vertScrollbar.targetGraphic = handle;
             _vertScrollbar.handleRect = handle.rectTransform;
 
             _scroll.verticalScrollbar = _vertScrollbar;
-            _scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
-            _scroll.verticalScrollbarSpacing = -3f;
+            ApplyScrollbarMetrics();
             ApplyScrollbarSkin();
         }
 
@@ -377,7 +530,6 @@ namespace PromptUGUI.Controls
             rt.anchorMin = new Vector2(0f, 0f);
             rt.anchorMax = new Vector2(1f, 0f);
             rt.pivot = new Vector2(0f, 0f);
-            rt.sizeDelta = new Vector2(0f, 20f);
             var bg = rt.gameObject.AddComponent<UnityImage>();
             bg.color = UnityEngine.Color.white;
             ProceduralBuilders.ApplyDefaultInsetSprite(bg);
@@ -385,21 +537,75 @@ namespace PromptUGUI.Controls
             _horizScrollbar.direction = Scrollbar.Direction.LeftToRight;
 
             var sliding = ProceduralBuilders.AddChild(rt, "Sliding Area");
-            sliding.sizeDelta = new Vector2(-20f, -20f);
             var handle = ProceduralBuilders.AddImage(sliding, "Handle");
             handle.color = UnityEngine.Color.white;
             ProceduralBuilders.ApplyDefaultSlicedSprite(handle);
             // Horizontal Handle: 镜像 vertical — anchorMax=(0.2, 1)，Y 全 stretch + X 占 0%-20%。
             handle.rectTransform.anchorMin = Vector2.zero;
             handle.rectTransform.anchorMax = new Vector2(0.2f, 1f);
-            handle.rectTransform.sizeDelta = new Vector2(20f, 20f);
             _horizScrollbar.targetGraphic = handle;
             _horizScrollbar.handleRect = handle.rectTransform;
 
             _scroll.horizontalScrollbar = _horizScrollbar;
-            _scroll.horizontalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
-            _scroll.horizontalScrollbarSpacing = -3f;
+            ApplyScrollbarMetrics();
             ApplyScrollbarSkin();
+        }
+
+        /// <summary>
+        /// Thickness of the scrollbar: the width of a vertical bar, the height of a horizontal one.
+        /// Both directions share it, like the rest of the scrollbar skin. Default 20 — on a 640x360
+        /// reference canvas that is most of a 66-wide grid column, so a grid list usually wants a
+        /// smaller value, <c>scrollbarOverlay="true"</c>, or both.
+        /// </summary>
+        [UIAttr, Preserve]
+        public float ScrollbarWidth
+        {
+            set { _scrollbarWidth = Mathf.Max(0f, value); ApplyScrollbarMetrics(); }
+        }
+
+        /// <summary>
+        /// Draw the scrollbar ON TOP of the content (<c>ScrollbarVisibility.AutoHide</c>) instead of
+        /// shrinking the viewport to make room for it (<c>AutoHideAndExpandViewport</c>, the default).
+        /// An overlaid bar is how a fixed column count stays fully visible once the rows overflow.
+        /// </summary>
+        [UIAttr, Preserve]
+        public bool ScrollbarOverlay
+        {
+            set { _scrollbarOverlay = value; ApplyScrollbarMetrics(); }
+        }
+
+        // 尺寸与皮肤同构：滚动条是懒建的（Direction setter 决定建哪根），所以属性存字段、建完再回放，
+        // 两根都刷。Sliding Area 从 handleRect.parent 取，不额外存引用。
+        private void ApplyScrollbarMetrics()
+        {
+            var w = _scrollbarWidth;
+            ApplyScrollbarMetrics(_vertScrollbar, vertical: true, w);
+            ApplyScrollbarMetrics(_horizScrollbar, vertical: false, w);
+            if (_scroll == null) return;
+            var visibility = _scrollbarOverlay
+                ? ScrollRect.ScrollbarVisibility.AutoHide
+                : ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
+            _scroll.verticalScrollbarVisibility = visibility;
+            _scroll.horizontalScrollbarVisibility = visibility;
+            // 库存的 -3 让滚动条压进视口 3 个单位。条比 3 还细时那会把视口撑得比列表还宽 ——
+            // 把重叠量夹到条自身的厚度。
+            var spacing = Mathf.Max(-w, -3f);
+            _scroll.verticalScrollbarSpacing = spacing;
+            _scroll.horizontalScrollbarSpacing = spacing;
+        }
+
+        private static void ApplyScrollbarMetrics(Scrollbar bar, bool vertical, float w)
+        {
+            if (bar == null) return;
+            var rt = (RectTransform)bar.transform;
+            // 长轴由 anchor 拉满（sizeDelta 那一维恒 0），只有短轴是厚度。
+            rt.sizeDelta = vertical ? new Vector2(w, 0f) : new Vector2(0f, w);
+            if (bar.handleRect == null) return;
+            // Sliding Area 两轴各内缩一个厚度，handle 再加回来 —— 净效果是 handle 横跨整条宽度，
+            // 上下（横条则左右）各留出一个厚度作为端头留白。库存 Scroll View prefab 的比例。
+            if (bar.handleRect.parent is RectTransform sliding)
+                sliding.sizeDelta = new Vector2(-w, -w);
+            bar.handleRect.sizeDelta = new Vector2(w, w);
         }
 
         // 内部图层：与 <Progress> 同一套命名规约 —— 每层一对 `<layer>` (sprite) + `<layer>Color`。

@@ -179,5 +179,78 @@ namespace PromptUGUI.Tests.Lint
             var issues = Lint(@"<Grid columns='3' cellSize='64x64'><Image id='bg' flow='false' size='80x80'/></Grid>");
             Assert.IsFalse(issues.Any(i => i.Code == LayoutGroupChildRules.GridChildSizeCode));
         }
+
+        // ───── the same rule serves a grid-mode <ScrollList> (SGS-D5) ─────
+
+        [Test]
+        public void GridChild_DefaultParentTag_StillNamesGrid()
+        {
+            var child = new ElementNode("Image") { Id = "cell" };
+            child.Attributes["width"] = "64";
+            var issues = LayoutGroupChildRules.CheckGridChild(child).ToList();
+            StringAssert.Contains("<Grid>", issues[0].Message);
+            StringAssert.Contains("<Grid cellSize=\"WxH\">", issues[0].Message);
+        }
+
+        [Test]
+        public void GridChild_NamesTheParentTagItWasGiven()
+        {
+            var child = new ElementNode("Image") { Id = "cell" };
+            child.Attributes["width"] = "64";
+            var issues = LayoutGroupChildRules.CheckGridChild(child, "ScrollList").ToList();
+            Assert.AreEqual(1, issues.Count);
+            Assert.AreEqual(LayoutGroupChildRules.GridChildSizeCode, issues[0].Code);
+            StringAssert.Contains("<ScrollList>", issues[0].Message);
+            StringAssert.Contains("<ScrollList cellSize=\"WxH\">", issues[0].Message);
+            StringAssert.DoesNotContain("<Grid", issues[0].Message,
+                "naming the wrong parent sends the author to the wrong element");
+        }
+
+        [Test]
+        public void GridModeScrollListChild_WithSize_ProducesGridSizeIssue()
+        {
+            var issues = Lint(@"<ScrollList columns='3' cellSize='40x40'><Image id='c' width='30'/></ScrollList>");
+            var issue = issues.FirstOrDefault(i => i.Code == LayoutGroupChildRules.GridChildSizeCode);
+            Assert.IsNotNull(issue, "cellSize overrides a cell's own size here exactly like in a <Grid>");
+            StringAssert.Contains("<ScrollList", issue.Message);
+        }
+
+        [Test]
+        public void SingleColumnScrollListChild_WithSize_IsFine()
+        {
+            // Without a grid the child's size IS its main-axis size, same as under a VStack.
+            var issues = Lint(@"<ScrollList columns='0'><Image id='c' width='30'/></ScrollList>");
+            Assert.IsFalse(issues.Any(i => i.Code == LayoutGroupChildRules.GridChildSizeCode));
+        }
+
+        [Test]
+        public void PlainScrollListChild_WithSize_IsFine()
+        {
+            var issues = Lint(@"<ScrollList itemTemplate='Row'><Image id='c' height='30'/></ScrollList>");
+            Assert.IsFalse(issues.Any(i => i.Code == LayoutGroupChildRules.GridChildSizeCode));
+        }
+
+        [Test]
+        public void ScrollListChild_WithAnchor_ProducesAnchorIssue()
+        {
+            var issues = Lint(@"<ScrollList itemTemplate='Row'><Image id='c' anchor='top-left'/></ScrollList>");
+            Assert.That(issues.Any(i => i.Code == LayoutGroupChildRules.AnchorCode),
+                "the list positions its items automatically — anchor is dropped");
+        }
+
+        [Test]
+        public void ScrollListChild_WithMargin_ProducesMarginIssue()
+        {
+            var issues = Lint(@"<ScrollList itemTemplate='Row'><Image id='c' margin='4'/></ScrollList>");
+            Assert.That(issues.Any(i => i.Code == LayoutGroupChildRules.MarginCode));
+        }
+
+        [Test]
+        public void ScrollListChild_WithFlow_IsNotReportedAsInert()
+        {
+            var issues = Lint(@"<ScrollList itemTemplate='Row'><Image id='c' flow='false'/></ScrollList>");
+            Assert.IsFalse(issues.Any(i => i.Code == LayoutGroupChildRules.FlowOutsideCode),
+                "the list IS a layout group now, so there is a flow to opt out of");
+        }
     }
 }

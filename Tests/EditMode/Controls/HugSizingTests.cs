@@ -215,6 +215,87 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.Greater(content.rect.height, 100f, "the content still overflows, so the list scrolls");
         }
 
+        // ───── a hugged GRID list: the row count is what the hug measures ─────
+        //
+        // Nothing in the hug path is grid-aware: IHugContent reads the Content node's preferred size
+        // and GridLayoutGroup derives that from ceil(cells / columns) regardless of how wide Content
+        // is. These pin that so a later change to either half cannot quietly break the other.
+
+        private static string GridListDoc(string listAttrs) =>
+            "<?xml version='1.0' encoding='utf-8'?>\n<PromptUGUI version='1'>\n" +
+            "  <Template name='Cell'><Frame/></Template>\n" +
+            "  <Screen name='S'><Frame id='box' anchor='top-left' width='400' height='600'>" +
+            $"<ScrollList id='list' anchor='top-left' width='200' sprite='' itemTemplate='Cell' {listAttrs}/>" +
+            "</Frame></Screen>\n</PromptUGUI>";
+
+        private static ScrollList OpenGridList(string listAttrs, int cells)
+        {
+            UI.LoadDocument("test", GridListDoc(listAttrs));
+            var list = UI.Open("S").Get<ScrollList>("list");
+            var items = new string[cells];
+            for (var i = 0; i < cells; i++) items[i] = "c" + i;
+            list.BindItems(
+                R3.Observable.Return<System.Collections.Generic.IReadOnlyList<string>>(items),
+                (IControl slot, string _) => { });
+            Drain();
+            return list;
+        }
+
+        [Test]
+        public void Grid_scrolllist_hugs_the_height_of_its_rows()
+        {
+            // 7 cells over 3 columns = 3 rows.
+            var list = OpenGridList("columns='3' cellSize='40x40' spacing='0' padding='0' height='hug'", cells: 7);
+
+            Assert.AreEqual(120f, list.RectTransform.rect.height, 0.01f, "3 rows x 40");
+        }
+
+        [Test]
+        public void Grid_scrolllist_hug_counts_spacing_and_padding()
+        {
+            var list = OpenGridList(
+                "columns='3' cellSize='40x40' spacing='4,4' padding='6,0,6,0' height='hug'", cells: 7);
+
+            Assert.AreEqual(3 * 40f + 2 * 4f + 12f, list.RectTransform.rect.height, 0.01f,
+                "3 rows + 2 vertical gaps + top/bottom padding");
+        }
+
+        [Test]
+        public void Grid_scrolllist_hug_is_exactly_the_content_preferred_height()
+        {
+            var list = OpenGridList("columns='3' cellSize='40x40' spacing='0' padding='0' height='hug'", cells: 7);
+            var content = list.RectTransform.Find("Viewport/Content") as RectTransform;
+            Assert.IsNotNull(content);
+
+            Assert.AreEqual(LayoutUtility.GetPreferredSize(content, 1), list.RectTransform.rect.height, 0.01f,
+                "hug means: my height IS my content's preferred height");
+        }
+
+        [Test]
+        public void Grid_scrolllist_clamp_hug_caps_and_still_scrolls()
+        {
+            var list = OpenGridList(
+                "columns='3' cellSize='40x40' spacing='0' padding='0' height='clamp(_, hug, 100)'", cells: 7);
+
+            Assert.AreEqual(100f, list.RectTransform.rect.height, 0.01f, "content 120 capped at 100");
+            var content = list.RectTransform.Find("Viewport/Content") as RectTransform;
+            Assert.IsNotNull(content);
+            Assert.Greater(content.rect.height, 100f, "the content still overflows, so the list scrolls");
+        }
+
+        [Test]
+        public void Grid_scrolllist_hug_follows_the_row_count_not_the_cell_count()
+        {
+            // One more cell than fits the last row adds a whole row; one fewer does not.
+            var six = OpenGridList("columns='3' cellSize='40x40' spacing='0' padding='0' height='hug'", cells: 6);
+            var sixHigh = six.RectTransform.rect.height;
+            UI.ResetForTests();
+            var seven = OpenGridList("columns='3' cellSize='40x40' spacing='0' padding='0' height='hug'", cells: 7);
+
+            Assert.AreEqual(80f, sixHigh, 0.01f, "6 cells over 3 columns = 2 rows");
+            Assert.AreEqual(120f, seven.RectTransform.rect.height, 0.01f, "the 7th cell opens a 3rd row");
+        }
+
         // ───── inside a layout group ─────
 
         [Test]

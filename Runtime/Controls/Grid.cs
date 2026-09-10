@@ -55,6 +55,9 @@ namespace PromptUGUI.Controls
                 }
                 else
                 {
+                    // Written order is "V,H" — vertical first, like the two-part `padding` and the
+                    // four-part `margin` ("T,R,B,L"). Pinned by GridSpacingTests; <ScrollList spacing>
+                    // follows the same order.
                     var v = float.Parse(parts[0], CultureInfo.InvariantCulture);
                     var h = float.Parse(parts[1], CultureInfo.InvariantCulture);
                     _layout.spacing = new Vector2(h, v);  // GridLayoutGroup.spacing is (x,y) = (horizontal, vertical)
