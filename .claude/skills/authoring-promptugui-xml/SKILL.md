@@ -94,7 +94,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 | `<Toggle>` | Image+Toggle，`OnValueChanged:bool`，可互斥 |
 | `<Slider>` | Image+Slider，`OnValueChanged:float` |
 | `<Dropdown>` | TMP_Dropdown，`OnSelected:int`（`BindOptions`） |
-| `<ScrollList>` | ScrollRect+Mask（`BindItems`） |
+| `<ScrollList>` | ScrollRect+Mask + Vertical/Horizontal/GridLayoutGroup（XML 静态子节点 + `BindItems`） |
 | `<InputField>` | TMP_InputField，`OnValueChanged` / `OnEndEdit` / `OnSubmit:string` |
 | `<Progress>` | 只读线性进度条 |
 | `<TabBar>` | 互斥选项卡容器 |
@@ -345,7 +345,7 @@ TMP_Text。文本简写：`<Text>Hello</Text>` ≡ `<Text text="Hello"/>`。
 |---|---|---|---|
 | `columns` | int | — | |
 | `cellSize` | `WxH` | — | |
-| `spacing` | single 或 `H,V` | — | |
+| `spacing` | single 或 `V,H` | — | 竖向在前，同两段 `padding` / 四段 `margin` |
 | `padding` | `T,R,B,L` | — | |
 
 ### `<Btn>`
@@ -484,14 +484,20 @@ TMP_Dropdown。R3 `OnSelected: int`。选项 C# 侧 `BindOptions(...)` 注入。
 
 ### `<ScrollList>`
 
-ScrollRect + Mask。项 C# 侧 `BindItems(...)` 注入。`itemTemplate` 引用 `<Template name=...>` 或注册的 Control 类。不写 size 时按方向给视口默认：纵向 160×200、横向 200×160；实战通常显式写 size。
+ScrollRect + Mask。项可以**写在 XML 里**（成为初始 slot）、也可以 C# 侧 `BindItems(...)` 注入，或两者并用。`itemTemplate` 引用 `<Template name=...>` 或注册的 Control 类。不写 size 时按方向给视口默认：纵向 160×200、横向 200×160；网格模式下宽度改按内容算（见 `columns` 行）；实战通常显式写 size。
+
+**Static children.** XML children of a `<ScrollList>` become its Content children — they scroll, they are clipped by the viewport, and they count towards the content size (so `height="hug"` measures them). This is what makes a list previewable without running any C#: write the placeholder cards and see them. The first `BindItems` call destroys them and takes over, exactly like `<Carousel>`; after that a `screen.Get` handle to a placeholder points at a destroyed GameObject. `itemTemplate` is therefore only required **before `BindItems`** — a purely static list can omit it.
+
+Children of a list are layout-group children: `anchor` / `margin` are dropped (`PUI-LAYOUT-ANCHOR` / `PUI-LAYOUT-MARGIN`), `width="stretch"` is fine, `flow="false"` opts out. In **grid mode** a child must not write `size` / `width` / `height` either — `cellSize` on the parent is what sizes a cell (`PUI-GRID-CHILD-SIZE`).
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
 | `radius` · `borderWidth` · `glass` … | 同 `<Frame>` | — | **程序化表面**（背景）→ 见 **程序化表面** 一节 |
-| `itemTemplate` | tag name | — | 必填 |
+| `itemTemplate` | tag name | — | `BindItems` 前必填；只写静态子节点时可省 |
 | `direction` | `vertical` / `horizontal` | `vertical` | |
-| `spacing` | float | — | |
+| `columns` | int ≥ 1 | `0` | Grid mode: Content becomes a `GridLayoutGroup` wrapping into rows that grow downwards. `0` = the single column / row `direction` describes. **Spell `columns="0"` out when a variant has to leave the grid** — a variant resolving to null is skipped, not reverted, so dropping the override keeps the grid. Vertical only: with `direction="horizontal"` it is `PUI-SCROLL-COLUMNS-DIRECTION` (the direction wins at runtime); there is no row-major `rows=` in v1. Without a `size`, the list's native **width** becomes `padding + columns × cellSize + gaps` — but the scrollbar still eats `scrollbarWidth − 3` out of the viewport unless `scrollbarOverlay="true"`. |
+| `cellSize` | `WxH` | — | Uniform cell size; **required in grid mode** (`PUI-SCROLL-COLUMNS-CELLSIZE`) — without it every cell falls back to uGUI's 100×100. Same meaning as `<Grid cellSize>`: a cell's own `size` / `width` / `height` is ignored. |
+| `spacing` | single 或 `V,H` | — | 竖向在前，同 `<Grid spacing>`。单列只用得上 V、单行只用得上 H，网格两个都用 |
 | `padding` | `T,R,B,L` | — | |
 | `color` | hex / CSS / token | — | 见 **Color Tokens** |
 | `sprite` | sprite key | — | |
@@ -500,7 +506,26 @@ ScrollRect + Mask。项 C# 侧 `BindItems(...)` 注入。`itemTemplate` 引用 `
 | `frameColor` | hex / CSS / token | — | Tints the frame layer; setting it alone also activates the layer. |
 | `scrollbar` · `scrollbarColor` | sprite key / color | — | 滚动条**轨道**。两个方向共用一份皮肤；滚动条是懒建的，属性先写后建也生效 |
 | `scrollbarHandle` · `scrollbarHandleColor` | sprite key / color | — | 滚动条**滑块** |
+| `scrollbarWidth` | float | `20` | Bar thickness — the width of a vertical bar, the height of a horizontal one. On a 640×360 reference canvas the default 20 is most of a 66-wide grid column, so grid lists usually want less. |
+| `scrollbarOverlay` | bool | `false` | `true` draws the bar **over** the content (`ScrollbarVisibility.AutoHide`) instead of shrinking the viewport for it (`AutoHideAndExpandViewport`). This is how a fixed column count stays fully visible once the rows overflow. |
 | `mask` | sprite key | follows `sprite` | Viewport clip shape. `mask="custom#slice"` = stencil mask with that sprite (auto-sliced); `mask=""` = square `RectMask2D` clip (cheaper). **Unset auto-tracks the bg `sprite`**: a sprite present (incl. the default) → rounded stencil; `sprite=""`/`sprite="none"` → square, so a transparent list's corners stay square without writing `mask=""`. Explicit `mask=` (any value, incl. `""`) opts out of auto-tracking. Unlike `<Image>`/`<Frame>`, `rect`/`self` are **not** keywords here — `mask` takes a sprite key. |
+
+A scrolling card grid with authored placeholders — 4 columns, a thin overlaid scrollbar so the 4th
+column survives the overflow, and a narrower cell in portrait:
+
+```xml
+<ScrollList id="slots" anchor="stretch" margin="16,0,0,2"
+  columns="4" cellSize="66x100" cellSize.portrait="67x100" spacing="4"
+  sprite="none" color="#0000" scrollbar="" scrollbarWidth="6" scrollbarOverlay="true"
+  itemTemplate="BuildSlot">
+  <BuildSlot id="slot1" index="1" icon="Building:MetalExtractor" name="Refinery" level="Lv.5"/>
+  <BuildSlot id="slot2" index="2" icon="Building:SolarPlant" name="Solar Plant" level="Lv.2"/>
+</ScrollList>
+```
+
+The placeholders render in UIPreview; at runtime
+`screen.Get<ScrollList>("slots").BindItems(slots, (slot, data) => …)` replaces them with real data
+laid out in the same grid.
 
 ### `<InputField>`
 
