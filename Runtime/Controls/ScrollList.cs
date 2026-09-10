@@ -40,6 +40,8 @@ namespace PromptUGUI.Controls
         private string _scrollbarColor;
         private string _scrollbarHandleSprite;
         private string _scrollbarHandleColor;
+        private float _scrollbarWidth = 20f;   // 库存 Scroll View prefab 的厚度；改动它是显式的
+        private bool _scrollbarOverlay;
         private string _itemTemplate;
         // spacing 两轴分开存：单列只用得上 V、单行只用得上 H，网格两个都用。padding 同理存解析后的
         // 四段而不是原串 —— 换组之后新组件的 padding 是全零，必须能原样重放。
@@ -497,7 +499,6 @@ namespace PromptUGUI.Controls
             rt.anchorMin = new Vector2(1f, 0f);
             rt.anchorMax = new Vector2(1f, 1f);
             rt.pivot = new Vector2(1f, 1f);
-            rt.sizeDelta = new Vector2(20f, 0f);
             var bg = rt.gameObject.AddComponent<UnityImage>();
             bg.color = UnityEngine.Color.white;
             ProceduralBuilders.ApplyDefaultInsetSprite(bg);
@@ -505,22 +506,19 @@ namespace PromptUGUI.Controls
             _vertScrollbar.direction = Scrollbar.Direction.BottomToTop;
 
             var sliding = ProceduralBuilders.AddChild(rt, "Sliding Area");
-            sliding.sizeDelta = new Vector2(-20f, -20f);
             var handle = ProceduralBuilders.AddImage(sliding, "Handle");
             handle.color = UnityEngine.Color.white;
             ProceduralBuilders.ApplyDefaultSlicedSprite(handle);
             // Vertical Handle: 默认 prefab anchorMax=(1, 0.2) — X 全 stretch (跨 Sliding Area 宽度，
-            // 配合 sliding.sizeDelta.x=-20 + handle.sizeDelta.x=20 还原 scrollbar 全宽)；
-            // Y 占 sliding 高度的 0%-20% (初始 size=0.2 范围)。
+            // 配合 sliding.sizeDelta.x=-w + handle.sizeDelta.x=w 还原 scrollbar 全宽)；
+            // Y 占 sliding 高度的 0%-20% (初始 size=0.2 范围)。尺寸由 ApplyScrollbarMetrics 下发。
             handle.rectTransform.anchorMin = Vector2.zero;
             handle.rectTransform.anchorMax = new Vector2(1f, 0.2f);
-            handle.rectTransform.sizeDelta = new Vector2(20f, 20f);
             _vertScrollbar.targetGraphic = handle;
             _vertScrollbar.handleRect = handle.rectTransform;
 
             _scroll.verticalScrollbar = _vertScrollbar;
-            _scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
-            _scroll.verticalScrollbarSpacing = -3f;
+            ApplyScrollbarMetrics();
             ApplyScrollbarSkin();
         }
 
@@ -532,7 +530,6 @@ namespace PromptUGUI.Controls
             rt.anchorMin = new Vector2(0f, 0f);
             rt.anchorMax = new Vector2(1f, 0f);
             rt.pivot = new Vector2(0f, 0f);
-            rt.sizeDelta = new Vector2(0f, 20f);
             var bg = rt.gameObject.AddComponent<UnityImage>();
             bg.color = UnityEngine.Color.white;
             ProceduralBuilders.ApplyDefaultInsetSprite(bg);
@@ -540,21 +537,75 @@ namespace PromptUGUI.Controls
             _horizScrollbar.direction = Scrollbar.Direction.LeftToRight;
 
             var sliding = ProceduralBuilders.AddChild(rt, "Sliding Area");
-            sliding.sizeDelta = new Vector2(-20f, -20f);
             var handle = ProceduralBuilders.AddImage(sliding, "Handle");
             handle.color = UnityEngine.Color.white;
             ProceduralBuilders.ApplyDefaultSlicedSprite(handle);
             // Horizontal Handle: 镜像 vertical — anchorMax=(0.2, 1)，Y 全 stretch + X 占 0%-20%。
             handle.rectTransform.anchorMin = Vector2.zero;
             handle.rectTransform.anchorMax = new Vector2(0.2f, 1f);
-            handle.rectTransform.sizeDelta = new Vector2(20f, 20f);
             _horizScrollbar.targetGraphic = handle;
             _horizScrollbar.handleRect = handle.rectTransform;
 
             _scroll.horizontalScrollbar = _horizScrollbar;
-            _scroll.horizontalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
-            _scroll.horizontalScrollbarSpacing = -3f;
+            ApplyScrollbarMetrics();
             ApplyScrollbarSkin();
+        }
+
+        /// <summary>
+        /// Thickness of the scrollbar: the width of a vertical bar, the height of a horizontal one.
+        /// Both directions share it, like the rest of the scrollbar skin. Default 20 — on a 640x360
+        /// reference canvas that is most of a 66-wide grid column, so a grid list usually wants a
+        /// smaller value, <c>scrollbarOverlay="true"</c>, or both.
+        /// </summary>
+        [UIAttr, Preserve]
+        public float ScrollbarWidth
+        {
+            set { _scrollbarWidth = Mathf.Max(0f, value); ApplyScrollbarMetrics(); }
+        }
+
+        /// <summary>
+        /// Draw the scrollbar ON TOP of the content (<c>ScrollbarVisibility.AutoHide</c>) instead of
+        /// shrinking the viewport to make room for it (<c>AutoHideAndExpandViewport</c>, the default).
+        /// An overlaid bar is how a fixed column count stays fully visible once the rows overflow.
+        /// </summary>
+        [UIAttr, Preserve]
+        public bool ScrollbarOverlay
+        {
+            set { _scrollbarOverlay = value; ApplyScrollbarMetrics(); }
+        }
+
+        // 尺寸与皮肤同构：滚动条是懒建的（Direction setter 决定建哪根），所以属性存字段、建完再回放，
+        // 两根都刷。Sliding Area 从 handleRect.parent 取，不额外存引用。
+        private void ApplyScrollbarMetrics()
+        {
+            var w = _scrollbarWidth;
+            ApplyScrollbarMetrics(_vertScrollbar, vertical: true, w);
+            ApplyScrollbarMetrics(_horizScrollbar, vertical: false, w);
+            if (_scroll == null) return;
+            var visibility = _scrollbarOverlay
+                ? ScrollRect.ScrollbarVisibility.AutoHide
+                : ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
+            _scroll.verticalScrollbarVisibility = visibility;
+            _scroll.horizontalScrollbarVisibility = visibility;
+            // 库存的 -3 让滚动条压进视口 3 个单位。条比 3 还细时那会把视口撑得比列表还宽 ——
+            // 把重叠量夹到条自身的厚度。
+            var spacing = Mathf.Max(-w, -3f);
+            _scroll.verticalScrollbarSpacing = spacing;
+            _scroll.horizontalScrollbarSpacing = spacing;
+        }
+
+        private static void ApplyScrollbarMetrics(Scrollbar bar, bool vertical, float w)
+        {
+            if (bar == null) return;
+            var rt = (RectTransform)bar.transform;
+            // 长轴由 anchor 拉满（sizeDelta 那一维恒 0），只有短轴是厚度。
+            rt.sizeDelta = vertical ? new Vector2(w, 0f) : new Vector2(0f, w);
+            if (bar.handleRect == null) return;
+            // Sliding Area 两轴各内缩一个厚度，handle 再加回来 —— 净效果是 handle 横跨整条宽度，
+            // 上下（横条则左右）各留出一个厚度作为端头留白。库存 Scroll View prefab 的比例。
+            if (bar.handleRect.parent is RectTransform sliding)
+                sliding.sizeDelta = new Vector2(-w, -w);
+            bar.handleRect.sizeDelta = new Vector2(w, w);
         }
 
         // 内部图层：与 <Progress> 同一套命名规约 —— 每层一对 `<layer>` (sprite) + `<layer>Color`。
