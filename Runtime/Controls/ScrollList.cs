@@ -56,9 +56,24 @@ namespace PromptUGUI.Controls
         private const float DefaultCrossAxisLength = 160f;
 
         public override Vector2? GetNativeSize()
-            => _direction == "horizontal"
+        {
+            // Grid mode: the cells are authoritative across, so the default viewport is exactly wide
+            // enough to hold the columns it was asked for — a flat 160 would clip the 4th of four
+            // 66-wide columns before the author ever saw the list. The main axis stays the plain
+            // default: how many ROWS are visible is a viewport choice, not a content one.
+            // Note the scrollbar is not counted in: unless scrollbarOverlay="true" it still takes
+            // (scrollbarWidth - 3) out of the viewport once the content overflows.
+            if (IsGrid && _cellSize.HasValue)
+            {
+                var w = _padL + _padR
+                        + _columns * _cellSize.Value.x
+                        + Mathf.Max(0, _columns - 1) * _spacingH;
+                return new Vector2(w, DefaultMainAxisLength);
+            }
+            return _direction == "horizontal"
                 ? new Vector2(DefaultMainAxisLength, DefaultCrossAxisLength)
                 : new Vector2(DefaultCrossAxisLength, DefaultMainAxisLength);
+        }
 
         public int SlotCount => _slots.Count;
 
