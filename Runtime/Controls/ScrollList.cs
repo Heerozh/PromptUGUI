@@ -116,6 +116,23 @@ namespace PromptUGUI.Controls
         /// </summary>
         internal bool IsGrid => _columns >= 1 && _direction != "horizontal";
 
+        /// <summary>
+        /// Configure the Content layout group from this node's own declaration BEFORE its children
+        /// are instantiated into it. The apply pass is DFS post-order, so a child resolves its
+        /// geometry against whatever group Content carries at instantiation time: without this, a
+        /// grid list's children would measure against the boot <c>VerticalLayoutGroup</c> on the
+        /// first pass and against the <c>GridLayoutGroup</c> on every <c>ReSolve</c> after, and a
+        /// <c>&lt;Text scale=&gt;</c> cell would get the scale-host wrapper that <c>&lt;Grid&gt;</c>
+        /// is excluded from. Idempotent — the ordinary setters still run in the apply pass.
+        /// </summary>
+        internal void PreConfigureContent(string direction, string columns)
+        {
+            _direction = string.IsNullOrEmpty(direction) ? "vertical" : direction;
+            if (int.TryParse(columns, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n))
+                _columns = Math.Max(0, n);
+            ApplyLayoutMode();
+        }
+
         private void ApplyLayoutMode()
         {
             var wantGrid = IsGrid;

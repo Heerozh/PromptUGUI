@@ -202,5 +202,95 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(120f, list.RectTransform.rect.height, 0.01f,
                 "7 static cells over 3 columns = 3 rows x 40 — the same answer BindItems gives");
         }
+
+        // ───── Content is configured BEFORE the children are instantiated into it ─────
+        //
+        // The apply pass is DFS post-order, so a child resolves its geometry against whatever group
+        // Content carries at instantiation time. Without a pre-configure step a grid list's children
+        // would measure against the boot VerticalLayoutGroup on the first pass and against the
+        // GridLayoutGroup on every ReSolve after — first frame and re-solve would disagree.
+
+        [Test]
+        public void A_grid_childs_geometry_is_the_same_on_the_first_pass_as_after_a_ReSolve()
+        {
+            var screen = Open("<ScrollList id='sl' anchor='top-left' width='200' height='200'"
+                            + " columns='3' cellSize='40x40' spacing='0' padding='0'>"
+                            + "<Frame id='a'/><Frame id='b'/></ScrollList>");
+            var a = screen.Get<Frame>("a").RectTransform;
+            var first = a.sizeDelta;
+            var firstAnchorMin = a.anchorMin;
+
+            screen.ReSolve();
+            Canvas.ForceUpdateCanvases();
+
+            Assert.AreEqual(first, a.sizeDelta, "a cell must not resize itself on the first ReSolve");
+            Assert.AreEqual(firstAnchorMin, a.anchorMin);
+        }
+
+        [Test]
+        public void Text_with_scale_in_a_grid_list_gets_no_scale_host_wrapper()
+        {
+            // Same exclusion <Grid> gets for free (STW-D2: cellSize is the declared box). <Grid>
+            // qualifies because GridLayoutGroup is not a HorizontalOrVerticalLayoutGroup; a grid
+            // ScrollList only qualifies if Content already carries the grid when the child is built.
+            var screen = Open("<ScrollList id='sl' anchor='top-left' width='200' height='200'"
+                            + " columns='3' cellSize='40x40'>"
+                            + "<Text id='t' scale='0.5'>hello</Text></ScrollList>");
+            var text = (Control)screen.Get("t");
+
+            Assert.AreEqual(text.RectTransform, text.LayoutHost,
+                "a grid cell is sized by cellSize, so there is no main-axis measurement to bridge");
+        }
+
+        [Test]
+        public void Text_with_scale_in_a_single_column_list_still_gets_the_wrapper()
+        {
+            var screen = Open("<ScrollList id='sl' anchor='top-left' width='200' height='200'>"
+                            + "<Text id='t' width='stretch' wrap='true' scale='0.5'>hello</Text></ScrollList>");
+            var text = (Control)screen.Get("t");
+
+            Assert.AreNotEqual(text.RectTransform, text.LayoutHost, "wrapper expected");
+            Assert.AreEqual("t [scale-host]", text.LayoutHost.gameObject.name);
+        }
+
+        // ───── the list is a layout group, so its children obey layout-group child rules ─────
+
+        [Test]
+        public void An_anchor_on_a_list_child_warns_like_any_layout_group_child()
+        {
+            UnityEngine.TestTools.LogAssert.Expect(
+                LogType.Warning,
+                new System.Text.RegularExpressions.Regex("anchor.*ignored.*layout group"));
+
+            Open("<ScrollList id='sl' width='150' height='200'><Frame id='a' anchor='top-left'/></ScrollList>");
+        }
+
+        [Test]
+        public void A_margin_on_a_list_child_warns_like_any_layout_group_child()
+        {
+            UnityEngine.TestTools.LogAssert.Expect(
+                LogType.Warning,
+                new System.Text.RegularExpressions.Regex("margin.*ignored.*layout group"));
+
+            Open("<ScrollList id='sl' width='150' height='200'><Frame id='a' margin='4'/></ScrollList>");
+        }
+
+        [Test]
+        public void An_out_of_flow_list_child_keeps_its_free_positioning_attributes()
+        {
+            // flow="false" leaves the layout flow, so anchor/margin mean what they always meant.
+            Assert.DoesNotThrow(() => Open(
+                "<ScrollList id='sl' width='150' height='200'>"
+                + "<Frame id='a' flow='false' anchor='top-left' margin='4'/></ScrollList>"));
+        }
+
+        [Test]
+        public void Flow_on_a_list_child_is_not_reported_as_inert()
+        {
+            // PUI-FLOW-OUTSIDE-GROUP fires for children of NON-layout-group parents. Now that the
+            // list is one, a flow= child must stop being flagged.
+            Assert.DoesNotThrow(() => Open(
+                "<ScrollList id='sl' width='150' height='200'><Frame id='a' flow='true'/></ScrollList>"));
+        }
     }
 }

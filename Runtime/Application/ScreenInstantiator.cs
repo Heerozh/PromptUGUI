@@ -5,6 +5,7 @@ using PromptUGUI.Controls.Internal;
 using PromptUGUI.IR;
 using PromptUGUI.Lint;
 using PromptUGUI.Registry;
+using PromptUGUI.Variants;
 using UnityEngine;
 
 namespace PromptUGUI.Application
@@ -315,8 +316,17 @@ namespace PromptUGUI.Application
                 control.ReplaceScopedIds(childScope);
             }
 
+            // A <ScrollList> hosts its children in Content, whose layout group depends on the list's
+            // OWN attributes — and this apply pass is DFS post-order, so those attributes have not
+            // been applied yet. Push the two structural ones down now so a child measures against the
+            // group it will actually live under (see ScrollList.PreConfigureContent).
+            if (control is Controls.ScrollList scrollList)
+                scrollList.PreConfigureContent(
+                    VariantResolver.ResolveAttribute(node, "direction", _variants),
+                    VariantResolver.ResolveAttribute(node, "columns", _variants));
+
             var selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "TabMenu"
-                                             or "Carousel" or "Collapsible";
+                                             or "Carousel" or "Collapsible" or "ScrollList";
             foreach (var c in node.Children)
             {
                 // <Header> is not a control: it names which children make up the header bar. Its
