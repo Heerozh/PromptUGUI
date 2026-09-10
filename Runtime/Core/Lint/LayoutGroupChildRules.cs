@@ -75,13 +75,14 @@ namespace PromptUGUI.Lint
         }
 
         /// <summary>
-        /// Child of a <c>&lt;Grid&gt;</c> specifically: its own <c>size</c> / <c>width</c> / <c>height</c> is
+        /// Child of a cell grid — a <c>&lt;Grid&gt;</c>, or a <c>&lt;ScrollList columns=&gt;</c> in grid mode
+        /// (pass its tag as <paramref name="parentTag"/>): its own <c>size</c> / <c>width</c> / <c>height</c> is
         /// silently overridden by <c>GridLayoutGroup.cellSize</c> (the cell size is uniform, set on the parent).
         /// Unlike <c>&lt;VStack&gt;</c> / <c>&lt;HStack&gt;</c> — where a child's size IS the main-axis size — so
-        /// this is dispatched ONLY for Grid parents (IRWalker), not from <c>CheckChild</c>.
+        /// this is dispatched ONLY for grid parents (IRWalker), not from <c>CheckChild</c>.
         /// CLI-only: "author wrote something we ignore" with no visible defect, like PUI-CONTAINER-VISUAL-ATTR.
         /// </summary>
-        public static IEnumerable<LintIssue> CheckGridChild(ElementNode child)
+        public static IEnumerable<LintIssue> CheckGridChild(ElementNode child, string parentTag = "Grid")
         {
             // flow="false" (or a variant taking over flow): the child leaves the grid's flow, so
             // GridLayoutGroup skips it and its own size is meaningful again — not a misuse.
@@ -95,10 +96,10 @@ namespace PromptUGUI.Lint
             if (offenders.Count > 0)
                 yield return new LintIssue(
                     GridChildSizeCode, child.Tag, child.Id,
-                    $"<{child.Tag} id='{child.Id}'>: {string.Join(" / ", offenders)} is ignored because the parent is a <Grid>, " +
+                    $"<{child.Tag} id='{child.Id}'>: {string.Join(" / ", offenders)} is ignored because the parent is a <{parentTag}>, " +
                     "whose GridLayoutGroup gives every child a uniform cell size. " +
-                    "Fix: set the cell size on the parent (<Grid cellSize=\"WxH\">); " +
-                    "or, for a non-uniform size, move this element out of the Grid (e.g. into a <Frame>).");
+                    $"Fix: set the cell size on the parent (<{parentTag} cellSize=\"WxH\">); " +
+                    $"or, for a non-uniform size, move this element out of the <{parentTag}> (e.g. into a <Frame>).");
         }
     }
 }
