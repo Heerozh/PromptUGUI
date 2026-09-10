@@ -58,6 +58,44 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             Assert.AreEqual(3, list.SlotCount);
         }
 
+        // Grid mode + static children through the real play-mode layout pass. EditMode drives layout
+        // by hand (Canvas.ForceUpdateCanvases); here the ContentSizeFitter on Content and the
+        // GridLayoutGroup settle over real frames, which is where a wrong rebuild order would show.
+        [UnityTest]
+        public IEnumerator ScrollList_grid_lays_static_cards_out_in_rows()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='Cell'><Frame/></Template>
+  <Screen name='S'>
+    <ScrollList id='list' anchor='center' size='200x300' itemTemplate='Cell'
+                columns='4' cellSize='40x40' spacing='0' padding='0'>
+      <Frame/><Frame/><Frame/><Frame/><Frame/><Frame/>
+    </ScrollList>
+  </Screen>
+</PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var screen = UI.Open("S");
+            var list = screen.Get<ScrollList>("list");
+            var content = (UnityEngine.RectTransform)list.GameObject.transform.Find("Viewport/Content");
+
+            yield return null;
+            yield return null;
+
+            Assert.AreEqual(6, list.SlotCount, "the six XML cards are the initial slots");
+            Assert.AreEqual(80f, content.rect.height, 0.5f, "6 cards over 4 columns = 2 rows x 40");
+
+            list.BindItems(
+                Observable.Return<IReadOnlyList<int>>(new[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 }),
+                (IControl _, int __) => { });
+
+            yield return null;
+            yield return null;
+
+            Assert.AreEqual(12, list.SlotCount);
+            Assert.AreEqual(120f, content.rect.height, 0.5f, "12 items over 4 columns = 3 rows");
+        }
+
         // Issue 1 回归：动态绑定（BindOptions/BindItems）里的 UI.Tr 不会随 ReSolve 自动重译——
         // ReSolve 只重译 XML 声明的 text=，不重跑 C# 绑定。sample 改用 "UI.Locale.Changed → Observable"
         // 脉冲流（FromEvent + Prepend）让选项在切语言时重新计算。这里验证该脉冲流：订阅即发一次
