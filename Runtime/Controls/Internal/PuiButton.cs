@@ -37,6 +37,33 @@ namespace PromptUGUI.Controls.Internal
             _broadcaster.SetTransient(StateBroadcaster.MapTransient((int)state));
         }
 
+
+        // ── Pointer tracking ─────────────────────────────────────────────────────────────
+        // uGUI's own isPointerInside is private, and StateBroadcaster needs it to keep hover alive
+        // through the selection a click leaves behind. Set BEFORE base, whose
+        // EvaluateAndTransitionToSelectionState -> DoStateTransition reads it back out of the
+        // broadcaster in the same call.
+
+        public override void OnPointerEnter(PointerEventData eventData)
+        {
+            _broadcaster.SetPointerInside(true);
+            base.OnPointerEnter(eventData);
+        }
+
+        public override void OnPointerExit(PointerEventData eventData)
+        {
+            _broadcaster.SetPointerInside(false);
+            base.OnPointerExit(eventData);
+        }
+
+        /// <summary>uGUI wipes isPointerInside here (disable / interactable flip) without routing
+        /// through DoStateTransition, so the mirrored flag has to be wiped alongside it.</summary>
+        protected override void InstantClearState()
+        {
+            _broadcaster.SetPointerInside(false);
+            base.InstantClearState();
+        }
+
         /// <summary>
         /// 鼠标用过后焦点光标隐藏时，第一次 Submit 只唤回光标、不点击（见 nav-hidden-submit-wake）。
         /// 仅拦键盘/手柄确认；鼠标点击走 OnPointerClick 不受影响。

@@ -19,6 +19,7 @@ namespace PromptUGUI.Controls.Internal
 
         private InteractState _transient = InteractState.Normal;
         private bool _isOn;
+        private bool _pointerInside;
 
         /// <summary>Replays the current value to new subscribers, then emits on every change.</summary>
         public Observable<InteractState> OnState => _state;
@@ -48,16 +49,35 @@ namespace PromptUGUI.Controls.Internal
             Recompute();
         }
 
+        /// <summary>
+        /// Set whether the pointer is currently over the control. Tracked here because uGUI keeps
+        /// its own <c>isPointerInside</c> private, and <see cref="Recompute"/> needs it to tell a
+        /// hover apart from the bare selection a click leaves behind (see the fold below).
+        /// </summary>
+        public void SetPointerInside(bool inside)
+        {
+            if (_pointerInside == inside) return;
+            _pointerInside = inside;
+            Recompute();
+        }
+
         // Selected = resting baseline of an active control: transient Normal + isOn reads Selected;
         // any non-Normal transient overrides it (and reverts on release). The always-on "active"
         // indicator lives on the independent Toggle.graphic channel, so active-ness is never lost.
         private void Recompute()
         {
-            // Focus is visible only in Directional input mode; in Pointer mode it folds to Normal so a
+            // Focus is visible only in Directional input mode; in Pointer mode it folds away so a
             // mouse click doesn't leave the control stuck-highlighted (spec §3).
+            //
+            // It folds to HOVER, not Normal, while the pointer is still inside. uGUI's
+            // currentSelectionState ranks hasSelection above isPointerInside, and a click selects the
+            // control (Selectable.OnPointerDown -> EventSystem.SetSelectedGameObject), so from the
+            // first click onward every hover arrives here as Selected/Focused and never Highlighted.
+            // Folding all of it to Normal killed hoverColor / hoverModulate for as long as the control
+            // held the selection - the hover came back only once some other control took it away.
             var t = _transient;
             if (t == InteractState.Focused && !PromptUGUI.Application.UI.Navigation.IsDirectional)
-                t = InteractState.Normal;
+                t = _pointerInside ? InteractState.Hover : InteractState.Normal;
             var composite = t == InteractState.Normal
                 ? (_isOn ? InteractState.Selected : InteractState.Normal)
                 : t;
@@ -69,8 +89,8 @@ namespace PromptUGUI.Controls.Internal
         /// <summary>
         /// Maps a uGUI <see cref="UnityEngine.UI.Selectable.SelectionState"/> ordinal to a transient
         /// <see cref="InteractState"/>. Navigation-Selected (ordinal 3) maps to
-        /// <see cref="InteractState.Focused"/>; <see cref="Recompute"/> folds it to Normal in Pointer
-        /// mode (spec §3). Takes the int ordinal because the protected SelectionState type cannot appear
+        /// <see cref="InteractState.Focused"/>; <see cref="Recompute"/> folds it away in Pointer mode
+        /// (to Hover while the pointer is inside, else Normal — spec §3). Takes the int ordinal because the protected SelectionState type cannot appear
         /// in a non-Selectable class's accessible signature (CS0051).
         /// Ordinals: Normal=0 Highlighted=1 Pressed=2 Selected=3 Disabled=4.
         /// </summary>

@@ -7,8 +7,10 @@ namespace PromptUGUI.Controls
     /// </summary>
     /// <remarks>
     /// uGUI's navigation-<c>Selected</c> state maps to <see cref="Focused"/> when
-    /// <c>UI.Navigation</c> is in Directional mode; in Pointer mode it folds to <see cref="Normal"/>
-    /// so a mouse click doesn't leave a control stuck-highlighted (spec §3).
+    /// <c>UI.Navigation</c> is in Directional mode. In Pointer mode it folds away: to
+    /// <see cref="Hover"/> while the pointer is still inside — a click selects the control, and
+    /// uGUI reports that selection in place of Highlighted from then on — and otherwise to
+    /// <see cref="Normal"/>, so a click doesn't leave a control stuck-highlighted (spec §3).
     /// <see cref="Selected"/> here is the resting baseline of an <c>isOn</c> control:
     /// emitted when the control is active and not currently Hover/Pressed/Disabled. A momentary
     /// <see cref="Btn"/> has no <c>isOn</c>, so it never emits <see cref="Selected"/>.
