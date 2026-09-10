@@ -46,6 +46,8 @@ namespace PromptUGUI.Controls
         private float _spacingV;
         private float _spacingH;
         private int _padT, _padR, _padB, _padL;
+        private int _columns;              // 0 = 不用网格，走 direction 的单列 / 单行
+        private Vector2? _cellSize;
         private Func<RectTransform, IControl> _factory;
         private readonly List<IControl> _slots = new();
 
@@ -82,12 +84,24 @@ namespace PromptUGUI.Controls
             _scroll.decelerationRate = 0.135f;
             _scroll.scrollSensitivity = 1f;
 
-            ApplyDirection();
+            ApplyLayoutMode();
         }
 
-        private void ApplyDirection()
+        /// <summary>
+        /// True when this list lays its items out as a grid: <c>columns</c> ≥ 1 and the direction is
+        /// not horizontal. A row-major grid (<c>rows=</c>) is not in v1, so <c>direction="horizontal"</c>
+        /// wins over <c>columns</c> here — the combination is a lint error
+        /// (<c>PUI-SCROLL-COLUMNS-DIRECTION</c>) rather than a second layout to invent.
+        /// </summary>
+        internal bool IsGrid => _columns >= 1 && _direction != "horizontal";
+
+        private void ApplyLayoutMode()
         {
-            var wantHorizontal = _direction == "horizontal";
+            var wantGrid = IsGrid;
+            var wantHorizontal = !wantGrid && _direction == "horizontal";
+            var wantType = wantGrid ? typeof(GridLayoutGroup)
+                         : wantHorizontal ? typeof(HorizontalLayoutGroup)
+                         : typeof(VerticalLayoutGroup);
 
             // Ensure Content carries the right LayoutGroup type, reusing it when unchanged. Object.Destroy is
             // deferred to end-of-frame in play mode, so a destroy-then-AddComponent in one frame collides with
@@ -95,16 +109,29 @@ namespace PromptUGUI.Controls
             // deferred destroy then strands Content with no layout group (items collapse). Only swap on a real
             // type change, and DestroyImmediate so the slot is free before AddComponent (safe here: off the
             // app/ReSolve call stack, never a physics/animation/OnValidate callback). Mirrors TabBar.ApplyDirection.
-            if (_layoutGroup == null || (_layoutGroup is HorizontalLayoutGroup) != wantHorizontal)
+            if (_layoutGroup == null || _layoutGroup.GetType() != wantType)
             {
                 if (_layoutGroup != null)
                 {
                     UnityEngine.Object.DestroyImmediate(_layoutGroup);
                     _layoutGroup = null;
                 }
-                _layoutGroup = wantHorizontal
-                    ? (LayoutGroup)_content.gameObject.AddComponent<HorizontalLayoutGroup>()
-                    : _content.gameObject.AddComponent<VerticalLayoutGroup>();
+                _layoutGroup = wantGrid
+                    ? (LayoutGroup)_content.gameObject.AddComponent<GridLayoutGroup>()
+                    : wantHorizontal
+                        ? _content.gameObject.AddComponent<HorizontalLayoutGroup>()
+                        : _content.gameObject.AddComponent<VerticalLayoutGroup>();
+            }
+
+            if (_layoutGroup is GridLayoutGroup grid)
+            {
+                // Column-major wrap from the top-left: rows grow downwards, which is the only
+                // direction this mode scrolls.
+                grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+                grid.constraintCount = _columns;
+                grid.startCorner = GridLayoutGroup.Corner.UpperLeft;
+                grid.startAxis = GridLayoutGroup.Axis.Horizontal;
+                grid.childAlignment = TextAnchor.UpperLeft;
             }
 
             var fitter = _content.GetComponent<ContentSizeFitter>()
@@ -127,7 +154,7 @@ namespace PromptUGUI.Controls
             {
                 _scroll.horizontal = false;
                 _scroll.vertical = true;
-                // 顶部锚点：水平方向铺满 viewport，竖向由 ContentSizeFitter 撑开
+                // 顶部锚点：水平方向铺满 viewport，竖向由 ContentSizeFitter 撑开（网格模式共用这一支）
                 _content.anchorMin = new Vector2(0f, 1f);
                 _content.anchorMax = new Vector2(1f, 1f);
                 _content.pivot = new Vector2(0.5f, 1f);
@@ -159,7 +186,10 @@ namespace PromptUGUI.Controls
             switch (_layoutGroup)
             {
                 // GridLayoutGroup.spacing 是 Vector2 (x = horizontal, y = vertical)
-                case GridLayoutGroup g: g.spacing = new Vector2(_spacingH, _spacingV); break;
+                case GridLayoutGroup g:
+                    g.spacing = new Vector2(_spacingH, _spacingV);
+                    if (_cellSize.HasValue) g.cellSize = _cellSize.Value;
+                    break;
                 case HorizontalLayoutGroup h: h.spacing = _spacingH; break;
                 case VerticalLayoutGroup v: v.spacing = _spacingV; break;
             }
@@ -203,7 +233,50 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public string Direction
         {
-            set { _direction = string.IsNullOrEmpty(value) ? "vertical" : value; ApplyDirection(); }
+            set { _direction = string.IsNullOrEmpty(value) ? "vertical" : value; ApplyLayoutMode(); }
+        }
+
+        /// <summary>
+        /// Column count. <c>0</c> (the default) lays items out as the single column / row that
+        /// <c>direction</c> describes; anything ≥ 1 switches Content to a <c>GridLayoutGroup</c> and
+        /// makes <c>cellSize</c> required.
+        /// <para>Spell <c>columns="0"</c> out when a variant has to LEAVE the grid — a variant that
+        /// resolves to null is skipped rather than reverted (<c>ControlAttributeApplier</c> does
+        /// <c>if (v == null) continue;</c>), so simply omitting the override would keep the grid.</para>
+        /// </summary>
+        [UIAttr, Preserve]
+        public int Columns
+        {
+            set { _columns = Mathf.Max(0, value); ApplyLayoutMode(); }
+        }
+
+        /// <summary>
+        /// Uniform cell size <c>"WxH"</c> for grid mode; the children's own size is ignored there
+        /// (<c>PUI-GRID-CHILD-SIZE</c>). Required whenever <c>columns</c> is set
+        /// (<c>PUI-SCROLL-COLUMNS-CELLSIZE</c>) — without it every cell falls back to uGUI's 100×100.
+        /// </summary>
+        [UIAttr, Preserve]
+        public string CellSize
+        {
+            set
+            {
+                var parsed = ParseCellSize(value);
+                if (parsed.HasValue) _cellSize = parsed;
+                ApplyGroupMetrics();
+            }
+        }
+
+        // 格式错时告警并保留旧值（同 Carousel.DotSize）：一个笔误不该把整个 Screen 打不开。
+        private static Vector2? ParseCellSize(string value)
+        {
+            var x = value == null ? -1 : value.IndexOf('x');
+            if (x > 0
+                && float.TryParse(value.Substring(0, x), NumberStyles.Float, CultureInfo.InvariantCulture, out var w)
+                && float.TryParse(value.Substring(x + 1), NumberStyles.Float, CultureInfo.InvariantCulture, out var h))
+                return new Vector2(w, h);
+            if (!string.IsNullOrEmpty(value))
+                Debug.LogWarning($"<ScrollList cellSize='{value}'> is not 'WxH'; keeping the previous cell size.");
+            return null;
         }
 
         /// <summary>
