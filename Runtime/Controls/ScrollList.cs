@@ -50,6 +50,8 @@ namespace PromptUGUI.Controls
         private Vector2? _cellSize;
         private Func<RectTransform, IControl> _factory;
         private readonly List<IControl> _slots = new();
+        private bool _staticCollected;
+        private bool _bound;
 
         // DSS-D4: ScrollList 视口默认值（避免 0x0 不可见）；实际项目几乎都会显式写 size。
         private const float DefaultMainAxisLength = 200f;
@@ -76,6 +78,10 @@ namespace PromptUGUI.Controls
         }
 
         public int SlotCount => _slots.Count;
+
+        // 静态 XML 子卡与 BindItems 建的卡都进 Content（同 Carousel 的 _strip）：挂在 ScrollList
+        // 根上的子节点落在 Viewport 之外 —— 既不被裁剪、也不滚动、也不计入 Content 尺寸。
+        protected internal override Transform ChildHostTransform => _content;
 
         public override void OnAttached()
         {
@@ -376,6 +382,14 @@ namespace PromptUGUI.Controls
         internal override void OnAfterApply()
         {
             base.OnAfterApply();
+            // 首次 apply 把静态 XML 子卡收进 _slots —— apply 是 DFS 后序，到这里子节点已全部建好。
+            // 只跑一次（_staticCollected），且 BindItems 调过之后（_bound）不再收：否则 ReSolve 会
+            // 把已 Dispose 的旧引用收回来。同 CarouselView.SetStaticCards。
+            if (!_staticCollected && !_bound)
+            {
+                _staticCollected = true;
+                foreach (var c in Children) _slots.Add(c);
+            }
             // mask 未显式写时跟随 bg sprite：有图→圆角 stencil，sprite=""→直角 RectMask2D
             // （对齐 InputField 的 mask-tracks-border 先例；显式 mask= 一旦写过即 latch，跳过这里）。
             if (!_maskExplicit)
@@ -446,6 +460,9 @@ namespace PromptUGUI.Controls
 
         private void ClearSlots()
         {
+            // 标记已动态绑定：之后 ReSolve 的静态收集不再执行。静态卡在这里被 Dispose，
+            // Screen.ReSolve 靠 `control.GameObject == null` 跳过它们的 ElementNode。
+            _bound = true;
             foreach (var s in _slots)
             {
                 s.Dispose();
