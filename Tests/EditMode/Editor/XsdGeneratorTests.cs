@@ -1022,6 +1022,19 @@ namespace PromptUGUI.Tests.Editor
             StringAssert.Contains("name=\"popupColor\"", xsd);
             StringAssert.Contains("name=\"popupMask\"", xsd);
         }
+
+        [Test]
+        public void ScrollList_lists_its_grid_and_scrollbar_sizing_attributes()
+        {
+            // All reflected from [UIAttr], so this guards the attribute names and their XSD types —
+            // authoring tools flag valid grid XML as invalid if the schema is regenerated without them.
+            var xsd = XsdGenerator.Generate(PromptUGUI.Application.UI.Registry);
+            StringAssert.Contains("name=\"ScrollList\"", xsd);
+            StringAssert.Contains("name=\"columns\" type=\"xs:int\"", xsd);
+            StringAssert.Contains("name=\"cellSize\" type=\"xs:string\"", xsd);
+            StringAssert.Contains("name=\"scrollbarWidth\" type=\"xs:float\"", xsd);
+            StringAssert.Contains("name=\"scrollbarOverlay\" type=\"xs:boolean\"", xsd);
+        }
     }
 
     public class TestPrimaryButton : Control
