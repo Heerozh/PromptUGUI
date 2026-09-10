@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
 using PromptUGUI.IR;
@@ -34,14 +35,17 @@ namespace PromptUGUI.Controls
         private Scrollbar _vertScrollbar;
         private Scrollbar _horizScrollbar;
         // 滚动条由 Direction setter 懒建（且 direction 切换会启用另一根），所以皮肤属性
-        // 存原始字符串、建完再回放 —— 同 _spacing / _padding 的 pending 模式。
+        // 存原始字符串、建完再回放 —— 同 spacing / padding 的 pending 模式。
         private string _scrollbarSprite;
         private string _scrollbarColor;
         private string _scrollbarHandleSprite;
         private string _scrollbarHandleColor;
         private string _itemTemplate;
-        private float _spacing;
-        private string _padding;
+        // spacing 两轴分开存：单列只用得上 V、单行只用得上 H，网格两个都用。padding 同理存解析后的
+        // 四段而不是原串 —— 换组之后新组件的 padding 是全零，必须能原样重放。
+        private float _spacingV;
+        private float _spacingH;
+        private int _padT, _padR, _padB, _padL;
         private Func<RectTransform, IControl> _factory;
         private readonly List<IControl> _slots = new();
 
@@ -132,7 +136,7 @@ namespace PromptUGUI.Controls
                 fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
                 fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             }
-            ApplySpacingPadding();
+            ApplyGroupMetrics();
 
             if (wantHorizontal)
             {
@@ -146,30 +150,44 @@ namespace PromptUGUI.Controls
             }
         }
 
-        private void ApplySpacingPadding()
+        // 每次换组之后都要重放一遍：ControlAttributeApplier 遍历的是 HashSet，属性到达顺序不可依赖，
+        // 所以 setter 只存值、这里统一下发到当前的 LayoutGroup 实例。LayoutGroup 的 setter 走
+        // SetProperty（值相等就不 dirty），因此 ReSolve 里的空转重放不会引发多余的 layout rebuild。
+        private void ApplyGroupMetrics()
         {
+            if (_layoutGroup == null) return;
             switch (_layoutGroup)
             {
-                case HorizontalLayoutGroup h: h.spacing = _spacing; break;
-                case VerticalLayoutGroup v: v.spacing = _spacing; break;
+                // GridLayoutGroup.spacing 是 Vector2 (x = horizontal, y = vertical)
+                case GridLayoutGroup g: g.spacing = new Vector2(_spacingH, _spacingV); break;
+                case HorizontalLayoutGroup h: h.spacing = _spacingH; break;
+                case VerticalLayoutGroup v: v.spacing = _spacingV; break;
             }
-            // padding 字符串: "X" | "V,H" | "T,R,B,L"
-            if (string.IsNullOrEmpty(_padding) || _layoutGroup == null) return;
-            var parts = _padding.Split(',');
-            int t = 0, r = 0, b = 0, l = 0;
+            _layoutGroup.padding = new RectOffset(_padL, _padR, _padT, _padB);
+        }
+
+        // "X" | "V,H" —— 与 <Grid spacing> 和两段 padding 同序（竖向在前）。
+        private static void ParseSpacing(string s, out float v, out float h)
+        {
+            v = h = 0f;
+            if (string.IsNullOrEmpty(s)) return;
+            var parts = s.Split(',');
             switch (parts.Length)
             {
-                case 1: int.TryParse(parts[0], out t); r = b = l = t; break;
-                case 2:
-                    int.TryParse(parts[0], out t); b = t;
-                    int.TryParse(parts[1], out r); l = r; break;
-                case 4:
-                    int.TryParse(parts[0], out t);
-                    int.TryParse(parts[1], out r);
-                    int.TryParse(parts[2], out b);
-                    int.TryParse(parts[3], out l); break;
+                case 1: v = h = ParseSpacingPart(parts[0]); return;
+                case 2: v = ParseSpacingPart(parts[0]); h = ParseSpacingPart(parts[1]); return;
+                default:
+                    throw new ArgumentException(
+                    $"spacing '{s}' must be 1 or 2 numbers (a single gap, or \"V,H\")");
             }
-            _layoutGroup.padding = new RectOffset(l, r, t, b);
+        }
+
+        private static float ParseSpacingPart(string p)
+        {
+            p = p.Trim();
+            return (p.Length == 0 || p == "_")
+                ? 0f
+                : float.Parse(p, NumberStyles.Float, CultureInfo.InvariantCulture);
         }
 
         [UIAttr, Preserve]
@@ -188,11 +206,26 @@ namespace PromptUGUI.Controls
             set { _direction = string.IsNullOrEmpty(value) ? "vertical" : value; ApplyDirection(); }
         }
 
+        /// <summary>
+        /// Gap between items. One value = both axes; <c>"V,H"</c> = vertical, horizontal — the same
+        /// written order as <c>&lt;Grid spacing&gt;</c> and the two-part <c>padding</c>. A single
+        /// column only ever uses V and a single row only H; grid mode uses both.
+        /// </summary>
         [UIAttr, Preserve]
-        public float Spacing { set { _spacing = value; ApplySpacingPadding(); } }
+        public string Spacing
+        {
+            set { ParseSpacing(value, out _spacingV, out _spacingH); ApplyGroupMetrics(); }
+        }
 
         [UIAttr, Preserve]
-        public string Padding { set { _padding = value; ApplySpacingPadding(); } }
+        public string Padding
+        {
+            set
+            {
+                VStack.ParseTRBL(value, out _padT, out _padR, out _padB, out _padL);
+                ApplyGroupMetrics();
+            }
+        }
 
         [UIAttr(IsColor = true), Preserve]
         public string Color
