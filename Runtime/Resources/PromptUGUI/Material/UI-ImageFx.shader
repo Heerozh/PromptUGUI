@@ -28,6 +28,8 @@ Shader "UI/ImageFx"
         _GlowSelf ("Glow Takes Sprite Colour", Float) = 1
         _TintLinear ("Linear Light Tint", Float) = 0
         _Desaturate ("Desaturate", Float) = 0
+        // 曝光倍数（spec 2026-09-12）：1 = 不变，越大越白。
+        _Intensity ("Intensity", Float) = 1
 
         _StencilComp ("Stencil Comparison", Float) = 8
         _Stencil ("Stencil ID", Float) = 0
@@ -118,6 +120,7 @@ Shader "UI/ImageFx"
             float _GlowSelf;
             float _TintLinear;
             float _Desaturate;
+            float _Intensity;
 
             v2f vert(appdata_t v)
             {
@@ -241,6 +244,14 @@ Shader "UI/ImageFx"
                 // TEXCOORD1/2）。此时既无从钳制也无从换算，老老实实按 UI/Default 画。
                 bool hasRect = IN.rect.z > IN.rect.x && IN.rect.w > IN.rect.y;
 
+                // 顶点色拆两半：rgb 是 color= 的上色 / *Modulate，是图标的颜色 —— 必须进曝光，
+                // 否则曝光的是白图标；alpha 是 CanvasGroup / color 的淡出。未点亮时淡出照今天
+                // 逐层乘（逐位不变）；点亮时淡出挪到曝光之后整体乘 —— 淡出就是淡出，不「冷却」
+                // 回本色（spec 2026-09-12 §5.3）。uniform 分支。
+                bool lit = _Intensity > 1.0;
+                half layerFade = lit ? 1.0 : IN.color.a;
+                half4 tint = half4(IN.color.rgb, layerFade);
+
                 half4 image;
                 half4 glow = half4(0, 0, 0, 0);
 
@@ -269,21 +280,28 @@ Shader "UI/ImageFx"
                             // 自体色：光晕就是图标自己在这个半径上的平均色，随 color= / 状态调制走；
                             // _GlowColor.a 是 glowColor="self/0.5" 给的强度（不写 = 1）。
                             half3 rgb = Unpremultiply(g).rgb * IN.color.rgb;
-                            glow = half4(rgb, _GlowColor.a * falloff * IN.color.a);
+                            glow = half4(rgb, _GlowColor.a * falloff * layerFade);
                         }
                         else
                         {
                             // 作者指定的颜色不乘顶点色 —— 写 glowColor 就是要这个颜色；
                             // 只有透明度跟着元素一起淡出。
-                            glow = half4(_GlowColor.rgb, _GlowColor.a * falloff * IN.color.a);
+                            glow = half4(_GlowColor.rgb, _GlowColor.a * falloff * layerFade);
                         }
                     }
                 }
 
-                image = _TintLinear > 0.5 ? PuguiLinearLight(image, IN.color) : image * IN.color;
+                image = _TintLinear > 0.5 ? PuguiLinearLight(image, tint) : image * tint;
 
                 // 本体在上、光晕在下：光晕本来就是"从剪影里渗出来的那一圈"。
                 half4 color = PuguiOver(image, glow);
+
+                if (lit)
+                {
+                    // 曝光作用在「本体 + 光晕」的合成上，然后才是淡出（同面板：曝光在顶点 alpha 之前）。
+                    color = PuguiExpose(color, _Intensity);
+                    color.a *= IN.color.a;
+                }
 
                 if (_Desaturate > 0.5)
                 {

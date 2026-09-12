@@ -35,9 +35,12 @@ namespace PromptUGUI.Controls.Internal
         public readonly bool TintLinear;
         /// <summary>The disabled look, applied to the composite (body and glow alike).</summary>
         public readonly bool Desaturate;
+        /// <summary>Exposure of body and glow together (spec 2026-09-12); 1 = unchanged. Needs no
+        /// geometry, so unlike the radii it is NOT zeroed on a Sliced / Tiled image.</summary>
+        public readonly float Intensity;
 
         public FxParams(float blur, float glow, Color glowColor, bool glowSelf,
-                        bool tintLinear, bool desaturate)
+                        bool tintLinear, bool desaturate, float intensity = 1f)
         {
             Blur = Mathf.Max(0f, blur);
             Glow = Mathf.Max(0f, glow);
@@ -48,12 +51,14 @@ namespace PromptUGUI.Controls.Internal
                       : glowColor;
             TintLinear = tintLinear;
             Desaturate = desaturate;
+            Intensity = Mathf.Max(1f, intensity);
         }
 
         public bool Equals(FxParams o) =>
             Blur == o.Blur && Glow == o.Glow && GlowSelf == o.GlowSelf
             && GlowColor == o.GlowColor
-            && TintLinear == o.TintLinear && Desaturate == o.Desaturate;
+            && TintLinear == o.TintLinear && Desaturate == o.Desaturate
+            && Intensity == o.Intensity;
 
         public override bool Equals(object o) => o is FxParams p && Equals(p);
 
@@ -67,6 +72,7 @@ namespace PromptUGUI.Controls.Internal
                 h = (h * 397) ^ GlowSelf.GetHashCode();
                 h = (h * 397) ^ TintLinear.GetHashCode();
                 h = (h * 397) ^ Desaturate.GetHashCode();
+                h = (h * 397) ^ Intensity.GetHashCode();
                 return h;
             }
         }
@@ -95,6 +101,7 @@ namespace PromptUGUI.Controls.Internal
         private static readonly int GlowSelfId = Shader.PropertyToID("_GlowSelf");
         private static readonly int TintLinearId = Shader.PropertyToID("_TintLinear");
         private static readonly int DesaturateId = Shader.PropertyToID("_Desaturate");
+        private static readonly int IntensityId = Shader.PropertyToID("_Intensity");
 
         private readonly struct Slot
         {
@@ -165,6 +172,7 @@ namespace PromptUGUI.Controls.Internal
             mat.SetFloat(GlowSelfId, p.GlowSelf ? 1f : 0f);
             mat.SetFloat(TintLinearId, p.TintLinear ? 1f : 0f);
             mat.SetFloat(DesaturateId, p.Desaturate ? 1f : 0f);
+            mat.SetFloat(IntensityId, p.Intensity);
         }
 
         /// <summary>

@@ -110,6 +110,20 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Intensity_is_part_of_the_key()
+        {
+            // spec 2026-09-12: the exposure changes every pixel, so it must split the cache — and
+            // an explicit 1 is the identity, so it must NOT.
+            Assert.AreNotEqual(new FxParams(0f, 6f, Color.white, true, false, false, 3f),
+                               new FxParams(0f, 6f, Color.white, true, false, false, 1f));
+            Assert.AreEqual(new FxParams(0f, 6f, Color.white, true, false, false, 1f),
+                            new FxParams(0f, 6f, Color.white, true, false, false),
+                            "1 is the default");
+            Assert.AreEqual(new FxParams(0f, 0f, Color.white, true, false, false, 3f).GetHashCode(),
+                            new FxParams(0f, 0f, Color.white, true, false, false, 3f).GetHashCode());
+        }
+
+        [Test]
         public void ResetForTests_empties_both_the_live_set_and_the_spares()
         {
             FxMaterialCache.Acquire(Glow(6f));

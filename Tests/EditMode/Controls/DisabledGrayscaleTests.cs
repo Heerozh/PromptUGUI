@@ -104,6 +104,38 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void ImageChild_Disabled_SwitchesTheLightOff()
+        {
+            // Greyed AND lit is a white-hot grey icon that reads as switched on; a disabled control
+            // has to read as inert, so the exposure drops to 1 while greyed (spec 2026-09-12 §5.5).
+            var stub = Sprite.Create(new Texture2D(8, 8), new Rect(0f, 0f, 8f, 8f), new Vector2(.5f, .5f));
+            UI.SpriteResolver = _ => stub;
+            try
+            {
+                UI.LoadDocument("t",
+                    "<?xml version='1.0' encoding='utf-8'?><PromptUGUI version='1'><Screen name='S'>" +
+                    "<Btn id='b'><Image id='m' sprite='ui:x' size='16x16' glow='6' intensity='4'/></Btn>" +
+                    "</Screen></PromptUGUI>");
+                var btn = UI.Open("S").Get<Btn>("b");
+                var img = btn.GameObject.transform.Find("m").GetComponent<UnityEngine.UI.Image>();
+                Assert.AreEqual(4f, img.material.GetFloat("_Intensity"), 1e-4f, "前置：点亮");
+
+                PuiOf(btn).SimulateState(Disabled);
+                Assert.AreEqual(1f, img.material.GetFloat("_Desaturate"), 1e-4f);
+                Assert.AreEqual(1f, img.material.GetFloat("_Intensity"), 1e-4f, "禁用即熄灭");
+
+                PuiOf(btn).SimulateState(Normal);
+                Assert.AreEqual(4f, img.material.GetFloat("_Intensity"), 1e-4f, "启用后重新点亮");
+            }
+            finally
+            {
+                var tex = stub != null ? stub.texture : null;
+                if (stub != null) Object.DestroyImmediate(stub);
+                if (tex != null) Object.DestroyImmediate(tex);
+            }
+        }
+
+        [Test]
         public void ImageChild_WithoutFx_StillGreys_ThroughTheFxShader()
         {
             // No blur, no glow, no tint: the graphic has no material until the disabled state asks

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using PromptUGUI.Parser;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -37,6 +38,7 @@ namespace PromptUGUI.Controls.Internal
         private bool _glowColorExplicit;
         private bool _tintLinear;
         private bool _grayed;
+        private float _intensity = IntensityAttrParser.Default;
 
         private FxParams _key;
         private bool _hasKey;
@@ -102,6 +104,22 @@ namespace PromptUGUI.Controls.Internal
         /// state a fresh instance is in — how a Variant or a theme retracts a <c>glowColor</c>.</summary>
         public void ClearGlowColor() => SetGlowSelf(1f);
 
+        /// <summary>
+        /// Exposure of body and glow together (spec 2026-09-12); 1 = unchanged. Material-only and
+        /// geometry-free, so it applies whatever the Image <c>type</c> is.
+        /// </summary>
+        public float Intensity
+        {
+            get => _intensity;
+            set
+            {
+                var v = Mathf.Max(IntensityAttrParser.Min, value);
+                if (Mathf.Approximately(_intensity, v)) return;
+                _intensity = v;
+                MarkDirty();
+            }
+        }
+
         /// <summary><c>tint="linear"</c>; driven by <see cref="ImageTint"/>.</summary>
         public bool TintLinear
         {
@@ -141,7 +159,7 @@ namespace PromptUGUI.Controls.Internal
         internal bool HasGeometryFx => sprite != null && type == Type.Simple && Pad > 0f;
 
         /// <summary>Whether anything at all needs the fx shader.</summary>
-        internal bool HasMaterialFx => HasGeometryFx || _tintLinear || _grayed;
+        internal bool HasMaterialFx => HasGeometryFx || _tintLinear || _grayed || _intensity > 1f;
 
         internal bool HasKeyForTests => _hasKey;
         internal FxParams KeyForTests => _key;
@@ -300,13 +318,16 @@ namespace PromptUGUI.Controls.Internal
             // sprite away entirely. Letting them into the key would also split the cache into
             // entries that render identically.
             var geometry = HasGeometryFx;
+            // Greyed AND lit is a white-hot grey icon that reads as switched on; a disabled control
+            // has to read as inert, so the light goes out while greyed (spec 2026-09-12 §5.5).
             return new FxParams(
                 geometry ? _blur : 0f,
                 geometry ? _glow : 0f,
                 _glowColor,
                 !_glowColorExplicit,
                 _tintLinear,
-                _grayed);
+                _grayed,
+                _grayed ? IntensityAttrParser.Default : _intensity);
         }
 
         /// <summary>
