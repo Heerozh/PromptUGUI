@@ -1,6 +1,6 @@
 # `intensity` —— 程序化表面与 sprite 的「点亮」语义
 
-> 状态：**草案**，2026-09-12 与作者 brainstorm 后起草，§8 的决策待最终对齐（§9 列了仍开着的几条）。
+> 状态：**已实现**（M0 + M1 一轮做完，见 §13）。决策见 §8，2026-09-12 与作者 brainstorm 后起草，作者以「跳过 plan 直接实现」确认了 §8 的全部默认值。
 > 相关：`2026-08-23-procedural-style-design.md`（`glow` / `glowColor` 的出处，§2.1；参数进材质、形状进顶点 §12.1）、
 > `2026-08-26-procedural-surface-design.md`（`ProceduralControl` 让九个控件共享同一套属性）、
 > `2026-08-28-inner-glow-design.md`（内发光；本文的实现地图逐项镜像它）、
@@ -284,7 +284,7 @@ source-over 下「光」在亮底上退化：中灰底上是一层淡色薄雾�
 | `Core/Lint/StyleRules.cs` | `CheckValue` 加 `IntensityAttrParser` 一支 → `PUI-PROCEDURAL-VALUE` |
 | `Core/Lint/GlassRules.cs` | 新码 `PUI-GLASS-INTENSITY`（§5.4），raw + style-aware |
 | `Core/Lint/DecorRules.cs` / `ImageFxRules.cs` | `SupportedProceduralAttrs` 各 + `intensity` |
-| `Editor/XsdGenerator.cs` | Frame / Image / Icon / Decor 手写清单各 +1 |
+| `Editor/XsdGenerator.cs` | Frame / Image / Icon 手写清单各 +1（Decor 走反射，见 §13.4） |
 
 `PanelParams` / `FxParams` / `DecorParams` 的 ctor 签名都变了，实现时 grep 全部构造点（含测试）。
 类注释里的属性计数（`ProceduralPanel`「sixteen attributes」、`ProceduralControl`「fifteen」）跟着 +1
@@ -342,7 +342,7 @@ expanded）自动覆盖 `<Style intensity=>` 经 `class=` 落到玻璃控件上�
 lit twin under `<Show on="state-hover">`」。
 C# skill 不改（无公共 API 变化）。
 
-## 8. 已定的决策（2026-09-12 brainstorm，待作者最终确认）
+## 8. 已定的决策（2026-09-12 brainstorm，作者确认）
 
 1. **一个属性 `intensity`，作用于整个表面**，不拆 `glowIntensity`（§2）。备选名 `emission` /
    `brightness` / `exposure` 都没有「Unity HDR 取色器同款词」这个优势。
@@ -465,3 +465,57 @@ rgb2, a2 = fp / fa, fa
 
 设计稿核心 `(194,228,253)` ≈ `#4f88ff` 的 `k ≈ 3.5`；纯色在串扰上限处封顶（`#ff0000` 的 k=5 与 k=8
 相同），是有意的。
+
+## 13. 实施记录
+
+**验证结果**：EditMode 3673 / EditorOnly 343 / PlayMode 201 全通过；
+`dotnet format --verify-no-changes --severity warn` exit 0；
+`UIXmlLint Runtime/Resources/` no issues across 8 files；一份手写的坏文档经 CLI 报出
+`PUI-PROCEDURAL-VALUE`（`intensity="0.5"`）、`PUI-GLASS-INTENSITY`（直接写与经 `class=` 合并各一）、
+`PUI-CONTAINER-VISUAL-ATTR`（`<VStack intensity>`），`<Decor>` / `<Icon>` 干净。
+
+分支 `feat/intensity`，按 spec / 解析器 / 面板 / Decor / FxImage / lint+XSD / SKILL 七步提交，每步
+Red 先行、每个提交可编译可测。
+
+### 13.1 引擎里的数值与 brainstorm 的 numpy 模型逐位一致
+
+`IntensityRenderTests` 的 dump 读回：`#3b82f6` 填充 `k=5` 核心 `(203, 238, 255)`、`#0000ff` 核心
+`(188, 188, 255)` —— 与 §12 附表完全相同。说明宿主（Linear 工程）里 `Color` 属性上传转线性、shader
+在线性光中曝光、RT 读回 sRGB 这条链，正是模型假设的那条链；§5.9 关于 Gamma 工程的保留意见仍然成立。
+
+### 13.2 §5.3 的 `FxImage` 顶点 alpha 拆分要靠一个 uniform 分支才能保住「k=1 逐位不变」
+
+spec 只写了「顶点 alpha 移到曝光之后」。实现时发现：今天的路径是**逐层**乘淡出（本体 alpha 与光晕
+alpha 各乘 `IN.color.a`，再 over），而「合成后整体乘」在 `a < 1` 时与它不相等（over 的交叉项
+`da·sa·f` vs `da·sa·f²`）。半透明的 `<Icon color="white/0.6" glow=…>` 会在 k=1 处漂移。
+于是 shader 里加了 `bool lit = _Intensity > 1.0`：未点亮时 `layerFade = IN.color.a` 走今天的
+逐层路径（`ImageFxRenderTests.IntensityOne_IsPixelIdenticalToUnset` 守着），点亮时 `layerFade = 1`、
+曝光后整体乘 alpha。顺带的观察：整体乘才是 CanvasGroup 淡出的正确语义（逐层乘会让光晕在本体
+下面多透出来一点），但那是既有行为，不在本特性里改。
+
+面板没有这个问题：四种颜色都在材质里，顶点色本来就是最后一乘。
+
+### 13.3 曲线的两个数值护栏
+
+`PuguiExpose` 里 `pow(max(1 - p, 0), k)`：`p` 理论上 ≤ 1，但 `half` 精度的预乘结果可能比 1 大一个
+ulp，负底数的 `pow` 在部分 GPU 上是 NaN。C# 侧 `FxParams` / `ProceduralPanel.SetIntensity` /
+`DecorPanel.SetIntensity` 各自钳到 `≥ 1`（解析器已拒绝，钳位是给直接调 setter 的 C# 调用者）。
+
+### 13.4 XSD 测试的计数
+
+`XsdGeneratorTests` 用的是空 `ControlRegistry`，反射不到 `<Decor>` 与 `ProceduralControl` 全家，
+输出里 `intensity` 恰好三处（Frame / Image / Icon 三份手写清单），测试断言 `== 3`。§6.1 表里
+「Decor 手写清单 +1」是误记：Decor 走反射，无需改 XsdGenerator。
+
+### 13.5 `<Decor kind="sprite">` 上的 `intensity`
+
+`DecorRules` 的 sprite 分支原本对 `SupportedProceduralAttrs` 一律报「the glow is cast from a
+distance field…」；`intensity` 进那张表后文案不再成立，给了它单独一句（picture 由普通 Image 画，
+没有曝光曲线，指路 `<Icon>` / `<Image>`）。`<Decor>` 没有禁用灰度路径（`DecorPanel` 不是
+`ISelfGrayscale`，既有），所以 §5.5 的「禁用归 1」只落在面板与 `FxImage`。
+
+### 13.6 视觉验收
+
+设计稿的 `+`（`color="#4f88ff" glow="14" glowColor="#4f88ff/0.35" intensity="3"`）在引擎里渲染出来
+就是白蓝核心 + 蓝色光晕；`<Icon>` 版与 `<Frame>` 版同一观感；`type="sliced"` 的红色贴图在 `k=5`
+下是粉白（串扰封顶），`<Decor kind="line">` 变成霓虹线。
