@@ -31,8 +31,9 @@
          saturation="1.3" noise="0.03"/>
 
   <!-- 其余控件**原地**换皮，不用叠层。关键是：内置控件的每一个内层都有 XML 钩子
-       （<Toggle checkmark=>、<Slider fill= handle=>、<Dropdown arrow= popupSprite= scrollbar*=>、
-       <ScrollList scrollbar*=>、<Progress fill= bg= frame=>），所以整套内置控件都能被主题换掉，
+       （<Toggle checkmark=>、<Slider fill= handle=>、<Dropdown arrow= popupSprite=>、
+       <Progress fill= bg= frame=>；滚动条则是一个真正的 <Scrollbar> 子元素，列表和下拉都挂它，
+       同一个 class= 包穿在三根条上），所以整套内置控件都能被主题换掉，
        不只是最外面那张底图。只换外层的话，玻璃皮下面会留一堆木头勾选框和木头滑块。
 
        农场侧写的就是**内置默认值**（内置皮肤本来就是像素农场风），玻璃侧把 9-slice 结构层清成
@@ -54,12 +55,12 @@
          arrow="PromptUGUI/Defaults/pugui#pugui_caret"        arrowColor="white"
          popupSprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" popupColor="white"
          itemColor="#F5F5F5" itemTextColor="#4A3322"
-         checkmark="PromptUGUI/Defaults/pugui#pugui_checkmark" checkmarkColor="white"
-         scrollbar="PromptUGUI/Defaults/pugui#pugui_9slice_inset"      scrollbarColor="white"
-         scrollbarHandle="PromptUGUI/Defaults/pugui#pugui_9slice_round" scrollbarHandleColor="white"/>
-  <Style name="list"     sprite="PromptUGUI/Defaults/pugui#pugui_9slice_inset" color="white/0.39"
-         scrollbar="PromptUGUI/Defaults/pugui#pugui_9slice_inset" scrollbarColor="white"
-         scrollbarHandle="PromptUGUI/Defaults/pugui#pugui_9slice_round" scrollbarHandleColor="white"/>
+         checkmark="PromptUGUI/Defaults/pugui#pugui_checkmark" checkmarkColor="white"/>
+  <Style name="list"     sprite="PromptUGUI/Defaults/pugui#pugui_9slice_inset" color="white/0.39"/>
+  <!-- 滚动条是 <Scrollbar> 子元素（列表、两个下拉各挂一个），一个包穿三根条：轨道 = 控件本身
+       （sprite / color），滑块 = handle / handleColor。玻璃侧把两张 9-slice 清成 none + 半透明白。 -->
+  <Style name="scrollbar" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_inset" color="white"
+         handle="PromptUGUI/Defaults/pugui#pugui_9slice_round" handleColor="white"/>
   <!-- Progress 的 fill/bg 默认就没有贴图（纯色层），所以这两个包只换颜色 —— 也顺带说明属性包
        并不强求每个控件都交出 sprite。Carousel 的圆点同理。 -->
   <Style name="progress" fillColor="#58A63C" bgColor="#E8CFA0"/>
@@ -110,13 +111,12 @@
            popupSprite="none" popupColor="#EAF2F6"
            itemColor="#00000000" itemTextColor="#1C2B33"
            checkmarkColor="#1C2B33"
-           scrollbar="none"       scrollbarColor="white/0.18"
-           scrollbarHandle="none" scrollbarHandleColor="white/0.55"
            radius="10" glass="true" borderWidth="1" borderColor="white/0.5"/>
     <Style name="list"     sprite="none" color="white/0.10"
-           scrollbar="none" scrollbarColor="white/0.18"
-           scrollbarHandle="none" scrollbarHandleColor="white/0.55"
            radius="12" glass="true" borderWidth="1" borderColor="white/0.4"/>
+    <!-- 滚动条：轨道是控件主表面，滑块走 handle* —— 两层各自变成胶囊。 -->
+    <Style name="scrollbar" sprite="none" color="white/0.18" handle="none" handleColor="white/0.55"
+           radius="pill" handleRadius="pill"/>
     <Style name="progress" fillColor="white/0.80" bgColor="white/0.20" radius="pill"/>
     <Style name="carousel" dotColor="white/0.45" dotSelectedColor="#1C2B33"/>
     <Style name="card"     sprite="none"/>
@@ -276,7 +276,7 @@
         <Frame width="0"/>
         <Btn id="tutorialBtn" class="btn" width="100" width.portrait="86" height="28" fontSize="16">新手引导</Btn>
         <!-- 皮肤切换：选项「农场/玻璃」由 C# BindSkinSwitcher 填充 → UI.Theme.Set + UI.Variants.Set -->
-        <Dropdown id="skin" class="dropdown" width="84" height="28"/>
+        <Dropdown id="skin" class="dropdown" width="84" height="28"><Scrollbar class="scrollbar"/></Dropdown>
       </HStack>
 
       <!-- TabBar 分页（bind= 切页；Tab 是 layout child，只写 width/height） -->
@@ -307,7 +307,7 @@
           <InputField id="username" class="input" placeholder="Username" width="240" height="30"/>
           <Toggle id="muteAudio" class="toggle">静音</Toggle>
           <Slider id="masterVol" class="slider" min="0" max="1" value="0.8"/>
-          <Dropdown id="quality" class="dropdown"/>
+          <Dropdown id="quality" class="dropdown"><Scrollbar class="scrollbar"/></Dropdown>
         </VStack>
       </Frame>
 
@@ -352,7 +352,9 @@
           <Carousel id="banner" class="carousel" height="90" itemTemplate="DemoCard"
                     interval="3" loop="true" transition="0.3" dots="bottom-center"/>
           <ScrollList id="list" class="list" width="stretch" height="stretch" itemTemplate="OptionRow"
-                      spacing="4" padding="8"/>
+                      spacing="4" padding="8">
+            <Scrollbar class="scrollbar"/>
+          </ScrollList>
         </VStack>
       </Frame>
 

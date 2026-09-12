@@ -75,9 +75,9 @@
             <Dropdown id="theme" anchor="stretch" margin="1,1,1,1"
                       sprite="none" color="#00000000" textColor="ink" fontSize="14"
                       arrow="" popupSprite="" popupColor="surface-2"
-                      itemColor="surface-2" itemTextColor="ink" checkmarkColor="accent"
-                      scrollbar="" scrollbarColor="bg-bottom/0.6"
-                      scrollbarHandle="" scrollbarHandleColor="ink-dim"/>
+                      itemColor="surface-2" itemTextColor="ink" checkmarkColor="accent">
+              <Scrollbar sprite="" color="bg-bottom/0.6" handle="" handleColor="ink-dim"/>
+            </Dropdown>
           </Frame>
         </HStack>
       </Frame>
@@ -145,9 +145,10 @@
             <Dropdown id="quality" anchor="stretch" margin="1,1,1,1"
                       sprite="none" color="#00000000" textColor="ink" fontSize="16"
                       arrow="" popupSprite="" popupColor="surface-2"
-                      itemColor="surface-2" itemTextColor="ink" checkmarkColor="accent"
-                      scrollbar="" scrollbarColor="bg-bottom/0.6"
-                      scrollbarHandle="" scrollbarHandleColor="ink-dim"/>
+                      itemColor="surface-2" itemTextColor="ink" checkmarkColor="accent">
+              <!-- 滚动条是子元素：弹窗里的条也走同一个控件 -->
+              <Scrollbar sprite="" color="bg-bottom/0.6" handle="" handleColor="ink-dim"/>
+            </Dropdown>
           </Frame>
 
           <Frame class="divider" height="1"/>
@@ -234,10 +235,13 @@
                     interval="3" loop="true" transition="0.3"
                     dots="bottom-center" dotColor="stroke/0.4" dotSelectedColor="accent"/>
 
+          <!-- 滚动条也是程序化的：轨道 = 控件主表面（radius 同 <Frame>），滑块走 handle* ——
+               细胶囊轨道里缩着一颗胶囊滑块（padding 让它离轨道边 1、离端头 2）。 -->
           <ScrollList id="list" width="stretch" height="stretch" itemTemplate="OptionRow"
-                      sprite="none" color="#00000000" spacing="6" padding="4"
-                      scrollbar="" scrollbarColor="bg-bottom/0.6"
-                      scrollbarHandle="" scrollbarHandleColor="ink-dim"/>
+                      sprite="none" color="#00000000" spacing="6" padding="4">
+            <Scrollbar thickness="6" padding="2,1" radius="pill" color="bg-bottom/0.6"
+                       handleRadius="pill" handleColor="ink-dim"/>
+          </ScrollList>
         </VStack>
       </Frame>
 
