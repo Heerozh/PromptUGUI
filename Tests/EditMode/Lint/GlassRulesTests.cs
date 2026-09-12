@@ -153,6 +153,9 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("depth='-3'")]
         [TestCase("innerGlow='soft'")]
         [TestCase("innerGlow='-2'")]
+        [TestCase("intensity='bright'")]
+        [TestCase("intensity='0.5'")]
+        [TestCase("intensity='NaN'")]
         public void BadValues_AreFlagged(string attr)
         {
             Assert.IsTrue(Has(Walk($"<Frame id='f' glass='true' {attr}/>"),
@@ -173,6 +176,56 @@ namespace PromptUGUI.Tests.EditMode.Lint
             var issues = Walk("<Frame id='f' class='glassy'/>",
                 "<Style name='glassy' glass='true' frost='9'/>");
             Assert.IsTrue(Has(issues, StyleRules.ProceduralValueCode, "glassy"));
+
+            Assert.IsTrue(Has(Walk("<Frame id='f' class='dim'/>", "<Style name='dim' intensity='0'/>"),
+                StyleRules.ProceduralValueCode, "dim"));
+        }
+
+        // ---- intensity: not a glass parameter, and not for glass (spec 2026-09-12 §5.4) ----
+
+        [Test]
+        public void IntensityWithoutGlass_IsNotAGlassParam()
+        {
+            // The one thing GlassRules must NOT say about it: "add glass=\"true\"" would name the
+            // opposite of the fix.
+            var issues = Walk("<Frame id='f' color='#4f88ff' glow='12' intensity='3'/>");
+            Assert.IsFalse(Has(issues, GlassRules.ParamWithoutGlassCode, "f"));
+            Assert.IsFalse(Has(issues, GlassRules.IntensityOnGlassCode, "f"));
+        }
+
+        [TestCase("glass='true' intensity='3'")]
+        [TestCase("glass.mobile='true' intensity='3'")]
+        [TestCase("glass='true' intensity.mobile='3'")]
+        public void IntensityOnGlass_IsFlagged(string attrs)
+        {
+            // Glass paints the backdrop, which is not light the surface emits: the runtime zeroes
+            // the value, so the author has to hear about it here.
+            var issues = Walk($"<Frame id='f' {attrs}/>");
+            Assert.IsTrue(Has(issues, GlassRules.IntensityOnGlassCode, "f"));
+            StringAssert.Contains("intensity", issues.First(i => i.Code == GlassRules.IntensityOnGlassCode).Message);
+        }
+
+        [Test]
+        public void IntensityOnAWeldContainer_IsFlagged()
+        {
+            // A weld container draws the fused glass pane — glass through and through.
+            Assert.IsTrue(Has(Walk(@"<Frame id='g' weld='10' intensity='3'>
+      <Frame id='a' glass='true'/>
+      <Frame id='b' glass='true'/>
+    </Frame>"), GlassRules.IntensityOnGlassCode, "g"));
+        }
+
+        [Test]
+        public void IntensityOnAWeldedBlock_IsFlaggedAsGlass_NotAsPlacement()
+        {
+            // It is not a group parameter the container could hold either: nothing glass can take
+            // it, so the diagnostic is the glass one, once.
+            var issues = Walk(@"<Frame id='g' weld='10'>
+      <Frame id='a' glass='true' intensity='3'/>
+      <Frame id='b' glass='true'/>
+    </Frame>");
+            Assert.IsTrue(Has(issues, GlassRules.IntensityOnGlassCode, "a"));
+            Assert.IsFalse(Has(issues, GlassRules.WeldParamPlacementCode, "a"));
         }
 
         [Test]

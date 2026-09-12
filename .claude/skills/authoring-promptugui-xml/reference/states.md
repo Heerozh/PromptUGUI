@@ -12,6 +12,8 @@
 
 They compose: per state, `displayed = (absolute ?? color) × (modulate ?? white)`.
 
+A surface with `intensity` (spec 2026-09-12) is lit *before* the modulate: `*Modulate` darkens the lit result, exactly as it darkens an unlit one. There is no per-state intensity (`hoverIntensity` is not a thing) — for "brighter on hover" layer a lit twin under `<Show on="state-hover">`, the same way as any other procedural parameter. Disabled switches the light off regardless of `disabledColor` / `disabledModulate`.
+
 ### First-frame establishment
 
 The state a control is **first shown in** is applied **instantly**, never faded — mirroring uGUI's instant-at-`OnEnable` for serialized state. So a control that opens already in a non-Normal state shows it on frame 1, with no flash of the enabled look first: a `<Tab>` / `<Toggle>` authored `isOn`, or a `<Btn>` that a modal `Configure` hook disables right after `Open` (`okBtn.Interactable = false`). Only state *changes* made after the control is already on-screen — hover, press, a runtime `interactable` flip in response to a click — fade over ~0.1s.

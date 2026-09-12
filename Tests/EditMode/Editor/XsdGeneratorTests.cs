@@ -44,6 +44,17 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Frame_Image_and_Icon_list_intensity()
+        {
+            // The same hand-written-list trap, three times over: <Frame>, <Image> and <Icon> are
+            // spelled out rather than reflected (an empty registry lists nothing else), so the
+            // attribute has to appear once per list.
+            var xsd = XsdGenerator.Generate(new ControlRegistry());
+            var count = System.Text.RegularExpressions.Regex.Matches(xsd, "name=\"intensity\"").Count;
+            Assert.AreEqual(3, count, "Frame, Image and Icon each spell intensity out");
+        }
+
+        [Test]
         public void Image_and_Icon_list_their_rotation_and_flip_attributes()
         {
             // Same hand-written-list trap as Frame above: <Image> and <Icon> are not reflected, so

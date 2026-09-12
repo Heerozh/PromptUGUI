@@ -84,6 +84,14 @@ namespace PromptUGUI.Controls
             set => ImageFxApplier.SetGlowColor(_img, "Image", value);
         }
 
+        /// <summary>Exposure of the picture and its glow (≥ 1, default 1 = unchanged): the tinted
+        /// body whitens at its core while a self-coloured glow keeps its hue. Any <c>type</c>.</summary>
+        [UIAttr, Preserve]
+        public string Intensity
+        {
+            set => ImageFxApplier.SetIntensity(_img, "Image", value);
+        }
+
         private float _rotation;
         private string _flip;
 

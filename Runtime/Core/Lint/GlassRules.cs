@@ -24,6 +24,7 @@ namespace PromptUGUI.Lint
         public const string WeldMembersCode = "PUI-GLASS-WELD-MEMBERS";
         public const string WeldParamPlacementCode = "PUI-GLASS-WELD-PARAM-PLACEMENT";
         public const string SeamWithoutWeldCode = "PUI-GLASS-SEAM-NO-WELD";
+        public const string IntensityOnGlassCode = "PUI-GLASS-INTENSITY";
 
         /// <summary>
         /// Shader uniform arrays are fixed size; the group shader carries eight slots. Kept in sync
@@ -65,6 +66,16 @@ namespace PromptUGUI.Lint
 
             var isWeldGroup = styles.Declares(n, GlassAttrParser.Weld);
             var declaresGlassFlag = styles.Declares(n, GlassAttrParser.Glass);
+
+            // Exposure lights what a surface emits; glass emits nothing — it paints the backdrop —
+            // so the runtime zeroes intensity on a glass panel and on the fused pane of a weld
+            // container (spec 2026-09-12 §5.4). Silently, which is why it is said here.
+            if (styles.Declares(n, IntensityAttrParser.Name) && (isWeldGroup || IsGlassTrue(n, styles)))
+                yield return new LintIssue(
+                    IntensityOnGlassCode, n.Tag, n.Id,
+                    $"<{n.Tag} id='{n.Id}'>: 'intensity' has no effect on a glass surface — glass " +
+                    "paints the backdrop, which is not light the surface emits. Drop glass=\"true\" " +
+                    "(or 'weld'), or drop 'intensity'.");
 
             if (isWeldGroup && IsGlassTrue(n, styles))
                 yield return new LintIssue(

@@ -224,6 +224,24 @@ namespace PromptUGUI.Tests.EditMode.Controls
                            $"the same point should be lit by the glow (was {dark}, now {lit})");
         }
 
+        // ---- intensity (spec 2026-09-12) ----
+
+        [Test]
+        public void Intensity_WhitensTheStroke()
+        {
+            // The same exposure curve the panel runs: the line's weakest channel (#3366ff, r = 0.2)
+            // has to climb towards white, which a tint multiply could never do.
+            Render("kind='line' at='bottom' extent='100%' thickness='8' inset='40'", "pugui-decor-k1.png");
+            var plain = At(0.5f, 44f / H);
+            Render("kind='line' at='bottom' extent='100%' thickness='8' inset='40' intensity='5'",
+                   "pugui-decor-k5.png");
+            var lit = At(0.5f, 44f / H);
+
+            AssertPainted(plain, "guard: the probe sits on the stroke");
+            Assert.Greater(lit.r, plain.r + 0.3f, $"the stroke must whiten under exposure: {plain} → {lit}");
+            Assert.Greater(lit.b, lit.r, $"…while staying on the blue side of white: {lit}");
+        }
+
         // ---- batching ----
 
         [Test]

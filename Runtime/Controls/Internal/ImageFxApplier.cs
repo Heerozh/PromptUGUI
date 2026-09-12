@@ -34,6 +34,12 @@ namespace PromptUGUI.Controls.Internal
             fx.Glow = ProceduralValueParser.Pixels(value, "glow");
         }
 
+        public static void SetIntensity(Graphic graphic, string tag, string value)
+        {
+            if (!TryFx(graphic, tag, IntensityAttrParser.Name, out var fx)) return;
+            fx.Intensity = IntensityAttrParser.Parse(value);
+        }
+
         public static void SetGlowColor(Graphic graphic, string tag, string value)
         {
             if (!TryFx(graphic, tag, "glowColor", out var fx)) return;

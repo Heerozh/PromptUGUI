@@ -40,7 +40,7 @@ namespace PromptUGUI.Lint
         /// </summary>
         internal static readonly HashSet<string> SupportedProceduralAttrs = new()
         {
-            "glow", "glowColor",
+            "glow", "glowColor", "intensity",
         };
 
         /// <summary>
@@ -154,8 +154,11 @@ namespace PromptUGUI.Lint
                 {
                     if (!Declares(n, styles, attr)) continue;
                     yield return Inapplicable(n, attr, kind,
-                        "the glow is cast from a distance field, which a picture does not have " +
-                        "(draw the glow into the artwork instead)");
+                        attr == "intensity"
+                            ? "a picture is drawn by a plain Image, which has no exposure curve " +
+                              "(put intensity on an <Icon> / <Image>, or brighten the artwork)"
+                            : "the glow is cast from a distance field, which a picture does not have " +
+                              "(draw the glow into the artwork instead)");
                 }
                 yield break;
             }

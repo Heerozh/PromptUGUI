@@ -304,6 +304,113 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(c.g, c.b, 0.001f);
         }
 
+        // ---- intensity (spec 2026-09-12): the exposure knob ------------------------------------
+
+        [Test]
+        public void Intensity_DefaultsToOne()
+        {
+            Assert.AreEqual(1f, PanelOf(Load("color='#fff'")).CurrentParams.Intensity, 0.0001f,
+                "1 means 'unchanged' — a stray default would light every panel in the library");
+        }
+
+        [Test]
+        public void Intensity_ParsesNumber()
+        {
+            Assert.AreEqual(3f, PanelOf(Load("color='#fff' intensity='3'")).CurrentParams.Intensity, 0.0001f);
+        }
+
+        [Test]
+        public void Intensity_Empty_ResetsToOne()
+        {
+            // Variant escape hatch: a value can be overridden but never removed.
+            Assert.AreEqual(1f, PanelOf(Load("color='#fff' intensity=''")).CurrentParams.Intensity, 0.0001f);
+        }
+
+        [TestCase("intensity='0.5'")]
+        [TestCase("intensity='0'")]
+        [TestCase("intensity='NaN'")]
+        [TestCase("intensity='bright'")]
+        public void Intensity_BadValue_Rejected(string attrs)
+        {
+            var ex = Assert.Throws<ParseException>(() => Load($"color='#fff' {attrs}"));
+            StringAssert.Contains("intensity", ex.Message);
+        }
+
+        [Test]
+        public void Intensity_AloneIsNotVisible()
+        {
+            // Nothing painted, nothing to light: no fill, border or glow ⇒ no draw.
+            Assert.IsFalse(PanelOf(Load("intensity='3'")).IsPanelVisible);
+        }
+
+        [Test]
+        public void Intensity_DoesNotInflateMesh()
+        {
+            // Pure material parameter: the curve brightens what is already drawn, so the quad is
+            // exactly what the glow (if any) needs — nothing more.
+            var f = Load("color='#fff' intensity='8' width='100' height='50' anchor='top-left'");
+            var vh = new VertexHelper();
+            PanelOf(f).BuildMeshForTests(vh);
+
+            var v = default(UIVertex);
+            vh.PopulateUIVertex(ref v, 2);
+            Assert.AreEqual(50f, v.uv0.x, 0.01f, "intensity must not grow the drawn quad");
+            Assert.AreEqual(25f, v.uv0.y, 0.01f);
+        }
+
+        [Test]
+        public void Glass_IgnoresIntensity()
+        {
+            // Glass paints the backdrop, which is not light the surface emits (spec §5.4). Zeroed
+            // in the key so glass panels that differ only in intensity keep sharing one material.
+            Assert.AreEqual(1f, PanelOf(Load("glass='true' intensity='3'")).CurrentParams.Intensity, 0.0001f);
+        }
+
+        [Test]
+        public void Disabled_ResetsIntensityToOne()
+        {
+            // Greying is "no colour"; exposure is "more light". Stacked they give a white-hot grey
+            // panel that reads as switched on — a disabled control has to read as inert (§5.5).
+            var p = PanelOf(Load("color='#ff0000' glow='8' intensity='4'"));
+            p.SetDisabledGrayscale(true);
+            Assert.AreEqual(1f, p.CurrentParams.Intensity, 0.0001f, "a disabled surface must read as unlit");
+
+            p.SetDisabledGrayscale(false);
+            Assert.AreEqual(4f, p.CurrentParams.Intensity, 0.0001f, "…and light back up when re-enabled");
+        }
+
+        [Test]
+        public void SameIntensity_SharesOneMaterial()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Style name='neon' color='#4f88ff' glow='12' intensity='4'/>
+  <Screen name='S'>
+    <Frame id='a' class='neon' height='40'/>
+    <Frame id='b' class='neon' height='90'/>
+  </Screen>
+</PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var s = UI.Open("S");
+            Assert.AreSame(PanelOf(s.Get<Frame>("a")).material, PanelOf(s.Get<Frame>("b")).material);
+        }
+
+        [TestCase("intensity='2'", "intensity='3'")]
+        [TestCase("", "intensity='2'")]
+        public void DifferentIntensity_SplitsTheMaterial(string a, string b)
+        {
+            // It has to be in the cache key, or two panels that render differently would be
+            // handed the same material.
+            var xml = $@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='a' color='#222' {a}/>
+  <Frame id='b' color='#222' {b}/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var s = UI.Open("S");
+            Assert.AreNotSame(PanelOf(s.Get<Frame>("a")).material, PanelOf(s.Get<Frame>("b")).material);
+        }
+
         [Test]
         public void BorderColor_RejectsGradient()
         {

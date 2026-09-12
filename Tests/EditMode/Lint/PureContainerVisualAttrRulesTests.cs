@@ -36,6 +36,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("glowColor")]
         [TestCase("innerGlow")]
         [TestCase("innerGlowColor")]
+        [TestCase("intensity")]
         public void Frame_ProceduralVisualAttrs_NoIssue(string attr)
         {
             // Frame 现在自己画这些 —— 曾经的 "silently ignored" 警告已经过时。
@@ -90,6 +91,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("SafeArea", "glow")]
         [TestCase("VStack", "innerGlow")]
         [TestCase("Grid", "innerGlowColor")]
+        [TestCase("HStack", "intensity")]
         public void LayoutOnlyContainers_ProceduralAttrs_Issue(string tag, string attr)
         {
             // 这些容器既没 Graphic 也没 ProceduralPanel —— 指路"套一层 Frame"。
@@ -178,6 +180,8 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("Image", "weld")]
         [TestCase("Image", "seam")]
         [TestCase("Text", "innerGlow")]
+        [TestCase("Text", "intensity")]
+        [TestCase("RawImage", "intensity")]
         public void ControlWithoutASurface_ProceduralAttr_VisualAttrIssue(string tag, string attr)
         {
             var n = new ElementNode(tag) { Id = "x" };
@@ -206,13 +210,16 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("Image", "glowColor")]
         [TestCase("Icon", "glow")]
         [TestCase("Icon", "glowColor")]
+        [TestCase("Image", "intensity")]
+        [TestCase("Icon", "intensity")]
         public void SpriteGraphic_GlowPair_NoIssue(string tag, string attr)
         {
             // The third shape of tag, alongside <Frame> (a surface) and <Decor> (procedural but not
             // a surface): <Image> / <Icon> cast their glow from the sprite's own silhouette, so the
-            // pair is real there — while radius / borders / glass stay reported (case above).
+            // pair is real there — and expose it (spec 2026-09-12) — while radius / borders / glass
+            // stay reported (case above).
             var n = new ElementNode(tag);
-            n.Attributes[attr] = attr == "glow" ? "6" : "#fff";
+            n.Attributes[attr] = attr == "glowColor" ? "#fff" : "6";
             Assert.IsEmpty(PureContainerVisualAttrRules.Check(n));
         }
 

@@ -26,10 +26,13 @@ namespace PromptUGUI.Controls.Internal
         public readonly DecorKind Kind;
         public readonly float Thickness;
         public readonly float GlowSize;
+        /// <summary>Exposure of everything the decor paints (spec 2026-09-12); 1 = unchanged.</summary>
+        public readonly float Intensity;
 
         public DecorParams(Color fillTop, Color fillBottom,
                            float fillStopTop, float fillStopBottom, float fillCurve,
-                           Color glowColor, DecorKind kind, float thickness, float glowSize)
+                           Color glowColor, DecorKind kind, float thickness, float glowSize,
+                           float intensity = 1f)
         {
             FillTop = fillTop;
             FillBottom = fillBottom;
@@ -40,6 +43,7 @@ namespace PromptUGUI.Controls.Internal
             Kind = kind;
             Thickness = thickness;
             GlowSize = glowSize;
+            Intensity = intensity;
         }
 
         public bool Equals(DecorParams o) =>
@@ -47,7 +51,8 @@ namespace PromptUGUI.Controls.Internal
             && FillStopTop == o.FillStopTop && FillStopBottom == o.FillStopBottom
             && FillCurve == o.FillCurve
             && GlowColor == o.GlowColor
-            && Kind == o.Kind && Thickness == o.Thickness && GlowSize == o.GlowSize;
+            && Kind == o.Kind && Thickness == o.Thickness && GlowSize == o.GlowSize
+            && Intensity == o.Intensity;
 
         public override bool Equals(object o) => o is DecorParams p && Equals(p);
 
@@ -64,6 +69,7 @@ namespace PromptUGUI.Controls.Internal
                 h = (h * 397) ^ (int)Kind;
                 h = (h * 397) ^ Thickness.GetHashCode();
                 h = (h * 397) ^ GlowSize.GetHashCode();
+                h = (h * 397) ^ Intensity.GetHashCode();
                 return h;
             }
         }
@@ -86,6 +92,7 @@ namespace PromptUGUI.Controls.Internal
         private static readonly int KindId = Shader.PropertyToID("_Kind");
         private static readonly int ThicknessId = Shader.PropertyToID("_Thickness");
         private static readonly int GlowSizeId = Shader.PropertyToID("_GlowSize");
+        private static readonly int IntensityId = Shader.PropertyToID("_Intensity");
 
         private readonly struct Slot
         {
@@ -152,6 +159,7 @@ namespace PromptUGUI.Controls.Internal
             mat.SetFloat(KindId, (float)p.Kind);
             mat.SetFloat(ThicknessId, p.Thickness);
             mat.SetFloat(GlowSizeId, p.GlowSize);
+            mat.SetFloat(IntensityId, p.Intensity);
         }
     }
 }

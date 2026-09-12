@@ -98,6 +98,14 @@ namespace PromptUGUI.Tests.EditMode.Lint
             Assert.IsEmpty(Self(Node("Image", ("sprite", "ui:x"), ("glow", "6"), ("type", type))));
         }
 
+        [TestCase("sliced")]
+        [TestCase("tiled")]
+        public void Intensity_needs_no_quad_so_any_type_is_fine(string type)
+        {
+            // Exposure runs on whatever the Image draws; only blur / glow need the single quad.
+            Assert.IsEmpty(Self(Node("Image", ("sprite", "ui:x"), ("intensity", "3"), ("type", type))));
+        }
+
         [Test]
         public void No_type_at_all_is_fine()
         {

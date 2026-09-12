@@ -81,7 +81,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 
 | Tag | 用途 |
 |---|---|
-| `<Frame>` | 容器；可选程序化视觉（`color` / `radius` / `borderWidth` / `glow` / `innerGlow`）+ `mask="rect"` / `mask="self"`（裁成自绘形状）|
+| `<Frame>` | 容器；可选程序化视觉（`color` / `radius` / `borderWidth` / `glow` / `innerGlow` / `intensity`）+ `mask="rect"` / `mask="self"`（裁成自绘形状）|
 | `<SafeArea>` | 撑满父级、按设备安全区内缩（见本节末 **Safe area** 小节） |
 | `<Image>` | uGUI Image：sprite + 等比适配 + mask |
 | `<RawImage>` | uGUI RawImage：C# 设 Texture（动态图）+ contain/cover 适配 + mask |
@@ -128,6 +128,7 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 | `glowColor` | hex / CSS / token / `/alpha`. **纯色 only** | 跟随 `color` | Unset → the fill colour at full alpha, so `glow="12"` alone reads as "this shape glows" |
 | `innerGlow` | px | `0` | Inner glow — light falling off **inwards** from the outline. Pure material, so unlike `glow` it never touches the geometry |
 | `innerGlowColor` | hex / CSS / token / `/alpha`. **纯色 only** | `white` | Deliberately *not* the fill: an inner glow in the fill's own colour is invisible on an opaque fill. `/alpha` is the strength knob; a **dark** value is an inset shadow |
+| `intensity` | number `≥ 1` | `1` | **How much light the surface gives off.** `1` = as drawn; `2` ≈ one stop brighter; `3`–`5` = neon; `≥ 8` ≈ white. Runs an exposure curve over everything the panel paints (fill + both glows + border): the core whitens, the glow's tail keeps its hue — a *light*, not a lighter colour. `""` = back to `1`. Not on glass (`PUI-GLASS-INTENSITY`). → **Lighting it up** below |
 | `glass` | `true` / `false` | `false` | Frosted-glass fill: the shape shows a blurred copy of the camera image instead of a flat colour. `color` becomes a tint on top of it. → `reference/glass.md` |
 | `frost` · `depth` · `dispersion` · `lightAngle` · `lightIntensity` · `saturation` · `noise` | 数值 | 见 glass.md | Glass tuning. Ignored without `glass="true"` (`PUI-GLASS-PARAM-NO-GLASS`) |
 | `weld` | px | `0` | Fuses this Frame's **direct glass children** into one continuous pane. → `reference/glass.md` |
@@ -142,6 +143,8 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
        innerGlowColor="#fff6cf" borderWidth="2"/>          <!-- 边缘被照亮的金属牌 -->
 <Frame color="surface" radius="12" innerGlow="20"
        innerGlowColor="black/0.35"/>                       <!-- 深色 = 内阴影 / 边缘暗角 -->
+<Frame color="#4f88ff" radius="2" glow="14"
+       glowColor="#4f88ff/0.35" intensity="3"/>            <!-- 霓虹：白蓝核心 + 蓝色光晕 -->
 <Frame color="#1b263b" radius="0,0,16,16"/>                <!-- 只圆下面两角 -->
 <Frame color="accent" radius="cut 16"/>                    <!-- 四角 45° 斜切 -->
 <Frame color="accent" radius="hexagon"/>                   <!-- 左右收成尖的六边形 -->
@@ -153,6 +156,7 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 
 - Only `glow` is affected by a **祖先** `RectMask2D` clipping the extra quad away; a Frame's own `mask="rect"` / `mask="self"` clips its children, never itself. `innerGlow` paints strictly inside the shape, so nothing clips it and it costs no extra overdraw.
 - **`innerGlow` is measured from the shape edge**, and an inner border is painted on top of it. A thin translucent `borderColor` (`white/0.4` and friends) lets the glow continue seamlessly underneath; a thick opaque border covers the outermost `borderWidth` px of the band, so raise `innerGlow` to compensate.
+- **Lighting it up — `intensity`.** A colour can never look *lit*: the "glowing" look in a design is a core that has gone white with a halo that stayed saturated, i.e. one hue at two energies. `intensity` is that energy. Keep `color` as the hue you want in the halo and turn `intensity` up (`3`–`5` for a neon icon, `2` for a "lit" gold button) instead of picking a paler colour — a pale fill next to a coloured glow reads as an outline, not as light. Two knobs stay orthogonal: `glowColor`'s `/alpha` is *how much* halo, `intensity` is *how hot*. Pure single-channel colours (`#f00`, `#00f`) whiten only half-way — a hot red goes pink-white, never white. The lit surface gets pale, so give it a **dark `textColor`**. It is a dark-background effect: on a light background the halo turns into a faint tinted haze and the shape itself washes out. `*Modulate` darkens the *lit* result; a disabled control switches the light off; `intensity="1"` is bit-identical to leaving it out.
 - `mask="self"` clips to the **shape**, not to what the Frame paints: an outer `glow` does not widen the clip, and a Frame with a `radius` but no `color` still clips (that is the invisible-clipper form above). So `radius=` alone is enough to define the mask.
 - Colour / radius / border changes are material-only — a Variant flip or a colour animation never rebuilds the canvas mesh. Frames sharing identical values (typically via `class=`) share one material and keep batching.
 - Layout-only containers (`<VStack>` / `<HStack>` / `<Grid>` / `<SafeArea>`) draw nothing — wrap them in a `<Frame>` for a background.
@@ -193,7 +197,7 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 - **Border, both glows, glass and `mask="self"` follow the new outline automatically** — no extra attributes, and an inner border keeps its width around a chamfer and around the inner corner of a notch.
 - Keywords are lower-case. `bevel` / `scoop` / `CUT` / `R6` are parse errors that name the legal words.
 
-> **Which tags draw procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `innerGlow` / `innerGlowColor` / `glass` (+ its tuning params) work on **`<Frame>`, `<Btn>`, `<Tab>`, `<TabMenu>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>`, `<Collapsible>` and `<Progress>`** — see **Procedural surfaces** below for what they do on a control.
+> **Which tags draw procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `innerGlow` / `innerGlowColor` / `intensity` / `glass` (+ its tuning params) work on **`<Frame>`, `<Btn>`, `<Tab>`, `<TabMenu>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>`, `<Collapsible>` and `<Progress>`** — see **Procedural surfaces** below for what they do on a control.
 >
 > On any other tag — `<Image>`, `<RawImage>`, `<Text>`, `<Icon>`, `<TabBar>`, `<Carousel>`, `<Markdown>` — they are accepted by the parser and then silently dropped; `PUI-CONTAINER-VISUAL-ATTR` is the only thing that tells you. (`<Image>` / `<RawImage>` are deliberate: a sprite is their whole point, and a procedural rectangle is what `<Frame>` is for.)
 >
@@ -219,6 +223,7 @@ uGUI Image，从 `Resources` 加载 sprite；可选 `RectMask2D`（`mask="rect"`
 | `blur` | px 半径 | `0`（不糊） | 见 **Blur & glow** |
 | `glow` | px 半径 | `0`（无光） | 见 **Blur & glow** |
 | `glowColor` | hex / CSS named / theme token，**纯色**；或 `self` / `self/0.5` | 不写 = 图自身的模糊色 | 见 **Blur & glow** |
+| `intensity` | number `≥ 1` | `1` | 点亮：本体 + 光晕一起过曝光曲线，核心发白、光晕保色相。任何 `type` 都生效。见 **Blur & glow** |
 
 #### Rotation & flip
 
@@ -245,6 +250,8 @@ They rewrite the **generated mesh** about the rect's centre and touch nothing el
 <Icon name="res:gold" glow="6"/>                              <!-- glows in its own colours -->
 <Icon name="res:gold" glow="6" glowColor="self/0.5"/>         <!-- its own colours, at half strength -->
 <Icon name="ui:alert" glow="8" glowColor="danger"/>           <!-- a flat silhouette glow -->
+<Icon name="ui:plus" color="#4f88ff" glow="14"
+      glowColor="self/0.35" intensity="3"/>                   <!-- lit: white-blue core, blue halo -->
 <Image sprite="item:blaster" blur="4"/>                       <!-- a locked item, out of focus -->
 <Image sprite="card:01" type="contain" blur="3" glow="10" glowColor="accent/0.6"/>
 
@@ -256,6 +263,7 @@ They rewrite the **generated mesh** about the rect's centre and touch nothing el
 - **`<Image>` / `<Icon>` only** (`PUI-FX-TAG`). `<RawImage>` and `<Btn sprite=>` are not wired up yet.
 - **`type="simple"` only** — `contain` / `cover` count, since they draw one quad too; `sliced` / `tiled` / `filled` are `PUI-FX-TYPE`. A sprite with a 9-slice border becomes `sliced` *automatically* when you write no `type=`, and then draws no effect at all (the runtime warns). Write `type="simple"` to force the plain quad.
 - **`glowColor` unwritten = the sprite's own blurred colour**, so a coloured icon glows in its colours and follows `color=` and state modulates. Written, it is a flat glow in that colour whose alpha is its strength. `self` spells the default out and takes the usual `/alpha` suffix as a strength: `glowColor="self/0.5"` is the sprite's own colours at half intensity (the only way to dim a self-coloured glow). `self` is a keyword, not a theme token. A `glowColor` with no `glow` is `PUI-FX-ATTR`.
+- **`intensity` lights the sprite the way it lights a `<Frame>`** (see *Lighting it up* there): the tinted body and its glow go through one exposure curve, so a `color="#4f88ff"` icon at `intensity="3"` gets a white-blue core and keeps a blue halo — the "glowing icon" of a design mock, which no `color` value can reach. It needs no quad, so unlike `blur` / `glow` it works on **any `type`** (a 9-slice button face included) and never trips `PUI-FX-TYPE`. `1` / `""` = off, no material. A disabled control switches it off. One asymmetry: `color=` and the state `*Modulate` are the same vertex tint here, and both go *into* the exposure — so a hover modulate on a lit icon cools it slightly rather than dimming it uniformly.
 - **The glow is drawn geometry, not layout.** The rect, `LayoutElement` and the raycast area are exactly as authored — same as `<Frame glow>`, so leave room with `spacing` / `margin` or the next sibling sits on top of the light.
 - **Radii are design px in the element's own space**, so `scale=` scales them with everything else.
 - **Anything past a few texels wants mipmaps on the sprite's texture** (SpriteAtlas → *Generate Mip Maps*; TextureImporter → *Generate Mipmaps*). The kernel samples the mip level that matches its tap spacing, so with a mip chain any radius is one smooth blur. Without one it samples the full-resolution texture, and past ~3 texels of radius that draws ghost copies of thin strokes; the runtime warns once per texture when it has to fall back like that, and names the limit for that draw size. Lint says nothing about how big a radius is — it sees neither the texture nor the drawn size, so any threshold it picked would nag at a mipmapped atlas too. Point-filtered (pixel-art) textures cannot use mipmaps for this — keep their radii small. Mipmaps on an atlas cost a third more memory and soften every sprite in it when drawn smaller than 1:1; the atlas also needs Unity's normal padding (≥ 2 texels) and no rotation / tight packing (`reference/icons.md`).
@@ -367,7 +375,7 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 | `tr` | bool | `true` | `false`=跳过 i18n |
 | `ctx` | string | — | msgctxt 消歧 |
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
-| `radius` · `borderWidth` · `borderColor` · `glow` · `glowColor` · `innerGlow` · `innerGlowColor` · `glass` (+ 玻璃调参) | 同 `<Frame>` | — | **程序化表面**，见下节 |
+| `radius` · `borderWidth` · `borderColor` · `glow` · `glowColor` · `innerGlow` · `innerGlowColor` · `intensity` · `glass` (+ 玻璃调参) | 同 `<Frame>` | — | **程序化表面**，见下节 |
 
 ### 程序化表面（`<Frame>` 之外的控件）
 
@@ -634,7 +642,7 @@ Tab 容器；私有 `ToggleGroup`（默认 `allowSwitchOff=false`，见下表）
 | `transition` | 时长 | `0.2s` | 展开 / 收起过渡；`0` = 瞬切 |
 | `maxHeight` | px | — | body 限高，超出部分可竖向拖动 / 滚轮 |
 | `spacing` · `padding` | 同 `<VStack>` | — | **body** 的行距与内距 |
-| `color` · `sprite` · `tint` · `radius` · `borderWidth` · `glow*` · `innerGlow*` · `glass` … | 同 `<Frame>` / 程序化表面 | 库默认 sliced 底 | **主表面 = 整块面板** |
+| `color` · `sprite` · `tint` · `radius` · `borderWidth` · `glow*` · `innerGlow*` · `intensity` · `glass` … | 同 `<Frame>` / 程序化表面 | 库默认 sliced 底 | **主表面 = 整块面板** |
 | `interactable` | bool | `true` | `false` = 标题栏禁用（点不动、进 Disabled 视觉），级联 body |
 | `focus` · `nav*` | 同其它 Selectable | — | 作用于标题栏；收起时 body 不在导航图里 |
 | `height` / `size`（含 `.variant`） | — | — | **parse error `PUI-COLLAPSIBLE-HEIGHT`** |
@@ -724,6 +732,7 @@ References a sprite from a project-level SpriteSet (shared icons, by-name lookup
 | `blur` | no | `0` | px radius; softens the icon itself — see **Blur & glow** under `<Image>` |
 | `glow` | no | `0` | px radius; outer glow cast from the icon's silhouette — see **Blur & glow** |
 | `glowColor` | no | its own colour | solid colour, or `self` / `self/0.5` (its own colour at a strength); unwritten, the glow takes the icon's own blurred colour |
+| `intensity` | no | `1` | `≥ 1`; lights body and glow together — white-hot core, hued halo. See **Blur & glow** |
 
 **Discovering available icons** — 要查项目里有哪些 `setName:icon-name` 组合、以及 icon 名如何解析（相对 sourceFolder 路径、bare basename 简写、Template-Param 替换、sync 工具行为），见 [`reference/icons.md`](reference/icons.md)。
 
@@ -1388,7 +1397,7 @@ Append `/<0..1>` to any color **reference** to set its opacity. The suffix REPLA
 
 - Works on **every** color-valued attribute (one resolution chokepoint): `color`, the state colors `hoverColor` / `pressedColor` / `selectedColor` / `disabledColor`, `*Modulate`, variant overrides (`color.dark="primary/0.5"`), and `<Animation char-color="primary/1:primary/0">` (fade out).
 - Replace, not multiply: a token whose own value carries alpha (e.g. `scrim = #00000080`) referenced as `scrim/1` comes out **fully opaque**.
-- Value is a `0..1` float. Out of range or malformed (`/1.5`, `/abc`, `/`, no color before `/`) → `ParseException` with node context.
+- Value is a `0..1` float. Out of range or malformed (`/1.5`, `/abc`, `/`, no color before `/`) → `ParseException` with node context. **Alpha is opacity, never brightness** — to make a surface *glow brighter than its colour*, use `intensity` (`<Frame>` family, `<Decor>`, `<Image>` / `<Icon>`), not `/2`.
 - Suffix is **reference-only**. Definition-side `<Color value="...">` does NOT take a suffix — bake alpha into the hex there (`value="#00000080"`) if you want a baked-alpha token.
 
 ### Gradients
@@ -1725,6 +1734,10 @@ SIZE          size="WxH"          numeric only (no keywords)
 HUG           "hug"            → as big as my content; clamp(min, hug, max) caps it (then ScrollList scrolls)
                                  PUI-HUG-TAG (wrong tag) / -SCALE (with scale=) / -STRETCH-CHILD (stretch child)
 MESH XFORM    rotation="90" flip="x|y|xy"   <Image>/<Icon>/<RawImage> only; mesh-level, layout untouched
+INTENSITY     intensity="3"    ≥1, default 1 = as drawn. Exposure over what the surface paints: core whitens, halo keeps
+                               its hue — "lit", not "lighter colour". <Frame> family / <Decor> / <Image> / <Icon> (any type).
+                               Not glass (PUI-GLASS-INTENSITY). glowColor /alpha = how much halo; intensity = how hot.
+                               Dark backgrounds; pair with a dark textColor. Disabled switches it off.
 SPRITE FX     blur="4" glow="8" glowColor="accent|self/0.5"   <Image>/<Icon> only, type="simple"/contain/cover only
               glowColor unwritten = the sprite's own colours; the glow is drawn OUTSIDE the rect
               (layout unchanged — leave spacing); radii past a few texels need mipmaps on the texture
@@ -1792,7 +1805,8 @@ SPRITE FX LINT PUI-FX-TAG                      blur= outside <Image> / <Icon> (R
                warns per texture when the kernel really has to fall back to no mipmaps)
 
 STYLE LINT    PUI-CLASS-EMPTY                  class="" / whitespace-only — names no style
-              PUI-PROCEDURAL-VALUE             bad radius / borderWidth / glow / blur value (also inside <Style>)
+              PUI-PROCEDURAL-VALUE             bad radius / borderWidth / glow / blur / intensity value (also inside <Style>)
+              PUI-GLASS-INTENSITY              intensity= on glass="true" / a weld carrier — glass emits no light
               PUI-CONTAINER-VISUAL-ATTR        sprite= on any container; color/radius/border/glow on *Stack/Grid/SafeArea
                                                — also fires when the attribute arrives through class=
               PUI-EXPAND                       unknown template / style name, or an <Import> cycle

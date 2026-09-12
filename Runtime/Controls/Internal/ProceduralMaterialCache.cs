@@ -105,6 +105,13 @@ namespace PromptUGUI.Controls.Internal
         public readonly float InnerGlowSize;
         public readonly bool Glass;
         public readonly GlassParams GlassParams;
+        /// <summary>
+        /// Exposure of everything the panel paints (spec 2026-09-12): 1 is today's rendering, more
+        /// is brighter and whiter. Forced to 1 by <c>ProceduralPanel.BuildParams</c> on glass and
+        /// while disabled, for the same reason the glass block is zeroed on opaque panels — keys
+        /// that render identically must not split the cache.
+        /// </summary>
+        public readonly float Intensity;
 
         /// <summary>
         /// Packs a parsed shape into the four vectors the shader reads. Sizes stay in canvas units
@@ -116,7 +123,8 @@ namespace PromptUGUI.Controls.Internal
                            Color borderColor, Color glowColor,
                            Color innerGlowColor, in RadiusSpec radius, float borderWidth,
                            float glowSize, float innerGlowSize,
-                           bool glass = false, GlassParams glassParams = default)
+                           bool glass = false, GlassParams glassParams = default,
+                           float intensity = 1f)
         {
             FillTop = fillTop;
             FillBottom = fillBottom;
@@ -141,6 +149,7 @@ namespace PromptUGUI.Controls.Internal
             InnerGlowSize = innerGlowSize;
             Glass = glass;
             GlassParams = glassParams;
+            Intensity = intensity;
         }
 
         public bool Pill => Shape == PanelShape.Pill;
@@ -156,6 +165,7 @@ namespace PromptUGUI.Controls.Internal
             && Shape == o.Shape && HexWidth == o.HexWidth
             && BorderWidth == o.BorderWidth && GlowSize == o.GlowSize
             && InnerGlowSize == o.InnerGlowSize
+            && Intensity == o.Intensity
             && Glass == o.Glass
             // Short-circuit: an opaque panel's glass block is always None, so there is nothing to
             // compare — and opaque is the overwhelmingly common case.
@@ -184,6 +194,7 @@ namespace PromptUGUI.Controls.Internal
                 h = (h * 397) ^ BorderWidth.GetHashCode();
                 h = (h * 397) ^ GlowSize.GetHashCode();
                 h = (h * 397) ^ InnerGlowSize.GetHashCode();
+                h = (h * 397) ^ Intensity.GetHashCode();
                 h = (h * 397) ^ Glass.GetHashCode();
                 if (Glass) h = (h * 397) ^ GlassParams.GetHashCode();
                 return h;
@@ -227,6 +238,7 @@ namespace PromptUGUI.Controls.Internal
         private static readonly int BorderWidthId = Shader.PropertyToID("_BorderWidth");
         private static readonly int GlowSizeId = Shader.PropertyToID("_GlowSize");
         private static readonly int InnerGlowSizeId = Shader.PropertyToID("_InnerGlowSize");
+        private static readonly int IntensityId = Shader.PropertyToID("_Intensity");
 
         // Seven glass floats ride two vectors: fewer SetX calls, and the light angle arrives as a
         // direction so the shader never runs sin/cos per fragment.
@@ -312,6 +324,7 @@ namespace PromptUGUI.Controls.Internal
             mat.SetFloat(BorderWidthId, p.BorderWidth);
             mat.SetFloat(GlowSizeId, p.GlowSize);
             mat.SetFloat(InnerGlowSizeId, p.InnerGlowSize);
+            mat.SetFloat(IntensityId, p.Intensity);
             if (!p.Glass) return;
 
             var g = p.GlassParams;

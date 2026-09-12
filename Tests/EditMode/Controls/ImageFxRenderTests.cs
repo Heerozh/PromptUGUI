@@ -367,6 +367,55 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.Less(Mathf.Abs(greyed.g - greyed.b), 0.06f);
         }
 
+        // ---- 2b. intensity (spec 2026-09-12) ----
+
+        [Test]
+        public void Intensity_WhitensATintedIcon_AndKeepsItsHaloHue()
+        {
+            // The tint (vertex rgb) is the icon's colour, so it goes INTO the exposure: a blue disc
+            // at k=5 gets a white-blue core while its self-coloured halo stays blue.
+            Render(Icon("color='#3b82f6' glow='12'"), "pugui-fx-intensity-k1.png");
+            var plain = AtPx(0f, 0f);
+            var plainHalo = AtPx(DiscRadiusPx + 4f, 0f);
+
+            Render(Icon("color='#3b82f6' glow='12' intensity='5'"), "pugui-fx-intensity-k5.png");
+            var lit = AtPx(0f, 0f);
+            var halo = AtPx(DiscRadiusPx + 4f, 0f);
+
+            Assert.Greater(lit.r, plain.r + 0.3f, $"the core must whiten: {plain} → {lit}");
+            Assert.Greater(lit.b, lit.r, $"…staying on the blue side of white: {lit}");
+            Assert.Greater(Luma(halo), Luma(plainHalo) + 0.05f, $"the halo brightens: {plainHalo} → {halo}");
+            Assert.Greater(halo.b, halo.g, $"…and keeps its hue: {halo}");
+            Assert.Greater(halo.g, halo.r, $"…blue, not white: {halo}");
+        }
+
+        [Test]
+        public void Intensity_ExposesASlicedImageToo()
+        {
+            // No quad inflation, no atlas rect in uv1 — the plain UI/Default path — and still exposed.
+            Render("<Image id='i' sprite='ui:red' type='sliced' anchor='center' size='64x64' intensity='5'/>",
+                   "pugui-fx-intensity-sliced.png");
+            var lit = AtPx(0f, 0f);
+            Assert.Greater(lit.g, 0.6f, $"pure red whitens through the crosstalk, got {lit}");
+            Assert.Greater(lit.r, lit.g, $"…and stays red-ish, got {lit}");
+        }
+
+        [Test]
+        public void IntensityOne_IsPixelIdenticalToUnset()
+        {
+            Render(Icon("color='#3b82f6' glow='8'"), "pugui-fx-intensity-unset.png");
+            var unset = _shot.GetPixels32();
+            Render(Icon("color='#3b82f6' glow='8' intensity='1'"), "pugui-fx-intensity-one.png");
+            var one = _shot.GetPixels32();
+
+            for (var i = 0; i < unset.Length; i++)
+            {
+                if (unset[i].r == one[i].r && unset[i].g == one[i].g && unset[i].b == one[i].b
+                    && unset[i].a == one[i].a) continue;
+                Assert.Fail($"intensity='1' must be a no-op: pixel {i % Size},{i / Size} differs — {unset[i]} vs {one[i]}");
+            }
+        }
+
         // ---- 3. the blur ----
 
         [Test]

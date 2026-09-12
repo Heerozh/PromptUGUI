@@ -269,6 +269,76 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.LessOrEqual(FxMaterialCache.SpareCount, 1);
         }
 
+        // ---- intensity (spec 2026-09-12) ----
+
+        [Test]
+        public void Intensity_alone_needs_the_fx_material()
+        {
+            // No blur, no glow: nothing inflates the mesh, but the exposure curve still runs in the
+            // shader, so the icon has to leave the default material.
+            var s = Open("<Icon id='a' name='ui:x' intensity='3'/><Icon id='b' name='ui:x' intensity='3'/>");
+            var a = FxOf(s.Get<PromptUGUI.Controls.Icon>("a"));
+            var b = FxOf(s.Get<PromptUGUI.Controls.Icon>("b"));
+
+            Assert.IsTrue(a.HasMaterialFx);
+            Assert.IsFalse(a.HasGeometryFx, "exposure needs no geometry");
+            Assert.AreEqual("UI/ImageFx", a.material.shader.name);
+            Assert.AreEqual(3f, a.material.GetFloat("_Intensity"), 1e-4f);
+            Assert.AreEqual(0f, a.material.GetFloat("_Glow"), 1e-4f);
+            Assert.AreSame(a.material, b.material, "same parameters must batch, not split the cache");
+            Assert.AreEqual(1, FxMaterialCache.LiveMaterialCount);
+        }
+
+        [Test]
+        public void Intensity_applies_to_a_nine_slice_sprite_without_a_warning()
+        {
+            // Unlike blur / glow, exposure does not need the single quad the sampling maths
+            // assumes — a Sliced image is drawn as UI/Default would and exposed afterwards.
+            Object.DestroyImmediate(_sprite);
+            _sprite = MakeSprite(new Vector4(2f, 2f, 2f, 2f));
+            UI.SpriteResolver = _ => _sprite;
+
+            var s = Open("<Image id='m' sprite='ui:x' size='40x40' intensity='3'/>");
+            var fx = FxOf(s.Get<PromptUGUI.Controls.Image>("m"));
+
+            Assert.AreEqual(UnityImage.Type.Sliced, fx.type);
+            Assert.IsFalse(fx.HasGeometryFx);
+            Assert.AreEqual("UI/ImageFx", fx.material.shader.name);
+            Assert.AreEqual(3f, fx.material.GetFloat("_Intensity"), 1e-4f);
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        [Test]
+        public void Intensity_of_one_or_empty_leaves_no_material_behind()
+        {
+            var s = Open("<Icon id='a' name='ui:x' intensity='1'/><Icon id='b' name='ui:x' intensity=''/>");
+            Assert.IsFalse(FxOf(s.Get<PromptUGUI.Controls.Icon>("a")).HasKeyForTests, "1 is the identity");
+            Assert.IsFalse(FxOf(s.Get<PromptUGUI.Controls.Icon>("b")).HasKeyForTests, "empty is the way back to 1");
+            Assert.AreEqual(0, FxMaterialCache.LiveMaterialCount);
+        }
+
+        [Test]
+        public void Intensity_below_one_is_a_parse_error()
+        {
+            var ex = Assert.Throws<ParseException>(() => Open("<Icon id='i' name='ui:x' intensity='0.5'/>"));
+            StringAssert.Contains("intensity", ex.Message);
+        }
+
+        [Test]
+        public void A_variant_that_retracts_the_intensity_returns_the_default_material()
+        {
+            var s = Open("<Icon id='i' name='ui:x' intensity='3' intensity.mobile=''/>");
+            var fx = FxOf(s.Get<PromptUGUI.Controls.Icon>("i"));
+            Assert.IsTrue(fx.HasKeyForTests);
+
+            UI.Variants.Set("mobile", true);
+            Assert.IsFalse(fx.HasKeyForTests, "back to 1 means back to no material");
+
+            UI.Variants.Set("mobile", false);
+            Assert.IsTrue(fx.HasKeyForTests);
+            Assert.AreEqual(3f, fx.material.GetFloat("_Intensity"), 1e-4f);
+        }
+
         // ---- the cases fx cannot serve ----
 
         [Test]

@@ -32,6 +32,8 @@ Shader "UI/ProceduralPanel"
         _BorderWidth ("Border Width",  Float) = 0
         _GlowSize    ("Glow Size",     Float) = 0
         _InnerGlowSize ("Inner Glow Size", Float) = 0
+        // 曝光倍数（spec 2026-09-12）：1 = 不变，越大越白。
+        _Intensity   ("Intensity",     Float) = 1
 
         _StencilComp ("Stencil Comparison", Float) = 8
         _Stencil ("Stencil ID", Float) = 0
@@ -132,6 +134,7 @@ Shader "UI/ProceduralPanel"
             float _BorderWidth;
             float _GlowSize;
             float _InnerGlowSize;
+            float _Intensity;
 
             v2f vert(appdata_t v)
             {
@@ -178,6 +181,10 @@ Shader "UI/ProceduralPanel"
                     border.a *= inside * saturate(0.5 + (d + _BorderWidth) / fw);
                     col = PuguiOver(border, col);
                 }
+
+                // 曝光：作用在这个面画出来的全部东西上（填充 + 两层发光 + 描边的合成），恰好一次，
+                // 且在顶点色之前 —— 淡出就是淡出、*Modulate 压暗的是点亮后的表面，不会「冷却」回本色。
+                col = PuguiExpose(col, _Intensity);
 
                 // 顶点色 = Graphic.color × CanvasRenderer/CanvasGroup alpha。
                 // 面板自身的四种颜色都在材质里，所以这一乘就是整块面板的统一 tint / 淡入淡出。

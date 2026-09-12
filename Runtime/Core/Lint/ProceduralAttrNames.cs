@@ -22,7 +22,7 @@ namespace PromptUGUI.Lint
         public static readonly string[] PanelAttaching =
         {
             "color", "radius", "borderWidth", "borderColor", "glow", "glowColor",
-            "innerGlow", "innerGlowColor",
+            "innerGlow", "innerGlowColor", "intensity",
             "glass", "frost", "depth", "dispersion", "lightAngle", "lightIntensity",
             "saturation", "noise",
         };
@@ -38,7 +38,7 @@ namespace PromptUGUI.Lint
         public static readonly string[] All =
         {
             "color", "radius", "borderWidth", "borderColor", "glow", "glowColor",
-            "innerGlow", "innerGlowColor",
+            "innerGlow", "innerGlowColor", "intensity",
             "glass", "frost", "depth", "dispersion", "lightAngle", "lightIntensity",
             "saturation", "noise", "weld", "seam",
         };
@@ -69,7 +69,7 @@ namespace PromptUGUI.Lint
         public static readonly string[] NeedsPanel =
         {
             "radius", "borderWidth", "borderColor", "glow", "glowColor",
-            "innerGlow", "innerGlowColor",
+            "innerGlow", "innerGlowColor", "intensity",
             "glass", "frost", "depth", "dispersion", "lightAngle", "lightIntensity",
             "saturation", "noise", "weld", "seam",
         };
