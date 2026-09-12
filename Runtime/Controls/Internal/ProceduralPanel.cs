@@ -18,8 +18,8 @@ namespace PromptUGUI.Controls.Internal
     /// <item>Colour / radius / border / glow-colour changes touch only the material, so a Variant
     /// flip or a colour tween never rebuilds the canvas mesh.</item>
     /// <item>Attribute writes only flag the material dirty; the parameters are resolved once per
-    /// canvas rebuild (see <see cref="FlushParams"/>), so applying sixteen attributes at
-    /// instantiation costs one material lookup, not sixteen.</item>
+    /// canvas rebuild (see <see cref="FlushParams"/>), so applying seventeen attributes at
+    /// instantiation costs one material lookup, not seventeen.</item>
     /// <item>Geometry is dirtied only when the glow radius (which inflates the quad) or overall
     /// visibility changes.</item>
     /// <item>A fully transparent panel emits no geometry at all — zero overdraw, which is the
@@ -51,6 +51,9 @@ namespace PromptUGUI.Controls.Internal
         private float _borderWidth;
         private float _glowSize;
         private float _innerGlowSize;
+        // Exposure (spec 2026-09-12). 1 is "unlit" — the default has to be the identity, or every
+        // panel in the library would light up.
+        private float _intensity = IntensityAttrParser.Default;
 
         private bool _glass;
         private float _frost = GlassAttrParser.DefaultFrost;
@@ -210,6 +213,16 @@ namespace PromptUGUI.Controls.Internal
             MarkDirty();
         }
 
+        /// <summary>
+        /// Exposure of everything the panel paints; 1 = unchanged. Material-only: the curve
+        /// brightens what is already drawn, so the geometry never changes for it.
+        /// </summary>
+        public void SetIntensity(float intensity)
+        {
+            _intensity = Mathf.Max(IntensityAttrParser.Min, intensity);
+            MarkDirty();
+        }
+
         public void SetGlass(bool glass)
         {
             if (_glass == glass) return;
@@ -304,6 +317,12 @@ namespace PromptUGUI.Controls.Internal
             var fillBottom = _fillBottom;
             var border = _borderColor;
             var innerGlow = _innerGlowColor;
+            // Glass paints the backdrop, which is not light the surface emits, so exposure has no
+            // meaning there (spec 2026-09-12 §5.4); and a disabled control has to read as inert —
+            // greyed AND lit is a white-hot grey panel that reads as switched on (§5.5). Both are
+            // folded into the key rather than the shader so panels differing only in a value that
+            // cannot show keep sharing one material.
+            var intensity = _glass || _grayed ? IntensityAttrParser.Default : _intensity;
             if (_grayed)
             {
                 // Disabled greying has to happen HERE, inside the parameters, not by swapping the
@@ -326,7 +345,8 @@ namespace PromptUGUI.Controls.Internal
 
             return new PanelParams(fillTop, fillBottom, _fillStopTop, _fillStopBottom, _fillCurve,
                                    border, glow, innerGlow, _radius,
-                                   _borderWidth, _glowSize, _innerGlowSize, _glass, glassParams);
+                                   _borderWidth, _glowSize, _innerGlowSize, _glass, glassParams,
+                                   intensity);
         }
 
         /// <summary>
@@ -417,7 +437,7 @@ namespace PromptUGUI.Controls.Internal
         /// <summary>
         /// Records that the parameters changed, without touching the material. Resolving is deferred
         /// to <see cref="FlushParams"/> so a run of attribute writes — instantiation applies up to
-        /// sixteen of them — collapses into a single cache lookup.
+        /// seventeen of them — collapses into a single cache lookup.
         /// </summary>
         private void MarkDirty()
         {

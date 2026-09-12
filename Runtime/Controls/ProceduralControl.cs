@@ -24,7 +24,7 @@ namespace PromptUGUI.Controls
     /// <remarks>
     /// The attributes are declared once here rather than per control because
     /// <c>ControlMeta.Build</c> reflects with <c>BindingFlags.Public | BindingFlags.Instance</c>,
-    /// which includes inherited properties — so a subclass gets all fifteen for free.
+    /// which includes inherited properties — so a subclass gets all sixteen for free.
     /// </remarks>
     public abstract class ProceduralControl : Control
     {
@@ -147,6 +147,13 @@ namespace PromptUGUI.Controls
         public string InnerGlowColor
         {
             set { var v = UI.Theme.Resolve(value); Surface.Declare(p => p.SetInnerGlowColor(v)); }
+        }
+
+        /// <summary>曝光倍数（≥ 1，默认 1 = 不变）：核心发白、光晕保色相。玻璃面不作用。</summary>
+        [UIAttr, Preserve]
+        public string Intensity
+        {
+            set { var v = IntensityAttrParser.Parse(value); Surface.Declare(p => p.SetIntensity(v)); }
         }
 
         /// <summary>玻璃模式：填充改为采样模糊后的 backdrop + 边缘折射 / 打光。</summary>

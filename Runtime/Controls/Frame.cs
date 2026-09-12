@@ -184,6 +184,16 @@ namespace PromptUGUI.Controls
         }
 
         /// <summary>
+        /// 曝光倍数（≥ 1，默认 1 = 不变）：这个面发出的光有多亮。作用在填充 + 两层发光 + 描边的
+        /// 合成上 —— 核心发白、光晕保色相，是「光」而不是「更亮的颜色」。玻璃面不作用。
+        /// </summary>
+        [UIAttr, Preserve]
+        public string Intensity
+        {
+            set => Panel.SetIntensity(IntensityAttrParser.Parse(value));
+        }
+
+        /// <summary>
         /// 玻璃模式：填充改为采样模糊后的 backdrop + 边缘折射 / 打光，形状仍是同一套 SDF。
         /// 见 <c>UI.Glass</c>：没有可用 backdrop（无 URP / 关闭画质选项 / 无相机）时自动退化成
         /// 半透明面板。

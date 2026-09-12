@@ -118,6 +118,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [TestCase("glow='6'")]
         [TestCase("innerGlow='6'")]
         [TestCase("innerGlowColor='#fff'")]
+        [TestCase("intensity='3'")]
         [TestCase("glass='true'")]
         public void AnyPanelAttachingAttr_AttachesASurface(string attrs)
         {

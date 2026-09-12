@@ -598,6 +598,34 @@ float4 PuguiOver(float4 src, float4 dst)
     return float4(rgb, a);
 }
 
+// ---- 曝光（intensity）----
+//
+// 把 k 份同样的光 screen 叠在一起：f(x) = 1 - (1 - x)^k。k = 1 逐位恒等；暗端 ≈ k·x（光晕尾巴
+// 保色相、只是更亮更宽）；亮端各通道依次饱和到 1 —— 「核心发白、光晕保色」这条曲线正是人眼把
+// 一块颜色读成「光」的原因（spec 2026-09-12 §5.1）。输入输出都在 0..1，不需要 HDR 目标。
+//
+// 作用在**预乘色**上。作用在直色上时，通道为 1 的颜色（#00f 的 B）在任何能量下都直接饱和，
+// 光晕尾巴整片纯色；预乘后尾巴处 p → 0，行为正确。alpha 走同一条曲线：光 k 倍亮就 k 倍宽。
+//
+// 过曝串扰：逐通道曲线对零通道无能为力（#f00 / #00f 永远不发白）。能量 k·max(p) 越过 1 的
+// 像素向自身最亮通道靠拢（去饱和），能量 4 时到满、系数 0.5 —— 纯色最多白到一半，霓虹的观感。
+// 阈值与系数按设计稿标定，是常数不是参数。尾巴处能量 < 1，串扰为 0。
+//
+// 三个 shader（不透明面板 / <Decor> / FxImage）逐字共用，理由同两层发光：一份曲线喂所有面。
+float4 PuguiExpose(float4 col, float k)
+{
+    // uniform 分支：k = 1 走原路，既有面板逐位不变。
+    if (k <= 1.0) return col;
+    float3 p  = col.rgb * col.a;
+    float3 fp = 1.0 - pow(max(1.0 - p, 0.0), k);
+    float  fa = 1.0 - pow(max(1.0 - col.a, 0.0), k);
+    float  energy = k * max(p.r, max(p.g, p.b));
+    float  h = saturate((energy - 1.0) / 3.0);
+    float  target = max(fp.r, max(fp.g, fp.b));
+    fp = lerp(fp, target.xxx, 0.5 * h);
+    return float4(fp / max(fa, 1e-5), fa);
+}
+
 // ---- 两层发光 ----
 //
 // 三个面板 shader（不透明 / 玻璃 / 融合）逐字共用这两个函数，而不是各抄一份四行 ——
