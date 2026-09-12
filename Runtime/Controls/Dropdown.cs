@@ -50,7 +50,9 @@ namespace PromptUGUI.Controls
             _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
             _bg.color = ProceduralBuilders.DefaultControlBgColor;
             ProceduralBuilders.ApplyDefaultSlicedSprite(_bg);
-            _tmp = GameObject.AddComponent<TMP_Dropdown>();
+            // PuiDropdown: the popup is a clone of the Template, and the procedural panels inside it
+            // (a <Scrollbar radius=>) do not survive Instantiate without help — see PuiDropdown.
+            _tmp = GameObject.AddComponent<PuiDropdown>();
             _tmp.targetGraphic = _bg;
 
             // Caption (the always-visible label on the closed dropdown button).

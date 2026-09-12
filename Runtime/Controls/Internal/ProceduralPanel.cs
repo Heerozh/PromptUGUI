@@ -295,6 +295,73 @@ namespace PromptUGUI.Controls.Internal
         /// <summary>Runs the geometry pass on demand — EditMode has no canvas rebuild loop.</summary>
         internal void BuildMeshForTests(VertexHelper vh) => OnPopulateMesh(vh);
 
+        // ---- cloning ----
+
+        /// <summary>
+        /// Takes over another panel's authored parameters. Everything here is a private,
+        /// non-serialized field, so <c>Object.Instantiate</c> hands a clone a blank panel — the
+        /// <c>TMP_Dropdown</c> popup, cloned from its Template on every Show, is exactly that case
+        /// (2026-09-12 spec §5.5). Runtime state (grayed / mask-source / suppressed / weld group)
+        /// is deliberately not copied: the clone's own drivers set those.
+        /// </summary>
+        internal void CopyStateFrom(ProceduralPanel source)
+        {
+            if (source == null || source == this) return;
+            _fill = source._fill;
+            _fillTop = source._fillTop;
+            _fillBottom = source._fillBottom;
+            _fillStopTop = source._fillStopTop;
+            _fillStopBottom = source._fillStopBottom;
+            _fillCurve = source._fillCurve;
+            _borderColor = source._borderColor;
+            _glowColor = source._glowColor;
+            _glowColorExplicit = source._glowColorExplicit;
+            _innerGlowColor = source._innerGlowColor;
+            _radius = source._radius;
+            _borderWidth = source._borderWidth;
+            _glowSize = source._glowSize;
+            _innerGlowSize = source._innerGlowSize;
+            _intensity = source._intensity;
+            _frost = source._frost;
+            _depth = source._depth;
+            _dispersion = source._dispersion;
+            _lightAngle = source._lightAngle;
+            _lightIntensity = source._lightIntensity;
+            _saturation = source._saturation;
+            _noise = source._noise;
+            // Through the setter: glass membership is counted and the weld group notified.
+            SetGlass(source._glass);
+            MarkDirty();
+            FlushParams();
+        }
+
+        /// <summary>
+        /// Copies every panel under <paramref name="source"/> onto the panel at the same hierarchy
+        /// path under <paramref name="clone"/>. The clone is an <c>Instantiate</c> of the source, so
+        /// the two trees have identical shape and sibling order.
+        /// </summary>
+        internal static void CopyStateToClone(Transform source, Transform clone)
+        {
+            if (source == null || clone == null) return;
+            foreach (var panel in source.GetComponentsInChildren<ProceduralPanel>(true))
+            {
+                var target = Mirror(panel.transform, source, clone);
+                if (target != null && target.TryGetComponent<ProceduralPanel>(out var twin))
+                    twin.CopyStateFrom(panel);
+            }
+        }
+
+        private static Transform Mirror(Transform node, Transform sourceRoot, Transform cloneRoot)
+        {
+            if (node == sourceRoot) return cloneRoot;
+            var parent = node.parent;
+            if (parent == null) return null;
+            var mirroredParent = Mirror(parent, sourceRoot, cloneRoot);
+            if (mirroredParent == null) return null;
+            var index = node.GetSiblingIndex();
+            return index < mirroredParent.childCount ? mirroredParent.GetChild(index) : null;
+        }
+
         // ---- rendering ----
 
         private PanelParams BuildParams()

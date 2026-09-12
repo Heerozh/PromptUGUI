@@ -96,9 +96,9 @@ namespace PromptUGUI.Lint
                 if (HasBase(n, attr)) continue;
                 if (SelfHeals(attr)) continue;
                 if (proceduralSelfHeals && IsProcedural(attr)) continue;
-                // One attribute per inner surface, so base-less always means "this surface toggles
-                // wholesale" — no node-level condition needed.
-                if (ProceduralSurfaceRules.AppliesTo(n.Tag) && IsInnerLayerRadius(attr)) continue;
+                // An inner surface is declared by any attribute of its group: base-less means "this
+                // surface toggles wholesale" only while no sibling of the group pins it on with a base.
+                if (ProceduralSurfaceRules.AppliesTo(n.Tag) && InnerLayerSelfHeals(n, attr)) continue;
                 if (NotSetters.Contains(attr)) continue;
                 if (MaskFamily.Contains(attr)) continue;
                 if (isTemplateBodyRoot && InvocationMergeableOntoTemplateRoot.Contains(attr)) continue;
@@ -117,11 +117,13 @@ namespace PromptUGUI.Lint
             }
         }
 
-        private static bool IsInnerLayerRadius(string attr)
+        private static bool InnerLayerSelfHeals(ElementNode n, string attr)
         {
-            foreach (var name in ProceduralAttrNames.InnerLayerRadius)
-                if (name == attr) return true;
-            return false;
+            var group = ProceduralAttrNames.InnerLayerGroupOf(attr);
+            if (group == null) return false;
+            foreach (var name in group)
+                if (HasBase(n, name)) return false;
+            return true;
         }
 
         private static bool IsProcedural(string attr)

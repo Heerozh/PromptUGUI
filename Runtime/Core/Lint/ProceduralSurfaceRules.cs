@@ -39,6 +39,17 @@ namespace PromptUGUI.Lint
             "pressedSprite", "disabledSprite", "selectedSprite",
         };
 
+        /// <summary>
+        /// Per tag, the inner layers that carry BOTH a sprite attribute and a shape group — the same
+        /// contradiction as sprite= vs the primary surface, one level down (2026-09-12 spec §4.5).
+        /// </summary>
+        private static readonly Dictionary<string, (string Sprite, string[] Shape)[]> InnerLayers = new()
+        {
+            ["Slider"] = new[] { ("fill", new[] { "fillRadius" }), ("handle", new[] { "handleRadius" }) },
+            ["Progress"] = new[] { ("fill", new[] { "fillRadius" }), ("frame", new[] { "frameRadius" }) },
+            ["Scrollbar"] = new[] { ("handle", ProceduralAttrNames.InnerLayerGroupOf("handleRadius")) },
+        };
+
         public static bool AppliesTo(string tag) => SurfaceTags.Contains(tag);
 
         public static IEnumerable<LintIssue> Check(ElementNode n) => Check(n, StyleAttributeView.Empty);
@@ -48,6 +59,20 @@ namespace PromptUGUI.Lint
             styles ??= StyleAttributeView.Empty;
             if (n == null || !SurfaceTags.Contains(n.Tag)) yield break;
             if (styles.IsUncertain(n)) yield break;
+
+            if (InnerLayers.TryGetValue(n.Tag, out var layers))
+                foreach (var (spriteAttr, shape) in layers)
+                {
+                    if (!DeclaresAny(n, styles, shape)) continue;
+                    styles.Resolve(n, spriteAttr, out var layerSprite, out _);
+                    if (!IsRealSprite(layerSprite)) continue;
+                    yield return new LintIssue(
+                        SpriteConflictCode, n.Tag, n.Id,
+                        $"<{n.Tag} id='{n.Id}'>: {spriteAttr}=\"{layerSprite}\" and a procedural shape on the same " +
+                        $"layer ({string.Join(" / ", shape)}) are two different ways to draw it, and the " +
+                        $"procedural one wins. Drop one — {spriteAttr}=\"none\" is the spelling for 'no bitmap'.");
+                }
+
             if (!DeclaresProcedural(n, styles)) yield break;
 
             styles.Resolve(n, "sprite", out var sprite, out _);
@@ -84,6 +109,16 @@ namespace PromptUGUI.Lint
         /// direction this repo has consistently chosen, since a false positive turns the CLI's
         /// non-zero exit into a wall for correct XML.</para>
         /// </summary>
+        private static bool DeclaresAny(ElementNode n, StyleAttributeView styles, string[] attrs)
+        {
+            foreach (var attr in attrs)
+            {
+                styles.Resolve(n, attr, out var baseValue, out _);
+                if (baseValue != null) return true;
+            }
+            return false;
+        }
+
         private static bool DeclaresProcedural(ElementNode n, StyleAttributeView styles)
         {
             foreach (var attr in ProceduralAttrNames.NeedsPanel)

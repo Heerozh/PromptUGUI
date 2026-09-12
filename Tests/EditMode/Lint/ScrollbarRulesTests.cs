@@ -27,6 +27,12 @@ namespace PromptUGUI.Tests.EditMode.Lint
             => IRWalker.Walk(UIDocumentParser.Parse(
                 "<?xml version='1.0' encoding='utf-8'?><PromptUGUI version='1'>" + doc + "</PromptUGUI>")).ToList();
 
+        // Theme-scoped rules (PUI-THEME-STYLE-SHAPE) run from DocumentLinter, not IRWalker.
+        private static List<LintIssue> LintDoc(string body, string extra)
+            => DocumentLinter.Walk(UIDocumentParser.Parse(
+                "<?xml version='1.0' encoding='utf-8'?><PromptUGUI version='1'>" + extra
+                + "<Screen name='S'>" + body + "</Screen></PromptUGUI>")).ToList();
+
         private static bool Has(List<LintIssue> issues, string code) => issues.Any(i => i.Code == code);
         private static LintIssue First(List<LintIssue> issues, string code) => issues.First(i => i.Code == code);
 
@@ -220,5 +226,82 @@ namespace PromptUGUI.Tests.EditMode.Lint
             => Assert.IsFalse(Has(
                 Walk("<ScrollList id='l'><Scrollbar sprite='' color='white' handle='' handleColor='white'/></ScrollList>"),
                 ScrollbarRules.RetiredAttrCode));
+
+        // ── the procedural-surface rules, generalized per layer (M1) ───────────────────────
+
+        [TestCase("<Scrollbar sprite='ui:bar' radius='pill'/>")]
+        [TestCase("<Scrollbar handle='ui:knob' handleRadius='pill'/>")]
+        [TestCase("<Scrollbar handle='ui:knob' handleGlow='3'/>")]
+        [TestCase("<Scrollbar handle='ui:knob' handleBorderWidth='1'/>")]
+        public void A_layer_sprite_and_that_layer_shape_conflict(string bar)
+            => Assert.IsTrue(Has(Walk($"<ScrollList id='l'>{bar}</ScrollList>"), ProceduralSurfaceRules.SpriteConflictCode));
+
+        [TestCase("<Scrollbar handle='none' handleRadius='pill'/>")]
+        [TestCase("<Scrollbar handle='' handleGlow='3'/>")]
+        [TestCase("<Scrollbar sprite='ui:bar' handleRadius='pill'/>")]
+        [TestCase("<Scrollbar handle='ui:knob' radius='pill'/>")]
+        public void Layers_do_not_conflict_across_each_other(string bar)
+            => Assert.IsFalse(Has(Walk($"<ScrollList id='l'>{bar}</ScrollList>"), ProceduralSurfaceRules.SpriteConflictCode));
+
+        [TestCase("<Slider id='s' fill='ui:x' fillRadius='4'/>")]
+        [TestCase("<Slider id='s' handle='ui:x' handleRadius='pill'/>")]
+        [TestCase("<Progress id='p' fill='ui:x' fillRadius='4'/>")]
+        [TestCase("<Progress id='p' frame='ui:x' frameRadius='4'/>")]
+        public void The_other_controls_inner_layers_get_the_same_check(string node)
+            => Assert.IsTrue(Has(Walk(node), ProceduralSurfaceRules.SpriteConflictCode));
+
+        [TestCase("handleRadius='abc'")]
+        [TestCase("handleGlow='-1'")]
+        [TestCase("handleBorderWidth='x'")]
+        public void Handle_shape_values_are_checked(string attr)
+            => Assert.IsTrue(Has(Walk($"<ScrollList id='l'><Scrollbar {attr}/></ScrollList>"), StyleRules.ProceduralValueCode));
+
+        [TestCase("handleRadius='pill'")]
+        [TestCase("handleRadius='2,2,0,0'")]
+        [TestCase("handleGlow='3'")]
+        [TestCase("handleBorderWidth='0.4'")]
+        public void Good_handle_shape_values_pass(string attr)
+            => Assert.IsFalse(Has(Walk($"<ScrollList id='l'><Scrollbar {attr}/></ScrollList>"), StyleRules.ProceduralValueCode));
+
+        [Test]
+        public void An_inner_radius_on_a_slider_is_checked_too()
+            => Assert.IsTrue(Has(Walk("<Slider id='s' fillRadius='abc'/>"), StyleRules.ProceduralValueCode));
+
+        [Test]
+        public void A_base_less_handle_variant_self_heals_when_the_handle_has_no_base_shape()
+            => Assert.IsFalse(Has(Walk("<ScrollList id='l'><Scrollbar handleGlow.portrait='3'/></ScrollList>"),
+                                  VariantBaseRules.NoBaseCode));
+
+        [Test]
+        public void A_base_less_handle_variant_sticks_when_another_handle_attribute_pins_the_surface()
+        {
+            var issues = Walk("<ScrollList id='l'><Scrollbar handleRadius='pill' handleGlow.portrait='3'/></ScrollList>");
+            Assert.IsTrue(Has(issues, VariantBaseRules.NoBaseCode));
+            StringAssert.Contains("handleGlow", First(issues, VariantBaseRules.NoBaseCode).Message);
+        }
+
+        [Test]
+        public void A_base_less_track_variant_is_not_pinned_by_the_handle()
+            => Assert.IsFalse(Has(Walk("<ScrollList id='l'><Scrollbar handleRadius='pill' glow.portrait='3'/></ScrollList>"),
+                                  VariantBaseRules.NoBaseCode));
+
+        [Test]
+        public void A_theme_that_owns_the_whole_handle_set_is_exempt_from_the_shape_rule()
+            => Assert.IsFalse(Has(
+                LintDoc("<ScrollList id='l'><Scrollbar class='bar'/></ScrollList>",
+                     "<Style name='bar' handle='ui:knob'/>"
+                     + "<Theme name='px'><Style name='bar' handle='ui:knob'/></Theme>"
+                     + "<Theme name='hud'><Style name='bar' handle='none' handleRadius='pill' handleGlow='3'/></Theme>"),
+                ThemeStyleRules.ShapeCode));
+
+        [Test]
+        public void A_theme_that_holds_half_the_handle_set_is_reported()
+            => Assert.IsTrue(Has(
+                LintDoc("<ScrollList id='l'><Scrollbar class='bar'/></ScrollList>",
+                     "<Style name='bar' handle='ui:knob'/>"
+                     + "<Theme name='px'><Style name='bar' handle='ui:knob'/></Theme>"
+                     + "<Theme name='hud'><Style name='bar' handle='none' handleRadius='pill' handleGlow='3'/></Theme>"
+                     + "<Theme name='half'><Style name='bar' handle='none' handleRadius='pill'/></Theme>"),
+                ThemeStyleRules.ShapeCode));
     }
 }

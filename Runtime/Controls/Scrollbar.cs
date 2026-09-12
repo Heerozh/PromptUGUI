@@ -271,11 +271,60 @@ namespace PromptUGUI.Controls
             set => _handle.sprite = UI.ResolveSprite(value);
         }
 
-        /// <summary>Handle colour: token / <c>/alpha</c> / gradient.</summary>
+        /// <summary>Handle colour: token / <c>/alpha</c> / gradient; the SDF fill once the handle is procedural.</summary>
         [UIAttr(IsColor = true), Preserve]
         public string HandleColor
         {
-            set => ColorApplier.Apply(_handle, UI.Theme.ResolveSpec(value));
+            set
+            {
+                var spec = UI.Theme.ResolveSpec(value);
+                ColorApplier.Apply(_handle, spec);
+                HandleSurface.SetFill(spec);
+            }
+        }
+
+        // ───── the handle's own surface ─────
+        // Border and glow as well as radius (the other controls' inner layers stop at radius): a HUD
+        // scrollbar's glowing knob is the whole point of the part element (spec §4.1). The handle
+        // IS the uGUI Scrollbar's targetGraphic, so the surface takes the Selectable along and the
+        // hover / press tint lands on whichever layer is drawing.
+
+        private ProceduralSurface _handleSurface;
+        private ProceduralSurface HandleSurface => _handleSurface ??= AddInnerSurface(_handle.gameObject, _bar);
+
+        /// <summary>Handle corner radius; <c>pill</c> = capsule.</summary>
+        [UIAttr, Preserve]
+        public string HandleRadius
+        {
+            set { var v = RadiusParser.Parse(value); HandleSurface.Declare(p => p.SetRadius(v)); }
+        }
+
+        /// <summary>Handle inner border width (px, drawn inwards, no layout change).</summary>
+        [UIAttr, Preserve]
+        public string HandleBorderWidth
+        {
+            set { var v = ProceduralValueParser.Pixels(value, "handleBorderWidth"); HandleSurface.Declare(p => p.SetBorderWidth(v)); }
+        }
+
+        /// <summary>Handle border colour (solid).</summary>
+        [UIAttr, Preserve]
+        public string HandleBorderColor
+        {
+            set { var v = UI.Theme.Resolve(value); HandleSurface.Declare(p => p.SetBorderColor(v)); }
+        }
+
+        /// <summary>Handle outer glow (px). Inflates the drawn quad, not the layout; the bar sits outside the viewport mask, so nothing clips it.</summary>
+        [UIAttr, Preserve]
+        public string HandleGlow
+        {
+            set { var v = ProceduralValueParser.Pixels(value, "handleGlow"); HandleSurface.Declare(p => p.SetGlowSize(v)); }
+        }
+
+        /// <summary>Handle glow colour (solid); follows <c>handleColor</c> when unset.</summary>
+        [UIAttr, Preserve]
+        public string HandleGlowColor
+        {
+            set { var v = UI.Theme.Resolve(value); HandleSurface.Declare(p => p.SetGlowColor(v)); }
         }
     }
 }

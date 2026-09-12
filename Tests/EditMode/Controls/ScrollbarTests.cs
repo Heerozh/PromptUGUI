@@ -2,10 +2,11 @@ using System.Text.RegularExpressions;
 using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
+using PromptUGUI.Controls.Internal;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
-using PuiDropdown = PromptUGUI.Controls.Dropdown;
+using DropdownControl = PromptUGUI.Controls.Dropdown;
 using PuiScreen = PromptUGUI.Application.Screen;
 using PuiScrollbar = PromptUGUI.Controls.Scrollbar;
 using UnityImage = UnityEngine.UI.Image;
@@ -38,14 +39,14 @@ namespace PromptUGUI.Tests.EditMode.Controls
             => OpenScreen($"<ScrollList id='sl' width='150' height='200' {attrs}>{children}</ScrollList>")
                 .Get<ScrollList>("sl");
 
-        private static PuiDropdown OpenDropdown(string attrs, string children = "")
+        private static DropdownControl OpenDropdown(string attrs, string children = "")
             => OpenScreen($"<Dropdown id='dd' width='200' height='40' {attrs}>{children}</Dropdown>")
-                .Get<PuiDropdown>("dd");
+                .Get<DropdownControl>("dd");
 
         private static RectTransform BarNode(ScrollList list)
             => list.GameObject.transform.Find("Scrollbar") as RectTransform;
 
-        private static RectTransform BarNode(PuiDropdown dd)
+        private static RectTransform BarNode(DropdownControl dd)
             => dd.GameObject.transform.Find("Template/Scrollbar") as RectTransform;
 
         private static UnityScrollbar BarOf(RectTransform node) => node.GetComponent<UnityScrollbar>();
@@ -410,7 +411,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         public void Dropdown_adopts_an_authored_scrollbar_into_its_popup()
         {
             var screen = OpenScreen("<Dropdown id='dd' width='200' height='40'><Scrollbar id='bar' thickness='6'/></Dropdown>");
-            var dd = screen.Get<PuiDropdown>("dd");
+            var dd = screen.Get<DropdownControl>("dd");
             var bar = screen.Get<PuiScrollbar>("dd/bar");
             var template = dd.GameObject.transform.Find("Template");
             Assert.AreSame(template, bar.GameObject.transform.parent);
@@ -473,6 +474,153 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(20f, node.sizeDelta.x, 0.001f, "the base value reverts when the variant clears");
         }
 
+
+        // ───── procedural surfaces (M1) ─────
+
+        private static ProceduralPanel SurfaceUnder(Transform layer)
+        {
+            var node = layer.Find(ProceduralSurface.NodeName);
+            return node == null ? null : node.GetComponent<ProceduralPanel>();
+        }
+
+        [Test]
+        public void Radius_moves_the_track_to_a_procedural_surface()
+        {
+            var node = BarNode(OpenList("", "<Scrollbar radius='pill' color='#ff0000'/>"));
+            var panel = SurfaceUnder(node);
+            Assert.IsNotNull(panel, "the track is the bar's primary surface");
+            Assert.IsTrue(panel.gameObject.activeSelf);
+            Assert.IsTrue(panel.CurrentParams.Pill);
+            Assert.AreEqual(Color.red, panel.CurrentParams.FillTop, "color= is the SDF fill");
+
+            var track = node.GetComponent<UnityImage>();
+            Assert.IsNull(track.sprite, "the default inset sprite stands down");
+            Assert.AreEqual(0f, track.color.a, 0.001f, "…and so does the Image's alpha");
+            Assert.IsTrue(track.raycastTarget, "…but it still catches the pointer");
+        }
+
+        [Test]
+        public void Handle_shape_attributes_give_the_handle_an_inner_surface()
+        {
+            var node = BarNode(OpenList("",
+                "<Scrollbar handleRadius='pill' handleColor='#00ff00' handleBorderWidth='1' handleBorderColor='#0000ff' handleGlow='3' handleGlowColor='#00ffff'/>"));
+            var handle = HandleOf(node);
+            var panel = SurfaceUnder(handle);
+            Assert.IsNotNull(panel, "handle* attributes shape the handle, not the track");
+            Assert.IsNull(SurfaceUnder(node), "…and say nothing about the track");
+            Assert.IsTrue(panel.CurrentParams.Pill);
+            Assert.AreEqual(Color.green, panel.CurrentParams.FillTop);
+            Assert.AreEqual(1f, panel.CurrentParams.BorderWidth);
+            Assert.AreEqual(Color.blue, panel.CurrentParams.BorderColor);
+            Assert.AreEqual(3f, panel.CurrentParams.GlowSize);
+            Assert.AreEqual(Color.cyan, panel.CurrentParams.GlowColor);
+
+            var image = handle.GetComponent<UnityImage>();
+            Assert.IsNull(image.sprite);
+            Assert.AreEqual(0f, image.color.a, 0.001f);
+            Assert.AreSame(panel, BarOf(node).targetGraphic,
+                "the uGUI Scrollbar's targetGraphic follows the visible layer, so ColorTint keeps working");
+        }
+
+        [Test]
+        public void Handle_glow_color_follows_the_handle_color_when_unset()
+        {
+            var node = BarNode(OpenList("", "<Scrollbar handleRadius='pill' handleColor='#00ff00' handleGlow='3'/>"));
+            var panel = SurfaceUnder(HandleOf(node));
+            Assert.AreEqual(Color.green, panel.CurrentParams.GlowColor);
+        }
+
+        [Test]
+        public void Handle_glow_grows_the_drawn_quad_and_the_bar_sits_outside_the_viewport_mask()
+        {
+            var list = OpenList("", "<Scrollbar thickness='6' handleRadius='pill' handleGlow='3'/>");
+            var node = BarNode(list);
+            var handle = HandleOf(node);
+            var panel = SurfaceUnder(handle);
+
+            var vh = new VertexHelper();
+            panel.BuildMeshForTests(vh);
+            var v = default(UIVertex);
+            vh.PopulateUIVertex(ref v, 2);
+            var half = handle.rect.width / 2f;
+            Assert.AreEqual(half + 3f, v.uv0.x, 0.01f, "the quad is inflated by the glow, the layout is not");
+            Assert.AreEqual(6f, In(handle, node).width, 0.01f);
+
+            var viewport = list.GameObject.transform.Find("Viewport");
+            Assert.IsFalse(node.IsChildOf(viewport), "the bar is the Viewport's sibling — nothing clips the glow");
+        }
+
+        [Test]
+        public void A_base_less_handle_variant_toggles_the_handle_surface_wholesale()
+        {
+            var node = BarNode(OpenList("", "<Scrollbar handleRadius.portrait='pill'/>"));
+            var before = SurfaceUnder(HandleOf(node));
+            Assert.IsTrue(before == null || !before.gameObject.activeSelf, "no base: the Image draws");
+
+            UI.Variants.Set("portrait", true);
+            var panel = SurfaceUnder(HandleOf(node));
+            Assert.IsNotNull(panel);
+            Assert.IsTrue(panel.gameObject.activeSelf, "the variant turns the handle surface on");
+
+            UI.Variants.Set("portrait", false);
+            Assert.IsFalse(panel.gameObject.activeSelf, "…and off again: the Image is back");
+            Assert.AreEqual(1f, HandleOf(node).GetComponent<UnityImage>().color.a, 0.001f);
+        }
+
+        [Test]
+        public void A_style_pack_and_a_theme_reskin_the_bar()
+        {
+            // Themes register through the async load path (the sync LoadDocument bypasses it), so
+            // this one goes through a fake resolver — the ThemeStyleSwitchTests pattern.
+            var xml = "<?xml version='1.0' encoding='utf-8'?><PromptUGUI version='1'>"
+                    + "<Style name='bar' thickness='6' radius='pill' color='#ff0000'/>"
+                    + "<Theme name='hud'><Color name='ink' value='#000'/></Theme>"
+                    + "<Theme name='px'><Color name='ink' value='#111'/><Style name='bar' thickness='8' color='#00ff00' radius=''/></Theme>"
+                    + "<Screen name='S'><ScrollList id='sl' width='150' height='200'><Scrollbar class='bar'/></ScrollList></Screen>"
+                    + "</PromptUGUI>";
+            UI.SourceResolver = src => AwaitableHelpers.Completed(src == "main" ? xml : null);
+            UI.LoadDocumentAsync("main").GetAwaiter().GetResult();
+            UI.Theme.Set("hud");
+            var list = UI.Open("S").Get<ScrollList>("sl");
+            Canvas.ForceUpdateCanvases();
+            var node = BarNode(list);
+            Assert.AreEqual(6f, node.sizeDelta.x, 0.001f);
+            Assert.IsTrue(SurfaceUnder(node).CurrentParams.Pill);
+
+            UI.Theme.Set("px");
+            Assert.AreEqual(8f, node.sizeDelta.x, 0.001f, "the theme pack re-derives through class=");
+            Assert.IsFalse(SurfaceUnder(node).CurrentParams.Pill, "radius='' resets the shape");
+            Assert.AreEqual(Color.green, SurfaceUnder(node).CurrentParams.FillTop);
+        }
+
+        [Test]
+        public void Dropdown_popup_clone_carries_the_procedural_state()
+        {
+            var dd = OpenDropdown("", "<Scrollbar thickness='6' radius='pill' color='#ff0000' handleRadius='pill' handleGlow='3'/>");
+            var tmp = dd.GameObject.GetComponent<PuiDropdown>();
+            Assert.IsNotNull(tmp, "the popup goes through PuiDropdown so the clone can be fixed up");
+
+            var clone = tmp.CloneListForTests();
+            try
+            {
+                var bar = (RectTransform)clone.transform.Find("Scrollbar");
+                Assert.IsNotNull(bar);
+                var track = SurfaceUnder(bar);
+                var handle = SurfaceUnder(HandleOf(bar));
+                Assert.IsNotNull(track);
+                Assert.IsNotNull(handle);
+                Assert.IsTrue(track.CurrentParams.Pill, "radius survived the Instantiate");
+                Assert.AreEqual(Color.red, track.CurrentParams.FillTop, "…and so did the fill");
+                Assert.IsTrue(handle.CurrentParams.Pill);
+                Assert.AreEqual(3f, handle.CurrentParams.GlowSize);
+                Assert.AreSame(bar.GetComponent<UnityScrollbar>(),
+                    clone.GetComponent<ScrollRect>().verticalScrollbar, "Instantiate remaps the ScrollRect wiring");
+            }
+            finally
+            {
+                Object.DestroyImmediate(clone);
+            }
+        }
         [Test]
         public void Closing_a_screen_with_an_authored_bar_does_not_throw()
         {

@@ -22,7 +22,10 @@ namespace PromptUGUI.Lint
         private static readonly char[] ClassSeparators = { ' ', '\t', '\n', '\r' };
 
         /// <summary>Attributes parsed as a plain non-negative pixel count.</summary>
-        private static readonly string[] PixelAttrs = { "borderWidth", "glow", "innerGlow", "blur" };
+        private static readonly string[] PixelAttrs =
+        {
+            "borderWidth", "glow", "innerGlow", "blur", "handleBorderWidth", "handleGlow",
+        };
 
         public static IEnumerable<LintIssue> Check(ElementNode n)
         {
@@ -71,6 +74,14 @@ namespace PromptUGUI.Lint
                 "Write class=\"some-style\" or drop the attribute.");
         }
 
+        // fillRadius / handleRadius / frameRadius / maskRadius carry the radius grammar verbatim.
+        private static bool IsInnerLayerRadius(string name)
+        {
+            foreach (var n in ProceduralAttrNames.InnerLayerRadius)
+                if (n == name) return true;
+            return false;
+        }
+
         private static IEnumerable<LintIssue> CheckValue(string context, string tag, string id,
                                                         string attrName, string value)
         {
@@ -81,7 +92,7 @@ namespace PromptUGUI.Lint
             // Template params are substituted after lint time; the final value is unknowable here.
             if (value != null && value.Contains("{{")) yield break;
 
-            if (baseName == "radius")
+            if (baseName == "radius" || IsInnerLayerRadius(baseName))
             {
                 if (!RadiusParser.TryParse(value, out _, out var error))
                     yield return new LintIssue(ProceduralValueCode, tag, id,

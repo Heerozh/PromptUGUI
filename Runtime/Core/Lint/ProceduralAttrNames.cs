@@ -53,18 +53,47 @@ namespace PromptUGUI.Lint
         /// dropped) from a layout-only container (has nothing: all of it is dropped).</para>
         /// </summary>
         /// <summary>
-        /// Shape for a layer INSIDE a control (spec §6) — <c>&lt;layer&gt;Radius</c>, one attribute
-        /// per inner surface. Deliberately shape-only: glass on an inner layer samples the same
-        /// backdrop as the layer beneath it and the two come out identical.
+        /// The shape attributes of the layers INSIDE a control (spec §6), grouped by the surface they
+        /// drive: a Slider's / Progress's fill, a Progress's frame and mask take <c>&lt;layer&gt;Radius</c>
+        /// only; a Scrollbar's handle takes border and glow as well (2026-09-12 spec §4.1). Never
+        /// glass: an inner layer samples the same backdrop as the layer beneath it and the two come
+        /// out identical.
         ///
-        /// <para>Because each inner surface is driven by exactly one attribute, a base-less
-        /// <c>fillRadius.mobile</c> toggles that surface wholesale and therefore reverts on its own —
-        /// which is what lets <see cref="VariantBaseRules"/> exempt it.</para>
+        /// <para>Every attribute of a group declares that one surface, so a base-less
+        /// <c>fillRadius.mobile</c> — or <c>handleGlow.mobile</c> on a handle with no base shape at
+        /// all — toggles the surface wholesale and reverts on its own; that is what lets
+        /// <see cref="VariantBaseRules"/> exempt it. A group with a base attribute is pinned on, and
+        /// a base-less sibling then sticks, exactly like the primary surface.</para>
         /// </summary>
+        public static readonly (string Layer, string[] Attrs)[] InnerLayerGroups =
+        {
+            ("fill", new[] { "fillRadius" }),
+            ("frame", new[] { "frameRadius" }),
+            ("mask", new[] { "maskRadius" }),
+            ("handle", new[] { "handleRadius", "handleBorderWidth", "handleBorderColor", "handleGlow", "handleGlowColor" }),
+        };
+
+        /// <summary><see cref="InnerLayerGroups"/> flattened — every inner-layer shape attribute.</summary>
+        public static readonly string[] InnerLayerShape =
+        {
+            "fillRadius", "frameRadius", "maskRadius",
+            "handleRadius", "handleBorderWidth", "handleBorderColor", "handleGlow", "handleGlowColor",
+        };
+
+        /// <summary>The inner-layer attributes carrying the <c>radius</c> value grammar.</summary>
         public static readonly string[] InnerLayerRadius =
         {
             "fillRadius", "handleRadius", "frameRadius", "maskRadius",
         };
+
+        /// <summary>The group <paramref name="attr"/> belongs to, or null.</summary>
+        public static string[] InnerLayerGroupOf(string attr)
+        {
+            foreach (var (_, attrs) in InnerLayerGroups)
+                foreach (var name in attrs)
+                    if (name == attr) return attrs;
+            return null;
+        }
 
         public static readonly string[] NeedsPanel =
         {
