@@ -128,16 +128,22 @@ runner 运行时去拉 **Bing 每日图**，拉不到就用内置的程序化暮
 **"透明控件 + 一层 `class="…"` 的 Frame 当外壳"**的写法。这个组合顺带演示了
 `hoverModulate` / `pressedModulate` 会扩散到子树里的 Frame 上 —— 按钮按下时整块外壳一起变暗。
 
-控件**内部**的图层（Slider 的轨道/已填充段/滑块、Toggle 的对勾、Dropdown 的箭头和弹窗、
-滚动条）各有一对 `<layer>` / `<layer>Color` 属性，全在 XML 里搞定，本 demo 没有一行
-C# 皮肤代码：
+控件**内部**的图层（Slider 的轨道/已填充段/滑块、Toggle 的对勾、Dropdown 的箭头和弹窗）
+各有一对 `<layer>` / `<layer>Color` 属性；滚动条则是一个真正的 `<Scrollbar>` 子元素，列表和
+下拉都挂它 —— 轨道就是它的主表面（`radius` 等与 `<Frame>` 同名），滑块走 `handle*`。全在 XML
+里搞定，本 demo 没有一行 C# 皮肤代码：
 
 ```xml
 <Slider sprite="" color="bg-bottom/0.6" fill="" fillColor="accent"
         handle="" handleColor="ink-dim"/>
 <Toggle sprite="" color="bg-bottom/0.6" checkmarkColor="accent"/>
-<Dropdown arrow="" itemColor="surface-2" itemTextColor="ink"
-          scrollbar="" scrollbarColor="bg-bottom/0.6"/>
+<Dropdown arrow="" itemColor="surface-2" itemTextColor="ink">
+  <Scrollbar sprite="" color="bg-bottom/0.6" handle="" handleColor="ink-dim"/>
+</Dropdown>
+<ScrollList …>
+  <Scrollbar thickness="6" padding="2,1" radius="pill" color="bg-bottom/0.6"
+             handleRadius="pill" handleColor="ink-dim"/>   <!-- 胶囊轨道里缩着一颗胶囊滑块 -->
+</ScrollList>
 ```
 
 `""` = 去掉那一层的 sprite，只留纯色 —— 扁平外观基本靠它。`arrow=""` 是隐藏箭头

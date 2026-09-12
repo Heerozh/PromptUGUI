@@ -32,8 +32,11 @@ namespace PromptUGUI.Tests.EditMode.Controls
         // <Collapsible> owns its own height (header + body, PUI-COLLAPSIBLE-HEIGHT) — it is the one
         // surface control an author cannot give one to, so this fixture asks for the bar's height
         // instead and lets the panel work out the rest.
+        // <Scrollbar> writes its own rect from thickness (PUI-SCROLLBAR-LAYOUT-ATTR rejects size attrs).
         private static string SizeAttrsFor(string tag)
-            => tag == "Collapsible" ? "width='160' headerHeight='48'" : "width='160' height='48'";
+            => tag == "Collapsible" ? "width='160' headerHeight='48'"
+             : tag == "Scrollbar" ? "thickness='12'"
+             : "width='160' height='48'";
 
         private static Control Load(string tag, string attrs)
         {
@@ -147,10 +150,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [Test]
         public void ControlsWithASelectable_MoveTargetGraphicToTheSurface()
         {
-            // …except Slider and TabMenu, below.
+            // …except Slider, Scrollbar and TabMenu, below.
             foreach (var tag in Tags)
             {
-                if (tag == "Slider" || tag == "TabMenu") continue;
+                if (tag == "Slider" || tag == "Scrollbar" || tag == "TabMenu") continue;
                 var c = Load(tag, "radius='8'");
                 var selectable = c.GameObject.GetComponent<Selectable>();
                 if (selectable == null) continue;   // ScrollList / Progress have none of their own
@@ -173,6 +176,17 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             Assert.IsNotNull(PanelIn(c), "guard: the track did go procedural");
             Assert.AreEqual("Handle", slider.targetGraphic.gameObject.name);
+        }
+
+        /// <summary>Same reasoning as the Slider: the groove is the surface, the handle is what reacts.</summary>
+        [Test]
+        public void Scrollbar_KeepsTargetGraphicOnItsHandle()
+        {
+            var c = Load("Scrollbar", "radius='8'");
+            var bar = c.GameObject.GetComponent<UnityEngine.UI.Scrollbar>();
+
+            Assert.IsNotNull(PanelIn(c), "guard: the track did go procedural");
+            Assert.AreEqual("Handle", bar.targetGraphic.gameObject.name);
         }
 
         /// <summary>

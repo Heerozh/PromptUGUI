@@ -12,8 +12,9 @@ page** — whatever follows moves up and back down — which is the whole differ
 ```xml
 <Collapsible id="tasks" text="任务" anchor="top-right" width="150" margin="90,20,_,_"
              sprite="none" color="surface/0.55" radius="10" headerHeight="24" transition="0.2s">
-  <ScrollList id="list" itemTemplate="TaskRow" width="stretch" height="clamp(_, hug, 200)"
-              sprite="none" scrollbar=""/>
+  <ScrollList id="list" itemTemplate="TaskRow" width="stretch" height="clamp(_, hug, 200)" sprite="none">
+    <Scrollbar sprite=""/>
+  </ScrollList>
 </Collapsible>
 ```
 
@@ -106,8 +107,9 @@ already has one, and `height="clamp(_, hug, N)"` gives you exactly "as tall as t
 
 ```xml
 <Collapsible id="tasks" text="任务" width="150" headerHeight="24">
-  <ScrollList id="list" itemTemplate="TaskRow" width="stretch" height="clamp(_, hug, 200)"
-              sprite="none" scrollbar=""/>
+  <ScrollList id="list" itemTemplate="TaskRow" width="stretch" height="clamp(_, hug, 200)" sprite="none">
+    <Scrollbar sprite=""/>
+  </ScrollList>
 </Collapsible>
 ```
 
@@ -194,6 +196,7 @@ screen.Get<Text>("tasks/count");        // a node from inside <Header>
 
 ## Not in v1
 
-Horizontal folds (a side drawer), `itemTemplate` / `BindItems` of its own, a scrollbar skin for the
-capped body, a header at the bottom. The nesting case needs nothing special: a `<Collapsible>` inside
+Horizontal folds (a side drawer), `itemTemplate` / `BindItems` of its own, a scrollbar for the capped
+body (the `maxHeight` ScrollRect has none; a `<Scrollbar>` child is what `<ScrollList>` / `<Dropdown>`
+take — nest a `<ScrollList>` if you need one), a header at the bottom. The nesting case needs nothing special: a `<Collapsible>` inside
 another one re-flows its parent on its own, because heights are content-driven all the way up.

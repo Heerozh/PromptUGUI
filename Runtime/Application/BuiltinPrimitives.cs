@@ -30,6 +30,7 @@ namespace PromptUGUI.Application
             reg.Register<Progress>("Progress", null, runtimeStateAttr: "value");
             reg.Register<Dropdown>("Dropdown", null, runtimeStateAttr: "value");
             reg.Register<ScrollList>("ScrollList", null);
+            reg.Register<Scrollbar>("Scrollbar", null);
             reg.Register<InputField>("InputField", null, defaultTextAttr: "text");
             reg.Register<Carousel>("Carousel", null, runtimeStateAttr: "current");
             reg.Register<Markdown>("Markdown", null, defaultTextAttr: "text");

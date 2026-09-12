@@ -1035,7 +1035,7 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void ScrollList_lists_its_grid_and_scrollbar_sizing_attributes()
+        public void ScrollList_lists_its_grid_attributes_and_not_the_retired_scrollbar_ones()
         {
             // All reflected from [UIAttr], so this guards the attribute names and their XSD types —
             // authoring tools flag valid grid XML as invalid if the schema is regenerated without them.
@@ -1043,8 +1043,21 @@ namespace PromptUGUI.Tests.Editor
             StringAssert.Contains("name=\"ScrollList\"", xsd);
             StringAssert.Contains("name=\"columns\" type=\"xs:int\"", xsd);
             StringAssert.Contains("name=\"cellSize\" type=\"xs:string\"", xsd);
-            StringAssert.Contains("name=\"scrollbarWidth\" type=\"xs:float\"", xsd);
-            StringAssert.Contains("name=\"scrollbarOverlay\" type=\"xs:boolean\"", xsd);
+            StringAssert.DoesNotContain("name=\"scrollbarWidth\"", xsd);
+            StringAssert.DoesNotContain("name=\"scrollbarOverlay\"", xsd);
+        }
+
+        [Test]
+        public void Scrollbar_lists_its_geometry_and_skin_attributes()
+        {
+            var xsd = XsdGenerator.Generate(PromptUGUI.Application.UI.Registry);
+            StringAssert.Contains("name=\"Scrollbar\"", xsd);
+            // thickness is parsed by ScrollbarAttrParser (string setter); overlay is a plain bool.
+            // spacing / padding ride on the shared commonAttrs group like every other tag's.
+            StringAssert.Contains("name=\"thickness\" type=\"xs:string\"", xsd);
+            StringAssert.Contains("name=\"overlay\" type=\"xs:boolean\"", xsd);
+            StringAssert.Contains("name=\"handle\"", xsd);
+            StringAssert.Contains("name=\"handleColor\"", xsd);
         }
     }
 

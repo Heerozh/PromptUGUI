@@ -35,8 +35,13 @@ namespace PromptUGUI.Lint
                 foreach (var variant in screen.Variants)
                     foreach (var add in variant.Adds)
                         foreach (var addChild in add.Children)
+                        {
+                            // A <Scrollbar> as a direct Add child cannot be adopted (the host already has its bar).
+                            foreach (var issue in ScrollbarRules.CheckInAdd(addChild))
+                                yield return issue.WithSource(addChild.OriginSrc, addChild.Line, addChild.InvokedAt);
                             foreach (var issue in WalkNode(addChild, inTemplateBody: false, hasStateSourceAncestor: false, hasMenuAncestor: false, hasToggleAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false, screenIds: screenIds, styles: styles))
                                 yield return issue;
+                        }
             }
 
             // <Style> is not an ElementNode, so its attribute values never reach WalkNode —
@@ -44,6 +49,16 @@ namespace PromptUGUI.Lint
             foreach (var style in doc.Styles.Values)
                 foreach (var issue in StyleRules.CheckStyle(style))
                     yield return issue.WithSource(style.OriginSrc, 0);
+
+            // The retired host-side scrollbar* attributes: no tag takes them any more, and a pack is
+            // tag-less, so the pack itself is where the author has to hear it (theme packs included).
+            foreach (var style in doc.Styles.Values)
+                foreach (var issue in ScrollbarRules.CheckRetired(style))
+                    yield return issue.WithSource(style.OriginSrc, 0);
+            foreach (var theme in doc.Themes)
+                foreach (var style in theme.Styles.Values)
+                    foreach (var issue in ScrollbarRules.CheckRetired(style))
+                        yield return issue.WithSource(style.OriginSrc, 0);
 
             foreach (var template in doc.Templates.Values)
             {
@@ -158,6 +173,16 @@ namespace PromptUGUI.Lint
                 foreach (var issue in DecorRules.Check(node, styles))
                     yield return issue;
 
+            if (ScrollbarRules.AppliesTo(node.Tag))
+                foreach (var issue in ScrollbarRules.Check(node, styles))
+                    yield return issue;
+            // The retired host-side scrollbar* attributes on any node (the runtime drops them silently).
+            foreach (var issue in ScrollbarRules.CheckRetired(node))
+                yield return issue;
+            // Two bars under one host; reported on the second.
+            foreach (var issue in ScrollbarRules.CheckDuplicate(node))
+                yield return issue;
+
             if (PureContainerVisualAttrRules.AppliesTo(node.Tag))
                 foreach (var issue in PureContainerVisualAttrRules.Check(node))
                     yield return issue;
@@ -262,6 +287,8 @@ namespace PromptUGUI.Lint
             foreach (var child in node.Children)
             {
                 foreach (var issue in CollapsibleRules.CheckHeaderOutside(node, child))
+                    yield return issue.WithSource(child.OriginSrc, child.Line, child.InvokedAt);
+                foreach (var issue in ScrollbarRules.CheckOutside(node, child))
                     yield return issue.WithSource(child.OriginSrc, child.Line, child.InvokedAt);
 
                 // A <Collapsible>'s body children are a column, but its <Header>'s children are

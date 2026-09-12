@@ -220,7 +220,7 @@ namespace PromptUGUI.Lint
             var set = new HashSet<string>();
             foreach (var name in ProceduralAttrNames.NeedsPanel)
                 if (name != "weld") set.Add(name);
-            foreach (var name in ProceduralAttrNames.InnerLayerRadius)
+            foreach (var name in ProceduralAttrNames.InnerLayerShape)
                 set.Add(name);
             return set;
         }

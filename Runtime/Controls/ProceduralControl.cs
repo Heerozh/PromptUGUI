@@ -39,13 +39,15 @@ namespace PromptUGUI.Controls
         /// Progress's frame. Registered so it takes part in the same per-pass reconcile as the
         /// primary one; call it once per layer and cache the result.
         ///
-        /// <para>No <c>Selectable</c>: an inner layer is never what the control's state colours
-        /// drive. And only <c>&lt;layer&gt;Radius</c> reaches these (spec §6) — glass on an inner
-        /// layer would sample the same backdrop as the layer beneath it and come out identical.</para>
+        /// <para>Usually no <c>Selectable</c>: an inner layer is rarely what the control's state
+        /// colours drive. The exception is a layer that IS the control's <c>targetGraphic</c> — a
+        /// <c>&lt;Scrollbar&gt;</c>'s handle — which passes its Selectable so the target follows the
+        /// visible layer. Never glass (spec §6): an inner layer would sample the same backdrop as the
+        /// layer beneath it and come out identical.</para>
         /// </summary>
-        private protected ProceduralSurface AddInnerSurface(GameObject host)
+        private protected ProceduralSurface AddInnerSurface(GameObject host, Selectable selectable = null)
         {
-            var surface = new ProceduralSurface(host, null);
+            var surface = new ProceduralSurface(host, selectable);
             (_inner ??= new System.Collections.Generic.List<ProceduralSurface>()).Add(surface);
             return surface;
         }

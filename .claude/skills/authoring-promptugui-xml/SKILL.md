@@ -95,6 +95,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 | `<Slider>` | Image+Slider，`OnValueChanged:float` |
 | `<Dropdown>` | TMP_Dropdown，`OnSelected:int`（`BindOptions`） |
 | `<ScrollList>` | ScrollRect+Mask + Vertical/Horizontal/GridLayoutGroup（XML 静态子节点 + `BindItems`） |
+| `<Scrollbar>` | `<ScrollList>` / `<Dropdown>` 的滚动条**部件子元素**：轨道 = 主表面（`radius` 等同 `<Frame>`），滑块 `handle*`；不写就是默认条（见本节末 **`<Scrollbar>`** 小节） |
 | `<InputField>` | TMP_InputField，`OnValueChanged` / `OnEndEdit` / `OnSubmit:string` |
 | `<Progress>` | 只读线性进度条 |
 | `<TabBar>` | 互斥选项卡容器 |
@@ -107,7 +108,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 | `<Markdown>` | Renders a Markdown document into a scrollable subtree  |
 | `<FocusCursor>` | Screen-level cursor overlay for directional navigation. **Not a registered control** — not `Get<T>`-able; removed from the control tree before instantiation. → `reference/navigation.md` |
 
-> Re-skinning a built-in: every inner layer has an XML hook — `<Slider fill= handle=>`, `<Toggle checkmark=>`, `<Dropdown arrow= itemColor= scrollbar*=>`, `<TabMenu arrow= arrowColor=>`, `<ScrollList scrollbar*=>`, `<Progress fill= bg= frame=>`. Each takes a `<layer>` (sprite) / `<layer>Color` pair, and `""` clears the sprite for a flat look. Reach for those first. They are still *reference implementations*: for structural changes (a different popup layout, extra chrome) write your own `Control` and register it over the tag — `UI.Registry.Register<MyDropdown>("Dropdown")`. The built-ins are `sealed`, so you replace rather than subclass; see scripting-promptugui-csharp.
+> Re-skinning a built-in: every inner layer has an XML hook — `<Slider fill= handle=>`, `<Toggle checkmark=>`, `<Dropdown arrow= itemColor=>`, `<TabMenu arrow= arrowColor=>`, `<Progress fill= bg= frame=>`. Each takes a `<layer>` (sprite) / `<layer>Color` pair, and `""` clears the sprite for a flat look. The scrollbar of a `<ScrollList>` / `<Dropdown>` is a real child element instead — `<Scrollbar sprite= color= handle= handleColor= …/>` — so one `class=` pack dresses every bar in the document. Reach for those first. They are still *reference implementations*: for structural changes (a different popup layout, extra chrome) write your own `Control` and register it over the tag — `UI.Registry.Register<MyDropdown>("Dropdown")`. The built-ins are `sealed`, so you replace rather than subclass; see scripting-promptugui-csharp.
 
 ### `<Frame>`
 
@@ -197,7 +198,7 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 - **Border, both glows, glass and `mask="self"` follow the new outline automatically** — no extra attributes, and an inner border keeps its width around a chamfer and around the inner corner of a notch.
 - Keywords are lower-case. `bevel` / `scoop` / `CUT` / `R6` are parse errors that name the legal words.
 
-> **Which tags draw procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `innerGlow` / `innerGlowColor` / `intensity` / `glass` (+ its tuning params) work on **`<Frame>`, `<Btn>`, `<Tab>`, `<TabMenu>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>`, `<Collapsible>` and `<Progress>`** — see **Procedural surfaces** below for what they do on a control.
+> **Which tags draw procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `innerGlow` / `innerGlowColor` / `intensity` / `glass` (+ its tuning params) work on **`<Frame>`, `<Btn>`, `<Tab>`, `<TabMenu>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>`, `<Scrollbar>`, `<Collapsible>` and `<Progress>`** — see **Procedural surfaces** below for what they do on a control.
 >
 > On any other tag — `<Image>`, `<RawImage>`, `<Text>`, `<Icon>`, `<TabBar>`, `<Carousel>`, `<Markdown>` — they are accepted by the parser and then silently dropped; `PUI-CONTAINER-VISUAL-ATTR` is the only thing that tells you. (`<Image>` / `<RawImage>` are deliberate: a sprite is their whole point, and a procedural rectangle is what `<Frame>` is for.)
 >
@@ -379,7 +380,7 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 
 ### 程序化表面（`<Frame>` 之外的控件）
 
-在 `<Btn>` / `<Tab>` / `<TabMenu>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<InputField>` / `<ScrollList>` / `<Collapsible>` / `<Progress>` 上写 `radius`（或任一其它程序化属性），该控件的**主表面**就改用自绘的圆角矩形 SDF，取值语义与 `<Frame>` 逐字相同。主题因此能换掉控件的**形状**，不只是颜色。
+在 `<Btn>` / `<Tab>` / `<TabMenu>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<InputField>` / `<ScrollList>` / `<Scrollbar>` / `<Collapsible>` / `<Progress>` 上写 `radius`（或任一其它程序化属性），该控件的**主表面**就改用自绘的圆角矩形 SDF，取值语义与 `<Frame>` 逐字相同。主题因此能换掉控件的**形状**，不只是颜色。
 
 ```xml
 <Btn radius="pill" color="accent" hoverColor="accent-light">确定</Btn>
@@ -399,14 +400,15 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 | `<Collapsible>` | **整块面板**（标题栏 + body 一起；标题栏另有 `headerColor` / `headerSprite` 叠在上面） |
 | `<Toggle>` | **勾选框**（不含 label） |
 | `<Slider>` | **轨道**（不含滑块） |
+| `<Scrollbar>` | **轨道**（滑块走 `handle*`，见下） |
 | `<Progress>` | **bg 层**（在 mask 内） |
 
 规则：
 
 - `color`（Progress 是 `bgColor`）成为 SDF 的填充色；不写就沿用控件自带的默认底色，所以 `<Btn radius="8">` 是个圆角按钮而不是隐形按钮。
-- `sprite` 是**矛盾声明**（`PUI-PROC-SPRITE-CONFLICT`）；`sprite="none"` / `""` 不算 —— 那是「清掉贴图」，跟走程序化一致。
+- `sprite` 是**矛盾声明**（`PUI-PROC-SPRITE-CONFLICT`）；`sprite="none"` / `""` 不算 —— 那是「清掉贴图」，跟走程序化一致。同一条规则**按层**推广到内层：`<Slider fill= fillRadius=>` / `<Slider handle= handleRadius=>` / `<Progress fill= fillRadius=>` / `<Progress frame= frameRadius=>` / `<Scrollbar handle= handle*>` 各自也是矛盾（层与层之间不互相牵连）。
 - `pressedSprite` / `disabledSprite` / `selectedSprite` 同样矛盾（`PUI-PROC-STATE-SPRITE-CONFLICT`）：它们换的是 `Image.overrideSprite`，SDF 面上没有那个东西。改用 `pressedColor` / `disabledColor` / `selectedColor` 或 `<Show on="state-*">`。
-- `hoverColor` 等状态色**照常生效**（`targetGraphic` 跟着表面走）。**例外 `<Slider>`**：它的 `targetGraphic` 留在滑块上，因为会响应 hover/press 的本来就是滑块而不是轨道。
+- `hoverColor` 等状态色**照常生效**（`targetGraphic` 跟着表面走）。**例外 `<Slider>` 与 `<Scrollbar>`**：它们的 `targetGraphic` 留在滑块上，因为会响应 hover/press 的本来就是滑块而不是轨道（`<Scrollbar>` 的滑块自己走程序化时，target 再跟着滑块的面板走）。
 - 禁用态自动去饱和、玻璃另外变薄，**形状保持**。
 - 背景 Image 只是让位（贴图清空、alpha 归零），**不销毁** —— 所以变体来回切能精确还原，控件也照常收得到点击。
 - `weld` / `seam` 不进控件：它们说的是 `<Frame>` 直接玻璃**子级**融成的那一组。
@@ -417,6 +419,7 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 |---|---|
 | `<Slider>` | `fillRadius`（已填充段）· `handleRadius`（滑块，`pill` = 圆钮）|
 | `<Progress>` | `fillRadius` · `frameRadius` · `maskRadius`（把 bg + fill 一起裁）|
+| `<Scrollbar>` | `handleRadius` · **`handleBorderWidth` · `handleBorderColor` · `handleGlow` · `handleGlowColor`** —— 唯一一个内层给到描边和外发光的地方：HUD 风格滚动条的发光滑块就是这个部件存在的理由，而滑块又是滚动条唯一的「内容」。仍然没有玻璃 |
 
 **内层不给玻璃**，这不是为了省属性而是语义问题：backdrop 采集不含 UI 自身，所以压在玻璃轨道上的玻璃 fill 采的是同一张 backdrop，两层长得一模一样、进度条直接消失。颜色那一半 `fillColor` / `handleColor` 早就支持 token / `/alpha` / 渐变。
 
@@ -485,8 +488,7 @@ TMP_Dropdown。R3 `OnSelected: int`。选项 C# 侧 `BindOptions(...)` 注入。
 | `itemColor` | hex / CSS / token | `#F5F5F5` | 弹窗里**每一行的高亮底色**（hover / 选中时由 uGUI 乘上去）。默认是硬编码浅灰，**深色主题必须显式改** |
 | `itemTextColor` | hex / CSS / token | — | 弹窗**选项行**文字色（区别于 `textColor` —— 那是收起状态的 caption） |
 | `checkmark` · `checkmarkColor` | sprite key / color | — | 选中项左侧的对勾。`checkmark=""` 隐藏 |
-| `scrollbar` · `scrollbarColor` | sprite key / color | — | 弹窗滚动条**轨道** |
-| `scrollbarHandle` · `scrollbarHandleColor` | sprite key / color | — | 弹窗滚动条**滑块** |
+| （子元素）`<Scrollbar …/>` | — | 默认条 | 弹窗的滚动条：写成**直接子元素** `<Dropdown …><Scrollbar sprite= color= handle= handleColor= thickness= …/></Dropdown>`，见 **`<Scrollbar>`** 小节 / [`reference/controls-scrollbar.md`](reference/controls-scrollbar.md)。旧的 `scrollbar*` 属性已退役（`PUI-SCROLLBAR-RETIRED-ATTR`） |
 
 - 弹窗内那几层（`itemColor` / `itemTextColor` / `checkmark*`）改的是 `TMP_Dropdown` 的**模板**，之后每次展开克隆出来的选项行都继承；**已经展开着的那批实例不会跟着变**（ReSolve 通常发生在关闭态，实际不成问题）。
 
@@ -503,7 +505,7 @@ Children of a list are layout-group children: `anchor` / `margin` are dropped (`
 | `radius` · `borderWidth` · `glass` … | 同 `<Frame>` | — | **程序化表面**（背景）→ 见 **程序化表面** 一节 |
 | `itemTemplate` | tag name | — | `BindItems` 前必填；只写静态子节点时可省 |
 | `direction` | `vertical` / `horizontal` | `vertical` | |
-| `columns` | int ≥ 1 | `0` | Grid mode: Content becomes a `GridLayoutGroup` wrapping into rows that grow downwards. `0` = the single column / row `direction` describes. **Spell `columns="0"` out when a variant has to leave the grid** — a variant resolving to null is skipped, not reverted, so dropping the override keeps the grid. Vertical only: with `direction="horizontal"` it is `PUI-SCROLL-COLUMNS-DIRECTION` (the direction wins at runtime); there is no row-major `rows=` in v1. Without a `size`, the list's native **width** becomes `padding + columns × cellSize + gaps` — but the scrollbar still eats `scrollbarWidth − 3` out of the viewport unless `scrollbarOverlay="true"`. |
+| `columns` | int ≥ 1 | `0` | Grid mode: Content becomes a `GridLayoutGroup` wrapping into rows that grow downwards. `0` = the single column / row `direction` describes. **Spell `columns="0"` out when a variant has to leave the grid** — a variant resolving to null is skipped, not reverted, so dropping the override keeps the grid. Vertical only: with `direction="horizontal"` it is `PUI-SCROLL-COLUMNS-DIRECTION` (the direction wins at runtime); there is no row-major `rows=` in v1. Without a `size`, the list's native **width** becomes `padding + columns × cellSize + gaps` — but the scrollbar still eats `thickness + spacing` out of the viewport unless the bar is `<Scrollbar overlay="true">`. |
 | `cellSize` | `WxH` | — | Uniform cell size; **required in grid mode** (`PUI-SCROLL-COLUMNS-CELLSIZE`) — without it every cell falls back to uGUI's 100×100. Same meaning as `<Grid cellSize>`: a cell's own `size` / `width` / `height` is ignored. |
 | `spacing` | single 或 `V,H` | — | 竖向在前，同 `<Grid spacing>`。单列只用得上 V、单行只用得上 H，网格两个都用 |
 | `padding` | `T,R,B,L` | — | |
@@ -512,10 +514,7 @@ Children of a list are layout-group children: `anchor` / `margin` are dropped (`
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
 | `frame` | sprite key | — | Border layer drawn above content & scrollbar, outside the mask — scrolling content never overlaps it. Lazily created. Note: `tint=` affects only the background, not the frame. |
 | `frameColor` | hex / CSS / token | — | Tints the frame layer; setting it alone also activates the layer. |
-| `scrollbar` · `scrollbarColor` | sprite key / color | — | 滚动条**轨道**。两个方向共用一份皮肤；滚动条是懒建的，属性先写后建也生效 |
-| `scrollbarHandle` · `scrollbarHandleColor` | sprite key / color | — | 滚动条**滑块** |
-| `scrollbarWidth` | float | `20` | Bar thickness — the width of a vertical bar, the height of a horizontal one. On a 640×360 reference canvas the default 20 is most of a 66-wide grid column, so grid lists usually want less. |
-| `scrollbarOverlay` | bool | `false` | `true` draws the bar **over** the content (`ScrollbarVisibility.AutoHide`) instead of shrinking the viewport for it (`AutoHideAndExpandViewport`). This is how a fixed column count stays fully visible once the rows overflow. |
+| （子元素）`<Scrollbar …/>` | — | 默认条 | The scrollbar is a **direct child element**: `<Scrollbar thickness="6" overlay="true" padding="1.5" radius="pill" handleRadius="pill" …/>` — track = its primary surface, handle = `handle*`. Leave it out for the stock bar. One per list; it follows `direction`. See **`<Scrollbar>`** below / [`reference/controls-scrollbar.md`](reference/controls-scrollbar.md). The old `scrollbar*` attributes are retired (`PUI-SCROLLBAR-RETIRED-ATTR`). |
 | `mask` | sprite key | follows `sprite` | Viewport clip shape. `mask="custom#slice"` = stencil mask with that sprite (auto-sliced); `mask=""` = square `RectMask2D` clip (cheaper). **Unset auto-tracks the bg `sprite`**: a sprite present (incl. the default) → rounded stencil; `sprite=""`/`sprite="none"` → square, so a transparent list's corners stay square without writing `mask=""`. Explicit `mask=` (any value, incl. `""`) opts out of auto-tracking. Unlike `<Image>`/`<Frame>`, `rect`/`self` are **not** keywords here — `mask` takes a sprite key. |
 
 A scrolling card grid with authored placeholders — 4 columns, a thin overlaid scrollbar so the 4th
@@ -524,8 +523,8 @@ column survives the overflow, and a narrower cell in portrait:
 ```xml
 <ScrollList id="slots" anchor="stretch" margin="16,0,0,2"
   columns="4" cellSize="66x100" cellSize.portrait="67x100" spacing="4"
-  sprite="none" color="#0000" scrollbar="" scrollbarWidth="6" scrollbarOverlay="true"
-  itemTemplate="BuildSlot">
+  sprite="none" color="#0000" itemTemplate="BuildSlot">
+  <Scrollbar thickness="6" overlay="true" sprite=""/>
   <BuildSlot id="slot1" index="1" icon="Building:MetalExtractor" name="Refinery" level="Lv.5"/>
   <BuildSlot id="slot2" index="2" icon="Building:SolarPlant" name="Solar Plant" level="Lv.2"/>
 </ScrollList>
@@ -624,8 +623,9 @@ Tab 容器；私有 `ToggleGroup`（默认 `allowSwitchOff=false`，见下表）
 ```xml
 <Collapsible id="tasks" text="任务" anchor="top-right" width="150" margin="90,20,_,_"
              sprite="none" color="surface/0.55" radius="10" headerHeight="24" transition="0.2s">
-  <ScrollList id="list" itemTemplate="TaskRow" width="stretch" height="clamp(_, hug, 200)"
-              sprite="none" scrollbar=""/>
+  <ScrollList id="list" itemTemplate="TaskRow" width="stretch" height="clamp(_, hug, 200)" sprite="none">
+    <Scrollbar sprite=""/>
+  </ScrollList>
 </Collapsible>
 ```
 
@@ -693,6 +693,24 @@ Tab 容器；私有 `ToggleGroup`（默认 `allowSwitchOff=false`，见下表）
 | `dotColor` · `dotSelectedColor` · `dotHoverColor` · `dotPressedColor` | hex / CSS / token | — | 状态色 |
 | `dotTint` | `multiply` / `linear` | — | |
 | `dotTriSlice` | bool | `false` | 把单张 `dotSprite` 横向等比切成 3 段分摊到各点，整排连成一条（左帽 / 可平铺中段 / 右帽；2 点=左+右，N≥3=左+中×(N-2)+右）。sprite 须设计成 3 等宽段、中段可平铺、atlas 内不能旋转打包；源图 9-slice 边框按段保留；选中态走颜色无需额外切图 |
+
+### `<Scrollbar>`
+
+`<ScrollList>` / `<Dropdown>` 的滚动条**部件子元素**：写成宿主的**直接子元素**，不写就是默认条（库存 Scroll View 那根，逐像素一致）。节点本身就是 uGUI `Scrollbar`（轨道 Image + `Sliding Area` + `Handle`），宿主负责接线与朝向 —— ScrollList 的条跟着 `direction` 翻转（同一个节点），Dropdown 的条恒竖、随弹窗一起被克隆。
+
+```xml
+<ScrollList columns="4" cellSize="63x86" spacing="4">
+  <Scrollbar thickness="6" overlay="true" padding="1.5"
+             radius="pill" color="glass-primary-darker/0.6" borderWidth="0.4" borderColor="hud-edge-cyan/0.6"
+             handleRadius="pill" handleColor="hud-edge-cyan" handleGlow="3" handleGlowColor="hud-edge-cyan/0.6"/>
+</ScrollList>
+```
+
+两层、两套已知词汇：**轨道 = 控件主表面**（`sprite` / `color` 换皮，`radius` / `borderWidth` / `glow` / `glass`… 逐字同 `<Frame>`）；**滑块 = `handle*` 内层**（`handle` / `handleColor` / `handleRadius`，再加 `handleBorderWidth` / `handleBorderColor` / `handleGlow` / `handleGlowColor` —— 唯一给到描边与外发光的内层，仍无 `glass`）。几何四个：`thickness`（厚度，不叫 `width` / `height`）、`overlay`（压在内容上 / 视口让位）、`spacing`（与视口的距离，overlay 下无效）、`padding`（滑块四边内缩，`"E,S"` = 沿轴, 跨轴）。
+
+排版属性（`anchor` / `size` / `width` / `height` / `margin` / `pivot` / `flow` / `scale` / `hidden`）一律 `PUI-SCROLLBAR-LAYOUT-ATTR`；不接子节点；一个宿主一根（`PUI-SCROLLBAR-DUPLICATE`）；不在宿主直下 `PUI-SCROLLBAR-OUTSIDE`；`<Add>` 块里不支持。复用走现成机制：属性 = `<Style>` + `class=`（一个包穿三根条），结构 / 参数 = 普通 `<Template>`（body 根就是 `<Scrollbar>`，在宿主里当子元素调用），主题 = `<Theme>` 里的同名包。宿主上旧的 `scrollbar` / `scrollbarColor` / `scrollbarHandle` / `scrollbarHandleColor` / `scrollbarWidth` / `scrollbarOverlay` **已退役**（`PUI-SCROLLBAR-RETIRED-ATTR`，`<Style>` 包里也报）。
+
+**写任何 `<Scrollbar>` 前，先读 [`reference/controls-scrollbar.md`](reference/controls-scrollbar.md)**（完整属性表、几何公式、三种复用写法、Dropdown 克隆的限制、lint 表）。
 
 ### `<Decor>`
 
@@ -784,8 +802,8 @@ Other notes:
 | `<Icon>`       | `Image`（`preserveAspect=true`, `raycastTarget=false`）                                                                                                                                                                                                        | —                                                                                                                                                                                                                                                                                      | —                                                                                                                           |
 | `<Toggle>`     | `Toggle`（`targetGraphic=Background`, `graphic=Checkmark`）                                                                                                                                                                                                    | `Background`(`Image`, left-middle 锚 20×20) → 内嵌 `Checkmark`(`Image`, 居中 20×20)；`Label`(`TMP_Text`, 右侧水平 stretch)                                                                                                                                                             | `OnValueChanged` ← `Toggle.onValueChanged`                                                                                  |
 | `<Slider>`     | `Slider`                                                                                                                                                                                                                                                       | `Background`(`Image`)；`Fill Area` → `Fill`(`Image`)；`Handle Slide Area` → `Handle`(`Image`)                                                                                                                                                                                          | `OnValueChanged` ← `Slider.onValueChanged`                                                                                  |
-| `<Dropdown>`   | `Image` + `TMP_Dropdown`                                                                                                                                                                                                                                       | `Label` + `Arrow` + `Template`（默认 inactive，内含 `Viewport` / `Content` / `Item` / `Scrollbar` 完整下拉子树）                                                                                                                                                                       | `OnSelected` ← `TMP_Dropdown.onValueChanged`                                                                                |
-| `<ScrollList>` | `Image` + `ScrollRect`                                                                                                                                                                                                                                         | `Viewport`(`Image` + `Mask` stencil) → `Content`(V/H `LayoutGroup` + `ContentSizeFitter`)；按 `direction` 再加一个 `Scrollbar`                                                                                                                                                         | 无独立事件；C# 端 `BindItems(...)` 推数据                                                                                   |
+| `<Dropdown>`   | `Image` + `TMP_Dropdown`                                                                                                                                                                                                                                       | `Label` + `Arrow` + `Template`（默认 inactive，内含 `Viewport` / `Content` / `Item` / `Scrollbar` 完整下拉子树；`Scrollbar` 是 `<Scrollbar>` 部件，默认条由库自建）                                                                                                                                                                       | `OnSelected` ← `TMP_Dropdown.onValueChanged`                                                                                |
+| `<ScrollList>` | `Image` + `ScrollRect`                                                                                                                                                                                                                                         | `Viewport`(`Image` + `Mask` stencil) → `Content`(V/H `LayoutGroup` + `ContentSizeFitter`)；加一个 `Scrollbar`（`<Scrollbar>` 部件：认领的子元素或库自建的默认条，按 `direction` 翻转朝向）                                                                                                                                                         | 无独立事件；C# 端 `BindItems(...)` 推数据                                                                                   |
 | `<InputField>` | `Image` + `TMP_InputField`                                                                                                                                                                                                                                     | `Text Area`(`RectMask2D`) → `Placeholder`(`TMP_Text`, italic 半透明) + `Text`(`TMP_Text`)                                                                                                                                                                                              | `OnValueChanged` / `OnEndEdit` / `OnSubmit` ← `TMP_InputField.*`                                                            |
 | `<Progress>`   | `RectTransform`（无 Graphic）                                                                                                                                                                                                                                  | `MaskWrapper`(`RectTransform`; 按需挂 `UnityImage` + `Mask`) → `Bg`(`Image`, 按需启用) + `Fill`(`Image`, 永远存在)；`Frame`(`Image`, 按需启用, `raycastTarget=false`)                                                                                                                  | —                                                                                                                           |
 | `<TabBar>`     | `ToggleGroup` + `HorizontalLayoutGroup`（或 `VerticalLayoutGroup` 看 `direction=`）；无自身视觉，纯布局容器                                                                                                                                                    | XML 写的或 `BindItems` 推的 `<Tab>` children；视觉由 Tab 自管,共享样式靠 Template                                                                                                                                                                                                      | `OnSelectionChanged` ← per-Tab `OnValueChanged`（推选中的 Tab；选中清空时推 `null`）                                        |
@@ -1700,6 +1718,7 @@ FRAME VISUAL  <Frame color="surface/0.9" radius="16" borderWidth="1" borderColor
 
 BUILT-INS     <Frame> <Image> <Text> <VStack> <HStack> <Grid> <Btn> <Icon>
               <Toggle> <Slider> <Dropdown> <ScrollList> <InputField> <TabMenu>
+              <ScrollList …><Scrollbar thickness="6" overlay="true" padding="1.5" radius="pill" handleRadius="pill" handleGlow="3"/>…</ScrollList>  滚动条是部件子元素（<Dropdown> 同）；轨道 = 主表面，滑块 = handle*；旧 scrollbar* 属性已退役
               <Progress value="0.6" fill="ui:bar"/>  最简；mask= + 不设 bg → mask sprite 自动可见兼当底；radial 进度环不在 <Progress> 范围
               <TabBar><Tab text="A" sprite="..." selectedSprite="..." bind="frame_a" isOn="true"/>...</TabBar>  互斥 + Tab 自管 sprite/selectedSprite + bind 自动 toggle Frame
               <Carousel itemTemplate="Card" interval="5" dots="bottom-center" dotSprite="ui:dot" dotColor="#888" dotSelectedColor="#fff"/>  翻页 + 自动播放 + 拖动 + 状态化指示点；卡片走 C# BindItems；当前页 resize 不重置
@@ -1796,6 +1815,16 @@ GAMEPAD NAV   UI.UseGamepadNavigation()        enable once at startup (new Input
               PUI-NAV-UNKNOWN-TARGET           navX="id" where id not in same Screen
               details: reference/navigation.md
 
+SCROLLBAR LINT PUI-SCROLLBAR-OUTSIDE            <Scrollbar> not a direct child of <ScrollList> / <Dropdown>
+              PUI-SCROLLBAR-DUPLICATE          a second bar under one host (first in document order wins)
+              PUI-SCROLLBAR-IN-ADD             a bar as a direct child of a Variant <Add> block
+              PUI-SCROLLBAR-LAYOUT-ATTR        anchor/size/width/height/margin/pivot/flow/scale/hidden on the bar (thickness= is its size)
+              PUI-SCROLLBAR-CHILD              children under <Scrollbar>
+              PUI-SCROLLBAR-VALUE              bad thickness / spacing / padding; padding that swallows the thickness
+              PUI-SCROLLBAR-OVERLAY-SPACING    spacing= with overlay="true" (uGUI ignores it)
+              PUI-SCROLLBAR-RETIRED-ATTR       old host-side scrollbar* attributes (also inside <Style> packs)
+              PUI-PROC-SPRITE-CONFLICT also covers inner layers: handle= + handle*, fill= + fillRadius, frame= + frameRadius
+
 SPRITE FX LINT PUI-FX-TAG                      blur= outside <Image> / <Icon> (RawImage / Btn not wired up yet)
               PUI-FX-TYPE                      blur/glow with type=sliced|tiled|filled (also warned at runtime,
                                                where a 9-slice sprite's automatic Sliced is visible)
@@ -1805,7 +1834,8 @@ SPRITE FX LINT PUI-FX-TAG                      blur= outside <Image> / <Icon> (R
                warns per texture when the kernel really has to fall back to no mipmaps)
 
 STYLE LINT    PUI-CLASS-EMPTY                  class="" / whitespace-only — names no style
-              PUI-PROCEDURAL-VALUE             bad radius / borderWidth / glow / blur / intensity value (also inside <Style>)
+              PUI-PROCEDURAL-VALUE             bad radius / borderWidth / glow / blur / intensity value, and the inner-layer
+                                               ones (fillRadius / handleRadius / handleGlow …) (also inside <Style>)
               PUI-GLASS-INTENSITY              intensity= on glass="true" / a weld carrier — glass emits no light
               PUI-CONTAINER-VISUAL-ATTR        sprite= on any container; color/radius/border/glow on *Stack/Grid/SafeArea
                                                — also fires when the attribute arrives through class=
