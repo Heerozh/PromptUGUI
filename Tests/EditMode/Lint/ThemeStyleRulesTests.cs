@@ -112,6 +112,19 @@ namespace PromptUGUI.Tests.EditMode.Lint
         }
 
         [Test]
+        public void IntensityOnlyOneThemeSets_IsExempt()
+        {
+            var issues = Lint(@"
+                <Style name='btn' sprite='ui:wood' color='#E8D2A8'/>
+                <Theme name='farm'><Style name='btn' color='#E8D2A8'/></Theme>
+                <Theme name='neon'><Style name='btn' sprite='none' color='#4F88FF'
+                       radius='10' glow='14' intensity='3'/></Theme>
+                <Screen name='S'><Btn id='b' class='btn'/></Screen>");
+
+            Assert.IsEmpty(issues.Where(i => i.Code == ThemeStyleRules.ShapeCode));
+        }
+
+        [Test]
         public void InnerLayerRadius_IsExempt()
         {
             var issues = Lint(@"

@@ -94,6 +94,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("kind='tick' thickness='2'")]
         [TestCase("kind='bracket' offset='4'")]
         [TestCase("kind='sprite' sprite='ui:x' glow='6'")]
+        [TestCase("kind='sprite' sprite='ui:x' intensity='3'")]
         [TestCase("kind='sprite' sprite='ui:x' thickness='2'")]
         [TestCase("kind='bracket' sprite='ui:x'")]
         [TestCase("kind='line' mirror='false'")]
@@ -105,6 +106,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("kind='bracket' thickness='2' inset='4'")]
         [TestCase("kind='line' at='top' extent='50%' thickness='1'")]
         [TestCase("kind='tick' at='bottom' offset='12' glow='4'")]
+        [TestCase("kind='line' glow='8' intensity='4'")]
         [TestCase("kind='sprite' sprite='ui:x' mirror='false' inset='2'")]
         public void LegitimateCombinations_AreClean(string attrs)
         {
@@ -140,6 +142,15 @@ namespace PromptUGUI.Tests.EditMode.Lint
         {
             CollectionAssert.DoesNotContain(
                 Codes("<Decor id='d' kind='bracket' glow='6' glowColor='white'/>"),
+                PureContainerVisualAttrRules.VisualAttrCode);
+        }
+
+        [Test]
+        public void IntensityOnDecor_IsNotReportedAsSilentlyIgnored()
+        {
+            // A drawn decoration is lit by the same exposure curve as a panel (spec 2026-09-12).
+            CollectionAssert.DoesNotContain(
+                Codes("<Decor id='d' kind='line' glow='6' intensity='4'/>"),
                 PureContainerVisualAttrRules.VisualAttrCode);
         }
 

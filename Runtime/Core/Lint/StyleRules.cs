@@ -104,6 +104,16 @@ namespace PromptUGUI.Lint
                 yield break;
             }
 
+            // intensity shares its parser with the runtime setters too (spec 2026-09-12 §4.1); it
+            // is deliberately not a glass number, so it gets its own branch.
+            if (baseName == IntensityAttrParser.Name)
+            {
+                if (!IntensityAttrParser.TryParse(value, out _, out var intensityError))
+                    yield return new LintIssue(ProceduralValueCode, tag, id,
+                        $"{context}: {intensityError}");
+                yield break;
+            }
+
             // Glass values share the runtime parser, so the CLI rejects exactly what the setter
             // would have thrown on — including each attribute's own range.
             if (GlassAttrParser.IsNumericAttr(baseName))

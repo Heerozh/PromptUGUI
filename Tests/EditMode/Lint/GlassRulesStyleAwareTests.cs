@@ -46,6 +46,21 @@ namespace PromptUGUI.Tests.EditMode.Lint
         }
 
         [Test]
+        public void IntensityMeetingGlassThroughAClass_IsFlagged()
+        {
+            // Both halves can arrive through styles; the expanded pass sees the merged node.
+            Assert.IsTrue(
+                Has(Walk("<Frame id='f' class='card neon'/>",
+                         GlassStyle + "<Style name='neon' glow='12' intensity='3'/>"),
+                    GlassRules.IntensityOnGlassCode),
+                "glass from one class and intensity from another still cancel out on the node");
+            Assert.IsFalse(
+                Has(Walk("<Frame id='f' class='neon'/>", "<Style name='neon' glow='12' intensity='3'/>"),
+                    GlassRules.IntensityOnGlassCode),
+                "…and a lit opaque style is fine");
+        }
+
+        [Test]
         public void GlassParamFromAClass_OnANonGlassNode_IsStillFlagged()
         {
             Assert.IsTrue(

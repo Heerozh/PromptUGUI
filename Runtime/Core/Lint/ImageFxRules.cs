@@ -43,7 +43,7 @@ namespace PromptUGUI.Lint
         /// land here and stays reported.</summary>
         internal static readonly HashSet<string> SupportedProceduralAttrs = new()
         {
-            "glow", "glowColor",
+            "glow", "glowColor", "intensity",
         };
 
         /// <summary>The Image <c>type</c> values that draw the single quad the sampling needs.</summary>

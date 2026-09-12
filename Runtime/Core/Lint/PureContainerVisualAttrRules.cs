@@ -88,8 +88,8 @@ namespace PromptUGUI.Lint
                         VisualAttrCode, n.Tag, n.Id,
                         $"<Decor id='{n.Id}'>: '{attr}' is silently ignored — a decoration's shape " +
                         "is whatever its kind= names, and it has no surface to put a border, a " +
-                        "glass fill or a weld on. Only glow / glowColor carry over. For a shaped " +
-                        $"panel, put the {attr} on the host <Frame> instead.");
+                        "glass fill or a weld on. Only glow / glowColor / intensity carry over. For " +
+                        $"a shaped panel, put the {attr} on the host <Frame> instead.");
                 }
                 yield break;
             }
