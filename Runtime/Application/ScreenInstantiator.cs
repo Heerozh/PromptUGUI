@@ -229,6 +229,9 @@ namespace PromptUGUI.Application
             else if (node.Tag == "ScrollList")
                 foreach (var issue in PromptUGUI.Lint.ScrollListRules.CheckScrollList(node))
                     Debug.LogWarning(issue.Message);
+            else if (node.Tag == "Scrollbar")
+                foreach (var issue in PromptUGUI.Lint.ScrollbarRules.Check(node))
+                    Debug.LogWarning(issue.Message);
             else if (node.Tag == "Collapsible")
                 // The height rule is a hard error (ControlAttributeApplier); the header-structure
                 // ones are warnings — the panel still renders, it just ignores what it cannot use.
@@ -342,6 +345,23 @@ namespace PromptUGUI.Application
                                              childScope, nodeMap,
                                              parentControl: control, applyOrder: applyOrder);
                     continue;
+                }
+                // <Scrollbar> is chrome, not content: it goes next to the host's ScrollRect (uGUI's
+                // expand mode needs it to be a DIRECT child of that transform), never into Content,
+                // and the host wires it up the moment it exists. Same shape as <Header> above.
+                if (c.Tag == PromptUGUI.Lint.ScrollbarRules.Tag)
+                {
+                    if (control is Controls.Internal.IScrollbarHost scrollHost)
+                    {
+                        InstantiateRecursive(c, scrollHost.ScrollbarHost, parentIsLayoutGroup: false,
+                                             childScope, nodeMap,
+                                             parentControl: control, applyOrder: applyOrder);
+                        if (nodeMap.TryGetValue(c, out var adopted) && adopted is Controls.Scrollbar bar)
+                            scrollHost.AdoptScrollbar(bar);
+                        continue;
+                    }
+                    foreach (var issue in PromptUGUI.Lint.ScrollbarRules.CheckOutside(node, c))
+                        Debug.LogWarning(issue.Message);
                 }
                 if (selfIsLayoutGroup)
                     foreach (var issue in PromptUGUI.Lint.HugRules.CheckHugStretchChild(node, c))

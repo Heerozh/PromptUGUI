@@ -13,7 +13,7 @@ using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class ScrollList : ProceduralControl, IHugContent
+    public sealed class ScrollList : ProceduralControl, IHugContent, IScrollbarHost
     {
         private UnityImage _bg;
 
@@ -32,16 +32,11 @@ namespace PromptUGUI.Controls
         private RectTransform _content;
         private LayoutGroup _layoutGroup;
         private string _direction = "vertical";
-        private Scrollbar _vertScrollbar;
-        private Scrollbar _horizScrollbar;
-        // 滚动条由 Direction setter 懒建（且 direction 切换会启用另一根），所以皮肤属性
-        // 存原始字符串、建完再回放 —— 同 spacing / padding 的 pending 模式。
-        private string _scrollbarSprite;
-        private string _scrollbarColor;
-        private string _scrollbarHandleSprite;
-        private string _scrollbarHandleColor;
-        private float _scrollbarWidth = 20f;   // 库存 Scroll View prefab 的厚度；改动它是显式的
-        private bool _scrollbarOverlay;
+        // The one bar (spec 2026-09-12 §5.4): an authored <Scrollbar> child adopted at instantiation,
+        // else a default one this control builds in its first OnAfterApply. Re-oriented in place
+        // when direction flips — there is no second, lazily built bar any more.
+        private Scrollbar _bar;
+        private bool _ownsBar;
         private string _itemTemplate;
         // spacing 两轴分开存：单列只用得上 V、单行只用得上 H，网格两个都用。padding 同理存解析后的
         // 四段而不是原串 —— 换组之后新组件的 padding 是全零，必须能原样重放。
@@ -65,8 +60,8 @@ namespace PromptUGUI.Controls
             // enough to hold the columns it was asked for — a flat 160 would clip the 4th of four
             // 66-wide columns before the author ever saw the list. The main axis stays the plain
             // default: how many ROWS are visible is a viewport choice, not a content one.
-            // Note the scrollbar is not counted in: unless scrollbarOverlay="true" it still takes
-            // (scrollbarWidth - 3) out of the viewport once the content overflows.
+            // Note the scrollbar is not counted in: unless <Scrollbar overlay="true"> it still takes
+            // (thickness + spacing) out of the viewport once the content overflows.
             if (IsGrid && _cellSize.HasValue)
             {
                 var w = _padL + _padR
@@ -205,16 +200,85 @@ namespace PromptUGUI.Controls
             }
             ApplyGroupMetrics();
 
-            if (wantHorizontal)
+            // The bar follows the axis: not built here (an authored one may still be on its way —
+            // children instantiate after PreConfigureContent), just pointed the right way if present.
+            WireScrollbar();
+        }
+
+        // ───── the scrollbar (IScrollbarHost) ─────
+
+        RectTransform IScrollbarHost.ScrollbarHost => RectTransform;
+
+        void IScrollbarHost.AdoptScrollbar(Scrollbar bar)
+        {
+            if (_bar != null && _bar != bar)
             {
-                EnsureHorizontalScrollbar();
-                if (_vertScrollbar != null) _vertScrollbar.gameObject.SetActive(false);
+                Debug.LogWarning(
+                    $"[{PromptUGUI.Lint.ScrollbarRules.DuplicateCode}] <ScrollList id='{Id}'>: a second " +
+                    $"<Scrollbar> (id='{bar.Id}') — a host takes one bar; the first in document order is " +
+                    "used and this one is parked inactive.");
+                bar.GameObject.SetActive(false);
+                return;
+            }
+            _bar = bar;
+            _ownsBar = false;
+            bar.AttachHost(this);
+            WireScrollbar();
+        }
+
+        void IScrollbarHost.OnScrollbarChanged(Scrollbar bar)
+        {
+            if (bar == _bar) ApplyScrollbarPolicy();
+        }
+
+        /// <summary>No <c>&lt;Scrollbar&gt;</c> was authored: build the stock one. Once.</summary>
+        private void EnsureDefaultScrollbar()
+        {
+            if (_bar != null) return;
+            var go = new GameObject(Scrollbar.NodeName, typeof(RectTransform));
+            go.transform.SetParent(RectTransform, worldPositionStays: false);
+            var bar = new Scrollbar();
+            bar.AttachTo(go);
+            _bar = bar;
+            _ownsBar = true;
+            bar.AttachHost(this);
+            WireScrollbar();
+        }
+
+        /// <summary>
+        /// Points the bar along the scrolling axis and hands it to the ScrollRect on that axis (the
+        /// other axis is cleared — one bar, one axis). Idempotent; runs on every layout-mode change.
+        /// </summary>
+        private void WireScrollbar()
+        {
+            if (_bar == null || _scroll == null) return;
+            var vertical = _direction != "horizontal";
+            _bar.Orient(vertical);
+            var bar = _bar.Bar;
+            if (vertical)
+            {
+                if (_scroll.horizontalScrollbar == bar) _scroll.horizontalScrollbar = null;
+                if (_scroll.verticalScrollbar != bar) _scroll.verticalScrollbar = bar;
             }
             else
             {
-                EnsureVerticalScrollbar();
-                if (_horizScrollbar != null) _horizScrollbar.gameObject.SetActive(false);
+                if (_scroll.verticalScrollbar == bar) _scroll.verticalScrollbar = null;
+                if (_scroll.horizontalScrollbar != bar) _scroll.horizontalScrollbar = bar;
             }
+            ApplyScrollbarPolicy();
+        }
+
+        /// <summary>What lives on the ScrollRect side of the bar: overlay → visibility, spacing.</summary>
+        private void ApplyScrollbarPolicy()
+        {
+            if (_bar == null || _scroll == null) return;
+            var visibility = _bar.IsOverlay
+                ? ScrollRect.ScrollbarVisibility.AutoHide
+                : ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
+            _scroll.verticalScrollbarVisibility = visibility;
+            _scroll.horizontalScrollbarVisibility = visibility;
+            _scroll.verticalScrollbarSpacing = _bar.ResolvedSpacing;
+            _scroll.horizontalScrollbarSpacing = _bar.ResolvedSpacing;
         }
 
         // 每次换组之后都要重放一遍：ControlAttributeApplier 遍历的是 HashSet，属性到达顺序不可依赖，
@@ -407,7 +471,9 @@ namespace PromptUGUI.Controls
             if (!_staticCollected && !_bound)
             {
                 _staticCollected = true;
-                foreach (var c in Children) _slots.Add(c);
+                // The bar is chrome, not a slot — it lives beside the Viewport, never in Content.
+                foreach (var c in Children)
+                    if (c is not Scrollbar) _slots.Add(c);
             }
             // mask 未显式写时跟随 bg sprite：有图→圆角 stencil，sprite=""→直角 RectMask2D
             // （对齐 InputField 的 mask-tracks-border 先例；显式 mask= 一旦写过即 latch，跳过这里）。
@@ -415,7 +481,10 @@ namespace PromptUGUI.Controls
                 ProceduralBuilders.ApplyViewportMask(
                     _viewport, _bg != null && _bg.sprite != null ? null : "",
                     ProceduralBuilders.SpriteMaskRoundedRect);
-            // Scrollbar 由 Direction setter 懒建，可能晚于 frame 入树 —— 每轮 apply 后把 frame 钉回最顶。
+            // No authored <Scrollbar> arrived with the children — build the stock one now (children
+            // instantiate before this apply, so by here the answer is final).
+            EnsureDefaultScrollbar();
+            // The default bar may have just been appended after the frame —— 每轮 apply 后把 frame 钉回最顶。
             if (_frame != null) _frame.transform.SetAsLastSibling();
         }
 
@@ -489,191 +558,12 @@ namespace PromptUGUI.Controls
             _slots.Clear();
         }
 
-        private void EnsureVerticalScrollbar()
-        {
-            if (_vertScrollbar != null) { _vertScrollbar.gameObject.SetActive(true); return; }
-            var rt = ProceduralBuilders.AddChild(RectTransform, "Scrollbar Vertical");
-            // 注意 anchorMax.y=1：默认 Scroll View prefab 是 (1,0)/(1,0) point 锚，靠 ScrollRect
-            // 在 m_HSliderExpand 为 true 时驱动撑开。但 m_HSliderExpand 要求同时存在 horizontal
-            // scrollbar；ScrollList 单轴模式下不存在 → 必须自己 anchor 全 Y stretch。
-            rt.anchorMin = new Vector2(1f, 0f);
-            rt.anchorMax = new Vector2(1f, 1f);
-            rt.pivot = new Vector2(1f, 1f);
-            var bg = rt.gameObject.AddComponent<UnityImage>();
-            bg.color = UnityEngine.Color.white;
-            ProceduralBuilders.ApplyDefaultInsetSprite(bg);
-            _vertScrollbar = rt.gameObject.AddComponent<Scrollbar>();
-            _vertScrollbar.direction = Scrollbar.Direction.BottomToTop;
-
-            var sliding = ProceduralBuilders.AddChild(rt, "Sliding Area");
-            var handle = ProceduralBuilders.AddImage(sliding, "Handle");
-            handle.color = UnityEngine.Color.white;
-            ProceduralBuilders.ApplyDefaultSlicedSprite(handle);
-            // Vertical Handle: 默认 prefab anchorMax=(1, 0.2) — X 全 stretch (跨 Sliding Area 宽度，
-            // 配合 sliding.sizeDelta.x=-w + handle.sizeDelta.x=w 还原 scrollbar 全宽)；
-            // Y 占 sliding 高度的 0%-20% (初始 size=0.2 范围)。尺寸由 ApplyScrollbarMetrics 下发。
-            handle.rectTransform.anchorMin = Vector2.zero;
-            handle.rectTransform.anchorMax = new Vector2(1f, 0.2f);
-            _vertScrollbar.targetGraphic = handle;
-            _vertScrollbar.handleRect = handle.rectTransform;
-
-            _scroll.verticalScrollbar = _vertScrollbar;
-            ApplyScrollbarMetrics();
-            ApplyScrollbarSkin();
-        }
-
-        private void EnsureHorizontalScrollbar()
-        {
-            if (_horizScrollbar != null) { _horizScrollbar.gameObject.SetActive(true); return; }
-            var rt = ProceduralBuilders.AddChild(RectTransform, "Scrollbar Horizontal");
-            // anchorMax.x=1：单轴 ScrollList 没有 vertical scrollbar，ScrollRect 不会驱动撑开 → 自己 X stretch (镜像 vertical)。
-            rt.anchorMin = new Vector2(0f, 0f);
-            rt.anchorMax = new Vector2(1f, 0f);
-            rt.pivot = new Vector2(0f, 0f);
-            var bg = rt.gameObject.AddComponent<UnityImage>();
-            bg.color = UnityEngine.Color.white;
-            ProceduralBuilders.ApplyDefaultInsetSprite(bg);
-            _horizScrollbar = rt.gameObject.AddComponent<Scrollbar>();
-            _horizScrollbar.direction = Scrollbar.Direction.LeftToRight;
-
-            var sliding = ProceduralBuilders.AddChild(rt, "Sliding Area");
-            var handle = ProceduralBuilders.AddImage(sliding, "Handle");
-            handle.color = UnityEngine.Color.white;
-            ProceduralBuilders.ApplyDefaultSlicedSprite(handle);
-            // Horizontal Handle: 镜像 vertical — anchorMax=(0.2, 1)，Y 全 stretch + X 占 0%-20%。
-            handle.rectTransform.anchorMin = Vector2.zero;
-            handle.rectTransform.anchorMax = new Vector2(0.2f, 1f);
-            _horizScrollbar.targetGraphic = handle;
-            _horizScrollbar.handleRect = handle.rectTransform;
-
-            _scroll.horizontalScrollbar = _horizScrollbar;
-            ApplyScrollbarMetrics();
-            ApplyScrollbarSkin();
-        }
-
-        /// <summary>
-        /// Thickness of the scrollbar: the width of a vertical bar, the height of a horizontal one.
-        /// Both directions share it, like the rest of the scrollbar skin. Default 20 — on a 640x360
-        /// reference canvas that is most of a 66-wide grid column, so a grid list usually wants a
-        /// smaller value, <c>scrollbarOverlay="true"</c>, or both.
-        /// </summary>
-        [UIAttr, Preserve]
-        public float ScrollbarWidth
-        {
-            set { _scrollbarWidth = Mathf.Max(0f, value); ApplyScrollbarMetrics(); }
-        }
-
-        /// <summary>
-        /// Draw the scrollbar ON TOP of the content (<c>ScrollbarVisibility.AutoHide</c>) instead of
-        /// shrinking the viewport to make room for it (<c>AutoHideAndExpandViewport</c>, the default).
-        /// An overlaid bar is how a fixed column count stays fully visible once the rows overflow.
-        /// </summary>
-        [UIAttr, Preserve]
-        public bool ScrollbarOverlay
-        {
-            set { _scrollbarOverlay = value; ApplyScrollbarMetrics(); }
-        }
-
-        // 尺寸与皮肤同构：滚动条是懒建的（Direction setter 决定建哪根），所以属性存字段、建完再回放，
-        // 两根都刷。Sliding Area 从 handleRect.parent 取，不额外存引用。
-        private void ApplyScrollbarMetrics()
-        {
-            var w = _scrollbarWidth;
-            ApplyScrollbarMetrics(_vertScrollbar, vertical: true, w);
-            ApplyScrollbarMetrics(_horizScrollbar, vertical: false, w);
-            if (_scroll == null) return;
-            var visibility = _scrollbarOverlay
-                ? ScrollRect.ScrollbarVisibility.AutoHide
-                : ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
-            _scroll.verticalScrollbarVisibility = visibility;
-            _scroll.horizontalScrollbarVisibility = visibility;
-            // 库存的 -3 让滚动条压进视口 3 个单位。条比 3 还细时那会把视口撑得比列表还宽 ——
-            // 把重叠量夹到条自身的厚度。
-            var spacing = Mathf.Max(-w, -3f);
-            _scroll.verticalScrollbarSpacing = spacing;
-            _scroll.horizontalScrollbarSpacing = spacing;
-        }
-
-        private static void ApplyScrollbarMetrics(Scrollbar bar, bool vertical, float w)
-        {
-            if (bar == null) return;
-            var rt = (RectTransform)bar.transform;
-            // 长轴由 anchor 拉满（sizeDelta 那一维恒 0），只有短轴是厚度。
-            rt.sizeDelta = vertical ? new Vector2(w, 0f) : new Vector2(0f, w);
-            if (bar.handleRect == null) return;
-            // Sliding Area 两轴各内缩一个厚度，handle 再加回来 —— 净效果是 handle 横跨整条宽度，
-            // 上下（横条则左右）各留出一个厚度作为端头留白。库存 Scroll View prefab 的比例。
-            if (bar.handleRect.parent is RectTransform sliding)
-                sliding.sizeDelta = new Vector2(-w, -w);
-            bar.handleRect.sizeDelta = new Vector2(w, w);
-        }
-
-        // 内部图层：与 <Progress> 同一套命名规约 —— 每层一对 `<layer>` (sprite) + `<layer>Color`。
-        // 两根滚动条共用同一份皮肤：作者关心的是"滚动条长什么样"，不是横竖各一套。
-
-        /// <summary>
-        /// 滚动条轨道的 sprite。<c>""</c> = 无图（纯色）。
-        /// 属性名不能叫 <c>Scrollbar</c> —— 会在本类内遮蔽 <see cref="UnityEngine.UI.Scrollbar"/>
-        /// 类型名，字段和方法签名全部编译不过；XML 属性名由 <c>[UIAttr("scrollbar")]</c> 显式给。
-        /// </summary>
-        [UIAttr("scrollbar", IsSprite = true), Preserve]
-        public string ScrollbarSprite
-        {
-            set { _scrollbarSprite = value; ApplyScrollbarSkin(); }
-        }
-
-        /// <summary>滚动条轨道的颜色；支持 token / <c>/alpha</c> / 渐变。</summary>
-        [UIAttr(IsColor = true), Preserve]
-        public string ScrollbarColor
-        {
-            set { _scrollbarColor = value; ApplyScrollbarSkin(); }
-        }
-
-        /// <summary>滚动条滑块的 sprite。</summary>
-        [UIAttr(IsSprite = true), Preserve]
-        public string ScrollbarHandle
-        {
-            set { _scrollbarHandleSprite = value; ApplyScrollbarSkin(); }
-        }
-
-        /// <summary>滚动条滑块的颜色。</summary>
-        [UIAttr(IsColor = true), Preserve]
-        public string ScrollbarHandleColor
-        {
-            set { _scrollbarHandleColor = value; ApplyScrollbarSkin(); }
-        }
-
-        private void ApplyScrollbarSkin()
-        {
-            ApplyScrollbarSkin(_vertScrollbar);
-            ApplyScrollbarSkin(_horizScrollbar);
-        }
-
-        private void ApplyScrollbarSkin(Scrollbar bar)
-        {
-            if (bar == null) return;
-
-            var track = bar.GetComponent<UnityImage>();
-            if (track != null)
-            {
-                if (_scrollbarSprite != null) track.sprite = UI.ResolveSprite(_scrollbarSprite);
-                if (_scrollbarColor != null)
-                    Internal.ColorApplier.Apply(track, UI.Theme.ResolveSpec(_scrollbarColor));
-            }
-
-            var handle = bar.handleRect != null
-                ? bar.handleRect.GetComponent<UnityImage>() : null;
-            if (handle != null)
-            {
-                if (_scrollbarHandleSprite != null) handle.sprite = UI.ResolveSprite(_scrollbarHandleSprite);
-                if (_scrollbarHandleColor != null)
-                    Internal.ColorApplier.Apply(handle, UI.Theme.ResolveSpec(_scrollbarHandleColor));
-            }
-        }
-
         public override void Dispose()
         {
             ClearSlots();
+            // An adopted bar is a Screen-owned node and is disposed with the rest of _nodeMap; the
+            // default one is ours.
+            if (_ownsBar) _bar?.Dispose();
             base.Dispose();
         }
     }

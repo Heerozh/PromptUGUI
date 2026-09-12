@@ -144,15 +144,6 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Dropdown_ScrollbarColors_LandOnTrackAndHandle()
-        {
-            var d = Open("<Dropdown id='x' scrollbarColor='#111111' scrollbarHandleColor='#eeeeee'/>");
-            var dd = d.Get<Dropdown>("x");
-            Assert.AreEqual(new Color32(0x11, 0x11, 0x11, 0xff), (Color32)Layer(dd, "Scrollbar").color);
-            Assert.AreEqual(new Color32(0xee, 0xee, 0xee, 0xff), (Color32)Layer(dd, "Handle").color);
-        }
-
-        [Test]
         public void Dropdown_TextColorAndItemTextColor_AreDifferentLabels()
         {
             var d = Open("<Dropdown id='x' textColor='#ff0000' itemTextColor='#00ff00'/>");
@@ -165,36 +156,6 @@ namespace PromptUGUI.Tests.EditMode.Controls
             }
             Assert.AreEqual(new Color32(0xff, 0, 0, 0xff), (Color32)caption.color);
             Assert.AreEqual(new Color32(0, 0xff, 0, 0xff), (Color32)item.color);
-        }
-
-        // ---- ScrollList ----
-
-        [Test]
-        public void ScrollList_ScrollbarColors_LandOnTrackAndHandle()
-        {
-            var s = Open("<ScrollList id='x' scrollbarColor='#111111' scrollbarHandleColor='#eeeeee'/>");
-            var sl = s.Get<ScrollList>("x");
-            Assert.AreEqual(new Color32(0x11, 0x11, 0x11, 0xff), (Color32)Layer(sl, "Scrollbar Vertical").color);
-            Assert.AreEqual(new Color32(0xee, 0xee, 0xee, 0xff), (Color32)Layer(sl, "Handle").color);
-        }
-
-        [Test]
-        public void ScrollList_ScrollbarSkin_SurvivesDirectionSwitch()
-        {
-            // 滚动条是懒建的，且 direction 切换会启用另一根 —— pending 值必须回放到新建的那根上。
-            var s = Open("<ScrollList id='x' direction='horizontal' scrollbarHandleColor='#eeeeee'/>");
-            var sl = s.Get<ScrollList>("x");
-            Assert.AreEqual(new Color32(0xee, 0xee, 0xee, 0xff), (Color32)Layer(sl, "Handle").color,
-                "horizontal 方向的滚动条也要吃到皮肤");
-        }
-
-        [Test]
-        public void ScrollList_ScrollbarSprite_Cleared()
-        {
-            var s = Open("<ScrollList id='x' scrollbar='' scrollbarHandle=''/>");
-            var sl = s.Get<ScrollList>("x");
-            Assert.IsNull(Layer(sl, "Scrollbar Vertical").sprite);
-            Assert.IsNull(Layer(sl, "Handle").sprite);
         }
     }
 }

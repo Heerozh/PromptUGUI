@@ -204,8 +204,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
 </PromptUGUI>";
             UI.LoadDocument("test", xml);
             var sl = UI.Open("S").Get<ScrollList>("sl");
-            var sb = sl.GameObject.transform.Find("Scrollbar Vertical") as UnityEngine.RectTransform;
-            Assert.IsNotNull(sb, "default direction is vertical → Scrollbar Vertical exists");
+            var sb = sl.GameObject.transform.Find("Scrollbar") as UnityEngine.RectTransform;
+            Assert.IsNotNull(sb, "default direction is vertical → a Scrollbar node exists");
             Assert.AreEqual(new UnityEngine.Vector2(1, 0), sb.anchorMin);
             Assert.AreEqual(new UnityEngine.Vector2(1, 1), sb.anchorMax);
             Assert.AreEqual(new UnityEngine.Vector2(20, 0), sb.sizeDelta);
@@ -229,7 +229,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 </PromptUGUI>";
             UI.LoadDocument("test", xml);
             var sl = UI.Open("S").Get<ScrollList>("sl");
-            var sb = sl.GameObject.transform.Find("Scrollbar Horizontal") as UnityEngine.RectTransform;
+            var sb = sl.GameObject.transform.Find("Scrollbar") as UnityEngine.RectTransform;
             Assert.IsNotNull(sb);
             Assert.AreEqual(new UnityEngine.Vector2(0, 0), sb.anchorMin);
             Assert.AreEqual(new UnityEngine.Vector2(1, 0), sb.anchorMax);
@@ -272,7 +272,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var root = sl.GameObject.transform;
             var frame = root.Find("Frame");
             Assert.IsNotNull(frame);
-            Assert.IsNotNull(root.Find("Scrollbar Horizontal"), "horizontal scrollbar should exist in this direction");
+            Assert.IsNotNull(root.Find("Scrollbar"), "the scrollbar should exist in this direction");
             Assert.AreEqual(root.childCount - 1, frame.GetSiblingIndex(),
                 "frame must remain the last sibling even though the horizontal scrollbar was created after it");
         }

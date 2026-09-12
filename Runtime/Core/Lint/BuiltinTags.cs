@@ -22,7 +22,7 @@ namespace PromptUGUI.Lint
             "Frame", "SafeArea", "Trigger", "Show", "Animation", "Decor",
             "Image", "RawImage", "Icon", "Text", "VStack", "HStack", "Grid",
             "Btn", "Toggle", "Tab", "TabBar", "TabMenu", "Collapsible", "Slider", "Progress",
-            "Dropdown", "ScrollList", "InputField", "Carousel", "Markdown",
+            "Dropdown", "ScrollList", "Scrollbar", "InputField", "Carousel", "Markdown",
         };
 
         internal static bool IsBuiltin(string tag) => All.Contains(tag);

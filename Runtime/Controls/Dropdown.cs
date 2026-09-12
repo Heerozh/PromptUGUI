@@ -11,7 +11,7 @@ using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class Dropdown : ProceduralControl
+    public sealed class Dropdown : ProceduralControl, IScrollbarHost
     {
         private UnityImage _bg;
 
@@ -24,8 +24,13 @@ namespace PromptUGUI.Controls
         private UnityImage _itemBg;
         private UnityImage _itemCheckmark;
         private TMP_Text _itemLabel;
-        private UnityImage _scrollbarBg;
-        private UnityImage _scrollbarHandle;
+        // The popup bar (spec 2026-09-12 §4.2): an authored <Scrollbar> child adopted into the
+        // Template, else the stock one built in the first OnAfterApply. TMP_Dropdown clones the
+        // whole Template on every Show, bar included.
+        private RectTransform _template;
+        private UnityEngine.UI.ScrollRect _templateScroll;
+        private Scrollbar _bar;
+        private bool _ownsBar;
         private RectTransform _popupViewport;
         private bool _popupMaskExplicit;
         private TMP_Dropdown _tmp;
@@ -70,6 +75,7 @@ namespace PromptUGUI.Controls
 
             // Template (popup root, anchored to dropdown's bottom edge so it grows downward).
             var template = ProceduralBuilders.AddChild(RectTransform, "Template");
+            _template = template;
             template.anchorMin = new Vector2(0f, 0f);
             template.anchorMax = new Vector2(1f, 0f);
             template.pivot = new Vector2(0.5f, 1f);
@@ -80,6 +86,7 @@ namespace PromptUGUI.Controls
             _templateBg.color = ProceduralBuilders.DefaultPopupBgColor;
             ProceduralBuilders.ApplyDefaultSlicedSprite(_templateBg);
             var templateScroll = template.gameObject.AddComponent<UnityEngine.UI.ScrollRect>();
+            _templateScroll = templateScroll;
             templateScroll.horizontal = false;
             templateScroll.movementType = UnityEngine.UI.ScrollRect.MovementType.Clamped;
 
@@ -92,7 +99,7 @@ namespace PromptUGUI.Controls
             _popupViewport.pivot = new Vector2(0f, 1f);
             _popupViewport.offsetMin = Vector2.zero;
             _popupViewport.offsetMax = Vector2.zero;
-            _popupViewport.sizeDelta = new Vector2(-18f, 0f);  // 留 18px 给 Vertical Scrollbar
+            // Width reservation for the bar is written by WireScrollbar once the bar exists.
             ProceduralBuilders.ApplyViewportMask(_popupViewport, null, ProceduralBuilders.SpriteRoundedRect);
 
             // Content (top-anchored; height grows to fit items via TMP_Dropdown's runtime sizing).
@@ -141,40 +148,6 @@ namespace PromptUGUI.Controls
             itemLabel.rectTransform.anchorMax = new Vector2(1f, 1f);
             itemLabel.rectTransform.offsetMin = new Vector2(20f, 1.5f);
             itemLabel.rectTransform.offsetMax = new Vector2(-10f, -1.5f);
-
-            // Scrollbar Vertical (default prefab 在 Template 内有这个子树)
-            var scrollbarRt = ProceduralBuilders.AddChild(template, "Scrollbar");
-            scrollbarRt.anchorMin = new Vector2(1f, 0f);
-            scrollbarRt.anchorMax = new Vector2(1f, 1f);
-            scrollbarRt.pivot = new Vector2(1f, 1f);
-            scrollbarRt.sizeDelta = new Vector2(20f, 0f);
-            scrollbarRt.anchoredPosition = Vector2.zero;
-            _scrollbarBg = scrollbarRt.gameObject.AddComponent<UnityImage>();
-            var scrollbarBg = _scrollbarBg;
-            scrollbarBg.color = ProceduralBuilders.DefaultControlBgColor; // white
-            ProceduralBuilders.ApplyDefaultInsetSprite(scrollbarBg);
-            var scrollbar = scrollbarRt.gameObject.AddComponent<UnityEngine.UI.Scrollbar>();
-            scrollbar.direction = UnityEngine.UI.Scrollbar.Direction.BottomToTop;
-            scrollbar.value = 0f;
-            scrollbar.size = 0.2f;
-
-            var slidingArea = ProceduralBuilders.AddChild(scrollbarRt, "Sliding Area");
-            slidingArea.sizeDelta = new Vector2(-20f, -20f);
-
-            _scrollbarHandle = ProceduralBuilders.AddImage(slidingArea, "Handle");
-            var sbHandle = _scrollbarHandle;
-            sbHandle.color = UnityEngine.Color.white;
-            ProceduralBuilders.ApplyDefaultSlicedSprite(sbHandle);
-            sbHandle.rectTransform.anchorMin = new Vector2(0f, 0f);
-            sbHandle.rectTransform.anchorMax = new Vector2(1f, 0.2f);
-            sbHandle.rectTransform.sizeDelta = new Vector2(20f, 20f);
-            sbHandle.rectTransform.anchoredPosition = Vector2.zero;
-            scrollbar.targetGraphic = sbHandle;
-            scrollbar.handleRect = sbHandle.rectTransform;
-
-            templateScroll.verticalScrollbar = scrollbar;
-            templateScroll.verticalScrollbarVisibility = UnityEngine.UI.ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
-            templateScroll.verticalScrollbarSpacing = -3f;
 
             templateScroll.viewport = _popupViewport;
             templateScroll.content = content;
@@ -257,6 +230,8 @@ namespace PromptUGUI.Controls
         internal override void OnAfterApply()
         {
             base.OnAfterApply();
+            // No authored <Scrollbar> came with the children — build the stock one now.
+            EnsureDefaultScrollbar();
             // popupMask 未显式写时跟随 popup bg sprite：有图→圆角 stencil，popupSprite=""→直角 RectMask2D
             // （对齐 ScrollList.mask / InputField 的 mask-tracks-border 先例；显式 popupMask= 一旦写过即跳过）。
             if (!_popupMaskExplicit)
@@ -343,32 +318,64 @@ namespace PromptUGUI.Controls
             set => LabelColorApplier.Apply(_itemLabel, value);
         }
 
-        /// <summary>弹窗滚动条轨道的 sprite。</summary>
-        [UIAttr(IsSprite = true), Preserve]
-        public string Scrollbar
+        // ───── the popup scrollbar (IScrollbarHost) ─────
+
+        // The Template carries the popup's ScrollRect; uGUI's expand mode needs the bar to be its
+        // direct child. TMP_Dropdown clones this whole subtree per Show, so the clone gets the bar
+        // (and its serialized Image state) for free.
+        RectTransform IScrollbarHost.ScrollbarHost => _template;
+
+        void IScrollbarHost.AdoptScrollbar(Scrollbar bar)
         {
-            set => _scrollbarBg.sprite = UI.ResolveSprite(value);
+            if (_bar != null && _bar != bar)
+            {
+                Debug.LogWarning(
+                    $"[{PromptUGUI.Lint.ScrollbarRules.DuplicateCode}] <Dropdown id='{Id}'>: a second " +
+                    $"<Scrollbar> (id='{bar.Id}') — a host takes one bar; the first in document order is " +
+                    "used and this one is parked inactive.");
+                bar.GameObject.SetActive(false);
+                return;
+            }
+            _bar = bar;
+            _ownsBar = false;
+            bar.AttachHost(this);
+            WireScrollbar();
         }
 
-        /// <summary>弹窗滚动条轨道的颜色。</summary>
-        [UIAttr(IsColor = true), Preserve]
-        public string ScrollbarColor
+        void IScrollbarHost.OnScrollbarChanged(Scrollbar bar)
         {
-            set => Internal.ColorApplier.Apply(_scrollbarBg, UI.Theme.ResolveSpec(value));
+            if (bar == _bar) WireScrollbar();
         }
 
-        /// <summary>弹窗滚动条滑块的 sprite。</summary>
-        [UIAttr(IsSprite = true), Preserve]
-        public string ScrollbarHandle
+        private void EnsureDefaultScrollbar()
         {
-            set => _scrollbarHandle.sprite = UI.ResolveSprite(value);
+            if (_bar != null) return;
+            var go = new GameObject(Scrollbar.NodeName, typeof(RectTransform));
+            go.transform.SetParent(_template, worldPositionStays: false);
+            var bar = new Scrollbar();
+            bar.AttachTo(go);
+            _bar = bar;
+            _ownsBar = true;
+            bar.AttachHost(this);
+            WireScrollbar();
         }
 
-        /// <summary>弹窗滚动条滑块的颜色。</summary>
-        [UIAttr(IsColor = true), Preserve]
-        public string ScrollbarHandleColor
+        /// <summary>
+        /// Always vertical here. Besides the ScrollRect wiring, the popup viewport's static width
+        /// reservation follows the bar: <c>−(thickness + spacing)</c>, which is exactly what the
+        /// ScrollRect drives it to in expand mode (no first-frame jump), and <c>0</c> for an overlaid
+        /// bar, where the ScrollRect leaves the viewport alone and the static value is final.
+        /// </summary>
+        private void WireScrollbar()
         {
-            set => Internal.ColorApplier.Apply(_scrollbarHandle, UI.Theme.ResolveSpec(value));
+            if (_bar == null || _templateScroll == null) return;
+            _bar.Orient(vertical: true);
+            if (_templateScroll.verticalScrollbar != _bar.Bar) _templateScroll.verticalScrollbar = _bar.Bar;
+            _templateScroll.verticalScrollbarVisibility = _bar.IsOverlay
+                ? UnityEngine.UI.ScrollRect.ScrollbarVisibility.AutoHide
+                : UnityEngine.UI.ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
+            _templateScroll.verticalScrollbarSpacing = _bar.ResolvedSpacing;
+            _popupViewport.sizeDelta = new Vector2(_bar.IsOverlay ? 0f : -(_bar.CurrentThickness + _bar.ResolvedSpacing), 0f);
         }
 
         public Observable<int> OnSelected => _selected;
@@ -397,6 +404,7 @@ namespace PromptUGUI.Controls
 
         public override void Dispose()
         {
+            if (_ownsBar) _bar?.Dispose();
             PromptUGUI.Application.UI.Locale.Changed -= ApplyFont;
             _selected.Dispose();
             base.Dispose();

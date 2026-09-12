@@ -88,8 +88,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var screen = OpenScreen("<ScrollList id='l' width='200' height='100'/>");
             var root = screen.Get<PromptUGUI.Controls.ScrollList>("l").GameObject.transform;
-            var sb = root.Find("Scrollbar Vertical");
-            Assert.IsNotNull(sb, "default direction is vertical → Scrollbar Vertical exists");
+            var sb = root.Find("Scrollbar");
+            Assert.IsNotNull(sb, "default direction is vertical → a Scrollbar node exists");
             var bg = sb.GetComponent<UnityEngine.UI.Image>();
             var handle = sb.Find("Sliding Area/Handle").GetComponent<UnityEngine.UI.Image>();
             Assert.AreEqual("pugui_9slice_inset", bg.sprite.name);

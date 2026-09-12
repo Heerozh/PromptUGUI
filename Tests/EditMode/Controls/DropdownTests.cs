@@ -226,7 +226,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Viewport_SizeDeltaXMinusEighteen()
+        public void Viewport_ReservesThicknessPlusSpacing()
         {
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'><Dropdown id='d'/></Screen></PromptUGUI>";
@@ -234,7 +234,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var d = UI.Open("S").Get<Dropdown>("d");
             var viewport = d.GameObject.transform.Find("Template/Viewport") as RectTransform;
             Assert.IsNotNull(viewport);
-            Assert.AreEqual(-18f, viewport.sizeDelta.x, "viewport sizeDelta.x = -18 reserves 18px for Vertical Scrollbar");
+            Assert.AreEqual(-17f, viewport.sizeDelta.x, "viewport sizeDelta.x = -(thickness + spacing) = -(20 - 3) reserves room for the bar");
         }
 
         [Test]
