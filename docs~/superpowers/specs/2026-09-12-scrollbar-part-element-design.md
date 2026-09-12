@@ -1,6 +1,6 @@
 # `<Scrollbar>` —— 滚动条作为部件子元素（程序化表面 + 几何 + 复用）
 
-> 状态：**设计稿**（2026-09-12 brainstorm，作者已确认 §11 的全部决策；待 plan）。
+> 状态：**已实现**（分支 `feat/scrollbar-part-element`，M0 + M1 一起做完；作者指示跳过 plan 直接实现、分步提交。实施记录见 §13）。
 > 需求来源：[`2026-09-12-scrolllist-scrollbar-procedural-surface-requirements.md`](2026-09-12-scrolllist-scrollbar-procedural-surface-requirements.md)（R1–R4 全部覆盖，语法改为本文的形态）。
 > 相关：
 > `2026-08-27-decor-primitives-design.md`（§2 否决「宿主属性」选子元素的先例 —— 本文同一条理由）、
@@ -459,3 +459,41 @@ override `CreateDropdownList(template)`：`base` 克隆之后，按层级路径�
 
 两个里程碑可以一个分支一个 PR，也可以合一；M0 单独可合并是为了让「删旧语法」这件破坏性的事有一个
 干净的、行为不变的落点。
+
+## 13. 实施记录（2026-09-12）
+
+### 13.1 与设计的偏差
+
+- **认领时机**（§12 第一条）：路由后立即。`ScreenInstantiator` 在子节点 `InstantiateRecursive` 返回后
+  从 `nodeMap` 取出 `Scrollbar` 控件调 `AdoptScrollbar` —— 此时子节点可能尚未 Apply（`applyOrder`
+  延迟模式），但接线与 `Orient` 只依赖 `PreConfigureContent` 已推下来的 `direction`。ReSolve 顺序
+  靠双向幂等消解：宿主 `OnAfterApply` 拉一次（`WireScrollbar` / `ApplyScrollbarPolicy`），条的
+  `OnAfterApply` 再推一次（`IScrollbarHost.OnScrollbarChanged`）。
+- **跨轴内缩按实际滑块厚度反推**：`h = max(1, t − 2S)`，Sliding Area 的侧向内缩取 `(t − h)/2` 而不是
+  作者写的 `S` —— 钳到 1 时 Sliding Area 恰好一个滑块宽，滑块留在轨道里。`t = 0` 时 `h = 0`、不告警
+  （`thickness="0"` 是「没有条」，不该多出 1 像素滑块）。测试与运行时用同一条推导。
+- **默认几何的断言方式**：uGUI 的 `ScrollRect` 在首次 `Rebuild(PostLayout)` 就把空列表的 `Scrollbar.size`
+  写成 1（内容为空 → 滑块占满），所以「逐像素」断言用父空间角点 + **实时的 `value` / `size`** 代入
+  §5.1 公式，而不是假设 `size = 0.2`；Dropdown 的 Template 未激活、没有 rebuild，仍是 0.2 / 0。
+- **节点名**：`Scrollbar`，但 `id` 会照常改名（`go.name = node.Id`）—— 与所有控件一致，文档已写明。
+- **`PUI-THEME-STYLE-SHAPE` 未按表面分组**：只把 `handle*` 整组并入形状集，沿用 all-or-nothing 判定
+  （某主题只写半组 → 报；一组 vs 空 → 免）。`PUI-VARIANT-NO-BASE` 则真正按组判：组内无任何 base →
+  自愈，否则报。`ProceduralAttrNames.InnerLayerRadius` 保留为「带 radius 语法的内层属性」，新增
+  `InnerLayerGroups` / `InnerLayerShape` / `InnerLayerGroupOf`。
+- **XSD 类型**：`thickness` 走 `ScrollbarAttrParser`（string setter）→ `xs:string`；`spacing` / `padding`
+  在生成器的 `commonAttrs` 组里，不单列。值语法由 lint 保证。
+- **`PuiDropdown`** 为 M1 一并落地（M0 阶段 Image 状态本来就随克隆走）；`CloneListForTests` 是唯一的
+  测试钩子，走的正是 `CreateDropdownList` 重写。
+
+### 13.2 落地清单
+
+- 运行时：`Controls/Scrollbar.cs`、`Controls/Internal/IScrollbarHost.cs`、`Controls/Internal/PuiDropdown.cs`、
+  `Core/Parser/ScrollbarAttrParser.cs`；`ScrollList` / `Dropdown` 改为宿主；`ProceduralControl.AddInnerSurface(host, selectable)`；
+  `ProceduralPanel.CopyStateFrom` / `CopyStateToClone`；`ScreenInstantiator` 路由；`BuiltinPrimitives` 注册。
+- lint：`Core/Lint/ScrollbarRules.cs`（八条），`ProceduralSurfaceRules` 按层冲突表，`StyleRules` 值语法，
+  `VariantBaseRules` / `ThemeStyleRules` 分组，`BuiltinTags` / `SurfaceTags` 加 `Scrollbar`。
+- 测试：`ScrollbarTests`（35）、`ScrollbarRulesTests`（含 M1 推广的三条规则）；`ScrollListScrollbarTests` 删除并迁入；
+  `DefaultSkinTests` / `ScrollListTests` / `DropdownTests` / `InnerLayerSkinAttrTests` / `ProceduralSurfaceRolloutTests` /
+  `XsdGeneratorTests` 按新节点名与退役属性更新。EditMode 3777 / EditorOnly 344 / PlayMode 201 全绿。
+- 演示：CommonControls（`scrollbar` 一个包穿三根条，玻璃主题下两层胶囊）、ProceduralStyle（列表条改程序化胶囊）。
+- 文档：XML skill 主文 + `reference/controls-scrollbar.md`（新）+ `controls-collapsible.md`；C# skill；CLAUDE.md 触发表；主 spec §5。
