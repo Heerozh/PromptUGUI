@@ -25,6 +25,8 @@ Shader "UI/Decor"
         _Kind      ("Kind", Float) = 1
         _Thickness ("Stroke Thickness", Float) = 2
         _GlowSize  ("Glow Size", Float) = 0
+        // 曝光倍数（spec 2026-09-12）：1 = 不变，越大越白。
+        _Intensity ("Intensity", Float) = 1
 
         _StencilComp ("Stencil Comparison", Float) = 8
         _Stencil ("Stencil ID", Float) = 0
@@ -108,6 +110,7 @@ Shader "UI/Decor"
             float _Kind;
             float _Thickness;
             float _GlowSize;
+            float _Intensity;
 
             v2f vert(appdata_t v)
             {
@@ -146,6 +149,9 @@ Shader "UI/Decor"
                     glow.a *= g * g * (1.0 - inside);
                     col = PuguiOver(col, glow);
                 }
+
+                // 曝光：填充 + 发光的合成上一次，顶点色之前（同面板）。
+                col = PuguiExpose(col, _Intensity);
 
                 col *= IN.color;
 

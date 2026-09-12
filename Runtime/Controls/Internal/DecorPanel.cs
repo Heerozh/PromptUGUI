@@ -38,6 +38,7 @@ namespace PromptUGUI.Controls.Internal
         private bool _glowColorExplicit;
         private float _thickness = 2f;
         private float _glowSize;
+        private float _intensity = IntensityAttrParser.Default;
 
         private DecorParams _key;
         private bool _hasKey;
@@ -143,6 +144,13 @@ namespace PromptUGUI.Controls.Internal
             MarkDirty();
         }
 
+        /// <summary>Exposure of everything the decor paints; 1 = unchanged. Material-only.</summary>
+        public void SetIntensity(float intensity)
+        {
+            _intensity = Mathf.Max(IntensityAttrParser.Min, intensity);
+            MarkDirty();
+        }
+
         internal DecorParams CurrentParams => BuildParams();
         internal bool IsPanelVisible => ComputeVisible();
 
@@ -158,7 +166,7 @@ namespace PromptUGUI.Controls.Internal
                 ? _glowColor
                 : (_fillTop.a > 0f || _fillBottom.a > 0f ? _fillTop : Color.white);
             return new DecorParams(_fillTop, _fillBottom, _fillStopTop, _fillStopBottom, _fillCurve,
-                                   glow, _kind, thickness, _glowSize);
+                                   glow, _kind, thickness, _glowSize, _intensity);
         }
 
         private bool ComputeVisible()

@@ -48,6 +48,7 @@ namespace PromptUGUI.Controls
         private float _glow;
         private UnityColor _glowColor;
         private bool _glowColorDeclared;
+        private float _intensity = IntensityAttrParser.Default;
         private float _inset;
         private float _offset;
         private Sprite _sprite;
@@ -86,6 +87,7 @@ namespace PromptUGUI.Controls
             _fill = ColorSpec.Solid(UnityColor.white);
             _glow = 0f;
             _glowColorDeclared = false;
+            _intensity = IntensityAttrParser.Default;
             _inset = 0f;
             _offset = 0f;
             _sprite = null;
@@ -163,6 +165,16 @@ namespace PromptUGUI.Controls
                 _glowColor = UI.Theme.Resolve(value);
                 _glowColorDeclared = true;
             }
+        }
+
+        /// <summary>
+        /// Exposure of everything the decor paints (≥ 1, default 1 = unchanged): a neon divider
+        /// or a lit corner bracket. Drawn kinds only — a picture has no light to expose.
+        /// </summary>
+        [UIAttr, Preserve]
+        public string Intensity
+        {
+            set => _intensity = IntensityAttrParser.Parse(value);
         }
 
         /// <summary>
@@ -263,6 +275,7 @@ namespace PromptUGUI.Controls
             panel.SetGlowSize(_glow);
             if (_glowColorDeclared) panel.SetGlowColor(_glowColor);
             else panel.ClearGlowColor();
+            panel.SetIntensity(_intensity);
 
             // Eagerly, so a freshly built instance owns its material before anything renders
             // (Frame.OnAfterApply does the same for its panel).

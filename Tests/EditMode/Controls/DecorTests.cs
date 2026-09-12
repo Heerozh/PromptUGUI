@@ -184,5 +184,45 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             Assert.Throws<ParseException>(() => Load("kind='sparkle'"));
         }
+
+        // ---- intensity (spec 2026-09-12): the same exposure knob the panel has ----
+
+        private static DecorPanel FirstPanel(Decor d) => d.GameObject.GetComponentInChildren<DecorPanel>();
+
+        [Test]
+        public void Intensity_DefaultsToOne()
+        {
+            Assert.AreEqual(1f, FirstPanel(Load("kind='line' glow='6'")).CurrentParams.Intensity, 0.0001f);
+        }
+
+        [Test]
+        public void Intensity_ReachesEveryInstance()
+        {
+            // One attribute, four corner instances: the material key is built per instance from
+            // the control's fields, so each has to carry it.
+            var d = Load("kind='bracket' intensity='4'");
+            foreach (var p in d.GameObject.GetComponentsInChildren<DecorPanel>())
+                Assert.AreEqual(4f, p.CurrentParams.Intensity, 0.0001f);
+        }
+
+        [Test]
+        public void Intensity_Empty_ResetsToOne()
+        {
+            Assert.AreEqual(1f, FirstPanel(Load("kind='line' intensity=''")).CurrentParams.Intensity, 0.0001f);
+        }
+
+        [Test]
+        public void Intensity_BelowOne_Throws()
+        {
+            var ex = Assert.Throws<ParseException>(() => Load("kind='line' intensity='0.5'"));
+            StringAssert.Contains("intensity", ex.Message);
+        }
+
+        [Test]
+        public void Intensity_DoesNotMakeAnEmptyDecorVisible()
+        {
+            // Nothing painted, nothing to light — same rule as the panel.
+            Assert.IsFalse(FirstPanel(Load("kind='line' color='#0000' intensity='4'")).IsPanelVisible);
+        }
     }
 }
