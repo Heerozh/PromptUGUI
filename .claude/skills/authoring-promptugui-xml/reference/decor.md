@@ -52,6 +52,7 @@ position** in `at=`, so all four corner brackets of a card are a single element.
 | `thickness` | bracket, line | px | `2` | stroke width |
 | `color` | all | token / hex / CSS name / `/alpha` / comma gradient / `A 70%,B` 色标 / `A,70%,B` 提示 | `white` | drawn by the SDF shader, so gradient stop positions and colour hints apply; on `sprite` it is a plain tint (no gradient) |
 | `glow` / `glowColor` | SDF kinds | same as `<Frame>` | `0` / follows fill | inflates the drawn quad only, never the layout |
+| `intensity` | SDF kinds | number `≥ 1` | `1` | same exposure curve as `<Frame>`: a neon divider (`kind="line" glow="8" intensity="4"`) or a lit bracket — the stroke whitens, the glow keeps its hue. A `sprite` decor has no curve to run (`PUI-DECOR-ATTR`) |
 | `inset` | all | signed px | `0` | positive = inwards from flush, negative = outside the host |
 | `offset` | tick, line | signed px | `0` | slides along the edge from its centre |
 | `sprite` | sprite | sprite key | — (`PUI-DECOR-SPRITE`) | resolved like every other `sprite=` |

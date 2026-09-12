@@ -47,6 +47,11 @@ attribute. Writing any of them without `glass="true"` is a lint error
 | `noise` | `0`–`1` | `0.02` | Frosted grain, scaled by √luminance so it reads the same over dark and bright backdrops (a constant linear amplitude would be ~7× louder on a dark backdrop after the sRGB curve). Doubles as dithering against banding on large blurred areas |
 | `seam` | px, signed | `3` | **`weld` groups only** (`PUI-GLASS-SEAM-NO-WELD` elsewhere). How far the thickness step's glow reaches from the raised block's contour, and — by its **sign** — which side it falls on: `+` outside the block, `−` inside it. The bright line hugs the contour either way and takes roughly a third of the magnitude; the rest is the fade. `0` = as sharp as the screen can draw |
 
+**Not on glass: `intensity`.** The exposure knob lights what a surface *emits*; a pane's body is the
+backdrop behind it, and exposing that would brighten the scene through the glass rather than the
+glass. The runtime ignores it on a glass pane and on a weld carrier (`PUI-GLASS-INTENSITY`) — the
+pane's own light is `lightIntensity`. Keep it for the opaque surfaces around the glass.
+
 Reused unchanged: `color` (tint painted over the glass — comma gradients, gradient **stop positions** and **hints** (`"A 70%,B"` / `"A, 70%, B"`, which glass draws per-pixel) and `/alpha` work exactly as
 elsewhere), `radius`, `borderWidth` / `borderColor`, `glow` / `glowColor`,
 `innerGlow` / `innerGlowColor` (painted over the tint, so it lights the pane's edge without touching
@@ -227,6 +232,7 @@ of them is silent at runtime, which is why they exist.
 | `PUI-GLASS-WELD-MEMBERS` | a weld group with fewer than 2 or more than 8 glass children |
 | `PUI-GLASS-WELD-PARAM-PLACEMENT` | a group-level parameter on a member, or a per-block one on the carrier |
 | `PUI-GLASS-SEAM-NO-WELD` | `seam` on a node with no `weld` — only a fused group has a thickness step |
+| `PUI-GLASS-INTENSITY` | `intensity` on a glass pane or a weld carrier — glass paints the backdrop, which is not light the surface emits, so the value is ignored |
 | `PUI-MASK-WELD-SELF` | `mask="self"` on a `weld` carrier — the fused pane is on a child |
 | `PUI-PROC-SPRITE-CONFLICT` | `sprite=` on a control that is drawing procedurally |
 | `PUI-PROC-STATE-SPRITE-CONFLICT` | `pressedSprite` / `disabledSprite` on a procedural surface |
