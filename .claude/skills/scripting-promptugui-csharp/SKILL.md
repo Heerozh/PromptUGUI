@@ -521,6 +521,95 @@ opening a browser. Want `.md` links to open nested MarkdownBoxes? That's one lin
 
 **Requires Markdig**: see *Setup — installing Markdig* in authoring-promptugui-xml → [`reference/controls-markdown.md`](../authoring-promptugui-xml/reference/controls-markdown.md). Without Markdig (`UI.Markdown.Renderer == null`) `<Markdown>` displays the raw source as a single plain `<Text wrap>` and logs a one-time `Debug.LogWarning`.
 
+## Instantiating a template from C# (`screen.Instantiate`)
+
+For things that are generated per data item but are **not a list** — nameplates that follow
+bodies on a star map, floating damage numbers, map markers — where the host keeps its own pool
+and positions, and only needs "give me one instance of this template":
+
+```csharp
+IControl Instantiate(string template, IControl parent);        // lands where an XML child of parent would
+IControl Instantiate(string template, RectTransform parent);   // exactly there (positioning shell, prefab inner RT)
+```
+
+```xml
+<Template name="Nameplate">
+  <Frame anchor="stretch">
+    <Text id="name" anchor="center" fontSize="14">?</Text>
+  </Frame>
+</Template>
+<Screen name="StarMap">
+  <Frame id="labelLayer" anchor="stretch"/>
+</Screen>
+```
+
+```csharp
+var plate = screen.Instantiate("Nameplate", screen.Get("labelLayer"));
+plate.Get<Text>("name").TextValue = body.Name;
+body.Name.Subscribe(n => plate.Get<Text>("name").TextValue = n).AddTo(plate);   // instance lifetime
+// ...
+plate.Dispose();                                                              // the ONLY way to destroy it
+```
+
+- **`template` is what you would write in `itemTemplate=`**: a `<Template name>` visible to this
+  Screen's document (own file, Imports as `ns.Name`, commons) first, then a registered Control tag
+  (`Instantiate("Text", …)` gives a bare `<Text>`). Neither → `KeyNotFoundException`, like `Get`.
+- **Every `<Param>` of the template needs a `default=`** — there is no invocation to supply
+  arguments (same rule as `itemTemplate=`; a violation throws `ParseException` naming the call).
+  Runtime data goes through setters on the instance, not through params.
+- **Ids live in the instance's own scope**: `root.Get<T>("id")` / `root.Get("a/b")`. They never
+  appear in `screen.Get(...)`, so a hundred instances of one template do not collide.
+- **The instance re-solves with the Screen** exactly like a `BindItems` row: Variant flips, theme
+  switches and locale changes replay its attributes (code-set `TextValue` / `isOn` / `value` are
+  kept — the runtime-takeover lock); `scale="Nx"` / `<r>r` follow the canvas; a plain resize
+  replays scale only. Cost is linear in instances (a few µs each); hidden instances are replayed too.
+- **`parent` must be inside this Screen** (an `ArgumentException` otherwise). An `IControl` parent
+  puts the instance where an XML child of it would go — a `<Btn>`'s content holder, a
+  `<Collapsible>`'s body — not necessarily on its own `RectTransform`. A `RectTransform` parent is
+  used verbatim.
+- **Destroy with `root.Dispose()`**, never `Object.Destroy(root.GameObject)`. `Dispose` releases
+  every subscription tracked with `.AddTo(root)` / `.AddTo(child)` and then destroys the (wrapper-
+  aware) GameObject. A bare `Destroy` is tolerated — the Screen forgets the instance lazily — but
+  those subscriptions leak until the Screen closes. Instances still alive at `Close` are disposed by
+  the Screen; there is no `Screen.Destroy(instance)` API.
+- **After a hot reload, instantiate again** — the Screen was rebuilt, the instances are gone (same
+  rule as re-calling `BindItems`).
+
+**Host-driven position: use a positioning shell.** A ReSolve replays the instance root's declared
+`anchor` / `size` / `margin`, so a position you wrote to `root.RectTransform.anchoredPosition` jumps
+back to the template's declared spot on the next Variant / theme / locale change. Content you
+reposition every frame does not care; anything that sits still does. Keep host-driven geometry on a
+RectTransform **you** own and instantiate the template inside it with `anchor="stretch"` — the
+built-in focus cursor works this way:
+
+```csharp
+var layer = screen.Get("labelLayer");
+var shell = new GameObject("np", typeof(RectTransform)).GetComponent<RectTransform>();
+shell.SetParent(layer.RectTransform, worldPositionStays: false);
+shell.sizeDelta = new Vector2(120, 32);
+var plate = screen.Instantiate("Nameplate", shell);       // template root anchor="stretch"
+// every frame: shell.anchoredPosition = WorldToCanvas(body.Position);
+// teardown:    plate.Dispose(); Object.Destroy(shell.gameObject);
+```
+
+**Pooling is a host-side ten-liner.** `Hidden` set from code survives ReSolve (it is only replayed
+when the node declares `hidden=` — so don't declare it on a template you pool), and `Dispose`
+cascades, so:
+
+```csharp
+sealed class PlatePool {
+    readonly Stack<IControl> _free = new();
+    public IControl Rent() {
+        if (_free.TryPop(out var c)) { c.Hidden = false; return c; }
+        return screen.Instantiate("Nameplate", layer);
+    }
+    public void Return(IControl c) { c.Hidden = true; _free.Push(c); }   // caller re-binds on Rent, like a BindItems binder
+}
+```
+
+A reused instance keeps whatever the previous user set — bind everything you care about on every
+`Rent`, the same contract as a `BindItems` binder.
+
 ## Variant switching at runtime
 
 ```csharp
@@ -704,6 +793,8 @@ If `UI.Theme.Resolve` throws, the exception flows through the reflection setter 
 | Attrs silently default in IL2CPP build    | Forgot `[Preserve]` next to `[UIAttr]` — Medium+ stripping drops PropertyInfo metadata, reflection misses the property | Always write `[UIAttr, Preserve]` (both from `PromptUGUI.Registry`)                               |
 | ScrollList shows nothing after hot-reload | `BindItems` subscription disposed on close, but the ScrollList is rebuilt on reload                                    | Re-call `BindItems` on reload — the convention is to re-wire from a single `OnOpened` entry point |
 | `<Icon>` shows pink/error sprite          | `UI.SpriteResolver` not set (or `SpriteSet` not in Resources/SpriteSets)                                               | Call `SpriteResolverHelpers.UseSpriteSetResolver(...)` before any Screen opens                    |
+| Callbacks keep firing on a destroyed `Instantiate`'d subtree | `Object.Destroy(root.GameObject)` — the GameObject is gone but `.AddTo(root)` subscriptions were never released | `root.Dispose()` — releases tracked subscriptions, then destroys the (wrapper-aware) GameObject   |
+| `Instantiate`'d nameplate jumps back to the template's position on a Variant / theme switch | ReSolve replays the instance root's declared `anchor` / `size` / `margin` | Position a RectTransform shell you own and instantiate the template inside it (`anchor="stretch"`) |
 
 ## Quick reference (cheatsheet)
 
@@ -721,6 +812,12 @@ OPEN/CLOSE     var screen = UI.Open("Name");                  returns IScreen
 GET            screen.Get<Btn>("id")                          typed
                screen.Get("id")                               untyped (IControl)
                screen.Get<Btn>("outerId/innerId")             path into Template body
+
+INSTANTIATE    var root = screen.Instantiate("Tpl", parent)   parent: IControl (lands as an XML child would) or RectTransform
+                                                              name = same thing as itemTemplate=; every <Param> needs default=
+               root.Get<Text>("id")                           ids scoped to the instance, never in screen.Get
+               root.Hidden = true                             survives ReSolve → pool primitive
+               root.Dispose()                                 the way to destroy it (releases .AddTo(root) subs)
 
 EVENTS (R3)    .OnClick                Btn
                .OnState                Btn/Tab/Toggle:InteractState (Normal/Hover/Pressed/Selected/Disabled/Focused; replays current)

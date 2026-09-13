@@ -16,6 +16,34 @@ namespace PromptUGUI.Application
         public T Get<T>(string id) where T : class, IControl;
         public IControl Get(string id);
         public void Focus(string idPath);
+
+        /// <summary>
+        /// Instantiate one subtree of <paramref name="template"/> under <paramref name="parent"/> and
+        /// return its root. <paramref name="template"/> is what you would write in
+        /// <c>itemTemplate=</c>: a <c>&lt;Template&gt;</c> visible to this Screen's document (own file,
+        /// Imports as <c>ns.Name</c>, commons) first, then a registered Control tag. The instance lands
+        /// where an XML child of <paramref name="parent"/> would (its content host, not necessarily its
+        /// own RectTransform).
+        /// <para>Ids inside the body live in the root's own scope — <c>root.Get&lt;T&gt;("id")</c> —
+        /// and never in <see cref="Get(string)"/>. The instance re-solves with the Screen (Variant /
+        /// theme / scale) like a <c>BindItems</c> row. Destroy it with <c>root.Dispose()</c>; whatever
+        /// is still alive is disposed by <see cref="IDisposable.Dispose"/> / Close.</para>
+        /// </summary>
+        /// <exception cref="System.Collections.Generic.KeyNotFoundException">
+        /// <paramref name="template"/> is neither a visible Template nor a registered Control.</exception>
+        /// <exception cref="Parser.ParseException">The Template has a <c>&lt;Param&gt;</c> with no
+        /// <c>default=</c> — there is no invocation to supply it.</exception>
+        /// <exception cref="ArgumentException"><paramref name="parent"/> is not inside this Screen.</exception>
+        /// <exception cref="InvalidOperationException">The Screen is not open.</exception>
+        public IControl Instantiate(string template, IControl parent);
+
+        /// <summary>
+        /// <see cref="Instantiate(string, IControl)"/> with an explicit RectTransform — for a
+        /// positioning shell the caller built itself (a ReSolve replays the instance root's declared
+        /// geometry, so host-driven position belongs on a parent the host owns) or the inner transform
+        /// of a prefab-backed custom control. Must be inside this Screen.
+        /// </summary>
+        public IControl Instantiate(string template, RectTransform parent);
     }
 
     public sealed class Screen : IScreen
@@ -471,6 +499,12 @@ namespace PromptUGUI.Application
                     _dynamicSubtrees.RemoveAt(i);
         }
 
+        /// <summary>Test hook: dynamic subtrees still registered once the dead ones are pruned.</summary>
+        internal int LiveDynamicSubtreeCount
+        {
+            get { PruneDeadDynamicSubtrees(); return _dynamicSubtrees.Count; }
+        }
+
         // Sets _hasFactorScale if any currently-instantiated node uses a factor-dependent scale
         // form (scale="Nx" or scale="<r>r"). Called at Open and re-run in ReSolve: Add-block
         // activation (Strategy C) can introduce such nodes into _nodeMap after Open. Activated
@@ -670,6 +704,14 @@ namespace PromptUGUI.Application
             // so without explicit cancellation LitMotion callbacks can fire on
             // already-destroyed RectTransforms.
             foreach (var c in _nodeMap.Values) c.Dispose();
+            // Instantiate()'d subtrees are nobody's child: no host disposes them, so the subscriptions
+            // tracked on them (.AddTo(instance)) would outlive the GameObjects and keep firing into
+            // destroyed controls. Sweep the dynamic table — for BindItems rows their host already did
+            // this and a second Dispose is a no-op (bag emptied; DestroyImmediate'd host returns early,
+            // a pending PlayMode Destroy is silently ignored). Not gated on GameObject == null on
+            // purpose: an EditMode cascade from the static tree has already destroyed the GameObject,
+            // but the subscription bag still needs emptying.
+            foreach (var subtree in _dynamicSubtrees) subtree.Root.Dispose();
             if (RootGameObject != null)
             {
                 if (UnityEngine.Application.isPlaying)
@@ -721,6 +763,46 @@ namespace PromptUGUI.Application
         /// nav targets that are inactive at the moment of wiring.</summary>
         internal bool TryGet(string id, out IControl control) =>
             _byId.TryGetValue(id, out control);
+
+        /// <inheritdoc/>
+        public IControl Instantiate(string template, IControl parent)
+        {
+            if (parent == null) throw new ArgumentNullException(nameof(parent));
+            if (parent is not Control host)
+                throw new ArgumentException(
+                    $"Instantiate(\"{template}\"): parent must be a PromptUGUI Control", nameof(parent));
+            // Where an XML child of this control goes (Btn's content holder, ScrollList's Content,
+            // Collapsible's body …) — documented to be a RectTransform.
+            return Instantiate(template, (RectTransform)host.ChildHostTransform);
+        }
+
+        /// <inheritdoc/>
+        public IControl Instantiate(string template, RectTransform parent)
+        {
+            if (string.IsNullOrEmpty(template))
+                throw new ArgumentException("template name is empty", nameof(template));
+            var context = $"Instantiate(\"{template}\")";
+            // Before the parent checks: after Close every control of this Screen is destroyed, and
+            // "not open" is the answer that explains that, not "parent is null".
+            if (RootGameObject == null)
+                throw new InvalidOperationException($"{context}: screen '{Name}' is not open");
+            if (parent == null) throw new ArgumentNullException(nameof(parent));
+            // The subtree is registered on THIS Screen (ReSolve / scale), and everything inside it that
+            // needs its Screen — Toggle.group, a nested itemTemplate, a Trigger's @id fallback — finds
+            // it by walking the transform up to RootGameObject. Anywhere else it would silently break.
+            if (!parent.IsChildOf(RootGameObject.transform))
+                throw new ArgumentException(
+                    $"{context}: parent '{parent.name}' is not inside screen '{Name}'", nameof(parent));
+
+            if (!TemplateFactoryResolver.TryResolve(this, template, context, out var factory))
+                throw new KeyNotFoundException(
+                    $"{context}: '{template}' is neither a <Template> visible to screen '{Name}' " +
+                    "nor a registered Control");
+            var root = factory(parent);
+            if (root == null)
+                throw new InvalidOperationException($"{context}: the template body produced no root");
+            return root;
+        }
 
         /// <summary>Programmatically move EventSystem selection to the control at <paramref name="idPath"/>.</summary>
         public void Focus(string idPath)

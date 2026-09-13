@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using PromptUGUI.Application;
-using PromptUGUI.IR;
 using PromptUGUI.Parser;
 using R3;
 using UnityEngine;
@@ -190,25 +189,10 @@ namespace PromptUGUI.Controls.Internal
 
         private Func<RectTransform, IControl> ResolveFactory(string tag)
         {
+            // Same resolver as ScrollList / Carousel / Screen.Instantiate; only the not-found error is ours.
             var owner = UI.OwnerScreenOf(_owner);
-            if (owner?.Def?.Templates != null && owner.Def.Templates.TryGetValue(tag, out var tpl))
-            {
-                ItemTemplateGuard.EnsureInstantiable(tag, tpl);
-                return parent =>
-                {
-                    var instantiator = UI.GetInstantiator();
-                    return instantiator.InstantiateNode(tpl.Body, parent, owner);
-                };
-            }
-            if (UI.Registry.Has(tag))
-            {
-                return parent =>
-                {
-                    var instantiator = UI.GetInstantiator();
-                    var node = new ElementNode(tag);
-                    return instantiator.InstantiateNode(node, parent, owner);
-                };
-            }
+            if (TemplateFactoryResolver.TryResolve(owner, tag, $"itemTemplate='{tag}'", out var factory))
+                return factory;
             throw new ParseException(
                 $"<{_owner.GetType().Name} itemTemplate='{tag}'>: tag is neither a registered Control nor a Template");
         }
