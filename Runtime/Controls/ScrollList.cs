@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
-using PromptUGUI.IR;
 using PromptUGUI.Parser;
 using PromptUGUI.Registry;
 using R3;
@@ -491,27 +490,12 @@ namespace PromptUGUI.Controls
         private Func<RectTransform, IControl> ResolveFactory(string tag)
         {
             if (string.IsNullOrEmpty(tag)) return null;
+            // Template first, then a registered Control — one resolver shared with Carousel / TabBar /
+            // Screen.Instantiate; only the not-found exception is ours (it is an attribute value error).
             var owner = PromptUGUI.Application.UI.OwnerScreenOf(this);
-            // 1) Template
-            if (owner?.Def?.Templates != null && owner.Def.Templates.TryGetValue(tag, out var tpl))
-            {
-                Internal.ItemTemplateGuard.EnsureInstantiable(tag, tpl);
-                return parent =>
-                {
-                    var instantiator = PromptUGUI.Application.UI.GetInstantiator();
-                    return instantiator.InstantiateNode(tpl.Body, parent, owner);
-                };
-            }
-            // 2) Control class
-            if (PromptUGUI.Application.UI.Registry.Has(tag))
-            {
-                return parent =>
-                {
-                    var instantiator = PromptUGUI.Application.UI.GetInstantiator();
-                    var node = new ElementNode(tag);
-                    return instantiator.InstantiateNode(node, parent, owner);
-                };
-            }
+            if (PromptUGUI.Application.TemplateFactoryResolver.TryResolve(
+                    owner, tag, $"itemTemplate='{tag}'", out var factory))
+                return factory;
             throw new ParseException(
                 $"<ScrollList itemTemplate='{tag}'>: tag is neither a registered Control nor a Template");
         }
