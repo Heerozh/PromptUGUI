@@ -556,6 +556,8 @@ IEnumerable<ItemSlot> slots = screen.GetAll<ItemSlot>();
 - `Get` 找不到 → 抛异常（fail loud）
 - `TryGet` 提供给运行时不确定存在的场景
 
+**运行时按名实例化（since 2026-09-13）**：`IControl inst = screen.Instantiate("Card", parent)` —— 名字解析与 `itemTemplate=` 相同（可见 `<Template>` 优先，其次注册 Control tag），`parent` 是本 Screen 内的 `IControl`（落到其子节点宿主）或 `RectTransform`；实例是动态子树：id 进自己的 scope（`inst.Get<T>("id")`）、随 Screen 重解算、`inst.Dispose()` 销毁。详见 `2026-09-13-runtime-template-instantiate-design.md`。
+
 ### 9.3 自定义控件作者模式
 
 一个自定义控件 = Prefab + 类 + 一次注册。

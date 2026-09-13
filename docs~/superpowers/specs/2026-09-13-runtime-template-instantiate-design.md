@@ -1,6 +1,6 @@
 # `Screen.Instantiate` —— 按名在运行时实例化一棵模板子树（公开 C# API）
 
-> 状态：**设计已与作者对齐（2026-09-13，见 §10），待 plan / 实现。**
+> 状态：**已实现**（分支 `feat/screen-instantiate`，2026-09-13 与作者对齐后跳过 plan 直接实现、分步提交；实施记录见 §13）。
 > 需求来源：宿主工程 —— 星图上跟着天体走的铭牌池、飘字、标记：不是列表、按数据成组生成、频繁增删，
 > 宿主自己维护位置和池，只要「给我一个模板实例」。
 > 相关：
@@ -338,3 +338,26 @@ sealed class PlatePool {
    本文不扩大范围；若实现期顺手，`TryResolveTemplateFactory` 里对「guard 通过后仍 `BodyExpanded == false`」的模板给一条清楚的 `ParseException` 即可，
    三个宿主一并受益。
 3. `Instantiate` 的 `template` 是否 `Trim()` —— 与 `itemTemplate=` 保持一致（今天不 Trim）。
+
+## 13. 实施记录（2026-09-13）
+
+### 13.1 与设计的偏差
+
+- **解析器的家**（§12.1）：独立文件 `Runtime/Application/TemplateFactoryResolver.cs`（`internal static bool TryResolve(Screen owner, string name, string context, out Func<RectTransform, IControl> factory)`），没塞进 `Screen.cs`。四个调用方：`ScrollList` / `Carousel` / `TabGroupCore` 的 `ResolveFactory` 各缩成 5 行（未命中仍抛自己那条 `ParseException`，消息逐字不变），`Screen.Instantiate` 未命中抛 `KeyNotFoundException`。
+- **`Close` 的扫表不按 `GameObject == null` 过滤**（§5.3 写的是「仍活着的根」）：EditMode 下 `_nodeMap` 那一轮 `DestroyImmediate` 会顺着级联把实例的 GO 先销毁掉，此时 `Root.GameObject` 已是 null、但订阅袋还没倒 —— `Control.Dispose` 先 `DisposeSubscriptionsRecursive` 再看 GO，对每个条目无条件调一次才是对的；对已被宿主释放过的行是 no-op（袋已空、GO 为 null 直接返回；PlayMode 下重复 `Destroy` 被 Unity 忽略）。`Close_DisposesLiveInstances` 在注释掉这一行时确认为红。
+- **顺手修掉的既有泄漏**：`TabGroupCore.Dispose` 不调 `ClearTabs`，`TabBar` / `TabMenu` 经 `BindItems` 建出来的 Tab 上 `.AddTo(tab)` 的订阅在 `Close` 时此前无人释放；扫表后一并覆盖。
+- `ItemTemplateGuard.EnsureInstantiable(context, tpl)` 的正文从「An item template is instantiated without an invocation … point itemTemplate at a template」改为不含属性名的说法；`ItemTemplateExpansionTests` 的子串断言不受影响。
+
+### 13.2 未做（按 §12 留给实现期的开放问题）
+
+- §12.2 根 `if=` 为假导致 body 未展开的既有边角：未加额外报错，行为与 itemTemplate 今天一致。
+- §12.3 `template` 不 `Trim()`，与 `itemTemplate=` 一致。
+
+### 13.3 落地清单
+
+| 提交 | 内容 |
+|---|---|
+| `docs(spec)` | 本文 |
+| `refactor(template)` | `TemplateFactoryResolver` + `ItemTemplateGuard` 前缀参数化 + 三个宿主改调解析器；回归 78 条全绿 |
+| `feat(screen)` | `IScreen.Instantiate` ×2、`Screen.Instantiate` 实现、`Close` 扫表、`LiveDynamicSubtreeCount` 测试钩子；`ScreenInstantiateTests` 15 条；EditMode 3792 / PlayMode 201 全绿；`dotnet format --verify-no-changes --severity warn` 通过 |
+| `docs(skill)` | C# skill 新小节 "Instantiating a template from C#"（含定位壳与十行池）+ cheatsheet + Common mistakes 两行；XML skill `itemTemplate=` 展开段补一句；主 spec §9.2 加指针；本节 |
