@@ -161,6 +161,11 @@ namespace PromptUGUI.Tests.Application
             // Simulate the "Domain Reload off" path: keep ThemeStore + Theme.Current
             // alive but feed the resolver new XML content (mirrors what an edited
             // .ui.xml would deliver on the next Resources.Load call).
+            // The real re-Play boundary is [OnEnteringPlayMode] → UnloadAll, which also
+            // drops the cross-document source cache (DocumentCache); without it the
+            // second load would be served the first parse. ThemeStore survives UnloadAll,
+            // so "Register must replace, not skip" is still what this test exercises.
+            UI.UnloadAll();
             files["themes/main"] = @"<?xml version='1.0'?><PromptUGUI version='1'>
                 <Theme name='light'><Color name='primary' value='#00ff00'/></Theme>
             </PromptUGUI>";

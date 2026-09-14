@@ -22,7 +22,17 @@ namespace PromptUGUI.Application
             public Dictionary<string, StyleDef> Styles;
             public string Src;
             public Entry ResolvedBase;
+            // 注册时的解析块引用：同 src 再注册时若还是同一个实例（DocumentCache 命中）就判定没变。
+            // ReplaceFromSrc / 旧调用没有块引用（null），永远当作变了
+            public ThemeBlock Block;
         }
+
+        /// <summary>
+        /// 带块引用的 <c>Register</c> 的结果：<c>Unchanged</c> = 同 (name, src) 且同一个解析块实例，什么都没改；
+        /// <c>Replaced</c> = 同 (name, src) 换了实例（新会话 / 缓存失效 / 没有块引用）——值可能不同，保守当作变了。
+        /// 2026-09-14 document-load spec §6.1。
+        /// </summary>
+        public enum RegisterOutcome { Added, Replaced, Unchanged }
 
         private readonly Dictionary<string, Entry> _themes = new();
 
@@ -36,10 +46,25 @@ namespace PromptUGUI.Application
         public void Register(string name, string baseName,
                              IReadOnlyDictionary<string, ColorSpec> colors,
                              IReadOnlyDictionary<string, StyleDef> styles, string src)
+            => Register(name, baseName, colors, styles, src, block: null);
+
+        public RegisterOutcome Register(string name, string baseName,
+                             IReadOnlyDictionary<string, ColorSpec> colors,
+                             IReadOnlyDictionary<string, StyleDef> styles, string src,
+                             ThemeBlock block)
         {
-            if (_themes.TryGetValue(name, out var existing) && existing.Src != src)
-                throw new ParseException(
-                    $"duplicate <Theme name=\"{name}\"> in '{existing.Src}' and '{src}'");
+            var outcome = RegisterOutcome.Added;
+            if (_themes.TryGetValue(name, out var existing))
+            {
+                if (existing.Src != src)
+                    throw new ParseException(
+                        $"duplicate <Theme name=\"{name}\"> in '{existing.Src}' and '{src}'");
+                // 同一份解析产物再来一遍（另一个文档 Import 了同一个 src、命中 DocumentCache）：
+                // 值必然相同，不改写，也让调用方知道不必广播 Theme.Changed
+                if (block != null && ReferenceEquals(existing.Block, block))
+                    return RegisterOutcome.Unchanged;
+                outcome = RegisterOutcome.Replaced;
+            }
             // Same (name, src) pair: replace, not no-op. Two cases hit this branch:
             //   (1) Re-open a Screen whose Import brings the same theme back in —
             //       the values are identical, so replacement is observably a no-op.
@@ -59,7 +84,22 @@ namespace PromptUGUI.Application
                     ? new Dictionary<string, StyleDef>()
                     : new Dictionary<string, StyleDef>(styles),
                 Src = src,
+                Block = block,
             };
+            return outcome;
+        }
+
+        /// <summary>
+        /// <paramref name="name"/> 的整条 base 链（含自身，从它往祖先走）。<see cref="ResolveBases"/> 之后才准确；
+        /// 未注册的名字返回空。<c>RegisterThemesAndAutoSet</c> 用它判断一次加载有没有碰到当前主题的解析结果——
+        /// 祖先被替换时当前主题本身没被碰，只看名字会漏掉。
+        /// </summary>
+        public IEnumerable<string> ChainOf(string name)
+        {
+            if (name == null || !_themes.TryGetValue(name, out var e)) yield break;
+            var guard = 0;
+            for (var cur = e; cur != null && guard < 64; cur = cur.ResolvedBase, guard++)
+                yield return cur.Name;
         }
 
         public void ReplaceFromSrc(string src,

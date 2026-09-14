@@ -16,6 +16,8 @@ namespace PromptUGUI.Editor
 
         internal static void Sync()
         {
+            // settings 资产被导入 / 删除 / 移动：Instance 的缓存可能指着旧对象，丢掉重找
+            PromptUGUISettings.ResetInstanceCache();
             var guids = AssetDatabase.FindAssets("t:PromptUGUISettings");
             if (guids.Length == 0) return;
             if (guids.Length > 1)
