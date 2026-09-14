@@ -237,7 +237,10 @@ namespace PromptUGUI.Controls.Internal
         /// radius size: it sees neither the texture nor the drawn scale, so every threshold it could
         /// pick fires on a mipmapped atlas too. Here both are known. Fires once per texture, only
         /// when the radius in TEXELS is past what the lod-0 kernel covers without gaps — a 10px
-        /// glow on a sprite drawn at four times its size is fine, the same glow at 1:1 is not.
+        /// glow on a sprite drawn at four times its size is fine, the same glow at 1:1 is not —
+        /// AND the ghost copies would be a screen pixel apart, so someone could actually see them:
+        /// a 128-texel icon at 14 units with <c>blur="1"</c> has gaps (3.2 texels between taps)
+        /// that nobody can tell from a blur at 1x (0.35 px), and can on a 3x phone (1.06 px).
         /// </summary>
         private void WarnIfKernelLeavesGaps(VertexHelper vh, Texture2D tex, float pad)
         {
@@ -247,10 +250,14 @@ namespace PromptUGUI.Controls.Internal
             // deliberately zero on this path — that is what keeps the fragment at lod 0.)
             var texelsPerUnit = Mathf.Max(v.uv2.x * tex.width, v.uv2.y * tex.height);
             if (!FxMesh.NeedsMips(pad, texelsPerUnit)) return;
+            var pixelsPerUnit = PixelsPerUnit();
+            if (!FxMesh.GapsAreVisible(pad, pixelsPerUnit)) return;
             if (!_warnedNoMips.Add(tex)) return;
 
             var texels = pad * texelsPerUnit;
-            var limitPx = 1f / (FxMesh.TapSpacing * texelsPerUnit);
+            // The radius under which BOTH conditions go quiet at this size on this screen — the
+            // advice has to match whichever one fired.
+            var limitPx = 1f / (FxMesh.TapSpacing * Mathf.Min(texelsPerUnit, pixelsPerUnit));
             PromptUGUI.Application.UILog.Warn(this, tex.filterMode == FilterMode.Point
                 ? $"PromptUGUI: blur / glow of {pad:0.#}px on '{name}' is {texels:0.#} texels of the " +
                   $"Point-filtered texture '{tex.name}' — above ~{limitPx:0.#}px at this size the kernel " +
@@ -261,6 +268,20 @@ namespace PromptUGUI.Controls.Internal
                   $"'{tex.name}', which has no mipmaps — above ~{limitPx:0.#}px at this size the kernel " +
                   "draws ghost copies of thin strokes. Enable them (SpriteAtlas → Generate Mip Maps; " +
                   "TextureImporter → Generate Mipmaps); drawing with the plain kernel until then.");
+        }
+
+        /// <summary>
+        /// Screen pixels per canvas unit: the root canvas's scale factor, which is what the
+        /// CanvasScaler resolves for both screen-space modes. A world-space canvas leaves it at 1
+        /// (its pixel density is the camera's business), so it reads as "1x" there — near enough
+        /// for a diagnostic. 1 with no canvas to ask.
+        /// </summary>
+        private float PixelsPerUnit()
+        {
+            var c = canvas;
+            if (c == null) return 1f;
+            var factor = c.rootCanvas.scaleFactor;
+            return factor > 0f ? factor : 1f;
         }
 
         protected override void UpdateMaterial()

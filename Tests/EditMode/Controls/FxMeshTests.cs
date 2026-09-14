@@ -267,5 +267,16 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             Assert.AreEqual(expected, FxMesh.NeedsMips(radius, texelsPerUnit));
         }
+
+        [TestCase(1f, 1f, false)]    // 1 unit at 1x: ghosts 0.35 px apart — inside one pixel, a smear
+        [TestCase(1f, 3f, true)]     // the same radius on a 3x phone: 1.06 px apart, a pattern
+        [TestCase(2.8f, 1f, false)]  // 0.99 px
+        [TestCase(3f, 1f, true)]     // 1.06 px
+        [TestCase(6f, 1f, true)]
+        [TestCase(6f, 0f, false)]    // no canvas: nothing to judge
+        public void GapsAreVisible_is_whether_the_ghosts_land_on_different_screen_pixels(float radius, float pixelsPerUnit, bool expected)
+        {
+            Assert.AreEqual(expected, FxMesh.GapsAreVisible(radius, pixelsPerUnit));
+        }
     }
 }

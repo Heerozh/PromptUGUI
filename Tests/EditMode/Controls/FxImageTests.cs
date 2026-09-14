@@ -486,6 +486,37 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Ghosts_inside_one_screen_pixel_are_not_worth_a_warning()
+        {
+            // The case from the field: a 128-texel icon drawn at 14 units with blur="1". Here 8
+            // texels at 2 units — 4 texels per unit, so the lod-0 taps sit 1.4 texels apart (gaps,
+            // NeedsMips is true). But at 1x those ghost copies are 0.35 px apart: inside a single
+            // pixel they are a faint smear nobody can tell from a blur. Quiet.
+            UseSprite(MakeSprite(mips: false));
+            var warnings = CaptureMipWarnings(out var stop);
+            try
+            {
+                var s = Open("<Icon id='a' name='ui:x' size='2x2' blur='1'/>");
+                var fx = FxOf(s.Get<PromptUGUI.Controls.Icon>("a"));
+                using var vh = new VertexHelper();
+                fx.BuildMeshForTests(vh);
+                Assert.IsEmpty(warnings, "0.35 px apart at 1x");
+
+                // On a 3x phone the same taps are 1.06 px apart — adjacent pixels, a pattern. Warn,
+                // and name the radius that keeps them inside a pixel THERE (0.9), not the texel
+                // limit (0.7): the advice has to match the condition that fired.
+                SetPixelsPerUnit(fx, 3f);
+                fx.BuildMeshForTests(vh);
+                Assert.AreEqual(1, warnings.Count, "1.06 px apart at 3x");
+                StringAssert.Contains("above ~0.9px", warnings[0]);
+            }
+            finally
+            {
+                stop();
+            }
+        }
+
+        [Test]
         public void A_radius_the_plain_kernel_can_carry_is_quiet()
         {
             UseSprite(MakeSprite(mips: false));
@@ -541,6 +572,16 @@ namespace PromptUGUI.Tests.EditMode.Controls
             UnityEngine.Application.logMessageReceived += OnLog;
             stop = () => UnityEngine.Application.logMessageReceived -= OnLog;
             return list;
+        }
+
+        /// <summary>Pretends the Screen is on a device with this many screen pixels per canvas unit.</summary>
+        private static void SetPixelsPerUnit(FxImage fx, float pixelsPerUnit)
+        {
+            var root = fx.canvas.rootCanvas;
+            // The scaler writes scaleFactor back on its next pass (and resets it to 1 as it goes).
+            var scaler = root.GetComponent<CanvasScaler>();
+            if (scaler != null) scaler.enabled = false;
+            root.scaleFactor = pixelsPerUnit;
         }
 
         // ---- helpers ----

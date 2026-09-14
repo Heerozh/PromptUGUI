@@ -502,7 +502,7 @@ R=8 仍然重影。
 
 | 层 | 条件 | 消息 |
 |---|---|---|
-| 运行时（精确，每张纹理一次） | `FxImage.OnPopulateMesh` 后已知 texel/px；`Pad · texel/px · 0.3545 > 1`（本该 lod > 0）而纹理不可用 mip | Bilinear：需要在 atlas / 导入器开 mipmaps，否则该绘制尺寸下超过限值 px 会出重影，限值随消息给出；Point：mip 帮不上，半径 ≤ 限值，或改 Bilinear + mips |
+| 运行时（精确，每张纹理一次） | `FxImage.OnPopulateMesh` 后已知 texel/px；`Pad · texel/px · 0.3545 > 1`（本该 lod > 0）而纹理不可用 mip，**且** `Pad · 屏幕px/单位 · 0.3545 ≥ 1`（重影落在不同屏幕像素上才看得见；屏幕px/单位取根 Canvas 的 `scaleFactor`，2026-09-14 追加，见 §14.10） | Bilinear：需要在 atlas / 导入器开 mipmaps，否则该绘制尺寸下超过限值 px 会出重影，限值随消息给出（= 两个条件都静音的半径，`1 / (0.3545 · min(texel/px, 屏幕px/单位))`）；Point：mip 帮不上，半径 ≤ 限值，或改 Bilinear + mips |
 | ~~lint（粗）`PUI-FX-RADIUS`~~ | — | **已移除**（原为 `blur` / `glow` > 6 px 的提醒）。lint 看不到资产也看不到绘制缩放，所以它无法区分「没开 mip 的贴图」和「开了 mip 的图集」—— 后者被误报且无从静音，而 CLI 把 issue 一律升成非零退出码。诊断只留运行时这一层 |
 
 ### 14.6 测试
@@ -560,3 +560,20 @@ Texture 对象、热重载、内存 1.33×）与约 250 行。留作 M2 备选�
 即 `SetGlowSelf(1)`。`FxParams` 在自体色下把 rgb 归一成白、只留 alpha；shader 自体分支的 alpha 乘
 `_GlowColor.a`。渲染用例比较「一半强度」时要先把读回的 sRGB 字节转线性（线性域减半在 sRGB 域读作 0.72 倍）。
 全量：EditMode + EditorOnly **3806 绿**、PlayMode **200 绿**。
+
+### 14.10 诊断加一道「看得见」的门（2026-09-14）
+
+现场：128 texel 的图标画成 14 单位、`blur="1"`，每张纹理一次的 §14.5 警告照报（9.1 texel/单位，tap 间距
+3.2 texel，确实有缝），作者却看不出任何区别。原因是 §14.1 的重影是 25 个 tap 各画一份笔画，**间距 ≈
+0.35 R 画布单位 = 0.35 · R · scaleFactor 屏幕像素**：不到一个像素时几份重影落在同一个像素里，只是一团
+噪点；1× 下 R < 2.8 全是这样。但同一个 R=2 在 3× 手机上是 2.1 px —— 细线图标会出一圈隔像素的虚线。
+所以不能按半径一刀切（R ≤ 2 不报在编辑器里对、上机漏），改成**两个条件都成立才报**：texel 条件不变，
+再加 `FxMesh.GapsAreVisible(pad, 屏幕px/单位) = pad · 屏幕px/单位 · 0.3545 ≥ 1`。屏幕px/单位取
+`canvas.rootCanvas.scaleFactor`（两种 screen-space 模式下就是 CanvasScaler 的结果；world-space 留 1，
+按 1× 看待，诊断够用；没有 canvas 也是 1）。消息里的限值改为两个条件都静音的半径
+`1 / (0.3545 · min(texel/px, 屏幕px/单位))`，与触发条件一致。
+
+效果：1× 下 R < 2.8 静音、2× 下 R < 1.4、3× 下 R < 0.94；Game view 切到手机分辨率、CanvasScaler 算出
+2–3× 时该报还报。测试：`FxMeshTests.GapsAreVisible_*` 边界；`FxImageTests.Ghosts_inside_one_screen_pixel_*`
+复现现场（8 texel 画 2 单位、blur 1：1× 静音，把根 Canvas 的 `scaleFactor` 拨到 3 后报一次且限值写
+0.9 而非 texel 限值 0.7）。既有 glow=6 的用例在 1× 下 2.1 px，不受影响。

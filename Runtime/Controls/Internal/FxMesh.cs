@@ -43,6 +43,17 @@ namespace PromptUGUI.Controls.Internal
             => radius * texelsPerUnit * TapSpacing > 1f;
 
         /// <summary>
+        /// Whether the ghost copies those gaps produce would land on DIFFERENT screen pixels — the
+        /// tap spacing, <paramref name="radius"/> canvas units drawn at <paramref name="pixelsPerUnit"/>
+        /// screen pixels each, reaching a pixel. Below that the copies fall inside one pixel and
+        /// read as a faint smear no one can tell from a blur: <c>blur="1"</c> at 1x is 0.35 px
+        /// apart however minified the sprite is, the same radius on a 3x phone is 1.06 px — a
+        /// pattern. This is what decides whether <see cref="NeedsMips"/> is worth saying out loud.
+        /// </summary>
+        internal static bool GapsAreVisible(float radius, float pixelsPerUnit)
+            => radius * pixelsPerUnit * TapSpacing >= 1f;
+
+        /// <summary>
         /// Inflates the quad in <paramref name="vh"/> and writes the fx channels, with the mip channel
         /// (<c>uv2.zw</c>) left at zero: the fragment stays on the lod-0 kernel.
         /// </summary>
