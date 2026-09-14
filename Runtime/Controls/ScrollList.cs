@@ -46,6 +46,9 @@ namespace PromptUGUI.Controls
         private Vector2? _cellSize;
         private Func<RectTransform, IControl> _factory;
         private readonly List<IControl> _slots = new();
+        // 建出当前 _slots 的 itemTemplate 名：Rebuild 拿它判断模板换没换。比名字不比 _factory 委托——
+        // ItemTemplate 是 [UIAttr]，每次 ReSolve 重放都会 ResolveFactory 出一个新委托，按委托比会次次误判。
+        private string _slotsTemplate;
         private bool _staticCollected;
         private bool _bound;
 
@@ -333,6 +336,13 @@ namespace PromptUGUI.Controls
             }
         }
 
+        /// <summary>
+        /// <c>false</c> = 每次推送整表销毁重建（2026-09-14 之前的行为）。给"宿主自己重排过行的兄弟序"、
+        /// "行是自定义 Control、内部状态不经属性重置"这类场合。默认 <c>true</c>：行按位置复用（见 Rebuild）。
+        /// </summary>
+        [UIAttr, Preserve]
+        public bool ReuseItems { get; set; } = true;
+
         [UIAttr, Preserve]
         public string Direction
         {
@@ -511,6 +521,13 @@ namespace PromptUGUI.Controls
             Action<IControl, T> bind) =>
             BindItems<T, IControl>(source, bind);
 
+        /// <summary>
+        /// 位置复用（2026-09-14 scrolllist-row-reuse spec §3 / §4）：第 i 项绑到第 i 行。数量不变的推送
+        /// 零实例化、只跑 bind；+k 只实例化 k 张；−k 只销毁尾巴。复用的行不动 GO，只在再次 bind 之前释放
+        /// 上一次 bind 挂上的 <c>.AddTo(slot)</c> 订阅袋——把每个属性无条件写一遍是 bind 回调的契约（SKILL）。
+        /// 整表重建（从前的唯一路径）只剩：静态占位卡在场的首次绑定（2026-09-10 spec 的规则）、
+        /// <c>itemTemplate</c> 名变了、<c>reuseItems="false"</c>；被外部销毁的行只重建那一行并钉回原兄弟序。
+        /// </summary>
         private void Rebuild<T, TSlot>(IReadOnlyList<T> items, Action<TSlot, T> bind)
             where TSlot : class, IControl
         {
@@ -518,11 +535,37 @@ namespace PromptUGUI.Controls
                 throw new InvalidOperationException(
                     "ScrollList.itemTemplate must be set before BindItems is called");
 
-            ClearSlots();
-            for (int i = 0; i < items.Count; i++)
+            if (!_bound || !ReuseItems || _slotsTemplate != _itemTemplate) ClearSlots();
+            _slotsTemplate = _itemTemplate;
+
+            // 尾巴销毁：Play 下 Destroy 延后到帧末（与从前的整表销毁同一条路径）；尾巴在 Content 末尾，
+            // 不影响前面行的兄弟序。
+            for (var i = _slots.Count - 1; i >= items.Count; i--)
             {
-                var slot = _factory(_content);
-                _slots.Add(slot);
+                _slots[i].Dispose();
+                _slots.RemoveAt(i);
+            }
+
+            for (var i = 0; i < items.Count; i++)
+            {
+                IControl slot;
+                if (i < _slots.Count && _slots[i].GameObject != null)
+                {
+                    slot = _slots[i];
+                    if (slot is Control c) c.ReleaseSubscriptions();
+                }
+                else
+                {
+                    slot = _factory(_content);
+                    if (i < _slots.Count)
+                    {
+                        // 被外部销毁的行（宿主自己 Dispose 了一张卡）：原位重建。InstantiateNode 追加在 Content
+                        // 末尾，钉回第 i 位，网格 / 单列的视觉顺序才仍与数据顺序一致。
+                        _slots[i] = slot;
+                        (slot is Control nc ? nc.LayoutHost : slot.RectTransform).SetSiblingIndex(i);
+                    }
+                    else _slots.Add(slot);
+                }
                 if (slot is TSlot typed) bind(typed, items[i]);
                 else throw new InvalidCastException(
                     $"itemTemplate='{_itemTemplate}' instantiated {slot.GetType().Name}, " +
