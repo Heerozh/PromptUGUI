@@ -1244,6 +1244,7 @@ namespace PromptUGUI.Application
             Controls.Internal.ImageFxApplier.ResetDiagnostics();
             _depGraph.Clear();
             DocumentCache.Clear();
+            PromptUGUISettings.ResetInstanceCache();
             SourceResolver = null;
             SpriteResolver = null;
             LoadedSpriteSetNames.Clear();

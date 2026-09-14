@@ -73,15 +73,35 @@ namespace PromptUGUI.Application
             return default;
         }
 
-        // Returns first loaded instance via preloadedAssets, null if none.
+        private static PromptUGUISettings s_instance;
+
+        // 测试缝：替换掉 Resources.FindObjectsOfTypeAll（null = 用真的）。
+        internal static Func<PromptUGUISettings[]> FinderForTests;
+
+        /// <summary>
+        /// 首个已加载的实例（随 preloadedAssets 进内存），没有则 null。
+        /// <para><b>缓存过的。</b><c>Resources.FindObjectsOfTypeAll</c> 是全内存对象扫描——宿主的星图加载后
+        /// 每次 ~0.4 ms，而每个 <c>&lt;Text&gt;</c> 的字体应用（<c>FontApplier</c>）都要拿一次 settings：
+        /// 一张 300 控件的面板 243 次，占打开耗时的 28%。缓存的实例被销毁 / 卸载后是 Unity 假 null，
+        /// 下次访问自动重扫；没找到不做负缓存（资产晚点才加载的场合下次还能找到）；编辑器里 settings
+        /// 资产被导入 / 删除 / 移动时 <c>PromptUGUISettingsAutoMaintainer</c> 调 <see cref="ResetInstanceCache"/>，
+        /// <c>UI.ResetForTests</c> 也清。</para>
+        /// </summary>
         public static PromptUGUISettings Instance
         {
             get
             {
-                var loaded = Resources.FindObjectsOfTypeAll<PromptUGUISettings>();
-                return loaded.Length > 0 ? loaded[0] : null;
+                if (s_instance != null) return s_instance;
+                var loaded = FinderForTests != null
+                    ? FinderForTests()
+                    : Resources.FindObjectsOfTypeAll<PromptUGUISettings>();
+                s_instance = loaded != null && loaded.Length > 0 ? loaded[0] : null;
+                return s_instance;
             }
         }
+
+        /// <summary>丢掉 <see cref="Instance"/> 的缓存，下次访问重扫。</summary>
+        internal static void ResetInstanceCache() => s_instance = null;
 
         private void OnValidate()
         {
