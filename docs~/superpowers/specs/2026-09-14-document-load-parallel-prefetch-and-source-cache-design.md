@@ -1,6 +1,6 @@
 # 文档加载提速：Import 并行预取 + 跨文档源缓存 + `Theme.Changed` 只在真变时广播
 
-> 状态：**待实现**（spec，2026-09-14）。
+> 状态：**已实现**（分支 `feat/document-load-parallel-prefetch-cache`，2026-09-14 分三步提交；实测与偏差见 §10）。
 > 需求来源：宿主工程 ssw_re_client —— 对局里点母星打开星球面板（`Panels/Planet.ui.xml`，7 个 `<Import>`），
 > 首次打开从点击到出现 **1.24 s**，其中 **0.95 s 花在按顺序取 8 个 xml**，再 0.30 s 单帧同步建面板；
 > 同一批数据里 HUD（`Round.ui.xml` + 5 个 Import）进场也花 0.93 s 取源，只是藏在 Loading 后面。
@@ -285,3 +285,33 @@ Unity MCP 跑；`dotnet format --verify-no-changes --severity warn PromptUGUI.Li
   的大头，另案（编译委托 / 表达式树）。
 - **`Screen.ReSolve` 增量化**：本文只减少无效触发，不改它的整屏成本。
 - 跨 `UnloadAll` 的持久缓存：切场景本来就要过 Loading，且要处理 Addressables 目录更新，不值。
+
+## 10. 实施记录（2026-09-14）
+
+三步各一提交，每步 Red 先行：`perf(loader)` 并行预取 → `perf(loader)` `DocumentCache` → `perf(theme)` `Theme.Changed` 收窄。
+EditMode 3818 / PlayMode 201 / Addressables + EditorOnly 370 全绿，`dotnet format --verify-no-changes` 干净。
+
+**宿主实测**（同一台机、同一 0.1 s 模拟延迟基线，同一套 `SourceResolver` 计时钩子；宿主同时把 `Planet.ui.xml` 的静态占位卡 9 → 2）：
+
+| | 改前 | 改后 |
+|---|---|---|
+| 星球面板：点击 → `Router.Changed` | **1.24 s** | **0.40 s** |
+| 　其中取源 | 0.95 s（8 轮串行） | 0.23 s（2 轮：入口 115 ms + 6 个 Import 并行 116 ms；`GlassStyle` 命中缓存没再取） |
+| 　其中最后一帧同步段（`ExecuteTasks`） | 297 ms | 164 ms（无 `Theme.Changed` 广播；静态卡少 7 张） |
+| HUD 进场（`Round.ui.xml` + 4 Import） | 1.03 s | 0.53 s（`GlassStyle` 命中；两轮各 ~220 ms 是因为进场那几帧本身 70 ms/帧） |
+
+整局 `Theme.Changed` 只剩宿主自己 `Theme.Set` 的那几次，加载文档不再触发。
+
+**与 spec 的偏差**：
+
+- 并行预取的测试放在独立文件 `DocumentLoaderPrefetchTests`（手动完成的 resolver 夹具），没塞进 `DocumentLoaderTests`；
+  `WhenAll` 单独 `AwaitableHelpersWhenAllTests`。
+- `Load*Async` 保留了接字符串 resolver 的签名，新加 `LoadParsedAsync` / `LoadAndMergeParsedAsync` 接 fetch——
+  同名重载会让 `LoadAsync("x", null, …)`（既有测试）二义。
+- `ReLoad_Same_Src_With_New_Color_Values_Replaces_Old` 在两次加载间插的是 `UI.UnloadAll()` 而不是
+  `OnEnteringPlayModeForTests()`（后者带 `UNITY_6000_5_OR_NEWER` 守卫）；语义相同。
+- `UnloadAllCommonLibraries` 也失效被卸载的 commons 闭包（spec §5.2 没列；"unload = 忘掉"）。
+- §2.C「展开不改写输入 IR」有一处例外要知道：`LoadCommonLibraryAsyncInternal` 把 `TemplateDef.OriginSrc` /
+  `StyleDef.OriginSrc` 写成 commons 入口 src（`ReloadCommonLibraryAsync` 靠它按来源 stash）。这是登记而非内容，
+  且同一 src 不会既当 commons 又被文档直接 Import（会撞 commons 冲突），缓存下无影响；`Same_src_loaded_twice_yields_identical_expansion` 钉的是内容。
+- `RegisterOutcome` 枚举在 `internal sealed class ThemeStore` 内声明为 `public`（有效可见性仍是 internal）。
