@@ -628,17 +628,18 @@ namespace PromptUGUI.Application
         /// </summary>
         internal static async UnityEngine.Awaitable LoadDocumentWithCommonsAsync(string label, string xml)
         {
-            // 入口文档已在手上：resolver 只替 Import 链取源。没有 Import 时永远不会走到 SourceResolver。
-            Func<string, UnityEngine.Awaitable<string>> resolver = s =>
+            // 入口文档已在手上：只替 Import 链取源（走 DocumentCache）。没有 Import 时永远不会走到 SourceResolver。
+            // 入口绕过缓存：label 未必是真 src，同一个字符串在别的 resolver 下语义不同（spec §2.D）。
+            Func<string, UnityEngine.Awaitable<IR.UIDocument>> fetch = s =>
             {
-                if (s == label) return AwaitableHelpers.Completed(xml);
+                if (s == label) return AwaitableHelpers.Completed(DocumentLoader.ParseSource(xml, label));
                 if (SourceResolver == null)
                     throw new System.InvalidOperationException(
                         $"UI.SourceResolver must be set to resolve <Import src=\"{s}\"> of '{label}'");
-                return SourceResolver(s);
+                return DocumentCache.GetOrFetchAsync(s, SourceResolver);
             };
 
-            var loaded = await DocumentLoader.LoadAndMergeAsync(label, resolver, _commonsPool, _commonsStyles);
+            var loaded = await DocumentLoader.LoadAndMergeParsedAsync(label, fetch, _commonsPool, _commonsStyles);
             RegisterThemesAndAutoSet(loaded);
             var expanded = PromptUGUI.Template.TemplateExpander.Expand(loaded);
             foreach (var s in expanded.Screens)
@@ -660,7 +661,7 @@ namespace PromptUGUI.Application
                 throw new System.InvalidOperationException(
                     "UI.SourceResolver must be set before LoadDocumentAsync");
 
-            var loaded = await DocumentLoader.LoadAndMergeAsync(src, SourceResolver, _commonsPool, _commonsStyles);
+            var loaded = await DocumentLoader.LoadAndMergeParsedAsync(src, CachedFetch, _commonsPool, _commonsStyles);
             RegisterThemesAndAutoSet(loaded);
             var expanded = PromptUGUI.Template.TemplateExpander.Expand(loaded);
 
@@ -692,7 +693,10 @@ namespace PromptUGUI.Application
                 throw new System.InvalidOperationException(
                     "UI.SourceResolver must be set before ReloadAsync");
 
-            var loaded = await DocumentLoader.LoadAndMergeAsync(dep.EntrySrc, SourceResolver, _commonsPool, _commonsStyles);
+            // reload = 重读：入口与上次记录的整个闭包都从缓存里摘掉（热重载只改一个文件也走这里，
+            // 编辑器专属，多取几个文件无所谓；直接调本方法的调用方没有经过 NotifyAssetChanged 的失效）
+            InvalidateClosure(dep.EntrySrc, dep.AllDeps);
+            var loaded = await DocumentLoader.LoadAndMergeParsedAsync(dep.EntrySrc, CachedFetch, _commonsPool, _commonsStyles);
             // Re-register Theme blocks on reload. Mirror LoadDocumentAsync's
             // RegisterThemesAndAutoSet call but route through ReplaceFromSrc so
             // edited color values overwrite the previous (name, src) entries
@@ -735,7 +739,7 @@ namespace PromptUGUI.Application
                 throw new System.InvalidOperationException(
                     "UI.SourceResolver must be set before LoadCommonLibraryAsync");
 
-            var loaded = await DocumentLoader.LoadAsync(src, SourceResolver, allowScreens: false);
+            var loaded = await DocumentLoader.LoadParsedAsync(src, CachedFetch, allowScreens: false);
 
             var staged = new System.Collections.Generic.List<(TemplateKey Key, IR.TemplateDef Def)>();
             foreach (var kv in loaded.Templates)
@@ -815,6 +819,7 @@ namespace PromptUGUI.Application
                 ? new System.Collections.Generic.HashSet<string>(d) : null;
             _depGraph.CommonsSources.Remove(src);
             _depGraph.SrcToDeps.Remove(src);
+            InvalidateClosure(src, prevDeps);   // reload = 重读整个闭包（同 ReloadAsync）
 
             try
             {
@@ -974,11 +979,31 @@ namespace PromptUGUI.Application
                 }
                 if (!stillUsedByScreen) commonsSrcs.Add(src);
             }
-            foreach (var s in commonsSrcs) _depGraph.SrcToDeps.Remove(s);
+            foreach (var s in commonsSrcs)
+            {
+                // unload = 忘掉：连它们的源缓存一起摘，下一次 LoadCommonLibraryAsync 重读
+                if (_depGraph.SrcToDeps.TryGetValue(s, out var deps)) InvalidateClosure(s, deps);
+                _depGraph.SrcToDeps.Remove(s);
+            }
         }
 
         /// <summary>
-        /// Clears all loaded state — commons + Screens + open + dep graph.
+        /// 组合给 <see cref="DocumentLoader"/> 的取源函数：经 <see cref="SourceResolver"/> 的 src 一律过
+        /// <see cref="DocumentCache"/>。resolver 在取源那一刻读取（不是组合时），所以宿主换 resolver 后
+        /// 进行中的 Load 不受影响、下一次取源用新的。
+        /// </summary>
+        private static UnityEngine.Awaitable<IR.UIDocument> CachedFetch(string src) =>
+            DocumentCache.GetOrFetchAsync(src, SourceResolver);
+
+        private static void InvalidateClosure(string entrySrc, System.Collections.Generic.IEnumerable<string> deps)
+        {
+            DocumentCache.Invalidate(entrySrc);
+            if (deps == null) return;
+            foreach (var s in deps) DocumentCache.Invalidate(s);
+        }
+
+        /// <summary>
+        /// Clears all loaded state — commons + Screens + open + dep graph + source cache (DocumentCache).
         /// Preserves SourceResolver, HotReload.AssetPathToSrc (Editor), and Registry.
         /// </summary>
         public static void UnloadAll()
@@ -995,6 +1020,8 @@ namespace PromptUGUI.Application
             _commonsPool.Clear();
             _commonsStyles.Clear();
             _depGraph.Clear();
+            // 源缓存跟着 loaded state 走：切场景 / Play→Stop→Play（[OnEnteringPlayMode] 也走这里）后重读
+            DocumentCache.Clear();
         }
 
         internal static void NotifyVariantChangedForReSolve() =>
@@ -1190,6 +1217,7 @@ namespace PromptUGUI.Application
             Controls.Internal.FxImage.ResetDiagnostics();
             Controls.Internal.ImageFxApplier.ResetDiagnostics();
             _depGraph.Clear();
+            DocumentCache.Clear();
             SourceResolver = null;
             SpriteResolver = null;
             LoadedSpriteSetNames.Clear();
@@ -1247,6 +1275,10 @@ namespace PromptUGUI.Application
                 if (!Enabled || AssetPathToSrc == null) return;
                 var src = AssetPathToSrc(assetPath);
                 if (string.IsNullOrEmpty(src)) return;
+
+                // 文件变了就不能再从缓存给——无论有没有 Screen 依赖它（模态框的 Import 不入 dep graph，
+                // 宿主的预览工具也可能之后自己重新 Load）
+                DocumentCache.Invalidate(src);
 
                 if (_depGraph.IsCommons(src))
                 {
