@@ -265,8 +265,8 @@ State is driven by the Selectable machine and is disabled-aware (a disabled cont
 
 `.AddTo(screen)` ties a subscription to **Screen** lifetime. For per-item live
 data inside a `BindItems` / modal-card binder, tie it to the **card** instead so
-it's disposed when that card is rebuilt (list membership change) or the screen
-closes — whichever comes first:
+it's disposed when that card is bound again (next push), destroyed (list shrank,
+template changed) or the screen closes — whichever comes first:
 
 ```csharp
 list.BindItems(items, (slot, item) => {
@@ -277,10 +277,13 @@ list.BindItems(items, (slot, item) => {
 ```
 
 `.AddTo(control)` works on any `IControl` (mirrors `.AddTo(screen)`). Disposing a
-control disposes its tracked subscriptions, recursively including child controls.
-Using `.AddTo(screen)` for per-card subscriptions leaks across list rebuilds
-(old cards are destroyed but their subscriptions keep firing into dead controls
-until the screen closes).
+control disposes its tracked subscriptions, recursively including child controls;
+a `<ScrollList>` row that is **recycled** for the next push (see **List / option
+push**) has its bag released right before its `bind` runs again, so the previous
+push's subscriptions never outlive the data they were bound to.
+Using `.AddTo(screen)` for per-card subscriptions leaks across pushes (a recycled
+card then carries two live subscriptions writing into the same label; a destroyed
+card's keep firing into a dead control until the screen closes).
 
 ## Screen-level hooks
 
@@ -305,6 +308,27 @@ screen.Get<ScrollList>("inv")
 - `BindItems` takes `Observable<IReadOnlyList<T>>` and a per-slot binder.
 - `itemTemplate=` in the XML resolves to either a `<Template name="...">` (slot root is the template body) or a registered Control class (slot is that Control). Use `slot.Get<T>("childId")` inside the binder to reach into Template bodies.
 - After hot-reload, you must **re-Bind** — the underlying ScrollList is rebuilt.
+
+**Rows are recycled, not rebuilt.** A `<ScrollList>` push binds item *i* onto the row that
+already sits at position *i*: a same-count push instantiates nothing (only the `bind`
+callbacks run), a longer list instantiates just the extra rows, a shorter one destroys
+just the tail. The whole list is rebuilt only on the first push (authored placeholder
+cards are destroyed), when `itemTemplate` changed, or with `reuseItems="false"`. What
+that asks of the binder:
+
+1. **Write every property you care about, unconditionally.** A row keeps whatever the
+   previous item left on it, so `if (item.IsEmpty) btn.Hidden = false;` with no `else`
+   leaks the previous item's `false`. Write both branches, or toggle two mutually
+   exclusive blocks (`built.Hidden = !empty; emptyBlock.Hidden = empty;`).
+2. **A handle taken in a previous push may now point at another item**, not at a
+   destroyed GameObject. Take handles inside the current `bind` (the rule above already
+   says so); anything held across pushes (a countdown ticker table, say) is cleared and
+   re-collected on every push.
+3. `.AddTo(slot)` stays the right way to subscribe per row: the bag is released before
+   the row's next `bind`.
+4. `reuseItems="false"` opts a list out (every push destroys and rebuilds every row) —
+   for a host that reorders rows itself, or a custom-Control row whose internal state is
+   not reset by attributes.
 
 ### TabBar
 
@@ -837,6 +861,8 @@ EVENTS (R3)    .OnClick                Btn
 
 DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                ScrollList.BindItems(Observable<IReadOnlyList<T>>, (slot,t)=>...)
+                                       rows are RECYCLED by position: bind writes every property, unconditionally;
+                                       .AddTo(slot) released before the next bind; reuseItems="false" opts out
                TabBar.BindItems(Observable<IReadOnlyList<T>>, (Tab tab,t)=>...)
                TabMenu.BindItems(...)  same shape — one shared tab-group implementation
                                        or BindItems<T,TSlot>(...) for wrapped templates

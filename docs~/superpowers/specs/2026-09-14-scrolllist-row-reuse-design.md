@@ -1,6 +1,6 @@
 # `ScrollList.BindItems` 行复用 —— 每次推送不再整表销毁重建
 
-> 状态：**待实现**（spec，2026-09-14）。
+> 状态：**已实现**（2026-09-14，分支 `feat/scrolllist-row-reuse`；实施记录见 §10）。
 > 需求来源：宿主工程 ssw_re_client 星球面板（`Panels/Planet.ui.xml` 的 `slots` 网格，`BuildSlot` × 9）。
 > Deep Profile 第二次打开面板的那一帧：`ScrollList.Rebuild` 9 张卡 = 205 ms（deep）/ `Router.Open` 368 ms，
 > 每张卡 ≈ 25 个控件；而这块网格在**面板开着的时候还会反复重建**——`ColonyChanged` / `BuildingsChanged`
@@ -198,3 +198,29 @@ Unity MCP 跑；`dotnet format --verify-no-changes --severity warn` 过。
 - **`Carousel` / `TabBar` 复用**：等本文的契约在 ScrollList 上跑稳。
 - **路由 Page keep-alive**（另案）：`UI.Router.Map(..., keepAlive: true)`，关面板 = 隐藏不销毁；与本文合起来才能把
   "第二次打开"从 ~90 ms 压到一帧内（`UI.Open` 省掉、`Rebuild` 零实例化）。
+
+## 10. 实施记录（2026-09-14）
+
+三步提交：位置复用（`Control.ReleaseSubscriptions` + `Rebuild`）→ `reuseItems` opt-out（+ XSD 断言、XML SKILL 属性表）→
+SKILL（C#）契约 + 本节。EditMode 3833 / PlayMode 201 全绿（新增 `ScrollListReuseTests` 11 条，改前 7 条红），`dotnet format` 过。
+
+**与 §3–§7 的偏差**
+
+- `DisposeSubscriptionsRecursive` 不是原名开 internal，而是改名为 `Control.ReleaseSubscriptions()`（internal，语义同 §4.2）。
+- §4.4-4 的钉位作用在 `Control.LayoutHost`（有 scale-host wrapper 时 Content 里的子节点是 wrapper，不是 `RectTransform`）。
+- 测试多一条 `Same_template_name_reassigned_still_reuses`：`ReSolve` 重放 `itemTemplate`（新委托、同名）后推送仍复用——
+  这是 §4.4-2 "比名字不比委托"的直接回归锚。
+- 主 spec §9.5 补了一句位置复用 + 指回本文。
+
+**量到的**（EditMode 合成基准：9 张 22 控件的卡、4 列网格、每次推送改文字 / 显隐 / 进度；`execute_code` 里 Stopwatch）
+
+| 同数量推送 | `Rebuild` | 随后的 `Canvas.ForceUpdateCanvases` |
+|---|---|---|
+| `reuseItems="false"`（从前） | 42–79 ms（DestroyImmediate + 9 × InstantiateNode） | 6.5–10.8 ms |
+| 复用（默认） | **1.1–1.9 ms**（只剩 9 次 bind） | 3.8–5.6 ms（改了文字的 TMP 重排，不可省） |
+
+首次推送两者同为 ~45 ms（都是建 9 张）。宿主面板开着期间的推送 / 换球即由此受益；"第二次打开"那一帧不变（§1）。
+
+**顺带看到、没改的**：`_factory(_content)` 在模板属性应用阶段抛异常时（作者把 `size='12'` 写在 `<Text>` 上之类），
+半建好的根 GO 已经挂进 Content 却不在 `_slots` 里——从前就如此，模板属性错误本来在 `UI.Open` 的静态路径就会报，
+动态实例化路径的这条泄漏留给 lint / 另案。
