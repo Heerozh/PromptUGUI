@@ -732,6 +732,8 @@ Sequence:
 2. `LoadCommonLibraryAsync` completes, `dark` registers, `Theme.Changed` re-fires automatically → Screens ReSolve again → tokens hit real colors.
 3. If `Current` still names an unregistered theme after the load (typo, missing source), the loader emits one `Debug.LogWarning` to surface it.
 
+Loads that do not touch the current theme's base chain — a document with no `<Theme>`, or one whose `<Theme>` is the same source already registered (the loader caches parsed sources per `src`) — do **not** fire `Theme.Changed`; only a load that first makes `Current` resolvable, or adds / replaces a block on its chain, does. So opening more Screens never re-ReSolves the ones already open.
+
 ### Single-theme projects
 
 If `LoadCommonLibraryAsync` registers exactly one theme and `UI.Theme.Current` is null, the loader auto-selects it. Multi-theme projects must call `UI.Theme.Set` explicitly (before or after the load, your choice).
@@ -877,7 +879,7 @@ LOCALE         UI.Locale.Set("en")                            sync
 THEME          UI.Theme.Set("dark")                           switch active theme; order-independent (accepts unregistered name); fires Theme.Changed
                UI.Theme.Resolve(value)                        token → base chain → literal hex/CSS-name; soft-fails to Color.white when Current is set but not yet registered
                UI.Theme.Lookup(token)                         token-only lookup; returns Color? (no literal fallback, no throw)
-               UI.Theme.Changed                               event Action<string>; fires on Set, post-load registration of pre-Set theme, and hot reload
+               UI.Theme.Changed                               event Action<string>; fires on Set, post-load registration of pre-Set theme, and hot reload — not on loads that leave the current theme's chain unchanged
 
 CANVAS         UI.CanvasConfigurator = (canvas, name) => { ... }
                runs AFTER XML canvas= / reference= apply

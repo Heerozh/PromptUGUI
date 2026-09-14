@@ -698,10 +698,10 @@ namespace PromptUGUI.Application
             InvalidateClosure(dep.EntrySrc, dep.AllDeps);
             var loaded = await DocumentLoader.LoadAndMergeParsedAsync(dep.EntrySrc, CachedFetch, _commonsPool, _commonsStyles);
             // Re-register Theme blocks on reload. Mirror LoadDocumentAsync's
-            // RegisterThemesAndAutoSet call but route through ReplaceFromSrc so
-            // edited color values overwrite the previous (name, src) entries
-            // (Register would idempotent-no-op on the same key) and fire
-            // Theme.Changed if the current theme was among the replaced ones.
+            // RegisterThemesAndAutoSet call but route through ReplaceFromSrc so a
+            // theme DELETED from the edited XML disappears too (Register only ever
+            // adds / replaces) and Theme.Changed fires if the current theme was
+            // among the replaced ones.
             ReplaceThemesAndNotify(loaded);
             var expanded = PromptUGUI.Template.TemplateExpander.Expand(loaded);
 
@@ -778,10 +778,11 @@ namespace PromptUGUI.Application
             }
 
             // Register or replace <Theme> blocks. On first load, Register is used
-            // (idempotent on (name, src), throws on cross-src duplicate). On reload,
-            // the old (name, src) entries are dropped first via ReplaceFromSrc so
-            // edited color values actually take effect — Register's idempotent
-            // no-op would otherwise silently swallow the new values.
+            // (adds / replaces per (name, src), throws on cross-src duplicate;
+            // Theme.Changed only when the current theme's chain really changed).
+            // On reload, everything previously from this src is dropped first via
+            // ReplaceFromSrc so a deleted theme disappears and Changed always fires
+            // for the current theme.
             if (isReload)
                 ReplaceThemesAndNotify(loaded);
             else
@@ -1081,31 +1082,56 @@ namespace PromptUGUI.Application
         /// </summary>
         private static void RegisterThemesAndAutoSet(LoadedDoc loaded)
         {
+            var current = Theme.Current;
+            var wasResolvable = current != null
+                && System.Linq.Enumerable.Contains(ThemeStore.Instance.Available, current);
+            // 这次加载新增 / 替换了哪些主题块（同 src 同一个解析块实例 = Unchanged，不算）
+            var touched = new System.Collections.Generic.HashSet<string>();
             foreach (var (theme, themeSrc) in loaded.Themes)
             {
                 var colors = new System.Collections.Generic.Dictionary<string, ColorSpec>(
                     theme.Colors.Count);
                 foreach (var ce in theme.Colors)
                     colors[ce.Name] = ParseThemeColor(ce.Value);
-                ThemeStore.Instance.Register(theme.Name, theme.BaseName, colors, theme.Styles, themeSrc);
+                var outcome = ThemeStore.Instance.Register(
+                    theme.Name, theme.BaseName, colors, theme.Styles, themeSrc, theme);
+                if (outcome != ThemeStore.RegisterOutcome.Unchanged) touched.Add(theme.Name);
             }
             ThemeStore.Instance.ResolveBases();
 
-            // Two paths to drive Theme.Changed after this load:
+            // Three paths to drive Theme.Changed after this load:
             //   1. Single-theme auto-select (Current was null, exactly one theme
             //      registered → AutoSet picks it and fires Changed).
             //   2. Order-independent pre-Set: user called Theme.Set("dark")
-            //      before this load completed. preExisting captures their intent;
-            //      if AutoSet was a no-op (Current preserved), we fire Changed so
-            //      open Screens repaint via the soft-fail → real-color transition.
-            //      RaiseChangedIfCurrent fires regardless of whether the named
-            //      theme is now actually registered — the soft-fail in Resolve
-            //      still hits (returns white) for the typo case until the user
-            //      Sets a valid name.
-            var preExistingCurrent = Theme.Current;
+            //      before this load completed and this load is what makes it
+            //      resolvable → fire Changed so open Screens repaint via the
+            //      soft-fail (white) → real-color transition. A pre-Set name that
+            //      STILL isn't registered keeps soft-failing until the user Sets a
+            //      valid name; nothing to repaint yet.
+            //   3. A block on the current theme's base chain was added or
+            //      replaced (new parse of the same src after UnloadAll /
+            //      invalidation; an ancestor re-registered from another src) —
+            //      the current theme resolves differently now.
+            // Anything else — a document with no <Theme>, or one whose <Theme>
+            // is the very same parsed block already registered (DocumentCache
+            // hit) — changes nothing and must NOT broadcast: every open Screen
+            // ReSolves on Theme.Changed, which used to cost the host ~40 ms per
+            // document load with a big HUD open. 2026-09-14 document-load spec §6.
             Theme.AutoSetIfSingleAvailable();
-            if (preExistingCurrent != null && Theme.Current == preExistingCurrent)
-                Theme.RaiseChangedIfCurrent(preExistingCurrent);
+            if (current == null || Theme.Current != current) return;
+
+            var raise = !wasResolvable
+                && System.Linq.Enumerable.Contains(ThemeStore.Instance.Available, current);
+            if (!raise)
+            {
+                foreach (var name in ThemeStore.Instance.ChainOf(current))
+                {
+                    if (!touched.Contains(name)) continue;
+                    raise = true;
+                    break;
+                }
+            }
+            if (raise) Theme.RaiseChangedIfCurrent(current);
         }
 
         /// <summary>
@@ -1130,9 +1156,9 @@ namespace PromptUGUI.Application
         /// <summary>
         /// Hot-reload sibling of <see cref="RegisterThemesAndAutoSet"/>: groups
         /// themes by their originating src and routes each group through
-        /// <see cref="ThemeStore.ReplaceFromSrc"/> so edited color values overwrite
-        /// the previous (name, src) entries rather than no-oping through Register's
-        /// idempotent path. After replacement, fires <see cref="Theme.Changed"/>
+        /// <see cref="ThemeStore.ReplaceFromSrc"/> so everything previously from that
+        /// src is dropped first (a theme deleted from the edited XML disappears; Register
+        /// alone only adds / replaces). After replacement, fires <see cref="Theme.Changed"/>
         /// for the current theme if it was among the replaced ones so all open
         /// Screens re-color via <see cref="Screen.ReSolve"/>. Theme.Current is
         /// preserved (no AutoSetIfSingleAvailable on reload).
