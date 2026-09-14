@@ -336,6 +336,13 @@ namespace PromptUGUI.Controls
             }
         }
 
+        /// <summary>
+        /// <c>false</c> = 每次推送整表销毁重建（2026-09-14 之前的行为）。给"宿主自己重排过行的兄弟序"、
+        /// "行是自定义 Control、内部状态不经属性重置"这类场合。默认 <c>true</c>：行按位置复用（见 Rebuild）。
+        /// </summary>
+        [UIAttr, Preserve]
+        public bool ReuseItems { get; set; } = true;
+
         [UIAttr, Preserve]
         public string Direction
         {
@@ -519,7 +526,7 @@ namespace PromptUGUI.Controls
         /// 零实例化、只跑 bind；+k 只实例化 k 张；−k 只销毁尾巴。复用的行不动 GO，只在再次 bind 之前释放
         /// 上一次 bind 挂上的 <c>.AddTo(slot)</c> 订阅袋——把每个属性无条件写一遍是 bind 回调的契约（SKILL）。
         /// 整表重建（从前的唯一路径）只剩：静态占位卡在场的首次绑定（2026-09-10 spec 的规则）、
-        /// <c>itemTemplate</c> 名变了；被外部销毁的行只重建那一行并钉回原兄弟序。
+        /// <c>itemTemplate</c> 名变了、<c>reuseItems="false"</c>；被外部销毁的行只重建那一行并钉回原兄弟序。
         /// </summary>
         private void Rebuild<T, TSlot>(IReadOnlyList<T> items, Action<TSlot, T> bind)
             where TSlot : class, IControl
@@ -528,7 +535,7 @@ namespace PromptUGUI.Controls
                 throw new InvalidOperationException(
                     "ScrollList.itemTemplate must be set before BindItems is called");
 
-            if (!_bound || _slotsTemplate != _itemTemplate) ClearSlots();
+            if (!_bound || !ReuseItems || _slotsTemplate != _itemTemplate) ClearSlots();
             _slotsTemplate = _itemTemplate;
 
             // 尾巴销毁：Play 下 Destroy 延后到帧末（与从前的整表销毁同一条路径）；尾巴在 Content 末尾，

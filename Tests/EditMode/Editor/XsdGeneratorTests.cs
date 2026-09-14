@@ -1043,6 +1043,7 @@ namespace PromptUGUI.Tests.Editor
             StringAssert.Contains("name=\"ScrollList\"", xsd);
             StringAssert.Contains("name=\"columns\" type=\"xs:int\"", xsd);
             StringAssert.Contains("name=\"cellSize\" type=\"xs:string\"", xsd);
+            StringAssert.Contains("name=\"reuseItems\" type=\"xs:boolean\"", xsd);
             StringAssert.DoesNotContain("name=\"scrollbarWidth\"", xsd);
             StringAssert.DoesNotContain("name=\"scrollbarOverlay\"", xsd);
         }

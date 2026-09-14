@@ -229,6 +229,23 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(3, list.SlotCount);
         }
 
+        [Test]
+        public void ReuseItems_false_rebuilds_all()
+        {
+            var list = Open("<ScrollList id='sl' width='150' height='200' itemTemplate='Row' reuseItems='false'/>")
+                .Get<ScrollList>("sl");
+            var first = Push(list, 3);
+
+            var second = Push(list, 3);
+
+            for (var i = 0; i < 3; i++)
+            {
+                Assert.IsTrue(first[i].GameObject == null, $"old row {i} destroyed");
+                Assert.IsFalse(first.Contains(second[i]), $"row {i} is a new instance");
+            }
+            Assert.AreEqual(3, ContentOf(list).childCount);
+        }
+
         // ───── 顺序与 ReSolve ─────
 
         [Test]
