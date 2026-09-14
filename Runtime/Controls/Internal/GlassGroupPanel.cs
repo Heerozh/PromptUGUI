@@ -205,9 +205,9 @@ namespace PromptUGUI.Controls.Internal
                 if (overflow && !_warnedTooManyMembers)
                 {
                     _warnedTooManyMembers = true;
-                    Debug.LogWarning(
+                    PromptUGUI.Application.UILog.Warn(this,
                         $"PromptUGUI: weld group '{name}' has more than {MaxMembers} glass children; " +
-                        "the extra ones draw themselves instead of fusing. Split the group.", this);
+                        "the extra ones draw themselves instead of fusing. Split the group.");
                 }
             }
 

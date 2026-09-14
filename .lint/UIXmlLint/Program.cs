@@ -102,12 +102,12 @@ namespace PromptUGUI.UIXmlLint
             {
                 // Origin is the file the markup was WRITTEN in — for a finding inside an imported
                 // Template body that is the library, not the entry document that invoked it.
-                // "file:line:" is the shape editors and terminals turn into a jump.
-                var where = issue.Origin ?? path;
-                if (issue.Line > 0) where += ":" + issue.Line;
+                // "file:line:" is the shape editors and terminals turn into a jump. SourceLocation
+                // spells it, so a runtime "  at <Tag> file:line" greps the same as this line.
+                var where = SourceLocation.Format(issue.Origin ?? path, issue.Line);
                 // The declaration site stays primary — that is where the edit goes. The invocation
                 // is context, and only worth printing when it names a different place.
-                var via = issue.Via != null && issue.Via != where ? $" (via {issue.Via})" : "";
+                var via = SourceLocation.Via(where, issue.Via);
                 if (!reported.Add(where + via + "|" + issue.Code + "|" + issue.Message)) continue;
                 Console.Error.WriteLine($"{where}: [{issue.Code}] {issue.Message}{via}");
                 count++;

@@ -36,7 +36,7 @@ namespace PromptUGUI.Controls.Internal
                         fx.TintLinear = true;
                         break;
                     default:
-                        WarnUnknown(mode);
+                        WarnUnknown(img, mode);
                         fx.TintLinear = false;
                         break;
                 }
@@ -56,14 +56,14 @@ namespace PromptUGUI.Controls.Internal
                         Resources.Load<Material>(LinearLightTintResourcePath);
                     break;
                 default:
-                    WarnUnknown(mode);
+                    WarnUnknown(img, mode);
                     img.material = null;
                     break;
             }
         }
 
-        private static void WarnUnknown(string mode) =>
-            Debug.LogWarning(
+        private static void WarnUnknown(Graphic img, string mode) =>
+            PromptUGUI.Application.UILog.Warn(img,
                 $"PromptUGUI: tint=\"{mode}\" is not a recognized value " +
                 "(expected: multiply, linear). Falling back to multiply.");
     }

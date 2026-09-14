@@ -38,7 +38,7 @@ namespace PromptUGUI.Application
             PromptUGUI.IR.UIDocument doc;
             try
             {
-                doc = PromptUGUI.Parser.UIDocumentParser.Parse(xml);
+                doc = PromptUGUI.Parser.UIDocumentParser.Parse(xml, label);
             }
             catch (System.Exception e)
             {

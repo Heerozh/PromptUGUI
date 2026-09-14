@@ -581,12 +581,12 @@ namespace PromptUGUI.Controls.Internal
             if (capture == null || c.worldCamera != capture) return;
 
             _warnedFeedbackLoop = true;
-            Debug.LogWarning(
+            UILog.Warn(this,
                 $"PromptUGUI: glass Frame '{name}' is on a canvas rendered by the same camera the " +
                 "glass backdrop is captured from, so it will sample a blurred copy of itself and " +
                 "smear over successive frames. Put glass Screens on an Overlay canvas (the default) " +
                 "and give UI that should appear blurred behind them CanvasMode.Camera, or point " +
-                "UI.Glass.Camera at a different camera.", this);
+                "UI.Glass.Camera at a different camera.");
         }
 
         protected override void OnPopulateMesh(VertexHelper vh)

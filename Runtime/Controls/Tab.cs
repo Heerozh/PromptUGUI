@@ -84,7 +84,7 @@ namespace PromptUGUI.Controls
 
             var group = FindAncestorToggleGroup();
             if (group == null)
-                Debug.LogWarning($"Tab '{Id}' has no <TabBar> ancestor; mutual exclusion disabled.");
+                UILog.Warn(this, $"Tab '{Id}' has no <TabBar> ancestor; mutual exclusion disabled.");
             else
                 _toggle.group = group;
 
@@ -126,7 +126,7 @@ namespace PromptUGUI.Controls
                 try { _boundFrame = UI.OwnerScreenOf(this)?.Get<Frame>(_bindId); }
                 catch { _boundFrame = null; }
                 if (_boundFrame == null)
-                    Debug.LogWarning($"Tab.bind='{_bindId}' did not resolve to a Frame; ignoring.");
+                    UILog.Warn(this, $"Tab.bind='{_bindId}' did not resolve to a Frame; ignoring.");
                 _bindResolved = true;
                 _bindId = null;     // prevent re-warn
             }

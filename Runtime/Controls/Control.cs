@@ -44,6 +44,15 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public bool StateReact { get; set; } = true;
 
+        /// <summary>
+        /// The IR node this control was instantiated from — which src the author wrote it in and on
+        /// which line (<see cref="ElementNode.OriginSrc"/> / <see cref="ElementNode.Line"/>), so a
+        /// warning or error raised long after instantiation can still point at the markup (see
+        /// <c>UILog</c>). Set by <c>ScreenInstantiator</c> before <see cref="OnAttached"/>; null on a
+        /// control built outside it (a host's own default Scrollbar, tests).
+        /// </summary>
+        internal ElementNode SourceNode { get; set; }
+
         private readonly List<IControl> _children = new();
         private System.Collections.Generic.List<System.IDisposable> _subscriptions;
 
@@ -71,6 +80,9 @@ namespace PromptUGUI.Controls
             GameObject = go;
             RectTransform = go.GetComponent<RectTransform>()
                             ?? go.AddComponent<RectTransform>();
+            // So a component anywhere in this tree (FxImage, a TMP label) can find the control that
+            // owns it when it has something to warn about. Before OnAttached, which may already have.
+            PromptUGUI.Application.UILog.Register(this);
             OnAttached();
         }
 

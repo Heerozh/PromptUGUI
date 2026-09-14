@@ -203,7 +203,7 @@ namespace PromptUGUI.Controls
 
             if (renderer == null)
             {
-                Debug.LogWarning("<Markdown> needs Markdig. Install it (NuGetForUnity / DLL); the editor " +
+                UILog.Warn(this, "<Markdown> needs Markdig. Install it (NuGetForUnity / DLL); the editor " +
                     "auto-defines PROMPTUGUI_HAS_MARKDIG when found. Showing raw text.");
                 var raw = new ElementNode("Text");
                 raw.Attributes["wrap"] = "true";
@@ -234,7 +234,7 @@ namespace PromptUGUI.Controls
             try { tex = await resolver(req.Url); }
             catch (Exception e)
             {
-                Debug.LogWarning($"<Markdown> image '{req.Url}' failed: {e.Message}");
+                UILog.Warn(this, $"<Markdown> image '{req.Url}' failed: {e.Message}");
                 return;
             }
             if (gen != _renderGen || tex == null || _renderedRoot == null) return;   // stale / failed

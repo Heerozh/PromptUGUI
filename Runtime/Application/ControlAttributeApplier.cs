@@ -19,7 +19,19 @@ namespace PromptUGUI.Application
                                  ControlRegistry.Entry entry, VariantStore variants,
                                  bool initial = true)
         {
+            // While a setter runs, anything it logs with no node in hand (UI.ResolveSprite) is
+            // about this node. Saved / restored, not cleared: a setter can instantiate a subtree
+            // (BindItems rows) whose own Apply nests inside this one.
+            var outer = UILog.Applying;
+            UILog.Applying = node;
+            try { ApplyCore(node, control, entry, variants, initial); }
+            finally { UILog.Applying = outer; }
+        }
 
+        private static void ApplyCore(ElementNode node, Control control,
+                                      ControlRegistry.Entry entry, VariantStore variants,
+                                      bool initial)
+        {
             // Determine tr opt-out and ctx (common attrs not registered on Meta)
             var tr = !(node.Attributes.TryGetValue("tr", out var trVal) && trVal == "false");
             node.Attributes.TryGetValue("ctx", out var ctx);
@@ -102,29 +114,29 @@ namespace PromptUGUI.Application
             // error here rather than a ScreenInstantiator warning. Same predicate the CLI uses —
             // declared, not resolved — so both reject exactly the same documents.
             foreach (var issue in PromptUGUI.Lint.ClampRules.CheckClampScale(node))
-                throw new ParseException($"[{issue.Code}] {issue.Message}");
+                throw HardError(node, issue);
 
             // A <Collapsible> with an authored height cannot render as anything: the axis is
             // force-hugged, so the value would be silently dropped every pass. Hard error, same
             // shape as the clamp/scale contradiction above.
             foreach (var issue in PromptUGUI.Lint.CollapsibleRules.CheckCollapsible(node))
                 if (issue.Code == PromptUGUI.Lint.CollapsibleRules.HeightCode)
-                    throw new ParseException($"[{issue.Code}] {issue.Message}");
+                    throw HardError(node, issue);
 
             // hug on a tag with no content size cannot be measured at all, and hug + scale has the
             // same last-writer conflict as clamp + scale. Hard errors for the same reason: silently
             // rendering a 0-sized control would be worse than refusing to open.
             foreach (var issue in PromptUGUI.Lint.HugRules.CheckHugTag(node))
-                throw new ParseException($"[{issue.Code}] {issue.Message}");
+                throw HardError(node, issue);
             foreach (var issue in PromptUGUI.Lint.HugRules.CheckHugScale(node))
-                throw new ParseException($"[{issue.Code}] {issue.Message}");
+                throw HardError(node, issue);
 
             // reveal + scale is the same last-writer conflict; the rest of AnimationRules stays on
             // the warning channel (a wrong child count still renders something sensible).
             if (node.Tag == "Animation")
                 foreach (var issue in PromptUGUI.Lint.AnimationRules.CheckAnimation(node))
                     if (issue.Code == PromptUGUI.Lint.AnimationRules.ScaleCode)
-                        throw new ParseException($"[{issue.Code}] {issue.Message}");
+                        throw HardError(node, issue);
 
             // Common attributes
             var anchor = VariantResolver.ResolveAttribute(node, "anchor", variants);
@@ -149,7 +161,8 @@ namespace PromptUGUI.Application
             {
                 // 不挂 InnerException：Unity 的 StackTraceUtility 会把 inner 顶到日志最前面、
                 // 把我们附带上下文的外层 message 埋到中间，作者一眼看不到关键诊断。
-                throw new ParseException(FormatNodeContext(node) + ": " + ex.Message);
+                throw new ParseException(
+                    FormatNodeContext(node) + ": " + ex.Message + UILog.At(node));
             }
 
             // Capture the runtime-state baseline AFTER everything settles (OnAfterApply + any
@@ -168,7 +181,8 @@ namespace PromptUGUI.Application
             catch (Exception ex) when (!(ex is ParseException))
             {
                 throw new ParseException(
-                    $"{FormatNodeContext(node)} attribute {attrName}=\"{value}\": {ex.Message}");
+                    $"{FormatNodeContext(node)} attribute {attrName}=\"{value}\": {ex.Message}" +
+                    UILog.At(node));
             }
         }
 
@@ -176,6 +190,14 @@ namespace PromptUGUI.Application
         {
             var id = string.IsNullOrEmpty(node.Id) ? "" : $" id='{node.Id}'";
             return $"<{node.Tag}{id}>";
+        }
+
+        // Same finding the CLI reports as an error — stamped with the same place, so the exception
+        // message ends in the "  at <Tag id='x'> src:line" the warning channel also prints.
+        private static ParseException HardError(ElementNode node, PromptUGUI.Lint.LintIssue issue)
+        {
+            issue = UILog.Stamp(node, issue);
+            return new ParseException($"[{issue.Code}] {issue.Message}" + UILog.At(issue));
         }
 
         // Single source of truth lives in PromptUGUI.IR.CommonAttributes (Core/IR) so the lint CLI can

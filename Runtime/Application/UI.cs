@@ -84,7 +84,7 @@ namespace PromptUGUI.Application
                 if (SpriteResolver == null)
                 {
                     if (IsSpriteResolverLoadInFlight) return null;
-                    UnityEngine.Debug.LogError(
+                    UILog.Error(
                         $"sprite '{value}': UI.SpriteResolver is not registered. " +
                         $"Call SpriteResolverHelpers.UseSpriteSetResolver(spriteSets) " +
                         $"before opening Screens that reference sprite='ns:name'.");
@@ -92,7 +92,7 @@ namespace PromptUGUI.Application
                 }
                 var sprite = SpriteResolver(value);
                 if (sprite == null)
-                    UnityEngine.Debug.LogError(BuildSpriteResolutionFailureMessage("sprite", value));
+                    UILog.Error(BuildSpriteResolutionFailureMessage("sprite", value));
                 return sprite;
             }
 
@@ -122,7 +122,7 @@ namespace PromptUGUI.Application
 
             var names = new string[all.Length];
             for (int i = 0; i < all.Length; i++) names[i] = all[i].name;
-            UnityEngine.Debug.LogError(
+            UILog.Error(
                 $"sprite '{value}': slice '{sliceName}' not found in '{path}'. " +
                 $"Available: {string.Join(", ", names)}");
             return null;

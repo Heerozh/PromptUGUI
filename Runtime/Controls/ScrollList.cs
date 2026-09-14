@@ -215,7 +215,7 @@ namespace PromptUGUI.Controls
         {
             if (_bar != null && _bar != bar)
             {
-                Debug.LogWarning(
+                UILog.Warn(bar,
                     $"[{PromptUGUI.Lint.ScrollbarRules.DuplicateCode}] <ScrollList id='{Id}'>: a second " +
                     $"<Scrollbar> (id='{bar.Id}') — a host takes one bar; the first in document order is " +
                     "used and this one is parked inactive.");
@@ -380,7 +380,7 @@ namespace PromptUGUI.Controls
         }
 
         // 格式错时告警并保留旧值（同 Carousel.DotSize）：一个笔误不该把整个 Screen 打不开。
-        private static Vector2? ParseCellSize(string value)
+        private Vector2? ParseCellSize(string value)
         {
             var x = value == null ? -1 : value.IndexOf('x');
             if (x > 0
@@ -388,7 +388,7 @@ namespace PromptUGUI.Controls
                 && float.TryParse(value.Substring(x + 1), NumberStyles.Float, CultureInfo.InvariantCulture, out var h))
                 return new Vector2(w, h);
             if (!string.IsNullOrEmpty(value))
-                Debug.LogWarning($"<ScrollList cellSize='{value}'> is not 'WxH'; keeping the previous cell size.");
+                UILog.Warn(this, $"<ScrollList cellSize='{value}'> is not 'WxH'; keeping the previous cell size.");
             return null;
         }
 

@@ -22,12 +22,11 @@ namespace PromptUGUI.Controls.Internal
         internal static void IfMoved(in ColorSpec spec, Object context, string what)
         {
             if (!spec.HasStops) return;
-            Debug.LogWarning(
+            UILog.Warn(context,
                 $"PromptUGUI: {what} carries a gradient stop position, but it paints TMP text — " +
                 "a gradient there is placed per glyph, so a stop has nowhere to live and the ramp " +
                 "spans the full height instead. Drop the position, or put the shaped ramp on a " +
-                "graphic behind the text. [PUI-GRADIENT-STOP-NO-SURFACE]",
-                context);
+                "graphic behind the text. [PUI-GRADIENT-STOP-NO-SURFACE]");
         }
     }
 }

@@ -225,7 +225,7 @@ namespace PromptUGUI.Controls
                 _padAcross = across;
                 ScrollbarAttrParser.HandleThickness(_thickness, across, out var clamped);
                 if (clamped)
-                    Debug.LogWarning(
+                    UILog.Warn(this,
                         $"<Scrollbar id='{Id}'>: padding=\"{value}\" leaves no handle across a " +
                         $"{_thickness.ToString(System.Globalization.CultureInfo.InvariantCulture)}-unit bar " +
                         "(thickness − 2·sides ≤ 0); clamping the handle to 1 unit.");

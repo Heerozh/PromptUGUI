@@ -251,7 +251,7 @@ namespace PromptUGUI.Controls.Internal
 
             var texels = pad * texelsPerUnit;
             var limitPx = 1f / (FxMesh.TapSpacing * texelsPerUnit);
-            Debug.LogWarning(tex.filterMode == FilterMode.Point
+            PromptUGUI.Application.UILog.Warn(this, tex.filterMode == FilterMode.Point
                 ? $"PromptUGUI: blur / glow of {pad:0.#}px on '{name}' is {texels:0.#} texels of the " +
                   $"Point-filtered texture '{tex.name}' — above ~{limitPx:0.#}px at this size the kernel " +
                   "draws ghost copies of thin strokes, and mipmaps cannot help a Point texture (they " +
@@ -377,11 +377,11 @@ namespace PromptUGUI.Controls.Internal
                 c.additionalShaderChannels |= needed;
         }
 
-        private static void WarnOnce(ref bool flag, string message)
+        private void WarnOnce(ref bool flag, string message)
         {
             if (flag) return;
             flag = true;
-            Debug.LogWarning(message);
+            PromptUGUI.Application.UILog.Warn(this, message);
         }
     }
 }

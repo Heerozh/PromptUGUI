@@ -32,7 +32,7 @@ namespace PromptUGUI.Controls
                 {
                     _img.sprite = null;
                     if (UI.IsSpriteResolverLoadInFlight) return;
-                    Debug.LogError(
+                    UILog.Error(this,
                         $"Icon '{value}': UI.SpriteResolver is not registered. " +
                         $"Call SpriteResolverHelpers.UseSpriteSetResolver(spriteSets) " +
                         $"before opening Screens that contain <Icon>.");
@@ -40,7 +40,7 @@ namespace PromptUGUI.Controls
                 }
                 var sprite = UI.SpriteResolver(value);
                 if (sprite == null)
-                    Debug.LogError(UI.BuildSpriteResolutionFailureMessage("Icon", value));
+                    UILog.Error(this, UI.BuildSpriteResolutionFailureMessage("Icon", value));
                 _img.sprite = sprite;
             }
         }

@@ -175,7 +175,7 @@ namespace PromptUGUI.Controls.Internal
             _dotTriSlice = triSlice;
             RebuildSlices();
             if (triSlice && selectedSprite != null)
-                Debug.LogWarning("<Carousel>: dotSelectedSprite is ignored when dotTriSlice is on " +
+                UILog.Warn(this, "<Carousel>: dotSelectedSprite is ignored when dotTriSlice is on " +
                     "(tri-slice selection is colour-only via dotSelectedColor).");
         }
 

@@ -57,6 +57,11 @@ is the Template invocation that produced this instance, printed only when a temp
 without it, ten invocations of one template produce ten findings that read identically. Nested
 invocations record the OUTERMOST site, since inner ones are the same for every instance.
 
+The spelling is `Runtime/Core/Lint/SourceLocation.cs`, and the runtime uses the same one: a Unity
+warning / error about a node ends with `  at <Tag id='x'> src:line (via …)` (`UILog`), so a Console
+line and a CLI line grep alike — the only difference is that the runtime's `src` is the resolver key
+the document was loaded by rather than a filesystem path.
+
 Line numbers come from a `LineInfoXmlDocument` that overrides `CreateElement` while the reader is
 still on the element — `XmlDocument` nodes carry no position of their own, and this was cheaper than
 porting the parser to `XDocument` for the same information.

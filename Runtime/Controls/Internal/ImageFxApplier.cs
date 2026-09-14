@@ -89,7 +89,7 @@ namespace PromptUGUI.Controls.Internal
             if (fx.Pad <= 0f || fx.sprite == null) return;
             if (fx.type == UnityEngine.UI.Image.Type.Simple) return;
 
-            Debug.LogWarning(
+            UILog.Warn(graphic,
                 $"PromptUGUI: <{tag}> asks for blur / glow, but its sprite carries a 9-slice border " +
                 $"so the Image is drawn as {fx.type} — the effect only applies to type=\"simple\" " +
                 "and is skipped. Write type=\"simple\" if the borders are not wanted here.");
@@ -104,7 +104,7 @@ namespace PromptUGUI.Controls.Internal
             if (!_warnedPlainImage)
             {
                 _warnedPlainImage = true;
-                Debug.LogWarning(
+                UILog.Warn(graphic,
                     $"PromptUGUI: <{tag} {attr}=…> needs PromptUGUI's own Image component, but this " +
                     "node already carries a plain UnityEngine.UI.Image (from a prefab?). The " +
                     "attribute is ignored — remove the Image from the prefab and let PromptUGUI add " +

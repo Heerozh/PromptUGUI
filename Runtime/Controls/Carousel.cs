@@ -101,7 +101,7 @@ namespace PromptUGUI.Controls
                 {
                     _dotSize = new Vector2(8f, 8f);
                     if (!string.IsNullOrEmpty(value))
-                        Debug.LogWarning($"<Carousel dotSize='{value}'> not 'WxH'; using 8x8.");
+                        UILog.Warn(this, $"<Carousel dotSize='{value}'> not 'WxH'; using 8x8.");
                 }
             }
         }

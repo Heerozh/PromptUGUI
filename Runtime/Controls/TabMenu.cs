@@ -283,7 +283,7 @@ namespace PromptUGUI.Controls
                 }
                 catch (FormatException)
                 {
-                    Debug.LogWarning(
+                    UILog.Warn(this,
                         $"<TabMenu id='{Id}'> transition='{value}' is not a duration " +
                         $"('0.15s' / '150ms' / '0.15'); using {DefaultTransition}s.");
                     _transition = DefaultTransition;

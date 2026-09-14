@@ -112,7 +112,7 @@ namespace PromptUGUI.Controls
                         if (_fitter != null) _fitter.enabled = false;
                         break;
                     default:
-                        Debug.LogWarning(
+                        UILog.Warn(this,
                             $"PromptUGUI: <RawImage type=\"{value}\"> only supports 'contain' / 'cover' " +
                             "(simple/sliced/tiled/filled are sprite-only <Image> modes); ignoring.");
                         if (_fitter != null) _fitter.enabled = false;

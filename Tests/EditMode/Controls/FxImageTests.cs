@@ -463,6 +463,29 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void The_mip_warning_says_where_the_icon_was_written()
+        {
+            // The kernel warning fires from the FxImage component, which knows only its GameObject
+            // name ('Icon' when there is no id) — useless for finding the markup. The Control that
+            // owns the GameObject knows the src and line.
+            UseSprite(MakeSprite(mips: false));
+            var warnings = CaptureMipWarnings(out var stop);
+            try
+            {
+                var s = Open("<Icon id='a' name='ui:x' size='8x8' glow='6'/>");
+                using var vh = new VertexHelper();
+                FxOf(s.Get<PromptUGUI.Controls.Icon>("a")).BuildMeshForTests(vh);
+
+                Assert.AreEqual(1, warnings.Count);
+                StringAssert.EndsWith("\n  at <Icon id='a'> t:1", warnings[0]);
+            }
+            finally
+            {
+                stop();
+            }
+        }
+
+        [Test]
         public void A_radius_the_plain_kernel_can_carry_is_quiet()
         {
             UseSprite(MakeSprite(mips: false));

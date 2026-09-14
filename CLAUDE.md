@@ -168,6 +168,8 @@ Two entry points to this pipeline:
 
 **`Screen.Close()` branches on `Application.isPlaying`** to use `DestroyImmediate` in EditMode (so EditMode tests don't log "Destroy may not be called from edit mode"). Don't revert this back to a single `Object.Destroy` call.
 
+**Runtime warnings / errors about a node go through `UILog`, not bare `Debug.Log*`.** `UILog.Warn(this, …)` from a Control, `UILog.Warn(component, …)` from an internal MonoBehaviour (walks up the transforms to the owning Control), `UILog.Error(msg)` from a static with no node in hand (uses the node `ControlAttributeApplier` is applying), `UILog.Warn(node, issue)` for a lint finding in `ScreenInstantiator`. It appends `\n  at <Tag id='x'> src:line (via …)` — spelled by `Core/Lint/SourceLocation` so it greps like the CLI's output — and passes the GameObject as the Console context. `Control.SourceNode` is where the place comes from; `ScreenInstantiator` stamps it before `AttachTo`.
+
 **`anchor` has hard structural rules.** `anchor="stretch"` (or `stretch-X` / `X-stretch`) means the corresponding axis is pulled by margin, not size. Setting `size`/`width`/`height` on a stretched axis is a parse error, not a layout suggestion. See spec §6.2.
 
 ## Build & Test

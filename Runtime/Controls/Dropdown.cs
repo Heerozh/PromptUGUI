@@ -331,7 +331,7 @@ namespace PromptUGUI.Controls
         {
             if (_bar != null && _bar != bar)
             {
-                Debug.LogWarning(
+                UILog.Warn(bar,
                     $"[{PromptUGUI.Lint.ScrollbarRules.DuplicateCode}] <Dropdown id='{Id}'>: a second " +
                     $"<Scrollbar> (id='{bar.Id}') — a host takes one bar; the first in document order is " +
                     "used and this one is parked inactive.");

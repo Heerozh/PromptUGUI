@@ -404,7 +404,7 @@ namespace PromptUGUI.Controls
                 }
                 catch (System.FormatException)
                 {
-                    Debug.LogWarning(
+                    UILog.Warn(this,
                         $"<Collapsible id='{Id}'> transition='{value}' is not a duration " +
                         "(e.g. '0.2s', '200ms', '0.2'). Falling back to the default.");
                     _transition = DefaultTransition;
@@ -727,7 +727,7 @@ namespace PromptUGUI.Controls
             var winner = groups?.FirstExpanded(_groupName);
             if (winner == null || ReferenceEquals(winner, this)) return;
 
-            Debug.LogWarning(
+            UILog.Warn(this,
                 $"<Collapsible id='{Id}'> group='{_groupName}': another panel in this accordion is "
                 + $"already open ('{winner.Id}', earlier in document order), so this one opens closed. "
                 + "Write expanded='false' on it to say so.");

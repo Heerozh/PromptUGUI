@@ -30,6 +30,7 @@ dotnet run --project Library/PackageCache/com.promptugui.core@<hash>/.lint/UIXml
 - Surfaces context-dependent rules that XSD can't easily express, e.g. **`anchor` / `margin` on a direct child of `<VStack>` / `<HStack>` / `<Grid>`** (`PUI-LAYOUT-ANCHOR` / `PUI-LAYOUT-MARGIN`), or a bare `state-*` trigger with no `<Btn>` / `<Tab>` / `<Toggle>` ancestor (`PUI-STATE-NO-SOURCE`). Unity logs these as warnings (so `UI.Open()` doesn't break), but the CLI promotes them to errors with non-zero exit code so they don't slip through.
 - Exit 0 = clean. Exit 1 = at least one parse error or rule violation; STOP and fix before reporting done.
 - Rule code lives in `Library/PackageCache/com.promptugui.core@<hash>/Runtime/Core/Lint/` and is shared with `ScreenInstantiator`'s warning path — same logic, one source of truth.
+- **Runtime warnings / errors point back at the markup too.** Anything Unity logs about a node — a lint rule at `UI.Open()`, a sprite that failed to resolve, an `FxImage` blur / glow kernel warning, a hard `ParseException` — ends with a second line `  at <Tag id='x'> src:line (via src:line)`, the same `src:line` spelling the CLI prints (`src` is the resolver key / `LoadDocument` label, not a filesystem path; a node inside a Template body names the template's declaration line, `via` the invocation). Read it from `read_console` to find what to edit; clicking the Console entry pings the GameObject in the Hierarchy.
 
 ### 3. Unity MCP live feedback
 

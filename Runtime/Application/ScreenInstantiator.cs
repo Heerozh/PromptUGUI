@@ -184,78 +184,78 @@ namespace PromptUGUI.Application
             if (parentIsLayoutGroup)
             {
                 foreach (var issue in LayoutGroupChildRules.CheckChild(node))
-                    Debug.LogWarning(issue.Message);
+                    UILog.Warn(node, issue);
             }
             else
             {
                 // 运行时父级已确凿（按组件判断）：非 layout-group 下的 'flow' 是 inert 属性。
                 foreach (var issue in LayoutGroupChildRules.CheckNonLayoutChild(node))
-                    Debug.LogWarning(issue.Message);
+                    UILog.Warn(node, issue);
             }
 
             // Per-tag self-checks (mirror of IRWalker dispatch; runtime warns)
             if (node.Tag == "Frame")
                 foreach (var issue in MaskAttributeRules.CheckFrame(node))
-                    Debug.LogWarning(issue.Message);
+                    UILog.Warn(node, issue);
             else if (node.Tag == "Image")
             {
                 foreach (var issue in MaskAttributeRules.CheckImage(node))
-                    Debug.LogWarning(issue.Message);
+                    UILog.Warn(node, issue);
                 // FIT-VARIANT only — FIT-GEOMETRY is CLI-only (inert, zero runtime cost).
                 foreach (var issue in ImageFitRules.CheckVariant(node))
-                    Debug.LogWarning(issue.Message);
+                    UILog.Warn(node, issue);
                 // FX-TYPE only: a Sliced sprite draws no blur / glow at all, which is a visual
                 // surprise rather than an authoring nit. The rest of the FX family is CLI-only.
                 foreach (var issue in ImageFxRules.CheckImage(node))
-                    Debug.LogWarning(issue.Message);
+                    UILog.Warn(node, issue);
             }
             else if (node.Tag == "Icon")
             {
                 foreach (var issue in ImageFxRules.CheckImage(node))
-                    Debug.LogWarning(issue.Message);
+                    UILog.Warn(node, issue);
             }
             else if (node.Tag == "Progress")
                 foreach (var issue in ProgressAttributeRules.CheckProgress(node))
-                    Debug.LogWarning(issue.Message);
+                    UILog.Warn(node, issue);
             else if (node.Tag == "TabBar")
                 foreach (var issue in TabRules.CheckTabBar(node))
-                    Debug.LogWarning(issue.Message);
+                    UILog.Warn(node, issue);
             else if (node.Tag == "TabMenu")
                 foreach (var issue in PromptUGUI.Lint.TabMenuRules.CheckTabMenu(node))
-                    Debug.LogWarning(issue.Message);
+                    UILog.Warn(node, issue);
             else if (node.Tag == "Carousel")
                 foreach (var issue in PromptUGUI.Lint.CarouselRules.CheckCarousel(node))
-                    Debug.LogWarning(issue.Message);
+                    UILog.Warn(node, issue);
             else if (node.Tag == "ScrollList")
                 foreach (var issue in PromptUGUI.Lint.ScrollListRules.CheckScrollList(node))
-                    Debug.LogWarning(issue.Message);
+                    UILog.Warn(node, issue);
             else if (node.Tag == "Scrollbar")
                 foreach (var issue in PromptUGUI.Lint.ScrollbarRules.Check(node))
-                    Debug.LogWarning(issue.Message);
+                    UILog.Warn(node, issue);
             else if (node.Tag == "Collapsible")
                 // The height rule is a hard error (ControlAttributeApplier); the header-structure
                 // ones are warnings — the panel still renders, it just ignores what it cannot use.
                 foreach (var issue in PromptUGUI.Lint.CollapsibleRules.CheckCollapsible(node))
                 {
                     if (issue.Code == PromptUGUI.Lint.CollapsibleRules.HeightCode) continue;
-                    Debug.LogWarning(issue.Message);
+                    UILog.Warn(node, issue);
                 }
 
             if (node.Tag == "Animation")
                 foreach (var issue in PromptUGUI.Lint.AnimationRules.CheckAnimation(node))
-                    Debug.LogWarning(issue.Message);
+                    UILog.Warn(node, issue);
             foreach (var issue in PromptUGUI.Lint.AnimationRules.CheckReverseOnTag(node))
-                Debug.LogWarning(issue.Message);
+                UILog.Warn(node, issue);
 
             // Universal: rotation / flip on a tag that generates no mesh — silently dropped otherwise.
             foreach (var issue in PromptUGUI.Lint.RotateFlipRules.Check(node))
-                Debug.LogWarning(issue.Message);
+                UILog.Warn(node, issue);
 
             // Universal: nav*/focus on a non-Selectable tag (e.g. <Frame navUp="x">).
             // NavTargetRules.CheckNavTarget (unknown id) is CLI-only; runtime already
             // hard-throws in ExplicitNavigationResolver for missing ids.
             foreach (var issue in NavTargetRules.CheckNav(node))
-                Debug.LogWarning(issue.Message);
+                UILog.Warn(node, issue);
 
             var entry = _registry.Resolve(node.Tag);
 
@@ -278,6 +278,7 @@ namespace PromptUGUI.Application
                 go.name = node.Id;
 
             control.Id = node.Id;
+            control.SourceNode = node;
             if (entry.Prefab != null)
                 BindFields(control, go);
             control.AttachTo(go);
@@ -361,14 +362,14 @@ namespace PromptUGUI.Application
                         continue;
                     }
                     foreach (var issue in PromptUGUI.Lint.ScrollbarRules.CheckOutside(node, c))
-                        Debug.LogWarning(issue.Message);
+                        UILog.Warn(c, issue);
                 }
                 if (selfIsLayoutGroup)
                     foreach (var issue in PromptUGUI.Lint.HugRules.CheckHugStretchChild(node, c))
-                        Debug.LogWarning(issue.Message);
+                        UILog.Warn(c, issue);
                 if (node.Tag == "Carousel")
                     foreach (var issue in PromptUGUI.Lint.CarouselRules.CheckCard(node, c))
-                        Debug.LogWarning(issue.Message);
+                        UILog.Warn(c, issue);
                 InstantiateRecursive(c, control.ChildHostTransform, selfIsLayoutGroup, childScope, nodeMap,
                                      parentControl: control, applyOrder: applyOrder);
             }
