@@ -766,9 +766,13 @@ namespace PromptUGUI.Controls
         public void Track(System.IDisposable d)
             => (_subscriptions ??= new System.Collections.Generic.List<System.IDisposable>()).Add(d);
 
-        // 释放自身订阅袋 + 递归子树兜底：动态卡子树的内层 Control 不会被单独 Dispose（只销毁根 GO 级联），
-        // 故 .AddTo(innerControl) 必须靠这条递归，否则泄漏。只碰订阅袋，不额外销毁 GO（GO 由根 Destroy 级联）。
-        private void DisposeSubscriptionsRecursive()
+        /// <summary>
+        /// 释放自身订阅袋 + 递归子树兜底：动态卡子树的内层 Control 不会被单独 Dispose（只销毁根 GO 级联），
+        /// 故 <c>.AddTo(innerControl)</c> 必须靠这条递归，否则泄漏。只碰订阅袋，不额外销毁 GO（GO 由根 Destroy 级联）。
+        /// <see cref="Dispose"/> 之外的另一个调用方是 <c>ScrollList.Rebuild</c>：复用的行不 Dispose，
+        /// 再次 bind 之前在这里把上一次 bind 挂的订阅放掉（2026-09-14 scrolllist-row-reuse spec §4.2）。
+        /// </summary>
+        internal void ReleaseSubscriptions()
         {
             if (_subscriptions != null)
             {
@@ -777,13 +781,13 @@ namespace PromptUGUI.Controls
                 _subscriptions = null;
             }
             foreach (var c in _children)
-                if (c is Control cc) cc.DisposeSubscriptionsRecursive();
+                if (c is Control cc) cc.ReleaseSubscriptions();
         }
 
         public virtual void Dispose()
         {
             // 先退订（自身 + 子树）——teardown 可能读 GO；避免往半销毁 GO fire。
-            DisposeSubscriptionsRecursive();
+            ReleaseSubscriptions();
             if (HostGameObject == null) return;
             // 与 Screen.Close 一致：EditMode 用 DestroyImmediate。
             if (UnityEngine.Application.isPlaying) Object.Destroy(HostGameObject);
