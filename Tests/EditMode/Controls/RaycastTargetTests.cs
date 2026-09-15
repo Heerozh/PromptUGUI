@@ -142,8 +142,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
             CollectionAssert.DoesNotContain(ProceduralAttrNames.All, "raycastTarget",
                 "it is not a shape and must not declare procedural mode on a ProceduralControl");
 
-            // <Btn> does not expose it at all: its hit layer is always on. The attribute is skipped,
-            // and skipping it must not drag the Btn into procedural mode.
+            // <Btn> does not expose it at all: its hit layer is always on. The attribute is skipped
+            // (and reported, PUI-RAYCAST-TAG), and skipping it must not drag the Btn into
+            // procedural mode.
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("raycastTarget"));
             var b = Open("<Btn id='b' raycastTarget='true'>OK</Btn>").Get<Btn>("b");
             Assert.IsNull(b.GameObject.GetComponentInChildren<ProceduralPanel>(true));
         }
@@ -270,6 +272,37 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var b = Open("<Btn id='b'>OK</Btn>").Get<Btn>("b");
             Assert.IsTrue(b.GameObject.GetComponent<UnityImage>().raycastTarget);
+        }
+
+        // ===== lint at Open =====
+
+        [Test]
+        public void RaycastTarget_OnAContainer_WarnsAtOpen()
+        {
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("raycastTarget"));
+            Open("<VStack id='v' raycastTarget='true'/>");
+        }
+
+        [Test]
+        public void AnUndecidedPanel_OpensWithoutAWarning()
+        {
+            // PUI-RAYCAST-UNDECIDED is CLI-only (like PUI-CONTAINER-VISUAL-ATTR): a click-through
+            // panel is not broken, it is undecided — a Console warning on every open would be noise.
+            var warnings = 0;
+            void Count(string msg, string stack, LogType type)
+            {
+                if (type == LogType.Warning && msg.Contains("raycastTarget")) warnings++;
+            }
+            UnityEngine.Application.logMessageReceived += Count;
+            try
+            {
+                Open("<Frame id='panel' color='#fff' radius='8'><Text>hi</Text></Frame>");
+                Assert.AreEqual(0, warnings);
+            }
+            finally
+            {
+                UnityEngine.Application.logMessageReceived -= Count;
+            }
         }
     }
 }
