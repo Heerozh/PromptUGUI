@@ -148,13 +148,36 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(Vector2.zero, rt.offsetMax);
         }
 
+        /// <summary>
+        /// The surface stands in for the Image in BOTH of its roles (spec 2026-09-15 §4.2): it draws
+        /// and it is hit. The retired Image is disabled outright — the alpha-0 quad it used to keep
+        /// drawing purely to stay raycastable was overdraw under every procedural button.
+        /// </summary>
         [Test]
-        public void Surface_IsClickThrough()
+        public void Surface_TakesOverTheHostImagesHitRole()
         {
             var b = Load("radius='8'");
+            var bg = b.GameObject.GetComponent<UnityImage>();
 
-            Assert.IsFalse(PanelOf(b).raycastTarget,
-                "the control itself is the hit target; a background must not swallow the click");
+            Assert.IsTrue(PanelOf(b).raycastTarget,
+                "a Btn's hit layer is always on; the panel inherits the Image's raycastTarget");
+            Assert.IsFalse(bg.enabled, "the retired Image draws nothing and is hit by nothing");
+        }
+
+        [Test]
+        public void LeavingProceduralMode_ReenablesTheImage_AndDropsThePanelsRaycast()
+        {
+            var b = Load("radius.mobile='8'");
+            var bg = b.GameObject.GetComponent<UnityImage>();
+            UI.Variants.Set("mobile", true);
+            Assume.That(bg.enabled, Is.False);
+            Assume.That(PanelOf(b).raycastTarget, Is.True);
+
+            UI.Variants.Set("mobile", false);
+
+            Assert.IsTrue(bg.enabled, "the Image is the visible layer again…");
+            Assert.IsTrue(bg.raycastTarget, "…and the hit layer again");
+            Assert.IsFalse(PanelOf(b).raycastTarget, "a hidden surface must not stay in the raycast list");
         }
 
         // ===== §7 sprite and procedural are mutually exclusive on one surface =====
@@ -521,11 +544,13 @@ namespace PromptUGUI.Tests.EditMode.Controls
             btn.SimulateState(NormalState);
 
             UI.Variants.Set("mobile", true);      // the surface takes over
+            var retiredColour = bg.color;
             btn.SimulateState(Highlighted);
 
-            Assert.AreEqual(0f, bg.color.a, 0.001f,
-                "the retired Image must stay retired — a stale reactor repainting it puts the old "
-                + "skin's colour back as a hard rectangle behind the rounded surface");
+            Assert.IsFalse(bg.enabled, "retired: the Image is switched off, not merely faded");
+            Assert.AreEqual(retiredColour, bg.color,
+                "the retired Image must stay retired — a stale reactor repainting it would put the "
+                + "old skin's colour back the moment the Image is re-enabled");
         }
 
         /// <summary>
@@ -536,6 +561,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
         /// re-applying a gradient sets <c>Graphic.color = white</c>: the sprite-less Image draws the
         /// tint as a hard rectangle behind the shaped surface. Straight from
         /// <c>&lt;Tab radius=… color="A,B" pressedModulate=…&gt;</c>.
+        ///
+        /// <para>The retired Image is disabled now, so a stray repaint would not show — until the
+        /// surface stands down and the Image comes back wearing it. Hence the colour itself is
+        /// pinned, not just the visibility.</para>
         /// </summary>
         [Test]
         public void RetiredImage_IsNeverAFanOutTarget_GradientColour()
@@ -545,13 +574,14 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var bg = b.GameObject.GetComponent<UnityImage>();
             var btn = b.GameObject.GetComponent<PuiButton>();
 
-            Assert.AreEqual(0f, bg.color.a, 0.001f, "retired at open");
+            Assert.IsFalse(bg.enabled, "retired at open");
+            var retiredColour = bg.color;
             btn.SimulateState(Pressed);
-            Assert.AreEqual(0f, bg.color.a, 0.001f,
-                "the fan-out must not repaint the retired Image — it draws the gradient as a hard "
-                + "rectangle behind the shaped surface");
+            Assert.AreEqual(retiredColour, bg.color,
+                "the fan-out must not repaint the retired Image — it would draw the gradient as a "
+                + "hard rectangle behind the shaped surface the moment it is re-enabled");
             btn.SimulateState(NormalState);
-            Assert.AreEqual(0f, bg.color.a, 0.001f, "and not on the way back either");
+            Assert.AreEqual(retiredColour, bg.color, "and not on the way back either");
         }
 
         /// <summary>Solid colour, same rule — the retired Image is nobody's fan-out target.</summary>
@@ -563,10 +593,12 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var bg = b.GameObject.GetComponent<UnityImage>();
             var btn = b.GameObject.GetComponent<PuiButton>();
 
+            Assert.IsFalse(bg.enabled);
+            var retiredColour = bg.color;
             btn.SimulateState(Pressed);
-            Assert.AreEqual(0f, bg.color.a, 0.001f);
+            Assert.AreEqual(retiredColour, bg.color);
             btn.SimulateState(NormalState);
-            Assert.AreEqual(0f, bg.color.a, 0.001f);
+            Assert.AreEqual(retiredColour, bg.color);
         }
         /// <summary>…and it has to come back when the surface stands down again.</summary>
         [Test]
@@ -581,6 +613,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             UI.Variants.Set("mobile", false);
             btn.SimulateState(Highlighted);
 
+            Assert.IsTrue(bg.enabled, "the Image is the visible layer again");
             Assert.AreEqual(new Color32(0xF5, 0xE6, 0xC8, 0xff), (Color32)bg.color,
                 "detaching must be reversible, or the round trip loses hover entirely");
         }

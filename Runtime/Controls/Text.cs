@@ -23,6 +23,12 @@ namespace PromptUGUI.Controls
                 _tmp = GameObject.AddComponent<TextMeshProUGUI>();
                 _tmp.color = ProceduralBuilders.DefaultLabelColor;
             }
+            // TMP defaults to true, which silently put every <Text> in the raycast list — text is
+            // click-through unless the author writes raycastTarget="true" (spec 2026-09-15 §3).
+            // Written again in OnAfterApply: the tree is built INACTIVE and TMP's Awake
+            // (LoadDefaultSettings, on a component whose fontSize is still -99) re-applies
+            // TMP_Settings.enableRaycastTarget on activation, over anything set here.
+            _tmp.raycastTarget = false;
             ApplyFont();
             PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
         }
@@ -187,10 +193,32 @@ namespace PromptUGUI.Controls
             }
         }
 
+        private bool? _raycastAuthored;
+
+        /// <summary>
+        /// Whether the text catches the pointer. Default false (spec 2026-09-15 §3); turn it on
+        /// for a label that must be hit in its own right — inside a control it is never needed,
+        /// the control's own hit layer is under it.
+        /// </summary>
         [UIAttr, Preserve]
         public bool RaycastTarget
         {
-            set => _tmp.raycastTarget = value;
+            set
+            {
+                _raycastAuthored = value;
+                _tmp.raycastTarget = value;
+            }
+        }
+
+        // Cleared per pass so a variant-only raycastTarget.mobile turns off again when the variant
+        // leaves — a setter that does not run is the only signal that the attribute is gone.
+        internal override void OnBeforeApply() => _raycastAuthored = null;
+
+        internal override void OnAfterApply()
+        {
+            // See OnAttached: TMP's Awake re-applies its own default on activation, which lands
+            // between OnAttached and this pass. Every ReSolve replays the authored value anyway.
+            _tmp.raycastTarget = _raycastAuthored ?? false;
         }
 
         [UIAttr, Preserve]

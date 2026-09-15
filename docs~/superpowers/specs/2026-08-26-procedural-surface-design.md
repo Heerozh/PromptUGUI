@@ -74,14 +74,14 @@ sl (Slider)  [无 Graphic]           pr (Progress)  [无 Graphic]      tg (Toggl
 
 ```
 Btn (GameObject)
-├─ Image  _bg           ← 退位：sprite 清空、alpha 归零（组件保留，不销毁）
+├─ Image  _bg           ← 退位：sprite 清空、enabled=false（组件保留，不销毁；2026-09-15 起不再 alpha 归零 —— 面板继承它的 raycastTarget 当命中层，见 2026-09-15-raycast-target-design.md §4.2）
 ├─ __surface__          ← 懒挂的 ProceduralPanel，anchor=stretch，SetSiblingIndex(0)
 └─ Label / 作者写的子节点
 ```
 
 - **没声明就一个都不挂** —— 跟 `Frame` 今天的规则一字不差，对不用这个特性的工程零成本。
 - **挂上之后只改参数与可见性，永不销毁** —— 和 Add block 的 Strategy C 同构，变体来回切保持幂等。
-- **`ProceduralPanel` 强制 `raycastTarget = false`**（它自己的注释写着「a Frame stays click-through」），所以点击照常落到控件本体上，不需要额外处理。
+- ~~**`ProceduralPanel` 强制 `raycastTarget = false`**（它自己的注释写着「a Frame stays click-through」），所以点击照常落到控件本体上，不需要额外处理。~~ **2026-09-15 起**：面板继承退位 Image 的 `raycastTarget`，Image `enabled=false` —— 命中落在面板上、沿父链冒泡到控件；见 `2026-09-15-raycast-target-design.md` §4.2。
 - **层序：永远 `SetSiblingIndex(0)`**，画在控件自有内容（label / checkmark / arrow）和作者子节点**之下**。
 
 **机制不是新发明，仓库里已经有一份跑着的。** `GlassGroupPanel.Attach` 为 weld 承载者建的 `GlassWeld` 子节点就是这个形状：新建 GameObject、四角锚定铺满、`raycastTarget = false`、`SetSiblingIndex(0)`，注释写明「so the fused pane draws behind everything the blocks contain」。`__surface__` 照抄它即可 —— 包括层序那条结论（§13.6）。

@@ -23,7 +23,7 @@
 
     <!-- cover 是相对**父 rect** 等比填满并溢出，裁切由父级的 mask="rect" 负责 -->
     <Frame anchor="stretch" mask="rect">
-      <RawImage id="wall" type="cover"/>
+      <RawImage id="wall" type="cover" raycastTarget="false"/>
     </Frame>
 
     <!-- 图片版权署名。它在这个 canvas 上，所以**会被玻璃模糊掉** ——

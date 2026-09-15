@@ -70,9 +70,9 @@
 
 An id that resolves nowhere is a runtime error naming all three places it looked. `click@<id>` keeps its historic subtree-first walk (which reaches a `<Btn>` at any depth) before falling back to the lexical lookup.
 
-**Pointer-event source range**: only `<Btn>` and `<Image>` can be `hover-enter` / `hover-exit` / `press` event sources. They both default to `raycastTarget=true`, which is what Unity's EventSystem requires for dispatching pointer events. Using `@<id>` to reference `<Icon>` (hardcoded `raycastTarget=false`), `<Text>` (default `false`), `<Frame>` (no Graphic to receive raycasts), or any other control as a pointer source → runtime error `"id 'X' is a Y, not supported as pointer event source. Use <Btn> or <Image>."`
+**Pointer-event source range**: only `<Btn>`, `<Image>` and `<RawImage>` can be `hover-enter` / `hover-exit` / `press` event sources. A `<Btn>`'s hit layer is always on. An `<Image>` / `<RawImage>` is click-through by default (`raycastTarget="false"`, see the main doc's **Pointer hit-testing**), and **binding a pointer trigger to it turns its `raycastTarget` on by itself** — the trigger is the intent, and a stream nobody can hit would be a silent failure. Using `@<id>` to reference `<Icon>` (hardcoded click-through), `<Text>`, `<Frame>` (no pointer streams), or any other control as a pointer source → runtime error `"id 'X' is a Y, not supported as pointer event source. Use <Btn> or <Image>."`
 
-**Caveat — `raycastTarget="false"` silently breaks pointer triggers**: if you set `<Image raycastTarget="false">` and then reference that Image via `on="hover-enter@..."`, the pointer event never reaches the GameObject — the trigger silently never fires. No error is raised. Keep `raycastTarget=true` on any Image you want to trigger pointer events from.
+**Caveat — an explicit `raycastTarget="false"` on a source wins**: `<Image raycastTarget="false">` referenced via `on="hover-enter@..."` keeps its explicit false, so the pointer event can never reach it — the trigger never fires. This is reported once as a warning at bind time (`raycastTarget="false" … used as a pointer event source`); drop the attribute or pick another source.
 
 **`click` vs `press`**:
 

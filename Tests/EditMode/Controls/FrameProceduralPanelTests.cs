@@ -60,7 +60,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [Test]
         public void Panel_IsNotARaycastTarget()
         {
-            // A Frame stays click-through; a tinted clickable region is what <Btn> is for.
+            // A drawn Frame stays click-through until the author writes raycastTarget="true"
+            // (RaycastTargetTests has the rest of that contract).
             Assert.IsFalse(PanelOf(Load("color='#fff'")).raycastTarget);
         }
 

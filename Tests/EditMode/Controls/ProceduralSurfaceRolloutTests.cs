@@ -81,10 +81,65 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 Assert.IsNotNull(panel, $"<{tag} radius='8'> should attach a surface");
                 Assert.AreEqual(0, panel.transform.GetSiblingIndex(),
                     $"<{tag}>'s surface must draw under the control's own content");
-                Assert.IsFalse(panel.raycastTarget, $"<{tag}>'s surface must stay click-through");
                 Assert.IsTrue(panel.IsPanelVisible,
                     $"<{tag}>'s surface is attached but draws nothing — the shape would be invisible");
             }
+        }
+
+        /// <summary>
+        /// The surface stands in for the host Image in both roles (spec 2026-09-15 §4.2): the Image
+        /// is disabled outright, and the panel takes whatever <c>raycastTarget</c> the Image had —
+        /// true for a Btn's face, false for a Progress bg (PB-D16) — so no control needs a rule of
+        /// its own.
+        /// </summary>
+        [Test]
+        public void EveryWiredControl_SurfaceInheritsTheHostImagesHitRole()
+        {
+            foreach (var tag in Tags)
+            {
+                var panel = PanelIn(Load(tag, "radius='8' color='#3366ff'"));
+                var host = panel.transform.parent.GetComponent<UnityImage>();
+                Assert.IsNotNull(host, $"<{tag}>'s surface host carries no Image");
+                Assert.IsFalse(host.enabled,
+                    $"<{tag}>'s retired Image still draws — an invisible quad under the SDF");
+                Assert.AreEqual(host.raycastTarget, panel.raycastTarget,
+                    $"<{tag}>'s surface must be hit exactly when its Image was");
+            }
+        }
+
+        [Test]
+        public void EveryWiredControl_LeavingProceduralMode_ReenablesTheImage()
+        {
+            foreach (var tag in Tags)
+            {
+                var c = Load(tag, "radius.mobile='8'");
+                UI.Variants.Set("mobile", true);
+                var panel = PanelIn(c);
+                var host = panel.transform.parent.GetComponent<UnityImage>();
+                Assume.That(host.enabled, Is.False, $"guard: <{tag}> retired its Image");
+
+                UI.Variants.Set("mobile", false);
+
+                Assert.IsTrue(host.enabled, $"<{tag}>'s Image must come back when the surface stands down");
+                Assert.IsFalse(panel.raycastTarget, $"<{tag}>'s hidden surface must leave the raycast list");
+            }
+        }
+
+        /// <summary>
+        /// An inner layer inherits the same way: a Slider's fill / handle Images are built
+        /// raycast-off, so their surfaces stay off — the track is what the Slider is hit on.
+        /// </summary>
+        [Test]
+        public void Slider_InnerSurfaces_StayClickThrough()
+        {
+            var s = Load("Slider", "fillRadius='4' handleRadius='pill' fillColor='#fff' handleColor='#fff'");
+            var inner = s.GameObject.GetComponentsInChildren<ProceduralPanel>(true)
+                .Where(p => p.gameObject.name == ProceduralSurface.NodeName
+                            && p.transform.parent.name != "Background")
+                .ToList();
+            Assert.That(inner.Count, Is.GreaterThanOrEqualTo(1), "guard: inner surfaces attached");
+            foreach (var p in inner)
+                Assert.IsFalse(p.raycastTarget, $"{p.transform.parent.name}'s surface must not catch");
         }
 
         /// <summary>
@@ -107,17 +162,15 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void EveryWiredControl_RetiresTheHostImage_WithoutDisablingIt()
+        public void EveryWiredControl_RetiresTheHostImage_WithoutDestroyingIt()
         {
             foreach (var tag in Tags)
             {
                 var host = PanelIn(Load(tag, "radius='8'")).transform.parent.GetComponent<UnityImage>();
 
+                Assert.IsNotNull(host, $"<{tag}>: the Image component stays — a Variant may bring it back");
                 Assert.IsNull(host.sprite, $"<{tag}>: a bitmap under the SDF face is what §7 forbids");
-                Assert.AreEqual(0f, host.color.a, $"<{tag}>: the Image must stand down");
-                Assert.IsTrue(host.enabled,
-                    $"<{tag}>: uGUI only raycasts enabled Graphics — disabling the Image would "
-                    + "silently stop the control responding to input");
+                Assert.IsFalse(host.enabled, $"<{tag}>: the Image must stand down entirely");
             }
         }
 

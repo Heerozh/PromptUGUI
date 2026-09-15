@@ -21,12 +21,42 @@ namespace PromptUGUI.Controls
         {
             _raw = GameObject.GetComponent<UnityRawImage>()
                    ?? GameObject.AddComponent<UnityRawImage>();
+            // Click-through unless the author or a pointer subscriber says otherwise (spec
+            // 2026-09-15 §3); same arrangement as <Image>.
+            _raycast = new RaycastIntent(_raw, this);
         }
 
         private PointerEventRelay _pointerRelay;
+        private RaycastIntent _raycast;
+
+        /// <summary>
+        /// Whether the picture catches the pointer. Default false; a pointer subscriber turns it
+        /// on by itself, and an explicit false with a subscriber is reported once (see
+        /// <see cref="RaycastIntent"/>).
+        /// </summary>
+        [UIAttr, Preserve]
+        public bool RaycastTarget
+        {
+            set => _raycast.SetAuthored(value);
+        }
 
         private PointerEventRelay EnsureRelay()
-            => _pointerRelay ??= GameObject.AddComponent<PointerEventRelay>();
+        {
+            _raycast.Want();
+            return _pointerRelay ??= GameObject.AddComponent<PointerEventRelay>();
+        }
+
+        internal override void OnBeforeApply()
+        {
+            base.OnBeforeApply();
+            _raycast.BeginPass();
+        }
+
+        internal override void OnAfterApply()
+        {
+            base.OnAfterApply();
+            _raycast.EndPass();
+        }
 
         public Observable<Unit> OnPointerEnter => EnsureRelay().OnPointerEnter;
         public Observable<Unit> OnPointerExit => EnsureRelay().OnPointerExit;

@@ -269,7 +269,7 @@
 
       <!-- 顶部固定：木牌/玻璃牌标题 + 常驻新手引导按钮 -->
       <HStack anchor="top-stretch" height="44" padding="8" spacing="8">
-        <Frame width="220" width.portrait="132" height="30">
+        <Frame width="220" width.portrait="132" height="30" raycastTarget="true">
           <Skin tone="plaque" radius="8"/>
           <Text anchor="center" fontSize="18" fontSize.portrait="12" raycastTarget="false">Common Controls Demo</Text>
         </Frame>
@@ -301,7 +301,7 @@
       </TabBar>
 
       <!-- ① 表单输入（原 Settings 内容保留） -->
-      <Frame id="pageForm" anchor="stretch" margin="84,8,8,8" margin.portrait="52,8,8,52">
+      <Frame id="pageForm" anchor="stretch" margin="84,8,8,8" margin.portrait="52,8,8,52" raycastTarget="true">
         <Skin/>
         <VStack anchor="stretch" spacing="12" padding="8">
           <InputField id="username" class="input" placeholder="Username" width="240" height="30"/>
@@ -312,7 +312,7 @@
       </Frame>
 
       <!-- ② 展示反馈 -->
-      <Frame id="pageDisplay" anchor="stretch" margin="84,8,8,8" margin.portrait="52,8,8,52">
+      <Frame id="pageDisplay" anchor="stretch" margin="84,8,8,8" margin.portrait="52,8,8,52" raycastTarget="true">
         <Skin/>
         <VStack anchor="stretch" spacing="10" padding="8">
           <Progress id="progress" class="progress" height="16" value="0.3"/>
@@ -339,7 +339,7 @@
       </Frame>
 
       <!-- ③ 列表轮播 -->
-      <Frame id="pageList" anchor="stretch" margin="84,8,8,8" margin.portrait="52,8,8,52">
+      <Frame id="pageList" anchor="stretch" margin="84,8,8,8" margin.portrait="52,8,8,52" raycastTarget="true">
         <Skin/>
         <VStack anchor="stretch" spacing="10" padding="8">
           <!-- farm: SpriteSet 12 作物橱窗 -->
@@ -359,7 +359,7 @@
       </Frame>
 
       <!-- ④ 模态提示 -->
-      <Frame id="pageModal" anchor="stretch" margin="84,8,8,8" margin.portrait="52,8,8,52">
+      <Frame id="pageModal" anchor="stretch" margin="84,8,8,8" margin.portrait="52,8,8,52" raycastTarget="true">
         <Skin/>
         <VStack anchor="stretch" spacing="10" padding="8">
           <Btn id="msgBoxBtn"   class="btn" height="30" fontSize="15">MessageBox</Btn>

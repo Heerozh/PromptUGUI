@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PromptUGUI version="1">
   <Screen name="PromptUGUI/Modals/Loading.ui" reference="1920x1080" reference.portrait="1080x1920">
-    <Image id="backdrop" anchor="stretch" color="#241505FE"/>
+    <Image id="backdrop" anchor="stretch" color="#241505FE" raycastTarget="true"/>
 
     <SafeArea>
-      <Frame id="dialog" anchor="center" size="320x160">
+      <Frame id="dialog" anchor="center" size="320x160" raycastTarget="true">
         <VStack anchor="stretch" margin="20" spacing="12">
 
           <!-- HStack 不加 anchor: VStack 是 layout group, child anchor 会被 PUI-LAYOUT-ANCHOR lint

@@ -32,6 +32,12 @@ namespace PromptUGUI.Lint
                 foreach (var issue in CollapsibleRules.CheckGroups(screen.Root))
                     yield return issue;
 
+                // CLI-only, screen-wide: the outermost drawn surfaces that never said whether they
+                // catch the pointer. Stops at the first answer on each path, so it is a walk of its
+                // own rather than a per-node check. Stamps its own source.
+                foreach (var issue in RaycastRules.CheckUndecided(screen.Root, styles))
+                    yield return issue;
+
                 foreach (var variant in screen.Variants)
                     foreach (var add in variant.Adds)
                         foreach (var addChild in add.Children)
@@ -40,6 +46,9 @@ namespace PromptUGUI.Lint
                             foreach (var issue in ScrollbarRules.CheckInAdd(addChild))
                                 yield return issue.WithSource(addChild.OriginSrc, addChild.Line, addChild.InvokedAt);
                             foreach (var issue in WalkNode(addChild, inTemplateBody: false, hasStateSourceAncestor: false, hasMenuAncestor: false, hasToggleAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false, screenIds: screenIds, styles: styles))
+                                yield return issue;
+                            // An Add child's host is not known statically, so it is judged as outermost.
+                            foreach (var issue in RaycastRules.CheckUndecided(addChild, styles))
                                 yield return issue;
                         }
             }
@@ -216,6 +225,11 @@ namespace PromptUGUI.Lint
 
             // Universal: rotation / flip outside the three mesh-generating leaves, and bad values.
             foreach (var issue in RotateFlipRules.Check(node, styles))
+                yield return issue;
+
+            // Universal: raycastTarget on a tag that drops it (no Graphic, always click-through, or
+            // interactive and therefore not configurable). Also wired in ScreenInstantiator.
+            foreach (var issue in RaycastRules.CheckTag(node, styles))
                 yield return issue;
 
             // Universal: blur= outside the two tags that resample a sprite.

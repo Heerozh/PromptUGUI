@@ -66,6 +66,16 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Frame_Image_and_Text_list_raycastTarget()
+        {
+            // Same hand-written-list trap: Frame / Image / Text are spelled out, so the attribute
+            // has to appear once per list (RawImage is reflected and gets it for free).
+            var xsd = XsdGenerator.Generate(new ControlRegistry());
+            var count = System.Text.RegularExpressions.Regex.Matches(xsd, "name=\"raycastTarget\"").Count;
+            Assert.AreEqual(3, count, "Frame, Image and Text each spell raycastTarget out");
+        }
+
+        [Test]
         public void Image_and_Icon_list_their_blur_and_glow_attributes()
         {
             // Same hand-written-list trap as rotation / flip above: authoring tools validate against

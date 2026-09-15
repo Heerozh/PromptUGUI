@@ -495,8 +495,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             var track = node.GetComponent<UnityImage>();
             Assert.IsNull(track.sprite, "the default inset sprite stands down");
-            Assert.AreEqual(0f, track.color.a, 0.001f, "…and so does the Image's alpha");
-            Assert.IsTrue(track.raycastTarget, "…but it still catches the pointer");
+            Assert.IsFalse(track.enabled, "…and so does the Image itself");
+            Assert.IsTrue(panel.raycastTarget, "…but the surface catches the pointer in its place");
         }
 
         [Test]
@@ -517,7 +517,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             var image = handle.GetComponent<UnityImage>();
             Assert.IsNull(image.sprite);
-            Assert.AreEqual(0f, image.color.a, 0.001f);
+            Assert.IsFalse(image.enabled);
             Assert.AreSame(panel, BarOf(node).targetGraphic,
                 "the uGUI Scrollbar's targetGraphic follows the visible layer, so ColorTint keeps working");
         }
@@ -564,7 +564,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             UI.Variants.Set("portrait", false);
             Assert.IsFalse(panel.gameObject.activeSelf, "…and off again: the Image is back");
-            Assert.AreEqual(1f, HandleOf(node).GetComponent<UnityImage>().color.a, 0.001f);
+            Assert.IsTrue(HandleOf(node).GetComponent<UnityImage>().enabled);
         }
 
         [Test]

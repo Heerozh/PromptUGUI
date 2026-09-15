@@ -251,6 +251,10 @@ namespace PromptUGUI.Application
             foreach (var issue in PromptUGUI.Lint.RotateFlipRules.Check(node))
                 UILog.Warn(node, issue);
 
+            // Universal: raycastTarget on a tag that drops it. PUI-RAYCAST-UNDECIDED is CLI-only.
+            foreach (var issue in PromptUGUI.Lint.RaycastRules.CheckTag(node))
+                UILog.Warn(node, issue);
+
             // Universal: nav*/focus on a non-Selectable tag (e.g. <Frame navUp="x">).
             // NavTargetRules.CheckNavTarget (unknown id) is CLI-only; runtime already
             // hard-throws in ExplicitNavigationResolver for missing ids.

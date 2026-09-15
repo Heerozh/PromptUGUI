@@ -259,6 +259,8 @@ screen.Get<Tab>("edit").OnState
 
 State is driven by the Selectable machine and is disabled-aware (a disabled control only emits `Disabled`). `interactable="false"` (XML) puts the control in `Disabled`.
 
+**Pointer streams on `<Image>` / `<RawImage>`** — `OnPointerEnter` / `OnPointerExit` / `OnPointerDown` (`Observable<Unit>`) exist on `Image`, `RawImage` and `Btn`. An `<Image>` / `<RawImage>` is click-through by default (`raycastTarget="false"`), and **subscribing turns its `raycastTarget` on by itself** — the subscription is the intent. An explicit `raycastTarget="false"` in the XML wins and is reported once (the stream can never fire); drop the attribute or pick another source. Nothing else in the library flips hit-testing behind your back: a panel that must block the pointer says `raycastTarget="true"` on its root (XML skill, **Pointer hit-testing**).
+
 `screen.Track(disposable)` (or the `.AddTo(screen)` extension) ties a subscription to Screen lifetime. **Always do this** — leaked R3 subscriptions hold the GameObject alive after Close, and the next Open will produce phantom callbacks against the old (destroyed) GameObject.
 
 ### Per-control subscription lifetime (`.AddTo(control)`)
@@ -1293,10 +1295,15 @@ public static class UI.Modal {
 UI.Modal.SortingOrderBase` so dialogs opened during a Loading appear above it.
 - **Dim backdrop is part of the XML, not auto-injected.** If you want clicks blocked on
   empty space outside your dialog box, include a stretched Graphic in your override XML
-  (the builtin uses `<Image id="backdrop" anchor="stretch" color="#000000FE"/>`).
-  Without a full-screen Graphic, pointer raycasts outside the dialog pass through to
-  the Canvas underneath. The `id="backdrop"` itself has no special meaning to Bind — any
-  id (or none) works as long as the Graphic exists.
+  (the builtin uses `<Image id="backdrop" anchor="stretch" color="#000000FE" raycastTarget="true"/>`),
+  and write `raycastTarget="true"` on the dialog panel too — nothing catches the pointer
+  unless it says so (XML skill, **Pointer hit-testing**). Without those two declarations
+  pointer raycasts pass through to the Canvas underneath, and a click on the dialog body
+  reaches the backdrop (for `CenteredSlideBox` / `MarkdownBox` that is the cancel press).
+  The `id="backdrop"` itself has no special meaning to Bind — any id (or none) works as
+  long as the Graphic exists; the builtin `OnPointerDown` subscription would turn a
+  backdrop's `raycastTarget` on by itself, but modality is a declaration, not a side
+  effect, so the shipped XML says it.
 - **Locale / Variant**: a dialog is a regular `Screen` — `UI.Locale.Set(...)` and
   `UI.Variants.Set(...)` ReSolve open modals in place, no rebuild. Fonts swap on locale
   switch like in any other Screen (`<Text font="title">` etc.).
@@ -1501,7 +1508,7 @@ the resolver path + `<Screen name>` contract.
 | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `InvalidKeyException: No Location found for Key=<XmlSrc>` (stack: `AddressableResolverHelper.LoadFromAddressablesInternalAsync`) | Addressables resolver is active and `<XmlSrc>` isn't registered as an Address (or the Address differs by even one character).    | Window → Asset Management → Addressables → Groups; drag your `.ui.xml` in; set its Address to exactly `<XmlSrc>`. Or boot a Resources/custom resolver instead. "File exists in `Assets/`" doesn't matter. |
 | `InvalidOperationException: Modal screen '<XmlSrc>' not loaded; call LoadDocument first` (stack: `UI.OpenModalScreen`)           | XML's `<Screen name="...">` ≠ `<XmlSrc>`. `_docs` got registered under the wrong key.                                            | Edit your XML: `<Screen name="<XmlSrc>" ...>` — byte-equal. **Do NOT** call `LoadDocument` manually; the error wording is misleading.                                                                     |
-| Dialog opens but clicks on empty space still hit the UI below it                                                                 | No full-screen Graphic in your override XML; pointer raycasts pass through where there's no drawn surface.                       | Add `<Image id="backdrop" anchor="stretch" color="#000000FE"/>` as a sibling of your dialog Frame inside the `<Screen>`.                                                                                  |
+| Dialog opens but clicks on empty space still hit the UI below it                                                                 | No node in your override XML declares `raycastTarget="true"`; drawing is not hit-testing, so raycasts pass through.                       | Add `<Image id="backdrop" anchor="stretch" color="#000000FE" raycastTarget="true"/>` as a sibling of your dialog Frame inside the `<Screen>`, and `raycastTarget="true"` on the dialog panel.                                                                                  |
 | `Screen 'X' already loaded` on second `Open`                                                                                     | You ALSO called `UI.LoadDocumentAsync("X")` manually (or two modal `XmlSrc`s point at XML files whose `<Screen name>` collides). | Pick one path — either let `ModalDocCache` auto-load (recommended), or load yourself and don't touch `XmlSrc`. Distinct modals need distinct `<Screen name>`s.                                            |
 
 ### Loading overlay

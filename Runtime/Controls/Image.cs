@@ -27,10 +27,30 @@ namespace PromptUGUI.Controls
             // attributes possible at all — see FxImage's class note.
             _img = GameObject.GetComponent<UnityImage>()
                    ?? GameObject.AddComponent<FxImage>();
+            // Click-through unless the author or a pointer subscriber says otherwise (spec
+            // 2026-09-15 §3): uGUI's default is true, which put every decorative picture in the
+            // raycast list.
+            _raycast = new RaycastIntent(_img, this);
+        }
+
+        private RaycastIntent _raycast;
+
+        /// <summary>
+        /// Whether the picture catches the pointer. Default false; a pointer subscriber turns it
+        /// on by itself, and an explicit false with a subscriber is reported once (see
+        /// <see cref="RaycastIntent"/>).
+        /// </summary>
+        [UIAttr, Preserve]
+        public bool RaycastTarget
+        {
+            set => _raycast.SetAuthored(value);
         }
 
         private PointerEventRelay EnsureRelay()
-            => _pointerRelay ??= GameObject.AddComponent<PointerEventRelay>();
+        {
+            _raycast.Want();
+            return _pointerRelay ??= GameObject.AddComponent<PointerEventRelay>();
+        }
 
         private AspectRatioFitter EnsureFitter()
             => _fitter ??= GameObject.AddComponent<AspectRatioFitter>();
@@ -208,6 +228,13 @@ namespace PromptUGUI.Controls
             // it never loads the asset), so say so once here.
             ImageFxApplier.WarnIfFxOnNonSimple(_img, "Image");
             ImageFxApplier.Flush(_img);
+            _raycast.EndPass();
+        }
+
+        internal override void OnBeforeApply()
+        {
+            base.OnBeforeApply();
+            _raycast.BeginPass();
         }
 
         public override Vector2? GetNativeSize()

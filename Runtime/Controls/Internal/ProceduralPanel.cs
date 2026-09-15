@@ -24,8 +24,11 @@ namespace PromptUGUI.Controls.Internal
     /// visibility changes.</item>
     /// <item>A fully transparent panel emits no geometry at all — zero overdraw, which is the
     /// binding constraint on mobile UI.</item>
-    /// <item><c>raycastTarget</c> is forced off: a Frame stays click-through, and the raycast list
-    /// the EventSystem walks every pointer event stays short.</item>
+    /// <item><c>raycastTarget</c> is off by default and the owner decides: a Frame turns it on
+    /// only for an authored <c>raycastTarget="true"</c>, a <see cref="ProceduralSurface"/> hands it
+    /// the hit role of the Image it retires. Everything else stays out of the raycast list the
+    /// EventSystem walks every pointer event (spec 2026-09-15 §3). A panel that draws nothing can
+    /// still be a hit target — a transparent catcher with no geometry.</item>
     /// </list>
     /// </summary>
     // Graphic's own [RequireComponent(typeof(CanvasRenderer))] does NOT carry over to a subclass
@@ -85,9 +88,10 @@ namespace PromptUGUI.Controls.Internal
         protected override void Awake()
         {
             base.Awake();
-            // A Frame is a container, not a hit target. Set on the component (not via the author's
-            // XML) because there is no scenario where a procedural background should swallow clicks
-            // that the plain Frame would have let through.
+            // Click-through until the owner says otherwise: Frame.RaycastTarget for an authored
+            // raycastTarget="true", ProceduralSurface for a control's retired hit layer. uGUI's
+            // default is true, which is the wrong default for a library where hit-testing is
+            // declared rather than painted.
             raycastTarget = false;
         }
 
