@@ -323,7 +323,7 @@ TMP_Text。文本简写：`<Text>Hello</Text>` ≡ `<Text text="Hello"/>`。
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
 | `text` | string | — | |
-| `fontSize` | int | — | |
+| `fontSize` | float | — | |
 | `color` | hex / CSS named / theme token | — | 见 **Color Tokens**; gradients yes, stop positions / hints NO — TMP colours per glyph (`PUI-GRADIENT-STOP-NO-SURFACE`) |
 | `align` | TMP 对齐 | `left`+`middle` | 一个水平 token `left` / `center` / `right` / `justified` / `flush` / `geo`，和/或一个垂直 token `top` / `middle` / `bottom` / `baseline` / `midline` / `capline`，连字符或空格连接、顺序无关（`bottom-right` / `top-center` / `capline-flush`）；只给水平保持垂直 `middle`，只给垂直保持水平 `left`；未知 token = parse error |
 | `wrap` | bool | `true` | `false`=不换行（NoWrap）；常配 `overflow="ellipsis"` 做单行省略号 |
@@ -374,7 +374,7 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 | `pressedOffset` | `x,y` px | — | 按下时子内容整体位移（content-holder 平移；**Unity 符号 负 y=下**）；瞬移不补间；与 `<Animation>`/`*Color`/`*Sprite` 叠加；`""`/`none`=不动；见 states.md |
 | `hoverColor` · `pressedColor` · `disabledColor` | hex / CSS / token | — | **绝对**单态 bg 色（仅 targetGraphic，不扩散） |
 | `hoverModulate` · `pressedModulate` · `disabledModulate` | hex / CSS / token | white | **相对**乘子，扩散到 bg + 所有子 Graphic |
-| `fontSize` | int | — | 仅作用于自动 label；其它 Text 属性（`align` / `wrap`）需显式 `<Text>` 子节点 |
+| `fontSize` | float | — | 仅作用于自动 label；其它 Text 属性（`align` / `wrap`）需显式 `<Text>` 子节点 |
 | `font` | string | `default` | Settings 里的 font type |
 | `textColor` | hex / CSS / token | — | **label 文字色**（区别于 `color`=背景）；支持渐变 / `/alpha`；空=默认 ink |
 | `tr` | bool | `true` | `false`=跳过 i18n |
@@ -552,7 +552,7 @@ TMP_InputField；R3 `OnValueChanged` / `OnEndEdit` / `OnSubmit: string`。`<Inpu
 | `lineType` | `single` / `multi-newline` / `multi-submit` | — | |
 | `characterLimit` | int | — | |
 | `readOnly` | bool | — | |
-| `fontSize` | int | — | 输入文本**和** placeholder（TMP `pointSize`） |
+| `fontSize` | float | — | 输入文本**和** placeholder（TMP `pointSize`） |
 | `textColor` | hex / CSS / token | — | **输入文字色**（区别于 `color`=背景） |
 | `placeholderColor` | hex / CSS / token | — | placeholder 文字色 |
 | `align` | TMP 双轴对齐（同 `<Text align>`） | — | 作用于文本 + placeholder |
@@ -606,7 +606,7 @@ Tab 容器；私有 `ToggleGroup`（默认 `allowSwitchOff=false`，见下表）
 | `bind` | id | — | 选中显隐的兄弟 `<Frame>` |
 | `color` | hex / CSS / token | — | `#00000000`=透明但可点 |
 | `font` | string | `default` | |
-| `fontSize` | int | — | |
+| `fontSize` | float | — | |
 | `textColor` | hex / CSS / token | — | **label 文字色**（区别于 `color`=背景）；支持渐变 / `/alpha`；空=默认 ink |
 | `icon` | sprite key | — | 左对齐 24×24，间隙 4px |
 | `sprite` | sprite key | — | 常态 bg；`""` / `none` 移除自带 9-slice 底 |

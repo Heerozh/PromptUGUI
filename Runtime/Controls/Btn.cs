@@ -186,7 +186,7 @@ namespace PromptUGUI.Controls
         }
 
         [UIAttr("fontSize"), Preserve]
-        public int FontSize
+        public float FontSize
         {
             set => EnsureLabel().fontSize = value;
         }

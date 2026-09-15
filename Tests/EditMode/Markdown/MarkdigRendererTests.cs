@@ -173,6 +173,19 @@ namespace PromptUGUI.Tests.Markdown
             Assert.AreEqual("2", t.Attributes["scale"]);        // scale unaffected → visual 48
         }
 
+        [Test]
+        public void Fractional_bodysize_reaches_text_fontsize_untruncated()
+        {
+            // BodySize is a float (<Markdown fontSize=> is a float attr) and <Text fontSize=> is a
+            // float too — the renderer used to cast through int, so 16.5 silently rendered as 16.
+            var style = MarkdownStyle.CreateDefault();
+            style.BodySize = 16.5f;
+            var root = new MarkdigRenderer().Render("hello", style).Root;
+            var t = Find(root, "Text", "hello");
+            Assert.IsNotNull(t);
+            Assert.AreEqual("16.5", t.Attributes["fontSize"]);
+        }
+
         // ---- content padding insets the document inside the scroll viewport (outline room) ----
 
         [Test]

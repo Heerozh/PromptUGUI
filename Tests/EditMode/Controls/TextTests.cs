@@ -126,5 +126,15 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var text = screen.Get<Text>("t");
             Assert.AreEqual(Color.red, text.TmpComponent.color);
         }
+
+        // fontSize is a float on every text-bearing control — TMP_Text.fontSize is a float, and
+        // <Markdown> already forwards a fractional BodySize. A "6.5" used to hit int.Parse and
+        // kill the whole Screen with a ParseException.
+        [Test]
+        public void FontSize_accepts_fractional_value()
+        {
+            var t = OpenText("fontSize='6.5'");
+            Assert.AreEqual(6.5f, t.TmpComponent.fontSize);
+        }
     }
 }

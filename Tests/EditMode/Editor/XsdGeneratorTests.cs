@@ -1059,6 +1059,18 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void FontSize_is_xs_float_on_every_control_that_declares_it()
+        {
+            // fontSize is a float attribute everywhere (TMP point sizes are floats). Text's list is
+            // hand-written while Tab / InputField / TabMenu / Collapsible / Markdown reflect
+            // [UIAttr] — an xs:int anywhere makes schema-validating editors reject a 6.5 that the
+            // runtime accepts.
+            var xsd = XsdGenerator.Generate(PromptUGUI.Application.UI.Registry);
+            StringAssert.Contains("name=\"fontSize\" type=\"xs:float\"", xsd);
+            StringAssert.DoesNotContain("name=\"fontSize\" type=\"xs:int\"", xsd);
+        }
+
+        [Test]
         public void Scrollbar_lists_its_geometry_and_skin_attributes()
         {
             var xsd = XsdGenerator.Generate(PromptUGUI.Application.UI.Registry);

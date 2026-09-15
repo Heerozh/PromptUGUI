@@ -160,7 +160,7 @@ namespace PromptUGUI.MarkdigBackend
         {
             var n = new ElementNode("Text");
             n.Attributes["width"] = "stretch";
-            n.Attributes["fontSize"] = ((int)size).ToString(CultureInfo.InvariantCulture);
+            n.Attributes["fontSize"] = size.ToString(CultureInfo.InvariantCulture);
             n.Attributes["font"] = _style.BodyFont;
             n.Attributes["wrap"] = _style.ParagraphWrap ? "true" : "false";
             n.Attributes["align"] = "top-left";
