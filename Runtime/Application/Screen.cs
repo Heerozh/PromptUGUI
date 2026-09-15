@@ -74,10 +74,11 @@ namespace PromptUGUI.Application
 
         // Non-null only during Open()'s apply pass. Tab.bind queues its initial page-hide
         // here (see DeferDuringOpen) so a bound page is not deactivated before its own
-        // auto-sized descendants finish measuring: a <Btn>/<Toggle>/<Dropdown> label is a
-        // TMP created via AddComponent in the apply pass, and a TMP added to an already
-        // inactive GameObject never runs Awake/OnEnable, so its preferredWidth measures
-        // garbage that freezes into the LayoutElement. Drained right after ApplyScales.
+        // auto-sized descendants finish measuring. (Historically the reason was that a TMP
+        // added to an already inactive GameObject never runs Awake, so its preferredWidth
+        // measured ~1/10 garbage that froze into the LayoutElement; TmpPrimer now makes an
+        // un-Awake'd TMP measure correctly, and the deferral stays for the ordering itself.)
+        // Drained right after ApplyScales.
         private List<Action> _deferredOpenActions;
 
         internal Controls.Internal.ToggleGroupRegistry ToggleGroups { get; private set; }

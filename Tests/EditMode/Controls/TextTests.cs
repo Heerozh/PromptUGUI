@@ -194,6 +194,41 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(TextOverflowModes.Ellipsis, tmp.overflowMode);
         }
 
+        /// <summary>
+        /// Measuring is the other half of the deferred-Awake family: TMP's Awake is also what makes
+        /// a TextMeshProUGUI orthographic and loads its font, and without those GetPreferredValues
+        /// either throws (no font) or answers ~1/10 of the truth (3D-text scale). A free-positioned,
+        /// unsized Text bound into a hidden list is measured by ApplyCommon → GetNativeSize right
+        /// then, long before its Awake — so the library primes every TMP it creates with what
+        /// Awake would have set.
+        /// </summary>
+        [Test]
+        public void Text_BoundIntoAHiddenList_IsMeasuredLikeAVisibleOne()
+        {
+            UI.LoadDocument("test", "<?xml version='1.0' encoding='utf-8'?><PromptUGUI version='1'>" +
+                "<Template name='Row'><Frame width='stretch' height='40'><Text id='t'>MessageBox</Text></Frame></Template>" +
+                "<Screen name='S'>" +
+                "  <Frame anchor='top-stretch' height='40'><Text id='ref'>MessageBox</Text></Frame>" +
+                "  <Frame id='page' anchor='stretch'>" +
+                "    <ScrollList id='list' anchor='center' size='300x40' itemTemplate='Row' sprite='none' color='#0000'/>" +
+                "  </Frame>" +
+                "</Screen></PromptUGUI>");
+            var s = UI.Open("S");
+            var reference = s.Get<Text>("ref").RectTransform.sizeDelta;
+            Assume.That(reference.x, Is.GreaterThan(40f), "sanity: the visible Text took its native width");
+
+            s.Get<Frame>("page").Hidden = true;   // off BEFORE the row exists
+            Text bound = null;
+            s.Get<ScrollList>("list").BindItems(
+                Observable.Return<IReadOnlyList<int>>(new[] { 1 }),
+                (IControl row, int _) => bound = row.Get<Text>("t"));
+
+            Assert.IsNotNull(bound, "binding must not throw inside GetNativeSize (an un-Awake'd TMP used to NRE)");
+            Assert.IsFalse(bound.GameObject.activeInHierarchy, "precondition: built under an inactive page");
+            Assert.AreEqual(reference.x, bound.RectTransform.sizeDelta.x, 0.5f, "same text, same native width");
+            Assert.AreEqual(reference.y, bound.RectTransform.sizeDelta.y, 0.5f, "same text, same native height");
+        }
+
         [Test]
         public void Text_WithNoFontSize_StillGetsTheProjectDefaultSize()
         {

@@ -188,6 +188,9 @@ namespace PromptUGUI.Controls.Internal
         {
             var rt = AddChild(parent, name);
             var tmp = rt.gameObject.AddComponent<TextMeshProUGUI>();
+            // What TMP's Awake would set, now: this label may be measured (a Toggle's / Dropdown's
+            // native size) before that Awake ever runs. See TmpPrimer.
+            TmpPrimer.Prime(tmp);
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.raycastTarget = false;
             tmp.color = DefaultLabelColor;

@@ -161,6 +161,40 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 "a Btn on an initially-hidden tab page must measure the same width as the same Btn on the active page");
         }
 
+        /// <summary>
+        /// The runtime twin of the test above, where no Open-time deferral can help: a row bound
+        /// into a list whose page is ALREADY hidden. The label TMP's Awake runs only when the page
+        /// is shown, long after GetNativeSize measured it — so the library primes every TMP it
+        /// creates with what Awake would have set (orthographic, font, TMP_Settings defaults) and
+        /// the measurement is right whether or not Awake has run.
+        /// </summary>
+        [Test]
+        public void Btn_bound_into_a_hidden_list_measures_same_as_a_visible_one()
+        {
+            UI.LoadDocument("test", "<?xml version='1.0' encoding='utf-8'?><PromptUGUI version='1'>" +
+                "<Template name='Row'><HStack height='44'><Btn id='b'>MessageBox</Btn></HStack></Template>" +
+                "<Screen name='S'>" +
+                "  <HStack id='visible' anchor='top-stretch' height='44'><Btn id='ref'>MessageBox</Btn></HStack>" +
+                "  <Frame id='page' anchor='stretch'>" +
+                "    <ScrollList id='list' anchor='center' size='300x44' itemTemplate='Row' sprite='none' color='#0000'/>" +
+                "  </Frame>" +
+                "</Screen></PromptUGUI>");
+            var screen = UI.Open("S");
+            var refLE = screen.Get<Btn>("ref").GameObject.GetComponent<LayoutElement>();
+            Assume.That(refLE.preferredWidth, Is.GreaterThan(32f), "sanity: the visible Btn measured its label");
+
+            screen.Get<Frame>("page").Hidden = true;   // off BEFORE the row exists
+            LayoutElement rowLE = null;
+            screen.Get<ScrollList>("list").BindItems(
+                R3.Observable.Return<System.Collections.Generic.IReadOnlyList<int>>(new[] { 1 }),
+                (IControl row, int _) => rowLE = row.Get<Btn>("b").GameObject.GetComponent<LayoutElement>());
+            Assert.IsNotNull(rowLE, "binding must not throw inside GetNativeSize (an un-Awake'd label used to NRE)");
+            Assert.IsFalse(rowLE.gameObject.activeInHierarchy, "precondition: built under an inactive page");
+
+            Assert.AreEqual(refLE.preferredWidth, rowLE.preferredWidth, 0.5f,
+                "a label measured before its TMP Awake used to come out ~1/10 wide");
+        }
+
         [Test]
         public void Btn_in_HStack_variant_text_change_updates_preferred()
         {
