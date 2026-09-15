@@ -326,7 +326,17 @@ CLI README、XSD）。EditMode 3923 / EditorOnly 344 / PlayMode 207 全绿；`UI
   冲掉 —— Screen 的树是在 **inactive** 根下建好再一次 `SetActive(true)` 的（`Screen.Open`），TMP 的 `Awake → LoadDefaultSettings()`
   在一个 `fontSize` 仍为 -99 的新组件上会重新写 `raycastTarget = TMP_Settings.enableRaycastTarget`，落在 `OnAttached` 之后、
   属性应用之前。库内其它 TMP label（Btn / Toggle / InputField / `ProceduralBuilders.AddText`）之所以 false 能留住，只是因为它们
-  在激活前就设了 `fontSize`。所以 `<Text>` 的值在 `OnAfterApply` 里再写一次（也顺带覆盖每次 ReSolve）。
+  在激活前就设了 `fontSize`。~~所以 `<Text>` 的值在 `OnAfterApply` 里再写一次（也顺带覆盖每次 ReSolve）。~~
+  **2026-09-16 更正**：`OnAfterApply` 再写一次只兜住 `Screen.Open` 那条时序，兜不住「整个 Apply 期间都 inactive」的路径
+  （hidden page 里 `BindItems` 出来的行、`<Show>` 块、hidden 宿主下的 Add 块）—— 那里 deferred Awake 落在 `OnAfterApply`
+  **之后**，实测 `raycastTarget` 翻回 true、`wrap="false"` 也被重置成 Normal（`LoadDefaultSettings` 重置的是一整组：
+  raycastTarget / textWrappingMode / fontSize / 字体特性 / extraPadding / 恰好 100×100 的 sizeDelta；`wrap` 那条是早就存在的 bug）。
+  正确修法与内部 label 免疫的原因相同：`Text.OnAttached` 在 `AddComponent` 之后立刻 `fontSize = TMP_Settings.defaultFontSize`
+  （与那个块本来会写的值相同，零视觉变化），`m_fontSize != -99` 后整个块永远不跑；`OnAfterApply` 只保留按趟结算的职责。
+  `ProceduralPanel` 同一族的问题（面板在 hidden 列表里建好后 Awake 才跑、把 `raycastTarget=false` 的默认盖到决定之上）
+  由 `SetRaycastTarget` + `_raycastDecided` 修（commit 9cb5ae9）。测试：`TextTests.Text_BoundIntoAHiddenList_*`。
+  顺带看到、没改：un-Awake 的 TMP 根本不能量（`GetPreferredValues` 在 TMP 内部 NRE），所以 hidden 宿主下绑出的、
+  自由定位且没写尺寸的 `<Text>` 行会在 `ApplyCommon → GetNativeSize` 抛 `ParseException` —— 独立的既有限制，另案。
 - **RT-D5 的 depth 问题有了答案：零几何的 catcher 面板会被 `GraphicRaycaster` 返回**（`RaycastHitPlayTests.Bare_catcher_frame_is_hit_by_the_raycaster`，
   真 Canvas + EventSystem）。退化三角形的兜底没有做、也不需要做。
 - **属性按趟清零**（`OnBeforeApply`），不止是「普通属性」：`Frame` / `Image` / `RawImage` / `Text` 的 `raycastTarget` 都在趟首回到
