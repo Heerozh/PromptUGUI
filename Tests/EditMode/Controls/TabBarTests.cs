@@ -512,5 +512,95 @@ namespace PromptUGUI.Tests.EditMode.Controls
             screen.ReSolve();
             Assert.AreEqual(-1, screen.Get<TabBar>("bar").SelectedIndex);
         }
+
+        // User report: an agent put a hidden="true" <Tab bind="pN"> in a bar to switch a page's
+        // sub-view from code. uGUI's Toggle.Set skips the group logic for an inactive toggle, so
+        // the hidden tab came on without going through the ToggleGroup; EnforceExclusive then tried
+        // to turn the visible tab off, and the group (allowSwitchOff=false, no registered member on)
+        // flipped it straight back on — which re-entered EnforceExclusive and turned the hidden tab
+        // off again, AFTER its bound page had already been shown. Net: tA on, tN off, pA AND pN
+        // visible, and OnSelectionChanged had announced tN. A hidden Tab is not a page switch: the
+        // assignment must be refused up front, with a warning that says where to put the switch.
+        [Test]
+        public void Hidden_Tab_Selected_From_Code_Is_Refused_With_One_Warning()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='pA'/><Frame id='pB'/><Frame id='pN'/>
+  <TabBar id='bar'>
+    <Tab id='tA' bind='pA' isOn='true'/>
+    <Tab id='tB' bind='pB'/>
+    <Tab id='tN' bind='pN' hidden='true'/>
+  </TabBar>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var bar = screen.Get<TabBar>("bar");
+            var tA = screen.Get<Tab>("tA");
+            var tN = screen.Get<Tab>("tN");
+            var pA = screen.Get<Frame>("pA").GameObject;
+            var pN = screen.Get<Frame>("pN").GameObject;
+            Assert.IsFalse(tN.GameObject.activeSelf, "precondition: the tab is hidden");
+            Assert.IsFalse(pN.activeSelf, "precondition: its page starts hidden");
+
+            Tab announced = null;
+            using var sub = bar.OnSelectionChanged.Subscribe(t => announced = t);
+
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab 'tN' is inactive.*IsOn = true is ignored"));
+            tN.IsOn = true;
+
+            Assert.IsFalse(tN.IsOn, "the hidden tab does not come on");
+            Assert.IsTrue(tA.IsOn, "the visible selection is untouched");
+            Assert.AreSame(tA, bar.SelectedTab);
+            Assert.IsTrue(pA.activeSelf, "the visible tab's page stays");
+            Assert.IsFalse(pN.activeSelf, "the hidden tab's page must NOT appear — this was the two-pages-at-once bug");
+            Assert.IsNull(announced, "nothing was selected, so nothing is announced");
+
+            // Refused again, silently: the warning is once per Tab, like Tab.bind's.
+            tN.IsOn = true;
+            Assert.IsFalse(pN.activeSelf);
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        // The refusal is about an inactive tab NEXT TO an active one. When every tab of the group is
+        // inactive together — a bar on a page that is itself hidden (a nested TabBar on a not-yet-
+        // selected outer page), or <TabMenu>'s collapsed popup — no ToggleGroup member is registered
+        // to bounce anything, and TabGroupCore.EnforceExclusive handles the switch. That must keep
+        // working, without a warning.
+        [Test]
+        public void Tabs_On_A_Hidden_Page_Still_Switch_From_Code()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='outer'>
+    <Tab id='o1' bind='p1' isOn='true'/>
+    <Tab id='o2' bind='p2'/>
+  </TabBar>
+  <Frame id='p1'/>
+  <Frame id='p2'>
+    <TabBar id='inner'>
+      <Tab id='i1' bind='q1' isOn='true'/>
+      <Tab id='i2' bind='q2'/>
+    </TabBar>
+    <Frame id='q1'/><Frame id='q2'/>
+  </Frame>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var i1 = screen.Get<Tab>("i1");
+            var i2 = screen.Get<Tab>("i2");
+            Assert.IsFalse(screen.Get<Frame>("p2").GameObject.activeSelf, "precondition: the inner bar's page is hidden");
+            Assert.IsFalse(i2.GameObject.activeInHierarchy, "precondition: so every inner tab is inactive");
+
+            i2.IsOn = true;
+
+            Assert.IsTrue(i2.IsOn);
+            Assert.IsFalse(i1.IsOn, "the previous inner selection switches off (EnforceExclusive, no group member to bounce)");
+            Assert.AreSame(i2, screen.Get<TabBar>("inner").SelectedTab);
+            Assert.IsTrue(screen.Get<Frame>("q2").GameObject.activeSelf, "the new inner page is staged for when the outer page shows");
+            Assert.IsFalse(screen.Get<Frame>("q1").GameObject.activeSelf);
+            LogAssert.NoUnexpectedReceived();
+        }
     }
 }

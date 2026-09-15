@@ -232,13 +232,24 @@ namespace PromptUGUI.Controls.Internal
         /// The group's <c>ToggleGroup</c> normally does this, but only for tabs that are
         /// <em>active</em>: uGUI's <c>Toggle.Set</c> gates the <c>NotifyToggleOn</c> call on
         /// <c>IsActive()</c>, and a toggle also unregisters itself from the group in
-        /// <c>OnDisable</c>. A <see cref="TabMenu"/> keeps its rows inside a collapsed (inactive)
-        /// popup, so a code-driven <c>tab.IsOn = true</c> while the menu is closed would otherwise
-        /// leave the previous tab on as well — two selected tabs, two visible bound pages.
+        /// <c>OnDisable</c>. What this covers is the group being inactive <em>as a whole</em>: a
+        /// <see cref="TabMenu"/> keeps its rows inside a collapsed popup, and a <see cref="TabBar"/>
+        /// on a page that is itself hidden is in the same position. There a code-driven
+        /// <c>tab.IsOn = true</c> would otherwise leave the previous tab on as well — two selected
+        /// tabs, two visible bound pages — and the loser's <c>IsOn = false</c> bypasses the group
+        /// just like the winner's did, so it simply sticks.
         ///
-        /// <para>Redundant for <see cref="TabBar"/>, where the ToggleGroup got there first, and
-        /// harmless: assigning <c>isOn</c> a value it already holds returns early in uGUI, so no
-        /// event is re-raised and the recursion terminates immediately.</para>
+        /// <para>It does NOT make an inactive tab selectable next to <em>active</em> ones (a
+        /// <c>hidden="true"</c> tab in a visible bar). Turning off an active loser runs uGUI's group
+        /// logic, and a group that forbids switch-off sees no registered member on — the inactive
+        /// winner never registered — so it flips the loser straight back on, which re-enters here
+        /// and turns the winner off again after its bound page has already been shown. That is why
+        /// <see cref="Tab.IsOn"/> refuses such an assignment before it can reach this method: a
+        /// hidden tab is not a page switch, and a page's sub-views switch inside the page.</para>
+        ///
+        /// <para>Redundant for an all-active <see cref="TabBar"/>, where the ToggleGroup got there
+        /// first, and harmless: assigning <c>isOn</c> a value it already holds returns early in
+        /// uGUI, so no event is re-raised and the recursion terminates immediately.</para>
         /// </remarks>
         private void EnforceExclusive(Tab winner)
         {
