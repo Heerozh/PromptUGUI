@@ -43,15 +43,26 @@ namespace PromptUGUI.Controls.Internal
             => radius * texelsPerUnit * TapSpacing > 1f;
 
         /// <summary>
-        /// Whether the ghost copies those gaps produce would land on DIFFERENT screen pixels — the
-        /// tap spacing, <paramref name="radius"/> canvas units drawn at <paramref name="pixelsPerUnit"/>
-        /// screen pixels each, reaching a pixel. Below that the copies fall inside one pixel and
-        /// read as a faint smear no one can tell from a blur: <c>blur="1"</c> at 1x is 0.35 px
-        /// apart however minified the sprite is, the same radius on a 3x phone is 1.06 px — a
-        /// pattern. This is what decides whether <see cref="NeedsMips"/> is worth saying out loud.
+        /// Screen pixels per cycle the ghost comb needs before the pixel grid can show it as a
+        /// pattern. Two is the Nyquist floor; at that little the comb only beats against the grid
+        /// as faint moiré — a 64-texel icon at 14 units on a 3x canvas with <c>blur="2"</c> is
+        /// 2.13 px per cycle and nobody could see anything wrong with it. Two and a half leaves a
+        /// line pixel and more than one of gap per cycle, and keeps the §14.1 rose wreath
+        /// (<c>blur="8"</c> at 1:1, 2.84 px) on the warned side.
+        /// </summary>
+        internal const float VisibleCyclePx = 2.5f;
+
+        /// <summary>
+        /// Whether the ghost copies those gaps produce would form a PATTERN on screen — the tap
+        /// spacing, <paramref name="radius"/> canvas units drawn at <paramref name="pixelsPerUnit"/>
+        /// screen pixels each, reaching <see cref="VisibleCyclePx"/>. Below that the copies land
+        /// inside a pixel or two and read as a faint smear no one can tell from a blur:
+        /// <c>blur="1"</c> at 1x is 0.35 px apart however minified the sprite is, <c>blur="2"</c> on
+        /// a 3x phone 2.13 px, <c>blur="3"</c> there 3.19 px — a pattern. This is what decides
+        /// whether <see cref="NeedsMips"/> is worth saying out loud.
         /// </summary>
         internal static bool GapsAreVisible(float radius, float pixelsPerUnit)
-            => radius * pixelsPerUnit * TapSpacing >= 1f;
+            => radius * pixelsPerUnit * TapSpacing >= VisibleCyclePx;
 
         /// <summary>
         /// Inflates the quad in <paramref name="vh"/> and writes the fx channels, with the mip channel

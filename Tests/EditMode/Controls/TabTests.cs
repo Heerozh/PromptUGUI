@@ -93,6 +93,17 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(18f, label.fontSize);
         }
 
+        // fontSize is a float like on <Text>; "6.5" used to be an int.Parse ParseException.
+        [Test]
+        public void Tab_FontSize_accepts_fractional_value()
+        {
+            LogAssert.Expect(LogType.Warning,
+                new System.Text.RegularExpressions.Regex("Tab.*has no.*TabBar.*ancestor"));
+            var t = OpenTab("<Tab id='t' text='X' fontSize='6.5'/>");
+            var label = t.GameObject.transform.Find("Label").GetComponent<TMP_Text>();
+            Assert.AreEqual(6.5f, label.fontSize);
+        }
+
         [Test]
         public void Tab_Default_FontSize_Is_24()
         {

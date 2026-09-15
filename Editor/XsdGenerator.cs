@@ -113,7 +113,7 @@ namespace PromptUGUI.Editor
                 // hand-listed rather than reflected, so they have to be spelled out here; RawImage
                 // gets them for free through ReflectControlAttrs.
                 WriteControl(writer, "Image", new[] { ("color", "xs:string", (string)null), ("sprite", "xs:string", (string)null), ("type", "xs:string", (string)null), ("rotation", "xs:float", (string)null), ("flip", "xs:string", (string)null), ("blur", "xs:string", (string)null), ("glow", "xs:string", (string)null), ("glowColor", "xs:string", (string)null), ("intensity", "xs:string", (string)null), ("raycastTarget", "xs:boolean", (string)null) });
-                WriteControl(writer, "Text", new[] { ("align", "xs:string", (string)null), ("color", "xs:string", (string)null), ("fontSize", "xs:int", (string)null), ("text", "xs:string", (string)null), ("wrap", "xs:string", (string)null), ("raycastTarget", "xs:string", (string)null) }, textContent: true);
+                WriteControl(writer, "Text", new[] { ("align", "xs:string", (string)null), ("color", "xs:string", (string)null), ("fontSize", "xs:float", (string)null), ("text", "xs:string", (string)null), ("wrap", "xs:string", (string)null), ("raycastTarget", "xs:string", (string)null) }, textContent: true);
                 WriteControl(writer, "VStack", Array.Empty<(string, string, string)>());
                 WriteControl(writer, "HStack", Array.Empty<(string, string, string)>());
                 WriteControl(writer, "Grid", new[] { ("columns", "xs:int", (string)null), ("cellSize", "xs:string", (string)null) });

@@ -270,7 +270,7 @@ They rewrite the **generated mesh** about the rect's centre and touch nothing el
 - **`intensity` lights the sprite the way it lights a `<Frame>`** (see *Lighting it up* there): the tinted body and its glow go through one exposure curve, so a `color="#4f88ff"` icon at `intensity="3"` gets a white-blue core and keeps a blue halo — the "glowing icon" of a design mock, which no `color` value can reach. It needs no quad, so unlike `blur` / `glow` it works on **any `type`** (a 9-slice button face included) and never trips `PUI-FX-TYPE`. `1` / `""` = off, no material. A disabled control switches it off. One asymmetry: `color=` and the state `*Modulate` are the same vertex tint here, and both go *into* the exposure — so a hover modulate on a lit icon cools it slightly rather than dimming it uniformly.
 - **The glow is drawn geometry, not layout.** The rect, `LayoutElement` and the raycast area are exactly as authored — same as `<Frame glow>`, so leave room with `spacing` / `margin` or the next sibling sits on top of the light.
 - **Radii are design px in the element's own space**, so `scale=` scales them with everything else.
-- **Anything past a few texels wants mipmaps on the sprite's texture** (SpriteAtlas → *Generate Mip Maps*; TextureImporter → *Generate Mipmaps*). The kernel samples the mip level that matches its tap spacing, so with a mip chain any radius is one smooth blur. Without one it samples the full-resolution texture, and past ~3 texels of radius that draws ghost copies of thin strokes; the runtime warns once per texture when it has to fall back like that — but only when the ghosts would land on different screen pixels (tap spacing ≈ 0.35 × radius × canvas scale factor ≥ 1 px: `blur="1"` at 1x is 0.35 px apart and stays quiet however minified the sprite is, the same radius on a 3x phone is 1.06 px apart and warns) — and names the radius that would be quiet at that draw size on that screen. Lint says nothing about how big a radius is — it sees neither the texture nor the drawn size, so any threshold it picked would nag at a mipmapped atlas too. Point-filtered (pixel-art) textures cannot use mipmaps for this — keep their radii small. Mipmaps on an atlas cost a third more memory and soften every sprite in it when drawn smaller than 1:1; the atlas also needs Unity's normal padding (≥ 2 texels) and no rotation / tight packing (`reference/icons.md`).
+- **Anything past a few texels wants mipmaps on the sprite's texture** (SpriteAtlas → *Generate Mip Maps*; TextureImporter → *Generate Mipmaps*). The kernel samples the mip level that matches its tap spacing, so with a mip chain any radius is one smooth blur. Without one it samples the full-resolution texture, and past ~3 texels of radius that draws ghost copies of thin strokes; the runtime warns once per texture when it has to fall back like that — but only when the ghosts would be far enough apart on screen to form a pattern (tap spacing ≈ 0.35 × radius × canvas scale factor ≥ 2.5 px: `blur="2"` on a 3x phone is 2.1 px apart and stays quiet however minified the sprite is, `blur="3"` there is 3.2 px and warns; at 1x anything under ~7 stays quiet) — and names the radius that would be quiet at that draw size on that screen. Lint says nothing about how big a radius is — it sees neither the texture nor the drawn size, so any threshold it picked would nag at a mipmapped atlas too. Point-filtered (pixel-art) textures cannot use mipmaps for this — keep their radii small. Mipmaps on an atlas cost a third more memory and soften every sprite in it when drawn smaller than 1:1; the atlas also needs Unity's normal padding (≥ 2 texels) and no rotation / tight packing (`reference/icons.md`).
 - **`mask="self"` on the same node** makes the glow part of the stencil, so children show through it (`PUI-FX-MASK`). Put the mask on a parent `<Frame>`, or the effect on an inner `<Image>`.
 - Works with everything else that colours the graphic: `color=` (including gradients), state `*Modulate`, `tint="linear"`, CanvasGroup alpha and the disabled grey all still apply, and the glow greys with the body. One caveat: a **stop gradient** normalises over the inflated quad, so the picture sees the ramp inset by the radius.
 - **Atlas requirement:** the sprite's atlas must pack without rotation and without tight packing, or the sampling picks up its neighbour. `Sync Atlases` sets that on atlases it creates and warns about existing ones — see `reference/icons.md`.
@@ -323,7 +323,7 @@ TMP_Text。文本简写：`<Text>Hello</Text>` ≡ `<Text text="Hello"/>`。
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
 | `text` | string | — | |
-| `fontSize` | int | — | |
+| `fontSize` | float | — | |
 | `color` | hex / CSS named / theme token | — | 见 **Color Tokens**; gradients yes, stop positions / hints NO — TMP colours per glyph (`PUI-GRADIENT-STOP-NO-SURFACE`) |
 | `align` | TMP 对齐 | `left`+`middle` | 一个水平 token `left` / `center` / `right` / `justified` / `flush` / `geo`，和/或一个垂直 token `top` / `middle` / `bottom` / `baseline` / `midline` / `capline`，连字符或空格连接、顺序无关（`bottom-right` / `top-center` / `capline-flush`）；只给水平保持垂直 `middle`，只给垂直保持水平 `left`；未知 token = parse error |
 | `wrap` | bool | `true` | `false`=不换行（NoWrap）；常配 `overflow="ellipsis"` 做单行省略号 |
@@ -374,7 +374,7 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 | `pressedOffset` | `x,y` px | — | 按下时子内容整体位移（content-holder 平移；**Unity 符号 负 y=下**）；瞬移不补间；与 `<Animation>`/`*Color`/`*Sprite` 叠加；`""`/`none`=不动；见 states.md |
 | `hoverColor` · `pressedColor` · `disabledColor` | hex / CSS / token | — | **绝对**单态 bg 色（仅 targetGraphic，不扩散） |
 | `hoverModulate` · `pressedModulate` · `disabledModulate` | hex / CSS / token | white | **相对**乘子，扩散到 bg + 所有子 Graphic |
-| `fontSize` | int | — | 仅作用于自动 label；其它 Text 属性（`align` / `wrap`）需显式 `<Text>` 子节点 |
+| `fontSize` | float | — | 仅作用于自动 label；其它 Text 属性（`align` / `wrap`）需显式 `<Text>` 子节点 |
 | `font` | string | `default` | Settings 里的 font type |
 | `textColor` | hex / CSS / token | — | **label 文字色**（区别于 `color`=背景）；支持渐变 / `/alpha`；空=默认 ink |
 | `tr` | bool | `true` | `false`=跳过 i18n |
@@ -552,7 +552,7 @@ TMP_InputField；R3 `OnValueChanged` / `OnEndEdit` / `OnSubmit: string`。`<Inpu
 | `lineType` | `single` / `multi-newline` / `multi-submit` | — | |
 | `characterLimit` | int | — | |
 | `readOnly` | bool | — | |
-| `fontSize` | int | — | 输入文本**和** placeholder（TMP `pointSize`） |
+| `fontSize` | float | — | 输入文本**和** placeholder（TMP `pointSize`） |
 | `textColor` | hex / CSS / token | — | **输入文字色**（区别于 `color`=背景） |
 | `placeholderColor` | hex / CSS / token | — | placeholder 文字色 |
 | `align` | TMP 双轴对齐（同 `<Text align>`） | — | 作用于文本 + placeholder |
@@ -606,7 +606,7 @@ Tab 容器；私有 `ToggleGroup`（默认 `allowSwitchOff=false`，见下表）
 | `bind` | id | — | 选中显隐的兄弟 `<Frame>` |
 | `color` | hex / CSS / token | — | `#00000000`=透明但可点 |
 | `font` | string | `default` | |
-| `fontSize` | int | — | |
+| `fontSize` | float | — | |
 | `textColor` | hex / CSS / token | — | **label 文字色**（区别于 `color`=背景）；支持渐变 / `/alpha`；空=默认 ink |
 | `icon` | sprite key | — | 左对齐 24×24，间隙 4px |
 | `sprite` | sprite key | — | 常态 bg；`""` / `none` 移除自带 9-slice 底 |

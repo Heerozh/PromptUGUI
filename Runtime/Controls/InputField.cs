@@ -285,7 +285,7 @@ namespace PromptUGUI.Controls
         // to both the text and placeholder components (matches the default prefab's
         // GlobalPointSize), so setting it on _text alone would be overwritten by TMP.
         [UIAttr("fontSize"), Preserve]
-        public int FontSize
+        public float FontSize
         {
             set => _input.pointSize = value;
         }

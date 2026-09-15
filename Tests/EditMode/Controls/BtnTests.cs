@@ -131,5 +131,19 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var label = btn.GameObject.GetComponentInChildren<TMP_Text>();
             Assert.AreEqual(32f, label.fontSize);
         }
+
+        // fontSize is a float like on <Text> (TMP_Text.fontSize is a float); "6.5" used to be an
+        // int.Parse ParseException that kept the whole Screen from opening.
+        [Test]
+        public void Attr_FontSize_accepts_fractional_value()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Btn id='b' fontSize='6.5'>Hi</Btn>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var label = UI.Open("S").Get<Btn>("b").GameObject.GetComponentInChildren<TMP_Text>();
+            Assert.AreEqual(6.5f, label.fontSize);
+        }
     }
 }

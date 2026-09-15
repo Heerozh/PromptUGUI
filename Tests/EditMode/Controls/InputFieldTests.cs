@@ -345,6 +345,20 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(28f, ph.fontSize);
         }
 
+        // fontSize is a float like on <Text> (TMP_InputField.pointSize is a float); "6.5" used
+        // to be an int.Parse ParseException that kept the whole Screen from opening.
+        [Test]
+        public void Apply_FontSize_accepts_fractional_value()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <InputField id='f' fontSize='6.5'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var f = UI.Open("S").Get<PInputField>("f");
+            Assert.AreEqual(6.5f, f.GameObject.GetComponent<TMP_InputField>().pointSize);
+        }
+
         // `color` is the bg; the typed text color is `textColor` (distinct attribute).
         [Test]
         public void Apply_TextColor_SetsTextComponentNotBg()
