@@ -502,7 +502,7 @@ R=8 仍然重影。
 
 | 层 | 条件 | 消息 |
 |---|---|---|
-| 运行时（精确，每张纹理一次） | `FxImage.OnPopulateMesh` 后已知 texel/px；`Pad · texel/px · 0.3545 > 1`（本该 lod > 0）而纹理不可用 mip，**且** `Pad · 屏幕px/单位 · 0.3545 ≥ 1`（重影落在不同屏幕像素上才看得见；屏幕px/单位取根 Canvas 的 `scaleFactor`，2026-09-14 追加，见 §14.10） | Bilinear：需要在 atlas / 导入器开 mipmaps，否则该绘制尺寸下超过限值 px 会出重影，限值随消息给出（= 两个条件都静音的半径，`1 / (0.3545 · min(texel/px, 屏幕px/单位))`）；Point：mip 帮不上，半径 ≤ 限值，或改 Bilinear + mips |
+| 运行时（精确，每张纹理一次） | `FxImage.OnPopulateMesh` 后已知 texel/px；`Pad · texel/px · 0.3545 > 1`（本该 lod > 0）而纹理不可用 mip，**且** `Pad · 屏幕px/单位 · 0.3545 ≥ 2.5`（重影在屏幕上至少两个半像素一个周期才成图案；屏幕px/单位取根 Canvas 的 `scaleFactor`，2026-09-14 追加、09-15 放宽，见 §14.10） | Bilinear：需要在 atlas / 导入器开 mipmaps，否则该绘制尺寸下超过限值 px 会出重影，限值随消息给出（= 两个条件都静音的半径，`1 / (0.3545 · min(texel/px, 屏幕px/单位 / 2.5))`）；Point：mip 帮不上，半径 ≤ 限值，或改 Bilinear + mips |
 | ~~lint（粗）`PUI-FX-RADIUS`~~ | — | **已移除**（原为 `blur` / `glow` > 6 px 的提醒）。lint 看不到资产也看不到绘制缩放，所以它无法区分「没开 mip 的贴图」和「开了 mip 的图集」—— 后者被误报且无从静音，而 CLI 把 issue 一律升成非零退出码。诊断只留运行时这一层 |
 
 ### 14.6 测试
@@ -571,9 +571,16 @@ Texture 对象、热重载、内存 1.33×）与约 250 行。留作 M2 备选�
 再加 `FxMesh.GapsAreVisible(pad, 屏幕px/单位) = pad · 屏幕px/单位 · 0.3545 ≥ 1`。屏幕px/单位取
 `canvas.rootCanvas.scaleFactor`（两种 screen-space 模式下就是 CanvasScaler 的结果；world-space 留 1，
 按 1× 看待，诊断够用；没有 canvas 也是 1）。消息里的限值改为两个条件都静音的半径
-`1 / (0.3545 · min(texel/px, 屏幕px/单位))`，与触发条件一致。
+`1 / (0.3545 · min(texel/px, 屏幕px/单位 / 2.5))`，与触发条件一致。
 
 效果：1× 下 R < 2.8 静音、2× 下 R < 1.4、3× 下 R < 0.94；Game view 切到手机分辨率、CanvasScaler 算出
 2–3× 时该报还报。测试：`FxMeshTests.GapsAreVisible_*` 边界；`FxImageTests.Ghosts_inside_one_screen_pixel_*`
 复现现场（8 texel 画 2 单位、blur 1：1× 静音，把根 Canvas 的 `scaleFactor` 拨到 3 后报一次且限值写
 0.9 而非 texel 限值 0.7）。既有 glow=6 的用例在 1× 下 2.1 px，不受影响。
+
+**放宽（2026-09-15）。** 换成 64 texel 原图后同一处 `blur="1"` 在 3× 下仍报（1.06 px，刚过 1 px 的线），作者试到
+`blur="2"`（2.13 px）也看不出区别。门槛 1 px 定得偏紧：周期不到 2 px 的梳齿采样不出来（Nyquist），2 px 上下
+只是跟像素网格打拍的低对比 moiré，要一个周期里放得下一个亮像素加一个以上的暗像素才成图案。改为
+`FxMesh.VisibleCyclePx = 2.5`：`GapsAreVisible = pad · 屏幕px/单位 · 0.3545 ≥ 2.5`。静音范围变为 1× 下
+R < 7.1、2× 下 R < 3.5、3× 下 R < 2.35；§14.1 的玫瑰花环（blur 8、1:1，2.84 px）仍在报的一侧。限值公式随之
+`1 / (0.3545 · min(texel/px, 屏幕px/单位 / 2.5))`；既有 8×8 glow=6 的用例（2.1 px）改成 glow=8。

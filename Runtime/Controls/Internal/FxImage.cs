@@ -238,9 +238,10 @@ namespace PromptUGUI.Controls.Internal
         /// pick fires on a mipmapped atlas too. Here both are known. Fires once per texture, only
         /// when the radius in TEXELS is past what the lod-0 kernel covers without gaps — a 10px
         /// glow on a sprite drawn at four times its size is fine, the same glow at 1:1 is not —
-        /// AND the ghost copies would be a screen pixel apart, so someone could actually see them:
-        /// a 128-texel icon at 14 units with <c>blur="1"</c> has gaps (3.2 texels between taps)
-        /// that nobody can tell from a blur at 1x (0.35 px), and can on a 3x phone (1.06 px).
+        /// AND the ghost copies would be far enough apart on screen to form a pattern, so someone
+        /// could actually see them: a 64-texel icon at 14 units with <c>blur="2"</c> has gaps (3.3
+        /// texels between taps) that nobody can tell from a blur even on a 3x phone (2.13 px per
+        /// cycle); <c>blur="3"</c> there (3.19 px) is a visible comb on thin strokes.
         /// </summary>
         private void WarnIfKernelLeavesGaps(VertexHelper vh, Texture2D tex, float pad)
         {
@@ -255,9 +256,12 @@ namespace PromptUGUI.Controls.Internal
             if (!_warnedNoMips.Add(tex)) return;
 
             var texels = pad * texelsPerUnit;
-            // The radius under which BOTH conditions go quiet at this size on this screen — the
-            // advice has to match whichever one fired.
-            var limitPx = 1f / (FxMesh.TapSpacing * Mathf.Min(texelsPerUnit, pixelsPerUnit));
+            // The radius under which EITHER condition goes quiet at this size on this screen — the
+            // advice has to match whichever one fired. The screen condition's own limit is
+            // VisibleCyclePx / (TapSpacing · pixelsPerUnit); folding the cycle into the divisor
+            // lets one expression take the larger of the two.
+            var limitPx = 1f / (FxMesh.TapSpacing
+                                * Mathf.Min(texelsPerUnit, pixelsPerUnit / FxMesh.VisibleCyclePx));
             PromptUGUI.Application.UILog.Warn(this, tex.filterMode == FilterMode.Point
                 ? $"PromptUGUI: blur / glow of {pad:0.#}px on '{name}' is {texels:0.#} texels of the " +
                   $"Point-filtered texture '{tex.name}' — above ~{limitPx:0.#}px at this size the kernel " +

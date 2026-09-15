@@ -445,10 +445,11 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var warnings = CaptureMipWarnings(out var stop);
             try
             {
-                // 8 texels drawn at 8 units: a 6-unit glow is 6 texels, and at lod 0 the 25 taps sit
-                // over two texels apart there — gaps. Two icons on the same texture: one warning.
-                var s = Open("<Icon id='a' name='ui:x' size='8x8' glow='6'/>" +
-                             "<Icon id='b' name='ui:x' size='8x8' glow='6'/>");
+                // 8 texels drawn at 8 units: an 8-unit glow is 8 texels, and at lod 0 the 25 taps sit
+                // nearly three texels apart there — gaps, 2.8 px apart on screen at 1x. Two icons on
+                // the same texture: one warning.
+                var s = Open("<Icon id='a' name='ui:x' size='8x8' glow='8'/>" +
+                             "<Icon id='b' name='ui:x' size='8x8' glow='8'/>");
                 using var vh = new VertexHelper();
                 FxOf(s.Get<PromptUGUI.Controls.Icon>("a")).BuildMeshForTests(vh);
                 FxOf(s.Get<PromptUGUI.Controls.Icon>("b")).BuildMeshForTests(vh);
@@ -472,7 +473,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var warnings = CaptureMipWarnings(out var stop);
             try
             {
-                var s = Open("<Icon id='a' name='ui:x' size='8x8' glow='6'/>");
+                var s = Open("<Icon id='a' name='ui:x' size='8x8' glow='8'/>");
                 using var vh = new VertexHelper();
                 FxOf(s.Get<PromptUGUI.Controls.Icon>("a")).BuildMeshForTests(vh);
 
@@ -486,29 +487,36 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Ghosts_inside_one_screen_pixel_are_not_worth_a_warning()
+        public void Ghosts_too_close_to_pattern_the_pixel_grid_are_not_worth_a_warning()
         {
-            // The case from the field: a 128-texel icon drawn at 14 units with blur="1". Here 8
-            // texels at 2 units — 4 texels per unit, so the lod-0 taps sit 1.4 texels apart (gaps,
-            // NeedsMips is true). But at 1x those ghost copies are 0.35 px apart: inside a single
-            // pixel they are a faint smear nobody can tell from a blur. Quiet.
+            // The cases from the field: a 64-texel icon drawn at 14 units on a 3x canvas, blur="1"
+            // and then blur="2" — real gaps between the lod-0 taps, and nothing to see either time.
+            // Here 8 texels at 2 units (4 texels per unit): blur 1 puts the taps 1.4 texels apart
+            // and blur 3 4.3 apart, so NeedsMips is true for both. What decides is how far apart
+            // the ghost copies land on SCREEN — under about two and a half pixels per cycle the comb
+            // cannot be resolved by the pixel grid and only beats against it as faint moiré.
             UseSprite(MakeSprite(mips: false));
             var warnings = CaptureMipWarnings(out var stop);
             try
             {
-                var s = Open("<Icon id='a' name='ui:x' size='2x2' blur='1'/>");
-                var fx = FxOf(s.Get<PromptUGUI.Controls.Icon>("a"));
+                var s = Open("<Icon id='a' name='ui:x' size='2x2' blur='1'/>" +
+                             "<Icon id='b' name='ui:x' size='2x2' blur='3'/>");
+                var a = FxOf(s.Get<PromptUGUI.Controls.Icon>("a"));
+                var b = FxOf(s.Get<PromptUGUI.Controls.Icon>("b"));
                 using var vh = new VertexHelper();
-                fx.BuildMeshForTests(vh);
-                Assert.IsEmpty(warnings, "0.35 px apart at 1x");
+                a.BuildMeshForTests(vh);
+                b.BuildMeshForTests(vh);
+                Assert.IsEmpty(warnings, "0.35 px and 1.06 px apart at 1x");
 
-                // On a 3x phone the same taps are 1.06 px apart — adjacent pixels, a pattern. Warn,
-                // and name the radius that keeps them inside a pixel THERE (0.9), not the texel
-                // limit (0.7): the advice has to match the condition that fired.
-                SetPixelsPerUnit(fx, 3f);
-                fx.BuildMeshForTests(vh);
-                Assert.AreEqual(1, warnings.Count, "1.06 px apart at 3x");
-                StringAssert.Contains("above ~0.9px", warnings[0]);
+                // On a 3x phone: blur 1 is 1.06 px apart — still quiet; blur 3 is 3.2 px — a pattern.
+                // The radius the message names is the one that would be quiet THERE (2.4), not the
+                // texel limit (0.7): the advice has to match the condition that fired.
+                SetPixelsPerUnit(a, 3f);
+                a.BuildMeshForTests(vh);
+                Assert.IsEmpty(warnings, "1.06 px apart at 3x");
+                b.BuildMeshForTests(vh);
+                Assert.AreEqual(1, warnings.Count, "3.2 px apart at 3x");
+                StringAssert.Contains("above ~2.4px", warnings[0]);
             }
             finally
             {
@@ -545,7 +553,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var warnings = CaptureMipWarnings(out var stop);
             try
             {
-                var s = Open("<Icon id='a' name='ui:x' size='8x8' glow='6'/>");
+                var s = Open("<Icon id='a' name='ui:x' size='8x8' glow='8'/>");
                 using var vh = new VertexHelper();
                 FxOf(s.Get<PromptUGUI.Controls.Icon>("a")).BuildMeshForTests(vh);
 
