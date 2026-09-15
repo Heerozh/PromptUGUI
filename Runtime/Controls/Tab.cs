@@ -28,6 +28,7 @@ namespace PromptUGUI.Controls
         private string _bindId;
         private bool _bindResolved;
         private Frame _boundFrame;
+        private bool _warnedInactiveSelect;   // the "inactive tab next to an active one" refusal warns once
         private readonly Subject<bool> _changed = new();
         private readonly Subject<Unit> _selected = new();
 
@@ -172,11 +173,43 @@ namespace PromptUGUI.Controls
             FontApplier.Apply(_label, _fontType);
         }
 
+        /// <summary>
+        /// The selection. Setting <c>true</c> turns every other tab of the group off and shows the
+        /// <c>bind</c>-ed page; the group's ToggleGroup does the former while this tab is active,
+        /// <see cref="TabGroupCore"/>'s <c>EnforceExclusive</c> when every tab is inactive together.
+        ///
+        /// <para><b>An inactive tab next to an active one cannot be selected from code.</b>
+        /// <c>hidden="true"</c>, or an inactive <c>&lt;Add&gt;</c> block, takes the tab out of the
+        /// ToggleGroup (uGUI unregisters a toggle in <c>OnDisable</c> and skips the group logic in
+        /// <c>Toggle.Set</c> for it), so turning the visible loser off goes through a group that sees
+        /// no member on and — <c>allowSwitchOff=false</c> — flips it straight back on. The winner
+        /// would end up off again after its page had already been shown: two pages at once and a
+        /// selection announced that never held. The assignment is refused instead, with one warning
+        /// per tab. A hidden tab is not a page switch; a page's sub-views switch inside the page.</para>
+        /// </summary>
         [UIAttr, Preserve]
         public bool IsOn
         {
             get => _toggle != null && _toggle.isOn;
-            set { if (_toggle != null) _toggle.isOn = value; }
+            set
+            {
+                if (_toggle == null) return;
+                if (value && !_toggle.isOn && !_toggle.IsActive()
+                    && _toggle.group != null && _toggle.group.AnyTogglesOn())
+                {
+                    if (!_warnedInactiveSelect)
+                    {
+                        _warnedInactiveSelect = true;
+                        UILog.Warn(this,
+                            $"Tab '{Id}' is inactive (hidden, or in an inactive block) while a visible tab of its " +
+                            "group is on: uGUI's ToggleGroup would flip that tab straight back on, so IsOn = true is " +
+                            "ignored. A hidden <Tab> is not a page switch — swap a page's sub-views inside the page " +
+                            "(toggle Hidden on sibling <Frame>s, or use a nested <TabBar>).");
+                    }
+                    return;
+                }
+                _toggle.isOn = value;
+            }
         }
 
         [UIAttr, Preserve]

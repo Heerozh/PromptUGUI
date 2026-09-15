@@ -576,8 +576,19 @@ Selectable 名单加 `<TabMenu>`；新段落「Popup focus trap」：展开时�
 收起态弹窗是 inactive，而 uGUI `Toggle.Set` 把 `NotifyToggleOn` 的调用挡在 `IsActive()` 后面，
 被禁用的 Toggle 也已经从 group 注销。结果：菜单关着时用代码写 `tab.IsOn = true` 会同时选中两项、
 两个 `bind` 页面一起显示。互斥改由 `TabGroupCore` 在发 `SelectionChanged` **之前**自己保证
-（`EnforceExclusive`）—— 对 `<TabBar>` 是幂等 no-op，因为 ToggleGroup 已经先做过。
+（`EnforceExclusive`）—— 对全员 active 的 `<TabBar>` 是幂等 no-op，因为 ToggleGroup 已经先做过。
 `ToggleGroup` 仍然挂着（键盘/手柄路径与既有 Tab 行为依赖它）。
+
+> **补记（2026-09-15）**：`EnforceExclusive` 成立的前提是整组 tab **一起** inactive（收起的弹窗、
+> 藏起来的整页）——输家的 `IsOn = false` 和赢家一样绕开 group，所以能落下。它**不能**让一个
+> inactive 的 tab 在可见 tab 旁边被代码选中：可见 tab 在 `<TabBar hidden="true">` 混排里
+> 是 group 里唯一注册的成员，关它要过 uGUI 的 group 逻辑，`allowSwitchOff=false` 看到「没有
+> 成员是 on」就把它原地弹回，重入 `EnforceExclusive` 再把隐藏 tab 关掉——而它的 `bind` 页已经
+> 显示出来了：两页叠在一起、`SelectionChanged` 宣布了一个从未成立的选中。有人拿隐藏 `<Tab>`
+> 当页面内子视图的开关踩到了这条。改为 `Tab.IsOn` setter 在入口拒绝（自己 inactive、group 里有
+> 注册成员是 on）并 `UILog.Warn` 一次；隐藏 tab 不是页面开关，子视图在页面内部自己切
+> （兄弟 `<Frame>` + `Hidden`，或嵌套 `<TabBar>`）。回归：`TabBarTests.Hidden_Tab_Selected_From_Code_Is_Refused_With_One_Warning`
+> / `Tabs_On_A_Hidden_Page_Still_Switch_From_Code`。
 
 **14.2 「选中即收起」需要一个展开期的重入保护（§7.1 补充）。**
 `Expand()` 里 `SetActive(true)` 弹窗子树，会让 uGUI 在 `OnEnable` 重新校验 ToggleGroup 并**补发**

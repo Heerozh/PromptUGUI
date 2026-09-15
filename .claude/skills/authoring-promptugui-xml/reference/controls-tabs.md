@@ -32,6 +32,48 @@
 
 用自定义 `itemTemplate` 时（`<TabBar itemTemplate="MyTabTemplate"/>`），Template body 必须在树里某处包含恰好一个 `<Tab>`（通过 `ScopedIds` 或递归 `Control.Children` walk 在 `BindItems` 时定位）。
 
+### Sub-views inside a page — not a hidden `<Tab>`
+
+A `<Tab>` is an entry the bar shows. Do **not** add a `hidden="true"` `<Tab bind="…">` to switch a
+page's inner views (list ↔ detail, form ↔ result) from code. An inactive Tab is out of uGUI's
+`ToggleGroup`, so while a visible tab is on, `tab.IsOn = true` on the hidden one is **refused with a
+warning** (`Tab 'x' is inactive … IsOn = true is ignored`) — the group would otherwise flip the
+visible tab straight back on and leave two pages showing. A Tab inside an inactive `<Add>` block is
+in the same position.
+
+```xml
+<!-- ✗ hidden Tab as a page switch: refused, the bar shows nothing selected anyway -->
+<TabBar id="bar">
+  <Tab text="Shop" bind="shop_panel" isOn="true"/>
+  <Tab text="Bag"  bind="bag_panel"/>
+  <Tab bind="shop_detail" hidden="true"/>
+</TabBar>
+```
+
+Sub-views belong **inside** the page. Two ways, by who switches:
+
+- **Code switches** — sibling `<Frame>`s inside the page, one visible, the rest `hidden="true"`;
+  C# flips `Hidden` (see scripting-promptugui-csharp → TabBar):
+
+  ```xml
+  <Frame id="shop_panel" anchor="stretch" margin="40,0,0,0">
+    <Frame id="shop_list"   anchor="stretch">…</Frame>
+    <Frame id="shop_detail" anchor="stretch" hidden="true">…</Frame>
+  </Frame>
+  ```
+
+  ```csharp
+  screen.Get<Frame>("shop_list").Hidden = true;
+  screen.Get<Frame>("shop_detail").Hidden = false;
+  ```
+
+- **The player switches** — a second `<TabBar>` *inside* the page (a segmented control). Nested
+  bars are independent, and the inner one keeps working from code even while its page is hidden:
+  every tab of that group is inactive together, so there is no visible member left to bounce.
+
+What *is* fine is a Tab hidden **together with its whole group** — the bar on a hidden page above,
+or a `<TabMenu>`'s collapsed popup: selection from code works there.
+
 ### No selection at all — `allowSwitchOff`
 
 By default a tab bar always has exactly one tab selected: nothing is switch-off-able by clicking,
