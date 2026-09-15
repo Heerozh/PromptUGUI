@@ -369,6 +369,24 @@ bar.GetAt(i);
 
 Setting `tab.IsOn = true` triggers mutex (other Tabs flip to false via the TabBar's private `ToggleGroup`) AND auto-shows the `bind`-ed Frame — no manual `frame.GameObject.SetActive(...)` needed. If `BindItems` is called with an empty list, `OnSelectionChanged` fires with `null` to let subscribers clear UI state. After hot-reload, re-Bind just like ScrollList.
 
+**The Tab you select has to be an active one.** A `hidden="true"` Tab (or one inside an inactive
+`<Add>` block) is out of uGUI's `ToggleGroup`, so while a visible tab is on, `IsOn = true` on it is
+**refused and warned once** (`Tab 'x' is inactive … IsOn = true is ignored`) — the group would
+otherwise flip the visible tab straight back on, leaving two pages showing and `OnSelectionChanged`
+announcing a tab that never held. A hidden Tab is not a page switch: a page's sub-views (list ↔
+detail) switch *inside* the page — sibling `<Frame>`s toggled with `Hidden`, or a nested `<TabBar>`
+(see authoring-promptugui-xml → `reference/controls-tabs.md`, *Sub-views inside a page*):
+
+```csharp
+// inside the "shop" page: <Frame id="shop_list"/> + <Frame id="shop_detail" hidden="true"/>
+screen.Get<Frame>("shop_list").Hidden = true;
+screen.Get<Frame>("shop_detail").Hidden = false;
+```
+
+Only a group that is inactive *as a whole* is exempt — a bar on a page that is itself hidden, or a
+`<TabMenu>`'s collapsed popup: there `tab.IsOn = true` from code works (nothing visible is left to
+bounce), and the switch shows when the page does.
+
 **The empty selection.** `OnSelectionChanged` emits `null` every time the selection goes to none, so
 null-check `tab` in a subscriber. Switching from one tab to another never reports a momentary
 `null`. Three things produce it: an empty `BindItems` list, `ClearSelection()`, and a switch-off
@@ -444,7 +462,10 @@ Picking a row closes the menu — including re-picking the row already selected,
 `ToggleGroup` swallows (no `onValueChanged`) and which `OnSelectionChanged` therefore never sees.
 Setting `tab.IsOn = true` from code closes it too, and works even while the menu is closed: the rows
 live in a deactivated popup where uGUI's own mutual exclusion does not run, so the shared tab-group
-core enforces it instead.
+core enforces it instead. That holds because **every** row is inactive together — it is not a
+licence for a hidden row among visible ones: with the menu open, selecting a `hidden="true"` row
+from code is refused with a warning exactly as in a bar (see *The Tab you select has to be an active
+one* above).
 
 Expanded is runtime state — `screen.ReSolve()` (a resize, a Variant flip, a theme switch) re-measures
 the panel but never closes it.
@@ -821,6 +842,7 @@ If `UI.Theme.Resolve` throws, the exception flows through the reflection setter 
 | `<Icon>` shows pink/error sprite          | `UI.SpriteResolver` not set (or `SpriteSet` not in Resources/SpriteSets)                                               | Call `SpriteResolverHelpers.UseSpriteSetResolver(...)` before any Screen opens                    |
 | Callbacks keep firing on a destroyed `Instantiate`'d subtree | `Object.Destroy(root.GameObject)` — the GameObject is gone but `.AddTo(root)` subscriptions were never released | `root.Dispose()` — releases tracked subscriptions, then destroys the (wrapper-aware) GameObject   |
 | `Instantiate`'d nameplate jumps back to the template's position on a Variant / theme switch | ReSolve replays the instance root's declared `anchor` / `size` / `margin` | Position a RectTransform shell you own and instantiate the template inside it (`anchor="stretch"`) |
+| `tab.IsOn = true` does nothing and warns `Tab 'x' is inactive … IsOn = true is ignored` | A `hidden="true"` `<Tab>` (or one in an inactive `<Add>`) used as an in-page view switch while a visible tab is on — an inactive Tab is out of the `ToggleGroup`, which would bounce the visible tab back on | Switch the page's sub-views inside the page: `frameA.Hidden = true; frameB.Hidden = false;` on sibling `<Frame>`s, or a nested `<TabBar>`. See TabBar → *The Tab you select has to be an active one* |
 
 ## Quick reference (cheatsheet)
 
@@ -1678,7 +1700,7 @@ UI.Router.Map(name, src, screen = null, present = RoutePresent.Page, parent = nu
 UI.Router.MapTab(name, parent, tabId, onEnter = null)
 ```
 - `parent` — required; must resolve to a Page/Modal ancestor in the chain.
-- `tabId` — screen-relative control id-path (e.g. `"topbar/deals"`) of the `<Tab>` to select. A Tab node can itself be the `parent` of deeper routes.
+- `tabId` — screen-relative control id-path (e.g. `"topbar/deals"`) of the `<Tab>` to select. A Tab node can itself be the `parent` of deeper routes. It must be a Tab the bar shows: entering the route does `tab.IsOn = true`, and a `hidden="true"` Tab is refused with a warning while a visible one is on (see TabBar → *The Tab you select has to be an active one*) — a page's sub-views are not Tab routes.
 - `onEnter` — `Action<IScreen, RouteQuery>` called with the host Page/Modal screen.
 
 **`MapPrompt` parameters**:
