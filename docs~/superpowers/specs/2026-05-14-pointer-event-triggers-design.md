@@ -78,8 +78,8 @@ uGUI 的 `IPointerEnterHandler` / `IPointerExitHandler` / `IPointerDownHandler` 
 | PE-D9 | Trigger.InitTriggerSubscription 扩展 | 加 3 个 case 到 switch，每个 case 调用 `SubscribePointer(kind)`，内部走 FindPointerSource + 订阅对应 Observable | 不引入 Trigger 子类；既有 Open/Loop/Click/Manual 分支不变 |
 | PE-D10 | TriggerKind 枚举扩展 | 加 3 个值：`HoverEnter`, `HoverExit`, `Press` | 同枚举集中所有 trigger 类型；TriggerSpec.Kind 字段语义不变 |
 | PE-D11 | 错误消息 | `@id` 引用非 Btn / 非 Image 控件 → InvalidOperationException 提示"id 'X' is a Y, not supported as pointer source. Use Btn or Image."；空 / 多目标用现有的"no Btn or Image found"/"ambiguous"消息 | 友好定位错误源头 |
-| PE-D12 | raycastTarget 校验 | 不做；运行时不报错 | parse 期看不到 ApplyCommon 之后的属性值；不值得为这个加运行时探测。SKILL.md 标 caveat |
-| PE-D13 | Image 暴露 streams 时的 raycastTarget 副作用 | 不主动改 raycastTarget；保持 Image 当前默认（true）+ 作者控制 | 不让 SKILL.md "<Image> 默认 raycastTarget=true" 这个事实意外被某些代码路径反转 |
+| PE-D12 | raycastTarget 校验 | ~~不做；运行时不报错~~ **2026-09-15 作废**：显式 `raycastTarget="false"` 的 Image 被当事件源时 warn 一次（`2026-09-15-raycast-target-design.md` §4.3） | ~~parse 期看不到 ApplyCommon 之后的属性值~~ 两条路都经 `Image.EnsureRelay()`，绑定时就知道 |
+| PE-D13 | Image 暴露 streams 时的 raycastTarget 副作用 | ~~不主动改~~ **2026-09-15 作废**：`<Image>` 默认 false，订阅 / 绑定触发器时自动开；显式 false 优先 | 当年的前提「Image 默认 true」本身是 uGUI 漏出来的默认，且 `<Image raycastTarget>` 属性当时并不存在（2026-09-15 spec §1.3） |
 | PE-D14 | PointerEventRelay 文件位置 | `Runtime/Controls/Internal/PointerEventRelay.cs` | 跟 TriggerSourceResolver / ScopedIds resolver 等内部辅助一致 |
 | PE-D15 | IPointerEventSource 接口位置 | `Runtime/Controls/Internal/IPointerEventSource.cs` | internal 接口，跟 PointerEventRelay 同一目录 |
 | PE-D16 | 单元测试 | EditMode（parse + resolver）+ PlayMode（Btn 上 hover-enter 真触发；Image 上 hover-enter 真触发；press 在 Btn 上；@id 跨 Btn/Image 引用错误） | 跟现有 TriggerTests / AnimationPlayTests 分布一致 |

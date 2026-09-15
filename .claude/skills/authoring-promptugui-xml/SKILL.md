@@ -115,10 +115,11 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 
 Container. With none of the visual attributes below it is a bare `RectTransform` — no `Graphic`, no cost. Write any of them and Frame draws itself procedurally (rounded-rect SDF shader, no sprite): fill, corner radius, inner border, inner glow, outer glow. Optional `RectMask2D` (`mask="rect"`), or a stencil clip to its own drawn shape (`mask="self"` — needs one of the visual attributes, since that is what gives the Frame a `Graphic`).
 
-There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAINER-VISUAL-ATTR`) — use `<Image>` for sprite-based skins. A Frame never blocks clicks even when it draws; for a tinted clickable region use `<Btn>`.
+There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAINER-VISUAL-ATTR`) — use `<Image>` for sprite-based skins. Drawing is not hit-testing: a Frame is **click-through even when it draws** until you write `raycastTarget="true"` on it — the panel that should block what is behind it says so on its **root** (see **Pointer hit-testing**). For a clickable region with hover / press feedback use `<Btn>`.
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
+| `raycastTarget` | bool | `false` | `true` = this Frame catches the pointer (blocks clicks / hover from reaching what is behind it; its interactive children still work, they draw on top). Write it on a **panel's root**. With no visual attribute it is a transparent, zero-geometry catcher — the replacement for the old `<Image color="#00000000">` hack. See **Pointer hit-testing** |
 | `mask` | `rect` / `self` | — | `rect` = `RectMask2D` 直角裁剪子节点；`self` = stencil `Mask`，把子节点裁成本 Frame 自绘的那个形状（圆角头像 / 圆角滚动区）。`self` 要求写了下面任一视觉属性 —— 否则 Frame 没有 `Graphic`，裁剪静默失效（`PUI-MASK-FRAME-SELF`）。`weld` 承载者也不行（`PUI-MASK-WELD-SELF`）|
 | `showMask` | bool | `true` | 仅 `mask="self"`。`false` = 只裁不画，一个隐形的圆角裁剪器 |
 | `maskPadding` | `T,R,B,L`（`_`=占位） | — | 仅 `mask="rect"` 时有效 |
@@ -226,6 +227,7 @@ uGUI Image，从 `Resources` 加载 sprite；可选 `RectMask2D`（`mask="rect"`
 | `glow` | px 半径 | `0`（无光） | 见 **Blur & glow** |
 | `glowColor` | hex / CSS named / theme token，**纯色**；或 `self` / `self/0.5` | 不写 = 图自身的模糊色 | 见 **Blur & glow** |
 | `intensity` | number `≥ 1` | `1` | 点亮：本体 + 光晕一起过曝光曲线，核心发白、光晕保色相。任何 `type` 都生效。见 **Blur & glow** |
+| `raycastTarget` | bool | `false` | Click-through by default (uGUI's own default is true — that put every decorative picture in the raycast list). `true` = catches the pointer. Turned on automatically when the Image is a pointer-event source (`<Trigger on="hover-enter@…">` / C# `OnPointerEnter` / `OnPointerExit` / `OnPointerDown`); an explicit `false` on a source wins and is reported once (the events can never arrive). See **Pointer hit-testing** |
 
 #### Rotation & flip
 
@@ -309,6 +311,7 @@ uGUI `RawImage`，渲染**运行时动态加载的 `Texture`**（头像 / 下载
 | `maskPadding` | `T,R,B,L` | — | 仅 `mask="rect"` |
 | `rotation` | 浮点角度，顺时针为正 | `0` | 网格级，见 `<Image>` 的 **Rotation & flip** |
 | `flip` | `x` / `y` / `xy` / `none` | `none` | 网格级，见 `<Image>` 的 **Rotation & flip** |
+| `raycastTarget` | bool | `false` | 同 `<Image>`：默认穿透，作为指针事件源时自动开，显式 `false` 优先并 warn。见 **Pointer hit-testing** |
 
 - texture 由 C# 在 Open 后设置，故 `size="native"`（读 texture 像素宽高）仅在实例化前已同步赋 texture 时有值；常态请显式写 `size` 或用 `type="contain"/"cover"`。
 - 别在 `<VStack>` / `<HStack>` / `<Grid>` 直接子节点上用 fit 模式（`AspectRatioFitter` 与 LayoutGroup 抢布局）——套一层 `<Frame>`。
@@ -325,7 +328,7 @@ TMP_Text。文本简写：`<Text>Hello</Text>` ≡ `<Text text="Hello"/>`。
 | `align` | TMP 对齐 | `left`+`middle` | 一个水平 token `left` / `center` / `right` / `justified` / `flush` / `geo`，和/或一个垂直 token `top` / `middle` / `bottom` / `baseline` / `midline` / `capline`，连字符或空格连接、顺序无关（`bottom-right` / `top-center` / `capline-flush`）；只给水平保持垂直 `middle`，只给垂直保持水平 `left`；未知 token = parse error |
 | `wrap` | bool | `true` | `false`=不换行（NoWrap）；常配 `overflow="ellipsis"` 做单行省略号 |
 | `overflow` | `overflow` / `ellipsis` / `truncate` | `overflow` | 文字塞不下框后的收尾：`overflow`=溢出框外（TMP 默认）、`ellipsis`=尾部 `…`、`truncate`=硬裁切无 `…`；未知值 = parse error |
-| `raycastTarget` | bool | — | |
+| `raycastTarget` | bool | `false` | Click-through by default (TMP's own default is true; the library always documented `<Text>` as `false` and now it really is). Only turn it on for text that must be hit in its own right — inside a `<Btn>` / `<Tab>` it is never needed, the control's own hit layer is under the label. See **Pointer hit-testing** |
 | `font` | string | `default` | Settings 里的 font type |
 | `autosize` | bool | `false` | 开 TMP auto-size（仅 WD% 形式——字宽最多压 50%，字号不变） |
 | `tr` | bool | `true` | `false`=跳过 i18n 提取 |
@@ -593,7 +596,7 @@ Tab 容器；私有 `ToggleGroup`（默认 `allowSwitchOff=false`，见下表）
 
 ### `<Tab>`
 
-`<TabBar>` 子节点；uGUI `Toggle` + 居中 TMP label + 可选左侧 icon。经 TabBar 的 ToggleGroup 自动互斥。`bind="frame_id"` 声明式在选中时显隐兄弟 `<Frame>`（lazy 解析缓存）；无 `bind=` → 只 fire `OnSelected`。接受嵌套子节点（Frame 式叠在 bg 上）；点穿子节点需 `raycastTarget="false"`（`<Icon>` 已是）。**A `hidden="true"` Tab is not a page switch**: while a visible tab is on, selecting a hidden one from code is refused with a warning — a page's sub-views switch inside the page (sibling `<Frame>`s + `Hidden`, or a nested `<TabBar>`), see [`reference/controls-tabs.md`](reference/controls-tabs.md#sub-views-inside-a-page---not-a-hidden-tab). 状态化视觉见 [`reference/states.md`](reference/states.md)；共享样式 / 动态卡详见 [`reference/controls-tabs.md`](reference/controls-tabs.md)。
+`<TabBar>` 子节点；uGUI `Toggle` + 居中 TMP label + 可选左侧 icon。经 TabBar 的 ToggleGroup 自动互斥。`bind="frame_id"` 声明式在选中时显隐兄弟 `<Frame>`（lazy 解析缓存）；无 `bind=` → 只 fire `OnSelected`。接受嵌套子节点（Frame 式叠在 bg 上）；子节点默认就是穿透的（`raycastTarget` 默认 `false`），点击落到 Tab 自身的命中层。**A `hidden="true"` Tab is not a page switch**: while a visible tab is on, selecting a hidden one from code is refused with a warning — a page's sub-views switch inside the page (sibling `<Frame>`s + `Hidden`, or a nested `<TabBar>`), see [`reference/controls-tabs.md`](reference/controls-tabs.md#sub-views-inside-a-page---not-a-hidden-tab). 状态化视觉见 [`reference/states.md`](reference/states.md)；共享样式 / 动态卡详见 [`reference/controls-tabs.md`](reference/controls-tabs.md)。
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
@@ -866,6 +869,21 @@ Other notes:
 `spacing` is **NOT** universal — only on `<VStack>` / `<HStack>` / `<Grid>`. `padding` is **per-control, not a common attribute** (each control that wants it declares its own): a layout-group inset on `<VStack>` / `<HStack>` / `<Grid>` / `<ScrollList>` / `<TabBar>`, and on `<InputField>` it means the inner space between the field edge and its text (auto-tracks the border — see the `<InputField>` row).
 
 `anchor` and `margin` are **NOT** available on `<VStack>` / `<HStack>` / `<Grid>`.
+
+## Pointer hit-testing (`raycastTarget`)
+
+**Hit-testing is declared, not painted.** Only two kinds of node are ever returned by the raycaster: an interactive control's own hit layer (`<Btn>` / `<Toggle>` / `<Tab>` / `<Slider>` / `<Scrollbar>` / `<Dropdown>` / `<InputField>` / `<ScrollList>` / `<Collapsible>` / `<TabMenu>` / `<Carousel>` / `<Markdown>` links — always on, not configurable), and a node you marked `raycastTarget="true"`. Everything else is click-through by default, **including a `<Frame>` that draws, an `<Image>`, a `<RawImage>` and a `<Text>`** — uGUI's own default (`true`) is not the library's.
+
+- **A panel that must block what is behind it says so on its root**: `<Frame color="…" radius="…" raycastTarget="true">`. One line per panel. Its interactive children still work — a child draws on top of its ancestor and a click on a non-interactive spot bubbles up to the panel and stops there (`EventSystem.IsPointerOverGameObject()` is then true, so the game world does not see the tap). The catcher must be an **ancestor** (or an earlier sibling); a later sibling covers what it overlaps.
+- **A modal needs two declarations**: the full-screen backdrop and the dialog panel (see **Modal / Loading screens**).
+- **Decorations write nothing** (default `false`) — an overlay gradient, a glow layer, a card thumbnail, a label. Write `raycastTarget="false"` explicitly only where the lint asks you to decide (below) or to override a `class=` that carries `true`.
+- **A transparent catcher** is `<Frame raycastTarget="true">` with no visual attribute: it attaches a zero-geometry panel (no overdraw) that the raycaster still returns. Do not write `<Image color="#00000000">` for this any more.
+- **`<Image>` / `<RawImage>` as pointer-event sources** turn themselves on: `<Trigger on="hover-enter@id">` / `press@id` and a C# `OnPointerEnter` / `OnPointerExit` / `OnPointerDown` subscription both flip `raycastTarget` to true. An explicit `raycastTarget="false"` on such a source wins and is reported once — the events can never arrive.
+- `raycastTarget` is an ordinary attribute: it travels through `<Style>` / `class=`, Variants (`raycastTarget.portrait="true"`) and `<Theme>` overrides like any other, and is cleared per pass — a variant-only `raycastTarget.mobile="true"` turns off again when the variant leaves.
+- `interactable="false"` does not change any of this: it flips `CanvasGroup.interactable`, not `blocksRaycasts`, and a `CanvasGroup` cannot create a hit area — a subtree with no raycast target blocks nothing.
+- Procedural controls (`<Btn radius="8">`, a `<Tab color="…">`) are hit on their SDF surface; there is no invisible Image under it any more.
+
+Lint: `raycastTarget` on any other tag is `PUI-RAYCAST-TAG` (layout containers have no Graphic; `<Icon>` / `<Decor>` / `<Progress>` are always click-through; interactive controls are not configurable). The CLI also raises **`PUI-RAYCAST-UNDECIDED`** for the **outermost drawn surface** on each path from the Screen root that carries no `raycastTarget` — a panel that never said whether it blocks. Write `true` (a panel) or `false` (a decoration); inside a `true` node or an interactive control nothing more is asked, under a `false` one the next drawn surface is. CLI-only (nothing is logged at `UI.Open`), one or two per screen in practice: the panel roots and the modal backdrop.
 
 **Inside `<VStack>` / `<HStack>`**, a child's explicit `size` / `width` / `height` is written to `LayoutElement.preferredX` **and `minX`** with `flexibleX=0` (not to `sizeDelta`). So `<Btn size="64x64"/>` inside a VStack is **strictly 64×64** — the layout group will neither stretch **nor shrink** it: the pinned `minX` means even a space-constrained group can't compress it (it overflows the group instead). This is what keeps a fixed-size trailing control at full size — e.g. an edit `<Btn size="12x12"/>` after an intrinsic-width `<Text>` in an `<HStack>`: when the text grows past the available width, the text (whose `minWidth` stays 0) gives way (compresses / ellipsizes), the button does **not**. Only `stretch` / `stretch*N` (`minX` stays `-1`, shrinkable to 0) and the native-fallback axes below remain compressible. **Per-axis native fallback** (CSS `inline-block` 直觉): each axis the author omits is independently filled from the control's intrinsic content size, so `<Btn width="100"/>` keeps `preferredWidth=100` and gets `preferredHeight=44` (Btn's default). Controls that report a native size: `<Btn>`、`<Toggle>`、`<Icon>`、`<Dropdown>`、`<Slider>`、`<ScrollList>`、`<InputField>`、`<TabMenu>`、`<Collapsible>`(caption 宽 + 标题栏高)；`<Image>` 当 sprite 非空时 (e.g. `<Btn>OK</Btn>` widens to fit text + padding, default height 44; `<Toggle>静音</Toggle>` widens to fit text + 28 padding, default height 44; `<Dropdown/>` defaults 160×44; `<InputField/>` defaults 160×44; `<Slider/>` defaults 160×44 horizontal or 44×160 vertical; `<ScrollList/>` defaults 160×200 vertical or 200×160 horizontal; `<Image sprite="..."/>` defaults to `sprite.rect.size / pixelsPerUnit`); the native-filled axis keeps `flexibleX=-1` (the LE "no opinion" sentinel) so an intrinsic `ILayoutElement` can still contribute. 无 sprite 的 `<Image/>` 拿不到 native → 那一轴回到 `preferredX=-1` 哨兵，看自带 `ILayoutElement` 报告，空状态多半 0，要可见自己写 size。
 
@@ -1559,7 +1577,7 @@ Primary use case is small text / detail UI inside a `scale-mode="pixel"` Screen.
   <Tab anchor="stretch" sprite="" color="#0000">
     <Icon name="cog" anchor="top-center" size="24x24" margin="4,0,0,0"/>
     <Text anchor="top-stretch" margin="28,4,0,4" fontSize="12" scale="0.5"
-          align="center" raycastTarget="false">Settings</Text>
+          align="center">Settings</Text>
   </Tab>
 </Frame>
 ```
@@ -1627,7 +1645,7 @@ Caveats:
 
 Custom `MessageBox` / `Loading` overrides are regular `<Screen>` documents — the modal subsystem just instantiates them through the normal pipeline (anchor / margin / Variant / locale all work). Two specifics XML authors must know:
 
-- **Dim backdrop is your responsibility.** The library does NOT auto-inject a full-screen Graphic behind the dialog. If you want clicks blocked on empty space, include something like `<Image id="backdrop" anchor="stretch" color="#000000FE"/>` as a sibling of your dialog Frame. Otherwise pointer raycasts outside the dialog box pass through to the Canvas below.
+- **Dim backdrop is your responsibility.** The library does NOT auto-inject a full-screen Graphic behind the dialog. If you want clicks blocked on empty space, include something like `<Image id="backdrop" anchor="stretch" color="#000000FE" raycastTarget="true"/>` as a sibling of your dialog Frame — and write `raycastTarget="true"` on the dialog panel itself too, or clicks on its body fall through to the backdrop (which, for the modals that close on backdrop press, closes the dialog). Nothing catches the pointer unless it says so (see **Pointer hit-testing**); without the two declarations pointer raycasts pass through to the Canvas below.
 - **`MessageBox` requires specific `id=`s on built-in controls** (`text`, `title`, `ok`, `cancel`, `yes`, `no`, `close`, optional `icon`) so its `Bind` step can wire them via `screen.Get<T>(id)`. Default button labels are XML text content (`<Btn id="ok">OK</Btn>`) and become msgids extracted into your `.po` like any other `<Btn>` — translate them through your normal i18n workflow. **`Loading` only recognises `<Text id="text">`** (optional); everything else (spinner, backdrop) is up to you.
 
 For the C# override mechanism (`MessageBox.XmlSrc = "..."`, `Loading.XmlSrc = "..."`), the full id contract, ESC behaviour, sortingOrder bands, and `UI.CanvasConfigurator` caveats, see the **scripting-promptugui-csharp** skill's "Modal dialogs" section.
@@ -1850,6 +1868,13 @@ STYLE LINT    PUI-CLASS-EMPTY                  class="" / whitespace-only — na
                                                (shape attrs are exempt when one side has NONE of them
                                                 — that surface toggles wholesale and reverts itself)
               PUI-THEME-STYLE-ON-INVOCATION    themed class= on a Template invocation won't re-skin
+
+HIT-TESTING   PUI-RAYCAST-TAG                  raycastTarget= outside Frame / Image / RawImage / Text (containers
+                                               have no Graphic; Icon / Decor / Progress are always click-through;
+                                               interactive controls are not configurable) — also warned at runtime
+              PUI-RAYCAST-UNDECIDED            the outermost drawn surface on a path from the Screen root carries
+                                               no raycastTarget — write true (a panel) or false (a decoration);
+                                               CLI-only, nothing at UI.Open
 ```
 
 ## Triggers and Animations

@@ -1,6 +1,6 @@
 # `raycastTarget` —— 指针命中是显式声明的，不是画出来的
 
-> 状态：**草案**（2026-09-15，与作者 brainstorm 后起草；决策见 §10）。
+> 状态：**已实现**（2026-09-15，分支 `feat/raycast-target`，跳过 plan 直接红绿；实施记录见 §11）。决策见 §10。
 > 相关：主 spec §5（原语表）/ §5.1（通用属性）；
 > `2026-08-26-procedural-surface-design.md`（§5「退位 Image：sprite 清空、alpha 归零」与 §13 表 —— 本文改掉这一条）；
 > `2026-05-14-pointer-event-triggers-design.md`（PE-D12 / PE-D13 —— 本文作废这两条）；
@@ -312,3 +312,30 @@ Unity MCP 跑；`dotnet format --verify-no-changes --severity warn` 过；`.lint
 | RT-D9 | 「忘了写」的兜底 | `PUI-RAYCAST-UNDECIDED`（warn，expanded-only，CLI-only） | 对准最外层的面；一屏一两条；否决位置魔法 C |
 | RT-D10 | 兼容 / 迁移 | 无兼容层、无迁移文档；内置 XML 与 Samples 同 PR 改好 | 未上线（作者确认） |
 | RT-D11 | 是否做 `ICanvasRaycastFilter` 形状命中 | 不做 | §9 |
+
+## 11. 实施记录（2026-09-15）
+
+五步提交：属性 + 默认值（`RaycastIntent` / `Frame.RaycastTarget` / `Text` 默认 false）→ 表面接管命中（`ProceduralSurface`）
++ PlayMode 命中测试 → 两条 lint → 内置 XML 与 Samples → 文档（skill × 2、主 spec §5.1.1、PE-D12/13 与 2026-08-26 spec 加注、
+CLI README、XSD）。EditMode 3923 / EditorOnly 344 / PlayMode 207 全绿；`UIXmlLint` 对 `Runtime/Resources/` 与两个 Samples 目录零 issue；
+`dotnet format --verify-no-changes --severity warn` 过。
+
+**与 §3–§7 的偏差 / 实施中才知道的事**
+
+- **`<Text>` 的默认值其实一直是 true**（§3 表已改）。原因是两层：`Text.OnAttached` 没设过 `raycastTarget`，而且就算设了也会被
+  冲掉 —— Screen 的树是在 **inactive** 根下建好再一次 `SetActive(true)` 的（`Screen.Open`），TMP 的 `Awake → LoadDefaultSettings()`
+  在一个 `fontSize` 仍为 -99 的新组件上会重新写 `raycastTarget = TMP_Settings.enableRaycastTarget`，落在 `OnAttached` 之后、
+  属性应用之前。库内其它 TMP label（Btn / Toggle / InputField / `ProceduralBuilders.AddText`）之所以 false 能留住，只是因为它们
+  在激活前就设了 `fontSize`。所以 `<Text>` 的值在 `OnAfterApply` 里再写一次（也顺带覆盖每次 ReSolve）。
+- **RT-D5 的 depth 问题有了答案：零几何的 catcher 面板会被 `GraphicRaycaster` 返回**（`RaycastHitPlayTests.Bare_catcher_frame_is_hit_by_the_raycaster`，
+  真 Canvas + EventSystem）。退化三角形的兜底没有做、也不需要做。
+- **属性按趟清零**（`OnBeforeApply`），不止是「普通属性」：`Frame` / `Image` / `RawImage` / `Text` 的 `raycastTarget` 都在趟首回到
+  未声明态，所以 variant-only 的 `raycastTarget.mobile="true"` 在变体离开时会真的关掉（`*_VariantOnlyRaycastTarget_TurnsOffAgainWhenTheVariantLeaves`
+  三条），跟 `ProceduralSurface.BeginPass` 同一条纪律，而不是交给 `PUI-VARIANT-NO-BASE` 兜。`RaycastIntent` 因此有 `BeginPass` / `EndPass`。
+- **`PUI-RAYCAST-UNDECIDED` 不需要「expanded-only」的管道**：模板体（`inTemplateBody`）不判、非内置标签（raw 遍里的调用）当作不透明
+  停下，展开遍自然会在原位判到真实节点并带上 `(via …)`；两遍按消息去重。它是 Screen 级的独立遍历（`RaycastRules.CheckUndecided`），
+  从 `IRWalker.Walk` 的 Screen 循环里调用，自己盖 `WithSource`。
+- Samples 的做法与 §6 写的略有不同：CommonControls 没有改 `Skin` 模板，而是把 **每页的根 Frame** 写成 `raycastTarget="true"`
+  （bare catcher），Skin 与内容都在它里面 —— 这才是 §3 说的「面板根写一行」；ProceduralStyle 也是在页面 Frame / `app-bg` /
+  顶栏 / tab 轨道上内联写，两个 skin 文件保持纯视觉；`Backdrop` 的壁纸 `RawImage` 写 `false`。
+- 顺带发现、已修：`XsdGenerator` 的 Frame / Image 是手写属性表，`raycastTarget` 要各补一行（`Frame_Image_and_Text_list_raycastTarget`）。

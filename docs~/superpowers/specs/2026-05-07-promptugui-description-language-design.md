@@ -144,7 +144,7 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 
 | 标签 | 作用 | 对应 uGUI |
 |---|---|---|
-| `<Frame>` | 纯定位容器，无视觉；可选 `mask="rect"` 启用 RectMask2D | RectTransform（+ 可选 RectMask2D） |
+| `<Frame>` | 定位容器；写了程序化视觉属性才自绘（见各 procedural spec）；可选 `mask="rect"` 启用 RectMask2D；`raycastTarget="true"` 让它接住指针（§5.1.1，默认穿透） | RectTransform（+ 可选 RectMask2D / ProceduralPanel） |
 | `<Image>` | 图像 / 9-slice / 纯色块 | Image |
 | `<RawImage>` | 运行时动态 `Texture`（头像 / 下载图 / RenderTexture）；图源仅 C# `Texture` 属性，非 sprite；`type=contain\|cover` 等比适配 + mask（详见 [`2026-06-06-rawimage-control-design.md`](2026-06-06-rawimage-control-design.md)） | RawImage |
 | `<Text>` | 文本 | TMP_Text |
@@ -183,6 +183,22 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 | `spacing` | 子项间距（仅 VStack/HStack/Grid） |
 | `hidden` | 初始隐藏（GameObject SetActive false） |
 | `interactable` | 初始不可交互（CanvasGroup.interactable false） |
+
+### 5.1.1 指针命中（`raycastTarget`，2026-09-15 起）
+
+命中是**声明**出来的，不是画出来的：只有两种节点进 raycast 列表 —— 交互控件自己的命中层（`<Btn>` / `<Toggle>` /
+`<Tab>` / `<Slider>` / `<Scrollbar>` / `<Dropdown>` / `<InputField>` / `<ScrollList>` / `<Collapsible>` / `<TabMenu>` /
+`<Carousel>` / `<Markdown>` 链接，永远开、不可配置），以及作者写了 `raycastTarget="true"` 的节点。其余一律穿透 ——
+画了东西的 `<Frame>`、`<Image>`、`<RawImage>`、`<Text>` 都是（uGUI 自己的默认 true 不是本库的默认）。
+
+- `raycastTarget`（bool，默认 `false`）只在 `<Frame>` / `<Image>` / `<RawImage>` / `<Text>` 上；写在别的标签上 = `PUI-RAYCAST-TAG`。
+- 要挡住背后的东西，就在面板的**根**上写 `true`；祖先永远画在后代下面，遮不住自己的交互子级。无视觉属性的
+  `<Frame raycastTarget="true">` 是零几何的透明 catcher。
+- `<Image>` / `<RawImage>` 作为指针事件源（`hover-*` / `press` 触发器、C# `OnPointer*` 订阅）时自动开；显式 `false` 优先并 warn 一次。
+- 程序化模式下控件的命中层是 SDF 面板本身（继承退位 Image 的 `raycastTarget`），退位 Image `enabled=false`。
+- CLI 对每条从 Screen 根下来的路径上**最外层**没表态的画面报 `PUI-RAYCAST-UNDECIDED`。
+
+细则与决策见 [`2026-09-15-raycast-target-design.md`](2026-09-15-raycast-target-design.md)。
 
 ### 5.2 文本内容简写
 
