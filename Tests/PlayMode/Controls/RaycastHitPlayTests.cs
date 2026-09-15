@@ -146,6 +146,47 @@ namespace PromptUGUI.Tests.PlayMode.Controls
         public IEnumerator Procedural_Slider_track_is_hit_and_a_press_moves_the_value()
             => SliderIsHit("radius='4' handleRadius='pill'");
 
+        /// <summary>
+        /// The whole rect is the hit area, not just the groove: the track spans the middle 50% of
+        /// the height (a 7-unit band on a 14-unit slider — ungrabbable on a phone), so the root
+        /// carries a zero-geometry catcher. A press above the groove must still reach the Slider
+        /// and jump the value to the pointer.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Sprite_Slider_is_hit_above_its_track()
+            => SliderIsHitOffTrack("");
+
+        [UnityTest]
+        public IEnumerator Procedural_Slider_is_hit_above_its_track()
+            => SliderIsHitOffTrack("sprite='none' radius='pill' handleRadius='pill'");
+
+        private static IEnumerator SliderIsHitOffTrack(string attrs)
+        {
+            var s = Open($"<Slider id='s' anchor='center' width='200' height='40' min='0' max='1' value='0' {attrs}/>");
+            var sl = s.Get<Slider>("s");
+            var uSlider = sl.GameObject.GetComponent<UnityEngine.UI.Slider>();
+            yield return null;
+
+            // 30% along, and 18 units above the centre line: outside the 0.25–0.75 track band (±10).
+            Canvas.ForceUpdateCanvases();
+            var data = new PointerEventData(EnsureES())
+            {
+                position = new Vector2(UnityEngine.Screen.width * 0.5f - 100f + 60f, UnityEngine.Screen.height * 0.5f + 18f),
+                button = PointerEventData.InputButton.Left,
+            };
+            var hits = new List<RaycastResult>();
+            EnsureES().RaycastAll(data, hits);
+            Assert.IsTrue(hits.Count > 0, "the slider's rect must be under the pointer");
+            Assert.IsTrue(hits[0].gameObject.transform.IsChildOf(sl.GameObject.transform),
+                $"top hit '{hits[0].gameObject.name}' is not part of the Slider");
+            Assert.AreSame(sl.GameObject, ExecuteEvents.GetEventHandler<IDragHandler>(hits[0].gameObject),
+                "the press must route to the Slider itself");
+
+            data.pointerPressRaycast = hits[0];
+            ExecuteEvents.ExecuteHierarchy(hits[0].gameObject, data, ExecuteEvents.pointerDownHandler);
+            Assert.AreEqual(0.3f, uSlider.value, 0.05f, "a press off the groove still jumps the value there");
+        }
+
         private static IEnumerator SliderIsHit(string attrs)
         {
             var s = Open($"<Slider id='s' anchor='center' width='200' height='40' min='0' max='1' value='0' {attrs}/>");

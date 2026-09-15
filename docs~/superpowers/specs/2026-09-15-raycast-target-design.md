@@ -339,3 +339,19 @@ CLI README、XSD）。EditMode 3923 / EditorOnly 344 / PlayMode 207 全绿；`UI
   （bare catcher），Skin 与内容都在它里面 —— 这才是 §3 说的「面板根写一行」；ProceduralStyle 也是在页面 Frame / `app-bg` /
   顶栏 / tab 轨道上内联写，两个 skin 文件保持纯视觉；`Backdrop` 的壁纸 `RawImage` 写 `false`。
 - 顺带发现、已修：`XsdGenerator` 的 Frame / Image 是手写属性表，`raycastTarget` 要各补一行（`Frame_Image_and_Text_list_raycastTarget`）。
+
+## 12. 补记（2026-09-16，ssw_re_client 岗位页的滑块点不动）
+
+两条修正，都在 `main` 上单步提交：
+
+- **面板的命中角色要扛得住推迟的 `Awake`**（`9cb5ae9`）。`ProceduralPanel.Awake` 里那句「默认穿透」不是"创建时"跑的：节点建在
+  **不活跃的父级**下（隐藏的 Tab 页里 `BindItems` 出来的行）时，`Awake` 要等父级显示才跑，晚于 `Frame.RaycastTarget` /
+  `ProceduralSurface.Retire` 的交接，把 `true` 打回 `false`——程序化 Slider / Btn / catcher Frame 整个没有命中面。
+  §11 里 `<Text>` 那条其实是同一族问题（TMP 的 `Awake` 在 inactive 根下推迟）。现在两个 owner 都走
+  `ProceduralPanel.SetRaycastTarget()`，`Awake` 只在没人决定过时才置 false。回归：`RaycastHitPlayTests.*_bound_into_a_hidden_list_*`
+  ——注意「建在 `hidden='true'` 的 Frame 里」复现不了，子节点先建（`Awake` 已跑）父级才应用 hidden。
+- **`<Slider>` 的命中面是整个 rect，不只是轨道**。轨道（Background）只占中间 50% 高、滑块只 20 宽，14 高的滑块在手机上只有
+  7 单位可抓。根挂一块零几何的 catcher 面板（与 `<Frame raycastTarget="true">` 同一个东西），uGUI `Slider.OnPointerDown`
+  按 Handle Slide Area 换算位置，点在带外一样跳到指针处并可拖。§3 表里 Slider 那行的「命中层」于是是「轨道 + 根 catcher」；
+  Fill / Handle 仍 false。回归：`RaycastHitPlayTests.*_Slider_is_hit_above_its_track`。
+

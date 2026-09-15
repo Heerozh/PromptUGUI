@@ -18,6 +18,13 @@ namespace PromptUGUI.Controls
         // the part that actually reacts to hover/press. Moving it to the track would make the
         // whole groove flash on hover, which no slider does.
         private protected override GameObject SurfaceHost => _bg.gameObject;
+
+        // The HIT area is the whole rect, not the track: the groove only spans the middle 50% of
+        // the height and the knob is 20 px wide, so on a phone a 14-unit slider had a 7-unit band to
+        // grab. A zero-geometry catcher on the root (the same panel <Frame raycastTarget="true">
+        // hangs) takes the pointer anywhere in the rect; uGUI's Slider maps the press through the
+        // Handle Slide Area, so a press above the groove still jumps to the pointer and drags.
+        private ProceduralPanel _hit;
         private UnityImage _fill;
         private UnityImage _handle;
         private UnitySlider _slider;
@@ -78,6 +85,9 @@ namespace PromptUGUI.Controls
             _handle.color = ProceduralBuilders.DefaultHandleColor;
             // Handle 用 simple type；preserveAspect=false 跟默认 Knob 一致。
             ProceduralBuilders.ApplyDefaultSimpleSprite(_handle, ProceduralBuilders.SpriteKnob);
+
+            _hit = GameObject.AddComponent<ProceduralPanel>();
+            _hit.SetRaycastTarget(true);
 
             _slider = GameObject.GetComponent<UnitySlider>() ?? GameObject.AddComponent<UnitySlider>();
             _slider.targetGraphic = _handle;
