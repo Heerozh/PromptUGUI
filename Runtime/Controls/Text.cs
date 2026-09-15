@@ -22,12 +22,19 @@ namespace PromptUGUI.Controls
             {
                 _tmp = GameObject.AddComponent<TextMeshProUGUI>();
                 _tmp.color = ProceduralBuilders.DefaultLabelColor;
+                // Defuse TMP's deferred Awake. A fresh TextMeshProUGUI has fontSize == -99, and its
+                // Awake runs LoadDefaultSettings() on exactly that condition: raycastTarget,
+                // textWrappingMode, fontSize, font features, extra padding and a 100x100 sizeDelta
+                // are all rewritten from TMP_Settings. Awake is NOT "at creation" — the Screen tree
+                // is built inactive, and a node built under a hidden parent (a ScrollList row bound
+                // before its page is shown) gets its Awake only when the parent is shown, after every
+                // attribute has been applied. Setting the size here, to the very value that block
+                // would have used, is what makes the block never run — the same reason the
+                // library's internal labels (Btn, ProceduralBuilders.AddText) were never affected.
+                _tmp.fontSize = TMP_Settings.defaultFontSize;
             }
             // TMP defaults to true, which silently put every <Text> in the raycast list — text is
             // click-through unless the author writes raycastTarget="true" (spec 2026-09-15 §3).
-            // Written again in OnAfterApply: the tree is built INACTIVE and TMP's Awake
-            // (LoadDefaultSettings, on a component whose fontSize is still -99) re-applies
-            // TMP_Settings.enableRaycastTarget on activation, over anything set here.
             _tmp.raycastTarget = false;
             ApplyFont();
             PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
@@ -216,8 +223,9 @@ namespace PromptUGUI.Controls
 
         internal override void OnAfterApply()
         {
-            // See OnAttached: TMP's Awake re-applies its own default on activation, which lands
-            // between OnAttached and this pass. Every ReSolve replays the authored value anyway.
+            // The per-pass settle: an attribute the pass did not declare reads as the default.
+            // (Not a workaround for TMP's Awake — OnAttached defuses that at creation, which is the
+            // only place that also covers a node whose Awake runs after this pass.)
             _tmp.raycastTarget = _raycastAuthored ?? false;
         }
 
