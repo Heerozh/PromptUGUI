@@ -54,12 +54,12 @@
 
     <!-- 整屏底。flat 皮肤下这是纵向渐变的实心底；glass 皮肤下它变成一层压暗的
          暗场，露出后面 Backdrop 的壁纸 —— 玻璃背后必须真有画面才叫玻璃。 -->
-    <Frame class="app-bg" anchor="stretch"/>
+    <Frame class="app-bg" anchor="stretch" raycastTarget="true"/>
 
     <SafeArea>
 
       <!-- ───────── 顶栏 ───────── -->
-      <Frame class="app-bar" anchor="top-stretch" height="56">
+      <Frame class="app-bar" anchor="top-stretch" height="56" raycastTarget="true">
         <HStack anchor="stretch" padding="10,14,10,14" spacing="10">
           <Frame class="chip" width="112" height="26">
             <Text anchor="center" fontSize="13" color="accent" raycastTarget="false" tr="false">PromptUGUI</Text>
@@ -86,7 +86,7 @@
            轨道底是一个 class="tab-track" 的 Frame，TabBar 叠在它上面。
            竖屏改左侧竖轨（direction / spacing 必须写基础值：控件私有 [UIAttr]
            在变体未命中时不会回落重算）。 -->
-      <Frame class="tab-track" anchor="top-stretch" anchor.portrait="stretch-left"
+      <Frame class="tab-track" anchor="top-stretch" anchor.portrait="stretch-left" raycastTarget="true"
              height="40" height.portrait="" width.portrait="48"
              margin="64,14,_,14" margin.portrait="64,_,14,14"/>
       <TabBar id="tabs" anchor="top-stretch" anchor.portrait="stretch-left"
@@ -112,7 +112,7 @@
       </TabBar>
 
       <!-- ───────── ① Form ───────── -->
-      <Frame id="pageForm" class="panel" anchor="stretch" margin="112,14,14,14" margin.portrait="116,14,14,76">
+      <Frame id="pageForm" class="panel" anchor="stretch" margin="112,14,14,14" margin.portrait="116,14,14,76" raycastTarget="true">
         <VStack anchor="stretch" spacing="12" padding="16">
           <Text height="20" fontSize="15" color="ink-dim" tr="false">Controls run sprite="none"; the rounded shell is a Frame with class="well"</Text>
 
@@ -170,7 +170,7 @@
       </Frame>
 
       <!-- ───────── ② Display ───────── -->
-      <Frame id="pageDisplay" class="panel" anchor="stretch" margin="112,14,14,14" margin.portrait="116,14,14,76">
+      <Frame id="pageDisplay" class="panel" anchor="stretch" margin="112,14,14,14" margin.portrait="116,14,14,76" raycastTarget="true">
         <VStack anchor="stretch" spacing="12" padding="16">
           <!-- 轨道由外层 well 的 Frame 提供，所以 Progress 只保留 fill 一层（fill="" = 无图，纯色） -->
           <Frame class="well" height="20">
@@ -219,7 +219,7 @@
       </Frame>
 
       <!-- ───────── ③ List ───────── -->
-      <Frame id="pageList" class="panel" anchor="stretch" margin="112,14,14,14" margin.portrait="116,14,14,76">
+      <Frame id="pageList" class="panel" anchor="stretch" margin="112,14,14,14" margin.portrait="116,14,14,76" raycastTarget="true">
         <VStack anchor="stretch" spacing="12" padding="16">
           <!-- 纯程序化色板：同一个 class，只改 inline radius -->
           <Grid columns="6" cellSize="52x52" spacing="8" height="52">
@@ -247,7 +247,7 @@
 
       <!-- ───────── ④ Styles ─────────
            这一页是新系统本身的说明书：同一个 <Frame>，只换 class / radius，形体全变。 -->
-      <Frame id="pageStyle" class="panel" anchor="stretch" margin="112,14,14,14" margin.portrait="116,14,14,76">
+      <Frame id="pageStyle" class="panel" anchor="stretch" margin="112,14,14,14" margin.portrait="116,14,14,76" raycastTarget="true">
         <VStack anchor="stretch" spacing="10" padding="16">
           <Text height="20" fontSize="15" color="ink-dim" tr="false">One &lt;Frame&gt; per cell — only the class differs. Each cell's style name is a Template param.</Text>
 
@@ -288,7 +288,7 @@
       </Frame>
 
       <!-- ───────── ⑤ Modals ───────── -->
-      <Frame id="pageModal" class="panel" anchor="stretch" margin="112,14,14,14" margin.portrait="116,14,14,76">
+      <Frame id="pageModal" class="panel" anchor="stretch" margin="112,14,14,14" margin.portrait="116,14,14,76" raycastTarget="true">
         <VStack anchor="stretch" spacing="10" padding="16">
           <Btn id="msgBoxBtn" width="stretch" height="40" sprite="none" color="#00000000"
                hoverModulate="#d2d2d2" pressedModulate="#a8a8a8">
