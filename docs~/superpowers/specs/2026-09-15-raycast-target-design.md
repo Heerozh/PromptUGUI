@@ -335,8 +335,14 @@ CLI README、XSD）。EditMode 3923 / EditorOnly 344 / PlayMode 207 全绿；`UI
   （与那个块本来会写的值相同，零视觉变化），`m_fontSize != -99` 后整个块永远不跑；`OnAfterApply` 只保留按趟结算的职责。
   `ProceduralPanel` 同一族的问题（面板在 hidden 列表里建好后 Awake 才跑、把 `raycastTarget=false` 的默认盖到决定之上）
   由 `SetRaycastTarget` + `_raycastDecided` 修（commit 9cb5ae9）。测试：`TextTests.Text_BoundIntoAHiddenList_*`。
-  顺带看到、没改：un-Awake 的 TMP 根本不能量（`GetPreferredValues` 在 TMP 内部 NRE），所以 hidden 宿主下绑出的、
-  自由定位且没写尺寸的 `<Text>` 行会在 `ApplyCommon → GetNativeSize` 抛 `ParseException` —— 独立的既有限制，另案。
+  ~~顺带看到、没改：un-Awake 的 TMP 根本不能量（`GetPreferredValues` 在 TMP 内部 NRE），所以 hidden 宿主下绑出的、
+  自由定位且没写尺寸的 `<Text>` 行会在 `ApplyCommon → GetNativeSize` 抛 `ParseException` —— 独立的既有限制，另案。~~
+  **已修（同日，`TmpPrimer`）**：量不了的原因是 `TextMeshProUGUI.Awake` 里的三件事没跑 —— `isOrthographic = true`
+  （没它按 3D 文本的 0.1 缩放量，正是 `Screen._deferredOpenActions` 注释里那个「~1/10 garbage」）、`LoadFontAsset()`
+  （没字体 `MaterialReference` 构造时 NRE）、`LoadDefaultSettings()`。库创建的每个 TMP（`Text.OnAttached` /
+  `ProceduralBuilders.AddText` / `Btn` 的 label）现在在 `AddComponent` 之后立刻走 `TmpPrimer.Prime`：正交、默认字体、
+  `TMP_Settings` 默认值镜像（含 kerning —— #140 只设 `fontSize` 时把它丢了）。之后不管 Awake 什么时候跑，量出来都和醒着的一样。
+  测试：`TextTests.Text_BoundIntoAHiddenList_IsMeasuredLikeAVisibleOne`、`BtnContentSizingTests.Btn_bound_into_a_hidden_list_measures_same_as_a_visible_one`。
 - **RT-D5 的 depth 问题有了答案：零几何的 catcher 面板会被 `GraphicRaycaster` 返回**（`RaycastHitPlayTests.Bare_catcher_frame_is_hit_by_the_raycaster`，
   真 Canvas + EventSystem）。退化三角形的兜底没有做、也不需要做。
 - **属性按趟清零**（`OnBeforeApply`），不止是「普通属性」：`Frame` / `Image` / `RawImage` / `Text` 的 `raycastTarget` 都在趟首回到

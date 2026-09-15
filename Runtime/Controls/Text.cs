@@ -21,17 +21,10 @@ namespace PromptUGUI.Controls
             if (_tmp == null)
             {
                 _tmp = GameObject.AddComponent<TextMeshProUGUI>();
+                // Everything TMP's Awake would set, now — the Awake itself may run long after this
+                // node has been measured and applied (a row bound into a hidden page). See TmpPrimer.
+                TmpPrimer.Prime(_tmp);
                 _tmp.color = ProceduralBuilders.DefaultLabelColor;
-                // Defuse TMP's deferred Awake. A fresh TextMeshProUGUI has fontSize == -99, and its
-                // Awake runs LoadDefaultSettings() on exactly that condition: raycastTarget,
-                // textWrappingMode, fontSize, font features, extra padding and a 100x100 sizeDelta
-                // are all rewritten from TMP_Settings. Awake is NOT "at creation" — the Screen tree
-                // is built inactive, and a node built under a hidden parent (a ScrollList row bound
-                // before its page is shown) gets its Awake only when the parent is shown, after every
-                // attribute has been applied. Setting the size here, to the very value that block
-                // would have used, is what makes the block never run — the same reason the
-                // library's internal labels (Btn, ProceduralBuilders.AddText) were never affected.
-                _tmp.fontSize = TMP_Settings.defaultFontSize;
             }
             // TMP defaults to true, which silently put every <Text> in the raycast list — text is
             // click-through unless the author writes raycastTarget="true" (spec 2026-09-15 §3).

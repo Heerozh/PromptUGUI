@@ -150,6 +150,9 @@ namespace PromptUGUI.Controls
             rt.offsetMin = Vector2.zero;
             rt.offsetMax = Vector2.zero;
             _autoLabel = go.AddComponent<TextMeshProUGUI>();
+            // What TMP's Awake would set, now: GetNativeSize measures this label before that Awake
+            // runs on a Btn bound into a hidden page. See TmpPrimer.
+            PromptUGUI.Controls.Internal.TmpPrimer.Prime(_autoLabel);
             _autoLabel.alignment = TextAlignmentOptions.Center;
             _autoLabel.raycastTarget = false;
             _autoLabel.fontSize = 24;  // 默认 prefab Button label 字号；AddText 默认 14 是 Toggle/Dropdown 字号
