@@ -16,7 +16,9 @@ namespace PromptUGUI.Controls.Internal
     /// is exactly what <c>PUI-MASK-VARIANT</c> refuses — it would take the control's
     /// <c>targetGraphic</c>, its state reactor's captured base colour and any stencil with it. The
     /// shape is not new either: <c>GlassGroupPanel.Attach</c> already ships this exact arrangement
-    /// (own GameObject, stretched, <c>raycastTarget=false</c>, sibling index 0) for weld.</para>
+    /// (own GameObject, stretched, sibling index 0) for weld. One difference: the weld pane is never
+    /// hit, whereas this panel inherits the retired Image's <c>raycastTarget</c> (see
+    /// <see cref="Retire"/>).</para>
     ///
     /// <para><b>Nothing is ever destroyed.</b> The node is created on first demand and afterwards only
     /// toggled — the Add-block Strategy C rule — so a Variant flipping procedural mode on and off
@@ -44,7 +46,7 @@ namespace PromptUGUI.Controls.Internal
 
         private Sprite _retiredSprite;
         private UnityImage.Type _retiredType;
-        private Color _retiredColor;
+        private bool _retiredRaycast;
         private bool _retired;
 
         private bool _declaredThisPass;
@@ -121,14 +123,11 @@ namespace PromptUGUI.Controls.Internal
             {
                 // The panel is the only thing drawing, so it inherits the control's colour — with no
                 // explicit color= that is the control's built-in default, which is why
-                // `<Btn radius="8">` is a rounded button rather than an invisible one. Read through
-                // the captured value once retired: the live Image's alpha is zero by then.
+                // `<Btn radius="8">` is a rounded button rather than an invisible one. The Image's
+                // colour is still live while retired (retirement disables the Image, it does not
+                // touch the colour), so it can be read straight off.
                 if (_hasFill) _panel.SetFill(_fill);
-                else if (_hostImage != null)
-                {
-                    var c = _retired ? _retiredColor : _hostImage.color;
-                    _panel.SetFill(ColorSpec.Solid(c));
-                }
+                else if (_hostImage != null) _panel.SetFill(ColorSpec.Solid(_hostImage.color));
                 Retire();
             }
             else
@@ -146,14 +145,18 @@ namespace PromptUGUI.Controls.Internal
         /// <summary>
         /// Stands the Image down without destroying it: sprite cleared (spec §7 — a bitmap under an
         /// SDF face is a mess, and the one cleared here is the control's own default, not an author
-        /// declaration) and alpha zeroed.
+        /// declaration) and the component disabled.
         ///
-        /// <para>Zeroed, NOT disabled. uGUI only raycasts against enabled Graphics, and the panel is
-        /// deliberately <c>raycastTarget=false</c> — disabling the Image would leave the control with
-        /// no hit target at all and silently stop it responding to clicks.</para>
+        /// <para>Disabled, and the panel takes over the hit role along with the visual one (spec
+        /// 2026-09-15 §4.2): the panel's <c>raycastTarget</c> becomes whatever the Image's was — a
+        /// Btn's face is hit, a Progress bg (PB-D16) is not. It used to stay enabled at alpha 0
+        /// purely to remain raycastable, which drew an invisible quad under every procedural
+        /// control. The colour is left alone: nothing needs it faded once the Image is off, and
+        /// <see cref="Reconcile"/> still reads the control's default fill off it.</para>
         ///
-        /// <para>Captured once but re-applied every pass: the control's own <c>color=</c> setter runs
-        /// before <see cref="Reconcile"/> and would otherwise put the alpha straight back.</para>
+        /// <para>Re-applied every pass, not just once: the control's own <c>sprite=</c> setter runs
+        /// before <see cref="Reconcile"/>, and clearing it again is also what lets
+        /// <see cref="Restore"/> tell a declaration from the retired default.</para>
         /// </summary>
         private void Retire()
         {
@@ -162,12 +165,12 @@ namespace PromptUGUI.Controls.Internal
             {
                 _retiredSprite = _hostImage.sprite;
                 _retiredType = _hostImage.type;
-                _retiredColor = _hostImage.color;
+                _retiredRaycast = _hostImage.raycastTarget;
                 _retired = true;
             }
             _hostImage.sprite = null;
-            var c = _hostImage.color;
-            _hostImage.color = new Color(c.r, c.g, c.b, 0f);
+            _hostImage.enabled = false;
+            _panel.raycastTarget = _retiredRaycast;
         }
 
         /// <summary>
@@ -179,11 +182,10 @@ namespace PromptUGUI.Controls.Internal
         /// clobbers the incoming skin — open under a glass theme, switch to the pixel one, and the
         /// pass has already written the wood sprite and an opaque colour before this runs.</para>
         ///
-        /// <para>Both halves therefore ask "did this pass declare one?" rather than tracking a new
-        /// flag per attribute. <c>Retire()</c> nulls the sprite every pass it is on, so a non-null
-        /// sprite here can only have come from a setter that ran this pass; <c>_hasFill</c> already
-        /// carries the same answer for the colour, set by the control's <c>color=</c> setter and
-        /// cleared by <see cref="BeginPass"/>.</para>
+        /// <para>The sprite therefore asks "did this pass declare one?" rather than tracking a new
+        /// flag: <c>Retire()</c> nulls it every pass it is on, so a non-null sprite here can only
+        /// have come from a setter that ran this pass. The colour needs no restoring — retirement
+        /// never touched it.</para>
         ///
         /// <para>What stays out of reach is the ASYMMETRIC declaration — one skin sets
         /// <c>sprite</c> / <c>color</c> and the other leaves it to the control's own default. The
@@ -204,14 +206,10 @@ namespace PromptUGUI.Controls.Internal
                 _hostImage.type = _retiredType;
             }
 
-            // Alpha only, and only when nothing declared a colour: the rgb may legitimately have
-            // moved on (a theme switch, a Variant) while the surface was drawing, and so may the
-            // alpha — `white/0.22` under one skin and an opaque colour under the next.
-            if (!_hasFill)
-            {
-                var c = _hostImage.color;
-                _hostImage.color = new Color(c.r, c.g, c.b, _retiredColor.a);
-            }
+            // The Image is the visible and the hit layer again; the hidden panel leaves the raycast
+            // list (a disabled Graphic is skipped anyway, but a stale true would come back with it).
+            _hostImage.enabled = true;
+            if (_panel != null) _panel.raycastTarget = false;
         }
 
         private ProceduralPanel EnsurePanel()

@@ -160,7 +160,7 @@ namespace PromptUGUI.Tests.Application
             Assert.AreEqual(16f, panel.CurrentParams.CornerWidth.x);
             Assert.AreEqual(new Color32(0x12, 0x34, 0x56, 0xff), (Color32)panel.CurrentParams.FillTop);
 
-            Assert.AreEqual(0, btn.GetComponent<UnityEngine.UI.Image>().color.a,
+            Assert.IsFalse(btn.GetComponent<UnityEngine.UI.Image>().enabled,
                 "the Image stands down while the surface draws — kept, not destroyed");
         }
 
