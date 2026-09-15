@@ -134,6 +134,94 @@ namespace PromptUGUI.Tests.PlayMode.Controls
                 "a subscriber is the intent; the raycaster has to be able to reach it");
         }
 
+        /// <summary>
+        /// A Slider is hit on its track (the Background layer: an Image in sprite mode, its
+        /// surface in procedural mode) and a press there is uGUI's "jump to the pointer".
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Sprite_Slider_track_is_hit_and_a_press_moves_the_value()
+            => SliderIsHit("");
+
+        [UnityTest]
+        public IEnumerator Procedural_Slider_track_is_hit_and_a_press_moves_the_value()
+            => SliderIsHit("radius='4' handleRadius='pill'");
+
+        private static IEnumerator SliderIsHit(string attrs)
+        {
+            var s = Open($"<Slider id='s' anchor='center' width='200' height='40' min='0' max='1' value='0' {attrs}/>");
+            var sl = s.Get<Slider>("s");
+            var uSlider = sl.GameObject.GetComponent<UnityEngine.UI.Slider>();
+            yield return null;
+
+            var hits = RaycastCentre(out var data);
+            Assert.IsTrue(hits.Count > 0, "the track must be under the pointer");
+            Assert.IsTrue(hits[0].gameObject.transform.IsChildOf(sl.GameObject.transform),
+                $"top hit '{hits[0].gameObject.name}' is not part of the Slider");
+
+            // Press 30% along the track (the slider is centred: x from -100 to +100 around the centre).
+            data.position = new Vector2(UnityEngine.Screen.width * 0.5f - 100f + 60f, UnityEngine.Screen.height * 0.5f);
+            data.button = PointerEventData.InputButton.Left;
+            data.pointerPressRaycast = hits[0];
+            ExecuteEvents.ExecuteHierarchy(hits[0].gameObject, data, ExecuteEvents.pointerDownHandler);
+
+            Assert.AreEqual(0.3f, uSlider.value, 0.05f, "a press on the track jumps the value there");
+        }
+
+        /// <summary>
+        /// The hit role handed to a ProceduralPanel must survive a DEFERRED Awake. A node built under
+        /// an inactive parent (a ScrollList row bound while its page is hidden, the way a tab page's
+        /// list is filled before the tab is selected) only gets its Awake when the parent is shown —
+        /// after Frame.RaycastTarget / ProceduralSurface.Retire already handed it
+        /// <c>raycastTarget = true</c>. Awake's "click-through by default" used to clobber that,
+        /// leaving a procedural Slider / Btn / catcher with no hit area at all (ssw_re_client 岗位页
+        /// 的滑块, 2026-09-16). Instantiating under a hidden Frame is not enough to reproduce it —
+        /// the children are built (and Awake'd) before the parent's own hidden= is applied.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Procedural_Slider_bound_into_a_hidden_list_is_hit_once_shown()
+            => BoundUnderHiddenPageIsHit(
+                "<Template name='Row'><Frame width='stretch' height='40'>" +
+                "<Slider id='s' anchor='center' width='200' height='40' min='0' max='1' value='0' " +
+                "sprite='none' radius='pill' handleRadius='pill'/></Frame></Template>",
+                row => row.Get<Slider>("s").GameObject);
+
+        [UnityTest]
+        public IEnumerator Catcher_frame_bound_into_a_hidden_list_is_hit_once_shown()
+            => BoundUnderHiddenPageIsHit(
+                "<Template name='Row'><Frame width='stretch' height='40'>" +
+                "<Frame id='f' anchor='center' size='200x40' raycastTarget='true'/></Frame></Template>",
+                row => row.Get<Frame>("f").GameObject);
+
+        private static IEnumerator BoundUnderHiddenPageIsHit(string template,
+            System.Func<IControl, GameObject> pick)
+        {
+            UI.LoadDocument("t", "<?xml version='1.0' encoding='utf-8'?><PromptUGUI version='1'>" + template +
+                "<Screen name='S'><Frame id='page' anchor='stretch'>" +
+                // 40 high, one row: the row (and the node inside it) lands on the screen centre
+                "<ScrollList id='list' anchor='center' size='300x40' itemTemplate='Row' sprite='none' color='#0000'/>" +
+                "</Frame></Screen></PromptUGUI>");
+            var s = UI.Open("S");
+            var page = s.Get<Frame>("page");
+            page.Hidden = true; // the page is off BEFORE the rows exist
+            yield return null;
+
+            GameObject target = null;
+            s.Get<ScrollList>("list").BindItems(
+                Observable.Return<IReadOnlyList<int>>(new[] { 1 }),
+                (IControl row, int _) => target = pick(row));
+            yield return null;
+            Assert.IsNotNull(target, "the row was bound");
+            Assert.IsFalse(target.activeInHierarchy, "precondition: the row was built under an inactive page");
+
+            page.Hidden = false; // deferred Awakes run here
+            yield return null;
+            yield return null;
+
+            var hits = RaycastCentre(out _);
+            Assert.IsTrue(hits.Count > 0 && (hits[0].gameObject == target || hits[0].gameObject.transform.IsChildOf(target.transform)),
+                $"top hit is '{(hits.Count > 0 ? hits[0].gameObject.name : "nothing")}' — the handed-over hit role must survive the deferred Awake");
+        }
+
         [UnityTest]
         public IEnumerator Text_is_not_hit()
         {

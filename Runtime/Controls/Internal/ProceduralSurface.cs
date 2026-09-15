@@ -170,7 +170,7 @@ namespace PromptUGUI.Controls.Internal
             }
             _hostImage.sprite = null;
             _hostImage.enabled = false;
-            _panel.raycastTarget = _retiredRaycast;
+            _panel.SetRaycastTarget(_retiredRaycast);
         }
 
         /// <summary>
@@ -209,7 +209,7 @@ namespace PromptUGUI.Controls.Internal
             // The Image is the visible and the hit layer again; the hidden panel leaves the raycast
             // list (a disabled Graphic is skipped anyway, but a stale true would come back with it).
             _hostImage.enabled = true;
-            if (_panel != null) _panel.raycastTarget = false;
+            if (_panel != null) _panel.SetRaycastTarget(false);
         }
 
         private ProceduralPanel EnsurePanel()

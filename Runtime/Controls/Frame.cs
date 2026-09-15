@@ -131,8 +131,8 @@ namespace PromptUGUI.Controls
         {
             set
             {
-                if (value) Panel.raycastTarget = true;
-                else if (_panel != null) _panel.raycastTarget = false;
+                if (value) Panel.SetRaycastTarget(true);
+                else if (_panel != null) _panel.SetRaycastTarget(false);
             }
         }
 
@@ -141,7 +141,7 @@ namespace PromptUGUI.Controls
         // not run is the only signal that the attribute is gone.
         internal override void OnBeforeApply()
         {
-            if (_panel != null) _panel.raycastTarget = false;
+            if (_panel != null) _panel.SetRaycastTarget(false);
         }
 
         /// <summary>

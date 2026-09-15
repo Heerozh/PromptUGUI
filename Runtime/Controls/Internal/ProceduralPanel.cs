@@ -26,9 +26,10 @@ namespace PromptUGUI.Controls.Internal
     /// binding constraint on mobile UI.</item>
     /// <item><c>raycastTarget</c> is off by default and the owner decides: a Frame turns it on
     /// only for an authored <c>raycastTarget="true"</c>, a <see cref="ProceduralSurface"/> hands it
-    /// the hit role of the Image it retires. Everything else stays out of the raycast list the
-    /// EventSystem walks every pointer event (spec 2026-09-15 §3). A panel that draws nothing can
-    /// still be a hit target — a transparent catcher with no geometry.</item>
+    /// the hit role of the Image it retires — both through <see cref="SetRaycastTarget"/>, never the
+    /// bare property, so the decision survives a deferred <c>Awake</c>. Everything else stays out of
+    /// the raycast list the EventSystem walks every pointer event (spec 2026-09-15 §3). A panel that
+    /// draws nothing can still be a hit target — a transparent catcher with no geometry.</item>
     /// </list>
     /// </summary>
     // Graphic's own [RequireComponent(typeof(CanvasRenderer))] does NOT carry over to a subclass
@@ -85,14 +86,30 @@ namespace PromptUGUI.Controls.Internal
         /// </summary>
         internal GlassGroupPanel Group { get; set; }
 
+        private bool _raycastDecided;
+
+        /// <summary>
+        /// The owner's decision on the hit role (Frame.RaycastTarget for an authored
+        /// <c>raycastTarget="true"</c>, ProceduralSurface for a control's retired hit layer). Goes
+        /// through here rather than the bare property because Awake is NOT "at creation": a panel
+        /// built under an inactive parent (a ScrollList row bound while its tab page is hidden) gets
+        /// its Awake only when the parent is shown — after the owner already decided — and the
+        /// click-through default in Awake used to clobber that, leaving a procedural Slider / Btn /
+        /// catcher with no hit area at all (ssw_re_client 岗位页的滑块, 2026-09-16).
+        /// </summary>
+        internal void SetRaycastTarget(bool on)
+        {
+            _raycastDecided = true;
+            raycastTarget = on;
+        }
+
         protected override void Awake()
         {
             base.Awake();
-            // Click-through until the owner says otherwise: Frame.RaycastTarget for an authored
-            // raycastTarget="true", ProceduralSurface for a control's retired hit layer. uGUI's
-            // default is true, which is the wrong default for a library where hit-testing is
-            // declared rather than painted.
-            raycastTarget = false;
+            // Click-through until the owner says otherwise. uGUI's default is true, which is the
+            // wrong default for a library where hit-testing is declared rather than painted. Only
+            // while nobody has decided yet: see SetRaycastTarget for why Awake can run late.
+            if (!_raycastDecided) raycastTarget = false;
         }
 
         protected override void OnEnable()
