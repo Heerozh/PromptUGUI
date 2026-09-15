@@ -118,6 +118,33 @@ namespace PromptUGUI.Controls
         }
 
         /// <summary>
+        /// 这块 Frame 接不接指针。默认不接：画了东西也穿透（spec 2026-09-15 §3 —— 命中是声明出来的，
+        /// 不是画出来的）。要挡住背后的东西，就在面板的<b>根</b>上写 <c>true</c>：祖先永远画在后代下面，
+        /// 遮不住自己的交互子级，子级空白处的点击沿父链找不到 handler 就被吞掉。
+        ///
+        /// <para>没有任何视觉属性的 <c>&lt;Frame raycastTarget="true"&gt;</c> 是一块透明 catcher：挂面板但不出
+        /// 几何（<c>ComputeVisible()</c> 为 false），零 overdraw —— 代替 <c>&lt;Image color="#0000"&gt;</c> 那种 hack。
+        /// <c>false</c> 不懒挂面板：一块什么都不画的 Frame 本来就没有 Graphic，不必为了「不接」造一个出来。</para>
+        /// </summary>
+        [UIAttr, Preserve]
+        public bool RaycastTarget
+        {
+            set
+            {
+                if (value) Panel.raycastTarget = true;
+                else if (_panel != null) _panel.raycastTarget = false;
+            }
+        }
+
+        // Cleared per pass (same rule as ProceduralSurface.BeginPass): a variant-only
+        // raycastTarget.mobile must turn off again when the variant leaves, and a setter that does
+        // not run is the only signal that the attribute is gone.
+        internal override void OnBeforeApply()
+        {
+            if (_panel != null) _panel.raycastTarget = false;
+        }
+
+        /// <summary>
         /// 填充色。支持 theme token / hex / CSS 命名色 / <c>/alpha</c> 后缀，以及逗号双色
         /// （上→下纵向渐变），与其它控件的 <c>color</c> 走同一套解析。
         /// </summary>
