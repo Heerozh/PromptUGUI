@@ -1449,6 +1449,8 @@ MessageBox.XmlSrc = "MyUI/Modals/PixelMessageBox.ui";   // your SourceResolver r
 
 There is no per-call `template:` override; `MessageBox.XmlSrc` is the global swap point.
 
+**The builtin modals fade.** Every shipped modal XML (`MessageBox` / `InputBox` / `MarkdownBox` / `CenteredSlideBox` / `Loading`) wraps its content in `<Animation anchor="stretch" on="open" reverse-on="close" fade="0:1" duration="0.15s">`: the dialog fades in, and on dismiss it fades back out as a non-interactive ghost while the result has already resolved at the click (`UI.Modal.IsAnyOpen` is false at once; the next `Queued` modal is promoted immediately). A replacement XML gets no fade unless it declares one — copy the wrapper, or write any other exit (see the XML skill's *Exit animations*).
+
 #### Setup prerequisites (read BEFORE swapping `XmlSrc`)
 
 Two non-obvious requirements have to be satisfied or `MessageBox.Open` will throw at

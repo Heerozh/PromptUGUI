@@ -404,8 +404,14 @@ PlayMode（`Tests/PlayMode/Lifecycle/CloseTransitionPlayTests.cs`；linear 1s fa
 3. `OnClosing` 放 `IScreen`（`Observable<Unit>`），`IsClosing` / `CloseAsync` 同。
 4. 幽灵内 `BindItems` 推送不拦截。
 
-### 14.4 未做
+### 14.4 内建模态（2026-09-16，作者决定）
 
-- 内建模态 XML（`MessageBox.ui` 等）没有加退场——那是所有用户可见的默认行为变化，另开决定。演示放在
-  `Samples~/CommonControls` 的 `ExitDemo` 屏。
+五个内建模态 XML（`MessageBox` / `InputBox` / `MarkdownBox` / `CenteredSlideBox` / `Loading`）各包一层
+`<Animation anchor="stretch" on="open" reverse-on="close" fade="0:1" duration="0.15s" easing="out-quad">`——
+作为最基础的演示：整体淡入，关闭时倒放。结果仍在点击时 resolve、栈立即弹出（§5.6），只是对话框多活 0.15s。
+Toast 保留自己的淡出（§9）。`Samples~/CommonControls` 另有 `ExitDemo` 屏演示滑入 + 淡入的倒放。
+既有 PlayMode 模态测试全部不受影响（它们看的是 `TopScreen` / 结果 / `UI.Get`，都在 Begin 时就变了）。
+
+### 14.5 未做
+
 - §9 的非目标全部维持。

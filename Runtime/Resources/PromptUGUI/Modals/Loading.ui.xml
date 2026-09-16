@@ -1,29 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PromptUGUI version="1">
   <Screen name="PromptUGUI/Modals/Loading.ui" reference="1920x1080" reference.portrait="1080x1920">
-    <Image id="backdrop" anchor="stretch" color="#241505FE" raycastTarget="true"/>
+    <!-- The whole dialog fades in, and fades back out on close: the Screen waits for this
+         reverse-on="close" before it is destroyed (spec 2026-09-16-close-transition). -->
+    <Animation anchor="stretch" on="open" reverse-on="close" fade="0:1" duration="0.15s" easing="out-quad">
+      <Image id="backdrop" anchor="stretch" color="#241505FE" raycastTarget="true"/>
 
-    <SafeArea>
-      <Frame id="dialog" anchor="center" size="320x160" raycastTarget="true">
-        <VStack anchor="stretch" margin="20" spacing="12">
+      <SafeArea>
+        <Frame id="dialog" anchor="center" size="320x160" raycastTarget="true">
+          <VStack anchor="stretch" margin="20" spacing="12">
 
-          <!-- HStack 不加 anchor: VStack 是 layout group, child anchor 会被 PUI-LAYOUT-ANCHOR lint
-               报错. VStack 默认 childAlignment=UpperCenter 已经水平居中 width=80 的 HStack. -->
-          <HStack height="20" spacing="10" width="80">
-            <Animation fade="0.05:1" duration="0.5s" delay="0s"    easing="in-out-quad" on="loop">
-              <Image width="14" height="14" color="#FFD86B"/>
-            </Animation>
-            <Animation fade="0.05:1" duration="0.5s" delay="0.15s" easing="in-out-quad" on="loop">
-              <Image width="14" height="14" color="#FFD86B"/>
-            </Animation>
-            <Animation fade="0.05:1" duration="0.5s" delay="0.3s"  easing="in-out-quad" on="loop">
-              <Image width="14" height="14" color="#FFD86B"/>
-            </Animation>
-          </HStack>
+            <!-- HStack 不加 anchor: VStack 是 layout group, child anchor 会被 PUI-LAYOUT-ANCHOR lint
+                 报错. VStack 默认 childAlignment=UpperCenter 已经水平居中 width=80 的 HStack. -->
+            <HStack height="20" spacing="10" width="80">
+              <Animation fade="0.05:1" duration="0.5s" delay="0s"    easing="in-out-quad" on="loop">
+                <Image width="14" height="14" color="#FFD86B"/>
+              </Animation>
+              <Animation fade="0.05:1" duration="0.5s" delay="0.15s" easing="in-out-quad" on="loop">
+                <Image width="14" height="14" color="#FFD86B"/>
+              </Animation>
+              <Animation fade="0.05:1" duration="0.5s" delay="0.3s"  easing="in-out-quad" on="loop">
+                <Image width="14" height="14" color="#FFD86B"/>
+              </Animation>
+            </HStack>
 
-          <Text id="text" width="stretch" height="stretch" fontSize="46" align="center" color="white"/>
-        </VStack>
-      </Frame>
-    </SafeArea>
+            <Text id="text" width="stretch" height="stretch" fontSize="46" align="center" color="white"/>
+          </VStack>
+        </Frame>
+      </SafeArea>
+    </Animation>
   </Screen>
 </PromptUGUI>
