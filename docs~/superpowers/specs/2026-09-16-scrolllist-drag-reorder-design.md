@@ -1,6 +1,6 @@
 # `<ScrollList reorder>` —— 拖动排序：实时让位、FLIP 挤压、落位补间
 
-> 状态：**实施中**（2026-09-16，分支 `feat/scrolllist-drag-reorder`；作者指示跳过 plan 直接实现、分步提交）。
+> 状态：**已实现**（2026-09-16，分支 `feat/scrolllist-drag-reorder`；作者指示跳过 plan 直接实现、分步提交。实施记录见 §14）。
 > 需求来源：宿主工程里一个「排优先级」的列表 —— 拖一行到别处，其余行实时让位，松手后被拖的行补间落进空位、被挤的行滑到新位置。PC 宽屏（鼠标）与手机竖屏（触屏）同一份 XML。
 > 相关：
 > `2026-09-14-scrolllist-row-reuse-design.md`（第 i 行 ↔ 第 i 项的位置复用契约 —— 本文的数据契约建在它上面；§2-B「按 key diff」仍然不做）、
@@ -467,3 +467,43 @@ PlayMode（`Tests/PlayMode/Controls/ScrollListReorderPlayTests.cs`）：一条 �
 
 - **M0 手势 + 结构 + 事件**：`ReorderDriver` / `HitCatcher` / `ScrollList` 接线 / `OnReordered` / 取消 / 自动滚动 / EditMode 测试 1–13 / lint 前两条。
 - **M1 挂钩 + 外观 + 文档**：`ReorderRowMarker` / `lift` `drop` / `<Show on="lift">` / 默认外观 / 测试 14–15 / `PUI-LIFT-NO-SOURCE` / PlayMode 测试 / 三份 SKILL + `reference/reorder.md` / 演示同步。
+
+## 14. 实施记录（2026-09-16）
+
+分 6 步提交在 `feat/scrolllist-drag-reorder`：spec → M0（手势 / 结构 / 事件 + 27 条 EditMode）→ lint 两条 →
+M1（挂钩 / `<Show on="lift">` / 默认外观 + `PUI-LIFT-NO-SOURCE`，13 + 3 条）→ PlayMode 1 条 → 三份 SKILL +
+`reference/reorder.md` + 演示同步。EditMode 3993 / EditorOnly 346 / PlayMode 214 全绿；`dotnet format` 与
+UIXmlLint（`Runtime/Resources/`、`Samples~/`）干净。
+
+### 14.1 与设计的偏差
+
+1. **行 marker 由第一个挂钩按需创建，不是列表装的。** §6 写的是「行进 `_slots` 时装 marker」，落地时发现顺序不对：
+   挂钩在行**实例化过程中**（Trigger 的 `OnAfterApply`，DFS 后序）就要解析，那时列表还没拿到这一行。改为
+   `ScrollListContentMarker` 在 `ScrollList.OnAttached` 打在 Content 上（永远先于任何行），`FindReorderRow` 从触发器
+   向上走、遇到「父节点是 Content」即认出行，`ReorderRowMarker` 就地 `AddComponent`。没有挂钩的行就没有 marker ——
+   `NotifyLifted` 拿不到 marker 或 `HasLiftHook == false` 即启用默认外观。`HasAuthoredLiftHook` 改名 `HasLiftHook`，
+   只由 `on="lift"`（Trigger / Animation / Show）置位；只挂 `drop` 的行保留默认外观（§4.3 原意如此，测试钉住）。
+2. **`TriggerSourceResolver.ResolveId` 多认一层：路上任何祖先自己的 id。** 动态行（itemTemplate / `Instantiate`）根的
+   scope 要等整棵子树 apply 完才接上，`lift@row` 写在行根上时按表查不到自己。祖先的 id 对其后代本来就在作用域里，
+   这条对所有 `@id` 形式通用生效（回归全绿）。
+3. **`PUI-REORDER-VALUE` 不做运行期镜像。** setter 拒绝坏值时已经 `UILog.Warn`（带 src:line），再镜像一次是同一条
+   告警出两遍。`PUI-REORDER-HANDLE-ID` 同 spec：CLI 查模板体，运行期由驱动器在首次按下找不到把手时 warn 一次。
+4. **三个属性的 C# 属性名带 `Attr` 后缀**（`ReorderHoldAttr` 等，`[UIAttr("reorderHold")]` 显式命名，同 `Animation`
+   的做法），因为驱动器要读的解析后值占了 `ReorderHold` / `ReorderHandle` / `ReorderDuration` 这三个 internal 名。
+5. **驱动器的 `Update` 常驻。** `Behaviour` 禁用时 `ExecuteEvents` 不投递（`ShouldSendToComponent` 查
+   `isActiveAndEnabled`），所以不能靠 `enabled` 省帧；`Tick` 在 Idle 首行返回。
+6. **演示里的把手是 `<Frame>` 不是 `<Icon>`**：CommonControls 的 SpriteSet 没有 grip 图，且农场侧刻意不写形状属性。
+
+### 14.2 测试里发现并记录的既有事实
+
+`ScrollList` 的 `Vertical` / `HorizontalLayoutGroup` 保持 uGUI 默认 `childControl* = false`，行用自己的
+`sizeDelta`（新 RectTransform 默认 100×100）排版，`<Frame height='30'>` 的 30 只进 `LayoutElement`、不进
+`sizeDelta`。`HugSizingTests` / `ScrollListStaticChildrenTests` 早已记着这条；本文测试因此**量测**行距
+（`StrideY` / `StrideX`）而不假设 30。这不是本文的范围，但值得另立需求看一眼：列表行的声明高度在
+单列模式下今天并不生效。
+
+### 14.3 开放问题的落地
+
+- §12-1：`HitCatcher` 的 `OnRectTransformDimensionsChange → SetLayoutDirty` 只对 Content 自身多标一次
+  `MarkLayoutForRebuild`，幂等；未 Deep Profile。
+- §12-4：`reorderHandle` 同 id 写重 → `ScopedIds` 只存一份、递归遍历取第一个，静默；CLI 没有为此加规则。
