@@ -288,3 +288,4 @@ Unlike the transform channels — which move an invisible proxy and never touch 
 - `char-color` assumes Text content doesn't change during animation; concurrent `count` + `char-color` on the same `<Text>` may produce wrong-char colors as text length changes
 - `<Animation>` adds a `CanvasGroup` and an inner `_offsetProxy` GameObject (transparent to layout, but visible in the Hierarchy)
 - `on="open"` fires once at Screen open; Variant ReSolve does **not** re-fire
+- An `on="open"` entrance renders its `from` state on the frame the Screen is built and starts moving on the frame after; the build frame's cost (which can be hundreds of ms in the Editor) is never charged to the animation, so the first visible step is always a normal frame's worth
