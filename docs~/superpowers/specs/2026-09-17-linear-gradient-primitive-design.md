@@ -1,6 +1,6 @@
 # 渐变原语补全：方向 / 多色标 / 全部程序化色槽 —— 按 CSS `linear-gradient` 对齐
 
-> 状态：**已对齐，待实施**（2026-09-17）。决策编号 `LG-Dn`（§15）。
+> 状态：**已实现**（2026-09-17，分五步合入，见 §16 实施记录）。决策编号 `LG-Dn`（§15）。
 > 相关：`2026-06-13-gradient-color-design.md`（逗号双色语法的出处；其 §10 留的「方向 / ≥3 色标」
 > 扩展位由本文一次填平）、`2026-08-30-gradient-stop-position-design.md`（色标位置 + 提示；
 > `PuguiFillRamp` 与 `ColorSpec.Evaluate` 的出处）、`2026-09-01-vertex-gradient-stops-design.md`
@@ -462,6 +462,8 @@ PlayMode（`GradientPlayTests`）：一条 `<Btn borderColor="to right, cyan, cy
 - **状态色的渐变 ↔ 渐变 tween** —— 四槽 `ColorSpec` 逐字段 lerp 是可行的，但两端形状不同（色标数 /
   方向不同）时没有自然定义；snap 规则不变。
 - **硬边抗锯齿** —— 2026-08-30 §12 的同一条。
+- **玻璃焊接组成员的方向 / 多色标**（§16）—— 每成员 7 组 uniform 数组，等有需求。
+- **`<Decor>` 在宿主坐标系里的渐变**（§16）—— 要给 DecorPanel 传槽位变换的逆，且会拆散四角共享的材质。
 
 ## 15. 决策记录（2026-09-17 对齐）
 
@@ -473,3 +475,28 @@ PlayMode（`GradientPlayTests`）：一条 `<Btn borderColor="to right, cyan, cy
 | LG-D4 | 放开**全部 SDF 色槽**：`borderColor` / `glowColor` / `innerGlowColor`，含 Scrollbar `handle*` 与 `<Decor glowColor>`；未写 `glowColor` 时跟随整条填充渐变 |
 | LG-D5 | 边框 / 发光与填充共用**同一条渐变线**（同 rect、同方向定义），不做沿周长参数化 |
 | LG-D6 | 边框渐变不单独立项，并入本文；「噪声雾」（按钮上的云雾亮斑）另开 spec，与本文正交 |
+
+## 16. 实施记录（2026-09-17）
+
+分五个提交落地，每步 red 先行：解析器 + `ColorSpec`（§3 / §5）→ shader + 材质 key + 色槽（§6.1 / §6.2 / §7）
+→ 顶点路径（§6.3）→ TMP（§6.4）→ lint（§8）→ SKILL（§12）。EditMode 4159 / 4159（1 条与本文无关的
+`ScrollListStaticChildrenTests` 布局断言在 main 上同样失败）、PlayMode 244 / 244。渲染探针的 PNG 肉眼核过：
+2:1 面板上 `to bottom right` 的绿色 50% 线恰好穿过右上 / 左下两角，`135deg` 明显偏斜；`<Image>` 与
+`<Frame>` 写同一个魔法角 token 逐像素重合；描边 `to right, cyan, cyan/0.3, cyan` 就是参考图的按钮边。
+
+实施中定下、本文正文没预料到的三件事：
+
+- **第四份 shader。** `UI-GlassGroup.shader`（玻璃焊接组）也有描边 / 两层发光，§6.1 只数了三份。容器轮廓的三个
+  色槽同样走 `PuguiGradient`，渐变线按**整个组的包围盒**算（新 uniform `_WeldBounds`）；**成员**的 `color` 仍是
+  每成员一对色的纵向 ramp（`_WeldTintTop/Bottom` 数组），方向 / 多色标 / 提示在那条路径上被丢弃 —— 这是唯一
+  一处降级，记进 `reference/glass.md`。要补的话是每成员 7 组 uniform 数组，等有需求。
+- **`<Decor>` 的渐变在规范朝向里。** DecorPanel 在顶点里把槽位翻转到规范朝向以共享材质，渐变随之翻转：四个角
+  括号各自从自己的外角亮起、共用一份材质。这与方向出现之前纵向渐变在 `at="top"` 上的行为一致，不是新语义，
+  但写进了 `reference/decor.md`。
+- **正方向精确吸附。** `sin(180°)` 在 float 里是 −8.7e-8，足以让默认方向的 ramp 偏离一个色阶、让 TMP 四角的
+  `Color.white` 断言失败。`ColorSpec.AngleVector` 把 0 / 90 / 180 / 270 吸附成精确单位向量，shader 与顶点
+  路径共用，默认方向因此与方向出现之前逐位相同。
+
+改动面与 §9 一致，另有：`ColorSpec.ToVertexGradient()`（TMP 四角求值放在值模型里而不是两处复制）、
+`GradientUniforms`（`Controls/Internal/`，四个材质缓存 / 焊接组共用的 7-uniform 写入器）、
+`GradientTint` 内部的 `Line` 结构（包围盒上的渐变线：中心、方向、长度）。
