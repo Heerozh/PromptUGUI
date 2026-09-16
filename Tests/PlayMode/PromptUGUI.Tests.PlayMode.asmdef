@@ -3,11 +3,13 @@
   "rootNamespace": "PromptUGUI.Tests",
   "references": [
     "PromptUGUI.Runtime",
+    "LitMotion",
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner",
     "Unity.TextMeshPro",
     "Unity.InputSystem",
     "Unity.InputSystem.TestFramework",
+    "Unity.Addressables",
     "PromptUGUI.Compat.UniTask",
     "UniTask"
   ],

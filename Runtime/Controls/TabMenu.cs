@@ -684,6 +684,18 @@ namespace PromptUGUI.Controls
         private static void NoteEscapeConsumed() => s_escapeFrame = Time.frameCount;
 
         /// <summary>
+        /// Collapses the expanded menu if it lives under <paramref name="root"/>. A Screen that
+        /// begins closing calls this so its ghost does not keep the process-wide slot — and the
+        /// next Escape — while it fades out.
+        /// </summary>
+        internal static void CollapseIfUnder(Transform root)
+        {
+            if (s_expanded == null || root == null) return;
+            var go = s_expanded.GameObject;
+            if (go != null && go.transform.IsChildOf(root)) s_expanded.Collapse();
+        }
+
+        /// <summary>
         /// Closes the open menu, if any, and reports whether this Escape belongs to a menu.
         /// Called first thing by <c>UI.Modal</c>'s Escape handler.
         /// </summary>

@@ -166,6 +166,28 @@ namespace PromptUGUI.Tests.EditMode.Lint
             Assert.AreEqual(0, Count(issues, AnimationRules.ReverseOnTagCode));
         }
 
+        // ── close (spec 2026-09-16-close-transition-design §4.2) ─────────────────────────
+
+        [Test]
+        public void An_endless_loop_on_close_would_never_let_the_screen_close()
+        {
+            Assert.AreEqual(1, Count(Walk($"<Animation id='a' on='close' loop='true' fade='1:0'>{Child}</Animation>"),
+                AnimationRules.CloseLoopCode));
+            Assert.AreEqual(1, Count(Walk($"<Animation id='a' on='close' loop='yoyo' fade='1:0'>{Child}</Animation>"),
+                AnimationRules.CloseLoopCode));
+        }
+
+        [Test]
+        public void A_counted_loop_or_no_loop_on_close_is_fine()
+        {
+            Assert.AreEqual(0, Count(Walk($"<Animation id='a' on='close' loop='count:3' fade='1:0'>{Child}</Animation>"),
+                AnimationRules.CloseLoopCode));
+            Assert.AreEqual(0, Count(Walk($"<Animation id='a' on='close' type='fadeout'>{Child}</Animation>"),
+                AnimationRules.CloseLoopCode));
+            Assert.AreEqual(0, Count(Walk($"<Animation id='a' on='open' loop='true' fade='0:1'>{Child}</Animation>"),
+                AnimationRules.CloseLoopCode));
+        }
+
         // ── runtime hard error ───────────────────────────────────────────────────────────
 
         [Test]

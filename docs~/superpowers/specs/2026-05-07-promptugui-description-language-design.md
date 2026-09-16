@@ -667,6 +667,11 @@ UI.Bind<InventoryView>();   // 注册：Screen name → 类
 
 `UI.Open("Inventory")` 时若有 Bound class 则同时实例化它，调用 OnOpen。
 
+> **附注（2026-09-16，close-transition spec）**：`UI.Close(name)` 的语义是「开始关闭」——Screen 若声明了退场
+> （`<Animation on="close">` / `reverse-on="close"`），GameObject 会作为不可交互的幽灵活到退场播完再销毁；
+> `UI.CloseAsync(name)` 在销毁后完成，`IScreen.IsClosing` / `OnClosing` 暴露该阶段，`Dispose()` 立即销毁。
+> 没有退场的 Screen 仍当帧销毁。详见 `2026-09-16-close-transition-design.md`。
+
 ### 9.7 HeTu 接入预留
 
 HeTu 订阅返回 `Observable<T>`（设计上对齐 R3）。所以**当前 API 不需要为 HeTu 改任何东西**：

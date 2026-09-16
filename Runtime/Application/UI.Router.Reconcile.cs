@@ -172,7 +172,19 @@ namespace PromptUGUI.Application
                 // SameChain 早退路径不经过这里:重复导航到正在显示的同一链路不会误关其对话框。
                 if (UI.Modal.IsAnyOpen) UI.Modal.CloseAll();
 
-                for (int i = removed.Count - 1; i >= 0; i--) Deactivate(removed[i]);
+                for (int i = removed.Count - 1; i >= 0; i--)
+                {
+                    var a = removed[i];
+                    if (Transition == RouteTransition.Sequential
+                        && (a.Def.Kind == RouteKind.Page || a.Def.Kind == RouteKind.Modal))
+                    {
+                        // Let the exit finish before anything new is built. A teardown during
+                        // the wait abandons this reconcile like one during a load would.
+                        await UI.CloseAsync(a.ScreenKey);
+                        if (epoch != _epoch) return;
+                    }
+                    else Deactivate(a);
+                }
 
                 for (int i = k; i < target.Count; i++)
                 {
@@ -182,7 +194,7 @@ namespace PromptUGUI.Application
                         // 异步加载期间发生了 teardown/Reset:_chain 已被清空,别再塞回陈旧节点。
                         // 关掉这个孤儿(Page/Modal 已 UI.Open),Prompt 释放其 CTS,避免泄漏。
                         if (active.Def.Kind == RouteKind.Page || active.Def.Kind == RouteKind.Modal)
-                            UI.Close(active.ScreenKey);
+                            UI.CloseImmediate(active.ScreenKey);   // teardown's tail: no exit
                         else
                             active.PromptCts?.Dispose();
                         return;
@@ -389,6 +401,7 @@ namespace PromptUGUI.Application
                 _bypassGuardsOnce = false;
                 Scheme = null;
                 Changed = null;
+                Transition = RouteTransition.Overlap;
             }
         }
     }

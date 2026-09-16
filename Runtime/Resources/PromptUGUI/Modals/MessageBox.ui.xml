@@ -1,23 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PromptUGUI version="1">
   <Screen name="PromptUGUI/Modals/MessageBox.ui" reference="1920x1080" reference.portrait="1080x1920" >
-    <Image id="backdrop" anchor="stretch" color="#241505FE" raycastTarget="true"/>
+    <!-- The whole dialog fades in, and fades back out on close: the Screen waits for this
+         reverse-on="close" before it is destroyed (spec 2026-09-16-close-transition). -->
+    <Animation anchor="stretch" on="open" reverse-on="close" fade="0:1" duration="0.15s" easing="out-quad">
+      <Image id="backdrop" anchor="stretch" color="#241505FE" raycastTarget="true"/>
 
-    <SafeArea>
-      <Image id="dialog" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" raycastTarget="true"
-             anchor="center" size="640x300">
-        <VStack anchor="stretch" margin="24" spacing="12">
-          <Text id="title" fontSize="24" height="40"/>
-          <Text id="text" width="stretch" height="stretch" fontSize="18"/>
-          <HStack height="44" spacing="8">
-            <Btn id="ok" color="#A8D88C">OK</Btn>
-            <Btn id="cancel" color="#E0B888">Cancel</Btn>
-            <Btn id="yes" color="#A8D88C">Yes</Btn>
-            <Btn id="no" color="#E0B888">No</Btn>
-            <Btn id="close">Close</Btn>
-          </HStack>
-        </VStack>
-      </Image>
-    </SafeArea>
+      <SafeArea>
+        <Image id="dialog" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" raycastTarget="true"
+               anchor="center" size="640x300">
+          <VStack anchor="stretch" margin="24" spacing="12">
+            <Text id="title" fontSize="24" height="40"/>
+            <Text id="text" width="stretch" height="stretch" fontSize="18"/>
+            <HStack height="44" spacing="8">
+              <Btn id="ok" color="#A8D88C">OK</Btn>
+              <Btn id="cancel" color="#E0B888">Cancel</Btn>
+              <Btn id="yes" color="#A8D88C">Yes</Btn>
+              <Btn id="no" color="#E0B888">No</Btn>
+              <Btn id="close">Close</Btn>
+            </HStack>
+          </VStack>
+        </Image>
+      </SafeArea>
+    </Animation>
   </Screen>
 </PromptUGUI>

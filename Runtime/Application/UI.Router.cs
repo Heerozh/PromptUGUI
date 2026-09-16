@@ -34,6 +34,9 @@ namespace PromptUGUI.Application
                     if (!g(name)) throw new NavigationRejectedException(name);
             }
 
+            /// <summary>See <see cref="RouteTransition"/>. Default <see cref="RouteTransition.Overlap"/>.</summary>
+            public static RouteTransition Transition { get; set; } = RouteTransition.Overlap;
+
             public static void Map(string name, string src, string screen = null,
                 RoutePresent present = RoutePresent.Page, string parent = null,
                 Action<IScreen, RouteQuery> onEnter = null)

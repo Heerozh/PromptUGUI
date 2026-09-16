@@ -19,6 +19,24 @@ namespace PromptUGUI.Application
         public void Focus(string idPath);
 
         /// <summary>
+        /// True while the Screen is playing its exit: <see cref="Close"/> has run (it is no longer
+        /// the open Screen of its name) but the destroy body has not. Never true in EditMode.
+        /// </summary>
+        public bool IsClosing { get; }
+
+        /// <summary>
+        /// Fires once when the Screen begins closing, before <c>UI.Close</c> returns — the C# side
+        /// of <c>&lt;Trigger on="close"&gt;</c>.
+        /// </summary>
+        public Observable<Unit> OnClosing { get; }
+
+        /// <summary>
+        /// Begins closing (see <c>UI.Close</c>) and completes once the GameObjects are destroyed.
+        /// Already completed when there is no exit to wait for.
+        /// </summary>
+        public Awaitable CloseAsync();
+
+        /// <summary>
         /// Instantiate one subtree of <paramref name="template"/> under <paramref name="parent"/> and
         /// return its root. <paramref name="template"/> is what you would write in
         /// <c>itemTemplate=</c>: a <c>&lt;Template&gt;</c> visible to this Screen's document (own file,
@@ -56,9 +74,13 @@ namespace PromptUGUI.Application
         private readonly List<IDisposable> _subscriptions = new();
         private IDisposable _variantSub;
         private System.Action<string> _themeHandler;
-        // _closing: Close() 主动销毁 GO 时置位,区分 relay.OnDestroy 是 Close 触发(其自身已注销/清理)
-        // 还是外部销毁(场景重载,需哨兵代为注销)。_detached: DetachGlobals 已执行(幂等)。
-        private bool _closing;
+        // _destroyed: the destroy body ran (CloseImmediate) or the root was destroyed under us.
+        // Tells relay.OnDestroy apart (Close-triggered → already unregistered and cleaned; external
+        // → the sentinel must unregister) and makes a Finish that wakes up after a teardown a
+        // no-op. Set BEFORE any motion handle is cancelled: LitMotion invokes OnCancel
+        // synchronously and the MotionAwaiter continuation of a pending Finish sits on it.
+        // _detached: DetachGlobals 已执行(幂等)。
+        private bool _destroyed;
         private bool _detached;
         // 由 UI.Open / OpenModalScreen 注入:root 被外部销毁时把本 Screen 从 UI._open 注销。
         internal System.Action<Screen> OnDetachedExternally;
@@ -87,7 +109,7 @@ namespace PromptUGUI.Application
         // scheduled in (MotionUpdateJob: Scheduled → time += deltaTime) — for an entrance that
         // is the build frame, 100–333 ms in the Editor and tens of ms on device, so the
         // animation used to skip its first 15–100 %. Held at PlaybackSpeed 0 through that one
-        // tick and released on the next frame; see HoldFirstTick.
+        // tick and released on the next frame; see NotifyMotions.
         private List<MotionHandle> _heldMotions;
 
         internal Controls.Internal.ToggleGroupRegistry ToggleGroups { get; private set; }
@@ -276,15 +298,24 @@ namespace PromptUGUI.Application
         internal bool IsOpening => _deferredOpenActions != null;
 
         /// <summary>
-        /// Parks <paramref name="handles"/> at PlaybackSpeed 0 until the frame after this
-        /// <see cref="Open"/>, so the build frame's cost is never charged to them. A no-op outside
-        /// the apply pass (the interactive path keeps its timing) and in EditMode (no frames).
-        /// The from state has already been written by the driver's ImmediateBind, so the held
-        /// frame renders exactly what the build frame renders — nothing is visibly delayed.
+        /// The one place an <c>&lt;Animation&gt;</c> hands its freshly scheduled motions to its
+        /// Screen. During <see cref="Open"/>'s apply pass they are parked at PlaybackSpeed 0 until
+        /// the next frame, so the build frame's cost is never charged to them (the from state is
+        /// already written by the driver's ImmediateBind, so the held frame renders exactly what
+        /// the build frame renders). While the Screen <see cref="IsClosing"/> they join the exit
+        /// set that Finish awaits before the destroy body runs. Anything else — the interactive
+        /// path, EditMode (no frames) — is a no-op.
         /// </summary>
-        internal void HoldFirstTick(MotionHandle[] handles)
+        internal void NotifyMotions(MotionHandle[] handles)
         {
-            if (!IsOpening || !UnityEngine.Application.isPlaying) return;
+            if (!UnityEngine.Application.isPlaying) return;
+            if (IsOpening) HoldFirstTick(handles);
+            else if (_isClosing && !_destroyed)
+                (_exitMotions ??= new List<MotionHandle>()).AddRange(handles);
+        }
+
+        private void HoldFirstTick(MotionHandle[] handles)
+        {
             _heldMotions ??= new List<MotionHandle>();
             foreach (var h in handles)
             {
@@ -731,11 +762,13 @@ namespace PromptUGUI.Application
         }
 
         // relay(RectDimensionsRelay)的 OnDestroy 回调:RootGameObject 被外部销毁(场景重载 / 手动
-        // Destroy,未走 Close)时触发。Close() 自身销毁 GO 也会触发,但那条路径 _closing==true 直接
-        // 返回——Close 已负责注销与清理,且此处再改 _open 可能撞正在迭代 _open.Values 的清理循环。
+        // Destroy,未走 Close)时触发。CloseImmediate 自身销毁 GO 也会触发,但那条路径 _destroyed==true
+        // 直接返回——它已负责注销与清理,且此处再改 _open 可能撞正在迭代 _open.Values 的清理循环。
+        // 退场进行中(IsClosing)被外部销毁也走这里:只弃引用,然后放行 CloseAsync 的等待者。
         private void OnRootDestroyedExternally()
         {
-            if (_closing) return;
+            if (_destroyed) return;
+            _destroyed = true;
             DetachGlobals();
             RootGameObject = null;
             OnDetachedExternally?.Invoke(this);   // 让 UI 把本 Screen 从 _open 注销
@@ -747,11 +780,136 @@ namespace PromptUGUI.Application
             _dynamicSubtrees.Clear();
             ToggleGroups = null;
             CollapsibleGroups = null;
+            CompleteClosed();
         }
 
+        // ── two-phase Close (spec 2026-09-16-close-transition-design §5) ─────────────────────────
+
+        /// <summary>
+        /// True between Begin and the destroy body: the Screen is no longer the open one of its
+        /// name (<c>UI.Get</c> returns null), and its exit motions are playing.
+        /// </summary>
+        public bool IsClosing => _isClosing && !_destroyed;
+        private bool _isClosing;
+        private bool _closingFired;
+        private readonly Subject<Unit> _onClosing = new();
+
+        /// <summary>
+        /// Fires exactly once per Screen, at the start of whichever close path runs first — before
+        /// <see cref="Close"/> returns. The C# side of <c>&lt;Trigger on="close"&gt;</c>.
+        /// </summary>
+        public Observable<Unit> OnClosing => _onClosing;
+
+        // Motions handed back through NotifyMotions after Begin: what Finish waits for.
+        private List<MotionHandle> _exitMotions;
+        // One completion source per CloseAsync call — a Unity Awaitable is pooled and must be
+        // awaited exactly once, so callers can't share one.
+        private List<AwaitableCompletionSource> _closedWaiters;
+        // UI's bookkeeping hook: the Screen leaves the closing set once the destroy body ran.
+        internal Action<Screen> OnClosed;
+
+        /// <summary>
+        /// Begins closing. A Screen whose <c>close</c> event schedules no exit motion is destroyed
+        /// right here, on this frame — exactly as before. Otherwise the root lives on as a
+        /// non-interactive ghost until those motions finish (<see cref="IsClosing"/>), and the
+        /// destroy body runs the frame after. <see cref="CloseAsync"/> is the completion.
+        /// </summary>
         public void Close()
         {
-            _closing = true;
+            if (_isClosing || _destroyed) return;
+            // EditMode has no frames to play an exit in. A Screen closed while still being built
+            // has never been seen: an exit would be an invisible ghost living `duration`.
+            if (!UnityEngine.Application.isPlaying || IsOpening)
+            {
+                CloseImmediate();
+                return;
+            }
+            _isClosing = true;
+            DetachGlobals();
+            SealInput();
+            FireClosing();
+            if (_exitMotions == null || _exitMotions.Count == 0)
+            {
+                CloseImmediate();
+                return;
+            }
+            _ = FinishAsync();
+        }
+
+        /// <summary><see cref="Close"/>, completing once the destroy body has run.</summary>
+        public Awaitable CloseAsync()
+        {
+            Close();
+            if (_destroyed) return AwaitableHelpers.Completed();
+            var tcs = new AwaitableCompletionSource();
+            (_closedWaiters ??= new List<AwaitableCompletionSource>()).Add(tcs);
+            return tcs.Awaitable;
+        }
+
+        /// <summary><see cref="IDisposable"/>: destroy now, no exit.</summary>
+        public void Dispose() => CloseImmediate();
+
+        // The ghost must not be operable while it fades: no raycasts (blocksRaycasts only — turning
+        // `interactable` off would drop every Selectable into Disabled and tint the fading buttons
+        // grey), no keyboard / gamepad selection left inside it, and no expanded TabMenu holding
+        // the process-wide Escape slot. A captured drag keeps its pointer until release; accepted.
+        private void SealInput()
+        {
+            var root = RootGameObject;
+            if (root == null) return;
+            var cg = root.GetComponent<CanvasGroup>();
+            if (cg == null) cg = root.AddComponent<CanvasGroup>();
+            cg.blocksRaycasts = false;
+            var es = FindEventSystem();
+            var selected = es != null ? es.currentSelectedGameObject : null;
+            if (selected != null && selected.transform.IsChildOf(root.transform))
+                es.SetSelectedGameObject(null);
+            Controls.TabMenu.CollapseIfUnder(root.transform);
+        }
+
+        private void FireClosing()
+        {
+            if (_closingFired) return;
+            _closingFired = true;
+            _onClosing.OnNext(Unit.Default);
+        }
+
+        private async Awaitable FinishAsync()
+        {
+            try
+            {
+                // By index, not foreach: a motion handed back while we wait (an on="close" with
+                // delay=, a late reverse) still counts. The awaiter releases on complete AND on
+                // cancel, so a Dispose in the gap never leaves this hanging.
+                var motions = _exitMotions;
+                for (var i = 0; i < motions.Count && !_destroyed; i++) await motions[i];
+                if (_destroyed) return;
+                // Leave LitMotion's completion loop before tearing the tree down: the destroy body
+                // cancels every other motion in the same storage.
+                await Awaitable.NextFrameAsync();
+            }
+            catch (Exception e)
+            {
+                UnityEngine.Debug.LogError($"[PromptUGUI] waiting for Screen '{Def.Name}' exit motions failed: {e}");
+            }
+            if (_destroyed) return;   // torn down / destroyed under us meanwhile
+            CloseImmediate();
+        }
+
+        private void CompleteClosed()
+        {
+            var waiters = _closedWaiters;
+            _closedWaiters = null;
+            if (waiters != null) foreach (var w in waiters) w.TrySetResult();
+            OnClosed?.Invoke(this);
+        }
+
+        /// <summary>The destroy body: what <see cref="Close"/> used to be. Idempotent.</summary>
+        internal void CloseImmediate()
+        {
+            if (_destroyed) return;
+            _destroyed = true;
+            FireClosing();
             DetachGlobals();
             // Dispose all controls before destroying the GameObject so that running
             // motions (e.g. LitMotion handles) are cancelled before the objects
@@ -783,6 +941,7 @@ namespace PromptUGUI.Application
             CollapsibleGroups?.Clear();
             ToggleGroups = null;
             CollapsibleGroups = null;
+            CompleteClosed();
         }
 
         public T Get<T>(string idPath) where T : class, IControl
@@ -968,8 +1127,6 @@ namespace PromptUGUI.Application
         }
 
         public void Track(IDisposable d) => _subscriptions.Add(d);
-
-        public void Dispose() => Close();
 
         /// <summary>
         /// <paramref name="replayDynamicSubtrees"/> controls whether rows built by <c>BindItems</c>

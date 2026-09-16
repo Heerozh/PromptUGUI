@@ -371,9 +371,30 @@
           <Btn id="loadingBtn"  class="btn" height="30" fontSize="15">Loading (2s)</Btn>
           <!-- 演示 inline 属性仍然压过属性包：class="btn" 给了 color，这里的 color= 覆盖它 -->
           <Btn id="toastBtn"    class="btn" height="30" fontSize="15" color="accent">Toast</Btn>
+          <Btn id="exitDemoBtn" class="btn" height="30" fontSize="15">退场动画（ExitDemo）</Btn>
         </VStack>
       </Frame>
 
+    </SafeArea>
+  </Screen>
+
+  <!-- 退场演示：入场 = 从右侧滑入 + 淡入；reverse-on="close" 让 UI.Close 时把同一条动画倒放，
+       Screen 等它播完才销毁 —— 没写 reverse-on / on="close" 的 Screen 仍然当帧销毁。 -->
+  <Screen name="ExitDemo" reference="640x360" reference.portrait="360x640"
+          scale-mode="pixel" scale-mode.portrait="auto">
+    <Image anchor="stretch" color="#00000066" raycastTarget="true"/>
+    <SafeArea>
+      <Animation on="open" reverse-on="close" translate="48,0:0,0" fade="0:1" duration="0.25s" easing="out-cubic"
+                 anchor="center" size="300x150" size.portrait="300x200">
+        <Frame anchor="stretch" raycastTarget="true">
+          <Skin/>
+          <VStack anchor="stretch" spacing="10" padding="12">
+            <Text height="24" fontSize="16">这一页有退场动画</Text>
+            <Text height="stretch" fontSize="13">点「关闭」：UI.Close 先封输入、再把入场倒放，播完才销毁。</Text>
+            <Btn id="close" class="btn" height="30" fontSize="15">关闭</Btn>
+          </VStack>
+        </Frame>
+      </Animation>
     </SafeArea>
   </Screen>
 </PromptUGUI>

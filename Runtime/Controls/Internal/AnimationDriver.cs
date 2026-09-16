@@ -37,6 +37,13 @@ namespace PromptUGUI.Controls.Internal
 
     internal static class AnimationDriver
     {
+        // Every <Animation> motion runs on unscaled time (spec 2026-09-16-close-transition CLS-D8):
+        // UI must not freeze with the game, and an exit that never advances under timeScale 0 would
+        // leave the closing Screen as a ghost for good. Toast / Tutorial / Carousel / Reorder were
+        // already unscaled; this was the one exception. Still the Update phase, so the first-tick
+        // hold in Screen.NotifyMotions keeps its "runner ticks before scripts" premise.
+        private static readonly IMotionScheduler Clock = MotionScheduler.UpdateIgnoreTimeScale;
+
         /// <summary>
         /// Builds the motions for one fire. <paramref name="reverse"/> swaps the endpoints; the start
         /// value is then read from wherever each channel currently is, so an interrupted animation
@@ -83,7 +90,7 @@ namespace PromptUGUI.Controls.Internal
                         // handle keeps ticking in the global MotionDispatcher and writes to a
                         // destroyed component → MissingReferenceException.
                         handles.Add(LMotion.Create(from, to, spec.Duration)
-                            .WithEase(ease).WithDelay(spec.Delay).WithLoops(loops, loopType)
+                            .WithScheduler(Clock).WithEase(ease).WithDelay(spec.Delay).WithLoops(loops, loopType)
                             .Bind(ctx.Proxy, (v, rt) => rt.anchoredPosition = v)
                             .AddTo(ctx.Proxy.gameObject));
                     }
@@ -94,7 +101,7 @@ namespace PromptUGUI.Controls.Internal
                         var from = fromCurrent ? ctx.Proxy.localScale : (reverse ? specTo : specFrom);
                         var to = reverse ? specFrom : specTo;
                         handles.Add(LMotion.Create(from, to, spec.Duration)
-                            .WithEase(ease).WithDelay(spec.Delay).WithLoops(loops, loopType)
+                            .WithScheduler(Clock).WithEase(ease).WithDelay(spec.Delay).WithLoops(loops, loopType)
                             .Bind(ctx.Proxy, (v, rt) => rt.localScale = v)
                             .AddTo(ctx.Proxy.gameObject));
                     }
@@ -105,7 +112,7 @@ namespace PromptUGUI.Controls.Internal
                             : (reverse ? spec.RotateTo : spec.RotateFrom);
                         var to = reverse ? spec.RotateFrom : spec.RotateTo;
                         handles.Add(LMotion.Create(from, to, spec.Duration)
-                            .WithEase(ease).WithDelay(spec.Delay).WithLoops(loops, loopType)
+                            .WithScheduler(Clock).WithEase(ease).WithDelay(spec.Delay).WithLoops(loops, loopType)
                             .Bind(ctx.Proxy, (v, rt) => rt.localEulerAngles = new Vector3(0, 0, v))
                             .AddTo(ctx.Proxy.gameObject));
                     }
@@ -114,7 +121,7 @@ namespace PromptUGUI.Controls.Internal
                         var from = fromCurrent ? ctx.Cg.alpha : (reverse ? spec.FadeTo : spec.FadeFrom);
                         var to = reverse ? spec.FadeFrom : spec.FadeTo;
                         handles.Add(LMotion.Create(from, to, spec.Duration)
-                            .WithEase(ease).WithDelay(spec.Delay).WithLoops(loops, loopType)
+                            .WithScheduler(Clock).WithEase(ease).WithDelay(spec.Delay).WithLoops(loops, loopType)
                             .Bind(ctx.Cg, (v, cg) => cg.alpha = v)
                             .AddTo(ctx.Cg.gameObject));
                     }
@@ -128,7 +135,7 @@ namespace PromptUGUI.Controls.Internal
                         var reveal = ctx.Reveal;
                         reveal.SetRevealClip(true);
                         var handle = LMotion.Create(from, target, spec.Duration)
-                            .WithEase(ease).WithDelay(spec.Delay).WithLoops(loops, loopType)
+                            .WithScheduler(Clock).WithEase(ease).WithDelay(spec.Delay).WithLoops(loops, loopType)
                             .Bind(v => reveal.SetRevealBox(v))
                             .AddTo(ctx.Proxy.gameObject);
                         var captured = reverse;
@@ -144,7 +151,7 @@ namespace PromptUGUI.Controls.Internal
                             throw new System.InvalidOperationException(
                                 "<Animation count=...> requires a Text target (in subtree or via target=\"@id\")");
                         handles.Add(LMotion.Create(spec.CountFrom, spec.CountTo, spec.Duration)
-                            .WithEase(ease).WithDelay(spec.Delay).WithLoops(loops, loopType)
+                            .WithScheduler(Clock).WithEase(ease).WithDelay(spec.Delay).WithLoops(loops, loopType)
                             .BindToText(ctx.Text, spec.Format)
                             .AddTo(ctx.Text.gameObject));
                     }
@@ -161,7 +168,7 @@ namespace PromptUGUI.Controls.Internal
                             var charIdx = i;
                             var perCharDelay = spec.Delay + spec.CharStaggerSec * i;
                             handles.Add(LMotion.Create(spec.CharColorFrom, spec.CharColorTo, spec.Duration)
-                                .WithEase(ease).WithDelay(perCharDelay).WithLoops(loops, loopType)
+                                .WithScheduler(Clock).WithEase(ease).WithDelay(perCharDelay).WithLoops(loops, loopType)
                                 .BindToTMPCharColor(ctx.Text, charIdx)
                                 .AddTo(ctx.Text.gameObject));
                         }

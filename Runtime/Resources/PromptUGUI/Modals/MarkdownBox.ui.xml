@@ -1,18 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PromptUGUI version="1">
   <Screen name="PromptUGUI/Modals/MarkdownBox.ui" reference="1920x1080" reference.portrait="1080x1920" >
-    <Image id="backdrop" anchor="stretch" color="#241505FE" raycastTarget="true"/>
+    <!-- The whole dialog fades in, and fades back out on close: the Screen waits for this
+         reverse-on="close" before it is destroyed (spec 2026-09-16-close-transition). -->
+    <Animation anchor="stretch" on="open" reverse-on="close" fade="0:1" duration="0.15s" easing="out-quad">
+      <Image id="backdrop" anchor="stretch" color="#241505FE" raycastTarget="true"/>
 
-    <SafeArea>
-      <Image id="dialog" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" raycastTarget="true"
-             anchor="stretch" margin="160,480" margin.portrait="240,80">
-        <VStack anchor="stretch" margin="24" spacing="12">
-          <Text id="title" fontSize="24" height="40"/>
-          <Markdown id="markdown" width="stretch" height="stretch"/>
-        </VStack>
-        <Btn id="close" anchor="top-right" size="36x36" margin="12"
-             sprite="" color="#00000000" fontSize="28">×</Btn>
-      </Image>
-    </SafeArea>
+      <SafeArea>
+        <Image id="dialog" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" raycastTarget="true"
+               anchor="stretch" margin="160,480" margin.portrait="240,80">
+          <VStack anchor="stretch" margin="24" spacing="12">
+            <Text id="title" fontSize="24" height="40"/>
+            <Markdown id="markdown" width="stretch" height="stretch"/>
+          </VStack>
+          <Btn id="close" anchor="top-right" size="36x36" margin="12"
+               sprite="" color="#00000000" fontSize="28">×</Btn>
+        </Image>
+      </SafeArea>
+    </Animation>
   </Screen>
 </PromptUGUI>

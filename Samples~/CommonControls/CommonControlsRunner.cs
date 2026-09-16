@@ -204,6 +204,14 @@ namespace PromptUGUI.Samples.CommonControls
 
             screen.Get<Btn>("toastBtn").OnClick
                   .Subscribe(_ => UI.Toast.Show(UI.Tr("这是一条 Toast！"))).AddTo(screen);
+
+            // 退场演示：ExitDemo 的入场声明了 reverse-on="close"，UI.Close 会把它倒放、播完才销毁。
+            // UI.Open 返回的是已注册的同名实例：退场中的幽灵已经不在 UI.Get 里，可以立刻再开一个。
+            screen.Get<Btn>("exitDemoBtn").OnClick.Subscribe(_ =>
+            {
+                var demo = UI.Open("ExitDemo");
+                demo.Get<Btn>("close").OnClick.Subscribe(_ => UI.Close("ExitDemo")).AddTo(demo);
+            }).AddTo(screen);
         }
 
         // 新手引导：七步跨页脚本。不注册 UseProgressStore —— 每次点按钮都从头跑，可反复体验。

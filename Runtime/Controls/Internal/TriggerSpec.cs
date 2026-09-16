@@ -9,6 +9,8 @@ namespace PromptUGUI.Controls.Internal
         Expand, Collapse,
         Checked, Unchecked,
         Lift, Drop,
+        // The Screen begins closing (spec 2026-09-16-close-transition §4.1). Like Open, no @id form.
+        Close,
     }
 
     internal sealed class TriggerSpec
@@ -62,6 +64,7 @@ namespace PromptUGUI.Controls.Internal
             switch (value)
             {
                 case "open": return new TriggerSpec { Kind = TriggerKind.Open, Raw = value };
+                case "close": return new TriggerSpec { Kind = TriggerKind.Close, Raw = value };
                 case "loop": return new TriggerSpec { Kind = TriggerKind.Loop, Raw = value };
                 case "manual": return new TriggerSpec { Kind = TriggerKind.Manual, Raw = value };
                 case "click": return new TriggerSpec { Kind = TriggerKind.Click, Raw = value };
@@ -92,7 +95,7 @@ namespace PromptUGUI.Controls.Internal
                 }
             }
             throw new ArgumentException(
-                $"Invalid trigger 'on=\"{value}\"' — expected one of: open / loop / click / click@<id> / " +
+                $"Invalid trigger 'on=\"{value}\"' — expected one of: open / close / loop / click / click@<id> / " +
                 "hover-enter / hover-enter@<id> / hover-exit / hover-exit@<id> / press / press@<id> / " +
                 "state-normal / state-hover / state-pressed / state-selected / state-disabled (each also with @<id>) / " +
                 "expand / expand@<id> / collapse / collapse@<id> / " +
