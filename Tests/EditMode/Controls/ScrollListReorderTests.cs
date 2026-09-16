@@ -123,9 +123,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
         private static RectTransform Rt(IControl c) => (c as Control)?.LayoutHost ?? c.RectTransform;
 
-        // Row geometry is MEASURED, not assumed: the list's own V/H group leaves childControl* off,
-        // so a row keeps its default rect rather than its LayoutElement (the caveat HugSizingTests
-        // spells out). What the tests need is "one slot further", whatever a slot turns out to be.
+        // Row geometry is MEASURED, not assumed: what the tests need is "one slot further", whatever
+        // a slot turns out to be (row height + spacing), so a change to row sizing cannot break them.
         private static float StrideY(IReadOnlyList<IControl> rows)
             => Rt(rows[0]).anchoredPosition.y - Rt(rows[1]).anchoredPosition.y;
 

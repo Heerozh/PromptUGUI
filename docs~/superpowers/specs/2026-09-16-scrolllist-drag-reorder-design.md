@@ -522,3 +522,31 @@ UIXmlLint（`Runtime/Resources/`、`Samples~/`）干净。
 其余 `Pointer.press.isPressed`（鼠标左键 / 笔尖）；裸 `PointerEventData`（旧模块、测试）仍看 `pointerDrag`。测试用
 `ReorderDriver.PressedProbeForTests` 顶替设备查询，钉住「`pointerDrag` 为 null 但设备仍按着 = hold 照常走 / hold 0
 的第一帧拖动照常提起」两条。
+
+### 14.5 跨轴不裁（2026-09-16，宿主工程首次接入后）
+
+**现象**：提起的行放大 1.03 + 自带边框 / 发光，越出视口左右两侧的部分被视口 mask 切掉（截图：第二行的边框两侧被截）。
+视口 mask 是滚动裁剪本身（`Viewport` 上的 stencil `Mask` 或 `RectMask2D`），不能关。
+
+**决定（REO-D17）：列表只沿滚动轴裁剪。** `ScrollList` 是单轴滚动（`direction` 二选一，网格也只竖向滚），跨轴永远明确：
+竖向列表 / 网格左右不裁，横向列表上下不裁。这不只解提起那一刻——静止时行的 glow / 阴影被视口边切掉也是同一个问题。
+写得过宽的行从"被藏起来"变成"露出来"，作者错误更显眼，接受。
+
+两种 mask 模式两套机制，都在 `ScrollList.ApplyCrossAxisClip`（mask 模式或 `direction` 变了就重放，幂等）：
+
+- **`RectMask2D`**（`sprite=""` / `mask=""` 的直角列表）：`padding` 跨轴两侧 = `-100000`。查过 uGUI 源码
+  `Clipping.FindCullAndClipWorldRect` 是 `xMin + padding.x` / `xMax - padding.z`，负值即外扩；剔除用同一个矩形，
+  滚出主轴的行照常被剔。
+- **stencil sprite mask**（默认 `pugui_9slice_mask` 圆角、`mask="x#slice"`）：视口的 `Image` 换成子类
+  `CrossAxisMaskImage`（`ApplyViewportMask` 复用节点上已有的 Image，所以在它之前 `AddComponent` 即可，共享函数不改），
+  `OnPopulateMesh` 先画 9-slice 原形，再补一条沿滚动轴、跨轴无限宽（±100000）的直边带，带只覆盖 9-slice 上下（横向列表：
+  左右）边框之间的区域，UV 采 `DataUtility.GetInnerUV` 的中心实心像素。stencil 写入 = 圆角矩形 ∪ 直边带：圆角处照旧裁、
+  直边段两侧敞开。**没有 border 的自定义 mask（六边形之类）不加带**——它不是 9-slice，无从知道直边在哪，作者选的形状不该被撑破。
+
+**否决的替代**：LiftLayer（提起时把行 reparent 到 ScrollList 根下的一层，浮在边框之上）——效果更"抬起"，但要在会话里两套坐标系、
+且只救提起的行不救静止时的 glow；`maskable=false`（提起时关掉行子树的 MaskableGraphic 遮罩参与）——会连行内自己的
+`<Image mask="self">` 一起失效，且行仍画在滚动条 / frame 之下。
+
+**顺手修的**：§14.2 的 EditMode 行尺寸问题。`ApplyLayoutMode` 给 V/H 组显式写 `childControl* = true`、
+`childForceExpand* = true`（与 Play 模式实测默认值一致），UIPreview 与 EditMode 测试的行尺寸从此与运行时一致；
+`HugSizingTests` / `ScrollListStaticChildrenTests` 里绕着走的断言收紧成精确数字。

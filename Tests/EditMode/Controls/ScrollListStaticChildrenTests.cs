@@ -67,13 +67,13 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 .Get<ScrollList>("sl");
             var content = ContentOf(list);
 
-            // Not an absolute number: the list's own content group leaves childControlHeight off, so
-            // a row keeps its own rect rather than taking its LayoutElement (same caveat HugSizingTests
-            // spells out). What matters here is that the static rows are what Content measures.
-            var rowHeight = ((RectTransform)content.GetChild(0)).rect.height;
-            Assume.That(rowHeight, Is.GreaterThan(0f), "guard: the rows measured");
+            // A static row takes its declared height (the content group honours the LayoutElement —
+            // childControl* is set explicitly, spec 2026-09-16 §14.2), and it is what Content measures.
+            Assert.AreEqual(30f, ((RectTransform)content.GetChild(0)).rect.height, 0.01f);
+            Assert.AreEqual(150f, ((RectTransform)content.GetChild(0)).rect.width, 0.01f,
+                "an unsized cross axis fills the list, in edit mode as in play mode");
 
-            Assert.AreEqual(2f * rowHeight, LayoutUtility.GetPreferredSize(content, 1), 0.01f,
+            Assert.AreEqual(2f * 30f, LayoutUtility.GetPreferredSize(content, 1), 0.01f,
                 "Content's preferred height is the two static rows, so the list scrolls them");
         }
 

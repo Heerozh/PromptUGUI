@@ -25,6 +25,7 @@ namespace PromptUGUI.Controls
 
         private protected override GameObject SurfaceHost => GameObject;
         private UnityImage _frame;
+        private CrossAxisMaskImage _maskImage;
         private bool _maskExplicit;
         private ScrollRect _scroll;
         private RectTransform _viewport;
@@ -213,6 +214,9 @@ namespace PromptUGUI.Controls
 
             _viewport = ProceduralBuilders.AddChild(RectTransform, "Viewport");
             _viewport.pivot = new Vector2(0f, 1f);
+            // The mask graphic goes on first, as our subclass: ApplyViewportMask reuses whatever Image
+            // the node already carries, and this one also opens the cross-axis sides (§ApplyCrossAxisClip).
+            _maskImage = _viewport.gameObject.AddComponent<CrossAxisMaskImage>();
             // Viewport mask 三态 + 默认 pugui_9slice_mask 圆角，见 ApplyViewportMask 注释 / spec §2.3。
             ProceduralBuilders.ApplyViewportMask(_viewport, null, ProceduralBuilders.SpriteMaskRoundedRect);
             _scroll.viewport = _viewport;
@@ -296,6 +300,18 @@ namespace PromptUGUI.Controls
                 grid.startAxis = GridLayoutGroup.Axis.Horizontal;
                 grid.childAlignment = TextAnchor.UpperLeft;
             }
+            else if (_layoutGroup is HorizontalOrVerticalLayoutGroup hv)
+            {
+                // Play mode's defaults, spelled out. AddComponent in edit mode (UIPreview, EditMode
+                // tests) leaves childControl* OFF, and the group then lays rows out by their default
+                // 100×100 rect instead of the LayoutElement ApplyCommon wrote — a <Frame height="30">
+                // row previewed 100 tall and never stretched (spec 2026-09-16 §14.2). Same four values
+                // Play mode has always had, so the runtime does not change; the editor now matches it.
+                hv.childControlWidth = true;
+                hv.childControlHeight = true;
+                hv.childForceExpandWidth = true;
+                hv.childForceExpandHeight = true;
+            }
 
             var fitter = _content.GetComponent<ContentSizeFitter>()
                          ?? _content.gameObject.AddComponent<ContentSizeFitter>();
@@ -327,10 +343,36 @@ namespace PromptUGUI.Controls
                 fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             }
             ApplyGroupMetrics();
+            ApplyCrossAxisClip();
 
             // The bar follows the axis: not built here (an authored one may still be on its way —
             // children instantiate after PreConfigureContent), just pointed the right way if present.
             WireScrollbar();
+        }
+
+        /// <summary>
+        /// A list scrolls along one axis, so the viewport clips along that axis only: a vertical list
+        /// (and a grid) leaves its left / right open, a horizontal list its top / bottom. What that
+        /// frees is a row's glow, its shadow, and the lift scale of a drag-to-reorder session — all of
+        /// which the viewport used to cut at its edge. Rounded corners still clip (the stencil band
+        /// stops at the sprite's 9-slice borders); a border-less custom mask keeps its whole shape.
+        /// <para>Re-applied whenever the mask mode or the direction changes — both hands are idempotent.</para>
+        /// </summary>
+        private void ApplyCrossAxisClip()
+        {
+            if (_viewport == null) return;
+            var open = IsHorizontal ? 1 : 0;   // the axis the band runs along = the one that stays open
+            var rectMask = _viewport.GetComponent<RectMask2D>();
+            if (rectMask != null)
+            {
+                // Clipping.FindCullAndClipWorldRect does xMin + padding.x / xMax - padding.z: a
+                // negative padding pushes the clip rect out. Culling uses the same rect, so rows
+                // scrolled out along the main axis are still culled.
+                rectMask.padding = open == 0
+                    ? new Vector4(-CrossAxisMaskImage.Reach, 0f, -CrossAxisMaskImage.Reach, 0f)
+                    : new Vector4(0f, -CrossAxisMaskImage.Reach, 0f, -CrossAxisMaskImage.Reach);
+            }
+            if (_maskImage != null) _maskImage.SetBandAxis(open);
         }
 
         // ───── the scrollbar (IScrollbarHost) ─────
@@ -570,6 +612,7 @@ namespace PromptUGUI.Controls
                 _maskExplicit = true;
                 ProceduralBuilders.ApplyViewportMask(
                     _viewport, value, ProceduralBuilders.SpriteMaskRoundedRect);
+                ApplyCrossAxisClip();   // mask="" may have just added the RectMask2D
             }
         }
 
@@ -622,9 +665,12 @@ namespace PromptUGUI.Controls
             // mask 未显式写时跟随 bg sprite：有图→圆角 stencil，sprite=""→直角 RectMask2D
             // （对齐 InputField 的 mask-tracks-border 先例；显式 mask= 一旦写过即 latch，跳过这里）。
             if (!_maskExplicit)
+            {
                 ProceduralBuilders.ApplyViewportMask(
                     _viewport, _bg != null && _bg.sprite != null ? null : "",
                     ProceduralBuilders.SpriteMaskRoundedRect);
+                ApplyCrossAxisClip();
+            }
             // No authored <Scrollbar> arrived with the children — build the stock one now (children
             // instantiate before this apply, so by here the answer is final).
             EnsureDefaultScrollbar();

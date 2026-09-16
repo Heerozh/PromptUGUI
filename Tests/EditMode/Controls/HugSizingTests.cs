@@ -191,14 +191,13 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var content = list.RectTransform.Find("Viewport/Content") as RectTransform;
             Assert.IsNotNull(content);
 
-            // Row height is whatever the ScrollList's own content group gives a row — it leaves
-            // childControlHeight off, so a row keeps its own rect rather than taking its
-            // LayoutElement. hug's contract is not "32 per row", it is "the viewport is exactly as
-            // tall as the content node", whatever that content turns out to be.
+            // The list's content group honours the LayoutElement ApplyCommon wrote (childControl* is
+            // set explicitly — edit mode used to leave it off and lay rows out by their default
+            // 100×100 rect, spec 2026-09-16 §14.2), so a <Frame height='32'> row IS 32 tall here too.
             var rowHeight = ((RectTransform)content.GetChild(0)).rect.height;
-            Assume.That(rowHeight, Is.GreaterThan(0f), "guard: the rows measured");
+            Assert.AreEqual(32f, rowHeight, 0.01f, "a row takes its declared height, in edit mode as in play mode");
 
-            Assert.AreEqual(5f * rowHeight, list.RectTransform.rect.height, 0.01f,
+            Assert.AreEqual(5f * 32f, list.RectTransform.rect.height, 0.01f,
                 "5 rows, spacing 0 → the list is exactly its content");
             Assert.AreEqual(LayoutUtility.GetPreferredSize(content, 1), list.RectTransform.rect.height, 0.01f,
                 "hug means: my height IS my content's preferred height");
