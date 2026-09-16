@@ -104,8 +104,10 @@ float PuguiSdNotchCorner(float2 u, float2 s)
 
     // 内部：并集取 min 在缺口的凹顶点处最多浅 sqrt(2) 倍，内描边会正好在那个角上鼓一块。
     // 「矩形减去被挖掉的那块」在内部是精确的（两个场各自精确、相减处两条边就是真边界）。
-    float2 half = s * 0.5;
-    float2 q = abs(u + half) - half;
+    // 别叫 half:它在 HLSL 里是类型名,Unity 在桌面 Vulkan / Metal 上还会 #define half float,
+    // 移动端则 #define half min16float —— 那几个平台上这行会直接编译失败(GLCore/D3D 下 FXC 恰好放过)。
+    float2 hs = s * 0.5;
+    float2 q = abs(u + hs) - hs;
     float dRect = min(max(q.x, q.y), 0.0) + length(max(q, 0.0));
     return max(PuguiSdQuadrant(u), -dRect);
 }
