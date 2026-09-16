@@ -32,10 +32,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var p = Load("<Frame id='f' color='#ff0000 70%,#0000ff'/>")
                 .Get<Frame>("f").GameObject.GetComponent<ProceduralPanel>();
-            Assert.AreEqual(new Color(1f, 0f, 0f, 1f), p.CurrentParams.FillTop);
-            Assert.AreEqual(new Color(0f, 0f, 1f, 1f), p.CurrentParams.FillBottom);
-            Assert.AreEqual(0.7f, p.CurrentParams.FillStopTop, 1e-5f);
-            Assert.AreEqual(1f, p.CurrentParams.FillStopBottom, 1e-5f);
+            Assert.AreEqual(new Color(1f, 0f, 0f, 1f), p.CurrentParams.Fill.Start);
+            Assert.AreEqual(new Color(0f, 0f, 1f, 1f), p.CurrentParams.Fill.End);
+            Assert.AreEqual(0.7f, p.CurrentParams.Fill.StartStop, 1e-5f);
+            Assert.AreEqual(1f, p.CurrentParams.Fill.EndStop, 1e-5f);
         }
 
         [Test]
@@ -43,8 +43,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var p = Load("<Frame id='f' color='#ff0000,#0000ff'/>")
                 .Get<Frame>("f").GameObject.GetComponent<ProceduralPanel>();
-            Assert.AreEqual(0f, p.CurrentParams.FillStopTop, 1e-5f);
-            Assert.AreEqual(1f, p.CurrentParams.FillStopBottom, 1e-5f);
+            Assert.AreEqual(0f, p.CurrentParams.Fill.StartStop, 1e-5f);
+            Assert.AreEqual(1f, p.CurrentParams.Fill.EndStop, 1e-5f);
         }
 
         [Test]
@@ -52,8 +52,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var p = Load("<Frame id='f' color='#ff0000'/>")
                 .Get<Frame>("f").GameObject.GetComponent<ProceduralPanel>();
-            Assert.AreEqual(0f, p.CurrentParams.FillStopTop, 1e-5f);
-            Assert.AreEqual(1f, p.CurrentParams.FillStopBottom, 1e-5f);
+            Assert.AreEqual(0f, p.CurrentParams.Fill.StartStop, 1e-5f);
+            Assert.AreEqual(1f, p.CurrentParams.Fill.EndStop, 1e-5f);
         }
 
         [Test]
@@ -62,8 +62,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var btn = Load("<Btn id='b' radius='8' color='#ff0000 30%,#0000ff 60%'>ok</Btn>").Get<Btn>("b");
             var panel = btn.GameObject.transform.Find(ProceduralSurface.NodeName)
                                                .GetComponent<ProceduralPanel>();
-            Assert.AreEqual(0.3f, panel.CurrentParams.FillStopTop, 1e-5f);
-            Assert.AreEqual(0.6f, panel.CurrentParams.FillStopBottom, 1e-5f);
+            Assert.AreEqual(0.3f, panel.CurrentParams.Fill.StartStop, 1e-5f);
+            Assert.AreEqual(0.6f, panel.CurrentParams.Fill.EndStop, 1e-5f);
         }
 
         [Test]
@@ -74,7 +74,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
                            </Frame>").Get<Decor>("d");
             var panel = d.GameObject.GetComponentInChildren<DecorPanel>();
             Assert.IsNotNull(panel);
-            Assert.AreEqual(0.7f, panel.CurrentParams.FillStopTop, 1e-5f);
+            Assert.AreEqual(0.7f, panel.CurrentParams.Fill.StartStop, 1e-5f);
         }
 
         [Test]
@@ -83,9 +83,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var p = Load("<Frame id='f' color='#ff0000, 70%, #0000ff'/>")
                 .Get<Frame>("f").GameObject.GetComponent<ProceduralPanel>();
             // Stops untouched — a hint bends the ramp, it does not cut it.
-            Assert.AreEqual(0f, p.CurrentParams.FillStopTop, 1e-5f);
-            Assert.AreEqual(1f, p.CurrentParams.FillStopBottom, 1e-5f);
-            Assert.AreEqual(0.5f, Mathf.Pow(0.7f, p.CurrentParams.FillCurve), 1e-3f);
+            Assert.AreEqual(0f, p.CurrentParams.Fill.StartStop, 1e-5f);
+            Assert.AreEqual(1f, p.CurrentParams.Fill.EndStop, 1e-5f);
+            Assert.AreEqual(0.5f, Mathf.Pow(0.7f, p.CurrentParams.Fill.CurveAt(0)), 1e-3f);
         }
 
         [Test]
@@ -93,7 +93,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var p = Load("<Frame id='f' color='#ff0000,#0000ff'/>")
                 .Get<Frame>("f").GameObject.GetComponent<ProceduralPanel>();
-            Assert.AreEqual(1f, p.CurrentParams.FillCurve, 1e-6f);
+            Assert.AreEqual(1f, p.CurrentParams.Fill.CurveAt(0), 1e-6f);
         }
 
         // ── the material cache keys on them ─────────────────────────────────────

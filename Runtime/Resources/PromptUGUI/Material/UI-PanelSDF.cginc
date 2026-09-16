@@ -658,27 +658,99 @@ float4 PuguiApplyInnerGlow(float4 col, float d, float inside, float size, float4
     return PuguiOver(color, col);
 }
 
-// ---- 填充渐变 ----
+// ---- 线性渐变（spec 2026-09-17）----
 //
-// 三个面板 shader（不透明 / 玻璃 / <Decor>）共用，理由同上面两层发光：色标位置
-// （spec 2026-08-30 §7）必须三处逐字一致，否则同一份 color= 在不同表面上渐变到不同的地方。
+// 四个面板 shader（不透明 / 玻璃 / 玻璃焊接组 / <Decor>）共用，理由同上面两层发光：方向、色标
+// 位置与曲线必须处处逐字一致，否则同一份 color= 在不同表面上渐变到不同的地方 —— 而且现在
+// 填充、描边、外发光、内发光四个色槽都走这一条函数，同一个 token 写在 color 与 borderColor 上，
+// 转换点落在同一排像素（LG-D5）。C# 侧的孪生是 ColorSpec.Evaluate / DirectionFor / LineLengthFor。
 //
-// p.y 向上为正，色标却从**顶边**量起（与「逗号第一段是顶部色」同向），所以先翻成 s。
-// stops = (第一色标, 第二色标, 曲线指数)，默认 (0,1,1) 时 u == s，与色标出现之前逐位相同。
-// stops.x == stops.y 是合法的硬边：1e-4 的下限把它收成一个像素以内的跳变。
+// 一条 ramp 占 7 个 uniform：4 个色标色、色标位置 (P0..P3)、曲线 (E0, E1, E2, 色标数)、方向
+// (xy = 单位向量[角度模式]; z = 1 表示「角」模式; w = CSS 顺序的角编号)。未用的色标槽由 C# 填成
+// 最后一个色标，所以第四槽永远可读、不必判个数。
 //
-// 曲线指数来自 CSS 的 color hint（`A, 70%, B`）：色标是**切**这条 ramp —— 在色标处斜率从 0
-// 突然跳到满值，颜色连续但导数不连续，人眼把这种断点读成一条实际不存在的分界线（马赫带）。
-// 提示改成**弯**它：整段一条幂曲线，处处光滑，于是「大部分是顶色、底色只在底部渗出来」看不出接缝。
-// 指数在 C# 侧由 ColorParser.StopCurveExponent 算好（log0.5/log t），这里只负责代入。
-// == 1.0 时整段跳过：uniform 分支，全体 fragment 同一条路径，且让既有面板逐位不变。
-float4 PuguiFillRamp(float2 p, float2 b, float4 top, float4 bottom, float3 stops)
+// 方向遵循 CSS：0deg 向上、90deg 向右、180deg 向下（默认 —— 与方向出现之前逐位相同）。
+// 「角」（to bottom right）是 CSS 的魔法角：渐变线垂直于**相邻两角**的连线，因此不论宽高比，
+// 命名的那个角恰在 0%、对角恰在 100%、另外两角恰在 50% 线上。它依赖盒子尺寸，所以 C# 只传
+// 角编号，向量在这里按 b 现算。
+//
+// 渐变线长度 L = |w·dir.x| + |h·dir.y|（CSS 定义：让 0% / 100% 恰好触到盒子的两个角），
+// s = (dot(p, dir) + L/2) / L。默认方向下 L = h、s = (b.y − p.y) / (2 b.y)，即色标出现之前那条 ramp。
+//
+// 色标之间每段一条幂曲线：指数来自 CSS 的 color hint（`A, 70%, B`）。色标是**切** ramp ——
+// 在色标处斜率从 0 突然跳到满值，颜色连续但导数不连续，人眼把这种断点读成一条实际不存在的
+// 分界线（马赫带）；提示改成**弯**它：整段一条幂曲线，处处光滑。指数在 C# 侧由
+// ColorParser.StopCurveExponent 算好（log0.5/log t），这里只负责代入；== 1.0 时整段跳过。
+// 相邻色标位置相等是合法的硬边：1e-4 的下限把它收成一个像素以内的跳变。
+
+struct PuguiRamp
 {
-    float s = saturate((b.y - p.y) / max(2.0 * b.y, 1e-4));
-    float u = saturate((s - stops.x) / max(stops.y - stops.x, 1e-4));
-    if (stops.z != 1.0) u = pow(u, stops.z);
-    return lerp(top, bottom, u);
+    float4 c0, c1, c2, c3;
+    float4 stops;     // P0..P3
+    float4 curves;    // E0, E1, E2, count
+    float4 dir;       // xy = 单位方向（角度模式）; z = 角模式标志; w = 角编号（CSS 顺序）
+};
+
+PuguiRamp PuguiMakeRamp(float4 c0, float4 c1, float4 c2, float4 c3,
+                        float4 stops, float4 curves, float4 dir)
+{
+    PuguiRamp r;
+    r.c0 = c0; r.c1 = c1; r.c2 = c2; r.c3 = c3;
+    r.stops = stops;
+    r.curves = curves;
+    r.dir = dir;
+    return r;
 }
+
+// 每个 shader 用这两个宏声明并组装一组 ramp uniform：PUGUI_RAMP_UNIFORMS(_Fill) 展开成
+// _Fill0.._Fill3 / _FillStops / _FillCurves / _FillDir，PUGUI_RAMP(_Fill) 把它们打包成 PuguiRamp。
+// 名字与 C# 的 GradientUniforms 一一对应。
+#define PUGUI_RAMP_UNIFORMS(prefix) \
+    fixed4 prefix##0; fixed4 prefix##1; fixed4 prefix##2; fixed4 prefix##3; \
+    float4 prefix##Stops; float4 prefix##Curves; float4 prefix##Dir;
+
+#define PUGUI_RAMP(prefix) \
+    PuguiMakeRamp(prefix##0, prefix##1, prefix##2, prefix##3, prefix##Stops, prefix##Curves, prefix##Dir)
+
+// 「角」模式的方向：b = 半尺寸。CSS 顺序 0 左上、1 右上、2 右下、3 左下。
+// to bottom right 的相邻角是右上与左下，连线 (w, h)，垂直且指向右下象限的是 (h, −w)；其余按符号。
+float2 PuguiCornerDir(float2 b, float corner)
+{
+    float sx = (corner == 1.0 || corner == 2.0) ? 1.0 : -1.0;   // right?
+    float sy = (corner < 1.5) ? 1.0 : -1.0;                     // top?
+    float2 v = float2(b.y * sx, b.x * sy);
+    float len = length(v);
+    return len > 1e-6 ? v / len : float2(0.0, -1.0);
+}
+
+float4 PuguiRampSegment(float4 a, float4 c, float pa, float pb, float e, float s)
+{
+    float u = saturate((s - pa) / max(pb - pa, 1e-4));
+    if (e != 1.0) u = pow(u, e);
+    return lerp(a, c, u);
+}
+
+// p = 相对 rect 中心的局部坐标（y 向上），b = rect 半尺寸。
+float4 PuguiGradient(float2 p, float2 b, PuguiRamp r)
+{
+    float count = r.curves.w;
+    // 纯色：uniform 分支，全体 fragment 同一条路径，且让既有纯色面板逐位不变。
+    if (count <= 1.0) return r.c0;
+
+    float2 dir = r.dir.z > 0.5 ? PuguiCornerDir(b, r.dir.w) : r.dir.xy;
+    float L = abs(2.0 * b.x * dir.x) + abs(2.0 * b.y * dir.y);
+    float s = saturate((dot(p, dir) + 0.5 * L) / max(L, 1e-4));
+
+    if (s <= r.stops.x) return r.c0;
+    if (count > 2.5 && s > r.stops.y)
+    {
+        if (count > 3.5 && s > r.stops.z)
+            return PuguiRampSegment(r.c2, r.c3, r.stops.z, r.stops.w, r.curves.z, s);
+        return PuguiRampSegment(r.c1, r.c2, r.stops.y, r.stops.z, r.curves.y, s);
+    }
+    return PuguiRampSegment(r.c0, r.c1, r.stops.x, r.stops.y, r.curves.x, s);
+}
+
 
 // ---- 装饰原语（<Decor>）的形状层 ----
 //

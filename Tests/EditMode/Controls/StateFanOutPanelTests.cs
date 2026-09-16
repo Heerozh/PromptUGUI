@@ -39,7 +39,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         private static Color FillTop(ProceduralPanel panel)
         {
             panel.FlushParams();
-            return panel.materialForRendering.GetColor("_FillTop");
+            return panel.materialForRendering.GetColor("_Fill0");
         }
 
         [Test]

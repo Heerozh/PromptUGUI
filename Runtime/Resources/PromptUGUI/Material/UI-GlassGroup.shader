@@ -27,9 +27,30 @@ Shader "UI/GlassGroup"
     {
         [PerRendererData] _MainTex ("Sprite Texture", 2D) = "white" {}
 
-        _BorderColor ("Border Color", Color) = (1,1,1,1)
-        _GlowColor   ("Glow Color",   Color) = (1,1,1,1)
-        _InnerGlowColor ("Inner Glow Color", Color) = (1,1,1,1)
+        // 融合轮廓的三个色槽各是一条 7-uniform 的线性渐变（UI-PanelSDF.cginc「线性渐变」一节），
+        // 渐变线按整个组的包围盒算（_WeldBounds：xy = 中心、zw = 半尺寸，组局部空间）。
+        _Border0 ("Border Stop 0", Color) = (1,1,1,1)
+        _Border1 ("Border Stop 1", Color) = (1,1,1,1)
+        _Border2 ("Border Stop 2", Color) = (1,1,1,1)
+        _Border3 ("Border Stop 3", Color) = (1,1,1,1)
+        _BorderStops ("Border Stops", Vector) = (0,1,1,1)
+        _BorderCurves ("Border Curves", Vector) = (1,1,1,1)
+        _BorderDir ("Border Direction", Vector) = (0,-1,0,0)
+        _Glow0 ("Glow Stop 0", Color) = (1,1,1,1)
+        _Glow1 ("Glow Stop 1", Color) = (1,1,1,1)
+        _Glow2 ("Glow Stop 2", Color) = (1,1,1,1)
+        _Glow3 ("Glow Stop 3", Color) = (1,1,1,1)
+        _GlowStops ("Glow Stops", Vector) = (0,1,1,1)
+        _GlowCurves ("Glow Curves", Vector) = (1,1,1,1)
+        _GlowDir ("Glow Direction", Vector) = (0,-1,0,0)
+        _InnerGlow0 ("Inner Glow Stop 0", Color) = (1,1,1,1)
+        _InnerGlow1 ("Inner Glow Stop 1", Color) = (1,1,1,1)
+        _InnerGlow2 ("Inner Glow Stop 2", Color) = (1,1,1,1)
+        _InnerGlow3 ("Inner Glow Stop 3", Color) = (1,1,1,1)
+        _InnerGlowStops ("Inner Glow Stops", Vector) = (0,1,1,1)
+        _InnerGlowCurves ("Inner Glow Curves", Vector) = (1,1,1,1)
+        _InnerGlowDir ("Inner Glow Direction", Vector) = (0,-1,0,0)
+        _WeldBounds ("Group Bounds (cx,cy,hw,hh)", Vector) = (0,0,1,1)
         _BorderWidth ("Border Width",  Float) = 0
         _GlowSize    ("Glow Size",     Float) = 0
         _InnerGlowSize ("Inner Glow Size", Float) = 0
@@ -115,9 +136,10 @@ Shader "UI/GlassGroup"
 
             float4 _ClipRect;
 
-            fixed4 _BorderColor;
-            fixed4 _GlowColor;
-            fixed4 _InnerGlowColor;
+            PUGUI_RAMP_UNIFORMS(_Border)
+            PUGUI_RAMP_UNIFORMS(_Glow)
+            PUGUI_RAMP_UNIFORMS(_InnerGlow)
+            float4 _WeldBounds;
             float _BorderWidth;
             float _GlowSize;
             float _InnerGlowSize;
@@ -362,18 +384,22 @@ Shader "UI/GlassGroup"
                 tint.a *= inside;
                 float4 col = PuguiOver(tint, base);
 
+                // 轮廓三层的渐变线按整个组的包围盒算：p 是组局部坐标，减去中心即得 rect 中心坐标系。
+                float2 pg = p - _WeldBounds.xy;
+                float2 bg = _WeldBounds.zw;
+
                 // 内发光：外发光的镜像 —— 画在形状内侧、压在填充之上。
                 // 排在外发光之前，让外发光的 under 合成看到「填充 + 内发光」这一个完整实心体
                 // （两者除 AA 那一像素外并不相交，所以顺序只影响那一像素）。
-                col = PuguiApplyInnerGlow(col, d, inside, _InnerGlowSize, _InnerGlowColor);
+                col = PuguiApplyInnerGlow(col, d, inside, _InnerGlowSize, PuguiGradient(pg, bg, PUGUI_RAMP(_InnerGlow)));
 
                 // 外发光：仅在形状外侧衰减。
-                col = PuguiApplyOuterGlow(col, d, inside, _GlowSize, _GlowColor);
+                col = PuguiApplyOuterGlow(col, d, inside, _GlowSize, PuguiGradient(pg, bg, PUGUI_RAMP(_Glow)));
 
                 // 保底描边沿融合后的外轮廓走，交界内部自然没有它 —— 这正是要的效果。
                 if (_BorderWidth > 0.0)
                 {
-                    float4 border = _BorderColor;
+                    float4 border = PuguiGradient(pg, bg, PUGUI_RAMP(_Border));
                     border.a *= inside * saturate(0.5 + (d + _BorderWidth) / fw);
                     col = PuguiOver(border, col);
                 }

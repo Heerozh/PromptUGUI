@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using PromptUGUI.Application;
 using PromptUGUI.Parser;
 using UnityEngine;
 using UnityEngine.UI;
@@ -41,11 +42,9 @@ namespace PromptUGUI.Controls.Internal
         private static readonly int WeldDepthsId = Shader.PropertyToID("_WeldDepths");
         private static readonly int WeldCountId = Shader.PropertyToID("_WeldCount");
         private static readonly int WeldId = Shader.PropertyToID("_Weld");
-        private static readonly int BorderColorId = Shader.PropertyToID("_BorderColor");
         private static readonly int BorderWidthId = Shader.PropertyToID("_BorderWidth");
-        private static readonly int GlowColorId = Shader.PropertyToID("_GlowColor");
         private static readonly int GlowSizeId = Shader.PropertyToID("_GlowSize");
-        private static readonly int InnerGlowColorId = Shader.PropertyToID("_InnerGlowColor");
+        private static readonly int WeldBoundsId = Shader.PropertyToID("_WeldBounds");
         private static readonly int InnerGlowSizeId = Shader.PropertyToID("_InnerGlowSize");
         private static readonly int GlassAId = Shader.PropertyToID("_GlassA");
         private static readonly int GlassBId = Shader.PropertyToID("_GlassB");
@@ -304,8 +303,10 @@ namespace PromptUGUI.Controls.Internal
                 _cornerH[count] = p.CornerHeight;
                 _cornerKind[count] = p.CornerKinds;
                 _cornerFillet[count] = p.CornerFillet;
-                _tintTop[count] = p.FillTop;
-                _tintBottom[count] = p.FillBottom;
+                // A member tint is the two-stop vertical ramp only: the group shader keeps one colour
+                // pair per member, so direction and extra stops are the container outline's to have.
+                _tintTop[count] = p.Fill.Start;
+                _tintBottom[count] = p.Fill.End;
                 _depths[count] = new Vector4(p.GlassParams.Depth, (float)p.Shape, p.HexWidth, 0f);
 
                 var r = new Rect(center.x - half.x, center.y - half.y, half.x * 2f, half.y * 2f);
@@ -337,10 +338,10 @@ namespace PromptUGUI.Controls.Internal
             _material.SetInt(WeldCountId, count);
             _material.SetFloat(WeldId, _weld);
 
-            ApplyGroupParams();
-
             _activeCount = count;
             _lastBounds = bounds;
+
+            ApplyGroupParams();
 
             // Assign the backing field, not the `material` property: the property setter calls
             // SetMaterialDirty, which would re-enter this during a canvas rebuild. The dirty flags
@@ -369,13 +370,19 @@ namespace PromptUGUI.Controls.Internal
 
             // Border and both glows follow the fused outline, so they are the container's — a
             // per-block one would draw exactly the dividing line the weld exists to remove.
+            // Their gradient lines run over the whole group's bounds (spec 2026-09-17 §6.1), which the
+            // shader gets as centre + half size in group-local space.
             var c = _container != null ? _container.CurrentParams : default;
-            _material.SetColor(BorderColorId, _container != null ? c.BorderColor : Color.white);
+            var white = ColorSpec.Solid(Color.white);
+            GradientUniforms.Write(_material, GradientUniforms.Border, _container != null ? c.Border : white);
             _material.SetFloat(BorderWidthId, _container != null ? c.BorderWidth : 0f);
-            _material.SetColor(GlowColorId, _container != null ? c.GlowColor : Color.white);
+            GradientUniforms.Write(_material, GradientUniforms.Glow, _container != null ? c.Glow : white);
             _material.SetFloat(GlowSizeId, _container != null ? c.GlowSize : 0f);
-            _material.SetColor(InnerGlowColorId, _container != null ? c.InnerGlowColor : Color.white);
+            GradientUniforms.Write(_material, GradientUniforms.InnerGlow, _container != null ? c.InnerGlow : white);
             _material.SetFloat(InnerGlowSizeId, _container != null ? c.InnerGlowSize : 0f);
+            var b = _lastBounds;
+            _material.SetVector(WeldBoundsId, new Vector4(b.center.x, b.center.y,
+                                                          Mathf.Max(b.width * 0.5f, 1e-3f), Mathf.Max(b.height * 0.5f, 1e-3f)));
         }
 
         private void EnsureMaterial()

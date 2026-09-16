@@ -172,11 +172,11 @@ namespace PromptUGUI.Controls
             set => Panel.SetBorderWidth(ProceduralValueParser.Pixels(value, "borderWidth"));
         }
 
-        /// <summary>描边色。纯色 only —— 渐变值由 <c>UI.Theme.Resolve</c> 报错。</summary>
+        /// <summary>描边色。完整渐变语法（方向 / 2..4 色标 / 提示），与填充共用同一条渐变线（spec 2026-09-17 §7）。</summary>
         [UIAttr, Preserve]
         public string BorderColor
         {
-            set => Panel.SetBorderColor(UI.Theme.Resolve(value));
+            set => Panel.SetBorderColor(UI.Theme.ResolveSpec(value));
         }
 
         /// <summary>外发光半径（px）。会把绘制四边形外扩同样的距离。</summary>
@@ -186,11 +186,11 @@ namespace PromptUGUI.Controls
             set => Panel.SetGlowSize(ProceduralValueParser.Pixels(value, "glow"));
         }
 
-        /// <summary>发光色。纯色 only；不写时跟随填充色（无填充则白）。</summary>
+        /// <summary>发光色。完整渐变语法；不写时跟随整条填充渐变（置不透明；无填充则白）。</summary>
         [UIAttr, Preserve]
         public string GlowColor
         {
-            set => Panel.SetGlowColor(UI.Theme.Resolve(value));
+            set => Panel.SetGlowColor(UI.Theme.ResolveSpec(value));
         }
 
         /// <summary>内发光宽度（px，从形状边缘向内衰减）。不改几何，也不影响布局。</summary>
@@ -207,7 +207,7 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public string InnerGlowColor
         {
-            set => Panel.SetInnerGlowColor(UI.Theme.Resolve(value));
+            set => Panel.SetInnerGlowColor(UI.Theme.ResolveSpec(value));
         }
 
         /// <summary>

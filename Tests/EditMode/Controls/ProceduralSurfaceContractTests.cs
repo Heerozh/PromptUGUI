@@ -200,7 +200,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var b = Load("radius='8' color='#3366ff'");
             var panel = PanelOf(b);
 
-            Assert.IsTrue(panel.CurrentParams.FillTop.r > 0.1f || panel.CurrentParams.FillTop.b > 0.5f,
+            Assert.IsTrue(panel.CurrentParams.Fill.Start.r > 0.1f || panel.CurrentParams.Fill.Start.b > 0.5f,
                 "§7: color is the fill in both modes; in procedural mode it goes to Panel.SetFill");
             Assert.IsTrue(panel.IsPanelVisible,
                 "a control that asked for a shape must actually draw one — <Btn radius='8'> with no "
@@ -442,7 +442,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var b = Load("radius='8' color='#3366ff' hoverColor='#ff0000'");
             var panel = TargetPanel(b);
 
-            Assert.AreEqual(new Color32(0x33, 0x66, 0xff, 0xff), (Color32)panel.CurrentParams.FillTop);
+            Assert.AreEqual(new Color32(0x33, 0x66, 0xff, 0xff), (Color32)panel.CurrentParams.Fill.Start);
             Assert.AreEqual(Color.white, panel.color,
                 "the vertex tint must stay identity, or the authored colour is applied twice and the "
                 + "button renders as its own square");
@@ -458,7 +458,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             b.GameObject.GetComponent<PuiButton>().SimulateState(
                 Highlighted);
 
-            Assert.AreEqual(new Color32(0xff, 0x00, 0x00, 0xff), (Color32)panel.CurrentParams.FillTop,
+            Assert.AreEqual(new Color32(0xff, 0x00, 0x00, 0xff), (Color32)panel.CurrentParams.Fill.Start,
                 "hoverColor is documented as ABSOLUTE — it must BE the colour, not multiply into it");
             Assert.AreEqual(Color.white, panel.color);
         }
@@ -473,7 +473,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             b.GameObject.GetComponent<PuiButton>().SimulateState(
                 Highlighted);
 
-            Assert.AreEqual(new Color32(0x33, 0x66, 0xff, 0xff), (Color32)panel.CurrentParams.FillTop,
+            Assert.AreEqual(new Color32(0x33, 0x66, 0xff, 0xff), (Color32)panel.CurrentParams.Fill.Start,
                 "a modulate must not touch the fill…");
             Assert.AreEqual(new Color32(0x80, 0x80, 0x80, 0xff), (Color32)panel.color,
                 "…it is exactly what the vertex channel is for");
@@ -490,7 +490,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             btn.SimulateState(Highlighted);
             btn.SimulateState(NormalState);
 
-            Assert.AreEqual(new Color32(0x33, 0x66, 0xff, 0xff), (Color32)panel.CurrentParams.FillTop);
+            Assert.AreEqual(new Color32(0x33, 0x66, 0xff, 0xff), (Color32)panel.CurrentParams.Fill.Start);
             Assert.AreEqual(Color.white, panel.color);
         }
 
@@ -509,7 +509,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             b.GameObject.GetComponent<PuiButton>().SimulateState(
                 Highlighted);
 
-            var fill = panel.CurrentParams.FillTop;
+            var fill = panel.CurrentParams.Fill.Start;
             Assert.AreEqual(1f, fill.r, 0.01f);
             Assert.AreEqual(0.8f, fill.g, 0.02f);
             Assert.AreEqual(0f, fill.b, 0.01f);

@@ -491,7 +491,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsNotNull(panel, "the track is the bar's primary surface");
             Assert.IsTrue(panel.gameObject.activeSelf);
             Assert.IsTrue(panel.CurrentParams.Pill);
-            Assert.AreEqual(Color.red, panel.CurrentParams.FillTop, "color= is the SDF fill");
+            Assert.AreEqual(Color.red, panel.CurrentParams.Fill.Start, "color= is the SDF fill");
 
             var track = node.GetComponent<UnityImage>();
             Assert.IsNull(track.sprite, "the default inset sprite stands down");
@@ -509,11 +509,11 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsNotNull(panel, "handle* attributes shape the handle, not the track");
             Assert.IsNull(SurfaceUnder(node), "…and say nothing about the track");
             Assert.IsTrue(panel.CurrentParams.Pill);
-            Assert.AreEqual(Color.green, panel.CurrentParams.FillTop);
+            Assert.AreEqual(Color.green, panel.CurrentParams.Fill.Start);
             Assert.AreEqual(1f, panel.CurrentParams.BorderWidth);
-            Assert.AreEqual(Color.blue, panel.CurrentParams.BorderColor);
+            Assert.AreEqual(Color.blue, panel.CurrentParams.Border.Start);
             Assert.AreEqual(3f, panel.CurrentParams.GlowSize);
-            Assert.AreEqual(Color.cyan, panel.CurrentParams.GlowColor);
+            Assert.AreEqual(Color.cyan, panel.CurrentParams.Glow.Start);
 
             var image = handle.GetComponent<UnityImage>();
             Assert.IsNull(image.sprite);
@@ -527,7 +527,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var node = BarNode(OpenList("", "<Scrollbar handleRadius='pill' handleColor='#00ff00' handleGlow='3'/>"));
             var panel = SurfaceUnder(HandleOf(node));
-            Assert.AreEqual(Color.green, panel.CurrentParams.GlowColor);
+            Assert.AreEqual(Color.green, panel.CurrentParams.Glow.Start);
         }
 
         [Test]
@@ -590,7 +590,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             UI.Theme.Set("px");
             Assert.AreEqual(8f, node.sizeDelta.x, 0.001f, "the theme pack re-derives through class=");
             Assert.IsFalse(SurfaceUnder(node).CurrentParams.Pill, "radius='' resets the shape");
-            Assert.AreEqual(Color.green, SurfaceUnder(node).CurrentParams.FillTop);
+            Assert.AreEqual(Color.green, SurfaceUnder(node).CurrentParams.Fill.Start);
         }
 
         [Test]
@@ -610,7 +610,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 Assert.IsNotNull(track);
                 Assert.IsNotNull(handle);
                 Assert.IsTrue(track.CurrentParams.Pill, "radius survived the Instantiate");
-                Assert.AreEqual(Color.red, track.CurrentParams.FillTop, "…and so did the fill");
+                Assert.AreEqual(Color.red, track.CurrentParams.Fill.Start, "…and so did the fill");
                 Assert.IsTrue(handle.CurrentParams.Pill);
                 Assert.AreEqual(3f, handle.CurrentParams.GlowSize);
                 Assert.AreSame(bar.GetComponent<UnityScrollbar>(),

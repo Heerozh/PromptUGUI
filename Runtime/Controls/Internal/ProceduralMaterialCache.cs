@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using PromptUGUI.Application;
 using PromptUGUI.Parser;
 using UnityEngine;
 
@@ -70,24 +71,23 @@ namespace PromptUGUI.Controls.Internal
     /// </remarks>
     internal readonly struct PanelParams : IEquatable<PanelParams>
     {
-        public readonly Color FillTop;
-        public readonly Color FillBottom;
-        /// <summary>Where <see cref="FillTop"/> stops being solid, as a 0..1 share from the top edge
-        /// (spec 2026-08-30). 0/1 is the full-height ramp every panel had before stops existed, so
-        /// an untouched project keeps hashing to exactly the material it did.</summary>
-        public readonly float FillStopTop;
-        /// <summary>Where <see cref="FillBottom"/> becomes solid, from the top edge.</summary>
-        public readonly float FillStopBottom;
-        /// <summary>Power the ramp is raised to, from a colour hint; 1 = the plain linear ramp.</summary>
-        public readonly float FillCurve;
-        public readonly Color BorderColor;
-        public readonly Color GlowColor;
         /// <summary>
-        /// Inner glow tint. Unlike <see cref="GlowColor"/> it does NOT fall back to the fill — an
-        /// inner glow in the fill's own colour is invisible on an opaque fill, which is the common
-        /// case, so the default is plain white (spec 2026-08-28 §5.4).
+        /// The four colour slots, each a full gradient (spec 2026-09-17 §6.2): direction, 2..4 stops,
+        /// positions and curves all live in the key, because the key is the only place a gradient can
+        /// be honoured. A solid slot is a one-stop spec, so an untouched project keeps hashing to
+        /// exactly the material it did.
         /// </summary>
-        public readonly Color InnerGlowColor;
+        public readonly ColorSpec Fill;
+        public readonly ColorSpec Border;
+        /// <summary>Outer glow. Unset in XML it follows the whole fill ramp at full alpha
+        /// (<c>ProceduralPanel.BuildParams</c>), so <c>glow="12"</c> alone reads as "this shape glows".</summary>
+        public readonly ColorSpec Glow;
+        /// <summary>
+        /// Inner glow tint. Unlike <see cref="Glow"/> it does NOT fall back to the fill — an inner glow
+        /// in the fill's own colour is invisible on an opaque fill, which is the common case, so the
+        /// default is plain white (spec 2026-08-28 §5.4).
+        /// </summary>
+        public readonly ColorSpec InnerGlow;
         /// <summary>Per-corner horizontal reach in CSS order; the radius when the corner is round.</summary>
         public readonly Vector4 CornerWidth;
         /// <summary>Per-corner vertical reach in CSS order; mirrors the width for a round corner.</summary>
@@ -118,22 +118,16 @@ namespace PromptUGUI.Controls.Internal
         /// and whole-shape sentinels stay symbolic — both are resolved per-fragment against the live
         /// rect, which is what keeps two same-styled panels of different sizes on one material.
         /// </summary>
-        public PanelParams(Color fillTop, Color fillBottom,
-                           float fillStopTop, float fillStopBottom, float fillCurve,
-                           Color borderColor, Color glowColor,
-                           Color innerGlowColor, in RadiusSpec radius, float borderWidth,
+        public PanelParams(in ColorSpec fill, in ColorSpec border, in ColorSpec glow,
+                           in ColorSpec innerGlow, in RadiusSpec radius, float borderWidth,
                            float glowSize, float innerGlowSize,
                            bool glass = false, GlassParams glassParams = default,
                            float intensity = 1f)
         {
-            FillTop = fillTop;
-            FillBottom = fillBottom;
-            FillStopTop = fillStopTop;
-            FillStopBottom = fillStopBottom;
-            FillCurve = fillCurve;
-            BorderColor = borderColor;
-            GlowColor = glowColor;
-            InnerGlowColor = innerGlowColor;
+            Fill = fill;
+            Border = border;
+            Glow = glow;
+            InnerGlow = innerGlow;
             CornerWidth = new Vector4(radius.TopLeftCorner.Width, radius.TopRightCorner.Width,
                                       radius.BottomRightCorner.Width, radius.BottomLeftCorner.Width);
             CornerHeight = new Vector4(radius.TopLeftCorner.Height, radius.TopRightCorner.Height,
@@ -155,11 +149,7 @@ namespace PromptUGUI.Controls.Internal
         public bool Pill => Shape == PanelShape.Pill;
 
         public bool Equals(PanelParams o) =>
-            FillTop == o.FillTop && FillBottom == o.FillBottom
-            && FillStopTop == o.FillStopTop && FillStopBottom == o.FillStopBottom
-            && FillCurve == o.FillCurve
-            && BorderColor == o.BorderColor && GlowColor == o.GlowColor
-            && InnerGlowColor == o.InnerGlowColor
+            Fill == o.Fill && Border == o.Border && Glow == o.Glow && InnerGlow == o.InnerGlow
             && CornerWidth == o.CornerWidth && CornerHeight == o.CornerHeight
             && CornerKinds == o.CornerKinds && CornerFillet == o.CornerFillet
             && Shape == o.Shape && HexWidth == o.HexWidth
@@ -177,14 +167,10 @@ namespace PromptUGUI.Controls.Internal
         {
             unchecked
             {
-                var h = FillTop.GetHashCode();
-                h = (h * 397) ^ FillBottom.GetHashCode();
-                h = (h * 397) ^ FillStopTop.GetHashCode();
-                h = (h * 397) ^ FillStopBottom.GetHashCode();
-                h = (h * 397) ^ FillCurve.GetHashCode();
-                h = (h * 397) ^ BorderColor.GetHashCode();
-                h = (h * 397) ^ GlowColor.GetHashCode();
-                h = (h * 397) ^ InnerGlowColor.GetHashCode();
+                var h = Fill.GetHashCode();
+                h = (h * 397) ^ Border.GetHashCode();
+                h = (h * 397) ^ Glow.GetHashCode();
+                h = (h * 397) ^ InnerGlow.GetHashCode();
                 h = (h * 397) ^ CornerWidth.GetHashCode();
                 h = (h * 397) ^ CornerHeight.GetHashCode();
                 h = (h * 397) ^ CornerKinds.GetHashCode();
@@ -223,12 +209,6 @@ namespace PromptUGUI.Controls.Internal
         internal const string ShaderResourcePath = "PromptUGUI/Material/UI-ProceduralPanel";
         internal const string GlassShaderResourcePath = "PromptUGUI/Material/UI-GlassPanel";
 
-        private static readonly int FillTopId = Shader.PropertyToID("_FillTop");
-        private static readonly int FillBottomId = Shader.PropertyToID("_FillBottom");
-        private static readonly int FillStopsId = Shader.PropertyToID("_FillStops");
-        private static readonly int BorderColorId = Shader.PropertyToID("_BorderColor");
-        private static readonly int GlowColorId = Shader.PropertyToID("_GlowColor");
-        private static readonly int InnerGlowColorId = Shader.PropertyToID("_InnerGlowColor");
         private static readonly int RadiusId = Shader.PropertyToID("_Radius");
         private static readonly int CornerHeightId = Shader.PropertyToID("_CornerH");
         private static readonly int CornerKindId = Shader.PropertyToID("_CornerKind");
@@ -309,12 +289,10 @@ namespace PromptUGUI.Controls.Internal
 
         private static void Configure(Material mat, in PanelParams p)
         {
-            mat.SetColor(FillTopId, p.FillTop);
-            mat.SetColor(FillBottomId, p.FillBottom);
-            mat.SetVector(FillStopsId, new Vector4(p.FillStopTop, p.FillStopBottom, p.FillCurve, 0f));
-            mat.SetColor(BorderColorId, p.BorderColor);
-            mat.SetColor(GlowColorId, p.GlowColor);
-            mat.SetColor(InnerGlowColorId, p.InnerGlowColor);
+            GradientUniforms.Write(mat, GradientUniforms.Fill, p.Fill);
+            GradientUniforms.Write(mat, GradientUniforms.Border, p.Border);
+            GradientUniforms.Write(mat, GradientUniforms.Glow, p.Glow);
+            GradientUniforms.Write(mat, GradientUniforms.InnerGlow, p.InnerGlow);
             mat.SetVector(RadiusId, p.CornerWidth);
             mat.SetVector(CornerHeightId, p.CornerHeight);
             mat.SetVector(CornerKindId, p.CornerKinds);

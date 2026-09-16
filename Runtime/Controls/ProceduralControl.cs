@@ -116,11 +116,11 @@ namespace PromptUGUI.Controls
             set { var v = ProceduralValueParser.Pixels(value, "borderWidth"); Surface.Declare(p => p.SetBorderWidth(v)); }
         }
 
-        /// <summary>描边色。纯色 only。</summary>
+        /// <summary>描边色。完整渐变语法，与填充共用同一条渐变线（spec 2026-09-17 §7）。</summary>
         [UIAttr, Preserve]
         public string BorderColor
         {
-            set { var v = UI.Theme.Resolve(value); Surface.Declare(p => p.SetBorderColor(v)); }
+            set { var v = UI.Theme.ResolveSpec(value); Surface.Declare(p => p.SetBorderColor(v)); }
         }
 
         /// <summary>外发光半径（px）。会把绘制四边形外扩同样的距离。</summary>
@@ -130,11 +130,11 @@ namespace PromptUGUI.Controls
             set { var v = ProceduralValueParser.Pixels(value, "glow"); Surface.Declare(p => p.SetGlowSize(v)); }
         }
 
-        /// <summary>发光色。纯色 only；不写时跟随填充色。</summary>
+        /// <summary>发光色。完整渐变语法；不写时跟随整条填充渐变（置不透明）。</summary>
         [UIAttr, Preserve]
         public string GlowColor
         {
-            set { var v = UI.Theme.Resolve(value); Surface.Declare(p => p.SetGlowColor(v)); }
+            set { var v = UI.Theme.ResolveSpec(value); Surface.Declare(p => p.SetGlowColor(v)); }
         }
 
         /// <summary>内发光宽度（px，从形状边缘向内衰减）。不改几何。</summary>
@@ -144,11 +144,11 @@ namespace PromptUGUI.Controls
             set { var v = ProceduralValueParser.Pixels(value, "innerGlow"); Surface.Declare(p => p.SetInnerGlowSize(v)); }
         }
 
-        /// <summary>内发光色。纯色 only；默认白。写深色即内阴影。</summary>
+        /// <summary>内发光色。完整渐变语法；默认白。写深色即内阴影。</summary>
         [UIAttr, Preserve]
         public string InnerGlowColor
         {
-            set { var v = UI.Theme.Resolve(value); Surface.Declare(p => p.SetInnerGlowColor(v)); }
+            set { var v = UI.Theme.ResolveSpec(value); Surface.Declare(p => p.SetInnerGlowColor(v)); }
         }
 
         /// <summary>曝光倍数（≥ 1，默认 1 = 不变）：核心发白、光晕保色相。玻璃面不作用。</summary>

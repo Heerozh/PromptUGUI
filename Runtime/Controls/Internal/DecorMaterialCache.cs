@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using PromptUGUI.Application;
 using PromptUGUI.Parser;
 using UnityEngine;
 
@@ -14,32 +15,23 @@ namespace PromptUGUI.Controls.Internal
     /// </summary>
     internal readonly struct DecorParams : IEquatable<DecorParams>
     {
-        public readonly Color FillTop;
-        public readonly Color FillBottom;
-        /// <summary>Gradient stop positions, 0..1 from the top edge (spec 2026-08-30). 0/1 is the
-        /// full-height ramp, so decor that never asked for stops keys exactly as it did before.</summary>
-        public readonly float FillStopTop;
-        public readonly float FillStopBottom;
-        /// <summary>Power the ramp is raised to, from a colour hint; 1 = the plain linear ramp.</summary>
-        public readonly float FillCurve;
-        public readonly Color GlowColor;
+        /// <summary>Fill and outer glow, each a full gradient (spec 2026-09-17 §6.2). A solid slot
+        /// is a one-stop spec, so decor that never asked for a gradient keys exactly as it did before.
+        /// The ramp runs in the decoration's canonical frame — the same one the shape is defined
+        /// in — so mirrored instances (four brackets) mirror it too and keep sharing one material.</summary>
+        public readonly ColorSpec Fill;
+        public readonly ColorSpec Glow;
         public readonly DecorKind Kind;
         public readonly float Thickness;
         public readonly float GlowSize;
         /// <summary>Exposure of everything the decor paints (spec 2026-09-12); 1 = unchanged.</summary>
         public readonly float Intensity;
 
-        public DecorParams(Color fillTop, Color fillBottom,
-                           float fillStopTop, float fillStopBottom, float fillCurve,
-                           Color glowColor, DecorKind kind, float thickness, float glowSize,
+        public DecorParams(in ColorSpec fill, in ColorSpec glow, DecorKind kind, float thickness, float glowSize,
                            float intensity = 1f)
         {
-            FillTop = fillTop;
-            FillBottom = fillBottom;
-            FillStopTop = fillStopTop;
-            FillStopBottom = fillStopBottom;
-            FillCurve = fillCurve;
-            GlowColor = glowColor;
+            Fill = fill;
+            Glow = glow;
             Kind = kind;
             Thickness = thickness;
             GlowSize = glowSize;
@@ -47,10 +39,7 @@ namespace PromptUGUI.Controls.Internal
         }
 
         public bool Equals(DecorParams o) =>
-            FillTop == o.FillTop && FillBottom == o.FillBottom
-            && FillStopTop == o.FillStopTop && FillStopBottom == o.FillStopBottom
-            && FillCurve == o.FillCurve
-            && GlowColor == o.GlowColor
+            Fill == o.Fill && Glow == o.Glow
             && Kind == o.Kind && Thickness == o.Thickness && GlowSize == o.GlowSize
             && Intensity == o.Intensity;
 
@@ -60,12 +49,8 @@ namespace PromptUGUI.Controls.Internal
         {
             unchecked
             {
-                var h = FillTop.GetHashCode();
-                h = (h * 397) ^ FillBottom.GetHashCode();
-                h = (h * 397) ^ FillStopTop.GetHashCode();
-                h = (h * 397) ^ FillStopBottom.GetHashCode();
-                h = (h * 397) ^ FillCurve.GetHashCode();
-                h = (h * 397) ^ GlowColor.GetHashCode();
+                var h = Fill.GetHashCode();
+                h = (h * 397) ^ Glow.GetHashCode();
                 h = (h * 397) ^ (int)Kind;
                 h = (h * 397) ^ Thickness.GetHashCode();
                 h = (h * 397) ^ GlowSize.GetHashCode();
@@ -85,10 +70,6 @@ namespace PromptUGUI.Controls.Internal
     {
         internal const string ShaderResourcePath = "PromptUGUI/Material/UI-Decor";
 
-        private static readonly int FillTopId = Shader.PropertyToID("_FillTop");
-        private static readonly int FillBottomId = Shader.PropertyToID("_FillBottom");
-        private static readonly int FillStopsId = Shader.PropertyToID("_FillStops");
-        private static readonly int GlowColorId = Shader.PropertyToID("_GlowColor");
         private static readonly int KindId = Shader.PropertyToID("_Kind");
         private static readonly int ThicknessId = Shader.PropertyToID("_Thickness");
         private static readonly int GlowSizeId = Shader.PropertyToID("_GlowSize");
@@ -152,10 +133,8 @@ namespace PromptUGUI.Controls.Internal
 
         private static void Configure(Material mat, in DecorParams p)
         {
-            mat.SetColor(FillTopId, p.FillTop);
-            mat.SetColor(FillBottomId, p.FillBottom);
-            mat.SetVector(FillStopsId, new Vector4(p.FillStopTop, p.FillStopBottom, p.FillCurve, 0f));
-            mat.SetColor(GlowColorId, p.GlowColor);
+            GradientUniforms.Write(mat, GradientUniforms.Fill, p.Fill);
+            GradientUniforms.Write(mat, GradientUniforms.Glow, p.Glow);
             mat.SetFloat(KindId, (float)p.Kind);
             mat.SetFloat(ThicknessId, p.Thickness);
             mat.SetFloat(GlowSizeId, p.GlowSize);
