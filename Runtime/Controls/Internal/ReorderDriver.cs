@@ -192,7 +192,51 @@ namespace PromptUGUI.Controls.Internal
             }
         }
 
-        private bool Released() => _pointer == null || _pointer.pointerDrag == null;
+        /// <summary>
+        /// Whether the pointer that started this session has been released. uGUI has no "released
+        /// without ever dragging" callback, so the driver looks for itself:
+        /// <list type="bullet">
+        /// <item>Input System module: ask the <b>device</b>. <c>InputSystemUIInputModule</c> shares ONE event
+        /// object across its left / right / middle passes and copies each button's press state into it
+        /// (<c>ButtonState.CopyPressStateTo</c>), so at the end of any frame in which the pointer changed,
+        /// <c>pointerDrag</c> holds the <i>middle</i> button's — null — and says nothing about the finger
+        /// or the left button. Reading it there ended every session on its first Update.</item>
+        /// <item>Legacy <c>StandaloneInputModule</c> (and the EditMode tests, which hand-build plain
+        /// <c>PointerEventData</c>): one event object per button, <c>pointerDrag</c> cleared on release.</item>
+        /// </list>
+        /// </summary>
+        private bool Released()
+        {
+            if (_pointer == null) return true;
+            if (PressedProbeForTests != null) return !PressedProbeForTests(_pointer);
+#if ENABLE_INPUT_SYSTEM
+            if (_pointer is UnityEngine.InputSystem.UI.ExtendedPointerEventData x && x.device != null)
+                return !DevicePressed(x);
+#endif
+            return _pointer.pointerDrag == null;
+        }
+
+        /// <summary>Tests substitute the device query (they have no input devices). null = real query.</summary>
+        internal static System.Func<PointerEventData, bool> PressedProbeForTests;
+
+#if ENABLE_INPUT_SYSTEM
+        private static bool DevicePressed(UnityEngine.InputSystem.UI.ExtendedPointerEventData x)
+        {
+            switch (x.device)
+            {
+                case UnityEngine.InputSystem.Touchscreen ts:
+                    // Multi-touch: our finger is the one with our touchId; a slot that has moved on to
+                    // Ended / Canceled (or been reused) is a release.
+                    foreach (var t in ts.touches)
+                        if (t.touchId.ReadValue() == x.touchId) return t.isInProgress;
+                    return false;
+                case UnityEngine.InputSystem.Pointer p:
+                    return p.press.isPressed;   // Mouse.leftButton / Pen.tip
+                default:
+                    return x.pointerDrag != null;
+            }
+        }
+#endif
 
         // A second finger while a row is lifted: not this session's, and not a scroll either (the
         // ScrollRect tracks one drag) — its events go nowhere rather than rewriting our phase.

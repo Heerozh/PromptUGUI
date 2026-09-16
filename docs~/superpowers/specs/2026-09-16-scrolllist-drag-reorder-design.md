@@ -507,3 +507,18 @@ UIXmlLint（`Runtime/Resources/`、`Samples~/`）干净。
 - §12-1：`HitCatcher` 的 `OnRectTransformDimensionsChange → SetLayoutDirty` 只对 Content 自身多标一次
   `MarkLayoutForRebuild`，幂等；未 Deep Profile。
 - §12-4：`reorderHandle` 同 id 写重 → `ScopedIds` 只存一份、递归遍历取第一个，静默；CLI 没有为此加规则。
+
+### 14.4 上线后修正（2026-09-16，宿主工程接入时发现）
+
+**`Released()` 不能读 `pointerDrag`（Input System 模块下每次会话都在第一帧被判成松手）。** §5.1 假设「两种输入模块在
+释放时都会清 `pointerDrag`」——对，但 `InputSystemUIInputModule` 还有一条没料到的：它**三个键共用一个 `PointerEventData`**
+（`ProcessPointer` 里 `eventData.button = Left; leftButton.CopyPressStateTo(eventData)` … 处理完左键再把右键、中键的
+`ButtonState` 拷进同一个对象），所以指针有变化的帧末，`pointerDrag` 恒是中键的 `m_DragObject`——null。驱动器的 `Update`
+跑在其后，`Pressed` 一进 `Tick` 就 `Released()` → Idle，下一帧 `OnBeginDrag` 走 `default` 分支转给 ScrollRect：
+**鼠标按住拖动只会滚动，永远提不起来**（宿主工程 ssw_re_client 的岗位页首次接入即复现）。EditMode 测试没抓到是因为
+它们手拼的是裸 `PointerEventData`（每键一个对象的旧模块语义）。
+
+改法：`ExtendedPointerEventData`（Input System）→ 问**设备**：`Touchscreen` 按 `touchId` 找那根手指的 `isInProgress`，
+其余 `Pointer.press.isPressed`（鼠标左键 / 笔尖）；裸 `PointerEventData`（旧模块、测试）仍看 `pointerDrag`。测试用
+`ReorderDriver.PressedProbeForTests` 顶替设备查询，钉住「`pointerDrag` 为 null 但设备仍按着 = hold 照常走 / hold 0
+的第一帧拖动照常提起」两条。

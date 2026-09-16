@@ -21,7 +21,12 @@ namespace PromptUGUI.Tests.EditMode.Controls
     public class ScrollListReorderTests
     {
         [SetUp] public void SetUp() => UI.ResetForTests();
-        [TearDown] public void TearDown() => UI.ResetForTests();
+        [TearDown]
+        public void TearDown()
+        {
+            ReorderDriver.PressedProbeForTests = null;
+            UI.ResetForTests();
+        }
 
         private const string RowTemplate =
             "<Template name='Row'><Frame height='30'><Text id='label'>x</Text></Frame></Template>";
@@ -443,7 +448,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             d.TickForTests(0.5f);
             Assert.IsTrue(list.IsReordering);
 
-            e.pointerDrag = null;   // what both input modules do on release
+            e.pointerDrag = null;   // what the legacy module does on release (plain PointerEventData → that is the signal)
             d.TickForTests(0.01f);
 
             Assert.IsFalse(list.IsReordering);
@@ -451,6 +456,53 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsFalse(row1.GetComponent<LayoutElement>().ignoreLayout);
             Assert.AreEqual(1, row1.GetSiblingIndex());
             Assert.AreEqual(0, fired);
+        }
+
+        // ───── 8b. Input System 模块：帧末 pointerDrag 是中键的（null），不是松手 ─────
+        //
+        // InputSystemUIInputModule 三个键共用一个 eventData，左键处理完再把右键 / 中键的按下状态拷进去，
+        // 所以指针有变化的帧末 pointerDrag 恒为 null；松手要问设备（这里用探针代替设备）。
+
+        [Test]
+        public void Nulled_pointerDrag_while_still_pressed_keeps_the_hold_counting()
+        {
+            var pressed = true;
+            ReorderDriver.PressedProbeForTests = _ => pressed;
+            var (list, rows) = OpenList("reorder='true' reorderHold='0.4s'");
+            var fired = 0;
+            list.OnReordered.Subscribe(_ => fired++);
+            var d = DriverOf(list);
+            var row1 = Rt(rows[1]);
+            var e = Press(d, ScreenOf(row1), pointerId: 0);
+
+            e.pointerDrag = null;   // 模块的帧末状态
+            d.TickForTests(0.2f);
+            Assert.IsFalse(list.IsReordering, "hold 未到，还没提起");
+            d.TickForTests(0.3f);
+            Assert.IsTrue(list.IsReordering, "pointerDrag 为 null 不算松手：hold 到点照常提起");
+
+            pressed = false;   // 设备说松手了 → 原位落下
+            d.TickForTests(0.01f);
+            Assert.IsFalse(list.IsReordering);
+            Assert.IsNull(Placeholder(list));
+            Assert.AreEqual(1, row1.GetSiblingIndex());
+            Assert.AreEqual(0, fired);
+        }
+
+        [Test]
+        public void Nulled_pointerDrag_with_zero_hold_still_lifts_on_the_first_drag_frame()
+        {
+            ReorderDriver.PressedProbeForTests = _ => true;
+            var (list, rows) = OpenList("reorder='true' reorderHold='0'");
+            var d = DriverOf(list);
+            var row1 = Rt(rows[1]);
+            var e = Press(d, ScreenOf(row1));
+
+            e.pointerDrag = null;   // 按下那一帧的帧末：Update 先于下一帧的 OnBeginDrag 跑
+            d.TickForTests(0.02f);
+            Begin(d, e);            // 鼠标：第一帧拖动 = 提起，而不是把手势让给 ScrollRect 去滚
+            Assert.IsTrue(list.IsReordering);
+            Assert.IsTrue(row1.GetComponent<LayoutElement>().ignoreLayout);
         }
 
         // ───── 9. 把手 ─────
