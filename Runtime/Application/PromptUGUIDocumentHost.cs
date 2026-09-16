@@ -131,11 +131,11 @@ namespace PromptUGUI.Application
 
         public void Clear()
         {
-            // UI.Close destroys the RootGameObject; UnloadDocument frees the
-            // ScreenDef slot so another host (or a re-Refresh) can claim it.
+            // The host itself is going away (OnDisable / OnDestroy): destroy now, no exit.
+            // UnloadDocument frees the ScreenDef slot so another host (or a re-Refresh) can claim it.
             foreach (var n in _loadedScreenNames)
             {
-                UI.Close(n);
+                UI.CloseImmediate(n);
                 UI.UnloadDocument(n);
             }
             _loadedScreenNames.Clear();

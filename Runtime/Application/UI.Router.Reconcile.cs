@@ -182,7 +182,7 @@ namespace PromptUGUI.Application
                         // 异步加载期间发生了 teardown/Reset:_chain 已被清空,别再塞回陈旧节点。
                         // 关掉这个孤儿(Page/Modal 已 UI.Open),Prompt 释放其 CTS,避免泄漏。
                         if (active.Def.Kind == RouteKind.Page || active.Def.Kind == RouteKind.Modal)
-                            UI.Close(active.ScreenKey);
+                            UI.CloseImmediate(active.ScreenKey);   // teardown's tail: no exit
                         else
                             active.PromptCts?.Dispose();
                         return;

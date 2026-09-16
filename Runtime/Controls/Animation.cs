@@ -205,9 +205,9 @@ namespace PromptUGUI.Controls
         {
             CancelCurrent();
             _current = AnimationDriver.Play(_animSpec, Context(), reverse: false);
-            // An on="open" fire lands inside Screen.Open()'s build frame; the Screen parks the
-            // motions for one tick so that frame's cost is not charged to them. No-op otherwise.
-            UI.OwnerScreenOf(this)?.HoldFirstTick(_current);
+            // The Screen decides what these motions mean for its lifecycle: parked one tick when
+            // fired inside Open()'s build frame, awaited before destroy when fired by close.
+            UI.OwnerScreenOf(this)?.NotifyMotions(_current);
         }
 
         /// <summary>
@@ -218,7 +218,7 @@ namespace PromptUGUI.Controls
         {
             CancelCurrent();
             _current = AnimationDriver.Play(_animSpec, Context(), reverse: true);
-            UI.OwnerScreenOf(this)?.HoldFirstTick(_current);
+            UI.OwnerScreenOf(this)?.NotifyMotions(_current);
             _reverse.OnNext(R3.Unit.Default);
         }
 

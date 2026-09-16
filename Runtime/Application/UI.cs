@@ -711,8 +711,9 @@ namespace PromptUGUI.Application
                 if (s.Name == screenName) { newDef = s; break; }
             }
 
+            // Never an exit here: the reopened instance would overlap its own ghost on every save.
             var wasOpen = _open.ContainsKey(screenName);
-            if (wasOpen) Close(screenName);
+            if (wasOpen) CloseImmediate(screenName);
 
             _docs.Remove(screenName);
             _depGraph.ScreenDeps.Remove(screenName);
@@ -866,13 +867,61 @@ namespace PromptUGUI.Application
             return screen;
         }
 
+        // Screens between Begin and their destroy body (spec 2026-09-16-close-transition §5.4).
+        // They left _open at Begin — UI.Get returns null, the name is free to reopen — but stay
+        // reachable for OwnerScreenOf so the controls inside a ghost keep their owner.
+        private static readonly System.Collections.Generic.HashSet<Screen> _closing = new();
+        internal static int ClosingCountForTests => _closing.Count;
+
+        /// <summary>
+        /// Begins closing <paramref name="screenName"/>. Returns at once: a Screen with no exit
+        /// animation is destroyed on this frame, one with an exit (<c>on="close"</c> /
+        /// <c>reverse-on="close"</c>) lives on as a non-interactive ghost until it finishes.
+        /// <see cref="Get"/> returns null from here on either way. No-op for unknown names.
+        /// </summary>
         public static void Close(string screenName)
         {
-            if (_open.TryGetValue(screenName, out var s))
-            {
-                s.Close();
-                _open.Remove(screenName);
-            }
+            if (_open.TryGetValue(screenName, out var s)) BeginClose(screenName, s);
+        }
+
+        /// <summary><see cref="Close"/>, completing once the GameObjects are destroyed.</summary>
+        public static UnityEngine.Awaitable CloseAsync(string screenName)
+        {
+            if (!_open.TryGetValue(screenName, out var s)) return AwaitableHelpers.Completed();
+            _open.Remove(screenName);
+            TrackClosing(s);
+            return s.CloseAsync();
+        }
+
+        /// <summary>Destroys now, playing no exit: teardown, hot reload, a host going away.</summary>
+        internal static void CloseImmediate(string screenName)
+        {
+            if (!_open.TryGetValue(screenName, out var s)) return;
+            _open.Remove(screenName);
+            s.CloseImmediate();
+        }
+
+        private static void BeginClose(string key, Screen s)
+        {
+            _open.Remove(key);
+            TrackClosing(s);
+            s.Close();
+        }
+
+        private static void TrackClosing(Screen s)
+        {
+            s.OnClosed = sc => _closing.Remove(sc);
+            _closing.Add(s);   // removed again by OnClosed — synchronously when there is no exit
+        }
+
+        // Every Screen the destroy loops must reach: the open ones and the ghosts. Snapshotted,
+        // because OnClosing hooks may open or close Screens while we iterate.
+        private static System.Collections.Generic.List<Screen> SnapshotAllScreens()
+        {
+            var all = new System.Collections.Generic.List<Screen>(_open.Count + _closing.Count);
+            all.AddRange(_open.Values);
+            all.AddRange(_closing);
+            return all;
         }
 
         // Screen 的 root 被外部销毁(未走 Close)时由哨兵回调,把它从 _open 注销——仅当当前登记的
@@ -905,14 +954,7 @@ namespace PromptUGUI.Application
             return (screen, key);
         }
 
-        internal static void CloseModalScreen(string key)
-        {
-            if (_open.TryGetValue(key, out var s))
-            {
-                s.Close();
-                _open.Remove(key);
-            }
-        }
+        internal static void CloseModalScreen(string key) => Close(key);
 
         public static Screen Get(string screenName) =>
             _open.TryGetValue(screenName, out var s) ? s : null;
@@ -1015,8 +1057,9 @@ namespace PromptUGUI.Application
             Toasts.ToastOverlay.CancelAllForTeardown();
             Tutorial.CancelAllForTeardown();
             Modals.ModalDocCache.Clear();
-            foreach (var s in _open.Values) s.Close();
+            foreach (var s in SnapshotAllScreens()) s.CloseImmediate();
             _open.Clear();
+            _closing.Clear();
             _docs.Clear();
             _commonsPool.Clear();
             _commonsStyles.Clear();
@@ -1048,6 +1091,10 @@ namespace PromptUGUI.Application
             {
                 var go = t.gameObject;
                 foreach (var s in _open.Values)
+                {
+                    if (s.RootGameObject == go) return s;
+                }
+                foreach (var s in _closing)
                 {
                     if (s.RootGameObject == go) return s;
                 }
@@ -1227,8 +1274,9 @@ namespace PromptUGUI.Application
             Modals.LoadingOverlay.CancelAllForTeardown();
             Toasts.ToastOverlay.CancelAllForTeardown();
             Modals.ModalDocCache.Clear();
-            foreach (var s in _open.Values) s.Close();
+            foreach (var s in SnapshotAllScreens()) s.CloseImmediate();
             _open.Clear();
+            _closing.Clear();
             _modalInstanceSeq = 0;
             _docs.Clear();
             VariantStore.Reset();
