@@ -52,8 +52,8 @@ namespace PromptUGUI.Controls.Internal
         {
             if (direction.Kind == GradientDirection.Kinds.Corner)
                 return new Vector4(0f, 0f, 1f, direction.CornerIndex);
-            var rad = direction.AngleDeg * Mathf.Deg2Rad;
-            return new Vector4(Mathf.Sin(rad), Mathf.Cos(rad), 0f, 0f);
+            var v = ColorSpec.AngleVector(direction.AngleDeg);
+            return new Vector4(v.x, v.y, 0f, 0f);
         }
     }
 }

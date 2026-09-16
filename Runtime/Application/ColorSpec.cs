@@ -156,11 +156,7 @@ namespace PromptUGUI.Application
         /// </summary>
         public Vector2 DirectionFor(Vector2 size)
         {
-            if (Direction.Kind == GradientDirection.Kinds.Angle)
-            {
-                var rad = Direction.AngleDeg * Mathf.Deg2Rad;
-                return new Vector2(Mathf.Sin(rad), Mathf.Cos(rad));
-            }
+            if (Direction.Kind == GradientDirection.Kinds.Angle) return AngleVector(Direction.AngleDeg);
             // "to bottom right": neighbours are top-right and bottom-left, joined by (w, h);
             // the perpendicular pointing into the bottom-right quadrant is (h, −w). The other
             // corners follow by sign.
@@ -174,6 +170,25 @@ namespace PromptUGUI.Application
         /// </summary>
         public float LineLengthFor(Vector2 size, Vector2 dir)
             => Mathf.Abs(size.x * dir.x) + Mathf.Abs(size.y * dir.y);
+
+        /// <summary>
+        /// CSS <c>(sin θ, cos θ)</c>, with the four axis angles snapped to exact unit vectors: <c>sin(180°)</c>
+        /// is −8.7e-8 in float, and that hair would put the default direction a colour step off the ramp
+        /// every panel drew before directions existed. Shared with <c>GradientUniforms</c> so the shader
+        /// and the vertex path agree bit for bit.
+        /// </summary>
+        internal static Vector2 AngleVector(float degrees)
+        {
+            switch (degrees)
+            {
+                case 0f: return Vector2.up;
+                case 90f: return Vector2.right;
+                case 180f: return Vector2.down;
+                case 270f: return Vector2.left;
+            }
+            var rad = degrees * Mathf.Deg2Rad;
+            return new Vector2(Mathf.Sin(rad), Mathf.Cos(rad));
+        }
 
         // ---- evaluation (spec §4.2) ----
 
@@ -201,6 +216,25 @@ namespace PromptUGUI.Application
             var u = Mathf.Clamp01((s - pa) / Mathf.Max(pb - pa, 1e-4f));
             if (e != 1f) u = Mathf.Pow(u, e);
             return Color.Lerp(a, b, u);
+        }
+
+        // ---- TMP (spec 2026-09-17 §6.4) ----
+
+        /// <summary>
+        /// The four corner colours of one glyph, evaluated on the unit square: TMP paints a gradient
+        /// per glyph and gives no per-glyph size, so a two-colour ramp in any direction fits exactly
+        /// and a magic corner is its 45° family. Anything else — a third colour, a moved stop, a
+        /// hint — has no corner to live on; the caller warns (<c>GradientStopWarning</c>) and the
+        /// corners still get the evaluated end colours.
+        /// </summary>
+        public TMPro.VertexGradient ToVertexGradient()
+        {
+            var size = Vector2.one;
+            var dir = DirectionFor(size);
+            var length = Mathf.Max(LineLengthFor(size, dir), 1e-4f);
+            var self = this;
+            Color At(float x, float y) => self.Evaluate((x * dir.x + y * dir.y + length * 0.5f) / length);
+            return new TMPro.VertexGradient(At(-0.5f, 0.5f), At(0.5f, 0.5f), At(-0.5f, -0.5f), At(0.5f, -0.5f));
         }
 
         // ---- whole-value transforms: colours change, the shape does not ----
