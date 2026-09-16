@@ -5,8 +5,9 @@ using PromptUGUI.Parser;
 namespace PromptUGUI.Lint
 {
     /// <summary>
-    /// A gradient stop position (<c>color="A 70%,B"</c>, spec 2026-08-30) on a colour that lands on
-    /// TMP text, which is the one place left that cannot draw one.
+    /// A gradient stop position (<c>color="A 70%,B"</c>, spec 2026-08-30), a hint, or a third colour
+    /// (spec 2026-09-17) on a colour that lands on TMP text, which is the one place left that cannot
+    /// draw one — four glyph corners hold a two-colour ramp in any direction and nothing more.
     ///
     /// <para>A stop needs somewhere to change over: the procedural shader has every fragment, and
     /// <c>GradientTint</c> cuts the mesh at the stop so every other Graphic has a vertex row there
@@ -28,7 +29,7 @@ namespace PromptUGUI.Lint
         /// <summary>Tags whose <c>color</c> is TMP text outright.</summary>
         private static readonly Dictionary<string, string> AlwaysVertexTags = new()
         {
-            ["Text"] = "TMP paints a <Text> gradient per character, and four glyph corners have nowhere to put a stop",
+            ["Text"] = "TMP paints a <Text> gradient per character, and four glyph corners hold a two-colour ramp in any direction but have nowhere to put a stop or a third colour",
         };
 
         /// <summary>
@@ -76,7 +77,7 @@ namespace PromptUGUI.Lint
 
         private static LintIssue Issue(ElementNode n, string attr, string advice)
             => new LintIssue(NoSurfaceCode, n.Tag, n.Id,
-                $"<{n.Tag} id='{n.Id}'>: '{attr}' carries a gradient stop position, which TMP text " +
+                $"<{n.Tag} id='{n.Id}'>: '{attr}' carries a gradient stop position, hint or third colour, which TMP text " +
                 $"cannot draw — {advice}");
 
         /// <summary>
@@ -100,8 +101,11 @@ namespace PromptUGUI.Lint
             if (string.IsNullOrEmpty(value)) return false;
             // Still a placeholder at this point in expansion — resolve it and it may well be fine.
             if (value.Contains("{{")) return false;
-            if (value.IndexOf('%') < 0) return false;
+            // Cheap pre-filter: a shaped ramp needs a percentage or a third colour, and both need a comma.
+            if (value.IndexOf(',') < 0) return false;
             if (!ColorParser.TrySplitGradient(value, out var parts, out _)) return false;
+            // A third colour is a stop the four corners cannot hold either (spec 2026-09-17 §6.4).
+            if (parts.Count > 2) return true;
             foreach (var s in parts.Stops) if (s.HasValue) return true;
             foreach (var h in parts.Hints) if (h.HasValue) return true;
             return false;
