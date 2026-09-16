@@ -329,8 +329,38 @@ that asks of the binder:
 3. `.AddTo(slot)` stays the right way to subscribe per row: the bag is released before
    the row's next `bind`.
 4. `reuseItems="false"` opts a list out (every push destroys and rebuilds every row) —
-   for a host that reorders rows itself, or a custom-Control row whose internal state is
-   not reset by attributes.
+   for a custom-Control row whose internal state is not reset by attributes.
+
+**Reorder (`<ScrollList reorder="true">`).** The user drags rows; the list permutes its rows
+and its slot order and then tells you — the data order is yours to keep in step:
+
+```csharp
+var list = screen.Get<ScrollList>("tasks");
+var order = new ReactiveProperty<IReadOnlyList<Task>>(tasks);
+list.BindItems(order, (IControl row, Task t) => row.Get<Text>("title").TextValue = t.Title).AddTo(screen);
+
+list.OnReordered.Subscribe(e =>              // Observable<(int From, int To)>
+{
+    var next = order.Value.ToList();
+    var moved = next[e.From]; next.RemoveAt(e.From); next.Insert(e.To, moved);
+    order.Value = next;                      // synchronous push: rebinds with zero visual change
+    api.SavePriority(next);                  // on failure, push the old order back — the rows follow
+}).AddTo(screen);
+```
+
+- `From` / `To` are slot indices (= your data indices); **`To` is the insert index after
+  removal**, so `RemoveAt(From); Insert(To, x)` is the whole move. Fires once per drop, only
+  when the row actually changed place, and only after the structure is final.
+- **Apply the same move to your data before the next push.** The rows are already in the new
+  order when `OnReordered` fires, so a push of the permuted list binds item *i* onto a row that
+  already shows item *i* — nothing moves. Pushing the *unchanged* list is the deliberate
+  undo path: the rows go back to data order. The model is the truth; the drag is optimistic UI.
+- A push that arrives **mid-drag** cancels the drag (row back to its origin, no event) before
+  rebinding — see the XML skill's `reference/reorder.md` for every cancel case.
+- `list.IsReordering` is true from lift to release (not during the settle tween).
+- `lift` / `drop` visuals are XML-side row hooks (`<Animation on="lift" reverse-on="drop">`,
+  `<Show on="lift">`); a `<Trigger on="lift">` inside the row exposes them to C# as `OnFire` like
+  any other trigger.
 
 ### TabBar
 
@@ -887,6 +917,8 @@ DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                ScrollList.BindItems(Observable<IReadOnlyList<T>>, (slot,t)=>...)
                                        rows are RECYCLED by position: bind writes every property, unconditionally;
                                        .AddTo(slot) released before the next bind; reuseItems="false" opts out
+               ScrollList.OnReordered  Observable<(int From, int To)> — <ScrollList reorder="true">; rows already permuted;
+                                       apply RemoveAt(From)+Insert(To) to your data and push; IsReordering while lifted
                TabBar.BindItems(Observable<IReadOnlyList<T>>, (Tab tab,t)=>...)
                TabMenu.BindItems(...)  same shape — one shared tab-group implementation
                                        or BindItems<T,TSlot>(...) for wrapped templates

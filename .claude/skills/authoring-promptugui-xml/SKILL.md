@@ -508,7 +508,11 @@ Children of a list are layout-group children: `anchor` / `margin` are dropped (`
 |---|---|---|---|
 | `radius` · `borderWidth` · `glass` … | 同 `<Frame>` | — | **程序化表面**（背景）→ 见 **程序化表面** 一节 |
 | `itemTemplate` | tag name | — | `BindItems` 前必填；只写静态子节点时可省 |
-| `reuseItems` | bool | `true` | Rows are **recycled** across `BindItems` pushes: item *i* is bound onto row *i*, only the extra rows are instantiated and only the tail is destroyed, so a same-count push instantiates nothing. `false` = destroy and rebuild every row on every push (for a host that reorders rows itself, or a custom-Control row whose internal state is not reset by attributes). The bind callback contract that recycling relies on is in scripting-promptugui-csharp (**List / option push**). |
+| `reuseItems` | bool | `true` | Rows are **recycled** across `BindItems` pushes: item *i* is bound onto row *i*, only the extra rows are instantiated and only the tail is destroyed, so a same-count push instantiates nothing. `false` = destroy and rebuild every row on every push (for a custom-Control row whose internal state is not reset by attributes). The bind callback contract that recycling relies on is in scripting-promptugui-csharp (**List / option push**). |
+| `reorder` | bool | `false` | **Drag-to-reorder.** Press a row (hold on touch), drag it, the other rows make room live, release and it settles into the gap; C# gets `OnReordered((From, To))`. Works for static children and `BindItems` rows, single column / row and grid. Variant-switchable (`reorder.portrait="true"`). → [`reference/reorder.md`](reference/reorder.md) |
+| `reorderHold` | `auto` \| duration | `auto` | How long to hold before the row lifts. `auto` = mouse `0` (lifts on the first drag frame; the wheel scrolls), touch `0.4s` (a finger drag IS the scroll) — and `0` on both when `reorderHandle` is set. Explicit values (`0.4s` / `400ms` / `0.4`) apply to both. |
+| `reorderHandle` | id inside the row | — | Only a press on that node lifts the row; the rest of the row scrolls as usual. Geometric hit (no `raycastTarget` needed — an `<Icon>` grip works). `PUI-REORDER-HANDLE-ID` when the itemTemplate / a static row lacks it. |
+| `reorderDuration` | duration | `0.15s` | Squeeze (displaced rows) and settle (the dropped row) tween length, OutCubic. `0` = instant. |
 | `direction` | `vertical` / `horizontal` | `vertical` | |
 | `columns` | int ≥ 1 | `0` | Grid mode: Content becomes a `GridLayoutGroup` wrapping into rows that grow downwards. `0` = the single column / row `direction` describes. **Spell `columns="0"` out when a variant has to leave the grid** — a variant resolving to null is skipped, not reverted, so dropping the override keeps the grid. Vertical only: with `direction="horizontal"` it is `PUI-SCROLL-COLUMNS-DIRECTION` (the direction wins at runtime); there is no row-major `rows=` in v1. Without a `size`, the list's native **width** becomes `padding + columns × cellSize + gaps` — but the scrollbar still eats `thickness + spacing` out of the viewport unless the bar is `<Scrollbar overlay="true">`. |
 | `cellSize` | `WxH` | — | Uniform cell size; **required in grid mode** (`PUI-SCROLL-COLUMNS-CELLSIZE`) — without it every cell falls back to uGUI's 100×100. Same meaning as `<Grid cellSize>`: a cell's own `size` / `width` / `height` is ignored. |
@@ -538,6 +542,17 @@ column survives the overflow, and a narrower cell in portrait:
 The placeholders render in UIPreview; at runtime
 `screen.Get<ScrollList>("slots").BindItems(slots, (slot, data) => …)` replaces them with real data
 laid out in the same grid.
+
+A priority list the user sorts by hand — drag from the grip, rows make room live, the row settles on release:
+
+```xml
+<ScrollList id="tasks" itemTemplate="TaskRow" width="stretch" height="stretch"
+            reorder="true" reorderHandle="grip"/>
+```
+
+`screen.Get<ScrollList>("tasks").OnReordered.Subscribe(e => tasks.Move(e.From, e.To))` keeps the data
+in step — the rows are already in the new order when it fires. Gesture rules (mouse vs touch, hold,
+handle), the `lift` / `drop` row hooks, and the full C# contract: [`reference/reorder.md`](reference/reorder.md).
 
 ### `<InputField>`
 
@@ -1740,6 +1755,7 @@ FRAME VISUAL  <Frame color="surface/0.9" radius="16" borderWidth="1" borderColor
 BUILT-INS     <Frame> <Image> <Text> <VStack> <HStack> <Grid> <Btn> <Icon>
               <Toggle> <Slider> <Dropdown> <ScrollList> <InputField> <TabMenu>
               <ScrollList …><Scrollbar thickness="6" overlay="true" padding="1.5" radius="pill" handleRadius="pill" handleGlow="3"/>…</ScrollList>  滚动条是部件子元素（<Dropdown> 同）；轨道 = 主表面，滑块 = handle*；旧 scrollbar* 属性已退役
+              <ScrollList reorder="true" reorderHold="auto" reorderHandle="grip" reorderDuration="0.15s"/>  拖动排序：实时让位 + 松手落位补间；C# OnReordered((From,To))；行内 <Animation on="lift" reverse-on="drop">
               <Progress value="0.6" fill="ui:bar"/>  最简；mask= + 不设 bg → mask sprite 自动可见兼当底；radial 进度环不在 <Progress> 范围
               <TabBar><Tab text="A" sprite="..." selectedSprite="..." bind="frame_a" isOn="true"/>...</TabBar>  互斥 + Tab 自管 sprite/selectedSprite + bind 自动 toggle Frame
               <Carousel itemTemplate="Card" interval="5" dots="bottom-center" dotSprite="ui:dot" dotColor="#888" dotSelectedColor="#fff"/>  翻页 + 自动播放 + 拖动 + 状态化指示点；卡片走 C# BindItems；当前页 resize 不重置

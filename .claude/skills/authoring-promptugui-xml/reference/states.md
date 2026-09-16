@@ -63,7 +63,7 @@ When a `<Btn>` / `<Tab>` / `<Toggle>` enters the Disabled state and **no** `disa
 
 ## 2. Artwork swap — `<Show on="state-...">`
 
-`<Show>` is a no-visual wrapper whose subtree is visible **only while** the nearest ancestor `<Btn>` / `<Tab>` / `<Toggle>` is in that state (hidden otherwise, via `SetActive` — never destroyed). Sibling `<Show>` blocks under one source control are mutually exclusive; an unclaimed state falls back to the `state-normal` block. Only `state-*` `on=` values are valid (any other, e.g. `on="click"`, is an error). Wrap two `<Image>` siblings to swap artwork per state:
+`<Show>` is a no-visual wrapper whose subtree is visible **only while** the nearest ancestor `<Btn>` / `<Tab>` / `<Toggle>` is in that state (hidden otherwise, via `SetActive` — never destroyed). Sibling `<Show>` blocks under one source control are mutually exclusive; an unclaimed state falls back to the `state-normal` block. Valid `on=` values are `state-*`, the persistent `checked` / `unchecked`, and `lift` (visible while a `<ScrollList reorder>` row is being dragged — see [`reorder.md`](reorder.md)); any other, e.g. `on="click"`, is an error. Wrap two `<Image>` siblings to swap artwork per state:
 
 ```xml
 <Btn id="play">

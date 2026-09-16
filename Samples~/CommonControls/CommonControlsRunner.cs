@@ -141,14 +141,28 @@ namespace PromptUGUI.Samples.CommonControls
                     card.Get<Image>("bg").Color = item.color;
                 }).AddTo(screen);
 
-            screen.Get<ScrollList>("list").BindItems(
-                LocaleTicks.Select(_ => (IReadOnlyList<string>)new[]
-                {
-                    UI.Tr("VSync"), UI.Tr("Anti-Aliasing"), UI.Tr("Shadows"), UI.Tr("Texture Quality"),
-                    UI.Tr("Particles"), UI.Tr("Reflections"), UI.Tr("Post Processing"), UI.Tr("Bloom"),
-                    UI.Tr("Motion Blur"), UI.Tr("Depth of Field")
-                }),
-                (IControl slot, string text) => slot.Get<Text>("label").TextValue = text).AddTo(screen);
+            // 可拖动排序的列表（<ScrollList reorder="true" reorderHandle="grip">）：数据顺序归宿主 ——
+            // 行拖完，OnReordered 给出 (From, To)，我们对同一份列表做同一个 move 再推送；推送按位置重绑，
+            // 行已经在新位置上，视觉零变化。顺序放在 ReactiveProperty 里、只存 key，翻译放进 bind 回调：
+            // 若像从前那样在 LocaleTicks 里重发一个写死顺序的数组，切一次语言就会把用户排好的顺序打回去。
+            var list = screen.Get<ScrollList>("list");
+            var order = new ReactiveProperty<IReadOnlyList<string>>(new[]
+            {
+                "VSync", "Anti-Aliasing", "Shadows", "Texture Quality", "Particles",
+                "Reflections", "Post Processing", "Bloom", "Motion Blur", "Depth of Field",
+            });
+            list.BindItems(
+                LocaleTicks.CombineLatest(order, (_, keys) => keys),
+                (IControl slot, string key) => slot.Get<Text>("label").TextValue = UI.Tr(key)).AddTo(screen);
+            list.OnReordered.Subscribe(e =>
+            {
+                var next = new List<string>(order.Value);
+                var moved = next[e.From];
+                next.RemoveAt(e.From);
+                next.Insert(e.To, moved);
+                order.Value = next;
+                UI.Toast.Show(string.Format(UI.Tr("{0} 移到第 {1} 位"), UI.Tr(moved), e.To + 1));
+            }).AddTo(screen);
         }
 
         // ④ 模态提示：四种内置模态 + Toast，结果用 Toast 回显

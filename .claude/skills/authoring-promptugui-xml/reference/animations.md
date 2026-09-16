@@ -38,6 +38,9 @@
 | `checked`          | The nearest **ancestor** `<Toggle>` / `<Tab>` turns on (`isOn` becomes true). Persistent, not transient — see below                                                                                               |
 | `unchecked`        | The nearest ancestor `<Toggle>` / `<Tab>` turns off                                                                                                                                                               |
 | `checked@<id>` · `unchecked@<id>` | Same, but the source is the `<Toggle>` / `<Tab>` with `<id>`                                                                                                                                       |
+| `lift`             | The nearest **ancestor** `<ScrollList>` row (the row this trigger lives in) is picked up by a drag-to-reorder gesture (`<ScrollList reorder="true">`). Edge event; inert in a list without `reorder`. → [`reorder.md`](reorder.md) |
+| `drop`             | That row is released — the moment the settle tween **starts**, so `reverse-on="drop"` runs alongside it. Also fires when a session is cancelled (the row is put back)                              |
+| `lift@<id>` · `drop@<id>` | Same, but the row is the one containing the node with `<id>` (lexical scope; an enclosing element's own id counts, so `lift@row` on the row root works)                                        |
 | `manual`           | Does not auto-fire; C# must call `Fire()`                                                                                                                                                                         |
 
 **`expand` / `collapse` are not called `open` / `close`** — `on="open"` already means "the Screen opened". They exist because the panel that opens is an internal node you cannot wrap in an `<Animation>`: a `<TabMenu>`'s popup, a `<Collapsible>`'s body. The panel's own entrance is that control's `transition=` attribute; these are for animating the **rows** inside it. They resolve upward exactly like `state-*`, and the subtree they live in is switched off while collapsed — which the ancestor walk accounts for. Establishing the initial look at Screen open is **not** an expand / collapse (a panel that opens folded has not just folded).
@@ -54,6 +57,21 @@
 **`checked` / `unchecked` are the PERSISTENT pair.** `state-selected` is part of uGUI's transient interaction machine — Hover and Pressed override it while they last, so a block keyed on it blinks out the moment the pointer touches the control. `checked` asks a different question ("is it on?"), which hovering does not change, and it is the one to use for a header that shows or hides a panel. A bare `checked` / `unchecked` with no `<Toggle>` / `<Tab>` ancestor is a runtime error and `PUI-CHECKED-NO-SOURCE` in the lint CLI; a `<Btn>` does **not** count — it has no checked state at all. They fire on the edge, and a control that is ALREADY in that state as the Screen opens dispatches once too — see *First-frame establishment* below.
 
 **`state-*` source resolution is UPWARD**: unlike `click` / `hover-enter` / `press` (which search this Trigger's **subtree downward** for a `<Btn>` / `<Image>` source), `state-*` resolves to the nearest `<Btn>` / `<Tab>` / `<Toggle>` **ancestor** (`state-...@<id>` targets a specific source control by id). A bare `state-*` with no `<Btn>` / `<Tab>` / `<Toggle>` ancestor is a runtime error (and `PUI-STATE-NO-SOURCE` in the lint CLI; `@id` forms and Template bodies are exempt). They **fire on entering** the state, so `state-normal` fires once at open and `<Animation on="state-pressed">` plays on press with `<Animation on="state-normal">` as its natural revert.
+
+**`lift` / `drop` resolve upward too — to the `<ScrollList>` row.** The row is whichever direct child of the list's Content the trigger sits under (a static child, or the root of the `itemTemplate` instance). A bare `lift` / `drop` outside any `<ScrollList>` is a runtime error (`PUI-LIFT-NO-SOURCE` in the CLI; `@id` forms and Template bodies exempt). Hooks are legal in every list row — a list that never turns `reorder` on simply never fires them, so one row template serves sortable and plain lists alike. Writing **any** `on="lift"` hook on a row also switches off the driver's default lifted look (bring-to-front + a 1.03 scale): the look is then entirely yours, so `<Animation on="lift" scale=…>` never fights a built-in scale. A `drop`-only hook does not do that. Full rules, gesture, and C# contract: [`reorder.md`](reorder.md).
+
+```xml
+<Template name="TaskRow">
+  <Animation on="lift" reverse-on="drop" scale="1:1.03" duration="0.12s">
+    <Frame id="row" width="stretch" height="48" radius="8" color="@panel">
+      <Text id="title" anchor="stretch" margin="0,12,0,12">{{title}}</Text>
+      <Show on="lift"><Frame anchor="stretch" radius="8" glow="12" glowColor="@accent"/></Show>
+    </Frame>
+  </Animation>
+</Template>
+```
+
+`<Show on="lift">` shows its subtree from lift to drop (registration-style like `checked`, no Normal fallback). `<Show on="drop">` is an error — drop is a moment, not a state.
 
 **`hover-enter` vs `state-hover`**: `hover-enter` / `press` are **raw pointer events** (`PointerEventRelay`, `IPointer*Handler`, downward source) — they fire on any pointer enter / down regardless of interactable state. `state-hover` / `state-pressed` come from the control's **Selectable state machine** (disabled-aware, drag-cancel-aware, upward source); a disabled `<Btn>` / `<Tab>` / `<Toggle>` never emits `state-hover` / `state-pressed`, only `state-disabled`.
 
