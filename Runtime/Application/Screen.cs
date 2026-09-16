@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using LitMotion;
 using PromptUGUI.Controls;
 using PromptUGUI.IR;
 using PromptUGUI.Registry;
@@ -80,6 +81,14 @@ namespace PromptUGUI.Application
         // un-Awake'd TMP measure correctly, and the deferral stays for the ordering itself.)
         // Drained right after ApplyScales.
         private List<Action> _deferredOpenActions;
+
+        // Motions scheduled by an <Animation on="open"> while the apply pass above is still
+        // running. LitMotion charges a motion's first tick with the whole of the frame it was
+        // scheduled in (MotionUpdateJob: Scheduled → time += deltaTime) — for an entrance that
+        // is the build frame, 100–333 ms in the Editor and tens of ms on device, so the
+        // animation used to skip its first 15–100 %. Held at PlaybackSpeed 0 through that one
+        // tick and released on the next frame; see HoldFirstTick.
+        private List<MotionHandle> _heldMotions;
 
         internal Controls.Internal.ToggleGroupRegistry ToggleGroups { get; private set; }
 
@@ -234,6 +243,11 @@ namespace PromptUGUI.Application
             var deferredHides = _deferredOpenActions;
             _deferredOpenActions = null;
             foreach (var hide in deferredHides) hide();
+            if (_heldMotions != null)
+            {
+                _ = ReleaseHeldMotionsNextFrame(_heldMotions);
+                _heldMotions = null;
+            }
             Navigation.ExplicitNavigationResolver.Resolve(this, _nodeMap, Variants);
             ApplyInitialFocus();
             if (UI.Navigation.IsEnabled)
@@ -260,6 +274,46 @@ namespace PromptUGUI.Application
         /// its end state, the second animates (FND-D10).
         /// </summary>
         internal bool IsOpening => _deferredOpenActions != null;
+
+        /// <summary>
+        /// Parks <paramref name="handles"/> at PlaybackSpeed 0 until the frame after this
+        /// <see cref="Open"/>, so the build frame's cost is never charged to them. A no-op outside
+        /// the apply pass (the interactive path keeps its timing) and in EditMode (no frames).
+        /// The from state has already been written by the driver's ImmediateBind, so the held
+        /// frame renders exactly what the build frame renders — nothing is visibly delayed.
+        /// </summary>
+        internal void HoldFirstTick(MotionHandle[] handles)
+        {
+            if (!IsOpening || !UnityEngine.Application.isPlaying) return;
+            _heldMotions ??= new List<MotionHandle>();
+            foreach (var h in handles)
+            {
+                h.PlaybackSpeed = 0f;
+                _heldMotions.Add(h);
+            }
+        }
+
+        // Runs in Update.ScriptRunBehaviourUpdate of the next frame — AFTER LitMotionUpdate has
+        // taken its tick (LitMotion inserts its runner at the head of the Update phase), which is
+        // the tick that carries the build frame's deltaTime. Anything cancelled in the gap
+        // (Close / Dispose / a re-fire) reads IsActive() false; PlaybackSpeed's setter throws on
+        // a dead handle, so the guard is not optional. Holds only for the default Update-phase
+        // scheduler family; a *LateUpdate DefaultScheduler would tick after this and defeat it.
+        private static async Awaitable ReleaseHeldMotionsNextFrame(List<MotionHandle> held)
+        {
+            try
+            {
+                await Awaitable.NextFrameAsync();
+                foreach (var h in held)
+                    if (h.IsActive()) h.PlaybackSpeed = 1f;
+            }
+            catch (Exception e)
+            {
+                // A discarded Awaitable swallows its exception; surface it like the other
+                // fire-and-forget paths (UI.*AsyncLogged) do.
+                UnityEngine.Debug.LogError($"[PromptUGUI] releasing held open-animations failed: {e}");
+            }
+        }
 
         private void ApplyCanvasScaler(UnityEngine.UI.CanvasScaler scaler)
         {
