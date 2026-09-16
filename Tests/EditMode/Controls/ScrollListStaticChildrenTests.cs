@@ -70,8 +70,12 @@ namespace PromptUGUI.Tests.EditMode.Controls
             // A static row takes its declared height (the content group honours the LayoutElement —
             // childControl* is set explicitly, spec 2026-09-16 §14.2), and it is what Content measures.
             Assert.AreEqual(30f, ((RectTransform)content.GetChild(0)).rect.height, 0.01f);
-            Assert.AreEqual(150f, ((RectTransform)content.GetChild(0)).rect.width, 0.01f,
-                "an unsized cross axis fills the list, in edit mode as in play mode");
+            // Not 150: the stock bar is AutoHideAndExpandViewport, and ScrollRect.vScrollingNeeded is
+            // hard-coded true outside Play mode, so edit mode always carves (thickness + spacing) = 17
+            // off the viewport whether or not the rows overflow. Content is what the row fills.
+            Assume.That(content.rect.width, Is.GreaterThan(0f), "guard: Content has a width to fill");
+            Assert.AreEqual(content.rect.width, ((RectTransform)content.GetChild(0)).rect.width, 0.01f,
+                "an unsized cross axis fills the content, in edit mode as in play mode");
 
             Assert.AreEqual(2f * 30f, LayoutUtility.GetPreferredSize(content, 1), 0.01f,
                 "Content's preferred height is the two static rows, so the list scrolls them");
