@@ -52,6 +52,18 @@ namespace PromptUGUI.Controls
         private bool _staticCollected;
         private bool _bound;
 
+        // Drag-to-reorder (spec 2026-09-16-scrolllist-drag-reorder). The driver and the catcher are
+        // built lazily the first time reorder= turns on and stay; the flag alone decides whether a
+        // press starts a session. Parameters are plain fields the driver reads at press time —
+        // attribute arrival order is not something a setter can depend on.
+        private ReorderDriver _reorder;
+        private HitCatcher _catcher;
+        private bool _reorderOn;
+        private float _reorderHold = -1f;          // < 0 = auto (mouse 0 / touch 0.4s)
+        private string _reorderHandle;
+        private float _reorderDuration = 0.15f;
+        private readonly Subject<(int From, int To)> _reordered = new();
+
         // DSS-D4: ScrollList 视口默认值（避免 0x0 不可见）；实际项目几乎都会显式写 size。
         private const float DefaultMainAxisLength = 200f;
         private const float DefaultCrossAxisLength = 160f;
@@ -77,6 +89,98 @@ namespace PromptUGUI.Controls
         }
 
         public int SlotCount => _slots.Count;
+
+        /// <summary>The rows in sibling order — static placeholders or <see cref="BindItems{T,TSlot}"/> rows.</summary>
+        internal IReadOnlyList<IControl> Slots => _slots;
+
+        internal bool IsHorizontal => !IsGrid && _direction == "horizontal";
+
+        // ───── drag-to-reorder (spec 2026-09-16) ─────
+
+        /// <summary>
+        /// A row was dragged to a new place: <c>(From, To)</c> are slot indices, <c>To</c> being the
+        /// insert index AFTER removal (<c>list.RemoveAt(From); list.Insert(To, x)</c>). The rows and
+        /// <see cref="Slots"/> are already in the new order when this fires, so a host that applies
+        /// the same move to its data and pushes synchronously rebinds with zero visual change; a host
+        /// that pushes the unchanged list pulls the rows back — the model is the truth.
+        /// </summary>
+        public Observable<(int From, int To)> OnReordered => _reordered;
+
+        /// <summary>True from lift to release (the settle tween afterwards does not count).</summary>
+        public bool IsReordering => _reorder != null && _reorder.IsSessionActive;
+
+        internal bool ReorderEnabled => _reorderOn;
+        internal float ReorderHold => _reorderHold;
+        internal string ReorderHandle => _reorderHandle;
+        internal float ReorderDuration => _reorderDuration;
+
+        [UIAttr, Preserve]
+        public bool Reorder
+        {
+            set
+            {
+                _reorderOn = value;
+                if (value && _reorder == null)
+                {
+                    _reorder = _content.gameObject.AddComponent<ReorderDriver>();
+                    _reorder.Init(this, _content, _viewport);
+                    _catcher = _content.gameObject.AddComponent<HitCatcher>();
+                }
+                if (_catcher != null) _catcher.enabled = value;
+                if (!value) _reorder?.Cancel();
+            }
+        }
+
+        /// <summary><c>auto</c> (mouse 0 / touch 0.4s, both 0 with a handle) or a duration; see the spec §4.1.</summary>
+        [UIAttr("reorderHold"), Preserve]
+        public string ReorderHoldAttr
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value) || value.Trim() == "auto") { _reorderHold = -1f; return; }
+                if (TryParseSeconds(value, out var s)) _reorderHold = Mathf.Max(0f, s);
+                else UILog.Warn(this, $"<ScrollList reorderHold='{value}'> is not 'auto' or a duration (0.4s / 400ms / 0.4); keeping the previous value.");
+            }
+        }
+
+        /// <summary>Id of the node inside each row a drag has to start on; unset = the whole row.</summary>
+        [UIAttr("reorderHandle"), Preserve]
+        public string ReorderHandleAttr
+        {
+            set => _reorderHandle = string.IsNullOrEmpty(value) ? null : value;
+        }
+
+        /// <summary>Squeeze / settle tween length; <c>0</c> = instant.</summary>
+        [UIAttr("reorderDuration"), Preserve]
+        public string ReorderDurationAttr
+        {
+            set
+            {
+                if (TryParseSeconds(value, out var s)) _reorderDuration = Mathf.Max(0f, s);
+                else UILog.Warn(this, $"<ScrollList reorderDuration='{value}'> is not a duration (0.15s / 150ms / 0.15); keeping the previous value.");
+            }
+        }
+
+        private static bool TryParseSeconds(string value, out float seconds)
+        {
+            try { seconds = AnimationSpec.ParseSeconds(value); return true; }
+            catch (FormatException) { seconds = 0f; return false; }
+            catch (ArgumentException) { seconds = 0f; return false; }
+        }
+
+        /// <summary>The driver committed a drop: keep <see cref="Slots"/> in step with the sibling order.</summary>
+        internal void PermuteSlots(int from, int to)
+        {
+            var row = _slots[from];
+            _slots.RemoveAt(from);
+            _slots.Insert(to, row);
+        }
+
+        internal void RaiseReordered(int from, int to) => _reordered.OnNext((from, to));
+
+        internal void NotifyLifted(IControl row) { }
+
+        internal void NotifyDropped(IControl row) { }
 
         // 静态 XML 子卡与 BindItems 建的卡都进 Content（同 Carousel 的 _strip）：挂在 ScrollList
         // 根上的子节点落在 Viewport 之外 —— 既不被裁剪、也不滚动、也不计入 Content 尺寸。
@@ -471,6 +575,15 @@ namespace PromptUGUI.Controls
             set => Internal.ColorApplier.Apply(EnsureFrame(), UI.Theme.ResolveSpec(value));
         }
 
+        internal override void OnBeforeApply()
+        {
+            base.OnBeforeApply();
+            // An apply pass rewrites the rows' LayoutElement (flow= resets ignoreLayout) — a lifted
+            // row would be pulled back into the layout under the finger. Structure changes and
+            // gestures do not overlap: the session ends first, back at its origin (spec §5.7).
+            _reorder?.Cancel();
+        }
+
         internal override void OnAfterApply()
         {
             base.OnAfterApply();
@@ -535,6 +648,10 @@ namespace PromptUGUI.Controls
                 throw new InvalidOperationException(
                     "ScrollList.itemTemplate must be set before BindItems is called");
 
+            // A push mid-drag ends the session first (§5.7): Rebuild assumes row i is sibling i, which a
+            // placeholder in Content would break, and the rows are about to be re-bound by position.
+            _reorder?.Cancel();
+
             if (!_bound || !ReuseItems || _slotsTemplate != _itemTemplate) ClearSlots();
             _slotsTemplate = _itemTemplate;
 
@@ -577,6 +694,7 @@ namespace PromptUGUI.Controls
         {
             // 标记已动态绑定：之后 ReSolve 的静态收集不再执行。静态卡在这里被 Dispose，
             // Screen.ReSolve 靠 `control.GameObject == null` 跳过它们的 ElementNode。
+            _reorder?.Cancel();
             _bound = true;
             foreach (var s in _slots)
             {
@@ -591,6 +709,7 @@ namespace PromptUGUI.Controls
             // An adopted bar is a Screen-owned node and is disposed with the rest of _nodeMap; the
             // default one is ours.
             if (_ownsBar) _bar?.Dispose();
+            _reordered.Dispose();
             base.Dispose();
         }
     }

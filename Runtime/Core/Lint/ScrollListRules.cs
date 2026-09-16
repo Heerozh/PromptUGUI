@@ -14,6 +14,8 @@ namespace PromptUGUI.Lint
     {
         public const string ColumnsDirectionCode = "PUI-SCROLL-COLUMNS-DIRECTION";
         public const string ColumnsCellSizeCode = "PUI-SCROLL-COLUMNS-CELLSIZE";
+        public const string ReorderHandleCode = "PUI-REORDER-HANDLE-ID";
+        public const string ReorderValueCode = "PUI-REORDER-VALUE";
 
         /// <summary>
         /// True when this list asks for the grid in ANY configuration — a base <c>columns</c> or any
