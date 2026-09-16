@@ -826,6 +826,7 @@ namespace PromptUGUI.Application
             }
             _isClosing = true;
             DetachGlobals();
+            SealInput();
             FireClosing();
             if (_exitMotions == null || _exitMotions.Count == 0)
             {
@@ -847,6 +848,24 @@ namespace PromptUGUI.Application
 
         /// <summary><see cref="IDisposable"/>: destroy now, no exit.</summary>
         public void Dispose() => CloseImmediate();
+
+        // The ghost must not be operable while it fades: no raycasts (blocksRaycasts only — turning
+        // `interactable` off would drop every Selectable into Disabled and tint the fading buttons
+        // grey), no keyboard / gamepad selection left inside it, and no expanded TabMenu holding
+        // the process-wide Escape slot. A captured drag keeps its pointer until release; accepted.
+        private void SealInput()
+        {
+            var root = RootGameObject;
+            if (root == null) return;
+            var cg = root.GetComponent<CanvasGroup>();
+            if (cg == null) cg = root.AddComponent<CanvasGroup>();
+            cg.blocksRaycasts = false;
+            var es = FindEventSystem();
+            var selected = es != null ? es.currentSelectedGameObject : null;
+            if (selected != null && selected.transform.IsChildOf(root.transform))
+                es.SetSelectedGameObject(null);
+            Controls.TabMenu.CollapseIfUnder(root.transform);
+        }
 
         private void FireClosing()
         {

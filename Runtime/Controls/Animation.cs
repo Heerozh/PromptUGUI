@@ -98,8 +98,25 @@ namespace PromptUGUI.Controls
                 RevealDriver.SetClip(RevealHost.gameObject, !_revealShowsEverything);
             }
 
+            // A reversible entrance starts from `from`, not from the wrapper's identity. Forward
+            // play of a reverse-on= animation begins at the current value (§2.4.5) — right for every
+            // later fire, but at open "current" is the untouched CanvasGroup / proxy, so
+            // <Animation on="open" reverse-on="close" fade="0:1"> would tween 1 → 1 and never fade
+            // in (spec 2026-09-16-close-transition §14.1). Only for on="open": that fire follows
+            // immediately and consumes the rest pose; an expand / checked pair may legitimately
+            // start on its `to` side and keeps today's behaviour. Once — never on a ReSolve, which
+            // does not re-fire open and would snap a settled element back.
+            if (!_restEstablished && _animSpec.ReverseOn != null
+                && TriggerKind == PromptUGUI.Controls.Internal.TriggerKind.Open)
+            {
+                _restEstablished = true;
+                AnimationDriver.WriteEndState(_animSpec, Context(), reverse: true);
+            }
+
             base.OnAfterApply();  // Trigger handles initial Fire / subscriptions
         }
+
+        private bool _restEstablished;
 
         // ── reveal (FND §2.4) ────────────────────────────────────────────────────────────
 

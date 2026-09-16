@@ -48,6 +48,10 @@ namespace PromptUGUI.Controls
                 row.RegisterLiftShow(() => GameObject.SetActive(row.IsLifted));
                 return;
             }
+            if (_spec.Kind == TriggerKind.Close)
+                throw new InvalidOperationException(
+                    $"<Show on=\"{OnRaw()}\">: close is the moment a Screen begins closing, not a state a <Show> " +
+                    "can track. For an exit use <Animation on=\"close\"> or reverse-on=\"close\".");
             if (_spec.Kind == TriggerKind.Drop)
                 throw new InvalidOperationException(
                     $"<Show on=\"{OnRaw()}\">: drop is the moment a row is released, not a state a <Show> can " +
@@ -87,6 +91,7 @@ namespace PromptUGUI.Controls
             TriggerKind.Unchecked => _spec.SourceId == null ? "unchecked" : "unchecked@" + _spec.SourceId,
             TriggerKind.Lift => _spec.SourceId == null ? "lift" : "lift@" + _spec.SourceId,
             TriggerKind.Drop => _spec.SourceId == null ? "drop" : "drop@" + _spec.SourceId,
+            TriggerKind.Close => "close",
             _ => _spec.Kind.ToString(),
         };
 

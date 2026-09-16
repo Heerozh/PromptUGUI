@@ -19,6 +19,7 @@ namespace PromptUGUI.Lint
         public const string ReverseLoopCode = "PUI-REVERSE-LOOP";
         public const string ReverseTextCode = "PUI-REVERSE-TEXT";
         public const string ReverseOnTagCode = "PUI-REVERSE-ON-TAG";
+        public const string CloseLoopCode = "PUI-CLOSE-LOOP";
 
         /// <summary>The axis a reveal owns, or null when the node declares no reveal.</summary>
         private static string RevealAxis(ElementNode n)
@@ -50,6 +51,17 @@ namespace PromptUGUI.Lint
                         $"<Animation id='{n.Id}'>: reverse-on= and count= / char-color= cannot be combined — " +
                         "a number counting backwards has no stable current value to reverse from.");
             }
+
+            // The Screen waits for every animation its close event fired before it is destroyed
+            // (spec 2026-09-16-close-transition §4.2); an endless loop would never let it close.
+            if (n.Attributes.TryGetValue("on", out var on) && on?.Trim() == "close"
+                && n.Attributes.TryGetValue("loop", out var loop)
+                && (loop?.Trim() == "true" || loop?.Trim() == "yoyo"))
+                yield return new LintIssue(
+                    CloseLoopCode, n.Tag, n.Id,
+                    $"<Animation id='{n.Id}'>: on=\"close\" with an endless loop=\"{loop.Trim()}\" — the Screen " +
+                    "waits for this animation before it is destroyed, so it would never close. Use " +
+                    "loop=\"count:N\" or drop the loop.");
 
             var axis = RevealAxis(n);
             if (!HasReveal(n)) yield break;

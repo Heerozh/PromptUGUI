@@ -158,6 +158,17 @@ namespace PromptUGUI.Controls
                         var stream = spec.Kind == TriggerKind.Lift ? row.OnLifted : row.OnDropped;
                         return stream.Subscribe(_ => onFire());
                     }
+                case TriggerKind.Close:
+                    {
+                        // The Screen begins closing (spec 2026-09-16-close-transition §4.1). Fires
+                        // synchronously inside Screen.Close(), before it returns; an <Animation> that
+                        // schedules a motion here is what the Screen then waits for.
+                        var owner = PromptUGUI.Application.UI.OwnerScreenOf(this)
+                            ?? throw new InvalidOperationException(
+                                $"<{GetType().Name} on=\"close\">: owner Screen not found — close is a Screen " +
+                                "event and this node is not inside one.");
+                        return owner.OnClosing.Subscribe(_ => onFire());
+                    }
                 default:
                     // Manual: no auto-subscribe; awaiting Fire()
                     return null;
