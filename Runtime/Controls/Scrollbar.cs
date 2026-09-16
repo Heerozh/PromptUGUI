@@ -306,11 +306,11 @@ namespace PromptUGUI.Controls
             set { var v = ProceduralValueParser.Pixels(value, "handleBorderWidth"); HandleSurface.Declare(p => p.SetBorderWidth(v)); }
         }
 
-        /// <summary>Handle border colour (solid).</summary>
+        /// <summary>Handle border colour — the full gradient grammar (spec 2026-09-17).</summary>
         [UIAttr, Preserve]
         public string HandleBorderColor
         {
-            set { var v = UI.Theme.Resolve(value); HandleSurface.Declare(p => p.SetBorderColor(v)); }
+            set { var v = UI.Theme.ResolveSpec(value); HandleSurface.Declare(p => p.SetBorderColor(v)); }
         }
 
         /// <summary>Handle outer glow (px). Inflates the drawn quad, not the layout; the bar sits outside the viewport mask, so nothing clips it.</summary>
@@ -320,11 +320,11 @@ namespace PromptUGUI.Controls
             set { var v = ProceduralValueParser.Pixels(value, "handleGlow"); HandleSurface.Declare(p => p.SetGlowSize(v)); }
         }
 
-        /// <summary>Handle glow colour (solid); follows <c>handleColor</c> when unset.</summary>
+        /// <summary>Handle glow colour — the full gradient grammar; follows <c>handleColor</c> when unset.</summary>
         [UIAttr, Preserve]
         public string HandleGlowColor
         {
-            set { var v = UI.Theme.Resolve(value); HandleSurface.Declare(p => p.SetGlowColor(v)); }
+            set { var v = UI.Theme.ResolveSpec(value); HandleSurface.Declare(p => p.SetGlowColor(v)); }
         }
     }
 }

@@ -7,14 +7,16 @@ using UnityEngine.UI;
 namespace PromptUGUI.Controls.Internal
 {
     /// <summary>
-    /// Vertical gradient tint as a vertex-colour effect (spec §4.2). Multiplies the ramp into each
-    /// vertex's existing colour, so the final composite stays <c>texture × Graphic.color ×
-    /// gradient</c> — the Graphic.color slot remains free for state modulates. Y is normalized across
-    /// the actual mesh bounds (Sliced/Tiled have &gt;4 verts; vertex order is not assumed). Lazy-added
-    /// by <c>ColorApplier</c> and toggled via <c>enabled</c>, never destroyed (Variant/ReSolve
-    /// round-trips, same convention as ApplyViewportMask).
+    /// Linear gradient tint as a vertex-colour effect (spec §4.2; direction and multi-stop: spec
+    /// 2026-09-17 §6.3). Multiplies the ramp into each vertex's existing colour, so the final
+    /// composite stays <c>texture × Graphic.color × gradient</c> — the Graphic.color slot remains free
+    /// for state modulates. The gradient line is laid over the actual mesh bounds (Sliced/Tiled have
+    /// &gt;4 verts; vertex order is not assumed), CSS style: <c>ColorSpec.DirectionFor</c> /
+    /// <c>LineLengthFor</c>, so an &lt;Image&gt; and a &lt;Frame&gt; sharing a token change over on the
+    /// same line of pixels. Lazy-added by <c>ColorApplier</c> and toggled via <c>enabled</c>, never
+    /// destroyed (Variant/ReSolve round-trips, same convention as ApplyViewportMask).
     ///
-    /// <para>A ramp the author shaped — moved stops, or a hint's curve — cannot ride on the corner
+    /// <para>A ramp the author shaped — a third colour, moved stops, or a hint's curve — cannot ride on the corner
     /// vertices alone, so it takes a second path: cut the mesh at the stops (and at a few strips
     /// across a hint), then evaluate <c>ColorSpec.Evaluate</c> per vertex. Without stops nothing is
     /// de-indexed and the geometry comes out exactly as it does today (spec 2026-09-01 VGS §4.2,
@@ -53,13 +55,10 @@ namespace PromptUGUI.Controls.Internal
         /// <summary>Convenience for the plain two-colour ramp.</summary>
         public void Set(Color top, Color bottom) => Set(ColorSpec.Gradient(top, bottom));
 
-        public Color Top => _spec.Top;
-        public Color Bottom => _spec.Bottom;
+        public Color StartColor => _spec.Start;
+        public Color EndColor => _spec.End;
 
-        private static bool Same(in ColorSpec a, in ColorSpec b)
-            => a.Top == b.Top && a.Bottom == b.Bottom
-            && a.TopStop == b.TopStop && a.BottomStop == b.BottomStop
-            && a.Curve == b.Curve && a.IsGradient == b.IsGradient;
+        private static bool Same(in ColorSpec a, in ColorSpec b) => a == b;
 
         public override void ModifyMesh(VertexHelper vh)
         {
@@ -68,24 +67,74 @@ namespace PromptUGUI.Controls.Internal
             else ModifyWithStops(vh);
         }
 
-        /// <summary>The full-height two-colour ramp: the corners already carry it.</summary>
+        /// <summary>
+        /// The gradient line over the mesh's bounds (spec 2026-09-17 §4.1): its unit direction and
+        /// the length CSS gives it, plus the centre the projection is measured from. Every vertex's
+        /// <c>s = (dot(p − centre, dir) + L/2) / L</c>. The default direction reproduces the old
+        /// <c>(maxY − y) / height</c> exactly.
+        /// </summary>
+        private readonly struct Line
+        {
+            public readonly Vector2 Centre;
+            public readonly Vector2 Dir;
+            public readonly float Length;
+
+            public Line(in ColorSpec spec, Vector2 min, Vector2 max)
+            {
+                Centre = (min + max) * 0.5f;
+                var size = max - min;
+                Dir = spec.DirectionFor(size);
+                Length = Mathf.Max(spec.LineLengthFor(size, Dir), 1e-4f);
+            }
+
+            public float Share(Vector3 p)
+                => (Vector2.Dot(new Vector2(p.x, p.y) - Centre, Dir) + Length * 0.5f) / Length;
+
+            /// <summary>The raw projection <c>dot(p, dir)</c> at which share <paramref name="s"/> sits —
+            /// the value <see cref="MeshSlicer"/> cuts at.</summary>
+            public float CutAt(float s)
+                => Vector2.Dot(Centre, Dir) + (s - 0.5f) * Length;
+        }
+
+        private static bool Bounds(List<UIVertex> tris, out Vector2 min, out Vector2 max)
+        {
+            min = new Vector2(float.MaxValue, float.MaxValue);
+            max = new Vector2(float.MinValue, float.MinValue);
+            for (var i = 0; i < tris.Count; i++)
+            {
+                var p = tris[i].position;
+                if (p.x < min.x) min.x = p.x;
+                if (p.y < min.y) min.y = p.y;
+                if (p.x > max.x) max.x = p.x;
+                if (p.y > max.y) max.y = p.y;
+            }
+            return max.x > min.x || max.y > min.y;
+        }
+
+        /// <summary>A two-colour ramp with no stops is linear along its direction, so the corner
+        /// vertices carry it exactly — no de-indexing, no allocation beyond the bounds scan.</summary>
         private void ModifyPlain(VertexHelper vh)
         {
             var v = new UIVertex();
-            float minY = float.MaxValue, maxY = float.MinValue;
+            var min = new Vector2(float.MaxValue, float.MaxValue);
+            var max = new Vector2(float.MinValue, float.MinValue);
             for (var i = 0; i < vh.currentVertCount; i++)
             {
                 vh.PopulateUIVertex(ref v, i);
-                if (v.position.y < minY) minY = v.position.y;
-                if (v.position.y > maxY) maxY = v.position.y;
+                var p = v.position;
+                if (p.x < min.x) min.x = p.x;
+                if (p.y < min.y) min.y = p.y;
+                if (p.x > max.x) max.x = p.x;
+                if (p.y > max.y) max.y = p.y;
             }
 
-            var h = maxY - minY;
+            var flat = max.x <= min.x && max.y <= min.y;
+            var line = new Line(_spec, min, max);
             for (var i = 0; i < vh.currentVertCount; i++)
             {
                 vh.PopulateUIVertex(ref v, i);
-                var t = h > 0f ? (v.position.y - minY) / h : 1f;
-                v.color = (Color)v.color * Color.Lerp(_spec.Bottom, _spec.Top, t);
+                var s = flat ? 1f : line.Share(v.position);
+                v.color = (Color)v.color * _spec.Evaluate(s);
                 vh.SetUIVertex(v, i);
             }
         }
@@ -97,58 +146,55 @@ namespace PromptUGUI.Controls.Internal
             try
             {
                 vh.GetUIVertexStream(tris);
-                if (tris.Count < 3)
+                if (tris.Count < 3 || !Bounds(tris, out var min, out var max))
                 {
                     ModifyPlain(vh);
                     return;
                 }
 
-                float minY = float.MaxValue, maxY = float.MinValue;
-                for (var i = 0; i < tris.Count; i++)
+                var line = new Line(_spec, min, max);
+                var n = _spec.Count;
+
+                // One cut per stop, then K−1 strips across every segment a hint bends. A hard edge
+                // (two stops at one position) cuts once: the triangle stream does not share vertices,
+                // so each side keeps its own copy of the line.
+                var previous = float.NaN;
+                for (var i = 0; i < n; i++)
                 {
-                    var y = tris[i].position.y;
-                    if (y < minY) minY = y;
-                    if (y > maxY) maxY = y;
+                    var stop = _spec.StopAt(i);
+                    if (stop != previous) Cut(ref tris, ref spare, line, stop);
+                    if (i + 1 < n)
+                    {
+                        var next = _spec.StopAt(i + 1);
+                        if (_spec.CurveAt(i) != 1f && next > stop)
+                            for (var k = 1; k < HintStrips; k++)
+                                Cut(ref tris, ref spare, line, stop + (next - stop) * k / HintStrips);
+                    }
+                    previous = stop;
                 }
-
-                var h = maxY - minY;
-                if (h <= 0f)
-                {
-                    ModifyPlain(vh);
-                    return;
-                }
-
-                // Stops are shares measured from the TOP edge, matching PuguiFillRamp.
-                var a = _spec.TopStop;
-                var b = _spec.BottomStop;
-                var yA = maxY - a * h;
-                var yB = maxY - b * h;
-
-                Cut(ref tris, ref spare, yA, minY, maxY);
-                if (b != a) Cut(ref tris, ref spare, yB, minY, maxY);
-                if (_spec.Curve != 1f && b > a)
-                    for (var k = 1; k < HintStrips; k++)
-                        Cut(ref tris, ref spare, maxY - (a + (b - a) * k / HintStrips) * h, minY, maxY);
 
                 spare.Clear();
-                var cullTop = _spec.Top.a <= 0f;
-                var cullBottom = _spec.Bottom.a <= 0f;
+                var cullStart = _spec.Start.a <= 0f;
+                var cullEnd = _spec.End.a <= 0f;
+                var sStart = _spec.StartStop;
+                var sEnd = _spec.EndStop;
                 for (var i = 0; i + 2 < tris.Count; i += 3)
                 {
-                    var y0 = tris[i].position.y;
-                    var y1 = tris[i + 1].position.y;
-                    var y2 = tris[i + 2].position.y;
+                    var s0 = line.Share(tris[i].position);
+                    var s1 = line.Share(tris[i + 1].position);
+                    var s2 = line.Share(tris[i + 2].position);
 
                     // A stop that ends fully transparent ends the geometry too — no overdraw, and
-                    // the letterbox crop comes free instead of costing a mask.
-                    if (cullBottom && y0 <= yB + CullEpsilon && y1 <= yB + CullEpsilon && y2 <= yB + CullEpsilon) continue;
-                    if (cullTop && y0 >= yA - CullEpsilon && y1 >= yA - CullEpsilon && y2 >= yA - CullEpsilon) continue;
+                    // the crop comes free instead of costing a mask. Only the two ENDS: a see-through
+                    // middle stop is a seam inside the picture, not an end of it.
+                    if (cullEnd && s0 >= sEnd - CullEpsilon && s1 >= sEnd - CullEpsilon && s2 >= sEnd - CullEpsilon) continue;
+                    if (cullStart && s0 <= sStart + CullEpsilon && s1 <= sStart + CullEpsilon && s2 <= sStart + CullEpsilon) continue;
 
-                    var centre = (maxY - (y0 + y1 + y2) / 3f) / h;
+                    var centre = (s0 + s1 + s2) / 3f;
                     for (var k = 0; k < 3; k++)
                     {
                         var v = tris[i + k];
-                        var s = (maxY - v.position.y) / h;
+                        var s = k == 0 ? s0 : k == 1 ? s1 : s2;
                         v.color = (Color)v.color * _spec.Evaluate(Mathf.Lerp(s, centre, CentroidBias));
                         spare.Add(v);
                     }
@@ -164,12 +210,12 @@ namespace PromptUGUI.Controls.Internal
             }
         }
 
-        /// <summary>Slice at <paramref name="y"/> and swap the working list for the result.</summary>
-        private static void Cut(ref List<UIVertex> tris, ref List<UIVertex> spare, float y, float minY, float maxY)
+        /// <summary>Slice at share <paramref name="s"/> along the line and swap the working list for the result.</summary>
+        private static void Cut(ref List<UIVertex> tris, ref List<UIVertex> spare, in Line line, float s)
         {
-            if (y <= minY || y >= maxY) return;      // the line is an edge; there is nothing to cut
+            if (s <= 0f || s >= 1f) return;      // the line is an edge of the box; there is nothing to cut
             spare.Clear();
-            MeshSlicer.SplitAlongY(tris, y, spare);
+            MeshSlicer.SplitAlongLine(tris, line.Dir, line.CutAt(s), spare);
             var swap = tris;
             tris = spare;
             spare = swap;

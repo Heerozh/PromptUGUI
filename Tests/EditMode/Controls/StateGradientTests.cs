@@ -77,8 +77,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             tint = bg.GetComponent<GradientTint>();
             Assert.IsNotNull(tint, "GradientTint added on hover");
             Assert.IsTrue(tint.enabled, "GradientTint enabled on hover");
-            Assert.AreEqual(Color.white, tint.Top, "hover gradient top white");
-            Assert.AreEqual(Color.black, tint.Bottom, "hover gradient bottom black");
+            Assert.AreEqual(Color.white, tint.StartColor, "hover gradient top white");
+            Assert.AreEqual(Color.black, tint.EndColor, "hover gradient bottom black");
 
             pui.SimulateState(Normal); // -> Normal
             Assert.IsFalse(tint.enabled, "GradientTint disabled back at Normal");
@@ -97,8 +97,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             // At rest (Normal): the BASE gradient must be live (Peek captured it as the reactor base).
             Assert.IsNotNull(tint, "base gradient tint present at rest");
             Assert.IsTrue(tint.enabled, "base gradient enabled at rest");
-            Assert.AreEqual(Color.white, tint.Top, "base gradient top white");
-            Assert.AreEqual(Color.black, tint.Bottom, "base gradient bottom black");
+            Assert.AreEqual(Color.white, tint.StartColor, "base gradient top white");
+            Assert.AreEqual(Color.black, tint.EndColor, "base gradient bottom black");
 
             pui.SimulateState(Highlighted); // -> Hover (solid red)
             Assert.IsFalse(tint.enabled, "solid hover disables base gradient");
@@ -106,8 +106,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             pui.SimulateState(Normal); // -> Normal: base gradient restored
             Assert.IsTrue(tint.enabled, "base gradient re-enabled at Normal");
-            Assert.AreEqual(Color.white, tint.Top, "base gradient top restored");
-            Assert.AreEqual(Color.black, tint.Bottom, "base gradient bottom restored");
+            Assert.AreEqual(Color.white, tint.StartColor, "base gradient top restored");
+            Assert.AreEqual(Color.black, tint.EndColor, "base gradient bottom restored");
         }
 
         // 3. Gradient base × solid pressedModulate — both stops are halved.
@@ -124,8 +124,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsTrue(tint.enabled, "gradient stays enabled under solid modulate");
             var half = 0x80 / 255f; // ~0.5019608
             // white × 0.5 = (half,half,half); black × 0.5 = (0,0,0). ±3 bytes ≈ 0.012 tolerance.
-            AssertColorApprox(tint.Top, new Color(half, half, half, 1f), 3f / 255f, "top = white × grey");
-            AssertColorApprox(tint.Bottom, new Color(0f, 0f, 0f, 1f), 3f / 255f, "bottom = black × grey");
+            AssertColorApprox(tint.StartColor, new Color(half, half, half, 1f), 3f / 255f, "top = white × grey");
+            AssertColorApprox(tint.EndColor, new Color(0f, 0f, 0f, 1f), 3f / 255f, "bottom = black × grey");
         }
 
         // 4. Gradient selectedColor on a Tab (selection base) — active tab shows the gradient at rest.
@@ -144,8 +144,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var tint = bg.GetComponent<GradientTint>();
             Assert.IsNotNull(tint, "selected tab gradient present");
             Assert.IsTrue(tint.enabled, "selected tab gradient enabled at rest");
-            Assert.AreEqual(Color.white, tint.Top, "selected gradient top white");
-            Assert.AreEqual(Color.black, tint.Bottom, "selected gradient bottom black");
+            Assert.AreEqual(Color.white, tint.StartColor, "selected gradient top white");
+            Assert.AreEqual(Color.black, tint.EndColor, "selected gradient bottom black");
         }
 
         // 5. A *Modulate with a gradient value throws (modulates are solid-only).
@@ -180,8 +180,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
                 Assert.IsTrue(tint.enabled,
                     "gradient hover state must survive ReSolve (re-Configure repaint)");
-                Assert.AreEqual(Color.white, tint.Top, "gradient top kept after ReSolve");
-                Assert.AreEqual(Color.black, tint.Bottom, "gradient bottom kept after ReSolve");
+                Assert.AreEqual(Color.white, tint.StartColor, "gradient top kept after ReSolve");
+                Assert.AreEqual(Color.black, tint.EndColor, "gradient bottom kept after ReSolve");
             }
             finally
             {

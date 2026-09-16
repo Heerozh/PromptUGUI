@@ -52,10 +52,11 @@ backdrop behind it, and exposing that would brighten the scene through the glass
 glass. The runtime ignores it on a glass pane and on a weld carrier (`PUI-GLASS-INTENSITY`) — the
 pane's own light is `lightIntensity`. Keep it for the opaque surfaces around the glass.
 
-Reused unchanged: `color` (tint painted over the glass — comma gradients, gradient **stop positions** and **hints** (`"A 70%,B"` / `"A, 70%, B"`, which glass draws per-pixel) and `/alpha` work exactly as
+Reused unchanged: `color` (tint painted over the glass — the full gradient grammar: a **direction**, 2–4 **stops**, stop **positions** and **hints** (`"to right, A, B"` / `"A 70%,B"` / `"A, 70%, B"`, which glass draws per-pixel) and `/alpha` work exactly as
 elsewhere), `radius`, `borderWidth` / `borderColor`, `glow` / `glowColor`,
 `innerGlow` / `innerGlowColor` (painted over the tint, so it lights the pane's edge without touching
-the backdrop it samples).
+the backdrop it samples). The three outline colours take the same gradient grammar as `color`, on the
+same gradient line, so one token on `color` and `borderColor` changes over on the same pixels.
 
 Keep the tint alpha low (`white/0.06`, `#39f/0.15`). A tint at high alpha stops reading as glass and
 starts reading as a coloured panel with a blur behind it.
@@ -161,7 +162,7 @@ Where each parameter goes:
 
 | 写在 | 参数 |
 |---|---|
-| 容器（带 `weld` 的 Frame） | `seam` `frost` `dispersion` `lightAngle` `lightIntensity` `saturation` `noise`, and `borderWidth` / `borderColor` / `glow` / `glowColor` / `innerGlow` / `innerGlowColor` for the fused outline |
+| 容器（带 `weld` 的 Frame） | `seam` `frost` `dispersion` `lightAngle` `lightIntensity` `saturation` `noise`, and `borderWidth` / `borderColor` / `glow` / `glowColor` / `innerGlow` / `innerGlowColor` for the fused outline — gradients there run over the whole group's bounds. A **member's** `color` inside a weld is the one reduced path: two colours, top→bottom only (direction, extra stops and hints are dropped) |
 | 每个玻璃子级 | `radius` `depth` `color` |
 
 The split is physical, not arbitrary: two halves of one continuous pane cannot be frosted differently

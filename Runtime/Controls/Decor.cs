@@ -46,7 +46,7 @@ namespace PromptUGUI.Controls
         private float _thickness = DefaultThickness;
         private ColorSpec _fill = ColorSpec.Solid(UnityColor.white);
         private float _glow;
-        private UnityColor _glowColor;
+        private ColorSpec _glowColor;
         private bool _glowColorDeclared;
         private float _intensity = IntensityAttrParser.Default;
         private float _inset;
@@ -156,13 +156,13 @@ namespace PromptUGUI.Controls
             set => _glow = ProceduralValueParser.Pixels(value, "glow");
         }
 
-        /// <summary>Glow colour. Solid only; follows the fill when not written.</summary>
+        /// <summary>Glow colour — the full gradient grammar (spec 2026-09-17); follows the fill when not written.</summary>
         [UIAttr, Preserve]
         public string GlowColor
         {
             set
             {
-                _glowColor = UI.Theme.Resolve(value);
+                _glowColor = UI.Theme.ResolveSpec(value);
                 _glowColorDeclared = true;
             }
         }
@@ -303,7 +303,7 @@ namespace PromptUGUI.Controls
             inst.Image.sprite = _sprite;
             // On a sprite the fill colour is an ordinary tint, the way it is on every other Image;
             // a gradient has nowhere to go here, so the top stop stands for the whole value.
-            inst.Image.color = _fill.Top;
+            inst.Image.color = _fill.Start;
 
             PlaceSprite(inst.Rect, slot, extent);
         }

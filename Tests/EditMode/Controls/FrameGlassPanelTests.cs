@@ -78,7 +78,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var p = PanelOf(Load("glass='true' innerGlow='14' innerGlowColor='#fff3c4/0.8'"));
             Assert.AreEqual(14f, p.CurrentParams.InnerGlowSize);
             Assert.AreEqual(new Color(1f, 243f / 255f, 196f / 255f, 0.8f),
-                            p.CurrentParams.InnerGlowColor);
+                            p.CurrentParams.InnerGlow.Start);
         }
 
         [Test]

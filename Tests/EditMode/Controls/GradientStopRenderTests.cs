@@ -259,5 +259,67 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             Object.DestroyImmediate(tex);
         }
+
+        // ── direction and a third stop on the vertex path (spec 2026-09-17 §6.3) ─
+
+        /// <summary>Samples the middle row at a share measured from the LEFT edge.</summary>
+        private Color FromLeft(float share)
+        {
+            var x = Mathf.RoundToInt(Mathf.Lerp(_rect.xMin, _rect.xMax, share));
+            var y = Mathf.RoundToInt(Mathf.Lerp(_rect.yMax, _rect.yMin, 0.5f));
+            x = Mathf.Clamp(x, 0, Size - 1);
+            y = Mathf.Clamp(y, 0, Size - 1);
+            var p = _pixels[y * Size + x];
+            return new Color(p.r / 255f, p.g / 255f, p.b / 255f, p.a / 255f);
+        }
+
+        [Test]
+        public void ToRight_RunsLeftToRight_OnAnImage()
+        {
+            Render("color='to right, #ff0000, #0000ff'", "vgs-to-right.png");
+            Assert.Greater(FromLeft(0.05f).r, 0.7f, "left is red");
+            Assert.Less(FromLeft(0.05f).b, 0.4f);
+            Assert.Greater(FromLeft(0.95f).b, 0.7f, "right is blue");
+            Assert.Less(FromLeft(0.95f).r, 0.4f);
+            Assert.Less(Mathf.Abs(FromTop(0.1f).r - FromTop(0.9f).r), 0.1f, "no change down the middle column");
+        }
+
+        [Test]
+        public void ToRight_ThreeStops_OnAnImage_MiddleIsTheMiddleStop()
+        {
+            Render("color='to right, #ff0000, #00ff00, #0000ff'", "vgs-to-right-3.png");
+            Assert.Greater(FromLeft(0.5f).g, 0.8f, "the middle column is green");
+            Assert.Less(FromLeft(0.5f).r + FromLeft(0.5f).b, 0.5f);
+            Assert.Greater(FromLeft(0.03f).r, 0.7f);
+            Assert.Greater(FromLeft(0.97f).b, 0.7f);
+        }
+
+        [Test]
+        public void FlipX_DoesNotTurnTheDirectionAround()
+        {
+            // "The first colour is the start of what you SEE": the flip is applied first, the
+            // gradient after, so a mirrored image still runs red → blue left to right.
+            Render("flip='x' color='to right, #ff0000, #0000ff 50%'", "vgs-flip-x-to-right.png");
+            Assert.Greater(FromLeft(0.05f).r, 0.7f, "left is still red");
+            Assert.Greater(FromLeft(0.95f).b, 0.7f, "right is still blue");
+        }
+
+        [Test]
+        public void Frame_And_Image_ChangeOverOnTheSameColumn()
+        {
+            // Same token, same magic corner: the two paths must agree on where the middle stop
+            // falls — the whole point of sharing one gradient-line definition.
+            const string grad = "to bottom right, #ff0000, #00ff00 50%, #0000ff";
+            RenderBody($"<Frame id='g' anchor='center' width='{W}' height='{H}' color='{grad}'/>", "g", "vgs-corner-frame.png");
+            var frame = new[] { FromTop(0.25f), FromTop(0.5f), FromTop(0.75f), FromLeft(0.2f), FromLeft(0.8f) };
+            Render($"color='{grad}'", "vgs-corner-image.png");
+            var image = new[] { FromTop(0.25f), FromTop(0.5f), FromTop(0.75f), FromLeft(0.2f), FromLeft(0.8f) };
+            for (var i = 0; i < frame.Length; i++)
+            {
+                Assert.AreEqual(frame[i].r, image[i].r, 0.08f, $"probe {i} R");
+                Assert.AreEqual(frame[i].g, image[i].g, 0.08f, $"probe {i} G");
+                Assert.AreEqual(frame[i].b, image[i].b, 0.08f, $"probe {i} B");
+            }
+        }
     }
 }

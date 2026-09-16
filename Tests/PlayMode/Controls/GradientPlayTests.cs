@@ -54,9 +54,9 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             Assert.IsTrue(tint.enabled, "GradientTint must be enabled at rest (Normal state)");
 
             // Verify the gradient stops match the authored values (#ffffff top, #000000 bottom).
-            Assert.AreEqual(Color.white, tint.Top,
+            Assert.AreEqual(Color.white, tint.StartColor,
                 "Top stop must be white (#ffffff) at rest");
-            Assert.AreEqual(Color.black, tint.Bottom,
+            Assert.AreEqual(Color.black, tint.EndColor,
                 "Bottom stop must be black (#000000) at rest");
 
             // Btn must be interactable and clickable.
@@ -86,7 +86,7 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             Assert.IsNotNull(tint);
             Assert.IsTrue(tint.enabled);
             Assert.IsTrue(tint.Spec.HasStops, "the stop must survive the frame loop");
-            Assert.AreEqual(0.5f, tint.Spec.BottomStop, 1e-5f);
+            Assert.AreEqual(0.5f, tint.Spec.EndStop, 1e-5f);
 
             var effects = img.GetComponents<UnityEngine.UI.BaseMeshEffect>();
             Assert.AreEqual(2, effects.Length);

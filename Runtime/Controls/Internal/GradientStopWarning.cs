@@ -4,10 +4,11 @@ using UnityEngine;
 namespace PromptUGUI.Controls.Internal
 {
     /// <summary>
-    /// Says out loud that a gradient stop position landed somewhere it cannot be drawn
-    /// (spec 2026-08-30 §6.2). Since 2026-09-01 (VGS) that is only TMP text: a procedural surface
-    /// draws stops per fragment and every other Graphic gets them by slicing its mesh, but TMP
-    /// paints a gradient per glyph, and four glyph corners have nowhere to put one.
+    /// Says out loud that a shaped gradient — a stop position, a hint, or a third colour (spec
+    /// 2026-09-17) — landed somewhere it cannot be drawn (spec 2026-08-30 §6.2). Since 2026-09-01
+    /// (VGS) that is only TMP text: a procedural surface draws stops per fragment and every other
+    /// Graphic gets them by slicing its mesh, but TMP paints a gradient per glyph, and four glyph
+    /// corners hold a two-colour ramp in any direction and nothing more.
     ///
     /// <para>Called from the two TMP paths only — <c>&lt;Text color&gt;</c> and
     /// <see cref="LabelColorApplier"/>. Deliberately NOT from <see cref="ColorApplier"/>, which now
@@ -23,10 +24,10 @@ namespace PromptUGUI.Controls.Internal
         {
             if (!spec.HasStops) return;
             UILog.Warn(context,
-                $"PromptUGUI: {what} carries a gradient stop position, but it paints TMP text — " +
-                "a gradient there is placed per glyph, so a stop has nowhere to live and the ramp " +
-                "spans the full height instead. Drop the position, or put the shaped ramp on a " +
-                "graphic behind the text. [PUI-GRADIENT-STOP-NO-SURFACE]");
+                $"PromptUGUI: {what} carries a gradient stop position, hint or third colour, but it paints " +
+                "TMP text — a gradient there is placed per glyph, so a stop has nowhere to live and only " +
+                "the two end colours are drawn. Drop the shaping, or put the shaped ramp on a graphic " +
+                "behind the text. [PUI-GRADIENT-STOP-NO-SURFACE]");
         }
     }
 }

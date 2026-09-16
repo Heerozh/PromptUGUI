@@ -158,7 +158,7 @@ namespace PromptUGUI.Tests.Application
             Assert.IsNotNull(surface, "the same pack has to reach the Btn's shape too");
             var panel = surface.GetComponent<PromptUGUI.Controls.Internal.ProceduralPanel>();
             Assert.AreEqual(16f, panel.CurrentParams.CornerWidth.x);
-            Assert.AreEqual(new Color32(0x12, 0x34, 0x56, 0xff), (Color32)panel.CurrentParams.FillTop);
+            Assert.AreEqual(new Color32(0x12, 0x34, 0x56, 0xff), (Color32)panel.CurrentParams.Fill.Start);
 
             Assert.IsFalse(btn.GetComponent<UnityEngine.UI.Image>().enabled,
                 "the Image stands down while the surface draws — kept, not destroyed");
@@ -207,9 +207,9 @@ namespace PromptUGUI.Tests.Application
 </PromptUGUI>";
             UI.LoadDocument("t", xml);
             var p = PanelOf(UI.Open("S").Get<Frame>("f"));
-            Assert.AreEqual(surface.r, p.CurrentParams.FillTop.r, 0.01f);
-            Assert.AreEqual(surface.b, p.CurrentParams.FillTop.b, 0.01f);
-            Assert.AreEqual(0.5f, p.CurrentParams.FillTop.a, 0.01f);
+            Assert.AreEqual(surface.r, p.CurrentParams.Fill.Start.r, 0.01f);
+            Assert.AreEqual(surface.b, p.CurrentParams.Fill.Start.b, 0.01f);
+            Assert.AreEqual(0.5f, p.CurrentParams.Fill.Start.a, 0.01f);
         }
     }
 }

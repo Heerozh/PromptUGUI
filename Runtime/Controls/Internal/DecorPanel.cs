@@ -29,12 +29,8 @@ namespace PromptUGUI.Controls.Internal
     {
         private DecorKind _kind = DecorKind.None;
         private DecorSlot _slot = DecorSlot.TopLeft;
-        private Color _fillTop = Color.white;
-        private Color _fillBottom = Color.white;
-        private float _fillStopTop;
-        private float _fillStopBottom = 1f;
-        private float _fillCurve = 1f;
-        private Color _glowColor = Color.white;
+        private ColorSpec _fill = ColorSpec.Solid(Color.white);
+        private ColorSpec _glowColor = ColorSpec.Solid(Color.white);
         private bool _glowColorExplicit;
         private float _thickness = 2f;
         private float _glowSize;
@@ -109,11 +105,7 @@ namespace PromptUGUI.Controls.Internal
 
         public void SetFill(in ColorSpec fill)
         {
-            _fillTop = fill.Top;
-            _fillBottom = fill.Bottom;
-            _fillStopTop = fill.TopStop;
-            _fillStopBottom = fill.BottomStop;
-            _fillCurve = fill.Curve;
+            _fill = fill;
             MarkDirty();
         }
 
@@ -129,7 +121,9 @@ namespace PromptUGUI.Controls.Internal
             MarkDirty();
         }
 
-        public void SetGlowColor(Color color)
+        public void SetGlowColor(Color color) => SetGlowColor(ColorSpec.Solid(color));
+
+        public void SetGlowColor(in ColorSpec color)
         {
             _glowColor = color;
             _glowColorExplicit = true;
@@ -162,17 +156,17 @@ namespace PromptUGUI.Controls.Internal
             // Thickness only means something to the bracket; zeroing it elsewhere keeps two
             // instances that render identically from splitting the cache into two materials.
             var thickness = _kind == DecorKind.Bracket ? _thickness : 0f;
+            // Unset, the glow follows the whole fill ramp at full alpha (spec 2026-09-17 LG-D4).
             var glow = _glowColorExplicit
                 ? _glowColor
-                : (_fillTop.a > 0f || _fillBottom.a > 0f ? _fillTop : Color.white);
-            return new DecorParams(_fillTop, _fillBottom, _fillStopTop, _fillStopBottom, _fillCurve,
-                                   glow, _kind, thickness, _glowSize, _intensity);
+                : (_fill.AnyVisible ? _fill.Opaque() : ColorSpec.Solid(Color.white));
+            return new DecorParams(_fill, glow, _kind, thickness, _glowSize, _intensity);
         }
 
         private bool ComputeVisible()
         {
             if (_kind == DecorKind.None) return false;
-            if (_fillTop.a > 0f || _fillBottom.a > 0f) return true;
+            if (_fill.AnyVisible) return true;
             return _glowSize > 0f;
         }
 

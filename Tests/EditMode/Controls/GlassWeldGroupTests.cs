@@ -279,7 +279,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 </Screen></PromptUGUI>"), "g").MaterialForTests;
 
             Assert.AreEqual(12f, mat.GetFloat("_InnerGlowSize"), 0.001f);
-            Assert.AreEqual(new Color(1f, 0f, 0f, 1f), mat.GetColor("_InnerGlowColor"));
+            Assert.AreEqual(new Color(1f, 0f, 0f, 1f), mat.GetColor("_InnerGlow0"));
         }
 
         [Test]

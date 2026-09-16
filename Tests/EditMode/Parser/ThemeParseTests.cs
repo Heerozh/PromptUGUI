@@ -127,11 +127,27 @@ namespace PromptUGUI.Tests.Parser
         }
 
         [Test]
-        public void Gradient_Three_Segments_Throws()
+        public void Gradient_Five_Colours_Throws()
         {
             var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(
-                Header + "<Theme name='l'><Color name='g' value='#fff,#000,#111'/></Theme>" + Footer));
-            StringAssert.Contains("gradient", ex.Message);
+                Header + "<Theme name='l'><Color name='g' value='#fff,#000,#111,#222,#333'/></Theme>" + Footer));
+            StringAssert.Contains("2 to 4 colours", ex.Message);
+        }
+
+
+        public void Gradient_Three_Colours_WithDirection_Parses()
+        {
+            var doc = UIDocumentParser.Parse(
+                Header + "<Theme name='l'><Color name='g' value='to bottom right, #fff, #00000080 50%, #fff'/></Theme>" + Footer);
+            Assert.AreEqual("to bottom right, #fff, #00000080 50%, #fff", doc.Themes[0].Colors[0].Value);
+        }
+
+
+        public void Color_Name_ShapedLikeADirection_Throws()
+        {
+            var ex = Assert.Throws<ParseException>(() => UIDocumentParser.Parse(
+                Header + "<Theme name='l'><Color name='45deg' value='#fff'/></Theme>" + Footer));
+            StringAssert.Contains("gradient direction", ex.Message);
         }
 
         [Test]

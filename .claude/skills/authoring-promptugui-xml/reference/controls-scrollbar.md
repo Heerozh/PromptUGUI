@@ -43,8 +43,8 @@ Two layers, two vocabularies you already know:
 | `handle` | sprite key | built-in round 9-slice | Handle bitmap. `""` / `none` = flat colour. |
 | `handleColor` | color | `white` | Handle colour; the SDF fill once the handle is procedural. |
 | `handleRadius` | as `radius` | — | Handle corners; `pill` = capsule. |
-| `handleBorderWidth` · `handleBorderColor` | as `borderWidth` / `borderColor` | — | Handle inner border. |
-| `handleGlow` · `handleGlowColor` | as `glow` / `glowColor` | — | Handle outer glow. Inflates the drawn quad only; the bar sits beside the Viewport (outside its mask), so nothing clips it. `handleGlowColor` follows `handleColor` when unset. |
+| `handleBorderWidth` · `handleBorderColor` | as `borderWidth` / `borderColor` (gradients included) | — | Handle inner border. `to right, a, a/0.3, a` = bright ends, dim middle. |
+| `handleGlow` · `handleGlowColor` | as `glow` / `glowColor` (gradients included) | — | Handle outer glow. Inflates the drawn quad only; the bar sits beside the Viewport (outside its mask), so nothing clips it. `handleGlowColor` follows the whole `handleColor` ramp when unset. |
 
 Common attributes: `id`, `class`, `if`, `interactable` and every `.variant` suffix are fine.
 **Rejected** (`PUI-SCROLLBAR-LAYOUT-ATTR`): `anchor` / `size` / `width` / `height` / `margin` / `pivot` /

@@ -16,10 +16,21 @@ Shader "UI/Decor"
     {
         [PerRendererData] _MainTex ("Sprite Texture", 2D) = "white" {}
 
-        _FillTop    ("Fill Top",    Color) = (1,1,1,1)
-        _FillBottom ("Fill Bottom", Color) = (1,1,1,1)
-        _FillStops  ("Fill Stops (top,bottom,curve)", Vector) = (0,1,1,0)
-        _GlowColor  ("Glow Color",  Color) = (1,1,1,1)
+        // 两个色槽各是一条 7-uniform 的线性渐变（UI-PanelSDF.cginc「线性渐变」一节）。
+        _Fill0 ("Fill Stop 0", Color) = (1,1,1,1)
+        _Fill1 ("Fill Stop 1", Color) = (1,1,1,1)
+        _Fill2 ("Fill Stop 2", Color) = (1,1,1,1)
+        _Fill3 ("Fill Stop 3", Color) = (1,1,1,1)
+        _FillStops ("Fill Stops", Vector) = (0,1,1,1)
+        _FillCurves ("Fill Curves (E0,E1,E2,count)", Vector) = (1,1,1,1)
+        _FillDir ("Fill Direction", Vector) = (0,-1,0,0)
+        _Glow0 ("Glow Stop 0", Color) = (1,1,1,1)
+        _Glow1 ("Glow Stop 1", Color) = (1,1,1,1)
+        _Glow2 ("Glow Stop 2", Color) = (1,1,1,1)
+        _Glow3 ("Glow Stop 3", Color) = (1,1,1,1)
+        _GlowStops ("Glow Stops", Vector) = (0,1,1,1)
+        _GlowCurves ("Glow Curves", Vector) = (1,1,1,1)
+        _GlowDir ("Glow Direction", Vector) = (0,-1,0,0)
 
         // 1 = bracket, 2 = tick, 3 = line（与 PromptUGUI.Parser.DecorKind 数值一致）
         _Kind      ("Kind", Float) = 1
@@ -103,10 +114,8 @@ Shader "UI/Decor"
 
             float4 _ClipRect;
 
-            fixed4 _FillTop;
-            fixed4 _FillBottom;
-            float4 _FillStops;
-            fixed4 _GlowColor;
+            PUGUI_RAMP_UNIFORMS(_Fill)
+            PUGUI_RAMP_UNIFORMS(_Glow)
             float _Kind;
             float _Thickness;
             float _GlowSize;
@@ -138,14 +147,14 @@ Shader "UI/Decor"
                 float fw = max(fwidth(d), 1e-4);
                 float inside = saturate(0.5 - d / fw);
 
-                // 填充：纵向渐变，第一段色在顶部，色标位置可挪（见 PuguiFillRamp）。
-                float4 col = PuguiFillRamp(p, b, _FillTop, _FillBottom, _FillStops.xyz);
+                // 填充：线性渐变 —— 方向、色标、曲线都在 ramp 里（见 PuguiGradient）。
+                float4 col = PuguiGradient(p, b, PUGUI_RAMP(_Fill));
                 col.a *= inside;
 
                 if (_GlowSize > 0.0)
                 {
                     float g = saturate(1.0 - d / _GlowSize);
-                    float4 glow = _GlowColor;
+                    float4 glow = PuguiGradient(p, b, PUGUI_RAMP(_Glow));
                     glow.a *= g * g * (1.0 - inside);
                     col = PuguiOver(col, glow);
                 }

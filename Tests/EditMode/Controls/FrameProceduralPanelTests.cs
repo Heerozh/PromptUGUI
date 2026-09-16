@@ -52,8 +52,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var f = Load("color='#ff0000'");
             var p = PanelOf(f);
             Assert.IsNotNull(p);
-            Assert.AreEqual(new Color(1f, 0f, 0f, 1f), p.CurrentParams.FillTop);
-            Assert.AreEqual(p.CurrentParams.FillTop, p.CurrentParams.FillBottom,
+            Assert.AreEqual(new Color(1f, 0f, 0f, 1f), p.CurrentParams.Fill.Start);
+            Assert.AreEqual(p.CurrentParams.Fill.Start, p.CurrentParams.Fill.End,
                 "a solid colour must not read as a gradient");
         }
 
@@ -69,15 +69,15 @@ namespace PromptUGUI.Tests.EditMode.Controls
         public void Color_AcceptsAlphaSuffix()
         {
             var p = PanelOf(Load("color='#ffffff/0.5'"));
-            Assert.AreEqual(0.5f, p.CurrentParams.FillTop.a, 0.001f);
+            Assert.AreEqual(0.5f, p.CurrentParams.Fill.Start.a, 0.001f);
         }
 
         [Test]
         public void Color_CommaValue_BecomesVerticalGradient()
         {
             var p = PanelOf(Load("color='#ff0000,#0000ff'"));
-            Assert.AreEqual(new Color(1f, 0f, 0f, 1f), p.CurrentParams.FillTop);
-            Assert.AreEqual(new Color(0f, 0f, 1f, 1f), p.CurrentParams.FillBottom);
+            Assert.AreEqual(new Color(1f, 0f, 0f, 1f), p.CurrentParams.Fill.Start);
+            Assert.AreEqual(new Color(0f, 0f, 1f, 1f), p.CurrentParams.Fill.End);
         }
 
         [Test]
@@ -153,14 +153,14 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var p = PanelOf(Load("borderWidth='2' borderColor='#00ff00'"));
             Assert.IsTrue(p.IsPanelVisible, "a hollow outlined box is a legitimate look");
             Assert.AreEqual(2f, p.CurrentParams.BorderWidth);
-            Assert.AreEqual(new Color(0f, 1f, 0f, 1f), p.CurrentParams.BorderColor);
+            Assert.AreEqual(new Color(0f, 1f, 0f, 1f), p.CurrentParams.Border.Start);
         }
 
         [Test]
         public void GlowColor_DefaultsToFillColorAtFullAlpha()
         {
             var p = PanelOf(Load("color='#ff0000/0.5' glow='8'"));
-            var glow = p.CurrentParams.GlowColor;
+            var glow = p.CurrentParams.Glow.Start;
             Assert.AreEqual(new Color(1f, 0f, 0f, 1f), glow,
                 "glow='8' alone should read as 'this shape glows', not 'add a white halo'");
         }
@@ -169,7 +169,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         public void GlowColor_ExplicitWins()
         {
             var p = PanelOf(Load("color='#ff0000' glow='8' glowColor='#0000ff'"));
-            Assert.AreEqual(new Color(0f, 0f, 1f, 1f), p.CurrentParams.GlowColor);
+            Assert.AreEqual(new Color(0f, 0f, 1f, 1f), p.CurrentParams.Glow.Start);
         }
 
         // ---- inner glow (spec 2026-08-28) ----
@@ -214,7 +214,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             // colour is invisible on an opaque fill, which is the overwhelmingly common case. White
             // reads as "the edge is lit" and shows up on any fill (spec §5.4).
             var p = PanelOf(Load("color='#ff0000' innerGlow='8'"));
-            Assert.AreEqual(Color.white, p.CurrentParams.InnerGlowColor,
+            Assert.AreEqual(Color.white, p.CurrentParams.InnerGlow.Start,
                 "following the fill would make innerGlow='8' alone draw nothing at all");
         }
 
@@ -222,13 +222,15 @@ namespace PromptUGUI.Tests.EditMode.Controls
         public void InnerGlowColor_ExplicitWins()
         {
             var p = PanelOf(Load("color='#ff0000' innerGlow='8' innerGlowColor='#0000ff/0.5'"));
-            Assert.AreEqual(new Color(0f, 0f, 1f, 0.5f), p.CurrentParams.InnerGlowColor);
+            Assert.AreEqual(new Color(0f, 0f, 1f, 0.5f), p.CurrentParams.InnerGlow.Start);
         }
 
         [Test]
-        public void InnerGlowColor_RejectsGradient()
+        public void InnerGlowColor_AcceptsGradient()
         {
-            Assert.Throws<ParseException>(() => Load("innerGlow='8' innerGlowColor='#fff,#000'"));
+            // Every SDF colour slot takes the full gradient grammar (spec 2026-09-17 LG-D4).
+            var p = Load("innerGlow='8' innerGlowColor='#fff,#000'");
+            Assert.IsTrue(PanelOf(p).CurrentParams.InnerGlow.IsGradient);
         }
 
         [Test]
@@ -300,7 +302,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var p = PanelOf(Load("color='#ff0000' innerGlow='8' innerGlowColor='#00ff00'"));
             p.SetDisabledGrayscale(true);
 
-            var c = p.CurrentParams.InnerGlowColor;
+            var c = p.CurrentParams.InnerGlow.Start;
             Assert.AreEqual(c.r, c.g, 0.001f, $"a disabled surface must not keep a coloured rim, got {c}");
             Assert.AreEqual(c.g, c.b, 0.001f);
         }
@@ -413,10 +415,11 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void BorderColor_RejectsGradient()
+        public void BorderColor_AcceptsGradient()
         {
-            // Solid-only, same rule *Modulate gets: report it rather than silently taking one stop.
-            Assert.Throws<ParseException>(() => Load("borderWidth='1' borderColor='#fff,#000'"));
+            // Every SDF colour slot takes the full gradient grammar (spec 2026-09-17 LG-D4).
+            var p = Load("borderWidth='1' borderColor='#fff,#000'");
+            Assert.IsTrue(PanelOf(p).CurrentParams.Border.IsGradient);
         }
 
         [Test]

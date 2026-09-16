@@ -14,12 +14,36 @@ Shader "UI/GlassPanel"
     {
         [PerRendererData] _MainTex ("Sprite Texture", 2D) = "white" {}
 
-        _FillTop     ("Fill Top",     Color) = (0,0,0,0)
-        _FillBottom  ("Fill Bottom",  Color) = (0,0,0,0)
-        _FillStops  ("Fill Stops (top,bottom,curve)", Vector) = (0,1,1,0)
-        _BorderColor ("Border Color", Color) = (1,1,1,1)
-        _GlowColor   ("Glow Color",   Color) = (1,1,1,1)
-        _InnerGlowColor ("Inner Glow Color", Color) = (1,1,1,1)
+        // 四个色槽各是一条 7-uniform 的线性渐变（UI-PanelSDF.cginc「线性渐变」一节）：4 个色标、
+        // 位置、曲线(xyz)+色标数(w)、方向。纯色 = 色标数 1，只读第一个色。
+        _Fill0 ("Fill Stop 0", Color) = (0,0,0,0)
+        _Fill1 ("Fill Stop 1", Color) = (0,0,0,0)
+        _Fill2 ("Fill Stop 2", Color) = (0,0,0,0)
+        _Fill3 ("Fill Stop 3", Color) = (0,0,0,0)
+        _FillStops ("Fill Stops", Vector) = (0,1,1,1)
+        _FillCurves ("Fill Curves (E0,E1,E2,count)", Vector) = (1,1,1,1)
+        _FillDir ("Fill Direction", Vector) = (0,-1,0,0)
+        _Border0 ("Border Stop 0", Color) = (1,1,1,1)
+        _Border1 ("Border Stop 1", Color) = (1,1,1,1)
+        _Border2 ("Border Stop 2", Color) = (1,1,1,1)
+        _Border3 ("Border Stop 3", Color) = (1,1,1,1)
+        _BorderStops ("Border Stops", Vector) = (0,1,1,1)
+        _BorderCurves ("Border Curves", Vector) = (1,1,1,1)
+        _BorderDir ("Border Direction", Vector) = (0,-1,0,0)
+        _Glow0 ("Glow Stop 0", Color) = (1,1,1,1)
+        _Glow1 ("Glow Stop 1", Color) = (1,1,1,1)
+        _Glow2 ("Glow Stop 2", Color) = (1,1,1,1)
+        _Glow3 ("Glow Stop 3", Color) = (1,1,1,1)
+        _GlowStops ("Glow Stops", Vector) = (0,1,1,1)
+        _GlowCurves ("Glow Curves", Vector) = (1,1,1,1)
+        _GlowDir ("Glow Direction", Vector) = (0,-1,0,0)
+        _InnerGlow0 ("Inner Glow Stop 0", Color) = (1,1,1,1)
+        _InnerGlow1 ("Inner Glow Stop 1", Color) = (1,1,1,1)
+        _InnerGlow2 ("Inner Glow Stop 2", Color) = (1,1,1,1)
+        _InnerGlow3 ("Inner Glow Stop 3", Color) = (1,1,1,1)
+        _InnerGlowStops ("Inner Glow Stops", Vector) = (0,1,1,1)
+        _InnerGlowCurves ("Inner Glow Curves", Vector) = (1,1,1,1)
+        _InnerGlowDir ("Inner Glow Direction", Vector) = (0,-1,0,0)
 
         // 四个逐角向量一律是 xyzw = top-left, top-right, bottom-right, bottom-left
         // （CSS border-radius 顺序）。_Radius 是每个角的**水平**伸出量，圆角时即半径。
@@ -117,12 +141,10 @@ Shader "UI/GlassPanel"
 
             float4 _ClipRect;
 
-            fixed4 _FillTop;
-            fixed4 _FillBottom;
-            float4 _FillStops;
-            fixed4 _BorderColor;
-            fixed4 _GlowColor;
-            fixed4 _InnerGlowColor;
+            PUGUI_RAMP_UNIFORMS(_Fill)
+            PUGUI_RAMP_UNIFORMS(_Border)
+            PUGUI_RAMP_UNIFORMS(_Glow)
+            PUGUI_RAMP_UNIFORMS(_InnerGlow)
             float4 _Radius;
             float4 _CornerH;
             float4 _CornerKind;
@@ -247,22 +269,22 @@ Shader "UI/GlassPanel"
 
                 // 彩色玻璃：tint 压在玻璃体之上，与不透明面板的 color 语义完全一致
                 // （逗号双色渐变照常，第一段在顶部，色标位置同样生效）。
-                float4 tint = PuguiFillRamp(p, b, _FillTop, _FillBottom, _FillStops.xyz);
+                float4 tint = PuguiGradient(p, b, PUGUI_RAMP(_Fill));
                 tint.a *= inside;
                 float4 col = PuguiOver(tint, base);
 
                 // 内发光：外发光的镜像 —— 画在形状内侧、压在填充之上。
                 // 排在外发光之前，让外发光的 under 合成看到「填充 + 内发光」这一个完整实心体
                 // （两者除 AA 那一像素外并不相交，所以顺序只影响那一像素）。
-                col = PuguiApplyInnerGlow(col, d, inside, _InnerGlowSize, _InnerGlowColor);
+                col = PuguiApplyInnerGlow(col, d, inside, _InnerGlowSize, PuguiGradient(p, b, PUGUI_RAMP(_InnerGlow)));
 
                 // 外发光：仅在形状外侧衰减。
-                col = PuguiApplyOuterGlow(col, d, inside, _GlowSize, _GlowColor);
+                col = PuguiApplyOuterGlow(col, d, inside, _GlowSize, PuguiGradient(p, b, PUGUI_RAMP(_Glow)));
 
                 // 内描边：低对比背景下物理高光会消失，而 UI 的边界不能跟着消失 —— 这一层是保底。
                 if (_BorderWidth > 0.0)
                 {
-                    float4 border = _BorderColor;
+                    float4 border = PuguiGradient(p, b, PUGUI_RAMP(_Border));
                     border.a *= inside * saturate(0.5 + (d + _BorderWidth) / fw);
                     col = PuguiOver(border, col);
                 }

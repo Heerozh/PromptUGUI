@@ -123,14 +123,14 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 | `mask` | `rect` / `self` | — | `rect` = `RectMask2D` 直角裁剪子节点；`self` = stencil `Mask`，把子节点裁成本 Frame 自绘的那个形状（圆角头像 / 圆角滚动区）。`self` 要求写了下面任一视觉属性 —— 否则 Frame 没有 `Graphic`，裁剪静默失效（`PUI-MASK-FRAME-SELF`）。`weld` 承载者也不行（`PUI-MASK-WELD-SELF`）|
 | `showMask` | bool | `true` | 仅 `mask="self"`。`false` = 只裁不画，一个隐形的圆角裁剪器 |
 | `maskPadding` | `T,R,B,L`（`_`=占位） | — | 仅 `mask="rect"` 时有效 |
-| `color` | hex / CSS named / theme token / `A,B` 渐变 / `A 70%,B` 色标 / `A,70%,B` 提示 / `/alpha` | — (无填充) | Fill. Same value grammar as everywhere else — see **Color Tokens**; a comma value is a top→bottom gradient; a `N%` suffix moves where it transitions, a bare `N%` middle segment bends it |
+| `color` | hex / CSS named / theme token / `[to right,] A, B[, C[, D]]` 渐变 / `A 70%,B` 色标 / `A,70%,B` 提示 / `/alpha` | — (无填充) | Fill. Same value grammar as everywhere else — see **Color Tokens → Gradients**; a comma value is a gradient (top→bottom unless a leading `Ndeg` / `to <side or corner>` says otherwise), 2–4 colours, a `N%` suffix moves where each transitions, a bare `N%` between two colours bends that segment |
 | `radius` | corner list / `pill` / `hexagon [W] [rN]` | `0` | The panel's **shape**, not only its radius. One value applies to all four corners; four follow CSS `border-radius` order (clockwise from top-left). Each corner is a bare number (round), `cut W[xH]` (chamfer) or `notch W[xH]` (rectangular bite), optionally followed by a fillet `rN` that rounds the vertices the treatment creates (`cut 16 r6`). Sizes are px and are clamped to the room the corner has, never an error: a `cut` may run the whole edge when the neighbouring corner leaves it (`cut 16x52` on a 52-tall tab = a full-height slant), half the edge when both corners want it. → **Corner treatments** below |
 | `borderWidth` | px | `0` | Inner border — drawn **inward** from the rect edge (CSS `border-box`), so it never changes layout |
-| `borderColor` | hex / CSS / token / `/alpha`. **纯色 only** | `white` | 渐变值 = parse error |
+| `borderColor` | same grammar as `color` (gradients included) | `white` | Shares the fill's gradient line — the same token on `color` and `borderColor` changes over on the same pixels. Three stops along `to right` give the "bright ends, dim middle" HUD edge |
 | `glow` | px | `0` | Outer glow radius. Inflates the drawn quad by this much (layout rect unchanged) |
-| `glowColor` | hex / CSS / token / `/alpha`. **纯色 only** | 跟随 `color` | Unset → the fill colour at full alpha, so `glow="12"` alone reads as "this shape glows" |
+| `glowColor` | same grammar as `color` (gradients included) | 跟随 `color` | Unset → the **whole** fill ramp (direction, stops, hints) at full alpha, so `glow="12"` alone reads as "this shape glows" — in its own gradient. The ramp is laid over the layout rect; the halo outside it holds the end colours |
 | `innerGlow` | px | `0` | Inner glow — light falling off **inwards** from the outline. Pure material, so unlike `glow` it never touches the geometry |
-| `innerGlowColor` | hex / CSS / token / `/alpha`. **纯色 only** | `white` | Deliberately *not* the fill: an inner glow in the fill's own colour is invisible on an opaque fill. `/alpha` is the strength knob; a **dark** value is an inset shadow |
+| `innerGlowColor` | same grammar as `color` (gradients included) | `white` | Deliberately *not* the fill: an inner glow in the fill's own colour is invisible on an opaque fill. `/alpha` is the strength knob; a **dark** value is an inset shadow; `to right, cyan, cyan/0` lights one edge only |
 | `intensity` | number `≥ 1` | `1` | **How much light the surface gives off.** `1` = as drawn; `2` ≈ one stop brighter; `3`–`5` = neon; `≥ 8` ≈ white. Runs an exposure curve over everything the panel paints (fill + both glows + border): the core whitens, the glow's tail keeps its hue — a *light*, not a lighter colour. `""` = back to `1`. Not on glass (`PUI-GLASS-INTENSITY`). → **Lighting it up** below |
 | `glass` | `true` / `false` | `false` | Frosted-glass fill: the shape shows a blurred copy of the camera image instead of a flat colour. `color` becomes a tint on top of it. → `reference/glass.md` |
 | `frost` · `depth` · `dispersion` · `lightAngle` · `lightIntensity` · `saturation` · `noise` | 数值 | 见 glass.md | Glass tuning. Ignored without `glass="true"` (`PUI-GLASS-PARAM-NO-GLASS`) |
@@ -1455,58 +1455,79 @@ Append `/<0..1>` to any color **reference** to set its opacity. The suffix REPLA
 
 ### Gradients
 
-Append a comma between two colour values to produce a **vertical two-stop gradient** (top colour, bottom colour). Gradients are a value-syntax extension — no new attributes.
+A comma between colour values makes a **linear gradient**. Gradients are a value-syntax extension — no new attributes — and the grammar is CSS `linear-gradient`'s argument list, minus the function wrapper:
 
-**Definition site** (`<Color value="...">` inside `<Theme>`): both segments must be plain literals (hex or CSS-named). No theme tokens, no `/alpha` suffix here — bake alpha into the hex if needed:
+```
+[direction,] colour [pos] [, hint] , colour [pos] [[, hint] , colour [pos]]{0,2}
+direction := <N>deg | to top | to right | to bottom | to left | to top left | to bottom right | …
+```
+
+- **Direction** — first segment only. Angles follow CSS: `0deg` up, `90deg` right, `180deg` down, `270deg` left. Omitted = `to bottom` (= `180deg`), the top→bottom ramp every gradient ran before directions existed. `to <corner>` is CSS's **magic corner**: the angle is computed from the box's aspect ratio so the named corner is exactly 0%, the opposite corner exactly 100%, and the other two corners sit exactly on the 50% line — on a wide panel `to bottom right` and `135deg` are visibly different, and the corner is what you want for "light the top-left and bottom-right corners".
+- **2 to 4 colours**, each an independent theme token / hex / CSS name with its own `/alpha`.
+- **Stop positions** (`A 70%`) and **colour hints** (a bare `30%` between two colours) — see below. Unwritten positions default the CSS way: first `0%`, last `100%`, middles spread evenly between the nearest written neighbours (`A, B, C 40%, D` = 0 / 20 / 40 / 100%).
+
+**Definition site** (`<Color value="...">` inside `<Theme>`): every colour must be a plain literal (hex or CSS-named). No theme tokens, no `/alpha` here — bake alpha into the hex if needed. Direction, positions and hints are shape, not colour, and are welcome:
 
 ```xml
 <Theme name="default">
   <Color name="gold-grad" value="#ffe08a,#b8860b"/>
+  <Color name="edge-lit"  value="to bottom right, #7ef3ff, #1c6d8a80 50%, #7ef3ff"/>
 </Theme>
 ```
 
-**Reference site** (any colour attribute): each segment independently supports theme tokens, hex/named literals, and `/alpha`. You can mix:
+**Reference site** (any colour attribute): each colour independently supports theme tokens, hex/named literals, and `/alpha`. You can mix:
 
 ```xml
-<Text  color="gold-grad">Title</Text>         <!-- token → gradient -->
-<Icon  color="white,#aaa"/>                   <!-- two literals, inline -->
-<Image color="accent,accent-dark/0.5"/>       <!-- mix token + token/alpha -->
-<Btn   color="gold-grad/0.5"/>               <!-- /alpha on gradient token → BOTH stops' alpha replaced -->
+<Text  color="gold-grad">Title</Text>                       <!-- token → gradient -->
+<Icon  color="white,#aaa"/>                                 <!-- two literals, inline -->
+<Image color="to right, accent, accent-dark/0.5"/>          <!-- direction + token + token/alpha -->
+<Frame color="45deg, #ffe08a, #b8860b"/>                    <!-- an angle -->
+<Frame borderWidth="1.5" borderColor="edge-lit"/>           <!-- three stops along the magic corner -->
+<Btn   borderColor="edge-lit/0.5"/>                         <!-- /alpha on a gradient token → EVERY stop's alpha replaced -->
+<Btn   borderColor="to right, hud-cyan, hud-cyan/0.3, hud-cyan"/>   <!-- bright ends, dim middle -->
 ```
 
-**Where gradients work** — every attribute that paints a `Graphic`:
+**Where gradients work** — every attribute that paints a `Graphic`, and every SDF colour slot:
 - `color` on `<Image>` / `<Icon>` / `<RawImage>` / `<Btn>` / `<Tab>` / `<TabMenu>` (popup panel) / `<Collapsible>` (panel) / `<Toggle>` / `<Dropdown>` (+ `popupColor`) / `<Progress>` (`fillColor`, `bgColor`, `frameColor`) / `<ScrollList>` (`color`, `frameColor`) / `<Slider>` (`bgColor`) / `<InputField>` (bg only, see below) / `<Text>`
 - Absolute state colours: `hoverColor` / `pressedColor` / `selectedColor` / `disabledColor`
+- The procedural surface's other slots: `borderColor` / `glowColor` / `innerGlowColor` on `<Frame>` and every control that draws procedurally, `<Scrollbar>`'s `handleBorderColor` / `handleGlowColor`, `<Decor>`'s `color` / `glowColor`. All four slots of one surface share **one gradient line** over the layout rect — the same token on `color` and `borderColor` changes over on the same pixels.
 
 **Where gradients are NOT supported** (runtime error; static lint):
 - `*Modulate` attributes (`hoverModulate`, `pressedModulate`, `selectedModulate`, `disabledModulate`) — these are solid-only multipliers; a gradient value is rejected (lint `PUI-GRADIENT-MODULATE`)
 - `<Animation char-color="from:to">` — the per-character animation colour; each side is a solid
 - `<InputField>` `textColor` / `placeholderColor` / `caretColor` / `selectionColor` — caret/selection are TMP `Color` fields with no vertices; editable text stays solid
 - `<Carousel>` `dotColor` / `dotSelectedColor` — the dots stay solid
+- `<Image>` / `<Icon>` `glowColor` (the blur-based glow, not the SDF one) — solid or `self`
 
-**`<Text>` per-character gradient.** On `<Text>` the gradient is TMP-native and applied per-character — each glyph's vertices run top→bottom independently. This makes a solid "gold-foil" title effect without a single stretched gradient across the text block.
+**`<Text>` per-character gradient.** On `<Text>` the gradient is TMP-native and applied per-character — each glyph's four corners carry it independently. That gives a solid "gold-foil" title effect without a single stretched gradient across the text block. A **direction** works (two colours, any angle; a magic corner is evaluated on a square glyph, so it is the 45° family); a **third colour, a stop position or a hint does not** — four corners hold a two-colour linear ramp and nothing else (`PUI-GRADIENT-STOP-NO-SURFACE`, below).
 
-**Stop positions** — where the transition happens. Append a percentage after either colour, CSS `linear-gradient` style, measured **from the top edge**. Omitted, they are `0%` and `100%` (the full-height ramp above):
+**Stop positions** — where a transition happens. Append a percentage after a colour, CSS `linear-gradient` style, measured **along the gradient line** from its start (from the top edge for the default direction). Omitted, the outer ones are `0%` and `100%`:
 
 ```xml
 <Frame color="primary 70%, complement"/>       <!-- solid blue down to 70%, gold only in the last 30% -->
 <Frame color="primary 30%, complement 60%"/>   <!-- solid top 30%, solid bottom 40%, blend between -->
 <Frame color="primary 50%, complement 50%"/>   <!-- equal positions = a hard edge, two solid halves -->
-<Color name="panel-grad" value="#4a6fa5 70%,#c9a227"/>   <!-- definition site takes them too -->
+<Frame color="to right, red, yellow 30%, green 60%, blue"/>   <!-- four stops -->
+<Color name="panel-grad" value="#4a6fa5 70%,#c9a227"/>       <!-- definition site takes them too -->
 ```
 
-Before the first position the top colour is solid; after the second the bottom colour is solid; between them it blends linearly. The second position may not sit above the first (that is an error, not a silent clamp).
+Before the first position the first colour is solid; after the last the last colour is solid; between neighbouring stops it blends linearly. Positions may not decrease along the line (that is an error, not a silent clamp); equal neighbours are a hard edge.
 
-> **Stops and hints work on every graphic.** A procedural surface draws them per pixel in the SDF shader; every other `Graphic` gets them by having its mesh cut at the stop — `<Image>` / `<Icon>` / `<RawImage>`, a control still drawing its Image, `<Progress>` fills, arrows, checkmarks. **TMP text is the one exception** (`<Text color>`, `textColor`, a Dropdown's `itemTextColor`): a TMP gradient is four corner colours per glyph, so a stop has nowhere to live and the position is dropped with a runtime warning and a CLI error (`PUI-GRADIENT-STOP-NO-SURFACE`). Two things follow from cutting the mesh. An end colour that is **fully transparent** (`…, white/0 50%`) drops that part of the geometry outright — no overdraw, and no `mask="rect"` needed to crop it. And the ramp is evaluated on the mesh **as finally drawn**, so `rotation` / `flip` never change which end is "the top": the first colour is the top of what you SEE, whatever order the attributes are written in.
+> **Stops and hints work on every graphic.** A procedural surface draws them per pixel in the SDF shader; every other `Graphic` gets them by having its mesh cut at each stop — perpendicular to the gradient direction — `<Image>` / `<Icon>` / `<RawImage>`, a control still drawing its Image, `<Progress>` fills, arrows, checkmarks. **TMP text is the one exception** (`<Text color>`, `textColor`, a Dropdown's `itemTextColor`): see above. Two things follow from cutting the mesh. An **end** colour that is fully transparent (`…, white/0 50%`) drops that part of the geometry outright — no overdraw, and no `mask="rect"` needed to crop it (a transparent *middle* stop is a seam inside the picture and drops nothing). And the ramp is evaluated on the mesh **as finally drawn**, so `rotation` / `flip` never change which end is "the start": the first colour is the start of what you SEE, whatever order the attributes are written in.
 
-**Colour hint — bias the blend without a seam.** A stop position *cuts* the ramp: above it the colour is flat, below it changes, and that slope discontinuity is read by the eye as a dividing line even though the colour itself is continuous. When you want "mostly the top colour, the bottom one only creeping in near the bottom" with no visible seam, use CSS's **colour hint** instead — a bare percentage as the middle segment, meaning *the two colours are mixed half and half here*:
+**Colour hint — bias a blend without a seam.** A stop position *cuts* the ramp: before it the colour is flat, after it changes, and that slope discontinuity is read by the eye as a dividing line even though the colour itself is continuous. When you want "mostly the first colour, the second only creeping in near the end" with no visible seam, use CSS's **colour hint** instead — a bare percentage between two colours, meaning *these two are mixed half and half here*:
 
 ```xml
 <Frame color="primary, 70%, complement"/>          <!-- smooth all the way down, biased to the bottom -->
 <Frame color="primary 20%, 60%, complement"/>       <!-- composes with stops: 60% is inside the 20%..100% ramp -->
+<Frame color="to right, a, 30%, b, c, 80%, d"/>     <!-- one hint per segment, any segment -->
 ```
 
-The hint bends the whole ramp into a power curve, so there is no kink anywhere. It sits in the same coordinate space as the stop positions, so a hint exactly midway between them is the plain linear ramp, and it must lie between them. Rule of thumb: **stop positions when you want flat bands or a hard edge, a hint when you want a smooth bias.**
+A hint bends only its own segment into a power curve, so there is no kink anywhere. It sits in the same coordinate space as the stop positions, so a hint exactly midway between its two stops is the plain linear ramp, and it must lie between them. Rule of thumb: **stop positions when you want flat bands or a hard edge, a hint when you want a smooth bias.**
+
+**Gradient glow.** On a procedural surface an unset `glowColor` follows the **whole** fill ramp at full alpha — a `to right, red, blue` fill glows red on the left and blue on the right. The gradient line of every slot is the layout rect's; the halo drawn outside it simply holds the end colours. (`<Image glow>` is a different mechanism — a blur — and normalises its stops over the inflated quad instead.)
+
+**`<Decor>` frame.** A decoration's gradient runs in the decoration's own canonical frame, the one its shape is defined in, so mirrored instances mirror it — four corner brackets stay identical and keep sharing one material. → `reference/decor.md`
 
 **State-colour transition timing.** A state transition whose start or end colour is a gradient **snaps** immediately (no ~0.1s fade) — there is no colour-lerp for a vertex gradient. So does the state a control is **first shown in** (a control opened already disabled/selected — e.g. a modal `Configure` hook setting `Interactable = false` — shows that state on frame 1, not faded in from Normal). Other solid ↔ solid transitions still fade as before. See `reference/states.md` → *First-frame establishment*.
 
@@ -1522,19 +1543,24 @@ The hint bends the whole ramp into a power curve, so there is no kink anywhere. 
 - (Runtime, when value can't resolve) `<Image id='X'> attribute color="Y": unknown color token "Y" (no entry in theme 'Z', not a valid hex/named literal)`
 - (Runtime, bad alpha suffix) `color "black/1.5": alpha 1.5 is out of range — must be 0..1`
 - (Lint) `PUI-COLOR-LITERAL-INVALID` — static check: `color="#..."` literal that doesn't parse, or a hex literal with an out-of-range / malformed `/alpha` suffix
-- `<Color name="X" value="A,B,C">: gradient supports exactly two colours (top,bottom), optionally with a hint percentage between them` — also fires for empty segments (e.g. `value="#fff,"`, `value=",#000"`)
-- (Lint, CLI) `PUI-COLOR-GRADIENT-MALFORMED` — malformed gradient shape on a `color` attribute (wrong segment count or empty segment)
+- `<Color name="X" value="…">: gradient supports 2 to 4 colours ("A, B, C, D"), got 5` — also `gradient segment is empty` for `value="#fff,"`, `value=",#000"`
+- (Lint, CLI) `PUI-COLOR-GRADIENT-MALFORMED` — malformed gradient shape on a `color` attribute: too many colours, an empty segment, a misplaced direction or hint, decreasing stops (every parse-time message below)
 - (Lint, CLI) `PUI-GRADIENT-MODULATE` — a gradient value on a `*Modulate` attribute
 - (Runtime) `color "...": this attribute does not support gradient colors` — gradient on a solid-only attribute (`*Modulate`, caret/selection colours, etc.)
 - (Runtime) `color "...": token resolves to a gradient — gradients cannot nest inside a gradient` — one segment of a gradient reference resolves to another gradient token
-- (Lint, CLI + runtime warning) `PUI-GRADIENT-STOP-NO-SURFACE` — a gradient stop position / hint on TMP text (`<Text>`, `textColor`, `itemTextColor`), which paints per glyph and has nowhere to put one (see *Stop positions* above)
+- (Lint, CLI + runtime warning) `PUI-GRADIENT-STOP-NO-SURFACE` — a gradient stop position / hint / **third colour** on TMP text (`<Text>`, `textColor`, `itemTextColor`), which paints per glyph and has nowhere to put one; a two-colour direction is fine (see *`<Text>` per-character gradient* above)
 - (Parse / runtime) `color "#fff 70": the stop position must be a percentage (e.g. "70%")`
 - (Parse / runtime) `color "#fff 120%": stop position 120% is out of range — must be 0%..100%`
 - (Parse / runtime) `color "#fff 70%": a stop position needs a two-colour gradient (e.g. "A 70%,B") — a solid colour has no transition point to move`
-- (Parse / runtime) `color "A 70%,B 30%": the second stop position must not sit above the first — the gradient runs top to bottom`
+- (Parse / runtime) `color "A 70%,B 30%": stop positions must not decrease along the gradient (70% then 30%)`
 - (Parse / runtime) `color "A, 70%": a colour hint must sit BETWEEN two colours ("A, 70%, B")`
-- (Parse / runtime) `color "A 40%, 20%, B": the hint must sit between the two stop positions`
-- `color "A,B,C": gradient supports exactly two colours (top,bottom), optionally with a hint percentage between them ("A, 70%, B")`
+- (Parse / runtime) `color "A 40%, 20%, B": the hint must sit between the two stop positions of its segment (40%..100%)`
+- (Parse / runtime) `color "A,B,C,D,E": gradient supports 2 to 4 colours ("A, B, C, D"), got 5`
+- (Parse / runtime) `color "to right, #fff": a direction needs at least two colours ("to right, A, B")`
+- (Parse / runtime) `color "#fff, to right, #000": the direction must be the first segment ("to right, A, B")`
+- (Parse / runtime) `color "45deg #fff, #000": the direction must be its own comma-separated segment ("45deg, #fff, #000")`
+- (Parse / runtime) `color "to up, …": a direction is "<N>deg" or "to <side or corner>" — top / bottom / left / right, or a vertical + horizontal pair ("to bottom right")`
+- `<Color name="45deg">: token name reads as a gradient direction ("45deg") — pick another name`
 
 ## Tint blend modes
 
@@ -1749,6 +1775,9 @@ STYLE/CLASS   <Style name="card" color="surface/0.85" radius="16" borderWidth="1
               commons + Import + hot reload like <Template>; namespaced ref uses a colon: class="ui:card"
 
 FRAME VISUAL  <Frame color="surface/0.9" radius="16" borderWidth="1" borderColor="stroke/0.15" glow="0"/>
+              gradients everywhere a colour goes: "[to right,|45deg,] A[ 30%], [50%,] B, C, D" (2–4 stops)
+              default = to bottom; "to bottom right" = CSS magic corner (other two corners on the 50% line)
+              borderColor / glowColor / innerGlowColor take it too, on the SAME line as the fill
               radius: R | TL,TR,BR,BL (CSS clockwise) | pill      border draws INWARD    glow inflates the quad
               no visual attrs → bare RectTransform (zero cost)    sprite= still does nothing (use <Image>)
 
@@ -1802,7 +1831,7 @@ SPRITE FX     blur="4" glow="8" glowColor="accent|self/0.5"   <Image>/<Icon> onl
               (runtime warns per texture, with the limit for that draw size); atlas must not rotate/tight-pack
 REFLECTION    <Icon name="x"/> then <Icon name="x" flip="y" color="white/0.35, white/0 50%"/>
               draw order = XML order, so floor <Image> between the two gives reflection < floor < object
-              gradient runs on the FINAL mesh: first colour = top of what you see, flipped or not
+              gradient runs on the FINAL mesh: first colour = the START of what you see, flipped or not
 STRETCH KW    "stretch"        → LayoutElement.flexible*=1   (LayoutGroup child only)
               "stretch*N"      → LayoutElement.flexible*=N   (N > 0; for 1:2:1 splits etc.)
               Free-positioning equivalent: anchor="...-stretch" + margin

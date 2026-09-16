@@ -41,8 +41,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var tint = _img.GetComponent<GradientTint>();
             Assert.IsNotNull(tint);
             Assert.IsTrue(tint.enabled);
-            Assert.AreEqual(Color.red, tint.Top);
-            Assert.AreEqual(Color.blue, tint.Bottom);
+            Assert.AreEqual(Color.red, tint.StartColor);
+            Assert.AreEqual(Color.blue, tint.EndColor);
             Assert.AreEqual(Color.white, _img.color);
         }
 
@@ -68,8 +68,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var tints = _img.GetComponents<GradientTint>();
             Assert.AreEqual(1, tints.Length);
             Assert.IsTrue(tints[0].enabled);
-            Assert.AreEqual(Color.cyan, tints[0].Top);
-            Assert.AreEqual(Color.yellow, tints[0].Bottom);
+            Assert.AreEqual(Color.cyan, tints[0].StartColor);
+            Assert.AreEqual(Color.yellow, tints[0].EndColor);
         }
 
         [Test]
@@ -80,7 +80,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var spec = ColorApplier.Peek(_img);
 
             Assert.IsFalse(spec.IsGradient);
-            Assert.AreEqual(Color.magenta, spec.Top);
+            Assert.AreEqual(Color.magenta, spec.Start);
         }
 
         [Test]
@@ -91,8 +91,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var spec = ColorApplier.Peek(_img);
 
             Assert.IsTrue(spec.IsGradient);
-            Assert.AreEqual(Color.red, spec.Top);
-            Assert.AreEqual(Color.blue, spec.Bottom);
+            Assert.AreEqual(Color.red, spec.Start);
+            Assert.AreEqual(Color.blue, spec.End);
         }
 
         [Test]
@@ -104,7 +104,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var spec = ColorApplier.Peek(_img);
 
             Assert.IsFalse(spec.IsGradient);
-            Assert.AreEqual(Color.green, spec.Top);
+            Assert.AreEqual(Color.green, spec.Start);
         }
 
         [Test]
@@ -119,9 +119,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             Assert.IsTrue(spec.IsGradient);
             Assert.IsTrue(spec.HasStops);
-            Assert.AreEqual(0.3f, spec.TopStop, 1e-5f);
-            Assert.AreEqual(0.6f, spec.BottomStop, 1e-5f);
-            Assert.AreEqual(2f, spec.Curve, 1e-5f);
+            Assert.AreEqual(0.3f, spec.StartStop, 1e-5f);
+            Assert.AreEqual(0.6f, spec.EndStop, 1e-5f);
+            Assert.AreEqual(2f, spec.CurveAt(0), 1e-5f);
         }
     }
 }

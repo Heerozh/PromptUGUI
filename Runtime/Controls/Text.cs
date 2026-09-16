@@ -99,13 +99,13 @@ namespace PromptUGUI.Controls
                 if (spec.IsGradient)
                 {
                     _tmp.enableVertexGradient = true;
-                    _tmp.colorGradient = new VertexGradient(spec.Top, spec.Top, spec.Bottom, spec.Bottom);
+                    _tmp.colorGradient = spec.ToVertexGradient();
                     _tmp.color = UnityEngine.Color.white;
                 }
                 else
                 {
                     _tmp.enableVertexGradient = false;
-                    _tmp.color = spec.Top;
+                    _tmp.color = spec.Start;
                 }
             }
         }

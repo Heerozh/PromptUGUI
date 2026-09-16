@@ -40,17 +40,12 @@ namespace PromptUGUI.Controls.Internal
     internal sealed class ProceduralPanel : MaskableGraphic, ISelfGrayscale
     {
         private ColorSpec _fill = ColorSpec.Solid(Color.clear);
-        private Color _fillTop = Color.clear;
-        private Color _fillBottom = Color.clear;
-        private float _fillStopTop;
-        private float _fillStopBottom = 1f;
-        private float _fillCurve = 1f;
-        private Color _borderColor = Color.white;
-        private Color _glowColor = Color.white;
+        private ColorSpec _borderColor = ColorSpec.Solid(Color.white);
+        private ColorSpec _glowColor = ColorSpec.Solid(Color.white);
         private bool _glowColorExplicit;
         // No "explicit" twin: unlike the outer glow this one does not fall back to the fill, so
         // white IS the default rather than a stand-in for one (spec 2026-08-28 §5.4).
-        private Color _innerGlowColor = Color.white;
+        private ColorSpec _innerGlowColor = ColorSpec.Solid(Color.white);
         private RadiusSpec _radius = RadiusSpec.Zero;
         private float _borderWidth;
         private float _glowSize;
@@ -183,11 +178,6 @@ namespace PromptUGUI.Controls.Internal
         public void SetFill(in ColorSpec fill)
         {
             _fill = fill;
-            _fillTop = fill.Top;
-            _fillBottom = fill.Bottom;
-            _fillStopTop = fill.TopStop;
-            _fillStopBottom = fill.BottomStop;
-            _fillCurve = fill.Curve;
             MarkDirty();
         }
 
@@ -203,7 +193,9 @@ namespace PromptUGUI.Controls.Internal
             MarkDirty();
         }
 
-        public void SetBorderColor(Color color)
+        public void SetBorderColor(Color color) => SetBorderColor(ColorSpec.Solid(color));
+
+        public void SetBorderColor(in ColorSpec color)
         {
             _borderColor = color;
             MarkDirty();
@@ -215,7 +207,9 @@ namespace PromptUGUI.Controls.Internal
             MarkDirty();
         }
 
-        public void SetGlowColor(Color color)
+        public void SetGlowColor(Color color) => SetGlowColor(ColorSpec.Solid(color));
+
+        public void SetGlowColor(in ColorSpec color)
         {
             _glowColor = color;
             _glowColorExplicit = true;
@@ -228,7 +222,9 @@ namespace PromptUGUI.Controls.Internal
             MarkDirty();
         }
 
-        public void SetInnerGlowColor(Color color)
+        public void SetInnerGlowColor(Color color) => SetInnerGlowColor(ColorSpec.Solid(color));
+
+        public void SetInnerGlowColor(in ColorSpec color)
         {
             _innerGlowColor = color;
             MarkDirty();
@@ -329,11 +325,6 @@ namespace PromptUGUI.Controls.Internal
         {
             if (source == null || source == this) return;
             _fill = source._fill;
-            _fillTop = source._fillTop;
-            _fillBottom = source._fillBottom;
-            _fillStopTop = source._fillStopTop;
-            _fillStopBottom = source._fillStopBottom;
-            _fillCurve = source._fillCurve;
             _borderColor = source._borderColor;
             _glowColor = source._glowColor;
             _glowColorExplicit = source._glowColorExplicit;
@@ -389,9 +380,11 @@ namespace PromptUGUI.Controls.Internal
         {
             // An unset glowColor follows the fill so `glow="12"` alone reads as "this shape glows",
             // not "this shape gets a white halo".
+            // It takes the WHOLE fill ramp — direction, stops, curves — at full alpha, so a gradient fill
+            // glows in its own gradient (spec 2026-09-17 LG-D4).
             var glow = _glowColorExplicit
                 ? _glowColor
-                : (_fillTop.a > 0f ? new Color(_fillTop.r, _fillTop.g, _fillTop.b, 1f) : Color.white);
+                : (_fill.AnyVisible ? _fill.Opaque() : ColorSpec.Solid(Color.white));
 
             // Glass values are zeroed when the mode is off: they change nothing about how an opaque
             // panel draws, so letting them into the key would split the material cache into entries
@@ -401,8 +394,7 @@ namespace PromptUGUI.Controls.Internal
                                   _lightIntensity, _saturation, _noise)
                 : GlassParams.None;
 
-            var fillTop = _fillTop;
-            var fillBottom = _fillBottom;
+            var fill = _fill;
             var border = _borderColor;
             var innerGlow = _innerGlowColor;
             // Glass paints the backdrop, which is not light the surface emits, so exposure has no
@@ -418,11 +410,10 @@ namespace PromptUGUI.Controls.Internal
                 // Image: this material carries the shape, the border and the glass, and replacing it
                 // erases all three. It would also be a losing fight — FlushParams writes the cached
                 // material back on the next parameter change and would undo the greying in turn.
-                fillTop = Desaturate(fillTop);
-                fillBottom = Desaturate(fillBottom);
-                border = Desaturate(border);
-                glow = Desaturate(glow);
-                innerGlow = Desaturate(innerGlow);
+                fill = fill.Desaturate();
+                border = border.Desaturate();
+                glow = glow.Desaturate();
+                innerGlow = innerGlow.Desaturate();
                 if (_glass)
                     // Grey glass AND thin glass: dropping saturation alone still reads as a live,
                     // refracting pane. A disabled control should look inert, so the bevel goes too.
@@ -431,8 +422,7 @@ namespace PromptUGUI.Controls.Internal
                                                   0f, _noise);
             }
 
-            return new PanelParams(fillTop, fillBottom, _fillStopTop, _fillStopBottom, _fillCurve,
-                                   border, glow, innerGlow, _radius,
+            return new PanelParams(fill, border, glow, innerGlow, _radius,
                                    _borderWidth, _glowSize, _innerGlowSize, _glass, glassParams,
                                    intensity);
         }
@@ -457,12 +447,6 @@ namespace PromptUGUI.Controls.Internal
 
         private const float DisabledGlassDepth = 0.35f;
         private const float DisabledGlassLight = 0.35f;
-
-        private static Color Desaturate(Color c)
-        {
-            var luma = c.r * 0.299f + c.g * 0.587f + c.b * 0.114f;
-            return new Color(luma, luma, luma, c.a);
-        }
 
         /// <summary>
         /// Marks the panel as the mask source of a stencil <see cref="UnityEngine.UI.Mask"/> on the
@@ -504,12 +488,12 @@ namespace PromptUGUI.Controls.Internal
             if (_maskSource) return true;
             // The blurred backdrop is itself the visual, so a glass panel with no fill still draws.
             if (_glass) return true;
-            if (_fillTop.a > 0f || _fillBottom.a > 0f) return true;
-            if (_borderWidth > 0f && _borderColor.a > 0f) return true;
+            if (_fill.AnyVisible) return true;
+            if (_borderWidth > 0f && _borderColor.AnyVisible) return true;
             if (_glowSize > 0f) return true;
             // A ring of light with no fill behind it is a legitimate look, same standing as the
             // border-only hollow box above.
-            if (_innerGlowSize > 0f && _innerGlowColor.a > 0f) return true;
+            if (_innerGlowSize > 0f && _innerGlowColor.AnyVisible) return true;
             return false;
         }
 

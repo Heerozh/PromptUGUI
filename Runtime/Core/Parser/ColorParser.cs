@@ -147,42 +147,75 @@ namespace PromptUGUI.Parser
         }
 
         /// <summary>
-        /// One gradient value, taken apart: the two colour segments (bottom null for a solid), their
-        /// optional stop positions, and the optional colour hint between them. Bundled rather than
-        /// returned as six out-parameters because the four numbers are meaningless without each
-        /// other — <see cref="CurveExponent"/> needs all three.
+        /// One gradient value, taken apart (spec 2026-09-17 §5.1): the direction, 1..4 colour segments
+        /// (one for a solid), the stop position the author wrote for each (null = defaulted), and the
+        /// colour hint written between each neighbouring pair (null = that segment is linear).
+        /// Bundled because the numbers are meaningless apart — <see cref="CurveExponents"/> needs
+        /// each hint together with the two stops around it.
         /// </summary>
         public readonly struct GradientParts
         {
-            public readonly string Top;
-            /// <summary>Null when the value names a single colour.</summary>
-            public readonly string Bottom;
-            public readonly float? TopStop;
-            public readonly float? BottomStop;
+            public readonly GradientDirection Direction;
+            /// <summary>Colour text per stop, positions already stripped. Length 1 for a solid.</summary>
+            public readonly string[] Colours;
+            /// <summary>Authored position per stop, 0..1 along the gradient line; null when unwritten.</summary>
+            public readonly float?[] Stops;
             /// <summary>
-            /// CSS colour hint: where the two colours are mixed half and half. Bends the ramp into a
-            /// power curve rather than cutting it, so there is no slope discontinuity to read as a
-            /// dividing line — which is what a moved stop position gives you and what the eye picks
-            /// up as a Mach band (spec 2026-08-30 §14).
+            /// CSS colour hint per segment (length <c>Count − 1</c>): where the two colours are mixed half
+            /// and half. Bends that segment into a power curve rather than cutting it, so there is no slope
+            /// discontinuity to read as a dividing line (spec 2026-08-30 §14).
             /// </summary>
-            public readonly float? Hint;
+            public readonly float?[] Hints;
 
-            public GradientParts(string top, string bottom, float? topStop, float? bottomStop, float? hint)
+            public GradientParts(GradientDirection direction, string[] colours, float?[] stops, float?[] hints)
             {
-                Top = top;
-                Bottom = bottom;
-                TopStop = topStop;
-                BottomStop = bottomStop;
-                Hint = hint;
+                Direction = direction;
+                Colours = colours;
+                Stops = stops;
+                Hints = hints;
             }
 
-            /// <summary>Written or defaulted: the ramp starts at the top edge.</summary>
-            public float EffectiveTopStop => TopStop ?? 0f;
-            /// <summary>Written or defaulted: the ramp ends at the bottom edge.</summary>
-            public float EffectiveBottomStop => BottomStop ?? 1f;
+            public int Count => Colours.Length;
+            public bool IsGradient => Colours.Length > 1;
 
-            public float CurveExponent
-                => StopCurveExponent(EffectiveTopStop, EffectiveBottomStop, Hint);
+            /// <summary>
+            /// Every stop's position with the CSS defaults filled in: the first unwritten one is 0, the
+            /// last is 1, and unwritten middles are spread evenly between their nearest written
+            /// neighbours (<c>A, B, C 40%, D</c> → 0, 0.2, 0.4, 1).
+            /// </summary>
+            public float[] EffectiveStops()
+            {
+                var n = Colours.Length;
+                var s = new float[n];
+                if (n == 0) return s;
+                s[0] = Stops[0] ?? 0f;
+                if (n == 1) return s;
+                s[n - 1] = Stops[n - 1] ?? 1f;
+                for (var i = 1; i < n - 1; i++)
+                {
+                    if (Stops[i].HasValue) { s[i] = Stops[i].Value; continue; }
+                    // Run of unwritten stops i..j−1, bracketed by written (or end) stops at i−1 and j.
+                    var j = i + 1;
+                    while (j < n - 1 && !Stops[j].HasValue) j++;
+                    var lo = s[i - 1];
+                    var hi = j == n - 1 ? s[n - 1] : Stops[j].Value;
+                    var runLength = j - (i - 1);
+                    for (var k = i; k < j; k++)
+                        s[k] = lo + (hi - lo) * (k - (i - 1)) / runLength;
+                    i = j - 1;
+                }
+                return s;
+            }
+
+            /// <summary>The power each segment's ramp is raised to (length <c>Count − 1</c>); 1 = linear.</summary>
+            public float[] CurveExponents()
+            {
+                var stops = EffectiveStops();
+                var e = new float[Hints.Length];
+                for (var i = 0; i < e.Length; i++)
+                    e[i] = StopCurveExponent(stops[i], stops[i + 1], Hints[i]);
+                return e;
+            }
         }
 
         /// <summary>
@@ -212,115 +245,253 @@ namespace PromptUGUI.Parser
         private const float HintEpsilon = 1e-3f;
 
         /// <summary>
-        /// Splits an optional two-stop gradient value on ','. <c>"#fff,#000"</c> → top <c>"#fff"</c>,
-        /// bottom <c>"#000"</c>; no comma → top = raw, bottom = null. Segments are trimmed (authors
-        /// write <c>"a, b"</c>) and their stop positions are stripped off, so callers that only
-        /// validate colours never see <c>"#fff 70%"</c>. Each segment still carries its own token /
-        /// <c>/alpha</c> form — this method does NOT validate segment contents, only the split shape.
-        /// Returns false when there are &gt;2 colours or any segment is empty.
+        /// Whether a segment is spelled like a gradient direction — <c>&lt;N&gt;deg</c> or
+        /// <c>to …</c> — as opposed to a colour. Shape only: a direction that then fails to parse is
+        /// still a direction, and gets the direction grammar's error rather than "invalid colour".
+        /// No colour form collides: hex starts with '#', CSS names are alphabetic, a hint ends in
+        /// '%', and a token cannot contain whitespace. A token COULD be spelled <c>45deg</c>, which
+        /// is why the theme parser refuses to declare one (spec 2026-09-17 §8).
         /// </summary>
-        public static bool TrySplitGradient(string raw, out string top, out string bottom, out string error)
+        public static bool LooksLikeDirection(string segment)
         {
-            var ok = TrySplitGradient(raw, out var parts, out error);
-            top = parts.Top;
-            bottom = parts.Bottom;
-            return ok;
+            if (string.IsNullOrEmpty(segment)) return false;
+            if (segment.Length >= 2
+                && (segment[0] == 't' || segment[0] == 'T')
+                && (segment[1] == 'o' || segment[1] == 'O')
+                && (segment.Length == 2 || System.Array.IndexOf(Whitespace, segment[2]) >= 0))
+                return true;
+            return LooksLikeAngle(segment);
+        }
+
+        private static bool LooksLikeAngle(string s)
+        {
+            if (s.Length < 4) return false;
+            if (!s.EndsWith("deg", System.StringComparison.OrdinalIgnoreCase)) return false;
+            var head = s.Substring(0, s.Length - 3);
+            var i = 0;
+            if (head[0] == '-' || head[0] == '+') i = 1;
+            if (i >= head.Length) return false;
+            var digits = 0;
+            var dots = 0;
+            for (; i < head.Length; i++)
+            {
+                var c = head[i];
+                if (c >= '0' && c <= '9') digits++;
+                else if (c == '.' && dots == 0) dots++;
+                else return false;
+            }
+            return digits > 0;
+        }
+
+        private const string DirectionGrammar =
+            "a direction is \"<N>deg\" or \"to <side or corner>\" — top / bottom / left / right, " +
+            "or a vertical + horizontal pair (\"to bottom right\")";
+
+        /// <summary>
+        /// Parses one direction segment (spec 2026-09-17 §3.1). Angles follow CSS: 0deg up, 90deg
+        /// right, 180deg down, 270deg left, normalized into [0, 360). <c>to &lt;side&gt;</c> is the
+        /// matching angle; <c>to &lt;side&gt; &lt;side&gt;</c> (one vertical, one horizontal, either
+        /// order) is a corner, whose angle is resolved later against the box's aspect ratio.
+        /// </summary>
+        public static bool TryParseDirection(string segment, out GradientDirection direction, out string error)
+        {
+            direction = GradientDirection.Default;
+            error = null;
+
+            if (LooksLikeAngle(segment))
+            {
+                var num = segment.Substring(0, segment.Length - 3);
+                if (!float.TryParse(num, System.Globalization.NumberStyles.Float,
+                                    System.Globalization.CultureInfo.InvariantCulture, out var deg))
+                {
+                    error = $"color \"{segment}\": {DirectionGrammar}";
+                    return false;
+                }
+                direction = GradientDirection.Angle(deg);
+                return true;
+            }
+
+            var words = segment.Split(Whitespace, System.StringSplitOptions.RemoveEmptyEntries);
+            if (words.Length < 2 || words.Length > 3
+                || !string.Equals(words[0], "to", System.StringComparison.OrdinalIgnoreCase))
+            {
+                error = $"color \"{segment}\": {DirectionGrammar}";
+                return false;
+            }
+
+            int x = 0, y = 0;
+            for (var i = 1; i < words.Length; i++)
+            {
+                switch (words[i].ToLowerInvariant())
+                {
+                    case "top": if (y != 0) goto bad; y = 1; break;
+                    case "bottom": if (y != 0) goto bad; y = -1; break;
+                    case "left": if (x != 0) goto bad; x = -1; break;
+                    case "right": if (x != 0) goto bad; x = 1; break;
+                    default: goto bad;
+                }
+            }
+
+            if (x != 0 && y != 0) { direction = GradientDirection.Corner(x, y); return true; }
+            if (y > 0) { direction = GradientDirection.Angle(0f); return true; }
+            if (x > 0) { direction = GradientDirection.Angle(90f); return true; }
+            if (y < 0) { direction = GradientDirection.Angle(180f); return true; }
+            direction = GradientDirection.Angle(270f);
+            return true;
+
+        bad:
+            error = $"color \"{segment}\": {DirectionGrammar}";
+            return false;
         }
 
         /// <summary>
-        /// The full split: two colour segments, their stop positions (0..1 from the top edge, null
-        /// when the author wrote none — the defaults are 0 and 1, i.e. the full-height ramp), and an
-        /// optional colour hint written as a bare percentage between them (<c>"A, 70%, B"</c>).
+        /// The full split of a colour value (spec 2026-09-17 §3.1): an optional leading direction,
+        /// then 1..4 colour segments, each with an optional stop position (<c>"#fff 70%"</c>, 0..1
+        /// along the gradient line, null when unwritten), with an optional bare-percentage colour
+        /// hint between any two of them (<c>"A, 70%, B"</c>). Segments are trimmed and their
+        /// positions are stripped, so callers that only validate colours never see <c>"#fff 70%"</c>;
+        /// segment CONTENTS (token / hex / <c>/alpha</c>) are not validated here, only the shape.
         ///
-        /// <para>A bare percentage is unambiguous: no colour form can end in '%', so a middle
-        /// segment carrying one is a hint and nothing else.</para>
+        /// <para>Segment classification is unambiguous: a direction contains whitespace or ends in
+        /// <c>deg</c>, a hint ends in '%', and no colour spelling does either.</para>
         /// </summary>
         public static bool TrySplitGradient(string raw, out GradientParts parts, out string error)
         {
-            parts = new GradientParts(raw, null, null, null, null);
+            parts = new GradientParts(GradientDirection.Default, new[] { raw }, new float?[1], System.Array.Empty<float?>());
             error = null;
             if (string.IsNullOrEmpty(raw)) return true;   // empty handled by caller
 
             var segments = raw.Split(',');
-            if (segments.Length > 3)
-            {
-                error = $"color \"{raw}\": gradient supports exactly two colours (top,bottom), " +
-                        "optionally with a hint percentage between them (\"A, 70%, B\")";
-                return false;
-            }
-
             for (var i = 0; i < segments.Length; i++)
             {
                 segments[i] = segments[i].Trim();
                 if (segments[i].Length != 0) continue;
-                error = $"color \"{raw}\": gradient segment is empty — expected \"top,bottom\"";
+                error = $"color \"{raw}\": gradient segment is empty — expected \"A, B\"";
                 return false;
             }
 
-            string topRaw = segments[0], bottomRaw = null;
-            float? hint = null;
-
-            if (segments.Length == 2)
+            var direction = GradientDirection.Default;
+            var first = 0;
+            if (LooksLikeDirection(segments[0]))
             {
-                if (TryParsePercent(segments[1], out _))
+                if (!TryParseDirection(segments[0], out direction, out error)) return false;
+                first = 1;
+            }
+
+            var colours = new System.Collections.Generic.List<string>(4);
+            var stops = new System.Collections.Generic.List<float?>(4);
+            var hints = new System.Collections.Generic.List<float?>(3);
+            var pendingHint = (float?)null;
+            var lastWasHint = false;
+
+            for (var i = first; i < segments.Length; i++)
+            {
+                var seg = segments[i];
+
+                if (LooksLikeDirection(seg))
                 {
-                    error = $"color \"{raw}\": a colour hint must sit BETWEEN two colours " +
-                            "(\"A, 70%, B\") — on its own there is nothing for it to bend";
+                    error = $"color \"{raw}\": the direction must be the first segment " +
+                            "(\"to right, A, B\")";
                     return false;
                 }
-                bottomRaw = segments[1];
-            }
-            else if (segments.Length == 3)
-            {
-                if (!TryParsePercent(segments[1], out var h))
+
+                if (TryParsePercent(seg, out var hint))
                 {
-                    error = $"color \"{raw}\": gradient supports exactly two colours (top,bottom), " +
-                            "optionally with a hint percentage between them (\"A, 70%, B\")";
+                    if (colours.Count == 0 || lastWasHint)
+                    {
+                        error = $"color \"{raw}\": a colour hint must sit BETWEEN two colours " +
+                                "(\"A, 70%, B\") — on its own there is nothing for it to bend";
+                        return false;
+                    }
+                    pendingHint = hint;
+                    lastWasHint = true;
+                    continue;
+                }
+
+                // "45deg #fff": a direction glued to its first colour. Caught here, before TrySplitStop
+                // would call the tail a bad stop position.
+                var space = seg.IndexOfAny(Whitespace);
+                if (space > 0 && LooksLikeAngle(seg.Substring(0, space)))
+                {
+                    error = $"color \"{raw}\": the direction must be its own comma-separated segment " +
+                            "(\"45deg, #fff, #000\")";
                     return false;
                 }
-                hint = h;
-                bottomRaw = segments[2];
-            }
 
-            if (!TrySplitStop(topRaw, out topRaw, out var topStop, out error)) return false;
+                if (!TrySplitStop(seg, out var colour, out var stop, out error)) return false;
 
-            if (bottomRaw == null)
-            {
-                if (!topStop.HasValue)
+                if (colours.Count > 0)
                 {
-                    parts = new GradientParts(topRaw, null, null, null, null);
-                    return true;
+                    hints.Add(pendingHint);
+                    pendingHint = null;
                 }
-                error = $"color \"{raw}\": a stop position needs a two-colour gradient " +
-                        "(e.g. \"A 70%,B\") — a solid colour has no transition point to move";
-                return false;
+                colours.Add(colour);
+                stops.Add(stop);
+                lastWasHint = false;
             }
 
-            if (!TrySplitStop(bottomRaw, out bottomRaw, out var bottomStop, out error)) return false;
-
-            // Compared as the shader will see them, so "A 70%,B" (0.7 → 1) passes and
-            // "A 70%,B 30%" does not. Equal is a legal hard edge, not a mistake.
-            var effTop = topStop ?? 0f;
-            var effBottom = bottomStop ?? 1f;
-            if (effBottom < effTop)
+            if (lastWasHint)
             {
-                error = $"color \"{raw}\": the second stop position must not sit above the first — " +
-                        "the gradient runs top to bottom";
+                error = $"color \"{raw}\": a colour hint must sit BETWEEN two colours " +
+                        "(\"A, 70%, B\") — on its own there is nothing for it to bend";
                 return false;
             }
 
-            if (hint.HasValue && (hint.Value < effTop || hint.Value > effBottom))
+            if (colours.Count == 1)
             {
-                error = $"color \"{raw}\": the hint must sit between the two stop positions " +
-                        $"({effTop * 100f:0.###}%..{effBottom * 100f:0.###}%) — outside them there is " +
-                        "no transition left to bend";
+                if (first == 1)
+                {
+                    error = $"color \"{raw}\": a direction needs at least two colours " +
+                            "(\"to right, A, B\")";
+                    return false;
+                }
+                if (stops[0].HasValue)
+                {
+                    error = $"color \"{raw}\": a stop position needs a two-colour gradient " +
+                            "(e.g. \"A 70%,B\") — a solid colour has no transition point to move";
+                    return false;
+                }
+                parts = new GradientParts(direction, colours.ToArray(), stops.ToArray(), System.Array.Empty<float?>());
+                return true;
+            }
+
+            if (colours.Count > MaxStops)
+            {
+                error = $"color \"{raw}\": gradient supports 2 to {MaxStops} colours " +
+                        $"(\"A, B, C, D\"), got {colours.Count}";
                 return false;
             }
 
-            parts = new GradientParts(topRaw, bottomRaw, topStop, bottomStop, hint);
+            parts = new GradientParts(direction, colours.ToArray(), stops.ToArray(), hints.ToArray());
+
+            // Compared as the shader will see them, so "A 70%,B" (0.7 → 1) passes and "A 70%,B 30%"
+            // does not. Equal is a legal hard edge, not a mistake.
+            var eff = parts.EffectiveStops();
+            for (var i = 1; i < eff.Length; i++)
+            {
+                if (eff[i] >= eff[i - 1]) continue;
+                error = $"color \"{raw}\": stop positions must not decrease along the gradient " +
+                        $"({eff[i - 1] * 100f:0.###}% then {eff[i] * 100f:0.###}%)";
+                return false;
+            }
+
+            for (var i = 0; i < parts.Hints.Length; i++)
+            {
+                var h = parts.Hints[i];
+                if (!h.HasValue || (h.Value >= eff[i] && h.Value <= eff[i + 1])) continue;
+                error = $"color \"{raw}\": the hint must sit between the two stop positions of its " +
+                        $"segment ({eff[i] * 100f:0.###}%..{eff[i + 1] * 100f:0.###}%) — outside them " +
+                        "there is no transition left to bend";
+                return false;
+            }
+
             return true;
         }
 
+        /// <summary>Most colour stops a gradient may carry (spec 2026-09-17 LG-D2): the SDF shaders
+        /// keep one uniform slot per stop, and the vertex path shares the limit so one value means
+        /// the same thing everywhere.</summary>
+        public const int MaxStops = 4;
         /// <summary>
         /// A segment that is nothing but a percentage — the colour-hint form. No colour spelling can
         /// end in '%' (tokens are <c>[a-z0-9-]</c>, hex is <c>#…</c>, CSS names are alphabetic), so
