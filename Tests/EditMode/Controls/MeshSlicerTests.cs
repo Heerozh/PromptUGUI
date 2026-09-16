@@ -225,5 +225,57 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(new Vector4(0.5f, 0.5f, 0.5f, 0.5f), m.uv2);
             Assert.AreEqual(new Vector4(1f, 1f, 1f, 1f), m.uv3);
         }
+
+        // ── an arbitrary line (spec 2026-09-17 §6.3) ────────────────────────────
+
+        [Test]
+        public void Quad_SlicedAlongTheDiagonal_PinsEveryCutVertexToTheLine()
+        {
+            var bl = Vert(0f, 0f, Color.red, Vector4.zero);
+            var tl = Vert(0f, 100f, Color.red, Vector4.zero);
+            var tr = Vert(100f, 100f, Color.blue, Vector4.zero);
+            var br = Vert(100f, 0f, Color.blue, Vector4.zero);
+            var tris = new List<UIVertex>();
+            Tri(tris, bl, tl, tr);
+            Tri(tris, bl, tr, br);
+            var output = new List<UIVertex>();
+
+            // dot(p, (1,1)/√2) = 100/√2 is the anti-diagonal x + y = 100.
+            var dir = new Vector2(1f, 1f).normalized;
+            var cut = 100f / Mathf.Sqrt(2f);
+            MeshSlicer.SplitAlongLine(tris, dir, cut, output);
+
+            var onLine = 0;
+            foreach (var v in output)
+            {
+                var proj = v.position.x * dir.x + v.position.y * dir.y;
+                if (Mathf.Abs(proj - cut) < 1f)
+                {
+                    onLine++;
+                    Assert.AreEqual(cut, proj, 1e-4f, "a cut vertex must project EXACTLY onto the line");
+                }
+            }
+            Assert.GreaterOrEqual(onLine, 2, "the anti-diagonal crosses both triangles");
+            Assert.AreEqual(TotalArea(tris), TotalArea(output), 1e-2f, "area is conserved");
+            foreach (var v in output)
+            {
+                var proj = v.position.x * dir.x + v.position.y * dir.y;
+                Assert.IsTrue(proj <= cut + 1e-3f || proj >= cut - 1e-3f);
+            }
+        }
+
+        [Test]
+        public void SplitAlongY_IsTheVerticalSpecialCase()
+        {
+            var tris = new List<UIVertex>();
+            Tri(tris, Vert(0f, 0f), Vert(0f, 100f), Vert(100f, 100f));
+            var byY = new List<UIVertex>();
+            var byLine = new List<UIVertex>();
+            MeshSlicer.SplitAlongY(tris, 40f, byY);
+            MeshSlicer.SplitAlongLine(tris, Vector2.up, 40f, byLine);
+            Assert.AreEqual(byY.Count, byLine.Count);
+            for (var i = 0; i < byY.Count; i++)
+                Assert.AreEqual(byY[i].position, byLine[i].position);
+        }
     }
 }
