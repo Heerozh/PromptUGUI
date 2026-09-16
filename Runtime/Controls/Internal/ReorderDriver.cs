@@ -99,6 +99,7 @@ namespace PromptUGUI.Controls.Internal
 
         void IBeginDragHandler.OnBeginDrag(PointerEventData e)
         {
+            if (IsAnotherPointer(e)) return;
             switch (_phase)
             {
                 case Phase.Pressed when _holdRemaining <= 0f:
@@ -126,6 +127,7 @@ namespace PromptUGUI.Controls.Internal
 
         void IDragHandler.OnDrag(PointerEventData e)
         {
+            if (IsAnotherPointer(e)) return;
             switch (_phase)
             {
                 case Phase.Dragging:
@@ -142,6 +144,7 @@ namespace PromptUGUI.Controls.Internal
 
         void IEndDragHandler.OnEndDrag(PointerEventData e)
         {
+            if (IsAnotherPointer(e)) return;
             switch (_phase)
             {
                 case Phase.Dragging:
@@ -190,6 +193,11 @@ namespace PromptUGUI.Controls.Internal
         }
 
         private bool Released() => _pointer == null || _pointer.pointerDrag == null;
+
+        // A second finger while a row is lifted: not this session's, and not a scroll either (the
+        // ScrollRect tracks one drag) — its events go nowhere rather than rewriting our phase.
+        private bool IsAnotherPointer(PointerEventData e)
+            => IsSessionActive && _pointer != null && e.pointerId != _pointer.pointerId;
 
         // ───── lift / drag / drop ─────
 

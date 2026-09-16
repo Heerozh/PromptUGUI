@@ -674,6 +674,29 @@ namespace PromptUGUI.Tests.EditMode.Controls
             End(d, e);
         }
 
+        // ───── 14b. 第二根手指 ─────
+
+        [Test]
+        public void A_second_pointer_during_a_session_is_ignored()
+        {
+            var (list, rows) = OpenList("reorder='true' reorderHold='0'");
+            var counter = CountForwarded(list);
+            var d = DriverOf(list);
+            var first = Press(d, ScreenOf(Rt(rows[1])), pointerId: 0);
+            Begin(d, first);
+            Assert.IsTrue(list.IsReordering);
+
+            var second = Press(d, ScreenOf(Rt(rows[0])), pointerId: 1);
+            Begin(d, second);
+            DragTo(d, second, second.position + new Vector2(0f, -40f));
+            End(d, second);
+
+            Assert.IsTrue(list.IsReordering, "the first finger's session is untouched");
+            Assert.AreEqual((0, 0, 0), (counter.Begin, counter.Drag, counter.End), "and the second is not a scroll either");
+            End(d, first);
+            Assert.IsFalse(list.IsReordering);
+        }
+
         // ───── 15. 参数解析 ─────
 
         [Test]
