@@ -32,6 +32,11 @@ namespace PromptUGUI.Lint
                 foreach (var issue in CollapsibleRules.CheckGroups(screen.Root))
                     yield return issue;
 
+                // reorderHandle= names a node inside the ROW, which is the itemTemplate's body — a
+                // per-node rule cannot see it, so this walk carries the document's templates along.
+                foreach (var issue in CheckReorderHandles(screen.Root, doc.Templates, styles))
+                    yield return issue;
+
                 // CLI-only, screen-wide: the outermost drawn surfaces that never said whether they
                 // catch the pointer. Stops at the first answer on each path, so it is a walk of its
                 // own rather than a per-node check. Stamps its own source.
@@ -82,6 +87,17 @@ namespace PromptUGUI.Lint
                     foreach (var issue in WalkNode(template.Body, inTemplateBody: true, hasStateSourceAncestor: false, hasMenuAncestor: false, hasToggleAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: true, screenIds: s_emptyIds, styles: styles))
                         yield return issue;
             }
+        }
+
+        private static IEnumerable<LintIssue> CheckReorderHandles(
+            ElementNode node, IReadOnlyDictionary<string, TemplateDef> templates, StyleAttributeView styles)
+        {
+            if (node.Tag == "ScrollList")
+                foreach (var issue in ScrollListRules.CheckReorderHandle(node, templates, styles))
+                    yield return issue.Origin == null ? issue.WithSource(node.OriginSrc, node.Line, node.InvokedAt) : issue;
+            foreach (var child in node.Children)
+                foreach (var issue in CheckReorderHandles(child, templates, styles))
+                    yield return issue;
         }
 
         private static HashSet<string> CollectScreenIds(ScreenDef screen)
@@ -156,8 +172,12 @@ namespace PromptUGUI.Lint
                 foreach (var issue in CarouselRules.CheckCarousel(node))
                     yield return issue;
             else if (node.Tag == "ScrollList")
+            {
                 foreach (var issue in ScrollListRules.CheckScrollList(node, styles))
                     yield return issue;
+                foreach (var issue in ScrollListRules.CheckReorderValues(node, styles))
+                    yield return issue;
+            }
             else if (node.Tag == "Collapsible")
                 foreach (var issue in CollapsibleRules.CheckCollapsible(node, styles))
                     yield return issue;
