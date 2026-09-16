@@ -21,13 +21,13 @@ namespace PromptUGUI.Controls.Internal
             if (spec.IsGradient)
             {
                 label.enableVertexGradient = true;
-                label.colorGradient = new VertexGradient(spec.Top, spec.Top, spec.Bottom, spec.Bottom);
+                label.colorGradient = new VertexGradient(spec.Start, spec.Start, spec.End, spec.End);
                 label.color = Color.white;
             }
             else
             {
                 label.enableVertexGradient = false;
-                label.color = spec.Top;
+                label.color = spec.Start;
             }
         }
     }

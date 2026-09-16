@@ -107,8 +107,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 panel.SetFill(ColorSpec.Solid(Color.red));
                 var peeked = ColorApplier.Peek(panel);
                 Assert.That(panel.color, Is.EqualTo(Color.white), "multiplier untouched");
-                Assert.That(peeked.Top.r, Is.EqualTo(1f).Within(0.001f));
-                Assert.That(peeked.Top.g, Is.EqualTo(0f).Within(0.001f), "peeked the fill, not Graphic.color");
+                Assert.That(peeked.Start.r, Is.EqualTo(1f).Within(0.001f));
+                Assert.That(peeked.Start.g, Is.EqualTo(0f).Within(0.001f), "peeked the fill, not Graphic.color");
             }
             finally
             {

@@ -24,10 +24,10 @@ namespace PromptUGUI.Tests.EditMode.Lint
         }
 
         [Test]
-        public void InvalidGradient_ThreeSegments_MalformedIssue()
+        public void InvalidGradient_FiveSegments_MalformedIssue()
         {
             var n = new IR.ElementNode("Image") { Id = "bad" };
-            n.Attributes["color"] = "#fff,#000,#111";
+            n.Attributes["color"] = "#fff,#000,#111,#222,#333";
             var issues = ColorLiteralRules.Check(n).ToList();
             Assert.AreEqual(1, issues.Count);
             Assert.AreEqual(ColorLiteralRules.GradientMalformedCode, issues[0].Code);
@@ -150,14 +150,14 @@ namespace PromptUGUI.Tests.EditMode.Lint
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'>
   <Screen name='S'>
-    <Image id='img' color='#fff,#000,#111'/>
+    <Image id='img' color='#fff,#000,#111,#222,#333'/>
   </Screen>
 </PromptUGUI>";
             var doc = UIDocumentParser.Parse(xml);
             var issues = IRWalker.Walk(doc).ToList();
             Assert.IsTrue(issues.Any(i =>
                 i.Code == ColorLiteralRules.GradientMalformedCode && i.Id == "img"),
-                "IRWalker must surface PUI-COLOR-GRADIENT-MALFORMED for 3-segment gradient");
+                "IRWalker must surface PUI-COLOR-GRADIENT-MALFORMED for a 5-colour gradient");
         }
     }
 }

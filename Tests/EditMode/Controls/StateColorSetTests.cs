@@ -17,10 +17,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var set = new StateColorSet(
                 ColorSpec.Solid(Color.red), ColorSpec.Solid(Color.green),
                 ColorSpec.Solid(Color.blue), ColorSpec.Solid(Color.gray));
-            Assert.AreEqual(Color.red, set.For(InteractState.Hover).Value.Top);
-            Assert.AreEqual(Color.green, set.For(InteractState.Pressed).Value.Top);
-            Assert.AreEqual(Color.blue, set.For(InteractState.Selected).Value.Top);
-            Assert.AreEqual(Color.gray, set.For(InteractState.Disabled).Value.Top);
+            Assert.AreEqual(Color.red, set.For(InteractState.Hover).Value.Start);
+            Assert.AreEqual(Color.green, set.For(InteractState.Pressed).Value.Start);
+            Assert.AreEqual(Color.blue, set.For(InteractState.Selected).Value.Start);
+            Assert.AreEqual(Color.gray, set.For(InteractState.Disabled).Value.Start);
             Assert.IsNull(set.For(InteractState.Normal));
         }
 
@@ -42,7 +42,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsNull(set.For(InteractState.Disabled), "whitespace -> null");
             var sel = set.For(InteractState.Selected).Value;
             Assert.IsFalse(sel.IsGradient, "solid literal -> non-gradient spec");
-            Assert.AreEqual(new Color(1f, 0f, 0f, 1f), sel.Top);
+            Assert.AreEqual(new Color(1f, 0f, 0f, 1f), sel.Start);
         }
 
         [Test]
@@ -51,8 +51,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var set = StateColorSet.ResolveAbsolutes("#ffffff,#000000", null, null, null);
             var hover = set.For(InteractState.Hover).Value;
             Assert.IsTrue(hover.IsGradient, "comma literal -> gradient spec");
-            Assert.AreEqual(Color.white, hover.Top);
-            Assert.AreEqual(Color.black, hover.Bottom);
+            Assert.AreEqual(Color.white, hover.Start);
+            Assert.AreEqual(Color.black, hover.End);
         }
 
         [Test]

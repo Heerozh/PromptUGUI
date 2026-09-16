@@ -30,8 +30,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var tint = img.GetComponent<GradientTint>();
             Assert.IsNotNull(tint, "GradientTint component must be present");
             Assert.IsTrue(tint.enabled, "GradientTint must be enabled");
-            Assert.AreEqual(Color.white, tint.Top, "top stop must be white");
-            Assert.AreEqual(Color.black, tint.Bottom, "bottom stop must be black");
+            Assert.AreEqual(Color.white, tint.StartColor, "top stop must be white");
+            Assert.AreEqual(Color.black, tint.EndColor, "bottom stop must be black");
             Assert.AreEqual(Color.white, img.color, "graphic.color must be white for gradient");
         }
 
@@ -57,8 +57,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var tint = bg.GetComponent<GradientTint>();
             Assert.IsNotNull(tint, "GradientTint must be present on Btn bg");
             Assert.IsTrue(tint.enabled, "GradientTint must be enabled");
-            Assert.AreEqual(Color.white, tint.Top);
-            Assert.AreEqual(Color.black, tint.Bottom);
+            Assert.AreEqual(Color.white, tint.StartColor);
+            Assert.AreEqual(Color.black, tint.EndColor);
         }
 
         // 4. Progress fill gradient — fill graphic has enabled GradientTint
@@ -71,8 +71,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var tint = fill.GetComponent<GradientTint>();
             Assert.IsNotNull(tint, "GradientTint must be present on fill");
             Assert.IsTrue(tint.enabled, "GradientTint must be enabled on fill");
-            Assert.AreEqual(Color.white, tint.Top);
-            Assert.AreEqual(Color.black, tint.Bottom);
+            Assert.AreEqual(Color.white, tint.StartColor);
+            Assert.AreEqual(Color.black, tint.EndColor);
         }
 
         // 5. ScrollList frameColor gradient — frame graphic has enabled GradientTint
@@ -98,8 +98,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var tint = img.GetComponent<GradientTint>();
             Assert.IsNotNull(tint, "GradientTint must be present on ScrollList frame");
             Assert.IsTrue(tint.enabled, "GradientTint must be enabled on frame");
-            Assert.AreEqual(Color.white, tint.Top);
-            Assert.AreEqual(Color.black, tint.Bottom);
+            Assert.AreEqual(Color.white, tint.StartColor);
+            Assert.AreEqual(Color.black, tint.EndColor);
         }
 
         // 6. Variant round-trip: solid↔gradient via ReSolve
@@ -114,8 +114,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var tint = img.GetComponent<GradientTint>();
             Assert.IsNotNull(tint, "GradientTint component must exist");
             Assert.IsTrue(tint.enabled, "GradientTint must be enabled at baseline");
-            Assert.AreEqual(Color.white, tint.Top);
-            Assert.AreEqual(Color.black, tint.Bottom);
+            Assert.AreEqual(Color.white, tint.StartColor);
+            Assert.AreEqual(Color.black, tint.EndColor);
 
             try
             {
@@ -129,8 +129,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 UI.Variants.Set("mobile", false);
 
                 Assert.IsTrue(tint.enabled, "GradientTint must be re-enabled after restoring gradient");
-                Assert.AreEqual(Color.white, tint.Top, "gradient top restored");
-                Assert.AreEqual(Color.black, tint.Bottom, "gradient bottom restored");
+                Assert.AreEqual(Color.white, tint.StartColor, "gradient top restored");
+                Assert.AreEqual(Color.black, tint.EndColor, "gradient bottom restored");
             }
             finally
             {

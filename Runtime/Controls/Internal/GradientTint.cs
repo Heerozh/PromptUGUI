@@ -53,13 +53,10 @@ namespace PromptUGUI.Controls.Internal
         /// <summary>Convenience for the plain two-colour ramp.</summary>
         public void Set(Color top, Color bottom) => Set(ColorSpec.Gradient(top, bottom));
 
-        public Color Top => _spec.Top;
-        public Color Bottom => _spec.Bottom;
+        public Color StartColor => _spec.Start;
+        public Color EndColor => _spec.End;
 
-        private static bool Same(in ColorSpec a, in ColorSpec b)
-            => a.Top == b.Top && a.Bottom == b.Bottom
-            && a.TopStop == b.TopStop && a.BottomStop == b.BottomStop
-            && a.Curve == b.Curve && a.IsGradient == b.IsGradient;
+        private static bool Same(in ColorSpec a, in ColorSpec b) => a == b;
 
         public override void ModifyMesh(VertexHelper vh)
         {
@@ -85,7 +82,7 @@ namespace PromptUGUI.Controls.Internal
             {
                 vh.PopulateUIVertex(ref v, i);
                 var t = h > 0f ? (v.position.y - minY) / h : 1f;
-                v.color = (Color)v.color * Color.Lerp(_spec.Bottom, _spec.Top, t);
+                v.color = (Color)v.color * Color.Lerp(_spec.End, _spec.Start, t);
                 vh.SetUIVertex(v, i);
             }
         }
@@ -119,20 +116,20 @@ namespace PromptUGUI.Controls.Internal
                 }
 
                 // Stops are shares measured from the TOP edge, matching PuguiFillRamp.
-                var a = _spec.TopStop;
-                var b = _spec.BottomStop;
+                var a = _spec.StartStop;
+                var b = _spec.EndStop;
                 var yA = maxY - a * h;
                 var yB = maxY - b * h;
 
                 Cut(ref tris, ref spare, yA, minY, maxY);
                 if (b != a) Cut(ref tris, ref spare, yB, minY, maxY);
-                if (_spec.Curve != 1f && b > a)
+                if (_spec.CurveAt(0) != 1f && b > a)
                     for (var k = 1; k < HintStrips; k++)
                         Cut(ref tris, ref spare, maxY - (a + (b - a) * k / HintStrips) * h, minY, maxY);
 
                 spare.Clear();
-                var cullTop = _spec.Top.a <= 0f;
-                var cullBottom = _spec.Bottom.a <= 0f;
+                var cullTop = _spec.Start.a <= 0f;
+                var cullBottom = _spec.End.a <= 0f;
                 for (var i = 0; i + 2 < tris.Count; i += 3)
                 {
                     var y0 = tris[i].position.y;

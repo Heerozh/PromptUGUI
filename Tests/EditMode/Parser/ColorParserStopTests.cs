@@ -83,21 +83,21 @@ namespace PromptUGUI.Tests.EditMode.Parser
         public void Gradient_StopsComeOffBothSegments()
         {
             Assert.IsTrue(ColorParser.TrySplitGradient("#fff 30%, #000 60%", out var g, out _));
-            Assert.AreEqual("#fff", g.Top);
-            Assert.AreEqual("#000", g.Bottom);
-            Assert.AreEqual(0.3f, g.TopStop.Value, 1e-5f);
-            Assert.AreEqual(0.6f, g.BottomStop.Value, 1e-5f);
+            Assert.AreEqual("#fff", g.Colours[0]);
+            Assert.AreEqual("#000", g.Colours[1]);
+            Assert.AreEqual(0.3f, g.Stops[0].Value, 1e-5f);
+            Assert.AreEqual(0.6f, g.Stops[1].Value, 1e-5f);
         }
 
         [Test]
         public void Gradient_OnlyTopStop_BottomStaysUnset()
         {
             Assert.IsTrue(ColorParser.TrySplitGradient("primary 70%,complement", out var g, out _));
-            Assert.AreEqual("primary", g.Top);
-            Assert.AreEqual("complement", g.Bottom);
-            Assert.AreEqual(0.7f, g.TopStop.Value, 1e-5f);
-            Assert.IsFalse(g.BottomStop.HasValue);
-            Assert.AreEqual(1f, g.EffectiveBottomStop, 1e-5f);
+            Assert.AreEqual("primary", g.Colours[0]);
+            Assert.AreEqual("complement", g.Colours[1]);
+            Assert.AreEqual(0.7f, g.Stops[0].Value, 1e-5f);
+            Assert.IsFalse(g.Stops[1].HasValue);
+            Assert.AreEqual(1f, g.EffectiveStops()[1], 1e-5f);
         }
 
         [Test]
@@ -105,14 +105,14 @@ namespace PromptUGUI.Tests.EditMode.Parser
         {
             Assert.IsTrue(ColorParser.TrySplitGradient("#fff 50%,#000 50%", out var g, out var err));
             Assert.IsNull(err);
-            Assert.AreEqual(g.TopStop.Value, g.BottomStop.Value, 1e-5f);
+            Assert.AreEqual(g.Stops[0].Value, g.Stops[1].Value, 1e-5f);
         }
 
         [Test]
         public void InvertedStops_Fail()
         {
             Assert.IsFalse(ColorParser.TrySplitGradient("#fff 70%,#000 30%", out _, out var err));
-            StringAssert.Contains("second stop position", err);
+            StringAssert.Contains("must not decrease", err);
         }
 
         [Test]
@@ -129,9 +129,9 @@ namespace PromptUGUI.Tests.EditMode.Parser
         public void Hint_SplitsOutOfTheMiddle()
         {
             Assert.IsTrue(ColorParser.TrySplitGradient("primary, 70%, complement", out var g, out _));
-            Assert.AreEqual("primary", g.Top);
-            Assert.AreEqual("complement", g.Bottom);
-            Assert.AreEqual(0.7f, g.Hint.Value, 1e-5f);
+            Assert.AreEqual("primary", g.Colours[0]);
+            Assert.AreEqual("complement", g.Colours[1]);
+            Assert.AreEqual(0.7f, g.Hints[0].Value, 1e-5f);
         }
 
         [Test]
@@ -139,14 +139,14 @@ namespace PromptUGUI.Tests.EditMode.Parser
         {
             // CSS puts the hint in the stops' coordinate space, so dead centre must come out as 1.
             Assert.IsTrue(ColorParser.TrySplitGradient("#fff, 50%, #000", out var g, out _));
-            Assert.AreEqual(1f, g.CurveExponent, 1e-4f);
+            Assert.AreEqual(1f, g.CurveExponents()[0], 1e-4f);
         }
 
         [Test]
         public void Hint_At70Percent_SolvesToHalfMixThere()
         {
             Assert.IsTrue(ColorParser.TrySplitGradient("#fff, 70%, #000", out var g, out _));
-            Assert.AreEqual(0.5f, Mathf.Pow(0.7f, g.CurveExponent), 1e-3f);
+            Assert.AreEqual(0.5f, Mathf.Pow(0.7f, g.CurveExponents()[0]), 1e-3f);
         }
 
         [Test]
@@ -154,15 +154,15 @@ namespace PromptUGUI.Tests.EditMode.Parser
         {
             // Ramp runs 20%..100%; a hint at 60% is its midpoint, hence linear again.
             Assert.IsTrue(ColorParser.TrySplitGradient("#fff 20%, 60%, #000", out var g, out _));
-            Assert.AreEqual(1f, g.CurveExponent, 1e-4f);
+            Assert.AreEqual(1f, g.CurveExponents()[0], 1e-4f);
         }
 
         [Test]
         public void NoHint_IsExponentOne()
         {
             Assert.IsTrue(ColorParser.TrySplitGradient("#fff,#000", out var g, out _));
-            Assert.IsFalse(g.Hint.HasValue);
-            Assert.AreEqual(1f, g.CurveExponent, 1e-6f);
+            Assert.IsFalse(g.Hints[0].HasValue);
+            Assert.AreEqual(1f, g.CurveExponents()[0], 1e-6f);
         }
 
         [Test]
@@ -177,29 +177,6 @@ namespace PromptUGUI.Tests.EditMode.Parser
         {
             Assert.IsFalse(ColorParser.TrySplitGradient("#fff, 70%", out _, out var err));
             StringAssert.Contains("BETWEEN two colours", err);
-        }
-
-        [Test]
-        public void ThreeColours_StillFail()
-        {
-            Assert.IsFalse(ColorParser.TrySplitGradient("#fff,#000,#111", out _, out var err));
-            StringAssert.Contains("two colours", err);
-        }
-
-        [Test]
-        public void FourSegments_Fail()
-        {
-            Assert.IsFalse(ColorParser.TrySplitGradient("#fff, 30%, 60%, #000", out _, out var err));
-            StringAssert.Contains("two colours", err);
-        }
-
-        [Test]
-        public void LegacyOverload_StripsStops_SoHexChecksStillSee_CleanLiterals()
-        {
-            // The 4-arg form is what the hex validators call; it must not hand them "#fff 70%".
-            Assert.IsTrue(ColorParser.TrySplitGradient("#fff 30%,#000", out var top, out var bottom, out _));
-            Assert.AreEqual("#fff", top);
-            Assert.AreEqual("#000", bottom);
         }
     }
 }

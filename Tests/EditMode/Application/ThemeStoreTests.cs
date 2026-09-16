@@ -30,7 +30,7 @@ namespace PromptUGUI.Tests.Application
             ThemeStore.Instance.ResolveBases();
             var c = ThemeStore.Instance.LookupChained("light", "primary");
             Assert.IsTrue(c.HasValue);
-            Assert.AreEqual(new Color32(0xff, 0x88, 0x00, 0xff), (Color32)c.Value.Top);
+            Assert.AreEqual(new Color32(0xff, 0x88, 0x00, 0xff), (Color32)c.Value.Start);
         }
 
         [Test]
@@ -44,7 +44,7 @@ namespace PromptUGUI.Tests.Application
             Assert.IsTrue(bg.HasValue);
             // primary in dark → returns dark's
             var p = ThemeStore.Instance.LookupChained("dark", "primary");
-            Assert.AreEqual(new Color32(0xcc, 0x66, 0x00, 0xff), (Color32)p.Value.Top);
+            Assert.AreEqual(new Color32(0xcc, 0x66, 0x00, 0xff), (Color32)p.Value.Start);
         }
 
         [Test]
@@ -97,7 +97,7 @@ namespace PromptUGUI.Tests.Application
             ThemeStore.Instance.ResolveBases();
 
             var c = ThemeStore.Instance.LookupChained("light", "primary");
-            Assert.AreEqual(new Color32(0x00, 0xff, 0x00, 0xff), (Color32)c.Value.Top);
+            Assert.AreEqual(new Color32(0x00, 0xff, 0x00, 0xff), (Color32)c.Value.Start);
         }
     }
 }

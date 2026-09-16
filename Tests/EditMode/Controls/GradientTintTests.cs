@@ -123,8 +123,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var fx = _go.AddComponent<GradientTint>();
             fx.Set(Color.red, Color.blue);
             fx.Set(Color.red, Color.blue);   // same values — early-return path
-            Assert.AreEqual(Color.red, fx.Top);
-            Assert.AreEqual(Color.blue, fx.Bottom);
+            Assert.AreEqual(Color.red, fx.StartColor);
+            Assert.AreEqual(Color.blue, fx.EndColor);
         }
 
         [Test]

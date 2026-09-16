@@ -197,7 +197,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 .Get<PromptUGUI.Controls.Image>("g").GameObject.GetComponent<GradientTint>();
             Assert.IsNotNull(tint);
             Assert.IsTrue(tint.Spec.HasStops);
-            Assert.AreEqual(0.7f, tint.Spec.TopStop, 1e-5f);
+            Assert.AreEqual(0.7f, tint.Spec.StartStop, 1e-5f);
         }
     }
 }

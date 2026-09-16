@@ -183,11 +183,11 @@ namespace PromptUGUI.Controls.Internal
         public void SetFill(in ColorSpec fill)
         {
             _fill = fill;
-            _fillTop = fill.Top;
-            _fillBottom = fill.Bottom;
-            _fillStopTop = fill.TopStop;
-            _fillStopBottom = fill.BottomStop;
-            _fillCurve = fill.Curve;
+            _fillTop = fill.Start;
+            _fillBottom = fill.End;
+            _fillStopTop = fill.StartStop;
+            _fillStopBottom = fill.EndStop;
+            _fillCurve = fill.CurveAt(0);
             MarkDirty();
         }
 

@@ -443,17 +443,16 @@ namespace PromptUGUI.Application
             {
                 if (Current == null) return null;
                 var spec = ThemeStore.Instance.LookupChained(Current, token);
-                return spec.HasValue ? spec.Value.Top : (UnityEngine.Color?)null;
+                return spec.HasValue ? spec.Value.Start : (UnityEngine.Color?)null;
             }
 
             /// <summary>
-            /// Resolve a colour value that may be a two-stop vertical gradient ("top,bottom").
-            /// Each segment independently supports theme tokens, hex/named literals and the
-            /// /alpha suffix. A whole-value token may itself BE a gradient token; "/alpha" on
-            /// it replaces BOTH stops' alpha. A gradient token used as ONE segment of another
-            /// gradient is an error (no nested gradients). Each segment may also carry a stop
-            /// position ("#fff 70%,#000"), which moves where the transition happens; a gradient
-            /// token brings its own along.
+            /// Resolve a colour value that may be a gradient (spec 2026-09-17 §3): an optional
+            /// direction, then two to four colour stops with optional positions and hints. Each
+            /// stop independently supports theme tokens, hex/named literals and the /alpha suffix.
+            /// A whole-value token may itself BE a gradient token; "/alpha" on it replaces EVERY
+            /// stop's alpha. A gradient token used as ONE stop of another gradient is an error
+            /// (no nested gradients).
             /// </summary>
             internal static ColorSpec ResolveSpec(string value)
             {
@@ -463,14 +462,13 @@ namespace PromptUGUI.Application
                 if (!Parser.ColorParser.TrySplitGradient(value, out var parts, out var gErr))
                     throw new System.Exception(gErr);
 
-                if (parts.Bottom == null)
-                    return ResolveSingle(parts.Top, allowGradientToken: true);
+                if (!parts.IsGradient)
+                    return ResolveSingle(parts.Colours[0], allowGradientToken: true);
 
-                var top = ResolveSingle(parts.Top, allowGradientToken: false);
-                var bottom = ResolveSingle(parts.Bottom, allowGradientToken: false);
-                return ColorSpec.Gradient(top.Top, bottom.Top,
-                                          parts.EffectiveTopStop, parts.EffectiveBottomStop,
-                                          parts.CurveExponent);
+                var colours = new UnityEngine.Color[parts.Count];
+                for (var i = 0; i < colours.Length; i++)
+                    colours[i] = ResolveSingle(parts.Colours[i], allowGradientToken: false).Start;
+                return ColorSpec.Gradient(parts.Direction, colours, parts.EffectiveStops(), parts.CurveExponents());
             }
 
             /// <summary>Resolve one segment: token / literal + optional /alpha. Returns a gradient only
@@ -485,15 +483,7 @@ namespace PromptUGUI.Application
                 if (spec.IsGradient && !allowGradientToken)
                     throw new System.Exception(
                         $"color segment \"{value}\": token resolves to a gradient — gradients cannot nest inside a gradient");
-                if (alpha.HasValue)
-                {
-                    var t = spec.Top; t.a = alpha.Value;
-                    var b = spec.Bottom; b.a = alpha.Value;
-                    spec = spec.IsGradient
-                        ? ColorSpec.Gradient(t, b, spec.TopStop, spec.BottomStop, spec.Curve)
-                        : ColorSpec.Solid(t);
-                }
-                return spec;
+                return alpha.HasValue ? spec.WithAlpha(alpha.Value) : spec;
             }
 
             public static UnityEngine.Color Resolve(string value)
@@ -502,7 +492,7 @@ namespace PromptUGUI.Application
                 if (spec.IsGradient)
                     throw new System.Exception(
                         $"color \"{value}\": this attribute does not support gradient colors");
-                return spec.Top;
+                return spec.Start;
             }
 
             private static ColorSpec ResolveBaseSpec(string value)
@@ -1113,11 +1103,11 @@ namespace PromptUGUI.Application
         private static ColorSpec ParseThemeColor(string raw)
         {
             Parser.ColorParser.TrySplitGradient(raw, out var parts, out _);
-            UnityEngine.ColorUtility.TryParseHtmlString(parts.Top, out var top);
-            if (parts.Bottom == null) return ColorSpec.Solid(top);
-            UnityEngine.ColorUtility.TryParseHtmlString(parts.Bottom, out var bottom);
-            return ColorSpec.Gradient(top, bottom, parts.EffectiveTopStop, parts.EffectiveBottomStop,
-                                      parts.CurveExponent);
+            var colours = new UnityEngine.Color[parts.Count];
+            for (var i = 0; i < colours.Length; i++)
+                UnityEngine.ColorUtility.TryParseHtmlString(parts.Colours[i], out colours[i]);
+            if (!parts.IsGradient) return ColorSpec.Solid(colours[0]);
+            return ColorSpec.Gradient(parts.Direction, colours, parts.EffectiveStops(), parts.CurveExponents());
         }
 
         /// <summary>

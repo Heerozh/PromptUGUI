@@ -55,8 +55,8 @@ namespace PromptUGUI.Tests.Application
             var spec = ThemeStore.Instance.LookupChained("t", "grad");
             Assert.IsTrue(spec.HasValue, "gradient token must be registered after LoadDocumentAsync");
             Assert.IsTrue(spec.Value.IsGradient);
-            Assert.AreEqual(Color.white, spec.Value.Top);
-            Assert.AreEqual(Color.black, spec.Value.Bottom);
+            Assert.AreEqual(Color.white, spec.Value.Start);
+            Assert.AreEqual(Color.black, spec.Value.End);
         }
 
         [Test]
@@ -70,9 +70,9 @@ namespace PromptUGUI.Tests.Application
             Assert.AreEqual("#ffffff,#000000", doc.Themes[0].Colors[0].Value);
 
             // Seed via ThemeStore directly to mirror RegisterThemesAndAutoSet behavior
-            ColorParser.TrySplitGradient("#ffffff,#000000", out var topRaw, out var bottomRaw, out _);
-            ColorUtility.TryParseHtmlString(topRaw, out var topC);
-            ColorUtility.TryParseHtmlString(bottomRaw, out var bottomC);
+            ColorParser.TrySplitGradient("#ffffff,#000000", out var parts, out _);
+            ColorUtility.TryParseHtmlString(parts.Colours[0], out var topC);
+            ColorUtility.TryParseHtmlString(parts.Colours[1], out var bottomC);
             var d = new Dictionary<string, ColorSpec>
             {
                 ["grad"] = ColorSpec.Gradient(topC, bottomC),
@@ -83,8 +83,8 @@ namespace PromptUGUI.Tests.Application
             var spec = ThemeStore.Instance.LookupChained("t", "grad");
             Assert.IsTrue(spec.HasValue);
             Assert.IsTrue(spec.Value.IsGradient);
-            Assert.AreEqual(Color.white, spec.Value.Top);
-            Assert.AreEqual(Color.black, spec.Value.Bottom);
+            Assert.AreEqual(Color.white, spec.Value.Start);
+            Assert.AreEqual(Color.black, spec.Value.End);
         }
 
         [Test]
@@ -111,8 +111,8 @@ namespace PromptUGUI.Tests.Application
             var spec = ThemeStore.Instance.LookupChained("derived", "grad");
             Assert.IsTrue(spec.HasValue, "gradient token should be inherited from base");
             Assert.IsTrue(spec.Value.IsGradient);
-            Assert.AreEqual(Color.white, spec.Value.Top);
-            Assert.AreEqual(Color.black, spec.Value.Bottom);
+            Assert.AreEqual(Color.white, spec.Value.Start);
+            Assert.AreEqual(Color.black, spec.Value.End);
         }
 
         [Test]
@@ -123,8 +123,8 @@ namespace PromptUGUI.Tests.Application
             var spec = ThemeStore.Instance.LookupChained("light", "primary");
             Assert.IsTrue(spec.HasValue);
             Assert.IsFalse(spec.Value.IsGradient);
-            Assert.AreEqual(new Color32(0xff, 0x88, 0x00, 0xff), (Color32)spec.Value.Top);
-            Assert.AreEqual(new Color32(0xff, 0x88, 0x00, 0xff), (Color32)spec.Value.Bottom,
+            Assert.AreEqual(new Color32(0xff, 0x88, 0x00, 0xff), (Color32)spec.Value.Start);
+            Assert.AreEqual(new Color32(0xff, 0x88, 0x00, 0xff), (Color32)spec.Value.End,
                 "solid: Bottom should equal Top");
         }
 
@@ -144,7 +144,7 @@ namespace PromptUGUI.Tests.Application
             ColorUtility.TryParseHtmlString("#ff8800", out var orange);
             var spec = ColorSpec.Solid(orange);
             Assert.IsFalse(spec.IsGradient);
-            Assert.AreEqual(spec.Top, spec.Bottom);
+            Assert.AreEqual(spec.Start, spec.End);
         }
 
         [Test]
@@ -152,8 +152,8 @@ namespace PromptUGUI.Tests.Application
         {
             var spec = ColorSpec.Gradient(Color.white, Color.black);
             Assert.IsTrue(spec.IsGradient);
-            Assert.AreEqual(Color.white, spec.Top);
-            Assert.AreEqual(Color.black, spec.Bottom);
+            Assert.AreEqual(Color.white, spec.Start);
+            Assert.AreEqual(Color.black, spec.End);
         }
 
         [Test]
@@ -162,8 +162,8 @@ namespace PromptUGUI.Tests.Application
             var half = new Color(0.5f, 0.5f, 0.5f, 1f);
             var spec = ColorSpec.Gradient(Color.white, Color.white).Multiply(half);
             Assert.IsTrue(spec.IsGradient, "Multiply must preserve IsGradient");
-            Assert.AreEqual(half, spec.Top);
-            Assert.AreEqual(half, spec.Bottom);
+            Assert.AreEqual(half, spec.Start);
+            Assert.AreEqual(half, spec.End);
         }
 
         // ── UI.Theme.ResolveSpec / Resolve tests ──────────────────────────────
@@ -173,8 +173,8 @@ namespace PromptUGUI.Tests.Application
         {
             var spec = UI.Theme.ResolveSpec("#ffffff,#000000");
             Assert.IsTrue(spec.IsGradient);
-            Assert.AreEqual(Color.white, spec.Top);
-            Assert.AreEqual(Color.black, spec.Bottom);
+            Assert.AreEqual(Color.white, spec.Start);
+            Assert.AreEqual(Color.black, spec.End);
         }
 
         [Test]
@@ -193,8 +193,8 @@ namespace PromptUGUI.Tests.Application
             UI.Theme.Set("t");
             var spec = UI.Theme.ResolveSpec("grad/0.5");
             Assert.IsTrue(spec.IsGradient);
-            Assert.AreEqual(0.5f, spec.Top.a, 0.001f);
-            Assert.AreEqual(0.5f, spec.Bottom.a, 0.001f);
+            Assert.AreEqual(0.5f, spec.Start.a, 0.001f);
+            Assert.AreEqual(0.5f, spec.End.a, 0.001f);
         }
 
         [Test]
@@ -203,8 +203,8 @@ namespace PromptUGUI.Tests.Application
             // "#ffffff/0.5,#000000" → Top.a ≈ 0.5, Bottom.a ≈ 1
             var spec = UI.Theme.ResolveSpec("#ffffff/0.5,#000000");
             Assert.IsTrue(spec.IsGradient);
-            Assert.AreEqual(0.5f, spec.Top.a, 0.001f);
-            Assert.AreEqual(1.0f, spec.Bottom.a, 0.001f);
+            Assert.AreEqual(0.5f, spec.Start.a, 0.001f);
+            Assert.AreEqual(1.0f, spec.End.a, 0.001f);
         }
 
         [Test]
@@ -249,7 +249,7 @@ namespace PromptUGUI.Tests.Application
         {
             var spec = UI.Theme.ResolveSpec("#ff0000");
             Assert.IsFalse(spec.IsGradient);
-            Assert.AreEqual(new Color32(0xff, 0x00, 0x00, 0xff), (Color32)spec.Top);
+            Assert.AreEqual(new Color32(0xff, 0x00, 0x00, 0xff), (Color32)spec.Start);
         }
 
         [Test]
@@ -266,7 +266,7 @@ namespace PromptUGUI.Tests.Application
             UI.Theme.Set("nope");
             var spec = UI.Theme.ResolveSpec("anytoken");
             Assert.IsFalse(spec.IsGradient, "soft-fail must return Solid (not gradient)");
-            Assert.AreEqual(Color.white, spec.Top);
+            Assert.AreEqual(Color.white, spec.Start);
         }
     }
 }

@@ -106,11 +106,11 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             fx.Set(spec);
 
-            Assert.AreEqual(Color.red, fx.Spec.Top);
-            Assert.AreEqual(Color.blue, fx.Spec.Bottom);
-            Assert.AreEqual(0.3f, fx.Spec.TopStop, 1e-5f);
-            Assert.AreEqual(0.6f, fx.Spec.BottomStop, 1e-5f);
-            Assert.AreEqual(2f, fx.Spec.Curve, 1e-5f);
+            Assert.AreEqual(Color.red, fx.Spec.Start);
+            Assert.AreEqual(Color.blue, fx.Spec.End);
+            Assert.AreEqual(0.3f, fx.Spec.StartStop, 1e-5f);
+            Assert.AreEqual(0.6f, fx.Spec.EndStop, 1e-5f);
+            Assert.AreEqual(2f, fx.Spec.CurveAt(0), 1e-5f);
             Assert.IsTrue(fx.Spec.HasStops);
         }
 
@@ -121,8 +121,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             fx.Set(Color.red, Color.blue);
 
-            Assert.AreEqual(Color.red, fx.Top);
-            Assert.AreEqual(Color.blue, fx.Bottom);
+            Assert.AreEqual(Color.red, fx.StartColor);
+            Assert.AreEqual(Color.blue, fx.EndColor);
             Assert.IsTrue(fx.Spec.IsGradient);
             Assert.IsFalse(fx.Spec.HasStops, "a plain pair must stay on the untouched code path");
         }

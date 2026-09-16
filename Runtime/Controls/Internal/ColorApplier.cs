@@ -26,7 +26,7 @@ namespace PromptUGUI.Controls.Internal
             {
                 var tint = g.GetComponent<GradientTint>();
                 if (tint != null) tint.enabled = false;
-                g.color = spec.Top;
+                g.color = spec.Start;
             }
         }
 

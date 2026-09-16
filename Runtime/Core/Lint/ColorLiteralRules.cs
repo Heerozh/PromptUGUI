@@ -25,18 +25,17 @@ namespace PromptUGUI.Lint
             if (!node.Attributes.TryGetValue("color", out var value)) yield break;
             if (string.IsNullOrEmpty(value)) yield break;
 
-            // Gradient shape first: >2 segments or an empty segment is structurally invalid
+            // Gradient shape first: >4 colours, a misplaced direction or hint, or an empty segment is structurally invalid
             // regardless of whether segments are tokens or hex (tokens can't fix a bad shape).
-            if (!ColorParser.TrySplitGradient(value, out var top, out var bottom, out var gErr))
+            if (!ColorParser.TrySplitGradient(value, out var parts, out var gErr))
             {
                 yield return new LintIssue(GradientMalformedCode, node.Tag, node.Id,
                     $"<{node.Tag} id='{node.Id}'>: {gErr}");
                 yield break;
             }
 
-            foreach (var issue in CheckSegment(top, node)) yield return issue;
-            if (bottom != null)
-                foreach (var issue in CheckSegment(bottom, node)) yield return issue;
+            foreach (var segment in parts.Colours)
+                foreach (var issue in CheckSegment(segment, node)) yield return issue;
         }
 
         // Existing single-colour validation, now applied per gradient segment.

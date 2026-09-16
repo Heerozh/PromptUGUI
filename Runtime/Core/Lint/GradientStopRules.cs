@@ -102,7 +102,9 @@ namespace PromptUGUI.Lint
             if (value.Contains("{{")) return false;
             if (value.IndexOf('%') < 0) return false;
             if (!ColorParser.TrySplitGradient(value, out var parts, out _)) return false;
-            return parts.TopStop.HasValue || parts.BottomStop.HasValue || parts.Hint.HasValue;
+            foreach (var s in parts.Stops) if (s.HasValue) return true;
+            foreach (var h in parts.Hints) if (h.HasValue) return true;
+            return false;
         }
     }
 }

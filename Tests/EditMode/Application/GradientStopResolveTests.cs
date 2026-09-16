@@ -32,8 +32,8 @@ namespace PromptUGUI.Tests.Application
         {
             var spec = ColorSpec.Solid(Color.red);
             Assert.IsFalse(spec.HasStops);
-            Assert.AreEqual(0f, spec.TopStop);
-            Assert.AreEqual(1f, spec.BottomStop);
+            Assert.AreEqual(0f, spec.StartStop);
+            Assert.AreEqual(1f, spec.EndStop);
         }
 
         [Test]
@@ -53,9 +53,9 @@ namespace PromptUGUI.Tests.Application
         {
             // A state multiplier changes the colours, never the shape of the ramp.
             var spec = ColorSpec.Gradient(Color.white, Color.white, 0.3f, 0.6f).Multiply(Color.red);
-            Assert.AreEqual(0.3f, spec.TopStop, 1e-5f);
-            Assert.AreEqual(0.6f, spec.BottomStop, 1e-5f);
-            Assert.AreEqual(Color.red, spec.Top);
+            Assert.AreEqual(0.3f, spec.StartStop, 1e-5f);
+            Assert.AreEqual(0.6f, spec.EndStop, 1e-5f);
+            Assert.AreEqual(Color.red, spec.Start);
         }
 
         // ── ResolveSpec ──────────────────────────────────────────────────────────
@@ -65,27 +65,27 @@ namespace PromptUGUI.Tests.Application
         {
             var spec = UI.Theme.ResolveSpec("#ffffff 30%,#000000 60%");
             Assert.IsTrue(spec.IsGradient);
-            Assert.AreEqual(Color.white, spec.Top);
-            Assert.AreEqual(Color.black, spec.Bottom);
-            Assert.AreEqual(0.3f, spec.TopStop, 1e-5f);
-            Assert.AreEqual(0.6f, spec.BottomStop, 1e-5f);
+            Assert.AreEqual(Color.white, spec.Start);
+            Assert.AreEqual(Color.black, spec.End);
+            Assert.AreEqual(0.3f, spec.StartStop, 1e-5f);
+            Assert.AreEqual(0.6f, spec.EndStop, 1e-5f);
         }
 
         [Test]
         public void ResolveSpec_TopStopOnly_BottomDefaultsToOne()
         {
             var spec = UI.Theme.ResolveSpec("#ffffff 70%,#000000");
-            Assert.AreEqual(0.7f, spec.TopStop, 1e-5f);
-            Assert.AreEqual(1f, spec.BottomStop, 1e-5f);
+            Assert.AreEqual(0.7f, spec.StartStop, 1e-5f);
+            Assert.AreEqual(1f, spec.EndStop, 1e-5f);
         }
 
         [Test]
         public void ResolveSpec_StopWithAlphaSuffix_BothSurvive()
         {
             var spec = UI.Theme.ResolveSpec("#ffffff/0.45 70%,#000000/0.45");
-            Assert.AreEqual(0.45f, spec.Top.a, 1e-3f);
-            Assert.AreEqual(0.45f, spec.Bottom.a, 1e-3f);
-            Assert.AreEqual(0.7f, spec.TopStop, 1e-5f);
+            Assert.AreEqual(0.45f, spec.Start.a, 1e-3f);
+            Assert.AreEqual(0.45f, spec.End.a, 1e-3f);
+            Assert.AreEqual(0.7f, spec.StartStop, 1e-5f);
         }
 
         [Test]
@@ -100,7 +100,7 @@ namespace PromptUGUI.Tests.Application
         {
             Seed("panel-grad", ColorSpec.Gradient(Color.white, Color.black, 0.7f, 1f));
             var spec = UI.Theme.ResolveSpec("panel-grad");
-            Assert.AreEqual(0.7f, spec.TopStop, 1e-5f);
+            Assert.AreEqual(0.7f, spec.StartStop, 1e-5f);
         }
 
         [Test]
@@ -108,8 +108,8 @@ namespace PromptUGUI.Tests.Application
         {
             Seed("panel-grad", ColorSpec.Gradient(Color.white, Color.black, 0.7f, 1f));
             var spec = UI.Theme.ResolveSpec("panel-grad/0.5");
-            Assert.AreEqual(0.7f, spec.TopStop, 1e-5f);
-            Assert.AreEqual(0.5f, spec.Top.a, 1e-3f);
+            Assert.AreEqual(0.7f, spec.StartStop, 1e-5f);
+            Assert.AreEqual(0.5f, spec.Start.a, 1e-3f);
         }
 
         [Test]
@@ -123,7 +123,7 @@ namespace PromptUGUI.Tests.Application
         public void ResolveSpec_InvertedStops_Throws()
         {
             var ex = Assert.Throws<System.Exception>(() => UI.Theme.ResolveSpec("#ffffff 70%,#000000 30%"));
-            StringAssert.Contains("second stop position", ex.Message);
+            StringAssert.Contains("must not decrease", ex.Message);
         }
 
         [Test]
@@ -140,28 +140,28 @@ namespace PromptUGUI.Tests.Application
         {
             var spec = UI.Theme.ResolveSpec("#ffffff, 70%, #000000");
             Assert.IsTrue(spec.IsGradient);
-            Assert.AreEqual(Color.white, spec.Top);
-            Assert.AreEqual(Color.black, spec.Bottom);
-            Assert.AreEqual(0f, spec.TopStop, 1e-5f);
-            Assert.AreEqual(1f, spec.BottomStop, 1e-5f);
+            Assert.AreEqual(Color.white, spec.Start);
+            Assert.AreEqual(Color.black, spec.End);
+            Assert.AreEqual(0f, spec.StartStop, 1e-5f);
+            Assert.AreEqual(1f, spec.EndStop, 1e-5f);
             // Half mix at 70% is the whole point of the hint.
-            Assert.AreEqual(0.5f, Mathf.Pow(0.7f, spec.Curve), 1e-3f);
+            Assert.AreEqual(0.5f, Mathf.Pow(0.7f, spec.CurveAt(0)), 1e-3f);
             Assert.IsTrue(spec.HasStops, "a hint is just as undrawable on the vertex path as a stop");
         }
 
         [Test]
         public void ResolveSpec_NoHint_IsLinear()
         {
-            Assert.AreEqual(1f, UI.Theme.ResolveSpec("#ffffff,#000000").Curve, 1e-6f);
-            Assert.AreEqual(1f, UI.Theme.ResolveSpec("#ffffff").Curve, 1e-6f);
+            Assert.AreEqual(1f, UI.Theme.ResolveSpec("#ffffff,#000000").CurveAt(0), 1e-6f);
+            Assert.AreEqual(1f, UI.Theme.ResolveSpec("#ffffff").CurveAt(0), 1e-6f);
         }
 
         [Test]
         public void ResolveSpec_HintAndStops_Compose()
         {
             var spec = UI.Theme.ResolveSpec("#ffffff 20%, 60%, #000000");
-            Assert.AreEqual(0.2f, spec.TopStop, 1e-5f);
-            Assert.AreEqual(1f, spec.Curve, 1e-4f, "60% is the midpoint of the 20%..100% ramp");
+            Assert.AreEqual(0.2f, spec.StartStop, 1e-5f);
+            Assert.AreEqual(1f, spec.CurveAt(0), 1e-4f, "60% is the midpoint of the 20%..100% ramp");
         }
 
         [Test]
@@ -177,15 +177,15 @@ namespace PromptUGUI.Tests.Application
         {
             Seed("panel-grad", ColorSpec.Gradient(Color.white, Color.black, 0f, 1f, 1.943f));
             var spec = UI.Theme.ResolveSpec("panel-grad/0.5");
-            Assert.AreEqual(1.943f, spec.Curve, 1e-3f);
-            Assert.AreEqual(0.5f, spec.Top.a, 1e-3f);
+            Assert.AreEqual(1.943f, spec.CurveAt(0), 1e-3f);
+            Assert.AreEqual(0.5f, spec.Start.a, 1e-3f);
         }
 
         [Test]
         public void Multiply_KeepsCurve()
         {
             var spec = ColorSpec.Gradient(Color.white, Color.white, 0f, 1f, 2f).Multiply(Color.red);
-            Assert.AreEqual(2f, spec.Curve, 1e-5f);
+            Assert.AreEqual(2f, spec.CurveAt(0), 1e-5f);
         }
 
         [Test]
@@ -199,7 +199,7 @@ namespace PromptUGUI.Tests.Application
 
             var spec = ThemeStore.Instance.LookupChained("t", "g");
             Assert.IsTrue(spec.HasValue);
-            Assert.AreEqual(0.5f, Mathf.Pow(0.7f, spec.Value.Curve), 1e-3f);
+            Assert.AreEqual(0.5f, Mathf.Pow(0.7f, spec.Value.CurveAt(0)), 1e-3f);
         }
 
         // ── <Color value="…"> definition site ────────────────────────────────────
@@ -216,8 +216,8 @@ namespace PromptUGUI.Tests.Application
             var spec = ThemeStore.Instance.LookupChained("t", "panel-grad");
             Assert.IsTrue(spec.HasValue);
             Assert.IsTrue(spec.Value.IsGradient);
-            Assert.AreEqual(0.7f, spec.Value.TopStop, 1e-5f);
-            Assert.AreEqual(1f, spec.Value.BottomStop, 1e-5f);
+            Assert.AreEqual(0.7f, spec.Value.StartStop, 1e-5f);
+            Assert.AreEqual(1f, spec.Value.EndStop, 1e-5f);
         }
 
         [Test]

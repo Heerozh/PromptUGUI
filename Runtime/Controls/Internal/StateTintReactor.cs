@@ -172,7 +172,7 @@ namespace PromptUGUI.Controls.Internal
             if (_source != null) OnState(_source.Current);
         }
 
-        private Color MultiplierFor(InteractState state) => _modulates.For(state)?.Top ?? Color.white;
+        private Color MultiplierFor(InteractState state) => _modulates.For(state)?.Start ?? Color.white;
 
         private ColorSpec BaseFor(InteractState state)
             => _absolutes.For(state)
@@ -210,7 +210,7 @@ namespace PromptUGUI.Controls.Internal
             // the control shows its final state on frame 1 instead of fading in from its base. See BornFrame.
             if (TestForceInstant || _fade <= 0f
                 || target.IsGradient || current.IsGradient
-                || CrossesTransparency(current.Top, target.Top)
+                || CrossesTransparency(current.Start, target.Start)
                 || BornFrame.IsCurrent(_bornFrame))
             {
                 ColorApplier.Apply(_graphic, target);
@@ -221,7 +221,7 @@ namespace PromptUGUI.Controls.Internal
             // ReSolve 中被 RebuildIndicator 重建）。LitMotion 的逐帧回调靠 Unity 隐式 bool 判空跳过已
             // 销毁的目标，避免写已销毁对象抛 MissingReferenceException（宿主 OnDestroy 的 TryCancel 在
             // Play 模式延迟销毁时存在竞态，不足以独力兜底）。
-            _handle = LMotion.Create(_graphic.color, target.Top, _fade)
+            _handle = LMotion.Create(_graphic.color, target.Start, _fade)
                 .Bind(_graphic, static (c, g) => { if (g) g.color = c; });
         }
 

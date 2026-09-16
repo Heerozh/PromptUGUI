@@ -303,7 +303,7 @@ namespace PromptUGUI.Controls
             inst.Image.sprite = _sprite;
             // On a sprite the fill colour is an ordinary tint, the way it is on every other Image;
             // a gradient has nowhere to go here, so the top stop stands for the whole value.
-            inst.Image.color = _fill.Top;
+            inst.Image.color = _fill.Start;
 
             PlaceSprite(inst.Rect, slot, extent);
         }
