@@ -39,6 +39,21 @@ namespace PromptUGUI.Controls
                 return;
             }
 
+            // "Lifted" is a state a row is in from lift to drop (spec 2026-09-16 §4.2) — registration
+            // style like checked, no Normal fallback. drop is a moment, not a state: nothing to show.
+            if (_spec.Kind == TriggerKind.Lift)
+            {
+                var row = TriggerSourceResolver.FindReorderRow(this, _spec.SourceId);
+                row.NoteLiftHook();
+                row.RegisterLiftShow(() => GameObject.SetActive(row.IsLifted));
+                return;
+            }
+            if (_spec.Kind == TriggerKind.Drop)
+                throw new InvalidOperationException(
+                    $"<Show on=\"{OnRaw()}\">: drop is the moment a row is released, not a state a <Show> can " +
+                    "track. Use <Show on=\"lift\"> for what is visible while the row is lifted — it hides " +
+                    "itself again on drop.");
+
             _myState = _spec.Kind switch
             {
                 TriggerKind.StateNormal => InteractState.Normal,
@@ -48,8 +63,8 @@ namespace PromptUGUI.Controls
                 TriggerKind.StateDisabled => InteractState.Disabled,
                 _ => throw new InvalidOperationException(
                     "<Show> only accepts state-* events (state-normal / state-hover / " +
-                    "state-pressed / state-selected / state-disabled) or the persistent " +
-                    $"checked / unchecked, got 'on=\"{OnRaw()}\"'."),
+                    "state-pressed / state-selected / state-disabled), the persistent " +
+                    $"checked / unchecked, or lift, got 'on=\"{OnRaw()}\"'."),
             };
 
             _src = TriggerSourceResolver.FindStateSource(this, _spec.SourceId);
@@ -70,6 +85,8 @@ namespace PromptUGUI.Controls
             TriggerKind.Collapse => _spec.SourceId == null ? "collapse" : "collapse@" + _spec.SourceId,
             TriggerKind.Checked => _spec.SourceId == null ? "checked" : "checked@" + _spec.SourceId,
             TriggerKind.Unchecked => _spec.SourceId == null ? "unchecked" : "unchecked@" + _spec.SourceId,
+            TriggerKind.Lift => _spec.SourceId == null ? "lift" : "lift@" + _spec.SourceId,
+            TriggerKind.Drop => _spec.SourceId == null ? "drop" : "drop@" + _spec.SourceId,
             _ => _spec.Kind.ToString(),
         };
 

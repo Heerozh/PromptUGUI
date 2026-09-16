@@ -147,6 +147,17 @@ namespace PromptUGUI.Controls
                         var stream = spec.Kind == TriggerKind.Expand ? menu.OnExpanded : menu.OnCollapsed;
                         return stream.Subscribe(_ => onFire());
                     }
+                case TriggerKind.Lift:
+                case TriggerKind.Drop:
+                    {
+                        // The row of a <ScrollList reorder>, resolved upward. Inert in a list that never
+                        // turns reorder on — the marker simply never fires. A lift hook is also the
+                        // author taking the lifted look over from the driver (spec 2026-09-16 §4.3).
+                        var row = Internal.TriggerSourceResolver.FindReorderRow(this, spec.SourceId);
+                        if (spec.Kind == TriggerKind.Lift) row.NoteLiftHook();
+                        var stream = spec.Kind == TriggerKind.Lift ? row.OnLifted : row.OnDropped;
+                        return stream.Subscribe(_ => onFire());
+                    }
                 default:
                     // Manual: no auto-subscribe; awaiting Fire()
                     return null;

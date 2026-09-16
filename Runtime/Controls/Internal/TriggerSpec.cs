@@ -8,6 +8,7 @@ namespace PromptUGUI.Controls.Internal
         StateNormal, StateHover, StatePressed, StateSelected, StateDisabled,
         Expand, Collapse,
         Checked, Unchecked,
+        Lift, Drop,
     }
 
     internal sealed class TriggerSpec
@@ -34,6 +35,9 @@ namespace PromptUGUI.Controls.Internal
             ("collapse@",       TriggerKind.Collapse),
             ("checked@",        TriggerKind.Checked),
             ("unchecked@",      TriggerKind.Unchecked),
+            // A ScrollList row being picked up / put down (spec 2026-09-16 §4.2).
+            ("lift@",           TriggerKind.Lift),
+            ("drop@",           TriggerKind.Drop),
         };
 
         /// <summary>
@@ -47,7 +51,7 @@ namespace PromptUGUI.Controls.Internal
                 throw new ArgumentException(
                     $"<Animation reverse-on=\"{value}\">: cannot be 'open' or 'loop' — reverse-on names the " +
                     "event that plays the animation backwards, and a Screen opens (or a loop starts) only " +
-                    "once, forwards. Use a real event: click / state-* / checked / collapse / manual (each " +
+                    "once, forwards. Use a real event: click / state-* / checked / collapse / drop / manual (each " +
                     "also with @<id>).");
             return spec;
         }
@@ -73,6 +77,8 @@ namespace PromptUGUI.Controls.Internal
                 case "collapse": return new TriggerSpec { Kind = TriggerKind.Collapse, Raw = value };
                 case "checked": return new TriggerSpec { Kind = TriggerKind.Checked, Raw = value };
                 case "unchecked": return new TriggerSpec { Kind = TriggerKind.Unchecked, Raw = value };
+                case "lift": return new TriggerSpec { Kind = TriggerKind.Lift, Raw = value };
+                case "drop": return new TriggerSpec { Kind = TriggerKind.Drop, Raw = value };
             }
             foreach (var (prefix, kind) in s_prefixedKinds)
             {
@@ -90,7 +96,8 @@ namespace PromptUGUI.Controls.Internal
                 "hover-enter / hover-enter@<id> / hover-exit / hover-exit@<id> / press / press@<id> / " +
                 "state-normal / state-hover / state-pressed / state-selected / state-disabled (each also with @<id>) / " +
                 "expand / expand@<id> / collapse / collapse@<id> / " +
-                "checked / checked@<id> / unchecked / unchecked@<id> / manual");
+                "checked / checked@<id> / unchecked / unchecked@<id> / " +
+                "lift / lift@<id> / drop / drop@<id> / manual");
         }
     }
 }

@@ -22,7 +22,14 @@ namespace PromptUGUI.Controls.Internal
             if (trigger.ScopedIds.TryGetValue(id, out var found)) return found;
 
             for (var scope = trigger.Parent; scope != null; scope = scope.Parent)
+            {
+                // An enclosing element's OWN id is in scope for everything inside it. It is not in
+                // any table reachable from here while a dynamic row (itemTemplate / Instantiate) is
+                // still being built — the root's scope is attached only after its subtree applied —
+                // so a `lift@row` written on the row's root has to be found by name on the way up.
+                if (scope.Id == id) return scope;
                 if (scope.ScopedIds.TryGetValue(id, out found)) return found;
+            }
 
             var screen = PromptUGUI.Application.UI.OwnerScreenOf(trigger);
             if (screen != null && screen.TryGet(id, out found)) return found;
@@ -209,6 +216,36 @@ namespace PromptUGUI.Controls.Internal
                 $"<Trigger on=\"expand@{sourceId}\">: id '{sourceId}' is a " +
                 $"{ctrl.GetType().Name}, not a <TabMenu>/<Collapsible>. " +
                 "expand / collapse require one of those.");
+        }
+
+        /// <summary>
+        /// Finds the <see cref="ReorderRowMarker"/> of the <c>&lt;ScrollList&gt;</c> row a <c>lift</c> /
+        /// <c>drop</c> trigger lives in (spec 2026-09-16 §4.2). Resolves <b>upward</b> like
+        /// <see cref="FindExpandable"/>: the row is the child of the list's Content on the way up
+        /// (Content carries a <see cref="ScrollListContentMarker"/> from the moment the list exists),
+        /// and the row's marker is created here on first use — a row without hooks never gets one,
+        /// which is how the driver knows to apply its own lift look.
+        /// </summary>
+        /// <param name="trigger">触发器控件</param>
+        /// <param name="sourceId">空 → 从触发器自身向上找；非空 → 词法作用域找到该控件，再从它向上找所在的行</param>
+        public static ReorderRowMarker FindReorderRow(Trigger trigger, string sourceId)
+        {
+            var start = string.IsNullOrEmpty(sourceId)
+                ? trigger.GameObject.transform
+                : ResolveId(trigger, sourceId, "lift/drop").GameObject.transform;
+
+            for (var t = start; t != null && t.parent != null; t = t.parent)
+            {
+                if (t.parent.GetComponent<ScrollListContentMarker>() == null) continue;
+                return t.gameObject.GetComponent<ReorderRowMarker>()
+                       ?? t.gameObject.AddComponent<ReorderRowMarker>();
+            }
+
+            var label = string.IsNullOrEmpty(sourceId) ? "lift\"/\"drop" : $"lift@{sourceId}";
+            throw new InvalidOperationException(
+                $"<Trigger on=\"{label}\"> in '{trigger.Id ?? trigger.GameObject.name}': no <ScrollList> row " +
+                "ancestor found. lift / drop are the events of a list row being dragged — place the trigger " +
+                "inside a row (a <ScrollList> child or its itemTemplate), or point lift@<id> at a node in one.");
         }
     }
 }

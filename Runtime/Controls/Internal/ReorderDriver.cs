@@ -213,6 +213,46 @@ namespace PromptUGUI.Controls.Internal
             ToContentLocal(_pointer.pressPosition, _pointer.pressEventCamera, out _liftLocal);
             // A long-press lift is not a click: the <Btn> under the finger must not fire on release.
             _pointer.eligibleForClick = false;
+
+            // Hooks first (an authored <Animation on="lift"> starts now); the default look only when
+            // the row has no lift hook of its own — the two must not both write localScale.
+            _defaultLook = _list.NotifyLifted(_row);
+            if (_defaultLook) ScaleTo(_rowRt, DefaultLiftScale);
+        }
+
+        // ───── default lift look (spec §4.3) ─────
+
+        private const float DefaultLiftScale = 1.03f;
+        private const float DefaultLiftDuration = 0.12f;
+        private bool _defaultLook;
+        private MotionHandle _scaleTween;
+
+        private void ScaleTo(RectTransform rt, float scale)
+        {
+            if (_scaleTween.IsActive()) _scaleTween.TryCancel();
+            var target = new Vector3(scale, scale, 1f);
+            if (!UnityEngine.Application.isPlaying)
+            {
+                rt.localScale = target;
+                return;
+            }
+            _scaleTween = LMotion.Create(rt.localScale, target, DefaultLiftDuration)
+                .WithEase(Ease.OutCubic)
+                .WithScheduler(MotionScheduler.UpdateIgnoreTimeScale)
+                .Bind(rt, static (v, r) => { if (r != null) r.localScale = v; });
+        }
+
+        private void UndoDefaultLook(RectTransform rt, bool instant)
+        {
+            if (!_defaultLook) return;
+            _defaultLook = false;
+            if (rt == null) return;
+            if (instant)
+            {
+                if (_scaleTween.IsActive()) _scaleTween.TryCancel();
+                rt.localScale = Vector3.one;
+            }
+            else ScaleTo(rt, 1f);
         }
 
         private void FollowPointer(Vector2 screen, Camera cam)
@@ -259,6 +299,7 @@ namespace PromptUGUI.Controls.Internal
             LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
             SnapshotLayout();
             Tween(rt, visual, rt.anchoredPosition);
+            UndoDefaultLook(rt, instant: false);
 
             ClearSession();
             _list.NotifyDropped(row);
@@ -285,6 +326,7 @@ namespace PromptUGUI.Controls.Internal
                 _rowRt.SetSiblingIndex(_from);
                 if (_rowLe != null) _rowLe.ignoreLayout = false;
             }
+            UndoDefaultLook(_rowRt, instant: true);
             if (_content != null) LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
             var row = _row;
             ClearSession();
@@ -621,6 +663,7 @@ namespace PromptUGUI.Controls.Internal
             foreach (var kv in _tweens)
                 if (kv.Value.IsActive()) kv.Value.TryCancel();
             _tweens.Clear();
+            if (_scaleTween.IsActive()) _scaleTween.TryCancel();
             if (_placeholder != null)
             {
                 if (UnityEngine.Application.isPlaying) Destroy(_placeholder.gameObject);

@@ -178,9 +178,27 @@ namespace PromptUGUI.Controls
 
         internal void RaiseReordered(int from, int to) => _reordered.OnNext((from, to));
 
-        internal void NotifyLifted(IControl row) { }
+        /// <summary>
+        /// The driver lifted <paramref name="row"/>: fire its <c>lift</c> hooks. Returns whether the
+        /// driver should apply its own default lift look — it does unless an authored <c>on="lift"</c>
+        /// hook exists on the row, in which case the look is the author's alone (spec §4.3).
+        /// </summary>
+        internal bool NotifyLifted(IControl row)
+        {
+            var marker = MarkerOf(row);
+            marker?.Lift();
+            return marker == null || !marker.HasLiftHook;
+        }
 
-        internal void NotifyDropped(IControl row) { }
+        internal void NotifyDropped(IControl row) => MarkerOf(row)?.Drop();
+
+        // The marker sits on the row's layout host (Content's direct child) — where the upward walk
+        // in TriggerSourceResolver.FindReorderRow puts it. Null for a row nobody hooked.
+        private static ReorderRowMarker MarkerOf(IControl row)
+        {
+            var host = row is Control c ? c.LayoutHost : row?.RectTransform;
+            return host != null ? host.GetComponent<ReorderRowMarker>() : null;
+        }
 
         // 静态 XML 子卡与 BindItems 建的卡都进 Content（同 Carousel 的 _strip）：挂在 ScrollList
         // 根上的子节点落在 Viewport 之外 —— 既不被裁剪、也不滚动、也不计入 Content 尺寸。
@@ -201,6 +219,10 @@ namespace PromptUGUI.Controls
 
             _content = ProceduralBuilders.AddChild(_viewport, "Content");
             _scroll.content = _content;
+            // Lets a lift / drop hook nested anywhere in a row find its row by walking up — the row is
+            // the child of this node on the way. Always present: hooks bind while the row is still
+            // being instantiated, before this list has even collected it (spec 2026-09-16 §4.2).
+            _content.gameObject.AddComponent<ScrollListContentMarker>().Owner = this;
 
             _scroll.movementType = ScrollRect.MovementType.Elastic;
             _scroll.elasticity = 0.1f;

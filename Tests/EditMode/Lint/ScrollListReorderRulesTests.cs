@@ -112,6 +112,35 @@ namespace PromptUGUI.Tests.EditMode.Lint
             Assert.That(issues.Any(i => i.Code == ScrollListRules.ReorderValueCode));
         }
 
+        // ───── PUI-LIFT-NO-SOURCE ─────
+
+        [TestCase("lift")]
+        [TestCase("drop")]
+        public void Bare_lift_or_drop_outside_a_ScrollList_is_reported(string on)
+        {
+            var issues = IRWalker.Walk(Doc($"<Frame><Animation on='{on}' scale='1:1.03'><Frame/></Animation></Frame>")).ToList();
+            var issue = issues.SingleOrDefault(i => i.Code == StateTriggerRules.NoListRowCode);
+            Assert.IsNotNull(issue, on);
+            StringAssert.Contains("ScrollList", issue.Message);
+        }
+
+        [Test]
+        public void Bare_lift_inside_a_ScrollList_row_is_fine()
+        {
+            var issues = IRWalker.Walk(Doc(
+                "<ScrollList reorder='true'><Frame height='30'><Show on='lift'><Frame/></Show></Frame></ScrollList>")).ToList();
+            Assert.IsFalse(issues.Any(i => i.Code == StateTriggerRules.NoListRowCode));
+        }
+
+        [Test]
+        public void Lift_in_a_template_body_and_lift_at_id_are_not_judged()
+        {
+            var issues = IRWalker.Walk(Doc(
+                "<Frame><Trigger on='lift@row'><Frame/></Trigger></Frame>",
+                "<Template name='Row'><Frame id='row'><Trigger on='lift'><Frame/></Trigger></Frame></Template>")).ToList();
+            Assert.IsFalse(issues.Any(i => i.Code == StateTriggerRules.NoListRowCode));
+        }
+
         [Test]
         public void Bad_value_arriving_through_a_style_pack_is_reported()
         {
