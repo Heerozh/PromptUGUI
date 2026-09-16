@@ -212,8 +212,18 @@ IControl any = screen.Get("playBtn");                      // untyped fallback
 //   <TitledPanel id="bagPanel"> ...inside template <Btn id="close"/>... </TitledPanel>
 var close = screen.Get<Btn>("bagPanel/close");
 
-UI.Close("MainMenu");                                      // destroys GameObjects
+UI.Close("MainMenu");                                      // begins closing (see below)
+await UI.CloseAsync("MainMenu");                           // completes once the GameObjects are destroyed
 ```
+
+**Closing is two-phase when the Screen declares an exit** (`<Animation on="close">` / `reverse-on="close"`, see the XML skill's *Exit animations*). `UI.Close` returns at once: the Screen is no longer the open one of its name (`UI.Get` → null, the name can be reopened immediately), its input is sealed, and its GameObjects live on as a non-interactive ghost until the exit finishes — `screen.IsClosing` is true meanwhile, `screen.OnClosing` (an `Observable<Unit>`) fired once at the start. A Screen without a close-bound `<Animation>` is destroyed on the same frame, exactly as before, so nothing changes for it.
+
+Two consequences for the exiting kind:
+
+- **Subscriptions inside the Screen stay alive until it is destroyed.** `[Bind]` / `BindItems` bindings and your `OnClick` handlers are disposed at the end of the exit, not when `UI.Close` returns; pointer input cannot reach the ghost, but a data source you push to will still update it. Dispose your own subscriptions yourself, or `await UI.CloseAsync` before tearing down the view model.
+- **Resources the Screen references must outlive the exit** — a RenderTexture behind a `<RawImage>`, a Sprite you generated, whatever a custom control holds. Release them after `CloseAsync` completes.
+
+`screen.Dispose()` is the immediate path (destroy now, no exit); so are `UI.UnloadAll` / hot reload. A `<Trigger on="close">` is the declarative exit hook — subscribe its `OnFire` from C# to play a sound, save state, etc.; it never delays the close.
 
 Note: when a Template invocation carries `id="bagPanel"`, that id is **transferred to the template body's single root element** automatically — `screen.Get<TitledPanel>("bagPanel")` returns the root. Use the path form (`"bagPanel/close"`) only when reaching into an element that has its own id **inside** the template body.
 
@@ -887,7 +897,10 @@ SETUP          UI.UseResourcesResolver("UI")
                UI.LoadDocument("Label", xmlString)            sync, no hot-reload
 
 OPEN/CLOSE     var screen = UI.Open("Name");                  returns IScreen
-               UI.Close("Name");
+               UI.Close("Name");                              begins closing; same-frame destroy unless the XML declares an exit
+               await UI.CloseAsync("Name");                   completes after the GameObjects are destroyed
+               screen.IsClosing / screen.OnClosing            exit in progress / fires once at the start of it
+               screen.Dispose()                               destroy now, no exit
 
 GET            screen.Get<Btn>("id")                          typed
                screen.Get("id")                               untyped (IControl)
@@ -1035,6 +1048,7 @@ ROUTER         UI.Router.Scheme = "myapp"                   optional scheme enfo
                await UI.Router.Navigate("myapp://name?k=v") parse URL then Open
                await UI.Router.Back()                       navigate to parent; no-op at root
                await UI.Router.Reset()                      close entire chain
+               UI.Router.Transition = RouteTransition.Sequential   wait for the outgoing page's exit before building the next (default Overlap)
                UI.UnloadAll() (reconnect boundary)          full reset: chain+docs+open before re-Map; Clear()/Reset() alone NOT enough
 
                UI.Router.Current                            top name (null when empty)
@@ -1761,6 +1775,8 @@ await UI.Router.Navigate("myapp://details?id=42&tab=info");   // URL form
 await UI.Router.Back();    // navigate to Current's parent; no-op at root
 await UI.Router.Reset();   // close the entire chain (does not clear registrations)
 ```
+
+**Exit animations.** A deactivated page plays whatever its XML bound to `close` (`<Animation on="open" reverse-on="close">`) and is destroyed when that finishes; `Open` / `Back` return as soon as the chain is reconciled, not when the ghost is gone. By default (`RouteTransition.Overlap`) the incoming page is built immediately, so the two overlap for the length of the exit — a page opened later draws above one opened earlier, which gives push and pop the expected stacking. `UI.Router.Transition = RouteTransition.Sequential` instead waits for the outgoing page to be destroyed before building the next (no two full screens drawn at once; navigation feels a `duration` slower).
 
 **State** (synchronous, no await):
 

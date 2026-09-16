@@ -17,6 +17,7 @@
 | Value              | Fires when                                                                                                                                                                                                        |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `open`             | Once when Screen opens (default if `on=` is omitted)                                                                                                                                                              |
+| `close`            | Once when the Screen **begins closing** (`UI.Close` / `Router` deactivation / a modal being dismissed). The Screen waits for every `<Animation>` this event fires before its GameObjects are destroyed — the exit. No `@id` form, like `open`. Refused by `<Show>`. See **Exit animations** below |
 | `loop`             | (Animation only) Fires once on open and enables looping (default yoyo)                                                                                                                                            |
 | `click`            | The unique `<Btn>` inside this Trigger's subtree is clicked (uses Unity `Button.onClick`)                                                                                                                         |
 | `click@<id>`       | The `<Btn>` matching `<id>` inside the subtree is clicked                                                                                                                                                         |
@@ -43,7 +44,7 @@
 | `lift@<id>` · `drop@<id>` | Same, but the row is the one containing the node with `<id>` (lexical scope; an enclosing element's own id counts, so `lift@row` on the row root works)                                        |
 | `manual`           | Does not auto-fire; C# must call `Fire()`                                                                                                                                                                         |
 
-**`expand` / `collapse` are not called `open` / `close`** — `on="open"` already means "the Screen opened". They exist because the panel that opens is an internal node you cannot wrap in an `<Animation>`: a `<TabMenu>`'s popup, a `<Collapsible>`'s body. The panel's own entrance is that control's `transition=` attribute; these are for animating the **rows** inside it. They resolve upward exactly like `state-*`, and the subtree they live in is switched off while collapsed — which the ancestor walk accounts for. Establishing the initial look at Screen open is **not** an expand / collapse (a panel that opens folded has not just folded).
+**`expand` / `collapse` are not called `open` / `close`** — `on="open"` / `on="close"` already mean "the Screen opened / is closing". They exist because the panel that opens is an internal node you cannot wrap in an `<Animation>`: a `<TabMenu>`'s popup, a `<Collapsible>`'s body. The panel's own entrance is that control's `transition=` attribute; these are for animating the **rows** inside it. They resolve upward exactly like `state-*`, and the subtree they live in is switched off while collapsed — which the ancestor walk accounts for. Establishing the initial look at Screen open is **not** an expand / collapse (a panel that opens folded has not just folded).
 
 ```xml
 <!-- A row that slides in with the panel and back out with it — one Animation, both directions -->
@@ -202,6 +203,37 @@ Unlike the transform channels — which move an invisible proxy and never touch 
 - Declaring `reverse-on` also changes the **forward** direction: it starts from the current value too, so re-firing mid-flight continues rather than restarting. An animation without `reverse-on` keeps the historic "write `from`, then tween" restart exactly.
 - Exclusive with `loop=` (`PUI-REVERSE-LOOP` — a looping motion has no resting end state) and with the text family (`PUI-REVERSE-TEXT` — a number counting backwards has no stable current value).
 - Only on `<Animation>`; on a `<Trigger>` / `<Show>` there is nothing to reverse (`PUI-REVERSE-ON-TAG`). For a second event stream in C#, add another `<Trigger>`.
+- An `on="open"` animation with `reverse-on=` **rests at `from`** before it plays (the forward direction reads the current value, and at open that would otherwise be the untouched node — a `fade="0:1"` would tween 1 → 1). Other `on=` values keep the node as authored until their event arrives: an `expand` / `checked` pair may legitimately start on its `to` side.
+
+### Exit animations
+
+`close` is the Screen-level counterpart of `open`. Two ways to declare an exit:
+
+```xml
+<!-- The entrance played backwards — the usual choice. -->
+<Animation on="open" reverse-on="close" translate="-32,0:0,0" fade="0:1" duration="0.25s">
+  <VStack …/>
+</Animation>
+
+<!-- An exit of its own, when it should not mirror the entrance. -->
+<Animation on="open" type="fadein" duration="0.2s"><Frame …/></Animation>
+<Animation on="close" type="slideout-down" duration="0.3s"><Frame …/></Animation>
+
+<!-- A modal fading out as a whole: its backdrop lives in the modal's own XML, so wrap everything. -->
+<Animation on="open" reverse-on="close" fade="0:1" duration="0.15s">
+  <Image id="backdrop" anchor="stretch" …/>
+  …
+</Animation>
+```
+
+What happens on `UI.Close` (and on `Router.Back()` / a modal button): the Screen stops being the open one of its name at once (`UI.Get` → null, the name can be reopened), its input is sealed (no raycasts, no keyboard selection left inside, an expanded `<TabMenu>` collapses), `close` fires, and the GameObjects live on as a non-interactive **ghost** until every animation `close` fired has finished — then they are destroyed. A Screen with no close-bound `<Animation>` is destroyed on the same frame, exactly as before.
+
+- The **wait set** is only what `close` fired: `on="close"` and `reverse-on="close"` animations. `on="loop"` motions, `<Collapsible>` / `<TabMenu>` transitions and a plain `<Trigger on="close">` (the C# exit hook: `OnFire`) never hold the close.
+- `on="close"` with an endless `loop="true"` / `"yoyo"` is a lint error (`PUI-CLOSE-LOOP`) — the Screen would never close. `loop="count:N"` is fine.
+- Closing mid-entrance turns around from the current value (that is what `reverse-on=` means); the ghost never snaps.
+- Every `<Animation>` runs on **unscaled time**, so an exit completes under `Time.timeScale = 0` (a pause menu closing while the game is paused).
+- A drag that was already captured inside the Screen keeps receiving its pointer until release; that is the one input the seal does not stop.
+- Two Screens may be drawn at once for the length of the exit (the Router builds the next page immediately by default — `UI.Router.Transition = RouteTransition.Sequential` waits instead). Draw order follows hierarchy order: a page opened later draws above one opened earlier, which gives push and pop the expected stacking without any sorting tweak.
 
 **First-frame establishment.** A `checked` / `unchecked` trigger whose control is *already* in that state as the Screen opens establishes the end state instead of animating into it — a header authored `isOn="true"` shows its chevron already turned rather than spinning it on frame 1. Every later flip animates normally. (The same idea as `states.md`'s first-frame rule for colours.)
 
@@ -224,6 +256,7 @@ Unlike the transform channels — which move an invisible proxy and never touch 
 - `on="click"` requires a unique `<Btn>` descendant; multiple → use `on="click@<id>"` to disambiguate; zero `<Btn>` → error
 - `reveal-from` and `reveal-to` may not be the same value (nothing would move); a reveal endpoint may not be negative
 - `reverse-on` may not be `open` or `loop`
+- `on="close"` may not carry an endless `loop=` (`PUI-CLOSE-LOOP`)
 
 ## Patterns
 
@@ -289,3 +322,4 @@ Unlike the transform channels — which move an invisible proxy and never touch 
 - `<Animation>` adds a `CanvasGroup` and an inner `_offsetProxy` GameObject (transparent to layout, but visible in the Hierarchy)
 - `on="open"` fires once at Screen open; Variant ReSolve does **not** re-fire
 - An `on="open"` entrance renders its `from` state on the frame the Screen is built and starts moving on the frame after; the build frame's cost (which can be hundreds of ms in the Editor) is never charged to the animation, so the first visible step is always a normal frame's worth
+- `<Animation>` motions run on unscaled time (`Time.timeScale` does not slow or freeze them) — like every other PromptUGUI transition

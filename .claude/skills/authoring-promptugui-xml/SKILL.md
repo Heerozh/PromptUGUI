@@ -1771,6 +1771,8 @@ BTN STATE     *Color (hoverColor/pressedColor/disabledColor)         absolute pe
 TAB/TOGGLE    + selectedColor (selection-aware bg base while active/isOn) / selectedModulate; <Tab selectedSprite>=overrideSprite swap on isOn (no overlay)
 STATE         stateReact="false"  opt node+subtree out of *Modulate fan-out (no effect on *Color — absolute is bg-only)
               on="state-normal|hover|pressed|selected|disabled[@id]"  on <Trigger>/<Animation>/<Show>; resolves UPWARD to nearest <Btn>/<Tab>/<Toggle>; fires on enter
+EXIT          <Animation on="open" reverse-on="close" …>  entrance played backwards when the Screen closes; on="close" type="slideout-*" for its own exit
+              the Screen waits for what close fired, then destroys; no close-bound <Animation> → destroyed on the same frame; PUI-CLOSE-LOOP for on="close" + endless loop
               state-selected is meaningful only on <Tab>/<Toggle> source; <Btn> never emits it
               详见 reference/states.md（状态化视觉）· reference/animations.md（Trigger/Animation）
 
@@ -1895,7 +1897,9 @@ HIT-TESTING   PUI-RAYCAST-TAG                  raycastTarget= outside Frame / Im
 
 ## Triggers and Animations
 
-`<Trigger>` 声明式事件钩子（`open` / `click` / `hover-*` / `press` / `state-*` / `manual` → C# `OnFire`）；`<Animation>` 在其上叠加 LitMotion 动效（preset 预设 / 低层 transform / 文字效果，三族互斥）。**用 `<Trigger>` / `<Animation>` 前，先读 [`reference/animations.md`](reference/animations.md)**（含完整 `on=` 表、easing、parse errors、patterns）。
+`<Trigger>` 声明式事件钩子（`open` / `close` / `click` / `hover-*` / `press` / `state-*` / `manual` → C# `OnFire`）；`<Animation>` 在其上叠加 LitMotion 动效（preset 预设 / 低层 transform / 文字效果，三族互斥）。**用 `<Trigger>` / `<Animation>` 前，先读 [`reference/animations.md`](reference/animations.md)**（含完整 `on=` 表、easing、parse errors、patterns）。
+
+退场：`<Animation on="open" reverse-on="close" …>` 让入场在 Screen 关闭时倒放，或 `on="close" type="slideout-down"` 独立退场；Screen 会等这些动画播完再销毁（没写退场的 Screen 仍当帧销毁）。见 `reference/animations.md` 的 **Exit animations**。
 
 ## State visuals (Btn / Tab / Toggle)
 

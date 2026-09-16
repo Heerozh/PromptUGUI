@@ -365,3 +365,47 @@ PlayMode（`Tests/PlayMode/Lifecycle/CloseTransitionPlayTests.cs`；linear 1s fa
 | 测试间幽灵泄漏 | `ResetForTests` 立即路径 + 测试 14 | §5.3 |
 | 退场中场景卸载 | `OnRootDestroyedExternally` 分支 + 测试 16 | §5.8 |
 | Router 的 `await CloseAsync` 被 teardown 挂死 | 立即路径也完成 `_closed` | §5.3 |
+
+## 14. 实施记录（2026-09-16，分支 `feat/close-transition`，三步提交 M0 / M1 / M2）
+
+### 14.1 与设计的偏差
+
+- **可逆入场静息在 `from`（新增，§5 未预见）。** M1 的 PlayMode 测试暴露：`<Animation on="open" reverse-on="close" fade="0:1">`
+  在 open 时**根本不淡入**——§2.4.5 让 `reverse-on=` 动画的正向从「当前值」起，而 open 时 CanvasGroup 的当前值是 1，
+  于是 1 → 1。这正是 §13 之外、上一轮调研标为「独立跟进」的隐患，但它打在本特性的招牌写法上，必须一起修。
+  收窄修法：`Animation.OnAfterApply` **只对 `on="open"` 的可逆动画**用 `WriteEndState(reverse: true)` 建立 `from`
+  静息态（一次，ReSolve 不重建——open 不会重发，重写会把已定的元素弹回 from）。不推广到所有可逆动画：
+  `<Collapsible>` 里 `on="expand" reverse-on="collapse" translate="-12,0:0,0"` 的行在默认展开的面板里会永远卡在 -12
+  （open 时不派发 expand）。
+- **`OnClosing` 在所有关闭路径都发一次**（含 `Dispose` / teardown），不只是过渡路径：C# exit 钩子的契约是「Screen 开始
+  关闭时通知一次」，与走哪条销毁路径无关。`UnloadAll` / `ResetForTests` 因此改为迭代快照——钩子里开关 Screen 不会撞
+  正在迭代的字典。
+- **`_closing` 布尔改名为 `_destroyed`** 并统一成一个标志：`CloseImmediate` 置位后再销毁 root，relay 的 `OnDestroy`
+  据此早退；外部销毁路径也置位并完成 `CloseAsync` 等待者。
+- **Finish 按本地引用逐次检查 `_destroyed`**，销毁路径不再置空 `_exitMotions`：测试里一条没 `.AddTo(root)` 的 motion
+  在外部销毁后继续跑到 0.5s，唤醒时列表已空 → NRE。真实 `<Animation>` 都挂 `.AddTo(go)`，但 Finish 不该依赖这一点。
+- **`Screen.IsOpening` 期间 Close → 立即** 的分支没有测试：没有一个内建控件能在 apply pass 里调用 `UI.Close`，
+  写测试要注册带 prefab 的自定义控件，收益不值。代码是一行 `if (!isPlaying || IsOpening) CloseImmediate()`。
+- `UI.CloseAsync` 对同一 Screen 的多次调用各自拿到独立的 `AwaitableCompletionSource`：Unity 的 `Awaitable` 是池化对象，
+  只能被 await 一次，不能共享。
+
+### 14.2 测试里发现并记录的既有事实
+
+- Unity 的 `Object.Destroy` 延到帧末：`CloseImmediate` 返回后 `screen.RootGameObject` 已为 null，但测试持有的 root
+  引用要到下一帧才 fake-null。断言应看 `screen.RootGameObject`。
+- PlayMode 测试 asmdef 现在引用 `LitMotion`（直接造 handle 灌进 `NotifyMotions`）和 `Unity.Addressables`
+  （`UI.ReloadAsync` 有 `AssetReferenceT<>` 重载，缺引用时编译器无法决议）——与 EditMode asmdef 对齐。
+- `MessageBox.Open` 默认 `ModalMode.Popup` 是**叠放**，`Queued` 才排队；「队列里下一个模态立即提升」的测试要显式 `Queued`。
+
+### 14.3 开放问题的落地
+
+1. `UI.Navigation` 补选：Begin 只清幽灵内的选中；Navigation 现有逻辑接管，没有额外触发。测试 19 只断言「选中被清」。
+2. Sequential 的 `epoch` 检查：每个 `await UI.CloseAsync` 之后都做（一行）。
+3. `OnClosing` 放 `IScreen`（`Observable<Unit>`），`IsClosing` / `CloseAsync` 同。
+4. 幽灵内 `BindItems` 推送不拦截。
+
+### 14.4 未做
+
+- 内建模态 XML（`MessageBox.ui` 等）没有加退场——那是所有用户可见的默认行为变化，另开决定。演示放在
+  `Samples~/CommonControls` 的 `ExitDemo` 屏。
+- §9 的非目标全部维持。
