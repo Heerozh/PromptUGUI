@@ -143,12 +143,15 @@
     </Frame>
   </Template>
 
-  <!-- ScrollList 行模板 -->
+  <!-- ScrollList 行模板：可拖动排序 —— 左侧 grip 是把手（reorderHandle），提起时整行微放大、松手缩回 -->
   <Template name="OptionRow">
-    <HStack height="32" spacing="8">
-      <Text id="label" fontSize="20"/>
-      <Frame width="0"/>
-    </HStack>
+    <Animation on="lift" reverse-on="drop" scale="1:1.03" duration="0.12s">
+      <HStack id="row" height="32" spacing="8">
+        <Frame id="grip" width="12" color="white/0.25"/>
+        <Text id="label" fontSize="20"/>
+        <Frame width="0"/>
+      </HStack>
+    </Animation>
   </Template>
 
   <!-- Carousel 卡片模板（bg 底色 / 标题由 C# BindItems 填） -->
@@ -352,7 +355,7 @@
           <Carousel id="banner" class="carousel" height="90" itemTemplate="DemoCard"
                     interval="3" loop="true" transition="0.3" dots="bottom-center"/>
           <ScrollList id="list" class="list" width="stretch" height="stretch" itemTemplate="OptionRow"
-                      spacing="4" padding="8">
+                      spacing="4" padding="8" reorder="true" reorderHandle="grip">
             <Scrollbar class="scrollbar"/>
           </ScrollList>
         </VStack>

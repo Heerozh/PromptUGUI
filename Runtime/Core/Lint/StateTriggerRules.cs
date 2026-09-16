@@ -27,6 +27,34 @@ namespace PromptUGUI.Lint
         public const string NoSourceCode = "PUI-STATE-NO-SOURCE";
         public const string NoMenuCode = "PUI-EXPAND-NO-SOURCE";
         public const string NoToggleSourceCode = "PUI-CHECKED-NO-SOURCE";
+        public const string NoListRowCode = "PUI-LIFT-NO-SOURCE";
+
+        private static readonly HashSet<string> BareListRowValues =
+            new HashSet<string> { "lift", "drop" };
+
+        /// <summary>True if <paramref name="tag"/> hosts reorderable rows (a <c>lift</c> / <c>drop</c> source).</summary>
+        public static bool IsListRowHostTag(string tag) => tag == "ScrollList";
+
+        /// <summary>
+        /// Yields <see cref="NoListRowCode"/> when <paramref name="n"/> is a bare (no-<c>@id</c>)
+        /// <c>lift</c> / <c>drop</c> trigger with no <c>&lt;ScrollList&gt;</c> ancestor — the row it
+        /// would resolve upward to does not exist, and the runtime hard-throws
+        /// (<c>TriggerSourceResolver.FindReorderRow</c>). Same exemptions as the other upward
+        /// rules: Template bodies and <c>@id</c> forms are left to runtime.
+        /// </summary>
+        public static IEnumerable<LintIssue> CheckListRowSource(ElementNode n, bool hasListAncestor)
+        {
+            if (hasListAncestor) yield break;
+            if (!StateTriggerTags.Contains(n.Tag)) yield break;
+            if (!n.Attributes.TryGetValue("on", out var on)) yield break;
+            if (!BareListRowValues.Contains(on)) yield break;
+
+            yield return new LintIssue(
+                NoListRowCode, n.Tag, n.Id,
+                $"<{n.Tag} on=\"{on}\">: no <ScrollList> ancestor. {on} is the event of a list row being " +
+                "dragged and resolves upward to the row — place it inside a <ScrollList> child or the " +
+                $"list's itemTemplate, or use {on}@<id>.");
+        }
 
         private static readonly HashSet<string> StateTriggerTags =
             new HashSet<string> { "Trigger", "Animation", "Show" };

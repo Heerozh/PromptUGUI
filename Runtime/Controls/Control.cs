@@ -75,6 +75,12 @@ namespace PromptUGUI.Controls
 
         private CanvasGroup CanvasGroup => _canvasGroup ??= GameObject.AddComponent<CanvasGroup>();
 
+        /// <summary>
+        /// <see cref="Interactable"/> without the side effect: the getter lazily ADDS a CanvasGroup,
+        /// which a hit test over every row of a list must not do. No group means nobody ever disabled it.
+        /// </summary>
+        internal bool PeekInteractable => _canvasGroup == null || _canvasGroup.interactable;
+
         internal void AttachTo(GameObject go)
         {
             GameObject = go;

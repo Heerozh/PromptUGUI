@@ -14,6 +14,8 @@ namespace PromptUGUI.Lint
     {
         public const string ColumnsDirectionCode = "PUI-SCROLL-COLUMNS-DIRECTION";
         public const string ColumnsCellSizeCode = "PUI-SCROLL-COLUMNS-CELLSIZE";
+        public const string ReorderHandleCode = "PUI-REORDER-HANDLE-ID";
+        public const string ReorderValueCode = "PUI-REORDER-VALUE";
 
         /// <summary>
         /// True when this list asks for the grid in ANY configuration — a base <c>columns</c> or any
@@ -75,6 +77,101 @@ namespace PromptUGUI.Lint
                     "is the only thing that sizes an item (a child's own size/width/height is ignored), and " +
                     "without it every cell silently falls back to uGUI's 100x100. " +
                     "Fix: add cellSize=\"WxH\".");
+        }
+
+        // ───── drag-to-reorder (spec 2026-09-16 §4.5) ─────
+
+        /// <summary>
+        /// <c>reorderHold</c> (<c>auto</c> or a duration) and <c>reorderDuration</c> (a duration), base
+        /// and every variant, through <c>class=</c> too. Runtime mirrors this with a warning and keeps
+        /// the previous value; here it is an error where the value was written.
+        /// </summary>
+        public static IEnumerable<LintIssue> CheckReorderValues(ElementNode n, StyleAttributeView styles = null)
+        {
+            styles ??= StyleAttributeView.Empty;
+            foreach (var issue in CheckDuration(n, styles, "reorderHold", allowAuto: true))
+                yield return issue;
+            foreach (var issue in CheckDuration(n, styles, "reorderDuration", allowAuto: false))
+                yield return issue;
+        }
+
+        private static IEnumerable<LintIssue> CheckDuration(ElementNode n, StyleAttributeView styles, string attr, bool allowAuto)
+        {
+            styles.Resolve(n, attr, out var baseValue, out var variants);
+            if (baseValue != null && !IsDuration(baseValue, allowAuto))
+                yield return BadDuration(n, attr, baseValue, allowAuto);
+            foreach (var (variant, value) in variants)
+                if (value != null && !IsDuration(value, allowAuto))
+                    yield return BadDuration(n, $"{attr}.{variant}", value, allowAuto);
+        }
+
+        private static LintIssue BadDuration(ElementNode n, string attr, string value, bool allowAuto) =>
+            new LintIssue(
+                ReorderValueCode, n.Tag, n.Id,
+                $"<ScrollList id='{n.Id}'>: {attr}=\"{value}\" is not a duration" +
+                (allowAuto ? " (or 'auto')" : "") +
+                " — write seconds (0.4 / 0.4s) or milliseconds (400ms). At runtime the value is ignored " +
+                "and the previous one kept.");
+
+        // Pure C# twin of AnimationSpec.ParseSeconds (which lives in the Unity half): "0.4", "0.4s",
+        // "400ms"; negative is not a duration.
+        private static bool IsDuration(string value, bool allowAuto)
+        {
+            value = value.Trim();
+            if (allowAuto && value == "auto") return true;
+            if (value.EndsWith("ms")) value = value.Substring(0, value.Length - 2);
+            else if (value.EndsWith("s")) value = value.Substring(0, value.Length - 1);
+            return float.TryParse(value, System.Globalization.NumberStyles.Float,
+                                  System.Globalization.CultureInfo.InvariantCulture, out var f)
+                   && f >= 0f;
+        }
+
+        /// <summary>
+        /// <c>reorderHandle="x"</c> names a node inside each row; a row without it lifts from anywhere
+        /// (runtime warns once). Checked against the <c>itemTemplate</c>'s body when this document
+        /// declares that template, else against each static child. A template this document does
+        /// not declare (an imported library's) cannot be judged and is left alone. Checked whether or
+        /// not <c>reorder</c> is on — a variant may switch it on later.
+        /// </summary>
+        public static IEnumerable<LintIssue> CheckReorderHandle(
+            ElementNode n, IReadOnlyDictionary<string, TemplateDef> templates, StyleAttributeView styles = null)
+        {
+            styles ??= StyleAttributeView.Empty;
+            styles.Resolve(n, "reorderHandle", out var handle, out _);
+            if (string.IsNullOrEmpty(handle)) yield break;
+
+            styles.Resolve(n, "itemTemplate", out var itemTemplate, out _);
+            if (!string.IsNullOrEmpty(itemTemplate))
+            {
+                if (templates == null || !templates.TryGetValue(itemTemplate, out var tpl) || tpl.Body == null)
+                    yield break;
+                if (!ContainsId(tpl.Body, handle))
+                    yield return new LintIssue(
+                        ReorderHandleCode, n.Tag, n.Id,
+                        $"<ScrollList id='{n.Id}' reorderHandle='{handle}'>: <Template name='{tpl.Name}'> " +
+                        $"(the itemTemplate) has no node with id='{handle}', so the whole row lifts instead. " +
+                        "Fix: give the grip node that id, or drop reorderHandle.");
+                yield break;
+            }
+
+            foreach (var child in n.Children)
+            {
+                if (child.Tag == "Scrollbar") continue;   // chrome, not a row
+                if (ContainsId(child, handle)) continue;
+                yield return new LintIssue(
+                    ReorderHandleCode, child.Tag, child.Id,
+                    $"<ScrollList id='{n.Id}' reorderHandle='{handle}'>: this static row (<{child.Tag}>) has no " +
+                    $"node with id='{handle}', so it lifts from anywhere. Fix: give its grip node that id.")
+                    .WithSource(child.OriginSrc, child.Line, child.InvokedAt);
+            }
+        }
+
+        private static bool ContainsId(ElementNode node, string id)
+        {
+            if (node.Id == id) return true;
+            foreach (var child in node.Children)
+                if (ContainsId(child, id)) return true;
+            return false;
         }
     }
 }

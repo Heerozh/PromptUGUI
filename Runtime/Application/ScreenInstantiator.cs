@@ -227,6 +227,9 @@ namespace PromptUGUI.Application
                 foreach (var issue in PromptUGUI.Lint.CarouselRules.CheckCarousel(node))
                     UILog.Warn(node, issue);
             else if (node.Tag == "ScrollList")
+                // The reorder rules have no mirror here: a bad reorderHold / reorderDuration is
+                // already reported by the setter that rejects it, and the handle rule needs the
+                // template body — the driver warns once at runtime when a row turns out not to have it.
                 foreach (var issue in PromptUGUI.Lint.ScrollListRules.CheckScrollList(node))
                     UILog.Warn(node, issue);
             else if (node.Tag == "Scrollbar")
