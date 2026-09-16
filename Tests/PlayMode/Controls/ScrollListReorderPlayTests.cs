@@ -58,8 +58,12 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             var p0 = ScreenOf(row1);
             var e = new PointerEventData(EventSystem.current)
             {
-                position = p0, pressPosition = p0, button = PointerEventData.InputButton.Left,
-                pointerId = -1, pointerDrag = content.gameObject, eligibleForClick = true,
+                position = p0,
+                pressPosition = p0,
+                button = PointerEventData.InputButton.Left,
+                pointerId = -1,
+                pointerDrag = content.gameObject,
+                eligibleForClick = true,
             };
             ((IInitializePotentialDragHandler)d).OnInitializePotentialDrag(e);
             ((IBeginDragHandler)d).OnBeginDrag(e);
