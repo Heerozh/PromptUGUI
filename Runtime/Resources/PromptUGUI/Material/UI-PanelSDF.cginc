@@ -592,6 +592,40 @@ float2 PuguiPanelNormal(float2 p, float2 b, PuguiQuad q)
     return normalize(s * g);
 }
 
+// ───── 进度裁切（spec 2026-09-18 §5.2）─────
+// 形状 ∩ 半平面：<Progress> 的程序化 fill 不收缩 rect，value 变成这里的一条切线。切割进了 d，
+// 于是描边 / 两层发光 / 雾 / 玻璃折射全部沿切完的形状走 —— 推进边是直的，光晕包住它而不是被刀切。
+// 参数走顶点通道（uv1.zw），与局部坐标 / 半尺寸同一条理由：逐面板不同、逐样式相同，材质照常共享，
+// value 动画只脏顶点。
+//
+// code：0 = 不切；±1 = 沿 x（+1 从左往右填）；±2 = 沿 y（+2 从下往上填）。四个顶点写同一个值，
+// 插值后逐位不变，所以下面按常量处理。offset e 是切线到 rect 中心的有符号距离（局部像素），
+// 由 C# 按 (2·value − 1) · b_axis 算好。
+float2 PuguiCutNormal(float code)
+{
+    float s = code >= 0.0 ? 1.0 : -1.0;
+    return abs(code) < 1.5 ? float2(s, 0.0) : float2(0.0, s);
+}
+
+// 用 select 而不是分支：d 随后要过 fwidth，导数指令不能落在（编译器看来）非均匀的控制流之后。
+// 不切时切割项取一个远小于任何 d 的常数，max 逐位不改 d —— 非 Progress 的面板与从前完全一样。
+float PuguiCutTerm(float2 p, float code, float e)
+{
+    return abs(code) > 0.5 ? dot(p, PuguiCutNormal(code)) - e : -1e6;
+}
+
+float PuguiSdCut(float d, float2 p, float code, float e)
+{
+    return max(d, PuguiCutTerm(p, code, e));
+}
+
+// 交集里切割项赢的区域，外法线就是切线的法线 —— 玻璃的折射带与高光才会沿推进边走。
+float2 PuguiPanelNormalCut(float2 p, float2 b, PuguiQuad q, float dShape, float code, float e)
+{
+    float2 n = PuguiPanelNormal(p, b, q);
+    return PuguiCutTerm(p, code, e) > dShape ? PuguiCutNormal(code) : n;
+}
+
 // 直 alpha 的 source-over 合成。
 float4 PuguiOver(float4 src, float4 dst)
 {

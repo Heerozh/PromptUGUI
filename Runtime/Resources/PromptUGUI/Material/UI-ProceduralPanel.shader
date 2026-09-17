@@ -140,7 +140,7 @@ Shader "UI/ProceduralPanel"
                 float4 vertex   : POSITION;
                 float4 color    : COLOR;
                 float2 texcoord : TEXCOORD0;   // rect 局部坐标（以中心为原点，像素）
-                float2 texcoord1: TEXCOORD1;   // rect 半尺寸（像素）
+                float4 texcoord1: TEXCOORD1;   // xy = rect 半尺寸（像素）, zw = 进度裁切 (code, e)，见 PuguiSdCut
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -150,6 +150,7 @@ Shader "UI/ProceduralPanel"
                 fixed4 color         : COLOR;
                 float4 shape         : TEXCOORD0;   // xy = 局部坐标, zw = 半尺寸
                 float4 worldPosition : TEXCOORD1;
+                float2 cut           : TEXCOORD2;   // 进度裁切 (code, e)；code 0 = 不切
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
@@ -183,7 +184,8 @@ Shader "UI/ProceduralPanel"
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(OUT);
                 OUT.worldPosition = v.vertex;
                 OUT.vertex = UnityObjectToClipPos(OUT.worldPosition);
-                OUT.shape = float4(v.texcoord, v.texcoord1);
+                OUT.shape = float4(v.texcoord, v.texcoord1.xy);
+                OUT.cut = v.texcoord1.zw;
                 OUT.color = v.color;
                 return OUT;
             }
@@ -195,7 +197,8 @@ Shader "UI/ProceduralPanel"
 
                 PuguiQuad corner = PuguiResolveQuad(p, b, _CornerKind, _Radius,
                                                        _CornerH, _CornerFillet, _Shape, _HexW);
-                float d = PuguiSdPanel(p, b, corner);
+                // 进度裁切（spec 2026-09-18 §5.2）：先切再求导，下面每一层看到的都是切完的形状。
+                float d = PuguiSdCut(PuguiSdPanel(p, b, corner), p, IN.cut.x, IN.cut.y);
                 float fw = max(fwidth(d), 1e-4);
 
                 float inside = saturate(0.5 - d / fw);
