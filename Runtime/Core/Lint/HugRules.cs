@@ -85,7 +85,7 @@ namespace PromptUGUI.Lint
 
         private static string WayOut(string tag) => tag switch
         {
-            "Frame" or "Screen" or "SafeArea" or "Btn" or "Tab" or "Toggle" or "TabMenu" or "Carousel"
+            "Frame" or "Pages" or "Screen" or "SafeArea" or "Btn" or "Tab" or "Toggle" or "TabMenu" or "Carousel"
                 or "InputField" or "Dropdown" or "Slider" or "Progress" or "Markdown" =>
                 "Fix: wrap the content in a <VStack> and hug that instead — this control's children are "
                 + "free-positioned, so it has no content size to take.",

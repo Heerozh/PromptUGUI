@@ -64,14 +64,16 @@ namespace PromptUGUI.Tests.EditMode.Lint
             Assert.IsEmpty(HugRules.CheckHugTag(Node(tag, height: "hug")).ToList());
         }
 
-        [Test]
-        public void CheckHugTag_points_a_frame_at_a_stack()
+        [TestCase("Frame")]
+        [TestCase("Pages")]
+        public void CheckHugTag_points_a_free_positioning_container_at_a_stack(string tag)
         {
-            var issues = HugRules.CheckHugTag(Node("Frame", height: "hug")).ToList();
+            var issues = HugRules.CheckHugTag(Node(tag, height: "hug")).ToList();
 
             Assert.AreEqual(1, issues.Count);
             Assert.AreEqual(HugRules.TagCode, issues[0].Code);
             StringAssert.Contains("<VStack>", issues[0].Message);
+            StringAssert.Contains("free-positioned", issues[0].Message);
         }
 
         [Test]

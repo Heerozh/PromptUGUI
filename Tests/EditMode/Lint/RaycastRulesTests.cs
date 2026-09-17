@@ -51,6 +51,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("HStack")]
         [TestCase("Grid")]
         [TestCase("SafeArea")]
+        [TestCase("Pages")]
         public void A_pure_container_has_nothing_to_hit(string tag)
         {
             var issues = RaycastRules.CheckTag(Node(tag)).ToList();
