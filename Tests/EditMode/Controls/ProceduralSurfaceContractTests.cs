@@ -119,10 +119,26 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [TestCase("innerGlow='6'")]
         [TestCase("innerGlowColor='#fff'")]
         [TestCase("intensity='3'")]
+        [TestCase("haze='40'")]
+        [TestCase("hazeColor='cyan'")]
+        [TestCase("hazeDrift='6'")]
+        [TestCase("hazeDensity='1'")]
         [TestCase("glass='true'")]
         public void AnyPanelAttachingAttr_AttachesASurface(string attrs)
         {
             Assert.IsNotNull(SurfaceOf(Load(attrs)), $"<Btn {attrs}> should get a surface");
+        }
+
+        [Test]
+        public void HazeAttrs_ReachTheControlsPanel()
+        {
+            // The four haze attributes are declared once on ProceduralControl, so every control in
+            // the family gets them — and they land in the same PanelParams a Frame would build.
+            var p = PanelOf(Load("haze='40' hazeColor='to top, cyan, cyan/0' hazeDrift='6' hazeDensity='0.8'")).CurrentParams;
+            Assert.AreEqual(40f, p.HazeSize, 0.0001f);
+            Assert.AreEqual(6f, p.HazeDrift, 0.0001f);
+            Assert.AreEqual(0.8f, p.HazeDensity, 0.0001f);
+            Assert.IsTrue(p.Haze.IsGradient);
         }
 
         /// <summary>§13.6 — decided by copying what <c>GlassWeld</c> already does.</summary>

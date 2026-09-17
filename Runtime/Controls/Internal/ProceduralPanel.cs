@@ -18,8 +18,8 @@ namespace PromptUGUI.Controls.Internal
     /// <item>Colour / radius / border / glow-colour changes touch only the material, so a Variant
     /// flip or a colour tween never rebuilds the canvas mesh.</item>
     /// <item>Attribute writes only flag the material dirty; the parameters are resolved once per
-    /// canvas rebuild (see <see cref="FlushParams"/>), so applying seventeen attributes at
-    /// instantiation costs one material lookup, not seventeen.</item>
+    /// canvas rebuild (see <see cref="FlushParams"/>), so applying twenty-one attributes at
+    /// instantiation costs one material lookup, not twenty-one.</item>
     /// <item>Geometry is dirtied only when the glow radius (which inflates the quad) or overall
     /// visibility changes.</item>
     /// <item>A fully transparent panel emits no geometry at all — zero overdraw, which is the
@@ -53,6 +53,13 @@ namespace PromptUGUI.Controls.Internal
         // Exposure (spec 2026-09-12). 1 is "unlit" — the default has to be the identity, or every
         // panel in the library would light up.
         private float _intensity = IntensityAttrParser.Default;
+        // The noise-fog layer (spec 2026-09-17 haze). Size 0 is "no fog"; the colour defaults to
+        // white for the inner glow's reason (fog in the fill's own colour is invisible on an opaque
+        // fill), and never follows the fill.
+        private float _hazeSize;
+        private ColorSpec _hazeColor = ColorSpec.Solid(Color.white);
+        private float _hazeDrift;
+        private float _hazeDensity = HazeDensityAttrParser.Default;
 
         private bool _glass;
         private float _frost = GlassAttrParser.DefaultFrost;
@@ -240,6 +247,34 @@ namespace PromptUGUI.Controls.Internal
             MarkDirty();
         }
 
+        /// <summary>Feature size of the fog's patches, px; 0 = no fog. Material-only, never geometry.</summary>
+        public void SetHazeSize(float size)
+        {
+            _hazeSize = Mathf.Max(0f, size);
+            MarkDirty();
+        }
+
+        /// <summary>The fog colour — a full gradient, which is also its directional mask (H-D2).</summary>
+        public void SetHazeColor(in ColorSpec color)
+        {
+            _hazeColor = color;
+            MarkDirty();
+        }
+
+        /// <summary>Flow speed in px per unscaled second; 0 = still.</summary>
+        public void SetHazeDrift(float drift)
+        {
+            _hazeDrift = Mathf.Max(0f, drift);
+            MarkDirty();
+        }
+
+        /// <summary>Coverage 0..1: sparse patches → the raw cloud field (H-D7).</summary>
+        public void SetHazeDensity(float density)
+        {
+            _hazeDensity = Mathf.Clamp(density, HazeDensityAttrParser.Min, HazeDensityAttrParser.Max);
+            MarkDirty();
+        }
+
         public void SetGlass(bool glass)
         {
             if (_glass == glass) return;
@@ -334,6 +369,10 @@ namespace PromptUGUI.Controls.Internal
             _glowSize = source._glowSize;
             _innerGlowSize = source._innerGlowSize;
             _intensity = source._intensity;
+            _hazeSize = source._hazeSize;
+            _hazeColor = source._hazeColor;
+            _hazeDrift = source._hazeDrift;
+            _hazeDensity = source._hazeDensity;
             _frost = source._frost;
             _depth = source._depth;
             _dispersion = source._dispersion;
@@ -403,6 +442,14 @@ namespace PromptUGUI.Controls.Internal
             // folded into the key rather than the shader so panels differing only in a value that
             // cannot show keep sharing one material.
             var intensity = _glass || _grayed ? IntensityAttrParser.Default : _intensity;
+            // Fog over glass would need its own compositing rule and a second shader (H-D4), so it
+            // is zeroed there; and while the size is 0 the colour and the drift are canonicalised so
+            // a stray hazeColor= never splits the cache. Disabled fog stops flowing (H-D5): grey but
+            // still moving reads as alive, and a disabled control has to read as inert.
+            var hazeSize = _glass ? 0f : _hazeSize;
+            var haze = hazeSize > 0f ? _hazeColor : ColorSpec.Solid(Color.white);
+            var hazeDrift = hazeSize > 0f && !_grayed ? _hazeDrift : 0f;
+            var hazeDensity = hazeSize > 0f ? _hazeDensity : HazeDensityAttrParser.Default;
             if (_grayed)
             {
                 // Disabled greying has to happen HERE, inside the parameters, not by swapping the
@@ -414,6 +461,7 @@ namespace PromptUGUI.Controls.Internal
                 border = border.Desaturate();
                 glow = glow.Desaturate();
                 innerGlow = innerGlow.Desaturate();
+                if (hazeSize > 0f) haze = haze.Desaturate();
                 if (_glass)
                     // Grey glass AND thin glass: dropping saturation alone still reads as a live,
                     // refracting pane. A disabled control should look inert, so the bevel goes too.
@@ -424,7 +472,7 @@ namespace PromptUGUI.Controls.Internal
 
             return new PanelParams(fill, border, glow, innerGlow, _radius,
                                    _borderWidth, _glowSize, _innerGlowSize, _glass, glassParams,
-                                   intensity);
+                                   intensity, haze, hazeSize, hazeDrift, hazeDensity);
         }
 
         /// <summary>
@@ -494,6 +542,8 @@ namespace PromptUGUI.Controls.Internal
             // A ring of light with no fill behind it is a legitimate look, same standing as the
             // border-only hollow box above.
             if (_innerGlowSize > 0f && _innerGlowColor.AnyVisible) return true;
+            // A patch of light in an otherwise empty rect, same standing as the ring above.
+            if (_hazeSize > 0f && _hazeColor.AnyVisible) return true;
             return false;
         }
 
@@ -509,7 +559,7 @@ namespace PromptUGUI.Controls.Internal
         /// <summary>
         /// Records that the parameters changed, without touching the material. Resolving is deferred
         /// to <see cref="FlushParams"/> so a run of attribute writes — instantiation applies up to
-        /// seventeen of them — collapses into a single cache lookup.
+        /// twenty-one of them — collapses into a single cache lookup.
         /// </summary>
         private void MarkDirty()
         {

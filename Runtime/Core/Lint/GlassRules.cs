@@ -25,6 +25,7 @@ namespace PromptUGUI.Lint
         public const string WeldParamPlacementCode = "PUI-GLASS-WELD-PARAM-PLACEMENT";
         public const string SeamWithoutWeldCode = "PUI-GLASS-SEAM-NO-WELD";
         public const string IntensityOnGlassCode = "PUI-GLASS-INTENSITY";
+        public const string HazeOnGlassCode = "PUI-GLASS-HAZE";
 
         /// <summary>
         /// Shader uniform arrays are fixed size; the group shader carries eight slots. Kept in sync
@@ -76,6 +77,16 @@ namespace PromptUGUI.Lint
                     $"<{n.Tag} id='{n.Id}'>: 'intensity' has no effect on a glass surface — glass " +
                     "paints the backdrop, which is not light the surface emits. Drop glass=\"true\" " +
                     "(or 'weld'), or drop 'intensity'.");
+
+            // Fog is painted over the fill, and glass has no fill of its own to paint it over — the
+            // runtime zeroes haze on a glass panel and on a weld container (spec 2026-09-17 haze §5.4).
+            // Only `haze` itself switches the fog on: a theme may hand hazeColor to every surface.
+            if (styles.Declares(n, "haze") && (isWeldGroup || IsGlassTrue(n, styles)))
+                yield return new LintIssue(
+                    HazeOnGlassCode, n.Tag, n.Id,
+                    $"<{n.Tag} id='{n.Id}'>: 'haze' has no effect on a glass surface — glass paints " +
+                    "the backdrop and has no fill for the fog to lie on. Drop glass=\"true\" " +
+                    "(or 'weld'), or drop 'haze'.");
 
             if (isWeldGroup && IsGlassTrue(n, styles))
                 yield return new LintIssue(

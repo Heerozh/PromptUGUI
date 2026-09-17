@@ -52,6 +52,11 @@ backdrop behind it, and exposing that would brighten the scene through the glass
 glass. The runtime ignores it on a glass pane and on a weld carrier (`PUI-GLASS-INTENSITY`) — the
 pane's own light is `lightIntensity`. Keep it for the opaque surfaces around the glass.
 
+**Not on glass either: `haze`.** Fog lies on a fill, and a pane has none — its body is the backdrop.
+The runtime zeroes `haze` on a glass pane and on a weld carrier (`PUI-GLASS-HAZE`); `hazeColor` alone
+is not flagged, so a theme may hand it to every surface and switch the fog on per control. See
+`reference/haze.md`.
+
 Reused unchanged: `color` (tint painted over the glass — the full gradient grammar: a **direction**, 2–4 **stops**, stop **positions** and **hints** (`"to right, A, B"` / `"A 70%,B"` / `"A, 70%, B"`, which glass draws per-pixel) and `/alpha` work exactly as
 elsewhere), `radius`, `borderWidth` / `borderColor`, `glow` / `glowColor`,
 `innerGlow` / `innerGlowColor` (painted over the tint, so it lights the pane's edge without touching
@@ -234,6 +239,7 @@ of them is silent at runtime, which is why they exist.
 | `PUI-GLASS-WELD-PARAM-PLACEMENT` | a group-level parameter on a member, or a per-block one on the carrier |
 | `PUI-GLASS-SEAM-NO-WELD` | `seam` on a node with no `weld` — only a fused group has a thickness step |
 | `PUI-GLASS-INTENSITY` | `intensity` on a glass pane or a weld carrier — glass paints the backdrop, which is not light the surface emits, so the value is ignored |
+| `PUI-GLASS-HAZE` | `haze` on a glass pane or a weld carrier — glass has no fill for the fog to lie on, so the value is ignored |
 | `PUI-MASK-WELD-SELF` | `mask="self"` on a `weld` carrier — the fused pane is on a child |
 | `PUI-PROC-SPRITE-CONFLICT` | `sprite=` on a control that is drawing procedurally |
 | `PUI-PROC-STATE-SPRITE-CONFLICT` | `pressedSprite` / `disabledSprite` on a procedural surface |

@@ -30,6 +30,8 @@ namespace PromptUGUI.Controls.Internal
         public static readonly GradientUniforms Border = new GradientUniforms("_Border");
         public static readonly GradientUniforms Glow = new GradientUniforms("_Glow");
         public static readonly GradientUniforms InnerGlow = new GradientUniforms("_InnerGlow");
+        /// <summary>The fog colour, which doubles as its directional mask (spec 2026-09-17 haze §4).</summary>
+        public static readonly GradientUniforms Haze = new GradientUniforms("_Haze");
 
         public static void Write(Material mat, in GradientUniforms ids, in ColorSpec spec)
         {

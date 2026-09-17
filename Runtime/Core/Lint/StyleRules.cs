@@ -25,6 +25,7 @@ namespace PromptUGUI.Lint
         private static readonly string[] PixelAttrs =
         {
             "borderWidth", "glow", "innerGlow", "blur", "handleBorderWidth", "handleGlow",
+            "haze", "hazeDrift",
         };
 
         public static IEnumerable<LintIssue> Check(ElementNode n)
@@ -122,6 +123,15 @@ namespace PromptUGUI.Lint
                 if (!IntensityAttrParser.TryParse(value, out _, out var intensityError))
                     yield return new LintIssue(ProceduralValueCode, tag, id,
                         $"{context}: {intensityError}");
+                yield break;
+            }
+
+            // hazeDensity: 0..1, its own parser for the same reason (spec 2026-09-17 haze H-D7).
+            if (baseName == HazeDensityAttrParser.Name)
+            {
+                if (!HazeDensityAttrParser.TryParse(value, out _, out var densityError))
+                    yield return new LintIssue(ProceduralValueCode, tag, id,
+                        $"{context}: {densityError}");
                 yield break;
             }
 

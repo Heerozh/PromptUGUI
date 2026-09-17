@@ -414,6 +414,211 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreNotSame(PanelOf(s.Get<Frame>("a")).material, PanelOf(s.Get<Frame>("b")).material);
         }
 
+        // ---- haze (spec 2026-09-17 haze): the noise-fog layer ---------------------------------
+
+        [Test]
+        public void Haze_DefaultsToZero()
+        {
+            Assert.AreEqual(0f, PanelOf(Load("color='#fff'")).CurrentParams.HazeSize, 0.0001f,
+                "0 means 'no fog' — a stray default would fog every panel in the library");
+        }
+
+        [Test]
+        public void Haze_ParsesPixels()
+        {
+            Assert.AreEqual(40f, PanelOf(Load("color='#fff' haze='40'")).CurrentParams.HazeSize, 0.0001f);
+        }
+
+        [Test]
+        public void Haze_Empty_ResetsToZero()
+        {
+            // Variant escape hatch: a value can be overridden but never removed.
+            Assert.AreEqual(0f, PanelOf(Load("color='#fff' haze=''")).CurrentParams.HazeSize, 0.0001f);
+        }
+
+        [TestCase("haze='-4'")]
+        [TestCase("haze='NaN'")]
+        [TestCase("haze='cloudy'")]
+        [TestCase("hazeDrift='-1'")]
+        [TestCase("hazeDrift='fast'")]
+        public void Haze_BadValue_Rejected(string attrs)
+        {
+            var ex = Assert.Throws<ParseException>(() => Load($"color='#fff' {attrs}"));
+            StringAssert.Contains("haze", ex.Message);
+        }
+
+        [Test]
+        public void HazeColor_DefaultsToWhite()
+        {
+            // Deliberately NOT the fill: fog in the fill's own colour is invisible on an opaque
+            // fill, which is the common case — the same reason innerGlowColor defaults to white.
+            var p = PanelOf(Load("color='#ff0000' haze='40'"));
+            Assert.AreEqual(Color.white, p.CurrentParams.Haze.Start,
+                "following the fill would make haze='40' alone draw nothing on an opaque panel");
+        }
+
+        [Test]
+        public void HazeColor_TakesAGradient()
+        {
+            // The colour slot IS the directional mask (H-D2): "to top, cyan, cyan/0" is fog that
+            // seeps in from the bottom edge. Direction and stops have to survive into the key.
+            var p = PanelOf(Load("color='#101828' haze='40' hazeColor='to top, cyan, cyan/0'"));
+            var haze = p.CurrentParams.Haze;
+            Assert.IsTrue(haze.IsGradient);
+            Assert.AreEqual(0f, haze.Direction.AngleDeg, 0.0001f, "to top = 0deg (CSS)");
+            Assert.AreEqual(0f, haze.End.a, 0.0001f);
+        }
+
+        [Test]
+        public void HazeDrift_ParsesPixelsPerSecond()
+        {
+            Assert.AreEqual(6f, PanelOf(Load("color='#fff' haze='40' hazeDrift='6'")).CurrentParams.HazeDrift, 0.0001f);
+        }
+
+        [Test]
+        public void HazeDensity_DefaultsToHalf()
+        {
+            // The reference's thin mist (H-D7): black point 0.275, white point 0.925 — most of the
+            // surface carries some fog, the brightest clouds still peak.
+            Assert.AreEqual(0.5f, PanelOf(Load("color='#fff' haze='40'")).CurrentParams.HazeDensity, 0.0001f);
+        }
+
+        [TestCase("hazeDensity='0'", 0f)]
+        [TestCase("hazeDensity='1'", 1f)]
+        [TestCase("hazeDensity='0.25'", 0.25f)]
+        [TestCase("hazeDensity=''", 0.5f)]
+        public void HazeDensity_Parses(string attrs, float expected)
+        {
+            Assert.AreEqual(expected, PanelOf(Load($"color='#fff' haze='40' {attrs}")).CurrentParams.HazeDensity, 0.0001f);
+        }
+
+        [TestCase("hazeDensity='2'")]
+        [TestCase("hazeDensity='-0.5'")]
+        [TestCase("hazeDensity='soft'")]
+        [TestCase("hazeDensity='NaN'")]
+        public void HazeDensity_BadValue_Rejected(string attrs)
+        {
+            var ex = Assert.Throws<ParseException>(() => Load($"color='#fff' haze='40' {attrs}"));
+            StringAssert.Contains("hazeDensity", ex.Message);
+        }
+
+        [Test]
+        public void Haze_AloneIsVisible()
+        {
+            // A patch of light in an otherwise empty rect is a legitimate look — same standing as
+            // the border-only hollow box and the inner-glow-only ring.
+            Assert.IsTrue(PanelOf(Load("haze='40'")).IsPanelVisible);
+        }
+
+        [Test]
+        public void HazeColorWithoutHaze_DoesNotSplitTheKey()
+        {
+            // hazeColor / hazeDrift are zeroed in the key while haze is 0, the way glass values are
+            // zeroed on an opaque panel: two panels that render identically must share one material.
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='a' color='#222'/>
+  <Frame id='b' color='#222' hazeColor='cyan' hazeDrift='6' hazeDensity='1'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var s = UI.Open("S");
+            Assert.AreEqual(PanelOf(s.Get<Frame>("a")).CurrentParams, PanelOf(s.Get<Frame>("b")).CurrentParams);
+            Assert.AreSame(PanelOf(s.Get<Frame>("a")).material, PanelOf(s.Get<Frame>("b")).material);
+        }
+
+        [Test]
+        public void Haze_DoesNotInflateMesh()
+        {
+            // Pure material parameter: fog is painted inside the shape, so the quad is exactly what
+            // the glow (if any) needs — nothing more.
+            var f = Load("color='#fff' haze='40' width='100' height='50' anchor='top-left'");
+            var vh = new VertexHelper();
+            PanelOf(f).BuildMeshForTests(vh);
+
+            var v = default(UIVertex);
+            vh.PopulateUIVertex(ref v, 2);
+            Assert.AreEqual(50f, v.uv0.x, 0.01f, "haze must not grow the drawn quad");
+            Assert.AreEqual(25f, v.uv0.y, 0.01f);
+        }
+
+        [Test]
+        public void Haze_ChangeDoesNotDirtyVertices()
+        {
+            // Material-only: a Variant flip or a colour animation on the fog never rebuilds the
+            // canvas mesh (the whole point of the vertex / material split).
+            var p = PanelOf(Load("color='#fff' haze='40'"));
+            var dirtied = 0;
+            p.RegisterDirtyVerticesCallback(() => dirtied++);
+            p.SetHazeSize(64f);
+            p.SetHazeColor(ColorSpec.Solid(Color.cyan));
+            p.SetHazeDrift(6f);
+            p.SetHazeDensity(1f);
+            Assert.AreEqual(0, dirtied);
+        }
+
+        [Test]
+        public void Glass_IgnoresHaze()
+        {
+            // Glass paints the backdrop; fog over it would need its own compositing rule and a
+            // second shader (H-D4). Zeroed in the key so glass panels differing only in haze keep
+            // sharing one material.
+            var p = PanelOf(Load("glass='true' haze='40' hazeDrift='6'")).CurrentParams;
+            Assert.AreEqual(0f, p.HazeSize, 0.0001f);
+            Assert.AreEqual(0f, p.HazeDrift, 0.0001f);
+        }
+
+        [Test]
+        public void Disabled_FreezesHazeDrift()
+        {
+            // Grey but still flowing reads as alive; a disabled control has to read as inert — the
+            // same reason intensity drops to 1 while disabled (H-D5). The colour greys with the rest.
+            var p = PanelOf(Load("color='#ff0000' haze='40' hazeColor='#00ffff' hazeDrift='6'"));
+            p.SetDisabledGrayscale(true);
+            Assert.AreEqual(0f, p.CurrentParams.HazeDrift, 0.0001f, "a disabled surface must not flow");
+            var grey = p.CurrentParams.Haze.Start;
+            Assert.AreEqual(grey.r, grey.g, 0.001f, "the fog colour greys with the surface");
+            Assert.AreEqual(grey.g, grey.b, 0.001f);
+
+            p.SetDisabledGrayscale(false);
+            Assert.AreEqual(6f, p.CurrentParams.HazeDrift, 0.0001f, "…and flow again when re-enabled");
+            Assert.AreEqual(Color.cyan, p.CurrentParams.Haze.Start);
+        }
+
+        [Test]
+        public void SameHaze_SharesOneMaterial()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Style name='fog' color='#101828' haze='40' hazeColor='to top, cyan/0.8, cyan/0'/>
+  <Screen name='S'>
+    <Frame id='a' class='fog' height='40'/>
+    <Frame id='b' class='fog' height='90'/>
+  </Screen>
+</PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var s = UI.Open("S");
+            Assert.AreSame(PanelOf(s.Get<Frame>("a")).material, PanelOf(s.Get<Frame>("b")).material);
+        }
+
+        [TestCase("haze='32'", "haze='64'")]
+        [TestCase("", "haze='32'")]
+        [TestCase("haze='32'", "haze='32' hazeColor='cyan'")]
+        [TestCase("haze='32'", "haze='32' hazeDrift='6'")]
+        [TestCase("haze='32'", "haze='32' hazeDensity='1'")]
+        public void DifferentHaze_SplitsTheMaterial(string a, string b)
+        {
+            // Every one of the four has to be in the cache key, or two panels that render
+            // differently would be handed the same material.
+            var xml = $@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='a' color='#222' {a}/>
+  <Frame id='b' color='#222' {b}/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var s = UI.Open("S");
+            Assert.AreNotSame(PanelOf(s.Get<Frame>("a")).material, PanelOf(s.Get<Frame>("b")).material);
+        }
+
         [Test]
         public void BorderColor_AcceptsGradient()
         {

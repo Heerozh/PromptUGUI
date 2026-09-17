@@ -156,6 +156,11 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("intensity='bright'")]
         [TestCase("intensity='0.5'")]
         [TestCase("intensity='NaN'")]
+        [TestCase("haze='cloudy'")]
+        [TestCase("haze='-4'")]
+        [TestCase("hazeDrift='-1'")]
+        [TestCase("hazeDensity='2'")]
+        [TestCase("hazeDensity='soft'")]
         public void BadValues_AreFlagged(string attr)
         {
             Assert.IsTrue(Has(Walk($"<Frame id='f' glass='true' {attr}/>"),
@@ -225,6 +230,58 @@ namespace PromptUGUI.Tests.EditMode.Lint
       <Frame id='b' glass='true'/>
     </Frame>");
             Assert.IsTrue(Has(issues, GlassRules.IntensityOnGlassCode, "a"));
+            Assert.IsFalse(Has(issues, GlassRules.WeldParamPlacementCode, "a"));
+        }
+
+        // ---- haze: not a glass parameter, and not for glass (spec 2026-09-17 haze §5.4) ----
+
+        [Test]
+        public void HazeWithoutGlass_IsNotAGlassParam()
+        {
+            // Same trap as intensity: "add glass=\"true\"" would name the opposite of the fix.
+            var issues = Walk("<Frame id='f' color='#101828' haze='40' hazeColor='cyan' hazeDrift='6'/>");
+            Assert.IsFalse(Has(issues, GlassRules.ParamWithoutGlassCode, "f"));
+            Assert.IsFalse(Has(issues, GlassRules.HazeOnGlassCode, "f"));
+        }
+
+        [TestCase("glass='true' haze='40'")]
+        [TestCase("glass.mobile='true' haze='40'")]
+        [TestCase("glass='true' haze.mobile='40'")]
+        public void HazeOnGlass_IsFlagged(string attrs)
+        {
+            // Glass paints the backdrop; the runtime zeroes the fog there (H-D4), so the author has
+            // to hear about it here.
+            var issues = Walk($"<Frame id='f' {attrs}/>");
+            Assert.IsTrue(Has(issues, GlassRules.HazeOnGlassCode, "f"));
+            StringAssert.Contains("haze", issues.First(i => i.Code == GlassRules.HazeOnGlassCode).Message);
+        }
+
+        [Test]
+        public void HazeColorAloneOnGlass_IsNotFlagged()
+        {
+            // Only `haze` switches the fog on. A theme may hand hazeColor to every surface and
+            // switch the fog on per control; the glass ones must not turn into noise.
+            Assert.IsFalse(Has(Walk("<Frame id='f' glass='true' hazeColor='cyan'/>"),
+                GlassRules.HazeOnGlassCode, "f"));
+        }
+
+        [Test]
+        public void HazeOnAWeldContainer_IsFlagged()
+        {
+            Assert.IsTrue(Has(Walk(@"<Frame id='g' weld='10' haze='40'>
+      <Frame id='a' glass='true'/>
+      <Frame id='b' glass='true'/>
+    </Frame>"), GlassRules.HazeOnGlassCode, "g"));
+        }
+
+        [Test]
+        public void HazeOnAWeldedBlock_IsFlaggedAsGlass_NotAsPlacement()
+        {
+            var issues = Walk(@"<Frame id='g' weld='10'>
+      <Frame id='a' glass='true' haze='40'/>
+      <Frame id='b' glass='true'/>
+    </Frame>");
+            Assert.IsTrue(Has(issues, GlassRules.HazeOnGlassCode, "a"));
             Assert.IsFalse(Has(issues, GlassRules.WeldParamPlacementCode, "a"));
         }
 

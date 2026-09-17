@@ -754,6 +754,79 @@ float4 PuguiGradient(float2 p, float2 b, PuguiRamp r)
 }
 
 
+// ---- 噪声雾（haze，spec 2026-09-17）----
+//
+// 参考图里按钮底边渗进来的几块「云雾状亮斑」：一个**低频**噪声场决定雾的 alpha，颜色来自 hazeColor
+// 那条 ramp（它同时就是方向遮罩：`to top, A, A/0` = 从底边渗入）。玻璃的 noise 是逐像素的高频颗粒，
+// 频段与用途都不同，不是同一个东西。
+//
+// 采样坐标是 **Canvas 空间**（worldPosition.xy，与 _ClipRect 同一坐标系），不是 rect 局部：同参数的
+// 相邻按钮落在噪声场的不同区域、自然长得不一样，而材质照旧共享；跨面板连续；同一位置同一时刻永远
+// 同一张图。代价是面板平移时雾像窗外的云一样滑过（§5.3）。
+//
+// 三 octave value noise（lacunarity 2、gain 0.5），quintic 插值（比 cubic 少一圈格子感）。格点坐标
+// 先对 256 取正模再 hash，噪声以 256 格为周期平铺，于是 hazeDrift 的时间偏移永远不需要回绕。
+// 第二、三个 octave 的采样域各转一个常角（0.7 / 1.4 rad）并错开原点：value noise 的极值落在格点上，
+// 三层同轴叠加会露出一张方格（实施时的第一版就是那样），转开后叠成没有轴向的云团。
+// 三个 octave 各沿一个不共线的常向量、以 1 / 1.5 / 2 倍速漂移：图样在流动中**形变**而不是整体平移，
+// 细节「沸腾」、整体缓慢。角度、方向与倍速都是常数不是参数。
+//
+// 覆盖率映射（spec §5.1 / H-D7）：fbm 的均值 0.50、标准差 0.15，落到雾浓度要过一张「色阶」——
+// 黑场 b、白场 t，中间一条曲线。hazeDensity = d 把三者一起推：黑场 0.55 → 0、白场 0.85 → 1、曲线
+// 从 Hermite S 形淡成直线。d = 0 只取分布的高尾（28% 像素沾雾，几团光、大片空白）；d = 1 时 u 恰好
+// 等于 n、曲线是直线，雾就是原始噪声场（100% 沾雾，一片平雾）；默认 0.5 是参考图的薄雾 + 亮云团
+// （87% 沾雾、26% 半亮以上）。/alpha 管整体浓淡、d 管覆盖多少，两者正交。
+
+#define PUGUI_HAZE_PERIOD 256.0
+
+// Dave Hoskins hash12：无 sin，移动端 half 精度下不塌。
+float PuguiHash12(float2 c)
+{
+    float3 p3 = frac(float3(c.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return frac((p3.x + p3.y) * p3.z);
+}
+
+// 可平铺 value noise，quintic 插值。
+float PuguiValueNoise(float2 q)
+{
+    float2 i = floor(q);
+    float2 f = q - i;
+    i -= PUGUI_HAZE_PERIOD * floor(i / PUGUI_HAZE_PERIOD);
+    float2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+    // 右邻 / 上邻格点在周期边界上要回绕到 0，否则平铺处有一条缝：i 取过模，i + 1 仍可能等于 256。
+    float2 i1 = i + 1.0;
+    i1 -= PUGUI_HAZE_PERIOD * floor(i1 / PUGUI_HAZE_PERIOD);
+    float a = PuguiHash12(i);
+    float b = PuguiHash12(float2(i1.x, i.y));
+    float c = PuguiHash12(float2(i.x, i1.y));
+    float d = PuguiHash12(i1);
+    return lerp(lerp(a, b, u.x), lerp(c, d, u.x), u.y);
+}
+
+// 三 octave fBm → 覆盖率。pos 为 Canvas 空间坐标，size 为斑块特征尺寸（px），drift 为 px/s，
+// t 为未缩放秒（全局 _PuguiUnscaledTime，HazeClock 每帧写），density 为 hazeDensity（0..1）。
+// 旋转 0.7 rad / 1.4 rad：mul(R, q) = (c·x − s·y, s·x + c·y)。
+static const float2x2 PUGUI_HAZE_ROT1 = float2x2(0.7648, -0.6442, 0.6442, 0.7648);
+static const float2x2 PUGUI_HAZE_ROT2 = float2x2(0.1700, -0.9854, 0.9854, 0.1700);
+
+float PuguiHazeWeight(float2 pos, float size, float drift, float t, float density)
+{
+    float2 q = pos / max(size, 1e-3);
+    float  v = drift * t / max(size, 1e-3);          // 格 / 秒 × 秒
+    float2 o0 = q + normalize(float2(1.0, 0.35)) * v;
+    float2 o1 = mul(PUGUI_HAZE_ROT1, q * 2.0) + float2(13.1, 7.3)  + normalize(float2(-0.6, 0.80)) * v * 1.5;
+    float2 o2 = mul(PUGUI_HAZE_ROT2, q * 4.0) + float2(26.2, 14.6) + normalize(float2(0.3, -1.00)) * v * 2.0;
+    float  n = 0.5 * PuguiValueNoise(o0) + 0.25 * PuguiValueNoise(o1) + 0.125 * PuguiValueNoise(o2);
+    n /= 0.875;
+    // 色阶：黑场 / 白场随 density 走，u 是线性归一；最后一行决定保留多少 Hermite 平滑。
+    // density = 0 时逐字是 smoothstep(0.55, 0.85, n)，= 1 时逐字是 n。
+    float b = 0.55 * (1.0 - density);
+    float w = 0.85 + 0.15 * density;
+    float u = saturate((n - b) / (w - b));
+    return lerp(u * u * (3.0 - 2.0 * u), u, density);
+}
+
 // ---- 装饰原语（<Decor>）的形状层 ----
 //
 // 三个形状都在**规范朝向**里定义：bracket 抱住自己包围盒的左上角，tick 尖端朝下。
