@@ -309,6 +309,7 @@ Wrap content in a single `<SafeArea>` and give it a `margin`; notched screens ab
 1. **Need a background? Use `<Image>` directly as the container** (it can hold children — one less layer).
 2. **For toolbars / a variable number of buttons, use `anchor="top-stretch"` + `childAlign` + `spacing`** — it spans the full row, childAlign pushes everything to one side, and adding/removing buttons needs no layout changes. **Don't** write `anchor="top-right"` without a `width` (the rect collapses to 0 width and the buttons all pile up together).
 3. **Use stretch for equal splits**: inside a LayoutGroup, `width="stretch"` (`stretch*2` to weight it); for free positioning use `anchor="X-stretch"` + margin, or `width="50%"`.
+4. **Views that code switches between (list ↔ detail, form ↔ result) go in a `<Pages selected="…">`** — every direct child is a page, one active at a time, `screen.Get<Pages>("id").Show("detail")` from C#. Don't stack sibling `<Frame>`s and flip `Hidden`: a declared `hidden` is replayed by every ReSolve, and a preview of the XML shows all of them on top of each other.
 
 ```xml
 <HStack anchor="top-stretch" height="24" margin="_,6,_,_"

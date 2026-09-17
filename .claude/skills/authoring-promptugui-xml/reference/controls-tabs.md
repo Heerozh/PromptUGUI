@@ -28,7 +28,7 @@
 </Image>
 ```
 
-`bind="frame_id"` 让 Tab 选中时显示、未选时隐藏命名 Frame。lookup 是 lazy 的 —— 首次切换才解析并缓存。Tab `isOn="true"` 在 XML 里指定初始选中；都没写时 TabBar 自动选第一个（除非写了 `allowSwitchOff="true"` —— 见 [No selection at all](#no-selection-at-all---allowswitchoff)）。`bind=` 省略时只 fire `OnSelected`（C# 端自己处理）。`isOn` 是**运行时独占状态**：声明值是初始选中，但一旦用户/代码运行期改过它，ReSolve（窗口 resize / Variant / Theme 切换）**不会**把它打回声明默认值 —— 用户选中的 Tab 和 `bind` 的页面都保持不变。`isOn.variant`（如 `isOn.portrait`）仍然有效：只要运行期没动过，切到该 Variant 会正常重应用覆盖值；动过之后用户的选择优先。`<Toggle isOn>` 同理。（同款「运行期改过就不打回、没动过 Variant 照常覆盖」也适用于 `<Slider value>` / `<Dropdown value>` / `<Progress value>`。）
+`bind="page_id"` 让 Tab 选中时显示、未选时隐藏命名的兄弟控件——通常是 `<Frame>`；页里还要由代码切子视图时直接 bind 那个 `<Pages>`（见下节）。lookup 是 lazy 的 —— 首次切换才解析并缓存。Tab `isOn="true"` 在 XML 里指定初始选中；都没写时 TabBar 自动选第一个（除非写了 `allowSwitchOff="true"` —— 见 [No selection at all](#no-selection-at-all---allowswitchoff)）。`bind=` 省略时只 fire `OnSelected`（C# 端自己处理）。`isOn` 是**运行时独占状态**：声明值是初始选中，但一旦用户/代码运行期改过它，ReSolve（窗口 resize / Variant / Theme 切换）**不会**把它打回声明默认值 —— 用户选中的 Tab 和 `bind` 的页面都保持不变。`isOn.variant`（如 `isOn.portrait`）仍然有效：只要运行期没动过，切到该 Variant 会正常重应用覆盖值；动过之后用户的选择优先。`<Toggle isOn>` 同理。（同款「运行期改过就不打回、没动过 Variant 照常覆盖」也适用于 `<Slider value>` / `<Dropdown value>` / `<Progress value>`。）
 
 用自定义 `itemTemplate` 时（`<TabBar itemTemplate="MyTabTemplate"/>`），Template body 必须在树里某处包含恰好一个 `<Tab>`（通过 `ScopedIds` 或递归 `Control.Children` walk 在 `BindItems` 时定位）。
 
@@ -52,20 +52,29 @@ in the same position.
 
 Sub-views belong **inside** the page. Two ways, by who switches:
 
-- **Code switches** — sibling `<Frame>`s inside the page, one visible, the rest `hidden="true"`;
-  C# flips `Hidden` (see scripting-promptugui-csharp → TabBar):
+- **Code switches** — the page *is* a `<Pages>` (or holds one): every direct child is a sub-view,
+  exactly one active at a time, `selected=` names the initial one and C# calls `Show()`. The tab
+  binds the `<Pages>` itself — `bind=` takes any control, not only a `<Frame>` (see
+  scripting-promptugui-csharp → `Pages`):
 
   ```xml
-  <Frame id="shop_panel" anchor="stretch" margin="40,0,0,0">
+  <Tab text="Shop" bind="shop_panel" isOn="true"/>
+  …
+  <Pages id="shop_panel" selected="shop_list" anchor="stretch" margin="40,0,0,0">
     <Frame id="shop_list"   anchor="stretch">…</Frame>
-    <Frame id="shop_detail" anchor="stretch" hidden="true">…</Frame>
-  </Frame>
+    <Frame id="shop_detail" anchor="stretch">…</Frame>      <!-- no hidden= on a page -->
+  </Pages>
   ```
 
   ```csharp
-  screen.Get<Frame>("shop_list").Hidden = true;
-  screen.Get<Frame>("shop_detail").Hidden = false;
+  screen.Get<Pages>("shop_panel").Show("shop_detail");
   ```
+
+  Do **not** hand-roll this with sibling `<Frame>`s and `hidden="true"` + C# `Hidden`: `hidden` is
+  a declared attribute, so every ReSolve (resize / Variant / Theme) replays it and snaps the views
+  back to the declared state. `<Pages selected>` is runtime-owned (like `isOn`), a page never
+  declares `hidden` (`PUI-PAGES-CHILD-HIDDEN`), and a preview that loads only the XML shows the
+  `selected` page instead of every view stacked on top of each other.
 
 - **The player switches** — a second `<TabBar>` *inside* the page (a segmented control). Nested
   bars are independent, and the inner one keeps working from code even while its page is hidden:

@@ -32,6 +32,11 @@ namespace PromptUGUI.Lint
                 foreach (var issue in CollapsibleRules.CheckGroups(screen.Root))
                     yield return issue;
 
+                // Screen-wide, CLI-only: an <Add> block whose target is a <Pages> — needs the Variant
+                // blocks, which a per-node rule cannot see.
+                foreach (var issue in PagesRules.CheckAddTargets(screen))
+                    yield return issue;
+
                 // reorderHandle= names a node inside the ROW, which is the itemTemplate's body — a
                 // per-node rule cannot see it, so this walk carries the document's templates along.
                 foreach (var issue in CheckReorderHandles(screen.Root, doc.Templates, styles))
@@ -180,6 +185,9 @@ namespace PromptUGUI.Lint
             }
             else if (node.Tag == "Collapsible")
                 foreach (var issue in CollapsibleRules.CheckCollapsible(node, styles))
+                    yield return issue;
+            else if (node.Tag == "Pages")
+                foreach (var issue in PagesRules.CheckPages(node, styles))
                     yield return issue;
             else if (node.Tag == "Markdown")
                 foreach (var issue in MarkdownRules.CheckMarkdown(node))

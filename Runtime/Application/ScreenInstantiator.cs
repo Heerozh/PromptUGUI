@@ -243,6 +243,16 @@ namespace PromptUGUI.Application
                     if (issue.Code == PromptUGUI.Lint.CollapsibleRules.HeightCode) continue;
                     UILog.Warn(node, issue);
                 }
+            else if (node.Tag == "Pages")
+                // A page without an id and a selected= naming no page are reported by the control
+                // itself, together with what it does about them (the page stays inactive / the first
+                // page wins). The Add-target rule needs the Variant blocks and is CLI-only.
+                foreach (var issue in PromptUGUI.Lint.PagesRules.CheckPages(node))
+                {
+                    if (issue.Code == PromptUGUI.Lint.PagesRules.ChildIdCode
+                        || issue.Code == PromptUGUI.Lint.PagesRules.SelectedCode) continue;
+                    UILog.Warn(node, issue);
+                }
 
             if (node.Tag == "Animation")
                 foreach (var issue in PromptUGUI.Lint.AnimationRules.CheckAnimation(node))

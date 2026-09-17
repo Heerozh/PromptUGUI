@@ -34,7 +34,7 @@ namespace PromptUGUI.Lint
         // No Graphic at all: nothing the raycaster could return.
         private static readonly HashSet<string> LayoutOnlyTags = new HashSet<string>(StringComparer.Ordinal)
         {
-            "VStack", "HStack", "Grid", "SafeArea", "Show", "Trigger", "Animation",
+            "VStack", "HStack", "Grid", "SafeArea", "Pages", "Show", "Trigger", "Animation",
         };
 
         // Hard-wired click-through: their Graphics never take the pointer (PB-D16, Decor, Icon).

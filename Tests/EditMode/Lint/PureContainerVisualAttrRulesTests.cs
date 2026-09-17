@@ -79,6 +79,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("HStack")]
         [TestCase("Grid")]
         [TestCase("SafeArea")]
+        [TestCase("Pages")]
         public void LayoutOnlyContainers_Sprite_Issue(string tag)
         {
             var n = new ElementNode(tag);
@@ -98,6 +99,8 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("HStack", "intensity")]
         [TestCase("VStack", "haze")]
         [TestCase("Grid", "hazeColor")]
+        [TestCase("Pages", "color")]
+        [TestCase("Pages", "radius")]
         public void LayoutOnlyContainers_ProceduralAttrs_Issue(string tag, string attr)
         {
             // 这些容器既没 Graphic 也没 ProceduralPanel —— 指路"套一层 Frame"。

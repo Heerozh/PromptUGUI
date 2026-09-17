@@ -26,6 +26,7 @@ namespace PromptUGUI.Application
             reg.Register<TabBar>("TabBar", null);
             reg.Register<TabMenu>("TabMenu", null);
             reg.Register<Collapsible>("Collapsible", null, runtimeStateAttr: "expanded");
+            reg.Register<Pages>("Pages", null, runtimeStateAttr: "selected");
             reg.Register<Slider>("Slider", null, runtimeStateAttr: "value");
             reg.Register<Progress>("Progress", null, runtimeStateAttr: "value");
             reg.Register<Dropdown>("Dropdown", null, runtimeStateAttr: "value");

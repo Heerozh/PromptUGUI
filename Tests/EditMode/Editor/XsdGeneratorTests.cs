@@ -1093,6 +1093,15 @@ namespace PromptUGUI.Tests.Editor
             StringAssert.Contains("name=\"handle\"", xsd);
             StringAssert.Contains("name=\"handleColor\"", xsd);
         }
+
+        [Test]
+        public void Pages_is_an_element_with_selected()
+        {
+            // Reflected off the registry like every non-primitive control (spec 2026-09-17-pages-design §4.5).
+            var xsd = XsdGenerator.Generate(PromptUGUI.Application.UI.Registry);
+            StringAssert.Contains("name=\"Pages\"", xsd);
+            StringAssert.Contains("name=\"selected\" type=\"xs:string\"", xsd);
+        }
     }
 
     public class TestPrimaryButton : Control

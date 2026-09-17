@@ -416,13 +416,13 @@ Setting `tab.IsOn = true` triggers mutex (other Tabs flip to false via the TabBa
 **refused and warned once** (`Tab 'x' is inactive … IsOn = true is ignored`) — the group would
 otherwise flip the visible tab straight back on, leaving two pages showing and `OnSelectionChanged`
 announcing a tab that never held. A hidden Tab is not a page switch: a page's sub-views (list ↔
-detail) switch *inside* the page — sibling `<Frame>`s toggled with `Hidden`, or a nested `<TabBar>`
-(see authoring-promptugui-xml → `reference/controls-tabs.md`, *Sub-views inside a page*):
+detail) switch *inside* the page — a `<Pages>` for code (below), or a nested `<TabBar>` for the
+player (see authoring-promptugui-xml → `reference/controls-tabs.md`, *Sub-views inside a page*):
 
 ```csharp
-// inside the "shop" page: <Frame id="shop_list"/> + <Frame id="shop_detail" hidden="true"/>
-screen.Get<Frame>("shop_list").Hidden = true;
-screen.Get<Frame>("shop_detail").Hidden = false;
+// the "shop" page IS a <Pages id="shop_panel" selected="shop_list"> with <Frame id="shop_list"/> +
+// <Frame id="shop_detail"/> inside; the tab binds the <Pages> (bind= takes any control)
+screen.Get<Pages>("shop_panel").Show("shop_detail");
 ```
 
 Only a group that is inactive *as a whole* is exempt — a bar on a page that is itself hidden, or a
@@ -511,6 +511,36 @@ one* above).
 
 Expanded is runtime state — `screen.ReSolve()` (a resize, a Variant flip, a theme switch) re-measures
 the panel but never closes it.
+
+### Pages
+
+`<Pages>` is the code-driven page switcher: its direct children are pages, exactly one active at a
+time (the rest are deactivated, never destroyed — every `Get<T>` path into them still works).
+
+```csharp
+var views = screen.Get<Pages>("pageBuild");
+views.Show("newView");                                  // = views.Selected = "newView"
+views.Selected;                                         // current page id
+views.SelectedPage;                                     // the IControl
+views.PageIds;                                          // ["slotsView", "newView", "detailView"], declaration order
+views.OnSelectedChanged.Subscribe(id => …).AddTo(views);   // fires on a real change only (same id = no-op)
+```
+
+- `Show()` with an id that names no page warns once per id and leaves the selection alone.
+- `selected=` is **runtime-owned** like `Tab.isOn`: once code has switched, a resize / Variant flip /
+  theme switch keeps that page; untouched, a `selected.portrait=` override still applies (and
+  `OnSelectedChanged` fires for it — subscribers see "the page changed", whoever changed it).
+- Do **not** write a page's `Hidden` yourself (`screen.Get<Frame>("newView").Hidden = true`): the
+  container owns its pages' activeSelf and re-asserts it on every ReSolve. Hide the whole group
+  through the `<Pages>`; switch with `Show()`.
+- A `<Tab bind="pageBuild">` can point straight at the `<Pages>` — `bind=` accepts any control.
+- Pages are static: no `BindItems`, no `<Add>` into a `<Pages>`, and a `screen.Instantiate(tpl, pages)`
+  instance is not a page (it is not a child).
+
+**Tooling** — the UI Preview's page picker, a debug overlay — enumerates them with
+`screen.FindAll<Pages>()`: every control of a type in the Screen, static tree in declaration order,
+then live dynamic subtrees (`BindItems` rows, `Instantiate` instances); destroyed ones are dropped.
+Business code that knows what it wants keeps using `Get<T>(id)`.
 
 ### Carousel
 
@@ -905,6 +935,12 @@ OPEN/CLOSE     var screen = UI.Open("Name");                  returns IScreen
 GET            screen.Get<Btn>("id")                          typed
                screen.Get("id")                               untyped (IControl)
                screen.Get<Btn>("outerId/innerId")             path into Template body
+               screen.FindAll<Pages>()                        every control of a type (tooling); static tree in order, then live dynamic subtrees
+
+PAGES          screen.Get<Pages>("id").Show("pageId")         one direct child active at a time; unknown id warns once, keeps selection
+               .Selected / .SelectedPage / .PageIds           runtime-owned like isOn: survives ReSolve; untouched selected.<variant> still applies
+               .OnSelectedChanged      string (new page id; real changes only, any source)
+                                                              never write a page's Hidden yourself — the container re-asserts it
 
 INSTANTIATE    var root = screen.Instantiate("Tpl", parent)   parent: IControl (lands as an XML child would) or RectTransform
                                                               name = same thing as itemTemplate=; every <Param> needs default=
@@ -921,6 +957,7 @@ EVENTS (R3)    .OnClick                Btn
                .OnSelectionChanged     TabBar/TabMenu:Tab (the newly-on Tab, or null when emptied)
                .OnExpanded/.OnCollapsed TabMenu:Unit (popup opened / closed)
                .OnCurrentChanged       Carousel:int (any-source page change, deduped)
+               .OnSelectedChanged      Pages:string (any-source page change, deduped)
                .OnEndEdit / .OnSubmit  InputField:string
                .Subscribe(...).AddTo(screen)   tie lifetime — ALWAYS
                .Subscribe(...).AddTo(control)  per-card/per-control lifetime (use inside BindItems)

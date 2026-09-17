@@ -52,7 +52,7 @@ namespace PromptUGUI.Lint
         // 加进白名单会误伤。
         private static readonly HashSet<string> LayoutOnlyTags = new()
         {
-            "VStack", "HStack", "Grid", "SafeArea",
+            "VStack", "HStack", "Grid", "SafeArea", "Pages",
         };
 
         // Frame 自己能画的那一组（见 Frame.cs 的 [UIAttr]）。在纯排版容器上写这些同样无效。
