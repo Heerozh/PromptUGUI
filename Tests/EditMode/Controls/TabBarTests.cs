@@ -75,6 +75,39 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsTrue(fb.GameObject.activeSelf);
         }
 
+        // bind= takes any control, not only a <Frame>: a page whose own sub-views switch inside it is
+        // a <Pages> (spec 2026-09-17-pages-design §4.4), and the tab flips that container as a whole.
+        [Test]
+        public void Tab_Bind_To_Pages_Switches_It()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar'>
+    <Tab id='a' bind='pa' isOn='true'/>
+    <Tab id='b' bind='fb'/>
+  </TabBar>
+  <Pages id='pa' selected='y'><Frame id='x'/><Frame id='y'/></Pages>
+  <Frame id='fb'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            var pa = screen.Get<Pages>("pa");
+            var fb = screen.Get<Frame>("fb");
+            Assert.IsTrue(pa.GameObject.activeSelf, "the selected tab's <Pages> is shown");
+            Assert.IsFalse(fb.GameObject.activeSelf);
+            Assert.IsTrue(screen.Get("y").GameObject.activeInHierarchy, "…with its own selected page");
+            Assert.IsFalse(screen.Get("x").GameObject.activeSelf);
+
+            screen.Get<Tab>("b").IsOn = true;
+            Assert.IsFalse(pa.GameObject.activeSelf, "the tab flips the container as a whole");
+            Assert.IsTrue(fb.GameObject.activeSelf);
+            Assert.AreEqual("y", pa.Selected, "…without touching what is selected inside it");
+
+            screen.Get<Tab>("a").IsOn = true;
+            Assert.IsTrue(pa.GameObject.activeSelf);
+            Assert.IsTrue(screen.Get("y").GameObject.activeInHierarchy);
+        }
+
         [Test]
         public void Tab_Bind_To_Missing_Frame_Warns_Once_Then_Silent()
         {

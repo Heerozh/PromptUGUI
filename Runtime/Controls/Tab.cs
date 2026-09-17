@@ -27,7 +27,9 @@ namespace PromptUGUI.Controls
         private string _fontType = "default";
         private string _bindId;
         private bool _bindResolved;
-        private Frame _boundFrame;
+        // Any control: usually a <Frame>, or a <Pages> when the page's own sub-views switch inside it
+        // (spec 2026-09-17-pages-design §4.4).
+        private IControl _boundFrame;
         private bool _warnedInactiveSelect;   // the "inactive tab next to an active one" refusal warns once
         private readonly Subject<bool> _changed = new();
         private readonly Subject<Unit> _selected = new();
@@ -124,10 +126,10 @@ namespace PromptUGUI.Controls
             if (_bindId == null && !_bindResolved) return;
             if (!_bindResolved)
             {
-                try { _boundFrame = UI.OwnerScreenOf(this)?.Get<Frame>(_bindId); }
+                try { _boundFrame = UI.OwnerScreenOf(this)?.Get<IControl>(_bindId); }
                 catch { _boundFrame = null; }
                 if (_boundFrame == null)
-                    UILog.Warn(this, $"Tab.bind='{_bindId}' did not resolve to a Frame; ignoring.");
+                    UILog.Warn(this, $"Tab.bind='{_bindId}' did not resolve to a control; ignoring.");
                 _bindResolved = true;
                 _bindId = null;     // prevent re-warn
             }

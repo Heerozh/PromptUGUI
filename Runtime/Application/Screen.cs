@@ -19,6 +19,16 @@ namespace PromptUGUI.Application
         public void Focus(string idPath);
 
         /// <summary>
+        /// Every control of type <typeparamref name="T"/> in this Screen: the static tree in
+        /// declaration order (an Add block's controls after it, once the block has been built), then
+        /// the live dynamic subtrees (<c>BindItems</c> rows, <see cref="Instantiate(string, IControl)"/>
+        /// instances) in registration order. A destroyed control is not returned. For tooling — a
+        /// preview's <c>&lt;Pages&gt;</c> picker, a debug overlay; code that knows what it wants goes
+        /// through <see cref="Get{T}"/> by id.
+        /// </summary>
+        public IReadOnlyList<T> FindAll<T>() where T : class, IControl;
+
+        /// <summary>
         /// True while the Screen is playing its exit: <see cref="Close"/> has run (it is no longer
         /// the open Screen of its name) but the destroy body has not. Never true in EditMode.
         /// </summary>
@@ -977,6 +987,44 @@ namespace PromptUGUI.Application
         /// nav targets that are inactive at the moment of wiring.</summary>
         internal bool TryGet(string id, out IControl control) =>
             _byId.TryGetValue(id, out control);
+
+        /// <inheritdoc/>
+        public IReadOnlyList<T> FindAll<T>() where T : class, IControl
+        {
+            var result = new List<T>();
+            if (RootGameObject == null) return result;
+            // The static tree, in declaration order: Def.Root is the expanded tree whose nodes key
+            // _nodeMap, and _nodeMap itself is a Dictionary with no order to speak of.
+            CollectInOrder(Def.Root, _nodeMap, result);
+            // An Add block's nodes hang off the same map once ActivateAddBlock has built them; a
+            // block that never activated has no controls to return.
+            foreach (var block in Def.Variants)
+                foreach (var add in block.Adds)
+                    foreach (var child in add.Children)
+                        CollectInOrder(child, _nodeMap, result);
+            PruneDeadDynamicSubtrees();
+            foreach (var subtree in _dynamicSubtrees)
+            {
+                // Rows of one list share their ElementNodes, so the walk goes through the subtree's
+                // own map, from the node its root was built from.
+                var rootNode = subtree.Root.SourceNode;
+                if (rootNode != null) CollectInOrder(rootNode, subtree.Nodes, result);
+                else
+                    foreach (var control in subtree.Nodes.Values)
+                        if (control.GameObject != null && control is T t) result.Add(t);
+            }
+            return result;
+        }
+
+        private static void CollectInOrder<T>(ElementNode node, Dictionary<ElementNode, Control> map, List<T> into)
+            where T : class, IControl
+        {
+            if (node == null) return;
+            if (map.TryGetValue(node, out var control) && control.GameObject != null && control is T t)
+                into.Add(t);
+            foreach (var child in node.Children)
+                CollectInOrder(child, map, into);
+        }
 
         /// <inheritdoc/>
         public IControl Instantiate(string template, IControl parent)
