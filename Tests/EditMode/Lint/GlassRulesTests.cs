@@ -159,6 +159,8 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("haze='cloudy'")]
         [TestCase("haze='-4'")]
         [TestCase("hazeDrift='-1'")]
+        [TestCase("hazeDensity='2'")]
+        [TestCase("hazeDensity='soft'")]
         public void BadValues_AreFlagged(string attr)
         {
             Assert.IsTrue(Has(Walk($"<Frame id='f' glass='true' {attr}/>"),

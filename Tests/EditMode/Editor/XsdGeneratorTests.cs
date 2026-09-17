@@ -51,6 +51,7 @@ namespace PromptUGUI.Tests.Editor
             StringAssert.Contains("name=\"haze\"", xsd);
             StringAssert.Contains("name=\"hazeColor\"", xsd);
             StringAssert.Contains("name=\"hazeDrift\"", xsd);
+            StringAssert.Contains("name=\"hazeDensity\"", xsd);
         }
 
         [Test]

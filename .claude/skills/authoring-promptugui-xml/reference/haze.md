@@ -8,17 +8,20 @@ for a lit core with a saturated halo see **Lighting it up** (`intensity`), which
 ```xml
 <!-- a HUD button: dark fill, bright cyan edge, cyan fog seeping in from the bottom -->
 <Btn radius="6" color="#0b1a33" borderWidth="1" borderColor="to right, cyan, cyan/0.3, cyan"
-     haze="40" hazeColor="to top, cyan/0.8, cyan/0" intensity="1.6">建造</Btn>
+     haze="40" hazeColor="to top, cyan/0.5, cyan/0" intensity="1.3">建造</Btn>
 
 <!-- gold variant: the fog concentrated in the bottom third, and flowing -->
 <Btn radius="6" color="#1a1408" borderWidth="1" borderColor="to right, #f2c14e, #f2c14e/0.3, #f2c14e"
-     haze="32" hazeColor="to top, orange/0.9, 30%, orange/0" hazeDrift="6">造船</Btn>
+     haze="32" hazeColor="to top, orange/0.5, 30%, orange/0" hazeDrift="6">造船</Btn>
+
+<!-- a few sparse patches instead of a mist -->
+<Btn radius="6" color="#0b1a33" haze="40" hazeColor="cyan/0.6" hazeDensity="0">扫描</Btn>
 
 <!-- a hollow frame with a slow patch of light inside it -->
 <Frame borderWidth="1" borderColor="white/0.3" haze="64" hazeColor="#7ec8ff/0.5" hazeDrift="12"/>
 
 <!-- a theme changes the whole family at once -->
-<Style name="hud-btn" radius="6" borderWidth="1" haze="40" hazeColor="to top, @accent/0.8, @accent/0"/>
+<Style name="hud-btn" radius="6" borderWidth="1" haze="40" hazeColor="to top, @accent/0.5, @accent/0"/>
 ```
 
 Works on every tag that draws procedurally — `<Frame>`, `<Btn>`, `<Tab>`, `<TabMenu>`, `<Toggle>`,
@@ -31,20 +34,30 @@ inner layers (`handle*`, a Progress / Slider fill), not on `<Decor>`, not on `<I
 | Attribute | Value | Default | What it does |
 |---|---|---|---|
 | `haze` | px | `0` (no fog) | The **feature size** of the patches — roughly how wide one blob is. `> 0` switches the fog on; `""` switches it off (a Variant can only override a value, never remove it, so `haze.mobile=""` is the way back). `24`–`64` on buttons and cards |
-| `hazeColor` | full colour grammar: token, `/alpha`, `Ndeg` / `to <side>`, 2–4 stops, `N%` positions and hints | `white` | The fog's colour **and its mask** (below). Deliberately *not* the fill: fog in the fill's own colour is invisible on an opaque fill, which is the common case. `/alpha` is the strength knob |
+| `hazeColor` | full colour grammar: token, `/alpha`, `Ndeg` / `to <side>`, 2–4 stops, `N%` positions and hints | `white` | The fog's colour **and its mask** (below). Deliberately *not* the fill: fog in the fill's own colour is invisible on an opaque fill, which is the common case. `/alpha` is the strength knob: `0.4`–`0.6` is the reference's thin mist, `0.8`+ turns into a wash |
+| `hazeDensity` | `0`–`1` | `0.5` | **Coverage** — how much of the surface carries fog. `0` = a few sparse patches, bare fill between them; `1` = the raw cloud field, a thin veil over every pixel; `0.5` = the reference: mist everywhere with brighter clouds. Orthogonal to `/alpha`: alpha scales the whole layer, density decides where the layer exists. `""` = back to `0.5` |
 | `hazeDrift` | px/s, `≥ 0` | `0` (still) | Flow speed on an **unscaled** clock. Three layers of the noise move along different directions at 1 / 1.5 / 2× speed, so the pattern *deforms* — the fine detail "boils", the large shapes crawl — rather than sliding across as one sheet |
 
-Bad values (`haze="cloudy"`, `haze="-4"`, `hazeDrift="NaN"`) are parse errors and `PUI-PROCEDURAL-VALUE`
-in the CLI, with the same wording as `glow`.
+Bad values (`haze="cloudy"`, `haze="-4"`, `hazeDrift="NaN"`, `hazeDensity="2"`) are parse errors and
+`PUI-PROCEDURAL-VALUE` in the CLI, with the same wording as `glow` (`hazeDensity` says "between 0 and 1").
 
 ## What the fog is
 
 A low-frequency noise field (three octaves of value noise, smooth, tileable) decides **how much** fog
-each pixel gets; `hazeColor` decides what colour it is. The field is mapped so that most of the surface
-stays clear: about a quarter of the pixels carry any fog at all, a tenth are at half strength, a few
-percent are fully lit — sparse soft patches with a bright core, not a uniform wash. Those constants are
-calibrated against the reference art and are not attributes; `/alpha` on `hazeColor` is the one
-strength knob, and the ramp (next section) is the shape knob.
+each pixel gets; `hazeColor` decides what colour it is. Between the two sits a "levels" step —
+a black point, a white point and a curve — and `hazeDensity` is the one knob on it:
+
+| `hazeDensity` | pixels with fog | at half strength | reads as |
+|---|---|---|---|
+| `0` | about 30 % | about 10 % | a few soft patches with a bright core, bare fill between them |
+| `0.25` | about 60 % | about 15 % | clouds, with dark gaps |
+| `0.5` (default) | about 85 % | about 25 % | thin mist everywhere, brighter clouds — the reference |
+| `0.75` | about 100 % | about 35 % | mist, the clouds fading into it |
+| `1` | 100 % | about 50 % | the raw field: an even veil, barely any clouds |
+
+`/alpha` on `hazeColor` then scales the whole layer: density says *where* the fog is, alpha says *how
+strong*. The reference's buttons are density `0.5` with alpha `0.5`; a full-alpha white on the default
+density is a test pattern, not a look.
 
 This is **not** the glass `noise` parameter: that one is per-pixel grain (frosting, dithering); this one
 is patches tens of pixels across.
@@ -60,7 +73,7 @@ fade needs no extra attribute:
 | fog everywhere, evenly | `hazeColor="cyan/0.6"` |
 | seeping in from the bottom edge, gone at the top | `hazeColor="to top, cyan/0.8, cyan/0"` |
 | concentrated in the bottom third, thinning out above (a hint bends the fade) | `hazeColor="to top, cyan/0.8, 30%, cyan/0"` |
-| a hard cut-off at 60% (a stop position) | `hazeColor="to top, cyan/0.8, cyan/0 60%"` |
+| a hard cut-off at 60% (a stop position — a visible line where the fog ends; usually you want the hint above) | `hazeColor="to top, cyan/0.8, cyan/0 60%"` |
 | from one corner | `hazeColor="to top right, orange/0.7, orange/0"` |
 | two colours in one fog | `hazeColor="to right, cyan/0.7, magenta/0.7"` |
 
@@ -120,13 +133,13 @@ pixel; the whole project pays one shader global per frame, and only once somethi
   theme can hand it to every surface.
 - **Inner layers** (`handleHaze` etc.), `<Decor>`, `<Image>` / `<Icon>`: no fog. A `.pxl` / sprite
   aesthetic paints its haze into the art.
-- **A coverage or contrast knob**, a **drift direction**: constants. Stack two Frames for two fogs.
+- **A separate contrast knob** beyond `hazeDensity`, a **drift direction**: constants. Stack two Frames for two fogs.
 
 ## Lint / errors
 
 | Code | Level | When |
 |---|---|---|
-| `PUI-PROCEDURAL-VALUE` | error | `haze` / `hazeDrift` not a non-negative finite number; also inside `<Style>` |
+| `PUI-PROCEDURAL-VALUE` | error | `haze` / `hazeDrift` not a non-negative finite number, `hazeDensity` outside 0..1; also inside `<Style>` |
 | `PUI-GLASS-HAZE` | warning | `haze` on `glass="true"` or a `weld` carrier — raw or arriving through `class=` |
 | `PUI-CONTAINER-VISUAL-ATTR` | warning | any of the three on a layout-only container or a tag without a procedural surface |
 | colour errors | error | a malformed `hazeColor` ramp — the same messages as every other colour slot |

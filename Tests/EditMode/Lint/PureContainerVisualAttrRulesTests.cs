@@ -40,6 +40,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("haze")]
         [TestCase("hazeColor")]
         [TestCase("hazeDrift")]
+        [TestCase("hazeDensity")]
         public void Frame_ProceduralVisualAttrs_NoIssue(string attr)
         {
             // Frame 现在自己画这些 —— 曾经的 "silently ignored" 警告已经过时。
@@ -189,6 +190,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("RawImage", "intensity")]
         [TestCase("Image", "haze")]
         [TestCase("Text", "hazeDrift")]
+        [TestCase("Icon", "hazeDensity")]
         public void ControlWithoutASurface_ProceduralAttr_VisualAttrIssue(string tag, string attr)
         {
             var n = new ElementNode(tag) { Id = "x" };

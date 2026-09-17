@@ -69,6 +69,7 @@ Shader "UI/ProceduralPanel"
         // 噪声雾（spec 2026-09-17 haze）：斑块特征尺寸 px（0 = 无雾）与流速 px/s。
         _HazeSize    ("Haze Size",     Float) = 0
         _HazeDrift   ("Haze Drift",    Float) = 0
+        _HazeDensity ("Haze Density",  Float) = 0.5
 
         _StencilComp ("Stencil Comparison", Float) = 8
         _Stencil ("Stencil ID", Float) = 0
@@ -171,6 +172,7 @@ Shader "UI/ProceduralPanel"
             float _Intensity;
             float _HazeSize;
             float _HazeDrift;
+            float _HazeDensity;
             // 全局，HazeClock 每帧写（未缩放秒）；没有任何带 hazeDrift 的材质时从不写、恒为 0。
             float _PuguiUnscaledTime;
 
@@ -208,7 +210,7 @@ Shader "UI/ProceduralPanel"
                 if (_HazeSize > 0.0)
                 {
                     float4 haze = PuguiGradient(p, b, PUGUI_RAMP(_Haze));
-                    haze.a *= inside * PuguiHazeWeight(IN.worldPosition.xy, _HazeSize, _HazeDrift, _PuguiUnscaledTime);
+                    haze.a *= inside * PuguiHazeWeight(IN.worldPosition.xy, _HazeSize, _HazeDrift, _PuguiUnscaledTime, _HazeDensity);
                     col = PuguiOver(haze, col);
                 }
 

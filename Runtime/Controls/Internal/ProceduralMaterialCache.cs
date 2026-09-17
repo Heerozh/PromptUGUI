@@ -129,6 +129,12 @@ namespace PromptUGUI.Controls.Internal
         /// is zeroed on opaque panels: keys that render identically must not split the cache.
         /// </summary>
         public readonly float HazeDrift;
+        /// <summary>
+        /// Coverage of the fog, 0..1 (spec 2026-09-17 haze H-D7): 0 = sparse patches with bare fill
+        /// between them, 1 = the raw cloud field, 0.5 (the default) = the reference's thin mist.
+        /// Canonicalised to the default while <see cref="HazeSize"/> is 0, like the colour and drift.
+        /// </summary>
+        public readonly float HazeDensity;
 
         /// <summary>
         /// Packs a parsed shape into the four vectors the shader reads. Sizes stay in canvas units
@@ -140,7 +146,8 @@ namespace PromptUGUI.Controls.Internal
                            float glowSize, float innerGlowSize,
                            bool glass = false, GlassParams glassParams = default,
                            float intensity = 1f,
-                           ColorSpec haze = default, float hazeSize = 0f, float hazeDrift = 0f)
+                           ColorSpec haze = default, float hazeSize = 0f, float hazeDrift = 0f,
+                           float hazeDensity = HazeDensityAttrParser.Default)
         {
             Fill = fill;
             Border = border;
@@ -167,6 +174,7 @@ namespace PromptUGUI.Controls.Internal
             Haze = haze.Count == 0 ? ColorSpec.Solid(Color.white) : haze;
             HazeSize = hazeSize;
             HazeDrift = hazeDrift;
+            HazeDensity = hazeDensity;
         }
 
         public bool Pill => Shape == PanelShape.Pill;
@@ -179,7 +187,8 @@ namespace PromptUGUI.Controls.Internal
             && BorderWidth == o.BorderWidth && GlowSize == o.GlowSize
             && InnerGlowSize == o.InnerGlowSize
             && Intensity == o.Intensity
-            && HazeSize == o.HazeSize && HazeDrift == o.HazeDrift && Haze == o.Haze
+            && HazeSize == o.HazeSize && HazeDrift == o.HazeDrift && HazeDensity == o.HazeDensity
+            && Haze == o.Haze
             && Glass == o.Glass
             // Short-circuit: an opaque panel's glass block is always None, so there is nothing to
             // compare — and opaque is the overwhelmingly common case.
@@ -207,6 +216,7 @@ namespace PromptUGUI.Controls.Internal
                 h = (h * 397) ^ Intensity.GetHashCode();
                 h = (h * 397) ^ HazeSize.GetHashCode();
                 h = (h * 397) ^ HazeDrift.GetHashCode();
+                h = (h * 397) ^ HazeDensity.GetHashCode();
                 h = (h * 397) ^ Haze.GetHashCode();
                 h = (h * 397) ^ Glass.GetHashCode();
                 if (Glass) h = (h * 397) ^ GlassParams.GetHashCode();
@@ -248,6 +258,7 @@ namespace PromptUGUI.Controls.Internal
         private static readonly int IntensityId = Shader.PropertyToID("_Intensity");
         private static readonly int HazeSizeId = Shader.PropertyToID("_HazeSize");
         private static readonly int HazeDriftId = Shader.PropertyToID("_HazeDrift");
+        private static readonly int HazeDensityId = Shader.PropertyToID("_HazeDensity");
 
         // Seven glass floats ride two vectors: fewer SetX calls, and the light angle arrives as a
         // direction so the shader never runs sin/cos per fragment.
@@ -335,6 +346,7 @@ namespace PromptUGUI.Controls.Internal
             GradientUniforms.Write(mat, GradientUniforms.Haze, p.Haze);
             mat.SetFloat(HazeSizeId, p.HazeSize);
             mat.SetFloat(HazeDriftId, p.HazeDrift);
+            mat.SetFloat(HazeDensityId, p.HazeDensity);
             // The only reader of the global time is a drifting material, so the per-frame publisher
             // starts with the first one and never runs in a project without moving fog.
             if (p.HazeDrift > 0f) HazeClock.Ensure();

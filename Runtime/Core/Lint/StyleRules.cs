@@ -126,6 +126,15 @@ namespace PromptUGUI.Lint
                 yield break;
             }
 
+            // hazeDensity: 0..1, its own parser for the same reason (spec 2026-09-17 haze H-D7).
+            if (baseName == HazeDensityAttrParser.Name)
+            {
+                if (!HazeDensityAttrParser.TryParse(value, out _, out var densityError))
+                    yield return new LintIssue(ProceduralValueCode, tag, id,
+                        $"{context}: {densityError}");
+                yield break;
+            }
+
             // Glass values share the runtime parser, so the CLI rejects exactly what the setter
             // would have thrown on — including each attribute's own range.
             if (GlassAttrParser.IsNumericAttr(baseName))

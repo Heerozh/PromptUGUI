@@ -249,6 +249,16 @@ namespace PromptUGUI.Controls
         }
 
         /// <summary>
+        /// 雾的覆盖率 0..1（默认 0.5）：0 = 稀疏的几团光、中间露底；1 = 原始噪声场原样，整面平雾；默认是
+        /// 参考图的薄雾 + 亮云团。与 <c>hazeColor</c> 的 <c>/alpha</c>（整体浓淡）正交。
+        /// </summary>
+        [UIAttr, Preserve]
+        public string HazeDensity
+        {
+            set => Panel.SetHazeDensity(HazeDensityAttrParser.Parse(value));
+        }
+
+        /// <summary>
         /// 玻璃模式：填充改为采样模糊后的 backdrop + 边缘折射 / 打光，形状仍是同一套 SDF。
         /// 见 <c>UI.Glass</c>：没有可用 backdrop（无 URP / 关闭画质选项 / 无相机）时自动退化成
         /// 半透明面板。

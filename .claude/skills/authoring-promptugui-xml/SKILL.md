@@ -133,7 +133,8 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 | `innerGlowColor` | same grammar as `color` (gradients included) | `white` | Deliberately *not* the fill: an inner glow in the fill's own colour is invisible on an opaque fill. `/alpha` is the strength knob; a **dark** value is an inset shadow; `to right, cyan, cyan/0` lights one edge only |
 | `intensity` | number `≥ 1` | `1` | **How much light the surface gives off.** `1` = as drawn; `2` ≈ one stop brighter; `3`–`5` = neon; `≥ 8` ≈ white. Runs an exposure curve over everything the panel paints (fill + both glows + border): the core whitens, the glow's tail keeps its hue — a *light*, not a lighter colour. `""` = back to `1`. Not on glass (`PUI-GLASS-INTENSITY`). → **Lighting it up** below |
 | `haze` | px | `0` | **Noise fog** — soft cloud-like light patches inside the shape (the "energy haze" on a sci-fi button). The value is the patches' feature size in px (`24`–`64` on a button / card); `> 0` switches it on, `""` back off. Painted over the fill and under the inner glow / border, inside the shape only; `intensity` lights it; not on glass (`PUI-GLASS-HAZE`). → `reference/haze.md` |
-| `hazeColor` | same grammar as `color` (gradients included) | `white` | The fog's colour, and **its mask**: the noise only scales this ramp's alpha, so `to top, cyan/0.8, cyan/0` is cyan fog that seeps in from the bottom edge and is gone at the top. Never follows the fill (fog in the fill's own colour is invisible on an opaque fill). `/alpha` is the strength knob |
+| `hazeColor` | same grammar as `color` (gradients included) | `white` | The fog's colour, and **its mask**: the noise only scales this ramp's alpha, so `to top, cyan/0.5, cyan/0` is cyan fog that seeps in from the bottom edge and is gone at the top. Never follows the fill (fog in the fill's own colour is invisible on an opaque fill). `/alpha` is the strength knob — `0.4`–`0.6` reads as the reference's thin mist, `0.8`+ is a wash |
+| `hazeDensity` | `0`–`1` | `0.5` | **How much of the surface the fog covers.** `0` = a few sparse patches with bare fill between them; `1` = the raw cloud field, thin mist over every pixel; `0.5` = the reference look, mist everywhere with brighter clouds. Orthogonal to `/alpha` (how strong) |
 | `hazeDrift` | px/s | `0` | Flow speed. The pattern *deforms* as it drifts (three layers move at different speeds and directions) instead of sliding as one sheet; unscaled clock, so a pause menu keeps flowing; a disabled control freezes it |
 | `glass` | `true` / `false` | `false` | Frosted-glass fill: the shape shows a blurred copy of the camera image instead of a flat colour. `color` becomes a tint on top of it. → `reference/glass.md` |
 | `frost` · `depth` · `dispersion` · `lightAngle` · `lightIntensity` · `saturation` · `noise` | 数值 | 见 glass.md | Glass tuning. Ignored without `glass="true"` (`PUI-GLASS-PARAM-NO-GLASS`) |
@@ -152,7 +153,7 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 <Frame color="#4f88ff" radius="2" glow="14"
        glowColor="#4f88ff/0.35" intensity="3"/>            <!-- 霓虹：白蓝核心 + 蓝色光晕 -->
 <Frame color="#0b1a33" radius="6" borderWidth="1" borderColor="to right, cyan, cyan/0.3, cyan"
-       haze="40" hazeColor="to top, cyan/0.8, cyan/0"/>  <!-- 底边渗入的青色光雾（HUD 按钮底），见 haze.md -->
+       haze="40" hazeColor="to top, cyan/0.5, cyan/0"/>  <!-- 底边渗入的青色光雾（HUD 按钮底），见 haze.md -->
 <Frame color="#1b263b" radius="0,0,16,16"/>                <!-- 只圆下面两角 -->
 <Frame color="accent" radius="cut 16"/>                    <!-- 四角 45° 斜切 -->
 <Frame color="accent" radius="hexagon"/>                   <!-- 左右收成尖的六边形 -->
@@ -165,7 +166,7 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 - Only `glow` is affected by a **祖先** `RectMask2D` clipping the extra quad away; a Frame's own `mask="rect"` / `mask="self"` clips its children, never itself. `innerGlow` paints strictly inside the shape, so nothing clips it and it costs no extra overdraw.
 - **`innerGlow` is measured from the shape edge**, and an inner border is painted on top of it. A thin translucent `borderColor` (`white/0.4` and friends) lets the glow continue seamlessly underneath; a thick opaque border covers the outermost `borderWidth` px of the band, so raise `innerGlow` to compensate.
 - **Lighting it up — `intensity`.** A colour can never look *lit*: the "glowing" look in a design is a core that has gone white with a halo that stayed saturated, i.e. one hue at two energies. `intensity` is that energy. Keep `color` as the hue you want in the halo and turn `intensity` up (`3`–`5` for a neon icon, `2` for a "lit" gold button) instead of picking a paler colour — a pale fill next to a coloured glow reads as an outline, not as light. Two knobs stay orthogonal: `glowColor`'s `/alpha` is *how much* halo, `intensity` is *how hot*. Pure single-channel colours (`#f00`, `#00f`) whiten only half-way — a hot red goes pink-white, never white. The lit surface gets pale, so give it a **dark `textColor`**. It is a dark-background effect: on a light background the halo turns into a faint tinted haze and the shape itself washes out. `*Modulate` darkens the *lit* result; a disabled control switches the light off; `intensity="1"` is bit-identical to leaving it out.
-- **Fog — `haze`.** The cloud-like light patches on a HUD button are a *noise* layer, not a gradient: `haze="40"` is the patch size, `hazeColor` is the colour *and* the mask (`to top, A, A/0` = seeping in from the bottom), `/alpha` the strength. It lies under the border and inside the shape; `intensity` lights it into neon fog; `hazeDrift` makes it flow. Two same-styled buttons side by side get *different* fog (the noise is sampled in canvas space, so position is the seed) while still sharing one material — the flip side is that a panel sliding in sees the fog slide *across* it, like clouds past a window. Buttons and cards, not full-screen backgrounds (12 hashes per pixel). → `reference/haze.md`
+- **Fog — `haze`.** The cloud-like light patches on a HUD button are a *noise* layer, not a gradient: `haze="40"` is the patch size, `hazeColor` is the colour *and* the mask (`to top, A, A/0` = seeping in from the bottom), `/alpha` the strength (`0.5` for a mist, not `1`), `hazeDensity` how much of the surface it covers (`0` a few patches, `1` a veil over everything, default `0.5`). It lies under the border and inside the shape; `intensity` lights it into neon fog; `hazeDrift` makes it flow. Two same-styled buttons side by side get *different* fog (the noise is sampled in canvas space, so position is the seed) while still sharing one material — the flip side is that a panel sliding in sees the fog slide *across* it, like clouds past a window. Buttons and cards, not full-screen backgrounds (12 hashes per pixel). → `reference/haze.md`
 - `mask="self"` clips to the **shape**, not to what the Frame paints: an outer `glow` does not widen the clip, and a Frame with a `radius` but no `color` still clips (that is the invisible-clipper form above). So `radius=` alone is enough to define the mask.
 - Colour / radius / border changes are material-only — a Variant flip or a colour animation never rebuilds the canvas mesh. Frames sharing identical values (typically via `class=`) share one material and keep batching.
 - Layout-only containers (`<VStack>` / `<HStack>` / `<Grid>` / `<SafeArea>`) draw nothing — wrap them in a `<Frame>` for a background.
@@ -206,7 +207,7 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 - **Border, both glows, glass and `mask="self"` follow the new outline automatically** — no extra attributes, and an inner border keeps its width around a chamfer and around the inner corner of a notch.
 - Keywords are lower-case. `bevel` / `scoop` / `CUT` / `R6` are parse errors that name the legal words.
 
-> **Which tags draw procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `innerGlow` / `innerGlowColor` / `intensity` / `haze` / `hazeColor` / `hazeDrift` / `glass` (+ its tuning params) work on **`<Frame>`, `<Btn>`, `<Tab>`, `<TabMenu>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>`, `<Scrollbar>`, `<Collapsible>` and `<Progress>`** — see **Procedural surfaces** below for what they do on a control.
+> **Which tags draw procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `innerGlow` / `innerGlowColor` / `intensity` / `haze` / `hazeColor` / `hazeDensity` / `hazeDrift` / `glass` (+ its tuning params) work on **`<Frame>`, `<Btn>`, `<Tab>`, `<TabMenu>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>`, `<Scrollbar>`, `<Collapsible>` and `<Progress>`** — see **Procedural surfaces** below for what they do on a control.
 >
 > On any other tag — `<Image>`, `<RawImage>`, `<Text>`, `<Icon>`, `<TabBar>`, `<Carousel>`, `<Markdown>` — they are accepted by the parser and then silently dropped; `PUI-CONTAINER-VISUAL-ATTR` is the only thing that tells you. (`<Image>` / `<RawImage>` are deliberate: a sprite is their whole point, and a procedural rectangle is what `<Frame>` is for.)
 >
@@ -386,7 +387,7 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 | `tr` | bool | `true` | `false`=跳过 i18n |
 | `ctx` | string | — | msgctxt 消歧 |
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
-| `radius` · `borderWidth` · `borderColor` · `glow` · `glowColor` · `innerGlow` · `innerGlowColor` · `intensity` · `haze` · `hazeColor` · `hazeDrift` · `glass` (+ 玻璃调参) | 同 `<Frame>` | — | **程序化表面**，见下节 |
+| `radius` · `borderWidth` · `borderColor` · `glow` · `glowColor` · `innerGlow` · `innerGlowColor` · `intensity` · `haze` · `hazeColor` · `hazeDensity` · `hazeDrift` · `glass` (+ 玻璃调参) | 同 `<Frame>` | — | **程序化表面**，见下节 |
 
 ### 程序化表面（`<Frame>` 之外的控件）
 
@@ -399,7 +400,7 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 <Btn radius="hexagon 70" color="#efdca6,#c08f36" innerGlow="30"
      innerGlowColor="#fff6cf" borderWidth="2" glow="36">开始匹配</Btn>       <!-- 发光金属牌 -->
 <Btn radius="6" color="#0b1a33" borderWidth="1" borderColor="to right, cyan, cyan/0.3, cyan"
-     haze="40" hazeColor="to top, cyan/0.8, cyan/0" intensity="1.6">建造</Btn>  <!-- 青边 + 底边渗入的光雾 -->
+     haze="40" hazeColor="to top, cyan/0.5, cyan/0" intensity="1.3">建造</Btn>  <!-- 青边 + 底边渗入的光雾 -->
 <Style name="skin" radius="10" borderWidth="1" borderColor="white/0.4"/>   <!-- 一个包换整套 -->
 ```
 
@@ -1788,8 +1789,9 @@ FRAME VISUAL  <Frame color="surface/0.9" radius="16" borderWidth="1" borderColor
               borderColor / glowColor / innerGlowColor take it too, on the SAME line as the fill
               radius: R | TL,TR,BR,BL (CSS clockwise) | pill      border draws INWARD    glow inflates the quad
               no visual attrs → bare RectTransform (zero cost)    sprite= still does nothing (use <Image>)
-HAZE          haze="40" hazeColor="to top, cyan/0.8, cyan/0" hazeDrift="6"   noise fog inside the shape, under the border
-              haze = patch size px (>0 on); hazeColor = colour AND mask (its ramp), /alpha = strength; drift = px/s, unscaled
+HAZE          haze="40" hazeColor="to top, cyan/0.5, cyan/0" hazeDensity="0.5" hazeDrift="6"   noise fog inside the shape, under the border
+              haze = patch size px (>0 on); hazeColor = colour AND mask (its ramp), /alpha = strength (about 0.5 = mist)
+              hazeDensity 0..1 = coverage: 0 a few patches, 1 a veil over everything; drift = px/s, unscaled
               sampled in canvas space: neighbours differ, one material; intensity lights it; not glass (PUI-GLASS-HAZE)
 
 BUILT-INS     <Frame> <Image> <Text> <VStack> <HStack> <Grid> <Btn> <Icon>
@@ -1913,7 +1915,7 @@ SPRITE FX LINT PUI-FX-TAG                      blur= outside <Image> / <Icon> (R
                warns per texture when the kernel really has to fall back to no mipmaps)
 
 STYLE LINT    PUI-CLASS-EMPTY                  class="" / whitespace-only — names no style
-              PUI-PROCEDURAL-VALUE             bad radius / borderWidth / glow / blur / intensity / haze / hazeDrift value, and the inner-layer
+              PUI-PROCEDURAL-VALUE             bad radius / borderWidth / glow / blur / intensity / haze / hazeDrift / hazeDensity value, and the inner-layer
                                                ones (fillRadius / handleRadius / handleGlow …) (also inside <Style>)
               PUI-GLASS-INTENSITY              intensity= on glass="true" / a weld carrier — glass emits no light
               PUI-GLASS-HAZE                   haze= on glass="true" / a weld carrier — glass has no fill for fog to lie on

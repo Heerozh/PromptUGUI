@@ -100,6 +100,7 @@ namespace PromptUGUI.Editor
                     ("haze", "xs:string", (string)null),
                     ("hazeColor", "xs:string", (string)null),
                     ("hazeDrift", "xs:string", (string)null),
+                    ("hazeDensity", "xs:string", (string)null),
                     ("glass", "xs:string", (string)null),
                     ("frost", "xs:string", (string)null),
                     ("depth", "xs:string", (string)null),

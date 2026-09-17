@@ -476,6 +476,33 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void HazeDensity_DefaultsToHalf()
+        {
+            // The reference's thin mist (H-D7): black point 0.275, white point 0.925 — most of the
+            // surface carries some fog, the brightest clouds still peak.
+            Assert.AreEqual(0.5f, PanelOf(Load("color='#fff' haze='40'")).CurrentParams.HazeDensity, 0.0001f);
+        }
+
+        [TestCase("hazeDensity='0'", 0f)]
+        [TestCase("hazeDensity='1'", 1f)]
+        [TestCase("hazeDensity='0.25'", 0.25f)]
+        [TestCase("hazeDensity=''", 0.5f)]
+        public void HazeDensity_Parses(string attrs, float expected)
+        {
+            Assert.AreEqual(expected, PanelOf(Load($"color='#fff' haze='40' {attrs}")).CurrentParams.HazeDensity, 0.0001f);
+        }
+
+        [TestCase("hazeDensity='2'")]
+        [TestCase("hazeDensity='-0.5'")]
+        [TestCase("hazeDensity='soft'")]
+        [TestCase("hazeDensity='NaN'")]
+        public void HazeDensity_BadValue_Rejected(string attrs)
+        {
+            var ex = Assert.Throws<ParseException>(() => Load($"color='#fff' haze='40' {attrs}"));
+            StringAssert.Contains("hazeDensity", ex.Message);
+        }
+
+        [Test]
         public void Haze_AloneIsVisible()
         {
             // A patch of light in an otherwise empty rect is a legitimate look — same standing as
@@ -491,7 +518,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
   <Frame id='a' color='#222'/>
-  <Frame id='b' color='#222' hazeColor='cyan' hazeDrift='6'/>
+  <Frame id='b' color='#222' hazeColor='cyan' hazeDrift='6' hazeDensity='1'/>
 </Screen></PromptUGUI>";
             UI.LoadDocument("t", xml);
             var s = UI.Open("S");
@@ -525,6 +552,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             p.SetHazeSize(64f);
             p.SetHazeColor(ColorSpec.Solid(Color.cyan));
             p.SetHazeDrift(6f);
+            p.SetHazeDensity(1f);
             Assert.AreEqual(0, dirtied);
         }
 
@@ -576,9 +604,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [TestCase("", "haze='32'")]
         [TestCase("haze='32'", "haze='32' hazeColor='cyan'")]
         [TestCase("haze='32'", "haze='32' hazeDrift='6'")]
+        [TestCase("haze='32'", "haze='32' hazeDensity='1'")]
         public void DifferentHaze_SplitsTheMaterial(string a, string b)
         {
-            // Every one of the three has to be in the cache key, or two panels that render
+            // Every one of the four has to be in the cache key, or two panels that render
             // differently would be handed the same material.
             var xml = $@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>

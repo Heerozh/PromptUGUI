@@ -121,9 +121,9 @@ runner 运行时去拉 **Bing 每日图**，拉不到就用内置的程序化暮
 - `class="card btn-primary" radius="pill"` —— inline 再覆盖全部（Styles 页最后一行有直观对比）
 - `class="{{skin}}"` —— 皮肤名作模板参数（`SwatchCell` 模板）
 - `<Import>` 带过来的 `<Style>` —— 和 `<Template>` 一样可以放进共享库
-- `haze="40" hazeColor="to top, accent/0.85, accent/0"` —— 噪声雾（Styles 页第三行）：同一块不透明
-  面板并排四块 —— 无雾 / 从底边渗入的雾 / `intensity="2"` 点亮 / `hazeDrift="8"` 流动。四块参数相同却各
-  不相同：噪声在 Canvas 空间采样，位置就是种子。写在 `surface` 底上而不是 `class="card"`，因为玻璃皮肤
+- `haze="40" hazeColor="to top, accent/0.5, accent/0"` —— 噪声雾（Styles 页第三行）：同一块不透明
+  面板并排五块 —— 无雾 / 从底边渗入的薄雾 / `hazeDensity="0"` 稀疏几团光 / `intensity="1.6"` 点亮 /
+  `hazeDrift="8"` 流动。几块参数相同却各不相同：噪声在 Canvas 空间采样，位置就是种子。写在 `surface` 底上而不是 `class="card"`，因为玻璃皮肤
   下 card 是玻璃，玻璃没有填充给雾躺（`PUI-GLASS-HAZE`）
 
 ## 内置控件怎么跟着一起扁平化

@@ -18,8 +18,8 @@ namespace PromptUGUI.Controls.Internal
     /// <item>Colour / radius / border / glow-colour changes touch only the material, so a Variant
     /// flip or a colour tween never rebuilds the canvas mesh.</item>
     /// <item>Attribute writes only flag the material dirty; the parameters are resolved once per
-    /// canvas rebuild (see <see cref="FlushParams"/>), so applying twenty attributes at
-    /// instantiation costs one material lookup, not twenty.</item>
+    /// canvas rebuild (see <see cref="FlushParams"/>), so applying twenty-one attributes at
+    /// instantiation costs one material lookup, not twenty-one.</item>
     /// <item>Geometry is dirtied only when the glow radius (which inflates the quad) or overall
     /// visibility changes.</item>
     /// <item>A fully transparent panel emits no geometry at all — zero overdraw, which is the
@@ -59,6 +59,7 @@ namespace PromptUGUI.Controls.Internal
         private float _hazeSize;
         private ColorSpec _hazeColor = ColorSpec.Solid(Color.white);
         private float _hazeDrift;
+        private float _hazeDensity = HazeDensityAttrParser.Default;
 
         private bool _glass;
         private float _frost = GlassAttrParser.DefaultFrost;
@@ -267,6 +268,13 @@ namespace PromptUGUI.Controls.Internal
             MarkDirty();
         }
 
+        /// <summary>Coverage 0..1: sparse patches → the raw cloud field (H-D7).</summary>
+        public void SetHazeDensity(float density)
+        {
+            _hazeDensity = Mathf.Clamp(density, HazeDensityAttrParser.Min, HazeDensityAttrParser.Max);
+            MarkDirty();
+        }
+
         public void SetGlass(bool glass)
         {
             if (_glass == glass) return;
@@ -364,6 +372,7 @@ namespace PromptUGUI.Controls.Internal
             _hazeSize = source._hazeSize;
             _hazeColor = source._hazeColor;
             _hazeDrift = source._hazeDrift;
+            _hazeDensity = source._hazeDensity;
             _frost = source._frost;
             _depth = source._depth;
             _dispersion = source._dispersion;
@@ -440,6 +449,7 @@ namespace PromptUGUI.Controls.Internal
             var hazeSize = _glass ? 0f : _hazeSize;
             var haze = hazeSize > 0f ? _hazeColor : ColorSpec.Solid(Color.white);
             var hazeDrift = hazeSize > 0f && !_grayed ? _hazeDrift : 0f;
+            var hazeDensity = hazeSize > 0f ? _hazeDensity : HazeDensityAttrParser.Default;
             if (_grayed)
             {
                 // Disabled greying has to happen HERE, inside the parameters, not by swapping the
@@ -462,7 +472,7 @@ namespace PromptUGUI.Controls.Internal
 
             return new PanelParams(fill, border, glow, innerGlow, _radius,
                                    _borderWidth, _glowSize, _innerGlowSize, _glass, glassParams,
-                                   intensity, haze, hazeSize, hazeDrift);
+                                   intensity, haze, hazeSize, hazeDrift, hazeDensity);
         }
 
         /// <summary>
@@ -549,7 +559,7 @@ namespace PromptUGUI.Controls.Internal
         /// <summary>
         /// Records that the parameters changed, without touching the material. Resolving is deferred
         /// to <see cref="FlushParams"/> so a run of attribute writes — instantiation applies up to
-        /// twenty of them — collapses into a single cache lookup.
+        /// twenty-one of them — collapses into a single cache lookup.
         /// </summary>
         private void MarkDirty()
         {

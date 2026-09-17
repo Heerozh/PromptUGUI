@@ -238,6 +238,46 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.Less(min, 0.2f, $"somewhere the fill shows through almost clear (min {min})");
         }
 
+        // ---- density: sparse patches ↔ the raw field (H-D7) ----------------------------------
+
+        [Test]
+        public void HazeDensity_FillsTheSurface()
+        {
+            // At 1 every pixel carries fog (the raw cloud field, black point 0); at 0 the black
+            // point is above the noise's mean, so a good part of the fill shows through untouched.
+            Render($"color='{Dark}'", "pugui-haze-density-plain.png");
+            var (plain, _) = LumaStats(Interior());
+
+            Render($"color='{Dark}' haze='24' hazeColor='white' hazeDensity='1'", "pugui-haze-density-1.png");
+            var full = Interior();
+            float fullMin = 1f;
+            foreach (var c in full) fullMin = Mathf.Min(fullMin, Luma(c));
+            Assert.Greater(fullMin, plain + 0.08f, $"at density 1 nothing is bare fill (min luma {fullMin} vs fill {plain})");
+
+            Render($"color='{Dark}' haze='24' hazeColor='white' hazeDensity='0'", "pugui-haze-density-0.png");
+            var sparse = Interior();
+            var bare = 0;
+            foreach (var c in sparse) if (Luma(c) < plain + 0.01f) bare++;
+            Assert.Greater(bare, sparse.Count / 4, $"at density 0 a good part of the surface is bare fill ({bare} of {sparse.Count})");
+
+            var (fullMean, _) = LumaStats(full);
+            var (sparseMean, _) = LumaStats(sparse);
+            Assert.Greater(fullMean, sparseMean + 0.15f, "…and it is far denser overall");
+        }
+
+        [Test]
+        public void HazeDensity_DefaultSitsBetween()
+        {
+            Render($"color='{Dark}' haze='24' hazeColor='white' hazeDensity='0'", "pugui-haze-density-0.png");
+            var (sparse, _) = LumaStats(Interior());
+            Render($"color='{Dark}' haze='24' hazeColor='white'", "pugui-haze-density-default.png");
+            var (mid, _) = LumaStats(Interior());
+            Render($"color='{Dark}' haze='24' hazeColor='white' hazeDensity='1'", "pugui-haze-density-1.png");
+            var (full, _) = LumaStats(Interior());
+            Assert.Greater(mid, sparse + 0.05f, $"default is denser than 0 ({sparse} < {mid})");
+            Assert.Greater(full, mid + 0.05f, $"…and thinner than 1 ({mid} < {full})");
+        }
+
         // ---- the colour slot is the directional mask (H-D2) -----------------------------------
 
         [Test]

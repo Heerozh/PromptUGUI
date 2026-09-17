@@ -1,7 +1,7 @@
 # `haze` —— 程序化表面的噪声雾层（云雾状亮斑）
 
-> 状态：**已实现**（M0–M2 一轮做完，见 §15）。决策见 §13，2026-09-17 与作者对齐，四项全部取推荐项；
-> 实施中改了两处常数（§5.1：覆盖率映射 0.55 / 0.85、第二三 octave 旋转），正文已按实际落地更新。
+> 状态：**已实现**（M0–M2 一轮做完，见 §15；`hazeDensity` 在验收后补入，H-D7 / §15.4）。决策见 §13，
+> 2026-09-17 与作者对齐；实施中改了两处常数（§5.1：覆盖率色阶、第二三 octave 旋转），正文已按实际落地更新。
 > 相关：`2026-09-17-linear-gradient-primitive-design.md`（LG-D6 把本文从边框渐变里剥出来；`hazeColor` 直接复用它的
 > 方向 / 多色标 ramp，是本文「方向遮罩零新语法」的前提）、
 > `2026-09-12-intensity-design.md`（曝光；本文的实现地图逐项镜像它，雾排在曝光之前让 `intensity` 能把雾点亮）、
@@ -53,24 +53,27 @@
 
 ## 3. 方案总览
 
-三个属性，落在 `ProceduralControl` 全家（`<Frame>` / `<Btn>` / `<Tab>` / `<TabMenu>` / `<Toggle>` /
+四个属性，落在 `ProceduralControl` 全家（`<Frame>` / `<Btn>` / `<Tab>` / `<TabMenu>` / `<Toggle>` /
 `<Slider>` 轨道 / `<Dropdown>` / `<InputField>` / `<ScrollList>` / `<Scrollbar>` / `<Collapsible>` /
 `<Progress>`），命名与 `glow` / `glowColor` 同构：裸名给尺寸，`*Color` 给颜色且 `/alpha` 是强度。
 
 ```xml
 <!-- 参考图「建造」：深底、青边、底边渗入的青雾 -->
 <Btn radius="6" color="#0b1a33" borderWidth="1" borderColor="to right, cyan, cyan/0.3, cyan"
-     haze="40" hazeColor="to top, cyan/0.8, cyan/0" intensity="1.6">建造</Btn>
+     haze="40" hazeColor="to top, cyan/0.5, cyan/0" intensity="1.3">建造</Btn>
 
 <!-- 参考图「造船」：金边、底部中央的橙雾（to top 加提示：雾集中在最底下三分之一、往上变稀）-->
 <Btn radius="6" color="#1a1408" borderWidth="1" borderColor="to right, #f2c14e, #f2c14e/0.3, #f2c14e"
-     haze="32" hazeColor="to top, orange/0.9, 30%, orange/0" hazeDrift="6">造船</Btn>
+     haze="32" hazeColor="to top, orange/0.5, 30%, orange/0" hazeDrift="6">造船</Btn>
+
+<!-- 稀疏的几团光而不是薄雾 -->
+<Btn radius="6" color="#0b1a33" haze="40" hazeColor="cyan/0.6" hazeDensity="0">扫描</Btn>
 
 <!-- 空心框里一团缓慢流动的光雾 -->
 <Frame borderWidth="1" borderColor="white/0.3" haze="64" hazeColor="#7ec8ff/0.5" hazeDrift="12"/>
 
 <!-- 主题一次换整套 -->
-<Style name="hud-btn" radius="6" borderWidth="1" haze="40" hazeColor="to top, @accent/0.8, @accent/0"/>
+<Style name="hud-btn" radius="6" borderWidth="1" haze="40" hazeColor="to top, @accent/0.5, @accent/0"/>
 ```
 
 雾是**这个表面画出来的东西之一**：排在填充之后、内发光之前，被 `intensity` 一起曝光（雾的亮核推白、
@@ -83,10 +86,13 @@
 |---|---|---|---|
 | `haze` | px | `0`（无雾） | 斑块的**特征尺寸**：噪声基频一格的边长。`> 0` 即开启。`""` = 回到无雾 |
 | `hazeColor` | 完整颜色语法（token / `/alpha` / 方向 / 2..4 色标 / 提示） | `white` | 雾的颜色；fBm 只乘在它的 alpha 上。**不跟随填充**（填充色的雾在不透明填充上看不见，`innerGlowColor` 的同一条理由）。`/alpha` 是强度旋钮 |
+| `hazeDensity` | `0`–`1` | `0.5` | **覆盖率**：雾占住表面多少。`0` = 稀疏几团光、中间露底；`1` = 原始噪声场原样，整面平雾；`0.5` = 参考图的薄雾 + 亮云团。与 `/alpha`（整体浓淡）正交：alpha 缩放整层，density 决定这层存在于哪里。`""` = 回到 0.5（H-D7） |
 | `hazeDrift` | px/s，`≥ 0` | `0`（静止） | 雾的流速。三个 octave 各沿不同向量漂移，图样在流动中**形变**而不是整体平移。走未缩放时钟（§5.5） |
 
 解析：`haze` / `hazeDrift` 走 `ProceduralValueParser.Pixels`（非数 / NaN / 负数三段错误与 `glow` 逐字同款）；
-`hazeColor` 走 `UI.Theme.ResolveSpec`，形状错误由 `ColorParser` 报（LG spec §8）。
+`hazeDensity` 走纯 C# 的 `HazeDensityAttrParser`（`Core/Parser/`，与 `IntensityAttrParser` 同型：空 → 0.5，非数 /
+非有限 / 越出 0..1 三段错误，运行时与 CLI 共用）；`hazeColor` 走 `UI.Theme.ResolveSpec`，形状错误由 `ColorParser`
+报（LG spec §8）。
 
 ## 5. 语义
 
@@ -97,15 +103,28 @@
 格点坐标先对 **256** 取正模再 hash，噪声因此以 256 格为周期平铺 —— `hazeDrift` 的时间偏移永远不需要
 回绕，也不会出现接缝。
 
-fBm 归一到 `0..1` 后过一个固定的覆盖率映射：
+fBm 归一到 `0..1` 后过一张「色阶」—— 黑场 `b`、白场 `t`、中间一条曲线 —— 得到雾浓度 `w`；`hazeDensity = d`
+是这张色阶唯一的旋钮，把三者一起推（H-D7）：
 
 ```
-w = smoothstep(0.55, 0.85, fbm)
+b = 0.55 · (1 − d)                  黑场：0.55 → 0
+t = 0.85 + 0.15 · d                 白场：0.85 → 1
+u = saturate((fbm − b) / (t − b))   线性归一
+w = lerp(u²(3 − 2u), u, d)          Hermite S 曲线 → 直线
 ```
 
-两个常数按参考图标定，**不是参数**：`/alpha` 已经是强度旋钮，再给覆盖率会让作者在两个耦合的旋钮之间
-打转。fbm 的均值 0.50、标准差 0.15，映射后约 28% 的像素沾雾、9% 在半亮以上、2% 全亮 —— 稀疏的软边亮斑
-（§15.1 有标定过程；起草时写的 0.45 / 0.80 在第一张探针图上是「大半张脸都是白的」）。
+- `d = 0` 逐字是 `smoothstep(0.55, 0.85, fbm)`：只取分布的高尾。fbm 均值 0.50、标准差 0.15，约 28% 的像素沾雾、
+  9% 在半亮以上 —— 稀疏的软边亮斑，中间露底。
+- `d = 1` 时 `u` 恰好等于 `fbm`、曲线是直线，`w = fbm` 逐字：原始噪声场原样，100% 沾雾，一片平雾。只挪黑场到不了
+  这里 —— S 曲线会把中段对比放大 1.5 倍，所以 Hermite 也随 `d` 淡出。
+- 默认 `0.5`：黑场 0.275、白场 0.925，87% 沾雾、26% 半亮以上 —— 参考图「造船」的整面薄雾 + 亮云团。
+- `d` 小时黑场高、S 曲线在黑场处斜率为 0，斑块边缘软；`d` 大时黑场之下几乎没有像素，直线那道折痕落不到任何
+  像素上 —— 一个旋钮跨过三种形态而处处平滑。
+
+`/alpha` 与 `d` 正交：alpha 缩放整层浓淡，`d` 决定这层存在于哪里。参考图的按钮是 `d = 0.5`、alpha 0.5；默认
+密度下写满 alpha 的白是测试图案，不是一种看法。标定过程见 §15.1 / §15.4（起草时写的 0.45 / 0.80 在第一张探针
+图上是「大半张脸都是白的」，之后定为 0.55 / 0.85，验收时又发现那是「几团光」而不是参考图的薄雾 —— 于是有了
+这个旋钮）。
 
 第二、三个 octave 的采样域各**转一个常角**（0.7 / 1.4 rad）并错开原点：value noise 的极值落在格点上，三层
 同轴叠加会露出一张方格；转开后叠成没有轴向的云团（§15.1）。
@@ -209,11 +228,11 @@ float PuguiValueNoise(float2 q)
 }
 
 // 三 octave fBm → 覆盖率映射。pos 为 Canvas 空间坐标（§5.3），size 为特征尺寸 px，
-// drift 为 px/s，t 为未缩放秒。旋转角、原点错位、覆盖率常数 0.55 / 0.85 按参考图标定（§5.1），不是参数。
+// drift 为 px/s，t 为未缩放秒。旋转角、原点错位、色阶的两端（0.55 / 0.85 与 0 / 1）按参考图标定（§5.1），不是参数；density 在两端之间。
 static const float2x2 PUGUI_HAZE_ROT1 = float2x2(0.7648, -0.6442, 0.6442, 0.7648);   // 0.7 rad
 static const float2x2 PUGUI_HAZE_ROT2 = float2x2(0.1700, -0.9854, 0.9854, 0.1700);   // 1.4 rad
 
-float PuguiHazeWeight(float2 pos, float size, float drift, float t)
+float PuguiHazeWeight(float2 pos, float size, float drift, float t, float density)
 {
     float2 q = pos / max(size, 1e-3);
     float  v = drift * t / max(size, 1e-3);          // 格 / 秒 × 秒
@@ -222,7 +241,10 @@ float PuguiHazeWeight(float2 pos, float size, float drift, float t)
     float2 o2 = mul(PUGUI_HAZE_ROT2, q * 4.0) + float2(26.2, 14.6) + normalize(float2(0.3, -1.00)) * v * 2.0;
     float  n = 0.5 * PuguiValueNoise(o0) + 0.25 * PuguiValueNoise(o1) + 0.125 * PuguiValueNoise(o2);
     n /= 0.875;
-    return smoothstep(0.55, 0.85, n);
+    float b = 0.55 * (1.0 - density);
+    float w = 0.85 + 0.15 * density;
+    float u = saturate((n - b) / (w - b));
+    return lerp(u * u * (3.0 - 2.0 * u), u, density);   // density = 0：smoothstep(0.55, 0.85, n)；= 1：n
 }
 ```
 
@@ -232,13 +254,14 @@ float PuguiHazeWeight(float2 pos, float size, float drift, float t)
 PUGUI_RAMP_UNIFORMS(_Haze)      // 第五组色槽，7 个 float4；面板 shader 共 35 个
 float _HazeSize;
 float _HazeDrift;
+float _HazeDensity;
 float _PuguiUnscaledTime;       // 全局，HazeClock 写
 
 // frag：填充之后、内发光之前
 if (_HazeSize > 0.0)            // uniform 分支：无雾面板逐位不变
 {
     float4 haze = PuguiGradient(p, b, HAZE_RAMP);
-    haze.a *= inside * PuguiHazeWeight(IN.worldPosition.xy, _HazeSize, _HazeDrift, _PuguiUnscaledTime);
+    haze.a *= inside * PuguiHazeWeight(IN.worldPosition.xy, _HazeSize, _HazeDrift, _PuguiUnscaledTime, _HazeDensity);
     col = PuguiOver(haze, col);
 }
 ```
@@ -249,12 +272,12 @@ if (_HazeSize > 0.0)            // uniform 分支：无雾面板逐位不变
 
 | 码 | 级别 | 触发 |
 |---|---|---|
-| `PUI-PROCEDURAL-VALUE` | error | `haze` / `hazeDrift` 非数 / NaN / 负（既有码，`StyleRules.CheckValue` 加两个名字） |
+| `PUI-PROCEDURAL-VALUE` | error | `haze` / `hazeDrift` 非数 / NaN / 负（既有码，`StyleRules.CheckValue` 加两个名字）；`hazeDensity` 非数 / 非有限 / 越出 0..1（`HazeDensityAttrParser` 的三段文案） |
 | `PUI-COLOR-*`（既有） | error | `hazeColor` 的渐变形状错误，与其他色槽同款 |
 | `PUI-GLASS-HAZE` | warning | `glass="true"` / `weld` 容器 / 焊接成员上写了 `haze`（raw + style-aware，`PUI-GLASS-INTENSITY` 同型）：*'haze' has no effect on a glass surface — drop 'glass' (or 'weld'), or drop 'haze'* |
 | `PUI-CONTAINER-VISUAL-ATTR`（既有） | warning | `haze*` 写在 `*Stack` / `Grid` / `SafeArea` / `<Image>` 等上 —— 三个名字进 `ProceduralAttrNames` 自动覆盖 |
 
-`hazeColor` / `hazeDrift` 写了而 `haze` 没写：**不报**。`glowColor` 无 `glow` 今天也不报，同一条规则；
+`hazeColor` / `hazeDrift` / `hazeDensity` 写了而 `haze` 没写：**不报**。`glowColor` 无 `glow` 今天也不报，同一条规则；
 主题可以只在一个主题里给 `haze`、另一主题给 `hazeColor` 而不触发噪音。
 
 ## 8. 实现地图
@@ -374,7 +397,8 @@ CPU 侧每帧一个 `SetGlobalFloat`。
 
 ## 12. 不做的事（YAGNI 记录）
 
-- **覆盖率 / 对比度旋钮**（`hazeCoverage`）—— 常数按参考图标定；`/alpha` 是唯一的强度旋钮（§5.1）。
+- **`hazeDensity` 之外的第二个对比度旋钮**（色阶的两端、曲线族）—— 常数（§5.1）。起草时连 `hazeDensity` 也不打算给
+  （「`/alpha` 是唯一的强度旋钮」），验收时推翻：alpha 缩放整层，填不了空白，两者正交（H-D7）。
 - **漂移方向**（`hazeDrift="6 45deg"`）—— 三个 octave 的方向是常数；要「向上升腾」的雾等真实需求。
 - **玻璃 / 焊接组上的雾** —— backdrop 之上的合成规则 + 第三份 shader（H-D4）。
 - **`<Decor>` 上的雾** —— 小件上看不出斑块。
@@ -396,6 +420,7 @@ CPU 侧每帧一个 `SetGlobalFloat`。
 | H-D4 | v1 只改 `UI-ProceduralPanel.shader`：全家 `ProceduralControl` 表面；玻璃 / 焊接组归零 + `PUI-GLASS-HAZE`；Decor / 内层不做 |
 | H-D5 | `hazeDrift` 进 v1，默认 0；未缩放时钟；失能时冻结（本文定，未单独对齐 —— 与 `intensity` 归 1 同一条理由） |
 | H-D6 | `hazeColor` 默认白、不跟随填充（`innerGlowColor` 的同一条理由，本文定） |
+| H-D7 | **`hazeDensity`**（0..1，默认 0.5）：验收时作者拿参考图的「造船」对比 —— 参考图是整面薄雾 + 亮云团，实施出来的是几团光 + 大片空白；`/alpha` 填不了空白。一个旋钮把色阶的黑场 0.55 → 0、白场 0.85 → 1、曲线 S → 直线一起推，0 = 原来的稀疏光团、1 = 原始噪声场（线性 n）、0.5 = 参考图；作者选定加旋钮而不是只改常数，两种看法都留着（2026-09-17 对齐） |
 
 ## 14. 验收
 
@@ -452,4 +477,30 @@ noise 只要把第二、三 octave 各转 0.7 / 1.4 rad 并错开原点（`+ (13
 「建造」深底、两端亮中段暗的青边、底边渗入的几团青雾、上半截干净，`intensity="1.6"` 下最亮的一两块泛白；
 「造船」金边、底部橙雾往上变稀；同参数的第二个「建造」雾形不同。`HazeRenderTests` 的 dump 逐张看过：
 漂移 t=0 → t=2 是形变不是平移，失能后灰而静止，胶囊 + 外发光下雾只在形状内、光晕干净，6px 红描边压在
-雾上仍然锐利。`ProceduralStyle` 样例的 Styles 页加了并排四块（无雾 / 雾 / + intensity / + drift）。
+雾上仍然锐利。`ProceduralStyle` 样例的 Styles 页加了并排五块（无雾 / 薄雾 / density 0 / + intensity / + drift）。
+
+### 15.4 验收后补入 `hazeDensity`（H-D7）
+
+作者把参考图的「造船」按钮放大与实施结果并排：参考图是**整面**薄雾、上半截也有一层淡淡的雾、底部更亮的云团；
+实施出来（0.55 / 0.85）是几团青光 + 大片纯底色。原因在覆盖率映射只取噪声分布的高尾（黑场 0.55 高于均值），
+`/alpha` 缩放整层、填不了空白。用同一套 numpy 孪生扫了五种映射：
+
+| 映射 | 沾雾 | 均值 | 观感 |
+|---|---|---|---|
+| `ss(0.55, 0.85)` | 43% | 0.17 | 几团光，大片空白 |
+| `ss(0.40, 0.85)` | 84% | 0.38 | 充实但仍有暗隙 |
+| `ss(0.25, 0.90)` | 95% | 0.50 | 整面薄雾 + 亮云团，最像参考图 |
+| `0.3 + 0.7·ss(0.45, 0.85)` | 100% | 0.51 | 有底雾，云团对比略平 |
+| 线性 `n` | 100% | 0.57 | 太平，几乎看不出云 |
+
+「改常数」与「加旋钮」两条路摆给作者，作者选了旋钮：两种看法都是真的（稀疏几团光 vs 玻璃上的薄雾），只是不该
+共用一个 alpha。旋钮的定义见 §5.1：一个 `d` 同时推黑场、白场和曲线，`d = 0` 逐字是原来的 `smoothstep(0.55, 0.85)`，
+`d = 1` 逐字是线性 `n`。默认 0.5（87% 沾雾、均值 0.33）在宿主工程里按 §3 的片段渲染：`hazeColor` 的 alpha 从
+0.8 / 0.9 降到 0.5 才是参考图的观感 —— 满 alpha 的薄雾是一片色纸；例子、SKILL 与样例的 alpha 一并改成 0.5。
+用色标位置做硬截止（`orange/0 70%`）在雾上会露出一条水平线，例子一律用提示（`30%`）做软过渡，haze.md 记了这一条。
+
+改动面：`Core/Parser/HazeDensityAttrParser.cs`（纯 C#，运行时与 CLI 共用）、shader 多一个 uniform、`PanelParams`
+多一个字段（`haze == 0` 时归一到 0.5）、`ProceduralPanel` / `Frame` / `ProceduralControl` 各一个 setter / 属性、
+名字表 / `StyleRules` / XSD 各一处；测试 `HazeDensityAttrParserTests` + 参数 / 契约 / lint / XSD 各加用例，
+`HazeRenderTests` 加 `HazeDensity_FillsTheSurface`（d = 1 无一像素是裸底、d = 0 至少四分之一是裸底）与
+`HazeDensity_DefaultSitsBetween`。
