@@ -36,6 +36,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
         private static string SizeAttrsFor(string tag)
             => tag == "Collapsible" ? "width='160' headerHeight='48'"
              : tag == "Scrollbar" ? "thickness='12'"
+             // Its surface is the fill (spec 2026-09-18), and a 0 % fill draws nothing by design.
+             : tag == "Progress" ? "width='160' height='48' value='0.5'"
              : "width='160' height='48'";
 
         private static Control Load(string tag, string attrs)
@@ -262,11 +264,11 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
         /// <summary>
         /// Progress ships its Bg layer switched off — it only appears once <c>bg=</c> or
-        /// <c>bgColor=</c> is authored. The surface lives inside that layer, so asking for a shape
-        /// has to switch it on too, or the shape is drawn inside something invisible.
+        /// <c>bgColor=</c> is authored. Since spec 2026-09-18 the primary surface is the FILL; the
+        /// colour bg only borrows <c>radius</c> through an inner surface of its own.
         /// </summary>
         [Test]
-        public void Progress_SwitchesOnItsBgLayerForTheSurface()
+        public void Progress_BgLayerFollowsBgColor_AndBorrowsTheRadius()
         {
             var plain = Load("Progress", "");
             Assert.IsFalse(plain.GameObject.transform.Find("MaskWrapper/Bg").gameObject.activeSelf,
@@ -280,12 +282,13 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Progress_SurfaceAloneIsEnoughToShowTheBgLayer()
+        public void Progress_RadiusAlone_LeavesTheBgLayerOff()
         {
             var c = Load("Progress", "radius='8'");
 
-            Assert.IsTrue(c.GameObject.transform.Find("MaskWrapper/Bg").gameObject.activeSelf,
-                "radius= alone says 'draw a background with this shape'");
+            Assert.IsFalse(c.GameObject.transform.Find("MaskWrapper/Bg").gameObject.activeSelf,
+                "radius= shapes the fill; it no longer conjures a white track (spec 2026-09-18 §5.4)");
+            Assert.AreEqual("Fill", PanelIn(c).transform.parent.name, "the surface is the fill's");
         }
     }
 }

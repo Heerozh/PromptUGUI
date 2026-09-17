@@ -20,12 +20,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
     /// the two come out identical, erasing the bar. The colour half is already covered by the
     /// existing <c>fillColor</c> / <c>handleColor</c> pairs.</para>
     ///
-    /// <para><b>Progress rounds through its mask, not its fill.</b> <c>radius=</c> shapes the bg, and
-    /// the fill is a separate square-cornered Image on top of it, so a bar shaped that way is rounded
-    /// only at its trailing end. The fix is to clip bg and fill together, which is what the mask on
-    /// <c>MaskWrapper</c> is for — so <c>maskRadius</c> auto-tracks <c>radius</c>, exactly the way
-    /// <c>&lt;ScrollList mask&gt;</c> auto-tracks its bg sprite and <c>&lt;Dropdown popupMask&gt;</c>
-    /// tracks <c>popupSprite</c>.</para>
+    /// <para><b>Progress is the exception since spec 2026-09-18:</b> its fill IS the primary surface,
+    /// so it has no <c>fillRadius</c> — <c>radius</c> is the bar's corner, and a BITMAP fill still
+    /// rounds through the auto-tracked mask on <c>MaskWrapper</c> (the way <c>&lt;ScrollList mask&gt;</c>
+    /// tracks its bg sprite). The procedural fill is covered by <c>ProgressFillSurfaceTests</c>.</para>
     /// </summary>
     public class InnerLayerRadiusTests
     {
@@ -108,16 +106,6 @@ namespace PromptUGUI.Tests.EditMode.Controls
         // ===== Progress =====
 
         [Test]
-        public void Progress_FillRadius_ShapesTheFill()
-        {
-            var p = Load("Progress", "fillRadius='6' fillColor='#ffcc33' value='0.6'");
-
-            var panel = SurfaceUnder(p, "MaskWrapper/Fill");
-            Assert.IsNotNull(panel);
-            Assert.AreEqual(6f, panel.CurrentParams.CornerWidth.x);
-        }
-
-        [Test]
         public void Progress_FrameRadius_ShapesTheFrame()
         {
             var p = Load("Progress", "frameRadius='10' frameColor='#ffd56b'");
@@ -127,12 +115,12 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 "asking the frame for a shape has to switch the layer on, same as frameColor does");
         }
 
-        // ===== Progress: the mask is how a bar gets rounded end to end =====
+        // ===== Progress: the mask is how a BITMAP bar gets rounded end to end =====
 
         [Test]
-        public void Progress_Radius_AutoTracksTheMask()
+        public void Progress_Radius_AutoTracksTheMask_ForABitmapFill()
         {
-            var p = Load("Progress", "radius='12' bgColor='#22345a' fillColor='#ffcc33' value='0.6'");
+            var p = Load("Progress", "radius='12' bgColor='#22345a' fill='PromptUGUI/Defaults/pugui#pugui_9slice_round' value='0.6'");
             var wrapper = p.GameObject.transform.Find("MaskWrapper").gameObject;
 
             var mask = wrapper.GetComponent<UnityEngine.UI.Mask>();
@@ -194,7 +182,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             Assert.IsTrue(slider.HasAttribute("fillRadius"));
             Assert.IsTrue(slider.HasAttribute("handleRadius"));
-            Assert.IsTrue(progress.HasAttribute("fillRadius"));
+            Assert.IsFalse(progress.HasAttribute("fillRadius"), "retired: the fill is the primary surface, radius is its corner");
             Assert.IsTrue(progress.HasAttribute("frameRadius"));
             Assert.IsTrue(progress.HasAttribute("maskRadius"));
 

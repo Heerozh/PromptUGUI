@@ -192,10 +192,14 @@ namespace PromptUGUI.Tests.EditMode.Controls
             "<Progress id='p' anchor='center' width='200' height='40' {0} " +
             "bgColor='#22345a' fillColor='#ffcc33' value='0.55'/>";
 
+        // The bitmap path: a white 9-slice with 2 px cut corners, so its rect corner is painted.
+        private const string BitmapBar =
+            "<Progress id='p' anchor='center' width='200' height='40' {0} " +
+            "bgColor='#22345a' fill='PromptUGUI/Defaults/pugui#pugui_9slice_mask' value='0.55'/>";
+
         /// <summary>
-        /// The point of auto-tracking the mask (spec §6). <c>radius=</c> alone shapes only the bg,
-        /// and the fill is a square-cornered Image drawn on top of it — so without the mask the bar
-        /// comes out rounded at its trailing end and square at its leading one.
+        /// Spec 2026-09-18: with a colour fill, <c>radius=</c> rounds the fill's own SDF and the
+        /// colour bg's — both ends rounded, no mask involved.
         /// </summary>
         [Test]
         public void ProgressRadius_RoundsBothEnds()
@@ -203,24 +207,29 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsFalse(
                 CornerIsPainted(string.Format(RoundBar, "radius='20'"), leftEnd: true,
                                 "promptugui-progress-rounded.png"),
-                "the leading end must be clipped by the auto-tracked mask");
+                "the start end is the fill's own rounded corner");
             Assert.IsFalse(
                 CornerIsPainted(string.Format(RoundBar, "radius='20'"), leftEnd: false,
                                 "promptugui-progress-rounded2.png"),
-                "…and so must the trailing end");
+                "…and the far end is the bg's");
         }
 
         /// <summary>
-        /// …and opting out really does opt out. This is the pair that proves auto-tracking is doing
+        /// A BITMAP fill cannot round itself, so it still rounds through the auto-tracked mask —
+        /// and opting out really does opt out. This is the pair that proves auto-tracking is doing
         /// the work: the two markups differ by nothing but <c>maskRadius=""</c>.
         /// </summary>
         [Test]
-        public void ProgressMaskRadiusEmpty_LeavesTheLeadingEndSquare()
+        public void ProgressBitmapFill_RoundsThroughTheMask_UnlessOptedOut()
         {
+            Assert.IsFalse(
+                CornerIsPainted(string.Format(BitmapBar, "radius='20'"), leftEnd: true,
+                                "promptugui-progress-bitmap-rounded.png"),
+                "the bitmap fill's corner must be clipped by the auto-tracked mask");
             Assert.IsTrue(
-                CornerIsPainted(string.Format(RoundBar, "radius='20' maskRadius=\'\'"), leftEnd: true,
+                CornerIsPainted(string.Format(BitmapBar, "radius='20' maskRadius=\'\'"), leftEnd: true,
                                 "promptugui-progress-optout.png"),
-                "with the mask opted out, radius= shapes only the bg and the fill covers that corner");
+                "with the mask opted out, the bitmap fill covers that corner");
         }
     }
 }
