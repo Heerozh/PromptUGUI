@@ -367,6 +367,7 @@ public sealed class Badge : Control
 
 - To **insert elements** per variant, use `<Variant when="mobile"><Add into="#id">...</Add></Variant>` (there's no Remove/Replace; to hide something write `hidden.mobile="true"`).
 - **Reserved variant names**: `portrait` / `landscape` (orientation, auto-tracked) and `<locale>` (e.g. `sprite.zh-Hans`) are reserved variants the library sets True/False automatically.
+- **State code writes is runtime-owned.** `Hidden` / `Interactable` / `Icon.Name` (like `isOn` / `value` / `text`) keep the code-written value through any resize / Variant / Theme ReSolve; an untouched node still follows its `.variant` overrides. So declare the real initial state in the XML (`hidden="true"` on a placeholder) and let C# take over — no need to leave `hidden` out of the XML or re-apply after a resize.
 
 **`tint="linear"`: full-range tinting for pixel art.** Draw the sprite you want to tint **in grayscale up front** (128 gray is neutral) and blend with Linear Light at runtime — this can both darken and brighten, turning one grayscale sprite into a whole palette. The default `multiply` can only darken.
 

@@ -213,4 +213,19 @@ icon.Name = "Solar96Bold:Medicine/Test Tube";
 
 ## 13. 实施记录
 
-（实现后补。）
+分支 `feat/common-attr-runtime-state`，跳过 plan：spec → Red 测试（14 条先红：两条通用属性、Icon 三条、MessageBox icon、
+主题 `<Style selected>`）→ M1 `hidden` / `interactable`（`55cb0c6`）→ M2 `<Icon name>` + `selected`（`25c90e2`）→ M3 文档。
+整套 `PromptUGUI.Tests.EditMode` 4340/4340、`EditorOnly` 全绿，`dotnet format` 干净。
+
+### 13.1 与设计的偏差
+
+- 没有。实现逐条落在 §3 的表：锁在 `ControlAttributeApplier.ApplyCore` 解算后、`ApplyCommon` 前判（锁住的置 null），
+  基线在 `OnAfterApply` 之后按「本 pass 真正写了」更新；`ApplyCommon` 的 `interactable` 参数改成 `bool?`。
+- 测试里多钉了一条 `Lock_baseline_is_not_refreshed_while_locked`（两次 ReSolve 后锁仍在）——它就是 §4.1 第三条
+  「基线只在真正写了的 pass 更新」的反向证据；漏掉这一条的实现会在第二次 ReSolve 把值打回去。
+- `Initial_apply_never_locks` 要经 `UI.Close(name)` 重开：`Screen.Close()` 靠根 GO 的哨兵 `OnDestroy` 反注销 `UI._open`，EditMode 里不跑，`UI.Open` 会把关掉的实例还回来。
+
+### 13.2 未做 / 另案
+
+- §9 宿主迁移（Planet / SelectionDock 把初态写回 XML、删构造时的初态与「延两帧」）；三条 memory 改写。
+- §10 全部非目标。

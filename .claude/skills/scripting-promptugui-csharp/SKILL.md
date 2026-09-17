@@ -677,8 +677,9 @@ plate.Dispose();                                                              //
 - **Ids live in the instance's own scope**: `root.Get<T>("id")` / `root.Get("a/b")`. They never
   appear in `screen.Get(...)`, so a hundred instances of one template do not collide.
 - **The instance re-solves with the Screen** exactly like a `BindItems` row: Variant flips, theme
-  switches and locale changes replay its attributes (code-set `TextValue` / `isOn` / `value` are
-  kept — the runtime-takeover lock); `scale="Nx"` / `<r>r` follow the canvas; a plain resize
+  switches and locale changes replay its attributes (code-set `TextValue` / `isOn` / `value` /
+  `Hidden` / `Interactable` / `Icon.Name` are kept — the runtime-takeover lock, see *Runtime-owned
+  common attributes*); `scale="Nx"` / `<r>r` follow the canvas; a plain resize
   replays scale only. Cost is linear in instances (a few µs each); hidden instances are replayed too.
 - **`parent` must be inside this Screen** (an `ArgumentException` otherwise). An `IControl` parent
   puts the instance where an XML child of it would go — a `<Btn>`'s content holder, a
@@ -709,9 +710,8 @@ var plate = screen.Instantiate("Nameplate", shell);       // template root ancho
 // teardown:    plate.Dispose(); Object.Destroy(shell.gameObject);
 ```
 
-**Pooling is a host-side ten-liner.** `Hidden` set from code survives ReSolve (it is only replayed
-when the node declares `hidden=` — so don't declare it on a template you pool), and `Dispose`
-cascades, so:
+**Pooling is a host-side ten-liner.** `Hidden` set from code survives ReSolve (runtime-owned, whether
+or not the template declares `hidden=`), and `Dispose` cascades, so:
 
 ```csharp
 sealed class PlatePool {
@@ -726,6 +726,35 @@ sealed class PlatePool {
 
 A reused instance keeps whatever the previous user set — bind everything you care about on every
 `Rent`, the same contract as a `BindItems` binder.
+
+## Runtime-owned common attributes (`Hidden` / `Interactable` / `Icon.Name`)
+
+A ReSolve (resize, Variant flip, theme or locale switch) replays every node's XML attributes. Three
+things code writes all the time are **runtime-owned**, on the same contract as `isOn` / `value` /
+`expanded` / `selected`: the XML value is the *initial* state, and once code has written the
+property the replay leaves it alone.
+
+```csharp
+placeholder.Hidden = false;        // XML said hidden="true"; stays shown through any ReSolve
+confirm.Interactable = false;      // stays disabled — used to be re-enabled by every ReSolve
+icon.Name = "ui:warning";          // stays — used to snap back to the XML name=
+```
+
+- **Write the real initial state in the XML** (`hidden="true"` on a placeholder, `interactable="false"`
+  on a not-yet-valid button) — a preview that loads only the XML then shows it — and let C# take over
+  from there. No more "don't declare `hidden`, set it in the constructor, re-apply after a resize".
+- **What counts as a write**: anything that changes the live value — `Hidden` / `Interactable` /
+  `Name` setters, a `BindItems` callback, `Tab.bind`, `<Pages>`. The lock is a comparison of the live
+  value against what the last replay wrote, not a flag on the setter.
+- **An untouched node still follows** `hidden.<variant>=` / `interactable.<variant>=` /
+  `name.<locale>=` and a theme `<Style hidden=…>` (the sample's skin layers). A touched node stops
+  following the theme until its Screen is reopened — the same trade-off `isOn` makes.
+- `Hidden` undeclared in XML is never written by a replay (so a base-less `hidden.mobile=` cannot
+  heal — declare a base); `Interactable` undeclared is `true` and is re-applied on an untouched node,
+  so a base-less `interactable.mobile="false"` does heal.
+- Edge shared with `isOn`: while locked, a Variant may change the declared value without the lock
+  noticing; if code then writes a value equal to the stale baseline, the next replay treats the node
+  as untouched. Reopen the Screen or write again after the flip if you hit it.
 
 ## Variant switching at runtime
 
@@ -941,6 +970,10 @@ PAGES          screen.Get<Pages>("id").Show("pageId")         one direct child a
                .Selected / .SelectedPage / .PageIds           runtime-owned like isOn: survives ReSolve; untouched selected.<variant> still applies
                .OnSelectedChanged      string (new page id; real changes only, any source)
                                                               never write a page's Hidden yourself — the container re-asserts it
+
+RUNTIME-OWNED  ctl.Hidden = … / ctl.Interactable = …            XML value = initial state; once code wrote it, no ReSolve snaps it back
+               icon.Name = "ui:x"                             same for <Icon name>; untouched nodes still follow .variant / theme <Style>
+                                                              (same contract as isOn / value / expanded / selected / current)
 
 INSTANTIATE    var root = screen.Instantiate("Tpl", parent)   parent: IControl (lands as an XML child would) or RectTransform
                                                               name = same thing as itemTemplate=; every <Param> needs default=
