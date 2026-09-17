@@ -1,6 +1,6 @@
 # `<Progress>` 的 fill 成为主表面 —— 全套程序化原语 + SDF 进度裁切（光晕溢出轨道）
 
-> 状态：**待实现**（2026-09-18 与作者对齐，决策见 §12）。
+> 状态：**已实现**（分支 `feat/progress-fill-surface`，M0–M3 分步提交；实施记录见 §14。决策见 §12，2026-09-18 与作者对齐）。
 > 相关：
 > `2026-05-27-progress-control-design.md`（四层结构 `MaskWrapper/Bg` + `Fill` + `Frame` 与 PB-D* 决策的出处；本文改主表面归属、保留层结构）、
 > `2026-08-26-procedural-surface-design.md`（`ProceduralControl` / `ProceduralSurface`；§6「内层只给形状」与 §13.3「Progress 主表面 = Bg」**在此推翻**；§9 的「panel 当遮罩源」被本文用作 sprite-fill 路径的保留形态）、
@@ -147,11 +147,11 @@ d = max(d, dot(p, n) - e);          // n = 推进方向单位向量；e = (2·va
 
 **参数走顶点通道，不走材质。** `ProceduralPanel.OnPopulateMesh`（`ProceduralPanel.cs:647`）今天用
 `uv0.xy` 传局部坐标、`uv1.xy` 传半尺寸，`uv0.zw` / `uv1.zw` 四个 float 空着（shader 头注释：
-「形状输入走顶点通道而非材质，这是刻意的」）。`n` 进 `uv0.zw`、`e` 进 `uv1.z`。于是：
+「形状输入走顶点通道而非材质，这是刻意的」）。实际落地为**两个 float 全放 `uv1.zw`**：`z` = 轴码（0 不切 / ±1 沿 x / ±2 沿 y，符号 = 填充方向），`w` = `e`；`uv0.zw` 不动，不多开 canvas 通道。于是：
 
 - 材质仍由 `ProceduralMaterialCache` 按参数共享，**`value` 动画不产生材质实例**（`BuildParams` 不含切割）；
 - `value` 变化只 `SetVerticesDirty()`，不脏布局（今天 `scale` 模式每帧改锚点 → layout rebuild）；
-- 无切割编码为 `n = (0,0)` 且 `e` 取一个足够负的哨兵，`max(d, −big) = d`，非 Progress 的面板逐位不变。
+- 无切割 = 轴码 0：shader 里切割项取 `−1e6`（select，不用分支 —— `d` 随后要过 `fwidth`），`max(d, −1e6) = d`，非 Progress 的面板逐位不变；顶点通道留 0 即可，没有任何其它写 mesh 的路径要改。
 
 **两个端点：**
 
@@ -227,7 +227,7 @@ uGUI 不裁子级，除非上游有 `Mask` / `RectMask2D`（在 `<ScrollList>` �
 | 处 | 改动 |
 |---|---|
 | `Runtime/Resources/PromptUGUI/Material/UI-PanelSDF.cginc` | `PuguiSdCut(d, p, n, e)`（一行 `max`）+ 解析法线里切割项赢时返回 `n`。 |
-| `UI-ProceduralPanel.shader` / `UI-GlassPanel.shader` | 顶点结构收 `uv0.zw` / `uv1.z`，`v2f` 多传 `float3 cut`；`d = PuguiSdPanel(...)` 之后调 `PuguiSdCut`。哨兵编码保证非 Progress 面板逐位不变。 |
+| `UI-ProceduralPanel.shader` / `UI-GlassPanel.shader` | `texcoord1` 改 `float4`，`zw` 经 `v2f` 多传一个 `float2 cut`；`d = PuguiSdPanel(...)` 之后调 `PuguiSdCut`。哨兵编码保证非 Progress 面板逐位不变。 |
 | `Controls/Internal/ProceduralPanel.cs` | `SetCut(Vector2 n, float e)` / `ClearCut()`：只 `SetVerticesDirty`，不进 `BuildParams`；`OnPopulateMesh` 写通道；`value == 0`（由 Progress 传 `SetCutEmpty()` 或 `e` 哨兵）→ `ComputeVisible` 假。 |
 | `Controls/ProceduralControl.cs` | `Radius` setter 改调 `private protected virtual void DeclareRadius(RadiusSpec)`，默认 = 今天的 `Surface.Declare`。 |
 | `Controls/Progress.cs` | `SurfaceHost => _fill.gameObject`；删 `FillRadius` / `FillSurface`；加 `BgSurface`（inner，只收 radius）；`FillColor` → `Surface.SetFill`；`BgColor` → `BgSurface.SetFill`；`_fillSprite` 标志；覆盖 `DeclareRadius` 只记录；`OnAfterApply` 先按 §5.1 分发 radius 再 `base`；`ReconcileLayers` 去掉 `SurfaceIsDrawing`；`ReconcileProceduralMask` 加「fill 程序化 → 不建」；`ReconcileFill` 加程序化分支（stretch + `SetCut`）。 |
@@ -301,3 +301,13 @@ uGUI 不裁子级，除非上游有 `Mask` / `RectMask2D`（在 `<ScrollList>` �
 | M1 | Progress 主表面搬家 + `radius` 三路分发 + mask 抑制 + `ReconcileFill` 程序化分支 + 主题往返测试 | M0 |
 | M2 | lint：`PUI-PROG-RETIRED-ATTR` / `PUI-PROG-MASK-CLIPS-GLOW` / 主表面 sprite 名映射 / 退役 `FILL-RADIUS-MODE` / 镜像测试 | M1 |
 | M3 | SKILL 三处 + 样例 + 主 spec 指针 | M1–M2 |
+
+## 14. 实施记录（2026-09-18）
+
+按 §13 四步落地，每步 Red 先行、全量 EditMode（4374）/ EditorOnly（348）/ PlayMode（244）绿后提交：
+
+- **M0** `feat(procedural)`：`UI-PanelSDF.cginc` 加 `PuguiCutNormal` / `PuguiCutTerm` / `PuguiSdCut` / `PuguiPanelNormalCut`；两份面板 shader 的 `texcoord1` 改 `float4`，`zw` 进 `v2f.cut`，`d` 先切再 `fwidth`；玻璃 shader 保留 `dShape` 交给法线判定。`ProceduralPanel.SetCut(direction, value)` / `ClearCut()`：`_cutCode`（0 / ±1 / ±2）+ `_cutValue`，只 `SetVerticesDirty`；`OnPopulateMesh` 写 `uv1 = (hx, hy, code, (2·value − 1)·b_axis)`；`_cutEmpty`（value 0）让 `ComputeVisible` 为假。**编码与 §5.2 的差别**：不用 `(n, e)` 三个 float，而是「轴码 + 偏移」两个 float 全塞进 `uv1.zw`，`uv0.zw` 未动（不需要多开 canvas 通道）；不切 = code 0，切割项取 `−1e6`，用 select 不用分支（`d` 随后过 `fwidth`）。测试：`ProceduralCutTests`（顶点通道、value 0 无几何、value 1 = 不切、材质引用不变；渲染：推进边直、光晕四面溢出并包住推进边、切外无光晕、描边沿切边）、`ProceduralCutGlassRenderTests`（URP 门控：切边朝光一侧比背光亮 —— 没有法线修正时两者相等）。宿主 URP 已启用，玻璃用例实跑通过；渲染 dump 人工看过。
+- **M1** `feat(progress)`：`ProceduralControl.Radius` 改经 `private protected virtual DeclareRadius`；加 `SurfacePanelOrNull`。`Progress.SurfaceHost => _fill`；`_fillSprite` 标志；`RouteRadius()` 在 `OnAfterApply` 里、`base` 之前按 §5.1 分发（fill 非位图 → `Surface.Declare`；`_bgColor && !_bgSprite` → `BgSurface.Declare`）；`ReconcileProceduralMask` 的自动跟随改为只在 `_fillSprite` 时；`ReconcileLayers` 去掉 `SurfaceIsDrawing`；`ReconcileFill` 程序化分支 = stretch + `SetCut`，回位图路径时 `ClearCut`。删 `FillRadius`。测试：`ProgressFillSurfaceTests`（13 条，含变体往返 位图 ↔ SDF 的 rect / mask / Image 三者复位、`toggled never rebuilt`）；`InnerLayerRadiusTests` / `ProceduralSurfaceRolloutTests` / `ProceduralSurfaceRenderTests` 里钉住旧语义的用例改写（自动跟随改用位图 fill；`radius` 单独不再点亮 bg；rollout 循环给 Progress 一个 `value`，因为 0 % 按设计不画）。
+- **M2** `feat(lint)`：`PUI-PROG-RETIRED-ATTR`（直接 / 经 `class=` / 变体后缀；只在 Progress 上报）、`PUI-PROG-MASK-CLIPS-GLOW`（显式 `mask=` 真 sprite 或非空 `maskRadius` + `glow` + fill 非位图；`""` 是退出不是裁）、`PUI-PROG-FILL-RADIUS-MODE` 删除；`ProceduralSurfaceRules` 加 `PrimarySprite`（Progress → `fill`）与 `RadiusSparesTheBitmap`（`DeclaresProcedural(skipRadius)`），`InnerLayers["Progress"]` 只剩 frame。CLI 独立编译通过，跑遍 `Runtime/Resources` + `Samples~` 零 issue。
+- **M3** 文档：主 `SKILL.md`（catalog 三行、主表面表、冲突例子、内层表、玻璃例外、`radius` 三路 + SDF 裁切两段、四个例子）；`reference/controls-progress.md`（「fill 是主表面」整节 + 三路分发表 + lint 表五行）；`ProceduralStyle` 样例的 Progress 加 `radius="pill" glow haze`；主 spec §Progress 行、procedural-surface spec §6 / §13.3 加指针。
+

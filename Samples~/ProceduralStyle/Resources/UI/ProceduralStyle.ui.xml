@@ -172,10 +172,12 @@
       <!-- ───────── ② Display ───────── -->
       <Frame id="pageDisplay" class="panel" anchor="stretch" margin="112,14,14,14" margin.portrait="116,14,14,76" raycastTarget="true">
         <VStack anchor="stretch" spacing="12" padding="16">
-          <!-- 轨道由外层 well 的 Frame 提供，所以 Progress 只保留 fill 一层（fill="" = 无图，纯色） -->
+          <!-- 轨道由外层 well 的 Frame 提供，Progress 只画 fill —— fill 是它的主表面（spec 2026-09-18）：
+               radius / glow / haze 直接落在已填充段上，在 value 处由 SDF 裁断，光晕溢出轨道、包住推进边 -->
           <Frame class="well" height="20">
             <Progress id="progress" anchor="stretch" margin="2,2,2,2"
-                      value="0.3" fill="" fillColor="accent,accent-2"/>
+                      value="0.3" fill="" fillColor="accent,accent-2" radius="pill"
+                      glow="4" glowColor="accent/0.6" haze="8" hazeColor="to top, white/0.4, white/0"/>
           </Frame>
 
           <HStack height="34" spacing="10">

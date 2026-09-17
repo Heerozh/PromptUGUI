@@ -156,7 +156,7 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 | `<Theme name=... base=...?>` / `<Color name=... value=...>` | 顶层主题 / 颜色 token 块；运行时可通过 `UI.Theme.Set` 切换 | — |
 | `<Toggle>` | 复选 / 单选（OnValueChanged: bool；group= 字符串键互斥） | Image + Toggle (uGUI) + 内置 label |
 | `<Slider>` | 数值滑块（OnValueChanged: float） | Image + Slider (uGUI) |
-| `<Progress>` | 线性进度条 (scale / Image.Type.Filled, horizontal / vertical, +可选 frame / mask / bg / fill 装饰) | RectTransform（+ 内部 4 个图层；详见 [`2026-05-27-progress-control-design.md`](2026-05-27-progress-control-design.md)） |
+| `<Progress>` | 线性进度条 (scale / Image.Type.Filled, horizontal / vertical, +可选 frame / mask / bg / fill 装饰；fill 是主表面，全套程序化原语落在已填充段、value 在 SDF 内裁断) | RectTransform（+ 内部 4 个图层；详见 [`2026-05-27-progress-control-design.md`](2026-05-27-progress-control-design.md)、[`2026-09-18-progress-fill-surface-design.md`](2026-09-18-progress-fill-surface-design.md)） |
 | `<Dropdown>` | 下拉选择（OnSelected: int；BindOptions 推送选项） | TMP_Dropdown |
 | `<ScrollList>` | 滚动列表（BindItems 推送数据；itemTemplate 引用 Template/Control 类） | ScrollRect + Mask |
 | `<Scrollbar>` | `<ScrollList>` / `<Dropdown>` 的滚动条**部件子元素**（不写就是默认条）：轨道 = 主表面（`radius` 等同 `<Frame>`）、滑块 `handle*`、几何 `thickness` / `overlay` / `spacing` / `padding`；复用走 `<Style>` / `<Template>` / `<Theme>` | uGUI Scrollbar（track Image + Sliding Area + Handle），宿主接线（详见 [`2026-09-12-scrollbar-part-element-design.md`](2026-09-12-scrollbar-part-element-design.md)） |
