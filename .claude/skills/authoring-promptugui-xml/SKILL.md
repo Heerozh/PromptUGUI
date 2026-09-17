@@ -439,7 +439,7 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 
 **`<Progress radius=>` is the bar's shape.** Three consumers share it: the **fill** takes it as its own SDF corner whenever it is not a bitmap (a plain `fillColor` fill goes procedural for it), the **colour bg** takes it through a surface of its own (a bitmap bg keeps its baked corners), and a **bitmap fill** — which cannot round itself — rounds through the auto-tracked clip mask on `MaskWrapper` (`maskRadius` follows `radius`, the way `<ScrollList mask>` follows its bg sprite; write `maskRadius` — `""` included — to opt out; `mask=` sprite and `maskRadius` are exclusive, `PUI-PROG-MASK-RADIUS-CONFLICT`). No mask is ever auto-built over a procedural fill: it has its radius, and a stencil would clip its glow.
 
-**A procedural fill is the whole bar, cut at `value` in the shader.** Its rect stays full-size; `value` becomes a half-plane intersection inside the SDF, so the leading edge is straight, the border / inner glow / haze follow the cut edge, and the outer glow wraps it and escapes the track on every side — nothing is stencil-clipped. `mode` has no say (it is a bitmap-fill knob: `scale` anchors the rect, `fill` uses `Image.fillAmount`); a gradient `fillColor` is laid along the whole bar and cropped, so 30 % shows the first 30 % of the ramp; `value="0"` draws nothing at all, not even the glow. A `value` tween only re-emits four vertices — no layout, no material.
+**A procedural fill is the whole bar, cut at `value` in the shader.** Its rect stays full-size; `value` becomes a cut inside the SDF, so the border / inner glow / haze follow the cut edge, and the outer glow wraps it and escapes the track on every side — nothing is stencil-clipped. `mode` picks the cut, with the same meaning it has for a bitmap fill: **`scale`** (default) shrinks the fill's shape itself to the value — the radius clamps to the shorter box, so a pill bar keeps a **round leading end** (a stretched 9-slice keeps both rounded ends the same way); **`fill`** crops it with a half-plane — a **straight leading edge** (`Image.fillAmount`'s look). In both, a gradient `fillColor` is laid along the whole bar and cropped, so 30 % shows the first 30 % of the ramp; `value="0"` draws nothing at all, not even the glow. A `value` tween only re-emits four vertices — no layout, no material.
 
 ```xml
 <Progress value="0.6" radius="14" bgColor="#22345a" fillColor="#ffcc33"/>   <!-- 两端都圆 — fill and bg round themselves -->
@@ -612,7 +612,7 @@ TMP_InputField；R3 `OnValueChanged` / `OnEndEdit` / `OnSubmit: string`。`<Inpu
 | `fillColor` | hex / CSS / token | — | |
 | `bgColor` | hex / CSS / token | — | 单独设也激活 bg 层 |
 | `frameColor` | hex / CSS / token | — | 单独设也激活 frame 层 |
-| `mode` | `scale` / `fill` | `scale` | |
+| `mode` | `scale` / `fill` | `scale` | The same word for both kinds of fill: `scale` = the shape shrinks to the value (bitmap rect anchored / SDF box shrunk — round leading end on a pill), `fill` = cropped at the value (`Image.fillAmount` / half-plane — straight edge) |
 | `direction` | `horizontal` / `vertical` / `reverse-horizontal` / `reverse-vertical` | `horizontal` | |
 | `tint` | `multiply` / `linear` | — | 作用于 fill+bg+frame；见 **Tint blend modes** |
 

@@ -87,7 +87,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(Vector2.zero, rt.offsetMax);
 
             var v = FirstVertex(SurfaceUnder(p, "MaskWrapper/Fill"));
-            Assert.AreEqual(1f, v.uv1.z, "horizontal → cut code +1");
+            Assert.AreEqual(3f, v.uv1.z, "horizontal, default mode=scale → the round cut along +x");
             Assert.AreEqual((2f * 0.3f - 1f) * 100f, v.uv1.w, 1e-3f, "e = (2·value − 1) · half width");
         }
 
@@ -111,10 +111,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
         public void Direction_DrivesTheCutAxis()
         {
             var p = Load("glow='6' fillColor='#ffcc33' value='0.3' direction='reverse-vertical'");
-            Assert.AreEqual(-2f, FirstVertex(SurfaceUnder(p, "MaskWrapper/Fill")).uv1.z);
+            Assert.AreEqual(-4f, FirstVertex(SurfaceUnder(p, "MaskWrapper/Fill")).uv1.z);
 
             p.Direction = "vertical";
-            Assert.AreEqual(2f, FirstVertex(SurfaceUnder(p, "MaskWrapper/Fill")).uv1.z);
+            Assert.AreEqual(4f, FirstVertex(SurfaceUnder(p, "MaskWrapper/Fill")).uv1.z);
         }
 
         [Test]
@@ -128,13 +128,19 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Mode_HasNoSayOverAProceduralFill()
+        public void Mode_PicksTheRoundOrTheFlatCut()
         {
-            // Both spellings are the same cut: the fill is the bar's shape, cropped at value.
+            // The same word means the same thing as for a bitmap fill: scale = the shape itself
+            // shrinks to the value (a 9-slice keeps its rounded ends; so does the SDF), fill =
+            // cropped at the value (Image.fillAmount; the half-plane). Neither touches the rect.
             var p = Load("mode='fill' glow='6' fillColor='#ffcc33' value='0.3'");
             var rt = (RectTransform)Node(p, "MaskWrapper/Fill");
             Assert.AreEqual(Vector2.one, rt.anchorMax);
-            Assert.AreEqual(1f, FirstVertex(SurfaceUnder(p, "MaskWrapper/Fill")).uv1.z);
+            Assert.AreEqual(1f, FirstVertex(SurfaceUnder(p, "MaskWrapper/Fill")).uv1.z, "fill → flat cut");
+
+            p.Mode = "scale";
+            Assert.AreEqual(Vector2.one, rt.anchorMax, "still full-size");
+            Assert.AreEqual(3f, FirstVertex(SurfaceUnder(p, "MaskWrapper/Fill")).uv1.z, "scale → round cut");
         }
 
         // ───── radius: the bar's shape, shared three ways ─────
@@ -153,7 +159,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsTrue(Node(p, "MaskWrapper/Bg").gameObject.activeSelf);
 
             Assert.IsFalse(MaskIsOn(p), "nothing to clip — both layers round themselves, and a mask would eat the glow");
-            Assert.AreEqual(1f, FirstVertex(fill).uv1.z, "the fill is still cut at value");
+            Assert.AreEqual(3f, FirstVertex(fill).uv1.z, "the fill is still cut at value");
         }
 
         [Test]
@@ -235,7 +241,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsFalse(image.enabled, "glass skin: the SDF fill takes over");
             Assert.AreEqual(Vector2.one, rt.anchorMax, "…with a full-size rect");
             Assert.IsFalse(MaskIsOn(p), "…and the mask stands down so the glow can escape");
-            Assert.AreEqual(1f, FirstVertex(SurfaceUnder(p, "MaskWrapper/Fill")).uv1.z);
+            Assert.AreEqual(3f, FirstVertex(SurfaceUnder(p, "MaskWrapper/Fill")).uv1.z);
 
             UI.Variants.Set("glass", false);
             Assert.IsTrue(image.enabled, "back to the bitmap");

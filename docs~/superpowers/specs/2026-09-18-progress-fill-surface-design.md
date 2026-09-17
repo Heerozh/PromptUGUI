@@ -89,7 +89,7 @@ handle 的先例）。否决。** 需求要的是全套（haze / intensity / inn
 | `bg` / `bgColor` | 不变 | 轨道贴图 / 颜色。轨道只有这两个 + `radius`；要描边 / 玻璃 / 发光的轨道，外面包 `<Frame>`。 |
 | `frame` / `frameColor` / `frameRadius` | 不变 | 顶层装饰，画在 fill（含其光晕）之上。 |
 | `mask` / `maskRadius` | 不变，但**自动跟随只在位图路径生效** | fill 程序化时不再自动建 mask（fill 自己有圆角，切边靠 SDF）。显式写了且 fill 声明了 `glow` → `PUI-PROG-MASK-CLIPS-GLOW`（warning）。 |
-| `mode` | **只对位图 fill 有意义** | 程序化 fill 永远是「整条的形状、在 value 处裁断」。`PUI-PROG-FILL-RADIUS-MODE` 退役。 |
+| `mode` | **两种 fill 同一个词** | `scale`（默认）= 形状本身缩到 value（位图：rect 锚定，9-slice 两端圆角都保留；SDF：盒子缩小，radius 随之 clamp，胶囊条推进端保持圆）；`fill` = 在 value 处裁断（位图：`Image.fillAmount`；SDF：半平面交集，推进边直）。`PUI-PROG-FILL-RADIUS-MODE` 退役。 |
 | `direction` | 不变 | 程序化 fill 下决定半平面的法线。 |
 | `value` | 不变 | 程序化 fill 下 `0` = 不画任何东西（含光晕）；`1` = 不裁。 |
 
@@ -174,9 +174,14 @@ d = max(d, dot(p, n) - e);          // n = 推进方向单位向量；e = (2·va
 像素皮时 fill 从 SDF 变回位图，rect 要重新按 value 锚定；反向则要重置成 stretch。运行期 `progress.Value = x`
 不经过 apply pass，同样走这个分支。
 
-程序化 fill 下 `mode` 没有作用：「整条的形状、在 value 处裁断」是唯一形态。`mode="scale"` 的「小胶囊
-长成长条」观感（今天 `fillRadius` + scale 的效果）**不再提供** —— 它是 radius 随 rect 重新 clamp 的副产物，
-不是谁设计出来的；要它的时候再议（§11）。
+程序化 fill 下 `mode` 与位图路径逐字同义（2026-09-18 二次对齐，作者要求推进端也保持圆角）：
+
+| `mode` | SDF 形态 | shader |
+|---|---|---|
+| `scale`（默认） | 形状本身沿轴缩到切线，radius 随缩小后的尺寸 clamp —— 胶囊条的推进端是半圆，5% 是一枚贴着起始边的细胶囊（9-slice 拉伸时两端圆角都保留的观感） | `PuguiCutShrink`：把 `(p, b)` 换成缩小后的盒子再 `PuguiResolveQuad` / `PuguiSdPanel`；无交集 |
+| `fill` | 半平面裁断，推进边直（`Image.fillAmount` 的观感） | `PuguiSdCut`：`max(d, dot(p, n) − e)` |
+
+两者渐变都按整条 rect 铺（`PuguiGradient` 拿原 `p` / `b`）：裁的是形状不是颜色。顶点通道编码：`uv1.z` = `±1 / ±2` flat、`±3 / ±4` round（轴码 + 2）；`uv1.w` 同一个 `e`。
 
 ### 5.4 bg 层
 
@@ -279,7 +284,6 @@ uGUI 不裁子级，除非上游有 `Mask` / `RectMask2D`（在 `<ScrollList>` �
 
 - `<Fill>` 子元素 / `fill*` 前缀家族（§2）。
 - `<Slider>` 主表面搬家；`<Slider>` fill 的 SDF 切割（它的 fillRect 由 uGUI 锚定，radius 跟着 clamp 的观感对 Slider 是可接受的）。
-- 程序化 fill 的 `mode="scale"`「长大的胶囊」观感（§5.3）。
 - exact 的 SDF 交集（§5.2）。
 - quad 在推进边一侧的 overdraw 收缩（§5.2）。
 - 轨道（bg）的 border / glow / glass —— 包 `<Frame>`。
@@ -310,4 +314,4 @@ uGUI 不裁子级，除非上游有 `Mask` / `RectMask2D`（在 `<ScrollList>` �
 - **M1** `feat(progress)`：`ProceduralControl.Radius` 改经 `private protected virtual DeclareRadius`；加 `SurfacePanelOrNull`。`Progress.SurfaceHost => _fill`；`_fillSprite` 标志；`RouteRadius()` 在 `OnAfterApply` 里、`base` 之前按 §5.1 分发（fill 非位图 → `Surface.Declare`；`_bgColor && !_bgSprite` → `BgSurface.Declare`）；`ReconcileProceduralMask` 的自动跟随改为只在 `_fillSprite` 时；`ReconcileLayers` 去掉 `SurfaceIsDrawing`；`ReconcileFill` 程序化分支 = stretch + `SetCut`，回位图路径时 `ClearCut`。删 `FillRadius`。测试：`ProgressFillSurfaceTests`（13 条，含变体往返 位图 ↔ SDF 的 rect / mask / Image 三者复位、`toggled never rebuilt`）；`InnerLayerRadiusTests` / `ProceduralSurfaceRolloutTests` / `ProceduralSurfaceRenderTests` 里钉住旧语义的用例改写（自动跟随改用位图 fill；`radius` 单独不再点亮 bg；rollout 循环给 Progress 一个 `value`，因为 0 % 按设计不画）。
 - **M2** `feat(lint)`：`PUI-PROG-RETIRED-ATTR`（直接 / 经 `class=` / 变体后缀；只在 Progress 上报）、`PUI-PROG-MASK-CLIPS-GLOW`（显式 `mask=` 真 sprite 或非空 `maskRadius` + `glow` + fill 非位图；`""` 是退出不是裁）、`PUI-PROG-FILL-RADIUS-MODE` 删除；`ProceduralSurfaceRules` 加 `PrimarySprite`（Progress → `fill`）与 `RadiusSparesTheBitmap`（`DeclaresProcedural(skipRadius)`），`InnerLayers["Progress"]` 只剩 frame。CLI 独立编译通过，跑遍 `Runtime/Resources` + `Samples~` 零 issue。
 - **M3** 文档：主 `SKILL.md`（catalog 三行、主表面表、冲突例子、内层表、玻璃例外、`radius` 三路 + SDF 裁切两段、四个例子）；`reference/controls-progress.md`（「fill 是主表面」整节 + 三路分发表 + lint 表五行）；`ProceduralStyle` 样例的 Progress 加 `radius="pill" glow haze`；主 spec §Progress 行、procedural-surface spec §6 / §13.3 加指针。
-
+- **M4** `feat(procedural)` round cut（作者二次对齐：推进端也要保持 radius，无新属性，复用 `mode`）：`UI-PanelSDF.cginc` 加 `PuguiCutIsRound` / `PuguiCutShrink`，`PuguiCutNormal` / `PuguiCutTerm` 认得 `±3 / ±4`；两份 shader 先 `PuguiCutShrink(pS, bS)` 再 `PuguiResolveQuad` / `PuguiSdPanel`，渐变仍用原 `p` / `b`，玻璃法线从 `(pS, bS)` 求。`ProceduralPanel.SetCut(direction, value, round)`；`Progress.ReconcileFill` 传 `round: _mode != "fill"`。测试：`ProceduralCutTests` 加 5 条（编码；推进角被圆掉 vs flat 保方；光晕包住圆端并溢出；ramp 按整条裁；5% 是细胶囊）；`ProgressFillSurfaceTests` 默认码改 ±3 / ±4，`Mode_PicksTheRoundOrTheFlatCut`。全量 EditMode 4379 绿。**默认观感变化**：`radius="pill"` 的程序化 fill 推进端从 M1 的直边变成半圆（与同页 `<Slider fillRadius="pill">` 一致）；要直边写 `mode="fill"`。

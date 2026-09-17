@@ -144,6 +144,29 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void ARoundCut_IsEncodedTwoCodesUp()
+        {
+            var panel = Open("radius='8' color='#ff0000'");
+
+            panel.SetCut(Vector2.right, 0.25f, round: true);
+            var v = Mesh(panel)[0];
+            Assert.AreEqual(3f, v.uv1.z, "round along +x → code 3");
+            Assert.AreEqual(-50f, v.uv1.w, 1e-3f, "same cut line as the flat cut");
+
+            panel.SetCut(Vector2.left, 0.25f, round: true);
+            Assert.AreEqual(-3f, Mesh(panel)[0].uv1.z);
+            panel.SetCut(Vector2.up, 0.75f, round: true);
+            Assert.AreEqual(4f, Mesh(panel)[0].uv1.z, "round along +y → code 4");
+            panel.SetCut(Vector2.down, 0.75f, round: true);
+            Assert.AreEqual(-4f, Mesh(panel)[0].uv1.z);
+
+            panel.SetCut(Vector2.right, 1f, round: true);
+            Assert.AreEqual(0f, Mesh(panel)[0].uv1.z, "a full bar is the uncut shape in either style");
+            panel.SetCut(Vector2.right, 0f, round: true);
+            Assert.IsFalse(panel.IsPanelVisible, "…and 0 % is nothing in either style");
+        }
+
+        [Test]
         public void APanelWithNoCut_LeavesTheChannelsAtZero()
         {
             var panel = Open("radius='8' color='#ff0000'");
@@ -283,6 +306,66 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             AssertRed(tex.GetPixel(Right - 50, MidY), "the right half");
             AssertBlack(tex.GetPixel(Left + 50, MidY), "the left half");
+        }
+
+        // ───── round cut: the shape itself shrinks to the cut line, corners and all ─────
+
+        [Test]
+        public void ARoundCut_KeepsTheRadiusOnTheLeadingEnd()
+        {
+            // A 200×40 pill cut at 50 %: the round style leaves a 100×40 pill, so the leading
+            // top corner (2 px inside the cut, 2 px under the top) lies outside the shape; the
+            // flat style fills it.
+            var panel = Open("radius='20' color='#ff0000'");
+            panel.SetCut(Vector2.right, 0.5f, round: true);
+            var round = Render("promptugui-cut-round.png");
+            AssertBlack(round.GetPixel(MidX - 3, Top - 3), "the leading corner is rounded away");
+            AssertRed(round.GetPixel(MidX - 3, MidY), "…while the leading edge at mid-height is fill");
+            AssertRed(round.GetPixel(Left + 50, Top - 3), "…and the body is untouched");
+
+            panel.SetCut(Vector2.right, 0.5f, round: false);
+            var flat = Render("promptugui-cut-flat.png");
+            AssertRed(flat.GetPixel(MidX - 3, Top - 3), "the flat cut keeps the corner square");
+        }
+
+        [Test]
+        public void ARoundCut_GlowWrapsTheRoundedEnd_AndStillEscapesTheRect()
+        {
+            var panel = Open(GlowBar);
+            panel.SetCut(Vector2.right, 0.5f, round: true);
+            var tex = Render("promptugui-cut-round-glow.png");
+
+            AssertGreenGlow(tex.GetPixel(MidX + 4, MidY), "past the rounded end at mid-height");
+            AssertGreenGlow(tex.GetPixel(MidX - 3, Top - 3), "the rounded-away corner is now inside the halo");
+            AssertGreenGlow(tex.GetPixel(Left + 50, Top + 4), "above the body, outside the rect");
+            AssertBlack(tex.GetPixel(Right - 50, MidY), "nothing past the cut");
+        }
+
+        [Test]
+        public void ARoundCut_LaysTheRampAlongTheWholeBar()
+        {
+            // Left half red, right half blue along the bar. At 50 % the round cut shows red up to
+            // the leading end — the ramp is cropped, not squeezed into the visible part.
+            var panel = Open("radius='20' color='to right, #ff0000 50%, #0000ff 50%'");
+            panel.SetCut(Vector2.right, 0.5f, round: true);
+            var tex = Render("promptugui-cut-round-ramp.png");
+
+            AssertRed(tex.GetPixel(Left + 20, MidY), "start of the bar");
+            AssertRed(tex.GetPixel(MidX - 6, MidY), "just before the leading end — still the first half of the ramp");
+        }
+
+        [Test]
+        public void ASmallRoundCut_IsACapsule_NotASliver()
+        {
+            // 5 % of a 200×40 pill is a 10×40 box whose radius clamps to 5: a thin capsule
+            // hugging the start edge, corners rounded, nothing beyond its 10 px.
+            var panel = Open("radius='20' color='#ff0000'");
+            panel.SetCut(Vector2.right, 0.05f, round: true);
+            var tex = Render("promptugui-cut-round-small.png");
+
+            AssertRed(tex.GetPixel(Left + 5, MidY), "the capsule's centre line");
+            AssertBlack(tex.GetPixel(Left + 1, Top - 1), "its corner is rounded away");
+            AssertBlack(tex.GetPixel(Left + 14, MidY), "nothing past the capsule");
         }
 
         [Test]

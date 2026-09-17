@@ -62,16 +62,20 @@ one place the vocabulary splits from `<Slider>`, whose `glow` lights the track.)
 
 ### A procedural fill is the whole bar, cut at `value` in the shader
 
-The fill's rect stays full-size; `value` becomes a half-plane intersection inside the SDF
-(`d = max(d, dot(p, n) − e)`), and everything the panel draws derives from that `d`:
+The fill's rect stays full-size; `value` becomes a cut inside the SDF — the shape's box shrunk to the
+value, or a half-plane intersection (`d = max(d, dot(p, n) − e)`) — and everything the panel draws
+derives from that `d`:
 
-- the **leading edge is straight**, the start end keeps its `radius`;
+- `mode="scale"` (default): the fill's **shape shrinks** to the value — the radius clamps to the shorter
+  box, so a pill bar's leading end is a half-circle, and 5 % of it is a thin capsule hugging the start
+  edge (a stretched 9-slice keeps both rounded ends the same way); `mode="fill"`: a half-plane crop —
+  the **leading edge is straight**, the start end keeps its `radius` (`Image.fillAmount`'s look);
 - border, inner glow and haze stop at the cut; the **outer glow wraps the cut edge** and escapes the
   track on every side — no stencil is involved, so nothing clips it (`value="0.1"` is a glowing sliver);
 - a gradient `fillColor` is laid along the **whole bar** and cropped — 30 % shows the first 30 % of
   the ramp, as `Image.Filled` would;
-- `direction` picks the axis and sense of the cut; `mode` has **no say** (it is a bitmap-fill knob:
-  `scale` anchors the rect, `fill` uses `Image.fillAmount`);
+- `direction` picks the axis and sense of the cut; `mode` picks its style (above) — neither touches the
+  rect;
 - `value="0"` draws **nothing** — not even the glow along the start edge; `value="1"` is the uncut shape;
 - a `value` tween re-emits four vertices: no layout pass, no material change (the cut rides the vertex
   channels, so bars sharing a `class=` still share one material).

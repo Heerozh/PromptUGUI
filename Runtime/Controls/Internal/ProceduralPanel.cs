@@ -74,7 +74,7 @@ namespace PromptUGUI.Controls.Internal
         // The progress cut (spec 2026-09-18 §5.2): the shape is intersected with a half-plane in
         // the shader, so <Progress> keeps its fill's rect at full size and drives the value here.
         // Vertex data, never a material parameter — see OnPopulateMesh.
-        private float _cutCode;     // 0 = none; ±1 along x (+1 fills left→right); ±2 along y (+2 bottom→top)
+        private float _cutCode;     // 0 = none; ±1 / ±2 flat along x / y; ±3 / ±4 round along x / y (+ fills towards +axis)
         private float _cutValue;    // 0..1, only meaningful while _cutCode != 0
         private bool _cutEmpty;     // value 0: nothing to draw — not even the glow along the start edge
 
@@ -524,6 +524,14 @@ namespace PromptUGUI.Controls.Internal
         /// INSIDE the SDF. Border, glows, haze and glass refraction all follow the cut edge, and
         /// nothing is clipped by a stencil, so the glow escapes on every side and wraps the edge.
         ///
+        /// <para>Two styles, the two meanings <c>&lt;Progress mode&gt;</c> already has for a bitmap
+        /// fill. <paramref name="round"/> = <c>mode="scale"</c>: the shape itself shrinks to the cut
+        /// line, corners included — the radius clamps to the shorter box, so a pill bar's leading
+        /// end stays a half-circle (a stretched 9-slice keeps both rounded ends the same way). Flat
+        /// = <c>mode="fill"</c>: the whole shape intersected with a half-plane, a straight leading
+        /// edge (<c>Image.fillAmount</c>'s crop). The colour ramps are laid along the whole rect in
+        /// both — the cut is a shape, not a colour.</para>
+        ///
         /// <para>Vertex data only (<c>uv1.zw</c>; the offset needs the rect and is resolved in
         /// <see cref="OnPopulateMesh"/>), so a value tween dirties the four-vertex quad and never
         /// walks the material cache. <c>0</c> emits no geometry at all — the cut line would sit on
@@ -531,12 +539,12 @@ namespace PromptUGUI.Controls.Internal
         /// there. <c>1</c> is encoded as no cut: it is the uncut shape, minus the edge-on-edge
         /// float fuss.</para>
         /// </summary>
-        internal void SetCut(Vector2 direction, float value)
+        internal void SetCut(Vector2 direction, float value, bool round = false)
         {
             value = Mathf.Clamp01(value);
-            var code = Mathf.Abs(direction.x) >= Mathf.Abs(direction.y)
-                ? (direction.x >= 0f ? 1f : -1f)
-                : (direction.y >= 0f ? 2f : -2f);
+            var axis = Mathf.Abs(direction.x) >= Mathf.Abs(direction.y) ? 1f : 2f;
+            var sign = (axis == 1f ? direction.x : direction.y) >= 0f ? 1f : -1f;
+            var code = sign * (axis + (round ? 2f : 0f));
             var empty = value <= 0f;
             if (value >= 1f) code = 0f;
 
@@ -720,7 +728,11 @@ namespace PromptUGUI.Controls.Internal
             // that as "no cut" — bit-for-bit what those panels always drew.
             var cutOffset = 0f;
             if (_cutCode != 0f)
-                cutOffset = (2f * _cutValue - 1f) * (Mathf.Abs(_cutCode) < 1.5f ? hx : hy);
+            {
+                var axis = Mathf.Abs(_cutCode);
+                if (axis > 2.5f) axis -= 2f;    // round codes sit two above the flat ones
+                cutOffset = (2f * _cutValue - 1f) * (axis < 1.5f ? hx : hy);
+            }
             var half = new Vector4(hx, hy, _cutCode, cutOffset);
             var tint = (Color32)color;
 

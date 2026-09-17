@@ -195,10 +195,14 @@ Shader "UI/ProceduralPanel"
                 float2 p = IN.shape.xy;
                 float2 b = IN.shape.zw;
 
-                PuguiQuad corner = PuguiResolveQuad(p, b, _CornerKind, _Radius,
+                // 进度裁切（spec 2026-09-18 §5.2）：round 形态先把盒子缩到切线（pS / bS），flat 形态
+                // 在 SDF 上做半平面交集；两者都在求导之前，下面每一层看到的都是切完的形状。渐变仍用
+                // 原 p / b —— ramp 铺满整条，裁的是形状不是颜色。
+                float2 pS = p, bS = b;
+                PuguiCutShrink(IN.cut.x, IN.cut.y, pS, bS);
+                PuguiQuad corner = PuguiResolveQuad(pS, bS, _CornerKind, _Radius,
                                                        _CornerH, _CornerFillet, _Shape, _HexW);
-                // 进度裁切（spec 2026-09-18 §5.2）：先切再求导，下面每一层看到的都是切完的形状。
-                float d = PuguiSdCut(PuguiSdPanel(p, b, corner), p, IN.cut.x, IN.cut.y);
+                float d = PuguiSdCut(PuguiSdPanel(pS, bS, corner), p, IN.cut.x, IN.cut.y);
                 float fw = max(fwidth(d), 1e-4);
 
                 float inside = saturate(0.5 - d / fw);

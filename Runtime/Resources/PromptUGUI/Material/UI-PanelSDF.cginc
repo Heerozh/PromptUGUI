@@ -598,20 +598,44 @@ float2 PuguiPanelNormal(float2 p, float2 b, PuguiQuad q)
 // 参数走顶点通道（uv1.zw），与局部坐标 / 半尺寸同一条理由：逐面板不同、逐样式相同，材质照常共享，
 // value 动画只脏顶点。
 //
-// code：0 = 不切；±1 = 沿 x（+1 从左往右填）；±2 = 沿 y（+2 从下往上填）。四个顶点写同一个值，
-// 插值后逐位不变，所以下面按常量处理。offset e 是切线到 rect 中心的有符号距离（局部像素），
-// 由 C# 按 (2·value − 1) · b_axis 算好。
+// 两种形态，对应 <Progress mode>：
+//   flat（mode="fill"）—— 形状 ∩ 半平面，推进边是直的（Image.fillAmount 的裁剪观感）；
+//   round（mode="scale"）—— 形状本身沿轴缩到切线，圆角随缩小后的尺寸 clamp，推进端保持圆
+//   （9-slice 拉伸时两端圆角都保留的观感）。渐变仍按整条 rect 铺（调用方传原 p / b 给 PuguiGradient）。
+// code：0 = 不切；±1 / ±2 = flat 沿 x / y；±3 / ±4 = round 沿 x / y；正号 = 从起始边往正方向填。
+// 四个顶点写同一个值，插值后逐位不变，所以下面按常量处理。offset e 是切线到 rect 中心的有符号
+// 距离（局部像素），由 C# 按 (2·value − 1) · b_axis 算好，两种形态同一个数。
+bool PuguiCutIsRound(float code) { return abs(code) > 2.5; }
+
 float2 PuguiCutNormal(float code)
 {
+    float a = abs(code);
+    if (a > 2.5) a -= 2.0;
     float s = code >= 0.0 ? 1.0 : -1.0;
-    return abs(code) < 1.5 ? float2(s, 0.0) : float2(0.0, s);
+    return a < 1.5 ? float2(s, 0.0) : float2(0.0, s);
 }
 
-// 用 select 而不是分支：d 随后要过 fwidth，导数指令不能落在（编译器看来）非均匀的控制流之后。
-// 不切时切割项取一个远小于任何 d 的常数，max 逐位不改 d —— 非 Progress 的面板与从前完全一样。
+// round：把 (p, b) 换成缩小后的盒子 —— 沿轴只保留 [−b_axis, e]，中心与半尺寸随之移动。
+// 之后 PuguiResolveQuad / PuguiSdPanel 照常，radius 的 clamp 自然落在新尺寸上。
+void PuguiCutShrink(float code, float e, inout float2 p, inout float2 b)
+{
+    if (!PuguiCutIsRound(code)) return;
+    float2 n = PuguiCutNormal(code);
+    float2 axis = abs(n);
+    float bAxis = dot(b, axis);
+    float halfLen = (e + bAxis) * 0.5;
+    float centre = (e - bAxis) * 0.5;
+    p -= n * centre;
+    b = b * (1.0 - axis) + axis * halfLen;
+}
+
+// flat 的切割项。用 select 而不是分支：d 随后要过 fwidth，导数指令不能落在（编译器看来）非均匀的
+// 控制流之后。不切、或 round（切已经在盒子里）时取一个远小于任何 d 的常数，max 逐位不改 d ——
+// 非 Progress 的面板与从前完全一样。
 float PuguiCutTerm(float2 p, float code, float e)
 {
-    return abs(code) > 0.5 ? dot(p, PuguiCutNormal(code)) - e : -1e6;
+    float a = abs(code);
+    return (a > 0.5 && a < 2.5) ? dot(p, PuguiCutNormal(code)) - e : -1e6;
 }
 
 float PuguiSdCut(float d, float2 p, float code, float e)

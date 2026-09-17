@@ -13,9 +13,10 @@ namespace PromptUGUI.Controls
     ///
     /// <para>The FILL is the primary surface (spec 2026-09-18): every procedural attribute —
     /// <c>glow</c>, <c>haze</c>, <c>borderWidth</c>, <c>glass</c> … — lands on the filled segment.
-    /// A procedural fill keeps a full-size rect and hands <c>value</c> to the SDF as a half-plane
-    /// cut (<see cref="ProceduralPanel.SetCut"/>), so its glow escapes the track on every side and
-    /// wraps the leading edge; no stencil is built for it. <c>radius</c> is the bar's shape and is
+    /// A procedural fill keeps a full-size rect and hands <c>value</c> to the SDF as a cut
+    /// (<see cref="ProceduralPanel.SetCut"/> — the shape shrunk to the value for <c>mode="scale"</c>,
+    /// a half-plane for <c>mode="fill"</c>), so its glow escapes the track on every side and wraps
+    /// the leading end; no stencil is built for it. <c>radius</c> is the bar's shape and is
     /// shared three ways (§5.1): the fill when procedural, the colour bg through an inner surface,
     /// and — when the fill is a bitmap, which cannot round itself — the clip mask on
     /// <c>MaskWrapper</c>. A track that wants a border or glass of its own is a <c>&lt;Frame&gt;</c>
@@ -69,9 +70,12 @@ namespace PromptUGUI.Controls
         }
 
         /// <summary>
-        /// How a BITMAP fill advances: <c>scale</c> anchors its rect to the value, <c>fill</c> crops
-        /// it through <c>Image.fillAmount</c>. A procedural fill ignores it — it is always the bar's
-        /// shape cropped at the value, in the shader (spec 2026-09-18 §5.3).
+        /// How the fill advances — the same word for both kinds of fill (spec 2026-09-18 §5.3).
+        /// <c>scale</c>: the fill's shape itself shrinks to the value — a bitmap's rect is anchored
+        /// to it (a 9-slice keeps both rounded ends), a procedural fill's SDF box is shrunk in the
+        /// shader (the radius clamps to it, so a pill bar keeps a round leading end). <c>fill</c>:
+        /// cropped at the value — <c>Image.fillAmount</c> for a bitmap, a half-plane intersection
+        /// for the SDF; the leading edge is straight either way.
         /// </summary>
         [UIAttr, Preserve]
         public string Mode
@@ -362,13 +366,13 @@ namespace PromptUGUI.Controls
             if (SurfaceIsDrawing)
             {
                 // Procedural: the rect stays the whole bar and the value is a cut in the SDF
-                // (spec 2026-09-18 §5.2). No layout write per value — the quad re-emits its four
-                // vertices and the material is untouched.
+                // (spec 2026-09-18 §5.2) — round for scale, flat for fill. No layout write per
+                // value: the quad re-emits its four vertices and the material is untouched.
                 rt.anchorMin = Vector2.zero;
                 rt.anchorMax = Vector2.one;
                 rt.offsetMin = Vector2.zero;
                 rt.offsetMax = Vector2.zero;
-                SurfacePanelOrNull.SetCut(CutDirection(), _value);
+                SurfacePanelOrNull.SetCut(CutDirection(), _value, round: _mode != "fill");
                 return;
             }
             // Back on the bitmap path (a theme switch): the parked panel forgets the cut so it
