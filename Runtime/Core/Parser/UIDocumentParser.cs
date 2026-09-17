@@ -402,7 +402,9 @@ namespace PromptUGUI.Parser
         private static readonly string[] ThemeStyleForbiddenAttrs =
         {
             "id", "if", "class", "bind",
-            "text", "isOn", "value", "current", "expanded",
+            // hidden / interactable are runtime-owned too, but stay ALLOWED: a theme switching skin
+            // layers with <Style hidden=> is the sample's idiom; a touched node just stops following.
+            "text", "isOn", "value", "current", "expanded", "selected",
             "mask", "showMask", "maskPadding",
         };
 
@@ -410,7 +412,7 @@ namespace PromptUGUI.Parser
         {
             "id" or "if" or "class" or "bind" =>
                 "identifies a node, and a style is shared by many nodes",
-            "text" or "isOn" or "value" or "current" or "expanded" =>
+            "text" or "isOn" or "value" or "current" or "expanded" or "selected" =>
                 "is runtime-owned state - ControlAttributeApplier stops replaying it once code has "
                 + "taken it over, so a theme's value would be swallowed some of the time, which is "
                 + "worse than never applying",
