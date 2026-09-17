@@ -127,8 +127,8 @@ ProceduralPanel，`color` / `sprite` / `radius` / `glass` … 一律被 `PUI-CON
 - **每页必须有 `id`**（`PUI-PAGES-CHILD-ID`）。没有 id 的页选不中：运行时警告一次并永远停用。
 - **页不写 `hidden`**（含 `hidden.<variant>` 与 `class=` 带入的，`PUI-PAGES-CHILD-HIDDEN`）：页的 activeSelf
   归 `<Pages>` 所有。写了不但多余，ReSolve 还会用它把选中页藏掉（缺陷 1）。
-- `if="false"` 的页在展开期就不存在，不是页；`selected` 指到它 → 运行时回退第一页并警告。
-- 页数为 0 → `PUI-PAGES-EMPTY`（warning）。
+- 模板体里 `if="{{p}}"` 为假的页在展开期就不存在，不是页（`if=` 只在模板体内求值）；`selected` 指到它 → 运行时回退第一页并警告。
+- 页数为 0 → `PUI-PAGES-EMPTY`（CLI 没有 warning 级，全部 issue 都是 error；运行时是 warning）。
 - **v1 不支持动态页**：`<Variant><Add into="#pagesId">` 被 `PUI-PAGES-ADD-TARGET` 拒绝（Add 块与 Pages 会争
   同一个 activeSelf）；`Screen.Instantiate(tpl, pages)` 的实例按 §2-D 不是 `Children`，不成为页；
   `BindItems` 不提供。
@@ -155,13 +155,13 @@ ProceduralPanel，`color` / `sprite` / `radius` / `glass` … 一律被 `PUI-CON
 新增 `Runtime/Core/Lint/PagesRules.cs`（纯 C#；CLI 与 `ScreenInstantiator` 共用；运行时全部是
 `UILog.Warn`，**没有硬错误** —— 不为一个预览便利容器炸掉整个 Screen）：
 
-| 代码 | 级别 | 触发 |
+| 代码 | 级别（CLI / 运行时） | 触发 |
 |---|---|---|
-| `PUI-PAGES-CHILD-ID` | error | 直接子节点没有 `id` |
-| `PUI-PAGES-SELECTED` | error | `selected` 的基础值或任一 `selected.<variant>` 值不是任何直接子节点的 `id` |
-| `PUI-PAGES-CHILD-HIDDEN` | error | 直接子节点声明了 `hidden`（基础 / variant / `class=` 带入） |
-| `PUI-PAGES-EMPTY` | warning | 没有直接子节点 |
-| `PUI-PAGES-ADD-TARGET` | error | `<Add into="#x">` 的 `x` 是 `<Pages>`（文档级检查，同 `CollapsibleRules.CheckGroups` 的挂法） |
+| `PUI-PAGES-CHILD-ID` | error / warning（控件自报） | 直接子节点没有 `id` |
+| `PUI-PAGES-SELECTED` | error / warning（控件自报） | `selected` 的基础值或任一 `selected.<variant>` 值不是任何直接子节点的 `id` |
+| `PUI-PAGES-CHILD-HIDDEN` | error / warning | 直接子节点声明了 `hidden`（基础 / variant / `class=` 带入） |
+| `PUI-PAGES-EMPTY` | error / warning | 没有直接子节点 |
+| `PUI-PAGES-ADD-TARGET` | error / —（CLI-only） | `<Add into="#x">` 的 `x` 是 `<Pages>`（文档级检查，同 `CollapsibleRules.CheckGroups` 的挂法） |
 
 CLI raw 遍就能查 `CHILD-ID` / `SELECTED`（模板调用的 `id` 写在调用节点上，展开前可见）；`CHILD-HIDDEN` 的
 `class=` 来源只在 expanded 遍可见（`StyleAttributeView`，不确定时不报）。
@@ -390,4 +390,31 @@ _views.Show("newView");      // PlanetDockSection.cs:1099-1101 / 1117-1119 / 113
 
 ## 14. 实施记录
 
-（实现后补：与设计的偏差 / 未做 / 实测。）
+分支 `feat/pages`，四个 commit（M1 控件 / M2 lint / M3 Tab.bind + FindAll / M4 文档），每步 UnityMCP 跑
+`PromptUGUI.Tests.EditMode`（受影响的测试类）全绿；收尾整套 `PromptUGUI.Tests.EditMode` 4318 条 + `PromptUGUI.Tests.EditorOnly` 348 条全绿，`dotnet format` 干净，
+`UIXmlLint -- Runtime/Resources/` 零 issue。
+
+### 14.1 与设计的偏差
+
+- **`if="false"` 不是页级特性**（§4.2 原稿写错）：`if=` 只在模板体内求值（`TemplateExpander.ExpandNode`），
+  Screen 里直接写 `<Frame id="b" if="false">` 节点照样存在。测试改为模板 `<Param>` 驱动的 `if="{{detail}}"`。
+- **lint 级别**：CLI 没有 warning 级（`UIXmlLint` 对每条 issue 都非零退出），`PUI-PAGES-EMPTY` 在 CLI 也是 error；
+  运行时五条里 `CHILD-ID` / `SELECTED` 由控件自己连同处置一起报（`ScreenInstantiator` 跳过这两码），
+  `ADD-TARGET` 要看 Variant 块、CLI-only。
+- **子节点没 id 的运行时警告由控件发**（`Pages.Reconcile`，一次），不经 lint 派发，避免同一件事报两遍。
+- **`OnSelectedChanged` 在初始建立时不发**（`previous == null`），只在真正从一页换到另一页时发——含 Variant 重应用。
+- **`FindAll<T>()` 的顺序来源**：静态树走 `Def.Root`（`_nodeMap` 是无序字典），Add 块的节点跟在其后，动态子树按登记
+  顺序从各自 `Root.SourceNode` 走（同一列表的行共享 ElementNode，必须经子树自己的 map）。
+- `Tab._boundFrame` 字段名未改（类型改为 `IControl`），`SetActive` 仍走 `GameObject`（与 Frame 时代行为一致）。
+
+### 14.2 未做 / 另案
+
+- §9 宿主侧：UI Preview 的 Pages 选择器 + 按文件记忆；Planet.ui.xml / PlanetDockSection 迁移。
+- §11 `hidden` / `interactable` 的运行期接管（另开 spec）。
+- §10 全部非目标（过渡动画、hug、动态页、焦点交接）。
+
+### 14.3 工具链笔记
+
+- 连跑两次 EditMode 测试时第二次会被 "Scene(s) Have Been Modified"（Untitled，测试残留）模态框挡住，MCP 表现为
+  `ping not answered` + WebSocket 反复断线；用 Win32 枚举窗口点 "Don't Save" 解开，job 会照常跑完。
+  跑前把脏 Untitled 场景换回 Login 可预防。

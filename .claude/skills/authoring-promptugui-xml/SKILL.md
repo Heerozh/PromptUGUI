@@ -100,9 +100,10 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 | `<InputField>` | TMP_InputField，`OnValueChanged` / `OnEndEdit` / `OnSubmit:string` |
 | `<Progress>` | 只读线性进度条 |
 | `<TabBar>` | 互斥选项卡容器 |
-| `<Tab>` | 选项卡（`bind` 显隐 `<Frame>`） |
+| `<Tab>` | 选项卡（`bind` 显隐一个兄弟控件，通常 `<Frame>` / `<Pages>`） |
 | `<TabMenu>` | 弹出式 Tab 组：收起=选中项 icon+文字+箭头，展开=一列 `<Tab>` |
 | `<Collapsible>` | 内联折叠面板：标题栏常驻、body 可收放（`<Header>` 槽 / `group=` 手风琴）|
+| `<Pages>` | N 选 1 容器：直接子节点即页，只有 `selected` 那页 active（代码切子视图：列表 ↔ 详情）；页要 `id`、**不写 `hidden`**；无视觉 |
 | `<Carousel>` | 翻页轮播卡（+ `fill="false"` 居中选择器） |
 | `<Show>` | 按状态显隐子树的无视觉 wrapper |
 | `<Decor>` | 角/边装饰：角括号 / 指示三角 / 强调线 / 贴图纹样（不参与排版）→ `reference/decor.md` |
@@ -620,14 +621,14 @@ Tab 容器；私有 `ToggleGroup`（默认 `allowSwitchOff=false`，见下表）
 
 ### `<Tab>`
 
-`<TabBar>` 子节点；uGUI `Toggle` + 居中 TMP label + 可选左侧 icon。经 TabBar 的 ToggleGroup 自动互斥。`bind="frame_id"` 声明式在选中时显隐兄弟 `<Frame>`（lazy 解析缓存）；无 `bind=` → 只 fire `OnSelected`。接受嵌套子节点（Frame 式叠在 bg 上）；子节点默认就是穿透的（`raycastTarget` 默认 `false`），点击落到 Tab 自身的命中层。**A `hidden="true"` Tab is not a page switch**: while a visible tab is on, selecting a hidden one from code is refused with a warning — a page's sub-views switch inside the page (sibling `<Frame>`s + `Hidden`, or a nested `<TabBar>`), see [`reference/controls-tabs.md`](reference/controls-tabs.md#sub-views-inside-a-page---not-a-hidden-tab). 状态化视觉见 [`reference/states.md`](reference/states.md)；共享样式 / 动态卡详见 [`reference/controls-tabs.md`](reference/controls-tabs.md)。
+`<TabBar>` 子节点；uGUI `Toggle` + 居中 TMP label + 可选左侧 icon。经 TabBar 的 ToggleGroup 自动互斥。`bind="page_id"` 声明式在选中时显隐一个兄弟控件——通常 `<Frame>`；页里还要由代码切子视图时就是 `<Pages>`（lazy 解析缓存）；无 `bind=` → 只 fire `OnSelected`。接受嵌套子节点（Frame 式叠在 bg 上）；子节点默认就是穿透的（`raycastTarget` 默认 `false`），点击落到 Tab 自身的命中层。**A `hidden="true"` Tab is not a page switch**: while a visible tab is on, selecting a hidden one from code is refused with a warning — a page's sub-views switch inside the page (a `<Pages>` for code, a nested `<TabBar>` for the player), see [`reference/controls-tabs.md`](reference/controls-tabs.md#sub-views-inside-a-page---not-a-hidden-tab). 状态化视觉见 [`reference/states.md`](reference/states.md)；共享样式 / 动态卡详见 [`reference/controls-tabs.md`](reference/controls-tabs.md)。
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
 | `radius` · `borderWidth` · `glass` … | 同 `<Frame>` | — | **程序化表面**（背景）→ 见 **程序化表面** 一节 |
 | `text` | string | — | |
 | `isOn` | bool | `false` | |
-| `bind` | id | — | 选中显隐的兄弟 `<Frame>` |
+| `bind` | id | — | 选中时显隐的兄弟控件（通常 `<Frame>` / `<Pages>`） |
 | `color` | hex / CSS / token | — | `#00000000`=透明但可点 |
 | `font` | string | `default` | |
 | `fontSize` | float | — | |
@@ -697,6 +698,33 @@ Tab 容器；私有 `ToggleGroup`（默认 `allowSwitchOff=false`，见下表）
 动态行不走 `itemTemplate`（v1 没有）——把 `<ScrollList height="clamp(_, hug, N)">` 当 body 子节点用。
 `<Animation on="expand" reverse-on="collapse">` 让行跟着面板进出（`expand` / `collapse` 现在也解析到
 `<Collapsible>`，见 [`reference/animations.md`](reference/animations.md)）。
+
+### `<Pages>`
+
+N 选 1 容器（Qt `QStackedWidget` / Flutter `IndexedStack`）：**每个直接子节点是一页，同一时刻只有 `selected` 那页 active**，其余页被停用（不销毁，`Get<T>` 路径不变）。给**代码切换**的页内子视图用——列表 ↔ 详情、表单 ↔ 结果、`Tab.bind` 的页里再分几层。玩家点的互斥用 `<TabBar>`；带手势 / 指示点的用 `<Carousel>`。
+
+```xml
+<Pages id="shop" selected="list" anchor="stretch">      <!-- selected 缺省 = 第一页 -->
+  <Frame id="list"   anchor="stretch">…</Frame>
+  <Frame id="detail" anchor="stretch">…</Frame>       <!-- 页不写 hidden -->
+  <ShopCart id="cart"/>                                <!-- 模板调用当页：id 写在调用上 -->
+</Pages>
+```
+
+| 属性 | 类型 / 取值 | 默认 | 说明 |
+|---|---|---|---|
+| `selected` | 页 `id` | 第一页 | 初始页。**运行期独占状态**（同 `isOn` / `expanded`）：C# `Show()` 过之后 ReSolve 不打回；没动过时 `selected.portrait=` 照常覆盖（要有基础值，`PUI-VARIANT-NO-BASE`） |
+
+规则（lint 同名代码，运行时 warning）：
+
+- **每页必须有 `id`**（`PUI-PAGES-CHILD-ID`）：没有 id 的页选不中，永远停用。
+- **页不写 `hidden`**——含 `hidden.<variant>` 和 `class=` 带进来的（`PUI-PAGES-CHILD-HIDDEN`）。页的 activeSelf 归容器；声明的 `hidden` 会被每次 ReSolve 重放到容器之上，把选中页藏掉。想让某页在某变体下不出现 → `selected.<variant>=` 指别的页。
+- `selected`（基础值和每个变体值）必须是某页的 `id`（`PUI-PAGES-SELECTED`），否则第一页顶上。
+- 没有页（`PUI-PAGES-EMPTY`）；`<Add into="#pagesId">` 往 `<Pages>` 里加页不支持（`PUI-PAGES-ADD-TARGET`）：页是静态的，Add 块和容器会争同一个 activeSelf。
+- **纯容器**：没有 Graphic 也没有程序化表面，`color` / `sprite` / `radius` / `glass` 一律丢弃（`PUI-CONTAINER-VISUAL-ATTR`），`raycastTarget` 同理（`PUI-RAYCAST-TAG`）——要底就外面套 `<Frame>`。默认 anchor 同 `<Frame>`（没写 size 的轴 stretch）。不支持 `hug`（`PUI-HUG-TAG`，页是自由定位的）。
+- 页切换没有过渡动画（v1）；非初始页里的 `<Animation on="open">` 在页停用前就跑完了（同 `Tab.bind` 的页）。
+
+C# 侧：`screen.Get<Pages>("shop").Show("detail")` / `Selected` / `PageIds` / `OnSelectedChanged`，工具用 `screen.FindAll<Pages>()` 列出全部——见 scripting-promptugui-csharp → `Pages`。
 
 ### `<Carousel>`
 
@@ -840,6 +868,7 @@ Other notes:
 | `<Collapsible>` | `UnityImage`(面板底) + `VerticalLayoutGroup`(排 Header / Body) + `ExpandableMarker`；程序化表面挂在这一层 | `Header`(`UnityImage` + `PuiButton` + `LayoutElement`) → `Icon` / `Label` / `Arrow`(+`RotateFlipEffect`) / `Host`(`<Header>` 槽,懒建)；`Body`(`RectMask2D` + `CanvasGroup` + `HugElement` + `LayoutLink`,按需 `ScrollRect`) → `Content`(`VerticalLayoutGroup` + `ContentSizeFitter`) | `OnExpanded` / `OnCollapsed` / `OnToggled: bool`；`OnState` ← Header 的 `PuiButton` |
 | `<Tab>`        | `UnityImage`（bg, `targetGraphic`, supports `overrideSprite` swap while selected）+ `UnityToggle`（`graphic` 未设；配 `selectedSprite` 时 `transition=None`，否则 `transition=ColorTint`）；Toggle 的 `group` 在 `OnAttached` 用 transform-ancestor walk 找 TabBar 的 `ToggleGroup` | 可选 `Label`(`TMP_Text`, stretch fill, `Center` 对齐, raycast off, 懒建—写了 `text`/`fontSize`/`font` 才有)；可选 `Icon`(`Image`, 左 16px + 24×24, 懒建)；外加任意作者子节点（Frame 式叠放在 bg 上）；无 Overlay 自动子节点 | `OnValueChanged: bool` / `OnSelected: Unit`（只在 isOn=true 时 fire）                                                       |
 | `<SafeArea>`   | `RectTransform` + `SafeAreaTracker`（内部 `MonoBehaviour`，订阅设备 safeArea / 旋转 / Device Simulator）                                                                                                                                                       | —                                                                                                                                                                                                                                                                                      | —                                                                                                                           |
+| `<Pages>`      | `RectTransform` 单独（无视觉、无 layout 组件）；直接子节点即页，容器只切它们的 activeSelf（Open 期的停用延到量算之后，同 `Tab.bind`）                                                                                                                          | —                                                                                                                                                                                                                                                                                      | `OnSelectedChanged: string`（新页 id；含 Variant 重应用，同值不发）                                                          |
 | `<Trigger>`    | `RectTransform` 单独（无视觉、无 layout 行为，仅作 wrapper 划定事件源 scope）                                                                                                                                                                                  | —                                                                                                                                                                                                                                                                                      | `OnFire` ← R3 `Subject<Unit>`，由 `on=`（open/loop/click/hover-enter/hover-exit/press/manual）触发                          |
 | `<Animation>`  | `RectTransform` + `CanvasGroup`（继承自 Trigger；CanvasGroup 给 `fade=` 用，由 `ApplyCommon` 懒加载）                                                                                                                                                          | `_offsetProxy`(`RectTransform`，anchor stretch、margin=0、pivot=0.5,0.5) — XML 子节点全 parent 到这一层；LitMotion 驱动它的 anchoredPosition / localScale / localEulerAngles；`reveal=` 另在 LayoutHost 上挂 `RectMask2D`(非静止时 enabled) 并写该轴的 `LayoutElement` / `sizeDelta`                                                                                                           | `OnFire` ← 继承 Trigger；同时由 `on=` 触发 LitMotion `MotionHandle[]`                                                       |
 | `<Show>`       | `RectTransform` 单独（继承自 Trigger；无视觉、无 layout）— 仅是一个按状态 `SetActive` 切换的 wrapper                                                                                                                                                           | —（作者子节点直接挂在它下面，整组随状态显隐）                                                                                                                                                                                                                                          | `OnFire` ← 继承 Trigger；不订阅 `OnState`，由最近 `<Btn>`/`<Tab>`/`<Toggle>` 祖先（`IStateSource`）的状态协调器统一驱动显隐 |
@@ -1732,7 +1761,7 @@ PromptUGUI never auto-enables masking — you must opt in via `mask=`. Two reaso
 
 ## Tabs
 
-`<TabBar>` + `<Tab>`：互斥选项卡容器，`bind=` 声明式显隐兄弟 `<Frame>`，`selectedSprite` 单图换 `overrideSprite`，`isOn` 运行期独占，支持 `itemTemplate` + `BindItems`。属性见上方 **Built-in primitives** 目录的 `<TabBar>` / `<Tab>` 行；状态色见 [`reference/states.md`](reference/states.md)。**写自定义 Tab 布局 / 共享 Template / 查 lint 规则前，先读 [`reference/controls-tabs.md`](reference/controls-tabs.md)。** One Tab = one entry the bar shows: a page's inner views (list ↔ detail) are **not** extra hidden Tabs — they switch inside the page (sibling `<Frame>`s toggled via `Hidden`, or a nested `<TabBar>`); see *Sub-views inside a page* in that file.
+`<TabBar>` + `<Tab>`：互斥选项卡容器，`bind=` 声明式显隐一个兄弟控件（`<Frame>`，或页内还要代码切子视图时的 `<Pages>`），`selectedSprite` 单图换 `overrideSprite`，`isOn` 运行期独占，支持 `itemTemplate` + `BindItems`。属性见上方 **Built-in primitives** 目录的 `<TabBar>` / `<Tab>` 行；状态色见 [`reference/states.md`](reference/states.md)。**写自定义 Tab 布局 / 共享 Template / 查 lint 规则前，先读 [`reference/controls-tabs.md`](reference/controls-tabs.md)。** One Tab = one entry the bar shows: a page's inner views (list ↔ detail) are **not** extra hidden Tabs — they switch inside the page (sibling `<Frame>`s toggled via `Hidden`, or a nested `<TabBar>`); see *Sub-views inside a page* in that file.
 
 ## Common mistakes (XML)
 

@@ -311,6 +311,7 @@ await UI.Locale.SetAsync("en");   // 等下载 + 重刷完成（之后要立刻�
 1. **要背景就直接拿 `<Image>` 当容器**（它能放子节点，少一层）。
 2. **Flow 布局可使用`HStack`/`VStack`**，且支持stretch权重，反之就是自由定位。
 3. **各种stretch：** Flow 布局用 `width="stretch"`（`stretch*2` 加权）；自由定位用 `anchor="X-stretch"` + margin，或 `width="50%"`。
+4. **由代码切换的几个视图（列表 ↔ 详情、表单 ↔ 结果）放进 `<Pages selected="…">`**——直接子节点即页、同一时刻只有一页 active，C# 用 `screen.Get<Pages>("id").Show("detail")` 切。别用几个兄弟 `<Frame>` 叠着切 `Hidden`：声明的 `hidden` 每次 ReSolve 都会被重放，预览 XML 时还全叠在一起。
 
 ```xml
 <HStack anchor="top-stretch" height="24" margin="_,6,_,_"
