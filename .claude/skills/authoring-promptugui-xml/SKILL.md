@@ -415,12 +415,12 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 | `<Toggle>` | **勾选框**（不含 label） |
 | `<Slider>` | **轨道**（不含滑块） |
 | `<Scrollbar>` | **轨道**（滑块走 `handle*`，见下） |
-| `<Progress>` | **bg 层**（在 mask 内） |
+| `<Progress>` | **The fill** (the filled segment) — its bitmap is `fill=`, its colour `fillColor`. The track (`bg` / `bgColor`) only borrows `radius`; a track that wants border / glass / glow of its own is a `<Frame>` wrapped around the bar. Note the split from `<Slider>`: `<Slider glow>` lights the track, `<Progress glow>` lights the fill. |
 
 规则：
 
-- `color`（Progress 是 `bgColor`）成为 SDF 的填充色；不写就沿用控件自带的默认底色，所以 `<Btn radius="8">` 是个圆角按钮而不是隐形按钮。
-- `sprite` 是**矛盾声明**（`PUI-PROC-SPRITE-CONFLICT`）；`sprite="none"` / `""` 不算 —— 那是「清掉贴图」，跟走程序化一致。同一条规则**按层**推广到内层：`<Slider fill= fillRadius=>` / `<Slider handle= handleRadius=>` / `<Progress fill= fillRadius=>` / `<Progress frame= frameRadius=>` / `<Scrollbar handle= handle*>` 各自也是矛盾（层与层之间不互相牵连）。
+- `color`（Progress 是 `fillColor`）成为 SDF 的填充色；不写就沿用控件自带的默认底色，所以 `<Btn radius="8">` 是个圆角按钮而不是隐形按钮。
+- `sprite` 是**矛盾声明**（`PUI-PROC-SPRITE-CONFLICT`）；`sprite="none"` / `""` 不算 —— 那是「清掉贴图」，跟走程序化一致。同一条规则**按层**推广到内层：`<Slider fill= fillRadius=>` / `<Slider handle= handleRadius=>` / `<Progress frame= frameRadius=>` / `<Scrollbar handle= handle*>` 各自也是矛盾（层与层之间不互相牵连）。On `<Progress>` the primary surface's bitmap is `fill=`, so `<Progress fill="ui:bar" glow="4">` is the conflict — **except `radius`**: over a bitmap fill it goes to the clip mask instead (see below), never to the fill.
 - `pressedSprite` / `disabledSprite` / `selectedSprite` 同样矛盾（`PUI-PROC-STATE-SPRITE-CONFLICT`）：它们换的是 `Image.overrideSprite`，SDF 面上没有那个东西。改用 `pressedColor` / `disabledColor` / `selectedColor` 或 `<Show on="state-*">`。
 - `hoverColor` 等状态色**照常生效**（`targetGraphic` 跟着表面走）。**例外 `<Slider>` 与 `<Scrollbar>`**：它们的 `targetGraphic` 留在滑块上，因为会响应 hover/press 的本来就是滑块而不是轨道（`<Scrollbar>` 的滑块自己走程序化时，target 再跟着滑块的面板走）。
 - 禁用态自动去饱和、玻璃另外变薄，**形状保持**。
@@ -432,19 +432,26 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 | 控件 | 内层属性 |
 |---|---|
 | `<Slider>` | `fillRadius`（已填充段）· `handleRadius`（滑块，`pill` = 圆钮）|
-| `<Progress>` | `fillRadius` · `frameRadius` · `maskRadius`（把 bg + fill 一起裁）|
+| `<Progress>` | `frameRadius` · `maskRadius`（clips bg + a **bitmap** fill together）。The fill is not an inner layer here — it is the primary surface, so there is no `fillRadius` (`PUI-PROG-RETIRED-ATTR`; write `radius`) |
 | `<Scrollbar>` | `handleRadius` · **`handleBorderWidth` · `handleBorderColor` · `handleGlow` · `handleGlowColor`** —— 唯一一个内层给到描边和外发光的地方：HUD 风格滚动条的发光滑块就是这个部件存在的理由，而滑块又是滚动条唯一的「内容」。仍然没有玻璃 |
 
-**内层不给玻璃**，这不是为了省属性而是语义问题：backdrop 采集不含 UI 自身，所以压在玻璃轨道上的玻璃 fill 采的是同一张 backdrop，两层长得一模一样、进度条直接消失。颜色那一半 `fillColor` / `handleColor` 早就支持 token / `/alpha` / 渐变。
+**内层不给玻璃**，这不是为了省属性而是语义问题：backdrop 采集不含 UI 自身，所以压在玻璃轨道上的玻璃 fill 采的是同一张 backdrop，两层长得一模一样、进度条直接消失。颜色那一半 `fillColor` / `handleColor` 早就支持 token / `/alpha` / 渐变。(`<Progress glass>` is fine — its fill is the primary surface and its track cannot be glass, so the two never sample the same backdrop; the glass fill shows the scene behind the canvas, not the `bgColor` under it.)
 
-**`<Progress radius=>` 会自动把 mask 也圆掉。** `radius` 本身只管 bg 那一层，而 fill 是压在上面的另一张方角 Image —— 单靠它进度条会只有尾端是圆的。所以 `maskRadius` 不写时**自动跟随 `radius`**（同 `<ScrollList mask>` 跟随 bg sprite 的既有规约），bg 与 fill 一起被裁成同一形状，fill 的推进边保持方的。显式写 `maskRadius`（含 `""`）退出跟随；与 `mask=` 互斥（`PUI-PROG-MASK-RADIUS-CONFLICT`）。
+**`<Progress radius=>` is the bar's shape.** Three consumers share it: the **fill** takes it as its own SDF corner whenever it is not a bitmap (a plain `fillColor` fill goes procedural for it), the **colour bg** takes it through a surface of its own (a bitmap bg keeps its baked corners), and a **bitmap fill** — which cannot round itself — rounds through the auto-tracked clip mask on `MaskWrapper` (`maskRadius` follows `radius`, the way `<ScrollList mask>` follows its bg sprite; write `maskRadius` — `""` included — to opt out; `mask=` sprite and `maskRadius` are exclusive, `PUI-PROG-MASK-RADIUS-CONFLICT`). No mask is ever auto-built over a procedural fill: it has its radius, and a stencil would clip its glow.
+
+**A procedural fill is the whole bar, cut at `value` in the shader.** Its rect stays full-size; `value` becomes a cut inside the SDF, so the border / inner glow / haze follow the cut edge, and the outer glow wraps it and escapes the track on every side — nothing is stencil-clipped. `mode` picks the cut, with the same meaning it has for a bitmap fill: **`scale`** (default) shrinks the fill's shape itself to the value — the radius clamps to the shorter box, so a pill bar keeps a **round leading end** (a stretched 9-slice keeps both rounded ends the same way); **`fill`** crops it with a half-plane — a **straight leading edge** (`Image.fillAmount`'s look). In both, a gradient `fillColor` is laid along the whole bar and cropped, so 30 % shows the first 30 % of the ramp; `value="0"` draws nothing at all, not even the glow. A `value` tween only re-emits four vertices — no layout, no material.
 
 ```xml
-<Progress value="0.6" radius="14" bgColor="#22345a" fillColor="#ffcc33"/>   <!-- 两端都圆 -->
+<Progress value="0.6" radius="14" bgColor="#22345a" fillColor="#ffcc33"/>   <!-- 两端都圆 — fill and bg round themselves -->
+<Progress value="0.6" radius="pill" bgColor="#0b1a33"
+          fillColor="to right, hud-edge-cyan, #3cf" glow="6" glowColor="hud-edge-cyan/0.6"
+          haze="10" hazeColor="to top, white/0.5, white/0"/>                  <!-- HUD bar: glow spills past the track -->
+<Frame radius="pill" glass="true" borderWidth="1" borderColor="white/0.3" height="20">
+  <Progress anchor="stretch" margin="2,2,2,2" value="0.6" radius="pill" fillColor="accent" glow="4"/>
+</Frame>                                                                        <!-- a dressed track: wrap a Frame -->
+<Progress value="0.4" radius="8" fill="ui:bar" bgColor="#222"/>                <!-- bitmap fill: radius goes to the mask -->
 <Slider radius="pill" fillRadius="pill" handleRadius="pill" handleColor="#fff"/>
 ```
-
-`fillRadius` 与 `<Progress mode="fill">` **不能共存**（`PUI-PROG-FILL-RADIUS-MODE`）：那个模式靠 `Image.fillAmount` 画填充，SDF 面没有对应物。默认的 `mode="scale"` 是改锚点，没问题。
 
 ### `<Toggle>`
 
@@ -597,13 +604,15 @@ TMP_InputField；R3 `OnValueChanged` / `OnEndEdit` / `OnSubmit: string`。`<Inpu
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
-| `radius` · `fillRadius` · `frameRadius` · `maskRadius` | 同 `<Frame>` 的 radius | — | **程序化表面**：`radius` 管 bg 层并自动圆化 mask（两端都圆）→ 见 **程序化表面** 一节 |
+| `radius` | as `<Frame>` radius | — | **The bar's shape**, shared three ways: the fill's SDF corner (when the fill is not a bitmap), the colour bg's corner, and — for a bitmap fill — the clip mask's (`maskRadius` auto-tracks it). → **程序化表面** |
+| `borderWidth` `borderColor` `glow` `glowColor` `innerGlow` `innerGlowColor` `intensity` `haze` `hazeColor` `hazeDrift` `hazeDensity` `glass` (+ glass params) | as `<Frame>` | — | **The fill is the primary surface**: every one of these lands on the filled segment, which is cut at `value` inside the SDF — the glow escapes the track and wraps the leading edge. A track that wants a border / glass of its own is a `<Frame>` around the bar. → **程序化表面** |
+| `frameRadius` · `maskRadius` | as `radius` | — | Inner-layer corners: the frame's; the clip mask's (only a bitmap fill needs one — over a procedural fill it clips the glow, `PUI-PROG-MASK-CLIPS-GLOW`) |
 | `value` | float `[0..1]` | `0` | |
 | `fill` · `bg` · `frame` · `mask` | sprite key | — | 各图层 sprite |
 | `fillColor` | hex / CSS / token | — | |
 | `bgColor` | hex / CSS / token | — | 单独设也激活 bg 层 |
 | `frameColor` | hex / CSS / token | — | 单独设也激活 frame 层 |
-| `mode` | `scale` / `fill` | `scale` | |
+| `mode` | `scale` / `fill` | `scale` | The same word for both kinds of fill: `scale` = the shape shrinks to the value (bitmap rect anchored / SDF box shrunk — round leading end on a pill), `fill` = cropped at the value (`Image.fillAmount` / half-plane — straight edge) |
 | `direction` | `horizontal` / `vertical` / `reverse-horizontal` / `reverse-vertical` | `horizontal` | |
 | `tint` | `multiply` / `linear` | — | 作用于 fill+bg+frame；见 **Tint blend modes** |
 

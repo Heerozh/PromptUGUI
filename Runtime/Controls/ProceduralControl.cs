@@ -73,6 +73,19 @@ namespace PromptUGUI.Controls
         /// </summary>
         private protected bool SurfaceIsDrawing => _surface != null && _surface.IsActive;
 
+        /// <summary>The primary surface's panel if one was ever built, else null — same no-allocation rule.</summary>
+        private protected ProceduralPanel SurfacePanelOrNull => _surface?.Panel;
+
+        /// <summary>
+        /// Where <c>radius</c> goes. Every control declares it on the primary surface as it
+        /// arrives; <c>&lt;Progress&gt;</c> overrides to hold it until <c>OnAfterApply</c> — the
+        /// bar's corner is shared between its fill, its colour bg and its clip mask, and which of
+        /// them takes it depends on whether <c>fill=</c> carried a bitmap, which may be written
+        /// later in the same pass (attribute order is unspecified). Spec 2026-09-18 §5.1.
+        /// </summary>
+        private protected virtual void DeclareRadius(RadiusSpec radius)
+            => Surface.Declare(p => p.SetRadius(radius));
+
         internal override void OnBeforeApply()
         {
             base.OnBeforeApply();
@@ -105,7 +118,7 @@ namespace PromptUGUI.Controls
             {
                 var v = RadiusParser.Parse(value);
                 DeclaredRadius = v;
-                Surface.Declare(p => p.SetRadius(v));
+                DeclareRadius(v);
             }
         }
 

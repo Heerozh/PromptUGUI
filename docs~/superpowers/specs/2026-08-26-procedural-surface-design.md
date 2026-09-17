@@ -94,6 +94,8 @@ Btn (GameObject)
 
 **内层**（Slider 的 fill/handle、Progress 的 fill/frame、Dropdown 的 arrow/popup/scrollbar、Toggle 的 checkmark）**只拿 `<layer>Radius`**。
 
+> 2026-09-18 起 Progress 的 fill **不再是内层**：它成为主表面、拿全套属性，`fillRadius` 退役，见 [`2026-09-18-progress-fill-surface-design.md`](2026-09-18-progress-fill-surface-design.md)。
+
 命名不用新发明 —— `Slider.cs` 的注释已经把规约写死了：「内部图层：与 `<Progress>` 同一套命名规约 —— 每层一对 `<layer>` (sprite) + `<layer>Color`」。今天 Slider 是 `sprite`/`color`（轨道）、`fill`/`fillColor`、`handle`/`handleColor`；Progress 是 `bg`/`bgColor`、`fill`/`fillColor`、`frame`/`frameColor`、`mask`。于是新增就是 `fillRadius` / `handleRadius` / `frameRadius`：**Slider +2、Progress +2**。
 
 **为什么内层不给玻璃**（这不是为了省属性，是语义上就不对）：backdrop 采集**不含 UI 自身**（`WarnOnBackdropFeedbackLoop` 说的就是这件事）。所以压在玻璃轨道上的玻璃 Fill 采的是**同一张 backdrop**，两层长得一模一样 —— 进度条会直接消失。内层真正缺的是形状；颜色那一半 `fillColor` / `handleColor` 早就支持 token / `/alpha` / 渐变了。
@@ -241,7 +243,7 @@ clip(maskCoverage - 0.5);
 
 **13.2 `weld` 不跨控件。** weld 的成员是同一个 carrier 的**直接子级**，而各控件的 `__surface__` 分属不同父节点。作为特例背景保留现状，**不做**自动跨控件融合。
 
-**13.3 `Progress` 纳入。** 它的 bg / fill 默认就没有贴图（纯色层），本来就算「已经是程序化的一种」。主表面 = `MaskWrapper/Bg`，内层按 §6 给 `fillRadius` / `frameRadius`，圆角走 `maskRadius`。
+**13.3 `Progress` 纳入。**（主表面已按 2026-09-18 spec 改为 `MaskWrapper/Fill`，下文是当时的决定。）它的 bg / fill 默认就没有贴图（纯色层），本来就算「已经是程序化的一种」。主表面 = `MaskWrapper/Bg`，内层按 §6 给 `fillRadius` / `frameRadius`，圆角走 `maskRadius`。
 
 **13.4 `mask="self"`** —— 见 §9，独立成节。
 

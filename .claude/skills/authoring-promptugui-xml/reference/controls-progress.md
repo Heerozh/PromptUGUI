@@ -39,29 +39,75 @@ Radial fill（冷却环）不在 `<Progress>` 范围；以后用单独的 `<Cool
 <Progress bg="ui:track" bg.mobile=""/>   <!-- 手机上不要底图，直接关掉该图层 -->
 ```
 
-## 程序化圆角：`radius` / `fillRadius` / `frameRadius` / `maskRadius`
+## The fill is the primary surface (spec 2026-09-18)
 
-`radius=` 走的是主表面 = **bg 层**。但 fill 是压在 bg 之上的另一张方角 Image，所以**单靠 `radius`
-进度条只有尾端是圆的**。
-
-因此 **`maskRadius` 不写时自动跟随 `radius`** —— 同 `<ScrollList mask>` 跟随 bg sprite、
-`<Dropdown popupMask>` 跟随 `popupSprite` 的既有规约。mask 挂在 `MaskWrapper` 上，bg 和 fill 同为
-它的子级，于是两层一起被裁成同一形状，而 fill 的推进边保持方的 —— 那正是进度条该有的观感。
+Every procedural attribute — `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` /
+`innerGlow` / `innerGlowColor` / `intensity` / `haze` (+ `hazeColor` / `hazeDrift` / `hazeDensity`) /
+`glass` (+ its parameters) — lands on the **filled segment**. `fill` / `fillColor` are that surface's
+bitmap and colour. The track is `bg` / `bgColor` (+ `radius`, see below) and nothing more: a track
+that wants a border, a glow or glass of its own is a `<Frame>` wrapped around the bar. (This is the
+one place the vocabulary splits from `<Slider>`, whose `glow` lights the track.)
 
 ```xml
-<Progress value="0.6" radius="14" bgColor="#22345a" fillColor="#ffcc33"/>   <!-- 两端都圆 -->
-<Progress value="0.6" maskRadius="14" fillColor="#ffcc33"/>                 <!-- 只裁不画底 -->
-<Progress value="0.6" radius="14" maskRadius="" bgColor="#22345a"/>         <!-- 退出跟随：尾端圆 -->
+<!-- HUD energy bar: colour pill track, glowing gradient fill, fog along the bottom -->
+<Progress value="0.6" radius="pill" bgColor="#0b1a33"
+          fillColor="to right, hud-edge-cyan, #3cf" glow="6" glowColor="hud-edge-cyan/0.6"
+          haze="10" hazeColor="to top, white/0.5, white/0" borderWidth="0.5" borderColor="white/0.4"/>
+
+<!-- a dressed track: the Frame is the track, the Progress draws only its fill -->
+<Frame radius="pill" glass="true" borderWidth="1" borderColor="white/0.3" height="20">
+  <Progress anchor="stretch" margin="2,2,2,2" value="0.6" radius="pill" fillColor="accent" glow="4" intensity="1.4"/>
+</Frame>
 ```
 
-- 程序化 mask 是**纯裁剪器**（`showMaskGraphic=false`），底由 `bgColor` 负责。sprite 版 `mask=`
-  保留它原有的双重身份（没写 bg 时 mask sprite 兼当底，见下表）。
-- 与 `mask=` **互斥**：一个 GameObject 上只能有一个 Graphic，sprite 赢，radius 被静默丢弃 ——
-  `PUI-PROG-MASK-RADIUS-CONFLICT`。
-- `fillRadius` 与 `mode="fill"` **不能共存**（`PUI-PROG-FILL-RADIUS-MODE`）：那个模式靠
-  `Image.fillAmount` 画填充，SDF 面没有对应物。默认 `mode="scale"` 改的是锚点，没问题。
-- 内层只给 `<layer>Radius`，不给玻璃 —— backdrop 采集不含 UI 自身，玻璃 fill 压在玻璃 bg 上会采到
-  同一张图、两层长得一样。
+### A procedural fill is the whole bar, cut at `value` in the shader
+
+The fill's rect stays full-size; `value` becomes a cut inside the SDF — the shape's box shrunk to the
+value, or a half-plane intersection (`d = max(d, dot(p, n) − e)`) — and everything the panel draws
+derives from that `d`:
+
+- `mode="scale"` (default): the fill's **shape shrinks** to the value — the radius clamps to the shorter
+  box, so a pill bar's leading end is a half-circle, and 5 % of it is a thin capsule hugging the start
+  edge (a stretched 9-slice keeps both rounded ends the same way); `mode="fill"`: a half-plane crop —
+  the **leading edge is straight**, the start end keeps its `radius` (`Image.fillAmount`'s look);
+- border, inner glow and haze stop at the cut; the **outer glow wraps the cut edge** and escapes the
+  track on every side — no stencil is involved, so nothing clips it (`value="0.1"` is a glowing sliver);
+- a gradient `fillColor` is laid along the **whole bar** and cropped — 30 % shows the first 30 % of
+  the ramp, as `Image.Filled` would;
+- `direction` picks the axis and sense of the cut; `mode` picks its style (above) — neither touches the
+  rect;
+- `value="0"` draws **nothing** — not even the glow along the start edge; `value="1"` is the uncut shape;
+- a `value` tween re-emits four vertices: no layout pass, no material change (the cut rides the vertex
+  channels, so bars sharing a `class=` still share one material).
+
+`glass` on the fill is allowed: the track cannot be glass, so the two never sample the same backdrop.
+A glass fill shows the **scene behind the canvas**, not the `bgColor` beneath it.
+
+### `radius` is the bar's shape — three consumers
+
+| the fill is… | the fill | the bg | the clip mask |
+|---|---|---|---|
+| **not a bitmap** (`fillColor` only, or `fill=""` / `none`) | takes `radius` as its own SDF corner (a plain colour fill goes procedural for it) | a colour bg takes it through a surface of its own; a bitmap bg keeps its baked corners | **none is built** — a stencil here would clip the glow |
+| **a bitmap** (`fill="ui:bar"`) | keeps the bitmap — `radius` alone never retires it (any other procedural attribute does: `PUI-PROC-SPRITE-CONFLICT`) | as above | **auto-tracks `radius`** (`maskRadius` unset), clipping bg + fill together with the fill's leading edge square — the way `<ScrollList mask>` follows its bg sprite |
+
+```xml
+<Progress value="0.6" radius="14" bgColor="#22345a" fillColor="#ffcc33"/>   <!-- both ends round: fill and bg round themselves -->
+<Progress value="0.6" radius="14" fill="ui:bar" bgColor="#22345a"/>         <!-- bitmap fill: clipped by the auto-tracked mask -->
+<Progress value="0.6" radius="14" fill="ui:bar" maskRadius=""/>             <!-- opt out: the bitmap keeps its square leading corner -->
+<Progress value="0.6" maskRadius="14" fill="ui:bar"/>                        <!-- clip only, no track -->
+```
+
+- The procedural mask is a **pure clipper** (`showMaskGraphic=false`); the track is `bgColor`. A
+  sprite `mask=` keeps its dual role (with no bg it doubles as the track, table below).
+- `mask=` and `maskRadius` are **exclusive**: one Graphic per GameObject, the sprite wins —
+  `PUI-PROG-MASK-RADIUS-CONFLICT`.
+- An explicit `mask=` / `maskRadius=` over a procedural fill is honoured, but it clips the glow —
+  `PUI-PROG-MASK-CLIPS-GLOW` when the fill declares `glow`. Drop the mask: a procedural fill rounds itself.
+- `radius` with no `bgColor` leaves the bg layer **off** — a rounded fill over nothing, not a white track.
+- `fillRadius` is **retired** (`PUI-PROG-RETIRED-ATTR`): the fill is the primary surface, `radius` is its
+  corner. `<Slider fillRadius>` is unaffected, so a shared skin pack that carries it is reported only on the
+  `<Progress>` that wears it.
+- `frameRadius` stays: the frame is still an inner layer with a corner of its own.
 
 ## mask × bg 四种组合
 
@@ -84,3 +130,7 @@ Radial fill（冷却环）不在 `<Progress>` 范围；以后用单独的 `<Cool
 | `PUI-PROG-CHILDREN`     | `<Progress>` 包含子元素                                                       | error   |
 | `PUI-PROG-MASK-VARIANT` | `mask` 出现在 Variant 覆盖里                                                  | error   |
 | `PUI-PROG-NO-FILL`      | `value` 有值但 `fill`/`fillColor` 均未设                                      | warning |
+| `PUI-PROG-MASK-RADIUS-CONFLICT` | `mask=` sprite together with `maskRadius` — one Graphic per node, the sprite wins | error |
+| `PUI-PROG-MASK-CLIPS-GLOW` | an explicit `mask=` / `maskRadius=` over a procedural fill that declares `glow` — the stencil eats the glow | warning |
+| `PUI-PROG-RETIRED-ATTR` | `fillRadius` on a `<Progress>` (directly or via `class=`) — write `radius`; the runtime drops it silently | error |
+| `PUI-PROC-SPRITE-CONFLICT` | `fill="ui:x"` together with any procedural attribute other than `radius` — the SDF wins, the bitmap stands down | error |

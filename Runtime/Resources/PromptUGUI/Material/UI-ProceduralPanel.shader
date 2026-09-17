@@ -140,7 +140,7 @@ Shader "UI/ProceduralPanel"
                 float4 vertex   : POSITION;
                 float4 color    : COLOR;
                 float2 texcoord : TEXCOORD0;   // rect 局部坐标（以中心为原点，像素）
-                float2 texcoord1: TEXCOORD1;   // rect 半尺寸（像素）
+                float4 texcoord1: TEXCOORD1;   // xy = rect 半尺寸（像素）, zw = 进度裁切 (code, e)，见 PuguiSdCut
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -150,6 +150,7 @@ Shader "UI/ProceduralPanel"
                 fixed4 color         : COLOR;
                 float4 shape         : TEXCOORD0;   // xy = 局部坐标, zw = 半尺寸
                 float4 worldPosition : TEXCOORD1;
+                float2 cut           : TEXCOORD2;   // 进度裁切 (code, e)；code 0 = 不切
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
@@ -183,7 +184,8 @@ Shader "UI/ProceduralPanel"
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(OUT);
                 OUT.worldPosition = v.vertex;
                 OUT.vertex = UnityObjectToClipPos(OUT.worldPosition);
-                OUT.shape = float4(v.texcoord, v.texcoord1);
+                OUT.shape = float4(v.texcoord, v.texcoord1.xy);
+                OUT.cut = v.texcoord1.zw;
                 OUT.color = v.color;
                 return OUT;
             }
@@ -193,9 +195,14 @@ Shader "UI/ProceduralPanel"
                 float2 p = IN.shape.xy;
                 float2 b = IN.shape.zw;
 
-                PuguiQuad corner = PuguiResolveQuad(p, b, _CornerKind, _Radius,
+                // 进度裁切（spec 2026-09-18 §5.2）：round 形态先把盒子缩到切线（pS / bS），flat 形态
+                // 在 SDF 上做半平面交集；两者都在求导之前，下面每一层看到的都是切完的形状。渐变仍用
+                // 原 p / b —— ramp 铺满整条，裁的是形状不是颜色。
+                float2 pS = p, bS = b;
+                PuguiCutShrink(IN.cut.x, IN.cut.y, pS, bS);
+                PuguiQuad corner = PuguiResolveQuad(pS, bS, _CornerKind, _Radius,
                                                        _CornerH, _CornerFillet, _Shape, _HexW);
-                float d = PuguiSdPanel(p, b, corner);
+                float d = PuguiSdCut(PuguiSdPanel(pS, bS, corner), p, IN.cut.x, IN.cut.y);
                 float fw = max(fwidth(d), 1e-4);
 
                 float inside = saturate(0.5 - d / fw);

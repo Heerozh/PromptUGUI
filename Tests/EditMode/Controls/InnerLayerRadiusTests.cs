@@ -20,12 +20,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
     /// the two come out identical, erasing the bar. The colour half is already covered by the
     /// existing <c>fillColor</c> / <c>handleColor</c> pairs.</para>
     ///
-    /// <para><b>Progress rounds through its mask, not its fill.</b> <c>radius=</c> shapes the bg, and
-    /// the fill is a separate square-cornered Image on top of it, so a bar shaped that way is rounded
-    /// only at its trailing end. The fix is to clip bg and fill together, which is what the mask on
-    /// <c>MaskWrapper</c> is for — so <c>maskRadius</c> auto-tracks <c>radius</c>, exactly the way
-    /// <c>&lt;ScrollList mask&gt;</c> auto-tracks its bg sprite and <c>&lt;Dropdown popupMask&gt;</c>
-    /// tracks <c>popupSprite</c>.</para>
+    /// <para><b>Progress is the exception since spec 2026-09-18:</b> its fill IS the primary surface,
+    /// so it has no <c>fillRadius</c> — <c>radius</c> is the bar's corner, and a BITMAP fill still
+    /// rounds through the auto-tracked mask on <c>MaskWrapper</c> (the way <c>&lt;ScrollList mask&gt;</c>
+    /// tracks its bg sprite). The procedural fill is covered by <c>ProgressFillSurfaceTests</c>.</para>
     /// </summary>
     public class InnerLayerRadiusTests
     {
@@ -108,16 +106,6 @@ namespace PromptUGUI.Tests.EditMode.Controls
         // ===== Progress =====
 
         [Test]
-        public void Progress_FillRadius_ShapesTheFill()
-        {
-            var p = Load("Progress", "fillRadius='6' fillColor='#ffcc33' value='0.6'");
-
-            var panel = SurfaceUnder(p, "MaskWrapper/Fill");
-            Assert.IsNotNull(panel);
-            Assert.AreEqual(6f, panel.CurrentParams.CornerWidth.x);
-        }
-
-        [Test]
         public void Progress_FrameRadius_ShapesTheFrame()
         {
             var p = Load("Progress", "frameRadius='10' frameColor='#ffd56b'");
@@ -127,12 +115,12 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 "asking the frame for a shape has to switch the layer on, same as frameColor does");
         }
 
-        // ===== Progress: the mask is how a bar gets rounded end to end =====
+        // ===== Progress: the mask is how a BITMAP bar gets rounded end to end =====
 
         [Test]
-        public void Progress_Radius_AutoTracksTheMask()
+        public void Progress_Radius_AutoTracksTheMask_ForABitmapFill()
         {
-            var p = Load("Progress", "radius='12' bgColor='#22345a' fillColor='#ffcc33' value='0.6'");
+            var p = Load("Progress", "radius='12' bgColor='#22345a' fill='PromptUGUI/Defaults/pugui#pugui_9slice_round' value='0.6'");
             var wrapper = p.GameObject.transform.Find("MaskWrapper").gameObject;
 
             var mask = wrapper.GetComponent<UnityEngine.UI.Mask>();
@@ -194,7 +182,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             Assert.IsTrue(slider.HasAttribute("fillRadius"));
             Assert.IsTrue(slider.HasAttribute("handleRadius"));
-            Assert.IsTrue(progress.HasAttribute("fillRadius"));
+            Assert.IsFalse(progress.HasAttribute("fillRadius"), "retired: the fill is the primary surface, radius is its corner");
             Assert.IsTrue(progress.HasAttribute("frameRadius"));
             Assert.IsTrue(progress.HasAttribute("maskRadius"));
 
@@ -208,21 +196,54 @@ namespace PromptUGUI.Tests.EditMode.Controls
         // ===== lint =====
 
         [Test]
-        public void Progress_ModeFill_WithFillRadius_IsAConflict()
+        public void Progress_FillRadius_IsRetired()
         {
             Assert.IsTrue(
-                Has(Walk("<Progress id='p' mode='fill' fillRadius='6'/>"),
-                    ProgressAttributeRules.FillRadiusModeCode),
-                "mode='fill' drives Image.type=Filled + fillAmount, which a ProceduralPanel has no "
-                + "equivalent for — this one genuinely cannot work");
+                Has(Walk("<Progress id='p' fillRadius='6'/>"), ProgressAttributeRules.RetiredAttrCode),
+                "the fill is the primary surface (spec 2026-09-18): radius IS the fill's corner");
+            Assert.IsFalse(
+                Has(Walk("<Slider id='s' fillRadius='6'/>"), ProgressAttributeRules.RetiredAttrCode),
+                "Slider's fill is still an inner layer with its own radius");
         }
 
         [Test]
-        public void Progress_ModeScale_WithFillRadius_IsFine()
+        public void Progress_FillRadius_ViaClass_IsRetiredToo()
         {
+            var xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Style name='bar' fillRadius='6'/><Screen name='S'>
+<Progress id='p' class='bar'/>
+</Screen></PromptUGUI>";
+            Assert.IsTrue(Has(IRWalker.Walk(UIDocumentParser.Parse(xml)).ToList(), ProgressAttributeRules.RetiredAttrCode),
+                "a skin pack carrying the old attribute is the case that bites in practice");
+        }
+
+        [Test]
+        public void Progress_ModeFill_WithRadius_IsFine()
+        {
+            // The old PUI-PROG-FILL-RADIUS-MODE contradiction is gone: a procedural fill is cut in
+            // the shader whatever mode says.
+            var issues = Walk("<Progress id='p' mode='fill' radius='6' fillColor='#fff' value='0.5'/>");
+            Assert.IsFalse(issues.Any(i => i.Code.StartsWith("PUI-PROG-")),
+                string.Join("; ", issues.Select(i => i.Code)));
+        }
+
+        [Test]
+        public void Progress_ExplicitMask_OverAGlowingFill_IsReported()
+        {
+            Assert.IsTrue(
+                Has(Walk("<Progress id='p' maskRadius='8' glow='4' fillColor='#fff'/>"), ProgressAttributeRules.MaskClipsGlowCode),
+                "a stencil over a procedural fill clips the glow the author just asked for");
+            Assert.IsTrue(
+                Has(Walk("<Progress id='p' mask='ui:pill' glow='4' fillColor='#fff'/>"), ProgressAttributeRules.MaskClipsGlowCode));
             Assert.IsFalse(
-                Has(Walk("<Progress id='p' fillRadius='6'/>"), ProgressAttributeRules.FillRadiusModeCode),
-                "the default mode anchors the rect instead, which a panel handles perfectly");
+                Has(Walk("<Progress id='p' radius='8' glow='4' fillColor='#fff'/>"), ProgressAttributeRules.MaskClipsGlowCode),
+                "radius does not auto-track a mask over a procedural fill, so nothing clips");
+            Assert.IsFalse(
+                Has(Walk("<Progress id='p' maskRadius='8' fillColor='#fff'/>"), ProgressAttributeRules.MaskClipsGlowCode),
+                "no glow, nothing to lose");
+            Assert.IsFalse(
+                Has(Walk("<Progress id='p' maskRadius='8' glow='4' fill='ui:bar'/>"), ProgressAttributeRules.MaskClipsGlowCode),
+                "a bitmap fill with a glow is already the sprite conflict; no second report");
         }
 
         [Test]

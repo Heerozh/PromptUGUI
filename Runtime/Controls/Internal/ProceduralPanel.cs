@@ -20,8 +20,9 @@ namespace PromptUGUI.Controls.Internal
     /// <item>Attribute writes only flag the material dirty; the parameters are resolved once per
     /// canvas rebuild (see <see cref="FlushParams"/>), so applying twenty-one attributes at
     /// instantiation costs one material lookup, not twenty-one.</item>
-    /// <item>Geometry is dirtied only when the glow radius (which inflates the quad) or overall
-    /// visibility changes.</item>
+    /// <item>Geometry is dirtied only when the glow radius (which inflates the quad), the
+    /// progress cut (<see cref="SetCut"/> — vertex data, so a value tween never touches the
+    /// material) or overall visibility changes.</item>
     /// <item>A fully transparent panel emits no geometry at all — zero overdraw, which is the
     /// binding constraint on mobile UI.</item>
     /// <item><c>raycastTarget</c> is off by default and the owner decides: a Frame turns it on
@@ -69,6 +70,13 @@ namespace PromptUGUI.Controls.Internal
         private float _lightIntensity = GlassAttrParser.DefaultLightIntensity;
         private float _saturation = GlassAttrParser.DefaultSaturation;
         private float _noise = GlassAttrParser.DefaultNoise;
+
+        // The progress cut (spec 2026-09-18 §5.2): the shape is intersected with a half-plane in
+        // the shader, so <Progress> keeps its fill's rect at full size and drives the value here.
+        // Vertex data, never a material parameter — see OnPopulateMesh.
+        private float _cutCode;     // 0 = none; ±1 / ±2 flat along x / y; ±3 / ±4 round along x / y (+ fills towards +axis)
+        private float _cutValue;    // 0..1, only meaningful while _cutCode != 0
+        private bool _cutEmpty;     // value 0: nothing to draw — not even the glow along the start edge
 
         private PanelParams _key;
         private bool _hasKey;
@@ -509,6 +517,56 @@ namespace PromptUGUI.Controls.Internal
             SetVerticesDirty();
         }
 
+        /// <summary>
+        /// The progress cut (spec 2026-09-18 §5.2): keeps the part of the shape from its start edge
+        /// up to <paramref name="value"/> of the way along <paramref name="direction"/> — one of
+        /// the four axis vectors, the sign saying which way the fill grows — and discards the rest
+        /// INSIDE the SDF. Border, glows, haze and glass refraction all follow the cut edge, and
+        /// nothing is clipped by a stencil, so the glow escapes on every side and wraps the edge.
+        ///
+        /// <para>Two styles, the two meanings <c>&lt;Progress mode&gt;</c> already has for a bitmap
+        /// fill. <paramref name="round"/> = <c>mode="scale"</c>: the shape itself shrinks to the cut
+        /// line, corners included — the radius clamps to the shorter box, so a pill bar's leading
+        /// end stays a half-circle (a stretched 9-slice keeps both rounded ends the same way). Flat
+        /// = <c>mode="fill"</c>: the whole shape intersected with a half-plane, a straight leading
+        /// edge (<c>Image.fillAmount</c>'s crop). The colour ramps are laid along the whole rect in
+        /// both — the cut is a shape, not a colour.</para>
+        ///
+        /// <para>Vertex data only (<c>uv1.zw</c>; the offset needs the rect and is resolved in
+        /// <see cref="OnPopulateMesh"/>), so a value tween dirties the four-vertex quad and never
+        /// walks the material cache. <c>0</c> emits no geometry at all — the cut line would sit on
+        /// the start edge, and the half-pixel AA band plus the outer glow would still draw a line
+        /// there. <c>1</c> is encoded as no cut: it is the uncut shape, minus the edge-on-edge
+        /// float fuss.</para>
+        /// </summary>
+        internal void SetCut(Vector2 direction, float value, bool round = false)
+        {
+            value = Mathf.Clamp01(value);
+            var axis = Mathf.Abs(direction.x) >= Mathf.Abs(direction.y) ? 1f : 2f;
+            var sign = (axis == 1f ? direction.x : direction.y) >= 0f ? 1f : -1f;
+            var code = sign * (axis + (round ? 2f : 0f));
+            var empty = value <= 0f;
+            if (value >= 1f) code = 0f;
+
+            if (code == _cutCode && empty == _cutEmpty && Mathf.Approximately(value, _cutValue)) return;
+            _cutCode = code;
+            _cutValue = value;
+            _cutEmpty = empty;
+            _lastVisible = ComputeVisible();
+            SetVerticesDirty();
+        }
+
+        /// <summary>Back to the uncut shape; the spelling for a panel that stops being a progress fill.</summary>
+        internal void ClearCut()
+        {
+            if (_cutCode == 0f && !_cutEmpty) return;
+            _cutCode = 0f;
+            _cutValue = 0f;
+            _cutEmpty = false;
+            _lastVisible = ComputeVisible();
+            SetVerticesDirty();
+        }
+
         internal void SetSuppressed(bool suppressed)
         {
             if (_suppressed == suppressed) return;
@@ -529,6 +587,8 @@ namespace PromptUGUI.Controls.Internal
         private bool ComputeVisible()
         {
             if (_suppressed) return false;
+            // 0 % of a progress fill is nothing at all — see SetCut.
+            if (_cutEmpty) return false;
             // A stencil mask source has to emit geometry even when it paints nothing: the stencil is
             // written by its fragments, so culling it for being invisible clips every child away.
             // That is precisely the invisible-rounded-clipper form (mask="self" showMask="false"
@@ -661,7 +721,19 @@ namespace PromptUGUI.Controls.Internal
             var ex = hx + pad;
             var ey = hy + pad;
 
-            var half = new Vector4(hx, hy, 0f, 0f);
+            // uv1.zw carry the progress cut: the axis code and the cut line's signed distance from
+            // the rect's centre, (2·value − 1) · half-size along that axis — so 0.5 cuts on the
+            // centre line and the shader needs nothing but a dot product. Code 0 (every panel
+            // that is not a progress fill) leaves the channels at zero, and PuguiSdCut treats
+            // that as "no cut" — bit-for-bit what those panels always drew.
+            var cutOffset = 0f;
+            if (_cutCode != 0f)
+            {
+                var axis = Mathf.Abs(_cutCode);
+                if (axis > 2.5f) axis -= 2f;    // round codes sit two above the flat ones
+                cutOffset = (2f * _cutValue - 1f) * (axis < 1.5f ? hx : hy);
+            }
+            var half = new Vector4(hx, hy, _cutCode, cutOffset);
             var tint = (Color32)color;
 
             var v = UIVertex.simpleVert;

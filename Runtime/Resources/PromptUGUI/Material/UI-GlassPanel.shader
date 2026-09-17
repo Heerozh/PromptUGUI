@@ -125,7 +125,7 @@ Shader "UI/GlassPanel"
                 float4 vertex   : POSITION;
                 float4 color    : COLOR;
                 float2 texcoord : TEXCOORD0;   // rect 局部坐标（以中心为原点，画布单位）
-                float2 texcoord1: TEXCOORD1;   // rect 半尺寸（画布单位）
+                float4 texcoord1: TEXCOORD1;   // xy = rect 半尺寸（画布单位）, zw = 进度裁切 (code, e)，见 PuguiSdCut
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -136,6 +136,7 @@ Shader "UI/GlassPanel"
                 float4 shape         : TEXCOORD0;   // xy = 局部坐标, zw = 半尺寸
                 float4 worldPosition : TEXCOORD1;
                 float4 screenPos     : TEXCOORD2;
+                float2 cut           : TEXCOORD3;   // 进度裁切 (code, e)；code 0 = 不切
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
@@ -170,7 +171,8 @@ Shader "UI/GlassPanel"
                 OUT.worldPosition = v.vertex;
                 OUT.vertex = UnityObjectToClipPos(OUT.worldPosition);
                 OUT.screenPos = ComputeScreenPos(OUT.vertex);
-                OUT.shape = float4(v.texcoord, v.texcoord1);
+                OUT.shape = float4(v.texcoord, v.texcoord1.xy);
+                OUT.cut = v.texcoord1.zw;
                 OUT.color = v.color;
                 return OUT;
             }
@@ -193,9 +195,14 @@ Shader "UI/GlassPanel"
                 float2 p = IN.shape.xy;
                 float2 b = IN.shape.zw;
 
-                PuguiQuad corner = PuguiResolveQuad(p, b, _CornerKind, _Radius,
+                // 进度裁切（spec 2026-09-18 §5.2）：round 形态先把盒子缩到切线（pS / bS），flat 形态
+                // 在 SDF 上做半平面交集；形状自己的 d 留给下面的法线判定。渐变仍用原 p / b。
+                float2 pS = p, bS = b;
+                PuguiCutShrink(IN.cut.x, IN.cut.y, pS, bS);
+                PuguiQuad corner = PuguiResolveQuad(pS, bS, _CornerKind, _Radius,
                                                        _CornerH, _CornerFillet, _Shape, _HexW);
-                float d = PuguiSdPanel(p, b, corner);
+                float dShape = PuguiSdPanel(pS, bS, corner);
+                float d = PuguiSdCut(dShape, p, IN.cut.x, IN.cut.y);
                 float fw = max(fwidth(d), 1e-4);
                 float inside = saturate(0.5 - d / fw);
 
@@ -221,7 +228,9 @@ Shader "UI/GlassPanel"
                     float2 uv = IN.screenPos.xy / max(IN.screenPos.w, 1e-5);
 
                     // 画布空间外法线：+Y 就是界面正上方，与 lightAngle 的定义同一套坐标系。
-                    float2 n = PuguiPanelNormal(p, b, corner);
+                    // flat 切割项赢的区域法线就是切线的法线，折射带与高光才会沿推进边走；round 的
+                    // 形状已经是缩小后的盒子，法线照常从它求。
+                    float2 n = PuguiPanelNormalCut(pS, bS, corner, dShape, IN.cut.x, IN.cut.y);
 
                     // 折射带：仅 -depth < d < 0。band 在带外沿=1、带内沿=0。
                     float band = depth > 0.0 ? saturate(1.0 + d / depth) * inside : 0.0;

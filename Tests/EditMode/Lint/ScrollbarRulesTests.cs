@@ -245,10 +245,24 @@ namespace PromptUGUI.Tests.EditMode.Lint
 
         [TestCase("<Slider id='s' fill='ui:x' fillRadius='4'/>")]
         [TestCase("<Slider id='s' handle='ui:x' handleRadius='pill'/>")]
-        [TestCase("<Progress id='p' fill='ui:x' fillRadius='4'/>")]
         [TestCase("<Progress id='p' frame='ui:x' frameRadius='4'/>")]
         public void The_other_controls_inner_layers_get_the_same_check(string node)
             => Assert.IsTrue(Has(Walk(node), ProceduralSurfaceRules.SpriteConflictCode));
+
+        // <Progress>'s primary surface is its FILL (spec 2026-09-18), whose sprite attribute is
+        // `fill`, not `sprite` — the primary-surface check has to look there.
+        [TestCase("<Progress id='p' fill='ui:x' glow='4'/>")]
+        [TestCase("<Progress id='p' fill='ui:x' borderWidth='1'/>")]
+        [TestCase("<Progress id='p' fill='ui:x' haze='8'/>")]
+        public void Progress_primary_surface_conflicts_on_fill(string node)
+            => Assert.IsTrue(Has(Walk(node), ProceduralSurfaceRules.SpriteConflictCode));
+
+        // …except radius: with a bitmap fill it goes to the clip mask, never to the fill.
+        [TestCase("<Progress id='p' fill='ui:x' radius='8'/>")]
+        [TestCase("<Progress id='p' fill='ui:x' radius='8' bgColor='#222'/>")]
+        [TestCase("<Progress id='p' fill='none' glow='4'/>")]
+        public void Progress_radius_over_a_bitmap_fill_is_the_mask_path(string node)
+            => Assert.IsFalse(Has(Walk(node), ProceduralSurfaceRules.SpriteConflictCode));
 
         [TestCase("handleRadius='abc'")]
         [TestCase("handleGlow='-1'")]

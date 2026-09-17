@@ -17,8 +17,11 @@ namespace PromptUGUI.Lint
         public const string ChildrenCode = "PUI-PROG-CHILDREN";
         public const string MaskVariantCode = "PUI-PROG-MASK-VARIANT";
         public const string NoFillCode = "PUI-PROG-NO-FILL";
-        public const string FillRadiusModeCode = "PUI-PROG-FILL-RADIUS-MODE";
         public const string MaskRadiusConflictCode = "PUI-PROG-MASK-RADIUS-CONFLICT";
+        /// <summary>The attributes <c>&lt;Progress&gt;</c> no longer takes (spec 2026-09-18 §4.1).</summary>
+        public const string RetiredAttrCode = "PUI-PROG-RETIRED-ATTR";
+        /// <summary>An explicit clip mask over a procedural fill that glows — the stencil eats the glow (§5.5).</summary>
+        public const string MaskClipsGlowCode = "PUI-PROG-MASK-CLIPS-GLOW";
 
         private static readonly HashSet<string> ValidModes = new HashSet<string> { "scale", "fill" };
         private static readonly HashSet<string> ValidDirections = new HashSet<string>
@@ -60,20 +63,40 @@ namespace PromptUGUI.Lint
                     "Valid: horizontal, vertical, reverse-horizontal, reverse-vertical.");
             }
 
-            // fillRadius needs a fill layer that is a plain rect it can replace. mode="fill" makes
-            // the fill an Image.type=Filled driven by fillAmount, and a ProceduralPanel has no
-            // equivalent — this pair genuinely cannot be made to work, unlike most lint here.
-            if (styles.Declares(n, "fillRadius") && !styles.IsUncertain(n))
+            // fillRadius retired (spec 2026-09-18): the fill IS the primary surface, so `radius` is
+            // its corner. Reported on the node whether it wrote the attribute itself or wears a
+            // skin pack that carries it — the pack is the case that bites, since <Slider> still
+            // takes fillRadius and a shared pack looks perfectly valid. The runtime drops unknown
+            // attributes silently, so without this the bar would just quietly stay square.
+            if (n.Attributes.ContainsKey("fillRadius") || n.VariantOverrides.ContainsKey("fillRadius")
+                || (!styles.IsUncertain(n) && styles.Declares(n, "fillRadius")))
             {
-                styles.Resolve(n, "mode", out var fillMode, out _);
-                if (fillMode == "fill")
+                yield return new LintIssue(
+                    RetiredAttrCode, n.Tag, n.Id,
+                    $"<Progress id='{n.Id}'>: fillRadius is retired — the fill is the bar's primary " +
+                    "surface, so write radius (it rounds the fill, the colour bg, and clips a bitmap " +
+                    "fill). No tag forwards the old name, so it is silently dropped.");
+            }
+
+            // A procedural fill rounds itself and is cut in the shader, so radius never auto-tracks
+            // a mask over it — but an explicit mask= / maskRadius= is honoured, and a stencil clips
+            // everything outside the shape, the outer glow first of all. A bitmap fill is not
+            // reported here: a glow on it is already PUI-PROC-SPRITE-CONFLICT.
+            if (!styles.IsUncertain(n) && styles.Declares(n, "glow"))
+            {
+                styles.Resolve(n, "mask", out var maskSprite, out _);
+                styles.Resolve(n, "maskRadius", out var maskRadius, out _);
+                styles.Resolve(n, "fill", out var fillSprite, out _);
+                // mask="" and maskRadius="" are opt-outs, not clips.
+                var clips = (!string.IsNullOrWhiteSpace(maskSprite) && maskSprite != "none")
+                            || !string.IsNullOrWhiteSpace(maskRadius);
+                if (clips && (string.IsNullOrWhiteSpace(fillSprite) || fillSprite == "none"))
                 {
                     yield return new LintIssue(
-                        FillRadiusModeCode, n.Tag, n.Id,
-                        $"<Progress id='{n.Id}'>: fillRadius cannot work with mode=\"fill\", which " +
-                        "draws the fill through Image.fillAmount — a procedural surface has no such " +
-                        "control. Use the default mode=\"scale\" (the rect is anchored to the value, " +
-                        "which a shape handles fine), or round the whole bar with maskRadius.");
+                        MaskClipsGlowCode, n.Tag, n.Id,
+                        $"<Progress id='{n.Id}'>: mask / maskRadius clips the fill's glow — a stencil " +
+                        "discards everything outside its shape, and the glow lives there. A procedural " +
+                        "fill rounds itself through radius and needs no mask; drop the mask, or drop glow.");
                 }
             }
 
