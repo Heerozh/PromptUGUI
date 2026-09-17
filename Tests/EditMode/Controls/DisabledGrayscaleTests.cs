@@ -201,6 +201,40 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(BgOf(btn).defaultMaterial, BgOf(btn).material);
         }
 
+        /// <summary>
+        /// 回落字体 / 内联 sprite 让 TMP 在 label 下建 <c>TMP_SubMeshUI</c>；它的材质是 TMP 按引用计数管的
+        /// fallback material、颜色随父文本重生成。灰度控制器曾把它当普通 Graphic 去读 <c>material</c>——TMP 的
+        /// 这个 getter 会克隆实例并换掉共享材质；父文本被 Tab 藏起后共享材质已被 TMP 销毁，热重载的 ReSolve 再读
+        /// 就是 "The object of type 'Material' has been destroyed … Parameter name: source"。子网格必须整个跳过
+        /// （状态子树收集处剪掉），禁用时也不能往它身上换灰度材质（SDF 字形会变白方块）。
+        /// </summary>
+        [Test]
+        public void TmpSubMesh_IsLeftToTmp_OnReSolveAndWhenDisabled()
+        {
+            var btn = BuildBtn();
+            var label = (TMPro.TextMeshProUGUI)LabelOf(btn);
+            var labelBase = label.color;
+            var shared = new Material(label.fontSharedMaterial) { name = "fallback (shared)" };
+            var sub = TMPro.TMP_SubMeshUI.AddSubTextObject(label,
+                new TMPro.MaterialReference(1, label.font, null, shared, 0f));
+            Assert.AreSame(shared, sub.sharedMaterial);
+
+            // ReSolve 重跑 Btn.OnAfterApply → 灰度控制器 re-Configure：不许碰子网格的材质
+            UI.NotifyVariantChangedForReSolve();
+            Assert.AreSame(shared, sub.sharedMaterial, "ReSolve 不能读 TMP_SubMeshUI.material（它会克隆实例换掉共享材质）");
+
+            // 禁用：父 label 走颜色去色，子网格不换灰度材质
+            PuiOf(btn).SimulateState(Disabled);
+            Assert.AreSame(shared, sub.sharedMaterial, "禁用去色不能把 SDF 子网格的材质换成 UI-Grayscale");
+            AssertColorEq(Gray(labelBase), label.color); // label 自身照旧走颜色路径
+            PuiOf(btn).SimulateState(Normal);
+            Assert.AreSame(shared, sub.sharedMaterial);
+
+            // 共享材质被 TMP 销毁（父文本 disable 释放 fallback）后 ReSolve 也不能炸
+            Object.DestroyImmediate(shared);
+            Assert.DoesNotThrow(() => UI.NotifyVariantChangedForReSolve());
+        }
+
         [Test]
         public void DisabledSprite_Authored_SuppressesGrayscale()
         {
