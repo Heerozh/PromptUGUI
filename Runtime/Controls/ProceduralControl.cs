@@ -158,6 +158,27 @@ namespace PromptUGUI.Controls
             set { var v = IntensityAttrParser.Parse(value); Surface.Declare(p => p.SetIntensity(v)); }
         }
 
+        /// <summary>噪声雾的斑块特征尺寸（px，> 0 即开启）。压在填充之上、描边之下；玻璃面不作用。</summary>
+        [UIAttr, Preserve]
+        public string Haze
+        {
+            set { var v = ProceduralValueParser.Pixels(value, "haze"); Surface.Declare(p => p.SetHazeSize(v)); }
+        }
+
+        /// <summary>雾的颜色，完整渐变语法，同时是方向遮罩（<c>to top, A, A/0</c> = 从底边渗入）；默认白。</summary>
+        [UIAttr, Preserve]
+        public string HazeColor
+        {
+            set { var v = UI.Theme.ResolveSpec(value); Surface.Declare(p => p.SetHazeColor(v)); }
+        }
+
+        /// <summary>雾的流速（px/s，未缩放时钟），默认 0 = 静止。</summary>
+        [UIAttr, Preserve]
+        public string HazeDrift
+        {
+            set { var v = ProceduralValueParser.Pixels(value, "hazeDrift"); Surface.Declare(p => p.SetHazeDrift(v)); }
+        }
+
         /// <summary>玻璃模式：填充改为采样模糊后的 backdrop + 边缘折射 / 打光。</summary>
         [UIAttr, Preserve]
         public string Glass

@@ -221,6 +221,34 @@ namespace PromptUGUI.Controls
         }
 
         /// <summary>
+        /// 噪声雾（spec 2026-09-17 haze）：斑块的特征尺寸（px），<c>&gt; 0</c> 即开启。低频 fBm 决定雾的
+        /// alpha、<c>hazeColor</c> 决定颜色；压在填充之上、内发光与描边之下，只在形状内侧。噪声在
+        /// Canvas 空间采样，同参数的相邻面板自然各不相同。玻璃面不作用。
+        /// </summary>
+        [UIAttr, Preserve]
+        public string Haze
+        {
+            set => Panel.SetHazeSize(ProceduralValueParser.Pixels(value, "haze"));
+        }
+
+        /// <summary>
+        /// 雾的颜色，完整渐变语法 —— 这条 ramp 同时就是方向遮罩：<c>to top, cyan/0.8, cyan/0</c> = 从底边
+        /// 渗入的青雾。默认白、不跟随填充（填充色的雾在不透明填充上看不见）。<c>/alpha</c> 是强度旋钮。
+        /// </summary>
+        [UIAttr, Preserve]
+        public string HazeColor
+        {
+            set => Panel.SetHazeColor(UI.Theme.ResolveSpec(value));
+        }
+
+        /// <summary>雾的流速（px/s，未缩放时钟），默认 0 = 静止。三个 octave 沿不同向量漂移，图样形变而不是整体平移。</summary>
+        [UIAttr, Preserve]
+        public string HazeDrift
+        {
+            set => Panel.SetHazeDrift(ProceduralValueParser.Pixels(value, "hazeDrift"));
+        }
+
+        /// <summary>
         /// 玻璃模式：填充改为采样模糊后的 backdrop + 边缘折射 / 打光，形状仍是同一套 SDF。
         /// 见 <c>UI.Glass</c>：没有可用 backdrop（无 URP / 关闭画质选项 / 无相机）时自动退化成
         /// 半透明面板。
