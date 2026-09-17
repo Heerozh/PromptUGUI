@@ -24,7 +24,7 @@ namespace PromptUGUI.Controls
     /// <remarks>
     /// The attributes are declared once here rather than per control because
     /// <c>ControlMeta.Build</c> reflects with <c>BindingFlags.Public | BindingFlags.Instance</c>,
-    /// which includes inherited properties — so a subclass gets all sixteen for free.
+    /// which includes inherited properties — so a subclass gets all nineteen for free.
     /// </remarks>
     public abstract class ProceduralControl : Control
     {

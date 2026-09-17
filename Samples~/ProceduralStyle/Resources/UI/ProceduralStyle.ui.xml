@@ -267,6 +267,31 @@
             <SwatchCell skin="tab-track"   caption="tab-track"/>
           </Grid>
 
+          <!-- 噪声雾（haze）：同一块不透明面板，从左到右 —— 无雾 / 从底边渗入的雾 / 点亮 / 流动。
+               写在 surface 底上而不是 class="card"：玻璃皮肤下 card 是玻璃，玻璃没有填充给雾躺
+               （PUI-GLASS-HAZE）。四块参数相同却各不相同 —— 噪声在 Canvas 空间采样，位置就是种子。 -->
+          <Grid columns="4" cellSize="207x84" spacing="10" height="84">
+            <VStack spacing="6">
+              <Frame color="surface" radius="12" borderWidth="1" borderColor="to right, accent, accent/0.3, accent" height="stretch"/>
+              <Text height="16" fontSize="12" align="top-center" color="ink-dim" tr="false">no haze</Text>
+            </VStack>
+            <VStack spacing="6">
+              <Frame color="surface" radius="12" borderWidth="1" borderColor="to right, accent, accent/0.3, accent"
+                     haze="40" hazeColor="to top, accent/0.85, accent/0" height="stretch"/>
+              <Text height="16" fontSize="12" align="top-center" color="ink-dim" tr="false">haze="40" hazeColor="to top, accent/0.85, accent/0"</Text>
+            </VStack>
+            <VStack spacing="6">
+              <Frame color="surface" radius="12" borderWidth="1" borderColor="to right, accent, accent/0.3, accent"
+                     haze="40" hazeColor="to top, accent/0.85, accent/0" intensity="2" height="stretch"/>
+              <Text height="16" fontSize="12" align="top-center" color="ink-dim" tr="false">+ intensity="2"</Text>
+            </VStack>
+            <VStack spacing="6">
+              <Frame color="surface" radius="12" borderWidth="1" borderColor="to right, accent, accent/0.3, accent"
+                     haze="40" hazeColor="to top, accent/0.85, accent/0" hazeDrift="8" height="stretch"/>
+              <Text height="16" fontSize="12" align="top-center" color="ink-dim" tr="false">+ hazeDrift="8"</Text>
+            </VStack>
+          </Grid>
+
           <Frame class="divider" height="1"/>
 
           <!-- 合并优先级：右边的 class 压过左边，inline 压过全部 -->

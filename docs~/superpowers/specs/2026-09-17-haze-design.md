@@ -1,6 +1,7 @@
 # `haze` —— 程序化表面的噪声雾层（云雾状亮斑）
 
-> 状态：**设计定稿，待实施**。决策见 §13，2026-09-17 与作者对齐，四项全部取推荐项。
+> 状态：**已实现**（M0–M2 一轮做完，见 §15）。决策见 §13，2026-09-17 与作者对齐，四项全部取推荐项；
+> 实施中改了两处常数（§5.1：覆盖率映射 0.55 / 0.85、第二三 octave 旋转），正文已按实际落地更新。
 > 相关：`2026-09-17-linear-gradient-primitive-design.md`（LG-D6 把本文从边框渐变里剥出来；`hazeColor` 直接复用它的
 > 方向 / 多色标 ramp，是本文「方向遮罩零新语法」的前提）、
 > `2026-09-12-intensity-design.md`（曝光；本文的实现地图逐项镜像它，雾排在曝光之前让 `intensity` 能把雾点亮）、
@@ -61,8 +62,8 @@
 <Btn radius="6" color="#0b1a33" borderWidth="1" borderColor="to right, cyan, cyan/0.3, cyan"
      haze="40" hazeColor="to top, cyan/0.8, cyan/0" intensity="1.6">建造</Btn>
 
-<!-- 参考图「造船」：金边、底部中央的橙雾（to top 加提示：只在最底下 30% 渗出）-->
-<Btn radius="6" color="#1a1408" borderWidth="1" borderColor="to right, gold, gold/0.3, gold"
+<!-- 参考图「造船」：金边、底部中央的橙雾（to top 加提示：雾集中在最底下三分之一、往上变稀）-->
+<Btn radius="6" color="#1a1408" borderWidth="1" borderColor="to right, #f2c14e, #f2c14e/0.3, #f2c14e"
      haze="32" hazeColor="to top, orange/0.9, 30%, orange/0" hazeDrift="6">造船</Btn>
 
 <!-- 空心框里一团缓慢流动的光雾 -->
@@ -99,11 +100,15 @@
 fBm 归一到 `0..1` 后过一个固定的覆盖率映射：
 
 ```
-w = smoothstep(0.45, 0.80, fbm)
+w = smoothstep(0.55, 0.85, fbm)
 ```
 
-两个常数按参考图标定（稀疏的软边亮斑，覆盖三成左右），**不是参数**：`/alpha` 已经是强度旋钮，
-再给覆盖率会让作者在两个耦合的旋钮之间打转。实施时用 PNG 探针核对，记进 §15。
+两个常数按参考图标定，**不是参数**：`/alpha` 已经是强度旋钮，再给覆盖率会让作者在两个耦合的旋钮之间
+打转。fbm 的均值 0.50、标准差 0.15，映射后约 28% 的像素沾雾、9% 在半亮以上、2% 全亮 —— 稀疏的软边亮斑
+（§15.1 有标定过程；起草时写的 0.45 / 0.80 在第一张探针图上是「大半张脸都是白的」）。
+
+第二、三个 octave 的采样域各**转一个常角**（0.7 / 1.4 rad）并错开原点：value noise 的极值落在格点上，三层
+同轴叠加会露出一张方格；转开后叠成没有轴向的云团（§15.1）。
 
 ### 5.2 作用位置
 
@@ -193,24 +198,31 @@ float PuguiValueNoise(float2 q)
     float2 f = q - i;
     i -= PUGUI_HAZE_PERIOD * floor(i / PUGUI_HAZE_PERIOD);
     float2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+    // 右邻 / 上邻格点在周期边界上要回绕到 0，否则平铺处有一条缝：i 取过模，i + 1 仍可能等于 256。
+    float2 i1 = i + 1.0;
+    i1 -= PUGUI_HAZE_PERIOD * floor(i1 / PUGUI_HAZE_PERIOD);
     float a = PuguiHash12(i);
-    float b = PuguiHash12(i + float2(1.0, 0.0));
-    float c = PuguiHash12(i + float2(0.0, 1.0));
-    float d = PuguiHash12(i + float2(1.0, 1.0));
+    float b = PuguiHash12(float2(i1.x, i.y));
+    float c = PuguiHash12(float2(i.x, i1.y));
+    float d = PuguiHash12(i1);
     return lerp(lerp(a, b, u.x), lerp(c, d, u.x), u.y);
 }
 
 // 三 octave fBm → 覆盖率映射。pos 为 Canvas 空间坐标（§5.3），size 为特征尺寸 px，
-// drift 为 px/s，t 为未缩放秒。覆盖率常数 0.45 / 0.80 按参考图标定（§5.1），不是参数。
+// drift 为 px/s，t 为未缩放秒。旋转角、原点错位、覆盖率常数 0.55 / 0.85 按参考图标定（§5.1），不是参数。
+static const float2x2 PUGUI_HAZE_ROT1 = float2x2(0.7648, -0.6442, 0.6442, 0.7648);   // 0.7 rad
+static const float2x2 PUGUI_HAZE_ROT2 = float2x2(0.1700, -0.9854, 0.9854, 0.1700);   // 1.4 rad
+
 float PuguiHazeWeight(float2 pos, float size, float drift, float t)
 {
     float2 q = pos / max(size, 1e-3);
     float  v = drift * t / max(size, 1e-3);          // 格 / 秒 × 秒
-    float  n = 0.5   * PuguiValueNoise(q       + normalize(float2( 1.0,  0.35)) * v)
-             + 0.25  * PuguiValueNoise(q * 2.0 + normalize(float2(-0.6,  0.80)) * v * 1.5)
-             + 0.125 * PuguiValueNoise(q * 4.0 + normalize(float2( 0.3, -1.00)) * v * 2.0);
+    float2 o0 = q + normalize(float2(1.0, 0.35)) * v;
+    float2 o1 = mul(PUGUI_HAZE_ROT1, q * 2.0) + float2(13.1, 7.3)  + normalize(float2(-0.6, 0.80)) * v * 1.5;
+    float2 o2 = mul(PUGUI_HAZE_ROT2, q * 4.0) + float2(26.2, 14.6) + normalize(float2(0.3, -1.00)) * v * 2.0;
+    float  n = 0.5 * PuguiValueNoise(o0) + 0.25 * PuguiValueNoise(o1) + 0.125 * PuguiValueNoise(o2);
     n /= 0.875;
-    return smoothstep(0.45, 0.80, n);
+    return smoothstep(0.55, 0.85, n);
 }
 ```
 
@@ -256,7 +268,7 @@ if (_HazeSize > 0.0)            // uniform 分支：无雾面板逐位不变
 | `Controls/Internal/ProceduralMaterialCache.cs` | `PanelParams` + `Haze`（`ColorSpec`）/ `HazeSize` / `HazeDrift`（ctor、`Equals`、`GetHashCode`）；`Configure` 一次 `WriteRamp` + 两个 `SetFloat`；`PropertyToID` 三个 + 一组 ramp id |
 | `Controls/Internal/HazeClock.cs`（新） | 静态；`Ensure()` 由 `Configure` 在 `HazeDrift > 0` 时调，首次订阅 `Canvas.willRenderCanvases`，每帧 `SetGlobalFloat(_PuguiUnscaledTime, Time.unscaledTime)`；`ResetForTests` 退订；测试用 `SetTimeForTests(t)` 直接写全局 |
 | `Controls/Internal/ProceduralPanel.cs` | 字段 `_hazeSize = 0` / `_hazeColor = white` / `_hazeDrift = 0`；三个 setter；`BuildParams`：玻璃 → 尺寸归 0；`haze == 0` → 色 / 漂移归零；`_grayed` → 色去饱和、漂移归 0；`ComputeVisible` or 项 +1；`CopyStateFrom`（焊接镜像）三个字段 |
-| `Controls/Internal/ProceduralSurface.cs` | 三个 `Set*` 透传（与 `SetInnerGlowColor` 同型） |
+| `Controls/Internal/ProceduralSurface.cs` | **不改**：`Surface.Declare(p => p.SetHazeSize(v))` 直接写面板，`ProceduralControl` 的每个属性都是这么走的 |
 | `Controls/Frame.cs` | `[UIAttr] Haze` / `HazeColor` / `HazeDrift`，直连 `Panel` |
 | `Controls/ProceduralControl.cs` | 同名三个 `[UIAttr]`，走 `Surface.Declare` —— 全家自动获得 |
 | `Core/Lint/ProceduralAttrNames.cs` | `PanelAttaching` / `All` / `NeedsPanel` 各 +3（`ProceduralAttrNamesTests` 守镜像） |
@@ -275,10 +287,10 @@ if (_HazeSize > 0.0)            // uniform 分支：无雾面板逐位不变
 
 ### 8.3 里程碑
 
-一个 PR，三个提交，每步 red 先行：
+一个 PR，三个提交，每步 red 先行（实际落地时 M0 与 M1 合成一个提交，见 §15）：
 
-1. **M0 雾层**：cginc + shader + `PanelParams` + `ProceduralPanel` / `ProceduralSurface` / `Frame` / `ProceduralControl`；
-   静止雾（`hazeDrift` 解析但时钟未接，全局时间为 0）。渲染探针 + 参数测试。
+1. **M0 雾层**：cginc + shader + `PanelParams` + `ProceduralPanel` / `Frame` / `ProceduralControl`；
+   静止雾。渲染探针 + 参数测试。
 2. **M1 时钟与失能**：`HazeClock`；disabled 冻结；漂移探针。
 3. **M2 lint / XSD / SKILL / sample**：`PUI-GLASS-HAZE`、名字表、XSD、`reference/haze.md`、`CLAUDE.md` 触发表、sample。
 
@@ -392,6 +404,52 @@ CPU 侧每帧一个 `SetGlobalFloat`。
 `ProceduralStyle` sample 里并排放 `haze` 关 / 开 / 加 `intensity` / 加 `hazeDrift` 四块，PNG 探针核过后
 截图进 §15。
 
-## 15. 实施记录
+## 15. 实施记录（2026-09-17）
 
-（待填）
+分支 `feat/haze`，三个提交：雾层 + 时钟（M0 + M1 一起，`BuildParams` 的漂移归零与 `Configure` 的
+`HazeClock.Ensure()` 把两者绑在一处，拆开反而要留一个半成品的中间态）→ lint / XSD → SKILL / 样例 / 本文。
+每步 red 先行：先写 `FrameProceduralPanelTests` 的 haze 组、`ProceduralSurfaceContractTests`、
+`HazeRenderTests`（19 条探针）、`HazeClockTests`、四个 lint 测试类与 XSD 测试，编译失败在预期的缺失 API 上，
+再补实现。EditMode 4245 / 4245、EditorOnly 347 / 347；`dotnet format --verify-no-changes` 干净；UIXmlLint
+CLI 对 `class=` 带进玻璃的 `haze` 报 `PUI-GLASS-HAZE`、对单独的 `hazeColor` 不报。
+
+### 15.1 两处常数改了：起草的映射太密，同轴 value noise 是一张方格
+
+第一张探针图（`color="#101828" haze="24" hazeColor="white"`，120×80）在 0.45 / 0.80 下大半张脸是白的 ——
+数值上 50% 的像素沾雾、21% 在半亮以上，但暗底上 w = 0.2 的白已经读成「亮」。而且亮斑是**方的**、沿轴排列：
+value noise 的极值在格点上，三个 octave 同轴叠加，方格就露出来了。
+
+在 uv 里用 numpy 逐字复刻 shader 函数（同 hash、同 quintic、同 256 取模）做标定，Python 出图与 Unity 探针
+图一致：
+
+| 映射 | 沾雾（w > 0.05） | 半亮（w > 0.5） | 全亮（w > 0.9） | 观感 |
+|---|---|---|---|---|
+| 0.45 / 0.80 | 50% | 21% | 6% | 密，整面发白 |
+| **0.55 / 0.85** | **28%** | **9%** | **2%** | 稀疏软斑、亮核，参考图的密度 |
+| 0.60 / 0.90 | 18% | 4% | 1% | 更稀，偏「几缕」 |
+
+Perlin（梯度）噪声也试了：映射到 0..1 后标准差只有 0.07，同一套阈值下是几根细丝，要另调；而 value
+noise 只要把第二、三 octave 各转 0.7 / 1.4 rad 并错开原点（`+ (13.1, 7.3)`、`+ (26.2, 14.6)`），方格就消失、
+叠成云团，成本不变（仍 12 次 hash）。定稿 = 旋转 octave 的 value noise + smoothstep(0.55, 0.85)。
+
+### 15.2 实施中定下、正文没预料到的几件事
+
+- **周期边界要折两次。** `i` 取过 256 的模后 `i + 1` 仍可能等于 256，右邻 / 上邻格点得再折一次，否则平铺
+  处有一条缝（`hazeDrift` 迟早会把它漂进视野）。
+- **`HazeClock` 的测试钉。** 渲染探针要在两次快照之间冻结时钟，而 `Canvas.ForceUpdateCanvases()` 会触发
+  `willRenderCanvases` → 每帧发布覆盖掉钉住的值；`SetTimeForTests` 因此是「钉住」而不是「写一次」，
+  `ResetForTests` 解钉。Edit mode 下 `Time.unscaledTime` 不走，发布的是 `Time.realtimeSinceStartup`。
+- **`PanelParams` 的雾槽默认值。** ctor 默认参数只能是 `default(ColorSpec)`（零色标），与面板自己的默认
+  （白）不相等；ctor 里把零色标折成白，`HazeColorWithoutHaze_DoesNotSplitTheKey` 才成立。
+- **两条探针放宽了。** 「无硬边」的相邻像素 Δluma 上限从 0.3 放到 0.5（小斑块最陡的侧沿约 0.32，硬边是
+  0.9）；「从底边渗入」改成比较**下半**与顶带而不是一条 12px 的细带 —— 斑块 24 px 宽，细带可能恰好落在
+  两块之间。
+- **`gold` 不是命名色。** 例子里的金边改成 `#f2c14e`；库的命名色只有 CSS 基础 16 色 + 几个。
+
+### 15.3 视觉验收
+
+`execute_code` 在宿主工程里按 §3 前两个片段渲染（960×540，相机移到场景之外免得采到 UIPreview 的背景）：
+「建造」深底、两端亮中段暗的青边、底边渗入的几团青雾、上半截干净，`intensity="1.6"` 下最亮的一两块泛白；
+「造船」金边、底部橙雾往上变稀；同参数的第二个「建造」雾形不同。`HazeRenderTests` 的 dump 逐张看过：
+漂移 t=0 → t=2 是形变不是平移，失能后灰而静止，胶囊 + 外发光下雾只在形状内、光晕干净，6px 红描边压在
+雾上仍然锐利。`ProceduralStyle` 样例的 Styles 页加了并排四块（无雾 / 雾 / + intensity / + drift）。

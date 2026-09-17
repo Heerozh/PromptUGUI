@@ -18,8 +18,8 @@ namespace PromptUGUI.Controls.Internal
     /// <item>Colour / radius / border / glow-colour changes touch only the material, so a Variant
     /// flip or a colour tween never rebuilds the canvas mesh.</item>
     /// <item>Attribute writes only flag the material dirty; the parameters are resolved once per
-    /// canvas rebuild (see <see cref="FlushParams"/>), so applying seventeen attributes at
-    /// instantiation costs one material lookup, not seventeen.</item>
+    /// canvas rebuild (see <see cref="FlushParams"/>), so applying twenty attributes at
+    /// instantiation costs one material lookup, not twenty.</item>
     /// <item>Geometry is dirtied only when the glow radius (which inflates the quad) or overall
     /// visibility changes.</item>
     /// <item>A fully transparent panel emits no geometry at all — zero overdraw, which is the
@@ -549,7 +549,7 @@ namespace PromptUGUI.Controls.Internal
         /// <summary>
         /// Records that the parameters changed, without touching the material. Resolving is deferred
         /// to <see cref="FlushParams"/> so a run of attribute writes — instantiation applies up to
-        /// seventeen of them — collapses into a single cache lookup.
+        /// twenty of them — collapses into a single cache lookup.
         /// </summary>
         private void MarkDirty()
         {
