@@ -54,10 +54,12 @@ namespace PromptUGUI.Lint
         /// </summary>
         /// <summary>
         /// The shape attributes of the layers INSIDE a control (spec §6), grouped by the surface they
-        /// drive: a Slider's / Progress's fill, a Progress's frame and mask take <c>&lt;layer&gt;Radius</c>
-        /// only; a Scrollbar's handle takes border and glow as well (2026-09-12 spec §4.1). Never
-        /// glass: an inner layer samples the same backdrop as the layer beneath it and the two come
-        /// out identical.
+        /// drive: a Slider's fill, a Progress's frame and mask take <c>&lt;layer&gt;Radius</c> only; a
+        /// Scrollbar's handle takes border and glow as well (2026-09-12 spec §4.1). Never glass: an
+        /// inner layer samples the same backdrop as the layer beneath it and the two come out
+        /// identical. (A Progress's fill is not an inner layer since spec 2026-09-18 — it IS the
+        /// primary surface, and <c>fillRadius</c> on it is <c>PUI-PROG-RETIRED-ATTR</c>; the
+        /// <c>fill</c> group below is Slider's.)
         ///
         /// <para>Every attribute of a group declares that one surface, so a base-less
         /// <c>fillRadius.mobile</c> — or <c>handleGlow.mobile</c> on a handle with no base shape at

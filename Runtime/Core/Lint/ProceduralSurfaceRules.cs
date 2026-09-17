@@ -46,9 +46,26 @@ namespace PromptUGUI.Lint
         private static readonly Dictionary<string, (string Sprite, string[] Shape)[]> InnerLayers = new()
         {
             ["Slider"] = new[] { ("fill", new[] { "fillRadius" }), ("handle", new[] { "handleRadius" }) },
-            ["Progress"] = new[] { ("fill", new[] { "fillRadius" }), ("frame", new[] { "frameRadius" }) },
+            ["Progress"] = new[] { ("frame", new[] { "frameRadius" }) },
             ["Scrollbar"] = new[] { ("handle", ProceduralAttrNames.InnerLayerGroupOf("handleRadius")) },
         };
+
+        /// <summary>
+        /// The attribute that carries the primary surface's bitmap, where it is not <c>sprite</c>.
+        /// <c>&lt;Progress&gt;</c>'s primary surface is its fill (spec 2026-09-18), so its bitmap is
+        /// <c>fill=</c>.
+        /// </summary>
+        private static readonly Dictionary<string, string> PrimarySprite = new()
+        {
+            ["Progress"] = "fill",
+        };
+
+        /// <summary>
+        /// <c>&lt;Progress radius&gt;</c> over a bitmap fill is not a contradiction: the bar's corner
+        /// then goes to the clip mask (and the colour bg), never to the fill — the runtime routes it
+        /// (spec 2026-09-18 §5.1). Every other procedural attribute does retire the bitmap.
+        /// </summary>
+        private static bool RadiusSparesTheBitmap(string tag) => tag == "Progress";
 
         public static bool AppliesTo(string tag) => SurfaceTags.Contains(tag);
 
@@ -73,17 +90,18 @@ namespace PromptUGUI.Lint
                         $"procedural one wins. Drop one — {spriteAttr}=\"none\" is the spelling for 'no bitmap'.");
                 }
 
-            if (!DeclaresProcedural(n, styles)) yield break;
+            if (!DeclaresProcedural(n, styles, skipRadius: RadiusSparesTheBitmap(n.Tag))) yield break;
 
-            styles.Resolve(n, "sprite", out var sprite, out _);
+            var primarySprite = PrimarySprite.TryGetValue(n.Tag, out var named) ? named : "sprite";
+            styles.Resolve(n, primarySprite, out var sprite, out _);
             if (IsRealSprite(sprite))
             {
                 yield return new LintIssue(
                     SpriteConflictCode, n.Tag, n.Id,
-                    $"<{n.Tag} id='{n.Id}'>: sprite=\"{sprite}\" and a procedural surface are two " +
+                    $"<{n.Tag} id='{n.Id}'>: {primarySprite}=\"{sprite}\" and a procedural surface are two " +
                     "different ways to draw the same layer, and the procedural one wins. A bitmap " +
                     "under an SDF face is a mess, and Image.type's sliced/tiled inference means " +
-                    "nothing there. Drop one — sprite=\"none\" is the spelling for 'no bitmap'.");
+                    $"nothing there. Drop one — {primarySprite}=\"none\" is the spelling for 'no bitmap'.");
             }
 
             foreach (var attr in StateSprites)
@@ -119,11 +137,12 @@ namespace PromptUGUI.Lint
             return false;
         }
 
-        private static bool DeclaresProcedural(ElementNode n, StyleAttributeView styles)
+        private static bool DeclaresProcedural(ElementNode n, StyleAttributeView styles, bool skipRadius = false)
         {
             foreach (var attr in ProceduralAttrNames.NeedsPanel)
             {
                 if (attr == "weld") continue;   // §13.2 — weld does not cross into controls
+                if (skipRadius && attr == "radius") continue;
                 styles.Resolve(n, attr, out var baseValue, out _);
                 if (baseValue != null) return true;
             }
