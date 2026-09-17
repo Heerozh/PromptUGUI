@@ -146,6 +146,17 @@ namespace PromptUGUI.Controls
         internal string _lastAppliedRuntimeState;
 
         /// <summary>
+        /// The two runtime-owned COMMON attributes, same contract as <see cref="_lastAppliedRuntimeState"/>
+        /// (spec 2026-09-17-common-attr-runtime-state-design): the value <see cref="ApplyCommon"/> last
+        /// wrote, read back. Null until the attribute was first applied. A ReSolve compares the live
+        /// value against it — different means code (or Tab.bind, Pages, a bind callback…) took the
+        /// attribute over, and the declared value is not replayed; a locked pass leaves the baseline
+        /// alone so the lock holds. 仅 ControlAttributeApplier 读写。
+        /// </summary>
+        internal bool? _lastAppliedHidden;
+        internal bool? _lastAppliedInteractable;
+
+        /// <summary>
         /// 动态子树（BindItems / Markdown 经 ScreenInstantiator.InstantiateNode 实例化）里
         /// 声明了 scale 的节点的几何基线。静态节点每次 ReSolve 先经 ApplyCommon 重置
         /// RectTransform 再做 box-preserving 补偿；动态节点属性只在实例化时 Apply 一次,
@@ -270,10 +281,12 @@ namespace PromptUGUI.Controls
         /// </summary>
         protected internal virtual bool ForcesHugHeight => false;
 
-        // 通用属性应用（由 ScreenInstantiator 在子类自身属性应用之后调用）
+        // 通用属性应用（由 ScreenInstantiator 在子类自身属性应用之后调用）。
+        // hidden / interactable 为 null = 本 pass 不写：未声明（hidden），或已被运行期接管
+        // （ControlAttributeApplier 判定，spec 2026-09-17-common-attr-runtime-state-design）。
         public void ApplyCommon(string anchor, string size, string width, string height,
                                 string margin, string pivot,
-                                bool? hidden, bool interactable, bool flow = true)
+                                bool? hidden, bool? interactable, bool flow = true)
         {
             // Folded in once, up front, so the LayoutElement / fractional / preferred-size branches
             // below all read one answer rather than each remembering to ask twice.
@@ -467,7 +480,7 @@ namespace PromptUGUI.Controls
             }
 
             if (hidden.HasValue) Hidden = hidden.Value;
-            Interactable = interactable;
+            if (interactable.HasValue) Interactable = interactable.Value;
         }
 
         private static float ParsePivotComponent(string component, string pivot, string axis)

@@ -22,7 +22,10 @@ namespace PromptUGUI.Lint
     /// <c>Screen.ApplyScales</c> resets <c>localScale</c> to identity when <c>scale</c> resolves to null.
     /// <c>hidden</c> is DELIBERATELY EXCLUDED: <c>ApplyCommon</c> applies it via
     /// <c>if (hidden.HasValue) Hidden = …</c> (Control.cs), so a null-resolving <c>hidden</c> is skipped,
-    /// not reset — it behaves exactly like a control-specific setter and must carry a base.</para>
+    /// not reset — it behaves exactly like a control-specific setter and must carry a base.
+    /// Both <c>hidden</c> and <c>interactable</c> are also runtime-owned once code writes them
+    /// (spec 2026-09-17-common-attr-runtime-state-design): that changes nothing here, because
+    /// self-healing is a statement about an UNTOUCHED node.</para>
     /// </summary>
     public static class VariantBaseRules
     {

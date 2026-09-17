@@ -149,7 +149,23 @@ namespace PromptUGUI.Application
             var interactableStr = VariantResolver.ResolveAttribute(node, "interactable", variants);
             var flowStr = VariantResolver.ResolveAttribute(node, "flow", variants);
             bool? hidden = hiddenStr == null ? null : hiddenStr == "true";
-            var interactable = interactableStr != "false";
+            // Undeclared interactable is written as true every pass (so a base-less
+            // interactable.mobile= still heals when the variant clears); undeclared hidden is never
+            // written — the two boundaries VariantBaseRules mirrors. Both are runtime-owned once
+            // code wrote them (spec 2026-09-17-common-attr-runtime-state-design §4.1): the same
+            // "live value differs from what the last pass wrote" test as RuntimeStateAttr, so
+            // Tab.bind / Pages / a BindItems callback / a plain `Hidden = …` all count as takeovers
+            // and a ReSolve leaves them alone. Never on the initial apply: that is the initial state.
+            bool? interactable = interactableStr != "false";
+            if (!initial)
+            {
+                if (hidden.HasValue && control._lastAppliedHidden.HasValue
+                    && control.Hidden != control._lastAppliedHidden.Value)
+                    hidden = null;
+                if (interactable.HasValue && control._lastAppliedInteractable.HasValue
+                    && control.PeekInteractable != control._lastAppliedInteractable.Value)
+                    interactable = null;
+            }
             var flow = flowStr != "false";
 
             try
@@ -172,6 +188,10 @@ namespace PromptUGUI.Application
             // ("1.0" → 1f → "1") would otherwise read as a runtime change on the next ReSolve.
             if (runtimeStateReapplied && entry.RuntimeStateAttr != null)
                 control._lastAppliedRuntimeState = control.PeekRuntimeState();
+            // Same rule for the two runtime-owned common attributes: baseline = read-back, and only
+            // on a pass that wrote (null here means undeclared or locked — either way, keep the old one).
+            if (hidden.HasValue) control._lastAppliedHidden = control.Hidden;
+            if (interactable.HasValue) control._lastAppliedInteractable = control.PeekInteractable;
         }
 
         private static void ApplyOne(ControlMeta meta, Control control,
