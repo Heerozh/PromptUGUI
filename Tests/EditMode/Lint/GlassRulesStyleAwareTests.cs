@@ -61,6 +61,20 @@ namespace PromptUGUI.Tests.EditMode.Lint
         }
 
         [Test]
+        public void HazeMeetingGlassThroughAClass_IsFlagged()
+        {
+            Assert.IsTrue(
+                Has(Walk("<Frame id='f' class='card fog'/>",
+                         GlassStyle + "<Style name='fog' haze='40' hazeColor='cyan'/>"),
+                    GlassRules.HazeOnGlassCode),
+                "glass from one class and haze from another still cancel out on the node");
+            Assert.IsFalse(
+                Has(Walk("<Frame id='f' class='fog'/>", "<Style name='fog' haze='40' hazeColor='cyan'/>"),
+                    GlassRules.HazeOnGlassCode),
+                "…and a foggy opaque style is fine");
+        }
+
+        [Test]
         public void GlassParamFromAClass_OnANonGlassNode_IsStillFlagged()
         {
             Assert.IsTrue(

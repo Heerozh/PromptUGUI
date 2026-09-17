@@ -25,6 +25,7 @@ namespace PromptUGUI.Lint
         private static readonly string[] PixelAttrs =
         {
             "borderWidth", "glow", "innerGlow", "blur", "handleBorderWidth", "handleGlow",
+            "haze", "hazeDrift",
         };
 
         public static IEnumerable<LintIssue> Check(ElementNode n)

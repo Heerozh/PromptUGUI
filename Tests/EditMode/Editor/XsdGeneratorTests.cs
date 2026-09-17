@@ -44,6 +44,16 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Frame_lists_its_haze_attributes()
+        {
+            // Frame is hand-listed; the ProceduralControl family is reflected and needs nothing.
+            var xsd = XsdGenerator.Generate(new ControlRegistry());
+            StringAssert.Contains("name=\"haze\"", xsd);
+            StringAssert.Contains("name=\"hazeColor\"", xsd);
+            StringAssert.Contains("name=\"hazeDrift\"", xsd);
+        }
+
+        [Test]
         public void Frame_Image_and_Icon_list_intensity()
         {
             // The same hand-written-list trap, three times over: <Frame>, <Image> and <Icon> are
