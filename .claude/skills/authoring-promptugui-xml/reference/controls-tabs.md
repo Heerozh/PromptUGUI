@@ -70,11 +70,11 @@ Sub-views belong **inside** the page. Two ways, by who switches:
   screen.Get<Pages>("shop_panel").Show("shop_detail");
   ```
 
-  Do **not** hand-roll this with sibling `<Frame>`s and `hidden="true"` + C# `Hidden`: `hidden` is
-  a declared attribute, so every ReSolve (resize / Variant / Theme) replays it and snaps the views
-  back to the declared state. `<Pages selected>` is runtime-owned (like `isOn`), a page never
-  declares `hidden` (`PUI-PAGES-CHILD-HIDDEN`), and a preview that loads only the XML shows the
-  `selected` page instead of every view stacked on top of each other.
+  Prefer this to hand-rolling it with sibling `<Frame>`s and `hidden="true"` + C# `Hidden`. That
+  works now (`hidden` is runtime-owned once code writes it), but the "exactly one of these" rule
+  then lives only in your code: `<Pages>` keeps it in the tree — `selected` is the single switch,
+  a page never declares `hidden` (`PUI-PAGES-CHILD-HIDDEN`), a tool can enumerate the views
+  (`screen.FindAll<Pages>()`), and a preview that loads only the XML shows the `selected` page.
 
 - **The player switches** — a second `<TabBar>` *inside* the page (a segmented control). Nested
   bars are independent, and the inner one keeps working from code even while its page is hidden:

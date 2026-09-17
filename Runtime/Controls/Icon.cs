@@ -9,6 +9,11 @@ namespace PromptUGUI.Controls
     public sealed class Icon : Control
     {
         private UnityImage _img;
+        // The last name written, resolved or not: `name` is runtime-owned (registered as the
+        // RuntimeStateAttr), and the lock compares what was written, not what it resolved to.
+        private string _name;
+
+        internal override string PeekRuntimeState() => _name;
 
         public override void OnAttached()
         {
@@ -27,6 +32,7 @@ namespace PromptUGUI.Controls
         {
             set
             {
+                _name = value;
                 if (string.IsNullOrEmpty(value)) { _img.sprite = null; return; }
                 if (UI.SpriteResolver == null)
                 {

@@ -182,8 +182,8 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 | `pivot` | 透传 RectTransform pivot；缺省随 anchor 自动推导 |
 | `padding` | 容器内边距（仅 VStack/HStack/Grid/Frame） |
 | `spacing` | 子项间距（仅 VStack/HStack/Grid） |
-| `hidden` | 初始隐藏（GameObject SetActive false） |
-| `interactable` | 初始不可交互（CanvasGroup.interactable false） |
+| `hidden` | 初始隐藏（GameObject SetActive false）。**运行期独占**：代码写过 `Hidden` 后 ReSolve 不打回；没动过照常跟 `.variant` / 主题 `<Style>`（[`2026-09-17-common-attr-runtime-state-design.md`](2026-09-17-common-attr-runtime-state-design.md)） |
+| `interactable` | 初始不可交互（CanvasGroup.interactable false）。同上运行期独占；未声明当 `true`、没动过每次重应用（不配基础值的 `.variant` 也自愈） |
 
 ### 5.1.1 指针命中（`raycastTarget`，2026-09-15 起）
 
@@ -508,7 +508,7 @@ var closeBtn = dialog.Get("close");          // 模板内部
 
 需要不同优先级，调整声明顺序即可。
 
-> **基础值与控件私有属性的复位边界。** 上面「都不真则用基础值」隐含一个前提：基础值存在。公共几何属性（`anchor` / `size` / `width` / `height` / `margin` / `pivot` / `interactable` / `flow`，以及 `scale`）即使**没有**基础值，变体失活时也会干净地回到控件默认——ReSolve 把它们整体重交给 `ApplyCommon` / `ApplyScales` 重算（见 scale-device-density 设计的 `Variant_reset_restores_base_geometry`）。**例外：`hidden` 不自愈**——它名义上也算「公共属性」，但 `ApplyCommon` 用 `if (hidden.HasValue)` 应用它（`Control.cs`），解算为空时是「跳过」而非「复位」，所以 `hidden` 与下面的控件私有属性同类、必须配基础值。**控件私有属性**（映射到控件自身 `[UIAttr]` setter 的，如 `<TabBar>` / `<ScrollList>` 的 `direction` / `spacing`、各控件的 `color` / `sprite` 等）在**只有 `.variant` 覆盖、没有基础值**时，变体失活**不会**回滚：ReSolve 的重应用对「解算为空」的控件属性直接 `continue` 跳过（没有针对任意 setter 的通用「回默认」信号），于是停在最后一次应用的值。因此控件私有属性（含 `hidden`）的 `.variant` 覆盖应**始终配一个基础值**（如 `direction="horizontal" direction.portrait="vertical"`）。这与 `*Color` / `pressedSprite` 的「set-only，变体清除不回滚」属同一类已知限制（见 `2026-06-01-btn-pressed-sprite-design.md`）；真正想 sticky 的运行期值另有 `RuntimeStateAttr`（`isOn` / `value` / `current`）机制。**lint CLI 会把缺失基础值静态报为 `PUI-VARIANT-NO-BASE`**（仅内置控件——CLI 看不到自定义控件的 setter；模板体根节点上可被调用方注入的 CommonAttrs 也豁免）。
+> **基础值与控件私有属性的复位边界。** 上面「都不真则用基础值」隐含一个前提：基础值存在。公共几何属性（`anchor` / `size` / `width` / `height` / `margin` / `pivot` / `interactable` / `flow`，以及 `scale`）即使**没有**基础值，变体失活时也会干净地回到控件默认——ReSolve 把它们整体重交给 `ApplyCommon` / `ApplyScales` 重算（见 scale-device-density 设计的 `Variant_reset_restores_base_geometry`）。**例外：`hidden` 不自愈**——它名义上也算「公共属性」，但 `ApplyCommon` 用 `if (hidden.HasValue)` 应用它（`Control.cs`），解算为空时是「跳过」而非「复位」，所以 `hidden` 与下面的控件私有属性同类、必须配基础值。另外 `hidden` / `interactable` 都是**运行期独占**的（[`2026-09-17-common-attr-runtime-state-design.md`](2026-09-17-common-attr-runtime-state-design.md)）：这里说的复位 / 自愈都只对**代码没碰过**的节点成立，代码写过的节点 ReSolve 一律不动。**控件私有属性**（映射到控件自身 `[UIAttr]` setter 的，如 `<TabBar>` / `<ScrollList>` 的 `direction` / `spacing`、各控件的 `color` / `sprite` 等）在**只有 `.variant` 覆盖、没有基础值**时，变体失活**不会**回滚：ReSolve 的重应用对「解算为空」的控件属性直接 `continue` 跳过（没有针对任意 setter 的通用「回默认」信号），于是停在最后一次应用的值。因此控件私有属性（含 `hidden`）的 `.variant` 覆盖应**始终配一个基础值**（如 `direction="horizontal" direction.portrait="vertical"`）。这与 `*Color` / `pressedSprite` 的「set-only，变体清除不回滚」属同一类已知限制（见 `2026-06-01-btn-pressed-sprite-design.md`）；真正想 sticky 的运行期值另有 `RuntimeStateAttr`（`isOn` / `value` / `current`）机制。**lint CLI 会把缺失基础值静态报为 `PUI-VARIANT-NO-BASE`**（仅内置控件——CLI 看不到自定义控件的 setter；模板体根节点上可被调用方注入的 CommonAttrs 也豁免）。
 
 ### 8.4 块形式：仅 `<Add>`
 

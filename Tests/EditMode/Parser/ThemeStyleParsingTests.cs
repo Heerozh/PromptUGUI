@@ -71,10 +71,24 @@ namespace PromptUGUI.Tests.EditMode.Parser
         [TestCase("isOn")]
         [TestCase("value")]
         [TestCase("current")]
+        [TestCase("expanded")]
+        [TestCase("selected")]
         public void ThemeStyle_RejectsRuntimeOwnedState(string attr)
         {
             var ex = ParseFails($"<Theme name='pixel'><Style name='card' {attr}='x'/></Theme>");
             StringAssert.Contains("runtime", ex.Message.ToLowerInvariant());
+        }
+
+        // hidden / interactable are runtime-owned too (spec 2026-09-17-common-attr-runtime-state
+        // §4.4), but a theme still gets to set them: the CommonControls sample switches its skin
+        // layers with <Style name='skin-glass' hidden='true'/>. A node code has touched simply stops
+        // following the theme — documented, not rejected.
+        [TestCase("hidden")]
+        [TestCase("interactable")]
+        public void ThemeStyle_KeepsAcceptingHiddenAndInteractable(string attr)
+        {
+            var themed = Theme($"<Theme name='pixel'><Style name='card' {attr}='true'/></Theme>").Styles["card"];
+            Assert.AreEqual("true", themed.Attributes[attr]);
         }
 
         // §6.3: PUI-MASK-VARIANT already declares per-state mask switching unsupported in v1.

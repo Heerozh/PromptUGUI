@@ -718,7 +718,7 @@ N 选 1 容器（Qt `QStackedWidget` / Flutter `IndexedStack`）：**每个直�
 规则（lint 同名代码，运行时 warning）：
 
 - **每页必须有 `id`**（`PUI-PAGES-CHILD-ID`）：没有 id 的页选不中，永远停用。
-- **页不写 `hidden`**——含 `hidden.<variant>` 和 `class=` 带进来的（`PUI-PAGES-CHILD-HIDDEN`）。页的 activeSelf 归容器；声明的 `hidden` 会被每次 ReSolve 重放到容器之上，把选中页藏掉。想让某页在某变体下不出现 → `selected.<variant>=` 指别的页。
+- **页不写 `hidden`**——含 `hidden.<variant>` 和 `class=` 带进来的（`PUI-PAGES-CHILD-HIDDEN`）。页的 activeSelf 归容器，页上再声明一个初态就是两个主人（容器切过之后那个声明永远是假的）。想让某页在某变体下不出现 → `selected.<variant>=` 指别的页。
 - `selected`（基础值和每个变体值）必须是某页的 `id`（`PUI-PAGES-SELECTED`），否则第一页顶上。
 - 没有页（`PUI-PAGES-EMPTY`）；`<Add into="#pagesId">` 往 `<Pages>` 里加页不支持（`PUI-PAGES-ADD-TARGET`）：页是静态的，Add 块和容器会争同一个 activeSelf。
 - **纯容器**：没有 Graphic 也没有程序化表面，`color` / `sprite` / `radius` / `glass` 一律丢弃（`PUI-CONTAINER-VISUAL-ATTR`），`raycastTarget` 同理（`PUI-RAYCAST-TAG`）——要底就外面套 `<Frame>`。默认 anchor 同 `<Frame>`（没写 size 的轴 stretch）。不支持 `hug`（`PUI-HUG-TAG`，页是自由定位的）。
@@ -799,7 +799,7 @@ References a sprite from a project-level SpriteSet (shared icons, by-name lookup
 
 | Attribute | Required | Default   | Notes                                                                                                                                                                                                                                                                                                                |
 | --------- | -------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`    | yes      | —         | Format `ns:icon-name`. `ns` (set name) is strict `[A-Za-z0-9_-]+`; `icon-name` mirrors the filesystem path under `sourceFolder` (no extension) — `/`-separated, may contain spaces, `&`, parens, commas, apostrophes, etc. Only the `:` delimiter is forbidden. Example: `solar:Bold Duotone/Map & Location/Radar 2` |
+| `name`    | yes      | —         | Format `ns:icon-name`. `ns` (set name) is strict `[A-Za-z0-9_-]+`; `icon-name` mirrors the filesystem path under `sourceFolder` (no extension) — `/`-separated, may contain spaces, `&`, parens, commas, apostrophes, etc. Only the `:` delimiter is forbidden. Example: `solar:Bold Duotone/Map & Location/Radar 2`. **Runtime-owned** (like `isOn`): a code-written `Icon.Name` survives resize / Variant / Theme; an untouched icon still follows `name.<locale>=`. |
 | `color`   | no       | `#ffffff` | Multiply tint on the underlying Image. White preserves a colored PNG; non-white tints a mono-mask PNG; gradient stop positions / hints render here too                                                                                                                                                                                                                |
 | `size`    | no       | `native`  | Numeric / `WxH` / `native` (Icon-only — reads sprite pixel dimensions). For "fill the parent" use `anchor="stretch"` (free-positioning) or wrap the Icon in a V/HStack and use `width="stretch"` / `height="stretch"` (LayoutGroup)                                                                                  |
 | `rotation` | no      | `0`       | Clockwise degrees, mesh-level — see **Rotation & flip** under `<Image>`                                                                                                                                                                                                                                             |
@@ -906,8 +906,8 @@ Other notes:
 | `margin="..."` | 1/2/4 floats | Distance from anchor inward, positive. `"_"` = 0 placeholder. **4-component order `top,right,bottom,left`** (1 = all sides, 2 = `vertical,horizontal`). A margin only offsets from a side the `anchor` **consumes** — see **margin & consumed sides** below. |
 | `pivot="x,y"` | `0..1, 0..1` | Defaults derive from `anchor`; rarely needed. |
 | `class="a b"` | style names, space-separated | Pulls in `<Style>` attribute packs. Inline attributes win; later classes beat earlier ones. See **Style & class**. |
-| `hidden="true"` | bool | Initial `SetActive(false)`. |
-| `interactable="false"` | bool | Initial `CanvasGroup.interactable=false`, leaving `blocksRaycasts=true` — a disabled subtree still **absorbs** clicks, never passing them through to a backdrop behind it (standard Unity disabled semantics; for click-through set `blocksRaycasts=false` on the CanvasGroup yourself, as the Toast overlay does). On `<Btn>` it **also** sets `Button.interactable=false` → the Btn enters its Disabled state (see `reference/states.md`). |
+| `hidden="true"` | bool | Initial `SetActive(false)`. **Runtime-owned** once code writes `Hidden` (same contract as `isOn`): a resize / Variant / Theme ReSolve never snaps a code-written value back; an untouched node still follows `hidden.<variant>=` and its theme's `<Style>`. So write the real initial state here (a preview that only loads the XML shows it) and let C# take over. Undeclared = never written (no self-heal — a `.variant` form needs a base, `PUI-VARIANT-NO-BASE`). |
+| `interactable="false"` | bool | **Runtime-owned** once code writes `Interactable` (as `hidden`); undeclared = `true`, re-applied on an untouched node so a base-less `interactable.mobile=` still heals. Initial `CanvasGroup.interactable=false`, leaving `blocksRaycasts=true` — a disabled subtree still **absorbs** clicks, never passing them through to a backdrop behind it (standard Unity disabled semantics; for click-through set `blocksRaycasts=false` on the CanvasGroup yourself, as the Toast overlay does). On `<Btn>` it **also** sets `Button.interactable=false` → the Btn enters its Disabled state (see `reference/states.md`). |
 | `stateReact="false"` | bool (default `true`) | Opts this node **and its whole subtree** out of an ancestor `<Btn>` / `<Tab>` / `<Toggle>`'s `*Modulate` fan-out. Has no effect on `*Color` (absolute — bg only, never fanned out). See `reference/states.md`. |
 | `flow="false"` | bool (default `true`) | **Layout-group children only** (direct child of `<VStack>` / `<HStack>` / `<Grid>`). Opts the child **out of the layout flow**: the group neither positions it nor counts it toward its own preferred size, and `anchor` / `margin` / `N%` regain full free-positioning semantics against the group's rect. Use for a 9-slice background layer / badge / overlay inside a hug-sized stack — see **Out-of-flow children** below. Inert under a free-positioning parent (`PUI-FLOW-OUTSIDE-GROUP`). Variant-overridable (`flow.portrait="false"`). |
 | `scale="N"` / `scale="Nx"` / `scale="<r>r"` | float `N` / `Nx` (int) / `<r>r` (float) | Three forms: `N` = box-preserving (a render-density knob, **not** a resize knob); `Nx` = N physical px per design-unit (constant across factors, **doesn't grow with the window**); `<r>r` = `r×` the canvas factor **snapped to an integer** (**grows with the window yet stays pixel-aligned**). `scale="2"` ≠ `scale="2x"`. Full formulas / examples / caveats: see **Relative scale** / **Device-density** / **Canvas-relative snapped** below. |
@@ -1243,8 +1243,13 @@ last two groups):
 | Group | Names | Why |
 |---|---|---|
 | node identity | `id` `if` `class` `bind` | same as a global `<Style>` |
-| runtime-owned state | `text` `isOn` `value` `current` | the applier stops replaying these once code sets them, so a theme's value would be swallowed *some* of the time |
+| runtime-owned state | `text` `isOn` `value` `current` `expanded` `selected` | the applier stops replaying these once code sets them, so a theme's value would be swallowed *some* of the time |
 | mask family | `mask` `showMask` `maskPadding` | `PUI-MASK-VARIANT` already rejects switching mask mode per state; a theme must not be a second door into it |
+
+`hidden` / `interactable` are runtime-owned too but stay **allowed** in a theme's `<Style>` — switching
+skin layers with `<Style name="skin-glass" hidden="true"/>` is the CommonControls sample's idiom. The
+trade-off is the same as above, just accepted: a node code has touched stops following the theme
+until its Screen is reopened.
 
 **Don't put a themed `class=` on a Template invocation** (`<ui.Card class="skin"/>`): half the pack
 becomes `<Param>` values that get baked into the body at expansion, and the invocation node is gone

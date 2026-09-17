@@ -373,6 +373,7 @@ public sealed class Badge : Control
 
 - 要按变体**插入元素**用 `<Variant when="mobile"><Add into="#id">...</Add></Variant>`（无 Remove/Replace；要隐藏写 `hidden.mobile="true"`）。
 - **保留变体名**：`portrait` / `landscape`（朝向，自动跟踪）和 `<locale>`（比如 `sprite.zh-Hans`）是库的保留变体，会自动设置True/False。
+- **代码写过的状态归代码。** `Hidden` / `Interactable` / `Icon.Name`（同 `isOn` / `value` / `text`）在 resize / Variant / Theme 的 ReSolve 里保持代码写的值；没动过的节点照常跟 `.变体` 覆写。所以初态直接写在 XML 里（占位符 `hidden="true"`），之后交给 C#——不用再「XML 不写 hidden、resize 后重设」。
 
 **其他**:
 
