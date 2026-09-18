@@ -29,7 +29,8 @@ namespace PromptUGUI.IR
         /// <summary>Blank rows are inert: kept in the Inspector, skipped by every reader.</summary>
         public bool IsBlank => string.IsNullOrWhiteSpace(src);
 
+        /// <summary>Whitespace trimmed on both; a blank <see cref="@as"/> is no namespace.</summary>
         public ImportRef ToImportRef() =>
-            new ImportRef(src, string.IsNullOrWhiteSpace(@as) ? null : @as);
+            new ImportRef(src?.Trim(), string.IsNullOrWhiteSpace(@as) ? null : @as.Trim());
     }
 }

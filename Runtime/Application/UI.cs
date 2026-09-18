@@ -629,14 +629,41 @@ namespace PromptUGUI.Application
                 return DocumentCache.GetOrFetchAsync(s, SourceResolver);
             };
 
+            // Commons first (a no-op, and synchronous, when none are declared — the built-in modal
+            // skins keep loading without a resolver or a PlayerLoop).
+            await EnsureCommonLibrariesAsync();
             var loaded = await DocumentLoader.LoadAndMergeParsedAsync(label, fetch, _commonsPool, _commonsStyles);
             RegisterThemesAndAutoSet(loaded);
-            var expanded = PromptUGUI.Template.TemplateExpander.Expand(loaded);
+            var expanded = ExpandOrExplain(loaded);
             foreach (var s in expanded.Screens)
             {
                 if (_docs.ContainsKey(s.Name))
                     throw new System.InvalidOperationException(AlreadyLoadedMessage(s.Name));
                 _docs[s.Name] = s;
+            }
+        }
+
+        /// <summary>
+        /// <c>TemplateExpander.Expand</c>, with one hint added: an unknown style / template name in a
+        /// project that declares NO common library is most often a library that was never listed in
+        /// <see cref="PromptUGUISettings.commonLibraries"/> — say so, instead of leaving the author to
+        /// suspect the resolver (spec §4.10). With libraries declared the name is genuinely unknown and
+        /// the expander's own message (which lists what IS known) stands.
+        /// </summary>
+        private static IR.UIDocument ExpandOrExplain(IR.LoadedDoc loaded)
+        {
+            try
+            {
+                return PromptUGUI.Template.TemplateExpander.Expand(loaded);
+            }
+            catch (PromptUGUI.Template.TemplateException e)
+                when (ConfiguredCommonLibraries().Count == 0
+                      && (e.Message.Contains("unknown style") || e.Message.Contains("unknown template")))
+            {
+                throw new PromptUGUI.Template.TemplateException(
+                    e.Message + " — no common library is configured (PromptUGUISettings.commonLibraries is " +
+                    "empty, or there is no settings asset); if this name lives in a shared library, list " +
+                    "that library there.", e);
             }
         }
 
@@ -651,9 +678,10 @@ namespace PromptUGUI.Application
                 throw new System.InvalidOperationException(
                     "UI.SourceResolver must be set before LoadDocumentAsync");
 
+            await EnsureCommonLibrariesAsync();
             var loaded = await DocumentLoader.LoadAndMergeParsedAsync(src, CachedFetch, _commonsPool, _commonsStyles);
             RegisterThemesAndAutoSet(loaded);
-            var expanded = PromptUGUI.Template.TemplateExpander.Expand(loaded);
+            var expanded = ExpandOrExplain(loaded);
 
             var added = new List<string>();
             foreach (var s in expanded.Screens)
@@ -686,6 +714,7 @@ namespace PromptUGUI.Application
             // reload = 重读：入口与上次记录的整个闭包都从缓存里摘掉（热重载只改一个文件也走这里，
             // 编辑器专属，多取几个文件无所谓；直接调本方法的调用方没有经过 NotifyAssetChanged 的失效）
             InvalidateClosure(dep.EntrySrc, dep.AllDeps);
+            await EnsureCommonLibrariesAsync();   // a library added to settings mid-Play is seen by the reload
             var loaded = await DocumentLoader.LoadAndMergeParsedAsync(dep.EntrySrc, CachedFetch, _commonsPool, _commonsStyles);
             // Re-register Theme blocks on reload. Mirror LoadDocumentAsync's
             // RegisterThemesAndAutoSet call but route through ReplaceFromSrc so a
@@ -693,7 +722,7 @@ namespace PromptUGUI.Application
             // adds / replaces) and Theme.Changed fires if the current theme was
             // among the replaced ones.
             ReplaceThemesAndNotify(loaded);
-            var expanded = PromptUGUI.Template.TemplateExpander.Expand(loaded);
+            var expanded = ExpandOrExplain(loaded);
 
             PromptUGUI.IR.ScreenDef newDef = null;
             foreach (var s in expanded.Screens)
@@ -720,7 +749,124 @@ namespace PromptUGUI.Application
             if (wasOpen) Open(screenName);
         }
 
-        public static UnityEngine.Awaitable LoadCommonLibraryAsync(string src, string @as = null) =>
+        // ── common libraries (2026-09-18 commons-settings spec §4.2–4.5) ─────────────────────────
+        //
+        // Which libraries are common is declared ONCE, in PromptUGUISettings.commonLibraries, and
+        // read from there by the runtime, the Editor lint menu and (through the asset's YAML) the
+        // UIXmlLint CLI. Loading is idempotent and keyed on the pool itself — there is no "already
+        // loaded" flag to go stale when Domain Reload is off and [OnEnteringPlayMode] empties the pool.
+
+        private static bool _ensuringCommons;
+        private static System.Collections.Generic.List<UnityEngine.AwaitableCompletionSource> _commonsWaiters;
+
+        /// <summary>
+        /// Test seam: where <see cref="EnsureCommonLibrariesAsync"/> reads its rows (null = the
+        /// settings asset). <see cref="ResetForTests"/> points it at an empty list so a test never
+        /// loads the host project's real libraries through its fake resolver; a
+        /// <c>SubsystemRegistration</c> hook clears it again for a Play session that follows a test
+        /// run without a domain reload.
+        /// </summary>
+        internal static Func<IReadOnlyList<IR.CommonLibraryEntry>> CommonLibrariesForTests;
+
+        [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetCommonsStatics()
+        {
+            CommonLibrariesForTests = null;
+            _ensuringCommons = false;
+            _commonsWaiters = null;
+        }
+
+        /// <summary>The declared rows as import refs: blank src rows dropped, whitespace trimmed, blank as = no namespace.</summary>
+        private static List<IR.ImportRef> ConfiguredCommonLibraries()
+        {
+            var rows = CommonLibrariesForTests != null
+                ? CommonLibrariesForTests()
+                : PromptUGUISettings.Instance?.commonLibraries;
+            var refs = new List<IR.ImportRef>();
+            if (rows == null) return refs;
+            foreach (var row in rows)
+            {
+                if (row == null || row.IsBlank) continue;
+                refs.Add(row.ToImportRef());
+            }
+            return refs;
+        }
+
+        /// <summary>
+        /// Loads every common library declared in <see cref="PromptUGUISettings.commonLibraries"/>
+        /// that is not in the commons pool yet, in declared order — each exactly as a
+        /// <c>LoadCommonLibraryAsync(src, as)</c> call would. Idempotent: a second call with nothing
+        /// new to load returns synchronously without touching the resolver, and concurrent callers
+        /// wait on the one load in flight (and share its exception). <see cref="LoadDocumentAsync"/>,
+        /// the modal loader and <see cref="ReloadAsync"/> call this first, so a host never has to;
+        /// call it explicitly to warm the themes up before the first Screen, or right after
+        /// <see cref="UnloadAll"/>.
+        ///
+        /// <para>A failing entry throws (unreadable src, parse error, name conflict, a
+        /// <c>&lt;Screen&gt;</c> in a library); the entries before it stay loaded, the ones after are
+        /// not attempted, and the next call resumes at the failed one. With no entries declared there
+        /// is nothing to do and no resolver is required.</para>
+        /// </summary>
+        public static async UnityEngine.Awaitable EnsureCommonLibrariesAsync()
+        {
+            var entries = ConfiguredCommonLibraries();
+            var pending = false;
+            foreach (var e in entries)
+                if (!_depGraph.IsCommons(e.Src)) { pending = true; break; }
+            if (!pending) return;
+
+            if (_ensuringCommons)
+            {
+                var waiter = new UnityEngine.AwaitableCompletionSource();
+                (_commonsWaiters ??= new System.Collections.Generic.List<UnityEngine.AwaitableCompletionSource>()).Add(waiter);
+                await waiter.Awaitable;
+                return;
+            }
+
+            if (SourceResolver == null)
+                throw new System.InvalidOperationException(
+                    "UI.SourceResolver must be set before the common libraries listed in " +
+                    "PromptUGUISettings can be loaded (EnsureCommonLibrariesAsync / LoadDocumentAsync)");
+
+            _ensuringCommons = true;
+            try
+            {
+                foreach (var e in entries)
+                {
+                    if (_depGraph.IsCommons(e.Src)) continue;
+                    await LoadCommonLibraryAsyncInternal(e.Src, e.Namespace, isReload: false);
+                }
+                ReleaseCommonsWaiters(null);
+            }
+            catch (Exception ex)
+            {
+                ReleaseCommonsWaiters(ex);
+                throw;
+            }
+            finally
+            {
+                _ensuringCommons = false;
+            }
+        }
+
+        private static void ReleaseCommonsWaiters(Exception error)
+        {
+            var waiters = _commonsWaiters;
+            _commonsWaiters = null;
+            if (waiters == null) return;
+            foreach (var w in waiters)
+            {
+                if (error == null) w.SetResult();
+                else w.SetException(error);
+            }
+        }
+
+        /// <summary>
+        /// Loads one library into the commons pool under an optional namespace. Internal: the public
+        /// way to declare a common library is <see cref="PromptUGUISettings.commonLibraries"/>, so
+        /// that the Editor lint menu and the CLI see the same list the runtime loads.
+        /// </summary>
+        internal static UnityEngine.Awaitable LoadCommonLibraryAsync(string src, string @as = null) =>
             LoadCommonLibraryAsyncInternal(src, @as, isReload: false);
 
         private static async UnityEngine.Awaitable LoadCommonLibraryAsyncInternal(
@@ -732,41 +878,10 @@ namespace PromptUGUI.Application
 
             var loaded = await DocumentLoader.LoadParsedAsync(src, CachedFetch, allowScreens: false);
 
-            var staged = new System.Collections.Generic.List<(TemplateKey Key, IR.TemplateDef Def)>();
-            foreach (var kv in loaded.Templates)
-            {
-                var rebasedKey = @as == null
-                    ? kv.Key
-                    : new TemplateKey(@as, kv.Key.Name);
-                if (_commonsPool.ContainsKey(rebasedKey))
-                    throw new PromptUGUI.Template.TemplateException(
-                        $"common library conflict: '{rebasedKey}' already in commons pool");
-                staged.Add((rebasedKey, kv.Value));
-            }
-
-            var stagedStyles = new System.Collections.Generic.List<(StyleKey Key, IR.StyleDef Def)>();
-            foreach (var kv in loaded.Styles)
-            {
-                var rebasedKey = @as == null
-                    ? kv.Key
-                    : new StyleKey(@as, kv.Key.Name);
-                if (_commonsStyles.ContainsKey(rebasedKey))
-                    throw new PromptUGUI.Template.TemplateException(
-                        $"common library conflict: style '{rebasedKey}' already in commons pool");
-                stagedStyles.Add((rebasedKey, kv.Value));
-            }
-
-            foreach (var (key, def) in staged)
-            {
-                def.OriginSrc = src;
-                _commonsPool[key] = def;
-            }
-
-            foreach (var (key, def) in stagedStyles)
-            {
-                def.OriginSrc = src;
-                _commonsStyles[key] = def;
-            }
+            // Namespace rebase + conflict + OriginSrc stamp: one implementation, shared with the lint
+            // front ends so a library folds in identically there (spec §4.6).
+            PromptUGUI.Template.DocumentAssembler.AddCommonLibrary(
+                loaded, @as, src, _commonsPool, _commonsStyles);
 
             // Register or replace <Theme> blocks. On first load, Register is used
             // (adds / replaces per (name, src), throws on cross-src duplicate;
@@ -780,13 +895,17 @@ namespace PromptUGUI.Application
                 RegisterThemesAndAutoSet(loaded);
             WarnIfPendingThemeUnloaded();
 
-            _depGraph.CommonsSources.Add(src);
+            _depGraph.CommonsSources[src] = @as;
             _depGraph.SrcToDeps[src] = new System.Collections.Generic.HashSet<string>(loaded.AllSrcs);
         }
 
+        /// <summary>
+        /// Re-reads one loaded common library (hot reload) and reloads every Screen. It goes back in
+        /// under the namespace it was loaded with; a failed re-read restores the previous pool.
+        /// </summary>
         public static async UnityEngine.Awaitable ReloadCommonLibraryAsync(string src)
         {
-            if (!_depGraph.CommonsSources.Contains(src))
+            if (!_depGraph.CommonsSources.TryGetValue(src, out var ns))
                 throw new System.InvalidOperationException(
                     $"src='{src}' is not a registered common library");
 
@@ -794,7 +913,6 @@ namespace PromptUGUI.Application
                 throw new System.InvalidOperationException(
                     "UI.SourceResolver must be set before ReloadCommonLibraryAsync");
 
-            // M4 v1 limitation: original `as=` namespace is not preserved across reload.
             var stashed = new System.Collections.Generic.List<
                 System.Collections.Generic.KeyValuePair<TemplateKey, IR.TemplateDef>>();
             foreach (var kv in _commonsPool)
@@ -815,13 +933,13 @@ namespace PromptUGUI.Application
 
             try
             {
-                await LoadCommonLibraryAsyncInternal(src, @as: null, isReload: true);
+                await LoadCommonLibraryAsyncInternal(src, ns, isReload: true);
             }
             catch
             {
                 foreach (var kv in stashed) _commonsPool[kv.Key] = kv.Value;
                 foreach (var kv in stashedStyles) _commonsStyles[kv.Key] = kv.Value;
-                _depGraph.CommonsSources.Add(src);
+                _depGraph.CommonsSources[src] = ns;
                 if (prevDeps != null) _depGraph.SrcToDeps[src] = prevDeps;
                 throw;
             }
@@ -1284,6 +1402,11 @@ namespace PromptUGUI.Application
             _depGraph.Clear();
             DocumentCache.Clear();
             PromptUGUISettings.ResetInstanceCache();
+            // Never the host project's real common libraries: a test's fake resolver could not serve
+            // them. Tests that want commons assign their own rows (spec §4.5).
+            CommonLibrariesForTests = () => System.Array.Empty<IR.CommonLibraryEntry>();
+            _ensuringCommons = false;
+            _commonsWaiters = null;
             SourceResolver = null;
             SpriteResolver = null;
             LoadedSpriteSetNames.Clear();

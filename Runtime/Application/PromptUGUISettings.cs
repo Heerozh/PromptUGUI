@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using PromptUGUI.IR;
 using TMPro;
 using UnityEngine;
 
@@ -31,6 +32,14 @@ namespace PromptUGUI.Application
                  "writes to or reports on them; labelling and translation still include them. " +
                  "Files must still sit under a '<locale>' folder: <root>/<locale>/*.po")]
         public List<string> externalPoRoots = new();
+
+        [Tooltip("Common libraries: the <Import> every document implicitly has (shared <Template> / " +
+                 "<Style> / <Theme>). 'src' is a resolver key in the same shape as <Import src> — " +
+                 "e.g. 'UI/Templates/Theme.ui' for UseResourcesResolver(\"UI\"), the Address for " +
+                 "Addressables — never a file path. 'as' is an optional namespace (<ns.Name/>, " +
+                 "class=\"ns:name\"). Loaded in this order by UI.EnsureCommonLibrariesAsync, which " +
+                 "LoadDocumentAsync calls for you; the lint tools read the same list.")]
+        public List<CommonLibraryEntry> commonLibraries = new();
 
         /// <summary>Resolved font + optional material preset for a (locale, type) pair.</summary>
         internal readonly struct FontResolution
@@ -96,15 +105,61 @@ namespace PromptUGUI.Application
                     ? FinderForTests()
                     : Resources.FindObjectsOfTypeAll<PromptUGUISettings>();
                 s_instance = loaded != null && loaded.Length > 0 ? loaded[0] : null;
+#if UNITY_EDITOR
+                // The Player has the asset in memory from preloadedAssets; the Editor only once
+                // something loaded it (PromptUGUISettingsAutoMaintainer does, on a delayCall after
+                // each domain reload). A BeforeSceneLoad caller — the host's boot, or
+                // UI.EnsureCommonLibrariesAsync from it — can run before that, so ask the
+                // AssetDatabase directly rather than answer "no settings" for one frame.
+                if (s_instance == null && FinderForTests == null) s_instance = FindInAssetDatabase();
+#endif
                 return s_instance;
             }
         }
 
+#if UNITY_EDITOR
+        private static PromptUGUISettings FindInAssetDatabase()
+        {
+            var guids = UnityEditor.AssetDatabase.FindAssets("t:PromptUGUISettings");
+            if (guids.Length == 0) return null;   // more than one: the maintainer already logs it
+            return UnityEditor.AssetDatabase.LoadAssetAtPath<PromptUGUISettings>(
+                UnityEditor.AssetDatabase.GUIDToAssetPath(guids[0]));
+        }
+#endif
+
         /// <summary>丢掉 <see cref="Instance"/> 的缓存，下次访问重扫。</summary>
         internal static void ResetInstanceCache() => s_instance = null;
 
+        /// <summary>
+        /// The two mistakes a row can carry, reported where they are made. A duplicate src loads
+        /// once (the second row is skipped as already loaded); a dotted namespace is what the
+        /// parser rejects on <c>&lt;Import as&gt;</c>, and would throw at the first load. Blank
+        /// rows are fine — inert everywhere.
+        /// </summary>
+        private void ValidateCommonLibraries()
+        {
+            commonLibraries ??= new List<CommonLibraryEntry>();
+            var seen = new HashSet<string>();
+            for (var i = 0; i < commonLibraries.Count; i++)
+            {
+                var row = commonLibraries[i];
+                if (row == null || row.IsBlank) continue;
+                var src = row.src.Trim();
+                if (!seen.Add(src))
+                    Debug.LogError(
+                        $"[PromptUGUI] Duplicate common library src '{src}' at commonLibraries[{i}]; " +
+                        "only the first row is loaded.", this);
+                if (!string.IsNullOrWhiteSpace(row.@as) && row.@as.Contains('.'))
+                    Debug.LogError(
+                        $"[PromptUGUI] commonLibraries[{i}]: as='{row.@as}' must not contain '.' " +
+                        "(the same rule as <Import as>; templates are invoked as <ns.Name/>).", this);
+            }
+        }
+
         private void OnValidate()
         {
+            ValidateCommonLibraries();
+
             if (locales != null)
             {
                 var seenLocale = new Dictionary<string, int>();

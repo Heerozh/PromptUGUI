@@ -4,7 +4,12 @@ namespace PromptUGUI.Application
 {
     internal sealed class DepGraph
     {
-        public readonly HashSet<string> CommonsSources = new();
+        /// <summary>
+        /// Loaded common libraries: src → the namespace it was loaded under (null = bare names).
+        /// Remembered here so <c>ReloadCommonLibraryAsync</c> re-installs a library exactly as it
+        /// was loaded — the M4 v1 limitation of reloading under bare names is gone.
+        /// </summary>
+        public readonly Dictionary<string, string> CommonsSources = new();
         public readonly Dictionary<string, HashSet<string>> SrcToDeps = new();
         public readonly Dictionary<string, ScreenDep> ScreenDeps = new();
 
@@ -21,7 +26,7 @@ namespace PromptUGUI.Application
             ScreenDeps.Clear();
         }
 
-        public bool IsCommons(string src) => CommonsSources.Contains(src);
+        public bool IsCommons(string src) => CommonsSources.ContainsKey(src);
 
         public IEnumerable<string> ScreensDependingOn(string src)
         {
