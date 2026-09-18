@@ -1,6 +1,6 @@
 # Commons 设置化 —— `PromptUGUISettings.commonLibraries` 成为公共库的唯一声明源
 
-> 状态：**草案**（待作者按 §12 拍板；拍板后走 plan → 分支 `feat/commons-settings` → PR）。
+> 状态：**实施中**（§12 按推荐项已定，不出 plan；分支 `feat/commons-settings`，进度见 §14）。
 > 相关：master spec §7.6（`as=` 消歧）与 M4.2–M4.4；`2026-05-08-m4-import-autoimport-hotreload-xsd-design.md`
 > （M4-D1/D2 库不碰文件系统、M4-D3 `LoadCommonLibrary` = C# `global using`、M4-R8 reload 丢 `as=`）；
 > `2026-08-26-theme-driven-style-design.md` §9（lint 的展开遍与 `DocumentAssembler` 单一实现）；
@@ -311,7 +311,7 @@ Lint——本案：`DocumentLinterTests`（`Walk` 直接喂内存 lookup，commo
 EditorOnly（`PromptUGUI.Tests.EditorOnly`）：
 
 25. *(lint-menu)* `UIXmlLintMenu.Lint(paths, report, commons)`：临时目录里 commons + 入口，条目 src 用 `lib.ui` 短名 → 从入口目录猜到 `lib.ui.xml`，展开遍生效。
-26. `SettingsAssetReader` 往返：`CreateInstance` + 填两条 → `AssetDatabase.CreateAsset` 到临时路径 → 读文件 → 读回相同两条 → `DeleteAsset`。
+26. `SettingsAssetReader` 往返：`CreateInstance` + 填两条 → `InternalEditorUtility.SaveToSerializedFileAndForget`（文本序列化）到临时文件 → 读文件 → 读回相同两条；空表序列化成 `commonLibraries: []`。（不用 `AssetDatabase.CreateAsset`：工程里多出第二个 settings 资产会被 `PromptUGUISettingsAutoMaintainer` 报错。）
 
 手工验证（ssw_re_client，Unity MCP）：
 
@@ -405,3 +405,24 @@ EditorOnly（`PromptUGUI.Tests.EditorOnly`）：
 | L1 | `ImportClosure.TryLoad(..., commons)` + `LintRun.Lint(..., commons)`（§7-21、22 Red → Green） | EditMode 全绿 |
 | L2 | 菜单读 `PromptUGUISettings.Instance.commonLibraries`（§7-25）+ 末尾提示（§4.8） | ssw §7-28 |
 | L3 | CLI：`--settings` / `--commons` / 自动发现 / `--src-root`（§4.9）+ lint README | ssw §7-32 |
+
+## 14. 实施记录（2026-09-18，分支 `feat/commons-settings`）
+
+M0（`8cb6383`）、M1（`87f0f38`）与 M2 文档已落地；与上文的出入：
+
+- **reload 的 `as` 不查 settings，记在 `DepGraph.CommonsSources`**（`HashSet<string>` → `Dictionary<string, string>`，src → 装载时的命名空间）。
+  比 §4.4 写的「从条目表按 src 查」更稳：internal 路径装的库也不丢，失败回滚也按它还原。`DepGraphTests` 相应改两行。
+- **`AddCommonLibrary` 多拦一种冲突**：同一个库里两条记录重命名后落到同一个键（库自带 `<Import as="x">` 的 `T` 与裸 `T` 在 `ns` 下都成 `ns.T`），
+  以前静默后者覆盖前者，现在同样抛 `common library conflict`（M4-D4 fail loud）。
+- **lint 多报一种**：`<Theme>` 同名同时出现在 commons 与入口闭包 → `PUI-EXPAND: duplicate <Theme name="x"> in 'a' and 'b'`，
+  文案同运行时 `ThemeStore.Register`。
+- **`SettingsAssetReader.ReadCommonLibraries` 返回 `List<CommonLibraryEntry>`**（与资产同型），调用方 `ToImportRef()`；§4.9 写的是 `ImportRef`。
+- **`TemplateException` 加 `(message, inner)` 构造**（Core，纯 C#），§4.10 的提示用它包一层。
+- **测试隔离缝**按 §4.5 落地；另外发现一个测试卫生坑并写进测试注释：测试里给 resolver 一个永不完成的 `AwaitableCompletionSource`
+  后没完成就结束，会留在 `DocumentCache.s_inflight`（`Clear()` 不清 in-flight），同一轮里后面所有取同一 src 的测试都挂在它上面——
+  症状是 `GetAwaiter().GetResult()` 返回 null / `Screen 'X' not loaded`，单跑却能过。
+- **宿主 ssw 已做最小迁移**（不是 §9 的全部）：`UIBoot.EnsureCommonsAsync` 与 `Assets/Tools/UI Preview/UIPreview.cs` 改调
+  `UI.EnsureCommonLibrariesAsync()`，`PromptUGUI_Settings.asset` 加 `UI/Templates/DefaultTheme.ui.xml` 一行——`LoadCommonLibraryAsync` 变
+  internal 后宿主程序集编不过，测试跑不了，只能先动。§9 其余（删 `UIBoot` 的标志 / `ResetForSceneAsync` / `Lobby.cs:68`、GlassStyle 搬回）仍另案。
+- 验证：EditMode 4417 / EditorOnly 全量 / PlayMode 244 全绿；`dotnet format --verify-no-changes` 与 `dotnet build .lint/UIXmlLint` 通过。
+  §7-27 ~ 32 的手工项与 Player 构建（§7-30）尚未做。
