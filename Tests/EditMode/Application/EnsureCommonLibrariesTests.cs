@@ -146,6 +146,47 @@ namespace PromptUGUI.Tests.Application
             Assert.IsNotNull(OpenM().Get<Frame>("b"));
         }
 
+        // A waiter that, once released, unloads and ensures again — the UI Preview's injection
+        // sequence does exactly this (spec 2026-09-18 ui-preview-tool §4.11): it waits for the host's
+        // boot-time load, then UnloadAll + LoadDocumentAsync. Waiters are released synchronously,
+        // so that second Ensure runs INSIDE the first one's completion; if the in-flight flag is
+        // still up at that point it parks itself on a waiter list nobody will ever release.
+        [Test]
+        public void Ensure_AWaiterThatUnloadsAndEnsuresAgain_StartsANewLoad_InsteadOfWaitingForever()
+        {
+            var pending = new Dictionary<string, Queue<AwaitableCompletionSource<string>>>();
+            UI.SourceResolver = src =>
+            {
+                _fetches[src] = Fetches(src) + 1;
+                var acs = new AwaitableCompletionSource<string>();
+                if (!pending.TryGetValue(src, out var q)) pending[src] = q = new Queue<AwaitableCompletionSource<string>>();
+                q.Enqueue(acs);
+                return acs.Awaitable;
+            };
+            UI.CommonLibrariesForTests = () => Entries(("a", null));
+
+            var host = UI.EnsureCommonLibrariesAsync();          // the host's boot load, in flight
+            async Awaitable WaitThenReload()
+            {
+                await UI.EnsureCommonLibrariesAsync();            // a waiter on the host's
+                UI.UnloadAllCommonLibraries();
+                await UI.EnsureCommonLibrariesAsync();            // must be a fresh load, not a wait
+            }
+            var preview = WaitThenReload();
+
+            pending["a"].Dequeue().SetResult(_files["a"]);         // the host's fetch completes
+            host.GetAwaiter().GetResult();
+            Assert.AreEqual(2, Fetches("a"), "the waiter's second Ensure started its own fetch");
+
+            pending["a"].Dequeue().SetResult(_files["a"]);         // the waiter's fetch completes
+            Assert.IsTrue(preview.GetAwaiter().IsCompleted, "nothing left to wait for");
+            preview.GetAwaiter().GetResult();
+
+            UI.SourceResolver = Counting(src => _files.TryGetValue(src, out var v) ? v : null);
+            UI.CommonLibrariesForTests = () => Entries(("a", null), ("b", "ui"));
+            Assert.IsNotNull(OpenM().Get<Frame>("a"), "the pool is whole again: 'a' from the waiter's load, 'b' from this one");
+        }
+
         // ── resolver ───────────────────────────────────────────────────────────────────────────
 
         [Test]

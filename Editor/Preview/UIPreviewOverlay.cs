@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
@@ -15,7 +16,8 @@ namespace PromptUGUI.Editor.Preview
     /// <c>UnloadAll</c>s, loads the file from disk (through the disk-first resolver this class
     /// installs as <c>UI.SourceResolver</c>) and opens its Screen; each <c>&lt;Pages&gt;</c> gets a
     /// row of page buttons at the bottom; saving the file lets the library's hot reload reopen it,
-    /// after which the page selection is put back.
+    /// after which the page selection is put back. The header says what the host's boot did not
+    /// provide (sprite resolver, theme, common libraries) rather than leaving white boxes to guess at.
     ///
     /// <para>A plain class, not a component — Unity will not attach an Editor-assembly
     /// MonoBehaviour to anything, so the Runtime-side host carries the messages.</para>
@@ -23,8 +25,12 @@ namespace PromptUGUI.Editor.Preview
     internal sealed class UIPreviewOverlay : UIPreviewHost.IOverlay
     {
         private const float PanelWidth = 460f;
-        private const float PanelMaxHeight = 660f;
+        private const float PanelMaxHeight = 720f;
+        private const string RenderingSizeName = "PromptUGUI Preview";
         private static readonly Color Highlight = new Color(0.35f, 0.62f, 1f);
+        private static readonly Color Red = new Color(1f, 0.5f, 0.45f);
+        private static readonly Color Yellow = new Color(1f, 0.85f, 0.4f);
+        private static readonly Color Grey = new Color(0.75f, 0.75f, 0.75f);
 
         internal UIPreviewHost Host { get; private set; }
 
@@ -48,6 +54,13 @@ namespace PromptUGUI.Editor.Preview
 
         private IReadOnlyList<Pages> _pages = Array.Empty<Pages>();
         private IScreen _pagesScreen;   // the Screen instance _pages came from; hot reload swaps it
+
+        // ── diagnostics (spec §4.9) ────────────────────────────────────────────────────────────
+        private readonly List<(string Text, Color Color)> _commonsRows = new List<(string, Color)>();
+        private int _commonsDeclared;
+        private string _ensureError;
+        private bool _ready;   // the injection sequence (hooks → commons → Ensure) has run
+        private string _lintResult;
 
         private GUIStyle _rowStyle;
         private GUIStyle _wrapStyle;
@@ -92,7 +105,35 @@ namespace PromptUGUI.Editor.Preview
             }
 
             RefreshFiles();
+            _ = StartAsync();
+        }
+
+        /// <summary>
+        /// The injection sequence (spec §4.11): hooks first, the declared common libraries
+        /// pre-resolved (diagnostics + served table), then <c>EnsureCommonLibrariesAsync</c> — if
+        /// the host's fire-and-forget boot load is still in flight this waits for it, so the
+        /// auto-load below reads commons from disk instead of joining the host's fetch — and
+        /// finally the last file, unless the user already clicked one.
+        /// </summary>
+        private async Awaitable StartAsync()
+        {
             EnsureHooks();
+            PreResolveCommons();
+            try
+            {
+                await UI.EnsureCommonLibrariesAsync();
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                _ensureError = e.GetBaseException().Message;
+            }
+            _ready = true;
+            if (Host == null) return;   // Play stopped meanwhile
+
+            var last = User.lastFile;
+            if (User.autoLoadLast && !string.IsNullOrEmpty(last) && LoadedFile == null && !Busy && IsListed(last))
+                _ = LoadAsync(last);
         }
 
         public void OnHostDestroyed()
@@ -180,6 +221,13 @@ namespace PromptUGUI.Editor.Preview
             _resolver.Index = index;
         }
 
+        private bool IsListed(string assetPath)
+        {
+            foreach (var f in _files)
+                if (f.HasScreen && f.AssetPath == assetPath) return true;
+            return false;
+        }
+
         /// <summary>
         /// An asset path, an absolute path, or just enough of a path to be unique (<c>Planet.ui.xml</c>)
         /// — automation types the short form.
@@ -193,6 +241,38 @@ namespace PromptUGUI.Editor.Preview
             return _resolver.MatchSuffix(file);
         }
 
+        // ── common libraries: what the settings declare, where each one is (spec §4.9) ─────────
+
+        /// <summary>
+        /// Every row of <c>PromptUGUISettings.commonLibraries</c> run through the resolver once:
+        /// a diagnostics line each, and — for the ones found on disk — a served-table entry, so a
+        /// save of that file hot-reloads even when the first load of it was the host's.
+        /// </summary>
+        private void PreResolveCommons()
+        {
+            _commonsRows.Clear();
+            var rows = UIXmlLintMenu.ConfiguredCommonLibraries();
+            _commonsDeclared = rows.Count;
+            _resolver.Anchor = IsListed(User.lastFile) ? User.lastFile : null;
+            foreach (var row in rows)
+            {
+                var r = _resolver.Resolve(row.Src);
+                switch (r.Source)
+                {
+                    case UIPreviewResolver.Source.Disk:
+                        _resolver.RecordServed(r.AssetPath, row.Src);
+                        _commonsRows.Add(($"✓ {row.Src} → {r.AssetPath}", Grey));
+                        break;
+                    case UIPreviewResolver.Source.Host:
+                        _commonsRows.Add(($"⚠ '{row.Src}' not found in the project — the host resolver will be asked (not the file on disk).", Yellow));
+                        break;
+                    default:
+                        _commonsRows.Add(($"✗ '{row.Src}': {r.Message}", Red));
+                        break;
+                }
+            }
+        }
+
         // ── load (spec §4.7) ───────────────────────────────────────────────────────────────────
 
         internal async Awaitable LoadAsync(string assetPath)
@@ -200,6 +280,7 @@ namespace PromptUGUI.Editor.Preview
             if (Busy) return;
             Busy = true;
             Error = null;
+            _lintResult = null;
             try
             {
                 if (string.IsNullOrEmpty(assetPath) || !assetPath.EndsWith(".ui.xml", StringComparison.OrdinalIgnoreCase))
@@ -311,6 +392,27 @@ namespace PromptUGUI.Editor.Preview
             User.SaveNow();
         }
 
+        // ── orientation, lint (spec §4.10, §4.9) ───────────────────────────────────────────────
+
+        /// <summary>
+        /// Resizes the Game view; the library's <c>portrait</c> / <c>landscape</c> variants follow
+        /// on their own. Not restored on exit — an editor setting, like resizing it by hand.
+        /// </summary>
+        internal static void SetOrientation(bool portrait)
+        {
+            var size = portrait ? UIPreviewSettings.instance.portrait : UIPreviewSettings.instance.landscape;
+            PlayModeWindow.SetCustomRenderingResolution((uint)Mathf.Max(1, size.x), (uint)Mathf.Max(1, size.y), RenderingSizeName);
+        }
+
+        /// <summary>The lint menu's run over the loaded file: same rules, same Console lines. -1 when nothing is loaded.</summary>
+        internal int Lint()
+        {
+            if (string.IsNullOrEmpty(LoadedFile)) return -1;
+            var run = UIXmlLintMenu.Lint(new[] { LoadedFile }, UIXmlLintMenu.Report, UIXmlLintMenu.ConfiguredCommonLibraries());
+            _lintResult = run.Issues == 0 ? "Lint: no issues" : $"Lint: {run.Issues} issue(s) — see the Console";
+            return run.Issues;
+        }
+
         // ── drawing ────────────────────────────────────────────────────────────────────────────
 
         public void OnDraw()
@@ -340,24 +442,10 @@ namespace PromptUGUI.Editor.Preview
             GUI.DrawTexture(panel, BackdropTex());
             GUI.Box(panel, GUIContent.none);
 
-            var ix = panel.x + 8;
-            var iw = panel.width - 16;
-            var headerH = 28 + 20 + 26;
-            var footerH = 20
-                          + (Screens.Length > 1 ? 20 + 26 : 0)
-                          + (string.IsNullOrEmpty(LoadedFile) ? 0 : 20)
-                          + (string.IsNullOrEmpty(Error) ? 0 : 40);
-            var listH = Mathf.Max(80, panel.height - 16 - headerH - footerH);
-
-            GUILayout.BeginArea(new Rect(ix, panel.y + 8, iw, headerH));
+            GUILayout.BeginArea(new Rect(panel.x + 8, panel.y + 8, panel.width - 16, panel.height - 16));
             DrawHeader();
-            GUILayout.EndArea();
-
-            GUILayout.BeginArea(new Rect(ix, panel.y + 8 + headerH, iw, listH));
-            DrawFileList();
-            GUILayout.EndArea();
-
-            GUILayout.BeginArea(new Rect(ix, panel.y + 8 + headerH + listH, iw, footerH));
+            DrawDiagnostics();
+            DrawFileList();   // takes whatever height the header and footer leave
             DrawFooter();
             GUILayout.EndArea();
         }
@@ -367,9 +455,14 @@ namespace PromptUGUI.Editor.Preview
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("Refresh", GUILayout.Width(64)))
             {
-                UnityEditor.AssetDatabase.Refresh();
+                AssetDatabase.Refresh();
                 RefreshFiles();
+                PreResolveCommons();
             }
+            GUILayout.Space(8);
+            var portraitNow = UnityEngine.Screen.height > UnityEngine.Screen.width;
+            if (Toggle("Landscape", !portraitNow, 78)) SetOrientation(false);
+            if (Toggle("Portrait", portraitNow, 66)) SetOrientation(true);
             GUILayout.FlexibleSpace();
             if (GUILayout.Button("Hide (F1)", GUILayout.Width(80))) Collapsed = true;
             GUILayout.EndHorizontal();
@@ -393,9 +486,78 @@ namespace PromptUGUI.Editor.Preview
             GUILayout.EndHorizontal();
         }
 
+        /// <summary>
+        /// What the host's boot did or did not provide (spec §4.9). Says, never installs — except
+        /// the theme buttons, which are a preview choice, not a boot step.
+        /// </summary>
+        private void DrawDiagnostics()
+        {
+            if (!_ready)
+            {
+                Line("Loading common libraries…", Grey);
+                return;
+            }
+
+            if (UIPreview.UsesBuiltInScene)
+            {
+                if (!string.IsNullOrEmpty(UIPreviewSettings.instance.sceneGuid))
+                    Line("Preview scene not found (moved or deleted?) — using the built-in scene. Fix it under Project Settings › PromptUGUI › UI Preview.", Yellow);
+                else
+                    Line("Built-in preview scene — pick your own under Project Settings › PromptUGUI › UI Preview.", Grey);
+            }
+
+            var problems = 0;
+            if (UI.SpriteResolver == null)
+            {
+                problems++;
+                Line("Sprite resolver not set — <Icon> renders as white boxes. Call SpriteResolverHelpers.UseSpriteSetResolver(...) in a [RuntimeInitializeOnLoadMethod].", Red);
+            }
+
+            var themes = UI.Theme.Available;
+            if (UI.Theme.Current == null)
+            {
+                problems++;
+                Line(themes.Count > 0
+                        ? "No theme selected — color tokens resolve to white. Pick one:"
+                        : "No theme registered — no loaded library declares a <Theme>.", Yellow);
+            }
+            if (themes.Count > 0) DrawThemeRow(themes);
+
+            foreach (var (text, color) in _commonsRows)
+            {
+                if (color != Grey) problems++;
+                Line(text, color);
+            }
+            if (_commonsDeclared == 0 && themes.Count == 0)
+            {
+                problems++;
+                Line("No common library declared — list your shared Template / Style / Theme files under PromptUGUI Settings → Common Libraries.", Yellow);
+            }
+            if (_ensureError != null)
+            {
+                problems++;
+                Line("Common libraries failed to load: " + _ensureError, Red);
+            }
+            if (_hostResolver == null)
+                Line("Host SourceResolver not set — only files the locator can find on disk resolve.", Grey);
+
+            if (problems == 0)
+                Line($"theme: {UI.Theme.Current} · sprites: ok · locale: {UI.Locale.Current ?? "(none)"} · commons: {_commonsDeclared}", Grey);
+        }
+
+        private void DrawThemeRow(IReadOnlyCollection<string> themes)
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Theme", GUILayout.Width(44));
+            foreach (var name in themes)
+                if (Toggle(name, name == UI.Theme.Current, 0)) UI.Theme.Set(name);
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+        }
+
         private void DrawFileList()
         {
-            _scroll = GUILayout.BeginScrollView(_scroll);
+            _scroll = GUILayout.BeginScrollView(_scroll, GUILayout.ExpandHeight(true));
             var shown = 0;
             var filter = User.filter ?? "";
             foreach (var f in _files)
@@ -426,27 +588,22 @@ namespace PromptUGUI.Editor.Preview
                 GUILayout.Label("This file declares several Screens:");
                 GUILayout.BeginHorizontal();
                 foreach (var name in Screens)
-                {
-                    var selected = name == LoadedScreen;
-                    var bg = GUI.backgroundColor;
-                    if (selected) GUI.backgroundColor = Highlight;
-                    if (GUILayout.Button(name, GUILayout.Height(22)) && !selected) OpenScreen(name);
-                    GUI.backgroundColor = bg;
-                }
+                    if (Toggle(name, name == LoadedScreen, 0)) OpenScreen(name);
                 GUILayout.EndHorizontal();
             }
 
             if (!string.IsNullOrEmpty(LoadedFile))
+            {
+                GUILayout.BeginHorizontal();
                 GUILayout.Label($"Loaded: {Path.GetFileName(LoadedFile)}" +
                                 (string.IsNullOrEmpty(LoadedScreen) ? "" : $"  /  {LoadedScreen}"));
-
-            if (!string.IsNullOrEmpty(Error))
-            {
-                var c = GUI.color;
-                GUI.color = new Color(1f, 0.5f, 0.45f);
-                GUILayout.Label("Error: " + Error, _wrapStyle);
-                GUI.color = c;
+                GUILayout.FlexibleSpace();
+                if (GUILayout.Button("Lint", GUILayout.Width(48)) && !Busy) Lint();
+                GUILayout.EndHorizontal();
+                if (_lintResult != null) Line(_lintResult, Grey);
             }
+
+            if (!string.IsNullOrEmpty(Error)) Line("Error: " + Error, Red);
 
             GUILayout.Label("Save the xml to hot-reload; click the same row to reload by hand.");
         }
@@ -483,18 +640,31 @@ namespace PromptUGUI.Editor.Preview
                 GUILayout.BeginHorizontal();
                 GUILayout.Label(pages.Id ?? "(no id)", GUILayout.Width(120));
                 foreach (var pageId in pages.PageIds)
-                {
-                    var selected = pageId == pages.Selected;
-                    var bg = GUI.backgroundColor;
-                    if (selected) GUI.backgroundColor = Highlight;
-                    if (GUILayout.Button(pageId, GUILayout.Height(rowH - 2)) && !Busy && !selected)
-                        ShowPage(pages, key, pageId);
-                    GUI.backgroundColor = bg;
-                }
+                    if (Toggle(pageId, pageId == pages.Selected, 0, rowH - 2) && !Busy) ShowPage(pages, key, pageId);
                 GUILayout.FlexibleSpace();
                 GUILayout.EndHorizontal();
             }
             GUILayout.EndArea();
+        }
+
+        /// <summary>A button drawn highlighted when selected; true when clicked while NOT selected.</summary>
+        private static bool Toggle(string label, bool selected, float width, float height = 22)
+        {
+            var bg = GUI.backgroundColor;
+            if (selected) GUI.backgroundColor = Highlight;
+            var clicked = width > 0
+                ? GUILayout.Button(label, GUILayout.Width(width), GUILayout.Height(height))
+                : GUILayout.Button(label, GUILayout.Height(height));
+            GUI.backgroundColor = bg;
+            return clicked && !selected;
+        }
+
+        private void Line(string text, Color color)
+        {
+            var c = GUI.color;
+            GUI.color = color;
+            GUILayout.Label(text, _wrapStyle);
+            GUI.color = c;
         }
 
         /// <summary>

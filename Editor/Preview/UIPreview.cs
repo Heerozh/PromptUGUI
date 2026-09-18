@@ -177,6 +177,18 @@ namespace PromptUGUI.Editor.Preview
         /// <summary>Shows a page of a <c>&lt;Pages&gt;</c> in the open Screen and remembers it; false when either id is unknown.</summary>
         public static bool Select(string pagesId, string pageId) => Overlay != null && Overlay.Select(pagesId, pageId);
 
+        /// <summary>
+        /// Resizes the Game view to the configured landscape / portrait size (Project Settings ›
+        /// PromptUGUI › UI Preview); the <c>portrait</c> / <c>landscape</c> variants follow.
+        /// </summary>
+        public static void SetOrientation(bool portrait) => UIPreviewOverlay.SetOrientation(portrait);
+
+        /// <summary>
+        /// Runs the lint menu's rules over the loaded file (findings go to the Console, each line
+        /// pinging the asset). The issue count; -1 when nothing is loaded or not previewing.
+        /// </summary>
+        public static int Lint() => Overlay != null ? Overlay.Lint() : -1;
+
         /// <summary>The overlay's panel, collapsed to a single button or expanded. No-op outside a preview session.</summary>
         public static bool PanelCollapsed
         {
