@@ -836,17 +836,19 @@ namespace PromptUGUI.Application
                     if (_depGraph.IsCommons(e.Src)) continue;
                     await LoadCommonLibraryAsyncInternal(e.Src, e.Namespace, isReload: false);
                 }
-                ReleaseCommonsWaiters(null);
             }
             catch (Exception ex)
             {
+                _ensuringCommons = false;
                 ReleaseCommonsWaiters(ex);
                 throw;
             }
-            finally
-            {
-                _ensuringCommons = false;
-            }
+            // The flag comes down BEFORE the waiters are released: their continuations run
+            // synchronously, and one that unloads and ensures again (the UI Preview's injection
+            // sequence) must find nothing in flight and start its own load — not park itself on a
+            // waiter list that this call, already past its release, would never drain.
+            _ensuringCommons = false;
+            ReleaseCommonsWaiters(null);
         }
 
         private static void ReleaseCommonsWaiters(Exception error)

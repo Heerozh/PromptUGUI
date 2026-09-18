@@ -34,6 +34,8 @@ Catches C# compile failures and runtime hot-reload errors.
 
 **DO NOT USE** `mcp__UnityMCP__execute_menu_item(menu_path="Assets/Reimport All")` unless the user explicitly allows it during an alignment step — pops a modal confirmation dialog in Unity that blocks every subsequent MCP call until manually dismissed.
 
+**Seeing a Screen without the game around it**: `Tools › PromptUGUI › UI Preview` (F8) — the XML skill's "See it" step. From `execute_code`, `PromptUGUI.Editor.Preview.UIPreview.Launch()` / `Load("Planet.ui.xml")` / `Select(pagesId, pageId)` / `SetOrientation(portrait)` / `Lint()`; `IsBusy` / `LastError` / `LoadedScreen` to poll. It runs the host's `[RuntimeInitializeOnLoadMethod]` boot, `UnloadAll`s before each load and hot-reloads on save; the Screen is opened bare (no Section / presenter bound), so it shows the XML's declared state — which, with the runtime-owned attributes below, is the state code starts from.
+
 ## Setup
 
 ```csharp

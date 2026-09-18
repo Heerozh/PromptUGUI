@@ -16,10 +16,10 @@ namespace PromptUGUI.Tests.Editor
     /// <summary>
     /// <c>Tools › PromptUGUI › Lint All UI XML</c> is the UIXmlLint CLI run inside the Editor. The
     /// rules, the two passes and the spelling of a finding are <see cref="LintRun"/>'s and tested
-    /// there; what the menu adds — and what is tested here — is the glue between asset paths and
-    /// the filesystem: a <c>Packages/…</c> path of a local package is virtual, a finding must name
-    /// the file the way the Console can ping it, and an <c>&lt;Import&gt;</c> is resolved the way
-    /// the CLI guesses it (plus Addressables, which only the Editor can ask).
+    /// there; asset path ↔ file and src → file are <see cref="UiXmlLocator"/>'s (tested in
+    /// <c>UiXmlLocatorTests</c>). What the menu adds — and what is tested here — is the run itself:
+    /// a <c>Packages/…</c> path read through its real location, a finding filed against the library
+    /// it lives in, and the common-library rows folded into every document's expanded pass.
     /// </summary>
     public class UIXmlLintMenuTests
     {
@@ -83,54 +83,6 @@ namespace PromptUGUI.Tests.Editor
             CollectionAssert.IsEmpty(findings.Where(f => f.Kind == LintRun.Kind.Error).Select(f => f.Text).ToList());
         }
 
-        // ── asset path ↔ file ──────────────────────────────────────────────────────────────────
-
-        [Test]
-        public void Physical_AnAssetsPath_IsUnderTheProjectRoot()
-        {
-            var expected = N(Path.Combine(Path.GetDirectoryName(UnityEngine.Application.dataPath), "Assets", "UI", "Home.ui.xml"));
-            Assert.AreEqual(expected, N(UIXmlLintMenu.Physical("Assets/UI/Home.ui.xml")));
-        }
-
-        [Test]
-        public void Physical_APackagesPath_IsTheRealFile()
-        {
-            var physical = UIXmlLintMenu.Physical(
-                ThisPackage.assetPath + "/Runtime/Resources/PromptUGUI/Modals/MessageBox.ui.xml");
-
-            Assert.IsTrue(File.Exists(physical), physical);
-            StringAssert.StartsWith(N(ThisPackage.resolvedPath), N(physical));
-        }
-
-        [Test]
-        public void Physical_AnAbsolutePath_IsLeftAlone()
-        {
-            var abs = Path.Combine(_dir, "x.ui.xml");
-            Assert.AreEqual(abs, UIXmlLintMenu.Physical(abs));
-        }
-
-        [Test]
-        public void ToAssetPath_AFileUnderAssets_IsItsAssetPath()
-        {
-            var physical = Path.Combine(UnityEngine.Application.dataPath, "UI", "Home.ui.xml");
-            Assert.AreEqual("Assets/UI/Home.ui.xml", UIXmlLintMenu.ToAssetPath(physical));
-        }
-
-        [Test]
-        public void ToAssetPath_AFileInsideAPackage_IsItsPackagesPath()
-        {
-            var physical = Path.Combine(ThisPackage.resolvedPath, "Runtime", "Resources", "PromptUGUI", "Modals", "MessageBox.ui.xml");
-            Assert.AreEqual(ThisPackage.assetPath + "/Runtime/Resources/PromptUGUI/Modals/MessageBox.ui.xml",
-                UIXmlLintMenu.ToAssetPath(physical));
-        }
-
-        [Test]
-        public void ToAssetPath_AFileOutsideTheProject_StaysAbsolute_WithForwardSlashes()
-        {
-            var physical = Path.Combine(_dir, "x.ui.xml");
-            Assert.AreEqual(N(physical), UIXmlLintMenu.ToAssetPath(physical));
-        }
-
         // ── common libraries (2026-09-18 commons-settings spec §4.8, §7-25) ────────────────────
 
         [Test]
@@ -177,18 +129,6 @@ namespace PromptUGUI.Tests.Editor
                 PromptUGUISettings.ResetInstanceCache();
                 Object.DestroyImmediate(settings);
             }
-        }
-
-        // ── which files the menu lints ─────────────────────────────────────────────────────────
-
-        [Test]
-        public void IsProjectOwned_Assets_Yes_ALocalPackage_No()
-        {
-            Assert.IsTrue(UIXmlLintMenu.IsProjectOwned("Assets/UI/Home.ui.xml"));
-            Assume.That(ThisPackage.source, Is.Not.EqualTo(PackageSource.Embedded),
-                "this package is referenced as file:, not embedded, in every host we develop in");
-            Assert.IsFalse(UIXmlLintMenu.IsProjectOwned(ThisPackage.assetPath + "/Runtime/Resources/PromptUGUI/Modals/MessageBox.ui.xml"),
-                "the user cannot edit a package they only reference; its own lint runs in its own repo");
         }
     }
 }
