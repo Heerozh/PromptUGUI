@@ -72,6 +72,65 @@ namespace PromptUGUI.Template
             }
         }
 
+        /// <summary>
+        /// Adds one assembled common library to the commons pool — the step behind
+        /// <c>UI.LoadCommonLibraryAsync</c>, kept here (pure C#) so the lint front ends fold commons
+        /// exactly the way the runtime does (2026-09-18 commons-settings spec §4.6).
+        ///
+        /// <para><paramref name="ns"/> rebases every key: the library is then only reachable as
+        /// <c>&lt;ns.Name/&gt;</c> / <c>class="ns:name"</c>, and a namespace the library gave its own
+        /// <c>&lt;Import as&gt;</c> is replaced, not nested (M4 spec §4.2-6). A key already in the pool
+        /// — or two library entries collapsing onto one rebased key — is a hard conflict, and nothing
+        /// from this library is committed when it throws. <paramref name="originSrc"/> is stamped on
+        /// every definition so a reload can retire this library's entries by origin.</para>
+        /// </summary>
+        /// <param name="themes">
+        /// When given, the library's <c>&lt;Theme&gt;</c> blocks are appended with their src. The
+        /// linter needs them (a theme pack's baseline usually lives in the same library); the runtime
+        /// registers themes in its ThemeStore instead and passes null.
+        /// </param>
+        public static void AddCommonLibrary(
+            LoadedDoc library, string ns, string originSrc,
+            Dictionary<TemplateKey, TemplateDef> pool,
+            Dictionary<StyleKey, StyleDef> styles,
+            List<(ThemeBlock Theme, string Src)> themes = null)
+        {
+            var stagedTemplates = new List<(TemplateKey Key, TemplateDef Def)>();
+            var seenTemplates = new HashSet<TemplateKey>();
+            foreach (var kv in library.Templates)
+            {
+                var key = ns == null ? kv.Key : new TemplateKey(ns, kv.Key.Name);
+                if (pool.ContainsKey(key) || !seenTemplates.Add(key))
+                    throw new TemplateException(
+                        $"common library conflict: '{key}' already in commons pool");
+                stagedTemplates.Add((key, kv.Value));
+            }
+
+            var stagedStyles = new List<(StyleKey Key, StyleDef Def)>();
+            var seenStyles = new HashSet<StyleKey>();
+            foreach (var kv in library.Styles)
+            {
+                var key = ns == null ? kv.Key : new StyleKey(ns, kv.Key.Name);
+                if (styles.ContainsKey(key) || !seenStyles.Add(key))
+                    throw new TemplateException(
+                        $"common library conflict: style '{key}' already in commons pool");
+                stagedStyles.Add((key, kv.Value));
+            }
+
+            foreach (var (key, def) in stagedTemplates)
+            {
+                def.OriginSrc = originSrc;
+                pool[key] = def;
+            }
+            foreach (var (key, def) in stagedStyles)
+            {
+                def.OriginSrc = originSrc;
+                styles[key] = def;
+            }
+            if (themes != null)
+                foreach (var t in library.Themes) themes.Add(t);
+        }
+
         private static void MergeInto(
             string src,
             Func<string, UIDocument> lookup,

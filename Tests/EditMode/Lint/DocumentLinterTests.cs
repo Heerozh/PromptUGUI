@@ -157,5 +157,150 @@ namespace PromptUGUI.Tests.EditMode.Lint
             Assert.AreEqual(1, issues.Count,
                 "the caller counts what it enumerates; an expanded-only issue must be in the sequence");
         }
+
+        // ── common libraries (2026-09-18 commons-settings spec §4.7) ───────────────────────────
+        //
+        // A common library is the <Import> every document implicitly has. The runtime folds it into
+        // the commons pool (DocumentLoader → MergeCommons) BEFORE expansion, so a class= or a
+        // namespaced tag that lives only there resolves fine at UI.Open() — and a linter that does
+        // not know the list reports every such reference as PUI-EXPAND. That false positive is what
+        // made the host copy its theme's style pack into local files.
+
+        /// <summary>A parsed document tagged with the src it is looked up by.</summary>
+        private static (string Src, UIDocument Doc) Parse(string body, string src) =>
+            (src, UIDocumentParser.Parse(
+                "<?xml version='1.0' encoding='utf-8'?><PromptUGUI version='1'>" + body + "</PromptUGUI>", src));
+
+        private static List<LintIssue> WalkWithCommons(
+            (string Src, UIDocument Doc) entry, IReadOnlyList<ImportRef> commons,
+            params (string Src, UIDocument Doc)[] libraries)
+        {
+            var bySrc = new Dictionary<string, UIDocument>();
+            foreach (var lib in libraries) bySrc[lib.Src] = lib.Doc;
+            return DocumentLinter
+                .Walk(entry.Doc, entry.Src, src => bySrc.TryGetValue(src, out var d) ? d : null, commons)
+                .ToList();
+        }
+
+        private static ImportRef Commons(string src, string ns = null) => new ImportRef(src, ns);
+
+        [Test]
+        public void StyleDeclaredOnlyInACommonLibrary_IsNotAnExpansionFailure()
+        {
+            var commons = Parse("<Style name='badge' sprite='ui:pill'/>", "commons.ui");
+            var entry = Parse(
+                "<Screen name='S'><VStack id='v' class='badge' anchor='stretch'/></Screen>", "main.ui");
+
+            var issues = WalkWithCommons(entry, new[] { Commons("commons.ui") }, commons);
+
+            Assert.IsFalse(issues.Any(i => i.Code == DocumentLinter.ExpansionCode),
+                "the runtime merges the commons pool before expansion; so must the linter");
+            Assert.IsTrue(issues.Any(i => i.Code == PureContainerVisualAttrRules.VisualAttrCode && i.Id == "v"),
+                "…and the expanded pass then sees the sprite the commons class supplies");
+        }
+
+        [Test]
+        public void NamespacedCommonsTemplate_FindingIsAttributedToTheLibrary()
+        {
+            var lib = Parse("<Template name='Card'><Frame id='card' mask='self'/></Template>", "lib.ui");
+            var entry = Parse("<Screen name='S'><ui.Card/></Screen>", "main.ui");
+
+            var issues = WalkWithCommons(entry, new[] { Commons("lib.ui", "ui") }, lib);
+
+            Assert.IsFalse(issues.Any(i => i.Code == DocumentLinter.ExpansionCode),
+                "<ui.Card/> is what a library loaded with as='ui' is invoked as");
+            var issue = issues.Single(i => i.Code == MaskAttributeRules.FrameSelfCode && i.Id == "card");
+            Assert.AreEqual("lib.ui", issue.Origin, "the defect was written in the library");
+            StringAssert.StartsWith("main.ui:", issue.Via, "…and reached through this invocation");
+        }
+
+        [Test]
+        public void ThemeInACommonLibrary_SuppliesTheBaseline_AndGetsItsOwnPass()
+        {
+            var theme = Parse(@"
+                <Style name='boxed' color='#112233'/>
+                <Theme name='plain'><Style name='boxed' color='#fff'/></Theme>
+                <Theme name='sprited'><Style name='boxed' color='#fff' sprite='ui:panel'/></Theme>",
+                "theme.ui");
+            var entry = Parse(
+                "<Screen name='S'><VStack id='v' class='boxed' anchor='stretch'/></Screen>", "main.ui");
+
+            var issues = WalkWithCommons(entry, new[] { Commons("theme.ui") }, theme);
+
+            Assert.IsFalse(issues.Any(i => i.Code == ThemeStyleRules.NoBaselineCode),
+                "the global <Style> the theme packs rest on is declared in the same library");
+            Assert.IsTrue(issues.Any(i => i.Code == PureContainerVisualAttrRules.VisualAttrCode && i.Id == "v"),
+                "'sprite' only exists under the 'sprited' skin — the per-theme pass must run for commons themes too");
+        }
+
+        [Test]
+        public void ThemeInACommonLibrary_WithNoBaselineAnywhere_IsStillReported()
+        {
+            var theme = Parse("<Theme name='dark'><Style name='orphan' color='#000'/></Theme>", "theme.ui");
+            var entry = Parse("<Screen name='S'><Frame id='f'/></Screen>", "main.ui");
+
+            var issues = WalkWithCommons(entry, new[] { Commons("theme.ui") }, theme);
+
+            Assert.IsTrue(issues.Any(i => i.Code == ThemeStyleRules.NoBaselineCode && i.Id == "orphan"));
+        }
+
+        [Test]
+        public void EntryRedeclaringACommonsStyle_IsAnExpansionFailure_WordedLikeTheRuntime()
+        {
+            var commons = Parse("<Style name='badge' sprite='ui:pill'/>", "commons.ui");
+            var entry = Parse(@"
+                <Style name='badge' sprite='ui:other'/>
+                <Screen name='S'><Frame id='f' class='badge'/></Screen>", "main.ui");
+
+            var issues = WalkWithCommons(entry, new[] { Commons("commons.ui") }, commons);
+
+            var issue = issues.Single(i => i.Code == DocumentLinter.ExpansionCode);
+            StringAssert.Contains("conflicts with commons pool", issue.Message);
+        }
+
+        [Test]
+        public void CommonLibraryDeclaringAScreen_IsAnExpansionFailure()
+        {
+            var commons = Parse("<Screen name='X'><Frame id='x'/></Screen>", "commons.ui");
+            var entry = Parse("<Screen name='S'><Frame id='f'/></Screen>", "main.ui");
+
+            var issues = WalkWithCommons(entry, new[] { Commons("commons.ui") }, commons);
+
+            var issue = issues.Single(i => i.Code == DocumentLinter.ExpansionCode);
+            StringAssert.Contains("<Screen> not allowed", issue.Message);
+        }
+
+        [Test]
+        public void ThemeDeclaredInBothCommonsAndEntry_IsAnExpansionFailure()
+        {
+            var commons = Parse("<Theme name='dark'><Color name='bg' value='#000'/></Theme>", "commons.ui");
+            var entry = Parse(@"
+                <Theme name='dark'><Color name='bg' value='#111'/></Theme>
+                <Screen name='S'><Frame id='f'/></Screen>", "main.ui");
+
+            var issues = WalkWithCommons(entry, new[] { Commons("commons.ui") }, commons);
+
+            var issue = issues.Single(i => i.Code == DocumentLinter.ExpansionCode);
+            StringAssert.Contains("duplicate <Theme name=\"dark\">", issue.Message);
+        }
+
+        // Same policy as an unresolvable <Import>: no closure, no expanded pass, no false positive.
+        [Test]
+        public void CommonsWithoutALookup_SkipExpandedPass_ButKeepRawRules()
+        {
+            var entry = Parse(@"
+                <Screen name='S'>
+                  <Frame id='f' mask='self'/>
+                  <VStack id='v' class='badge' anchor='stretch'/>
+                </Screen>", "main.ui");
+
+            var issues = DocumentLinter
+                .Walk(entry.Doc, entry.Src, imports: null, commons: new[] { Commons("commons.ui") })
+                .ToList();
+
+            Assert.IsTrue(issues.Any(i => i.Code == MaskAttributeRules.FrameSelfCode));
+            Assert.IsFalse(issues.Any(i => i.Code == DocumentLinter.ExpansionCode),
+                "class='badge' may well live in the library the caller could not read");
+        }
     }
 }
