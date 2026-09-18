@@ -52,10 +52,18 @@ backdrop behind it, and exposing that would brighten the scene through the glass
 glass. The runtime ignores it on a glass pane and on a weld carrier (`PUI-GLASS-INTENSITY`) — the
 pane's own light is `lightIntensity`. Keep it for the opaque surfaces around the glass.
 
-**Not on glass either: `haze`.** Fog lies on a fill, and a pane has none — its body is the backdrop.
-The runtime zeroes `haze` on a glass pane and on a weld carrier (`PUI-GLASS-HAZE`); `hazeColor` alone
-is not flagged, so a theme may hand it to every surface and switch the fog on per control. See
-`reference/haze.md`.
+**`haze` works on glass.** The fog (`haze` / `hazeColor` / `hazeDensity` / `hazeDrift`,
+`reference/haze.md`) lies on the pane's body — the blurred backdrop with the tint over it — under
+the inner glow and the border, exactly where it lies on an opaque fill; the blur underneath is
+untouched. Since glass has no exposure step, the fog's brightness comes from `hazeColor` alone
+(`intensity` stays ignored). The one glass surface without a fog layer is a **`weld` group**: the
+fused pane is drawn by the group shader, so `haze` on the carrier or on a welded block goes nowhere
+(`PUI-GLASS-HAZE`). `hazeColor` alone is never flagged, so a theme may hand it to every surface and
+switch the fog on per control.
+
+```xml
+<Frame class="glass-card" haze="40" hazeColor="to top, white/0.45, white/0"/>   <!-- mist rising off the bottom edge -->
+```
 
 Reused unchanged: `color` (tint painted over the glass — the full gradient grammar: a **direction**, 2–4 **stops**, stop **positions** and **hints** (`"to right, A, B"` / `"A 70%,B"` / `"A, 70%, B"`, which glass draws per-pixel) and `/alpha` work exactly as
 elsewhere), `radius`, `borderWidth` / `borderColor`, `glow` / `glowColor`,
@@ -169,6 +177,7 @@ Where each parameter goes:
 |---|---|
 | 容器（带 `weld` 的 Frame） | `seam` `frost` `dispersion` `lightAngle` `lightIntensity` `saturation` `noise`, and `borderWidth` / `borderColor` / `glow` / `glowColor` / `innerGlow` / `innerGlowColor` for the fused outline — gradients there run over the whole group's bounds. A **member's** `color` inside a weld is the one reduced path: two colours, top→bottom only (direction, extra stops and hints are dropped) |
 | 每个玻璃子级 | `radius` `depth` `color` |
+| 哪儿都不行 | `haze` — the group shader has no fog layer (`PUI-GLASS-HAZE` on the carrier and on a member alike). Fog wants a standalone pane |
 
 The split is physical, not arbitrary: two halves of one continuous pane cannot be frosted differently
 or lit from different angles, while the thickness step between them is the entire point. A border on
@@ -239,7 +248,7 @@ of them is silent at runtime, which is why they exist.
 | `PUI-GLASS-WELD-PARAM-PLACEMENT` | a group-level parameter on a member, or a per-block one on the carrier |
 | `PUI-GLASS-SEAM-NO-WELD` | `seam` on a node with no `weld` — only a fused group has a thickness step |
 | `PUI-GLASS-INTENSITY` | `intensity` on a glass pane or a weld carrier — glass paints the backdrop, which is not light the surface emits, so the value is ignored |
-| `PUI-GLASS-HAZE` | `haze` on a glass pane or a weld carrier — glass has no fill for the fog to lie on, so the value is ignored |
+| `PUI-GLASS-HAZE` | `haze` on a weld carrier or on a welded block — the fused pane is drawn by the group shader, which has no fog layer, so the value is ignored. A standalone glass pane takes the fog |
 | `PUI-MASK-WELD-SELF` | `mask="self"` on a `weld` carrier — the fused pane is on a child |
 | `PUI-PROC-SPRITE-CONFLICT` | `sprite=` on a control that is drawing procedurally |
 | `PUI-PROC-STATE-SPRITE-CONFLICT` | `pressedSprite` / `disabledSprite` on a procedural surface |
