@@ -61,17 +61,40 @@ namespace PromptUGUI.Tests.EditMode.Lint
         }
 
         [Test]
-        public void HazeMeetingGlassThroughAClass_IsFlagged()
+        public void HazeMeetingGlassThroughAClass_IsNotFlagged()
         {
-            Assert.IsTrue(
+            // A pane takes the fog (H-D8), however the two halves arrive.
+            Assert.IsFalse(
                 Has(Walk("<Frame id='f' class='card fog'/>",
                          GlassStyle + "<Style name='fog' haze='40' hazeColor='cyan'/>"),
                     GlassRules.HazeOnGlassCode),
-                "glass from one class and haze from another still cancel out on the node");
+                "glass from one class and haze from another make a foggy pane, not a dead attribute");
             Assert.IsFalse(
                 Has(Walk("<Frame id='f' class='fog'/>", "<Style name='fog' haze='40' hazeColor='cyan'/>"),
                     GlassRules.HazeOnGlassCode),
                 "…and a foggy opaque style is fine");
+        }
+
+        [Test]
+        public void HazeMeetingAWeldThroughAClass_IsFlagged()
+        {
+            // The one place the fog is dead: a weld group, carrier or member, whichever way the
+            // attribute gets there.
+            const string fog = "<Style name='fog' haze='40' hazeColor='cyan'/>";
+            Assert.IsTrue(
+                Has(Walk(@"<Frame id='g' class='fog' weld='10'>
+    <Frame id='a' class='card'/>
+    <Frame id='b' class='card'/>
+  </Frame>", GlassStyle + fog),
+                    GlassRules.HazeOnGlassCode),
+                "haze reaching a weld carrier through a class is just as dead as inline");
+            Assert.IsTrue(
+                Has(Walk(@"<Frame id='g' weld='10'>
+    <Frame id='a' class='card fog'/>
+    <Frame id='b' class='card'/>
+  </Frame>", GlassStyle + fog),
+                    GlassRules.HazeOnGlassCode),
+                "…and so is a styled member's");
         }
 
         [Test]

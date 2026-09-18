@@ -78,15 +78,17 @@ namespace PromptUGUI.Lint
                     "paints the backdrop, which is not light the surface emits. Drop glass=\"true\" " +
                     "(or 'weld'), or drop 'intensity'.");
 
-            // Fog is painted over the fill, and glass has no fill of its own to paint it over — the
-            // runtime zeroes haze on a glass panel and on a weld container (spec 2026-09-17 haze §5.4).
-            // Only `haze` itself switches the fog on: a theme may hand hazeColor to every surface.
-            if (styles.Declares(n, "haze") && (isWeldGroup || IsGlassTrue(n, styles)))
+            // A glass pane takes the fog like an opaque fill does (spec 2026-09-17 haze H-D8); the
+            // one surface without a fog layer is a weld group's fused pane, drawn by the group
+            // shader. The carrier's own panel is suppressed while it welds, so the value goes
+            // nowhere — the members are reported from CheckWeldGroup, which can see them. Only
+            // `haze` itself switches the fog on: a theme may hand hazeColor to every surface.
+            if (styles.Declares(n, "haze") && isWeldGroup)
                 yield return new LintIssue(
                     HazeOnGlassCode, n.Tag, n.Id,
-                    $"<{n.Tag} id='{n.Id}'>: 'haze' has no effect on a glass surface — glass paints " +
-                    "the backdrop and has no fill for the fog to lie on. Drop glass=\"true\" " +
-                    "(or 'weld'), or drop 'haze'.");
+                    $"<{n.Tag} id='{n.Id}'>: 'haze' has no effect on a weld group — the fused pane " +
+                    "is drawn by the group shader, which has no fog layer. Drop 'weld' and give " +
+                    "each pane its own 'haze', or drop 'haze'.");
 
             if (isWeldGroup && IsGlassTrue(n, styles))
                 yield return new LintIssue(
@@ -170,6 +172,16 @@ namespace PromptUGUI.Lint
                         "ignored on a welded block — the blocks are one continuous pane, so they " +
                         $"share it. Move '{attr}' onto the <{n.Tag}> that carries 'weld'.");
                 }
+
+                // A member's drawing moves to the group, and the group shader has no fog layer: the
+                // same pane would take `haze` on its own (H-D8), but not while it is welded. Not a
+                // placement issue — the carrier cannot take it either (see Check).
+                if (styles.Declares(child, "haze"))
+                    yield return new LintIssue(
+                        HazeOnGlassCode, child.Tag, child.Id,
+                        $"<{child.Tag} id='{child.Id}'>: 'haze' has no effect on a welded block — its " +
+                        "drawing moves to the group, whose shader has no fog layer. Take the block " +
+                        "out of the weld, or drop 'haze'.");
             }
 
             if (!countIsKnowable) yield break;
