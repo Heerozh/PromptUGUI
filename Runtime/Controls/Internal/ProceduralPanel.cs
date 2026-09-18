@@ -450,11 +450,13 @@ namespace PromptUGUI.Controls.Internal
             // folded into the key rather than the shader so panels differing only in a value that
             // cannot show keep sharing one material.
             var intensity = _glass || _grayed ? IntensityAttrParser.Default : _intensity;
-            // Fog over glass would need its own compositing rule and a second shader (H-D4), so it
-            // is zeroed there; and while the size is 0 the colour and the drift are canonicalised so
-            // a stray hazeColor= never splits the cache. Disabled fog stops flowing (H-D5): grey but
-            // still moving reads as alive, and a disabled control has to read as inert.
-            var hazeSize = _glass ? 0f : _hazeSize;
+            // The fog lies on the pane's body (backdrop + tint) exactly as it lies on a fill — both
+            // shaders composite it in the same slot (H-D8) — so glass keeps it; only a weld group
+            // has no fog layer, and there the member panel is suppressed and draws nothing at all.
+            // While the size is 0 the colour and the drift are canonicalised so a stray hazeColor=
+            // never splits the cache. Disabled fog stops flowing (H-D5): grey but still moving reads
+            // as alive, and a disabled control has to read as inert.
+            var hazeSize = _hazeSize;
             var haze = hazeSize > 0f ? _hazeColor : ColorSpec.Solid(Color.white);
             var hazeDrift = hazeSize > 0f && !_grayed ? _hazeDrift : 0f;
             var hazeDensity = hazeSize > 0f ? _hazeDensity : HazeDensityAttrParser.Default;

@@ -233,7 +233,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
             Assert.IsFalse(Has(issues, GlassRules.WeldParamPlacementCode, "a"));
         }
 
-        // ---- haze: not a glass parameter, and not for glass (spec 2026-09-17 haze §5.4) ----
+        // ---- haze: not a glass parameter; fine on a pane, dead in a weld group (spec 2026-09-17 haze §5.4 / H-D8) ----
 
         [Test]
         public void HazeWithoutGlass_IsNotAGlassParam()
@@ -247,13 +247,14 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("glass='true' haze='40'")]
         [TestCase("glass.mobile='true' haze='40'")]
         [TestCase("glass='true' haze.mobile='40'")]
-        public void HazeOnGlass_IsFlagged(string attrs)
+        [TestCase("glass='true' haze='40' hazeColor='cyan/0.5' hazeDrift='6' hazeDensity='0.3'")]
+        public void HazeOnGlass_IsNotFlagged(string attrs)
         {
-            // Glass paints the backdrop; the runtime zeroes the fog there (H-D4), so the author has
-            // to hear about it here.
+            // The glass shader composites the fog over the pane's body in the same slot the opaque
+            // shader uses (H-D8): the attribute is read, so there is nothing to warn about.
             var issues = Walk($"<Frame id='f' {attrs}/>");
-            Assert.IsTrue(Has(issues, GlassRules.HazeOnGlassCode, "f"));
-            StringAssert.Contains("haze", issues.First(i => i.Code == GlassRules.HazeOnGlassCode).Message);
+            Assert.IsFalse(Has(issues, GlassRules.HazeOnGlassCode, "f"));
+            Assert.IsFalse(Has(issues, GlassRules.ParamWithoutGlassCode, "f"));
         }
 
         [Test]
@@ -268,21 +269,39 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [Test]
         public void HazeOnAWeldContainer_IsFlagged()
         {
-            Assert.IsTrue(Has(Walk(@"<Frame id='g' weld='10' haze='40'>
+            // The fused pane is drawn by the group shader, which has no fog layer; the carrier's
+            // own panel is suppressed while it welds, so the value goes nowhere.
+            var issues = Walk(@"<Frame id='g' weld='10' haze='40'>
       <Frame id='a' glass='true'/>
       <Frame id='b' glass='true'/>
-    </Frame>"), GlassRules.HazeOnGlassCode, "g"));
+    </Frame>");
+            Assert.IsTrue(Has(issues, GlassRules.HazeOnGlassCode, "g"));
+            StringAssert.Contains("weld", issues.First(i => i.Code == GlassRules.HazeOnGlassCode).Message);
         }
 
         [Test]
-        public void HazeOnAWeldedBlock_IsFlaggedAsGlass_NotAsPlacement()
+        public void HazeOnAWeldedBlock_IsFlagged_TheGroupDrawsIt()
         {
+            // A member's drawing moves to the group: the same pane would take the fog on its own,
+            // but not while it is welded. Reported as the glass code, not as a placement issue —
+            // the carrier could not take it either.
             var issues = Walk(@"<Frame id='g' weld='10'>
       <Frame id='a' glass='true' haze='40'/>
       <Frame id='b' glass='true'/>
     </Frame>");
             Assert.IsTrue(Has(issues, GlassRules.HazeOnGlassCode, "a"));
             Assert.IsFalse(Has(issues, GlassRules.WeldParamPlacementCode, "a"));
+            StringAssert.Contains("weld", issues.First(i => i.Code == GlassRules.HazeOnGlassCode).Message);
+        }
+
+        [Test]
+        public void HazeColorAloneOnAWeldedBlock_IsNotFlagged()
+        {
+            // The same courtesy as on a pane: only `haze` switches the fog on.
+            Assert.IsFalse(Has(Walk(@"<Frame id='g' weld='10'>
+      <Frame id='a' glass='true' hazeColor='cyan'/>
+      <Frame id='b' glass='true'/>
+    </Frame>"), GlassRules.HazeOnGlassCode, "a"));
         }
 
         [Test]

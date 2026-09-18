@@ -150,7 +150,7 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 | `innerGlow` | px | `0` | Inner glow — light falling off **inwards** from the outline. Pure material, so unlike `glow` it never touches the geometry |
 | `innerGlowColor` | same grammar as `color` (gradients included) | `white` | Deliberately *not* the fill: an inner glow in the fill's own colour is invisible on an opaque fill. `/alpha` is the strength knob; a **dark** value is an inset shadow; `to right, cyan, cyan/0` lights one edge only |
 | `intensity` | number `≥ 1` | `1` | **How much light the surface gives off.** `1` = as drawn; `2` ≈ one stop brighter; `3`–`5` = neon; `≥ 8` ≈ white. Runs an exposure curve over everything the panel paints (fill + both glows + border): the core whitens, the glow's tail keeps its hue — a *light*, not a lighter colour. `""` = back to `1`. Not on glass (`PUI-GLASS-INTENSITY`). → **Lighting it up** below |
-| `haze` | px | `0` | **Noise fog** — soft cloud-like light patches inside the shape (the "energy haze" on a sci-fi button). The value is the patches' feature size in px (`24`–`64` on a button / card); `> 0` switches it on, `""` back off. Painted over the fill and under the inner glow / border, inside the shape only; `intensity` lights it; not on glass (`PUI-GLASS-HAZE`). → `reference/haze.md` |
+| `haze` | px | `0` | **Noise fog** — soft cloud-like light patches inside the shape (the "energy haze" on a sci-fi button). The value is the patches' feature size in px (`24`–`64` on a button / card); `> 0` switches it on, `""` back off. Painted over the fill and under the inner glow / border, inside the shape only; `intensity` lights it. On `glass="true"` it lies on the blurred backdrop the same way (no `intensity` there); not in a `weld` group (`PUI-GLASS-HAZE`). → `reference/haze.md` |
 | `hazeColor` | same grammar as `color` (gradients included) | `white` | The fog's colour, and **its mask**: the noise only scales this ramp's alpha, so `to top, cyan/0.5, cyan/0` is cyan fog that seeps in from the bottom edge and is gone at the top. Never follows the fill (fog in the fill's own colour is invisible on an opaque fill). `/alpha` is the strength knob — `0.4`–`0.6` reads as the reference's thin mist, `0.8`+ is a wash |
 | `hazeDensity` | `0`–`1` | `0.5` | **How much of the surface the fog covers.** `0` = a few sparse patches with bare fill between them; `1` = the raw cloud field, thin mist over every pixel; `0.5` = the reference look, mist everywhere with brighter clouds. Orthogonal to `/alpha` (how strong) |
 | `hazeDrift` | px/s | `0` | Flow speed. The pattern *deforms* as it drifts (three layers move at different speeds and directions) instead of sliding as one sheet; unscaled clock, so a pause menu keeps flowing; a disabled control freezes it |
@@ -1852,7 +1852,8 @@ FRAME VISUAL  <Frame color="surface/0.9" radius="16" borderWidth="1" borderColor
 HAZE          haze="40" hazeColor="to top, cyan/0.5, cyan/0" hazeDensity="0.5" hazeDrift="6"   noise fog inside the shape, under the border
               haze = patch size px (>0 on); hazeColor = colour AND mask (its ramp), /alpha = strength (about 0.5 = mist)
               hazeDensity 0..1 = coverage: 0 a few patches, 1 a veil over everything; drift = px/s, unscaled
-              sampled in canvas space: neighbours differ, one material; intensity lights it; not glass (PUI-GLASS-HAZE)
+              sampled in canvas space: neighbours differ, one material; intensity lights it (opaque only)
+              on glass="true" it lies on the blurred backdrop, blur untouched; not in a weld group (PUI-GLASS-HAZE)
 
 BUILT-INS     <Frame> <Image> <Text> <VStack> <HStack> <Grid> <Btn> <Icon>
               <Toggle> <Slider> <Dropdown> <ScrollList> <InputField> <TabMenu>
@@ -1978,7 +1979,7 @@ STYLE LINT    PUI-CLASS-EMPTY                  class="" / whitespace-only — na
               PUI-PROCEDURAL-VALUE             bad radius / borderWidth / glow / blur / intensity / haze / hazeDrift / hazeDensity value, and the inner-layer
                                                ones (fillRadius / handleRadius / handleGlow …) (also inside <Style>)
               PUI-GLASS-INTENSITY              intensity= on glass="true" / a weld carrier — glass emits no light
-              PUI-GLASS-HAZE                   haze= on glass="true" / a weld carrier — glass has no fill for fog to lie on
+              PUI-GLASS-HAZE                   haze= on a weld carrier / a welded block — the group shader has no fog layer (a lone pane takes it)
               PUI-CONTAINER-VISUAL-ATTR        sprite= on any container; color/radius/border/glow on *Stack/Grid/SafeArea
                                                — also fires when the attribute arrives through class=
               PUI-EXPAND                       unknown template / style name, or an <Import> cycle

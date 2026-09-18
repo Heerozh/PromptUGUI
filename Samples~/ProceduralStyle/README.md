@@ -112,6 +112,10 @@ runner 运行时去拉 **Bing 每日图**，拉不到就用内置的程序化暮
 - **`well` / `tab-track` 的 tint 用深色**，读起来才是"凹进去的槽"而不是浮起来的片。
 - **只有 `hero` 开了 `dispersion`。** 色散要付 3 倍 backdrop 采样，而按钮那种 6px 斜面上
   根本看不出来 —— 留给全屏唯一那个展示件。
+- **`hero` 还叠了一层雾**（`haze="36" hazeColor="to top, white/0.45, white/0"`）。雾压在
+  「模糊 backdrop + tint」之上、描边之下：模糊一点没变，雾是叠上去的一层从底边升起的光。
+  玻璃上没有曝光步，所以雾的亮度全靠 `hazeColor` —— 白 + 0.45 的 alpha 在深浅两个主题的
+  青绿 tint 上都读得出来。
 - **`divider` 不是玻璃。** 一条 1px 的线不值得为它开一块玻璃（一块玻璃 = 一次 backdrop 采样）。
 
 ## 用到的 Style 特性
@@ -123,8 +127,9 @@ runner 运行时去拉 **Bing 每日图**，拉不到就用内置的程序化暮
 - `<Import>` 带过来的 `<Style>` —— 和 `<Template>` 一样可以放进共享库
 - `haze="40" hazeColor="to top, accent/0.5, accent/0"` —— 噪声雾（Styles 页第三行）：同一块不透明
   面板并排五块 —— 无雾 / 从底边渗入的薄雾 / `hazeDensity="0"` 稀疏几团光 / `intensity="1.6"` 点亮 /
-  `hazeDrift="8"` 流动。几块参数相同却各不相同：噪声在 Canvas 空间采样，位置就是种子。写在 `surface` 底上而不是 `class="card"`，因为玻璃皮肤
-  下 card 是玻璃，玻璃没有填充给雾躺（`PUI-GLASS-HAZE`）
+  `hazeDrift="8"` 流动。几块参数相同却各不相同：噪声在 Canvas 空间采样，位置就是种子。写在 `surface` 底上而不是 `class="card"`：
+  两套皮肤下这一行才是同一块底，而且 `intensity` 那块只在不透明面上有意义（玻璃没有曝光步）。玻璃上的雾看 `hero`：
+  玻璃皮肤给它叠了一层从底边升起的雾，模糊照旧
 
 ## 内置控件怎么跟着一起扁平化
 

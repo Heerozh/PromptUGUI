@@ -385,12 +385,64 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.Greater(litMaxR, 0.2f, $"lit fog whitens at its peaks (max r {litMaxR})");
         }
 
+        // ---- glass (H-D8): the same fog, on the pane's body ------------------------------------
+        //
+        // No capture camera in this harness, so the pane is in fallback — a transparent body under
+        // the tint. That is the point: the fog is composited into the glass shader in the same slot
+        // it has in the opaque one (body → fog → inner glow → glow → border), so a fill-less pane
+        // shows a patch of light exactly the way a fill-less opaque Frame does. Fog over a REAL
+        // blurred backdrop is GlassRenderTests' job (it needs URP).
+
         [Test]
-        public void Glass_IgnoresHaze()
+        public void Glass_DrawsHaze()
         {
-            var plain = Render("glass='true' color='white/0.1' borderWidth='1'", "pugui-haze-glass-plain.png");
-            var fog = Render("glass='true' color='white/0.1' borderWidth='1' haze='24' hazeColor='white'", "pugui-haze-glass-fog.png");
-            AssertPixelIdentical(plain, fog, "haze has no effect on a glass surface (H-D4)");
+            Render("glass='true' color='white/0.1'", "pugui-haze-glass-plain.png");
+            var (plainMean, plainDev) = LumaStats(Interior());
+            Assert.Less(plainDev, 0.005f, "guard: a flat tint has no variation");
+
+            Render("glass='true' color='white/0.1' haze='24' hazeColor='white'", "pugui-haze-glass-fog.png");
+            var (mean, dev) = LumaStats(Interior());
+            Assert.Greater(mean, plainMean + 0.05f, "fog adds light to a glass pane");
+            Assert.Greater(dev, 0.04f, $"…in patches, not a flat wash (std dev {dev})");
+        }
+
+        [Test]
+        public void Glass_HazeIsUnderTheBorder()
+        {
+            // Same layering as the opaque shader: an opaque border is painted over the fog.
+            Render("glass='true' color='white/0.1' borderWidth='6' borderColor='red'", "pugui-haze-glass-border-plain.png");
+            var plain = new List<Color>();
+            for (var u = 0.1f; u <= 0.9f; u += 0.1f) plain.Add(At(u, 1f - 3f / H));
+
+            Render("glass='true' color='white/0.1' borderWidth='6' borderColor='red' haze='24' hazeColor='white'",
+                   "pugui-haze-glass-border.png");
+            var i = 0;
+            for (var u = 0.1f; u <= 0.9f; u += 0.1f)
+                AssertSameColor(plain[i++], At(u, 1f - 3f / H), "inside the border band the fog is covered");
+        }
+
+        [Test]
+        public void Glass_HazeOff_IsPixelIdenticalToUnset()
+        {
+            // The uniform branch, on the glass shader too: every glass document written before the
+            // fog existed keeps rendering bit for bit, and so does one carrying a stray hazeColor.
+            var unset = Render("glass='true' color='white/0.1' borderWidth='1' glow='12' glowColor='#3b82f6/0.5'",
+                               "pugui-haze-glass-unset.png");
+            var off = Render("glass='true' color='white/0.1' borderWidth='1' glow='12' glowColor='#3b82f6/0.5' haze='0' hazeColor='cyan' hazeDrift='6'",
+                             "pugui-haze-glass-off.png");
+            AssertPixelIdentical(unset, off, "haze='0' must be a no-op on glass");
+        }
+
+        [Test]
+        public void Glass_HazeDrift_MovesWithTheClock()
+        {
+            // The clock is published by the material cache for any drifting material, glass or not.
+            Render("glass='true' color='white/0.1' haze='24' hazeColor='white' hazeDrift='20'", "pugui-haze-glass-drift-t0.png");
+            HazeClock.SetTimeForTests(0f);
+            var t0 = Snapshot("pugui-haze-glass-drift-t0.png");
+            HazeClock.SetTimeForTests(2f);
+            var t2 = Snapshot("pugui-haze-glass-drift-t2.png");
+            Assert.IsTrue(AnyPixelDiffers(t0, t2), "drifting fog on glass moves when the clock moves");
         }
 
         // ---- the clock (M1) --------------------------------------------------------------------

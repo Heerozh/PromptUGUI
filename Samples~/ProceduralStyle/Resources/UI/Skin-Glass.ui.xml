@@ -127,11 +127,14 @@
                             lightAngle="-35" lightIntensity="0.35"
                             borderWidth="1" borderColor="glass-edge"/>
 
-  <!-- 重点物件：厚彩色玻璃 + 外发光。glow 画在形状外侧，会被祖先 RectMask2D 裁掉 -->
+  <!-- 重点物件：厚彩色玻璃 + 外发光 + 噪声雾。glow 画在形状外侧，会被祖先 RectMask2D 裁掉；
+       雾压在「模糊 backdrop + tint」之上、描边之下 —— 模糊一点没变，雾是叠上去的一层光，
+       从底边升起（hazeColor 的渐变就是它的遮罩）。玻璃上没有曝光步，雾的亮度全靠 hazeColor 自己。 -->
   <Style name="hero"        glass="true" radius="14"
                             color="accent-2/0.45" frost="0.4" depth="10"
                             lightAngle="-35" lightIntensity="0.85" dispersion="0.25"
                             glow="18" glowColor="accent-2"
+                            haze="36" hazeColor="to top, white/0.45, white/0"
                             borderWidth="1" borderColor="#ffffff/0.35"/>
 
 </PromptUGUI>

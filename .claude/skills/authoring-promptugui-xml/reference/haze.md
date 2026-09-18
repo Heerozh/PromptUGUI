@@ -20,14 +20,19 @@ for a lit core with a saturated halo see **Lighting it up** (`intensity`), which
 <!-- a hollow frame with a slow patch of light inside it -->
 <Frame borderWidth="1" borderColor="white/0.3" haze="64" hazeColor="#7ec8ff/0.5" hazeDrift="12"/>
 
+<!-- a glass card: the blur stays as it is, the fog lies on top of it -->
+<Frame glass="true" radius="16" frost="0.6" color="white/0.06" borderWidth="1" borderColor="white/0.25"
+       haze="40" hazeColor="to top, white/0.45, white/0"/>
+
 <!-- a theme changes the whole family at once -->
 <Style name="hud-btn" radius="6" borderWidth="1" haze="40" hazeColor="to top, @accent/0.5, @accent/0"/>
 ```
 
 Works on every tag that draws procedurally — `<Frame>`, `<Btn>`, `<Tab>`, `<TabMenu>`, `<Toggle>`,
 `<Slider>` (the track), `<Dropdown>`, `<InputField>`, `<ScrollList>`, `<Scrollbar>`, `<Collapsible>`,
-`<Progress>` — and through `<Style>` / `class=` like every other procedural attribute. Not on the
-inner layers (`handle*`, a Progress / Slider fill), not on `<Decor>`, not on `<Image>` / `<Icon>`.
+`<Progress>` — opaque **or `glass="true"`**, and through `<Style>` / `class=` like every other
+procedural attribute. Not on the inner layers (`handle*`, a Progress / Slider fill), not on `<Decor>`,
+not on `<Image>` / `<Icon>`, and not inside a `weld` group (see **Not here**).
 
 ## Attributes
 
@@ -83,7 +88,8 @@ token works too (`hazeColor="@accent-fog"`).
 ## Where it is painted
 
 ```
-fill → [fog] → inner glow → outer glow → border → exposure (intensity) → tint / fade → clip
+opaque:  fill → [fog] → inner glow → outer glow → border → exposure (intensity) → tint / fade → clip
+glass:   blurred backdrop + tint → [fog] → inner glow → outer glow → border → tint / fade → clip
 ```
 
 - **Inside the shape only**, following the outline (`radius` / `cut` / `notch` / `pill`). It never
@@ -91,10 +97,17 @@ fill → [fog] → inner glow → outer glow → border → exposure (intensity)
 - **Under the border and the inner glow**: an opaque `borderColor` stays crisp over it; a thin
   translucent one lets the fog run underneath, which is the reference look ("light leaking out
   along the edge").
-- **Before `intensity`**: `haze` + `intensity="1.6"`–`3` is neon fog — the brightest patches whiten,
-  the rest keep their hue. The fog has no exposure knob of its own.
+- **Before `intensity`** (opaque surfaces): `haze` + `intensity="1.6"`–`3` is neon fog — the
+  brightest patches whiten, the rest keep their hue. The fog has no exposure knob of its own.
 - **With no fill** it is a patch of light in an empty rect: `<Frame haze="48" hazeColor="cyan/0.5"/>`
   draws, the same way a border-only or inner-glow-only Frame does.
+- **On glass** the pane's body — the blurred backdrop with the `color` tint over it — is the fill:
+  the fog lies on it and the blur underneath is exactly what it was (see `reference/glass.md`). Two
+  differences from an opaque surface, both consequences of what glass is: there is **no exposure
+  step**, so `intensity` does not light the fog (it is ignored on glass, `PUI-GLASS-INTENSITY`) and
+  the fog's brightness comes from `hazeColor` alone — a brighter colour or a higher `/alpha`; and
+  when the backdrop is unavailable (the fallback cases in glass.md) the fog lies on the transparent
+  body plus tint, a patch of light in a see-through panel, like the no-fill Frame above.
 - **`mask="self"`** clips to the shape as always; the fog is inside it anyway.
 - **`*Modulate`, CanvasGroup fades, `hoverColor` and friends** treat the fog as part of the surface: it
   darkens, fades and greys with everything else. A **disabled** control greys its fog and **freezes**
@@ -128,8 +141,9 @@ pixel; the whole project pays one shader global per frame, and only once somethi
 
 ## Not here
 
-- **Glass** (`glass="true"` / a `weld` carrier): the fog is zeroed — a pane has no fill for it to lie
-  on — and the CLI says so (`PUI-GLASS-HAZE`). `hazeColor` alone on glass is *not* flagged, so a
+- **A `weld` group** — the carrier and its welded blocks: the fused pane is drawn by the group
+  shader, which has no fog layer, so the value goes nowhere and the CLI says so (`PUI-GLASS-HAZE`).
+  A standalone `glass="true"` pane takes the fog. `hazeColor` alone is *not* flagged anywhere, so a
   theme can hand it to every surface.
 - **Inner layers** (`handleHaze` etc.), `<Decor>`, `<Image>` / `<Icon>`: no fog. A `.pxl` / sprite
   aesthetic paints its haze into the art.
@@ -140,6 +154,6 @@ pixel; the whole project pays one shader global per frame, and only once somethi
 | Code | Level | When |
 |---|---|---|
 | `PUI-PROCEDURAL-VALUE` | error | `haze` / `hazeDrift` not a non-negative finite number, `hazeDensity` outside 0..1; also inside `<Style>` |
-| `PUI-GLASS-HAZE` | warning | `haze` on `glass="true"` or a `weld` carrier — raw or arriving through `class=` |
+| `PUI-GLASS-HAZE` | warning | `haze` on a `weld` carrier or on a welded block — raw or arriving through `class=`. Not on a standalone `glass="true"` pane, which takes the fog |
 | `PUI-CONTAINER-VISUAL-ATTR` | warning | any of the three on a layout-only container or a tag without a procedural surface |
 | colour errors | error | a malformed `hazeColor` ramp — the same messages as every other colour slot |

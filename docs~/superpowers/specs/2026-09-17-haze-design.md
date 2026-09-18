@@ -1,13 +1,14 @@
 # `haze` —— 程序化表面的噪声雾层（云雾状亮斑）
 
-> 状态：**已实现**（M0–M2 一轮做完，见 §15；`hazeDensity` 在验收后补入，H-D7 / §15.4）。决策见 §13，
+> 状态：**已实现**（M0–M2 一轮做完，见 §15；`hazeDensity` 在验收后补入，H-D7 / §15.4；**玻璃面板上的雾**
+> 2026-09-18 补入，H-D8 / §15.5 —— v1 的「玻璃归零」只剩焊接组）。决策见 §13，
 > 2026-09-17 与作者对齐；实施中改了两处常数（§5.1：覆盖率色阶、第二三 octave 旋转），正文已按实际落地更新。
 > 相关：`2026-09-17-linear-gradient-primitive-design.md`（LG-D6 把本文从边框渐变里剥出来；`hazeColor` 直接复用它的
 > 方向 / 多色标 ramp，是本文「方向遮罩零新语法」的前提）、
 > `2026-09-12-intensity-design.md`（曝光；本文的实现地图逐项镜像它，雾排在曝光之前让 `intensity` 能把雾点亮）、
 > `2026-08-28-inner-glow-design.md`（`innerGlowColor` 默认白的理由，本文同一条）、
 > `2026-08-26-procedural-surface-design.md`（`ProceduralControl` 让全家共享属性）、
-> `2026-08-23-glass-fill-design.md`（玻璃 —— 本文明确排除的表面；它的 `noise` 与本文不是一回事，见 §1.1）。
+> `2026-08-23-glass-fill-design.md`（玻璃 —— v1 排除、H-D8 补入的表面；它的 `noise` 与本文不是一回事，见 §1.1）。
 
 ## 1. 问题
 
@@ -133,7 +134,12 @@ w = lerp(u²(3 − 2u), u, d)          Hermite S 曲线 → 直线
 
 ```
 不透明面：  填充 → [雾 over] → 内发光 over → 外发光 under → 描边 over → 曝光 → × 顶点色 → 裁剪
+玻璃面：    玻璃体（backdrop 模糊 + 边缘折射 + 打光）→ tint over → [雾 over] → 内发光 → 外发光 → 描边 → × 顶点色 → 裁剪
 ```
+
+玻璃那行是 H-D8（§15.5）补的：玻璃的「填充」是 backdrop + tint 这一个合成体，雾压在它之上、内发光与描边之下 ——
+与不透明面同一个槽位，`UI-GlassPanel.shader` 的 backdrop 采样一字不动（雾不参与折射、不进 saturation）。玻璃面
+没有曝光步（`intensity` 在玻璃上本就归 1），所以玻璃上的雾没有「霓虹」形态，亮度只由 `hazeColor` 自己给。
 
 ```hlsl
 float4 haze = PuguiGradient(p, b, HAZE_RAMP);                 // 与其他色槽同一条渐变线（LG-D5）
@@ -166,8 +172,8 @@ col = PuguiOver(haze, col);
 
 | | 规则 |
 |---|---|
-| `glass="true"` | 雾**不画**：`BuildParams` 把 `haze` 归 0（`intensity` 同款折进 key，材质不分裂）；lint `PUI-GLASS-HAZE`（§7）。玻璃的填充是 backdrop，雾在它上面要另立合成规则，且焊接组是第三份 shader —— 本轮不做（H-D4） |
-| `weld` 容器 / 成员 | 同上：焊接组不吃雾 |
+| `glass="true"` | **画**（H-D8，2026-09-18 起）：与不透明面同一个槽位，压在「玻璃体 + tint」之上（§5.2 第二行）。无 backdrop 降级时玻璃体透明，雾落在 tint 上 —— 与「无填充 + 雾 = 一团光」同构。失能：去饱和 + 冻结漂移，与玻璃自身的变薄 / 变暗同一次 `BuildParams`。v1 曾归零（H-D4） |
+| `weld` 容器 / 成员 | 雾**不画**：焊接组的融合面由 `UI-GlassGroup.shader` 画，没有雾层；容器自己的面板在焊接期间被压制、成员的绘制也移交给组，所以值落不到任何 shader。lint `PUI-GLASS-HAZE`（§7）—— 这个码今天只剩这一种触发 |
 | disabled（`_grayed`） | `hazeColor` 与其他色槽一起 `Desaturate()`；**`hazeDrift` 强制 0**。灰掉但还在流动的雾读成「活的」，失能控件要读成惰性的 —— 与 `intensity` 归 1 是同一条理由 |
 | `intensity` | 作用在雾上（§5.2） |
 | `*Modulate` / CanvasGroup | 顶点色在曝光之后统一乘，雾跟着整面暗 / 淡 |
@@ -274,7 +280,7 @@ if (_HazeSize > 0.0)            // uniform 分支：无雾面板逐位不变
 |---|---|---|
 | `PUI-PROCEDURAL-VALUE` | error | `haze` / `hazeDrift` 非数 / NaN / 负（既有码，`StyleRules.CheckValue` 加两个名字）；`hazeDensity` 非数 / 非有限 / 越出 0..1（`HazeDensityAttrParser` 的三段文案） |
 | `PUI-COLOR-*`（既有） | error | `hazeColor` 的渐变形状错误，与其他色槽同款 |
-| `PUI-GLASS-HAZE` | warning | `glass="true"` / `weld` 容器 / 焊接成员上写了 `haze`（raw + style-aware，`PUI-GLASS-INTENSITY` 同型）：*'haze' has no effect on a glass surface — drop 'glass' (or 'weld'), or drop 'haze'* |
+| `PUI-GLASS-HAZE` | warning | `weld` 容器 / 焊接成员上写了 `haze`（raw + style-aware；容器由 `GlassRules.Check` 报，成员由 `CheckWeldGroup` 报 —— 成员是不是焊着的只有看得见父节点的那条规则知道）：*'haze' has no effect on a weld group / a welded block — … has no fog layer*。`glass="true"` 单面板**不报**（H-D8 起雾在玻璃上生效；v1 曾报） |
 | `PUI-CONTAINER-VISUAL-ATTR`（既有） | warning | `haze*` 写在 `*Stack` / `Grid` / `SafeArea` / `<Image>` 等上 —— 三个名字进 `ProceduralAttrNames` 自动覆盖 |
 
 `hazeColor` / `hazeDrift` / `hazeDensity` 写了而 `haze` 没写：**不报**。`glowColor` 无 `glow` 今天也不报，同一条规则；
@@ -400,7 +406,8 @@ CPU 侧每帧一个 `SetGlobalFloat`。
 - **`hazeDensity` 之外的第二个对比度旋钮**（色阶的两端、曲线族）—— 常数（§5.1）。起草时连 `hazeDensity` 也不打算给
   （「`/alpha` 是唯一的强度旋钮」），验收时推翻：alpha 缩放整层，填不了空白，两者正交（H-D7）。
 - **漂移方向**（`hazeDrift="6 45deg"`）—— 三个 octave 的方向是常数；要「向上升腾」的雾等真实需求。
-- **玻璃 / 焊接组上的雾** —— backdrop 之上的合成规则 + 第三份 shader（H-D4）。
+- **焊接组上的雾** —— 第三份 shader（`UI-GlassGroup.shader`）+ `GlassGroupPanel` 的独立材质要多搬四个参数，渐变线还得改用组边界；
+  等有人真要在焊接组上叠雾再做。单玻璃面板的雾 v1 也在这一条里（H-D4），2026-09-18 补入（H-D8 / §15.5）。
 - **`<Decor>` 上的雾** —— 小件上看不出斑块。
 - **`<Image>` / `<Icon>` 上的雾** —— 那是 blur 路径不是 SDF；且 sprite 美学有自己的画法（画进图里）。
 - **内层雾**（`handleHaze` / Progress fill）—— 内层没有一个需要它的用例。
@@ -421,6 +428,7 @@ CPU 侧每帧一个 `SetGlobalFloat`。
 | H-D5 | `hazeDrift` 进 v1，默认 0；未缩放时钟；失能时冻结（本文定，未单独对齐 —— 与 `intensity` 归 1 同一条理由） |
 | H-D6 | `hazeColor` 默认白、不跟随填充（`innerGlowColor` 的同一条理由，本文定） |
 | H-D7 | **`hazeDensity`**（0..1，默认 0.5）：验收时作者拿参考图的「造船」对比 —— 参考图是整面薄雾 + 亮云团，实施出来的是几团光 + 大片空白；`/alpha` 填不了空白。一个旋钮把色阶的黑场 0.55 → 0、白场 0.85 → 1、曲线 S → 直线一起推，0 = 原来的稀疏光团、1 = 原始噪声场（线性 n）、0.5 = 参考图；作者选定加旋钮而不是只改常数，两种看法都留着（2026-09-17 对齐） |
+| H-D8 | **玻璃面板吃雾**（2026-09-18 对齐）：作者要「blur 保持现状，雾叠在它之上」。合成规则不用另立 —— 玻璃的「填充」就是 backdrop + tint 这个合成体，雾压在它之上、内发光与描边之下，与不透明面同一个槽位；`UI-GlassPanel.shader` 照抄那 6 行，`BuildParams` 去掉 `_glass ? 0f :`（材质缓存本来就无条件写 `_Haze*` 并起时钟）。**焊接组不做**：作者明确不要，`PUI-GLASS-HAZE` 只剩这一种触发。玻璃上没有曝光步，雾的亮度只由 `hazeColor` 给，不另加雾专属曝光 |
 
 ## 14. 验收
 
@@ -504,3 +512,22 @@ noise 只要把第二、三 octave 各转 0.7 / 1.4 rad 并错开原点（`+ (13
 名字表 / `StyleRules` / XSD 各一处；测试 `HazeDensityAttrParserTests` + 参数 / 契约 / lint / XSD 各加用例，
 `HazeRenderTests` 加 `HazeDensity_FillsTheSurface`（d = 1 无一像素是裸底、d = 0 至少四分之一是裸底）与
 `HazeDensity_DefaultSitsBetween`。
+
+### 15.5 玻璃面板上的雾（H-D8，2026-09-18）
+
+作者的需求是「blur 保持现状不变，再叠一层雾在它之上」。评估下来 v1 的「玻璃归零」不是技术障碍而是范围（H-D4）：
+`PuguiHazeWeight` / `PUGUI_RAMP(_Haze)` 都在共享的 `UI-PanelSDF.cginc` 里，`ProceduralMaterialCache.Configure` 对玻璃
+材质也无条件写四个 `_Haze*` uniform 并 `HazeClock.Ensure()`，`PanelParams` 的 key 早已含雾字段。于是：
+
+- `UI-GlassPanel.shader`：Properties + uniform 声明照抄不透明 shader 的 `_Haze` 段，`_PuguiUnscaledTime` 全局多声明一个；
+  雾块插在 `col = PuguiOver(tint, base)` 之后、内发光之前 —— §5.2 第二行。backdrop 采样一字未动。
+- `ProceduralPanel.BuildParams`：`var hazeSize = _hazeSize;`（去掉 `_glass ? 0f :`）。失能路径不区分玻璃，去饱和 + 冻结照旧。
+- `GlassRules`：`PUI-GLASS-HAZE` 的 `IsGlassTrue` 条件去掉，只剩 `weld` 容器；焊接成员改由 `CheckWeldGroup` 报（成员的
+  面板被压制、绘制移交给组，值落不到任何 shader），两条文案都指向 weld。
+- 焊接组按作者要求不做（§12）。
+
+Red 先行、分三个提交（shader + 参数 + 渲染探针 → lint → 文档 / 样例 / 本文）。探针：`FrameProceduralPanelTests`
+三条（保留 / 仅 `hazeColor` 仍共享材质 / 失能冻结 + 去灰）；`HazeRenderTests` 四条在无 backdrop 的降级玻璃上
+（雾加亮且成斑、雾在描边下、`haze='0'` 逐位不变、时钟推动漂移）；`GlassRenderTests.Haze_LiesOnTheBlurredBackdrop`
+在真 URP backdrop 上（橙色世界透过整块面板、白雾把蓝通道抬起来、绿通道排除 magenta 错误 shader）。渲染图核过：
+橙色世界 + 白色云团 + 斜面高光与描边都在。
