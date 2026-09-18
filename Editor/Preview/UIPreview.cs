@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using PromptUGUI.Application;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -133,6 +134,48 @@ namespace PromptUGUI.Editor.Preview
             EditorApplication.EnterPlaymode();
             return true;
         }
+
+        /// <summary>
+        /// Loads and opens a file: an asset path (<c>Assets/UI/Planet.ui.xml</c>), an absolute path,
+        /// or just enough of one to be unique (<c>Planet.ui.xml</c>). Fire-and-forget — poll
+        /// <see cref="IsBusy"/>, then read <see cref="LastError"/>. No-op outside a preview session.
+        /// </summary>
+        public static void Load(string file)
+        {
+            if (!IsActive)
+            {
+                Debug.LogWarning("[PromptUGUI] UI Preview: not previewing — call Launch() first.");
+                return;
+            }
+            var assetPath = Overlay.ResolveFileArgument(file);
+            if (assetPath == null)
+            {
+                Debug.LogWarning($"[PromptUGUI] UI Preview: no project .ui.xml matches '{file}'.");
+                return;
+            }
+            _ = Overlay.LoadAsync(assetPath);
+        }
+
+        /// <summary>A load is in flight.</summary>
+        public static bool IsBusy => Overlay != null && Overlay.Busy;
+
+        /// <summary>Why the last load failed; null when it succeeded.</summary>
+        public static string LastError => Overlay?.Error;
+
+        /// <summary>Asset path of the loaded file; null when nothing is loaded.</summary>
+        public static string LoadedFile => Overlay?.LoadedFile;
+
+        /// <summary>Name of the open Screen; null when nothing is loaded.</summary>
+        public static string LoadedScreen => Overlay?.LoadedScreen;
+
+        /// <summary>The Screens the loaded file declares.</summary>
+        public static IReadOnlyList<string> Screens => Overlay != null ? Overlay.Screens : System.Array.Empty<string>();
+
+        /// <summary>Switches to another Screen of the loaded file.</summary>
+        public static void OpenScreen(string name) => Overlay?.OpenScreen(name);
+
+        /// <summary>Shows a page of a <c>&lt;Pages&gt;</c> in the open Screen and remembers it; false when either id is unknown.</summary>
+        public static bool Select(string pagesId, string pageId) => Overlay != null && Overlay.Select(pagesId, pageId);
 
         /// <summary>The overlay's panel, collapsed to a single button or expanded. No-op outside a preview session.</summary>
         public static bool PanelCollapsed
