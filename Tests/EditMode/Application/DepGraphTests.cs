@@ -9,7 +9,7 @@ namespace PromptUGUI.Tests.Application
         public void IsCommons_reflects_set()
         {
             var g = new DepGraph();
-            g.CommonsSources.Add("c");
+            g.CommonsSources["c"] = null;
             Assert.IsTrue(g.IsCommons("c"));
             Assert.IsFalse(g.IsCommons("d"));
         }
@@ -36,7 +36,7 @@ namespace PromptUGUI.Tests.Application
         public void Clear_resets()
         {
             var g = new DepGraph();
-            g.CommonsSources.Add("c");
+            g.CommonsSources["c"] = null;
             g.ScreenDeps["A"] = new DepGraph.ScreenDep();
             g.SrcToDeps["c"] = new();
             g.Clear();

@@ -20,9 +20,33 @@ namespace PromptUGUI.Editor
 
             EditorGUILayout.Space();
 
+            DrawCommonLibraries(serializedObject.FindProperty("commonLibraries"));
+
+            EditorGUILayout.Space();
+
             DrawLocales(serializedObject.FindProperty("locales"));
 
             serializedObject.ApplyModifiedProperties();
+        }
+
+        /// <summary>
+        /// The one declaration of the project's common libraries (2026-09-18 commons-settings spec
+        /// §4.1). The default list drawer is right for two strings a row; what the section adds is
+        /// the explanation of what a src IS — the field cannot validate it (a resolver key means
+        /// whatever the host's SourceResolver says), so the lint menu is its validator.
+        /// </summary>
+        private static void DrawCommonLibraries(SerializedProperty commonLibraries)
+        {
+            EditorGUILayout.LabelField("Common Libraries", EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "Shared <Template> / <Style> / <Theme> files merged into every Screen — the <Import> " +
+                "every document implicitly has. 'src' is a resolver key in the same shape as <Import src> " +
+                "(e.g. 'UI/Templates/Theme.ui' for UseResourcesResolver(\"UI\"), the Address for " +
+                "Addressables), not a file path. 'as' is an optional namespace: <ns.Name/>, class=\"ns:name\". " +
+                "Loaded in this order, on demand, by UI.EnsureCommonLibrariesAsync — LoadDocumentAsync calls " +
+                "it for you. Tools › PromptUGUI › Lint All UI XML checks that every src resolves.",
+                MessageType.None);
+            EditorGUILayout.PropertyField(commonLibraries, new GUIContent("Libraries"), true);
         }
 
         private void DrawLocales(SerializedProperty locales)

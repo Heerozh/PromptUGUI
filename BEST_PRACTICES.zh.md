@@ -25,8 +25,9 @@ public static class UIBoot
         UI.DefaultScaleMode = ScaleMode.Pixel;
         UI.MinPixelScale = 1.0f;
 
-        // ③ 载入全局模板/主题库（含 <Theme>），并设主题
-        _ = UI.LoadCommonLibraryAsync("UI/Templates/DefaultTheme.ui.xml");
+        // ③ 全局模板/主题库（含 <Theme>）在 PromptUGUI_Settings.asset → Common Libraries 里声明，
+        //    首次 LoadDocumentAsync 会自动装载；这里预热一下让首屏前主题就能解析，再设主题（Set 可先于装载完成）
+        _ = UI.EnsureCommonLibrariesAsync();
         UI.Theme.Set("dark");
 
         // ④ 用项目自定义对话框覆盖内置 MessageBox
@@ -179,7 +180,7 @@ UI.Router.AddGuard(guard);                                     // RemoveGuard(gu
 UI.Theme.Set("dark");   // 运行时切换，已打开界面自动重刷
 ```
 
-- 主题文件通过 `UI.LoadCommonLibraryAsync(...)`（§1）或 `<Import src="themes/main"/>` 注册。
+- 主题文件作为公共库注册（`PromptUGUI_Settings.asset → Common Libraries`，§1）或用 `<Import src="themes/main"/>` 引入。
 - **token 优先于字面量**：注册了名为 `red` 的 token，`color="red"` 就解析成它。
 - 单主题项目可省略 `Theme.Set`，加载后自动选中那一个。
 

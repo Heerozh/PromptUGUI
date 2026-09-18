@@ -1173,7 +1173,7 @@ inline 属性  >  右边的 class  >  左边的 class
 
 **`itemTemplate=` 也走完整展开**：`<ScrollList>` / `<TabBar>` / `<Carousel>` 用的模板体和别处一样会合并 `class=`、替换 `{{param}}`、内联嵌套模板调用。因为没有调用点提供实参，模板自己的 `<Param default=...>` 就是实参 —— 所以**当作 itemTemplate 用的模板，每个 `<Param>` 都必须有 `default=`**，否则 `UI.Open` 会直接报错说清楚是哪个模板的哪个参数。C# 侧的 `screen.Instantiate("Name", parent)`（见 scripting-promptugui-csharp → "Instantiating a template from C#"）走**同一条解析与同一条规则** —— 名字既可以是模板也可以是注册的 Control tag，模板的每个 `<Param>` 同样必须有 `default=`，只是报错落在调用那一刻而不是 `UI.Open`。
 
-**Sharing** works exactly like `<Template>`: styles travel through `<Import>`, land in the commons pool, hot-reload with their file, and a name colliding between commons and the entry document is a hard error. An unknown style name is caught by the lint CLI as `PUI-EXPAND` whenever it can read the imported files from disk; otherwise it surfaces at `UI.Open()`. A namespaced commons library is referenced with a colon — `class="ui:card"` — mirroring the `Set:Name` form used for sprites and icons (tags use a dot, `ui.TitledPanel`; class references use a colon).
+**Sharing** works exactly like `<Template>`: styles travel through `<Import>` or through a common library (a row in `PromptUGUISettings → Common Libraries` — the `<Import>` every document implicitly has), hot-reload with their file, and a name colliding between commons and the entry document is a hard error. An unknown style name is caught by the lint tooling as `PUI-EXPAND` whenever it can read the imported files and the declared common libraries from disk; otherwise it surfaces at `UI.Open()` — and, in a project with no common library declared, that error says so, since a forgotten settings row is the usual cause. A namespaced commons library is referenced with a colon — `class="ui:card"` — mirroring the `Set:Name` form used for sprites and icons (tags use a dot, `ui.TitledPanel`; class references use a colon).
 
 Swapping which commons library is loaded therefore re-skins everything at once.
 
@@ -1444,7 +1444,7 @@ The extractor pulls each CDATA block as a single complete msgid; runtime transla
 - Imported files cannot contain `<Screen>` — only `<Template>` / `<Style>` / `<Theme>`.
 - Same-named templates from two imports without `as=` → conflict error. Resolve with `as="ns"` on one of them. Styles behave the same way (`class="ns:name"` to reference a namespaced one).
 
-There's also a **commons pool** populated C#-side that's merged into every Screen automatically — see scripting-promptugui-csharp.
+There's also a **commons pool** — the libraries declared in `PromptUGUISettings → Common Libraries` (`src` + optional `as`), merged into every Screen automatically as if each document had written that `<Import>` itself. The runtime loads them on the first `LoadDocumentAsync`; nothing is registered from C#. See scripting-promptugui-csharp.
 
 ## Color Tokens
 
@@ -1469,7 +1469,7 @@ Define named colors in `<Theme>` blocks; reference them by name in any color att
 
 - `<Theme>` MUST have `name`. Optional `base="other-theme"` makes missing tokens fall back along the chain.
 - `<Color>` MUST have `name` (kebab-case, `[a-z0-9-]`) and `value` (hex / CSS-named, anything Unity's `ColorUtility.TryParseHtmlString` accepts).
-- Theme XML loads via `UI.LoadCommonLibraryAsync(...)` at boot, or via `<Import src="themes/main.ui"/>` from any screen's `.ui.xml` — both register the same `ThemeStore`.
+- Theme XML loads as a common library (a row in `PromptUGUISettings → Common Libraries`, loaded on the first `LoadDocumentAsync`), or via `<Import src="themes/main.ui"/>` from any screen's `.ui.xml` — both register the same `ThemeStore`.
 - A `<Theme>` can also carry `<Style>` packs, which turns a theme from "swap the palette" into "swap the skin" — see **Theme-scoped styles** below.
 
 ### Reference

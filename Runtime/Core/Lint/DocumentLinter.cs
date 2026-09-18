@@ -32,14 +32,23 @@ namespace PromptUGUI.Lint
         public const string ExpansionCode = "PUI-EXPAND";
 
         /// <summary>
-        /// <paramref name="imports"/> resolves an <c>&lt;Import src&gt;</c> to its parsed document.
-        /// Pass <c>null</c> when the caller cannot produce the closure — a project may serve its
-        /// commons from Addressables or a custom resolver with no filesystem shape at all, and
-        /// failing a today-clean document over that would cost more than the missed coverage. The
-        /// expanded pass is then skipped and the raw rules still apply, exactly as before.
+        /// <paramref name="imports"/> resolves an <c>&lt;Import src&gt;</c> — and every src in
+        /// <paramref name="commons"/> — to its parsed document. Pass <c>null</c> when the caller
+        /// cannot produce the closure — a project may serve its libraries from Addressables or a
+        /// custom resolver with no filesystem shape at all, and failing a today-clean document over
+        /// that would cost more than the missed coverage. The expanded pass is then skipped and the
+        /// raw rules still apply, exactly as before.
         /// </summary>
+        /// <param name="commons">
+        /// The project's common libraries (<c>PromptUGUISettings.commonLibraries</c>): the
+        /// <c>&lt;Import&gt;</c> every document implicitly has. Folded into the commons pool the way
+        /// <c>DocumentLoader</c> does at runtime — before expansion, name clash with the entry a hard
+        /// error — so a <c>class=</c> or <c>&lt;ns.Tag/&gt;</c> that lives only there resolves here
+        /// too instead of being reported as <see cref="ExpansionCode"/>.
+        /// </param>
         public static IEnumerable<LintIssue> Walk(
-            UIDocument doc, string entrySrc = "<entry>", Func<string, UIDocument> imports = null)
+            UIDocument doc, string entrySrc = "<entry>", Func<string, UIDocument> imports = null,
+            IReadOnlyList<ImportRef> commons = null)
         {
             if (doc == null) yield break;
 
@@ -49,19 +58,34 @@ namespace PromptUGUI.Lint
                 if (seen.Add(KeyOf(issue)))
                     yield return issue;
 
-            if (imports == null && doc.Imports.Count > 0)
+            var hasCommons = commons != null && commons.Count > 0;
+            if (imports == null && (doc.Imports.Count > 0 || hasCommons))
                 yield break;
 
             // Expansion throws instead of collecting, and C# forbids `yield return` inside a catch,
             // so stage the outcome first and emit it below.
             LoadedDoc loaded = null;
             LintIssue? failure = null;
+            var commonsThemes = new List<(ThemeBlock Theme, string Src)>();
             try
             {
-                loaded = DocumentAssembler.Assemble(
-                    entrySrc,
-                    s => s == entrySrc ? doc : imports?.Invoke(s),
-                    allowScreens: true);
+                Func<string, UIDocument> lookup = s => s == entrySrc ? doc : imports?.Invoke(s);
+                loaded = DocumentAssembler.Assemble(entrySrc, lookup, allowScreens: true);
+                if (hasCommons)
+                {
+                    // Same order of operations as the runtime: each library is assembled with its
+                    // own closure (no <Screen> allowed), rebased under its namespace into one pool,
+                    // and the pool is merged onto the entry last.
+                    var pool = new Dictionary<TemplateKey, TemplateDef>();
+                    var styles = new Dictionary<StyleKey, StyleDef>();
+                    foreach (var lib in commons)
+                    {
+                        var library = DocumentAssembler.Assemble(lib.Src, lookup, allowScreens: false);
+                        DocumentAssembler.AddCommonLibrary(
+                            library, lib.Namespace, lib.Src, pool, styles, commonsThemes);
+                    }
+                    DocumentAssembler.MergeCommons(loaded, pool, styles);
+                }
             }
             catch (Exception ex) when (ex is TemplateException || ex is ParseException)
             {
@@ -76,7 +100,12 @@ namespace PromptUGUI.Lint
             // Theme rules run BEFORE expansion is attempted: the most common thing they diagnose —
             // a theme style with no global baseline — is itself what makes expansion throw, and
             // reporting only "unknown style 'card'" would send the author looking in the wrong place.
-            var themes = ThemesByName(loaded);
+            var themes = ThemesByName(loaded, commonsThemes, out var duplicateTheme);
+            if (duplicateTheme.HasValue)
+            {
+                yield return duplicateTheme.Value;
+                yield break;
+            }
 
             foreach (var issue in ThemeStyleRules.CheckBaselines(loaded.Styles, themes))
                 if (seen.Add(KeyOf(issue)))
@@ -143,11 +172,35 @@ namespace PromptUGUI.Lint
             }
         }
 
-        private static Dictionary<string, ThemeBlock> ThemesByName(LoadedDoc loaded)
+        /// <summary>
+        /// The themes this document can reach: its own closure's plus the common libraries'. A
+        /// name declared in both is what <c>ThemeStore.Register</c> throws on at runtime
+        /// (<c>duplicate &lt;Theme&gt;</c> across two srcs), so it comes back as
+        /// <paramref name="duplicate"/> — an expansion failure — rather than one silently winning.
+        /// Within a single closure Assemble already threw on the same thing.
+        /// </summary>
+        private static Dictionary<string, ThemeBlock> ThemesByName(
+            LoadedDoc loaded, List<(ThemeBlock Theme, string Src)> commonsThemes, out LintIssue? duplicate)
         {
+            duplicate = null;
             var themes = new Dictionary<string, ThemeBlock>();
-            foreach (var (theme, _) in loaded.Themes)
-                themes[theme.Name] = theme;   // a cross-file duplicate already threw in Assemble
+            var srcByName = new Dictionary<string, string>();
+            foreach (var (theme, src) in commonsThemes)
+            {
+                themes[theme.Name] = theme;
+                srcByName[theme.Name] = src;
+            }
+            foreach (var (theme, src) in loaded.Themes)
+            {
+                if (srcByName.TryGetValue(theme.Name, out var other) && other != src)
+                {
+                    duplicate ??= new LintIssue(ExpansionCode, "Theme", theme.Name,
+                        $"duplicate <Theme name=\"{theme.Name}\"> in '{other}' and '{src}'");
+                    continue;
+                }
+                themes[theme.Name] = theme;
+                srcByName[theme.Name] = src;
+            }
             return themes;
         }
 

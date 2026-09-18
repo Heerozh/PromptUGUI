@@ -25,8 +25,10 @@ public static class UIBoot
         UI.DefaultScaleMode = ScaleMode.Pixel;
         UI.MinPixelScale = 1.0f;
 
-        // ③ Load the global template/theme library (includes <Theme>), then set the theme
-        _ = UI.LoadCommonLibraryAsync("UI/Templates/DefaultTheme.ui.xml");
+        // ③ The global template/theme library (includes <Theme>) is a row in PromptUGUI_Settings.asset →
+        //    Common Libraries; the first LoadDocumentAsync loads it. Warm it up here so the theme resolves
+        //    before the first Screen, then set the theme (Set may run before the load completes).
+        _ = UI.EnsureCommonLibrariesAsync();
         UI.Theme.Set("dark");
 
         // ④ Override the built-in MessageBox with the project's custom dialog
@@ -180,7 +182,7 @@ UI.Router.AddGuard(guard);                                     // RemoveGuard(gu
 UI.Theme.Set("dark");   // switch at runtime; open screens refresh automatically
 ```
 
-- Register the theme file via `UI.LoadCommonLibraryAsync(...)` (§1) or `<Import src="themes/main"/>`.
+- Register the theme file as a common library (`PromptUGUI_Settings.asset → Common Libraries`, §1) or via `<Import src="themes/main"/>`.
 - **Tokens take priority over literals**: once a token named `red` is registered, `color="red"` resolves to it.
 - A single-theme project can skip `Theme.Set` — the one theme is selected automatically after loading.
 
