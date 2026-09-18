@@ -144,6 +144,16 @@ Hand the code to the LLM. The Skills cover every detail, so you can ask the LLM 
 
 **Recommended**: use Addressables — declare `[SerializeField] private AssetReferenceT<TextAsset> xmlSlot;`, drag a `*.ui.xml` file into `xmlSlot` in the Inspector, then in code call `await UI.LoadDocumentAsync(xmlSlot);` for on-demand download and hot update.
 
+### 4. Preview a UI
+
+`Tools › PromptUGUI › UI Preview` (**F8**) enters Play in a small built-in scene and overlays a browser of every `.ui.xml` in the project: click a file to open it, save the file to hot-reload it, switch Landscape / Portrait, pick a theme, click a page of each `<Pages>`, run the linter on the open file — no build, no Addressables packing, no scene of your own. It reads the files from disk, so what you see is the version you are editing.
+
+- Your own `[RuntimeInitializeOnLoadMethod]` boot runs in the preview scene too — resolvers, sprite sets, theme and locale come from it, and the panel says what it did not provide. Common libraries come from the Settings asset above.
+- Want your own background, lights or bootstrap? Pick a scene under **Project Settings › PromptUGUI › UI Preview**. The overlay is added at Play time and never saved into the scene.
+- Automation (e.g. an AI assistant driving Unity) goes through `PromptUGUI.Editor.Preview.UIPreview`: `Launch()`, `Load("Planet.ui.xml")`, `Select("pageBuild", "detailView")`, `SetOrientation(portrait: true)`, `Lint()`.
+
+`PromptUGUI Document Host` (drop a `.ui.xml` onto a scene object) remains the Edit-mode way to place a static layout in a scene; it does not load imports, common libraries or themes.
+
 ### Documentation
 
 Please refer to the [Best Practices](BEST_PRACTICES.md) document.
@@ -437,6 +447,16 @@ Project 右键 → Create → PromptUGUI → UI XML。
 然后让大模型按你的要求（Figma > 截图）写UI。代码也交给大模型，Skills包含了所有细节，可直接问大模型。
 
 第一个界面大模型没有参考，选用的图素都是默认值，你需要手动修改或个别一一指示，之后会更顺利。
+
+### 4. 预览UI
+
+`Tools › PromptUGUI › UI Preview`（**F8**）会用一个内置的小场景进 Play，并叠一个工程内全部 `.ui.xml` 的列表：点一个文件即打开，保存文件即热重载，横竖屏一键切换，主题随选，每个 `<Pages>` 的页可以点着看，还能对当前文件跑一遍 lint——不用 build、不用打 Addressables 包、不用自己建场景。文件直接从磁盘读，看到的就是正在编辑的那一版。
+
+- 你自己的 `[RuntimeInitializeOnLoadMethod]` 启动代码在预览场景里照常跑——resolver、图标集、主题、语言都来自它，缺了什么面板会说。公共库来自上面那个 Settings 资产。
+- 想要自己的背景、灯光或引导逻辑？在 **Project Settings › PromptUGUI › UI Preview** 里选一个场景。覆盖层在进 Play 时才加上，永远不会写进场景文件。
+- 自动化（比如让 AI 助手驱动 Unity）走 `PromptUGUI.Editor.Preview.UIPreview`：`Launch()`、`Load("Planet.ui.xml")`、`Select("pageBuild", "detailView")`、`SetOrientation(portrait: true)`、`Lint()`。
+
+`PromptUGUI Document Host`（把 `.ui.xml` 拖到场景对象上）仍是 Edit 态把静态布局摆进场景的办法；它不装 Import、公共库和主题。
 
 ### 文档
 

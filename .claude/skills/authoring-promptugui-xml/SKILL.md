@@ -53,6 +53,21 @@ mcp__UnityMCP__read_console(action="get", types=["error","warning"])
 
 **DO NOT USE** `mcp__UnityMCP__execute_menu_item(menu_path="Assets/Reimport All")` unless the user explicitly allows it during an alignment step — pops a modal confirmation dialog in Unity ("Are you sure you want to reimport all assets..."). The MCP call itself returns immediately, but **every subsequent MCP call will be blocked by the unclosed modal** until someone manually dismisses it in the Unity window. Recovering from an accidental trigger requires user intervention.
 
+### 4. See it: UI Preview (Play mode, straight from disk)
+
+`Tools › PromptUGUI › UI Preview` (F8) plays a small built-in scene (or the one chosen under Project Settings › PromptUGUI › UI Preview) and overlays a browser of every project `.ui.xml`. It reads files from **disk**, `UnloadAll`s before each load and lets the library hot-reload on save, so a layout can be checked in both orientations without a build, a scene or Addressables packing. The host's `[RuntimeInitializeOnLoadMethod]` boot runs there too; the panel's header says what it did not provide (sprite resolver, theme, common libraries). Drive it from `execute_code` — every call is a public static on `PromptUGUI.Editor.Preview.UIPreview`, no reflection:
+
+```csharp
+UIPreview.Launch();                       // Edit mode → Play in the preview scene (false + a warning if already playing / compile errors)
+UIPreview.Load("Planet.ui.xml");          // asset path, absolute path, or a unique tail; fire-and-forget → poll IsBusy, then LastError
+UIPreview.Select("pageBuild", "detailView");   // a page of a <Pages>; remembered per file, replayed after hot reload
+UIPreview.SetOrientation(portrait: true); // Game view → the configured size; the portrait/landscape variants follow
+UIPreview.Lint();                         // the lint menu's rules over the loaded file → issue count, Console lines
+UIPreview.LoadedFile / LoadedScreen / Screens / OpenScreen(name) / PanelCollapsed
+```
+
+Then `ScreenCapture.CaptureScreenshot(path)` in its own `execute_code` call and look at the image. Stop with `EditorApplication.isPlaying = false`; the previous `playModeStartScene` comes back on its own.
+
 ## File anatomy
 
 ```xml

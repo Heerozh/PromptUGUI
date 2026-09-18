@@ -43,6 +43,8 @@ Internal refactors, test-only changes, performance work, and Editor tooling that
 | `PromptUGUI.Tests.PlayMode` | `Tests/PlayMode/` | no |
 | `PromptUGUI.Tests.EditMode.Addressables` | `Tests/EditMode/Addressables/` | no (gated by `PROMPTUGUI_HAS_ADDRESSABLES`) |
 
+`Editor/` extras worth knowing: `UiXmlLocator.cs` is the one Editor-side answer to "which file is this src / asset path" (Addressables address / GUID → asset path, Resources walk, `Packages/…` ↔ disk) — the lint menu (`UIXmlLintMenu.cs`) and the UI Preview share it; `Editor/Preview/` holds the Play-mode UI Preview tool (`UIPreview.cs` session + public statics, `UIPreviewOverlay.cs` IMGUI panel, `UIPreviewResolver.cs` / `UIPreviewRules.cs` pure logic, the built-in `UIPreview.unity`, the two settings singletons) — its component shell `UIPreviewHost` lives in `Runtime/Application/` under `#if UNITY_EDITOR` because Unity will not attach an Editor-assembly MonoBehaviour. Spec: `docs~/superpowers/specs/2026-09-18-ui-preview-tool-design.md`.
+
 `Runtime/AssemblyInfo.cs` exposes internals to `PromptUGUI.Tests.EditMode`, `PromptUGUI.Tests.PlayMode`, `PromptUGUI.Editor`, and `PromptUGUI.Tests.EditMode.Addressables` via `InternalsVisibleTo`.
 
 `Runtime/` is split into:

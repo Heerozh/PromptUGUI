@@ -335,7 +335,9 @@ public static bool   PanelCollapsed { get; set; }
 | `Editor/UIXmlLintMenu.cs` | 改调 `UiXmlLocator`；行为不变；`Lint` / `ConfiguredCommonLibraries` 留在原处 |
 | `Editor/Preview/UIPreview.cs` | 菜单项、`[InitializeOnLoad]` 会话状态机（§4.1）、注入（§4.3）、§4.13 静态入口（转发到覆盖层） |
 | `Editor/Preview/UIPreviewOverlay.cs` | IMGUI 覆盖层：面板 / 页条 / 诊断行 / 横竖屏 / 主题 / Lint；注入序列；加载流程；Update 重新收集 |
-| `Editor/Preview/UIPreviewResolver.cs` | 纯逻辑：解析链（§4.4，`locate` / `exists` / `read` 注入）、served 表 + `AssetPathToSrc` 组合、后缀匹配、`HasScreen`、`PagesKey`、launch 规则、场景选择——**不碰 Unity 对象**，可测 |
+| `Editor/Preview/UIPreviewResolver.cs` | 纯逻辑：解析链（§4.4，`physical` / `exists` / `locate` 注入）、served 表 + `AssetPathToSrc` 组合、后缀匹配、`HasScreen`、`PagesKey`——**不碰 Unity 对象**，可测 |
+| `Editor/Preview/UIPreviewRules.cs` | 纯逻辑：F8 的三态决策 `Decide`、场景选择 `PickScene` |
+| `Runtime/Application/UIPreviewHost.cs` | 整文件 `#if UNITY_EDITOR`：覆盖层的组件壳（见 §13-1），Player 里不存在这个类型 |
 | `Editor/Preview/UIPreviewSettings.cs` / `UIPreviewUserState.cs` | 两个 `ScriptableSingleton` |
 | `Editor/Preview/UIPreviewSettingsProvider.cs` | Project Settings 页（`SceneAsset` 字段 ↔ GUID） |
 | `Editor/Preview/UIPreview.unity` | 内置场景（相机一台） |
@@ -427,3 +429,28 @@ EditorOnly（`PromptUGUI.Tests.EditorOnly`）：
 | M2 | 覆盖层搬家：解析链 / 列表 / 加载 / 多 Screen / 页条 / 个人状态 / §4.13 静态入口（§7-2~6 Red → Green） | §7-11、12、13 |
 | M3 | 注入序列（Ensure + 预解析 + 自动加载）、诊断行、横竖屏、主题按钮、Lint 按钮 | §7-16 三条诊断各触发一次；§7-10 |
 | M4 | 文档（§8）；宿主迁移（§9）另案 | lint 过、PR |
+
+## 13. 实施记录（2026-09-18，分支 `feat/ui-preview-tool`）
+
+M0（`e8cc5f9`）、M1（`a191c23`）、M2（`f4f7c5b`）、M3（`076147d`）已落地；与上文的出入：
+
+1. **覆盖层不能是 Editor 程序集里的 MonoBehaviour。** §11-1 的推定错了：`AddComponent` 时 Unity 拒绝——
+   "Can't add script behaviour 'UIPreviewOverlay' because it is an editor script"。改为 `Runtime/Application/UIPreviewHost.cs`
+   （整文件 `#if UNITY_EDITOR`，同 `AddressableResolverHelper` 的手法）做组件壳、转发 `Update` / `OnGUI` / `OnDestroy` 三条消息，
+   `UIPreviewOverlay` 是 Editor 程序集里实现 `UIPreviewHost.IOverlay` 的普通类。Player 零痕迹的目标不变（类型都不存在），
+   不需要 `PromptUGUIPreviewBuildStripper` 那种剥离。
+2. **顺手修了库里一个死锁**（`Runtime/Application/UI.cs`）：`EnsureCommonLibrariesAsync` 先 `ReleaseCommonsWaiters` 再在 `finally`
+   里放下 `_ensuringCommons`，而 waiter 的续体是同步跑的——§4.11 的注入序列（等宿主那次 → `UnloadAll` → `LoadDocumentAsync` → 再 Ensure）
+   正好在标志还立着的时候再次进来，把自己挂到一张永远没人放行的 waiter 表上，`LoadAsync` 永远 Busy（ssw 实测复现）。
+   现在先放标志再放行 waiter；回归测试 `EnsureCommonLibrariesTests.Ensure_AWaiterThatUnloadsAndEnsuresAgain_StartsANewLoad_InsteadOfWaitingForever`。
+3. 纯逻辑拆成两个文件：`UIPreviewResolver.cs`（解析链 / served / `HasScreen` / `PagesKey`）与 `UIPreviewRules.cs`（`Decide` / `PickScene`）。
+4. `UiXmlLocator.MakeResolver()` 保留 lint 菜单原来"一次 run 只读一次 Addressables 表"的形态，`Locate(src, anchor)` 是单次查询的便捷壳；
+   `UIXmlLintMenu.Report` 改 internal 给 Lint 按钮复用。
+5. `Load(file)` 除资产路径 / 绝对路径外也接受唯一的路径尾巴（`Planet.ui.xml`）——MCP 里少打一截。
+6. 面板改为单个 `GUILayout` 区域、列表吃剩余高度（诊断行数不定，手算高度不再可行）；`PanelMaxHeight` 720。
+7. `ProjectSettings/PromptUGUIPreview.asset` 只在 Project Settings 页改过东西后才落盘（`ScriptableSingleton` 只在 `Save` 时写）——
+   用默认值的工程不会多出一个文件。
+8. 已验证（ssw_re_client，Unity MCP）：§7-9（`DevPlayFromCurrentScene` 打开时预览场景照样赢，Stop 后 `playModeStartScene` 回到 Login，
+   SessionState 清空）；§7-11 入口文件与 `DefaultTheme.ui.xml` 的热重载都重开了 Screen、`newView` 选回；§7-13 全部静态入口；
+   横 / 竖屏截图；sprite 诊断红字（把 `SpriteResolver` 置空验的）。**未验**：§7-10（宿主迁移另案）、§7-14（关 Domain Reload）、
+   §7-15（git URL 安装）、§7-16 的主题 / commons 两条黄字。

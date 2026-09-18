@@ -432,3 +432,6 @@ M0（`8cb6383`）、M1（`87f0f38`）与 M2 文档已落地；与上文的出入
   §7-27（ssw 进 Play：`Theme.Available = dark,lobby,round` 来自 settings 声明的 DefaultTheme，Round 界面正常，Console 无 PromptUGUI 错误）与
   §7-31（ssw 关着 Domain Reload：跑完 EditMode 测试直接进 Play，settings 仍被读到）已在 Unity MCP 里验过；§7-29 的手工热重载、§7-30 的 Player
   构建未做；§7-28、32 归 lint-menu 分支。
+- **（2026-09-18，`feat/ui-preview-tool` 补）waiter 放行顺序**：原实现先 `ReleaseCommonsWaiters` 再在 `finally` 放下 `_ensuringCommons`，
+  而 waiter 续体同步执行——一个「等完再 `UnloadAll` + 再 Ensure」的调用者会在标志仍立着时把自己挂到没人放行的表上（预览工具
+  的注入序列实测死锁）。现在先放标志再放行；回归测试 `Ensure_AWaiterThatUnloadsAndEnsuresAgain_StartsANewLoad_InsteadOfWaitingForever`。
