@@ -425,4 +425,6 @@ M0（`8cb6383`）、M1（`87f0f38`）与 M2 文档已落地；与上文的出入
   `UI.EnsureCommonLibrariesAsync()`，`PromptUGUI_Settings.asset` 加 `UI/Templates/DefaultTheme.ui.xml` 一行——`LoadCommonLibraryAsync` 变
   internal 后宿主程序集编不过，测试跑不了，只能先动。§9 其余（删 `UIBoot` 的标志 / `ResetForSceneAsync` / `Lobby.cs:68`、GlassStyle 搬回）仍另案。
 - 验证：EditMode 4417 / EditorOnly 全量 / PlayMode 244 全绿；`dotnet format --verify-no-changes` 与 `dotnet build .lint/UIXmlLint` 通过。
-  §7-27 ~ 32 的手工项与 Player 构建（§7-30）尚未做。
+  §7-27（ssw 进 Play：`Theme.Available = dark,lobby,round` 来自 settings 声明的 DefaultTheme，Round 界面正常，Console 无 PromptUGUI 错误）与
+  §7-31（ssw 关着 Domain Reload：跑完 EditMode 测试直接进 Play，settings 仍被读到）已在 Unity MCP 里验过；§7-29 的手工热重载、§7-30 的 Player
+  构建未做；§7-28、32 归 lint-menu 分支。
