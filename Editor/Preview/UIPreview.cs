@@ -189,6 +189,35 @@ namespace PromptUGUI.Editor.Preview
         /// </summary>
         public static int Lint() => Overlay != null ? Overlay.Lint() : -1;
 
+        /// <summary>
+        /// The scene the preview plays in, as an asset path — what Project Settings › PromptUGUI ›
+        /// UI Preview shows; null = the package's built-in scene. Setting it (an asset path, or
+        /// null / "" for built-in) stores the scene's GUID in <c>ProjectSettings/PromptUGUIPreview.asset</c>
+        /// and throws when the path is not a scene. For automation that configures a project.
+        /// </summary>
+        public static string PreviewScenePath
+        {
+            get
+            {
+                var guid = UIPreviewSettings.instance.sceneGuid;
+                if (string.IsNullOrEmpty(guid)) return null;
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                return string.IsNullOrEmpty(path) ? null : path;
+            }
+            set
+            {
+                var guid = "";
+                if (!string.IsNullOrEmpty(value))
+                {
+                    if (AssetDatabase.LoadAssetAtPath<SceneAsset>(value) == null)
+                        throw new System.ArgumentException($"'{value}' is not a scene asset", nameof(value));
+                    guid = AssetDatabase.AssetPathToGUID(value);
+                }
+                UIPreviewSettings.instance.sceneGuid = guid;
+                UIPreviewSettings.instance.SaveNow();
+            }
+        }
+
         /// <summary>The overlay's panel, collapsed to a single button or expanded. No-op outside a preview session.</summary>
         public static bool PanelCollapsed
         {

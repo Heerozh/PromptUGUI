@@ -316,6 +316,7 @@ public static bool   Select(string pagesId, string pageId);   // 找不到 → f
 public static void   SetOrientation(bool portrait);
 public static int    Lint();                   // 对已加载文件跑 §4.9 的 Lint，返回 issue 数；没加载 → -1
 public static bool   PanelCollapsed { get; set; }
+public static string PreviewScenePath { get; set; }   // Project Settings 那个场景（资产路径；null = 内置）；设值即写 ProjectSettings，自动化配置工程用
 ```
 
 菜单项 = 这组静态的壳（编辑态 `Launch()`，预览中翻 `PanelCollapsed`）。memory 里那套「反射 `_projectRoot` / `RefreshFiles` /
@@ -450,7 +451,8 @@ M0（`e8cc5f9`）、M1（`a191c23`）、M2（`f4f7c5b`）、M3（`076147d`）已
 6. 面板改为单个 `GUILayout` 区域、列表吃剩余高度（诊断行数不定，手算高度不再可行）；`PanelMaxHeight` 720。
 7. `ProjectSettings/PromptUGUIPreview.asset` 只在 Project Settings 页改过东西后才落盘（`ScriptableSingleton` 只在 `Save` 时写）——
    用默认值的工程不会多出一个文件。
-8. 已验证（ssw_re_client，Unity MCP）：§7-9（`DevPlayFromCurrentScene` 打开时预览场景照样赢，Stop 后 `playModeStartScene` 回到 Login，
+8. `UIPreview.PreviewScenePath` 公开读写（§4.13 表外新增）：宿主迁移与 MCP 配置工程时不用去点 Project Settings 页；设非场景路径抛 `ArgumentException`。
+9. 已验证（ssw_re_client，Unity MCP）：§7-9（`DevPlayFromCurrentScene` 打开时预览场景照样赢，Stop 后 `playModeStartScene` 回到 Login，
    SessionState 清空）；§7-11 入口文件与 `DefaultTheme.ui.xml` 的热重载都重开了 Screen、`newView` 选回；§7-13 全部静态入口；
-   横 / 竖屏截图；sprite 诊断红字（把 `SpriteResolver` 置空验的）。**未验**：§7-10（宿主迁移另案）、§7-14（关 Domain Reload）、
-   §7-15（git URL 安装）、§7-16 的主题 / commons 两条黄字。
+   横 / 竖屏截图；sprite 诊断红字（把 `SpriteResolver` 置空验的）。§7-10 已随宿主迁移验过（ssw `6a4261e1`：`UIPreview.unity` 摘掉组件后作为用户场景，行星背景 + 覆盖层 + 自动加载，场景文件只少了那个
+   GameObject）。**未验**：§7-14（关 Domain Reload）、§7-15（git URL 安装）、§7-16 的主题 / commons 两条黄字。
