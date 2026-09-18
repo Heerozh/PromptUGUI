@@ -421,9 +421,13 @@ M0（`8cb6383`）、M1（`87f0f38`）与 M2 文档已落地；与上文的出入
 - **测试隔离缝**按 §4.5 落地；另外发现一个测试卫生坑并写进测试注释：测试里给 resolver 一个永不完成的 `AwaitableCompletionSource`
   后没完成就结束，会留在 `DocumentCache.s_inflight`（`Clear()` 不清 in-flight），同一轮里后面所有取同一 src 的测试都挂在它上面——
   症状是 `GetAwaiter().GetResult()` 返回 null / `Screen 'X' not loaded`，单跑却能过。
-- **宿主 ssw 已做最小迁移**（不是 §9 的全部）：`UIBoot.EnsureCommonsAsync` 与 `Assets/Tools/UI Preview/UIPreview.cs` 改调
-  `UI.EnsureCommonLibrariesAsync()`，`PromptUGUI_Settings.asset` 加 `UI/Templates/DefaultTheme.ui.xml` 一行——`LoadCommonLibraryAsync` 变
-  internal 后宿主程序集编不过，测试跑不了，只能先动。§9 其余（删 `UIBoot` 的标志 / `ResetForSceneAsync` / `Lobby.cs:68`、GlassStyle 搬回）仍另案。
+- **宿主 ssw 的 §9 迁移已做完**（PR #151 合并后，另一次改动）：`PromptUGUI_Settings.asset → Common Libraries` 列
+  `UI/Templates/DefaultTheme.ui.xml`；`UIBoot` 只剩三个主题名常量（`CommonLibrarySrc` / `_loaded` / `_loading` / `ResetStatics` /
+  `EnsureCommonsAsync` / `ResetForSceneAsync` 全删）；`GameBootstrap` 预热 `_ = UI.EnsureCommonLibrariesAsync()`；`AppFlow` 切场景 =
+  `UI.UnloadAll()` + `await UI.EnsureCommonLibrariesAsync()`（显式装回，让它算进加载步）；`Lobby.cs` 的二次 Ensure 删掉；
+  `Assets/Tools/UI Preview/UIPreview.cs` 改调 `EnsureCommonLibrariesAsync()`；`GlassStyle.ui.xml` 头注释把「lint 看不见 commons」的
+  绕行理由改成「取舍」——样式没搬回 DefaultTheme（§9-4 由作者定）。验证：Login → `AppFlow` → Round 正常，`Theme.Available =
+  dark,lobby,round`，Console 无 PromptUGUI 错误。
 - 验证：EditMode 4417 / EditorOnly 全量 / PlayMode 244 全绿；`dotnet format --verify-no-changes` 与 `dotnet build .lint/UIXmlLint` 通过。
   §7-27（ssw 进 Play：`Theme.Available = dark,lobby,round` 来自 settings 声明的 DefaultTheme，Round 界面正常，Console 无 PromptUGUI 错误）与
   §7-31（ssw 关着 Domain Reload：跑完 EditMode 测试直接进 Play，settings 仍被读到）已在 Unity MCP 里验过；§7-29 的手工热重载、§7-30 的 Player
