@@ -557,14 +557,51 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
-        public void Glass_IgnoresHaze()
+        public void Glass_KeepsHaze()
         {
-            // Glass paints the backdrop; fog over it would need its own compositing rule and a
-            // second shader (H-D4). Zeroed in the key so glass panels differing only in haze keep
-            // sharing one material.
-            var p = PanelOf(Load("glass='true' haze='40' hazeDrift='6'")).CurrentParams;
-            Assert.AreEqual(0f, p.HazeSize, 0.0001f);
-            Assert.AreEqual(0f, p.HazeDrift, 0.0001f);
+            // The fog lies on the pane's body — blurred backdrop plus tint — the way it lies on a
+            // fill (spec 2026-09-17 haze H-D8): the glass shader composites it in the same slot, so
+            // nothing is zeroed on the way into the key any more.
+            var p = PanelOf(Load("glass='true' haze='40' hazeColor='cyan' hazeDrift='6' hazeDensity='0.8'")).CurrentParams;
+            Assert.IsTrue(p.Glass);
+            Assert.AreEqual(40f, p.HazeSize, 0.0001f);
+            Assert.AreEqual(6f, p.HazeDrift, 0.0001f);
+            Assert.AreEqual(0.8f, p.HazeDensity, 0.0001f);
+            Assert.AreEqual(Color.cyan, p.Haze.Start);
+        }
+
+        [Test]
+        public void Glass_HazeColorAlone_StillSharesOneMaterial()
+        {
+            // The canonicalisation that keeps a stray hazeColor= from splitting the cache applies
+            // to glass panes exactly as to opaque ones — a theme may hand hazeColor to every surface.
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='a' glass='true' radius='12'/>
+  <Frame id='b' glass='true' radius='12' hazeColor='cyan' hazeDrift='6' hazeDensity='1'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var s = UI.Open("S");
+            Assert.AreEqual(PanelOf(s.Get<Frame>("a")).CurrentParams, PanelOf(s.Get<Frame>("b")).CurrentParams);
+            Assert.AreSame(PanelOf(s.Get<Frame>("a")).material, PanelOf(s.Get<Frame>("b")).material);
+        }
+
+        [Test]
+        public void Glass_Disabled_FreezesHazeDriftAndGreysTheFog()
+        {
+            // The disabled rule is the surface's, not the fill's: a greyed, thinned pane with fog
+            // still flowing over it would read as alive (H-D5), so glass freezes and greys it too.
+            var p = PanelOf(Load("glass='true' haze='40' hazeColor='#00ffff' hazeDrift='6'"));
+            p.SetDisabledGrayscale(true);
+            Assert.AreEqual(40f, p.CurrentParams.HazeSize, 0.0001f, "the fog stays, only inert");
+            Assert.AreEqual(0f, p.CurrentParams.HazeDrift, 0.0001f, "a disabled pane must not flow");
+            var grey = p.CurrentParams.Haze.Start;
+            Assert.AreEqual(grey.r, grey.g, 0.001f, "the fog colour greys with the pane");
+            Assert.AreEqual(grey.g, grey.b, 0.001f);
+
+            p.SetDisabledGrayscale(false);
+            Assert.AreEqual(6f, p.CurrentParams.HazeDrift, 0.0001f);
+            Assert.AreEqual(Color.cyan, p.CurrentParams.Haze.Start);
         }
 
         [Test]

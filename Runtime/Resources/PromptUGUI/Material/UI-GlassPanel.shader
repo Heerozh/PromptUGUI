@@ -1,5 +1,6 @@
 // 玻璃面板：形状仍是 UI-ProceduralPanel 那套 SDF（同一份 UI-PanelSDF.cginc），只把"填充"从
-// 纯色/渐变换成"模糊后的 backdrop + 边缘折射 + 方向光高光"。
+// 纯色/渐变换成"模糊后的 backdrop + 边缘折射 + 方向光高光"。填充之上的层 —— 噪声雾、内发光、
+// 外发光、描边 —— 与不透明面板同一套、同一顺序。
 //
 // 视觉取向是 Figma glass / 薄磨砂亚克力，不是 iOS liquid glass：内部完全平整、零折射，
 // 折射与打光全部限制在 depth 像素宽的边缘带内 —— 这就是"薄"与"厚"的分水岭。
@@ -44,6 +45,14 @@ Shader "UI/GlassPanel"
         _InnerGlowStops ("Inner Glow Stops", Vector) = (0,1,1,1)
         _InnerGlowCurves ("Inner Glow Curves", Vector) = (1,1,1,1)
         _InnerGlowDir ("Inner Glow Direction", Vector) = (0,-1,0,0)
+        // 第五个色槽：噪声雾的颜色（同时是它的方向遮罩，spec 2026-09-17 haze H-D8）。fBm 只乘在它的 alpha 上。
+        _Haze0 ("Haze Stop 0", Color) = (1,1,1,1)
+        _Haze1 ("Haze Stop 1", Color) = (1,1,1,1)
+        _Haze2 ("Haze Stop 2", Color) = (1,1,1,1)
+        _Haze3 ("Haze Stop 3", Color) = (1,1,1,1)
+        _HazeStops ("Haze Stops", Vector) = (0,1,1,1)
+        _HazeCurves ("Haze Curves", Vector) = (1,1,1,1)
+        _HazeDir ("Haze Direction", Vector) = (0,-1,0,0)
 
         // 四个逐角向量一律是 xyzw = top-left, top-right, bottom-right, bottom-left
         // （CSS border-radius 顺序）。_Radius 是每个角的**水平**伸出量，圆角时即半径。
@@ -58,6 +67,10 @@ Shader "UI/GlassPanel"
         _BorderWidth ("Border Width",  Float) = 0
         _GlowSize    ("Glow Size",     Float) = 0
         _InnerGlowSize ("Inner Glow Size", Float) = 0
+        // 噪声雾（spec 2026-09-17 haze）：斑块特征尺寸 px（0 = 无雾）、流速 px/s、覆盖率。
+        _HazeSize    ("Haze Size",     Float) = 0
+        _HazeDrift   ("Haze Drift",    Float) = 0
+        _HazeDensity ("Haze Density",  Float) = 0.5
 
         // 七个玻璃参数打包成两个向量：少几次 SetX，且光照角在 CPU 侧就化成方向，
         // fragment 里不用跑 sin/cos。
@@ -146,6 +159,7 @@ Shader "UI/GlassPanel"
             PUGUI_RAMP_UNIFORMS(_Border)
             PUGUI_RAMP_UNIFORMS(_Glow)
             PUGUI_RAMP_UNIFORMS(_InnerGlow)
+            PUGUI_RAMP_UNIFORMS(_Haze)
             float4 _Radius;
             float4 _CornerH;
             float4 _CornerKind;
@@ -155,6 +169,9 @@ Shader "UI/GlassPanel"
             float _BorderWidth;
             float _GlowSize;
             float _InnerGlowSize;
+            float _HazeSize;
+            float _HazeDrift;
+            float _HazeDensity;
             float4 _GlassA;
             float4 _GlassB;
 
@@ -162,6 +179,8 @@ Shader "UI/GlassPanel"
             sampler2D _PUGUI_GlassBackdropA;
             sampler2D _PUGUI_GlassBackdropB;
             float _PUGUI_GlassBackdropAvailable;
+            // 全局，HazeClock 每帧写（未缩放秒）；没有任何带 hazeDrift 的材质时从不写、恒为 0。
+            float _PuguiUnscaledTime;
 
             v2f vert(appdata_t v)
             {
@@ -281,6 +300,17 @@ Shader "UI/GlassPanel"
                 float4 tint = PuguiGradient(p, b, PUGUI_RAMP(_Fill));
                 tint.a *= inside;
                 float4 col = PuguiOver(tint, base);
+
+                // 噪声雾：与不透明面板同一个槽位 —— 压在「玻璃体 + tint」这个填充之上、内发光与描边之下，
+                // 只在形状内侧（spec 2026-09-17 haze H-D8）。上面的 backdrop 采样一字不动：雾是叠在模糊
+                // 结果上的一层光，不参与折射、不进 saturation。颜色走与其他四个色槽同一条渐变线（rect
+                // 定义），噪声本身在 Canvas 空间采样。_HazeSize==0 时整段跳过：uniform 分支，无雾玻璃逐位不变。
+                if (_HazeSize > 0.0)
+                {
+                    float4 haze = PuguiGradient(p, b, PUGUI_RAMP(_Haze));
+                    haze.a *= inside * PuguiHazeWeight(IN.worldPosition.xy, _HazeSize, _HazeDrift, _PuguiUnscaledTime, _HazeDensity);
+                    col = PuguiOver(haze, col);
+                }
 
                 // 内发光：外发光的镜像 —— 画在形状内侧、压在填充之上。
                 // 排在外发光之前，让外发光的 under 合成看到「填充 + 内发光」这一个完整实心体

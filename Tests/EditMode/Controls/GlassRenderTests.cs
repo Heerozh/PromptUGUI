@@ -121,6 +121,13 @@ namespace PromptUGUI.Tests.EditMode.Controls
         /// <c>(Size / 2, Size / 2)</c>.
         /// </summary>
         private Color RenderAndSampleAt(int x, int y, string dumpName = null)
+            => RenderPixels(dumpName)[y * Size + x];
+
+        /// <summary>
+        /// The same render, every pixel: bottom-up, row-major, index <c>y * Size + x</c> in the
+        /// device-pixel coordinates <see cref="RenderAndSampleAt"/> describes.
+        /// </summary>
+        private Color[] RenderPixels(string dumpName = null)
         {
             _capture.Render();          // publishes the blurred backdrop
             Canvas.ForceUpdateCanvases();
@@ -143,9 +150,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 Debug.Log($"PromptUGUI glass render dump: {path}");
             }
 
-            var sample = tex.GetPixel(x, y);
+            var pixels = tex.GetPixels();
             Object.DestroyImmediate(tex);
-            return sample;
+            return pixels;
         }
 
         private const string GlassPanel = @"<?xml version='1.0' encoding='utf-8'?>
@@ -182,19 +189,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         private (float Top, float Bottom) RenderHalfLuma(string xml)
         {
             Open(xml);
-            _capture.Render();
-            Canvas.ForceUpdateCanvases();
-            _ui.Render();
-
-            var tex = new Texture2D(Size, Size, TextureFormat.RGBA32, false);
-            var previous = RenderTexture.active;
-            RenderTexture.active = _uiRt;
-            tex.ReadPixels(new Rect(0, 0, Size, Size), 0, 0);
-            tex.Apply();
-            RenderTexture.active = previous;
-
-            var pixels = tex.GetPixels();
-            Object.DestroyImmediate(tex);
+            var pixels = RenderPixels();
 
             float top = 0f, bottom = 0f;
             for (var y = 0; y < Size; y++)
@@ -271,6 +266,54 @@ namespace PromptUGUI.Tests.EditMode.Controls
             // border — the centre must fall back to the camera's black clear.
             Assert.Less(c.r, 0.1f, $"fallback must not still be sampling a backdrop, got {c}");
             Assert.Less(c.g, 0.1f, $"got {c}");
+        }
+
+        private const string FoggyGlassPanel = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Frame id='g' glass='true' anchor='center' width='160' height='120' radius='24'
+         frost='0.6' depth='8' lightAngle='-35' borderWidth='1' borderColor='#ffffff/0.35'
+         haze='24' hazeColor='white/0.6'/>
+</Screen></PromptUGUI>";
+
+        /// <summary>
+        /// The 160x120 panel's interior, inset 16 device pixels to clear the bevel, the border and
+        /// the AA edge — everything left is pane body: the blurred world, and whatever lies on it.
+        /// </summary>
+        private static System.Collections.Generic.IEnumerable<Color> PaneInterior(Color[] pixels)
+        {
+            for (var y = Size / 2 - 60 + 16; y < Size / 2 + 60 - 16; y++)
+                for (var x = Size / 2 - 80 + 16; x < Size / 2 + 80 - 16; x++)
+                    yield return pixels[y * Size + x];
+        }
+
+        [Test]
+        public void Haze_LiesOnTheBlurredBackdrop()
+        {
+            // haze on a pane (spec 2026-09-17 haze H-D8): the backdrop is sampled exactly as before
+            // — the world shows through every pixel of the body — and the fog adds light over it in
+            // patches. White fog over an orange world is the one thing here that can raise the BLUE
+            // channel; a flat wash or a missing layer cannot. Green guards against the magenta
+            // error shader, whose green is zero everywhere.
+            Open(GlassPanel);
+            var plain = RenderPixels();
+            Assert.IsTrue(UI.Glass.IsActive, "the URP capture pass must have published a backdrop");
+            var plainMaxB = 0f;
+            foreach (var c in PaneInterior(plain)) plainMaxB = Mathf.Max(plainMaxB, c.b);
+            Assert.Less(plainMaxB, 0.2f, $"guard: the bare pane over an orange world has no blue (max b {plainMaxB})");
+
+            Open(FoggyGlassPanel);
+            var fog = RenderPixels("promptugui-glass-haze.png");
+            float maxB = 0f, minR = 1f, minG = 1f;
+            foreach (var c in PaneInterior(fog))
+            {
+                maxB = Mathf.Max(maxB, c.b);
+                minR = Mathf.Min(minR, c.r);
+                minG = Mathf.Min(minG, c.g);
+            }
+
+            Assert.Greater(maxB, plainMaxB + 0.12f, $"white fog must brighten the pane somewhere (max b {maxB} vs bare {plainMaxB})");
+            Assert.Greater(minR, 0.25f, $"the orange world must still show through the whole pane (min r {minR})");
+            Assert.Greater(minG, 0.2f, $"got a pixel with no green — the error shader, or a black hole in the pane (min g {minG})");
         }
 
         [Test]
