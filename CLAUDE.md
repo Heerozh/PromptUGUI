@@ -106,6 +106,8 @@ dotnet run --project .lint/UIXmlLint -- Runtime/Resources/                   # �
 
 CLI 对每份文档跑**两遍**（`Core/Lint/DocumentLinter.cs`，按 issue 去重）：**raw**（作者写的原样，能看到 `if="false"` 背后和没人调用的模板）+ **expanded**（`ScreenInstantiator` 真正构建的那棵树，能看到模板调用的真实父子关系、`class=` 带来的属性、以及 `GlassRules` 这类规则开口前必须知道的最终形态）。两者互不包含。它会跟着 `<Import>` 读盘（按「导入方所在目录 → 逐级上溯到 `Resources/`」猜 `src`）；**解析不到的 import 不算错误**，那份文档只是跳过展开遍、退回今天的行为（Addressables / 自定义 resolver 的工程没有磁盘形态）。展开失败（未知模板/样式名、Import 循环）报 `PUI-EXPAND`。输出是 `file:line: [CODE] msg`；**归属按 `ElementNode.OriginSrc` + `Line`**（`Parse(xml, src)` 打戳、展开期逐层传递）—— 问题出在被 import 的库里就报那个库的文件行号，不是入口文件。模板参与时追一段 `(via file:line)` 指出是哪一次调用（记最外层，内层每个实例都一样、区分不了）。跨入口文件去重。详见 `.lint/UIXmlLint/README.md`。
 
+**commons 也参与展开遍**：`PromptUGUISettings.commonLibraries` 的每一行都被当作每份文档隐含的 `<Import>`，按运行时 `AddCommonLibrary` / `MergeCommons` 同一份实现合并（`DocumentLinter.Walk(..., commons)`）。CLI 自己在入口文件所在的 `Assets/` 下找 settings 资产（`SettingsAssetReader`，纯 C#），也可显式 `--settings <file.asset>` / `--commons <src>[@<as>]`；短地址（Addressables / `UseResourcesResolver(root)`）解析不到时给 `--src-root <dir>`。**读、解析、格式化、跨文件去重都在 `Core/Lint/LintRun.cs` + `ImportClosure.cs`**，`Program.cs` 只剩参数与打印 —— 宿主 Unity 里的 **`Tools › PromptUGUI › Lint All UI XML`**（`Editor/UIXmlLintMenu.cs`）跑的是同一个 `LintRun`：扫 `Assets/` + embedded 包里的全部 `.ui.xml`，`<Import src>` 先查 Addressables 的地址 / GUID 表再退回磁盘猜测，commons 直接读 `PromptUGUISettings.Instance`，每条 finding 一行 Console（文件 TextAsset 作 context，可点 ping）。新前端只该改「文件从哪来、src 怎么变文件、行往哪打」，不要在前端里再写一遍规则或去重。
+
 ### `.pxl` 渲染预览（PxlPreview CLI）
 
 写完或编辑任何 `.pxl` 之后，渲染成 PNG **然后真的去看那张图**——像素画的明暗、斜面方向、9-slice 边条是否均匀，逐行读字符是判断不出来的：

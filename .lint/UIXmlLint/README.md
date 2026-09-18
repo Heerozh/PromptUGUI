@@ -40,7 +40,47 @@ with and without a trailing `.xml`.
 from Addressables or a custom resolver with no filesystem shape at all. Such a
 document simply skips the expanded pass (a note on stdout says so) and keeps
 exactly the pre-existing raw-IR behaviour — failing a today-clean file over an
-environment gap would cost more than the missed coverage.
+environment gap would cost more than the missed coverage. The summary then says
+how many files were skipped, so a single note cannot hide a run that was mostly
+raw-only.
+
+**`--src-root <dir>`** (repeatable) adds one more place to look: `<dir>/<src>.xml`,
+then `<dir>/<src>`, after the walk above fails. Give it the root you pass to
+`UseResourcesResolver(root)`, or the folder your short Addressables addresses
+are relative to (`UI/Templates/Theme.ui.xml` living under `Assets/_Project/Common/`
+→ `--src-root Assets/_Project/Common`). Without it those projects only get the raw
+pass; with it the CLI reaches the same expanded pass the Editor menu does.
+
+## Common libraries
+
+The rows of `PromptUGUISettings.commonLibraries` are the `<Import>` every document
+implicitly has (2026-09-18 commons-settings spec). The CLI merges them into every
+document's expanded pass exactly as the runtime merges the commons pool — so a
+`class="badge"` that only the theme library declares is not a false `PUI-EXPAND`,
+and a name declared on both sides is the same `conflicts with commons pool` error
+`UI.EnsureCommonLibrariesAsync` would throw. Where the rows come from, in order:
+
+1. `--commons <src>[@<as>]` (repeatable) — the rows spelled on the command line;
+   no asset is read. For CI, or a checkout with no Unity project around.
+2. `--settings <file.asset>` — an explicit `PromptUGUISettings` asset. Read with
+   `Runtime/Core/Lint/SettingsAssetReader.cs` (pure C#, tested), which understands
+   exactly the shape Unity's text serializer writes for that field.
+3. Neither: **auto-discovery**. From each linted file, the nearest `Assets/`
+   ancestor; under it, a `PromptUGUI_Settings.asset` first, else every `*.asset`
+   whose first 4 KB names the settings script (`m_Script` guid). Several found →
+   the first, with a note on stderr. None → no commons, i.e. today's behaviour.
+
+The asset used and the rows it declared are printed on stdout. Each row's src is
+resolved from the linted file's folder like an `<Import>` written there (plus
+`--src-root`); an unresolvable row skips the expanded pass with a note naming it —
+once per run, not once per file — and the raw rules still apply. The library file
+itself is linted as an entry like any other; it is not merged onto itself.
+
+Inside Unity, **Tools › PromptUGUI › Lint All UI XML** runs the same
+`LintRun` over every `.ui.xml` under `Assets/` (and embedded packages), reads the
+same settings asset directly, and resolves `<Import src>` through the
+Addressables settings before falling back to the on-disk guess — no `--src-root`
+needed there. Each finding is a Console line pinging the asset.
 
 ### Where a finding points
 
@@ -119,6 +159,12 @@ dotnet run --project .lint/UIXmlLint -- Runtime/Resources/
 
 # Multiple paths
 dotnet run --project .lint/UIXmlLint -- file1.ui.xml file2.ui.xml dir/
+
+# Downstream project with short Addressables addresses (see "Common libraries")
+dotnet run --project .lint/UIXmlLint -- Assets/_Project/ --src-root Assets/_Project/Common
+
+# CI: declare the common libraries by hand instead of reading the settings asset
+dotnet run --project .lint/UIXmlLint -- Assets/UI/ --commons UI/Templates/Theme.ui --commons UI/Widgets.ui@ui
 ```
 
 Exit codes:
@@ -127,7 +173,7 @@ Exit codes:
 |------|------------------------------------------------------|
 | 0    | All files parsed and passed all rules.               |
 | 1    | At least one parse error or rule violation.          |
-| 2    | No paths supplied or no `.ui.xml` matched.           |
+| 2    | Usage error: no paths, no `.ui.xml` matched, an unknown option, or an explicit `--settings` asset that cannot be read. |
 
 ## Downstream Unity projects
 
@@ -197,12 +243,6 @@ CLI-only to keep `Debug.Log*` noise out of the editor / Player.
 
 ## Scope (what this CLI does NOT do)
 
-- **No cross-file resolution.** `<Import src="..."/>` is not followed; each
-  file is parsed in isolation. Violations inside an imported common library
-  surface when you lint that common library directly.
-- **No Template expansion.** Templates and their invocations are linted
-  separately — a `<TitledPanel/>` invocation is treated as an opaque element,
-  and the template's body is linted on its own.
 - **No Variant resolution.** Variant `<Add>` subtrees ARE walked (so layout
   violations inside them are caught), but `attr.var` overrides are checked
   using the same rule that base attributes use.

@@ -36,7 +36,10 @@ namespace PromptUGUI.Lint
         public readonly struct Finding
         {
             public Kind Kind { get; }
-            /// <summary>The file to open: where the markup was written, or the entry when it has no origin.</summary>
+            /// <summary>
+            /// The file to open: where the markup was written, or the entry when it has no origin.
+            /// Null for a finding about the run's configuration (a malformed common-library row).
+            /// </summary>
             public string File { get; }
             /// <summary>The whole line, exactly as the CLI prints it.</summary>
             public string Text { get; }
@@ -51,36 +54,83 @@ namespace PromptUGUI.Lint
 
         private readonly HashSet<string> _reported = new HashSet<string>();
 
+        // The commons closure is resolved and parsed once per run and shared by every entry; what
+        // could not be resolved, and which rows are malformed, is likewise said once per run.
+        private readonly ImportClosure.Cache _commonsCache = new ImportClosure.Cache();
+        private readonly HashSet<string> _notedCommons = new HashSet<string>();
+        private readonly HashSet<string> _rejectedCommons = new HashSet<string>();
+
         /// <summary>Entry files linted so far.</summary>
         public int Files { get; private set; }
 
         /// <summary>Errors + issues so far — what the CLI exits non-zero on. Notes do not count.</summary>
         public int Issues { get; private set; }
 
+        /// <summary>
+        /// Entries whose expanded pass was skipped over a src nobody could resolve. A note is
+        /// printed once per unresolved library, so this is what tells the reader how much of the
+        /// run only had the raw rules.
+        /// </summary>
+        public int Skipped { get; private set; }
+
+        /// <summary>
+        /// True once a finding of this run was an expansion failure over an unknown style / template
+        /// name. With no common library declared that is most often a library that was never listed
+        /// (spec §4.8's hint); with libraries declared the name is genuinely unknown.
+        /// </summary>
+        public bool SawUnknownName { get; private set; }
+
         /// <param name="read">Path → XML text. May throw; that is reported as an <see cref="Kind.Error"/>.</param>
         /// <param name="resolve">
-        /// <c>(src, importingPath) → path</c> for every <c>&lt;Import&gt;</c>, null when unknown —
-        /// see <see cref="ImportClosure.TryLoad"/>. An unresolvable Import is not an error: the
-        /// expanded pass is skipped with a <see cref="Kind.Note"/> and the raw rules still apply.
+        /// <c>(src, importingPath) → path</c> for every <c>&lt;Import&gt;</c> and every common
+        /// library, null when unknown — see <see cref="ImportClosure.TryLoad"/>. An unresolvable src
+        /// is not an error: the expanded pass is skipped with a <see cref="Kind.Note"/> and the raw
+        /// rules still apply.
         /// </param>
-        public List<Finding> Lint(string path, Func<string, string> read, Func<string, string, string> resolve)
+        /// <param name="commons">
+        /// The project's common libraries (<c>PromptUGUISettings.commonLibraries</c>): the
+        /// <c>&lt;Import&gt;</c> every document implicitly has, resolved from the entry file and
+        /// merged the way the runtime merges them (2026-09-18 commons-settings spec §4.7).
+        /// </param>
+        public List<Finding> Lint(string path, Func<string, string> read, Func<string, string, string> resolve,
+                                  IReadOnlyList<ImportRef> commons = null)
         {
             Files++;
             var findings = new List<Finding>();
 
+            // The mirror of PromptUGUISettings.OnValidate, for the CLI that never sees the Inspector:
+            // <ns.Name/> cannot spell a namespace with a dot in it, so such a row can never be used.
+            if (commons != null)
+                foreach (var lib in commons)
+                    if (lib.Namespace != null && lib.Namespace.Contains(".") && _rejectedCommons.Add(lib.Src))
+                        Add(findings, Kind.Error, null,
+                            $"common library src=\"{lib.Src}\" as=\"{lib.Namespace}\": 'as' must not contain '.' " +
+                            "(the same rule as <Import as>; templates are invoked as <ns.Name/>)");
+
             var doc = TryParse(path, read, findings);
             if (doc == null) return findings;
 
-            var closure = ImportClosure.TryLoad(path, doc, resolve, read, out var unresolved);
+            var closure = ImportClosure.TryLoad(
+                path, doc, resolve, read, commons, _commonsCache, out var applied, out var unresolved);
             if (closure == null)
             {
-                findings.Add(new Finding(Kind.Note, path,
-                    $"{path}: skipping expanded pass - cannot resolve <Import src=\"{unresolved}\"> " +
-                    "on disk (Addressables / custom resolver?). Raw-IR rules still applied."));
+                Skipped++;
+                // A common library that cannot be found is the same for every entry — say it once.
+                var isCommons = IsCommonsRow(commons, unresolved);
+                if (!isCommons || _notedCommons.Add(unresolved))
+                    findings.Add(new Finding(Kind.Note, path,
+                        $"{path}: skipping expanded pass - cannot resolve " +
+                        (isCommons ? $"common library src=\"{unresolved}\"" : $"<Import src=\"{unresolved}\">") +
+                        " on disk (Addressables / custom resolver?). Raw-IR rules still applied."));
             }
 
+            // With no closure the walker skips the expanded pass — provided it knows there ARE
+            // commons: an entry without a single <Import> would otherwise be expanded on its own and
+            // report every commons name as unknown. `applied` is the list minus the entry itself,
+            // when the entry is one of the libraries.
             foreach (var issue in DocumentLinter.Walk(doc, SrcKeyOf(path),
-                                                      closure == null ? null : s => Lookup(closure, s)))
+                                                      closure == null ? null : s => Lookup(closure, s),
+                                                      applied))
             {
                 // Origin is the file the markup was WRITTEN in — for a finding inside an imported
                 // Template body that is the library, not the entry document that invoked it.
@@ -95,9 +145,20 @@ namespace PromptUGUI.Lint
 
                 // Expansion failing means UI.Open() throws on this document — not a warning.
                 var kind = issue.Code == DocumentLinter.ExpansionCode ? Kind.Error : Kind.Issue;
+                if (kind == Kind.Error
+                    && (issue.Message.Contains("unknown style") || issue.Message.Contains("unknown template")))
+                    SawUnknownName = true;
                 Add(findings, kind, file, $"{where}: [{issue.Code}] {issue.Message}{via}");
             }
             return findings;
+        }
+
+        private static bool IsCommonsRow(IReadOnlyList<ImportRef> commons, string src)
+        {
+            if (commons == null) return false;
+            foreach (var lib in commons)
+                if (lib.Src == src) return true;
+            return false;
         }
 
         private void Add(List<Finding> findings, Kind kind, string file, string text)

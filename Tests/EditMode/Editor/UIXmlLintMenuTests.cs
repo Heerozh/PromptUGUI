@@ -3,9 +3,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NUnit.Framework;
+using PromptUGUI.Application;
 using PromptUGUI.Editor;
+using PromptUGUI.IR;
 using PromptUGUI.Lint;
 using UnityEditor.PackageManager;
+using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace PromptUGUI.Tests.Editor
 {
@@ -125,6 +129,54 @@ namespace PromptUGUI.Tests.Editor
         {
             var physical = Path.Combine(_dir, "x.ui.xml");
             Assert.AreEqual(N(physical), UIXmlLintMenu.ToAssetPath(physical));
+        }
+
+        // ── common libraries (2026-09-18 commons-settings spec §4.8, §7-25) ────────────────────
+
+        [Test]
+        public void Lint_WithACommonLibraryRow_ResolvesItFromTheEntry_AndExpandsThroughIt()
+        {
+            // The row's src is a Resources-style short key, no <Import> anywhere: the library is
+            // found the way an <Import src='lib.ui'> written in main.ui.xml would be.
+            var lib = Write("lib.ui.xml", "<Template name='Card'>\n  <Frame id='card' mask='self'/>\n</Template>");
+            var main = Write("main.ui.xml", "<Screen name='S'>\n  <Card/>\n</Screen>");
+            var findings = new List<LintRun.Finding>();
+
+            UIXmlLintMenu.Lint(new[] { main }, findings.Add, new[] { new ImportRef("lib.ui", null) });
+
+            CollectionAssert.IsEmpty(findings.Where(f => f.Kind == LintRun.Kind.Note).Select(f => f.Text).ToList());
+            CollectionAssert.IsEmpty(findings.Where(f => f.Text.Contains(DocumentLinter.ExpansionCode)).Select(f => f.Text).ToList(),
+                "<Card/> lives in the common library; the runtime would resolve it, so must the menu");
+            var f = findings.Single(x => x.Text.Contains(MaskAttributeRules.FrameSelfCode));
+            Assert.AreEqual(N(lib), f.File);
+            StringAssert.EndsWith("(via " + N(main) + ":4)", f.Text);
+        }
+
+        [Test]
+        public void ConfiguredCommonLibraries_ReadsTheSettingsRows_SkippingBlankOnes()
+        {
+            var settings = ScriptableObject.CreateInstance<PromptUGUISettings>();
+            settings.commonLibraries.Add(new CommonLibraryEntry { src = " UI/Theme.ui ", @as = "" });
+            settings.commonLibraries.Add(new CommonLibraryEntry { src = "", @as = "x" });
+            settings.commonLibraries.Add(new CommonLibraryEntry { src = "UI/Widgets.ui", @as = "ui" });
+            PromptUGUISettings.FinderForTests = () => new[] { settings };
+            PromptUGUISettings.ResetInstanceCache();
+            try
+            {
+                var rows = UIXmlLintMenu.ConfiguredCommonLibraries();
+
+                Assert.AreEqual(2, rows.Count, "a blank src row is inert everywhere");
+                Assert.AreEqual("UI/Theme.ui", rows[0].Src);
+                Assert.IsNull(rows[0].Namespace, "a blank as is no namespace");
+                Assert.AreEqual("UI/Widgets.ui", rows[1].Src);
+                Assert.AreEqual("ui", rows[1].Namespace);
+            }
+            finally
+            {
+                PromptUGUISettings.FinderForTests = null;
+                PromptUGUISettings.ResetInstanceCache();
+                Object.DestroyImmediate(settings);
+            }
         }
 
         // ── which files the menu lints ─────────────────────────────────────────────────────────

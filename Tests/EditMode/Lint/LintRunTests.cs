@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NUnit.Framework;
+using PromptUGUI.IR;
 using PromptUGUI.Lint;
 
 namespace PromptUGUI.Tests.EditMode.Lint
@@ -29,14 +30,22 @@ namespace PromptUGUI.Tests.EditMode.Lint
                 return this;
             }
 
-            public string Read(string path) =>
-                Files.TryGetValue(path, out var xml) ? xml : throw new FileNotFoundException("no such file", path);
+            public readonly List<string> Reads = new List<string>();
+
+            public string Read(string path)
+            {
+                Reads.Add(path);
+                return Files.TryGetValue(path, out var xml) ? xml : throw new FileNotFoundException("no such file", path);
+            }
 
             public string Resolve(string src, string importing) => Files.ContainsKey(src) ? src : null;
         }
 
-        private static List<LintRun.Finding> Lint(LintRun run, FakeFs fs, string path) =>
-            run.Lint(path, fs.Read, fs.Resolve);
+        private static List<LintRun.Finding> Lint(LintRun run, FakeFs fs, string path,
+                                                  IReadOnlyList<ImportRef> commons = null) =>
+            run.Lint(path, fs.Read, fs.Resolve, commons);
+
+        private static ImportRef Commons(string src, string ns = null) => new ImportRef(src, ns);
 
         // ── the three kinds ────────────────────────────────────────────────────────────────────
 
@@ -109,6 +118,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
             CollectionAssert.IsEmpty(findings);
             Assert.AreEqual(1, run.Files);
             Assert.AreEqual(0, run.Issues);
+            Assert.AreEqual(0, run.Skipped);
         }
 
         // ── the expanded pass ──────────────────────────────────────────────────────────────────
@@ -201,6 +211,142 @@ namespace PromptUGUI.Tests.EditMode.Lint
             Assert.AreEqual(3, run.Files);
             Assert.AreEqual(a.Count + b.Count + 1, run.Issues,
                 "every Error and Issue counts; the CLI's exit code and the Editor's summary read this");
+        }
+
+        // ── common libraries (2026-09-18 commons-settings spec §4.7, §7-21, §7-22) ─────────────
+        //
+        // The rows of PromptUGUISettings.commonLibraries are the <Import> every document implicitly
+        // has. A run resolves and parses that closure ONCE and reuses it for every entry.
+
+        [Test]
+        public void StyleDeclaredOnlyInACommonLibrary_ResolvesInTheExpandedPass()
+        {
+            var fs = new FakeFs()
+                .Add("theme.ui", "<Style name='badge' sprite='ui:pill'/>")
+                .Add("main.ui.xml", "<Screen name='S'><VStack id='v' class='badge' anchor='stretch'/></Screen>");
+            var run = new LintRun();
+
+            var findings = Lint(run, fs, "main.ui.xml", new[] { Commons("theme.ui") });
+
+            Assert.IsFalse(findings.Any(f => f.Text.Contains(DocumentLinter.ExpansionCode)),
+                "the runtime merges the commons pool before expansion; so must the linter");
+            Assert.IsTrue(findings.Any(f => f.Text.Contains(PureContainerVisualAttrRules.VisualAttrCode)),
+                "…and the expanded pass then sees the sprite the commons class supplies");
+        }
+
+        [Test]
+        public void UnresolvableCommonLibrary_IsANote_NamingIt_AndRawRulesStillApply()
+        {
+            var fs = new FakeFs().Add("main.ui.xml",
+                "<Screen name='S'>\n  <Frame id='f' mask='self'/>\n  <VStack id='v' class='badge' anchor='stretch'/>\n</Screen>");
+            var run = new LintRun();
+
+            var findings = Lint(run, fs, "main.ui.xml", new[] { Commons("theme.ui") });
+
+            var note = findings.Single(f => f.Kind == LintRun.Kind.Note);
+            StringAssert.Contains("common library src=\"theme.ui\"", note.Text);
+            Assert.IsTrue(findings.Any(f => f.Kind == LintRun.Kind.Issue && f.Text.Contains(MaskAttributeRules.FrameSelfCode)),
+                "raw rules still apply without the closure");
+            Assert.IsFalse(findings.Any(f => f.Text.Contains(DocumentLinter.ExpansionCode)),
+                "class='badge' may well live in the library that could not be read — no false positive");
+            Assert.AreEqual(1, run.Issues);
+        }
+
+        [Test]
+        public void UnresolvableCommonLibrary_IsNotedOncePerRun_NotOncePerEntry()
+        {
+            var fs = new FakeFs()
+                .Add("a.ui.xml", "<Screen name='A'><Text id='t'>x</Text></Screen>")
+                .Add("b.ui.xml", "<Screen name='B'><Text id='t'>y</Text></Screen>");
+            var run = new LintRun();
+            var commons = new[] { Commons("theme.ui") };
+
+            var a = Lint(run, fs, "a.ui.xml", commons);
+            var b = Lint(run, fs, "b.ui.xml", commons);
+
+            Assert.AreEqual(1, a.Count(f => f.Kind == LintRun.Kind.Note));
+            Assert.AreEqual(0, b.Count(f => f.Kind == LintRun.Kind.Note),
+                "forty entries would otherwise print the same note forty times");
+            Assert.AreEqual(2, run.Skipped, "…but the summary must still say how many entries lost their expanded pass");
+        }
+
+        [Test]
+        public void SharedDefectiveCommonLibrary_IsReportedOnce_AndReadOnce()
+        {
+            var fs = new FakeFs()
+                .Add("theme.ui", "<Style name='bad' glow='abc'/>")
+                .Add("a.ui.xml", "<Screen name='A'><Text id='t'>x</Text></Screen>")
+                .Add("b.ui.xml", "<Screen name='B'><Text id='t'>y</Text></Screen>");
+            var run = new LintRun();
+            var commons = new[] { Commons("theme.ui") };
+
+            var a = Lint(run, fs, "a.ui.xml", commons);
+            var b = Lint(run, fs, "b.ui.xml", commons);
+
+            var bad = a.Concat(b).Where(f => f.Text.Contains(StyleRules.ProceduralValueCode)).ToList();
+            Assert.AreEqual(1, bad.Count, "one defect, however many entries reach it");
+            Assert.AreEqual("theme.ui", bad[0].File, "reported against the library, where the edit goes");
+            Assert.AreEqual(1, fs.Reads.Count(r => r == "theme.ui"), "the commons closure is parsed once per run");
+        }
+
+        [Test]
+        public void CommonLibraryUnderANamespace_IsInvokedAsNsDotName_AndFiledAgainstTheLibrary()
+        {
+            var fs = new FakeFs()
+                .Add("lib.ui", "<Template name='Card'>\n  <Frame id='card' mask='self'/>\n</Template>")
+                .Add("main.ui.xml", "<Screen name='S'>\n  <ui.Card/>\n</Screen>");
+            var run = new LintRun();
+
+            var findings = Lint(run, fs, "main.ui.xml", new[] { Commons("lib.ui", "ui") });
+
+            Assert.IsFalse(findings.Any(f => f.Text.Contains(DocumentLinter.ExpansionCode)));
+            var f = findings.Single(x => x.Text.Contains(MaskAttributeRules.FrameSelfCode));
+            Assert.AreEqual("lib.ui", f.File);
+            StringAssert.StartsWith("lib.ui:4: [", f.Text);
+            StringAssert.EndsWith(" (via main.ui.xml:4)", f.Text);
+        }
+
+        [Test]
+        public void TheCommonLibraryItself_LintedAsAnEntry_IsNotMergedOntoItself()
+        {
+            // A directory run reaches the theme library as an entry; the runtime never loads a
+            // library onto itself, so neither may the linter report its every style as a conflict.
+            var fs = new FakeFs()
+                .Add("theme.ui", "<Style name='badge' sprite='ui:pill'/>")
+                .Add("main.ui.xml", "<Screen name='S'><VStack id='v' class='badge' anchor='stretch'/></Screen>");
+            var run = new LintRun();
+            var commons = new[] { Commons("theme.ui") };
+
+            var lib = Lint(run, fs, "theme.ui", commons);
+            var main = Lint(run, fs, "main.ui.xml", commons);
+
+            CollectionAssert.IsEmpty(lib.Where(f => f.Text.Contains(DocumentLinter.ExpansionCode)).Select(f => f.Text).ToList());
+            Assert.IsTrue(main.Any(f => f.Text.Contains(PureContainerVisualAttrRules.VisualAttrCode)),
+                "…and the next entry still sees the library as its commons");
+        }
+
+        [Test]
+        public void CommonLibraryRowWithADottedNamespace_IsAnError_OncePerRun()
+        {
+            // The mirror of PromptUGUISettings.OnValidate: <ns.Name/> cannot spell a namespace that
+            // itself contains a dot, so such a row can never be invoked.
+            var fs = new FakeFs()
+                .Add("lib.ui", "<Template name='Card'><Frame id='card'/></Template>")
+                .Add("a.ui.xml", "<Screen name='A'><Text id='t'>x</Text></Screen>")
+                .Add("b.ui.xml", "<Screen name='B'><Text id='t'>y</Text></Screen>");
+            var run = new LintRun();
+            var commons = new[] { Commons("lib.ui", "a.b") };
+
+            var a = Lint(run, fs, "a.ui.xml", commons);
+            var b = Lint(run, fs, "b.ui.xml", commons);
+
+            var error = a.Single(f => f.Kind == LintRun.Kind.Error);
+            StringAssert.Contains("common library src=\"lib.ui\"", error.Text);
+            StringAssert.Contains("as=\"a.b\"", error.Text);
+            StringAssert.Contains("must not contain '.'", error.Text);
+            Assert.IsNull(error.File, "a configuration error has no file to open");
+            Assert.AreEqual(0, b.Count(f => f.Kind == LintRun.Kind.Error), "said once per run");
+            Assert.AreEqual(1, run.Issues);
         }
     }
 }

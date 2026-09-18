@@ -191,5 +191,131 @@ namespace PromptUGUI.Tests.EditMode.Lint
             CollectionAssert.AreEqual(
                 new[] { ("lib.ui.xml", "main.ui.xml"), ("deep.ui.xml", "lib.ui.xml") }, seen);
         }
+
+        // ── common libraries (2026-09-18 commons-settings spec §4.7) ───────────────────────────
+        //
+        // A common library is the <Import> every document implicitly has, so the closure has to
+        // reach it the same way: resolved from the ENTRY file, then its own imports followed.
+
+        private static Dictionary<string, UIDocument> LoadWithCommons(
+            Dictionary<string, string> files, string entry, IReadOnlyList<ImportRef> commons,
+            ImportClosure.Cache cache, out string unresolved,
+            List<(string src, string importing)> seen = null, List<string> reads = null)
+            => LoadWithCommons(files, entry, commons, cache, out _, out unresolved, seen, reads);
+
+        private static Dictionary<string, UIDocument> LoadWithCommons(
+            Dictionary<string, string> files, string entry, IReadOnlyList<ImportRef> commons,
+            ImportClosure.Cache cache, out IReadOnlyList<ImportRef> applied, out string unresolved,
+            List<(string src, string importing)> seen = null, List<string> reads = null)
+        {
+            var doc = UIDocumentParser.Parse(files[entry], entry);
+            return ImportClosure.TryLoad(
+                entry, doc,
+                (src, importing) => { seen?.Add((src, importing)); return files.ContainsKey(src) ? src : null; },
+                path => { reads?.Add(path); return files[path]; },
+                commons, cache,
+                out applied, out unresolved);
+        }
+
+        [Test]
+        public void TryLoad_ACommonsRowThatIsTheEntryItself_IsDropped_TheOthersApply()
+        {
+            // Linting a directory reaches the theme library as an entry in its own right. Merging it
+            // onto itself would make every one of its styles "conflict with commons pool".
+            var files = Files(
+                ("theme.ui", "<Style name='badge' color='#f00'/>"),
+                ("widgets.ui", "<Template name='Card'><Frame id='card'/></Template>"));
+            var commons = new[] { new ImportRef("theme.ui", null), new ImportRef("widgets.ui", "ui") };
+
+            var closure = LoadWithCommons(files, "theme.ui", commons, null, out var applied, out var unresolved);
+
+            Assert.IsNotNull(closure, unresolved);
+            CollectionAssert.AreEquivalent(new[] { "widgets.ui" }, closure.Keys, "a library is not its own commons");
+            Assert.AreEqual(1, applied.Count);
+            Assert.AreEqual("widgets.ui", applied[0].Src);
+            Assert.AreEqual("ui", applied[0].Namespace);
+        }
+
+        [Test]
+        public void TryLoad_ResolvesEachCommonsRowFromTheEntry_AndFollowsItsOwnImports()
+        {
+            var seen = new List<(string src, string importing)>();
+            var files = Files(
+                ("main.ui.xml", "<Screen name='S'><Frame id='f'/></Screen>"),
+                ("theme.ui", "<Import src='deep.ui.xml'/><Style name='badge' color='#f00'/>"),
+                ("deep.ui.xml", "<Style name='s' color='#fff'/>"));
+
+            var closure = LoadWithCommons(
+                files, "main.ui.xml", new[] { new ImportRef("theme.ui", null) }, null, out var unresolved, seen);
+
+            Assert.IsNotNull(closure, unresolved);
+            CollectionAssert.AreEquivalent(new[] { "theme.ui", "deep.ui.xml" }, closure.Keys);
+            CollectionAssert.AreEqual(
+                new[] { ("theme.ui", "main.ui.xml"), ("deep.ui.xml", "theme.ui") }, seen,
+                "a Resources-style short key is guessed from the entry's folder, like an <Import> written there");
+        }
+
+        [Test]
+        public void TryLoad_EntryImportsComeFirst_ACommonsRowAlreadyInTheClosureIsNotFetchedAgain()
+        {
+            var seen = new List<(string src, string importing)>();
+            var files = Files(
+                ("main.ui.xml", "<Import src='theme.ui'/><Screen name='S'><Frame id='f'/></Screen>"),
+                ("theme.ui", "<Style name='badge' color='#f00'/>"));
+
+            var closure = LoadWithCommons(
+                files, "main.ui.xml", new[] { new ImportRef("theme.ui", null) }, null, out var unresolved, seen);
+
+            Assert.IsNotNull(closure, unresolved);
+            Assert.AreEqual(1, seen.Count, "the explicit <Import> already brought it in");
+        }
+
+        [Test]
+        public void TryLoad_UnresolvableCommonsRow_ReturnsNull_AndNamesIt()
+        {
+            var files = Files(("main.ui.xml", "<Screen name='S'><Frame id='f'/></Screen>"));
+
+            var closure = LoadWithCommons(
+                files, "main.ui.xml", new[] { new ImportRef("ghost.ui", null) }, null, out var unresolved);
+
+            Assert.IsNull(closure, "a document that cannot see its commons must not be expanded against half of them");
+            Assert.AreEqual("ghost.ui", unresolved);
+        }
+
+        [Test]
+        public void TryLoad_CommonsClosure_IsParsedOncePerCache_AndReusedByTheNextEntry()
+        {
+            var reads = new List<string>();
+            var files = Files(
+                ("a.ui.xml", "<Screen name='A'><Frame id='f'/></Screen>"),
+                ("b.ui.xml", "<Screen name='B'><Frame id='g'/></Screen>"),
+                ("theme.ui", "<Import src='deep.ui.xml'/><Style name='badge' color='#f00'/>"),
+                ("deep.ui.xml", "<Style name='s' color='#fff'/>"));
+            var commons = new[] { new ImportRef("theme.ui", null) };
+            var cache = new ImportClosure.Cache();
+
+            var first = LoadWithCommons(files, "a.ui.xml", commons, cache, out _, reads: reads);
+            var second = LoadWithCommons(files, "b.ui.xml", commons, cache, out _, reads: reads);
+
+            Assert.IsNotNull(first);
+            Assert.IsNotNull(second);
+            CollectionAssert.AreEquivalent(new[] { "theme.ui", "deep.ui.xml" }, reads,
+                "forty entries re-parsing the same DefaultTheme would be forty times the work for nothing");
+            Assert.AreSame(first["theme.ui"], second["theme.ui"]);
+            Assert.AreSame(first["deep.ui.xml"], second["deep.ui.xml"], "the library's own imports are cached with it");
+        }
+
+        [Test]
+        public void TryLoad_WithoutCommons_ReadsNothingExtra()
+        {
+            var seen = new List<(string src, string importing)>();
+            var files = Files(("main.ui.xml", "<Screen name='S'><Frame id='f'/></Screen>"));
+
+            var closure = LoadWithCommons(files, "main.ui.xml", null, null, out var unresolved, seen);
+
+            Assert.IsNotNull(closure);
+            CollectionAssert.IsEmpty(closure);
+            CollectionAssert.IsEmpty(seen);
+        }
     }
 }

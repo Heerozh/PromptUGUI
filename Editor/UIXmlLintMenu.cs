@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using PromptUGUI.Application;
+using PromptUGUI.IR;
 using PromptUGUI.Lint;
 using UnityEditor;
 using UnityEditor.PackageManager;
@@ -30,6 +32,11 @@ namespace PromptUGUI.Editor
     /// skips the expanded pass for those documents. The Editor reads the address → asset map
     /// straight from the Addressables settings, so <c>UseAddressableResolver</c> projects get the
     /// expanded pass too.</para>
+    ///
+    /// <para>Common libraries come from <see cref="PromptUGUISettings.commonLibraries"/> — the one
+    /// declaration the runtime reads too — and are merged into every document's expanded pass the
+    /// way <c>UI.EnsureCommonLibrariesAsync</c> merges them at load (2026-09-18 commons-settings
+    /// spec §4.8), so a <c>class=</c> that lives only in the theme library is not an unknown name.</para>
     /// </summary>
     internal static class UIXmlLintMenu
     {
@@ -45,19 +52,37 @@ namespace PromptUGUI.Editor
                 return;
             }
 
-            var run = Lint(paths, Report);
+            var commons = ConfiguredCommonLibraries();
+            var run = Lint(paths, Report, commons);
 
             if (run.Issues > 0)
                 Debug.LogWarning($"[PromptUGUI] Lint: {run.Issues} issue(s) across {run.Files} file(s) — see the lines above.");
             else
                 Debug.Log($"[PromptUGUI] Lint: no issues across {run.Files} file(s).");
+
+            // A note is logged once per unresolved library; how much of the run it cost is said here.
+            if (run.Skipped > 0)
+                Debug.Log($"[PromptUGUI] Lint: {run.Skipped} of {run.Files} file(s) skipped the expanded pass over a src " +
+                          "that neither Addressables nor a Resources/ walk could resolve (see the notes above).");
+
+            // An unknown style / template in a project that declares no common library is most
+            // often a library nobody listed — the same hint UI.LoadDocumentAsync gives (spec §4.10).
+            // With libraries declared the name is genuinely unknown and the finding stands alone.
+            if (run.SawUnknownName && commons.Count == 0)
+                Debug.Log("[PromptUGUI] No common library is configured in PromptUGUISettings — if these " +
+                          "names live in a shared library, list it under Common Libraries.");
         }
 
         /// <summary>
         /// Lints <paramref name="paths"/> (asset paths, or absolute files) in order, handing every
         /// finding to <paramref name="report"/>. The <see cref="LintRun"/> comes back for its counts.
         /// </summary>
-        internal static LintRun Lint(IReadOnlyList<string> paths, Action<LintRun.Finding> report)
+        /// <param name="commons">
+        /// The <c>&lt;Import&gt;</c> every document implicitly has — <see cref="ConfiguredCommonLibraries"/>
+        /// for the menu; a test hands its own rows.
+        /// </param>
+        internal static LintRun Lint(IReadOnlyList<string> paths, Action<LintRun.Finding> report,
+                                     IReadOnlyList<ImportRef> commons = null)
         {
             var run = new LintRun();
             var resolve = MakeResolver();
@@ -69,7 +94,7 @@ namespace PromptUGUI.Editor
                     // it — spell it the AssetDatabase way whatever the caller did.
                     var path = paths[i].Replace('\\', '/');
                     EditorUtility.DisplayProgressBar("PromptUGUI Lint", path, (float)i / paths.Count);
-                    foreach (var finding in run.Lint(path, Read, resolve))
+                    foreach (var finding in run.Lint(path, Read, resolve, commons))
                         report(finding);
                 }
             }
@@ -78,6 +103,25 @@ namespace PromptUGUI.Editor
                 EditorUtility.ClearProgressBar();
             }
             return run;
+        }
+
+        /// <summary>
+        /// The rows of <see cref="PromptUGUISettings.commonLibraries"/> as import refs — the one
+        /// declaration the runtime, this menu and the CLI all read (2026-09-18 commons-settings
+        /// spec). Blank rows dropped, whitespace trimmed, a blank <c>as</c> is no namespace. Empty
+        /// when the project has no settings asset.
+        /// </summary>
+        internal static List<ImportRef> ConfiguredCommonLibraries()
+        {
+            var refs = new List<ImportRef>();
+            var rows = PromptUGUISettings.Instance?.commonLibraries;
+            if (rows == null) return refs;
+            foreach (var row in rows)
+            {
+                if (row == null || row.IsBlank) continue;
+                refs.Add(row.ToImportRef());
+            }
+            return refs;
         }
 
         // ── which files ────────────────────────────────────────────────────────────────────────
@@ -210,7 +254,8 @@ namespace PromptUGUI.Editor
         /// </summary>
         private static void Report(LintRun.Finding finding)
         {
-            var context = AssetDatabase.LoadAssetAtPath<TextAsset>(finding.File);
+            // A configuration finding names no file; everything else pings the asset it is about.
+            var context = finding.File == null ? null : AssetDatabase.LoadAssetAtPath<TextAsset>(finding.File);
             switch (finding.Kind)
             {
                 case LintRun.Kind.Error:
