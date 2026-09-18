@@ -39,12 +39,7 @@ namespace PromptUGUI.Editor
             }
             if (xmlChanged)
             {
-                var sets = new System.Collections.Generic.List<SpriteSet>();
-                foreach (var s in SpriteAtlasSyncer.FindAllSpriteSets()) sets.Add(s);
-                if (sets.Count == 0) return;
-                SpriteAtlasSyncer.SyncAll(sets);
-                ScheduleInlineRegen();
-                UI.HotReload.NotifySpriteAssetsChanged();
+                ScheduleFullSync();
                 return;
             }
 
@@ -67,17 +62,62 @@ namespace PromptUGUI.Editor
                 if (set.Atlas != null) atlases.Add(set.Atlas);
             }
             if (inlineDirty) ScheduleInlineRegen();
-            if (atlases.Count == 0) return;
-
-            UnityEditor.U2D.SpriteAtlasUtility.PackAtlases(
-                atlases.ToArray(),
-                EditorUserBuildSettings.activeBuildTarget);
+            if (atlases.Count > 0) SchedulePack(atlases);
         }
 
-        // Regenerating the inline TMP_SpriteAsset creates/imports assets, which is UNSAFE to do
-        // re-entrantly from inside OnPostprocessAllAssets — it corrupts the asset currently being
-        // imported (sub-asset links detach). Defer to the next editor tick, after the import
-        // settles; debounce so a multi-asset import batch triggers a single rebuild.
+        // Everything below writes assets (SaveAssets on the SpriteSet, SpriteAtlasAsset.Save +
+        // ImportAsset on a V2 atlas, CreateAsset for the inline TMP_SpriteAsset, PackAtlases
+        // re-emitting the .spriteatlas import), which is UNSAFE to do re-entrantly from inside
+        // OnPostprocessAllAssets — the import batch is still open, so the asset database sees a
+        // source it just imported change under it ("Importer(NativeFormatImporter) generated
+        // inconsistent result") and can detach sub-asset links on the asset being imported.
+        // Defer to the next editor tick, after the import settles; debounce so a multi-asset
+        // import batch triggers a single run.
+
+        private static bool _fullSyncScheduled;
+
+        private static void ScheduleFullSync()
+        {
+            if (_fullSyncScheduled) return;
+            _fullSyncScheduled = true;
+            EditorApplication.delayCall += () =>
+            {
+                _fullSyncScheduled = false;
+                // Enumerate after the import settles so a SpriteSet that arrived in the same
+                // batch is included.
+                var sets = new System.Collections.Generic.List<SpriteSet>();
+                foreach (var s in SpriteAtlasSyncer.FindAllSpriteSets()) sets.Add(s);
+                if (sets.Count == 0) return;
+                SpriteAtlasSyncer.SyncAll(sets);
+                ScheduleInlineRegen();
+                UI.HotReload.NotifySpriteAssetsChanged();
+            };
+        }
+
+        private static readonly System.Collections.Generic.HashSet<UnityEngine.U2D.SpriteAtlas>
+            _pendingPack = new System.Collections.Generic.HashSet<UnityEngine.U2D.SpriteAtlas>();
+        private static bool _packScheduled;
+
+        private static void SchedulePack(
+            System.Collections.Generic.List<UnityEngine.U2D.SpriteAtlas> atlases)
+        {
+            foreach (var a in atlases) _pendingPack.Add(a);
+            if (_packScheduled) return;
+            _packScheduled = true;
+            EditorApplication.delayCall += () =>
+            {
+                _packScheduled = false;
+                var arr = new System.Collections.Generic.List<UnityEngine.U2D.SpriteAtlas>();
+                foreach (var a in _pendingPack)
+                    if (a != null) arr.Add(a);   // atlas may have been deleted meanwhile
+                _pendingPack.Clear();
+                if (arr.Count == 0) return;
+                UnityEditor.U2D.SpriteAtlasUtility.PackAtlases(
+                    arr.ToArray(),
+                    EditorUserBuildSettings.activeBuildTarget);
+            };
+        }
+
         private static bool _inlineRegenScheduled;
 
         private static void ScheduleInlineRegen()
