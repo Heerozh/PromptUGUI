@@ -44,7 +44,6 @@ UI.UseResourcesResolver("UI");                             // sets SourceResolve
 UI.Registry.Register<MyCustomControl>("MyTag", myPrefab);  // optional; built-ins are pre-registered
 
 async void Start() {
-    await UI.LoadCommonLibraryAsync("common/Buttons.ui");  // optional, populates the commons pool
     await UI.LoadDocumentAsync("screens/MainMenu.ui");     // loads Resources/{rootPath}/screens/MainMenu.ui.xml — keep the .ui, see below
     // or, sync raw-XML form (no resolver, no hot-reload):
     // UI.LoadDocument("MainMenu", xmlString);
@@ -61,9 +60,23 @@ await UI.LoadDocumentAsync("Home");             // ✗ IOException: Resources lo
 await UI.LoadDocumentAsync("UI/Home.ui");       // ✗ the root is prepended for you → UI/UI/Home.ui
 ```
 
-The same key shape applies to `<Import src="...">` inside those documents, to `LoadCommonLibraryAsync`, and to every modal `XmlSrc`. The library's own built-ins follow it (`MessageBox.XmlSrc = "PromptUGUI/Modals/MessageBox.ui"`). Addressables is a different namespace — there the src is the Address you registered, verbatim.
+The same key shape applies to `<Import src="...">` inside those documents, to the common libraries listed in `PromptUGUISettings`, and to every modal `XmlSrc`. The library's own built-ins follow it (`MessageBox.XmlSrc = "PromptUGUI/Modals/MessageBox.ui"`). Addressables is a different namespace — there the src is the Address you registered, verbatim.
 
-**Commons pool**: `await UI.LoadCommonLibraryAsync("ui/common.ui", @as: null)` populates a global template pool merged into every Screen automatically (no `<Import>` needed at call sites). Use for project-wide shared widgets.
+**Common libraries (the commons pool)** — project-wide shared `<Template>` / `<Style>` / `<Theme>` files merged into every Screen automatically (no `<Import>` at call sites) are **declared in the settings asset, not loaded from code**: `Create → PromptUGUI → Settings` (one `PromptUGUISettings` asset per project, anywhere under `Assets/`; the package registers it in Preloaded Assets) → **Common Libraries** → one row per library: `src` = the resolver key (same shape as `<Import src>`, e.g. `common/Theme.ui` under `UseResourcesResolver("UI")`, the Address under Addressables), `as` = optional namespace (`<ui.Card/>`, `class="ui:card"`). That one list is what the runtime loads and what the lint tooling merges before its expanded pass (so a commons-only `class=` is never a false `PUI-EXPAND`) — there is no code-side registration to keep in sync with it.
+
+```csharp
+// Nothing to write for the common case: LoadDocumentAsync (and the modal loader, and hot reload)
+// call UI.EnsureCommonLibrariesAsync() first, so the pool is filled on the first load and refilled
+// after UI.UnloadAll(). Call it yourself only to warm the themes up before the first Screen:
+[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+static void Boot() {
+    UI.UseResourcesResolver("UI");
+    _ = UI.EnsureCommonLibrariesAsync();   // idempotent; concurrent callers share the one load in flight
+    UI.Theme.Set("dark");                  // fine before or after — see Theme below
+}
+```
+
+Semantics: rows load in list order (a row already in the pool is skipped, so the call is cheap to repeat); a row that fails (unreadable src, parse error, a name that clashes with an earlier library, a `<Screen>` in a library) throws, the rows before it stay loaded and the next call resumes at the failed one; with no rows declared there is nothing to do and no resolver is needed. `UI.UnloadAll()` clears the pool along with everything else — the next load brings it back, re-read from the resolver. `UI.UnloadAllCommonLibraries()` + `EnsureCommonLibrariesAsync()` is the explicit "re-read the libraries" idiom. An `unknown style` / `unknown template` error in a project with **no** row declared says so in the message — that is usually a library that was never listed.
 
 **Hot-reload** is enabled automatically when you load via `LoadDocumentAsync` (resolver-backed). The sync `UI.LoadDocument(label, xml)` overload bypasses the resolver — handy for raw-XML tests but **cannot be hot-reloaded**.
 
@@ -836,7 +849,7 @@ your `Get<T>` references and R3 subscriptions survive. Cost is one extra pass ov
 on top of the ReSolve a theme switch already triggered; a project whose themes carry only `<Color>`
 pays nothing. See authoring-promptugui-xml → **Theme-scoped styles**.
 
-`UI.Theme.Set` is order-independent — it never blocks on the load. You can fire it before `LoadCommonLibraryAsync` resolves; when the named theme registers, `Theme.Changed` re-fires and open Screens repaint. While pending, color attribute resolution falls back to `Color.white` for token names (literal hex / CSS named values resolve as usual).
+`UI.Theme.Set` is order-independent — it never blocks on the load. You can fire it before the common libraries (where `<Theme>` blocks usually live) finish loading; when the named theme registers, `Theme.Changed` re-fires and open Screens repaint. While pending, color attribute resolution falls back to `Color.white` for token names (literal hex / CSS named values resolve as usual).
 
 ```csharp
 // Inspect / switch.
@@ -860,29 +873,29 @@ Color resolved3 = UI.Theme.Resolve("red");       // CSS named color
 
 ### AA / async load idiom
 
-Common pattern with Addressables: fire-and-forget the load from `[RuntimeInitializeOnLoadMethod]`, then `Set` immediately. No `await` needed in the boot hook.
+Common pattern with Addressables: the theme file is a row in `PromptUGUISettings → Common Libraries`; fire-and-forget the ensure from `[RuntimeInitializeOnLoadMethod]` (or skip it — the first `LoadDocumentAsync` ensures anyway), then `Set` immediately. No `await` needed in the boot hook.
 
 ```csharp
 [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
 static void Boot()
 {
     UI.UseAddressableResolver();
-    _ = UI.LoadCommonLibraryAsync("themes/main.ui");  // fire and forget
-    UI.Theme.Set("dark");                          // queued; takes effect once "dark" registers
+    _ = UI.EnsureCommonLibrariesAsync();   // fire and forget; loads the rows declared in PromptUGUISettings
+    UI.Theme.Set("dark");                  // queued; takes effect once "dark" registers
 }
 ```
 
 Sequence:
 
 1. `Set("dark")` fires `Theme.Changed` once; any already-open Screens ReSolve → tokens soft-fail to white.
-2. `LoadCommonLibraryAsync` completes, `dark` registers, `Theme.Changed` re-fires automatically → Screens ReSolve again → tokens hit real colors.
+2. The library load completes, `dark` registers, `Theme.Changed` re-fires automatically → Screens ReSolve again → tokens hit real colors.
 3. If `Current` still names an unregistered theme after the load (typo, missing source), the loader emits one `Debug.LogWarning` to surface it.
 
 Loads that do not touch the current theme's base chain — a document with no `<Theme>`, or one whose `<Theme>` is the same source already registered (the loader caches parsed sources per `src`) — do **not** fire `Theme.Changed`; only a load that first makes `Current` resolvable, or adds / replaces a block on its chain, does. So opening more Screens never re-ReSolves the ones already open.
 
 ### Single-theme projects
 
-If `LoadCommonLibraryAsync` registers exactly one theme and `UI.Theme.Current` is null, the loader auto-selects it. Multi-theme projects must call `UI.Theme.Set` explicitly (before or after the load, your choice).
+If the common libraries register exactly one theme and `UI.Theme.Current` is null, the loader auto-selects it. Multi-theme projects must call `UI.Theme.Set` explicitly (before or after the load, your choice).
 
 ### Hot reload
 
@@ -951,7 +964,8 @@ If `UI.Theme.Resolve` throws, the exception flows through the reflection setter 
 SETUP          UI.UseResourcesResolver("UI")
                UI.Registry.Register<T>("Tag", optionalPrefab)
                SpriteResolverHelpers.UseSpriteSetResolver([spriteSets])
-               await UI.LoadCommonLibraryAsync("common/Foo.ui")
+               PromptUGUISettings → Common Libraries           declares the shared libraries (src + optional as); no code
+               _ = UI.EnsureCommonLibrariesAsync()            optional warm-up; LoadDocumentAsync ensures them anyway
                await UI.LoadDocumentAsync("screens/Main.ui")   src keeps .ui — Resources strips only .xml
                UI.LoadDocument("Label", xmlString)            sync, no hot-reload
 

@@ -462,6 +462,8 @@ var closeBtn = dialog.Get("close");          // 模板内部
 
 `as=` 是唯一显式消歧手段；commons 与 Import 多源同名时必填。常态下 Template 名唯一即可省略。
 
+commons（每份文档都隐式 Import 的公共库）由 `PromptUGUISettings.commonLibraries` 声明（`src` + 可选 `as`），`UI.EnsureCommonLibrariesAsync()` 按序幂等装载，`LoadDocumentAsync` 等入口自动先调它；lint 读同一份声明合并进展开遍。见 [`2026-09-18-commons-settings-design.md`](2026-09-18-commons-settings-design.md)。
+
 ---
 
 ## 8. Variant：平台与上下文变体

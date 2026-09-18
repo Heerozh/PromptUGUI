@@ -130,6 +130,8 @@ Once configured, one-click translation will auto-extract UI text and any `UI.Tr(
 
 **Recommended**: use Addressables. Click the menu item `Setup Addressable for Locale ...` and the i18n folder can move out of Resources to any directory. After `UI.Locale.UseAddressableResolver();`, `UI.Locale.SetToSystemDefault("en");` will download the chosen language in the background and refresh the UI when it finishes.
 
+The same asset has a **Common Libraries** list: the shared `<Template>` / `<Style>` / `<Theme>` files every Screen can use without an `<Import>`. Add one row per library (`src` = the same key you would write in `<Import src>`, plus an optional namespace) — the library loads them on the first `LoadDocumentAsync`, and the lint tools read the same list, so there is no code-side registration.
+
 ### 3. Author a UI
 
 Project window → right-click → Create → PromptUGUI → UI XML.
@@ -425,6 +427,8 @@ Project 右键 → Create → PromptUGUI → Sprite Set，设置图标以及界�
 Project 右键 → Create → PromptUGUI → Settings，设置有哪些字体Type (`font="NormalText"`使用的就是Type名) ，以及需要哪些语言。
 
 设置好即可，以后一键翻译会自动提取界面文本和代码中`UI.Tr()`包裹的字符串。
+
+同一个资产里还有 **Common Libraries** 列表：所有界面无需 `<Import>` 就能用的公共 `<Template>` / `<Style>` / `<Theme>` 文件。一行一个库（`src` 写法与 `<Import src>` 相同，可选命名空间）——首次 `LoadDocumentAsync` 时自动装载，lint 工具读的也是这份列表，代码里不用再注册。
 
 ### 3. 创建UI
 
