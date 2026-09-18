@@ -7,7 +7,10 @@
         "Unity.Addressables",
         "Unity.Addressables.Editor",
         "Unity.ResourceManager",
-        "Unity.2D.Aseprite.Editor"
+        "Unity.2D.Aseprite.Editor",
+        "Unity.InputSystem",
+        "PromptUGUI.Compat.UniTask",
+        "UniTask"
     ],
     "includePlatforms": ["Editor"],
     "excludePlatforms": [],
