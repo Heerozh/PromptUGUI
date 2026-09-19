@@ -418,7 +418,7 @@ Codex: `<project root>/.agents/skills/`
 
 > Skill 文件遵循开放 [Agent Skills](https://agentskills.io) 规范，兼容平台（Codex / Gemini CLI 等）也可复用，只需放到对应平台的 skill 目录。
 
-3. AGENT.md / CLAUDE.md
+3. AGENT.md
 把以下内容写到项目全局提示词：
 ```
 Use `PromptUGUI.Application` namespace's `UI.Tr("...")` to wrap all player-facing text for i18n.
