@@ -35,7 +35,7 @@
       Open the project in Unity once before relying on this — the DLLs only
       appear in Library\ScriptAssemblies after Unity has compiled them.
 
-      Per AGENT.md the dev project lives at C:\soft\PromptUGUIDev.
+      Per AGENTS.md the dev project lives at C:\soft\PromptUGUIDev.
     -->
     <UnityHostProjectDir>C:\soft\PromptUGUIDev</UnityHostProjectDir>
 

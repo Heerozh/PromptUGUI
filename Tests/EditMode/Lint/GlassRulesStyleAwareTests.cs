@@ -10,7 +10,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
     /// often through <c>&lt;Style&gt;</c> / <c>class=</c> as inline — that is the pattern the shipped
     /// skin sample establishes and the one glass.md tells authors to use. Reading only the node's own
     /// attributes turns every styled layout into a hard CLI error (the CLI exits non-zero, and
-    /// AGENT.md has authors run it after every edit), which is worse than the silent attribute the
+    /// AGENTS.md has authors run it after every edit), which is worse than the silent attribute the
     /// rules exist to prevent.
     ///
     /// Where a class cannot be resolved at all — an imported commons library the CLI never sees —
