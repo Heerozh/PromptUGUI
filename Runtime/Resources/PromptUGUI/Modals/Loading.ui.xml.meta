@@ -1,5 +1,10 @@
 fileFormatVersion: 2
 guid: 72c404271fe17d640b6c41cc4c7c117c
+importerOverride:
+  nativeImporterType: 2089858483
+  scriptedImporterType:
+    serializedVersion: 2
+    Hash: e414a684a99476a84a1982c4d8665451
 TextScriptImporter:
   externalObjects: {}
   userData: 
