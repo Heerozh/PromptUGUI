@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Controls;
+using PromptUGUI.Controls.Internal;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -152,6 +153,30 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var body = CollapsibleTests.Body(c);
             Assert.AreEqual(LayoutUtility.GetPreferredHeight(body), LayoutUtility.GetMinHeight(body), 0.01f);
             Assert.AreEqual(0f, LayoutUtility.GetFlexibleHeight(body), 0.01f);
+        }
+
+        [Test]
+        public void A_procedural_surface_spans_header_and_body_at_every_fold_state()
+        {
+            // The surface is a child of the root, where the panel's own column lives. Taken for a
+            // row, it was laid out as a zero-height strip above the header: no glass, and nothing
+            // left to catch the pointer over the body once the root Image had retired.
+            var c = CollapsibleTests.Open(
+                $"<Collapsible id='c' anchor='top-right' width='150' headerHeight='24' glass='true' transition='0'>{ThreeRows}</Collapsible>")
+                .Get<Collapsible>("c");
+            var surface = (RectTransform)c.RectTransform.Find(ProceduralSurface.NodeName);
+            Assume.That(surface, Is.Not.Null, "guard: glass= attaches the surface");
+            Drain();
+
+            Assert.AreEqual(150f, surface.rect.width, 0.5f);
+            Assert.AreEqual(24f + 96f, surface.rect.height, 0.5f, "open: header + three rows");
+
+            c.Collapse();
+            Drain();
+
+            Assert.AreEqual(24f, surface.rect.height, 0.5f, "collapsed: the header alone");
+            Assert.AreEqual(24f, CollapsibleTests.Header(c).rect.height, 0.5f,
+                            "guard: the header keeps its height — the surface takes no slot in the column");
         }
     }
 }

@@ -163,6 +163,31 @@ namespace PromptUGUI.Tests.EditMode.Controls
             }
         }
 
+        /// <summary>
+        /// …and still does once a layout pass has run. The anchors above are only what the surface is
+        /// born with: a LayoutGroup on the host takes every child it can see for a row and rewrites
+        /// its rect. <c>&lt;Collapsible&gt;</c>'s root column is one — it laid the surface out as a
+        /// zero-height first row, so the panel drew nothing and its empty area stopped catching the
+        /// pointer.
+        /// </summary>
+        [Test]
+        public void EveryWiredControl_SurfaceStillCoversItsHostAfterALayoutPass()
+        {
+            var surface = new Vector3[4];
+            var host = new Vector3[4];
+            foreach (var tag in Tags)
+            {
+                var rt = (RectTransform)PanelIn(Load(tag, "radius='8'")).transform;
+                Canvas.ForceUpdateCanvases();
+
+                rt.GetWorldCorners(surface);
+                ((RectTransform)rt.parent).GetWorldCorners(host);
+                for (var i = 0; i < 4; i++)
+                    Assert.That(Vector3.Distance(surface[i], host[i]), Is.LessThan(0.01f),
+                        $"<{tag}>'s surface corner {i} is at {surface[i]}, its host's at {host[i]}");
+            }
+        }
+
         [Test]
         public void EveryWiredControl_RetiresTheHostImage_WithoutDestroyingIt()
         {

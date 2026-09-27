@@ -119,6 +119,32 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             Assert.AreEqual(1, clicks, "the click bubbles from the surface to the Button");
         }
 
+        /// <summary>
+        /// A procedural <c>&lt;Collapsible&gt;</c> retires its root Image, so over the body's empty
+        /// area the surface is the only thing that can catch the pointer. It used to be laid out by
+        /// the panel's own column as a zero-height first row, and clicks there fell through to
+        /// whatever was behind the panel.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Procedural_Collapsible_catches_the_pointer_over_its_empty_body()
+        {
+            // 24 header + 200 body, centred: the screen centre is deep in the body, over a row that
+            // is click-through (a Frame is not a hit target unless it says so).
+            var s = Open("<Frame id='back' anchor='stretch' raycastTarget='true'/>" +
+                         "<Collapsible id='c' anchor='center' width='200' headerHeight='24' radius='8' transition='0'>" +
+                         "<Frame height='200'/></Collapsible>");
+            var c = s.Get<Collapsible>("c");
+            yield return null;
+
+            var hits = RaycastCentre(out _);
+
+            Assert.IsTrue(hits.Count > 0, "something under the pointer");
+            var top = hits[0].gameObject;
+            Assert.AreEqual(ProceduralSurface.NodeName, top.name,
+                $"the panel's surface must be on top, not '{top.name}' behind the panel");
+            Assert.AreSame(c.GameObject.transform, top.transform.parent, "…and it is the Collapsible's own");
+        }
+
         [UnityTest]
         public IEnumerator Image_is_not_hit_by_default_but_a_pointer_subscription_makes_it_hit()
         {
