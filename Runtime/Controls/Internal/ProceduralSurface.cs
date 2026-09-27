@@ -227,6 +227,10 @@ namespace PromptUGUI.Controls.Internal
             rt.localScale = Vector3.one;
             // Under the control's own content (label, checkmark, arrow) and under author children.
             rt.SetSiblingIndex(0);
+            // Out of the host's flow: a host with a LayoutGroup (<Collapsible>'s root column) would
+            // otherwise take the surface for a row and rewrite its rect — a zero-height strip above
+            // the first real row, drawing nothing and catching nothing. Same opt-out as __FocusCursor.
+            _node.AddComponent<LayoutElement>().ignoreLayout = true;
 
             _panel = _node.AddComponent<ProceduralPanel>();
             return _panel;
