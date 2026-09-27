@@ -35,7 +35,9 @@ A channel switcher is a `<TabMenu>`. A settings section, a HUD tracker, a detail
 ## Structure
 
 ```
-Collapsible            Image(面板底) + VerticalLayoutGroup + [ProceduralPanel] + ExpandableMarker
+Collapsible            Image(面板底) + VerticalLayoutGroup + ExpandableMarker
+├─ [__Surface]         ProceduralPanel + LayoutElement(ignoreLayout) — only with radius / glass / …;
+│                      stretched over header + body, it takes over the Image's draw and hit roles
 ├─ Header              Image(headerColor) + PuiButton + LayoutElement(preferredHeight = headerHeight)
 │   ├─ Icon / Label    built-in caption (lazy — only what you write)
 │   ├─ Host            <Header>'s children land here (created only when there is a <Header>)
