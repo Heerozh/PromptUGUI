@@ -45,6 +45,8 @@ Internal refactors, test-only changes, performance work, and Editor tooling that
 
 `Editor/` extras worth knowing: `UiXmlLocator.cs` is the one Editor-side answer to "which file is this src / asset path" (Addressables address / GUID → asset path, Resources walk, `Packages/…` ↔ disk) — the lint menu (`UIXmlLintMenu.cs`) and the UI Preview share it; `Editor/Preview/` holds the Play-mode UI Preview tool (`UIPreview.cs` session + public statics, `UIPreviewOverlay.cs` IMGUI panel, `UIPreviewResolver.cs` / `UIPreviewRules.cs` pure logic, the built-in `UIPreview.unity`, the two settings singletons) — its component shell `UIPreviewHost` lives in `Runtime/Application/` under `#if UNITY_EDITOR` because Unity will not attach an Editor-assembly MonoBehaviour. Spec: `docs~/superpowers/specs/2026-09-18-ui-preview-tool-design.md`.
 
+`UiXmlImporter.cs` imports every `.ui.xml` through `XmlCommentStripper.cs`: `TextAsset.text` has no comments, yet every element keeps its line, so runtime locations still match the source. It is an override of Unity's native `.xml` importer (the `PoFileImporter` arrangement), put on exactly the `*.ui.xml` files by `UiXmlImporterAssigner` — on import / rename, plus a sweep once per domain reload for files imported before it existed; the package's own `.ui.xml.meta` files carry the override. Editor tools that need the source as written (lint, i18n extraction, XSD, UI Preview) read the file from disk, not the TextAsset. Spec: `docs~/superpowers/specs/2026-09-27-ui-xml-comment-stripping-design.md`.
+
 `Runtime/AssemblyInfo.cs` exposes internals to `PromptUGUI.Tests.EditMode`, `PromptUGUI.Tests.PlayMode`, `PromptUGUI.Editor`, and `PromptUGUI.Tests.EditMode.Addressables` via `InternalsVisibleTo`.
 
 `Runtime/` is split into:
