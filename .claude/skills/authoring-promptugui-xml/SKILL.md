@@ -89,7 +89,7 @@ Then `ScreenCapture.CaptureScreenshot(path)` in its own `execute_code` call and 
 | `<Template name="...">`                                                                              | Reusable subtree, expanded at parse time.                 | Body must have **exactly one root element**.                                                                                                                                                                                                                                                  |
 | `<Style name="...">`                                                                                 | Named attribute pack, pulled in with `class="..."`.       | Top-level **or** inside `<Theme>`, no children. `name` is kebab-case `[a-z0-9-]`; inside a `<Theme>` it may also be `ns:name` to override an imported pack. See **Style & class** and **Theme-scoped styles**.                                                                                 |
 
-`<Import>`, `<Theme>`, `<Screen>`, `<Style>`, `<Template>` are the **only** elements allowed at the top level. Comments use standard `<!-- -->`.
+`<Import>`, `<Theme>`, `<Screen>`, `<Style>`, `<Template>` are the **only** elements allowed at the top level. Comments use standard `<!-- -->`. They are stripped when Unity imports the `.ui.xml` and never reach a build, and every element keeps its line, so error locations still match the source — comment as freely as the file needs.
 
 ## Built-in primitives (20)
 

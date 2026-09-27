@@ -82,6 +82,8 @@ Semantics: rows load in list order (a row already in the pool is skipped, so the
 
 **Hot-reload** is enabled automatically when you load via `LoadDocumentAsync` (resolver-backed). The sync `UI.LoadDocument(label, xml)` overload bypasses the resolver — handy for raw-XML tests but **cannot be hot-reloaded**.
 
+**A `.ui.xml` TextAsset holds the XML without its comments.** The package imports every `.ui.xml` with its own importer (an override of Unity's TextScriptImporter, assigned automatically), which strips the comments and keeps every element on its line: `TextAsset.text` — what `Resources.Load`, Addressables or your own resolver hands to the library — never carries them into a build, and `UILog`'s `src:line` still names the source line. Switching importers changes the TextAsset's local fileID, so a `TextAsset` field that pointed at a `.ui.xml` directly (in a scene, prefab or ScriptableObject — e.g. a `PromptUGUIDocumentHost`) has to be assigned again once; `Resources.Load`, Addressables addresses / GUIDs and `AssetReferenceT<TextAsset>` are unaffected. XML that does not go through the asset pipeline (StreamingAssets, a download) reaches the resolver as written.
+
 Prefer to use (if `com.unity.addressables` package is installed) Addressables-backed `.ui.xml` loading (`UI.UseAddressableResolver()` + `AssetReferenceT<TextAsset>`), see the **using-promptugui-addressables** skill.
 
 ## Unity version support (async backend)

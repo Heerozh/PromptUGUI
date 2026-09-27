@@ -1,6 +1,6 @@
 # `.ui.xml` 导入时去注释
 
-> 状态：**实施中**（§9 按推荐项已定）。分支 `feat/strip-xml-comments`。
+> 状态：**已实现**，待 PR（§9 按推荐项已定，实施记录见 §10）。分支 `feat/strip-xml-comments`。
 > 相关：`Editor/PoFileImporter.cs`（同一套 importer override 机制）；`Runtime/Core/Parser/LineInfoXmlDocument.cs` +
 > `Runtime/Core/Lint/SourceLocation.cs`（`UILog` 的 `src:line` 从这里来）。
 
@@ -117,7 +117,8 @@ OnPostprocessAllAssets：对 imported ∪ moved 中以 ".xml" 结尾的 path
 ## 4. 迁移与影响
 
 - **meta 一次性改写**：每个 `.ui.xml.meta` 多出 `importerOverride` 块，GUID 不变。本包 `Runtime/Resources/` 的 8 个由宿主导入时写出、
-  随本 PR 提交；`Samples~/` 的 5 个 Unity 看不见，从生成的 meta 复制同一块过去。ssw 的 39 个由其作者提交。
+  随本 PR 提交；`Samples~/` Unity 看不见，其中只有 CommonControls 带 meta（1 个），从生成的 meta 复制同一块过去；ProceduralStyle
+  整个示例不带 meta，导入示例时由 postprocessor 装上。ssw 的 39 个由其作者提交。
 - **直接引用会断一次**：主对象的 local fileID 由 `4900000`（TextScriptImporter）变成 identifier 的哈希
   （ssw 里 `.po` 实测为 `2811297602134710623`）。场景 / prefab / SO 里**直接拖入**的 `TextAsset` 引用（例如
   `PromptUGUIDocumentHost` 的 XML 字段）会变成 Missing，需要重拖。不受影响：`Resources.Load`、Addressables 的地址 / GUID、
@@ -189,3 +190,28 @@ OnPostprocessAllAssets：对 imported ∪ moved 中以 ".xml" 结尾的 path
 | 2 | 编辑器里的 TextAsset | 同样剥离（同一份导入产物，§2 已论证无副作用） | 仅构建时剥离（见 §2 否决表） |
 | 3 | stripper 放哪 | `Editor/`（只有导入器用；EditorOnly 测试能访问 Runtime 与 Editor 的 internal） | `Runtime/Core/Parser`（纯 C#，CLI 将来可复用） |
 | 4 | `Samples~` 的 meta | 预置 override 块 | 不动，用户导入 sample 时由 postprocessor 补写 |
+
+## 10. 实施记录（2026-09-27，分支 `feat/strip-xml-comments`）
+
+提交：`4d1b3f1` spec → `c1d15da` stripper → `5914b44` 导入器与分派 → `dc45702` meta → 文档。
+
+- **动手前对草案的修正**（已并入 §3，不是实现偏离）：
+  - `xml:space` 由「欠账作废、照删」改为整份原样返回。原写法在 `preserve` 作用域外也会出错：文本 run 里夹在两段注释之间的空白，
+    原文里是被丢弃的 Whitespace 节点，删注释后会并进文字。
+  - 于是文本 run 的规则同样要把全空白段一起删（§3.2 第二条）。§5-5 的 `abc<!--x-->⏎<!--y-->def` 用例专门锁这一点。
+  - 新增「`<?xml` 声明不在开头 → 原样返回」：声明前有注释本来就解析失败，剥掉注释会把它「修好」。
+  - 新增已有文件的补齐（§3.3）：只注册 override 型导入器不会让既有 `.xml` 重导，postprocessor 看不到它们。
+  - 原样返回时导入器记一条 warning（§3.1）。
+- **meta 的样子**：Unity 在 `importerOverride` 之后保留原来的 `TextScriptImporter:` 段（兜底设置），与 `.po` 相同。
+  9 个 meta 的 override 块逐字一致（`Hash: e414a684a99476a84a1982c4d8665451`）。
+- **验证**：
+  - 新测试 `XmlCommentStripperTests` 18/18、`UiXmlImporterTests` 5/5，均先 Red 后 Green。
+  - 全量 EditMode + EditorOnly + Addressables 4908/4908、PlayMode 245/245；`dotnet format --verify-no-changes` 通过。
+  - ssw_re_client：补扫后 39/39 带 override；逐个比较磁盘原文与导入后的 TextAsset，39/39 无注释、行数相同、元素名 / 行号 /
+    属性 / 直接文本全部一致（Round.ui.xml 等 393 段注释）。这组比较代替了 §5-16 里「故意写错一个属性看 `UILog` 行号」：
+    行号对全部元素逐个比过，不必再改用户文件。
+  - §5-16 冒烟：进 Play，游戏直接进入 Round，`Round` Screen 正常建立，Console 无 PromptUGUI 错误 / 警告。
+  - §5-17：Play 中经 `Addressables.LoadAssetAsync<TextAsset>` 读回 `Remote UI` 组 39/39 无注释、行数相同（Play Mode Script
+    为 Use Asset Database）。**未做真正的 bundle 构建**：它会改写 ssw 的 content state；bundle 序列化的正是这份导入产物。
+- **ssw 侧**：39 个 `.ui.xml.meta` 已在 ssw 工作区被改写，由其作者提交。
+- **跑测试的小坑**：加入导入器后的那次域重载，补扫会批量重导全部 `.ui.xml`，紧接着启动的测试可能初始化超时，重跑即可。
