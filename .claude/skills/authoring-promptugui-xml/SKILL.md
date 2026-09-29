@@ -112,7 +112,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 | `<Toggle>` | Image+Toggle，`OnValueChanged:bool`，可互斥 |
 | `<Slider>` | Image+Slider，`OnValueChanged:float` |
 | `<Dropdown>` | TMP_Dropdown，`OnSelected:int`（`BindOptions`） |
-| `<ScrollList>` | ScrollRect+Mask + Vertical/Horizontal/GridLayoutGroup（XML 静态子节点 + `BindItems`） |
+| `<ScrollList>` | ScrollRect+Mask + Vertical/Horizontal/GridLayoutGroup（XML 静态子节点 + `BindItems`）; `virtualize="true"` builds only the rows near the viewport (→ `reference/virtualize.md`) |
 | `<Scrollbar>` | `<ScrollList>` / `<Dropdown>` 的滚动条**部件子元素**：轨道 = 主表面（`radius` 等同 `<Frame>`），滑块 `handle*`；不写就是默认条（见本节末 **`<Scrollbar>`** 小节） |
 | `<InputField>` | TMP_InputField，`OnValueChanged` / `OnEndEdit` / `OnSubmit:string` |
 | `<Progress>` | 只读线性进度条 |
@@ -542,8 +542,10 @@ Children of a list are layout-group children: `anchor` / `margin` are dropped (`
 |---|---|---|---|
 | `radius` · `borderWidth` · `glass` … | 同 `<Frame>` | — | **程序化表面**（背景）→ 见 **程序化表面** 一节 |
 | `itemTemplate` | tag name | — | `BindItems` 前必填；只写静态子节点时可省 |
-| `reuseItems` | bool | `true` | Rows are **recycled** across `BindItems` pushes: item *i* is bound onto row *i*, only the extra rows are instantiated and only the tail is destroyed, so a same-count push instantiates nothing. `false` = destroy and rebuild every row on every push (for a custom-Control row whose internal state is not reset by attributes). The bind callback contract that recycling relies on is in scripting-promptugui-csharp (**List / option push**). |
-| `reorder` | bool | `false` | **Drag-to-reorder.** Press a row (hold on touch), drag it, the other rows make room live, release and it settles into the gap; C# gets `OnReordered((From, To))`. Works for static children and `BindItems` rows, single column / row and grid. Variant-switchable (`reorder.portrait="true"`). → [`reference/reorder.md`](reference/reorder.md) |
+| `reuseItems` | bool | `true` | Rows are **recycled** across `BindItems` pushes: item *i* is bound onto row *i* — or, with a keyed `BindItems(…, key:)`, onto the row its key had — only the extra rows are instantiated and only the rows nobody took are destroyed, so a same-count push instantiates nothing. `false` = destroy and rebuild every row on every push (for a custom-Control row whose internal state is not reset by attributes). The bind callback contract that recycling relies on is in scripting-promptugui-csharp (**List / option push**). |
+| `virtualize` | bool | `false` | **Row virtualization** for long lists (chat, logs, feeds): only the rows near the viewport exist, the rest is empty space of the right height — a push or a scroll costs about the same at 100 items as at 10,000. Rows may differ in height (measured as they appear). **Fixed when the list is built** (`PUI-SCROLL-VIRTUAL-VARIANT`); one vertical column only — not with `columns` / `direction="horizontal"` (`PUI-SCROLL-VIRTUAL-LAYOUT`), `reorder` (`…-REORDER`), `reuseItems="false"` (`…-REUSE`) or an unbounded `height="hug"` (`…-HUG`); needs `itemTemplate` (`…-TEMPLATE`). The bind callback also runs while scrolling. → [`reference/virtualize.md`](reference/virtualize.md) |
+| `stickToEnd` | bool | `false` | **Follow the end** (a chat log): while the viewport is at the end, pushes and size changes (a row rewrapping, the scrollbar appearing, a resize) keep it there, and the first push opens at the end. "At the end" is remembered — only the user scrolling changes it — and with it on the start is not sticky. Both kinds of list; variant-switchable. C#: `ScrollToEnd()` / `IsAtEnd` / `OnAtEndChanged`. |
+| `reorder` | bool | `false` | **Drag-to-reorder.** Press a row (hold on touch), drag it, the other rows make room live, release and it settles into the gap; C# gets `OnReordered((From, To))`. Works for static children and `BindItems` rows, single column / row and grid — not on a `virtualize` list. Variant-switchable (`reorder.portrait="true"`). → [`reference/reorder.md`](reference/reorder.md) |
 | `reorderHold` | `auto` \| duration | `auto` | How long to hold before the row lifts. `auto` = mouse `0` (lifts on the first drag frame; the wheel scrolls), touch `0.4s` (a finger drag IS the scroll) — and `0` on both when `reorderHandle` is set. Explicit values (`0.4s` / `400ms` / `0.4`) apply to both. |
 | `reorderHandle` | id inside the row | — | Only a press on that node lifts the row; the rest of the row scrolls as usual. Geometric hit (no `raycastTarget` needed — an `<Icon>` grip works). `PUI-REORDER-HANDLE-ID` when the itemTemplate / a static row lacks it. |
 | `reorderDuration` | duration | `0.15s` | Squeeze (displaced rows) and settle (the dropped row) tween length, OutCubic. `0` = instant. |
@@ -587,6 +589,15 @@ A priority list the user sorts by hand — drag from the grip, rows make room li
 `screen.Get<ScrollList>("tasks").OnReordered.Subscribe(e => tasks.Move(e.From, e.To))` keeps the data
 in step — the rows are already in the new order when it fires. Gesture rules (mouse vs touch, hold,
 handle), the `lift` / `drop` row hooks, and the full C# contract: [`reference/reorder.md`](reference/reorder.md).
+
+A chat channel holding a thousand messages — only the visible rows exist, and it stays on the newest message while it is at the bottom:
+
+```xml
+<ScrollList id="chat" itemTemplate="ChatRow" width="stretch" height="stretch"
+            virtualize="true" stickToEnd="true" spacing="4" padding="8"/>
+```
+
+Bind it once, with a key: `chat.BindItems(messages, bind, key: m => m.Id)`. What changes for the bind callback, the anchoring rules (why trimming the oldest message does not move what you read) and a full recipe: [`reference/virtualize.md`](reference/virtualize.md).
 
 ### `<InputField>`
 
@@ -1859,6 +1870,8 @@ BUILT-INS     <Frame> <Image> <Text> <VStack> <HStack> <Grid> <Btn> <Icon>
               <Toggle> <Slider> <Dropdown> <ScrollList> <InputField> <TabMenu>
               <ScrollList …><Scrollbar thickness="6" overlay="true" padding="1.5" radius="pill" handleRadius="pill" handleGlow="3"/>…</ScrollList>  滚动条是部件子元素（<Dropdown> 同）；轨道 = 主表面，滑块 = handle*；旧 scrollbar* 属性已退役
               <ScrollList reorder="true" reorderHold="auto" reorderHandle="grip" reorderDuration="0.15s"/>  拖动排序：实时让位 + 松手落位补间；C# OnReordered((From,To))；行内 <Animation on="lift" reverse-on="drop">
+              <ScrollList virtualize="true" stickToEnd="true" itemTemplate="Row"/>  row virtualization: only rows near the viewport exist (one vertical column, fixed at build);
+                                       stickToEnd follows the end; C# BindItems(src, bind, key: m => m.Id) / ScrollToEnd() / OnAtEndChanged → reference/virtualize.md
               <Progress value="0.6" fill="ui:bar"/>  最简；mask= + 不设 bg → mask sprite 自动可见兼当底；radial 进度环不在 <Progress> 范围
               <TabBar><Tab text="A" sprite="..." selectedSprite="..." bind="frame_a" isOn="true"/>...</TabBar>  互斥 + Tab 自管 sprite/selectedSprite + bind 自动 toggle Frame
               <Carousel itemTemplate="Card" interval="5" dots="bottom-center" dotSprite="ui:dot" dotColor="#888" dotSelectedColor="#fff"/>  翻页 + 自动播放 + 拖动 + 状态化指示点；卡片走 C# BindItems；当前页 resize 不重置
@@ -1956,6 +1969,13 @@ GAMEPAD NAV   UI.UseGamepadNavigation()        enable once at startup (new Input
               PUI-NAV-ON-NON-SELECTABLE        nav*/focus on non-selectable tag (Frame/Image/Text/etc.)
               PUI-NAV-UNKNOWN-TARGET           navX="id" where id not in same Screen
               details: reference/navigation.md
+
+SCROLLLIST LINT PUI-SCROLL-VIRTUAL-LAYOUT       virtualize with columns / direction="horizontal" (runtime: not virtualized)
+              PUI-SCROLL-VIRTUAL-REORDER       virtualize with reorder="true" (runtime: reorder stays off)
+              PUI-SCROLL-VIRTUAL-REUSE         virtualize with reuseItems="false" (ignored)
+              PUI-SCROLL-VIRTUAL-HUG           virtualize with height="hug" / clamp(min, hug, _) (every row gets built)
+              PUI-SCROLL-VIRTUAL-VARIANT       virtualize.<variant>= (the mode is fixed when the list is built)
+              PUI-SCROLL-VIRTUAL-TEMPLATE      virtualize without itemTemplate (BindItems throws)
 
 SCROLLBAR LINT PUI-SCROLLBAR-OUTSIDE            <Scrollbar> not a direct child of <ScrollList> / <Dropdown>
               PUI-SCROLLBAR-DUPLICATE          a second bar under one host (first in document order wins)

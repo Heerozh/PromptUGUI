@@ -103,6 +103,11 @@ msgstr "XML generates uGUI directly"
 msgid "e.g. Link"
 msgstr "e.g. Link"
 
+# . in PushChat()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:289
+msgid "{0} 条消息 · 只建了 {1} 行"
+msgstr "{0} messages · only {1} rows built"
+
 # . in BindModalPage()
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:116
 msgid "你好，{0}！"
@@ -123,6 +128,11 @@ msgstr "First switch to the \"Form Input\" page"
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:155
 msgid "切到「模态提示」页"
 msgstr "Switch to the \"Modal Prompt\" page"
+
+# . in ChatLine()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:296
+msgid "刚种下一片南瓜，等着收成。"
+msgstr "Just planted a field of pumpkins. Now we wait."
 
 # . in BindModalPage()
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:128
@@ -149,15 +159,35 @@ msgstr "Cancelled"
 msgid "引导完成，尽情探索吧！"
 msgstr "Tutorial complete, feel free to explore!"
 
+# . in ChatLine()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:299
+msgid "往上翻看历史的时候，新消息不会把画面拽走。"
+msgstr "Scroll up through the history: new messages won't drag the view away."
+
 # . in RunTutorial()
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:153
 msgid "拖动滑杆调整音量"
 msgstr "Drag the slider to adjust volume"
 
+# . in ChatLine()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:297
+msgid "收到！"
+msgstr "Got it!"
+
+# . in ChatLine()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:295
+msgid "有人组队打副本吗？"
+msgstr "Anyone up for a dungeon run?"
+
 # . in BindListPage()
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:84
 msgid "欢迎使用 PromptUGUI"
 msgstr "Welcome to PromptUGUI"
+
+# . in ChatLine()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:300
+msgid "点下面的按钮回到最新。"
+msgstr "Tap the button below to jump back to the latest."
 
 # . in RunTutorial()
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:156
@@ -184,8 +214,12 @@ msgstr "Carousel auto-play"
 msgid "这是一条 Toast！"
 msgstr "This is a Toast!"
 
-
 # . in BindModalPage()
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:124
 msgid "未检测到 Markdig，Markdown 富文本功能不可用。\n请通过 NuGetForUnity 安装 Markdig.Signed 后重试。"
 msgstr "Markdig not detected — Markdown rich text is unavailable.\nInstall Markdig.Signed via NuGetForUnity and try again."
+
+# . in ChatLine()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:298
+msgid "这条消息比较长，用来演示自动换行：虚拟列表逐行实测高度，长短不一的消息也能排得严丝合缝。"
+msgstr "This one is longer, to show wrapping: a virtual list measures every row it builds, so messages of any length stack up exactly."

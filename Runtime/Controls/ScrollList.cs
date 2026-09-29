@@ -112,6 +112,19 @@ namespace PromptUGUI.Controls
         private System.Runtime.ExceptionServices.ExceptionDispatchInfo _bindError;
         private bool _syncIsPush;
 
+        // Scrolling from code and the end (spec §4.2). _atEnd is written after a sync, a tick or a ScrollTo* — never in
+        // the middle of one, so a subscriber that pushes does not re-enter (VIR-P7); a ScrollTo* made mid-sync waits.
+        private readonly ReactiveProperty<bool> _atEnd = new(true);
+        private Action _queuedScroll;
+        // A list that does not window (a plain one, or a virtual one before its first push): a ScrollTo* made while it
+        // was hidden, and whether a push came since the last tick — the end moved, but nobody has laid it out yet.
+        private ScrollIntent _pendingScroll;
+        private int _pendingScrollIndex;
+        private bool _stickPending;
+        // The axis Content is anchored for (-1 before the first layout mode). Only a new axis re-anchors Content — the
+        // direction / columns setters behind ApplyLayoutMode replay on every ReSolve, and the scroll must survive them.
+        private int _contentAxis = -1;
+
         /// <summary>Test hook: how many window syncs have run.</summary>
         internal int SyncCount { get; private set; }
 
@@ -158,6 +171,39 @@ namespace PromptUGUI.Controls
 
         /// <summary>The rows in sibling order — static placeholders or <see cref="BindItems{T,TSlot}"/> rows.</summary>
         internal IReadOnlyList<IControl> Slots => _slots;
+
+        /// <summary>
+        /// The viewport shows the end of the list, or the content fits (spec 2026-09-29-scrolllist-virtualization §4.2).
+        /// Read from the current layout: a plain list that was just pushed to still reports the previous content until
+        /// the canvas lays it out.
+        /// </summary>
+        public bool IsAtEnd => _content == null || AtEnd(MainAxis, MainScroll(MainAxis));
+
+        /// <summary>
+        /// <see cref="IsAtEnd"/> as a stream: the current value on subscribe, then only changes. Written after every
+        /// window sync, every scroll tick and every <c>ScrollTo*</c> — never in the middle of one.
+        /// </summary>
+        public Observable<bool> OnAtEndChanged => _atEnd;
+
+        /// <summary>Jumps to the start (a fling in progress stops).</summary>
+        public void ScrollToStart() => ScrollTo(ScrollIntent.Start, 0);
+
+        /// <summary>Jumps to the end (a fling in progress stops); with <c>stickToEnd</c> the list follows the end again.</summary>
+        public void ScrollToEnd() => ScrollTo(ScrollIntent.End, 0);
+
+        /// <summary>
+        /// Jumps so that item <paramref name="index"/>'s start edge is at the viewport's start edge, clamped to what can
+        /// be scrolled. A virtual list counts its <see cref="ItemCount"/> items; any other list its
+        /// <see cref="SlotCount"/> rows — static rows included (VIR-P3). A hidden list jumps when it shows.
+        /// </summary>
+        public void ScrollToIndex(int index)
+        {
+            var count = Windowing ? _itemCount : _slots.Count;
+            if (index < 0 || index >= count)
+                throw new ArgumentOutOfRangeException(nameof(index), index,
+                    $"<ScrollList id='{Id}'> has {count} {(Windowing ? "items" : "rows")}");
+            ScrollTo(ScrollIntent.Index, index);
+        }
 
         internal bool IsHorizontal => !IsGrid && _direction == "horizontal";
 
@@ -412,31 +458,33 @@ namespace PromptUGUI.Controls
             var fitter = _content.GetComponent<ContentSizeFitter>()
                          ?? _content.gameObject.AddComponent<ContentSizeFitter>();
 
-            if (wantHorizontal)
+            _scroll.horizontal = wantHorizontal;
+            _scroll.vertical = !wantHorizontal;
+            fitter.horizontalFit = wantHorizontal ? ContentSizeFitter.FitMode.PreferredSize : ContentSizeFitter.FitMode.Unconstrained;
+            fitter.verticalFit = wantHorizontal ? ContentSizeFitter.FitMode.Unconstrained : ContentSizeFitter.FitMode.PreferredSize;
+            // Re-anchoring puts Content back at the start: only for a new axis. The setters that land here replay on every
+            // ReSolve, and a list the user had scrolled (or that follows its end) must stay where it is.
+            var axis = wantHorizontal ? 0 : 1;
+            if (axis != _contentAxis)
             {
-                _scroll.horizontal = true;
-                _scroll.vertical = false;
-                // 左侧锚点：竖向铺满 viewport，水平方向由 ContentSizeFitter 撑开
-                _content.anchorMin = new Vector2(0f, 0f);
-                _content.anchorMax = new Vector2(0f, 1f);
-                _content.pivot = new Vector2(0f, 0.5f);
+                _contentAxis = axis;
+                if (wantHorizontal)
+                {
+                    // 左侧锚点：竖向铺满 viewport，水平方向由 ContentSizeFitter 撑开
+                    _content.anchorMin = new Vector2(0f, 0f);
+                    _content.anchorMax = new Vector2(0f, 1f);
+                    _content.pivot = new Vector2(0f, 0.5f);
+                }
+                else
+                {
+                    // 顶部锚点：水平方向铺满 viewport，竖向由 ContentSizeFitter 撑开（网格模式共用这一支）
+                    _content.anchorMin = new Vector2(0f, 1f);
+                    _content.anchorMax = new Vector2(1f, 1f);
+                    _content.pivot = new Vector2(0.5f, 1f);
+                }
                 _content.sizeDelta = Vector2.zero;
                 _content.anchoredPosition = Vector2.zero;
-                fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
-                fitter.verticalFit = ContentSizeFitter.FitMode.Unconstrained;
-            }
-            else
-            {
-                _scroll.horizontal = false;
-                _scroll.vertical = true;
-                // 顶部锚点：水平方向铺满 viewport，竖向由 ContentSizeFitter 撑开（网格模式共用这一支）
-                _content.anchorMin = new Vector2(0f, 1f);
-                _content.anchorMax = new Vector2(1f, 1f);
-                _content.pivot = new Vector2(0.5f, 1f);
-                _content.sizeDelta = Vector2.zero;
-                _content.anchoredPosition = Vector2.zero;
-                fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-                fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+                _scroll.MarkWritten();   // the list's own write, not the user's
             }
             ApplyGroupMetrics();
             ApplyCrossAxisClip();
@@ -475,7 +523,52 @@ namespace PromptUGUI.Controls
 
         void IScrollTickHost.OnScrollLateUpdate()
         {
-            if (!_virtual || _binding == null || _inSync) return;
+            if (_inSync || _disposed) return;
+            if (Windowing) WindowTick();
+            else PlainTick();
+            PublishAtEnd();
+        }
+
+        /// <summary>
+        /// A list that does not window: a <c>ScrollTo*</c> made while it was hidden, and <c>stickToEnd</c> — the end
+        /// moved (a push, a row that rewrapped, the viewport) while the list was stuck to it (§5.4, VIR-P5).
+        /// </summary>
+        private void PlainTick()
+        {
+            if (_scroll.ConsumeUserMotion()) RecomputeStuck();
+            if (_pendingScroll != ScrollIntent.None)
+            {
+                var intent = _pendingScroll;
+                _pendingScroll = ScrollIntent.None;
+                _stickPending = false;
+                ApplyScroll(intent, _pendingScrollIndex);
+                return;
+            }
+            var axis = MainAxis;
+            if (_stickToEnd && _stuckToEnd && !_scroll.IsDragging)
+            {
+                // Keep the distance to the end the list had at the last tick: 0 at rest, the pull of an elastic bounce
+                // while it plays out. A push is not laid out yet — Content is laid out here, once per pushed frame.
+                var fromEnd = MainScroll(axis) - _lastEndScroll;
+                if (_stickPending)
+                {
+                    EnsureSettled();
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
+                }
+                var end = EndScroll(axis);
+                if (_stickPending || end != _lastEndScroll)
+                {
+                    var target = end + fromEnd;
+                    if (_scroll.velocity == Vector2.zero) target = Mathf.Clamp(target, 0f, end);
+                    ShiftMain(axis, target - MainScroll(axis));
+                }
+            }
+            _stickPending = false;
+            _lastEndScroll = EndScroll(axis);
+        }
+
+        private void WindowTick()
+        {
             var userMoved = _scroll.ConsumeUserMotion();
             if (userMoved) RecomputeStuck();
             var size = _viewport.rect.size;
@@ -516,8 +609,106 @@ namespace PromptUGUI.Controls
 
         void IScrollTickHost.OnScrollEnabled()
         {
-            if (_virtual && _binding != null) _pending = true;
+            if (Windowing) _pending = true;
         }
+
+        // ───── scrolling from code (spec 2026-09-29 §4.2) ─────
+
+        private enum ScrollIntent : byte
+        {
+            None,
+            Start,
+            End,
+            Index,
+        }
+
+        // A pixel of slack for "at an edge": float error, a sub-pixel elastic rest.
+        private const float EdgeSlop = 1f;
+
+        /// <summary>The list realizes a window of its items: virtual and bound. Before its first push a virtual list is a plain one.</summary>
+        private bool Windowing => _virtual && _binding != null;
+
+        private int MainAxis => IsHorizontal ? 0 : 1;
+
+        // How far the list is scrolled from its start along its axis, and the farthest it goes. A column's Content moves
+        // up (+y) to scroll down; a row's moves left (−x) to scroll right.
+        private float MainScroll(int axis) => axis == 1 ? _content.anchoredPosition.y : -_content.anchoredPosition.x;
+
+        private float EndScroll(int axis) => Mathf.Max(0f, _content.rect.size[axis] - _viewport.rect.size[axis]);
+
+        // At the end: within a pixel of it or past it (an elastic pull) — or the content fits, which is both ends at once.
+        private bool AtEnd(int axis, float scroll)
+        {
+            var end = EndScroll(axis);
+            return end <= EdgeSlop || scroll >= end - EdgeSlop;
+        }
+
+        private void ShiftMain(int axis, float delta) =>
+            _scroll.ShiftContent(axis == 1 ? new Vector2(0f, delta) : new Vector2(-delta, 0f));
+
+        private void PublishAtEnd()
+        {
+            if (!_disposed) _atEnd.Value = IsAtEnd;
+        }
+
+        private void ScrollTo(ScrollIntent intent, int index)
+        {
+            if (_disposed) return;
+            if (_inSync)
+            {
+                // From a bind callback: once the sync is done, and the latest one wins (VIR-P7).
+                _queuedScroll = () => ScrollTo(intent, index);
+                return;
+            }
+            _scroll.StopMovement();
+            // The sticky edges follow the request (§5.4): the start is sticky again; the end is, if it is sticky at all;
+            // after an index neither is — the item stays where it was put.
+            _stuckToStart = intent == ScrollIntent.Start;
+            _stuckToEnd = intent == ScrollIntent.End && _stickToEnd;
+            if (Windowing)
+            {
+                var anchor = intent == ScrollIntent.Start ? SnapTo(AnchorKind.Start)
+                           : intent == ScrollIntent.End ? SnapTo(AnchorKind.End)
+                           : new Anchor { Kind = AnchorKind.Item, Index = index, Snap = true };
+                if (!GameObject.activeInHierarchy)
+                {
+                    // Kept like a push's anchor: carried through later pushes, honoured when the list shows (§5.9).
+                    _pendingAnchor = anchor;
+                    _pending = true;
+                    return;
+                }
+                Sync(_pendingBindAll, anchor);   // publishes IsAtEnd
+                return;
+            }
+            if (!GameObject.activeInHierarchy)
+            {
+                // Nothing can be laid out while hidden: the first tick after the list shows does it.
+                _pendingScroll = intent;
+                _pendingScrollIndex = index;
+                return;
+            }
+            ApplyScroll(intent, index);
+            PublishAtEnd();
+        }
+
+        /// <summary>A plain list jumps at once — after laying Content out, which a push this frame has not been yet.</summary>
+        private void ApplyScroll(ScrollIntent intent, int index)
+        {
+            EnsureSettled();
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
+            var axis = MainAxis;
+            var end = EndScroll(axis);
+            var target = 0f;
+            if (intent == ScrollIntent.End) target = end;
+            else if (intent == ScrollIntent.Index && _slots.Count > 0)
+                target = StartOf(HostOf(_slots[Mathf.Clamp(index, 0, _slots.Count - 1)]), axis);
+            ShiftMain(axis, Mathf.Clamp(target, 0f, end) - MainScroll(axis));
+            _lastEndScroll = end;
+        }
+
+        // Distance from Content's start edge to a laid-out row's start edge: its top in a column, its left in a row.
+        private static float StartOf(RectTransform host, int axis) =>
+            axis == 1 ? TopOf(host) : host.anchoredPosition.x - host.rect.width * host.pivot.x;
 
         // ───── the scrollbar (IScrollbarHost) ─────
 
@@ -694,6 +885,8 @@ namespace PromptUGUI.Controls
             get => _stickToEnd;
             set
             {
+                // Turned on: the list follows the end from here if it is at the end now (an empty one is).
+                if (value && !_stickToEnd) _stuckToEnd = IsAtEnd;
                 _stickToEnd = value;
                 if (!value) _stuckToEnd = false;
             }
@@ -973,22 +1166,36 @@ namespace PromptUGUI.Controls
                 return;
             }
 
+            var first = !_bound;
             _inSync = true;
             try { Rebuild(binding, items.Count); }
             catch
             {
                 _queuedPush = null;
+                _queuedScroll = null;
                 throw;
             }
             finally { _inSync = false; }
+            if (first)
+            {
+                // New rows open at the start — at the end with stickToEnd (§5.4 rule 3). Pushes never move a plain
+                // list otherwise; the tick follows the end for a list stuck to it.
+                _stuckToStart = true;
+                _stuckToEnd = _stickToEnd;
+            }
+            _stickPending = true;
             RunQueued();
         }
 
+        /// <summary>What a sync put off (VIR-P7): the latest push, then the latest <c>ScrollTo*</c>.</summary>
         private void RunQueued()
         {
             var push = _queuedPush;
+            var scroll = _queuedScroll;
             _queuedPush = null;
-            push?.Invoke();
+            _queuedScroll = null;
+            try { push?.Invoke(); }
+            finally { scroll?.Invoke(); }
         }
 
         /// <summary>
@@ -1074,18 +1281,24 @@ namespace PromptUGUI.Controls
         /// <summary>What the ScrollRect's tick does once the user has moved the content — for EditMode tests.</summary>
         internal void RefreshWindow()
         {
-            if (!_virtual || _binding == null || _inSync) return;
+            if (!Windowing || _inSync) return;
             if (_scroll.ConsumeUserMotion()) RecomputeStuck();
             Sync(bindAll: false, _pendingAnchor ?? CaptureAnchor());
         }
 
-        /// <summary>The user moved the content: re-read the sticky edges from where it is now (VIR-P5).</summary>
+        /// <summary>
+        /// The user moved the content: re-read the sticky edges from where it is now (VIR-P5). Past an edge counts (an
+        /// elastic pull); content that fits is at both. The distance to the end is measured against this geometry from
+        /// here on.
+        /// </summary>
         private void RecomputeStuck()
         {
-            var s = ScrollY;
-            var end = Mathf.Max(0f, _content.rect.height - _viewport.rect.height);
-            _stuckToStart = s <= 1f;
-            _stuckToEnd = _stickToEnd && s >= end - 1f;
+            var axis = MainAxis;
+            var s = MainScroll(axis);
+            var end = EndScroll(axis);
+            _stuckToStart = end <= EdgeSlop || s <= EdgeSlop;
+            _stuckToEnd = _stickToEnd && AtEnd(axis, s);
+            _lastEndScroll = end;
         }
 
         private void VirtualPush(int count, bool sameBinding)
@@ -1263,7 +1476,9 @@ namespace PromptUGUI.Controls
                     // own heights do not depend on Leading, so after the first pass only positions change.
                     for (var pass = 0; pass < 4; pass++)
                     {
-                        var s = TargetScroll(anchor, view);
+                        // Where the viewport will END UP, clamp included: a window cut around an unclamped target would
+                        // leave the rows between the clamped position and that target unrealized.
+                        var s = ResolveScroll(anchor, view, isPush);
                         var margin = Mathf.Max(1f, _model.Estimate);
                         _model.TryWindow(s - margin, s + view + margin, out var first, out var last);
                         var leading = _model.ExtentBefore(first);
@@ -1293,6 +1508,7 @@ namespace PromptUGUI.Controls
             catch
             {
                 _queuedPush = null;
+                _queuedScroll = null;
                 _bindError = null;
                 throw;
             }
@@ -1305,9 +1521,12 @@ namespace PromptUGUI.Controls
             if (bindError != null)
             {
                 _queuedPush = null;
+                _queuedScroll = null;
+                PublishAtEnd();
                 bindError.Throw();   // through R3's unhandled-exception handler: logged, the list is consistent
             }
             RunQueued();
+            PublishAtEnd();
         }
 
         /// <summary>
@@ -1353,25 +1572,33 @@ namespace PromptUGUI.Controls
                 // Delta keeps an elastic pull past the end as it was (0 when resting on the end).
                 case AnchorKind.End: return Mathf.Max(0f, _model.Total - view) + anchor.Delta;
                 case AnchorKind.Item:
+                    // An empty list has no item to anchor on (a ScrollToIndex queued behind a push that emptied it).
+                    if (_model.Count == 0) return 0f;
                     return _model.OffsetOf(Mathf.Clamp(anchor.Index, 0, _model.Count - 1)) - anchor.Delta;
                 default: return ScrollY;
             }
         }
 
         /// <summary>
-        /// Puts the anchor back (VIR-P6). On the scroll path this only ever SHIFTS the content by what the anchor
-        /// moved — an elastic pull past either end plays out instead of being snapped away every frame. A push
-        /// lands on a valid position once the list is at rest (not dragging, no inertia); a first push always does.
+        /// Where the anchor puts the viewport (VIR-P6). On the scroll path that is only ever the anchor's own place — an
+        /// elastic pull past either end plays out instead of being snapped away every frame. A push lands on a valid
+        /// position once the list is at rest (not dragging, no inertia); a snap (a first push, a <c>ScrollTo*</c>) always does.
         /// </summary>
-        private void ApplyAnchor(Anchor anchor, float view, bool isPush)
+        private float ResolveScroll(Anchor anchor, float view, bool isPush)
         {
             var target = TargetScroll(anchor, view);
             if (anchor.Snap || (isPush && !_scroll.IsDragging && _scroll.velocity == Vector2.zero))
                 target = Mathf.Clamp(target, 0f, Mathf.Max(0f, _model.Total - view));
+            return target;
+        }
+
+        /// <summary>Puts the anchor back — a shift of the content, never a jump the ScrollRect would read as motion.</summary>
+        private void ApplyAnchor(Anchor anchor, float view, bool isPush)
+        {
             // Even a zero shift goes through: the bar is written from the new bounds every sync. A bar left at its
             // stale value is read BACK by the ScrollRect on its next layout pass and drags the content with it (a
             // fresh list's bar sits at 0 = the end).
-            _scroll.ShiftContentY(target - ScrollY);
+            _scroll.ShiftContentY(ResolveScroll(anchor, view, isPush) - ScrollY);
         }
 
         /// <summary>
@@ -1563,6 +1790,7 @@ namespace PromptUGUI.Controls
             // default one is ours.
             if (_ownsBar) _bar?.Dispose();
             _reordered.Dispose();
+            _atEnd.Dispose();
             base.Dispose();
         }
     }

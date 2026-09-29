@@ -8,7 +8,7 @@ using UnityEngine;
 namespace PromptUGUI.Samples.CommonControls
 {
     /// <summary>
-    /// 全控件橱窗：TabBar 四页演示所有内置控件 + 内置模态 / Toast / UI.Tutorial 新手引导。
+    /// 全控件橱窗：TabBar 五页演示所有内置控件 + 内置模态 / Toast / UI.Tutorial 新手引导 + 行虚拟化的聊天列表。
     /// 使用步骤：
     ///   1. 场景里建空 GameObject，挂本组件
     ///   2. 把 FarmSpriteSet.asset 拖到 Inspector 的 Sprite Sets 字段
@@ -54,6 +54,7 @@ namespace PromptUGUI.Samples.CommonControls
             BindDisplayPage(screen);
             BindListPage(screen);
             BindModalPage(screen);
+            BindChatPage(screen);
 
             screen.Get<Btn>("tutorialBtn").OnClick
                   .Subscribe(_ => RunTutorial(screen)).AddTo(screen);
@@ -213,6 +214,91 @@ namespace PromptUGUI.Samples.CommonControls
                 demo.Get<Btn>("close").OnClick.Subscribe(_ => UI.Close("ExitDemo")).AddTo(demo);
             }).AddTo(screen);
         }
+
+        // ⑤ 聊天：<ScrollList virtualize="true" stickToEnd="true">。1000 条消息只为视口附近的十几条建行，
+        // 推一条的开销与总条数无关。只 BindItems 一次（带 key），之后每条新消息都把整份列表推进同一个
+        // Subject —— 列表会把它拷走，所以这里一直复用同一个 List（ReactiveProperty 会把同一个实例去重掉）。
+        const int ChatCap = 1000;
+        readonly List<ChatMsg> _chat = new();
+        readonly Subject<IReadOnlyList<ChatMsg>> _chatFeed = new();
+        long _chatNextId;
+        float _chatNextAt;
+        ScrollList _chatList;
+        Text _chatCount;
+
+        sealed class ChatMsg
+        {
+            public readonly long Id;
+            public readonly string Time;
+            public readonly string Body;
+
+            public ChatMsg(long id, string time, string body)
+            {
+                Id = id;
+                Time = time;
+                Body = body;
+            }
+        }
+
+        void BindChatPage(IScreen screen)
+        {
+            _chatList = screen.Get<ScrollList>("chat");
+            _chatCount = screen.Get<Text>("chatCount");
+            _chatList.BindItems(_chatFeed, (IControl row, ChatMsg m) =>
+            {
+                row.Get<Text>("time").TextValue = m.Time;
+                row.Get<Text>("body").TextValue = m.Body;
+            }, key: m => m.Id).AddTo(screen);
+
+            for (var i = 0; i < ChatCap; i++) AddChat();
+            PushChat();
+
+            // 不在底部时才露出「↓ 新消息」：OnAtEndChanged 订阅即回放当前值，之后只在变化时发
+            var more = screen.Get<Btn>("chatMore");
+            _chatList.OnAtEndChanged.Subscribe(atEnd => more.Hidden = atEnd).AddTo(screen);
+            more.OnClick.Subscribe(_ => _chatList.ScrollToEnd()).AddTo(screen);
+
+            screen.Get<Btn>("chatBurst").OnClick.Subscribe(_ =>
+            {
+                for (var i = 0; i < 50; i++) AddChat();
+                PushChat();
+            }).AddTo(screen);
+        }
+
+        // 每秒来一条。停在底部 → 跟着走；往上翻着看 → 画面不动，连裁掉最老那条也不动。
+        void Update()
+        {
+            if (_chatList == null || Time.time < _chatNextAt) return;
+            _chatNextAt = Time.time + 1f;
+            AddChat();
+            PushChat();
+        }
+
+        void AddChat()
+        {
+            var id = _chatNextId++;
+            var clock = System.TimeSpan.FromSeconds(9 * 3600 + id * 7);   // 编一个时钟
+            _chat.Add(new ChatMsg(id, $"{clock.Hours:00}:{clock.Minutes:00}", ChatLine(id)));
+            if (_chat.Count > ChatCap) _chat.RemoveAt(0);   // 裁掉最老的
+        }
+
+        void PushChat()
+        {
+            _chatFeed.OnNext(_chat);
+            // 虚拟列表的 SlotCount 是实际建出来的行数（页没显示时为 0：隐藏的列表只存数据）
+            _chatCount.TextValue = string.Format(UI.Tr("{0} 条消息 · 只建了 {1} 行"), _chatList.ItemCount, _chatList.SlotCount);
+        }
+
+        // 消息正文在「收到」那一刻按当前语言定稿 —— 跟真聊天一样，切语言不回头改旧消息
+        static string ChatLine(long id) => (id % 6) switch
+        {
+            0 => UI.Tr("有人组队打副本吗？"),
+            1 => UI.Tr("刚种下一片南瓜，等着收成。"),
+            2 => UI.Tr("收到！"),
+            3 => UI.Tr("这条消息比较长，用来演示自动换行：虚拟列表逐行实测高度，长短不一的消息也能排得严丝合缝。"),
+            4 => UI.Tr("往上翻看历史的时候，新消息不会把画面拽走。"),
+            _ => UI.Tr("点下面的按钮回到最新。"),
+        };
 
         // 新手引导：七步跨页脚本。不注册 UseProgressStore —— 每次点按钮都从头跑，可反复体验。
         static async void RunTutorial(IScreen screen)

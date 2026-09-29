@@ -182,6 +182,8 @@ namespace PromptUGUI.Lint
                     yield return issue;
                 foreach (var issue in ScrollListRules.CheckReorderValues(node, styles))
                     yield return issue;
+                foreach (var issue in ScrollListRules.CheckVirtualize(node, styles))
+                    yield return issue;
             }
             else if (node.Tag == "Collapsible")
                 foreach (var issue in CollapsibleRules.CheckCollapsible(node, styles))

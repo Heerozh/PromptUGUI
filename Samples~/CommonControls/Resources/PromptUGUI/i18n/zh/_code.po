@@ -103,6 +103,11 @@ msgstr "XML 直接生成 uGUI"
 msgid "e.g. Link"
 msgstr "例如：链接"
 
+# . in PushChat()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:289
+msgid "{0} 条消息 · 只建了 {1} 行"
+msgstr "{0} 条消息 · 只建了 {1} 行"
+
 # . in BindModalPage()
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:116
 msgid "你好，{0}！"
@@ -123,6 +128,11 @@ msgstr "先切到「表单输入」页"
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:155
 msgid "切到「模态提示」页"
 msgstr "切到「模态提示」页"
+
+# . in ChatLine()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:296
+msgid "刚种下一片南瓜，等着收成。"
+msgstr "刚种下一片南瓜，等着收成。"
 
 # . in BindModalPage()
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:128
@@ -149,15 +159,35 @@ msgstr "已取消"
 msgid "引导完成，尽情探索吧！"
 msgstr "引导完成，尽情探索吧！"
 
+# . in ChatLine()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:299
+msgid "往上翻看历史的时候，新消息不会把画面拽走。"
+msgstr "往上翻看历史的时候，新消息不会把画面拽走。"
+
 # . in RunTutorial()
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:153
 msgid "拖动滑杆调整音量"
 msgstr "拖动滑杆调整音量"
 
+# . in ChatLine()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:297
+msgid "收到！"
+msgstr "收到！"
+
+# . in ChatLine()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:295
+msgid "有人组队打副本吗？"
+msgstr "有人组队打副本吗？"
+
 # . in BindListPage()
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:84
 msgid "欢迎使用 PromptUGUI"
 msgstr "欢迎使用 PromptUGUI"
+
+# . in ChatLine()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:300
+msgid "点下面的按钮回到最新。"
+msgstr "点下面的按钮回到最新。"
 
 # . in RunTutorial()
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:156
@@ -184,8 +214,12 @@ msgstr "轮播卡自动播放"
 msgid "这是一条 Toast！"
 msgstr "这是一条 Toast！"
 
-
 # . in BindModalPage()
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:124
 msgid "未检测到 Markdig，Markdown 富文本功能不可用。\n请通过 NuGetForUnity 安装 Markdig.Signed 后重试。"
 msgstr "未检测到 Markdig，Markdown 富文本功能不可用。\n请通过 NuGetForUnity 安装 Markdig.Signed 后重试。"
+
+# . in ChatLine()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:298
+msgid "这条消息比较长，用来演示自动换行：虚拟列表逐行实测高度，长短不一的消息也能排得严丝合缝。"
+msgstr "这条消息比较长，用来演示自动换行：虚拟列表逐行实测高度，长短不一的消息也能排得严丝合缝。"

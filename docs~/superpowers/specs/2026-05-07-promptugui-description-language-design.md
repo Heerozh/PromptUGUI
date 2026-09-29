@@ -647,6 +647,9 @@ list.BindItems(player.Inventory, (slot, item) => {
 
 `itemTemplate` 是已注册 tag 名；ScrollList 内部按需要实例化。行按**位置复用**：第 i 项绑到第 i 行，同数量推送零实例化，
 bind 回调对关心的每个属性无条件写一遍（详见 [`2026-09-14-scrolllist-row-reuse-design.md`](2026-09-14-scrolllist-row-reuse-design.md)）。
+带 `key:` 的 `BindItems` 让行跟着项走（追加只多建一行、裁头只销毁一行）；`<ScrollList virtualize="true">` 只实现视口附近的行，
+`stickToEnd` 贴底，`ScrollTo*` / `IsAtEnd` / `OnAtEndChanged` 是滚动 API（详见
+[`2026-09-29-scrolllist-virtualization-design.md`](2026-09-29-scrolllist-virtualization-design.md)）。
 
 ### 9.6 Screen 生命周期（可选 ScreenView）
 

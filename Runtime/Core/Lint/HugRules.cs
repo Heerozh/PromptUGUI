@@ -34,11 +34,33 @@ namespace PromptUGUI.Lint
             if (value == null) return false;
             var v = value.Trim();
             if (v == "hug") return true;
+            var parts = ClampParts(v);
+            return parts != null && parts[1].Trim() == "hug";
+        }
+
+        /// <summary>
+        /// True for a hug with no upper bound: a bare <c>hug</c>, or <c>clamp(min, hug, _)</c>. A size like that grows
+        /// with the content for good — a list sized so never scrolls, and a virtual one realizes every row
+        /// (<see cref="ScrollListRules.VirtualHugCode"/>).
+        /// </summary>
+        public static bool IsOpenEndedHug(string value)
+        {
+            if (value == null) return false;
+            var v = value.Trim();
+            if (v == "hug") return true;
+            var parts = ClampParts(v);
+            if (parts == null || parts[1].Trim() != "hug") return false;
+            var max = parts[2].Trim();
+            return max.Length == 0 || max == "_";
+        }
+
+        // "clamp(min, mid, max)" → its three parts, untrimmed; anything else → null.
+        private static string[] ClampParts(string v)
+        {
             if (!v.StartsWith("clamp(", StringComparison.Ordinal) || !v.EndsWith(")", StringComparison.Ordinal))
-                return false;
-            var inner = v.Substring("clamp(".Length, v.Length - "clamp(".Length - 1);
-            var parts = inner.Split(',');
-            return parts.Length == 3 && parts[1].Trim() == "hug";
+                return null;
+            var parts = v.Substring("clamp(".Length, v.Length - "clamp(".Length - 1).Split(',');
+            return parts.Length == 3 ? parts : null;
         }
 
         /// <summary>
@@ -151,11 +173,8 @@ namespace PromptUGUI.Lint
             var v = value.Trim();
             if (v.StartsWith("stretch", StringComparison.Ordinal)) return true;
             // clamp(min, stretch, _) is a stretch too — it can grow but its preferred is still the floor.
-            if (!v.StartsWith("clamp(", StringComparison.Ordinal) || !v.EndsWith(")", StringComparison.Ordinal))
-                return false;
-            var inner = v.Substring("clamp(".Length, v.Length - "clamp(".Length - 1);
-            var parts = inner.Split(',');
-            return parts.Length == 3 && parts[1].Trim().StartsWith("stretch", StringComparison.Ordinal);
+            var parts = ClampParts(v);
+            return parts != null && parts[1].Trim().StartsWith("stretch", StringComparison.Ordinal);
         }
     }
 }

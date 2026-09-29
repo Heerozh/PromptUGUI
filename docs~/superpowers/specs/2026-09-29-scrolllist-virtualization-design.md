@@ -1,7 +1,8 @@
 # `<ScrollList virtualize>` —— 行虚拟化、按 key 绑定、聊天式贴底
 
-> 状态：**实现中**（2026-09-29，分支 `feat/scrolllist-virtualization`；方向已与作者对齐，见 §12；计划见
-> `docs~/superpowers/plans/2026-09-29-scrolllist-virtualization.md`，计划阶段的修正 VIR-P1…P11 已写回本文，见 §12.1）。
+> 状态：**已实现**（2026-09-29，分支 `feat/scrolllist-virtualization`；方向已与作者对齐，见 §12；计划见
+> `docs~/superpowers/plans/2026-09-29-scrolllist-virtualization.md`，计划阶段的修正 VIR-P1…P11 已写回本文，见 §12.1；
+> 实现期的偏差与基准数字见 §15）。
 > 需求来源：宿主工程 ssw_re_client 的聊天面板 —— `Round/UI/Round.ui.xml` 里 `chatWorld` / `chatFaction` /
 > `chatAlliance` / `chatSystem` 四个叠放的频道列表（同时只显示一个），行模板 `Templates/ChatLine.ui.xml` 的
 > `ChatLine`（`[时间]` + 一段会折行的富文本正文）。目标：**一个频道 1000 条纯文字消息，来一条新消息的成本与条数无关**。
@@ -510,6 +511,9 @@ more.OnClick.Subscribe(_ => list.ScrollToEnd()).AddTo(screen);
 4. `ScrollToIndex` 的对齐方式：v1 只有起始边对齐；居中 / 最小滚动另议。
 5. 甩动时每帧新进窗口的行数 × TMP 排版（桌面约 0.3 ms/行）：手机上超预算的话考虑分帧 bind（§11）。
 6. ~~非虚拟模式的 `stickToEnd` 要在有推送的帧强制一次 Content 布局（O(N)）~~ —— 已定：接受（§12.1）。
+7. （实现后补）同步期间冻结估算值、下一次同步再更新：推送的常见情况从两遍 Content 布局降到一遍（§15.2）。
+8. （实现后补）O(N) 的部分在 10 万条时约 14 ms（§15.2）：若真有这种规模，可给「裁头 + 追加」这类纯平移的推送走快路径
+   （下标整体偏移，不必逐项查 key）。
 
 ## 14. 里程碑拆分
 
@@ -520,3 +524,63 @@ more.OnClick.Subscribe(_ => list.ScrollToEnd()).AddTo(screen);
   + `VirtualLayoutModelTests` + `ScrollListVirtualTests` + PlayMode 测试。
 - **M2 作者面收尾**：两种模式的 `stickToEnd` / 滚动 API / `IsAtEnd` + 六条 lint + 两份 SKILL / `reference/virtualize.md` /
   `AGENTS.md` / 主 spec + 演示 + 性能基准。
+
+## 15. 实施记录（2026-09-29）
+
+提交：`97279dc` spec + plan；`6ddd308` M0（key）；`0d38e70` M1（虚拟化核心）；M2（滚动 API、非虚拟 `stickToEnd`、六条 lint、文档、演示、基准）。
+
+### 15.1 与上文不同、或上文没写到的
+
+1. **Unity 6000.7 的 `LayoutGroup.SetLayoutInputForAxis` 多了 max 参数**：`WindowedVerticalLayoutGroup` 用 `#if UNITY_6000_7_OR_NEWER`
+   分两种调用，max 同样加上 `Leading + Trailing`。
+2. **§5.10 首帧强制布局的根不是 Screen 根**：`LayoutRebuilder` 跳过根上没有布局控制器的整棵子树，对 Screen 根强制等于什么都没做。改为
+   从列表往上走过每一个启用的 `LayoutGroup`，对最顶上那个 `ForceRebuildLayoutImmediate` —— 与 `MarkLayoutForRebuild` 选的根相同。
+3. **每次同步都经 `ShiftContentY` 写一遍滚动条，平移量是 0 也写**：新建列表的条值是 0（竖条 0 = 末端），`ScrollRect` 下一次布局会把这个
+   旧值读回来、把 Content 拖到末端（EditMode 里一次 `Canvas.ForceUpdateCanvases()` 就能复现）。
+4. **End 锚点的 delta 以「上一次同步时的末端」为基准**（`_lastEndScroll`），不用当前几何：视口变矮后 S 没动，按当前几何会得出「已在末端」
+   而把 S 留在原地。用户移动之后按几何重算粘边时，这个基准一起重置。
+5. **窗口按夹取之后的位置求**：原来按未夹取的目标切窗口，推送让末端上移（或 `ScrollToIndex` 指向末尾附近）时，夹取之后视口上方有一段行
+   没实现，直到用户再滚（`A_push_that_moves_the_end_above_the_viewport_leaves_no_gap`）。同步循环与兑现锚点共用 `ResolveScroll`。
+6. **非虚拟模式的推送也按 VIR-P7 入队**：`Rebuild` 同样置 `_inSync`，bind 回调里的推送 / `ScrollTo*` 等它做完再执行。
+7. **`ApplyLayoutMode` 只在轴向变化时重锚 Content**（既有问题，一并修）：`direction` / `columns` 的 setter 每次 ReSolve 都重放，原来每次
+   都把 Content 的锚点、尺寸、位置归零 —— 写了 `direction="vertical"` 或 `columns="0"` 的列表，切一次 Variant / 主题就回到顶部，贴底
+   也跟着丢（`A_ReSolve_keeps_the_scroll_position`）。
+8. **滚动条出现 / 消失的那一帧**：`base.LateUpdate` 在最末尾显隐滚动条，`AutoHideAndExpandViewport` 的视口收窄发生在之后的 Canvas 布局
+   里，贴底的列表会有一帧差一截（行重新折行）。`PuiScrollRect.LateUpdate` 发现 base 改变了「会挤视口的条」的显隐时，立即对列表根强制
+   一次布局，再调宿主 tick —— 两种模式都没有这一帧了（PlayMode 用例逐帧断言）。
+9. **`PuiScrollRect` 两轴通用**：用户移动的判据比较整个 `anchoredPosition`，`ShiftContent(Vector2)` 两个方向的条都写 —— 横向列表的
+   `ScrollTo*` / `IsAtEnd` / `stickToEnd`（末端 = 右缘）要用到。
+10. **「内容不满一屏」同时算两端**：几何重算粘边与 `IsAtEnd` 都如此（被拉过起点的短列表仍算在末端）。
+11. **粘边标记的初值**：`stickToEnd` 由关变开时取当时的 `IsAtEnd`（空列表算在末端）；非虚拟列表首推也设 `stuckToStart = true`、
+    `stuckToEnd = stickToEnd`（§5.4 规则 3 两种模式共用）；`PuiScrollRect` 在 Content 建好时就记下位置，第一次 tick 不会被当成用户移动。
+12. **隐藏行的警告**用 `WarnOnce` 的内部键 `hidden-row`，不是 lint 代码。
+13. **没有 Red 阶段的两处**：Task 3（`VirtualLayoutModel`）的测试先写了，但当时 MCP 断连，没能先看它们失败；Task 13 的 XSD 断言 ——
+    两个属性在 M1 就已存在。
+14. C# SKILL 顺带修正一句过时的话：「`BindItems` 重发会重置列表的滚动位置」—— 自 2026-09-14 行复用起，ScrollList 重发保留滚动位置。
+15. **基准不在 `PromptUGUI.Tests.EditMode` 里**：计划写的是 `[Explicit]` 放进 EditMode 程序集，但测试框架把 `assembly_names` 过滤当成显式
+    命中（`AssemblyNameFilter.IsExplicitMatch`），回归一跑就把它带上，每次多占编辑器两分半。改为独立的 `PromptUGUI.Tests.Perf`
+    （`InternalsVisibleTo` 与 `.lint` 的 `Tests.Perf.csproj` 同步），AGENTS.md 写明按测试全名跑。
+
+### 15.2 基准
+
+`ScrollListVirtualBenchmark`（独立程序集 `PromptUGUI.Tests.Perf`，`Tests/Perf/`，按测试全名跑；EditMode，桌面编辑器）：ChatLine 形状的行（时间 + 会折行的正文，每 4 条一条
+三行的长消息），列表 320×420、`stickToEnd`，停在末端。每次 = 裁掉最老的一条 + 追加一条的推送，再调一次列表的 tick（Play 模式下
+`LateUpdate` 做的事）——「推送」只量到这里；「整帧」再加 `Canvas.ForceUpdateCanvases()`（布局 + 网格）。热身 5 次后逐次计时取中位数，
+单位 ms。
+
+| N | 虚拟 + key：推送 | 虚拟 + key：整帧 | 普通 + key：推送 | 普通 + key：整帧 | 普通（按位置）：推送 | 普通（按位置）：整帧 |
+|---|---|---|---|---|---|---|
+| 20 | 1.02 | 2.27 | 2.73 | 4.39 | 3.14 | 7.26 |
+| 200 | 1.80 | 3.09 | 18.16 | 33.93 | 110.09 | 154.97 |
+| 1000 | 2.65 | 4.46 | 124.71 | 235.88 | 3288.85 | 3546.53 |
+| 10000 | 3.03 | 4.27 | — | — | — | — |
+| 100000 | 16.13 | 17.55 | — | — | — | — |
+
+- **虚拟列表的成本与条数无关**，直到 O(N) 那部分追上来：1000 与 10000 条的整帧几乎一样（4.5 / 4.3 ms），Content 下始终只有十几行。
+  随 N 增长的只有 key 比对、快照拷贝、下标搬移与前缀和（约 0.14 µs/项）—— 1000 条约 0.15 ms，10 万条约 14 ms。
+- **普通列表按位置复用**（报告第一列）每条消息让所有行换内容、全部重排；**按 key 复用**（报告第二列，M0）只有新的一行要排版，
+  但布局仍要走遍所有行，所以仍随 N 线性增长。
+- 计划里「桌面编辑器 ≤ 2 ms」的目标**没有达到**：虚拟列表 1000 条的推送约 2.7 ms、整帧约 4.5 ms。剩下的是窗口本身的开销
+  （推送时十几行全部重绑、Content 强制布局两遍、Canvas 更新）：与 N 无关，但也不是零。可以再省的一处：同步里第二遍布局只是因为
+  「量完新行、均值变了、窗口前的估算总高跟着变」——若同步期间冻结估算值、下一次同步再更新，常见情况下一遍布局就够（未做，§13 另议）。
+- 测量值波动不小（同一格前后两次可差 30%）：取中位数、每组前 `GC.Collect()`、虚拟列表单独跑，才稳定下来。

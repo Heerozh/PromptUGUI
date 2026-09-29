@@ -154,6 +154,14 @@
     </Animation>
   </Template>
 
+  <!-- 聊天行模板：时间 + 会折行的正文，行高跟着内容走 —— 虚拟列表逐行实测，不要求行等高 -->
+  <Template name="ChatRow">
+    <HStack width="stretch" spacing="6" childAlign="upper-left">
+      <Text id="time" width="36" fontSize="12"/>
+      <Text id="body" width="stretch" wrap="true" fontSize="15"/>
+    </HStack>
+  </Template>
+
   <!-- Carousel 卡片模板（bg 底色 / 标题由 C# BindItems 填） -->
   <Template name="DemoCard">
     <Frame>
@@ -283,7 +291,8 @@
       </HStack>
 
       <!-- TabBar 分页（bind= 切页；Tab 是 layout child，只写 width/height） -->
-      <!-- 响应式：横屏顶部一行四个；竖屏（手机）变左侧竖轨——窄轨道(width 36)让 Tab 的 CJK label 逐字换行成竖排文字，
+      <!-- 响应式：横屏顶部一行五个；竖屏（手机）变左侧竖轨——窄轨道(width 36)让 Tab 的 CJK label 逐字换行成竖排文字，
+           竖轨高 640 - 44 - 8 = 588，五个 Tab 各 108 + 四个间隙 4 = 556 放得下（四字标签竖排约 106 高，不裁字），
            内容区右移(各 page 的 margin.portrait 左边距 = 轨道左 8 + 轨道宽 36 + 间隙 8 = 52)。
            竖排靠「轨道宽落在 (字号, 2×字号) 之间」触发 TMP 逐字换行：width 36 / fontSize.portrait 22 → 稳定 1 字 1 行。
            注意 direction / spacing 必须显式写基础值：它们是控件私有 [UIAttr]，变体未命中时 applier 直接跳过
@@ -293,14 +302,16 @@
               direction="horizontal" direction.portrait="vertical"
               spacing="0" spacing.portrait="4"
               margin="44,8,0,8" margin.portrait="44,_,8,8">
-        <Tab id="tabForm"    class="tab" width="stretch" width.portrait="stretch" height.portrait="120" text="表单输入" fontSize="15" fontSize.portrait="22"
+        <Tab id="tabForm"    class="tab" width="stretch" width.portrait="stretch" height.portrait="108" text="表单输入" fontSize="15" fontSize.portrait="22"
              bind="pageForm" isOn="true"/>
-        <Tab id="tabDisplay" class="tab" width="stretch" width.portrait="stretch" height.portrait="120" text="展示反馈" fontSize="15" fontSize.portrait="22"
+        <Tab id="tabDisplay" class="tab" width="stretch" width.portrait="stretch" height.portrait="108" text="展示反馈" fontSize="15" fontSize.portrait="22"
              bind="pageDisplay"/>
-        <Tab id="tabList"    class="tab" width="stretch" width.portrait="stretch" height.portrait="120" text="列表轮播" fontSize="15" fontSize.portrait="22"
+        <Tab id="tabList"    class="tab" width="stretch" width.portrait="stretch" height.portrait="108" text="列表轮播" fontSize="15" fontSize.portrait="22"
              bind="pageList"/>
-        <Tab id="tabModal"   class="tab" width="stretch" width.portrait="stretch" height.portrait="120" text="模态提示" fontSize="15" fontSize.portrait="22"
+        <Tab id="tabModal"   class="tab" width="stretch" width.portrait="stretch" height.portrait="108" text="模态提示" fontSize="15" fontSize.portrait="22"
              bind="pageModal"/>
+        <Tab id="tabChat"    class="tab" width="stretch" width.portrait="stretch" height.portrait="108" text="聊天" fontSize="15" fontSize.portrait="22"
+             bind="pageChat"/>
       </TabBar>
 
       <!-- ① 表单输入（原 Settings 内容保留） -->
@@ -372,6 +383,28 @@
           <!-- 演示 inline 属性仍然压过属性包：class="btn" 给了 color，这里的 color= 覆盖它 -->
           <Btn id="toastBtn"    class="btn" height="30" fontSize="15" color="accent">Toast</Btn>
           <Btn id="exitDemoBtn" class="btn" height="30" fontSize="15">退场动画（ExitDemo）</Btn>
+        </VStack>
+      </Frame>
+
+      <!-- ⑤ 聊天：行虚拟化（virtualize）+ 贴底（stickToEnd）。1000 条消息只为视口附近的十几条建行，
+           推一条的开销与总条数无关。每秒来一条、超过 1000 条裁掉最老的：停在底部时跟着新消息走；
+           往上翻着看时画面不动，裁头也不动（C# 用 key 绑定，锚点按 key 找回）。
+           「↓ 新消息」按钮跟 OnAtEndChanged 走：不在底部才出现，点它 ScrollToEnd。 -->
+      <Frame id="pageChat" anchor="stretch" margin="84,8,8,8" margin.portrait="52,8,8,52" raycastTarget="true">
+        <Skin/>
+        <VStack anchor="stretch" spacing="8" padding="8">
+          <HStack height="28" spacing="8">
+            <Btn id="chatBurst" class="btn" width="96" height="28" fontSize="15">来 50 条</Btn>
+            <Text id="chatCount" width="stretch" height="28" fontSize="13"/>
+          </HStack>
+          <Frame width="stretch" height="stretch">
+            <ScrollList id="chat" class="list" anchor="stretch" itemTemplate="ChatRow"
+                        virtualize="true" stickToEnd="true" spacing="4" padding="8">
+              <Scrollbar class="scrollbar"/>
+            </ScrollList>
+            <Btn id="chatMore" class="btn" anchor="bottom-center" width="112" height="26" margin="_,_,8,_"
+                 fontSize="14">↓ 新消息</Btn>
+          </Frame>
         </VStack>
       </Frame>
 

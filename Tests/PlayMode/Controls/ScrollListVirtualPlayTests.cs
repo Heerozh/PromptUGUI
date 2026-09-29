@@ -362,9 +362,13 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             {
                 items.Add($"m{n} a message long enough to wrap onto a second line");
                 feed.OnNext(items.ToArray());
-                yield return null;
-                yield return null;   // the bar (AutoHideAndExpandViewport) reacts in the canvas pass
-                Assert.AreEqual(End(list), S(list), 1f, $"after {n + 1} messages: still at the end");
+                // Every rendered frame, including the one where the first overflow brings the bar in and the rows
+                // rewrap to the narrower viewport.
+                for (var frame = 1; frame <= 2; frame++)
+                {
+                    yield return null;
+                    Assert.AreEqual(End(list), S(list), 1f, $"after {n + 1} messages, frame {frame}: still at the end");
+                }
             }
         }
 
@@ -405,6 +409,65 @@ namespace PromptUGUI.Tests.PlayMode.Controls
                 if (S(list) <= 0f || S(list) >= End(list)) continue;
                 AssertWindowCovers(list, $"step {step}");
             }
+        }
+
+        // ───── stickToEnd on a plain list (spec §5.4: rule 1 only, the same sticky flags) ─────
+
+        [UnityTest]
+        public IEnumerator Plain_list_stuck_to_end_follows_pushes_and_the_scrollbar_appearing()
+        {
+            var list = OpenList("stickToEnd='true'", "Wrap");   // not virtual
+            var feed = Feed(list, keyed: true);
+            var items = new List<string>();
+            for (var n = 0; n < 12; n++)
+            {
+                items.Add($"m{n} a message long enough to wrap onto a second line");
+                feed.OnNext(items.ToArray());
+                // Every rendered frame, including the one where the first overflow brings the bar in and the rows
+                // rewrap to the narrower viewport.
+                for (var frame = 1; frame <= 2; frame++)
+                {
+                    yield return null;
+                    Assert.AreEqual(End(list), S(list), 1f, $"after {n + 1} messages, frame {frame}: still at the end");
+                }
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator Plain_list_with_stickToEnd_lets_the_user_drag_away()
+        {
+            var list = OpenList("stickToEnd='true'");
+            var feed = Feed(list, keyed: true);
+            feed.OnNext(Items(100));
+            yield return null;
+            for (var i = 1; i <= 3; i++)
+            {
+                feed.OnNext(Items(100, from: i));
+                yield return null;
+                Assert.AreEqual(End(list), S(list), 0.5f, $"push {i}: still at the end");
+            }
+
+            var scroll = ScrollOf(list);
+            var e = PressAtViewportCentre(list);
+            scroll.OnInitializePotentialDrag(e);
+            scroll.OnBeginDrag(e);
+            e.position += new Vector2(0f, -300f);   // pull the content down, towards older items
+            scroll.OnDrag(e);
+            yield return null;
+            scroll.OnEndDrag(e);
+            for (var i = 0; i < 30; i++) yield return null;
+            scroll.StopMovement();   // the fling may coast for seconds; the rest of the test wants it still
+            yield return null;
+            Assume.That(S(list), Is.LessThan(End(list) - 100f), "guard: the drag moved away from the end");
+            var s = S(list);
+
+            feed.OnNext(Items(101, from: 3));   // one more at the end
+            yield return null;
+
+            Assert.AreEqual(s, S(list), 0.5f, "not pulled back to the end");
+            var atEnd = true;
+            using (list.OnAtEndChanged.Subscribe(v => atEnd = v)) { }
+            Assert.IsFalse(atEnd, "OnAtEndChanged saw the user leave the end");
         }
 
         [UnityTest]

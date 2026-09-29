@@ -701,5 +701,20 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsNotNull(row);
             Assert.AreEqual(-5f, TopOf(row) - S(list), 0.5f, "item 900 sits where the jump put it");
         }
+
+        [Test]
+        public void A_push_that_moves_the_end_above_the_viewport_leaves_no_gap()
+        {
+            var list = Open();
+            var feed = new Feed(list, keyed: true);
+            feed.Push(Items(1000));
+            ScrollTo(list, EndOf(list));   // no stickToEnd: the first visible row is the anchor
+
+            feed.Push(Items(900));   // the last 100 items go, the anchor with them
+
+            Assert.AreEqual(EndOf(list), S(list), 0.5f, "clamped to the new end");
+            Assert.LessOrEqual(TopOf(list.Slots[0]), S(list) + 0.5f, "a row reaches the viewport's top edge");
+            Assert.AreEqual("i899", LabelOf(list.Slots[list.Slots.Count - 1]));
+        }
     }
 }

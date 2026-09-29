@@ -74,4 +74,4 @@ A structural change during a drag ends the session and puts the row **back where
 
 ## Not in v1
 
-Dragging a row out of its list or between lists; a programmatic animated `Move(from, to)`; keyed `BindItems` diffs that animate server-side reorders; a visible placeholder (the gap is empty).
+Dragging a row out of its list or between lists; a programmatic animated `Move(from, to)`; animating a reorder that arrives as a push (a keyed `BindItems` moves the rows with their items, but instantly); a visible placeholder (the gap is empty). A virtual list (`virtualize="true"`) cannot reorder at all — its rows only exist near the viewport (`PUI-SCROLL-VIRTUAL-REORDER`).

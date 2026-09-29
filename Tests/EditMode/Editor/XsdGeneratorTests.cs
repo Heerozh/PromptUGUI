@@ -1065,6 +1065,9 @@ namespace PromptUGUI.Tests.Editor
             StringAssert.Contains("name=\"columns\" type=\"xs:int\"", xsd);
             StringAssert.Contains("name=\"cellSize\" type=\"xs:string\"", xsd);
             StringAssert.Contains("name=\"reuseItems\" type=\"xs:boolean\"", xsd);
+            // Row virtualization (spec 2026-09-29): a set-only bool and a get/set bool, both reflected.
+            StringAssert.Contains("name=\"virtualize\" type=\"xs:boolean\"", xsd);
+            StringAssert.Contains("name=\"stickToEnd\" type=\"xs:boolean\"", xsd);
             StringAssert.DoesNotContain("name=\"scrollbarWidth\"", xsd);
             StringAssert.DoesNotContain("name=\"scrollbarOverlay\"", xsd);
         }

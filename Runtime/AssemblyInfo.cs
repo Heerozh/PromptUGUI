@@ -4,5 +4,6 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("PromptUGUI.Tests.EditMode.Addressables")]
 [assembly: InternalsVisibleTo("PromptUGUI.Tests.EditorOnly")]
 [assembly: InternalsVisibleTo("PromptUGUI.Tests.PlayMode")]
+[assembly: InternalsVisibleTo("PromptUGUI.Tests.Perf")]
 [assembly: InternalsVisibleTo("PromptUGUI.Editor")]
 [assembly: InternalsVisibleTo("PromptUGUI.Tests.EditMode.Markdown")]

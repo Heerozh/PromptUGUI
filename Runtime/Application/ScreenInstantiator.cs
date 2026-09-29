@@ -230,6 +230,9 @@ namespace PromptUGUI.Application
                 // The reorder rules have no mirror here: a bad reorderHold / reorderDuration is
                 // already reported by the setter that rejects it, and the handle rule needs the
                 // template body — the driver warns once at runtime when a row turns out not to have it.
+                // Nor does CheckVirtualize (VIR-P1): the list itself warns once, with the same code, when
+                // it has to ignore something (it sees the values class= merged in); no itemTemplate
+                // still throws at BindItems, and an unbounded hug just realizes every row.
                 foreach (var issue in PromptUGUI.Lint.ScrollListRules.CheckScrollList(node))
                     UILog.Warn(node, issue);
             else if (node.Tag == "Scrollbar")
