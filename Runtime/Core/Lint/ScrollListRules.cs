@@ -17,6 +17,15 @@ namespace PromptUGUI.Lint
         public const string ReorderHandleCode = "PUI-REORDER-HANDLE-ID";
         public const string ReorderValueCode = "PUI-REORDER-VALUE";
 
+        // virtualize= (spec 2026-09-29-scrolllist-virtualization §4.3). CLI errors only; the control warns once
+        // at runtime itself, with the same code, when it has to ignore something (VIR-P1).
+        public const string VirtualLayoutCode = "PUI-SCROLL-VIRTUAL-LAYOUT";
+        public const string VirtualReorderCode = "PUI-SCROLL-VIRTUAL-REORDER";
+        public const string VirtualReuseCode = "PUI-SCROLL-VIRTUAL-REUSE";
+        public const string VirtualHugCode = "PUI-SCROLL-VIRTUAL-HUG";
+        public const string VirtualVariantCode = "PUI-SCROLL-VIRTUAL-VARIANT";
+        public const string VirtualTemplateCode = "PUI-SCROLL-VIRTUAL-TEMPLATE";
+
         /// <summary>
         /// True when this list asks for the grid in ANY configuration — a base <c>columns</c> or any
         /// <c>columns.&lt;variant&gt;</c> that is not <c>"0"</c>. Declared, not resolved, the same way

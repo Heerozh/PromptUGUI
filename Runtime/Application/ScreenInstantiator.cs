@@ -342,12 +342,13 @@ namespace PromptUGUI.Application
 
             // A <ScrollList> hosts its children in Content, whose layout group depends on the list's
             // OWN attributes — and this apply pass is DFS post-order, so those attributes have not
-            // been applied yet. Push the two structural ones down now so a child measures against the
-            // group it will actually live under (see ScrollList.PreConfigureContent).
+            // been applied yet. Push the structural ones (direction, columns, virtualize) down now so a
+            // child measures against the group it will actually live under (see ScrollList.PreConfigureContent).
             if (control is Controls.ScrollList scrollList)
                 scrollList.PreConfigureContent(
                     VariantResolver.ResolveAttribute(node, "direction", _variants),
-                    VariantResolver.ResolveAttribute(node, "columns", _variants));
+                    VariantResolver.ResolveAttribute(node, "columns", _variants),
+                    VariantResolver.ResolveAttribute(node, "virtualize", _variants));
 
             var selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "TabMenu"
                                              or "Carousel" or "Collapsible" or "ScrollList";
