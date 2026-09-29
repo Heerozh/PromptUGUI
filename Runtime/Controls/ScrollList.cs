@@ -53,6 +53,19 @@ namespace PromptUGUI.Controls
         private bool _staticCollected;
         private bool _bound;
 
+        // BindItems (spec 2026-09-29-scrolllist-virtualization §5.5): the binding that produced the current
+        // rows, how many items its last push had, and a reusable newToOld buffer.
+        private IItemBinding _binding;
+        private int _itemCount;
+        private int[] _remap = new int[16];
+        private readonly List<IControl> _prevSlots = new();
+        // Retired rows wait here until their deferred Destroy. Inactive, and it carries a DISABLED
+        // VerticalLayoutGroup: Control.ApplyCommon asks the parent for a LayoutGroup (a disabled one
+        // counts), so a ReSolve that replays a row sitting here takes the layout-group branch — on the
+        // free-positioning branch a width="stretch" row root would throw.
+        private RectTransform _pool;
+        private bool _disposed;
+
         // Drag-to-reorder (spec 2026-09-16-scrolllist-drag-reorder). The driver and the catcher are
         // built lazily the first time reorder= turns on and stay; the flag alone decides whether a
         // press starts a session. Parameters are plain fields the driver reads at press time —
@@ -90,6 +103,9 @@ namespace PromptUGUI.Controls
         }
 
         public int SlotCount => _slots.Count;
+
+        /// <summary>Items in the last <see cref="BindItems{T,TSlot}"/> push; 0 before the first one.</summary>
+        public int ItemCount => _itemCount;
 
         /// <summary>The rows in sibling order — static placeholders or <see cref="BindItems{T,TSlot}"/> rows.</summary>
         internal IReadOnlyList<IControl> Slots => _slots;
@@ -695,7 +711,7 @@ namespace PromptUGUI.Controls
             Observable<IReadOnlyList<T>> source,
             Action<TSlot, T> bind)
             where TSlot : class, IControl =>
-            source.Subscribe(items => Rebuild(items, bind));
+            Subscribe(source, new PositionalBinding<T, TSlot>(bind));
 
         public IDisposable BindItems<T>(
             Observable<IReadOnlyList<T>> source,
@@ -703,77 +719,146 @@ namespace PromptUGUI.Controls
             BindItems<T, IControl>(source, bind);
 
         /// <summary>
-        /// 位置复用（2026-09-14 scrolllist-row-reuse spec §3 / §4）：第 i 项绑到第 i 行。数量不变的推送
-        /// 零实例化、只跑 bind；+k 只实例化 k 张；−k 只销毁尾巴。复用的行不动 GO，只在再次 bind 之前释放
-        /// 上一次 bind 挂上的 <c>.AddTo(slot)</c> 订阅袋——把每个属性无条件写一遍是 bind 回调的契约（SKILL）。
-        /// 整表重建（从前的唯一路径）只剩：静态占位卡在场的首次绑定（2026-09-10 spec 的规则）、
-        /// <c>itemTemplate</c> 名变了、<c>reuseItems="false"</c>；被外部销毁的行只重建那一行并钉回原兄弟序。
+        /// Rows follow their items by <paramref name="key"/> (spec 2026-09-29-scrolllist-virtualization §5.5):
+        /// an append instantiates one row, a trim retires one, a reorder only moves siblings — every other row
+        /// is reused, and every row is still re-bound on every push. The previous push is matched by key when it
+        /// came from any keyed <c>BindItems</c> with the same key type, so a fresh
+        /// <c>BindItems(Observable.Return(list), …, key)</c> per push works too. A null or duplicate key rejects
+        /// the whole push (logged through R3; the list keeps showing the previous one).
         /// </summary>
-        private void Rebuild<T, TSlot>(IReadOnlyList<T> items, Action<TSlot, T> bind)
+        public IDisposable BindItems<T, TSlot, TKey>(
+            Observable<IReadOnlyList<T>> source,
+            Action<TSlot, T> bind,
+            Func<T, TKey> key)
+            where TSlot : class, IControl =>
+            Subscribe(source, new KeyedBinding<T, TSlot, TKey>(bind, key ?? throw new ArgumentNullException(nameof(key))));
+
+        public IDisposable BindItems<T, TKey>(
+            Observable<IReadOnlyList<T>> source,
+            Action<IControl, T> bind,
+            Func<T, TKey> key) =>
+            BindItems<T, IControl, TKey>(source, bind, key);
+
+        private IDisposable Subscribe<T, TSlot>(Observable<IReadOnlyList<T>> source, ItemBinding<T, TSlot> binding)
+            where TSlot : class, IControl =>
+            source.Subscribe(items => OnPush(binding, items ?? Array.Empty<T>()));
+
+        private void OnPush<T, TSlot>(ItemBinding<T, TSlot> binding, IReadOnlyList<T> items)
             where TSlot : class, IControl
         {
+            // A host that forgot .AddTo(screen): the list is gone, the stream is not.
+            if (_disposed) return;
             if (_factory == null)
                 throw new InvalidOperationException(
                     "ScrollList.itemTemplate must be set before BindItems is called");
 
+            // Validation (null / duplicate key) throws here, before anything about the list has changed.
+            binding.Accept(items, _binding, _itemCount, ref _remap);
+            _binding = binding;
+            _itemCount = items.Count;
+            Rebuild(binding, items.Count);
+        }
+
+        /// <summary>
+        /// 复用（2026-09-14 scrolllist-row-reuse spec；2026-09-29 virtualization spec §5.5）：新第 j 项绑到
+        /// <c>_remap[j]</c> 指的那一行 —— 无 key 时就是第 j 行（位置复用），有 key 时是那个 key 上一次所在的行。
+        /// 复用的行不动 GO，只在再次 bind 之前释放上一次 bind 挂上的 <c>.AddTo(slot)</c> 订阅袋——把每个属性无条件
+        /// 写一遍是 bind 回调的契约（SKILL）。整表重建只剩：静态占位卡在场的首次绑定（2026-09-10 spec 的规则）、
+        /// <c>itemTemplate</c> 名变了、<c>reuseItems="false"</c>；被外部销毁的行只重建那一行。
+        /// <para>先定结构、再 bind：没人要的旧行先退役（移出 Content 再销毁），兄弟序钉成数据序，然后才逐行 bind ——
+        /// bind 回调看到的已是最终的列表。</para>
+        /// </summary>
+        private void Rebuild(IItemBinding binding, int count)
+        {
             // A push mid-drag ends the session first (§5.7): Rebuild assumes row i is sibling i, which a
-            // placeholder in Content would break, and the rows are about to be re-bound by position.
+            // placeholder in Content would break, and the rows are about to be re-bound.
             _reorder?.Cancel();
 
-            if (!_bound || !ReuseItems || _slotsTemplate != _itemTemplate) ClearSlots();
+            var full = !_bound || !ReuseItems || _slotsTemplate != _itemTemplate;
+            if (full) ClearSlots();
             _slotsTemplate = _itemTemplate;
 
-            // 尾巴销毁：Play 下 Destroy 延后到帧末（与从前的整表销毁同一条路径）；尾巴在 Content 末尾，
-            // 不影响前面行的兄弟序。
-            for (var i = _slots.Count - 1; i >= items.Count; i--)
+            _prevSlots.Clear();
+            _prevSlots.AddRange(_slots);
+            _slots.Clear();
+            for (var j = 0; j < count; j++)
             {
-                _slots[i].Dispose();
-                _slots.RemoveAt(i);
+                var from = full ? -1 : _remap[j];
+                IControl row = null;
+                if (from >= 0 && from < _prevSlots.Count && _prevSlots[from] != null
+                    && _prevSlots[from].GameObject != null)
+                {
+                    row = _prevSlots[from];
+                    _prevSlots[from] = null;
+                    if (row is Control c) c.ReleaseSubscriptions();
+                }
+                // 新行（含被外部销毁的行重建）追加在 Content 末尾，下面按数据序钉回兄弟位。
+                _slots.Add(row ?? _factory(_content));
+            }
+            foreach (var old in _prevSlots)
+                if (old != null) Retire(old);
+            _prevSlots.Clear();
+
+            // Retired rows are out of Content, so its children are exactly _slots: pin data order.
+            for (var j = 0; j < _slots.Count; j++)
+            {
+                var host = HostOf(_slots[j]);
+                if (host.GetSiblingIndex() != j) host.SetSiblingIndex(j);
             }
 
-            for (var i = 0; i < items.Count; i++)
-            {
-                IControl slot;
-                if (i < _slots.Count && _slots[i].GameObject != null)
-                {
-                    slot = _slots[i];
-                    if (slot is Control c) c.ReleaseSubscriptions();
-                }
-                else
-                {
-                    slot = _factory(_content);
-                    if (i < _slots.Count)
-                    {
-                        // 被外部销毁的行（宿主自己 Dispose 了一张卡）：原位重建。InstantiateNode 追加在 Content
-                        // 末尾，钉回第 i 位，网格 / 单列的视觉顺序才仍与数据顺序一致。
-                        _slots[i] = slot;
-                        (slot is Control nc ? nc.LayoutHost : slot.RectTransform).SetSiblingIndex(i);
-                    }
-                    else _slots.Add(slot);
-                }
-                if (slot is TSlot typed) bind(typed, items[i]);
-                else throw new InvalidCastException(
-                    $"itemTemplate='{_itemTemplate}' instantiated {slot.GetType().Name}, " +
-                    $"but BindItems expected {typeof(TSlot).Name}");
-            }
+            for (var j = 0; j < count; j++)
+                if (!binding.TryBind(_slots[j], j))
+                    throw new InvalidCastException(
+                        $"itemTemplate='{_itemTemplate}' instantiated {_slots[j].GetType().Name}, " +
+                        $"but BindItems expected {binding.SlotType.Name}");
+        }
+
+        private static RectTransform HostOf(IControl row) => row is Control c ? c.LayoutHost : row.RectTransform;
+
+        private RectTransform EnsurePool()
+        {
+            if (_pool != null) return _pool;
+            _pool = ProceduralBuilders.AddChild(RectTransform, "Pool");
+            _pool.gameObject.AddComponent<VerticalLayoutGroup>().enabled = false;
+            _pool.gameObject.SetActive(false);
+            return _pool;
+        }
+
+        /// <summary>
+        /// Takes a row out of Content, then disposes it. In Play mode <c>Destroy</c> waits for the end of the
+        /// frame; until then the row would still be laid out (a trimmed first row would shift the whole list
+        /// for a frame) and still hold a sibling index (ReorderDriver relies on slot i being sibling i).
+        /// </summary>
+        private void Retire(IControl row)
+        {
+            var host = HostOf(row);
+            if (host != null) host.SetParent(EnsurePool(), worldPositionStays: false);
+            row.Dispose();
         }
 
         private void ClearSlots()
         {
-            // 标记已动态绑定：之后 ReSolve 的静态收集不再执行。静态卡在这里被 Dispose，
+            // 标记已动态绑定：之后 ReSolve 的静态收集不再执行。静态卡在这里被退役，
             // Screen.ReSolve 靠 `control.GameObject == null` 跳过它们的 ElementNode。
             _reorder?.Cancel();
             _bound = true;
             foreach (var s in _slots)
             {
-                s.Dispose();
+                Retire(s);
             }
             _slots.Clear();
         }
 
         public override void Dispose()
         {
-            ClearSlots();
+            _disposed = true;
+            _reorder?.Cancel();
+            // The whole list goes away: no need to move the rows out of Content first.
+            foreach (var s in _slots)
+            {
+                s.Dispose();
+            }
+            _slots.Clear();
             // An adopted bar is a Screen-owned node and is disposed with the rest of _nodeMap; the
             // default one is ours.
             if (_ownsBar) _bar?.Dispose();
