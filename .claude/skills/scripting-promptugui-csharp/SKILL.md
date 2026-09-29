@@ -288,6 +288,24 @@ State is driven by the Selectable machine and is disabled-aware (a disabled cont
 
 **Pointer streams on `<Image>` / `<RawImage>`** — `OnPointerEnter` / `OnPointerExit` / `OnPointerDown` (`Observable<Unit>`) exist on `Image`, `RawImage` and `Btn`. An `<Image>` / `<RawImage>` is click-through by default (`raycastTarget="false"`), and **subscribing turns its `raycastTarget` on by itself** — the subscription is the intent. An explicit `raycastTarget="false"` in the XML wins and is reported once (the stream can never fire); drop the attribute or pick another source. Nothing else in the library flips hit-testing behind your back: a panel that must block the pointer says `raycastTarget="true"` on its root (XML skill, **Pointer hit-testing**).
 
+**Links in a `<Text>`** — `Text.OnLinkClicked` (`Observable<string>`) emits the id of the TMP `<link="id">…</link>` the user clicked. The id is looked up in the text's layout **when the click lands**, never cached, so subscribe **once per bind** with `.AddTo(row)`: it keeps working on a row a (virtual) list recycled for another item, after `TextValue` was rewritten, after a locale switch.
+
+```csharp
+chat.BindItems(messages, (IControl row, Message m) =>
+{
+    var body = row.Get<Text>("body");
+    body.TextValue = m.RichBody;   // "<color=#6cf><link=\"player:42\">Alice</link></color>: look <link=\"item:9001\">[Sword]</link>"
+    body.OnLinkClicked.Subscribe(OpenLink).AddTo(row);   // released before this row's next bind
+}, key: m => m.Id).AddTo(screen);
+
+void OpenLink(string id) { /* "player:42" → profile card, "item:9001" → item tooltip … */ }
+```
+
+- Reading the property makes **only the links** hit-testable; the rest of the text stays click-through, so a mini chat drawn over the game view does not eat taps. `raycastTarget="true"` in the XML makes the whole text hit instead; an explicit `raycastTarget="false"` wins over the subscriber and is reported once (the links can never be clicked).
+- Left button only; `interactable="false"` on the text or on an ancestor mutes the links. A click that is not a link click (off the links, another button, muted) goes on to the text's ancestors as if it had no links, so a linked text inside a `<Btn>` or a clickable row does not swallow their clicks. A drag that starts on a link still scrolls the list.
+- TMP does not style a link: write the colour / underline yourself (`<color=#6cf><u><link="x">…</link></u></color>`). In XML text use CDATA (XML skill, **Inline sprites / TMP rich text**).
+- `<Markdown>` wires this for you: `md.OnLinkClicked` emits the url of `[text](url)` (see **Markdown**).
+
 `screen.Track(disposable)` (or the `.AddTo(screen)` extension) ties a subscription to Screen lifetime. **Always do this** — leaked R3 subscriptions hold the GameObject alive after Close, and the next Open will produce phantom callbacks against the old (destroyed) GameObject.
 
 ### Per-control subscription lifetime (`.AddTo(control)`)
@@ -678,7 +696,7 @@ UI.Markdown.ImageResolver = myResolver;         // global fallback resolver
 |---|---|
 | `md.Text { get; set; }` | Markdown source string. `set` triggers a full synchronous re-render of the subtree (text is immediate; images load async). `get` returns the last-set source. |
 | `md.BindText(Observable<string>)` | Subscribes to a stream and re-renders on each push. Returns `IDisposable` — always `.AddTo(screen)`. |
-| `md.OnLinkClicked` | `Observable<string>` — emits the raw `url` string from `[text](url)` when the user taps a link. Default: no-op. Wire to `UI.Markdown.HandleLink` or your own router. |
+| `md.OnLinkClicked` | `Observable<string>` — emits the raw `url` string from `[text](url)` when the user taps a link. Default: no-op. Wire to `UI.Markdown.HandleLink` or your own router. The rendered paragraphs are `<Text>` controls wired through `Text.OnLinkClicked` (left button, muted by `interactable="false"`); unlike a plain linked `<Text>` the whole paragraph is hit, so a drag anywhere on the text scrolls. |
 | `md.Style` | Per-control `MarkdownStyle` override. `null` = use `UI.Markdown.DefaultStyle`. |
 | `md.ImageResolver` | `Func<string, Awaitable<Texture2D>>` per-control image resolver. `null` = use `UI.Markdown.ImageResolver`. |
 | `UI.Markdown.Renderer` | `IMarkdownRenderer` — auto-set by `MarkdigBootstrap` when Markdig is installed. `null` = plain-text fallback. |
@@ -1056,6 +1074,8 @@ EVENTS (R3)    .OnClick                Btn
                .OnCurrentChanged       Carousel:int (any-source page change, deduped)
                .OnSelectedChanged      Pages:string (any-source page change, deduped)
                .OnEndEdit / .OnSubmit  InputField:string
+               .OnLinkClicked          Text:string (id of the <link="id"> clicked, read at click time — subscribe
+                                        per bind .AddTo(row); only the links become hit) / Markdown:string (url)
                .Subscribe(...).AddTo(screen)   tie lifetime — ALWAYS
                .Subscribe(...).AddTo(control)  per-card/per-control lifetime (use inside BindItems)
                Progress                display-only; .Value = 0.42f (Clamp01); no event

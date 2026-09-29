@@ -15,24 +15,36 @@ namespace PromptUGUI.Controls.Internal
     /// With nothing authored, a subscriber is the intent: the stream is what the author asked for,
     /// and a stream nobody can hit is the same silent failure from the other side.</para>
     ///
-    /// <para>Owned by <c>Image</c> / <c>RawImage</c>, which default their Graphic to
+    /// <para>Owned by <c>Image</c> / <c>RawImage</c> / <c>Text</c>, which default their Graphic to
     /// click-through (2026-09-15 spec §3) — uGUI's own default is true, which is how every
-    /// decorative picture in a list used to sit in the raycast list.</para>
+    /// decorative picture in a list used to sit in the raycast list. A <c>Text</c> is wanted by its
+    /// <c>OnLinkClicked</c> subscribers (spec 2026-09-30-text-link-click).</para>
     /// </summary>
     internal sealed class RaycastIntent
     {
+        internal const string PointerSourceContradiction =
+            "is used as a pointer event source (a hover / press trigger or an OnPointer* subscription), so its " +
+            "pointer events can never arrive. Drop raycastTarget=\"false\", or pick another source.";
+
         private readonly Graphic _graphic;
         private readonly Control _owner;
+        private readonly string _contradiction;
         private bool? _authored;
         private bool _wanted;
         private bool _warned;
 
-        internal RaycastIntent(Graphic graphic, Control owner)
+        /// <param name="contradiction">The rest of the one-time warning after
+        /// <c>&lt;Tag raycastTarget="false"&gt;</c>: what wants the pointer, and what to do.</param>
+        internal RaycastIntent(Graphic graphic, Control owner, string contradiction = PointerSourceContradiction)
         {
             _graphic = graphic;
             _owner = owner;
+            _contradiction = contradiction;
             _graphic.raycastTarget = false;
         }
+
+        /// <summary>What this pass declared: null = the author wrote nothing (yet, mid-pass).</summary>
+        internal bool? Authored => _authored;
 
         /// <summary>
         /// Start of an attribute pass: forget what the author wrote last time. A setter that does
@@ -68,10 +80,7 @@ namespace PromptUGUI.Controls.Internal
             if (_authored == false && _wanted && !_warned)
             {
                 _warned = true;
-                UILog.Warn(_owner,
-                    $"<{_owner.GetType().Name} raycastTarget=\"false\"> is used as a pointer event source " +
-                    "(a hover / press trigger or an OnPointer* subscription), so its pointer events can " +
-                    "never arrive. Drop raycastTarget=\"false\", or pick another source.");
+                UILog.Warn(_owner, $"<{_owner.GetType().Name} raycastTarget=\"false\"> {_contradiction}");
             }
         }
     }

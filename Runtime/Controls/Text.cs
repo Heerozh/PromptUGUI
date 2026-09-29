@@ -2,6 +2,7 @@ using System;
 using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
 using PromptUGUI.Registry;
+using R3;
 using TMPro;
 using UnityEngine;
 
@@ -9,9 +10,15 @@ namespace PromptUGUI.Controls
 {
     public sealed class Text : Control
     {
+        private const string LinkContradiction =
+            "has OnLinkClicked subscribers, so its links can never be clicked. Drop raycastTarget=\"false\" — " +
+            "the links alone catch the pointer, the rest of the text stays click-through.";
+
         private TMP_Text _tmp;
         private string _fontType = "default";
         private bool _autosize;
+        private RaycastIntent _raycast;
+        private Subject<string> _linkClicked;
 
         internal TMP_Text TmpComponent => _tmp;
 
@@ -27,8 +34,9 @@ namespace PromptUGUI.Controls
                 _tmp.color = ProceduralBuilders.DefaultLabelColor;
             }
             // TMP defaults to true, which silently put every <Text> in the raycast list — text is
-            // click-through unless the author writes raycastTarget="true" (spec 2026-09-15 §3).
-            _tmp.raycastTarget = false;
+            // click-through unless the author writes raycastTarget="true" (spec 2026-09-15 §3), or
+            // something subscribes to its links.
+            _raycast = new RaycastIntent(_tmp, this, LinkContradiction);
             ApplyFont();
             PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
         }
@@ -36,7 +44,31 @@ namespace PromptUGUI.Controls
         public override void Dispose()
         {
             PromptUGUI.Application.UI.Locale.Changed -= ApplyFont;
+            _linkClicked?.Dispose();
             base.Dispose();
+        }
+
+        /// <summary>
+        /// The id of the TMP <c>&lt;link="id"&gt;</c> the user clicked, looked up in the layout on
+        /// screen when the click lands — a row a list recycled, or a text rewritten since, reports what
+        /// it shows now (spec 2026-09-30-text-link-click). Subscribe once per bind, <c>.AddTo(row)</c>.
+        /// <para>Reading it makes the links hit-testable — only the links, unless the author wrote
+        /// <c>raycastTarget="true"</c>. Left button only; <c>interactable="false"</c> on the text or an
+        /// ancestor mutes them. Any other click on the text goes on to its ancestors.</para>
+        /// </summary>
+        public Observable<string> OnLinkClicked
+        {
+            get
+            {
+                if (_linkClicked == null)
+                {
+                    _linkClicked = new Subject<string>();
+                    GameObject.AddComponent<TextLinkClicker>()
+                        .Init(_tmp, () => _raycast.Authored == true, _linkClicked.OnNext);
+                }
+                _raycast.Want();
+                return _linkClicked;
+            }
         }
 
         private void ApplyFont()
@@ -193,34 +225,26 @@ namespace PromptUGUI.Controls
             }
         }
 
-        private bool? _raycastAuthored;
-
         /// <summary>
-        /// Whether the text catches the pointer. Default false (spec 2026-09-15 §3); turn it on
-        /// for a label that must be hit in its own right — inside a control it is never needed,
-        /// the control's own hit layer is under it.
+        /// Whether the whole text catches the pointer. Default false (spec 2026-09-15 §3); turn it on
+        /// for a label that must be hit in its own right — inside a control it is never needed, the
+        /// control's own hit layer is under it. Unwritten, <see cref="OnLinkClicked"/> subscribers make
+        /// the links alone hit; an explicit false wins over them and is reported once.
         /// </summary>
         [UIAttr, Preserve]
         public bool RaycastTarget
         {
-            set
-            {
-                _raycastAuthored = value;
-                _tmp.raycastTarget = value;
-            }
+            set => _raycast.SetAuthored(value);
         }
 
         // Cleared per pass so a variant-only raycastTarget.mobile turns off again when the variant
         // leaves — a setter that does not run is the only signal that the attribute is gone.
-        internal override void OnBeforeApply() => _raycastAuthored = null;
+        internal override void OnBeforeApply() => _raycast.BeginPass();
 
-        internal override void OnAfterApply()
-        {
-            // The per-pass settle: an attribute the pass did not declare reads as the default.
-            // (Not a workaround for TMP's Awake — OnAttached defuses that at creation, which is the
-            // only place that also covers a node whose Awake runs after this pass.)
-            _tmp.raycastTarget = _raycastAuthored ?? false;
-        }
+        // The per-pass settle: an attribute the pass did not declare reads as the default. (Not a
+        // workaround for TMP's Awake — OnAttached defuses that at creation, which is the only place
+        // that also covers a node whose Awake runs after this pass.)
+        internal override void OnAfterApply() => _raycast.EndPass();
 
         [UIAttr, Preserve]
         public string Font

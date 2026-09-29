@@ -4,7 +4,6 @@ using PromptUGUI.Controls.Internal;
 using PromptUGUI.IR;
 using PromptUGUI.Registry;
 using R3;
-using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -168,14 +167,18 @@ namespace PromptUGUI.Controls
 
         internal void RaiseLinkClickedForTests(string url) => _linkClicked.OnNext(url);
 
-        private void InstallLinkClickers(IControl root)
+        // Markdown links are Text links (spec 2026-09-30-text-link-click TL-D8). Every paragraph
+        // catches the pointer, not just its links: the viewport has no Graphic of its own, so a drag
+        // reaches the ScrollRect only through a hit on the text.
+        private void WireLinks(IControl node)
         {
-            foreach (var tmp in root.GameObject.GetComponentsInChildren<TMP_Text>(true))
+            if (node is Text text)
             {
-                var clicker = tmp.gameObject.GetComponent<MarkdownLinkClicker>()
-                              ?? tmp.gameObject.AddComponent<MarkdownLinkClicker>();
-                clicker.Init(tmp, url => _linkClicked.OnNext(url));
+                text.RaycastTarget = true;
+                text.OnLinkClicked.Subscribe(_linkClicked.OnNext).AddTo(text);
             }
+            if (node is Control c)
+                foreach (var child in c.Children) WireLinks(child);
         }
 
         internal override void OnAfterApply()
@@ -219,7 +222,7 @@ namespace PromptUGUI.Controls
             var result = renderer.Render(_source, Style);
             _renderedRoot = inst.InstantiateNode(result.Root, _viewport, owner);
             SetAsContent(_renderedRoot);
-            InstallLinkClickers(_renderedRoot);
+            WireLinks(_renderedRoot);
             if (result.Images != null)
                 foreach (var req in result.Images)
                     _ = LoadImageAsync(_renderGen, req);

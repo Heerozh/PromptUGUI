@@ -353,7 +353,7 @@ TMP_Text。文本简写：`<Text>Hello</Text>` ≡ `<Text text="Hello"/>`。
 | `align` | TMP 对齐 | `left`+`middle` | 一个水平 token `left` / `center` / `right` / `justified` / `flush` / `geo`，和/或一个垂直 token `top` / `middle` / `bottom` / `baseline` / `midline` / `capline`，连字符或空格连接、顺序无关（`bottom-right` / `top-center` / `capline-flush`）；只给水平保持垂直 `middle`，只给垂直保持水平 `left`；未知 token = parse error |
 | `wrap` | bool | `true` | `false`=不换行（NoWrap）；常配 `overflow="ellipsis"` 做单行省略号 |
 | `overflow` | `overflow` / `ellipsis` / `truncate` | `overflow` | 文字塞不下框后的收尾：`overflow`=溢出框外（TMP 默认）、`ellipsis`=尾部 `…`、`truncate`=硬裁切无 `…`；未知值 = parse error |
-| `raycastTarget` | bool | `false` | Click-through by default (TMP's own default is true; the library always documented `<Text>` as `false` and now it really is). Only turn it on for text that must be hit in its own right — inside a `<Btn>` / `<Tab>` it is never needed, the control's own hit layer is under the label. See **Pointer hit-testing** |
+| `raycastTarget` | bool | `false` | Click-through by default (TMP's own default is true; the library always documented `<Text>` as `false` and now it really is). Only turn it on for text that must be hit in its own right — inside a `<Btn>` / `<Tab>` it is never needed, the control's own hit layer is under the label. Clickable `<link>`s need nothing here: a C# `OnLinkClicked` subscriber makes the links alone hit (the rest stays click-through); `true` = the whole text is hit; an explicit `false` wins over the subscriber and warns once. See **Pointer hit-testing** |
 | `font` | string | `default` | Settings 里的 font type |
 | `autosize` | bool | `false` | 开 TMP auto-size（仅 WD% 形式——字宽最多压 50%，字号不变） |
 | `tr` | bool | `true` | `false`=跳过 i18n 提取 |
@@ -962,13 +962,14 @@ Other notes:
 
 ## Pointer hit-testing (`raycastTarget`)
 
-**Hit-testing is declared, not painted.** Only two kinds of node are ever returned by the raycaster: an interactive control's own hit layer (`<Btn>` / `<Toggle>` / `<Tab>` / `<Slider>` / `<Scrollbar>` / `<Dropdown>` / `<InputField>` / `<ScrollList>` / `<Collapsible>` / `<TabMenu>` / `<Carousel>` / `<Markdown>` links — always on, not configurable), and a node you marked `raycastTarget="true"`. Everything else is click-through by default, **including a `<Frame>` that draws, an `<Image>`, a `<RawImage>` and a `<Text>`** — uGUI's own default (`true`) is not the library's.
+**Hit-testing is declared, not painted.** Only two kinds of node are ever returned by the raycaster: an interactive control's own hit layer (`<Btn>` / `<Toggle>` / `<Tab>` / `<Slider>` / `<Scrollbar>` / `<Dropdown>` / `<InputField>` / `<ScrollList>` / `<Collapsible>` / `<TabMenu>` / `<Carousel>` / `<Markdown>` text — always on, not configurable), and a node you marked `raycastTarget="true"` — or subscribed to from C# (pointer streams, `<Text>` links; below). Everything else is click-through by default, **including a `<Frame>` that draws, an `<Image>`, a `<RawImage>` and a `<Text>`** — uGUI's own default (`true`) is not the library's.
 
 - **A panel that must block what is behind it says so on its root**: `<Frame color="…" radius="…" raycastTarget="true">`. One line per panel. Its interactive children still work — a child draws on top of its ancestor and a click on a non-interactive spot bubbles up to the panel and stops there (`EventSystem.IsPointerOverGameObject()` is then true, so the game world does not see the tap). The catcher must be an **ancestor** (or an earlier sibling); a later sibling covers what it overlaps.
 - **A modal needs two declarations**: the full-screen backdrop and the dialog panel (see **Modal / Loading screens**).
 - **Decorations write nothing** (default `false`) — an overlay gradient, a glow layer, a card thumbnail, a label. Write `raycastTarget="false"` explicitly only where the lint asks you to decide (below) or to override a `class=` that carries `true`.
 - **A transparent catcher** is `<Frame raycastTarget="true">` with no visual attribute: it attaches a zero-geometry panel (no overdraw) that the raycaster still returns. Do not write `<Image color="#00000000">` for this any more.
 - **`<Image>` / `<RawImage>` as pointer-event sources** turn themselves on: `<Trigger on="hover-enter@id">` / `press@id` and a C# `OnPointerEnter` / `OnPointerExit` / `OnPointerDown` subscription both flip `raycastTarget` to true. An explicit `raycastTarget="false"` on such a source wins and is reported once — the events can never arrive.
+- **A `<Text>` with clickable `<link>`s** (a C# `Text.OnLinkClicked` subscriber) is hit **on its links only** — the plain words stay click-through, so a chat drawn over the game view does not block it. Write nothing: `raycastTarget="true"` would make the whole text hit instead, and an explicit `false` wins over the subscriber (reported once). A click on the text that is not a link click goes on to its ancestors, so a linked label inside a `<Btn>` or a clickable row does not swallow their clicks.
 - `raycastTarget` is an ordinary attribute: it travels through `<Style>` / `class=`, Variants (`raycastTarget.portrait="true"`) and `<Theme>` overrides like any other, and is cleared per pass — a variant-only `raycastTarget.mobile="true"` turns off again when the variant leaves.
 - `interactable="false"` does not change any of this: it flips `CanvasGroup.interactable`, not `blocksRaycasts`, and a `CanvasGroup` cannot create a hit area — a subtree with no raycast target blocks nothing.
 - Procedural controls (`<Btn radius="8">`, a `<Tab color="…">`) are hit on their SDF surface; there is no invisible Image under it any more.
@@ -1453,6 +1454,12 @@ Source text goes directly inside `<Text>` / `<Btn>` and serves as the msgid for 
 ```
 
 The extractor pulls each CDATA block as a single complete msgid; runtime translation preserves the tags.
+
+**Clickable links**: `<link="id">…</link>` marks a run the player can click; C# receives the id through `Text.OnLinkClicked` (C# skill, **Events & subscriptions**) — nothing to declare in XML, the subscription makes the links hit-testable. TMP does not style a link, so colour / underline it yourself:
+
+```xml
+<Text id="motd"><![CDATA[Season 3 is live — <color=#6cf><u><link="route:season">see what's new</link></u></color>]]></Text>
+```
 
 ## Import & namespaces
 
