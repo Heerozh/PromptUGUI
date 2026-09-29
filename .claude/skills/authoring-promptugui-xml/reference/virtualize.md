@@ -60,6 +60,7 @@ The plain-list contract holds as is — write every property unconditionally, su
 
 - **Only realized rows are bound — and scrolling binds too.** A row scrolling out is handed to the item scrolling in and bound again. A push rebinds every realized row, as on a plain list.
 - **A row keeps nothing that `bind` does not write.** State put on a row from outside — an expanded detail block, a text set by a click handler, a running animation — leaves with the row when it is recycled for another item. Keep such state in the item and write it in `bind`.
+- **Clickable `<link>`s in a row**: subscribe `Text.OnLinkClicked` inside `bind` with `.AddTo(row)`. The id is read from the text on screen when the click lands, so a recycled row reports the links of the message it shows now (C# skill, **Events & subscriptions**).
 - **Do not filter by hiding rows.** A row hidden by `bind` (`Hidden = true`, `flow="false"`) takes no space, but the list warns once: push the filtered items instead.
 - **Rows may differ in height** — wrapping text is fine. A row is measured when it is built; items never built use the average so far. The scroll position does not jump while estimates get corrected (anchoring, below).
 - **`SlotCount` and the rows are the realized ones**; `ItemCount` is the number of items in the last push. Rows that scrolled out wait, inactive, in a `Pool` node under the list and are still alive — a walk over the list's descendants sees them.
