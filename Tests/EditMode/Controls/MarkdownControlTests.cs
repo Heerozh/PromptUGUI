@@ -313,18 +313,37 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual("https://x.test", got);
         }
 
-        [Test]
-        public void Link_clicker_attached_to_rendered_texts()
+        private TMPro.TMP_Text RenderParagraph(Markdown md, string richText)
         {
             var fake = (FakeMarkdownRenderer)UI.Markdown.Renderer;
             var root = FakeMarkdownRenderer.Vs();
-            root.Children.Add(FakeMarkdownRenderer.Text("p", "<link=\"u\">x</link>"));
-            fake.Result = new MarkdownRenderResult { Root = root, Images = new System.Collections.Generic.List<ImageRequest>() };
-
-            var md = Open();
+            root.Children.Add(FakeMarkdownRenderer.Text("p", richText));
+            fake.Result = new MarkdownRenderResult { Root = root, Images = new List<ImageRequest>() };
             md.Text = "x";
-            var tmp = md.GameObject.GetComponentInChildren<TMPro.TMP_Text>();
-            Assert.IsNotNull(tmp.GetComponent<PromptUGUI.Controls.Internal.MarkdownLinkClicker>());
+            return md.GameObject.GetComponentInChildren<TMPro.TMP_Text>();
+        }
+
+        [Test]
+        public void A_click_on_a_rendered_link_reports_its_url()
+        {
+            var md = Open();
+            string got = null;
+            md.OnLinkClicked.Subscribe(u => got = u);
+
+            var tmp = RenderParagraph(md, "<link=\"https://u.test\">docs</link> and more");
+            LinkPointer.Click(tmp, LinkPointer.OverLink(tmp));
+
+            Assert.AreEqual("https://u.test", got);
+        }
+
+        [Test]
+        public void Rendered_text_is_hit_everywhere_so_a_drag_on_it_scrolls()
+        {
+            // The viewport has no Graphic: a drag reaches the ScrollRect only through a hit on the text.
+            var tmp = RenderParagraph(Open(), "<link=\"u\">docs</link> and more");
+
+            Assert.IsTrue(tmp.raycastTarget);
+            Assert.IsTrue(tmp.Raycast(LinkPointer.OffLinks(tmp), null), "not just the links (TL-D8)");
         }
     }
 
