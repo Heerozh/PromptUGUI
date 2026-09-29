@@ -12,7 +12,7 @@ using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class ScrollList : ProceduralControl, IHugContent, IScrollbarHost
+    public sealed class ScrollList : ProceduralControl, IHugContent, IScrollbarHost, IScrollTickHost
     {
         private UnityImage _bg;
 
@@ -27,7 +27,7 @@ namespace PromptUGUI.Controls
         private UnityImage _frame;
         private CrossAxisMaskImage _maskImage;
         private bool _maskExplicit;
-        private ScrollRect _scroll;
+        private PuiScrollRect _scroll;
         private RectTransform _viewport;
         private RectTransform _content;
         private LayoutGroup _layoutGroup;
@@ -52,6 +52,81 @@ namespace PromptUGUI.Controls
         private string _slotsTemplate;
         private bool _staticCollected;
         private bool _bound;
+
+        // BindItems (spec 2026-09-29-scrolllist-virtualization §5.5): the binding that produced the current
+        // rows, how many items its last push had, and a reusable newToOld buffer.
+        private IItemBinding _binding;
+        private int _itemCount;
+        private int[] _remap = new int[16];
+        private readonly List<IControl> _prevSlots = new();
+        // Retired rows wait here until their deferred Destroy. Inactive, and it carries a DISABLED
+        // VerticalLayoutGroup: Control.ApplyCommon asks the parent for a LayoutGroup (a disabled one
+        // counts), so a ReSolve that replays a row sitting here takes the layout-group branch — on the
+        // free-positioning branch a width="stretch" row root would throw.
+        private RectTransform _pool;
+        private bool _disposed;
+
+        // virtualize= (spec 2026-09-29 §4.1): asked for, and fixed, when the list is built
+        // (PreConfigureContent); granted unless the layout cannot be a single vertical column.
+        private bool _virtualAsked;
+        private bool _virtual;
+        private bool _reuseItems = true;
+        private HashSet<string> _warnedCodes;
+
+        // Virtual mode (§5). _slots[j] shows item _slotIndex[j]: contiguous after a sync, possibly not after
+        // a push to an inactive list until it shows again.
+        private readonly VirtualLayoutModel _model = new();
+        private readonly List<int> _slotIndex = new();
+        private readonly List<IControl> _parked = new();
+        // Scratch for one sync / push, kept to avoid allocating per frame.
+        private readonly List<IControl> _leaving = new();
+        private readonly List<IControl> _nextSlots = new();
+        private readonly List<int> _nextIndex = new();
+        private readonly List<int> _toBind = new();
+        private readonly Dictionary<int, IControl> _keep = new();
+        // A sync (or a non-virtual rebuild) is running; a push arriving meanwhile waits in _queuedPush (VIR-P7).
+        private bool _inSync;
+        private Action _queuedPush;
+        // A sync is owed: an inactive list got a push, the heights went stale, the list was enabled.
+        private bool _pending;
+        private bool _pendingBindAll;
+        private Anchor? _pendingAnchor;
+        private Vector2 _lastViewport;
+
+        // Sticky edges (spec §5.4, VIR-P5): remembered, not re-derived from the geometry at every sync — a row
+        // growing under the viewport, or the scrollbar appearing and the rows rewrapping, moves the geometry
+        // without the user having scrolled anywhere. Only the user's own motion re-reads them.
+        private bool _stickToEnd;
+        private bool _stuckToStart = true;
+        private bool _stuckToEnd;
+        private float _lastEndScroll;
+
+        // The realized rows' heights may be stale (width change, ReSolve, a row changed from outside): the next
+        // sync re-measures even if the window did not move (§5.11).
+        private bool _remeasure;
+        // The first real sync forces the owning screen's layout once when the list was built this frame — a
+        // list in a stack has no size before the canvas lays it out (§5.10).
+        private bool _settled;
+        private int _bornFrame;
+        // A bind that threw during a push: rethrown once the sync is consistent again (§5.6).
+        private System.Runtime.ExceptionServices.ExceptionDispatchInfo _bindError;
+        private bool _syncIsPush;
+
+        // Scrolling from code and the end (spec §4.2). _atEnd is written after a sync, a tick or a ScrollTo* — never in
+        // the middle of one, so a subscriber that pushes does not re-enter (VIR-P7); a ScrollTo* made mid-sync waits.
+        private readonly ReactiveProperty<bool> _atEnd = new(true);
+        private Action _queuedScroll;
+        // A list that does not window (a plain one, or a virtual one before its first push): a ScrollTo* made while it
+        // was hidden, and whether a push came since the last tick — the end moved, but nobody has laid it out yet.
+        private ScrollIntent _pendingScroll;
+        private int _pendingScrollIndex;
+        private bool _stickPending;
+        // The axis Content is anchored for (-1 before the first layout mode). Only a new axis re-anchors Content — the
+        // direction / columns setters behind ApplyLayoutMode replay on every ReSolve, and the scroll must survive them.
+        private int _contentAxis = -1;
+
+        /// <summary>Test hook: how many window syncs have run.</summary>
+        internal int SyncCount { get; private set; }
 
         // Drag-to-reorder (spec 2026-09-16-scrolllist-drag-reorder). The driver and the catcher are
         // built lazily the first time reorder= turns on and stay; the flag alone decides whether a
@@ -91,10 +166,57 @@ namespace PromptUGUI.Controls
 
         public int SlotCount => _slots.Count;
 
+        /// <summary>Items in the last <see cref="BindItems{T,TSlot}"/> push; 0 before the first one.</summary>
+        public int ItemCount => _itemCount;
+
         /// <summary>The rows in sibling order — static placeholders or <see cref="BindItems{T,TSlot}"/> rows.</summary>
         internal IReadOnlyList<IControl> Slots => _slots;
 
+        /// <summary>
+        /// The viewport shows the end of the list, or the content fits (spec 2026-09-29-scrolllist-virtualization §4.2).
+        /// Read from the current layout: a plain list that was just pushed to still reports the previous content until
+        /// the canvas lays it out.
+        /// </summary>
+        public bool IsAtEnd => _content == null || AtEnd(MainAxis, MainScroll(MainAxis));
+
+        /// <summary>
+        /// <see cref="IsAtEnd"/> as a stream: the current value on subscribe, then only changes. Written after every
+        /// window sync, every scroll tick and every <c>ScrollTo*</c> — never in the middle of one.
+        /// </summary>
+        public Observable<bool> OnAtEndChanged => _atEnd;
+
+        /// <summary>Jumps to the start (a fling in progress stops).</summary>
+        public void ScrollToStart() => ScrollTo(ScrollIntent.Start, 0);
+
+        /// <summary>Jumps to the end (a fling in progress stops); with <c>stickToEnd</c> the list follows the end again.</summary>
+        public void ScrollToEnd() => ScrollTo(ScrollIntent.End, 0);
+
+        /// <summary>
+        /// Jumps so that item <paramref name="index"/>'s start edge is at the viewport's start edge, clamped to what can
+        /// be scrolled. A virtual list counts its <see cref="ItemCount"/> items; any other list its
+        /// <see cref="SlotCount"/> rows — static rows included (VIR-P3). A hidden list jumps when it shows.
+        /// </summary>
+        public void ScrollToIndex(int index)
+        {
+            var count = Windowing ? _itemCount : _slots.Count;
+            if (index < 0 || index >= count)
+                throw new ArgumentOutOfRangeException(nameof(index), index,
+                    $"<ScrollList id='{Id}'> has {count} {(Windowing ? "items" : "rows")}");
+            ScrollTo(ScrollIntent.Index, index);
+        }
+
         internal bool IsHorizontal => !IsGrid && _direction == "horizontal";
+
+        /// <summary>True when this list only realizes the rows near its viewport (<c>virtualize="true"</c> that was granted).</summary>
+        internal bool IsVirtual => _virtual;
+
+        // A virtual list's runtime counterpart of the CLI's PUI-SCROLL-VIRTUAL-* errors: said once per code, by
+        // the control that had to ignore something (VIR-P1).
+        private void WarnOnce(string code, string message)
+        {
+            if ((_warnedCodes ??= new HashSet<string>()).Add(code))
+                UILog.Warn(this, $"[{code}] <ScrollList id='{Id}'>: {message}");
+        }
 
         // ───── drag-to-reorder (spec 2026-09-16) ─────
 
@@ -120,6 +242,13 @@ namespace PromptUGUI.Controls
         {
             set
             {
+                if (value && _virtual)
+                {
+                    WarnOnce(PromptUGUI.Lint.ScrollListRules.VirtualReorderCode,
+                        "reorder is not available on a virtual list — its rows only exist near the viewport. " +
+                        "Drag-to-reorder stays off.");
+                    value = false;
+                }
                 _reorderOn = value;
                 if (value && _reorder == null)
                 {
@@ -207,10 +336,14 @@ namespace PromptUGUI.Controls
 
         public override void OnAttached()
         {
+            _bornFrame = BornFrame.Capture();
             _bg = GameObject.GetComponent<UnityImage>() ?? GameObject.AddComponent<UnityImage>();
             _bg.color = ProceduralBuilders.DefaultContainerColor;
             ProceduralBuilders.ApplyDefaultInsetSprite(_bg);
-            _scroll = GameObject.GetComponent<ScrollRect>() ?? GameObject.AddComponent<ScrollRect>();
+            // The subclass adds the hooks a virtual list needs (spec 2026-09-29 §5.8) and behaves exactly like
+            // ScrollRect otherwise.
+            _scroll = GameObject.GetComponent<PuiScrollRect>() ?? GameObject.AddComponent<PuiScrollRect>();
+            _scroll.Host = this;
 
             _viewport = ProceduralBuilders.AddChild(RectTransform, "Viewport");
             _viewport.pivot = new Vector2(0f, 1f);
@@ -254,11 +387,20 @@ namespace PromptUGUI.Controls
         /// <c>&lt;Text scale=&gt;</c> cell would get the scale-host wrapper that <c>&lt;Grid&gt;</c>
         /// is excluded from. Idempotent — the ordinary setters still run in the apply pass.
         /// </summary>
-        internal void PreConfigureContent(string direction, string columns)
+        internal void PreConfigureContent(string direction, string columns, string virtualize = null)
         {
             _direction = string.IsNullOrEmpty(direction) ? "vertical" : direction;
             if (int.TryParse(columns, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n))
                 _columns = Math.Max(0, n);
+
+            // virtualize is decided here, once: it chooses Content's layout group before any child is built
+            // into it, and switching mode later would mean rebuilding the group and the window (VIR-D10).
+            _virtualAsked = bool.TryParse(virtualize, out var v) && v;
+            _virtual = _virtualAsked && _columns < 1 && _direction != "horizontal";
+            if (_virtualAsked && !_virtual)
+                WarnOnce(PromptUGUI.Lint.ScrollListRules.VirtualLayoutCode,
+                    "virtualize needs a single vertical column; with columns / direction=\"horizontal\" the list is " +
+                    "not virtualized and lays out every row.");
             ApplyLayoutMode();
         }
 
@@ -266,7 +408,8 @@ namespace PromptUGUI.Controls
         {
             var wantGrid = IsGrid;
             var wantHorizontal = !wantGrid && _direction == "horizontal";
-            var wantType = wantGrid ? typeof(GridLayoutGroup)
+            var wantType = _virtual ? typeof(WindowedVerticalLayoutGroup)
+                         : wantGrid ? typeof(GridLayoutGroup)
                          : wantHorizontal ? typeof(HorizontalLayoutGroup)
                          : typeof(VerticalLayoutGroup);
 
@@ -283,11 +426,10 @@ namespace PromptUGUI.Controls
                     UnityEngine.Object.DestroyImmediate(_layoutGroup);
                     _layoutGroup = null;
                 }
-                _layoutGroup = wantGrid
-                    ? (LayoutGroup)_content.gameObject.AddComponent<GridLayoutGroup>()
-                    : wantHorizontal
-                        ? _content.gameObject.AddComponent<HorizontalLayoutGroup>()
-                        : _content.gameObject.AddComponent<VerticalLayoutGroup>();
+                if (_virtual) _layoutGroup = _content.gameObject.AddComponent<WindowedVerticalLayoutGroup>();
+                else if (wantGrid) _layoutGroup = _content.gameObject.AddComponent<GridLayoutGroup>();
+                else if (wantHorizontal) _layoutGroup = _content.gameObject.AddComponent<HorizontalLayoutGroup>();
+                else _layoutGroup = _content.gameObject.AddComponent<VerticalLayoutGroup>();
             }
 
             if (_layoutGroup is GridLayoutGroup grid)
@@ -316,31 +458,33 @@ namespace PromptUGUI.Controls
             var fitter = _content.GetComponent<ContentSizeFitter>()
                          ?? _content.gameObject.AddComponent<ContentSizeFitter>();
 
-            if (wantHorizontal)
+            _scroll.horizontal = wantHorizontal;
+            _scroll.vertical = !wantHorizontal;
+            fitter.horizontalFit = wantHorizontal ? ContentSizeFitter.FitMode.PreferredSize : ContentSizeFitter.FitMode.Unconstrained;
+            fitter.verticalFit = wantHorizontal ? ContentSizeFitter.FitMode.Unconstrained : ContentSizeFitter.FitMode.PreferredSize;
+            // Re-anchoring puts Content back at the start: only for a new axis. The setters that land here replay on every
+            // ReSolve, and a list the user had scrolled (or that follows its end) must stay where it is.
+            var axis = wantHorizontal ? 0 : 1;
+            if (axis != _contentAxis)
             {
-                _scroll.horizontal = true;
-                _scroll.vertical = false;
-                // 左侧锚点：竖向铺满 viewport，水平方向由 ContentSizeFitter 撑开
-                _content.anchorMin = new Vector2(0f, 0f);
-                _content.anchorMax = new Vector2(0f, 1f);
-                _content.pivot = new Vector2(0f, 0.5f);
+                _contentAxis = axis;
+                if (wantHorizontal)
+                {
+                    // 左侧锚点：竖向铺满 viewport，水平方向由 ContentSizeFitter 撑开
+                    _content.anchorMin = new Vector2(0f, 0f);
+                    _content.anchorMax = new Vector2(0f, 1f);
+                    _content.pivot = new Vector2(0f, 0.5f);
+                }
+                else
+                {
+                    // 顶部锚点：水平方向铺满 viewport，竖向由 ContentSizeFitter 撑开（网格模式共用这一支）
+                    _content.anchorMin = new Vector2(0f, 1f);
+                    _content.anchorMax = new Vector2(1f, 1f);
+                    _content.pivot = new Vector2(0.5f, 1f);
+                }
                 _content.sizeDelta = Vector2.zero;
                 _content.anchoredPosition = Vector2.zero;
-                fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
-                fitter.verticalFit = ContentSizeFitter.FitMode.Unconstrained;
-            }
-            else
-            {
-                _scroll.horizontal = false;
-                _scroll.vertical = true;
-                // 顶部锚点：水平方向铺满 viewport，竖向由 ContentSizeFitter 撑开（网格模式共用这一支）
-                _content.anchorMin = new Vector2(0f, 1f);
-                _content.anchorMax = new Vector2(1f, 1f);
-                _content.pivot = new Vector2(0.5f, 1f);
-                _content.sizeDelta = Vector2.zero;
-                _content.anchoredPosition = Vector2.zero;
-                fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-                fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+                _scroll.MarkWritten();   // the list's own write, not the user's
             }
             ApplyGroupMetrics();
             ApplyCrossAxisClip();
@@ -374,6 +518,197 @@ namespace PromptUGUI.Controls
             }
             if (_maskImage != null) _maskImage.SetBandAxis(open);
         }
+
+        // ───── the ScrollRect's tick (IScrollTickHost, spec 2026-09-29 §5.8) ─────
+
+        void IScrollTickHost.OnScrollLateUpdate()
+        {
+            if (_inSync || _disposed) return;
+            if (Windowing) WindowTick();
+            else PlainTick();
+            PublishAtEnd();
+        }
+
+        /// <summary>
+        /// A list that does not window: a <c>ScrollTo*</c> made while it was hidden, and <c>stickToEnd</c> — the end
+        /// moved (a push, a row that rewrapped, the viewport) while the list was stuck to it (§5.4, VIR-P5).
+        /// </summary>
+        private void PlainTick()
+        {
+            if (_scroll.ConsumeUserMotion()) RecomputeStuck();
+            if (_pendingScroll != ScrollIntent.None)
+            {
+                var intent = _pendingScroll;
+                _pendingScroll = ScrollIntent.None;
+                _stickPending = false;
+                ApplyScroll(intent, _pendingScrollIndex);
+                return;
+            }
+            var axis = MainAxis;
+            if (_stickToEnd && _stuckToEnd && !_scroll.IsDragging)
+            {
+                // Keep the distance to the end the list had at the last tick: 0 at rest, the pull of an elastic bounce
+                // while it plays out. A push is not laid out yet — Content is laid out here, once per pushed frame.
+                var fromEnd = MainScroll(axis) - _lastEndScroll;
+                if (_stickPending)
+                {
+                    EnsureSettled();
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
+                }
+                var end = EndScroll(axis);
+                if (_stickPending || end != _lastEndScroll)
+                {
+                    var target = end + fromEnd;
+                    if (_scroll.velocity == Vector2.zero) target = Mathf.Clamp(target, 0f, end);
+                    ShiftMain(axis, target - MainScroll(axis));
+                }
+            }
+            _stickPending = false;
+            _lastEndScroll = EndScroll(axis);
+        }
+
+        private void WindowTick()
+        {
+            var userMoved = _scroll.ConsumeUserMotion();
+            if (userMoved) RecomputeStuck();
+            var size = _viewport.rect.size;
+            if (size.x != _lastViewport.x)
+            {
+                // Narrower or wider: every text rewraps.
+                _model.InvalidateAll();
+                _remeasure = true;
+            }
+            var resized = size != _lastViewport;
+            if (!_remeasure && !_pending && RealizedRowsChanged()) _remeasure = true;
+            if (_pending || _remeasure || userMoved || resized) Sync(_pendingBindAll, _pendingAnchor ?? CaptureAnchor());
+        }
+
+        /// <summary>
+        /// A realized row no longer matches the model — its text was changed from outside, it animated, it was
+        /// hidden. Compared row by row over the window, not by the total, which float error and collapsed rows fool.
+        /// </summary>
+        private bool RealizedRowsChanged()
+        {
+            for (var j = 0; j < _slots.Count; j++)
+            {
+                var host = HostOf(_slots[j]);
+                if (host == null) return true;
+                var collapsed = IsCollapsedRow(host);
+                if (collapsed != _model.IsCollapsed(_slotIndex[j])) return true;
+                if (!collapsed && Mathf.Abs(host.rect.height - _model.HeightOf(_slotIndex[j])) > 0.01f) return true;
+            }
+            return false;
+        }
+
+        private static bool IsCollapsedRow(RectTransform host)
+        {
+            if (!host.gameObject.activeSelf) return true;
+            var element = host.GetComponent<LayoutElement>();
+            return element != null && element.ignoreLayout;
+        }
+
+        void IScrollTickHost.OnScrollEnabled()
+        {
+            if (Windowing) _pending = true;
+        }
+
+        // ───── scrolling from code (spec 2026-09-29 §4.2) ─────
+
+        private enum ScrollIntent : byte
+        {
+            None,
+            Start,
+            End,
+            Index,
+        }
+
+        // A pixel of slack for "at an edge": float error, a sub-pixel elastic rest.
+        private const float EdgeSlop = 1f;
+
+        /// <summary>The list realizes a window of its items: virtual and bound. Before its first push a virtual list is a plain one.</summary>
+        private bool Windowing => _virtual && _binding != null;
+
+        private int MainAxis => IsHorizontal ? 0 : 1;
+
+        // How far the list is scrolled from its start along its axis, and the farthest it goes. A column's Content moves
+        // up (+y) to scroll down; a row's moves left (−x) to scroll right.
+        private float MainScroll(int axis) => axis == 1 ? _content.anchoredPosition.y : -_content.anchoredPosition.x;
+
+        private float EndScroll(int axis) => Mathf.Max(0f, _content.rect.size[axis] - _viewport.rect.size[axis]);
+
+        // At the end: within a pixel of it or past it (an elastic pull) — or the content fits, which is both ends at once.
+        private bool AtEnd(int axis, float scroll)
+        {
+            var end = EndScroll(axis);
+            return end <= EdgeSlop || scroll >= end - EdgeSlop;
+        }
+
+        private void ShiftMain(int axis, float delta) =>
+            _scroll.ShiftContent(axis == 1 ? new Vector2(0f, delta) : new Vector2(-delta, 0f));
+
+        private void PublishAtEnd()
+        {
+            if (!_disposed) _atEnd.Value = IsAtEnd;
+        }
+
+        private void ScrollTo(ScrollIntent intent, int index)
+        {
+            if (_disposed) return;
+            if (_inSync)
+            {
+                // From a bind callback: once the sync is done, and the latest one wins (VIR-P7).
+                _queuedScroll = () => ScrollTo(intent, index);
+                return;
+            }
+            _scroll.StopMovement();
+            // The sticky edges follow the request (§5.4): the start is sticky again; the end is, if it is sticky at all;
+            // after an index neither is — the item stays where it was put.
+            _stuckToStart = intent == ScrollIntent.Start;
+            _stuckToEnd = intent == ScrollIntent.End && _stickToEnd;
+            if (Windowing)
+            {
+                var anchor = intent == ScrollIntent.Start ? SnapTo(AnchorKind.Start)
+                           : intent == ScrollIntent.End ? SnapTo(AnchorKind.End)
+                           : new Anchor { Kind = AnchorKind.Item, Index = index, Snap = true };
+                if (!GameObject.activeInHierarchy)
+                {
+                    // Kept like a push's anchor: carried through later pushes, honoured when the list shows (§5.9).
+                    _pendingAnchor = anchor;
+                    _pending = true;
+                    return;
+                }
+                Sync(_pendingBindAll, anchor);   // publishes IsAtEnd
+                return;
+            }
+            if (!GameObject.activeInHierarchy)
+            {
+                // Nothing can be laid out while hidden: the first tick after the list shows does it.
+                _pendingScroll = intent;
+                _pendingScrollIndex = index;
+                return;
+            }
+            ApplyScroll(intent, index);
+            PublishAtEnd();
+        }
+
+        /// <summary>A plain list jumps at once — after laying Content out, which a push this frame has not been yet.</summary>
+        private void ApplyScroll(ScrollIntent intent, int index)
+        {
+            EnsureSettled();
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
+            var axis = MainAxis;
+            var end = EndScroll(axis);
+            var target = 0f;
+            if (intent == ScrollIntent.End) target = end;
+            else if (intent == ScrollIntent.Index && _slots.Count > 0)
+                target = StartOf(HostOf(_slots[Mathf.Clamp(index, 0, _slots.Count - 1)]), axis);
+            ShiftMain(axis, Mathf.Clamp(target, 0f, end) - MainScroll(axis));
+            _lastEndScroll = end;
+        }
+
+        // Distance from Content's start edge to a laid-out row's start edge: its top in a column, its left in a row.
+        private static float StartOf(RectTransform host, int axis) =>
+            axis == 1 ? TopOf(host) : host.anchoredPosition.x - host.rect.width * host.pivot.x;
 
         // ───── the scrollbar (IScrollbarHost) ─────
 
@@ -509,12 +844,71 @@ namespace PromptUGUI.Controls
         /// "行是自定义 Control、内部状态不经属性重置"这类场合。默认 <c>true</c>：行按位置复用（见 Rebuild）。
         /// </summary>
         [UIAttr, Preserve]
-        public bool ReuseItems { get; set; } = true;
+        public bool ReuseItems
+        {
+            get => _reuseItems;
+            set
+            {
+                _reuseItems = value;
+                if (!value && _virtual)
+                    WarnOnce(PromptUGUI.Lint.ScrollListRules.VirtualReuseCode,
+                        "reuseItems=\"false\" is ignored on a virtual list — it always recycles its rows.");
+            }
+        }
+
+        /// <summary>
+        /// Only realize the rows near the viewport (spec 2026-09-29-scrolllist-virtualization). Fixed when the list
+        /// is built — it chooses Content's layout group — so a later change (a variant, a theme) is ignored with a
+        /// warning. A single vertical column only: with <c>columns</c> / <c>direction="horizontal"</c> it is not granted.
+        /// </summary>
+        [UIAttr, Preserve]
+        public bool Virtualize
+        {
+            set
+            {
+                if (value != _virtualAsked)
+                    WarnOnce(PromptUGUI.Lint.ScrollListRules.VirtualVariantCode,
+                        $"virtualize is fixed when the list is built; it stays {(_virtualAsked ? "on" : "off")} — " +
+                        "a variant or theme cannot switch it.");
+            }
+        }
+
+        /// <summary>
+        /// While the viewport is at the end, pushes and size changes keep it there — a chat log. "At the end" is
+        /// remembered, not re-measured: only the user scrolling away (or back) changes it, never a row growing under
+        /// the viewport. With it on, the start is not sticky (loading older items at the top keeps the view on the
+        /// item the user was reading).
+        /// </summary>
+        [UIAttr, Preserve]
+        public bool StickToEnd
+        {
+            get => _stickToEnd;
+            set
+            {
+                // Turned on: the list follows the end from here if it is at the end now (an empty one is).
+                if (value && !_stickToEnd) _stuckToEnd = IsAtEnd;
+                _stickToEnd = value;
+                if (!value) _stuckToEnd = false;
+            }
+        }
 
         [UIAttr, Preserve]
         public string Direction
         {
-            set { _direction = string.IsNullOrEmpty(value) ? "vertical" : value; ApplyLayoutMode(); }
+            set
+            {
+                var direction = string.IsNullOrEmpty(value) ? "vertical" : value;
+                // A virtual list is one vertical column for good; the field stays as is, since GetNativeSize,
+                // the cross-axis clip and the scrollbar wiring all read it.
+                if (_virtual && direction == "horizontal")
+                {
+                    WarnOnce(PromptUGUI.Lint.ScrollListRules.VirtualLayoutCode,
+                        "direction=\"horizontal\" is ignored on a virtual list — it stays one vertical column.");
+                    return;
+                }
+                _direction = direction;
+                ApplyLayoutMode();
+            }
         }
 
         /// <summary>
@@ -528,7 +922,18 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public int Columns
         {
-            set { _columns = Mathf.Max(0, value); ApplyLayoutMode(); }
+            set
+            {
+                var columns = Mathf.Max(0, value);
+                if (_virtual && columns >= 1)
+                {
+                    WarnOnce(PromptUGUI.Lint.ScrollListRules.VirtualLayoutCode,
+                        "columns is ignored on a virtual list — it stays one vertical column.");
+                    return;
+                }
+                _columns = columns;
+                ApplyLayoutMode();
+            }
         }
 
         /// <summary>
@@ -674,6 +1079,13 @@ namespace PromptUGUI.Controls
             // No authored <Scrollbar> arrived with the children — build the stock one now (children
             // instantiate before this apply, so by here the answer is final).
             EnsureDefaultScrollbar();
+            // A ReSolve replays the static nodes (this one) BEFORE the rows, so the rows' new heights cannot be
+            // measured here: mark them stale and let the next tick re-measure (§5.11).
+            if (_virtual && _binding != null)
+            {
+                _model.InvalidateAll();
+                _remeasure = _pending = true;
+            }
             // The default bar may have just been appended after the frame —— 每轮 apply 后把 frame 钉回最顶。
             if (_frame != null) _frame.transform.SetAsLastSibling();
         }
@@ -695,7 +1107,7 @@ namespace PromptUGUI.Controls
             Observable<IReadOnlyList<T>> source,
             Action<TSlot, T> bind)
             where TSlot : class, IControl =>
-            source.Subscribe(items => Rebuild(items, bind));
+            Subscribe(source, new PositionalBinding<T, TSlot>(bind));
 
         public IDisposable BindItems<T>(
             Observable<IReadOnlyList<T>> source,
@@ -703,81 +1115,682 @@ namespace PromptUGUI.Controls
             BindItems<T, IControl>(source, bind);
 
         /// <summary>
-        /// 位置复用（2026-09-14 scrolllist-row-reuse spec §3 / §4）：第 i 项绑到第 i 行。数量不变的推送
-        /// 零实例化、只跑 bind；+k 只实例化 k 张；−k 只销毁尾巴。复用的行不动 GO，只在再次 bind 之前释放
-        /// 上一次 bind 挂上的 <c>.AddTo(slot)</c> 订阅袋——把每个属性无条件写一遍是 bind 回调的契约（SKILL）。
-        /// 整表重建（从前的唯一路径）只剩：静态占位卡在场的首次绑定（2026-09-10 spec 的规则）、
-        /// <c>itemTemplate</c> 名变了、<c>reuseItems="false"</c>；被外部销毁的行只重建那一行并钉回原兄弟序。
+        /// Rows follow their items by <paramref name="key"/> (spec 2026-09-29-scrolllist-virtualization §5.5):
+        /// an append instantiates one row, a trim retires one, a reorder only moves siblings — every other row
+        /// is reused, and every row is still re-bound on every push. The previous push is matched by key when it
+        /// came from any keyed <c>BindItems</c> with the same key type, so a fresh
+        /// <c>BindItems(Observable.Return(list), …, key)</c> per push works too. A null or duplicate key rejects
+        /// the whole push (logged through R3; the list keeps showing the previous one).
         /// </summary>
-        private void Rebuild<T, TSlot>(IReadOnlyList<T> items, Action<TSlot, T> bind)
+        public IDisposable BindItems<T, TSlot, TKey>(
+            Observable<IReadOnlyList<T>> source,
+            Action<TSlot, T> bind,
+            Func<T, TKey> key)
+            where TSlot : class, IControl =>
+            Subscribe(source, new KeyedBinding<T, TSlot, TKey>(bind, key ?? throw new ArgumentNullException(nameof(key))));
+
+        public IDisposable BindItems<T, TKey>(
+            Observable<IReadOnlyList<T>> source,
+            Action<IControl, T> bind,
+            Func<T, TKey> key) =>
+            BindItems<T, IControl, TKey>(source, bind, key);
+
+        private IDisposable Subscribe<T, TSlot>(Observable<IReadOnlyList<T>> source, ItemBinding<T, TSlot> binding)
+            where TSlot : class, IControl =>
+            source.Subscribe(items => OnPush(binding, items ?? Array.Empty<T>()));
+
+        private void OnPush<T, TSlot>(ItemBinding<T, TSlot> binding, IReadOnlyList<T> items)
             where TSlot : class, IControl
         {
+            // A host that forgot .AddTo(screen): the list is gone, the stream is not.
+            if (_disposed) return;
+            if (_inSync)
+            {
+                // A push from inside a bind callback (or anything else running during a sync): the latest one
+                // wins and runs as soon as this one is done — never in the middle of it (VIR-P7).
+                _queuedPush = () => OnPush(binding, items);
+                return;
+            }
             if (_factory == null)
                 throw new InvalidOperationException(
                     "ScrollList.itemTemplate must be set before BindItems is called");
 
-            // A push mid-drag ends the session first (§5.7): Rebuild assumes row i is sibling i, which a
-            // placeholder in Content would break, and the rows are about to be re-bound by position.
-            _reorder?.Cancel();
-
-            if (!_bound || !ReuseItems || _slotsTemplate != _itemTemplate) ClearSlots();
-            _slotsTemplate = _itemTemplate;
-
-            // 尾巴销毁：Play 下 Destroy 延后到帧末（与从前的整表销毁同一条路径）；尾巴在 Content 末尾，
-            // 不影响前面行的兄弟序。
-            for (var i = _slots.Count - 1; i >= items.Count; i--)
+            // Validation (null / duplicate key) throws here, before anything about the list has changed.
+            binding.Accept(items, _binding, _itemCount, ref _remap);
+            var sameBinding = ReferenceEquals(binding, _binding);
+            _binding = binding;
+            _itemCount = items.Count;
+            if (_virtual)
             {
-                _slots[i].Dispose();
-                _slots.RemoveAt(i);
+                VirtualPush(items.Count, sameBinding);
+                return;
             }
 
-            for (var i = 0; i < items.Count; i++)
+            var first = !_bound;
+            _inSync = true;
+            try { Rebuild(binding, items.Count); }
+            catch
             {
-                IControl slot;
-                if (i < _slots.Count && _slots[i].GameObject != null)
+                _queuedPush = null;
+                _queuedScroll = null;
+                throw;
+            }
+            finally { _inSync = false; }
+            if (first)
+            {
+                // New rows open at the start — at the end with stickToEnd (§5.4 rule 3). Pushes never move a plain
+                // list otherwise; the tick follows the end for a list stuck to it.
+                _stuckToStart = true;
+                _stuckToEnd = _stickToEnd;
+            }
+            _stickPending = true;
+            RunQueued();
+        }
+
+        /// <summary>What a sync put off (VIR-P7): the latest push, then the latest <c>ScrollTo*</c>.</summary>
+        private void RunQueued()
+        {
+            var push = _queuedPush;
+            var scroll = _queuedScroll;
+            _queuedPush = null;
+            _queuedScroll = null;
+            try { push?.Invoke(); }
+            finally { scroll?.Invoke(); }
+        }
+
+        /// <summary>
+        /// 复用（2026-09-14 scrolllist-row-reuse spec；2026-09-29 virtualization spec §5.5）：新第 j 项绑到
+        /// <c>_remap[j]</c> 指的那一行 —— 无 key 时就是第 j 行（位置复用），有 key 时是那个 key 上一次所在的行。
+        /// 复用的行不动 GO，只在再次 bind 之前释放上一次 bind 挂上的 <c>.AddTo(slot)</c> 订阅袋——把每个属性无条件
+        /// 写一遍是 bind 回调的契约（SKILL）。整表重建只剩：静态占位卡在场的首次绑定（2026-09-10 spec 的规则）、
+        /// <c>itemTemplate</c> 名变了、<c>reuseItems="false"</c>；被外部销毁的行只重建那一行。
+        /// <para>先定结构、再 bind：没人要的旧行先退役（移出 Content 再销毁），兄弟序钉成数据序，然后才逐行 bind ——
+        /// bind 回调看到的已是最终的列表。</para>
+        /// </summary>
+        private void Rebuild(IItemBinding binding, int count)
+        {
+            // A push mid-drag ends the session first (§5.7): Rebuild assumes row i is sibling i, which a
+            // placeholder in Content would break, and the rows are about to be re-bound.
+            _reorder?.Cancel();
+
+            var full = !_bound || !ReuseItems || _slotsTemplate != _itemTemplate;
+            if (full) ClearSlots();
+            _slotsTemplate = _itemTemplate;
+
+            _prevSlots.Clear();
+            _prevSlots.AddRange(_slots);
+            _slots.Clear();
+            for (var j = 0; j < count; j++)
+            {
+                var from = full ? -1 : _remap[j];
+                IControl row = null;
+                if (from >= 0 && from < _prevSlots.Count && _prevSlots[from] != null
+                    && _prevSlots[from].GameObject != null)
                 {
-                    slot = _slots[i];
-                    if (slot is Control c) c.ReleaseSubscriptions();
+                    row = _prevSlots[from];
+                    _prevSlots[from] = null;
+                    if (row is Control c) c.ReleaseSubscriptions();
+                }
+                // 新行（含被外部销毁的行重建）追加在 Content 末尾，下面按数据序钉回兄弟位。
+                _slots.Add(row ?? _factory(_content));
+            }
+            foreach (var old in _prevSlots)
+                if (old != null) Retire(old);
+            _prevSlots.Clear();
+
+            // Retired rows are out of Content, so its children are exactly _slots: pin data order.
+            for (var j = 0; j < _slots.Count; j++)
+            {
+                var host = HostOf(_slots[j]);
+                if (host.GetSiblingIndex() != j) host.SetSiblingIndex(j);
+            }
+
+            for (var j = 0; j < count; j++)
+                if (!binding.TryBind(_slots[j], j))
+                    throw new InvalidCastException(
+                        $"itemTemplate='{_itemTemplate}' instantiated {_slots[j].GetType().Name}, " +
+                        $"but BindItems expected {binding.SlotType.Name}");
+        }
+
+        // ───── virtual mode (spec 2026-09-29-scrolllist-virtualization §5) ─────
+
+        private enum AnchorKind : byte
+        {
+            Keep,    // leave the scroll position alone
+            Start,
+            End,
+            Item,    // keep an item's top edge where it is in the viewport
+        }
+
+        /// <summary>What has to stay put across a sync (§5.4).</summary>
+        private struct Anchor
+        {
+            public AnchorKind Kind;
+            public int Index;     // Item: the item
+            public float Delta;   // Item: its top edge minus the scroll position
+            public bool Snap;     // first push: go straight to the target
+
+            public static Anchor Keep => new Anchor { Kind = AnchorKind.Keep };
+        }
+
+        private WindowedVerticalLayoutGroup Windowed => _layoutGroup as WindowedVerticalLayoutGroup;
+
+        /// <summary>Distance from Content's top edge to the viewport's top edge.</summary>
+        private float ScrollY => _content.anchoredPosition.y;
+
+        /// <summary>What the ScrollRect's tick does once the user has moved the content — for EditMode tests.</summary>
+        internal void RefreshWindow()
+        {
+            if (!Windowing || _inSync) return;
+            if (_scroll.ConsumeUserMotion()) RecomputeStuck();
+            Sync(bindAll: false, _pendingAnchor ?? CaptureAnchor());
+        }
+
+        /// <summary>
+        /// The user moved the content: re-read the sticky edges from where it is now (VIR-P5). Past an edge counts (an
+        /// elastic pull); content that fits is at both. The distance to the end is measured against this geometry from
+        /// here on.
+        /// </summary>
+        private void RecomputeStuck()
+        {
+            var axis = MainAxis;
+            var s = MainScroll(axis);
+            var end = EndScroll(axis);
+            _stuckToStart = end <= EdgeSlop || s <= EdgeSlop;
+            _stuckToEnd = _stickToEnd && AtEnd(axis, s);
+            _lastEndScroll = end;
+        }
+
+        private void VirtualPush(int count, bool sameBinding)
+        {
+            Anchor anchor;
+            if (!_bound || _slotsTemplate != _itemTemplate)
+            {
+                // First push (the static placeholders go) or a new template: nothing realized survives.
+                ClearSlots();
+                _model.Reset(count);
+                anchor = FirstPushAnchor();
+            }
+            else
+            {
+                // A push from another BindItems call is a new data source: it is anchored like a first push
+                // (VIR-P4) — equal keys of a different kind of item must not drag the view to an unrelated row.
+                // The rows are still reused by key.
+                anchor = sameBinding ? _pendingAnchor ?? CaptureAnchor() : FirstPushAnchor();
+                _model.Remap(_remap, count);
+                RemapRealized(count);
+                anchor = RemapAnchor(anchor, count);
+            }
+            _slotsTemplate = _itemTemplate;
+            _pendingAnchor = null;
+
+            if (!GameObject.activeInHierarchy)
+            {
+                // A hidden list only keeps the data; it realizes and binds when it shows (§5.9).
+                _pendingAnchor = anchor;
+                _pending = _pendingBindAll = true;
+                return;
+            }
+            Sync(bindAll: true, anchor);
+        }
+
+        private static Anchor SnapTo(AnchorKind kind) => new Anchor { Kind = kind, Snap = true };
+
+        /// <summary>A first push (or a new data source) opens at the start — at the end with stickToEnd.</summary>
+        private Anchor FirstPushAnchor()
+        {
+            _stuckToStart = true;
+            _stuckToEnd = _stickToEnd;
+            return SnapTo(_stickToEnd ? AnchorKind.End : AnchorKind.Start);
+        }
+
+        /// <summary>
+        /// What must stay put across the next sync (§5.4): the sticky edge the list is on; otherwise the first
+        /// realized row the viewport shows, at its current place on screen; with no realized row in view (a jump
+        /// past the window) the item the model puts at the viewport's top.
+        /// </summary>
+        private Anchor CaptureAnchor()
+        {
+            if (_stickToEnd && _stuckToEnd)
+                return new Anchor { Kind = AnchorKind.End, Delta = ScrollY - _lastEndScroll };
+            if (!_stickToEnd && _stuckToStart) return Anchor.Keep;   // at the start, S simply stays
+
+            var s = ScrollY;
+            var view = _viewport.rect.height;
+            for (var j = 0; j < _slots.Count; j++)
+            {
+                var host = HostOf(_slots[j]);
+                if (host == null || !host.gameObject.activeSelf) continue;
+                var top = TopOf(host);
+                if (top + host.rect.height > s && top < s + view)
+                    return new Anchor { Kind = AnchorKind.Item, Index = _slotIndex[j], Delta = top - s };
+            }
+            if (_model.Count == 0) return Anchor.Keep;
+            var k = _model.IndexAt(s);
+            return new Anchor { Kind = AnchorKind.Item, Index = k, Delta = _model.OffsetOf(k) - s };
+        }
+
+        // Distance from Content's top edge to a row's top edge, for a row the Content group has laid out.
+        private static float TopOf(RectTransform host) =>
+            -host.anchoredPosition.y - host.rect.height * (1f - host.pivot.y);
+
+        /// <summary>
+        /// A push moved the items: each realized row follows its item to the item's new index; a row whose item is
+        /// gone is parked straight away — it is not bound again.
+        /// </summary>
+        private void RemapRealized(int newCount)
+        {
+            if (_slots.Count == 0) return;
+            _keep.Clear();
+            for (var k = 0; k < _slots.Count; k++) _keep[_slotIndex[k]] = _slots[k];
+            _nextSlots.Clear();
+            _nextIndex.Clear();
+            for (var j = 0; j < newCount && _keep.Count > 0; j++)
+            {
+                var from = _remap[j];
+                if (from < 0 || !_keep.TryGetValue(from, out var row)) continue;
+                _keep.Remove(from);
+                _nextSlots.Add(row);
+                _nextIndex.Add(j);
+            }
+            foreach (var gone in _keep.Values) Park(gone);
+            _keep.Clear();
+            _slots.Clear();
+            _slots.AddRange(_nextSlots);
+            _slotIndex.Clear();
+            _slotIndex.AddRange(_nextIndex);
+        }
+
+        private Anchor RemapAnchor(Anchor anchor, int newCount)
+        {
+            if (anchor.Kind != AnchorKind.Item) return anchor;
+            int after = -1, before = -1, afterFrom = int.MaxValue, beforeFrom = int.MinValue;
+            for (var j = 0; j < newCount; j++)
+            {
+                var from = _remap[j];
+                if (from < 0) continue;
+                if (from == anchor.Index)
+                {
+                    anchor.Index = j;
+                    return anchor;
+                }
+                if (from > anchor.Index && from < afterFrom) { afterFrom = from; after = j; }
+                if (from < anchor.Index && from > beforeFrom) { beforeFrom = from; before = j; }
+            }
+            // The anchor item is gone: the next item that survives takes its place, else the one before it.
+            if (after >= 0) { anchor.Index = after; return anchor; }
+            if (before >= 0) { anchor.Index = before; return anchor; }
+            return SnapTo(_stickToEnd ? AnchorKind.End : AnchorKind.Start);
+        }
+
+        /// <summary>
+        /// Realizes the rows for the items near the viewport, measures them and positions the window (§5.6). A
+        /// push rebinds every realized row (<paramref name="bindAll"/>); a scroll binds only the rows that enter.
+        /// </summary>
+        private void Sync(bool bindAll, Anchor anchor)
+        {
+            var group = Windowed;
+            if (group == null || _inSync) return;
+            var isPush = bindAll;
+            var remeasure = _remeasure;
+            _remeasure = false;
+            _inSync = true;
+            _syncIsPush = isPush;
+            SyncCount++;
+            try
+            {
+                EnsureSettled();
+                if (_slotsTemplate != _itemTemplate)
+                {
+                    // The template changed without a push (a variant): the realized rows came from the old one.
+                    ClearSlots();
+                    _model.InvalidateAll();
+                    _slotsTemplate = _itemTemplate;
+                    bindAll = true;
+                }
+                // The group is rewritten on every ReSolve in attribute order: read it, never cache it (VIR-P9).
+                _model.SetMetrics(group.spacing, group.padding.top, group.padding.bottom);
+                var view = _viewport.rect.height;
+                if (_model.Count == 0)
+                {
+                    ParkAll();
+                    group.Leading = group.Trailing = 0f;
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
                 }
                 else
                 {
-                    slot = _factory(_content);
-                    if (i < _slots.Count)
+                    if (!_model.HasEstimate)
                     {
-                        // 被外部销毁的行（宿主自己 Dispose 了一张卡）：原位重建。InstantiateNode 追加在 Content
-                        // 末尾，钉回第 i 位，网格 / 单列的视觉顺序才仍与数据顺序一致。
-                        _slots[i] = slot;
-                        (slot is Control nc ? nc.LayoutHost : slot.RectTransform).SetSiblingIndex(i);
+                        // Nothing measured yet: realize one row where the view will be; it sets the estimate.
+                        var seed = SeedIndex(anchor);
+                        Reconcile(seed, seed, bindAll: true);
+                        group.Leading = _model.ExtentBefore(seed);
+                        group.Trailing = _model.ExtentAfter(seed);
+                        LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
+                        MeasureWindow();
                     }
-                    else _slots.Add(slot);
+                    var realizedFirst = _slotIndex.Count > 0 ? _slotIndex[0] : -1;
+                    var realizedLast = _slotIndex.Count > 0 ? _slotIndex[_slotIndex.Count - 1] : -1;
+                    var contiguous = realizedLast - realizedFirst + 1 == _slotIndex.Count;
+                    // Measuring changes the estimate, which moves the window: a few passes settle it. The rows'
+                    // own heights do not depend on Leading, so after the first pass only positions change.
+                    for (var pass = 0; pass < 4; pass++)
+                    {
+                        // Where the viewport will END UP, clamp included: a window cut around an unclamped target would
+                        // leave the rows between the clamped position and that target unrealized.
+                        var s = ResolveScroll(anchor, view, isPush);
+                        var margin = Mathf.Max(1f, _model.Estimate);
+                        _model.TryWindow(s - margin, s + view + margin, out var first, out var last);
+                        var leading = _model.ExtentBefore(first);
+                        var trailing = _model.ExtentAfter(last);
+                        var sameWindow = contiguous && first == realizedFirst && last == realizedLast;
+                        if (sameWindow && !bindAll && !remeasure
+                            && leading == group.Leading && trailing == group.Trailing) break;
+                        var realize = !sameWindow || bindAll;
+                        if (realize) Reconcile(first, last, bindAll);
+                        group.Leading = leading;
+                        group.Trailing = trailing;
+                        LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
+                        if (realize || remeasure) MeasureWindow();
+                        realizedFirst = first;
+                        realizedLast = last;
+                        contiguous = true;
+                        bindAll = false;
+                        remeasure = false;
+                    }
                 }
-                if (slot is TSlot typed) bind(typed, items[i]);
-                else throw new InvalidCastException(
-                    $"itemTemplate='{_itemTemplate}' instantiated {slot.GetType().Name}, " +
-                    $"but BindItems expected {typeof(TSlot).Name}");
+                ApplyAnchor(anchor, view, isPush);
+                _pending = _pendingBindAll = false;
+                _pendingAnchor = null;
+                _lastViewport = _viewport.rect.size;
+                _lastEndScroll = Mathf.Max(0f, _model.Total - view);
             }
+            catch
+            {
+                _queuedPush = null;
+                _queuedScroll = null;
+                _bindError = null;
+                throw;
+            }
+            finally
+            {
+                _inSync = false;
+            }
+            var bindError = _bindError;
+            _bindError = null;
+            if (bindError != null)
+            {
+                _queuedPush = null;
+                _queuedScroll = null;
+                PublishAtEnd();
+                bindError.Throw();   // through R3's unhandled-exception handler: logged, the list is consistent
+            }
+            RunQueued();
+            PublishAtEnd();
+        }
+
+        /// <summary>
+        /// Once, before the first real sync: a list built this frame (or with no size yet) gets the layout it sits
+        /// in done first, so the window is cut and the rows are measured at the final size (§5.10). A list on a
+        /// page shown later was laid out when its screen opened.
+        /// <para>The rebuild starts at the top of the chain of layout groups the list belongs to — the same root
+        /// <c>LayoutRebuilder.MarkLayoutForRebuild</c> would pick. Rebuilding the screen root instead does nothing:
+        /// the rebuilder skips every subtree whose root has no layout controller.</para>
+        /// </summary>
+        private void EnsureSettled()
+        {
+            if (_settled) return;
+            _settled = true;
+            if (!BornFrame.IsCurrent(_bornFrame) && _viewport.rect.height > 0f) return;
+            var root = LayoutHost;
+            while (root.parent is RectTransform parent)
+            {
+                var group = parent.GetComponent<LayoutGroup>();
+                if (group == null || !group.enabled) break;
+                root = parent;
+            }
+            LayoutRebuilder.ForceRebuildLayoutImmediate(root);
+        }
+
+        private int SeedIndex(Anchor anchor)
+        {
+            var count = _model.Count;
+            switch (anchor.Kind)
+            {
+                case AnchorKind.Item: return Mathf.Clamp(anchor.Index, 0, count - 1);
+                case AnchorKind.End: return count - 1;
+                case AnchorKind.Start: return 0;
+                default: return Mathf.Clamp(_model.IndexAt(ScrollY), 0, count - 1);
+            }
+        }
+
+        private float TargetScroll(Anchor anchor, float view)
+        {
+            switch (anchor.Kind)
+            {
+                case AnchorKind.Start: return 0f;
+                // Delta keeps an elastic pull past the end as it was (0 when resting on the end).
+                case AnchorKind.End: return Mathf.Max(0f, _model.Total - view) + anchor.Delta;
+                case AnchorKind.Item:
+                    // An empty list has no item to anchor on (a ScrollToIndex queued behind a push that emptied it).
+                    if (_model.Count == 0) return 0f;
+                    return _model.OffsetOf(Mathf.Clamp(anchor.Index, 0, _model.Count - 1)) - anchor.Delta;
+                default: return ScrollY;
+            }
+        }
+
+        /// <summary>
+        /// Where the anchor puts the viewport (VIR-P6). On the scroll path that is only ever the anchor's own place — an
+        /// elastic pull past either end plays out instead of being snapped away every frame. A push lands on a valid
+        /// position once the list is at rest (not dragging, no inertia); a snap (a first push, a <c>ScrollTo*</c>) always does.
+        /// </summary>
+        private float ResolveScroll(Anchor anchor, float view, bool isPush)
+        {
+            var target = TargetScroll(anchor, view);
+            if (anchor.Snap || (isPush && !_scroll.IsDragging && _scroll.velocity == Vector2.zero))
+                target = Mathf.Clamp(target, 0f, Mathf.Max(0f, _model.Total - view));
+            return target;
+        }
+
+        /// <summary>Puts the anchor back — a shift of the content, never a jump the ScrollRect would read as motion.</summary>
+        private void ApplyAnchor(Anchor anchor, float view, bool isPush)
+        {
+            // Even a zero shift goes through: the bar is written from the new bounds every sync. A bar left at its
+            // stale value is read BACK by the ScrollRect on its next layout pass and drags the content with it (a
+            // fresh list's bar sits at 0 = the end).
+            _scroll.ShiftContentY(ResolveScroll(anchor, view, isPush) - ScrollY);
+        }
+
+        /// <summary>
+        /// Makes <c>_slots</c> the rows for items <paramref name="first"/>..<paramref name="last"/>, in sibling order.
+        /// A row leaving the window is handed to an entering item first (it stays in Content — only its sibling index
+        /// and its binding change); what is left over is parked; what is still missing comes from the pool, then the
+        /// factory (always into Content: a lift / drop hook finds its list by walking up during its first apply).
+        /// </summary>
+        private void Reconcile(int first, int last, bool bindAll)
+        {
+            _keep.Clear();
+            _leaving.Clear();
+            for (var k = 0; k < _slots.Count; k++)
+            {
+                var index = _slotIndex[k];
+                if (index >= first && index <= last && !_keep.ContainsKey(index)) _keep[index] = _slots[k];
+                else _leaving.Add(_slots[k]);
+            }
+            _nextSlots.Clear();
+            _nextIndex.Clear();
+            _toBind.Clear();
+            for (var index = first; index <= last; index++)
+            {
+                if (_keep.TryGetValue(index, out var row))
+                {
+                    if (bindAll) _toBind.Add(_nextSlots.Count);
+                }
+                else
+                {
+                    row = TakeRow();
+                    _toBind.Add(_nextSlots.Count);
+                }
+                _nextSlots.Add(row);
+                _nextIndex.Add(index);
+            }
+            foreach (var spare in _leaving) Park(spare);
+            _leaving.Clear();
+            _keep.Clear();
+            _slots.Clear();
+            _slots.AddRange(_nextSlots);
+            _slotIndex.Clear();
+            _slotIndex.AddRange(_nextIndex);
+
+            // Parked rows are out of Content, so its children are exactly _slots: pin the window order.
+            for (var j = 0; j < _slots.Count; j++)
+            {
+                var host = HostOf(_slots[j]);
+                if (host.GetSiblingIndex() != j) host.SetSiblingIndex(j);
+            }
+            foreach (var j in _toBind)
+            {
+                try
+                {
+                    BindRow(_slots[j], _slotIndex[j]);
+                }
+                catch (Exception e)
+                {
+                    // Keep going: the window must stay consistent. A push reports the first failure once the sync
+                    // is done; a scroll has no caller to report to.
+                    if (_syncIsPush) _bindError ??= System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(e);
+                    else UILog.Error(this, $"<ScrollList id='{Id}'>: bind threw for item {_slotIndex[j]} while scrolling: {e}");
+                }
+            }
+        }
+
+        private IControl TakeRow()
+        {
+            if (_leaving.Count > 0)
+            {
+                var row = _leaving[_leaving.Count - 1];
+                _leaving.RemoveAt(_leaving.Count - 1);
+                return row;
+            }
+            while (_parked.Count > 0)
+            {
+                var row = _parked[_parked.Count - 1];
+                _parked.RemoveAt(_parked.Count - 1);
+                var host = HostOf(row);
+                if (host == null) continue;   // destroyed from outside while parked
+                host.SetParent(_content, worldPositionStays: false);
+                return row;
+            }
+            return _factory(_content);
+        }
+
+        private void BindRow(IControl row, int index)
+        {
+            if (row is Control c) c.ReleaseSubscriptions();
+            if (!_binding.TryBind(row, index))
+                throw new InvalidCastException(
+                    $"itemTemplate='{_itemTemplate}' instantiated {row.GetType().Name}, " +
+                    $"but BindItems expected {_binding.SlotType.Name}");
+        }
+
+        /// <summary>Reads the laid-out height of every realized row back into the model.</summary>
+        private void MeasureWindow()
+        {
+            for (var j = 0; j < _slots.Count; j++)
+            {
+                var host = HostOf(_slots[j]);
+                if (IsCollapsedRow(host))
+                {
+                    // The group leaves it out — no height, no gap (VIR-P9).
+                    _model.SetCollapsed(_slotIndex[j]);
+                    WarnOnce("hidden-row",
+                        "a row hidden by its bind callback (Hidden = true or flow=\"false\") takes no space in a " +
+                        "virtual list — filter the items instead of hiding rows.");
+                    continue;
+                }
+                _model.SetMeasured(_slotIndex[j], host.rect.height);
+            }
+        }
+
+        /// <summary>Moves a row into the inactive pool; its subscriptions are released now, not at its next bind.</summary>
+        private void Park(IControl row)
+        {
+            var host = HostOf(row);
+            if (host == null) return;   // destroyed from outside
+            if (row is Control c) c.ReleaseSubscriptions();
+            host.SetParent(EnsurePool(), worldPositionStays: false);
+            _parked.Add(row);
+        }
+
+        private void ParkAll()
+        {
+            foreach (var row in _slots) Park(row);
+            _slots.Clear();
+            _slotIndex.Clear();
+        }
+
+        private void ReleaseParked()
+        {
+            foreach (var row in _parked) row.Dispose();
+            _parked.Clear();
+        }
+
+        private static RectTransform HostOf(IControl row) => row is Control c ? c.LayoutHost : row.RectTransform;
+
+        private RectTransform EnsurePool()
+        {
+            if (_pool != null) return _pool;
+            _pool = ProceduralBuilders.AddChild(RectTransform, "Pool");
+            _pool.gameObject.AddComponent<VerticalLayoutGroup>().enabled = false;
+            _pool.gameObject.SetActive(false);
+            return _pool;
+        }
+
+        /// <summary>
+        /// Takes a row out of Content, then disposes it. In Play mode <c>Destroy</c> waits for the end of the
+        /// frame; until then the row would still be laid out (a trimmed first row would shift the whole list
+        /// for a frame) and still hold a sibling index (ReorderDriver relies on slot i being sibling i).
+        /// </summary>
+        private void Retire(IControl row)
+        {
+            var host = HostOf(row);
+            if (host != null) host.SetParent(EnsurePool(), worldPositionStays: false);
+            row.Dispose();
         }
 
         private void ClearSlots()
         {
-            // 标记已动态绑定：之后 ReSolve 的静态收集不再执行。静态卡在这里被 Dispose，
+            // 标记已动态绑定：之后 ReSolve 的静态收集不再执行。静态卡在这里被退役，
             // Screen.ReSolve 靠 `control.GameObject == null` 跳过它们的 ElementNode。
             _reorder?.Cancel();
             _bound = true;
             foreach (var s in _slots)
             {
-                s.Dispose();
+                Retire(s);
             }
             _slots.Clear();
+            _slotIndex.Clear();
+            ReleaseParked();
         }
 
         public override void Dispose()
         {
-            ClearSlots();
+            _disposed = true;
+            _reorder?.Cancel();
+            // The whole list goes away: no need to move the rows out of Content first.
+            foreach (var s in _slots)
+            {
+                s.Dispose();
+            }
+            _slots.Clear();
+            _slotIndex.Clear();
+            foreach (var p in _parked) p.Dispose();
+            _parked.Clear();
             // An adopted bar is a Screen-owned node and is disposed with the rest of _nodeMap; the
             // default one is ours.
             if (_ownsBar) _bar?.Dispose();
             _reordered.Dispose();
+            _atEnd.Dispose();
             base.Dispose();
         }
     }

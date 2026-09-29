@@ -334,7 +334,7 @@ screen.Get<ScrollList>("inv")
 ```
 
 - `BindOptions` takes `Observable<IEnumerable<string | DropdownOption>>`.
-- `BindItems` takes `Observable<IReadOnlyList<T>>` and a per-slot binder.
+- `BindItems` takes `Observable<IReadOnlyList<T>>`, a per-slot binder and, optionally, `key:` (see **Keyed pushes** below).
 - `itemTemplate=` in the XML resolves to either a `<Template name="...">` (slot root is the template body) or a registered Control class (slot is that Control). Use `slot.Get<T>("childId")` inside the binder to reach into Template bodies.
 - After hot-reload, you must **re-Bind** — the underlying ScrollList is rebuilt.
 
@@ -357,6 +357,52 @@ that asks of the binder:
    the row's next `bind`.
 4. `reuseItems="false"` opts a list out (every push destroys and rebuilds every row) —
    for a custom-Control row whose internal state is not reset by attributes.
+
+**Keyed pushes — rows follow their items.** Pass a key and rows are matched by it instead of
+by position:
+
+```csharp
+list.BindItems(messages, (IControl row, Message m) => row.Get<Text>("body").TextValue = m.Body,
+               key: m => m.Id)                    // BindItems<T, TKey> / BindItems<T, TSlot, TKey>
+    .AddTo(screen);
+```
+
+An append instantiates one row, trimming the oldest destroys one, a reordered list only moves
+siblings — every other row is reused (and, as always, re-bound on every push; rules 1–3 hold).
+The key is generic (`Func<T, TKey>`), so value-type ids do not box. The previous push is matched
+by key when it came from any keyed `BindItems` with the same `TKey`, so a fresh
+`BindItems(Observable.Return(list), …, key)` per push works too. A null or duplicate key
+rejects the whole push: the list keeps showing the previous one, and the error goes through R3's
+unhandled-exception handler — it is logged, not thrown back at the pusher.
+
+**Long lists: `<ScrollList virtualize="true">`.** Only the rows near the viewport exist, so a
+push or a frame costs about the same at 100 items as at 10,000 (only the key diff and the copy of
+each push grow with the count — ~15 ms at 100,000 in the editor). XML side, restrictions and the
+anchoring rules: XML skill, `reference/virtualize.md`. For the C# side:
+
+- **Bind once and push through the observable.** Each push is copied into the list, so pushing
+  the same `List<T>` again is fine — through a `Subject` (a `ReactiveProperty` dedupes the same
+  instance). Use a key: it is what keeps the view still when old items are trimmed.
+- **`bind` also runs while scrolling**, for each row entering the viewport. Keep row state in the
+  item, not on the row (a recycled row forgets it); filter items rather than hiding rows.
+- **`SlotCount` / the rows are the realized ones**; `ItemCount` is the item count of the last push.
+- A hidden list binds when it shows. A throwing `bind` never leaves the list half-built: on a push
+  the first error goes through R3 after the rest is bound; while scrolling it is logged as an error.
+
+**Scrolling from code, and the end** (any `<ScrollList>`):
+
+```csharp
+list.ScrollToStart(); list.ScrollToEnd(); list.ScrollToIndex(i);        // instant — a fling stops
+bool atEnd = list.IsAtEnd;                                               // content that fits counts
+list.OnAtEndChanged.Subscribe(a => newMessages.Hidden = a).AddTo(screen); // current value, then changes
+```
+
+`ScrollToIndex` puts the item's top edge (left edge, horizontally) at the viewport's, clamped; it
+counts items (`ItemCount`) on a virtual list and rows (`SlotCount`, static ones included) on any
+other, and throws `ArgumentOutOfRangeException` past them. On a hidden list the jump happens when it
+shows; called from inside `bind` it runs once the push is done. `stickToEnd="true"` in the XML keeps a
+list at its end while it sits there (a chat log); the user scrolling away releases it and
+`ScrollToEnd()` brings it back.
 
 **Reorder (`<ScrollList reorder="true">`).** The user drags rows; the list permutes its rows
 and its slot order and then tells you — the data order is yours to keep in step:
@@ -830,7 +876,7 @@ dropdown.BindOptions(LocaleTicks.Select(_ => (IEnumerable<string>)
     new[] { UI.Tr("Light"), UI.Tr("Dark") })).AddTo(screen);
 ```
 
-`Dropdown.BindOptions` clears+refills then `RefreshShownValue()` without touching the selected index, so re-emitting an equal-length list just re-captions (no spurious `OnSelected`). `BindItems` re-emits rebuild the child items — correct, but it resets list scroll / carousel page, so only re-emit what actually needs retranslating.
+`Dropdown.BindOptions` clears+refills then `RefreshShownValue()` without touching the selected index, so re-emitting an equal-length list just re-captions (no spurious `OnSelected`). A `ScrollList.BindItems` re-emit re-binds every row and keeps the scroll position; a `Carousel` re-emit rebuilds its cards (pass `key:` to keep the centred one). Either way it re-runs your binder for every row, so only re-emit what actually needs retranslating.
 
 `SetToSystemDefault()` / the boot-time `InitializeIfNeeded()` match `Application.systemLanguage` against your configured locales with **RFC 4647 truncation fallback**: an unmatched `zh-Hant-TW` is retried as `zh-Hant`, then `zh`. So a single configured `zh` catches every Chinese system (`systemLanguage` always reports `zh-Hans`/`zh-Hant`, never bare `zh`) — you don't need one entry per script. The matched **configured** spelling is what's used (so `.po` paths resolve), exact beats parent, and it only truncates the *request* — a generic `zh` system won't match a more specific configured `zh-Hans`.
 
@@ -844,7 +890,7 @@ For Addressables-backed `.po` loading (`UI.Locale.UseAddressableResolver`, `Loca
 
 ## Theme switching
 
-`BindItems` 建出来的行**跟随 Variant / 主题重解算**（此前它们在实例化后就冻住，连颜色 token 都不跟）。一次重放的代价随行数超线性增长（50 行约 6 ms，500 行约 500 ms），所以**窗口 resize 刻意跳过它** —— 行所依赖的状态并没有变，而 resize 是成串到来的；转屏仍然能到达行，因为那是切 Variant，走状态路径。行数很多时列表本身就该考虑虚拟化。
+`BindItems` 建出来的行**跟随 Variant / 主题重解算**（此前它们在实例化后就冻住，连颜色 token 都不跟）。一次重放的代价随行数超线性增长（50 行约 6 ms，500 行约 500 ms），所以**窗口 resize 刻意跳过它** —— 行所依赖的状态并没有变，而 resize 是成串到来的；转屏仍然能到达行，因为那是切 Variant，走状态路径。For a long list use `<ScrollList virtualize="true">`: only its realized rows — about a screenful — exist to be re-solved.
 
 `UI.Theme.Set` re-derives **colour tokens and `<Style>` packs** — a theme that declares `<Style>`
 children re-skins sprites, radii, font sizes and everything else `class=` can carry, in place: the
@@ -1018,6 +1064,12 @@ DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                ScrollList.BindItems(Observable<IReadOnlyList<T>>, (slot,t)=>...)
                                        rows are RECYCLED by position: bind writes every property, unconditionally;
                                        .AddTo(slot) released before the next bind; reuseItems="false" opts out
+               ScrollList.BindItems(src, bind, key: t=>t.Id)   keyed: rows follow their items (an append = one new row);
+                                       null / duplicate key rejects the push (logged via R3, not thrown)
+               <ScrollList virtualize="true">  only rows near the viewport; bind also runs while scrolling;
+                                       ItemCount = items, SlotCount = realized rows; bind once, push via Subject
+               ScrollList.ScrollToStart() / .ScrollToEnd() / .ScrollToIndex(i)   instant; a hidden list jumps on show
+               ScrollList.IsAtEnd / .OnAtEndChanged  Observable<bool> (replay + dedupe); stickToEnd="true" follows the end
                ScrollList.OnReordered  Observable<(int From, int To)> — <ScrollList reorder="true">; rows already permuted;
                                        apply RemoveAt(From)+Insert(To) to your data and push; IsReordering while lifted
                TabBar.BindItems(Observable<IReadOnlyList<T>>, (Tab tab,t)=>...)

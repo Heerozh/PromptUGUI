@@ -18,12 +18,13 @@
         "PromptUGUI.Tests.EditMode",
         "PromptUGUI.Tests.EditMode.Addressables",
         "PromptUGUI.Tests.PlayMode",
+        "PromptUGUI.Tests.Perf",
         "PromptUGUI.Tests.Compat"
     ],
     "samples": [
         {
             "displayName": "Common Controls Demo",
-            "description": "Four-Page TabBar Showcase: Forms / Display & Feedback / List & Carousel / Modal Alerts + UI Tutorial (Onboarding)",
+            "description": "Five-Page TabBar Showcase: Forms / Display & Feedback / List & Carousel / Modal Alerts / Virtualized Chat (1,000 messages) + UI Tutorial (Onboarding)",
             "path": "Samples~/CommonControls"
         },
         {

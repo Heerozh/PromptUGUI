@@ -4,8 +4,10 @@ using PromptUGUI.IR;
 namespace PromptUGUI.Lint
 {
     /// <summary>
-    /// Lint rules for the grid mode of &lt;ScrollList&gt; (<c>columns</c> / <c>cellSize</c>).
-    /// Consumed by both IRWalker (CLI errors) and ScreenInstantiator (runtime warnings).
+    /// Lint rules for &lt;ScrollList&gt;. The grid mode (<c>columns</c> / <c>cellSize</c>,
+    /// <see cref="CheckScrollList"/>) is consumed by both IRWalker (CLI errors) and ScreenInstantiator
+    /// (runtime warnings); drag-to-reorder and <c>virtualize</c> are CLI-only — the control reports
+    /// what it has to ignore itself.
     /// <para>The children's own attributes are left to the existing shared rules: anchor / margin to
     /// <see cref="LayoutGroupChildRules.CheckChild"/> (a ScrollList is in the layout-group list), and
     /// a cell's own size to <see cref="LayoutGroupChildRules.CheckGridChild"/> with this tag's name.</para>
@@ -16,6 +18,15 @@ namespace PromptUGUI.Lint
         public const string ColumnsCellSizeCode = "PUI-SCROLL-COLUMNS-CELLSIZE";
         public const string ReorderHandleCode = "PUI-REORDER-HANDLE-ID";
         public const string ReorderValueCode = "PUI-REORDER-VALUE";
+
+        // virtualize= (spec 2026-09-29-scrolllist-virtualization §4.3). CLI errors only; the control warns once
+        // at runtime itself, with the same code, when it has to ignore something (VIR-P1).
+        public const string VirtualLayoutCode = "PUI-SCROLL-VIRTUAL-LAYOUT";
+        public const string VirtualReorderCode = "PUI-SCROLL-VIRTUAL-REORDER";
+        public const string VirtualReuseCode = "PUI-SCROLL-VIRTUAL-REUSE";
+        public const string VirtualHugCode = "PUI-SCROLL-VIRTUAL-HUG";
+        public const string VirtualVariantCode = "PUI-SCROLL-VIRTUAL-VARIANT";
+        public const string VirtualTemplateCode = "PUI-SCROLL-VIRTUAL-TEMPLATE";
 
         /// <summary>
         /// True when this list asks for the grid in ANY configuration — a base <c>columns</c> or any
@@ -78,6 +89,90 @@ namespace PromptUGUI.Lint
                     "without it every cell silently falls back to uGUI's 100x100. " +
                     "Fix: add cellSize=\"WxH\".");
         }
+
+        // ───── virtualize (spec 2026-09-29-scrolllist-virtualization §4.3) ─────
+
+        /// <summary>
+        /// True when this list asks to be virtual: <c>virtualize</c> is true in its base value or in any variant, through
+        /// <c>class=</c> too. The mode is decided once, when the list is built, from whichever of them applies then — so
+        /// each of them counts.
+        /// </summary>
+        public static bool DeclaresVirtualize(ElementNode n, StyleAttributeView styles = null)
+        {
+            if (n == null) return false;
+            return FirstMatch(n, styles ?? StyleAttributeView.Empty, "virtualize", IsTrue).Attr != null;
+        }
+
+        /// <summary>
+        /// What cannot go with <c>virtualize</c>. CLI only (VIR-P1): at runtime the list sees the merged values, warns
+        /// once with the same code and falls back, and the Screen still opens.
+        /// </summary>
+        public static IEnumerable<LintIssue> CheckVirtualize(ElementNode n, StyleAttributeView styles = null)
+        {
+            styles ??= StyleAttributeView.Empty;
+            styles.Resolve(n, "virtualize", out _, out var virtualizeVariants);
+            if (virtualizeVariants.Count > 0)
+                yield return new LintIssue(
+                    VirtualVariantCode, n.Tag, n.Id,
+                    $"<ScrollList id='{n.Id}'>: virtualize.{virtualizeVariants[0].Variant} — virtualize is decided once, " +
+                    "when the list is built (it picks Content's layout group), so a variant that switches later is " +
+                    "ignored with a runtime warning. Fix: write virtualize without a variant; for a list that must " +
+                    "differ per variant, give each variant its own list.");
+            if (!DeclaresVirtualize(n, styles)) yield break;
+
+            if (DeclaresGrid(n, styles) || DeclaresHorizontal(n, styles))
+                yield return new LintIssue(
+                    VirtualLayoutCode, n.Tag, n.Id,
+                    $"<ScrollList id='{n.Id}'>: virtualize needs a single vertical column — with 'columns' or " +
+                    "direction=\"horizontal\" (here or in a variant) the list is not virtualized at runtime and lays " +
+                    "out every row. Fix: drop columns / direction=\"horizontal\", or drop virtualize.");
+
+            var (reorderAttr, _) = FirstMatch(n, styles, "reorder", IsTrue);
+            if (reorderAttr != null)
+                yield return new LintIssue(
+                    VirtualReorderCode, n.Tag, n.Id,
+                    $"<ScrollList id='{n.Id}'>: {reorderAttr}=\"true\" on a virtual list — its rows only exist near " +
+                    "the viewport, so there is nothing to drag them past; at runtime drag-to-reorder stays off. " +
+                    "Fix: drop reorder, or drop virtualize.");
+
+            var (reuseAttr, _) = FirstMatch(n, styles, "reuseItems", IsFalse);
+            if (reuseAttr != null)
+                yield return new LintIssue(
+                    VirtualReuseCode, n.Tag, n.Id,
+                    $"<ScrollList id='{n.Id}'>: {reuseAttr}=\"false\" is ignored on a virtual list — recycling rows " +
+                    "is what it does. Fix: drop reuseItems, and have the bind callback write every property the row " +
+                    "shows.");
+
+            var (hugAttr, hugValue) = FirstMatch(n, styles, "height", HugRules.IsOpenEndedHug);
+            if (hugAttr != null)
+                yield return new LintIssue(
+                    VirtualHugCode, n.Tag, n.Id,
+                    $"<ScrollList id='{n.Id}'>: {hugAttr}=\"{hugValue}\" grows the list with its rows and no upper " +
+                    "bound, so the viewport always shows all of them and the virtual list realizes every row. " +
+                    "Fix: a fixed height, stretch, or a capped clamp(_, hug, N).");
+
+            if (!styles.Declares(n, "itemTemplate"))
+                yield return new LintIssue(
+                    VirtualTemplateCode, n.Tag, n.Id,
+                    $"<ScrollList id='{n.Id}'>: virtualize without an itemTemplate — a virtual list builds its rows " +
+                    "from it as they scroll into view, and BindItems throws without one. Fix: add itemTemplate=\"…\".");
+        }
+
+        // The first place — base value, then each variant — where attr's value passes the test: its spelling
+        // ("reorder" / "reorder.edit") and value, or (null, null).
+        private static (string Attr, string Value) FirstMatch(
+            ElementNode n, StyleAttributeView styles, string attr, System.Func<string, bool> test)
+        {
+            styles.Resolve(n, attr, out var baseValue, out var variants);
+            if (baseValue != null && test(baseValue)) return (attr, baseValue);
+            foreach (var (variant, value) in variants)
+                if (value != null && test(value)) return ($"{attr}.{variant}", value);
+            return (null, null);
+        }
+
+        private static bool IsTrue(string value) => bool.TryParse(value.Trim(), out var b) && b;
+
+        private static bool IsFalse(string value) => bool.TryParse(value.Trim(), out var b) && !b;
 
         // ───── drag-to-reorder (spec 2026-09-16 §4.5) ─────
 

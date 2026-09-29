@@ -45,6 +45,11 @@ msgstr "消息框"
 msgid "Toast"
 msgstr "Toast"
 
+# . CommonControls screen, Btn#chatMore text
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
+msgid "↓ 新消息"
+msgstr "↓ 新消息"
+
 # . CommonControls screen, Tab#tabList text-attr
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
 msgid "列表轮播"
@@ -60,6 +65,11 @@ msgstr "展示反馈"
 msgid "新手引导"
 msgstr "新手引导"
 
+# . CommonControls screen, Btn#chatBurst text
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
+msgid "来 50 条"
+msgstr "来 50 条"
+
 # . CommonControls screen, Tab#tabModal text-attr
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
 msgid "模态提示"
@@ -69,6 +79,11 @@ msgstr "模态提示"
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
 msgid "点我弹跳"
 msgstr "点我弹跳"
+
+# . CommonControls screen, Tab#tabChat text-attr
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
+msgid "聊天"
+msgstr "聊天"
 
 # . CommonControls screen, Tab#tabForm text-attr
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
