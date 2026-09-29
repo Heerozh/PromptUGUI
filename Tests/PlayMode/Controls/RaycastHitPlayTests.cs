@@ -299,5 +299,60 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             Assert.IsFalse(Hit(RaycastCentre(out _), t.GameObject),
                 "TMP's own default is true; the library's is false");
         }
+
+        /// <summary>
+        /// A chat line over the HUD: a &lt;Text&gt; with an <c>OnLinkClicked</c> subscriber drawn over a
+        /// Btn it does not contain. Only the links catch the pointer (spec 2026-09-30-text-link-click
+        /// TL-D4) — a tap on the plain words reaches the Btn behind, a tap on the link is the text's.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator Linked_text_is_hit_on_its_links_only()
+        {
+            var s = Open("<Btn id='b' anchor='center' size='400x60'/>" +
+                         "<Text id='t' anchor='center' size='400x60' align='center' wrap='false'>" +
+                         "<![CDATA[<link=\"x\">LINK</link> plain words]]></Text>");
+            var links = new List<string>();
+            var clicks = 0;
+            using var link = s.Get<Text>("t").OnLinkClicked.Subscribe(links.Add);
+            using var click = s.Get<Btn>("b").OnClick.Subscribe(__ => clicks++);
+            yield return null;
+
+            var tmp = s.Get<Text>("t").GameObject.GetComponent<TMPro.TMP_Text>();
+            Tap(CharCentre(tmp, tmp.textInfo.linkInfo[0].linkTextfirstCharacterIndex));
+            Tap(CharCentre(tmp, tmp.textInfo.characterCount - 1));
+
+            CollectionAssert.AreEqual(new[] { "x" }, links, "the tap on the link is the text's");
+            Assert.AreEqual(1, clicks, "the plain words are click-through: that tap reached the Btn behind");
+        }
+
+        /// <summary>A character's centre on screen — on an Overlay canvas world space is screen pixels.</summary>
+        private static Vector2 CharCentre(TMPro.TMP_Text tmp, int index)
+        {
+            tmp.ForceMeshUpdate();
+            var c = tmp.textInfo.characterInfo[index];
+            return tmp.transform.TransformPoint(new Vector3(
+                (c.bottomLeft.x + c.topRight.x) * 0.5f, (c.descender + c.ascender) * 0.5f, 0f));
+        }
+
+        /// <summary>
+        /// Press and release on the spot, dispatched as the input module does: the raycaster picks the
+        /// top hit and the click goes to the nearest click handler above it.
+        /// </summary>
+        private static void Tap(Vector2 at)
+        {
+            Canvas.ForceUpdateCanvases();
+            var data = new PointerEventData(EnsureES())
+            {
+                position = at,
+                pressPosition = at,
+                button = PointerEventData.InputButton.Left,
+            };
+            var hits = new List<RaycastResult>();
+            EnsureES().RaycastAll(data, hits);
+            Assert.IsTrue(hits.Count > 0, $"nothing under {at}");
+            data.pointerCurrentRaycast = data.pointerPressRaycast = hits[0];
+            ExecuteEvents.Execute(ExecuteEvents.GetEventHandler<IPointerClickHandler>(hits[0].gameObject),
+                data, ExecuteEvents.pointerClickHandler);
+        }
     }
 }
