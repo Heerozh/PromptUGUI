@@ -83,5 +83,48 @@ namespace PromptUGUI.Tests.Editor
                     new List<TranslationItem>(),
                     "zh-Hans", "https://e/v1", "x", "k", "p", CancellationToken.None));
         }
+
+        [Test]
+        public async Task TranslateBatch_BaseUrl_PostsToChatCompletions()
+        {
+            Uri sentTo = null;
+            var stub = new StubHandler
+            {
+                Reply = req =>
+                {
+                    sentTo = req.RequestUri;
+                    return new HttpResponseMessage(HttpStatusCode.OK)
+                    {
+                        Content = new StringContent(@"
+                            { ""choices"": [ { ""message"": {
+                              ""content"": ""{\""translations\"":[]}""
+                            } } ] }"),
+                    };
+                },
+            };
+            var client = new TranslationClient(new HttpClient(stub));
+            await client.TranslateBatch(
+                new List<TranslationItem>(),
+                "zh-Hans", "https://api.openai.com/v1", "x", "k", "p", CancellationToken.None);
+            Assert.AreEqual("https://api.openai.com/v1/chat/completions", sentTo.AbsoluteUri);
+        }
+
+        [TestCase("https://api.deepseek.com", "https://api.deepseek.com/chat/completions")]
+        [TestCase("https://api.openai.com/v1/", "https://api.openai.com/v1/chat/completions")]
+        [TestCase("  https://api.openai.com/v1  ", "https://api.openai.com/v1/chat/completions")]
+        [TestCase("https://api.openai.com/v1/chat", "https://api.openai.com/v1/chat/completions")]
+        [TestCase("https://api.deepseek.com/chat/completions", "https://api.deepseek.com/chat/completions")]
+        [TestCase("https://api.deepseek.com/chat/completions/", "https://api.deepseek.com/chat/completions")]
+        [TestCase("https://API.example.com/V1/Chat/Completions", "https://API.example.com/V1/Chat/Completions")]
+        [TestCase("https://r.openai.azure.com/openai/deployments/d?api-version=2024-10-21",
+            "https://r.openai.azure.com/openai/deployments/d/chat/completions?api-version=2024-10-21")]
+        [TestCase("https://r.openai.azure.com/openai/deployments/d/chat/completions?api-version=2024-10-21",
+            "https://r.openai.azure.com/openai/deployments/d/chat/completions?api-version=2024-10-21")]
+        [TestCase("", "")]
+        [TestCase(null, null)]
+        public void NormalizeEndpoint_AppendsChatCompletions(string input, string expected)
+        {
+            Assert.AreEqual(expected, TranslationClient.NormalizeEndpoint(input));
+        }
     }
 }

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -37,14 +38,33 @@ namespace PromptUGUI.Editor.I18n
             _http = http ?? new HttpClient();
         }
 
+        private const string ChatCompletionsPath = "/chat/completions";
+
+        /// <summary>
+        /// Completes an OpenAI-compatible base URL to its chat-completions route:
+        /// `https://api.openai.com/v1` → `https://api.openai.com/v1/chat/completions`.
+        /// A URL already ending in `/chat/completions` is kept as is; a query string
+        /// (Azure's `?api-version=`) stays at the end.
+        /// </summary>
+        internal static string NormalizeEndpoint(string endpoint)
+        {
+            if (string.IsNullOrWhiteSpace(endpoint)) return endpoint;
+            var url = endpoint.Trim();
+            var q = url.IndexOf('?');
+            var query = q < 0 ? "" : url.Substring(q);
+            var path = (q < 0 ? url : url.Substring(0, q)).TrimEnd('/');
+            if (path.EndsWith(ChatCompletionsPath, StringComparison.OrdinalIgnoreCase)) return path + query;
+            if (path.EndsWith("/chat", StringComparison.OrdinalIgnoreCase)) return path + "/completions" + query;
+            return path + ChatCompletionsPath + query;
+        }
+
         public async Task<BatchResult> TranslateBatch(
             IList<TranslationItem> items,
             string targetLocale,
             string endpoint, string model, string apiKey, string systemPrompt,
             CancellationToken ct)
         {
-
-            var req = new HttpRequestMessage(HttpMethod.Post, endpoint);
+            var req = new HttpRequestMessage(HttpMethod.Post, NormalizeEndpoint(endpoint));
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
             var prompt = systemPrompt.Replace("{{targetLocale}}", targetLocale);

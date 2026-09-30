@@ -43,7 +43,9 @@ namespace PromptUGUI.Editor.I18n
                 var tp = GetOrCreateProvider();
                 var auth = GetOrCreateAuth();
                 EditorGUI.BeginChangeCheck();
-                tp.endpoint = EditorGUILayout.TextField("Endpoint", tp.endpoint);
+                // Delayed: normalizing on every keystroke would append the suffix mid-typing.
+                tp.endpoint = TranslationClient.NormalizeEndpoint(
+                    EditorGUILayout.DelayedTextField("Endpoint", tp.endpoint));
                 tp.model = EditorGUILayout.TextField("Model", tp.model);
                 EditorGUILayout.LabelField("System Prompt");
                 tp.systemPrompt = EditorGUILayout.TextArea(tp.systemPrompt, GUILayout.Height(140));
