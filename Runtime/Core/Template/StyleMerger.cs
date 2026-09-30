@@ -204,6 +204,8 @@ namespace PromptUGUI.Template
                 TextContent = src.TextContent,
                 TextContentRaw = src.TextContentRaw,
                 IsTemplateInstanceRoot = src.IsTemplateInstanceRoot,
+                LeadingComments = src.LeadingComments,
+                InvocationComments = src.InvocationComments,
             };
             foreach (var kv in src.Attributes)
                 dst.Attributes[kv.Key] = kv.Value;

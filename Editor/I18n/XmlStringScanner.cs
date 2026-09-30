@@ -61,15 +61,34 @@ namespace PromptUGUI.Editor.I18n
 
             foreach (var screen in expanded.Screens)
             {
-                foreach (var es in WalkNode(screen.Root, screen.Name, parentSiblings: null, localePartition))
+                foreach (var es in WalkNode(screen.Root, screen.Name, parentSiblings: null, localePartition,
+                                            enclosing: null))
                     yield return es;
             }
             // Walk original (unexpanded) Template bodies so that static template text and
             // format-string text are extracted exactly once regardless of invocation count.
             foreach (var t in doc.Templates.Values)
             {
-                foreach (var es in WalkNode(t.Body, $"Template:{t.Name}", parentSiblings: null, localePartition))
+                foreach (var es in WalkNode(t.Body, $"Template:{t.Name}", parentSiblings: null, localePartition,
+                                            enclosing: null))
                     yield return es;
+            }
+        }
+
+        /// <summary>
+        /// The template call sites enclosing a node of the expanded tree, innermost first — each link
+        /// one instance root's <see cref="ElementNode.InvocationComments"/>. Immutable and threaded down
+        /// the lazy <see cref="WalkNode"/> recursion, so nothing ever has to be popped.
+        /// </summary>
+        private sealed class CallSiteScope
+        {
+            public readonly IReadOnlyList<string> Comments;
+            public readonly CallSiteScope Outer;
+
+            public CallSiteScope(IReadOnlyList<string> comments, CallSiteScope outer)
+            {
+                Comments = comments;
+                Outer = outer;
             }
         }
 
@@ -96,8 +115,13 @@ namespace PromptUGUI.Editor.I18n
 
         private static IEnumerable<ExtractedString> WalkNode(
             ElementNode node, string screenOrTemplateName,
-            List<string> parentSiblings, string localePartition)
+            List<string> parentSiblings, string localePartition, CallSiteScope enclosing)
         {
+            // Entering an instance root adds its call site(s) BEFORE its own text is harvested: a template
+            // body may be nothing but <Btn>{{label}}</Btn>, and that label is the call site's argument.
+            var scope = node.InvocationComments is { Count: > 0 } invocationComments
+                ? new CallSiteScope(invocationComments, enclosing)
+                : enclosing;
 
             // Pre-compute siblings text list for ambient context of THIS node's children.
             // We build it from the children of the current node whose text will be harvested,
@@ -116,19 +140,23 @@ namespace PromptUGUI.Editor.I18n
             {
                 node.Attributes.TryGetValue("ctx", out var ctx);
 
-                var bodyMsgid = PickMsgid(node);
+                // Call-site comments go only to a value that came from template arguments: a template's
+                // static text is one msgid for every instance, and slot content has its own comments.
+                var bodyMsgid = PickMsgid(node, out var bodyFromArgs);
                 if (!string.IsNullOrEmpty(bodyMsgid))
-                    yield return Build(bodyMsgid, ctx, screenOrTemplateName, node, parentSiblings, "text", localePartition);
+                    yield return Build(bodyMsgid, ctx, screenOrTemplateName, node, parentSiblings, "text",
+                                       localePartition, bodyFromArgs ? scope : null);
 
-                var attrMsgid = PickTextAttrMsgid(node);
+                var attrMsgid = PickTextAttrMsgid(node, out var attrFromArgs);
                 if (!string.IsNullOrEmpty(attrMsgid))
-                    yield return Build(attrMsgid, ctx, screenOrTemplateName, node, parentSiblings, "text-attr", localePartition);
+                    yield return Build(attrMsgid, ctx, screenOrTemplateName, node, parentSiblings, "text-attr",
+                                       localePartition, attrFromArgs ? scope : null);
             }
 
             // Recurse into children, passing childSiblings as the sibling context.
             foreach (var child in node.Children)
             {
-                foreach (var es in WalkNode(child, screenOrTemplateName, childSiblings, localePartition))
+                foreach (var es in WalkNode(child, screenOrTemplateName, childSiblings, localePartition, scope))
                     yield return es;
             }
         }
@@ -146,23 +174,32 @@ namespace PromptUGUI.Editor.I18n
         ///   - If the node came from template expansion → skip; the same msgid is
         ///     extracted exactly once via the Template body walk.
         ///   - Else → emit the raw form.
+        /// <paramref name="fromArgs"/> is true exactly for the first case: the value is a template
+        /// argument, so the call sites enclosing it describe it.
         /// </summary>
-        private static string PickMsgid(ElementNode node)
+        private static string PickMsgid(ElementNode node, out bool fromArgs)
         {
+            fromArgs = false;
             var raw = GetRawText(node);
             if (string.IsNullOrEmpty(raw)) return null;
             var fromTemplate = node.TextArgs != null && node.TextArgs.Count > 0;
             if (IsPureBraces(raw))
+            {
+                fromArgs = fromTemplate;
                 return fromTemplate ? node.TextContent : null;
+            }
             return fromTemplate ? null : raw;
         }
 
+        private static string PickMsgid(ElementNode node) => PickMsgid(node, out _);
+
         /// <summary>
-        /// Same rules as <see cref="PickMsgid"/> but for the "text" attribute.
+        /// Same rules as <see cref="PickMsgid(ElementNode, out bool)"/> but for the "text" attribute.
         /// AttributesRaw holds the pre-substitution form when present.
         /// </summary>
-        private static string PickTextAttrMsgid(ElementNode node)
+        private static string PickTextAttrMsgid(ElementNode node, out bool fromArgs)
         {
+            fromArgs = false;
             string raw = null;
             if (node.AttributesRaw != null && node.AttributesRaw.TryGetValue("text", out var ra))
                 raw = ra;
@@ -173,6 +210,7 @@ namespace PromptUGUI.Editor.I18n
             if (IsPureBraces(raw))
             {
                 if (!fromTemplate) return null;
+                fromArgs = true;
                 return node.Attributes.TryGetValue("text", out var substituted) ? substituted : null;
             }
             return fromTemplate ? null : raw;
@@ -192,10 +230,14 @@ namespace PromptUGUI.Editor.I18n
                    t.Count(c => c == '{') == 2 && t.Count(c => c == '}') == 2;
         }
 
+        /// <param name="callSites">
+        /// The enclosing call sites when the value is a template argument, else null (spec
+        /// 2026-09-30-i18n-xml-comments §3.3).
+        /// </param>
         private static ExtractedString Build(
             string msgid, string ctx, string screenOrTemplateName,
             ElementNode node, List<string> parentSiblings, string attrSlot,
-            string localePartition)
+            string localePartition, CallSiteScope callSites)
         {
 
             var es = new ExtractedString
@@ -216,6 +258,13 @@ namespace PromptUGUI.Editor.I18n
                 if (!string.IsNullOrEmpty(sibs))
                     es.ExtractedComments.Add($"sibling: {sibs}");
             }
+
+            // Author comments: the ones above the element where the text is written (for an argument,
+            // that is inside the template), then the enclosing call sites, innermost first.
+            if (node.LeadingComments != null)
+                es.ExtractedComments.AddRange(node.LeadingComments);
+            for (var site = callSites; site != null; site = site.Outer)
+                es.ExtractedComments.AddRange(site.Comments);
 
             if (TmpRichTextDetector.HasTmpTags(msgid))
             {

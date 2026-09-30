@@ -53,10 +53,12 @@ namespace PromptUGUI.Editor.I18n
                     Msgstr = existingByKey.TryGetValue(kv.Key, out var prev) ? prev.Msgstr : "",
                     TranslatorComments = new List<string>(),
                 };
-                // Merge comment streams: # translator (free) + #. extracted + #: refs.
-                foreach (var c in es.Comments) entry.TranslatorComments.Add(c);
-                foreach (var c in es.ExtractedComments) entry.TranslatorComments.Add($". {c}");
-                foreach (var r in es.References) entry.TranslatorComments.Add($": {r}");
+                // Merge comment streams: # translator (free) + #. extracted + #: refs — each line once,
+                // in the order it first appeared: a label used twice in one screen would otherwise
+                // repeat its ambient line, its author comments and its reference.
+                foreach (var c in FirstSeen(es.Comments)) entry.TranslatorComments.Add(c);
+                foreach (var c in FirstSeen(es.ExtractedComments)) entry.TranslatorComments.Add($". {c}");
+                foreach (var r in FirstSeen(es.References)) entry.TranslatorComments.Add($": {r}");
                 output.Add(entry);
             }
             // Stable order: by ctx, then by msgid.
@@ -66,6 +68,13 @@ namespace PromptUGUI.Editor.I18n
                 return c != 0 ? c : string.Compare(a.Msgid ?? "", b.Msgid ?? "", System.StringComparison.Ordinal);
             });
             return PoParser.Serialize(output);
+        }
+
+        private static IEnumerable<string> FirstSeen(IEnumerable<string> lines)
+        {
+            var seen = new HashSet<string>();
+            foreach (var line in lines)
+                if (seen.Add(line)) yield return line;
         }
     }
 }

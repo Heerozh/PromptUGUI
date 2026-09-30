@@ -1439,6 +1439,20 @@ Source text goes directly inside `<Text>` / `<Btn>` and serves as the msgid for 
 <Text font="title" font.zh-Hans="title-cn">Settings</Text>
 ```
 
+**Translator notes**: an XML comment on its own line(s) directly above an element becomes a `#.` note on that element's msgid — `Extract Strings` writes it into the `.po`, and `AI Translate Locale` sends it to the model with the string. Use it for what a translator cannot see: what the word is for, length limits, "keep this in English".
+
+```xml
+<!-- Top-right close button; one short word -->
+<Btn id="close">Close</Btn>
+
+<!-- label is the button name; caption is decoration: English in CJK locales, Chinese elsewhere -->
+<FlagTab label="战舰设计" caption="DESIGN" />
+```
+
+- **Template call site**: a comment above an invocation reaches every msgid made from that call's arguments (`label` and `caption` above). With nested templates every enclosing call site contributes, innermost first.
+- **Inside a template**: a comment above the element an argument lands in (`<!-- decorative caption -->` above `<Text>{{caption}}</Text>`) reaches that argument at every call site, listed before the call-site comment. A template's own fixed text keeps only its own comment.
+- Only comments that **start their own line** count (blank lines in between are fine); a trailing comment (`<Frame/> <!-- spacer -->`) belongs to nothing. A comment above a container does not reach the text inside it.
+
 **Reserved variant namespace**: the library auto-manages two namespaces — authors must NOT reuse these names for business state:
 
 - **Locale**: `UI.Locale.Set("zh-Hans")` internally registers `zh-Hans` (any locale code passed to `UI.Locale.Set`) as an active Variant.

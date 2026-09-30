@@ -67,6 +67,27 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Merge_RepeatedMsgid_CommentsAndReferencesDeduplicated_InFirstSeenOrder()
+        {
+            // The same label twice in one screen, and an author comment repeated within one occurrence:
+            // every line once, in the order it first appeared.
+            var result = PoFileWriter.Merge("", new[] {
+                new ExtractedString { Msgid = "世界",
+                    Comments = { "free", "free" },
+                    ExtractedComments = { "Round screen, Text text", "调用点", "调用点" },
+                    References = { "Assets/UI/Round.ui.xml" } },
+                new ExtractedString { Msgid = "世界",
+                    Comments = { "free" },
+                    ExtractedComments = { "Round screen, Text text", "sibling: 势力" },
+                    References = { "Assets/UI/Round.ui.xml" } },
+            });
+            var entry = PoParser.Parse(result).Single();
+            CollectionAssert.AreEqual(
+                new[] { "free", ". Round screen, Text text", ". 调用点", ". sibling: 势力", ": Assets/UI/Round.ui.xml" },
+                entry.TranslatorComments);
+        }
+
+        [Test]
         public void Merge_SameMsgidDifferentCtx_TwoEntries()
         {
             var result = PoFileWriter.Merge("", new[] {
