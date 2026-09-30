@@ -20,24 +20,44 @@ namespace PromptUGUI.Editor.I18n
         // Markdown's "text" is dynamic source content, so neither is harvested here.
         private static readonly HashSet<string> TextHostingTags = new() { "Text", "Btn", "Toggle", "Tab" };
 
+        /// <summary>A single self-contained document: no Import closure, no common libraries.</summary>
         public static IEnumerable<ExtractedString> Scan(string xmlSource, string localePartition)
-            => Scan(xmlSource, localePartition, externalTemplates: null);
-
-        /// <summary>
-        /// Scan with an optional pool of templates defined in OTHER files (cross-file
-        /// invocations). When provided, template invocations are inlined before
-        /// extraction, so parameter values flowing into Text/Btn slots show up as
-        /// msgids. The file's own templates take precedence on name collisions.
-        /// </summary>
-        public static IEnumerable<ExtractedString> Scan(
-            string xmlSource, string localePartition,
-            IReadOnlyDictionary<string, TemplateDef> externalTemplates)
         {
             UIDocument doc;
             try { doc = UIDocumentParser.Parse(xmlSource); }
-            catch (ParseException) { yield break; }   // unparseable file → skip
+            catch (ParseException) { return Enumerable.Empty<ExtractedString>(); }   // unparseable file → skip
+            catch (System.Xml.XmlException) { return Enumerable.Empty<ExtractedString>(); }
+            return Scan(doc, localePartition, "<scan>", imports: null, commons: null);
+        }
 
-            UIDocument expanded = TryExpand(doc, externalTemplates);
+        /// <summary>
+        /// Screens are walked EXPANDED — template invocations inlined — so a parameter value
+        /// flowing into a Text/Btn slot shows up as a msgid. Expansion goes through
+        /// <see cref="DocumentAssembler.AssembleWithCommons"/>, the same Import closure +
+        /// <c>&lt;Style&gt;</c> + common-library merge the runtime and the linter use: a
+        /// hand-built subset of it fails on the first <c>class=</c> it cannot resolve, and every
+        /// invocation-site value in that document goes with it.
+        /// </summary>
+        /// <param name="src">The entry's own resolver key, i.e. what <paramref name="imports"/> is asked for it.</param>
+        /// <param name="imports">
+        /// Resolves every <c>&lt;Import src&gt;</c> (and every row of <paramref name="commons"/>) to its
+        /// parsed document. Null when the caller could not produce the closure: a document with
+        /// imports or commons is then not expanded at all — against half its names it would only
+        /// fail on phantom unknowns — and the raw tree is walked instead.
+        /// </param>
+        /// <param name="commons">The project's common libraries (<c>PromptUGUISettings.commonLibraries</c>).</param>
+        /// <param name="onExpansionFailed">
+        /// Called with the reason when expansion throws — a document <c>UI.Open</c> would reject
+        /// too. The raw tree is still walked, so text written directly in the Screen survives.
+        /// </param>
+        internal static IEnumerable<ExtractedString> Scan(
+            UIDocument doc, string localePartition, string src,
+            System.Func<string, UIDocument> imports, IReadOnlyList<ImportRef> commons,
+            System.Action<string> onExpansionFailed = null)
+        {
+            var expanded = doc.Screens.Count == 0
+                ? doc
+                : TryExpand(doc, src, imports, commons, onExpansionFailed);
 
             foreach (var screen in expanded.Screens)
             {
@@ -54,29 +74,22 @@ namespace PromptUGUI.Editor.I18n
         }
 
         private static UIDocument TryExpand(
-            UIDocument doc,
-            IReadOnlyDictionary<string, TemplateDef> externalTemplates)
+            UIDocument doc, string src,
+            System.Func<string, UIDocument> imports, IReadOnlyList<ImportRef> commons,
+            System.Action<string> onExpansionFailed)
         {
+            var hasCommons = commons != null && commons.Count > 0;
+            if (imports == null && (doc.Imports.Count > 0 || hasCommons)) return doc;
+
             try
             {
-                var loaded = new LoadedDoc { EntrySrc = "<scan>" };
-                foreach (var s in doc.Screens) loaded.Screens.Add(s);
-                if (externalTemplates != null)
-                {
-                    foreach (var kv in externalTemplates)
-                        loaded.Templates[new TemplateKey(null, kv.Key)] = kv.Value;
-                }
-                // File-local templates win over external when names collide — same precedence
-                // the runtime loader applies for entry-file templates over commons.
-                foreach (var kv in doc.Templates)
-                    loaded.Templates[new TemplateKey(null, kv.Key)] = kv.Value;
+                System.Func<string, UIDocument> lookup = s => s == src ? doc : imports?.Invoke(s);
+                var loaded = DocumentAssembler.AssembleWithCommons(src, lookup, commons);
                 return TemplateExpander.Expand(loaded);
             }
-            catch (TemplateException)
+            catch (System.Exception ex) when (ex is TemplateException || ex is ParseException)
             {
-                // Cross-file template invocation that we don't have the def for, or a
-                // genuine template bug — fall back to walking the raw doc so the rest
-                // of the file's strings still get extracted.
+                onExpansionFailed?.Invoke(ex.Message);
                 return doc;
             }
         }

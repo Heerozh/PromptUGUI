@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using PromptUGUI.Application;
 using PromptUGUI.IR;
+using PromptUGUI.Lint;
 using PromptUGUI.Parser;
 using UnityEditor;
 using UnityEngine;
@@ -191,32 +192,93 @@ namespace PromptUGUI.Editor.I18n
 
         private static IEnumerable<ExtractedString> ScanAllXml()
         {
-            // Two pass: collect all <Template> defs across the project so that a
-            // Screen invoking a Template defined in a separate (commons) file can
-            // still have its parameter values extracted as msgids. Files that fail
-            // to parse are silently skipped here (same fallback the per-file scan
-            // applies); pure-parse-error reporting belongs elsewhere.
             var paths = new List<string>();
-            var pool = new Dictionary<string, TemplateDef>();
             foreach (var guid in AssetDatabase.FindAssets("t:TextAsset"))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
                 if (!path.EndsWith(".ui.xml")) continue;
                 if (path.StartsWith("Packages/")) continue;
                 paths.Add(path);
-                try
-                {
-                    var doc = UIDocumentParser.Parse(File.ReadAllText(path));
-                    foreach (var kv in doc.Templates) pool[kv.Key] = kv.Value;
-                }
-                catch (ParseException) { /* surface during per-file scan */ }
             }
+            // A src lands on the same file Lint All UI XML and UI Preview pick (Addressables
+            // first, then a Resources/ walk); the commons are the settings rows the runtime loads.
+            return ScanXml(
+                paths,
+                p => File.ReadAllText(UiXmlLocator.Physical(p)),
+                UiXmlLocator.MakeResolver(),
+                UIXmlLintMenu.ConfiguredCommonLibraries(),
+                (path, message) => Debug.LogWarning(
+                    $"[PromptUGUI] Extract Strings: {path}: {message}",
+                    AssetDatabase.LoadAssetAtPath<TextAsset>(path)));
+        }
+
+        /// <summary>
+        /// Scans <paramref name="paths"/> (asset paths), each into the partition its path names.
+        /// A document with a <c>&lt;Screen&gt;</c> is expanded against its whole
+        /// <c>&lt;Import&gt;</c> closure plus <paramref name="commons"/>, fetched through
+        /// <see cref="ImportClosure"/> exactly as the lint run does, so template invocation-site
+        /// values (a tab's <c>label="…"</c>) reach the .po. Every way a file can lose strings — it
+        /// does not parse, an import cannot be resolved, expansion throws — goes to
+        /// <paramref name="warn"/> as <c>(path, message)</c> instead of disappearing.
+        /// </summary>
+        /// <param name="read">Asset path → XML text, for entries and everything they import.</param>
+        /// <param name="resolve"><c>(src, importingPath) → asset path</c>, null when unknown.</param>
+        internal static IEnumerable<ExtractedString> ScanXml(
+            IReadOnlyList<string> paths,
+            System.Func<string, string> read,
+            System.Func<string, string, string> resolve,
+            IReadOnlyList<ImportRef> commons,
+            System.Action<string, string> warn)
+        {
+            // The commons closure is parsed once and shared by every entry; a row that cannot be
+            // resolved is the same for every entry, so it is reported once.
+            var cache = new ImportClosure.Cache();
+            var notedCommons = new HashSet<string>();
 
             foreach (var path in paths)
             {
-                var text = File.ReadAllText(path);
+                UIDocument doc;
+                try
+                {
+                    doc = UIDocumentParser.Parse(read(path), path);
+                }
+                catch (System.Exception ex) when (
+                    ex is ParseException || ex is System.Xml.XmlException || ex is IOException)
+                {
+                    warn(path, $"skipped, cannot parse: {ex.Message}");
+                    continue;
+                }
+
+                // Only a Screen is expanded; a library is walked as written, so its imports are
+                // never needed and never fetched.
+                System.Func<string, UIDocument> imports = null;
+                var applied = commons;
+                if (doc.Screens.Count > 0)
+                {
+                    var closure = ImportClosure.TryLoad(
+                        path, doc, resolve, read, commons, cache, out applied, out var unresolved);
+                    if (closure != null)
+                    {
+                        imports = s => closure.TryGetValue(s, out var d) ? d : null;
+                    }
+                    else
+                    {
+                        var isCommons = commons != null && commons.Any(c => c.Src == unresolved);
+                        if (!isCommons || notedCommons.Add(unresolved))
+                            warn(path,
+                                "cannot resolve " +
+                                (isCommons ? $"common library src=\"{unresolved}\"" : $"<Import src=\"{unresolved}\">") +
+                                " - template invocations were not expanded, so their parameter values are missing " +
+                                "from the .po" + (isCommons ? " (for every Screen)." : "."));
+                    }
+                }
+
                 var partition = PathToPartition(path);
-                foreach (var es in XmlStringScanner.Scan(text, partition, pool))
+                foreach (var es in XmlStringScanner.Scan(
+                             doc, partition, path, imports, applied,
+                             reason => warn(path,
+                                 "template expansion failed - invocation-site parameter values are missing " +
+                                 $"from the .po: {reason}")))
                 {
                     if (es.References.Count == 0) es.References.Add(path);
                     yield return es;

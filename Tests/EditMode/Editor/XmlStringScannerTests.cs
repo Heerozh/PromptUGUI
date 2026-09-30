@@ -167,31 +167,148 @@ namespace PromptUGUI.Tests.Editor
             Assert.Contains("开始", msgids);
         }
 
+        // ── expansion sees what the runtime sees: Import closure, <Style>, commons ──────────────
+
+        private static UIDocument Doc(string src, string body) =>
+            UIDocumentParser.Parse("<PromptUGUI version='1'>" + body + "</PromptUGUI>", src);
+
+        private static List<string> ScanEntry(
+            string entry, Dictionary<string, UIDocument> files,
+            IReadOnlyList<ImportRef> commons = null, List<string> failures = null) =>
+            XmlStringScanner.Scan(files[entry], "p", entry,
+                                  s => files.TryGetValue(s, out var d) ? d : null,
+                                  commons, msg => failures?.Add(msg))
+                .Select(e => e.Msgid).ToList();
+
         [Test]
         public void Scan_CrossFileTemplateInvocation_ExtractsParamValue()
         {
-            // Template lives in a separate file; the Screen file invokes it. The
-            // external-template pool is what StringExtractor builds in its first
-            // pass — verify the scanner consults it so cross-file param values
-            // still end up as msgids.
-            var commonsXml = @"<PromptUGUI version='1'>
-                <Template name='Hint'>
-                    <Param name='msg'/>
-                    <Text>{{msg}}</Text>
-                </Template>
-            </PromptUGUI>";
-            var commonsDoc = UIDocumentParser.Parse(commonsXml);
-            var pool = new Dictionary<string, TemplateDef>();
-            foreach (var kv in commonsDoc.Templates) pool[kv.Key] = kv.Value;
+            // Template lives in a separate file the Screen <Import>s — the param value
+            // passed at the invocation site must still end up as a msgid.
+            var files = new Dictionary<string, UIDocument>
+            {
+                ["lib.ui"] = Doc("lib.ui",
+                    "<Template name='Hint'><Param name='msg'/><Text>{{msg}}</Text></Template>"),
+                ["main.ui"] = Doc("main.ui",
+                    "<Import src='lib.ui'/><Screen name='Main'><Hint msg='Welcome!'/></Screen>"),
+            };
+            Assert.Contains("Welcome!", ScanEntry("main.ui", files));
+        }
 
-            var screenXml = @"<PromptUGUI version='1'>
+        [Test]
+        public void Scan_TemplateBodyUsesClassFromSameFile_ExtractsParamValue()
+        {
+            // Expansion merges class= packs; a scan that hands the expander no <Style>
+            // table fails on the first class= and loses every invocation-site value.
+            var xml = @"<PromptUGUI version='1'>
+                <Style name='skin' color='#223344'/>
+                <Template name='MenuBtn'>
+                    <Param name='label'/>
+                    <Btn class='skin'><Text>{{label}}</Text></Btn>
+                </Template>
                 <Screen name='Main'>
-                    <Hint msg='Welcome!'/>
+                    <MenuBtn label='开始'/>
                 </Screen>
             </PromptUGUI>";
-            var msgids = XmlStringScanner.Scan(screenXml, "screens/Main", pool)
+            var msgids = XmlStringScanner.Scan(xml, "screens/Main")
                 .Select(e => e.Msgid).ToList();
-            Assert.Contains("Welcome!", msgids);
+            Assert.Contains("开始", msgids);
+        }
+
+        [Test]
+        public void Scan_StyledTemplateFromImport_ExtractsParamValues()
+        {
+            // The shape that went missing from a real .po: a tab-card template whose body is
+            // skinned by class=, style + template in an imported library, label / caption
+            // passed at each invocation.
+            var files = new Dictionary<string, UIDocument>
+            {
+                ["tabs.ui"] = Doc("tabs.ui",
+                    "<Style name='flag' color='#101820'/>" +
+                    "<Style name='flag-label' fontSize='14'/>" +
+                    "<Template name='FlagTab'><Param name='label'/><Param name='caption'/>" +
+                    "<Tab id='tab' class='flag'>" +
+                    "<Text class='flag-label'>{{label}}</Text><Text>{{caption}}</Text>" +
+                    "</Tab></Template>"),
+                ["round.ui"] = Doc("round.ui",
+                    "<Import src='tabs.ui'/><Screen name='Round'><TabBar>" +
+                    "<FlagTab id='flagDesign' label='战舰设计' caption='DESIGN'/>" +
+                    "<FlagTab id='flagResearch' label='研究' caption='RESEARCH'/>" +
+                    "</TabBar></Screen>"),
+            };
+            var failures = new List<string>();
+            var msgids = ScanEntry("round.ui", files, failures: failures);
+
+            CollectionAssert.IsEmpty(failures);
+            CollectionAssert.IsSupersetOf(msgids, new[] { "战舰设计", "DESIGN", "研究", "RESEARCH" });
+        }
+
+        [Test]
+        public void Scan_NamespacedImport_ExtractsParamValue()
+        {
+            // <Import as='ui'> makes the template reachable only as <ui.MenuBtn/>.
+            var files = new Dictionary<string, UIDocument>
+            {
+                ["lib.ui"] = Doc("lib.ui",
+                    "<Template name='MenuBtn'><Param name='label'/><Btn><Text>{{label}}</Text></Btn></Template>"),
+                ["main.ui"] = Doc("main.ui",
+                    "<Import src='lib.ui' as='ui'/><Screen name='Main'><ui.MenuBtn label='开始'/></Screen>"),
+            };
+            Assert.Contains("开始", ScanEntry("main.ui", files));
+        }
+
+        [Test]
+        public void Scan_StyleOnlyInCommonLibrary_ExtractsParamValue()
+        {
+            // A common library (PromptUGUISettings.commonLibraries) is the <Import> every
+            // document implicitly has — a class= that lives only there must resolve.
+            var files = new Dictionary<string, UIDocument>
+            {
+                ["theme.ui"] = Doc("theme.ui", "<Style name='skin' color='#223344'/>"),
+                ["main.ui"] = Doc("main.ui",
+                    "<Template name='MenuBtn'><Param name='label'/><Btn class='skin'><Text>{{label}}</Text></Btn></Template>" +
+                    "<Screen name='Main'><MenuBtn label='开始'/></Screen>"),
+            };
+            var failures = new List<string>();
+            var msgids = ScanEntry("main.ui", files, new[] { new ImportRef("theme.ui", null) }, failures);
+
+            CollectionAssert.IsEmpty(failures);
+            Assert.Contains("开始", msgids);
+        }
+
+        [Test]
+        public void Scan_ExpansionFails_ReportsReason_AndStillExtractsRawText()
+        {
+            // A document the runtime could not open either: say why instead of silently
+            // dropping every invocation-site value, and keep what the raw tree still offers.
+            var files = new Dictionary<string, UIDocument>
+            {
+                ["main.ui"] = Doc("main.ui",
+                    "<Screen name='Main'><Text>标题</Text><Frame class='nope'/></Screen>"),
+            };
+            var failures = new List<string>();
+            var msgids = ScanEntry("main.ui", files, failures: failures);
+
+            Assert.AreEqual(1, failures.Count);
+            StringAssert.Contains("unknown style 'nope'", failures[0]);
+            Assert.Contains("标题", msgids);
+        }
+
+        [Test]
+        public void Scan_NoImportClosure_SkipsExpansionWithoutReporting()
+        {
+            // imports == null means the caller could not produce the closure (and says so
+            // itself). Expanding against half the document would only report phantom
+            // unknown names, so the scan walks the raw tree quietly.
+            var doc = Doc("main.ui",
+                "<Import src='lib.ui'/><Screen name='Main'><Text>标题</Text><Hint msg='x'/></Screen>");
+            var failures = new List<string>();
+            var msgids = XmlStringScanner.Scan(doc, "p", "main.ui", imports: null, commons: null,
+                                               onExpansionFailed: failures.Add)
+                .Select(e => e.Msgid).ToList();
+
+            CollectionAssert.IsEmpty(failures);
+            Assert.Contains("标题", msgids);
         }
 
         [Test]

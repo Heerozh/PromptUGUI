@@ -70,22 +70,7 @@ namespace PromptUGUI.Lint
             try
             {
                 Func<string, UIDocument> lookup = s => s == entrySrc ? doc : imports?.Invoke(s);
-                loaded = DocumentAssembler.Assemble(entrySrc, lookup, allowScreens: true);
-                if (hasCommons)
-                {
-                    // Same order of operations as the runtime: each library is assembled with its
-                    // own closure (no <Screen> allowed), rebased under its namespace into one pool,
-                    // and the pool is merged onto the entry last.
-                    var pool = new Dictionary<TemplateKey, TemplateDef>();
-                    var styles = new Dictionary<StyleKey, StyleDef>();
-                    foreach (var lib in commons)
-                    {
-                        var library = DocumentAssembler.Assemble(lib.Src, lookup, allowScreens: false);
-                        DocumentAssembler.AddCommonLibrary(
-                            library, lib.Namespace, lib.Src, pool, styles, commonsThemes);
-                    }
-                    DocumentAssembler.MergeCommons(loaded, pool, styles);
-                }
+                loaded = DocumentAssembler.AssembleWithCommons(entrySrc, lookup, commons, commonsThemes);
             }
             catch (Exception ex) when (ex is TemplateException || ex is ParseException)
             {
