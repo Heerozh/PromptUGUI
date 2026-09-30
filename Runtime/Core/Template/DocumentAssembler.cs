@@ -41,6 +41,35 @@ namespace PromptUGUI.Template
         }
 
         /// <summary>
+        /// <see cref="Assemble"/> with the project's common libraries
+        /// (<c>PromptUGUISettings.commonLibraries</c>) folded on top, in the runtime's order of
+        /// operations: each library assembled with its own closure (no <c>&lt;Screen&gt;</c>),
+        /// rebased under its namespace into one pool, the pool merged onto the entry last. The
+        /// linter and the i18n extractor both expand through here, so neither can drift from what
+        /// <c>UI.LoadDocumentAsync</c> would build.
+        /// </summary>
+        /// <param name="lookup">Must answer for the entry, every row, and everything they import.</param>
+        /// <param name="commons">Null or empty: plain <see cref="Assemble"/>.</param>
+        /// <param name="commonsThemes">When given, receives the libraries' <c>&lt;Theme&gt;</c> blocks with their src.</param>
+        public static LoadedDoc AssembleWithCommons(
+            string entrySrc, Func<string, UIDocument> lookup, IReadOnlyList<ImportRef> commons,
+            List<(ThemeBlock Theme, string Src)> commonsThemes = null)
+        {
+            var loaded = Assemble(entrySrc, lookup, allowScreens: true);
+            if (commons == null || commons.Count == 0) return loaded;
+
+            var pool = new Dictionary<TemplateKey, TemplateDef>();
+            var styles = new Dictionary<StyleKey, StyleDef>();
+            foreach (var lib in commons)
+            {
+                var library = Assemble(lib.Src, lookup, allowScreens: false);
+                AddCommonLibrary(library, lib.Namespace, lib.Src, pool, styles, commonsThemes);
+            }
+            MergeCommons(loaded, pool, styles);
+            return loaded;
+        }
+
+        /// <summary>
         /// Folds the commons pool onto an already-assembled document. A name declared on both sides
         /// is a hard conflict — commons are meant to be the shared baseline, so silently letting the
         /// entry document shadow one would make the same markup mean different things per screen.
