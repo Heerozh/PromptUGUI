@@ -442,6 +442,8 @@ namespace PromptUGUI.I18n {
 - 收集 sibling strings：同父 Text/Btn 的 raw text（前 3 个，去重）
 - 显式 `ctx="..."` 进 msgctxt
 - 检测 msgid 含 TMP 富文本标签 (`<sprite>` / `<color>` / `<b>` / `<i>` / `<size>` / `<link>`) → 输出 `#. Contains TMP rich text tags. Preserve tags and attribute values verbatim.` 注释
+- （2026-09-30 追加）元素正上方的作者 XML 注释 → `#.` 译者注，含模板调用点与模板内部两处的规则：见
+  `2026-09-30-i18n-xml-comments-design.md`
 
 ### 8.3 C# 扫描
 

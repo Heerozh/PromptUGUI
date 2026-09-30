@@ -191,6 +191,45 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void ScanXml_SlotCommentInTemplateFile_AndCallSiteComment_BothReachTheScreenEntry()
+        {
+            // Multi-line bodies: a comment only counts when it opens its own line. The template file is
+            // parsed by ImportClosure, not by the entry's own parse — its comments must survive that too.
+            var fs = new FakeFs()
+                .Add("Assets/UI/Templates/FlagTab.ui.xml", string.Join("\n",
+                    "",
+                    "<Template name='FlagTab'>",
+                    "  <Param name='label'/>",
+                    "  <Param name='caption'/>",
+                    "  <Tab id='tab'>",
+                    "    <Text>{{label}}</Text>",
+                    "    <!-- 装饰小字 -->",
+                    "    <Text>{{caption}}</Text>",
+                    "  </Tab>",
+                    "</Template>",
+                    ""))
+                .Add("Assets/UI/Round.ui.xml", string.Join("\n",
+                    "",
+                    "<Import src='Assets/UI/Templates/FlagTab.ui.xml'/>",
+                    "<Screen name='Round'>",
+                    "  <TabBar>",
+                    "    <!-- 调用点说明 -->",
+                    "    <FlagTab id='flagDesign' label='战舰设计' caption='DESIGN'/>",
+                    "  </TabBar>",
+                    "</Screen>",
+                    ""));
+
+            var found = fs.Scan();
+
+            CollectionAssert.IsEmpty(fs.Warnings);
+            var design = found.Single(e => e.Msgid == "DESIGN");
+            Assert.AreEqual("Round", design.LocalePartition);
+            CollectionAssert.IsSupersetOf(design.ExtractedComments, new[] { "装饰小字", "调用点说明" });
+            CollectionAssert.Contains(design.ExtractedComments,
+                "call site: <FlagTab id=\"flagDesign\" label=\"战舰设计\" caption=\"DESIGN\" />");
+        }
+
+        [Test]
         public void ScanXml_UnparseableFile_WarnsAndSkipsIt()
         {
             var fs = new FakeFs()

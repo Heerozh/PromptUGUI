@@ -80,6 +80,35 @@ namespace PromptUGUI.IR
         public bool IsTemplateInstanceRoot { get; set; }
 
         /// <summary>
+        /// The author's XML comments written directly above this element — own-line comments with nothing
+        /// but other comments between them and the tag — one entry per non-empty trimmed line, in source
+        /// order; null when there are none. Filled by the parser and carried through every expansion copy
+        /// like <see cref="OriginSrc"/>. Only i18n extraction reads it (translator notes); the runtime
+        /// never does, and its TextAssets arrive with comments stripped anyway.
+        ///
+        /// <para>Replaced wholesale, never mutated in place: a parsed document is shared across entries
+        /// (the Import-closure cache, the commons pool), so its lists are too.</para>
+        /// </summary>
+        public IReadOnlyList<string> LeadingComments { get; set; }
+
+        /// <summary>
+        /// On a template instance root only: the <see cref="LeadingComments"/> of the invocation(s) this
+        /// node was expanded from, innermost first — a template whose body root is itself an invocation
+        /// makes one node the root of both. Null elsewhere. Written by <c>TemplateExpander</c> as a fresh
+        /// list each time, for the same sharing reason as <see cref="LeadingComments"/>.
+        /// </summary>
+        public IReadOnlyList<string> InvocationComments { get; set; }
+
+        /// <summary>
+        /// On a template instance root only: <c>file:line</c> of the invocation that produced it (for a
+        /// root shared by nested invocations, the outer one). Null elsewhere. <see cref="InvokedAt"/>
+        /// names the OUTERMOST invocation of every node in an instance, which for an invocation sitting
+        /// in another template's slot is the shell, not the call whose arguments filled it — i18n
+        /// extraction needs the latter to show a translator which argument a string is.
+        /// </summary>
+        public string InvocationSite { get; set; }
+
+        /// <summary>
         /// Variant 属性覆盖：原属性名（无后缀）→ 一个有序列表 [(variantName, value), ...]。
         /// 列表顺序就是 XML 中 `attr.varName="..."` 出现的声明顺序；多个后缀可共存。
         /// 仅 parser 写入；instantiator/resolver 只读。

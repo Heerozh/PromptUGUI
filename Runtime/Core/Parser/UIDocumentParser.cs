@@ -136,6 +136,37 @@ namespace PromptUGUI.Parser
 
         private static int LineOf(XmlElement el) => el is LineInfoElement li ? li.Line : 0;
 
+        /// <summary>
+        /// The own-line comments directly above <paramref name="el"/>, one entry per non-empty trimmed
+        /// line (spec 2026-09-30-i18n-xml-comments §3.1): walking back, whitespace nodes are skipped and
+        /// the block ends at anything that is not a comment — or at a comment trailing the markup before
+        /// it on the same line, which belongs to that markup, not to <paramref name="el"/>.
+        /// </summary>
+        private static System.Collections.Generic.IReadOnlyList<string> CollectLeadingComments(XmlElement el)
+        {
+            if (el.OwnerDocument is not LineInfoXmlDocument { HasComments: true }) return null;
+
+            System.Collections.Generic.List<LineInfoComment> block = null;
+            for (var n = el.PreviousSibling; n != null; n = n.PreviousSibling)
+            {
+                if (n is XmlWhitespace || n is XmlSignificantWhitespace) continue;
+                if (n is not LineInfoComment comment || !comment.StartsLine) break;
+                (block ??= new System.Collections.Generic.List<LineInfoComment>()).Add(comment);
+            }
+            if (block == null) return null;
+
+            System.Collections.Generic.List<string> lines = null;
+            for (var i = block.Count - 1; i >= 0; i--)
+            {
+                foreach (var raw in block[i].Value.Split('\n'))
+                {
+                    var line = raw.Trim();
+                    if (line.Length > 0) (lines ??= new System.Collections.Generic.List<string>()).Add(line);
+                }
+            }
+            return lines;
+        }
+
         private static ThemeBlock ParseTheme(XmlElement el)
         {
             var name = el.GetAttribute("name");
@@ -597,7 +628,11 @@ namespace PromptUGUI.Parser
                 ns = tag.Substring(0, dot);
                 tag = tag.Substring(dot + 1);
             }
-            var node = new ElementNode(tag, ns) { Line = LineOf(el) };
+            var node = new ElementNode(tag, ns)
+            {
+                Line = LineOf(el),
+                LeadingComments = CollectLeadingComments(el),
+            };
 
             // <Header> is a structural marker inside <Collapsible>, not a control: it names WHICH
             // children go into the header bar and nothing else. Everything about the bar itself is

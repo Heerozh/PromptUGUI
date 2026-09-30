@@ -37,6 +37,9 @@ namespace PromptUGUI.Template
                 {
                     OriginSrc = s.Root.OriginSrc,
                     Line = s.Root.Line,
+                    LeadingComments = s.Root.LeadingComments,
+                    InvocationComments = s.Root.InvocationComments,
+                    InvocationSite = s.Root.InvocationSite,
                 };
                 // Screen-level attributes (e.g. reference=, reference.<variant>=) live on
                 // ScreenDef.Root and must survive expansion so runtime VariantResolver can read them.
@@ -168,6 +171,21 @@ namespace PromptUGUI.Template
             return result;
         }
 
+        /// <summary>
+        /// <paramref name="inner"/> followed by <paramref name="outer"/>, always as a NEW list: both may
+        /// be lists of a parsed document that other entries share (the Import-closure cache, the
+        /// commons pool), so appending in place would grow them on every expansion.
+        /// </summary>
+        private static IReadOnlyList<string> AppendOuter(IReadOnlyList<string> inner, IReadOnlyList<string> outer)
+        {
+            if (outer == null || outer.Count == 0) return inner;
+            if (inner == null || inner.Count == 0) return new List<string>(outer);
+            var merged = new List<string>(inner.Count + outer.Count);
+            merged.AddRange(inner);
+            merged.AddRange(outer);
+            return merged;
+        }
+
         private static void StampInvokedAt(ElementNode node, string site)
         {
             node.InvokedAt = site;
@@ -226,6 +244,9 @@ namespace PromptUGUI.Template
                 TextContent = merged.TextContent,
                 TextContentRaw = merged.TextContentRaw ?? merged.TextContent,
                 IsTemplateInstanceRoot = merged.IsTemplateInstanceRoot,
+                LeadingComments = merged.LeadingComments,
+                InvocationComments = merged.InvocationComments,
+                InvocationSite = merged.InvocationSite,
             };
             foreach (var kv in merged.Attributes)
                 dst.Attributes[kv.Key] = kv.Value;
@@ -301,6 +322,10 @@ namespace PromptUGUI.Template
                 var instanceRoot = ExpandNode(tpl.Body, args, slotContent, templates, styles, visiting) ?? throw new TemplateException(
                         $"<{tpl.Name}>: template body root was excluded by if; not allowed");
                 instanceRoot.IsTemplateInstanceRoot = true;
+                // A body root that is itself an invocation was stamped by the inner call already, and
+                // this node is the same one: the outer call site goes after it (innermost first).
+                instanceRoot.InvocationComments =
+                    AppendOuter(instanceRoot.InvocationComments, invocation.LeadingComments);
                 if (!string.IsNullOrEmpty(invocation.Id))
                     instanceRoot.Id = invocation.Id;
                 foreach (var kv in invocation.Attributes)
@@ -323,7 +348,13 @@ namespace PromptUGUI.Template
                 // stamped themselves, but an inner site is the same for every instance and so cannot
                 // distinguish them. The outermost one runs last and wins.
                 if (invocation.Line > 0 && invocation.OriginSrc != null)
-                    StampInvokedAt(instanceRoot, $"{invocation.OriginSrc}:{invocation.Line}");
+                {
+                    var site = $"{invocation.OriginSrc}:{invocation.Line}";
+                    // This instance's own call — unlike InvokedAt, which an enclosing invocation (a
+                    // shell whose slot this sits in) overwrites below.
+                    instanceRoot.InvocationSite = site;
+                    StampInvokedAt(instanceRoot, site);
+                }
 
                 return instanceRoot;
             }
@@ -366,6 +397,9 @@ namespace PromptUGUI.Template
                 Id = prepared.Id,
                 TextContent = Substitution.Apply(prepared.TextContent, args),
                 TextContentRaw = src.TextContentRaw ?? src.TextContent,
+                LeadingComments = prepared.LeadingComments,
+                InvocationComments = prepared.InvocationComments,
+                InvocationSite = prepared.InvocationSite,
             };
             foreach (var kv in prepared.Attributes)
             {
@@ -403,6 +437,9 @@ namespace PromptUGUI.Template
                 StyleAttrNames = src.StyleAttrNames,
                 Id = src.Id,
                 TextContent = src.TextContent,
+                LeadingComments = src.LeadingComments,
+                InvocationComments = src.InvocationComments,
+                InvocationSite = src.InvocationSite,
             };
             foreach (var kv in src.Attributes)
                 dst.Attributes[kv.Key] = Substitution.Apply(kv.Value, args);
@@ -440,6 +477,9 @@ namespace PromptUGUI.Template
                 TextContent = src.TextContent,
                 TextContentRaw = src.TextContentRaw ?? src.TextContent,
                 IsTemplateInstanceRoot = src.IsTemplateInstanceRoot,
+                LeadingComments = src.LeadingComments,
+                InvocationComments = src.InvocationComments,
+                InvocationSite = src.InvocationSite,
             };
             foreach (var kv in src.Attributes) dst.Attributes[kv.Key] = kv.Value;
             foreach (var kv in src.AttributesRaw) dst.AttributesRaw[kv.Key] = kv.Value;
