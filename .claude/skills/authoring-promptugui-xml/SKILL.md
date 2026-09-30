@@ -1449,7 +1449,7 @@ Source text goes directly inside `<Text>` / `<Btn>` and serves as the msgid for 
 <FlagTab label="战舰设计" caption="DESIGN" />
 ```
 
-- **Template call site**: a comment above an invocation reaches every msgid made from that call's arguments (`label` and `caption` above). With nested templates every enclosing call site contributes, innermost first.
+- **Template call site**: a comment above an invocation reaches every msgid made from that call's arguments (`label` and `caption` above). With nested templates every enclosing call site contributes, innermost first. Every such msgid also gets a `call site: <FlagTab label="战舰设计" caption="DESIGN" … />` line — the invocation as written — so the translator can tell which argument the string is and see the others.
 - **Inside a template**: a comment above the element an argument lands in (`<!-- decorative caption -->` above `<Text>{{caption}}</Text>`) reaches that argument at every call site, listed before the call-site comment. A template's own fixed text keeps only its own comment.
 - Only comments that **start their own line** count (blank lines in between are fine); a trailing comment (`<Frame/> <!-- spacer -->`) belongs to nothing. A comment above a container does not reach the text inside it.
 

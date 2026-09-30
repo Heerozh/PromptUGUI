@@ -100,6 +100,15 @@ namespace PromptUGUI.IR
         public IReadOnlyList<string> InvocationComments { get; set; }
 
         /// <summary>
+        /// On a template instance root only: <c>file:line</c> of the invocation that produced it (for a
+        /// root shared by nested invocations, the outer one). Null elsewhere. <see cref="InvokedAt"/>
+        /// names the OUTERMOST invocation of every node in an instance, which for an invocation sitting
+        /// in another template's slot is the shell, not the call whose arguments filled it — i18n
+        /// extraction needs the latter to show a translator which argument a string is.
+        /// </summary>
+        public string InvocationSite { get; set; }
+
+        /// <summary>
         /// Variant 属性覆盖：原属性名（无后缀）→ 一个有序列表 [(variantName, value), ...]。
         /// 列表顺序就是 XML 中 `attr.varName="..."` 出现的声明顺序；多个后缀可共存。
         /// 仅 parser 写入；instantiator/resolver 只读。

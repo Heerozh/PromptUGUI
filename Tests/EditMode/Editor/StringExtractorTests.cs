@@ -225,6 +225,8 @@ namespace PromptUGUI.Tests.Editor
             var design = found.Single(e => e.Msgid == "DESIGN");
             Assert.AreEqual("Round", design.LocalePartition);
             CollectionAssert.IsSupersetOf(design.ExtractedComments, new[] { "装饰小字", "调用点说明" });
+            CollectionAssert.Contains(design.ExtractedComments,
+                "call site: <FlagTab id=\"flagDesign\" label=\"战舰设计\" caption=\"DESIGN\" />");
         }
 
         [Test]

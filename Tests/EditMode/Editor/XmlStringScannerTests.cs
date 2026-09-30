@@ -615,6 +615,146 @@ namespace PromptUGUI.Tests.Editor
                 entry.ExtractedComments);
         }
 
+        // ── call-site line: which argument a value is (spec 2026-09-30-i18n-xml-comments §3.3) ──────
+
+        private static List<ExtractedString> ScanFiles(string entry, params (string Src, string Xml)[] files)
+        {
+            var docs = files.ToDictionary(f => f.Src, f => UIDocumentParser.Parse(f.Xml, f.Src));
+            return XmlStringScanner.Scan(docs[entry], "p", entry,
+                                         s => docs.TryGetValue(s, out var d) ? d : null, commons: null).ToList();
+        }
+
+        private static bool IsCallSiteLine(string comment) => comment.StartsWith("call site: ");
+
+        [Test]
+        public void Scan_ArgumentValue_NamesItsCallSite_AsWritten_OnOneLine()
+        {
+            var found = ScanFiles("main.ui", ("main.ui", ML(
+                "<Template name='FlagTab'>",
+                "  <Param name='label'/>",
+                "  <Param name='caption'/>",
+                "  <Param name='icon' default=''/>",
+                "  <Tab id='tab'>",
+                "    <Text>{{label}}</Text>",
+                "    <Text>{{caption}}</Text>",
+                "  </Tab>",
+                "</Template>",
+                "<Screen name='Round'>",
+                "  <TabBar>",
+                "    <!-- label是按钮位置，caption是装饰文字 -->",
+                "    <FlagTab id='flagCommander' label='指挥官' caption='COMMANDER'",
+                "      icon='FlagBtn:Commander' />",
+                "  </TabBar>",
+                "</Screen>")));
+
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    "Round screen, Text text",
+                    "sibling: 指挥官",
+                    "call site: <FlagTab id=\"flagCommander\" label=\"指挥官\" caption=\"COMMANDER\" icon=\"FlagBtn:Commander\" />",
+                    "label是按钮位置，caption是装饰文字",
+                },
+                found.Single(e => e.Msgid == "COMMANDER").ExtractedComments);
+        }
+
+        [Test]
+        public void Scan_NestedArgument_NamesTheOutermostCallSite()
+        {
+            var found = ScanFiles("main.ui", ("main.ui", ML(
+                "<Template name='Inner'>",
+                "  <Param name='label'/>",
+                "  <Btn>{{label}}</Btn>",
+                "</Template>",
+                "<Template name='Outer'>",
+                "  <Param name='label'/>",
+                "  <Frame><Inner label='{{label}}'/></Frame>",
+                "</Template>",
+                "<Screen name='S'>",
+                "  <Outer label='出发'/>",
+                "</Screen>")));
+            Assert.Contains("call site: <Outer label=\"出发\" />", CommentsOf(found, "出发"));
+        }
+
+        [Test]
+        public void Scan_TextNotFromArguments_HasNoCallSiteLine()
+        {
+            var found = ScanFiles("main.ui", ("main.ui", ML(
+                "<Template name='Dialog'>",
+                "  <Param name='title'/>",
+                "  <Frame>",
+                "    <Text>{{title}}</Text>",
+                "    <Btn>确定</Btn>",
+                "    <Slot/>",
+                "  </Frame>",
+                "</Template>",
+                "<Screen name='S'>",
+                "  <Text>标题</Text>",
+                "  <Dialog title='购买'>",
+                "    <Text>确定花费吗？</Text>",
+                "  </Dialog>",
+                "</Screen>")));
+
+            foreach (var msgid in new[] { "确定", "标题", "确定花费吗？" })
+                Assert.IsFalse(CommentsOf(found, msgid).Any(IsCallSiteLine), msgid);
+            Assert.IsTrue(CommentsOf(found, "购买").Any(IsCallSiteLine));
+        }
+
+        [Test]
+        public void Scan_InvocationInsideSlotContent_NamesItsOwnCallSite_NotTheShells()
+        {
+            // The shell's call site is the OUTERMOST invocation (InvokedAt) of everything in its slot,
+            // but it does not contain label='确认' — the button's own call site does.
+            var found = ScanFiles("main.ui", ("main.ui", ML(
+                "<Template name='Panel'>",
+                "  <Param name='title'/>",
+                "  <Frame><Text>{{title}}</Text><Slot/></Frame>",
+                "</Template>",
+                "<Template name='MenuBtn'>",
+                "  <Param name='label'/>",
+                "  <Btn>{{label}}</Btn>",
+                "</Template>",
+                "<Screen name='S'>",
+                "  <Panel title='购买'>",
+                "    <MenuBtn label='确认'/>",
+                "  </Panel>",
+                "</Screen>")));
+
+            CollectionAssert.AreEqual(new[] { "call site: <MenuBtn label=\"确认\" />" },
+                                      CommentsOf(found, "确认").Where(IsCallSiteLine));
+            CollectionAssert.AreEqual(new[] { "call site: <Panel title=\"购买\" />" },
+                                      CommentsOf(found, "购买").Where(IsCallSiteLine));
+        }
+
+        [Test]
+        public void Scan_CallSiteSharingItsLine_TheInvocationIsTheOneShown()
+        {
+            var found = ScanFiles("main.ui", ("main.ui", ML(
+                "<Template name='MenuBtn'>",
+                "  <Param name='label'/>",
+                "  <Btn>{{label}}</Btn>",
+                "</Template>",
+                "<Screen name='S'>",
+                "  <Frame id='f'/><MenuBtn label='开始'/>",
+                "</Screen>")));
+            Assert.Contains("call site: <MenuBtn label=\"开始\" />", CommentsOf(found, "开始"));
+        }
+
+        [Test]
+        public void Scan_CallSiteLine_EscapesQuotes_AndKeepsVariantAttributes()
+        {
+            var found = ScanFiles("main.ui", ("main.ui", ML(
+                "<Template name='MenuBtn'>",
+                "  <Param name='label'/>",
+                "  <Btn>{{label}}</Btn>",
+                "</Template>",
+                "<Screen name='S'>",
+                "  <MenuBtn label='say \"hi\"' width.portrait='40'/>",
+                "</Screen>")));
+            Assert.Contains("call site: <MenuBtn label=\"say &quot;hi&quot;\" width.portrait=\"40\" />",
+                            CommentsOf(found, "say \"hi\""));
+        }
+
         [Test]
         public void Scan_ExpansionFallsBackToRawTree_DirectTextKeepsItsComment()
         {

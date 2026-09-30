@@ -39,6 +39,7 @@ namespace PromptUGUI.Template
                     Line = s.Root.Line,
                     LeadingComments = s.Root.LeadingComments,
                     InvocationComments = s.Root.InvocationComments,
+                    InvocationSite = s.Root.InvocationSite,
                 };
                 // Screen-level attributes (e.g. reference=, reference.<variant>=) live on
                 // ScreenDef.Root and must survive expansion so runtime VariantResolver can read them.
@@ -245,6 +246,7 @@ namespace PromptUGUI.Template
                 IsTemplateInstanceRoot = merged.IsTemplateInstanceRoot,
                 LeadingComments = merged.LeadingComments,
                 InvocationComments = merged.InvocationComments,
+                InvocationSite = merged.InvocationSite,
             };
             foreach (var kv in merged.Attributes)
                 dst.Attributes[kv.Key] = kv.Value;
@@ -346,7 +348,13 @@ namespace PromptUGUI.Template
                 // stamped themselves, but an inner site is the same for every instance and so cannot
                 // distinguish them. The outermost one runs last and wins.
                 if (invocation.Line > 0 && invocation.OriginSrc != null)
-                    StampInvokedAt(instanceRoot, $"{invocation.OriginSrc}:{invocation.Line}");
+                {
+                    var site = $"{invocation.OriginSrc}:{invocation.Line}";
+                    // This instance's own call — unlike InvokedAt, which an enclosing invocation (a
+                    // shell whose slot this sits in) overwrites below.
+                    instanceRoot.InvocationSite = site;
+                    StampInvokedAt(instanceRoot, site);
+                }
 
                 return instanceRoot;
             }
@@ -391,6 +399,7 @@ namespace PromptUGUI.Template
                 TextContentRaw = src.TextContentRaw ?? src.TextContent,
                 LeadingComments = prepared.LeadingComments,
                 InvocationComments = prepared.InvocationComments,
+                InvocationSite = prepared.InvocationSite,
             };
             foreach (var kv in prepared.Attributes)
             {
@@ -430,6 +439,7 @@ namespace PromptUGUI.Template
                 TextContent = src.TextContent,
                 LeadingComments = src.LeadingComments,
                 InvocationComments = src.InvocationComments,
+                InvocationSite = src.InvocationSite,
             };
             foreach (var kv in src.Attributes)
                 dst.Attributes[kv.Key] = Substitution.Apply(kv.Value, args);
@@ -469,6 +479,7 @@ namespace PromptUGUI.Template
                 IsTemplateInstanceRoot = src.IsTemplateInstanceRoot,
                 LeadingComments = src.LeadingComments,
                 InvocationComments = src.InvocationComments,
+                InvocationSite = src.InvocationSite,
             };
             foreach (var kv in src.Attributes) dst.Attributes[kv.Key] = kv.Value;
             foreach (var kv in src.AttributesRaw) dst.AttributesRaw[kv.Key] = kv.Value;

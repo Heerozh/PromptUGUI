@@ -102,6 +102,9 @@ Screen 子节点、模板体（含根）、`<Add>` 子节点、嵌套子节点�
   `ImportClosure.Cache`（一次提取内跨入口）与 commons 池（运行时）共享，原地追加会让列表越展开越长。模板体的根本身
   又是一次调用时，内层先展开先追加、外层后追加到同一节点，所以顺序是**由内到外**。实例根自己的 `LeadingComments`
   仍是模板文件里写在根上方的注释，两者不混。
+- `ExpandInvocation` 同时把本次调用的 `file:line` 记到实例根的 **`InvocationSite`**（与 `StampInvokedAt` 用同一个字符串，
+  无额外分配），供 §3.3 的调用点行定位。不能用 `InvokedAt`：它记的是**最外层**调用，Slot 里的调用会被外壳覆盖。
+  嵌套根（两次调用共用一个节点）上留的是外层调用。
 - 运行时（`ScreenInstantiator` 等）不读这两个字段。
 
 ### 3.3 提取（`XmlStringScanner`）
@@ -112,10 +115,15 @@ Screen 子节点、模板体（含根）、`<Add>` 子节点、嵌套子节点�
 | 模板体里的静态文字 / 格式串（模板体原样遍历，分区 = 模板文件） | 该元素在模板文件里的前导注释 |
 | **模板实参**（纯 `{{x}}` 槽位被调用点的值替换，分区 = 调用方 Screen） | ① 槽位元素在模板文件里的前导注释（"模板内部文字的实际地点"）<br>② 展开树中包住它的每个模板调用点的前导注释，由内到外 |
 
+- **调用点行**（实施后补充）：实参来的 msgid 再加一行 `call site: <Tag …/>`——提供这个值的那次调用，按作者写法（属性按
+  源码顺序、`id` 在前、`attr.variant` 在后）压成一行。否则"label 是按钮位置，caption 是装饰文字"这类注释，译者看不出
+  当前条目是 label 还是 caption；这一行还带出同一次调用的其他实参（译 caption 时能看到 label）。取包住它的调用点里
+  **最内层、且写在入口文件 Screen 里**的那个（按 `InvocationSite` 查原始树）：Slot 里的调用显示它自己而不是外壳；模板体内
+  的嵌套调用只透传 `{{param}}`，显示外层 Screen 里的调用。展开失败回退原始树时没有这一行。
 - 调用点注释**只**挂到实参来的 msgid：模板的静态文字对所有实例是同一条 msgid，只从模板体提取一次，调用点描述的是
   "这一次传了什么"；Slot 里的静态文字写在调用点那边，有自己的前导注释。
 - 容器上方的注释不下传：`<Frame>` / `<TabBar>` 上方的注释到不了其中的 `<Text>`（调研里这类几乎都是布局说明）。
-- 条目内顺序：`X screen, Tag slot` → `sibling: …` → 作者注释（①，再 ② 由内到外）→ TMP 富文本提示。
+- 条目内顺序：`X screen, Tag slot` → `sibling: …` → `call site: …` → 作者注释（①，再 ② 由内到外）→ TMP 富文本提示。
 - 实现要点：`WalkNode` 自上而下带一个不可变链表 `CallSiteScope { Comments, Outer }`——进入带 `InvocationComments`
   的节点时 `scope = new(ic, enclosing)`，该节点的文字与子树都用它，无需出栈，对惰性迭代器安全；从链表头走到尾即由内到外。
   **先算 scope 再收该节点自己的文字**（模板的根可能就是宿主文字的 `<Btn>{{label}}</Btn>`）。
@@ -129,6 +137,7 @@ Screen 子节点、模板体（含根）、`<Add>` 子节点、嵌套子节点�
 ```
 #. Round screen, Text text
 #. sibling: 战舰设计
+#. call site: <FlagTab id="flagDesign" label="战舰设计" caption="DESIGN" icon="FlagBtn:Design" glowColor="#d6d3fa" accent="#9e9dcb" />
 #. 装饰小字
 #. label是按钮位置，caption是装饰文字，CJK语言版本用英语装饰，其他语言用中文装饰
 #: Assets/_Project/Round/UI/Round.ui.xml
@@ -206,6 +215,16 @@ msgstr 不受影响。去重按行：两段不同的多行注释若有一行相�
 端到端（`StringExtractorTests`，追加）：
 
 39. 模板文件里的槽位注释 + Screen 文件里的调用点注释 → 同一条目上两者都在，分区为 Screen
+
+调用点行（实施后补充，`XmlStringScannerTests` / `TemplateCommentPropagationTests`；39 同时断言调用点行）：
+
+41. 实参 msgid 带 `call site: <…/>`：跨行的开始标签压成一行、属性按源码顺序；位于 sibling 之后、作者注释之前
+42. 嵌套调用 → 显示外层 Screen 里的调用
+43. 非实参文字（Screen 直写 / 模板静态 / Slot 静态）→ 无调用点行
+44. Slot 里的调用 → 显示它自己，外壳自己的实参显示外壳
+45. 同一行两个元素 → 显示其中的那个调用
+46. 值里的引号转义为 `&quot;`，`attr.variant` 属性保留
+47. 展开器：实例根记自己的 `InvocationSite`；Slot 里的实例不被外壳覆盖（其 `InvokedAt` 仍是外壳）
 
 手工（ssw_re_client，反射调 `ScanAllXml`，不写 `.po`）：
 
@@ -290,3 +309,9 @@ msgstr 不受影响。去重按行：两段不同的多行注释若有一行相�
   `母星` / `HOME`）；其余 9 条是开发说明：PanelShell 模板标题槽位上方的「标题：左对齐……右边给关闭钮让出 30」经实参到达
   5 个面板标题（§3.3 ①），BuildSlot 底部钮说明 × 2，FactionSelect × 2。`Planet.ui.xml` 的 `Btn#applyJobs`（384 行）无前导
   注释，上一行的行尾注释 `spacer：…` 未被错挂；无新增警告。
+- **评审后补充调用点行**（§3.3、§5-41 ~ 47）：作者用 ssw 实际提取的 `COMMANDER` 条目指出，调用点注释说"label 是……caption 是……"，
+  条目里却看不出自己是哪个。Red → Green：扫描器 6 条 + 端到端 1 条断言 + 展开器 1 条。实现中发现只靠 `InvokedAt`（最外层调用）
+  会让 Slot 里的调用显示成外壳，故新增 `ElementNode.InvocationSite`。回归 `EditMode` 4667/4667、`EditorOnly` 459/459；format
+  干净、CLI 0 警告、两份 lint 输出与基线一致。ssw 实测 117 条中 54 条带调用点行，例如
+  `call site: <FlagTab id="flagCommander" label="指挥官" caption="COMMANDER" icon="FlagBtn:Commander" glowColor="#b99f66" accent="#E9C25B" />`；
+  Alliance 面板标题 `同盟` 显示 `<PanelShell id="shell" title="同盟" />`。

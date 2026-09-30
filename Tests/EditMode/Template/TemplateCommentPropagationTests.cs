@@ -176,6 +176,32 @@ namespace PromptUGUI.Tests.Template
         }
 
         [Test]
+        public void InstanceRoot_RecordsItsOwnCallSite_EvenInsideAnotherInstancesSlot()
+        {
+            // InvokedAt is the OUTERMOST call site of every node in an instance; InvocationSite is the
+            // call that produced this particular instance root.
+            var root = TemplateExpander.Expand(UIDocumentParser.Parse(
+                "<PromptUGUI version='1'>\n" + string.Join("\n",
+                    "<Template name='Panel'><Frame><Slot/></Frame></Template>",
+                    "<Template name='Card'>",
+                    "  <Param name='label'/>",
+                    "  <Frame><Text>{{label}}</Text></Frame>",
+                    "</Template>",
+                    "<Screen name='S'>",
+                    "  <Panel id='p'>",
+                    "    <Card id='c' label='x'/>",
+                    "  </Panel>",
+                    "</Screen>") + "\n</PromptUGUI>", "main.ui")).Screens[0].Root;
+
+            var panel = root.Children[0];
+            var card = panel.Children[0];
+            Assert.AreEqual("main.ui:8", panel.InvocationSite);
+            Assert.AreEqual("main.ui:9", card.InvocationSite);
+            Assert.AreEqual("main.ui:8", card.InvokedAt);
+            Assert.IsNull(card.Children[0].InvocationSite);
+        }
+
+        [Test]
         public void SharedTemplate_ExpandedRepeatedly_NeverAccumulates()
         {
             // One parsed library shared by two documents — what ImportClosure.Cache and the commons
