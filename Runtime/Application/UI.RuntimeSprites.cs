@@ -64,6 +64,7 @@ namespace PromptUGUI.Application
         internal static void ClearRuntimeRegistrations()
         {
             RuntimeSpriteSets.Clear();
+            Locale.ClearRuntimeCatalogs();
         }
 
         // Before any user RuntimeInitializeOnLoadMethod of a later phase; games must not register in this phase.

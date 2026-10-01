@@ -591,10 +591,14 @@ namespace PromptUGUI.Application
                 if (Locale.Current != locale) return;          // race guard: stale load
                 if (entries != null)
                     TranslationStore.Instance.Load(locale, entries);
-                return;
             }
-            LoadPoFromResourcesPath($"PromptUGUI/i18n/{locale}", locale);
-            LoadPoFromResourcesPath($"PromptUGUI/i18n-custom/{locale}", locale);
+            else
+            {
+                LoadPoFromResourcesPath($"PromptUGUI/i18n/{locale}", locale);
+                LoadPoFromResourcesPath($"PromptUGUI/i18n-custom/{locale}", locale);
+            }
+            // Runtime catalogs layer over the built-in .po; the caller flips the variant only after this.
+            await Locale.LoadRuntimeCatalogsAsync(locale);
         }
 
         private static void LoadPoFromResourcesPath(string resourcesPath, string locale)

@@ -306,30 +306,30 @@
 
 ### Task 13：分层的 `TranslationStore`（`TranslationStoreTests` 追加）
 
-- [ ] **Red**：`Layer_entry_overrides_base`、`Later_layer_overrides_earlier_layer`、`Removing_layer_restores_base`、`UnloadLocale_clears_base_and_layers`、
+- [x] **Red**：`Layer_entry_overrides_base`、`Later_layer_overrides_earlier_layer`、`Removing_layer_restores_base`、`UnloadLocale_clears_base_and_layers`、
       `UnloadAll_clears_layer_entries_but_keeps_layers`、`Load_into_removed_layer_is_ignored`、`Empty_msgstr_in_layer_falls_through`
-- [ ] **实现**：P13。`Lookup` 从最后一层往前查，最后才查底层；公开签名不变；没有层时查表路径和今天一样。
-- [ ] RUN(TranslationStoreTests) 绿；RUN(TrResolverTests) 不回归；lint
+- [x] **实现**：P13。`Lookup` 从最后一层往前查，最后才查底层；公开签名不变；没有层时查表路径和今天一样。
+- [x] RUN(TranslationStoreTests) 绿；RUN(TrResolverTests) 不回归；lint
 
 ### Task 14：目录注册（`RuntimePoCatalogTests`）
 
-- [ ] **Red**：`Duplicate_catalog_name_throws`、`Invalid_catalog_arguments_throw`、`Unregister_unknown_catalog_returns_false`、
+- [x] **Red**：`Duplicate_catalog_name_throws`、`Invalid_catalog_arguments_throw`、`Unregister_unknown_catalog_returns_false`、
       `Registered_before_Set_is_loaded_on_Set`、`Registered_after_Set_loads_current_and_retranslates_open_text`、`Unregister_restores_builtin_translation`、
       `Later_catalog_overrides_earlier_and_builtin`、`RegisterAsync_propagates_loader_exception`、`RegisterAsync_failure_keeps_registration_for_next_switch`、
       `Unregister_during_pending_load_drops_result`
-- [ ] **实现**：
+- [x] **实现**：
   - `RegisterRuntimeCatalogAsync` 写成非 async 的包装：先同步校验、登记、`AddLayer`，再返回加载用的 Awaitable。重名会同步抛出。
   - `RegisterRuntimeCatalog` 是发出即不管的版本，配一个 `*Logged` 包装。
   - 加载完成后的守卫：`Current` 未变，且目录仍是同一个实例。通过后 `LoadLayer`，再 `NotifyChangedInternal`。
   - `UnregisterRuntimeCatalog`：移除登记 → `RemoveLayer` → 广播。
-- [ ] RUN(RuntimePoCatalogTests) 绿；lint
+- [x] RUN(RuntimePoCatalogTests) 绿；lint
 
 ### Task 15：切语言集成 + 生命周期
 
-- [ ] **Red**：`Locale_switch_loads_catalog_for_new_locale`、`Catalog_failure_does_not_block_locale_switch`、`Stale_catalog_load_after_locale_switch_is_dropped`、
+- [x] **Red**：`Locale_switch_loads_catalog_for_new_locale`、`Catalog_failure_does_not_block_locale_switch`、`Stale_catalog_load_after_locale_switch_is_dropped`、
       `ReloadCurrent_reloads_catalogs`、`Set_with_sync_catalogs_completes_synchronously`、`Pending_catalog_delays_variant_flip_until_loaded`、
       `ResetForTests_clears_catalogs`、`ClearRuntimeRegistrations_clears_catalogs_and_layers`
-- [ ] **实现**：`LoadPoFilesAsync`（`UI.cs:555-567`）在底层加载完之后：
+- [x] **实现**：`LoadPoFilesAsync`（`UI.cs:555-567`）在底层加载完之后：
   - 若 `Current != locale` 就返回；
   - 否则 `await LoadRuntimeCatalogsAsync(locale)`：
     - 先启动全部目录的 load，同步抛出的单独 catch；
@@ -338,18 +338,18 @@
     - 通过守卫后 `LoadLayer`；
     - 没有目录时同步返回。
   - P1 的入口里加入清空目录和 `ClearLayers`。
-- [ ] RUN(RuntimePoCatalogTests) 绿；lint
+- [x] RUN(RuntimePoCatalogTests) 绿；lint
 
 ### M3 收尾
 
-- [ ] 回归，全绿：
+- [x] 回归，全绿：
   - RUN：`TranslationStoreTests`、`TrResolverTests`、`LocaleSetTests`、`LocaleSetAsyncTests`、`LocaleInitializeIfNeededTests`、
     `LocaleSetToSystemDefaultTests`、`LocaleFontCopierTests`；
   - RUNPLAY：`I18nHotReloadTests`、`TmpRichTextRoundtripTests`、`I18nFontSwapTests`；
   - 装了 Addressables 时加 `LocaleAddressableResolverTests`。
 
   lint
-- [ ] `git commit -m "feat(i18n): runtime .po catalogs layered over TranslationStore"`
+- [x] `git commit -m "feat(i18n): runtime .po catalogs layered over TranslationStore"`
 
 ## M4 — 文档 + 全量回归
 
