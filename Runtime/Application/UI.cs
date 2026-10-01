@@ -73,9 +73,23 @@ namespace PromptUGUI.Application
         /// (sliced) texture via <c>Resources.LoadAll&lt;Sprite&gt;</c>; any
         /// file extension on the path before the <c>#</c> is stripped so
         /// <c>foo.png#bar</c> and <c>foo#bar</c> both work. Null/empty input
-        /// returns null.
+        /// returns null. A value whose set was registered with
+        /// <see cref="RegisterRuntimeSpriteSet(string, IReadOnlyDictionary{string, RuntimeSprite}, RuntimeSpriteSetOptions)"/>
+        /// resolves from that set first.
         /// </summary>
         public static UnityEngine.Sprite ResolveSprite(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return null;
+            if (RuntimeSpriteSets.TryResolveSync(value, out var runtime)) return runtime;
+            return ResolveSpriteStatic(value);
+        }
+
+        /// <summary>
+        /// <see cref="ResolveSprite"/> minus the runtime sets: SpriteSet assets through
+        /// <see cref="SpriteResolver"/>, Resources paths, <c>#slice</c>. <c>&lt;Image sprite&gt;</c>'s slot calls it
+        /// directly once it knows the value is not a runtime set.
+        /// </summary>
+        internal static UnityEngine.Sprite ResolveSpriteStatic(string value)
         {
             if (string.IsNullOrEmpty(value)) return null;
 
@@ -87,7 +101,7 @@ namespace PromptUGUI.Application
                     UILog.Error(
                         $"sprite '{value}': UI.SpriteResolver is not registered. " +
                         $"Call SpriteResolverHelpers.UseSpriteSetResolver(spriteSets) " +
-                        $"before opening Screens that reference sprite='ns:name'.");
+                        $"before opening Screens that reference sprite='ns:name'." + RuntimeSetsHint());
                     return null;
                 }
                 var sprite = SpriteResolver(value);
@@ -136,6 +150,13 @@ namespace PromptUGUI.Application
                 Internal.SpriteRenderHints.Register(hints[i]);
         }
 
+        // Appended to the "UI.SpriteResolver is not registered" errors: a project that only uses runtime sets has
+        // no resolver at all, and the failing name is then most likely a runtime set registered too late or misspelt.
+        internal static string RuntimeSetsHint() =>
+            RuntimeSpriteSets.Count == 0
+                ? ""
+                : $" Runtime sets registered: [{string.Join(", ", RuntimeSpriteSets.DescribeNames())}].";
+
         // Shared between UI.ResolveSprite and Icon.Name. Splits the `set:key` form
         // and branches the hint on whether the set was ever registered, so the
         // author gets actionable advice instead of the generic "Sync Atlases" line.
@@ -150,13 +171,16 @@ namespace PromptUGUI.Application
             var setName = value.Substring(0, colon);
             if (!LoadedSpriteSetNames.Contains(setName))
             {
-                var loaded = LoadedSpriteSetNames.Count == 0
-                    ? "none"
-                    : string.Join(", ", LoadedSpriteSetNames);
+                // Runtime sets are listed too: a value naming one never reaches this message, so the list tells
+                // the author which names do resolve (spec 2026-10-01-runtime-sprite-sets-design §6.8).
+                var names = new List<string>(LoadedSpriteSetNames);
+                names.AddRange(RuntimeSpriteSets.DescribeNames());
+                var loaded = names.Count == 0 ? "none" : string.Join(", ", names);
                 return $"{prefix} '{value}': resolver returned null because SpriteSet '{setName}' is not loaded. " +
                        $"Currently loaded sets: [{loaded}]. " +
                        $"If you registered via UseAddressableSpriteSetResolver, ensure the '{setName}' SpriteSet asset has the matching Addressables label. " +
-                       $"If via UseSpriteSetResolver(resourcesSubpath), ensure the asset lives under that Resources subfolder.";
+                       $"If via UseSpriteSetResolver(resourcesSubpath), ensure the asset lives under that Resources subfolder. " +
+                       $"If it is a runtime set, register it with UI.RegisterRuntimeSpriteSet before it is shown.";
             }
 
             var key = value.Substring(colon + 1);
@@ -1413,6 +1437,7 @@ namespace PromptUGUI.Application
             SpriteResolver = null;
             LoadedSpriteSetNames.Clear();
             _spriteResolverLoadCount = 0;
+            ClearRuntimeRegistrations();
             PoResolver = null;
             CanvasConfigurator = null;
             DefaultScaleMode = ScaleMode.Auto;
@@ -1442,14 +1467,24 @@ namespace PromptUGUI.Application
         // Clears stale Screens/docs/commons/dep-graph that survive Play→Stop→Play
         // when "Reload Domain" is disabled in Enter Play Mode Options. SourceResolver,
         // SpriteResolver and Registry (with built-ins) are intentionally preserved.
+        // Runtime sprite sets / .po catalogs are Play-session state (registered by game code at boot),
+        // unlike the resolvers: cleared too, so a second session can register them again.
         [UnityEngine.OnEnteringPlayMode]
-        private static void OnEnteringPlayMode() => UnloadAll();
+        private static void OnEnteringPlayMode()
+        {
+            UnloadAll();
+            ClearRuntimeRegistrations();
+        }
 
         // Symmetric cleanup on play exit. Without this, Screens whose GameObjects
         // Unity tears down still sit in _open; later Editor work (e.g. icon sync's
         // ReSolve broadcast) walks them and hits destroyed RectTransforms.
         [UnityEngine.OnExitingPlayMode]
-        private static void OnExitingPlayMode() => UnloadAll();
+        private static void OnExitingPlayMode()
+        {
+            UnloadAll();
+            ClearRuntimeRegistrations();
+        }
 
         // Test seam for the [OnEnteringPlayMode] handler above.
         internal static void OnEnteringPlayModeForTests() => OnEnteringPlayMode();

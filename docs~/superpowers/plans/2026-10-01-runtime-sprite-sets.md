@@ -125,37 +125,37 @@
 
 ### Task 1：骨架（不写 Red，只为让测试程序集能编译）
 
-- [ ] 新建 `RuntimeSprite.cs`：readonly struct，带隐式 `Sprite → RuntimeSprite` 转换；以及 `RuntimeSpriteSetOptions`。
-- [ ] 新建 `UI.RuntimeSprites.cs`：三个公开方法先 `throw new NotImplementedException()`。
-- [ ] 新建 `RuntimeSpriteSets.cs`：`Registration`、`KeyEntry`。
-- [ ] `UILog.Warn(string)`（P2）。
-- [ ] 刷新，console 无编译错误。
+- [x] 新建 `RuntimeSprite.cs`：readonly struct，带隐式 `Sprite → RuntimeSprite` 转换；以及 `RuntimeSpriteSetOptions`。
+- [x] 新建 `UI.RuntimeSprites.cs`：三个公开方法先 `throw new NotImplementedException()`。
+- [x] 新建 `RuntimeSpriteSets.cs`：`Registration`、`KeyEntry`。
+- [x] `UILog.Warn(string)`（P2）。
+- [x] 刷新，console 无编译错误。
 
 ### Task 2：注册校验 + 整包集
 
-- [ ] **Red**：`Invalid_set_name_throws`、`Null_entries_or_loader_throws`、`Empty_key_in_entries_throws`、`Null_sprite_entries_are_skipped`、
+- [x] **Red**：`Invalid_set_name_throws`、`Null_entries_or_loader_throws`、`Empty_key_in_entries_throws`、`Null_sprite_entries_are_skipped`、
       `Entries_and_options_are_snapshotted_at_register`、`Duplicate_runtime_name_throws`、`Name_colliding_with_static_set_throws_in_both_orders`、
       `Unregister_unknown_returns_false`、`Eager_set_resolves_through_ResolveSprite`、`Eager_missing_key_returns_Missing_and_warns_once`、
       `Eager_set_in_sync_attribute_works`（`<Btn sprite='pack:x'/>`）、`Works_without_any_SpriteResolver`、`Tiled_entry_registers_render_hint`
-- [ ] **实现**：
+- [x] **实现**：
   - 集名校验 `[A-Za-z0-9_-]+`；
   - 整个字典校验通过后，才提交 Ordinal 快照；
   - 重名检查，消息注明对方是运行时集还是静态集；
   - tiled 条目登记 hint；
   - `ResolveSprite`：先 `RuntimeSpriteSets.TryResolveSync`，否则走 `ResolveSpriteStatic`（今天的函数体逐字搬过去）；
   - 静态侧在 `BuildLookup` 里查重（P9）。
-- [ ] RUN(RuntimeSpriteSetTests) 绿；RUN(ResolveSpriteTests / SpriteResolverTests / BtnStateTests) 不回归；lint
+- [x] RUN(RuntimeSpriteSetTests) 绿；RUN(ResolveSpriteTests / SpriteResolverTests / BtnStateTests) 不回归；lint
 
 ### Task 3：按需集的 key 状态机（注册表层，经 internal `Request` 测）
 
-- [ ] **Red**：`Request_completes_synchronously_via_raw_OnCompleted`（尽早验证：在 ACS 上 `SetResult` 时，裸的 `awaiter.OnCompleted` 会同步执行）、
+- [x] **Red**：`Request_completes_synchronously_via_raw_OnCompleted`（尽早验证：在 ACS 上 `SetResult` 时，裸的 `awaiter.OnCompleted` 会同步执行）、
       `OnDemand_set_in_sync_attribute_errors_once_even_when_cached`、`Request_invokes_provider_once_per_key`、
       `Sync_completed_request_is_ready_without_waiting`、`Pending_request_settles_on_completion`、`Provider_default_result_marks_key_missing`、
       `Provider_sync_throw_marks_missing_and_errors_once`、`Provider_async_fault_marks_missing_and_errors_once`、
       `Provider_returning_null_awaitable_marks_missing`、`Empty_key_is_missing_without_calling_provider`、
       `Reentrant_request_for_same_key_does_not_reinvoke_provider`、`Result_after_unregister_is_dropped`、
       `Result_for_old_registration_does_not_touch_reregistered_set`、`Tiled_result_registers_render_hint`
-- [ ] **实现**：
+- [x] **实现**：
   ```csharp
   // 先入表再调取图函数（P8）；只取一个 awaiter，结果恰好取一次
   var entry = new KeyEntry { State = KeyState.Loading }; reg.Keys[key] = entry;
@@ -169,31 +169,31 @@
   - `Settle` 幂等：条目已不是 Loading 直接返回；`!reg.Alive` 时丢弃。
   - 有结果时先登记 tiled hint，再置 Ready / Missing，然后快照等待者逐个通知（各自 `try/catch`）。
   - 三张去重表按 P12。
-- [ ] RUN(RuntimeSpriteSetTests) 绿；lint
+- [x] RUN(RuntimeSpriteSetTests) 绿；lint
 
 ### Task 4：诊断 + 与静态集共存
 
-- [ ] **Red**：`Failure_message_lists_runtime_sets_and_does_not_say_not_loaded`、`Runtime_set_survives_UseSpriteSetResolver_rebind`、
+- [x] **Red**：`Failure_message_lists_runtime_sets_and_does_not_say_not_loaded`、`Runtime_set_survives_UseSpriteSetResolver_rebind`、
       `Runtime_set_survives_sprite_hot_reload_rebuild`、`LoadedSpriteSetNames_lists_static_sets_only`、`Static_collision_throws_before_touching_loaded_names`
-- [ ] **实现**：
+- [x] **实现**：
   - 失败消息里的已加载名单 = 静态集 ∪ 运行时集，后者标注 `(runtime)` / `(runtime, on demand)`；
   - `SpriteResolver == null` 时的报错也列出运行时集；
   - P9 的预检。
-- [ ] RUN(RuntimeSpriteSetTests) 绿；RUN(SpriteSetTiledEntryTests / SpriteHotReloadTests / SpriteRenderHintsTests) 不回归；lint
+- [x] RUN(RuntimeSpriteSetTests) 绿；RUN(SpriteSetTiledEntryTests / SpriteHotReloadTests / SpriteRenderHintsTests) 不回归；lint
 
 ### Task 5：广播 + 生命周期
 
-- [ ] **Red**：`Eager_register_after_open_refreshes_xml_declared_btn_sprite`、`Eager_unregister_broadcasts_once`、
+- [x] **Red**：`Eager_register_after_open_refreshes_xml_declared_btn_sprite`、`Eager_unregister_broadcasts_once`、
       `OnDemand_register_and_unregister_do_not_broadcast`、`UnloadAll_keeps_runtime_sets`、`ResetForTests_clears_sets_and_drops_pending_results`、
       `ClearRuntimeRegistrations_clears_sets`；守卫 `#if UNITY_6000_5_OR_NEWER` 内另加 `Play_mode_entry_clears_runtime_sets`
-- [ ] **实现**：
+- [x] **实现**：
   - 整包集在注册、注销时各调一次 `VariantStore.NotifyChangedInternal()`；
   - P1 的入口和三个钩子。
-- [ ] RUN(RuntimeSpriteSetTests) 绿；lint
+- [x] RUN(RuntimeSpriteSetTests) 绿；lint
 
 ### M1 收尾
 
-- [ ] 回归，全绿：
+- [x] 回归，全绿：
   - RUN：`ResolveSpriteTests`、`SpriteResolverTests`、`SpriteResolverLoadInFlightTests`、`SpriteHotReloadTests`、`SpriteRenderHintsTests`、
     `SpriteSetTiledEntryTests`、`RuntimeSourceAttributionTests`、`TabTests`、`DecorSpriteTests`、`BtnStateTests`、`ProceduralBuildersTests`、
     `UIResetEventTests`、`HotReloadTests`；
@@ -201,7 +201,7 @@
   - 在 6000.5+ 宿主上加 `CommonLibraryTests`。
 
   lint
-- [ ] `git commit -m "feat(sprites): runtime sprite sets — register / unregister, resolved before UI.SpriteResolver"`（连同新 `.meta`）
+- [x] `git commit -m "feat(sprites): runtime sprite sets — register / unregister, resolved before UI.SpriteResolver"`（连同新 `.meta`）
 
 ## M2 — AsyncSpriteSlot + Icon / Image
 
