@@ -117,6 +117,17 @@ namespace PromptUGUI.Application
                     if (chain[i].Kind == RouteKind.Prompt)
                         throw new RouteException(
                             $"route '{name}': prompt '{chain[i].Name}' cannot be a parent");
+                // Pages sort in the page band, below every modal (spec 2026-10-01-router-page-layering §8).
+                RouteNode modal = null;
+                foreach (var node in chain)
+                {
+                    if (node.Kind == RouteKind.Modal) modal ??= node;
+                    else if (node.Kind == RouteKind.Page && modal != null)
+                        throw new RouteException(
+                            $"route '{name}': page '{node.Name}' cannot sit under modal '{modal.Name}' — " +
+                            "pages sort in the page band, below every modal, so it would be hidden behind " +
+                            $"its own ancestor. Map '{node.Name}' with present: RoutePresent.Modal.");
+                }
                 return chain;
             }
             // <scheme>://<name>?<query>,或无 scheme 的 <name>?<query>。

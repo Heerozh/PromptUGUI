@@ -130,9 +130,12 @@ namespace PromptUGUI.Application
                             slot = new Slot(entry, screen, key);
                             _stack.Add(slot);
 
+                            // Above every routed Modal too (router spec §12): those take the band's
+                            // first values. Reconcile closes this stack before it changes the chain,
+                            // so the count holds for as long as these dialogs are up.
                             var canvas = screen.RootGameObject.GetComponent<Canvas>();
                             canvas.overrideSorting = true;
-                            canvas.sortingOrder = SortingOrderBase + _stack.Count - 1;
+                            canvas.sortingOrder = SortingOrderBase + Router.RoutedModalCount + _stack.Count - 1;
 
                             var capturedSlot = slot;
                             var listener = screen.RootGameObject.AddComponent<ModalEscapeListener>();

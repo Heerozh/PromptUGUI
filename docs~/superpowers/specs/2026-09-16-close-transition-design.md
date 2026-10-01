@@ -199,6 +199,9 @@ Begin 时 `UI` 把 Screen 从 `_open` 挪到 `_closing`（`HashSet<Screen>`）�
 - **Overlap（默认）**：`Deactivate` 全部返回后立刻 `Activate`。绘制先后只由层级顺序决定（新 root 后建 → 在上）：
   push（开子页）子页在父页上滑入 ✓；pop（`Back`）子页是幽灵、父页本来就开着且在下 → 子页在父页上滑出 ✓；
   平级切换 A→B：B 在 A 上入场、A 在下面淡出 —— push 感，可接受。库不改 `sortingOrder`（改了会压到模态上面）。
+  → 「新 root 后建 → 在上」不是 Unity 的保证（同值 Overlay 根画布的先后未定义）。
+  [`2026-10-01-router-page-layering-design.md`](2026-10-01-router-page-layering-design.md) 改为按链路深度给 Page 定 `sortingOrder`
+  （整条 Page 带在 Loading 之下，不会压到模态），并在反激活时把旧页降一格，让上面三条叠放成为保证（该文 §5）。
 - **Sequential**：`Deactivate` 改为 `await UI.CloseAsync(key)`（逐个），全部销毁后再 `Activate`。导航慢一个
   `duration`，但没有两屏叠画的开销（移动端全屏 overdraw ×2 的场合）。
 - `Router.Changed` 仍在 `Reconcile` 末尾发（Overlap 下幽灵可能还在）。

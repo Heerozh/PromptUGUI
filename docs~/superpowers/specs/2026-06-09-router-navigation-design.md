@@ -318,6 +318,7 @@ reconcile 进行中某节点 activate 抛错:已激活的部分**不回滚**(屏
 - **用户手点 UI 上的 tab 时,router 链路是否跟随?** 例:shop 屏里用户直接点了 deals tab(没走 `Router.Open`)。v1 默认 router 链路**不**自动跟随(链路只反映经 `Open` 的导航);若要跟随,需订阅 `TabBar.OnSelectionChanged` 把链路顶替换为对应 Tab 节点。倾向 v1 先不跟随,文档说明。
 - **Prompt 兜底取消**(作者没透传 `ct`)的精确 slot 关闭策略(关"最近一次该 Prompt 开的 modal" vs "当前栈顶 modal")。
 - **routed Modal 与 ad-hoc dialog 栈共处 modal 带时的 sorting / ESC 归属**:原则定为 ad-hoc dialog 永远在 routed Modal 面板**之上**、ESC 先归 ad-hoc 栈顶(routed Modal 在屏时弹的 `MessageBox` 盖在它上面);两套 sorting 计数如何不打架 = plan 阶段定。这也牵涉 §5.2 "复用 vs 复刻" 的取舍。
+  → sorting 计数已由 [`2026-10-01-router-page-layering-design.md`](2026-10-01-router-page-layering-design.md) §7 落地(ad-hoc = Base + 链内 routed Modal 数 + 栈深 − 1);同文 §4 给 routed Page 按链路深度定层序。
 - **`Open` 到"已在链路中但非顶"的节点**(例 current=`[home,shop,item]`,`Open("shop")`):按 §3.2 等价"反激活 item、停在 shop",即回退。确认这就是期望(应当是——等于 `Back` 到 shop)。
 
 ---
