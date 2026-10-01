@@ -24,8 +24,15 @@ namespace PromptUGUI.Application
             // (BindItems rows) whose own Apply nests inside this one.
             var outer = UILog.Applying;
             UILog.Applying = node;
+            // Restored, not cleared: a setter can trigger a nested apply of this same control.
+            var outerPass = control.InApplyPass;
+            control.InApplyPass = true;
             try { ApplyCore(node, control, entry, variants, initial); }
-            finally { UILog.Applying = outer; }
+            finally
+            {
+                UILog.Applying = outer;
+                control.InApplyPass = outerPass;
+            }
         }
 
         private static void ApplyCore(ElementNode node, Control control,

@@ -5,16 +5,27 @@ using UnityEngine;
 namespace PromptUGUI.Application
 {
     /// <summary>
-    /// Something that shows a key of a runtime sprite set and wants to hear when it settles.
-    /// Implemented by <c>Controls.Internal.AsyncSpriteSlot</c>.
+    /// Something that shows a key of a runtime sprite set and refreshes itself when the registry says so.
+    /// Implemented by <c>Controls.Internal.AsyncSpriteSlot</c>. Every callback runs on the main thread, one
+    /// listener at a time; a throwing listener is logged and the rest still run.
     /// </summary>
     internal interface IRuntimeSpriteListener
     {
         /// <summary>The control the listener draws into: logging context, and liveness
-        /// (<c>Owner.GameObject == null</c> = dead).</summary>
+        /// (<c>Owner.GameObject == null</c> = dead, skipped and pruned).</summary>
         public Controls.Control Owner { get; }
 
+        /// <summary>A key it was waiting for has settled (Ready or Missing).</summary>
         public void OnKeySettled(RuntimeSpriteSets.Registration reg, string key, RuntimeSpriteSets.KeyEntry entry);
+
+        /// <summary>A set it was waiting for by name got registered.</summary>
+        public void OnSetRegistered(string setName);
+
+        /// <summary>The set it was showing got unregistered.</summary>
+        public void OnSetUnregistered(RuntimeSpriteSets.Registration reg);
+
+        /// <summary>The static <c>UI.SpriteResolver</c> it was waiting for got installed.</summary>
+        public void OnStaticResolverInstalled();
     }
 
     /// <summary>
@@ -32,7 +43,7 @@ namespace PromptUGUI.Application
             public KeyState State;
             public RuntimeSprite Result;
             public Exception Error;
-            internal List<IRuntimeSpriteListener> Waiters;
+            internal ListenerSet Waiters;
         }
 
         internal sealed class Registration
@@ -43,6 +54,9 @@ namespace PromptUGUI.Application
             public readonly Sprite Loading;
             public readonly Sprite Missing;
             public readonly Dictionary<string, KeyEntry> Keys = new(StringComparer.Ordinal);
+
+            /// <summary>Every listener currently showing (or waiting for) a key of this set.</summary>
+            public readonly ListenerSet Bound = new();
 
             // Three dedupe tables (spec §6.5); they die with the registration.
             public readonly HashSet<string> WarnedMissing = new(StringComparer.Ordinal);
@@ -65,7 +79,59 @@ namespace PromptUGUI.Application
             }
         }
 
+        /// <summary>
+        /// A set of listeners that sheds dead ones as it grows (spec §7.4): row controls are never disposed one
+        /// by one, so without the sweep a UGC browser opened and closed repeatedly would pile up destroyed
+        /// slots. A sweep runs when an insert finds the set at twice its last live size — amortised O(1).
+        /// </summary>
+        internal sealed class ListenerSet
+        {
+            private const int MinSweep = 64;
+            private readonly HashSet<IRuntimeSpriteListener> _items = new();
+            private int _sweepAt = MinSweep;
+
+            public int Count => _items.Count;
+
+            public void Add(IRuntimeSpriteListener listener)
+            {
+                if (_items.Count >= _sweepAt)
+                {
+                    _items.RemoveWhere(l => !IsAlive(l.Owner));
+                    _sweepAt = Math.Max(MinSweep, 2 * _items.Count);
+                }
+                _items.Add(listener);
+            }
+
+            public bool Remove(IRuntimeSpriteListener listener) => _items.Remove(listener);
+
+            public void Clear() => _items.Clear();
+
+            public IRuntimeSpriteListener[] Snapshot()
+            {
+                var copy = new IRuntimeSpriteListener[_items.Count];
+                _items.CopyTo(copy);
+                return copy;
+            }
+
+            public Controls.Control FirstLiveOwner()
+            {
+                foreach (var l in _items)
+                    if (IsAlive(l.Owner)) return l.Owner;
+                return null;
+            }
+        }
+
         private static readonly Dictionary<string, Registration> s_sets = new(StringComparer.Ordinal);
+
+        // Listeners whose value names a set that is not registered (yet, or any more): they re-resolve when a
+        // runtime set of that name is registered (spec §6.6 "self-heal", §7.7).
+        private static readonly Dictionary<string, ListenerSet> s_waitingByName = new(StringComparer.Ordinal);
+
+        // Code-written values that met "UI.SpriteResolver loading": re-resolved when it is installed (spec §7.7).
+        private static readonly ListenerSet s_waitingStatic = new();
+
+        // "This element's size comes from the sprite" is warned once per template node (spec §7.5).
+        private static readonly HashSet<IR.ElementNode> s_sizeWarnedNodes = new();
 
         internal static bool TryGet(string setName, out Registration reg) => s_sets.TryGetValue(setName, out reg);
 
@@ -113,6 +179,13 @@ namespace PromptUGUI.Application
                     if (kv.Value.Tiled) Internal.SpriteRenderHints.Register(kv.Value.Sprite);
             s_sets.Add(reg.Name, reg);
 
+            // Icons / Images that named this set before it existed (or since it was unregistered) resolve now.
+            if (s_waitingByName.TryGetValue(reg.Name, out var waiting))
+            {
+                s_waitingByName.Remove(reg.Name);
+                Notify(waiting.Snapshot(), l => l.OnSetRegistered(reg.Name));
+            }
+
             // An eager set can sit in any sprite attribute: replay the open Screens once so references declared
             // in XML before the pack arrived resolve now. Rare by nature (a pack download), hence a full replay.
             // An on-demand set never needs it — only Icon / Image show one, and they refresh themselves.
@@ -124,6 +197,14 @@ namespace PromptUGUI.Application
             if (string.IsNullOrEmpty(setName) || !s_sets.TryGetValue(setName, out var reg)) return false;
             s_sets.Remove(setName);
             reg.Alive = false;
+
+            // Clear every listener showing it, then let go of everything the registration held: once this
+            // returns the caller may destroy the sprites (spec §5.4).
+            var bound = reg.Bound.Snapshot();
+            reg.Bound.Clear();
+            foreach (var entry in reg.Keys.Values) entry.Waiters = null;
+            Notify(bound, l => l.OnSetUnregistered(reg));
+
             if (!reg.OnDemand) UI.NotifyVariantChangedForReSolve();
             return true;
         }
@@ -245,18 +326,14 @@ namespace PromptUGUI.Application
             {
                 entry.Error = error;
                 entry.State = KeyState.Missing;
-                if (error != null) ReportLoaderErrorOnce(reg, key, error, LiveContext(requester, entry));
+                if (error != null)
+                    ReportLoaderErrorOnce(reg, key, error,
+                        IsAlive(requester) ? requester : entry.Waiters?.FirstLiveOwner());
             }
 
             var waiters = entry.Waiters;
             entry.Waiters = null;
-            if (waiters == null) return;
-            foreach (var w in waiters)
-            {
-                // One misbehaving listener must not starve the rest.
-                try { w.OnKeySettled(reg, key, entry); }
-                catch (Exception e) { Debug.LogException(e); }
-            }
+            if (waiters != null) Notify(waiters.Snapshot(), l => l.OnKeySettled(reg, key, entry));
         }
 
         private static void ReportLoaderErrorOnce(Registration reg, string key, Exception error,
@@ -270,24 +347,84 @@ namespace PromptUGUI.Application
             else UILog.Error(message);
         }
 
-        // A failure that settles asynchronously has no node in hand: log against the requester, or failing that
-        // the first listener still alive.
-        private static Controls.Control LiveContext(Controls.Control requester, KeyEntry entry)
+        // ── listener tables ───────────────────────────────────────────────────────────────────
+
+        internal static void Bind(Registration reg, IRuntimeSpriteListener listener) => reg.Bound.Add(listener);
+
+        internal static void Unbind(Registration reg, string key, IRuntimeSpriteListener listener)
         {
-            if (IsAlive(requester)) return requester;
-            if (entry.Waiters != null)
-                foreach (var w in entry.Waiters)
-                    if (IsAlive(w.Owner)) return w.Owner;
-            return null;
+            reg.Bound.Remove(listener);
+            if (key != null && reg.Keys.TryGetValue(key, out var entry)) entry.Waiters?.Remove(listener);
+        }
+
+        internal static void AddWaiter(KeyEntry entry, IRuntimeSpriteListener listener) =>
+            (entry.Waiters ??= new ListenerSet()).Add(listener);
+
+        internal static void WaitForName(string setName, IRuntimeSpriteListener listener)
+        {
+            if (!s_waitingByName.TryGetValue(setName, out var set))
+                s_waitingByName[setName] = set = new ListenerSet();
+            set.Add(listener);
+        }
+
+        internal static void StopWaitingForName(string setName, IRuntimeSpriteListener listener)
+        {
+            if (s_waitingByName.TryGetValue(setName, out var set) && set.Remove(listener) && set.Count == 0)
+                s_waitingByName.Remove(setName);
+        }
+
+        internal static void WaitForStatic(IRuntimeSpriteListener listener) => s_waitingStatic.Add(listener);
+
+        internal static void StopWaitingForStatic(IRuntimeSpriteListener listener) => s_waitingStatic.Remove(listener);
+
+        /// <summary>
+        /// <c>UI.EndSpriteResolverLoad</c> dropped to zero. Runs before its broadcast (spec §7.7): with the
+        /// resolver still null — the load failed — the waiters are dropped silently, as XML-declared values
+        /// are reported by the broadcast's replay exactly as before.
+        /// </summary>
+        internal static void NotifyStaticResolverInstalled()
+        {
+            if (s_waitingStatic.Count == 0) return;
+            var waiting = s_waitingStatic.Snapshot();
+            s_waitingStatic.Clear();
+            if (UI.SpriteResolver == null) return;
+            Notify(waiting, l => l.OnStaticResolverInstalled());
+        }
+
+        /// <summary>True the first time a size warning is due for <paramref name="owner"/>'s template node.</summary>
+        internal static bool FirstSizeWarningFor(Controls.Control owner) =>
+            owner.SourceNode != null && s_sizeWarnedNodes.Add(owner.SourceNode);
+
+        private static void Notify(IRuntimeSpriteListener[] listeners, Action<IRuntimeSpriteListener> call)
+        {
+            foreach (var listener in listeners)
+            {
+                if (!IsAlive(listener.Owner)) continue;
+                // One misbehaving listener must not starve the rest, nor the broadcast that may follow.
+                try { call(listener); }
+                catch (Exception e) { Debug.LogException(e); }
+            }
         }
 
         internal static bool IsAlive(Controls.Control control) => control != null && control.GameObject != null;
 
-        /// <summary>Drops every set. Registrations are marked dead first, so results arriving later are dropped.</summary>
+        // ── test seams ────────────────────────────────────────────────────────────────────────
+
+        internal static int BoundCountForTests(string setName) =>
+            s_sets.TryGetValue(setName, out var reg) ? reg.Bound.Count : 0;
+
+        internal static int WaitingForNameCountForTests(string setName) =>
+            s_waitingByName.TryGetValue(setName, out var set) ? set.Count : 0;
+
+        /// <summary>Drops every set and table. Registrations are marked dead first, so results arriving later are
+        /// dropped. No listener is notified: this is a reset (tests, Play-mode start), not an unregister.</summary>
         internal static void Clear()
         {
             foreach (var reg in s_sets.Values) reg.Alive = false;
             s_sets.Clear();
+            s_waitingByName.Clear();
+            s_waitingStatic.Clear();
+            s_sizeWarnedNodes.Clear();
         }
     }
 }

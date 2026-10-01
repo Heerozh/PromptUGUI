@@ -207,22 +207,22 @@
 
 ### Task 6：Control 管道（`ControlSizeFromNativeTests`）
 
-- [ ] **Red**：`Native_keyword_sets_SizeFromNative`、`Omitted_size_in_free_positioning_sets_SizeFromNative`、
+- [x] **Red**：`Native_keyword_sets_SizeFromNative`、`Omitted_size_in_free_positioning_sets_SizeFromNative`、
       `Explicit_size_clears_SizeFromNative_on_next_pass`、`Stretched_axis_does_not_set_SizeFromNative`、`Grid_cell_child_does_not_set_SizeFromNative`、
       `Stack_child_with_omitted_axis_sets_SizeFromNative`、`Stack_cross_fill_axis_does_not_set_SizeFromNative`、
       `Stack_child_with_both_axes_written_does_not_set_SizeFromNative`、`InApplyPass_is_true_only_inside_own_apply`（Probe 控件）
-- [ ] **实现**：P10 的 `SizeFromNative`；P4 的 `InApplyPass`
-- [ ] RUN(ControlSizeFromNativeTests) 绿；RUN(LayoutRebuildDirtyTests / ControlApplyCommonLayoutGroupTests / HugSizingTests) 不回归；lint
+- [x] **实现**：P10 的 `SizeFromNative`；P4 的 `InApplyPass`
+- [x] RUN(ControlSizeFromNativeTests) 绿；RUN(LayoutRebuildDirtyTests / ControlApplyCommonLayoutGroupTests / HugSizingTests) 不回归；lint
 
 ### Task 7：slot 核心 + Icon（`AsyncSpriteSlotTests`）
 
-- [ ] **Red**：`Pending_shows_Loading_then_result`、`Sync_completed_provider_never_shows_Loading`、`Same_key_requested_once_across_icons`、
+- [x] **Red**：`Pending_shows_Loading_then_result`、`Sync_completed_provider_never_shows_Loading`、`Same_key_requested_once_across_icons`、
       `Code_written_icon_name_refreshes_on_arrival`（核心）、`Stale_arrival_after_key_change_is_ignored`、`Arrival_after_destroy_is_silent`、
       `ReSolve_while_pending_does_not_rerequest_or_flash`、`Provider_null_shows_Missing_and_warns_once`、`Provider_exception_shows_Missing_and_errors_once`、
       `Variant_override_switches_ondemand_key`、`Pending_with_null_Loading_draws_nothing`、`Missing_with_null_placeholder_draws_nothing`、
       `Reentrant_set_from_provider_leaves_slot_consistent`、`Icon_static_value_reresolves_on_every_set`；
       守门测试保持绿：`IconRuntimeStateTests`、`SpriteResolverLoadInFlightTests`、`MessageBoxIconRuntimeStateTests`
-- [ ] **实现**：
+- [x] **实现**：
   - `AsyncSpriteSlot`：
     - 状态 `None / Static / WaitingStaticResolver / Ready / Loading / Missing / Detached`；
     - `Set`：值与当前相同且处于运行时状态 → 不做事；否则 `++_gen`、`Release()`、`Resolve()`；
@@ -235,62 +235,62 @@
     - `RefreshDerived` 为 `Flush`；
     - `Name` 改为 `_name = value; _slot.Set(value)`；
     - `OnAfterApply` 改为 `Flush` 后调 `_slot.AfterPass()`。
-- [ ] RUN(AsyncSpriteSlotTests) 绿；RUN(IconRuntimeStateTests / SpriteResolverLoadInFlightTests / MessageBoxIconRuntimeStateTests / RuntimeSourceAttributionTests) 不回归；lint
+- [x] RUN(AsyncSpriteSlotTests) 绿；RUN(IconRuntimeStateTests / SpriteResolverLoadInFlightTests / MessageBoxIconRuntimeStateTests / RuntimeSourceAttributionTests) 不回归；lint
 
 ### Task 8：注册 / 注销唤醒 + 清扫
 
-- [ ] **Red**：`Unregister_clears_then_reregister_refreshes`、`Detached_icon_draws_nothing`、`Unknown_set_errors_then_heals_on_register`、
+- [x] **Red**：`Unregister_clears_then_reregister_refreshes`、`Detached_icon_draws_nothing`、`Unknown_set_errors_then_heals_on_register`、
       `Destroyed_slots_are_pruned_from_registry_tables`（断言 internal 计数）、`Register_from_inside_arrival_callback_is_safe`
-- [ ] **实现**：
+- [x] **实现**：
   - 三张表都用 `AddPruned`（P7）；
   - 注册：先唤醒按集名等待表，再按需广播；
   - 注销：作废注册 → 快照 `Bound` → 各 slot 清空、转 Detached、进按集名等待 → 再按需广播；
   - 每个 slot 的处理单独 `try/catch`。
-- [ ] RUN(AsyncSpriteSlotTests) 绿；lint
+- [x] RUN(AsyncSpriteSlotTests) 绿；lint
 
 ### Task 9：Image
 
-- [ ] **Red**：`Image_pending_shows_Loading_then_result`、`Late_arrival_rederives_image_state`（contain 宽高比；带 border 的图变成 Sliced）、
+- [x] **Red**：`Image_pending_shows_Loading_then_result`、`Late_arrival_rederives_image_state`（contain 宽高比；带 border 的图变成 Sliced）、
       `Sync_hit_and_late_arrival_derive_same_image_type`、`Explicit_type_is_kept_on_late_arrival`、`Code_written_static_image_sprite_keeps_previous_type`
-- [ ] **实现**：
+- [x] **实现**：
   - 拆出 `RefreshSpriteDerivedState()`。
   - `OnAfterApply` 顺序：刷新派生状态 → `_slot.AfterPass()` → `_raycast.EndPass()`。
   - `ResolveStatic` 的三态判定：
     - 值带 `:`、resolver 为 null、且正在加载 → `Deferred`；
     - 否则调 `ResolveSpriteStatic`，得到 sprite → `Ok`；值带 `:` 却解析为 null → `Failed`；
     - 不带 `:` 的 Resources 路径总是 `Ok`，sprite 可能为 null（与今天一样静默）。
-- [ ] RUN(AsyncSpriteSlotTests) 绿；RUN(ImageFitTests / FxImageTests / ImageFxRenderTests / ImageNativeSizeTests / ImageMaskTests / RaycastTargetTests) 不回归；lint
+- [x] RUN(AsyncSpriteSlotTests) 绿；RUN(ImageFitTests / FxImageTests / ImageFxRenderTests / ImageNativeSizeTests / ImageMaskTests / RaycastTargetTests) 不回归；lint
 
 ### Task 10：尺寸告警
 
-- [ ] **Red**：`Native_sized_icon_on_ondemand_set_warns_once`、`Explicit_size_does_not_warn`、`Eager_set_native_size_does_not_warn`、
+- [x] **Red**：`Native_sized_icon_on_ondemand_set_warns_once`、`Explicit_size_does_not_warn`、`Eager_set_native_size_does_not_warn`、
       `Image_cover_without_size_does_not_warn`、`Grid_cell_icon_without_size_does_not_warn`、`Code_written_ondemand_name_on_native_icon_warns`、
       `Bound_rows_warn_once_per_template_node`
-- [ ] **实现**：
+- [x] **实现**：
   - 两个检查点：`AfterPass`，以及 apply 外的 `Set`；
   - 按 `SourceNode` 去重（P10），去重表由 P1 清空；
   - Image 的 `SizeDependsOnSprite = SizeFromNative && !(fitter 已启用)`。
-- [ ] RUN(AsyncSpriteSlotTests) 绿；lint
+- [x] RUN(AsyncSpriteSlotTests) 绿；lint
 
 ### Task 11：行复用 + 真实帧调度
 
-- [ ] **Red**：
+- [x] **Red**：
   - `Reused_row_same_key_still_receives_arrival`：用 `ScrollListReuseTests` 的 Push 写法，行模板里放 `<Icon id='icon' size='32'/>`，加载期间再推一次同样的数据。
   - PlayMode `RuntimeSpriteSetPlayTests.Ondemand_icon_arrives_after_real_frames`：取图函数里 `await Awaitable.NextFrameAsync()`，`[UnityTest]` 等几帧后断言。
-- [ ] **实现**：预期不需要改代码。若 Red 测试一上来就是绿的，只说明订阅不挂在 `Track` 上这一点成立，不算失败。
-- [ ] RUN(AsyncSpriteSlotTests) 绿；RUNPLAY(RuntimeSpriteSetPlayTests) 绿
+- [x] **实现**：预期不需要改代码。若 Red 测试一上来就是绿的，只说明订阅不挂在 `Track` 上这一点成立，不算失败。
+- [x] RUN(AsyncSpriteSlotTests) 绿；RUNPLAY(RuntimeSpriteSetPlayTests) 绿
 
 ### Task 12：静态 resolver 加载中（§1.3）
 
-- [ ] **Red**：`Code_written_icon_name_during_static_load_refreshes_on_End`（今天必红）、`Code_written_native_icon_gets_native_size_after_End`、
+- [x] **Red**：`Code_written_icon_name_during_static_load_refreshes_on_End`（今天必红）、`Code_written_native_icon_gets_native_size_after_End`、
       `End_without_installed_resolver_stays_silent`、`Xml_declared_static_miss_after_load_logs_once`、
       `Waiting_slot_heals_when_runtime_set_registers_during_static_load`
-- [ ] **实现**：P6（先处理静态等待表，再广播；同时登记按集名等待表）。
-- [ ] RUN(AsyncSpriteSlotTests) 绿；RUN(SpriteResolverLoadInFlightTests) 不回归；lint
+- [x] **实现**：P6（先处理静态等待表，再广播；同时登记按集名等待表）。
+- [x] RUN(AsyncSpriteSlotTests) 绿；RUN(SpriteResolverLoadInFlightTests) 不回归；lint
 
 ### M2 收尾
 
-- [ ] 回归，全绿：
+- [x] 回归，全绿：
   - RUN：`IconRuntimeStateTests`、`MessageBoxIconRuntimeStateTests`、`SpriteResolverLoadInFlightTests`、`RuntimeSourceAttributionTests`、
     `ColorTokenIntegrationTests`、`ImageTintTests`、`FxImageTests`、`ImageFxRenderTests`、`ImageFitTests`、`ImageNativeSizeTests`、`ImageMaskTests`、
     `ImageRotateFlipTests`、`RaycastTargetTests`、`GradientFlipOrderTests`、`IntensityRenderTests`、`ControlApplyCommonLayoutGroupTests`、
@@ -300,7 +300,7 @@
   - RUNPLAY：`IconRuntimeTests`、`ImageFxPlayTests`、`ImageTests`、`GridTests`、`RuntimeSpriteSetPlayTests`。
 
   lint
-- [ ] `git commit -m "feat(sprites): Icon / Image refresh themselves when on-demand sprites arrive"`
+- [x] `git commit -m "feat(sprites): Icon / Image refresh themselves when on-demand sprites arrive"`
 
 ## M3 — 运行时 .po 目录
 

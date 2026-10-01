@@ -122,6 +122,22 @@ namespace PromptUGUI.Controls
         internal virtual void OnAfterApply() { }
 
         /// <summary>
+        /// True while <see cref="ControlAttributeApplier"/> is applying THIS control's attributes — from before
+        /// <see cref="OnBeforeApply"/> to after <see cref="OnAfterApply"/>. A setter reads it to tell an XML
+        /// replay (the pass will finish the job in <see cref="OnAfterApply"/>) from a write by code.
+        /// </summary>
+        internal bool InApplyPass { get; set; }
+
+        /// <summary>
+        /// Whether the last <see cref="ApplyCommon"/> left any axis of this control's size to
+        /// <see cref="GetNativeSize"/> (or, in a stack, to the Graphic's own layout size): <c>size="native"</c>,
+        /// or an unwritten axis that neither stretches, fills the stack's cross axis, nor sits in a Grid cell.
+        /// Follows the declaration and the parent type only — never what the native size happened to be.
+        /// An async sprite cannot size such an element (spec 2026-10-01-runtime-sprite-sets-design §7.5).
+        /// </summary>
+        internal bool SizeFromNative { get; private set; }
+
+        /// <summary>
         /// 上次 <see cref="ControlAttributeApplier"/> 通过 DefaultTextAttr 写入的字符串。
         /// ReSolve 阶段拿来跟 <see cref="PeekDefaultText"/> 的当前值对比 —— 若当前值已被
         /// 调用方通过 setter 改掉(如 MessageBoxRequest.Bind 改 TextValue), 就不再被 XML
@@ -294,8 +310,10 @@ namespace PromptUGUI.Controls
 
             var sizeSpec = SizeSpec.Parse(size, width, height);
 
+            SizeFromNative = false;
             if (sizeSpec.IsNativeWidth || sizeSpec.IsNativeHeight)
             {
+                SizeFromNative = true;
                 var native = GetNativeSize();
                 if (native.HasValue)
                     sizeSpec = sizeSpec.WithNativeResolved(native.Value);
@@ -390,6 +408,8 @@ namespace PromptUGUI.Controls
                 if (!preset.StretchX && !preset.StretchY
                     && (!sizeSpec.HasWidth || !sizeSpec.HasHeight))
                 {
+                    // A Grid cell's size is GridLayoutGroup's cellSize, whatever the fallback writes here.
+                    if (!(parentIsGrid && flow)) SizeFromNative = true;
                     var nativeFallback = GetNativeSize();
                     if (nativeFallback.HasValue)
                     {
@@ -510,6 +530,11 @@ namespace PromptUGUI.Controls
 
             var fillCrossX = parentHv is UnityEngine.UI.VerticalLayoutGroup && preset.StretchX && !hasW;
             var fillCrossY = parentHv is UnityEngine.UI.HorizontalLayoutGroup && preset.StretchY && !hasH;
+
+            // An unwritten axis that neither hugs nor fills the cross axis is sized by the content: the native
+            // snapshot below, or — native null — the Graphic's own ILayoutElement (LGC-D9). Either way the sprite.
+            if ((!hasW && !sizeSpec.IsHugWidth && !fillCrossX) || (!hasH && !sizeSpec.IsHugHeight && !fillCrossY))
+                SizeFromNative = true;
 
             // 决策 LGC-D8 + BCS-D6 + BCS-D7 partial-write:
             // 任一轴没写 → 询问 GetNativeSize 作为该轴 fallback；写了的轴保留作者值。

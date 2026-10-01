@@ -208,8 +208,34 @@ namespace PromptUGUI.Controls.Internal
             base.OnDestroy();
         }
 
+        private bool _drawNothingWhenEmpty;
+
+        /// <summary>
+        /// With no sprite, draw nothing instead of uGUI's solid block. Set by the async sprite slot for a
+        /// runtime sprite set's empty placeholder (loading / missing / unregistered with no placeholder sprite);
+        /// a plain <c>sprite=""</c> keeps today's look. Not <c>enabled = false</c>: that would switch off a
+        /// <c>mask="self"</c> and the raycast too (spec 2026-10-01-runtime-sprite-sets-design §7.6).
+        /// </summary>
+        internal bool DrawNothingWhenEmpty
+        {
+            get => _drawNothingWhenEmpty;
+            set
+            {
+                if (_drawNothingWhenEmpty == value) return;
+                _drawNothingWhenEmpty = value;
+                SetVerticesDirty();
+            }
+        }
+
         protected override void OnPopulateMesh(VertexHelper toFill)
         {
+            if (_drawNothingWhenEmpty && sprite == null)
+            {
+                toFill.Clear();
+                _lastPad = 0f;
+                return;
+            }
+
             base.OnPopulateMesh(toFill);
 
             var pad = HasGeometryFx ? Pad : 0f;

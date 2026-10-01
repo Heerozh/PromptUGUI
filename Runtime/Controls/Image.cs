@@ -9,9 +9,12 @@ using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class Image : Control, IPointerEventSource
+    public sealed class Image : Control, IPointerEventSource, ISpriteSlotHost
     {
         private UnityImage _img;
+        // Resolves `sprite`; for an on-demand runtime set, waits for the sprite and refreshes this image
+        // when it arrives (spec 2026-10-01-runtime-sprite-sets-design §7).
+        private AsyncSpriteSlot _slot;
         private PointerEventRelay _pointerRelay;
         private bool _typeExplicit;
         private AspectRatioFitter _fitter;
@@ -31,6 +34,7 @@ namespace PromptUGUI.Controls
             // 2026-09-15 §3): uGUI's default is true, which put every decorative picture in the
             // raycast list.
             _raycast = new RaycastIntent(_img, this);
+            _slot = new AsyncSpriteSlot(this, this);
         }
 
         private RaycastIntent _raycast;
@@ -62,8 +66,28 @@ namespace PromptUGUI.Controls
         [UIAttr(IsSprite = true), Preserve]
         public string Sprite
         {
-            set => _img.sprite = UI.ResolveSprite(value);
+            set => _slot.Set(value);
         }
+
+        UnityImage ISpriteSlotHost.SlotGraphic => _img;
+
+        string ISpriteSlotHost.SlotTag => "Image";
+
+        // Today's UI.ResolveSprite minus the runtime sets the slot has already ruled out: SpriteSet assets,
+        // Resources paths, `#slice` — logs included.
+        StaticResult ISpriteSlotHost.ResolveStatic(string value, out UnityEngine.Sprite sprite)
+        {
+            sprite = null;
+            var named = value.IndexOf(':') >= 0;
+            if (named && UI.SpriteResolver == null && UI.IsSpriteResolverLoadInFlight) return StaticResult.Deferred;
+            sprite = UI.ResolveSpriteStatic(value);
+            return sprite == null && named ? StaticResult.Failed : StaticResult.Ok;
+        }
+
+        void ISpriteSlotHost.RefreshDerived() => RefreshSpriteDerivedState();
+
+        // contain / cover: the frame is the parent's, driven by the AspectRatioFitter — not the sprite's size.
+        bool ISpriteSlotHost.SizeDependsOnSprite => SizeFromNative && !(_fitter != null && _fitter.enabled);
 
         [UIAttr(IsColor = true), Preserve]
         public string Color
@@ -209,6 +233,17 @@ namespace PromptUGUI.Controls
 
         internal override void OnAfterApply()
         {
+            RefreshSpriteDerivedState();
+            _slot.AfterPass();
+            _raycast.EndPass();
+        }
+
+        /// <summary>
+        /// Everything that follows from the sprite: fit aspect, auto Sliced / Tiled, the effect material.
+        /// Run at the end of every pass, and by the slot when a runtime sprite lands outside one.
+        /// </summary>
+        private void RefreshSpriteDerivedState()
+        {
             // Fit 模式：用最终 sprite 算 aspectRatio（Sprite/Type setter 同循环、顺序不保证，
             // 这里在所有 setter 之后跑；sprite 变化（含 variant 换图）也会重算）。
             if (_fitter != null && _fitter.enabled && _img.sprite != null)
@@ -228,7 +263,6 @@ namespace PromptUGUI.Controls
             // it never loads the asset), so say so once here.
             ImageFxApplier.WarnIfFxOnNonSimple(_img, "Image");
             ImageFxApplier.Flush(_img);
-            _raycast.EndPass();
         }
 
         internal override void OnBeforeApply()

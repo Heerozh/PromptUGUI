@@ -60,7 +60,14 @@ namespace PromptUGUI.Application
             if (_spriteResolverLoadCount == 0) return;
             _spriteResolverLoadCount--;
             if (_spriteResolverLoadCount == 0)
+            {
+                // Icons / Images whose value was written by code while the resolver loaded: the broadcast
+                // below would skip them (a code-written Icon name is runtime-owned), so they re-resolve
+                // themselves first (spec 2026-10-01-runtime-sprite-sets-design §7.7). The broadcast then
+                // replays XML-written values exactly as before, and re-sizes both from the new sprites.
+                RuntimeSpriteSets.NotifyStaticResolverInstalled();
                 VariantStore.NotifyChangedInternal();
+            }
         }
 
         /// <summary>
