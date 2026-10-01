@@ -39,6 +39,8 @@ namespace PromptUGUI.Tests.Router
                 ["item"] = PageXml("item"),
                 ["deal"] = PageXml("deal"),
                 ["settings"] = PageXml("settings"),
+                ["advanced"] = PageXml("advanced"),
+                ["box"] = PageXml("box"),
             };
             UI.SourceResolver = src =>
                 AwaitableHelpers.Completed(files.TryGetValue(src, out var v) ? v : null);
@@ -221,6 +223,48 @@ namespace PromptUGUI.Tests.Router
             Assert.IsNotNull(esc, "the rebuilt modal still answers Escape");
             esc.FireForTests();
             CollectionAssert.AreEqual(new[] { "home", "shop" }, UI.Router.Chain);
+        }
+
+        // ── ad-hoc dialogs over routed modals (spec §7, router spec §12) ──
+
+        private sealed class Box : ModalRequest<int>
+        {
+            public Action<int> Close;
+            public override string XmlSrc => "box";
+            public override void Bind(IScreen screen, Action<int> close) => Close = close;
+        }
+
+        private static int Order(PromptUGUI.Application.Screen screen) =>
+            screen.RootGameObject.GetComponent<Canvas>().sortingOrder;
+
+        [Test]
+        public void An_adhoc_dialog_opens_above_every_routed_modal()
+        {
+            UI.Router.Map("settings", "settings", present: RoutePresent.Modal, parent: "shop");
+            UI.Router.Map("advanced", "advanced", present: RoutePresent.Modal, parent: "settings");
+            Open("advanced");   // home / shop / settings(modal) / advanced(modal)
+
+            var box = new Box();
+            UI.Modal.OpenAsync(box);
+            Assert.Greater(Order(UI.Modal.TopScreen), Order("advanced"),
+                "a MessageBox raised from a routed modal draws on top of it");
+            box.Close(0);
+        }
+
+        [Test]
+        public void Without_routed_modals_the_dialog_stack_keeps_its_numbers()
+        {
+            Open("shop");
+            var bottom = new Box();
+            var top = new Box();
+            UI.Modal.OpenAsync(bottom);
+            var bottomScreen = UI.Modal.TopScreen;
+            UI.Modal.OpenAsync(top);
+
+            Assert.AreEqual(UI.Modal.SortingOrderBase, Order(bottomScreen));
+            Assert.AreEqual(UI.Modal.SortingOrderBase + 1, Order(UI.Modal.TopScreen));
+            top.Close(0);
+            bottom.Close(0);
         }
 
         [Test]

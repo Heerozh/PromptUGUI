@@ -109,6 +109,9 @@ namespace PromptUGUI.Application
                 if (root != null) root.GetComponent<Canvas>().sortingOrder -= 1;
             }
 
+            /// <summary>Routed Modals in the chain: the modal-band values ad-hoc dialogs sort above (spec §7).</summary>
+            internal static int RoutedModalCount => CountAhead(_chain.Count, RouteKind.Modal);
+
             // Nodes of `kind` ahead of chain index `index`.
             private static int CountAhead(int index, RouteKind kind)
             {
