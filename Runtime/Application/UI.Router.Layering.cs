@@ -81,6 +81,24 @@ namespace PromptUGUI.Application
                         "PageSortingOrderStep, or raise Loading.SortingOrder.", root);
             }
 
+            // UI.ReloadAsync (hot reload) closed `screenName` and opened a fresh one: a new canvas that
+            // only the configurator has seen. When the router owns that screen, give it the router's
+            // layer back (spec §6) — without this a reloaded routed Modal falls out of the modal band
+            // and stops answering Escape.
+            internal static void OnScreenReopened(string screenName, Screen screen)
+            {
+                for (int i = 0; i < _chain.Count; i++)
+                {
+                    var a = _chain[i];
+                    if ((a.Def.Kind == RouteKind.Page || a.Def.Kind == RouteKind.Modal)
+                        && a.ScreenKey == screenName)
+                    {
+                        ApplyRouteLayer(a.Def, screen, i);
+                        return;
+                    }
+                }
+            }
+
             // A page the router lets go of may live on for its exit animation (Overlap). It steps one
             // below its slot so a same-depth page coming in — which takes that slot — draws above it
             // (spec §5); its own parent and the parent's TabMenu stay below, which is what the step

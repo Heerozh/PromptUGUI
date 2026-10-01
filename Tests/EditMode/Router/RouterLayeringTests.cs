@@ -195,6 +195,34 @@ namespace PromptUGUI.Tests.Router
             }
         }
 
+        // ── hot reload (spec §6): UI.ReloadAsync rebuilds the Screen behind the router's back ──
+
+        [Test]
+        public void Hot_reload_keeps_a_routed_pages_depth_order()
+        {
+            Open("item");
+            var before = UI.Get("shop");
+            UI.ReloadAsync("shop").GetAwaiter().GetResult();
+
+            Assert.AreNotSame(before, UI.Get("shop"), "the reload rebuilt the screen");
+            Assert.AreEqual(10, Order("shop"));
+        }
+
+        [Test]
+        public void Hot_reload_keeps_a_routed_modal_in_its_band_with_Escape_going_Back()
+        {
+            UI.Router.Map("settings", "settings", present: RoutePresent.Modal, parent: "shop");
+            Open("settings");
+            var band = Order("settings");
+            UI.ReloadAsync("settings").GetAwaiter().GetResult();
+
+            Assert.AreEqual(band, Order("settings"));
+            var esc = UI.Get("settings").RootGameObject.GetComponent<ModalEscapeListener>();
+            Assert.IsNotNull(esc, "the rebuilt modal still answers Escape");
+            esc.FireForTests();
+            CollectionAssert.AreEqual(new[] { "home", "shop" }, UI.Router.Chain);
+        }
+
         [Test]
         public void The_page_band_stays_under_Loading_and_routed_modals()
         {

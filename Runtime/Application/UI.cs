@@ -781,7 +781,7 @@ namespace PromptUGUI.Application
             };
             _depGraph.SrcToDeps[dep.EntrySrc] = new System.Collections.Generic.HashSet<string>(loaded.AllSrcs);
 
-            if (wasOpen) Open(screenName);
+            if (wasOpen) Router.OnScreenReopened(screenName, Open(screenName));
         }
 
         // ── common libraries (2026-09-18 commons-settings spec §4.2–4.5) ─────────────────────────
