@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using PromptUGUI.Application.Modals;
 using UnityEngine;
 
 namespace PromptUGUI.Application
@@ -222,8 +221,8 @@ namespace PromptUGUI.Application
             {
                 switch (def.Kind)
                 {
-                    case RouteKind.Page: return await ActivatePage(def, query, modal: false);
-                    case RouteKind.Modal: return await ActivatePage(def, query, modal: true);
+                    case RouteKind.Page:
+                    case RouteKind.Modal: return await ActivatePage(def, query);
                     case RouteKind.Tab: return ActivateTab(def, query);
                     case RouteKind.Prompt: return ActivatePrompt(def);
                     default:
@@ -255,25 +254,13 @@ namespace PromptUGUI.Application
             }
 
             // —— Page / Modal ——
-            private static async Awaitable<ActiveNode> ActivatePage(
-                RouteNode def, RouteQuery query, bool modal)
+            private static async Awaitable<ActiveNode> ActivatePage(RouteNode def, RouteQuery query)
             {
                 var screenName = await EnsureLoaded(def);
                 var screen = UI.Open(screenName);
-                if (modal)
-                {
-                    var canvas = screen.RootGameObject.GetComponent<Canvas>();
-                    canvas.overrideSorting = true;
-                    canvas.sortingOrder = UI.Modal.SortingOrderBase + CountModalsInChain();
-                    var esc = screen.RootGameObject.AddComponent<ModalEscapeListener>();
-                    var captured = def.Name;
-                    esc.OnEscape = () =>
-                    {
-                        if (UI.Tutorial.IsBlockingInput) return;
-                        // 只栈顶 routed modal 响应;有 ad-hoc 模态在上时让位给它
-                        if (IsTop(captured) && !UI.Modal.IsAnyOpen) _ = Back();
-                    };
-                }
+                // Before OnEnter, so the hook sees (and may adjust) the final order. The node is not
+                // in _chain yet: everything in it is this node's ancestry.
+                ApplyRouteLayer(def, screen, _chain.Count);
                 def.OnEnter?.Invoke(screen, query);
                 return new ActiveNode { Def = def, ScreenKey = screenName };
             }
@@ -350,14 +337,6 @@ namespace PromptUGUI.Application
                 }
             }
 
-            // 当前链路里已有的 Modal 节点数(此节点尚未入链)→ modal 带内的层序偏移。
-            private static int CountModalsInChain()
-            {
-                int n = 0;
-                foreach (var a in _chain) if (a.Def.Kind == RouteKind.Modal) n++;
-                return n;
-            }
-
             private static bool IsTop(string name) =>
                 _chain.Count > 0 && _chain[_chain.Count - 1].Def.Name == name;
 
@@ -402,6 +381,7 @@ namespace PromptUGUI.Application
                 Scheme = null;
                 Changed = null;
                 Transition = RouteTransition.Overlap;
+                ResetLayeringForTests();
             }
         }
     }
