@@ -235,6 +235,9 @@ namespace PromptUGUI.Application
                 switch (a.Def.Kind)
                 {
                     case RouteKind.Page:
+                        LowerForExit(a.ScreenKey);
+                        UI.Close(a.ScreenKey);
+                        break;
                     case RouteKind.Modal:
                         UI.Close(a.ScreenKey);
                         break;

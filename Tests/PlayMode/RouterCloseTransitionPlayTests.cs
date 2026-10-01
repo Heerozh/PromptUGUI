@@ -107,6 +107,46 @@ namespace PromptUGUI.Tests.PlayMode
             Assert.AreEqual("bag", UI.Router.Current);
         }
 
+        private static int Order(Screen s) => s.RootGameObject.GetComponent<Canvas>().sortingOrder;
+
+        [UnityTest]
+        public IEnumerator Overlap_draws_the_incoming_sibling_above_the_exiting_one()
+        {
+            // Spec 2026-10-01-router-page-layering §5: siblings share a depth, so the exiting page
+            // drops one below the slot the incoming one takes — §5.5's push, now guaranteed.
+            yield return Await(UI.Router.Open("shop"));
+            var home = UI.Get("home");
+            var shop = UI.Get("shop");
+            yield return new WaitForSeconds(0.3f);
+
+            yield return Await(UI.Router.Open("bag"));
+            var bag = UI.Get("bag");
+            Assert.IsTrue(shop.IsClosing, "the old page is still fading");
+            Assert.Greater(Order(bag), Order(shop), "the incoming sibling draws above the exiting one");
+            Assert.Greater(Order(shop), Order(home), "and the exiting one stays above their parent");
+
+            yield return new WaitForSeconds(0.35f);
+            yield return null;
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator Back_keeps_the_exiting_child_above_its_parent()
+        {
+            yield return Await(UI.Router.Open("shop"));
+            var home = UI.Get("home");
+            var shop = UI.Get("shop");
+            yield return new WaitForSeconds(0.3f);
+
+            yield return Await(UI.Router.Back());
+            Assert.IsTrue(shop.IsClosing);
+            Assert.Greater(Order(shop), Order(home), "the child plays its exit over the parent");
+
+            yield return new WaitForSeconds(0.35f);
+            yield return null;
+            yield return null;
+        }
+
         [UnityTest]
         public IEnumerator Transition_is_reset_between_tests()
         {

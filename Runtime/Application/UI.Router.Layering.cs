@@ -81,6 +81,16 @@ namespace PromptUGUI.Application
                         "PageSortingOrderStep, or raise Loading.SortingOrder.", root);
             }
 
+            // A page the router lets go of may live on for its exit animation (Overlap). It steps one
+            // below its slot so a same-depth page coming in — which takes that slot — draws above it
+            // (spec §5); its own parent and the parent's TabMenu stay below, which is what the step
+            // minimum guarantees. One without an exit is destroyed inside UI.Close: nothing to see.
+            private static void LowerForExit(string screenKey)
+            {
+                var root = UI.Get(screenKey)?.RootGameObject;
+                if (root != null) root.GetComponent<Canvas>().sortingOrder -= 1;
+            }
+
             // Nodes of `kind` ahead of chain index `index`.
             private static int CountAhead(int index, RouteKind kind)
             {

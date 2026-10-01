@@ -12,7 +12,10 @@ namespace PromptUGUI.Application
     /// </summary>
     public enum RouteTransition
     {
-        /// <summary>Build the next page immediately; the old one fades out underneath / on top. Default.</summary>
+        /// <summary>
+        /// Build the next page immediately; the old one plays its exit one step below its slot —
+        /// under a page of the same depth coming in, still above its own parent. Default.
+        /// </summary>
         Overlap,
         /// <summary>Wait for the old page to be destroyed, then build the next. No two full screens drawn at once.</summary>
         Sequential,
