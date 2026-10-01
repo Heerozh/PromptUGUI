@@ -1,6 +1,6 @@
 # 运行时 SpriteSet（整包 / 按需）+ 运行时 .po 目录（RSS）
 
-> 状态：**已对齐**（2026-10-01）。§14 的 16 条按推荐执行；plan 阶段设计评审的修订（P1–P14）已写回正文，汇总见 §14.1。
+> 状态：**已实现**（2026-10-01，实施记录见 §16）。§14 的 16 条按推荐执行；plan 阶段设计评审的修订（P1–P14）已写回正文，汇总见 §14.1。
 > 实施计划：`docs~/superpowers/plans/2026-10-01-runtime-sprite-sets.md`。分支 `feat/runtime-sprite-sets`。决策编号 `RSS-Dn`。
 > 相关：master spec §5.4（`<Icon>`）；`2026-05-08-icon-assets-design.md`（SpriteSet 与名字解析）；
 > `2026-09-17-common-attr-runtime-state-design.md` §4.6（`<Icon name>` 运行期独占——本文的刷新必须绕开它）；
@@ -667,3 +667,33 @@ continuation，`LocaleSetAsyncTests.Set_rapid_consecutive_with_pending_resolver_
   对应 `ControlSizeFromNativeTests`、`AsyncSpriteSlotTests`（含 §1.3 的 Red 测试）、PlayMode `RuntimeSpriteSetPlayTests`。
 - **M3** 运行时 .po 目录（分层 `TranslationStore`）；对应 `TranslationStoreTests`（追加）、`RuntimePoCatalogTests`。
 - **M4** 文档（§11）与实施记录；跑完整的 EditMode / EditorOnly / PlayMode，`dotnet format` 干净。
+
+## 16. 实施记录
+
+分支 `feat/runtime-sprite-sets`，按实施计划 `docs~/superpowers/plans/2026-10-01-runtime-sprite-sets.md` 执行：
+spec + plan（`f3aa603`）→ M1 运行时集注册表 + 同步入口（`1fc9709`）→ M2 slot + Icon / Image（`4218107`）→
+M3 运行时 .po 目录（`e886e7a`）→ M4 文档。
+
+测试（宿主 ssw_re_client，Unity 6000.7.0b1）：`PromptUGUI.Tests.EditMode` 4781/4781、`PromptUGUI.Tests.EditorOnly` 459/459、
+`PromptUGUI.Tests.PlayMode` 259/259、`PromptUGUI.Tests.EditMode.Addressables` 29/29；`dotnet format --verify-no-changes
+--severity warn` 干净。新增测试类：`RuntimeSpriteSetTests`、`ControlSizeFromNativeTests`、`AsyncSpriteSlotTests`、
+`RuntimePoCatalogTests`、`TranslationStoreTests`（追加 8 条）、PlayMode `RuntimeSpriteSetPlayTests`。
+§1.3 的潜在 bug 由 Red 测试证实（`Code_written_icon_name_during_static_load_refreshes_on_End` 改动前红）后修复。
+
+### 16.1 与设计的偏差
+
+- **宿主接口**：§7.1 写的是宿主提供 `Assign(sprite, hideIfNull)`；实现改为宿主只暴露 `SlotGraphic`，由 slot 自己写图。
+  原因：普通 Image 退回 `enabled` 时需要记住「是不是 slot 关掉的」，这份状态放在 slot 里只写一次。
+- **清扫的语义**：§7.4 的 `AddPruned` 是均摊的——表涨到上次存活数的两倍才扫，所以一次插入不保证立刻清掉死条目；
+  测试 `Destroyed_slots_are_pruned_from_registry_tables` 按「越过阈值后只剩存活的」断言。
+- **「SpriteResolver 未注册」报错**：在 `UI.ResolveSprite` 与 `<Icon>` 的这条报错末尾追加已注册的运行时集名单
+  （`UI.RuntimeSetsHint()`），只用运行时集的工程看到这条时能直接对上名字。
+- **测试顺序**：M2 的注册表重写一次带上了 Task 8（注册 / 注销唤醒、清扫）与 Task 10（尺寸告警）的实现，这两组测试
+  写出来时已经是绿的，作为验证而非 Red。其余任务均先红后绿。
+
+### 16.2 未做 / 另案
+
+- §13 全部非目标。
+- dev 宿主 PromptUGUIDev（6000.0）本次没有编译验证：MCP 只连着 ssw_re_client。新代码不依赖 6000.1+ API
+  （集合里存对象引用，不用 `GetInstanceID` / `EntityId`），守卫 `UNITY_6000_5_OR_NEWER` 的那条测试在 6000.0 上编译不进去，
+  清空逻辑由不带守卫的 `ClearRuntimeRegistrations` 测试覆盖。

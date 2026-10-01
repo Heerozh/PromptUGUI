@@ -232,6 +232,8 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 - `color` multiply tint，默认 `#ffffff`
 - `size` 默认 `native`，Icon 独占该值
 - 完整 attrs 见 §5.3
+- `ns` 也可以是 C# 注册的**运行时 SpriteSet**（下载 / UGC 图标，整包或按需），写法相同；按需集由 `<Icon name>` / `<Image sprite>`
+  自己等图、到了自己刷新。见 [`2026-10-01-runtime-sprite-sets-design.md`](2026-10-01-runtime-sprite-sets-design.md)。
 
 ### 5.5 `<SafeArea>`（安全区容器）
 

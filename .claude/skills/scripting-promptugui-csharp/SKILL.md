@@ -187,11 +187,109 @@ For Addressables-backed atlases, see **using-promptugui-addressables**.
 
 To use a fully custom backend, set `UI.SpriteResolver` directly with your own `(key → Sprite)` lookup.
 
+## Runtime sprite sets (downloaded / UGC packs)
+
+Sprites that arrive at runtime — a downloaded pack, or icons fetched one by one from a server — register as a
+**runtime sprite set** and are referenced exactly like SpriteSet assets: `<Icon name="ugc:9f3a@2"/>`,
+`sprite="pack42:sword"`, `icon.Name = "ugc:" + item.IconKey`. They live apart from `UI.SpriteResolver`:
+re-calling `UseSpriteSetResolver` / `UseAddressableSpriteSetResolver` or a sprite hot reload never drops them.
+
+```csharp
+// Eager — every sprite known now (a pack you downloaded and decoded). Usable in every sprite attribute.
+UI.RegisterRuntimeSpriteSet("pack42", new Dictionary<string, RuntimeSprite>
+{
+    ["sword"] = swordSprite,                                // Sprite → RuntimeSprite implicitly
+    ["vine"]  = new RuntimeSprite(vineSprite, tiled: true), // same as a SpriteSet entry's tiled
+}, new RuntimeSpriteSetOptions { Missing = questionMark });
+
+// On demand — the loader runs the first time a key is shown, at most once per key.
+UI.RegisterRuntimeSpriteSet("ugc", LoadUgcIconAsync,
+    new RuntimeSpriteSetOptions { Loading = spinner, Missing = questionMark });
+
+UI.UnregisterRuntimeSpriteSet("pack42");   // returns false if not registered; destroy the sprites yourself afterwards
+```
+
+**Where each kind can be used:**
+
+- **Eager** sets resolve synchronously everywhere: `<Icon name>`, `<Image sprite>`, `<Btn sprite>`, `<Tab icon>`,
+  `<Progress fill>`, custom controls calling `UI.ResolveSprite`, …
+- **On-demand** sets can only be shown by `<Icon name>` and `<Image sprite>`. Those two show the `Loading`
+  placeholder and **refresh themselves** when the sprite arrives — no ReSolve, so it also works for a name written
+  by code (runtime-owned) and inside a recycled `ScrollList` row. Any other sprite attribute logs an error once per
+  key and shows nothing, **even if the key is already cached** — deterministic, so the mistake shows up in testing.
+
+**Size.** An `<Icon>` / `<Image>` showing an on-demand set must have an explicit size (each axis a number or
+stretch). The sprite arriving later does not resize the element; when its size comes from the sprite
+(`size="native"` — `<Icon>`'s default — or a width/height left out) the runtime warns once per template node:
+*"its size comes from the sprite"*. `<Image type="contain|cover">` and Grid cells are exempt (the parent decides).
+
+**Placeholders and logs.** `Loading` shows while a key loads; `Missing` when the set has no such key, the loader
+returned `default`, or it threw. A null placeholder draws **nothing** (not uGUI's solid block). A missing key is a
+warning once per key; a loader exception is an error once per key (and suppresses the warning).
+
+**On-demand loader contract** (`Func<string key, Awaitable<RuntimeSprite>>`):
+
+| | |
+|---|---|
+| Thread | Main thread. Its synchronous part (before the first `await`) can run while attributes are being applied — don't open/close Screens or (un)register sets in it |
+| Completion | Must complete on the main thread: after decoding on `Awaitable.BackgroundThreadAsync()`, `await Awaitable.MainThreadAsync()` before returning |
+| Instance | Return a fresh `Awaitable` per call — Awaitables are pooled; never hand one instance to two keys from a URL-deduping cache |
+| Cache hit | Return a completed Awaitable → shown at once, no `Loading` flash |
+| Not found / offline | `return default;` — that is the Missing path. Throw only for real bugs |
+| Retry / cancel / timeout | Yours. The library calls once per key per registration and never retries; give the loader its own timeout |
+| Ownership | The library only holds references and never destroys anything |
+
+```csharp
+static readonly Dictionary<string, string> IconUrls = new();   // key → URL, from your pack manifest
+
+static async Awaitable<RuntimeSprite> LoadUgcIconAsync(string key)
+{
+    // Never build a URL from the key itself: UGC data could then make the client fetch anything.
+    if (!IconUrls.TryGetValue(key, out var url)) return default;
+    using var req = UnityWebRequestTexture.GetTexture(url);
+    await req.SendWebRequest();
+    if (req.result != UnityWebRequest.Result.Success) return default;   // → Missing placeholder
+    var tex = DownloadHandlerTexture.GetContent(req);
+    return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+}
+```
+
+`Awaitable<Sprite>` and `Dictionary<string, Sprite>` do not convert implicitly — declare the loader as
+`Awaitable<RuntimeSprite>` (a `return sprite;` inside it converts) and the entries as `Dictionary<string, RuntimeSprite>`.
+
+KTX2 / compressed packs: transcode with KTX for Unity (`com.unity.cloud.ktx`) inside the loader. Mind the texture
+orientation (KTX defaults to a top-left origin, and a Sprite cannot flip UVs — encode lower-left, or flip) and
+the color space. Prefer shipping atlas pages plus a manifest (key → rect, border, pivot) over one file per icon:
+every separate texture breaks uGUI batching, and compressed textures cannot be re-packed at runtime.
+
+**Keys** are everything after the first `:`, used as given. Keep them logical and extension-less; when an icon's
+content changes, publish it under a new key (version / hash) — there is no per-key invalidate.
+
+**Lifecycle and ownership:**
+
+- Sprites, textures and placeholders stay yours. Don't destroy a sprite while its set is registered (the Image
+  would draw a solid block). `UnregisterRuntimeSpriteSet` clears every `<Icon>` / `<Image>` showing the set and drops
+  the library's references; sprites already shown by *other* attributes stay referenced by their controls until
+  replayed or closed — close those Screens first, then unregister, then destroy.
+- An on-demand set's cache is only released by unregistering. To free memory (leaving a UGC browser), unregister
+  and register again with an empty cache: icons still on screen re-request their keys.
+- Re-registering a name refreshes everything that showed it — that is how a pack is swapped. An `<Icon>` / `<Image>`
+  that named a set before it was registered logs the usual error, then shows its sprite once the set registers.
+- Registering or unregistering an **eager** set replays the open Screens once (so XML-declared references resolve);
+  register packs before opening Screens when you have many. On-demand sets never trigger a replay.
+- Names are `[A-Za-z0-9_-]+`. A name already used by a runtime set or a loaded SpriteSet asset throws `Duplicate
+  SpriteSet name` — in both orders. A clash with an Addressables SpriteSet load still in flight is only detected
+  when that load completes (the whole static install then fails), so keep the names apart. With a raw custom
+  `UI.SpriteResolver` the static names are unknown: the runtime set wins its name.
+- Runtime sets survive `UI.UnloadAll` and are cleared at Play-mode start — don't register them from a
+  `RuntimeInitializeLoadType.SubsystemRegistration` callback.
+- Runtime sets don't reach TMP inline `<sprite name>` (that sprite asset is baked by Sync Atlases).
+
 ## `sprite=` dual-syntax (built-in controls + subclasses)
 
 Built-in controls (`<Image>` / `<Btn>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` / `<InputField>`) route their `sprite=` attribute through `UI.ResolveSprite(string)`:
 
-- Values containing `:` (e.g. `sprite="ui:dialog"`) go through `UI.SpriteResolver` → SpriteSet/atlas path (`SpriteAtlasSyncer` includes them in package-time pruning).
+- Values containing `:` (e.g. `sprite="ui:dialog"`) go through `UI.SpriteResolver` → SpriteSet/atlas path (`SpriteAtlasSyncer` includes them in package-time pruning). A set registered with `UI.RegisterRuntimeSpriteSet` is checked first — see **Runtime sprite sets** (on-demand sets error here; only `<Icon name>` / `<Image sprite>` can wait for them).
 - Bare paths (`sprite="ui/dialog"`) fall back to `Resources.Load<Sprite>(value)` — handy for one-off sprites and prototype work that doesn't justify a SpriteSet yet.
 - Bare paths may add a `#sliceName` suffix to pick a named sub-sprite out of a multi-sprite (sliced) texture, e.g. `sprite="PromptUGUI/Defaults/pugui.png#pugui_9slice_round"`. The path before `#` goes through `Resources.LoadAll<Sprite>`, then the slice with matching `.name` is returned. Any file extension on the path before the `#` is stripped, so `foo.png#bar`, `foo.aseprite#bar`, and `foo#bar` are all equivalent.
 
@@ -215,7 +313,7 @@ public sealed class AtlasImage : PromptUGUI.Controls.Control
 }
 ```
 
-Error handling: when a `ns:name` value is used and `UI.SpriteResolver` is unset or returns null, `UI.ResolveSprite` logs `Debug.LogError` (pointing to `SpriteResolverHelpers.UseSpriteSetResolver` or the Sync menu) and returns null. **Exception:** while `UI.IsSpriteResolverLoadInFlight` is `true` (an async resolver loader like `UseAddressableSpriteSetResolver` is mid-download), both `UI.ResolveSprite` and `<Icon>` stay silent and return null — open Screens automatically re-resolve via a Variant broadcast once the loader completes. Bare-path failures stay silent — same behavior as `Resources.Load` returning null — except for the `#sliceName` form: a missing texture is silent, but a present texture with no matching slice name logs `Debug.LogError` listing the available slice names (typos in an explicit slice should not fail silently).
+Error handling: when a `ns:name` value is used and `UI.SpriteResolver` is unset or returns null, `UI.ResolveSprite` logs `Debug.LogError` (pointing to `SpriteResolverHelpers.UseSpriteSetResolver` or the Sync menu) and returns null. **Exception:** while `UI.IsSpriteResolverLoadInFlight` is `true` (an async resolver loader like `UseAddressableSpriteSetResolver` is mid-download), both `UI.ResolveSprite` and `<Icon>` stay silent and return null — open Screens automatically re-resolve via a Variant broadcast once the loader completes. An `Icon.Name` / `Image.Sprite` written by **code** during the load refreshes too (the broadcast skips a code-written, runtime-owned name, so those re-resolve themselves first). Only the first install is covered: during a *rebind* (calling the loader again while an old resolver is installed) or a sprite hot reload, code-written icons keep their old sprite until written again. Bare-path failures stay silent — same behavior as `Resources.Load` returning null — except for the `#sliceName` form: a missing texture is silent, but a present texture with no matching slice name logs `Debug.LogError` listing the available slice names (typos in an explicit slice should not fail silently).
 
 ## Open / Close / Get
 
@@ -904,6 +1002,26 @@ dropdown.BindOptions(LocaleTicks.Select(_ => (IEnumerable<string>)
 
 > External tools must write their **own** files. Writing extra entries into a partition file that extraction owns (e.g. `_code.po`) still loses them on the next extract — `PoFileWriter.Merge` drops anything the current scan didn't produce.
 
+**Runtime .po catalogs** — translations that arrive at runtime (a downloaded UGC pack, a live-ops text patch) register as a catalog, layered over the built-in `.po` and removable on their own:
+
+```csharp
+UI.Locale.RegisterRuntimeCatalog("pack42", locale => LoadPackPoAsync(42, locale));   // fire-and-forget, failures logged
+await UI.Locale.RegisterRuntimeCatalogAsync("patch", LoadPatchAsync);                 // or await it; rethrows a loader failure
+UI.Locale.UnregisterRuntimeCatalog("pack42");                                         // false if not registered
+
+static async Awaitable<IEnumerable<PoEntry>> LoadPackPoAsync(int pack, string locale)
+{
+    var text = await DownloadTextAsync($"{BaseUrl}/{pack}/{locale}.po");               // your download
+    return text == null ? Array.Empty<PoEntry>() : PoParser.Parse(text);
+}
+```
+
+- The loader is called for the current locale on registration, and again for every later `Set` / `SetAsync` / `ReloadCurrent(Async)`. A locale switch waits for every catalog before it flips the locale Variant and fires `Locale.Changed` — **give the loader its own timeout**, or a hung download holds the switch forever. A catalog that fails is logged and skipped; the switch still completes.
+- Precedence: a runtime catalog overrides the built-in translations, and a later catalog overrides an earlier one (so a hot-fix patch works). That also lets a UGC catalog rewrite your own UI strings — filter in the loader (e.g. only accept your pack's `msgctxt`) if that matters.
+- Registering (once its entries are in) and unregistering re-apply the open Screens once; unregistering restores whatever the catalog had overridden. Text you pushed from code with `UI.Tr` is not re-translated by this — same as `ReloadCurrent`.
+- Names must be non-empty and unique (`InvalidOperationException`, thrown synchronously by both versions). A failed `RegisterRuntimeCatalogAsync` stays registered and is retried on the next switch; discarding its returned Awaitable swallows the exception — use the non-Async version for fire-and-forget.
+- Catalogs are cleared at Play-mode start, like runtime sprite sets.
+
 For Addressables-backed `.po` loading (`UI.Locale.UseAddressableResolver`, `Locale:<locale>` labels, `SetAsync`), see **using-promptugui-addressables**.
 
 ## Theme switching
@@ -1022,6 +1140,8 @@ If `UI.Theme.Resolve` throws, the exception flows through the reflection setter 
 | Attrs silently default in IL2CPP build    | Forgot `[Preserve]` next to `[UIAttr]` — Medium+ stripping drops PropertyInfo metadata, reflection misses the property | Always write `[UIAttr, Preserve]` (both from `PromptUGUI.Registry`)                               |
 | ScrollList shows nothing after hot-reload | `BindItems` subscription disposed on close, but the ScrollList is rebuilt on reload                                    | Re-call `BindItems` on reload — the convention is to re-wire from a single `OnOpened` entry point |
 | `<Icon>` shows pink/error sprite          | `UI.SpriteResolver` not set (or `SpriteSet` not in Resources/SpriteSets)                                               | Call `SpriteResolverHelpers.UseSpriteSetResolver(...)` before any Screen opens                    |
+| UGC icon never appears / is 0×0, warning *"its size comes from the sprite"* | An on-demand runtime sprite set shown by an `<Icon>` with no size (`size` defaults to `native`) — the sprite arrives after the size was computed | Give the `<Icon>` / `<Image>` an explicit `size` (or stretch) |
+| Error *"loads on demand, and only &lt;Icon name&gt; and &lt;Image sprite&gt; can wait"* | An on-demand runtime set used in `<Btn sprite>`, `<Tab icon>`, a custom control's `UI.ResolveSprite`, … | Show it through an `<Icon>` / `<Image>` child, or register that set eagerly (entries) |
 | Callbacks keep firing on a destroyed `Instantiate`'d subtree | `Object.Destroy(root.GameObject)` — the GameObject is gone but `.AddTo(root)` subscriptions were never released | `root.Dispose()` — releases tracked subscriptions, then destroys the (wrapper-aware) GameObject   |
 | `Instantiate`'d nameplate jumps back to the template's position on a Variant / theme switch | ReSolve replays the instance root's declared `anchor` / `size` / `margin` | Position a RectTransform shell you own and instantiate the template inside it (`anchor="stretch"`) |
 | `tab.IsOn = true` does nothing and warns `Tab 'x' is inactive … IsOn = true is ignored` | A `hidden="true"` `<Tab>` (or one in an inactive `<Add>`) used as an in-page view switch while a visible tab is on — an inactive Tab is out of the `ToggleGroup`, which would bounce the visible tab back on | Switch the page's sub-views inside the page: `frameA.Hidden = true; frameB.Hidden = false;` on sibling `<Frame>`s, or a nested `<TabBar>`. See TabBar → *The Tab you select has to be an active one* |
@@ -1032,6 +1152,9 @@ If `UI.Theme.Resolve` throws, the exception flows through the reflection setter 
 SETUP          UI.UseResourcesResolver("UI")
                UI.Registry.Register<T>("Tag", optionalPrefab)
                SpriteResolverHelpers.UseSpriteSetResolver([spriteSets])
+               UI.RegisterRuntimeSpriteSet("pack", entries)    runtime sprite set, all sprites now — any sprite attribute
+               UI.RegisterRuntimeSpriteSet("ugc", key => ...)  on demand — <Icon name>/<Image sprite> only; give them a size
+               UI.UnregisterRuntimeSpriteSet("pack")           then destroy its sprites yourself
                PromptUGUISettings → Common Libraries           declares the shared libraries (src + optional as); no code
                _ = UI.EnsureCommonLibrariesAsync()            optional warm-up; LoadDocumentAsync ensures them anyway
                await UI.LoadDocumentAsync("screens/Main.ui")   src keeps .ui — Resources strips only .xml
@@ -1130,6 +1253,7 @@ ORIENTATION    UI.Orientation.IsPortrait                      auto-tracked: port
 LOCALE         UI.Locale.Set("en")                            sync
                UI.Locale.SetToSystemDefault()
                UI.Tr("...")                                   extract + translate
+               UI.Locale.RegisterRuntimeCatalog("pack", locale => ...)   runtime .po layered over built-in; Unregister… removes it
 
 THEME          UI.Theme.Set("dark")                           switch active theme; order-independent (accepts unregistered name); fires Theme.Changed
                UI.Theme.Resolve(value)                        token → base chain → literal hex/CSS-name; soft-fails to Color.white when Current is set but not yet registered

@@ -39,6 +39,31 @@ Icon name in XML = PNG path **relative to the SpriteSet's sourceFolder**, with `
 
 Anything else inside a Template body (`{{a}}:{{b}}`, `solar:{{a}}-{{b}}`, multi-placeholder) is unanalyzable — the syncer logs a warning. Same for forwarded args (one Template's Param fed verbatim into another's). For unanalyzable cases, list final values in `SpriteSet.alwaysInclude`. Outside a `<Template>` (a literal `<Icon name="ui:{{x}}"/>` directly in a Screen) is always unanalyzable too.
 
+## Runtime sprite sets (downloaded / UGC icons)
+
+Besides SpriteSet assets, C# can register **runtime sprite sets** — a downloaded pack, or icons fetched one by
+one from a server (`UI.RegisterRuntimeSpriteSet`, see scripting-promptugui-csharp → *Runtime sprite sets*).
+XML references them with the same `set:key` spelling; nothing in the markup says a set is a runtime one:
+
+```xml
+<Template name="ItemCard">
+  <Param name="icon" default="ui:placeholder"/>
+  <Icon name="{{icon}}" size="48"/>    <!-- a built-in "ui:sword" and a UGC "ugc:9f3a@2" both fit -->
+</Template>
+```
+
+- **Eager** runtime sets (all sprites registered up front) work in every sprite attribute, like SpriteSet assets.
+- **On-demand** runtime sets (each key fetched the first time it is shown) work only in `<Icon name>` and
+  `<Image sprite>`: they show the set's *loading* placeholder, then swap the sprite in when it arrives. In any
+  other sprite attribute (`<Btn sprite>`, `<Tab icon>`, `<Progress fill>`, …) they log an error — the C# side
+  decides which kind a set is, so ask, or put an `<Icon>` / `<Image>` there.
+- **Give such an `<Icon>` / `<Image>` an explicit size.** `<Icon>`'s default `size="native"` (and any width /
+  height left out) is computed before the sprite arrives; the element keeps that size and the runtime warns
+  *"its size comes from the sprite"*. Exempt: `<Image type="contain|cover">` (the parent sizes it) and Grid cells.
+- A missing key shows the set's *missing* placeholder (or nothing) with one warning per key.
+- `Sync Atlases` and lint know nothing about runtime sets: references to them are skipped, never packed or flagged.
+  Inline `<sprite name>` in text cannot use them.
+
 ## Inline sprites in text (`<sprite name="...">`, 图文混排)
 
 `<Icon>` places a standalone image; to drop a SpriteSet icon **inside a text run** — a coin right after a button label, or chat emoji that wrap together with the words — use TextMeshPro's native inline sprite markup instead.

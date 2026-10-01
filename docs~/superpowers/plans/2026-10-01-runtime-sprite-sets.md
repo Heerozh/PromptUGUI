@@ -355,7 +355,7 @@
 
 ### Task 16：Skills（英文）+ master spec
 
-- [ ] `scripting-promptugui-csharp/SKILL.md` 新增一节 *Runtime sprite sets (downloaded / UGC packs)*，内容：
+- [x] `scripting-promptugui-csharp/SKILL.md` 新增一节 *Runtime sprite sets (downloaded / UGC packs)*，内容：
   - 两种形态与 API；
   - 取图契约表：主线程完成、每次返回新的 Awaitable、预期内失败返回 `default`、自带超时；
   - 所有权，以及注销措辞（P5 / spec §5.4）；
@@ -367,23 +367,23 @@
   - 不要在 SubsystemRegistration 阶段注册；
   - 取图函数示例：参照 `UI.Markdown.LoadWebTextureAsync`（`UnityWebRequestTexture` + ACS），并附 KTX2 建议；
   - `Awaitable<Sprite>` / `Dictionary<string, Sprite>` 不会隐式转换，要写成 `RuntimeSprite`。
-- [ ] 同一文件的其它几处：
+- [x] 同一文件的其它几处：
   - *`sprite=` dual-syntax* 补解析顺序；
   - *Error handling* 补 §1.3 的修复，以及「重绑 / 热重载期间不覆盖」；
   - *Locale & i18n* 新增 *Runtime .po catalogs*（loader 自带超时；fire-and-forget 用同步版）；
   - cheatsheet；
   - *Common mistakes* 加一行：UGC 图标看不见 → 没写定尺寸。
-- [ ] `authoring-promptugui-xml/SKILL.md`：`<Icon>` 的 `name` / `size`、`<Image>` 的 `sprite` 各加一句。
-- [ ] `reference/icons.md` 新增一节 *Runtime sprite sets*。
-- [ ] `using-promptugui-addressables/SKILL.md` 加一行；master spec §5.4 加一行。
+- [x] `authoring-promptugui-xml/SKILL.md`：`<Icon>` 的 `name` / `size`、`<Image>` 的 `sprite` 各加一句。
+- [x] `reference/icons.md` 新增一节 *Runtime sprite sets*。
+- [x] `using-promptugui-addressables/SKILL.md` 加一行；master spec §5.4 加一行。
 
 ### Task 17：全量回归 + 实施记录
 
-- [ ] 全量跑 `PromptUGUI.Tests.EditMode`、`PromptUGUI.Tests.EditorOnly`、`PromptUGUI.Tests.PlayMode`，核对 `summary.total`。
-- [ ] `dotnet format --verify-no-changes --severity warn` 干净。
-- [ ] 另一台宿主看 console 无编译错误。
-- [ ] spec 末尾写「实施记录」（与设计的偏差、未做 / 另案），状态改为「已实现」；plan 打勾。
-- [ ] `git commit -m "docs(skills): runtime sprite sets and runtime .po catalogs"`，然后汇报；push 与 PR 征得同意后再做。
+- [x] 全量跑 `PromptUGUI.Tests.EditMode`、`PromptUGUI.Tests.EditorOnly`、`PromptUGUI.Tests.PlayMode`，核对 `summary.total`。
+- [x] `dotnet format --verify-no-changes --severity warn` 干净。
+- [x] 另一台宿主看 console 无编译错误。
+- [x] spec 末尾写「实施记录」（与设计的偏差、未做 / 另案），状态改为「已实现」；plan 打勾。
+- [x] `git commit -m "docs(skills): runtime sprite sets and runtime .po catalogs"`，然后汇报；push 与 PR 征得同意后再做。
 
 ## Verification（端到端）
 
