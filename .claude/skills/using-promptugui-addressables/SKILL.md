@@ -81,7 +81,9 @@ await SpriteResolverHelpers.UseAddressableSpriteSetResolver(
     UnityEngine.AddressableAssets.Addressables.MergeMode.Intersection);
 ```
 
-Returns `Awaitable`. You can either `await` it (no flash of empty icons) or fire-and-forget (`_ = SpriteResolverHelpers.UseAddressableSpriteSetResolver(); UI.Open("MainMenu");`) — between the call and the await continuation `UI.IsSpriteResolverLoadInFlight` is `true`, so any `<Icon>` rendered in that window stays empty silently (no `LogError`) and is re-resolved automatically via a `VariantStore` broadcast once the download completes. Use the awaited form if a one-frame empty icon would be visible in your golden path (e.g. boot splash → main menu with no intermediate loader).
+Returns `Awaitable`. You can either `await` it (no flash of empty icons) or fire-and-forget (`_ = SpriteResolverHelpers.UseAddressableSpriteSetResolver(); UI.Open("MainMenu");`) — between the call and the await continuation `UI.IsSpriteResolverLoadInFlight` is `true`, so any `<Icon>` rendered in that window stays empty silently (no `LogError`) and is re-resolved automatically via a `VariantStore` broadcast once the download completes. Use the awaited form if a one-frame empty icon would be visible in your golden path (e.g. boot splash → main menu with no intermediate loader). An `Icon.Name` / `Image.Sprite` that **code** writes during that window refreshes too, when the first install completes.
+
+Runtime sprite sets (`UI.RegisterRuntimeSpriteSet` — downloaded / UGC icons, see scripting-promptugui-csharp) live apart from this resolver: calling `UseAddressableSpriteSetResolver` again never drops them. A SpriteSet asset whose `setName` clashes with a registered runtime set makes the whole load throw `Duplicate SpriteSet name` when it completes — keep the names apart.
 
 **Source formats via Addressables**: Sprite source format is transparent to the
 Addressables path — `AssetReferenceT<Sprite>` resolves to a Sprite regardless of

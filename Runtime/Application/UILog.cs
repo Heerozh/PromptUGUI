@@ -44,6 +44,9 @@ namespace PromptUGUI.Application
         /// <summary>No control in hand: the node being applied right now is the only context.</summary>
         public static void Error(string message) => Debug.LogError(message + At(Applying));
 
+        /// <summary>No control in hand: the node being applied right now is the only context.</summary>
+        public static void Warn(string message) => Debug.LogWarning(message + At(Applying));
+
         /// <summary>
         /// A lint rule's finding, raised by <see cref="ScreenInstantiator"/> for a node it is about
         /// to build. Stamped here the way <see cref="IRWalker"/> stamps it for the CLI (a rule that

@@ -6,12 +6,15 @@ using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class Icon : Control
+    public sealed class Icon : Control, ISpriteSlotHost
     {
         private UnityImage _img;
         // The last name written, resolved or not: `name` is runtime-owned (registered as the
         // RuntimeStateAttr), and the lock compares what was written, not what it resolved to.
         private string _name;
+        // Resolves the name; for an on-demand runtime set, waits for the sprite and refreshes this icon
+        // when it arrives (spec 2026-10-01-runtime-sprite-sets-design §7).
+        private AsyncSpriteSlot _slot;
 
         internal override string PeekRuntimeState() => _name;
 
@@ -25,6 +28,7 @@ namespace PromptUGUI.Controls
             _img.preserveAspect = true;
             _img.raycastTarget = false;
             _img.color = UnityEngine.Color.white;
+            _slot = new AsyncSpriteSlot(this, this);
         }
 
         [UIAttr(IsSprite = true), Preserve]
@@ -33,23 +37,36 @@ namespace PromptUGUI.Controls
             set
             {
                 _name = value;
-                if (string.IsNullOrEmpty(value)) { _img.sprite = null; return; }
-                if (UI.SpriteResolver == null)
-                {
-                    _img.sprite = null;
-                    if (UI.IsSpriteResolverLoadInFlight) return;
-                    UILog.Error(this,
-                        $"Icon '{value}': UI.SpriteResolver is not registered. " +
-                        $"Call SpriteResolverHelpers.UseSpriteSetResolver(spriteSets) " +
-                        $"before opening Screens that contain <Icon>.");
-                    return;
-                }
-                var sprite = UI.SpriteResolver(value);
-                if (sprite == null)
-                    UILog.Error(this, UI.BuildSpriteResolutionFailureMessage("Icon", value));
-                _img.sprite = sprite;
+                _slot.Set(value);
             }
         }
+
+        UnityImage ISpriteSlotHost.SlotGraphic => _img;
+
+        string ISpriteSlotHost.SlotTag => "Icon";
+
+        // <Icon> stays atlas-only: every non-empty value goes to UI.SpriteResolver, ':' or not.
+        StaticResult ISpriteSlotHost.ResolveStatic(string value, out Sprite sprite)
+        {
+            sprite = null;
+            if (UI.SpriteResolver == null)
+            {
+                if (UI.IsSpriteResolverLoadInFlight) return StaticResult.Deferred;
+                UILog.Error(this,
+                    $"Icon '{value}': UI.SpriteResolver is not registered. " +
+                    $"Call SpriteResolverHelpers.UseSpriteSetResolver(spriteSets) " +
+                    $"before opening Screens that contain <Icon>." + UI.RuntimeSetsHint());
+                return StaticResult.Failed;
+            }
+            sprite = UI.SpriteResolver(value);
+            if (sprite != null) return StaticResult.Ok;
+            UILog.Error(this, UI.BuildSpriteResolutionFailureMessage("Icon", value));
+            return StaticResult.Failed;
+        }
+
+        void ISpriteSlotHost.RefreshDerived() => ImageFxApplier.Flush(_img);
+
+        bool ISpriteSlotHost.SizeDependsOnSprite => SizeFromNative;
 
         [UIAttr(IsColor = true), Preserve]
         public string Color
@@ -123,6 +140,7 @@ namespace PromptUGUI.Controls
             // material is resolved once here — before anything renders, without waiting for a
             // canvas rebuild.
             ImageFxApplier.Flush(_img);
+            _slot.AfterPass();
         }
 
         public override Vector2? GetNativeSize() =>

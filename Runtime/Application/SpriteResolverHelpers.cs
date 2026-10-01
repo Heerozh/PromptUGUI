@@ -41,8 +41,21 @@ namespace PromptUGUI.Application
             // collide when two PNGs in different subfolders share a basename;
             // entries carry the canonical pathKey + bare alias the syncer chose, plus
             // the tiled hint to register into SpriteRenderHints.
-            var map = new Dictionary<string, Sprite>(StringComparer.Ordinal);
+            // Validate everything before touching any state: a throw halfway through used to leave
+            // LoadedSpriteSetNames holding half of the new sets (spec 2026-10-01-runtime-sprite-sets-design §6.7).
             var seenSet = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var set in sets)
+            {
+                if (set == null || string.IsNullOrEmpty(set.SetName)) continue;
+                if (!seenSet.Add(set.SetName))
+                    throw new InvalidOperationException(
+                        $"Duplicate SpriteSet name '{set.SetName}'");
+                if (RuntimeSpriteSets.IsRegistered(set.SetName))
+                    throw new InvalidOperationException(
+                        $"Duplicate SpriteSet name '{set.SetName}' (already registered at runtime via UI.RegisterRuntimeSpriteSet)");
+            }
+
+            var map = new Dictionary<string, Sprite>(StringComparer.Ordinal);
             UI.LoadedSpriteSetNames.Clear();
             foreach (var set in sets)
             {
@@ -52,9 +65,6 @@ namespace PromptUGUI.Application
                     Debug.LogWarning("[PromptUGUI] SpriteSet with empty setName, skipping");
                     continue;
                 }
-                if (!seenSet.Add(set.SetName))
-                    throw new InvalidOperationException(
-                        $"Duplicate SpriteSet name '{set.SetName}'");
                 UI.LoadedSpriteSetNames.Add(set.SetName);
 
                 foreach (var (key, sprite, tiled) in set.EntriesWithMeta)

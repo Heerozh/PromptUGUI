@@ -5,6 +5,7 @@
 A solution that enables Unity 2022.3+ / Unity 6+ UI development through LLM.
 
 It provides an extremely concise UI description language `.ui.xml` & `.pxl` , and a runtime parser that translates it into a uGUI hierarchy + Sprite images.
+The refined UI composition workflow enables procedural surface generation, making it suitable for LLMs to produce final visual results directly, bypassing the need for manual asset slicing.
 
 More flexible than UI Toolkit, easier for custom styling, and tightly integrated with the GameObject system.
 
@@ -20,7 +21,7 @@ This demo interface was created entirely by Code Agent, including the border ima
   - Hot reload — edit, save, see the result instantly
   - Fully reactive UI support — automatically switches layout to match the screen and device
   - Pixel-art-style UI support
-  - Liquid-glass-style UI support
+  - Procedural surface support, Liquid-glass-style support
   - Automatic XSD schema validation + built-in syntax-check CLI
 - **Sprite image description language in the X PixMap / GIMP style**
   - Another text format LLMs are already familiar with
@@ -315,7 +316,7 @@ C# Code:
 一个让 Unity 2022.3+ / Unity 6+ 的 UI 可以用大模型进行开发的解决方案。
 
 通过描述语言 `.ui.xml` 以及 `.pxl` 和一个运行时解析器，翻译成uGUI结构 + Sprite图像。
-整体架构全面且简洁，适合大模型直接书写而脱离MCP。
+精炼美术的UI合成流程实现程序化表面，适合大模型免除切图流程直接出效果。
 
 比UI Toolkit更自由，和GameObject体系结合更紧密。
 
@@ -333,7 +334,7 @@ C# Code:
   - 支持热重载，改完立刻反馈
   - 全响应式UI支持，自动根据屏幕和设备切换布局
   - 像素艺术风格UI支持
-  - 液态玻璃风格UI支持
+  - 程序化表面支持、液态玻璃风格UI支持
   - 自动XSD Schema语法检查 + 内置语法检查 CLI
 - **提供X PixMap/GIMP 风格的Sprite图像描述语言**
   - 同样是大模型熟悉的文本格式
