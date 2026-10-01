@@ -63,6 +63,36 @@ namespace PromptUGUI.Tests.Router
         }
 
         [Test]
+        public void ResolveChain_PageUnderModal_Throws()
+        {
+            // A page sorts in the page band, below every modal: under a modal it would be hidden
+            // behind its own ancestor (spec 2026-10-01-router-page-layering §8).
+            UI.Router.Map("home", "S/Home");
+            UI.Router.Map("settings", "S/Settings", present: RoutePresent.Modal, parent: "home");
+            UI.Router.MapTab("settings/audio", parent: "settings", tabId: "bar/audio");
+            UI.Router.Map("detail", "S/Detail", parent: "settings/audio");
+
+            var ex = Assert.Throws<RouteException>(() => UI.Router.ResolveChain("detail"));
+            StringAssert.Contains("'detail'", ex.Message);
+            StringAssert.Contains("'settings'", ex.Message);
+            StringAssert.Contains("RoutePresent.Modal", ex.Message);
+        }
+
+        [Test]
+        public void ResolveChain_ModalTabAndPromptUnderModal_StillResolve()
+        {
+            UI.Router.Map("home", "S/Home");
+            UI.Router.Map("settings", "S/Settings", present: RoutePresent.Modal, parent: "home");
+            UI.Router.Map("advanced", "S/Advanced", present: RoutePresent.Modal, parent: "settings");
+            UI.Router.MapTab("settings/audio", parent: "settings", tabId: "bar/audio");
+            UI.Router.MapPrompt("reset", parent: "settings", run: (q, ct) => null);
+
+            Assert.DoesNotThrow(() => UI.Router.ResolveChain("advanced"));
+            Assert.DoesNotThrow(() => UI.Router.ResolveChain("settings/audio"));
+            Assert.DoesNotThrow(() => UI.Router.ResolveChain("reset"));
+        }
+
+        [Test]
         public void Open_Unmapped_Throws()
             => Assert.ThrowsAsync<RouteException>(async () => await UI.Router.Open("ghost"));
 
