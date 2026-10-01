@@ -84,7 +84,8 @@ and the capture converts it back into the space overlay UI is composited in, so 
 the scene behind it instead of turning into a white slab. Nothing to configure.
 
 **Overlay canvases are not in it.** uGUI has no grab pass, so a glass panel can never see its own
-siblings on the same Overlay canvas.
+siblings on the same Overlay canvas — nor any other Overlay Screen under it. A glass pane over
+Overlay UI hides that UI completely; what fills the pane is the world.
 
 That gives one rule and one trap:
 
@@ -97,6 +98,11 @@ That gives one rule and one trap:
 
 Two glass panels also cannot see each other: both sample the same capture, taken before either drew.
 Overlap them and the upper one shows the world, not the panel beneath. Fuse them with `weld` instead.
+
+**Overlay UI showing inside a glass pane is drawn on top of it.** A chat box or a HUD button in the
+pane is not being seen *through* the glass — nothing on an Overlay canvas ever is. That is a layering
+problem, not a glass one: compare the two Screens' `sortingOrder` (routed Pages take theirs from their
+depth in the route tree — C# skill, **Router navigation → Layering**).
 
 ## Fusing panels: `weld`
 

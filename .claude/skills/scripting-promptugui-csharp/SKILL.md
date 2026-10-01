@@ -105,7 +105,7 @@ Each `Screen.Open()` creates its own root Canvas (+ `CanvasScaler` + `GraphicRay
 UI.CanvasConfigurator = (canvas, screenName) => {
     canvas.worldCamera = uiCamera;      // unconditional — see the trap below
     canvas.planeDistance = 10f;
-    canvas.sortingOrder = screenName == "Settings" ? 100 : 0;  // popups above main
+    canvas.sortingOrder = screenName == "Hud" ? 450 : 0;  // non-routed screens only — see below
 };
 ```
 
@@ -120,6 +120,8 @@ UI.CanvasConfigurator = (canvas, screenName) => {
 > `Screen.Open` logs a warning if a `canvas="camera"` Screen ends up with no camera.
 
 The callback fires once per `Open()` (so also re-fires on hot-reload, since reload = close + reopen). The library never auto-creates Cameras — assigning `worldCamera` is the user's job. With no configurator and no `canvas=` attribute, every Screen is `ScreenSpaceOverlay`, `sortingOrder=0`.
+
+**`sortingOrder` belongs to whoever owns the layer.** Routed Pages and Modals (`UI.Router`), dialogs (`UI.Modal`, `MessageBox`, `InputBox` …), `Loading`, `Toast` and the Tutorial overlay write their own `sortingOrder` *after* the configurator runs, so a configurator value only sticks on screens you open with a bare `UI.Open`. Move those layers with their knobs instead — `UI.Router.PageSortingOrderBase` / `PageSortingOrderStep`, `UI.Modal.SortingOrderBase`, `Loading.SortingOrder`, `UI.Toast.SortingOrder`, `UI.Tutorial.SortingOrder` — and see **Router navigation → Layering** for the whole band table. Two Overlay canvases left on the same value draw (and take clicks) in an order Unity does not define, and it can flip whenever another root canvas comes or goes: give every non-routed screen that overlaps something an explicit value.
 
 **CanvasScaler**: the `<Screen reference="WxH">` XML attribute is the recommended way to switch from `ConstantPixelSize` to `ScaleWithScreenSize`. If you need `match=0.5` or a custom `referencePixelsPerUnit`, modify `canvas.GetComponent<CanvasScaler>()` inside the configurator — but **don't fight the XML path on the same property** because Variant flips will re-apply the XML setting and overwrite your configurator change.
 
@@ -1333,6 +1335,8 @@ ROUTER         UI.Router.Scheme = "myapp"                   optional scheme enfo
                await UI.Router.Back()                       navigate to parent; no-op at root
                await UI.Router.Reset()                      close entire chain
                UI.Router.Transition = RouteTransition.Sequential   wait for the outgoing page's exit before building the next (default Overlap)
+               UI.Router.PageSortingOrderBase = 0           routed Page sortingOrder = Base + depth × Step (depth = Pages ahead in the chain)
+               UI.Router.PageSortingOrderStep = 10          ≥ 4 (setter throws); overrides the configurator on routed Pages
                UI.UnloadAll() (reconnect boundary)          full reset: chain+docs+open before re-Map; Clear()/Reset() alone NOT enough
 
                UI.Router.Current                            top name (null when empty)
@@ -1620,8 +1624,9 @@ public static class UI.Modal {
   else legacy `Input.GetKeyDown(KeyCode.Escape)`. `Loading` overlays do NOT have this
   listener — they're not dismissible by input.
 - **Raycast / sortingOrder**: each dialog's Canvas overrides `sortingOrder` to
-  `UI.Modal.SortingOrderBase + depth` (depth 0 = bottom of dialog stack). Loading
-  overlays sit at `Loading.SortingOrder` (default 500). Keep `Loading.SortingOrder <
+  `UI.Modal.SortingOrderBase + routed Modals in the Router chain + depth` (depth 0 = bottom
+  of dialog stack) — so a dialog raised from a routed Modal panel always draws above it.
+  Loading overlays sit at `Loading.SortingOrder` (default 500). Keep `Loading.SortingOrder <
 UI.Modal.SortingOrderBase` so dialogs opened during a Loading appear above it.
 - **Dim backdrop is part of the XML, not auto-injected.** If you want clicks blocked on
   empty space outside your dialog box, include a stretched Graphic in your override XML
@@ -1907,10 +1912,12 @@ Two caveats specific to modals/overlays:
    instance key (`"{name}#m{N}"`). Branch on the XML name — stable across `Open` calls
    and across multiple concurrent instances of the same dialog.
 2. **The modal subsystem overrides `canvas.sortingOrder` AFTER your configurator runs**
-   — modals to `UI.Modal.SortingOrderBase + depth`, Loading to `Loading.SortingOrder`.
-   Don't try to pin `sortingOrder` from the configurator for modal/loading XML keys;
-   tune `UI.Modal.SortingOrderBase` / `Loading.SortingOrder` instead. `renderMode` /
-   `worldCamera` / `planeDistance` / `pixelPerfect` etc. are still honored.
+   — dialogs to `UI.Modal.SortingOrderBase + routed Modals + depth`, Loading to
+   `Loading.SortingOrder` (the Router does the same for routed Pages and Modals — see
+   **Router navigation → Layering**). Don't try to pin `sortingOrder` from the configurator
+   for modal/loading XML keys; tune `UI.Modal.SortingOrderBase` / `Loading.SortingOrder`
+   instead. `renderMode` / `worldCamera` / `planeDistance` / `pixelPerfect` etc. are still
+   honored.
 
 ## Toast (transient tips)
 
@@ -2062,7 +2069,7 @@ await UI.Router.Back();    // navigate to Current's parent; no-op at root
 await UI.Router.Reset();   // close the entire chain (does not clear registrations)
 ```
 
-**Exit animations.** A deactivated page plays whatever its XML bound to `close` (`<Animation on="open" reverse-on="close">`) and is destroyed when that finishes; `Open` / `Back` return as soon as the chain is reconciled, not when the ghost is gone. By default (`RouteTransition.Overlap`) the incoming page is built immediately, so the two overlap for the length of the exit — a page opened later draws above one opened earlier, which gives push and pop the expected stacking. `UI.Router.Transition = RouteTransition.Sequential` instead waits for the outgoing page to be destroyed before building the next (no two full screens drawn at once; navigation feels a `duration` slower).
+**Exit animations.** A deactivated page plays whatever its XML bound to `close` (`<Animation on="open" reverse-on="close">`) and is destroyed when that finishes; `Open` / `Back` return as soon as the chain is reconciled, not when the ghost is gone. By default (`RouteTransition.Overlap`) the incoming page is built immediately, so the two overlap for the length of the exit. Pages are layered by route depth (see **Layering** below) and an exiting page steps one below its slot, which gives push and pop the expected stacking: a child slides in over its parent, a child leaving with `Back` slides out over it, and a sibling coming in draws above the one going out. `UI.Router.Transition = RouteTransition.Sequential` instead waits for the outgoing page to be destroyed before building the next (no two full screens drawn at once; navigation feels a `duration` slower).
 
 **State** (synchronous, no await):
 
@@ -2092,10 +2099,31 @@ UI.Router.RemoveGuard(guard);   // removed by reference — keep the delegate in
 
 | Kind | Registration | What opens | Deactivated by |
 |---|---|---|---|
-| **Page** | `Map(present: RoutePresent.Page)` | `UI.Open(screenName)` — full-screen Canvas | `UI.Close(screenName)` |
-| **Modal** | `Map(present: RoutePresent.Modal)` | Same as Page + `overrideSorting`, `ModalEscapeListener` (ESC→`Back()`) | `UI.Close(screenName)` |
+| **Page** | `Map(present: RoutePresent.Page)` | `UI.Open(screenName)` — full-screen Canvas, `sortingOrder` from its depth (see **Layering**) | `UI.Close(screenName)` |
+| **Modal** | `Map(present: RoutePresent.Modal)` | Same as Page, but in the modal band + `ModalEscapeListener` (ESC→`Back()`) | `UI.Close(screenName)` |
 | **Tab** | `MapTab(tabId: ...)` | Selects the `<Tab>` (`tab.IsOn = true`) in the host Page/Modal | Tab is deselected (the host Page/Modal is closed if it leaves the chain) |
 | **Prompt** | `MapPrompt(run: ...)` | Runs `run` async; no screen of its own | `run` returns normally (self-pop) or `ct` is cancelled (navigated away) |
+
+### Layering (`sortingOrder`)
+
+Every routed canvas gets a deterministic `sortingOrder`. Two Overlay canvases left on the same value draw — and take clicks — in an order Unity does not define, and it can flip whenever another root canvas (a Toast, a Loading) is created or destroyed: a child page can end up under its parent with nothing in the logs.
+
+| Layer | `sortingOrder` |
+|---|---|
+| Non-routed screens (bare `UI.Open`) | whatever `UI.CanvasConfigurator` sets (default `0`) |
+| Routed **Page** | `UI.Router.PageSortingOrderBase + depth × UI.Router.PageSortingOrderStep` — defaults `0` / `10` → `0, 10, 20 …` |
+| `Loading` overlay | `Loading.SortingOrder` (`500`) |
+| Routed **Modal** | `UI.Modal.SortingOrderBase + routed Modals ahead of it` (`1000, 1001 …`) |
+| Ad-hoc dialogs (`MessageBox`, `InputBox`, `UI.Modal.OpenAsync`) | `UI.Modal.SortingOrderBase + routed Modals in the chain + stack depth` — always above every routed Modal |
+| Toast / Tutorial | `UI.Toast.SortingOrder` (`2000`) / `UI.Tutorial.SortingOrder` (`3000`) |
+
+- **depth** = the routed Pages ahead of this one in the chain. Tab and Prompt nodes own no canvas and add nothing (`home → shop → shop/deals (tab) → item` puts `item` at depth 2). Siblings share a depth, so switching between them never climbs, and since the depth comes from the registered parent chain, `Back` / re-navigating never moves a page that stays up.
+- The router writes the value right after the screen opens and **before `onEnter`**, overriding whatever `UI.CanvasConfigurator` set on that canvas — the same contract as the modal / Loading / Toast / Tutorial layers. `onEnter` sees the final value and may still adjust a single page; a hot reload (`UI.ReloadAsync`) rebuilds the canvas and the router puts its own value back (and a routed Modal's Escape → `Back()`).
+- `PageSortingOrderStep` must be at least `4` — the setter throws `ArgumentOutOfRangeException` below that. Each depth owns its slot, the value below it (a page playing its exit) and two above it (an expanded `<TabMenu>`'s click catcher and panel); none of them may reach the next depth.
+- A page whose slot reaches `Loading.SortingOrder` logs a warning — a Loading overlay would no longer cover it. Keep `PageSortingOrderBase + deepestDepth × PageSortingOrderStep` below it.
+- **A non-routed screen at the default `0` ties with the root Page.** If it overlaps routed pages, give it an explicit value in the configurator: below `PageSortingOrderBase` to sit under every page, between the deepest page and `Loading.SortingOrder` to sit above them all.
+- `sortingOrder` only orders canvases of the same kind. Every Overlay canvas draws after every camera, so a `canvas="camera"` child page can never draw above an Overlay parent, whatever its value. That is exactly the glass recipe — UI meant to show *behind* a glass HUD lives on a Camera-mode screen — so the router does not warn about it.
+- Glass never shows the Overlay UI beneath it. If an Overlay control shows inside a glass pane, it is drawn *on top of* the pane: a layering problem, not a glass property (XML skill, `reference/glass.md`).
 
 ### RouteQuery
 
@@ -2137,6 +2165,7 @@ Both paths run the same `run` delegate. The `reason` query param is available in
 
 - **Open router destinations only via the router** — calling `UI.Open("myScreen")` directly on a router-managed screen bypasses reconciliation and corrupts the chain state.
 - **Modal route's close button should call `UI.Router.Back()`**, not `UI.Close(...)`. The ESC listener already does this automatically.
+- **A Page cannot sit under a Modal** — `Open` / `Navigate` throw `RouteException`. Pages sort in the page band, below every Modal, so it would be hidden behind its own ancestor; map it with `present: RoutePresent.Modal`. Tabs, Prompts and Modals under a Modal are fine.
 - **Ad-hoc overlays** (`MessageBox`, `InputBox`, `Loading`, `Toast`) remain entirely outside the router. They are closed during reconcile if they block navigation — this is by design.
 - At teardown (`UI.UnloadAll()` / `UI.ResetForTests()`), all active router screens are closed and any running Prompt `ct` tokens are cancelled.
 
