@@ -100,36 +100,6 @@ namespace PromptUGUI.Application
                 catch (Exception e) { LogCatalogFailure(catalog, Current, e); }
             }
 
-            /// <summary>
-            /// A locale switch / reload, after the built-in .po: every catalog's load starts at once, then each is
-            /// awaited exactly once (Awaitable is pooled). One failing catalog is logged and skipped — it does not
-            /// hold the switch back. Completes synchronously when there are no catalogs or all are synchronous.
-            /// </summary>
-            internal static async Awaitable LoadRuntimeCatalogsAsync(string locale)
-            {
-                if (s_catalogs.Count == 0) return;
-                var catalogs = s_catalogs.ToArray();
-                var pending = new Awaitable<IEnumerable<PoEntry>>[catalogs.Length];
-                for (var i = 0; i < catalogs.Length; i++)
-                {
-                    try { pending[i] = catalogs[i].Load(locale); }
-                    catch (Exception e) { LogCatalogFailure(catalogs[i], locale, e); }
-                }
-                for (var i = 0; i < catalogs.Length; i++)
-                {
-                    if (pending[i] == null) continue;
-                    IEnumerable<PoEntry> entries;
-                    try { entries = await pending[i]; }
-                    catch (Exception e)
-                    {
-                        LogCatalogFailure(catalogs[i], locale, e);
-                        continue;
-                    }
-                    if (Current != locale || !s_catalogs.Contains(catalogs[i])) continue;
-                    TranslationStore.Instance.LoadLayer(catalogs[i].Layer, locale, entries ?? Array.Empty<PoEntry>());
-                }
-            }
-
             private static void LogCatalogFailure(RuntimeCatalog catalog, string locale, Exception e) =>
                 Debug.LogError($"[PromptUGUI] runtime catalog '{catalog.Name}' failed to load for locale '{locale}': {e}");
 

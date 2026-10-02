@@ -269,5 +269,81 @@ namespace PromptUGUI.Tests.EditMode.Application
             Assert.AreEqual("zh-Hans", UI.Locale.Current);
             Assert.AreEqual("你好", UI.Tr("hi"));
         }
+
+        // ── ReloadCurrent ─────────────────────────────────────────────────────────────────────
+
+        [Test]
+        public void An_async_reload_keeps_the_current_entries_until_the_new_ones_arrive()
+        {
+            OnZhHans();
+            var reload = UI.Locale.ReloadCurrentAsync();
+            Assert.AreEqual("你好", UI.Tr("hi"), "no window: the old entries stay in effect");
+
+            _po.Complete("zh-Hans", ("hi", "您好"));
+
+            Assert.IsTrue(reload.GetAwaiter().IsCompleted);
+            reload.GetAwaiter().GetResult();
+            Assert.AreEqual("您好", UI.Tr("hi"));
+        }
+
+        [Test]
+        public void A_reload_replaces_the_table()
+        {
+            UI.Locale.Set("zh-Hans");
+            _po.Complete("zh-Hans", ("hi", "你好"), ("bye", "再见"));
+            var reload = UI.Locale.ReloadCurrentAsync();
+
+            _po.Complete("zh-Hans", ("hi", "您好"));
+
+            reload.GetAwaiter().GetResult();
+            Assert.AreEqual("bye", UI.Tr("bye"), "an entry the reload no longer has is gone");
+        }
+
+        [Test]
+        public void A_failed_reload_keeps_the_current_entries()
+        {
+            OnZhHans();
+            var reload = UI.Locale.ReloadCurrentAsync();
+
+            _po.Fail("zh-Hans", new System.IO.IOException("offline"));
+
+            Assert.Throws<System.IO.IOException>(() => reload.GetAwaiter().GetResult());
+            Assert.AreEqual("你好", UI.Tr("hi"));
+        }
+
+        [Test]
+        public void A_reload_that_lands_after_a_switch_is_dropped()
+        {
+            OnZhHans();
+            var reload = UI.Locale.ReloadCurrentAsync();
+            UI.Locale.Set("en");
+            _po.Complete("en", ("hi", "Hello"));
+
+            _po.Complete("zh-Hans", ("hi", "您好"));
+
+            reload.GetAwaiter().GetResult();
+            Assert.AreEqual("en", UI.Locale.Current);
+            Assert.IsNull(TranslationStore.Instance.Lookup("zh-Hans", null, "hi"), "the stale reload writes nothing");
+        }
+
+        [Test]
+        public void A_reload_keeps_a_catalog_registered_while_it_loads()
+        {
+            // "slow" holds the reload in its catalog phase; "ugc" registers meanwhile and loads for Current at once.
+            var slow = new AwaitableCompletionSource<IEnumerable<PoEntry>>();
+            var slowCalls = 0;
+            UI.Locale.RegisterRuntimeCatalog("slow", _ =>
+                ++slowCalls == 1 ? AwaitableHelpers.Completed(Entries()) : slow.Awaitable);
+            OnZhHans();
+            var reload = UI.Locale.ReloadCurrentAsync();
+            _po.Complete("zh-Hans", ("hi", "您好"));
+            UI.Locale.RegisterRuntimeCatalog("ugc", _ => AwaitableHelpers.Completed(Entries(("item", "剑"))));
+            Assume.That(UI.Tr("item"), Is.EqualTo("剑"));
+
+            slow.SetResult(Entries());
+
+            reload.GetAwaiter().GetResult();
+            Assert.AreEqual("剑", UI.Tr("item"), "the reload replaces what it gathered, nothing else");
+        }
     }
 }

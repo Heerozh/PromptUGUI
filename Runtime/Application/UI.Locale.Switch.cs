@@ -174,7 +174,46 @@ namespace PromptUGUI.Application
                 Changed?.Invoke();
             }
 
-            // What a switch loads before it changes anything.
+            /// <summary>
+            /// Loads the current locale again — built-in .po and runtime catalogs — and swaps the new entries in at
+            /// once; the old ones stay in effect until then. Fire-and-forget: a failure is logged and keeps them.
+            /// </summary>
+            public static void ReloadCurrent()
+            {
+                if (Current == null) return;
+                _ = ReloadLogged();
+            }
+
+            /// <summary><see cref="ReloadCurrent"/>, awaitable: rethrows a load failure (the old entries stay).</summary>
+            public static async Awaitable ReloadCurrentAsync()
+            {
+                if (Current == null) return;
+                await ReloadAsync();
+            }
+
+            // Every gathered table is replaced on its own rather than the locale unloaded wholesale: a catalog
+            // registered while this was loading has already loaded for the locale and is not in the bundle. A switch
+            // that commits meanwhile makes the result stale.
+            private static async Awaitable ReloadAsync()
+            {
+                var locale = Current;
+                var bundle = await GatherAsync(locale, () => Current == locale);
+                if (bundle == null || Current != locale) return;
+                var store = TranslationStore.Instance;
+                store.ReplaceLocale(locale, bundle.Builtin ?? Array.Empty<PoEntry>());
+                foreach (var (catalog, entries) in bundle.Catalogs)
+                    store.ReplaceLayer(catalog.Layer, locale, entries);
+                VariantStore.NotifyChangedInternal();
+            }
+
+            private static async Awaitable ReloadLogged()
+            {
+                var locale = Current;
+                try { await ReloadAsync(); }
+                catch (Exception e) { Debug.LogError($"[PromptUGUI] locale reload failed for '{locale}': {e}"); }
+            }
+
+            // What a switch or a reload loads before it changes anything.
             private sealed class LocaleBundle
             {
                 public IEnumerable<PoEntry> Builtin;
@@ -182,7 +221,8 @@ namespace PromptUGUI.Application
             }
 
             // A built-in loader failure throws. A catalog failure is logged and skipped — it does not hold the switch
-            // back. Null when `live` turns false before the catalogs start: a newer request took over.
+            // back. Null when `live` turns false before the catalogs start: a newer request took over, or the
+            // locale a reload was for is no longer current.
             private static async Awaitable<LocaleBundle> GatherAsync(string locale, Func<bool> live)
             {
                 var bundle = new LocaleBundle { Builtin = await GatherBuiltinAsync(locale) };

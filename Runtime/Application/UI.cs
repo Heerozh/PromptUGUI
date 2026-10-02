@@ -343,36 +343,6 @@ namespace PromptUGUI.Application
                 }
             }
 
-            public static void ReloadCurrent()
-            {
-                if (Current == null) return;
-                _ = ReloadCurrentAsyncLogged();
-            }
-
-            public static async UnityEngine.Awaitable ReloadCurrentAsync()
-            {
-                if (Current == null) return;
-                await ReloadCurrentAsyncInternal();
-            }
-
-            internal static async UnityEngine.Awaitable ReloadCurrentAsyncInternal()
-            {
-                if (Current == null) return;
-                TranslationStore.Instance.UnloadLocale(Current);
-                await LoadPoFilesAsync(Current);
-                VariantStore.NotifyChangedInternal();
-            }
-
-            private static async UnityEngine.Awaitable ReloadCurrentAsyncLogged()
-            {
-                try { await ReloadCurrentAsyncInternal(); }
-                catch (System.Exception e)
-                {
-                    UnityEngine.Debug.LogError(
-                        $"[PromptUGUI] locale reload failed for '{Current}': {e}");
-                }
-            }
-
             internal static void ResetForTestsInternal()
             {
                 // Settles any waiting SetAsync; a load still in flight is dropped when it lands.
@@ -526,43 +496,6 @@ namespace PromptUGUI.Application
 
         public static string Tr(string msgid, string ctx = null) =>
             TrResolver.Resolve(msgid, null, ctx);
-
-        private static async UnityEngine.Awaitable LoadPoFilesAsync(string locale)
-        {
-            if (PoResolver != null)
-            {
-                var entries = await PoResolver(locale);
-                if (Locale.Current != locale) return;          // race guard: stale load
-                if (entries != null)
-                    TranslationStore.Instance.Load(locale, entries);
-            }
-            else
-            {
-                LoadPoFromResourcesPath($"PromptUGUI/i18n/{locale}", locale);
-                LoadPoFromResourcesPath($"PromptUGUI/i18n-custom/{locale}", locale);
-            }
-            // Runtime catalogs layer over the built-in .po; the caller flips the variant only after this.
-            await Locale.LoadRuntimeCatalogsAsync(locale);
-        }
-
-        private static void LoadPoFromResourcesPath(string resourcesPath, string locale)
-        {
-            var assets = UnityEngine.Resources.LoadAll<UnityEngine.TextAsset>(resourcesPath);
-            foreach (var asset in assets)
-            {
-                try
-                {
-                    var entries = new System.Collections.Generic.List<I18n.PoEntry>(
-                        I18n.PoParser.Parse(asset.text));
-                    TranslationStore.Instance.Load(locale, entries);
-                }
-                catch (System.Exception e)
-                {
-                    UnityEngine.Debug.LogError(
-                        $"[PromptUGUI] failed to parse .po asset '{asset.name}': {e.Message}");
-                }
-            }
-        }
 
         // 重复 load 已存在的 screen 是有意拒绝(显式生命周期管理,不静默替换旧定义)。报错带上正确操作,
         // 否则作者(尤其在 reconnect / 每次场景加载都 load 的流程里)只看到 "already loaded" 无从下手。
