@@ -273,48 +273,10 @@ namespace PromptUGUI.Application
 
         public static partial class Locale
         {
+            // The locale in effect: TrResolver, the font table and the locale variant all follow it. A switch
+            // (Set / SetAsync, UI.Locale.Switch.cs) moves it only once the new locale has loaded.
             public static string Current { get; private set; }
             public static event System.Action Changed;
-
-            public static void Set(string locale)
-            {
-                if (Current == locale) return;
-                if (Current != null)
-                {
-                    VariantStore.Set(Current, false);
-                    TranslationStore.Instance.UnloadLocale(Current);
-                }
-                Current = locale;
-                if (locale != null)
-                {
-                    _ = LoadPoFilesAndApplyAsyncLogged(locale);
-                }
-                else
-                {
-                    VariantStore.NotifyChangedInternal();
-                    Changed?.Invoke();
-                }
-            }
-
-            public static async UnityEngine.Awaitable SetAsync(string locale)
-            {
-                if (Current == locale) return;
-                if (Current != null)
-                {
-                    VariantStore.Set(Current, false);
-                    TranslationStore.Instance.UnloadLocale(Current);
-                }
-                Current = locale;
-                if (locale != null)
-                {
-                    await LoadPoFilesAndApplyAsync(locale);
-                }
-                else
-                {
-                    VariantStore.NotifyChangedInternal();
-                    Changed?.Invoke();
-                }
-            }
 
             public static void SetToSystemDefault(string fallback = null) =>
                 SetToSystemDefaultCore(
@@ -393,24 +355,6 @@ namespace PromptUGUI.Application
                 await ReloadCurrentAsyncInternal();
             }
 
-            internal static async UnityEngine.Awaitable LoadPoFilesAndApplyAsync(string locale)
-            {
-                await LoadPoFilesAsync(locale);
-                if (Current != locale) return;              // race guard: don't flip variant for stale
-                VariantStore.Set(locale, true);
-                Changed?.Invoke();
-            }
-
-            private static async UnityEngine.Awaitable LoadPoFilesAndApplyAsyncLogged(string locale)
-            {
-                try { await LoadPoFilesAndApplyAsync(locale); }
-                catch (System.Exception e)
-                {
-                    UnityEngine.Debug.LogError(
-                        $"[PromptUGUI] locale load failed for '{locale}': {e}");
-                }
-            }
-
             internal static async UnityEngine.Awaitable ReloadCurrentAsyncInternal()
             {
                 if (Current == null) return;
@@ -431,6 +375,8 @@ namespace PromptUGUI.Application
 
             internal static void ResetForTestsInternal()
             {
+                // Settles any waiting SetAsync; a load still in flight is dropped when it lands.
+                CancelPending();
                 if (Current != null) VariantStore.Set(Current, false);
                 Current = null;
                 Changed = null;
