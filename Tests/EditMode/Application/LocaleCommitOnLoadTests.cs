@@ -270,6 +270,39 @@ namespace PromptUGUI.Tests.EditMode.Application
             Assert.AreEqual("你好", UI.Tr("hi"));
         }
 
+        // ── runtime catalogs / InitializeIfNeeded ─────────────────────────────────────────────
+
+        [Test]
+        public void A_catalog_registered_mid_switch_loads_for_the_new_locale_after_the_commit()
+        {
+            // "slow" holds the switch in its catalog phase, after the gather has taken its catalog snapshot.
+            var slow = new AwaitableCompletionSource<IEnumerable<PoEntry>>();
+            UI.Locale.RegisterRuntimeCatalog("slow", locale =>
+                locale == "en" ? slow.Awaitable : AwaitableHelpers.Completed(Entries()));
+            OnZhHans();
+            UI.Locale.Set("en");
+            _po.Complete("en", ("hi", "Hello"));
+            UI.Locale.RegisterRuntimeCatalog("ugc", locale =>
+                AwaitableHelpers.Completed(Entries(("item", locale == "en" ? "Sword" : "剑"))));
+            Assume.That(UI.Tr("item"), Is.EqualTo("剑"), "it loads for the locale in effect right away");
+
+            slow.SetResult(Entries());
+
+            Assert.AreEqual("en", UI.Locale.Current);
+            Assert.AreEqual("Sword", UI.Tr("item"));
+        }
+
+        [Test]
+        public void InitializeIfNeeded_leaves_a_pending_switch_alone()
+        {
+            UI.Locale.Set("zh-Hans");   // the player's saved choice, still loading
+
+            UI.Locale.InitializeIfNeededCore(SystemLanguage.English, new[] { "en", "zh-Hans" });
+
+            Assert.AreEqual("zh-Hans", UI.Locale.Pending, "the system default does not supersede it");
+            CollectionAssert.AreEqual(new[] { "zh-Hans" }, _po.Asked);
+        }
+
         // ── ReloadCurrent ─────────────────────────────────────────────────────────────────────
 
         [Test]

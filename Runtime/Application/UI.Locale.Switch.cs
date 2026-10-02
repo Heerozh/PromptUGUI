@@ -161,7 +161,8 @@ namespace PromptUGUI.Application
                     VariantStore.Set(old, false, locale, true);
                     store.UnloadLocale(old);
                 }
-                Changed?.Invoke();
+                try { Changed?.Invoke(); }
+                finally { LoadLateCatalogs(bundle); }
             }
 
             // Set(null): nothing to load, so it is in at once.
@@ -218,6 +219,16 @@ namespace PromptUGUI.Application
             {
                 public IEnumerable<PoEntry> Builtin;
                 public readonly List<(RuntimeCatalog Catalog, IEnumerable<PoEntry> Entries)> Catalogs = new();
+                // The catalogs registered when the gather started theirs; a later one is not in Catalogs.
+                public RuntimeCatalog[] Snapshot = Array.Empty<RuntimeCatalog>();
+            }
+
+            // A catalog registered after the switch took its snapshot loaded for the old locale only (its
+            // registration loads for Current), so it loads again now that the new one is current.
+            private static void LoadLateCatalogs(LocaleBundle bundle)
+            {
+                foreach (var catalog in s_catalogs.ToArray())
+                    if (Array.IndexOf(bundle.Snapshot, catalog) < 0) _ = LoadCatalogForCurrentLogged(catalog);
             }
 
             // A built-in loader failure throws. A catalog failure is logged and skipped — it does not hold the switch
@@ -231,6 +242,7 @@ namespace PromptUGUI.Application
 
                 // Every catalog's load starts at once, then each is awaited exactly once (Awaitable is pooled).
                 var catalogs = s_catalogs.ToArray();
+                bundle.Snapshot = catalogs;
                 var pending = new Awaitable<IEnumerable<PoEntry>>[catalogs.Length];
                 for (var i = 0; i < catalogs.Length; i++)
                 {

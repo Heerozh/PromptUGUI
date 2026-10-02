@@ -316,7 +316,8 @@ namespace PromptUGUI.Application
                 UnityEngine.SystemLanguage systemLanguage,
                 System.Collections.Generic.IReadOnlyList<string> configured)
             {
-                if (Current != null) return;
+                // A switch still loading (the player's saved choice, say) is a decision already made.
+                if (Current != null || Pending != null) return;
                 if (configured == null || configured.Count == 0) return;
                 var sysBcp47 = LocaleHelpers.MapSystemLanguage(systemLanguage);
                 var matched = LocaleHelpers.MatchWithFallback(sysBcp47, configured);
