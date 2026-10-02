@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using PromptUGUI.Application;
@@ -196,19 +195,6 @@ namespace PromptUGUI.Tests.EditMode.Application
 
             UI.Orientation.Set(false);
             Assert.AreEqual(0.5f, slider.Value, 1e-4f, "back to the base value");
-        }
-
-        // ReSolve runs inside the Screen's Variants.Changed subscription, so an exception there never reaches
-        // Orientation.Set: R3 hands it to the handler snapshotted at Subscribe time (Debug.LogException with
-        // R3 for Unity, Console.WriteLine with core R3 alone). Installed before UI.Open, this sees it either way.
-        private sealed class R3ExceptionCapture : IDisposable
-        {
-            private readonly Action<Exception> _previous = ObservableSystem.GetUnhandledExceptionHandler();
-            public readonly List<Exception> Caught = new();
-
-            public R3ExceptionCapture() => ObservableSystem.RegisterUnhandledExceptionHandler(Caught.Add);
-
-            public void Dispose() => ObservableSystem.RegisterUnhandledExceptionHandler(_previous);
         }
     }
 }
