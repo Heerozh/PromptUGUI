@@ -953,6 +953,8 @@ The library boots a global `OrientationTracker` (RuntimeInitializeOnLoadMethod �
 - `portrait` — active when `Screen.height > Screen.width`
 - `landscape` — active otherwise (square dims count as landscape, matching `Screen.ApplyCanvasScaler`'s `W >= H → match=0` rule)
 
+A flip is one step: both variants change before a single `VariantStore.Changed`, so open Screens re-solve once per rotation and never against both (or neither) active. `UI.Orientation.Set` gives the same guarantee; two `UI.Variants.Set` calls do not — each fires its own re-solve, and the first runs against the half-flipped state.
+
 XML authors override per-orientation via `attr.portrait="..."` / `attr.landscape="..."` on any element. Typical use: `<Screen reference="1920x1080" reference.portrait="1080x1920">` so each orientation gets its own CanvasScaler reference (and therefore the auto-derived `match` is correct on both axes).
 
 ```csharp

@@ -1372,6 +1372,8 @@ The `size.mobile=""` clears the base `size=` under that variant — required bec
 
 **Last-active-wins** — declaration order matters. With `<X size="100" size.mobile="200" size.tablet="150"/>`, if both `mobile` and `tablet` are active, `tablet` wins because it was declared after.
 
+`portrait` / `landscape` never mix: the orientation tracker flips the pair in one step, so a Screen never re-solves with both (or neither) active. Per-orientation overrides may even swap which axis stretches — `anchor.landscape="stretch-left" width.landscape="320" anchor.portrait="bottom-stretch" height.portrait="400"`.
+
 Variant overrides on `<Icon name="...">` swap the sprite at runtime: `<Icon name="ui:sun" name.dark="ui:moon"/>`.
 
 **Pair a *control-specific* `.variant` override with a base value.**

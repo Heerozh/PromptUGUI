@@ -253,18 +253,16 @@ namespace PromptUGUI.Application
         /// <c>Screen.width/height</c> 切换这对互斥 variant。用户也可显式调
         /// <see cref="Set"/> 手动覆盖；想完全自管时把 <see cref="AutoTrack"/>
         /// 置 false。等宽高视为 landscape，与 CanvasScaler `match` 自动推断
-        /// 的 W&gt;=H 锁宽逻辑保持一致。
+        /// 的 W&gt;=H 锁宽逻辑保持一致。一次切换只发一次 Changed：打开的 Screen
+        /// 每次转屏只重解算一遍，看不到两个都激活 / 都不激活的中间态。
         /// </summary>
         public static class Orientation
         {
             public static bool AutoTrack { get; set; } = true;
             public static bool IsPortrait => VariantStore.IsActive("portrait");
 
-            public static void Set(bool isPortrait)
-            {
-                VariantStore.Set("portrait", isPortrait);
-                VariantStore.Set("landscape", !isPortrait);
-            }
+            public static void Set(bool isPortrait) =>
+                VariantStore.Set("portrait", isPortrait, "landscape", !isPortrait);
 
             internal static void ResetForTestsInternal()
             {
