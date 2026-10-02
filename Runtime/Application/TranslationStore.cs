@@ -70,6 +70,24 @@ namespace PromptUGUI.Application
 
         internal void ClearLayers() => _layers.Clear();
 
+        /// <summary>
+        /// Swaps one locale's built-in entries for <paramref name="entries"/> in a single step: a reload never
+        /// leaves a moment with neither the old entries nor the new.
+        /// </summary>
+        internal void ReplaceLocale(string locale, IEnumerable<PoEntry> entries)
+        {
+            RemoveLocale(_entries, locale);
+            Merge(_entries, locale, entries);
+        }
+
+        /// <summary><see cref="ReplaceLocale"/> for one layer; a layer already removed takes nothing.</summary>
+        internal void ReplaceLayer(Layer layer, string locale, IEnumerable<PoEntry> entries)
+        {
+            if (!_layers.Contains(layer)) return;
+            RemoveLocale(layer.Entries, locale);
+            Merge(layer.Entries, locale, entries);
+        }
+
         private static void Merge(Dictionary<(string, string, string), string> into, string locale,
                                   IEnumerable<PoEntry> entries)
         {

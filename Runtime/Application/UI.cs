@@ -273,48 +273,10 @@ namespace PromptUGUI.Application
 
         public static partial class Locale
         {
+            // The locale in effect: TrResolver, the font table and the locale variant all follow it. A switch
+            // (Set / SetAsync, UI.Locale.Switch.cs) moves it only once the new locale has loaded.
             public static string Current { get; private set; }
             public static event System.Action Changed;
-
-            public static void Set(string locale)
-            {
-                if (Current == locale) return;
-                if (Current != null)
-                {
-                    VariantStore.Set(Current, false);
-                    TranslationStore.Instance.UnloadLocale(Current);
-                }
-                Current = locale;
-                if (locale != null)
-                {
-                    _ = LoadPoFilesAndApplyAsyncLogged(locale);
-                }
-                else
-                {
-                    VariantStore.NotifyChangedInternal();
-                    Changed?.Invoke();
-                }
-            }
-
-            public static async UnityEngine.Awaitable SetAsync(string locale)
-            {
-                if (Current == locale) return;
-                if (Current != null)
-                {
-                    VariantStore.Set(Current, false);
-                    TranslationStore.Instance.UnloadLocale(Current);
-                }
-                Current = locale;
-                if (locale != null)
-                {
-                    await LoadPoFilesAndApplyAsync(locale);
-                }
-                else
-                {
-                    VariantStore.NotifyChangedInternal();
-                    Changed?.Invoke();
-                }
-            }
 
             public static void SetToSystemDefault(string fallback = null) =>
                 SetToSystemDefaultCore(
@@ -354,7 +316,8 @@ namespace PromptUGUI.Application
                 UnityEngine.SystemLanguage systemLanguage,
                 System.Collections.Generic.IReadOnlyList<string> configured)
             {
-                if (Current != null) return;
+                // A switch still loading (the player's saved choice, say) is a decision already made.
+                if (Current != null || Pending != null) return;
                 if (configured == null || configured.Count == 0) return;
                 var sysBcp47 = LocaleHelpers.MapSystemLanguage(systemLanguage);
                 var matched = LocaleHelpers.MatchWithFallback(sysBcp47, configured);
@@ -381,56 +344,10 @@ namespace PromptUGUI.Application
                 }
             }
 
-            public static void ReloadCurrent()
-            {
-                if (Current == null) return;
-                _ = ReloadCurrentAsyncLogged();
-            }
-
-            public static async UnityEngine.Awaitable ReloadCurrentAsync()
-            {
-                if (Current == null) return;
-                await ReloadCurrentAsyncInternal();
-            }
-
-            internal static async UnityEngine.Awaitable LoadPoFilesAndApplyAsync(string locale)
-            {
-                await LoadPoFilesAsync(locale);
-                if (Current != locale) return;              // race guard: don't flip variant for stale
-                VariantStore.Set(locale, true);
-                Changed?.Invoke();
-            }
-
-            private static async UnityEngine.Awaitable LoadPoFilesAndApplyAsyncLogged(string locale)
-            {
-                try { await LoadPoFilesAndApplyAsync(locale); }
-                catch (System.Exception e)
-                {
-                    UnityEngine.Debug.LogError(
-                        $"[PromptUGUI] locale load failed for '{locale}': {e}");
-                }
-            }
-
-            internal static async UnityEngine.Awaitable ReloadCurrentAsyncInternal()
-            {
-                if (Current == null) return;
-                TranslationStore.Instance.UnloadLocale(Current);
-                await LoadPoFilesAsync(Current);
-                VariantStore.NotifyChangedInternal();
-            }
-
-            private static async UnityEngine.Awaitable ReloadCurrentAsyncLogged()
-            {
-                try { await ReloadCurrentAsyncInternal(); }
-                catch (System.Exception e)
-                {
-                    UnityEngine.Debug.LogError(
-                        $"[PromptUGUI] locale reload failed for '{Current}': {e}");
-                }
-            }
-
             internal static void ResetForTestsInternal()
             {
+                // Settles any waiting SetAsync; a load still in flight is dropped when it lands.
+                CancelPending();
                 if (Current != null) VariantStore.Set(Current, false);
                 Current = null;
                 Changed = null;
@@ -580,43 +497,6 @@ namespace PromptUGUI.Application
 
         public static string Tr(string msgid, string ctx = null) =>
             TrResolver.Resolve(msgid, null, ctx);
-
-        private static async UnityEngine.Awaitable LoadPoFilesAsync(string locale)
-        {
-            if (PoResolver != null)
-            {
-                var entries = await PoResolver(locale);
-                if (Locale.Current != locale) return;          // race guard: stale load
-                if (entries != null)
-                    TranslationStore.Instance.Load(locale, entries);
-            }
-            else
-            {
-                LoadPoFromResourcesPath($"PromptUGUI/i18n/{locale}", locale);
-                LoadPoFromResourcesPath($"PromptUGUI/i18n-custom/{locale}", locale);
-            }
-            // Runtime catalogs layer over the built-in .po; the caller flips the variant only after this.
-            await Locale.LoadRuntimeCatalogsAsync(locale);
-        }
-
-        private static void LoadPoFromResourcesPath(string resourcesPath, string locale)
-        {
-            var assets = UnityEngine.Resources.LoadAll<UnityEngine.TextAsset>(resourcesPath);
-            foreach (var asset in assets)
-            {
-                try
-                {
-                    var entries = new System.Collections.Generic.List<I18n.PoEntry>(
-                        I18n.PoParser.Parse(asset.text));
-                    TranslationStore.Instance.Load(locale, entries);
-                }
-                catch (System.Exception e)
-                {
-                    UnityEngine.Debug.LogError(
-                        $"[PromptUGUI] failed to parse .po asset '{asset.name}': {e.Message}");
-                }
-            }
-        }
 
         // 重复 load 已存在的 screen 是有意拒绝(显式生命周期管理,不静默替换旧定义)。报错带上正确操作,
         // 否则作者(尤其在 reconnect / 每次场景加载都 load 的流程里)只看到 "already loaded" 无从下手。

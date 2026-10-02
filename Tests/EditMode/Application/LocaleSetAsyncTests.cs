@@ -62,8 +62,18 @@ namespace PromptUGUI.Tests.Application
                 new System.Text.RegularExpressions.Regex(
                     "locale load failed for 'en'.*boom-sync"));
             UI.Locale.Set("en");
-            // Locale.Current still advances even when load fails — caller can retry.
+            // A failed load switches nothing (spec 2026-10-02-locale-commit-on-load-design §3.5) …
+            Assert.IsNull(UI.Locale.Current);
+            Assert.IsFalse(UI.Variants.IsActive("en"));
+
+            // … so the same Set is a real retry.
+            UI.PoResolver = _ => AwaitableHelpers.Completed<IEnumerable<PoEntry>>(new[]
+            {
+                new PoEntry { Msgid = "hi", Msgstr = "Hello" },
+            });
+            UI.Locale.Set("en");
             Assert.AreEqual("en", UI.Locale.Current);
+            Assert.AreEqual("Hello", UI.Tr("hi"));
         }
 
         [Test]
@@ -71,7 +81,7 @@ namespace PromptUGUI.Tests.Application
         {
             // Race scenario: Set("zh-Hans") starts a deferred load; before it
             // completes, Set("en") supersedes it. When the zh-Hans load finally
-            // resolves, the guard inside LoadPoFilesAsync must drop the result.
+            // resolves, its result must be dropped.
             var srcZh = new UnityEngine.AwaitableCompletionSource<IEnumerable<PoEntry>>();
             var srcEn = new UnityEngine.AwaitableCompletionSource<IEnumerable<PoEntry>>();
             UI.PoResolver = locale =>
@@ -79,12 +89,14 @@ namespace PromptUGUI.Tests.Application
 
             UI.Locale.Set("zh-Hans");
             UI.Locale.Set("en");
-            Assert.AreEqual("en", UI.Locale.Current);
+            Assert.IsNull(UI.Locale.Current, "nothing is in effect until a load commits");
+            Assert.AreEqual("en", UI.Locale.Pending);
 
-            // Resume en first, then zh — the guard must drop zh entries.
+            // Resume en first, then zh — the zh-Hans load is stale.
             srcEn.SetResult(new[] { new PoEntry { Msgid = "hi", Msgstr = "Hello" } });
             srcZh.SetResult(new[] { new PoEntry { Msgid = "hi", Msgstr = "你好" } });
 
+            Assert.AreEqual("en", UI.Locale.Current);
             Assert.AreEqual("Hello", UI.Tr("hi"),
                 "Race guard must keep en translations; zh-Hans load is stale.");
             Assert.IsFalse(UI.Variants.IsActive("zh-Hans"),
