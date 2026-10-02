@@ -985,6 +985,13 @@ await MessageBox.Open($"{UI.Tr("Download failed:")}\n{e.Message}");
 
 Locale switching rides the Variant pipeline — already-open Screens auto-ReSolve. `UI.Locale.Set("zh-Hans")` internally registers `zh-Hans` as an active Variant; don't reuse that name for non-locale state.
 
+**A switch commits once the new locale has loaded.** `Set(x)` first loads x's `.po` and every runtime catalog; until all of it is in, the current locale stays fully in effect — text, fonts, the locale Variant, `UI.Locale.Current` — so nothing re-rendered meanwhile shows a msgid. Then it switches in one step: table, `Current`, both locale Variants (one re-solve per open Screen), old table unloaded, `Locale.Changed`. `UI.Locale.Pending` names the locale still loading (`null` when none).
+
+- With the default Resources loader (or any `PoResolver` returning completed Awaitables) the switch is done before `Set` returns.
+- With an async loader (Addressables, downloads) `Current` keeps the old locale until the commit. Need the new one right after switching? `await UI.Locale.SetAsync(x)`, then read `Current`; for the target, read `Pending ?? Current`; to refresh when it lands, subscribe `Locale.Changed`. A test that expects `Set` to move `Current` synchronously must pin a synchronous `PoResolver` — the static one an earlier Play session left behind may be async.
+- The latest request wins; `Set(Current)` cancels a pending switch; `Set` of the locale already loading is a no-op. `SetAsync` completes on commit, at once when superseded or cancelled, and throws if the `.po` load fails.
+- A failed load switches nothing: the current locale stays, `Set` logs the error, `SetAsync` throws, and `Set(x)` again retries. `ReloadCurrent(Async)` behaves the same way — old entries stay until the new ones are all in, and a failure keeps them.
+
 **`text=` declared in XML auto-retranslates on ReSolve; C#-pushed dynamic text does NOT.** ReSolve only re-applies *XML-declared* values through the translation table — it never re-runs your `BindOptions` / `BindItems` / `TextValue =` calls. So a one-shot `Observable.Return(new[] { UI.Tr("Light"), UI.Tr("Dark") })` snapshots the *current* locale's strings and is stuck there after a language switch. Drive translatable dynamic content off a stream that re-emits on locale change:
 
 ```csharp
@@ -1020,7 +1027,8 @@ static async Awaitable<IEnumerable<PoEntry>> LoadPackPoAsync(int pack, string lo
 }
 ```
 
-- The loader is called for the current locale on registration, and again for every later `Set` / `SetAsync` / `ReloadCurrent(Async)`. A locale switch waits for every catalog before it flips the locale Variant and fires `Locale.Changed` — **give the loader its own timeout**, or a hung download holds the switch forever. A catalog that fails is logged and skipped; the switch still completes.
+- The loader is called for the current locale on registration, and again for every later `Set` / `SetAsync` / `ReloadCurrent(Async)`. A locale switch waits for every catalog before it commits (the old locale stays in effect meanwhile) — **give the loader its own timeout**, or a hung download keeps the switch pending forever. A catalog that fails is logged and skipped; the switch still completes.
+- Registering while a switch is still loading: the catalog loads for `Current` (the old locale) right away, and for the new locale when the switch commits. `RegisterRuntimeCatalogAsync` completes once the *current* locale's entries are in; it does not wait for the pending switch.
 - Precedence: a runtime catalog overrides the built-in translations, and a later catalog overrides an earlier one (so a hot-fix patch works). That also lets a UGC catalog rewrite your own UI strings — filter in the loader (e.g. only accept your pack's `msgctxt`) if that matters.
 - Registering (once its entries are in) and unregistering re-apply the open Screens once; unregistering restores whatever the catalog had overridden. Text you pushed from code with `UI.Tr` is not re-translated by this — same as `ReloadCurrent`.
 - Names must be non-empty and unique (`InvalidOperationException`, thrown synchronously by both versions). A failed `RegisterRuntimeCatalogAsync` stays registered and is retried on the next switch; discarding its returned Awaitable swallows the exception — use the non-Async version for fire-and-forget.
@@ -1254,7 +1262,9 @@ VARIANT        UI.Variants.Set("name", true|false)            re-applies, no reb
 ORIENTATION    UI.Orientation.IsPortrait                      auto-tracked: portrait / landscape variants
                UI.Orientation.Set(bool)                       manual override
                UI.Orientation.AutoTrack = false               disable global tracker
-LOCALE         UI.Locale.Set("en")                            sync
+LOCALE         UI.Locale.Set("en")                            commits once en has loaded; old locale stays in effect meanwhile
+               await UI.Locale.SetAsync("en")                 completes on commit; throws if the .po load fails (locale unchanged)
+               UI.Locale.Current / .Pending                   locale in effect / locale still loading (null when none)
                UI.Locale.SetToSystemDefault()
                UI.Tr("...")                                   extract + translate
                UI.Locale.RegisterRuntimeCatalog("pack", locale => ...)   runtime .po layered over built-in; Unregister… removes it

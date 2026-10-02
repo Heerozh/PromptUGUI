@@ -41,12 +41,12 @@ Call `UI.Locale.UseAddressableResolver()` at boot. The resolver loads every Text
 
 ```csharp
 UI.Locale.UseAddressableResolver();
-UI.Locale.Set("zh-Hans");                  // sync; UI briefly shows msgid during download
+UI.Locale.Set("zh-Hans");                  // returns at once; the current locale stays until the download is in
 // or:
-await UI.Locale.SetAsync("zh-Hans");       // awaits download + parse + ReSolve
+await UI.Locale.SetAsync("zh-Hans");       // completes once the switch has committed
 ```
 
-`Locale.Set` returns immediately after issuing the load. While the download is in flight, open Screens briefly fall back to msgid text; when the load completes the locale variant flips on and all open Screens re-resolve to the translated strings. **`SetAsync` returns only after that re-resolve completes** — use it when you need to read `UI.Tr(...)` immediately after switching locales.
+`Locale.Set` returns immediately after issuing the load. While the download is in flight the current locale stays in effect — `UI.Locale.Current` is still the old locale, `UI.Locale.Pending` names the new one, and open Screens keep their text (no msgid flash). When everything has arrived the switch commits in one step and all open Screens re-resolve once. **`SetAsync` completes after that commit** — use it when you need the new locale (`UI.Tr(...)`, `Current`) right after switching. A failed download switches nothing.
 
 ### One-shot label setup
 
@@ -103,7 +103,7 @@ The loaded handle is held static and **released on a second `UseAddressableSprit
 | `UseAddressableResolver` doesn't exist                 | `com.unity.addressables` not installed (no `PROMPTUGUI_HAS_ADDRESSABLES`)            | Install the Addressables package, or use `UI.UseResourcesResolver(...)` instead              |
 | `<Icon>` shows pink right after `Locale.Set` swap      | Old SpriteSet handle was released, new one still downloading                           | Fire-and-forget is safe — `UI.IsSpriteResolverLoadInFlight` keeps Icons silent + auto re-resolve on completion. `await` only if a one-frame empty Icon would be visible. |
 | `UI.SpriteResolver is not registered` LogError spam    | A Screen was opened before any `UseAddressableSpriteSetResolver` / `UseSpriteSetResolver` call (no in-flight load to silence the warning either) | Call `UseAddressableSpriteSetResolver(...)` (sync prefix sets in-flight) BEFORE `UI.Open`; you do not need to `await` it.   |
-| Translated text doesn't appear until next frame        | `Locale.Set` returned before `.po` finished loading                                  | Use `await UI.Locale.SetAsync(...)` when you need to read `UI.Tr(...)` synchronously after   |
+| `UI.Tr(...)` / `Locale.Current` still the old locale right after `Set` | The switch commits only once the `.po` download is in                    | `await UI.Locale.SetAsync(...)` before reading them; `UI.Locale.Pending` names the target meanwhile |
 | `.po` files not picked up                              | Files don't carry the `Locale:<locale>` label, or the label points at the wrong locale | Run `Tools → PromptUGUI → I18n → Setup Addressables for Locale PO Files`, or set labels manually |
 | Cached `Sprite` field becomes invalid after label swap | Sprite was captured in a user field across a `UseAddressable...Resolver` call        | Don't cache — go through `UI.SpriteResolver` each time, or re-resolve on `UI.Variants.Changed` |
 
@@ -118,8 +118,8 @@ PREREQ        com.unity.addressables ≥ 1.0   (defines PROMPTUGUI_HAS_ADDRESSAB
               hot-reload supported in Editor
 
 .po (i18n)    UI.Locale.UseAddressableResolver()
-              UI.Locale.Set("zh-Hans")                    sync; msgid fallback briefly
-              await UI.Locale.SetAsync("zh-Hans")         awaits download + ReSolve
+              UI.Locale.Set("zh-Hans")                    old locale stays until the download is in, then one commit
+              await UI.Locale.SetAsync("zh-Hans")         completes on commit
               label convention: Locale:<locale>
               one-shot setup: Tools → PromptUGUI → I18n → Setup Addressables for Locale PO Files
 

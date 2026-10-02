@@ -21,8 +21,8 @@ namespace PromptUGUI.Application
             /// 用 Editor 菜单 <c>Tools → PromptUGUI → I18n → Setup Addressables for
             /// Locale PO Files</c> 一键把项目里所有 .po 加进 AA 默认组并打 label。
             ///
-            /// 注意 fire-and-forget 模型下 Set 返回后 UI 还看到 msgid，要等下载完才切译文；
-            /// 想避免闪烁用 await Locale.SetAsync(...)。
+            /// fire-and-forget 的 Set 在下载期间保持当前语言（Current 不变，Pending 为目标），全部到齐后一次提交；
+            /// 需要等切换完成再继续时用 await Locale.SetAsync(...)。
             /// </summary>
             public static void UseAddressableResolver()
             {
