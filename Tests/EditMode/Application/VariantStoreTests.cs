@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NUnit.Framework;
 using PromptUGUI.Application;
 using R3;
@@ -51,6 +52,24 @@ namespace PromptUGUI.Tests.Application
 
             store.Set("a", false);  // no-op (already inactive)
             Assert.AreEqual(2, events);
+        }
+
+        [Test]
+        public void Set_pair_writes_both_before_one_Changed()
+        {
+            var store = new VariantStore();
+            store.Set("landscape", true);
+            var seen = new List<string>();
+            store.Changed.Subscribe(_ => seen.Add($"{store.IsActive("portrait")},{store.IsActive("landscape")}"));
+
+            store.Set("portrait", true, "landscape", false);
+            CollectionAssert.AreEqual(new[] { "True,False" }, seen);
+
+            store.Set("portrait", true, "landscape", false);   // no-op (already there)
+            CollectionAssert.AreEqual(new[] { "True,False" }, seen);
+
+            store.Set("portrait", true, "landscape", true);    // only one half changes: still one event
+            CollectionAssert.AreEqual(new[] { "True,False", "True,True" }, seen);
         }
 
         [Test]
