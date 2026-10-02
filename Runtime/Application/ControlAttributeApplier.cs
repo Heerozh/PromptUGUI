@@ -27,9 +27,14 @@ namespace PromptUGUI.Application
             // Restored, not cleared: a setter can trigger a nested apply of this same control.
             var outerPass = control.InApplyPass;
             control.InApplyPass = true;
-            try { ApplyCore(node, control, entry, variants, initial); }
+            var wrote = default(PassWrites);
+            try { ApplyCore(node, control, entry, variants, initial, ref wrote); }
             finally
             {
+                // However the pass ended. One that threw after writing runtime-owned state (a Variant
+                // combination ApplyCommon rejects) has still written it; keeping the old baseline would
+                // read that write as a runtime takeover on the next pass, and the lock would never lift.
+                CaptureBaselines(control, wrote);
                 UILog.Applying = outer;
                 control.InApplyPass = outerPass;
             }
@@ -37,7 +42,7 @@ namespace PromptUGUI.Application
 
         private static void ApplyCore(ElementNode node, Control control,
                                       ControlRegistry.Entry entry, VariantStore variants,
-                                      bool initial)
+                                      bool initial, ref PassWrites wrote)
         {
             // Determine tr opt-out and ctx (common attrs not registered on Meta)
             var tr = !(node.Attributes.TryGetValue("tr", out var trVal) && trVal == "false");
@@ -61,7 +66,7 @@ namespace PromptUGUI.Application
             //   - Variant 覆盖（value.low / isOn.portrait）切到对应 variant 时必须重应用 → 不能无脑跳过；
             //   - 用户/代码运行期改过的值，ReSolve（resize / Variant / Theme）不得打回声明默认。
             // 区分两者：control 当前值（PeekRuntimeState）是否 == 上次 Apply 写下的 _lastAppliedRuntimeState。
-            // 注意：这里存的是「应用后回读」的归一化字符串（见末尾 capture），不是 XML 字面量 ——
+            // 注意：这里存的是「应用后回读」的归一化字符串（见 CaptureBaselines），不是 XML 字面量 ——
             // 数值属性 "1.0" 经 float 往返会变成 "1"，直接跟字面量比会误判；回读对回读才稳。
             bool RuntimeStateLockedByRuntime()
             {
@@ -70,8 +75,6 @@ namespace PromptUGUI.Application
                 var current = control.PeekRuntimeState();
                 return current != null && current != control._lastAppliedRuntimeState;
             }
-
-            var runtimeStateReapplied = false;
 
             // Control-specific attributes: union of base + variant keys.
             var allKeys = new HashSet<string>(node.Attributes.Keys);
@@ -100,7 +103,7 @@ namespace PromptUGUI.Application
                 }
                 ApplyOne(entry.Meta, control, node, attrName, v);
                 if (attrName == entry.DefaultTextAttr) control._lastAppliedDefaultText = v;
-                if (attrName == entry.RuntimeStateAttr) runtimeStateReapplied = true;
+                if (attrName == entry.RuntimeStateAttr) wrote.RuntimeState = true;
             }
 
             // Text shorthand
@@ -178,6 +181,9 @@ namespace PromptUGUI.Application
             try
             {
                 control.ApplyCommon(anchor, size, width, height, margin, pivot, hidden, interactable, flow);
+                // ApplyCommon writes hidden / interactable last, so they are written once it returns.
+                wrote.Hidden = hidden.HasValue;
+                wrote.Interactable = interactable.HasValue;
                 control.OnAfterApply();
             }
             catch (Exception ex) when (!(ex is ParseException))
@@ -187,18 +193,27 @@ namespace PromptUGUI.Application
                 throw new ParseException(
                     FormatNodeContext(node) + ": " + ex.Message + UILog.At(node));
             }
+        }
 
-            // Capture the runtime-state baseline AFTER everything settles (OnAfterApply + any
-            // clamping by sibling attrs like Slider min/max), and only when we actually (re)applied
-            // it this pass — a locked/skipped attr must keep its prior baseline so the lock persists.
-            // Store the read-back (PeekRuntimeState), not the XML literal: numeric round-trips
-            // ("1.0" → 1f → "1") would otherwise read as a runtime change on the next ReSolve.
-            if (runtimeStateReapplied && entry.RuntimeStateAttr != null)
-                control._lastAppliedRuntimeState = control.PeekRuntimeState();
-            // Same rule for the two runtime-owned common attributes: baseline = read-back, and only
-            // on a pass that wrote (null here means undeclared or locked — either way, keep the old one).
-            if (hidden.HasValue) control._lastAppliedHidden = control.Hidden;
-            if (interactable.HasValue) control._lastAppliedInteractable = control.PeekInteractable;
+        // What a pass wrote to runtime-owned state, i.e. which baselines it has to refresh.
+        private struct PassWrites
+        {
+            public bool RuntimeState;
+            public bool Hidden;
+            public bool Interactable;
+        }
+
+        // Capture the baselines AFTER everything settles (OnAfterApply + any clamping by sibling attrs
+        // like Slider min/max) — or as far as the pass got, when it threw — and only for what it wrote:
+        // a locked/skipped attr must keep its prior baseline so the lock persists (for hidden /
+        // interactable, not written = undeclared or locked — either way, keep the old one).
+        // Store the read-back (PeekRuntimeState), not the XML literal: numeric round-trips
+        // ("1.0" → 1f → "1") would otherwise read as a runtime change on the next ReSolve.
+        private static void CaptureBaselines(Control control, PassWrites wrote)
+        {
+            if (wrote.RuntimeState) control._lastAppliedRuntimeState = control.PeekRuntimeState();
+            if (wrote.Hidden) control._lastAppliedHidden = control.Hidden;
+            if (wrote.Interactable) control._lastAppliedInteractable = control.PeekInteractable;
         }
 
         private static void ApplyOne(ControlMeta meta, Control control,
