@@ -1,0 +1,4 @@
+# Keep the working tree LF regardless of each machine's core.autocrlf (Windows batch files stay CRLF)
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
