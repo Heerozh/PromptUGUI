@@ -69,6 +69,21 @@ namespace PromptUGUI.Tests.EditMode.Lint
         }
 
         [Test]
+        public void A_template_invocation_is_not_judged_by_its_parameters()
+        {
+            // On the raw pass an invocation is a node named after its template, and its attributes
+            // can only be <Param>s (TemplateExpander throws on anything else); the expanded pass
+            // judges the real node in place. A parameter that happens to be called blur is not
+            // blur= on the wrong tag.
+            var issues = Walk("<Card id='c' blur='4'/>",
+                              "<Template name='Card'><Param name='blur' default='0'/>" +
+                              "<Image sprite='ui:x' blur='{{blur}}'/></Template>");
+
+            Assert.IsFalse(issues.Any(i => i.Code == ImageFxRules.TagCode),
+                string.Join("\n", issues.Select(i => i.Message)));
+        }
+
+        [Test]
         public void Blur_arriving_through_a_class_is_still_flagged()
         {
             var issues = Walk("<Frame id='f' class='soft'/>", "<Style name='soft' blur='4'/>");

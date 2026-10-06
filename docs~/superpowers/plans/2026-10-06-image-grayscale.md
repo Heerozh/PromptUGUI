@@ -46,9 +46,9 @@
 
 **Files:** `Runtime/Core/Lint/ImageFxRules.cs`；`Tests/EditMode/Lint/ImageFxRulesTests.cs`
 
-- [ ] 红：模板参数叫 `blur` 的调用点不该报 `PUI-FX-TAG`（修正前误报）
-- [ ] 实现：`CheckTag` 加 `BuiltinTags.IsBuiltin` 门
-- [ ] 提交 `fix(lint): PUI-FX-TAG no longer flags a template parameter named blur`
+- [x] 红：模板参数叫 `blur` 的调用点不该报 `PUI-FX-TAG`（修正前确实误报 `<Card id='c'>: blur= is only supported on …`）
+- [x] 实现：`CheckTag` 加 `BuiltinTags.IsBuiltin` 门；`ImageFxRulesTests` / `DocumentLinterTests` / `IRWalkerTests` 62/62
+- [x] 提交 `fix(lint): PUI-FX-TAG no longer flags a template parameter named blur`
 
 ## Task 4：lint —— `grayscale` 的标签与取值（spec §3.5）
 

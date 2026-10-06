@@ -62,6 +62,10 @@ namespace PromptUGUI.Lint
         {
             styles ??= StyleAttributeView.Empty;
             if (n == null || FxTags.Contains(n.Tag)) yield break;
+            // A template invocation seen before expansion: its attributes can only be <Param>s
+            // (TemplateExpander throws on anything else), and the expanded pass judges the real
+            // node in place — the same gate as RaycastRules.
+            if (!BuiltinTags.IsBuiltin(n.Tag)) yield break;
             if (!styles.Declares(n, "blur")) yield break;
 
             styles.Resolve(n, "blur", out var value, out _);
