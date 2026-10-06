@@ -339,6 +339,76 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(3f, fx.material.GetFloat("_Intensity"), 1e-4f);
         }
 
+        // ---- grayscale (spec 2026-10-06) ----
+
+        [Test]
+        public void Grayscale_takes_the_fx_material_and_gives_it_back()
+        {
+            var s = Open("<Icon id='i' name='ui:x'/>");
+            var fx = FxOf(s.Get<PromptUGUI.Controls.Icon>("i"));
+            Assert.IsFalse(fx.HasKeyForTests, "前置：无 fx 即无材质");
+
+            fx.Grayscale = true;
+            fx.FlushParams();
+            Assert.IsTrue(fx.HasMaterialFx);
+            Assert.IsFalse(fx.HasGeometryFx, "greying needs no geometry");
+            Assert.AreEqual("UI/ImageFx", fx.material.shader.name);
+            Assert.AreEqual(1f, fx.material.GetFloat("_Desaturate"), 1e-4f);
+
+            fx.Grayscale = false;
+            fx.FlushParams();
+            Assert.IsFalse(fx.HasKeyForTests);
+            Assert.AreEqual(fx.defaultMaterial, fx.material);
+            Assert.AreEqual(0, FxMaterialCache.LiveMaterialCount, "the material went back to the pool");
+        }
+
+        [Test]
+        public void Leaving_the_disabled_grey_keeps_the_authored_one()
+        {
+            // Two switches, OR-ed (GS-D2): a Btn coming back from disabled turns ITS grey off, and
+            // that must not wash out the grey the author asked for — nor the other way round.
+            var s = Open("<Icon id='i' name='ui:x'/>");
+            var fx = FxOf(s.Get<PromptUGUI.Controls.Icon>("i"));
+            var disabled = (ISelfGrayscale)fx;
+
+            fx.Grayscale = true;
+            disabled.SetDisabledGrayscale(true);
+            disabled.SetDisabledGrayscale(false);
+            fx.FlushParams();
+            Assert.IsTrue(fx.Grayscale);
+            Assert.AreEqual(1f, fx.material.GetFloat("_Desaturate"), 1e-4f, "the authored grey survived");
+
+            disabled.SetDisabledGrayscale(true);
+            fx.Grayscale = false;
+            fx.FlushParams();
+            Assert.AreEqual(1f, fx.material.GetFloat("_Desaturate"), 1e-4f, "still disabled, still grey");
+
+            disabled.SetDisabledGrayscale(false);
+            Assert.IsFalse(fx.HasKeyForTests, "neither switch on: back to no material");
+        }
+
+        [Test]
+        public void The_authored_grey_keeps_the_light_on_and_the_disabled_one_puts_it_out()
+        {
+            // Disabled reads as inert, so it drops the exposure (spec 2026-09-12 §5.5). An author who
+            // wrote grayscale AND intensity asked for a lit grey icon (GS-D3).
+            var s = Open("<Icon id='i' name='ui:x' intensity='3'/>");
+            var fx = FxOf(s.Get<PromptUGUI.Controls.Icon>("i"));
+            var disabled = (ISelfGrayscale)fx;
+
+            fx.Grayscale = true;
+            fx.FlushParams();
+            Assert.AreEqual(1f, fx.material.GetFloat("_Desaturate"), 1e-4f);
+            Assert.AreEqual(3f, fx.material.GetFloat("_Intensity"), 1e-4f, "grey and still lit");
+
+            disabled.SetDisabledGrayscale(true);
+            Assert.AreEqual(1f, fx.material.GetFloat("_Intensity"), 1e-4f, "disabled puts the light out");
+
+            disabled.SetDisabledGrayscale(false);
+            Assert.AreEqual(3f, fx.material.GetFloat("_Intensity"), 1e-4f, "re-enabled: lit again");
+            Assert.AreEqual(1f, fx.material.GetFloat("_Desaturate"), 1e-4f, "… and still the authored grey");
+        }
+
         // ---- the cases fx cannot serve ----
 
         [Test]

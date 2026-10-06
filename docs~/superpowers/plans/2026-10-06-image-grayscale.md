@@ -26,11 +26,11 @@
 
 **Files:** `Runtime/Controls/Internal/FxImage.cs`；`Tests/EditMode/Controls/FxImageTests.cs`
 
-- [ ] 红：`FxImage.Grayscale` 单测 —— 设 true 拿到 fx 材质且 `Desaturate`；设 false 回到无材质；禁用开关 true → false 后作者灰仍在；
-  作者灰保留 `intensity`、禁用灰熄灯
-- [ ] 实现：拆开关、`HasMaterialFx`、`BuildParams`
-- [ ] 刷新 Unity、console 无错、`FxImageTests` + `DisabledGrayscaleTests` + `ImageFxRenderTests` 全绿
-- [ ] 提交 `feat(fx): FxImage keeps an authored grayscale apart from the disabled grey`
+- [x] 红：`FxImage.Grayscale` 单测 —— 设 true 拿到 fx 材质且 `Desaturate`；设 false 回到无材质；禁用开关 true → false 后作者灰仍在；
+  作者灰保留 `intensity`、禁用灰熄灯（先加空壳属性让程序集能编译，3 条均因"作者开关不生效"失败）
+- [x] 实现：拆开关、`HasMaterialFx`、`BuildParams`
+- [x] 刷新 Unity、console 无错、`FxImageTests` + `DisabledGrayscaleTests` + `ImageFxRenderTests` + `FxMaterialCacheTests` 全绿（77/77）
+- [x] 提交 `feat(fx): FxImage keeps an authored grayscale apart from the disabled grey`
 
 ## Task 2：`grayscale` 属性（spec §3.1 / §3.3 / §3.6）
 
