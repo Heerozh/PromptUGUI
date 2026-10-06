@@ -72,8 +72,10 @@
 
 ## Task 6：已发现的文档错误（spec §3.7）
 
-- [ ] XML skill tint 示例 `src=` → `sprite=`；C# skill `coin.Glow = v` 改成能编译的写法
-- [ ] 提交 `docs(skills): <Image> takes sprite=, not src=; Icon.Glow is a string`
+- [x] XML skill tint 示例 `src=` → `sprite=`；C# skill `coin.Glow = v` 改成能编译的写法（`InvariantCulture` 格式化 ——
+  `ProceduralValueParser.Pixels` 按 `InvariantCulture` 解析，逗号小数的区域设置下 `v.ToString()` 会抛错）。历史 spec / plan 里的
+  `<Image src=…>` 是当时的记录，不改
+- [x] 提交 `docs(skills): <Image> takes sprite=, not src=; Icon.Glow is a string`
 
 ## Task 7：收尾
 

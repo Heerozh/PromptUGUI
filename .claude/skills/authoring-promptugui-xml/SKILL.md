@@ -1697,10 +1697,10 @@ A hint bends only its own segment into a power curve, so there is no kink anywhe
 
 ```xml
 <!-- grayscale sprite recolored with Linear Light -->
-<Image src="card-grayscale" color="#ff8040" tint="linear"/>
+<Image sprite="card-grayscale" color="#ff8040" tint="linear"/>
 
 <!-- default multiply (unchanged from before) -->
-<Image src="card-color" color="#888888"/>
+<Image sprite="card-color" color="#888888"/>
 ```
 
 - `tint` is orthogonal to `color`: `color` can be a hex / CSS named / theme token; `tint` only picks the blend material.

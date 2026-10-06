@@ -2397,11 +2397,11 @@ LMotion.Create(0f, 180f, 0.15f)
 ```csharp
 var coin = screen.Get<Icon>("coin");
 LMotion.Create(0f, 8f, 0.2f)
-    .Bind(v => coin.Glow = v)             // pulse the glow as the reward lands
+    .Bind(v => coin.Glow = v.ToString(CultureInfo.InvariantCulture))   // pulse the glow as the reward lands
     .AddTo(coin.GameObject);
 ```
 
-`Blur` and `Glow` are pixel radii on `<Image>` / `<Icon>`; `GlowColor` takes a colour string, `"self/0.5"` keeps the sprite's own blurred colour at half strength, and `""` puts it back to that colour at full strength. Each frame of a tween costs one material-cache lookup (shared per parameter set, no allocation) plus a mesh rebuild, since the radius inflates the drawn quad — about the same as tweening `Rotation`. They apply only where the sprite is drawn as one quad (`type="simple"` / `contain` / `cover`), so a 9-slice sprite draws no effect; see **Blur & glow** in the XML skill.
+`Blur` and `Glow` are pixel radii on `<Image>` / `<Icon>`, set through the attribute's own **string** setter — the same text the XML takes, so a float is formatted first, with `CultureInfo.InvariantCulture` (the parser reads `"0.5"`; a comma-decimal locale's `v.ToString()` would hand it `"0,5"` and throw). `GlowColor` takes a colour string, `"self/0.5"` keeps the sprite's own blurred colour at half strength, and `""` puts it back to that colour at full strength. Each frame of a tween costs a short string, one material-cache lookup (shared per parameter set) and a mesh rebuild, since the radius inflates the drawn quad. They apply only where the sprite is drawn as one quad (`type="simple"` / `contain` / `cover`), so a 9-slice sprite draws no effect; see **Blur & glow** in the XML skill.
 
 ### `Image.Grayscale` / `Icon.Grayscale` — grey a picture from code
 
