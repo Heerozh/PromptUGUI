@@ -37,10 +37,10 @@
 **Files:** `Runtime/Controls/Image.cs`、`Runtime/Controls/Icon.cs`、`Runtime/Controls/Internal/ImageFxApplier.cs`、
 `Editor/XsdGenerator.cs`；测试：`FxImageTests`、`DisabledGrayscaleTests`、`ImageFxRenderTests`、`XsdGeneratorTests`
 
-- [ ] 红：spec §5 的 1–11、16
-- [ ] 实现：`ImageFxApplier.SetGrayscale` / `GetGrayscale`；两个控件的 `[UIAttr] bool Grayscale`（apply 之外立即 Flush）；XSD 两行
-- [ ] 刷新、console 无错、EditMode + EditorOnly 相关类全绿
-- [ ] 提交 `feat(image,icon): grayscale attribute`
+- [x] 红：spec §5 的 1–11、16（控件先放不带 `[UIAttr]` 的空壳属性；11 + 1 条均因属性未接入失败，渲染测试的前置断言已绿）
+- [x] 实现：`ImageFxApplier.SetGrayscale` / `GetGrayscale`；两个控件的 `[UIAttr] bool Grayscale`（apply 之外立即 Flush）；XSD 两行
+- [x] 刷新、console 无错、EditMode 相关类 88/88、`XsdGeneratorTests` 61/61；渲染导出图目视确认（红 → 灰，光晕同灰）
+- [x] 提交 `feat(image,icon): grayscale attribute`
 
 ## Task 3：`PUI-FX-TAG` 跳过模板调用（spec §3.5 顺带修正）
 

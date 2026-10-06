@@ -156,6 +156,43 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void ImageChild_AuthoredGrey_SurvivesTheButtonComingBack_AndRelightsUnderIt()
+        {
+            // grayscale= is the image's own switch (spec 2026-10-06 GS-D2): the Btn's disabled grey
+            // comes and goes on top of it. Disabled still puts the light out (GS-D3); re-enabled, it
+            // comes back on under the authored grey. And the authored grey is not a disabled* — the
+            // Btn still installs its default grey.
+            var stub = Sprite.Create(new Texture2D(8, 8), new Rect(0f, 0f, 8f, 8f), new Vector2(.5f, .5f));
+            UI.SpriteResolver = _ => stub;
+            try
+            {
+                UI.LoadDocument("t",
+                    "<?xml version='1.0' encoding='utf-8'?><PromptUGUI version='1'><Screen name='S'>" +
+                    "<Btn id='b'><Image id='m' sprite='ui:x' size='16x16' grayscale='true' intensity='4'/></Btn>" +
+                    "</Screen></PromptUGUI>");
+                var btn = UI.Open("S").Get<Btn>("b");
+                var img = btn.GameObject.transform.Find("m").GetComponent<UnityEngine.UI.Image>();
+                Assert.AreEqual(1f, img.material.GetFloat("_Desaturate"), 1e-4f, "前置：作者灰");
+                Assert.AreEqual(4f, img.material.GetFloat("_Intensity"), 1e-4f, "前置：作者灰下照样点亮");
+
+                PuiOf(btn).SimulateState(Disabled);
+                Assert.AreEqual("UI/Grayscale", BgOf(btn).material.shader.name, "按钮照常装默认灰");
+                Assert.AreEqual(1f, img.material.GetFloat("_Desaturate"), 1e-4f);
+                Assert.AreEqual(1f, img.material.GetFloat("_Intensity"), 1e-4f, "禁用即熄灭");
+
+                PuiOf(btn).SimulateState(Normal);
+                Assert.AreEqual(1f, img.material.GetFloat("_Desaturate"), 1e-4f, "启用后作者灰还在");
+                Assert.AreEqual(4f, img.material.GetFloat("_Intensity"), 1e-4f, "并重新点亮");
+            }
+            finally
+            {
+                var tex = stub != null ? stub.texture : null;
+                if (stub != null) Object.DestroyImmediate(stub);
+                if (tex != null) Object.DestroyImmediate(tex);
+            }
+        }
+
+        [Test]
         public void PlainBtn_DefaultGrayscale_KeepsColorTintTransition()
         {
             var btn = BuildBtn();

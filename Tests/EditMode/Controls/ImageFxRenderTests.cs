@@ -367,6 +367,30 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.Less(Mathf.Abs(greyed.g - greyed.b), 0.06f);
         }
 
+        [Test]
+        public void Grayscale_GreysTheBodyAndTheGlow_WhereTheSameProbesAreRedWithoutIt()
+        {
+            // spec 2026-10-06: the attribute folds into the same _Desaturate as the disabled look, so
+            // the composite — body and glow — goes grey, not just the sprite.
+            const string redIcon = "<Icon id='i' name='ui:red' anchor='center' size='64x64' glow='8' {0}/>";
+
+            Render(string.Format(redIcon, ""), "pugui-fx-grayscale-off.png");
+            var body = AtPx(0f, 0f);
+            var halo = AtPx(TileEdgePx + 3f, 0f);
+            Assert.Greater(body.r, body.g + 0.5f, "前置：the body is red");
+            Assert.Greater(halo.r, halo.g + 0.1f, "前置：and so is its glow");
+
+            Render(string.Format(redIcon, "grayscale='true'"), "pugui-fx-grayscale-on.png");
+            body = AtPx(0f, 0f);
+            halo = AtPx(TileEdgePx + 3f, 0f);
+            Assert.Less(Mathf.Abs(body.r - body.g), 0.02f, "the body is grey");
+            Assert.Less(Mathf.Abs(body.g - body.b), 0.02f);
+            Assert.Greater(body.r, 0.1f, "grey, not black — red keeps its luminance");
+            Assert.Less(Mathf.Abs(halo.r - halo.g), 0.06f, "the glow greys with the body");
+            Assert.Less(Mathf.Abs(halo.g - halo.b), 0.06f);
+            Assert.Greater(halo.r, 0.02f, "… and is still there");
+        }
+
         // ---- 2b. intensity (spec 2026-09-12) ----
 
         [Test]

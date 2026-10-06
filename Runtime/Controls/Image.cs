@@ -136,6 +136,24 @@ namespace PromptUGUI.Controls
             set => ImageFxApplier.SetIntensity(_img, "Image", value);
         }
 
+        /// <summary>
+        /// Draws the picture and its glow in grey (luminance). The author's switch — a disabled Btn
+        /// greys it through a separate one. From C# it shows at once, but a ReSolve replays a
+        /// declared <c>grayscale=</c>: leave it out of the XML when code drives it.
+        /// </summary>
+        [UIAttr, Preserve]
+        public bool Grayscale
+        {
+            get => ImageFxApplier.GetGrayscale(_img);
+            set
+            {
+                ImageFxApplier.SetGrayscale(_img, "Image", value);
+                // Inside a pass OnAfterApply flushes once every setter has run; from code nothing
+                // else would until the next canvas rebuild.
+                if (!InApplyPass) ImageFxApplier.Flush(_img);
+            }
+        }
+
         private float _rotation;
         private string _flip;
 

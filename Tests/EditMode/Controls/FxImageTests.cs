@@ -409,6 +409,109 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(1f, fx.material.GetFloat("_Desaturate"), 1e-4f, "… and still the authored grey");
         }
 
+        [Test]
+        public void The_grayscale_attribute_greys_an_icon_and_an_image_through_one_material()
+        {
+            var s = Open("<Icon id='a' name='ui:x' grayscale='true'/>" +
+                         "<Image id='b' sprite='ui:x' size='8x8' grayscale='true'/>");
+            var a = FxOf(s.Get<PromptUGUI.Controls.Icon>("a"));
+            var b = FxOf(s.Get<PromptUGUI.Controls.Image>("b"));
+
+            Assert.AreEqual("UI/ImageFx", a.material.shader.name);
+            Assert.AreEqual(1f, a.material.GetFloat("_Desaturate"), 1e-4f);
+            Assert.AreSame(a.material, b.material, "same parameters must batch, not split the cache");
+            Assert.AreEqual(1, FxMaterialCache.LiveMaterialCount);
+        }
+
+        [Test]
+        public void Grayscale_false_or_unwritten_costs_nothing_and_True_is_true()
+        {
+            var s = Open("<Icon id='a' name='ui:x' grayscale='false'/><Icon id='b' name='ui:x'/>" +
+                         "<Icon id='c' name='ui:x' grayscale='True'/>");
+
+            Assert.IsFalse(FxOf(s.Get<PromptUGUI.Controls.Icon>("a")).HasKeyForTests);
+            Assert.IsFalse(FxOf(s.Get<PromptUGUI.Controls.Icon>("b")).HasKeyForTests);
+            Assert.IsTrue(FxOf(s.Get<PromptUGUI.Controls.Icon>("c")).Grayscale, "bool.Parse ignores case");
+            Assert.AreEqual(1, FxMaterialCache.LiveMaterialCount, "only the grey one holds a material");
+        }
+
+        [Test]
+        public void A_variant_switches_the_grey_on_and_back_off()
+        {
+            var s = Open("<Icon id='i' name='ui:x' grayscale='false' grayscale.locked='true'/>");
+            var fx = FxOf(s.Get<PromptUGUI.Controls.Icon>("i"));
+            Assert.IsFalse(fx.HasKeyForTests);
+
+            UI.Variants.Set("locked", true);
+            Assert.AreEqual(1f, fx.material.GetFloat("_Desaturate"), 1e-4f);
+
+            UI.Variants.Set("locked", false);
+            Assert.IsFalse(fx.HasKeyForTests, "the base value is the way back");
+            Assert.AreEqual(0, FxMaterialCache.LiveMaterialCount);
+        }
+
+        [Test]
+        public void Grayscale_arrives_through_a_class_too()
+        {
+            UI.LoadDocument("t", "<?xml version='1.0' encoding='utf-8'?><PromptUGUI version='1'>" +
+                                 "<Style name='locked' grayscale='true'/>" +
+                                 "<Screen name='S'><Icon id='i' name='ui:x' class='locked'/></Screen></PromptUGUI>");
+            var fx = FxOf(UI.Open("S").Get<PromptUGUI.Controls.Icon>("i"));
+
+            Assert.AreEqual(1f, fx.material.GetFloat("_Desaturate"), 1e-4f);
+        }
+
+        [Test]
+        public void Grayscale_from_code_shows_at_once()
+        {
+            // Outside an apply pass the control flushes itself: no waiting for a canvas rebuild, and
+            // the material reads back right after the assignment.
+            var s = Open("<Icon id='i' name='ui:x'/><Image id='m' sprite='ui:x' size='8x8'/>");
+            var icon = s.Get<PromptUGUI.Controls.Icon>("i");
+            var image = s.Get<PromptUGUI.Controls.Image>("m");
+
+            icon.Grayscale = true;
+            image.Grayscale = true;
+            Assert.IsTrue(icon.Grayscale);
+            Assert.IsTrue(image.Grayscale);
+            Assert.AreEqual(1f, FxOf(icon).material.GetFloat("_Desaturate"), 1e-4f);
+            Assert.AreEqual(1f, FxOf(image).material.GetFloat("_Desaturate"), 1e-4f);
+
+            icon.Grayscale = false;
+            Assert.IsFalse(icon.Grayscale);
+            Assert.AreEqual(FxOf(icon).defaultMaterial, FxOf(icon).material);
+        }
+
+        [Test]
+        public void A_replay_keeps_a_code_written_grey_unless_the_xml_declares_one()
+        {
+            // Not runtime-owned (GS-D5): a ReSolve replays whatever the XML declares. Pinned so the
+            // documented "drive it from code, leave it out of the XML" stays true.
+            var s = Open("<Icon id='u' name='ui:x'/><Icon id='d' name='ui:x' grayscale='false'/>");
+            var u = s.Get<PromptUGUI.Controls.Icon>("u");
+            var d = s.Get<PromptUGUI.Controls.Icon>("d");
+
+            u.Grayscale = true;
+            d.Grayscale = true;
+            s.ReSolve();
+
+            Assert.IsTrue(u.Grayscale, "undeclared: the replay leaves the code's value alone");
+            Assert.AreEqual(1f, FxOf(u).material.GetFloat("_Desaturate"), 1e-4f);
+            Assert.IsFalse(d.Grayscale, "declared: the replay writes the XML value back");
+            Assert.IsFalse(FxOf(d).HasKeyForTests);
+        }
+
+        [TestCase("maybe")]
+        [TestCase("")]
+        [TestCase("1")]
+        public void A_grayscale_that_is_not_a_bool_is_a_parse_error(string value)
+        {
+            // Strict bool (GS-D4): a variant goes back with "false", not "".
+            var ex = Assert.Throws<ParseException>(
+                () => Open($"<Icon id='i' name='ui:x' grayscale='{value}'/>"));
+            StringAssert.Contains("grayscale", ex.Message);
+        }
+
         // ---- the cases fx cannot serve ----
 
         [Test]
