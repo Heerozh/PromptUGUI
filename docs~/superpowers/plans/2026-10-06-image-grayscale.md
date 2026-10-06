@@ -79,6 +79,10 @@
 
 ## Task 7：收尾
 
-- [ ] 全量回归：EditMode（`PromptUGUI.Tests.EditMode`）、`PromptUGUI.Tests.EditorOnly`、PlayMode
-- [ ] `.lint`：`dotnet format whitespace` / `style` / `analyzers` + `--verify-no-changes --severity warn`
-- [ ] 计划勾选、提交
+- [x] 全量回归：EditMode 4862/4862、EditorOnly 460/460、PlayMode 261/261（ssw_re_client，Unity 6000.7.0b3）
+- [x] `.lint`：每次提交前 `dotnet format --verify-no-changes --severity warn` 均通过（它已涵盖 whitespace / style /
+  analyzers 三项，故未再跑会改文件的三个修复命令）
+- [x] 计划勾选、提交
+
+与 spec §5 测试清单的出入：第 7 条（作者灰保留光照）落在 Task 1 的 `FxImage` 级测试里；第 10 条（作者灰不压制按钮 bg
+的默认禁用灰）并进了第 9 条的同一个测试。

@@ -1,6 +1,6 @@
 # `<Image>` / `<Icon>` 的 `grayscale` 属性
 
-> 状态：**已定，实现中**（2026-10-06 起草；作者同意按本文推荐实施，分步提交）。分支 `feat/image-grayscale`。
+> 状态：**已定，已实现，待合并**（2026-10-06 起草并实施；作者同意按本文推荐实施，分步提交）。分支 `feat/image-grayscale`。
 > 需求来源：作者希望 icon / image 能用一个属性控制黑白 —— 锁定的道具、未拥有的角色头像这类**与禁用无关**的场景。
 > 相关：
 > `2026-06-16-disabled-grayscale-design.md`（禁用态默认置灰；DG-D1 当年否决了 `disabledGray` / `disabledModulate="monochrome"`
@@ -56,7 +56,7 @@ Variant 回退写基值 `grayscale="false"`；漏写基值的情况 `PUI-VARIANT
 今天的 `_grayed` 拆成两个：
 
 - `_disabledGray`：只由 `ISelfGrayscale.SetDisabledGrayscale` 写（禁用控制器）。
-- `_grayscale`：作者开关，`internal bool Grayscale { get; set; }`，setter 走 `MarkDirty`。
+- `_grayscale`：作者开关，`bool Grayscale { get; set; }`（`FxImage` 本身是 internal），setter 走 `MarkDirty`。
 
 合并：`FxParams.Desaturate = _grayscale || _disabledGray`；`HasMaterialFx` 加上 `_grayscale`。
 
