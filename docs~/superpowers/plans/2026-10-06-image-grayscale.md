@@ -65,9 +65,10 @@
 **Files:** `.claude/skills/authoring-promptugui-xml/SKILL.md`、`.../reference/states.md`、
 `.claude/skills/scripting-promptugui-csharp/SKILL.md`
 
-- [ ] XML skill：Image / Icon 表各一行、`#### Grayscale` 小节、Tint 一节的提醒；states.md 的独立性说明
-- [ ] C# skill：`Image.Grayscale` 小节
-- [ ] 提交 `docs(skills): grayscale on <Image> / <Icon>`
+- [x] XML skill：Image / Icon 表各一行、`#### Grayscale` 小节、Blur & glow 的组合说明、Tint 一节的提醒、速查表 `GRAYSCALE`、
+  lint 表 `PUI-FX-TAG` / `PUI-FX-VALUE`；states.md 的独立性说明
+- [x] C# skill：`Image.Grayscale` 小节（含 ReSolve 约定）
+- [x] 提交 `docs(skills): grayscale on <Image> / <Icon>`
 
 ## Task 6：已发现的文档错误（spec §3.7）
 
