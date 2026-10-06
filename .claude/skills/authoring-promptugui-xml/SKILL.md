@@ -252,6 +252,7 @@ uGUI Image，从 `Resources` 加载 sprite；可选 `RectMask2D`（`mask="rect"`
 | `glow` | px 半径 | `0`（无光） | 见 **Blur & glow** |
 | `glowColor` | hex / CSS named / theme token，**纯色**；或 `self` / `self/0.5` | 不写 = 图自身的模糊色 | 见 **Blur & glow** |
 | `intensity` | number `≥ 1` | `1` | 点亮：本体 + 光晕一起过曝光曲线，核心发白、光晕保色相。任何 `type` 都生效。见 **Blur & glow** |
+| `grayscale` | bool | `false` | `true` draws the picture **and its glow** in grey (luminance), any `type`. Strict bool — a variant goes back with `"false"`, not `""`. Independent of the disabled grey. See **Grayscale** |
 | `raycastTarget` | bool | `false` | Click-through by default (uGUI's own default is true — that put every decorative picture in the raycast list). `true` = catches the pointer. Turned on automatically when the Image is a pointer-event source (`<Trigger on="hover-enter@…">` / C# `OnPointerEnter` / `OnPointerExit` / `OnPointerDown`); an explicit `false` on a source wins and is reported once (the events can never arrive). See **Pointer hit-testing** |
 
 #### Rotation & flip
@@ -297,8 +298,27 @@ They rewrite the **generated mesh** about the rect's centre and touch nothing el
 - **Radii are design px in the element's own space**, so `scale=` scales them with everything else.
 - **Anything past a few texels wants mipmaps on the sprite's texture** (SpriteAtlas → *Generate Mip Maps*; TextureImporter → *Generate Mipmaps*). The kernel samples the mip level that matches its tap spacing, so with a mip chain any radius is one smooth blur. Without one it samples the full-resolution texture, and past ~3 texels of radius that draws ghost copies of thin strokes; the runtime warns once per texture when it has to fall back like that — but only when the ghosts would be far enough apart on screen to form a pattern (tap spacing ≈ 0.35 × radius × canvas scale factor ≥ 2.5 px: `blur="2"` on a 3x phone is 2.1 px apart and stays quiet however minified the sprite is, `blur="3"` there is 3.2 px and warns; at 1x anything under ~7 stays quiet) — and names the radius that would be quiet at that draw size on that screen. Lint says nothing about how big a radius is — it sees neither the texture nor the drawn size, so any threshold it picked would nag at a mipmapped atlas too. Point-filtered (pixel-art) textures cannot use mipmaps for this — keep their radii small. Mipmaps on an atlas cost a third more memory and soften every sprite in it when drawn smaller than 1:1; the atlas also needs Unity's normal padding (≥ 2 texels) and no rotation / tight packing (`reference/icons.md`).
 - **`mask="self"` on the same node** makes the glow part of the stencil, so children show through it (`PUI-FX-MASK`). Put the mask on a parent `<Frame>`, or the effect on an inner `<Image>`.
-- Works with everything else that colours the graphic: `color=` (including gradients), state `*Modulate`, `tint="linear"`, CanvasGroup alpha and the disabled grey all still apply, and the glow greys with the body. One caveat: a **stop gradient** normalises over the inflated quad, so the picture sees the ramp inset by the radius.
+- Works with everything else that colours the graphic: `color=` (including gradients), state `*Modulate`, `tint="linear"`, CanvasGroup alpha, `grayscale` and the disabled grey all still apply, and the glow greys with the body. One caveat: a **stop gradient** normalises over the inflated quad, so the picture sees the ramp inset by the radius.
 - **Atlas requirement:** the sprite's atlas must pack without rotation and without tight packing, or the sampling picks up its neighbour. `Sync Atlases` sets that on atlases it creates and warns about existing ones — see `reference/icons.md`.
+
+#### Grayscale
+
+`grayscale="true"` draws an `<Image>` / `<Icon>` in grey: a luminance desaturation of everything it draws, glow included. It is the author's switch for a locked item or an unowned character; a disabled `<Btn>` / `<Tab>` / `<Toggle>` applies the same grey by itself (`reference/states.md`).
+
+```xml
+<Icon name="hero:knight" grayscale="true"/>                          <!-- not unlocked yet -->
+<Icon name="item:sword" grayscale="false" grayscale.locked="true"/>  <!-- a variant greys it -->
+<Style name="locked" grayscale="true"/>                              <!-- style / theme as usual -->
+<Image sprite="card:01" class="locked" glow="10"/>                   <!-- the glow greys too -->
+```
+
+- **Strict bool**: `true` / `false` (any case). `""`, `1`, `yes` are errors — `PUI-FX-VALUE` in lint, a parse error at runtime. Unlike `intensity` / `glow`, an empty value is not "off": a variant goes back with `"false"`, so write that base value (`PUI-VARIANT-NO-BASE` otherwise).
+- **`<Image>` / `<Icon>` only** (`PUI-FX-TAG`). Not on `<RawImage>` (its material slot belongs to `tint=`), `<Text>` (give it a grey `color=`), `<Frame>` or a control's own background. There is no container-level grey: put it on each picture, or disable the control.
+- **Colour first, then grey.** `color=` (gradients too), `tint="linear"`, state `*Modulate` and `intensity` only decide how light or dark the grey is. For a grey icon with a coloured glow, layer two nodes.
+- **`color="gray"` is not this** — a colour multiplies each channel on its own, so it can darken but never remove hue. There is no `tint="gray"` either (it warns and draws as `multiply`).
+- **Independent of the disabled grey.** Either one greys the picture: a `<Btn>` coming back from disabled leaves the authored grey in place, and the authored grey is not a `disabled*` (the control keeps its default disabled look). Disabled switches `intensity` off; an authored grey keeps it lit.
+- **Cost**: none when unwritten or `false`. `true` puts the graphic on the shared `UI/ImageFx` material — greyed pictures with the same parameters share one and batch with each other, not with un-greyed ones. Works on any `type` (sliced / tiled too).
+- **From C#**: `Image.Grayscale` / `Icon.Grayscale` (bool) take effect at once, but a declared `grayscale=` is replayed on every ReSolve — see the C# skill.
 
 #### Reflection recipe
 
@@ -845,6 +865,7 @@ References a sprite from a project-level SpriteSet (shared icons, by-name lookup
 | `glow` | no | `0` | px radius; outer glow cast from the icon's silhouette — see **Blur & glow** |
 | `glowColor` | no | its own colour | solid colour, or `self` / `self/0.5` (its own colour at a strength); unwritten, the glow takes the icon's own blurred colour |
 | `intensity` | no | `1` | `≥ 1`; lights body and glow together — white-hot core, hued halo. See **Blur & glow** |
+| `grayscale` | no | `false` | `true` draws the icon and its glow in grey (luminance); strict bool — see **Grayscale** under `<Image>` |
 
 **Discovering available icons** — 要查项目里有哪些 `setName:icon-name` 组合、以及 icon 名如何解析（相对 sourceFolder 路径、bare basename 简写、Template-Param 替换、sync 工具行为），见 [`reference/icons.md`](reference/icons.md)。
 
@@ -1676,16 +1697,17 @@ A hint bends only its own segment into a power curve, so there is no kink anywhe
 
 ```xml
 <!-- grayscale sprite recolored with Linear Light -->
-<Image src="card-grayscale" color="#ff8040" tint="linear"/>
+<Image sprite="card-grayscale" color="#ff8040" tint="linear"/>
 
 <!-- default multiply (unchanged from before) -->
-<Image src="card-color" color="#888888"/>
+<Image sprite="card-color" color="#888888"/>
 ```
 
 - `tint` is orthogonal to `color`: `color` can be a hex / CSS named / theme token; `tint` only picks the blend material.
 - On `<Progress>` it applies to the fill, background, and frame layers together.
 - Variants can switch it: `tint.dark="linear"` (goes through the normal `attr.var` → `ReSolve` path).
 - Unknown values warn and fall back to `multiply`.
+- `tint` never desaturates: there is no `tint="gray"`, and `color="gray"` only darkens (a multiply cannot remove hue). For black and white, write `grayscale="true"` on the `<Image>` / `<Icon>` — see **Grayscale**.
 
 ## Canvas / scaler attributes on `<Screen>`
 
@@ -1939,6 +1961,9 @@ SPRITE FX     blur="4" glow="8" glowColor="accent|self/0.5"   <Image>/<Icon> onl
               glowColor unwritten = the sprite's own colours; the glow is drawn OUTSIDE the rect
               (layout unchanged — leave spacing); radii past a few texels need mipmaps on the texture
               (runtime warns per texture, with the limit for that draw size); atlas must not rotate/tight-pack
+GRAYSCALE     grayscale="true"   <Image>/<Icon> only; picture + glow in grey (luminance), any type. Strict bool:
+                                 a variant goes back with "false", not "". Independent of the disabled grey;
+                                 color="gray" only darkens, and there is no tint="gray"
 REFLECTION    <Icon name="x"/> then <Icon name="x" flip="y" color="white/0.35, white/0 50%"/>
               draw order = XML order, so floor <Image> between the two gives reflection < floor < object
               gradient runs on the FINAL mesh: first colour = the START of what you see, flipped or not
@@ -2010,11 +2035,13 @@ SCROLLBAR LINT PUI-SCROLLBAR-OUTSIDE            <Scrollbar> not a direct child o
               PUI-SCROLLBAR-RETIRED-ATTR       old host-side scrollbar* attributes (also inside <Style> packs)
               PUI-PROC-SPRITE-CONFLICT also covers inner layers: handle= + handle*, fill= + fillRadius, frame= + frameRadius
 
-SPRITE FX LINT PUI-FX-TAG                      blur= outside <Image> / <Icon> (RawImage / Btn not wired up yet)
+SPRITE FX LINT PUI-FX-TAG                      blur= / grayscale= outside <Image> / <Icon> (RawImage / Btn not wired
+                                               up yet); a template parameter of that name is not judged at the call
               PUI-FX-TYPE                      blur/glow with type=sliced|tiled|filled (also warned at runtime,
                                                where a 9-slice sprite's automatic Sliced is visible)
               PUI-FX-ATTR                      glowColor= with no glow=
               PUI-FX-MASK                      blur/glow on the same node as mask="self"
+              PUI-FX-VALUE                     grayscale= that is not true / false — "" and variant values included
               (no rule on radius SIZE — lint sees neither the texture nor the drawn scale; the runtime
                warns per texture when the kernel really has to fall back to no mipmaps)
 

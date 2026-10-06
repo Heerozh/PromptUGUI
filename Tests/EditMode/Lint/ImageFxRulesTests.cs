@@ -69,11 +69,85 @@ namespace PromptUGUI.Tests.EditMode.Lint
         }
 
         [Test]
+        public void A_template_invocation_is_not_judged_by_its_parameters()
+        {
+            // On the raw pass an invocation is a node named after its template, and its attributes
+            // can only be <Param>s (TemplateExpander throws on anything else); the expanded pass
+            // judges the real node in place. A parameter that happens to be called blur is not
+            // blur= on the wrong tag.
+            var issues = Walk("<Card id='c' blur='4'/>",
+                              "<Template name='Card'><Param name='blur' default='0'/>" +
+                              "<Image sprite='ui:x' blur='{{blur}}'/></Template>");
+
+            Assert.IsFalse(issues.Any(i => i.Code == ImageFxRules.TagCode),
+                string.Join("\n", issues.Select(i => i.Message)));
+        }
+
+        [Test]
         public void Blur_arriving_through_a_class_is_still_flagged()
         {
             var issues = Walk("<Frame id='f' class='soft'/>", "<Style name='soft' blur='4'/>");
             Assert.IsTrue(issues.Any(i => i.Code == ImageFxRules.TagCode),
                 "a style pack hides the attribute from the tag, not from the reader");
+        }
+
+        // ---- PUI-FX-TAG: grayscale (spec 2026-10-06) ----
+
+        [TestCase("Image")]
+        [TestCase("Icon")]
+        public void Grayscale_is_fine_on_a_sprite_graphic(string tag)
+        {
+            Assert.IsEmpty(Tag(Node(tag, ("grayscale", "true"))));
+        }
+
+        [TestCase("Frame")]
+        [TestCase("VStack")]
+        [TestCase("Decor")]
+        public void Grayscale_on_anything_else_is_flagged(string tag)
+        {
+            var issues = Tag(Node(tag, ("grayscale", "true")));
+
+            Assert.AreEqual(1, issues.Count);
+            Assert.AreEqual(ImageFxRules.TagCode, issues[0].Code);
+            StringAssert.Contains("grayscale=", issues[0].Message);
+            StringAssert.Contains("<Image> / <Icon>", issues[0].Message);
+        }
+
+        [TestCase("RawImage", "tint=")]
+        [TestCase("Text", "color=")]
+        [TestCase("Btn", "interactable=\"false\"")]
+        [TestCase("Collapsible", "interactable=\"false\"")]
+        public void Grayscale_on_a_tag_that_has_its_own_way_says_which(string tag, string hint)
+        {
+            var issues = Tag(Node(tag, ("grayscale", "true")));
+
+            Assert.AreEqual(1, issues.Count);
+            Assert.AreEqual(ImageFxRules.TagCode, issues[0].Code);
+            StringAssert.Contains(hint, issues[0].Message);
+        }
+
+        [Test]
+        public void Blur_and_grayscale_on_the_wrong_tag_are_two_findings()
+        {
+            Assert.AreEqual(2, Tag(Node("Frame", ("blur", "4"), ("grayscale", "true"))).Count);
+        }
+
+        [Test]
+        public void Grayscale_arriving_through_a_class_is_still_flagged()
+        {
+            var issues = Walk("<Frame id='f' class='locked'/>", "<Style name='locked' grayscale='true'/>");
+            Assert.IsTrue(issues.Any(i => i.Code == ImageFxRules.TagCode));
+        }
+
+        [Test]
+        public void A_grayscale_parameter_is_judged_neither_at_the_call_nor_in_the_body()
+        {
+            var issues = Walk("<ItemSlot id='s' grayscale='true'/>",
+                              "<Template name='ItemSlot'><Param name='grayscale' default='false'/>" +
+                              "<Icon name='ui:x' grayscale='{{grayscale}}'/></Template>");
+
+            Assert.IsFalse(issues.Any(i => i.Code == ImageFxRules.TagCode || i.Code == ImageFxRules.ValueCode),
+                string.Join("\n", issues.Select(i => i.Message)));
         }
 
         // ---- PUI-FX-TYPE ----
@@ -162,6 +236,54 @@ namespace PromptUGUI.Tests.EditMode.Lint
         public void Fx_with_a_rect_mask_is_fine()
         {
             Assert.IsEmpty(Self(Node("Image", ("sprite", "ui:x"), ("glow", "6"), ("mask", "rect"))));
+        }
+
+        // ---- PUI-FX-VALUE (spec 2026-10-06) ----
+
+        [TestCase("maybe")]
+        [TestCase("")]
+        [TestCase("1")]
+        [TestCase("yes")]
+        public void A_grayscale_that_is_not_a_bool_is_flagged(string value)
+        {
+            var issues = Self(Node("Icon", ("name", "ui:x"), ("grayscale", value)));
+
+            Assert.AreEqual(1, issues.Count);
+            Assert.AreEqual(ImageFxRules.ValueCode, issues[0].Code);
+            StringAssert.Contains("true or false", issues[0].Message);
+        }
+
+        [TestCase("true")]
+        [TestCase("False")]
+        [TestCase(" true ")]
+        [TestCase("{{locked}}")]
+        public void A_bool_or_a_template_parameter_is_fine(string value)
+        {
+            // The same acceptance as the runtime's bool.Parse: case and surrounding spaces don't matter.
+            Assert.IsEmpty(Self(Node("Image", ("sprite", "ui:x"), ("grayscale", value))));
+        }
+
+        [Test]
+        public void An_empty_grayscale_says_how_a_variant_goes_back()
+        {
+            // "" is the way back for intensity / glow, so it is the likely mistake here (GS-D4).
+            var issues = Self(Node("Icon", ("name", "ui:x"), ("grayscale", "")));
+            StringAssert.Contains("=\"false\"", issues[0].Message);
+        }
+
+        [Test]
+        public void A_variant_value_is_judged_too()
+        {
+            var issues = Walk("<Icon id='i' name='ui:x' grayscale='false' grayscale.locked='yes'/>");
+            Assert.AreEqual(1, issues.Count(i => i.Code == ImageFxRules.ValueCode));
+        }
+
+        [Test]
+        public void The_runtime_check_leaves_the_value_to_the_parser()
+        {
+            // ControlMeta's bool.Parse already refuses it, with the node's location; a warning on top
+            // would be a second message for one mistake.
+            Assert.IsEmpty(ImageFxRules.CheckImage(Node("Icon", ("name", "ui:x"), ("grayscale", "maybe"))).ToList());
         }
 
         // ---- radius: not lint's call ----

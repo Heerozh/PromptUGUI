@@ -52,6 +52,8 @@ When a `<Btn>` / `<Tab>` / `<Toggle>` enters the Disabled state and **no** `disa
 
 **Hover and press are unaffected.** The grayscale controller only activates on the Disabled state. uGUI's built-in ColorTint (hover darkening, pressed darkening) continues to run on top when the control is enabled; it does not interact with the grayscale effect.
 
+**An authored `grayscale="true"` is a separate switch.** An `<Image>` / `<Icon>` inside the control that writes `grayscale="true"` (see **Grayscale** in the main SKILL) stays grey when the control is re-enabled — the two greys are independent, and either one greys the picture. The authored one is not a `disabled*`: it does not replace the control's default disabled look, and `stateReact="false"` (which only opts out of the disabled fan-out) leaves it alone. Disabled switches that picture's `intensity` off; the authored grey alone keeps it lit.
+
 **Opting out of `*Modulate` fan-out — `stateReact="false"`**: a **common attribute** (any element, default `true`) that opts a node **and its whole subtree** out of an ancestor Btn's `*Modulate` fan-out. Has no effect on `*Color` (absolute — never fanned out). The installer prunes that subtree, so those graphics keep their authored colour through hover / press / disable. (A nested `<Btn>` is auto-pruned — it owns its own graphics.)
 
 ```xml

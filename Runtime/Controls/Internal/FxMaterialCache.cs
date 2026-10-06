@@ -33,7 +33,8 @@ namespace PromptUGUI.Controls.Internal
         public readonly bool GlowSelf;
         /// <summary><c>tint="linear"</c> — Linear Light instead of the default multiply.</summary>
         public readonly bool TintLinear;
-        /// <summary>The disabled look, applied to the composite (body and glow alike).</summary>
+        /// <summary>Grey — <c>grayscale="true"</c> or the disabled look — applied to the composite
+        /// (body and glow alike).</summary>
         public readonly bool Desaturate;
         /// <summary>Exposure of body and glow together (spec 2026-09-12); 1 = unchanged. Needs no
         /// geometry, so unlike the radii it is NOT zeroed on a Sliced / Tiled image.</summary>

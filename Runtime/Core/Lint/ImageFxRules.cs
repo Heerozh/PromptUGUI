@@ -30,6 +30,7 @@ namespace PromptUGUI.Lint
         public const string TypeCode = "PUI-FX-TYPE";
         public const string AttrCode = "PUI-FX-ATTR";
         public const string MaskCode = "PUI-FX-MASK";
+        public const string ValueCode = "PUI-FX-VALUE";
 
         /// <summary>The tags built on <c>FxImage</c>, and therefore the only ones where blur / glow
         /// do anything. <c>&lt;RawImage&gt;</c> is deliberately absent — M2.</summary>
@@ -53,29 +54,64 @@ namespace PromptUGUI.Lint
         };
 
         /// <summary>
-        /// CLI, raw pass: <c>blur</c> on a tag that has no <c>FxImage</c> under it. Only
-        /// <c>blur</c> — <c>glow</c> / <c>glowColor</c> exist on <c>&lt;Frame&gt;</c> and
-        /// <c>&lt;Decor&gt;</c> with their own meaning, and on the remaining tags
-        /// <see cref="PureContainerVisualAttrRules"/> already reports them.
+        /// CLI, raw pass: <c>blur</c> or <c>grayscale</c> on a tag that has no <c>FxImage</c> under
+        /// it — the runtime drops both there without a word. Only those two: <c>glow</c> /
+        /// <c>glowColor</c> exist on <c>&lt;Frame&gt;</c> and <c>&lt;Decor&gt;</c> with their own
+        /// meaning, and on the remaining tags <see cref="PureContainerVisualAttrRules"/> already
+        /// reports them.
         /// </summary>
         public static IEnumerable<LintIssue> CheckTag(ElementNode n, StyleAttributeView styles = null)
         {
             styles ??= StyleAttributeView.Empty;
             if (n == null || FxTags.Contains(n.Tag)) yield break;
-            if (!styles.Declares(n, "blur")) yield break;
+            // A template invocation seen before expansion: its attributes can only be <Param>s
+            // (TemplateExpander throws on anything else), and the expanded pass judges the real
+            // node in place — the same gate as RaycastRules.
+            if (!BuiltinTags.IsBuiltin(n.Tag)) yield break;
 
-            styles.Resolve(n, "blur", out var value, out _);
-            if (value != null && value.Contains("{{")) yield break;
+            if (DeclaresJudged(n, styles, "blur"))
+            {
+                yield return new LintIssue(
+                    TagCode, n.Tag, n.Id,
+                    $"<{n.Tag} id='{n.Id}'>: blur= is only supported on <Image> / <Icon> — it resamples " +
+                    "a sprite's own pixels, and those are the tags that draw one. " +
+                    (n.Tag == "RawImage"
+                        ? "<RawImage> is not wired up for it yet (its texture is not in a sprite atlas, " +
+                          "which the sampling relies on). "
+                        : "") +
+                    "Fix: put blur= on the inner <Image> / <Icon>.");
+            }
 
-            yield return new LintIssue(
-                TagCode, n.Tag, n.Id,
-                $"<{n.Tag} id='{n.Id}'>: blur= is only supported on <Image> / <Icon> — it resamples " +
-                "a sprite's own pixels, and those are the tags that draw one. " +
-                (n.Tag == "RawImage"
-                    ? "<RawImage> is not wired up for it yet (its texture is not in a sprite atlas, " +
-                      "which the sampling relies on). "
-                    : "") +
-                "Fix: put blur= on the inner <Image> / <Icon>.");
+            if (DeclaresJudged(n, styles, GrayscaleAttr))
+            {
+                yield return new LintIssue(
+                    TagCode, n.Tag, n.Id,
+                    $"<{n.Tag} id='{n.Id}'>: grayscale= is only supported on <Image> / <Icon> — it is a " +
+                    "switch in their own material. " + GrayscaleElsewhere(n.Tag));
+            }
+        }
+
+        private const string GrayscaleAttr = "grayscale";
+
+        /// <summary>What to write instead, for the tags that have a way of their own (spec 2026-10-06 §3.5).</summary>
+        private static string GrayscaleElsewhere(string tag) => tag switch
+        {
+            "RawImage" => "<RawImage> is not wired up for it: its material slot belongs to tint=. Show the " +
+                          "picture through an <Image> sprite, or grey the texture itself.",
+            "Text" => "<Text> draws through TMP's own shader; give it a grey color= instead.",
+            "Btn" or "Tab" or "Toggle" or "Collapsible" =>
+                $"A disabled <{tag}> (interactable=\"false\") is greyed by default; to grey one picture " +
+                "inside it, put grayscale= on that <Image> / <Icon>.",
+            _ => "Put it on the <Image> / <Icon> that draws the picture.",
+        };
+
+        /// <summary>Declared — inline, through a class or in a variant — and not a template parameter,
+        /// whose value only the expansion decides.</summary>
+        private static bool DeclaresJudged(ElementNode n, StyleAttributeView styles, string attr)
+        {
+            if (!styles.Declares(n, attr)) return false;
+            styles.Resolve(n, attr, out var value, out _);
+            return value == null || !value.Contains("{{");
         }
 
         /// <summary>Runtime: the one rule whose failure is a visual surprise rather than an
@@ -112,6 +148,25 @@ namespace PromptUGUI.Lint
             }
 
             if (typeOnly) yield break;
+
+            // Same acceptance as ControlMeta's bool.Parse, which refuses anything else at runtime —
+            // with a hard error, so this is the place to hear about it first (spec 2026-10-06 §3.5).
+            if (styles.Declares(n, GrayscaleAttr))
+            {
+                styles.Resolve(n, GrayscaleAttr, out var baseValue, out var variants);
+                foreach (var value in Values(baseValue, variants))
+                {
+                    if (value == null || value.Contains("{{")) continue;
+                    if (bool.TryParse(value, out _)) continue;
+                    yield return new LintIssue(
+                        ValueCode, n.Tag, n.Id,
+                        $"<{n.Tag} id='{n.Id}'>: grayscale=\"{value}\" is not a bool — write true or false" +
+                        (value.Trim().Length == 0
+                            ? ". Unlike intensity / glow, \"\" does not mean off here: a variant goes back " +
+                              "with grayscale.<variant>=\"false\"."
+                            : "."));
+                }
+            }
 
             if (!hasFx && styles.Declares(n, "glowColor"))
             {
@@ -153,6 +208,14 @@ namespace PromptUGUI.Lint
                 }
             }
             return max;
+        }
+
+        private static IEnumerable<string> Values(
+            string baseValue, IReadOnlyList<(string Variant, string Value)> variants)
+        {
+            yield return baseValue;
+            if (variants == null) yield break;
+            foreach (var (_, value) in variants) yield return value;
         }
 
         private static float Parse(string value)

@@ -40,6 +40,21 @@ namespace PromptUGUI.Controls.Internal
             fx.Intensity = IntensityAttrParser.Parse(value);
         }
 
+        /// <summary>
+        /// <c>grayscale</c> (spec 2026-10-06). Already a bool here — <c>ControlMeta</c> parses it as
+        /// strictly as every bool attribute. Asking a plain prefab Image for no grey is not worth a
+        /// warning: it already has none.
+        /// </summary>
+        public static void SetGrayscale(Graphic graphic, string tag, bool value)
+        {
+            if (!value && graphic is not FxImage) return;
+            if (!TryFx(graphic, tag, "grayscale", out var fx)) return;
+            fx.Grayscale = value;
+        }
+
+        /// <summary>The author's switch only — never the disabled grey, which is the controller's.</summary>
+        public static bool GetGrayscale(Graphic graphic) => graphic is FxImage fx && fx.Grayscale;
+
         public static void SetGlowColor(Graphic graphic, string tag, string value)
         {
             if (!TryFx(graphic, tag, "glowColor", out var fx)) return;

@@ -9,9 +9,10 @@ namespace PromptUGUI.Controls.Internal
     /// The Image every <c>&lt;Image&gt;</c> and <c>&lt;Icon&gt;</c> is built on (spec 2026-09-02 §5.1).
     /// With nothing written it IS a plain <see cref="UnityEngine.UI.Image"/>: no material of its own
     /// (so uGUI draws it with <c>UI/Default</c> and batches it as before), the base mesh untouched,
-    /// not one extra component. Ask for <c>blur</c> / <c>glow</c> — or a linear tint, or the disabled
-    /// grey — and it takes over its own material the way <see cref="ProceduralPanel"/> does: shared
-    /// per parameter set through <see cref="FxMaterialCache"/>, never one instance per graphic.
+    /// not one extra component. Ask for <c>blur</c> / <c>glow</c> — or a linear tint, or grey (the
+    /// <c>grayscale</c> attribute or the disabled look) — and it takes over its own material the way
+    /// <see cref="ProceduralPanel"/> does: shared per parameter set through
+    /// <see cref="FxMaterialCache"/>, never one instance per graphic.
     ///
     /// <para><b>Why a subclass and not a <see cref="BaseMeshEffect"/>.</b> The quad has to be inflated
     /// BEFORE any other mesh effect runs — <c>GradientTint</c> normalises over the mesh it is handed
@@ -37,7 +38,10 @@ namespace PromptUGUI.Controls.Internal
         private Color _glowColor = Color.white;
         private bool _glowColorExplicit;
         private bool _tintLinear;
-        private bool _grayed;
+        // Two switches, not one (spec 2026-10-06 GS-D2): the disabled controller turning its grey off
+        // must not wash out a grey the author asked for. Either one greys the picture.
+        private bool _grayscale;
+        private bool _disabledGray;
         private float _intensity = IntensityAttrParser.Default;
 
         private FxParams _key;
@@ -132,12 +136,29 @@ namespace PromptUGUI.Controls.Internal
             }
         }
 
+        /// <summary>
+        /// <c>grayscale="true"</c> (spec 2026-10-06): the composite — body and glow — drawn in its
+        /// luminance. The author's switch, kept apart from the disabled grey: either one greys the
+        /// picture, and unlike the disabled one it leaves <see cref="Intensity"/> lit.
+        /// </summary>
+        public bool Grayscale
+        {
+            get => _grayscale;
+            set
+            {
+                if (_grayscale == value) return;
+                _grayscale = value;
+                MarkDirty();
+            }
+        }
+
         /// <summary>The disabled look, folded into the composite so the glow greys with the body.
-        /// Driven by <c>DisabledGrayscaleController</c>; see <see cref="ISelfGrayscale"/>.</summary>
+        /// Driven by <c>DisabledGrayscaleController</c>; see <see cref="ISelfGrayscale"/>. Never
+        /// touches <see cref="Grayscale"/>.</summary>
         void ISelfGrayscale.SetDisabledGrayscale(bool value)
         {
-            if (_grayed == value) return;
-            _grayed = value;
+            if (_disabledGray == value) return;
+            _disabledGray = value;
             MarkDirty();
             // Flushed eagerly rather than at the next rebuild: the controller drives this from a
             // state subscription (never from inside a rebuild), and a control that goes disabled
@@ -159,7 +180,8 @@ namespace PromptUGUI.Controls.Internal
         internal bool HasGeometryFx => sprite != null && type == Type.Simple && Pad > 0f;
 
         /// <summary>Whether anything at all needs the fx shader.</summary>
-        internal bool HasMaterialFx => HasGeometryFx || _tintLinear || _grayed || _intensity > 1f;
+        internal bool HasMaterialFx =>
+            HasGeometryFx || _tintLinear || _grayscale || _disabledGray || _intensity > 1f;
 
         internal bool HasKeyForTests => _hasKey;
         internal FxParams KeyForTests => _key;
@@ -370,15 +392,16 @@ namespace PromptUGUI.Controls.Internal
             // entries that render identically.
             var geometry = HasGeometryFx;
             // Greyed AND lit is a white-hot grey icon that reads as switched on; a disabled control
-            // has to read as inert, so the light goes out while greyed (spec 2026-09-12 §5.5).
+            // has to read as inert, so the light goes out while disabled (spec 2026-09-12 §5.5). An
+            // authored grey keeps it: whoever wrote grayscale and intensity asked for both (GS-D3).
             return new FxParams(
                 geometry ? _blur : 0f,
                 geometry ? _glow : 0f,
                 _glowColor,
                 !_glowColorExplicit,
                 _tintLinear,
-                _grayed,
-                _grayed ? IntensityAttrParser.Default : _intensity);
+                _grayscale || _disabledGray,
+                _disabledGray ? IntensityAttrParser.Default : _intensity);
         }
 
         /// <summary>

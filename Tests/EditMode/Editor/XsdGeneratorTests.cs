@@ -87,6 +87,17 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Image_and_Icon_list_grayscale_as_a_boolean()
+        {
+            // The hand-written-list trap once more (see intensity above): one per tag, typed like
+            // raycastTarget so authoring tools offer true / false.
+            var xsd = XsdGenerator.Generate(new ControlRegistry());
+            var count = System.Text.RegularExpressions.Regex.Matches(
+                xsd, "name=\"grayscale\" type=\"xs:boolean\"").Count;
+            Assert.AreEqual(2, count, "Image and Icon each spell grayscale out");
+        }
+
+        [Test]
         public void Image_and_Icon_list_their_blur_and_glow_attributes()
         {
             // Same hand-written-list trap as rotation / flip above: authoring tools validate against
