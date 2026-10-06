@@ -54,10 +54,11 @@
 
 **Files:** `Runtime/Core/Lint/ImageFxRules.cs`；`Tests/EditMode/Lint/ImageFxRulesTests.cs`
 
-- [ ] 红：spec §5 的 12–15
-- [ ] 实现：`CheckTag` 认 `grayscale`（按标签给提示）；`CheckImage` 的 CLI 分支加 `PUI-FX-VALUE`
-- [ ] `dotnet run --project .lint/UIXmlLint -- Runtime/Resources/` 无新增发现；对一份写错的临时文件确认报出
-- [ ] 提交 `feat(lint): grayscale on a tag that drops it, and a value that is not a bool`
+- [x] 红：spec §5 的 12–15（15 条因规则不认 `grayscale` 失败；守护性的 44 条照常绿）
+- [x] 实现：`CheckTag` 认 `grayscale`（按标签给提示）；`CheckImage` 的 CLI 分支加 `PUI-FX-VALUE`；lint 相关 5 个类 197/197
+- [x] `dotnet run --project .lint/UIXmlLint -- Runtime/Resources/` 无发现（8 个文件）；临时文件确认：错标签 4 种提示、
+  `""` / `yes` 报 `PUI-FX-VALUE`、无基值的变体由 `PUI-VARIANT-NO-BASE` 接住、模板参数在调用点不报而经参数传入的坏值在展开遍报出
+- [x] 提交 `feat(lint): grayscale on a tag that drops it, and a value that is not a bool`
 
 ## Task 5：skills（spec §3.7）
 
