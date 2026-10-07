@@ -10,6 +10,13 @@
 
 **Relative `*Modulate`** (`hoverModulate` / `pressedModulate` / `selectedModulate` / `disabledModulate`) is a **relative multiplier** (Godot `modulate` semantics: white = identity, the normal uGUI ColorTint model). It fans out to the bg **and every descendant Graphic** (label, icons, nested images), switching the control off uGUI's built-in ColorTint, and the tint **fades** over ~0.1s (after the first frame; see [First-frame establishment](#first-frame-establishment)). `*Modulate` is **solid-only** — a gradient value is a parse error (lint `PUI-GRADIENT-MODULATE`); use `*Color` when you need a per-state gradient.
 
+**Where the multiplier lives.** It is applied on each graphic's **CanvasRenderer colour** — the layer uGUI's own ColorTint uses, multiplied into the vertex colours at batch time — and is **never written into the graphic's own colour**. So a descendant keeps whatever colour it is given — its `color=`, a Variant, a theme, or C# (`Text.Color = …`, `btn.TextColor = …`) — and a hover / press only dims it; the colour comes back unchanged on release. Consequences worth knowing:
+
+- The fade runs on **unscaled time**: it still plays in a pause menu at `Time.timeScale = 0`.
+- A modulate fades even on a **gradient**-coloured graphic (the gradient itself is never touched; only `*Color` absolutes snap into / out of a gradient).
+- A TMP label's fallback-font / inline-sprite glyphs (TMP sub-meshes — any CJK text) dim with the rest.
+- A graphic another uGUI Selectable already tints through that same layer is **left to it**: the handle of a `<Slider>` nested in a modulated `<Btn>`, an `<InputField>`'s bg. (A nested `<Btn>` / `<Tab>` / `<Toggle>` is a fan-out boundary anyway.)
+
 They compose: per state, `displayed = (absolute ?? color) × (modulate ?? white)`.
 
 A surface with `intensity` (spec 2026-09-12) is lit *before* the modulate: `*Modulate` darkens the lit result, exactly as it darkens an unlit one. There is no per-state intensity (`hoverIntensity` is not a thing) — for "brighter on hover" layer a lit twin under `<Show on="state-hover">`, the same way as any other procedural parameter. Disabled switches the light off regardless of `disabledColor` / `disabledModulate`.
@@ -35,12 +42,13 @@ The state a control is **first shown in** is applied **instantly**, never faded 
 
 - Distinct from `tint` (which picks the multiply-vs-linear-light **material**) and `color` (the base bg colour). All three compose.
 - `interactable="false"` on the Btn also sets `Button.interactable=false`, so it enters the Disabled state — `disabledColor` / `disabledModulate` apply and `state-disabled` fires (on top of the existing CanvasGroup raycast block; the two compose).
-- Variant-overridable like any `[UIAttr]` colour (the reactor re-resolves on ReSolve; the captured base colour is never re-captured).
+- Variant-overridable like any `[UIAttr]` colour (the reactor re-resolves on ReSolve).
+- A colour set from C# lasts through every later state change: a descendant's (`Text.Color`, `Image.Color`, `btn.TextColor`, `toggle.CheckmarkColor`) because the state visuals never write it, and the control's own bg (`btn.Color`, `tab.Color`, `toggle.Color`, `collapsible.HeaderColor`) because it becomes the base that `hoverColor` / `selectedColor` / … return to. A ReSolve still replays a colour **declared** in the XML over it — see the C# skill, *Colours set from code*.
 - For per-state **absolute** recolouring of multiple graphics (not just the bg), use `<Show>` instead — `*Color` is bg-only by design (painting the label the same colour as bg makes it invisible).
 
 ### Default disabled appearance (grayscale)
 
-When a `<Btn>` / `<Tab>` / `<Toggle>` enters the Disabled state and **no** `disabledColor`, `disabledModulate`, or `disabledSprite` (Btn only) is authored, the entire control — background sprite, labels, icons — is desaturated to **true grayscale** automatically. This is a shader-based luminance desaturation (not a colour multiply), so it produces a neutral grey regardless of the original colour. Authors write nothing on child nodes; the effect fans out to the whole control subtree with the same pruning as `*Modulate`: `stateReact="false"` subtrees are skipped, and nested `<Btn>` / `<Tab>` / `<Toggle>` controls are pruned (they manage their own disabled appearance).
+When a `<Btn>` / `<Tab>` / `<Toggle>` enters the Disabled state and **no** `disabledColor`, `disabledModulate`, or `disabledSprite` (Btn only) is authored, the entire control — background sprite, labels, icons — is desaturated to **true grayscale** automatically. This is a shader-based luminance desaturation (not a colour multiply), so it produces a neutral grey regardless of the original colour. Text is greyed on its generated glyphs (rich-text `<color>` and vertex gradients included), never by rewriting the label's colour — so a label's colour, including one set from C# while the control is disabled, is intact when the control comes back. Authors write nothing on child nodes; the effect fans out to the whole control subtree with the same pruning as `*Modulate`: `stateReact="false"` subtrees are skipped, and nested `<Btn>` / `<Tab>` / `<Toggle>` controls are pruned (they manage their own disabled appearance).
 
 **Overriding the default.** Writing any of the following replaces the grayscale default with the authored path instead:
 
@@ -95,19 +103,19 @@ Note: an authored `disabledSprite=` also switches the Btn off ColorTint (same `O
 In short: write `pressedSprite=""` or `pressedSprite="none"` to explicitly disable the built-in fallback and keep the default skin unchanged on press.
 
 **On a procedural surface, `*Color` and `*Modulate` land in two different places.** A panel keeps its
-authored look in its **material** and treats `Graphic.color` as a **multiplier** (`col *= IN.color`)
+authored look in its **material** and treats its vertex colour as a **multiplier** (`col *= IN.color`)
 — the split that lets every panel sharing a style share one material and keep batching. So:
 
 - `*Color` (absolute) drives the panel's **fill**, and stays genuinely absolute. On glass this moves
   the pane's own tint, which is what "hover changes the colour" has to mean there.
-- `*Modulate` (relative) stays on `Graphic.color`, exactly as it does on an Image.
+- `*Modulate` (relative) is the CanvasRenderer multiplier, exactly as it is on an Image.
 - A **descendant** that is itself a procedural panel — an accent `<Frame color=>`, a hollow border-only `<Frame>` — keeps its own fill. The fan-out writes only the multiplier onto it; absolutes and the selected base never reach it (they are the control's own fill).
 
 One consequence worth knowing: **an absolute change snaps instead of fading** on a procedural
 surface. The fill is a material parameter, and tweening it per frame would mint a material per frame
 through the shared cache; state changes are discrete, so the cache sees one entry per state instead.
-`*Modulate` still fades — it is pure vertex colour. If you want a fading hover on a glass control,
-reach for `hoverModulate` rather than `hoverColor`.
+`*Modulate` still fades — it never touches the material. If you want a fading hover on a glass
+control, reach for `hoverModulate` rather than `hoverColor`.
 
 **State SPRITES are not available on a procedural surface.** All three are `Image.overrideSprite` swaps, and a control
 drawing procedurally (`<Btn radius=…>` / `glass=…`, see the main SKILL) has no Image showing — the
@@ -119,7 +127,7 @@ inside (and glass also thins) rather than by a material swap, so the shape survi
 
 **Reversible.** The ColorTint switch is *computed* from what is currently in play, not latched: clearing `pressedSprite` / `disabledSprite` / `selectedSprite` (a Variant flip, a theme switch, a runtime assignment) hands interaction feedback back to uGUI's ColorTint — unless a `*Color` / `*Modulate` / `selectedColor` is still installed, in which case the reactors keep ownership and ColorTint stays off. Without this the control would be left with **no** feedback at all and no attribute the author could write to get it back.
 
-**The base colour is reversible too.** A control that declares any `*Color` / `*Modulate` / `selectedColor` hands its bg to a state reactor, and the reactor's *base* — what it paints at rest — is read from the control's live `color=` declaration on every apply. So `color.mobile=` and a theme's `<Style color=>` reach a `<Btn hoverColor=>` / `<Tab selectedColor=>` / `<Toggle>` exactly like they reach a plain `<Image>`. What the reactor never does is read the base back off the graphic: mid-hover the graphic is showing the *tint*, and adopting that would bake the hover colour in permanently. A control that declares no `color=` at all keeps its built-in bg colour as the base.
+**The base colour is reversible too.** A control that declares any `*Color` / `*Modulate` / `selectedColor` hands its bg to a state reactor, and the reactor's *base* — what it paints at rest — is read from the control's live `color=` declaration on every apply. So `color.mobile=` and a theme's `<Style color=>` reach a `<Btn hoverColor=>` / `<Tab selectedColor=>` / `<Toggle>` exactly like they reach a plain `<Image>`, and a `Color` set from C# becomes the base at once (a hovered control keeps showing its `hoverColor` until released). What the reactor never does is read the base back off the graphic: mid-hover the graphic is showing the *tint*, and adopting that would bake the hover colour in permanently. A control that declares no `color=` at all keeps its built-in bg colour as the base.
 
 ## 3. State-triggered animation — `<Trigger>` / `<Animation on="state-...">`
 
