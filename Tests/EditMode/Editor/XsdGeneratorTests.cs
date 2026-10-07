@@ -157,6 +157,18 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Generated_file_uses_LF_line_endings()
+        {
+            // XmlWriter breaks lines with Environment.NewLine unless told otherwise — CRLF on
+            // Windows — while the repo keeps text files LF (.gitattributes eol=lf).
+            var path = Path.Combine(UnityEngine.Application.temporaryCachePath, "test-eol.gen.xsd");
+            XsdGenerator.GenerateToFile(new ControlRegistry(), path, System.Array.Empty<string>());
+            var content = File.ReadAllText(path);
+            StringAssert.Contains("\n", content);
+            StringAssert.DoesNotContain("\r", content);
+        }
+
+        [Test]
         public void Icon_element_present_in_xsd()
         {
             var r = new ControlRegistry();

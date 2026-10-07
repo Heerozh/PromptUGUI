@@ -60,6 +60,9 @@ namespace PromptUGUI.Editor
             {
                 Indent = true,
                 IndentChars = "  ",
+                // Default is Environment.NewLine (CRLF on Windows); the repo keeps text files LF.
+                NewLineChars = "\n",
+                NewLineHandling = NewLineHandling.Replace,
                 Encoding = new UTF8Encoding(false),
                 OmitXmlDeclaration = false,
             };
