@@ -110,7 +110,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(Color.black, tint.EndColor, "base gradient bottom restored");
         }
 
-        // 3. Gradient base × solid pressedModulate — both stops are halved.
+        // 3. Gradient base × solid pressedModulate — both stops are halved. The gradient itself stays
+        // as authored; the multiplier sits on the CanvasRenderer, which multiplies every vertex.
         [Test]
         public void GradientBase_SolidPressedModulate_MultipliesBothStops()
         {
@@ -123,9 +124,14 @@ namespace PromptUGUI.Tests.EditMode.Controls
             pui.SimulateState(Pressed); // -> Pressed: gradient × 0.5
             Assert.IsTrue(tint.enabled, "gradient stays enabled under solid modulate");
             var half = 0x80 / 255f; // ~0.5019608
+            var multiplier = bg.canvasRenderer.GetColor();
+            AssertColorApprox(tint.StartColor, Color.white, 3f / 255f, "the authored stops are untouched (top)");
+            AssertColorApprox(tint.EndColor, Color.black, 3f / 255f, "the authored stops are untouched (bottom)");
             // white × 0.5 = (half,half,half); black × 0.5 = (0,0,0). ±3 bytes ≈ 0.012 tolerance.
-            AssertColorApprox(tint.StartColor, new Color(half, half, half, 1f), 3f / 255f, "top = white × grey");
-            AssertColorApprox(tint.EndColor, new Color(0f, 0f, 0f, 1f), 3f / 255f, "bottom = black × grey");
+            AssertColorApprox(tint.StartColor * multiplier, new Color(half, half, half, 1f), 3f / 255f,
+                "top = white × grey");
+            AssertColorApprox(tint.EndColor * multiplier, new Color(0f, 0f, 0f, 1f), 3f / 255f,
+                "bottom = black × grey");
         }
 
         // 4. Gradient selectedColor on a Tab (selection base) — active tab shows the gradient at rest.

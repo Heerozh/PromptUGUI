@@ -35,18 +35,20 @@ namespace PromptUGUI.Tests.EditMode.Controls
         private static PromptUGUI.Controls.Internal.PuiButton PuiOf(Btn b)
             => b.GameObject.GetComponent<PromptUGUI.Controls.Internal.PuiButton>();
 
-        private static Color Gray(Color c)
-        {
-            var l = c.r * 0.299f + c.g * 0.587f + c.b * 0.114f;
-            return new Color(l, l, l, c.a);
-        }
-
         private static void AssertColorEq(Color expected, Color actual)
         {
             Assert.That(actual.r, Is.EqualTo(expected.r).Within(0.001f), "r");
             Assert.That(actual.g, Is.EqualTo(expected.g).Within(0.001f), "g");
             Assert.That(actual.b, Is.EqualTo(expected.b).Within(0.001f), "b");
             Assert.That(actual.a, Is.EqualTo(expected.a).Within(0.001f), "a");
+        }
+
+        // 文字的灰落在生成出的字形顶点上（不写 tmp.color），所以读网格。
+        private static Color32 FirstVertex(TMPro.TMP_Text tmp)
+        {
+            tmp.ForceMeshUpdate();
+            Assume.That(tmp.textInfo.characterCount, Is.GreaterThan(0), "guard: 生成了字形");
+            return tmp.textInfo.meshInfo[0].colors32[0];
         }
 
         [Test]
@@ -56,14 +58,18 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var bg = BgOf(btn);
             var label = LabelOf(btn);
             var labelBase = label.color;
+            var lit = FirstVertex(label);
             var pui = PuiOf(btn);
 
             pui.SimulateState(Disabled);
             Assert.AreEqual("UI/Grayscale", bg.material.shader.name, "bg 应换成灰度材质");
-            AssertColorEq(Gray(labelBase), label.color);
+            Assert.AreEqual(PromptUGUI.Controls.Internal.DisabledGrayscaleController.Desaturate(lit),
+                FirstVertex(label), "label 的字形顶点去色");
+            AssertColorEq(labelBase, label.color); // 灰不写进文字自己的颜色
 
             pui.SimulateState(Normal);
             Assert.AreEqual(bg.defaultMaterial, bg.material, "还原回默认材质");
+            Assert.AreEqual(lit, FirstVertex(label), "label 顶点还原");
             AssertColorEq(labelBase, label.color);
         }
 
@@ -251,6 +257,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var btn = BuildBtn();
             var label = (TMPro.TextMeshProUGUI)LabelOf(btn);
             var labelBase = label.color;
+            var lit = FirstVertex(label);
             var shared = new Material(label.fontSharedMaterial) { name = "fallback (shared)" };
             var sub = TMPro.TMP_SubMeshUI.AddSubTextObject(label,
                 new TMPro.MaterialReference(1, label.font, null, shared, 0f));
@@ -260,10 +267,12 @@ namespace PromptUGUI.Tests.EditMode.Controls
             UI.NotifyVariantChangedForReSolve();
             Assert.AreSame(shared, sub.sharedMaterial, "ReSolve 不能读 TMP_SubMeshUI.material（它会克隆实例换掉共享材质）");
 
-            // 禁用：父 label 走颜色去色，子网格不换灰度材质
+            // 禁用：父 label 走顶点去色，子网格不换灰度材质
             PuiOf(btn).SimulateState(Disabled);
             Assert.AreSame(shared, sub.sharedMaterial, "禁用去色不能把 SDF 子网格的材质换成 UI-Grayscale");
-            AssertColorEq(Gray(labelBase), label.color); // label 自身照旧走颜色路径
+            Assert.AreEqual(PromptUGUI.Controls.Internal.DisabledGrayscaleController.Desaturate(lit),
+                FirstVertex(label), "label 自身照旧去色（顶点上）");
+            AssertColorEq(labelBase, label.color);
             PuiOf(btn).SimulateState(Normal);
             Assert.AreSame(shared, sub.sharedMaterial);
 

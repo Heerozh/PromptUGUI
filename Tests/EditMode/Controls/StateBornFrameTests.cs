@@ -79,11 +79,13 @@ namespace PromptUGUI.Tests.EditMode.Controls
             // Drive Pressed in the SAME frame the control was built — must SNAP, not fade.
             puiBtn.SimulateState(Pressed);
 
-            Assert.That(bg.color.g, Is.EqualTo(expected.g).Within(0.001f),
+            // Shown = the bg's own colour × the CanvasRenderer multiplier the modulate drives.
+            var shown = bg.color * bg.canvasRenderer.GetColor();
+            Assert.That(shown.g, Is.EqualTo(expected.g).Within(0.001f),
                 "born-frame Pressed modulate must snap to base*#808080 (g), not stay at the base mid-fade");
-            Assert.That(bg.color.r, Is.EqualTo(expected.r).Within(0.001f),
+            Assert.That(shown.r, Is.EqualTo(expected.r).Within(0.001f),
                 "born-frame Pressed modulate must snap (r)");
-            Assert.That(bg.color.b, Is.EqualTo(expected.b).Within(0.001f),
+            Assert.That(shown.b, Is.EqualTo(expected.b).Within(0.001f),
                 "born-frame Pressed modulate must snap (b)");
         }
     }

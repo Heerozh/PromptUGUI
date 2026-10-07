@@ -56,15 +56,19 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             Assert.IsTrue(sp.GameObject.activeSelf, "pressed Show shown when pressed");
 
             yield return new WaitForSeconds(0.2f);
-            AssertColorsEqual(bgBase * Half, bg.color, "pressed bg tint settles at base * #808080");
+            AssertColorsEqual(bgBase * Half, Shown(bg), "pressed bg tint settles at base * #808080");
 
             pt.SimulateState(Normal);
             Assert.IsTrue(sn.GameObject.activeSelf, "normal Show active again after release");
             Assert.IsFalse(sp.GameObject.activeSelf, "pressed Show hidden again after release");
 
             yield return new WaitForSeconds(0.2f);
-            AssertColorsEqual(bgBase, bg.color, "bg tint reverts to base after returning to Normal/Selected (white)");
+            AssertColorsEqual(bgBase, Shown(bg), "bg tint reverts to base after returning to Normal/Selected (white)");
         }
+
+        // What reaches the screen: the bg's own colour times the CanvasRenderer multiplier the
+        // modulate drives.
+        private static Color Shown(UnityEngine.UI.Graphic g) => g.color * g.canvasRenderer.GetColor();
 
         // Two tabs (auto-select + allowSwitchOff=false) so selection can move off 'a'. Proves the
         // Selected resting-baseline + Normal-fallback end-to-end with real instantiation.

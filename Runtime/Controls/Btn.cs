@@ -23,6 +23,7 @@ namespace PromptUGUI.Controls
         private UnityImage.Type _baseType;
         private Sprite _disabledSprite;
         private IDisposable _stateSpriteSub;
+        private StateTintReactor _bgReactor;
 
         // Absolute per-state bg colours (set targetGraphic). Resolved in OnAfterApply.
         private string _hoverColor;
@@ -116,7 +117,7 @@ namespace PromptUGUI.Controls
             _offsetHolder = StateOffsetInstaller.Install(GameObject, _offsetHolder, new StateOffsetSet(_pressedOffset, null));
             var abs = StateColorSet.ResolveAbsolutes(_hoverColor, _pressedColor, null, _disabledColor);
             var mod = StateColorSet.ResolveModulates(_hoverModulate, _pressedModulate, null, StateColorSet.NoneToNull(_disabledModulate));
-            var bgReactor = StateTintInstaller.Install(GameObject, _btn, Children, abs, mod,
+            _bgReactor = StateTintInstaller.Install(GameObject, _btn, Children, abs, mod,
                 authoredBase: AuthoredBase());
             // A pressed/disabled sprite is itself a state visual: drop uGUI's built-in ColorTint so
             // the swapped image isn't double-darkened. COMPUTED, not set one-way — clearing the
@@ -129,7 +130,7 @@ namespace PromptUGUI.Controls
             // with the surface, so it is computed here rather than latched.
             var stateSpriteShows = !SurfaceIsDrawing
                                    && (_pressedSprite != null || _disabledSprite != null);
-            _btn.transition = bgReactor != null || stateSpriteShows
+            _btn.transition = _bgReactor != null || stateSpriteShows
                 ? UnityEngine.UI.Selectable.Transition.None
                 : UnityEngine.UI.Selectable.Transition.ColorTint;
             // 默认禁用外观：作者未声明任何 disabled* 时整控件去色。与 transition 无关（ColorTint/None 皆可）。
@@ -216,6 +217,9 @@ namespace PromptUGUI.Controls
                 // §7: color is the fill in BOTH modes. Handing it to the surface as well costs
                 // nothing when there is no surface and keeps the two in step when there is.
                 Surface.SetFill(spec);
+                // Written by code: the state reactor's base has to follow, or the next hover returns
+                // the bg to the colour declared at build. Inside a pass OnAfterApply hands it over.
+                if (!InApplyPass) _bgReactor?.SetBase(spec);
             }
         }
 

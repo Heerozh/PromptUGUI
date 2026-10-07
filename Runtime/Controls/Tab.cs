@@ -352,6 +352,8 @@ namespace PromptUGUI.Controls
                 var spec = UI.Theme.ResolveSpec(value);
                 Internal.ColorApplier.Apply(_bg, spec);
                 Surface.SetFill(spec);
+                // Written by code: the reactor's base follows (see Btn.Color).
+                if (!InApplyPass) _bgReactor?.SetBase(spec);
             }
         }
 

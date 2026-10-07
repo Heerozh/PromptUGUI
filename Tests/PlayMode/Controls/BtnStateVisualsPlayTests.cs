@@ -82,7 +82,7 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             // 0.2s >> 0.1s fade: assert the SETTLED endpoint, not a mid-tween value.
             yield return new WaitForSeconds(0.2f);
 
-            AssertColorsEqual(bgBase * Half, bg.color, "pressed bg tint should settle at base * #808080");
+            AssertColorsEqual(bgBase * Half, Shown(bg), "pressed bg tint should settle at base * #808080");
 
             // ---- Drive Normal and assert the tint reverts to base + artwork swaps back ----
             puiBtn.SimulateState(Normal);
@@ -92,7 +92,7 @@ namespace PromptUGUI.Tests.PlayMode.Controls
 
             yield return new WaitForSeconds(0.2f);
 
-            AssertColorsEqual(bgBase, bg.color, "bg tint should revert to base after returning to Normal");
+            AssertColorsEqual(bgBase, Shown(bg), "bg tint should revert to base after returning to Normal");
         }
 
         [UnityTest]
@@ -121,7 +121,7 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             // Sample ~halfway through the 0.1s fade. WaitForSeconds yields until at least the
             // requested real time has elapsed, so 0.04s lands inside (0, 0.1) for the tween.
             yield return new WaitForSeconds(0.04f);
-            var mid = bg.color;
+            var mid = Shown(bg);
 
             // Mid value must have moved off base toward target on the green channel (the most
             // significant change for a grey multiplier) but not yet reached the target.
@@ -134,8 +134,12 @@ namespace PromptUGUI.Tests.PlayMode.Controls
 
             // And it still settles at the target after the full window.
             yield return new WaitForSeconds(0.2f);
-            AssertColorsEqual(bgTarget, bg.color, "bg should settle at target after the fade window");
+            AssertColorsEqual(bgTarget, Shown(bg), "bg should settle at target after the fade window");
         }
+
+        // What reaches the screen: the bg's own colour times the CanvasRenderer multiplier the
+        // modulate drives.
+        private static Color Shown(UnityEngine.UI.Graphic g) => g.color * g.canvasRenderer.GetColor();
 
         private static void AssertColorsEqual(Color expected, Color actual, string msg)
         {

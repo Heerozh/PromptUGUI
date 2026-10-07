@@ -40,10 +40,14 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var half = new Color(0.5019608f, 0.5019608f, 0.5019608f, 1f);
             var bgBase = bg.color;   // no selectedColor set => Selected multiplier is white => base
             pt.SimulateState(Pressed);
-            Assert.That(bg.color.r, Is.EqualTo((bgBase * half).r).Within(0.001f));
+            Assert.That(Shown(bg).r, Is.EqualTo((bgBase * half).r).Within(0.001f));
             pt.SimulateState(Normal);
-            Assert.That(bg.color.r, Is.EqualTo(bgBase.r).Within(0.001f));
+            Assert.That(Shown(bg).r, Is.EqualTo(bgBase.r).Within(0.001f));
         }
+
+        // What reaches the screen: the graphic's own colour times the CanvasRenderer multiplier
+        // *Modulate drives.
+        private static Color Shown(Graphic g) => g.color * g.canvasRenderer.GetColor();
 
         // Two tabs: auto-select + allowSwitchOff=false means we drive tab 'a' to a known Normal
         // baseline via its sibling before activating it.
@@ -65,9 +69,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var half = new Color(0.5019608f, 0.5019608f, 0.5019608f, 1f);
 
             b.IsOn = true;                       // a -> Normal (untinted base)
-            var aBase = bgA.color;
+            var aBase = Shown(bgA);
             a.IsOn = true;                       // a -> Selected (active at rest)
-            Assert.That(bgA.color.r, Is.EqualTo((aBase * half).r).Within(0.001f),
+            Assert.That(Shown(bgA).r, Is.EqualTo((aBase * half).r).Within(0.001f),
                 "active tab bg gets selectedModulate multiplier at rest");
         }
 

@@ -8,23 +8,32 @@ using UnityEngine.UI;
 namespace PromptUGUI.Controls.Internal
 {
     /// <summary>
-    /// Drives a single <see cref="Graphic"/>'s colour from the owning <see cref="IStateSource"/>'s
-    /// <see cref="InteractState"/> stream. On each state it tweens the graphic toward
-    /// <c>(absolute ?? selectionBase) × (modulate ?? white)</c>, where <c>selectionBase</c> is the
-    /// selected base (Tab/Toggle <c>selectedColor</c>) while the source is selected, else the captured
-    /// base colour. Absolutes and the selected base are applied only to the control's
-    /// <c>targetGraphic</c>; modulates fan out to every descendant graphic.
+    /// Drives a single <see cref="Graphic"/> from the owning <see cref="IStateSource"/>'s
+    /// <see cref="InteractState"/> stream, on two layers that never mix:
+    /// <list type="bullet">
+    /// <item>the <b>fill</b> — <c>absolute ?? selectionBase</c>, where <c>selectionBase</c> is the
+    /// selected base (Tab/Toggle <c>selectedColor</c>) while the source is selected, else the base
+    /// colour. Only the control's <c>targetGraphic</c> has one; it is <see cref="Graphic.color"/> on
+    /// an Image and the panel's fill on a procedural surface.</item>
+    /// <item>the <b>multiplier</b> — <c>modulate ?? white</c>, on the graphic's
+    /// <see cref="CanvasTint">CanvasRenderer colour</see>. Every reactor has one: the targetGraphic and
+    /// each fan-out descendant.</item>
+    /// </list>
+    /// What reaches the screen is the product, which the batcher forms.
     /// </summary>
     /// <remarks>
-    /// The base (authored) colour comes from the owning control's live <c>color=</c> declaration,
-    /// pushed in through <see cref="Configure"/>. It is NOT re-read off the graphic: on a
-    /// re-<see cref="Configure"/> (a Variant / theme / resize ReSolve) the graphic may be showing a
-    /// TINT — the control is hovered — and promoting that would bake the hover colour in for good.
-    /// Peeking the graphic stays the fallback, captured once, for a graphic nobody authored a colour
-    /// for (a control's built-in bg, or a descendant that only carries the modulate fan-out).
-    /// A state with no absolute and no modulate returns the graphic to its base colour. Base/absolute/selected colours may be gradients (landed via
-    /// <see cref="ColorApplier"/>); a transition with a gradient endpoint snaps instead of fading
-    /// (no Color-lerp for a vertex gradient — see <c>OnState</c>). Modulates stay solid.
+    /// <para>A fan-out reactor never writes <see cref="Graphic.color"/>: that colour belongs to whoever
+    /// set it — the descendant's own <c>color=</c>, a Variant, a theme, or code — and keeping a copy of
+    /// it here (multiplied, written back on every state change) is how a hover used to undo all of
+    /// them.</para>
+    /// <para>The fill's base comes from the owning control's live <c>color=</c> declaration, pushed in
+    /// through <see cref="Configure"/> and, for a write from code, <see cref="SetBase"/>. It is NOT
+    /// re-read off the graphic: mid-hover the graphic shows the hover ABSOLUTE, and promoting that would
+    /// bake it in for good. Peeking the graphic stays the fallback, taken once, for a control that
+    /// declares no colour (its built-in bg).</para>
+    /// <para>Base/absolute/selected colours may be gradients (landed via <see cref="ColorApplier"/>); a
+    /// fill transition with a gradient endpoint snaps instead of fading (no Color-lerp for a vertex
+    /// gradient). Modulates are solid, so the multiplier always fades.</para>
     /// </remarks>
     internal sealed class StateTintReactor : MonoBehaviour
     {
@@ -37,6 +46,10 @@ namespace PromptUGUI.Controls.Internal
         /// is the per-instance <see cref="_fade"/> (0.1f). Never set outside tests.
         /// </summary>
         internal static bool TestForceInstant;
+
+        // Interaction feedback runs on the UI's clock, not the game's: a pause menu at timeScale 0
+        // still has to answer a hover (uGUI's own ColorTint ignores timeScale for the same reason).
+        private static readonly IMotionScheduler Clock = MotionScheduler.UpdateIgnoreTimeScale;
 
         private Graphic _graphic;
         private ProceduralPanel _panel;     // non-null ⇒ the target draws procedurally
@@ -53,28 +66,17 @@ namespace PromptUGUI.Controls.Internal
 
         private IStateSource _source;
         private IDisposable _sub;
-        private MotionHandle _handle;
+        private MotionHandle _fillMotion;
+        private MotionHandle _tintMotion;
 
         private void EnsureInit()
         {
             if (_graphic != null) return;
             _graphic = GetComponent<Graphic>();
             _panel = _graphic as ProceduralPanel;
-            if (_graphic != null)
-            {
-                // Fallback capture: only for a graphic whose owner pushed no authored colour.
-                if (!_baseCaptured)
-                {
-                    _baseColor = ColorApplier.Peek(_graphic);
-                    _baseCaptured = true;
-                }
-                // Stamped unconditionally, and NOT inside the capture above — a control that
-                // declares color= arrives with _baseCaptured already true, and hanging the stamp off
-                // that would leave _bornFrame unset. The born-frame gate would then never fire and a
-                // Tab declared isOn="true" would tween toward its selectedColor instead of showing
-                // it on frame 1. This runs once: EnsureInit returns early once _graphic is set.
-                _bornFrame = BornFrame.Capture();   // first init = the build frame
-            }
+            // Stamped once, on first init = the build frame. A Tab declared isOn="true" must show its
+            // selectedColor on frame 1 instead of fading into it. See BornFrame.
+            if (_graphic != null) _bornFrame = BornFrame.Capture();
 
             // includeInactive: the source control may be on a TabBar-bound page that is hidden
             // (SetActive(false)) at Open — without this the *Modulate fan-out would silently never
@@ -88,21 +90,19 @@ namespace PromptUGUI.Controls.Internal
         /// (Re)set the per-state absolute overrides + relative multipliers + fade, and the authored
         /// base. Safe to call repeatedly (Variant / theme / resize ReSolve): pass the control's
         /// current <c>color=</c> as <paramref name="authoredBase"/> and the base follows it; pass
-        /// null and the first-init Peek stands.
+        /// null and the first peek stands.
         /// </summary>
         /// <param name="ownsFill">
         /// True for the control's <c>targetGraphic</c>, whose base / absolutes / selected base ARE its
-        /// fill. False for a fan-out reactor on a descendant: that graphic's fill (a child
-        /// <c>&lt;Frame color=&gt;</c>, or none at all for a hollow border Frame) belongs to its own
-        /// control and is never rewritten here — only the multiplier lands on it.
+        /// fill. False for a fan-out reactor on a descendant: that graphic's colour belongs to its own
+        /// control and is never written here — only the multiplier lands on it.
         /// </param>
         public void Configure(StateColorSet absolutes, StateColorSet modulates, float fade,
             ColorSpec? selectedBase = null, bool selected = false, ColorSpec? authoredBase = null,
             bool ownsFill = true)
         {
             _ownsFill = ownsFill;
-            // The declaration wins over the pixels. Marking it captured also makes EnsureInit skip
-            // its Peek on first init — the authored value is already the right answer there.
+            // The declaration wins over the pixels. Marking it captured also skips the fallback peek.
             if (authoredBase.HasValue)
             {
                 _baseColor = authoredBase.Value;
@@ -136,27 +136,40 @@ namespace PromptUGUI.Controls.Internal
             // state tint (e.g. a Selected tab's selectedColor) silently vanishes on the next resize.
             // First install is already painted by the subscription replay above, so only repaint here.
             if (!firstInit && _source != null)
-                OnState(_source.Current);
+                Paint(_source.Current, instant: false);
         }
 
         /// <summary>
-        /// Stops driving this graphic and leaves it exactly as it is.
+        /// A new base written from code (<c>btn.Color = …</c>) between attribute passes. The control's
+        /// setter has already put it on the graphic; this makes it the colour the fill returns to, and
+        /// re-asserts the current state over it — a hovered control keeps showing its hoverColor.
+        /// </summary>
+        internal void SetBase(in ColorSpec spec)
+        {
+            _baseColor = spec;
+            _baseCaptured = true;
+            if (_source != null && _graphic != null) PaintFill(StateOf(_source.Current), instant: true);
+        }
+
+        /// <summary>
+        /// Stops driving this graphic: the fill is left exactly as it is, the multiplier goes back to
+        /// identity — nothing else would ever clear it.
         ///
         /// <para>Called when the control's <c>targetGraphic</c> moves elsewhere — a procedural
-        /// surface taking over from the Image it retires. The reactor that used to own the Image is
-        /// still subscribed to the state stream, and on the next hover it writes the old theme's
-        /// colour back over the retirement: the Image reappears at full alpha in the previous skin's
-        /// colour, drawn as a hard rectangle behind the rounded surface. Un-reproducible if you open
-        /// straight into the second skin, which is why it survived until someone switched themes.</para>
+        /// surface taking over from the Image it retires — and when every state colour is gone (a theme
+        /// dropped them; uGUI's ColorTint takes the CanvasRenderer colour back). A reactor still
+        /// subscribed would write its old values over the new owner's on the next hover.</para>
         ///
         /// <para>A later <see cref="Configure"/> re-attaches, so a switch back is symmetric.</para>
         /// </summary>
         internal void Detach()
         {
-            if (_handle.IsActive()) _handle.TryCancel();
+            if (_fillMotion.IsActive()) _fillMotion.TryCancel();
+            if (_tintMotion.IsActive()) _tintMotion.TryCancel();
             _sub?.Dispose();
             _sub = null;
             _source = null;
+            if (_graphic != null) CanvasTint.Set(_graphic, Color.white);
         }
 
         /// <summary>
@@ -169,7 +182,7 @@ namespace PromptUGUI.Controls.Internal
         public void SetSelected(bool on)
         {
             _selected = on;
-            if (_source != null) OnState(_source.Current);
+            if (_source != null) Paint(_source.Current, instant: false);
         }
 
         private Color MultiplierFor(InteractState state) => _modulates.For(state)?.Start ?? Color.white;
@@ -186,32 +199,58 @@ namespace PromptUGUI.Controls.Internal
         /// </summary>
         internal static bool CrossesTransparency(Color from, Color to) => from.a <= 0f || to.a <= 0f;
 
-        private void OnState(InteractState state)
+        // Focus reuses the hover visual (spec §4.3). The composite already folds Focused→Normal in
+        // Pointer mode, so this only fires for an actually-directional-focused control.
+        private static InteractState StateOf(InteractState state)
+            => state == InteractState.Focused ? InteractState.Hover : state;
+
+        private void OnState(InteractState state) => Paint(state, instant: false);
+
+        private void Paint(InteractState state, bool instant)
         {
             if (_graphic == null) return;
-            // Focus reuses the hover visual (spec §4.3). The composite already folds Focused→Normal in
-            // Pointer mode, so this only fires for an actually-directional-focused control.
-            if (state == InteractState.Focused) state = InteractState.Hover;
+            state = StateOf(state);
+            // A change in the born frame (before the first rendered frame — e.g. a modal Configure
+            // hook) snaps, so the control shows its final state on frame 1 instead of fading in from
+            // its base. See BornFrame.
+            instant |= TestForceInstant || _fade <= 0f || BornFrame.IsCurrent(_bornFrame);
+            PaintFill(state, instant);
+            PaintTint(state, instant);
+        }
 
+        private void PaintFill(InteractState state, bool instant)
+        {
+            if (!_ownsFill) return;
+            // The fallback base is taken the first time this reactor paints a fill, not when it is
+            // installed: a graphic can start out as a fan-out descendant and be promoted to target
+            // later (a procedural panel taking over), and only now is its fill the control's.
+            if (!_baseCaptured)
+            {
+                _baseColor = ColorApplier.Peek(_graphic);
+                _baseCaptured = true;
+            }
+
+            var target = BaseFor(state);
+            if (_fillMotion.IsActive()) _fillMotion.TryCancel();
+
+            // A procedural surface keeps its look in its MATERIAL, shared by every panel with the
+            // same style so they batch. The fill is a material parameter: tweening it would mint a
+            // material per frame through ProceduralMaterialCache, so it snaps — state changes are
+            // discrete, and the cache sees one entry per state. (The multiplier still fades.)
             if (_panel != null)
             {
-                ApplyToPanel(state);
+                _panel.SetFill(target);
+                _panel.FlushParams();
                 return;
             }
 
-            var target = BaseFor(state).Multiply(MultiplierFor(state));   // premultiply modulate into both stops
-
-            if (_handle.IsActive()) _handle.TryCancel();
-
             var current = ColorApplier.Peek(_graphic);
+            // Already there — the usual case for a modulate-only state, whose fill is the base.
+            if (current == target) return;
             // Gradients snap: there's no Color-lerp for a vertex gradient. Solid↔solid (non-transparent)
-            // keeps the existing fade. Mirrors the CrossesTransparency snap precedent. A change in the
-            // born frame (before the first rendered frame — e.g. a modal Configure hook) also snaps, so
-            // the control shows its final state on frame 1 instead of fading in from its base. See BornFrame.
-            if (TestForceInstant || _fade <= 0f
-                || target.IsGradient || current.IsGradient
-                || CrossesTransparency(current.Start, target.Start)
-                || BornFrame.IsCurrent(_bornFrame))
+            // fades. Mirrors the CrossesTransparency snap precedent.
+            if (instant || target.IsGradient || current.IsGradient
+                || CrossesTransparency(current.Start, target.Start))
             {
                 ColorApplier.Apply(_graphic, target);
                 return;
@@ -221,60 +260,39 @@ namespace PromptUGUI.Controls.Internal
             // ReSolve 中被 RebuildIndicator 重建）。LitMotion 的逐帧回调靠 Unity 隐式 bool 判空跳过已
             // 销毁的目标，避免写已销毁对象抛 MissingReferenceException（宿主 OnDestroy 的 TryCancel 在
             // Play 模式延迟销毁时存在竞态，不足以独力兜底）。
-            _handle = LMotion.Create(_graphic.color, target.Start, _fade)
+            _fillMotion = LMotion.Create(_graphic.color, target.Start, _fade)
+                .WithScheduler(Clock)
                 .Bind(_graphic, static (c, g) => { if (g) g.color = c; });
         }
 
-        /// <summary>
-        /// A procedural surface splits the two halves instead of premultiplying them, because they
-        /// land in two different places.
-        ///
-        /// <para>The panel's authored look lives in its MATERIAL and <c>Graphic.color</c> is a
-        /// multiplier layered on top (<c>col *= IN.color</c> in the shader) — the split that lets
-        /// every panel sharing a style share one material and keep batching. Premultiplying the way
-        /// an Image needs would apply the base twice: once as the fill, once as the vertex tint, so
-        /// <c>color="#3366ff"</c> renders as its own square. And an "absolute" hoverColor written to
-        /// a multiplier channel is not absolute at all — it darkens whatever is underneath, which on
-        /// glass means tinting the blurred backdrop rather than the pane.</para>
-        ///
-        /// <para>A fan-out reactor on a DESCENDANT panel (<c>_ownsFill</c> false) leaves the fill
-        /// alone entirely: the child's colour is the child's, and absolutes never fan out. Writing
-        /// the peeked base there painted every accent bar and hollow bracket Frame inside a
-        /// <c>&lt;Btn pressedModulate&gt;</c> opaque white.</para>
-        ///
-        /// <para>So: absolutes drive the fill, modulates stay on the vertex colour. The one thing
-        /// lost is the fade on an absolute change — the fill is a material parameter, and tweening it
-        /// per frame would mint a material per frame through <c>ProceduralMaterialCache</c>. State
-        /// changes are discrete and infrequent, so the cache sees one entry per state, not one per
-        /// frame. Modulates still fade, since they are pure vertex colour.</para>
-        /// </summary>
-        private void ApplyToPanel(InteractState state)
+        private void PaintTint(InteractState state, bool instant)
         {
-            if (_handle.IsActive()) _handle.TryCancel();
+            var target = MultiplierFor(state);
+            if (_tintMotion.IsActive()) _tintMotion.TryCancel();
 
-            if (_ownsFill)
+            var current = CanvasTint.Get(_graphic);
+            if (current == target)
             {
-                _panel.SetFill(BaseFor(state));
-                _panel.FlushParams();
+                // Still written: a TMP sub-mesh made since the last write may not have it yet.
+                CanvasTint.Set(_graphic, target);
+                return;
             }
-
-            var multiplier = MultiplierFor(state);
-            var current = _graphic.color;
-            if (TestForceInstant || _fade <= 0f
-                || CrossesTransparency(current, multiplier)
-                || BornFrame.IsCurrent(_bornFrame))
+            if (instant || CrossesTransparency(current, target))
             {
-                _graphic.color = multiplier;
+                CanvasTint.Set(_graphic, target);
                 return;
             }
 
-            _handle = LMotion.Create(current, multiplier, _fade)
-                .Bind(_graphic, static (c, g) => { if (g) g.color = c; });
+            // Same destroyed-target guard as the fill above.
+            _tintMotion = LMotion.Create(current, target, _fade)
+                .WithScheduler(Clock)
+                .Bind(_graphic, static (c, g) => { if (g) CanvasTint.Set(g, c); });
         }
 
         private void OnDestroy()
         {
-            if (_handle.IsActive()) _handle.TryCancel();
+            if (_fillMotion.IsActive()) _fillMotion.TryCancel();
+            if (_tintMotion.IsActive()) _tintMotion.TryCancel();
             _sub?.Dispose();
             _sub = null;
         }
