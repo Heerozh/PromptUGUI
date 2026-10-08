@@ -1,3 +1,4 @@
+using LitMotion;
 using PromptUGUI.Application;
 using PromptUGUI.Controls.Internal;
 using PromptUGUI.Registry;
@@ -18,6 +19,8 @@ namespace PromptUGUI.Controls
         private protected override UnityEngine.UI.Selectable SurfaceSelectable => _toggle;
         private StateTintReactor _bgReactor;
         private UnityImage _checkmark;
+        private CanvasGroup _checkGroup;
+        private MotionHandle _checkFade;
         private PuiToggle _toggle;
         private TMP_Text _label;
         private string _fontType = "default";
@@ -47,6 +50,8 @@ namespace PromptUGUI.Controls
         private const float VerticalPadding = 6f;
         private const float MinTapHeight = 44f;
         private const float DefaultIconOnlySize = 44f;
+        // uGUI Toggle's ToggleTransition.Fade duration.
+        private const float CheckFade = 0.1f;
 
         public override void OnAttached()
         {
@@ -75,7 +80,13 @@ namespace PromptUGUI.Controls
             _checkmark.rectTransform.anchoredPosition = Vector2.zero;
             _checkmark.color = ProceduralBuilders.DefaultGlyphColor;
             ProceduralBuilders.ApplyDefaultSimpleSprite(_checkmark, ProceduralBuilders.SpriteCheckmark);
-            _toggle.graphic = _checkmark;
+            // The check shows through a CanvasGroup on its own node, NOT uGUI's Toggle.graphic: that
+            // fades the graphic's CanvasRenderer alpha, the very colour *Modulate multiplies through
+            // (StateTintReactor). Sharing it, a hover would reveal an unchecked check, and uGUI's
+            // alpha tween writes its start RGB back every frame — a press tint landing with the click
+            // would be lost.
+            _checkGroup = _checkmark.gameObject.AddComponent<CanvasGroup>();
+            ShowCheck(_toggle.isOn, instant: true);
             _toggle.InitStateBroadcast();
 
             // Label：从 Background 右边开始水平 stretch，垂直填满；raycastTarget=true 让整条 toggle 都能点击
@@ -94,8 +105,33 @@ namespace PromptUGUI.Controls
 
             ApplyFont();
 
-            _toggle.onValueChanged.AddListener(v => { _changed.OnNext(v); _bgReactor?.SetSelected(v); NotifyCheckedShows(); });
+            _toggle.onValueChanged.AddListener(v =>
+            {
+                _changed.OnNext(v);
+                _bgReactor?.SetSelected(v);
+                ShowCheck(v, instant: false);
+                NotifyCheckedShows();
+            });
             PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
+        }
+
+        /// <summary>
+        /// uGUI's own check effect, on the CanvasGroup: a 0.1s fade on the UI clock, instant before
+        /// the first rendered frame (an authored <c>isOn</c> shows from the start) and in Edit Mode.
+        /// </summary>
+        private void ShowCheck(bool on, bool instant)
+        {
+            var to = on ? 1f : 0f;
+            if (_checkFade.IsActive()) _checkFade.TryCancel();
+            if (instant || !UnityEngine.Application.isPlaying || _toggle.InBornFrame
+                || Mathf.Approximately(_checkGroup.alpha, to))
+            {
+                _checkGroup.alpha = to;
+                return;
+            }
+            _checkFade = LMotion.Create(_checkGroup.alpha, to, CheckFade)
+                .WithScheduler(MotionScheduler.UpdateIgnoreTimeScale)
+                .Bind(_checkGroup, static (a, g) => { if (g) g.alpha = a; });
         }
 
         private void ApplyFont()
@@ -146,6 +182,8 @@ namespace PromptUGUI.Controls
                 var spec = UI.Theme.ResolveSpec(value);
                 Internal.ColorApplier.Apply(_bg, spec);
                 Surface.SetFill(spec);
+                // Written by code: the reactor's base follows (see Btn.Color).
+                if (!InApplyPass) _bgReactor?.SetBase(spec);
             }
         }
 
@@ -286,6 +324,10 @@ namespace PromptUGUI.Controls
             // 默认禁用外观：作者未声明任何 disabled* 时整控件去色。
             if (string.IsNullOrWhiteSpace(_disabledColor) && string.IsNullOrWhiteSpace(_disabledModulate))
                 DisabledGrayscaleInstaller.Install(GameObject, _toggle, Children);
+            // Reconciled each pass, not only on onValueChanged: an isOn change that skips the
+            // callback (SetIsOnWithoutNotify) would otherwise leave the check showing the old value.
+            if (!_checkFade.IsActive() && !Mathf.Approximately(_checkGroup.alpha, IsOn ? 1f : 0f))
+                ShowCheck(IsOn, instant: true);
         }
 
         public override Vector2? GetNativeSize()
@@ -306,6 +348,7 @@ namespace PromptUGUI.Controls
         public override void Dispose()
         {
             PromptUGUI.Application.UI.Locale.Changed -= ApplyFont;
+            if (_checkFade.IsActive()) _checkFade.TryCancel();
             _changed.Dispose();
             base.Dispose();
         }

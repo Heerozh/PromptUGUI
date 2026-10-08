@@ -65,7 +65,12 @@ namespace PromptUGUI.Tests.EditMode.Controls
             b.IsOn = true;
             a.IsOn = true;            // a -> Selected: (#ffffff) × (#808080) ≈ 0.5 grey
             var half = 0.5019608f;    // 0x80 / 255
-            Assert.That(bg.color.r, Is.EqualTo(half).Within(0.001f));
+            // The absolute is the bg's colour; the modulate multiplies on its CanvasRenderer.
+            Assert.That(bg.color.r, Is.EqualTo(1f).Within(0.001f), "selectedColor is the bg colour");
+            Assert.That(bg.canvasRenderer.GetColor().r, Is.EqualTo(half).Within(0.001f),
+                "selectedModulate is the multiplier");
+            Assert.That((bg.color * bg.canvasRenderer.GetColor()).r, Is.EqualTo(half).Within(0.001f),
+                "shown: the two composed");
         }
 
         [Test]

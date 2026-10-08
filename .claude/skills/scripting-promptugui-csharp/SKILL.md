@@ -937,6 +937,29 @@ icon.Name = "ui:warning";          // stays — used to snap back to the XML nam
   noticing; if code then writes a value equal to the stale baseline, the next replay treats the node
   as untouched. Reopen the Screen or write again after the flip if you hit it.
 
+## Colours set from code
+
+A colour written from C# — `Text.Color`, `Image.Color` / `Icon.Color`, `btn.TextColor`,
+`toggle.CheckmarkColor`, or a control's own `Color` / `HeaderColor` — takes effect at once and
+**survives the control's state visuals**:
+
+- a `*Modulate` hover / press / disable only dims it — the multiplier sits on each graphic's
+  CanvasRenderer colour and never rewrites the graphic's own colour;
+- the default disabled grey (no `disabled*` authored) greys the glyphs / material and comes off on
+  enable, leaving the colour code wrote — also one written while the control was disabled;
+- a control's own bg colour becomes the base its `hoverColor` / `pressedColor` / `selectedColor`
+  return to (written mid-hover, the hover colour stays until release).
+
+```csharp
+price.Color = affordable ? "on-surface" : "danger";   // kept through the Btn's hover / press / disable
+buy.Interactable = affordable;
+```
+
+Colours are **not runtime-owned**, though: a ReSolve (resize, Variant flip, theme or locale switch)
+replays a `color=` / `textColor=` **declared** in the XML — or in a `<Style>` the node wears — over
+what code wrote. When code drives a colour, leave it out of the XML (an undeclared one is never
+touched by a replay) or write it again after the switch; on a `BindItems` row, set it on every bind.
+
 ## Variant switching at runtime
 
 ```csharp

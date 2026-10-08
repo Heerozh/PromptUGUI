@@ -8,12 +8,11 @@ namespace PromptUGUI.Tests.EditMode.Controls
 {
     /// <summary>
     /// <c>*Modulate</c> fan-out onto a PROCEDURAL descendant. The reactor installed on a child
-    /// <see cref="Frame"/>'s <see cref="ProceduralPanel"/> owns only the vertex multiplier
-    /// (<c>Graphic.color</c>); the panel's authored fill lives in its material and belongs to the
-    /// Frame. Regression: the descendant reactor wrote its fallback Peek (<c>Graphic.color</c> =
-    /// white) into the panel fill on install and on every state change, so a red accent bar and a
-    /// hollow border-only Frame inside a <c>&lt;Btn pressedModulate&gt;</c> both rendered as opaque
-    /// white slabs.
+    /// <see cref="Frame"/>'s <see cref="ProceduralPanel"/> owns only the multiplier (the
+    /// <c>CanvasRenderer</c> colour); the panel's authored fill lives in its material and belongs to
+    /// the Frame. Regression: the descendant reactor wrote its fallback Peek (white) into the panel
+    /// fill on install and on every state change, so a red accent bar and a hollow border-only Frame
+    /// inside a <c>&lt;Btn pressedModulate&gt;</c> both rendered as opaque white slabs.
     /// </summary>
     public class StateFanOutPanelTests
     {
@@ -62,12 +61,15 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             pb.SimulateState(Pressed);
             Assert.That(FillTop(panel).g, Is.EqualTo(0f).Within(0.001f), "pressed: fill stays red");
-            Assert.That(panel.color.r, Is.EqualTo(0.5019608f).Within(0.001f),
-                "the modulate lands on the vertex colour, which the shader multiplies over the fill");
+            Assert.That(panel.canvasRenderer.GetColor().r, Is.EqualTo(0.5019608f).Within(0.001f),
+                "the modulate lands on the CanvasRenderer colour, which reaches the shader as vertex "
+                + "colour and multiplies over the fill");
+            Assert.That(panel.color, Is.EqualTo(Color.white), "the panel's own colour is not touched");
 
             pb.SimulateState(Normal);
             Assert.That(FillTop(panel).g, Is.EqualTo(0f).Within(0.001f), "normal: fill still red");
-            Assert.That(panel.color.r, Is.EqualTo(1f).Within(0.001f), "multiplier back to identity");
+            Assert.That(panel.canvasRenderer.GetColor().r, Is.EqualTo(1f).Within(0.001f),
+                "multiplier back to identity");
         }
 
         [Test]

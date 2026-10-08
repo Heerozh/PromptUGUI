@@ -50,6 +50,9 @@ namespace PromptUGUI.Controls.Internal
             base.OnEnable();   // paints currentSelectionState instantly (uGUI default)
         }
 
+        /// <summary>Still in the frame this toggle was enabled in — before its first rendered frame.</summary>
+        internal bool InBornFrame => BornFrame.IsCurrent(_bornFrame);
+
         protected override void DoStateTransition(SelectionState state, bool instant)
         {
             // A state change in the born frame (e.g. a modal Configure hook flipping interactable

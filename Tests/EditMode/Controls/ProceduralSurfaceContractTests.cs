@@ -438,15 +438,16 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
         // ===== state colours on a procedural surface land in two different places =====
         //
-        // A panel keeps its authored look in its MATERIAL and treats Graphic.color as a multiplier
+        // A panel keeps its authored look in its MATERIAL and treats the vertex colour as a multiplier
         // (`col *= IN.color` in the shader) — the split that lets panels sharing a style share one
-        // material. An Image has no such split: there, Graphic.color IS the fill. So the reactor's
-        // "premultiply the modulate into the base and write the product to .color" is right for an
-        // Image and wrong here, twice over:
+        // material. An Image has no such split: there, Graphic.color IS the fill. Writing a state's
+        // base / absolute into a panel's multiplier would be wrong twice over:
         //   • the base would be applied as the fill AND as the tint, so color="#3366ff" renders as
         //     its own square;
         //   • an "absolute" hoverColor written to a multiplier channel is not absolute — it darkens
         //     whatever is underneath, which on glass tints the blurred backdrop instead of the pane.
+        // So absolutes go to the fill, and *Modulate to the CanvasRenderer colour — on a panel and on
+        // an Image alike.
 
         private static ProceduralPanel TargetPanel(Btn b) =>
             b.GameObject.GetComponent<PuiButton>().targetGraphic as ProceduralPanel;
@@ -491,8 +492,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             Assert.AreEqual(new Color32(0x33, 0x66, 0xff, 0xff), (Color32)panel.CurrentParams.Fill.Start,
                 "a modulate must not touch the fill…");
-            Assert.AreEqual(new Color32(0x80, 0x80, 0x80, 0xff), (Color32)panel.color,
-                "…it is exactly what the vertex channel is for");
+            Assert.AreEqual(new Color32(0x80, 0x80, 0x80, 0xff), (Color32)panel.canvasRenderer.GetColor(),
+                "…it is a multiplier, on the CanvasRenderer");
+            Assert.AreEqual(Color.white, panel.color, "…and the graphic's own colour stays identity");
         }
 
         [Test]

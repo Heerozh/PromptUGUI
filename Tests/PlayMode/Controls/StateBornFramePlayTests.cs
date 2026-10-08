@@ -14,8 +14,8 @@ namespace PromptUGUI.Tests.PlayMode.Controls
     // SNAP unit test lives in EditMode StateBornFrameTests.
     //
     // The disabled axis is exercised through a Btn with disabledModulate set: that keeps the
-    // StateTintReactor driving the bg colour (a real ~0.1s LMotion fade), the path the born-frame
-    // gate governs. A plain Btn's disabled look is the default grayscale material swap, which is
+    // StateTintReactor driving the bg's multiplier (a real ~0.1s LMotion fade), the path the
+    // born-frame gate governs. A plain Btn's disabled look is the default grayscale material swap, which is
     // always instant and born-frame-independent, so it cannot exercise the snap-vs-fade gate.
     public class StateBornFramePlayTests
     {
@@ -53,7 +53,7 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             // coerce the reactor to snap, so frame 1 already shows the disabled modulate.
             btn.Interactable = false;
 
-            AssertColorsEqual(disabled, bg.color,
+            AssertColorsEqual(disabled, Shown(bg),
                 "born-frame disable must snap to the disabled modulate, not start a fade from the enabled colour");
             yield break;
         }
@@ -78,15 +78,19 @@ namespace PromptUGUI.Tests.PlayMode.Controls
 
             // Immediately after the flip the fade has barely started: still near the enabled colour,
             // NOT already at disabled (which an over-broad "always instant" gate would wrongly do).
-            var afterFlip = bg.color;
+            var afterFlip = Shown(bg);
             Assert.That(ColorDistance(afterFlip, baseColor), Is.LessThan(ColorDistance(afterFlip, disabled)),
                 "right after a later-frame disable the colour must still be closer to base than disabled (it animates)");
 
             // ...and it settles at the disabled modulate once the fade window elapses.
             yield return new WaitForSeconds(0.2f);
-            AssertColorsEqual(disabled, bg.color,
+            AssertColorsEqual(disabled, Shown(bg),
                 "later-frame disable should settle at the disabled modulate after the fade window");
         }
+
+        // What reaches the screen: the bg's own colour times the CanvasRenderer multiplier the
+        // modulate drives.
+        private static Color Shown(UnityEngine.UI.Graphic g) => g.color * g.canvasRenderer.GetColor();
 
         private static float ColorDistance(Color a, Color b)
             => Mathf.Abs(a.r - b.r) + Mathf.Abs(a.g - b.g) + Mathf.Abs(a.b - b.b) + Mathf.Abs(a.a - b.a);

@@ -268,12 +268,13 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var puiBtn = btn.GameObject.GetComponent<PuiButton>();
             puiBtn.SimulateState(Pressed);
 
-            AssertColorsEqual(bgBase * half, bg.color);
-            AssertColorsEqual(imgBase * half, img.color);
+            AssertColorsEqual(bgBase * half, Shown(bg));
+            AssertColorsEqual(imgBase * half, Shown(img));
+            AssertColorsEqual(imgBase, img.color); // the multiplier never lands in the graphic's own colour
 
             puiBtn.SimulateState(Normal);
-            AssertColorsEqual(bgBase, bg.color);
-            AssertColorsEqual(imgBase, img.color);
+            AssertColorsEqual(bgBase, Shown(bg));
+            AssertColorsEqual(imgBase, Shown(img));
         }
 
         [Test]
@@ -302,11 +303,11 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var dark = new Color(0.2509804f, 0.2509804f, 0.2509804f, 1f); // #404040
             var puiBtn = btn.GameObject.GetComponent<PuiButton>();
             puiBtn.SimulateState(Pressed);
-            AssertColorsEqual(bgBase * dark, bg.color);
+            AssertColorsEqual(bgBase * dark, Shown(bg));
 
             // Returning to Normal restores the untinted base, proving base wasn't promoted.
             puiBtn.SimulateState(Normal);
-            AssertColorsEqual(bgBase, bg.color);
+            AssertColorsEqual(bgBase, Shown(bg));
         }
 
         [Test]
@@ -451,7 +452,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             puiBtn.SimulateState(Pressed);
             Assert.AreEqual(stub, bg.overrideSprite, "sprite swaps on press");
-            AssertColorsEqual(bgBase * half, bg.color);  // and the tint reactor still multiplies
+            AssertColorsEqual(bgBase * half, Shown(bg));  // and the tint reactor still multiplies
         }
 
         [Test]
@@ -610,6 +611,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
             puiBtn.SimulateState(Disabled);
             Assert.AreEqual(authored, bg.overrideSprite, "disabledSprite='none' => no swap when disabled");
         }
+
+        // What reaches the screen: the graphic's own colour times the CanvasRenderer multiplier
+        // *Modulate drives.
+        private static Color Shown(Graphic g) => g.color * g.canvasRenderer.GetColor();
 
         private static void AssertColorsEqual(Color expected, Color actual)
         {

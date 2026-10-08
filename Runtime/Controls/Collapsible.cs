@@ -90,6 +90,7 @@ namespace PromptUGUI.Controls
         private string _hoverModulate, _pressedModulate, _disabledModulate;
         private string _headerColorSpec;
         private Vector2? _pressedOffset;
+        private StateTintReactor _headerReactor;
 
         // The whole panel draws — header and body are one surface, and headerColor= layers on top.
         private protected override GameObject SurfaceHost => GameObject;
@@ -285,7 +286,10 @@ namespace PromptUGUI.Controls
             set
             {
                 _headerColorSpec = value;
-                ColorApplier.Apply(_headerBg, UI.Theme.ResolveSpec(value));
+                var spec = UI.Theme.ResolveSpec(value);
+                ColorApplier.Apply(_headerBg, spec);
+                // Written by code: the header reactor's base follows (see Btn.Color).
+                if (!InApplyPass) _headerReactor?.SetBase(spec);
             }
         }
 
@@ -638,9 +642,9 @@ namespace PromptUGUI.Controls
             // Rooted at the header: the per-state multiplier is about the bar the pointer is over,
             // and fanning it into the body would tint content that is not part of the control's
             // affordance (spec §4.4).
-            var reactor = StateTintInstaller.Install(_header.gameObject, _btn, Children, abs, mod,
+            _headerReactor = StateTintInstaller.Install(_header.gameObject, _btn, Children, abs, mod,
                 authoredBase: HeaderBase());
-            _btn.transition = reactor != null
+            _btn.transition = _headerReactor != null
                 ? Selectable.Transition.None
                 : Selectable.Transition.ColorTint;
             if (string.IsNullOrWhiteSpace(_disabledColor)
