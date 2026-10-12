@@ -246,7 +246,7 @@ Plus every common attribute (`anchor` / `size` / `margin` / `hidden` / `interact
 |---|---|---|---|
 | `popupWidth` | float | auto | Panel width. Unset = the wider of the handle and the rows |
 | `popupGap` | float | `4` | Space between handle and panel |
-| `padding` | `t,r,b,l` / `v,h` / `all` | `0` | Inside the panel |
+| `padding` | `t,r,b,l` / `v,h` / `all` | `0` | Inside the panel. Whole pixels (`PUI-PADDING-INT`; a fraction is read as 0) |
 | `spacing` | float | `0` | Between rows |
 | `color` · `sprite` · `tint` | | rounded white | The panel's fill / skin. `sprite=""` = flat colour |
 | `transition` | duration | `0.15s` | Open / close animation. `0` snaps |

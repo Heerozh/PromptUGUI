@@ -390,7 +390,7 @@ TMP_Text。文本简写：`<Text>Hello</Text>` ≡ `<Text text="Hello"/>`。
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
 | `spacing` | float | — | |
-| `padding` | `T,R,B,L`（1/2/4 段，`_`=0） | — | 如 `padding="6,_,_,_"` |
+| `padding` | `T,R,B,L`（1/2/4 段，`_`=0） | — | 如 `padding="6,_,_,_"`。**整数像素**：小数或段数不对是 `PUI-PADDING-INT`（`<VStack>` / `<HStack>` / `<Grid>` / `<ScrollList>` / `<InputField>` 在 Open 时抛 ParseException） |
 | `childAlign` | `upper` / `middle` / `lower` - `left` / `center` / `right` | `upper-center` | `center`=`middle-center`（交叉轴居中） |
 
 ### `<HStack>`
@@ -406,7 +406,7 @@ TMP_Text。文本简写：`<Text>Hello</Text>` ≡ `<Text text="Hello"/>`。
 | `columns` | int | — | |
 | `cellSize` | `WxH` | — | |
 | `spacing` | single 或 `V,H` | — | 竖向在前，同两段 `padding` / 四段 `margin` |
-| `padding` | `T,R,B,L` | — | |
+| `padding` | `T,R,B,L`（1/2/4 段，`_`=0） | — | 整数像素（`PUI-PADDING-INT`） |
 
 ### `<Btn>`
 
@@ -576,7 +576,7 @@ Children of a list are layout-group children: `anchor` / `margin` are dropped (`
 | `columns` | int ≥ 1 | `0` | Grid mode: Content becomes a `GridLayoutGroup` wrapping into rows that grow downwards. `0` = the single column / row `direction` describes. **Spell `columns="0"` out when a variant has to leave the grid** — a variant resolving to null is skipped, not reverted, so dropping the override keeps the grid. Vertical only: with `direction="horizontal"` it is `PUI-SCROLL-COLUMNS-DIRECTION` (the direction wins at runtime); there is no row-major `rows=` in v1. Without a `size`, the list's native **width** becomes `padding + columns × cellSize + gaps` — but the scrollbar still eats `thickness + spacing` out of the viewport unless the bar is `<Scrollbar overlay="true">`. |
 | `cellSize` | `WxH` | — | Uniform cell size; **required in grid mode** (`PUI-SCROLL-COLUMNS-CELLSIZE`) — without it every cell falls back to uGUI's 100×100. Same meaning as `<Grid cellSize>`: a cell's own `size` / `width` / `height` is ignored. |
 | `spacing` | single 或 `V,H` | — | 竖向在前，同 `<Grid spacing>`。单列只用得上 V、单行只用得上 H，网格两个都用 |
-| `padding` | `T,R,B,L` | — | |
+| `padding` | `T,R,B,L`（1/2/4 段，`_`=0） | — | 整数像素（`PUI-PADDING-INT`） |
 | `color` | hex / CSS / token | — | 见 **Color Tokens** |
 | `sprite` | sprite key | — | |
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
@@ -675,7 +675,7 @@ Tab 容器；私有 `ToggleGroup`（默认 `allowSwitchOff=false`，见下表）
 |---|---|---|---|
 | `direction` | `horizontal` / `vertical` | `horizontal` | |
 | `spacing` | float | — | |
-| `padding` | `T,R,B,L` | — | |
+| `padding` | `T,R,B,L`（1/2/4 段，`_`=0） | — | 整数像素（`PUI-PADDING-INT`；小数在运行时被读成 0） |
 | `itemTemplate` | tag name | `Tab` | |
 | `allowSwitchOff` | bool | `false` | Makes "nothing selected" a legal resting state: the bar opens with no tab on (unless a `<Tab>` declares `isOn="true"`) and clicking the active tab turns it off. Default keeps exactly one tab selected at all times. Also on `<TabMenu>`. See [`reference/controls-tabs.md`](reference/controls-tabs.md) |
 
@@ -981,7 +981,7 @@ Other notes:
 
 **margin & consumed sides.** A margin only offsets from a side the `anchor` **consumes**: a **stretched** axis reads both its slots, a **point** anchor (`top` / `bottom` / `left` / `right`) reads only its own side, a **centered** axis reads neither. So `anchor="bottom-right" margin="60,_,_,_"` puts 60 in the **top** slot → silently dropped (a `bottom` anchor reads only the bottom slot; write `margin="_,_,60,_"` to push it up). The lint CLI flags a non-zero value on an unconsumed side as **`PUI-MARGIN-INERT-SIDE`** (CLI-only; 4-component + explicit-`anchor` form only — symmetric 1-/2-component shorthands always land on the consumed side and are not flagged).
 
-`spacing` is **NOT** universal — only on `<VStack>` / `<HStack>` / `<Grid>`. `padding` is **per-control, not a common attribute** (each control that wants it declares its own): a layout-group inset on `<VStack>` / `<HStack>` / `<Grid>` / `<ScrollList>` / `<TabBar>`, and on `<InputField>` it means the inner space between the field edge and its text (auto-tracks the border — see the `<InputField>` row).
+`spacing` is **NOT** universal — only on `<VStack>` / `<HStack>` / `<Grid>`. `padding` is **per-control, not a common attribute** (each control that wants it declares its own): a layout-group inset on `<VStack>` / `<HStack>` / `<Grid>` / `<ScrollList>` / `<TabBar>`, and on `<InputField>` it means the inner space between the field edge and its text (auto-tracks the border — see the `<InputField>` row). Every one of these is a uGUI `RectOffset` — **whole pixels**, 1 / 2 / 4 comma-separated integers (`_` = 0); anything else is `PUI-PADDING-INT` in the lint (the stacks and `<InputField>` would refuse to open over it, `<TabBar>` / `<TabMenu>` / `<Collapsible>` read it as 0). `<Scrollbar padding>` is its own `along,across` grammar.
 
 `anchor` and `margin` are **NOT** available on `<VStack>` / `<HStack>` / `<Grid>`.
 
