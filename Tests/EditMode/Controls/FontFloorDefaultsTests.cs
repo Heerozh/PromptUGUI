@@ -23,6 +23,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [TestCase("Collapsible", "<Collapsible id='c' text='More'/>")]
         [TestCase("TabMenu", "<TabMenu id='c'/>")]
         [TestCase("Dropdown", "<Dropdown id='c'/>")]
+        [TestCase("Cooldown", "<Cooldown id='c' countdown='true'/>")]
         public void Every_label_a_control_builds_is_at_the_table_default(string tag, string markup)
         {
             UI.LoadDocument("test",

@@ -42,6 +42,12 @@ namespace PromptUGUI.Lint
 
             /// <summary>No <c>fontSize</c> attribute at all — the size is the default, always.</summary>
             public bool Fixed;
+
+            /// <summary>
+            /// Only carries text while this boolean attribute is <c>true</c> — a
+            /// <c>&lt;Cooldown&gt;</c>'s label exists for its <c>countdown</c>, whatever its fontSize says.
+            /// </summary>
+            public string OnlyWhenTrue;
         }
 
         /// <summary>
@@ -62,6 +68,7 @@ namespace PromptUGUI.Lint
             ["TabMenu"] = new TextTag { Default = 24f },
             ["Dropdown"] = new TextTag { Default = 14f, Fixed = true },
             ["Markdown"] = new TextTag { Default = 16f },
+            ["Cooldown"] = new TextTag { Default = 24f, OnlyWhenTrue = "countdown" },
         };
 
         /// <summary>The tags that build rows from an <c>itemTemplate</c> (<c>TemplateFactoryResolver</c>'s callers).</summary>
@@ -379,6 +386,9 @@ namespace PromptUGUI.Lint
             {
                 if (floor.Value <= 0f) return;   // fontFloor="0": the subtree is exempt
                 if (node.Namespace != null || !TextTags.TryGetValue(node.Tag, out var tag)) return;
+                if (tag.OnlyWhenTrue != null
+                    && VariantLookup.Resolve(node, tag.OnlyWhenTrue, _isActive) != "true")
+                    return;
 
                 string sizeRaw = null, variant = null;
                 if (!tag.Fixed) sizeRaw = VariantLookup.Resolve(node, "fontSize", _isActive, out variant);

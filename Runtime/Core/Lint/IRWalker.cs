@@ -48,6 +48,14 @@ namespace PromptUGUI.Lint
                 foreach (var issue in RaycastRules.CheckUndecided(screen.Root, styles))
                     yield return issue;
 
+                // Screen-wide: a bare ready / cooling binds to the NEAREST <Cooldown>, which may be a
+                // sibling or a cousin — a per-node walk carries no such context. Stamps its own source.
+                var screenHasAdds = false;
+                foreach (var variant in screen.Variants)
+                    if (variant.Adds.Count > 0) screenHasAdds = true;
+                foreach (var issue in CooldownRules.CheckSources(screen.Root, screenHasAdds))
+                    yield return issue;
+
                 foreach (var variant in screen.Variants)
                     foreach (var add in variant.Adds)
                         foreach (var addChild in add.Children)
@@ -166,6 +174,9 @@ namespace PromptUGUI.Lint
                     yield return issue;
             else if (node.Tag == "Progress")
                 foreach (var issue in ProgressAttributeRules.CheckProgress(node, styles))
+                    yield return issue;
+            else if (node.Tag == CooldownRules.Tag)
+                foreach (var issue in CooldownRules.Check(node, styles))
                     yield return issue;
             else if (node.Tag == "TabBar")
                 foreach (var issue in TabRules.CheckTabBar(node))
