@@ -178,6 +178,34 @@ namespace PromptUGUI.Tests.Editor
             }
         }
 
+        // The UI Preview's Lint button and the menu are both "lint with the project's settings";
+        // the preview once passed only the commons and silently lost the font floor.
+        [Test]
+        public void LintConfigured_AppliesTheSettingsFontFloor()
+        {
+            var main = Write("main.ui.xml", "<Screen name='S' reference='1080x1920'>\n  <Text id='t' fontSize='28'/>\n</Screen>");
+            var settings = ScriptableObject.CreateInstance<PromptUGUISettings>();
+            settings.fontFloor = 11f;
+            settings.fontFloorTargets.Add(new FontFloorTarget { name = "SE", screen = "750x1334@2x" });
+            PromptUGUISettings.FinderForTests = () => new[] { settings };
+            PromptUGUISettings.ResetInstanceCache();
+            try
+            {
+                var findings = new List<LintRun.Finding>();
+
+                var run = UIXmlLintMenu.LintConfigured(new[] { main }, findings.Add);
+
+                Assert.AreEqual(1, run.Issues);
+                StringAssert.Contains("[PUI-FONT-FLOOR] <Text id='t'>", findings.Single().Text);
+            }
+            finally
+            {
+                PromptUGUISettings.FinderForTests = null;
+                PromptUGUISettings.ResetInstanceCache();
+                Object.DestroyImmediate(settings);
+            }
+        }
+
         [Test]
         public void ConfiguredFontFloor_WithoutASettingsAsset_IsNull()
         {

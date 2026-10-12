@@ -459,6 +459,8 @@ M0（`2656256`）、M1（`214718e`）、M2（`5584db8`）、`<Toggle fontSize>`�
   TMP 的导入窗口，lint 不该弹窗；取不到按 36。
 - **主题遍的比较键**是 `Origin:Line|Via|Code|Tag|Id|Message`（`DocumentLinter.PlacedKeyOf`），即「同一处、同一结论」；§5.6 说的「节点 →
   结论」字典没有用上：消息里已经带着全部数字，按位置比消息就够了，也自然覆盖了同一模板体被多次实例化的情形。
+- **Editor 侧只有一个「按项目 settings 跑」的入口 `UIXmlLintMenu.LintConfigured`**（commons + 字号下限），菜单与 UI Preview 的
+  Lint 按钮都走它。§7 漏了第二个前端：UI Preview 的按钮原先直接调 `Lint(…, commons)`，字号下限没带上，菜单报而预览不报。
 - **规则内部按「节点 + itemTemplate 宿主链」聚合各目标的读数**（`VisitKey`）：同一份行模板挂在两个缩放不同的列表下时，是两次独立的访问。
 - 验证（ssw_re_client，Unity 6000.7.0b3，Unity MCP）：EditMode 5020 / EditorOnly 466 / PlayMode 265 全绿；
   `dotnet build .lint/UIXmlLint`、`dotnet format --verify-no-changes`（whitespace / style / analyzers）通过。

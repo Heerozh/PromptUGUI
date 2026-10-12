@@ -46,8 +46,7 @@ namespace PromptUGUI.Editor
                 return;
             }
 
-            var commons = ConfiguredCommonLibraries();
-            var run = Lint(paths, Report, commons, ConfiguredFontFloor());
+            var run = LintConfigured(paths, Report);
 
             if (run.Issues > 0)
                 Debug.LogWarning($"[PromptUGUI] Lint: {run.Issues} issue(s) across {run.Files} file(s) — see the lines above.");
@@ -62,10 +61,18 @@ namespace PromptUGUI.Editor
             // An unknown style / template in a project that declares no common library is most
             // often a library nobody listed — the same hint UI.LoadDocumentAsync gives (spec §4.10).
             // With libraries declared the name is genuinely unknown and the finding stands alone.
-            if (run.SawUnknownName && commons.Count == 0)
+            if (run.SawUnknownName && ConfiguredCommonLibraries().Count == 0)
                 Debug.Log("[PromptUGUI] No common library is configured in PromptUGUISettings — if these " +
                           "names live in a shared library, list it under Common Libraries.");
         }
+
+        /// <summary>
+        /// <see cref="Lint"/> with everything the project's <see cref="PromptUGUISettings"/> declares —
+        /// the common libraries and the font floor. Every Editor front end (this menu, the UI
+        /// Preview's Lint button) goes through here, so a setting added later reaches all of them.
+        /// </summary>
+        internal static LintRun LintConfigured(IReadOnlyList<string> paths, Action<LintRun.Finding> report)
+            => Lint(paths, report, ConfiguredCommonLibraries(), ConfiguredFontFloor());
 
         /// <summary>
         /// Lints <paramref name="paths"/> (asset paths, or absolute files) in order, handing every
