@@ -251,6 +251,10 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public bool AllowSwitchOff { set => _core.AllowSwitchOff = value; }
 
+        /// <summary>Before any child tab exists — see <see cref="TabBar.PreConfigureGroup"/>.</summary>
+        internal void PreConfigureGroup(string allowSwitchOff)
+            => _core.AllowSwitchOff = bool.TryParse(allowSwitchOff, out var on) && on;
+
         /// <summary>Panel width. Unset (or 0) sizes it to the wider of the handle and its content.</summary>
         [UIAttr, Preserve]
         public float PopupWidth { set { _popupWidth = value; PlacePopup(); } }

@@ -66,6 +66,16 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public bool AllowSwitchOff { set => _core.AllowSwitchOff = value; }
 
+        /// <summary>
+        /// Called by <c>ScreenInstantiator</c> right after <see cref="OnAttached"/>, before any child
+        /// tab exists. The apply pass is DFS post-order, so <see cref="AllowSwitchOff"/> would otherwise
+        /// arrive after every tab had applied its <c>isOn</c> — while the group still forbade switch-off,
+        /// uGUI forced the first tab on at activation, a declared <c>isOn="false"</c> bounced back, and
+        /// that bounce was recorded as the declared baseline. Idempotent — the setter runs again in the pass.
+        /// </summary>
+        internal void PreConfigureGroup(string allowSwitchOff)
+            => _core.AllowSwitchOff = bool.TryParse(allowSwitchOff, out var on) && on;
+
         public int Count => _core.Tabs.Count;
 
         public int SelectedIndex => _core.SelectedIndex;
