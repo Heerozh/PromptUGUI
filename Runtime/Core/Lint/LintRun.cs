@@ -63,7 +63,8 @@ namespace PromptUGUI.Lint
         /// <summary>
         /// The project's font floor (2026-10-12 font-floor spec §5.7), or null for none. Its targets
         /// are checked on the first <see cref="Lint"/> — a malformed row is an <see cref="Kind.Error"/>,
-        /// a floor with no usable row a <see cref="Kind.Note"/>, each said once per run.
+        /// rows that are all malformed a <see cref="Kind.Note"/>, each said once per run. No row at all
+        /// is the default state and says nothing.
         /// </summary>
         public FontFloorPolicy FontFloor { get; set; }
 
@@ -169,23 +170,27 @@ namespace PromptUGUI.Lint
         }
 
         // The mirror of PromptUGUISettings.OnValidate for the CLI, plus the one thing the Inspector
-        // only shows: a floor that can never fire because no row is usable.
+        // only shows: a floor that can never fire because every listed row is broken.
         private void CheckFontFloor(List<Finding> findings)
         {
             var policy = FontFloor;
             if (policy == null || policy.Floor <= 0f) return;
 
+            var listed = 0;
             var usable = 0;
             if (policy.Targets != null)
                 foreach (var row in policy.Targets)
                 {
                     if (row == null || row.IsBlank) continue;
+                    listed++;
                     var error = FontFloorTargetSyntax.Validate(row);
                     if (error != null) Add(findings, Kind.Error, null, error);
                     else usable++;
                 }
 
-            if (usable == 0)
+            // No row at all is the default state (a 7dp floor nobody has pointed at a screen yet) —
+            // not set up, nothing to say. Rows that are all broken mean the author tried.
+            if (listed > 0 && usable == 0)
                 findings.Add(new Finding(Kind.Note, null,
                     $"fontFloor is {policy.Floor.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}dp " +
                     "but no usable fontFloorTargets are configured — PUI-FONT-FLOOR is inactive."));

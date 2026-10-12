@@ -54,8 +54,11 @@ namespace PromptUGUI.Lint
                 }
             });
 
-        /// <summary><c>fontFloor</c> in dp; 0 (the rule off) when absent or unreadable.</summary>
-        public static float ReadFontFloor(string yaml) => ReadFloat(yaml, "fontFloor") ?? 0f;
+        /// <summary>
+        /// <c>fontFloor</c> in dp. Absent (an asset saved before the field existed) reads as
+        /// <see cref="FontFloorPolicy.DefaultFloor"/> — what Unity deserializes a missing field to.
+        /// </summary>
+        public static float ReadFontFloor(string yaml) => ReadFloat(yaml, "fontFloor") ?? FontFloorPolicy.DefaultFloor;
 
         /// <summary>The <c>fontFloorTargets</c> rows, in asset order, as written (blank rows kept).</summary>
         public static List<FontFloorTarget> ReadFontFloorTargets(string yaml) =>

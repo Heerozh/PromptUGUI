@@ -92,7 +92,8 @@ namespace PromptUGUI.UIXmlLint
             Console.Error.WriteLine("                           The root of UseResourcesResolver(root), or the folder Addressables");
             Console.Error.WriteLine("                           addresses are relative to. Repeatable.");
             Console.Error.WriteLine("  --font-floor <dp>        Smallest readable text in dp for PUI-FONT-FLOOR (overrides the settings'");
-            Console.Error.WriteLine("                           fontFloor; 0 turns the rule off).");
+            Console.Error.WriteLine("                           fontFloor, default 7; 0 turns the rule off). The rule runs once a");
+            Console.Error.WriteLine("                           target is listed.");
             Console.Error.WriteLine("  --target [<name>=]<WxH@D>[,<variant>...]");
             Console.Error.WriteLine("                           A screen to check every <Screen> on: physical pixels @ OS scale, plus");
             Console.Error.WriteLine("                           any variant active there. Repeatable; replaces the settings'");
@@ -345,19 +346,22 @@ namespace PromptUGUI.UIXmlLint
         // ── font floor (2026-10-12 font-floor spec §5.7) ───────────────────────────────────────
 
         /// <summary>
-        /// The floor (<c>--font-floor</c>, else the settings'), its targets (<c>--target</c> rows,
-        /// else the settings'), and what an unsized <c>&lt;Text&gt;</c> renders at. Null when the
-        /// floor is off. The rows are checked by <see cref="LintRun"/>, not here.
+        /// The floor (<c>--font-floor</c>, else the settings', else the field's default), its targets
+        /// (<c>--target</c> rows, else the settings'), and what an unsized <c>&lt;Text&gt;</c> renders
+        /// at. Null when the floor is off or no target is listed — the default state, said nothing
+        /// about. The rows themselves are checked by <see cref="LintRun"/>, not here.
         /// </summary>
         private static FontFloorPolicy LoadFontFloor(Options options, SettingsSource settings, List<string> paths)
         {
             var fromSettings = settings.Path != null;
-            var floor = options.FontFloor ?? (fromSettings ? SettingsAssetReader.ReadFontFloor(settings.Yaml) : 0f);
+            var floor = options.FontFloor
+                        ?? (fromSettings ? SettingsAssetReader.ReadFontFloor(settings.Yaml) : FontFloorPolicy.DefaultFloor);
             if (floor <= 0f) return null;
 
             IReadOnlyList<FontFloorTarget> targets = options.Targets.Count > 0
                 ? options.Targets
                 : fromSettings ? SettingsAssetReader.ReadFontFloorTargets(settings.Yaml) : new List<FontFloorTarget>();
+            if (targets.Count == 0) return null;
             var textDefault = options.TextDefaultSize ?? DiscoverTmpDefaultFontSize(paths) ?? 36f;
 
             var where = options.Targets.Count > 0 ? "--target" : settings.Path ?? "no settings";

@@ -136,14 +136,18 @@ MonoBehaviour:
         }
 
         [Test]
-        public void FontFloor_AbsentOrEmpty_ReadsAsOff()
+        public void FontFloor_Absent_ReadsTheFieldDefault_AsUnityWould()
         {
-            Assert.AreEqual(0f, SettingsAssetReader.ReadFontFloor(Head), "an asset saved before the field existed");
+            // An asset saved before the field existed: Unity deserializes the missing field at its
+            // initializer, so the CLI reading the same file must agree.
+            Assert.AreEqual(FontFloorPolicy.DefaultFloor, SettingsAssetReader.ReadFontFloor(Head));
             Assert.IsEmpty(SettingsAssetReader.ReadFontFloorTargets(Head));
 
             var emptyList = Head + "  fontFloorTargets: []\n";
             Assert.IsEmpty(SettingsAssetReader.ReadFontFloorTargets(emptyList));
-            Assert.AreEqual(0f, SettingsAssetReader.ReadFontFloor(emptyList), "fontFloorTargets is not fontFloor");
+            Assert.AreEqual(FontFloorPolicy.DefaultFloor, SettingsAssetReader.ReadFontFloor(emptyList),
+                "fontFloorTargets is not fontFloor");
+            Assert.AreEqual(0f, SettingsAssetReader.ReadFontFloor(Head + "  fontFloor: 0\n"), "an explicit 0 is off");
         }
 
         [Test]

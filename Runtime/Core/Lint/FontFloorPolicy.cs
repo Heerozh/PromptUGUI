@@ -11,6 +11,13 @@ namespace PromptUGUI.Lint
     /// </summary>
     public sealed class FontFloorPolicy
     {
+        /// <summary>
+        /// The floor a settings asset starts with, in dp. Roughly Steam Deck's hard minimum (9px
+        /// characters at 1280x800, ~7dp) — a game floor rather than Apple's 11pt app floor. Inert
+        /// until a target screen is listed.
+        /// </summary>
+        public const float DefaultFloor = 7f;
+
         /// <summary>The smallest readable text, in dp. 0 or less turns the rule off.</summary>
         public float Floor;
 

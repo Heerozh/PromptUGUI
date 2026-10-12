@@ -51,10 +51,11 @@ namespace PromptUGUI.Tests.Application
         }
 
         [Test]
-        public void TheRuleIsOffByDefault()
+        public void TheDefaultFloorIs7_AndTheRuleWaitsForATarget()
         {
-            Assert.AreEqual(0f, _settings.fontFloor);
-            Assert.IsEmpty(_settings.fontFloorTargets);
+            Assert.AreEqual(7f, _settings.fontFloor);
+            Assert.AreEqual(PromptUGUI.Lint.FontFloorPolicy.DefaultFloor, _settings.fontFloor);
+            Assert.IsEmpty(_settings.fontFloorTargets, "no target, no check: the default is inert until one is listed");
         }
     }
 }

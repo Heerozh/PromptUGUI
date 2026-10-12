@@ -88,12 +88,13 @@ needed there. Each finding is a Console line pinging the asset.
 `PUI-FONT-FLOOR` reports text that renders below the project's smallest readable
 size on any of its target screens (2026-10-12 font-floor spec): `dp = fontSize ×
 canvas factor × Π ancestor scale ÷ OS scale`, evaluated per `<Screen>` × target
-with the runtime's own formulas, on the expanded pass. It is off unless a floor
-is set. Where the inputs come from:
+with the runtime's own formulas, on the expanded pass. It runs once at least one
+target screen is listed (the floor defaults to 7dp; `0` turns it off). Where the
+inputs come from:
 
 | Input | Flag | Else |
 |---|---|---|
-| floor, in dp | `--font-floor <dp>` (`0` = off) | the settings asset's `fontFloor` |
+| floor, in dp | `--font-floor <dp>` (`0` = off) | the settings asset's `fontFloor`, else 7 |
 | target screens | `--target [<name>=]<WxH@D>[,<variant>...]`, repeatable; replaces the asset's list | the settings asset's `fontFloorTargets` |
 | what an unsized `<Text>` renders at | `--text-default-size <n>` | `m_defaultFontSize` of the `TMP Settings.asset` under the same `Assets/` folder, else 36 |
 

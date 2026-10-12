@@ -83,16 +83,17 @@ namespace PromptUGUI.Editor
                 "PUI-FONT-FLOOR reports text that renders below the floor on any target screen: fontSize × " +
                 "canvas factor × ancestor scale ÷ OS scale. The floor is in dp — iOS pt ≈ Android dp ≈ CSS px ≈ " +
                 "Windows effective px, a unit tuned to each device class's viewing distance, so one number " +
-                "holds on a phone, a monitor and a TV. 11 is Apple's iOS minimum; 0 turns the rule off. " +
-                "A target is physical pixels @ OS scale (750x1334@2x); taller than wide is 'portrait'. " +
-                "Tools › PromptUGUI › Lint All UI XML runs it.",
+                "holds on a phone, a monitor and a TV. 7 (the default) ≈ Steam Deck's hard minimum, 10 ≈ its " +
+                "recommended size, 11 = Apple's iOS app minimum; 0 turns the rule off. Small-on-purpose text " +
+                "(badges) takes its own floor in XML: fontFloor=\"N\". A target is physical pixels @ OS scale " +
+                "(750x1334@2x); taller than wide is 'portrait'. Tools › PromptUGUI › Lint All UI XML runs it.",
                 MessageType.None);
             EditorGUILayout.PropertyField(floor, new GUIContent("Floor (dp)"));
             EditorGUILayout.PropertyField(targets, new GUIContent("Targets"), true);
 
             if (floor.floatValue > 0f && targets.arraySize == 0)
-                EditorGUILayout.HelpBox("PUI-FONT-FLOOR is inactive until at least one target is listed.",
-                                        MessageType.Warning);
+                EditorGUILayout.HelpBox("Add a target screen (Add preset ▾) to turn PUI-FONT-FLOOR on.",
+                                        MessageType.Info);
 
             if (GUILayout.Button("Add preset ▾"))
             {

@@ -401,18 +401,29 @@ namespace PromptUGUI.Tests.EditMode.Lint
         }
 
         [Test]
-        public void FontFloor_WithNoUsableTarget_IsANote_OncePerRun()
+        public void FontFloor_WithNoTargetListed_SaysNothing()
+        {
+            // The default floor is on (7dp) with no targets — every project that never looked at the
+            // setting. That is "not set up yet", not a mistake worth a line on every run.
+            var run = new LintRun { FontFloor = FontFloor(new FontFloorTarget { screen = "  " }) };
+
+            CollectionAssert.IsEmpty(Lint(run, TwoPlainScreens(), "a.ui.xml"));
+        }
+
+        [Test]
+        public void FontFloor_WithOnlyUnusableTargets_IsANote_OncePerRun()
         {
             var fs = TwoPlainScreens();
-            var run = new LintRun { FontFloor = FontFloor() };
+            var run = new LintRun { FontFloor = FontFloor(new FontFloorTarget { name = "SE", screen = "750*1334" }) };
 
             var a = Lint(run, fs, "a.ui.xml");
             var b = Lint(run, fs, "b.ui.xml");
 
+            Assert.AreEqual(1, a.Count(f => f.Kind == LintRun.Kind.Error), "the malformed row itself");
             var note = a.Single(f => f.Kind == LintRun.Kind.Note);
             StringAssert.Contains("fontFloor is 11dp but no usable fontFloorTargets", note.Text);
             CollectionAssert.IsEmpty(b);
-            Assert.AreEqual(0, run.Issues, "a note is information, not a failed lint");
+            Assert.AreEqual(1, run.Issues, "the error counts; the note is information");
         }
 
         [Test]

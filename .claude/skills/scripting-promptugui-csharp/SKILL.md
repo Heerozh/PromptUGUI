@@ -66,7 +66,7 @@ The same key shape applies to `<Import src="...">` inside those documents, to th
 
 **Common libraries (the commons pool)** — project-wide shared `<Template>` / `<Style>` / `<Theme>` files merged into every Screen automatically (no `<Import>` at call sites) are **declared in the settings asset, not loaded from code**: `Create → PromptUGUI → Settings` (one `PromptUGUISettings` asset per project, anywhere under `Assets/`; the package registers it in Preloaded Assets) → **Common Libraries** → one row per library: `src` = the resolver key (same shape as `<Import src>`, e.g. `common/Theme.ui` under `UseResourcesResolver("UI")`, the Address under Addressables), `as` = optional namespace (`<ui.Card/>`, `class="ui:card"`). That one list is what the runtime loads and what the lint tooling merges before its expanded pass (so a commons-only `class=` is never a false `PUI-EXPAND`) — there is no code-side registration to keep in sync with it.
 
-**Font Floor (lint)** — the same asset's `fontFloor` (dp, `0` = off) and `fontFloorTargets` (`WxH@D` screens) drive `PUI-FONT-FLOOR`, which reports text that renders below the floor on any target. Lint-only: nothing at runtime reads them, and there is no C# API — see the XML skill's "Font-size floor".
+**Font Floor (lint)** — the same asset's `fontFloor` (dp, default 7, `0` = off; inert until a target is listed) and `fontFloorTargets` (`WxH@D` screens) drive `PUI-FONT-FLOOR`, which reports text that renders below the floor on any target. Lint-only: nothing at runtime reads them, and there is no C# API — see the XML skill's "Font-size floor".
 
 ```csharp
 // Nothing to write for the common case: LoadDocumentAsync (and the modal loader, and hot reload)

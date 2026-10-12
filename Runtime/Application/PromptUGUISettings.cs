@@ -42,9 +42,10 @@ namespace PromptUGUI.Application
         public List<CommonLibraryEntry> commonLibraries = new();
 
         [Tooltip("Smallest readable text, in dp (= iOS pt ≈ Android dp ≈ CSS px ≈ Windows effective px). " +
-                 "Lint-only: PUI-FONT-FLOOR reports text that renders below it on a target screen. " +
-                 "0 turns the rule off. 11 is Apple's iOS minimum.")]
-        public float fontFloor = 0f;
+                 "Lint-only: PUI-FONT-FLOOR reports text that renders below it on a target screen, and " +
+                 "runs once at least one target is listed. 0 turns the rule off. 7 ≈ Steam Deck's hard " +
+                 "minimum, 10 ≈ its recommended size, 11 = Apple's iOS app minimum.")]
+        public float fontFloor = PromptUGUI.Lint.FontFloorPolicy.DefaultFloor;
 
         [Tooltip("The screens PUI-FONT-FLOOR checks every <Screen> against: physical pixels @ OS scale, " +
                  "e.g. 750x1334@2x for an iPhone SE upright, 1920x1080@1.5x for a 1080p laptop at 150%. " +

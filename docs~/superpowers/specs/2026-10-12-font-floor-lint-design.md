@@ -120,14 +120,14 @@ public sealed class FontFloorTarget
 // Runtime/Application/PromptUGUISettings.cs
 [Tooltip("Smallest readable text, in dp (= iOS pt ≈ Android dp ≈ CSS px ≈ Windows effective px). " +
          "Lint-only. 0 turns PUI-FONT-FLOOR off. 11 matches Apple's iOS minimum.")]
-public float fontFloor = 0f;
+public float fontFloor = FontFloorPolicy.DefaultFloor;   // 7，见 §15（原为 0）
 
 [Tooltip("The screens PUI-FONT-FLOOR checks every <Screen> against: physical pixels @ OS scale, e.g. " +
          "750x1334@2x for an iPhone SE in portrait. Orientation follows the aspect (taller = portrait).")]
 public List<FontFloorTarget> fontFloorTargets = new();
 ```
 
-- **默认关闭**（`fontFloor = 0`），已有项目升级后不会突然多出一批报错。
+- **默认不生效**：下限默认 7（§15），但目标表默认为空，不列目标规则就不跑 —— 已有项目升级后不会突然多出一批报错。
 - `fontFloor > 0` 但没有有效目标时规则不生效。Inspector 显示 HelpBox；`LintRun` 每次运行出一条 Note（§5.7）。
 - `OnValidate`（沿用 commons 的查错风格）：`screen` 语法错 → `LogError`（指出第几行）；`variants` 里写了 `portrait` / `landscape` →
   `LogError`（方向由宽高决定，不能手写）；`fontFloor < 0` → 归零。空白行保留在 Inspector 里，lint 忽略。
@@ -421,7 +421,7 @@ Core 抽取（纯重构，先跑全绿）：
 | 7 | `<Toggle fontSize>` | 本案做 | lint 只给 `scale` 修复值 |
 | 8 | `<Dropdown fontSize>` | 另案；lint 给 `scale` 修复值 | 本案一起改控件 |
 | 9 | `<Text>` 默认字号 | 前端提供：Editor 读 `TMP_Settings`；CLI 读 `TMP Settings.asset`，否则 36 | 固定按 36 / 不写字号的 `<Text>` 跳过 |
-| 10 | 默认是否开启 | 关（`fontFloor = 0`） | 默认 11 + 一组预设目标 |
+| 10 | 默认是否开启 | **§15 改定**：下限默认 7，但目标表默认为空 → 不列目标就不生效、也不提示（原定：`fontFloor = 0` 关闭） | 默认 11 + 一组预设目标 |
 | 11 | Inspector 预设 | 做（§5.9 的表） | 只有文档里的表 |
 
 ## 12. 里程碑
@@ -489,3 +489,23 @@ M0（`2656256`）、M1（`214718e`）、M2（`5584db8`）、`<Toggle fontSize>`�
 - 全局 `fontFloor` 为 0 时规则整体关闭，节点级下限也不生效。
 - 测试：`FontFloorRulesTests` 新增 11 个测试（14 个用例）（替换 / 继承 / 最近者胜 / 0 豁免 / 样式包来源 / 变体 / 缺口领头 / 模板调用 / 值校验 / 变体无基础值）；
   `XsdGeneratorTests.Xsd_commonAttrs_declares_fontFloor`；`VariantBaseRulesTests` 的 `TemplateExpander.CommonAttrs` 镜像同步。
+
+## 15. 追加：默认下限改为 7（2026-10-12，作者确认）
+
+依据（Steam Deck 认证：1280x800 下最小字符 9px、推荐 12px，30cm 视距；Xbox XAG 101：主机 1080p 26px；Apple HIG：iOS 11pt）换算到 dp：
+Steam Deck 硬底线 ≈ 7dp、推荐 ≈ 10dp，iOS 11dp，Xbox 主机 ≈ 13dp。11 是 App 的下限，对游戏偏严；7 取「真看不清」的那条线。
+
+- `FontFloorPolicy.DefaultFloor = 7`；`PromptUGUISettings.fontFloor` 的初值用它。`SettingsAssetReader.ReadFontFloor` 读到**缺失**字段时也返回 7 ——
+  Unity 反序列化旧资产时缺失字段取初值，CLI 必须与之一致；显式写的 `fontFloor: 0` 仍是关。
+- **没列任何目标 = 未配置，静默**：`LintRun` 只在「列了目标但全部写坏」时出 Note（原来是「没有可用目标」就出，默认 7 之后会对每个没配置的工程每次都提示）；
+  CLI 不列目标时不建 policy、不打印 font floor 行；Inspector 的提示从 Warning 降为 Info（"Add a target screen (Add preset ▾) to turn PUI-FONT-FLOOR on."）。
+- 已保存过的 settings 资产不受影响（字段值已写在资产里）。
+
+实跑（下限 7，目标：Android 360dp 横竖、iPhone SE 横竖、1080p 笔记本 @150%）：
+
+- **库自带 XML**：剩 4 条，全是弹窗正文 —— `MessageBox` / `InputBox` 的 `fontSize 18`、`InputBox` 里 `<InputField>` 默认 14、`MarkdownBox` 里 `<Markdown>`
+  默认 16。弹窗是 `reference="1920x1080" reference.portrait="1080x1920"`，现代手机横竖都是 ≈0.33dp/单位，需 ≥21。标题 24、按钮 24 都过。
+  笔记本目标无问题。Samples 无问题。是否把默认皮肤正文调到 21 待作者定。
+- **ssw_re_client**（它自己的 settings：7dp + 上述 4 个手机目标 + Desktop 1080p）：146 条，**全部来自手机目标**（Desktop 1080p 0 条）。
+  6–7dp 97 条、5–6dp 39 条、<5dp 10 条；集中在 Round（`Planet` 36、`Round` 25、`Commander` 16、`ShipDesign` 14，模板约 52）。
+  根因是 640x360 的 reference 配 5–7 号字（部分再 `scale ×0.8`）：手机横屏上 1 单位 ≈ 1dp。只有 1 条与 badge 相关，大部分是数据密集的面板文字。

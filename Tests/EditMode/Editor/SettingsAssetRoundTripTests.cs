@@ -100,12 +100,12 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
-        public void AnUnsetFontFloor_ReadsBackAsOff()
+        public void ADefaultSettingsAsset_ReadsBackTheDefaultFloor_AndNoTargets()
         {
             var text = Serialize();
 
             StringAssert.Contains("fontFloorTargets: []", text);
-            Assert.AreEqual(0f, SettingsAssetReader.ReadFontFloor(text));
+            Assert.AreEqual(FontFloorPolicy.DefaultFloor, SettingsAssetReader.ReadFontFloor(text));
             Assert.IsEmpty(SettingsAssetReader.ReadFontFloorTargets(text));
         }
     }
