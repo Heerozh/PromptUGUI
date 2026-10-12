@@ -130,5 +130,68 @@ namespace PromptUGUI.Tests.Editor
                 Object.DestroyImmediate(settings);
             }
         }
+
+        // ── font floor (2026-10-12 font-floor spec §5.7, §8-28) ────────────────────────────────
+
+        [Test]
+        public void Lint_WithAFontFloor_ReportsTextBelowItOnATarget()
+        {
+            var main = Write("main.ui.xml", "<Screen name='S' reference='1080x1920'>\n  <Text id='t' fontSize='28'/>\n</Screen>");
+            var findings = new List<LintRun.Finding>();
+            var policy = new FontFloorPolicy
+            {
+                Floor = 11f,
+                Targets = new[] { new FontFloorTarget { name = "SE", screen = "750x1334@2x" } },
+            };
+
+            UIXmlLintMenu.Lint(new[] { main }, findings.Add, fontFloor: policy);
+
+            var f = findings.Single(x => x.Text.Contains(FontFloorRules.Code));
+            Assert.AreEqual(N(main), f.File);
+            StringAssert.StartsWith(N(main) + ":4: [PUI-FONT-FLOOR]", f.Text);
+            StringAssert.Contains("renders at 9.7dp on 'SE'", f.Text);
+        }
+
+        [Test]
+        public void ConfiguredFontFloor_ReadsTheSettings_AndTheTmpDefault()
+        {
+            var settings = ScriptableObject.CreateInstance<PromptUGUISettings>();
+            settings.fontFloor = 12f;
+            settings.fontFloorTargets.Add(new FontFloorTarget { name = "SE", screen = "750x1334@2x" });
+            PromptUGUISettings.FinderForTests = () => new[] { settings };
+            PromptUGUISettings.ResetInstanceCache();
+            try
+            {
+                var policy = UIXmlLintMenu.ConfiguredFontFloor();
+
+                Assert.AreEqual(12f, policy.Floor);
+                Assert.AreEqual(1, policy.Targets.Count);
+                Assert.AreEqual("SE", policy.Targets[0].name);
+                Assert.AreEqual(TMPro.TMP_Settings.defaultFontSize, policy.TextDefaultSize,
+                    "what an unsized <Text> builds at (TmpPrimer)");
+            }
+            finally
+            {
+                PromptUGUISettings.FinderForTests = null;
+                PromptUGUISettings.ResetInstanceCache();
+                Object.DestroyImmediate(settings);
+            }
+        }
+
+        [Test]
+        public void ConfiguredFontFloor_WithoutASettingsAsset_IsNull()
+        {
+            PromptUGUISettings.FinderForTests = () => new PromptUGUISettings[0];
+            PromptUGUISettings.ResetInstanceCache();
+            try
+            {
+                Assert.IsNull(UIXmlLintMenu.ConfiguredFontFloor());
+            }
+            finally
+            {
+                PromptUGUISettings.FinderForTests = null;
+                PromptUGUISettings.ResetInstanceCache();
+            }
+        }
     }
 }

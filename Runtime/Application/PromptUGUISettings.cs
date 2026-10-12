@@ -41,6 +41,17 @@ namespace PromptUGUI.Application
                  "LoadDocumentAsync calls for you; the lint tools read the same list.")]
         public List<CommonLibraryEntry> commonLibraries = new();
 
+        [Tooltip("Smallest readable text, in dp (= iOS pt ≈ Android dp ≈ CSS px ≈ Windows effective px). " +
+                 "Lint-only: PUI-FONT-FLOOR reports text that renders below it on a target screen. " +
+                 "0 turns the rule off. 11 is Apple's iOS minimum.")]
+        public float fontFloor = 0f;
+
+        [Tooltip("The screens PUI-FONT-FLOOR checks every <Screen> against: physical pixels @ OS scale, " +
+                 "e.g. 750x1334@2x for an iPhone SE upright, 1920x1080@1.5x for a 1080p laptop at 150%. " +
+                 "Taller than wide activates 'portrait', otherwise 'landscape'; 'variants' lists any other " +
+                 "variant active on that screen.")]
+        public List<FontFloorTarget> fontFloorTargets = new();
+
         /// <summary>Resolved font + optional material preset for a (locale, type) pair.</summary>
         internal readonly struct FontResolution
         {
@@ -156,9 +167,26 @@ namespace PromptUGUI.Application
             }
         }
 
+        /// <summary>
+        /// The Inspector-side mirror of <c>LintRun</c>'s checks on the font-floor targets (2026-10-12
+        /// font-floor spec §5.1): a malformed screen, a hand-written orientation. Blank rows are inert.
+        /// </summary>
+        private void ValidateFontFloor()
+        {
+            if (fontFloor < 0f) fontFloor = 0f;
+            fontFloorTargets ??= new List<FontFloorTarget>();
+            for (var i = 0; i < fontFloorTargets.Count; i++)
+            {
+                var error = PromptUGUI.Lint.FontFloorTargetSyntax.Validate(fontFloorTargets[i]);
+                if (error != null)
+                    Debug.LogError($"[PromptUGUI] fontFloorTargets[{i}]: {error}", this);
+            }
+        }
+
         private void OnValidate()
         {
             ValidateCommonLibraries();
+            ValidateFontFloor();
 
             if (locales != null)
             {

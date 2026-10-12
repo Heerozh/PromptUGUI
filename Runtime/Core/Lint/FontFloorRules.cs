@@ -175,9 +175,11 @@ namespace PromptUGUI.Lint
                 var worst = Below[0];
 
                 var scale = Math.Abs(worst.ScaleChain - 1f) > Epsilon ? $", scale ×{Num(worst.ScaleChain)}" : "";
+                // A --target row is named after its screen; say the screen once.
+                var screen = worst.TargetName == worst.ScreenText ? "" : worst.ScreenText + " ";
                 var message =
                     $"{Label(Node)}: {worst.SizeDesc} renders at {Dp(worst.Dp)}dp on '{worst.TargetName}' " +
-                    $"({worst.ScreenText} {worst.Orientation}; {worst.CanvasDesc}{scale}) — below the {Num(floor)}dp floor. ";
+                    $"({screen}{worst.Orientation}; {worst.CanvasDesc}{scale}) — below the {Num(floor)}dp floor. ";
 
                 if (Fixed)
                 {

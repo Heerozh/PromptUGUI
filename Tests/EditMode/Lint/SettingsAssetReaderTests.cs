@@ -107,5 +107,52 @@ MonoBehaviour:
             Assert.AreEqual("a.ui", entry.src);
             Assert.AreEqual("ns", entry.@as);
         }
+
+        // ── font floor (2026-10-12 font-floor spec §5.7) ───────────────────────────────────────
+
+        [Test]
+        public void FontFloor_ReadsTheFloorAndItsTargets()
+        {
+            var yaml = Head + @"  commonLibraries: []
+  fontFloor: 11.5
+  fontFloorTargets:
+  - name: iPhone SE
+    screen: 750x1334@2x
+    variants:
+  - name: 'TV: living room'
+    screen: 1920x1080@2x
+    variants: tv mobile
+";
+
+            Assert.AreEqual(11.5f, SettingsAssetReader.ReadFontFloor(yaml));
+            var targets = SettingsAssetReader.ReadFontFloorTargets(yaml);
+            Assert.AreEqual(2, targets.Count);
+            Assert.AreEqual("iPhone SE", targets[0].name);
+            Assert.AreEqual("750x1334@2x", targets[0].screen);
+            Assert.IsEmpty(targets[0].variants);
+            Assert.AreEqual("TV: living room", targets[1].name, "Unity's quoting is undone");
+            Assert.AreEqual("1920x1080@2x", targets[1].screen);
+            Assert.AreEqual("tv mobile", targets[1].variants);
+        }
+
+        [Test]
+        public void FontFloor_AbsentOrEmpty_ReadsAsOff()
+        {
+            Assert.AreEqual(0f, SettingsAssetReader.ReadFontFloor(Head), "an asset saved before the field existed");
+            Assert.IsEmpty(SettingsAssetReader.ReadFontFloorTargets(Head));
+
+            var emptyList = Head + "  fontFloorTargets: []\n";
+            Assert.IsEmpty(SettingsAssetReader.ReadFontFloorTargets(emptyList));
+            Assert.AreEqual(0f, SettingsAssetReader.ReadFontFloor(emptyList), "fontFloorTargets is not fontFloor");
+        }
+
+        [Test]
+        public void TmpDefaultFontSize_IsReadFromTheTmpSettingsAsset()
+        {
+            const string tmp = "MonoBehaviour:\n  m_Name: TMP Settings\n  m_defaultFontSize: 28\n  m_defaultAutoSizeMinRatio: 0.5\n";
+
+            Assert.AreEqual(28f, SettingsAssetReader.ReadTmpDefaultFontSize(tmp));
+            Assert.IsNull(SettingsAssetReader.ReadTmpDefaultFontSize(Head));
+        }
     }
 }

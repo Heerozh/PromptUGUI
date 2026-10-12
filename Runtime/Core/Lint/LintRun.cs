@@ -60,6 +60,15 @@ namespace PromptUGUI.Lint
         private readonly HashSet<string> _notedCommons = new HashSet<string>();
         private readonly HashSet<string> _rejectedCommons = new HashSet<string>();
 
+        /// <summary>
+        /// The project's font floor (2026-10-12 font-floor spec §5.7), or null for none. Its targets
+        /// are checked on the first <see cref="Lint"/> — a malformed row is an <see cref="Kind.Error"/>,
+        /// a floor with no usable row a <see cref="Kind.Note"/>, each said once per run.
+        /// </summary>
+        public FontFloorPolicy FontFloor { get; set; }
+
+        private bool _fontFloorChecked;
+
         /// <summary>Entry files linted so far.</summary>
         public int Files { get; private set; }
 
@@ -107,6 +116,12 @@ namespace PromptUGUI.Lint
                             $"common library src=\"{lib.Src}\" as=\"{lib.Namespace}\": 'as' must not contain '.' " +
                             "(the same rule as <Import as>; templates are invoked as <ns.Name/>)");
 
+            if (!_fontFloorChecked)
+            {
+                _fontFloorChecked = true;
+                CheckFontFloor(findings);
+            }
+
             var doc = TryParse(path, read, findings);
             if (doc == null) return findings;
 
@@ -130,7 +145,7 @@ namespace PromptUGUI.Lint
             // when the entry is one of the libraries.
             foreach (var issue in DocumentLinter.Walk(doc, SrcKeyOf(path),
                                                       closure == null ? null : s => Lookup(closure, s),
-                                                      applied))
+                                                      applied, FontFloor))
             {
                 // Origin is the file the markup was WRITTEN in — for a finding inside an imported
                 // Template body that is the library, not the entry document that invoked it.
@@ -151,6 +166,29 @@ namespace PromptUGUI.Lint
                 Add(findings, kind, file, $"{where}: [{issue.Code}] {issue.Message}{via}");
             }
             return findings;
+        }
+
+        // The mirror of PromptUGUISettings.OnValidate for the CLI, plus the one thing the Inspector
+        // only shows: a floor that can never fire because no row is usable.
+        private void CheckFontFloor(List<Finding> findings)
+        {
+            var policy = FontFloor;
+            if (policy == null || policy.Floor <= 0f) return;
+
+            var usable = 0;
+            if (policy.Targets != null)
+                foreach (var row in policy.Targets)
+                {
+                    if (row == null || row.IsBlank) continue;
+                    var error = FontFloorTargetSyntax.Validate(row);
+                    if (error != null) Add(findings, Kind.Error, null, error);
+                    else usable++;
+                }
+
+            if (usable == 0)
+                findings.Add(new Finding(Kind.Note, null,
+                    $"fontFloor is {policy.Floor.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}dp " +
+                    "but no usable fontFloorTargets are configured — PUI-FONT-FLOOR is inactive."));
         }
 
         private static bool IsCommonsRow(IReadOnlyList<ImportRef> commons, string src)

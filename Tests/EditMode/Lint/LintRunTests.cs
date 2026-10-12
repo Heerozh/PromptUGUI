@@ -348,5 +348,82 @@ namespace PromptUGUI.Tests.EditMode.Lint
             Assert.AreEqual(0, b.Count(f => f.Kind == LintRun.Kind.Error), "said once per run");
             Assert.AreEqual(1, run.Issues);
         }
+
+        // ── font floor (2026-10-12 font-floor spec §5.7) ───────────────────────────────────────
+
+        private static FontFloorPolicy FontFloor(params FontFloorTarget[] targets) =>
+            new FontFloorPolicy { Floor = 11f, Targets = targets };
+
+        private static FakeFs TwoPlainScreens() => new FakeFs()
+            .Add("a.ui.xml", "<Screen name='A'><Frame/></Screen>")
+            .Add("b.ui.xml", "<Screen name='B'><Frame/></Screen>");
+
+        [Test]
+        public void FontFloor_FlowsIntoTheWalk_AsAnIssue()
+        {
+            var fs = new FakeFs().Add("main.ui.xml",
+                "<Screen name='S' reference='1080x1920'>\n  <Text id='t' fontSize='28'/>\n</Screen>");
+            var run = new LintRun
+            {
+                FontFloor = FontFloor(new FontFloorTarget { name = "SE", screen = "750x1334@2x" }),
+            };
+
+            var f = Lint(run, fs, "main.ui.xml").Single();
+
+            Assert.AreEqual(LintRun.Kind.Issue, f.Kind);
+            StringAssert.StartsWith(
+                "main.ui.xml:4: [PUI-FONT-FLOOR] <Text id='t'>: fontSize 28 renders at 9.7dp on 'SE'", f.Text);
+            Assert.AreEqual(1, run.Issues);
+        }
+
+        [Test]
+        public void FontFloor_AMalformedTarget_IsAnError_OncePerRun()
+        {
+            var fs = TwoPlainScreens();
+            var run = new LintRun
+            {
+                FontFloor = FontFloor(
+                    new FontFloorTarget { name = "SE", screen = "750*1334" },
+                    new FontFloorTarget { name = "PC", screen = "1920x1080", variants = "landscape" },
+                    new FontFloorTarget { name = "ok", screen = "1920x1080" }),
+            };
+
+            var a = Lint(run, fs, "a.ui.xml");
+            var b = Lint(run, fs, "b.ui.xml");
+
+            var errors = a.Where(f => f.Kind == LintRun.Kind.Error).ToList();
+            Assert.AreEqual(2, errors.Count);
+            StringAssert.Contains("font-floor target 'SE': screen=\"750*1334\"", errors[0].Text);
+            StringAssert.Contains("font-floor target 'PC'", errors[1].Text);
+            Assert.IsTrue(errors.All(e => e.File == null), "a configuration error has no file to open");
+            CollectionAssert.IsEmpty(b.Where(f => f.Kind == LintRun.Kind.Error).ToList(), "said once per run");
+            Assert.AreEqual(2, run.Issues);
+        }
+
+        [Test]
+        public void FontFloor_WithNoUsableTarget_IsANote_OncePerRun()
+        {
+            var fs = TwoPlainScreens();
+            var run = new LintRun { FontFloor = FontFloor() };
+
+            var a = Lint(run, fs, "a.ui.xml");
+            var b = Lint(run, fs, "b.ui.xml");
+
+            var note = a.Single(f => f.Kind == LintRun.Kind.Note);
+            StringAssert.Contains("fontFloor is 11dp but no usable fontFloorTargets", note.Text);
+            CollectionAssert.IsEmpty(b);
+            Assert.AreEqual(0, run.Issues, "a note is information, not a failed lint");
+        }
+
+        [Test]
+        public void FontFloor_Off_SaysNothing()
+        {
+            var run = new LintRun
+            {
+                FontFloor = new FontFloorPolicy { Floor = 0f, Targets = new[] { new FontFloorTarget { screen = "bad" } } },
+            };
+
+            CollectionAssert.IsEmpty(Lint(run, TwoPlainScreens(), "a.ui.xml"));
+        }
     }
 }
