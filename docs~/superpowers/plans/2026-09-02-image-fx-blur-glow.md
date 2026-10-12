@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- **仓库真实路径**：`C:/xsoft/PromptUGUI`（`ssw_re/Game/PromptUGUI` 是指向它的符号链接）。所有 `git` / `dotnet` 命令 `cd C:/xsoft/PromptUGUI` 后执行。
+- **仓库真实路径**：`C:/xsoft/PromptUGUI`（宿主工程里的包目录是指向它的符号链接）。所有 `git` / `dotnet` 命令 `cd C:/xsoft/PromptUGUI` 后执行。
 - **分支**：全部工作在 `feat/image-fx-blur-glow`（Task 0 建）。**绝不提交到 main。**
 - **LangVersion 9.0**：无 primary constructor、无 collection expression `[]`、无 `[field: SerializeField]`。`in` 参数 / target-typed `new()` / `??=` 可用。
 - **Core 纯 C# 子集**：`Runtime/Core/Lint/ImageFxRules.cs` 与 `StyleRules.cs` 的改动 **不得** `using UnityEngine`。`FxMesh` / `FxImage` / `FxMaterialCache` 在 `Controls/Internal`，不受此限。
@@ -484,7 +484,7 @@ WarnIfPackingUnsafe(set.SetName, atlas);   // 任一为 true → Debug.LogWarnin
 
 - [ ] **Step 1**: `2026-09-02-image-fx-blur-glow-design.md` 加 §13 实施记录：测试计数（EditMode / EditorOnly / PlayMode 全量）、最终采样核（tap 数 / 权重）与渲染探针阈值、与设计的偏差（至少：`PUI-FX-VALUE` 并入 `PUI-PROCEDURAL-VALUE`；`FxMaterialCache` 采用复制而非泛型；`GradientTint` 内缩是否可见）、顺带发现。
 - [ ] **Step 2**: 全量回归：RUN 三个程序集全量（不带 `group_names`）+ RUNED 全量；`read_console(types=["error","warning"])` 确认无新增 warning；`dotnet format --verify-no-changes`；`dotnet run --project .lint/UIXmlLint -- Runtime/Resources/`。
-- [ ] **Step 3**: 宿主工程手工目检：在 ssw_re_client 的 UIPreview 场景（memory：反射调 `LoadFileAsync`，先设 Theme + SpriteSet 解析器）放一个 `<Icon name="…" glow="8"/>` 与 `blur="4"`，用 `execute_code` 里的 `ScreenCapture.CaptureScreenshot` 截图（`manage_camera` 截图会丢 IMGUI 但 uGUI 无碍；仍按 memory 走稳妥路径）看一眼像素风图标上的观感；把结论写进 §13。**不改客户端仓库任何资产**（`PxlIcon.spriteatlas` 的 packing 改动是客户端的独立事项，只在 §13 记一句提醒）。
+- [ ] **Step 3**: 宿主工程手工目检：在宿主工程的 UIPreview 场景（memory：反射调 `LoadFileAsync`，先设 Theme + SpriteSet 解析器）放一个 `<Icon name="…" glow="8"/>` 与 `blur="4"`，用 `execute_code` 里的 `ScreenCapture.CaptureScreenshot` 截图（`manage_camera` 截图会丢 IMGUI 但 uGUI 无碍；仍按 memory 走稳妥路径）看一眼像素风图标上的观感；把与具体工程无关的结论写进 §13。**不改宿主工程任何资产**（它已有 atlas 的 packing 改动是那边的独立事项，§13 只记通用的改法）。
 - [ ] **Step 4**: 提交 `docs(spec): image fx M1 implementation notes`；推分支、开 PR（标题 `feat: <Image>/<Icon> 的 sprite 级模糊与外发光 —— FxImage 自持材质 + 矩形钳制采样 + linear tint / 灰度折入 + 图集打包卫生`，正文引用 spec；末尾附会话链接）。**推送前先问作者**（对外动作）。
 
 ---

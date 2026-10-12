@@ -194,8 +194,8 @@ Canvas 需开 `TexCoord1 | TexCoord2`（`ProceduralPanel.EnsureCanvasChannels` �
 
 `SpriteAtlasSyncer` 今天只设 `TextureSettings`，打包设置吃 Unity 默认（两者都 `true`）。M1：
 **新建 atlas 时显式设 `enableRotation = false` / `enableTightPacking = false`**；同步已有 atlas 时发现
-任一为 `true` → `Debug.LogWarning` 指出改法（改打包设置要 Pack Preview，不自动改）。宿主工程里现有
-`PxlIcon.spriteatlas`（1/1）由客户端仓库单独改，不在本 spec 内。
+任一为 `true` → `Debug.LogWarning` 指出改法（改打包设置要 Pack Preview，不自动改）。使用方工程里已有的
+atlas 由各工程自己改，不在本 spec 内。
 
 ### 4.6 C# 面
 
@@ -412,29 +412,19 @@ PlayMode **200 绿**、`dotnet format --verify-no-changes` 干净、`UIXmlLint` 
   探针按**半径相对**取样（`R/2`），不用固定像素距离 —— 首版写死 3px 时 `blur='4'`（= 2 texel）
   自然测不出来，那是测试的尺度错误不是 shader 的。
 
-### 宿主工程真实图集目检（Task 11）
+### 真实图集目检（Task 11）
 
-在 ssw_re_client 里用 `Solar96Bold.spriteatlas` 的真实打包 sprite（在 512×512 图集页里占
-`(264, 176, 84, 84)`）离屏渲染四个 `<Icon>`：无 fx / `glow=8` / `glow=8 glowColor=#3ba7ff` / `blur=6`。
-水平剖面（穿过图标中心向右）：
-
-```
-plain     …26:0.65 28:0.08 30:0.08 …44:0.08     ← 剪影边缘后直接是背景
-glow-self …26:0.77 28:0.36 30:0.25 32:0.13 34:0.08 …44:0.08   ← 单调衰减到背景，中间无异物
-```
-
-即真实图集页上邻居没有漏进来。两点观感记录：
+在宿主工程里用一张真实打包的图标图集（关 rotation / tight packing），离屏渲染无 fx / `glow` / 显式
+`glowColor` 的 `glow` / `blur` 四种 `<Icon>`，穿过图标中心取水平剖面：光晕从剪影边缘单调衰减到背景，
+中间无异物 —— 真实图集页上邻居没有漏进来。两点观感记录：
 
 - **自体色光晕会填满内部镂空**（与 Photoshop 的 Outer Glow 同性质：光晕画在本体之下，本体透明处
-  就透出光）。该图标的箭头是白色实心不受影响，但"镂空即图形"的图标配自体色会糊掉内部细节 —— 写
-  显式 `glowColor` 立刻分得开。局部核无法区分"形状外"与"内部孔洞"，这是技术本身的性质，非缺陷。
-- 半透明边缘像素会与身后的光晕合成而变亮（`plain` 0.73 → `glow-self` 1.00），也是正确的 source-over。
+  就透出光）。实心图形不受影响，但"镂空即图形"的图标配自体色会糊掉内部细节 —— 写显式 `glowColor`
+  立刻分得开。局部核无法区分"形状外"与"内部孔洞"，这是技术本身的性质，非缺陷。
+- 半透明边缘像素会与身后的光晕合成而变亮，也是正确的 source-over。
 
-### 客户端仓库待办（不在本 PR 内）
-
-`ssw_re_client` 的 `PxlIcon.spriteatlas` 目前 `enableRotation=1 / enableTightPacking=1`（当前
-`spriteCount=0`，尚未 Pack Preview）。要在像素图标上用 blur/glow，需在 SpriteAtlas inspector 里关掉
-两项再 Pack Preview —— Syncer 现在会对已有 atlas 告警但不自动改。`Solar96Bold` 已是 0/0，无需处理。
+开着 `enableRotation` / `enableTightPacking` 的已有 atlas 要用 blur / glow，需在 SpriteAtlas inspector 里
+关掉两项再 Pack Preview —— Syncer 会对已有 atlas 告警但不自动改（§4.5）。
 
 ## 14. M1.1：mip 预滤波的混合采样（2026-09-02 定案）
 
@@ -492,9 +482,9 @@ R=8 仍然重影。
 - **串色**：内缩假设 padding ≥ 2（Unity 最小档），满足则任意半径不串色；`enableRotation` /
   `enableTightPacking` 必须关的要求不变。
 - **暗边只影响 blur 的 RGB，glow 不受影响**（glow 只用 alpha）。blur 的颜色取决于导入器的 dilation
-  （`alphaIsTransparency`，Sprite 类型默认开）：实测 ssw_re_client 的 `Solar96Bold` 透明区 RGB 已是 254
-  （干净）；已开 mips 的 `FlagBtn` lod1–3 半透明 texel 比不透明色暗约 15%（源图未完全 dilate）。shader 无法
-  事后弥补 —— 直 alpha box 平均之后信息已丢。
+  （`alphaIsTransparency`，Sprite 类型默认开）：dilate 干净的图集，透明区 RGB 与相邻的不透明色一致；源图
+  未完全 dilate 的图集开了 mips，lod 1–3 的半透明 texel 会比不透明色暗一截（在宿主工程中实测可见）。shader
+  无法事后弥补 —— 直 alpha box 平均之后信息已丢。
 - **开 mips 的副作用**：`generateMipMaps` 是整个 atlas 的开关，该图集所有 sprite 缩小时都会走 mip（更软、
   少闪），显存 +1/3。Point 图集不要开：nearest 采 mip 只会更块状，fx 也不会用它。
 
@@ -545,8 +535,8 @@ Texture 对象、热重载、内存 1.33×）与约 250 行。留作 M2 备选�
    改为直接以 `Texture2D` 对象做 `HashSet` 键（仓库里 `SpriteRenderHints` 的 `#if` 分支是另一种写法）。
 2. **`FxMaterialCache.ResetForTests` 顺带清扫同名孤儿材质**。`HideAndDontSave` 材质能活过域重载，而缓存
    的静态表被重载清空 —— 在编辑器里预览过一个带 glow 的图标、再重新编译、再跑测试，
-   `FxMaterialCacheTests` 的两条泄漏计数就会永远失败（本次在 ssw_re_client 的 UIPreview 场景上实际撞到，
-   7 个无人引用的 `PromptUGUI/ImageFx`）。这些材质已无人引用（活着的 Graphic 下次重建会重新 Acquire），
+   `FxMaterialCacheTests` 的两条泄漏计数就会永远失败（本次在宿主工程的 UIPreview 场景上实际撞到：一批
+   无人引用的 `PromptUGUI/ImageFx`）。这些材质已无人引用（活着的 Graphic 下次重建会重新 Acquire），
    按名字扫掉即可；仅测试路径调用。
 
 目检（`Application.temporaryCachePath` 下的 dump）：`pugui-fx-mip-line-blur-8.png` 是一条单峰的软线，
@@ -584,3 +574,47 @@ Texture 对象、热重载、内存 1.33×）与约 250 行。留作 M2 备选�
 `FxMesh.VisibleCyclePx = 2.5`：`GapsAreVisible = pad · 屏幕px/单位 · 0.3545 ≥ 2.5`。静音范围变为 1× 下
 R < 7.1、2× 下 R < 3.5、3× 下 R < 2.35；§14.1 的玫瑰花环（blur 8、1:1，2.84 px）仍在报的一侧。限值公式随之
 `1 / (0.3545 · min(texel/px, 屏幕px/单位 / 2.5))`；既有 8×8 glow=6 的用例（2.1 px）改成 glow=8。
+
+### 14.11 矩形钳制由硬切改为内侧斜坡（2026-10-12）
+
+**现场。** 内容顶到 sprite 边上的图（裁切的立绘、实心块），开了让 lod 过 1 的半径之后，边外的光晕是一块块
+平移的矩形，半径越大越碎。与 mip 无关 —— 那张图集带完整 mip 链，采样也确实走到了 lod 3 以上。
+
+**原因。** §14.3 的内缩把 tap 的有效矩形每边收进 `1.5·2^L − 2` texel。有透明边距的图标，这条线落在透明区；
+满出血的图，它穿过实色。`SampleClamped` 原先用 `step` 一刀切：tap 中心一越线，这个 tap 的 1/25 覆盖率整份
+消失。覆盖率 → 衰减是 `(2c)²`，在边缘附近把每一级再放大约 4 倍，线性色彩空间下的混合又把低 alpha 的拖尾
+提亮 —— 边外光晕成了台阶；二维上就是内缩矩形按 25 个 tap 偏移各平移一份，叠出来的方块。lod 0（无 mip）
+也有这道台阶，只是切线就在 sprite 自己的边上，小半径时台阶挤在一两个像素里看不出。
+
+**方案。** 每轴权重 `saturate((uv − r.min) / fade) · saturate((r.max − uv) / fade)`，斜坡**整段在内缩矩形
+以内**：权重非零的 tap 中心从不越过内缩矩形，§14.3 的不串色论证原样成立。`fade = 0.5 · 0.3545 · R`（换成
+uv，不依赖 mip 信息，无 mip 路径一并修好），封顶每边 1/4 —— 与内缩同一封顶，两者都封顶时正中仍是满权重。
+本体单 tap、内缩公式、lod 选级、§14.5 的警告都不动。
+
+**宽度为何取半个 tap 间距。** 台阶的间隔是 tap 偏移投影到边法向上的间隔：25 个点铺在 2R 上，平均 0.08 R，
+最大的三处 0.17 / 0.20 / 0.24 R。半间距 0.177 R 只漏掉后两处：0.24 R 那处在只剩一两个 tap 的淡尾（覆盖率
+≤ 2/25），0.20 R 那处留下 0.02 R 宽的平台（R = 34 时不到一个像素）。靠近角的地方只有一部分 tap 同时落在另一
+轴的范围内，投影更稀 —— 增强对比后能看到浅台阶，正常显示下只差几个 sRGB 字节。斜坡把边内一整段压暗，宽度
+直接换成满出血边外光晕的损失：取满一个间距时，下面那块 60×64 texel 的实心块画成 64、配 `glow="48"`（内缩
+与斜坡都触到 1/4 封顶），边外第一个像素的光晕从 0.10 跌到 0.002，几乎全没；半间距在下面测试的比例下是
+0.231 → 0.141。
+
+**否决的两种。**
+
+1. **斜坡以内缩线为中心。** 光晕最饱满，但外半段的 tap 中心越过内缩线。lod > 1 时内缩本有余量，越线半个
+   mip texel 的串色按 bilinear 权重估算在 1e-3 量级；lod ≤ 1 时内缩为 0，越线的 tap 直接读进 padding 乃至邻居，没有保证。
+2. **内缩带里改为夹紧坐标采样**（tap 在 sprite 矩形内、内缩矩形外时，读内缩矩形上最近的点；sprite 矩形外
+   才淡出）。光晕最饱满、与 lod 无关，但切边整条发光：裁切立绘的上沿、下沿各伸出一条光带，放在列表行里会
+   伸进行间缝隙。满出血的边本来就没有「轮廓」可言，现行为（略提前、平滑地淡出）更接近作者的预期；要切边发光
+   的场合由作者换成 `<Frame glow>`。
+
+**测试。** `ImageFxRenderTests.Glow_OffAFullBleedEdge_FadesSmoothly_NotInSteps`：§14 的 mip 夹具里满出血的
+红块（60×64 texel）画成 128，`glow="34"`（17 texel、lod 2.6、内缩 7 texel —— 光晕约为图的四分之一），
+从上沿往外量 30 单位的剖面，要求从起点到它的 1/10 逐像素严格变暗（平台即台阶；更暗的淡尾单靠量化就会重复
+一个字节，不判）。Red 先行：旧 shader 下剖面是 `0.231 0.231 0.162 0.162 0.162 0.102 0.060 …`，六级台阶，
+第一对就是平台；新 shader 下是 `0.141 0.112 0.093 0.070 0.053 0.041 0.031 0.022 0.016 …`。既有 16 条
+`ImageFxRenderTests`（含两条不串色）不改即绿。全量：EditMode + EditorOnly **5522 绿**、PlayMode **265 绿**、
+`dotnet format --verify-no-changes` 干净。
+
+SKILL：`authoring-promptugui-xml` 的 blur / glow 小节加一条「贴边的图在切边处光晕更弱、提前平滑淡出」，
+附两种绕法（父级 `mask="rect"` 裁掉、或改用 `<Frame glow>`）。

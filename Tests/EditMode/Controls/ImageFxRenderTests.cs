@@ -542,6 +542,46 @@ namespace PromptUGUI.Tests.EditMode.Controls
             }
         }
 
+        [Test]
+        public void Glow_OffAFullBleedEdge_FadesSmoothly_NotInSteps()
+        {
+            // Art that runs right up to its sprite's edge — a cropped portrait, a solid tile — has
+            // opaque texels where the kernel's rectangle cut lies, and past lod 1 the mip inset pulls
+            // that cut INTO the picture. A hard per-tap cut drops each tap the instant its centre
+            // crosses it, so the halo outside that edge falls in 1/25-coverage steps: flat runs and
+            // sudden drops, which read as blocky bands. The 64-texel tile drawn at 128 with glow 34
+            // is a quarter-size halo: 17 texels, lod 2.6, a 7-texel inset, and the steps a few
+            // pixels apart.
+            const float Drawn = 128f;
+            Render($"<Icon id='i' name='ui:mipred' anchor='center' size='{Drawn}x{Drawn}' glow='34'/>",
+                   "pugui-fx-mip-fullbleed-glow.png");
+
+            var pxPerUnit = _rect.height / HostH;
+            var x = Mathf.RoundToInt(_rect.center.x);
+            var edge = _rect.center.y + Drawn * 0.5f * pxPerUnit;
+            var from = Mathf.CeilToInt(edge + 1f);
+            var to = Mathf.FloorToInt(edge + 30f * pxPerUnit);
+
+            var profile = new float[to - from + 1];
+            for (var i = 0; i < profile.Length; i++)
+                profile[i] = ToLinear(_shot.GetPixel(x, from + i).r);
+            Debug.Log("full-bleed glow profile (linear r, outward): " +
+                      string.Join(" ", System.Array.ConvertAll(profile, v => v.ToString("0.000"))));
+
+            Assert.Greater(profile[0], 0.03f, "前置：the glow reaches past the tile's edge");
+
+            // A staircase is flat runs between the drops; a fade darkens with every pixel. Judged
+            // down to a tenth of where it starts — the faint tail is a byte or two of sRGB and
+            // repeats one by quantisation alone.
+            var floor = profile[0] * 0.1f;
+            for (var i = 1; i < profile.Length && profile[i] > floor; i++)
+            {
+                Assert.Less(profile[i], profile[i - 1] - 1e-4f,
+                    $"{i}px out the halo stops fading ({profile[i - 1]:0.000} → {profile[i]:0.000}) — a flat " +
+                    "run between steps: the taps are switching off at a hard cut instead of fading out");
+            }
+        }
+
         // ---- 4. living with the rest of the library ----
 
         [Test]
