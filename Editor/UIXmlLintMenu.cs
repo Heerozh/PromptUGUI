@@ -46,8 +46,7 @@ namespace PromptUGUI.Editor
                 return;
             }
 
-            var commons = ConfiguredCommonLibraries();
-            var run = Lint(paths, Report, commons);
+            var run = LintConfigured(paths, Report);
 
             if (run.Issues > 0)
                 Debug.LogWarning($"[PromptUGUI] Lint: {run.Issues} issue(s) across {run.Files} file(s) — see the lines above.");
@@ -62,10 +61,18 @@ namespace PromptUGUI.Editor
             // An unknown style / template in a project that declares no common library is most
             // often a library nobody listed — the same hint UI.LoadDocumentAsync gives (spec §4.10).
             // With libraries declared the name is genuinely unknown and the finding stands alone.
-            if (run.SawUnknownName && commons.Count == 0)
+            if (run.SawUnknownName && ConfiguredCommonLibraries().Count == 0)
                 Debug.Log("[PromptUGUI] No common library is configured in PromptUGUISettings — if these " +
                           "names live in a shared library, list it under Common Libraries.");
         }
+
+        /// <summary>
+        /// <see cref="Lint"/> with everything the project's <see cref="PromptUGUISettings"/> declares —
+        /// the common libraries and the font floor. Every Editor front end (this menu, the UI
+        /// Preview's Lint button) goes through here, so a setting added later reaches all of them.
+        /// </summary>
+        internal static LintRun LintConfigured(IReadOnlyList<string> paths, Action<LintRun.Finding> report)
+            => Lint(paths, report, ConfiguredCommonLibraries(), ConfiguredFontFloor());
 
         /// <summary>
         /// Lints <paramref name="paths"/> (asset paths, or absolute files) in order, handing every
@@ -75,10 +82,11 @@ namespace PromptUGUI.Editor
         /// The <c>&lt;Import&gt;</c> every document implicitly has — <see cref="ConfiguredCommonLibraries"/>
         /// for the menu; a test hands its own rows.
         /// </param>
+        /// <param name="fontFloor">The project's font floor — <see cref="ConfiguredFontFloor"/> for the menu.</param>
         internal static LintRun Lint(IReadOnlyList<string> paths, Action<LintRun.Finding> report,
-                                     IReadOnlyList<ImportRef> commons = null)
+                                     IReadOnlyList<ImportRef> commons = null, FontFloorPolicy fontFloor = null)
         {
-            var run = new LintRun();
+            var run = new LintRun { FontFloor = fontFloor };
             var resolve = UiXmlLocator.MakeResolver();
             try
             {
@@ -117,6 +125,31 @@ namespace PromptUGUI.Editor
             }
             return refs;
         }
+
+        /// <summary>
+        /// <see cref="PromptUGUISettings.fontFloor"/> and its targets, with the size an unsized
+        /// <c>&lt;Text&gt;</c> builds at (2026-10-12 font-floor spec §5.7). Null when the project has
+        /// no settings asset.
+        /// </summary>
+        internal static FontFloorPolicy ConfiguredFontFloor()
+        {
+            var settings = PromptUGUISettings.Instance;
+            if (settings == null) return null;
+            return new FontFloorPolicy
+            {
+                Floor = settings.fontFloor,
+                Targets = settings.fontFloorTargets,
+                TextDefaultSize = TmpDefaultFontSize(),
+            };
+        }
+
+        /// <summary>
+        /// What <c>TmpPrimer</c> gives an unsized <c>&lt;Text&gt;</c>. Asked through
+        /// <c>Resources.Load</c> first: <c>TMP_Settings.instance</c> opens TMP's importer window when
+        /// the essentials were never imported, which a lint run must not do. TMP ships 36.
+        /// </summary>
+        private static float TmpDefaultFontSize() =>
+            Resources.Load<TMPro.TMP_Settings>("TMP Settings") != null ? TMPro.TMP_Settings.defaultFontSize : 36f;
 
         private static string Read(string path) => File.ReadAllText(UiXmlLocator.Physical(path));
 

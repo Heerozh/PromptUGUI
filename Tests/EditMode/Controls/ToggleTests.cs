@@ -25,6 +25,37 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(0f, label.color.b);
         }
 
+        // 2026-10-12 font-floor spec §5.8: the label was a fixed 14 the XML could not change.
+        [Test]
+        public void FontSize_sets_the_label_size_and_follows_a_variant()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Toggle id='t' text='Hi' fontSize='22' fontSize.big='30'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var label = UI.Open("S").Get<Toggle>("t").GameObject.GetComponentInChildren<TMP_Text>();
+            Assert.AreEqual(22f, label.fontSize);
+
+            UI.Variants.Set("big", true);
+            Assert.AreEqual(30f, label.fontSize);
+
+            UI.Variants.Set("big", false);
+            Assert.AreEqual(22f, label.fontSize);
+        }
+
+        [Test]
+        public void Label_is_14_without_fontSize()
+        {
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <Toggle id='t' text='Hi'/>
+</Screen></PromptUGUI>";
+            UI.LoadDocument("test", xml);
+            var label = UI.Open("S").Get<Toggle>("t").GameObject.GetComponentInChildren<TMP_Text>();
+            Assert.AreEqual(14f, label.fontSize);
+        }
+
         [Test]
         public void Parses_isOn_initial_value()
         {

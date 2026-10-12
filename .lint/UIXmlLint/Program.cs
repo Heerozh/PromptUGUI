@@ -25,8 +25,10 @@ namespace PromptUGUI.UIXmlLint
                 return 2;
             }
 
-            var commons = LoadCommons(options, paths);
-            if (commons == null) return 2;
+            var settings = LoadSettings(options, paths);
+            if (settings == null) return 2;
+            var commons = LoadCommons(options, settings);
+            var fontFloor = LoadFontFloor(options, settings, paths);
 
             // Everything about WHICH rules run, how the two passes dedup, how a finding is spelled,
             // how the common libraries are merged and how duplicates fold across entry files lives
@@ -35,7 +37,7 @@ namespace PromptUGUI.UIXmlLint
             // enumerating files, reading them, guessing src -> path (the runtime resolves src
             // through a caller-supplied SourceResolver, which has no on-disk ground truth), finding
             // the settings asset, and printing.
-            var run = new LintRun();
+            var run = new LintRun { FontFloor = fontFloor };
             var resolve = MakeResolver(options.SrcRoots);
             foreach (var path in paths)
             {
@@ -89,6 +91,15 @@ namespace PromptUGUI.UIXmlLint
             Console.Error.WriteLine("                           after the usual guess from the importing file's folder up to Resources/.");
             Console.Error.WriteLine("                           The root of UseResourcesResolver(root), or the folder Addressables");
             Console.Error.WriteLine("                           addresses are relative to. Repeatable.");
+            Console.Error.WriteLine("  --font-floor <dp>        Smallest readable text in dp for PUI-FONT-FLOOR (overrides the settings'");
+            Console.Error.WriteLine("                           fontFloor, default 7; 0 turns the rule off). The rule runs once a");
+            Console.Error.WriteLine("                           target is listed.");
+            Console.Error.WriteLine("  --target [<name>=]<WxH@D>[,<variant>...]");
+            Console.Error.WriteLine("                           A screen to check every <Screen> on: physical pixels @ OS scale, plus");
+            Console.Error.WriteLine("                           any variant active there. Repeatable; replaces the settings'");
+            Console.Error.WriteLine("                           fontFloorTargets. Taller than wide = portrait.");
+            Console.Error.WriteLine("  --text-default-size <n>  What an unsized <Text> renders at. Default: m_defaultFontSize of the");
+            Console.Error.WriteLine("                           'TMP Settings.asset' under the same Assets/ folder, else 36.");
             Console.Error.WriteLine();
             Console.Error.WriteLine("Examples:");
             Console.Error.WriteLine("  UIXmlLint Runtime/Resources/PromptUGUI/Modals/MessageBox.ui.xml");
@@ -96,6 +107,7 @@ namespace PromptUGUI.UIXmlLint
             Console.Error.WriteLine("  UIXmlLint Assets/UI/  # downstream Unity project; settings asset found automatically");
             Console.Error.WriteLine("  UIXmlLint Assets/_Project/ --src-root Assets/_Project/Common  # short Addressables addresses");
             Console.Error.WriteLine("  UIXmlLint Assets/UI/ --commons UI/Templates/Theme.ui --commons UI/Widgets.ui@ui");
+            Console.Error.WriteLine("  UIXmlLint Assets/UI/ --font-floor 11 --target SE=750x1334@2x --target 1920x1080@2x,tv");
         }
 
         // ── arguments ──────────────────────────────────────────────────────────────────────────
@@ -105,7 +117,10 @@ namespace PromptUGUI.UIXmlLint
             public readonly List<string> Paths = new List<string>();
             public readonly List<ImportRef> Commons = new List<ImportRef>();
             public readonly List<string> SrcRoots = new List<string>();
+            public readonly List<FontFloorTarget> Targets = new List<FontFloorTarget>();
             public string Settings;
+            public float? FontFloor;
+            public float? TextDefaultSize;
 
             public static bool TryParse(string[] args, out Options options, out string error)
             {
@@ -130,6 +145,18 @@ namespace PromptUGUI.UIXmlLint
                         case "--src-root":
                             if (!Next(args, ref i, arg, out var root, out error)) return false;
                             options.SrcRoots.Add(root);
+                            break;
+                        case "--font-floor":
+                            if (!NextNumber(args, ref i, arg, out var floor, out error)) return false;
+                            options.FontFloor = floor;
+                            break;
+                        case "--target":
+                            if (!Next(args, ref i, arg, out var target, out error)) return false;
+                            options.Targets.Add(ParseTarget(target));
+                            break;
+                        case "--text-default-size":
+                            if (!NextNumber(args, ref i, arg, out var size, out error)) return false;
+                            options.TextDefaultSize = size;
                             break;
                         default:
                             if (arg.StartsWith("--", StringComparison.Ordinal))
@@ -160,6 +187,36 @@ namespace PromptUGUI.UIXmlLint
                 }
                 value = args[++i];
                 return true;
+            }
+
+            private static bool NextNumber(string[] args, ref int i, string option, out float value, out string error)
+            {
+                value = 0f;
+                if (!Next(args, ref i, option, out var raw, out error)) return false;
+                if (float.TryParse(raw, System.Globalization.NumberStyles.Float,
+                                   System.Globalization.CultureInfo.InvariantCulture, out value) && value >= 0f)
+                    return true;
+                error = $"{option} needs a non-negative number, got '{raw}'";
+                return false;
+            }
+
+            /// <summary>
+            /// <c>[name=]WxH@D[,variant,…]</c> — a settings row on one line, named after its screen
+            /// unless a name is given. Its syntax is checked by <see cref="LintRun"/> like any other row.
+            /// </summary>
+            private static FontFloorTarget ParseTarget(string row)
+            {
+                var eq = row.IndexOf('=');
+                var name = eq < 0 ? null : row.Substring(0, eq).Trim();
+                var rest = eq < 0 ? row : row.Substring(eq + 1);
+                var comma = rest.IndexOf(',');
+                var screen = (comma < 0 ? rest : rest.Substring(0, comma)).Trim();
+                return new FontFloorTarget
+                {
+                    name = string.IsNullOrEmpty(name) ? screen : name,
+                    screen = screen,
+                    variants = comma < 0 ? null : rest.Substring(comma + 1).Replace(',', ' ').Trim(),
+                };
             }
 
             /// <summary><c>src</c> or <c>src@ns</c> — the settings row, spelled on one line.</summary>
@@ -224,19 +281,32 @@ namespace PromptUGUI.UIXmlLint
 
         // ── common libraries (2026-09-18 commons-settings spec §4.9) ──────────────────────────
 
-        /// <summary>
-        /// The rows to merge into every document: <c>--commons</c> as given; else the
-        /// <c>--settings</c> asset; else the settings asset discovered under the linted files'
-        /// <c>Assets/</c> folder; else none. Null (after a message) when an asset that was asked
-        /// for explicitly cannot be used — that is a usage error, not "no commons".
-        /// </summary>
-        private static List<ImportRef> LoadCommons(Options options, List<string> paths)
+        /// <summary>The settings asset the run reads, or none (<see cref="Path"/> null).</summary>
+        private sealed class SettingsSource
         {
-            if (options.Commons.Count > 0) return options.Commons;
+            public static readonly SettingsSource None = new SettingsSource(null, null);
 
+            public readonly string Path;
+            public readonly string Yaml;
+
+            public SettingsSource(string path, string yaml)
+            {
+                Path = path;
+                Yaml = yaml;
+            }
+        }
+
+        /// <summary>
+        /// The <c>--settings</c> asset; else the settings asset discovered under the linted files'
+        /// <c>Assets/</c> folder; else none. Null (after a message) when an asset that was asked
+        /// for explicitly cannot be used — that is a usage error, not "no settings". Read even when
+        /// <c>--commons</c> replaces its libraries: the font floor comes from it too.
+        /// </summary>
+        private static SettingsSource LoadSettings(Options options, List<string> paths)
+        {
             var explicitAsset = options.Settings != null;
             var asset = options.Settings ?? DiscoverSettings(paths);
-            if (asset == null) return new List<ImportRef>();
+            if (asset == null) return SettingsSource.None;
 
             string yaml;
             try
@@ -246,23 +316,89 @@ namespace PromptUGUI.UIXmlLint
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"UIXmlLint: cannot read settings asset {asset}: {ex.Message}");
-                return explicitAsset ? null : new List<ImportRef>();
+                return explicitAsset ? null : SettingsSource.None;
             }
             if (!SettingsAssetReader.IsPromptUGUISettings(Head(yaml)))
             {
                 Console.Error.WriteLine($"UIXmlLint: {asset} is not a PromptUGUISettings asset (text-serialized, m_Script guid {SettingsAssetReader.ScriptGuid}).");
-                return explicitAsset ? null : new List<ImportRef>();
+                return explicitAsset ? null : SettingsSource.None;
             }
+            return new SettingsSource(asset, yaml);
+        }
+
+        /// <summary>The rows to merge into every document: <c>--commons</c> as given; else the settings asset's; else none.</summary>
+        private static List<ImportRef> LoadCommons(Options options, SettingsSource settings)
+        {
+            if (options.Commons.Count > 0) return options.Commons;
+            if (settings.Path == null) return new List<ImportRef>();
 
             var refs = new List<ImportRef>();
-            foreach (var row in SettingsAssetReader.ReadCommonLibraries(yaml))
+            foreach (var row in SettingsAssetReader.ReadCommonLibraries(settings.Yaml))
                 if (row != null && !row.IsBlank) refs.Add(row.ToImportRef());
 
             var spelled = new List<string>();
             foreach (var r in refs) spelled.Add(r.Namespace == null ? r.Src : r.Src + "@" + r.Namespace);
             Console.Out.WriteLine(
-                $"UIXmlLint: common libraries from {asset}: " + (spelled.Count == 0 ? "none declared" : string.Join(", ", spelled)));
+                $"UIXmlLint: common libraries from {settings.Path}: " + (spelled.Count == 0 ? "none declared" : string.Join(", ", spelled)));
             return refs;
+        }
+
+        // ── font floor (2026-10-12 font-floor spec §5.7) ───────────────────────────────────────
+
+        /// <summary>
+        /// The floor (<c>--font-floor</c>, else the settings', else the field's default), its targets
+        /// (<c>--target</c> rows, else the settings'), and what an unsized <c>&lt;Text&gt;</c> renders
+        /// at. Null when the floor is off or no target is listed — the default state, said nothing
+        /// about. The rows themselves are checked by <see cref="LintRun"/>, not here.
+        /// </summary>
+        private static FontFloorPolicy LoadFontFloor(Options options, SettingsSource settings, List<string> paths)
+        {
+            var fromSettings = settings.Path != null;
+            var floor = options.FontFloor
+                        ?? (fromSettings ? SettingsAssetReader.ReadFontFloor(settings.Yaml) : FontFloorPolicy.DefaultFloor);
+            if (floor <= 0f) return null;
+
+            IReadOnlyList<FontFloorTarget> targets = options.Targets.Count > 0
+                ? options.Targets
+                : fromSettings ? SettingsAssetReader.ReadFontFloorTargets(settings.Yaml) : new List<FontFloorTarget>();
+            if (targets.Count == 0) return null;
+            var textDefault = options.TextDefaultSize ?? DiscoverTmpDefaultFontSize(paths) ?? 36f;
+
+            var where = options.Targets.Count > 0 ? "--target" : settings.Path ?? "no settings";
+            Console.Out.WriteLine(
+                $"UIXmlLint: font floor {Num(floor)}dp on {targets.Count} target(s) from {where}; " +
+                $"an unsized <Text> is {Num(textDefault)}.");
+            return new FontFloorPolicy { Floor = floor, Targets = targets, TextDefaultSize = textDefault };
+        }
+
+        private static string Num(float value) => value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+        /// <summary>
+        /// <c>m_defaultFontSize</c> of the first <c>TMP Settings.asset</c> under the linted files'
+        /// <c>Assets/</c> folders — what <c>TmpPrimer</c> gives an unsized <c>&lt;Text&gt;</c>.
+        /// </summary>
+        private static float? DiscoverTmpDefaultFontSize(List<string> paths)
+        {
+            var roots = new List<string>();
+            foreach (var path in paths)
+            {
+                var root = AssetsRootOf(path);
+                if (root != null && !roots.Contains(root)) roots.Add(root);
+            }
+            foreach (var root in roots)
+                foreach (var f in Directory.EnumerateFiles(root, SettingsAssetReader.TmpSettingsFileName, SearchOption.AllDirectories))
+                {
+                    try
+                    {
+                        var size = SettingsAssetReader.ReadTmpDefaultFontSize(File.ReadAllText(f));
+                        if (size.HasValue) return size;
+                    }
+                    catch (Exception)
+                    {
+                        // An unreadable copy is no answer; try the next one, then the TMP default.
+                    }
+                }
+            return null;
         }
 
         private static string Head(string text) => text.Length <= 4096 ? text : text.Substring(0, 4096);

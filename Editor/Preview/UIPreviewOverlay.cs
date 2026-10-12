@@ -408,7 +408,7 @@ namespace PromptUGUI.Editor.Preview
         internal int Lint()
         {
             if (string.IsNullOrEmpty(LoadedFile)) return -1;
-            var run = UIXmlLintMenu.Lint(new[] { LoadedFile }, UIXmlLintMenu.Report, UIXmlLintMenu.ConfiguredCommonLibraries());
+            var run = UIXmlLintMenu.LintConfigured(new[] { LoadedFile }, UIXmlLintMenu.Report);
             _lintResult = run.Issues == 0 ? "Lint: no issues" : $"Lint: {run.Issues} issue(s) — see the Console";
             return run.Issues;
         }

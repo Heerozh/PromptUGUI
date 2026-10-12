@@ -113,6 +113,8 @@ CLI 对每份文档跑**两遍**（`Core/Lint/DocumentLinter.cs`，按 issue 去
 
 **commons 也参与展开遍**：`PromptUGUISettings.commonLibraries` 的每一行都被当作每份文档隐含的 `<Import>`，按运行时 `AddCommonLibrary` / `MergeCommons` 同一份实现合并（`DocumentLinter.Walk(..., commons)`）。CLI 自己在入口文件所在的 `Assets/` 下找 settings 资产（`SettingsAssetReader`，纯 C#），也可显式 `--settings <file.asset>` / `--commons <src>[@<as>]`；短地址（Addressables / `UseResourcesResolver(root)`）解析不到时给 `--src-root <dir>`。**读、解析、格式化、跨文件去重都在 `Core/Lint/LintRun.cs` + `ImportClosure.cs`**，`Program.cs` 只剩参数与打印 —— 宿主 Unity 里的 **`Tools › PromptUGUI › Lint All UI XML`**（`Editor/UIXmlLintMenu.cs`）跑的是同一个 `LintRun`：扫 `Assets/` + embedded 包里的全部 `.ui.xml`，`<Import src>` 先查 Addressables 的地址 / GUID 表再退回磁盘猜测，commons 直接读 `PromptUGUISettings.Instance`，每条 finding 一行 Console（文件 TextAsset 作 context，可点 ping）。新前端只该改「文件从哪来、src 怎么变文件、行往哪打」，不要在前端里再写一遍规则或去重。
 
+**字号下限（`PUI-FONT-FLOOR`）也从 settings 来**：`fontFloor`（dp，默认 7，0 = 关；没列目标时不生效、也不提示）+ `fontFloorTargets`（`WxH@D` 目标屏幕），`LintRun.FontFloor` 带进 `DocumentLinter.Walk(..., fontFloor)`，只在展开遍 / 主题遍跑（`Core/Lint/FontFloorRules.cs`）。它按目标屏幕重算画布系数与 `scale` 链，公式与运行时共用 `Core/Parser/CanvasScaleMath` / `ScaleSyntax` 和 `Core/IR/VariantLookup` —— 改 `Screen` 的缩放或变体解析时，改这三处，lint 自动跟上。控件默认字号表 `FontFloorRules.TextTags` 由 `FontFloorDefaultsTests` 对着真控件钉住。CLI 另有 `--font-floor` / `--target` / `--text-default-size`。Spec：`docs~/superpowers/specs/2026-10-12-font-floor-lint-design.md`。
+
 ### `.pxl` 渲染预览（PxlPreview CLI）
 
 写完或编辑任何 `.pxl` 之后，渲染成 PNG **然后真的去看那张图**——像素画的明暗、斜面方向、9-slice 边条是否均匀，逐行读字符是判断不出来的：
@@ -216,3 +218,5 @@ XSD generator tests use substring assertions (`StringAssert.Contains`) rather th
 `docs~/superpowers/specs/<date>-<topic>-design.md` is the spec format; `docs~/superpowers/plans/<date>-<topic>.md` is the implementation plan format. New milestones go through brainstorming → spec → plan → feature branch → PR → merge to main. Recent merges (PR #1 M3, PR #3 M4) used merge commits with `--delete-branch`.
 
 DO NOT Commit any file to main branch!
+
+**本仓库是开源库；用来跑测试 / 试用的宿主工程和下游项目可能是闭源的私人项目。** 不要把它们的任何具体内容写进本仓库或它的公开渠道：PR 标题与描述、commit message、spec / plan、skill、README、代码注释、测试数据 —— 包括工程名、路径、文件 / 界面 / 样式名、试跑结果与统计、截图。需要拿真实工程验证时，仓库里只写与具体工程无关的结论（「在宿主工程中跑通」），具体情况只在对话里汇报。

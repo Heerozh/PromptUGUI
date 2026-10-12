@@ -60,8 +60,9 @@ document's expanded pass exactly as the runtime merges the commons pool — so a
 and a name declared on both sides is the same `conflicts with commons pool` error
 `UI.EnsureCommonLibrariesAsync` would throw. Where the rows come from, in order:
 
-1. `--commons <src>[@<as>]` (repeatable) — the rows spelled on the command line;
-   no asset is read. For CI, or a checkout with no Unity project around.
+1. `--commons <src>[@<as>]` (repeatable) — the rows spelled on the command line,
+   instead of the asset's (the asset is still read for the font floor, below).
+   For CI, or a checkout with no Unity project around.
 2. `--settings <file.asset>` — an explicit `PromptUGUISettings` asset. Read with
    `Runtime/Core/Lint/SettingsAssetReader.cs` (pure C#, tested), which understands
    exactly the shape Unity's text serializer writes for that field.
@@ -81,6 +82,38 @@ Inside Unity, **Tools › PromptUGUI › Lint All UI XML** runs the same
 same settings asset directly, and resolves `<Import src>` through the
 Addressables settings before falling back to the on-disk guess — no `--src-root`
 needed there. Each finding is a Console line pinging the asset.
+
+## Font floor
+
+`PUI-FONT-FLOOR` reports text that renders below the project's smallest readable
+size on any of its target screens (2026-10-12 font-floor spec): `dp = fontSize ×
+canvas factor × Π ancestor scale ÷ OS scale`, evaluated per `<Screen>` × target
+with the runtime's own formulas, on the expanded pass. It runs once at least one
+target screen is listed (the floor defaults to 7dp; `0` turns it off). Where the
+inputs come from:
+
+| Input | Flag | Else |
+|---|---|---|
+| floor, in dp | `--font-floor <dp>` (`0` = off) | the settings asset's `fontFloor`, else 7 |
+| target screens | `--target [<name>=]<WxH@D>[,<variant>...]`, repeatable; replaces the asset's list | the settings asset's `fontFloorTargets` |
+| what an unsized `<Text>` renders at | `--text-default-size <n>` | `m_defaultFontSize` of the `TMP Settings.asset` under the same `Assets/` folder, else 36 |
+
+A target is physical pixels at the OS scale — `750x1334@2x` is an iPhone SE
+upright, `1920x1080@1.5x` a 1080p laptop at 150%, `1920x1080@2x` a 1080p TV;
+taller than wide activates `portrait`, otherwise `landscape`. The values used are
+printed on stdout. A malformed row is an error (once per run); a floor with no
+usable row is a note. A `<Screen>` without `scale-mode` is judged as `auto` —
+`UI.DefaultScaleMode` lives in C# where the CLI cannot see it.
+
+Text that is small on purpose (badge counts) carries its own floor in the XML:
+`fontFloor="7"` on a node, a container, a class pack or a template invocation
+applies to that subtree (nearest wins, `0` exempts). It is lint-only — the runtime
+ignores it — and a value that is not a non-negative number is
+`PUI-FONT-FLOOR-VALUE`.
+
+```bash
+dotnet run --project .lint/UIXmlLint -- Assets/UI/ --font-floor 11 --target SE=750x1334@2x --target 1920x1080@2x,tv
+```
 
 ### Where a finding points
 
@@ -240,6 +273,8 @@ installed locally — check `/help` if unsure.)
 | `PUI-SCROLL-VIRTUAL-VARIANT`   | Any `virtualize.<variant>=`. The mode is decided once, when the list is built (it picks Content's layout group); a later switch is ignored. | CLI error (the list warns once at runtime) |
 | `PUI-SCROLL-VIRTUAL-TEMPLATE`  | `virtualize` with no `itemTemplate` (base, variant, or `class=`). The rows are built from it as they scroll into view; `BindItems` throws without one. | CLI error (`BindItems` throws at runtime) |
 | `PUI-CLAMP-SCALE`             | `width` / `height` = `clamp(min, N%, max)` (base or any variant) together with `scale=` (base or any variant) on the same node. The clamped axis is owned by the layout pass (`ClampFitter`), which would drop `scale`'s box-preserving inflation. Move `scale` to a child or drop the clamp. Declared, not resolved — the runtime uses the same predicate. | CLI error + **runtime throw** (`ParseException` at `UI.Open`) |
+| `PUI-FONT-FLOOR`              | Text that renders below `fontFloor` dp on a font-floor target screen (see **Font floor**). One finding per node, led by the worst target, with the `fontSize` (or, on the fixed-size `<Dropdown>`, the `scale`) that fixes it. Expanded and per-theme passes only; dispatched from `DocumentLinter`, not `IRWalker`. | **CLI-only** (and the Editor menu) |
+| `PUI-FONT-FLOOR-VALUE`        | A node-level `fontFloor=` (base or variant) that is not a non-negative number. | **CLI-only** |
 
 To add a new rule: implement it in `Runtime/Core/Lint/` and dispatch from
 `IRWalker`. Also wire it into `ScreenInstantiator.InstantiateRecursive` if and
@@ -249,7 +284,8 @@ CLI-only to keep `Debug.Log*` noise out of the editor / Player.
 
 ## Scope (what this CLI does NOT do)
 
-- **No Variant resolution.** Variant `<Add>` subtrees ARE walked (so layout
+- **No Variant resolution** — except in `PUI-FONT-FLOOR`, which resolves each
+  target's variants. Elsewhere, Variant `<Add>` subtrees ARE walked (so layout
   violations inside them are caught), but `attr.var` overrides are checked
   using the same rule that base attributes use.
 - **No verdict on how big a `blur=` / `glow=` radius may be.** Whether the

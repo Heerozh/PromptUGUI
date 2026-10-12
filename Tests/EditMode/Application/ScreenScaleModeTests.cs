@@ -461,7 +461,7 @@ namespace PromptUGUI.Tests.Application
 </PromptUGUI>");
             var scaler = screen.RootGameObject.GetComponent<UnityEngine.UI.CanvasScaler>();
             Assert.AreEqual(UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize, scaler.uiScaleMode);
-            // PixelScaleSolver always returns a positive factor (>= 0 degenerate guard or
+            // CanvasScaleMath.PixelFactor always returns a positive factor (>= 0 degenerate guard or
             // power-of-two snap). The exact value depends on the host EditMode canvas
             // rect — we only care that Open() completed and a factor was assigned.
             Assert.Greater(scaler.scaleFactor, 0f);

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using LitMotion;
 using PromptUGUI.Controls;
 using PromptUGUI.IR;
+using PromptUGUI.Parser;
 using PromptUGUI.Registry;
 using R3;
 using UnityEngine;
@@ -410,7 +411,8 @@ namespace PromptUGUI.Application
             var screenPx = UI.CanvasSizeOverride != null
                 ? UI.CanvasSizeOverride()
                 : ReadCanvasRectSize();
-            _canvasFactor = UnityEngine.Mathf.Min(screenPx.x / size.x, screenPx.y / size.y);
+            _canvasFactor = PromptUGUI.Parser.CanvasScaleMath.ExpandFactor(
+                screenPx.x, screenPx.y, size.x, size.y);
         }
 
         private void ApplyPixel(UnityEngine.UI.CanvasScaler scaler)
@@ -433,10 +435,9 @@ namespace PromptUGUI.Application
             var canvasSize = UI.CanvasSizeOverride != null
                 ? UI.CanvasSizeOverride()
                 : ReadCanvasRectSize();
-            var factor = PixelScaleSolver.Solve(
-                canvasSize, design.Value, UI.PixelScalePowerOfTwo);
-            if (UI.MinPixelScale > 0f && factor < UI.MinPixelScale)
-                factor = UI.MinPixelScale;
+            var factor = PromptUGUI.Parser.CanvasScaleMath.PixelFactor(
+                canvasSize.x, canvasSize.y, design.Value.x, design.Value.y,
+                UI.PixelScalePowerOfTwo, UI.MinPixelScale);
             scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize;
             scaler.scaleFactor = factor;
             _canvasFactor = factor;
@@ -530,32 +531,26 @@ namespace PromptUGUI.Application
                 }
             }
 
-            if (TryParseDeviceScale(raw, out var devN))
+            if (ScaleSyntax.TryParseDevice(raw, out var devN))
             {
-                var f = _canvasFactor > 0f ? _canvasFactor : 1f;
-                var dv = devN / f;
+                var dv = ScaleSyntax.DeviceLocalScale(devN, _canvasFactor);
                 rt.localScale = new Vector3(dv, dv, 1f);
                 ApplyBoxPreservingCompensation(rt, dv);
                 return;
             }
 
-            if (TryParseRelativeScale(raw, out var relR))
+            if (ScaleSyntax.TryParseRelative(raw, out var relR))
             {
-                var f = _canvasFactor > 0f ? _canvasFactor : 1f;
                 // round-half-up to the nearest integer effective (>= 1), then divide the
                 // factor back out: net physical-px/unit = effective (integer → pixel-aligned),
                 // and grows with f (responds to window size). See CRS-D3/D4/D5.
-                var eff = Mathf.Max(1f, Mathf.Floor(f * relR + 0.5f));
-                var dv = eff / f;
+                var dv = ScaleSyntax.RelativeLocalScale(relR, _canvasFactor);
                 rt.localScale = new Vector3(dv, dv, 1f);
                 ApplyBoxPreservingCompensation(rt, dv);
                 return;
             }
 
-            if (string.IsNullOrEmpty(raw)
-                || !float.TryParse(raw, System.Globalization.NumberStyles.Float,
-                                   System.Globalization.CultureInfo.InvariantCulture, out var v)
-                || v <= 0f)
+            if (!ScaleSyntax.TryParseMultiplier(raw, out var v))
             {
                 // Unresolved / non-numeric (e.g. <Animation scale="1:0.5">) → identity.
                 // The baseline geometry was restored above (dynamic) or by ApplyCommon (static).
@@ -621,40 +616,16 @@ namespace PromptUGUI.Application
         }
 
         // Whether a node declares a factor-dependent scale (Nx or <r>r) in its base attribute
-        // or any variant override.
+        // or any variant override. The three scale forms and their formulas live in ScaleSyntax
+        // (pure C#, shared with the font-floor lint).
         private static bool DeclaresFactorScale(ElementNode node)
         {
             if (node.Attributes.TryGetValue("scale", out var baseVal)
-                && (TryParseDeviceScale(baseVal, out _) || TryParseRelativeScale(baseVal, out _))) return true;
+                && ScaleSyntax.IsFactorDependent(baseVal)) return true;
             if (node.VariantOverrides.TryGetValue("scale", out var list))
                 foreach (var (_, value) in list)
-                    if (TryParseDeviceScale(value, out _) || TryParseRelativeScale(value, out _)) return true;
+                    if (ScaleSyntax.IsFactorDependent(value)) return true;
             return false;
-        }
-
-        // scale="Nx" (N positive integer): localScale = N / canvasFactor → renders the
-        // element at exactly N physical pixels per design-unit, independent of the auto
-        // factor. Returns false for the plain-multiplier form (handled by float.TryParse).
-        private static bool TryParseDeviceScale(string raw, out int n)
-        {
-            n = 0;
-            if (string.IsNullOrEmpty(raw) || raw.Length < 2 || raw[raw.Length - 1] != 'x') return false;
-            return int.TryParse(raw.Substring(0, raw.Length - 1),
-                System.Globalization.NumberStyles.None,
-                System.Globalization.CultureInfo.InvariantCulture, out n) && n >= 1;
-        }
-
-        // scale="<r>r" (r positive float): localScale = max(1, round(canvasFactor·r)) / canvasFactor
-        // → scales relative to the factor but snaps net physical-px/unit to the nearest integer
-        // so it stays pixel-aligned at any factor. Returns false for the 'Nx' and plain-multiplier
-        // forms (handled by TryParseDeviceScale / float.TryParse).
-        private static bool TryParseRelativeScale(string raw, out float r)
-        {
-            r = 0f;
-            if (string.IsNullOrEmpty(raw) || raw.Length < 2 || raw[raw.Length - 1] != 'r') return false;
-            return float.TryParse(raw.Substring(0, raw.Length - 1),
-                System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture, out r) && r > 0f;
         }
 
         // Inflates a just-baselined RectTransform by 1/scale so that localScale=scale renders

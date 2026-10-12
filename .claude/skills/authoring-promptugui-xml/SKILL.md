@@ -504,6 +504,7 @@ Image + uGUI Toggle + 自动 label。R3 `OnValueChanged: bool`。`<Toggle>静音
 | `sprite` | sprite key | — | **勾选框** sprite。⚠️ **行为已变**：它过去指向 checkmark（跟 `color` 不是同一层），现在与 `color` 同层、与全库其它控件一致。换对勾图形请用 `checkmark` |
 | `checkmark` · `checkmarkColor` | sprite key / color | — | **对勾**图形与颜色。`checkmark=""` 去图 |
 | `font` | string | `default` | |
+| `fontSize` | float | `14` | **label** point size (the checkbox keeps its 20×20). Variant-switchable (`fontSize.portrait="28"`) |
 | `textColor` | hex / CSS / token | — | **label 文字色**（区别于 `color`=背景）；支持渐变 / `/alpha`；空=默认 ink |
 | `hoverColor` · `pressedColor` · `selectedColor` · `disabledColor` | hex / CSS / token | — | **绝对**单态 bg 色（仅 targetGraphic，不扩散）；`selectedColor`=勾选时 bg 基色（同 `<Tab>` 的 selection-aware base，hover/pressed/disabled 叠在上面）；见 states.md |
 | `hoverModulate` · `pressedModulate` · `selectedModulate` · `disabledModulate` | hex / CSS / token | white | **相对**乘子，扩散到 bg + 所有子 Graphic；子节点 `stateReact="false"` 退出；见 states.md |
@@ -967,6 +968,7 @@ Other notes:
 | `hidden="true"` | bool | Initial `SetActive(false)`. **Runtime-owned** once code writes `Hidden` (same contract as `isOn`): a resize / Variant / Theme ReSolve never snaps a code-written value back; an untouched node still follows `hidden.<variant>=` and its theme's `<Style>`. So write the real initial state here (a preview that only loads the XML shows it) and let C# take over. Undeclared = never written (no self-heal — a `.variant` form needs a base, `PUI-VARIANT-NO-BASE`). |
 | `interactable="false"` | bool | **Runtime-owned** once code writes `Interactable` (as `hidden`); undeclared = `true`, re-applied on an untouched node so a base-less `interactable.mobile=` still heals. Initial `CanvasGroup.interactable=false`, leaving `blocksRaycasts=true` — a disabled subtree still **absorbs** clicks, never passing them through to a backdrop behind it (standard Unity disabled semantics; for click-through set `blocksRaycasts=false` on the CanvasGroup yourself, as the Toast overlay does). On `<Btn>` it **also** sets `Button.interactable=false` → the Btn enters its Disabled state (see `reference/states.md`). |
 | `stateReact="false"` | bool (default `true`) | Opts this node **and its whole subtree** out of an ancestor `<Btn>` / `<Tab>` / `<Toggle>`'s `*Modulate` fan-out. Has no effect on `*Color` (absolute — bg only, never fanned out). See `reference/states.md`. |
+| `fontFloor="N"` | dp ≥ 0 | **Lint-only.** The `PUI-FONT-FLOOR` floor for this node **and its whole subtree** (nearest wins; `0` exempts) — for text that is small on purpose (badges). The runtime ignores it. See **Font-size floor**. |
 | `flow="false"` | bool (default `true`) | **Layout-group children only** (direct child of `<VStack>` / `<HStack>` / `<Grid>`). Opts the child **out of the layout flow**: the group neither positions it nor counts it toward its own preferred size, and `anchor` / `margin` / `N%` regain full free-positioning semantics against the group's rect. Use for a 9-slice background layer / badge / overlay inside a hug-sized stack — see **Out-of-flow children** below. Inert under a free-positioning parent (`PUI-FLOW-OUTSIDE-GROUP`). Variant-overridable (`flow.portrait="false"`). |
 | `scale="N"` / `scale="Nx"` / `scale="<r>r"` | float `N` / `Nx` (int) / `<r>r` (float) | Three forms: `N` = box-preserving (a render-density knob, **not** a resize knob); `Nx` = N physical px per design-unit (constant across factors, **doesn't grow with the window**); `<r>r` = `r×` the canvas factor **snapped to an integer** (**grows with the window yet stays pixel-aligned**). `scale="2"` ≠ `scale="2x"`. Full formulas / examples / caveats: see **Relative scale** / **Device-density** / **Canvas-relative snapped** below. |
 | `focus="true"` | bool | **Selectable controls only** (`<Btn>` / `<Tab>` / `<TabMenu>` / `<Collapsible>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<InputField>` / `<ScrollList>`). Marks this control as the initial EventSystem selection when the Screen opens in Directional navigation mode. First `focus="true"` in document order wins. Does NOT apply to `BindItems`-generated dynamic controls. No-op when `UI.UseGamepadNavigation()` has not been called. → [`reference/navigation.md`](reference/navigation.md) |
@@ -1807,6 +1809,55 @@ Caveats:
 
 **Variant-overridable**: `scale.mobile="0.5"` / `scale.portrait="2x"` follow the standard variant override shape. When a variant where `scale` is unresolved becomes active, `localScale` resets to 1 **and** the box-preserving inflation is removed (geometry returns to its plain margin-resolved baseline). Clearing under a variant is legal: `scale.mobile=""` restores identity (same convention as `size.mobile=""`); an empty BASE `scale=""` remains a parse error.
 
+### Font-size floor (`PUI-FONT-FLOOR`)
+
+`fontSize` is in canvas units, not what the player sees. On a device a text renders at
+
+```
+dp = fontSize × canvas factor × Π ancestor localScale ÷ OS scale
+```
+
+and the canvas factor differs per device (`min(screen ÷ reference)` per axis under `reference=`), so a size that reads fine on the author's monitor can be unreadable on a small phone. The lint checks every text against a project floor on a list of target screens, both declared in the `PromptUGUISettings` asset (**Font Floor (lint)** section; lint-only, the runtime never reads them):
+
+- **`fontFloor`** — the floor in **dp** (iOS pt ≈ Android dp ≈ CSS px ≈ Windows effective px). dp is a visual-angle unit: each platform tunes it to its device class's viewing distance, so one number holds on a phone, a monitor and a TV. **Default 7** — a game floor, about Steam Deck's hard minimum (9px characters at 1280x800); Valve recommends ~10dp, Apple's iOS app minimum is 11pt (macOS 10pt, tvOS 23pt at 1080p ≈ 11.5dp), Xbox's console minimum ≈ 13dp. `0` turns the rule off. The default does nothing until a target is listed.
+- **`fontFloorTargets`** — rows of `name` / `screen` / `variants`. `screen` is `WxH[@D]`: the canvas in **physical pixels** at the **OS scale** (iOS `@2x`/`@3x`, Android density, Windows 125% = `@1.25`, a 1080p TV `@2`): `750x1334@2x` is an iPhone SE upright. Taller than wide activates `portrait`, otherwise `landscape` — a device checked in both orientations is two rows. `variants` lists any other variant active on that screen (`mobile tv`); writing `portrait` / `landscape` there is an error. The Inspector's **Add preset** menu fills common devices.
+
+For each `<Screen>` × target the lint rebuilds the tree the runtime builds under that target's variants — `reference.*` / `scale-mode.*` / `fontSize.*` / `scale.*` overrides resolved, active `<Variant><Add>` blocks hung where they go, `itemTemplate` rows under their `<ScrollList>` / `<TabBar>` / `<Carousel>` — with the runtime's own formulas (Expand, the pixel ladder, `scale="N"` / `"Nx"` / `"<r>r"`). One finding per node, led by the worst target, with the fix:
+
+```
+Main.ui.xml:42: [PUI-FONT-FLOOR] <Text id='hint'>: fontSize 28 renders at 9.7dp on 'iPhone SE' (750x1334@2x portrait;
+  canvas ×0.694 from reference 1080x1920) — below the 11dp floor. Needs fontSize ≥ 32. Also below on 'iPhone 16' (10.2dp).
+```
+
+Where the size came from is named — `fontSize.portrait 20`, `fontSize 20 (class="caption")`, `default fontSize 24` — and a finding a theme causes ends `(under <Theme name='dark'>)`.
+
+**Which tags carry text, and their size when `fontSize` is not written:** `<Text>` (TMP's default, 36 unless TMP Settings say otherwise), `<Btn>` / `<Tab>` 24 and `<Toggle>` / `<Collapsible>` 14 (only once they have `text`, text content or a `fontSize`), `<InputField>` 14, `<TabMenu>` 24, `<Markdown>` 16 (body; headings are scaled up from it). **`<Dropdown>` has no `fontSize`** — its caption and options are a fixed 14, so its fix is a `scale` on the control (`Needs scale ≥ 2.27 on this node`).
+
+**Fixes, in order of preference:** raise `fontSize` (in the class pack if it came from one); give small phones their own reference (`reference.portrait="…"`) or size (`fontSize.portrait="…"`); render a block at device density with `scale="Nx"`.
+
+**Text that is small on purpose — `fontFloor="N"`.** Badge counts, superscripts and the like can carry their own floor (dp) instead of the project's: it applies to the node **and its whole subtree**, the nearest one up the tree wins, and `fontFloor="0"` exempts the subtree. It is a *lower floor*, not a mute — a badge drawn at 3dp is still reported. Put it where the small text is defined, usually its class pack, so one line covers every badge:
+
+```xml
+<Style name="badge-text" anchor="stretch" align="center" fontSize="9" color="on-badge" fontFloor="7"/>
+<Frame class="badge" fontFloor="7">…</Frame>          <!-- or on a container: everything inside -->
+<IconBtn badge="3" fontFloor="7"/>                     <!-- a template invocation: lands on the instance root -->
+<Text class="note" fontFloor.mobile="9"/>              <!-- Variant-switchable; no base needed -->
+```
+
+The finding then says which floor it applied: `below the 7dp floor (fontFloor="7" on <Frame id='badge'>)` / `(… on this node via class="badge-text")`. **Lint-only:** the runtime ignores the attribute (no control declares it). A value that is not a non-negative number is `PUI-FONT-FLOOR-VALUE`. With the project floor at `0` the rule is off and node-level floors do nothing.
+
+**What the lint cannot see** — so judge accordingly:
+
+| Not visible | The lint assumes | Error direction |
+|---|---|---|
+| `UI.DefaultScaleMode` (C#) | a `<Screen>` without `scale-mode` is `auto` | the pixel ladder is ≤ Expand, so a Screen that runs pixel by default is judged too kindly — write `scale-mode="pixel"` on it |
+| `UI.MinPixelScale` / `UI.PixelScalePowerOfTwo` | 0 / false | a floor raises the factor (lint too strict); power-of-two lowers it (lint too kind) |
+| `UI.CanvasConfigurator` changing the match mode | Expand | depends |
+| variants C# turns on that a target does not list | inactive | — |
+| C#-set sizes, rich-text `<size=…>`, Markdown content, Carousel `edgeScale`, animations, the safe area | not counted | — |
+
+A `<Screen canvas="world">` is skipped. The rule runs on the expanded pass only — a document whose `<Import>` cannot be resolved on disk skips it along with the other expanded-pass rules. Template bodies no Screen invokes are not checked (no canvas to measure against).
+
 ## Modal / Loading screens (XML contract)
 
 Custom `MessageBox` / `Loading` overrides are regular `<Screen>` documents — the modal subsystem just instantiates them through the normal pipeline (anchor / margin / Variant / locale all work). Two specifics XML authors must know:
@@ -2002,6 +2053,12 @@ SCREEN ATTRS  canvas="overlay|camera|world"    default overlay; renderMode only
                                                .variant overrides supported (reference.mobile=...)
               scale-mode="auto|pixel"          pixel = ConstantPixelSize + integer factor
                                                requires reference; project default via UI.DefaultScaleMode
+FONT FLOOR    PUI-FONT-FLOOR                   text below PromptUGUISettings.fontFloor (dp) on a fontFloorTargets
+                                               screen (WxH@D = physical px @ OS scale); the lint judges a Screen
+                                               without scale-mode as auto — see "Font-size floor"
+              fontFloor="N"                    node + subtree floor in dp (nearest wins, 0 = exempt); lint-only;
+                                               legal on any element, a class pack, a template invocation
+              PUI-FONT-FLOOR-VALUE             fontFloor that is not a non-negative number
 
 I18N XML      <Text>...</Text>                 extract + translate
               <Text tr="false">...</Text>      skip

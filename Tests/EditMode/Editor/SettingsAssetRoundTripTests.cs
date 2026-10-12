@@ -75,5 +75,38 @@ namespace PromptUGUI.Tests.Editor
             StringAssert.Contains("commonLibraries: []", text);
             Assert.IsEmpty(SettingsAssetReader.ReadCommonLibraries(text));
         }
+
+        // 2026-10-12 font-floor spec §8-27: the CLI reads the floor and its targets the same way.
+        [Test]
+        public void ASerializedSettingsAsset_ReadsBackItsFontFloor()
+        {
+            _settings.fontFloor = 11.5f;
+            _settings.fontFloorTargets = new List<FontFloorTarget>
+            {
+                new FontFloorTarget { name = "iPhone SE", screen = "750x1334@2x" },
+                new FontFloorTarget { name = "TV: living room", screen = "1920x1080@2x", variants = "tv mobile" },
+            };
+
+            var text = Serialize();
+
+            Assert.AreEqual(11.5f, SettingsAssetReader.ReadFontFloor(text));
+            var read = SettingsAssetReader.ReadFontFloorTargets(text);
+            Assert.AreEqual(2, read.Count);
+            Assert.AreEqual("iPhone SE", read[0].name);
+            Assert.AreEqual("750x1334@2x", read[0].screen);
+            Assert.IsTrue(string.IsNullOrEmpty(read[0].variants));
+            Assert.AreEqual("TV: living room", read[1].name, "Unity's quoting is undone");
+            Assert.AreEqual("tv mobile", read[1].variants);
+        }
+
+        [Test]
+        public void ADefaultSettingsAsset_ReadsBackTheDefaultFloor_AndNoTargets()
+        {
+            var text = Serialize();
+
+            StringAssert.Contains("fontFloorTargets: []", text);
+            Assert.AreEqual(FontFloorPolicy.DefaultFloor, SettingsAssetReader.ReadFontFloor(text));
+            Assert.IsEmpty(SettingsAssetReader.ReadFontFloorTargets(text));
+        }
     }
 }

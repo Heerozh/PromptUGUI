@@ -943,6 +943,14 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Xsd_commonAttrs_declares_fontFloor()
+        {
+            // The font-floor lint's per-node override: legal on any element, read by the lint only.
+            var xsd = XsdGenerator.Generate(new ControlRegistry());
+            StringAssert.Contains("name=\"fontFloor\"", xsd);
+        }
+
+        [Test]
         public void Screen_element_declares_reference_attribute()
         {
             var r = new ControlRegistry();
