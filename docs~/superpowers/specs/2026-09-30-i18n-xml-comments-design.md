@@ -8,52 +8,49 @@
 ## 1. 问题
 
 `UI.Tr("…")` 正上方的 `//` 注释会进 `.po` 的 `#.`（i18n spec §8.3，`CSharpStringScanner.CollectLeadingComments`），
-XML 侧没有对应规则：§8.2 只列了 ambient（`Round screen, Text text`）、`sibling:`、TMP 富文本提示三种自动注释。
+XML 侧没有对应规则：§8.2 只列了 ambient（`Hub screen, Text text`）、`sibling:`、TMP 富文本提示三种自动注释。
 解析器用的 `XmlDocument` 其实保留了 `XmlComment` 节点，但 `UIDocumentParser` 只认 `XmlElement` / `XmlText` /
 `XmlCDataSection`，注释在 IR 里无处可放。
 
-实例：ssw_re_client `Round.ui.xml` 的旗帜页签，调用点上方写的就是给译者的话——
+实例：一种带装饰小字的页签卡片模板，调用点上方写的就是给译者的话——
 
 ```xml
 <!-- label是按钮位置，caption是装饰文字，CJK语言版本用英语装饰，其他语言用中文装饰 -->
-<FlagTab id="flagDesign" label="战舰设计" caption="DESIGN" icon="FlagBtn:Design" … />
+<BadgeTab id="tabCraft" label="装备制作" caption="CRAFT" icon="TabIcon:Craft" … />
 ```
 
-`DESIGN` 在 en 里要译成中文装饰字，这个意图只存在于注释里；而提取出的条目只有：
+`CRAFT` 在 en 里要译成中文装饰字，这个意图只存在于注释里；而提取出的条目只有：
 
 ```
-#. Round screen, Text text
-#. sibling: 战舰设计
-#: Assets/_Project/Round/UI/Round.ui.xml
-msgid "DESIGN"
+#. Hub screen, Text text
+#. sibling: 装备制作
+#: Assets/UI/Hub.ui.xml
+msgid "CRAFT"
 ```
 
 `2. AI Translate Locale...` 会把每条的 `.po` 注释作为 `comments` 发给模型（`TranslationClient.cs:78`）——注释进了
 `.po` 就进了 prompt，没进就无从得知。
 
 附带问题：同一 msgid 在一个分区出现多次时，`PoFileWriter.Merge` 把各次的注释 / 引用直接拼接，不去重。
-ssw 的 `Round.po` 里 `世界` / `军团` / `势力` / `系统` 的 `#. Round screen, Text text` 与 `#:` 各重复两遍；
+宿主工程的一个分区 `.po` 里，几条页签文字的 ambient 注释与 `#:` 各重复两遍；
 注释提取上线后，同一调用点注释也会跟着重复。
 
 **目标**：写在文字元素正上方、模板调用点正上方、模板内部文字位置正上方的 XML 注释，作为 `#.` 译者注进入对应
 msgid；同一 msgid 的注释与引用去重。
 
-## 2. 现状调研（ssw_re_client，2026-09-30）
+## 2. 现状调研（宿主工程，2026-09-30）
 
-对全部 `.ui.xml` 统计（`Text` / `Btn` / `Toggle` / `Tab` 与模板调用点）：
+对宿主工程全部 `.ui.xml` 的文字元素（`Text` / `Btn` / `Toggle` / `Tab`）与模板调用点做了统计：
 
-| 项 | 数 |
-|---|---|
-| 候选元素（文字元素 237 + 模板调用点 91） | 328 |
-| 其中紧贴上方有注释的 | 34（文字元素 26、调用点 8；其中 14 个在模板体内） |
-| 注释与元素之间隔空行的 | **0** |
-| 注释其实是上一行的**行尾注释**的 | **1**：`Planet.ui.xml:383` `<Frame width="stretch" />  <!-- spacer：吃掉中间剩余空间 -->`，下一行是 `<Btn id="applyJobs">` |
-
-- 34 条里明确写给译者的是 6 条（FlagTab ×5、FlagBtn ×1）。其余是开发说明，但多数在说"这是什么"——
-  `右上关闭（返回）图标按钮`、`提示文字：居中、自动换行、随内容长高`、`定宽 + 不折行：…96 = 最长的 "UTC+5:30 09-14 08:35:22"`
-  ——对译者同样有用（后者就是长度约束）；纯实现向的如 `关闭：接 UI.Router.Back()（不是 ClearSelection …）` 多挂在
-  只有图标、不产生 msgid 的 `<Btn>` 上，自然落空。
-- 行尾注释那一例说明：只按"前一个兄弟节点是注释"判定会把 `spacer：…` 错挂到"应用"按钮上。§3.1-2 排除它。
+- 紧贴上方有注释的只占一小部分，文字元素与调用点都有，不少在模板体内。
+- 注释与元素之间隔空行的：**一例都没有**。
+- 注释其实是上一行的**行尾注释**的：有一例——`<Frame width="stretch" />  <!-- spacer：吃掉中间剩余空间 -->`，
+  下一行是一个带文字的 `<Btn>`。
+- 明确写给译者的只有几条，都在页签卡片的调用点上。其余是开发说明，但多数在说"这是什么"——如
+  `右上关闭（返回）图标按钮`、`提示文字：居中、自动换行、随内容长高`、`定宽 + 不折行：宽度按最长的时间戳定`
+  ——对译者同样有用（后者就是长度约束）；纯实现向的如 `关闭：接 UI.Router.Back()` 多挂在只有图标、不产生 msgid 的
+  `<Btn>` 上，自然落空。
+- 行尾注释那一例说明：只按"前一个兄弟节点是注释"判定会把 `spacer：…` 错挂到下一行的按钮上。§3.1-2 排除它。
 
 ## 3. 语义
 
@@ -132,16 +129,16 @@ Screen 子节点、模板体（含根）、`<Add>` 子节点、嵌套子节点�
 - 边角：若实参来的文字本身位于另一个模板的 Slot 里，外层那个"被塞进去的"调用点注释也在栈上、会一并附上。按"包住它的
   调用点"的定义这是一致的，且只多出上下文，不做特判。
 
-旗帜页签的结果（假设再在 `FlagTab.ui.xml` 的 caption `<Text>` 上方写一句 `<!-- 装饰小字 -->`）：
+页签卡片的结果（假设再在 `BadgeTab.ui.xml` 的 caption `<Text>` 上方写一句 `<!-- 装饰小字 -->`）：
 
 ```
-#. Round screen, Text text
-#. sibling: 战舰设计
-#. call site: <FlagTab id="flagDesign" label="战舰设计" caption="DESIGN" icon="FlagBtn:Design" glowColor="#d6d3fa" accent="#9e9dcb" />
+#. Hub screen, Text text
+#. sibling: 装备制作
+#. call site: <BadgeTab id="tabCraft" label="装备制作" caption="CRAFT" icon="TabIcon:Craft" />
 #. 装饰小字
 #. label是按钮位置，caption是装饰文字，CJK语言版本用英语装饰，其他语言用中文装饰
-#: Assets/_Project/Round/UI/Round.ui.xml
-msgid "DESIGN"
+#: Assets/UI/Hub.ui.xml
+msgid "CRAFT"
 ```
 
 ### 3.4 合并（`PoFileWriter.Merge`）
@@ -195,7 +192,7 @@ msgstr 不受影响。去重按行：两段不同的多行注释若有一行相�
 提取（`XmlStringScannerTests`，追加）：
 
 25. 普通 `<Text>` 的注释进 `ExtractedComments`
-26. FlagTab 形：调用点注释同时挂到 label 与 caption 两条
+26. 页签卡片形（`BadgeTab`）：调用点注释同时挂到 label 与 caption 两条
 27. 被 Import 的模板里、槽位 `<Text>` 上方的注释挂到实参 msgid；与调用点注释同在时 ① 在前 ② 在后
 28. 模板静态文字：带自己的注释，不带调用点注释
 29. Slot 里的静态文字：不带调用点注释
@@ -226,10 +223,10 @@ msgstr 不受影响。去重按行：两段不同的多行注释若有一行相�
 46. 值里的引号转义为 `&quot;`，`attr.variant` 属性保留
 47. 展开器：实例根记自己的 `InvocationSite`；Slot 里的实例不被外壳覆盖（其 `InvokedAt` 仍是外壳）
 
-手工（ssw_re_client，反射调 `ScanAllXml`，不写 `.po`）：
+手工（宿主工程，反射调 `ScanAllXml`，不写 `.po`）：
 
-40. Round 分区的 `DESIGN` / `战舰设计` 带 FlagTab 调用点注释；解析 `Planet.ui.xml`，断言 `Btn#applyJobs` 的
-    `LeadingComments` 为 null（它自己没有文字，只看 `.po` 区分不出对错）；无新增警告
+40. 页签卡片的 label / caption 两条都带调用点注释；解析带那条行尾注释的文档，断言下一行 `<Btn>` 的
+    `LeadingComments` 为 null（只看 `.po` 区分不出对错）；无新增警告
 
 ## 6. 文档（同一 PR）
 
@@ -262,7 +259,7 @@ msgstr 不受影响。去重按行：两段不同的多行注释若有一行相�
 | skill、i18n spec | §6 |
 
 顺序：IR 空字段（先让测试能编译）→ 解析器（§5-1 ~ 16）→ 展开（17 ~ 24）→ 提取（25 ~ 37）→ 合并（38）→
-端到端（39）→ 文档 → ssw 手工验证（40）→ PR。
+端到端（39）→ 文档 → 宿主工程手工验证（40）→ PR。
 
 ## 9. 决策（已定，均按推荐）
 
@@ -279,7 +276,7 @@ msgstr 不受影响。去重按行：两段不同的多行注释若有一行相�
 ## 10. 范围外发现
 
 1. **提取器**：`XmlStringScanner` 只遍历 `screen.Root`，**从不遍历 `screen.Variants` 里 `<Add>` 块的子树**，写在
-   `<Variant><Add>` 里的文字从未被提取。ssw_re_client 与本包 `Runtime/Resources` 目前都没有 `<Variant>` 块，暂无实际影响。
+   `<Variant><Add>` 里的文字从未被提取。宿主工程与本包 `Runtime/Resources` 目前都没有 `<Variant>` 块，暂无实际影响。
 2. **展开器（运行时缺陷）**：模板体里传给另一个模板 `<Slot>` 的内容**不代入外层模板的参数**。
 
    ```xml
@@ -293,7 +290,7 @@ msgstr 不受影响。去重按行：两段不同的多行注释若有一行相�
 
    Unity 实测展开结果：`Frame > Text`，`TextContent == "{{y}}"`、`TextArgs == null`——界面上显示字面 `{{y}}`，提取器也
    收不到。原因：`ExpandNode` 遇到模板调用时经 `SubstituteAttrs`（子节点按引用原样带过）转 `ExpandTree` →
-   `ExpandInvocation`，后者对调用的子节点（Slot 内容）走 `ExpandTree`，不带外层 args。ssw_re_client 0 处使用此写法。
+   `ExpandInvocation`，后者对调用的子节点（Slot 内容）走 `ExpandTree`，不带外层 args。宿主工程里没有这种写法。
 
 两者均建议另开小修。
 
@@ -304,14 +301,13 @@ msgstr 不受影响。去重按行：两段不同的多行注释若有一行相�
 - `CreateComment` 重写在 Unity Mono 下确实由 `XmlDocument.Load` 在 reader 停在注释上时调用（§5-16 直测行列号通过），
   未用兜底预扫。
 - 回归：`PromptUGUI.Tests.EditMode` 4666/4666、`PromptUGUI.Tests.EditorOnly` 453/453；改动文件 `dotnet format` 干净；
-  UIXmlLint CLI 编译 0 警告；对本包 `Runtime/Resources/` 与 ssw `Assets/_Project` 的 lint 输出与改动前逐字一致。
-- ssw 实测（反射调 `ScanAllXml`，未写 `.po`）：117 条中 21 条带作者注释。旗帜页签 12 条（label / caption × 6，含 FlagBtn 的
-  `母星` / `HOME`）；其余 9 条是开发说明：PanelShell 模板标题槽位上方的「标题：左对齐……右边给关闭钮让出 30」经实参到达
-  5 个面板标题（§3.3 ①），BuildSlot 底部钮说明 × 2，FactionSelect × 2。`Planet.ui.xml` 的 `Btn#applyJobs`（384 行）无前导
-  注释，上一行的行尾注释 `spacer：…` 未被错挂；无新增警告。
-- **评审后补充调用点行**（§3.3、§5-41 ~ 47）：作者用 ssw 实际提取的 `COMMANDER` 条目指出，调用点注释说"label 是……caption 是……"，
+  UIXmlLint CLI 编译 0 警告；对本包 `Runtime/Resources/` 与宿主工程的 lint 输出与改动前逐字一致。
+- 宿主工程实测（反射调 `ScanAllXml`，未写 `.po`）：作者注释按预期挂上——页签卡片调用点上的译者注同时到达 label 与
+  caption；面板模板标题槽位上方的开发说明经实参到达各个面板标题（§3.3 ①）；行尾注释所在那一行的下一个 `<Btn>` 无前导
+  注释，`spacer：…` 未被错挂；无新增警告。
+- **评审后补充调用点行**（§3.3、§5-41 ~ 47）：作者用宿主工程实际提取的一条页签 caption 条目指出，调用点注释说"label 是……caption 是……"，
   条目里却看不出自己是哪个。Red → Green：扫描器 6 条 + 端到端 1 条断言 + 展开器 1 条。实现中发现只靠 `InvokedAt`（最外层调用）
   会让 Slot 里的调用显示成外壳，故新增 `ElementNode.InvocationSite`。回归 `EditMode` 4667/4667、`EditorOnly` 459/459；format
-  干净、CLI 0 警告、两份 lint 输出与基线一致。ssw 实测 117 条中 54 条带调用点行，例如
-  `call site: <FlagTab id="flagCommander" label="指挥官" caption="COMMANDER" icon="FlagBtn:Commander" glowColor="#b99f66" accent="#E9C25B" />`；
-  Alliance 面板标题 `同盟` 显示 `<PanelShell id="shell" title="同盟" />`。
+  干净、CLI 0 警告、两份 lint 输出与基线一致。宿主工程实测：来自实参的条目都带上了调用点行，形如
+  `call site: <BadgeTab id="tabCrew" label="队员" caption="CREW" icon="TabIcon:Crew" />`；面板标题显示的是
+  面板模板那一次调用。

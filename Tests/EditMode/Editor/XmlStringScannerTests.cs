@@ -224,23 +224,23 @@ namespace PromptUGUI.Tests.Editor
             var files = new Dictionary<string, UIDocument>
             {
                 ["tabs.ui"] = Doc("tabs.ui",
-                    "<Style name='flag' color='#101820'/>" +
-                    "<Style name='flag-label' fontSize='14'/>" +
-                    "<Template name='FlagTab'><Param name='label'/><Param name='caption'/>" +
-                    "<Tab id='tab' class='flag'>" +
-                    "<Text class='flag-label'>{{label}}</Text><Text>{{caption}}</Text>" +
+                    "<Style name='badge' color='#101820'/>" +
+                    "<Style name='badge-label' fontSize='14'/>" +
+                    "<Template name='BadgeTab'><Param name='label'/><Param name='caption'/>" +
+                    "<Tab id='tab' class='badge'>" +
+                    "<Text class='badge-label'>{{label}}</Text><Text>{{caption}}</Text>" +
                     "</Tab></Template>"),
-                ["round.ui"] = Doc("round.ui",
-                    "<Import src='tabs.ui'/><Screen name='Round'><TabBar>" +
-                    "<FlagTab id='flagDesign' label='战舰设计' caption='DESIGN'/>" +
-                    "<FlagTab id='flagResearch' label='研究' caption='RESEARCH'/>" +
+                ["hub.ui"] = Doc("hub.ui",
+                    "<Import src='tabs.ui'/><Screen name='Hub'><TabBar>" +
+                    "<BadgeTab id='tabCraft' label='装备制作' caption='CRAFT'/>" +
+                    "<BadgeTab id='tabResearch' label='研究' caption='RESEARCH'/>" +
                     "</TabBar></Screen>"),
             };
             var failures = new List<string>();
-            var msgids = ScanEntry("round.ui", files, failures: failures);
+            var msgids = ScanEntry("hub.ui", files, failures: failures);
 
             CollectionAssert.IsEmpty(failures);
-            CollectionAssert.IsSupersetOf(msgids, new[] { "战舰设计", "DESIGN", "研究", "RESEARCH" });
+            CollectionAssert.IsSupersetOf(msgids, new[] { "装备制作", "CRAFT", "研究", "RESEARCH" });
         }
 
         [Test]
@@ -392,7 +392,7 @@ namespace PromptUGUI.Tests.Editor
         public void Scan_CallSiteComment_ReachesEveryArgumentOfThatInvocation()
         {
             var found = XmlStringScanner.Scan(ML(
-                "<Template name='FlagTab'>",
+                "<Template name='BadgeTab'>",
                 "  <Param name='label'/>",
                 "  <Param name='caption'/>",
                 "  <Tab id='tab'>",
@@ -400,14 +400,14 @@ namespace PromptUGUI.Tests.Editor
                 "    <Text>{{caption}}</Text>",
                 "  </Tab>",
                 "</Template>",
-                "<Screen name='Round'>",
+                "<Screen name='Hub'>",
                 "  <TabBar>",
                 "    <!-- label是按钮位置，caption是装饰文字 -->",
-                "    <FlagTab id='flagDesign' label='战舰设计' caption='DESIGN'/>",
+                "    <BadgeTab id='tabCraft' label='装备制作' caption='CRAFT'/>",
                 "  </TabBar>",
                 "</Screen>"), "p").ToList();
-            Assert.Contains("label是按钮位置，caption是装饰文字", CommentsOf(found, "战舰设计"));
-            Assert.Contains("label是按钮位置，caption是装饰文字", CommentsOf(found, "DESIGN"));
+            Assert.Contains("label是按钮位置，caption是装饰文字", CommentsOf(found, "装备制作"));
+            Assert.Contains("label是按钮位置，caption是装饰文字", CommentsOf(found, "CRAFT"));
         }
 
         [Test]
@@ -416,7 +416,7 @@ namespace PromptUGUI.Tests.Editor
             var files = new Dictionary<string, UIDocument>
             {
                 ["lib.ui"] = UIDocumentParser.Parse(ML(
-                    "<Template name='FlagTab'>",
+                    "<Template name='BadgeTab'>",
                     "  <Param name='label'/>",
                     "  <Param name='caption'/>",
                     "  <Tab id='tab'>",
@@ -427,21 +427,21 @@ namespace PromptUGUI.Tests.Editor
                     "</Template>"), "lib.ui"),
                 ["main.ui"] = UIDocumentParser.Parse(ML(
                     "<Import src='lib.ui'/>",
-                    "<Screen name='Round'>",
+                    "<Screen name='Hub'>",
                     "  <TabBar>",
                     "    <!-- 调用点说明 -->",
-                    "    <FlagTab id='flagDesign' label='战舰设计' caption='DESIGN'/>",
+                    "    <BadgeTab id='tabCraft' label='装备制作' caption='CRAFT'/>",
                     "  </TabBar>",
                     "</Screen>"), "main.ui"),
             };
             var found = XmlStringScanner.Scan(files["main.ui"], "p", "main.ui",
                                               s => files.TryGetValue(s, out var d) ? d : null, commons: null).ToList();
 
-            var design = CommentsOf(found, "DESIGN");
-            Assert.Less(design.IndexOf("装饰小字"), design.IndexOf("调用点说明"));
-            Assert.GreaterOrEqual(design.IndexOf("装饰小字"), 0);
+            var craft = CommentsOf(found, "CRAFT");
+            Assert.Less(craft.IndexOf("装饰小字"), craft.IndexOf("调用点说明"));
+            Assert.GreaterOrEqual(craft.IndexOf("装饰小字"), 0);
 
-            var label = CommentsOf(found, "战舰设计");
+            var label = CommentsOf(found, "装备制作");
             Assert.Contains("调用点说明", label);
             CollectionAssert.DoesNotContain(label, "装饰小字");
         }
@@ -630,7 +630,7 @@ namespace PromptUGUI.Tests.Editor
         public void Scan_ArgumentValue_NamesItsCallSite_AsWritten_OnOneLine()
         {
             var found = ScanFiles("main.ui", ("main.ui", ML(
-                "<Template name='FlagTab'>",
+                "<Template name='BadgeTab'>",
                 "  <Param name='label'/>",
                 "  <Param name='caption'/>",
                 "  <Param name='icon' default=''/>",
@@ -639,23 +639,23 @@ namespace PromptUGUI.Tests.Editor
                 "    <Text>{{caption}}</Text>",
                 "  </Tab>",
                 "</Template>",
-                "<Screen name='Round'>",
+                "<Screen name='Hub'>",
                 "  <TabBar>",
                 "    <!-- label是按钮位置，caption是装饰文字 -->",
-                "    <FlagTab id='flagCommander' label='指挥官' caption='COMMANDER'",
-                "      icon='FlagBtn:Commander' />",
+                "    <BadgeTab id='tabCrew' label='队员' caption='CREW'",
+                "      icon='TabIcon:Crew' />",
                 "  </TabBar>",
                 "</Screen>")));
 
             CollectionAssert.AreEqual(
                 new[]
                 {
-                    "Round screen, Text text",
-                    "sibling: 指挥官",
-                    "call site: <FlagTab id=\"flagCommander\" label=\"指挥官\" caption=\"COMMANDER\" icon=\"FlagBtn:Commander\" />",
+                    "Hub screen, Text text",
+                    "sibling: 队员",
+                    "call site: <BadgeTab id=\"tabCrew\" label=\"队员\" caption=\"CREW\" icon=\"TabIcon:Crew\" />",
                     "label是按钮位置，caption是装饰文字",
                 },
-                found.Single(e => e.Msgid == "COMMANDER").ExtractedComments);
+                found.Single(e => e.Msgid == "CREW").ExtractedComments);
         }
 
         [Test]

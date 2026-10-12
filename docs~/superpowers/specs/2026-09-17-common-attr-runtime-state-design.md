@@ -5,8 +5,8 @@
 > `2026-08-29-tabmenu-design.md`（`expanded` / `isOn` 的 `RuntimeStateAttr` 契约——本文把同一契约推广到两个
 > 通用属性和 `<Icon name>`）；master spec §5.1（通用属性表）/ §8.3（基础值与复位边界，本文修一句）；
 > `reference/controls-tabs.md`；`Samples~/CommonControls`（主题 `<Style>` 用 `hidden` 切皮层——本文必须保住）。
-> 动机来源：宿主 ssw_re_client 里所有「C# 管显隐 / 可用态的节点 XML 不写 hidden、初态在 Section 构造时设、
-> 尺寸变化后延两帧重设」的 workaround（Planet / SelectionDock / MessageBox icon）。
+> 动机来源：宿主工程里所有「C# 管显隐 / 可用态的节点 XML 不写 hidden、初态在面板构造时设、
+> 尺寸变化后延两帧重设」的 workaround（几个由代码管初态的面板，以及库自带 MessageBox 的 icon）。
 
 ## 1. 问题
 
@@ -19,9 +19,9 @@
    （`Control.cs:470`）。**C# 禁用的按钮在下一次 resize / Variant / Theme 后被重新启用，写不写 XML 都一样。**
 2. **`hidden` 声明即重放。** `if (hidden.HasValue) Hidden = hidden.Value;`（`Control.cs:469`）。声明了
    `hidden="true"` 的占位 / 徽章被代码露出后，ReSolve 又藏回去；宿主的对策只能是**不写**——初态由 C# 在
-   Section 构造时设，预览（只加载 XML）就看不到真实初态。
+   面板构造时设，预览（只加载 XML）就看不到真实初态。
 3. **`<Icon name>` 是普通 `[UIAttr]`。** 代码换的图标（库自己的 `MessageBoxRequest.Bind` 就这么干：`iconCtl.Name = Icon`）
-   横竖屏一翻回到 XML 默认（2026-08-31 UIPreview 实测：`icon:"Solar96Bold:Medicine/Test Tube"` 竖屏变回 Info Circle）。
+   横竖屏一翻回到 XML 默认（2026-08-31 UIPreview 实测：代码换上的图标，竖屏后变回 XML 里写的那个）。
 
 宿主为此攒下的规矩：「由 C# 决定显隐的节点 XML 里不写 hidden」「双管的要在尺寸变化后延两帧重设」
 「验证时一定要切一次横竖屏再看」。`<Pages>` 解决了「N 选 1」那一类；这三条是**单个节点**的，`<Pages>` 管不到。
@@ -58,15 +58,15 @@
 
 ```xml
 <!-- 之后可以这样写：初态在 XML、预览所见即所得、代码改过 ReSolve 不打回 -->
-<Text id="noOptions" hidden="true">当前没有可建造的建筑</Text>
-<Btn id="applyJobs" interactable="false">应用</Btn>
-<Icon id="icon" name="Solar96Bold:Essentional, UI/Info Circle"/>
+<Text id="emptyHint" hidden="true">列表是空的</Text>
+<Btn id="confirm" interactable="false">确认</Btn>
+<Icon id="icon" name="ui:info"/>
 ```
 
 ```csharp
-noOptions.Hidden = false;      // 从此归代码，横竖屏 / 主题 / resize 都不再藏回去
-applyJobs.Interactable = true;
-icon.Name = "Solar96Bold:Medicine/Test Tube";
+emptyHint.Hidden = false;      // 从此归代码，横竖屏 / 主题 / resize 都不再藏回去
+confirm.Interactable = true;
+icon.Name = "ui:warning";
 ```
 
 ## 4. 语义细节
@@ -175,14 +175,12 @@ icon.Name = "Solar96Bold:Medicine/Test Tube";
   「ReSolve 会把 BindItems 出来的卡片属性打回模板默认」的例子改掉；cheatsheet 补两行。
 - master spec §5.1 两行 + §8.3 复位边界那段（`hidden` 仍不自愈，但两者运行期接管）；`BEST_PRACTICES*.md` 一句。
 
-## 9. 宿主迁移（另案，ssw_re_client）
+## 9. 宿主迁移（另案）
 
-- Planet.ui.xml：`noOptions` / `noJobs` / `avatar` / `dLock` / `dAction` 等按真实初态写回 `hidden=` / `interactable=`，
-  `PlanetDockSection` 构造时的初态设置删掉；`RerenderAfterResolveAsync` 延两帧重绑看还剩什么理由（`hidden` /
-  `name` / `text` 都运行期独占后大概率可删）。SelectionDock 同理。
+- 由代码管初态的面板：节点按真实初态写回 `hidden=` / `interactable=`，构造时的初态设置删掉；「延两帧重绑」看还剩
+  什么理由（`hidden` / `name` / `text` 都运行期独占后大概率可删）。
 - MessageBox icon 不用宿主动。
-- memory 三条（`promptugui-resolve-replays-declared-hidden-only` / `promptugui-icon-name-reverts-on-resolve` /
-  「延两帧」）改写成新契约。
+- 相关 memory 三条改写成新契约。
 
 ## 10. 非目标
 
@@ -227,5 +225,5 @@ icon.Name = "Solar96Bold:Medicine/Test Tube";
 
 ### 13.2 未做 / 另案
 
-- §9 宿主迁移（Planet / SelectionDock 把初态写回 XML、删构造时的初态与「延两帧」）；三条 memory 改写。
+- §9 宿主迁移（面板把初态写回 XML、删构造时的初态与「延两帧」）；三条 memory 改写。
 - §10 全部非目标。
