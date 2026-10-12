@@ -603,9 +603,11 @@ float2 PuguiPanelNormal(float2 p, float2 b, PuguiQuad q)
 //   round（mode="scale"）—— 形状本身沿轴缩到切线，圆角随缩小后的尺寸 clamp，推进端保持圆
 //   （9-slice 拉伸时两端圆角都保留的观感）。渐变仍按整条 rect 铺（调用方传原 p / b 给 PuguiGradient）。
 // code：0 = 不切；±1 / ±2 = flat 沿 x / y；±3 / ±4 = round 沿 x / y；正号 = 从起始边往正方向填。
+// 5 起是 <Cooldown> 的径向码（见「环与径向裁切」一节），线性判定一律不认它们。
 // 四个顶点写同一个值，插值后逐位不变，所以下面按常量处理。offset e 是切线到 rect 中心的有符号
 // 距离（局部像素），由 C# 按 (2·value − 1) · b_axis 算好，两种形态同一个数。
-bool PuguiCutIsRound(float code) { return abs(code) > 2.5; }
+// 线性码只占 |code| ≤ 4；5 起是径向码（见下一节），这里的判定必须收在自己的码段里。
+bool PuguiCutIsRound(float code) { float a = abs(code); return a > 2.5 && a < 4.5; }
 
 float2 PuguiCutNormal(float code)
 {
@@ -648,6 +650,55 @@ float2 PuguiPanelNormalCut(float2 p, float2 b, PuguiQuad q, float dShape, float 
 {
     float2 n = PuguiPanelNormal(p, b, q);
     return PuguiCutTerm(p, code, e) > dShape ? PuguiCutNormal(code) : n;
+}
+
+// ───── 环与径向裁切（spec 2026-10-13 §5.2–§5.3，<Cooldown>）─────
+// 环（thickness）：沿形状边框向内、宽 ring 的带 —— onion 运算，对任何形状成立（圆 → 圆环，
+// 圆角方 → 圆角方环）。ring 0 = 原形状；select 而非分支，理由同上。
+float PuguiRing(float d, float ring)
+{
+    return ring > 0.0 ? abs(d + ring * 0.5) - ring * 0.5 : d;
+}
+
+// 径向码：code ∈ [5, 6) 平端、[7, 8) 圆头（只对圆环，C# 判定）；小数部分 = 扇区中心角 / 一圈
+// （0 = 正上，顺时针增）。e = 半张角（弧度，0..π）。满圈由 C# 编成 code 0（不切），空扇区不出几何。
+// 只在 _Radial 打开的材质里调用（uniform 分支）—— 扇区要 sin / cos，不该让每块面板都付。
+bool PuguiCutIsRadial(float code) { return code > 4.5; }
+
+// 把 p 转进扇区中心线 = +y 的坐标系；扇区于是关于 y 轴对称，只剩半张角一个参数。
+float2 PuguiSectorSpace(float2 p, float code)
+{
+    float a = frac(code) * 6.28318530718;
+    float s = sin(a), c = cos(a);
+    return float2(p.x * c - p.y * s, p.x * s + p.y * c);
+}
+
+// 无限半径扇区（iq sdPie 取 r → ∞）的有符号距离，q 在扇区空间，sc = (sin h, cos h)。h ∈ (0, π] 精确。
+float PuguiSdSector(float2 q, float2 sc)
+{
+    q.x = abs(q.x);
+    float m = length(q - sc * max(dot(q, sc), 0.0));
+    return m * sign(sc.y * q.x - sc.x * q.y);
+}
+
+// 圆环上带圆头的弧（iq sdArc）：ra = 环中线半径，rb = 半宽。精确，圆头自然是半圆。
+float PuguiSdArc(float2 q, float2 sc, float ra, float rb)
+{
+    q.x = abs(q.x);
+    return ((sc.y * q.x > sc.x * q.y) ? length(q - sc * ra) : abs(length(q) - ra)) - rb;
+}
+
+// dShape 是做完 onion 的形状距离。平端 = 形状 ∩ 扇区（max 交集，外侧楔形区距离略被低估，与线性
+// 切割同一近似）；圆头 = 直接取圆环弧的精确距离（C# 只在形状是圆、且有环时发圆头码）。
+float PuguiSdRadialCut(float dShape, float2 p, float2 b, float code, float e, float ring)
+{
+    float2 q = PuguiSectorSpace(p, code);
+    float2 sc = float2(sin(e), cos(e));
+    float flatEnd = max(dShape, PuguiSdSector(q, sc));
+    float rb = ring * 0.5;
+    float capped = PuguiSdArc(q, sc, min(b.x, b.y) - rb, rb);
+    float radial = code > 6.5 ? capped : flatEnd;
+    return PuguiCutIsRadial(code) ? radial : dShape;
 }
 
 // 直 alpha 的 source-over 合成。

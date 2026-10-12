@@ -145,6 +145,19 @@ namespace PromptUGUI.Controls.Internal
         public readonly bool HazeSelf;
 
         /// <summary>
+        /// <c>&lt;Cooldown thickness&gt;</c> (spec 2026-10-13 §5.3): the shape becomes a band this
+        /// wide along its own edge (an onion of the SDF); 0 = the solid shape. A style, not runtime
+        /// state, so it lives in the key like <see cref="BorderWidth"/>.
+        /// </summary>
+        public readonly float RingWidth;
+        /// <summary>
+        /// The radial-cut switch (spec 2026-10-13 §5.2): the vertex cut channels carry a sector
+        /// rather than a half-plane, and the shader evaluates it behind this uniform branch — so no
+        /// other panel pays for the sector's trigonometry. Set by a <c>&lt;Cooldown&gt;</c> fill.
+        /// </summary>
+        public readonly bool Radial;
+
+        /// <summary>
         /// Packs a parsed shape into the four vectors the shader reads. Sizes stay in canvas units
         /// and whole-shape sentinels stay symbolic — both are resolved per-fragment against the live
         /// rect, which is what keeps two same-styled panels of different sizes on one material.
@@ -156,7 +169,8 @@ namespace PromptUGUI.Controls.Internal
                            float intensity = 1f,
                            ColorSpec haze = default, float hazeSize = 0f, float hazeDrift = 0f,
                            float hazeDensity = HazeDensityAttrParser.Default,
-                           bool hazeSelf = false)
+                           bool hazeSelf = false,
+                           float ringWidth = 0f, bool radial = false)
         {
             Fill = fill;
             Border = border;
@@ -185,6 +199,8 @@ namespace PromptUGUI.Controls.Internal
             HazeDrift = hazeDrift;
             HazeDensity = hazeDensity;
             HazeSelf = hazeSelf;
+            RingWidth = ringWidth;
+            Radial = radial;
         }
 
         public bool Pill => Shape == PanelShape.Pill;
@@ -200,6 +216,7 @@ namespace PromptUGUI.Controls.Internal
             && HazeSize == o.HazeSize && HazeDrift == o.HazeDrift && HazeDensity == o.HazeDensity
             && HazeSelf == o.HazeSelf
             && Haze == o.Haze
+            && RingWidth == o.RingWidth && Radial == o.Radial
             && Glass == o.Glass
             // Short-circuit: an opaque panel's glass block is always None, so there is nothing to
             // compare — and opaque is the overwhelmingly common case.
@@ -230,6 +247,8 @@ namespace PromptUGUI.Controls.Internal
                 h = (h * 397) ^ HazeDensity.GetHashCode();
                 h = (h * 397) ^ HazeSelf.GetHashCode();
                 h = (h * 397) ^ Haze.GetHashCode();
+                h = (h * 397) ^ RingWidth.GetHashCode();
+                h = (h * 397) ^ Radial.GetHashCode();
                 h = (h * 397) ^ Glass.GetHashCode();
                 if (Glass) h = (h * 397) ^ GlassParams.GetHashCode();
                 return h;
@@ -272,6 +291,8 @@ namespace PromptUGUI.Controls.Internal
         private static readonly int HazeDriftId = Shader.PropertyToID("_HazeDrift");
         private static readonly int HazeDensityId = Shader.PropertyToID("_HazeDensity");
         private static readonly int HazeSelfId = Shader.PropertyToID("_HazeSelf");
+        private static readonly int RingWidthId = Shader.PropertyToID("_RingWidth");
+        private static readonly int RadialId = Shader.PropertyToID("_Radial");
 
         // Seven glass floats ride two vectors: fewer SetX calls, and the light angle arrives as a
         // direction so the shader never runs sin/cos per fragment.
@@ -361,6 +382,9 @@ namespace PromptUGUI.Controls.Internal
             mat.SetFloat(HazeDriftId, p.HazeDrift);
             mat.SetFloat(HazeDensityId, p.HazeDensity);
             mat.SetFloat(HazeSelfId, p.HazeSelf ? 1f : 0f);
+            // Written unconditionally: a spare material popped for a solid panel may have been a ring.
+            mat.SetFloat(RingWidthId, p.RingWidth);
+            mat.SetFloat(RadialId, p.Radial ? 1f : 0f);
             // The only reader of the global time is a drifting material, so the per-frame publisher
             // starts with the first one and never runs in a project without moving fog.
             if (p.HazeDrift > 0f) HazeClock.Ensure();
