@@ -46,9 +46,14 @@ namespace PromptUGUI.Lint
         /// error — so a <c>class=</c> or <c>&lt;ns.Tag/&gt;</c> that lives only there resolves here
         /// too instead of being reported as <see cref="ExpansionCode"/>.
         /// </param>
+        /// <param name="fontFloor">
+        /// The project's font floor (<c>PromptUGUISettings.fontFloor</c> / <c>fontFloorTargets</c>);
+        /// null or inactive = no <see cref="FontFloorRules.Code"/>. Runs on the expanded pass and the
+        /// per-theme passes only — it needs the tree the runtime builds (2026-10-12 font-floor spec §5.6).
+        /// </param>
         public static IEnumerable<LintIssue> Walk(
             UIDocument doc, string entrySrc = "<entry>", Func<string, UIDocument> imports = null,
-            IReadOnlyList<ImportRef> commons = null)
+            IReadOnlyList<ImportRef> commons = null, FontFloorPolicy fontFloor = null)
         {
             if (doc == null) yield break;
 
@@ -125,6 +130,17 @@ namespace PromptUGUI.Lint
                 if (seen.Add(KeyOf(issue)))
                     yield return issue;
 
+            // Screen-wide and per target screen: it needs the canvas factor and every ancestor's scale,
+            // which only the expanded tree has (spec §5.6). What the base pass said is remembered by
+            // place, so a theme pass only speaks up where the theme changed the verdict.
+            var baseFontFloor = new HashSet<string>();
+            foreach (var issue in FontFloorRules.Check(expanded, fontFloor))
+            {
+                baseFontFloor.Add(PlacedKeyOf(issue));
+                if (seen.Add(KeyOf(issue)))
+                    yield return issue;
+            }
+
             // Rules that reason about a node's resolved configuration (GlassRules above all) can only
             // answer for ONE skin at a time. Re-derive the tree under each theme and walk again;
             // dedup means a theme that changes nothing relevant costs nothing but the walk. No flag
@@ -154,6 +170,15 @@ namespace PromptUGUI.Lint
                 foreach (var issue in IRWalker.Walk(expanded))
                     if (seen.Add(KeyOf(issue)))
                         yield return issue;
+
+                foreach (var issue in FontFloorRules.Check(expanded, fontFloor))
+                {
+                    if (baseFontFloor.Contains(PlacedKeyOf(issue))) continue;
+                    var underTheme = new LintIssue(issue.Code, issue.Tag, issue.Id,
+                        $"{issue.Message} (under <Theme name='{themeName}'>)", issue.Origin, issue.Line, issue.Via);
+                    if (seen.Add(KeyOf(underTheme)))
+                        yield return underTheme;
+                }
             }
         }
 
@@ -238,5 +263,8 @@ namespace PromptUGUI.Lint
         // Identical message => same finding, whichever pass produced it. Code/Tag/Id alone would
         // collapse two genuinely different problems on one node.
         private static string KeyOf(LintIssue i) => $"{i.Code}|{i.Tag}|{i.Id}|{i.Message}";
+
+        // The same verdict at the same place — what a theme pass compares against the base pass.
+        private static string PlacedKeyOf(LintIssue i) => $"{i.Origin}:{i.Line}|{i.Via}|{KeyOf(i)}";
     }
 }
