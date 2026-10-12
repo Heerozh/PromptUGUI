@@ -29,6 +29,8 @@ namespace PromptUGUI.Controls
         private bool _maskExplicit;
         private PuiScrollRect _scroll;
         private RectTransform _viewport;
+        // Built the first time the list hugs, then only enabled / disabled (SyncViewportLink).
+        private LayoutLink _viewportLink;
         private RectTransform _content;
         private LayoutGroup _layoutGroup;
         private string _direction = "vertical";
@@ -517,6 +519,54 @@ namespace PromptUGUI.Controls
                     : new Vector4(0f, -CrossAxisMaskImage.Reach, 0f, -CrossAxisMaskImage.Reach);
             }
             if (_maskImage != null) _maskImage.SetBandAxis(open);
+        }
+
+        /// <summary>
+        /// A hugging list (<c>hug</c> / <c>clamp(min, hug, max)</c>) is sized by the ClampFitter / HugElement on
+        /// its root, from Content's preferred size — and the Viewport between them has no layout component, which
+        /// breaks both uGUI walks: a row's dirty mark stops at Content, so the root never re-measures (a list bound
+        /// after its first layout stays 0 tall, and rows added / hidden later never resize it). A
+        /// <see cref="LayoutLink"/> on the Viewport carries the chain through, as on <see cref="Collapsible"/>'s
+        /// body. Only while the list hugs: when its rows cannot change its size, Content stays a layout root of its
+        /// own and a row change does not dirty the page above it.
+        /// <para>Not while it windows either: its window dirties Content on every frame it moves, and a link would
+        /// re-lay out the page above the list on every scrolled frame — several times over, as the ScrollRect
+        /// re-lays out Content to place its bar. Its sync knows when the hug answer changes and hands only that up
+        /// (<see cref="PublishHug"/>).</para>
+        /// </summary>
+        private void SyncViewportLink()
+        {
+            if (HugsContent && !Windowing)
+            {
+                _viewportLink ??= _viewport.gameObject.AddComponent<LayoutLink>();
+                _viewportLink.enabled = true;
+            }
+            else if (_viewportLink != null)
+            {
+                _viewportLink.enabled = false;
+            }
+        }
+
+        // Per axis, the hug size the last sync handed up; NaN = none yet.
+        private Vector2 _publishedHug = new(float.NaN, float.NaN);
+
+        /// <summary>
+        /// A windowing list that hugs: after a sync, re-lay out the list's root (and the stack it sits in) when the
+        /// size its hug resolves to has changed — a push, rows measured, a row hidden. A capped list scrolling at its
+        /// cap resolves to the cap on every frame and dirties nothing above Content.
+        /// </summary>
+        private void PublishHug()
+        {
+            var changed = false;
+            for (var axis = 0; axis < 2; axis++)
+            {
+                if (!TryResolveHug(axis, ((IHugContent)this).ContentSize(axis), out var size)) continue;
+                var last = _publishedHug[axis];
+                if (!float.IsNaN(last) && Mathf.Abs(size - last) <= 0.01f) continue;
+                _publishedHug[axis] = size;
+                changed = true;
+            }
+            if (changed) LayoutRebuilder.MarkLayoutForRebuild(RectTransform);
         }
 
         // ───── the ScrollRect's tick (IScrollTickHost, spec 2026-09-29 §5.8) ─────
@@ -1079,6 +1129,7 @@ namespace PromptUGUI.Controls
             // No authored <Scrollbar> arrived with the children — build the stock one now (children
             // instantiate before this apply, so by here the answer is final).
             EnsureDefaultScrollbar();
+            SyncViewportLink();
             // A ReSolve replays the static nodes (this one) BEFORE the rows, so the rows' new heights cannot be
             // measured here: mark them stale and let the next tick re-measure (§5.11).
             if (_virtual && _binding != null)
@@ -1303,6 +1354,7 @@ namespace PromptUGUI.Controls
 
         private void VirtualPush(int count, bool sameBinding)
         {
+            SyncViewportLink();   // windowing from the first push on
             Anchor anchor;
             if (!_bound || _slotsTemplate != _itemTemplate)
             {
@@ -1504,6 +1556,7 @@ namespace PromptUGUI.Controls
                 _pendingAnchor = null;
                 _lastViewport = _viewport.rect.size;
                 _lastEndScroll = Mathf.Max(0f, _model.Total - view);
+                PublishHug();
             }
             catch
             {

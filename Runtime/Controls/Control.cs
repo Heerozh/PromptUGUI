@@ -138,6 +138,33 @@ namespace PromptUGUI.Controls
         internal bool SizeFromNative { get; private set; }
 
         /// <summary>
+        /// Whether the last <see cref="ApplyCommon"/> sized either axis of this control by its content —
+        /// <c>hug</c> / <c>clamp(min, hug, max)</c>, authored or injected (<see cref="ForcesHugHeight"/>).
+        /// A control whose content sits below a node with no layout component reads it to decide whether
+        /// that node has to pass the layout chain through (<c>&lt;ScrollList&gt;</c>'s Viewport).
+        /// </summary>
+        internal bool HugsContent => _hugsWidth || _hugsHeight;
+
+        // The hug axes the last ApplyCommon wrote, with their clamp bounds (an open one is ±∞).
+        private bool _hugsWidth, _hugsHeight;
+        private Vector2 _hugMin, _hugMax;
+
+        /// <summary>
+        /// The size a hug <paramref name="axis"/> resolves to for <paramref name="content"/> — what the
+        /// ClampFitter / HugElement will make of it. False when that axis does not hug.
+        /// </summary>
+        internal bool TryResolveHug(int axis, float content, out float size)
+        {
+            if (!(axis == 0 ? _hugsWidth : _hugsHeight))
+            {
+                size = 0f;
+                return false;
+            }
+            size = Mathf.Max(0f, Mathf.Clamp(content, _hugMin[axis], _hugMax[axis]));
+            return true;
+        }
+
+        /// <summary>
         /// 上次 <see cref="ControlAttributeApplier"/> 通过 DefaultTextAttr 写入的字符串。
         /// ReSolve 阶段拿来跟 <see cref="PeekDefaultText"/> 的当前值对比 —— 若当前值已被
         /// 调用方通过 setter 改掉(如 MessageBoxRequest.Bind 改 TextValue), 就不再被 XML
@@ -327,6 +354,10 @@ namespace PromptUGUI.Controls
                 sizeSpec = sizeSpec.WithHugHeight();
 
             sizeSpec.ValidateAgainst(preset);
+            _hugsWidth = sizeSpec.IsHugWidth;
+            _hugsHeight = sizeSpec.IsHugHeight;
+            _hugMin = new Vector2(sizeSpec.MinWidth, sizeSpec.MinHeight);
+            _hugMax = new Vector2(sizeSpec.MaxWidth, sizeSpec.MaxHeight);
 
             // spec §6.5: 父级是 VStack/HStack 时走 LayoutElement 通道；
             // GridLayoutGroup 例外（它直接用 cellSize，LayoutElement 在它下面被忽略）。
