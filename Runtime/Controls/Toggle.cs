@@ -162,6 +162,13 @@ namespace PromptUGUI.Controls
             }
         }
 
+        /// <summary>Label point size; the label is built at 14 (<c>ProceduralBuilders.AddText</c>).</summary>
+        [UIAttr("fontSize"), Preserve]
+        public float FontSize
+        {
+            set => _label.fontSize = value;
+        }
+
         /// <summary>Label text color (theme token / hex / CSS / gradient / <c>/alpha</c>);
         /// distinct from the background <c>color</c>. Empty = default ink.</summary>
         [UIAttr(IsColor = true), Preserve]
