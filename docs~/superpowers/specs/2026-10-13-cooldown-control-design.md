@@ -121,7 +121,8 @@ Cooldown (RectTransform)
 | `cooling` · `cooling@<id>` | 冷却开始（剩余从 0 变成 > 0） | 冷却期间显示 |
 
 - 与 `checked` / `unchecked` 同构：**持久对**，`<Animation on="ready" reverse-on="cooling">` 是一对；边沿触发 `<Animation>` / `<Trigger>`；`<Show>` 是登记式，按当前状态显隐，没有 Normal 兜底。
-- **首帧建立**：Screen 打开时 Cooldown 已处于某状态（通常是就绪），对应 `on=` 的 `<Animation>` **落在终态而不播放**（同 `checked` 的首帧规则）—— 所以 `<Animation on="ready">` 不会在开屏时闪一下；普通 `<Trigger>` 照常 fire（同 `checked`）。
+- **首帧建立**：Screen 打开时 Cooldown 已处于某状态（通常是就绪），对应 `on=` 的 `<Animation>` **落在终态而不播放**（同 `checked` 的首帧规则）—— 所以 `<Animation on="ready">` 不会在开屏时闪一下，`reverse-on="cooling"` 那一对的静止外观也是对的；`<Show>` 按当前状态显隐。
+- **普通 `<Trigger on="ready">` / `on="cooling">` 开屏时不 fire** —— 这是与 `checked` 的唯一分歧。`checked` 开屏补发一次是为了让 C# 建立初始外观；`ready` 的 `OnFire` 通常挂的是「技能好了」的音效 / 特效，补发会让每次打开技能栏都响一遍。于是 `<Trigger>` 的 `OnFire` 与 C# 的 `OnReady` / `OnCooling` 完全一致：**只在真正翻转时触发**。要读开屏时的状态，用 `IsCooling`。
 - `Start` 一个已经在冷却的 Cooldown（重新校时）不会再发 `cooling`；`Stop` / `Value = 0` 一个已经就绪的不会再发 `ready`。只有状态翻转才是边沿。
 - 事件源解析见 §5.8：裸写找**就近**的 `<Cooldown>`，`@id` 走词法作用域。
 
@@ -177,6 +178,8 @@ public sealed class Cooldown : ProceduralControl
 | `±1..±4` | 线性 flat / round（不变） | 切线偏移（px） |
 | `[5, 6)` | 径向，平端；`code − 5` = 扇区中心角 / 360°（0 = 正上，顺时针增） | 半张角（弧度，`0..π`） |
 | `[7, 8)` | 径向，圆头（只用于圆环，见下） | 同上 |
+
+径向这一段只在**材质开关 `_Radial`** 打开时求值（uniform 分支）：面板第一次 `SetRadialCut` 时把 `Radial` 写进 `PanelParams` 键，`ClearCut` 关回去 —— 所以扫掠本身仍只是顶点数据，而 Frame / Progress 等其余面板一条指令都不多算（扇区要 `sin` / `cos`，不该让每块面板都付）。
 
 现有判定要收紧到各自码段：`PuguiCutIsRound` 由 `abs(code) > 2.5` 改为 `2.5 < a < 4.5`，`PuguiCutTerm` 的 flat 判定不变（`0.5 < a < 2.5`）—— 否则径向码会被当成线性 round 码。
 
@@ -315,10 +318,10 @@ Cooldown 是叶子，通常与它装饰的东西做兄弟（图标、按钮内�
 | 处 | 改动 |
 |---|---|
 | `Runtime/Resources/PromptUGUI/Material/UI-PanelSDF.cginc` | 线性谓词收紧到各自码段；新增 `PuguiCutIsRadial` / `PuguiSdSector`（sdPie 无限半径）/ `PuguiSdArcRound`（sdArc）/ `PuguiOnion`；`PuguiSdCut` 认得径向码（select，不分支）。 |
-| `UI-ProceduralPanel.shader` | `_RingWidth` 属性；`dShape` 先 onion 再切；圆头码直接用 sdArc 的 `d`。 |
+| `UI-ProceduralPanel.shader` | `_RingWidth` / `_Radial` 属性；`dShape` 先 onion 再切；`_Radial` 打开时（uniform 分支）走径向，圆头码直接用 sdArc 的 `d`。 |
 | `UI-GlassPanel.shader` | 不加 `_RingWidth`、不画径向；只因 cginc 里线性谓词收紧而受影响（径向码对它是「不切」）。 |
 | `Controls/Internal/ProceduralPanel.cs` | `SetRadialCut(float centreTurns, float halfAngle, bool roundCap)`（只 `SetVerticesDirty`，`OnPopulateMesh` 写 `uv1.zw`；`halfAngle = 0` → `_cutEmpty`；`π` → 不切）；`SetRingWidth(float)` 进 `BuildParams`。 |
-| `Controls/Internal/ProceduralMaterialCache.cs` | `PanelParams.RingWidth` + 键 + `_RingWidth` 写入。 |
+| `Controls/Internal/ProceduralMaterialCache.cs` | `PanelParams.RingWidth` / `Radial` + 键 + `_RingWidth` / `_Radial` 写入。 |
 | `Controls/Internal/CooldownClock.cs`（新） | §5.6 的静态驱动 + 测试钉表 + `ResetForTests`。 |
 | `Controls/Internal/ICooldownSource.cs`（新） | `IsCooling` / 边沿流 / `RegisterShow`（`IToggleSource` 同构），供 Trigger / Show 使用。 |
 | `Controls/Cooldown.cs`（新） | §4 的属性与 API；`SurfaceHost => _fill`；`BgSurface`（inner，收 radius + ring）；`OnAfterApply` 定 fill 是否位图 → 声明主表面 / radius / ring / glass 抑制；`ReconcileFill`（SDF：`SetRadialCut`；位图：Filled + Radial360 表）；倒计时 Label 节流；`runtimeStateAttr: "value"`。 |
@@ -359,7 +362,7 @@ Cooldown 是叶子，通常与它装饰的东西做兄弟（图标、按钮内�
 - `<Animation on="ready">` 包着含 Cooldown 的 Btn：冷却结束时播放；开屏时（已就绪）落在终态不播放；`reverse-on="cooling"` 在 `Start` 时反向。
 - `<Show on="ready">` 写在 Cooldown 的兄弟位置：按状态显隐；`<Show on="cooling@cd">` 同理。
 - 就近规则：同层两个 Cooldown → 歧义异常；子树里有一个时优先它；整屏没有 → 异常。
-- `<Trigger on="ready">` 的 `OnFire` 次数。
+- `<Trigger on="ready">` 的 `OnFire` 次数：开屏（已就绪）为 0；`Start` → 到点为 1，与 `OnReady` 次数相同；`<Trigger on="cooling">` 开屏 0、`Start` 后 1。
 
 **lint（`CooldownRulesTests`、`StateTriggerRules` / `RaycastRules` / `ProceduralSurfaceRules` / `FontFloorRules` 的扩展用例）**
 - §6 每一行至少一个正例、一个反例；`class=` 带来的 `glass` 同报；`FontFloorDefaultsTests` 钉住 Cooldown 默认字号 24，`countdown` 未开时不计入。
@@ -400,6 +403,7 @@ Cooldown 是叶子，通常与它装饰的东西做兄弟（图标、按钮内�
 - **e. 圆头只在圆环上**：其余形状按平端画 + 告警。
 - **f. 不自动禁用父 `<Btn>`**：交给游戏逻辑。
 - v1 走 CPU 驱动（每帧 4 个顶点），shader 时钟留作优化。
+- **`<Trigger on="ready|cooling">` 开屏不补发**（2026-10-13 review 追加）：与 `checked` 分歧，与 `OnReady` 一致 —— 否则挂在 `OnFire` 上的音效每次开界面都响。`<Animation>` 的首帧建立与 `<Show>` 不受影响。
 - 无进度的加载转圈不做新东西，写进 skill 示例（`<Animation on="loop" rotate>` 包一个定值 Cooldown）。
 
 ## 13. 里程碑拆分
