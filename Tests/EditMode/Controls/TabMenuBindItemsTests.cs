@@ -169,5 +169,26 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(1, m.Count);
             Assert.AreEqual("X", CaptionOf(m).text);
         }
+
+        [Test]
+        public void Rebinding_removes_wrapper_rows_whole()
+        {
+            UI.LoadDocument("t", @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='Row'><Frame height='40'><Tab id='tab' anchor='stretch'/></Frame></Template>
+  <Screen name='S'><TabMenu id='m' itemTemplate='Row'/></Screen>
+</PromptUGUI>");
+            var m = UI.Open("S").Get<TabMenu>("m");
+            var items = new ReactiveProperty<IReadOnlyList<string>>(new[] { "A", "B", "C" });
+            using var sub = m.BindItems<string, IControl>(items, (slot, s) => slot.Get<Tab>("tab").Text = s);
+
+            items.Value = new[] { "X" };
+
+            var content = Popup(m).Find("Content");
+            var live = 0;
+            foreach (Transform child in content)
+                if (child.gameObject.activeSelf) live++;
+            Assert.AreEqual(1, live, "the wrapper frames of the replaced rows are gone, not only their Tabs");
+        }
     }
 }

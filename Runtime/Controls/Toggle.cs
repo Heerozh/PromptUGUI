@@ -124,7 +124,7 @@ namespace PromptUGUI.Controls
             var to = on ? 1f : 0f;
             if (_checkFade.IsActive()) _checkFade.TryCancel();
             if (instant || !UnityEngine.Application.isPlaying || _toggle.InBornFrame
-                || Mathf.Approximately(_checkGroup.alpha, to))
+                || Internal.InstantState.Active || Mathf.Approximately(_checkGroup.alpha, to))
             {
                 _checkGroup.alpha = to;
                 return;
@@ -237,6 +237,17 @@ namespace PromptUGUI.Controls
         {
             get => _toggle.isOn;
             set => _toggle.isOn = value;
+        }
+
+        /// <summary>
+        /// <see cref="IsOn"/>, optionally without animation: <paramref name="animate"/> false lands every
+        /// <c>checked</c> / <c>unchecked</c> <c>&lt;Animation&gt;</c> on its end state and shows / hides the
+        /// check at once (and so for every toggle of its group the change turns off). Events fire as usual.
+        /// </summary>
+        public void SetIsOn(bool isOn, bool animate)
+        {
+            if (animate) IsOn = isOn;
+            else Internal.InstantState.Run(() => IsOn = isOn);
         }
 
         [UIAttr, Preserve]

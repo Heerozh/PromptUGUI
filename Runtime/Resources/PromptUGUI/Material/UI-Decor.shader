@@ -89,6 +89,7 @@ Shader "UI/Decor"
 
             #include "UnityCG.cginc"
             #include "UnityUI.cginc"
+            #include "UI-Clip.cginc"
             #include "UI-PanelSDF.cginc"
 
             #pragma multi_compile_local _ UNITY_UI_CLIP_RECT
@@ -109,6 +110,7 @@ Shader "UI/Decor"
                 fixed4 color         : COLOR;
                 float4 shape         : TEXCOORD0;   // xy = 局部坐标, zw = 半尺寸
                 float4 worldPosition : TEXCOORD1;
+                float4 mask : TEXCOORD2;   // RectMask2D 覆盖率（UI-Clip.cginc）
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
@@ -128,6 +130,7 @@ Shader "UI/Decor"
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(OUT);
                 OUT.worldPosition = v.vertex;
                 OUT.vertex = UnityObjectToClipPos(OUT.worldPosition);
+                OUT.mask = PuguiClipMask(OUT.worldPosition.xy, OUT.vertex, _ClipRect);
                 OUT.shape = float4(v.texcoord, v.texcoord1);
                 OUT.color = v.color;
                 return OUT;
@@ -165,7 +168,7 @@ Shader "UI/Decor"
                 col *= IN.color;
 
                 #ifdef UNITY_UI_CLIP_RECT
-                col.a *= UnityGet2DClipping(IN.worldPosition.xy, _ClipRect);
+                col.a *= PuguiClipCoverage(IN.mask, _ClipRect);
                 #endif
 
                 #ifdef UNITY_UI_ALPHACLIP
@@ -173,7 +176,7 @@ Shader "UI/Decor"
                 // 与面板同样按形状实心区裁，免得外发光把裁剪范围撑大一圈。
                 float maskCoverage = inside;
                 #ifdef UNITY_UI_CLIP_RECT
-                maskCoverage *= UnityGet2DClipping(IN.worldPosition.xy, _ClipRect);
+                maskCoverage *= PuguiClipCoverage(IN.mask, _ClipRect);
                 #endif
                 clip(maskCoverage - 0.5);
                 #endif

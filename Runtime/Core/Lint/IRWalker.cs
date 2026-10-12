@@ -261,6 +261,10 @@ namespace PromptUGUI.Lint
             foreach (var issue in RotateFlipRules.Check(node, styles))
                 yield return issue;
 
+            // A layout group's padding is whole pixels (a RectOffset).
+            foreach (var issue in PaddingRules.Check(node, styles))
+                yield return issue;
+
             // Universal: raycastTarget on a tag that drops it (no Graphic, always click-through, or
             // interactive and therefore not configurable). Also wired in ScreenInstantiator.
             foreach (var issue in RaycastRules.CheckTag(node, styles))

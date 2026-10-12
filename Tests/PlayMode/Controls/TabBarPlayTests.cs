@@ -132,5 +132,76 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             Assert.IsNotNull(go.GetComponent<HorizontalLayoutGroup>(), "horizontal group present");
             Assert.IsNull(go.GetComponent<VerticalLayoutGroup>(), "no leftover vertical group");
         }
+
+        // ───── allowSwitchOff holds from the first tab on (play mode only: EditMode never runs the ToggleGroup) ─────
+
+        // A bar's own attributes are applied after its children's (DFS post-order). While the tabs applied
+        // isOn, the group still forbade switch-off — so uGUI could force a tab on, and a declared
+        // isOn="false" bounced back to true and was recorded as the declared baseline. The first ReSolve
+        // after the player opened that tab then read "unchanged since the last pass" and replayed
+        // isOn="false": the page closed on the first rotation.
+        private static IEnumerator AssertOpenedTabSurvivesResolve(string xml, string tabBarId, int index)
+        {
+            UI.LoadDocument("t", xml);
+            var screen = UI.Open("S");
+            yield return null;
+            yield return null;   // ToggleGroup.Start has run
+            var group = screen.Get<IControl>(tabBarId);
+            Tab Tab(int i) => group is TabBar b ? b.GetAt(i) : ((TabMenu)group).GetAt(i);
+            int Selected() => group is TabBar b ? b.SelectedIndex : ((TabMenu)group).SelectedIndex;
+
+            Assert.AreEqual(-1, Selected(), "allowSwitchOff: nothing is selected at open");
+            Assert.AreEqual("false", Tab(index)._lastAppliedRuntimeState,
+                "the declared isOn=\"false\" is what was recorded, not a value uGUI forced");
+
+            Tab(index).IsOn = true;   // the player opens it
+            yield return null;
+            screen.ReSolve();         // a rotation / theme switch / resize
+            yield return null;
+
+            Assert.IsTrue(Tab(index).IsOn, "the page the player opened stays open across a ReSolve");
+            Assert.AreEqual(index, Selected());
+        }
+
+        [UnityTest]
+        public IEnumerator AllowSwitchOff_first_static_tab_opened_by_the_player_survives_resolve()
+        {
+            return AssertOpenedTabSurvivesResolve(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabBar id='bar' allowSwitchOff='true'>
+    <Tab id='a' isOn='false' bind='fa'/>
+    <Tab id='b' isOn='false' bind='fb'/>
+  </TabBar>
+  <Frame id='fa'/>
+  <Frame id='fb'/>
+</Screen></PromptUGUI>", "bar", 0);
+        }
+
+        [UnityTest]
+        public IEnumerator AllowSwitchOff_first_static_wrapper_row_opened_by_the_player_survives_resolve()
+        {
+            return AssertOpenedTabSurvivesResolve(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='Row'>
+    <Param name='isOn' default='false'/>
+    <VStack><Tab id='tab' height='40' isOn='{{isOn}}'/><Frame height='10'/></VStack>
+  </Template>
+  <Screen name='S'>
+    <TabBar id='bar' direction='vertical' allowSwitchOff='true'><Row/><Row/><Row/></TabBar>
+  </Screen>
+</PromptUGUI>", "bar", 0);
+        }
+
+        [UnityTest]
+        public IEnumerator AllowSwitchOff_TabMenu_first_row_opened_by_the_player_survives_resolve()
+        {
+            return AssertOpenedTabSurvivesResolve(@"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabMenu id='m' allowSwitchOff='true' transition='0'>
+    <Tab id='a' isOn='false'>A</Tab>
+    <Tab id='b' isOn='false'>B</Tab>
+  </TabMenu>
+</Screen></PromptUGUI>", "m", 0);
+        }
     }
 }

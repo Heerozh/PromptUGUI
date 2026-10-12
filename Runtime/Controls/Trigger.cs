@@ -91,8 +91,10 @@ namespace PromptUGUI.Controls
                             // subscribed (attributes go bottom-up), so an authored isOn="true"
                             // arrives here as an edge, not as the subscribe-time state. Anything
                             // that lands while the Screen is still opening is still "how it
-                            // starts" and must establish, not animate.
-                            if (PromptUGUI.Application.UI.OwnerScreenOf(this)?.IsOpening == true) onInitial();
+                            // starts" and must establish, not animate — and so must a change code
+                            // asked to make without animation (SetIsOn(on, animate: false)).
+                            if (Internal.InstantState.Active
+                                || PromptUGUI.Application.UI.OwnerScreenOf(this)?.IsOpening == true) onInitial();
                             else onFire();
                         });
                     }

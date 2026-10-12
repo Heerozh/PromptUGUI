@@ -24,7 +24,17 @@ namespace PromptUGUI.Controls.Internal
         private readonly Control _owner;
         private readonly Func<RectTransform> _itemHost;
         private readonly List<Tab> _tabs = new();
+        // The row each tab belongs to, index for index: what itemTemplate instantiated (a wrapper
+        // template's root, the Tab itself for the default template), or for a static tab the
+        // owner's direct child that holds it. A rebuild retires whole rows — disposing only the Tab
+        // would leave the rest of a wrapper row (its root and the Tab's siblings) in the item host.
+        private readonly List<IControl> _rows = new();
         private readonly Subject<Tab> _selectionChanged = new();
+        // Retired rows wait here, inactive, until their deferred Destroy (Play mode). Same arrangement
+        // as ScrollList's pool, for the same reasons: out of the item host's layout and raycasts at
+        // once, and a disabled layout group so a ReSolve replaying a row parked here takes the
+        // layout-group branch of ApplyCommon.
+        private RectTransform _pool;
 
         // BindItems / itemTemplate state — factory resolution is deferred to first
         // Rebuild so that OwnerScreenOf(owner) sees the Screen registered in UI._open
@@ -32,6 +42,16 @@ namespace PromptUGUI.Controls.Internal
         private string _itemTemplate = "Tab";
         private Func<RectTransform, IControl> _factory;
         private IDisposable _itemsSub;
+
+        // Keyed BindItems (same contract as ScrollList's, spec 2026-10-13 §2): the binding whose last
+        // push produced the current rows — null when they came from anywhere else (static children, a
+        // push without a key), which a keyed push then replaces whole — the itemTemplate they were
+        // built from, and the scratch of one rebuild.
+        private IItemBinding _keyed;
+        private string _rowsTemplate;
+        private int[] _remap = new int[16];
+        private readonly List<IControl> _prevRows = new();
+        private readonly List<Tab> _prevTabs = new();
 
         // Per-Tab subscriptions kept alive until next rebuild / Dispose; reset
         // both on dynamic Rebuild and on static OnAfterApply so reapply replaces them.
@@ -125,11 +145,124 @@ namespace PromptUGUI.Controls.Internal
             return _itemsSub;
         }
 
+        /// <summary>
+        /// Rows follow their items by <paramref name="key"/>: a row whose key was in the previous keyed
+        /// push is reused in place — re-bound, moved to its new position, its Tab's <c>isOn</c> and
+        /// everything it drives (bound page, <c>checked@</c> animations) left exactly as they were — a
+        /// new key gets a new row, a vanished key's row is retired. Every row is re-bound on every push.
+        /// The selection therefore follows its key; when the selected key is gone,
+        /// <see cref="SelectionChanged"/> announces what is selected now (<c>null</c>, or the first tab
+        /// for a group that auto-selects). A null or duplicate key rejects the whole push before
+        /// anything changes (logged through R3; the rows stay as they were).
+        /// </summary>
+        public IDisposable BindItems<T, TSlot, TKey>(
+            Observable<IReadOnlyList<T>> source,
+            Action<TSlot, T> bind,
+            Func<T, TKey> key,
+            Action beforeRebuild = null,
+            Action afterRebuild = null) where TSlot : class, IControl
+        {
+            var binding = new KeyedBinding<T, TSlot, TKey>(bind, key ?? throw new ArgumentNullException(nameof(key)));
+            _itemsSub?.Dispose();
+            _itemsSub = source.Subscribe(items =>
+            {
+                items ??= Array.Empty<T>();
+                // Matched by key against any keyed push of the same key type (a fresh BindItems per push
+                // works too); rows from anywhere else, or from another itemTemplate, are not reused.
+                var reuse = _keyed != null && _rowsTemplate == _itemTemplate;
+                binding.Accept(items, reuse ? _keyed : null, reuse ? _rows.Count : 0, ref _remap);
+                beforeRebuild?.Invoke();
+                KeyedRebuild(binding, items.Count);
+                afterRebuild?.Invoke();
+            });
+            return _itemsSub;
+        }
+
+        private void KeyedRebuild(IItemBinding binding, int count)
+        {
+            if (_factory == null) _factory = ResolveFactory(_itemTemplate);
+            var previous = SelectedTab;
+            _bound = true;
+            _tabSubs?.Dispose();
+            _tabSubs = null;
+
+            _prevRows.Clear();
+            _prevRows.AddRange(_rows);
+            _prevTabs.Clear();
+            _prevTabs.AddRange(_tabs);
+            _rows.Clear();
+            _tabs.Clear();
+            var host = _itemHost();
+            for (var j = 0; j < count; j++)
+            {
+                var from = _remap[j];
+                if (from >= 0 && from < _prevRows.Count && _prevRows[from] is { } kept && kept.GameObject != null)
+                {
+                    _prevRows[from] = null;
+                    // Same contract as a reused ScrollList row: what the previous bind hung on the row
+                    // goes before the row is bound again.
+                    if (kept is Control c) c.ReleaseSubscriptions();
+                    _rows.Add(kept);
+                    _tabs.Add(_prevTabs[from]);
+                    continue;
+                }
+                var node = _factory(host);
+                var tab = node as Tab ?? FindTabIn(node)
+                    ?? throw new InvalidCastException(
+                        $"itemTemplate='{_itemTemplate}' root contains no <Tab>; cannot bind.");
+                _rows.Add(node);
+                _tabs.Add(tab);
+            }
+            foreach (var old in _prevRows)
+                if (old != null) Retire(old);
+            _prevRows.Clear();
+            _prevTabs.Clear();
+            PinRowOrder();
+
+            // Structure first, then bind: a bind callback already sees the final rows, in order.
+            for (var j = 0; j < count; j++)
+                if (!binding.TryBind(_rows[j], j))
+                    throw new InvalidCastException(
+                        $"itemTemplate='{_itemTemplate}' instantiated {_rows[j].GetType().Name}, " +
+                        $"but BindItems expected {binding.SlotType.Name}");
+            _keyed = binding;
+            _rowsTemplate = _itemTemplate;
+
+            SyncInitialSelection();
+            WireTabSubscriptions();
+            // A reused selected row changed nothing. Otherwise the selection went with its row, and
+            // what replaced it — nothing, or the auto-selected first tab — is announced.
+            var now = SelectedTab;
+            if (_tabs.Count == 0 || !ReferenceEquals(previous, now)) _selectionChanged.OnNext(now);
+        }
+
+        /// <summary>
+        /// Lays the rows out in data order. New rows were appended after everything else, reused ones
+        /// sit where they were: only when that is out of order are they moved, all to the end in order —
+        /// static children that are not rows (a separator) stay ahead of them, as they always did.
+        /// </summary>
+        private void PinRowOrder()
+        {
+            var last = -1;
+            var ordered = true;
+            foreach (var row in _rows)
+            {
+                var index = HostOf(row).GetSiblingIndex();
+                if (index < last) { ordered = false; break; }
+                last = index;
+            }
+            if (ordered) return;
+            foreach (var row in _rows) HostOf(row).SetAsLastSibling();
+        }
+
+        private static RectTransform HostOf(IControl row) => row is Control c ? c.LayoutHost : row.RectTransform;
+
         private void Rebuild<T, TSlot>(IReadOnlyList<T> items, Action<TSlot, T> bind)
             where TSlot : class, IControl
         {
             if (_factory == null) _factory = ResolveFactory(_itemTemplate);
-            ClearTabs();
+            ClearRows();
+            _keyed = null;
             var host = _itemHost();
             for (int i = 0; i < items.Count; i++)
             {
@@ -145,6 +278,7 @@ namespace PromptUGUI.Controls.Internal
                         $"itemTemplate='{_itemTemplate}' root contains no <Tab>; cannot bind.");
 
                 _tabs.Add(tab);
+                _rows.Add(node);
                 // Tab.OnAttached already wired ToggleGroup via FindAncestorToggleGroup.
                 // Per-tab sprite / selectedSprite live on Tab itself — set them on the
                 // itemTemplate body (e.g. <Template name="MyTab"><Tab sprite="..."/></Template>)
@@ -156,13 +290,51 @@ namespace PromptUGUI.Controls.Internal
             if (_tabs.Count == 0) _selectionChanged.OnNext(null);
         }
 
-        private void ClearTabs()
+        private void ClearRows()
         {
             _bound = true;
             _tabSubs?.Dispose();
             _tabSubs = null;
-            foreach (var t in _tabs) t.Dispose();
+            foreach (var row in _rows) Retire(row);
+            _rows.Clear();
             _tabs.Clear();
+        }
+
+        /// <summary>
+        /// Takes a row out of the item host, then disposes every control in it. Out first: in Play
+        /// mode <c>Destroy</c> waits for the end of the frame, and until then the row would still be
+        /// laid out, still be clickable, and still be measured by a <see cref="TabMenu"/> sizing its
+        /// popup straight after the rebuild.
+        /// </summary>
+        private void Retire(IControl row)
+        {
+            var host = HostOf(row);
+            if (host != null) host.SetParent(EnsurePool(), worldPositionStays: false);
+            DisposeTree(row);
+        }
+
+        /// <summary>
+        /// Disposes a row's controls deepest first, the root last. The root's own Dispose already
+        /// releases every <c>.AddTo(control)</c> bag below it and destroys the whole GameObject
+        /// subtree, but only the controls' own Dispose unhooks what they hold outside it (a Tab's
+        /// <c>Locale.Changed</c> handler, an Animation's running motions). A static row's controls
+        /// are disposed again when the Screen closes — Dispose is safe to repeat, as for every
+        /// static card a BindItems replaces.
+        /// </summary>
+        private static void DisposeTree(IControl node)
+        {
+            if (node is Control ctrl)
+                for (var i = ctrl.Children.Count - 1; i >= 0; i--) DisposeTree(ctrl.Children[i]);
+            node.Dispose();
+        }
+
+        private RectTransform EnsurePool()
+        {
+            if (_pool != null) return _pool;
+            _pool = ProceduralBuilders.AddChild(_owner.RectTransform, "Pool");
+            _pool.gameObject.AddComponent<VerticalLayoutGroup>().enabled = false;
+            _pool.gameObject.SetActive(false);
+            return _pool;
         }
 
         /// <summary>
@@ -314,14 +486,17 @@ namespace PromptUGUI.Controls.Internal
         {
             if (_bound) return;
             _tabs.Clear();
+            _rows.Clear();
             foreach (var child in children)
             {
-                if (child is Tab tab) { _tabs.Add(tab); continue; }
                 // Template-wrapper case: a <Tab> nested inside a Template-expanded
                 // child (e.g. <FileTab><Frame><Tab/></Frame></FileTab>). Reuse the
-                // same recursive walk used by BindItems for itemTemplate.
-                var found = FindTabIn(child);
-                if (found != null) _tabs.Add(found);
+                // same recursive walk used by BindItems for itemTemplate. Either way the
+                // row is the direct child — that is what a first BindItems push retires.
+                var tab = child as Tab ?? FindTabIn(child);
+                if (tab == null) continue;
+                _tabs.Add(tab);
+                _rows.Add(child);
             }
         }
 

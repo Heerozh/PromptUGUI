@@ -66,6 +66,16 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public bool AllowSwitchOff { set => _core.AllowSwitchOff = value; }
 
+        /// <summary>
+        /// Called by <c>ScreenInstantiator</c> right after <see cref="OnAttached"/>, before any child
+        /// tab exists. The apply pass is DFS post-order, so <see cref="AllowSwitchOff"/> would otherwise
+        /// arrive after every tab had applied its <c>isOn</c> — while the group still forbade switch-off,
+        /// uGUI forced the first tab on at activation, a declared <c>isOn="false"</c> bounced back, and
+        /// that bounce was recorded as the declared baseline. Idempotent — the setter runs again in the pass.
+        /// </summary>
+        internal void PreConfigureGroup(string allowSwitchOff)
+            => _core.AllowSwitchOff = bool.TryParse(allowSwitchOff, out var on) && on;
+
         public int Count => _core.Tabs.Count;
 
         public int SelectedIndex => _core.SelectedIndex;
@@ -85,6 +95,16 @@ namespace PromptUGUI.Controls
         /// </summary>
         public void ClearSelection() => _core.ClearSelection();
 
+        /// <summary>
+        /// <see cref="ClearSelection()"/>, optionally without animation: <paramref name="animate"/> false lands
+        /// the selected tab's <c>unchecked</c> animations on their end state at once (see <see cref="Tab.SetIsOn"/>).
+        /// </summary>
+        public void ClearSelection(bool animate)
+        {
+            if (animate) _core.ClearSelection();
+            else InstantState.Run(_core.ClearSelection);
+        }
+
         public IDisposable BindItems<T>(
             Observable<IReadOnlyList<T>> source,
             Action<Tab, T> bind)
@@ -94,6 +114,18 @@ namespace PromptUGUI.Controls
             Observable<IReadOnlyList<T>> source,
             Action<TSlot, T> bind) where TSlot : class, IControl
             => _core.BindItems(source, bind);
+
+        public IDisposable BindItems<T, TKey>(
+            Observable<IReadOnlyList<T>> source,
+            Action<Tab, T> bind,
+            Func<T, TKey> key)
+            => BindItems<T, Tab, TKey>(source, bind, key);
+
+        public IDisposable BindItems<T, TSlot, TKey>(
+            Observable<IReadOnlyList<T>> source,
+            Action<TSlot, T> bind,
+            Func<T, TKey> key) where TSlot : class, IControl
+            => _core.BindItems(source, bind, key);
 
         internal override void OnAfterApply()
         {

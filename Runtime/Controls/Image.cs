@@ -63,10 +63,25 @@ namespace PromptUGUI.Controls
         public Observable<Unit> OnPointerExit => EnsureRelay().OnPointerExit;
         public Observable<Unit> OnPointerDown => EnsureRelay().OnPointerDown;
 
+        // The last value written, resolved or not: `sprite` is runtime-owned (registered as the
+        // RuntimeStateAttr, same contract as <Icon name>), and the lock compares what was written.
+        private string _sprite;
+
+        internal override string PeekRuntimeState() => _sprite;
+
+        /// <summary>
+        /// The picture. Runtime-owned: the declared value is the initial one, and once code has written
+        /// another, a ReSolve (resize / Variant / Theme) keeps the code's — an untouched image still
+        /// follows its <c>sprite.variant</c> override and its theme.
+        /// </summary>
         [UIAttr(IsSprite = true), Preserve]
         public string Sprite
         {
-            set => _slot.Set(value);
+            set
+            {
+                _sprite = value;
+                _slot.Set(value);
+            }
         }
 
         UnityImage ISpriteSlotHost.SlotGraphic => _img;

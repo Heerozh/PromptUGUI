@@ -251,6 +251,10 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public bool AllowSwitchOff { set => _core.AllowSwitchOff = value; }
 
+        /// <summary>Before any child tab exists — see <see cref="TabBar.PreConfigureGroup"/>.</summary>
+        internal void PreConfigureGroup(string allowSwitchOff)
+            => _core.AllowSwitchOff = bool.TryParse(allowSwitchOff, out var on) && on;
+
         /// <summary>Panel width. Unset (or 0) sizes it to the wider of the handle and its content.</summary>
         [UIAttr, Preserve]
         public float PopupWidth { set { _popupWidth = value; PlacePopup(); } }
@@ -307,6 +311,13 @@ namespace PromptUGUI.Controls
         /// </summary>
         public void ClearSelection() => _core.ClearSelection();
 
+        /// <summary><see cref="ClearSelection()"/>, optionally without animation — see <see cref="TabBar.ClearSelection(bool)"/>.</summary>
+        public void ClearSelection(bool animate)
+        {
+            if (animate) _core.ClearSelection();
+            else InstantState.Run(_core.ClearSelection);
+        }
+
         public Observable<Tab> OnSelectionChanged => _core.SelectionChanged;
 
         public IDisposable BindItems<T>(
@@ -318,6 +329,18 @@ namespace PromptUGUI.Controls
             Observable<IReadOnlyList<T>> source,
             Action<TSlot, T> bind) where TSlot : class, IControl
             => _core.BindItems(source, bind, BeforeRebuild, AfterRebuild);
+
+        public IDisposable BindItems<T, TKey>(
+            Observable<IReadOnlyList<T>> source,
+            Action<Tab, T> bind,
+            Func<T, TKey> key)
+            => BindItems<T, Tab, TKey>(source, bind, key);
+
+        public IDisposable BindItems<T, TSlot, TKey>(
+            Observable<IReadOnlyList<T>> source,
+            Action<TSlot, T> bind,
+            Func<T, TKey> key) where TSlot : class, IControl
+            => _core.BindItems(source, bind, key, BeforeRebuild, AfterRebuild);
 
         // A row is built by AddComponent-ing a TMP onto a fresh GameObject, and a TMP built under an
         // inactive parent — which is exactly what a collapsed popup is — never measures itself again

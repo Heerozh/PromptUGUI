@@ -353,6 +353,13 @@ namespace PromptUGUI.Application
                     VariantResolver.ResolveAttribute(node, "columns", _variants),
                     VariantResolver.ResolveAttribute(node, "virtualize", _variants));
 
+            // Same reason for a tab group's allowSwitchOff: the tabs apply isOn before the group's own
+            // attributes, and a group that still forbids switch-off makes uGUI force a tab on underneath them.
+            if (control is Controls.TabBar tabBar)
+                tabBar.PreConfigureGroup(VariantResolver.ResolveAttribute(node, "allowSwitchOff", _variants));
+            else if (control is Controls.TabMenu tabMenu)
+                tabMenu.PreConfigureGroup(VariantResolver.ResolveAttribute(node, "allowSwitchOff", _variants));
+
             var selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "TabMenu"
                                              or "Carousel" or "Collapsible" or "ScrollList";
             foreach (var c in node.Children)

@@ -81,6 +81,7 @@ Shader "UI/ImageFx"
 
             #include "UnityCG.cginc"
             #include "UnityUI.cginc"
+            #include "UI-Clip.cginc"
             #include "UI-ImageTint.cginc"
             #include "UI-PanelSDF.cginc"
 
@@ -105,6 +106,7 @@ Shader "UI/ImageFx"
                 float4 worldPosition : TEXCOORD1;
                 float4 rect : TEXCOORD2;
                 float4 scale : TEXCOORD3;       // xy = uv / 画布单位，zw = texel / 画布单位
+                float4 mask : TEXCOORD4;   // RectMask2D 覆盖率（UI-Clip.cginc）
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
@@ -129,6 +131,7 @@ Shader "UI/ImageFx"
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(OUT);
                 OUT.worldPosition = v.vertex;
                 OUT.vertex = UnityObjectToClipPos(OUT.worldPosition);
+                OUT.mask = PuguiClipMask(OUT.worldPosition.xy, OUT.vertex, _ClipRect);
                 OUT.texcoord = TRANSFORM_TEX(v.texcoord, _MainTex);
                 OUT.rect = v.texcoord1;
                 OUT.scale = v.texcoord2;
@@ -325,7 +328,7 @@ Shader "UI/ImageFx"
                 }
 
                 #ifdef UNITY_UI_CLIP_RECT
-                color.a *= UnityGet2DClipping(IN.worldPosition.xy, _ClipRect);
+                color.a *= PuguiClipCoverage(IN.mask, _ClipRect);
                 #endif
 
                 #ifdef UNITY_UI_ALPHACLIP

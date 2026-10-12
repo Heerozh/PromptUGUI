@@ -109,6 +109,7 @@ Shader "UI/GlassGroup"
 
             #include "UnityCG.cginc"
             #include "UnityUI.cginc"
+            #include "UI-Clip.cginc"
             #include "UI-PanelSDF.cginc"
 
             #pragma multi_compile_local _ UNITY_UI_CLIP_RECT
@@ -131,6 +132,7 @@ Shader "UI/GlassGroup"
                 float2 local         : TEXCOORD0;
                 float4 worldPosition : TEXCOORD1;
                 float4 screenPos     : TEXCOORD2;
+                float4 mask : TEXCOORD3;   // RectMask2D 覆盖率（UI-Clip.cginc）
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
@@ -171,6 +173,7 @@ Shader "UI/GlassGroup"
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(OUT);
                 OUT.worldPosition = v.vertex;
                 OUT.vertex = UnityObjectToClipPos(OUT.worldPosition);
+                OUT.mask = PuguiClipMask(OUT.worldPosition.xy, OUT.vertex, _ClipRect);
                 OUT.screenPos = ComputeScreenPos(OUT.vertex);
                 OUT.local = v.texcoord;
                 OUT.color = v.color;
@@ -407,7 +410,7 @@ Shader "UI/GlassGroup"
                 col *= IN.color;
 
                 #ifdef UNITY_UI_CLIP_RECT
-                col.a *= UnityGet2DClipping(IN.worldPosition.xy, _ClipRect);
+                col.a *= PuguiClipCoverage(IN.mask, _ClipRect);
                 #endif
 
                 #ifdef UNITY_UI_ALPHACLIP
@@ -420,7 +423,7 @@ Shader "UI/GlassGroup"
                 // 裁剪器」这个最有用的形态反而做不出来。形状就是形状，与画了什么无关。
                 float maskCoverage = inside;
                 #ifdef UNITY_UI_CLIP_RECT
-                maskCoverage *= UnityGet2DClipping(IN.worldPosition.xy, _ClipRect);
+                maskCoverage *= PuguiClipCoverage(IN.mask, _ClipRect);
                 #endif
                 clip(maskCoverage - 0.5);
                 #endif

@@ -513,8 +513,31 @@ anchoring rules: XML skill, `reference/virtualize.md`. For the C# side:
 
 ```csharp
 list.ScrollToStart(); list.ScrollToEnd(); list.ScrollToIndex(i);        // instant — a fling stops
+list.ScrollIntoView(control);                                            // the least scroll that shows it whole
 bool atEnd = list.IsAtEnd;                                               // content that fits counts
 list.OnAtEndChanged.Subscribe(a => newMessages.Hidden = a).AddTo(screen); // current value, then changes
+```
+
+`ScrollIntoView(target)` takes **any control inside the list's rows** — a row, or a row of the one
+`<TabBar>` slot a list holds, which `ScrollToIndex` cannot reach (it counts the list's own slots). It
+scrolls the least that shows the target whole (a target taller than the viewport gets its start edge
+aligned), clamped; a fling stops; a hidden list scrolls when it shows; a virtual list reaches targets in
+its realized rows (`ArgumentException` otherwise, and for a control outside the list). It then **keeps
+following** the target while its geometry moves — a row unfolding under `<Animation on="checked@tab"
+reveal="y">`, a `height="clamp(_, hug, 149)"` list growing to its cap — and lets go a few frames after
+it settles, when the user drags or wheels, or on the next `ScrollTo*` / `ScrollIntoView`. So select and
+scroll in the same frame, without waiting for the animation — and pass the **row** (the slot your bind
+callback got), not just its Tab, so the part that unfolds is brought into view too:
+
+```csharp
+var rows = new Dictionary<long, IControl>();
+bar.BindItems<Item, IControl, long>(items, (row, it) => { rows[it.Id] = row; /* … */ }, key: it => it.Id)
+   .AddTo(screen);
+
+// later — a pick made elsewhere selects a row:
+var row = rows[id];
+row.Get<Tab>("tab").IsOn = true;    // starts unfolding the row's detail
+list.ScrollIntoView(row);           // follows it until the unfold is done
 ```
 
 `ScrollToIndex` puts the item's top edge (left edge, horizontally) at the viewport's, clamped; it
@@ -581,6 +604,13 @@ bar.BindItems<MyModel, IControl>(
     (slot, m) => slot.Get<Tab>("tab").Text = m.Name)
    .AddTo(screen);
 
+// Keyed: rows follow their items, so the selection follows its item too (see "Keyed rows" below):
+bar.BindItems<MyModel, IControl, long>(
+    items,
+    (slot, m) => slot.Get<Text>("status").TextValue = m.Status,
+    key: m => m.Id)
+   .AddTo(screen);
+
 // Deselect everything — the "no page open" state. Hides every bind-ed Frame and pushes null
 // through OnSelectionChanged. What a panel's own close button calls:
 bar.ClearSelection();
@@ -593,6 +623,14 @@ bar.GetAt(i);
 ```
 
 Setting `tab.IsOn = true` triggers mutex (other Tabs flip to false via the TabBar's private `ToggleGroup`) AND auto-shows the `bind`-ed Frame — no manual `frame.GameObject.SetActive(...)` needed. If `BindItems` is called with an empty list, `OnSelectionChanged` fires with `null` to let subscribers clear UI state. After hot-reload, re-Bind just like ScrollList.
+
+**Selecting without animation.** `tab.SetIsOn(true, animate: false)` (and `bar.ClearSelection(animate: false)`, `toggle.SetIsOn(on, animate: false)`) is the selection a Screen's opening makes: every `<Animation on="checked">` / `reverse-on="unchecked"` the change drives lands on its end state at once — on this tab and on the one the group turns off — and the state colours snap. Use it to sync the UI to state that lives elsewhere (restoring a selection, mirroring a pick made on a map, re-applying it after a re-bind); keep `IsOn = …` for answering the player. Events (`OnValueChanged`, `OnSelectionChanged`, the `bind` page) fire exactly as for `IsOn`, so an echo guard on your side still applies.
+
+```csharp
+selecting = true;                                   // the host's own echo guard
+bar.GetAt(row).SetIsOn(true, animate: false);       // the row is already unfolded, no 0.2 s reveal
+selecting = false;
+```
 
 **The Tab you select has to be an active one.** A `hidden="true"` Tab (or one inside an inactive
 `<Add>` block) is out of uGUI's `ToggleGroup`, so while a visible tab is on, `IsOn = true` on it is
@@ -623,13 +661,20 @@ flip / theme switch / resize (each of which re-solves the Screen, and each of wh
 the auto-select) will not re-open the page the player just closed. Both are on `<TabMenu>` too,
 where the collapsed handle then shows a blank caption.
 
-`bar.BindItems<T, TSlot>` lets the template root be any `IControl`; `bar.BindItems<T>` is shorthand when the template root _is_ a `<Tab>` directly. The `<Tab>` reachable inside the slot is found via `ScopedIds` first, then a recursive child walk — Templates without an id'd Tab still work as long as exactly one `<Tab>` exists in the subtree.
+`bar.BindItems<T, TSlot>` lets the template root be any `IControl`; `bar.BindItems<T>` is shorthand when the template root _is_ a `<Tab>` directly. The `<Tab>` reachable inside the slot is found via `ScopedIds` first, then a recursive child walk — Templates without an id'd Tab still work as long as exactly one `<Tab>` exists in the subtree. A **row** is the whole template instance (the slot), not just its Tab: a rebuild removes and disposes rows whole, the Tab's siblings and their `.AddTo(slot)` subscriptions included.
+
+**Without a key every push rebuilds every row**: the selection is lost (an `allowSwitchOff` bar opens empty again, any other re-selects its first tab — neither is announced), `checked@` animations start over, images load again. **Keyed rows** — `BindItems(items, bind, key: m => m.Id)` (`BindItems<T, TKey>` / `BindItems<T, TSlot, TKey>`, on `<TabMenu>` too) — follow their items the way a keyed `ScrollList` does:
+
+- A row whose key survives the push is **reused in place**: bound again (every row is re-bound on every push, `.AddTo(slot)` from the previous bind released first) and moved to its new position. Its Tab keeps its `isOn`, so the **selection follows its key**, and nothing it drives replays — the bound page stays shown, an `<Animation on="checked@tab">` does not play again.
+- A new key gets a new row; a vanished key's row is removed.
+- The selected key gone: `OnSelectionChanged` announces the new state once — `null` (`allowSwitchOff`, or after `ClearSelection()`), or the first tab of a bar that always has a selection. An unchanged selection announces nothing.
+- The previous push is matched by key when it came from any keyed `BindItems` with the same `TKey` (a fresh `BindItems(Observable.Return(list), …, key)` per push works). The first keyed push replaces static rows and rows from an unkeyed push whole. A null or duplicate key rejects the whole push (logged via R3; the rows stay as they were).
 
 ### TabMenu
 
 The same tab group, folded into a popup. **Every selection member above works identically** —
-`OnSelectionChanged`, `SelectedTab`, `SelectedIndex`, `Count`, `GetAt`, both `BindItems` overloads,
-`itemTemplate` — because `<TabBar>` and `<TabMenu>` share one implementation. What it adds is the
+`OnSelectionChanged`, `SelectedTab`, `SelectedIndex`, `Count`, `GetAt`, every `BindItems` overload
+(keyed ones included), `itemTemplate` — because `<TabBar>` and `<TabMenu>` share one implementation. What it adds is the
 open / closed state:
 
 ```csharp
@@ -861,8 +906,8 @@ plate.Dispose();                                                              //
   appear in `screen.Get(...)`, so a hundred instances of one template do not collide.
 - **The instance re-solves with the Screen** exactly like a `BindItems` row: Variant flips, theme
   switches and locale changes replay its attributes (code-set `TextValue` / `isOn` / `value` /
-  `Hidden` / `Interactable` / `Icon.Name` are kept — the runtime-takeover lock, see *Runtime-owned
-  common attributes*); `scale="Nx"` / `<r>r` follow the canvas; a plain resize
+  `Hidden` / `Interactable` / `Icon.Name` / `Image.Sprite` / `Text.Color` are kept — the runtime-takeover
+  lock, see *Runtime-owned attributes*); `scale="Nx"` / `<r>r` follow the canvas; a plain resize
   replays scale only. Cost is linear in instances (a few µs each); hidden instances are replayed too.
 - **`parent` must be inside this Screen** (an `ArgumentException` otherwise). An `IControl` parent
   puts the instance where an XML child of it would go — a `<Btn>`'s content holder, a
@@ -910,9 +955,9 @@ sealed class PlatePool {
 A reused instance keeps whatever the previous user set — bind everything you care about on every
 `Rent`, the same contract as a `BindItems` binder.
 
-## Runtime-owned common attributes (`Hidden` / `Interactable` / `Icon.Name`)
+## Runtime-owned attributes (`Hidden` / `Interactable` / `Icon.Name` / `Image.Sprite` / `Text.Color`)
 
-A ReSolve (resize, Variant flip, theme or locale switch) replays every node's XML attributes. Three
+A ReSolve (resize, Variant flip, theme or locale switch) replays every node's XML attributes. The
 things code writes all the time are **runtime-owned**, on the same contract as `isOn` / `value` /
 `expanded` / `selected`: the XML value is the *initial* state, and once code has written the
 property the replay leaves it alone.
@@ -921,17 +966,21 @@ property the replay leaves it alone.
 placeholder.Hidden = false;        // XML said hidden="true"; stays shown through any ReSolve
 confirm.Interactable = false;      // stays disabled — used to be re-enabled by every ReSolve
 icon.Name = "ui:warning";          // stays — used to snap back to the XML name=
+portrait.Sprite = "faces:" + id;   // stays — a row's <Image sprite="{{pic}}"> no longer snaps back to the Param default
+status.Color = "danger";           // stays — and as a token it is still resolved by the current theme
 ```
 
 - **Write the real initial state in the XML** (`hidden="true"` on a placeholder, `interactable="false"`
   on a not-yet-valid button) — a preview that loads only the XML then shows it — and let C# take over
   from there. No more "don't declare `hidden`, set it in the constructor, re-apply after a resize".
 - **What counts as a write**: anything that changes the live value — `Hidden` / `Interactable` /
-  `Name` setters, a `BindItems` callback, `Tab.bind`, `<Pages>`. The lock is a comparison of the live
-  value against what the last replay wrote, not a flag on the setter.
+  `Name` / `Sprite` / `Color` setters, a `BindItems` callback, `Tab.bind`, `<Pages>`. The lock is a
+  comparison of the live value against what the last replay wrote, not a flag on the setter.
 - **An untouched node still follows** `hidden.<variant>=` / `interactable.<variant>=` /
-  `name.<locale>=` and a theme `<Style hidden=…>` (the sample's skin layers). A touched node stops
-  following the theme until its Screen is reopened — the same trade-off `isOn` makes.
+  `name.<locale>=` / `sprite.<variant>=` / `color.<variant>=` and a theme `<Style hidden=… sprite=… color=…>`
+  (the sample's skin layers). A touched node stops following the theme until its Screen is reopened —
+  the same trade-off `isOn` makes. One exception keeps a theme switch whole: a colour **token** that
+  code wrote to `Text.Color` is resolved again by each new theme (it is the code's token, not the XML's).
 - `Hidden` undeclared in XML is never written by a replay (so a base-less `hidden.mobile=` cannot
   heal — declare a base); `Interactable` undeclared is `true` and is re-applied on an untouched node,
   so a base-less `interactable.mobile="false"` does heal.
@@ -957,10 +1006,11 @@ price.Color = affordable ? "on-surface" : "danger";   // kept through the Btn's 
 buy.Interactable = affordable;
 ```
 
-Colours are **not runtime-owned**, though: a ReSolve (resize, Variant flip, theme or locale switch)
-replays a `color=` / `textColor=` **declared** in the XML — or in a `<Style>` the node wears — over
-what code wrote. When code drives a colour, leave it out of the XML (an undeclared one is never
-touched by a replay) or write it again after the switch; on a `BindItems` row, set it on every bind.
+Apart from `<Text color>` (runtime-owned, see above), colours are **not runtime-owned**: a ReSolve
+(resize, Variant flip, theme or locale switch) replays a `color=` / `textColor=` **declared** in the
+XML — or in a `<Style>` the node wears — over what code wrote. When code drives one of those, leave it
+out of the XML (an undeclared one is never touched by a replay) or write it again after the switch; on
+a `BindItems` row, set it on every bind.
 
 ## Variant switching at runtime
 
@@ -1214,7 +1264,8 @@ PAGES          screen.Get<Pages>("id").Show("pageId")         one direct child a
                                                               never write a page's Hidden yourself — the container re-asserts it
 
 RUNTIME-OWNED  ctl.Hidden = … / ctl.Interactable = …            XML value = initial state; once code wrote it, no ReSolve snaps it back
-               icon.Name = "ui:x"                             same for <Icon name>; untouched nodes still follow .variant / theme <Style>
+               icon.Name = "ui:x" / image.Sprite = … / text.Color = …   same; untouched nodes still follow .variant / theme <Style>
+                                                              (a token code wrote to Text.Color is still resolved by the current theme)
                                                               (same contract as isOn / value / expanded / selected / current)
 
 INSTANTIATE    var root = screen.Instantiate("Tpl", parent)   parent: IControl (lands as an XML child would) or RectTransform
@@ -1249,12 +1300,16 @@ DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                <ScrollList virtualize="true">  only rows near the viewport; bind also runs while scrolling;
                                        ItemCount = items, SlotCount = realized rows; bind once, push via Subject
                ScrollList.ScrollToStart() / .ScrollToEnd() / .ScrollToIndex(i)   instant; a hidden list jumps on show
+               ScrollList.ScrollIntoView(ctl)  least scroll showing any control inside the rows whole; follows it
+                                       while it moves (a row unfolding) until it settles / the user scrolls
                ScrollList.IsAtEnd / .OnAtEndChanged  Observable<bool> (replay + dedupe); stickToEnd="true" follows the end
                ScrollList.OnReordered  Observable<(int From, int To)> — <ScrollList reorder="true">; rows already permuted;
                                        apply RemoveAt(From)+Insert(To) to your data and push; IsReordering while lifted
                TabBar.BindItems(Observable<IReadOnlyList<T>>, (Tab tab,t)=>...)
                TabMenu.BindItems(...)  same shape — one shared tab-group implementation
-                                       or BindItems<T,TSlot>(...) for wrapped templates
+                                       or BindItems<T,TSlot>(...) for wrapped templates (a row = the whole slot)
+               TabBar/TabMenu.BindItems(src, bind, key: t=>t.Id)   keyed: rows reused by key, selection follows its key;
+                                       selected key gone → OnSelectionChanged once (null / auto-selected first)
                Carousel.BindItems(Observable<IReadOnlyList<T>>, (IControl card,t)=>...[, key: o=>o.Id])
                                                               // key optional: re-centre the centred card by identity on re-emit
                                        or BindItems<T,TSlot>(...) for typed card template
@@ -1262,6 +1317,8 @@ DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                TabBar/TabMenu query: .Count / .SelectedIndex (-1 if empty) / .SelectedTab / .GetAt(i)
                TabBar/TabMenu selection: .ClearSelection()  deselect all (no attribute needed;
                                        hides every bind-ed Frame, emits null, survives ReSolve)
+               tab.SetIsOn(on, animate: false) / toggle.SetIsOn(…) / bar.ClearSelection(animate: false)
+                                       checked/unchecked <Animation>s land on their end state (as at open); events as usual
                TabMenu state: .IsExpanded / .Expand() / .Collapse() / .Toggle()
                Collapsible:   同上 + .OnToggled: Observable<bool> / .Text / .Icon;expanded 运行期独占
                Carousel query: .Count / .Current (get/set) / .Playing (get/set) / .GoTo(i,animated) / .Next() / .Previous()

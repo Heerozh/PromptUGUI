@@ -138,7 +138,7 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
 | `raycastTarget` | bool | `false` | `true` = this Frame catches the pointer (blocks clicks / hover from reaching what is behind it; its interactive children still work, they draw on top). Write it on a **panel's root**. With no visual attribute it is a transparent, zero-geometry catcher — the replacement for the old `<Image color="#00000000">` hack. See **Pointer hit-testing** |
-| `mask` | `rect` / `self` | — | `rect` = `RectMask2D` 直角裁剪子节点；`self` = stencil `Mask`，把子节点裁成本 Frame 自绘的那个形状（圆角头像 / 圆角滚动区）。`self` 要求写了下面任一视觉属性 —— 否则 Frame 没有 `Graphic`，裁剪静默失效（`PUI-MASK-FRAME-SELF`）。`weld` 承载者也不行（`PUI-MASK-WELD-SELF`）|
+| `mask` | `rect` / `self` | — | `rect` = `RectMask2D` 直角裁剪子节点（库内每个 shader —— 程序化面板、blur / glow 图、线性叠色、玻璃、`<Decor>` —— 都按 UI/Default 的抗锯齿覆盖率裁边，C# 写的 `RectMask2D.softness` 对它们同样生效）；`self` = stencil `Mask`，把子节点裁成本 Frame 自绘的那个形状（圆角头像 / 圆角滚动区）。`self` 要求写了下面任一视觉属性 —— 否则 Frame 没有 `Graphic`，裁剪静默失效（`PUI-MASK-FRAME-SELF`）。`weld` 承载者也不行（`PUI-MASK-WELD-SELF`）|
 | `showMask` | bool | `true` | 仅 `mask="self"`。`false` = 只裁不画，一个隐形的圆角裁剪器 |
 | `maskPadding` | `T,R,B,L`（`_`=占位） | — | 仅 `mask="rect"` 时有效 |
 | `color` | hex / CSS named / theme token / `[to right,] A, B[, C[, D]]` 渐变 / `A 70%,B` 色标 / `A,70%,B` 提示 / `/alpha` | — (无填充) | Fill. Same value grammar as everywhere else — see **Color Tokens → Gradients**; a comma value is a gradient (top→bottom unless a leading `Ndeg` / `to <side or corner>` says otherwise), 2–4 colours, a `N%` suffix moves where each transitions, a bare `N%` between two colours bends that segment |
@@ -240,7 +240,7 @@ uGUI Image，从 `Resources` 加载 sprite；可选 `RectMask2D`（`mask="rect"`
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
-| `sprite` | sprite key | — | `set:key` may also name a **runtime sprite set** registered from C#; an on-demand one shows its loading placeholder and swaps in the sprite when it arrives — give the Image an explicit size (or `type="contain"` / `cover`). See `reference/icons.md` → *Runtime sprite sets* |
+| `sprite` | sprite key | — | `set:key` may also name a **runtime sprite set** registered from C#; an on-demand one shows its loading placeholder and swaps in the sprite when it arrives — give the Image an explicit size (or `type="contain"` / `cover`). See `reference/icons.md` → *Runtime sprite sets*. **Runtime-owned** (as `<Icon name>`): the declared value — a template `<Param>` default included — is the initial picture; once C# sets `Sprite`, a resize / Variant / Theme ReSolve keeps the code's; an untouched image follows `sprite.<variant>=` and its theme |
 | `color` | hex / CSS named / theme token | — | runtime theme token 优先于字面量；见 **Color Tokens**; gradient stop positions / hints render here too |
 | `type` | `simple` / `sliced` / `tiled` / `filled` / `contain` / `cover` | 自动 | 省略→sprite 有非零 border 取 `sliced`、否则 `simple`。`.pxl` 中声明 `tiled: true` 的 sprite 在每个 consumer 上自动渲染为 `tiled`，无需写 `type=`；显式写 `type=` 仍可覆盖。`contain` / `cover` 是相对**父 rect** 的等比适配（`AspectRatioFitter`）：`contain` 内嵌留边、`cover` 填满溢出；尺寸设在**父级**，`cover` 时父级加 `mask="rect"` 裁切。适配模式下 Image 自身 `anchor` / `size` / `width` / `height` / `margin` 被接管失效（`PUI-IMAGE-FIT-GEOMETRY`）；不可 variant 覆盖（`PUI-IMAGE-FIT-VARIANT`）；勿直接作 `<VStack>` / `<HStack>` / `<Grid>` 子节点，套 `<Frame>` |
 | `mask` | `rect` / `self` | — | |
@@ -371,7 +371,7 @@ TMP_Text。文本简写：`<Text>Hello</Text>` ≡ `<Text text="Hello"/>`。
 |---|---|---|---|
 | `text` | string | — | |
 | `fontSize` | float | — | |
-| `color` | hex / CSS named / theme token | — | 见 **Color Tokens**; gradients yes, stop positions / hints NO — TMP colours per glyph (`PUI-GRADIENT-STOP-NO-SURFACE`) |
+| `color` | hex / CSS named / theme token | — | 见 **Color Tokens**; gradients yes, stop positions / hints NO — TMP colours per glyph (`PUI-GRADIENT-STOP-NO-SURFACE`). **Runtime-owned**: once C# sets `Color`, a ReSolve keeps the code's value (a token the code wrote still resolves under the current theme); an untouched text follows `color.<variant>=` and its theme |
 | `align` | TMP 对齐 | `left`+`middle` | 一个水平 token `left` / `center` / `right` / `justified` / `flush` / `geo`，和/或一个垂直 token `top` / `middle` / `bottom` / `baseline` / `midline` / `capline`，连字符或空格连接、顺序无关（`bottom-right` / `top-center` / `capline-flush`）；只给水平保持垂直 `middle`，只给垂直保持水平 `left`；未知 token = parse error |
 | `wrap` | bool | `true` | `false`=不换行（NoWrap）；常配 `overflow="ellipsis"` 做单行省略号 |
 | `overflow` | `overflow` / `ellipsis` / `truncate` | `overflow` | 文字塞不下框后的收尾：`overflow`=溢出框外（TMP 默认）、`ellipsis`=尾部 `…`、`truncate`=硬裁切无 `…`；未知值 = parse error |
@@ -390,7 +390,7 @@ TMP_Text。文本简写：`<Text>Hello</Text>` ≡ `<Text text="Hello"/>`。
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
 | `spacing` | float | — | |
-| `padding` | `T,R,B,L`（1/2/4 段，`_`=0） | — | 如 `padding="6,_,_,_"` |
+| `padding` | `T,R,B,L`（1/2/4 段，`_`=0） | — | 如 `padding="6,_,_,_"`。**整数像素**：小数或段数不对是 `PUI-PADDING-INT`（`<VStack>` / `<HStack>` / `<Grid>` / `<ScrollList>` / `<InputField>` 在 Open 时抛 ParseException） |
 | `childAlign` | `upper` / `middle` / `lower` - `left` / `center` / `right` | `upper-center` | `center`=`middle-center`（交叉轴居中） |
 
 ### `<HStack>`
@@ -406,7 +406,7 @@ TMP_Text。文本简写：`<Text>Hello</Text>` ≡ `<Text text="Hello"/>`。
 | `columns` | int | — | |
 | `cellSize` | `WxH` | — | |
 | `spacing` | single 或 `V,H` | — | 竖向在前，同两段 `padding` / 四段 `margin` |
-| `padding` | `T,R,B,L` | — | |
+| `padding` | `T,R,B,L`（1/2/4 段，`_`=0） | — | 整数像素（`PUI-PADDING-INT`） |
 
 ### `<Btn>`
 
@@ -576,7 +576,7 @@ Children of a list are layout-group children: `anchor` / `margin` are dropped (`
 | `columns` | int ≥ 1 | `0` | Grid mode: Content becomes a `GridLayoutGroup` wrapping into rows that grow downwards. `0` = the single column / row `direction` describes. **Spell `columns="0"` out when a variant has to leave the grid** — a variant resolving to null is skipped, not reverted, so dropping the override keeps the grid. Vertical only: with `direction="horizontal"` it is `PUI-SCROLL-COLUMNS-DIRECTION` (the direction wins at runtime); there is no row-major `rows=` in v1. Without a `size`, the list's native **width** becomes `padding + columns × cellSize + gaps` — but the scrollbar still eats `thickness + spacing` out of the viewport unless the bar is `<Scrollbar overlay="true">`. |
 | `cellSize` | `WxH` | — | Uniform cell size; **required in grid mode** (`PUI-SCROLL-COLUMNS-CELLSIZE`) — without it every cell falls back to uGUI's 100×100. Same meaning as `<Grid cellSize>`: a cell's own `size` / `width` / `height` is ignored. |
 | `spacing` | single 或 `V,H` | — | 竖向在前，同 `<Grid spacing>`。单列只用得上 V、单行只用得上 H，网格两个都用 |
-| `padding` | `T,R,B,L` | — | |
+| `padding` | `T,R,B,L`（1/2/4 段，`_`=0） | — | 整数像素（`PUI-PADDING-INT`） |
 | `color` | hex / CSS / token | — | 见 **Color Tokens** |
 | `sprite` | sprite key | — | |
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
@@ -675,7 +675,7 @@ Tab 容器；私有 `ToggleGroup`（默认 `allowSwitchOff=false`，见下表）
 |---|---|---|---|
 | `direction` | `horizontal` / `vertical` | `horizontal` | |
 | `spacing` | float | — | |
-| `padding` | `T,R,B,L` | — | |
+| `padding` | `T,R,B,L`（1/2/4 段，`_`=0） | — | 整数像素（`PUI-PADDING-INT`；小数在运行时被读成 0） |
 | `itemTemplate` | tag name | `Tab` | |
 | `allowSwitchOff` | bool | `false` | Makes "nothing selected" a legal resting state: the bar opens with no tab on (unless a `<Tab>` declares `isOn="true"`) and clicking the active tab turns it off. Default keeps exactly one tab selected at all times. Also on `<TabMenu>`. See [`reference/controls-tabs.md`](reference/controls-tabs.md) |
 
@@ -981,7 +981,7 @@ Other notes:
 
 **margin & consumed sides.** A margin only offsets from a side the `anchor` **consumes**: a **stretched** axis reads both its slots, a **point** anchor (`top` / `bottom` / `left` / `right`) reads only its own side, a **centered** axis reads neither. So `anchor="bottom-right" margin="60,_,_,_"` puts 60 in the **top** slot → silently dropped (a `bottom` anchor reads only the bottom slot; write `margin="_,_,60,_"` to push it up). The lint CLI flags a non-zero value on an unconsumed side as **`PUI-MARGIN-INERT-SIDE`** (CLI-only; 4-component + explicit-`anchor` form only — symmetric 1-/2-component shorthands always land on the consumed side and are not flagged).
 
-`spacing` is **NOT** universal — only on `<VStack>` / `<HStack>` / `<Grid>`. `padding` is **per-control, not a common attribute** (each control that wants it declares its own): a layout-group inset on `<VStack>` / `<HStack>` / `<Grid>` / `<ScrollList>` / `<TabBar>`, and on `<InputField>` it means the inner space between the field edge and its text (auto-tracks the border — see the `<InputField>` row).
+`spacing` is **NOT** universal — only on `<VStack>` / `<HStack>` / `<Grid>`. `padding` is **per-control, not a common attribute** (each control that wants it declares its own): a layout-group inset on `<VStack>` / `<HStack>` / `<Grid>` / `<ScrollList>` / `<TabBar>`, and on `<InputField>` it means the inner space between the field edge and its text (auto-tracks the border — see the `<InputField>` row). Every one of these is a uGUI `RectOffset` — **whole pixels**, 1 / 2 / 4 comma-separated integers (`_` = 0); anything else is `PUI-PADDING-INT` in the lint (the stacks and `<InputField>` would refuse to open over it, `<TabBar>` / `<TabMenu>` / `<Collapsible>` read it as 0). `<Scrollbar padding>` is its own `along,across` grammar.
 
 `anchor` and `margin` are **NOT** available on `<VStack>` / `<HStack>` / `<Grid>`.
 
@@ -1309,10 +1309,11 @@ last two groups):
 | runtime-owned state | `text` `isOn` `value` `current` `expanded` `selected` | the applier stops replaying these once code sets them, so a theme's value would be swallowed *some* of the time |
 | mask family | `mask` `showMask` `maskPadding` | `PUI-MASK-VARIANT` already rejects switching mask mode per state; a theme must not be a second door into it |
 
-`hidden` / `interactable` are runtime-owned too but stay **allowed** in a theme's `<Style>` — switching
-skin layers with `<Style name="skin-glass" hidden="true"/>` is the CommonControls sample's idiom. The
-trade-off is the same as above, just accepted: a node code has touched stops following the theme
-until its Screen is reopened.
+`hidden` / `interactable`, `<Icon name>`, `<Image sprite>` and `<Text color>` are runtime-owned too but
+stay **allowed** in a theme's `<Style>` — switching skin layers with `<Style name="skin-glass" hidden="true"/>`
+is the CommonControls sample's idiom, and re-skinning means sprites and colours. The trade-off is the
+same as above, just accepted: a node code has touched stops following the theme until its Screen is
+reopened (a colour token the code wrote is still resolved by the new theme).
 
 **Don't put a themed `class=` on a Template invocation** (`<ui.Card class="skin"/>`): half the pack
 becomes `<Param>` values that get baked into the body at expansion, and the invocation node is gone

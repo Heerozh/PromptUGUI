@@ -124,7 +124,7 @@ screen.Get<Carousel>("sel")
 - **卡片必须有尺寸**：卡根写 `size=`（裸 `<Frame>`），或用自带原生尺寸的控件（`<Image>` = sprite 尺寸、`<Text>` = 量出）。无尺寸的容器卡（`Frame`/`VStack`/`HStack`/`Grid`）会兜成视口、不 peek（lint `PUI-CAROUSEL-PEEK-NO-SIZE` 提示）。
 - **peek 露出多少 = `(carousel 宽 − 卡宽)/2 − spacing`**，由卡尺寸 vs carousel 尺寸**隐式**决定，没有单独的 peek 属性。
 - `edgeScale`（默认 `1.0`）/ `edgeAlpha`（默认 `1.0`）：基准是**选中卡**——中心 = 声明尺寸 / 不透明，按距中心距离线性插值到边值。`1.0` = 无效果；`<1` 缩 / 淡；`edgeScale>1` 也允许（放大邻卡）。
-- `softness`（默认 `0`，设计单位 int）：视口**左右边缘的羽化淡出宽度**，直接写视口 `RectMask2D.softness.x`——靠近视口边缘的卡片**像素**渐隐（空间淡出、溶进背景），区别于 `edgeAlpha` 的「整卡按第几张统一变暗」。典型配 `fill="false"` 全屏选择器做边缘 fade（`CenteredSlideBox` 默认皮肤即用它）。注意它**不被 `fill` 门控**（直接作用于视口遮罩），但只有卡片溢出到视口边缘时才看得到。
+- `softness`（默认 `0`，设计单位 int）：视口**左右边缘的羽化淡出宽度**，直接写视口 `RectMask2D.softness.x`——靠近视口边缘的卡片**像素**渐隐（空间淡出、溶进背景），区别于 `edgeAlpha` 的「整卡按第几张统一变暗」。典型配 `fill="false"` 全屏选择器做边缘 fade（`CenteredSlideBox` 默认皮肤即用它）。注意它**不被 `fill` 门控**（直接作用于视口遮罩），但只有卡片溢出到视口边缘时才看得到。卡片里的程序化面板、blur / glow 图、玻璃也一样渐隐（库内 shader 都读 `RectMask2D.softness`）。
 - `spacing`（默认 `0`，px）：相邻卡间距，步距 = 卡宽 + spacing。
 - 这三个属性**仅 `fill="false"` 生效**；`fill="true"` 下被忽略，行为与 v1 全幅逐字等价（变体把 fill 切回 true 也会复位缩放/透明）。
 - `fill="false"` 下 Carousel 占用卡根的 `localScale`（做 `edgeScale`）；卡根别再写 density `scale=`，要缩放写卡的里层节点。

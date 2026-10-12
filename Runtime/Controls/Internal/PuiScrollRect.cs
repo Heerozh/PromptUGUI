@@ -71,7 +71,27 @@ namespace PromptUGUI.Controls.Internal
         {
             base.OnBeginDrag(eventData);
             // Mirrors the base: only a left-button drag on an active ScrollRect starts one.
-            if (eventData.button == PointerEventData.InputButton.Left && IsActive()) IsDragging = true;
+            if (eventData.button == PointerEventData.InputButton.Left && IsActive()) IsDragging = _input = true;
+        }
+
+        public override void OnScroll(PointerEventData data)
+        {
+            base.OnScroll(data);
+            if (IsActive()) _input = true;
+        }
+
+        // A drag began or the wheel turned since the last ConsumeUserInput.
+        private bool _input;
+
+        /// <summary>
+        /// True when the user dragged Content or turned the wheel since the last call — what tells the user's own
+        /// scrolling from the ScrollRect's elasticity and leftover inertia, which also move Content. Resets the mark.
+        /// </summary>
+        internal bool ConsumeUserInput()
+        {
+            var input = _input || IsDragging;
+            _input = false;
+            return input;
         }
 
         public override void OnEndDrag(PointerEventData eventData)
