@@ -132,6 +132,7 @@ Shader "UI/ProceduralPanel"
 
             #include "UnityCG.cginc"
             #include "UnityUI.cginc"
+            #include "UI-Clip.cginc"
             #include "UI-PanelSDF.cginc"
 
             #pragma multi_compile_local _ UNITY_UI_CLIP_RECT
@@ -154,6 +155,7 @@ Shader "UI/ProceduralPanel"
                 float4 worldPosition : TEXCOORD1;
                 float2 cut           : TEXCOORD2;   // 进度裁切 (code, e)；code 0 = 不切
                 float2 hazeSeed      : TEXCOORD3;   // 钉在面板上的雾的种子（H-D9）；canvas 模式恒为 0
+                float4 mask : TEXCOORD4;   // RectMask2D 覆盖率（UI-Clip.cginc）
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
@@ -188,6 +190,7 @@ Shader "UI/ProceduralPanel"
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(OUT);
                 OUT.worldPosition = v.vertex;
                 OUT.vertex = UnityObjectToClipPos(OUT.worldPosition);
+                OUT.mask = PuguiClipMask(OUT.worldPosition.xy, OUT.vertex, _ClipRect);
                 OUT.shape = float4(v.texcoord.xy, v.texcoord1.xy);
                 OUT.cut = v.texcoord1.zw;
                 OUT.hazeSeed = v.texcoord.zw;
@@ -255,7 +258,7 @@ Shader "UI/ProceduralPanel"
                 col *= IN.color;
 
                 #ifdef UNITY_UI_CLIP_RECT
-                col.a *= UnityGet2DClipping(IN.worldPosition.xy, _ClipRect);
+                col.a *= PuguiClipCoverage(IN.mask, _ClipRect);
                 #endif
 
                 #ifdef UNITY_UI_ALPHACLIP
@@ -268,7 +271,7 @@ Shader "UI/ProceduralPanel"
                 // 裁剪器」这个最有用的形态反而做不出来。形状就是形状，与画了什么无关。
                 float maskCoverage = inside;
                 #ifdef UNITY_UI_CLIP_RECT
-                maskCoverage *= UnityGet2DClipping(IN.worldPosition.xy, _ClipRect);
+                maskCoverage *= PuguiClipCoverage(IN.mask, _ClipRect);
                 #endif
                 clip(maskCoverage - 0.5);
                 #endif

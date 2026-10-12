@@ -59,6 +59,7 @@ Shader "UI/Grayscale"
 
             #include "UnityCG.cginc"
             #include "UnityUI.cginc"
+            #include "UI-Clip.cginc"
 
             #pragma multi_compile_local _ UNITY_UI_CLIP_RECT
             #pragma multi_compile_local _ UNITY_UI_ALPHACLIP
@@ -77,6 +78,7 @@ Shader "UI/Grayscale"
                 fixed4 color : COLOR;
                 float2 texcoord : TEXCOORD0;
                 float4 worldPosition : TEXCOORD1;
+                float4 mask : TEXCOORD2;   // RectMask2D 覆盖率（UI-Clip.cginc）
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
@@ -94,6 +96,7 @@ Shader "UI/Grayscale"
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(OUT);
                 OUT.worldPosition = v.vertex;
                 OUT.vertex = UnityObjectToClipPos(OUT.worldPosition);
+                OUT.mask = PuguiClipMask(OUT.worldPosition.xy, OUT.vertex, _ClipRect);
                 OUT.texcoord = TRANSFORM_TEX(v.texcoord, _MainTex);
                 OUT.color = v.color * _Color;
                 return OUT;
@@ -108,7 +111,7 @@ Shader "UI/Grayscale"
                 color.rgb = lerp(color.rgb, luma.xxx, _Strength);
 
                 #ifdef UNITY_UI_CLIP_RECT
-                color.a *= UnityGet2DClipping(IN.worldPosition.xy, _ClipRect);
+                color.a *= PuguiClipCoverage(IN.mask, _ClipRect);
                 #endif
 
                 #ifdef UNITY_UI_ALPHACLIP

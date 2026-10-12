@@ -138,7 +138,7 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
 | `raycastTarget` | bool | `false` | `true` = this Frame catches the pointer (blocks clicks / hover from reaching what is behind it; its interactive children still work, they draw on top). Write it on a **panel's root**. With no visual attribute it is a transparent, zero-geometry catcher — the replacement for the old `<Image color="#00000000">` hack. See **Pointer hit-testing** |
-| `mask` | `rect` / `self` | — | `rect` = `RectMask2D` 直角裁剪子节点；`self` = stencil `Mask`，把子节点裁成本 Frame 自绘的那个形状（圆角头像 / 圆角滚动区）。`self` 要求写了下面任一视觉属性 —— 否则 Frame 没有 `Graphic`，裁剪静默失效（`PUI-MASK-FRAME-SELF`）。`weld` 承载者也不行（`PUI-MASK-WELD-SELF`）|
+| `mask` | `rect` / `self` | — | `rect` = `RectMask2D` 直角裁剪子节点（库内每个 shader —— 程序化面板、blur / glow 图、线性叠色、玻璃、`<Decor>` —— 都按 UI/Default 的抗锯齿覆盖率裁边，C# 写的 `RectMask2D.softness` 对它们同样生效）；`self` = stencil `Mask`，把子节点裁成本 Frame 自绘的那个形状（圆角头像 / 圆角滚动区）。`self` 要求写了下面任一视觉属性 —— 否则 Frame 没有 `Graphic`，裁剪静默失效（`PUI-MASK-FRAME-SELF`）。`weld` 承载者也不行（`PUI-MASK-WELD-SELF`）|
 | `showMask` | bool | `true` | 仅 `mask="self"`。`false` = 只裁不画，一个隐形的圆角裁剪器 |
 | `maskPadding` | `T,R,B,L`（`_`=占位） | — | 仅 `mask="rect"` 时有效 |
 | `color` | hex / CSS named / theme token / `[to right,] A, B[, C[, D]]` 渐变 / `A 70%,B` 色标 / `A,70%,B` 提示 / `/alpha` | — (无填充) | Fill. Same value grammar as everywhere else — see **Color Tokens → Gradients**; a comma value is a gradient (top→bottom unless a leading `Ndeg` / `to <side or corner>` says otherwise), 2–4 colours, a `N%` suffix moves where each transitions, a bare `N%` between two colours bends that segment |
