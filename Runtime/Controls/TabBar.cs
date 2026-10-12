@@ -95,6 +95,16 @@ namespace PromptUGUI.Controls
         /// </summary>
         public void ClearSelection() => _core.ClearSelection();
 
+        /// <summary>
+        /// <see cref="ClearSelection()"/>, optionally without animation: <paramref name="animate"/> false lands
+        /// the selected tab's <c>unchecked</c> animations on their end state at once (see <see cref="Tab.SetIsOn"/>).
+        /// </summary>
+        public void ClearSelection(bool animate)
+        {
+            if (animate) _core.ClearSelection();
+            else InstantState.Run(_core.ClearSelection);
+        }
+
         public IDisposable BindItems<T>(
             Observable<IReadOnlyList<T>> source,
             Action<Tab, T> bind)

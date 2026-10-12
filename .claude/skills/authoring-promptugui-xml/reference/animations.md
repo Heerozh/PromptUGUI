@@ -235,7 +235,7 @@ What happens on `UI.Close` (and on `Router.Back()` / a modal button): the Screen
 - A drag that was already captured inside the Screen keeps receiving its pointer until release; that is the one input the seal does not stop.
 - Two Screens may be drawn at once for the length of the exit (the Router builds the next page immediately by default — `UI.Router.Transition = RouteTransition.Sequential` waits instead). Draw order follows hierarchy order: a page opened later draws above one opened earlier, which gives push and pop the expected stacking without any sorting tweak.
 
-**First-frame establishment.** A `checked` / `unchecked` trigger whose control is *already* in that state as the Screen opens establishes the end state instead of animating into it — a header authored `isOn="true"` shows its chevron already turned rather than spinning it on frame 1. Every later flip animates normally. (The same idea as `states.md`'s first-frame rule for colours.)
+**First-frame establishment.** A `checked` / `unchecked` trigger whose control is *already* in that state as the Screen opens establishes the end state instead of animating into it — a header authored `isOn="true"` shows its chevron already turned rather than spinning it on frame 1. Every later flip animates normally. (The same idea as `states.md`'s first-frame rule for colours.) C# can ask for the same landing on a later flip: `tab.SetIsOn(true, animate: false)` / `toggle.SetIsOn(…, animate: false)` / `bar.ClearSelection(animate: false)` establish the end state of every `checked` / `unchecked` animation the change drives — the tab the group turns off included — for restoring a selection rather than answering a click. A plain `<Trigger>` still fires.
 
 ### Common attributes (all families)
 

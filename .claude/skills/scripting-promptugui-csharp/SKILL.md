@@ -601,6 +601,14 @@ bar.GetAt(i);
 
 Setting `tab.IsOn = true` triggers mutex (other Tabs flip to false via the TabBar's private `ToggleGroup`) AND auto-shows the `bind`-ed Frame — no manual `frame.GameObject.SetActive(...)` needed. If `BindItems` is called with an empty list, `OnSelectionChanged` fires with `null` to let subscribers clear UI state. After hot-reload, re-Bind just like ScrollList.
 
+**Selecting without animation.** `tab.SetIsOn(true, animate: false)` (and `bar.ClearSelection(animate: false)`, `toggle.SetIsOn(on, animate: false)`) is the selection a Screen's opening makes: every `<Animation on="checked">` / `reverse-on="unchecked"` the change drives lands on its end state at once — on this tab and on the one the group turns off — and the state colours snap. Use it to sync the UI to state that lives elsewhere (restoring a selection, mirroring a pick made on a map, re-applying it after a re-bind); keep `IsOn = …` for answering the player. Events (`OnValueChanged`, `OnSelectionChanged`, the `bind` page) fire exactly as for `IsOn`, so an echo guard on your side still applies.
+
+```csharp
+selecting = true;                                   // the host's own echo guard
+bar.GetAt(row).SetIsOn(true, animate: false);       // the row is already unfolded, no 0.2 s reveal
+selecting = false;
+```
+
 **The Tab you select has to be an active one.** A `hidden="true"` Tab (or one inside an inactive
 `<Add>` block) is out of uGUI's `ToggleGroup`, so while a visible tab is on, `IsOn = true` on it is
 **refused and warned once** (`Tab 'x' is inactive … IsOn = true is ignored`) — the group would
@@ -1284,6 +1292,8 @@ DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                TabBar/TabMenu query: .Count / .SelectedIndex (-1 if empty) / .SelectedTab / .GetAt(i)
                TabBar/TabMenu selection: .ClearSelection()  deselect all (no attribute needed;
                                        hides every bind-ed Frame, emits null, survives ReSolve)
+               tab.SetIsOn(on, animate: false) / toggle.SetIsOn(…) / bar.ClearSelection(animate: false)
+                                       checked/unchecked <Animation>s land on their end state (as at open); events as usual
                TabMenu state: .IsExpanded / .Expand() / .Collapse() / .Toggle()
                Collapsible:   同上 + .OnToggled: Observable<bool> / .Text / .Icon;expanded 运行期独占
                Carousel query: .Count / .Current (get/set) / .Playing (get/set) / .GoTo(i,animated) / .Next() / .Previous()

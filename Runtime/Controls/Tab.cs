@@ -214,6 +214,19 @@ namespace PromptUGUI.Controls
             }
         }
 
+        /// <summary>
+        /// <see cref="IsOn"/>, optionally without animation. <paramref name="animate"/> false lands every
+        /// <c>&lt;Animation on="checked"&gt;</c> / <c>reverse-on="unchecked"</c> this change drives on its end
+        /// state, the way the Screen's opening does, and snaps the state colours — for this tab and for the one
+        /// the group turns off on the way. For syncing a selection from code (restoring it, re-binding a list)
+        /// rather than answering the player. Events fire as usual.
+        /// </summary>
+        public void SetIsOn(bool isOn, bool animate)
+        {
+            if (animate) IsOn = isOn;
+            else InstantState.Run(() => IsOn = isOn);
+        }
+
         [UIAttr, Preserve]
         public string Bind
         {

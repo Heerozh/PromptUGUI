@@ -213,7 +213,7 @@ namespace PromptUGUI.Controls.Internal
             // A change in the born frame (before the first rendered frame — e.g. a modal Configure
             // hook) snaps, so the control shows its final state on frame 1 instead of fading in from
             // its base. See BornFrame.
-            instant |= TestForceInstant || _fade <= 0f || BornFrame.IsCurrent(_bornFrame);
+            instant |= TestForceInstant || _fade <= 0f || BornFrame.IsCurrent(_bornFrame) || InstantState.Active;
             PaintFill(state, instant);
             PaintTint(state, instant);
         }

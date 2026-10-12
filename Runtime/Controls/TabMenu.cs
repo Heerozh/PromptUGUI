@@ -311,6 +311,13 @@ namespace PromptUGUI.Controls
         /// </summary>
         public void ClearSelection() => _core.ClearSelection();
 
+        /// <summary><see cref="ClearSelection()"/>, optionally without animation — see <see cref="TabBar.ClearSelection(bool)"/>.</summary>
+        public void ClearSelection(bool animate)
+        {
+            if (animate) _core.ClearSelection();
+            else InstantState.Run(_core.ClearSelection);
+        }
+
         public Observable<Tab> OnSelectionChanged => _core.SelectionChanged;
 
         public IDisposable BindItems<T>(
