@@ -875,8 +875,8 @@ plate.Dispose();                                                              //
   appear in `screen.Get(...)`, so a hundred instances of one template do not collide.
 - **The instance re-solves with the Screen** exactly like a `BindItems` row: Variant flips, theme
   switches and locale changes replay its attributes (code-set `TextValue` / `isOn` / `value` /
-  `Hidden` / `Interactable` / `Icon.Name` are kept — the runtime-takeover lock, see *Runtime-owned
-  common attributes*); `scale="Nx"` / `<r>r` follow the canvas; a plain resize
+  `Hidden` / `Interactable` / `Icon.Name` / `Image.Sprite` / `Text.Color` are kept — the runtime-takeover
+  lock, see *Runtime-owned attributes*); `scale="Nx"` / `<r>r` follow the canvas; a plain resize
   replays scale only. Cost is linear in instances (a few µs each); hidden instances are replayed too.
 - **`parent` must be inside this Screen** (an `ArgumentException` otherwise). An `IControl` parent
   puts the instance where an XML child of it would go — a `<Btn>`'s content holder, a
@@ -924,9 +924,9 @@ sealed class PlatePool {
 A reused instance keeps whatever the previous user set — bind everything you care about on every
 `Rent`, the same contract as a `BindItems` binder.
 
-## Runtime-owned common attributes (`Hidden` / `Interactable` / `Icon.Name`)
+## Runtime-owned attributes (`Hidden` / `Interactable` / `Icon.Name` / `Image.Sprite` / `Text.Color`)
 
-A ReSolve (resize, Variant flip, theme or locale switch) replays every node's XML attributes. Three
+A ReSolve (resize, Variant flip, theme or locale switch) replays every node's XML attributes. The
 things code writes all the time are **runtime-owned**, on the same contract as `isOn` / `value` /
 `expanded` / `selected`: the XML value is the *initial* state, and once code has written the
 property the replay leaves it alone.
@@ -935,17 +935,21 @@ property the replay leaves it alone.
 placeholder.Hidden = false;        // XML said hidden="true"; stays shown through any ReSolve
 confirm.Interactable = false;      // stays disabled — used to be re-enabled by every ReSolve
 icon.Name = "ui:warning";          // stays — used to snap back to the XML name=
+portrait.Sprite = "faces:" + id;   // stays — a row's <Image sprite="{{pic}}"> no longer snaps back to the Param default
+status.Color = "danger";           // stays — and as a token it is still resolved by the current theme
 ```
 
 - **Write the real initial state in the XML** (`hidden="true"` on a placeholder, `interactable="false"`
   on a not-yet-valid button) — a preview that loads only the XML then shows it — and let C# take over
   from there. No more "don't declare `hidden`, set it in the constructor, re-apply after a resize".
 - **What counts as a write**: anything that changes the live value — `Hidden` / `Interactable` /
-  `Name` setters, a `BindItems` callback, `Tab.bind`, `<Pages>`. The lock is a comparison of the live
-  value against what the last replay wrote, not a flag on the setter.
+  `Name` / `Sprite` / `Color` setters, a `BindItems` callback, `Tab.bind`, `<Pages>`. The lock is a
+  comparison of the live value against what the last replay wrote, not a flag on the setter.
 - **An untouched node still follows** `hidden.<variant>=` / `interactable.<variant>=` /
-  `name.<locale>=` and a theme `<Style hidden=…>` (the sample's skin layers). A touched node stops
-  following the theme until its Screen is reopened — the same trade-off `isOn` makes.
+  `name.<locale>=` / `sprite.<variant>=` / `color.<variant>=` and a theme `<Style hidden=… sprite=… color=…>`
+  (the sample's skin layers). A touched node stops following the theme until its Screen is reopened —
+  the same trade-off `isOn` makes. One exception keeps a theme switch whole: a colour **token** that
+  code wrote to `Text.Color` is resolved again by each new theme (it is the code's token, not the XML's).
 - `Hidden` undeclared in XML is never written by a replay (so a base-less `hidden.mobile=` cannot
   heal — declare a base); `Interactable` undeclared is `true` and is re-applied on an untouched node,
   so a base-less `interactable.mobile="false"` does heal.
@@ -971,10 +975,11 @@ price.Color = affordable ? "on-surface" : "danger";   // kept through the Btn's 
 buy.Interactable = affordable;
 ```
 
-Colours are **not runtime-owned**, though: a ReSolve (resize, Variant flip, theme or locale switch)
-replays a `color=` / `textColor=` **declared** in the XML — or in a `<Style>` the node wears — over
-what code wrote. When code drives a colour, leave it out of the XML (an undeclared one is never
-touched by a replay) or write it again after the switch; on a `BindItems` row, set it on every bind.
+Apart from `<Text color>` (runtime-owned, see above), colours are **not runtime-owned**: a ReSolve
+(resize, Variant flip, theme or locale switch) replays a `color=` / `textColor=` **declared** in the
+XML — or in a `<Style>` the node wears — over what code wrote. When code drives one of those, leave it
+out of the XML (an undeclared one is never touched by a replay) or write it again after the switch; on
+a `BindItems` row, set it on every bind.
 
 ## Variant switching at runtime
 
@@ -1228,7 +1233,8 @@ PAGES          screen.Get<Pages>("id").Show("pageId")         one direct child a
                                                               never write a page's Hidden yourself — the container re-asserts it
 
 RUNTIME-OWNED  ctl.Hidden = … / ctl.Interactable = …            XML value = initial state; once code wrote it, no ReSolve snaps it back
-               icon.Name = "ui:x"                             same for <Icon name>; untouched nodes still follow .variant / theme <Style>
+               icon.Name = "ui:x" / image.Sprite = … / text.Color = …   same; untouched nodes still follow .variant / theme <Style>
+                                                              (a token code wrote to Text.Color is still resolved by the current theme)
                                                               (same contract as isOn / value / expanded / selected / current)
 
 INSTANTIATE    var root = screen.Instantiate("Tpl", parent)   parent: IControl (lands as an XML child would) or RectTransform

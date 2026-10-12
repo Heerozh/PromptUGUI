@@ -13,10 +13,10 @@ namespace PromptUGUI.Application
             reg.Register<Show>("Show", null);
             reg.Register<Decor>("Decor", null);
             reg.Register<Animation>("Animation", null);
-            reg.Register<Image>("Image", null);
+            reg.Register<Image>("Image", null, runtimeStateAttr: "sprite");
             reg.Register<RawImage>("RawImage", null);
             reg.Register<Icon>("Icon", null, runtimeStateAttr: "name");
-            reg.Register<Text>("Text", null, defaultTextAttr: "text");
+            reg.Register<Text>("Text", null, defaultTextAttr: "text", runtimeStateAttr: "color");
             reg.Register<VStack>("VStack", null);
             reg.Register<HStack>("HStack", null);
             reg.Register<Grid>("Grid", null);

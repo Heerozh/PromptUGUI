@@ -121,24 +121,45 @@ namespace PromptUGUI.Controls
             }
         }
 
+        // The last value written (`color` is runtime-owned — the RuntimeStateAttr, compared by what was
+        // written), and whether code wrote it: a code-written token is re-resolved at the end of every
+        // pass, so it follows the theme like a declared one does — the applier only skips the declaration.
+        private string _color;
+        private bool _colorFromCode;
+
+        internal override string PeekRuntimeState() => _color;
+
+        /// <summary>
+        /// Text colour (theme token / hex / CSS / gradient / <c>/alpha</c>). Runtime-owned: the declared
+        /// value is the initial one, and once code has written another, a ReSolve (resize / Variant /
+        /// Theme) keeps the code's — a token the code wrote is still resolved by the current theme. An
+        /// untouched text follows its <c>color.variant</c> override and its theme's style pack.
+        /// </summary>
         [UIAttr(IsColor = true), Preserve]
         public string Color
         {
             set
             {
-                var spec = UI.Theme.ResolveSpec(value);
-                Internal.GradientStopWarning.IfMoved(spec, GameObject, "<Text> color=");
-                if (spec.IsGradient)
-                {
-                    _tmp.enableVertexGradient = true;
-                    _tmp.colorGradient = spec.ToVertexGradient();
-                    _tmp.color = UnityEngine.Color.white;
-                }
-                else
-                {
-                    _tmp.enableVertexGradient = false;
-                    _tmp.color = spec.Start;
-                }
+                _color = value;
+                _colorFromCode = !InApplyPass;
+                ApplyColor(value);
+            }
+        }
+
+        private void ApplyColor(string value)
+        {
+            var spec = UI.Theme.ResolveSpec(value);
+            Internal.GradientStopWarning.IfMoved(spec, GameObject, "<Text> color=");
+            if (spec.IsGradient)
+            {
+                _tmp.enableVertexGradient = true;
+                _tmp.colorGradient = spec.ToVertexGradient();
+                _tmp.color = UnityEngine.Color.white;
+            }
+            else
+            {
+                _tmp.enableVertexGradient = false;
+                _tmp.color = spec.Start;
             }
         }
 
@@ -244,7 +265,13 @@ namespace PromptUGUI.Controls
         // The per-pass settle: an attribute the pass did not declare reads as the default. (Not a
         // workaround for TMP's Awake — OnAttached defuses that at creation, which is the only place
         // that also covers a node whose Awake runs after this pass.)
-        internal override void OnAfterApply() => _raycast.EndPass();
+        internal override void OnAfterApply()
+        {
+            _raycast.EndPass();
+            // A pass that skipped the declared colour because code owns it: the code's token, under the
+            // theme this pass resolves against.
+            if (_colorFromCode && _color != null) ApplyColor(_color);
+        }
 
         [UIAttr, Preserve]
         public string Font
