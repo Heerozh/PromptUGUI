@@ -1,10 +1,9 @@
 using NUnit.Framework;
-using PromptUGUI.Application;
-using UnityEngine;
+using PromptUGUI.Parser;
 
-namespace PromptUGUI.Tests.Application
+namespace PromptUGUI.Tests.Parser
 {
-    public class PixelScaleSolverTests
+    public class CanvasScaleMathTests
     {
         [TestCase(1920f, 1080f, 1920f, 1080f, 1f)]
         [TestCase(3840f, 2160f, 1920f, 1080f, 2f)]
@@ -26,10 +25,10 @@ namespace PromptUGUI.Tests.Application
         [TestCase(100f, 0f, 1920f, 1080f, 1f)]
         [TestCase(1920f, 1080f, 0f, 0f, 1f)]
         [TestCase(-1f, 100f, 1920f, 1080f, 1f)]
-        public void Solve_returns_expected_factor(
+        public void PixelFactor_returns_expected_factor(
             float sw, float sh, float dw, float dh, float expected)
         {
-            var f = PixelScaleSolver.Solve(new Vector2(sw, sh), new Vector2(dw, dh));
+            var f = CanvasScaleMath.PixelFactor(sw, sh, dw, dh);
             Assert.AreEqual(expected, f, 1e-6f);
         }
 
@@ -48,12 +47,35 @@ namespace PromptUGUI.Tests.Application
         [TestCase(480f, 270f, 1920f, 1080f, 0.25f)]   // raw 0.25  -> 0.25
         // degenerate inputs still fall back to 1
         [TestCase(0f, 100f, 1920f, 1080f, 1f)]
-        public void Solve_powerOfTwoOnly_snaps_to_power_of_two(
+        public void PixelFactor_powerOfTwoOnly_snaps_to_power_of_two(
             float sw, float sh, float dw, float dh, float expected)
         {
-            var f = PixelScaleSolver.Solve(
-                new Vector2(sw, sh), new Vector2(dw, dh), powerOfTwoOnly: true);
+            var f = CanvasScaleMath.PixelFactor(sw, sh, dw, dh, powerOfTwoOnly: true);
             Assert.AreEqual(expected, f, 1e-6f);
+        }
+
+        // minPixelScale floors the ladder's result (applied after powerOfTwoOnly); 0 = no floor.
+        [TestCase(480f, 270f, 0f, 0.25f)]
+        [TestCase(480f, 270f, 1f, 1f)]
+        [TestCase(1366f, 768f, 0.5f, 0.5f)]
+        [TestCase(3840f, 2160f, 1f, 2f)]      // above the floor: untouched
+        public void PixelFactor_minPixelScale_floors_the_result(
+            float sw, float sh, float minPixelScale, float expected)
+        {
+            var f = CanvasScaleMath.PixelFactor(sw, sh, 1920f, 1080f, minPixelScale: minPixelScale);
+            Assert.AreEqual(expected, f, 1e-6f);
+        }
+
+        // Expand: the tighter axis drives the scale, so the whole reference rect fits.
+        [TestCase(1920f, 1080f, 1920f, 1080f, 1f)]
+        [TestCase(1366f, 768f, 1920f, 1080f, 768f / 1080f)]
+        [TestCase(750f, 1334f, 1080f, 1920f, 750f / 1080f)]
+        [TestCase(1334f, 750f, 1920f, 1080f, 750f / 1080f)]
+        [TestCase(3840f, 1620f, 1920f, 1080f, 1.5f)]
+        public void ExpandFactor_is_the_tighter_axis(
+            float sw, float sh, float rw, float rh, float expected)
+        {
+            Assert.AreEqual(expected, CanvasScaleMath.ExpandFactor(sw, sh, rw, rh), 1e-6f);
         }
     }
 }
