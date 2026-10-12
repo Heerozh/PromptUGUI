@@ -161,6 +161,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("hazeDrift='-1'")]
         [TestCase("hazeDensity='2'")]
         [TestCase("hazeDensity='soft'")]
+        [TestCase("hazeSpace='local'")]
         public void BadValues_AreFlagged(string attr)
         {
             Assert.IsTrue(Has(Walk($"<Frame id='f' glass='true' {attr}/>"),
@@ -247,7 +248,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("glass='true' haze='40'")]
         [TestCase("glass.mobile='true' haze='40'")]
         [TestCase("glass='true' haze.mobile='40'")]
-        [TestCase("glass='true' haze='40' hazeColor='cyan/0.5' hazeDrift='6' hazeDensity='0.3'")]
+        [TestCase("glass='true' haze='40' hazeColor='cyan/0.5' hazeDrift='6' hazeDensity='0.3' hazeSpace='self'")]
         public void HazeOnGlass_IsNotFlagged(string attrs)
         {
             // The glass shader composites the fog over the pane's body in the same slot the opaque
