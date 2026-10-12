@@ -24,7 +24,17 @@ namespace PromptUGUI.Controls.Internal
         private readonly Control _owner;
         private readonly Func<RectTransform> _itemHost;
         private readonly List<Tab> _tabs = new();
+        // The row each tab belongs to, index for index: what itemTemplate instantiated (a wrapper
+        // template's root, the Tab itself for the default template), or for a static tab the
+        // owner's direct child that holds it. A rebuild retires whole rows — disposing only the Tab
+        // would leave the rest of a wrapper row (its root and the Tab's siblings) in the item host.
+        private readonly List<IControl> _rows = new();
         private readonly Subject<Tab> _selectionChanged = new();
+        // Retired rows wait here, inactive, until their deferred Destroy (Play mode). Same arrangement
+        // as ScrollList's pool, for the same reasons: out of the item host's layout and raycasts at
+        // once, and a disabled layout group so a ReSolve replaying a row parked here takes the
+        // layout-group branch of ApplyCommon.
+        private RectTransform _pool;
 
         // BindItems / itemTemplate state — factory resolution is deferred to first
         // Rebuild so that OwnerScreenOf(owner) sees the Screen registered in UI._open
@@ -129,7 +139,7 @@ namespace PromptUGUI.Controls.Internal
             where TSlot : class, IControl
         {
             if (_factory == null) _factory = ResolveFactory(_itemTemplate);
-            ClearTabs();
+            ClearRows();
             var host = _itemHost();
             for (int i = 0; i < items.Count; i++)
             {
@@ -145,6 +155,7 @@ namespace PromptUGUI.Controls.Internal
                         $"itemTemplate='{_itemTemplate}' root contains no <Tab>; cannot bind.");
 
                 _tabs.Add(tab);
+                _rows.Add(node);
                 // Tab.OnAttached already wired ToggleGroup via FindAncestorToggleGroup.
                 // Per-tab sprite / selectedSprite live on Tab itself — set them on the
                 // itemTemplate body (e.g. <Template name="MyTab"><Tab sprite="..."/></Template>)
@@ -156,13 +167,51 @@ namespace PromptUGUI.Controls.Internal
             if (_tabs.Count == 0) _selectionChanged.OnNext(null);
         }
 
-        private void ClearTabs()
+        private void ClearRows()
         {
             _bound = true;
             _tabSubs?.Dispose();
             _tabSubs = null;
-            foreach (var t in _tabs) t.Dispose();
+            foreach (var row in _rows) Retire(row);
+            _rows.Clear();
             _tabs.Clear();
+        }
+
+        /// <summary>
+        /// Takes a row out of the item host, then disposes every control in it. Out first: in Play
+        /// mode <c>Destroy</c> waits for the end of the frame, and until then the row would still be
+        /// laid out, still be clickable, and still be measured by a <see cref="TabMenu"/> sizing its
+        /// popup straight after the rebuild.
+        /// </summary>
+        private void Retire(IControl row)
+        {
+            var host = row is Control c ? c.LayoutHost : row.RectTransform;
+            if (host != null) host.SetParent(EnsurePool(), worldPositionStays: false);
+            DisposeTree(row);
+        }
+
+        /// <summary>
+        /// Disposes a row's controls deepest first, the root last. The root's own Dispose already
+        /// releases every <c>.AddTo(control)</c> bag below it and destroys the whole GameObject
+        /// subtree, but only the controls' own Dispose unhooks what they hold outside it (a Tab's
+        /// <c>Locale.Changed</c> handler, an Animation's running motions). A static row's controls
+        /// are disposed again when the Screen closes — Dispose is safe to repeat, as for every
+        /// static card a BindItems replaces.
+        /// </summary>
+        private static void DisposeTree(IControl node)
+        {
+            if (node is Control ctrl)
+                for (var i = ctrl.Children.Count - 1; i >= 0; i--) DisposeTree(ctrl.Children[i]);
+            node.Dispose();
+        }
+
+        private RectTransform EnsurePool()
+        {
+            if (_pool != null) return _pool;
+            _pool = ProceduralBuilders.AddChild(_owner.RectTransform, "Pool");
+            _pool.gameObject.AddComponent<VerticalLayoutGroup>().enabled = false;
+            _pool.gameObject.SetActive(false);
+            return _pool;
         }
 
         /// <summary>
@@ -314,14 +363,17 @@ namespace PromptUGUI.Controls.Internal
         {
             if (_bound) return;
             _tabs.Clear();
+            _rows.Clear();
             foreach (var child in children)
             {
-                if (child is Tab tab) { _tabs.Add(tab); continue; }
                 // Template-wrapper case: a <Tab> nested inside a Template-expanded
                 // child (e.g. <FileTab><Frame><Tab/></Frame></FileTab>). Reuse the
-                // same recursive walk used by BindItems for itemTemplate.
-                var found = FindTabIn(child);
-                if (found != null) _tabs.Add(found);
+                // same recursive walk used by BindItems for itemTemplate. Either way the
+                // row is the direct child — that is what a first BindItems push retires.
+                var tab = child as Tab ?? FindTabIn(child);
+                if (tab == null) continue;
+                _tabs.Add(tab);
+                _rows.Add(child);
             }
         }
 
