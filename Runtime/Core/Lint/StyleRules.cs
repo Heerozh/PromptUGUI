@@ -135,6 +135,15 @@ namespace PromptUGUI.Lint
                 yield break;
             }
 
+            // hazeSpace: a keyword, "canvas" or "self" (H-D9).
+            if (baseName == HazeSpaceAttrParser.Name)
+            {
+                if (!HazeSpaceAttrParser.TryParse(value, out _, out var spaceError))
+                    yield return new LintIssue(ProceduralValueCode, tag, id,
+                        $"{context}: {spaceError}");
+                yield break;
+            }
+
             // Glass values share the runtime parser, so the CLI rejects exactly what the setter
             // would have thrown on — including each attribute's own range.
             if (GlassAttrParser.IsNumericAttr(baseName))

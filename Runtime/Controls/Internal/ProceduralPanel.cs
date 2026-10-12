@@ -18,8 +18,8 @@ namespace PromptUGUI.Controls.Internal
     /// <item>Colour / radius / border / glow-colour changes touch only the material, so a Variant
     /// flip or a colour tween never rebuilds the canvas mesh.</item>
     /// <item>Attribute writes only flag the material dirty; the parameters are resolved once per
-    /// canvas rebuild (see <see cref="FlushParams"/>), so applying twenty-one attributes at
-    /// instantiation costs one material lookup, not twenty-one.</item>
+    /// canvas rebuild (see <see cref="FlushParams"/>), so applying twenty-two attributes at
+    /// instantiation costs one material lookup, not twenty-two.</item>
     /// <item>Geometry is dirtied only when the glow radius (which inflates the quad), the
     /// progress cut (<see cref="SetCut"/> — vertex data, so a value tween never touches the
     /// material) or overall visibility changes.</item>
@@ -61,6 +61,11 @@ namespace PromptUGUI.Controls.Internal
         private ColorSpec _hazeColor = ColorSpec.Solid(Color.white);
         private float _hazeDrift;
         private float _hazeDensity = HazeDensityAttrParser.Default;
+        // hazeSpace="self" (H-D9): sample the noise at the panel's own coordinates plus a seed, so
+        // the fog travels with the panel. The seed is runtime state, not authored: see HazeSeed.
+        private bool _hazeSelf;
+        private bool _hazeSeeded;
+        private Vector2 _hazeSeed;
 
         private bool _glass;
         private float _frost = GlassAttrParser.DefaultFrost;
@@ -124,6 +129,9 @@ namespace PromptUGUI.Controls.Internal
 
         protected override void OnEnable()
         {
+            // A pinned fog takes a fresh seed each time the panel is shown — nobody saw it in
+            // between, so nothing jumps. A virtual list's parked row is the case that needs it.
+            _hazeSeeded = false;
             base.OnEnable();
             EnsureCanvasChannels();
             SyncGlassCount();
@@ -283,6 +291,19 @@ namespace PromptUGUI.Controls.Internal
             MarkDirty();
         }
 
+        /// <summary>
+        /// Where the fog is sampled: the canvas (false, the default) or the panel itself (true,
+        /// H-D9). Unlike the rest of the fog this one is also geometry — the seed rides
+        /// <c>uv0.zw</c> — so a change rebuilds the quad.
+        /// </summary>
+        public void SetHazeSpace(bool self)
+        {
+            if (_hazeSelf == self) return;
+            _hazeSelf = self;
+            MarkDirty();
+            SetVerticesDirty();
+        }
+
         public void SetGlass(bool glass)
         {
             if (_glass == glass) return;
@@ -381,6 +402,13 @@ namespace PromptUGUI.Controls.Internal
             _hazeColor = source._hazeColor;
             _hazeDrift = source._hazeDrift;
             _hazeDensity = source._hazeDensity;
+            if (_hazeSelf != source._hazeSelf)
+            {
+                // The seed is not copied: it is where THIS panel was first drawn, taken by its own
+                // first mesh pass.
+                _hazeSelf = source._hazeSelf;
+                SetVerticesDirty();
+            }
             _frost = source._frost;
             _depth = source._depth;
             _dispersion = source._dispersion;
@@ -460,6 +488,7 @@ namespace PromptUGUI.Controls.Internal
             var haze = hazeSize > 0f ? _hazeColor : ColorSpec.Solid(Color.white);
             var hazeDrift = hazeSize > 0f && !_grayed ? _hazeDrift : 0f;
             var hazeDensity = hazeSize > 0f ? _hazeDensity : HazeDensityAttrParser.Default;
+            var hazeSelf = hazeSize > 0f && _hazeSelf;
             if (_grayed)
             {
                 // Disabled greying has to happen HERE, inside the parameters, not by swapping the
@@ -482,7 +511,7 @@ namespace PromptUGUI.Controls.Internal
 
             return new PanelParams(fill, border, glow, innerGlow, _radius,
                                    _borderWidth, _glowSize, _innerGlowSize, _glass, glassParams,
-                                   intensity, haze, hazeSize, hazeDrift, hazeDensity);
+                                   intensity, haze, hazeSize, hazeDrift, hazeDensity, hazeSelf);
         }
 
         /// <summary>
@@ -621,7 +650,7 @@ namespace PromptUGUI.Controls.Internal
         /// <summary>
         /// Records that the parameters changed, without touching the material. Resolving is deferred
         /// to <see cref="FlushParams"/> so a run of attribute writes — instantiation applies up to
-        /// twenty-one of them — collapses into a single cache lookup.
+        /// twenty-two of them — collapses into a single cache lookup.
         /// </summary>
         private void MarkDirty()
         {
@@ -738,28 +767,69 @@ namespace PromptUGUI.Controls.Internal
             var half = new Vector4(hx, hy, _cutCode, cutOffset);
             var tint = (Color32)color;
 
+            // uv0.zw carry the seed of a pinned fog (hazeSpace="self", H-D9): vertex data like the
+            // half-size, so it differs per panel without splitting the material. A canvas-space
+            // panel leaves them at zero — the vertex stream every panel has always had.
+            var seed = _hazeSelf ? HazeSeed(cx, cy) : Vector2.zero;
+
             var v = UIVertex.simpleVert;
             v.color = tint;
             v.uv1 = half;
 
             v.position = new Vector3(cx - ex, cy - ey);
-            v.uv0 = new Vector4(-ex, -ey, 0f, 0f);
+            v.uv0 = new Vector4(-ex, -ey, seed.x, seed.y);
             vh.AddVert(v);
 
             v.position = new Vector3(cx - ex, cy + ey);
-            v.uv0 = new Vector4(-ex, ey, 0f, 0f);
+            v.uv0 = new Vector4(-ex, ey, seed.x, seed.y);
             vh.AddVert(v);
 
             v.position = new Vector3(cx + ex, cy + ey);
-            v.uv0 = new Vector4(ex, ey, 0f, 0f);
+            v.uv0 = new Vector4(ex, ey, seed.x, seed.y);
             vh.AddVert(v);
 
             v.position = new Vector3(cx + ex, cy - ey);
-            v.uv0 = new Vector4(ex, -ey, 0f, 0f);
+            v.uv0 = new Vector4(ex, -ey, seed.x, seed.y);
             vh.AddVert(v);
 
             vh.AddTriangle(0, 1, 2);
             vh.AddTriangle(2, 3, 0);
         }
+
+        /// <summary>
+        /// The seed of a pinned fog (H-D9): the rect centre's position in the root canvas — the
+        /// space a canvas-sampled fog reads — so local + seed IS the canvas position at this moment
+        /// and the picture does not change until the panel moves. Taken on the first mesh pass after
+        /// the panel is shown, then kept: re-seeding on a later rebuild (a hover tint, a resize, a
+        /// row that moved) would make the fog jump on screen.
+        ///
+        /// <para>Scrolling is taken back out: inside a <see cref="ScrollRect"/>'s content the seed is
+        /// where the panel would sit with that list at its start. Otherwise the seed would be a
+        /// screen slot, and every row a list draws into the same slot — each new message of a chat
+        /// stuck to its end, rows bound while the list is scrolled by whole rows — would get the same
+        /// fog as the row that was there first. A list at its start, and everything outside a list,
+        /// is unaffected.</para>
+        /// </summary>
+        private Vector2 HazeSeed(float cx, float cy)
+        {
+            if (_hazeSeeded) return _hazeSeed;
+            var c = canvas;
+            var root = c != null ? c.rootCanvas.transform : null;
+            var world = transform.TransformPoint(new Vector3(cx, cy));
+            for (var t = transform.parent; t != null && t != root; t = t.parent)
+            {
+                if (!t.TryGetComponent<ScrollRect>(out var scroll)) continue;
+                var content = scroll.content;
+                // The list's own surface sits outside its content and does not scroll.
+                if (content == null || content.parent == null || !transform.IsChildOf(content)) continue;
+                world -= content.parent.TransformVector(content.anchoredPosition);
+            }
+            _hazeSeed = root != null ? (Vector2)root.InverseTransformPoint(world) : (Vector2)world;
+            _hazeSeeded = true;
+            return _hazeSeed;
+        }
+
+        /// <summary>The pinned fog's seed if one has been taken by a mesh pass; test observability.</summary>
+        internal Vector2? HazeSeedForTests => _hazeSeeded ? _hazeSeed : (Vector2?)null;
     }
 }

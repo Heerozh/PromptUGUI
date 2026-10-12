@@ -67,10 +67,12 @@ Shader "UI/GlassPanel"
         _BorderWidth ("Border Width",  Float) = 0
         _GlowSize    ("Glow Size",     Float) = 0
         _InnerGlowSize ("Inner Glow Size", Float) = 0
-        // 噪声雾（spec 2026-09-17 haze）：斑块特征尺寸 px（0 = 无雾）、流速 px/s、覆盖率。
+        // 噪声雾（spec 2026-09-17 haze）：斑块特征尺寸 px（0 = 无雾）、流速 px/s、覆盖率、
+        // 采样空间（0 = Canvas，1 = 面板自身 + uv0.zw 的种子，H-D9）。
         _HazeSize    ("Haze Size",     Float) = 0
         _HazeDrift   ("Haze Drift",    Float) = 0
         _HazeDensity ("Haze Density",  Float) = 0.5
+        _HazeSelf    ("Haze Self",     Float) = 0
 
         // 七个玻璃参数打包成两个向量：少几次 SetX，且光照角在 CPU 侧就化成方向，
         // fragment 里不用跑 sin/cos。
@@ -137,7 +139,7 @@ Shader "UI/GlassPanel"
             {
                 float4 vertex   : POSITION;
                 float4 color    : COLOR;
-                float2 texcoord : TEXCOORD0;   // rect 局部坐标（以中心为原点，画布单位）
+                float4 texcoord : TEXCOORD0;   // xy = rect 局部坐标（以中心为原点，画布单位）, zw = 雾的种子（hazeSpace="self"）
                 float4 texcoord1: TEXCOORD1;   // xy = rect 半尺寸（画布单位）, zw = 进度裁切 (code, e)，见 PuguiSdCut
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
@@ -150,6 +152,7 @@ Shader "UI/GlassPanel"
                 float4 worldPosition : TEXCOORD1;
                 float4 screenPos     : TEXCOORD2;
                 float2 cut           : TEXCOORD3;   // 进度裁切 (code, e)；code 0 = 不切
+                float2 hazeSeed      : TEXCOORD4;   // 钉在面板上的雾的种子（H-D9）；canvas 模式恒为 0
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
@@ -172,6 +175,7 @@ Shader "UI/GlassPanel"
             float _HazeSize;
             float _HazeDrift;
             float _HazeDensity;
+            float _HazeSelf;
             float4 _GlassA;
             float4 _GlassB;
 
@@ -190,8 +194,9 @@ Shader "UI/GlassPanel"
                 OUT.worldPosition = v.vertex;
                 OUT.vertex = UnityObjectToClipPos(OUT.worldPosition);
                 OUT.screenPos = ComputeScreenPos(OUT.vertex);
-                OUT.shape = float4(v.texcoord, v.texcoord1.xy);
+                OUT.shape = float4(v.texcoord.xy, v.texcoord1.xy);
                 OUT.cut = v.texcoord1.zw;
+                OUT.hazeSeed = v.texcoord.zw;
                 OUT.color = v.color;
                 return OUT;
             }
@@ -304,11 +309,13 @@ Shader "UI/GlassPanel"
                 // 噪声雾：与不透明面板同一个槽位 —— 压在「玻璃体 + tint」这个填充之上、内发光与描边之下，
                 // 只在形状内侧（spec 2026-09-17 haze H-D8）。上面的 backdrop 采样一字不动：雾是叠在模糊
                 // 结果上的一层光，不参与折射、不进 saturation。颜色走与其他四个色槽同一条渐变线（rect
-                // 定义），噪声本身在 Canvas 空间采样。_HazeSize==0 时整段跳过：uniform 分支，无雾玻璃逐位不变。
+                // 定义），噪声本身在 Canvas 空间采样（hazeSpace="self" 时在局部坐标 + 种子处，H-D9）。
+                // _HazeSize==0 时整段跳过：uniform 分支，无雾玻璃逐位不变。
                 if (_HazeSize > 0.0)
                 {
                     float4 haze = PuguiGradient(p, b, PUGUI_RAMP(_Haze));
-                    haze.a *= inside * PuguiHazeWeight(IN.worldPosition.xy, _HazeSize, _HazeDrift, _PuguiUnscaledTime, _HazeDensity);
+                    float2 hazePos = PuguiHazePos(IN.worldPosition.xy, p, IN.hazeSeed, _HazeSelf);
+                    haze.a *= inside * PuguiHazeWeight(hazePos, _HazeSize, _HazeDrift, _PuguiUnscaledTime, _HazeDensity);
                     col = PuguiOver(haze, col);
                 }
 

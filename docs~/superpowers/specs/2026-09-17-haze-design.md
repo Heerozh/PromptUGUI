@@ -1,7 +1,8 @@
 # `haze` —— 程序化表面的噪声雾层（云雾状亮斑）
 
 > 状态：**已实现**（M0–M2 一轮做完，见 §15；`hazeDensity` 在验收后补入，H-D7 / §15.4；**玻璃面板上的雾**
-> 2026-09-18 补入，H-D8 / §15.5 —— v1 的「玻璃归零」只剩焊接组）。决策见 §13，
+> 2026-09-18 补入，H-D8 / §15.5 —— v1 的「玻璃归零」只剩焊接组；**`hazeSpace="self"`（雾钉在面板上）**
+> 2026-10-12 补入，H-D9 / §15.6 —— §12 里「雾贴在 rect 上」那一条兑现）。决策见 §13，
 > 2026-09-17 与作者对齐；实施中改了两处常数（§5.1：覆盖率色阶、第二三 octave 旋转），正文已按实际落地更新。
 > 相关：`2026-09-17-linear-gradient-primitive-design.md`（LG-D6 把本文从边框渐变里剥出来；`hazeColor` 直接复用它的
 > 方向 / 多色标 ramp，是本文「方向遮罩零新语法」的前提）、
@@ -163,7 +164,8 @@ col = PuguiOver(haze, col);
 - **单位与 `radius` 一致**：Canvas 单位（CanvasScaler 的参考 px），不随分辨率变粒度。
 
 代价：一个面板用 `<Animation>` 平移时，雾像窗外的云一样在它身上滑过（表面是「看向一片星云的窗」）。
-静止雾 + 300 ms 的入场滑动几乎看不出；开了 `hazeDrift` 的雾本来就在动。记进 SKILL，不做补救。
+静止雾 + 300 ms 的入场滑动几乎看不出；开了 `hazeDrift` 的雾本来就在动。v1 记进 SKILL，不做补救；
+持续移动的面板（滚动列表的行）上这很扎眼，2026-10-12 补了 `hazeSpace="self"`（H-D9 / §15.6）。
 
 `hazeColor` 的渐变线仍按 **rect** 定（`p, b`），与其他四个色槽同一条：方向遮罩跟着面板走，只有噪声
 纹理留在 Canvas 里。
@@ -412,8 +414,9 @@ CPU 侧每帧一个 `SetGlobalFloat`。
 - **`<Image>` / `<Icon>` 上的雾** —— 那是 blur 路径不是 SDF；且 sprite 美学有自己的画法（画进图里）。
 - **内层雾**（`handleHaze` / Progress fill）—— 内层没有一个需要它的用例。
 - **状态雾**（`hoverHaze`）—— `intensity` 的状态版本 / `<Show on="state-*">` 已覆盖。
-- **雾贴在 rect 上而不是 Canvas 上**（面板平移时雾跟着走）—— 需要顶点带位置偏移，且布局期位置未定时构建
-  的网格会把相邻控件烘成同一偏移；等有人被 §5.3 的「窗外的云」真正困扰再议。
+- ~~**雾贴在 rect 上而不是 Canvas 上**（面板平移时雾跟着走）—— 需要顶点带位置偏移，且布局期位置未定时构建
+  的网格会把相邻控件烘成同一偏移；等有人被 §5.3 的「窗外的云」真正困扰再议。~~ 2026-10-12 做了（H-D9 / §15.6）：
+  种子在 `OnPopulateMesh` 里取，那时同一次 canvas 更新的布局已经跑完，担心的「烘成同一偏移」没有发生（有集成测试钉住）。
 - **贴图噪声** —— §2。
 - **径向 / 多层不同色的雾** —— 叠两个 Frame。
 
@@ -429,6 +432,7 @@ CPU 侧每帧一个 `SetGlobalFloat`。
 | H-D6 | `hazeColor` 默认白、不跟随填充（`innerGlowColor` 的同一条理由，本文定） |
 | H-D7 | **`hazeDensity`**（0..1，默认 0.5）：验收时作者拿参考图的「造船」对比 —— 参考图是整面薄雾 + 亮云团，实施出来的是几团光 + 大片空白；`/alpha` 填不了空白。一个旋钮把色阶的黑场 0.55 → 0、白场 0.85 → 1、曲线 S → 直线一起推，0 = 原来的稀疏光团、1 = 原始噪声场（线性 n）、0.5 = 参考图；作者选定加旋钮而不是只改常数，两种看法都留着（2026-09-17 对齐） |
 | H-D8 | **玻璃面板吃雾**（2026-09-18 对齐）：作者要「blur 保持现状，雾叠在它之上」。合成规则不用另立 —— 玻璃的「填充」就是 backdrop + tint 这个合成体，雾压在它之上、内发光与描边之下，与不透明面同一个槽位；`UI-GlassPanel.shader` 照抄那 6 行，`BuildParams` 去掉 `_glass ? 0f :`（材质缓存本来就无条件写 `_Haze*` 并起时钟）。**焊接组不做**：作者明确不要，`PUI-GLASS-HAZE` 只剩这一种触发。玻璃上没有曝光步，雾的亮度只由 `hazeColor` 给，不另加雾专属曝光 |
+| H-D9 | **`hazeSpace="canvas" \| "self"`**（2026-10-12 对齐）：滚动列表的富行里每行头像底都带雾，拖动列表时雾不动、列表在动。作者提议「相对坐标属性 + 随机初始值」；定稿：`self` = 局部坐标 + 种子，种子**不随机**，而是面板显示后首次绘制时 rect 中心的 Canvas 坐标 —— 静止画面与 canvas 模式逐像素相同、确定性保留、不用 `hazeSeed`。种子之后不再变（重建时重取会让雾当面跳），面板重新 enable 时重取（没人看见）。外层 `ScrollRect` 的滚动量从种子里扣掉：否则种子是屏幕槽位，贴底聊天每条新消息都落在同一槽位、拿到同一份雾。默认 `canvas`，向后兼容 |
 
 ## 14. 验收
 
@@ -531,3 +535,28 @@ Red 先行、分三个提交（shader + 参数 + 渲染探针 → lint → 文�
 （雾加亮且成斑、雾在描边下、`haze='0'` 逐位不变、时钟推动漂移）；`GlassRenderTests.Haze_LiesOnTheBlurredBackdrop`
 在真 URP backdrop 上（橙色世界透过整块面板、白雾把蓝通道抬起来、绿通道排除 magenta 错误 shader）。渲染图核过：
 橙色世界 + 白色云团 + 斜面高光与描边都在。
+
+### 15.6 `hazeSpace="self"`：雾钉在面板上（H-D9，2026-10-12）
+
+问题：滚动列表里每行都有带雾的面板，拖动列表时雾停在 Canvas 上、行从它上面滑过（§5.3 的代价，在持续移动的面板上很扎眼）。
+
+- **采样坐标**：`UI-PanelSDF.cginc` 加 `PuguiHazePos(canvasPos, local, seed, self)`，两个 shader 都把 `PuguiHazeWeight` 的第一个参数换成它；
+  `_HazeSelf` 一个 uniform（进 `PanelParams` key，`haze == 0` 时归 false）。canvas 模式逐位不变：uniform 分支，`uv0.zw` 仍是 0。
+- **种子走顶点**：`uv0.zw`（以前恒 0，uGUI 的 uv0 本来就是四分量），与半尺寸同一条理由 —— 逐面板不同、逐样式相同，二十行同一个材质。
+  `appdata.texcoord` 从 `float2` 改 `float4`，v2f 多一个 `hazeSeed` 插值器。
+- **种子取值**：`ProceduralPanel.OnPopulateMesh` 首次绘制时取 rect 中心的根 Canvas 坐标，于是局部 + 种子 = 当时的 Canvas 坐标，
+  静止画面与 canvas 模式相同（渲染探针逐像素核过）。此后冻结：任何重建都不重取，否则雾当面跳。`OnEnable` 清掉种子，
+  下次绘制重取 —— 被隐藏又显示（Pages、Variant、虚拟列表停放池）期间没人看见。
+- **扣掉滚动量**：外层每个 `ScrollRect`（面板在其 content 之下时）的 `content.anchoredPosition` 换算到 Canvas 后从种子里减掉，
+  种子 = 「列表滚到起点时面板所在的位置」。最初的版本没有这一步，集成测试暴露了问题：列表滚过整数行时新绑定的行落在
+  早先某一行取种子时的同一屏幕槽位，拿到同一份雾；贴底聊天每条新消息都落在同一槽位。列表自己的底面不在 content 里，不扣。
+- **为什么不随机**：作者最初提议「自己的坐标 + 随机初始值」。随机会丢掉「同位置同时刻同一张图」（截图 / 探针测试靠它），
+  也给不出「静止时与 canvas 相同」这一条。
+- **尺度**：`self` 的 `haze` 按面板局部单位量，父级 `scale` / 缩放动画时斑块随面板缩放；canvas 模式按 Canvas 单位，不变。
+- 改动面：`Core/Parser/HazeSpaceAttrParser.cs`（纯 C#）、`Frame` / `ProceduralControl` 各一个属性、`ProceduralPanel`（setter 切换时
+  重建四个顶点 —— 种子是几何数据）、名字表 / `StyleRules` / XSD 各一处。
+
+Red 先行：`HazeSpaceAttrParserTests`；`FrameProceduralPanelTests` 的参数 / 顶点用例（canvas 模式 `uv0.zw` 为 0、`self` 种子 = 中心的 Canvas 坐标、
+移动后冻结、重新显示后重取、切换只脏一次顶点、同样式共享材质、进 key）；`HazeRenderTests` 四条（静止时与 canvas 逐像素相同、canvas 模式
+雾不跟面板走（守卫）、`self` 整像素平移后 rect 内逐像素相同、玻璃同样）；`HazeSpaceScrollTests` 两条（真实 canvas 重建在布局之后取种子、
+滚动中追加的行按「列表在起点」取种子、不与任何旧行撞种子 —— 先用不扣滚动量的实现跑红）；lint / XSD / 契约各加用例。在宿主工程中跑通。

@@ -1,4 +1,4 @@
-# Noise fog — `haze` / `hazeColor` / `hazeDrift`
+# Noise fog — `haze` / `hazeColor` / `hazeDensity` / `hazeDrift` / `hazeSpace`
 
 Load this when a design shows soft, cloud-like light patches on a surface — the "energy haze" that
 sits along the bottom edge of a sci-fi HUD button, a nebula glow inside a card, a hollow frame with
@@ -26,6 +26,9 @@ for a lit core with a saturated halo see **Lighting it up** (`intensity`), which
 
 <!-- a theme changes the whole family at once -->
 <Style name="hud-btn" radius="6" borderWidth="1" haze="40" hazeColor="to top, @accent/0.5, @accent/0"/>
+
+<!-- rows of a scrolling list: the fog rides along with each row instead of staying behind -->
+<Style name="row-avatar-bg" radius="8" color="#0b1a33" haze="32" hazeColor="#7ec8ff/0.5" hazeSpace="self"/>
 ```
 
 Works on every tag that draws procedurally — `<Frame>`, `<Btn>`, `<Tab>`, `<TabMenu>`, `<Toggle>`,
@@ -42,9 +45,11 @@ not on `<Image>` / `<Icon>`, and not inside a `weld` group (see **Not here**).
 | `hazeColor` | full colour grammar: token, `/alpha`, `Ndeg` / `to <side>`, 2–4 stops, `N%` positions and hints | `white` | The fog's colour **and its mask** (below). Deliberately *not* the fill: fog in the fill's own colour is invisible on an opaque fill, which is the common case. `/alpha` is the strength knob: `0.4`–`0.6` is the reference's thin mist, `0.8`+ turns into a wash |
 | `hazeDensity` | `0`–`1` | `0.5` | **Coverage** — how much of the surface carries fog. `0` = a few sparse patches, bare fill between them; `1` = the raw cloud field, a thin veil over every pixel; `0.5` = the reference: mist everywhere with brighter clouds. Orthogonal to `/alpha`: alpha scales the whole layer, density decides where the layer exists. `""` = back to `0.5` |
 | `hazeDrift` | px/s, `≥ 0` | `0` (still) | Flow speed on an **unscaled** clock. Three layers of the noise move along different directions at 1 / 1.5 / 2× speed, so the pattern *deforms* — the fine detail "boils", the large shapes crawl — rather than sliding across as one sheet |
+| `hazeSpace` | `canvas` \| `self` | `canvas` | Where the noise is sampled. `canvas`: the panel is a window onto one fog that stays put. `self`: the fog is pinned to the panel and travels with it. Put `self` on anything that moves: rows of a `<ScrollList>`, `<Carousel>` pages, a dragged row, a panel that slides in. `""` = back to `canvas`. See **Position is the seed** |
 
-Bad values (`haze="cloudy"`, `haze="-4"`, `hazeDrift="NaN"`, `hazeDensity="2"`) are parse errors and
-`PUI-PROCEDURAL-VALUE` in the CLI, with the same wording as `glow` (`hazeDensity` says "between 0 and 1").
+Bad values (`haze="cloudy"`, `haze="-4"`, `hazeDrift="NaN"`, `hazeDensity="2"`, `hazeSpace="local"`)
+are parse errors and `PUI-PROCEDURAL-VALUE` in the CLI, with the same wording as `glow`
+(`hazeDensity` says "between 0 and 1", `hazeSpace` names its two keywords).
 
 ## What the fog is
 
@@ -123,14 +128,55 @@ deliberate:
   There is no `hazeSeed` to write, and nothing to forget.
 - **Neighbouring panels read as one sky.** A HUD assembled from several panels shows different windows
   onto the same field of fog; patches line up across the gaps.
-- **A moving panel sees the fog slide across it** — a `<Animation>` that slides a panel in makes the
-  clouds pass behind the window rather than travel with it. A 300 ms entrance on still fog is barely
-  visible; a panel that keeps moving (a carousel page, a dragged row) will show it. If that matters,
-  keep the fog on the parts that stay put, or give the moving one `hazeDrift` so the motion reads as
-  flow anyway.
+- **A moving panel sees the fog slide across it** — the clouds pass behind the window instead of
+  travelling with it. A 300 ms entrance on still fog is barely visible. A panel that keeps moving
+  (a scrolling list row, a carousel page, a dragged row) shows it clearly. That is what
+  `hazeSpace="self"` is for (below).
 
 Same position, same clock → same picture, every frame: nothing here depends on the instance or on
-the frame count, so screenshots and probe tests are stable.
+the frame count, so screenshots and probe tests are stable. `hazeSpace="self"` keeps that: its seed
+comes from where the panel was first drawn, never from a random number.
+
+### `hazeSpace="self"` — fog that travels with the panel
+
+```xml
+<Template name="PlayerRow">
+  <HStack height="64" spacing="12">
+    <!-- the avatar's backdrop: its fog scrolls with the row -->
+    <Frame id="avatarBg" width="56" height="56" radius="8" color="#0b1a33"
+           haze="24" hazeColor="#7ec8ff/0.5" hazeSpace="self"/>
+    <Text id="name"/>
+  </HStack>
+</Template>
+
+<ScrollList id="players" itemTemplate="PlayerRow" width="stretch" height="stretch"/>
+```
+
+The noise is sampled at the panel's own coordinates plus a **seed**. The seed is the panel's
+position on the canvas when it is first drawn. Inside a scroll list's content, the seed is the
+position the panel would have with that list scrolled to its start. What that means:
+
+- **At rest it is the canvas picture.** Local position + seed is exactly the canvas position at the
+  moment the seed is taken, so turning `self` on changes nothing in a still screenshot. (Inside a
+  scrolled list this holds when the list is at its start.) Twenty rows of one style still each get
+  their own fog, neighbours still line up, and there is still one material.
+- **Every row of a list gets its own fog**, however far the list is scrolled when the row first
+  draws. A chat that stays at its newest message draws every new message into the same screen slot.
+  The rows still differ because scrolling does not count towards the seed.
+- **After that the fog belongs to the panel.** Scrolling, dragging, a carousel swipe and a slide-in
+  animation all carry it along. A rebuild for any other reason (a hover tint, a resize, a row
+  reordered while visible) keeps the seed, because re-seeding then would make the fog jump on screen.
+- **Shown again = new seed.** Each time the panel is enabled it takes a new seed at its new place.
+  Nobody saw it in between, so nothing jumps. A virtual list parks rows it no longer needs and shows
+  them again elsewhere, so those rows get fresh fog. A row the virtual list reuses in place while
+  scrolling keeps its fog: it is still a different fog from every other row.
+- **Its fog scales with it.** `self` measures `haze` in the panel's own units, so a parent `scale` or a
+  scale animation grows or shrinks the patches with the panel. In `canvas` the patch size is fixed on
+  the canvas.
+- **`hazeDrift` still works** on top: a pinned fog can still flow.
+
+Rule of thumb: `canvas` for HUD frames, cards and buttons that stay where they are (the shared sky
+is the point); `self` for anything that scrolls, slides or is dragged.
 
 ## Cost
 
@@ -143,7 +189,7 @@ pixel; the whole project pays one shader global per frame, and only once somethi
 
 - **A `weld` group** — the carrier and its welded blocks: the fused pane is drawn by the group
   shader, which has no fog layer, so the value goes nowhere and the CLI says so (`PUI-GLASS-HAZE`).
-  A standalone `glass="true"` pane takes the fog. `hazeColor` alone is *not* flagged anywhere, so a
+  A standalone `glass="true"` pane takes the fog. `hazeColor` / `hazeSpace` alone are *not* flagged anywhere, so a
   theme can hand it to every surface.
 - **Inner layers** (`handleHaze` etc.), `<Decor>`, `<Image>` / `<Icon>`: no fog. A `.pxl` / sprite
   aesthetic paints its haze into the art.
@@ -153,7 +199,7 @@ pixel; the whole project pays one shader global per frame, and only once somethi
 
 | Code | Level | When |
 |---|---|---|
-| `PUI-PROCEDURAL-VALUE` | error | `haze` / `hazeDrift` not a non-negative finite number, `hazeDensity` outside 0..1; also inside `<Style>` |
+| `PUI-PROCEDURAL-VALUE` | error | `haze` / `hazeDrift` not a non-negative finite number, `hazeDensity` outside 0..1, `hazeSpace` not `canvas` / `self`; also inside `<Style>` |
 | `PUI-GLASS-HAZE` | warning | `haze` on a `weld` carrier or on a welded block — raw or arriving through `class=`. Not on a standalone `glass="true"` pane, which takes the fog |
-| `PUI-CONTAINER-VISUAL-ATTR` | warning | any of the three on a layout-only container or a tag without a procedural surface |
+| `PUI-CONTAINER-VISUAL-ATTR` | warning | any of the haze attributes on a layout-only container or a tag without a procedural surface |
 | colour errors | error | a malformed `hazeColor` ramp — the same messages as every other colour slot |
