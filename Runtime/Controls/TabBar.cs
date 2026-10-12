@@ -95,6 +95,18 @@ namespace PromptUGUI.Controls
             Action<TSlot, T> bind) where TSlot : class, IControl
             => _core.BindItems(source, bind);
 
+        public IDisposable BindItems<T, TKey>(
+            Observable<IReadOnlyList<T>> source,
+            Action<Tab, T> bind,
+            Func<T, TKey> key)
+            => BindItems<T, Tab, TKey>(source, bind, key);
+
+        public IDisposable BindItems<T, TSlot, TKey>(
+            Observable<IReadOnlyList<T>> source,
+            Action<TSlot, T> bind,
+            Func<T, TKey> key) where TSlot : class, IControl
+            => _core.BindItems(source, bind, key);
+
         internal override void OnAfterApply()
         {
             _core.CollectStatic(Children);

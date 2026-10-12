@@ -581,6 +581,13 @@ bar.BindItems<MyModel, IControl>(
     (slot, m) => slot.Get<Tab>("tab").Text = m.Name)
    .AddTo(screen);
 
+// Keyed: rows follow their items, so the selection follows its item too (see "Keyed rows" below):
+bar.BindItems<MyModel, IControl, long>(
+    items,
+    (slot, m) => slot.Get<Text>("status").TextValue = m.Status,
+    key: m => m.Id)
+   .AddTo(screen);
+
 // Deselect everything — the "no page open" state. Hides every bind-ed Frame and pushes null
 // through OnSelectionChanged. What a panel's own close button calls:
 bar.ClearSelection();
@@ -623,13 +630,20 @@ flip / theme switch / resize (each of which re-solves the Screen, and each of wh
 the auto-select) will not re-open the page the player just closed. Both are on `<TabMenu>` too,
 where the collapsed handle then shows a blank caption.
 
-`bar.BindItems<T, TSlot>` lets the template root be any `IControl`; `bar.BindItems<T>` is shorthand when the template root _is_ a `<Tab>` directly. The `<Tab>` reachable inside the slot is found via `ScopedIds` first, then a recursive child walk — Templates without an id'd Tab still work as long as exactly one `<Tab>` exists in the subtree.
+`bar.BindItems<T, TSlot>` lets the template root be any `IControl`; `bar.BindItems<T>` is shorthand when the template root _is_ a `<Tab>` directly. The `<Tab>` reachable inside the slot is found via `ScopedIds` first, then a recursive child walk — Templates without an id'd Tab still work as long as exactly one `<Tab>` exists in the subtree. A **row** is the whole template instance (the slot), not just its Tab: a rebuild removes and disposes rows whole, the Tab's siblings and their `.AddTo(slot)` subscriptions included.
+
+**Without a key every push rebuilds every row**: the selection is lost (an `allowSwitchOff` bar opens empty again, any other re-selects its first tab — neither is announced), `checked@` animations start over, images load again. **Keyed rows** — `BindItems(items, bind, key: m => m.Id)` (`BindItems<T, TKey>` / `BindItems<T, TSlot, TKey>`, on `<TabMenu>` too) — follow their items the way a keyed `ScrollList` does:
+
+- A row whose key survives the push is **reused in place**: bound again (every row is re-bound on every push, `.AddTo(slot)` from the previous bind released first) and moved to its new position. Its Tab keeps its `isOn`, so the **selection follows its key**, and nothing it drives replays — the bound page stays shown, an `<Animation on="checked@tab">` does not play again.
+- A new key gets a new row; a vanished key's row is removed.
+- The selected key gone: `OnSelectionChanged` announces the new state once — `null` (`allowSwitchOff`, or after `ClearSelection()`), or the first tab of a bar that always has a selection. An unchanged selection announces nothing.
+- The previous push is matched by key when it came from any keyed `BindItems` with the same `TKey` (a fresh `BindItems(Observable.Return(list), …, key)` per push works). The first keyed push replaces static rows and rows from an unkeyed push whole. A null or duplicate key rejects the whole push (logged via R3; the rows stay as they were).
 
 ### TabMenu
 
 The same tab group, folded into a popup. **Every selection member above works identically** —
-`OnSelectionChanged`, `SelectedTab`, `SelectedIndex`, `Count`, `GetAt`, both `BindItems` overloads,
-`itemTemplate` — because `<TabBar>` and `<TabMenu>` share one implementation. What it adds is the
+`OnSelectionChanged`, `SelectedTab`, `SelectedIndex`, `Count`, `GetAt`, every `BindItems` overload
+(keyed ones included), `itemTemplate` — because `<TabBar>` and `<TabMenu>` share one implementation. What it adds is the
 open / closed state:
 
 ```csharp
@@ -1254,7 +1268,9 @@ DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                                        apply RemoveAt(From)+Insert(To) to your data and push; IsReordering while lifted
                TabBar.BindItems(Observable<IReadOnlyList<T>>, (Tab tab,t)=>...)
                TabMenu.BindItems(...)  same shape — one shared tab-group implementation
-                                       or BindItems<T,TSlot>(...) for wrapped templates
+                                       or BindItems<T,TSlot>(...) for wrapped templates (a row = the whole slot)
+               TabBar/TabMenu.BindItems(src, bind, key: t=>t.Id)   keyed: rows reused by key, selection follows its key;
+                                       selected key gone → OnSelectionChanged once (null / auto-selected first)
                Carousel.BindItems(Observable<IReadOnlyList<T>>, (IControl card,t)=>...[, key: o=>o.Id])
                                                               // key optional: re-centre the centred card by identity on re-emit
                                        or BindItems<T,TSlot>(...) for typed card template

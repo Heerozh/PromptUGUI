@@ -173,7 +173,7 @@ TabBar collects the Tab whether it is the Template root (as here) or nested insi
 
 > ⚠️ **Behaviour change.** `width` / `height` on a `<Tab>` used to be silently ignored — TabBar's layout group was left at Unity's default `childControlWidth/Height = false`, which only positions children and never resizes them, so every Tab stayed at the default 100×100 (overflowing the bar and overlapping its neighbours). TabBar now configures the group like `<VStack>` / `<HStack>` do, so the values you write actually land. The other half of the same switch: `childForceExpand*` is now `false` where Unity's serialized default is `true`, so Unity no longer forces `flexible = 1` onto every child in `GetChildSizes` — tabs that used to spread out and fill the bar regardless of the markup now sit at their preferred size, packed at the start of the bar (and a sizeless wrapper root, at width 0). Existing TabBars will shift — toward what the markup always said; add `width="stretch"` to get the even split back. Decorative children are click-through by default (`raycastTarget` defaults to `false` on `<Text>` / `<Image>`; `<Icon>` always is), so clicks fall through to the containing Tab without any attribute.
 
-For dynamic data, use `BindItems` with `itemTemplate="FileTab"` (the same Template works for both patterns).
+For dynamic data, use `BindItems` with `itemTemplate="FileTab"` (the same Template works for both patterns). A row is the whole template instance — wrapper root, the Tab and its siblings — and goes as a whole when the data drops it. Pass a `key:` from C# when the rows must keep their selection (and their unfolded `checked@` detail) across pushes — see scripting-promptugui-csharp → *TabBar → Keyed rows*.
 
 ## `<TabMenu>` — the folded tab group
 

@@ -319,6 +319,18 @@ namespace PromptUGUI.Controls
             Action<TSlot, T> bind) where TSlot : class, IControl
             => _core.BindItems(source, bind, BeforeRebuild, AfterRebuild);
 
+        public IDisposable BindItems<T, TKey>(
+            Observable<IReadOnlyList<T>> source,
+            Action<Tab, T> bind,
+            Func<T, TKey> key)
+            => BindItems<T, Tab, TKey>(source, bind, key);
+
+        public IDisposable BindItems<T, TSlot, TKey>(
+            Observable<IReadOnlyList<T>> source,
+            Action<TSlot, T> bind,
+            Func<T, TKey> key) where TSlot : class, IControl
+            => _core.BindItems(source, bind, key, BeforeRebuild, AfterRebuild);
+
         // A row is built by AddComponent-ing a TMP onto a fresh GameObject, and a TMP built under an
         // inactive parent — which is exactly what a collapsed popup is — never measures itself again
         // (see InactiveMeasure). Switch the panel on for the rebuild, off again straight after.
