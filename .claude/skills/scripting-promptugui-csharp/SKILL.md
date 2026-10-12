@@ -513,8 +513,31 @@ anchoring rules: XML skill, `reference/virtualize.md`. For the C# side:
 
 ```csharp
 list.ScrollToStart(); list.ScrollToEnd(); list.ScrollToIndex(i);        // instant — a fling stops
+list.ScrollIntoView(control);                                            // the least scroll that shows it whole
 bool atEnd = list.IsAtEnd;                                               // content that fits counts
 list.OnAtEndChanged.Subscribe(a => newMessages.Hidden = a).AddTo(screen); // current value, then changes
+```
+
+`ScrollIntoView(target)` takes **any control inside the list's rows** — a row, or a row of the one
+`<TabBar>` slot a list holds, which `ScrollToIndex` cannot reach (it counts the list's own slots). It
+scrolls the least that shows the target whole (a target taller than the viewport gets its start edge
+aligned), clamped; a fling stops; a hidden list scrolls when it shows; a virtual list reaches targets in
+its realized rows (`ArgumentException` otherwise, and for a control outside the list). It then **keeps
+following** the target while its geometry moves — a row unfolding under `<Animation on="checked@tab"
+reveal="y">`, a `height="clamp(_, hug, 149)"` list growing to its cap — and lets go a few frames after
+it settles, when the user drags or wheels, or on the next `ScrollTo*` / `ScrollIntoView`. So select and
+scroll in the same frame, without waiting for the animation — and pass the **row** (the slot your bind
+callback got), not just its Tab, so the part that unfolds is brought into view too:
+
+```csharp
+var rows = new Dictionary<long, IControl>();
+bar.BindItems<Item, IControl, long>(items, (row, it) => { rows[it.Id] = row; /* … */ }, key: it => it.Id)
+   .AddTo(screen);
+
+// later — a pick made elsewhere selects a row:
+var row = rows[id];
+row.Get<Tab>("tab").IsOn = true;    // starts unfolding the row's detail
+list.ScrollIntoView(row);           // follows it until the unfold is done
 ```
 
 `ScrollToIndex` puts the item's top edge (left edge, horizontally) at the viewport's, clamped; it
@@ -1277,6 +1300,8 @@ DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                <ScrollList virtualize="true">  only rows near the viewport; bind also runs while scrolling;
                                        ItemCount = items, SlotCount = realized rows; bind once, push via Subject
                ScrollList.ScrollToStart() / .ScrollToEnd() / .ScrollToIndex(i)   instant; a hidden list jumps on show
+               ScrollList.ScrollIntoView(ctl)  least scroll showing any control inside the rows whole; follows it
+                                       while it moves (a row unfolding) until it settles / the user scrolls
                ScrollList.IsAtEnd / .OnAtEndChanged  Observable<bool> (replay + dedupe); stickToEnd="true" follows the end
                ScrollList.OnReordered  Observable<(int From, int To)> — <ScrollList reorder="true">; rows already permuted;
                                        apply RemoveAt(From)+Insert(To) to your data and push; IsReordering while lifted

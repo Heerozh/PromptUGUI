@@ -91,7 +91,7 @@ A plain list (no `virtualize`) keeps its scroll offset across a push, as it alwa
 
 ## Scrolling from code
 
-`ScrollToStart()`, `ScrollToEnd()` and `ScrollToIndex(i)` jump at once (a fling stops); `ScrollToIndex` puts item *i*'s top edge at the viewport's top edge, clamped to what can be scrolled — it counts items on a virtual list, rows (static ones included) on a plain one. On a hidden list they take effect when it shows. `IsAtEnd` reads the current layout; `OnAtEndChanged` gives the current value on subscribe and then each change — the "↓ new messages" button:
+`ScrollToStart()`, `ScrollToEnd()` and `ScrollToIndex(i)` jump at once (a fling stops); `ScrollToIndex` puts item *i*'s top edge at the viewport's top edge, clamped to what can be scrolled — it counts items on a virtual list, rows (static ones included) on a plain one. On a hidden list they take effect when it shows. `ScrollIntoView(control)` scrolls the least that shows a control inside the rows whole, and follows it while it moves (a row unfolding) until it settles — on a virtual list the control must sit in a realized row; `ScrollToIndex` reaches any item. `IsAtEnd` reads the current layout; `OnAtEndChanged` gives the current value on subscribe and then each change — the "↓ new messages" button:
 
 ```csharp
 var more = screen.Get<Btn>("more");

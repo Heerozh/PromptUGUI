@@ -207,6 +207,145 @@ namespace PromptUGUI.Controls
             ScrollTo(ScrollIntent.Index, index);
         }
 
+        /// <summary>
+        /// Scrolls the least that shows <paramref name="target"/> whole — any control inside this list's rows: a
+        /// row, or something deeper, such as one row of the single <c>&lt;TabBar&gt;</c> slot a list may hold
+        /// (which <see cref="ScrollToIndex"/> cannot reach). A target taller than the viewport gets its start edge
+        /// aligned instead. Clamped to what can be scrolled; a fling in progress stops; a hidden list scrolls when
+        /// it shows. A virtual list scrolls to a target in one of its realized rows.
+        /// <para>The list then <b>keeps following the target</b> while its geometry moves — a row unfolding, the
+        /// list hugging its growing content — and lets go once nothing has moved for
+        /// <see cref="FollowSettleTicks"/> frames, when the user scrolls, or on the next <c>ScrollTo*</c> /
+        /// <c>ScrollIntoView</c>. So a host can select a row and bring it into view in the same frame, before
+        /// its <c>checked@</c> animation has unfolded it.</para>
+        /// </summary>
+        public void ScrollIntoView(IControl target)
+        {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            var host = FollowRect(target);
+            if (host == null || _content == null || host == _content || !host.IsChildOf(_content))
+                throw new ArgumentException(
+                    $"<ScrollList id='{Id}'>: {target.GetType().Name} '{target.Id}' is not inside this list's rows " +
+                    (_virtual ? "(a virtual list can only scroll to its realized rows — ScrollToIndex reaches any item)" : ""),
+                    nameof(target));
+            if (_disposed) return;
+            if (_inSync)
+            {
+                // From a bind callback: once the sync is done, and the latest request wins (VIR-P7).
+                _queuedScroll = () => ScrollIntoView(target);
+                return;
+            }
+            _scroll.StopMovement();
+            // Like ScrollToIndex: neither edge is sticky — the target stays where it was put.
+            _stuckToStart = false;
+            _stuckToEnd = false;
+            _pendingScroll = ScrollIntent.None;
+            _follow = target;
+            _followTicks = 0;
+            _followStable = 0;
+            // Hidden: nothing can be laid out — the first tick after the list shows does it.
+            if (!GameObject.activeInHierarchy) return;
+            FollowStep();
+            PublishAtEnd();
+        }
+
+        /// <summary>Frames of unchanged geometry after which <see cref="ScrollIntoView"/> stops following.</summary>
+        internal const int FollowSettleTicks = 3;
+
+        // A follow ends after this many frames whatever happens (a target that never stops moving).
+        private const int FollowMaxTicks = 600;
+
+        // ScrollIntoView's target while it is followed (null otherwise), and the follow's bookkeeping: frames
+        // followed, frames in a row with no change, and that frame's (start, end, viewport, content) extents.
+        private IControl _follow;
+        private int _followTicks;
+        private int _followStable;
+        private Vector4 _followLast;
+        private readonly Vector3[] _corners = new Vector3[4];
+
+        // The box a target occupies: its layout wrapper when it has one.
+        private static RectTransform FollowRect(IControl target) =>
+            target is Control c ? c.LayoutHost : target.RectTransform;
+
+        /// <summary>
+        /// One step of <see cref="ScrollIntoView"/>: lays Content out, puts the target in view, and counts towards
+        /// the settle. Ends the follow when the target is gone, out of the list, or hidden.
+        /// </summary>
+        private void FollowStep()
+        {
+            var host = FollowRect(_follow);
+            if (host == null || !host.IsChildOf(_content) || !host.gameObject.activeInHierarchy)
+            {
+                _follow = null;
+                return;
+            }
+            EnsureSettled();
+            // A virtual list lays Content out in its own sync; a plain one is laid out here, this frame's growth
+            // included — and a hugging one together with the layout it sits in, so the viewport is the size the
+            // content gives it now, not one canvas pass behind (a stale, shorter viewport puts Content past its
+            // end, and the ScrollRect's elasticity pulls it back over the next frames).
+            if (!Windowing) LayoutRebuilder.ForceRebuildLayoutImmediate(HugsContent ? LayoutChainRoot() : _content);
+
+            var axis = MainAxis;
+            ExtentInContent(host, axis, out var start, out var end);
+            var view = _viewport.rect.size[axis];
+            var s = MainScroll(axis);
+            var target = end - start > view || start < s ? start
+                       : end > s + view ? end - view
+                       : s;
+            var max = EndScroll(axis);
+            target = Mathf.Clamp(target, 0f, max);
+            if (Mathf.Abs(target - s) > 0.01f)
+            {
+                if (Windowing && TryRowAnchor(host, target, out var anchor)) Sync(_pendingBindAll, anchor);
+                else ShiftMain(axis, target - s);
+            }
+            _lastEndScroll = EndScroll(axis);
+
+            var now = new Vector4(start, end, view, _content.rect.size[axis]);
+            if (_followTicks > 0 && (now - _followLast).sqrMagnitude < 0.0001f) _followStable++;
+            else _followStable = 0;
+            _followLast = now;
+            if (_follow != null && (_followStable >= FollowSettleTicks || ++_followTicks >= FollowMaxTicks)) _follow = null;
+        }
+
+        /// <summary>A laid-out rect's extent along the list's axis, as distances from Content's start edge.</summary>
+        private void ExtentInContent(RectTransform host, int axis, out float start, out float end)
+        {
+            host.GetWorldCorners(_corners);
+            var min = _content.InverseTransformPoint(_corners[0]);   // bottom-left
+            var max = _content.InverseTransformPoint(_corners[2]);   // top-right
+            var rect = _content.rect;
+            if (axis == 1)
+            {
+                start = rect.yMax - max.y;
+                end = rect.yMax - min.y;
+            }
+            else
+            {
+                start = min.x - rect.xMin;
+                end = max.x - rect.xMin;
+            }
+        }
+
+        /// <summary>
+        /// A virtual list moves through its window: the target's row, held at the place that puts the viewport at
+        /// <paramref name="scroll"/>.
+        /// </summary>
+        private bool TryRowAnchor(RectTransform host, float scroll, out Anchor anchor)
+        {
+            var rowHost = host;
+            while (rowHost.parent != null && rowHost.parent != _content) rowHost = (RectTransform)rowHost.parent;
+            for (var j = 0; j < _slots.Count; j++)
+            {
+                if (HostOf(_slots[j]) != rowHost) continue;
+                anchor = new Anchor { Kind = AnchorKind.Item, Index = _slotIndex[j], Delta = TopOf(rowHost) - scroll, Snap = true };
+                return true;
+            }
+            anchor = default;
+            return false;
+        }
+
         internal bool IsHorizontal => !IsGrid && _direction == "horizontal";
 
         /// <summary>True when this list only realizes the rows near its viewport (<c>virtualize="true"</c> that was granted).</summary>
@@ -585,13 +724,19 @@ namespace PromptUGUI.Controls
         /// </summary>
         private void PlainTick()
         {
-            if (_scroll.ConsumeUserMotion()) RecomputeStuck();
+            if (TickMotion()) RecomputeStuck();
             if (_pendingScroll != ScrollIntent.None)
             {
                 var intent = _pendingScroll;
                 _pendingScroll = ScrollIntent.None;
                 _stickPending = false;
                 ApplyScroll(intent, _pendingScrollIndex);
+                return;
+            }
+            if (_follow != null)
+            {
+                FollowStep();
+                _stickPending = false;
                 return;
             }
             var axis = MainAxis;
@@ -619,8 +764,34 @@ namespace PromptUGUI.Controls
 
         private void WindowTick()
         {
-            var userMoved = _scroll.ConsumeUserMotion();
+            var userMoved = TickMotion();
             if (userMoved) RecomputeStuck();
+            WindowSync(userMoved);
+            if (_follow != null && !_inSync) FollowStep();
+        }
+
+        /// <summary>
+        /// Whether Content moved since the list last placed it, for the sticky edges. While a
+        /// <see cref="ScrollIntoView"/> follows, only the user's own drag / wheel takes over; any other motion is
+        /// the ScrollRect's elasticity or leftover inertia (a hugging list growing under the content, say), which
+        /// is stopped — the follow puts Content where it belongs.
+        /// </summary>
+        private bool TickMotion()
+        {
+            var moved = _scroll.ConsumeUserMotion();
+            var input = _scroll.ConsumeUserInput();
+            if (_follow == null) return moved;
+            if (input)
+            {
+                _follow = null;   // the user took over
+                return moved;
+            }
+            if (moved) _scroll.StopMovement();
+            return false;
+        }
+
+        private void WindowSync(bool userMoved)
+        {
             var size = _viewport.rect.size;
             if (size.x != _lastViewport.x)
             {
@@ -710,6 +881,7 @@ namespace PromptUGUI.Controls
                 _queuedScroll = () => ScrollTo(intent, index);
                 return;
             }
+            _follow = null;   // the latest request wins over a ScrollIntoView still following
             _scroll.StopMovement();
             // The sticky edges follow the request (§5.4): the start is sticky again; the end is, if it is sticky at all;
             // after an index neither is — the item stays where it was put.
@@ -1595,6 +1767,12 @@ namespace PromptUGUI.Controls
             if (_settled) return;
             _settled = true;
             if (!BornFrame.IsCurrent(_bornFrame) && _viewport.rect.height > 0f) return;
+            LayoutRebuilder.ForceRebuildLayoutImmediate(LayoutChainRoot());
+        }
+
+        /// <summary>The top of the chain of layout groups the list belongs to — the root a dirty mark on it reaches.</summary>
+        private RectTransform LayoutChainRoot()
+        {
             var root = LayoutHost;
             while (root.parent is RectTransform parent)
             {
@@ -1602,7 +1780,7 @@ namespace PromptUGUI.Controls
                 if (group == null || !group.enabled) break;
                 root = parent;
             }
-            LayoutRebuilder.ForceRebuildLayoutImmediate(root);
+            return root;
         }
 
         private int SeedIndex(Anchor anchor)
