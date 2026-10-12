@@ -51,8 +51,19 @@ namespace PromptUGUI.Controls
 
         protected virtual void InitTriggerSubscription()
         {
-            _sourceSub = SubscribeSpec(_spec, Fire, OnTriggerFiredInitial);
+            _sourceSub = SubscribeSpec(_spec, Fire, OnTriggerFiredInitial, () => OnStateEstablished(reverse: false));
         }
+
+        /// <summary>
+        /// What a <c>ready</c> / <c>cooling</c> trigger does for the state its <c>&lt;Cooldown&gt;</c>
+        /// is found in as the Screen opens (spec 2026-10-13 §4.3). Unlike <c>checked</c>, a plain
+        /// <c>&lt;Trigger&gt;</c> stays SILENT: what hangs on a ready trigger's <c>OnFire</c> is a
+        /// "skill ready" sound or burst, and replaying it would sound every time the skill bar opens —
+        /// and disagree with <c>Cooldown.OnReady</c>, which only reports real flips.
+        /// <c>&lt;Animation&gt;</c> overrides it to land on its end state, so a
+        /// <c>reverse-on="cooling"</c> pair still rests on the right side.
+        /// </summary>
+        private protected virtual void OnStateEstablished(bool reverse) { }
 
         /// <summary>
         /// What a <c>checked</c> / <c>unchecked</c> trigger does when the control is ALREADY in that
@@ -71,11 +82,28 @@ namespace PromptUGUI.Controls
         /// subscribe a second spec — its <c>reverse-on=</c> — through exactly the same resolution
         /// rules (spec 2026-08-31-hug-reveal-flip-checked-design §2.4.6).
         /// </summary>
-        private protected IDisposable SubscribeSpec(TriggerSpec spec, Action onFire, Action onInitial = null)
+        private protected IDisposable SubscribeSpec(TriggerSpec spec, Action onFire, Action onInitial = null,
+                                                    Action onEstablish = null)
         {
             onInitial ??= onFire;
             switch (spec.Kind)
             {
+                case TriggerKind.Ready:
+                case TriggerKind.Cooling:
+                    {
+                        // Persistent like checked, resolved to the nearest <Cooldown> (§5.8). The state
+                        // found at open — or reached while the Screen is still opening, since a value=
+                        // attribute is applied after this subscribes — is established, never fired.
+                        var cooling = spec.Kind == TriggerKind.Cooling;
+                        var cooldown = Internal.TriggerSourceResolver.FindCooldown(this, spec.SourceId);
+                        if (cooldown.IsCooling == cooling) onEstablish?.Invoke();
+                        var stream = cooling ? cooldown.OnCooling : cooldown.OnReady;
+                        return stream.Subscribe(_ =>
+                        {
+                            if (PromptUGUI.Application.UI.OwnerScreenOf(this)?.IsOpening == true) onEstablish?.Invoke();
+                            else onFire();
+                        });
+                    }
                 case TriggerKind.Checked:
                 case TriggerKind.Unchecked:
                     {
