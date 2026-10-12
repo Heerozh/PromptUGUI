@@ -194,8 +194,8 @@ Canvas 需开 `TexCoord1 | TexCoord2`（`ProceduralPanel.EnsureCanvasChannels` �
 
 `SpriteAtlasSyncer` 今天只设 `TextureSettings`，打包设置吃 Unity 默认（两者都 `true`）。M1：
 **新建 atlas 时显式设 `enableRotation = false` / `enableTightPacking = false`**；同步已有 atlas 时发现
-任一为 `true` → `Debug.LogWarning` 指出改法（改打包设置要 Pack Preview，不自动改）。宿主工程里现有
-`PxlIcon.spriteatlas`（1/1）由客户端仓库单独改，不在本 spec 内。
+任一为 `true` → `Debug.LogWarning` 指出改法（改打包设置要 Pack Preview，不自动改）。使用方工程里已有的
+atlas 由各工程自己改，不在本 spec 内。
 
 ### 4.6 C# 面
 
@@ -412,29 +412,19 @@ PlayMode **200 绿**、`dotnet format --verify-no-changes` 干净、`UIXmlLint` 
   探针按**半径相对**取样（`R/2`），不用固定像素距离 —— 首版写死 3px 时 `blur='4'`（= 2 texel）
   自然测不出来，那是测试的尺度错误不是 shader 的。
 
-### 宿主工程真实图集目检（Task 11）
+### 真实图集目检（Task 11）
 
-在 ssw_re_client 里用 `Solar96Bold.spriteatlas` 的真实打包 sprite（在 512×512 图集页里占
-`(264, 176, 84, 84)`）离屏渲染四个 `<Icon>`：无 fx / `glow=8` / `glow=8 glowColor=#3ba7ff` / `blur=6`。
-水平剖面（穿过图标中心向右）：
-
-```
-plain     …26:0.65 28:0.08 30:0.08 …44:0.08     ← 剪影边缘后直接是背景
-glow-self …26:0.77 28:0.36 30:0.25 32:0.13 34:0.08 …44:0.08   ← 单调衰减到背景，中间无异物
-```
-
-即真实图集页上邻居没有漏进来。两点观感记录：
+在宿主工程里用一张真实打包的图标图集（关 rotation / tight packing），离屏渲染无 fx / `glow` / 显式
+`glowColor` 的 `glow` / `blur` 四种 `<Icon>`，穿过图标中心取水平剖面：光晕从剪影边缘单调衰减到背景，
+中间无异物 —— 真实图集页上邻居没有漏进来。两点观感记录：
 
 - **自体色光晕会填满内部镂空**（与 Photoshop 的 Outer Glow 同性质：光晕画在本体之下，本体透明处
-  就透出光）。该图标的箭头是白色实心不受影响，但"镂空即图形"的图标配自体色会糊掉内部细节 —— 写
-  显式 `glowColor` 立刻分得开。局部核无法区分"形状外"与"内部孔洞"，这是技术本身的性质，非缺陷。
-- 半透明边缘像素会与身后的光晕合成而变亮（`plain` 0.73 → `glow-self` 1.00），也是正确的 source-over。
+  就透出光）。实心图形不受影响，但"镂空即图形"的图标配自体色会糊掉内部细节 —— 写显式 `glowColor`
+  立刻分得开。局部核无法区分"形状外"与"内部孔洞"，这是技术本身的性质，非缺陷。
+- 半透明边缘像素会与身后的光晕合成而变亮，也是正确的 source-over。
 
-### 客户端仓库待办（不在本 PR 内）
-
-`ssw_re_client` 的 `PxlIcon.spriteatlas` 目前 `enableRotation=1 / enableTightPacking=1`（当前
-`spriteCount=0`，尚未 Pack Preview）。要在像素图标上用 blur/glow，需在 SpriteAtlas inspector 里关掉
-两项再 Pack Preview —— Syncer 现在会对已有 atlas 告警但不自动改。`Solar96Bold` 已是 0/0，无需处理。
+开着 `enableRotation` / `enableTightPacking` 的已有 atlas 要用 blur / glow，需在 SpriteAtlas inspector 里
+关掉两项再 Pack Preview —— Syncer 会对已有 atlas 告警但不自动改（§4.5）。
 
 ## 14. M1.1：mip 预滤波的混合采样（2026-09-02 定案）
 
@@ -492,9 +482,9 @@ R=8 仍然重影。
 - **串色**：内缩假设 padding ≥ 2（Unity 最小档），满足则任意半径不串色；`enableRotation` /
   `enableTightPacking` 必须关的要求不变。
 - **暗边只影响 blur 的 RGB，glow 不受影响**（glow 只用 alpha）。blur 的颜色取决于导入器的 dilation
-  （`alphaIsTransparency`，Sprite 类型默认开）：实测 ssw_re_client 的 `Solar96Bold` 透明区 RGB 已是 254
-  （干净）；已开 mips 的 `FlagBtn` lod1–3 半透明 texel 比不透明色暗约 15%（源图未完全 dilate）。shader 无法
-  事后弥补 —— 直 alpha box 平均之后信息已丢。
+  （`alphaIsTransparency`，Sprite 类型默认开）：dilate 干净的图集，透明区 RGB 与相邻的不透明色一致；源图
+  未完全 dilate 的图集开了 mips，lod 1–3 的半透明 texel 会比不透明色暗一截（在宿主工程中实测可见）。shader
+  无法事后弥补 —— 直 alpha box 平均之后信息已丢。
 - **开 mips 的副作用**：`generateMipMaps` 是整个 atlas 的开关，该图集所有 sprite 缩小时都会走 mip（更软、
   少闪），显存 +1/3。Point 图集不要开：nearest 采 mip 只会更块状，fx 也不会用它。
 
@@ -545,8 +535,8 @@ Texture 对象、热重载、内存 1.33×）与约 250 行。留作 M2 备选�
    改为直接以 `Texture2D` 对象做 `HashSet` 键（仓库里 `SpriteRenderHints` 的 `#if` 分支是另一种写法）。
 2. **`FxMaterialCache.ResetForTests` 顺带清扫同名孤儿材质**。`HideAndDontSave` 材质能活过域重载，而缓存
    的静态表被重载清空 —— 在编辑器里预览过一个带 glow 的图标、再重新编译、再跑测试，
-   `FxMaterialCacheTests` 的两条泄漏计数就会永远失败（本次在 ssw_re_client 的 UIPreview 场景上实际撞到，
-   7 个无人引用的 `PromptUGUI/ImageFx`）。这些材质已无人引用（活着的 Graphic 下次重建会重新 Acquire），
+   `FxMaterialCacheTests` 的两条泄漏计数就会永远失败（本次在宿主工程的 UIPreview 场景上实际撞到：一批
+   无人引用的 `PromptUGUI/ImageFx`）。这些材质已无人引用（活着的 Graphic 下次重建会重新 Acquire），
    按名字扫掉即可；仅测试路径调用。
 
 目检（`Application.temporaryCachePath` 下的 dump）：`pugui-fx-mip-line-blur-8.png` 是一条单峰的软线，
