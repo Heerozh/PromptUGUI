@@ -1311,6 +1311,7 @@ namespace PromptUGUI.Application
             GlassRuntime.ResetForTestsInternal();
             Controls.Internal.ProceduralMaterialCache.ResetForTests();
             Controls.Internal.HazeClock.ResetForTests();
+            Controls.Internal.CooldownClock.ResetForTests();
             Controls.Internal.FxMaterialCache.ResetForTests();
             Controls.Internal.FxImage.ResetDiagnostics();
             Controls.Internal.ImageFxApplier.ResetDiagnostics();

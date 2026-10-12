@@ -830,7 +830,16 @@ namespace PromptUGUI.Controls.Internal
                 if (axis > 2.5f) axis -= 2f;    // round codes sit two above the flat ones
                 cutOffset = (2f * _cutValue - 1f) * (axis < 1.5f ? hx : hy);
             }
-            var half = new Vector4(hx, hy, _cutCode, cutOffset);
+            // A round cap is exact only on a circular ring (the shader's sdArc), and whether this is
+            // one depends on the rect — so it is settled here, where the rect is known, and a resize
+            // re-decides it. Anything else gets the flat-ended form of the same sector.
+            var cutCode = _cutCode;
+            if (cutCode > 6.5f && !IsCircularRing(hx, hy))
+            {
+                cutCode -= 2f;
+                WarnRoundCapOnce();
+            }
+            var half = new Vector4(hx, hy, cutCode, cutOffset);
             var tint = (Color32)color;
 
             // uv0.zw carry the seed of a pinned fog (hazeSpace="self", H-D9): vertex data like the
@@ -860,6 +869,30 @@ namespace PromptUGUI.Controls.Internal
 
             vh.AddTriangle(0, 1, 2);
             vh.AddTriangle(2, 3, 0);
+        }
+
+        /// <summary>A ring on a square rect whose corners make it a circle (<c>pill</c>, or a radius reaching half the side).</summary>
+        private bool IsCircularRing(float hx, float hy)
+        {
+            if (_ringWidth <= 0f || Mathf.Abs(hx - hy) >= 0.5f) return false;
+            if (_radius.Shape == PanelShape.Pill) return true;
+            if (_radius.Shape != PanelShape.None) return false;
+            var r = Mathf.Min(hx, hy) - 0.5f;
+            return Covers(_radius.TopLeftCorner, r) && Covers(_radius.TopRightCorner, r)
+                && Covers(_radius.BottomRightCorner, r) && Covers(_radius.BottomLeftCorner, r);
+        }
+
+        private static bool Covers(in CornerSpec corner, float r) => corner.Kind == CornerKind.Round && corner.Width >= r;
+
+        private bool _warnedRoundCap;
+
+        private void WarnRoundCapOnce()
+        {
+            if (_warnedRoundCap) return;
+            _warnedRoundCap = true;
+            UILog.Warn(this,
+                "PromptUGUI: cap=\"round\" is drawn only on a circular ring — thickness= on a square rect " +
+                "with radius=\"pill\". This shape gets flat ends (PUI-CD-ROUND-CAP).");
         }
 
         /// <summary>

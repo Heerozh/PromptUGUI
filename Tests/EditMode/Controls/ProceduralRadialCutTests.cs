@@ -4,6 +4,7 @@ using PromptUGUI.Application;
 using PromptUGUI.Controls;
 using PromptUGUI.Controls.Internal;
 using UnityEngine;
+using UnityEngine.TestTools;
 using UnityEngine.UI;
 
 namespace PromptUGUI.Tests.EditMode.Controls
@@ -119,7 +120,9 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [Test]
         public void SetRadialCut_WritesTheCentreAndTheHalfAngleIntoUv1()
         {
-            var panel = Open("color='#ff0000'");
+            // A circular ring, so the round-capped form below is not demoted to flat ends.
+            var panel = Open("radius='pill' color='#ff0000'");
+            panel.SetRingWidth(8f);
 
             panel.SetRadialCut(0.125f, Pi / 4f);
             var v = Mesh(panel);
@@ -139,6 +142,20 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(5.25f, Mesh(panel)[0].uv1.z, 1e-5f, "the centre wraps to one turn");
             panel.SetRadialCut(-0.25f, Pi / 2f);
             Assert.AreEqual(5.75f, Mesh(panel)[0].uv1.z, 1e-5f, "…in both directions");
+        }
+
+        [Test]
+        public void ARoundCap_OffACircularRing_IsWrittenAsTheFlatCode()
+        {
+            LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("cap=\"round\""));
+            var panel = Open("radius='12' color='#ff0000'");
+            panel.SetRingWidth(8f);
+            panel.SetRadialCut(0.125f, Pi / 4f, roundCap: true);
+            Assert.AreEqual(5.125f, Mesh(panel)[0].uv1.z, 1e-5f,
+                "sdArc is exact only for a circle; a rounded square keeps flat ends");
+
+            panel.SetRingWidth(0f);
+            Assert.AreEqual(5.125f, Mesh(panel)[0].uv1.z, 1e-5f, "…and a solid sector has no ends to cap");
         }
 
         [Test]

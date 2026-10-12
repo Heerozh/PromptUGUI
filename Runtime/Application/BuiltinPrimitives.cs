@@ -29,6 +29,7 @@ namespace PromptUGUI.Application
             reg.Register<Pages>("Pages", null, runtimeStateAttr: "selected");
             reg.Register<Slider>("Slider", null, runtimeStateAttr: "value");
             reg.Register<Progress>("Progress", null, runtimeStateAttr: "value");
+            reg.Register<Cooldown>("Cooldown", null, runtimeStateAttr: "value");
             reg.Register<Dropdown>("Dropdown", null, runtimeStateAttr: "value");
             reg.Register<ScrollList>("ScrollList", null);
             reg.Register<Scrollbar>("Scrollbar", null);

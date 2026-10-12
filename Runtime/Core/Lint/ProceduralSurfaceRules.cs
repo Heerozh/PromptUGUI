@@ -31,6 +31,7 @@ namespace PromptUGUI.Lint
         internal static readonly HashSet<string> SurfaceTags = new()
         {
             "Btn", "Tab", "TabMenu", "Collapsible", "Toggle", "Slider", "Dropdown", "InputField", "ScrollList", "Scrollbar", "Progress",
+            "Cooldown",
         };
 
         // Image.overrideSprite swaps. On an SDF face there is no sprite to override.
@@ -53,11 +54,14 @@ namespace PromptUGUI.Lint
         /// <summary>
         /// The attribute that carries the primary surface's bitmap, where it is not <c>sprite</c>.
         /// <c>&lt;Progress&gt;</c>'s primary surface is its fill (spec 2026-09-18), so its bitmap is
-        /// <c>fill=</c>.
+        /// <c>fill=</c>; <c>&lt;Cooldown&gt;</c> copies that layout (spec 2026-10-13). A Cooldown's
+        /// <c>radius</c> is not spared: there is no mask to take it, so over a bitmap fill it is the
+        /// same contradiction as any other procedural attribute.
         /// </summary>
         private static readonly Dictionary<string, string> PrimarySprite = new()
         {
             ["Progress"] = "fill",
+            ["Cooldown"] = "fill",
         };
 
         /// <summary>

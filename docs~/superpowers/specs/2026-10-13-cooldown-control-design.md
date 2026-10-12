@@ -225,7 +225,7 @@ if (_RingWidth > 0.0) dShape = abs(dShape + _RingWidth * 0.5) - _RingWidth * 0.5
 
 比 Progress 简单（没有 mask，没有 frame）：
 
-- **颜色 fill 永远是 SDF。** Unity `Image` 没有 sprite 时会忽略 `type = Filled`、画整个 rect，所以径向裁切只能在 SDF 里做。Cooldown 在 `fill` 不是位图时**总是**声明主表面（不写 `radius` 也一样，等价 `radius="0"`）。
+- **颜色 fill 永远是 SDF。** Unity `Image` 没有 sprite 时会忽略 `type = Filled`、画整个 rect；就算垫一张白色 sprite 走 `Radial360`，扫掠边也是多边形边、没有抗锯齿，转起来会闪 —— SDF 的扫掠边是抗锯齿的。Cooldown 在 `fill` 不是位图时**总是**声明主表面（不写 `radius` 也一样，等价 `radius="0"`）。这是「不写形状属性就逐字节不变」那条程序化表面契约（`ProceduralSurfaceRolloutTests`）的唯一例外：那条契约保护的是已有控件，新控件没有「以前」；往返类契约对 Cooldown 用位图 fill 来跑。
 - **位图 fill**（`fill="ui:x"`）：Image 留任，走 §5.5。此时任一程序化属性（含 `radius`、`thickness`、`cap`）与之矛盾 —— `radius` 与效果属性走既有的 `PUI-PROC-SPRITE-CONFLICT`（程序化赢、位图让位）；`thickness` / `cap` 是 Cooldown 自己的属性，在位图 fill 上被忽略并报 `PUI-CD-BITMAP-SHAPE`（warning）。
 - `radius`：fill（非位图时）+ 颜色 bg 各自 `Declare`。与 Progress 一样覆盖 `DeclareRadius` 只记录、在 `OnAfterApply` 里 `base` 之前分发 —— 「fill 是不是位图」要等这一遍 apply 结束才知道（属性顺序未定义）；区别只是没有 mask 这第三个消费者。「颜色 fill 永远是 SDF」也在这里落实：fill 不是位图时，即使没写 `radius` 也 `Declare` 一次（`radius = 0`）。
 - bg 显隐 = `_bgSprite || _bgColor`，计算式（`bg=""` 能关回去）。
