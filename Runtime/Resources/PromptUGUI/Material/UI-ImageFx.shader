@@ -180,10 +180,16 @@ Shader "UI/ImageFx"
 
             // sprite 矩形之外的一切都是**别的 sprite**（图集里紧邻的邻居），必须读成透明 ——
             // 不是 clamp 到边缘。这是整套 fx 敢把四边形外扩出 sprite 之外的唯一前提。
-            inline half4 SampleClamped(float2 uv, float4 rect, float lod)
+            //
+            // 但不是一刀切：tap 在矩形边**以内** fade（uv）的距离上线性淡入。内容顶到边上的图（裁切
+            // 立绘、实心块）在那条边上是实色，硬切会让每个 tap 的中心一越线就整份消失 —— 边外的光晕
+            // 成了 1/25 覆盖率一级的台阶，即一块块平移的矩形。斜坡整段在矩形内：权重非零的 tap 中心
+            // 从不越过矩形，不串色的论证不变（spec §14.11）。
+            inline half4 SampleClamped(float2 uv, float4 rect, float2 fade, float lod)
             {
-                float2 inside = step(rect.xy, uv) * step(uv, rect.zw);
-                return (tex2Dlod(_MainTex, float4(uv, 0.0, lod)) + _TextureSampleAdd) * (inside.x * inside.y);
+                float2 lo = saturate((uv - rect.xy) / fade);
+                float2 hi = saturate((rect.zw - uv) / fade);
+                return (tex2Dlod(_MainTex, float4(uv, 0.0, lod)) + _TextureSampleAdd) * (lo.x * lo.y * hi.x * hi.y);
             }
 
             // 一轮圆盘采样，返回**预乘**结果 (rgb·a, a) 的加权平均。
@@ -198,6 +204,11 @@ Shader "UI/ImageFx"
             // 内缩：lod L 的 bilinear 会读到 tap 两侧各 1.5·2^L texel，超出 padding 的那部分就是
             // 邻居的像素，而矩形钳制只钳得住 tap 中心。所以矩形先按 (1.5·2^L − padding) 收缩再钳
             // tap。lod ≤ 1 时为 0；有透明边距的图标看不出，全出血图片的模糊边缘略提前淡出。
+            //
+            // 淡入：半个 tap 间距（0.5 · PUGUI_FX_TAP_SPACING · R，换成 uv），在收缩后的矩形里面。
+            // 台阶的间隔是 tap 偏移投影到边法向上的间隔，比二维间距密得多，半个间距已能把它们连成
+            // 一条坡；取满一个间距则斜坡把边内整整一段都压暗，满出血边外的光晕少掉近一半。
+            // 与 mip 无关 —— 无 mip 的 lod-0 路径同样有这道台阶。
             half4 DiskSample(float2 uv, float4 rect, float4 scale, float radius)
             {
                 float texR = radius * max(scale.z, scale.w);
@@ -206,10 +217,13 @@ Shader "UI/ImageFx"
                 float insetTexels = max(0.0, 1.5 * exp2(lod) - PUGUI_FX_MIN_PADDING);
                 float2 uvPerTexel = scale.xy / max(scale.zw, 1e-6);
                 // 极小 sprite 配极大半径时别把矩形缩没：最多缩掉每边 1/4。
-                float2 inset = min(insetTexels * uvPerTexel, (rect.zw - rect.xy) * 0.25);
+                float2 quarter = (rect.zw - rect.xy) * 0.25;
+                float2 inset = min(insetTexels * uvPerTexel, quarter);
                 float4 r = float4(rect.xy + inset, rect.zw - inset);
+                // 同理，斜坡最多再吃掉每边 1/4：内缩与斜坡都封顶时，正中仍是满权重。
+                float2 fade = max(min(0.5 * PUGUI_FX_TAP_SPACING * radius * scale.xy, quarter), 1e-7);
 
-                half4 c = SampleClamped(uv, r, lod);
+                half4 c = SampleClamped(uv, r, fade, lod);
                 half4 sum = half4(c.rgb * c.a, c.a);
                 half wsum = 1.0;
 
@@ -218,7 +232,7 @@ Shader "UI/ImageFx"
                 {
                     float2 o = kDisk[i].xy * radius * scale.xy;
                     half w = kDisk[i].z;
-                    half4 s = SampleClamped(uv + o, r, lod);
+                    half4 s = SampleClamped(uv + o, r, fade, lod);
                     sum += half4(s.rgb * s.a, s.a) * w;
                     wsum += w;
                 }
