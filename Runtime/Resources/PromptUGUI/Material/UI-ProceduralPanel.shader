@@ -66,10 +66,12 @@ Shader "UI/ProceduralPanel"
         _InnerGlowSize ("Inner Glow Size", Float) = 0
         // 曝光倍数（spec 2026-09-12）：1 = 不变，越大越白。
         _Intensity   ("Intensity",     Float) = 1
-        // 噪声雾（spec 2026-09-17 haze）：斑块特征尺寸 px（0 = 无雾）与流速 px/s。
+        // 噪声雾（spec 2026-09-17 haze）：斑块特征尺寸 px（0 = 无雾）、流速 px/s、覆盖率、
+        // 采样空间（0 = Canvas，1 = 面板自身 + uv0.zw 的种子，H-D9）。
         _HazeSize    ("Haze Size",     Float) = 0
         _HazeDrift   ("Haze Drift",    Float) = 0
         _HazeDensity ("Haze Density",  Float) = 0.5
+        _HazeSelf    ("Haze Self",     Float) = 0
 
         _StencilComp ("Stencil Comparison", Float) = 8
         _Stencil ("Stencil ID", Float) = 0
@@ -139,7 +141,7 @@ Shader "UI/ProceduralPanel"
             {
                 float4 vertex   : POSITION;
                 float4 color    : COLOR;
-                float2 texcoord : TEXCOORD0;   // rect 局部坐标（以中心为原点，像素）
+                float4 texcoord : TEXCOORD0;   // xy = rect 局部坐标（以中心为原点，像素）, zw = 雾的种子（hazeSpace="self"）
                 float4 texcoord1: TEXCOORD1;   // xy = rect 半尺寸（像素）, zw = 进度裁切 (code, e)，见 PuguiSdCut
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
@@ -151,6 +153,7 @@ Shader "UI/ProceduralPanel"
                 float4 shape         : TEXCOORD0;   // xy = 局部坐标, zw = 半尺寸
                 float4 worldPosition : TEXCOORD1;
                 float2 cut           : TEXCOORD2;   // 进度裁切 (code, e)；code 0 = 不切
+                float2 hazeSeed      : TEXCOORD3;   // 钉在面板上的雾的种子（H-D9）；canvas 模式恒为 0
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
@@ -174,6 +177,7 @@ Shader "UI/ProceduralPanel"
             float _HazeSize;
             float _HazeDrift;
             float _HazeDensity;
+            float _HazeSelf;
             // 全局，HazeClock 每帧写（未缩放秒）；没有任何带 hazeDrift 的材质时从不写、恒为 0。
             float _PuguiUnscaledTime;
 
@@ -184,8 +188,9 @@ Shader "UI/ProceduralPanel"
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(OUT);
                 OUT.worldPosition = v.vertex;
                 OUT.vertex = UnityObjectToClipPos(OUT.worldPosition);
-                OUT.shape = float4(v.texcoord, v.texcoord1.xy);
+                OUT.shape = float4(v.texcoord.xy, v.texcoord1.xy);
                 OUT.cut = v.texcoord1.zw;
+                OUT.hazeSeed = v.texcoord.zw;
                 OUT.color = v.color;
                 return OUT;
             }
@@ -212,12 +217,14 @@ Shader "UI/ProceduralPanel"
                 col.a *= inside;
 
                 // 噪声雾：压在填充之上、内发光与描边之下，只在形状内侧（spec 2026-09-17 haze §5.2）。
-                // 颜色走与其他四个色槽同一条渐变线（rect 定义），噪声本身在 Canvas 空间采样（§5.3）。
+                // 颜色走与其他四个色槽同一条渐变线（rect 定义），噪声本身在 Canvas 空间采样（§5.3），
+                // 或 hazeSpace="self" 时在局部坐标 + 种子处采样（H-D9）。
                 // _HazeSize==0 时整段跳过：uniform 分支，无雾面板逐位不变。
                 if (_HazeSize > 0.0)
                 {
                     float4 haze = PuguiGradient(p, b, PUGUI_RAMP(_Haze));
-                    haze.a *= inside * PuguiHazeWeight(IN.worldPosition.xy, _HazeSize, _HazeDrift, _PuguiUnscaledTime, _HazeDensity);
+                    float2 hazePos = PuguiHazePos(IN.worldPosition.xy, p, IN.hazeSeed, _HazeSelf);
+                    haze.a *= inside * PuguiHazeWeight(hazePos, _HazeSize, _HazeDrift, _PuguiUnscaledTime, _HazeDensity);
                     col = PuguiOver(haze, col);
                 }
 

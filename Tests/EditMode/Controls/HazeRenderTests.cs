@@ -365,6 +365,83 @@ namespace PromptUGUI.Tests.EditMode.Controls
             AssertPixelIdentical(first, second, "fog must be stable frame to frame");
         }
 
+        // ---- hazeSpace="self" (H-D9): the fog pinned to the panel ---------------------------------
+
+        /// <summary>
+        /// Moves a Frame by a whole number of screen pixels, so a fog that travels with it lands on
+        /// exactly the same pixels of its rect and the probes can compare pixel for pixel.
+        /// </summary>
+        private void MoveByPixels(string id, int dx, int dy)
+        {
+            var rt = (RectTransform)_screen.Get<Frame>(id).GameObject.transform;
+            var unitsPerPixel = W / _rect.width;
+            rt.anchoredPosition += new Vector2(dx * unitsPerPixel, dy * unitsPerPixel);
+        }
+
+        private static void AssertSameLuma(List<Color> a, List<Color> b, string why)
+        {
+            Assert.AreEqual(a.Count, b.Count, "guard: same rect size ⇒ same sample count");
+            for (var i = 0; i < a.Count; i++)
+                Assert.AreEqual(Luma(a[i]), Luma(b[i]), 2f / 255f, $"{why} (sample {i})");
+        }
+
+        private static bool AnyLumaDiffers(List<Color> a, List<Color> b)
+        {
+            for (var i = 0; i < a.Count && i < b.Count; i++)
+                if (Mathf.Abs(Luma(a[i]) - Luma(b[i])) > 2f / 255f) return true;
+            return false;
+        }
+
+        [Test]
+        public void SelfSpace_AtRest_IsTheCanvasPicture()
+        {
+            // The seed is the canvas position of the centre, so until the panel moves, switching the
+            // space changes nothing on screen — neighbours still line up as one sky.
+            var canvas = Render($"color='{Dark}' haze='24' hazeColor='white'", "pugui-haze-space-canvas.png");
+            var self = Render($"color='{Dark}' haze='24' hazeColor='white' hazeSpace='self'", "pugui-haze-space-self.png");
+            Assert.AreEqual(canvas.Length, self.Length);
+            for (var i = 0; i < canvas.Length; i++)
+            {
+                var d = Mathf.Max(Mathf.Abs(canvas[i].r - self[i].r), Mathf.Abs(canvas[i].g - self[i].g),
+                                  Mathf.Abs(canvas[i].b - self[i].b));
+                Assert.LessOrEqual(d, 2, $"pixel {i % Size},{i / Size}: {canvas[i]} vs {self[i]}");
+            }
+        }
+
+        [Test]
+        public void CanvasSpace_FogStaysBehindAMovingPanel()
+        {
+            // The default, and the guard for the test below: this move is big enough to show.
+            Render($"color='{Dark}' haze='24' hazeColor='white'", "pugui-haze-move-canvas-0.png");
+            var before = Interior();
+            MoveByPixels("f", 19, -13);
+            Snapshot("pugui-haze-move-canvas-1.png");
+            Assert.IsTrue(AnyLumaDiffers(before, Interior()), "canvas-space fog slides across a moving panel");
+        }
+
+        [Test]
+        public void SelfSpace_FogTravelsWithThePanel()
+        {
+            Render($"color='{Dark}' haze='24' hazeColor='white' hazeSpace='self'", "pugui-haze-move-self-0.png");
+            var before = Interior();
+            MoveByPixels("f", 19, -13);
+            // …and a rebuild on the way (a hover tint, a resize) must not take a new seed.
+            PanelOf("f").SetVerticesDirty();
+            Snapshot("pugui-haze-move-self-1.png");
+            AssertSameLuma(before, Interior(), "pinned fog moves with its panel");
+        }
+
+        [Test]
+        public void Glass_SelfSpace_FogTravelsWithThePanel()
+        {
+            // Same vertex channel, same branch in the glass shader.
+            Render("glass='true' color='white/0.1' haze='24' hazeColor='white' hazeSpace='self'", "pugui-haze-move-glass-0.png");
+            var before = Interior();
+            MoveByPixels("f", 19, -13);
+            Snapshot("pugui-haze-move-glass-1.png");
+            AssertSameLuma(before, Interior(), "pinned fog moves with its glass pane");
+        }
+
         // ---- lighting and glass ----------------------------------------------------------------
 
         [Test]

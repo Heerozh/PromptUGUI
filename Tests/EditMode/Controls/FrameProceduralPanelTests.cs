@@ -502,6 +502,144 @@ namespace PromptUGUI.Tests.EditMode.Controls
             StringAssert.Contains("hazeDensity", ex.Message);
         }
 
+        // ---- hazeSpace (H-D9): canvas-sampled by default, pinned to the panel on request ----
+
+        private static UIVertex Vertex(Frame f, int index)
+        {
+            using var vh = new VertexHelper();
+            PanelOf(f).BuildMeshForTests(vh);
+            var v = default(UIVertex);
+            vh.PopulateUIVertex(ref v, index);
+            return v;
+        }
+
+        /// <summary>The rect's centre in the root canvas's space — where a canvas-sampled fog reads it.</summary>
+        private static Vector2 CanvasCentre(Frame f)
+        {
+            var rt = (RectTransform)f.GameObject.transform;
+            var root = rt.GetComponentInParent<Canvas>().rootCanvas.transform;
+            return root.InverseTransformPoint(rt.TransformPoint(rt.rect.center));
+        }
+
+        private const string Placed = "color='#fff' haze='40' width='100' height='50' anchor='top-left' margin='30,_,_,70'";
+
+        [Test]
+        public void HazeSpace_DefaultsToCanvas()
+        {
+            Assert.IsFalse(PanelOf(Load("color='#fff' haze='40'")).CurrentParams.HazeSelf);
+        }
+
+        [TestCase("hazeSpace='self'", true)]
+        [TestCase("hazeSpace='canvas'", false)]
+        [TestCase("hazeSpace=''", false)]
+        public void HazeSpace_Parses(string attrs, bool expected)
+        {
+            Assert.AreEqual(expected, PanelOf(Load($"color='#fff' haze='40' {attrs}")).CurrentParams.HazeSelf);
+        }
+
+        [TestCase("hazeSpace='local'")]
+        [TestCase("hazeSpace='Self'")]
+        public void HazeSpace_BadValue_Rejected(string attrs)
+        {
+            var ex = Assert.Throws<ParseException>(() => Load($"color='#fff' haze='40' {attrs}"));
+            StringAssert.Contains("hazeSpace", ex.Message);
+        }
+
+        [Test]
+        public void CanvasSpace_LeavesTheSeedChannelsZero()
+        {
+            // Every panel written before hazeSpace existed keeps its vertex stream bit for bit.
+            var f = Load(Placed);
+            for (var i = 0; i < 4; i++)
+            {
+                var v = Vertex(f, i);
+                Assert.AreEqual(0f, v.uv0.z, $"vertex {i}");
+                Assert.AreEqual(0f, v.uv0.w, $"vertex {i}");
+            }
+        }
+
+        [Test]
+        public void SelfSpace_SeedsWithTheCanvasPositionOfTheCentre()
+        {
+            // Sampling at local + centre is sampling at the canvas position, so at the moment the
+            // seed is taken the picture is exactly the canvas-space one.
+            var f = Load(Placed + " hazeSpace='self'");
+            var expected = CanvasCentre(f);
+            Assert.Greater(expected.magnitude, 1f, "guard: the probe needs a centre away from the origin");
+            for (var i = 0; i < 4; i++)
+            {
+                var v = Vertex(f, i);
+                Assert.AreEqual(expected.x, v.uv0.z, 0.01f, $"vertex {i}");
+                Assert.AreEqual(expected.y, v.uv0.w, 0.01f, $"vertex {i}");
+            }
+        }
+
+        [Test]
+        public void SelfSpace_SeedIsFrozen_WhenThePanelMoves()
+        {
+            // A rebuild for any reason after a move — a hover tint, a resize — must not re-seed: the
+            // fog would jump on screen.
+            var f = Load(Placed + " hazeSpace='self'");
+            var first = Vertex(f, 0).uv0;
+            ((RectTransform)f.GameObject.transform).anchoredPosition += new Vector2(120f, -45f);
+            var after = Vertex(f, 0).uv0;
+            Assert.AreEqual(first.z, after.z, 0.0001f);
+            Assert.AreEqual(first.w, after.w, 0.0001f);
+        }
+
+        [Test]
+        public void SelfSpace_ReseedsWhenShownAgain()
+        {
+            // A virtual list parks its rows in an inactive pool and realises them somewhere else:
+            // taking a new seed there is a change nobody sees, and the row then matches the canvas
+            // picture at its new place.
+            var f = Load(Placed + " hazeSpace='self'");
+            var first = Vertex(f, 0).uv0;
+            f.GameObject.SetActive(false);
+            ((RectTransform)f.GameObject.transform).anchoredPosition += new Vector2(120f, -45f);
+            f.GameObject.SetActive(true);
+
+            var after = Vertex(f, 0).uv0;
+            var expected = CanvasCentre(f);
+            Assert.AreNotEqual(first.z, after.z, "guard: the move changed the centre");
+            Assert.AreEqual(expected.x, after.z, 0.01f);
+            Assert.AreEqual(expected.y, after.w, 0.01f);
+        }
+
+        [Test]
+        public void HazeSpace_Change_DirtiesVertices_OnlyWhenItChanges()
+        {
+            // The seed is vertex data, so switching the space rebuilds the quad — once.
+            var p = PanelOf(Load("color='#fff' haze='40'"));
+            var dirtied = 0;
+            p.RegisterDirtyVerticesCallback(() => dirtied++);
+            p.SetHazeSpace(true);
+            Assert.Greater(dirtied, 0, "the seed channels have to be written");
+            dirtied = 0;
+            p.SetHazeSpace(true);
+            Assert.AreEqual(0, dirtied, "the same value again is not a rebuild");
+        }
+
+        [Test]
+        public void SelfSpace_SameStyle_StillSharesOneMaterial()
+        {
+            // The seed rides the vertices: twenty rows of one style are twenty seeds, one material.
+            const string xml = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Style name='row' color='#101828' haze='40' hazeSpace='self'/>
+  <Screen name='S'>
+    <Frame id='a' class='row' width='100' height='40' anchor='top-left' margin='10,_,_,10'/>
+    <Frame id='b' class='row' width='100' height='40' anchor='top-left' margin='60,_,_,10'/>
+  </Screen>
+</PromptUGUI>";
+            UI.LoadDocument("t", xml);
+            var s = UI.Open("S");
+            var a = s.Get<Frame>("a");
+            var b = s.Get<Frame>("b");
+            Assert.AreSame(PanelOf(a).material, PanelOf(b).material);
+            Assert.AreNotEqual(Vertex(a, 0).uv0.w, Vertex(b, 0).uv0.w, "…and each row its own fog");
+        }
+
         [Test]
         public void Haze_AloneIsVisible()
         {
@@ -518,7 +656,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             const string xml = @"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>
   <Frame id='a' color='#222'/>
-  <Frame id='b' color='#222' hazeColor='cyan' hazeDrift='6' hazeDensity='1'/>
+  <Frame id='b' color='#222' hazeColor='cyan' hazeDrift='6' hazeDensity='1' hazeSpace='self'/>
 </Screen></PromptUGUI>";
             UI.LoadDocument("t", xml);
             var s = UI.Open("S");
@@ -642,9 +780,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [TestCase("haze='32'", "haze='32' hazeColor='cyan'")]
         [TestCase("haze='32'", "haze='32' hazeDrift='6'")]
         [TestCase("haze='32'", "haze='32' hazeDensity='1'")]
+        [TestCase("haze='32'", "haze='32' hazeSpace='self'")]
         public void DifferentHaze_SplitsTheMaterial(string a, string b)
         {
-            // Every one of the four has to be in the cache key, or two panels that render
+            // Every one of the five has to be in the cache key, or two panels that render
             // differently would be handed the same material.
             var xml = $@"<?xml version='1.0' encoding='utf-8'?>
 <PromptUGUI version='1'><Screen name='S'>

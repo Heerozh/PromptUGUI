@@ -822,6 +822,11 @@ float4 PuguiGradient(float2 p, float2 b, PuguiRamp r)
 // 相邻按钮落在噪声场的不同区域、自然长得不一样，而材质照旧共享；跨面板连续；同一位置同一时刻永远
 // 同一张图。代价是面板平移时雾像窗外的云一样滑过（§5.3）。
 //
+// hazeSpace="self"（H-D9）把雾钉在面板上：采样坐标换成 rect 局部坐标 + 种子，种子是面板显示后首次
+// 绘制时 rect 中心的 Canvas 坐标，扣掉外层 ScrollRect 的滚动量（ProceduralPanel 写进 uv0.zw）。局部 +
+// 中心 = 当时的 Canvas 坐标，所以静止时与 canvas 模式同一张图；之后面板怎么移动，雾都跟着走。种子是
+// 顶点数据，材质照旧共享。
+//
 // 三 octave value noise（lacunarity 2、gain 0.5），quintic 插值（比 cubic 少一圈格子感）。格点坐标
 // 先对 256 取正模再 hash，噪声以 256 格为周期平铺，于是 hazeDrift 的时间偏移永远不需要回绕。
 // 第二、三个 octave 的采样域各转一个常角（0.7 / 1.4 rad）并错开原点：value noise 的极值落在格点上，
@@ -883,6 +888,12 @@ float PuguiHazeWeight(float2 pos, float size, float drift, float t, float densit
     float w = 0.85 + 0.15 * density;
     float u = saturate((n - b) / (w - b));
     return lerp(u * u * (3.0 - 2.0 * u), u, density);
+}
+
+// 雾的采样坐标（H-D9）：self = 0 取 Canvas 坐标（默认），self = 1 取局部坐标 + 种子。uniform 分支。
+float2 PuguiHazePos(float2 canvasPos, float2 local, float2 seed, float self)
+{
+    return self > 0.5 ? local + seed : canvasPos;
 }
 
 // ---- 装饰原语（<Decor>）的形状层 ----

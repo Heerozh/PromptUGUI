@@ -259,6 +259,17 @@ namespace PromptUGUI.Controls
         }
 
         /// <summary>
+        /// 雾在哪个空间采样：<c>canvas</c>（默认）= Canvas 空间，面板是看向同一片雾的窗口，面板移动时雾从
+        /// 后面滑过；<c>self</c> = 面板自己的坐标 + 首次绘制时取的种子，雾跟着面板走（滚动列表的行、
+        /// Carousel 页、拖动的条目）。静止时两者画面相同。
+        /// </summary>
+        [UIAttr, Preserve]
+        public string HazeSpace
+        {
+            set => Panel.SetHazeSpace(HazeSpaceAttrParser.Parse(value));
+        }
+
+        /// <summary>
         /// 玻璃模式：填充改为采样模糊后的 backdrop + 边缘折射 / 打光，形状仍是同一套 SDF。
         /// 见 <c>UI.Glass</c>：没有可用 backdrop（无 URP / 关闭画质选项 / 无相机）时自动退化成
         /// 半透明面板。

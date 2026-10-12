@@ -24,7 +24,7 @@ namespace PromptUGUI.Controls
     /// <remarks>
     /// The attributes are declared once here rather than per control because
     /// <c>ControlMeta.Build</c> reflects with <c>BindingFlags.Public | BindingFlags.Instance</c>,
-    /// which includes inherited properties — so a subclass gets all twenty for free.
+    /// which includes inherited properties — so a subclass gets all twenty-one for free.
     /// </remarks>
     public abstract class ProceduralControl : Control
     {
@@ -197,6 +197,13 @@ namespace PromptUGUI.Controls
         public string HazeDensity
         {
             set { var v = HazeDensityAttrParser.Parse(value); Surface.Declare(p => p.SetHazeDensity(v)); }
+        }
+
+        /// <summary>雾的采样空间：<c>canvas</c>（默认，雾不动、面板是窗口）或 <c>self</c>（雾跟着面板走）。</summary>
+        [UIAttr, Preserve]
+        public string HazeSpace
+        {
+            set { var v = HazeSpaceAttrParser.Parse(value); Surface.Declare(p => p.SetHazeSpace(v)); }
         }
 
         /// <summary>玻璃模式：填充改为采样模糊后的 backdrop + 边缘折射 / 打光。</summary>
