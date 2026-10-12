@@ -218,3 +218,5 @@ XSD generator tests use substring assertions (`StringAssert.Contains`) rather th
 `docs~/superpowers/specs/<date>-<topic>-design.md` is the spec format; `docs~/superpowers/plans/<date>-<topic>.md` is the implementation plan format. New milestones go through brainstorming → spec → plan → feature branch → PR → merge to main. Recent merges (PR #1 M3, PR #3 M4) used merge commits with `--delete-branch`.
 
 DO NOT Commit any file to main branch!
+
+**本仓库是开源库；用来跑测试 / 试用的宿主工程和下游项目可能是闭源的私人项目。** 不要把它们的任何具体内容写进本仓库或它的公开渠道：PR 标题与描述、commit message、spec / plan、skill、README、代码注释、测试数据 —— 包括工程名、路径、文件 / 界面 / 样式名、试跑结果与统计、截图。需要拿真实工程验证时，仓库里只写与具体工程无关的结论（「在宿主工程中跑通」），具体情况只在对话里汇报。

@@ -462,12 +462,11 @@ M0（`2656256`）、M1（`214718e`）、M2（`5584db8`）、`<Toggle fontSize>`�
 - **Editor 侧只有一个「按项目 settings 跑」的入口 `UIXmlLintMenu.LintConfigured`**（commons + 字号下限），菜单与 UI Preview 的
   Lint 按钮都走它。§7 漏了第二个前端：UI Preview 的按钮原先直接调 `Lint(…, commons)`，字号下限没带上，菜单报而预览不报。
 - **规则内部按「节点 + itemTemplate 宿主链」聚合各目标的读数**（`VisitKey`）：同一份行模板挂在两个缩放不同的列表下时，是两次独立的访问。
-- 验证（ssw_re_client，Unity 6000.7.0b3，Unity MCP）：EditMode 5020 / EditorOnly 466 / PlayMode 265 全绿；
+- 验证（宿主工程，Unity 6000.7.0b3，Unity MCP）：EditMode 5020 / EditorOnly 466 / PlayMode 265 全绿；
   `dotnet build .lint/UIXmlLint`、`dotnet format --verify-no-changes`（whitespace / style / analyzers）通过。
   CLI 实跑：包自带的 `Runtime/Resources/` 在 `--font-floor 11 --target 750x1334@2x --target 1920x1080@1.5x` 下报 18 条 ——
   **内置 modal（MessageBox / InputBox / MarkdownBox / CenteredSlideBox）与 TutorialOverlay 在 iPhone SE 竖屏上全部低于 11dp**
-  （它们的竖屏 reference 是 1080x1920，正文 18、标题 24、按钮默认 24），属于库自身的默认皮肤问题，另案处理；
-  ssw_re_client 在 `Laptop 150%=1920x1080@1.5x` + `Laptop=1366x768` 下报 18 条（`Round.ui.xml` 的 6 号字，reference 640x360 → ×3 → 9.5dp）。
+  （它们的竖屏 reference 是 1080x1920，正文 18、标题 24、按钮默认 24），属于库自身的默认皮肤问题，另案处理（见 §15）。
   §8-29、30 的 Unity 菜单手工验证、Inspector 外观未做（Inspector 只确认了绘制无异常）。
 
 ## 14. 追加：节点级 `fontFloor`（2026-10-12，作者确认）
@@ -507,6 +506,3 @@ Steam Deck 硬底线 ≈ 7dp、推荐 ≈ 10dp，iOS 11dp，Xbox 主机 ≈ 13dp
   默认 16。弹窗是 `reference="1920x1080" reference.portrait="1080x1920"`，现代手机横竖都是 ≈0.33dp/单位，需 ≥21。标题 24、按钮 24 都过。
   笔记本目标无问题。Samples 无问题。**已改**（作者确认）：四处正文都调到 21；`BuiltinFontFloorTests` 对全部 8 份内置文档
   在 7dp + 这 5 个目标下断言无 `PUI-FONT-FLOOR`，以后默认皮肤的字被改小会红。
-- **ssw_re_client**（它自己的 settings：7dp + 上述 4 个手机目标 + Desktop 1080p）：146 条，**全部来自手机目标**（Desktop 1080p 0 条）。
-  6–7dp 97 条、5–6dp 39 条、<5dp 10 条；集中在 Round（`Planet` 36、`Round` 25、`Commander` 16、`ShipDesign` 14，模板约 52）。
-  根因是 640x360 的 reference 配 5–7 号字（部分再 `scale ×0.8`）：手机横屏上 1 单位 ≈ 1dp。只有 1 条与 badge 相关，大部分是数据密集的面板文字。
