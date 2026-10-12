@@ -66,6 +66,8 @@ The same key shape applies to `<Import src="...">` inside those documents, to th
 
 **Common libraries (the commons pool)** — project-wide shared `<Template>` / `<Style>` / `<Theme>` files merged into every Screen automatically (no `<Import>` at call sites) are **declared in the settings asset, not loaded from code**: `Create → PromptUGUI → Settings` (one `PromptUGUISettings` asset per project, anywhere under `Assets/`; the package registers it in Preloaded Assets) → **Common Libraries** → one row per library: `src` = the resolver key (same shape as `<Import src>`, e.g. `common/Theme.ui` under `UseResourcesResolver("UI")`, the Address under Addressables), `as` = optional namespace (`<ui.Card/>`, `class="ui:card"`). That one list is what the runtime loads and what the lint tooling merges before its expanded pass (so a commons-only `class=` is never a false `PUI-EXPAND`) — there is no code-side registration to keep in sync with it.
 
+**Font Floor (lint)** — the same asset's `fontFloor` (dp, `0` = off) and `fontFloorTargets` (`WxH@D` screens) drive `PUI-FONT-FLOOR`, which reports text that renders below the floor on any target. Lint-only: nothing at runtime reads them, and there is no C# API — see the XML skill's "Font-size floor".
+
 ```csharp
 // Nothing to write for the common case: LoadDocumentAsync (and the modal loader, and hot reload)
 // call UI.EnsureCommonLibrariesAsync() first, so the pool is filled on the first load and refilled
@@ -125,7 +127,7 @@ The callback fires once per `Open()` (so also re-fires on hot-reload, since relo
 
 **CanvasScaler**: the `<Screen reference="WxH">` XML attribute is the recommended way to switch from `ConstantPixelSize` to `ScaleWithScreenSize`. If you need `match=0.5` or a custom `referencePixelsPerUnit`, modify `canvas.GetComponent<CanvasScaler>()` inside the configurator — but **don't fight the XML path on the same property** because Variant flips will re-apply the XML setting and overwrite your configurator change.
 
-**像素美术整数缩放**：`UI.DefaultScaleMode = ScaleMode.Pixel`（启动期一次性设置）让所有 `<Screen>` 默认走 `ConstantPixelSize` + 整数倍 `scaleFactor`。每个 Screen 必须配 `reference="WxH"` 作为设计分辨率。具体某个 Screen 想 opt-out 写 XML `scale-mode="auto"`。详见 [authoring-promptugui-xml](../authoring-promptugui-xml/SKILL.md) 的 Canvas 段。
+**像素美术整数缩放**：`UI.DefaultScaleMode = ScaleMode.Pixel`（启动期一次性设置）让所有 `<Screen>` 默认走 `ConstantPixelSize` + 整数倍 `scaleFactor`。每个 Screen 必须配 `reference="WxH"` 作为设计分辨率。具体某个 Screen 想 opt-out 写 XML `scale-mode="auto"`。详见 [authoring-promptugui-xml](../authoring-promptugui-xml/SKILL.md) 的 Canvas 段。The font-floor lint (`PUI-FONT-FLOOR`, XML skill "Font-size floor") cannot see `UI.DefaultScaleMode` / `UI.MinPixelScale` / `UI.PixelScalePowerOfTwo`: it judges a `<Screen>` without `scale-mode` as `auto` and the pixel ladder at their defaults — a project that relies on the C# default should spell `scale-mode="pixel"` on those Screens for the lint to measure them right.
 
 **Pixel 模式下限 `UI.MinPixelScale`**：默认 `0f` = 不限制（小屏算到 `0.5 / 0.25 / 0.125 ...` 自由下落）。设为 `0.5f` / `1f` 等限制 factor 下限——小屏不再缩小内容，而是让内容溢出（你 `anchor="stretch"` 的元素会被物理屏幕吃边距）。建议值在算法台阶上 `{0.5, 1, 2, ...}`；off-ladder 值（如 `0.7f`）会被原样使用但破坏整数像素对齐。只对 Pixel 模式生效，Auto 模式忽略。
 

@@ -1,6 +1,6 @@
 # 字号下限 lint —— `PUI-FONT-FLOOR`：按目标屏幕算出文字的实际大小（dp），低于项目下限报错
 
-> 状态：**草案**（§11 决策按推荐已定；分支 `feat/font-floor-lint`）。
+> 状态：**已实施**（§11 决策按推荐已定；分支 `feat/font-floor-lint`，实施记录见 §13）。
 > 作者指示（2026-10-12）：`UI.DefaultScaleMode` 保持运行时 C# 设置、可按 Screen 混用，**不**进 settings；
 > lint 对没写 `scale-mode` 的 Screen 按 `auto` 算。
 > 相关：`2026-09-18-commons-settings-design.md`（settings 资产是 lint 与运行时共读的唯一声明源、`SettingsAssetReader`、
@@ -442,3 +442,28 @@ Core 抽取（纯重构，先跑全绿）：
   「lint 看不到这个开关，用 pixel 的 Screen 请显式写 `scale-mode`」。
 - `.lint/UIXmlLint/README.md`：Font floor 一节（参数、TMP 默认字号发现、与 settings 的优先级）。
 - `AGENTS.md`：UIXmlLint 段补一句 commons 之外 settings 还提供 font floor。
+
+## 13. 实施记录（2026-10-12，分支 `feat/font-floor-lint`）
+
+M0（`2656256`）、M1（`214718e`）、M2（`5584db8`）、`<Toggle fontSize>`（`7381ea0`）与文档已落地。与上文的出入：
+
+- **`SettingsAssetReader` 拆成三个方法**：`ReadFontFloor(yaml) → float`、`ReadFontFloorTargets(yaml) → List<FontFloorTarget>`、
+  `ReadTmpDefaultFontSize(yaml) → float?`（§5.7 写的是一个返回元组的 `ReadFontFloor`）。列表读取泛化成按键名读平铺对象列表，
+  `ReadCommonLibraries` 改走同一个实现，行为不变。
+- **CLI `--target` 多认一种写法 `[name=]WxH@D[,variant…]`**：不给名字时仍以屏幕串作名。名字与屏幕串相同时，finding 里只写一次屏幕串
+  （`on '750x1334@2x' (portrait; …)`），不再重复。
+- **settings 资产在给了 `--commons` 时也会读**（字号下限要用）；以前 `--commons` 时完全不碰资产。显式 `--settings` 读不了仍是 exit 2，
+  自动发现的读不了仍视为「没有 settings」。
+- **「没有可用目标」的 Note 文案**改为 `no usable fontFloorTargets are configured`：行都写坏了时，原文案「没有配置」会误导。
+- **Editor 读 TMP 默认字号时先 `Resources.Load<TMP_Settings>("TMP Settings")`**：`TMP_Settings.instance` 在 essentials 没导入时会弹
+  TMP 的导入窗口，lint 不该弹窗；取不到按 36。
+- **主题遍的比较键**是 `Origin:Line|Via|Code|Tag|Id|Message`（`DocumentLinter.PlacedKeyOf`），即「同一处、同一结论」；§5.6 说的「节点 →
+  结论」字典没有用上：消息里已经带着全部数字，按位置比消息就够了，也自然覆盖了同一模板体被多次实例化的情形。
+- **规则内部按「节点 + itemTemplate 宿主链」聚合各目标的读数**（`VisitKey`）：同一份行模板挂在两个缩放不同的列表下时，是两次独立的访问。
+- 验证（ssw_re_client，Unity 6000.7.0b3，Unity MCP）：EditMode 5020 / EditorOnly 466 / PlayMode 265 全绿；
+  `dotnet build .lint/UIXmlLint`、`dotnet format --verify-no-changes`（whitespace / style / analyzers）通过。
+  CLI 实跑：包自带的 `Runtime/Resources/` 在 `--font-floor 11 --target 750x1334@2x --target 1920x1080@1.5x` 下报 18 条 ——
+  **内置 modal（MessageBox / InputBox / MarkdownBox / CenteredSlideBox）与 TutorialOverlay 在 iPhone SE 竖屏上全部低于 11dp**
+  （它们的竖屏 reference 是 1080x1920，正文 18、标题 24、按钮默认 24），属于库自身的默认皮肤问题，另案处理；
+  ssw_re_client 在 `Laptop 150%=1920x1080@1.5x` + `Laptop=1366x768` 下报 18 条（`Round.ui.xml` 的 6 号字，reference 640x360 → ×3 → 9.5dp）。
+  §8-29、30 的 Unity 菜单手工验证、Inspector 外观未做（Inspector 只确认了绘制无异常）。

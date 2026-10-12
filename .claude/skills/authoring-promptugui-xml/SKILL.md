@@ -504,6 +504,7 @@ Image + uGUI Toggle + 自动 label。R3 `OnValueChanged: bool`。`<Toggle>静音
 | `sprite` | sprite key | — | **勾选框** sprite。⚠️ **行为已变**：它过去指向 checkmark（跟 `color` 不是同一层），现在与 `color` 同层、与全库其它控件一致。换对勾图形请用 `checkmark` |
 | `checkmark` · `checkmarkColor` | sprite key / color | — | **对勾**图形与颜色。`checkmark=""` 去图 |
 | `font` | string | `default` | |
+| `fontSize` | float | `14` | **label** point size (the checkbox keeps its 20×20). Variant-switchable (`fontSize.portrait="28"`) |
 | `textColor` | hex / CSS / token | — | **label 文字色**（区别于 `color`=背景）；支持渐变 / `/alpha`；空=默认 ink |
 | `hoverColor` · `pressedColor` · `selectedColor` · `disabledColor` | hex / CSS / token | — | **绝对**单态 bg 色（仅 targetGraphic，不扩散）；`selectedColor`=勾选时 bg 基色（同 `<Tab>` 的 selection-aware base，hover/pressed/disabled 叠在上面）；见 states.md |
 | `hoverModulate` · `pressedModulate` · `selectedModulate` · `disabledModulate` | hex / CSS / token | white | **相对**乘子，扩散到 bg + 所有子 Graphic；子节点 `stateReact="false"` 退出；见 states.md |
@@ -1807,6 +1808,44 @@ Caveats:
 
 **Variant-overridable**: `scale.mobile="0.5"` / `scale.portrait="2x"` follow the standard variant override shape. When a variant where `scale` is unresolved becomes active, `localScale` resets to 1 **and** the box-preserving inflation is removed (geometry returns to its plain margin-resolved baseline). Clearing under a variant is legal: `scale.mobile=""` restores identity (same convention as `size.mobile=""`); an empty BASE `scale=""` remains a parse error.
 
+### Font-size floor (`PUI-FONT-FLOOR`)
+
+`fontSize` is in canvas units, not what the player sees. On a device a text renders at
+
+```
+dp = fontSize × canvas factor × Π ancestor localScale ÷ OS scale
+```
+
+and the canvas factor differs per device (`min(screen ÷ reference)` per axis under `reference=`), so a size that reads fine on the author's monitor can be unreadable on a small phone. The lint checks every text against a project floor on a list of target screens, both declared in the `PromptUGUISettings` asset (**Font Floor (lint)** section; lint-only, the runtime never reads them):
+
+- **`fontFloor`** — the floor in **dp** (iOS pt ≈ Android dp ≈ CSS px ≈ Windows effective px). dp is a visual-angle unit: each platform tunes it to its device class's viewing distance, so one number holds on a phone, a monitor and a TV. **11** is Apple's iOS minimum (macOS 10pt, tvOS 23pt at 1080p ≈ 11.5dp). `0` (the default) turns the rule off.
+- **`fontFloorTargets`** — rows of `name` / `screen` / `variants`. `screen` is `WxH[@D]`: the canvas in **physical pixels** at the **OS scale** (iOS `@2x`/`@3x`, Android density, Windows 125% = `@1.25`, a 1080p TV `@2`): `750x1334@2x` is an iPhone SE upright. Taller than wide activates `portrait`, otherwise `landscape` — a device checked in both orientations is two rows. `variants` lists any other variant active on that screen (`mobile tv`); writing `portrait` / `landscape` there is an error. The Inspector's **Add preset** menu fills common devices.
+
+For each `<Screen>` × target the lint rebuilds the tree the runtime builds under that target's variants — `reference.*` / `scale-mode.*` / `fontSize.*` / `scale.*` overrides resolved, active `<Variant><Add>` blocks hung where they go, `itemTemplate` rows under their `<ScrollList>` / `<TabBar>` / `<Carousel>` — with the runtime's own formulas (Expand, the pixel ladder, `scale="N"` / `"Nx"` / `"<r>r"`). One finding per node, led by the worst target, with the fix:
+
+```
+Main.ui.xml:42: [PUI-FONT-FLOOR] <Text id='hint'>: fontSize 28 renders at 9.7dp on 'iPhone SE' (750x1334@2x portrait;
+  canvas ×0.694 from reference 1080x1920) — below the 11dp floor. Needs fontSize ≥ 32. Also below on 'iPhone 16' (10.2dp).
+```
+
+Where the size came from is named — `fontSize.portrait 20`, `fontSize 20 (class="caption")`, `default fontSize 24` — and a finding a theme causes ends `(under <Theme name='dark'>)`.
+
+**Which tags carry text, and their size when `fontSize` is not written:** `<Text>` (TMP's default, 36 unless TMP Settings say otherwise), `<Btn>` / `<Tab>` 24 and `<Toggle>` / `<Collapsible>` 14 (only once they have `text`, text content or a `fontSize`), `<InputField>` 14, `<TabMenu>` 24, `<Markdown>` 16 (body; headings are scaled up from it). **`<Dropdown>` has no `fontSize`** — its caption and options are a fixed 14, so its fix is a `scale` on the control (`Needs scale ≥ 2.27 on this node`).
+
+**Fixes, in order of preference:** raise `fontSize` (in the class pack if it came from one); give small phones their own reference (`reference.portrait="…"`) or size (`fontSize.portrait="…"`); render a block at device density with `scale="Nx"`.
+
+**What the lint cannot see** — so judge accordingly:
+
+| Not visible | The lint assumes | Error direction |
+|---|---|---|
+| `UI.DefaultScaleMode` (C#) | a `<Screen>` without `scale-mode` is `auto` | the pixel ladder is ≤ Expand, so a Screen that runs pixel by default is judged too kindly — write `scale-mode="pixel"` on it |
+| `UI.MinPixelScale` / `UI.PixelScalePowerOfTwo` | 0 / false | a floor raises the factor (lint too strict); power-of-two lowers it (lint too kind) |
+| `UI.CanvasConfigurator` changing the match mode | Expand | depends |
+| variants C# turns on that a target does not list | inactive | — |
+| C#-set sizes, rich-text `<size=…>`, Markdown content, Carousel `edgeScale`, animations, the safe area | not counted | — |
+
+A `<Screen canvas="world">` is skipped. The rule runs on the expanded pass only — a document whose `<Import>` cannot be resolved on disk skips it along with the other expanded-pass rules. Template bodies no Screen invokes are not checked (no canvas to measure against).
+
 ## Modal / Loading screens (XML contract)
 
 Custom `MessageBox` / `Loading` overrides are regular `<Screen>` documents — the modal subsystem just instantiates them through the normal pipeline (anchor / margin / Variant / locale all work). Two specifics XML authors must know:
@@ -2002,6 +2041,9 @@ SCREEN ATTRS  canvas="overlay|camera|world"    default overlay; renderMode only
                                                .variant overrides supported (reference.mobile=...)
               scale-mode="auto|pixel"          pixel = ConstantPixelSize + integer factor
                                                requires reference; project default via UI.DefaultScaleMode
+FONT FLOOR    PUI-FONT-FLOOR                   text below PromptUGUISettings.fontFloor (dp) on a fontFloorTargets
+                                               screen (WxH@D = physical px @ OS scale); the lint judges a Screen
+                                               without scale-mode as auto — see "Font-size floor"
 
 I18N XML      <Text>...</Text>                 extract + translate
               <Text tr="false">...</Text>      skip
