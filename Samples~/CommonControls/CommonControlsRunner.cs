@@ -124,6 +124,17 @@ namespace PromptUGUI.Samples.CommonControls
             }).AddTo(screen);
 
             screen.Get<RawImage>("gradient").Texture = MakeGradientTexture();
+
+            // Cooldown 自己走表：Start 之后不用每帧推 value，转完发 OnReady（XML 侧的 on="ready" 同时弹一下按钮）
+            var skillCd = screen.Get<Cooldown>("skillCd");
+            screen.Get<Btn>("skillBtn").OnClick.Subscribe(_ =>
+            {
+                if (!skillCd.IsCooling) skillCd.Start(5f);
+            }).AddTo(screen);
+            // 一个反复续上的 buff：每次走完立刻重新开始
+            var buff = screen.Get<Cooldown>("buffRing");
+            buff.OnReady.Subscribe(_ => buff.Start(8f)).AddTo(screen);
+            buff.Start(8f);
         }
 
         // ③ 列表轮播：Carousel / ScrollList 均走 BindItems

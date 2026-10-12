@@ -1,6 +1,6 @@
 # `<Cooldown>` —— 冷却转圈：SDF 径向裁切（扇形暗罩 / 环形弧）+ 自带时钟 + `ready` / `cooling` 事件
 
-> 状态：**设计中**（§12 决策 2026-10-13 与作者对齐，按推荐已定；分支 `feat/cooldown-control`）。
+> 状态：**已实施**（§12 决策 2026-10-13 与作者对齐，按推荐已定；分支 `feat/cooldown-control`，M0–M5 分步提交，实施记录见 §14）。
 > 相关：
 > `2026-05-27-progress-control-design.md`（PB-D6：「radial 不在 v1，未来开 `<Cooldown>` 控件单独做」—— 本文兑现；PB-D1 只读 / 无事件 —— 本文正是因为要事件才不扩 Progress）、
 > `2026-09-18-progress-fill-surface-design.md`（fill 是主表面；`value` 是 SDF 里的一刀、参数走 `uv1.zw` 顶点通道、`value=0` 不出几何 —— 本文在同一条通道上加径向码）、
@@ -370,7 +370,7 @@ Cooldown 是叶子，通常与它装饰的东西做兄弟（图标、按钮内�
 ## 9. 演示同步（同 PR）
 
 - `Samples~/CommonControls` 的「展示反馈」页：在 Progress 旁加一组冷却 —— 一颗技能按钮（图标 + 暗罩 + 倒计时，点击 `Start(5)`）、一个发光的 buff 环、一个加载转圈（§3 例 ④）；`CommonControlsRunner.cs` 加点击即开始冷却的几行。
-- `Samples~/ProceduralStyle`：皮肤文件里给 Cooldown 一个 `class`（环 + glow），证明主题能换掉冷却的外观。
+- 主题换皮由 `CommonControls` 自己证明：它的农场皮与玻璃皮各给 `cooldown` / `ring` 一个同名属性包（形状属性两边都写，`PUI-THEME-STYLE-SHAPE` 不报）。`ProceduralStyle` 不再另加（见 §14）。
 
 ## 10. SKILL / 文档更新（同 PR，英文）
 
@@ -416,3 +416,20 @@ Cooldown 是叶子，通常与它装饰的东西做兄弟（图标、按钮内�
 | M3 | `ready` / `cooling` 触发器：`TriggerSpec`、就近解析、Animation 首帧建立、`<Show>` 登记、`<Trigger>` | M2 |
 | M4 | lint：`CooldownRules` + 既有规则扩展 + `FontFloorRules` 行；CLI 跑遍 `Runtime/Resources` 与 `Samples~` | M1–M3 |
 | M5 | 样例 + SKILL（新 reference + 主 SKILL + animations + progress 指针 + C# skill）+ 主 spec / PB-D6 指针 + `AGENTS.md` 路由 | M1–M4 |
+
+## 14. 实施记录（2026-10-13，分支 `feat/cooldown-control`）
+
+按 §13 落地，Red 先行；M1 与 M2 的 `Cooldown.cs` 交织在一起，合为一次提交。
+
+- **M0** `feat(procedural)`：`UI-PanelSDF.cginc` 加 `PuguiRing`（onion）/ `PuguiSectorSpace` / `PuguiSdSector`（sdPie 无限半径）/ `PuguiSdArc` / `PuguiSdRadialCut`；线性 round 判定收紧到 `2.5 < |code| < 4.5`。`UI-ProceduralPanel.shader` 加 `_RingWidth` / `_Radial`，径向在 `_Radial` 的 uniform 分支里求值（§5.2 新增的那段：非 Cooldown 面板不付 `sin` / `cos`）。`PanelParams.RingWidth` / `Radial` 进键。`ProceduralPanel.SetRadialCut` / `SetRingWidth`；`ClearCut` 同时关掉径向开关。`ProceduralRadialCutTests`：方形四角被扫到、半扇 / 反向扇、满圈 = 不切、空扇无几何（含光晕）、光晕包住两条切边并溢出、描边沿切边、圆环 / 圆角方环带宽一致、圆头越过扇区边。渲染图人工看过。
+- **M1 + M2** `feat(cooldown)`：控件、扫掠折算、SDF / 位图两路、环 / 圆头、glass 拒绝、`CooldownClock`、倒计时。与本文的差别：
+  - **圆头能否成立由 `ProceduralPanel` 在出网格时判定**（rect 在那里才确定，resize 会重判），不是 Cooldown；不成立时写平端码并告警一次。
+  - **隐藏时照样调 `SetFraction`**：隐藏的面板只存下切割参数（`SetVerticesDirty` 对失活 Graphic 是空操作），显示时 `OnEnable` 自然按最新值重建 —— 不需要 §5.6 设想的「重新激活时重算」。
+  - **`PeekRuntimeState` 走表时返回一个永远不等于 XML 字面量的标记**：开始冷却的那一帧 fraction 恰好是 1，若 XML 也写了 `value="1"`，ReSolve 会把它当成「未被运行时改过」写回并停表。
+  - **`ProceduralSurfaceRolloutTests` 的例外**：「不写形状属性就逐字节不变 / 能退回 Image」两条契约对 Cooldown 用位图 fill 跑；另加 `Cooldown_AColourFill_IsTheSurfaceFromTheStart` 钉住「颜色 fill 一开始就是表面」（§5.4）。
+  - **`willRenderCanvases` 在 Canvas 全部失活时仍逐帧触发**：`CooldownPlayTests.ACooldownUnderAnInactiveCanvas_StillGoesReady` 在宿主工程实跑通过（场景里没有任何激活的 Canvas），§5.6 的 PlayerLoop 退路不需要。
+  - 无 Domain Reload 的 Play 进出：`CooldownClock` 加 `SubsystemRegistration` 复位（`GlassRuntime` 先例）。
+- **M3** `feat(trigger)`：`TriggerKind.Ready` / `Cooling`、`TriggerSourceResolver.FindCooldown`（就近）、`Trigger.OnStateEstablished`（`<Trigger>` 默认静默，`<Animation>` 落终态且不发 `OnFire` / `OnReverse`）、`<Show>` 用 `Merge(OnReady, OnCooling)` 重评。§4.3「开屏不补发」是 review 中追加的（见 §12）。`UI.Open` 先建全树再按后序 apply，所以写在 Cooldown 前面的 `<Show>` 也能找到它（`AShow_WrittenBeforeTheCooldown_StillFindsIt`）。
+- **M4** `feat(lint)`：`CooldownRules.Check`（九个码中的七个）+ `CheckSources`（屏幕级就近解析，原始遍里遇到模板调用即静默，有 `<Add>` 块的屏不报「找不到」）；`ScreenInstantiator` 只重复 `RuntimeCodes`（值越界 / 子元素 / 位图形状），其余由 setter 抛错或控件自己告警，避免同一问题报两次。`RaycastRules` 永远穿透列表、`FontFloorRules.TextTag.OnlyWhenTrue`（倒计时只在 `countdown="true"` 时计入，`FontFloorDefaultsTests` 钉 24）。CLI 跑 `Runtime/Resources` 与 `Samples~` 零问题。
+- **M5** 文档与样例：新 `reference/controls-cooldown.md`；主 SKILL 目录行 + `### <Cooldown>` 小节 + 程序化标签 / 主表面表 / 穿透列表 / 速查；`animations.md` 的 `on=` 表、就近解析段、首帧建立段、规则列表；C# skill；主 spec / PB-D6 指针；`AGENTS.md` 路由。样例只改 `CommonControls`（展示页：技能按钮 + buff 环 + 加载转圈；农场 / 玻璃两套皮各给 `cooldown` / `ring` 同名包，换皮即证明主题能换冷却外观），`ProceduralStyle` 未加。
+- **PlayMode 全量抓到的问题**：开始冷却的那一帧，时钟 tick 读到的时间与 `Start` 相同；`Time.time` 大时 `end − now` 会舍入得比总时长多一点，fraction 超过 1。`Advance` 改为 clamp 到 [0, 1]，`ALateClock_NeverPushesTheFractionPastOne` 用 100000 s 的钉表确定性复现。

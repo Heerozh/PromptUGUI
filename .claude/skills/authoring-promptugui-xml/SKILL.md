@@ -116,6 +116,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 | `<Scrollbar>` | `<ScrollList>` / `<Dropdown>` 的滚动条**部件子元素**：轨道 = 主表面（`radius` 等同 `<Frame>`），滑块 `handle*`；不写就是默认条（见本节末 **`<Scrollbar>`** 小节） |
 | `<InputField>` | TMP_InputField，`OnValueChanged` / `OnEndEdit` / `OnSubmit:string` |
 | `<Progress>` | 只读线性进度条 |
+| `<Cooldown>` | Cooldown sweep: a dark veil over a skill icon, or (`thickness`) an arc around it; own clock (`Start` / `OnReady`), `countdown`, `on="ready"` / `on="cooling"` (→ `reference/controls-cooldown.md`) |
 | `<TabBar>` | 互斥选项卡容器 |
 | `<Tab>` | 选项卡（`bind` 显隐一个兄弟控件，通常 `<Frame>` / `<Pages>`） |
 | `<TabMenu>` | 弹出式 Tab 组：收起=选中项 icon+文字+箭头，展开=一列 `<Tab>` |
@@ -226,7 +227,7 @@ There is still **no `Image`** on a Frame, so `sprite=` does nothing (`PUI-CONTAI
 - **Border, both glows, glass and `mask="self"` follow the new outline automatically** — no extra attributes, and an inner border keeps its width around a chamfer and around the inner corner of a notch.
 - Keywords are lower-case. `bevel` / `scoop` / `CUT` / `R6` are parse errors that name the legal words.
 
-> **Which tags draw procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `innerGlow` / `innerGlowColor` / `intensity` / `haze` / `hazeColor` / `hazeDensity` / `hazeDrift` / `hazeSpace` / `glass` (+ its tuning params) work on **`<Frame>`, `<Btn>`, `<Tab>`, `<TabMenu>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>`, `<Scrollbar>`, `<Collapsible>` and `<Progress>`** — see **Procedural surfaces** below for what they do on a control.
+> **Which tags draw procedurally.** `radius` / `borderWidth` / `borderColor` / `glow` / `glowColor` / `innerGlow` / `innerGlowColor` / `intensity` / `haze` / `hazeColor` / `hazeDensity` / `hazeDrift` / `hazeSpace` / `glass` (+ its tuning params) work on **`<Frame>`, `<Btn>`, `<Tab>`, `<TabMenu>`, `<Toggle>`, `<Slider>`, `<Dropdown>`, `<InputField>`, `<ScrollList>`, `<Scrollbar>`, `<Collapsible>`, `<Progress>` and `<Cooldown>`** (no `glass` on `<Cooldown>`) — see **Procedural surfaces** below for what they do on a control.
 >
 > On any other tag — `<Image>`, `<RawImage>`, `<Text>`, `<Icon>`, `<TabBar>`, `<Carousel>`, `<Markdown>` — they are accepted by the parser and then silently dropped; `PUI-CONTAINER-VISUAL-ATTR` is the only thing that tells you. (`<Image>` / `<RawImage>` are deliberate: a sprite is their whole point, and a procedural rectangle is what `<Frame>` is for.)
 >
@@ -455,6 +456,7 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 | `<Slider>` | **轨道**（不含滑块） |
 | `<Scrollbar>` | **轨道**（滑块走 `handle*`，见下） |
 | `<Progress>` | **The fill** (the filled segment) — its bitmap is `fill=`, its colour `fillColor`. The track (`bg` / `bgColor`) only borrows `radius`; a track that wants border / glass / glow of its own is a `<Frame>` wrapped around the bar. Note the split from `<Slider>`: `<Slider glow>` lights the track, `<Progress glow>` lights the fill. |
+| `<Cooldown>` | **The fill** (the swept veil / arc), as on `<Progress>`. A colour fill is **always** the SDF surface — even with no `radius` — because only the SDF can sweep a colour (and its sweep edge is anti-aliased). `glass` is refused (`PUI-CD-GLASS`). |
 
 规则：
 
@@ -666,6 +668,36 @@ TMP_InputField；R3 `OnValueChanged` / `OnEndEdit` / `OnSubmit: string`。`<Inpu
 | `mode` | `scale` / `fill` | `scale` | The same word for both kinds of fill: `scale` = the shape shrinks to the value (bitmap rect anchored / SDF box shrunk — round leading end on a pill), `fill` = cropped at the value (`Image.fillAmount` / half-plane — straight edge) |
 | `direction` | `horizontal` / `vertical` / `reverse-horizontal` / `reverse-vertical` | `horizontal` | |
 | `tint` | `multiply` / `linear` | — | 作用于 fill+bg+frame；见 **Tint blend modes** |
+
+### `<Cooldown>`
+
+A cooldown sweep — the radial counterpart of `<Progress>`, with its own clock. Two looks from one control: a **veil** (the default: a dark sector over a skill icon that the sweep edge uncovers, square corners included) and, with `thickness`, an **arc** around the icon. A leaf, always click-through: put it **beside** what it covers, e.g. inside the `<Btn>` after the icon. **Recipes, sweep geometry, the clock, `ready` / `cooling` resolution and the lint table: [`reference/controls-cooldown.md`](reference/controls-cooldown.md).**
+
+```xml
+<Btn id="skill" size="64x64" radius="10">
+  <Icon name="skill:fireball" anchor="stretch"/>
+  <Cooldown id="cd" anchor="stretch" radius="10" countdown="true"/>
+</Btn>
+<Cooldown size="48x48" radius="pill" thickness="4" cap="round" bgColor="white/0.15" fillColor="accent" glow="6"/>
+```
+
+| 属性 | 类型 / 取值 | 默认 | 说明 |
+|---|---|---|---|
+| `value` | float `[0..1]` | `0` | The **remaining** fraction (1 = just started, 0 = ready). Setting it stops the clock. C#: `Start(total[, remaining])` runs the clock instead |
+| `origin` | `top` / `right` / `bottom` / `left` | `top` | Where the sweep edge starts and ends |
+| `clockwise` | bool | `true` | Which way the edge travels while cooling |
+| `draw` | `remaining` / `elapsed` | `remaining` | The part not yet swept (a veil that shrinks) or the part already swept (an arc that grows) |
+| `thickness` | px | — | A ring this wide along the shape's edge instead of the solid shape; a colour track follows |
+| `cap` | `flat` / `round` | `flat` | Ring ends. `round` only on a circular ring (`radius="pill"`, square rect) — otherwise flat + `PUI-CD-ROUND-CAP` |
+| `fill` · `fillColor` | sprite key · colour | — · `black/0.6` | A colour fill is always the SDF surface; a bitmap fill sweeps via `Image.Filled` + `Radial360` |
+| `bg` · `bgColor` | sprite key · colour | — | The uncut track; off until one is written (`""` turns it off again) |
+| `radius` · `borderWidth` … `haze*` | as `<Frame>` | — | Land on the fill and follow the cut edges; `radius` also shapes a colour track. **No `glass`** (`PUI-CD-GLASS`) |
+| `time` | `scaled` / `unscaled` | `scaled` | The clock: `scaled` pauses with the game (`timeScale = 0`) |
+| `countdown` | bool | `false` | Seconds left in the middle while the clock runs (`8`, `0.4`, `1:30` — always rounded up) |
+| `tenthsBelow` | seconds ≥ 0 | `1` | Below this the countdown shows tenths; `0` = never |
+| `font` · `fontSize` · `textColor` | as `<Btn>` | `default` · `24` · `white` | The countdown text |
+
+Events: `on="ready"` / `on="cooling"` (and `@<id>`) on `<Animation>` / `<Trigger>` / `<Show>`; a bare one binds to the **nearest** `<Cooldown>`. A plain `<Trigger>` is never fired for the state found at open — see `reference/animations.md`.
 
 ### `<TabBar>`
 
@@ -999,7 +1031,7 @@ Other notes:
 - `interactable="false"` does not change any of this: it flips `CanvasGroup.interactable`, not `blocksRaycasts`, and a `CanvasGroup` cannot create a hit area — a subtree with no raycast target blocks nothing.
 - Procedural controls (`<Btn radius="8">`, a `<Tab color="…">`) are hit on their SDF surface; there is no invisible Image under it any more.
 
-Lint: `raycastTarget` on any other tag is `PUI-RAYCAST-TAG` (layout containers have no Graphic; `<Icon>` / `<Decor>` / `<Progress>` are always click-through; interactive controls are not configurable). The CLI also raises **`PUI-RAYCAST-UNDECIDED`** for the **outermost drawn surface** on each path from the Screen root that carries no `raycastTarget` — a panel that never said whether it blocks. Write `true` (a panel) or `false` (a decoration); inside a `true` node or an interactive control nothing more is asked, under a `false` one the next drawn surface is. CLI-only (nothing is logged at `UI.Open`), one or two per screen in practice: the panel roots and the modal backdrop.
+Lint: `raycastTarget` on any other tag is `PUI-RAYCAST-TAG` (layout containers have no Graphic; `<Icon>` / `<Decor>` / `<Progress>` / `<Cooldown>` are always click-through; interactive controls are not configurable). The CLI also raises **`PUI-RAYCAST-UNDECIDED`** for the **outermost drawn surface** on each path from the Screen root that carries no `raycastTarget` — a panel that never said whether it blocks. Write `true` (a panel) or `false` (a decoration); inside a `true` node or an interactive control nothing more is asked, under a `false` one the next drawn surface is. CLI-only (nothing is logged at `UI.Open`), one or two per screen in practice: the panel roots and the modal backdrop.
 
 **Inside `<VStack>` / `<HStack>`**, a child's explicit `size` / `width` / `height` is written to `LayoutElement.preferredX` **and `minX`** with `flexibleX=0` (not to `sizeDelta`). So `<Btn size="64x64"/>` inside a VStack is **strictly 64×64** — the layout group will neither stretch **nor shrink** it: the pinned `minX` means even a space-constrained group can't compress it (it overflows the group instead). This is what keeps a fixed-size trailing control at full size — e.g. an edit `<Btn size="12x12"/>` after an intrinsic-width `<Text>` in an `<HStack>`: when the text grows past the available width, the text (whose `minWidth` stays 0) gives way (compresses / ellipsizes), the button does **not**. Only `stretch` / `stretch*N` (`minX` stays `-1`, shrinkable to 0) and the native-fallback axes below remain compressible. **Per-axis native fallback** (CSS `inline-block` 直觉): each axis the author omits is independently filled from the control's intrinsic content size, so `<Btn width="100"/>` keeps `preferredWidth=100` and gets `preferredHeight=44` (Btn's default). Controls that report a native size: `<Btn>`、`<Toggle>`、`<Icon>`、`<Dropdown>`、`<Slider>`、`<ScrollList>`、`<InputField>`、`<TabMenu>`、`<Collapsible>`(caption 宽 + 标题栏高)；`<Image>` 当 sprite 非空时 (e.g. `<Btn>OK</Btn>` widens to fit text + padding, default height 44; `<Toggle>静音</Toggle>` widens to fit text + 28 padding, default height 44; `<Dropdown/>` defaults 160×44; `<InputField/>` defaults 160×44; `<Slider/>` defaults 160×44 horizontal or 44×160 vertical; `<ScrollList/>` defaults 160×200 vertical or 200×160 horizontal; `<Image sprite="..."/>` defaults to `sprite.rect.size / pixelsPerUnit`); the native-filled axis keeps `flexibleX=-1` (the LE "no opinion" sentinel) so an intrinsic `ILayoutElement` can still contribute. 无 sprite 的 `<Image/>` 拿不到 native → 那一轴回到 `preferredX=-1` 哨兵，看自带 `ILayoutElement` 报告，空状态多半 0，要可见自己写 size。
 
@@ -1898,7 +1930,7 @@ PromptUGUI never auto-enables masking — you must opt in via `mask=`. Two reaso
 
 ## Progress
 
-`<Progress>` 显示型线性进度条（只读，无 `OnValueChanged`）；一行打包 frame / mask / bg / fill / mode / direction / value。Radial 冷却环不在范围内。属性见上方 **Built-in primitives** 目录的 `<Progress>` 行。**写多图层 / mask×bg 组合 / 查 lint 规则前，先读 [`reference/controls-progress.md`](reference/controls-progress.md)。**
+`<Progress>` 显示型线性进度条（只读，无 `OnValueChanged`）；一行打包 frame / mask / bg / fill / mode / direction / value。Radial 冷却环是另一个控件：`<Cooldown>`（[`reference/controls-cooldown.md`](reference/controls-cooldown.md)）。属性见上方 **Built-in primitives** 目录的 `<Progress>` 行。**写多图层 / mask×bg 组合 / 查 lint 规则前，先读 [`reference/controls-progress.md`](reference/controls-progress.md)。**
 
 ## Tabs
 
@@ -1973,6 +2005,9 @@ BUILT-INS     <Frame> <Image> <Text> <VStack> <HStack> <Grid> <Btn> <Icon>
               <ScrollList virtualize="true" stickToEnd="true" itemTemplate="Row"/>  row virtualization: only rows near the viewport exist (one vertical column, fixed at build);
                                        stickToEnd follows the end; C# BindItems(src, bind, key: m => m.Id) / ScrollToEnd() / OnAtEndChanged → reference/virtualize.md
               <Progress value="0.6" fill="ui:bar"/>  最简；mask= + 不设 bg → mask sprite 自动可见兼当底；radial 进度环不在 <Progress> 范围
+              <Btn size="64x64" radius="10"><Icon …/><Cooldown anchor="stretch" radius="10" countdown="true"/></Btn>
+                                       cooldown veil over a skill icon; thickness="4" cap="round" radius="pill" = an arc instead;
+                                       C# cd.Start(8) / OnReady; <Animation on="ready" type="pulse"> → reference/controls-cooldown.md
               <TabBar><Tab text="A" sprite="..." selectedSprite="..." bind="frame_a" isOn="true"/>...</TabBar>  互斥 + Tab 自管 sprite/selectedSprite + bind 自动 toggle Frame
               <Carousel itemTemplate="Card" interval="5" dots="bottom-center" dotSprite="ui:dot" dotColor="#888" dotSelectedColor="#fff"/>  翻页 + 自动播放 + 拖动 + 状态化指示点；卡片走 C# BindItems；当前页 resize 不重置
               <Collapsible text="任务" headerHeight="24" maxHeight="200" group="settings" transition="0.2s">rows</Collapsible>
@@ -2124,7 +2159,7 @@ STYLE LINT    PUI-CLASS-EMPTY                  class="" / whitespace-only — na
               PUI-THEME-STYLE-ON-INVOCATION    themed class= on a Template invocation won't re-skin
 
 HIT-TESTING   PUI-RAYCAST-TAG                  raycastTarget= outside Frame / Image / RawImage / Text (containers
-                                               have no Graphic; Icon / Decor / Progress are always click-through;
+                                               have no Graphic; Icon / Decor / Progress / Cooldown are always click-through;
                                                interactive controls are not configurable) — also warned at runtime
               PUI-RAYCAST-UNDECIDED            the outermost drawn surface on a path from the Screen root carries
                                                no raycastTarget — write true (a panel) or false (a decoration);
