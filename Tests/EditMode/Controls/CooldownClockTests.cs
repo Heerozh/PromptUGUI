@@ -68,6 +68,19 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void ALateClock_NeverPushesTheFractionPastOne()
+        {
+            // At 100000 s a float step is 1/128 s, so 100000 + 0.2 rounds UP to 100000.203125 and
+            // the tick in the frame Start ran would read 1.0156 of the total.
+            CooldownClock.SetTimeForTests(100000f);
+            var c = Load("");
+            c.Start(0.2f);
+            CooldownClock.TickForTests();
+            Assert.LessOrEqual(c.Value, 1f);
+            Assert.Greater(c.Value, 0f);
+        }
+
+        [Test]
         public void RunningOut_GoesReadyExactlyOnce()
         {
             CooldownClock.SetTimeForTests(100f);

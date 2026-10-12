@@ -32,8 +32,9 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             c.OnReady.Subscribe(_ => ready++);
 
             c.Start(0.2f);
-            yield return null;
-            Assert.Less(c.Value, 1f, "the sweep moves frame by frame");
+            yield return new WaitForSeconds(0.05f);
+            Assert.Less(c.Value, 1f, "the sweep moves on its own");
+            Assert.Greater(c.Value, 0f);
             yield return new WaitForSeconds(0.4f);
 
             Assert.AreEqual(1, ready);

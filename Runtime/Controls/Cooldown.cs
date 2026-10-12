@@ -264,7 +264,9 @@ namespace PromptUGUI.Controls
             var left = _end - CooldownClock.Now(_scaled);
             if (left > 0f)
             {
-                SetFraction(left / _total);
+                // Clamped: the tick in the frame Start ran reads the same clock Start did, and
+                // end − now can then round to a hair over the total once Time.time is large.
+                SetFraction(Mathf.Clamp01(left / _total));
                 return;
             }
             StopClock();
