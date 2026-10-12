@@ -26,6 +26,9 @@ namespace PromptUGUI.Lint
     {
         public const string Code = "PUI-FONT-FLOOR";
 
+        /// <summary>A <c>fontFloor</c> attribute that is not a non-negative number.</summary>
+        public const string ValueCode = "PUI-FONT-FLOOR-VALUE";
+
         private const float Epsilon = 1e-4f;
 
         /// <summary>Where a tag's text size lives (spec §5.5).</summary>
@@ -87,7 +90,7 @@ namespace PromptUGUI.Lint
 
                 foreach (var visit in order)
                     if (visit.Below.Count > 0)
-                        yield return visit.ToIssue(policy.Floor);
+                        yield return visit.ToIssue();
             }
         }
 
@@ -131,6 +134,29 @@ namespace PromptUGUI.Lint
             public float PerUnit;          // dp per canvas unit at this node
             public float ScaleChain;       // Π localScale, root to node
             public float OwnLocalScale;
+            public float Floor;            // the floor this reading is judged against
+            public string FloorSource;     // where a node-level floor came from; null = the project's
+        }
+
+        /// <summary>
+        /// The floor in force at a node: the project's, or the nearest <c>fontFloor</c> on the node or
+        /// an ancestor (2026-10-12 font-floor spec §14). <see cref="Owner"/> null = the project's.
+        /// </summary>
+        private sealed class Floor
+        {
+            public float Value;
+            public ElementNode Owner;
+            public string Attribute;       // "fontFloor" / "fontFloor.mobile"
+            public string Class;           // the class= that brought it, if a pack did
+
+            /// <summary>How a finding names it, seen from <paramref name="at"/>.</summary>
+            public string Describe(ElementNode at)
+            {
+                if (Owner == null) return null;
+                var owner = ReferenceEquals(Owner, at) ? "this node" : Label(Owner);
+                var via = Class == null ? "" : $" via class=\"{Class}\"";
+                return $"{Attribute}=\"{Num(Value)}\" on {owner}{via}";
+            }
         }
 
         /// <summary>A node as reached through a particular chain of <c>itemTemplate</c> hosts.</summary>
@@ -169,17 +195,22 @@ namespace PromptUGUI.Lint
             public bool Fixed;
             public readonly List<Reading> Below = new List<Reading>();
 
-            public LintIssue ToIssue(float floor)
+            public LintIssue ToIssue()
             {
-                Below.Sort((a, b) => a.Dp.CompareTo(b.Dp));
+                // The largest shortfall leads: with one floor that is the smallest dp, but a node-level
+                // fontFloor can differ per target (a variant), and the target furthest below ITS floor
+                // is the one whose fix satisfies them all.
+                Below.Sort((a, b) => (a.Dp / a.Floor).CompareTo(b.Dp / b.Floor));
                 var worst = Below[0];
+                var floor = worst.Floor;
 
                 var scale = Math.Abs(worst.ScaleChain - 1f) > Epsilon ? $", scale ×{Num(worst.ScaleChain)}" : "";
                 // A --target row is named after its screen; say the screen once.
                 var screen = worst.TargetName == worst.ScreenText ? "" : worst.ScreenText + " ";
+                var source = worst.FloorSource == null ? "" : $" ({worst.FloorSource})";
                 var message =
                     $"{Label(Node)}: {worst.SizeDesc} renders at {Dp(worst.Dp)}dp on '{worst.TargetName}' " +
-                    $"({screen}{worst.Orientation}; {worst.CanvasDesc}{scale}) — below the {Num(floor)}dp floor. ";
+                    $"({screen}{worst.Orientation}; {worst.CanvasDesc}{scale}) — below the {Num(floor)}dp floor{source}. ";
 
                 if (Fixed)
                 {
@@ -235,7 +266,7 @@ namespace PromptUGUI.Lint
             {
                 ResolveCanvasFactor();
                 CollectAdds();
-                VisitNode(_screen.Root, _factor, 1f, new ElementNode[0]);
+                VisitNode(_screen.Root, _factor, 1f, new ElementNode[0], new Floor { Value = _policy.Floor });
             }
 
             // Screen.ApplyCanvasScaler for this target. A Screen that does not say scale-mode is
@@ -291,20 +322,22 @@ namespace PromptUGUI.Lint
                 }
             }
 
-            private void VisitNode(ElementNode node, float parentPx, float parentChain, ElementNode[] hosts)
+            private void VisitNode(ElementNode node, float parentPx, float parentChain, ElementNode[] hosts,
+                                   Floor parentFloor)
             {
                 var local = ScaleSyntax.LocalScale(VariantLookup.Resolve(node, "scale", _isActive), _factor);
                 var px = parentPx * local;            // physical px per canvas unit
                 var chain = parentChain * local;
+                var floor = OwnFloor(node) ?? parentFloor;
 
-                Inspect(node, px, chain, local, hosts);
+                Inspect(node, px, chain, local, hosts, floor);
 
                 foreach (var child in node.Children)
-                    VisitNode(child, px, chain, hosts);
+                    VisitNode(child, px, chain, hosts, floor);
 
                 if (_adds.TryGetValue(node, out var added))
                     foreach (var child in added)
-                        VisitNode(child, px, chain, hosts);
+                        VisitNode(child, px, chain, hosts, floor);
 
                 if (RowHosts.Contains(node.Tag))
                 {
@@ -317,14 +350,34 @@ namespace PromptUGUI.Lint
                         var rowHosts = new ElementNode[hosts.Length + 1];
                         hosts.CopyTo(rowHosts, 0);
                         rowHosts[hosts.Length] = node;
-                        VisitNode(tpl.Body, px, chain, rowHosts);
+                        VisitNode(tpl.Body, px, chain, rowHosts, floor);
                         _rowsInProgress.Remove(tpl.Body);
                     }
                 }
             }
 
-            private void Inspect(ElementNode node, float px, float chain, float local, ElementNode[] hosts)
+            // This node's own fontFloor under the target's variants; null when it has none (or one that
+            // is not a size — PUI-FONT-FLOOR-VALUE says so), so the ancestor's stays in force.
+            private Floor OwnFloor(ElementNode node)
             {
+                var raw = VariantLookup.Resolve(node, FloorAttribute, _isActive, out var variant);
+                if (!TryParseFloor(raw, out var value)) return null;
+                string cls = null;
+                if (node.StyleAttrNames != null && node.StyleAttrNames.Contains(FloorAttribute))
+                    node.Attributes.TryGetValue("class", out cls);
+                return new Floor
+                {
+                    Value = value,
+                    Owner = node,
+                    Attribute = variant == null ? FloorAttribute : FloorAttribute + "." + variant,
+                    Class = cls,
+                };
+            }
+
+            private void Inspect(ElementNode node, float px, float chain, float local, ElementNode[] hosts,
+                                 Floor floor)
+            {
+                if (floor.Value <= 0f) return;   // fontFloor="0": the subtree is exempt
                 if (node.Namespace != null || !TextTags.TryGetValue(node.Tag, out var tag)) return;
 
                 string sizeRaw = null, variant = null;
@@ -369,7 +422,7 @@ namespace PromptUGUI.Lint
                     _visits[key] = visit;
                     _order.Add(visit);
                 }
-                if (dp >= _policy.Floor - Epsilon) return;
+                if (dp >= floor.Value - Epsilon) return;
 
                 visit.Below.Add(new Reading
                 {
@@ -382,9 +435,55 @@ namespace PromptUGUI.Lint
                     PerUnit = perUnit,
                     ScaleChain = chain,
                     OwnLocalScale = local,
+                    Floor = floor.Value,
+                    FloorSource = floor.Describe(node),
                 });
             }
         }
+
+        // ---- the node-level override -------------------------------------------------------------
+
+        /// <summary>
+        /// The node-level floor: a dp value for this node and its subtree, nearest one wins, <c>0</c>
+        /// exempts. Lint-only — the runtime skips an attribute no control declares.
+        /// </summary>
+        public const string FloorAttribute = "fontFloor";
+
+        private static bool TryParseFloor(string raw, out float value)
+        {
+            value = 0f;
+            return !string.IsNullOrEmpty(raw)
+                   && float.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+                   && value >= 0f;
+        }
+
+        /// <summary>
+        /// <see cref="ValueCode"/>: a <c>fontFloor</c> (base or variant) that is not a non-negative
+        /// number. Pure syntax, so it runs on every pass whether or not a floor is configured. An empty
+        /// variant value is the usual "clear under this variant"; a <c>{{param}}</c> is judged once
+        /// substituted.
+        /// </summary>
+        public static IEnumerable<LintIssue> CheckValue(ElementNode node)
+        {
+            if (node.Attributes.TryGetValue(FloorAttribute, out var baseValue) && IsBadFloor(baseValue, allowEmpty: false))
+                yield return BadFloor(node, FloorAttribute, baseValue);
+            if (node.VariantOverrides.TryGetValue(FloorAttribute, out var list))
+                foreach (var (variant, value) in list)
+                    if (IsBadFloor(value, allowEmpty: true))
+                        yield return BadFloor(node, FloorAttribute + "." + variant, value);
+        }
+
+        private static bool IsBadFloor(string value, bool allowEmpty)
+        {
+            if (string.IsNullOrEmpty(value)) return !allowEmpty;
+            if (value.Contains("{{")) return false;
+            return !TryParseFloor(value, out _);
+        }
+
+        private static LintIssue BadFloor(ElementNode node, string attribute, string value) =>
+            new LintIssue(ValueCode, node.Tag, node.Id,
+                $"{Label(node)}: {attribute}=\"{value}\" is not a size — write the floor in dp as a non-negative " +
+                "number (0 exempts the subtree from PUI-FONT-FLOOR).");
 
         /// <summary>
         /// <c>ScreenInstantiator.ResolveAddTarget</c> on the IR: <c>@root</c>, or <c>#a/b/c</c> whose

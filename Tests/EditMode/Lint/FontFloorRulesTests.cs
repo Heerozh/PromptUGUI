@@ -362,6 +362,128 @@ namespace PromptUGUI.Tests.EditMode.Lint
             Assert.AreEqual(1, Lint(Screen("<Text fontSize='21.9'/>"), "X=1080x1920@2x").Count);
         }
 
+        // ---- a node-level fontFloor (badges and the like) --------------------------------------
+
+        [Test]
+        public void A_node_fontFloor_replaces_the_floor_for_itself()
+        {
+            CollectionAssert.IsEmpty(Lint(Screen("<Text fontSize='28' fontFloor='9'/>"), SE), "9.7dp ≥ 9");
+
+            var issues = Lint(Screen("<Text fontSize='28' fontFloor='10'/>"), SE);
+            Assert.AreEqual(1, issues.Count);
+            StringAssert.Contains("below the 10dp floor (fontFloor=\"10\" on this node)", issues[0].Message);
+            StringAssert.Contains("Needs fontSize ≥ 29", issues[0].Message);
+        }
+
+        [Test]
+        public void An_ancestor_fontFloor_covers_its_subtree_only()
+        {
+            var issues = Lint(Screen(
+                "<Frame id='badge' fontFloor='7'><Text id='n' fontSize='17'/></Frame><Text id='other' fontSize='22'/>"), SE);
+
+            Assert.AreEqual(2, issues.Count);
+            var badge = issues.Single(i => i.Id == "n").Message;
+            StringAssert.Contains("renders at 5.9dp", badge);
+            StringAssert.Contains("below the 7dp floor (fontFloor=\"7\" on <Frame id='badge'>)", badge);
+            StringAssert.Contains("Needs fontSize ≥ 21", badge);
+            StringAssert.Contains("below the 11dp floor.", issues.Single(i => i.Id == "other").Message,
+                "outside the frame the project floor applies");
+        }
+
+        [Test]
+        public void The_nearest_fontFloor_wins()
+        {
+            var issues = Lint(Screen(
+                "<Frame fontFloor='7'><Frame id='strict' fontFloor='12'><Text fontSize='28'/></Frame></Frame>"), SE);
+
+            Assert.AreEqual(1, issues.Count);
+            StringAssert.Contains("below the 12dp floor (fontFloor=\"12\" on <Frame id='strict'>)", issues[0].Message);
+        }
+
+        [Test]
+        public void A_zero_fontFloor_exempts_the_subtree()
+        {
+            CollectionAssert.IsEmpty(Lint(Screen("<Frame fontFloor='0'><Text fontSize='4'/></Frame>"), SE));
+        }
+
+        [Test]
+        public void A_fontFloor_from_a_class_pack_names_the_class()
+        {
+            var issues = Lint("<Style name='badge-text' fontSize='9' fontFloor='7'/>"
+                              + Screen("<Text class='badge-text'/>"), SE);
+
+            Assert.AreEqual(1, issues.Count);
+            StringAssert.Contains("below the 7dp floor (fontFloor=\"7\" on this node via class=\"badge-text\")",
+                issues[0].Message);
+            CollectionAssert.IsEmpty(Lint("<Style name='badge-text' fontSize='21' fontFloor='7'/>"
+                                          + Screen("<Text class='badge-text'/>"), SE));
+        }
+
+        [Test]
+        public void A_variant_fontFloor_follows_the_target()
+        {
+            var issues = Lint(Screen("<Text fontSize='22' fontFloor='7' fontFloor.mobile='9'/>"),
+                              SE, "SE-mobile=750x1334@2x|mobile");
+
+            Assert.AreEqual(1, issues.Count);
+            StringAssert.Contains("on 'SE-mobile'", issues[0].Message);
+            StringAssert.Contains("below the 9dp floor (fontFloor.mobile=\"9\" on this node)", issues[0].Message);
+        }
+
+        [Test]
+        public void With_different_floors_the_largest_shortfall_leads()
+        {
+            // SE: 6.9dp against 7 (fix 21); ProMax-mobile: 8.1dp against 10 (fix 25) — the higher dp,
+            // yet the bigger shortfall, and the fix that satisfies both.
+            var issues = Lint(Screen("<Text fontSize='20' fontFloor='7' fontFloor.mobile='10'/>"),
+                              SE, "ProMax-mobile=1320x2868@3x|mobile");
+
+            Assert.AreEqual(1, issues.Count);
+            StringAssert.Contains("on 'ProMax-mobile'", issues[0].Message);
+            StringAssert.Contains("Needs fontSize ≥ 25", issues[0].Message);
+            StringAssert.Contains("Also below on 'SE' (6.9dp)", issues[0].Message);
+        }
+
+        [Test]
+        public void A_template_invocation_accepts_fontFloor_for_its_instance()
+        {
+            const string tpl = "<Template name='Badge'><Frame><Text fontSize='18'/></Frame></Template>";
+
+            var issues = Lint(tpl + Screen("<Badge fontFloor='7'/>"), SE);
+            Assert.AreEqual(1, issues.Count, "6.2dp under the instance's 7dp floor");
+            StringAssert.Contains("below the 7dp floor", issues[0].Message);
+            CollectionAssert.IsEmpty(Lint(tpl + Screen("<Badge fontFloor='6'/>"), SE));
+        }
+
+        [TestCase("<Text fontFloor='small'/>")]
+        [TestCase("<Text fontFloor='-1'/>")]
+        [TestCase("<Text fontFloor='7' fontFloor.mobile='big'/>")]
+        public void A_fontFloor_that_is_not_a_size_is_reported(string node)
+        {
+            var issues = DocumentLinter.Walk(Parse(Screen(node)))
+                .Where(i => i.Code == FontFloorRules.ValueCode).ToList();
+
+            Assert.AreEqual(1, issues.Count, node);
+            StringAssert.Contains("fontFloor", issues[0].Message);
+        }
+
+        [TestCase("<Text fontFloor='0'/>")]
+        [TestCase("<Text fontFloor='7.5' fontFloor.mobile='9'/>")]
+        public void A_fontFloor_that_is_a_size_is_fine(string node)
+        {
+            CollectionAssert.IsEmpty(DocumentLinter.Walk(Parse(Screen(node)))
+                .Where(i => i.Code == FontFloorRules.ValueCode).ToList());
+        }
+
+        [Test]
+        public void A_variant_only_fontFloor_needs_no_base()
+        {
+            // Lint-only: nothing at runtime applies it, so nothing can get stuck.
+            var n = new ElementNode("Text");
+            n.VariantOverrides["fontFloor"] = new List<(string, string)> { ("mobile", "9") };
+            CollectionAssert.IsEmpty(VariantBaseRules.Check(n));
+        }
+
         // ---- §8-17, 18: when the rule stays quiet ----------------------------------------------
 
         [Test]

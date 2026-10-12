@@ -469,3 +469,23 @@ M0（`2656256`）、M1（`214718e`）、M2（`5584db8`）、`<Toggle fontSize>`�
   （它们的竖屏 reference 是 1080x1920，正文 18、标题 24、按钮默认 24），属于库自身的默认皮肤问题，另案处理；
   ssw_re_client 在 `Laptop 150%=1920x1080@1.5x` + `Laptop=1366x768` 下报 18 条（`Round.ui.xml` 的 6 号字，reference 640x360 → ×3 → 9.5dp）。
   §8-29、30 的 Unity 菜单手工验证、Inspector 外观未做（Inspector 只确认了绘制无异常）。
+
+## 14. 追加：节点级 `fontFloor`（2026-10-12，作者确认）
+
+问题：角标数字这类文字本来就该小，全局下限下它们只会被报出来，作者只能改字号（不对）或删目标屏幕（太粗）。
+
+- **写法**：任何元素上 `fontFloor="N"`（dp，非负）—— 该节点**及整棵子树**改用 N 作下限，祖先链上**最近的**一个生效；`0` = 整棵子树豁免。
+  是「更低的下限」而不是「静音」：3dp 的角标照样报。
+- **能走的路径**：内联、`<Style>` 样式包（推荐：`badge-text` 一行覆盖所有角标）、`<Theme>`、变体（`fontFloor.mobile="9"`，无需基础值）、
+  模板调用（`<IconBtn fontFloor="7"/>`，经 `TemplateExpander.CommonAttrs` 落到实例根，于是覆盖整个实例）、`<Add>` 子树与 `itemTemplate` 行沿宿主链继承。
+- **只给 lint 看**：运行时 `ControlAttributeApplier` 跳过没有控件声明的属性（`ControlAttributeApplier.cs:88`），所以**不**在 `Control` 基类加空 `[UIAttr]`
+  （讨论时的设想，实际不需要）。XSD 把它列进 `commonAttrs`，补全认得它。
+- **报错文案**注明下限来源：`below the 7dp floor (fontFloor="7" on <Frame id='badge'>)`、`(… on this node via class="badge-text")`、
+  `(fontFloor.mobile="9" on this node)`；全局下限时不加括号。不同目标下限不同（变体）时，以「dp ÷ 下限」最小（缺口最大）的目标领头 ——
+  它的修复值同时满足所有目标。
+- **新增 `PUI-FONT-FLOOR-VALUE`**（`IRWalker` 逐节点、raw 与展开两遍，与是否配置下限无关）：基础值或变体值不是非负数。变体的空值
+  （按惯例＝该变体下清除）与未替换的 `{{param}}` 不报。写错的值在规则里视为未设置，沿用祖先 / 全局下限。
+- **`PUI-VARIANT-NO-BASE`** 把 `fontFloor` 列为非 setter（`NotSetters`）：只有变体值没有基础值是合法写法。
+- 全局 `fontFloor` 为 0 时规则整体关闭，节点级下限也不生效。
+- 测试：`FontFloorRulesTests` 新增 11 个测试（14 个用例）（替换 / 继承 / 最近者胜 / 0 豁免 / 样式包来源 / 变体 / 缺口领头 / 模板调用 / 值校验 / 变体无基础值）；
+  `XsdGeneratorTests.Xsd_commonAttrs_declares_fontFloor`；`VariantBaseRulesTests` 的 `TemplateExpander.CommonAttrs` 镜像同步。

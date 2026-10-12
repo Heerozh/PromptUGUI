@@ -240,6 +240,10 @@ namespace PromptUGUI.Lint
             foreach (var issue in ColorLiteralRules.Check(node))
                 yield return issue;
 
+            // Universal, lint-only: a node-level fontFloor that is not a size in dp.
+            foreach (var issue in FontFloorRules.CheckValue(node))
+                yield return issue;
+
             // Universal: clamp(...) on width/height together with scale on the same node. Also a
             // hard error at runtime (ControlAttributeApplier throws) — the fitter would drop the
             // box-preserving inflation.

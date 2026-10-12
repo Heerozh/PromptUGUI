@@ -12,6 +12,9 @@ namespace PromptUGUI.Template
             "anchor", "size", "width", "height", "margin", "pivot",
             "padding", "spacing",
             "hidden", "interactable",
+            // Lint-only (PUI-FONT-FLOOR's node-level floor); lands on the instance root so it covers
+            // the whole instance. The runtime skips it like any attribute no control declares.
+            "fontFloor",
         };
 
         /// <summary>

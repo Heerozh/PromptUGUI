@@ -44,11 +44,11 @@ namespace PromptUGUI.Lint
             => attr == "scale"
                || (attr != "hidden" && CommonAttributes.Contains(attr));
 
-        // Never reach a control setter (resolved at parse / expansion / instantiation time), so a
-        // ".variant" form is meaningless rather than a revert bug.
+        // Never reach a control setter (resolved at parse / expansion / instantiation time, or read by
+        // the lint only, like fontFloor), so a base-less ".variant" form is no revert bug.
         private static readonly HashSet<string> NotSetters = new()
         {
-            "tr", "ctx", "id", "if",
+            "tr", "ctx", "id", "if", "fontFloor",
         };
 
         // Owned by PUI-MASK-VARIANT in ALL cases (switching mask mode is unsupported, base or not);
@@ -68,6 +68,7 @@ namespace PromptUGUI.Lint
             "anchor", "size", "width", "height", "margin", "pivot",
             "padding", "spacing",
             "hidden", "interactable",
+            "fontFloor",
         };
 
         public static IEnumerable<LintIssue> Check(ElementNode n, bool isTemplateBodyRoot = false)

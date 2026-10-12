@@ -968,6 +968,7 @@ Other notes:
 | `hidden="true"` | bool | Initial `SetActive(false)`. **Runtime-owned** once code writes `Hidden` (same contract as `isOn`): a resize / Variant / Theme ReSolve never snaps a code-written value back; an untouched node still follows `hidden.<variant>=` and its theme's `<Style>`. So write the real initial state here (a preview that only loads the XML shows it) and let C# take over. Undeclared = never written (no self-heal — a `.variant` form needs a base, `PUI-VARIANT-NO-BASE`). |
 | `interactable="false"` | bool | **Runtime-owned** once code writes `Interactable` (as `hidden`); undeclared = `true`, re-applied on an untouched node so a base-less `interactable.mobile=` still heals. Initial `CanvasGroup.interactable=false`, leaving `blocksRaycasts=true` — a disabled subtree still **absorbs** clicks, never passing them through to a backdrop behind it (standard Unity disabled semantics; for click-through set `blocksRaycasts=false` on the CanvasGroup yourself, as the Toast overlay does). On `<Btn>` it **also** sets `Button.interactable=false` → the Btn enters its Disabled state (see `reference/states.md`). |
 | `stateReact="false"` | bool (default `true`) | Opts this node **and its whole subtree** out of an ancestor `<Btn>` / `<Tab>` / `<Toggle>`'s `*Modulate` fan-out. Has no effect on `*Color` (absolute — bg only, never fanned out). See `reference/states.md`. |
+| `fontFloor="N"` | dp ≥ 0 | **Lint-only.** The `PUI-FONT-FLOOR` floor for this node **and its whole subtree** (nearest wins; `0` exempts) — for text that is small on purpose (badges). The runtime ignores it. See **Font-size floor**. |
 | `flow="false"` | bool (default `true`) | **Layout-group children only** (direct child of `<VStack>` / `<HStack>` / `<Grid>`). Opts the child **out of the layout flow**: the group neither positions it nor counts it toward its own preferred size, and `anchor` / `margin` / `N%` regain full free-positioning semantics against the group's rect. Use for a 9-slice background layer / badge / overlay inside a hug-sized stack — see **Out-of-flow children** below. Inert under a free-positioning parent (`PUI-FLOW-OUTSIDE-GROUP`). Variant-overridable (`flow.portrait="false"`). |
 | `scale="N"` / `scale="Nx"` / `scale="<r>r"` | float `N` / `Nx` (int) / `<r>r` (float) | Three forms: `N` = box-preserving (a render-density knob, **not** a resize knob); `Nx` = N physical px per design-unit (constant across factors, **doesn't grow with the window**); `<r>r` = `r×` the canvas factor **snapped to an integer** (**grows with the window yet stays pixel-aligned**). `scale="2"` ≠ `scale="2x"`. Full formulas / examples / caveats: see **Relative scale** / **Device-density** / **Canvas-relative snapped** below. |
 | `focus="true"` | bool | **Selectable controls only** (`<Btn>` / `<Tab>` / `<TabMenu>` / `<Collapsible>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<InputField>` / `<ScrollList>`). Marks this control as the initial EventSystem selection when the Screen opens in Directional navigation mode. First `focus="true"` in document order wins. Does NOT apply to `BindItems`-generated dynamic controls. No-op when `UI.UseGamepadNavigation()` has not been called. → [`reference/navigation.md`](reference/navigation.md) |
@@ -1834,6 +1835,17 @@ Where the size came from is named — `fontSize.portrait 20`, `fontSize 20 (clas
 
 **Fixes, in order of preference:** raise `fontSize` (in the class pack if it came from one); give small phones their own reference (`reference.portrait="…"`) or size (`fontSize.portrait="…"`); render a block at device density with `scale="Nx"`.
 
+**Text that is small on purpose — `fontFloor="N"`.** Badge counts, superscripts and the like can carry their own floor (dp) instead of the project's: it applies to the node **and its whole subtree**, the nearest one up the tree wins, and `fontFloor="0"` exempts the subtree. It is a *lower floor*, not a mute — a badge drawn at 3dp is still reported. Put it where the small text is defined, usually its class pack, so one line covers every badge:
+
+```xml
+<Style name="badge-text" anchor="stretch" align="center" fontSize="9" color="on-badge" fontFloor="7"/>
+<Frame class="badge" fontFloor="7">…</Frame>          <!-- or on a container: everything inside -->
+<IconBtn badge="3" fontFloor="7"/>                     <!-- a template invocation: lands on the instance root -->
+<Text class="note" fontFloor.mobile="9"/>              <!-- Variant-switchable; no base needed -->
+```
+
+The finding then says which floor it applied: `below the 7dp floor (fontFloor="7" on <Frame id='badge'>)` / `(… on this node via class="badge-text")`. **Lint-only:** the runtime ignores the attribute (no control declares it). A value that is not a non-negative number is `PUI-FONT-FLOOR-VALUE`. With the project floor at `0` the rule is off and node-level floors do nothing.
+
 **What the lint cannot see** — so judge accordingly:
 
 | Not visible | The lint assumes | Error direction |
@@ -2044,6 +2056,9 @@ SCREEN ATTRS  canvas="overlay|camera|world"    default overlay; renderMode only
 FONT FLOOR    PUI-FONT-FLOOR                   text below PromptUGUISettings.fontFloor (dp) on a fontFloorTargets
                                                screen (WxH@D = physical px @ OS scale); the lint judges a Screen
                                                without scale-mode as auto — see "Font-size floor"
+              fontFloor="N"                    node + subtree floor in dp (nearest wins, 0 = exempt); lint-only;
+                                               legal on any element, a class pack, a template invocation
+              PUI-FONT-FLOOR-VALUE             fontFloor that is not a non-negative number
 
 I18N XML      <Text>...</Text>                 extract + translate
               <Text tr="false">...</Text>      skip

@@ -260,6 +260,8 @@ namespace PromptUGUI.Editor
             // Control.StateReact ([UIAttr] on the base) — opts a graphic out of a parent
             // Btn's state-tint fan-out; applies to every control, so it's a common attr.
             "stateReact",
+            // PUI-FONT-FLOOR's node-level floor (dp) — lint-only, legal on any element.
+            "fontFloor",
             // <Style> reference. Consumed by TemplateExpander (StyleMerger) before any control
             // sees it, so it is legal on every element regardless of tag.
             "class" };

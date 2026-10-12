@@ -104,6 +104,12 @@ printed on stdout. A malformed row is an error (once per run); a floor with no
 usable row is a note. A `<Screen>` without `scale-mode` is judged as `auto` —
 `UI.DefaultScaleMode` lives in C# where the CLI cannot see it.
 
+Text that is small on purpose (badge counts) carries its own floor in the XML:
+`fontFloor="7"` on a node, a container, a class pack or a template invocation
+applies to that subtree (nearest wins, `0` exempts). It is lint-only — the runtime
+ignores it — and a value that is not a non-negative number is
+`PUI-FONT-FLOOR-VALUE`.
+
 ```bash
 dotnet run --project .lint/UIXmlLint -- Assets/UI/ --font-floor 11 --target SE=750x1334@2x --target 1920x1080@2x,tv
 ```
@@ -267,6 +273,7 @@ installed locally — check `/help` if unsure.)
 | `PUI-SCROLL-VIRTUAL-TEMPLATE`  | `virtualize` with no `itemTemplate` (base, variant, or `class=`). The rows are built from it as they scroll into view; `BindItems` throws without one. | CLI error (`BindItems` throws at runtime) |
 | `PUI-CLAMP-SCALE`             | `width` / `height` = `clamp(min, N%, max)` (base or any variant) together with `scale=` (base or any variant) on the same node. The clamped axis is owned by the layout pass (`ClampFitter`), which would drop `scale`'s box-preserving inflation. Move `scale` to a child or drop the clamp. Declared, not resolved — the runtime uses the same predicate. | CLI error + **runtime throw** (`ParseException` at `UI.Open`) |
 | `PUI-FONT-FLOOR`              | Text that renders below `fontFloor` dp on a font-floor target screen (see **Font floor**). One finding per node, led by the worst target, with the `fontSize` (or, on the fixed-size `<Dropdown>`, the `scale`) that fixes it. Expanded and per-theme passes only; dispatched from `DocumentLinter`, not `IRWalker`. | **CLI-only** (and the Editor menu) |
+| `PUI-FONT-FLOOR-VALUE`        | A node-level `fontFloor=` (base or variant) that is not a non-negative number. | **CLI-only** |
 
 To add a new rule: implement it in `Runtime/Core/Lint/` and dispatch from
 `IRWalker`. Also wire it into `ScreenInstantiator.InstantiateRecursive` if and
