@@ -505,7 +505,8 @@ Steam Deck 硬底线 ≈ 7dp、推荐 ≈ 10dp，iOS 11dp，Xbox 主机 ≈ 13dp
 
 - **库自带 XML**：剩 4 条，全是弹窗正文 —— `MessageBox` / `InputBox` 的 `fontSize 18`、`InputBox` 里 `<InputField>` 默认 14、`MarkdownBox` 里 `<Markdown>`
   默认 16。弹窗是 `reference="1920x1080" reference.portrait="1080x1920"`，现代手机横竖都是 ≈0.33dp/单位，需 ≥21。标题 24、按钮 24 都过。
-  笔记本目标无问题。Samples 无问题。是否把默认皮肤正文调到 21 待作者定。
+  笔记本目标无问题。Samples 无问题。**已改**（作者确认）：四处正文都调到 21；`BuiltinFontFloorTests` 对全部 8 份内置文档
+  在 7dp + 这 5 个目标下断言无 `PUI-FONT-FLOOR`，以后默认皮肤的字被改小会红。
 - **ssw_re_client**（它自己的 settings：7dp + 上述 4 个手机目标 + Desktop 1080p）：146 条，**全部来自手机目标**（Desktop 1080p 0 条）。
   6–7dp 97 条、5–6dp 39 条、<5dp 10 条；集中在 Round（`Planet` 36、`Round` 25、`Commander` 16、`ShipDesign` 14，模板约 52）。
   根因是 640x360 的 reference 配 5–7 号字（部分再 `scale ×0.8`）：手机横屏上 1 单位 ≈ 1dp。只有 1 条与 badge 相关，大部分是数据密集的面板文字。

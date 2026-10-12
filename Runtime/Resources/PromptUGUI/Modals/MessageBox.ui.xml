@@ -11,7 +11,7 @@
                anchor="center" size="640x300">
           <VStack anchor="stretch" margin="24" spacing="12">
             <Text id="title" fontSize="24" height="40"/>
-            <Text id="text" width="stretch" height="stretch" fontSize="18"/>
+            <Text id="text" width="stretch" height="stretch" fontSize="21"/>
             <HStack height="44" spacing="8">
               <Btn id="ok" color="#A8D88C">OK</Btn>
               <Btn id="cancel" color="#E0B888">Cancel</Btn>

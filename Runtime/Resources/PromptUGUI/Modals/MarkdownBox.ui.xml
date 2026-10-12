@@ -11,7 +11,7 @@
                anchor="stretch" margin="160,480" margin.portrait="240,80">
           <VStack anchor="stretch" margin="24" spacing="12">
             <Text id="title" fontSize="24" height="40"/>
-            <Markdown id="markdown" width="stretch" height="stretch"/>
+            <Markdown id="markdown" width="stretch" height="stretch" fontSize="21"/>
           </VStack>
           <Btn id="close" anchor="top-right" size="36x36" margin="12"
                sprite="" color="#00000000" fontSize="28">×</Btn>
