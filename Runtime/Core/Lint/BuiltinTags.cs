@@ -21,7 +21,7 @@ namespace PromptUGUI.Lint
         {
             "Frame", "SafeArea", "Trigger", "Show", "Animation", "Decor",
             "Image", "RawImage", "Icon", "Text", "VStack", "HStack", "Grid",
-            "Btn", "Toggle", "Tab", "TabBar", "TabMenu", "Collapsible", "Pages", "Slider", "Progress",
+            "Btn", "Toggle", "Tab", "TabBar", "TabMenu", "Collapsible", "Pages", "Slider", "Progress", "Cooldown",
             "Dropdown", "ScrollList", "Scrollbar", "InputField", "Carousel", "Markdown",
         };
 

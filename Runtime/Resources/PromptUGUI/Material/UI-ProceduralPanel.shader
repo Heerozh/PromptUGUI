@@ -72,6 +72,10 @@ Shader "UI/ProceduralPanel"
         _HazeDrift   ("Haze Drift",    Float) = 0
         _HazeDensity ("Haze Density",  Float) = 0.5
         _HazeSelf    ("Haze Self",     Float) = 0
+        // <Cooldown>（spec 2026-10-13）：环宽 px（0 = 实心，onion 运算）；径向裁切开关
+        // （1 = uv1.zw 里是径向码；只有 Cooldown 的 fill 打开，其余面板不付 sin / cos）。
+        _RingWidth   ("Ring Width",    Float) = 0
+        _Radial      ("Radial Cut",    Float) = 0
 
         _StencilComp ("Stencil Comparison", Float) = 8
         _Stencil ("Stencil ID", Float) = 0
@@ -180,6 +184,8 @@ Shader "UI/ProceduralPanel"
             float _HazeDrift;
             float _HazeDensity;
             float _HazeSelf;
+            float _RingWidth;
+            float _Radial;
             // 全局，HazeClock 每帧写（未缩放秒）；没有任何带 hazeDrift 的材质时从不写、恒为 0。
             float _PuguiUnscaledTime;
 
@@ -210,7 +216,12 @@ Shader "UI/ProceduralPanel"
                 PuguiCutShrink(IN.cut.x, IN.cut.y, pS, bS);
                 PuguiQuad corner = PuguiResolveQuad(pS, bS, _CornerKind, _Radius,
                                                        _CornerH, _CornerFillet, _Shape, _HexW);
-                float d = PuguiSdCut(PuguiSdPanel(pS, bS, corner), p, IN.cut.x, IN.cut.y);
+                // 环（thickness）先于裁切：切的是那条带，扇形切边与弧头才是带的端面。
+                float dShape = PuguiRing(PuguiSdPanel(pS, bS, corner), _RingWidth);
+                float d = PuguiSdCut(dShape, p, IN.cut.x, IN.cut.y);
+                // 径向裁切（<Cooldown>）：uniform 分支，非 Cooldown 的面板一条指令都不多。
+                // 求导在分支之后、控制流已汇合，fwidth 照常。
+                if (_Radial > 0.5) d = PuguiSdRadialCut(dShape, p, b, IN.cut.x, IN.cut.y, _RingWidth);
                 float fw = max(fwidth(d), 1e-4);
 
                 float inside = saturate(0.5 - d / fw);

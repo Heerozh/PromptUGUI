@@ -11,6 +11,9 @@ namespace PromptUGUI.Controls.Internal
         Lift, Drop,
         // The Screen begins closing (spec 2026-09-16-close-transition §4.1). Like Open, no @id form.
         Close,
+        // A <Cooldown> runs out / begins (spec 2026-10-13 §4.3). A persistent pair like checked /
+        // unchecked, except that a plain <Trigger> is never fired for the state found at open.
+        Ready, Cooling,
     }
 
     internal sealed class TriggerSpec
@@ -40,6 +43,9 @@ namespace PromptUGUI.Controls.Internal
             // A ScrollList row being picked up / put down (spec 2026-09-16 §4.2).
             ("lift@",           TriggerKind.Lift),
             ("drop@",           TriggerKind.Drop),
+            // A <Cooldown> going ready / starting (spec 2026-10-13 §4.3).
+            ("ready@",          TriggerKind.Ready),
+            ("cooling@",        TriggerKind.Cooling),
         };
 
         /// <summary>
@@ -53,8 +59,8 @@ namespace PromptUGUI.Controls.Internal
                 throw new ArgumentException(
                     $"<Animation reverse-on=\"{value}\">: cannot be 'open' or 'loop' — reverse-on names the " +
                     "event that plays the animation backwards, and a Screen opens (or a loop starts) only " +
-                    "once, forwards. Use a real event: click / state-* / checked / collapse / drop / manual (each " +
-                    "also with @<id>).");
+                    "once, forwards. Use a real event: click / state-* / checked / collapse / drop / cooling / " +
+                    "manual (each also with @<id>).");
             return spec;
         }
 
@@ -82,6 +88,8 @@ namespace PromptUGUI.Controls.Internal
                 case "unchecked": return new TriggerSpec { Kind = TriggerKind.Unchecked, Raw = value };
                 case "lift": return new TriggerSpec { Kind = TriggerKind.Lift, Raw = value };
                 case "drop": return new TriggerSpec { Kind = TriggerKind.Drop, Raw = value };
+                case "ready": return new TriggerSpec { Kind = TriggerKind.Ready, Raw = value };
+                case "cooling": return new TriggerSpec { Kind = TriggerKind.Cooling, Raw = value };
             }
             foreach (var (prefix, kind) in s_prefixedKinds)
             {
@@ -100,7 +108,7 @@ namespace PromptUGUI.Controls.Internal
                 "state-normal / state-hover / state-pressed / state-selected / state-disabled (each also with @<id>) / " +
                 "expand / expand@<id> / collapse / collapse@<id> / " +
                 "checked / checked@<id> / unchecked / unchecked@<id> / " +
-                "lift / lift@<id> / drop / drop@<id> / manual");
+                "lift / lift@<id> / drop / drop@<id> / ready / ready@<id> / cooling / cooling@<id> / manual");
         }
     }
 }

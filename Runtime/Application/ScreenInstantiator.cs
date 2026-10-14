@@ -217,6 +217,13 @@ namespace PromptUGUI.Application
             else if (node.Tag == "Progress")
                 foreach (var issue in ProgressAttributeRules.CheckProgress(node))
                     UILog.Warn(node, issue);
+            else if (node.Tag == PromptUGUI.Lint.CooldownRules.Tag)
+            {
+                // Only the codes the control does not report itself (CooldownRules.RuntimeCodes).
+                foreach (var issue in PromptUGUI.Lint.CooldownRules.Check(node))
+                    if (PromptUGUI.Lint.CooldownRules.RuntimeCodes.Contains(issue.Code))
+                        UILog.Warn(node, issue);
+            }
             else if (node.Tag == "TabBar")
                 foreach (var issue in TabRules.CheckTabBar(node))
                     UILog.Warn(node, issue);

@@ -372,6 +372,26 @@ screen.Get<InputField>("playerName").OnEndEdit
 
 **Progress** — `screen.Get<Progress>("hp").Value = 0.42f;` 或 R3 推送 `healthStream.Subscribe(v => p.Value = v).AddTo(screen)`。Progress 是只读显示控件，无 `OnValueChanged`。`Value` 被 `Mathf.Clamp01` 钳位。注意：`[Bind]` 在本项目里是把 child control 字段注入到 parent（见 `Runtime/Registry/BindAttribute.cs`），不是数据流绑定 —— 用直接 setter / R3 推。
 
+**Cooldown** — a cooldown sweep with its own clock (XML side: authoring-promptugui-xml `reference/controls-cooldown.md`).
+
+```csharp
+var cd = screen.Get<Cooldown>("cd");
+cd.Start(8f);                           // run a full 8 s cooldown; the control advances itself
+cd.Start(total: 8f, remaining: 3.2f);   // reconnect / server sync: picks it up, re-times a running one
+cd.Stop();                              // ready now
+cd.Value = 0.4f;                        // or push the REMAINING fraction yourself (stops the clock)
+cd.OnReady.Subscribe(_ => sfx.Play("ready")).AddTo(screen);      // remaining > 0 → 0, by any path
+cd.OnCooling.Subscribe(_ => screen.Get<Btn>("skill1").Interactable = false).AddTo(screen); // 0 → > 0
+cd.CountdownFormatter = s => $"{Mathf.CeilToInt(s / 60f)}m";     // optional; null = the default 8 / 0.4 / 1:30
+bool busy = cd.IsCooling; float left = cd.Remaining;              // Remaining / Total are 0 unless the clock runs
+```
+
+- **Server-authoritative cooldowns**: call `Start(total, remaining)` on every sync — a running cooldown is re-timed, not restarted, and raises no second `OnCooling`. Between syncs the control interpolates on its own clock.
+- The clock is timestamp-based and keeps running while the Cooldown is hidden (another tab page, a hidden Router layer); `OnReady` still fires on time. Closing the Screen stops it — no `OnReady` afterwards.
+- `time="scaled"` (the XML default) pauses with `Time.timeScale = 0`; `time="unscaled"` does not.
+- `OnReady` / `OnCooling` are UI events for sounds and effects. Whether the skill may be cast is your game state — the control does not disable its `<Btn>`.
+- A Variant ReSolve never stops a running cooldown (`value` is runtime state).
+
 **RawImage** — 显示运行时加载的 `Texture`（不是 sprite）：`screen.Get<RawImage>("avatar").Texture = tex;`（`Texture2D` / `RenderTexture` 均可）。`Texture` 是普通 C# 属性（get/set），**不是** XML 属性 —— XML 端只声明位置 / `color` / `type=contain|cover` / `mask`。重新赋值会自动按新 texture 重算 `type=contain/cover` 的纵横比。典型用法是把异步加载结果推进去：`LoadAsync(url).Subscribe(t => raw.Texture = t).AddTo(screen)`。
 
 **`Btn.OnState` / `Tab.OnState` / `Toggle.OnState`** — each control broadcasts its uGUI interaction state as `Observable<InteractState>` (`InteractState { Normal, Hover, Pressed, Selected, Disabled, Focused }` — `Focused` is Directional nav mode only; reuses the hover visual). `Selected` = the active/`isOn` control at rest; transient Hover/Pressed/Disabled override it and revert on release; a momentary `<Btn>` never emits `Selected`. The observable replays the current value to new subscribers, so you can react in C# to press / hover / select / disable / focus — complementing the XML-side `*Color` / `*Modulate` state colours and `<Show>` artwork swap (see authoring-promptugui-xml → "Btn state visuals"):
@@ -1290,6 +1310,8 @@ EVENTS (R3)    .OnClick                Btn
                .Subscribe(...).AddTo(screen)   tie lifetime — ALWAYS
                .Subscribe(...).AddTo(control)  per-card/per-control lifetime (use inside BindItems)
                Progress                display-only; .Value = 0.42f (Clamp01); no event
+               Cooldown                .Start(total[, remaining]) / .Stop() / .Value (remaining fraction, stops the clock)
+                                       .OnReady / .OnCooling (Unit, real flips only) / .IsCooling / .Remaining
 
 DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                ScrollList.BindItems(Observable<IReadOnlyList<T>>, (slot,t)=>...)

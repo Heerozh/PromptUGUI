@@ -191,7 +191,21 @@ namespace PromptUGUI.Controls
         {
             base.InitTriggerSubscription();
             if (_animSpec.ReverseOn != null)
-                _reverseSub = SubscribeSpec(_animSpec.ReverseOn, Reverse, () => SnapTo(reverse: true));
+                _reverseSub = SubscribeSpec(_animSpec.ReverseOn, Reverse, () => SnapTo(reverse: true),
+                                            () => OnStateEstablished(reverse: true));
+        }
+
+        /// <summary>
+        /// A <c>ready</c> / <c>cooling</c> state found at open (spec 2026-10-13 §4.3): land on the end
+        /// state without playing and without raising <c>OnFire</c> / <c>OnReverse</c> — a pulse on
+        /// <c>on="ready"</c> does not go off every time the screen opens. The text family has no end
+        /// state to write, and playing it would be firing, so it is left as authored.
+        /// </summary>
+        private protected override void OnStateEstablished(bool reverse)
+        {
+            if (_animSpec.Family == Internal.AnimationFamily.Text) return;
+            CancelCurrent();
+            AnimationDriver.WriteEndState(_animSpec, Context(), reverse);
         }
 
         /// <summary>

@@ -219,6 +219,54 @@ namespace PromptUGUI.Controls.Internal
         }
 
         /// <summary>
+        /// Finds the <see cref="Cooldown"/> a <c>ready</c> / <c>cooling</c> trigger listens to (spec
+        /// 2026-10-13 §5.8). A Cooldown is a leaf that usually sits BESIDE what it decorates — an
+        /// icon, a highlight inside the same <c>&lt;Btn&gt;</c> — so neither existing direction works:
+        /// a subtree search (<c>click</c>) never sees a sibling, an ancestor search (<c>checked</c>)
+        /// never reaches a leaf. A bare trigger resolves to the NEAREST one instead: its own subtree
+        /// first, then each enclosing control's whole subtree, stopping at the first level that has
+        /// any — exactly one binds, more than one asks for <c>@id</c>.
+        /// </summary>
+        /// <param name="trigger">触发器控件</param>
+        /// <param name="sourceId">空 → 由近及远逐层找唯一的 Cooldown；非空 → 词法作用域精确查找 + 类型校验</param>
+        public static Cooldown FindCooldown(Trigger trigger, string sourceId)
+        {
+            if (!string.IsNullOrEmpty(sourceId))
+            {
+                var ctrl = ResolveId(trigger, sourceId, "ready/cooling");
+                return ctrl as Cooldown ?? throw new InvalidOperationException(
+                    $"<Trigger on=\"ready@{sourceId}\">: id '{sourceId}' is a {ctrl.GetType().Name}, " +
+                    "not a <Cooldown>. ready / cooling require a <Cooldown>.");
+            }
+
+            var found = new List<Cooldown>();
+            for (Control scope = trigger; scope != null; scope = scope.Parent)
+            {
+                found.Clear();
+                CollectCooldowns(scope, found);
+                if (found.Count == 1) return found[0];
+                if (found.Count > 1)
+                    throw new InvalidOperationException(
+                        $"<Trigger on=\"ready\"/\"cooling\"> in '{trigger.Id ?? trigger.GameObject.name}': " +
+                        $"ambiguous — the nearest level holds {found.Count} <Cooldown>s. " +
+                        "Use on=\"ready@<id>\" / \"cooling@<id>\" to pick one.");
+            }
+
+            throw new InvalidOperationException(
+                $"<Trigger on=\"ready\"/\"cooling\"> in '{trigger.Id ?? trigger.GameObject.name}': " +
+                "no <Cooldown> found in its subtree or around it. Add one or use ready@<id>.");
+        }
+
+        private static void CollectCooldowns(Control c, List<Cooldown> outList)
+        {
+            foreach (var child in c.Children)
+            {
+                if (child is Cooldown cooldown) outList.Add(cooldown);   // a leaf
+                else if (child is Control childCtrl) CollectCooldowns(childCtrl, outList);
+            }
+        }
+
+        /// <summary>
         /// Finds the <see cref="ReorderRowMarker"/> of the <c>&lt;ScrollList&gt;</c> row a <c>lift</c> /
         /// <c>drop</c> trigger lives in (spec 2026-09-16 §4.2). Resolves <b>upward</b> like
         /// <see cref="FindExpandable"/>: the row is the child of the list's Content on the way up

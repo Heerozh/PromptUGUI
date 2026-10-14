@@ -20,7 +20,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
     /// <para>Three of them differ on purpose and are called out where it matters:
     /// <c>&lt;Slider&gt;</c> keeps <c>targetGraphic</c> on its handle (spec §13.1),
     /// <c>&lt;Progress&gt;</c> keeps its surface inside a Bg layer that ships switched off, and
-    /// <c>&lt;TabMenu&gt;</c>'s surface is its popup panel rather than the face of its handle.</para>
+    /// <c>&lt;TabMenu&gt;</c>'s surface is its popup panel rather than the face of its handle.
+    /// A fourth, <c>&lt;Cooldown&gt;</c>, is a surface from the start whenever its fill is a colour.</para>
     /// </summary>
     public class ProceduralSurfaceRolloutTests
     {
@@ -38,7 +39,16 @@ namespace PromptUGUI.Tests.EditMode.Controls
              : tag == "Scrollbar" ? "thickness='12'"
              // Its surface is the fill (spec 2026-09-18), and a 0 % fill draws nothing by design.
              : tag == "Progress" ? "width='160' height='48' value='0.5'"
+             // Same for a ready (remaining 0) cooldown.
+             : tag == "Cooldown" ? "width='64' height='64' value='0.5'"
              : "width='160' height='48'";
+
+        // <Cooldown>'s COLOUR fill is the SDF surface from the start (spec 2026-10-13 §5.4): Image
+        // ignores Type.Filled without a sprite, and Unity's radial fill has an aliased polygon edge
+        // where the SDF sweep is anti-aliased. Only a bitmap fill gives it an Image to fall back to,
+        // so the contracts about leaving procedural mode run it with one.
+        private const string CooldownBitmapFill = "fill='PromptUGUI/Defaults/pugui#pugui_9slice_round'";
+        private static string WithAnImageToFallBackTo(string tag) => tag == "Cooldown" ? CooldownBitmapFill : "";
 
         private static Control Load(string tag, string attrs)
         {
@@ -70,8 +80,19 @@ namespace PromptUGUI.Tests.EditMode.Controls
         public void EveryWiredControl_WithoutProceduralAttrs_HasNoSurface()
         {
             foreach (var tag in Tags)
-                Assert.IsNull(PanelIn(Load(tag, "")),
+                Assert.IsNull(PanelIn(Load(tag, WithAnImageToFallBackTo(tag))),
                     $"<{tag}> must stay byte-for-byte what it was when nothing asks for a shape");
+        }
+
+        /// <summary>The exception above, pinned: a Cooldown with a colour fill is a surface with no shape attribute at all.</summary>
+        [Test]
+        public void Cooldown_AColourFill_IsTheSurfaceFromTheStart()
+        {
+            var c = Load("Cooldown", "");
+            var panel = PanelIn(c);
+            Assert.IsNotNull(panel, "only the SDF can sweep a colour");
+            Assert.IsFalse(panel.transform.parent.GetComponent<UnityImage>().enabled);
+            Assert.IsTrue(panel.IsPanelVisible);
         }
 
         [Test]
@@ -114,7 +135,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             foreach (var tag in Tags)
             {
-                var c = Load(tag, "radius.mobile='8'");
+                var c = Load(tag, $"radius.mobile='8' {WithAnImageToFallBackTo(tag)}");
                 UI.Variants.Set("mobile", true);
                 var panel = PanelIn(c);
                 var host = panel.transform.parent.GetComponent<UnityImage>();
@@ -206,7 +227,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             foreach (var tag in Tags)
             {
-                var c = Load(tag, "radius.mobile='8'");
+                var c = Load(tag, $"radius.mobile='8' {WithAnImageToFallBackTo(tag)}");
                 var go = c.GameObject;
 
                 UI.Variants.Set("mobile", true);

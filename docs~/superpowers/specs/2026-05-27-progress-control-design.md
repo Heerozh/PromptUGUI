@@ -48,7 +48,7 @@
 | PB-D3 | `bg` vs `back` 命名 | `bg` + `bgColor` | `fill`/`fillColor` 已成对；`bg`/`bgColor` 闭环。Slider 内部字段 `_bg` 同名。CSS / Tailwind 通用词汇 |
 | PB-D4 | `scale` vs `fill` 术语 | `mode="scale"` = 改 Fill 的 RectTransform 拉伸；`mode="fill"` = `UnityImage.Type.Filled` 截断渲染 | 跟 Unity Image 行为绑死；作者一看就知道是 RectTransform 动还是 Image fillAmount 动 |
 | PB-D5 | 方向词汇 | `direction="horizontal\|vertical\|reverse-horizontal\|reverse-vertical"` | 跟现有 `Slider.direction` 完全一致（`Runtime/Controls/Slider.cs:100`），author 心智复用 |
-| PB-D6 | radial 模式 | **不在 v1**，未来开 `<Cooldown>` 控件单独做 | radial 需要 `origin` (90/180/360) + `clockwise`，attr 表会膨胀；冷却环的语义跟"线性进度"也分得开 |
+| PB-D6 | radial 模式 | **不在 v1**，未来开 `<Cooldown>` 控件单独做（已由 [`2026-10-13-cooldown-control-design.md`](2026-10-13-cooldown-control-design.md) 兑现） | radial 需要 `origin` (90/180/360) + `clockwise`，attr 表会膨胀；冷却环的语义跟"线性进度"也分得开 |
 | PB-D7 | 层级始终统一（固定结构） | `Progress → [MaskWrapper → [Bg, Fill], Frame]` 永远 4 个 RT | 避免"mask 设没设导致 Fill 父节点不同"的结构分支；`Mask` / `UnityImage` 组件按需 `AddComponent`，但 RT 树形不变 |
 | PB-D8 | mask 没设、bg 没设 | MaskWrapper 不挂 `Mask` / `UnityImage`，仅作 stretch wrapper | 零开销；语义上"没 mask 没底"就是空 |
 | PB-D9 | mask 设了、bg 没设 | MaskWrapper.Mask.showMaskGraphic = `true`，mask sprite 兼任可见底（用户提出的优化路径） | 一个 sprite 干两件事，最常见的"圆角胶囊条 + 单色 fill"零冗余 |

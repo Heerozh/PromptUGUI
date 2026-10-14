@@ -79,9 +79,14 @@ namespace PromptUGUI.Controls.Internal
         // The progress cut (spec 2026-09-18 §5.2): the shape is intersected with a half-plane in
         // the shader, so <Progress> keeps its fill's rect at full size and drives the value here.
         // Vertex data, never a material parameter — see OnPopulateMesh.
-        private float _cutCode;     // 0 = none; ±1 / ±2 flat along x / y; ±3 / ±4 round along x / y (+ fills towards +axis)
-        private float _cutValue;    // 0..1, only meaningful while _cutCode != 0
+        private float _cutCode;     // 0 = none; ±1 / ±2 flat along x / y; ±3 / ±4 round along x / y (+ fills towards +axis);
+                                    // [5, 6) / [7, 8) radial flat / round-capped, the fraction = the sector's centre in turns
+        private float _cutValue;    // linear: 0..1; radial: the half-angle in radians. Only meaningful while _cutCode != 0
         private bool _cutEmpty;     // value 0: nothing to draw — not even the glow along the start edge
+        // <Cooldown> (spec 2026-10-13): the radial switch is a material key (the shader branches on
+        // it so no other panel pays for a sector); the ring width is a style, so it is one too.
+        private bool _radial;
+        private float _ringWidth;
 
         private PanelParams _key;
         private bool _hasKey;
@@ -340,6 +345,19 @@ namespace PromptUGUI.Controls.Internal
             if (group != null) group.RequestMemberRescan();
         }
 
+        /// <summary>
+        /// <c>&lt;Cooldown thickness&gt;</c> (spec 2026-10-13 §5.3): draws a band this wide along
+        /// the shape's own edge instead of the solid shape — a ring on a circle, a rounded-square
+        /// ring on a rounded square. Material-only; 0 (or less) is the solid shape.
+        /// </summary>
+        public void SetRingWidth(float width)
+        {
+            width = Mathf.Max(0f, width);
+            if (Mathf.Approximately(width, _ringWidth)) return;
+            _ringWidth = width;
+            MarkDirty();
+        }
+
         public void SetFrost(float v) { _frost = v; MarkDirty(); }
         public void SetDepth(float v) { _depth = v; MarkDirty(); }
         public void SetDispersion(float v) { _dispersion = v; MarkDirty(); }
@@ -402,6 +420,7 @@ namespace PromptUGUI.Controls.Internal
             _hazeColor = source._hazeColor;
             _hazeDrift = source._hazeDrift;
             _hazeDensity = source._hazeDensity;
+            _ringWidth = source._ringWidth;
             if (_hazeSelf != source._hazeSelf)
             {
                 // The seed is not copied: it is where THIS panel was first drawn, taken by its own
@@ -511,7 +530,8 @@ namespace PromptUGUI.Controls.Internal
 
             return new PanelParams(fill, border, glow, innerGlow, _radius,
                                    _borderWidth, _glowSize, _innerGlowSize, _glass, glassParams,
-                                   intensity, haze, hazeSize, hazeDrift, hazeDensity, hazeSelf);
+                                   intensity, haze, hazeSize, hazeDrift, hazeDensity, hazeSelf,
+                                   _ringWidth, _radial);
         }
 
         /// <summary>
@@ -587,9 +607,53 @@ namespace PromptUGUI.Controls.Internal
             SetVerticesDirty();
         }
 
+        /// <summary>
+        /// The radial cut (spec 2026-10-13 §5.2) — what <c>&lt;Cooldown&gt;</c> draws with: keeps the
+        /// sector centred on <paramref name="centreTurns"/> (0 = straight up, growing clockwise,
+        /// wrapped to one turn) that reaches <paramref name="halfAngle"/> radians to either side,
+        /// and discards the rest INSIDE the SDF. The whole shape is cut, so a square is swept
+        /// corners and all; border, glows and haze follow the two cut edges.
+        ///
+        /// <para><paramref name="roundCap"/> gives the ends of a RING (<see cref="SetRingWidth"/>)
+        /// half-circle caps; the shader only has an exact form for a circular ring, so the caller
+        /// asks for it only when the shape is a circle.</para>
+        ///
+        /// <para>Vertex data like <see cref="SetCut"/>: a sweep re-emits four vertices and never
+        /// touches the material — except the first call, which turns on the radial switch in the
+        /// material key (<see cref="ClearCut"/> turns it off). A half-angle of 0 emits no geometry;
+        /// π is encoded as no cut.</para>
+        /// </summary>
+        internal void SetRadialCut(float centreTurns, float halfAngle, bool roundCap = false)
+        {
+            halfAngle = Mathf.Clamp(halfAngle, 0f, Mathf.PI);
+            var turns = centreTurns - Mathf.Floor(centreTurns);
+            if (turns >= 1f) turns = 0f;
+            var code = (roundCap ? 7f : 5f) + turns;
+            var empty = halfAngle <= 0f;
+            if (halfAngle >= Mathf.PI) code = 0f;
+
+            if (!_radial)
+            {
+                _radial = true;
+                MarkDirty();
+            }
+
+            if (code == _cutCode && empty == _cutEmpty && Mathf.Approximately(halfAngle, _cutValue)) return;
+            _cutCode = code;
+            _cutValue = halfAngle;
+            _cutEmpty = empty;
+            _lastVisible = ComputeVisible();
+            SetVerticesDirty();
+        }
+
         /// <summary>Back to the uncut shape; the spelling for a panel that stops being a progress fill.</summary>
         internal void ClearCut()
         {
+            if (_radial)
+            {
+                _radial = false;
+                MarkDirty();
+            }
             if (_cutCode == 0f && !_cutEmpty) return;
             _cutCode = 0f;
             _cutValue = 0f;
@@ -757,14 +821,25 @@ namespace PromptUGUI.Controls.Internal
             // centre line and the shader needs nothing but a dot product. Code 0 (every panel
             // that is not a progress fill) leaves the channels at zero, and PuguiSdCut treats
             // that as "no cut" — bit-for-bit what those panels always drew.
+            // A radial code carries its half-angle as is — it needs no rect.
             var cutOffset = 0f;
-            if (_cutCode != 0f)
+            if (_cutCode > 4.5f) cutOffset = _cutValue;
+            else if (_cutCode != 0f)
             {
                 var axis = Mathf.Abs(_cutCode);
                 if (axis > 2.5f) axis -= 2f;    // round codes sit two above the flat ones
                 cutOffset = (2f * _cutValue - 1f) * (axis < 1.5f ? hx : hy);
             }
-            var half = new Vector4(hx, hy, _cutCode, cutOffset);
+            // A round cap is exact only on a circular ring (the shader's sdArc), and whether this is
+            // one depends on the rect — so it is settled here, where the rect is known, and a resize
+            // re-decides it. Anything else gets the flat-ended form of the same sector.
+            var cutCode = _cutCode;
+            if (cutCode > 6.5f && !IsCircularRing(hx, hy))
+            {
+                cutCode -= 2f;
+                WarnRoundCapOnce();
+            }
+            var half = new Vector4(hx, hy, cutCode, cutOffset);
             var tint = (Color32)color;
 
             // uv0.zw carry the seed of a pinned fog (hazeSpace="self", H-D9): vertex data like the
@@ -794,6 +869,30 @@ namespace PromptUGUI.Controls.Internal
 
             vh.AddTriangle(0, 1, 2);
             vh.AddTriangle(2, 3, 0);
+        }
+
+        /// <summary>A ring on a square rect whose corners make it a circle (<c>pill</c>, or a radius reaching half the side).</summary>
+        private bool IsCircularRing(float hx, float hy)
+        {
+            if (_ringWidth <= 0f || Mathf.Abs(hx - hy) >= 0.5f) return false;
+            if (_radius.Shape == PanelShape.Pill) return true;
+            if (_radius.Shape != PanelShape.None) return false;
+            var r = Mathf.Min(hx, hy) - 0.5f;
+            return Covers(_radius.TopLeftCorner, r) && Covers(_radius.TopRightCorner, r)
+                && Covers(_radius.BottomRightCorner, r) && Covers(_radius.BottomLeftCorner, r);
+        }
+
+        private static bool Covers(in CornerSpec corner, float r) => corner.Kind == CornerKind.Round && corner.Width >= r;
+
+        private bool _warnedRoundCap;
+
+        private void WarnRoundCapOnce()
+        {
+            if (_warnedRoundCap) return;
+            _warnedRoundCap = true;
+            UILog.Warn(this,
+                "PromptUGUI: cap=\"round\" is drawn only on a circular ring — thickness= on a square rect " +
+                "with radius=\"pill\". This shape gets flat ends (PUI-CD-ROUND-CAP).");
         }
 
         /// <summary>

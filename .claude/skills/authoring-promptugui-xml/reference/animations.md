@@ -42,6 +42,9 @@
 | `lift`             | The nearest **ancestor** `<ScrollList>` row (the row this trigger lives in) is picked up by a drag-to-reorder gesture (`<ScrollList reorder="true">`). Edge event; inert in a list without `reorder`. → [`reorder.md`](reorder.md) |
 | `drop`             | That row is released — the moment the settle tween **starts**, so `reverse-on="drop"` runs alongside it. Also fires when a session is cancelled (the row is put back)                              |
 | `lift@<id>` · `drop@<id>` | Same, but the row is the one containing the node with `<id>` (lexical scope; an enclosing element's own id counts, so `lift@row` on the row root works)                                        |
+| `ready`            | The nearest `<Cooldown>` runs out (remaining goes from above 0 to 0 — its clock, `Stop()`, or a pushed `value`). Persistent pair with `cooling`; resolves to the **nearest** Cooldown (see below). → [`controls-cooldown.md`](controls-cooldown.md) |
+| `cooling`          | The nearest `<Cooldown>` starts (remaining goes from 0 to above 0). A re-time (`Start` while cooling) is not an edge |
+| `ready@<id>` · `cooling@<id>` | Same, but the source is the `<Cooldown>` with `<id>` (lexical scope)                                                                                                                  |
 | `manual`           | Does not auto-fire; C# must call `Fire()`                                                                                                                                                                         |
 
 **`expand` / `collapse` are not called `open` / `close`** — `on="open"` / `on="close"` already mean "the Screen opened / is closing". They exist because the panel that opens is an internal node you cannot wrap in an `<Animation>`: a `<TabMenu>`'s popup, a `<Collapsible>`'s body. The panel's own entrance is that control's `transition=` attribute; these are for animating the **rows** inside it. They resolve upward exactly like `state-*`, and the subtree they live in is switched off while collapsed — which the ancestor walk accounts for. Establishing the initial look at Screen open is **not** an expand / collapse (a panel that opens folded has not just folded).
@@ -74,9 +77,21 @@
 
 `<Show on="lift">` shows its subtree from lift to drop (registration-style like `checked`, no Normal fallback). `<Show on="drop">` is an error — drop is a moment, not a state.
 
+**`ready` / `cooling` resolve to the NEAREST `<Cooldown>`.** A Cooldown is a leaf that sits *beside* what it decorates, so neither the subtree search (`click`) nor the ancestor search (`checked`) can reach it. A bare `ready` / `cooling` looks in the trigger's own subtree first, then in each enclosing element's whole subtree, and stops at the first level that holds any Cooldown: exactly one binds, two or more is an error asking for `@<id>` (`PUI-CD-AMBIGUOUS`), none anywhere is an error (`PUI-CD-NO-SOURCE`). `<Show on="ready">` / `<Show on="cooling">` follow the state (registration-style, no Normal fallback). Unlike `checked`, a **plain `<Trigger>` is never fired for the state found at open** — see *First-frame establishment*.
+
+```xml
+<Animation on="ready" type="pulse" duration="0.3s">          <!-- the Cooldown is inside: found in the subtree -->
+  <Btn size="64x64" radius="10">
+    <Icon name="skill:fireball" anchor="stretch"/>
+    <Cooldown anchor="stretch" radius="10" countdown="true"/>
+    <Show on="ready"><Frame anchor="stretch" radius="10" borderWidth="2" borderColor="accent"/></Show>  <!-- found beside it -->
+  </Btn>
+</Animation>
+```
+
 **`hover-enter` vs `state-hover`**: `hover-enter` / `press` are **raw pointer events** (`PointerEventRelay`, `IPointer*Handler`, downward source) — they fire on any pointer enter / down regardless of interactable state. `state-hover` / `state-pressed` come from the control's **Selectable state machine** (disabled-aware, drag-cancel-aware, upward source); a disabled `<Btn>` / `<Tab>` / `<Toggle>` never emits `state-hover` / `state-pressed`, only `state-disabled`.
 
-**`@id` resolution is LEXICAL, nearest scope first** (every `@id` form: `click` / `hover-*` / `press` / `state-*` / `expand` / `collapse` / `checked` / `unchecked`). The id is looked for in the trigger's own subtree, then in each enclosing scope walking outward — which is where a Template instance's shared id table lives, so two invocations of one template never see each other's ids — and finally among the Screen's top-level ids. That is what lets a trigger point at a **sibling**:
+**`@id` resolution is LEXICAL, nearest scope first** (every `@id` form: `click` / `hover-*` / `press` / `state-*` / `expand` / `collapse` / `checked` / `unchecked` / `ready` / `cooling`). The id is looked for in the trigger's own subtree, then in each enclosing scope walking outward — which is where a Template instance's shared id table lives, so two invocations of one template never see each other's ids — and finally among the Screen's top-level ids. That is what lets a trigger point at a **sibling**:
 
 ```xml
 <VStack width="150">
@@ -237,6 +252,8 @@ What happens on `UI.Close` (and on `Router.Back()` / a modal button): the Screen
 
 **First-frame establishment.** A `checked` / `unchecked` trigger whose control is *already* in that state as the Screen opens establishes the end state instead of animating into it — a header authored `isOn="true"` shows its chevron already turned rather than spinning it on frame 1. Every later flip animates normally. (The same idea as `states.md`'s first-frame rule for colours.) C# can ask for the same landing on a later flip: `tab.SetIsOn(true, animate: false)` / `toggle.SetIsOn(…, animate: false)` / `bar.ClearSelection(animate: false)` establish the end state of every `checked` / `unchecked` animation the change drives — the tab the group turns off included — for restoring a selection rather than answering a click. A plain `<Trigger>` still fires.
 
+`ready` / `cooling` establish the same way at open — an `<Animation on="ready">` lands on its end state instead of pulsing, and a change that lands while the Screen is still opening (a `<Cooldown value=…>`) counts as how it starts — with one difference: **a plain `<Trigger on="ready">` / `on="cooling">` is not fired at all**, and an `<Animation>` that establishes raises no `OnFire` / `OnReverse`. What hangs on a ready trigger is a "skill ready" sound or burst; replaying it would sound every time the skill bar opens. Their `OnFire` therefore reports exactly the flips C#'s `Cooldown.OnReady` / `OnCooling` do. Read `IsCooling` for the state at open.
+
 ### Common attributes (all families)
 
 | Attribute  | Default     | Notes                                                                                        |
@@ -257,6 +274,7 @@ What happens on `UI.Close` (and on `Router.Back()` / a modal button): the Screen
 - `reveal-from` and `reveal-to` may not be the same value (nothing would move); a reveal endpoint may not be negative
 - `reverse-on` may not be `open` or `loop`
 - `on="close"` may not carry an endless `loop=` (`PUI-CLOSE-LOOP`)
+- a bare `on="ready"` / `on="cooling"` (or `reverse-on=`) needs exactly one `<Cooldown>` at the nearest level that has any — two is `PUI-CD-AMBIGUOUS`, none anywhere is `PUI-CD-NO-SOURCE` (both also errors at `UI.Open`)
 
 ## Patterns
 

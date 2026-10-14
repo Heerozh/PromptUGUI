@@ -37,10 +37,11 @@ namespace PromptUGUI.Lint
             "VStack", "HStack", "Grid", "SafeArea", "Pages", "Show", "Trigger", "Animation",
         };
 
-        // Hard-wired click-through: their Graphics never take the pointer (PB-D16, Decor, Icon).
+        // Hard-wired click-through: their Graphics never take the pointer (PB-D16, Decor, Icon, and
+        // <Cooldown>, which sits on a <Btn> — spec 2026-10-13 §4.1).
         private static readonly HashSet<string> AlwaysThroughTags = new HashSet<string>(StringComparer.Ordinal)
         {
-            "Icon", "Decor", "Progress",
+            "Icon", "Decor", "Progress", "Cooldown",
         };
 
         // Their own hit layer is always on; there is nothing to configure and everything inside

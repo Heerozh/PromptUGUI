@@ -190,6 +190,7 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("<Markdown/>", "default fontSize 16")]
         [TestCase("<Text/>", "default fontSize 36")]
         [TestCase("<TabBar><Tab text='A'/></TabBar>", "default fontSize 24")]
+        [TestCase("<Cooldown countdown='true'/>", "default fontSize 24")]
         public void A_tag_without_fontSize_is_checked_at_its_default(string node, string expected)
         {
             // A 20dp floor so even <Text>'s 36 (12.5dp on the SE) falls below it.
@@ -206,6 +207,9 @@ namespace PromptUGUI.Tests.EditMode.Lint
         [TestCase("<TabBar><Tab/></TabBar>")]
         [TestCase("<Frame/>")]
         [TestCase("<Image/>")]
+        [TestCase("<Cooldown/>")]
+        [TestCase("<Cooldown fontSize='4'/>")]
+        [TestCase("<Cooldown countdown='false' fontSize='4'/>")]
         public void A_tag_that_shows_no_text_is_not_checked(string node)
         {
             CollectionAssert.IsEmpty(Lint(Screen(node), SE), node);

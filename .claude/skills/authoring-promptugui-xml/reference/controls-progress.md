@@ -4,7 +4,7 @@
 
 `<Progress>` 是显示型线性进度条，把 frame / mask / bg / fill / mode / direction / value 打包进一行 XML。**只读** — C# 侧直接 setter，无 `OnValueChanged` Observable。
 
-Radial fill（冷却环）不在 `<Progress>` 范围；以后用单独的 `<Cooldown>` 控件。
+Radial fill（冷却环）不在 `<Progress>` 范围；用单独的 `<Cooldown>` 控件 → [`controls-cooldown.md`](controls-cooldown.md)。
 
 ## 六个典型用例
 

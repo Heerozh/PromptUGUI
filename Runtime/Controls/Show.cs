@@ -1,5 +1,6 @@
 using System;
 using PromptUGUI.Controls.Internal;
+using R3;
 
 namespace PromptUGUI.Controls
 {
@@ -48,6 +49,18 @@ namespace PromptUGUI.Controls
                 row.RegisterLiftShow(() => GameObject.SetActive(row.IsLifted));
                 return;
             }
+            // "Cooling" / "ready" are states a <Cooldown> is in (spec 2026-10-13 §4.3) — registration
+            // style like checked, no Normal fallback, resolved to the nearest Cooldown (§5.8).
+            if (_spec.Kind is TriggerKind.Ready or TriggerKind.Cooling)
+            {
+                var wantCooling = _spec.Kind == TriggerKind.Cooling;
+                var cooldown = TriggerSourceResolver.FindCooldown(this, _spec.SourceId);
+                void Reevaluate() => GameObject.SetActive(cooldown.IsCooling == wantCooling);
+                Reevaluate();
+                _sourceSub = Observable.Merge(cooldown.OnReady, cooldown.OnCooling)
+                    .Subscribe(_ => Reevaluate());
+                return;
+            }
             if (_spec.Kind == TriggerKind.Close)
                 throw new InvalidOperationException(
                     $"<Show on=\"{OnRaw()}\">: close is the moment a Screen begins closing, not a state a <Show> " +
@@ -68,7 +81,7 @@ namespace PromptUGUI.Controls
                 _ => throw new InvalidOperationException(
                     "<Show> only accepts state-* events (state-normal / state-hover / " +
                     "state-pressed / state-selected / state-disabled), the persistent " +
-                    $"checked / unchecked, or lift, got 'on=\"{OnRaw()}\"'."),
+                    $"checked / unchecked or ready / cooling, or lift, got 'on=\"{OnRaw()}\"'."),
             };
 
             _src = TriggerSourceResolver.FindStateSource(this, _spec.SourceId);
@@ -92,6 +105,8 @@ namespace PromptUGUI.Controls
             TriggerKind.Lift => _spec.SourceId == null ? "lift" : "lift@" + _spec.SourceId,
             TriggerKind.Drop => _spec.SourceId == null ? "drop" : "drop@" + _spec.SourceId,
             TriggerKind.Close => "close",
+            TriggerKind.Ready => _spec.SourceId == null ? "ready" : "ready@" + _spec.SourceId,
+            TriggerKind.Cooling => _spec.SourceId == null ? "cooling" : "cooling@" + _spec.SourceId,
             _ => _spec.Kind.ToString(),
         };
 
