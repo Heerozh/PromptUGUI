@@ -2,11 +2,9 @@
 
 [English](#promptugui) | [中文](#promptugui-中文)
 
-A solution that enables Unity 2022.3+ / Unity 6+ UI development through LLM.
+A UI Framework friendly to Code Agents, aiming to bypassing manual asset slicing by generate final visual results directly, supports Unity 2022.3+ / Unity 6+.
 
 It provides an extremely concise UI description language `.ui.xml` & `.pxl` , and a runtime parser that translates it into a uGUI hierarchy + Sprite images.
-The refined UI composition workflow enables procedural surface generation, making it suitable for LLMs to produce final visual results directly, bypassing the need for manual asset slicing.
-
 More flexible than UI Toolkit, easier for custom styling, and tightly integrated with the GameObject system.
 
 ## WebGL Demo Page
@@ -313,11 +311,9 @@ C# Code:
 
 [English](#promptugui) | [中文](#promptugui-中文)
 
-一个让 Unity 2022.3+ / Unity 6+ 的 UI 可以用大模型进行开发的解决方案。
+一个大模型友好的 UI 框架，目标免除切图流程直接出效果，支持 Unity 2022.3+ / Unity 6+。
 
 通过描述语言 `.ui.xml` 以及 `.pxl` 和一个运行时解析器，翻译成uGUI结构 + Sprite图像。
-精炼美术的UI合成流程实现程序化表面，适合大模型免除切图流程直接出效果。
-
 比UI Toolkit更自由，和GameObject体系结合更紧密。
 
 简介视频： <https://www.bilibili.com/video/BV1zzM369Exa/>
