@@ -151,7 +151,8 @@ namespace PromptUGUI.Controls.Internal
                 if (ancestor == null)
                     throw new InvalidOperationException(
                         $"<Trigger on=\"state-...\"> in '{trigger.Id ?? trigger.GameObject.name}': " +
-                        "no <Btn>/<Tab>/<Toggle> ancestor found. Place it inside one, or use state-...@<id>.");
+                        "no <Btn>/<Tab>/<Toggle> ancestor (or <Suggestions> row) found. Place it inside one, " +
+                        "or use state-...@<id>.");
                 return ancestor;
             }
 
@@ -160,7 +161,8 @@ namespace PromptUGUI.Controls.Internal
             if (src == null)
                 throw new InvalidOperationException(
                     $"<Trigger on=\"state-...@{sourceId}\">: id '{sourceId}' is a " +
-                    $"{ctrl.GetType().Name}, not a state source. state-* triggers require a <Btn>/<Tab>/<Toggle>.");
+                    $"{ctrl.GetType().Name}, not a state source. state-* triggers require a <Btn>/<Tab>/<Toggle> " +
+                    "(or sit inside a <Suggestions> row).");
             return src;
         }
 

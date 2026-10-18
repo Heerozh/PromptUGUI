@@ -120,6 +120,18 @@ namespace PromptUGUI.Controls.Internal
         }
 
         // override-aware 静态解析,供 Tutorial 气泡复用同一份设备状态(及测试注入钩子)。
+        /// <summary>
+        /// Shrinks a full-screen rect (design px, a root canvas's own space) by the device safe area —
+        /// notch, punch-hole, home bar. Shared by the tutorial bubble and the suggestion list's bounds;
+        /// honours the test injections above. On a PC (no inset) it returns <paramref name="full"/>.
+        /// </summary>
+        internal static Rect ApplySafeInset(Rect full, float scaleFactor)
+        {
+            var sf = ScaleFactorOverride != null ? ScaleFactorOverride() : scaleFactor;
+            var (l, r, b, t) = ComputeInsetsDesignPx(ResolveSafeAreaStatic(), ResolveScreenSizeStatic(), sf);
+            return Rect.MinMaxRect(full.xMin + l, full.yMin + b, full.xMax - r, full.yMax - t);
+        }
+
         internal static Rect ResolveSafeAreaStatic() =>
             SafeAreaOverride != null ? SafeAreaOverride() : Screen.safeArea;
 

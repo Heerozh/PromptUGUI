@@ -73,7 +73,19 @@ namespace PromptUGUI.Controls
             set => CanvasGroup.interactable = value;
         }
 
-        private CanvasGroup CanvasGroup => _canvasGroup ??= GameObject.AddComponent<CanvasGroup>();
+        // Found before it is added: a control whose GameObject already carries a CanvasGroup (a
+        // <Suggestions> panel's, which its popup core fades) must not get a second one. An explicit
+        // null check, not `??`: in the Editor a missing component comes back as a fake null object.
+        private CanvasGroup CanvasGroup
+        {
+            get
+            {
+                if (_canvasGroup != null) return _canvasGroup;
+                _canvasGroup = GameObject.GetComponent<CanvasGroup>();
+                if (_canvasGroup == null) _canvasGroup = GameObject.AddComponent<CanvasGroup>();
+                return _canvasGroup;
+            }
+        }
 
         /// <summary>
         /// <see cref="Interactable"/> without the side effect: the getter lazily ADDS a CanvasGroup,

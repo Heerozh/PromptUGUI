@@ -152,11 +152,89 @@ namespace PromptUGUI.Controls
             base.OnAfterApply();
             _input.interactable = Interactable;
             ApplyTextAreaPadding();
+            _suggestions?.OnFieldAfterApply();
+        }
+
+        private Suggestions _suggestions;
+
+        /// <summary>Its <c>&lt;Suggestions&gt;</c> child, or null when it has none.</summary>
+        public Suggestions Suggestions => _suggestions;
+
+        /// <summary>
+        /// Takes a <c>&lt;Suggestions&gt;</c> child (spec 2026-10-18 §5.1). A field takes one list; a
+        /// second is parked inactive with a warning, the way a scrolling host treats a second bar.
+        /// </summary>
+        internal void AdoptSuggestions(Suggestions list)
+        {
+            if (_suggestions != null && _suggestions != list)
+            {
+                UILog.Warn(list,
+                    $"[{PromptUGUI.Lint.SuggestionsRules.DuplicateCode}] " +
+                    PromptUGUI.Lint.SuggestionsRules.DuplicateMessage(Id, list.Id));
+                list.GameObject.SetActive(false);
+                return;
+            }
+            _suggestions = list;
+            list.AttachField(this);
         }
 
         // True when the underlying field is in edit mode (caret active). Used by the
-        // two-level navigation gate and its tests.
-        internal bool IsEditing => _input != null && _input.isFocused;
+        // two-level navigation gate, the suggestion list and their tests.
+        internal bool IsEditing => _editingOverride ?? (_input != null && _input.isFocused);
+
+        private bool? _editingOverride;
+        private bool _readOnly;
+
+        /// <summary>
+        /// Edit mode began (true) or ended (false), whichever way it ended — the edges the
+        /// suggestion list opens and closes on (spec 2026-10-18 §6.6).
+        /// </summary>
+        internal event System.Action<bool> EditingChanged;
+
+        /// <summary>
+        /// Test hook: pins <see cref="IsEditing"/> (EditMode never focuses a TMP field) and raises the
+        /// edge; <c>null</c> goes back to the live state.
+        /// </summary>
+        internal void SetEditingForTests(bool? editing)
+        {
+            var was = IsEditing;
+            _editingOverride = editing;
+            if (IsEditing != was) EditingChanged?.Invoke(IsEditing);
+        }
+
+        /// <summary>The live edge, reported by the field's TMP component.</summary>
+        internal void NotifyEditingChanged(bool editing)
+        {
+            if (_editingOverride == null) EditingChanged?.Invoke(editing);
+        }
+
+        /// <summary>Leaves edit mode — after a suggestion is chosen, or when a layer covers the list.</summary>
+        internal void EndEditing()
+        {
+            if (_editingOverride == true)
+            {
+                SetEditingForTests(false);
+                return;
+            }
+            if (_input != null && _input.isFocused) _input.DeactivateInputField();
+        }
+
+        internal bool IsReadOnly => _readOnly;
+
+        /// <summary>
+        /// Code that disables the field also reaches the TMP component and closes the suggestion list:
+        /// this path does not go through <see cref="OnAfterApply"/>.
+        /// </summary>
+        public override bool Interactable
+        {
+            get => base.Interactable;
+            set
+            {
+                base.Interactable = value;
+                if (_input != null) _input.interactable = value;
+                if (!value) _suggestions?.Close();
+            }
+        }
 
         [UIAttr("text"), Preserve]
         public string TextValue
@@ -224,7 +302,11 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public bool ReadOnly
         {
-            set => _input.readOnly = value;
+            set
+            {
+                _readOnly = value;
+                _input.readOnly = value;
+            }
         }
 
         // Inner space between the field's edge and its text (T,R,B,L; "_" = 0). When unset the
