@@ -2,8 +2,8 @@
 
 > 状态：**已定，实现中**（2026-10-01，作者同意评估里的推荐项；指示只补 spec、不写 plan，red 先行、按 §11 分步提交，
 > 分支 `feat/router-page-layering`）。
-> 需求来源：宿主工程（ssw_re_client）聊天框在 routed Page `Round` 里，星球面板是它的子 Page `Planet`；两块根画布
-> `sortingOrder` 都是 0，HUD 偶尔翻到上面，左下角聊天框透到星球面板上。
+> 需求来源：宿主工程里，一个 routed Page 上有聊天框，它的子 Page 是一块全屏面板；两块根画布
+> `sortingOrder` 都是 0，父页的 HUD 偶尔翻到上面，聊天框透到子页的面板上。
 > 相关：
 > `2026-06-09-router-navigation-design.md` §5.1 / §5.2 / §11 / §12（§12 遗留「routed Modal 与 ad-hoc dialog 两套 sorting
 > 计数如何不打架」—— 本文 §7 落地）、
@@ -182,7 +182,7 @@ so it would be hidden behind its own ancestor. Map '<page>' with present: RouteP
 ```
 
 Tab / Prompt / Modal 挂在 Modal 下照旧允许。行为变化：这种注册以前能「导航成功」但页面被盖住，现在 `Open` / `Navigate` 直接失败。
-宿主工程（ssw_re_client 的 `RoundRoutes` / `LobbyRoutes`）没有 Modal 路由，不受影响。
+已在宿主工程中核对：它没有 Modal 路由，不受影响。
 
 ## 9. 决策表
 
