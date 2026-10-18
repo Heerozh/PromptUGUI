@@ -36,6 +36,16 @@ namespace PromptUGUI.Controls
         private readonly Subject<string> _submit = new();
 
         public Observable<string> OnValueChanged => _changed;
+
+        /// <summary>
+        /// The user changed the text: typing, pasting, deleting, an input method committing, the soft
+        /// keyboard syncing (spec 2026-10-18 §6.7). Code writes (<see cref="TextValue"/>, an XML replay)
+        /// and TMP's Escape rollback do not count; <see cref="OnValueChanged"/> still reports all of them.
+        /// </summary>
+        public Observable<string> OnInput => _userInput;
+
+        private readonly Subject<string> _userInput = new();
+        private bool _programmaticWrite;
         public Observable<string> OnEndEdit => _endEdit;
         public Observable<string> OnSubmit => _submit;
 
@@ -57,7 +67,10 @@ namespace PromptUGUI.Controls
             _textAreaMask = _textArea.gameObject.AddComponent<RectMask2D>();
             ApplyTextAreaPadding();
 
-            _input = GameObject.AddComponent<TMP_InputField>();
+            // PuiInputField: TMP unchanged until a <Suggestions> list is open (spec 2026-10-18 §6.6).
+            var pui = GameObject.AddComponent<PuiInputField>();
+            pui.Owner = this;
+            _input = pui;
             _input.targetGraphic = _bg;
             _input.textViewport = _textArea;
 
@@ -86,16 +99,27 @@ namespace PromptUGUI.Controls
             _input.caretColor = ProceduralBuilders.DefaultLabelColor;
             _input.customCaretColor = false;
             _input.selectionColor = new Color(0.659f, 0.808f, 1f, 0.753f);
-            _input.onValueChanged.AddListener(v => _changed.OnNext(v));
+            _input.onValueChanged.AddListener(v =>
+            {
+                _changed.OnNext(v);
+                // TMP rolls an Escape back after it has stopped editing, so isFocused rules that out too.
+                if (_programmaticWrite || !_input.isFocused) return;
+                // Armed first: a host answering OnInput with a synchronous push then opens the list.
+                _suggestions?.NotifyUserInput();
+                _userInput.OnNext(v);
+            });
             _input.onEndEdit.AddListener(v => _endEdit.OnNext(v));
             // Gate: when Navigation is enabled and the field is not yet focused, Submit is
             // the two-level "enter edit" gesture.  TMP fires onSubmit synchronously before
             // InputFieldNavGate.OnSubmit runs, so we check isFocused here at listener time
             // to suppress the business event for that transition.
+            // With a <Suggestions> list this is the typed-text submit: the field's own event first, then
+            // the list's (text, -1). A chosen suggestion never comes through here (spec 2026-10-18 §6.4).
             _input.onSubmit.AddListener(v =>
             {
                 if (UI.Navigation.IsEnabled && !_input.isFocused) return;
                 _submit.OnNext(v);
+                _suggestions?.CommitTyped(v);
             });
 
             // AddComponent<TMP_InputField> 在 active GO 上立刻触发 OnEnable, 那一刻
@@ -240,7 +264,19 @@ namespace PromptUGUI.Controls
         public string TextValue
         {
             get => _input != null ? _input.text : null;
-            set => _input.text = value ?? string.Empty;
+            set
+            {
+                // A code write, not user input: OnInput stays quiet (no re-query for a written-back choice).
+                _programmaticWrite = true;
+                try
+                {
+                    _input.text = value ?? string.Empty;
+                }
+                finally
+                {
+                    _programmaticWrite = false;
+                }
+            }
         }
 
         internal override string PeekDefaultText() => _input != null ? _input.text : null;
@@ -437,6 +473,7 @@ namespace PromptUGUI.Controls
                 _input.onSubmit.RemoveAllListeners();
             }
             _changed.Dispose();
+            _userInput.Dispose();
             _endEdit.Dispose();
             _submit.Dispose();
             base.Dispose();

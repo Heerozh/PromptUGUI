@@ -71,6 +71,7 @@ namespace PromptUGUI.Controls
         private bool _keepArmedOnClose;   // only an empty push closes without disarming
         private bool? _openSide;          // the side chosen on open (true = above); pushes keep it
         private int _highlight = -1;
+        private bool _editEndPending;     // the edit ended while a row was held down (SG-D15)
 
         private readonly Subject<Unit> _opened = new();
         private readonly Subject<Unit> _closed = new();
@@ -207,7 +208,7 @@ namespace PromptUGUI.Controls
         }
 
         private bool CanShow =>
-            _core != null && _armed && _rows.Count > 0 && _field.IsEditing
+            _core != null && _armed && _rows.Count > 0 && (_field.IsEditing || _editEndPending)
             && _field.PeekInteractable && !_field.IsReadOnly && _field.GameObject.activeInHierarchy;
 
         private void Evaluate()
@@ -227,6 +228,27 @@ namespace PromptUGUI.Controls
         private void OnEditingChanged(bool editing)
         {
             if (editing) return;   // entering edit mode does not arm: last round's rows stay hidden
+            // On Android a tap on the game view may hide the keyboard — ending the edit — before the tap on
+            // a row is released. That press decides (SG-D15): see OnRowReleased.
+            if (IsOpen && _rows.Exists(r => r.Press.IsPressed))
+            {
+                _editEndPending = true;
+                return;
+            }
+            _armed = false;
+            _core?.Close(PopupCloseReason.Owner);
+        }
+
+        private void OnRowReleased(Row row, bool clicks)
+        {
+            if (!_editEndPending) return;
+            _editEndPending = false;
+            var index = _rows.IndexOf(row);
+            if (clicks && IsOpen && index >= 0)
+            {
+                CommitChosen(index);   // the click that follows finds the list closed and does nothing
+                return;
+            }
             _armed = false;
             _core?.Close(PopupCloseReason.Owner);
         }
@@ -241,6 +263,7 @@ namespace PromptUGUI.Controls
         {
             if (!_keepArmedOnClose) _armed = false;
             _keepArmedOnClose = false;
+            _editEndPending = false;
             _openSide = null;
             SetHighlight(-1);
             // Covered by a modal, a routed page, the Loading overlay: typing on into a field the user can
@@ -664,6 +687,7 @@ namespace PromptUGUI.Controls
 
             var row = new Row { Shell = shell, Press = press };
             press.OnClicked.Subscribe(_ => OnRowClicked(row));
+            press.Released += clicks => OnRowReleased(row, clicks);
             row.Control = _factory(shell);
 
             if (!_warnedSelectable && shell.GetComponentInChildren<Selectable>(true) != null)

@@ -58,6 +58,12 @@ namespace PromptUGUI.Controls.Internal
         /// <summary>A left click on it while interactable.</summary>
         internal Observable<Unit> OnClicked => _clicked;
 
+        /// <summary>
+        /// A left press on it was released; true when the release is about to click it (the pointer is still
+        /// over it and the press did not turn into a drag). Raised before the click.
+        /// </summary>
+        internal event Action<bool> Released;
+
         /// <summary>The persistent highlight: reads <c>selected</c> while no hover / press overrides it.</summary>
         internal void SetOn(bool on)
         {
@@ -87,9 +93,10 @@ namespace PromptUGUI.Controls.Internal
 
         public void OnPointerUp(PointerEventData eventData)
         {
-            if (eventData.button != PointerEventData.InputButton.Left) return;
+            if (eventData.button != PointerEventData.InputButton.Left || !_pressed) return;
             _pressed = false;
             PushTransient();
+            Released?.Invoke(_inside && _interactable && eventData.eligibleForClick);
         }
 
         public void OnPointerClick(PointerEventData eventData)
