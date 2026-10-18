@@ -438,20 +438,6 @@ namespace PromptUGUI.Controls
 
         // ── Expand / collapse ──────────────────────────────────────────────────────────────
 
-        // Internal names the existing tests reach for, forwarding to PopupCore / PopupChain
-        // (spec 2026-10-18 §4.7). They go when EscapeChain lands and the tests move over.
-
-        /// <summary>Name of the full-screen click catcher, on the root canvas while a menu is open.</summary>
-        internal const string BlockerName = PopupCore.BlockerName;
-
-        /// <summary>
-        /// How far above the root canvas the panel sorts. The catcher sits one below it, so both
-        /// clear the page without reaching the modal band (<c>UI.Modal.SortingOrderBase</c> = 1000).
-        /// </summary>
-        internal static int PopupSortingOffset => PopupChain.SortingOffset;
-
-        internal static bool HasExpandedMenu => !PopupChain.IsEmpty;
-
         // True only while Expand() is bringing the panel up. Activating the popup subtree makes uGUI
         // revalidate the ToggleGroup on enable, which re-announces the already-selected tab — and
         // "a tab was selected" is otherwise the signal to close. Without this guard a menu closes
@@ -548,22 +534,6 @@ namespace PromptUGUI.Controls
             if (_caption == null) return;
             _caption.ArrowRotation = t * 180f;
         }
-
-        // ── Escape, until EscapeChain takes over ───────────────────────────────────────────
-
-        /// <summary>
-        /// Closes the open menu, if any, and reports whether this Escape belongs to a menu.
-        /// Called first thing by <c>UI.Modal</c>'s Escape handler.
-        /// </summary>
-        internal static bool TryConsumeEscape() => PopupChain.TryConsumeEscape();
-
-        internal void NotifyEscapeConsumedForTests()
-        {
-            PopupChain.NoteEscapeConsumed();
-            _popupCore.Close(PopupCloseReason.Escape);
-        }
-
-        internal static void ForgetEscapeFrameForTests() => PopupChain.ForgetEscapeFrameForTests();
 
         // ── Placement ──────────────────────────────────────────────────────────────────────
 

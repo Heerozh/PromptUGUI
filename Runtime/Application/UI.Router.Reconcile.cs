@@ -340,8 +340,37 @@ namespace PromptUGUI.Application
                 }
             }
 
-            private static bool IsTop(string name) =>
-                _chain.Count > 0 && _chain[_chain.Count - 1].Def.Name == name;
+            /// <summary>
+            /// A routed Modal's answer to an Escape that <see cref="EscapeChain"/> routed here (after
+            /// the tutorial gate, any open popup and any ad-hoc dialog): when the top of the chain is
+            /// a Modal, go back. Anything else on top — a Page, or a Tab / Prompt over a Modal — leaves
+            /// the press unconsumed, as before. A guard that rejects the navigation makes
+            /// <see cref="Back"/> throw synchronously; the press is still spent.
+            /// </summary>
+            internal static bool TryHandleEscape()
+            {
+                if (_chain.Count == 0 || _chain[_chain.Count - 1].Def.Kind != RouteKind.Modal) return false;
+                try
+                {
+                    _ = Back();
+                }
+                catch (NavigationRejectedException)
+                {
+                    // A guard said no (a running tutorial does this) — nothing else should act on it.
+                }
+                return true;
+            }
+
+            /// <summary>The highest routed Modal's Screen in the chain, or null.</summary>
+            internal static Screen TopModalScreen
+            {
+                get
+                {
+                    for (var i = _chain.Count - 1; i >= 0; i--)
+                        if (_chain[i].Def.Kind == RouteKind.Modal) return UI.Get(_chain[i].ScreenKey);
+                    return null;
+                }
+            }
 
             // 加载 def.Src 一次,解析出要 Open 的 screen 名。
             private static async Awaitable<string> EnsureLoaded(RouteNode def)

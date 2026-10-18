@@ -1739,6 +1739,23 @@ public static class UI.Modal {
   `ENABLE_INPUT_SYSTEM` is defined (bindings: `<Keyboard>/escape` + `<Gamepad>/start`),
   else legacy `Input.GetKeyDown(KeyCode.Escape)`. `Loading` overlays do NOT have this
   listener — they're not dismissible by input.
+- **Who answers an Escape** — one decision per key press, however many listeners heard it,
+  in this order:
+
+  | # | Up on screen | Escape / Start | Gamepad B |
+  |---|---|---|---|
+  | 1 | A blocking tutorial step (`TutorialMode.Block`) | swallowed — nothing closes | swallowed |
+  | 2 | An open `<Dropdown>` list | the list closes | the list closes |
+  | 3 | An open popup (`<TabMenu>`) not under the top dialog | the popup closes | the popup closes |
+  | 4 | An ad-hoc dialog | the top dialog's `TryEscape` (refusing still consumes it) | — |
+  | 5 | A routed `Modal` on top of the chain | `UI.Router.Back()` (a guard's rejection still consumes it) | — |
+
+  So a dialog with a menu open inside it survives the press that closes the menu, and a routed
+  Modal behaves the same.
+- **A dialog closes the popups under it.** Opening a dialog from code — or a routed child page,
+  a routed Modal, a `Loading` overlay — closes an open `<TabMenu>` / `<Dropdown>` list on the
+  layers below, before the dialog records the focus to return to: closing it puts the focus back on
+  the menu's handle. Toasts and tutorial steps leave them open.
 - **Raycast / sortingOrder**: each dialog's Canvas overrides `sortingOrder` to
   `UI.Modal.SortingOrderBase + routed Modals in the Router chain + depth` (depth 0 = bottom
   of dialog stack) — so a dialog raised from a routed Modal panel always draws above it.
@@ -2216,7 +2233,7 @@ UI.Router.RemoveGuard(guard);   // removed by reference — keep the delegate in
 | Kind | Registration | What opens | Deactivated by |
 |---|---|---|---|
 | **Page** | `Map(present: RoutePresent.Page)` | `UI.Open(screenName)` — full-screen Canvas, `sortingOrder` from its depth (see **Layering**) | `UI.Close(screenName)` |
-| **Modal** | `Map(present: RoutePresent.Modal)` | Same as Page, but in the modal band + `ModalEscapeListener` (ESC→`Back()`) | `UI.Close(screenName)` |
+| **Modal** | `Map(present: RoutePresent.Modal)` | Same as Page, but in the modal band + `ModalEscapeListener` (ESC→`Back()` when it is on top, see Modal **Behavior**) | `UI.Close(screenName)` |
 | **Tab** | `MapTab(tabId: ...)` | Selects the `<Tab>` (`tab.IsOn = true`) in the host Page/Modal | Tab is deselected (the host Page/Modal is closed if it leaves the chain) |
 | **Prompt** | `MapPrompt(run: ...)` | Runs `run` async; no screen of its own | `run` returns normally (self-pop) or `ct` is cancelled (navigated away) |
 
@@ -2235,7 +2252,7 @@ Every routed canvas gets a deterministic `sortingOrder`. Two Overlay canvases le
 
 - **depth** = the routed Pages ahead of this one in the chain. Tab and Prompt nodes own no canvas and add nothing (`home → shop → shop/deals (tab) → item` puts `item` at depth 2). Siblings share a depth, so switching between them never climbs, and since the depth comes from the registered parent chain, `Back` / re-navigating never moves a page that stays up.
 - The router writes the value right after the screen opens and **before `onEnter`**, overriding whatever `UI.CanvasConfigurator` set on that canvas — the same contract as the modal / Loading / Toast / Tutorial layers. `onEnter` sees the final value and may still adjust a single page; a hot reload (`UI.ReloadAsync`) rebuilds the canvas and the router puts its own value back (and a routed Modal's Escape → `Back()`).
-- `PageSortingOrderStep` must be at least `4` — the setter throws `ArgumentOutOfRangeException` below that. Each depth owns its slot, the value below it (a page playing its exit) and two above it (an expanded `<TabMenu>`'s click catcher and panel); none of them may reach the next depth.
+- `PageSortingOrderStep` must be at least `4` — the setter throws `ArgumentOutOfRangeException` below that. Each depth owns its slot, the value below it (a page playing its exit) and two above it (an open popup's click catcher and panel, e.g. an expanded `<TabMenu>`); none of them may reach the next depth.
 - A page whose slot reaches `Loading.SortingOrder` logs a warning — a Loading overlay would no longer cover it. Keep `PageSortingOrderBase + deepestDepth × PageSortingOrderStep` below it.
 - **A non-routed screen at the default `0` ties with the root Page.** If it overlaps routed pages, give it an explicit value in the configurator: below `PageSortingOrderBase` to sit under every page, between the deepest page and `Loading.SortingOrder` to sit above them all.
 - `sortingOrder` only orders canvases of the same kind. Every Overlay canvas draws after every camera, so a `canvas="camera"` child page can never draw above an Overlay parent, whatever its value. That is exactly the glass recipe — UI meant to show *behind* a glass HUD lives on a Camera-mode screen — so the router does not warn about it.

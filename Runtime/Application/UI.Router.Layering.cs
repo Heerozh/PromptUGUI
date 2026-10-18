@@ -48,7 +48,7 @@ namespace PromptUGUI.Application
             private static int MinPageSortingOrderStep => Controls.Internal.PopupChain.SortingOffset + 2;
 
             // The router's mark on a routed canvas (spec §4 / §6): where it sorts and, for a Modal,
-            // Escape → Back. `index` is the node's place in _chain; activation is bottom-up, so what
+            // a source of Escape presses (EscapeChain turns one into Back). `index` is the node's place in _chain; activation is bottom-up, so what
             // sits ahead of it is exactly its registered ancestry and the result is a function of
             // the route map alone — re-applying it can never move a page that is already up.
             private static void ApplyRouteLayer(RouteNode def, Screen screen, int index)
@@ -59,20 +59,17 @@ namespace PromptUGUI.Application
                 {
                     canvas.overrideSorting = true;
                     canvas.sortingOrder = UI.Modal.SortingOrderBase + CountAhead(index, RouteKind.Modal);
-                    var esc = root.AddComponent<ModalEscapeListener>();
-                    var captured = def.Name;
-                    esc.OnEscape = () =>
-                    {
-                        if (UI.Tutorial.IsBlockingInput) return;
-                        // 只栈顶 routed modal 响应;有 ad-hoc 模态在上时让位给它
-                        if (IsTop(captured) && !UI.Modal.IsAnyOpen) _ = Back();
-                    };
+                    // A key source only: EscapeChain decides (routed Modal on top → Back()).
+                    root.AddComponent<ModalEscapeListener>();
+                    // A layer over an open popup closes it (spec 2026-10-18 §4.5).
+                    Controls.Internal.PopupChain.DismissBelow(canvas.sortingOrder);
                     return;
                 }
 
                 var depth = CountAhead(index, RouteKind.Page);
                 var slot = PageSortingOrderBase + depth * PageSortingOrderStep;
                 canvas.sortingOrder = slot;
+                Controls.Internal.PopupChain.DismissBelow(slot);
                 if (slot >= Loading.SortingOrder)
                     Debug.LogWarning(
                         $"[PromptUGUI] Routed page '{def.Name}' (depth {depth}) sorts at {slot}, at or above " +

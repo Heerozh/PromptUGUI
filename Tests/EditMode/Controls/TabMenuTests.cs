@@ -232,7 +232,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
         private static GameObject Blocker(PuguiScreen s)
         {
-            var t = s.RootGameObject.transform.Find(TabMenu.BlockerName);
+            var t = s.RootGameObject.transform.Find(PopupCore.BlockerName);
             return t != null ? t.gameObject : null;
         }
 
@@ -249,7 +249,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsTrue(Popup(m).gameObject.activeSelf);
             var canvas = Popup(m).GetComponent<Canvas>();
             Assert.IsTrue(canvas.overrideSorting, "also what frees the panel from an ancestor mask");
-            Assert.AreEqual(rootOrder + TabMenu.PopupSortingOffset, canvas.sortingOrder);
+            Assert.AreEqual(rootOrder + PopupChain.SortingOffset, canvas.sortingOrder);
         }
 
         [Test]
@@ -264,7 +264,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var blocker = Blocker(s);
             Assert.IsNotNull(blocker, "the catcher lives on the root canvas, not inside the menu");
             Assert.IsTrue(blocker.activeSelf);
-            Assert.AreEqual(rootOrder + TabMenu.PopupSortingOffset - 1,
+            Assert.AreEqual(rootOrder + PopupChain.SortingOffset - 1,
                             blocker.GetComponent<Canvas>().sortingOrder, "just below the panel");
             Assert.AreEqual(0f, blocker.GetComponent<UnityImage>().color.a, "invisible…");
             Assert.IsTrue(blocker.GetComponent<UnityImage>().raycastTarget, "…but catches the click");
@@ -397,7 +397,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsNotNull(Blocker(s));
 
             s.Close();
-            Assert.IsFalse(TabMenu.HasExpandedMenu, "no dangling global reference to a dead menu");
+            Assert.IsTrue(PopupChain.IsEmpty, "no dangling global reference to a dead menu");
         }
 
         // ── Transition (TM-D13) ───────────────────────────────────────────────────────────

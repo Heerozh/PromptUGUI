@@ -112,10 +112,12 @@ namespace PromptUGUI.Controls.Internal
 
         /// <summary>
         /// A layer sorting at <paramref name="sortingOrder"/> appeared: closes every entry whose host
-        /// sorts below it (spec 2026-10-18 §4.5). Entries on the same or a higher layer stay.
+        /// sorts below it (spec 2026-10-18 §4.5), and hides an open <c>&lt;Dropdown&gt;</c> list
+        /// there too — TMP sorts it above everything. Entries on the same or a higher layer stay.
         /// </summary>
         internal static void DismissBelow(int sortingOrder)
         {
+            PuiDropdown.HideBelow(sortingOrder);
             // Nested entries share their ancestor's root canvas, so the lowest covered one decides.
             for (var i = 0; i < s_stack.Count; i++)
             {
@@ -158,36 +160,6 @@ namespace PromptUGUI.Controls.Internal
             return panel != null && host != null && host.transform.IsChildOf(panel);
         }
 
-        // ── Escape bookkeeping carried over unchanged from TabMenu (TM-D16) ──────────────────────
-        // Until EscapeChain takes over (spec 2026-10-18 §4.4), a popup's own listener and UI.Modal's
-        // both answer one press in an undefined order; whichever runs second must see it as spent.
-
-        private static int s_escapeFrame = int.MinValue;
-
-        internal static void NoteEscapeConsumed() => s_escapeFrame = Time.frameCount;
-
-        /// <summary>
-        /// Closes the top popup, if any, and reports whether this Escape belongs to a popup — also
-        /// when a popup's own listener already closed it this frame.
-        /// </summary>
-        internal static bool TryConsumeEscape()
-        {
-            var top = Top;
-            if (top != null)
-            {
-                NoteEscapeConsumed();
-                Close(top, PopupCloseReason.Escape);
-                return true;
-            }
-            return s_escapeFrame == Time.frameCount;
-        }
-
-        internal static void ForgetEscapeFrameForTests() => s_escapeFrame = int.MinValue;
-
-        internal static void ResetForTests()
-        {
-            s_stack.Clear();
-            s_escapeFrame = int.MinValue;
-        }
+        internal static void ResetForTests() => s_stack.Clear();
     }
 }

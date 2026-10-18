@@ -717,3 +717,23 @@ public Suggestions Suggestions { get; }      // 没有 <Suggestions> 子元素�
 | Esc 改线影响每一个模态 | 监听组件与 `enabled` 规则不变；全部模态、路由、教程的测试做护栏；阶段 0 单独 PR |
 | 「被盖住即收」与宿主预期冲突（比如宿主想让菜单在 Loading 下保持展开） | 只有三个层管理器触发；写进 skill；需要时可加开关（不预先做） |
 | 回滚 | 阶段 1 是纯新增（新标签、新属性、新事件），可整体回退；阶段 0 回退到 `TabMenu` 的私有实现与原 Esc 落点即可，`PopupPlacer` 的扩展向后兼容 |
+
+## 16. 实施记录（阶段 0）
+
+**§1.2 四条复现**：都先写成测试，在改线之前全部红在预期断言上，四条都成立（PC-D10 因此保留）。
+
+| # | 测试 | 改线前的结果 |
+|---|---|---|
+| 1 | `EscapeChainTests.Routed_modal_with_an_open_menu_closes_only_the_menu` | 菜单收了，路由 Modal 也 `Back()` 掉了 |
+| 2 | `EscapeChainTests.Blocking_tutorial_leaves_an_open_menu_open` | Block 步骤期间菜单被 Esc 收起 |
+| 3 | `PopupCoverTests.Opening_a_modal_by_code_collapses_an_open_menu` / `Closing_that_modal_returns_the_focus_to_the_menu_handle` | 菜单留在模态下面；模态关掉后焦点回到一行已失活的 Tab |
+| 4 | `DropdownEscapePlayTests.Escape_on_an_expanded_dropdown_inside_a_modal_closes_only_the_dropdown`（真按键） | 模态被同一下关掉，并且触发 Input System 断言「Must not destroy InputActionState while executing an action callback within it」 |
+
+**与设计的偏差 / 补充**：
+
+- **监听在自己的回调里被销毁**（第 4 条复现顺带暴露，所有真按键关模态的路径都有）：按 Esc 关掉模态时 `Object.Destroy` 同步走到监听的 `OnDisable`，旧实现在那里 `Dispose()` 自己的 InputActionMap。现在 `OnDisable` 只 `Disable()`（回调内允许），`OnDestroy` 才释放；若释放发生在任何监听的回调之内，map 推迟到 `InputSystem.onAfterUpdate` 再 `Dispose()`。补了 `DropdownEscapePlayTests.Escape_with_no_list_open_closes_the_modal` 守住。
+- **`AlsoCancelButton` 改成属性**：map 已建好时设置会重建绑定，修掉「菜单第一次展开时手柄 B 不生效」。测试用 internal 只读 `BindsCancelButton`。
+- **第 3 步「不低于当前最上层模态」**：取 ad-hoc 栈顶与路由链里最高 Modal 两者根 Canvas 的 `sortingOrder` 的较大者（`UI.Router.TopModalScreen` 为此新增，internal）。
+- **Dropdown 第 2 步对 `CancelButton` 同样生效**（表里第 4 步之前），与「B 只关浮层」一致；不记 `PopupConsumedFrame`（那是给文本框用的，Dropdown 展开时焦点不在文本框上）。
+- **Dropdown 的「展开」以 TMP 的遮罩为准**：`Hide()` 一开始淡出就出集合，淡出期间 `IsExpanded` 仍为 true 但不再挡 Esc。
+- `UI.Router.IsTop` 已无调用方，删除。

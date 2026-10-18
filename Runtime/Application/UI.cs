@@ -1293,6 +1293,8 @@ namespace PromptUGUI.Application
             Tutorial.ResetForTestsInternal();
             Navigation.ResetForTestsInternal();
             Controls.Internal.PopupChain.ResetForTests();
+            Controls.Internal.PuiDropdown.ResetForTests();
+            EscapeChain.ResetForTests();
             Modal.CancelAllForTeardown();
             Modals.LoadingOverlay.CancelAllForTeardown();
             Toasts.ToastOverlay.CancelAllForTeardown();

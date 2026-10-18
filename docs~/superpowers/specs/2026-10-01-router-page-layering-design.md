@@ -64,7 +64,7 @@
 ```
 非路由 Screen     CanvasConfigurator 给的值（默认 0）
 routed Page       PageSortingOrderBase + depth × PageSortingOrderStep    默认 0, 10, 20 …
-                    └ 每个深度占 [slot − 1, slot + 2]：退场幽灵 −1、TabMenu 遮罩 +1、TabMenu 面板 +2
+                    └ 每个深度占 [slot − 1, slot + 2]：退场幽灵 −1、浮层遮罩 +1、浮层面板 +2
 Loading overlay   Loading.SortingOrder                                    500
 routed Modal      UI.Modal.SortingOrderBase + 链内前序 Modal 数              1000, 1001 …
 ad-hoc dialog     UI.Modal.SortingOrderBase + 链内 routed Modal 数 + 栈深 − 1
@@ -113,6 +113,8 @@ Modal 不会出现在 Page 之前（§8）。
 
 每个深度占 `[slot − 1, slot + 2]` 四个值（§3）。相邻深度不重叠要求 `step − 1 > 2`，即
 `step ≥ TabMenu.PopupSortingOffset + 2`（今天是 4）。setter 对更小的值抛 `ArgumentOutOfRangeException`，消息说明原因。
+
+> 注（2026-10-19）：浮层机制从 TabMenu 抽成共享内核后，`TabMenu.PopupSortingOffset` 移到了 `PopupChain.SortingOffset`（值不变，仍是 2）；「TabMenu 遮罩 / 面板」改称「浮层遮罩 / 面板」——任何打开的浮层都占这两个值。见 `2026-10-18-popup-core-and-input-suggestions-design.md` §4.2。
 
 ### 4.4 Loading 带天花板
 

@@ -114,6 +114,15 @@ namespace PromptUGUI.Application
                             await ModalDocCache.EnsureLoaded(entry.XmlSrc);
                             if (entry.Resolved) continue;   // CloseAll 在 await 期间取消
 
+                            // A dialog appearing over an open popup closes it (spec 2026-10-18 §4.5) —
+                            // before the selection is captured, so the dialog remembers the popup's
+                            // handle rather than a row of a panel that is about to go.
+                            Controls.Internal.PopupChain.DismissBelow(
+                                SortingOrderBase + Router.RoutedModalCount + _stack.Count);
+                            // A host reacting to that close may have torn the stack down.
+                            if (epoch != _materializeEpoch) return;
+                            if (entry.Resolved) continue;
+
                             // Capture the pre-open selection BEFORE screen.Open() runs
                             // ApplyInitialFocus() and changes EventSystem.currentSelectedGameObject.
                             UnityEngine.GameObject prevSelected = null;
@@ -138,9 +147,8 @@ namespace PromptUGUI.Application
                             canvas.sortingOrder = SortingOrderBase + Router.RoutedModalCount + _stack.Count - 1;
 
                             var capturedSlot = slot;
-                            var listener = screen.RootGameObject.AddComponent<ModalEscapeListener>();
-                            listener.OnEscape = () => OnEscapePressed(capturedSlot);
-                            slot.Escape = listener;
+                            // A key source only: what the press does is EscapeChain's decision.
+                            slot.Escape = screen.RootGameObject.AddComponent<ModalEscapeListener>();
 
                             entry.RunBind(screen, () => OnEntryClosed(capturedSlot));
 
@@ -202,16 +210,17 @@ namespace PromptUGUI.Application
                 PromoteWaiting();
             }
 
-            private static void OnEscapePressed(Slot slot)
+            /// <summary>
+            /// The top dialog's answer to an Escape that <see cref="EscapeChain"/> routed here (after
+            /// the tutorial gate and any open popup). False when no dialog is open. A dialog that
+            /// refuses to close (an OK-only box) still owns the press.
+            /// </summary>
+            internal static bool TryHandleEscape()
             {
-                // An open <TabMenu> is closer to the user than the modal it sits in, so it answers
-                // Escape first. Both listeners hear the same press and their order is undefined, so
-                // this also returns true when the menu already closed itself this frame — otherwise
-                // one press would close the menu AND the modal behind it.
-                if (Controls.TabMenu.TryConsumeEscape()) return;
-                if (Tutorial.IsBlockingInput) return;   // Block 引导期间吞 ESC(不关下层模态)
-                if (_stack.Count == 0 || _stack[_stack.Count - 1] != slot) return;
+                if (_stack.Count == 0) return false;
+                var slot = _stack[_stack.Count - 1];
                 slot.Entry.TryEscape(() => OnEntryClosed(slot));
+                return true;
             }
 
             private static void RemoveSlot(Slot slot)

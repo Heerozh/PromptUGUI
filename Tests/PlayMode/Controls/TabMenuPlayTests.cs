@@ -88,7 +88,7 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             yield return null;
 
             var panel = Popup(m).GetComponent<Canvas>();
-            var blocker = s.RootGameObject.transform.Find(TabMenu.BlockerName).GetComponent<Canvas>();
+            var blocker = s.RootGameObject.transform.Find(PromptUGUI.Controls.Internal.PopupCore.BlockerName).GetComponent<Canvas>();
 
             Assert.Greater(panel.sortingOrder, blocker.sortingOrder, "the panel sits above its catcher");
             Assert.Greater(blocker.sortingOrder, rootOrder, "…and the catcher above the page");
@@ -101,7 +101,7 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             s.Get<TabMenu>("m").Expand();
             yield return null;
 
-            var blocker = s.RootGameObject.transform.Find(TabMenu.BlockerName).gameObject;
+            var blocker = s.RootGameObject.transform.Find(PromptUGUI.Controls.Internal.PopupCore.BlockerName).gameObject;
             s.Close();
             yield return null;
 

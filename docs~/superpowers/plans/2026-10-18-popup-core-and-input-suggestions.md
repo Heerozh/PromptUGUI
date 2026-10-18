@@ -110,20 +110,20 @@ spec §13 的 PC-D1…D10、SG-D1…D15 按推荐执行（Task 0 把 spec 状态
 
 **Files:** Modify `Runtime/Controls/Internal/PopupPlacer.cs`；Create `Tests/EditMode/Controls/PopupPlacerTests.cs`
 
-- [ ] **Red**（纯函数，夹具照 `TabMenuPlacementTests` 的 `Canvas800` / `Handle(x, y)`）：
+- [x] **Red**（纯函数，夹具照 `TabMenuPlacementTests` 的 `Canvas800` / `Handle(x, y)`）：
   - `Prefers_above_when_asked_and_it_fits`（`preferAbove: true` → `FlippedUp`，anchor `(0,1)` / pivot `(0,0)` / `y = +gap`）
   - `Above_preference_flips_down_when_below_has_more_room`（对称于既有的 `Flips_up_…`）
   - `A_panel_taller_than_both_sides_flips_only_if_the_other_side_is_roomier`（两个偏好各一例；与既有的 `TabMenuPlacementTests.Flips_only_when_the_other_side_is_actually_roomier`（`:51-61`）同一条规则）
   - `Room_is_the_space_on_the_chosen_side_minus_the_gap`（下方 / 上方各一例，数值断言）
   - `Bounds_smaller_than_the_canvas_limit_room_and_the_right_clamp`（安全区内缩后的 bounds）
-- [ ] **实现**：`Solve(Rect handle, Vector2 panel, Rect bounds, float gap, bool preferAbove = false)`（第三个形参改名 `bounds`，调用方不变）；`PopupPlacement` 加 `public readonly float Room`；翻面规则 `needed > roomPreferred && roomOther > roomPreferred`；横向不变；顺手改正 `PopupPlacer.cs:42-43` 那句与实际规则不符的注释（「a panel taller than both sides stays put」）
-- [ ] RUN(PopupPlacerTests) 绿；RUN(TabMenuPlacementTests) 原样绿；lint
+- [x] **实现**：`Solve(Rect handle, Vector2 panel, Rect bounds, float gap, bool preferAbove = false)`（第三个形参改名 `bounds`，调用方不变）；`PopupPlacement` 加 `public readonly float Room`；翻面规则 `needed > roomPreferred && roomOther > roomPreferred`；横向不变；顺手改正 `PopupPlacer.cs:42-43` 那句与实际规则不符的注释（「a panel taller than both sides stays put」）
+- [x] RUN(PopupPlacerTests) 绿；RUN(TabMenuPlacementTests) 原样绿；lint
 
 #### Task 2：`PopupChain` + `IPopupEntry`
 
 **Files:** Create `Runtime/Controls/Internal/PopupChain.cs`、`Tests/EditMode/Controls/PopupChainTests.cs`
 
-- [ ] **Red**（测试里的假条目：两三个挂 Canvas 的裸 GameObject 当宿主根 / 面板；`CloseFromChain` 记录调用顺序与原因）：
+- [x] **Red**（测试里的假条目：两三个挂 Canvas 的裸 GameObject 当宿主根 / 面板；`CloseFromChain` 记录调用顺序与原因）：
   - `Push_closes_entries_that_are_not_ancestors`（原因 `Owner`）
   - `Push_keeps_ancestors_when_the_host_is_inside_an_open_panel`
   - `Closing_a_parent_closes_its_children_top_down`
@@ -131,7 +131,7 @@ spec §13 的 PC-D1…D10、SG-D1…D15 按推荐执行（Task 0 把 spec 状态
   - `DismissBelow_closes_entries_whose_host_root_sorts_lower`（`Covered`，自顶向下；序相等不关）
   - `DismissUnder_closes_entries_hosted_under_root`（`HostGone`）
   - `Remove_drops_an_entry_without_closing_others`；`ResetForTests_empties_the_chain`
-- [ ] **实现**：
+- [x] **实现**：
   ```csharp
   internal interface IPopupEntry
   {
@@ -154,14 +154,14 @@ spec §13 的 PC-D1…D10、SG-D1…D15 按推荐执行（Task 0 把 spec 状态
   ```
   `PopupCloseReason` 与 `PopupDismiss` 两个枚举放在同一文件。
   M0 的过渡件也在这里建（P2）：`NoteEscapeConsumed()` / `TryConsumeEscape()` / `ForgetEscapeFrameForTests()`，逻辑照搬 `TabMenu.cs:707-743`（今天是 TabMenu 私有的，Task 3 的内核监听要用）。Task 6 删除
-- [ ] 补两条 Red：`TryConsumeEscape_closes_the_top_and_reports_consumed`；`An_escape_already_spent_this_frame_still_reads_as_consumed`
-- [ ] RUN(PopupChainTests) 绿；lint
+- [x] 补两条 Red：`TryConsumeEscape_closes_the_top_and_reports_consumed`；`An_escape_already_spent_this_frame_still_reads_as_consumed`
+- [x] RUN(PopupChainTests) 绿；lint
 
 #### Task 3：`PopupCore`
 
 **Files:** Create `Runtime/Controls/Internal/PopupCore.cs`、`Tests/EditMode/Controls/PopupCoreTests.cs`
 
-- [ ] **Red**（宿主用 XML 开一个只有 `<Frame id='h' size='120x44'/>` 的 Screen；面板在测试里 `ProceduralBuilders.AddChild(h.RectTransform, "Panel")`）：
+- [x] **Red**（宿主用 XML 开一个只有 `<Frame id='h' size='120x44'/>` 的 Screen；面板在测试里 `ProceduralBuilders.AddChild(h.RectTransform, "Panel")`）：
   - `Open_lifts_the_panel_above_the_host_root_canvas`（`overrideSorting`、序 = 根 + `SortingOffset`、面板激活）
   - `Blocker_mode_puts_a_catcher_under_the_root_canvas`（名字 `PopupCore.BlockerName`、序 = 面板 − 1、透明但 `raycastTarget`、Button 导航 `None`）；`Clicking_the_catcher_closes_with_OutsidePress`；`Owner_mode_has_no_catcher`
   - `Close_in_EditMode_deactivates_the_panel_and_drops_overrideSorting`
@@ -171,20 +171,20 @@ spec §13 的 PC-D1…D10、SG-D1…D15 按推荐执行（Task 0 把 spec 状态
   - `OnHostAfterApply_closes_when_the_host_is_hidden_or_disabled_and_repositions_otherwise`；`A_closed_panel_is_hidden_after_the_open_pass`（`DeferDuringOpen`）
   - `Close_restores_the_screens_NavConfineRoot_and_the_global_ContainmentRoot_separately`（P20）
   - `Dispose_destroys_the_catcher_and_leaves_the_chain`
-- [ ] **实现**：把 `TabMenu` 里的 `BuildPopup`（Canvas / Raycaster / CanvasGroup 部分）、`Expand/ExpandCore/Collapse`、`PlayTransition`（淡入 + 位移，不含箭头）、`SlideOffset`、`CancelMotions`、`DeactivatePopup`、`Push/PopNavigation`（改成 spec §4.3 的两条规则）、`EnableEscapeListener`、`RootCanvas`、`EnsureBlocker`、`PlacePopup` 的定位部分、`RectInCanvas`、`HidePopupIfCollapsed` + `DeferDuringOpen`、`BeforeRebuild/AfterRebuild` 搬进内核；尺寸与定位参数经 `Measure` 回调向宿主要（返回宽高、`gap`、`preferAbove`、`bounds`）；`Opened` / `Closed(reason)` 事件；实现 `IPopupEntry`；`internal void OnHostAfterApply()` 承接 `TabMenu.cs:851-864` 那段（被隐藏 / 不可交互就收起，否则 `Reposition`，关着时经 `DeferDuringOpen` 停用面板）；Esc 监听在 M0 调 `PopupChain.NoteEscapeConsumed()` + `Close(Escape)`。`AddComponent<ModalEscapeListener>` 之后立刻设 `AlsoCancelButton` 的顺序问题由 Task 9 修，这里照搬今天的写法
-- [ ] RUN(PopupCoreTests) 绿；lint
+- [x] **实现**：把 `TabMenu` 里的 `BuildPopup`（Canvas / Raycaster / CanvasGroup 部分）、`Expand/ExpandCore/Collapse`、`PlayTransition`（淡入 + 位移，不含箭头）、`SlideOffset`、`CancelMotions`、`DeactivatePopup`、`Push/PopNavigation`（改成 spec §4.3 的两条规则）、`EnableEscapeListener`、`RootCanvas`、`EnsureBlocker`、`PlacePopup` 的定位部分、`RectInCanvas`、`HidePopupIfCollapsed` + `DeferDuringOpen`、`BeforeRebuild/AfterRebuild` 搬进内核；尺寸与定位参数经 `Measure` 回调向宿主要（返回宽高、`gap`、`preferAbove`、`bounds`）；`Opened` / `Closed(reason)` 事件；实现 `IPopupEntry`；`internal void OnHostAfterApply()` 承接 `TabMenu.cs:851-864` 那段（被隐藏 / 不可交互就收起，否则 `Reposition`，关着时经 `DeferDuringOpen` 停用面板）；Esc 监听在 M0 调 `PopupChain.NoteEscapeConsumed()` + `Close(Escape)`。`AddComponent<ModalEscapeListener>` 之后立刻设 `AlsoCancelButton` 的顺序问题由 Task 9 修，这里照搬今天的写法
+- [x] RUN(PopupCoreTests) 绿；lint
 
 #### Task 4：TabMenu 委托给内核 + internal 名字迁移
 
 **Files:** Modify `TabMenu.cs`、`Screen.cs`（`SealInput` → `PopupChain.DismissUnder`）、`UI.cs`（`ResetForTests` → `PopupChain.ResetForTests`）、`UI.Router.Layering.cs`（步长下限与报错消息读 `PopupChain.SortingOffset`）。**测试文件一行不改**
 
-- [ ] TabMenu 只留 caption、箭头（在 `Opened` / `Closed` 上跑同一时长的翻转）、`TabGroupCore`、「选中即收起」与 `_expanding`；`IsExpanded` 镜像内核；`Interactable = false` / 变体隐藏收起用原因 `Owner`（焦点照旧回把手，P20），`Dispose` / Screen 关闭用 `HostGone`；`OnAfterApply` 里那段改调 `_core.OnHostAfterApply()`
-- [ ] TabMenu 上保留 internal 别名，转发到新位置：`BlockerName`、`PopupSortingOffset`、`HasExpandedMenu`、`CollapseIfUnder`、`TryConsumeEscape`、`NotifyEscapeConsumedForTests`、`ForgetEscapeFrameForTests`、`ResetForTestsInternal`（P2：同帧去重这时搬进 `PopupChain`，语义不变）。`UI.Modal` 照旧调 `TabMenu.TryConsumeEscape()`。别名在 Task 6 删除，测试在那里一并迁移
-- [ ] **零回归守门**：RUN(TabMenuTests) RUN(TabMenuPlacementTests) RUN(TabMenuTrapTests) RUN(TabMenuBindItemsTests) RUN(TabMenuTriggerTests) RUN(CollapsibleTriggerTests) RUN(RouterLayeringTests) RUN(RouterModalTabTests) RUNPLAY(TabMenuPlayTests) RUNPLAY(CloseTriggerPlayTests)；lint
+- [x] TabMenu 只留 caption、箭头（在 `Opened` / `Closed` 上跑同一时长的翻转）、`TabGroupCore`、「选中即收起」与 `_expanding`；`IsExpanded` 镜像内核；`Interactable = false` / 变体隐藏收起用原因 `Owner`（焦点照旧回把手，P20），`Dispose` / Screen 关闭用 `HostGone`；`OnAfterApply` 里那段改调 `_core.OnHostAfterApply()`
+- [x] TabMenu 上保留 internal 别名，转发到新位置：`BlockerName`、`PopupSortingOffset`、`HasExpandedMenu`、`CollapseIfUnder`、`TryConsumeEscape`、`NotifyEscapeConsumedForTests`、`ForgetEscapeFrameForTests`、`ResetForTestsInternal`（P2：同帧去重这时搬进 `PopupChain`，语义不变）。`UI.Modal` 照旧调 `TabMenu.TryConsumeEscape()`。别名在 Task 6 删除，测试在那里一并迁移
+- [x] **零回归守门**：RUN(TabMenuTests) RUN(TabMenuPlacementTests) RUN(TabMenuTrapTests) RUN(TabMenuBindItemsTests) RUN(TabMenuTriggerTests) RUN(CollapsibleTriggerTests) RUN(RouterLayeringTests) RUN(RouterModalTabTests) RUNPLAY(TabMenuPlayTests) RUNPLAY(CloseTriggerPlayTests)；lint
 
 #### M0 收尾
 
-- [ ] EditMode / PlayMode 全量无新失败 → `git commit -m "refactor(popup): extract PopupCore / PopupChain from TabMenu"`
+- [x] EditMode / PlayMode 全量无新失败 → `git commit -m "refactor(popup): extract PopupCore / PopupChain from TabMenu"`
 
 ### M1 — Esc 链 + 被盖住即收
 
@@ -192,17 +192,17 @@ spec §13 的 PC-D1…D10、SG-D1…D15 按推荐执行（Task 0 把 spec 状态
 
 **Files:** Create `Tests/EditMode/Modals/EscapeChainTests.cs`（先只放复现用例）、`Tests/EditMode/Modals/PopupCoverTests.cs`、`Tests/PlayMode/Modals/DropdownEscapePlayTests.cs`。两个 EditMode 类继承 `ModalTestFixture`（`Tests/EditMode/Modals/ModalTestFixture.cs`：假 resolver + 最小 MessageBox），页面用 `UI.LoadDocument` 直接开（同 `TabMenuTrapTests.Open`）
 
-- [ ] `Routed_modal_with_an_open_menu_closes_only_the_menu`（§1.2-1）：照 `RouterModalTabTests` 的路由夹具开一个含 `<TabMenu>` 的路由 Modal，`Expand()`，对模态根的 `ModalEscapeListener.FireForTests()` → 菜单收起、路由链仍含该 Modal
-- [ ] `Blocking_tutorial_leaves_an_open_menu_open`（§1.2-2）：照 `TutorialRunTests.cs:173` 起一个 Block 步骤（`UI.Tutorial.IsBlockingInput == true`），页上的菜单展开，触发菜单自己的监听 → 菜单仍展开
-- [ ] `Opening_a_modal_by_code_collapses_an_open_menu`（§1.2-3）：菜单展开 → `MessageBox.Open(...)` → 菜单已收起；`UI.UseGamepadNavigation()` 下关掉模态后焦点回到菜单把手（`prevSelected` 是把手而不是失活的行）
-- [ ] `Escape_on_an_expanded_dropdown_inside_a_modal_closes_only_the_dropdown`（§1.2-4，PlayMode，P9）：类继承 `InputTestFixture`，EventSystem 挂 `InputSystemUIInputModule`（照 `SubmitWakePlayTests.cs:17-72`，先清掉别的测试漏下的 EventSystem）；模态里放 `<Dropdown>`，`Show()` 后等一帧，`Press(kb.escapeKey)` 再等一帧 → 断言模态仍开、Dropdown 收起。今天应当红在「模态被关」上
-- [ ] RUN(EscapeChainTests) RUN(PopupCoverTests) RUNPLAY(DropdownEscapePlayTests)：确认红在预期断言上
+- [x] `Routed_modal_with_an_open_menu_closes_only_the_menu`（§1.2-1）：照 `RouterModalTabTests` 的路由夹具开一个含 `<TabMenu>` 的路由 Modal，`Expand()`，对模态根的 `ModalEscapeListener.FireForTests()` → 菜单收起、路由链仍含该 Modal
+- [x] `Blocking_tutorial_leaves_an_open_menu_open`（§1.2-2）：照 `TutorialRunTests.cs:173` 起一个 Block 步骤（`UI.Tutorial.IsBlockingInput == true`），页上的菜单展开，触发菜单自己的监听 → 菜单仍展开
+- [x] `Opening_a_modal_by_code_collapses_an_open_menu`（§1.2-3）：菜单展开 → `MessageBox.Open(...)` → 菜单已收起；`UI.UseGamepadNavigation()` 下关掉模态后焦点回到菜单把手（`prevSelected` 是把手而不是失活的行）
+- [x] `Escape_on_an_expanded_dropdown_inside_a_modal_closes_only_the_dropdown`（§1.2-4，PlayMode，P9）：类继承 `InputTestFixture`，EventSystem 挂 `InputSystemUIInputModule`（照 `SubmitWakePlayTests.cs:17-72`，先清掉别的测试漏下的 EventSystem）；模态里放 `<Dropdown>`，`Show()` 后等一帧，`Press(kb.escapeKey)` 再等一帧 → 断言模态仍开、Dropdown 收起。今天应当红在「模态被关」上
+- [x] RUN(EscapeChainTests) RUN(PopupCoverTests) RUNPLAY(DropdownEscapePlayTests)：确认红在预期断言上
 
 #### Task 6：`EscapeChain` + 监听改线
 
 **Files:** Create `Runtime/Application/EscapeChain.cs`；Modify `ModalEscapeListener.cs`、`UI.Modal.cs`、`UI.Router.Layering.cs`（路由 Modal 的监听不再赋回调）、`UI.Router.Reconcile.cs`（`TryHandleEscape` 放在 `_chain` / `IsTop` 旁，`:343`）、`PopupCore.cs`、`PopupChain.cs`、`UI.cs`；改写 `TabMenuTrapTests` 的 Escape 一节
 
-- [ ] **Red**（补进 `EscapeChainTests`）：
+- [x] **Red**（补进 `EscapeChainTests`）：
   - `Nothing_open_is_not_consumed`
   - `An_open_menu_takes_the_press_before_an_ad_hoc_modal`；`…_before_a_routed_modal`（即 Task 5 的复现）
   - `Cancel_button_closes_a_menu_but_never_a_modal`（`Dispatch(EscapeKey.CancelButton, …)`）
@@ -211,59 +211,59 @@ spec §13 的 PC-D1…D10、SG-D1…D15 按推荐执行（Task 0 把 spec 状态
   - `A_popup_below_the_top_modal_does_not_take_the_press`（代码在模态下 `Expand()` 页上的菜单 → Esc 关模态）
   - `A_rejected_Back_is_consumed_and_does_not_throw`（路由守卫拒绝时 `Back()` 同步抛 `NavigationRejectedException`，链接住）
   - `Top_routed_node_that_is_not_a_Modal_does_nothing`（Tab / Prompt 压在 Modal 之上时，与今天一致）
-- [ ] **实现**：
+- [x] **实现**：
   - `EscapeChain.Dispatch(EscapeKey key, int pressId) → bool`，顺序照 spec §4.4 的表；`PopupConsumedFrame`；`NextTestPress()`（递减负数）；`ForgetPopupConsumedFrameForTests()`；`ResetForTests()`
   - `UI.Modal.TryHandleEscape()`（原 `OnEscapePressed` 去掉 TabMenu / 教程判断后的部分）；`UI.Router.TryHandleEscape()`：`_chain` 栈顶 `Def.Kind == RouteKind.Modal` 才 `Back()`，`try/catch (NavigationRejectedException)` 吞掉
   - `ModalEscapeListener`：删 `OnEscape` 字段；`OnPerformed(ctx)` → `Dispatch(ctx.control 是 buttonEast ? CancelButton : Escape, Time.frameCount)`；legacy `Update` → `Dispatch(Escape, Time.frameCount)`；`FireForTests()` → `Dispatch(Escape, EscapeChain.NextTestPress())`；各处 `AddComponent` 后不再赋回调
   - 删除 P2 的过渡件：`PopupChain` 里的同帧去重与 `TryConsumeEscape`，以及 Task 4 留在 TabMenu 上的全部 internal 别名
   - `UI.ResetForTests` 加 `EscapeChain.ResetForTests()`
-- [ ] 测试迁移（spec §4.7 的表，语义不变）：`TabMenuTests`（`BlockerName` :235、`PopupSortingOffset` :252 / :267、`HasExpandedMenu` :400）、`TabMenuPlayTests`（`BlockerName` :91 / :104）、`CloseTriggerPlayTests`（`HasExpandedMenu` :186 / :190）、`RouterLayeringTests`（`PopupSortingOffset` :139-142）。`HasExpandedMenu` 对应的是 `!PopupChain.IsEmpty`，断言要翻转：`TabMenuTests.cs:400` 的 `IsFalse(HasExpandedMenu)` → `IsTrue(PopupChain.IsEmpty)`；`CloseTriggerPlayTests.cs:186` 的前提 → `Assume.That(!PopupChain.IsEmpty)`，`:190` → `IsTrue(PopupChain.IsEmpty)`
-- [ ] `TabMenuTrapTests` Escape 一节（:130-173）的四个用例改写到 `EscapeChain.Dispatch` 上（场景与断言不变：无菜单不消费；有菜单收起并消费；两个监听听到同一下只动作一次；新的一下是新按键）
-- [ ] RUN(EscapeChainTests) RUN(TabMenuTrapTests) RUN(ModalStackTests) RUN(MessageBoxRequestTests) RUN(InputBoxTests) RUN(MarkdownBoxTests) RUN(CenteredSlideBoxTests) RUN(LoadingOverlayTests) RUN(RouterModalTabTests) RUN(RouterLayeringTests) RUN(TutorialRunTests) RUNPLAY(ModalEscapePlayModeTests)；lint
+- [x] 测试迁移（spec §4.7 的表，语义不变）：`TabMenuTests`（`BlockerName` :235、`PopupSortingOffset` :252 / :267、`HasExpandedMenu` :400）、`TabMenuPlayTests`（`BlockerName` :91 / :104）、`CloseTriggerPlayTests`（`HasExpandedMenu` :186 / :190）、`RouterLayeringTests`（`PopupSortingOffset` :139-142）。`HasExpandedMenu` 对应的是 `!PopupChain.IsEmpty`，断言要翻转：`TabMenuTests.cs:400` 的 `IsFalse(HasExpandedMenu)` → `IsTrue(PopupChain.IsEmpty)`；`CloseTriggerPlayTests.cs:186` 的前提 → `Assume.That(!PopupChain.IsEmpty)`，`:190` → `IsTrue(PopupChain.IsEmpty)`
+- [x] `TabMenuTrapTests` Escape 一节（:130-173）的四个用例改写到 `EscapeChain.Dispatch` 上（场景与断言不变：无菜单不消费；有菜单收起并消费；两个监听听到同一下只动作一次；新的一下是新按键）
+- [x] RUN(EscapeChainTests) RUN(TabMenuTrapTests) RUN(ModalStackTests) RUN(MessageBoxRequestTests) RUN(InputBoxTests) RUN(MarkdownBoxTests) RUN(CenteredSlideBoxTests) RUN(LoadingOverlayTests) RUN(RouterModalTabTests) RUN(RouterLayeringTests) RUN(TutorialRunTests) RUNPLAY(ModalEscapePlayModeTests)；lint
 
 #### Task 7：被盖住即收（`DismissBelow` 的三个钩子）
 
 **Files:** Modify `UI.Modal.cs`、`UI.Router.Layering.cs`、`Modals/LoadingOverlay.cs`；补 `PopupCoverTests`
 
-- [ ] **Red**（补进 `PopupCoverTests`）：
+- [x] **Red**（补进 `PopupCoverTests`）：
   - Task 5 的 `Opening_a_modal_by_code_collapses_an_open_menu`
   - `A_routed_child_page_collapses_the_parent_pages_menu`
   - `A_routed_modal_collapses_every_page_menu`
   - `Loading_collapses_page_menus_but_not_menus_inside_modals`
   - `Toast_and_tutorial_do_not_collapse_menus`
   - `A_covered_close_does_not_steal_focus_from_the_new_layer`（导航启用：新层先落焦点的场景下，选中项不被挪回把手）
-- [ ] **实现**：
+- [x] **实现**：
   - `UI.Modal` pump：在 `if (entry.Resolved) continue;`（`UI.Modal.cs:115`）之后、捕获 `prevSelected`（`:117`）**之前**调 `PopupChain.DismissBelow(SortingOrderBase + Router.RoutedModalCount + _stack.Count)`（它将得到的序）。同步调用，不破坏「pump 里唯一的 await 在 `_stack.Add` 之前」的不变量（`:110-113`）；收起回调里若有人再开模态，只会进 `_pending`（`_materializing` 已为真）。但收起会跑用户的 `OnCollapsed` 订阅：调用之后**再判一次** `entry.Resolved`（→ `continue`）与 `epoch != _materializeEpoch`（→ `return`），否则回调里一句 `CloseAll()` 之后 pump 仍会把已取消的模态建出来。补 Red：`CloseAll_from_an_OnCollapsed_callback_does_not_build_the_cancelled_modal`
   - `ApplyRouteLayer`：Modal 分支与 Page 分支各算出自己的序后调 `DismissBelow(order)`
   - `LoadingOverlay`：`canvas.sortingOrder = Loading.SortingOrder;`（`LoadingOverlay.cs:101`）之后、`BindText` 之前调 `DismissBelow(Loading.SortingOrder)`
-- [ ] RUN(PopupCoverTests) + Task 6 的守门列表；lint
+- [x] RUN(PopupCoverTests) + Task 6 的守门列表；lint
 
 #### Task 8：Dropdown 接进 Esc 与被盖住即收
 
 **Files:** Modify `Controls/Internal/PuiDropdown.cs`、`EscapeChain.cs`、`PopupChain.cs`
 
-- [ ] `PuiDropdown` 覆盖 `CreateBlocker`（入集合）/ `DestroyBlocker`（出集合）/ `OnDestroy`（出集合）；静态 `ExpandedCount` / `HideExpanded()` / `HideBelow(int order)`（按宿主根序）；`ResetForTests`
-- [ ] `EscapeChain` 第 2 步；`PopupChain.DismissBelow` 顺带 `PuiDropdown.HideBelow(order)`
-- [ ] RUNPLAY(DropdownEscapePlayTests) 转绿；补一条 `A_modal_opened_by_code_hides_an_expanded_dropdown_below_it`；RUN(DropdownTests) RUN(ScrollbarTests) 不回归；lint
+- [x] `PuiDropdown` 覆盖 `CreateBlocker`（入集合）/ `DestroyBlocker`（出集合）/ `OnDestroy`（出集合）；静态 `ExpandedCount` / `HideExpanded()` / `HideBelow(int order)`（按宿主根序）；`ResetForTests`
+- [x] `EscapeChain` 第 2 步；`PopupChain.DismissBelow` 顺带 `PuiDropdown.HideBelow(order)`
+- [x] RUNPLAY(DropdownEscapePlayTests) 转绿；补一条 `A_modal_opened_by_code_hides_an_expanded_dropdown_below_it`；RUN(DropdownTests) RUN(ScrollbarTests) 不回归；lint
 
 #### Task 9：`ModalEscapeListener` 的 InputActionMap 只建一次 + 首次展开就绑上手柄 B
 
-- [ ] **Red**（PlayMode，补进 `ModalEscapePlayModeTests`——`ModalEscapeListener` 没有 `[ExecuteAlways]`，EditMode 里 `OnEnable` 不跑、map 根本不建）：`Cancel_button_is_bound_on_the_first_open`。今天 `TabMenu.cs:699-701` 先 `AddComponent`（`OnEnable` 立刻按 `AlsoCancelButton == false` 建好 map）再设 `AlsoCancelButton = true`，所以菜单**第一次**展开时手柄 B 不生效，要关一次再开才有。断言用 internal 只读 `BindsCancelButton`（运行时代码在 `#if ENABLE_INPUT_SYSTEM` 里读 map 的绑定；EditMode 测试程序集不必引用 Input System）
-- [ ] **实现**：`OnEnable` 首次建 map（绑定按 `AlsoCancelButton`）、之后只 `Enable()`；`OnDisable` 只 `Disable()`；`OnDestroy` 才 `Dispose()`；`AlsoCancelButton` 的 setter 在 map 已建好时重建绑定
-- [ ] RUNPLAY(ModalEscapePlayModeTests) 转绿 + Task 6 的守门列表；lint
+- [x] **Red**（PlayMode，补进 `ModalEscapePlayModeTests`——`ModalEscapeListener` 没有 `[ExecuteAlways]`，EditMode 里 `OnEnable` 不跑、map 根本不建）：`Cancel_button_is_bound_on_the_first_open`。今天 `TabMenu.cs:699-701` 先 `AddComponent`（`OnEnable` 立刻按 `AlsoCancelButton == false` 建好 map）再设 `AlsoCancelButton = true`，所以菜单**第一次**展开时手柄 B 不生效，要关一次再开才有。断言用 internal 只读 `BindsCancelButton`（运行时代码在 `#if ENABLE_INPUT_SYSTEM` 里读 map 的绑定；EditMode 测试程序集不必引用 Input System）
+- [x] **实现**：`OnEnable` 首次建 map（绑定按 `AlsoCancelButton`）、之后只 `Enable()`；`OnDisable` 只 `Disable()`；`OnDestroy` 才 `Dispose()`；`AlsoCancelButton` 的 setter 在 map 已建好时重建绑定
+- [x] RUNPLAY(ModalEscapePlayModeTests) 转绿 + Task 6 的守门列表；lint
 
 #### Task 10：阶段 0 文档（英文，同 PR）
 
-- [ ] `reference/navigation.md`「Popup focus trap」：Esc 规则补全（路由 Modal 同 ad-hoc；Block 引导期间什么都不收；被模态 / 子页 / Loading 盖住的菜单自动收起）
-- [ ] `reference/controls-tabs.md`「Opening and closing」：加「更高的层出现时收起」
-- [ ] C# skill：Modal `### Behavior` 写 Esc 决定顺序（spec §4.4 的表，含「B 只关浮层」）；Layering 一节「an expanded `<TabMenu>`」泛化为「an open popup」
-- [ ] `docs~/superpowers/specs/2026-10-01-router-page-layering-design.md` §3 / §4.3 加注：`PopupSortingOffset` 已移到 `PopupChain.SortingOffset`；层带里的「TabMenu 遮罩 / 面板」改称「浮层遮罩 / 面板」
+- [x] `reference/navigation.md`「Popup focus trap」：Esc 规则补全（路由 Modal 同 ad-hoc；Block 引导期间什么都不收；被模态 / 子页 / Loading 盖住的菜单自动收起）
+- [x] `reference/controls-tabs.md`「Opening and closing」：加「更高的层出现时收起」
+- [x] C# skill：Modal `### Behavior` 写 Esc 决定顺序（spec §4.4 的表，含「B 只关浮层」）；Layering 一节「an expanded `<TabMenu>`」泛化为「an open popup」
+- [x] `docs~/superpowers/specs/2026-10-01-router-page-layering-design.md` §3 / §4.3 加注：`PopupSortingOffset` 已移到 `PopupChain.SortingOffset`；层带里的「TabMenu 遮罩 / 面板」改称「浮层遮罩 / 面板」
 
 #### M1 收尾（阶段 0 的 PR）
 
-- [ ] 三个程序集全量（EditMode / EditorOnly / PlayMode）无新失败；`dotnet format --verify-no-changes --severity warn`；UIXmlLint 跑 `Runtime/Resources/`
-- [ ] spec 加 §16「实施记录（阶段 0）」：与设计的偏差、Task 5 四条复现的结论
-- [ ] `git commit -m "feat(popup): EscapeChain — one decision per press; covered popups close"`
+- [x] 三个程序集全量（EditMode / EditorOnly / PlayMode）无新失败；`dotnet format --verify-no-changes --severity warn`；UIXmlLint 跑 `Runtime/Resources/`
+- [x] spec 加 §16「实施记录（阶段 0）」：与设计的偏差、Task 5 四条复现的结论
+- [x] `git commit -m "feat(popup): EscapeChain — one decision per press; covered popups close"`
 - [ ] 隐私自检（见 Global Constraints）→ 征得同意后 `git push -u origin feat/popup-core` + `gh pr create`
 
 ---

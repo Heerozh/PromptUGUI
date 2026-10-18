@@ -99,6 +99,8 @@ namespace PromptUGUI.Application.Modals
                         var canvas = screen.RootGameObject.GetComponent<Canvas>();
                         canvas.overrideSorting = true;
                         canvas.sortingOrder = Loading.SortingOrder;
+                        // It covers the pages, so it closes a popup open on one (spec 2026-10-18 §4.5).
+                        Controls.Internal.PopupChain.DismissBelow(Loading.SortingOrder);
 
                         BindText(screen, entry.Text);
                         entry.Configure?.Invoke(screen);   // post-bind 钩子,与 dialog 路径一致

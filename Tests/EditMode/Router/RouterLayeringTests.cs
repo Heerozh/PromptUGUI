@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using NUnit.Framework;
 using PromptUGUI.Application;
 using PromptUGUI.Application.Modals;
-using PromptUGUI.Controls;
+using PromptUGUI.Controls.Internal;
 using UnityEngine;
 
 namespace PromptUGUI.Tests.Router
@@ -135,8 +135,8 @@ namespace PromptUGUI.Tests.Router
         public void The_step_has_to_clear_an_exiting_page_and_an_open_TabMenu()
         {
             // A depth owns its slot, one below it (a page playing its exit) and up to
-            // PopupSortingOffset above it (an expanded TabMenu): four values the next depth must not reach.
-            var min = TabMenu.PopupSortingOffset + 2;
+            // SortingOffset above it (an open popup, e.g. a TabMenu): four values the next depth must not reach.
+            var min = PopupChain.SortingOffset + 2;
             Assert.Throws<ArgumentOutOfRangeException>(() => UI.Router.PageSortingOrderStep = min - 1);
             Assert.AreEqual(10, UI.Router.PageSortingOrderStep, "a rejected value leaves the step alone");
             Assert.DoesNotThrow(() => UI.Router.PageSortingOrderStep = min);

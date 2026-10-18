@@ -379,14 +379,11 @@ namespace PromptUGUI.Controls.Internal
             }
             if (_escapeListener == null)
             {
+                // A key source while the popup is open (a popup on a plain page has no other listener);
+                // EscapeChain closes the top popup. Unlike a modal, a popup may be dismissed with the
+                // gamepad's Cancel button too.
                 _escapeListener = _panel.gameObject.AddComponent<ModalEscapeListener>();
-                // Unlike a modal, a popup may be dismissed with the gamepad's Cancel button too.
                 _escapeListener.AlsoCancelButton = _cancelButtonCloses;
-                _escapeListener.OnEscape = () =>
-                {
-                    PopupChain.NoteEscapeConsumed();
-                    Close(PopupCloseReason.Escape);
-                };
             }
             _escapeListener.enabled = true;
         }

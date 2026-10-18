@@ -85,6 +85,44 @@ namespace PromptUGUI.Tests.PlayMode.Modals
             Assert.Throws<System.OperationCanceledException>(() => task.GetAwaiter().GetResult());
         }
 
+        private const string PageWithMenu = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'><Screen name='S'>
+  <TabMenu id='m' transition='0'>
+    <Tab id='a' text='World' isOn='true'/>
+    <Tab id='g' text='Guild'/>
+  </TabMenu>
+</Screen></PromptUGUI>";
+
+        // The popup's listener is added (OnEnable builds its map) before AlsoCancelButton is set; the
+        // gamepad's East button must still close the menu the very first time it opens.
+        [UnityTest]
+        public IEnumerator Cancel_button_is_bound_on_the_first_open()
+        {
+            UI.LoadDocument("t", PageWithMenu);
+            var menu = UI.Open("S").Get<PromptUGUI.Controls.TabMenu>("m");
+            yield return null;
+
+            menu.Expand();
+            var listener = menu.RectTransform.Find("Popup").GetComponent<ModalEscapeListener>();
+
+            Assert.IsTrue(listener.BindsCancelButton, "first open");
+            menu.Collapse();
+            menu.Expand();
+            Assert.IsTrue(listener.BindsCancelButton, "and every open after it");
+        }
+
+        [UnityTest]
+        public IEnumerator A_modal_does_not_bind_the_cancel_button()
+        {
+            _ = MessageBox.Open("x", MsgBtn.OK | MsgBtn.Cancel);
+            yield return null;
+            yield return null;
+
+            var listener = UI.Modal.TopScreen.RootGameObject.GetComponent<ModalEscapeListener>();
+            Assert.IsFalse(listener.BindsCancelButton, "East stays free for navigation's back");
+            UI.Modal.TopScreen.Get<PromptUGUI.Controls.Btn>("cancel").SimulateClick();
+        }
+
         [UnityTest]
         public IEnumerator SortingOrder_uses_SortingOrderBase()
         {

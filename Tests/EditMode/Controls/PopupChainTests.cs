@@ -221,32 +221,5 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsTrue(PopupChain.IsEmpty);
             Assert.IsNull(PopupChain.Top);
         }
-
-        // ── M0's escape bookkeeping, moved here unchanged from TabMenu (spec 2026-10-18 plan P2) ──
-
-        [Test]
-        public void TryConsumeEscape_closes_the_top_and_reports_consumed()
-        {
-            var a = Entry("A");
-            var b = NestedIn(a, "B");
-            PopupChain.Push(a);
-            PopupChain.Push(b);
-
-            Assert.IsTrue(PopupChain.TryConsumeEscape());
-            CollectionAssert.AreEqual(new[] { "B:Escape" }, _log, "Escape closes the top entry only");
-            Assert.AreSame(a, PopupChain.Top);
-        }
-
-        [Test]
-        public void An_escape_already_spent_this_frame_still_reads_as_consumed()
-        {
-            Assert.IsFalse(PopupChain.TryConsumeEscape(), "nothing open, nothing spent");
-
-            PopupChain.NoteEscapeConsumed();
-            Assert.IsTrue(PopupChain.TryConsumeEscape(), "another listener heard the same press");
-
-            PopupChain.ForgetEscapeFrameForTests();
-            Assert.IsFalse(PopupChain.TryConsumeEscape(), "a later press is a new press");
-        }
     }
 }

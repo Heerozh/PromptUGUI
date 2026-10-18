@@ -183,11 +183,11 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             yield return null;
             var menu = screen.Get<TabMenu>("a/m");
             menu.Expand();
-            Assume.That(TabMenu.HasExpandedMenu, "guard: the menu owns the process-wide slot");
+            Assume.That(!PromptUGUI.Controls.Internal.PopupChain.IsEmpty, "guard: the menu owns the process-wide slot");
 
             UI.Close("S");
             Assert.IsFalse(menu.IsExpanded, "a ghost's menu must not keep eating Escape");
-            Assert.IsFalse(TabMenu.HasExpandedMenu);
+            Assert.IsTrue(PromptUGUI.Controls.Internal.PopupChain.IsEmpty);
         }
 
         [UnityTest]
