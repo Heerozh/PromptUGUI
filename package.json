@@ -24,7 +24,7 @@
     "samples": [
         {
             "displayName": "Common Controls Demo",
-            "description": "Five-Page TabBar Showcase: Forms / Display & Feedback / List & Carousel / Modal Alerts / Virtualized Chat (1,000 messages) + UI Tutorial (Onboarding)",
+            "description": "Five-Page TabBar Showcase: Forms & Search Suggestions / Display & Feedback / List & Carousel / Modal Alerts / Virtualized Chat (1,000 messages) + UI Tutorial (Onboarding)",
             "path": "Samples~/CommonControls"
         },
         {

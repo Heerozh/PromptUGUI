@@ -223,3 +223,73 @@ msgstr "Markdig not detected — Markdown rich text is unavailable.\nInstall Mar
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:298
 msgid "这条消息比较长，用来演示自动换行：虚拟列表逐行实测高度，长短不一的消息也能排得严丝合缝。"
 msgstr "This one is longer, to show wrapping: a virtual list measures every row it builds, so messages of any length stack up exactly."
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:157
+msgid "Apple"
+msgstr "Apple"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:158
+msgid "Carrot"
+msgstr "Carrot"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:159
+msgid "Corn"
+msgstr "Corn"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:160
+msgid "Eggplant"
+msgstr "Eggplant"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:161
+msgid "Grape"
+msgstr "Grape"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:162
+msgid "Pumpkin"
+msgstr "Pumpkin"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:163
+msgid "Strawberry"
+msgstr "Strawberry"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:164
+msgid "Sunflower"
+msgstr "Sunflower"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:165
+msgid "Tomato"
+msgstr "Tomato"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:166
+msgid "Turnip"
+msgstr "Turnip"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:167
+msgid "Watermelon"
+msgstr "Watermelon"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:168
+msgid "Wheat"
+msgstr "Wheat"
+
+# . in BindCropSearch()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:139
+msgid "Picked #{0}: {1}"
+msgstr "Picked #{0}: {1}"
+
+# . in BindCropSearch()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:143
+msgid "Searched: {0}"
+msgstr "Searched: {0}"

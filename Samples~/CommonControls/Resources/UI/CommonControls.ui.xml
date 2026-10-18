@@ -57,6 +57,9 @@
          itemColor="#F5F5F5" itemTextColor="#4A3322"
          checkmark="PromptUGUI/Defaults/pugui#pugui_checkmark" checkmarkColor="white"/>
   <Style name="list"     sprite="PromptUGUI/Defaults/pugui#pugui_9slice_inset" color="white/0.39"/>
+  <!-- 搜索框的候选列表：面板跟下拉的弹出层同款；行字是墨色。行的悬停 / 高亮底色用两个颜色 token。 -->
+  <Style name="suggest"  sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="white"/>
+  <Style name="suggest-text" textColor="#4A3322"/>
   <!-- 滚动条是 <Scrollbar> 子元素（列表、两个下拉各挂一个），一个包穿三根条：轨道 = 控件本身
        （sprite / color），滑块 = handle / handleColor。玻璃侧把两张 9-slice 清成 none + 半透明白。 -->
   <Style name="scrollbar" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_inset" color="white"
@@ -82,6 +85,8 @@
     <Color name="sky-haze"      value="#DCEFF4"/>
     <Color name="soil-a"        value="#8B5E3C"/>
     <Color name="soil-b"        value="#A87E5C"/>
+    <Color name="row-hover"     value="#F5E6C8"/>
+    <Color name="row-pick"      value="#CDEBA8"/>
   </Theme>
 
   <!-- 玻璃：磨砂玻璃 UI 浮在同一张农场背景上。木层收起、玻璃层露出，
@@ -118,6 +123,10 @@
            radius="10" glass="true" borderWidth="1" borderColor="white/0.5"/>
     <Style name="list"     sprite="none" color="white/0.10"
            radius="12" glass="true" borderWidth="1" borderColor="white/0.4"/>
+    <!-- 候选列表同下拉弹出层：浮在玻璃之上，不做玻璃，给近乎不透明的浅面保可读；圆角靠 padding 让行避开。 -->
+    <Style name="suggest"  sprite="none" color="#EAF2F6"
+           radius="10" borderWidth="1" borderColor="white/0.5"/>
+    <Style name="suggest-text" textColor="#1C2B33"/>
     <!-- 滚动条：轨道是控件主表面，滑块走 handle* —— 两层各自变成胶囊。 -->
     <Style name="scrollbar" sprite="none" color="white/0.18" handle="none" handleColor="white/0.55"
            radius="pill" handleRadius="pill"/>
@@ -135,6 +144,8 @@
     <Color name="sky-haze"      value="#DCEFF4"/>
     <Color name="soil-a"        value="#8B5E3C"/>
     <Color name="soil-b"        value="#A87E5C"/>
+    <Color name="row-hover"     value="#FFFFFFB3"/>
+    <Color name="row-pick"      value="#1C2B3326"/>
   </Theme>
 
   <!-- 面板底：两层叠着，主题决定露哪层。class= 写在体内的节点上（见文件头第 3 条）。 -->
@@ -158,6 +169,20 @@
         <Frame width="0"/>
       </HStack>
     </Animation>
+  </Template>
+
+  <!-- 候选行模板（<Suggestions itemTemplate>）：作物图标 + 名字。行不是按钮 —— 状态源是框架给每行套的外壳，
+       所以悬停 / 键盘高亮都用 <Show on="state-*"> 换底色；图标与名字由 C# BindItems 填 -->
+  <Template name="CropRow">
+    <Frame height="30">
+      <Show on="state-hover"><Image anchor="stretch" color="row-hover" raycastTarget="false"/></Show>
+      <Show on="state-selected"><Image anchor="stretch" color="row-pick" raycastTarget="false"/></Show>
+      <HStack anchor="stretch" spacing="8" padding="0,8,0,8" childAlign="middle-left">
+        <Image id="icon" size="20x20" raycastTarget="false"/>
+        <Text id="name" class="suggest-text" fontSize="16"/>
+        <Frame width="0"/>
+      </HStack>
+    </Frame>
   </Template>
 
   <!-- 聊天行模板：时间 + 会折行的正文，行高跟着内容走 —— 虚拟列表逐行实测，不要求行等高 -->
@@ -325,6 +350,15 @@
         <Skin/>
         <VStack anchor="stretch" spacing="12" padding="8">
           <InputField id="username" class="input" placeholder="Username" width="240" height="30"/>
+          <!-- 搜索框 + 候选列表：打字（OnInput）在 C# 里本地过滤作物名单；↑↓ 高亮、Enter / 点行 / 放大镜提交，
+               Esc 只关列表（仍在编辑、文字不变）。面板挂在输入框底下，放不下就翻到上面。 -->
+          <InputField id="cropSearch" class="input" placeholder="Search crops" width="240" height="30"
+                      submitIcon="UI/icons#search" submitIconSize="18">
+            <Suggestions id="cropList" class="suggest" itemTemplate="CropRow" maxHeight="200" padding="6">
+              <Scrollbar class="scrollbar" thickness="8" overlay="true"/>
+            </Suggestions>
+          </InputField>
+          <Text id="cropResult" class="suggest-text" fontSize="14" height="20"/>
           <Toggle id="muteAudio" class="toggle">静音</Toggle>
           <Slider id="masterVol" class="slider" min="0" max="1" value="0.8"/>
           <Dropdown id="quality" class="dropdown"><Scrollbar class="scrollbar"/></Dropdown>
