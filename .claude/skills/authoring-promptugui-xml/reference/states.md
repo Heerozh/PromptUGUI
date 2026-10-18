@@ -1,4 +1,4 @@
-# State visuals (Btn / Tab / Toggle)
+# State visuals (Btn / Tab / Toggle / `<Suggestions>` rows)
 
 > Part of the **authoring-promptugui-xml** skill. Main reference: [`../SKILL.md`](../SKILL.md). Read this before using any `*Color` / `*Modulate` / `selectedColor` / `<Show on="state-*">` / `pressedSprite` / `disabledSprite` / `selectedSprite` / `pressedOffset` / `selectedOffset`. For the `state-*` `on=` event values and `<Trigger>` / `<Animation>`, see [`animations.md`](animations.md).
 
@@ -84,6 +84,18 @@ When a `<Btn>` / `<Tab>` / `<Toggle>` enters the Disabled state and **no** `disa
 ```
 
 Here PC `state-hover` has no explicit block, so the `state-normal` artwork covers it too; add a `<Show on="state-hover">` to give hover its own art.
+
+**`<Suggestions>` rows.** A suggestion list wraps every row in a shell that is a state source but **not** a Selectable (pressing a row must not take the selection from the field being edited). So a row template's `<Show>` blocks resolve upward to that shell exactly as they would to a `<Toggle>`: `state-hover` = the pointer over the row, `state-pressed` = held down, **`state-selected` = the keyboard / gamepad highlight** (hover and pressed override it while they last, as Hover overrides a Toggle's `isOn`). The template body needs no `<Btn>` ancestor — template bodies are exempt from `PUI-STATE-NO-SOURCE`. Rows have no `hoverColor` / `pressedOffset` attributes (they are not Btns); `<Show>` is the way. See [`controls-suggestions.md`](controls-suggestions.md).
+
+```xml
+<Template name="Row">
+  <Frame height="30">
+    <Show on="state-hover"><Image anchor="stretch" color="row-hover"/></Show>
+    <Show on="state-selected"><Image anchor="stretch" color="row-pick"/></Show>
+    <Text id="name" anchor="stretch" margin="0,8,0,8"/>
+  </Frame>
+</Template>
+```
 
 **Single-bg shorthand — `pressedSprite` / `disabledSprite`.** When the only per-state change is the button's own bg image, `<Btn pressedSprite="ui:play-pressed">` is the one-attribute form of a `state-normal`/`state-pressed` `<Show>` pair: it swaps the bg's `overrideSprite` while Pressed and reverts on release (the authored `sprite` is never touched). Setting it auto-switches the Btn off uGUI's built-in ColorTint (so the pressed art isn't additionally darkened), and it composes with `pressedColor` / `pressedModulate` (swap + tint/modulate stack). `""` / `none` = no swap. For swapping whole child subtrees (icon + label together, or more than two states), use `<Show>` instead. `<Tab selectedSprite>` is the same `overrideSprite`-swap mechanism keyed on `isOn` (the selected look) instead of `Pressed`.
 

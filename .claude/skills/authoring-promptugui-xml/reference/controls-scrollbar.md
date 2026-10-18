@@ -58,6 +58,7 @@ for "no bar". `<Scrollbar>` takes **no children** (`PUI-SCROLLBAR-CHILD`).
 |---|---|---|---|
 | `<ScrollList>` | on the list's root, beside `Viewport` (never in `Content`) | yes | follows `direction`: vertical / grid = a vertical bar on the right edge; `horizontal` = a horizontal bar on the bottom edge |
 | `<Dropdown>` | in the popup `Template` (cloned into every opened popup) | yes | always vertical |
+| `<Suggestions>` | on the suggestion panel, beside `Viewport` | yes | always vertical. **Display-only**: the track and handle take no raycasts and the bar is off the navigation graph — uGUI's `Scrollbar` is a Selectable, and pressing it would end the field's edit. The panel scrolls by drag and wheel |
 
 - It must be a **direct child** of the host (`PUI-SCROLLBAR-OUTSIDE`) — uGUI only shrinks the viewport
   for a bar that is a direct child of the ScrollRect's transform. Wrapping it in `<Show>` / `<Frame>`
