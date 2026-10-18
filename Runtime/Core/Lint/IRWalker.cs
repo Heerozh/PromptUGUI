@@ -233,6 +233,15 @@ namespace PromptUGUI.Lint
             foreach (var issue in ScrollbarRules.CheckDuplicate(node))
                 yield return issue;
 
+            if (SuggestionsRules.AppliesTo(node.Tag))
+                foreach (var issue in SuggestionsRules.Check(node, styles))
+                    yield return issue;
+            // Two lists under one field, and a list on a multi-line field; reported on the second / the field.
+            foreach (var issue in SuggestionsRules.CheckDuplicate(node))
+                yield return issue;
+            foreach (var issue in SuggestionsRules.CheckHost(node, styles))
+                yield return issue;
+
             if (PureContainerVisualAttrRules.AppliesTo(node.Tag))
                 foreach (var issue in PureContainerVisualAttrRules.Check(node))
                     yield return issue;
@@ -356,6 +365,8 @@ namespace PromptUGUI.Lint
                 foreach (var issue in CollapsibleRules.CheckHeaderOutside(node, child))
                     yield return issue.WithSource(child.OriginSrc, child.Line, child.InvokedAt);
                 foreach (var issue in ScrollbarRules.CheckOutside(node, child))
+                    yield return issue.WithSource(child.OriginSrc, child.Line, child.InvokedAt);
+                foreach (var issue in SuggestionsRules.CheckOutside(node, child))
                     yield return issue.WithSource(child.OriginSrc, child.Line, child.InvokedAt);
 
                 // A <Collapsible>'s body children are a column, but its <Header>'s children are

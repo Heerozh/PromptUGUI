@@ -49,7 +49,7 @@ namespace PromptUGUI.Lint
         private static readonly HashSet<string> InteractiveTags = new HashSet<string>(StringComparer.Ordinal)
         {
             "Btn", "Toggle", "Tab", "TabBar", "TabMenu", "Collapsible", "Slider", "Scrollbar",
-            "Dropdown", "InputField", "ScrollList", "Carousel", "Markdown",
+            "Dropdown", "InputField", "Suggestions", "ScrollList", "Carousel", "Markdown",
         };
 
         // ===== PUI-RAYCAST-TAG =====

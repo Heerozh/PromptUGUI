@@ -245,6 +245,19 @@ namespace PromptUGUI.Application
             else if (node.Tag == "Scrollbar")
                 foreach (var issue in PromptUGUI.Lint.ScrollbarRules.Check(node))
                     UILog.Warn(node, issue);
+            else if (node.Tag == PromptUGUI.Lint.SuggestionsRules.Tag)
+                // Only what the control does not say itself: BindItems throws without an itemTemplate, the
+                // placement setter throws, a bad maxHeight / gap warns from its setter. The row rule needs
+                // the template body and is CLI-only — the list warns once when it builds such a row.
+                foreach (var issue in PromptUGUI.Lint.SuggestionsRules.Check(node))
+                {
+                    if (issue.Code != PromptUGUI.Lint.SuggestionsRules.LayoutAttrCode
+                        && issue.Code != PromptUGUI.Lint.SuggestionsRules.ChildCode) continue;
+                    UILog.Warn(node, issue);
+                }
+            else if (node.Tag == PromptUGUI.Lint.SuggestionsRules.HostTag)
+                foreach (var issue in PromptUGUI.Lint.SuggestionsRules.CheckHost(node))
+                    UILog.Warn(node, issue);
             else if (node.Tag == "Collapsible")
                 // The height rule is a hard error (ControlAttributeApplier); the header-structure
                 // ones are warnings — the panel still renders, it just ignores what it cannot use.
