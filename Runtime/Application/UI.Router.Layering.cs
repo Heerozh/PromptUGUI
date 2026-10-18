@@ -26,8 +26,8 @@ namespace PromptUGUI.Application
 
             /// <summary>
             /// Gap between a routed Page and its child Page. Default 10. Each depth owns its slot,
-            /// one below it (a page playing its exit) and up to two above it (an expanded TabMenu),
-            /// so the step must keep those clear of the next depth.
+            /// one below it (a page playing its exit) and up to two above it (an open popup's catcher
+            /// and panel, e.g. an expanded TabMenu), so the step must keep those clear of the next depth.
             /// </summary>
             public static int PageSortingOrderStep
             {
@@ -39,13 +39,13 @@ namespace PromptUGUI.Application
                         throw new ArgumentOutOfRangeException(nameof(value), value,
                             $"UI.Router.PageSortingOrderStep must be at least {min}: a page's depth owns its " +
                             "slot, the value below it (the page while it plays its exit) and " +
-                            $"{Controls.TabMenu.PopupSortingOffset} above it (an expanded TabMenu), and none " +
+                            $"{Controls.Internal.PopupChain.SortingOffset} above it (an open popup), and none " +
                             "of them may reach the next depth.");
                     _pageSortingOrderStep = value;
                 }
             }
 
-            private static int MinPageSortingOrderStep => Controls.TabMenu.PopupSortingOffset + 2;
+            private static int MinPageSortingOrderStep => Controls.Internal.PopupChain.SortingOffset + 2;
 
             // The router's mark on a routed canvas (spec §4 / §6): where it sorts and, for a Modal,
             // Escape → Back. `index` is the node's place in _chain; activation is bottom-up, so what

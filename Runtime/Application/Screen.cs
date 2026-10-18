@@ -832,8 +832,9 @@ namespace PromptUGUI.Application
 
         // The ghost must not be operable while it fades: no raycasts (blocksRaycasts only — turning
         // `interactable` off would drop every Selectable into Disabled and tint the fading buttons
-        // grey), no keyboard / gamepad selection left inside it, and no expanded TabMenu holding
-        // the process-wide Escape slot. A captured drag keeps its pointer until release; accepted.
+        // grey), no keyboard / gamepad selection left inside it, and no open popup (a TabMenu's panel)
+        // holding the popup chain and the next Escape. A captured drag keeps its pointer until
+        // release; accepted.
         private void SealInput()
         {
             var root = RootGameObject;
@@ -845,7 +846,7 @@ namespace PromptUGUI.Application
             var selected = es != null ? es.currentSelectedGameObject : null;
             if (selected != null && selected.transform.IsChildOf(root.transform))
                 es.SetSelectedGameObject(null);
-            Controls.TabMenu.CollapseIfUnder(root.transform);
+            Controls.Internal.PopupChain.DismissUnder(root.transform);
         }
 
         private void FireClosing()
