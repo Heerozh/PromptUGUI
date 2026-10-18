@@ -295,7 +295,9 @@ carries its content in child `<Text>` / `<Icon>` nodes leaves the caption empty 
 
 Clicking the handle toggles. The menu closes when a row is picked (**including re-picking the one
 already selected**), when the click-catcher behind the panel is clicked, and on Escape / gamepad B.
-At most one menu is open anywhere at a time.
+At most one menu is open anywhere at a time. It also closes when a higher layer appears over it — a
+dialog, a routed child page or Modal, the Loading overlay (not a Toast or a tutorial step) — and when
+its Screen starts closing.
 
 Expanded is **runtime state**: a resize, a Variant flip or a theme switch re-measures the panel but
 never closes it, and there is no `expanded=` attribute — a menu always starts closed.

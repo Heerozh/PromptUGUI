@@ -26,8 +26,8 @@ namespace PromptUGUI.Application
 
             /// <summary>
             /// Gap between a routed Page and its child Page. Default 10. Each depth owns its slot,
-            /// one below it (a page playing its exit) and up to two above it (an expanded TabMenu),
-            /// so the step must keep those clear of the next depth.
+            /// one below it (a page playing its exit) and up to two above it (an open popup's catcher
+            /// and panel, e.g. an expanded TabMenu), so the step must keep those clear of the next depth.
             /// </summary>
             public static int PageSortingOrderStep
             {
@@ -39,16 +39,16 @@ namespace PromptUGUI.Application
                         throw new ArgumentOutOfRangeException(nameof(value), value,
                             $"UI.Router.PageSortingOrderStep must be at least {min}: a page's depth owns its " +
                             "slot, the value below it (the page while it plays its exit) and " +
-                            $"{Controls.TabMenu.PopupSortingOffset} above it (an expanded TabMenu), and none " +
+                            $"{Controls.Internal.PopupChain.SortingOffset} above it (an open popup), and none " +
                             "of them may reach the next depth.");
                     _pageSortingOrderStep = value;
                 }
             }
 
-            private static int MinPageSortingOrderStep => Controls.TabMenu.PopupSortingOffset + 2;
+            private static int MinPageSortingOrderStep => Controls.Internal.PopupChain.SortingOffset + 2;
 
             // The router's mark on a routed canvas (spec §4 / §6): where it sorts and, for a Modal,
-            // Escape → Back. `index` is the node's place in _chain; activation is bottom-up, so what
+            // a source of Escape presses (EscapeChain turns one into Back). `index` is the node's place in _chain; activation is bottom-up, so what
             // sits ahead of it is exactly its registered ancestry and the result is a function of
             // the route map alone — re-applying it can never move a page that is already up.
             private static void ApplyRouteLayer(RouteNode def, Screen screen, int index)
@@ -59,20 +59,17 @@ namespace PromptUGUI.Application
                 {
                     canvas.overrideSorting = true;
                     canvas.sortingOrder = UI.Modal.SortingOrderBase + CountAhead(index, RouteKind.Modal);
-                    var esc = root.AddComponent<ModalEscapeListener>();
-                    var captured = def.Name;
-                    esc.OnEscape = () =>
-                    {
-                        if (UI.Tutorial.IsBlockingInput) return;
-                        // 只栈顶 routed modal 响应;有 ad-hoc 模态在上时让位给它
-                        if (IsTop(captured) && !UI.Modal.IsAnyOpen) _ = Back();
-                    };
+                    // A key source only: EscapeChain decides (routed Modal on top → Back()).
+                    root.AddComponent<ModalEscapeListener>();
+                    // A layer over an open popup closes it (spec 2026-10-18 §4.5).
+                    Controls.Internal.PopupChain.DismissBelow(canvas.sortingOrder);
                     return;
                 }
 
                 var depth = CountAhead(index, RouteKind.Page);
                 var slot = PageSortingOrderBase + depth * PageSortingOrderStep;
                 canvas.sortingOrder = slot;
+                Controls.Internal.PopupChain.DismissBelow(slot);
                 if (slot >= Loading.SortingOrder)
                     Debug.LogWarning(
                         $"[PromptUGUI] Routed page '{def.Name}' (depth {depth}) sorts at {slot}, at or above " +

@@ -126,12 +126,15 @@ namespace PromptUGUI.Tests.EditMode.Navigation
         }
 
         // ── Escape ────────────────────────────────────────────────────────────────────────
+        // One decision per press (spec 2026-10-18 §4.4): EscapeChain closes the open menu first.
+
+        private static bool Dispatch(int press) => EscapeChain.Dispatch(EscapeKey.Escape, press);
 
         [Test]
         public void Escape_is_not_consumed_when_no_menu_is_open()
         {
             Open(PageWithMenu);
-            Assert.IsFalse(TabMenu.TryConsumeEscape(), "a modal behind it must still close");
+            Assert.IsFalse(Dispatch(EscapeChain.NextTestPress()), "a modal behind it must still close");
         }
 
         [Test]
@@ -140,36 +143,34 @@ namespace PromptUGUI.Tests.EditMode.Navigation
             var m = Open(PageWithMenu).Get<TabMenu>("m");
             m.Expand();
 
-            Assert.IsTrue(TabMenu.TryConsumeEscape(), "…so the modal underneath survives this press");
+            Assert.IsTrue(Dispatch(EscapeChain.NextTestPress()), "…so the modal underneath survives this press");
             Assert.IsFalse(m.IsExpanded);
         }
 
-        // Both listeners answer the same key press and the order between them is not defined. If the
-        // menu's own listener wins the race, the modal's handler must still see the press as spent,
-        // or one Escape would close the menu AND the modal behind it.
+        // Several listeners (the menu's own, a modal's) hear one key press. The first decides; the
+        // others must not act on it again, or one Escape would close the menu AND the modal behind it.
         [Test]
-        public void Escape_is_still_consumed_when_the_menu_closed_itself_first()
+        public void Two_listeners_hearing_one_press_act_once()
         {
             var m = Open(PageWithMenu).Get<TabMenu>("m");
             m.Expand();
-
-            m.NotifyEscapeConsumedForTests();      // the menu's own listener got there first
+            var press = EscapeChain.NextTestPress();
+            Assert.IsTrue(Dispatch(press));
             Assert.IsFalse(m.IsExpanded);
 
-            Assert.IsTrue(TabMenu.TryConsumeEscape(),
-                          "the modal's handler, running later in the same frame, must not act on it");
+            m.Expand();
+            Assert.IsTrue(Dispatch(press), "the second listener gets the same answer…");
+            Assert.IsTrue(m.IsExpanded, "…and changes nothing");
         }
 
         [Test]
-        public void A_stale_escape_from_an_earlier_frame_is_not_consumed()
+        public void A_new_press_is_decided_afresh()
         {
             var m = Open(PageWithMenu).Get<TabMenu>("m");
             m.Expand();
-            m.NotifyEscapeConsumedForTests();
-            Assert.IsTrue(TabMenu.TryConsumeEscape());
+            Assert.IsTrue(Dispatch(EscapeChain.NextTestPress()));
 
-            TabMenu.ForgetEscapeFrameForTests();   // stand in for "a later frame"
-            Assert.IsFalse(TabMenu.TryConsumeEscape(), "only the frame it happened in is swallowed");
+            Assert.IsFalse(Dispatch(EscapeChain.NextTestPress()), "nothing is open any more");
         }
     }
 }

@@ -184,7 +184,14 @@ a modal and closing it hands the trap back to the modal rather than freeing it. 
 returns to the handle, so the user resumes where they opened the menu from.
 
 Escape and gamepad **B** both close an open menu, and the press is consumed there — a modal behind
-it survives that press and closes on the next one. The full-screen click-catcher behind the panel is
+it survives that press and closes on the next one, whether it is an ad-hoc dialog or a routed
+`present: Modal` route. Gamepad **B** never goes on to close a modal; only Escape / Start do. While a
+blocking tutorial step is up, Escape does nothing at all — the menu it may be pointing into stays
+open. An open `<Dropdown>` list answers Escape before anything else: it sorts above every layer.
+
+A layer that appears over an open menu closes it: a dialog opened from code, a routed child page or
+routed Modal, the Loading overlay. The dialog then remembers the menu's handle as the focus to return
+to. A Toast or a tutorial step does not close it. The full-screen click-catcher behind the panel is
 excluded from the navigation graph (`Navigation.Mode.None`), so directional input can never land on
 it.
 
