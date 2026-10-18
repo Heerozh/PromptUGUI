@@ -1143,6 +1143,15 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void InputField_lists_submitIcon()
+        {
+            var xsd = XsdGenerator.Generate(PromptUGUI.Application.UI.Registry);
+            StringAssert.Contains("name=\"submitIcon\"", xsd);
+            StringAssert.Contains("name=\"submitIconSize\"", xsd);
+            StringAssert.Contains("name=\"submitIconColor\"", xsd);
+        }
+
+        [Test]
         public void Pages_is_an_element_with_selected()
         {
             // Reflected off the registry like every non-primitive control (spec 2026-09-17-pages-design §4.5).

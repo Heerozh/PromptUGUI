@@ -152,8 +152,10 @@ namespace PromptUGUI.Controls
             if (_textArea == null) return;
             var (t, r, b, l) = _paddingOverride
                 ?? (_bg != null && _bg.sprite != null ? DefaultPadding : (0f, 0f, 0f, 0f));
+            // The submit icon's square sits at the right end; the text stops short of it.
+            var slot = PlaceSubmitIcon();
             _textArea.offsetMin = new Vector2(l, b);
-            _textArea.offsetMax = new Vector2(-r, -t);
+            _textArea.offsetMax = new Vector2(-(r + slot), -t);
             if (_textAreaMask != null)
             {
                 // RectMask2D.padding is (left, bottom, right, top); negative grows the region.
@@ -175,8 +177,135 @@ namespace PromptUGUI.Controls
         {
             base.OnAfterApply();
             _input.interactable = Interactable;
+            if (_iconPress != null) _iconPress.Interactable = PeekInteractable;
             ApplyTextAreaPadding();
             _suggestions?.OnFieldAfterApply();
+        }
+
+        // ── submitIcon (spec 2026-10-18 §5.3 / §6.4) ───────────────────────────────────────
+
+        private const float DefaultSubmitIconSize = 24f;
+
+        private RectTransform _iconRect;
+        private UnityImage _iconGlyph;
+        private FocuslessPress _iconPress;
+        private float _iconSize = DefaultSubmitIconSize;
+        private Color _iconColor = ProceduralBuilders.DefaultGlyphColor;
+
+        /// <summary>
+        /// A submit button at the field's right end — Enter, for a pointer (a chat's "send"). Not built
+        /// unless written; <c>""</c> / <c>none</c> removes it again. It is not a Selectable: pressing it
+        /// leaves the field editing until the click submits.
+        /// </summary>
+        [UIAttr(IsSprite = true), Preserve]
+        public string SubmitIcon
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value) || value == "none")
+                {
+                    if (_iconRect != null) _iconRect.gameObject.SetActive(false);
+                }
+                else
+                {
+                    EnsureSubmitIcon();
+                    _iconRect.gameObject.SetActive(true);
+                    _iconGlyph.sprite = UI.ResolveSprite(value);
+                }
+                ApplyTextAreaPadding();
+            }
+        }
+
+        /// <summary>The icon's side, px (default 24). The click area is a square as tall as the field.</summary>
+        [UIAttr, Preserve]
+        public float SubmitIconSize
+        {
+            set
+            {
+                _iconSize = value;
+                if (_iconGlyph != null) _iconGlyph.rectTransform.sizeDelta = new Vector2(value, value);
+            }
+        }
+
+        /// <summary>The icon's tint (default: the glyph colour, i.e. the sprite's own).</summary>
+        [UIAttr(IsColor = true), Preserve]
+        public string SubmitIconColor
+        {
+            set
+            {
+                _iconColor = UI.Theme.Resolve(value);
+                ApplyIconColor();
+            }
+        }
+
+        private void EnsureSubmitIcon()
+        {
+            if (_iconRect != null) return;
+            _iconRect = ProceduralBuilders.AddChild(RectTransform, "SubmitIcon");
+            _iconRect.anchorMin = new Vector2(1f, 0f);
+            _iconRect.anchorMax = new Vector2(1f, 1f);
+            _iconRect.pivot = new Vector2(1f, 0.5f);
+            _iconRect.anchoredPosition = Vector2.zero;
+            _iconRect.gameObject.AddComponent<HitCatcher>();
+            _iconPress = _iconRect.gameObject.AddComponent<FocuslessPress>();
+            _iconPress.Interactable = PeekInteractable;
+            _iconPress.OnState.Subscribe(_ => ApplyIconColor());
+            _iconPress.OnClicked.Subscribe(_ => SubmitFromIcon());
+
+            _iconGlyph = ProceduralBuilders.AddImage(_iconRect, "Glyph", raycast: false);
+            var glyph = _iconGlyph.rectTransform;
+            glyph.anchorMin = glyph.anchorMax = new Vector2(0.5f, 0.5f);
+            glyph.pivot = new Vector2(0.5f, 0.5f);
+            glyph.anchoredPosition = Vector2.zero;
+            glyph.sizeDelta = new Vector2(_iconSize, _iconSize);
+            _iconGlyph.preserveAspect = true;
+            ApplyIconColor();
+
+            // The square follows the field's height when a layout resizes it.
+            var relay = GameObject.GetComponent<RectDimensionsRelay>();
+            if (relay == null) relay = GameObject.AddComponent<RectDimensionsRelay>();
+            relay.OnDimensionsChanged += ApplyTextAreaPadding;
+        }
+
+        // Sizes the click square to the field's height; returns the width the text has to leave for it.
+        private float PlaceSubmitIcon()
+        {
+            if (_iconRect == null || !_iconRect.gameObject.activeSelf) return 0f;
+            var h = RectTransform.rect.height;
+            var side = h > 0f ? h : MinTapHeight;
+            _iconRect.sizeDelta = new Vector2(side, 0f);
+            return side;
+        }
+
+        // uGUI's default ColorBlock multipliers, so the icon answers like any stock control.
+        private void ApplyIconColor()
+        {
+            if (_iconGlyph == null) return;
+            var block = ColorBlock.defaultColorBlock;
+            var tint = _iconPress == null ? block.normalColor : _iconPress.Current switch
+            {
+                InteractState.Hover => block.highlightedColor,
+                InteractState.Pressed => block.pressedColor,
+                InteractState.Disabled => block.disabledColor,
+                _ => block.normalColor,
+            };
+            _iconGlyph.color = _iconColor * tint * block.colorMultiplier;
+        }
+
+        /// <summary>The same submit as Enter (spec §6.4): a highlighted suggestion is chosen, else the text goes.</summary>
+        private void SubmitFromIcon()
+        {
+            if (!PeekInteractable) return;
+            var list = _suggestions;
+            if (list != null && list.IsOpen && list.HighlightedIndex >= 0)
+            {
+                list.CommitChosen(list.HighlightedIndex);
+                return;
+            }
+            var text = TextValue;
+            _submit.OnNext(text);
+            list?.CommitTyped(text);
+            EndEditing();
         }
 
         private Suggestions _suggestions;
@@ -256,6 +385,7 @@ namespace PromptUGUI.Controls
             {
                 base.Interactable = value;
                 if (_input != null) _input.interactable = value;
+                if (_iconPress != null) _iconPress.Interactable = value;
                 if (!value) _suggestions?.Close();
             }
         }
