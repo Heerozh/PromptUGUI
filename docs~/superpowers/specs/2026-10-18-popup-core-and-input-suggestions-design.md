@@ -1,6 +1,6 @@
 # 浮层内核 + 统一 Esc 链 + `<InputField>` 候选列表（`<Suggestions>`）
 
-> 状态：**已对齐**（2026-10-18 按评估结论的推荐方向起草，§13 按推荐定稿；2026-10-19 按实施计划 `plans/2026-10-18-popup-core-and-input-suggestions.md` 的计划期修正与审阅结论改齐）。
+> 状态：**已实施**（2026-10-18 按评估结论的推荐方向起草，§13 按推荐定稿；2026-10-19 按实施计划 `plans/2026-10-18-popup-core-and-input-suggestions.md` 的计划期修正与审阅结论改齐；阶段 0 与阶段 1 均已实现，实施记录见 §16 / §17）。
 > 来源：一份「给框架加通用浮层、让输入框支持候选列表（照 AutoSuggestBox）」的提议，以及读源码做的可行性评估。§1.2 的问题都是读代码得出的，没有在 Unity 里复现；复现由 §9 的 Red 测试给出。
 > 相关：
 > `2026-08-29-tabmenu-design.md`（TM-D8 弹层留在宿主子树 + overrideSorting；TM-D9 全局单开；TM-D12 收起态测量；TM-D13 过渡；TM-D15 焦点圈闭；TM-D16 Esc 消费；TM-D17 抽 `TabGroupCore` 的先例；TM-D19 默认皮肤；TM-D21 定位。阶段 0 把这些抽成内核）、
@@ -737,3 +737,19 @@ public Suggestions Suggestions { get; }      // 没有 <Suggestions> 子元素�
 - **Dropdown 第 2 步对 `CancelButton` 同样生效**（表里第 4 步之前），与「B 只关浮层」一致；不记 `PopupConsumedFrame`（那是给文本框用的，Dropdown 展开时焦点不在文本框上）。
 - **Dropdown 的「展开」以 TMP 的遮罩为准**：`Hide()` 一开始淡出就出集合，淡出期间 `IsExpanded` 仍为 true 但不再挡 Esc。
 - `UI.Router.IsTop` 已无调用方，删除。
+
+## 17. 实施记录（阶段 1）
+
+**与设计的偏差 / 补充**：
+
+- **面板宽度**：每次定位时把面板宽设为输入框宽（`PopupCore.Reposition` 写点锚 + `sizeDelta`），而不是 §6.8 写的横向 stretch。效果相同；差别只在打开期间输入框被布局改宽时，面板等到下一次重放（推送 / ReSolve）才跟上。
+- **`itemTemplate` 的解析时机**：同 `<ScrollList>`，在属性应用时解析，名字不存在立刻报 `ParseException`；缺省时 `BindItems` 的推送抛 `InvalidOperationException`（R3 记日志）。
+- **侧的锁定**：用一个纯函数 `SuggestionsPlacement.Solve(field, bounds, content, maxHeight, gap, above, locked)` 同时给出高与侧：未锁时翻面规则同 `PopupPlacer`（`content > 偏好侧空间 ∧ 另一侧更宽裕`），锁定（打开期间）只按该侧重夹高度。内核再交给 `PopupPlacer` 时不会翻面，因为高度已不超过该侧空间。
+- **按键接管的 Navigate 抑制**（P21）：`PuiInputField` 在处理过 IMGUI 方向键后的 **0.6 秒**内忽略垂直 `OnMove`（输入模块的 Navigate 首次重复在 0.5 秒），而不是「几帧」——按住 ↓ 时 IMGUI 重复与 Navigate 重复会交错到达，按帧数挡不住后者。
+- **组字判定**：取当前输入模块的 `BaseInput.compositionString`，取不到退回 `Input.compositionString`；后者在只开 Input System 的工程里若抛 `InvalidOperationException` 就当作没有组字。
+- **SG-D15 的实现**：`FocuslessPress` 在抬起时发 `Released(willClick)`（指针仍在行内、未转为拖动、可交互），列表据此在点击之前决定「选中」或「关」；随后到来的 click 发现列表已关就什么都不做。
+- **运行期镜像**：`ScreenInstantiator` 只镜像控件自己不说的 `PUI-SUGGEST-LAYOUT-ATTR` / `PUI-SUGGEST-CHILD`，以及宿主上的 `PUI-SUGGEST-MULTILINE`；`TEMPLATE` / `ENUM` / `VALUE` 由 `BindItems` / setter 自己抛或警告，`ROW-SELECTABLE` 只在 CLI 报（控件首次建出这种行时自己警告一次）。
+- **`PUI-RAYCAST-UNDECIDED` 的扩展**：`<Suggestions>` 进了 `InteractiveTags`，但放在 `<InputField>` 里时本来就被输入框覆盖（输入框是交互标签，整棵子树不再往下查），只有放错位置时这条扩展才起作用。
+- `Control.CanvasGroup` 改为先找后建（P19），并用显式 null 判断：编辑器里缺失的原生组件 `GetComponent` 回来的是假 null，`??` 会把它当成真对象。
+
+**验证**：EditMode / EditorOnly / PlayMode 三个程序集全绿；`dotnet format --verify-no-changes` 干净；UIXmlLint 对 `Runtime/Resources/` 与 `Samples~/` 零问题，scratchpad 里一份故意出错的 `.ui.xml` 九个 `PUI-SUGGEST-*` 全部报出。真按键的 PlayMode 用例（`InputTestFixture`）覆盖手柄十字键移高亮与 Esc 只关列表；IMGUI 事件循环本身（`Event.PopEvent` 那一行）、输入法、手机真机与样例的观感留待手测。
