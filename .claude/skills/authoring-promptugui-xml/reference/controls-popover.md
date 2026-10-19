@@ -98,6 +98,8 @@ menu.OpenAt(eventData.position);
 | An unrelated popup opens (another popover, a `<TabMenu>`, a suggestion list) | `Replaced` | |
 | Its Screen starts closing; an ancestor is switched off; `Dispose` | `HostGone` | |
 
+- **Game code with its own back key** (leave a mode, clear a selection on Escape / Cancel) sees the same press that closed the popover: check `UI.EscapeConsumedThisFrame` first (scripting skill).
+- A popover whose Screen is torn down without `UI.Close` (a scene change, leaving Play mode) leaves the chain silently — no `OnClosed`, nothing left to tell.
 - Pressing something **inside** the panel never closes it — an emoji picker must take several taps. A menu closes itself from C# (`menu.Close()` in the row handlers).
 - While a tutorial `Block` step holds input, neither Escape nor a press outside closes it.
 

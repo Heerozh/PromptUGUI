@@ -1389,6 +1389,8 @@ EVENTS (R3)    .OnClick                Btn
                .OnSelectedChanged      Pages:string (any-source page change, deduped)
                .OnEndEdit / .OnSubmit  InputField:string (OnSubmit = the TYPED text; a chosen suggestion is not one)
                .OnInput                InputField:string — user edits only (no code writes / replays / Esc rollback)
+               UI.EscapeConsumedThisFrame  bool — the UI spent this frame's Escape / Start / B (closed a popup, a
+                                        dialog answered…); skip your own back-key handling
                InputField.Insert(text) at the caret (the live one, or where the edit ended); false = did not fit
                                         characterLimit / read-only / composing; a code write (no OnInput)
                Suggestions .OnSubmit   SuggestionSubmit (Text, ChosenIndex −1 = typed, IsChosen) — every submit
@@ -1836,12 +1838,28 @@ public static class UI.Modal {
   |---|---|---|---|
   | 1 | A blocking tutorial step (`TutorialMode.Block`) | swallowed — nothing closes | swallowed |
   | 2 | An open `<Dropdown>` list | the list closes | the list closes |
-  | 3 | An open popup (`<TabMenu>`) not under the top dialog | the popup closes | the popup closes |
+  | 3 | An open popup (`<Popover>` / `<TabMenu>` / a suggestion list) not under the top dialog | the popup closes | the popup closes |
   | 4 | An ad-hoc dialog | the top dialog's `TryEscape` (refusing still consumes it) | — |
   | 5 | A routed `Modal` on top of the chain | `UI.Router.Back()` (a guard's rejection still consumes it) | — |
 
   So a dialog with a menu open inside it survives the press that closes the menu, and a routed
   Modal behaves the same.
+- **Your own back key sees the same press.** Game code that reads Escape / Cancel itself (an Input
+  System action polled in `Update`, `Input.GetKeyDown`) to leave a mode, clear a selection or go back
+  gets the press the UI just used to close a popover — one press, two effects. Check
+  **`UI.EscapeConsumedThisFrame`** first: true in the frame PromptUGUI spent the press on any row of
+  the table above (a blocking step swallowing it included).
+
+  ```csharp
+  void Update()
+  {
+      if (!_cancel.WasPressedThisFrame() || UI.EscapeConsumedThisFrame) return;
+      ClearSelection();
+  }
+  ```
+
+  With the Input System the UI decides in the input update, before every `Update`. With only the
+  legacy Input Manager its listeners poll in `Update`, so read the flag in `LateUpdate` there.
 - **A dialog closes the popups under it.** Opening a dialog from code — or a routed child page,
   a routed Modal, a `Loading` overlay — closes an open `<TabMenu>` / `<Dropdown>` list on the
   layers below, before the dialog records the focus to return to: closing it puts the focus back on

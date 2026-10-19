@@ -720,3 +720,12 @@ CommonControls 的聊天页加一行输入：输入框 + 颜文字钮 + 发送�
 - 样例的 C# 与运行时一起在 Unity 外编译通过。一个临时的 EditMode 冒烟（未提交）在两套皮下打开样例的聊天页、点开表情浮层并插入。
 - 真设备的 PlayMode 用例（`InputTestFixture`）覆盖：鼠标 / 触屏点外面、再点触发钮、点面板、`OpenAt` 来自按下、`block`、浮层里的 `<Dropdown>`、手柄 B / Esc 与焦点还原、圈住的网格。
 - 留待手测：手机真机（点外面、软键盘出现时的位置）、手柄真机、两套皮的观感、列表行里的浮层在拖动面板时不带着列表滚、浮层里 `<Dropdown>` 在真机上选项。
+
+**PR 之后的修正（在真实工程里试用发现）**：
+
+- **面板被销毁的浮层卡死链条**：Screen 不经 `UI.Close` 就被拆掉（切场景、退出 Play），浮层的链条目留了下来；之后任何一次 `Prune` / `DismissBelow`（例如路由页出现）去关它，关闭路径先写已销毁面板的 `CanvasGroup`，抛 `MissingReferenceException`。`Prune` 本是为面板消失的条目准备的，却永远关不掉它。现在：
+  - `PopupCore.CloseCore` 发现面板已销毁就走 `Abandon()`：只离开链条、停掉动画、收起别处的遮罩、松开指向它的焦点圈闭，不走过渡、不发 `Closed`（订阅方的子树也已销毁）；
+  - 面板守卫在 `OnDestroy` 里对仍开着的浮层调 `Abandon()`，条目在销毁当时就离开链条；
+  - 关掉域重载时静态状态会跨 Play 会话保留：`PopupChain`、`EscapeChain`、`OutsidePressProbe` 与深度告警各加一个 `SubsystemRegistration` 复位。
+  - 复现：`PopupDestroyedHostTests`（Popover 与 TabMenu 两例都红在 `CanvasGroup has been destroyed`）、`PopoverPlayTests.Destroying_the_screen_of_an_open_popover_takes_it_off_the_chain`（这一条修好之后才第一次运行）。
+- **一下 Esc 两处生效**：游戏自己在 `Update` 里读返回键（退出某个模式、清选中），而 Esc 链在输入更新里已经用这一下关掉了浮层，游戏分辨不出。新增公开的 `UI.EscapeConsumedThisFrame`：PromptUGUI 在这一帧用掉了 Escape / Start / B（Esc 链表里任何一步，包括教程 Block 吞掉）时为真。复现与验证：`EscapeChainTests` 四条、`PopoverDevicePlayTests.An_Escape_that_closes_it_is_reported_consumed`。

@@ -37,6 +37,9 @@ namespace PromptUGUI.Application
         /// </summary>
         internal static int PopupConsumedFrame { get; private set; } = int.MinValue;
 
+        /// <summary>The frame a press was spent on anything — what <see cref="UI.EscapeConsumedThisFrame"/> reads.</summary>
+        internal static int ConsumedFrame { get; private set; } = int.MinValue;
+
         /// <summary>
         /// Decides <paramref name="key"/> once per <paramref name="pressId"/>: a second listener that
         /// heard the same press gets the first answer and changes nothing. Real listeners pass
@@ -47,6 +50,7 @@ namespace PromptUGUI.Application
             if (pressId == s_lastPress) return s_lastResult;
             s_lastPress = pressId;
             s_lastResult = Decide(key);
+            if (s_lastResult) ConsumedFrame = Time.frameCount;
             return s_lastResult;
         }
 
@@ -96,12 +100,23 @@ namespace PromptUGUI.Application
         /// <summary><see cref="PopupConsumedFrame"/> outlives a <c>[Test]</c>'s frozen frame count otherwise.</summary>
         internal static void ForgetPopupConsumedFrameForTests() => PopupConsumedFrame = int.MinValue;
 
-        internal static void ResetForTests()
+        /// <summary>
+        /// Domain reload off: frame numbers start over in the next Play session, and the last session's
+        /// press would otherwise be "consumed" again when its frame comes round.
+        /// </summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        internal static void ResetForPlaySession()
         {
             s_lastPress = int.MinValue;
             s_lastResult = false;
-            s_nextTestPress = -1;
             PopupConsumedFrame = int.MinValue;
+            ConsumedFrame = int.MinValue;
+        }
+
+        internal static void ResetForTests()
+        {
+            ResetForPlaySession();
+            s_nextTestPress = -1;
         }
     }
 }

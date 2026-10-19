@@ -152,6 +152,19 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             CollectionAssert.AreEqual(new[] { PopoverCloseReason.HostGone }, closes);
         }
 
+        [UnityTest]
+        public IEnumerator Destroying_the_screen_of_an_open_popover_takes_it_off_the_chain()
+        {
+            Pop.Open(A);
+            yield return null;
+
+            Object.Destroy(_s.RootGameObject);   // a scene change, not UI.Close
+            yield return null;
+            yield return null;
+
+            Assert.IsTrue(PopupChain.IsEmpty, "a later DismissBelow / Prune has nothing dead to trip over");
+        }
+
         // ── InputField.Insert against a field TMP really edits ─────────────────────────────────
 
         private InputField Field => _s.Get<InputField>("f");
@@ -416,6 +429,25 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             yield return null;
             Assert.IsFalse(Pop.IsOpen);
             Assert.AreSame(B("a").GameObject, EventSystem.current.currentSelectedGameObject);
+        }
+
+        // Game code reading its own back key in Update sees the same press: the flag tells it the UI took it.
+        [UnityTest]
+        public IEnumerator An_Escape_that_closes_it_is_reported_consumed()
+        {
+            var keyboard = InputSystem.AddDevice<Keyboard>();
+            Pop.Open(B("a"));
+            yield return null;
+            Assert.IsFalse(UI.EscapeConsumedThisFrame);
+
+            Press(keyboard.escapeKey);
+            yield return null;   // the frame whose input update takes the press: the game's Update sees it now
+
+            Assert.IsFalse(Pop.IsOpen);
+            Assert.IsTrue(UI.EscapeConsumedThisFrame);
+            Release(keyboard.escapeKey);
+            yield return null;
+            Assert.IsFalse(UI.EscapeConsumedThisFrame, "only that frame");
         }
 
         [UnityTest]
