@@ -60,6 +60,10 @@
   <!-- 搜索框的候选列表：面板跟下拉的弹出层同款；行字是墨色。行的悬停 / 高亮底色用两个颜色 token。 -->
   <Style name="suggest"  sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="white"/>
   <Style name="suggest-text" textColor="#4A3322"/>
+  <!-- 聊天的表情浮层（<Popover>）与它的格子：面板同候选列表，格子同按钮、浅一档。 -->
+  <Style name="pop"        sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round" color="white"/>
+  <Style name="emote-cell" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_round"
+         color="#F5E6C8" hoverColor="#E8D2A8" textColor="#4A3018"/>
   <!-- 滚动条是 <Scrollbar> 子元素（列表、两个下拉各挂一个），一个包穿三根条：轨道 = 控件本身
        （sprite / color），滑块 = handle / handleColor。玻璃侧把两张 9-slice 清成 none + 半透明白。 -->
   <Style name="scrollbar" sprite="PromptUGUI/Defaults/pugui#pugui_9slice_inset" color="white"
@@ -127,6 +131,11 @@
     <Style name="suggest"  sprite="none" color="#EAF2F6"
            radius="10" borderWidth="1" borderColor="white/0.5"/>
     <Style name="suggest-text" textColor="#1C2B33"/>
+    <!-- 表情浮层同候选列表：浮在玻璃之上，近乎不透明的浅面；格子是淡墨色的圆角块。 -->
+    <Style name="pop"        sprite="none" color="#EAF2F6"
+           radius="12" borderWidth="1" borderColor="white/0.5"/>
+    <Style name="emote-cell" sprite="none" color="#1C2B33/0.06" hoverColor="#1C2B33/0.14"
+           textColor="#1C2B33" radius="8"/>
     <!-- 滚动条：轨道是控件主表面，滑块走 handle* —— 两层各自变成胶囊。 -->
     <Style name="scrollbar" sprite="none" color="white/0.18" handle="none" handleColor="white/0.55"
            radius="pill" handleRadius="pill"/>
@@ -191,6 +200,11 @@
       <Text id="time" width="36" fontSize="12"/>
       <Text id="body" width="stretch" wrap="true" fontSize="15"/>
     </HStack>
+  </Template>
+
+  <!-- 表情格模板（<Popover> 里的 <ScrollList columns> 用）：颜文字由 C# BindItems 填，点它插进输入框 -->
+  <Template name="EmoteCell">
+    <Btn class="emote-cell" fontSize="16" tr="false"/>
   </Template>
 
   <!-- Carousel 卡片模板（bg 底色 / 标题由 C# BindItems 填） -->
@@ -443,7 +457,10 @@
       <!-- ⑤ 聊天：行虚拟化（virtualize）+ 贴底（stickToEnd）。1000 条消息只为视口附近的十几条建行，
            推一条的开销与总条数无关。每秒来一条、超过 1000 条裁掉最老的：停在底部时跟着新消息走；
            往上翻着看时画面不动，裁头也不动（C# 用 key 绑定，锚点按 key 找回）。
-           「↓ 新消息」按钮跟 OnAtEndChanged 走：不在底部才出现，点它 ScrollToEnd。 -->
+           「↓ 新消息」按钮跟 OnAtEndChanged 走：不在底部才出现，点它 ScrollToEnd。
+           底部输入行：表情钮用 <Popover on="click@chatEmote"> 弹出颜文字格子，点外面、Esc / B 收起；
+           钮上的 <Show on="expand@emotePop"> 在浮层开着时把它点亮。点格子 = InputField.Insert，
+           插在失焦前的光标处。 -->
       <Frame id="pageChat" anchor="stretch" margin="84,8,8,8" margin.portrait="52,8,8,52" raycastTarget="true">
         <Skin/>
         <VStack anchor="stretch" spacing="8" padding="8">
@@ -459,7 +476,21 @@
             <Btn id="chatMore" class="btn" anchor="bottom-center" width="112" height="26" margin="_,_,8,_"
                  fontSize="14">↓ 新消息</Btn>
           </Frame>
+          <HStack height="36" spacing="8" childAlign="middle-left">
+            <InputField id="chatInput" class="input" placeholder="Say something…" width="stretch" height="36"
+                        fontSize="15"/>
+            <Btn id="chatEmote" class="btn" text=":)" tr="false" width="44" height="36" fontSize="16">
+              <Show on="expand@emotePop">
+                <Frame anchor="stretch" margin="3" radius="6" color="accent" raycastTarget="false"/>
+              </Show>
+            </Btn>
+            <Btn id="chatSend" class="btn" width="72" height="36" fontSize="15">发送</Btn>
+          </HStack>
         </VStack>
+        <Popover id="emotePop" class="pop" on="click@chatEmote" placement="top-end" padding="6">
+          <ScrollList id="emoteGrid" width="220" height="116" columns="4" cellSize="52x36" spacing="4"
+                      itemTemplate="EmoteCell"/>
+        </Popover>
       </Frame>
 
     </SafeArea>

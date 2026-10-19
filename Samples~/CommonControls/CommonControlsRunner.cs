@@ -55,6 +55,7 @@ namespace PromptUGUI.Samples.CommonControls
             BindListPage(screen);
             BindModalPage(screen);
             BindChatPage(screen);
+            BindChatInput(screen);
 
             screen.Get<Btn>("tutorialBtn").OnClick
                   .Subscribe(_ => RunTutorial(screen)).AddTo(screen);
@@ -358,11 +359,11 @@ namespace PromptUGUI.Samples.CommonControls
             PushChat();
         }
 
-        void AddChat()
+        void AddChat(string body = null)
         {
             var id = _chatNextId++;
             var clock = System.TimeSpan.FromSeconds(9 * 3600 + id * 7);   // 编一个时钟
-            _chat.Add(new ChatMsg(id, $"{clock.Hours:00}:{clock.Minutes:00}", ChatLine(id)));
+            _chat.Add(new ChatMsg(id, $"{clock.Hours:00}:{clock.Minutes:00}", body ?? ChatLine(id)));
             if (_chat.Count > ChatCap) _chat.RemoveAt(0);   // 裁掉最老的
         }
 
@@ -371,6 +372,39 @@ namespace PromptUGUI.Samples.CommonControls
             _chatFeed.OnNext(_chat);
             // 虚拟列表的 SlotCount 是实际建出来的行数（页没显示时为 0：隐藏的列表只存数据）
             _chatCount.TextValue = string.Format(UI.Tr("{0} 条消息 · 只建了 {1} 行"), _chatList.ItemCount, _chatList.SlotCount);
+        }
+
+        // 聊天输入行：表情钮的 <Popover on="click@chatEmote"> 在 XML 里就接好了，这里只填格子、接发送。
+        // 点格子时输入框早已失焦（焦点在格子上），InputField.Insert 用的是失焦那一刻记下的光标 ——
+        // 插进去的颜文字落在原来打字的位置，不是末尾；连点几个就一个接一个。浮层保持打开，可以连着挑。
+        static readonly string[] Emotes = { ":)", ":D", ";)", ":P", "^_^", "T_T", "o_O", "-_-", ">_<", "XD", "<3", ":(" };
+
+        void BindChatInput(IScreen screen)
+        {
+            var input = screen.Get<InputField>("chatInput");
+            screen.Get<ScrollList>("emoteGrid").BindItems(
+                Observable.Return<IReadOnlyList<string>>(Emotes),
+                (Btn cell, string emote) =>
+                {
+                    cell.Text = emote;
+                    // 每次 bind 都重新订阅，.AddTo(cell) 在下一次 bind 前释放
+                    cell.OnClick.Subscribe(_ =>
+                    {
+                        if (!input.Insert(emote)) UI.Toast.Show(UI.Tr("输入框放不下了"));
+                    }).AddTo(cell);
+                }).AddTo(screen);
+
+            void Send()
+            {
+                var text = input.TextValue?.Trim();
+                if (string.IsNullOrEmpty(text)) return;
+                AddChat(string.Format(UI.Tr("我：{0}"), text));
+                PushChat();
+                _chatList.ScrollToEnd();
+                input.TextValue = "";
+            }
+            screen.Get<Btn>("chatSend").OnClick.Subscribe(_ => Send()).AddTo(screen);
+            input.OnSubmit.Subscribe(_ => Send()).AddTo(screen);
         }
 
         // 消息正文在「收到」那一刻按当前语言定稿 —— 跟真聊天一样，切语言不回头改旧消息
