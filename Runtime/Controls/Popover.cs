@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using PromptUGUI.Application;
 using PromptUGUI.Application.Modals;
 using PromptUGUI.Controls.Internal;
@@ -194,7 +195,7 @@ namespace PromptUGUI.Controls
                 Anchor = AnchorTransform,
                 RestoreTo = RestoreTarget,
                 RestoreWhenUncaged = true,
-                LateTick = Follow,
+                LateTick = Tick,
             };
             _core.Closed += OnCoreClosed;
         }
@@ -347,6 +348,13 @@ namespace PromptUGUI.Controls
             }
         }
 
+        /// <summary>Close when the edit in its panel ends (spec 2026-10-19-input-begin-edit §4.2).</summary>
+        [UIAttr, Preserve]
+        public bool CloseOnEditEnd
+        {
+            set => _closeOnEditEnd = value;
+        }
+
         [UIAttr, Preserve]
         public string Transition
         {
@@ -490,6 +498,8 @@ namespace PromptUGUI.Controls
         {
             _anchor = anchor;
             _lockedSide = null;
+            _editSeen = false;
+            _endNoted = false;
             _selectedAtOpen = CurrentSelection();
             _opening = true;
             try
@@ -519,7 +529,79 @@ namespace PromptUGUI.Controls
         private GameObject _selectedAtOpen;
 
         /// <summary>Tests: the panel's <c>LateUpdate</c> step (EditMode runs none).</summary>
-        internal void TickForTests() => Follow();
+        internal void TickForTests() => Tick();
+
+        private void Tick()
+        {
+            Follow();
+            CheckEditEnd();
+        }
+
+        // ── closeOnEditEnd (spec 2026-10-19-input-begin-edit §4.2 / §5.2) ─────────────────────
+
+        private bool _closeOnEditEnd;
+        private bool _editSeen;   // a field in the panel was editing since it opened, or since the user moved on
+        private bool _endNoted;   // the last tick saw that edit over
+        private static readonly List<PuiInputField> s_fields = new();
+
+        /// <summary>
+        /// Closes one tick after the edit in the panel is seen to be over, so that an edit beginning again in
+        /// the same frame — <c>BeginEdit</c> from the submit handler, a press on another field — keeps it. A
+        /// suggestion row held while the edit ended (SG-D15) holds it until that press is decided; a selection
+        /// gone on to another control in the panel drops that end.
+        /// </summary>
+        private void CheckEditEnd()
+        {
+            if (!_closeOnEditEnd || !IsOpen) return;
+
+            var editing = false;
+            var listOpen = false;
+            GameObject.GetComponentsInChildren(false, s_fields);
+            foreach (var f in s_fields)
+            {
+                var owner = f.Owner;
+                if (owner == null) continue;
+                if (owner.IsEditing || f.EditRequestPending) editing = true;
+                if (owner.Suggestions != null && owner.Suggestions.IsOpen) listOpen = true;
+            }
+            s_fields.Clear();
+
+            if (editing)
+            {
+                _editSeen = true;
+                _endNoted = false;
+                return;
+            }
+            if (!_editSeen) return;
+            // Not editing yet open: the list is waiting for the release of a row held when the edit ended.
+            if (listOpen)
+            {
+                _endNoted = false;
+                return;
+            }
+            if (SelectionOnAnotherControl())
+            {
+                _editSeen = false;
+                _endNoted = false;
+                return;
+            }
+            if (!_endNoted)
+            {
+                _endNoted = true;
+                return;
+            }
+            _editSeen = false;
+            _endNoted = false;
+            CloseAs(PopoverCloseReason.EditEnded);
+        }
+
+        // A control in the panel other than a text field holds the selection: the user went on to it.
+        private bool SelectionOnAnotherControl()
+        {
+            var sel = CurrentSelection();
+            if (sel == null || !sel.transform.IsChildOf(GameObject.transform)) return false;
+            return sel.GetComponent<Selectable>() != null && sel.GetComponent<TMPro.TMP_InputField>() == null;
+        }
 
         /// <summary>
         /// Every frame while open (after the frame's motion): close when the anchor went away, re-place when

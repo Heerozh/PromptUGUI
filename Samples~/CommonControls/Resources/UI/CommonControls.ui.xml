@@ -508,7 +508,8 @@
           <ScrollList id="emoteGrid" width="220" height="116" columns="4" cellSize="52x36" spacing="4"
                       itemTemplate="EmoteCell"/>
         </Popover>
-        <Popover id="findPop" class="pop" on="click@chatFind" placement="over-end" width="320" padding="2">
+        <Popover id="findPop" class="pop" on="click@chatFind" placement="over-end" width="320" padding="2"
+                 closeOnEditEnd="true">
           <InputField id="chatFindInput" class="input" placeholder="Find in chat…" width="stretch" height="28"
                       fontSize="14" submitIcon="UI/icons#search" submitIconSize="16">
             <Suggestions id="chatFindList" class="suggest" itemTemplate="FindRow" maxHeight="220" padding="6">

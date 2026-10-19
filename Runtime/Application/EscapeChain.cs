@@ -1,3 +1,4 @@
+using PromptUGUI.Controls;
 using PromptUGUI.Controls.Internal;
 using UnityEngine;
 
@@ -6,11 +7,14 @@ namespace PromptUGUI.Application
     /// <summary>Which back key a listener heard.</summary>
     internal enum EscapeKey
     {
-        /// <summary>Keyboard Escape, or the gamepad's Start.</summary>
+        /// <summary>Keyboard Escape.</summary>
         Escape,
 
-        /// <summary>The gamepad's East (Cancel) button — heard only by listeners that bind it (popups).</summary>
+        /// <summary>The gamepad's East (Cancel) button — heard only by listeners that bind it (popups, a field being edited).</summary>
         CancelButton,
+
+        /// <summary>The gamepad's Start: Escape for every step but the last — TMP does not cancel an edit on it.</summary>
+        StartButton,
     }
 
     /// <summary>
@@ -21,8 +25,10 @@ namespace PromptUGUI.Application
     ///
     /// <para>Order: a blocking tutorial step swallows it; else an open <c>&lt;Dropdown&gt;</c> list
     /// hides; else the open popup closes (unless it sits under the top modal); else the top ad-hoc
-    /// dialog answers; else a routed Modal on top goes back.
-    /// The gamepad's East button stops after the popup — it never closes a modal.</para>
+    /// dialog answers; else a routed Modal on top goes back; else a text field being edited owns it
+    /// (spec 2026-10-19-input-begin-edit §4.4) — TMP cancels that edit, the chain only records the press.
+    /// The gamepad's East button goes from the popup straight to the field — it never closes a modal;
+    /// the gamepad's Start is Escape for every step but the field's.</para>
     /// </summary>
     internal static class EscapeChain
     {
@@ -70,9 +76,13 @@ namespace PromptUGUI.Application
                 return true;
             }
 
-            if (key == EscapeKey.CancelButton) return false;
+            if (key == EscapeKey.CancelButton) return InputField.AnyEditing;
             if (UI.Modal.TryHandleEscape()) return true;
-            return UI.Router.TryHandleEscape();
+            if (UI.Router.TryHandleEscape()) return true;
+
+            // TMP cancels an edit on Escape (and on B, through the input module's Cancel) in the EventSystem's
+            // update, after this; game code reading its own back key needs to know now. Not on Start.
+            return key == EscapeKey.Escape && InputField.AnyEditing;
         }
 
         // The sortingOrder of the highest dialog on screen, ad-hoc or routed; a popup below it (one a
@@ -111,6 +121,7 @@ namespace PromptUGUI.Application
             s_lastResult = false;
             PopupConsumedFrame = int.MinValue;
             ConsumedFrame = int.MinValue;
+            InputField.ForgetEditing();
         }
 
         internal static void ResetForTests()

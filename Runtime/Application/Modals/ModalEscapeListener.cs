@@ -115,9 +115,12 @@ namespace PromptUGUI.Application.Modals
 
         private void OnPerformed(InputAction.CallbackContext context)
         {
-            var key = context.control != null && context.control.name == "buttonEast"
-                ? EscapeKey.CancelButton
-                : EscapeKey.Escape;
+            var key = context.control == null ? EscapeKey.Escape : context.control.name switch
+            {
+                "buttonEast" => EscapeKey.CancelButton,
+                "start" => EscapeKey.StartButton,
+                _ => EscapeKey.Escape,
+            };
             s_inCallback++;
             try
             {

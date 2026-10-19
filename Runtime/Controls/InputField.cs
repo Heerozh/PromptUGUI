@@ -25,6 +25,7 @@ namespace PromptUGUI.Controls
         private protected override GameObject SurfaceHost => GameObject;
         private protected override UnityEngine.UI.Selectable SurfaceSelectable => _input;
         private PuiInputField _input;
+        private Internal.InputFieldNavGate _navGate;
         private TMP_Text _placeholder;
         private TMP_Text _text;
         private RectTransform _textArea;
@@ -132,8 +133,8 @@ namespace PromptUGUI.Controls
             ApplyFont();
             PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
 
-            var navGate = GameObject.AddComponent<Internal.InputFieldNavGate>();
-            navGate.Init(_input);
+            _navGate = GameObject.AddComponent<Internal.InputFieldNavGate>();
+            _navGate.Init(_input);
         }
 
         private void ApplyFont()
@@ -331,9 +332,32 @@ namespace PromptUGUI.Controls
             list.AttachField(this);
         }
 
-        // True when the underlying field is in edit mode (caret active). Used by the
-        // two-level navigation gate, the suggestion list and their tests.
-        internal bool IsEditing => _editingOverride ?? (_input != null && _input.isFocused);
+        /// <summary>
+        /// In edit mode: a caret, keyboard input going in. Selected without editing (the two-level gamepad model,
+        /// after a submit or an Escape) reads false.
+        /// </summary>
+        public bool IsEditing => _editingOverride ?? (_input != null && _input.isFocused);
+
+        /// <summary>
+        /// Puts the field into edit mode (spec 2026-10-19-input-begin-edit §4.1): selects it if it is not, opens
+        /// the soft keyboard on a phone — under any navigation mode, and whether or not it is already the selected
+        /// object (<c>screen.Focus</c> does nothing then). TMP carries it out in this frame's <c>LateUpdate</c>, so
+        /// <see cref="IsEditing"/> reads true only after that. Safe from <see cref="OnSubmit"/>: that edit ends and
+        /// this one begins in the same frame.
+        /// <para>False, and nothing done, when the field is inactive, not interactable or read-only.</para>
+        /// </summary>
+        public bool BeginEdit()
+        {
+            if (_editingOverride.HasValue)
+            {
+                if (_editingOverride == false) SetEditingForTests(true);
+                return true;
+            }
+            if (_input == null || _readOnly || !_input.IsActive() || !_input.IsInteractable()) return false;
+            _navGate.ExpectEdit();
+            _input.RequestEdit();
+            return true;
+        }
 
         private bool? _editingOverride;
         private bool _readOnly;
@@ -352,13 +376,55 @@ namespace PromptUGUI.Controls
         {
             var was = IsEditing;
             _editingOverride = editing;
-            if (IsEditing != was) EditingChanged?.Invoke(IsEditing);
+            if (IsEditing != was) OnEditEdge(IsEditing);
         }
 
         /// <summary>The live edge, reported by the field's TMP component.</summary>
         internal void NotifyEditingChanged(bool editing)
         {
-            if (_editingOverride == null) EditingChanged?.Invoke(editing);
+            if (_editingOverride == null) OnEditEdge(editing);
+        }
+
+        // ── A field being edited owns Escape / B (spec 2026-10-19-input-begin-edit §4.4) ─────────────
+
+        private static readonly System.Collections.Generic.List<InputField> s_editing = new();
+        private Application.Modals.ModalEscapeListener _escapeListener;
+
+        /// <summary>Some field is in edit mode: the last step of the Escape chain.</summary>
+        internal static bool AnyEditing
+        {
+            get
+            {
+                foreach (var f in s_editing)
+                    if (f.GameObject != null && f.IsEditing) return true;
+                return false;
+            }
+        }
+
+        /// <summary>A new Play session, or a test reset: whatever was listed was torn down without an edge.</summary>
+        internal static void ForgetEditing() => s_editing.Clear();
+
+        // Both edge sources end here. The field is its own key source while editing: on a plain page no
+        // dialog or popup listens, and the chain has to hear the press in the Input System's callback, while
+        // the field is still editing.
+        private void OnEditEdge(bool editing)
+        {
+            if (editing)
+            {
+                if (!s_editing.Contains(this)) s_editing.Add(this);
+                if (_escapeListener == null && GameObject != null)
+                {
+                    _escapeListener = GameObject.AddComponent<Application.Modals.ModalEscapeListener>();
+                    _escapeListener.AlsoCancelButton = true;
+                }
+                if (_escapeListener != null) _escapeListener.enabled = true;
+            }
+            else
+            {
+                s_editing.Remove(this);
+                if (_escapeListener != null) _escapeListener.enabled = false;
+            }
+            EditingChanged?.Invoke(editing);
         }
 
         /// <summary>Leaves edit mode — after a suggestion is chosen, or when a layer covers the list.</summary>
@@ -637,6 +703,7 @@ namespace PromptUGUI.Controls
 
         public override void Dispose()
         {
+            s_editing.Remove(this);
             PromptUGUI.Application.UI.Locale.Changed -= ApplyFont;
             // Remove TMP UnityEvent listeners before disposing R3 subjects so that TMP
             // callbacks firing during object destruction (e.g. DeactivateInputField in

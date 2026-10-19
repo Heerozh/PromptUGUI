@@ -63,6 +63,7 @@ menu.OpenAt(eventData.position);
 | `placement` | `top` / `bottom` / `left` / `right` / `over`, optionally `-start` / `-center` / `-end` | `bottom-start` | Preferred side of the anchor, and the alignment on the other axis. `over` covers the anchor instead (see *Over the anchor*) |
 | `gap` | px, ≥ 0 | `4` | Distance from the anchor. Ignored by `over` (`PUI-POPOVER-GAP`) |
 | `dismiss` | `pass` \| `block` | `pass` | A press outside: `pass` closes the popover **and the press goes on** to what it landed on; `block` puts a full-screen catcher behind the panel that eats the press (like `<TabMenu>`) |
+| `closeOnEditEnd` | bool | `false` | The edit of a field in the panel ending closes it (reason `EditEnded`) — a search popover that is just a field. See *A field in the panel* |
 | `transition` | duration (`0.15s` / `150ms` / seconds) | `0.15s` | Open / close: a fade plus an 8 px slide out from the anchor's side (`over`: the fade only). `0` = instant |
 | `width` / `height` / `size` | number / `hug` / `clamp(min, hug, max)` | `hug` | Panel size (see *Size*) |
 | `padding` · `spacing` · `childAlign` | as `<VStack>` | `0` · `0` · `upper-center` | Layout inside the panel |
@@ -97,6 +98,7 @@ menu.OpenAt(eventData.position);
 | The anchor stops being usable | `AnchorLost` | See *Following* |
 | An unrelated popup opens (another popover, a `<TabMenu>`, a suggestion list) | `Replaced` | |
 | Its Screen starts closing; an ancestor is switched off; `Dispose` | `HostGone` | |
+| `closeOnEditEnd="true"` and the edit in the panel ended | `EditEnded` | See *A field in the panel* |
 
 - **Game code with its own back key** (leave a mode, clear a selection on Escape / Cancel) sees the same press that closed the popover: check `UI.EscapeConsumedThisFrame` first (scripting skill).
 - A popover whose Screen is torn down without `UI.Close` (a scene change, leaving Play mode) leaves the chain silently — no `OnClosed`, nothing left to tell.
@@ -122,8 +124,20 @@ menu.OpenAt(eventData.position);
 - It follows its anchor and is lost with it exactly like a side placement. `OpenAt` centres it vertically on the point; with `start` its left edge sits on the point.
 - **The anchor still counts as "inside"** for `dismiss="pass"`. A panel that covers its trigger never meets this — a press there lands on the panel. But anchored to something larger than the panel (`Open(wholeIconRow)` with a panel covering part of it), a press on a button the panel leaves uncovered neither closes the popover nor is eaten: that button is clicked and the popover stays. **Anchor it to the trigger**, not to the row.
 - **The trigger is under the panel**, so "press it again to close" does not apply: a press outside, Escape / B, or `Close()` closes it.
-- **It does not start editing by itself.** To type at once, focus the field from `OnOpened` (`screen.Focus("searchField")` — scripting skill): under the pointer that enters edit mode (the phone keyboard opens); with gamepad navigation on, the popover already caged the focus on the field, and the two-level model waits for A / Enter.
+- **It does not start editing by itself** — see *A field in the panel*.
 - A field's `<Suggestions>` inside it is its child popup: Escape closes the list first, then the popover; a press on a suggestion row is not "outside".
+
+## A field in the panel
+
+- **Opening does not start editing.** To type at once, call `field.BeginEdit()` from `OnOpened` (scripting skill): it enters edit mode under the pointer and the gamepad alike, and opens the phone keyboard. (`screen.Focus("field")` only selects: under the pointer that also starts editing, but with gamepad navigation the two-level model waits for A / Enter.)
+- **`closeOnEditEnd="true"`** closes the popover when the field's edit ends — a press on the panel's empty area, the phone keyboard hidden, a submit your handler neither closes on nor answers with `BeginEdit()`. It is the edit that counts, not the selection, and the popover waits before closing:
+  - it closes **one frame after** the end is seen, so an edit that begins again in that frame keeps it — `BeginEdit()` from the submit handler (a failed search going back to the field), a press on another field in the panel;
+  - a `BeginEdit()` not carried out yet counts as editing;
+  - while the field's **suggestion list is still open** — a row was held down when the edit ended, as Android does when the keyboard hides under a tap — it waits for that press: released on the row, the suggestion is chosen; elsewhere, the list closes and so does the popover;
+  - when the selection **went on to another control in the panel** (a `<Btn>`, a toggle) that end no longer counts; the next edit in the panel starts over;
+  - an edit never started since it opened closes nothing.
+- It closes as `EditEnded`; the selection the field held goes back to the trigger. Every other way of closing still applies.
+- A submit that should keep the panel calls `field.BeginEdit()`; one that is done calls `pop.Close()` (or lets `closeOnEditEnd` do it).
 
 ## Following
 
@@ -174,7 +188,7 @@ menu.OpenAt(eventData.position);
   <Btn id="searchBtn" size="44x44"><Icon name="ui:search" anchor="center" size="24x24"/></Btn>
 </HStack>
 
-<Popover id="searchPop" on="click@searchBtn" placement="over-end" width="320" radius="22">
+<Popover id="searchPop" on="click@searchBtn" placement="over-end" width="320" radius="22" closeOnEditEnd="true">
   <InputField id="searchField" width="stretch" height="44" placeholder="Search…" submitIcon="ui:search">
     <Suggestions id="searchHits" itemTemplate="HitRow"/>
   </InputField>
@@ -183,9 +197,13 @@ menu.OpenAt(eventData.position);
 
 ```csharp
 var pop = screen.Get<Popover>("searchPop");
-pop.OnOpened.Subscribe(_ => screen.Focus("searchField")).AddTo(screen);   // type at once
-screen.Get<InputField>("searchField").Suggestions.OnSubmit
-      .Subscribe(s => { Search(s); pop.Close(); }).AddTo(screen);
+var field = screen.Get<InputField>("searchField");
+pop.OnOpened.Subscribe(_ => field.BeginEdit()).AddTo(screen);   // type at once
+field.Suggestions.OnSubmit.Subscribe(s =>
+{
+    if (Search(s)) pop.Close();
+    else field.BeginEdit();      // nothing found: back to the field, the popover stays
+}).AddTo(screen);
 ```
 
 Give the panel a width (its only child stretches — `PUI-POPOVER-HUG-WIDTH` otherwise) and make it about as tall as the row: it is centred on the button.
