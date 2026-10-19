@@ -645,13 +645,7 @@ public Suggestions Suggestions { get; }      // 没有 <Suggestions> 子元素�
 
 ## 12. 不做的事 / 阶段 2 备忘
 
-- **公开的 `<Popover>`（阶段 2，另起 spec）**，要在那份 spec 里定的事：
-  - 运行期锚点 `Open(IControl anchor)` / `OpenAt(screenPoint)`：一个浮层服务多个锚点，比如列表行里的「…」、右键菜单；
-  - 锚点的生命周期：行滚走、在 virtualize 下被回收重绑时，浮层要关闭或跟随；
-  - 外部按下穿透：每帧探测，加 `EventSystem.RaycastAll`，锚点算「内部」；
-  - 「焦点离开」收窄为「范围外的某个 Selectable 被选中」，忽略 null；
-  - 侧放（子菜单）、对齐方式；
-  - 链深 ≥ 1 的层序与 RPL §4.3 步长下限的重审。
+- **公开的 `<Popover>`**：已由 [`2026-10-19-popover-design.md`](2026-10-19-popover-design.md) 实现 —— 运行期锚点与 `OpenAt`、锚点失效（含 virtualize 下的行回收）、外部按下穿透探测、四向侧放与对齐、链深层序的告警都在那份 spec 里定。「焦点离开即关」没有做：浮层不对抗输入框失焦，插入走 `InputField.Insert`。
 - **聊天 @ 补全**：锚在光标处；接受时替换 @ 那一段；Enter / Tab 是「接受」而不是「发送」；由触发字符开启。v2 可以考虑 `commit="fill"` 加光标锚定。
 - 高亮时把候选文字预览进输入框、`TextMemberPath`（§2-G）。
 - 候选列表虚拟化；「无结果」与「加载中」行；分组标题；不可选的行。

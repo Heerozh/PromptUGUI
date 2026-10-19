@@ -116,6 +116,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 | `<Scrollbar>` | `<ScrollList>` / `<Dropdown>` / `<Suggestions>` 的滚动条**部件子元素**：轨道 = 主表面（`radius` 等同 `<Frame>`），滑块 `handle*`；不写就是默认条（见本节末 **`<Scrollbar>`** 小节） |
 | `<InputField>` | TMP_InputField，`OnValueChanged` / `OnInput` (user edits only) / `OnEndEdit` / `OnSubmit:string`; optional `submitIcon` button |
 | `<Suggestions>` | Suggestion list **part element of `<InputField>`** (its only legal parent): a floating panel of `itemTemplate` rows the field keeps editing over — ↑↓ highlight, Enter / click chooses (→ `reference/controls-suggestions.md`) |
+| `<Popover>` | A floating panel anchored to any control (emoji picker, row "…" menu, right-click menu): `on="click@<id>"` toggles it from a `<Btn>`, or C# `Open(anchor)` / `OpenAt(point)`; a press outside / Escape closes it; never takes part in layout; its children stack like a `<VStack>` (→ `reference/controls-popover.md`) |
 | `<Progress>` | 只读线性进度条 |
 | `<Cooldown>` | Cooldown sweep: a dark veil over a skill icon, or (`thickness`) an arc around it; own clock (`Start` / `OnReady`), `countdown`, `on="ready"` / `on="cooling"` (→ `reference/controls-cooldown.md`) |
 | `<TabBar>` | 互斥选项卡容器 |
@@ -453,6 +454,7 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 | `<Btn>` `<Tab>` `<Dropdown>` `<InputField>` `<ScrollList>` | 控件自身的背景 |
 | `<TabMenu>` | **弹窗面板**（不是收起状态的把手 —— 把手默认透明，要底就套一层 `<Frame>`） |
 | `<Suggestions>` | **The panel** (the node itself) |
+| `<Popover>` | **The panel** (the node itself) |
 | `<Collapsible>` | **整块面板**（标题栏 + body 一起；标题栏另有 `headerColor` / `headerSprite` 叠在上面） |
 | `<Toggle>` | **勾选框**（不含 label） |
 | `<Slider>` | **轨道**（不含滑块） |
@@ -668,6 +670,19 @@ A suggestion list: the **part element of `<InputField>`** (a direct child, one p
 ```
 
 **Before writing a `<Suggestions>`, read [`reference/controls-suggestions.md`](reference/controls-suggestions.md)** (attributes, row states and why rows hold no Selectables, key / gamepad / pointer tables, the submit table, show / hide rules, placement, IME, lint).
+
+### `<Popover>`
+
+A floating panel anchored to any control — HTML's `popover="auto"`. Write it anywhere in the Screen (it takes no layout slot, even inside a stack); its children are the panel's content, stacked like a `<VStack>` (`padding` / `spacing` / `childAlign`), sized `hug` by default (`width` / `height` = number / `hug` / `clamp(min, hug, max)`). `on="click@<id>"` makes a `<Btn>` toggle it and anchor it; `manual` (default) leaves it to C# (`Open(anchor)` / `OpenAt(point)` / `Toggle` / `Close`). `placement="top-end"` = preferred side + alignment, flipped only when it does not fit, locked while open; it follows its anchor and closes when the anchor is lost (destroyed, hidden, scrolled out, its list row given to another item). A press outside closes it and still reaches what it landed on (`dismiss="pass"`); `dismiss="block"` eats that press. Escape / B close it; with gamepad navigation on, a panel with something focusable cages the focus. `anchor` / `margin` / `pivot` / `flow` / `scale` / `hidden` are ignored (`PUI-POPOVER-LAYOUT-ATTR`). It is an `expand` / `collapse` source, and `<Show on="expand@<id>">` shows while it is open.
+
+```xml
+<Btn id="emojiBtn" size="44x44"><Show on="expand@emojiPop"><Frame anchor="stretch" color="accent/0.25"/></Show></Btn>
+<Popover id="emojiPop" on="click@emojiBtn" placement="top-end" padding="6" radius="8">
+  <ScrollList id="emojiGrid" itemTemplate="EmojiCell" columns="8" cellSize="36x36" size="304x152"/>
+</Popover>
+```
+
+**Before writing a `<Popover>`, read [`reference/controls-popover.md`](reference/controls-popover.md)** (where it may go, attributes, opening / closing tables, placement and following, size, focus, nesting, `<Show on="expand">`, recipes, lint).
 
 ### `<Progress>`
 
@@ -891,7 +906,7 @@ C# 侧：`screen.Get<Pages>("shop").Show("detail")` / `Selected` / `PageIds` / `
 
 ### `<Show>`
 
-无视觉 wrapper（Trigger 派生）。其子树**仅在**最近祖先 `<Btn>` / `<Tab>` / `<Toggle>` 处于 `on="state-*"` 态时可见，否则隐藏（`SetActive`，不销毁——隐藏子树 + R3 订阅存活）。同一 source 下的兄弟 `<Show>` 互斥；无显式 `<Show>` 的状态回退到 `state-normal` 块。仅 `state-*` 合法（其它如 `on="click"` 报错）。裸 `state-*` 需 `<Btn>` / `<Tab>` / `<Toggle>` 祖先（`PUI-STATE-NO-SOURCE`）。按状态换美术，见 [`reference/states.md`](reference/states.md)。
+无视觉 wrapper（Trigger 派生）。其子树**仅在**最近祖先 `<Btn>` / `<Tab>` / `<Toggle>` 处于 `on="state-*"` 态时可见，否则隐藏（`SetActive`，不销毁——隐藏子树 + R3 订阅存活）。同一 source 下的兄弟 `<Show>` 互斥；无显式 `<Show>` 的状态回退到 `state-normal` 块。裸 `state-*` 需 `<Btn>` / `<Tab>` / `<Toggle>` 祖先（`PUI-STATE-NO-SOURCE`）。Besides `state-*` it takes the persistent pairs `checked` / `unchecked`, `ready` / `cooling` and `expand` / `collapse` (visible while a `<TabMenu>` / `<Collapsible>` / `<Popover>` is open / closed — e.g. `<Show on="expand@emojiPop">` lights the button that opens a popover; a bare one inside that source's own panel is `PUI-SHOW-EXPAND-SELF`), and `lift`; anything else (`on="click"`) is an error.按状态换美术，见 [`reference/states.md`](reference/states.md)。
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
@@ -1037,7 +1052,7 @@ Other notes:
 
 ## Pointer hit-testing (`raycastTarget`)
 
-**Hit-testing is declared, not painted.** Only two kinds of node are ever returned by the raycaster: an interactive control's own hit layer (`<Btn>` / `<Toggle>` / `<Tab>` / `<Slider>` / `<Scrollbar>` / `<Dropdown>` / `<InputField>` / `<Suggestions>` / `<ScrollList>` / `<Collapsible>` / `<TabMenu>` / `<Carousel>` / `<Markdown>` text — always on, not configurable), and a node you marked `raycastTarget="true"` — or subscribed to from C# (pointer streams, `<Text>` links; below). Everything else is click-through by default, **including a `<Frame>` that draws, an `<Image>`, a `<RawImage>` and a `<Text>`** — uGUI's own default (`true`) is not the library's.
+**Hit-testing is declared, not painted.** Only two kinds of node are ever returned by the raycaster: an interactive control's own hit layer (`<Btn>` / `<Toggle>` / `<Tab>` / `<Slider>` / `<Scrollbar>` / `<Dropdown>` / `<InputField>` / `<Suggestions>` / `<Popover>` / `<ScrollList>` / `<Collapsible>` / `<TabMenu>` / `<Carousel>` / `<Markdown>` text — always on, not configurable), and a node you marked `raycastTarget="true"` — or subscribed to from C# (pointer streams, `<Text>` links; below). Everything else is click-through by default, **including a `<Frame>` that draws, an `<Image>`, a `<RawImage>` and a `<Text>`** — uGUI's own default (`true`) is not the library's.
 
 - **A panel that must block what is behind it says so on its root**: `<Frame color="…" radius="…" raycastTarget="true">`. One line per panel. Its interactive children still work — a child draws on top of its ancestor and a click on a non-interactive spot bubbles up to the panel and stops there (`EventSystem.IsPointerOverGameObject()` is then true, so the game world does not see the tap). The catcher must be an **ancestor** (or an earlier sibling); a later sibling covers what it overlaps.
 - **A modal needs two declarations**: the full-screen backdrop and the dialog panel (see **Modal / Loading screens**).
@@ -1148,12 +1163,13 @@ Rules:
 <VStack height="200" height.portrait="hug">…</VStack>        <!-- Variant-switchable -->
 ```
 
-**Only on the tags that HAVE a content size**: `<VStack>`, `<HStack>`, `<Grid>`, `<ScrollList>`. Everywhere else it is `PUI-HUG-TAG` (CLI error + a hard error at `UI.Open`), because there is nothing to measure: a `<Frame>`'s children are free-positioned (wrap them in a `<VStack>` and hug that), and a leaf's "content size" is what `size="native"` already means.
+**Only on the tags that HAVE a content size**: `<VStack>`, `<HStack>`, `<Grid>`, `<ScrollList>`, `<Collapsible>`, `<Popover>` (whose size is `hug` when omitted). Everywhere else it is `PUI-HUG-TAG` (CLI error + a hard error at `UI.Open`), because there is nothing to measure: a `<Frame>`'s children are free-positioned (wrap them in a `<VStack>` and hug that), and a leaf's "content size" is what `size="native"` already means.
 
 | Where | What hug means |
 | --- | --- |
 | `<VStack>` / `<HStack>` / `<Grid>` | the group's own preferred size — padding + spacing + the children's preferred sizes |
 | `<ScrollList>` | the content node's preferred size, i.e. the rows — not the viewport it currently is |
+| `<Popover>` | its column — padding + spacing + the children's preferred sizes (it is in no layout, so the box is just that) |
 
 - **Free-positioning parent** (`<Frame>` / `<Screen>` / `<SafeArea>`): `box = clamp(content, min, max)`, and the box hugs the edge the `anchor` names — a `top-*` panel grows downward, a `bottom-*` one upward, `center` grows both ways. `margin` **positions** the box off the edge it names — exactly what it does for a numeric `height="40"` — and never eats into it (unlike `%` / `clamp(min, N%, max)`, whose box is a share of the parent and therefore insets). Recomputed by the layout pass, so it follows content changes (a `BindItems` re-emit, a wrapped line, a locale switch) within the same canvas update — in EditMode tests call `Canvas.ForceUpdateCanvases()` to observe it.
 - **Inside a `<VStack>` / `<HStack>`**: a bare `hug` on a layout-group container is exactly the "axis omitted" path spelled out — the group already reports its own preferred size — so it costs nothing and reads better. On a `<ScrollList>`, or with bounds (`clamp(min, hug, max)`), an internal element publishes the (clamped) content size as a **rigid** preferred size (`min = preferred`, `flexible = 0`): a hug size is a computed constant, not a range. That is the difference from `clamp(min, stretch, max)`, which is the one shrinkable range.
@@ -2057,7 +2073,7 @@ ALIASES       center  =  center-center
 
 SIZE          size="WxH"          numeric only (no keywords)
               width="W" / height="H"   numeric, or "stretch[*N]" (LG only), or "N%" (free-positioning only),
-                                       or "hug" (VStack/HStack/Grid/ScrollList only — size to content)
+                                       or "hug" (VStack/HStack/Grid/ScrollList/Collapsible/Popover only — size to content)
               FORBIDDEN on anchor-stretched axis
 HUG           "hug"            → as big as my content; clamp(min, hug, max) caps it (then ScrollList scrolls)
                                  PUI-HUG-TAG (wrong tag) / -SCALE (with scale=) / -STRETCH-CHILD (stretch child)

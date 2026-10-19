@@ -173,11 +173,18 @@ Pin specific directional inputs to a target control by id:
 > folds. There is no trap: an inline panel does not cover the page. A collapsed body is inactive, so
 > its rows simply drop out of the navigation graph and come back when it opens.
 
-## Popup focus trap (`<TabMenu>`)
+## Popup focus trap (`<TabMenu>`, `<Popover>`)
 
 An open `<TabMenu>` traps directional focus inside its panel, the same way a modal traps it inside
 itself — the panel covers the page and its rows are the only sensible targets. Opening lands the
 focus on the **currently selected** row, not blindly on the first one.
+
+A `<Popover>` traps it the same way when its panel holds something focusable — the first one gets
+the focus, and every Selectable in the panel is caged, `BindItems` cells included, so the d-pad
+cannot walk out of an emoji grid. A panel with nothing focusable (an info popover) neither traps nor
+moves the focus. Escape / B close it; the focus goes back to the anchor (or, when the popover was
+opened with `OpenAt` or lost its anchor, to what was selected before it opened). A selection a mouse
+click left inside the panel is moved out on close even when nothing was trapped.
 
 Closing restores whatever owned the focus before, which is not always "nothing": open a menu inside
 a modal and closing it hands the trap back to the modal rather than freeing it. The focus itself
