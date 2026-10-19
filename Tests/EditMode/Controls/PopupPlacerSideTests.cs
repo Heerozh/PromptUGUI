@@ -158,5 +158,96 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(new Vector2(1f, 0.5f), PopupPlacer.PivotFor(PopupSide.Left, PopupAlign.Center));
             Assert.AreEqual(new Vector2(0f, 1f), PopupPlacer.PivotFor(PopupSide.Right, PopupAlign.Start));
         }
+
+        // ── over: on top of the anchor (spec §17) ──────────────────────────────────────────────
+
+        [Test]
+        public void Over_centres_vertically_and_aligns_horizontally()
+        {
+            var start = Solve(Mid, Panel, PopupSide.Over, PopupAlign.Start);
+            Assert.AreEqual(PopupSide.Over, start.Side);
+            Assert.AreEqual(0f, start.Panel.center.y, 1e-4f, "centred on the anchor's middle");
+            Assert.AreEqual(-20f, start.Panel.xMin, 1e-4f, "left edges");
+
+            Assert.AreEqual(0f, Solve(Mid, Panel, PopupSide.Over, PopupAlign.Center).Panel.center.x, 1e-4f);
+
+            var end = Solve(Mid, Panel, PopupSide.Over, PopupAlign.End);
+            Assert.AreEqual(20f, end.Panel.xMax, 1e-4f, "right edges: the wider panel reaches out to the left");
+            Assert.AreEqual(0f, end.Panel.center.y, 1e-4f);
+            Assert.AreEqual(Panel, end.Panel.size, "the panel keeps its size");
+        }
+
+        [Test]
+        public void Over_ignores_the_gap()
+        {
+            var p = PopupPlacer.SolveSide(Mid, Panel, Bounds, 30f, PopupSide.Over, PopupAlign.End);
+            Assert.AreEqual(20f, p.Panel.xMax, 1e-4f);
+            Assert.AreEqual(0f, p.Panel.center.y, 1e-4f);
+        }
+
+        [Test]
+        public void Over_never_flips_and_is_pushed_back_inside()
+        {
+            // On the bottom edge: centred, half the panel would hang out below — pushed up, not flipped.
+            var low = new Rect(-20f, -300f, 40f, 40f);
+            var p = Solve(low, Panel, PopupSide.Over);
+            Assert.AreEqual(PopupSide.Over, p.Side);
+            Assert.AreEqual(-300f, p.Panel.yMin, 1e-4f);
+            // On the top edge: pushed down.
+            var high = new Rect(-20f, 260f, 40f, 40f);
+            Assert.AreEqual(300f, Solve(high, Panel, PopupSide.Over).Panel.yMax, 1e-4f);
+            // End-aligned on the left edge would spill left: pulled right.
+            var west = new Rect(-400f, -20f, 40f, 40f);
+            Assert.AreEqual(-400f, Solve(west, Panel, PopupSide.Over, PopupAlign.End).Panel.xMin, 1e-4f);
+            // Start-aligned on the right edge: pulled left.
+            var east = new Rect(360f, -20f, 40f, 40f);
+            Assert.AreEqual(400f, Solve(east, Panel, PopupSide.Over).Panel.xMax, 1e-4f);
+        }
+
+        [Test]
+        public void Over_larger_than_the_bounds_keeps_the_start_edges_inside()
+        {
+            var p = Solve(Mid, new Vector2(1000f, 900f), PopupSide.Over, PopupAlign.End);
+            Assert.AreEqual(-400f, p.Panel.xMin, 1e-4f, "left edge");
+            Assert.AreEqual(300f, p.Panel.yMax, 1e-4f, "top edge");
+        }
+
+        [Test]
+        public void A_locked_over_stays_over()
+        {
+            // The preference turned into a side while open (a variant): the lock still holds.
+            var p = Solve(Mid, Panel, PopupSide.Bottom, PopupAlign.Start, locked: PopupSide.Over);
+            Assert.AreEqual(PopupSide.Over, p.Side);
+            Assert.AreEqual(0f, p.Panel.center.y, 1e-4f);
+            // And the other way round: a side locked at open stays a side.
+            Assert.AreEqual(PopupSide.Bottom, Solve(Mid, Panel, PopupSide.Over, locked: PopupSide.Bottom).Side);
+        }
+
+        [Test]
+        public void Over_a_point_centres_on_it_and_has_no_room()
+        {
+            var p = Solve(new Rect(10f, 10f, 0f, 0f), Panel, PopupSide.Over);
+            Assert.AreEqual(10f, p.Panel.xMin, 1e-4f, "start: the left edge on the point");
+            Assert.AreEqual(10f, p.Panel.center.y, 1e-4f);
+            Assert.AreEqual(0f, p.Room, 1e-4f, "no side, no room");
+        }
+
+        [Test]
+        public void ParsePlacement_reads_over()
+        {
+            Assert.AreEqual((PopupSide.Over, PopupAlign.Start), PopupPlacer.ParsePlacement("over"));
+            Assert.AreEqual((PopupSide.Over, PopupAlign.End), PopupPlacer.ParsePlacement("over-end"));
+            Assert.AreEqual((PopupSide.Over, PopupAlign.Center), PopupPlacer.ParsePlacement(" over-center "));
+            Assert.Throws<ArgumentException>(() => PopupPlacer.ParsePlacement("over-top"));
+            Assert.Throws<ArgumentException>(() => PopupPlacer.ParsePlacement("over-"));
+        }
+
+        [Test]
+        public void Over_pivots_on_its_aligned_edge_and_vertical_middle()
+        {
+            Assert.AreEqual(new Vector2(0f, 0.5f), PopupPlacer.PivotFor(PopupSide.Over, PopupAlign.Start));
+            Assert.AreEqual(new Vector2(0.5f, 0.5f), PopupPlacer.PivotFor(PopupSide.Over, PopupAlign.Center));
+            Assert.AreEqual(new Vector2(1f, 0.5f), PopupPlacer.PivotFor(PopupSide.Over, PopupAlign.End));
+        }
     }
 }

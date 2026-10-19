@@ -79,6 +79,8 @@ namespace PromptUGUI.Controls.Internal
         /// <see cref="Solve"/>, on both axes), aligned on the cross axis, then pulled back inside the
         /// bounds. When it fits on neither side it is pushed back along the main axis too and may cover
         /// the anchor; larger than the bounds, its start edge (left / top, where reading starts) stays in.
+        /// <see cref="PopupSide.Over"/> covers the anchor instead (spec §17): centred on it vertically,
+        /// aligned horizontally, never flipped, no gap — and pulled back inside the same way.
         /// </summary>
         /// <param name="locked">The side chosen when the panel opened: kept, only re-clamped (spec SG-D12).</param>
         public static SidePlacement SolveSide(Rect anchor, Vector2 panel, Rect bounds, float gap,
@@ -88,6 +90,10 @@ namespace PromptUGUI.Controls.Internal
             if (locked.HasValue)
             {
                 side = locked.Value;
+            }
+            else if (prefer == PopupSide.Over)
+            {
+                side = PopupSide.Over;   // no other side to flip to
             }
             else
             {
@@ -114,6 +120,10 @@ namespace PromptUGUI.Controls.Internal
                     xMin = anchor.xMax + gap;
                     yMin = AlignStart(anchor.yMin, anchor.yMax, panel.y, align, startIsMax: true);
                     break;
+                case PopupSide.Over:
+                    xMin = AlignStart(anchor.xMin, anchor.xMax, panel.x, align, startIsMax: false);
+                    yMin = anchor.center.y - panel.y * 0.5f;
+                    break;
                 default:
                     yMin = anchor.yMin - gap - panel.y;
                     xMin = AlignStart(anchor.xMin, anchor.xMax, panel.x, align, startIsMax: false);
@@ -125,13 +135,14 @@ namespace PromptUGUI.Controls.Internal
             xMin = ClampInside(xMin, panel.x, bounds.xMin, bounds.xMax, startIsMax: false);
             yMin = ClampInside(yMin, panel.y, bounds.yMin, bounds.yMax, startIsMax: true);
 
-            var room = Mathf.Max(0f, RoomOn(side, anchor, bounds) - gap);
+            var room = side == PopupSide.Over ? 0f : Mathf.Max(0f, RoomOn(side, anchor, bounds) - gap);
             return new SidePlacement(new Rect(xMin, yMin, panel.x, panel.y), side, room);
         }
 
         /// <summary>
         /// The panel's pivot for a side and an alignment: the edge facing the anchor stays put, so a panel
-        /// that grows while open grows away from it.
+        /// that grows while open grows away from it. Over the anchor: the aligned edge and the vertical
+        /// middle stay put.
         /// </summary>
         public static Vector2 PivotFor(PopupSide side, PopupAlign align)
         {
@@ -141,11 +152,12 @@ namespace PromptUGUI.Controls.Internal
                 case PopupSide.Top: return new Vector2(cross, 0f);
                 case PopupSide.Left: return new Vector2(1f, 1f - cross);
                 case PopupSide.Right: return new Vector2(0f, 1f - cross);
+                case PopupSide.Over: return new Vector2(cross, 0.5f);
                 default: return new Vector2(cross, 1f);
             }
         }
 
-        /// <summary><c>top|bottom|left|right</c>, optionally <c>-start|-center|-end</c> (start when omitted).</summary>
+        /// <summary><c>top|bottom|left|right|over</c>, optionally <c>-start|-center|-end</c> (start when omitted).</summary>
         public static (PopupSide side, PopupAlign align) ParsePlacement(string value)
         {
             var v = (value ?? string.Empty).Trim();
@@ -160,6 +172,7 @@ namespace PromptUGUI.Controls.Internal
                 case "bottom": side = PopupSide.Bottom; break;
                 case "left": side = PopupSide.Left; break;
                 case "right": side = PopupSide.Right; break;
+                case "over": side = PopupSide.Over; break;
                 default: throw BadPlacement(value);
             }
             PopupAlign align;
@@ -175,8 +188,8 @@ namespace PromptUGUI.Controls.Internal
 
         private static System.ArgumentException BadPlacement(string value)
             => new System.ArgumentException(
-                $"placement='{value}' invalid; expected top|bottom|left|right, optionally followed by " +
-                "-start|-center|-end (e.g. 'top-end')");
+                $"placement='{value}' invalid; expected top|bottom|left|right|over, optionally followed by " +
+                "-start|-center|-end (e.g. 'top-end', 'over-end')");
 
         private static PopupSide Opposite(PopupSide side)
         {
@@ -221,8 +234,8 @@ namespace PromptUGUI.Controls.Internal
         }
     }
 
-    /// <summary>Which side of its anchor a panel sits on.</summary>
-    internal enum PopupSide { Top, Bottom, Left, Right }
+    /// <summary>Which side of its anchor a panel sits on — or <see cref="Over"/> it (spec 2026-10-19 §17).</summary>
+    internal enum PopupSide { Top, Bottom, Left, Right, Over }
 
     /// <summary>How a panel lines up with its anchor across the side: left / top edges, centres, right / bottom edges.</summary>
     internal enum PopupAlign { Start, Center, End }
@@ -232,7 +245,7 @@ namespace PromptUGUI.Controls.Internal
     {
         public readonly Rect Panel;
         public readonly PopupSide Side;
-        public readonly float Room;   // space left on the chosen side after the gap; never negative
+        public readonly float Room;   // space left on the chosen side after the gap; never negative; 0 over the anchor
 
         public SidePlacement(Rect panel, PopupSide side, float room)
         {

@@ -116,6 +116,23 @@ namespace PromptUGUI.Tests.EditMode.Controls
         }
 
         [Test]
+        public void Over_pivots_at_the_vertical_middle_and_does_not_slide()
+        {
+            var core = Make(TargetAt(0f, 0f), PopupSide.Over, PopupAlign.End);
+            core.Open();
+            Assert.AreEqual(new Vector2(1f, 0.5f), _pop.RectTransform.pivot, "grows away from the aligned edge");
+            Assert.AreEqual(Vector2.zero, core.SlideFromForTests, "over the anchor: a fade, no slide");
+        }
+
+        [Test]
+        public void A_side_still_slides_out_of_its_anchor()
+        {
+            var core = Make(TargetAt(0f, 0f), PopupSide.Top);
+            core.Open();
+            Assert.AreEqual(new Vector2(0f, -8f), core.SlideFromForTests, "above: starts 8 lower, toward the anchor");
+        }
+
+        [Test]
         public void A_free_layout_leaves_sizeDelta_alone()
         {
             var before = _pop.RectTransform.sizeDelta;

@@ -328,6 +328,9 @@ namespace PromptUGUI.Controls.Internal
 
         internal void SetSlideOffsetForTests(Vector2 offset) => SetOffset(offset);
 
+        /// <summary>Tests: where the open transition slides in from (EditMode runs no motion).</summary>
+        internal Vector2 SlideFromForTests => SlideOffset();
+
         /// <summary>
         /// The host's end-of-apply step (after an attribute pass, a Variant / theme ReSolve): a host
         /// that is now hidden or disabled must not leave an orphaned panel floating over the page, so
@@ -434,7 +437,8 @@ namespace PromptUGUI.Controls.Internal
             }
         }
 
-        // Enters from the side it is anchored to, so the panel appears to unfold out of the host.
+        // Enters from the side it is anchored to, so the panel appears to unfold out of the host. Over the
+        // anchor there is no such side: it only fades.
         private Vector2 SlideOffset()
         {
             if (!_freeSide)
@@ -444,6 +448,7 @@ namespace PromptUGUI.Controls.Internal
                 case PopupSide.Top: return new Vector2(0f, -SlideDistance);
                 case PopupSide.Left: return new Vector2(SlideDistance, 0f);
                 case PopupSide.Right: return new Vector2(-SlideDistance, 0f);
+                case PopupSide.Over: return Vector2.zero;
                 default: return new Vector2(0f, SlideDistance);
             }
         }

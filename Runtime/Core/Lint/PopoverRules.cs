@@ -22,6 +22,7 @@ namespace PromptUGUI.Lint
         public const string LayoutAttrCode = "PUI-POPOVER-LAYOUT-ATTR";
         public const string ParentCode = "PUI-POPOVER-PARENT";
         public const string HugWidthCode = "PUI-POPOVER-HUG-WIDTH";
+        public const string GapCode = "PUI-POPOVER-GAP";
 
         /// <summary>The popover places itself beside its anchor; these say nothing to it.</summary>
         private static readonly string[] LayoutAttrs = { "anchor", "margin", "pivot", "flow", "scale", "hidden" };
@@ -32,7 +33,7 @@ namespace PromptUGUI.Lint
             "ScrollList", "TabBar", "TabMenu", "Carousel", "Pages",
         };
 
-        private static readonly string[] Sides = { "top", "bottom", "left", "right" };
+        private static readonly string[] Sides = { "top", "bottom", "left", "right", "over" };
         private static readonly string[] Aligns = { "start", "center", "end" };
 
         public static bool AppliesTo(string tag) => tag == Tag;
@@ -79,9 +80,15 @@ namespace PromptUGUI.Lint
                 if (string.IsNullOrEmpty(value) || IsPlaceholder(value) || IsPlacement(value)) continue;
                 yield return new LintIssue(
                     EnumCode, n.Tag, n.Id,
-                    $"<Popover id='{n.Id}'> placement='{value}': expected top | bottom | left | right, optionally " +
-                    "followed by -start | -center | -end (e.g. 'top-end'). The runtime throws.");
+                    $"<Popover id='{n.Id}'> placement='{value}': expected top | bottom | left | right | over, " +
+                    "optionally followed by -start | -center | -end (e.g. 'top-end', 'over-end'). The runtime throws.");
             }
+
+            if (GapUnused(n, styles))
+                yield return new LintIssue(
+                    GapCode, n.Tag, n.Id,
+                    $"<Popover id='{n.Id}'>: gap has no effect — every placement is over-*, which covers the anchor " +
+                    "(centred on it) instead of keeping a distance from it. Drop it.");
 
             foreach (var value in ValuesOf(n, styles, "dismiss"))
             {
@@ -169,6 +176,20 @@ namespace PromptUGUI.Lint
             const string click = "click@";
             return v.StartsWith(click, StringComparison.Ordinal) && v.Length > click.Length
                    && v.IndexOf('@', click.Length) < 0;
+        }
+
+        // A gap is written (base or a variant), and the placement — base and every variant — covers the
+        // anchor. An unset placement is bottom-start; one value beside the anchor still uses the gap.
+        private static bool GapUnused(ElementNode n, StyleAttributeView styles)
+        {
+            var gap = false;
+            foreach (var value in ValuesOf(n, styles, "gap")) gap |= value != null;
+            if (!gap) return false;
+            foreach (var value in ValuesOf(n, styles, "placement"))
+                if (value == null || IsPlaceholder(value) || !IsPlacement(value)
+                    || !value.Trim().StartsWith("over", StringComparison.Ordinal))
+                    return false;
+            return true;
         }
 
         private static bool IsPlacement(string value)

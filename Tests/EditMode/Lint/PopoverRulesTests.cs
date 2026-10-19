@@ -70,6 +70,32 @@ namespace PromptUGUI.Tests.EditMode.Lint
             Assert.IsFalse(Has(Walk(Pop("gap='6.5' transition='0.2s'")), PopoverRules.ValueCode));
         }
 
+        // ── over (spec §17): PUI-POPOVER-ENUM / -GAP ─────────────────────────────────────────────
+
+        [Test]
+        public void over_is_a_placement()
+        {
+            Assert.IsFalse(Has(Walk(Pop("placement='over' placement.portrait='over-end'")), PopoverRules.EnumCode));
+            Assert.IsFalse(Has(Walk(Pop("placement='over-center'")), PopoverRules.EnumCode));
+            Assert.IsTrue(Has(Walk(Pop("placement='over-top'")), PopoverRules.EnumCode));
+        }
+
+        [Test]
+        public void A_gap_says_nothing_when_every_placement_is_over()
+        {
+            Assert.IsTrue(Has(Walk(Pop("placement='over-end' gap='8'")), PopoverRules.GapCode));
+            Assert.IsTrue(Has(Walk(Pop("placement='over' gap.portrait='2'")), PopoverRules.GapCode), "a gap on a variant");
+            Assert.IsTrue(Has(Walk(Pop("placement='over-end' placement.portrait='over-start' gap='8'")),
+                              PopoverRules.GapCode), "every variant over too");
+            Assert.IsTrue(Has(Lint(Pop("class='pop' gap='8'"), "<Style name='pop' placement='over-end'/>"),
+                              PopoverRules.GapCode), "placement from a class");
+
+            Assert.IsFalse(Has(Walk(Pop("gap='8'")), PopoverRules.GapCode), "no placement: bottom-start");
+            Assert.IsFalse(Has(Walk(Pop("placement='over-end' placement.portrait='top-end' gap='8'")),
+                               PopoverRules.GapCode), "the gap still serves the portrait side");
+            Assert.IsFalse(Has(Walk(Pop("placement='over-end'")), PopoverRules.GapCode), "no gap written");
+        }
+
         // ── PUI-POPOVER-SIZE ──────────────────────────────────────────────────────────────────────
 
         [Test]

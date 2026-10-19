@@ -16,8 +16,8 @@ namespace PromptUGUI.Controls
     /// <summary>
     /// A floating panel anchored to any control (spec 2026-10-19): declared anywhere in a Screen, opened
     /// by its <c>on="click@id"</c> trigger or from code, placed beside its anchor on the preferred side
-    /// (flipped when that helps, kept inside the safe area), and closed by a press outside, Esc / B, a
-    /// layer covering it, or its anchor going away.
+    /// (flipped when that helps, kept inside the safe area) or over it (<c>placement="over-*"</c>, §17),
+    /// and closed by a press outside, Esc / B, a layer covering it, or its anchor going away.
     ///
     /// <para>The node itself is the panel: a procedural surface that stacks its children like a
     /// <c>&lt;VStack&gt;</c> and sizes itself (<see cref="PopoverFitter"/>). It never takes part in a
@@ -293,7 +293,7 @@ namespace PromptUGUI.Controls
 
         // ── Attributes ─────────────────────────────────────────────────────────────────────
 
-        /// <summary><c>top|bottom|left|right</c>, optionally <c>-start|-center|-end</c>.</summary>
+        /// <summary><c>top|bottom|left|right</c> beside the anchor or <c>over</c> it, optionally <c>-start|-center|-end</c>.</summary>
         [UIAttr, Preserve]
         public string Placement
         {
