@@ -44,16 +44,17 @@ search.Suggestions.OnSubmit.Subscribe(s => Debug.Log(s.IsChosen ? $"chose #{s.Ch
 | `itemTemplate` | Template name / registered tag | — (**required**) | The row, resolved like `<ScrollList itemTemplate>`. `BindItems` throws without it (`PUI-SUGGEST-TEMPLATE`) |
 | `maxHeight` | px ≥ 0 | `320` | Height cap; taller content scrolls inside the panel. `0` = only the room available limits it |
 | `gap` | px ≥ 0 | `4` | Space between the field and the panel |
-| `placement` | `below` \| `above` | `below` | The preferred side. It flips on open when that side lacks room and the other has more (`PUI-SUGGEST-ENUM` otherwise; the runtime throws) |
+| `placement` | `below` \| `above`, optionally `-start` \| `-end` | `below` (= `below-start`) | The preferred side — it flips on open when that side lacks room and the other has more — and, for a panel wider than the field, which edges line up: `start` the left ones, `end` the right ones (it grows left). Anything else: `PUI-SUGGEST-ENUM`; the runtime throws |
+| `popupWidth` | px ≥ 0 | `0` | The panel's width; `0` = the field's. Narrower than the field is allowed |
 | `padding` | as `<TabMenu padding>` | `0` | Inside the panel. Use it to keep rows off a rounded panel's corners — the viewport clips to a rectangle |
 | `spacing` | px | `0` | Between rows |
 | `transition` | `0.1s` / `100ms` / seconds | `0.1s` | Open / close fade + slide; `0` snaps |
 | `color` · `sprite` · `tint` | as the `<TabMenu>` panel | default skin | The panel's face |
 | procedural attributes (`radius` / `border*` / `glow*` / `glass` …) + `<Decor>` | as `<Frame>` | — | All on the panel — it is the primary surface |
 
-Negative or non-numeric `maxHeight` / `gap` warn and fall back to the default (`PUI-SUGGEST-VALUE`).
+Negative or non-numeric `maxHeight` / `gap` / `popupWidth` warn and fall back to the default (`PUI-SUGGEST-VALUE`).
 
-**Layout attributes are ignored** (`PUI-SUGGEST-LAYOUT-ATTR`): `anchor` / `size` / `width` / `height` / `margin` / `pivot` / `flow` / `scale` / `hidden`. The field places the panel — always **as wide as the field**, as tall as `min(rows, maxHeight, room)` — and shows it only while open; `hidden="false"` cannot open it.
+**Layout attributes are ignored** (`PUI-SUGGEST-LAYOUT-ATTR`): `anchor` / `size` / `width` / `height` / `margin` / `pivot` / `flow` / `scale` / `hidden`. The field places the panel — **as wide as the field** unless `popupWidth` says otherwise, as tall as `min(rows, maxHeight, room)` — and shows it only while open; `hidden="false"` cannot open it.
 
 ## Rows and their states
 
@@ -65,6 +66,7 @@ Every item gets a **row shell** first, and the template is instantiated under it
 | `state-hover` | the pointer is over the row |
 | `state-pressed` | the row is held down |
 | `state-selected` | **the keyboard / gamepad highlight** (folded like a Toggle's `isOn`: hover / pressed override it while they last) |
+| `state-disabled` | a row that cannot be chosen (below) |
 
 The shell is a layout group, so the template root is a layout-group child (`height` applies, `anchor` / `margin` do not) — same as a `<ScrollList>` row. A row takes the pointer over its whole rect, gaps between the template's graphics included. There are no `hoverColor` / `pressOffset` style attributes on a row (it is not a `<Btn>`); give it looks with `<Show>`.
 
@@ -73,6 +75,16 @@ The shell is a layout group, so the template root is a layout-group child (`heig
 1. the panel is under the field, so a press anywhere in it finds the field as its select handler — the selection stays put;
 2. rows and the submit icon are not Selectables, and the scrollbar is **display-only** (uGUI's `Scrollbar` is a Selectable, so its track and handle take no raycasts — scroll by dragging the rows or the wheel);
 3. every press inside the panel is taken (rows by their shell, blank space by the panel), so none reaches the field's text handling to move the caret.
+
+## Rows that cannot be chosen
+
+"No match", "Loading…", a group title: push it as an item, and in the bind set the row's `Interactable` to `false` (C#: `row.Interactable = !item.IsMessage`).
+
+- The row **shows** — a push with only such rows still opens the list — in **`state-disabled`**: give the template a `<Show on="state-disabled">` look (dimmed text, no hover band). It has no hover / pressed reaction.
+- ↑ / ↓ (d-pad) **skip** it; with nothing choosable they do nothing and the highlight stays on none, so Enter submits the typed text. `HighlightedIndex` set to it is ignored.
+- A press on it **does nothing**: no submit, the list stays open, the field keeps editing. An edit that ends while it is held just closes the list.
+- Rows are reused across pushes, and every row starts choosable again before its bind — the bind only has to set `false` for the items that are not. The flag is read at bind time; changing `Interactable` later takes effect at the next push.
+- `Count` counts it, and `OnSubmit`'s index stays the item's index in the push.
 
 ## When it shows
 
@@ -127,7 +139,8 @@ When both fire, `InputField.OnSubmit` comes first. `InputField.OnSubmit` means "
 
 ## Placement
 
-- **Width**: the field's.
+- **Width**: the field's, or `popupWidth`.
+- **Horizontally**: `placement="…-start"` (default) lines up the left edges, `…-end` the right ones — a field near the right of the screen wants `below-end`, or the wider panel is pushed back at the screen edge and overhangs the field on the right. Either way it is pulled back inside the bounds, the left edge kept in.
 - **Height**: `min(rows, maxHeight, room)`; with `maxHeight="0"`, `min(rows, room)`. More scrolls (the default bar auto-hides, as on `<Dropdown>`).
 - **Side**: `placement` is a preference; decided on open, kept while open.
 - **Bounds**: the root canvas shrunk into the device safe area; while the on-screen keyboard is visible its height comes off the bottom (height only — `TouchScreenKeyboard.area`'s origin differs per platform).
@@ -147,8 +160,8 @@ When both fire, `InputField.OnSubmit` comes first. `InputField.OnSubmit` means "
 | `PUI-SUGGEST-TEMPLATE` | no / empty `itemTemplate` | `BindItems` throws |
 | `PUI-SUGGEST-LAYOUT-ATTR` | a layout attribute (list above) | warning; ignored |
 | `PUI-SUGGEST-CHILD` | a child other than `<Decor>` / `<Scrollbar>` | warning |
-| `PUI-SUGGEST-ENUM` | `placement` not `below` / `above` | throws |
-| `PUI-SUGGEST-VALUE` | `maxHeight` / `gap` not a number ≥ 0 | warning; default used |
+| `PUI-SUGGEST-ENUM` | `placement` not `below` / `above` (optionally `-start` / `-end`) | throws |
+| `PUI-SUGGEST-VALUE` | `maxHeight` / `gap` / `popupWidth` not a number ≥ 0 | warning; default used |
 | `PUI-SUGGEST-MULTILINE` | the field's `lineType` is not `single` | warning |
 | `PUI-SUGGEST-ROW-SELECTABLE` | the row template contains a Selectable (CLI, expanded pass) | warning once, when the first such row is built |
 

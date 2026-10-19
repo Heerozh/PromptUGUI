@@ -1,6 +1,6 @@
 # `<Suggestions>`：面板宽度、对齐，与不可选的行
 
-> 状态：**已对齐**（2026-10-19，与作者对齐，按推荐定：`popupWidth` 只收像素；`placement` 加 `-start` / `-end`；不可选行由绑定回调里的 `slot.Interactable = false` 标记）。
+> 状态：**已实施**（实施记录见 §9）。**已对齐**（2026-10-19，与作者对齐，按推荐定：`popupWidth` 只收像素；`placement` 加 `-start` / `-end`；不可选行由绑定回调里的 `slot.Interactable = false` 标记）。
 > 来源：搜索浮层的接入反馈：右上角的窄输入框里，一行放不下「名字 · 类型 · 坐标」；「没有匹配」只能在提交时用吐司提示。读源码做的评估；复现由 §6 的 Red 测试给出。
 > 相关：`2026-10-18-popup-core-and-input-suggestions-design.md`（§5.2 面板与输入框同宽、留待 `popupWidth`；§6.1 显示条件；§6.2 高亮；§6.4 提交表；§6.8 定位；§12 不做「无结果 / 加载中 / 不可选的行」）、`2026-08-29-tabmenu-design.md`（TM-D6 `popupWidth`）。
 
@@ -137,3 +137,33 @@ hits.BindItems(results, (IControl row, Hit h) =>
 | SW-D2 | 对齐 | `placement` 加 `-start` / `-end` | 显式，不随运行时位置变（§2-B）；同 Popover 的对齐词 |
 | SW-D3 | 不可选行的标记 | 绑定回调里 `slot.Interactable = false`；绑定前复位 | 不撞重载（§2-C）；复用通用词汇与 `state-disabled` |
 | SW-D4 | 不可选行的行为 | 显示、跳过高亮、不提交、不关 | 「没有匹配」「加载中」的需要 |
+
+## 9. 实施记录
+
+**先红后绿**：先放桩（`Solve` 多一个被忽略的 `alignEnd` 参数），再写测试。十六条红在预期处：
+
+| 测试 | 改线前的结果 |
+|---|---|
+| `PopupPlacerTests`（两条 `alignEnd`） | 偏移是 0：照旧左对齐 |
+| `SuggestionsWidthTests`（五条） | 宽度停在 240（`popupWidth` 是未知属性，被静默忽略）；`below-end` / `above-end` 抛「expected below\|above」；负数没有警告 |
+| `SuggestionsRulesTests`（两条） | `below-end` 报 `ENUM`；`popupWidth='-1'` 不报 |
+| `SuggestionsUnpickableTests`（七条） | 行不是 `Disabled`；高亮停在不可选行；点击、`CommitChosen`、按压中结束编辑都提交了 |
+
+**改线前就绿的**（守住不变的行为）：
+- 不写 `popupWidth` 时同输入框宽；
+- 默认左沿对齐；
+- 非法对齐抛错；
+- 下一次推送复位；
+- 只有一条消息也会打开列表。
+
+**与设计的偏差 / 补充**：
+- 绑定前的复位只在行当前不可交互时才写 `Interactable = true`。`Control.Interactable` 会给节点加 `CanvasGroup`，不必给每一行都加。
+- 不可选行的行壳不接按下，所以 SG-D15 的「按下进行中」不会发生在它上面：编辑结束时列表直接关闭，测试的断言（不提交、关闭）照样成立。
+
+**验证**：
+- EditMode 5673 / EditorOnly 471 / PlayMode 313 全绿。
+- `dotnet format --verify-no-changes` 干净。
+- UIXmlLint 对 `Runtime/Resources/` 与 `Samples~/` 零问题。
+- 留待手测：
+  - 右侧窄输入框配 `popupWidth` + `below-end` 的观感；
+  - 「没有匹配」行在两套皮下的 `state-disabled` 外观。

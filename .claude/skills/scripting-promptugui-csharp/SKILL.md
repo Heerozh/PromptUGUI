@@ -761,7 +761,7 @@ list.OnSubmit.Subscribe(s =>
 | `IsOpen` | showing |
 | `Open()` | arms the list: it shows while the field edits and the last push was non-empty — e.g. recent searches on focus |
 | `Close()` | closes and disarms (stays closed until the user types again or `Open()`) |
-| `HighlightedIndex` (get / set) | the keyboard highlight, −1 = none; ignored while closed; a push resets it to −1 |
+| `HighlightedIndex` (get / set) | the keyboard highlight, −1 = none; ignored while closed or on a row that cannot be chosen; a push resets it to −1 |
 | `OnSubmit` | `Observable<SuggestionSubmit>` — every submit: `Text`, `ChosenIndex` (−1 = the typed text), `IsChosen` |
 | `OnHighlightChanged` | `Observable<int>`, −1 = back to none |
 | `OnOpened` / `OnClosed` | `Observable<Unit>` |
@@ -769,6 +769,16 @@ list.OnSubmit.Subscribe(s =>
 - **Submit semantics.** A typed-text submit (Enter / gamepad South without a highlight, `submitIcon`, the soft keyboard's Done) raises `InputField.OnSubmit(text)` first, then `Suggestions.OnSubmit((text, −1))`. Choosing a suggestion (click, Enter / South on a highlight, `submitIcon` with a highlight) raises **only** `Suggestions.OnSubmit((text, i))` — `InputField.OnSubmit` means "the typed text was submitted". With a list, subscribe to `Suggestions.OnSubmit` alone. Every submit closes the list and ends the edit.
 - **Choosing does not rewrite the field.** Write `search.TextValue = shown[i].Name` in your handler if you want that — a code write raises no `OnInput`, so it does not query again.
 - **Push only the latest results** (R3 `Switch`), and **never push an empty list as "loading…"**: an empty push closes the list, and the results re-open it — a blink.
+- **Rows that cannot be chosen** ("No match", "Loading…", a group title): push them as items and set `row.Interactable = false` in the bind. The row shows in `state-disabled`, the highlight skips it, a press on it does nothing, and a push of only such rows still opens the list. Every row starts choosable before its bind, so set only the `false`s; `HighlightedIndex` set to such a row is ignored.
+
+  ```csharp
+  list.BindItems(results.Select(r => r.Count > 0 ? r : NoMatch),   // NoMatch = a one-item list with a message item
+      (IControl row, Item it) =>
+      {
+          row.Get<Text>("name").TextValue = it.Name;
+          row.Interactable = !it.IsMessage;
+      }).AddTo(screen);
+  ```
 - Escape / gamepad B closes only the list (the field keeps editing, the text is not rolled back). A dialog, a routed page / Modal or the Loading overlay appearing over it closes it **and ends the edit**.
 
 
@@ -1396,6 +1406,7 @@ EVENTS (R3)    .OnClick                Btn
                                         characterLimit / read-only / composing; a code write (no OnInput)
                Suggestions .OnSubmit   SuggestionSubmit (Text, ChosenIndex −1 = typed, IsChosen) — every submit
                            .OnHighlightChanged:int (−1 = none) / .OnOpened / .OnClosed:Unit
+                           row.Interactable = false in the bind → shown (state-disabled), never chosen
                .OnLinkClicked          Text:string (id of the <link="id"> clicked, read at click time — subscribe
                                         per bind .AddTo(row); only the links become hit) / Markdown:string (url)
                .Subscribe(...).AddTo(screen)   tie lifetime — ALWAYS

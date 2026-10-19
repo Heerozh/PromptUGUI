@@ -25,7 +25,7 @@
 
 ## Task 3：文档与收尾
 
-- [ ] XML skill：`controls-suggestions.md`、`states.md`、主 `SKILL.md` 的 `<Suggestions>` 段。C# skill：Suggestions 小节与速查表。
-- [ ] `dotnet format --verify-no-changes`；UIXmlLint 跑 `Runtime/Resources/` 与 `Samples~/`。
-- [ ] 全量回归：EditMode / EditorOnly / PlayMode。
-- [ ] spec 补实施记录；提交、推送、开 PR。
+- [x] XML skill：`controls-suggestions.md`、`states.md`、主 `SKILL.md` 的 `<Suggestions>` 段。C# skill：Suggestions 小节与速查表。
+- [x] `dotnet format --verify-no-changes`；UIXmlLint 跑 `Runtime/Resources/` 与 `Samples~/`。
+- [x] 全量回归：EditMode / EditorOnly / PlayMode。
+- [x] spec 补实施记录；提交、推送、开 PR。
