@@ -27,5 +27,8 @@ namespace PromptUGUI.Controls
 
         /// <summary>Its Screen began closing, an ancestor deactivated it, or it was disposed.</summary>
         HostGone,
+
+        /// <summary><c>closeOnEditEnd</c>: the edit in its panel ended (spec 2026-10-19-input-begin-edit §4.2).</summary>
+        EditEnded,
     }
 }
