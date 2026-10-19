@@ -59,7 +59,7 @@ menu.OpenAt(eventData.position);
 
 | Attribute | Values | Default | Meaning |
 |---|---|---|---|
-| `on` | `click@<id>` \| `manual` | `manual` | Who opens it. `click@<id>`: pressing that `<Btn>` toggles it, and the button is the anchor. `manual`: only C# opens it |
+| `on` | `click@<id>` \| `manual` | `manual` | Who opens it. `click@<id>`: pressing that `<Btn>` toggles it, and what `<id>` names is the anchor (a template instance: its one `<Btn>` clicks, the instance is the anchor). `manual`: only C# opens it |
 | `placement` | `top` / `bottom` / `left` / `right` / `over`, optionally `-start` / `-center` / `-end` | `bottom-start` | Preferred side of the anchor, and the alignment on the other axis. `over` covers the anchor instead (see *Over the anchor*) |
 | `gap` | px, ≥ 0 | `4` | Distance from the anchor. Ignored by `over` (`PUI-POPOVER-GAP`) |
 | `dismiss` | `pass` \| `block` | `pass` | A press outside: `pass` closes the popover **and the press goes on** to what it landed on; `block` puts a full-screen catcher behind the panel that eats the press (like `<TabMenu>`) |
@@ -79,7 +79,9 @@ menu.OpenAt(eventData.position);
 - **`on="click@<id>"`**:
   - Pressing that `<Btn>` opens the popover anchored to it; when it is open and anchored to that button, the press closes it (reason `Trigger`).
   - The id resolves like `<Trigger on="click@…">`, lexically: the popover's own subtree is skipped, then each enclosing scope (a template instance's ids), then the Screen. Resolution waits until whatever is being built is complete — the trigger may be written before or after the popover, in the same template row too.
-  - An id that is missing, names something that is not a `<Btn>`, or names a button inside the popover itself throws `InvalidOperationException`.
+  - **A path** reaches into a template instance: `on="click@search/btn"` — the button is then the anchor.
+  - **A template instance whose root is not a `<Btn>`** (a `<Frame>` with a button and a badge): `on="click@search"` listens to the **one** `<Btn>` inside it, and the popover hangs from the **instance**. Pressing that button again closes it (`Trigger`); `Open()` / `Toggle()` use the instance; on close a selection left in the panel goes to that button (the instance is not selectable). No `<Btn>` inside, or several, is an error — name one with a path.
+  - An id that is missing, names something with no `<Btn>` (or several) in it, or names a control inside the popover itself throws `InvalidOperationException`.
   - A variant may rewrite `on`; the popover re-subscribes.
 - **`manual`** (default): C# opens it (`Open(anchor)` / `OpenAt(point)` — scripting skill).
 - **Pressing the trigger while open** closes it in both modes, along different paths: with `pass` the trigger counts as "inside", so the press does not close it and the click toggles it; with `block` the press lands on the catcher and closes it, the click is eaten.
