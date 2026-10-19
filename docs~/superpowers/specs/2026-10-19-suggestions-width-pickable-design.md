@@ -167,3 +167,40 @@ hits.BindItems(results, (IControl row, Hit h) =>
 - 留待手测：
   - 右侧窄输入框配 `popupWidth` + `below-end` 的观感；
   - 「没有匹配」行在两套皮下的 `state-disabled` 外观。
+
+## 10. 修正：父级带缩放时的单位
+
+> 2026-10-19，#181 合并后报告并实测。只是修正，不改作者面。
+
+**现象**：外面包一层 `<Frame scale="0.8">` 后：
+- 240 宽的输入框配 `placement="below-end"`，面板右沿比输入框右沿偏左 38.4 画布单位，正好是 (1 − 0.8) × 240 × 0.8；
+- 加上 `popupWidth="360"` 也偏 38.4；
+- 放进 `over-end` 的 `<Popover>`，200 宽的输入框偏 32；
+- `-start` 不偏，scale = 1 时全对。
+
+**根因**：`PopupCore.Reposition` 的挂角路径（`<Suggestions>` 与 `<TabMenu>` 共用）把两种单位混在一起算：
+- 画布单位：锚框 `RectInCanvas(host)`、边界 `PopupBounds`；
+- 本地单位：面板尺寸、gap，以及 `PopupPlacer.Solve` 返回、要写进 `anchoredPosition` 的偏移。
+- `alignEnd` 的偏移因此算成 s·W − P，应为 W − P。
+- 同样的混算还出现在：右边界回推，`SuggestionsPlacement.Solve` 的高度上限与翻面判定。缩放小于 1 时，结果偏保守，所以不显眼。
+- `<Popover>` 的自由定位用 `ScaleToCanvas` 换算过，不受影响。
+
+**修正**：
+- `PopupCore.CanvasScale(t, root)`：t 自身空间的一个单位等于多少根画布单位，按轴分开算。
+- `Reposition`：
+  - 面板尺寸按面板自己的比例、gap 按父级的比例换成画布单位，再调 `Solve`；
+  - 返回的偏移按父级的比例换回本地单位，`Room` 按面板的比例换回。
+- `Suggestions.Measure`：行高、`maxHeight` 按面板的比例、gap 按输入框的比例换成画布单位，再调 `SuggestionsPlacement.Solve`；返回的高度换回面板单位。
+- 纯函数 `PopupPlacer.Solve` / `SuggestionsPlacement.Solve` 不变，约定改为「全部是画布单位」，写进它们的注释。
+
+**测试**：`PopupScaleTests`。
+- 先红六条，数值与报告一致：
+  - `below-end` 偏 38.4，加 `popupWidth` 同样；
+  - Popover 里偏 32；
+  - 右边界回推停在 65.6，应为 106；
+  - 高度只到 60.8，应为 76.8；
+  - 放得下的一侧被翻走。
+- 守护两条（`-start`、scale = 1）改线前后都绿。
+- TabMenu 走同一段 `Reposition`，它的挂角路径以根画布的矩形为边界；EditMode 里根画布没有确定的尺寸（`TabMenuPlacementTests` 的说明），所以没有单独的缩放用例，现有的 TabMenu 测试全绿。
+
+**验证**：EditMode 5725 / EditorOnly 471 / PlayMode 326 全绿；`dotnet format --verify-no-changes` 干净。
