@@ -15,20 +15,42 @@ namespace PromptUGUI.Controls.Internal
     {
         private TMP_InputField _input;
         private bool _suppressUntilDeactivated;
+        private bool _editExpected;
 
         internal void Init(TMP_InputField input) => _input = input;
 
+        internal bool SuppressingForTests => _suppressUntilDeactivated;
+
+        /// <summary>
+        /// 代码要求进编辑（<see cref="PromptUGUI.Controls.InputField.BeginEdit"/>）：撤掉待撤销的标记，并放过 TMP
+        /// 激活时引起的那次选中——方向导航下它本会被当作导航选中再撤销一次。看到编辑开始、或请求已被 TMP 消费时结束。
+        /// </summary>
+        internal void ExpectEdit()
+        {
+            _suppressUntilDeactivated = false;
+            _editExpected = true;
+        }
+
         public void OnSelect(BaseEventData eventData)
         {
+            if (_editExpected) return;
             // 导航选中：标记下一 tick 撤销 TMP 的自动激活（同帧撤销有 m_AllowInput 竞态，见计划风险点 1）。
             if (UI.Navigation.IsEnabled && UI.Navigation.IsDirectional)
                 _suppressUntilDeactivated = true;
+        }
+
+        private void SettleExpectedEdit()
+        {
+            if (!_editExpected || _input == null) return;
+            if (_input.isFocused || !(_input is PuiInputField pui && pui.EditRequestPending))
+                _editExpected = false;
         }
 
         // TMP 的激活延后到 LateUpdate 才令 isFocused=true；本组件 AddComponent 晚于 TMP，
         // LateUpdate 在其后运行 → 此刻 isFocused 已 true，可安全 DeactivateInputField。
         private void LateUpdate()
         {
+            SettleExpectedEdit();
             if (!_suppressUntilDeactivated) return;
             if (_input != null && _input.isFocused)
             {
@@ -47,6 +69,7 @@ namespace PromptUGUI.Controls.Internal
         // unless Script Execution Order is configured).
         private void Update()
         {
+            SettleExpectedEdit();
             if (!_suppressUntilDeactivated) return;
             if (_input != null && _input.isFocused)
             {
@@ -74,6 +97,10 @@ namespace PromptUGUI.Controls.Internal
                 _suppressUntilDeactivated = false;
         }
 
-        public void OnDeselect(BaseEventData eventData) => _suppressUntilDeactivated = false;
+        public void OnDeselect(BaseEventData eventData)
+        {
+            _suppressUntilDeactivated = false;
+            _editExpected = false;
+        }
     }
 }

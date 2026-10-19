@@ -25,6 +25,7 @@ namespace PromptUGUI.Controls
         private protected override GameObject SurfaceHost => GameObject;
         private protected override UnityEngine.UI.Selectable SurfaceSelectable => _input;
         private PuiInputField _input;
+        private Internal.InputFieldNavGate _navGate;
         private TMP_Text _placeholder;
         private TMP_Text _text;
         private RectTransform _textArea;
@@ -132,8 +133,8 @@ namespace PromptUGUI.Controls
             ApplyFont();
             PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
 
-            var navGate = GameObject.AddComponent<Internal.InputFieldNavGate>();
-            navGate.Init(_input);
+            _navGate = GameObject.AddComponent<Internal.InputFieldNavGate>();
+            _navGate.Init(_input);
         }
 
         private void ApplyFont()
@@ -331,9 +332,32 @@ namespace PromptUGUI.Controls
             list.AttachField(this);
         }
 
-        // True when the underlying field is in edit mode (caret active). Used by the
-        // two-level navigation gate, the suggestion list and their tests.
-        internal bool IsEditing => _editingOverride ?? (_input != null && _input.isFocused);
+        /// <summary>
+        /// In edit mode: a caret, keyboard input going in. Selected without editing (the two-level gamepad model,
+        /// after a submit or an Escape) reads false.
+        /// </summary>
+        public bool IsEditing => _editingOverride ?? (_input != null && _input.isFocused);
+
+        /// <summary>
+        /// Puts the field into edit mode (spec 2026-10-19-input-begin-edit §4.1): selects it if it is not, opens
+        /// the soft keyboard on a phone — under any navigation mode, and whether or not it is already the selected
+        /// object (<c>screen.Focus</c> does nothing then). TMP carries it out in this frame's <c>LateUpdate</c>, so
+        /// <see cref="IsEditing"/> reads true only after that. Safe from <see cref="OnSubmit"/>: that edit ends and
+        /// this one begins in the same frame.
+        /// <para>False, and nothing done, when the field is inactive, not interactable or read-only.</para>
+        /// </summary>
+        public bool BeginEdit()
+        {
+            if (_editingOverride.HasValue)
+            {
+                if (_editingOverride == false) SetEditingForTests(true);
+                return true;
+            }
+            if (_input == null || _readOnly || !_input.IsActive() || !_input.IsInteractable()) return false;
+            _navGate.ExpectEdit();
+            _input.RequestEdit();
+            return true;
+        }
 
         private bool? _editingOverride;
         private bool _readOnly;

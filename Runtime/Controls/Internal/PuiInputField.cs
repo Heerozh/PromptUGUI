@@ -25,6 +25,15 @@ namespace PromptUGUI.Controls.Internal
 
         internal InputField Owner;
 
+        /// <summary>An <see cref="InputField.BeginEdit"/> TMP has not carried out yet: its activation runs in LateUpdate.</summary>
+        internal bool EditRequestPending { get; private set; }
+
+        internal void RequestEdit()
+        {
+            EditRequestPending = true;
+            ActivateInputField();
+        }
+
         private readonly Event _event = new();
         private bool _wasFocused;
         private bool _wasComposing;
@@ -195,7 +204,11 @@ namespace PromptUGUI.Controls.Internal
         /// </summary>
         protected override void LateUpdate()
         {
+            // TMP's activation step carries out a request made before this LateUpdate; one made inside it (from a
+            // soft keyboard's Done, which base.LateUpdate handles) waits for the next.
+            var requested = EditRequestPending;
             base.LateUpdate();
+            if (requested) EditRequestPending = false;
             var focused = isFocused;
             if (focused)
             {
@@ -260,6 +273,7 @@ namespace PromptUGUI.Controls.Internal
         protected override void OnDisable()
         {
             base.OnDisable();
+            EditRequestPending = false;
             // InputField.OnAttached toggles this component before any list is adopted: both may be null.
             List?.Close();
             if (!_wasFocused) return;
