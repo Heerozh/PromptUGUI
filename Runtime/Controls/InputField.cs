@@ -376,13 +376,55 @@ namespace PromptUGUI.Controls
         {
             var was = IsEditing;
             _editingOverride = editing;
-            if (IsEditing != was) EditingChanged?.Invoke(IsEditing);
+            if (IsEditing != was) OnEditEdge(IsEditing);
         }
 
         /// <summary>The live edge, reported by the field's TMP component.</summary>
         internal void NotifyEditingChanged(bool editing)
         {
-            if (_editingOverride == null) EditingChanged?.Invoke(editing);
+            if (_editingOverride == null) OnEditEdge(editing);
+        }
+
+        // ── A field being edited owns Escape / B (spec 2026-10-19-input-begin-edit §4.4) ─────────────
+
+        private static readonly System.Collections.Generic.List<InputField> s_editing = new();
+        private Application.Modals.ModalEscapeListener _escapeListener;
+
+        /// <summary>Some field is in edit mode: the last step of the Escape chain.</summary>
+        internal static bool AnyEditing
+        {
+            get
+            {
+                foreach (var f in s_editing)
+                    if (f.GameObject != null && f.IsEditing) return true;
+                return false;
+            }
+        }
+
+        /// <summary>A new Play session, or a test reset: whatever was listed was torn down without an edge.</summary>
+        internal static void ForgetEditing() => s_editing.Clear();
+
+        // Both edge sources end here. The field is its own key source while editing: on a plain page no
+        // dialog or popup listens, and the chain has to hear the press in the Input System's callback, while
+        // the field is still editing.
+        private void OnEditEdge(bool editing)
+        {
+            if (editing)
+            {
+                if (!s_editing.Contains(this)) s_editing.Add(this);
+                if (_escapeListener == null && GameObject != null)
+                {
+                    _escapeListener = GameObject.AddComponent<Application.Modals.ModalEscapeListener>();
+                    _escapeListener.AlsoCancelButton = true;
+                }
+                if (_escapeListener != null) _escapeListener.enabled = true;
+            }
+            else
+            {
+                s_editing.Remove(this);
+                if (_escapeListener != null) _escapeListener.enabled = false;
+            }
+            EditingChanged?.Invoke(editing);
         }
 
         /// <summary>Leaves edit mode — after a suggestion is chosen, or when a layer covers the list.</summary>
@@ -661,6 +703,7 @@ namespace PromptUGUI.Controls
 
         public override void Dispose()
         {
+            s_editing.Remove(this);
             PromptUGUI.Application.UI.Locale.Changed -= ApplyFont;
             // Remove TMP UnityEvent listeners before disposing R3 subjects so that TMP
             // callbacks firing during object destruction (e.g. DeactivateInputField in
