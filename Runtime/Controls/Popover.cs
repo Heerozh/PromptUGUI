@@ -47,9 +47,11 @@ namespace PromptUGUI.Controls
         private PopupSide? _lockedSide;
         private bool _opening;
 
-        // on="click@id": the raw value, the value last resolved, and the trigger it found.
+        // on="click@id": the raw value, the value last resolved, what the id names (the anchor) and the Btn
+        // that clicks — the same control, or the one inside a template instance (spec 2026-10-19-id-path §4.3).
         private string _onRaw = "manual";
         private string _resolvedOn = "manual";
+        private IControl _triggerAnchor;
         private Btn _trigger;
         private IDisposable _triggerSub;
 
@@ -262,18 +264,20 @@ namespace PromptUGUI.Controls
                 _triggerSub?.Dispose();
                 _triggerSub = null;
                 _trigger = null;
+                _triggerAnchor = null;
                 if (wanted == "manual") return;
-                Btn btn;
+                (IControl Named, Btn Btn) source;
                 try
                 {
-                    btn = TriggerSourceResolver.FindTriggerBtn(this, wanted.Substring("click@".Length), "Popover");
+                    source = TriggerSourceResolver.FindClickSource(this, wanted.Substring("click@".Length), "Popover");
                 }
                 catch (Exception ex) when (!(ex is ParseException))
                 {
                     throw ControlAttributeApplier.WrapForNode(SourceNode, ex);
                 }
-                _trigger = btn;
-                _triggerSub = btn.OnClick.Subscribe(_ => ToggleFromTrigger(btn));
+                _trigger = source.Btn;
+                _triggerAnchor = source.Named;
+                _triggerSub = source.Btn.OnClick.Subscribe(_ => ToggleFromTrigger());
             }
 
             var owner = UI.OwnerScreenOf(this);
@@ -281,14 +285,14 @@ namespace PromptUGUI.Controls
             else ScreenInstantiator.DeferAfterBuild(Resolve);
         }
 
-        private void ToggleFromTrigger(Btn trigger)
+        private void ToggleFromTrigger()
         {
-            if (IsOpen && ReferenceEquals(_anchor, trigger)) CloseAs(PopoverCloseReason.Trigger);
-            else Open(trigger);
+            if (IsOpen && ReferenceEquals(_anchor, _triggerAnchor)) CloseAs(PopoverCloseReason.Trigger);
+            else Open(_triggerAnchor);
         }
 
-        private Btn RequireTrigger()
-            => _trigger ?? throw new InvalidOperationException(
+        private IControl RequireTrigger()
+            => _triggerAnchor ?? throw new InvalidOperationException(
                 $"<Popover id='{Id}'> has no on=\"click@<id>\" trigger: open it with Open(anchor) or OpenAt(point).");
 
         // ── Attributes ─────────────────────────────────────────────────────────────────────
@@ -595,11 +599,18 @@ namespace PromptUGUI.Controls
         {
             if (reason != PopupCloseReason.AnchorLost && reason != PopupCloseReason.HostGone && _anchor != null)
             {
-                var go = _anchor.GameObject;
-                var sel = go != null ? go.GetComponent<Selectable>() : null;
-                if (sel != null && go.activeInHierarchy && sel.IsInteractable()) return go;
+                if (Usable(_anchor.GameObject)) return _anchor.GameObject;
+                // A template instance named by click@x is not selectable itself; the button in it is.
+                if (ReferenceEquals(_anchor, _triggerAnchor) && _trigger != null && Usable(_trigger.GameObject))
+                    return _trigger.GameObject;
             }
             return _selectedAtOpen != null && _selectedAtOpen.activeInHierarchy ? _selectedAtOpen : null;
+        }
+
+        private static bool Usable(GameObject go)
+        {
+            var sel = go != null ? go.GetComponent<Selectable>() : null;
+            return sel != null && go.activeInHierarchy && sel.IsInteractable();
         }
 
         private void OnCoreClosed(PopupCloseReason reason)
