@@ -1,6 +1,6 @@
 # 公开浮层 `<Popover>`（浮层阶段 2）
 
-> 状态：**已实施**（实施记录见 §16）。**已对齐**（2026-10-19 起草。要作者拍板的四点按推荐定：独立元素；外部按下默认穿透；输入框不对抗失焦，改加 `InputField.Insert`；`<Show>` 认 `expand` / `collapse`。其余按推荐写；同日按实施计划 `plans/2026-10-19-popover.md` 的计划期修正与审阅结论改齐）。
+> 状态：**已实施**（实施记录见 §16）。追加的「盖在锚点上」（`placement="over-*"`）见 §17，同日对齐。**已对齐**（2026-10-19 起草。要作者拍板的四点按推荐定：独立元素；外部按下默认穿透；输入框不对抗失焦，改加 `InputField.Insert`；`<Show>` 认 `expand` / `collapse`。其余按推荐写；同日按实施计划 `plans/2026-10-19-popover.md` 的计划期修正与审阅结论改齐）。
 > 来源：`2026-10-18-popup-core-and-input-suggestions-design.md` §12 的阶段 2 备忘；表情选择、列表行「…」菜单、右键菜单这类用法；读源码做的评估。§1.2 的问题都是读代码得出的，没有在 Unity 里复现；复现由 §9 的 Red 测试给出。
 > 相关：
 > `2026-10-18-popup-core-and-input-suggestions-design.md`（`PopupCore` / `PopupChain` / `EscapeChain` / `PopupPlacer` / `PopupBounds`；PC-D3 层序、PC-D6 焦点还原、PC-D7 外部按下；SG-D12 定侧锁定、SG-D13 边界）、
@@ -153,10 +153,10 @@ menu.OpenAt(eventData.position);
 | 属性 | 取值 | 默认 | 语义 |
 |---|---|---|---|
 | `on` | `click@<id>` \| `manual` | `manual` | 谁来开合（§4.3）。`click@<id>`：点那个 `<Btn>` 就切换开合，锚点就是它。`manual`：只由 C# 打开 |
-| `placement` | `top` / `bottom` / `left` / `right`，可加 `-start` / `-center` / `-end` | `bottom-start` | 偏好放在锚点的哪一侧，交叉轴怎么对齐（§4.5） |
-| `gap` | px（≥ 0） | `4` | 与锚点的间距 |
+| `placement` | `top` / `bottom` / `left` / `right` / `over`，可加 `-start` / `-center` / `-end` | `bottom-start` | 偏好放在锚点的哪一侧，交叉轴怎么对齐（§4.5）；`over` 盖在锚点上（§17） |
+| `gap` | px（≥ 0） | `4` | 与锚点的间距。`over` 时忽略（§17.2） |
 | `dismiss` | `pass` \| `block` | `pass` | 外部按下时：`pass` 关掉浮层，这一下照常落到下面；`block` 用全屏遮罩吃掉这一下（同 `<TabMenu>`） |
-| `transition` | 时长（`0.15s` / `150ms` / 秒数） | `0.15s` | 开 / 关过渡：淡入，同时从锚点那一侧滑出 8px。`0` 为即时（同 TM-D13） |
+| `transition` | 时长（`0.15s` / `150ms` / 秒数） | `0.15s` | 开 / 关过渡：淡入，同时从锚点那一侧滑出 8px（`over` 只淡入，§17.2）。`0` 为即时（同 TM-D13） |
 | `width` / `height` / `size` | 数值 / `hug` / `clamp(min, hug, max)` | `hug` | 面板尺寸（§4.7） |
 | `padding` · `spacing` · `childAlign` | 同 `<VStack>` | `0` · `0` · `upper-center` | 面板内的排版 |
 | `color` · `sprite` · `tint` | 同 `<TabMenu>` 的面板 | 默认皮肤（TM-D19） | 面板底 |
@@ -217,6 +217,7 @@ menu.OpenAt(eventData.position);
   - 打开时选定一侧，开着期间不再翻面。内容变高、锚点移动都不翻，只重新夹边，防止面板来回跳（同 SG-D12）。
   - Canvas 的尺寸变了（转屏、改窗口大小）才重新选侧。软键盘带来的边界变化只按锁定的侧重新夹边：键盘区域会连续几帧变化，按它解锁会让面板来回翻面。
 - **`OpenAt(屏幕点)`**：锚点是那个点（零尺寸），其余规则相同。默认 `bottom-start` 时，面板的左上角落在指针右下方，同常见的右键菜单。
+- **盖在锚点上**：`over[-对齐]`，竖直居中、水平按对齐、不翻面，见 §17。
 
 ### 4.6 跟随与锚点失效
 
@@ -504,7 +505,7 @@ internal static SidePlacement SolveSide(Rect anchor, Vector2 panel, Rect bounds,
 
 ## 7. 报错
 
-新规则在 `Core/Lint/PopoverRules.cs`，其余是既有规则的扩展。
+新规则在 `Core/Lint/PopoverRules.cs`，其余是既有规则的扩展。`over` 带来的 `PUI-POPOVER-ENUM` 扩展与新的 `PUI-POPOVER-GAP` 见 §17.4。
 
 | Code | 触发 | 运行期 |
 |---|---|---|
@@ -657,6 +658,8 @@ CommonControls 的聊天页加一行输入：输入框 + 颜文字钮 + 发送�
 
 计划期修正与审阅结论（P1–P26，见 `plans/2026-10-19-popover.md`）已写回 §4–§9、§14，不另列决策号。
 
+追加的 PO-D16–PO-D22（`placement="over-*"`）见 §17.8。
+
 ## 14. 里程碑拆分
 
 | M | 内容 | 依赖 |
@@ -729,3 +732,164 @@ CommonControls 的聊天页加一行输入：输入框 + 颜文字钮 + 发送�
   - 关掉域重载时静态状态会跨 Play 会话保留：`PopupChain`、`EscapeChain`、`OutsidePressProbe` 与深度告警各加一个 `SubsystemRegistration` 复位。
   - 复现：`PopupDestroyedHostTests`（Popover 与 TabMenu 两例都红在 `CanvasGroup has been destroyed`）、`PopoverPlayTests.Destroying_the_screen_of_an_open_popover_takes_it_off_the_chain`（这一条修好之后才第一次运行）。
 - **一下 Esc 两处生效**：游戏自己在 `Update` 里读返回键（退出某个模式、清选中），而 Esc 链在输入更新里已经用这一下关掉了浮层，游戏分辨不出。新增公开的 `UI.EscapeConsumedThisFrame`：PromptUGUI 在这一帧用掉了 Escape / Start / B（Esc 链表里任何一步，包括教程 Block 吞掉）时为真。复现与验证：`EscapeChainTests` 四条、`PopoverDevicePlayTests.An_Escape_that_closes_it_is_reported_consumed`。
+
+## 17. 追加：盖在锚点上（`placement="over-*"`）
+
+> 状态：**已实施**（实施记录见 §17.10）。**已对齐**（2026-10-19，与作者对齐，按推荐定）。
+
+### 17.1 要做的事
+
+- **用法**：图标行里有一个放大镜钮，点它，弹出一个盖住图标行的浮层，里面是带 `submitIcon` 的 `<InputField>` 和它的 `<Suggestions>`。
+  - 看起来是「图标就地展开成输入框」：`over-end` 时面板右边对齐放大镜钮的右边，输入框右端的提交钮正好落在放大镜原来的位置。
+- **今天做不到**：
+  - `placement` 只有四个侧，面板只会摆在锚点旁边。两侧都放不下时面板可能盖住锚点，但那是夹边的副作用，写不出来。
+  - 凑合的写法是 `OpenAt(锚点左上角)` 加 `gap="0"`。可是 `OpenAt` 没有锚点，不跟随；下方放不下时还会翻到上方，贴在锚点上面而不是盖住它。
+
+### 17.2 作者面
+
+```xml
+<HStack height="44" spacing="4" childAlign="middle-right">
+  <Btn id="homeBtn" size="44x44">…</Btn>
+  <Btn id="bagBtn" size="44x44">…</Btn>
+  <Btn id="searchBtn" size="44x44"><Icon name="ui:search" anchor="center" size="24x24"/></Btn>
+</HStack>
+
+<Popover id="searchPop" on="click@searchBtn" placement="over-end" width="320" radius="22">
+  <InputField id="searchField" width="stretch" height="44" placeholder="Search…" submitIcon="ui:search">
+    <Suggestions id="searchHits" itemTemplate="HitRow"/>
+  </InputField>
+</Popover>
+```
+
+```csharp
+var pop = screen.Get<Popover>("searchPop");
+pop.OnOpened.Subscribe(_ => screen.Focus("searchField")).AddTo(screen);   // 指针打开：立刻进编辑
+screen.Get<InputField>("searchField").Suggestions.OnSubmit
+      .Subscribe(s => { Search(s); pop.Close(); }).AddTo(screen);
+```
+
+- **取值**：`placement` 新增 `over`，可加 `-start` / `-center` / `-end`。省略对齐即 `start`，同四个侧：`over` = `over-start`。
+- **位置**：
+  - 竖直：面板的中心对齐锚点的中心；
+  - 水平：`start` 左边对齐锚点的左边，`center` 居中，`end` 右边对齐锚点的右边；
+  - 面板比锚点大，就从对齐的那一边往外伸（`over-end` 往左）；比锚点小，就只盖住锚点的一部分。
+- **不翻面**：没有对侧可翻。越出边界就在两个方向上推回边界内；比边界还大时，起始边（左 / 上）留在边界内。这就是 `SolveSide` 今天的夹边。
+- **pivot**：水平按对齐取（0 / 0.5 / 1），竖直取 0.5。开着时内容变高，上下各长一半；变宽，从对齐的那一边往外长。
+- **跟随与边界**：同 §4.6。没有侧要锁，Canvas 尺寸变化和软键盘都只是重新夹边。图标行在屏幕底部、被软键盘挡住时，面板被推到键盘上方。
+- **`OpenAt(点)`**：锚点是零尺寸的点。面板竖直居中于这个点，水平按对齐：`start` 时左边落在这个点上。
+- **`gap`**：没有意义，忽略。CLI 警告（`PUI-POPOVER-GAP`，§17.4）。
+- **过渡**：只淡入淡出，不滑动。没有「从哪一侧滑出」可言。
+- **外部按下**：锚点仍算「里面」（§5.4 不变）。
+  - 面板盖满触发钮时（上面的写法），碰不到这条：按在触发钮的位置，按到的是面板。
+  - 锚点比面板大时（例如 `Open(整个图标行)`，面板只盖住一段），按在行里露出来的按钮上，浮层不关，那个按钮照常被点。所以锚点应该是触发钮，而不是整行。
+- **再按触发钮**：被面板盖住，按不到；按到的是面板（`over-end` 时多半是提交钮）。关闭靠点外面、Esc / B、或 C# `Close()`。面板比触发钮小、露出来的部分被按下时，照 §4.3 切换。
+- **焦点**：规则不变（§4.8），浮层不会自动进入编辑。
+  - 指针打开时，在 `OnOpened` 里 `screen.Focus("searchField")`。指针模式下选中输入框即进入编辑，手机上弹出键盘。
+  - 方向导航启用时，浮层本来就把焦点圈在面板里、落到输入框上；按两级模型只聚焦、不进编辑，按 A / Enter 才进编辑。`Focus` 再选一次不改变什么。
+  - 关闭时选中项还在面板里，就还给触发钮。
+- **嵌套**：输入框的 `<Suggestions>` 是浮层的子层（§4.9 不变）：Esc 先关候选列表，再关浮层；点候选行不算「外面」。
+
+### 17.3 内核改动
+
+- **`PopupSide` 加 `Over`。** 这个枚举只在自由框路径里用（`PopupLayout.Free` / `PlaceFree` / `SlideOffset`，以及 `SolveSide`）；TabMenu / Suggestions 走 `Solve` 的挂角定位，用不到它，加成员不影响它们。
+- **`PopupPlacer.ParsePlacement`**：认 `over`；报错消息列上它。
+- **`PopupPlacer.SolveSide`**：
+  - 未锁定且偏好是 `Over`：侧就是 `Over`，不比较空间；
+  - `Over` 分支：x 按对齐（同上下两侧的交叉轴），y = 锚点中心 − 面板高 / 2；之后照旧两轴夹边；
+  - `Room` 对 `Over` 为 0（Popover 不读它）；
+  - 锁定的侧是 `Over` 时照旧走 `Over` 分支。开着时变体把 `placement` 在 `over` 与四个侧之间改写，同今天改写侧：下次打开、或 Canvas 尺寸变化时才生效。
+- **`PopupPlacer.PivotFor(Over, align)`** = (0 / 0.5 / 1, 0.5)。
+- **`PopupCore.SlideOffset`**：`Over` → 零位移，只剩淡入淡出。
+- **Popover 本身不改**：`Measure` 照旧调 `SolveSide`，把结果的侧交给 `PopupLayout.Free`。
+
+### 17.4 报错
+
+| Code | 触发 | 运行期 |
+|---|---|---|
+| `PUI-POPOVER-ENUM` | （扩展）合法值加 `over` / `over-start` / `over-center` / `over-end`；消息同步 | 抛（不变） |
+| `PUI-POPOVER-GAP`（新） | 写了 `gap`（基值或任一变体，内联或经 `class=`），而 `placement` 的基值和每个变体值都是 `over*` | 只在 CLI 报 |
+
+- `placement` 只有部分值是 `over*` 时，`gap` 对其余值仍有用，不报。
+- `placement` 没写（默认 `bottom-start`）时不报。
+
+### 17.5 测试（Red 先行）
+
+- `PopupPlacerSideTests`：
+  - `over-start` / `-center` / `-end`：竖直居中，水平对齐；面板比锚点大时从对齐的一边往外伸；
+  - 放不下：两轴推回边界内，不翻面（锚点贴着上 / 下 / 右边）；比边界还大，起始边留在里面；
+  - 锁定为 `Over` 时照旧；零尺寸锚点；
+  - `ParsePlacement("over")` = `(Over, Start)`、`over-end`；`over-top` / `over-` 报错；`PivotFor(Over, …)`。
+- `PopupCoreFreeTests`：`Over` 的 pivot；`Over` 的滑入位移为零，侧放仍是 8。
+- `PopoverOverTests`（新，`TickForTests()` 驱动）：
+  - `placement="over-end"` 打开：面板右边 = 锚点右边，面板中心高度 = 锚点中心高度；
+  - 跟随移动的锚点；
+  - 软键盘挤压边界：推回边界内，仍是竖直居中能到的最近位置；
+  - 变体把 `placement` 改成 `over-center`，重开后生效；
+  - `OpenAt`：竖直居中于那个点。
+- `PopoverRulesTests`：ENUM 接受 `over*`、拒绝 `over-top`；GAP 的正例（基值 `over-end` + `gap`；`gap` 写在变体上；`placement` 经 `class=`）与反例（`placement` 没写；有一个变体不是 `over`；没写 `gap`）。
+
+### 17.6 演示同步（同分支）
+
+CommonControls 聊天页的顶行（「来 50 条」+ 计数）右端加一个放大镜钮，`placement="over-end"` 的浮层盖住这一行：
+
+- 输入框带 `submitIcon`，候选列表列出命中的消息（时间 + 正文，新的在前，最多 20 条）；
+- 选一条，或 Enter / 放大镜提交（取第一条命中），就 `ScrollToIndex` 到那条消息，并关掉浮层；
+- `OnOpened` 里 `screen.Focus` 输入框。
+
+### 17.7 SKILL / 文档（英文）
+
+- **`reference/controls-popover.md`**：
+  - 属性表的 `placement` / `gap` / `transition` 三行；
+  - Placement 小节加 `over`；
+  - 外部按下与锚点的那一条；
+  - 新配方「Search that unfolds from its icon」；
+  - Lint 表。
+- **XML `SKILL.md`** 的 `<Popover>` 存根提到 `over-*`。
+- **C# `SKILL.md`** 的 Popover 小节：打开即编辑，在 `OnOpened` 里 `screen.Focus(field)`。
+- **`.lint/UIXmlLint/README.md`**：ENUM 行，GAP 行。
+- **主 spec** §5 的 `<Popover>` 行：放在锚点旁边，或盖在锚点上。
+
+### 17.8 决策
+
+| # | 决策 | 选择 | 理由 |
+|---|---|---|---|
+| PO-D16 | 盖住锚点的写法 | `placement` 新增 `over[-start\|-center\|-end]`，不另开属性 | 与四个侧同一套语法、解析与 lint |
+| PO-D17 | `over` 的对齐 | 竖直居中于锚点；水平按后缀对齐，省略 = `start` | 作者指定。图标行与输入框高度相近，居中最稳 |
+| PO-D18 | 放不下 | 不翻面，两轴推回边界内 | 没有对侧 |
+| PO-D19 | `gap` | 忽略，CLI 警告 | 没有间距可言 |
+| PO-D20 | 过渡 | 只淡入淡出 | 没有滑出的方向 |
+| PO-D21 | 锚点算「里面」 | 不变 | 保住触发钮的切换；面板盖满触发钮时碰不到 |
+| PO-D22 | 打开即编辑 | 不内建，配方在 `OnOpened` 里 `screen.Focus` | 焦点规则不为一种放置分叉；两级导航模型照旧 |
+
+### 17.9 不做
+
+- 与锚点同宽 / 同高（`width="anchor"`），仍同 §12。
+- 宽度从锚点长到面板的展开动画。
+- `over` 的竖直对齐变体（顶对齐、底对齐）。
+- 打开时自动进入编辑（PO-D22）。
+
+### 17.10 实施记录
+
+**先红后绿**：先放桩（`PopupSide.Over`、`PopupCore.SlideFromForTests`、`PopoverRules.GapCode`，不改行为），再写测试。十六条红在预期处：
+
+| 测试 | 改线前的结果 |
+|---|---|
+| `PopupPlacerSideTests`（七条 `over`） | `Over` 落进下方的分支：面板在锚点下面，或翻到上面；`ParsePlacement("over")` 抛错；pivot 是 `(x, 1)` |
+| `PopupCoreFreeTests.Over_pivots_at_the_vertical_middle_and_does_not_slide` | pivot 是 `(1, 1)` |
+| `PopoverOverTests`（六条） | `placement="over-*"` 在应用属性时抛 `ParseException` |
+| `PopoverRulesTests`（两条） | `over` 报 `PUI-POPOVER-ENUM`；`PUI-POPOVER-GAP` 不报 |
+
+改线前就绿的两条：`Over_larger_than_the_bounds_keeps_the_start_edges_inside`（今天的夹边已经保证起始边）；`A_side_still_slides_out_of_its_anchor`（守住侧放的 8px 滑入）。
+
+**与设计的偏差 / 补充**：
+
+- `PopoverOverTests.Over_end_covers_the_anchor_from_its_right_edge` 第一次跑是测试自己的错：`Rect.Contains` 不含 max 边，而两者的右边正好重合。改成逐边比较。
+- `PUI-POPOVER-GAP` 只把合法的 `over*` 值算作「盖住」：`placement="over-top"` 只报 `PUI-POPOVER-ENUM`，不连带报 GAP。
+- 样例：聊天页顶行右端加放大镜钮 `chatFind`，`findPop`（`over-end`，宽 320）里是带 `submitIcon` 的输入框与候选列表；新的行模板 `FindRow`（时间 + 单行省略的正文）。C# `BindChatFind`：`OnInput` 本地过滤（新的在前，最多 20 条），`OnOpened` 里 `Focus` 输入框，提交即 `ScrollToIndex` 并关浮层。
+
+**验证**：
+- EditMode 5651 / EditorOnly 471 / PlayMode 313 全绿。
+- `dotnet format --verify-no-changes` 干净。
+- UIXmlLint 对 `Runtime/Resources/` 与 `Samples~/` 零问题；一份故意写错的 `.ui.xml` 报出 `PUI-POPOVER-GAP` 与 `PUI-POPOVER-ENUM`（`over-top`），带一个非 `over` 变体的那个不报。
+- 样例的 C# 在 Unity 外、对着宿主工程编出的运行时程序集编译通过。
+- 留待手测：两套皮下的观感（面板盖住顶行、提交钮落在放大镜的位置）；手机真机上点开即弹键盘、软键盘挡住时的位置；手柄打开后按 A 进编辑。

@@ -60,10 +60,10 @@ menu.OpenAt(eventData.position);
 | Attribute | Values | Default | Meaning |
 |---|---|---|---|
 | `on` | `click@<id>` \| `manual` | `manual` | Who opens it. `click@<id>`: pressing that `<Btn>` toggles it, and the button is the anchor. `manual`: only C# opens it |
-| `placement` | `top` / `bottom` / `left` / `right`, optionally `-start` / `-center` / `-end` | `bottom-start` | Preferred side of the anchor, and the alignment on the other axis |
-| `gap` | px, ≥ 0 | `4` | Distance from the anchor |
+| `placement` | `top` / `bottom` / `left` / `right` / `over`, optionally `-start` / `-center` / `-end` | `bottom-start` | Preferred side of the anchor, and the alignment on the other axis. `over` covers the anchor instead (see *Over the anchor*) |
+| `gap` | px, ≥ 0 | `4` | Distance from the anchor. Ignored by `over` (`PUI-POPOVER-GAP`) |
 | `dismiss` | `pass` \| `block` | `pass` | A press outside: `pass` closes the popover **and the press goes on** to what it landed on; `block` puts a full-screen catcher behind the panel that eats the press (like `<TabMenu>`) |
-| `transition` | duration (`0.15s` / `150ms` / seconds) | `0.15s` | Open / close: a fade plus an 8 px slide out from the anchor's side. `0` = instant |
+| `transition` | duration (`0.15s` / `150ms` / seconds) | `0.15s` | Open / close: a fade plus an 8 px slide out from the anchor's side (`over`: the fade only). `0` = instant |
 | `width` / `height` / `size` | number / `hug` / `clamp(min, hug, max)` | `hug` | Panel size (see *Size*) |
 | `padding` · `spacing` · `childAlign` | as `<VStack>` | `0` · `0` · `upper-center` | Layout inside the panel |
 | `color` · `sprite` · `tint` | as `<TabMenu>`'s panel | default popup skin | The panel's background |
@@ -111,6 +111,20 @@ menu.OpenAt(eventData.position);
 - **The side is locked while open**: content growing or the anchor moving only re-clamps it — the panel never jumps from side to side. Only a new Canvas size (rotation, a resized window) chooses again; a keyboard sliding in only re-clamps on the locked side.
 - **`OpenAt(screen point)`**: the anchor is that point, zero-sized. With the default `bottom-start` the panel's top-left corner sits at the pointer, like a common context menu.
 
+### Over the anchor
+
+`placement="over"`, optionally `-start` / `-center` / `-end` (`over` = `over-start`): the panel **covers** its anchor instead of sitting beside it — an icon that unfolds into a field in place.
+
+- **Vertically** the panel is centred on the anchor; **horizontally** `start` lines up the left edges, `center` the centres, `end` the right edges. A panel wider than the anchor reaches out from the aligned edge (`over-end` grows to the left); a smaller one covers part of it.
+- **No flip** — there is no other side. Overflowing the bounds, it is pushed back inside on both axes; larger than the bounds, its left / top edges stay in. A soft keyboard covering the anchor pushes the panel up above the keyboard.
+- **Pivot**: the aligned edge and the vertical middle. Content that grows while open grows up and down equally, and sideways away from the aligned edge.
+- **`gap` is ignored** (`PUI-POPOVER-GAP` when every placement value is `over*`); the transition only fades.
+- It follows its anchor and is lost with it exactly like a side placement. `OpenAt` centres it vertically on the point; with `start` its left edge sits on the point.
+- **The anchor still counts as "inside"** for `dismiss="pass"`. A panel that covers its trigger never meets this — a press there lands on the panel. But anchored to something larger than the panel (`Open(wholeIconRow)` with a panel covering part of it), a press on a button the panel leaves uncovered neither closes the popover nor is eaten: that button is clicked and the popover stays. **Anchor it to the trigger**, not to the row.
+- **The trigger is under the panel**, so "press it again to close" does not apply: a press outside, Escape / B, or `Close()` closes it.
+- **It does not start editing by itself.** To type at once, focus the field from `OnOpened` (`screen.Focus("searchField")` — scripting skill): under the pointer that enters edit mode (the phone keyboard opens); with gamepad navigation on, the popover already caged the focus on the field, and the two-level model waits for A / Enter.
+- A field's `<Suggestions>` inside it is its child popup: Escape closes the list first, then the popover; a press on a suggestion row is not "outside".
+
 ## Following
 
 - While open it follows its anchor every frame (`LateUpdate`): an animated anchor, a scrolling list, a layout change.
@@ -152,12 +166,37 @@ menu.OpenAt(eventData.position);
 
 **Right-click menu** — `OpenAt(eventData.position)` from your pointer handler (a press handler on the area, or a right-button filter); `bottom-start` puts the menu's corner at the pointer.
 
+**Search that unfolds from its icon** — a search button at the right end of an icon row; the popover covers the row with a field whose submit icon lands where the button was:
+
+```xml
+<HStack height="44" spacing="4" childAlign="middle-right">
+  <Btn id="homeBtn" size="44x44"><Icon name="ui:home" anchor="center" size="24x24"/></Btn>
+  <Btn id="searchBtn" size="44x44"><Icon name="ui:search" anchor="center" size="24x24"/></Btn>
+</HStack>
+
+<Popover id="searchPop" on="click@searchBtn" placement="over-end" width="320" radius="22">
+  <InputField id="searchField" width="stretch" height="44" placeholder="Search…" submitIcon="ui:search">
+    <Suggestions id="searchHits" itemTemplate="HitRow"/>
+  </InputField>
+</Popover>
+```
+
+```csharp
+var pop = screen.Get<Popover>("searchPop");
+pop.OnOpened.Subscribe(_ => screen.Focus("searchField")).AddTo(screen);   // type at once
+screen.Get<InputField>("searchField").Suggestions.OnSubmit
+      .Subscribe(s => { Search(s); pop.Close(); }).AddTo(screen);
+```
+
+Give the panel a width (its only child stretches — `PUI-POPOVER-HUG-WIDTH` otherwise) and make it about as tall as the row: it is centred on the button.
+
 ## Lint
 
 | Code | When | Runtime |
 |---|---|---|
 | `PUI-POPOVER-ON` | `on=` other than `click@<id>` / `manual` | throws |
 | `PUI-POPOVER-ENUM` | `placement` / `dismiss` (base or any variant) not in the table above | throws |
+| `PUI-POPOVER-GAP` | `gap` written while `placement` (base and every variant) is `over*` | CLI only |
 | `PUI-POPOVER-VALUE` | `gap` not a number ≥ 0; `transition` not a duration | warns, uses the default |
 | `PUI-POPOVER-SIZE` | `width` / `height` / `size` that stretches or takes a percentage (also inside `clamp`) | throws |
 | `PUI-POPOVER-LAYOUT-ATTR` | `anchor` / `margin` / `pivot` / `flow` / `scale` / `hidden` | ignored, warns |
