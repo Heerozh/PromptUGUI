@@ -194,6 +194,18 @@
     </Frame>
   </Template>
 
+  <!-- 聊天搜索的候选行（<Suggestions itemTemplate>）：时间 + 单行正文（放不下就省略号），由 C# BindItems 填 -->
+  <Template name="FindRow">
+    <Frame height="28">
+      <Show on="state-hover"><Image anchor="stretch" color="row-hover" raycastTarget="false"/></Show>
+      <Show on="state-selected"><Image anchor="stretch" color="row-pick" raycastTarget="false"/></Show>
+      <HStack anchor="stretch" spacing="8" padding="0,8,0,8" childAlign="middle-left">
+        <Text id="time" class="suggest-text" width="36" fontSize="12"/>
+        <Text id="body" class="suggest-text" width="stretch" fontSize="14" wrap="false" overflow="ellipsis"/>
+      </HStack>
+    </Frame>
+  </Template>
+
   <!-- 聊天行模板：时间 + 会折行的正文，行高跟着内容走 —— 虚拟列表逐行实测，不要求行等高 -->
   <Template name="ChatRow">
     <HStack width="stretch" spacing="6" childAlign="upper-left">
@@ -460,13 +472,18 @@
            「↓ 新消息」按钮跟 OnAtEndChanged 走：不在底部才出现，点它 ScrollToEnd。
            底部输入行：表情钮用 <Popover on="click@chatEmote"> 弹出颜文字格子，点外面、Esc / B 收起；
            钮上的 <Show on="expand@emotePop"> 在浮层开着时把它点亮。点格子 = InputField.Insert，
-           插在失焦前的光标处。 -->
+           插在失焦前的光标处。
+           顶行右端的放大镜：<Popover placement="over-end"> 盖住整行，就地展开成搜索框 —— 竖直居中于钮，
+           右边与钮对齐，输入框的提交钮正好落在放大镜原来的位置。候选列出命中的消息，选一条就滚过去。 -->
       <Frame id="pageChat" anchor="stretch" margin="84,8,8,8" margin.portrait="52,8,8,52" raycastTarget="true">
         <Skin/>
         <VStack anchor="stretch" spacing="8" padding="8">
           <HStack height="28" spacing="8">
             <Btn id="chatBurst" class="btn" width="96" height="28" fontSize="15">来 50 条</Btn>
             <Text id="chatCount" width="stretch" height="28" fontSize="13"/>
+            <Btn id="chatFind" class="btn" width="36" height="28">
+              <Image sprite="UI/icons#search" anchor="center" size="16x16" raycastTarget="false"/>
+            </Btn>
           </HStack>
           <Frame width="stretch" height="stretch">
             <ScrollList id="chat" class="list" anchor="stretch" itemTemplate="ChatRow"
@@ -490,6 +507,14 @@
         <Popover id="emotePop" class="pop" on="click@chatEmote" placement="top-end" padding="6">
           <ScrollList id="emoteGrid" width="220" height="116" columns="4" cellSize="52x36" spacing="4"
                       itemTemplate="EmoteCell"/>
+        </Popover>
+        <Popover id="findPop" class="pop" on="click@chatFind" placement="over-end" width="320" padding="2">
+          <InputField id="chatFindInput" class="input" placeholder="Find in chat…" width="stretch" height="28"
+                      fontSize="14" submitIcon="UI/icons#search" submitIconSize="16">
+            <Suggestions id="chatFindList" class="suggest" itemTemplate="FindRow" maxHeight="220" padding="6">
+              <Scrollbar class="scrollbar" thickness="8" overlay="true"/>
+            </Suggestions>
+          </InputField>
         </Popover>
       </Frame>
 
