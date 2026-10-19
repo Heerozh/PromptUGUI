@@ -409,9 +409,10 @@ namespace PromptUGUI.Samples.CommonControls
         }
 
         // 聊天搜索：顶行的放大镜钮由 <Popover placement="over-end"> 盖住整行、就地展开成输入框（XML 里接好）。
-        // 打开不会自动进编辑 —— 在 OnOpened 里 Focus 输入框：鼠标 / 触屏点开就能直接打字（手机弹键盘）；
-        // 手柄导航下浮层已经把焦点圈到输入框上，按 A 才进编辑（两级模型）。
-        // 候选列出命中的消息（新的在前）；选一条，或 Enter / 放大镜提交（取第一条），就滚到那条消息并收起。
+        // 打开不会自动进编辑 —— 在 OnOpened 里 BeginEdit：点开就能直接打字（手机弹键盘），手柄也一样。
+        // closeOnEditEnd：输入框一结束编辑（点开别处、收起键盘、提交后没回到输入框）浮层就收起。
+        // 候选列出命中的消息（新的在前）；选一条，或 Enter / 放大镜提交（取第一条），就滚到那条消息并收起；
+        // 一条都没命中就 BeginEdit 回到输入框接着改。
         void BindChatFind(IScreen screen)
         {
             var pop = screen.Get<Popover>("findPop");
@@ -427,13 +428,17 @@ namespace PromptUGUI.Samples.CommonControls
                 },
                 key: m => m.Id).AddTo(screen);
 
-            pop.OnOpened.Subscribe(_ => screen.Focus("chatFindInput")).AddTo(screen);
+            pop.OnOpened.Subscribe(_ => input.BeginEdit()).AddTo(screen);
 
             input.Suggestions.OnSubmit.Subscribe(s =>
             {
                 var pick = s.IsChosen ? hits[s.ChosenIndex] : hits.Count > 0 ? hits[0] : null;
                 var index = pick != null ? _chat.IndexOf(pick) : -1;   // 搜的时候还在，这会儿可能已被裁掉
-                if (index < 0) return;
+                if (index < 0)
+                {
+                    input.BeginEdit();
+                    return;
+                }
                 _chatList.ScrollToIndex(index);
                 pop.Close();
             }).AddTo(screen);

@@ -1,6 +1,6 @@
 # 输入框：代码进入编辑、浮层随编辑结束而关、编辑中的 Esc
 
-> 状态：**已对齐**（2026-10-19，与作者对齐，按推荐定：叫 `BeginEdit()` 并公开 `IsEditing`；「编辑结束即关」由 `<Popover>` 内建；编辑中的输入框排在 Esc 链尾；Esc 与 B 算、Start 不算）。
+> 状态：**已实施**（实施记录见 §12）。**已对齐**（2026-10-19，与作者对齐，按推荐定：叫 `BeginEdit()` 并公开 `IsEditing`；「编辑结束即关」由 `<Popover>` 内建；编辑中的输入框排在 Esc 链尾；Esc 与 B 算、Start 不算）。
 > 来源：搜索浮层（图标就地展开成输入框 + 候选列表，popover spec §17）的接入反馈；读源码做的评估。§1 的问题都是读代码得出的，复现由 §7 的 Red 测试给出。
 > 相关：
 > `2026-10-19-popover-design.md`（§4.4 关闭表、§4.8 焦点、§17 盖在锚点上、PO-D22 打开即编辑不内建）、
@@ -256,3 +256,40 @@ public bool BeginEdit();         // 进入编辑；做不到时返回 false、�
 - **TMP 的待激活标记是私有的**：`BeginEdit` 之后、`LateUpdate` 之前，输入框被停用（浮层同帧又关了），TMP 留着这个标记，下次启用时会自己进入编辑。指针点击输入框后同帧停用也一样，这是 TMP 的既有行为，不另处理。
 - **WebGL 手机浏览器**只允许在用户手势里弹键盘，代码进入编辑可能不弹。未验证。
 - **`closeOnEditEnd` 每帧扫一遍面板里的输入框**：面板小，用复用的表、不分配，只在属性打开时做。
+
+## 12. 实施记录
+
+**先红后绿**：每个 Task 先放不改行为的桩，再写测试，红在预期处。
+
+| 测试 | 改线前的结果 |
+|---|---|
+| `InputFieldBeginEditTests`（三条） | `BeginEdit` 返回 false、不留请求；方向导航下选中仍被撤回 |
+| `InputFieldBeginEditPlayTests`（五条） | 提交后、方向导航下、`OnSubmit` 里都没进入编辑 |
+| `EscapeChainFieldTests`（四条） | 编辑中的 Esc / B 没被记为已处理；输入框身上没有监听 |
+| `InputFieldEscapePlayTests`（两条） | 真按 Esc / B 取消编辑的那一帧，`EscapeConsumedThisFrame` 为假（复现 §1.3） |
+| `PopoverCloseOnEditEndTests`（四条） | 编辑结束后浮层一直开着 |
+| `PopoverCloseOnEditEndPlayTests`（两条） | 提交、清掉选中后浮层一直开着 |
+
+**改线前就绿的**（守住不变的行为）：
+- `After_a_submit_screen_Focus_cannot_reenter_the_edit`：复现 §1.1，`screen.Focus` 对已选中的输入框什么都不做。
+- 拒绝的三种情况（未激活、不可交互、只读）。
+- Start 不算、没在编辑不算、对话框与浮层照旧先应答。
+- `A_failed_submit_that_goes_back_to_the_field_keeps_it_open`：改线前浮层本来就不关，守住实现。
+
+**与设计的偏差 / 补充**：
+- 测试自己的错，各一次：
+  - 同一份文档的两个 Screen 走路由时要写 `screen:`；
+  - 没有 `on=` 的浮层要 `Open(anchor)`。
+- `BeginEdit` 在测试钩子钉着「在编辑」时直接返回 true（不碰 TMP），与钉着「不在编辑」时改钉成在编辑对称。
+- `InputFieldNavGate` 的「期待」在 `Update` 和 `LateUpdate` 都结算：看到编辑开始，或请求已被消费。
+- `EscapeChain.ResetForPlaySession` 顺带清空编辑中输入框表。表里的项每次都核对 `IsEditing`，清空只是不让上一次 Play 的对象留在表里。
+
+**验证**：
+- EditMode 5679 / EditorOnly 471 / PlayMode 326 全绿。
+- `dotnet format --verify-no-changes` 干净。
+- UIXmlLint 对 `Runtime/Resources/` 与 `Samples~/` 零问题。
+- 样例的 C# 在宿主编辑器里用 Roslyn 对已加载的程序集编译：0 错误。`.lint` 工作区的 Unity 引用路径在本机已失效，编不了。
+- 留待手测：
+  - 手机真机上提交失败后 `BeginEdit` 键盘再弹一次；
+  - Android 收键盘时点候选行，浮层不丢这一下；
+  - 手柄打开搜索浮层即进入编辑。

@@ -378,6 +378,17 @@ screen.Get<InputField>("playerName").OnEndEdit
 cell.OnClick.Subscribe(_ => { if (!chat.Insert(e)) UI.Toast.Show("Full"); }).AddTo(cell);
 ```
 
+**`InputField.BeginEdit()` / `IsEditing`** — `IsEditing` is true while the field edits (a caret, keys going in); selected without editing (the gamepad's two-level model, after a submit or an Escape) it is false. `BeginEdit()` puts the field into edit mode: it selects it if needed and opens the phone keyboard, under the pointer and the gamepad alike, whether or not the field is already selected. That is what `screen.Focus(id)` cannot do — it only moves the selection, so on a field still selected after a submit it does nothing, and under directional navigation it only selects. TMP carries the request out in this frame's `LateUpdate`, so `IsEditing` reads true only after that. Returns **false** and does nothing when the field is inactive (its popover closed, say), not interactable or read-only. TMP's `onFocusSelectAll` applies: the text comes back selected, so typing replaces it. Safe from any callback — from `OnSubmit` the submitted edit ends (`OnEndEdit` fires) and the new one begins in the same frame; on a phone the system closed its keyboard on Done, so it opens again.
+
+```csharp
+search.OnSubmit.Subscribe(q =>
+{
+    if (Find(q)) return;
+    UI.Toast.Show("No match");
+    search.BeginEdit();          // back to the field to fix the query
+}).AddTo(screen);
+```
+
 **Progress** — `screen.Get<Progress>("hp").Value = 0.42f;` 或 R3 推送 `healthStream.Subscribe(v => p.Value = v).AddTo(screen)`。Progress 是只读显示控件，无 `OnValueChanged`。`Value` 被 `Mathf.Clamp01` 钳位。注意：`[Bind]` 在本项目里是把 child control 字段注入到 parent（见 `Runtime/Registry/BindAttribute.cs`），不是数据流绑定 —— 用直接 setter / R3 推。
 
 **Cooldown** — a cooldown sweep with its own clock (XML side: authoring-promptugui-xml `reference/controls-cooldown.md`).
@@ -792,10 +803,11 @@ menu.OnOpened;                  // Observable<Unit> — opening started: measure
 menu.OnClosed.Subscribe(r => …);// Observable<PopoverCloseReason>, as closing starts
 ```
 
-`PopoverCloseReason`: `Code` (`Close()`, a reopen on another anchor, made non-interactable) · `Trigger` (its `on=` button again) · `Escape` (Escape / gamepad Start / B, top of the chain) · `OutsidePress` · `Covered` (a dialog, routed page / Modal, Loading) · `AnchorLost` (the anchor destroyed, hidden, disabled, scrolled out of view, or its `<ScrollList>` row given to another item) · `Replaced` (an unrelated popup opened) · `HostGone` (its Screen closing, an ancestor switched off, `Dispose`).
+`PopoverCloseReason`: `Code` (`Close()`, a reopen on another anchor, made non-interactable) · `Trigger` (its `on=` button again) · `Escape` (Escape / gamepad Start / B, top of the chain) · `OutsidePress` · `Covered` (a dialog, routed page / Modal, Loading) · `AnchorLost` (the anchor destroyed, hidden, disabled, scrolled out of view, or its `<ScrollList>` row given to another item) · `Replaced` (an unrelated popup opened) · `HostGone` (its Screen closing, an ancestor switched off, `Dispose`) · `EditEnded` (`closeOnEditEnd="true"` and the edit in its panel ended).
 
 - **One popover, many rows**: keep the row's item in a field, `menu.Toggle(row.Get<Btn>("more"))` from the row's bind (`.AddTo(row)`), act on the field from the menu's buttons and call `Close()` — pressing inside the panel never closes it by itself.
-- **A field that should take typing at once** (a search popover with `placement="over-end"` covering its icon): opening does not start editing. Focus the field when it opens — `pop.OnOpened.Subscribe(_ => screen.Focus("searchField")).AddTo(screen);` — under the pointer that enters edit mode (the phone keyboard opens); with gamepad navigation the popover has already caged the focus on it and the two-level model waits for A / Enter.
+- **A field that should take typing at once** (a search popover with `placement="over-end"` covering its icon): opening does not start editing. Start it when it opens — `pop.OnOpened.Subscribe(_ => field.BeginEdit()).AddTo(screen);` — under the pointer and the gamepad alike (the phone keyboard opens). `screen.Focus("searchField")` instead leaves gamepad users on the field, waiting for A / Enter (the two-level model).
+- **Closing when the field's edit ends**: write `closeOnEditEnd="true"` on the popover instead of closing it from `OnEndEdit` yourself. Done by hand, two things go wrong: `BeginEdit()` from a failed submit is undone (the submit's `OnEndEdit` closes the panel the field is about to edit in again), and on Android a suggestion tapped while the keyboard hides is lost (the edit ends before the tap is released). The popover sees both — it closes one frame after the edit is seen over, waits while a suggestion row is held, and keeps going when the user moved on to another control in the panel (XML skill, `controls-popover.md` *A field in the panel*). A submit that should keep the panel calls `field.BeginEdit()`; one that is done calls `pop.Close()`.
 - **Does not open** (nothing happens — check `IsOpen`) when it is not interactable, the anchor or the popover's parent is inactive, the anchor is not interactable, or its layer is covered by a dialog / Loading. `anchor == null` throws `ArgumentNullException`; an anchor in another Screen or inside the popover throws `ArgumentException`.
 - **`Hidden`** reads `!IsOpen`; `Hidden = true` closes; `Hidden = false` does nothing (opening needs an anchor). `Interactable = false` closes it.
 - **Re-entrancy is safe**: opening another popup from `OnClosed`, or calling `Close()` from a `Replaced` handler, leaves no stale entry. `Dispose` while open reports `HostGone` first.
@@ -1385,15 +1397,18 @@ EVENTS (R3)    .OnClick                Btn
                .OnExpanded/.OnCollapsed TabMenu:Unit (popup opened / closed)
                Popover .Open(anchor) / .OpenAt(screenPos) / .Toggle(anchor) / .Close() / .IsOpen / .Anchor
                        .OnOpened:Unit / .OnClosed:PopoverCloseReason (Code/Trigger/Escape/OutsidePress/Covered/
-                        AnchorLost/Replaced/HostGone)
+                        AnchorLost/Replaced/HostGone/EditEnded)
                .OnCurrentChanged       Carousel:int (any-source page change, deduped)
                .OnSelectedChanged      Pages:string (any-source page change, deduped)
                .OnEndEdit / .OnSubmit  InputField:string (OnSubmit = the TYPED text; a chosen suggestion is not one)
                .OnInput                InputField:string — user edits only (no code writes / replays / Esc rollback)
                UI.EscapeConsumedThisFrame  bool — the UI spent this frame's Escape / Start / B (closed a popup, a
-                                        dialog answered…); skip your own back-key handling
+                                        dialog answered, a field being edited took Esc / B…); skip your own back-key handling
                InputField.Insert(text) at the caret (the live one, or where the edit ended); false = did not fit
                                         characterLimit / read-only / composing; a code write (no OnInput)
+               InputField.BeginEdit()  enter edit mode (selects it, opens the phone keyboard; any nav mode, even when
+                                        already selected); applied in LateUpdate; false = inactive / disabled / read-only
+               InputField.IsEditing    bool — in edit mode (selected-not-editing is false)
                Suggestions .OnSubmit   SuggestionSubmit (Text, ChosenIndex −1 = typed, IsChosen) — every submit
                            .OnHighlightChanged:int (−1 = none) / .OnOpened / .OnClosed:Unit
                .OnLinkClicked          Text:string (id of the <link="id"> clicked, read at click time — subscribe
@@ -1842,9 +1857,13 @@ public static class UI.Modal {
   | 3 | An open popup (`<Popover>` / `<TabMenu>` / a suggestion list) not under the top dialog | the popup closes | the popup closes |
   | 4 | An ad-hoc dialog | the top dialog's `TryEscape` (refusing still consumes it) | — |
   | 5 | A routed `Modal` on top of the chain | `UI.Router.Back()` (a guard's rejection still consumes it) | — |
+  | 6 | A text field being edited | Escape: consumed — TMP cancels the edit (rolling the text back); Start: not consumed | consumed — TMP cancels the edit |
 
   So a dialog with a menu open inside it survives the press that closes the menu, and a routed
-  Modal behaves the same.
+  Modal behaves the same. Row 6 is last: a field in a dialog does not keep the dialog open (the dialog
+  answers, and TMP cancels the edit too), a field in a popover does not keep the popover. A field that
+  is only selected (not editing) is not row 6. While it edits, the field is a listener itself, so the
+  press is heard on a plain page too.
 - **Your own back key sees the same press.** Game code that reads Escape / Cancel itself (an Input
   System action polled in `Update`, `Input.GetKeyDown`) to leave a mode, clear a selection or go back
   gets the press the UI just used to close a popover — one press, two effects. Check
@@ -2487,6 +2506,8 @@ screen.Focus("panel/confirmBtn"); // path into a template instance
 
 Available on `IScreen`. Throws `KeyNotFoundException` if the id is not in the Screen's static node map (same contract as `Get<T>`). When called before `UI.UseGamepadNavigation()`, `Focus` still sets the EventSystem selection but no cursor overlay is visible. BindItems-generated items are never in the static map — focus their container instead.
 
+On an `<InputField>` it only selects: under the pointer that starts editing, under directional navigation it waits for A / Enter, and on a field that is already selected it does nothing. To put a field into edit mode, call `field.BeginEdit()`.
+
 ### Modal focus trap (automatic)
 
 While a modal is open, directional navigation is **contained inside it** — arrow keys and gamepad stick cannot reach controls behind the modal. On close, the previously-selected control is restored. No code or XML markup is required; the modal stack wires this automatically.
@@ -2499,7 +2520,7 @@ directional input keeps moving between controls. Press **Submit** (gamepad A / k
 focused field to **enter edit mode** (caret active); press **Cancel** (gamepad B / keyboard Esc) — or
 Enter on a single-line field — to confirm and return to navigation. A **pointer click** still enters
 edit immediately (mouse UX unchanged). No markup is required; the behavior is automatic when navigation
-is enabled.
+is enabled. From code, `field.BeginEdit()` enters edit mode in either mode (`screen.Focus` only focuses).
 
 While editing with a `<Suggestions>` list open, the gamepad drives the list: d-pad / stick up-down move
 the highlight, **South** on a highlight chooses it (South with no highlight is the plain submit above),
