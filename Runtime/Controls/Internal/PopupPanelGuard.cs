@@ -25,6 +25,13 @@ namespace PromptUGUI.Controls.Internal
             PopupChain.SchedulePrune();
         }
 
+        // Destroyed while open — its Screen torn down without UI.Close (a scene change, leaving Play mode):
+        // off the chain now, so nothing later tries to close a panel that is gone.
+        private void OnDestroy()
+        {
+            if (Core != null && Core.IsOpen) Core.Abandon();
+        }
+
         // Presses outside the open pass-through popups, decided before the EventSystem passes them on
         // (spec 2026-10-19 §5.4). The probe runs once per frame however many popups call it.
         private void Update()

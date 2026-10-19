@@ -241,6 +241,11 @@ namespace PromptUGUI.Controls.Internal
         private void CloseCore(PopupCloseReason reason)
         {
             if (!IsOpen) return;
+            if (_panel == null || _group == null)
+            {
+                Abandon();
+                return;
+            }
             IsOpen = false;
 
             if (_blocker != null) _blocker.SetActive(false);
@@ -443,6 +448,30 @@ namespace PromptUGUI.Controls.Internal
             }
         }
 
+        /// <summary>
+        /// The panel was destroyed while open — its Screen torn down without <c>UI.Close</c> (a scene change,
+        /// leaving Play mode). The entry leaves the chain without the close path: that path writes to the
+        /// panel, and the host's close handlers to its subtree, all gone — nobody is told. Only what
+        /// outlives the panel is given back: a focus cage still on it, a catcher hung elsewhere.
+        /// </summary>
+        internal void Abandon()
+        {
+            PopupChain.Remove(this);
+            if (!IsOpen) return;
+            IsOpen = false;
+            CancelMotions();
+            if (_blocker != null) _blocker.SetActive(false);
+            if (_caged)
+            {
+                var root = UI.Navigation.ContainmentRoot;
+                if (!ReferenceEquals(root, null) && root == null)
+                    UI.Navigation.ContainmentRoot = _prevContainmentRoot != null ? _prevContainmentRoot : null;
+                _caged = false;
+            }
+            _prevContainmentRoot = null;
+            _prevScreenConfine = null;
+        }
+
         private void CancelMotions()
         {
             if (_fadeMotion.IsActive()) _fadeMotion.TryCancel();
@@ -531,6 +560,10 @@ namespace PromptUGUI.Controls.Internal
         private static bool s_warnedDepth;
 
         internal static void ResetDepthWarningForTests() => s_warnedDepth = false;
+
+        // Domain reload off: warn again in the next Play session.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetOnPlayStart() => ResetDepthWarningForTests();
 
         // A chain k deep sorts its top panel 2 + 2k above the page; on a routed page that must stay
         // below the next page depth (PageSortingOrderStep). Only reachable when a page below is still

@@ -306,10 +306,18 @@ namespace PromptUGUI.Controls.Internal
             return anchor != null && anchor.IsChildOf(panel);
         }
 
-        internal static void ResetForTests()
+        /// <summary>
+        /// A Play session starts from an empty chain. With <em>Enter Play Mode Options</em> skipping the
+        /// domain reload, statics outlive Play → Stop → Play, and so would the entries of popups open when
+        /// Play stopped — their panels destroyed.
+        /// </summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        internal static void ResetForPlaySession()
         {
             s_stack.Clear();
             s_prunePending = false;
         }
+
+        internal static void ResetForTests() => ResetForPlaySession();
     }
 }

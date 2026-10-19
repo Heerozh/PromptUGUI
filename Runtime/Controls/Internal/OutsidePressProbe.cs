@@ -161,6 +161,10 @@ namespace PromptUGUI.Controls.Internal
         }
 #endif
 
+        // Domain reload off: a new Play session latches afresh.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetOnPlayStart() => ResetForTests();
+
         internal static void ResetForTests()
         {
             PressesForTests = null;
