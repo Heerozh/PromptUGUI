@@ -118,6 +118,23 @@ namespace PromptUGUI.Tests.EditMode.Lint
         }
 
         [Test]
+        public void A_placement_may_add_an_alignment()
+        {
+            Assert.IsFalse(Has(Walk(Field("itemTemplate='Row' placement='below-end'")), SuggestionsRules.EnumCode));
+            Assert.IsFalse(Has(Walk(Field("itemTemplate='Row' placement='above-start'")), SuggestionsRules.EnumCode));
+            Assert.IsTrue(Has(Walk(Field("itemTemplate='Row' placement='below-middle'")), SuggestionsRules.EnumCode));
+            Assert.IsTrue(Has(Walk(Field("itemTemplate='Row' placement='end'")), SuggestionsRules.EnumCode));
+        }
+
+        [Test]
+        public void A_negative_or_non_numeric_popupWidth()
+        {
+            Assert.IsTrue(Has(Walk(Field("itemTemplate='Row' popupWidth='-1'")), SuggestionsRules.ValueCode));
+            Assert.IsTrue(Has(Walk(Field("itemTemplate='Row' popupWidth='wide'")), SuggestionsRules.ValueCode));
+            Assert.IsFalse(Has(Walk(Field("itemTemplate='Row' popupWidth='360'")), SuggestionsRules.ValueCode));
+        }
+
+        [Test]
         public void A_negative_or_non_numeric_maxHeight_or_gap()
         {
             Assert.IsTrue(Has(Walk(Field("itemTemplate='Row' maxHeight='-1'")), SuggestionsRules.ValueCode));

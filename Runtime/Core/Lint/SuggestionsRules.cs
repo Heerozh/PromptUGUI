@@ -51,8 +51,8 @@ namespace PromptUGUI.Lint
                 yield return new LintIssue(
                     LayoutAttrCode, n.Tag, n.Id,
                     $"<Suggestions id='{n.Id}'>: '{attr}' has no effect — the list is placed by its field: as wide " +
-                    "as the field, as tall as its rows (capped by maxHeight and the room on its side), shown only " +
-                    "while open. Drop it.");
+                    "as the field (popupWidth sets another width), as tall as its rows (capped by maxHeight and the " +
+                    "room on its side), shown only while open. Drop it.");
             }
 
             foreach (var c in n.Children)
@@ -77,13 +77,14 @@ namespace PromptUGUI.Lint
 
             foreach (var value in ValuesOf(n, styles, "placement"))
             {
-                if (value is null or "" or "below" or "above" || IsPlaceholder(value)) continue;
+                if (IsPlacement(value) || IsPlaceholder(value)) continue;
                 yield return new LintIssue(
                     EnumCode, n.Tag, n.Id,
-                    $"<Suggestions id='{n.Id}'>: placement='{value}' — expected below | above. The runtime throws.");
+                    $"<Suggestions id='{n.Id}'>: placement='{value}' — expected below | above, optionally -start | " +
+                    "-end (which edges line up with the field's when the list is wider). The runtime throws.");
             }
 
-            foreach (var attr in new[] { "maxHeight", "gap" })
+            foreach (var attr in new[] { "maxHeight", "gap", "popupWidth" })
                 foreach (var value in ValuesOf(n, styles, attr))
                 {
                     if (value == null || IsPlaceholder(value)) continue;
@@ -203,6 +204,17 @@ namespace PromptUGUI.Lint
             => n.Attributes.ContainsKey(attr) || n.VariantOverrides.ContainsKey(attr);
 
         private static bool IsPlaceholder(string value) => value != null && value.Contains("{{");
+
+        // below | above, optionally -start | -end — the runtime's Suggestions.Placement.
+        private static bool IsPlacement(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return true;
+            var v = value.Trim();
+            var dash = v.IndexOf('-');
+            var side = dash < 0 ? v : v.Substring(0, dash);
+            var align = dash < 0 ? "start" : v.Substring(dash + 1);
+            return (side == "below" || side == "above") && (align == "start" || align == "end");
+        }
 
         private static bool AnyFilled(IEnumerable<(string Variant, string Value)> variants)
         {

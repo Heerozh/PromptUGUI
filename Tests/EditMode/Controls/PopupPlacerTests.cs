@@ -89,5 +89,31 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.AreEqual(-100f, p.AnchoredPosition.x, 0.001f, "pulled back inside the safe right edge, not the canvas's");
             Assert.AreEqual(246f, p.Room, 0.001f, "measured to the safe bottom edge");
         }
+
+        // ── End alignment (spec 2026-10-19-suggestions-width-pickable §4.1) ─────────────────────
+
+        [Test]
+        public void alignEnd_lines_up_the_right_edges()
+        {
+            // Handle 0..120, panel 200 wide: its left edge 80 left of the handle's.
+            var p = PopupPlacer.Solve(Handle(0f, 0f), new Vector2(200f, 100f), Canvas800, 4f, preferAbove: false, alignEnd: true);
+            Assert.AreEqual(-80f, p.AnchoredPosition.x, 0.001f);
+        }
+
+        [Test]
+        public void alignEnd_never_passes_the_left_bound()
+        {
+            // Handle -380..-260: right-aligned the panel would start at -460, 60 past the bound at -400.
+            var p = PopupPlacer.Solve(Handle(-380f, 0f), new Vector2(200f, 100f), Canvas800, 4f, preferAbove: false, alignEnd: true);
+            Assert.AreEqual(-20f, p.AnchoredPosition.x, 0.001f);
+        }
+
+        [Test]
+        public void Start_alignment_is_what_it_was()
+        {
+            Assert.AreEqual(0f, PopupPlacer.Solve(Handle(0f, 0f), new Vector2(200f, 100f), Canvas800, 4f).AnchoredPosition.x);
+            // Handle 300..420, panel 200: 100 past the right bound, pulled back.
+            Assert.AreEqual(-100f, PopupPlacer.Solve(Handle(300f, 0f), new Vector2(200f, 100f), Canvas800, 4f).AnchoredPosition.x);
+        }
     }
 }

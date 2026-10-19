@@ -41,7 +41,8 @@ namespace PromptUGUI.Controls.Internal
         /// </param>
         /// <param name="gap">Vertical space left between handle and panel.</param>
         /// <param name="preferAbove">Open upward unless that side cannot hold the panel.</param>
-        public static PopupPlacement Solve(Rect handle, Vector2 panel, Rect bounds, float gap, bool preferAbove = false)
+        public static PopupPlacement Solve(Rect handle, Vector2 panel, Rect bounds, float gap, bool preferAbove = false,
+                                           bool alignEnd = false)
         {
             var roomBelow = handle.yMin - bounds.yMin;
             var roomAbove = bounds.yMax - handle.yMax;
@@ -55,11 +56,11 @@ namespace PromptUGUI.Controls.Internal
             var flip = needed > roomPreferred && roomOther > roomPreferred;
             var above = preferAbove != flip;
 
-            // Left-aligned with the handle, then pulled back inside the right edge if it spills —
-            // and never pushed past the left edge in the process.
-            var dx = 0f;
-            var overflowRight = handle.xMin + panel.x - bounds.xMax;
-            if (overflowRight > 0f) dx = -overflowRight;
+            // Left-aligned with the handle (right-aligned with alignEnd), then pulled back inside the right
+            // edge if it spills — and never pushed past the left edge in the process.
+            var dx = alignEnd ? handle.width - panel.x : 0f;
+            var overflowRight = handle.xMin + dx + panel.x - bounds.xMax;
+            if (overflowRight > 0f) dx -= overflowRight;
             var leftLimit = bounds.xMin - handle.xMin;
             if (dx < leftLimit) dx = leftLimit;
 
