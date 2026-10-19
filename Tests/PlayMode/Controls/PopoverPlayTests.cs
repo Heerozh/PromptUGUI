@@ -349,6 +349,52 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             Assert.IsFalse(Pop.IsOpen);
         }
 
+        // TMP reads its Escape from IMGUI, which in the Editor can come a frame after the Input System callback
+        // the chain closed the list in; the fixture's keys never reach IMGUI, so the test hands that KeyDown over.
+        [UnityTest]
+        public IEnumerator Escape_in_a_search_popover_closes_only_the_suggestions_though_TMP_reads_it_a_frame_late()
+        {
+            var keyboard = InputSystem.AddDevice<Keyboard>();
+            UI.LoadDocument("search", @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Template name='Row'><Frame height='30'><Text id='label'>x</Text></Frame></Template>
+  <Screen name='Search'>
+    <Btn id='a' anchor='center' size='80x40'>A</Btn>
+    <Popover id='pop' on='click@a' transition='0' closeOnEditEnd='true'>
+      <InputField id='q' width='200' height='40'><Suggestions id='s' itemTemplate='Row' transition='0'/></InputField>
+    </Popover>
+  </Screen>
+</PromptUGUI>");
+            UI.CloseImmediate("S");
+            _s = UI.Open("Search");
+            var closes = new List<PopoverCloseReason>();
+            Pop.OnClosed.Subscribe(closes.Add);
+            yield return Open();
+            var q = _s.Get<InputField>("q");
+            var list = _s.Get<Suggestions>("s");
+            Assert.IsTrue(q.BeginEdit());
+            yield return null;
+            yield return null;
+            Assert.IsTrue(q.IsEditing, "precondition: editing");
+            q.TextValue = "ap";
+            list.Open();
+            list.BindItems(Observable.Return<IReadOnlyList<string>>(new[] { "apple" }), (IControl row, string v) => { });
+            Assert.IsTrue(list.IsOpen, "precondition: the list is up");
+
+            Press(keyboard.escapeKey);
+            yield return null;   // the chain closes the list
+            Assert.IsFalse(list.IsOpen);
+            yield return null;   // TMP's KeyDown for that press
+            q.GameObject.GetComponent<PuiInputField>().HandleKeyDown(Event.KeyboardEvent("escape"));
+            Release(keyboard.escapeKey);
+            for (var i = 0; i < 3; i++) yield return null;
+
+            Assert.IsTrue(q.IsEditing, "still editing");
+            Assert.AreEqual("ap", q.TextValue, "no rollback");
+            Assert.IsTrue(Pop.IsOpen, "the popover stays");
+            CollectionAssert.IsEmpty(closes);
+        }
+
         private sealed class OpenOnPointerDown : MonoBehaviour, IPointerDownHandler
         {
             public Popover Popover;

@@ -164,7 +164,7 @@ TabMenu 的既有用例全部落在这两条里：展开时焦点被圈在面板
 |---|---|---|---|
 | 1 | `Tutorial.IsBlockingInput` | 吞掉，什么都不做（浮层也不收） | §1.2-2 |
 | 2 | 有展开中的 `<Dropdown>` 列表 | `Hide()`，消费 | §1.2-4 |
-| 3 | 浮层链非空，且栈顶宿主的层不低于当前最上层模态 | 关栈顶（`Escape`），消费；记 `PopupConsumedFrame = Time.frameCount` | §1.2-1 |
+| 3 | 浮层链非空，且栈顶宿主的层不低于当前最上层模态 | 关栈顶（`Escape`），消费；记 `PopupConsumedFrame = Time.frameCount`；键盘 Esc 另记一笔「欠文本框一下 KeyDown」（§18） | §1.2-1 |
 | 4 | `key == CancelButton` | 不消费（B 从来不关模态，维持现有契约） | |
 | 5 | ad-hoc 模态栈非空 | 栈顶 `TryEscape`；被拒（如只有 OK）也算消费，同今天 | |
 | 6 | 路由链栈顶是 Modal | `Back()`，消费；`Back()` 被路由守卫拒绝时会同步抛 `NavigationRejectedException`（`UI.Router.cs:30-35`），这里接住，仍算消费 | §1.2-1 |
@@ -173,7 +173,7 @@ TabMenu 的既有用例全部落在这两条里：展开时焦点被圈在面板
 - **同一次按键只决定一次**：同一个 `pressId` 第二次进来，直接返回第一次的结果，什么也不做。真实监听传 `Time.frameCount`（同一次按键，所有监听都在同一帧听到）；`FireForTests()` 每次传一个新的负数 id，所以每次调用都算一次新按键。
 - **监听组件**：`ModalEscapeListener` 去掉按实例的 `OnEscape` 回调，统一调 `Dispatch`（Input System 按触发的 control 区分 East 与其它；legacy 按 `KeyCode.Escape`）。各监听挂的位置不变：每个 ad-hoc 模态根（只有栈顶启用）、每个路由 Modal 根、每个打开的浮层面板。另有一处顺手修：InputActionMap 改为建一次、随 `enabled` 开关，不再每次 `OnEnable` 新建。候选列表开关频繁，每次新建会持续分配。
 - **删除**：`TabMenu.TryConsumeEscape` / `s_escapeFrame` / `NotifyEscapeConsumedForTests` / `ForgetEscapeFrameForTests`。`UI.Modal.OnEscapePressed(slot)` 改成 `UI.Modal.TryHandleEscape()`，路由的 lambda 改成 `UI.Router.TryHandleEscape()`。
-- **与文本框协调**：TMP 自己也处理 Esc（取消编辑、回滚文字），而且在 EventSystem 的 Update 里，晚于 Input System 的回调。`PopupConsumedFrame` 让 `PuiInputField` 认出「这一下已经被链用来关浮层了」，不再交给 TMP（§6.6）。
+- **与文本框协调**：TMP 自己也处理 Esc（取消编辑、回滚文字），从两处听到：输入模块的 Cancel（与链同一次 Input System 更新，同帧），和 IMGUI 的 Escape KeyDown（在 EventSystem 的 Update 里读，可能晚一帧到）。`PopupConsumedFrame` 让 `PuiInputField.OnCancel` 认出「这一下已经被链用来关浮层了」；IMGUI 那一路按「欠账」处理，不看帧号（§6.6、§18）。
 - **Dropdown**：`PuiDropdown` 覆盖 `CreateBlocker` / `DestroyBlocker`（TMP 里都是 `protected virtual`），据此维护一个「展开中」的静态集合，供第 2 步与 §4.5 使用。Dropdown 不进浮层链：它的 30000 层带不变（§12）。
 
 ### 4.5 更高的层出现时收起
@@ -355,7 +355,7 @@ public Suggestions Suggestions { get; }      // 没有 <Suggestions> 子元素�
 | ↑ | 高亮上移，循环：无 → n−1 → … → 0 → 无 | 否 |
 | Enter / 小键盘 Enter，有高亮 | 选中提交（§6.4） | 否 |
 | Enter，无高亮 | 交给 TMP：普通提交并结束编辑（今天的行为） | 是 |
-| Esc | 不处理：由 Esc 链关列表（§4.4）；本帧已被链消费的 Esc 同样吞掉 | 否 |
+| Esc | 不处理：由 Esc 链关列表（§4.4）；链为关浮层用掉的那一下 Esc，它晚到的 KeyDown 与按住时的重复同样吞掉（§18） | 否 |
 | 其余（字符、← →、Home / End、Backspace、Ctrl+A / C / V / X …） | 原样交给 TMP | 是 |
 
 列表关着时，所有按键都交给 TMP，零行为变化。多行输入框同表（列表打开时 ↑↓ 归列表），另有 lint 警告。
@@ -417,7 +417,7 @@ public Suggestions Suggestions { get; }      // 没有 <Suggestions> 子元素�
 
 `InputField` 改挂 `PuiInputField : TMP_InputField`。不开候选列表时它不改变任何行为。
 
-- **`OnUpdateSelected`**（TMP 里是 `public virtual`）：只在「列表打开 ∨ `EscapeChain.PopupConsumedFrame == Time.frameCount`」且不在组字窗口内时接管，其余直接 `base`。接管时：
+- **`OnUpdateSelected`**（TMP 里是 `public virtual`）：只在「列表打开 ∨ 链还欠着一下 Esc KeyDown ∨ 被吞掉的那下 Esc 还按着」（`TakesKeys`，§18）且不在组字窗口内时接管，其余直接 `base`。接管时：
   - 自己用 `Event.PopEvent` 取事件，每个 KeyDown 交给纯函数 `SuggestionKeys.Route(Event, 状态)` 决定动作（§6.2 的表）；
   - 不归列表的键交给 `KeyPressed`（`protected`）。返回 `Finish` 时照 `base` 的做法：未取消就 `SendOnSubmit()`，然后 `DeactivateInputField()`；
   - `ValidateCommand` / `ExecuteCommand` 的 `SelectAll` 交给 `SelectAll()`；
@@ -747,3 +747,32 @@ public Suggestions Suggestions { get; }      // 没有 <Suggestions> 子元素�
 - `Control.CanvasGroup` 改为先找后建（P19），并用显式 null 判断：编辑器里缺失的原生组件 `GetComponent` 回来的是假 null，`??` 会把它当成真对象。
 
 **验证**：EditMode / EditorOnly / PlayMode 三个程序集全绿；`dotnet format --verify-no-changes` 干净；UIXmlLint 对 `Runtime/Resources/` 与 `Samples~/` 零问题，scratchpad 里一份故意出错的 `.ui.xml` 九个 `PUI-SUGGEST-*` 全部报出。真按键的 PlayMode 用例（`InputTestFixture`）覆盖手柄十字键移高亮与 Esc 只关列表；IMGUI 事件循环本身（`Event.PopEvent` 那一行）、输入法、手机真机与样例的观感留待手测。
+
+## 18. 修复：Esc 的 IMGUI KeyDown 晚一帧到
+
+**现象**（编辑器里真按键）：`<Popover closeOnEditEnd="true">` 里一个带 `<Suggestions>` 的输入框，列表开着按一下 Esc —— 列表关了，下一帧编辑被取消、文字回滚，浮层随之以 `EditEnded` 关闭。不在浮层里的带候选输入框，按一下 Esc 也会把编辑一起取消。预期是第一下只关列表、继续编辑。
+
+**原因**：链在第 N 帧的 Input System 回调里关掉列表，并记 `PopupConsumedFrame = N`。同一下按键 TMP 会从两处收到：
+
+- 输入模块的 Cancel —— `InputSystemUIInputModule` 按 `WasPerformedThisDynamicUpdate` 发，与链是同一次 Input System 更新，必在第 N 帧，`OnCancel` 的同帧判断防得住；
+- IMGUI 的 Escape KeyDown —— TMP 在 EventSystem 的 Update 里用 `Event.PopEvent` 读，与 Input System 是两条独立的事件来路，编辑器里实测会晚到 N+1。那时 `PopupConsumedFrame == Time.frameCount` 已不成立，列表也已关（`ListTakesKeys` 为假），于是走 `base.OnUpdateSelected`，TMP 当成取消编辑。
+
+TMP 的回滚只有这两个入口（另一个是软键盘取消，与桌面无关）：`KeyPressed` 里的 `KeyCode.Escape`，和 `OnCancel`。字符 27 被 `IsValidChar` 挡掉，不会回滚。所以凡是回滚，必是 Escape KeyDown 在第 N 帧之外到了 `base`。`InputTestFixture` 只模拟 Input System、不产生 IMGUI 事件，原有的 PlayMode 用例抓不到这个时序。
+
+**修法**：IMGUI 那一路不再按「同一帧」判断，改成「链欠输入框一下 Esc KeyDown」。
+
+- **记账**（`EscapeChain`，§4.4 第 3 步）：键盘 Esc（`EscapeKey.Escape`）关掉浮层时，记下这一帧。手柄的 East / Start 没有 IMGUI KeyDown，不记。`EscapeOwed` 只在记账后的 `OwedEscapeFrames = 3` 帧内为真：一直没人收这笔账，说明那下 KeyDown 在链听到之前就过去了。
+- **收账**（`PuiInputField`）：只要还欠着，`OnUpdateSelected` 就接管 IMGUI 循环。下一个 Escape KeyDown 经 `SuggestionKeys.Route` 吞掉，并清账（`SettleOwedEscape`）。
+- **按住**：被吞掉的那下 Esc 在 KeyUp 之前仍算同一次按键。它的系统重复 KeyDown 也吞掉，接管一直持续到 Escape KeyUp。旧实现里按住 Esc 过了重复延迟（约 0.5 秒），TMP 同样会取消编辑；这次一并修掉。编辑开始或结束（`isFocused` 的边沿）、`OnDisable` 都会清掉「按住」，免得 KeyUp 没来就卡住。
+- **KeyUp 先到**：已经欠着，却先看到 Escape KeyUp —— 说明 IMGUI 跑在链前面，那下 KeyDown 已被开着的列表吞掉 —— 这时清账，下一次按 Esc 照常归 TMP。
+- **`OnCancel` 不变**：仍按 `PopupConsumedFrame == Time.frameCount` 判断，理由见上。
+- **测试**：`ForgetPopupConsumedFrameForTests` 一并清账，`ResetForPlaySession` 也清。
+
+**测试**（先红）：`InputFieldSuggestionsDevicePlayTests.An_escape_keydown_a_frame_late_does_not_cancel_the_edit` 用真键盘按下 Esc，在 N+1 帧手动把 IMGUI 的 Escape KeyDown 交给 `HandleKeyDown`。改前红在「编辑被取消」上。另有：
+
+- `PopoverDevicePlayTests.Escape_in_a_search_popover_closes_only_the_suggestions_though_TMP_reads_it_a_frame_late`：上面的现象原样复现，断言浮层不关、`OnClosed` 不发；
+- `A_held_escape_keeps_its_key_repeats_from_TMP`、`An_owed_escape_nobody_collects_lapses`（PlayMode）；
+- `PuiInputFieldTests` 的收账、按住、KeyUp 先到三例；
+- `EscapeChainTests.Only_a_keyboard_popup_press_is_owed_to_a_text_field` / `A_press_that_closes_no_popup_owes_nothing`。
+
+真机上 IMGUI KeyDown 落在哪一帧仍只能手测；修法对 N、N+1 到 N+3 帧都成立，KeyDown 先于链到达也成立。

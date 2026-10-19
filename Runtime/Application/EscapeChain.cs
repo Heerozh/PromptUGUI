@@ -37,11 +37,33 @@ namespace PromptUGUI.Application
         private static int s_nextTestPress = -1;
 
         /// <summary>
-        /// The frame a press was spent closing a popup. A text field processes the same key in the
-        /// EventSystem's update, after the Input System callbacks; it reads this so it does not also
-        /// cancel its edit for a press that only closed its suggestion list.
+        /// The frame a press was spent closing a popup. The input module sends a text field its Cancel for
+        /// the same press in this frame's EventSystem update — the same Input System update the chain heard
+        /// it in; the field reads this so it does not also cancel its edit for a press that only closed its
+        /// suggestion list.
         /// </summary>
         internal static int PopupConsumedFrame { get; private set; } = int.MinValue;
+
+        /// <summary>
+        /// How many frames after the press a field may still collect its Escape KeyDown (<see cref="EscapeOwed"/>).
+        /// It has been seen a frame late; nobody collecting means the KeyDown went by before the chain heard it.
+        /// </summary>
+        internal const int OwedEscapeFrames = 3;
+
+        private static int s_owedEscapeFrame = int.MinValue;
+
+        /// <summary>
+        /// A keyboard Escape was spent closing a popup, and TMP has yet to read that press's own KeyDown. TMP
+        /// reads Escape from IMGUI, not from the Input System, and the KeyDown can come a frame after the
+        /// callback the chain ran in — a same-frame test misses it, and the edit the press only closed a list
+        /// over is cancelled and rolled back. The field being edited takes the next Escape KeyDown as the one
+        /// owed (<see cref="SettleOwedEscape"/>).
+        /// </summary>
+        internal static bool EscapeOwed =>
+            s_owedEscapeFrame != int.MinValue && Time.frameCount - s_owedEscapeFrame <= OwedEscapeFrames;
+
+        /// <summary>The owed KeyDown was taken, or its press is over.</summary>
+        internal static void SettleOwedEscape() => s_owedEscapeFrame = int.MinValue;
 
         /// <summary>The frame a press was spent on anything — what <see cref="UI.EscapeConsumedThisFrame"/> reads.</summary>
         internal static int ConsumedFrame { get; private set; } = int.MinValue;
@@ -72,6 +94,8 @@ namespace PromptUGUI.Application
             if (top != null && top.HostRootOrder >= TopModalOrder())
             {
                 PopupConsumedFrame = Time.frameCount;
+                // The gamepad's buttons have no IMGUI KeyDown to come.
+                if (key == EscapeKey.Escape) s_owedEscapeFrame = Time.frameCount;
                 PopupChain.Close(top, PopupCloseReason.Escape);
                 return true;
             }
@@ -107,8 +131,15 @@ namespace PromptUGUI.Application
         /// <summary>A fresh press id for every test call — never equal to a frame count.</summary>
         internal static int NextTestPress() => s_nextTestPress--;
 
-        /// <summary><see cref="PopupConsumedFrame"/> outlives a <c>[Test]</c>'s frozen frame count otherwise.</summary>
-        internal static void ForgetPopupConsumedFrameForTests() => PopupConsumedFrame = int.MinValue;
+        /// <summary>
+        /// <see cref="PopupConsumedFrame"/> and <see cref="EscapeOwed"/> outlive a <c>[Test]</c>'s frozen frame
+        /// count otherwise.
+        /// </summary>
+        internal static void ForgetPopupConsumedFrameForTests()
+        {
+            PopupConsumedFrame = int.MinValue;
+            SettleOwedEscape();
+        }
 
         /// <summary>
         /// Domain reload off: frame numbers start over in the next Play session, and the last session's
@@ -121,6 +152,7 @@ namespace PromptUGUI.Application
             s_lastResult = false;
             PopupConsumedFrame = int.MinValue;
             ConsumedFrame = int.MinValue;
+            SettleOwedEscape();
             InputField.ForgetEditing();
         }
 

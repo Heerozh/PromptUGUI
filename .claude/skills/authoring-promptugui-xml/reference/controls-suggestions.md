@@ -106,7 +106,7 @@ While the list is open (and no input method is composing — below):
 | ↑ | highlight previous: none → n−1 → … → 0 → none | no |
 | Enter / keypad Enter, with a highlight | choose it | no |
 | Enter, no highlight | TMP's own submit of the typed text, ending the edit | yes |
-| Escape | the Escape chain closes the list; the field keeps editing and the text is **not** rolled back | no |
+| Escape | the Escape chain closes the list; the field keeps editing and the text is **not** rolled back — holding the key down does not cancel the edit either; the next press does | no |
 | anything else (characters, ← →, Home / End, Backspace, Ctrl+A / C / V / X, Shift+↑↓ …) | — | yes |
 
 With the list closed, every key is TMP's as before. A multi-line field works the same (↑ / ↓ belong to the list while it is open — `PUI-SUGGEST-MULTILINE` warns). The highlight scrolls its row into view; holding ↓ steps one row at a time.
