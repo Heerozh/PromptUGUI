@@ -509,6 +509,9 @@ namespace PromptUGUI.Application
             var declaredBase = node.Attributes.ContainsKey("scale");
             var declaredVariant = node.VariantOverrides.ContainsKey("scale");
             if (!declaredBase && !declaredVariant) return;
+            // A control that places itself (a <Popover>) ignores scale like the rest of the common
+            // geometry; the box compensation would be written onto its panel.
+            if (control.OwnsGeometry) return;
 
             var raw = PromptUGUI.Variants.VariantResolver.ResolveAttribute(
                 node, "scale", Variants);

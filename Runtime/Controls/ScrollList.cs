@@ -439,12 +439,16 @@ namespace PromptUGUI.Controls
             catch (ArgumentException) { seconds = 0f; return false; }
         }
 
-        /// <summary>The driver committed a drop: keep <see cref="Slots"/> in step with the sibling order.</summary>
+        /// <summary>
+        /// The driver committed a drop: keep <see cref="Slots"/> in step with the sibling order, and the binding's
+        /// snapshot with the rows — a keyed push of the permuted list then finds every row on its own item.
+        /// </summary>
         internal void PermuteSlots(int from, int to)
         {
             var row = _slots[from];
             _slots.RemoveAt(from);
             _slots.Insert(to, row);
+            if (_binding != null && from < _binding.Count && to < _binding.Count) _binding.Move(from, to);
         }
 
         internal void RaiseReordered(int from, int to) => _reordered.OnNext((from, to));
@@ -1901,6 +1905,7 @@ namespace PromptUGUI.Controls
             {
                 var row = _leaving[_leaving.Count - 1];
                 _leaving.RemoveAt(_leaving.Count - 1);
+                LoseAnchors(HostOf(row));   // handed to another item
                 return row;
             }
             while (_parked.Count > 0)
@@ -1948,6 +1953,7 @@ namespace PromptUGUI.Controls
         {
             var host = HostOf(row);
             if (host == null) return;   // destroyed from outside
+            LoseAnchors(host);
             if (row is Control c) c.ReleaseSubscriptions();
             host.SetParent(EnsurePool(), worldPositionStays: false);
             _parked.Add(row);
@@ -1985,8 +1991,27 @@ namespace PromptUGUI.Controls
         private void Retire(IControl row)
         {
             var host = HostOf(row);
-            if (host != null) host.SetParent(EnsurePool(), worldPositionStays: false);
+            if (host != null)
+            {
+                LoseAnchors(host);
+                host.SetParent(EnsurePool(), worldPositionStays: false);
+            }
             row.Dispose();
+        }
+
+        /// <summary>
+        /// A row that stops showing its item — retired, parked, or handed to another item — closes the popovers
+        /// anchored in it as <see cref="PopupCloseReason.AnchorLost"/> (spec 2026-10-19 §5.5). A row that keeps
+        /// its item is re-bound on every push and closes nothing. The close handlers run under the sync guard: a
+        /// push they make waits for the one in progress (some of these paths run outside a sync).
+        /// </summary>
+        private void LoseAnchors(RectTransform host)
+        {
+            if (PopupChain.Count == 0) return;
+            var wasInSync = _inSync;
+            _inSync = true;
+            try { PopupChain.DismissUnder(host, PopupCloseReason.AnchorLost); }
+            finally { _inSync = wasInSync; }
         }
 
         private void ClearSlots()

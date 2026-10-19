@@ -1143,6 +1143,26 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Popover_lists_its_attributes()
+        {
+            // placement / gap / on exist on other tags already; dismiss is the popover's own.
+            var xsd = XsdGenerator.Generate(PromptUGUI.Application.UI.Registry);
+            StringAssert.Contains("name=\"Popover\"", xsd);
+            StringAssert.Contains("name=\"dismiss\"", xsd);
+            const string sample = @"<?xml version='1.0' encoding='utf-8'?>
+<PromptUGUI version='1'>
+  <Screen name='S'>
+    <Btn id='more'>…</Btn>
+    <Popover id='menu' on='click@more' placement='bottom-end' gap='4' dismiss='block' padding='6' radius='8'>
+      <Btn id='a'>A</Btn>
+      <Show on='expand@menu'><Text>open</Text></Show>
+    </Popover>
+  </Screen>
+</PromptUGUI>";
+            AssertValidates(xsd, sample, "A <Popover> with its attributes and children must validate.");
+        }
+
+        [Test]
         public void InputField_lists_submitIcon()
         {
             var xsd = XsdGenerator.Generate(PromptUGUI.Application.UI.Registry);

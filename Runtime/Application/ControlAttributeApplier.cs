@@ -123,8 +123,12 @@ namespace PromptUGUI.Application
             // writer on that axis and would drop the box-preserving inflation), so it is a hard
             // error here rather than a ScreenInstantiator warning. Same predicate the CLI uses —
             // declared, not resolved — so both reject exactly the same documents.
-            foreach (var issue in PromptUGUI.Lint.ClampRules.CheckClampScale(node))
-                throw HardError(node, issue);
+            // A control that sizes itself (a <Popover>, spec 2026-10-19 §5.8) owns hug and ignores
+            // scale: none of the three contradictions below can reach it.
+            var ownsGeometry = control.OwnsGeometry;
+            if (!ownsGeometry)
+                foreach (var issue in PromptUGUI.Lint.ClampRules.CheckClampScale(node))
+                    throw HardError(node, issue);
 
             // A <Collapsible> with an authored height cannot render as anything: the axis is
             // force-hugged, so the value would be silently dropped every pass. Hard error, same
@@ -136,10 +140,13 @@ namespace PromptUGUI.Application
             // hug on a tag with no content size cannot be measured at all, and hug + scale has the
             // same last-writer conflict as clamp + scale. Hard errors for the same reason: silently
             // rendering a 0-sized control would be worse than refusing to open.
-            foreach (var issue in PromptUGUI.Lint.HugRules.CheckHugTag(node))
-                throw HardError(node, issue);
-            foreach (var issue in PromptUGUI.Lint.HugRules.CheckHugScale(node))
-                throw HardError(node, issue);
+            if (!ownsGeometry)
+            {
+                foreach (var issue in PromptUGUI.Lint.HugRules.CheckHugTag(node))
+                    throw HardError(node, issue);
+                foreach (var issue in PromptUGUI.Lint.HugRules.CheckHugScale(node))
+                    throw HardError(node, issue);
+            }
 
             // reveal + scale is the same last-writer conflict; the rest of AnimationRules stays on
             // the warning channel (a wrong child count still renders something sensible).
@@ -227,6 +234,13 @@ namespace PromptUGUI.Application
                     UILog.At(node));
             }
         }
+
+        /// <summary>An exception raised while applying <paramref name="node"/>, with the node's place —
+        /// the same shape the apply pass gives it, for work deferred past that pass.</summary>
+        internal static ParseException WrapForNode(ElementNode node, Exception ex)
+            => node == null
+                ? new ParseException(ex.Message)
+                : new ParseException(FormatNodeContext(node) + ": " + ex.Message + UILog.At(node));
 
         private static string FormatNodeContext(ElementNode node)
         {

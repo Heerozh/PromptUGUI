@@ -293,3 +293,13 @@ msgstr "Picked #{0}: {1}"
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:143
 msgid "Searched: {0}"
 msgstr "Searched: {0}"
+
+# . in BindChatInput()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:393
+msgid "输入框放不下了"
+msgstr "The field is full"
+
+# . in BindChatInput()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:401
+msgid "我：{0}"
+msgstr "Me: {0}"

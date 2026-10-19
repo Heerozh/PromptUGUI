@@ -17,7 +17,7 @@ namespace PromptUGUI.Controls.Internal
         /// express at all. Every reference that resolved before still resolves to the same control:
         /// the subtree is still consulted first.</para>
         /// </summary>
-        public static IControl ResolveId(Trigger trigger, string id, string onLabel)
+        public static IControl ResolveId(Control trigger, string id, string onLabel, string tag = "Trigger")
         {
             if (trigger.ScopedIds.TryGetValue(id, out var found)) return found;
 
@@ -35,9 +35,28 @@ namespace PromptUGUI.Controls.Internal
             if (screen != null && screen.TryGet(id, out found)) return found;
 
             throw new InvalidOperationException(
-                $"<Trigger on=\"{onLabel}@{id}\"> in '{trigger.Id ?? trigger.GameObject.name}': id '{id}' not " +
+                $"<{tag} on=\"{onLabel}@{id}\"> in '{trigger.Id ?? trigger.GameObject.name}': id '{id}' not " +
                 "found in the trigger's subtree, its enclosing template instance, or screen " +
                 $"'{screen?.Name ?? "?"}'.");
+        }
+
+        /// <summary>
+        /// The <c>&lt;Btn&gt;</c> a <c>&lt;Popover on="click@id"&gt;</c> toggles on (spec 2026-10-19 §4.3): looked
+        /// up lexically like any <c>@id</c>, and refused when it is not a <c>&lt;Btn&gt;</c> or sits inside the
+        /// popover itself — a popover's children share its enclosing id scope, so the lookup alone would
+        /// find one there.
+        /// </summary>
+        public static Btn FindTriggerBtn(Control popover, string id, string tag)
+        {
+            var ctrl = ResolveId(popover, id, "click", tag);
+            if (ctrl.GameObject != null && popover.GameObject != null
+                && ctrl.GameObject.transform.IsChildOf(popover.GameObject.transform))
+                throw new InvalidOperationException(
+                    $"<{tag} on=\"click@{id}\"> in '{popover.Id ?? popover.GameObject.name}': '{id}' is inside the " +
+                    "popover itself — the trigger has to be outside the panel it opens.");
+            return ctrl as Btn ?? throw new InvalidOperationException(
+                $"<{tag} on=\"click@{id}\">: id '{id}' is a {ctrl.GetType().Name}, not a <Btn>. " +
+                "click requires a <Btn>.");
         }
 
         /// <summary>
@@ -209,14 +228,14 @@ namespace PromptUGUI.Controls.Internal
                 if (marker == null || marker.Owner == null)
                     throw new InvalidOperationException(
                         $"<Trigger on=\"expand\"/\"collapse\"> in '{trigger.Id ?? trigger.GameObject.name}': " +
-                        "no <TabMenu>/<Collapsible> ancestor found. Place it inside one, or use expand@<id>.");
+                        "no <TabMenu>/<Collapsible>/<Popover> ancestor found. Place it inside one, or use expand@<id>.");
                 return marker.Owner;
             }
 
             var ctrl = ResolveId(trigger, sourceId, "expand/collapse");
             return ctrl as IExpandable ?? throw new InvalidOperationException(
                 $"<Trigger on=\"expand@{sourceId}\">: id '{sourceId}' is a " +
-                $"{ctrl.GetType().Name}, not a <TabMenu>/<Collapsible>. " +
+                $"{ctrl.GetType().Name}, not a <TabMenu>/<Collapsible>/<Popover>. " +
                 "expand / collapse require one of those.");
         }
 

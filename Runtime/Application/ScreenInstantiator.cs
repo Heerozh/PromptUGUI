@@ -24,6 +24,49 @@ namespace PromptUGUI.Application
         private readonly ControlRegistry _registry;
         private readonly VariantStore _variants;
 
+        // A subtree built at runtime (an itemTemplate row, Instantiate, an <Add> block a ReSolve switches
+        // on) applies each node as soon as it exists, so an @id naming a LATER sibling would find nothing.
+        // Such work waits here until the outermost build of that kind is done (spec 2026-10-19 §5.6). A
+        // Screen being opened needs none of it: it is built whole before anything is applied.
+        private static int s_buildDepth;
+        private static readonly List<System.Action> s_afterBuild = new();
+
+        /// <summary>True while a runtime subtree is being built and applied.</summary>
+        internal static bool IsBuilding => s_buildDepth > 0;
+
+        /// <summary>Runs <paramref name="action"/> once the runtime subtree being built is complete, or now.</summary>
+        internal static void DeferAfterBuild(System.Action action)
+        {
+            if (s_buildDepth > 0) s_afterBuild.Add(action);
+            else action();
+        }
+
+        private static void EnterBuild() => s_buildDepth++;
+
+        // The outermost build ends: run what waited for it — unless the build itself failed, in which case
+        // the half-built subtree's waiting work is dropped with it.
+        private static void ExitBuild(bool completed)
+        {
+            if (--s_buildDepth > 0) return;
+            if (!completed)
+            {
+                s_afterBuild.Clear();
+                return;
+            }
+            while (s_afterBuild.Count > 0)
+            {
+                var batch = s_afterBuild.ToArray();
+                s_afterBuild.Clear();
+                foreach (var action in batch) action();
+            }
+        }
+
+        internal static void ResetBuildForTests()
+        {
+            s_buildDepth = 0;
+            s_afterBuild.Clear();
+        }
+
         public ScreenInstantiator(ControlRegistry registry, VariantStore variants)
         {
             _registry = registry;
@@ -41,6 +84,22 @@ namespace PromptUGUI.Application
         /// 让调用方能用 root.Get&lt;T&gt;("childId") 访问子节点。不污染 Screen._byId。
         /// </summary>
         public IControl InstantiateNode(ElementNode node, RectTransform parent, Screen owner)
+        {
+            EnterBuild();
+            var completed = false;
+            try
+            {
+                var root = InstantiateNodeCore(node, parent, owner);
+                completed = true;
+                return root;
+            }
+            finally
+            {
+                ExitBuild(completed);
+            }
+        }
+
+        private IControl InstantiateNodeCore(ElementNode node, RectTransform parent, Screen owner)
         {
             var scope = new Dictionary<string, IControl>();
             var nodeMap = new Dictionary<ElementNode, Control>();
@@ -95,6 +154,26 @@ namespace PromptUGUI.Application
 
         internal List<GameObject> ApplyAddBlock(VariantBlock block, InstantiationResult result,
                                                 List<ElementNode> applyOrder = null)
+        {
+            // Applied inline (a ReSolve switching the block on): a runtime build, like a template row.
+            // With an applyOrder the Screen applies it later, after everything exists.
+            if (applyOrder != null) return ApplyAddBlockCore(block, result, applyOrder);
+            EnterBuild();
+            var completed = false;
+            try
+            {
+                var roots = ApplyAddBlockCore(block, result, null);
+                completed = true;
+                return roots;
+            }
+            finally
+            {
+                ExitBuild(completed);
+            }
+        }
+
+        private List<GameObject> ApplyAddBlockCore(VariantBlock block, InstantiationResult result,
+                                                   List<ElementNode> applyOrder)
         {
             var roots = new List<GameObject>();
             foreach (var add in block.Adds)
@@ -181,7 +260,11 @@ namespace PromptUGUI.Application
                                            Control parentControl = null,
                                            List<ElementNode> applyOrder = null)
         {
-            if (parentIsLayoutGroup)
+            if (node.Tag == PromptUGUI.Lint.PopoverRules.Tag)
+            {
+                // In no flow: the parent's layout checks do not apply (spec 2026-10-19 §7).
+            }
+            else if (parentIsLayoutGroup)
             {
                 foreach (var issue in LayoutGroupChildRules.CheckChild(node))
                     UILog.Warn(node, issue);
@@ -253,6 +336,13 @@ namespace PromptUGUI.Application
                 {
                     if (issue.Code != PromptUGUI.Lint.SuggestionsRules.LayoutAttrCode
                         && issue.Code != PromptUGUI.Lint.SuggestionsRules.ChildCode) continue;
+                    UILog.Warn(node, issue);
+                }
+            else if (node.Tag == PromptUGUI.Lint.PopoverRules.Tag)
+                // Only the ignored layout attributes: the setters throw or warn for the rest themselves.
+                foreach (var issue in PromptUGUI.Lint.PopoverRules.Check(node))
+                {
+                    if (issue.Code != PromptUGUI.Lint.PopoverRules.LayoutAttrCode) continue;
                     UILog.Warn(node, issue);
                 }
             else if (node.Tag == PromptUGUI.Lint.SuggestionsRules.HostTag)
@@ -381,7 +471,7 @@ namespace PromptUGUI.Application
                 tabMenu.PreConfigureGroup(VariantResolver.ResolveAttribute(node, "allowSwitchOff", _variants));
 
             var selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "TabMenu"
-                                             or "Carousel" or "Collapsible" or "ScrollList";
+                                             or "Carousel" or "Collapsible" or "ScrollList" or "Popover";
             foreach (var c in node.Children)
             {
                 // <Header> is not a control: it names which children make up the header bar. Its
@@ -428,7 +518,7 @@ namespace PromptUGUI.Application
                     foreach (var issue in PromptUGUI.Lint.ScrollbarRules.CheckOutside(node, c))
                         UILog.Warn(c, issue);
                 }
-                if (selfIsLayoutGroup)
+                if (selfIsLayoutGroup && c.Tag != PromptUGUI.Lint.PopoverRules.Tag)
                     foreach (var issue in PromptUGUI.Lint.HugRules.CheckHugStretchChild(node, c))
                         UILog.Warn(c, issue);
                 if (node.Tag == "Carousel")

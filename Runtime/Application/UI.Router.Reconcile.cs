@@ -361,6 +361,15 @@ namespace PromptUGUI.Application
                 return true;
             }
 
+            /// <summary>Whether <paramref name="screen"/> is a routed Page in the chain (spec 2026-10-19 §4.9).</summary>
+            internal static bool IsRoutedPage(Screen screen)
+            {
+                if (screen == null) return false;
+                foreach (var node in _chain)
+                    if (node.Def.Kind == RouteKind.Page && UI.Get(node.ScreenKey) == screen) return true;
+                return false;
+            }
+
             /// <summary>The highest routed Modal's Screen in the chain, or null.</summary>
             internal static Screen TopModalScreen
             {

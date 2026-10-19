@@ -20,6 +20,7 @@ namespace PromptUGUI.Lint
         public static readonly HashSet<string> Tags = new HashSet<string>(StringComparer.Ordinal)
         {
             "VStack", "HStack", "Grid", "ScrollList", "InputField", "TabBar", "TabMenu", "Collapsible", "Suggestions",
+            "Popover",
         };
 
         public static IEnumerable<LintIssue> Check(ElementNode n, StyleAttributeView styles = null)

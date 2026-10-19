@@ -45,6 +45,8 @@ namespace PromptUGUI.Lint
         /// </summary>
         public static IEnumerable<LintIssue> CheckClampScale(ElementNode n)
         {
+            // A popover ignores scale (PUI-POPOVER-LAYOUT-ATTR says so); nothing is dropped.
+            if (n.Tag == PopoverRules.Tag) yield break;
             if (!HasClamp(n)) yield break;
             if (!n.Attributes.ContainsKey("scale") && !n.VariantOverrides.ContainsKey("scale")) yield break;
             yield return new LintIssue(

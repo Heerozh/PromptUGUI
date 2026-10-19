@@ -293,3 +293,13 @@ msgstr "选中第 {0} 项：{1}"
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:143
 msgid "Searched: {0}"
 msgstr "搜索：{0}"
+
+# . in BindChatInput()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:393
+msgid "输入框放不下了"
+msgstr "输入框放不下了"
+
+# . in BindChatInput()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:401
+msgid "我：{0}"
+msgstr "我：{0}"

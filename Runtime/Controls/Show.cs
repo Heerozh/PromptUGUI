@@ -61,6 +61,15 @@ namespace PromptUGUI.Controls
                     .Subscribe(_ => Reevaluate());
                 return;
             }
+            // "Expanded" is a state a <TabMenu> / <Collapsible> / <Popover> is in (spec 2026-10-19 §4.10):
+            // registration style like checked — the source re-evaluates on every change, silent ones too.
+            if (_spec.Kind is TriggerKind.Expand or TriggerKind.Collapse)
+            {
+                var wantExpanded = _spec.Kind == TriggerKind.Expand;
+                var source = TriggerSourceResolver.FindExpandable(this, _spec.SourceId);
+                source.RegisterExpandShow(wantExpanded, () => GameObject.SetActive(source.IsExpanded == wantExpanded));
+                return;
+            }
             if (_spec.Kind == TriggerKind.Close)
                 throw new InvalidOperationException(
                     $"<Show on=\"{OnRaw()}\">: close is the moment a Screen begins closing, not a state a <Show> " +
@@ -81,7 +90,7 @@ namespace PromptUGUI.Controls
                 _ => throw new InvalidOperationException(
                     "<Show> only accepts state-* events (state-normal / state-hover / " +
                     "state-pressed / state-selected / state-disabled), the persistent " +
-                    $"checked / unchecked or ready / cooling, or lift, got 'on=\"{OnRaw()}\"'."),
+                    $"checked / unchecked, expand / collapse or ready / cooling, or lift, got 'on=\"{OnRaw()}\"'."),
             };
 
             _src = TriggerSourceResolver.FindStateSource(this, _spec.SourceId);

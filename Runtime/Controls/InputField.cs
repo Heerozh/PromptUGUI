@@ -24,7 +24,7 @@ namespace PromptUGUI.Controls
 
         private protected override GameObject SurfaceHost => GameObject;
         private protected override UnityEngine.UI.Selectable SurfaceSelectable => _input;
-        private TMP_InputField _input;
+        private PuiInputField _input;
         private TMP_Text _placeholder;
         private TMP_Text _text;
         private RectTransform _textArea;
@@ -410,6 +410,51 @@ namespace PromptUGUI.Controls
         }
 
         internal override string PeekDefaultText() => _input != null ? _input.text : null;
+
+        /// <summary>
+        /// Puts <paramref name="text"/> in at the caret (spec 2026-10-19 §4.12): over the live selection while
+        /// editing; otherwise where the last edit left the caret and selection — the end of the text if it was
+        /// never edited, clamped if code shortened the text since. The caret ends after the inserted text, so
+        /// inserts in a row follow each other. A code write: <see cref="OnValueChanged"/> fires,
+        /// <see cref="OnInput"/> does not, and the focus is left as it is — no keyboard pops up.
+        /// <para>False, and nothing inserted, when the whole text does not fit <c>characterLimit</c> (a cut
+        /// could split a surrogate pair), the field is read-only, or an IME composition is in progress.
+        /// Null or empty inserts nothing and is true.</para>
+        /// </summary>
+        public bool Insert(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return true;
+            if (_input == null || _readOnly || _input.CompositionLength > 0) return false;
+
+            var current = _input.text ?? string.Empty;
+            int anchor, focus;
+            if (IsEditing)
+            {
+                anchor = _input.selectionStringAnchorPosition;
+                focus = _input.selectionStringFocusPosition;
+            }
+            else if (_input.RememberedAnchor >= 0)
+            {
+                anchor = _input.RememberedAnchor;
+                focus = _input.RememberedFocus;
+            }
+            else
+            {
+                anchor = focus = current.Length;
+            }
+            var start = Mathf.Clamp(Mathf.Min(anchor, focus), 0, current.Length);
+            var end = Mathf.Clamp(Mathf.Max(anchor, focus), 0, current.Length);
+
+            // TMP does not hold a code write to the limit (its check in SetText is commented out).
+            var limit = _input.characterLimit;
+            if (limit > 0 && current.Length - (end - start) + text.Length > limit) return false;
+
+            TextValue = current.Substring(0, start) + text + current.Substring(end);
+            var caret = start + text.Length;
+            if (IsEditing) _input.stringPosition = caret;
+            _input.RememberCaret(caret, caret);
+            return true;
+        }
 
         [UIAttr, Preserve]
         public string Placeholder

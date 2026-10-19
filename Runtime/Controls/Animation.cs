@@ -187,6 +187,8 @@ namespace PromptUGUI.Controls
             return size;
         }
 
+        private protected override bool ReferencesById => base.ReferencesById || _animSpec.ReverseOn?.SourceId != null;
+
         protected override void InitTriggerSubscription()
         {
             base.InitTriggerSubscription();

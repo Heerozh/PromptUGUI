@@ -186,7 +186,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
             second.Open();
 
             Assert.IsFalse(first.IsOpen);
-            CollectionAssert.AreEqual(new[] { PopupCloseReason.Owner }, reasons);
+            CollectionAssert.AreEqual(new[] { PopupCloseReason.Replaced }, reasons);
             Assert.AreSame(second, PopupChain.Top);
         }
 

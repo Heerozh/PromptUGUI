@@ -197,9 +197,64 @@ namespace PromptUGUI.Controls.Internal
         {
             base.LateUpdate();
             var focused = isFocused;
+            if (focused)
+            {
+                // Every frame of an edit; mid-composition the reported positions run ahead of the text.
+                var composing = CompositionLength;
+                RememberCaret(selectionStringAnchorPosition - composing, selectionStringFocusPosition - composing);
+            }
             if (focused == _wasFocused) return;
             _wasFocused = focused;
             Owner?.NotifyEditingChanged(focused);
+        }
+
+        // ── The caret InputField.Insert uses once the edit is over (spec 2026-10-19 §4.12) ─────────────
+
+        /// <summary>String positions of the selection the last edit ended with; −1 = never edited.</summary>
+        internal int RememberedAnchor { get; private set; } = -1;
+
+        internal int RememberedFocus { get; private set; } = -1;
+
+        internal void RememberCaret(int anchor, int focus)
+        {
+            RememberedAnchor = anchor;
+            RememberedFocus = focus;
+        }
+
+        internal void RememberCaretForTests(int anchor, int focus) => RememberCaret(anchor, focus);
+
+        /// <summary>Test hook: an IME composition in progress (null = the live one).</summary>
+        internal string CompositionForTests;
+
+        /// <summary>The length of the IME's uncommitted text, read the way TMP reads it (its accessor is private).</summary>
+        internal int CompositionLength
+        {
+            get
+            {
+                if (CompositionForTests != null) return CompositionForTests.Length;
+                if (readOnly) return 0;
+                try
+                {
+                    var es = EventSystem.current;
+                    var input = es != null && es.currentInputModule != null ? es.currentInputModule.input : null;
+                    var composition = input != null ? input.compositionString : Input.compositionString;
+                    return composition?.Length ?? 0;
+                }
+                catch (System.InvalidOperationException)
+                {
+                    return 0;   // the legacy Input class is switched off and no module answers for it
+                }
+            }
+        }
+
+        /// <summary>
+        /// The edit is about to end by a deselect: remember the selection now, before TMP lets go of it. The
+        /// positions TMP reports already count the composition it is about to commit.
+        /// </summary>
+        public override void OnDeselect(BaseEventData eventData)
+        {
+            if (isFocused) RememberCaret(selectionStringAnchorPosition, selectionStringFocusPosition);
+            base.OnDeselect(eventData);
         }
 
         protected override void OnDisable()

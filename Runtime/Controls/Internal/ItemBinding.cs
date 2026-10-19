@@ -22,6 +22,12 @@ namespace PromptUGUI.Controls.Internal
         /// false (and nothing bound) when the row is not a <see cref="SlotType"/>.
         /// </summary>
         public bool TryBind(IControl row, int index);
+
+        /// <summary>
+        /// A drag-reorder moved row <paramref name="from"/> to <paramref name="to"/> (insert index after removal):
+        /// moves the item with it, so the snapshot still says which item each row shows (spec 2026-10-19 §5.5).
+        /// </summary>
+        public void Move(int from, int to);
     }
 
     /// <summary>The key → index table of a keyed binding's last accepted push.</summary>
@@ -51,6 +57,22 @@ namespace PromptUGUI.Controls.Internal
             if (row is not TSlot slot) return false;
             _bind(slot, _items[index]);
             return true;
+        }
+
+        public virtual void Move(int from, int to)
+        {
+            var item = _items[from];
+            _items.RemoveAt(from);
+            _items.Insert(to, item);
+        }
+
+        /// <summary>Where index <paramref name="i"/> lands when the item at <paramref name="from"/> moves to <paramref name="to"/>.</summary>
+        protected static int Moved(int i, int from, int to)
+        {
+            if (i == from) return to;
+            if (from < to && i > from && i <= to) return i - 1;
+            if (to < from && i >= to && i < from) return i + 1;
+            return i;
         }
 
         /// <summary>
@@ -120,6 +142,17 @@ namespace PromptUGUI.Controls.Internal
             _key = key ?? throw new ArgumentNullException(nameof(key));
 
         public bool TryGetIndex(TKey key, out int index) => _current.TryGetValue(key, out index);
+
+        public override void Move(int from, int to)
+        {
+            base.Move(from, to);
+            // Re-indexed through the spare table: a value cannot be written while the table is enumerated, and
+            // the key delegate is not run again.
+            _next.Clear();
+            foreach (var kv in _current) _next.Add(kv.Key, Moved(kv.Value, from, to));
+            (_current, _next) = (_next, _current);
+            _next.Clear();
+        }
 
         public override void Accept(IReadOnlyList<T> items, IItemBinding previous, int previousCount,
                                     ref int[] newToOld)

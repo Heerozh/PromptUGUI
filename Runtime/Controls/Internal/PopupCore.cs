@@ -19,13 +19,42 @@ namespace PromptUGUI.Controls.Internal
         /// <summary>Where the panel may go, in the root canvas's local space; null = the whole canvas.</summary>
         public readonly Rect? Bounds;
 
+        /// <summary>
+        /// Free placement (spec 2026-10-19 §5.1): the rect the host already solved for the panel, in the
+        /// root canvas's local space. The core only moves the panel there — whatever its parent — and
+        /// leaves its size alone. Null = hang the panel off the host's corner, the TabMenu way.
+        /// </summary>
+        public readonly Rect? CanvasRect;
+
+        /// <summary>With <see cref="CanvasRect"/>: the side it sits on (the pivot and the slide follow it).</summary>
+        public readonly PopupSide Side;
+
+        public readonly PopupAlign Align;
+
         public PopupLayout(Vector2 size, float gap, bool preferAbove = false, Rect? bounds = null)
         {
             Size = size;
             Gap = gap;
             PreferAbove = preferAbove;
             Bounds = bounds;
+            CanvasRect = null;
+            Side = PopupSide.Bottom;
+            Align = PopupAlign.Start;
         }
+
+        private PopupLayout(Rect canvasRect, PopupSide side, PopupAlign align)
+        {
+            Size = canvasRect.size;
+            Gap = 0f;
+            PreferAbove = false;
+            Bounds = null;
+            CanvasRect = canvasRect;
+            Side = side;
+            Align = align;
+        }
+
+        public static PopupLayout Free(Rect canvasRect, PopupSide side, PopupAlign align)
+            => new PopupLayout(canvasRect, side, align);
     }
 
     /// <summary>
@@ -48,16 +77,25 @@ namespace PromptUGUI.Controls.Internal
 
         private readonly Control _host;
         private readonly RectTransform _panel;
-        private readonly PopupDismiss _dismiss;
+        private PopupDismiss _dismiss;
         private readonly bool _cageFocus;
         private readonly bool _cancelButtonCloses;
         private readonly Canvas _canvas;
         private readonly CanvasGroup _group;
+        private readonly PopupPanelGuard _guard;
 
         private GameObject _blocker;
         private ModalEscapeListener _escapeListener;
         private MotionHandle _fadeMotion;
         private MotionHandle _slideMotion;
+
+        // The panel's resting position and the slide on top of it (spec 2026-10-19 §5.1): a Reposition
+        // during the transition moves the rest and the slide lands on it, instead of the tween writing
+        // anchoredPosition outright and dragging the panel back to where it opened.
+        private Vector2 _rest;
+        private Vector2 _offset;
+        private bool _freeSide;
+        private PopupSide _side;
 
         // What the cage replaced, put back on close (spec §4.3): the global cage and this Screen's own,
         // separately — a Screen that was never confined must not inherit the global one.
@@ -86,9 +124,45 @@ namespace PromptUGUI.Controls.Internal
             if (_canvas == null) _canvas = go.AddComponent<Canvas>();
             _canvas.overrideSorting = false;
             if (go.GetComponent<GraphicRaycaster>() == null) go.AddComponent<GraphicRaycaster>();
+
+            _guard = go.GetComponent<PopupPanelGuard>();
+            if (_guard == null) _guard = go.AddComponent<PopupPanelGuard>();
+            _guard.Core = this;
         }
 
         public bool IsOpen { get; private set; }
+
+        /// <summary>What an outside press does. Changed while closed; an open popup keeps its catcher (or
+        /// lack of one) until it closes.</summary>
+        public PopupDismiss Dismiss
+        {
+            get => _dismiss;
+            set => _dismiss = value;
+        }
+
+        /// <summary>What the popup is placed against when that is not the host (a Popover's anchor), for
+        /// the chain's ancestry and outside-press tests. Null = the host.</summary>
+        public Func<Transform> Anchor { get; set; }
+
+        /// <summary>
+        /// Where a selection left inside the closing panel goes, by close reason; null keeps the old rule
+        /// (the host). Never the closing panel itself: a target inside it clears the selection instead.
+        /// </summary>
+        public Func<PopupCloseReason, GameObject> RestoreTo { get; set; }
+
+        /// <summary>Move a selection out of the closing panel even when the focus was not caged — a mouse
+        /// click on a cell selects it, and an inactive selection strands directional input.</summary>
+        public bool RestoreWhenUncaged { get; set; }
+
+        /// <summary>The host's per-frame step while open, after the frame's motion (Play mode only).</summary>
+        public Action LateTick
+        {
+            get => _guard.LateTick;
+            set => _guard.LateTick = value;
+        }
+
+        /// <summary><c>Time.frameCount</c> when it last opened.</summary>
+        public int OpenFrame { get; private set; } = int.MinValue;
 
         /// <summary>Open / close duration in seconds; 0 snaps.</summary>
         public float TransitionSeconds { get; set; }
@@ -109,6 +183,12 @@ namespace PromptUGUI.Controls.Internal
 
         public RectTransform Panel => _panel;
 
+        Transform IPopupEntry.Anchor => Anchor?.Invoke();
+
+        GameObject IPopupEntry.Blocker => _dismiss == PopupDismiss.Blocker && _blocker != null && _blocker.activeSelf
+            ? _blocker
+            : null;
+
         public int HostRootOrder
         {
             get
@@ -124,9 +204,19 @@ namespace PromptUGUI.Controls.Internal
         {
             if (IsOpen || _panel == null) return;
             IsOpen = true;
-            PopupChain.Push(this);
+            OpenFrame = Time.frameCount;
+            var depth = PopupChain.Push(this);
+            // A close handler run by that push may have closed this very popup (spec 2026-10-19 §5.2):
+            // then it is not open, and must not stay on the chain.
+            if (!IsOpen)
+            {
+                PopupChain.Remove(this);
+                return;
+            }
+            WarnIfDeeperThanThePageStep(depth);
 
             _panel.gameObject.SetActive(true);
+            _group.blocksRaycasts = true;
             _canvas.overrideSorting = true;
             _canvas.sortingOrder = PopupChain.PanelOrder(this);
             if (_dismiss == PopupDismiss.Blocker) EnsureBlocker(RootCanvas(), PopupChain.BlockerOrder(this));
@@ -151,9 +241,16 @@ namespace PromptUGUI.Controls.Internal
         private void CloseCore(PopupCloseReason reason)
         {
             if (!IsOpen) return;
+            if (_panel == null || _group == null)
+            {
+                Abandon();
+                return;
+            }
             IsOpen = false;
 
             if (_blocker != null) _blocker.SetActive(false);
+            // A fading panel must not catch a press meant for what is behind it (spec 2026-10-19 §5.1).
+            _group.blocksRaycasts = false;
             EnableEscapeListener(false);
             PopNavigation(reason);
             PlayTransition(opening: false);
@@ -170,6 +267,12 @@ namespace PromptUGUI.Controls.Internal
             if (_panel == null || !IsOpen) return;
 
             var layout = Measure != null ? Measure() : new PopupLayout(_panel.rect.size, 0f);
+            if (layout.CanvasRect is Rect target)
+            {
+                PlaceFree(target, layout.Side, layout.Align);
+                return;
+            }
+            _freeSide = false;
             _panel.sizeDelta = layout.Size;
 
             var root = RootCanvas();
@@ -183,8 +286,50 @@ namespace PromptUGUI.Controls.Internal
             _panel.anchorMin = placement.Anchor;
             _panel.anchorMax = placement.Anchor;
             _panel.pivot = placement.Pivot;
-            _panel.anchoredPosition = placement.AnchoredPosition;
+            _rest = placement.AnchoredPosition;
+            WritePosition();
         }
+
+        /// <summary>
+        /// Puts the panel on a canvas-space rect whatever its parent is: the target's pivot point goes
+        /// through world space into the parent's local space, measured from the parent's centre (where
+        /// the panel's anchors are). The size stays the host's.
+        /// </summary>
+        private void PlaceFree(Rect target, PopupSide side, PopupAlign align)
+        {
+            _freeSide = true;
+            _side = side;
+            var pivot = PopupPlacer.PivotFor(side, align);
+            _panel.anchorMin = new Vector2(0.5f, 0.5f);
+            _panel.anchorMax = new Vector2(0.5f, 0.5f);
+            _panel.pivot = pivot;
+
+            var root = RootCanvas();
+            var parent = _panel.parent as RectTransform;
+            if (root != null && parent != null)
+            {
+                var point = new Vector2(target.xMin + target.width * pivot.x, target.yMin + target.height * pivot.y);
+                var world = root.transform.TransformPoint(point);
+                _rest = (Vector2)parent.InverseTransformPoint(world) - parent.rect.center;
+            }
+            WritePosition();
+        }
+
+        private void WritePosition()
+        {
+            if (_panel != null) _panel.anchoredPosition = _rest + _offset;
+        }
+
+        private void SetOffset(Vector2 offset)
+        {
+            _offset = offset;
+            WritePosition();
+        }
+
+        internal void SetSlideOffsetForTests(Vector2 offset) => SetOffset(offset);
+
+        /// <summary>Tests: where the open transition slides in from (EditMode runs no motion).</summary>
+        internal Vector2 SlideFromForTests => SlideOffset();
 
         /// <summary>
         /// The host's end-of-apply step (after an attribute pass, a Variant / theme ReSolve): a host
@@ -255,12 +400,11 @@ namespace PromptUGUI.Controls.Internal
             CancelMotions();
 
             var slideFrom = SlideOffset();
-            var rest = _panel.anchoredPosition;
 
             if (TransitionSeconds <= 0f || !UnityEngine.Application.isPlaying)
             {
                 _group.alpha = opening ? 1f : 0f;
-                _panel.anchoredPosition = rest;
+                SetOffset(Vector2.zero);
                 if (!opening) DeactivatePanel();
                 return;
             }
@@ -273,12 +417,12 @@ namespace PromptUGUI.Controls.Internal
                 .Bind(_group, static (v, cg) => { if (cg) cg.alpha = v; })
                 .AddTo(_panel.gameObject);
 
-            var from = opening ? rest + slideFrom : rest;
-            var to = opening ? rest : rest + slideFrom;
-            _panel.anchoredPosition = from;
+            var from = opening ? slideFrom : _offset;
+            var to = opening ? Vector2.zero : slideFrom;
+            SetOffset(from);
             _slideMotion = LMotion.Create(from, to, TransitionSeconds)
                 .WithEase(Ease.OutCubic)
-                .Bind(_panel, static (v, rt) => { if (rt) rt.anchoredPosition = v; })
+                .Bind(this, static (v, core) => core.SetOffset(v))
                 .AddTo(_panel.gameObject);
 
             if (!opening)
@@ -293,9 +437,45 @@ namespace PromptUGUI.Controls.Internal
             }
         }
 
-        // Enters from the side it is anchored to, so the panel appears to unfold out of the host.
-        private Vector2 SlideOffset() =>
-            _panel.pivot.y > 0.5f ? new Vector2(0f, SlideDistance) : new Vector2(0f, -SlideDistance);
+        // Enters from the side it is anchored to, so the panel appears to unfold out of the host. Over the
+        // anchor there is no such side: it only fades.
+        private Vector2 SlideOffset()
+        {
+            if (!_freeSide)
+                return _panel.pivot.y > 0.5f ? new Vector2(0f, SlideDistance) : new Vector2(0f, -SlideDistance);
+            switch (_side)
+            {
+                case PopupSide.Top: return new Vector2(0f, -SlideDistance);
+                case PopupSide.Left: return new Vector2(SlideDistance, 0f);
+                case PopupSide.Right: return new Vector2(-SlideDistance, 0f);
+                case PopupSide.Over: return Vector2.zero;
+                default: return new Vector2(0f, SlideDistance);
+            }
+        }
+
+        /// <summary>
+        /// The panel was destroyed while open — its Screen torn down without <c>UI.Close</c> (a scene change,
+        /// leaving Play mode). The entry leaves the chain without the close path: that path writes to the
+        /// panel, and the host's close handlers to its subtree, all gone — nobody is told. Only what
+        /// outlives the panel is given back: a focus cage still on it, a catcher hung elsewhere.
+        /// </summary>
+        internal void Abandon()
+        {
+            PopupChain.Remove(this);
+            if (!IsOpen) return;
+            IsOpen = false;
+            CancelMotions();
+            if (_blocker != null) _blocker.SetActive(false);
+            if (_caged)
+            {
+                var root = UI.Navigation.ContainmentRoot;
+                if (!ReferenceEquals(root, null) && root == null)
+                    UI.Navigation.ContainmentRoot = _prevContainmentRoot != null ? _prevContainmentRoot : null;
+                _caged = false;
+            }
+            _prevContainmentRoot = null;
+            _prevScreenConfine = null;
+        }
 
         private void CancelMotions()
         {
@@ -316,6 +496,8 @@ namespace PromptUGUI.Controls.Internal
         private void PushNavigation()
         {
             if (!_cageFocus || !UI.Navigation.IsEnabled) return;
+            // Nothing to land on (an information panel): no cage, and the focus is not moved.
+            if (UI.Navigation.FirstFocusableUnder(_panel.gameObject) == null) return;
             _caged = true;
 
             // ContainmentRoot is the authority — EnforceContainment reads it every frame, and a caller
@@ -339,34 +521,71 @@ namespace PromptUGUI.Controls.Internal
         /// </summary>
         private void PopNavigation(PopupCloseReason reason)
         {
-            if (!_caged) return;
+            var wasCaged = _caged;
+            if (!wasCaged && !RestoreWhenUncaged) return;
             _caged = false;
 
             var panelGo = _panel != null ? _panel.gameObject : null;
-            var screen = UI.OwnerScreenOf(_host);
-            if (screen != null && panelGo != null && screen.NavConfineRoot == panelGo)
-                screen.ConfineNavigationTo(_prevScreenConfine);
-            if (panelGo != null && UI.Navigation.ContainmentRoot == panelGo)
-                UI.Navigation.ContainmentRoot = _prevContainmentRoot;
-            _prevContainmentRoot = null;
-            _prevScreenConfine = null;
+            if (wasCaged)
+            {
+                var screen = UI.OwnerScreenOf(_host);
+                if (screen != null && panelGo != null && screen.NavConfineRoot == panelGo)
+                    screen.ConfineNavigationTo(_prevScreenConfine);
+                if (panelGo != null && UI.Navigation.ContainmentRoot == panelGo)
+                    UI.Navigation.ContainmentRoot = _prevContainmentRoot;
+                _prevContainmentRoot = null;
+                _prevScreenConfine = null;
+            }
 
             var es = FindEventSystem();
             if (es == null) return;
             var selected = es.currentSelectedGameObject;
             if (selected != null && (panelGo == null || !selected.transform.IsChildOf(panelGo.transform))) return;
+            // Uncaged and nothing selected: a pointer user's focus is not ours to move.
+            if (selected == null && !wasCaged) return;
             if (reason == PopupCloseReason.HostGone)
             {
                 if (selected != null) es.SetSelectedGameObject(null);
                 return;
             }
-            if (_host.GameObject != null) es.SetSelectedGameObject(_host.GameObject);
+
+            var target = RestoreTo != null ? RestoreTo(reason) : _host.GameObject;
+            // Never back into the closing panel (a host that IS the panel, a restore target inside it).
+            if (target != null && panelGo != null && target.transform.IsChildOf(panelGo.transform)) target = null;
+            if (target != null || selected != null) es.SetSelectedGameObject(target);
         }
 
         // EventSystem.current is null in EditMode; mirror Screen.FindEventSystem's fallback.
         private static UnityEngine.EventSystems.EventSystem FindEventSystem()
             => UnityEngine.EventSystems.EventSystem.current
                ?? UnityEngine.Object.FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>();
+
+        // ── Layering (spec 2026-10-19 §4.9) ─────────────────────────────────────────────────
+
+        private static bool s_warnedDepth;
+
+        internal static void ResetDepthWarningForTests() => s_warnedDepth = false;
+
+        // Domain reload off: warn again in the next Play session.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetOnPlayStart() => ResetDepthWarningForTests();
+
+        // A chain k deep sorts its top panel 2 + 2k above the page; on a routed page that must stay
+        // below the next page depth (PageSortingOrderStep). Only reachable when a page below is still
+        // clickable — a page appearing closes the popups under it — so warn once instead of refusing.
+        private void WarnIfDeeperThanThePageStep(int depth)
+        {
+            if (s_warnedDepth || depth < 1) return;
+            var screen = UI.OwnerScreenOf(_host);
+            if (screen == null || !UI.Router.IsRoutedPage(screen)) return;
+            var step = UI.Router.PageSortingOrderStep;
+            if (PopupChain.SortingOffset + 2 * depth < step) return;
+            s_warnedDepth = true;
+            UILog.Warn(_host,
+                $"[PromptUGUI] Popups nested {depth + 1} deep on routed page '{screen.Name}' sort at " +
+                $"+{PopupChain.SortingOffset + 2 * depth}, not below the next page (UI.Router.PageSortingOrderStep = {step}). " +
+                "Raise PageSortingOrderStep, or nest fewer popups.");
+        }
 
         // ── Escape ─────────────────────────────────────────────────────────────────────────
 
@@ -394,7 +613,11 @@ namespace PromptUGUI.Controls.Internal
         {
             var go = _host.GameObject;
             if (go == null) return null;
-            var canvas = go.GetComponentInParent<Canvas>(true);
+            // A host that IS the panel carries the panel's own nested Canvas, which an inactive panel may
+            // report as its root: start above it (spec 2026-10-19 §5.1).
+            var start = _panel != null && go.transform == _panel ? _panel.parent : go.transform;
+            if (start == null) return null;
+            var canvas = start.GetComponentInParent<Canvas>(true);
             return canvas != null ? canvas.rootCanvas : null;
         }
 

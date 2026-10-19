@@ -18,6 +18,32 @@ namespace PromptUGUI.Controls.Internal
         public Observable<Unit> OnExpanded { get; }
 
         public Observable<Unit> OnCollapsed { get; }
+
+        /// <summary>
+        /// A <c>&lt;Show on="expand|collapse"&gt;</c> registers here (spec 2026-10-19 §5.7), the way
+        /// <c>checked</c> registers with its toggle: <paramref name="reevaluate"/> runs now and on every
+        /// change of <see cref="IsExpanded"/>, including the silent ones — an initial state, an accordion's
+        /// adjudication — that raise no <see cref="OnExpanded"/> / <see cref="OnCollapsed"/>.
+        /// </summary>
+        public void RegisterExpandShow(bool wantExpanded, System.Action reevaluate);
+    }
+
+    /// <summary>The registered <c>&lt;Show on="expand|collapse"&gt;</c> blocks of one <see cref="IExpandable"/>.</summary>
+    internal sealed class ExpandShowList
+    {
+        private System.Collections.Generic.List<System.Action> _shows;
+
+        public void Register(System.Action reevaluate)
+        {
+            (_shows ??= new System.Collections.Generic.List<System.Action>()).Add(reevaluate);
+            reevaluate();
+        }
+
+        public void Notify()
+        {
+            if (_shows == null) return;
+            foreach (var act in _shows) act();
+        }
     }
 
     /// <summary>

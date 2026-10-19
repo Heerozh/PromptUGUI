@@ -372,6 +372,12 @@ screen.Get<InputField>("playerName").OnEndEdit
 
 **`InputField.OnInput` vs `OnValueChanged`** — `OnValueChanged` reports every change of the text; `OnInput` only the ones **the user made** while editing: typing, pasting, deleting, an IME committing, the soft keyboard syncing. Code writes (`TextValue = …`), an XML / Variant replay of `text=` and TMP's Escape rollback do not raise it. Drive queries from `OnInput`, so writing a chosen result back into the field does not query again. While an IME is composing the text does not change, so `OnInput` comes when the text is committed.
 
+**`InputField.Insert(text)`** — puts text in at the caret, for an emoji / emoticon picker or a "insert @name" button. While the field edits it replaces the live selection; after the edit (a press on a `<Btn>` ends it) it uses the caret and selection the edit ended with — recorded every frame of the edit and once more on deselect, an IME composition included — the end of the text if it was never edited, clamped if code shortened the text since. The caret ends after the inserted text, so several inserts follow each other. It is a code write: `OnValueChanged` fires, `OnInput` does not, and the focus is left alone (no soft keyboard pops up). Whole or nothing: it returns **false** and inserts nothing when the text does not fit `characterLimit` (a cut could split a surrogate pair), the field is read-only, or an IME composition is in progress. Null / empty inserts nothing and returns true.
+
+```csharp
+cell.OnClick.Subscribe(_ => { if (!chat.Insert(e)) UI.Toast.Show("Full"); }).AddTo(cell);
+```
+
 **Progress** — `screen.Get<Progress>("hp").Value = 0.42f;` 或 R3 推送 `healthStream.Subscribe(v => p.Value = v).AddTo(screen)`。Progress 是只读显示控件，无 `OnValueChanged`。`Value` 被 `Mathf.Clamp01` 钳位。注意：`[Bind]` 在本项目里是把 child control 字段注入到 parent（见 `Runtime/Registry/BindAttribute.cs`），不是数据流绑定 —— 用直接 setter / R3 推。
 
 **Cooldown** — a cooldown sweep with its own clock (XML side: authoring-promptugui-xml `reference/controls-cooldown.md`).
@@ -765,6 +771,36 @@ list.OnSubmit.Subscribe(s =>
 - **Push only the latest results** (R3 `Switch`), and **never push an empty list as "loading…"**: an empty push closes the list, and the results re-open it — a blink.
 - Escape / gamepad B closes only the list (the field keeps editing, the text is not rolled back). A dialog, a routed page / Modal or the Loading overlay appearing over it closes it **and ends the edit**.
 
+
+### Popover (a floating panel anchored to any control)
+
+A `<Popover>` (XML side: authoring-promptugui-xml `reference/controls-popover.md`) is reached by its id; the controls in its panel too — a popover is not an id scope, so `screen.Get<Btn>("menuDelete")` works directly.
+
+```csharp
+var menu = screen.Get<Popover>("rowMenu");
+
+menu.Open(anchor);              // any control in the same Screen; open on another anchor = close (Code) + reopen
+menu.Open();                    // anchored to its on="click@<id>" trigger; throws without one
+menu.OpenAt(eventData.position);// a screen point (PointerEventData.position) — right-click menus; no anchor
+menu.Toggle(anchor);            // open on it, or close when already open on it
+menu.Toggle();                  // the trigger's toggle; throws without on=
+menu.Close();
+
+menu.IsOpen;                    // bool
+menu.Anchor;                    // IControl — null while closed or opened with OpenAt
+menu.OnOpened;                  // Observable<Unit> — opening started: measured and placed
+menu.OnClosed.Subscribe(r => …);// Observable<PopoverCloseReason>, as closing starts
+```
+
+`PopoverCloseReason`: `Code` (`Close()`, a reopen on another anchor, made non-interactable) · `Trigger` (its `on=` button again) · `Escape` (Escape / gamepad Start / B, top of the chain) · `OutsidePress` · `Covered` (a dialog, routed page / Modal, Loading) · `AnchorLost` (the anchor destroyed, hidden, disabled, scrolled out of view, or its `<ScrollList>` row given to another item) · `Replaced` (an unrelated popup opened) · `HostGone` (its Screen closing, an ancestor switched off, `Dispose`).
+
+- **One popover, many rows**: keep the row's item in a field, `menu.Toggle(row.Get<Btn>("more"))` from the row's bind (`.AddTo(row)`), act on the field from the menu's buttons and call `Close()` — pressing inside the panel never closes it by itself.
+- **A field that should take typing at once** (a search popover with `placement="over-end"` covering its icon): opening does not start editing. Focus the field when it opens — `pop.OnOpened.Subscribe(_ => screen.Focus("searchField")).AddTo(screen);` — under the pointer that enters edit mode (the phone keyboard opens); with gamepad navigation the popover has already caged the focus on it and the two-level model waits for A / Enter.
+- **Does not open** (nothing happens — check `IsOpen`) when it is not interactable, the anchor or the popover's parent is inactive, the anchor is not interactable, or its layer is covered by a dialog / Loading. `anchor == null` throws `ArgumentNullException`; an anchor in another Screen or inside the popover throws `ArgumentException`.
+- **`Hidden`** reads `!IsOpen`; `Hidden = true` closes; `Hidden = false` does nothing (opening needs an anchor). `Interactable = false` closes it.
+- **Re-entrancy is safe**: opening another popup from `OnClosed`, or calling `Close()` from a `Replaced` handler, leaves no stale entry. `Dispose` while open reports `HostGone` first.
+- **Focus**: with gamepad navigation on, a panel with something focusable cages the focus (cells a `BindItems` built included); closing gives it back to the anchor (or, for `OpenAt` / `AnchorLost` / `HostGone`, to what was selected before).
+- It is an `IExpandable` source like `<TabMenu>` / `<Collapsible>`: `<Animation on="expand">` inside the panel, `<Show on="expand@<id>">` outside.
 
 ### `<Collapsible>` — the inline fold
 
@@ -1347,10 +1383,17 @@ EVENTS (R3)    .OnClick                Btn
                .OnSelected             Dropdown:int / Tab:Unit (on=true only)
                .OnSelectionChanged     TabBar/TabMenu:Tab (the newly-on Tab, or null when emptied)
                .OnExpanded/.OnCollapsed TabMenu:Unit (popup opened / closed)
+               Popover .Open(anchor) / .OpenAt(screenPos) / .Toggle(anchor) / .Close() / .IsOpen / .Anchor
+                       .OnOpened:Unit / .OnClosed:PopoverCloseReason (Code/Trigger/Escape/OutsidePress/Covered/
+                        AnchorLost/Replaced/HostGone)
                .OnCurrentChanged       Carousel:int (any-source page change, deduped)
                .OnSelectedChanged      Pages:string (any-source page change, deduped)
                .OnEndEdit / .OnSubmit  InputField:string (OnSubmit = the TYPED text; a chosen suggestion is not one)
                .OnInput                InputField:string — user edits only (no code writes / replays / Esc rollback)
+               UI.EscapeConsumedThisFrame  bool — the UI spent this frame's Escape / Start / B (closed a popup, a
+                                        dialog answered…); skip your own back-key handling
+               InputField.Insert(text) at the caret (the live one, or where the edit ended); false = did not fit
+                                        characterLimit / read-only / composing; a code write (no OnInput)
                Suggestions .OnSubmit   SuggestionSubmit (Text, ChosenIndex −1 = typed, IsChosen) — every submit
                            .OnHighlightChanged:int (−1 = none) / .OnOpened / .OnClosed:Unit
                .OnLinkClicked          Text:string (id of the <link="id"> clicked, read at click time — subscribe
@@ -1796,12 +1839,28 @@ public static class UI.Modal {
   |---|---|---|---|
   | 1 | A blocking tutorial step (`TutorialMode.Block`) | swallowed — nothing closes | swallowed |
   | 2 | An open `<Dropdown>` list | the list closes | the list closes |
-  | 3 | An open popup (`<TabMenu>`) not under the top dialog | the popup closes | the popup closes |
+  | 3 | An open popup (`<Popover>` / `<TabMenu>` / a suggestion list) not under the top dialog | the popup closes | the popup closes |
   | 4 | An ad-hoc dialog | the top dialog's `TryEscape` (refusing still consumes it) | — |
   | 5 | A routed `Modal` on top of the chain | `UI.Router.Back()` (a guard's rejection still consumes it) | — |
 
   So a dialog with a menu open inside it survives the press that closes the menu, and a routed
   Modal behaves the same.
+- **Your own back key sees the same press.** Game code that reads Escape / Cancel itself (an Input
+  System action polled in `Update`, `Input.GetKeyDown`) to leave a mode, clear a selection or go back
+  gets the press the UI just used to close a popover — one press, two effects. Check
+  **`UI.EscapeConsumedThisFrame`** first: true in the frame PromptUGUI spent the press on any row of
+  the table above (a blocking step swallowing it included).
+
+  ```csharp
+  void Update()
+  {
+      if (!_cancel.WasPressedThisFrame() || UI.EscapeConsumedThisFrame) return;
+      ClearSelection();
+  }
+  ```
+
+  With the Input System the UI decides in the input update, before every `Update`. With only the
+  legacy Input Manager its listeners poll in `Update`, so read the flag in `LateUpdate` there.
 - **A dialog closes the popups under it.** Opening a dialog from code — or a routed child page,
   a routed Modal, a `Loading` overlay — closes an open `<TabMenu>` / `<Dropdown>` list on the
   layers below, before the dialog records the focus to return to: closing it puts the focus back on

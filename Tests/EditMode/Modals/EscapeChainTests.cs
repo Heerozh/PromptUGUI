@@ -99,6 +99,50 @@ namespace PromptUGUI.Tests.Modals
             return menu;
         }
 
+        // ── UI.EscapeConsumedThisFrame: what game code reads before acting on its own back key ──────
+
+        [Test]
+        public void A_press_that_closes_a_menu_is_reported_consumed()
+        {
+            var menu = OpenDialogWithMenu();
+            Assert.IsFalse(UI.EscapeConsumedThisFrame, "nothing pressed yet");
+
+            MenuListener(menu).FireForTests();
+
+            Assert.IsFalse(menu.IsExpanded, "precondition: the press closed the menu");
+            Assert.IsTrue(UI.EscapeConsumedThisFrame);
+        }
+
+        [Test]
+        public void A_press_a_routed_modal_answers_is_reported_consumed()
+        {
+            UI.Router.Open("settings").GetAwaiter().GetResult();
+
+            Assert.IsTrue(Press());
+            Assert.IsTrue(UI.EscapeConsumedThisFrame);
+        }
+
+        [Test]
+        public void A_press_nothing_took_is_not()
+        {
+            UI.Router.Open("home").GetAwaiter().GetResult();
+
+            Assert.IsFalse(Press(EscapeKey.CancelButton), "precondition: no popup, B closes no dialog");
+            Assert.IsFalse(UI.EscapeConsumedThisFrame);
+        }
+
+        [Test]
+        public void A_new_play_session_forgets_the_last_consumed_press()
+        {
+            var menu = OpenDialogWithMenu();
+            MenuListener(menu).FireForTests();
+            Assume.That(UI.EscapeConsumedThisFrame);
+
+            EscapeChain.ResetForPlaySession();
+
+            Assert.IsFalse(UI.EscapeConsumedThisFrame, "frame numbers start over in the next session");
+        }
+
         // ── Reproductions of spec §1.2 ────────────────────────────────────────────────────
 
         // §1.2-1: the routed Modal's own listener never asked the menu, so one press closed both.

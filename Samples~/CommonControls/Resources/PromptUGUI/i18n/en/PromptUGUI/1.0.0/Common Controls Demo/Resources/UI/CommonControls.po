@@ -95,3 +95,8 @@ msgstr "Form Input"
 msgid "静音"
 msgstr "Mute"
 
+
+# . CommonControls screen, Btn#chatSend text
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/Resources/UI/CommonControls.ui.xml
+msgid "发送"
+msgstr "Send"
