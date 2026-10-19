@@ -448,6 +448,10 @@ namespace PromptUGUI.Controls
 
         public bool IsExpanded => _popupCore != null && _popupCore.IsOpen;
 
+        private readonly ExpandShowList _expandShows = new();
+
+        void IExpandable.RegisterExpandShow(bool wantExpanded, System.Action reevaluate) => _expandShows.Register(reevaluate);
+
         public Observable<Unit> OnExpanded => _expandedSubject;
 
         public Observable<Unit> OnCollapsed => _collapsedSubject;
@@ -475,6 +479,7 @@ namespace PromptUGUI.Controls
             }
 
             PlayArrow(expanding: true);
+            _expandShows.Notify();
             _expandedSubject.OnNext(Unit.Default);
         }
 
@@ -489,6 +494,7 @@ namespace PromptUGUI.Controls
         private void OnPopupClosed(PopupCloseReason reason)
         {
             PlayArrow(expanding: false);
+            _expandShows.Notify();
             _collapsedSubject.OnNext(Unit.Default);
         }
 

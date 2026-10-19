@@ -152,10 +152,12 @@ namespace PromptUGUI.Tests.EditMode.Controls
         [Test]
         public void Show_still_refuses_anything_that_is_not_a_state()
         {
+            // expand / collapse became persistent states a <Show> follows (spec 2026-10-19 §4.10); a
+            // moment such as click still is not one.
             var message = MessageFromOpening(
-                "<TabMenu id='m'><Show on='expand'><Tab id='a' text='A'/></Show></TabMenu>");
+                "<TabMenu id='m'><Show on='click'><Tab id='a' text='A'/></Show></TabMenu>");
             StringAssert.Contains("only accepts state-", message);
-            StringAssert.Contains("expand", message, "the message echoes what the author wrote");
+            StringAssert.Contains("click", message, "the message echoes what the author wrote");
         }
     }
 }

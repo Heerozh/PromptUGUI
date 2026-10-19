@@ -450,7 +450,23 @@ namespace PromptUGUI.Controls
 
         // ── Open / close ───────────────────────────────────────────────────────────────────
 
-        public bool IsExpanded { get; private set; } = true;
+        public bool IsExpanded
+        {
+            get => _isExpanded;
+            private set
+            {
+                if (_isExpanded == value) return;
+                _isExpanded = value;
+                _expandShows.Notify();
+            }
+        }
+
+        // Every change — the declared initial state and an accordion's adjudication are silent ones —
+        // reaches the <Show on="expand|collapse"> blocks (spec 2026-10-19 §5.7).
+        private bool _isExpanded = true;
+        private readonly ExpandShowList _expandShows = new();
+
+        void IExpandable.RegisterExpandShow(bool wantExpanded, System.Action reevaluate) => _expandShows.Register(reevaluate);
 
         public Observable<Unit> OnExpanded => _expandedSubject;
         public Observable<Unit> OnCollapsed => _collapsedSubject;

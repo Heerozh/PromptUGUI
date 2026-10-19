@@ -88,6 +88,10 @@ namespace PromptUGUI.Controls
         public Observable<PopoverCloseReason> OnClosed => _closed;
 
         bool IExpandable.IsExpanded => IsOpen;
+
+        private readonly ExpandShowList _expandShows = new();
+
+        void IExpandable.RegisterExpandShow(bool wantExpanded, Action reevaluate) => _expandShows.Register(reevaluate);
         Observable<Unit> IExpandable.OnExpanded => _expanded;
         Observable<Unit> IExpandable.OnCollapsed => _collapsed;
 
@@ -501,6 +505,7 @@ namespace PromptUGUI.Controls
             }
             if (!IsOpen) return;
             RememberPlacement();
+            _expandShows.Notify();
             _opened.OnNext(Unit.Default);
             _expanded.OnNext(Unit.Default);
         }
@@ -600,6 +605,7 @@ namespace PromptUGUI.Controls
         private void OnCoreClosed(PopupCloseReason reason)
         {
             _lockedSide = null;
+            _expandShows.Notify();
             _closed.OnNext(Map(reason));
             _collapsed.OnNext(Unit.Default);
         }
