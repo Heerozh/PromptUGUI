@@ -19,6 +19,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
             public GameObject HostGameObject { get; set; }
             public RectTransform Panel { get; set; }
             public int HostRootOrder { get; set; }
+            public Transform Anchor { get; set; }
+            public GameObject Blocker { get; set; }
+            public PopupDismiss Dismiss { get; set; } = PopupDismiss.Blocker;
+            public int OpenFrame { get; set; } = int.MinValue;
             public void CloseFromChain(PopupCloseReason reason) => Log.Add($"{Name}:{reason}");
         }
 
@@ -76,7 +80,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             PopupChain.Push(c);
 
-            CollectionAssert.AreEqual(new[] { "A:Owner" }, _log);
+            CollectionAssert.AreEqual(new[] { "A:Replaced" }, _log);
             Assert.AreSame(c, PopupChain.Top);
             Assert.AreEqual(1, PopupChain.Count);
         }
@@ -107,7 +111,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
 
             PopupChain.Push(c);
 
-            CollectionAssert.AreEqual(new[] { "B:Owner", "A:Owner" }, _log);
+            CollectionAssert.AreEqual(new[] { "B:Replaced", "A:Replaced" }, _log);
             Assert.AreSame(c, PopupChain.Top);
         }
 
@@ -220,6 +224,178 @@ namespace PromptUGUI.Tests.EditMode.Controls
             PopupChain.ResetForTests();
             Assert.IsTrue(PopupChain.IsEmpty);
             Assert.IsNull(PopupChain.Top);
+        }
+
+        // ── Anchors (spec 2026-10-19 §5.2) ───────────────────────────────────────────────
+
+        // A Popover declared elsewhere, anchored to a control inside an open panel.
+        private FakeEntry AnchoredIn(FakeEntry parent, string name, PopupDismiss dismiss = PopupDismiss.PassThrough)
+        {
+            var e = Entry(name);
+            e.Anchor = Go(name + "Anchor", parent.Panel).transform;
+            e.Dismiss = dismiss;
+            return e;
+        }
+
+        [Test]
+        public void An_anchor_inside_an_open_panel_makes_a_child()
+        {
+            var a = Entry("A");
+            var b = AnchoredIn(a, "B");
+            PopupChain.Push(a);
+
+            PopupChain.Push(b);
+
+            CollectionAssert.IsEmpty(_log, "B's anchor is in A's panel: A is its ancestor");
+            Assert.AreEqual(2, PopupChain.Count);
+        }
+
+        [Test]
+        public void DismissUnder_matches_anchors_and_uses_the_given_reason()
+        {
+            var row = Go("Row");
+            var a = Entry("A");
+            a.Anchor = Go("More", row.transform).transform;
+            PopupChain.Push(a);
+
+            PopupChain.DismissUnder(row.transform, PopupCloseReason.AnchorLost);
+
+            CollectionAssert.AreEqual(new[] { "A:AnchorLost" }, _log);
+        }
+
+        [Test]
+        public void A_close_handler_that_opens_another_popup_leaves_a_single_line()
+        {
+            var a = Entry("A");
+            var c = Entry("C");
+            var b = Entry("B");
+            // A reacts to being replaced by opening C, an unrelated popup, in the middle of B's push.
+            var reacting = new FakeReacting { Inner = a, OnClose = () => PopupChain.Push(c) };
+            PopupChain.Push(reacting);
+
+            PopupChain.Push(b);
+
+            Assert.AreEqual(1, PopupChain.Count, "B is not C's descendant: C must not stay under it");
+            Assert.AreSame(b, PopupChain.Top);
+            CollectionAssert.AreEqual(new[] { "A:Replaced", "C:Replaced" }, _log);
+        }
+
+        private sealed class FakeReacting : IPopupEntry
+        {
+            public FakeEntry Inner;
+            public System.Action OnClose;
+            public GameObject HostGameObject => Inner.HostGameObject;
+            public RectTransform Panel => Inner.Panel;
+            public int HostRootOrder => Inner.HostRootOrder;
+            public Transform Anchor => Inner.Anchor;
+            public GameObject Blocker => Inner.Blocker;
+            public PopupDismiss Dismiss => Inner.Dismiss;
+            public int OpenFrame => Inner.OpenFrame;
+
+            public void CloseFromChain(PopupCloseReason reason)
+            {
+                Inner.CloseFromChain(reason);
+                OnClose?.Invoke();
+            }
+        }
+
+        // ── Prune (spec §1.2-5) ───────────────────────────────────────────────────────────
+
+        [Test]
+        public void Prune_closes_an_entry_whose_panel_was_switched_off_from_above()
+        {
+            var holder = Go("Holder");
+            var a = Entry("A", holder.transform);
+            PopupChain.Push(a);
+
+            holder.SetActive(false);
+
+            Assert.IsNull(PopupChain.Top, "a popup nobody can see no longer answers for the chain");
+            CollectionAssert.AreEqual(new[] { "A:HostGone" }, _log);
+        }
+
+        // ── Outside presses (spec §5.4) ───────────────────────────────────────────────────
+
+        [Test]
+        public void A_press_on_nothing_closes_from_the_lowest_pass_entry()
+        {
+            var p = Entry("P");
+            p.Dismiss = PopupDismiss.PassThrough;
+            p.OpenFrame = 1;
+            PopupChain.Push(p);
+
+            Assert.AreEqual(0, PopupChain.OutsideCloseFrom(null, 2));
+        }
+
+        [Test]
+        public void A_press_on_the_panel_or_the_anchor_is_inside()
+        {
+            var p = Entry("P");
+            p.Dismiss = PopupDismiss.PassThrough;
+            p.Anchor = Go("Anchor").transform;
+            PopupChain.Push(p);
+
+            var inPanel = Go("Cell", p.Panel).transform;
+            var inAnchor = Go("Icon", p.Anchor).transform;
+            Assert.AreEqual(-1, PopupChain.OutsideCloseFrom(inPanel, 2));
+            Assert.AreEqual(-1, PopupChain.OutsideCloseFrom(inAnchor, 2));
+        }
+
+        [Test]
+        public void A_press_in_the_parent_closes_only_the_child()
+        {
+            var parent = Entry("P");
+            parent.Dismiss = PopupDismiss.PassThrough;
+            var child = AnchoredIn(parent, "C");
+            PopupChain.Push(parent);
+            PopupChain.Push(child);
+
+            var inParent = Go("Cell", parent.Panel).transform;
+            Assert.AreEqual(1, PopupChain.OutsideCloseFrom(inParent, 2));
+            Assert.AreEqual(0, PopupChain.OutsideCloseFrom(null, 2), "outside both: from the parent up");
+        }
+
+        [Test]
+        public void Blocker_and_Owner_entries_are_left_to_their_own_rules()
+        {
+            var menu = Entry("M");                                  // Blocker by default
+            menu.Blocker = Go("Catcher");
+            PopupChain.Push(menu);
+            Assert.AreEqual(-1, PopupChain.OutsideCloseFrom(null, 2), "a menu's catcher decides for it");
+
+            var child = AnchoredIn(menu, "C");
+            PopupChain.Push(child);
+            Assert.AreEqual(1, PopupChain.OutsideCloseFrom(menu.Blocker.transform, 2),
+                "a press on the menu's catcher is outside the pass child above it");
+
+            PopupChain.ResetForTests();
+            var list = Entry("L");
+            list.Dismiss = PopupDismiss.Owner;
+            PopupChain.Push(list);
+            Assert.AreEqual(-1, PopupChain.OutsideCloseFrom(null, 2), "a suggestion list closes by its field's rules");
+        }
+
+        [Test]
+        public void A_press_from_the_frame_it_opened_is_not_outside()
+        {
+            var p = Entry("P");
+            p.Dismiss = PopupDismiss.PassThrough;
+            p.OpenFrame = 5;
+            PopupChain.Push(p);
+
+            Assert.AreEqual(-1, PopupChain.OutsideCloseFrom(null, 5), "the press that opened it");
+            Assert.AreEqual(0, PopupChain.OutsideCloseFrom(null, 6));
+        }
+
+        [Test]
+        public void DismissOutside_closes_with_OutsidePress()
+        {
+            var p = Entry("P");
+            p.Dismiss = PopupDismiss.PassThrough;
+            PopupChain.Push(p);
+
+            Assert.IsTrue(PopupChain.DismissOutside(null, 2));
+            CollectionAssert.AreEqual(new[] { "P:OutsidePress" }, _log);
         }
     }
 }

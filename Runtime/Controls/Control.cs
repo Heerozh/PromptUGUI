@@ -56,7 +56,9 @@ namespace PromptUGUI.Controls
         private readonly List<IControl> _children = new();
         private System.Collections.Generic.List<System.IDisposable> _subscriptions;
 
-        public bool Hidden
+        // Virtual for a control whose visibility is a state of its own rather than SetActive — a
+        // <Popover>, which is shown by opening it (spec 2026-10-19 §4.11).
+        public virtual bool Hidden
         {
             get => !HostGameObject.activeSelf;
             set => HostGameObject.SetActive(!value);
@@ -336,6 +338,21 @@ namespace PromptUGUI.Controls
         /// </summary>
         protected internal virtual bool ForcesHugHeight => false;
 
+        /// <summary>
+        /// True for a control that places and sizes itself — a <c>&lt;Popover&gt;</c>, which its popup
+        /// core positions beside an anchor and its own fitter sizes (spec 2026-10-19 §5.8). Then
+        /// <see cref="ApplyCommon"/> parses the size and hands it to <see cref="ApplyOwnSize"/>, writes
+        /// <c>interactable</c>, and writes nothing else: anchor / pivot / margin are not even parsed (an
+        /// ignored attribute must not fail the open), <c>hidden</c> is not applied (a
+        /// <c>hidden.portrait</c> with no base would close it on rotation), no hug or clamp component is
+        /// attached, and in a layout group it only opts out of the flow. <c>Screen</c> skips its
+        /// <c>scale</c> as well.
+        /// </summary>
+        internal virtual bool OwnsGeometry => false;
+
+        /// <summary>The parsed <c>size</c> / <c>width</c> / <c>height</c> of an <see cref="OwnsGeometry"/> control.</summary>
+        internal virtual void ApplyOwnSize(SizeSpec sizeSpec) { }
+
         // 通用属性应用（由 ScreenInstantiator 在子类自身属性应用之后调用）。
         // hidden / interactable 为 null = 本 pass 不写：未声明（hidden），或已被运行期接管
         // （ControlAttributeApplier 判定，spec 2026-09-17-common-attr-runtime-state-design）。
@@ -348,6 +365,12 @@ namespace PromptUGUI.Controls
             flow &= ParticipatesInLayout;
 
             var sizeSpec = SizeSpec.Parse(size, width, height);
+
+            if (OwnsGeometry)
+            {
+                ApplyOwnGeometry(sizeSpec, interactable);
+                return;
+            }
 
             SizeFromNative = false;
             if (sizeSpec.IsNativeWidth || sizeSpec.IsNativeHeight)
@@ -543,6 +566,29 @@ namespace PromptUGUI.Controls
             }
 
             if (hidden.HasValue) Hidden = hidden.Value;
+            if (interactable.HasValue) Interactable = interactable.Value;
+        }
+
+        // The OwnsGeometry branch of ApplyCommon: the size goes to the control, the rest stays untouched.
+        private void ApplyOwnGeometry(SizeSpec sizeSpec, bool? interactable)
+        {
+            SizeFromNative = false;
+            _hugsWidth = sizeSpec.IsHugWidth;
+            _hugsHeight = sizeSpec.IsHugHeight;
+            _hugMin = new Vector2(sizeSpec.MinWidth, sizeSpec.MinHeight);
+            _hugMax = new Vector2(sizeSpec.MaxWidth, sizeSpec.MaxHeight);
+
+            // A layout group would give it a slot and count its size: it never takes part in a flow.
+            // Explicit null check — in the Editor a missing component is a fake null that `??` keeps.
+            var parent = LayoutHost.parent;
+            if (parent != null && parent.GetComponent<UnityEngine.UI.LayoutGroup>() != null)
+            {
+                var le = LayoutHost.gameObject.GetComponent<UnityEngine.UI.LayoutElement>();
+                if (le == null) le = LayoutHost.gameObject.AddComponent<UnityEngine.UI.LayoutElement>();
+                le.ignoreLayout = true;
+            }
+
+            ApplyOwnSize(sizeSpec);
             if (interactable.HasValue) Interactable = interactable.Value;
         }
 

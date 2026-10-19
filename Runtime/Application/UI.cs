@@ -1293,6 +1293,8 @@ namespace PromptUGUI.Application
             Tutorial.ResetForTestsInternal();
             Navigation.ResetForTestsInternal();
             Controls.Internal.PopupChain.ResetForTests();
+            Controls.Internal.PopupCore.ResetDepthWarningForTests();
+            Controls.Internal.OutsidePressProbe.ResetForTests();
             Controls.Internal.PuiDropdown.ResetForTests();
             Controls.Internal.PopupBounds.ResetForTests();
             EscapeChain.ResetForTests();
