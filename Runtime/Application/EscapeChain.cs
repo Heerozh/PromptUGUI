@@ -73,7 +73,7 @@ namespace PromptUGUI.Application
 
         // The sortingOrder of the highest dialog on screen, ad-hoc or routed; a popup below it (one a
         // script opened under a dialog) is not what the user is looking at.
-        private static int TopModalOrder()
+        internal static int TopModalOrder()
         {
             var order = int.MinValue;
             var adHoc = UI.Modal.TopScreen;

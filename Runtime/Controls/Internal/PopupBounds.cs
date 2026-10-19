@@ -17,6 +17,9 @@ namespace PromptUGUI.Controls.Internal
         /// <summary>Test injection: the keyboard height in device pixels (0 = no keyboard).</summary>
         internal static Func<float> KeyboardHeightOverride;
 
+        /// <summary>Tests: the safe area alone (no keyboard), instead of reading the screen.</summary>
+        internal static Func<Rect> SafeOverride;
+
         internal static Rect For(Canvas root)
         {
             if (BoundsOverride != null) return BoundsOverride();
@@ -30,6 +33,19 @@ namespace PromptUGUI.Controls.Internal
         /// The safe rect with the keyboard taken off the bottom: a keyboard <paramref name="keyboardPx"/>
         /// device pixels tall covers the canvas up to <c>full.yMin + keyboardPx / scaleFactor</c>.
         /// </summary>
+        /// <summary>
+        /// The safe area without the soft keyboard: what changes when the screen turns or the window is
+        /// resized, but not when a keyboard slides in (spec 2026-10-19 §4.5 — a popover re-picks its side
+        /// only on the former).
+        /// </summary>
+        internal static Rect SafeFor(Canvas root)
+        {
+            if (SafeOverride != null) return SafeOverride();
+            if (BoundsOverride != null) return BoundsOverride();
+            if (root == null) return default;
+            return SafeAreaTracker.ApplySafeInset(((RectTransform)root.transform).rect, root.scaleFactor);
+        }
+
         internal static Rect Compute(Rect safe, Rect full, float keyboardPx, float scaleFactor)
         {
             if (keyboardPx <= 0f || scaleFactor <= 0f) return safe;
@@ -48,6 +64,7 @@ namespace PromptUGUI.Controls.Internal
         {
             BoundsOverride = null;
             KeyboardHeightOverride = null;
+            SafeOverride = null;
         }
     }
 }

@@ -44,6 +44,7 @@ namespace PromptUGUI.Application.Navigation
                 Canvas.ForceUpdateCanvases();
                 pool = new List<Selectable>(confineRoot.GetComponentsInChildren<Selectable>(false));
             }
+            var handled = pool != null ? new HashSet<Selectable>() : null;
 
             foreach (var kv in nodeMap)
             {
@@ -57,6 +58,7 @@ namespace PromptUGUI.Application.Navigation
 
                 var sel = control.GameObject.GetComponent<Selectable>();
                 if (sel == null) continue; // non-Selectable control: skip
+                handled?.Add(sel);
 
                 var navMode = VariantResolver.ResolveAttribute(node, "nav", variants);
                 var up = VariantResolver.ResolveAttribute(node, "navUp", variants);
@@ -108,6 +110,25 @@ namespace PromptUGUI.Application.Navigation
                         selectOnRight = Sel(screen, right) ?? FindInSubtree(sel, t.rotation * Vector3.right, pool),
                     };
                 }
+            }
+
+            // Confine mode also cages what no node declares: rows a BindItems built, cells of a popover's
+            // grid (spec 2026-10-19 §5.1). Left Automatic, they would find a neighbour behind the cage and
+            // the containment would snap the focus back to the first focusable.
+            if (pool == null) return;
+            foreach (var sel in pool)
+            {
+                if (sel == null || handled.Contains(sel)) continue;
+                if (sel.navigation.mode == UnityEngine.UI.Navigation.Mode.None) continue;
+                var t = sel.transform;
+                sel.navigation = new UnityEngine.UI.Navigation
+                {
+                    mode = UnityEngine.UI.Navigation.Mode.Explicit,
+                    selectOnUp = FindInSubtree(sel, t.rotation * Vector3.up, pool),
+                    selectOnDown = FindInSubtree(sel, t.rotation * Vector3.down, pool),
+                    selectOnLeft = FindInSubtree(sel, t.rotation * Vector3.left, pool),
+                    selectOnRight = FindInSubtree(sel, t.rotation * Vector3.right, pool),
+                };
             }
         }
 

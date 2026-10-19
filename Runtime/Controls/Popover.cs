@@ -1,8 +1,10 @@
 using System;
 using PromptUGUI.Application;
+using PromptUGUI.Application.Modals;
 using PromptUGUI.Controls.Internal;
 using PromptUGUI.Layout;
 using PromptUGUI.Lint;
+using PromptUGUI.Parser;
 using PromptUGUI.Registry;
 using R3;
 using UnityEngine;
@@ -38,10 +40,21 @@ namespace PromptUGUI.Controls
         private float _gap = DefaultGap;
         private float _transition = DefaultTransition;
 
-        // Open state: what it hangs from, and the side chosen when it opened (kept while open).
+        // Open state: what it hangs from (a control, or a screen point for OpenAt), and the side chosen
+        // when it opened (kept while open).
         private IControl _anchor;
+        private Vector2? _point;
         private PopupSide? _lockedSide;
         private bool _opening;
+
+        // on="click@id": the raw value, the value last resolved, and the trigger it found.
+        private string _onRaw = "manual";
+        private string _resolvedOn = "manual";
+        private Btn _trigger;
+        private IDisposable _triggerSub;
+
+        // What a close the core reports as Owner really was: our Close(), or a click on the trigger.
+        private PopoverCloseReason? _closeAs;
 
         private readonly Subject<Unit> _opened = new();
         private readonly Subject<PopoverCloseReason> _closed = new();
@@ -78,20 +91,66 @@ namespace PromptUGUI.Controls
         Observable<Unit> IExpandable.OnExpanded => _expanded;
         Observable<Unit> IExpandable.OnCollapsed => _collapsed;
 
-        /// <summary>Opens beside <paramref name="anchor"/> — any control of the same Screen.</summary>
+        /// <summary>Opens at its <c>on="click@id"</c> trigger.</summary>
+        public void Open() => Open(RequireTrigger());
+
+        /// <summary>
+        /// Opens beside <paramref name="anchor"/> — any control of the same Screen. Already open there:
+        /// nothing; open elsewhere: closed (<see cref="PopoverCloseReason.Code"/>) and reopened here. Does
+        /// nothing when it cannot open (§4.3); check <see cref="IsOpen"/>.
+        /// </summary>
         public void Open(IControl anchor)
         {
             if (anchor == null) throw new ArgumentNullException(nameof(anchor));
+            ValidateAnchor(anchor);
             if (IsOpen && ReferenceEquals(anchor, _anchor)) return;
             if (IsOpen) Close();
-            if (!CanOpenOn(anchor)) return;
+            if (!CanOpen(anchor)) return;
+            _point = null;
             OpenCore(anchor);
         }
 
-        public void Close()
+        /// <summary>Opens at a point in screen pixels (<c>PointerEventData.position</c>) — a context menu.</summary>
+        public void OpenAt(Vector2 screenPosition)
         {
-            if (!IsOpen) return;
-            _core.Close(PopupCloseReason.Owner);
+            if (IsOpen) Close();
+            if (!CanOpen(null)) return;
+            _point = screenPosition;
+            OpenCore(null);
+        }
+
+        /// <summary>Its <c>on="click@id"</c> trigger's toggle, from code.</summary>
+        public void Toggle() => Toggle(RequireTrigger());
+
+        /// <summary>Open on <paramref name="anchor"/>, or close if it is already open there.</summary>
+        public void Toggle(IControl anchor)
+        {
+            if (IsOpen && ReferenceEquals(anchor, _anchor)) Close();
+            else Open(anchor);
+        }
+
+        public void Close() => CloseAs(PopoverCloseReason.Code);
+
+        /// <summary>Reads <c>!IsOpen</c>. Setting true closes it; setting false does nothing — opening needs
+        /// an anchor (spec §4.11). XML <c>hidden=</c> is ignored.</summary>
+        public override bool Hidden
+        {
+            get => !IsOpen;
+            set
+            {
+                if (value) Close();
+            }
+        }
+
+        /// <summary>Not interactable: it cannot open, and an open one closes.</summary>
+        public override bool Interactable
+        {
+            get => base.Interactable;
+            set
+            {
+                base.Interactable = value;
+                if (!value) Close();
+            }
         }
 
         // ── Construction ───────────────────────────────────────────────────────────────────
@@ -129,6 +188,9 @@ namespace PromptUGUI.Controls
                 Measure = Measure,
                 TransitionSeconds = _transition,
                 Anchor = AnchorTransform,
+                RestoreTo = RestoreTarget,
+                RestoreWhenUncaged = true,
+                LateTick = Follow,
             };
             _core.Closed += OnCoreClosed;
         }
@@ -151,8 +213,79 @@ namespace PromptUGUI.Controls
             base.OnAfterApply();
             // Hidden / disabled while open → closed; otherwise re-placed. Closed → switched off, after
             // Screen.Open's measuring pass when one is running (TM-D12).
-            _core.OnHostAfterApply();
+            _closeAs = PopoverCloseReason.Code;
+            try
+            {
+                _core.OnHostAfterApply();
+            }
+            finally
+            {
+                _closeAs = null;
+            }
+            if (_onRaw != _resolvedOn) ScheduleTriggerResolve();
         }
+
+        // ── on="click@id" (spec §4.3) ──────────────────────────────────────────────────────
+
+        /// <summary><c>click@&lt;id&gt;</c> — a <c>&lt;Btn&gt;</c> that toggles it and is its anchor — or <c>manual</c>.</summary>
+        [UIAttr("on"), Preserve]
+        public string On
+        {
+            set
+            {
+                var v = string.IsNullOrEmpty(value) ? "manual" : value.Trim();
+                const string click = "click@";
+                var ok = v == "manual"
+                         || (v.StartsWith(click, StringComparison.Ordinal) && v.Length > click.Length
+                             && v.IndexOf('@', click.Length) < 0);
+                if (!ok)
+                    throw new ArgumentException(
+                        $"[{PopoverRules.OnCode}] <Popover id='{Id}'> on='{value}': a popover opens on " +
+                        "'click@<id>' (a <Btn> outside it, which also becomes its anchor) or 'manual' (from code).");
+                _onRaw = v;
+            }
+        }
+
+        // Resolved once whatever is being built is complete: the trigger may be declared after the popover,
+        // or later in the same template row (spec §5.6).
+        private void ScheduleTriggerResolve()
+        {
+            var wanted = _onRaw;
+            _resolvedOn = wanted;
+            void Resolve()
+            {
+                if (_onRaw != wanted || _core == null) return;   // superseded, or disposed meanwhile
+                _triggerSub?.Dispose();
+                _triggerSub = null;
+                _trigger = null;
+                if (wanted == "manual") return;
+                Btn btn;
+                try
+                {
+                    btn = TriggerSourceResolver.FindTriggerBtn(this, wanted.Substring("click@".Length), "Popover");
+                }
+                catch (Exception ex) when (!(ex is ParseException))
+                {
+                    throw ControlAttributeApplier.WrapForNode(SourceNode, ex);
+                }
+                _trigger = btn;
+                _triggerSub = btn.OnClick.Subscribe(_ => ToggleFromTrigger(btn));
+            }
+
+            var owner = UI.OwnerScreenOf(this);
+            if (owner != null) owner.DeferDuringOpen(() => ScreenInstantiator.DeferAfterBuild(Resolve));
+            else ScreenInstantiator.DeferAfterBuild(Resolve);
+        }
+
+        private void ToggleFromTrigger(Btn trigger)
+        {
+            if (IsOpen && ReferenceEquals(_anchor, trigger)) CloseAs(PopoverCloseReason.Trigger);
+            else Open(trigger);
+        }
+
+        private Btn RequireTrigger()
+            => _trigger ?? throw new InvalidOperationException(
+                $"<Popover id='{Id}'> has no on=\"click@<id>\" trigger: open it with Open(anchor) or OpenAt(point).");
 
         // ── Attributes ─────────────────────────────────────────────────────────────────────
 
@@ -291,21 +424,69 @@ namespace PromptUGUI.Controls
 
         // ── Open / close ───────────────────────────────────────────────────────────────────
 
-        private bool CanOpenOn(IControl anchor)
+        private void ValidateAnchor(IControl anchor)
+        {
+            var go = anchor.GameObject;
+            if (go != null && GameObject != null && go.transform.IsChildOf(GameObject.transform))
+                throw new ArgumentException($"<Popover id='{Id}'>: its anchor cannot be inside the popover itself.",
+                    nameof(anchor));
+            var mine = UI.OwnerScreenOf(this);
+            var theirs = UI.OwnerScreenOf(anchor);
+            if (mine != null && theirs != null && !ReferenceEquals(mine, theirs))
+                throw new ArgumentException(
+                    $"<Popover id='{Id}'>: its anchor belongs to Screen '{theirs.Name}', not '{mine.Name}' — a popover " +
+                    "opens beside controls of its own Screen.", nameof(anchor));
+        }
+
+        // Quietly refused (spec §4.3): not interactable, nowhere to hang from, or its layer is covered —
+        // a dialog or the Loading overlay is over it, so it would draw on top of what covers it.
+        private bool CanOpen(IControl anchor)
         {
             if (_core == null || GameObject == null) return false;
             if (!PeekInteractable) return false;
             var parent = RectTransform.parent;
             if (parent == null || !parent.gameObject.activeInHierarchy) return false;
-            var go = anchor.GameObject;
-            if (go == null || !go.activeInHierarchy) return false;
+            if (anchor != null)
+            {
+                var go = anchor.GameObject;
+                if (go == null || !go.activeInHierarchy || !AnchorInteractable(anchor)) return false;
+            }
+            var root = RootCanvas();
+            var order = root != null ? root.sortingOrder : 0;
+            if (order < EscapeChain.TopModalOrder()) return false;
+            if (LoadingOverlay.ActiveCount > 0 && order < Loading.SortingOrder) return false;
             return true;
+        }
+
+        // Not IControl.Interactable: that getter adds a CanvasGroup (spec §4.6).
+        private static bool AnchorInteractable(IControl anchor)
+        {
+            var go = anchor.GameObject;
+            if (go == null) return false;
+            var selectable = go.GetComponent<Selectable>();
+            if (selectable != null) return selectable.IsInteractable();
+            return !(anchor is Control c) || c.PeekInteractable;
+        }
+
+        private void CloseAs(PopoverCloseReason reason)
+        {
+            if (!IsOpen) return;
+            _closeAs = reason;
+            try
+            {
+                _core.Close(PopupCloseReason.Owner);
+            }
+            finally
+            {
+                _closeAs = null;
+            }
         }
 
         private void OpenCore(IControl anchor)
         {
             _anchor = anchor;
             _lockedSide = null;
+            _selectedAtOpen = CurrentSelection();
             _opening = true;
             try
             {
@@ -319,8 +500,101 @@ namespace PromptUGUI.Controls
                 _opening = false;
             }
             if (!IsOpen) return;
+            RememberPlacement();
             _opened.OnNext(Unit.Default);
             _expanded.OnNext(Unit.Default);
+        }
+
+        // ── Following (spec §4.6) ──────────────────────────────────────────────────────────
+
+        // What the last placement was made against: the anchor's rect, the bounds, the safe area.
+        private Rect _lastAnchorRect;
+        private Rect _lastBounds;
+        private Rect _lastSafe;
+        private GameObject _selectedAtOpen;
+
+        /// <summary>Tests: the panel's <c>LateUpdate</c> step (EditMode runs none).</summary>
+        internal void TickForTests() => Follow();
+
+        /// <summary>
+        /// Every frame while open (after the frame's motion): close when the anchor went away, re-place when
+        /// it or the bounds moved. A new safe area (the screen turned, the window resized) re-picks the side;
+        /// a soft keyboard only re-clamps it on the side chosen at open.
+        /// </summary>
+        private void Follow()
+        {
+            if (!IsOpen) return;
+            if (!_point.HasValue && (!AnchorAlive() || AnchorClippedOut()))
+            {
+                _core.Close(PopupCloseReason.AnchorLost);
+                return;
+            }
+            var root = RootCanvas();
+            if (root == null) return;
+            var safe = PopupBounds.SafeFor(root);
+            var bounds = PopupBounds.For(root);
+            var anchor = _point.HasValue ? default : AnchorRectInCanvas(root);
+            if (safe != _lastSafe) _lockedSide = null;
+            else if (anchor == _lastAnchorRect && bounds == _lastBounds) return;
+            _core.Reposition();
+            RememberPlacement();
+        }
+
+        private void RememberPlacement()
+        {
+            var root = RootCanvas();
+            if (root == null) return;
+            _lastSafe = PopupBounds.SafeFor(root);
+            _lastBounds = PopupBounds.For(root);
+            _lastAnchorRect = _point.HasValue ? default : AnchorRectInCanvas(root);
+        }
+
+        private bool AnchorAlive()
+        {
+            var go = _anchor?.GameObject;
+            return go != null && go.activeInHierarchy && AnchorInteractable(_anchor);
+        }
+
+        // Entirely outside what clips it: every RectMask2D / Mask above the anchor, up to the first canvas
+        // that sorts on its own — the way MaskUtilities stops — so an anchor inside another popover's
+        // panel is not judged by the list that panel happens to hang in.
+        private bool AnchorClippedOut()
+        {
+            var root = RootCanvas();
+            var art = _anchor?.RectTransform;
+            if (root == null || art == null) return false;
+            var rect = AnchorRectInCanvas(root);
+            for (var t = art.parent; t != null; t = t.parent)
+            {
+                var canvas = t.GetComponent<Canvas>();
+                if (canvas != null && (canvas.overrideSorting || canvas.isRootCanvas)) break;
+                var clips = (t.GetComponent<RectMask2D>() is RectMask2D m2 && m2.isActiveAndEnabled)
+                            || (t.GetComponent<Mask>() is Mask m && m.isActiveAndEnabled);
+                if (!clips) continue;
+                if (!rect.Overlaps(RectInCanvas((RectTransform)t, root))) return true;
+            }
+            return false;
+        }
+
+        private static GameObject CurrentSelection()
+        {
+            var es = UnityEngine.EventSystems.EventSystem.current;
+            if (es == null) es = UnityEngine.Object.FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>();
+            return es != null ? es.currentSelectedGameObject : null;
+        }
+
+        // Where the focus goes when a selection is left in the closing panel (spec §4.8): the anchor, unless
+        // it is gone or no longer shows what it showed (AnchorLost / HostGone); else what was selected when
+        // it opened; else nowhere.
+        private GameObject RestoreTarget(PopupCloseReason reason)
+        {
+            if (reason != PopupCloseReason.AnchorLost && reason != PopupCloseReason.HostGone && _anchor != null)
+            {
+                var go = _anchor.GameObject;
+                var sel = go != null ? go.GetComponent<Selectable>() : null;
+                if (sel != null && go.activeInHierarchy && sel.IsInteractable()) return go;
+            }
+            return _selectedAtOpen != null && _selectedAtOpen.activeInHierarchy ? _selectedAtOpen : null;
         }
 
         private void OnCoreClosed(PopupCloseReason reason)
@@ -330,7 +604,7 @@ namespace PromptUGUI.Controls
             _collapsed.OnNext(Unit.Default);
         }
 
-        private static PopoverCloseReason Map(PopupCloseReason reason)
+        private PopoverCloseReason Map(PopupCloseReason reason)
         {
             switch (reason)
             {
@@ -338,7 +612,9 @@ namespace PromptUGUI.Controls
                 case PopupCloseReason.OutsidePress: return PopoverCloseReason.OutsidePress;
                 case PopupCloseReason.Covered: return PopoverCloseReason.Covered;
                 case PopupCloseReason.HostGone: return PopoverCloseReason.HostGone;
-                default: return PopoverCloseReason.Code;
+                case PopupCloseReason.AnchorLost: return PopoverCloseReason.AnchorLost;
+                case PopupCloseReason.Replaced: return PopoverCloseReason.Replaced;
+                default: return _closeAs ?? PopoverCloseReason.Code;
             }
         }
 
@@ -361,18 +637,31 @@ namespace PromptUGUI.Controls
             if (root == null) return new PopupLayout(rt.rect.size, _gap);
 
             var bounds = PopupBounds.For(root);
-            var anchorRect = AnchorRectInCanvas(root);
+            var anchorRect = _point.HasValue ? PointInCanvas(root, _point.Value) : AnchorRectInCanvas(root);
             var size = rt.rect.size * ScaleToCanvas(rt, root);
             var placement = PopupPlacer.SolveSide(anchorRect, size, bounds, _gap, _prefer, _align, _lockedSide);
             _lockedSide = placement.Side;
             return PopupLayout.Free(placement.Panel, placement.Side, _align);
         }
 
+        private static Rect PointInCanvas(Canvas root, Vector2 screenPosition)
+        {
+            var cam = root.renderMode == RenderMode.ScreenSpaceOverlay ? null : root.worldCamera;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)root.transform, screenPosition,
+                cam, out var local);
+            return new Rect(local, Vector2.zero);
+        }
+
         private Rect AnchorRectInCanvas(Canvas root)
         {
-            var art = _anchor?.RectTransform;
-            if (art == null) return default;
-            art.GetWorldCorners(Corners);
+            // The anchor may have been destroyed since the last frame (a fitter-driven reposition).
+            var art = _anchor != null && _anchor.GameObject != null ? _anchor.RectTransform : null;
+            return art == null ? default : RectInCanvas(art, root);
+        }
+
+        private static Rect RectInCanvas(RectTransform rt, Canvas root)
+        {
+            rt.GetWorldCorners(Corners);
             var canvasRt = (RectTransform)root.transform;
             var min = canvasRt.InverseTransformPoint(Corners[0]);
             var max = canvasRt.InverseTransformPoint(Corners[2]);
@@ -428,10 +717,19 @@ namespace PromptUGUI.Controls
 
         public override void Dispose()
         {
+            _triggerSub?.Dispose();
+            _triggerSub = null;
             if (_core != null)
             {
+                // The core leaves the chain silently; whoever listens still hears it went (spec §4.11).
+                if (_core.IsOpen)
+                {
+                    _closed.OnNext(PopoverCloseReason.HostGone);
+                    _collapsed.OnNext(Unit.Default);
+                }
                 _core.Closed -= OnCoreClosed;
                 _core.Dispose();
+                _core = null;
             }
             _opened.Dispose();
             _closed.Dispose();

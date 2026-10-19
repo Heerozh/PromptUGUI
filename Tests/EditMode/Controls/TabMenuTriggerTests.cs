@@ -136,8 +136,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
         public void A_bare_trigger_with_no_menu_ancestor_throws()
         {
             var message = MessageFromOpening("<Frame><Trigger id='t' on='expand'><Frame/></Trigger></Frame>");
-            StringAssert.Contains("no <TabMenu>/<Collapsible> ancestor found", message,
-                "both expandables are named — either one satisfies a bare expand/collapse");
+            StringAssert.Contains("no <TabMenu>/<Collapsible>/<Popover> ancestor found", message,
+                "every expandable is named — any one satisfies a bare expand/collapse");
             StringAssert.Contains("expand@<id>", message, "…and points at the way out");
         }
 
@@ -146,7 +146,7 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var message = MessageFromOpening(
                 "<Frame><Trigger id='t' on='expand@btn'><Btn id='btn'>x</Btn></Trigger></Frame>");
-            StringAssert.Contains("not a <TabMenu>/<Collapsible>", message);
+            StringAssert.Contains("not a <TabMenu>/<Collapsible>/<Popover>", message);
         }
 
         [Test]
