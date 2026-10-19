@@ -1,6 +1,6 @@
 # 公开浮层 `<Popover>`（浮层阶段 2）
 
-> 状态：**已对齐**（2026-10-19 起草。要作者拍板的四点按推荐定：独立元素；外部按下默认穿透；输入框不对抗失焦，改加 `InputField.Insert`；`<Show>` 认 `expand` / `collapse`。其余按推荐写；同日按实施计划 `plans/2026-10-19-popover.md` 的计划期修正与审阅结论改齐）。
+> 状态：**已实施**（实施记录见 §16）。**已对齐**（2026-10-19 起草。要作者拍板的四点按推荐定：独立元素；外部按下默认穿透；输入框不对抗失焦，改加 `InputField.Insert`；`<Show>` 认 `expand` / `collapse`。其余按推荐写；同日按实施计划 `plans/2026-10-19-popover.md` 的计划期修正与审阅结论改齐）。
 > 来源：`2026-10-18-popup-core-and-input-suggestions-design.md` §12 的阶段 2 备忘；表情选择、列表行「…」菜单、右键菜单这类用法；读源码做的评估。§1.2 的问题都是读代码得出的，没有在 Unity 里复现；复现由 §9 的 Red 测试给出。
 > 相关：
 > `2026-10-18-popup-core-and-input-suggestions-design.md`（`PopupCore` / `PopupChain` / `EscapeChain` / `PopupPlacer` / `PopupBounds`；PC-D3 层序、PC-D6 焦点还原、PC-D7 外部按下；SG-D12 定侧锁定、SG-D13 边界）、
@@ -682,3 +682,41 @@ CommonControls 的聊天页加一行输入：输入框 + 颜文字钮 + 发送�
 | `<Show>` 认了 `expand` 之后，有人把它写在面板里误用 | `PUI-SHOW-EXPAND-SELF` |
 | `OwnsGeometry` 绕开了 `ApplyCommon` 的几何 | 只有 Popover 打开它；尺寸语法仍由 `SizeSpec` 解析与校验 |
 | 回滚 | `<Popover>` 与 `Insert` 是纯新增；内核扩展向后兼容，TabMenu / Suggestions 的调用不变；`<Show>` 的两个新值可以单独回退 |
+
+## 16. 实施记录
+
+**先红后绿的复现**（改线之前都红在预期的断言上）：
+
+| 测试 | 改线前的结果 |
+|---|---|
+| `PopupHostDisabledTests.A_menu_hidden_with_its_ancestor_no_longer_eats_Escape`（§1.2-5） | 祖先被隐藏的 TabMenu 仍在链上，Esc 被它吃掉，模态没关 |
+| `DynamicIdResolutionTests`（三条） | 动态行里写在前面的 `<Show on="checked@t">` 找不到后面的 `<Toggle id="t">` |
+| `ShowExpandTests`（五条） | `<Show on="expand…">` 解析时报「只接受 state-*」 |
+| `ScrollListPopoverAnchorTests`（五条该关的） | 行退役 / 停进池子 / 交给别的项之后，浮层仍开着 |
+| `ScrollListReorderTests.Keyed_push_after_a_reorder_keeps_rows_with_their_items` | 被拖的行显示的是邻行的项（P12 的问题成立） |
+| `InputFieldInsertTests`（对着桩） | 九条红；只读、组字两条在桩下天然为真 |
+| `PopoverRulesTests` | 二十条里十九条红 |
+
+**没能先红的**：下列测试类与实现一起第一次运行，红只体现为编译错误：`ControlOwnsGeometryTests`、`PopupCoreFreeTests`、`PopoverSizeTests`、`OutsidePressProbeTests`、`PopoverOpenCloseTests`、`PopoverCloseReasonTests`、`PopoverFollowTests`、`PopoverFocusTests`（活 Selectable 的圈闭先于测试写好）；`PopoverNestingTests` 按计划预期不需要新代码，写好即绿。
+
+**与设计的偏差 / 补充**：
+
+- **`OwnsGeometry` / `ApplyOwnSize` 是 `internal virtual`**，不是 §5.8 写的 `protected internal`：自定义控件暂时不能选择自管几何。
+- **活 Selectable 的圈闭**没有另开入口：`ExplicitNavigationResolver.Resolve` 的圈闭模式在转换完 `_nodeMap` 里的节点之后，把圈闭根下其余活着的 Selectable（`BindItems` 建出的行）也转成圈在根内的显式导航。模态与 TabMenu 走的是同一条路，所以模态里 `BindItems` 的行从此也圈在模态里。
+- **外部按下的锁存**：只保留本帧的按下会丢掉「探测跑完之后才锁存」的按下（手动更新、测试里在协程中注入）。现在保留上一帧及之后的按下，更早的丢掉；打开那一帧的按下由 `OpenFrame` 比较排除，规则不变。真设备的 PlayMode 用例暴露了这一点。
+- **锁存的订阅**：`ResetForTests` 会退订并清掉「已订阅」旗标。`InputTestFixture` 每个用例都换一套输入系统，否则从第二个用例起探测就读不到按下。
+- **`PUI-POPOVER-SIZE` 不管 `native`**：除 `<Icon>` 外写 `native` 在解析期就报错，这条规则只会看到 `stretch` / `%`（含 `clamp` 中项）。
+- **`PUI-POPOVER-PARENT` 的「写在 Btn / Tab / Toggle 里」** 用 `IRWalker` 已有的祖先旗标；模板体不知道自己的祖先，所以只在展开遍里看得到。
+- **`PUI-SHOW-EXPAND-SELF`** 放在 `StateTriggerRules`，整屏遍历；`<Header>` 不是内置标签，遍历里单独认它。
+- **组字判定**同上一份 spec 的阶段 1：取输入模块的 `BaseInput.compositionString`，退回 `Input.compositionString`，抛 `InvalidOperationException` 就当没有；另加测试注入 `CompositionForTests`。
+- **编辑中的 `Insert`** 用 `stringPosition` 落光标（它会同步字符位置）；`InputField` 内部对 TMP 组件的引用改成 `PuiInputField` 类型。
+- `ScrollListRules.IsDuration` 改为 internal，供 `PopoverRules` 共用。
+- **样例**：输入框的占位符与样例里其他占位符一样不进 `.po`；表情钮与表情格写 `tr="false"`。
+
+**验证**：
+- EditMode 5625 / EditorOnly 471 / PlayMode 311 全绿。
+- `dotnet format --verify-no-changes` 干净。
+- UIXmlLint 对 `Runtime/Resources/` 与 `Samples~/` 零问题。一份故意写错的 `.ui.xml` 报出 `ON` / `ENUM`×2 / `VALUE`×2 / `SIZE` / `LAYOUT-ATTR` / `PARENT`×2 / `SHOW-EXPAND-SELF`；`HUG-WIDTH` 由单测覆盖。
+- 样例的 C# 与运行时一起在 Unity 外编译通过。一个临时的 EditMode 冒烟（未提交）在两套皮下打开样例的聊天页、点开表情浮层并插入。
+- 真设备的 PlayMode 用例（`InputTestFixture`）覆盖：鼠标 / 触屏点外面、再点触发钮、点面板、`OpenAt` 来自按下、`block`、浮层里的 `<Dropdown>`、手柄 B / Esc 与焦点还原、圈住的网格。
+- 留待手测：手机真机（点外面、软键盘出现时的位置）、手柄真机、两套皮的观感、列表行里的浮层在拖动面板时不带着列表滚、浮层里 `<Dropdown>` 在真机上选项。
