@@ -1905,6 +1905,7 @@ namespace PromptUGUI.Controls
             {
                 var row = _leaving[_leaving.Count - 1];
                 _leaving.RemoveAt(_leaving.Count - 1);
+                LoseAnchors(HostOf(row));   // handed to another item
                 return row;
             }
             while (_parked.Count > 0)
@@ -1952,6 +1953,7 @@ namespace PromptUGUI.Controls
         {
             var host = HostOf(row);
             if (host == null) return;   // destroyed from outside
+            LoseAnchors(host);
             if (row is Control c) c.ReleaseSubscriptions();
             host.SetParent(EnsurePool(), worldPositionStays: false);
             _parked.Add(row);
@@ -1989,8 +1991,27 @@ namespace PromptUGUI.Controls
         private void Retire(IControl row)
         {
             var host = HostOf(row);
-            if (host != null) host.SetParent(EnsurePool(), worldPositionStays: false);
+            if (host != null)
+            {
+                LoseAnchors(host);
+                host.SetParent(EnsurePool(), worldPositionStays: false);
+            }
             row.Dispose();
+        }
+
+        /// <summary>
+        /// A row that stops showing its item — retired, parked, or handed to another item — closes the popovers
+        /// anchored in it as <see cref="PopupCloseReason.AnchorLost"/> (spec 2026-10-19 §5.5). A row that keeps
+        /// its item is re-bound on every push and closes nothing. The close handlers run under the sync guard: a
+        /// push they make waits for the one in progress (some of these paths run outside a sync).
+        /// </summary>
+        private void LoseAnchors(RectTransform host)
+        {
+            if (PopupChain.Count == 0) return;
+            var wasInSync = _inSync;
+            _inSync = true;
+            try { PopupChain.DismissUnder(host, PopupCloseReason.AnchorLost); }
+            finally { _inSync = wasInSync; }
         }
 
         private void ClearSlots()
