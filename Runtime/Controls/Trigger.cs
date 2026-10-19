@@ -46,8 +46,29 @@ namespace PromptUGUI.Controls
             if (_subscribed) return;
             _subscribed = true;
             _spec ??= new TriggerSpec { Kind = TriggerKind.Open };
+            // In a subtree built at runtime, an @id may name a sibling that does not exist yet: wait for
+            // the build to finish (spec 2026-10-19 §5.6). Errors still surface from that same build.
+            if (ReferencesById && PromptUGUI.Application.ScreenInstantiator.IsBuilding)
+            {
+                var node = SourceNode;
+                PromptUGUI.Application.ScreenInstantiator.DeferAfterBuild(() =>
+                {
+                    try
+                    {
+                        InitTriggerSubscription();
+                    }
+                    catch (Exception ex) when (!(ex is PromptUGUI.Parser.ParseException))
+                    {
+                        throw PromptUGUI.Application.ControlAttributeApplier.WrapForNode(node, ex);
+                    }
+                });
+                return;
+            }
             InitTriggerSubscription();
         }
+
+        /// <summary>Whether this trigger names its source by id (<c>on="…@id"</c>, or a reverse-on that does).</summary>
+        private protected virtual bool ReferencesById => _spec?.SourceId != null;
 
         protected virtual void InitTriggerSubscription()
         {

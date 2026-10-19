@@ -235,6 +235,13 @@ namespace PromptUGUI.Application
             }
         }
 
+        /// <summary>An exception raised while applying <paramref name="node"/>, with the node's place —
+        /// the same shape the apply pass gives it, for work deferred past that pass.</summary>
+        internal static ParseException WrapForNode(ElementNode node, Exception ex)
+            => node == null
+                ? new ParseException(ex.Message)
+                : new ParseException(FormatNodeContext(node) + ": " + ex.Message + UILog.At(node));
+
         private static string FormatNodeContext(ElementNode node)
         {
             var id = string.IsNullOrEmpty(node.Id) ? "" : $" id='{node.Id}'";
