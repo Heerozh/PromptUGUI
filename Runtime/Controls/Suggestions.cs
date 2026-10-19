@@ -42,7 +42,9 @@ namespace PromptUGUI.Controls
 
         private float _maxHeight = DefaultMaxHeight;
         private float _gap = DefaultGap;
+        private float _popupWidth;   // 0 = the field's width
         private bool _preferAbove;
+        private bool _alignEnd;
         private float _transition = DefaultTransition;
         private string _itemTemplate;
         private Func<RectTransform, IControl> _factory;
@@ -278,14 +280,14 @@ namespace PromptUGUI.Controls
         {
             LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
             var contentHeight = LayoutUtility.GetPreferredHeight(_content);
-            var width = _field.RectTransform.rect.width;
+            var width = _popupWidth > 0f ? _popupWidth : _field.RectTransform.rect.width;
 
             var canvas = _field.GameObject.GetComponentInParent<Canvas>(true);
             var root = canvas != null ? canvas.rootCanvas : null;
             if (root == null)
             {
                 var height = _maxHeight > 0f ? Mathf.Min(contentHeight, _maxHeight) : contentHeight;
-                return new PopupLayout(new Vector2(width, height), _gap, _preferAbove);
+                return new PopupLayout(new Vector2(width, height), _gap, _preferAbove, alignEnd: _alignEnd);
             }
 
             var bounds = PopupBounds.For(root);
@@ -293,21 +295,27 @@ namespace PromptUGUI.Controls
             var (h, above) = SuggestionsPlacement.Solve(field, bounds, contentHeight, _maxHeight, _gap,
                                                         _openSide ?? _preferAbove, locked: _openSide.HasValue);
             _openSide = above;
-            return new PopupLayout(new Vector2(width, h), _gap, above, bounds);
+            return new PopupLayout(new Vector2(width, h), _gap, above, bounds, _alignEnd);
         }
 
         // ── Highlight and submit (spec §6.2 / §6.4) ────────────────────────────────────────
 
-        /// <summary>The keyboard / gamepad highlight; −1 = none. Ignored while the list is closed.</summary>
+        /// <summary>The keyboard / gamepad highlight; −1 = none. Ignored while the list is closed, or on a row
+        /// that cannot be chosen.</summary>
         public int HighlightedIndex
         {
             get => _highlight;
             set
             {
                 if (!IsOpen) return;
-                SetHighlight(Mathf.Clamp(value, -1, _rows.Count - 1));
+                var index = Mathf.Clamp(value, -1, _rows.Count - 1);
+                if (index >= 0 && !Pickable(index)) return;
+                SetHighlight(index);
             }
         }
+
+        // A row its bind left interactable (spec 2026-10-19-suggestions-width-pickable §4.2).
+        private bool Pickable(int index) => _rows[index].Press.Interactable;
 
         /// <summary>The highlight moved; −1 = back to none.</summary>
         public Observable<int> OnHighlightChanged => _highlightChanged;
@@ -319,13 +327,19 @@ namespace PromptUGUI.Controls
         public Observable<SuggestionSubmit> OnSubmit => _submit;
 
         /// <summary>
-        /// One step through "none → 0 → … → n−1 → none" (<paramref name="delta"/> = +1) or back (−1).
+        /// One step through "none → 0 → … → n−1 → none" (<paramref name="delta"/> = +1) or back (−1), over the
+        /// rows that cannot be chosen. With none to choose it lands on "none" — the arrows do nothing.
         /// </summary>
         internal void MoveHighlight(int delta)
         {
             if (!IsOpen || _rows.Count == 0) return;
             var states = _rows.Count + 1;
-            var next = ((_highlight + 1 + delta) % states + states) % states - 1;
+            var next = _highlight;
+            for (var step = 0; step < states; step++)
+            {
+                next = ((next + 1 + delta) % states + states) % states - 1;
+                if (next < 0 || Pickable(next)) break;
+            }
             SetHighlight(next);
         }
 
@@ -345,7 +359,7 @@ namespace PromptUGUI.Controls
         /// <summary>Item <paramref name="index"/> was chosen: close, report it, end the edit.</summary>
         internal void CommitChosen(int index)
         {
-            if (_field == null || index < 0 || index >= _rows.Count) return;
+            if (_field == null || index < 0 || index >= _rows.Count || !Pickable(index)) return;
             var text = _field.TextValue;
             Close();
             _submit.OnNext(new SuggestionSubmit(text, index));
@@ -452,17 +466,33 @@ namespace PromptUGUI.Controls
             set => _gap = NonNegative("gap", value, DefaultGap);
         }
 
-        /// <summary>Which side it prefers: <c>below</c> (default) or <c>above</c>; it flips when that side lacks room.</summary>
+        /// <summary>
+        /// Which side it prefers — <c>below</c> (default) or <c>above</c>, flipped when that side lacks room — and,
+        /// after a dash, which edges line up with the field's when it is wider: <c>start</c> (default, the left
+        /// ones) or <c>end</c> (the right ones; it grows left). Spec 2026-10-19-suggestions-width-pickable §4.1.
+        /// </summary>
         [UIAttr, Preserve]
         public string Placement
         {
-            set => _preferAbove = value switch
+            set
             {
-                null or "" or "below" => false,
-                "above" => true,
-                _ => throw new ArgumentException(
-                    $"Suggestions.placement='{value}' invalid; expected below|above"),
-            };
+                var v = string.IsNullOrEmpty(value) ? "below" : value.Trim();
+                var dash = v.IndexOf('-');
+                var side = dash < 0 ? v : v.Substring(0, dash);
+                var align = dash < 0 ? "start" : v.Substring(dash + 1);
+                if ((side != "below" && side != "above") || (align != "start" && align != "end"))
+                    throw new ArgumentException(
+                        $"Suggestions.placement='{value}' invalid; expected below|above, optionally -start|-end");
+                _preferAbove = side == "above";
+                _alignEnd = align == "end";
+            }
+        }
+
+        /// <summary>The panel's width; <c>0</c> = the field's. Narrower than the field is allowed.</summary>
+        [UIAttr, Preserve]
+        public float PopupWidth
+        {
+            set => _popupWidth = NonNegative("popupWidth", value, 0f);
         }
 
         /// <summary>Padding inside the panel (same shorthand as <c>&lt;TabMenu padding&gt;</c>).</summary>
@@ -661,10 +691,18 @@ namespace PromptUGUI.Controls
                 if (_rows[j].Shell.GetSiblingIndex() != j) _rows[j].Shell.SetSiblingIndex(j);
 
             for (var j = 0; j < count; j++)
-                if (!binding.TryBind(_rows[j].Control, j))
+            {
+                var row = _rows[j];
+                // Every row starts pickable; a bind that sets Interactable = false marks a message row ("No
+                // match", "Loading…") — shown in state-disabled, never highlighted or chosen.
+                var control = row.Control as Control;
+                if (control != null && !control.PeekInteractable) control.Interactable = true;
+                if (!binding.TryBind(row.Control, j))
                     throw new InvalidCastException(
-                        $"itemTemplate='{_itemTemplate}' instantiated {_rows[j].Control.GetType().Name}, " +
+                        $"itemTemplate='{_itemTemplate}' instantiated {row.Control.GetType().Name}, " +
                         $"but BindItems expected {binding.SlotType.Name}");
+                row.Press.Interactable = control == null || control.PeekInteractable;
+            }
         }
 
         /// <summary>

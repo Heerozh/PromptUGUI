@@ -31,7 +31,10 @@ namespace PromptUGUI.Controls.Internal
 
         public readonly PopupAlign Align;
 
-        public PopupLayout(Vector2 size, float gap, bool preferAbove = false, Rect? bounds = null)
+        /// <summary>Hung off the host's corner: right edges lined up instead of left ones.</summary>
+        public readonly bool AlignEnd;
+
+        public PopupLayout(Vector2 size, float gap, bool preferAbove = false, Rect? bounds = null, bool alignEnd = false)
         {
             Size = size;
             Gap = gap;
@@ -40,6 +43,7 @@ namespace PromptUGUI.Controls.Internal
             CanvasRect = null;
             Side = PopupSide.Bottom;
             Align = PopupAlign.Start;
+            AlignEnd = alignEnd;
         }
 
         private PopupLayout(Rect canvasRect, PopupSide side, PopupAlign align)
@@ -51,6 +55,7 @@ namespace PromptUGUI.Controls.Internal
             CanvasRect = canvasRect;
             Side = side;
             Align = align;
+            AlignEnd = false;
         }
 
         public static PopupLayout Free(Rect canvasRect, PopupSide side, PopupAlign align)
@@ -279,7 +284,7 @@ namespace PromptUGUI.Controls.Internal
             var placement = root != null
                 ? PopupPlacer.Solve(RectInCanvas(_host.RectTransform, root), layout.Size,
                                     layout.Bounds ?? ((RectTransform)root.transform).rect,
-                                    layout.Gap, layout.PreferAbove)
+                                    layout.Gap, layout.PreferAbove, layout.AlignEnd)
                 // No canvas to measure against (a detached test rig): keep the default drop-down.
                 : new PopupPlacement(new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(0f, -layout.Gap), false);
 
