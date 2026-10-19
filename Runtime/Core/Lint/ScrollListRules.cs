@@ -210,7 +210,7 @@ namespace PromptUGUI.Lint
 
         // Pure C# twin of AnimationSpec.ParseSeconds (which lives in the Unity half): "0.4", "0.4s",
         // "400ms"; negative is not a duration.
-        private static bool IsDuration(string value, bool allowAuto)
+        internal static bool IsDuration(string value, bool allowAuto)
         {
             value = value.Trim();
             if (allowAuto && value == "auto") return true;

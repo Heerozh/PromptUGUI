@@ -124,10 +124,15 @@ namespace PromptUGUI.Controls.Internal
                 s_latched.Clear();
                 return;
             }
-            // Keep only this frame's: nothing consumed them while no pass-through popup was ticking.
-            if (s_latched.Count > 0 && s_latched[0].Frame != Time.frameCount) s_latched.Clear();
-
             var frame = Time.frameCount;
+            // Drop what no tick consumed by the frame after (a blocking popup on top meanwhile). Last frame's
+            // stay: a press that came in after the probe ran (a manual update late in the frame) is decided
+            // by the next one.
+            var kept = 0;
+            for (var i = 0; i < s_latched.Count; i++)
+                if (s_latched[i].Frame >= frame - 1) s_latched[kept++] = s_latched[i];
+            s_latched.RemoveRange(kept, s_latched.Count - kept);
+
             var mouse = Mouse.current;
             if (mouse != null && (mouse.leftButton.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame
                                   || mouse.middleButton.wasPressedThisFrame))
@@ -162,6 +167,11 @@ namespace PromptUGUI.Controls.Internal
             HitForTests = null;
             s_latched.Clear();
             s_lastBatch = int.MinValue;
+#if ENABLE_INPUT_SYSTEM
+            // An input test fixture swaps the input system per test: the next Tick subscribes to the current one.
+            if (s_latching) InputSystem.onAfterUpdate -= Latch;
+            s_latching = false;
+#endif
         }
     }
 }

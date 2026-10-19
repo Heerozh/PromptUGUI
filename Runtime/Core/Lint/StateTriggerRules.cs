@@ -28,6 +28,7 @@ namespace PromptUGUI.Lint
         public const string NoMenuCode = "PUI-EXPAND-NO-SOURCE";
         public const string NoToggleSourceCode = "PUI-CHECKED-NO-SOURCE";
         public const string NoListRowCode = "PUI-LIFT-NO-SOURCE";
+        public const string ShowExpandSelfCode = "PUI-SHOW-EXPAND-SELF";
 
         private static readonly HashSet<string> BareListRowValues =
             new HashSet<string> { "lift", "drop" };
@@ -125,10 +126,10 @@ namespace PromptUGUI.Lint
         }
 
         private static readonly HashSet<string> MenuSourceTags =
-            new HashSet<string> { "TabMenu", "Collapsible" };
+            new HashSet<string> { "TabMenu", "Collapsible", "Popover" };
 
         /// <summary>True if <paramref name="tag"/> instantiates something that opens and closes —
-        /// a <c>&lt;TabMenu&gt;</c> popup or a <c>&lt;Collapsible&gt;</c> fold — the source a bare
+        /// a <c>&lt;TabMenu&gt;</c> popup, a <c>&lt;Collapsible&gt;</c> fold or a <c>&lt;Popover&gt;</c> — the source a bare
         /// <c>expand</c> / <c>collapse</c> trigger resolves upward to.</summary>
         public static bool IsMenuSourceTag(string tag) => MenuSourceTags.Contains(tag);
 
@@ -147,8 +148,46 @@ namespace PromptUGUI.Lint
 
             yield return new LintIssue(
                 NoMenuCode, n.Tag, n.Id,
-                $"<{n.Tag} on=\"{on}\">: no <TabMenu>/<Collapsible> ancestor. {on} resolves upward to " +
-                $"the nearest one — place it inside a <TabMenu> or a <Collapsible>, or use {on}@<id>.");
+                $"<{n.Tag} on=\"{on}\">: no <TabMenu>/<Collapsible>/<Popover> ancestor. {on} resolves upward " +
+                $"to the nearest one — place it inside one, or use {on}@<id>.");
+        }
+
+        /// <summary>
+        /// <c>PUI-SHOW-EXPAND-SELF</c> (spec 2026-10-19 §7): a bare <c>&lt;Show on="expand|collapse"&gt;</c>
+        /// inside the panel of the source it resolves to — a <c>&lt;Popover&gt;</c>, a <c>&lt;TabMenu&gt;</c>, a
+        /// <c>&lt;Collapsible&gt;</c>'s body. That panel only shows while open, so an expand block is always on
+        /// when seen and a collapse block never is. Judged by the NEAREST source: the state is set afresh at
+        /// each one (a <c>&lt;Header&gt;</c> is outside its collapsible's panel) and dropped at a template
+        /// invocation — the expanded pass sees what it holds. Stamps its own source.
+        /// </summary>
+        public static IEnumerable<LintIssue> CheckShowExpandSelf(ElementNode root)
+        {
+            var found = new List<LintIssue>();
+            if (root != null) VisitShowExpand(root, inOwnPanel: false, found);
+            return found;
+        }
+
+        private static void VisitShowExpand(ElementNode n, bool inOwnPanel, List<LintIssue> found)
+        {
+            if (inOwnPanel && n.Tag == "Show" && n.Namespace == null
+                && n.Attributes.TryGetValue("on", out var on) && BareMenuValues.Contains(on))
+                found.Add(new LintIssue(
+                        ShowExpandSelfCode, n.Tag, n.Id,
+                        $"<Show on=\"{on}\"> inside the panel it follows: the panel is only seen while open, so " +
+                        (on == "expand" ? "this block is always shown when seen" : "this block is never seen") +
+                        $". Put it outside the panel — on the trigger, or in a <Collapsible>'s <Header> — and point " +
+                        $"at the source with {on}@<id>.")
+                    .WithSource(n.OriginSrc, n.Line, n.InvokedAt));
+
+            var isSource = n.Namespace == null && MenuSourceTags.Contains(n.Tag);
+            var isInvocation = n.Namespace != null || (!BuiltinTags.IsBuiltin(n.Tag) && n.Tag != "Header");
+            foreach (var child in n.Children)
+            {
+                var state = inOwnPanel;
+                if (isInvocation) state = false;
+                else if (isSource) state = !(n.Tag == "Collapsible" && child.Tag == "Header");
+                VisitShowExpand(child, state, found);
+            }
         }
     }
 }

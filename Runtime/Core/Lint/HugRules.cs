@@ -25,7 +25,7 @@ namespace PromptUGUI.Lint
         /// </summary>
         public static readonly HashSet<string> HugTags = new HashSet<string>(StringComparer.Ordinal)
         {
-            "VStack", "HStack", "Grid", "ScrollList", "Collapsible",
+            "VStack", "HStack", "Grid", "ScrollList", "Collapsible", "Popover",
         };
 
         /// <summary>True when the raw attribute value is a bare hug or a clamp whose middle is hug.</summary>
@@ -123,6 +123,8 @@ namespace PromptUGUI.Lint
         /// </summary>
         public static IEnumerable<LintIssue> CheckHugScale(ElementNode n, StyleAttributeView styles = null)
         {
+            // A popover ignores scale (PUI-POPOVER-LAYOUT-ATTR says so); nothing is dropped.
+            if (n.Tag == PopoverRules.Tag) yield break;
             if (!HasHug(n, styles)) yield break;
             if (!n.Attributes.ContainsKey("scale") && !n.VariantOverrides.ContainsKey("scale")) yield break;
             yield return new LintIssue(
@@ -144,11 +146,14 @@ namespace PromptUGUI.Lint
             // axis a stretch child is fine (it fills a size the parent got from elsewhere).
             var axis = parent.Tag switch
             {
-                "VStack" => "height",
+                "VStack" or "Popover" => "height",
                 "HStack" => "width",
                 _ => null,
             };
-            if (axis == null || !HasHug(parent, axis, styles)) yield break;
+            if (axis == null) yield break;
+            // A popover's panel is a column that hugs its height unless told otherwise.
+            if (!HasHug(parent, axis, styles) && !(parent.Tag == PopoverRules.Tag && !Declares(parent, axis, styles)))
+                yield break;
 
             styles ??= StyleAttributeView.Empty;
             styles.Resolve(child, axis, out var baseValue, out var variants);
@@ -165,6 +170,12 @@ namespace PromptUGUI.Lint
                 $"<{child.Tag} id='{child.Id}'>: {axis}=\"stretch\" inside a <{parent.Tag} {axis}=\"hug\"> " +
                 "collapses to 0 — the parent sizes itself to its children, so there is no leftover space " +
                 "to stretch into. Fix: give the child a size, or drop the parent's hug.");
+        }
+
+        private static bool Declares(ElementNode n, string axis, StyleAttributeView styles)
+        {
+            styles ??= StyleAttributeView.Empty;
+            return styles.Declares(n, axis) || styles.Declares(n, "size");
         }
 
         private static bool IsStretchValue(string value)

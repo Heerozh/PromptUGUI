@@ -260,7 +260,11 @@ namespace PromptUGUI.Application
                                            Control parentControl = null,
                                            List<ElementNode> applyOrder = null)
         {
-            if (parentIsLayoutGroup)
+            if (node.Tag == PromptUGUI.Lint.PopoverRules.Tag)
+            {
+                // In no flow: the parent's layout checks do not apply (spec 2026-10-19 §7).
+            }
+            else if (parentIsLayoutGroup)
             {
                 foreach (var issue in LayoutGroupChildRules.CheckChild(node))
                     UILog.Warn(node, issue);
@@ -332,6 +336,13 @@ namespace PromptUGUI.Application
                 {
                     if (issue.Code != PromptUGUI.Lint.SuggestionsRules.LayoutAttrCode
                         && issue.Code != PromptUGUI.Lint.SuggestionsRules.ChildCode) continue;
+                    UILog.Warn(node, issue);
+                }
+            else if (node.Tag == PromptUGUI.Lint.PopoverRules.Tag)
+                // Only the ignored layout attributes: the setters throw or warn for the rest themselves.
+                foreach (var issue in PromptUGUI.Lint.PopoverRules.Check(node))
+                {
+                    if (issue.Code != PromptUGUI.Lint.PopoverRules.LayoutAttrCode) continue;
                     UILog.Warn(node, issue);
                 }
             else if (node.Tag == PromptUGUI.Lint.SuggestionsRules.HostTag)
@@ -460,7 +471,7 @@ namespace PromptUGUI.Application
                 tabMenu.PreConfigureGroup(VariantResolver.ResolveAttribute(node, "allowSwitchOff", _variants));
 
             var selfIsLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "TabMenu"
-                                             or "Carousel" or "Collapsible" or "ScrollList";
+                                             or "Carousel" or "Collapsible" or "ScrollList" or "Popover";
             foreach (var c in node.Children)
             {
                 // <Header> is not a control: it names which children make up the header bar. Its
@@ -507,7 +518,7 @@ namespace PromptUGUI.Application
                     foreach (var issue in PromptUGUI.Lint.ScrollbarRules.CheckOutside(node, c))
                         UILog.Warn(c, issue);
                 }
-                if (selfIsLayoutGroup)
+                if (selfIsLayoutGroup && c.Tag != PromptUGUI.Lint.PopoverRules.Tag)
                     foreach (var issue in PromptUGUI.Lint.HugRules.CheckHugStretchChild(node, c))
                         UILog.Warn(c, issue);
                 if (node.Tag == "Carousel")

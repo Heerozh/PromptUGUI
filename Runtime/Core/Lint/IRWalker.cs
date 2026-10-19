@@ -56,6 +56,11 @@ namespace PromptUGUI.Lint
                 foreach (var issue in CooldownRules.CheckSources(screen.Root, screenHasAdds))
                     yield return issue;
 
+                // Screen-wide: a bare <Show on="expand|collapse"> in its NEAREST source's panel — the state
+                // is reset at every source on the way down, which an ancestor flag cannot express.
+                foreach (var issue in StateTriggerRules.CheckShowExpandSelf(screen.Root))
+                    yield return issue;
+
                 foreach (var variant in screen.Variants)
                     foreach (var add in variant.Adds)
                         foreach (var addChild in add.Children)
@@ -236,6 +241,10 @@ namespace PromptUGUI.Lint
             if (SuggestionsRules.AppliesTo(node.Tag))
                 foreach (var issue in SuggestionsRules.Check(node, styles))
                     yield return issue;
+
+            if (PopoverRules.AppliesTo(node.Tag))
+                foreach (var issue in PopoverRules.Check(node, styles, insideStateSource: hasStateSourceAncestor))
+                    yield return issue;
             // Two lists under one field, and a list on a multi-line field; reported on the second / the field.
             foreach (var issue in SuggestionsRules.CheckDuplicate(node))
                 yield return issue;
@@ -252,7 +261,8 @@ namespace PromptUGUI.Lint
             // already owns that message, so an inert-side error would be a redundant second hit.
             // Exception: a flow="false" child is back in free-positioning semantics — margin is
             // meaningful again, so the inert-side check applies after all.
-            if (!parentIsLayoutGroup || LayoutGroupChildRules.MightBeOutOfFlow(node))
+            // A popover is in no flow and reads neither anchor nor margin: PUI-POPOVER-LAYOUT-ATTR covers it.
+            if ((!parentIsLayoutGroup || LayoutGroupChildRules.MightBeOutOfFlow(node)) && node.Tag != PopoverRules.Tag)
                 foreach (var issue in MarginAnchorRules.Check(node))
                     yield return issue;
 
@@ -358,7 +368,7 @@ namespace PromptUGUI.Lint
             var childHasToggleAncestor = hasToggleAncestor || StateTriggerRules.IsToggleSourceTag(node.Tag);
             var childHasListAncestor = hasListAncestor || StateTriggerRules.IsListRowHostTag(node.Tag);
             var isLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "TabMenu"
-                                         or "Carousel" or "Collapsible" or "ScrollList";
+                                         or "Carousel" or "Collapsible" or "ScrollList" or "Popover";
             var isTabGroup = node.Tag is "TabBar" or "TabMenu";
             foreach (var child in node.Children)
             {
@@ -368,6 +378,19 @@ namespace PromptUGUI.Lint
                     yield return issue.WithSource(child.OriginSrc, child.Line, child.InvokedAt);
                 foreach (var issue in SuggestionsRules.CheckOutside(node, child))
                     yield return issue.WithSource(child.OriginSrc, child.Line, child.InvokedAt);
+                foreach (var issue in PopoverRules.CheckParent(node, child))
+                    yield return issue.WithSource(child.OriginSrc, child.Line, child.InvokedAt);
+
+                // A popover is in no flow: its parent's layout checks do not apply — only PUI-POPOVER-* speak.
+                if (child.Tag == PopoverRules.Tag)
+                {
+                    foreach (var issue in WalkNode(child, inTemplateBody, childHasStateSourceAncestor, childHasMenuAncestor,
+                                                   childHasToggleAncestor, childHasListAncestor,
+                                                   parentIsLayoutGroup: false, isTemplateBodyRoot: false,
+                                                   screenIds: screenIds, styles: styles))
+                        yield return issue;
+                    continue;
+                }
 
                 // A <Collapsible>'s body children are a column, but its <Header>'s children are
                 // free-positioned inside the bar — so the header subtree is walked as if its parent
