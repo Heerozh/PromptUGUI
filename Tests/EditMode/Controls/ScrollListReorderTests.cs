@@ -352,6 +352,37 @@ namespace PromptUGUI.Tests.EditMode.Controls
                 new[] { content.GetChild(0).gameObject, content.GetChild(1).gameObject, content.GetChild(2).gameObject });
         }
 
+        // Spec 2026-10-19 §5.5: the drop moves the binding's snapshot with the rows, so a keyed push of the
+        // permuted list finds every row on its own item — the dragged row is not swapped with its neighbour.
+        [Test]
+        public void Keyed_push_after_a_reorder_keeps_rows_with_their_items()
+        {
+            var list = Open("<ScrollList id='sl' width='150' height='200' itemTemplate='Row' reorder='true' reorderHold='0' spacing='10'/>")
+                .Get<ScrollList>("sl");
+            var items = new List<string> { "i0", "i1", "i2" };
+            var feed = new Subject<IReadOnlyList<string>>();
+            var bound = new Dictionary<GameObject, string>();
+            using var sub = list.BindItems(feed, (IControl slot, string s) =>
+            {
+                bound[slot.GameObject] = s;
+                slot.Get<Text>("label").TextValue = s;
+            }, key: s => s);
+            feed.OnNext(items.ToArray());
+            Canvas.ForceUpdateCanvases();
+            var rows = new List<IControl>(list.Slots);
+            var dragged = rows[1].GameObject;
+            list.OnReordered.Subscribe(e =>
+            {
+                var moved = items[e.From]; items.RemoveAt(e.From); items.Insert(e.To, moved);
+                feed.OnNext(items.ToArray());
+            });
+
+            DragRow(list, Rt(rows[1]), 0f, -(StrideY(rows) + 5f));
+
+            CollectionAssert.AreEqual(new[] { "i0", "i2", "i1" }, LabelsInSiblingOrder(list));
+            Assert.AreEqual("i1", bound[dragged], "the dragged row still holds its own item");
+        }
+
         [Test]
         public void Push_of_the_unsynced_list_pulls_rows_back_to_data_order()
         {

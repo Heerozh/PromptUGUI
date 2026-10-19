@@ -439,12 +439,16 @@ namespace PromptUGUI.Controls
             catch (ArgumentException) { seconds = 0f; return false; }
         }
 
-        /// <summary>The driver committed a drop: keep <see cref="Slots"/> in step with the sibling order.</summary>
+        /// <summary>
+        /// The driver committed a drop: keep <see cref="Slots"/> in step with the sibling order, and the binding's
+        /// snapshot with the rows — a keyed push of the permuted list then finds every row on its own item.
+        /// </summary>
         internal void PermuteSlots(int from, int to)
         {
             var row = _slots[from];
             _slots.RemoveAt(from);
             _slots.Insert(to, row);
+            if (_binding != null && from < _binding.Count && to < _binding.Count) _binding.Move(from, to);
         }
 
         internal void RaiseReordered(int from, int to) => _reordered.OnNext((from, to));
