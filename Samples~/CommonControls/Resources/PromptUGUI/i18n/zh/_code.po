@@ -223,3 +223,73 @@ msgstr "未检测到 Markdig，Markdown 富文本功能不可用。\n请通过 N
 # : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:298
 msgid "这条消息比较长，用来演示自动换行：虚拟列表逐行实测高度，长短不一的消息也能排得严丝合缝。"
 msgstr "这条消息比较长，用来演示自动换行：虚拟列表逐行实测高度，长短不一的消息也能排得严丝合缝。"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:157
+msgid "Apple"
+msgstr "苹果"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:158
+msgid "Carrot"
+msgstr "胡萝卜"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:159
+msgid "Corn"
+msgstr "玉米"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:160
+msgid "Eggplant"
+msgstr "茄子"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:161
+msgid "Grape"
+msgstr "葡萄"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:162
+msgid "Pumpkin"
+msgstr "南瓜"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:163
+msgid "Strawberry"
+msgstr "草莓"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:164
+msgid "Sunflower"
+msgstr "向日葵"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:165
+msgid "Tomato"
+msgstr "番茄"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:166
+msgid "Turnip"
+msgstr "芜菁"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:167
+msgid "Watermelon"
+msgstr "西瓜"
+
+# . in CropName()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:168
+msgid "Wheat"
+msgstr "小麦"
+
+# . in BindCropSearch()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:139
+msgid "Picked #{0}: {1}"
+msgstr "选中第 {0} 项：{1}"
+
+# . in BindCropSearch()
+# : Assets/Samples/PromptUGUI/1.0.0/Common Controls Demo/CommonControlsRunner.cs:143
+msgid "Searched: {0}"
+msgstr "搜索：{0}"

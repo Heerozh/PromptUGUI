@@ -264,7 +264,7 @@ spec §13 的 PC-D1…D10、SG-D1…D15 按推荐执行（Task 0 把 spec 状态
 - [x] 三个程序集全量（EditMode / EditorOnly / PlayMode）无新失败；`dotnet format --verify-no-changes --severity warn`；UIXmlLint 跑 `Runtime/Resources/`
 - [x] spec 加 §16「实施记录（阶段 0）」：与设计的偏差、Task 5 四条复现的结论
 - [x] `git commit -m "feat(popup): EscapeChain — one decision per press; covered popups close"`
-- [ ] 隐私自检（见 Global Constraints）→ 征得同意后 `git push -u origin feat/popup-core` + `gh pr create`
+- [x] 隐私自检（见 Global Constraints）→ 征得同意后 `git push -u origin feat/popup-core` + `gh pr create`
 
 ---
 
@@ -278,21 +278,21 @@ spec §13 的 PC-D1…D10、SG-D1…D15 按推荐执行（Task 0 把 spec 状态
 
 **Files:** Create `Runtime/Controls/Internal/FocuslessPress.cs`、`Tests/EditMode/Controls/FocuslessPressTests.cs`
 
-- [ ] **Red**（指针事件照 `CollapsibleTests.cs:235` / `TextLinkTests.cs:47-58` 的 `ExecuteEvents` 写法）：
+- [x] **Red**（指针事件照 `CollapsibleTests.cs:235` / `TextLinkTests.cs:47-58` 的 `ExecuteEvents` 写法）：
   - `Is_not_a_Selectable`
   - `Pointer_enter_and_exit_drive_hover`；`Press_and_release_drive_pressed`
   - `SetOn_reads_selected_and_hover_overrides_it_while_inside`
   - `Click_fires_for_a_left_click_only`（右键不发）；`Not_interactable_reads_disabled_and_never_clicks`
   - `IsPressed_spans_down_to_up`（SG-D15 要用）
   - `A_Show_instantiated_under_it_resolves_to_it`：建一个带 `FocuslessPress` 的父节点，`UI.GetInstantiator().InstantiateNode(<Frame><Show on="state-selected"><Frame id="hl"/></Show></Frame>, parentRt, owner)`，`SetOn(true)` → `hl` 激活
-- [ ] **实现**：`internal sealed class FocuslessPress : MonoBehaviour, IStateSource, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler, IPointerClickHandler`。内部持有 `StateBroadcaster`（照 `PuiButton.cs:47-57` 先 `SetPointerInside` 再 `SetTransient`）。对外：`Interactable`、`SetOn(bool)`、`IsPressed`、`Observable<Unit> OnClicked`；`OnDisable` 清指针状态，`OnDestroy` 调 `_broadcaster.Dispose()`。`RefreshState()` 是空实现（它不会成为 EventSystem 的选中项）
-- [ ] RUN(FocuslessPressTests) 绿；lint
+- [x] **实现**：`internal sealed class FocuslessPress : MonoBehaviour, IStateSource, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler, IPointerClickHandler`。内部持有 `StateBroadcaster`（照 `PuiButton.cs:47-57` 先 `SetPointerInside` 再 `SetTransient`）。对外：`Interactable`、`SetOn(bool)`、`IsPressed`、`Observable<Unit> OnClicked`；`OnDisable` 清指针状态，`OnDestroy` 调 `_broadcaster.Dispose()`。`RefreshState()` 是空实现（它不会成为 EventSystem 的选中项）
+- [x] RUN(FocuslessPressTests) 绿；lint
 
 #### Task 12：`<Suggestions>` 注册、认领、结构
 
 **Files:** Create `Runtime/Controls/Suggestions.cs`、`SuggestionSubmit.cs`、`Internal/PointerSink.cs`、`Runtime/Core/Lint/SuggestionsRules.cs`（骨架）；Modify `InputField.cs`（`AdoptSuggestions`、`Suggestions` 属性）、`ScreenInstantiator.cs`（认领分支）、`BuiltinPrimitives.cs`、`Core/Lint/BuiltinTags.cs`、`Core/Lint/ProceduralSurfaceRules.cs`（`SurfaceTags`）、`Tests/EditMode/Controls/ProceduralSurfaceRolloutTests.cs`（`SizeAttrsFor`）、`Runtime/Controls/Control.cs`（CanvasGroup 先找后建，P19）、`Tests/EditMode/Editor/XsdGeneratorTests.cs`；Create `Tests/EditMode/Controls/SuggestionsStructureTests.cs`、`Tests/EditMode/Lint/SuggestionsRulesTests.cs`
 
-- [ ] **Red**：
+- [x] **Red**：
   - `Adopted_by_its_InputField`（`field.Suggestions` 非空，面板父节点是输入框的 GameObject）；`A_field_without_one_has_null`
   - `Panel_carries_canvas_raycaster_canvasgroup_scrollrect_viewport_content_and_is_inactive_while_closed`
   - `Builds_a_default_scrollbar_when_none_is_authored`；`Adopts_an_authored_scrollbar`
@@ -303,7 +303,7 @@ spec §13 的 PC-D1…D10、SG-D1…D15 按推荐执行（Task 0 把 spec 状态
   - `An_unknown_placement_throws`（`ArgumentException`，同 `contentType`）；`A_negative_maxHeight_or_gap_warns_and_falls_back`
   - XSD（EditorOnly）：`Suggestions_lists_its_attributes`（`itemTemplate` / `maxHeight` / `gap` / `placement` / `padding` / `spacing` / `transition`）
   - `BuiltinTagsTests` / `ProceduralAttrNamesTests` 自动钉住两张表
-- [ ] **实现**：
+- [x] **实现**：
   - `Suggestions : ProceduralControl, IScrollbarHost`。`OnAttached` 先挂 `Image`（`Surface` 首次访问时才捕获它，必须在前），再建 `ScrollRect` + `Viewport`（RectMask2D）+ `Content`（VLG + ContentSizeFitter）+ `PointerSink`。`ParticipatesInLayout => false`，`SurfaceHost => GameObject`，`ScrollbarHost => RectTransform`。`AdoptScrollbar` / `EnsureDefaultScrollbar` / `WireScrollbar` 照抄 `Dropdown.cs:328-381`，`WireScrollbar` 末尾把条的轨道与手柄 `raycastTarget` 关掉（P18）
   - `OnAfterApply`：`base` 之后把 `GameObject` 的 active 拨回 `IsOpen`（`BeginRebuild` 期间除外），打开着就重新定位（P19）；`Control.CanvasGroup`（`Control.cs:76`）改成 `GetComponent<CanvasGroup>() ?? AddComponent`，`PopupCore` 同样先找后建
   - 先建 `Runtime/Core/Lint/SuggestionsRules.cs` 的骨架：`Tag`、`OutsideCode`、`DuplicateCode`、`CheckOutside(parent, child)`、`CheckDuplicate(host)`（照 `ScrollbarRules.cs:148-174`，纯 C#），配两组 `SuggestionsRulesTests`；其余规则在 Task 20 补
@@ -311,13 +311,13 @@ spec §13 的 PC-D1…D10、SG-D1…D15 按推荐执行（Task 0 把 spec 状态
   - 认领后 `PopupCore(host: field, panel: RectTransform, PopupDismiss.Owner, cageFocus: false, cancelButtonCloses: true)`
   - `reg.Register<Suggestions>("Suggestions", null)`；`BuiltinTags.All` 与 `SurfaceTags` 加 `Suggestions`
   - `ProceduralSurfaceRolloutTests` 会把每个程序化标签裸放在 `<Screen>` 下（`:53-61`）。裸放的 `<Suggestions>` 是惰性的（面板停用），但表面照样在 `OnAfterApply` 里挂上；`PanelIn` 连未激活节点一起找，`IsPanelVisible` 只看填充 / 描边 / 发光（`ProceduralPanel.cs:682`），所以预期不需要特例，只在 `SizeAttrsFor` 里给它空串（`:37-44`，免得布局属性警告刷屏）。若仍有断言失败，再按 Collapsible / Scrollbar 的做法加特例
-- [ ] RUN(SuggestionsStructureTests) RUN(BuiltinTagsTests) RUN(ProceduralAttrNamesTests) RUN(ProceduralSurfaceRolloutTests) RUN(ScrollbarTests) RUN(DropdownTests) RUNEDITOR(XsdGeneratorTests)；lint
+- [x] RUN(SuggestionsStructureTests) RUN(BuiltinTagsTests) RUN(ProceduralAttrNamesTests) RUN(ProceduralSurfaceRolloutTests) RUN(ScrollbarTests) RUN(DropdownTests) RUNEDITOR(XsdGeneratorTests)；lint
 
 #### Task 13：行、`BindItems` 复用与行状态
 
 **Files:** Modify `Suggestions.cs`、`Internal/PointerSink.cs`；Create `Tests/EditMode/Controls/SuggestionsBindItemsTests.cs`、`SuggestionRowStateTests.cs`、`SuggestionsFocusTests.cs`
 
-- [ ] **Red**（夹具照 `ScrollListReuseTests.cs:24-60` 的 `Open` / `Push`；推送用 `Observable.Return` 与 `ReactiveProperty` 各一组）：
+- [x] **Red**（夹具照 `ScrollListReuseTests.cs:24-60` 的 `Open` / `Push`；推送用 `Observable.Return` 与 `ReactiveProperty` 各一组）：
   - `Positional_push_reuses_rows_by_position`（跨推送 `AreSame`，同一批 GameObject）；`Keyed_push_reuses_rows_by_key`（换序后每行内容不变、兄弟序 = 数据序）
   - `Reused_rows_release_subscriptions_before_rebind`；`Changing_itemTemplate_rebuilds_every_row`；`Retired_rows_leave_Content_before_bind`
   - `Count_is_the_last_push`；`Without_itemTemplate_the_push_logs_an_exception`（R3 吞异常 → `LogAssert.Expect(Exception, …)`）
@@ -325,19 +325,19 @@ spec §13 的 PC-D1…D10、SG-D1…D15 按推荐执行（Task 0 把 spec 状态
   - `Rows_pushed_while_closed_still_measure`（照 `TabMenuBindItemsTests.cs:79-91`）
   - 焦点（`SuggestionsFocusTests`，spec §6.5 的三条结构约束）：对行、面板空白处，`ExecuteEvents.GetEventHandler<ISelectHandler>` 都返回输入框；行上没有 `Selectable`；面板空白处的 `IPointerDownHandler` 与 `IPointerClickHandler` 都落在 `PointerSink`（click 是单独解析的，sink 不接 click 的话会落到 `TMP_InputField.OnPointerClick`）；行上的 `IPointerDownHandler` 是它的 `FocuslessPress`；行上的 `IDragHandler` / `IScrollHandler` 是面板的 ScrollRect
   - 行状态（断言写法照 `ShowTests.cs:33-34` 的多个 `<Show on="state-*">` 并列）：`Show_state_selected_follows_the_highlight`、`Show_state_hover_follows_the_pointer`、`Hover_overrides_selected_while_inside`、`Show_state_normal_hides_while_a_claimed_state_is_on`
-- [ ] **实现**：
+- [x] **实现**：
   - 工厂照 `ScrollList.ResolveFactory`（`TemplateFactoryResolver.TryResolve(owner, name, $"itemTemplate='{name}'", out f)`）
   - 每项先建外壳 `Row`（`FocuslessPress` + `HitCatcher` + VLG，P4），再 `_factory(rowRt)`
   - `PositionalBinding` / `KeyedBinding` 的四个 `BindItems` 重载，`Rebuild` 照 `ScrollList.Rebuild`（`ScrollList.cs:1433-1476`）：先定结构，复用前 `ReleaseSubscriptions`，没人要的旧行进 `Pool`（禁用 VLG，P3）再 `Dispose`，钉兄弟序，最后逐行 `TryBind`
   - 收起态推送包在 `_core.BeginRebuild()` 里；首次建出含 Selectable 的行时 `UILog.Warn` 一次
   - `TriggerSourceResolver.FindStateSource` 的两条报错文案（`:151-154`、`:160-163`）补上「或 `<Suggestions>` 的行」
-- [ ] RUN(SuggestionsBindItemsTests) RUN(SuggestionRowStateTests) RUN(SuggestionsFocusTests)；lint
+- [x] RUN(SuggestionsBindItemsTests) RUN(SuggestionRowStateTests) RUN(SuggestionsFocusTests)；lint
 
 #### Task 14：显示状态机、内核接线与定位
 
 **Files:** Modify `Suggestions.cs`、`InputField.cs`（既有的 `IsEditing` 改为可钩，新增 internal `EditingChanged` / `SetEditingForTests(bool?)` / `EndEditing()`，P8）、`Controls/Internal/SafeAreaTracker.cs`（新增共享的 `ApplySafeInset`，P6）、`Application/Tutorial/TutorialOverlayView.cs`（原方法改为转发）；Create `Controls/Internal/PopupBounds.cs`（安全区 + 键盘高度；测试注入 `KeyboardHeightOverride` 与 `BoundsOverride`（`Func<Rect>`，整块边界），P7）、`Tests/EditMode/Controls/SuggestionsVisibilityTests.cs`、`SuggestionsPlacementTests.cs`
 
-- [ ] **Red**（可见性；编辑态用 `SetEditingForTests`，武装先用 internal `NotifyUserInput()`，Task 18 再接到 `OnInput`）：
+- [x] **Red**（可见性；编辑态用 `SetEditingForTests`，武装先用 internal `NotifyUserInput()`，Task 18 再接到 `OnInput`）：
   - `Editing_alone_does_not_open`；`Input_arms_and_a_non_empty_push_opens`；`Open_requires_editing`
   - `An_empty_push_closes_without_disarming`（再推非空就开）
   - `Escape_closes_and_disarms`（经 `EscapeChain.Dispatch`）；`Editing_end_closes_and_disarms`；`Close_disarms`
@@ -345,29 +345,29 @@ spec §13 的 PC-D1…D10、SG-D1…D15 按推荐执行（Task 0 把 spec 状态
   - `Covered_closes_and_ends_editing`（`PopupChain.DismissBelow` → `EndEditing` 被调用，用钩子记录）
   - `A_push_while_open_keeps_the_side_and_resets_the_highlight`
   - `TutorialSafeAreaTests` 照旧通过（P6：教程那份改为转发）
-- [ ] **Red**（定位；纯函数为主，P13）：
+- [x] **Red**（定位；纯函数为主，P13）：
   - `Below_by_default_and_as_wide_as_the_field`；`Above_when_preferred`；`Flips_when_the_preferred_side_lacks_room`
   - `Height_is_content_clamped_by_maxHeight_and_room`；`maxHeight_zero_means_room_only`（P12）
   - `Safe_area_reduces_the_room`（`SafeAreaTracker` 的三个注入）；`Keyboard_height_reduces_the_room_below`（`KeyboardHeightOverride`）
   - 接线（照 `TabMenuPlacementTests.cs:88-130` 的 wiring 段，`Canvas.ForceUpdateCanvases()`；边界一律用 `PopupBounds.BoundsOverride` 给定，EditMode 的画布尺寸与 `Screen.safeArea` 不确定）：面板与输入框同宽；两行内容时高 = 内容高；内容超过一个小的 `maxHeight` 时高 = `maxHeight`；边界很矮时高 = `Room`，并处在预期的一侧
-- [ ] **实现**：spec §6.1 的状态机（`_armed`、`IsOpen`、`Open()`、`Close()`、`OnOpened` / `OnClosed`）。内核的 `Measure` 回调按 §6.8 给尺寸：先 `LayoutRebuilder.ForceRebuildLayoutImmediate(content)` 量内容高，再经 `PopupPlacer.Solve(..., bounds: PopupBounds.For(rootCanvas), preferAbove)` 定侧，按 `Room` 夹高。侧在打开时记下，打开期间的推送只重夹高度。`InputField.OnAfterApply` 里不可交互 / `readOnly` 就关；`InputField` 另外重写 `Interactable` 的 setter（照 `TabMenu.cs:877-886`；今天它没重写，只在 `OnAfterApply` 同步 `_input.interactable`，`InputField.cs:150-155`），代码里关掉交互时同步 `_input.interactable`、收起列表（这条路径不经过 `OnAfterApply`）
-- [ ] RUN(SuggestionsVisibilityTests) RUN(SuggestionsPlacementTests) RUN(TutorialSafeAreaTests) RUN(TutorialStepTests) RUN(TutorialRunTests)；lint
+- [x] **实现**：spec §6.1 的状态机（`_armed`、`IsOpen`、`Open()`、`Close()`、`OnOpened` / `OnClosed`）。内核的 `Measure` 回调按 §6.8 给尺寸：先 `LayoutRebuilder.ForceRebuildLayoutImmediate(content)` 量内容高，再经 `PopupPlacer.Solve(..., bounds: PopupBounds.For(rootCanvas), preferAbove)` 定侧，按 `Room` 夹高。侧在打开时记下，打开期间的推送只重夹高度。`InputField.OnAfterApply` 里不可交互 / `readOnly` 就关；`InputField` 另外重写 `Interactable` 的 setter（照 `TabMenu.cs:877-886`；今天它没重写，只在 `OnAfterApply` 同步 `_input.interactable`，`InputField.cs:150-155`），代码里关掉交互时同步 `_input.interactable`、收起列表（这条路径不经过 `OnAfterApply`）
+- [x] RUN(SuggestionsVisibilityTests) RUN(SuggestionsPlacementTests) RUN(TutorialSafeAreaTests) RUN(TutorialStepTests) RUN(TutorialRunTests)；lint
 
 #### Task 15：高亮 API 与点行提交
 
 **Files:** Modify `Suggestions.cs`；Create `Tests/EditMode/Controls/SuggestionsSubmitTests.cs`（先放这几条，Task 18 补全）
 
-- [ ] **Red**：
+- [x] **Red**：
   - `HighlightedIndex_set_clamps_and_is_ignored_while_closed`；`OnHighlightChanged_fires_on_change_only`
   - `Clicking_row_i_submits_it_and_closes`（`Suggestions.OnSubmit == (text, i)`，`InputField.OnSubmit` 不发，`EndEditing` 被调用）
   - `Reveal_offset_brings_a_row_fully_into_view`（纯函数：行上下沿 × 视口高 × 当前滚动 → 新滚动，上下越界各一例、已可见不动）
   - `Highlighting_the_last_row_scrolls_the_content`（接线：用 `PopupBounds.BoundsOverride` 定边界、`maxHeight` 取小值；读 `Content.anchoredPosition.y > 0`）
-- [ ] **实现**：`HighlightedIndex`（行 `FocuslessPress.SetOn`）、`OnHighlightChanged`、`MoveHighlight(int delta)`（按 §6.2 循环含「无」）、`CommitChosen(int i)`、`CommitTyped()`；行 `OnClicked` → `CommitChosen`；`EnsureVisible(row)`（在 viewport 坐标里比上下沿，挪 content）
-- [ ] RUN(SuggestionsSubmitTests)；lint
+- [x] **实现**：`HighlightedIndex`（行 `FocuslessPress.SetOn`）、`OnHighlightChanged`、`MoveHighlight(int delta)`（按 §6.2 循环含「无」）、`CommitChosen(int i)`、`CommitTyped()`；行 `OnClicked` → `CommitChosen`；`EnsureVisible(row)`（在 viewport 坐标里比上下沿，挪 content）
+- [x] RUN(SuggestionsSubmitTests)；lint
 
 #### M2 收尾
 
-- [ ] RUN 本里程碑全部新类 + RUN(InputBoxTests)（模态里的 `<InputField>` 不受影响）→ `git commit -m "feat(suggestions): <Suggestions> part element — rows, binding, placement, visibility"`
+- [x] RUN 本里程碑全部新类 + RUN(InputBoxTests)（模态里的 `<InputField>` 不受影响）→ `git commit -m "feat(suggestions): <Suggestions> part element — rows, binding, placement, visibility"`
 
 ### M3 — `PuiInputField`
 
@@ -375,43 +375,43 @@ spec §13 的 PC-D1…D10、SG-D1…D15 按推荐执行（Task 0 把 spec 状态
 
 **Files:** Create `Runtime/Controls/Internal/SuggestionKeys.cs`、`Tests/EditMode/Controls/SuggestionKeysTests.cs`
 
-- [ ] **Red**：用 `Event.KeyboardEvent("down" / "up" / "return" / "[enter]" / "escape" / "a" / "left" / "home" / "^v")` × 状态（列表开 / 关、有无高亮、组字中、组字刚结束、链本帧已消费 Esc），逐行断言 spec §6.2 表的动作与「是否交给 TMP」（`^` = Ctrl，`#` 是 Shift）
-- [ ] **实现**：`internal enum KeyAction { PassToTmp, HighlightNext, HighlightPrev, CommitHighlighted, Swallow }`；`internal static KeyAction Route(Event e, in KeyState s)`
-- [ ] RUN(SuggestionKeysTests)；lint
+- [x] **Red**：用 `Event.KeyboardEvent("down" / "up" / "return" / "[enter]" / "escape" / "a" / "left" / "home" / "^v")` × 状态（列表开 / 关、有无高亮、组字中、组字刚结束、链本帧已消费 Esc），逐行断言 spec §6.2 表的动作与「是否交给 TMP」（`^` = Ctrl，`#` 是 Shift）
+- [x] **实现**：`internal enum KeyAction { PassToTmp, HighlightNext, HighlightPrev, CommitHighlighted, Swallow }`；`internal static KeyAction Route(Event e, in KeyState s)`
+- [x] RUN(SuggestionKeysTests)；lint
 
 #### Task 17：`PuiInputField`
 
 **Files:** Create `Runtime/Controls/Internal/PuiInputField.cs`；Modify `InputField.cs`（`AddComponent<PuiInputField>()`，把编辑边沿接到 `EditingChanged`，把列表状态与动作交给它）；Create `Tests/EditMode/Controls/PuiInputFieldTests.cs`、`Tests/PlayMode/Controls/InputFieldSuggestionsPlayTests.cs`
 
-- [ ] **Red（EditMode，编辑态钩子 `SetEditingForTests(true)`）**：
+- [x] **Red（EditMode，编辑态钩子 `SetEditingForTests(true)`）**：
   - 列表打开时 `ExecuteEvents` 的 `moveHandler`（上 / 下）移动高亮；有高亮时 `submitHandler` 是选中提交；`cancelHandler` 在 `EscapeChain.PopupConsumedFrame` 当帧被吞掉（测完调 `ForgetPopupConsumedFrameForTests()`）；列表关着时三者都走 `base`
   - `A_move_right_after_an_arrow_key_is_ignored`（P21：先 `HandleKeyDown("down")`，紧接着的 `moveHandler` 不再移高亮）
   - `Hiding_the_field_from_code_closes_the_list`（`field.Hidden = true` → `PuiInputField.OnDisable` → 关）
   - `InputField_OnAttached_toggling_enabled_before_adoption_is_harmless`（`InputField.cs:105-106` 的 enabled 开关会先触发一次 `OnDisable`，此时还没有 `<Suggestions>`）
-- [ ] **Red（PlayMode，夹具照 `InputFieldNavPlayTests`）**：
+- [x] **Red（PlayMode，夹具照 `InputFieldNavPlayTests`）**：
   - 指针点击进入编辑（等两帧）→ 推送非空 → 面板打开
   - `EventSystem.SetSelectedGameObject(别处)` → 编辑结束 → 列表关
   - 手柄的 move / submit / cancel 驱动高亮、选中提交、关列表，且 East 不回滚文字
   - `InputTestFixture` 接手柄，列表打开、编辑中按十字键下 → 高亮移动（P17 的回归：接管时无条件 `Use()` 会让这一条永远不到 `OnMove`）
   - `InputTestFixture` 真按 Esc（照 `SubmitWakePlayTests.cs:17-72`）：链关掉列表、仍在编辑。真设备按键不会进 IMGUI 队列，TMP 那一侧「不回滚」由 `SuggestionKeys` 的路由单测与手测覆盖
   - 编辑中直接调 `HandleKeyDown(Event.KeyboardEvent(...))`（接管循环里每个 KeyDown 的处理体，提成 internal 方法）：`"a"` 照常进 TMP 且发 `OnValueChanged`；有高亮时 `"return"` 是选中提交、没有时是普通提交并结束编辑；`"down"` 移高亮且光标不动。只有外层的 `while (Event.PopEvent(...))` 一行靠手测
-- [ ] **实现**：spec §6.6。重写 `OnUpdateSelected`：接管条件 + `Event.PopEvent` 循环，每个 KeyDown 交给 `HandleKeyDown`（路由 → 自己的动作，或 `KeyPressed` 转交 + `Finish` 处理）；`SelectAll` 命令；收尾 `UpdateLabel` + `textComponent.ForceMeshUpdate()`，**只在确实消费了某个 KeyDown 或正在组字时** `Use()`（P17）。另重写 `OnMove`（P21 的几帧抑制）/ `OnSubmit` / `OnCancel`，三者判断「编辑中」都读 `InputField.IsEditing`（可钩，P8），不直接读 `isFocused`；`LateUpdate`（`isFocused` 边沿）；`OnDisable`（发 `false`，对「还没有宿主 / 还没认领 `<Suggestions>`」要空安全）。组字判定照 TMP 的取法：`EventSystem.current?.currentInputModule?.input` 的 `compositionString`，取不到就 `Input.compositionString`；记上一帧状态，组字结束那一帧也不接管
-- [ ] RUN(PuiInputFieldTests) RUNPLAY(InputFieldSuggestionsPlayTests) RUNPLAY(InputFieldNavPlayTests) RUN(InputBoxTests)；lint
+- [x] **实现**：spec §6.6。重写 `OnUpdateSelected`：接管条件 + `Event.PopEvent` 循环，每个 KeyDown 交给 `HandleKeyDown`（路由 → 自己的动作，或 `KeyPressed` 转交 + `Finish` 处理）；`SelectAll` 命令；收尾 `UpdateLabel` + `textComponent.ForceMeshUpdate()`，**只在确实消费了某个 KeyDown 或正在组字时** `Use()`（P17）。另重写 `OnMove`（P21 的几帧抑制）/ `OnSubmit` / `OnCancel`，三者判断「编辑中」都读 `InputField.IsEditing`（可钩，P8），不直接读 `isFocused`；`LateUpdate`（`isFocused` 边沿）；`OnDisable`（发 `false`，对「还没有宿主 / 还没认领 `<Suggestions>`」要空安全）。组字判定照 TMP 的取法：`EventSystem.current?.currentInputModule?.input` 的 `compositionString`，取不到就 `Input.compositionString`；记上一帧状态，组字结束那一帧也不接管
+- [x] RUN(PuiInputFieldTests) RUNPLAY(InputFieldSuggestionsPlayTests) RUNPLAY(InputFieldNavPlayTests) RUN(InputBoxTests)；lint
 
 #### Task 18：`OnInput`、提交语义、被盖住结束编辑、按下进行中推迟
 
 **Files:** Modify `InputField.cs`、`Suggestions.cs`；补 `SuggestionsSubmitTests`、`InputFieldSuggestionsPlayTests`
 
-- [ ] **Red**：
+- [x] **Red**：
   - `OnInput`（全部 PlayMode：EditMode 里 `isFocused` 恒为假，「不发」的用例没有实现也会过；Esc 回滚在 EditMode 里根本发生不了，`DeactivateInputField` 在 `!m_AllowInput` 时直接返回，`TMP_InputField.cs:4426`）：进入编辑后 `ProcessEvent("a")` 会发；编辑中写 `TextValue` 不发；列表关着时 `cancelHandler` 回滚文字，发 `OnValueChanged` 但不发 `OnInput`；ReSolve 重放 `text=` 不发。`OnInput` 经 Task 14 的 internal `NotifyUserInput()` 武装列表（钩子保留，作为唯一入口）
   - spec §6.4 提交表逐行：Enter 无 / 有高亮（经 `SuggestionKeys` 动作）、点行、软键盘 Done（直接 `onSubmit.Invoke`）、两级导航下用 Submit 进入编辑不算提交；两事件的有无、参数与先后
   - `Editing_end_during_a_row_press_waits_for_the_release`（`pointerDown` 行 → `SetEditingForTests(false)` → 仍开 → 同行 `pointerUp` + click → 选中提交并关；另一例在别处抬起 → 关）
-- [ ] **实现**：`OnInput` 判定（`isFocused` 且不在 `_programmaticWrite` 内，`TextValue` setter 包一层）；`InputField.OnSubmit` 收窄（选中提交不发）；`Suggestions.OnSubmit` 覆盖全部入口；`Covered` → `EndEditing()`（`DeactivateInputField`）；SG-D15 的推迟
-- [ ] RUN(SuggestionsSubmitTests) RUNPLAY(InputFieldSuggestionsPlayTests)；lint
+- [x] **实现**：`OnInput` 判定（`isFocused` 且不在 `_programmaticWrite` 内，`TextValue` setter 包一层）；`InputField.OnSubmit` 收窄（选中提交不发）；`Suggestions.OnSubmit` 覆盖全部入口；`Covered` → `EndEditing()`（`DeactivateInputField`）；SG-D15 的推迟
+- [x] RUN(SuggestionsSubmitTests) RUNPLAY(InputFieldSuggestionsPlayTests)；lint
 
 #### M3 收尾
 
-- [ ] 三个程序集全量无新失败 → `git commit -m "feat(input): PuiInputField — keys belong to the suggestion list while it is open; OnInput"`
+- [x] 三个程序集全量无新失败 → `git commit -m "feat(input): PuiInputField — keys belong to the suggestion list while it is open; OnInput"`
 
 ### M4 — `submitIcon`
 
@@ -419,15 +419,15 @@ spec §13 的 PC-D1…D10、SG-D1…D15 按推荐执行（Task 0 把 spec 状态
 
 **Files:** Modify `InputField.cs`；Create `Tests/EditMode/Controls/SubmitIconTests.cs`
 
-- [ ] **Red**：
+- [x] **Red**：
   - 写了 `submitIcon` 才建，`submitIconSize` / `submitIconColor` 生效
   - 文字区右侧内边距按点击区（输入框高度的正方形）加宽，`padding=` 显式值叠加其上
   - 点击：无高亮 → `InputField.OnSubmit(text)` + `Suggestions.OnSubmit(text, −1)`；有高亮 → 只发 `(text, i)`；没有 `<Suggestions>` 时只发 `InputField.OnSubmit`
   - 不可交互时显示禁用色、不提交
   - `GetEventHandler<ISelectHandler>(icon)` 是输入框；图标上没有 `Selectable`
   - XSD（EditorOnly）：`InputField_lists_submitIcon`（`submitIcon` / `submitIconSize` / `submitIconColor`）
-- [ ] **实现**：内部节点 `SubmitIcon`（`Image` + `FocuslessPress`，状态 → 颜色用 uGUI `ColorBlock` 默认倍率）；`ApplyTextAreaPadding` 把点击区宽度加到右侧；点击走 Enter 同一条提交路径，编辑中则 `EndEditing()`
-- [ ] RUN(SubmitIconTests) RUN(InputFieldTests) RUNEDITOR(XsdGeneratorTests) RUNPLAY(InputFieldRuntimeTests) RUNPLAY(InputFieldNavPlayTests)；lint → `git commit -m "feat(input): submitIcon — a focusless submit button inside the field"`
+- [x] **实现**：内部节点 `SubmitIcon`（`Image` + `FocuslessPress`，状态 → 颜色用 uGUI `ColorBlock` 默认倍率）；`ApplyTextAreaPadding` 把点击区宽度加到右侧；点击走 Enter 同一条提交路径，编辑中则 `EndEditing()`
+- [x] RUN(SubmitIconTests) RUN(InputFieldTests) RUNEDITOR(XsdGeneratorTests) RUNPLAY(InputFieldRuntimeTests) RUNPLAY(InputFieldNavPlayTests)；lint → `git commit -m "feat(input): submitIcon — a focusless submit button inside the field"`
 
 ### M5 — lint
 
@@ -435,32 +435,32 @@ spec §13 的 PC-D1…D10、SG-D1…D15 按推荐执行（Task 0 把 spec 状态
 
 **Files:** 补全 `Runtime/Core/Lint/SuggestionsRules.cs`、`Tests/EditMode/Lint/SuggestionsRulesTests.cs`（Task 12 建的骨架）；Modify `IRWalker.cs`、`DocumentLinter.cs`、`ScreenInstantiator.cs`、`NavTargetRules.cs`（P14）、`RaycastRules.cs`、`PaddingRules.cs`、`FontFloorRules.cs`、`ScrollbarRules.cs`、`.lint/UIXmlLint/README.md`（规则表）
 
-- [ ] **Red**（写法照 `ScrollbarRulesTests.cs:19-55`：`IRWalker.Walk(UIDocumentParser.Parse(xml))` + `Has` / `First`；文档级规则用 `DocumentLinter.Walk`）：spec §7 每行一正一反；扩展规则各加一例，每例都要先红：`<Suggestions><Scrollbar/></Suggestions>` 不报 `PUI-SCROLLBAR-OUTSIDE`；一条 `PUI-RAYCAST-UNDECIDED` 用例（场景取放错位置、带 `color=` 的 `<Suggestions>`；写之前先读 `RaycastRules.cs:80-125`，确认加进 `InteractiveTags` 之前它确实会报——`InteractiveTags` 只影响这条规则；`<Suggestions raycastTarget>` 在标签进 `BuiltinTags` 后已经会报 `PUI-RAYCAST-TAG`，`RaycastRules.cs:58-75`，不能当 Red）；非整数 `padding` 报 `PUI-PADDING-INT`；行模板里的小字报 `PUI-FONT-FLOOR`。XSD 用例已在 Task 12 / 19
-- [ ] **实现**：`SuggestionsRules`（`Tag`、各 `*Code` 常量、`Check(node, styles)`、`CheckOutside(parent, child)`、`CheckDuplicate(host)`、`CheckRows(UIDocument expanded)`）；`IRWalker` 照 `ScrollbarRules` 的三处挂法（`IRWalker.cs:226-233`、子循环 `:358`）；`DocumentLinter` 展开遍之后调 `CheckRows`（P15）；`ScreenInstantiator` 的逐节点分派加 `SuggestionsRules.Check`（照 `:245-247` 的 Scrollbar 一支）；各扩展表加 `Suggestions`
-- [ ] RUN(SuggestionsRulesTests) RUN(ScrollbarRulesTests) RUN(RaycastRulesTests) RUN(PaddingRulesTests) RUN(FontFloorRulesTests) RUN(NavTargetRulesTests) RUN(BuiltinTagsTests) RUNEDITOR(XsdGeneratorTests)；`dotnet run --project .lint/UIXmlLint -- Runtime/Resources/`；scratchpad 里写一份故意出错的 `.ui.xml` 冒烟，各码都报
-- [ ] lint → `git commit -m "feat(lint): PUI-SUGGEST-* rules"`
+- [x] **Red**（写法照 `ScrollbarRulesTests.cs:19-55`：`IRWalker.Walk(UIDocumentParser.Parse(xml))` + `Has` / `First`；文档级规则用 `DocumentLinter.Walk`）：spec §7 每行一正一反；扩展规则各加一例，每例都要先红：`<Suggestions><Scrollbar/></Suggestions>` 不报 `PUI-SCROLLBAR-OUTSIDE`；一条 `PUI-RAYCAST-UNDECIDED` 用例（场景取放错位置、带 `color=` 的 `<Suggestions>`；写之前先读 `RaycastRules.cs:80-125`，确认加进 `InteractiveTags` 之前它确实会报——`InteractiveTags` 只影响这条规则；`<Suggestions raycastTarget>` 在标签进 `BuiltinTags` 后已经会报 `PUI-RAYCAST-TAG`，`RaycastRules.cs:58-75`，不能当 Red）；非整数 `padding` 报 `PUI-PADDING-INT`；行模板里的小字报 `PUI-FONT-FLOOR`。XSD 用例已在 Task 12 / 19
+- [x] **实现**：`SuggestionsRules`（`Tag`、各 `*Code` 常量、`Check(node, styles)`、`CheckOutside(parent, child)`、`CheckDuplicate(host)`、`CheckRows(UIDocument expanded)`）；`IRWalker` 照 `ScrollbarRules` 的三处挂法（`IRWalker.cs:226-233`、子循环 `:358`）；`DocumentLinter` 展开遍之后调 `CheckRows`（P15）；`ScreenInstantiator` 的逐节点分派加 `SuggestionsRules.Check`（照 `:245-247` 的 Scrollbar 一支）；各扩展表加 `Suggestions`
+- [x] RUN(SuggestionsRulesTests) RUN(ScrollbarRulesTests) RUN(RaycastRulesTests) RUN(PaddingRulesTests) RUN(FontFloorRulesTests) RUN(NavTargetRulesTests) RUN(BuiltinTagsTests) RUNEDITOR(XsdGeneratorTests)；`dotnet run --project .lint/UIXmlLint -- Runtime/Resources/`；scratchpad 里写一份故意出错的 `.ui.xml` 冒烟，各码都报
+- [x] lint → `git commit -m "feat(lint): PUI-SUGGEST-* rules"`
 
 ### M6 — 演示、文档、收尾
 
 #### Task 21：演示（`Samples~/CommonControls`）
 
-- [ ] 放大镜图标：新建 `Samples~/CommonControls/Resources/UI/icons.pxl`（一个 `search` sprite，按 `authoring-promptugui-pxl` skill 写），`dotnet run --project .lint/PxlPreview -- <file> --scale 16` 渲染后**看图**确认；XML 里引用为 `UI/icons#search`。Unity 不导入 `Samples~`，`icons.pxl.meta` 要手写：照抄 `Samples~/CommonControls/Sprites/crops.pxl.meta` 的 `ScriptedImporter` 块（`script` guid `52005a060a4e54a40b77f1ca5c4deaa4`），换一个新生成的 `guid`
-- [ ] `CommonControls.ui.xml`：「表单输入」页 `username` 下面加一个搜索框 —— `<InputField id="cropSearch" class="input" placeholder="搜索作物" submitIcon="UI/icons#search">` + `<Suggestions itemTemplate="CropRow" maxHeight="200" …/>`，再加一行 `<Text id="cropResult">` 显示最近一次提交；模板 `CropRow`（作物图标 `farm:<name>` + 名字 + 两个 `<Show>`：`on="state-hover"` 的浅底与 `on="state-selected"` 的高亮底）；农场皮与玻璃皮各给面板一个同名属性包
-- [ ] `CommonControlsRunner.cs` 的 `BindFormPage`：一份固定作物名单，`OnInput` 本地过滤，`BindItems(..., key: c => c.Id)`，`Suggestions.OnSubmit` 把「选中第几项 / 输入的文字」写进 `cropResult`
-- [ ] 两份 `CommonControls.po`（en 填英文，zh 的 `msgstr` 同 `msgid`）补新文案；代码里的新文案进两份 `_code.po`；`package.json` 样例描述把「Forms」改为提到搜索建议
-- [ ] `dotnet run --project .lint/UIXmlLint -- Samples~/CommonControls/Resources/` 零 error；样例编译验证照 virtualization 计划 Task 15 的临时 csproj 做法
-- [ ] `git commit -m "docs(sample): crop search with suggestions"`
+- [x] 放大镜图标：新建 `Samples~/CommonControls/Resources/UI/icons.pxl`（一个 `search` sprite，按 `authoring-promptugui-pxl` skill 写），`dotnet run --project .lint/PxlPreview -- <file> --scale 16` 渲染后**看图**确认；XML 里引用为 `UI/icons#search`。Unity 不导入 `Samples~`，`icons.pxl.meta` 要手写：照抄 `Samples~/CommonControls/Sprites/crops.pxl.meta` 的 `ScriptedImporter` 块（`script` guid `52005a060a4e54a40b77f1ca5c4deaa4`），换一个新生成的 `guid`
+- [x] `CommonControls.ui.xml`：「表单输入」页 `username` 下面加一个搜索框 —— `<InputField id="cropSearch" class="input" placeholder="搜索作物" submitIcon="UI/icons#search">` + `<Suggestions itemTemplate="CropRow" maxHeight="200" …/>`，再加一行 `<Text id="cropResult">` 显示最近一次提交；模板 `CropRow`（作物图标 `farm:<name>` + 名字 + 两个 `<Show>`：`on="state-hover"` 的浅底与 `on="state-selected"` 的高亮底）；农场皮与玻璃皮各给面板一个同名属性包
+- [x] `CommonControlsRunner.cs` 的 `BindFormPage`：一份固定作物名单，`OnInput` 本地过滤，`BindItems(..., key: c => c.Id)`，`Suggestions.OnSubmit` 把「选中第几项 / 输入的文字」写进 `cropResult`
+- [x] 两份 `CommonControls.po`（en 填英文，zh 的 `msgstr` 同 `msgid`）补新文案；代码里的新文案进两份 `_code.po`；`package.json` 样例描述把「Forms」改为提到搜索建议
+- [x] `dotnet run --project .lint/UIXmlLint -- Samples~/CommonControls/Resources/` 零 error；样例编译验证照 virtualization 计划 Task 15 的临时 csproj 做法
+- [x] `git commit -m "docs(sample): crop search with suggestions"`
 
 #### Task 22：阶段 1 文档（英文，同 PR）
 
-- [ ] 照 spec §11「阶段 1」逐条：新 `reference/controls-suggestions.md`；XML `SKILL.md`（目录行、`<InputField>` 表、程序化 / raycast 列表、`### <Suggestions>` 桩）；`reference/states.md`；C# `SKILL.md`（`OnInput`、Suggestions 小节、速查表、两级编辑模型）；`AGENTS.md` 路由一条 + 开头的 reference 清单补齐；主 spec §5 控件表一行
-- [ ] `<Suggestions>` 也是滚动条宿主：`reference/controls-scrollbar.md` 的宿主表（`:59-60`）加一行（条只显示、不接指针，P18）；XML `SKILL.md` 目录里 `<Scrollbar>` 那行与换皮说明（`:116`、`:131`）带上 `<Suggestions>`；`AGENTS.md` 的 `<Scrollbar>` 路由句里宿主列表加 `<Suggestions>`
-- [ ] `git commit -m "docs(skills): <Suggestions>, OnInput, submitIcon"`
+- [x] 照 spec §11「阶段 1」逐条：新 `reference/controls-suggestions.md`；XML `SKILL.md`（目录行、`<InputField>` 表、程序化 / raycast 列表、`### <Suggestions>` 桩）；`reference/states.md`；C# `SKILL.md`（`OnInput`、Suggestions 小节、速查表、两级编辑模型）；`AGENTS.md` 路由一条 + 开头的 reference 清单补齐；主 spec §5 控件表一行
+- [x] `<Suggestions>` 也是滚动条宿主：`reference/controls-scrollbar.md` 的宿主表（`:59-60`）加一行（条只显示、不接指针，P18）；XML `SKILL.md` 目录里 `<Scrollbar>` 那行与换皮说明（`:116`、`:131`）带上 `<Suggestions>`；`AGENTS.md` 的 `<Scrollbar>` 路由句里宿主列表加 `<Suggestions>`
+- [x] `git commit -m "docs(skills): <Suggestions>, OnInput, submitIcon"`
 
 #### Task 23：收尾（阶段 1 的 PR）
 
-- [ ] 三个程序集全量；`dotnet format --verify-no-changes --severity warn`；UIXmlLint 跑 `Runtime/Resources/` 与样例
-- [ ] spec 状态改「已实施」，§16 补「实施记录（阶段 1）」：与设计的偏差、手测结论
+- [x] 三个程序集全量；`dotnet format --verify-no-changes --severity warn`；UIXmlLint 跑 `Runtime/Resources/` 与样例
+- [x] spec 状态改「已实施」，§16 补「实施记录（阶段 1）」：与设计的偏差、手测结论
 - [ ] 隐私自检 → 征得同意后 `git push -u origin feat/input-suggestions` + `gh pr create`
 - [ ] 给作者的手测清单（PR 描述里也列）：Windows 与 macOS 下中文 / 日文输入法组字时 ↑↓ / Enter 不被抢；手机真机（Android / iOS）点候选不收键盘、键盘挡住时面板的高度与侧；手柄十字键高亮、A 选中、B 关列表；键盘按住 ↓ 时高亮一行一行走、不跳行（P21）
 

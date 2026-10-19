@@ -36,6 +36,16 @@ namespace PromptUGUI.Controls
         private readonly Subject<string> _submit = new();
 
         public Observable<string> OnValueChanged => _changed;
+
+        /// <summary>
+        /// The user changed the text: typing, pasting, deleting, an input method committing, the soft
+        /// keyboard syncing (spec 2026-10-18 §6.7). Code writes (<see cref="TextValue"/>, an XML replay)
+        /// and TMP's Escape rollback do not count; <see cref="OnValueChanged"/> still reports all of them.
+        /// </summary>
+        public Observable<string> OnInput => _userInput;
+
+        private readonly Subject<string> _userInput = new();
+        private bool _programmaticWrite;
         public Observable<string> OnEndEdit => _endEdit;
         public Observable<string> OnSubmit => _submit;
 
@@ -57,7 +67,10 @@ namespace PromptUGUI.Controls
             _textAreaMask = _textArea.gameObject.AddComponent<RectMask2D>();
             ApplyTextAreaPadding();
 
-            _input = GameObject.AddComponent<TMP_InputField>();
+            // PuiInputField: TMP unchanged until a <Suggestions> list is open (spec 2026-10-18 §6.6).
+            var pui = GameObject.AddComponent<PuiInputField>();
+            pui.Owner = this;
+            _input = pui;
             _input.targetGraphic = _bg;
             _input.textViewport = _textArea;
 
@@ -86,16 +99,27 @@ namespace PromptUGUI.Controls
             _input.caretColor = ProceduralBuilders.DefaultLabelColor;
             _input.customCaretColor = false;
             _input.selectionColor = new Color(0.659f, 0.808f, 1f, 0.753f);
-            _input.onValueChanged.AddListener(v => _changed.OnNext(v));
+            _input.onValueChanged.AddListener(v =>
+            {
+                _changed.OnNext(v);
+                // TMP rolls an Escape back after it has stopped editing, so isFocused rules that out too.
+                if (_programmaticWrite || !_input.isFocused) return;
+                // Armed first: a host answering OnInput with a synchronous push then opens the list.
+                _suggestions?.NotifyUserInput();
+                _userInput.OnNext(v);
+            });
             _input.onEndEdit.AddListener(v => _endEdit.OnNext(v));
             // Gate: when Navigation is enabled and the field is not yet focused, Submit is
             // the two-level "enter edit" gesture.  TMP fires onSubmit synchronously before
             // InputFieldNavGate.OnSubmit runs, so we check isFocused here at listener time
             // to suppress the business event for that transition.
+            // With a <Suggestions> list this is the typed-text submit: the field's own event first, then
+            // the list's (text, -1). A chosen suggestion never comes through here (spec 2026-10-18 §6.4).
             _input.onSubmit.AddListener(v =>
             {
                 if (UI.Navigation.IsEnabled && !_input.isFocused) return;
                 _submit.OnNext(v);
+                _suggestions?.CommitTyped(v);
             });
 
             // AddComponent<TMP_InputField> 在 active GO 上立刻触发 OnEnable, 那一刻
@@ -128,8 +152,10 @@ namespace PromptUGUI.Controls
             if (_textArea == null) return;
             var (t, r, b, l) = _paddingOverride
                 ?? (_bg != null && _bg.sprite != null ? DefaultPadding : (0f, 0f, 0f, 0f));
+            // The submit icon's square sits at the right end; the text stops short of it.
+            var slot = PlaceSubmitIcon();
             _textArea.offsetMin = new Vector2(l, b);
-            _textArea.offsetMax = new Vector2(-r, -t);
+            _textArea.offsetMax = new Vector2(-(r + slot), -t);
             if (_textAreaMask != null)
             {
                 // RectMask2D.padding is (left, bottom, right, top); negative grows the region.
@@ -151,18 +177,236 @@ namespace PromptUGUI.Controls
         {
             base.OnAfterApply();
             _input.interactable = Interactable;
+            if (_iconPress != null) _iconPress.Interactable = PeekInteractable;
             ApplyTextAreaPadding();
+            _suggestions?.OnFieldAfterApply();
+        }
+
+        // ── submitIcon (spec 2026-10-18 §5.3 / §6.4) ───────────────────────────────────────
+
+        private const float DefaultSubmitIconSize = 24f;
+
+        private RectTransform _iconRect;
+        private UnityImage _iconGlyph;
+        private FocuslessPress _iconPress;
+        private float _iconSize = DefaultSubmitIconSize;
+        private Color _iconColor = ProceduralBuilders.DefaultGlyphColor;
+
+        /// <summary>
+        /// A submit button at the field's right end — Enter, for a pointer (a chat's "send"). Not built
+        /// unless written; <c>""</c> / <c>none</c> removes it again. It is not a Selectable: pressing it
+        /// leaves the field editing until the click submits.
+        /// </summary>
+        [UIAttr(IsSprite = true), Preserve]
+        public string SubmitIcon
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value) || value == "none")
+                {
+                    if (_iconRect != null) _iconRect.gameObject.SetActive(false);
+                }
+                else
+                {
+                    EnsureSubmitIcon();
+                    _iconRect.gameObject.SetActive(true);
+                    _iconGlyph.sprite = UI.ResolveSprite(value);
+                }
+                ApplyTextAreaPadding();
+            }
+        }
+
+        /// <summary>The icon's side, px (default 24). The click area is a square as tall as the field.</summary>
+        [UIAttr, Preserve]
+        public float SubmitIconSize
+        {
+            set
+            {
+                _iconSize = value;
+                if (_iconGlyph != null) _iconGlyph.rectTransform.sizeDelta = new Vector2(value, value);
+            }
+        }
+
+        /// <summary>The icon's tint (default: the glyph colour, i.e. the sprite's own).</summary>
+        [UIAttr(IsColor = true), Preserve]
+        public string SubmitIconColor
+        {
+            set
+            {
+                _iconColor = UI.Theme.Resolve(value);
+                ApplyIconColor();
+            }
+        }
+
+        private void EnsureSubmitIcon()
+        {
+            if (_iconRect != null) return;
+            _iconRect = ProceduralBuilders.AddChild(RectTransform, "SubmitIcon");
+            _iconRect.anchorMin = new Vector2(1f, 0f);
+            _iconRect.anchorMax = new Vector2(1f, 1f);
+            _iconRect.pivot = new Vector2(1f, 0.5f);
+            _iconRect.anchoredPosition = Vector2.zero;
+            _iconRect.gameObject.AddComponent<HitCatcher>();
+            _iconPress = _iconRect.gameObject.AddComponent<FocuslessPress>();
+            _iconPress.Interactable = PeekInteractable;
+            _iconPress.OnState.Subscribe(_ => ApplyIconColor());
+            _iconPress.OnClicked.Subscribe(_ => SubmitFromIcon());
+
+            _iconGlyph = ProceduralBuilders.AddImage(_iconRect, "Glyph", raycast: false);
+            var glyph = _iconGlyph.rectTransform;
+            glyph.anchorMin = glyph.anchorMax = new Vector2(0.5f, 0.5f);
+            glyph.pivot = new Vector2(0.5f, 0.5f);
+            glyph.anchoredPosition = Vector2.zero;
+            glyph.sizeDelta = new Vector2(_iconSize, _iconSize);
+            _iconGlyph.preserveAspect = true;
+            ApplyIconColor();
+
+            // The square follows the field's height when a layout resizes it.
+            var relay = GameObject.GetComponent<RectDimensionsRelay>();
+            if (relay == null) relay = GameObject.AddComponent<RectDimensionsRelay>();
+            relay.OnDimensionsChanged += ApplyTextAreaPadding;
+        }
+
+        // Sizes the click square to the field's height; returns the width the text has to leave for it.
+        private float PlaceSubmitIcon()
+        {
+            if (_iconRect == null || !_iconRect.gameObject.activeSelf) return 0f;
+            var h = RectTransform.rect.height;
+            var side = h > 0f ? h : MinTapHeight;
+            _iconRect.sizeDelta = new Vector2(side, 0f);
+            return side;
+        }
+
+        // uGUI's default ColorBlock multipliers, so the icon answers like any stock control.
+        private void ApplyIconColor()
+        {
+            if (_iconGlyph == null) return;
+            var block = ColorBlock.defaultColorBlock;
+            var tint = _iconPress == null ? block.normalColor : _iconPress.Current switch
+            {
+                InteractState.Hover => block.highlightedColor,
+                InteractState.Pressed => block.pressedColor,
+                InteractState.Disabled => block.disabledColor,
+                _ => block.normalColor,
+            };
+            _iconGlyph.color = _iconColor * tint * block.colorMultiplier;
+        }
+
+        /// <summary>The same submit as Enter (spec §6.4): a highlighted suggestion is chosen, else the text goes.</summary>
+        private void SubmitFromIcon()
+        {
+            if (!PeekInteractable) return;
+            var list = _suggestions;
+            if (list != null && list.IsOpen && list.HighlightedIndex >= 0)
+            {
+                list.CommitChosen(list.HighlightedIndex);
+                return;
+            }
+            var text = TextValue;
+            _submit.OnNext(text);
+            list?.CommitTyped(text);
+            EndEditing();
+        }
+
+        private Suggestions _suggestions;
+
+        /// <summary>Its <c>&lt;Suggestions&gt;</c> child, or null when it has none.</summary>
+        public Suggestions Suggestions => _suggestions;
+
+        /// <summary>
+        /// Takes a <c>&lt;Suggestions&gt;</c> child (spec 2026-10-18 §5.1). A field takes one list; a
+        /// second is parked inactive with a warning, the way a scrolling host treats a second bar.
+        /// </summary>
+        internal void AdoptSuggestions(Suggestions list)
+        {
+            if (_suggestions != null && _suggestions != list)
+            {
+                UILog.Warn(list,
+                    $"[{PromptUGUI.Lint.SuggestionsRules.DuplicateCode}] " +
+                    PromptUGUI.Lint.SuggestionsRules.DuplicateMessage(Id, list.Id));
+                list.GameObject.SetActive(false);
+                return;
+            }
+            _suggestions = list;
+            list.AttachField(this);
         }
 
         // True when the underlying field is in edit mode (caret active). Used by the
-        // two-level navigation gate and its tests.
-        internal bool IsEditing => _input != null && _input.isFocused;
+        // two-level navigation gate, the suggestion list and their tests.
+        internal bool IsEditing => _editingOverride ?? (_input != null && _input.isFocused);
+
+        private bool? _editingOverride;
+        private bool _readOnly;
+
+        /// <summary>
+        /// Edit mode began (true) or ended (false), whichever way it ended — the edges the
+        /// suggestion list opens and closes on (spec 2026-10-18 §6.6).
+        /// </summary>
+        internal event System.Action<bool> EditingChanged;
+
+        /// <summary>
+        /// Test hook: pins <see cref="IsEditing"/> (EditMode never focuses a TMP field) and raises the
+        /// edge; <c>null</c> goes back to the live state.
+        /// </summary>
+        internal void SetEditingForTests(bool? editing)
+        {
+            var was = IsEditing;
+            _editingOverride = editing;
+            if (IsEditing != was) EditingChanged?.Invoke(IsEditing);
+        }
+
+        /// <summary>The live edge, reported by the field's TMP component.</summary>
+        internal void NotifyEditingChanged(bool editing)
+        {
+            if (_editingOverride == null) EditingChanged?.Invoke(editing);
+        }
+
+        /// <summary>Leaves edit mode — after a suggestion is chosen, or when a layer covers the list.</summary>
+        internal void EndEditing()
+        {
+            if (_editingOverride == true)
+            {
+                SetEditingForTests(false);
+                return;
+            }
+            if (_input != null && _input.isFocused) _input.DeactivateInputField();
+        }
+
+        internal bool IsReadOnly => _readOnly;
+
+        /// <summary>
+        /// Code that disables the field also reaches the TMP component and closes the suggestion list:
+        /// this path does not go through <see cref="OnAfterApply"/>.
+        /// </summary>
+        public override bool Interactable
+        {
+            get => base.Interactable;
+            set
+            {
+                base.Interactable = value;
+                if (_input != null) _input.interactable = value;
+                if (_iconPress != null) _iconPress.Interactable = value;
+                if (!value) _suggestions?.Close();
+            }
+        }
 
         [UIAttr("text"), Preserve]
         public string TextValue
         {
             get => _input != null ? _input.text : null;
-            set => _input.text = value ?? string.Empty;
+            set
+            {
+                // A code write, not user input: OnInput stays quiet (no re-query for a written-back choice).
+                _programmaticWrite = true;
+                try
+                {
+                    _input.text = value ?? string.Empty;
+                }
+                finally
+                {
+                    _programmaticWrite = false;
+                }
+            }
         }
 
         internal override string PeekDefaultText() => _input != null ? _input.text : null;
@@ -224,7 +468,11 @@ namespace PromptUGUI.Controls
         [UIAttr, Preserve]
         public bool ReadOnly
         {
-            set => _input.readOnly = value;
+            set
+            {
+                _readOnly = value;
+                _input.readOnly = value;
+            }
         }
 
         // Inner space between the field's edge and its text (T,R,B,L; "_" = 0). When unset the
@@ -355,6 +603,7 @@ namespace PromptUGUI.Controls
                 _input.onSubmit.RemoveAllListeners();
             }
             _changed.Dispose();
+            _userInput.Dispose();
             _endEdit.Dispose();
             _submit.Dispose();
             base.Dispose();

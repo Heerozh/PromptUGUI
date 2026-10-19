@@ -160,7 +160,8 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 | `<Cooldown>` | 冷却扫掠：扇形暗罩 / `thickness` 环形弧（fill 是主表面，value 在 SDF 内按扇形裁断）；自带时钟（`Start` / `Stop` / `OnReady` / `OnCooling`）、`countdown`；`on="ready"` / `on="cooling"` 就近解析 | RectTransform（+ Bg / Fill / Label 三层；详见 [`2026-10-13-cooldown-control-design.md`](2026-10-13-cooldown-control-design.md)） |
 | `<Dropdown>` | 下拉选择（OnSelected: int；BindOptions 推送选项） | TMP_Dropdown |
 | `<ScrollList>` | 滚动列表（BindItems 推送数据；itemTemplate 引用 Template/Control 类） | ScrollRect + Mask |
-| `<Scrollbar>` | `<ScrollList>` / `<Dropdown>` 的滚动条**部件子元素**（不写就是默认条）：轨道 = 主表面（`radius` 等同 `<Frame>`）、滑块 `handle*`、几何 `thickness` / `overlay` / `spacing` / `padding`；复用走 `<Style>` / `<Template>` / `<Theme>` | uGUI Scrollbar（track Image + Sliding Area + Handle），宿主接线（详见 [`2026-09-12-scrollbar-part-element-design.md`](2026-09-12-scrollbar-part-element-design.md)） |
+| `<Scrollbar>` | `<ScrollList>` / `<Dropdown>` / `<Suggestions>` 的滚动条**部件子元素**（不写就是默认条）：轨道 = 主表面（`radius` 等同 `<Frame>`）、滑块 `handle*`、几何 `thickness` / `overlay` / `spacing` / `padding`；复用走 `<Style>` / `<Template>` / `<Theme>` | uGUI Scrollbar（track Image + Sliding Area + Handle），宿主接线（详见 [`2026-09-12-scrollbar-part-element-design.md`](2026-09-12-scrollbar-part-element-design.md)） |
+| `<Suggestions>` | `<InputField>` 的候选列表**部件子元素**：浮层面板（主表面，同 `<TabMenu>` 的面板）+ `itemTemplate` 行（`BindItems` 推送）；输入框一直在编辑，↑↓ 高亮、Enter / 点行 / `submitIcon` 提交，Esc 只关列表；`InputField.OnInput`（只有用户改字才发）驱动查询 | RectTransform + ScrollRect（+ 嵌套 Canvas 抬层，挂在输入框之下；详见 [`2026-10-18-popup-core-and-input-suggestions-design.md`](2026-10-18-popup-core-and-input-suggestions-design.md)） |
 | `<TabBar>` | Tab 容器；私有 ToggleGroup + Horizontal/VerticalLayoutGroup；纯布局,无自身视觉；支持 `itemTemplate` + `BindItems` 动态构建 | RectTransform + ToggleGroup + LayoutGroup（详见 [`2026-05-27-tabbar-design.md`](2026-05-27-tabbar-design.md)） |
 | `<TabMenu>` | 弹出式 Tab 组：收起=选中 Tab 的 icon+文字+箭头（hug 内容），展开=一列 `<Tab>` 的弹窗面板；**程序化表面 = 弹窗面板**（把手默认透明）；`OnSelectionChanged` / `OnExpanded` / `OnCollapsed`；`itemTemplate` + `BindItems`；与 `<TabBar>` 共用同一份 Tab 组语义 | RectTransform + PuiButton + ToggleGroup + 内部 Popup（Canvas overrideSorting，逃出祖先 mask）（详见 [`2026-08-29-tabmenu-design.md`](2026-08-29-tabmenu-design.md)） |
 | `<Tab>` | `<TabBar>` / `<TabMenu>` 子节点；可点击容器（接子，Frame 式叠放）；uGUI Toggle + 懒建 label + 可选 icon；`color` / `sprite` / `selectedSprite` 自管视觉（共享样式用 Template）；`bind="page_id"` 声明式切换一个兄弟控件（通常 Frame / Pages）的可见性 | RectTransform + UnityImage + UnityToggle |
@@ -189,7 +190,7 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 ### 5.1.1 指针命中（`raycastTarget`，2026-09-15 起）
 
 命中是**声明**出来的，不是画出来的：只有两种节点进 raycast 列表 —— 交互控件自己的命中层（`<Btn>` / `<Toggle>` /
-`<Tab>` / `<Slider>` / `<Scrollbar>` / `<Dropdown>` / `<InputField>` / `<ScrollList>` / `<Collapsible>` / `<TabMenu>` /
+`<Tab>` / `<Slider>` / `<Scrollbar>` / `<Dropdown>` / `<InputField>` / `<Suggestions>` / `<ScrollList>` / `<Collapsible>` / `<TabMenu>` /
 `<Carousel>` / `<Markdown>` 链接，永远开、不可配置），以及作者写了 `raycastTarget="true"` 的节点。其余一律穿透 ——
 画了东西的 `<Frame>`、`<Image>`、`<RawImage>`、`<Text>` 都是（uGUI 自己的默认 true 不是本库的默认）。
 

@@ -141,6 +141,12 @@ namespace PromptUGUI.Lint
                     yield return issue;
             }
 
+            // A <Suggestions> row template is reached through itemTemplate, which only the expanded
+            // document resolves (the per-Screen templates the expander prepares).
+            foreach (var issue in SuggestionsRules.CheckRows(expanded))
+                if (seen.Add(KeyOf(issue)))
+                    yield return issue;
+
             // Rules that reason about a node's resolved configuration (GlassRules above all) can only
             // answer for ONE skin at a time. Re-derive the tree under each theme and walk again;
             // dedup means a theme that changes nothing relevant costs nothing but the walk. No flag

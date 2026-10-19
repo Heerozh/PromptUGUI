@@ -113,8 +113,9 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 | `<Slider>` | Image+Slider，`OnValueChanged:float` |
 | `<Dropdown>` | TMP_Dropdown，`OnSelected:int`（`BindOptions`） |
 | `<ScrollList>` | ScrollRect+Mask + Vertical/Horizontal/GridLayoutGroup（XML 静态子节点 + `BindItems`）; `virtualize="true"` builds only the rows near the viewport (→ `reference/virtualize.md`) |
-| `<Scrollbar>` | `<ScrollList>` / `<Dropdown>` 的滚动条**部件子元素**：轨道 = 主表面（`radius` 等同 `<Frame>`），滑块 `handle*`；不写就是默认条（见本节末 **`<Scrollbar>`** 小节） |
-| `<InputField>` | TMP_InputField，`OnValueChanged` / `OnEndEdit` / `OnSubmit:string` |
+| `<Scrollbar>` | `<ScrollList>` / `<Dropdown>` / `<Suggestions>` 的滚动条**部件子元素**：轨道 = 主表面（`radius` 等同 `<Frame>`），滑块 `handle*`；不写就是默认条（见本节末 **`<Scrollbar>`** 小节） |
+| `<InputField>` | TMP_InputField，`OnValueChanged` / `OnInput` (user edits only) / `OnEndEdit` / `OnSubmit:string`; optional `submitIcon` button |
+| `<Suggestions>` | Suggestion list **part element of `<InputField>`** (its only legal parent): a floating panel of `itemTemplate` rows the field keeps editing over — ↑↓ highlight, Enter / click chooses (→ `reference/controls-suggestions.md`) |
 | `<Progress>` | 只读线性进度条 |
 | `<Cooldown>` | Cooldown sweep: a dark veil over a skill icon, or (`thickness`) an arc around it; own clock (`Start` / `OnReady`), `countdown`, `on="ready"` / `on="cooling"` (→ `reference/controls-cooldown.md`) |
 | `<TabBar>` | 互斥选项卡容器 |
@@ -128,7 +129,7 @@ Pre-registered on `UI.Registry`. Use as XML tags by name. 速查目录如下；�
 | `<Markdown>` | Renders a Markdown document into a scrollable subtree  |
 | `<FocusCursor>` | Screen-level cursor overlay for directional navigation. **Not a registered control** — not `Get<T>`-able; removed from the control tree before instantiation. → `reference/navigation.md` |
 
-> Re-skinning a built-in: every inner layer has an XML hook — `<Slider fill= handle=>`, `<Toggle checkmark=>`, `<Dropdown arrow= itemColor=>`, `<TabMenu arrow= arrowColor=>`, `<Progress fill= bg= frame=>`. Each takes a `<layer>` (sprite) / `<layer>Color` pair, and `""` clears the sprite for a flat look. The scrollbar of a `<ScrollList>` / `<Dropdown>` is a real child element instead — `<Scrollbar sprite= color= handle= handleColor= …/>` — so one `class=` pack dresses every bar in the document. Reach for those first. They are still *reference implementations*: for structural changes (a different popup layout, extra chrome) write your own `Control` and register it over the tag — `UI.Registry.Register<MyDropdown>("Dropdown")`. The built-ins are `sealed`, so you replace rather than subclass; see scripting-promptugui-csharp.
+> Re-skinning a built-in: every inner layer has an XML hook — `<Slider fill= handle=>`, `<Toggle checkmark=>`, `<Dropdown arrow= itemColor=>`, `<TabMenu arrow= arrowColor=>`, `<Progress fill= bg= frame=>`. Each takes a `<layer>` (sprite) / `<layer>Color` pair, and `""` clears the sprite for a flat look. The scrollbar of a `<ScrollList>` / `<Dropdown>` / `<Suggestions>` is a real child element instead — `<Scrollbar sprite= color= handle= handleColor= …/>` — so one `class=` pack dresses every bar in the document. Reach for those first. They are still *reference implementations*: for structural changes (a different popup layout, extra chrome) write your own `Control` and register it over the tag — `UI.Registry.Register<MyDropdown>("Dropdown")`. The built-ins are `sealed`, so you replace rather than subclass; see scripting-promptugui-csharp.
 
 ### `<Frame>`
 
@@ -451,6 +452,7 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 |---|---|
 | `<Btn>` `<Tab>` `<Dropdown>` `<InputField>` `<ScrollList>` | 控件自身的背景 |
 | `<TabMenu>` | **弹窗面板**（不是收起状态的把手 —— 把手默认透明，要底就套一层 `<Frame>`） |
+| `<Suggestions>` | **The panel** (the node itself) |
 | `<Collapsible>` | **整块面板**（标题栏 + body 一起；标题栏另有 `headerColor` / `headerSprite` 叠在上面） |
 | `<Toggle>` | **勾选框**（不含 label） |
 | `<Slider>` | **轨道**（不含滑块） |
@@ -626,7 +628,7 @@ Bind it once, with a key: `chat.BindItems(messages, bind, key: m => m.Id)`. What
 
 ### `<InputField>`
 
-TMP_InputField；R3 `OnValueChanged` / `OnEndEdit` / `OnSubmit: string`。`<InputField>初始文本</InputField>` 简写设 `text=`。`interactable="false"` 同时驱动 `TMP_InputField.interactable` → 进入 Disabled 视觉态、阻止聚焦/输入，叠加 CanvasGroup raycast block。
+TMP_InputField；R3 `OnValueChanged` / `OnInput` / `OnEndEdit` / `OnSubmit: string`（`OnInput` fires only when the user changes the text — not for code writes, XML replays or TMP's Escape rollback）。`<InputField>初始文本</InputField>` 简写设 `text=`。`interactable="false"` 同时驱动 `TMP_InputField.interactable` → 进入 Disabled 视觉态、阻止聚焦/输入，叠加 CanvasGroup raycast block。
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
@@ -650,6 +652,22 @@ TMP_InputField；R3 `OnValueChanged` / `OnEndEdit` / `OnSubmit: string`。`<Inpu
 | `font` | string | `default` | |
 | `tr` · `ctx` | bool · string | `true` · — | placeholder 的 i18n |
 | `tint` | `multiply` / `linear` | — | 见 **Tint blend modes** |
+| `submitIcon` | sprite key | — | A submit button at the field's right end, same as Enter (with a `<Suggestions>` highlight it chooses that row). Not built unless written; `""` / `none` removes it. Not a Selectable — pressing it keeps the field editing until the click submits |
+| `submitIconSize` | px | `24` | The icon's side. The click area is a square as tall as the field; the text's right padding grows by it (on top of `padding=`) |
+| `submitIconColor` | hex / CSS / token | glyph colour | Icon tint; hover / pressed / disabled use uGUI's default `ColorBlock` multipliers |
+| *(child)* `<Suggestions …/>` | element | — | A suggestion list for this field — see **`<Suggestions>`** below and [`reference/controls-suggestions.md`](reference/controls-suggestions.md) |
+
+### `<Suggestions>`
+
+A suggestion list: the **part element of `<InputField>`** (a direct child, one per field — `PUI-SUGGEST-OUTSIDE` / `PUI-SUGGEST-DUPLICATE`). The node *is* the floating panel (a procedural surface like `<TabMenu>`'s, plus `<Decor>` / `<Scrollbar>` children). Rows are `itemTemplate` instances pushed from C# with `BindItems`; their `<Show on="state-*">` blocks read hover / pressed and `state-selected` = the keyboard highlight. The field keeps editing throughout: ↑↓ move the highlight, Enter / click / `submitIcon` choose, Escape closes only the list. It shows while the field edits, the user has typed (or code called `Open()`), and the last push was non-empty. Layout attributes are ignored (`PUI-SUGGEST-LAYOUT-ATTR`) — always as wide as the field, `min(rows, maxHeight, room)` tall, `placement` = preferred side.
+
+```xml
+<InputField id="search" placeholder="Search" submitIcon="UI/icons#search">
+  <Suggestions itemTemplate="Row" maxHeight="200" padding="6"/>
+</InputField>
+```
+
+**Before writing a `<Suggestions>`, read [`reference/controls-suggestions.md`](reference/controls-suggestions.md)** (attributes, row states and why rows hold no Selectables, key / gamepad / pointer tables, the submit table, show / hide rules, placement, IME, lint).
 
 ### `<Progress>`
 
@@ -845,7 +863,7 @@ C# 侧：`screen.Get<Pages>("shop").Show("detail")` / `Selected` / `PageIds` / `
 
 ### `<Scrollbar>`
 
-`<ScrollList>` / `<Dropdown>` 的滚动条**部件子元素**：写成宿主的**直接子元素**，不写就是默认条（库存 Scroll View 那根，逐像素一致）。节点本身就是 uGUI `Scrollbar`（轨道 Image + `Sliding Area` + `Handle`），宿主负责接线与朝向 —— ScrollList 的条跟着 `direction` 翻转（同一个节点），Dropdown 的条恒竖、随弹窗一起被克隆。
+`<ScrollList>` / `<Dropdown>` / `<Suggestions>` 的滚动条**部件子元素**：写成宿主的**直接子元素**，不写就是默认条（库存 Scroll View 那根，逐像素一致）。节点本身就是 uGUI `Scrollbar`（轨道 Image + `Sliding Area` + `Handle`），宿主负责接线与朝向 —— ScrollList 的条跟着 `direction` 翻转（同一个节点），Dropdown 的条恒竖、随弹窗一起被克隆。
 
 ```xml
 <ScrollList columns="4" cellSize="63x86" spacing="4">
@@ -1019,7 +1037,7 @@ Other notes:
 
 ## Pointer hit-testing (`raycastTarget`)
 
-**Hit-testing is declared, not painted.** Only two kinds of node are ever returned by the raycaster: an interactive control's own hit layer (`<Btn>` / `<Toggle>` / `<Tab>` / `<Slider>` / `<Scrollbar>` / `<Dropdown>` / `<InputField>` / `<ScrollList>` / `<Collapsible>` / `<TabMenu>` / `<Carousel>` / `<Markdown>` text — always on, not configurable), and a node you marked `raycastTarget="true"` — or subscribed to from C# (pointer streams, `<Text>` links; below). Everything else is click-through by default, **including a `<Frame>` that draws, an `<Image>`, a `<RawImage>` and a `<Text>`** — uGUI's own default (`true`) is not the library's.
+**Hit-testing is declared, not painted.** Only two kinds of node are ever returned by the raycaster: an interactive control's own hit layer (`<Btn>` / `<Toggle>` / `<Tab>` / `<Slider>` / `<Scrollbar>` / `<Dropdown>` / `<InputField>` / `<Suggestions>` / `<ScrollList>` / `<Collapsible>` / `<TabMenu>` / `<Carousel>` / `<Markdown>` text — always on, not configurable), and a node you marked `raycastTarget="true"` — or subscribed to from C# (pointer streams, `<Text>` links; below). Everything else is click-through by default, **including a `<Frame>` that draws, an `<Image>`, a `<RawImage>` and a `<Text>`** — uGUI's own default (`true`) is not the library's.
 
 - **A panel that must block what is behind it says so on its root**: `<Frame color="…" radius="…" raycastTarget="true">`. One line per panel. Its interactive children still work — a child draws on top of its ancestor and a click on a non-interactive spot bubbles up to the panel and stops there (`EventSystem.IsPointerOverGameObject()` is then true, so the game world does not see the tap). The catcher must be an **ancestor** (or an earlier sibling); a later sibling covers what it overlaps.
 - **A modal needs two declarations**: the full-screen backdrop and the dialog panel (see **Modal / Loading screens**).

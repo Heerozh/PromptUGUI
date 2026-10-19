@@ -1294,6 +1294,7 @@ namespace PromptUGUI.Application
             Navigation.ResetForTestsInternal();
             Controls.Internal.PopupChain.ResetForTests();
             Controls.Internal.PuiDropdown.ResetForTests();
+            Controls.Internal.PopupBounds.ResetForTests();
             EscapeChain.ResetForTests();
             Modal.CancelAllForTeardown();
             Modals.LoadingOverlay.CancelAllForTeardown();

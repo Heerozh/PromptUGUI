@@ -33,6 +33,9 @@ namespace PromptUGUI.Lint
             "Btn", "Tab", "TabMenu", "Collapsible", "Toggle", "Slider", "Dropdown", "InputField", "ScrollList"
         };
 
+        /// <summary>Whether <paramref name="tag"/> builds a uGUI <c>Selectable</c> (a focus target).</summary>
+        internal static bool IsSelectableTag(string tag) => SelectableTags.Contains(tag);
+
         /// <summary>All attributes that must appear only on selectable tags.</summary>
         private static readonly string[] AllNavAttrs =
         {

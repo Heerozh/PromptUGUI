@@ -24,7 +24,7 @@ namespace PromptUGUI.Lint
         public const string Tag = "Scrollbar";
 
         /// <summary>The tags that implement <c>IScrollbarHost</c> — a hand-kept mirror (pure C#).</summary>
-        public static readonly HashSet<string> HostTags = new() { "ScrollList", "Dropdown" };
+        public static readonly HashSet<string> HostTags = new() { "ScrollList", "Dropdown", "Suggestions" };
 
         /// <summary>
         /// The bar writes its own rect from (orientation, thickness); <c>hidden</c> would fight
@@ -152,7 +152,7 @@ namespace PromptUGUI.Lint
             yield return new LintIssue(
                 OutsideCode, child.Tag, child.Id,
                 $"<Scrollbar id='{child.Id}'> is only meaningful as a direct child of <ScrollList> / " +
-                $"<Dropdown>; found under <{parent.Tag}>, where nothing scrolls it — the bar is drawn " +
+                $"<Dropdown> / <Suggestions>; found under <{parent.Tag}>, where nothing scrolls it — the bar is drawn " +
                 "but wired to nothing.");
         }
 

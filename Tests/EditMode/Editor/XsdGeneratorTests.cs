@@ -1130,6 +1130,28 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Suggestions_lists_its_attributes()
+        {
+            var xsd = XsdGenerator.Generate(PromptUGUI.Application.UI.Registry);
+            StringAssert.Contains("name=\"Suggestions\"", xsd);
+            // padding / spacing ride on the shared commonAttrs group like every other tag's.
+            StringAssert.Contains("name=\"itemTemplate\"", xsd);
+            StringAssert.Contains("name=\"maxHeight\"", xsd);
+            StringAssert.Contains("name=\"gap\"", xsd);
+            StringAssert.Contains("name=\"placement\"", xsd);
+            StringAssert.Contains("name=\"transition\"", xsd);
+        }
+
+        [Test]
+        public void InputField_lists_submitIcon()
+        {
+            var xsd = XsdGenerator.Generate(PromptUGUI.Application.UI.Registry);
+            StringAssert.Contains("name=\"submitIcon\"", xsd);
+            StringAssert.Contains("name=\"submitIconSize\"", xsd);
+            StringAssert.Contains("name=\"submitIconColor\"", xsd);
+        }
+
+        [Test]
         public void Pages_is_an_element_with_selected()
         {
             // Reflected off the registry like every non-primitive control (spec 2026-09-17-pages-design §4.5).

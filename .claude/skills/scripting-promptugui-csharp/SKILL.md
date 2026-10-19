@@ -370,6 +370,8 @@ screen.Get<InputField>("playerName").OnEndEdit
       .Subscribe(s => Player.Rename(s)).AddTo(screen);
 ```
 
+**`InputField.OnInput` vs `OnValueChanged`** — `OnValueChanged` reports every change of the text; `OnInput` only the ones **the user made** while editing: typing, pasting, deleting, an IME committing, the soft keyboard syncing. Code writes (`TextValue = …`), an XML / Variant replay of `text=` and TMP's Escape rollback do not raise it. Drive queries from `OnInput`, so writing a chosen result back into the field does not query again. While an IME is composing the text does not change, so `OnInput` comes when the text is committed.
+
 **Progress** — `screen.Get<Progress>("hp").Value = 0.42f;` 或 R3 推送 `healthStream.Subscribe(v => p.Value = v).AddTo(screen)`。Progress 是只读显示控件，无 `OnValueChanged`。`Value` 被 `Mathf.Clamp01` 钳位。注意：`[Bind]` 在本项目里是把 child control 字段注入到 parent（见 `Runtime/Registry/BindAttribute.cs`），不是数据流绑定 —— 用直接 setter / R3 推。
 
 **Cooldown** — a cooldown sweep with its own clock (XML side: authoring-promptugui-xml `reference/controls-cooldown.md`).
@@ -720,6 +722,49 @@ menu.BindItems(channels, (Tab tab, Channel c) => { tab.Text = c.Name; tab.Icon =
 The collapsed handle mirrors the **selected** tab's `text` and `icon`, so `tab.Text = "…"` on the
 selected row re-captions the menu automatically; `menu.RefreshCaption()` exists but you should not
 normally need it.
+
+### Suggestions (an `<InputField>`'s suggestion list)
+
+A `<Suggestions>` child of an `<InputField>` (XML side: authoring-promptugui-xml `reference/controls-suggestions.md`) is reached through the field — `field.Suggestions` (null without one) — or by its own id. Rows are pushed exactly like a `ScrollList`'s: the same four `BindItems` overloads, positional or keyed reuse, `.AddTo(row)` released before a reused row is bound again, every row bound on every push.
+
+```csharp
+var search = screen.Get<InputField>("search");
+var list = search.Suggestions;
+
+IReadOnlyList<Item> shown = Array.Empty<Item>();
+list.BindItems(
+        search.OnInput
+              .Select(q => Api.Search(q))                        // Observable<IReadOnlyList<Item>> per query
+              .Switch()                                          // only the latest one's results arrive
+              .Do(items => shown = items),
+        (IControl row, Item it) => row.Get<Text>("name").TextValue = it.Name,
+        key: it => it.Id)
+    .AddTo(screen);
+
+list.OnSubmit.Subscribe(s =>
+{
+    if (s.IsChosen) Open(shown[s.ChosenIndex]);   // ChosenIndex is into the LAST push
+    else Search(s.Text);                          // Enter / submitIcon with no highlight
+}).AddTo(screen);
+```
+
+| Member | |
+|---|---|
+| `BindItems(source, bind[, key])` (+ `<T, TSlot>` forms) | push rows; an **empty push closes** the list without disarming it |
+| `Count` | items in the last push |
+| `IsOpen` | showing |
+| `Open()` | arms the list: it shows while the field edits and the last push was non-empty — e.g. recent searches on focus |
+| `Close()` | closes and disarms (stays closed until the user types again or `Open()`) |
+| `HighlightedIndex` (get / set) | the keyboard highlight, −1 = none; ignored while closed; a push resets it to −1 |
+| `OnSubmit` | `Observable<SuggestionSubmit>` — every submit: `Text`, `ChosenIndex` (−1 = the typed text), `IsChosen` |
+| `OnHighlightChanged` | `Observable<int>`, −1 = back to none |
+| `OnOpened` / `OnClosed` | `Observable<Unit>` |
+
+- **Submit semantics.** A typed-text submit (Enter / gamepad South without a highlight, `submitIcon`, the soft keyboard's Done) raises `InputField.OnSubmit(text)` first, then `Suggestions.OnSubmit((text, −1))`. Choosing a suggestion (click, Enter / South on a highlight, `submitIcon` with a highlight) raises **only** `Suggestions.OnSubmit((text, i))` — `InputField.OnSubmit` means "the typed text was submitted". With a list, subscribe to `Suggestions.OnSubmit` alone. Every submit closes the list and ends the edit.
+- **Choosing does not rewrite the field.** Write `search.TextValue = shown[i].Name` in your handler if you want that — a code write raises no `OnInput`, so it does not query again.
+- **Push only the latest results** (R3 `Switch`), and **never push an empty list as "loading…"**: an empty push closes the list, and the results re-open it — a blink.
+- Escape / gamepad B closes only the list (the field keeps editing, the text is not rolled back). A dialog, a routed page / Modal or the Loading overlay appearing over it closes it **and ends the edit**.
+
 
 ### `<Collapsible>` — the inline fold
 
@@ -1304,7 +1349,10 @@ EVENTS (R3)    .OnClick                Btn
                .OnExpanded/.OnCollapsed TabMenu:Unit (popup opened / closed)
                .OnCurrentChanged       Carousel:int (any-source page change, deduped)
                .OnSelectedChanged      Pages:string (any-source page change, deduped)
-               .OnEndEdit / .OnSubmit  InputField:string
+               .OnEndEdit / .OnSubmit  InputField:string (OnSubmit = the TYPED text; a chosen suggestion is not one)
+               .OnInput                InputField:string — user edits only (no code writes / replays / Esc rollback)
+               Suggestions .OnSubmit   SuggestionSubmit (Text, ChosenIndex −1 = typed, IsChosen) — every submit
+                           .OnHighlightChanged:int (−1 = none) / .OnOpened / .OnClosed:Unit
                .OnLinkClicked          Text:string (id of the <link="id"> clicked, read at click time — subscribe
                                         per bind .AddTo(row); only the links become hit) / Markdown:string (url)
                .Subscribe(...).AddTo(screen)   tie lifetime — ALWAYS
@@ -1327,6 +1375,8 @@ DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                ScrollList.IsAtEnd / .OnAtEndChanged  Observable<bool> (replay + dedupe); stickToEnd="true" follows the end
                ScrollList.OnReordered  Observable<(int From, int To)> — <ScrollList reorder="true">; rows already permuted;
                                        apply RemoveAt(From)+Insert(To) to your data and push; IsReordering while lifted
+               field.Suggestions.BindItems(src, bind[, key: t=>t.Id])   ScrollList's reuse contract; empty push closes
+                                       (stays armed); .Count / .IsOpen / .HighlightedIndex / .Open() / .Close()
                TabBar.BindItems(Observable<IReadOnlyList<T>>, (Tab tab,t)=>...)
                TabMenu.BindItems(...)  same shape — one shared tab-group implementation
                                        or BindItems<T,TSlot>(...) for wrapped templates (a row = the whole slot)
@@ -2391,6 +2441,11 @@ focused field to **enter edit mode** (caret active); press **Cancel** (gamepad B
 Enter on a single-line field — to confirm and return to navigation. A **pointer click** still enters
 edit immediately (mouse UX unchanged). No markup is required; the behavior is automatic when navigation
 is enabled.
+
+While editing with a `<Suggestions>` list open, the gamepad drives the list: d-pad / stick up-down move
+the highlight, **South** on a highlight chooses it (South with no highlight is the plain submit above),
+and **East** closes only the list — the edit is not cancelled and the text is not rolled back; the next
+East is the field's own Cancel again.
 
 ## Tutorial (onboarding / coach marks)
 

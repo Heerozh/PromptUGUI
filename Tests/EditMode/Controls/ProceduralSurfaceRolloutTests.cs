@@ -41,6 +41,8 @@ namespace PromptUGUI.Tests.EditMode.Controls
              : tag == "Progress" ? "width='160' height='48' value='0.5'"
              // Same for a ready (remaining 0) cooldown.
              : tag == "Cooldown" ? "width='64' height='64' value='0.5'"
+             // The panel is placed by its field (layout attributes are ignored) and stays closed here.
+             : tag == "Suggestions" ? ""
              : "width='160' height='48'";
 
         // <Cooldown>'s COLOUR fill is the SDF surface from the start (spec 2026-10-13 §5.4): Image

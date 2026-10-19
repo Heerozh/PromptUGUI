@@ -165,18 +165,9 @@ namespace PromptUGUI.Application.Tutorial
 
         // 把全屏 overlay 矩形按设备安全区(notch / 挖孔 / Home 条)内缩成气泡可落位的安全矩形。
         // 遮罩 / 挖洞仍用全屏坐标,只有气泡 + 手指被夹进这个安全矩形(见 UpdateVisuals)。
-        // 复用 SafeAreaTracker 的内缩算法 + 测试注入钩子;PC(inset=0)下原样返回 full。
+        // 算法与测试注入钩子都在 SafeAreaTracker(候选列表的边界也用它);PC(inset=0)下原样返回 full。
         internal static Rect ApplySafeInset(Rect full, float scaleFactor)
-        {
-            float sf = SafeAreaTracker.ScaleFactorOverride != null
-                ? SafeAreaTracker.ScaleFactorOverride()
-                : scaleFactor;
-            var (l, r, b, t) = SafeAreaTracker.ComputeInsetsDesignPx(
-                SafeAreaTracker.ResolveSafeAreaStatic(),
-                SafeAreaTracker.ResolveScreenSizeStatic(),
-                sf);
-            return Rect.MinMaxRect(full.xMin + l, full.yMin + b, full.xMax - r, full.yMax - t);
-        }
+            => SafeAreaTracker.ApplySafeInset(full, scaleFactor);
 
         // 每帧调用,复用同一数组避免 GC(Tick 主线程同步,无重入)。
         private static readonly Vector3[] s_corners = new Vector3[4];

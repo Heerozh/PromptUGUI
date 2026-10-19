@@ -105,6 +105,79 @@ namespace PromptUGUI.Samples.CommonControls
             quality.BindOptions(LocaleTicks.Select(_ => (IEnumerable<string>)
                 new[] { UI.Tr("Low"), UI.Tr("Medium"), UI.Tr("High"), UI.Tr("Ultra") })).AddTo(screen);
             quality.OnSelected.Subscribe(i => Debug.Log($"[Sample] quality = {i}")).AddTo(screen);
+
+            BindCropSearch(screen);
+        }
+
+        // ①b 搜索框 + 候选列表。OnInput 只在用户改字时发（代码写 TextValue、语言切换重放都不发），
+        // 在这里本地过滤；带 key 推送，行按作物复用。真实项目里查询是异步的 —— 用 R3 的 Switch 只留最新一次的结果，
+        // 别拿空列表当「加载中」推过去（空推送会收起列表，结果回来再弹开，会闪一下）。
+        // 提交只订 Suggestions.OnSubmit 一个流就覆盖了全部入口：选中候选带下标，Enter / 放大镜提交的是输入的文字（下标 −1）。
+        static void BindCropSearch(IScreen screen)
+        {
+            var search = screen.Get<InputField>("cropSearch");
+            var suggestions = search.Suggestions;
+            var result = screen.Get<Text>("cropResult");
+            IReadOnlyList<string> shown = System.Array.Empty<string>();
+
+            suggestions.BindItems(
+                search.OnInput.Select(q => shown = FilterCrops(q)),
+                (IControl row, string crop) =>
+                {
+                    row.Get<Image>("icon").Sprite = "farm:" + crop;
+                    row.Get<Text>("name").TextValue = CropName(crop);
+                },
+                key: crop => crop).AddTo(screen);
+
+            suggestions.OnSubmit.Subscribe(s =>
+            {
+                if (s.IsChosen)
+                {
+                    // 选中候选不会自动改写输入框；要改就自己写 —— 代码赋值，不发 OnInput，不会再查一次。
+                    var name = CropName(shown[s.ChosenIndex]);
+                    search.TextValue = name;
+                    result.TextValue = string.Format(UI.Tr("Picked #{0}: {1}"), s.ChosenIndex + 1, name);
+                }
+                else
+                {
+                    result.TextValue = string.Format(UI.Tr("Searched: {0}"), s.Text);
+                }
+            }).AddTo(screen);
+        }
+
+        static readonly string[] Crops =
+        {
+            "apple", "carrot", "corn", "eggplant", "grape", "pumpkin",
+            "strawberry", "sunflower", "tomato", "turnip", "watermelon", "wheat",
+        };
+
+        // 名字走 UI.Tr 的字面量，提取工具才收得到；按当前语言的名字和作物 key 都能搜到。
+        static string CropName(string crop) => crop switch
+        {
+            "apple" => UI.Tr("Apple"),
+            "carrot" => UI.Tr("Carrot"),
+            "corn" => UI.Tr("Corn"),
+            "eggplant" => UI.Tr("Eggplant"),
+            "grape" => UI.Tr("Grape"),
+            "pumpkin" => UI.Tr("Pumpkin"),
+            "strawberry" => UI.Tr("Strawberry"),
+            "sunflower" => UI.Tr("Sunflower"),
+            "tomato" => UI.Tr("Tomato"),
+            "turnip" => UI.Tr("Turnip"),
+            "watermelon" => UI.Tr("Watermelon"),
+            _ => UI.Tr("Wheat"),
+        };
+
+        static IReadOnlyList<string> FilterCrops(string query)
+        {
+            var hits = new List<string>();
+            if (string.IsNullOrWhiteSpace(query)) return hits;   // 空推送：收起列表（不解除武装，再打字就回来）
+            var q = query.Trim();
+            foreach (var crop in Crops)
+                if (crop.Contains(q, System.StringComparison.OrdinalIgnoreCase)
+                    || CropName(crop).Contains(q, System.StringComparison.OrdinalIgnoreCase))
+                    hits.Add(crop);
+            return hits;
         }
 
         // ② 展示反馈：Progress 按钮驱动；RawImage 喂 C# 生成的渐变纹理

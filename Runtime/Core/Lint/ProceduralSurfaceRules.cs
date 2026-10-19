@@ -31,7 +31,7 @@ namespace PromptUGUI.Lint
         internal static readonly HashSet<string> SurfaceTags = new()
         {
             "Btn", "Tab", "TabMenu", "Collapsible", "Toggle", "Slider", "Dropdown", "InputField", "ScrollList", "Scrollbar", "Progress",
-            "Cooldown",
+            "Cooldown", "Suggestions",
         };
 
         // Image.overrideSprite swaps. On an SDF face there is no sprite to override.

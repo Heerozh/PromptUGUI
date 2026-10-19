@@ -432,7 +432,7 @@ namespace PromptUGUI.Controls.Internal
             _blocker.SetActive(true);
         }
 
-        private static Rect RectInCanvas(RectTransform rt, Canvas canvas)
+        internal static Rect RectInCanvas(RectTransform rt, Canvas canvas)
         {
             var canvasRt = (RectTransform)canvas.transform;
             var corners = new Vector3[4];

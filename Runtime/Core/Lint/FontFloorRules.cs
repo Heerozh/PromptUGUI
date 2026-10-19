@@ -72,7 +72,7 @@ namespace PromptUGUI.Lint
         };
 
         /// <summary>The tags that build rows from an <c>itemTemplate</c> (<c>TemplateFactoryResolver</c>'s callers).</summary>
-        private static readonly HashSet<string> RowHosts = new HashSet<string> { "ScrollList", "TabBar", "Carousel" };
+        private static readonly HashSet<string> RowHosts = new HashSet<string> { "ScrollList", "TabBar", "Carousel", "Suggestions" };
 
         /// <summary>
         /// One finding per text node that renders below <see cref="FontFloorPolicy.Floor"/> on at
