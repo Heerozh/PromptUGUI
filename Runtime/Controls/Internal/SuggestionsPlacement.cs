@@ -8,6 +8,8 @@ namespace PromptUGUI.Controls.Internal
     /// the preferred one unless the content does not fit there and the other side is roomier — the same
     /// flip rule as <see cref="PopupPlacer"/>. While the list is open the side is locked: a push only
     /// re-clamps the height, so the panel never jumps across the field while the user types.
+    /// <para>Every length is in the bounds' space (root-canvas units): a caller under a scaled ancestor converts
+    /// the rows' height, the cap and the gap first, and the returned height back.</para>
     /// </summary>
     internal static class SuggestionsPlacement
     {

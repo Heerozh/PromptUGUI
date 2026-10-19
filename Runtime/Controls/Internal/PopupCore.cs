@@ -281,12 +281,28 @@ namespace PromptUGUI.Controls.Internal
             _panel.sizeDelta = layout.Size;
 
             var root = RootCanvas();
-            var placement = root != null
-                ? PopupPlacer.Solve(RectInCanvas(_host.RectTransform, root), layout.Size,
-                                    layout.Bounds ?? ((RectTransform)root.transform).rect,
-                                    layout.Gap, layout.PreferAbove, layout.AlignEnd)
+            PopupPlacement placement;
+            if (root != null)
+            {
+                // The anchor rect and the bounds are root-canvas units; the size is the panel's own, the gap
+                // and the offset its parent's — a scaled ancestor makes them differ. Solved in canvas units,
+                // the offset is brought back into the parent's.
+                var sizeScale = CanvasScale(_panel, root);
+                var posScale = CanvasScale(_panel.parent, root);
+                var solved = PopupPlacer.Solve(RectInCanvas(_host.RectTransform, root),
+                                               Vector2.Scale(layout.Size, sizeScale),
+                                               layout.Bounds ?? ((RectTransform)root.transform).rect,
+                                               layout.Gap * posScale.y, layout.PreferAbove, layout.AlignEnd);
+                placement = new PopupPlacement(solved.Anchor, solved.Pivot,
+                                               new Vector2(solved.AnchoredPosition.x / posScale.x,
+                                                           solved.AnchoredPosition.y / posScale.y),
+                                               solved.FlippedUp, solved.Room / sizeScale.y);
+            }
+            else
+            {
                 // No canvas to measure against (a detached test rig): keep the default drop-down.
-                : new PopupPlacement(new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(0f, -layout.Gap), false);
+                placement = new PopupPlacement(new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(0f, -layout.Gap), false);
+            }
 
             _panel.anchorMin = placement.Anchor;
             _panel.anchorMax = placement.Anchor;
@@ -659,6 +675,20 @@ namespace PromptUGUI.Controls.Internal
             _blocker.GetComponent<Canvas>().sortingOrder = sortingOrder;
             _blocker.SetActive(true);
         }
+
+        /// <summary>
+        /// Root-canvas units per unit of <paramref name="t"/>'s own space, per axis — what a scaled ancestor
+        /// (<c>scale="0.8"</c>) makes of a length written there. 1 on an axis that cannot be told.
+        /// </summary>
+        internal static Vector2 CanvasScale(Transform t, Canvas root)
+        {
+            if (t == null || root == null) return Vector2.one;
+            var r = root.transform.lossyScale;
+            var l = t.lossyScale;
+            return new Vector2(Ratio(l.x, r.x), Ratio(l.y, r.y));
+        }
+
+        private static float Ratio(float a, float b) => a > 0f && b > 0f ? a / b : 1f;
 
         internal static Rect RectInCanvas(RectTransform rt, Canvas canvas)
         {

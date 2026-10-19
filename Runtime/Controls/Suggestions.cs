@@ -292,10 +292,16 @@ namespace PromptUGUI.Controls
 
             var bounds = PopupBounds.For(root);
             var field = PopupCore.RectInCanvas(_field.RectTransform, root);
-            var (h, above) = SuggestionsPlacement.Solve(field, bounds, contentHeight, _maxHeight, _gap,
-                                                        _openSide ?? _preferAbove, locked: _openSide.HasValue);
+            // The field and the bounds are root-canvas units; the rows, the cap and the gap are written in the
+            // panel's and the field's own, which a scaled ancestor shrinks. Solved in canvas units, the height
+            // comes back in the panel's.
+            var sizeScale = PopupCore.CanvasScale(RectTransform, root).y;
+            var gapScale = PopupCore.CanvasScale(_field.RectTransform, root).y;
+            var (h, above) = SuggestionsPlacement.Solve(field, bounds, contentHeight * sizeScale, _maxHeight * sizeScale,
+                                                        _gap * gapScale, _openSide ?? _preferAbove,
+                                                        locked: _openSide.HasValue);
             _openSide = above;
-            return new PopupLayout(new Vector2(width, h), _gap, above, bounds, _alignEnd);
+            return new PopupLayout(new Vector2(width, h / sizeScale), _gap, above, bounds, _alignEnd);
         }
 
         // ── Highlight and submit (spec §6.2 / §6.4) ────────────────────────────────────────
