@@ -344,7 +344,7 @@ Two consequences for the exiting kind:
 
 `screen.Dispose()` is the immediate path (destroy now, no exit); so are `UI.UnloadAll` / hot reload. A `<Trigger on="close">` is the declarative exit hook — subscribe its `OnFire` from C# to play a sound, save state, etc.; it never delays the close.
 
-Note: when a Template invocation carries `id="bagPanel"`, that id is **transferred to the template body's single root element** automatically — `screen.Get<TitledPanel>("bagPanel")` returns the root. Use the path form (`"bagPanel/close"`) only when reaching into an element that has its own id **inside** the template body.
+Note: when a Template invocation carries `id="bagPanel"`, that id is **transferred to the template body's single root element** automatically — `screen.Get<TitledPanel>("bagPanel")` returns the root. Use the path form (`"bagPanel/close"`) only when reaching into an element that has its own id **inside** the template body. XML's `@id` takes the same path (`on="click@bagPanel/close"`), with its first segment found nearest-scope-first.
 
 Note: inside a template body always write a **literal** id (e.g. `id="close"`) — never parameterize it as `id="{{param}}"`. The `{{...}}` substitution only touches attribute values and text content; it **never** applies to `id`, so a parameterized id stays the literal string. You don't need it: each invocation has its **own id scope**, so the same `id="close"` across many instances never collides — disambiguate from C# with the `instanceId/close` path above.
 

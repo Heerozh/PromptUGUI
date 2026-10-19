@@ -1025,7 +1025,7 @@ Other notes:
 
 | Attribute | Format | Notes |
 |---|---|---|
-| `id="..."` | string | Unique within Screen / Template instance scope. Lift to dedicated handle for `Get<T>`. Inside a `<Template>` write a **literal** id — never `id="{{param}}"` (id is not substituted); instances are isolated per call. |
+| `id="..."` | string | Unique within Screen / Template instance scope. Lift to dedicated handle for `Get<T>`. Inside a `<Template>` write a **literal** id — never `id="{{param}}"` (id is not substituted); instances are isolated per call. Reach into an instance with a path: `Get("search/btn")` in C#, `on="click@search/btn"` / `<Add into="#search/btn">` in XML (an `@id` path's first segment is found nearest-scope-first — `reference/animations.md`). |
 | `anchor="..."` | preset | See "Anchor system" below. Default `top-left`. |
 | `size="WxH"` | `240x80` | Both dimensions in pixels (numeric only — keywords `stretch` / `N%` are **not** accepted here, use per-axis attrs). **Forbidden on stretched axes.** |
 | `width="W"` / `height="H"` | float / `stretch[*N]` / `N%` / `hug` / `clamp(min, N%\|stretch\|hug, max)` | Numeric is base. `stretch` / `stretch*N` is LayoutGroup-only — see "Stretch keyword". `N%` is free-positioning-only — see "Fractional %". `hug` sizes the control to its own content — see "Hug". `clamp(...)` puts a floor / cap on any of them — see "Clamp". **Numeric forbidden on stretched anchor axes.** |

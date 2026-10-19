@@ -19,6 +19,44 @@ namespace PromptUGUI.Controls.Internal
         /// </summary>
         public static IControl ResolveId(Control trigger, string id, string onLabel, string tag = "Trigger")
         {
+            if (id.IndexOf('/') < 0) return ResolveLexical(trigger, id, id, onLabel, tag);
+
+            // A path (spec 2026-10-19-id-path §4.1): the first segment lexically, each further one in the id
+            // table of the control before it — what Get("a/b") and <Add into="#a/b"> do.
+            var segs = id.Split('/');
+            var current = ResolveLexical(trigger, segs[0], id, onLabel, tag);
+            for (var i = 1; i < segs.Length; i++)
+            {
+                if (!current.ScopedIds.TryGetValue(segs[i], out var next))
+                    throw new InvalidOperationException(
+                        $"<{tag} on=\"{onLabel}@{id}\"> in '{trigger.Id ?? trigger.GameObject.name}': '{segs[i]}' is " +
+                        $"not an id in '{string.Join("/", segs, 0, i)}' ({IdsOf(current)}).");
+                current = next;
+            }
+            return current;
+        }
+
+        // What a path segment could have been: the ids a template instance holds.
+        private static string IdsOf(IControl scope)
+        {
+            const int Max = 8;
+            var names = new List<string>();
+            foreach (var key in scope.ScopedIds.Keys)
+            {
+                if (names.Count == Max)
+                {
+                    names.Add("…");
+                    break;
+                }
+                names.Add(key);
+            }
+            return names.Count == 0
+                ? "it holds no ids — only a template instance does"
+                : "its ids: " + string.Join(", ", names);
+        }
+
+        private static IControl ResolveLexical(Control trigger, string id, string fullId, string onLabel, string tag)
+        {
             if (trigger.ScopedIds.TryGetValue(id, out var found)) return found;
 
             for (var scope = trigger.Parent; scope != null; scope = scope.Parent)
@@ -35,28 +73,57 @@ namespace PromptUGUI.Controls.Internal
             if (screen != null && screen.TryGet(id, out found)) return found;
 
             throw new InvalidOperationException(
-                $"<{tag} on=\"{onLabel}@{id}\"> in '{trigger.Id ?? trigger.GameObject.name}': id '{id}' not " +
+                $"<{tag} on=\"{onLabel}@{fullId}\"> in '{trigger.Id ?? trigger.GameObject.name}': id '{id}' not " +
                 "found in the trigger's subtree, its enclosing template instance, or screen " +
                 $"'{screen?.Name ?? "?"}'.");
         }
 
         /// <summary>
-        /// The <c>&lt;Btn&gt;</c> a <c>&lt;Popover on="click@id"&gt;</c> toggles on (spec 2026-10-19 §4.3): looked
-        /// up lexically like any <c>@id</c>, and refused when it is not a <c>&lt;Btn&gt;</c> or sits inside the
-        /// popover itself — a popover's children share its enclosing id scope, so the lookup alone would
-        /// find one there.
+        /// What a <c>&lt;Popover on="click@id"&gt;</c> hangs from and toggles on (spec 2026-10-19 §4.3,
+        /// 2026-10-19-id-path §4.3): the control the id names — its anchor — and the <c>&lt;Btn&gt;</c> that clicks,
+        /// the same control or the one inside it. Refused when either sits inside the popover itself: a popover's
+        /// children share its enclosing id scope, so the lookup alone would find one there.
         /// </summary>
-        public static Btn FindTriggerBtn(Control popover, string id, string tag)
+        public static (IControl Named, Btn Btn) FindClickSource(Control popover, string id, string tag)
         {
-            var ctrl = ResolveId(popover, id, "click", tag);
+            var named = ResolveId(popover, id, "click", tag);
+            RefuseInside(popover, named, id, tag);
+            var btn = ClickBtnOf(named, id, tag);
+            RefuseInside(popover, btn, id, tag);
+            return (named, btn);
+        }
+
+        private static void RefuseInside(Control popover, IControl ctrl, string id, string tag)
+        {
             if (ctrl.GameObject != null && popover.GameObject != null
                 && ctrl.GameObject.transform.IsChildOf(popover.GameObject.transform))
                 throw new InvalidOperationException(
                     $"<{tag} on=\"click@{id}\"> in '{popover.Id ?? popover.GameObject.name}': '{id}' is inside the " +
                     "popover itself — the trigger has to be outside the panel it opens.");
-            return ctrl as Btn ?? throw new InvalidOperationException(
-                $"<{tag} on=\"click@{id}\">: id '{id}' is a {ctrl.GetType().Name}, not a <Btn>. " +
-                "click requires a <Btn>.");
+        }
+
+        /// <summary>
+        /// The <c>&lt;Btn&gt;</c> a <c>click@id</c> listens to (spec 2026-10-19-id-path §4.2): the control itself, or —
+        /// a template instance whose root is a <c>&lt;Frame&gt;</c> — the one <c>&lt;Btn&gt;</c> in its subtree, what a
+        /// bare <c>on="click"</c> means. None or several is an error naming the way out.
+        /// </summary>
+        internal static Btn ClickBtnOf(IControl named, string id, string tag)
+        {
+            if (named is Btn btn) return btn;
+            var found = new List<Btn>();
+            if (named is Control c) CollectBtns(c, null, found);
+            if (found.Count == 1) return found[0];
+
+            var kind = named.GetType().Name;
+            if (found.Count == 0)
+                throw new InvalidOperationException(
+                    $"<{tag} on=\"click@{id}\">: '{id}' is a {kind} with no <Btn> inside. click requires a <Btn>, " +
+                    "or a control holding exactly one.");
+            var ids = new List<string>();
+            foreach (var b in found) ids.Add(b.Id ?? "<Btn>");
+            throw new InvalidOperationException(
+                $"<{tag} on=\"click@{id}\">: '{id}' is a {kind} holding {found.Count} <Btn>s ({string.Join(", ", ids)}). " +
+                $"Name one: click@{id}/<id>.");
         }
 
         /// <summary>
@@ -73,12 +140,10 @@ namespace PromptUGUI.Controls.Internal
             if (!string.IsNullOrEmpty(sourceId))
             {
                 // The subtree walk stays first (it reaches a Btn at any depth, which the scope
-                // tables do not), then the lexical lookup takes over for siblings / screen ids.
+                // tables do not), then the lexical lookup takes over for siblings / screen ids — and
+                // for a path, which is never one id.
                 if (found.Count > 0) return found[0];
-                var ctrl = ResolveId(trigger, sourceId, "click");
-                return ctrl as Btn ?? throw new InvalidOperationException(
-                    $"<Trigger on=\"click@{sourceId}\">: id '{sourceId}' is a " +
-                    $"{ctrl.GetType().Name}, not a <Btn>. click requires a <Btn>.");
+                return ClickBtnOf(ResolveId(trigger, sourceId, "click"), sourceId, "Trigger");
             }
 
             if (found.Count == 0)
