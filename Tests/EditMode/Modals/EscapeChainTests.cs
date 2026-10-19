@@ -323,5 +323,35 @@ namespace PromptUGUI.Tests.Modals
             EscapeChain.ForgetPopupConsumedFrameForTests();
             Assert.AreNotEqual(Time.frameCount, EscapeChain.PopupConsumedFrame);
         }
+
+        [Test]
+        public void Only_a_keyboard_popup_press_is_owed_to_a_text_field()
+        {
+            // TMP reads the keyboard's Escape from IMGUI as well; the gamepad's buttons never reach it.
+            var menu = OpenDialogWithMenu();
+            Press(EscapeKey.CancelButton);
+            Assert.IsFalse(menu.IsExpanded, "precondition");
+            Assert.IsFalse(EscapeChain.EscapeOwed, "East");
+
+            menu.Expand();
+            Press(EscapeKey.StartButton);
+            Assert.IsFalse(menu.IsExpanded, "precondition");
+            Assert.IsFalse(EscapeChain.EscapeOwed, "Start");
+
+            menu.Expand();
+            Press();
+            Assert.IsTrue(EscapeChain.EscapeOwed, "Escape");
+
+            EscapeChain.ForgetPopupConsumedFrameForTests();
+            Assert.IsFalse(EscapeChain.EscapeOwed, "a [Test]'s frame never moves on: forgotten with the frame");
+        }
+
+        [Test]
+        public void A_press_that_closes_no_popup_owes_nothing()
+        {
+            _ = MessageBox.Open("x", MsgBtn.OK | MsgBtn.Cancel);
+            Assert.IsTrue(Press(), "the dialog answers");
+            Assert.IsFalse(EscapeChain.EscapeOwed);
+        }
     }
 }

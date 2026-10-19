@@ -372,6 +372,8 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             base.TearDown();
         }
 
+        private PuiInputField Pui => _field.GameObject.GetComponent<PuiInputField>();
+
         private IEnumerator EditWithList(params string[] items)
         {
             EventSystem.current.SetSelectedGameObject(_field.GameObject);
@@ -422,6 +424,84 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             yield return null;
 
             Assert.IsFalse(_field.IsEditing, "the next press is TMP's again");
+        }
+
+        // TMP reads Escape from IMGUI, and in the Editor that KeyDown can come a frame after the Input System
+        // callback the chain closed the list in. The fixture's keys never reach IMGUI: the test hands the
+        // late KeyDown over itself.
+        [UnityTest]
+        public IEnumerator An_escape_keydown_a_frame_late_does_not_cancel_the_edit()
+        {
+            var keyboard = InputSystem.AddDevice<Keyboard>();
+            _field.TextValue = "ap";
+            yield return EditWithList("apple");
+            _field.TextValue = "apple";
+
+            Press(keyboard.escapeKey);
+            yield return null;   // the chain closes the list
+            Assert.IsFalse(_list.IsOpen, "precondition");
+            yield return null;   // TMP's KeyDown for that press comes now
+
+            Assert.IsTrue(Pui.TakesKeys, "the field still runs the key loop for the KeyDown it is owed");
+            Pui.HandleKeyDown(Event.KeyboardEvent("escape"));
+            Release(keyboard.escapeKey);
+            yield return null;
+            yield return null;
+
+            Assert.IsTrue(_field.IsEditing, "the press closed the list, not the edit");
+            Assert.AreEqual("apple", _field.TextValue, "no rollback");
+        }
+
+        [UnityTest]
+        public IEnumerator A_held_escape_keeps_its_key_repeats_from_TMP()
+        {
+            var keyboard = InputSystem.AddDevice<Keyboard>();
+            _field.TextValue = "ap";
+            yield return EditWithList("apple");
+            _field.TextValue = "apple";
+
+            Press(keyboard.escapeKey);
+            yield return null;
+            Pui.HandleKeyDown(Event.KeyboardEvent("escape"));   // the press's own KeyDown
+            for (var i = 0; i <= EscapeChain.OwedEscapeFrames; i++) yield return null;
+            Pui.HandleKeyDown(Event.KeyboardEvent("escape"));   // a key repeat, long after
+            Release(keyboard.escapeKey);
+            Pui.HandleKeyUp(KeyUp("escape"));
+            yield return null;
+            yield return null;
+
+            Assert.IsTrue(_field.IsEditing, "one press, held, still only closed the list");
+            Assert.AreEqual("apple", _field.TextValue);
+
+            Pui.HandleKeyDown(Event.KeyboardEvent("escape"));
+            yield return null;
+            yield return null;
+
+            Assert.IsFalse(_field.IsEditing, "once the key came up, the next press is TMP's again");
+        }
+
+        [UnityTest]
+        public IEnumerator An_owed_escape_nobody_collects_lapses()
+        {
+            var keyboard = InputSystem.AddDevice<Keyboard>();
+            yield return EditWithList("apple");
+
+            Press(keyboard.escapeKey);
+            yield return null;
+            Release(keyboard.escapeKey);
+            Assert.IsTrue(EscapeChain.EscapeOwed, "precondition: the chain closed the list");
+
+            for (var i = 0; i <= EscapeChain.OwedEscapeFrames; i++) yield return null;
+
+            Assert.IsFalse(EscapeChain.EscapeOwed);
+            Assert.IsFalse(Pui.TakesKeys, "every key is TMP's again");
+        }
+
+        private static Event KeyUp(string key)
+        {
+            var e = Event.KeyboardEvent(key);
+            e.type = EventType.KeyUp;
+            return e;
         }
     }
 #endif

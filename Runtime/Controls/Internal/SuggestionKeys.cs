@@ -23,7 +23,7 @@ namespace PromptUGUI.Controls.Internal
         public readonly bool Composing;
         public readonly bool CompositionJustEnded;
 
-        /// <summary><c>EscapeChain</c> spent an Escape on a popup this frame.</summary>
+        /// <summary>An Escape now belongs to a press <c>EscapeChain</c> spent on a popup (owed, or held down).</summary>
         public readonly bool EscapeSpent;
 
         public KeyState(bool listOpen, bool hasHighlight, bool composing, bool compositionJustEnded, bool escapeSpent)
@@ -50,8 +50,9 @@ namespace PromptUGUI.Controls.Internal
         {
             if (s.Composing || s.CompositionJustEnded) return KeyAction.PassToTmp;
 
-            // The chain closed the list on this Escape in the Input System callbacks, before the EventSystem
-            // update TMP reads its keys in: TMP must not also cancel the edit and roll the text back.
+            // The chain closed the list on this press in an Input System callback; TMP reads its IMGUI KeyDown
+            // in this frame's EventSystem update or a later one, and must not also cancel the edit and roll
+            // the text back.
             if (e.keyCode == KeyCode.Escape && s.EscapeSpent) return KeyAction.Swallow;
             if (!s.ListOpen) return KeyAction.PassToTmp;
 

@@ -43,13 +43,25 @@ namespace PromptUGUI.Controls.Internal
 
         private bool ListTakesKeys => List != null && List.IsOpen && Owner.IsEditing;
 
+        // The Escape the field last kept from TMP is still down: its key repeats are the same press.
+        private bool _escapeHeld;
+
+        /// <summary>
+        /// An Escape KeyDown now belongs to a press the chain spent on a popup: the KeyDown the chain owes
+        /// this field (it can come frames after the press), or a key repeat of one the field already kept.
+        /// </summary>
+        private bool EscapeSpent => _escapeHeld || EscapeChain.EscapeOwed;
+
+        /// <summary>Whether <see cref="OnUpdateSelected"/> runs the IMGUI loop itself (when focused and not composing).</summary>
+        internal bool TakesKeys => ListTakesKeys || EscapeSpent;
+
         // ── Keyboard ───────────────────────────────────────────────────────────────────────
 
         /// <summary>
         /// Takes the IMGUI event loop over while the list is open, or while an Escape the chain has spent
-        /// is still on its way to TMP; otherwise <c>base</c>. There is no way to hand an event back to TMP,
-        /// so the loop is TMP's own, with the list's keys routed out first. Everything it calls is TMP's
-        /// public or protected surface.
+        /// is still on its way to TMP or held down; otherwise <c>base</c>. There is no way to hand an event
+        /// back to TMP, so the loop is TMP's own, with the list's keys routed out first. Everything it calls
+        /// is TMP's public or protected surface.
         /// </summary>
         public override void OnUpdateSelected(BaseEventData eventData)
         {
@@ -57,8 +69,7 @@ namespace PromptUGUI.Controls.Internal
             var compositionJustEnded = _wasComposing && !composing;
             _wasComposing = composing;
 
-            var escapeSpent = EscapeChain.PopupConsumedFrame == Time.frameCount;
-            if (!isFocused || composing || compositionJustEnded || !(ListTakesKeys || escapeSpent))
+            if (!isFocused || composing || compositionJustEnded || !TakesKeys)
             {
                 base.OnUpdateSelected(eventData);
                 return;
@@ -68,7 +79,11 @@ namespace PromptUGUI.Controls.Internal
             while (Event.PopEvent(_event))
             {
                 var type = _event.rawType;
-                if (type == EventType.KeyUp) continue;
+                if (type == EventType.KeyUp)
+                {
+                    HandleKeyUp(_event);
+                    continue;
+                }
                 if (type == EventType.KeyDown)
                 {
                     consumed = true;
@@ -102,7 +117,7 @@ namespace PromptUGUI.Controls.Internal
                 hasHighlight: list != null && list.HighlightedIndex >= 0,
                 composing: false,
                 compositionJustEnded: false,
-                escapeSpent: EscapeChain.PopupConsumedFrame == Time.frameCount);
+                escapeSpent: EscapeSpent);
 
             switch (SuggestionKeys.Route(e, state))
             {
@@ -118,6 +133,10 @@ namespace PromptUGUI.Controls.Internal
                     list.CommitChosen(list.HighlightedIndex);
                     return true;
                 case KeyAction.Swallow:
+                    // Only Escape is swallowed. Kept from TMP: this pays what the chain owed, and the key's
+                    // repeats stay away from TMP until it comes up.
+                    _escapeHeld = true;
+                    EscapeChain.SettleOwedEscape();
                     return false;
             }
 
@@ -131,6 +150,17 @@ namespace PromptUGUI.Controls.Internal
             // TMP's private "text component update required" flag stands for exactly this.
             if (textComponent != null) textComponent.ForceMeshUpdate();
             return false;
+        }
+
+        /// <summary>
+        /// Escape coming up ends its press: the repeats are over, and a KeyDown the chain still owes went by
+        /// before the chain heard the press (the open list kept it). Internal so EditMode tests drive it.
+        /// </summary>
+        internal void HandleKeyUp(Event e)
+        {
+            if (e.keyCode != KeyCode.Escape) return;
+            _escapeHeld = false;
+            EscapeChain.SettleOwedEscape();
         }
 
         // The same lookup TMP makes: the current input module's BaseInput, else the legacy Input.
@@ -218,6 +248,7 @@ namespace PromptUGUI.Controls.Internal
             }
             if (focused == _wasFocused) return;
             _wasFocused = focused;
+            _escapeHeld = false;   // a KeyUp that never came, with the field let go of meanwhile
             Owner?.NotifyEditingChanged(focused);
         }
 
@@ -274,6 +305,7 @@ namespace PromptUGUI.Controls.Internal
         {
             base.OnDisable();
             EditRequestPending = false;
+            _escapeHeld = false;
             // InputField.OnAttached toggles this component before any list is adopted: both may be null.
             List?.Close();
             if (!_wasFocused) return;

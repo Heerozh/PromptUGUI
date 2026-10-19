@@ -174,6 +174,65 @@ namespace PromptUGUI.Tests.EditMode.Controls
             Assert.IsFalse(_field.IsEditing);
         }
 
+        // ── an Escape the chain spent on the list (TMP reads it from IMGUI, maybe a frame late) ─────
+
+        private static Event KeyUp(string key)
+        {
+            var e = Event.KeyboardEvent(key);
+            e.type = EventType.KeyUp;
+            return e;
+        }
+
+        [Test]
+        public void The_field_keeps_the_escape_it_is_owed_and_its_repeats_until_the_key_comes_up()
+        {
+            OpenList();
+            var pui = Pui(_field);
+            Assert.IsTrue(EscapeChain.Dispatch(EscapeKey.Escape, EscapeChain.NextTestPress()));
+            Assert.IsFalse(_list.IsOpen, "the chain closed the list");
+            Assert.IsTrue(pui.TakesKeys, "owed its KeyDown");
+
+            pui.HandleKeyDown(Event.KeyboardEvent("escape"));
+            Assert.IsFalse(EscapeChain.EscapeOwed, "collected");
+            pui.HandleKeyDown(Event.KeyboardEvent("escape"));
+            Assert.IsFalse(pui.wasCanceled, "the KeyDown and its repeat are kept from TMP");
+
+            pui.HandleKeyUp(KeyUp("escape"));
+            Assert.IsFalse(pui.TakesKeys);
+            pui.HandleKeyDown(Event.KeyboardEvent("escape"));
+            Assert.IsTrue(pui.wasCanceled, "the next press is TMP's");
+        }
+
+        [Test]
+        public void A_key_up_before_the_owed_keydown_settles_the_debt()
+        {
+            // IMGUI ahead of the chain: the open list kept the KeyDown, then the chain heard the press.
+            OpenList();
+            var pui = Pui(_field);
+            pui.HandleKeyDown(Event.KeyboardEvent("escape"));
+            Assert.IsTrue(EscapeChain.Dispatch(EscapeKey.Escape, EscapeChain.NextTestPress()));
+            Assert.IsTrue(EscapeChain.EscapeOwed, "precondition");
+
+            pui.HandleKeyUp(KeyUp("escape"));
+
+            Assert.IsFalse(EscapeChain.EscapeOwed, "that press's KeyDown already went by");
+            Assert.IsFalse(pui.TakesKeys);
+            pui.HandleKeyDown(Event.KeyboardEvent("escape"));
+            Assert.IsTrue(pui.wasCanceled);
+        }
+
+        [Test]
+        public void Other_key_ups_change_nothing()
+        {
+            OpenList();
+            var pui = Pui(_field);
+            EscapeChain.Dispatch(EscapeKey.Escape, EscapeChain.NextTestPress());
+
+            pui.HandleKeyUp(KeyUp("a"));
+
+            Assert.IsTrue(EscapeChain.EscapeOwed);
+        }
+
         // ── lifecycle ──────────────────────────────────────────────────────────────────────
 
         [Test]
