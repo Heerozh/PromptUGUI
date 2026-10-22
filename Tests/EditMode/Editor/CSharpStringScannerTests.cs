@@ -241,6 +241,163 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Scan_SwitchExpressionArms_CommentStaysWithItsArm()
+        {
+            var src = @"
+                class X {
+                    static string Row(string k) => k switch
+                    {
+                        // greetings
+                        ""hi"" => UI.Tr(""Hello""),
+                        ""bye"" => UI.Tr(""Goodbye""),
+                        // a playing card, not a currency
+                        ""ace"" => UI.Tr(""Ace""),
+                        _ => k,
+                    };
+                }";
+            var found = CSharpStringScanner.Scan(src, "X.cs").ToDictionary(e => e.Msgid);
+            Assert.IsTrue(found["Hello"].ExtractedComments.Contains("greetings"));
+            Assert.IsFalse(found["Goodbye"].ExtractedComments.Any(c => c.Contains("greetings")));
+            Assert.IsTrue(found["Ace"].ExtractedComments.Contains("a playing card, not a currency"));
+            Assert.IsFalse(found["Ace"].ExtractedComments.Any(c => c.Contains("greetings")));
+        }
+
+        [Test]
+        public void Scan_CollectionInitializer_CommentStaysWithItsElement()
+        {
+            var src = @"
+                class X {
+                    void R() {
+                        var names = new[] {
+                            // first one
+                            UI.Tr(""a""),
+                            UI.Tr(""b""),
+                        };
+                    }
+                }";
+            var found = CSharpStringScanner.Scan(src, "X.cs").ToDictionary(e => e.Msgid);
+            Assert.IsTrue(found["a"].ExtractedComments.Contains("first one"));
+            Assert.IsFalse(found["b"].ExtractedComments.Any(c => c.Contains("first one")));
+        }
+
+        [Test]
+        public void Scan_CommentAboveEarlierArgument_NotAttachedToLaterArgument()
+        {
+            var src = @"
+                class X {
+                    void R() {
+                        // dialog
+                        Show(
+                            // the title
+                            UI.Tr(""a""),
+                            UI.Tr(""b""));
+                    }
+                }";
+            var found = CSharpStringScanner.Scan(src, "X.cs").ToDictionary(e => e.Msgid);
+            CollectionAssert.IsSubsetOf(new[] { "dialog", "the title" }, found["a"].ExtractedComments);
+            Assert.IsTrue(found["b"].ExtractedComments.Contains("dialog"));
+            Assert.IsFalse(found["b"].ExtractedComments.Any(c => c.Contains("the title")));
+        }
+
+        [Test]
+        public void Scan_CommentInsideEarlierArgument_NotAttached()
+        {
+            var src = @"
+                class X {
+                    void R() {
+                        Show(Pick(
+                            // which one
+                            1), UI.Tr(""b""));
+                    }
+                }";
+            var es = CSharpStringScanner.Scan(src, "X.cs").Single();
+            Assert.IsFalse(es.ExtractedComments.Any(c => c.Contains("which one")));
+        }
+
+        [Test]
+        public void Scan_CommentAboveStatement_ReachesTrInLaterArgument()
+        {
+            var src = @"
+                class X {
+                    void R() {
+                        // delete confirmation
+                        MessageBox.Open(this, UI.Tr(""Delete save?""));
+                    }
+                }";
+            var es = CSharpStringScanner.Scan(src, "X.cs").Single();
+            Assert.IsTrue(es.ExtractedComments.Contains("delete confirmation"));
+        }
+
+        [Test]
+        public void Scan_CommaInGenericArguments_DoesNotHideStatementComment()
+        {
+            var src = @"
+                class X {
+                    void R() {
+                        // fallback label
+                        Func<int, string> f = n => UI.Tr(""x"");
+                    }
+                }";
+            var es = CSharpStringScanner.Scan(src, "X.cs").Single();
+            Assert.IsTrue(es.ExtractedComments.Contains("fallback label"));
+        }
+
+        [Test]
+        public void Scan_TrailingComment_BelongsToTrOnItsLine()
+        {
+            var src = @"
+                class X {
+                    static string Row(string k) => k switch
+                    {
+                        ""up"" => UI.Tr(""Up""), // arrow key
+                        ""down"" => UI.Tr(""Down""),
+                        _ => k,
+                    };
+                    void R() {
+                        var a = UI.Tr(""a""); // about a
+                        var b = UI.Tr(""b"");
+                    }
+                }";
+            var found = CSharpStringScanner.Scan(src, "X.cs").ToDictionary(e => e.Msgid);
+            Assert.IsTrue(found["Up"].ExtractedComments.Contains("arrow key"));
+            Assert.IsFalse(found["Down"].ExtractedComments.Any(c => c.Contains("arrow key")));
+            Assert.IsTrue(found["a"].ExtractedComments.Contains("about a"));
+            Assert.IsFalse(found["b"].ExtractedComments.Any(c => c.Contains("about a")));
+        }
+
+        [Test]
+        public void Scan_TrailingComment_OnLineWithoutTr_NotAttached()
+        {
+            var src = @"
+                class X {
+                    void R() {
+                        Foo(); // about Foo
+                        var s = UI.Tr(""x"");
+                    }
+                }";
+            var es = CSharpStringScanner.Scan(src, "X.cs").Single();
+            Assert.IsFalse(es.ExtractedComments.Any(c => c.Contains("about Foo")));
+        }
+
+        [Test]
+        public void Scan_TrailingComment_FollowsLeadingComments()
+        {
+            var src = @"
+                class X {
+                    void R() {
+                        // above
+                        var s = UI.Tr(
+                            ""x""); // after
+                    }
+                }";
+            var es = CSharpStringScanner.Scan(src, "X.cs").Single();
+            var above = es.ExtractedComments.IndexOf("above");
+            var after = es.ExtractedComments.IndexOf("after");
+            Assert.That(above, Is.GreaterThanOrEqualTo(0));
+            Assert.That(after, Is.GreaterThan(above));
+        }
+
+        [Test]
         public void Scan_InsideIfBlock_KeywordNotReportedAsMethodName()
         {
             var src = "class X { void OuterMethod() { if (x) { var s = UI.Tr(\"y\"); } } }";

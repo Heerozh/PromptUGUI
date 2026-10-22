@@ -70,8 +70,10 @@ namespace PromptUGUI.Editor.I18n
                 var methodName = FindEnclosingMethod(tokens, i);
                 if (methodName != null) es.ExtractedComments.Add($"in {methodName}()");
 
-                foreach (var c in CollectLeadingComments(tokens, i))
+                foreach (var c in CollectLeadingComments(source, tokens, i))
                     es.ExtractedComments.Add(c);
+                var trailing = TrailingComment(source, tokens, closeIdx);
+                if (trailing != null) es.ExtractedComments.Add(trailing);
 
                 if (TmpRichTextDetector.HasTmpTags(msgid))
                     es.ExtractedComments.Add(
@@ -466,20 +468,120 @@ namespace PromptUGUI.Editor.I18n
             return toks[first].Text;
         }
 
-        private static IEnumerable<string> CollectLeadingComments(List<Tok> toks, int callIdx)
+        // The `//` lines that lead the call's statement, and those that lead each list item
+        // the call sits in (an argument, a switch-expression arm, an initializer element).
+        // Walking back, a comma at the call's level ends its own item: the earlier items'
+        // comments are theirs, so they are set aside until the list's opener. A `(` / `[`
+        // opener drops them and the walk carries on outward; an expression `{` (arms,
+        // initializer) drops them and stops. Reaching `;` / `}` / a block's `{` instead
+        // means the comma was not a list separator (`Func<int, string>`, `int a, b`) —
+        // the set-aside comments stay. Only comments that start their own line count:
+        // a trailing one belongs to the line it ends (`TrailingComment`).
+        private static IEnumerable<string> CollectLeadingComments(string src, List<Tok> toks, int callIdx)
         {
-            var boundary = -1;
+            var own = new List<int>();      // newest first
+            var earlier = new List<int>();
+            var depth = 0;                  // inside a group belonging to an earlier token
+            var inEarlierItem = false;
+            var inExpressionBrace = false;
             for (var i = callIdx - 1; i >= 0; i--)
             {
                 var k = toks[i].Kind;
-                if (k == TK.Semi || k == TK.OpenBrace || k == TK.CloseBrace) { boundary = i; break; }
+                if (k == TK.Semi || k == TK.CloseBrace) break;
+                if (k == TK.OpenBrace) { inExpressionBrace = OpensExpression(src, toks, i); break; }
+                if (k == TK.CloseParen || k == TK.CloseBracket) depth++;
+                else if (k == TK.OpenParen || k == TK.OpenBracket)
+                {
+                    if (depth > 0) depth--;
+                    else { earlier.Clear(); inEarlierItem = false; }
+                }
+                else if (k == TK.Comma && depth == 0) inEarlierItem = true;
+                else if (k == TK.LineComment && depth == 0 && StartsLine(src, toks[i].Start))
+                    (inEarlierItem ? earlier : own).Add(i);
             }
-            for (var i = boundary + 1; i < callIdx; i++)
+            if (!(inExpressionBrace && inEarlierItem)) own.AddRange(earlier);
+            for (var j = own.Count - 1; j >= 0; j--)
             {
-                if (toks[i].Kind != TK.LineComment) continue;
-                var t = (toks[i].Text ?? "").TrimStart('/').Trim();
-                if (!string.IsNullOrEmpty(t)) yield return t;
+                var t = CommentText(toks[own[j]]);
+                if (t != null) yield return t;
             }
+        }
+
+        // A `//` after the call on the line where the call ends (`"a" => UI.Tr("x"), // note`)
+        // remarks on that line, so it belongs to the call — to every call ending there.
+        private static string TrailingComment(string src, List<Tok> toks, int closeIdx)
+        {
+            var lineEnd = src.IndexOfAny(LineBreaks, toks[closeIdx].Start);
+            if (lineEnd < 0) lineEnd = src.Length;
+            for (var i = closeIdx + 1; i < toks.Count && toks[i].Start < lineEnd; i++)
+                if (toks[i].Kind == TK.LineComment) return CommentText(toks[i]);
+            return null;
+        }
+
+        private static readonly char[] LineBreaks = { '\n', '\r' };
+
+        private static string CommentText(Tok comment)
+        {
+            var t = (comment.Text ?? "").TrimStart('/').Trim();
+            return t.Length > 0 ? t : null;
+        }
+
+        // `{` of a switch expression, an initializer (`new X(…) {`, `new[] {`, `= {`, `, {`)
+        // or a `with` — not of a block or a type body.
+        private static bool OpensExpression(string src, List<Tok> toks, int braceIdx)
+        {
+            var i = PrevSig(toks, braceIdx - 1);
+            if (i < 0) return false;
+            var t = toks[i];
+            if (t.Kind == TK.Comma) return true;
+            if (t.Kind == TK.Other && src[t.Start] == '=') return true;
+            if (t.Kind == TK.Ident && (t.Text == "switch" || t.Text == "with")) return true;
+            if (t.Kind == TK.CloseParen) i = PrevSig(toks, MatchOpenBack(toks, i) - 1);
+            // Back over the type name (`X`, `A.B<C, D>`, `int[]`) to a `new`.
+            for (; i >= 0; i = PrevSig(toks, i - 1))
+            {
+                t = toks[i];
+                if (t.Kind == TK.Ident) { if (t.Text == "new") return true; continue; }
+                if (t.Kind == TK.Dot || t.Kind == TK.Comma ||
+                    t.Kind == TK.OpenBracket || t.Kind == TK.CloseBracket) continue;
+                if (t.Kind == TK.Other && "<>?".IndexOf(src[t.Start]) >= 0) continue;
+                return false;
+            }
+            return false;
+        }
+
+        private static int PrevSig(List<Tok> toks, int from)
+        {
+            for (var i = from; i >= 0; i--)
+            {
+                var k = toks[i].Kind;
+                if (k == TK.LineComment || k == TK.BlockComment) continue;
+                return i;
+            }
+            return -1;
+        }
+
+        private static int MatchOpenBack(List<Tok> toks, int closeIdx)
+        {
+            var depth = 1;
+            for (var i = closeIdx - 1; i >= 0; i--)
+            {
+                var k = toks[i].Kind;
+                if (k == TK.CloseParen) depth++;
+                else if (k == TK.OpenParen) { depth--; if (depth == 0) return i; }
+            }
+            return -1;
+        }
+
+        private static bool StartsLine(string src, int offset)
+        {
+            for (var i = offset - 1; i >= 0; i--)
+            {
+                var c = src[i];
+                if (c == '\n' || c == '\r') return true;
+                if (!char.IsWhiteSpace(c)) return false;
+            }
+            return true;
         }
 
         private static string FindEnclosingMethod(List<Tok> toks, int callIdx)
