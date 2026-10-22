@@ -1181,6 +1181,28 @@ await MessageBox.Open($"{UI.Tr("Download failed:")}\n{e.Message}");
 
 **The extractor only sees `UI.Tr("...")` with a *literal* first argument.** `UI.Tr($"Hi {name}")` extracts nothing (there is no constant msgid to translate) — wrap the constant part instead: `string.Format(UI.Tr("Hi {0}"), name)`, or split the sentence across `$"{UI.Tr("...")}{value}"`. `ctx:` must be a literal too.
 
+**Translator notes come from `//` comments above the call or at the end of its line.** `Extract Strings` writes them into the `.po` as `#.` lines, next to `in MethodName()`, and `AI Translate Locale` sends them to the model with the string. Use them for what a translator can't see: what the word refers to, length limits, units.
+
+```csharp
+// Shown after the server signs this device out
+var msg = UI.Tr("Signed in on another device.");
+
+var label = slot switch
+{
+    // the equipment slot, not the body part
+    "hand" => UI.Tr("Hand"),
+    "head" => UI.Tr("Head"),             // the helmet slot
+    "feet" => UI.Tr("Feet"),
+};
+```
+
+Here `Hand` gets the note above it, `Head` its trailing note, and `Feet` none.
+
+- A comment on its own line above a statement reaches every `UI.Tr` in it, including later arguments (`// confirm` above `MessageBox.Open(this, UI.Tr("Delete?"))`), but not inside a nested `{ … }` (initializer, lambda body).
+- In a list (arguments, switch-expression arms, collection / object initializer elements), a comment above one item belongs to that item only. A section comment in a `switch` table reaches only the arm right below it. To annotate several arms, put a comment on each.
+- A trailing comment belongs to the `UI.Tr` calls that end on its line, and to nothing else. It never reaches the next line. On a line with no `UI.Tr` (`case X: // note`, `Foo(); // note`) it reaches nothing.
+- `/* … */` is ignored.
+
 Locale switching rides the Variant pipeline — already-open Screens auto-ReSolve. `UI.Locale.Set("zh-Hans")` internally registers `zh-Hans` as an active Variant; don't reuse that name for non-locale state.
 
 **A switch commits once the new locale has loaded.** `Set(x)` first loads x's `.po` and every runtime catalog; until all of it is in, the current locale stays fully in effect — text, fonts, the locale Variant, `UI.Locale.Current` — so nothing re-rendered meanwhile shows a msgid. Then it switches in one step: table, `Current`, both locale Variants (one re-solve per open Screen), old table unloaded, `Locale.Changed`. `UI.Locale.Pending` names the locale still loading (`null` when none).
