@@ -758,8 +758,18 @@ PlayMode（`Tests/PlayMode/Controls/DragDropPlayTests.cs`，真 `EventSystem` + 
     飞回原格。
 11. **测试缝**：`DragSession.HitTestForTests`（几何替代射线）、`DragSession.TickForTests`、`SettleFlight.FlownForTests`（EditMode 里飞行
     瞬时完成，从位置上看不出谁飞了）。
+12. **PlayMode 夹具只借用、或自带一个不含输入模块的 EventSystem**（悬停只要射线，指针由测试手喂），结束时 `DestroyImmediate` 自己带的
+    那个。最初的写法在 SetUp / TearDown 里销毁场景中所有 EventSystem，连带别的夹具留下的 `InputSystemUIInputModule` —— 所有模块共享
+    Input System 的 static 默认 UI actions，停用任一模块就销毁这份资产；落在 `InputTestFixture` 存档 / 恢复输入系统的区间里时，恢复后
+    的输入系统会留下 `Mouse/position` 上的过期监视器，之后鼠标一动，排在后面、毫不相干的测试就报
+    `Map index out of range in ProcessControlStateChange`（机制从 Input System 源码推得；改前全量回归反复出现，改后不再出现）。
 
 ### 16.2 既有问题（与本分支无关）
 
 `ClipRectRenderTests.Every_shader_honours_the_masks_softness`（FxImage 着色器与 UI/Default 在 RectMask2D 柔边处的像素比对）在当前
 宿主编辑器上失败；把本分支的改动暂存、在 M0 提交上重跑同样失败 —— 是编辑器侧 UI/Default 柔边算法的差异，留待单独处理。
+
+### 16.3 回归
+
+在宿主工程中跑通：EditMode 5815 条（只有 16.2 那一条失败）、EditorOnly 481 条、PlayMode 334 条全过；
+`dotnet format --verify-no-changes` 干净。

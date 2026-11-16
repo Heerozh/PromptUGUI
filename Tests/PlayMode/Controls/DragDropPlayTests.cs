@@ -22,14 +22,17 @@ namespace PromptUGUI.Tests.PlayMode.Controls
         private readonly List<DragInfo> _ends = new();
         private readonly List<DropEvent> _drops = new();
         private readonly List<System.IDisposable> _subs = new();
+        private GameObject _ownEs;
 
         [SetUp]
         public void SetUp()
         {
             UI.ResetForTests();
-            foreach (var es in Object.FindObjectsByType<EventSystem>(FindObjectsSortMode.None))
-                Object.DestroyImmediate(es.gameObject);
-            new GameObject("EventSystem", typeof(EventSystem));
+            // The hover is a real raycast: it needs an EventSystem, not an input module (the pointer is fed by hand).
+            // Borrow the one a fixture before us left, or bring a bare one and remove exactly that one — never someone
+            // else's: every InputSystemUIInputModule shares the Input System's static default UI actions, and
+            // disabling any module destroys that asset under the others.
+            if (EventSystem.current == null) _ownEs = new GameObject("EventSystem", typeof(EventSystem));
             _ends.Clear();
             _drops.Clear();
             _subs.Add(UI.Drag.OnEnd.Subscribe(_ends.Add));
@@ -42,8 +45,8 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             foreach (var s in _subs) s.Dispose();
             _subs.Clear();
             UI.ResetForTests();
-            foreach (var es in Object.FindObjectsByType<EventSystem>(FindObjectsSortMode.None))
-                Object.DestroyImmediate(es.gameObject);
+            if (_ownEs != null) Object.DestroyImmediate(_ownEs);
+            _ownEs = null;
         }
 
         private static PromptUGUI.Application.Screen Open(string name, string body, int sortingOrder = 0)
