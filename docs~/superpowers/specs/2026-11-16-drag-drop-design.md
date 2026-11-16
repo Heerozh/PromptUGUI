@@ -719,3 +719,47 @@ PlayMode（`Tests/PlayMode/Controls/DragDropPlayTests.cs`，真 `EventSystem` + 
   EditMode 测试 1–12、17。
 - **M2 视觉**：抬层 Canvas、结算飞行、源 / 目标挂钩、默认外观、自动滚动、Carousel、等确认；EditMode 13–16；PlayMode 1–5。
 - **M3 lint + XSD + 文档 + 演示**。
+
+## 16. 实施记录（2026-11-16）
+
+分 6 步提交在 `feat/drag-drop`：spec + plan → M0（从 `ReorderDriver` 抽 `LiftGesture` / `FlowPlaceholder` / `EdgeAutoScroller` /
+`LiftLook`，`ReorderRowMarker` 改名 `LiftMarker`；reorder 测试一行不改全绿）→「等确认」追加进 spec → M1（属性、拖源、会话、
+武装 / 悬停 / 松手 / 取消 / 等确认 + 56 条 EditMode）→ M2 测试（挂钩、落地选择、贴边滚动、轮播 18 条）→ lint / XSD / PlayMode
+（lint 12 条、XSD 1 条、PlayMode 4 条）→ 文档与演示。
+
+### 16.1 与设计的偏差
+
+1. **标记在实例化时按 IR 声明装，不等 apply pass。** §7.3 写的是「apply pass 结束时注册」，落地时同 reorder §14.1-1 的顺序问题：
+   挂钩在 DFS 后序 apply 里先于祖先的 setter 解析。改为 `ScreenInstantiator` 在 `AttachTo`（与 scale wrapper）之后，凡 base 或任一
+   variant 写了 `drag` / `drop` 的节点立刻装 `DragSource` / `DropTargetMarker`（`DragDropRules.Declares`，CLI 与运行期同一判断）；
+   setter 仍兜底（C# 写 `DragKind` / `DropKinds`）。
+2. **抬层 Canvas 不摘、只停用。** §7.2 写的是「飞完摘」：Play 模式下 `Destroy` 延迟到帧末，同一帧里落地后立刻再拿起（或落地飞行
+   复用源的图层）会让新抬起的那层在帧末被销毁。`LiftLayer` 加的 Canvas 带一个 `LiftLayer.Mark`，降层 = `enabled = false` +
+   `overrideSorting = false`（停用的 Canvas 对 uGUI 不存在，图形回到父 Canvas 合批），下次抬层复用。`CameraOf` / 根画布改为自己
+   向上找最外层 Canvas（停用的 Canvas 的 `rootCanvas` 不可信）。
+3. **命中意图收进 `Control.SetDragHit(persistent, session)`。** 虚方法 `ApplyDragHit` 的默认实现：自身无 Graphic → `HitCatcher`
+   （不要时停用而不移除 —— 走默认实现的控件以后不会再长出 Graphic；`Frame` 会，所以它自己覆写）；有 Graphic → 强制
+   `raycastTarget` 并记下原值。`Frame` 并入面板 catcher（`raycastTarget` 改为本 pass 声明值 + 拖放两路输入合算）；`Image` /
+   `RawImage` / `Text` 经 `RaycastIntent.SetDrag`。每个 apply pass 末尾 `ReapplyDragHit` 再压一次。
+4. **取消挂点**：`Control.ReleaseSubscriptions`（行被重绑或销毁 —— 位置复用的每次推送都会经过它，作兜底）、`PopupChain.DismissUnder`
+   （关屏、行换项）/ `DismissBelow`（新层）、`Screen.ReSolve` 开头，以及 `ScrollList` / `TabGroupCore` / `Suggestions` 重建入口
+   （必须在动结构之前取消：placeholder 在 Content 里时 Rebuild 的「第 i 行 = 第 i 个兄弟」不成立）。Esc：会话的隐藏 runner 在拖动期间
+   挂一个 `ModalEscapeListener`（`AlsoCancelButton`），按键照常进 `EscapeChain`，`Decide` 在引导之后第一步问 `DragSession.TryEscape`。
+5. **`IControl.DragData` / `CanDrop` 带默认接口实现**，直接实现 `IControl` 的类（测试替身）不受影响。
+6. **`TemplateExpander.CommonAttrs` 与 `VariantBaseRules.InvocationMergeableOntoTemplateRoot`（防漂移镜像）同时加五个属性**；
+   拖放属性不自愈（setter-only），`drag.portrait="unit"` 没有基础值照样报 `PUI-VARIANT-NO-BASE` —— 写 `drag="none"` 作基础值。
+7. **`LiftLook` 相对拿起时的 `localScale`**，并在新一次拿起前先让上一个缓动落定 —— 顺手修了 reorder 的一个潜在问题：上一行还在
+   缩回时提起另一行，旧代码会把上一行的缩放补间直接取消在半路。
+8. **等确认的细节**：回调里 `Defer` 后又 `Accept` = 同步落地；`Reject` 胜过 `Defer`；停靠被结构变动打断后，`Accept` 的落地从
+   打断时记下的矩形起飞。
+9. **`PUI-DRAG-HANDLE-ID` 在原样遍历里遇到模板调用就不判**（把手可能在调用的模板体里，展开遍判）。
+10. **演示没有新开分页**：竖屏的五个 Tab 竖排高度是算好的预算，第六个放不下。改为把「列表轮播」页的 6×2 作物橱窗换成 12 个
+    `<CropPlot>`（格子 `drop="crop"`、格里的作物 `drag="crop"`），拖到另一格两格交换，C# 用 `DragData` 记作物名、`e.Fly` 让被换走的
+    飞回原格。
+11. **测试缝**：`DragSession.HitTestForTests`（几何替代射线）、`DragSession.TickForTests`、`SettleFlight.FlownForTests`（EditMode 里飞行
+    瞬时完成，从位置上看不出谁飞了）。
+
+### 16.2 既有问题（与本分支无关）
+
+`ClipRectRenderTests.Every_shader_honours_the_masks_softness`（FxImage 着色器与 UI/Default 在 RectMask2D 柔边处的像素比对）在当前
+宿主编辑器上失败；把本分支的改动暂存、在 M0 提交上重跑同样失败 —— 是编辑器侧 UI/Default 柔边算法的差异，留待单独处理。
