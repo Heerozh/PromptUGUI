@@ -1005,6 +1005,7 @@ namespace PromptUGUI.Controls.Internal
             s_dropped = new Subject<DropEvent>();
             s_ended = new Subject<DragInfo>();
             HitTestForTests = null;
+            SettleFlight.FlownForTests = null;
             UI.Drag.ResetSettingsForTests();
         }
 

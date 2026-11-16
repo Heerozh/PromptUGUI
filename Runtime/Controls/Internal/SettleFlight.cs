@@ -31,6 +31,9 @@ namespace PromptUGUI.Controls.Internal
 
         internal static bool IsFlying(RectTransform rt) => rt != null && s_flights.ContainsKey(rt);
 
+        /// <summary>Tests: every flight asked for, instant or not (EditMode lands them at once).</summary>
+        internal static System.Action<RectTransform> FlownForTests;
+
         /// <summary>
         /// <paramref name="rt"/> flies from <paramref name="fromAnchored"/> (and <paramref name="fromScale"/>) to where
         /// it is now. <paramref name="layer"/> is a lift it already has (handed over, lowered on landing); null
@@ -39,6 +42,7 @@ namespace PromptUGUI.Controls.Internal
         internal static void Fly(RectTransform rt, Vector2 fromAnchored, Vector3? fromScale, float duration,
                                  LiftLayer.Token layer, int sortingOrder)
         {
+            if (rt != null) FlownForTests?.Invoke(rt);
             if (rt == null)
             {
                 LiftLayer.Lower(layer);
