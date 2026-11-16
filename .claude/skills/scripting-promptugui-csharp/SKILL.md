@@ -663,8 +663,10 @@ bag.BindItems(items, (IControl cell, ItemVm it) => cell.Get("item").DragData = i
   `drop-pending`); answer later with **`e.Accept(() => push)`** — the library puts the structure back, runs your
   push, then lands — or **`e.Reject()`**. Nothing new lifts meanwhile (`UI.Drag.IsPending`). `Accept(apply)` **always
   runs `apply`**, even when the wait was cut short (the source destroyed, a timeout) or already answered — confirmed
-  data is never dropped; only the animation is skipped then. A push arriving while it waits does not break it. Safety
-  net: `UI.Drag.PendingTimeout` (10s, `0` = none) gives up an unanswered drop.
+  data is never dropped; only the animation is skipped then. A push arriving while it waits does not break it. If your
+  data arrives by subscription before the server's answer (a call that returns only after its pushes landed), hold your
+  re-render while `UI.Drag.IsPending` and draw inside `Accept`'s `apply` — otherwise the parked item and the target show
+  the new state before the landing. Safety net: `UI.Drag.PendingTimeout` (10s, `0` = none) gives up an unanswered drop.
 
 ```csharp
 UI.Drag.OnDrop.Subscribe(e => { e.Defer(); _ = Confirm(e); }).AddTo(screen);
