@@ -169,6 +169,17 @@
     </Frame>
   </Template>
 
+  <!-- 作物橱窗的一格：格子是放下的目标（drop），格里的作物是拖源（drag）。拖一个作物到另一格 = 两格交换
+       （C# 在 UI.Drag.OnDrop 里换图）。拿起时所有能放的格子淡淡亮起（drop-armed），手指下的那格描一圈边（drop-over） -->
+  <Template name="CropPlot">
+    <Param name="crop"/>
+    <Frame drop="crop">
+      <Show on="drop-armed"><Frame anchor="stretch" radius="6" color="white/0.12"/></Show>
+      <Show on="drop-over"><Frame anchor="stretch" radius="6" borderWidth="2" borderColor="accent"/></Show>
+      <Image id="crop" anchor="stretch" margin="2" sprite="{{crop}}" drag="crop"/>
+    </Frame>
+  </Template>
+
   <!-- ScrollList 行模板：可拖动排序 —— 左侧 grip 是把手（reorderHandle），提起时整行微放大、松手缩回 -->
   <Template name="OptionRow">
     <Animation on="lift" reverse-on="drop" scale="1:1.03" duration="0.12s">
@@ -436,12 +447,12 @@
       <Frame id="pageList" anchor="stretch" margin="84,8,8,8" margin.portrait="52,8,8,52" raycastTarget="true">
         <Skin/>
         <VStack anchor="stretch" spacing="10" padding="8">
-          <!-- farm: SpriteSet 12 作物橱窗 -->
-          <Grid columns="6" cellSize="32x32" spacing="4" height="72">
-            <Image sprite="farm:carrot"/><Image sprite="farm:tomato"/><Image sprite="farm:wheat"/>
-            <Image sprite="farm:apple"/><Image sprite="farm:corn"/><Image sprite="farm:pumpkin"/>
-            <Image sprite="farm:strawberry"/><Image sprite="farm:eggplant"/><Image sprite="farm:sunflower"/>
-            <Image sprite="farm:grape"/><Image sprite="farm:watermelon"/><Image sprite="farm:turnip"/>
+          <!-- farm: SpriteSet 12 作物橱窗：拖放演示 —— 把一个作物拖到另一格，两格交换（见 CropPlot） -->
+          <Grid id="crops" columns="6" cellSize="32x32" spacing="4" height="72">
+            <CropPlot crop="farm:carrot"/><CropPlot crop="farm:tomato"/><CropPlot crop="farm:wheat"/>
+            <CropPlot crop="farm:apple"/><CropPlot crop="farm:corn"/><CropPlot crop="farm:pumpkin"/>
+            <CropPlot crop="farm:strawberry"/><CropPlot crop="farm:eggplant"/><CropPlot crop="farm:sunflower"/>
+            <CropPlot crop="farm:grape"/><CropPlot crop="farm:watermelon"/><CropPlot crop="farm:turnip"/>
           </Grid>
           <Carousel id="banner" class="carousel" height="90" itemTemplate="DemoCard"
                     interval="3" loop="true" transition="0.3" dots="bottom-center"/>
