@@ -469,10 +469,10 @@ namespace PromptUGUI.Controls
 
         // The marker sits on the row's layout host (Content's direct child) — where the upward walk
         // in TriggerSourceResolver.FindReorderRow puts it. Null for a row nobody hooked.
-        private static ReorderRowMarker MarkerOf(IControl row)
+        private static LiftMarker MarkerOf(IControl row)
         {
             var host = row is Control c ? c.LayoutHost : row?.RectTransform;
-            return host != null ? host.GetComponent<ReorderRowMarker>() : null;
+            return host != null ? host.GetComponent<LiftMarker>() : null;
         }
 
         // 静态 XML 子卡与 BindItems 建的卡都进 Content（同 Carousel 的 _strip）：挂在 ScrollList

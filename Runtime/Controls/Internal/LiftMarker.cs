@@ -18,15 +18,17 @@ namespace PromptUGUI.Controls.Internal
     }
 
     /// <summary>
-    /// The <c>lift</c> / <c>drop</c> event source of one row (spec 2026-09-16 §4.2). Created on demand
-    /// by the first hook that resolves to the row — so a row without hooks carries none, and its
-    /// absence (or <see cref="HasLiftHook"/> being false) is what tells the driver to apply its own
-    /// default lift look (§4.3). Lives on the row's layout host, the direct child of Content.
+    /// The <c>lift</c> / <c>drop</c> event source of something that can be picked up: a
+    /// <c>&lt;ScrollList reorder&gt;</c> row (spec 2026-09-16 §4.2) or a <c>drag=</c> source (spec
+    /// 2026-11-16-drag-drop §5.2). Created on demand by the first hook that resolves to it — so a row
+    /// without hooks carries none, and its absence (or <see cref="HasLiftHook"/> being false) is what
+    /// tells the driver to apply its own default lift look (§4.3). Lives on the row's layout host (the
+    /// direct child of Content), or on the drag source's own GameObject.
     ///
     /// <para>Same shape as <c>ExpandableMarker</c> for <c>expand</c> / <c>collapse</c>: controls are
     /// plain C# objects, and a component is what a <c>GetComponentInParent</c>-style walk can find.</para>
     /// </summary>
-    internal sealed class ReorderRowMarker : MonoBehaviour
+    internal sealed class LiftMarker : MonoBehaviour
     {
         private readonly Subject<Unit> _lifted = new();
         private readonly Subject<Unit> _dropped = new();

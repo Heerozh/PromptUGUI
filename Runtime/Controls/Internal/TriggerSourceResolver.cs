@@ -353,7 +353,7 @@ namespace PromptUGUI.Controls.Internal
         }
 
         /// <summary>
-        /// Finds the <see cref="ReorderRowMarker"/> of the <c>&lt;ScrollList&gt;</c> row a <c>lift</c> /
+        /// Finds the <see cref="LiftMarker"/> of the <c>&lt;ScrollList&gt;</c> row a <c>lift</c> /
         /// <c>drop</c> trigger lives in (spec 2026-09-16 §4.2). Resolves <b>upward</b> like
         /// <see cref="FindExpandable"/>: the row is the child of the list's Content on the way up
         /// (Content carries a <see cref="ScrollListContentMarker"/> from the moment the list exists),
@@ -362,7 +362,7 @@ namespace PromptUGUI.Controls.Internal
         /// </summary>
         /// <param name="trigger">触发器控件</param>
         /// <param name="sourceId">空 → 从触发器自身向上找；非空 → 词法作用域找到该控件，再从它向上找所在的行</param>
-        public static ReorderRowMarker FindReorderRow(Trigger trigger, string sourceId)
+        public static LiftMarker FindReorderRow(Trigger trigger, string sourceId)
         {
             var start = string.IsNullOrEmpty(sourceId)
                 ? trigger.GameObject.transform
@@ -371,8 +371,8 @@ namespace PromptUGUI.Controls.Internal
             for (var t = start; t != null && t.parent != null; t = t.parent)
             {
                 if (t.parent.GetComponent<ScrollListContentMarker>() == null) continue;
-                return t.gameObject.GetComponent<ReorderRowMarker>()
-                       ?? t.gameObject.AddComponent<ReorderRowMarker>();
+                return t.gameObject.GetComponent<LiftMarker>()
+                       ?? t.gameObject.AddComponent<LiftMarker>();
             }
 
             var label = string.IsNullOrEmpty(sourceId) ? "lift\"/\"drop" : $"lift@{sourceId}";
