@@ -38,7 +38,8 @@ namespace PromptUGUI.Lint
 
         /// <summary>
         /// Yields <see cref="NoListRowCode"/> when <paramref name="n"/> is a bare (no-<c>@id</c>)
-        /// <c>lift</c> / <c>drop</c> trigger with no <c>&lt;ScrollList&gt;</c> ancestor — the row it
+        /// <c>lift</c> / <c>drop</c> trigger with neither a <c>&lt;ScrollList&gt;</c> ancestor nor a
+        /// <c>drag=</c> source on or above it (<paramref name="hasListAncestor"/> covers both) — what it
         /// would resolve upward to does not exist, and the runtime hard-throws
         /// (<c>TriggerSourceResolver.FindLiftSource</c>). Same exemptions as the other upward
         /// rules: Template bodies and <c>@id</c> forms are left to runtime.
@@ -52,9 +53,9 @@ namespace PromptUGUI.Lint
 
             yield return new LintIssue(
                 NoListRowCode, n.Tag, n.Id,
-                $"<{n.Tag} on=\"{on}\">: no <ScrollList> ancestor. {on} is the event of a list row being " +
-                "dragged and resolves upward to the row — place it inside a <ScrollList> child or the " +
-                $"list's itemTemplate, or use {on}@<id>.");
+                $"<{n.Tag} on=\"{on}\">: no drag source (drag=) or <ScrollList> row on or around it. {on} is the " +
+                "event of something being picked up and resolves upward to the nearest drag source or list row — place " +
+                $"it on or inside a drag= control, a <ScrollList> child or the list's itemTemplate, or use {on}@<id>.");
         }
 
         private static readonly HashSet<string> StateTriggerTags =

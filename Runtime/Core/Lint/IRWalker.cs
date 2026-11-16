@@ -24,7 +24,7 @@ namespace PromptUGUI.Lint
                 // PUI-NAV-UNKNOWN-TARGET. Add-directive children are part of the same Screen scope.
                 var screenIds = CollectScreenIds(screen);
 
-                foreach (var issue in WalkNode(screen.Root, inTemplateBody: false, hasStateSourceAncestor: false, hasMenuAncestor: false, hasToggleAncestor: false, hasListAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false, screenIds: screenIds, styles: styles))
+                foreach (var issue in WalkNode(screen.Root, inTemplateBody: false, hasStateSourceAncestor: false, hasMenuAncestor: false, hasToggleAncestor: false, hasListAncestor: false, hasDragAncestor: false, hasDropAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false, screenIds: screenIds, styles: styles))
                     yield return issue;
 
                 // Screen-wide, because an accordion is a relationship between siblings that a
@@ -40,6 +40,11 @@ namespace PromptUGUI.Lint
                 // reorderHandle= names a node inside the ROW, which is the itemTemplate's body — a
                 // per-node rule cannot see it, so this walk carries the document's templates along.
                 foreach (var issue in CheckReorderHandles(screen.Root, doc.Templates, styles))
+                    yield return issue;
+
+                // drag= inside a sortable or virtual list's rows, or on a carousel card: the rows are the itemTemplate's
+                // body, so this walk carries the templates too. Stamps its own source (the drag source).
+                foreach (var issue in DragDropRules.CheckContainers(screen.Root, doc.Templates, styles))
                     yield return issue;
 
                 // CLI-only, screen-wide: the outermost drawn surfaces that never said whether they
@@ -68,7 +73,7 @@ namespace PromptUGUI.Lint
                             // A <Scrollbar> as a direct Add child cannot be adopted (the host already has its bar).
                             foreach (var issue in ScrollbarRules.CheckInAdd(addChild))
                                 yield return issue.WithSource(addChild.OriginSrc, addChild.Line, addChild.InvokedAt);
-                            foreach (var issue in WalkNode(addChild, inTemplateBody: false, hasStateSourceAncestor: false, hasMenuAncestor: false, hasToggleAncestor: false, hasListAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false, screenIds: screenIds, styles: styles))
+                            foreach (var issue in WalkNode(addChild, inTemplateBody: false, hasStateSourceAncestor: false, hasMenuAncestor: false, hasToggleAncestor: false, hasListAncestor: false, hasDragAncestor: false, hasDropAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: false, screenIds: screenIds, styles: styles))
                                 yield return issue;
                             // An Add child's host is not known statically, so it is judged as outermost.
                             foreach (var issue in RaycastRules.CheckUndecided(addChild, styles))
@@ -102,7 +107,7 @@ namespace PromptUGUI.Lint
                 // invocation may merge CommonAttrs onto it, which PUI-VARIANT-NO-BASE must account for.
                 // s_emptyIds: template bodies don't belong to a specific Screen — skip nav-target check.
                 if (template.Body != null)
-                    foreach (var issue in WalkNode(template.Body, inTemplateBody: true, hasStateSourceAncestor: false, hasMenuAncestor: false, hasToggleAncestor: false, hasListAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: true, screenIds: s_emptyIds, styles: styles))
+                    foreach (var issue in WalkNode(template.Body, inTemplateBody: true, hasStateSourceAncestor: false, hasMenuAncestor: false, hasToggleAncestor: false, hasListAncestor: false, hasDragAncestor: false, hasDropAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: true, screenIds: s_emptyIds, styles: styles))
                         yield return issue;
             }
         }
@@ -145,13 +150,13 @@ namespace PromptUGUI.Lint
         /// <para>Issues that already carry an origin come from the recursive call below — a child
         /// stamps itself, so this must not overwrite them.</para>
         /// </summary>
-        private static IEnumerable<LintIssue> WalkNode(ElementNode node, bool inTemplateBody, bool hasStateSourceAncestor, bool hasMenuAncestor, bool hasToggleAncestor, bool hasListAncestor, bool parentIsLayoutGroup, bool isTemplateBodyRoot, HashSet<string> screenIds, StyleAttributeView styles)
+        private static IEnumerable<LintIssue> WalkNode(ElementNode node, bool inTemplateBody, bool hasStateSourceAncestor, bool hasMenuAncestor, bool hasToggleAncestor, bool hasListAncestor, bool hasDragAncestor, bool hasDropAncestor, bool parentIsLayoutGroup, bool isTemplateBodyRoot, HashSet<string> screenIds, StyleAttributeView styles)
         {
-            foreach (var issue in WalkNodeCore(node, inTemplateBody, hasStateSourceAncestor, hasMenuAncestor, hasToggleAncestor, hasListAncestor, parentIsLayoutGroup, isTemplateBodyRoot, screenIds, styles))
+            foreach (var issue in WalkNodeCore(node, inTemplateBody, hasStateSourceAncestor, hasMenuAncestor, hasToggleAncestor, hasListAncestor, hasDragAncestor, hasDropAncestor, parentIsLayoutGroup, isTemplateBodyRoot, screenIds, styles))
                 yield return issue.Origin == null ? issue.WithSource(node.OriginSrc, node.Line, node.InvokedAt) : issue;
         }
 
-        private static IEnumerable<LintIssue> WalkNodeCore(ElementNode node, bool inTemplateBody, bool hasStateSourceAncestor, bool hasMenuAncestor, bool hasToggleAncestor, bool hasListAncestor, bool parentIsLayoutGroup, bool isTemplateBodyRoot, HashSet<string> screenIds, StyleAttributeView styles)
+        private static IEnumerable<LintIssue> WalkNodeCore(ElementNode node, bool inTemplateBody, bool hasStateSourceAncestor, bool hasMenuAncestor, bool hasToggleAncestor, bool hasListAncestor, bool hasDragAncestor, bool hasDropAncestor, bool parentIsLayoutGroup, bool isTemplateBodyRoot, HashSet<string> screenIds, StyleAttributeView styles)
         {
             // Per-tag self-checks (mirror of ScreenInstantiator dispatch; CLI errors).
             // Self-relative — about the node itself, unlike parent-relative LayoutGroupChildRules.
@@ -343,6 +348,14 @@ namespace PromptUGUI.Lint
             foreach (var issue in GradientStopRules.Check(node, styles))
                 yield return issue;
 
+            // Drag and drop: the value grammar, and a dragHandle that names nothing inside the source.
+            foreach (var issue in DragDropRules.CheckValues(node, styles))
+                yield return issue;
+            foreach (var issue in DragDropRules.CheckHandle(node, styles))
+                yield return issue;
+            var selfIsSource = DragDropRules.DeclaresSource(node, styles);
+            var selfIsTarget = DragDropRules.DeclaresTarget(node, styles);
+
             // Ancestor-aware (like PUI-TAB-PARENT, but upward): a bare state-* trigger /
             // animation / show resolves to its nearest clickable (<Btn>/<Tab>/<Toggle>) ancestor
             // at runtime. With no such ancestor it hard-throws (TriggerSourceResolver.FindStateSource);
@@ -358,8 +371,11 @@ namespace PromptUGUI.Lint
                 // And checked / unchecked upward to a <Toggle>/<Tab>.
                 foreach (var issue in StateTriggerRules.CheckCheckedSource(node, hasToggleAncestor))
                     yield return issue;
-                // And lift / drop upward to a <ScrollList> row.
-                foreach (var issue in StateTriggerRules.CheckListRowSource(node, hasListAncestor))
+                // And lift / drop upward to a <ScrollList> row or a drag= source (the node itself counts).
+                foreach (var issue in StateTriggerRules.CheckListRowSource(node, hasListAncestor || hasDragAncestor || selfIsSource))
+                    yield return issue;
+                // And drop-armed … receive upward to a drop= target (the node itself counts).
+                foreach (var issue in DragDropRules.CheckTargetHook(node, hasDropAncestor || selfIsTarget))
                     yield return issue;
             }
 
@@ -367,6 +383,8 @@ namespace PromptUGUI.Lint
             var childHasMenuAncestor = hasMenuAncestor || StateTriggerRules.IsMenuSourceTag(node.Tag);
             var childHasToggleAncestor = hasToggleAncestor || StateTriggerRules.IsToggleSourceTag(node.Tag);
             var childHasListAncestor = hasListAncestor || StateTriggerRules.IsListRowHostTag(node.Tag);
+            var childHasDragAncestor = hasDragAncestor || selfIsSource;
+            var childHasDropAncestor = hasDropAncestor || selfIsTarget;
             var isLayoutGroup = node.Tag is "VStack" or "HStack" or "Grid" or "TabBar" or "TabMenu"
                                          or "Carousel" or "Collapsible" or "ScrollList" or "Popover";
             var isTabGroup = node.Tag is "TabBar" or "TabMenu";
@@ -385,7 +403,7 @@ namespace PromptUGUI.Lint
                 if (child.Tag == PopoverRules.Tag)
                 {
                     foreach (var issue in WalkNode(child, inTemplateBody, childHasStateSourceAncestor, childHasMenuAncestor,
-                                                   childHasToggleAncestor, childHasListAncestor,
+                                                   childHasToggleAncestor, childHasListAncestor, childHasDragAncestor, childHasDropAncestor,
                                                    parentIsLayoutGroup: false, isTemplateBodyRoot: false,
                                                    screenIds: screenIds, styles: styles))
                         yield return issue;
@@ -398,7 +416,7 @@ namespace PromptUGUI.Lint
                 if (node.Tag == "Collapsible" && child.Tag == "Header")
                 {
                     foreach (var issue in WalkNode(child, inTemplateBody, childHasStateSourceAncestor,
-                                                   childHasMenuAncestor, childHasToggleAncestor, childHasListAncestor,
+                                                   childHasMenuAncestor, childHasToggleAncestor, childHasListAncestor, childHasDragAncestor, childHasDropAncestor,
                                                    parentIsLayoutGroup: false, isTemplateBodyRoot: false,
                                                    screenIds: screenIds, styles: styles))
                         yield return issue;
@@ -447,7 +465,7 @@ namespace PromptUGUI.Lint
                         $"<Tab id='{child.Id}'>: must be a direct child of <TabBar> or <TabMenu>; current parent is <{node.Tag}>. " +
                         "Mutual exclusion and shared visuals will not apply.",
                         child.OriginSrc, child.Line, child.InvokedAt);
-                foreach (var issue in WalkNode(child, inTemplateBody, childHasStateSourceAncestor, childHasMenuAncestor, childHasToggleAncestor, childHasListAncestor, parentIsLayoutGroup: isLayoutGroup, isTemplateBodyRoot: false, screenIds: screenIds, styles: styles))
+                foreach (var issue in WalkNode(child, inTemplateBody, childHasStateSourceAncestor, childHasMenuAncestor, childHasToggleAncestor, childHasListAncestor, childHasDragAncestor, childHasDropAncestor, parentIsLayoutGroup: isLayoutGroup, isTemplateBodyRoot: false, screenIds: screenIds, styles: styles))
                     yield return issue;
             }
         }

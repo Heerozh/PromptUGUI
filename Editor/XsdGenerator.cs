@@ -261,6 +261,9 @@ namespace PromptUGUI.Editor
             // Control.StateReact ([UIAttr] on the base) — opts a graphic out of a parent
             // Btn's state-tint fan-out; applies to every control, so it's a common attr.
             "stateReact",
+            // Drag and drop (Control base [UIAttr]s, spec 2026-11-16-drag-drop): legal on every element, and carried
+            // onto a template instance root by its invocation.
+            "drag", "drop", "dragHold", "dragHandle", "dragDuration",
             // PUI-FONT-FLOOR's node-level floor (dp) — lint-only, legal on any element.
             "fontFloor",
             // <Style> reference. Consumed by TemplateExpander (StyleMerger) before any control

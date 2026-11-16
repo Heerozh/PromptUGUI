@@ -944,6 +944,23 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Xsd_commonAttrs_declares_the_drag_and_drop_attributes()
+        {
+            // [UIAttr]s on the Control base (spec 2026-11-16-drag-drop §9): legal on every element — and the
+            // generated schema must stay valid, so each appears once (the group), never again per control.
+            var r = new ControlRegistry();
+            r.Register<Frame>("Frame", null);
+            var xsd = XsdGenerator.Generate(r);
+            foreach (var name in new[] { "drag", "drop", "dragHold", "dragHandle", "dragDuration" })
+            {
+                StringAssert.Contains($"name=\"{name}\"", xsd);
+                var first = xsd.IndexOf($"name=\"{name}\"", System.StringComparison.Ordinal);
+                Assert.AreEqual(-1, xsd.IndexOf($"name=\"{name}\"", first + 1, System.StringComparison.Ordinal),
+                    $"{name} is declared once");
+            }
+        }
+
+        [Test]
         public void Xsd_commonAttrs_declares_fontFloor()
         {
             // The font-floor lint's per-node override: legal on any element, read by the lint only.
