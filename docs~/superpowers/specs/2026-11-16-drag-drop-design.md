@@ -26,7 +26,9 @@
 6. 拖动中结构变了（推送、ReSolve、关屏）要**干净地取消**；
 7. **跨容器、跨 Screen**：道具栏在一个 Screen、装备面板在另一个（或在模态里）；
 8. 一份 XML 两端，只靠 Variant 调参；
-9. 补齐 XSD、lint、参考文档、测试。
+9. 补齐 XSD、lint、参考文档、测试；
+10. **由服务器裁决的场合**（阵形、装备以服务器为准）：松手后可以**等确认**再落地 —— 拖的东西停在目标上方等结果，
+    确认了再落进去（交换动画照常），拒绝了飞回原处（2026-11-16 作者追加，§7.10）。
 
 ## 2. 注意点（踩坑表）
 
@@ -181,11 +183,13 @@ Idle
 | `drop-disarmed` | 持久对之二 | 那次拖动结束（放下、飞回、取消）；也是没有拖动时的常态 |
 | `drop-over` | 持久对之一 | 那次拖动正悬停在本目标上（现在松手就放进来） |
 | `drop-deny` | 状态 | 一个 kind 匹配、但本目标拒绝的拖动悬停在上面（`CanDrop` 为 false，或 `interactable="false"`） |
-| `drop-out` | 持久对之二 | 没有拖动悬停在上面（移开、放下、取消）；也是常态。`drop-over` 与 `drop-deny` 都以它结束 |
-| `receive` | 边沿 | 东西被放进本目标（已被接受）：结算飞行开始时，C# 的 `OnDrop` 之后 |
+| `drop-out` | 持久对之二 | 没有拖动悬停在上面（移开、放下、取消）；也是常态。`drop-over`、`drop-deny`、`drop-pending` 都以它结束 |
+| `drop-pending` | 状态 | 一次放进本目标的放下在**等确认**（C# 调了 `e.Defer()`，§7.10）：拖的东西停在本目标上方，直到 `Accept` / `Reject`。期间 `drop-over` 仍然成立 |
+| `receive` | 边沿 | 东西被放进本目标（已被接受）：结算飞行开始时，C# 的 `OnDrop` 之后；等确认的放下在 `Accept` 时 |
 
-- `<Show>` 接受前五个：注册式（像 `checked`），没有 Normal 兜底，可以同时多块可见 —— 一个 armed 的格子被悬停时，
-  `drop-armed` 与 `drop-over` 两块都亮，作者自己分层。`<Show on="receive">` 是错误（时刻，不是状态）。
+- `<Show>` 接受除 `receive` 以外的六个：注册式（像 `checked`），没有 Normal 兜底，可以同时多块可见 —— 一个 armed 的格子
+  被悬停时，`drop-armed` 与 `drop-over` 两块都亮，作者自己分层；等确认时 `<Show on="drop-pending">` 里放个转圈。
+  `<Show on="receive">` 是错误（时刻，不是状态）。
 - 常态的确立同 `ready` / `cooling`：Screen 打开时处于 `drop-disarmed` + `drop-out`，`<Animation>` 落在终态不播放，
   普通 `<Trigger>` 不为「打开时的状态」触发。
 - `<Animation on="drop-over" reverse-on="drop-out" scale="1:1.06">`：悬停放大、离开（含松手、取消）缩回 ——
@@ -286,13 +290,15 @@ public static partial class UI
     public static class Drag
     {
         public static bool IsDragging { get; }                 // 拿起到松手（飞行期不算）
-        public static DragInfo Current { get; }                // 同上期间非 null
+        public static bool IsPending { get; }                  // 有一次放下在等确认（期间不能拿起新东西）
+        public static DragInfo Current { get; }                // 拿起到松手期间非 null
         public static Observable<DragInfo> OnLift { get; }
         public static Observable<DragInfo> OnHover { get; }    // 悬停目标变了（Target 可为 null）
         public static Observable<DropEvent> OnDrop { get; }    // 任何 Screen 里被接受的放下
         public static Observable<DragInfo> OnEnd { get; }      // 每次会话恰好一次：Result = Dropped / Returned / Cancelled
-        public static void Cancel();                           // 代码取消（§7.7）
+        public static void Cancel();                           // 代码取消（§7.7）；等确认时结束等待（§7.10）
         public static int SortingOrder { get; set; } = 4000;   // 抬层 Canvas 的 sortingOrder
+        public static float PendingTimeout { get; set; } = 10f; // 等确认的上限（秒），0 = 不限（§7.10）
     }
 }
 
@@ -309,11 +315,18 @@ public class DragInfo
 
 public sealed class DropEvent : DragInfo
 {
-    /// 放下作废：不发 receive，源从手指处飞回家（C# 校验失败时用）。
+    /// 放下作废：不发 receive，源从它现在的位置飞回家。同步回调里与等确认时都可以用。
     public void Reject();
-    /// 从手指处飞进来的控件。默认 = 目标子树里唯一一个 active、同 kind 的拖源；null = 不飞。
+    /// 先不落地：拖的东西停在目标上方等结果（§7.10），直到 Accept / Reject。只能在 OnDrop 回调里调。
+    public void Defer();
+    /// 等确认的放下被接受：库先复位结构，再执行 apply（在这里推送新数据），再播落地动画。
+    /// 不是等确认的放下 → 立刻执行 apply。apply 一定会执行，哪怕等待已被打断（§7.10）。
+    public void Accept(Action apply = null);
+    public bool IsPending { get; }
+    /// 从放下处飞进来的控件。默认 = 目标子树里唯一一个 active、同 kind 的拖源；null = 不飞。
     public void Land(IControl element);
     /// 追加一段飞行：element 从 from 的位置飞到它自己的排版位置（交换时被换走的那个）。
+    /// 结算前调用的先记下、结算时一起飞；结算后调用的立刻飞。
     public void Fly(IControl element, IControl from);
 }
 ```
@@ -327,11 +340,13 @@ public sealed class DropEvent : DragInfo
 
 - `OnDrop` 发出时：源已回到家（入流、placeholder 已摘），视觉还停在手指处；目标仍处于 `drop-over`；
   `UI.Drag.IsDragging` 已为 false。**在订阅里同步推送是安全的，也正是期望的写法。**
-- 改模型并同步推送（乐观 UI）；服务端拒绝 → 把旧数据再推一次，格子自己回去（与 reorder 同构：模型是真相）。
-- 要等异步确认、不想乐观的：`e.Reject()` 让源飞回，确认后再推。
-- 先 `target.OnDrop`，后 `UI.Drag.OnDrop`；任何一个订阅者调 `Reject()` 都作数。`Land` / `Fly` 在所有订阅者跑完后统一结算；
-  传入已销毁的控件被忽略。
-- 被接受却什么都没推：默认的落地飞行会把目标里**原来的**内容从手指处飞进去 —— 这是在提示「你接了却没改」，按上面两条之一写。
+- 两种写法，二选一：
+  - **乐观**：在订阅里改模型并同步推送；服务端拒绝 → 把旧数据再推一次，格子自己回去（与 reorder 同构：模型是真相）。
+  - **等确认**：在订阅里 `e.Defer()`，发请求；结果回来后 `e.Accept(() => 推送)` 或 `e.Reject()`（§7.10）。
+- 先 `target.OnDrop`，后 `UI.Drag.OnDrop`；任何一个订阅者调 `Reject()` 都作数，`Reject` 胜过 `Defer`。`Land` / `Fly` 在
+  所有订阅者跑完后（等确认时：在 `Accept` 时）统一结算；传入已销毁的控件被忽略。
+- 被接受却什么都没推、也没 `Defer`：默认的落地飞行会把目标里**原来的**内容从放下处飞进去 —— 这是在提示「你接了却没改」，
+  按上面两种写法之一写。
 - `OnEnd` 每次会话恰好一次，在 `OnDrop`（若有）之后；`Target == null && Result == Returned` 加 `ScreenPosition` 就是
   「拖到 UI 之外」（拖到 3D 世界的单位上，C# 自己射线）。
 
@@ -358,6 +373,25 @@ UI.Drag.OnDrop.Where(e => e.Kind == "unit").Subscribe(e =>
     if (swapped) e.Fly(e.Source, from: e.Target); // A 格里的卡现在显示被换走的那个：让它从 B 飞回 A
     api.SaveFormation(next);
 }).AddTo(screen);
+
+// 阵形由服务器裁决：等确认再落地
+UI.Drag.OnDrop.Where(e => e.Kind == "unit").Subscribe(e =>
+{
+    e.Defer();                                     // 单位停在 B 格上方；B 格进入 drop-pending（可挂转圈）
+    _ = Confirm(e);
+}).AddTo(screen);
+
+async Awaitable Confirm(DropEvent e)
+{
+    int a = e.SourceIndex, b = e.TargetIndex;
+    var ok = await api.MoveUnit(a, b);             // 超时由调用方自己管
+    if (!ok) { e.Reject(); return; }               // 飞回 A 格
+    var next = formation.Value.ToArray();
+    var swapped = next[b] != null;
+    (next[a], next[b]) = (next[b], next[a]);
+    e.Accept(() => formation.Value = next);        // 库：复位结构 → 执行这次推送 → 落进 B 格
+    if (swapped) e.Fly(e.Source, from: e.Target);  // 结算后调用：立刻飞
+}
 
 // 背包 → 装备：类型过滤
 foreach (var (id, type) in new[] { ("weapon", ItemType.Weapon), ("armor", ItemType.Armor) })
@@ -502,6 +536,30 @@ drag / end 事件吞掉（不转发 —— 半途交给 ScrollRect 一个没有 
   目标（P26）。拿起不关弹层（P18）。
 - **引导**：抬层 4000 > Tutorial 3000，图不会钻到遮罩下；落点受遮罩镂空约束（P26）。
 
+### 7.10 等确认（`e.Defer()`）
+
+由服务器裁决的放下（阵形、装备以服务器为准）：松手时先不落地，等结果。乐观写法（§6.2）不需要它。
+
+1. 松手照 §7.6 的 1–3 走：记下图的矩形 → 结构复位 → 发 `OnDrop`。订阅里调了 `e.Defer()`（且没人 `Reject()`）：
+   - **停靠**：源重新出流（同拿起：placeholder 占住它的家、`ignoreLayout`），抬层 Canvas 不摘，从放下处飞到目标矩形的中心
+     （`dragDuration`），停在那里；
+   - 目标保持 `drop-over`，进入 `drop-pending`；其余目标照常 `drop-out` / `drop-disarmed`、撤命中；
+   - 源仍是 lifted（`<Show on="lift">` 照旧，`drop` 还没发）；`UI.Drag.IsPending` 为 true，`IsDragging` 为 false。
+2. **等待期间不能拿起新东西**：所有拖源的按下照常转发 —— 点击、滚动不受影响。
+3. `e.Accept(apply)`：结构复位 → 执行 `apply`（在这里推送）→ 结算（§7.6 第 4 步：落点控件从停靠处飞进去，`Land` / `Fly`
+   记下的一起结算）→ 目标 `receive`、源 `drop`、目标 `drop-out`、`OnEnd(Dropped)`。`apply` 抛异常照样记日志并继续复位。
+4. `e.Reject()`：结构复位 → 源从停靠处飞回家 → 源 `drop`、目标 `drop-out`、`OnEnd(Returned)`。
+5. **等待被打断**（「结构变动期间没有悬空的东西」照旧成立）：
+   - 推送 / 清表到源所在的列表、任何 ReSolve、目标所在 Screen 关闭：**放开停靠** —— 结构立即复位、摘抬层、源回家，但放下
+     仍在等确认：之后 `Accept` 照样执行 `apply`、照样从停靠时记下的矩形播落地动画，`Reject` 照样让源从那里飞回；
+   - 源被销毁、源所在 Screen 开始关闭、`UI.Drag.Cancel()`、等待超时：等待**结束**（`OnEnd(Cancelled)`，目标 `drop-out`，
+     不再挡新的拿起）；超时另记一条警告；
+   - Esc 不打断等待 —— 请求已经发出去了。
+6. **`Accept(apply)` 一定执行 `apply`**：等待结束之后、或已经被 `Reject` 过，也照样执行（数据还是要改），只是不再有动画。
+   同一次放下第二次 `Accept` / `Reject` 只执行 `apply`、不做别的；`Defer` 只能在 `OnDrop` 回调里调（之后调抛异常）。
+7. **超时**：`UI.Drag.PendingTimeout`（秒，默认 10，`0` = 不限）。忘了调 `Accept` / `Reject`（异步里抛了异常）也不会把拖放
+   永远锁住。调用方自己的请求超时应短于它。
+
 ## 8. lint
 
 | 代码 | 条件 | 哪一遍 |
@@ -511,7 +569,7 @@ drag / end 事件吞掉（不转发 —— 半途交给 ScrollRect 一个没有 
 | `PUI-DRAG-REORDER` | `drag=` 写在 `reorder="true"`（任何 variant）的 `<ScrollList>` 的行上或行里 | expanded |
 | `PUI-DRAG-VIRTUAL` | `drag=` 在 `virtualize="true"` 的 `<ScrollList>` 的行里 | expanded |
 | `PUI-DRAG-CAROUSEL-CARD` | `drag=` 写在 `<Carousel>` 的卡根上（应写在卡里面） | expanded |
-| `PUI-DROP-NO-SOURCE` | 裸 `drop-armed` / `drop-disarmed` / `drop-over` / `drop-deny` / `drop-out` / `receive` 没有 `drop=` 祖先（或自身）；模板体、`@id` 形式免检 | raw |
+| `PUI-DROP-NO-SOURCE` | 裸 `drop-armed` / `drop-disarmed` / `drop-over` / `drop-deny` / `drop-out` / `drop-pending` / `receive` 没有 `drop=` 祖先（或自身）；模板体、`@id` 形式免检 | raw |
 | `PUI-LIFT-NO-SOURCE`（扩展） | 裸 `lift` / `drop` 既没有 `<ScrollList>` 祖先，也没有 `drag=` 祖先（或自身） | raw |
 
 - 规则放 `Core/Lint/DragDropRules.cs`（纯 C#，不碰 Unity 类型）；后两条扩在 `StateTriggerRules.cs`。`IRWalker`（CLI error）
@@ -582,11 +640,12 @@ EditMode（`Tests/EditMode/Controls/DragDropTests.cs`）：事件用手拼的 `P
     `DismissBelow`（打开模态）、Esc（EscapeChain 的测试按键入口）、`UI.Drag.Cancel()`。
 11. 第二根指针的事件不进会话；会话中另一个拖源的按下照常转发。
 12. **跨 Screen**：源在 Screen A、目标在 Screen B → 事件带两个 Screen；B 关闭 → 它的目标出表、悬停清空、会话继续。
-13. **挂钩**：`lift` / `drop` 近者胜（拖源在列表行里）；`on="lift"` 挂钩关掉默认外观；目标外的裸 `drop-over` 抛；
+13. **等确认**：`Defer` → 源停靠在目标上方（出流、抬层、placeholder 在家）、目标 `drop-pending` + `drop-over`、其余目标解除、`IsPending`；等待中按下拖源 → 转发；`Accept(apply)` → 先复位再执行 `apply`（在 `apply` 里断言结构已复位）、落地、`receive`、`OnEnd(Dropped)`；`Reject` → 源回家；等待中推送到源列表 → 放开停靠、`Accept` 仍执行 `apply` 并落地；源 Dispose / `Cancel()` / 超时（`TickForTests` 推过 `PendingTimeout`）→ `OnEnd(Cancelled)`、之后 `Accept` 只执行 `apply`；重复结算；`Defer` 在回调外调用抛异常。
+14. **挂钩**：`lift` / `drop` 近者胜（拖源在列表行里）；`on="lift"` 挂钩关掉默认外观；目标外的裸 `drop-over` 抛；
     `<Show on="receive">` 抛；`drop-disarmed` / `drop-out` 在打开时确立、不触发普通 `<Trigger>`。
-14. **自动滚动**：指针在含 armed 目标的列表边缘 → Content 移动、悬停重算、源仍在手指下。
-15. **Carousel**：拖动期间 autoplay 暂停，结束恢复。
-16. **回归**：M0 之后 `ScrollListReorderTests` 一行断言不改、全绿。
+15. **自动滚动**：指针在含 armed 目标的列表边缘 → Content 移动、悬停重算、源仍在手指下。
+16. **Carousel**：拖动期间 autoplay 暂停，结束恢复。
+17. **回归**：M0 之后 `ScrollListReorderTests` 一行断言不改、全绿。
 
 Lint（`Tests/EditMode/Lint/DragDropRulesTests.cs`）：§8 每个代码一正一反；模板体 / `@id` 免检；拖源里的裸 `lift` 不报
 `PUI-LIFT-NO-SOURCE`。XSD：生成器测试断言五个属性在 `commonAttrs` 里。
@@ -633,6 +692,9 @@ PlayMode（`Tests/PlayMode/Controls/DragDropPlayTests.cs`，真 `EventSystem` + 
 | DND-D15 | 时间一律 unscaled | P24 | — |
 | DND-D16 | 拿起时给 `pointerPress` 补 `pointerUp` | P12 | reorder 的「不干预」 |
 | DND-D17 | 手柄 / 键盘拖放不进 v1，但会话核心与输入无关 | 范围；v2 只需再加一个驱动 | v1 一起做 |
+| DND-D18 | 等确认：`e.Defer()` / `e.Accept(apply)` / `e.Reject()`；停靠在目标上方；目标 `drop-pending` | 服务器裁决的阵形 / 装备（作者追加）；`Accept(apply)` 把「复位 → 推送 → 落地」的顺序握在库手里 | 只有乐观写法 + `Reject` |
+| DND-D19 | 等待期间全局不能拿起新东西；`PendingTimeout` 默认 10s 兜底 | 服务器按序裁决，界面不出现交错的中间态；忘了结算也不会永远锁死 | 只锁被停靠的那一个 |
+| DND-D20 | 等待被结构变动打断 = 放开停靠、仍在等；源没了 / 关屏 / 超时 = 结束等待；`Accept` 一定执行 `apply` | 结构变动期间不留悬空的东西；服务器确认的数据不能因为界面动了就丢 | 打断即作废（确认后的推送就没了动画以外的保障） |
 
 ## 14. 非目标 / v2
 
@@ -654,6 +716,6 @@ PlayMode（`Tests/PlayMode/Controls/DragDropPlayTests.cs`，真 `EventSystem` + 
 - **M0 抽共享件**：`LiftGesture` / `FlowPlaceholder` / `EdgeAutoScroller` / `LiftLook`；`ReorderDriver` 改用它们；
   reorder 的全部测试原样绿。
 - **M1 会话 + 事件**：属性、`DragSource`、`DragSession`、武装 / 悬停（测试缝）/ 松手 / 取消、`UI.Drag` 与 `OnDrop` 契约、
-  EditMode 测试 1–12、16。
-- **M2 视觉**：抬层 Canvas、结算飞行、源 / 目标挂钩、默认外观、自动滚动、Carousel；EditMode 13–15；PlayMode 1–5。
+  EditMode 测试 1–12、17。
+- **M2 视觉**：抬层 Canvas、结算飞行、源 / 目标挂钩、默认外观、自动滚动、Carousel、等确认；EditMode 13–16；PlayMode 1–5。
 - **M3 lint + XSD + 文档 + 演示**。
