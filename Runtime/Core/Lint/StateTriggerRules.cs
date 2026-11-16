@@ -40,7 +40,7 @@ namespace PromptUGUI.Lint
         /// Yields <see cref="NoListRowCode"/> when <paramref name="n"/> is a bare (no-<c>@id</c>)
         /// <c>lift</c> / <c>drop</c> trigger with no <c>&lt;ScrollList&gt;</c> ancestor — the row it
         /// would resolve upward to does not exist, and the runtime hard-throws
-        /// (<c>TriggerSourceResolver.FindReorderRow</c>). Same exemptions as the other upward
+        /// (<c>TriggerSourceResolver.FindLiftSource</c>). Same exemptions as the other upward
         /// rules: Template bodies and <c>@id</c> forms are left to runtime.
         /// </summary>
         public static IEnumerable<LintIssue> CheckListRowSource(ElementNode n, bool hasListAncestor)

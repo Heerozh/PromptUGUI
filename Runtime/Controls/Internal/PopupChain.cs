@@ -192,6 +192,8 @@ namespace PromptUGUI.Controls.Internal
         /// </summary>
         internal static void DismissBelow(int sortingOrder)
         {
+            // The same signal ends a drag from below the new layer (spec 2026-11-16-drag-drop, 7.7).
+            DragSession.OnLayerAbove(sortingOrder);
             PuiDropdown.HideBelow(sortingOrder);
             Prune();
             // Nested entries share their ancestor's root canvas, so the lowest covered one decides.
@@ -211,6 +213,9 @@ namespace PromptUGUI.Controls.Internal
         internal static void DismissUnder(Transform root, PopupCloseReason reason = PopupCloseReason.HostGone)
         {
             if (root == null) return;
+            // A Screen closing, a row handed to another item: no drag goes on carrying something from there
+            // (spec 2026-11-16-drag-drop, 7.7).
+            DragSession.BeforeStructureChange(root);
             Prune();
             for (var i = 0; i < s_stack.Count; i++)
             {

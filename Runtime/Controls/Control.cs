@@ -907,6 +907,238 @@ namespace PromptUGUI.Controls
             }
         }
 
+        // ───── drag and drop (spec 2026-11-16-drag-drop §5–§7) ─────
+
+        /// <summary>
+        /// What this control stands for in a drag and drop — the item a source carries, the slot a target is.
+        /// C# only; read into <see cref="DragInfo.Data"/> / <see cref="DragInfo.TargetData"/>.
+        /// </summary>
+        public object DragData { get; set; }
+
+        /// <summary>
+        /// As a target: whether it takes the drag in <see cref="DragInfo"/> (its <see cref="DragInfo.Target"/> is this
+        /// control), on top of the <c>drop=</c> kinds. Asked once per drag, when it is lifted; null = yes. A refusal
+        /// shows as <c>drop-deny</c> while the drag hovers here.
+        /// </summary>
+        public System.Func<DragInfo, bool> CanDrop { get; set; }
+
+        private R3.Subject<DropEvent> _drop;
+
+        /// <summary>
+        /// As a target: an accepted drop landed here. Raised before <c>UI.Drag.OnDrop</c>, with the structure already
+        /// back to normal — push the new data right there, or <see cref="DropEvent.Defer"/>.
+        /// </summary>
+        public R3.Observable<DropEvent> OnDrop => _drop ??= new R3.Subject<DropEvent>();
+
+        internal void RaiseDrop(DropEvent e) => _drop?.OnNext(e);
+
+        internal const float DefaultDragDuration = 0.18f;
+
+        private string _dragKind;
+        private string _dropKinds;
+        private Internal.DragSource _dragSource;
+        private Internal.DropTargetMarker _dropTarget;
+
+        /// <summary>
+        /// <c>drag</c>: this control can be picked up and dragged; the kind decides which <c>drop</c> targets take it.
+        /// null / <c>"none"</c> = not draggable. A bad value is reported (<c>PUI-DRAG-VALUE</c>) and the previous one kept.
+        /// </summary>
+        [UIAttr("drag"), Preserve]
+        public string DragKind
+        {
+            get => _dragKind;
+            set
+            {
+                if (!PromptUGUI.Lint.DragDropRules.TryParseKind(value, out var kind, out var error))
+                {
+                    PromptUGUI.Application.UILog.Warn(this,
+                        $"[{PromptUGUI.Lint.DragDropRules.ValueCode}] drag='{value}' {error}; keeping " +
+                        (_dragKind == null ? "none." : $"'{_dragKind}'."));
+                    return;
+                }
+                if (kind == _dragKind) return;
+                _dragKind = kind;
+                if (kind != null) EnsureDragSource();
+                SetDragHit(persistent: kind != null);
+                if (kind == null) Internal.DragSession.OnSourceTurnedOff(this);
+            }
+        }
+
+        /// <summary>
+        /// <c>drop</c>: the kinds this control takes, separated by spaces or commas; <c>*</c> = any kind; null /
+        /// <c>"none"</c> = none.
+        /// </summary>
+        [UIAttr("drop"), Preserve]
+        public string DropKinds
+        {
+            get => _dropKinds;
+            set
+            {
+                if (!PromptUGUI.Lint.DragDropRules.TryParseDropKinds(value, out var kinds, out var any, out var error))
+                {
+                    PromptUGUI.Application.UILog.Warn(this,
+                        $"[{PromptUGUI.Lint.DragDropRules.ValueCode}] drop='{value}': {error}; keeping " +
+                        (_dropKinds == null ? "none." : $"'{_dropKinds}'."));
+                    return;
+                }
+                var on = kinds != null || any;
+                _dropKinds = on ? value.Trim() : null;
+                if (on) EnsureDropTarget().SetKinds(kinds, any);
+                else if (_dropTarget != null) _dropTarget.SetKinds(null, false);
+            }
+        }
+
+        /// <summary>Seconds the pointer must stay down before a lift; &lt; 0 = <c>auto</c> (spec §5.1).</summary>
+        internal float DragHold { get; private set; } = -1f;
+
+        /// <summary>Id of the node a lift has to start on; null = anywhere on the source.</summary>
+        internal string DragHandle { get; private set; }
+
+        /// <summary>Length of the landing / going-home flight.</summary>
+        internal float DragDuration { get; private set; } = DefaultDragDuration;
+
+        /// <summary><c>dragHold</c>: <c>auto</c> (mouse 0, a finger in a scroller 0.4s) or a duration.</summary>
+        [UIAttr("dragHold"), Preserve]
+        public string DragHoldAttr
+        {
+            set
+            {
+                if (string.IsNullOrEmpty(value) || value.Trim() == "auto")
+                {
+                    DragHold = -1f;
+                    return;
+                }
+                if (TryParseDragSeconds(value, out var s)) DragHold = s;
+                else
+                    PromptUGUI.Application.UILog.Warn(this,
+                        $"[{PromptUGUI.Lint.DragDropRules.ValueCode}] dragHold='{value}' is not 'auto' or a duration " +
+                        "(0.4s / 400ms / 0.4); keeping the previous value.");
+            }
+        }
+
+        /// <summary><c>dragHandle</c>: id of the node inside the source a lift has to start on.</summary>
+        [UIAttr("dragHandle"), Preserve]
+        public string DragHandleAttr
+        {
+            set => DragHandle = string.IsNullOrEmpty(value) ? null : value.Trim();
+        }
+
+        /// <summary><c>dragDuration</c>: the landing / going-home flight; <c>0</c> = instant.</summary>
+        [UIAttr("dragDuration"), Preserve]
+        public string DragDurationAttr
+        {
+            set
+            {
+                if (TryParseDragSeconds(value, out var s)) DragDuration = s;
+                else
+                    PromptUGUI.Application.UILog.Warn(this,
+                        $"[{PromptUGUI.Lint.DragDropRules.ValueCode}] dragDuration='{value}' is not a duration " +
+                        "(0.18s / 180ms / 0.18); keeping the previous value.");
+            }
+        }
+
+        private static bool TryParseDragSeconds(string value, out float seconds)
+        {
+            seconds = 0f;
+            if (value == null || !PromptUGUI.Lint.DragDropRules.IsDuration(value, allowAuto: false)) return false;
+            seconds = Mathf.Max(0f, Internal.AnimationSpec.ParseSeconds(value));
+            return true;
+        }
+
+        /// <summary>The target marker, once this control declared <c>drop</c>.</summary>
+        internal Internal.DropTargetMarker DropTarget => _dropTarget;
+
+        /// <summary>
+        /// The gesture component of a drag source — installed when the XML declares <c>drag</c> in any variant
+        /// (<c>ScreenInstantiator</c>, before the hooks inside resolve) or when the kind is set.
+        /// </summary>
+        internal Internal.DragSource EnsureDragSource()
+        {
+            if (_dragSource != null) return _dragSource;
+            if (GameObject == null) return null;
+            _dragSource = GameObject.GetComponent<Internal.DragSource>();
+            if (_dragSource == null) _dragSource = GameObject.AddComponent<Internal.DragSource>();
+            _dragSource.Owner = this;
+            return _dragSource;
+        }
+
+        /// <summary>The marker of a drop target — installed like <see cref="EnsureDragSource"/>.</summary>
+        internal Internal.DropTargetMarker EnsureDropTarget()
+        {
+            if (_dropTarget != null) return _dropTarget;
+            if (GameObject == null) return null;
+            _dropTarget = GameObject.GetComponent<Internal.DropTargetMarker>();
+            if (_dropTarget == null) _dropTarget = GameObject.AddComponent<Internal.DropTargetMarker>();
+            _dropTarget.Owner = this;
+            Internal.DragSession.Register(_dropTarget);
+            return _dropTarget;
+        }
+
+        private bool _dragHitPersistent;
+        private bool _dragHitSession;
+        private Internal.HitCatcher _dragCatcher;
+        private UnityEngine.UI.Graphic _dragForced;
+        private bool _dragForcedPrev;
+
+        /// <summary>
+        /// The two reasons drag and drop needs this node hit-testable (spec §7.3): <paramref name="persistent"/> — it is
+        /// a source and has to catch its press; <paramref name="session"/> — it is a target armed for (or refusing) the
+        /// current drag. A session hit overrides an authored <c>raycastTarget="false"</c>; a source's does not.
+        /// </summary>
+        internal void SetDragHit(bool? persistent = null, bool? session = null)
+        {
+            if (persistent.HasValue) _dragHitPersistent = persistent.Value;
+            if (session.HasValue) _dragHitSession = session.Value;
+            ApplyDragHit(_dragHitPersistent, _dragHitSession);
+        }
+
+        /// <summary>Re-asserted after every attribute pass: the pass may have rewritten the graphic's raycastTarget.</summary>
+        internal void ReapplyDragHit()
+        {
+            if (_dragHitPersistent || _dragHitSession || _dragCatcher != null || _dragForced != null)
+                ApplyDragHit(_dragHitPersistent, _dragHitSession);
+        }
+
+        /// <summary>
+        /// Makes this node hit-testable for drag and drop, or hands hit testing back. The default: a node with no
+        /// Graphic of its own gets a geometry-less <see cref="Internal.HitCatcher"/> (disabled, not removed, when not
+        /// wanted — the controls using this default never grow a Graphic later); one with a Graphic has its
+        /// <c>raycastTarget</c> forced on and put back. <c>Frame</c> / <c>Image</c> / <c>RawImage</c> / <c>Text</c>
+        /// fold the request into their own <c>raycastTarget</c> decision instead.
+        /// </summary>
+        private protected virtual void ApplyDragHit(bool persistent, bool session)
+        {
+            var want = persistent || session;
+            var go = GameObject;
+            if (go == null) return;
+            if (want)
+            {
+                if (_dragCatcher != null)
+                {
+                    _dragCatcher.enabled = true;
+                    return;
+                }
+                var g = go.GetComponent<UnityEngine.UI.Graphic>();
+                if (g == null)
+                {
+                    _dragCatcher = go.AddComponent<Internal.HitCatcher>();
+                    _dragCatcher.raycastTarget = true;
+                    return;
+                }
+                if (_dragForced != null) return;
+                _dragForced = g;
+                _dragForcedPrev = g.raycastTarget;
+                g.raycastTarget = true;
+                return;
+            }
+            if (_dragCatcher != null) _dragCatcher.enabled = false;
+            if (_dragForced != null)
+            {
+                _dragForced.raycastTarget = _dragForcedPrev;
+                _dragForced = null;
+            }
+        }
+
         /// <summary>把 R3 订阅绑到本 Control 生命周期（卡片重建 / 关窗时随 Dispose 释放）。对称 Screen.Track。</summary>
         public void Track(System.IDisposable d)
             => (_subscriptions ??= new System.Collections.Generic.List<System.IDisposable>()).Add(d);
@@ -919,6 +1151,8 @@ namespace PromptUGUI.Controls
         /// </summary>
         internal void ReleaseSubscriptions()
         {
+            // About to be re-bound to another item, or destroyed: a drag carrying it ends first (spec 2026-11-16 §7.7).
+            Internal.DragSession.OnReleased(this);
             if (_subscriptions != null)
             {
                 for (int i = _subscriptions.Count - 1; i >= 0; i--) _subscriptions[i]?.Dispose();
@@ -933,6 +1167,8 @@ namespace PromptUGUI.Controls
         {
             // 先退订（自身 + 子树）——teardown 可能读 GO；避免往半销毁 GO fire。
             ReleaseSubscriptions();
+            _drop?.Dispose();
+            _drop = null;
             if (HostGameObject == null) return;
             // 与 Screen.Close 一致：EditMode 用 DestroyImmediate。
             if (UnityEngine.Application.isPlaying) Object.Destroy(HostGameObject);

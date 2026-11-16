@@ -201,13 +201,28 @@ namespace PromptUGUI.Controls
                 case TriggerKind.Lift:
                 case TriggerKind.Drop:
                     {
-                        // The row of a <ScrollList reorder>, resolved upward. Inert in a list that never
-                        // turns reorder on — the marker simply never fires. A lift hook is also the
+                        // The nearest drag= source or <ScrollList> row, resolved upward. Inert while nothing
+                        // lifts it — a list without reorder, a source with drag="none". A lift hook is also the
                         // author taking the lifted look over from the driver (spec 2026-09-16 §4.3).
-                        var row = Internal.TriggerSourceResolver.FindReorderRow(this, spec.SourceId);
-                        if (spec.Kind == TriggerKind.Lift) row.NoteLiftHook();
-                        var stream = spec.Kind == TriggerKind.Lift ? row.OnLifted : row.OnDropped;
+                        var lifted = Internal.TriggerSourceResolver.FindLiftSource(this, spec.SourceId);
+                        if (spec.Kind == TriggerKind.Lift) lifted.NoteLiftHook();
+                        var stream = spec.Kind == TriggerKind.Lift ? lifted.OnLifted : lifted.OnDropped;
                         return stream.Subscribe(_ => onFire());
+                    }
+                case TriggerKind.DropArmed:
+                case TriggerKind.DropDisarmed:
+                case TriggerKind.DropOver:
+                case TriggerKind.DropDeny:
+                case TriggerKind.DropOut:
+                case TriggerKind.DropPending:
+                case TriggerKind.Receive:
+                    {
+                        // A drop= target, resolved upward (spec 2026-11-16-drag-drop §5.3). The state found at open
+                        // (disarmed, out) is established like ready / cooling: an <Animation> lands on its end, a
+                        // plain <Trigger> stays silent.
+                        var target = Internal.TriggerSourceResolver.FindDropTarget(this, spec.SourceId);
+                        if (spec.Kind != TriggerKind.Receive && target.InState(spec.Kind)) onEstablish?.Invoke();
+                        return target.StreamFor(spec.Kind).Subscribe(_ => onFire());
                     }
                 case TriggerKind.Close:
                     {

@@ -1292,6 +1292,8 @@ namespace PromptUGUI.Application
             Router.ResetForTestsInternal();
             Tutorial.ResetForTestsInternal();
             Navigation.ResetForTestsInternal();
+            // Before any Screen is torn down: a live drag puts its source back first.
+            Controls.Internal.DragSession.ResetForTests();
             Controls.Internal.PopupChain.ResetForTests();
             Controls.Internal.PopupCore.ResetDepthWarningForTests();
             Controls.Internal.OutsidePressProbe.ResetForTests();

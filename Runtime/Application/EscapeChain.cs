@@ -87,6 +87,9 @@ namespace PromptUGUI.Application
             // A Block step lets nothing through — not even the popup it may be pointing into.
             if (UI.Tutorial.IsBlockingInput) return true;
 
+            // A drag in progress goes back where it came from, and the press is spent (spec 2026-11-16-drag-drop, 7.7).
+            if (DragSession.TryEscape()) return true;
+
             // An open <Dropdown> list sorts above everything, so it is always what the user sees.
             if (PuiDropdown.HideExpanded()) return true;
 

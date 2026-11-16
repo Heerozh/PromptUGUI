@@ -12,6 +12,8 @@ namespace PromptUGUI.Template
             "anchor", "size", "width", "height", "margin", "pivot",
             "padding", "spacing",
             "hidden", "interactable",
+            // Drag and drop (spec 2026-11-16-drag-drop, 5.1): <Card drag="unit"/> drags the instance.
+            "drag", "drop", "dragHold", "dragHandle", "dragDuration",
             // Lint-only (PUI-FONT-FLOOR's node-level floor); lands on the instance root so it covers
             // the whole instance. The runtime skips it like any attribute no control declares.
             "fontFloor",

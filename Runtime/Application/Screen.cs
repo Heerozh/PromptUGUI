@@ -1168,6 +1168,9 @@ namespace PromptUGUI.Application
             // .Changed)都不应再触达 ReSolve 解引用已销毁的 RootGameObject。哨兵(relay.OnDestroy)
             // 正常会先反订阅,这里是兜底:EditMode 不跑 OnDestroy、或哨兵时序未及的路径也安全。
             if (RootGameObject == null) return;
+            // Variant, theme, orientation and locale are global: no drag goes on over a structure being re-applied
+            // (spec 2026-11-16-drag-drop, 7.7).
+            Controls.Internal.DragSession.OnReSolve();
             ReMergeThemeStyles();
             // Collect nodes belonging to currently-inactive Add blocks so we can skip
             // re-applying attributes to them below. Their SetActive(false) state must not be

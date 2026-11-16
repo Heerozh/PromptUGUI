@@ -131,17 +131,48 @@ namespace PromptUGUI.Controls
         {
             set
             {
-                if (value) Panel.SetRaycastTarget(true);
-                else if (_panel != null) _panel.SetRaycastTarget(false);
+                _authoredRaycast = value;
+                SyncRaycast();
             }
         }
+
+        // What this pass declared (null = nothing), and drag and drop's two reasons for a hit (spec
+        // 2026-11-16-drag-drop §7.3): a drag source must catch its press — an explicit false still wins,
+        // reported once; a drop target armed for the current drag must be found under the pointer — that one
+        // wins for the drag's length. A colourless Frame then hangs the transparent catcher panel.
+        private bool? _authoredRaycast;
+        private bool _dragHitSource;
+        private bool _dragHitSession;
+        private bool _dragRaycastWarned;
 
         // Cleared per pass (same rule as ProceduralSurface.BeginPass): a variant-only
         // raycastTarget.mobile must turn off again when the variant leaves, and a setter that does
         // not run is the only signal that the attribute is gone.
         internal override void OnBeforeApply()
         {
-            if (_panel != null) _panel.SetRaycastTarget(false);
+            _authoredRaycast = null;
+            SyncRaycast();
+        }
+
+        private protected override void ApplyDragHit(bool persistent, bool session)
+        {
+            _dragHitSource = persistent;
+            _dragHitSession = session;
+            SyncRaycast();
+        }
+
+        private void SyncRaycast()
+        {
+            var on = _dragHitSession || (_authoredRaycast ?? _dragHitSource);
+            if (on) Panel.SetRaycastTarget(true);
+            else if (_panel != null) _panel.SetRaycastTarget(false);
+            if (_authoredRaycast == false && _dragHitSource && !_dragRaycastWarned)
+            {
+                _dragRaycastWarned = true;
+                UILog.Warn(this,
+                    "<Frame raycastTarget=\"false\"> is a drag source (drag=), so it can never be picked up. Drop " +
+                    "raycastTarget=\"false\", or put drag= on a node that catches the pointer.");
+            }
         }
 
         /// <summary>
