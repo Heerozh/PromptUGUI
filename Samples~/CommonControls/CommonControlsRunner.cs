@@ -250,6 +250,30 @@ namespace PromptUGUI.Samples.CommonControls
                 order.Value = next;
                 UI.Toast.Show(string.Format(UI.Tr("{0} 移到第 {1} 位"), UI.Tr(moved), e.To + 1));
             }).AddTo(screen);
+
+            // 作物橱窗的拖放（<CropPlot>：格子 drop="crop"、格里的作物 drag="crop"）。DragData 记着每张图是什么作物
+            // （与 XML 里的顺序一致）；放到另一格 = 两边交换。放下时结构已经复位，就在回调里改：
+            // 目标格换上拖来的作物（库让它从松手处飞进去），原格换上被换走的那个，e.Fly 让它从目标格飞回来。
+            string[] crops =
+            {
+                "farm:carrot", "farm:tomato", "farm:wheat", "farm:apple", "farm:corn", "farm:pumpkin",
+                "farm:strawberry", "farm:eggplant", "farm:sunflower", "farm:grape", "farm:watermelon", "farm:turnip",
+            };
+            var plots = screen.Get<PromptUGUI.Controls.Grid>("crops").Children;
+            for (var i = 0; i < plots.Count && i < crops.Length; i++)
+                plots[i].Get<PromptUGUI.Controls.Image>("crop").DragData = crops[i];
+            UI.Drag.OnDrop.Where(e => e.Kind == "crop").Subscribe(e =>
+            {
+                var from = (PromptUGUI.Controls.Image)e.Source;
+                var to = e.Target.Get<PromptUGUI.Controls.Image>("crop");
+                var carried = (string)from.DragData;
+                var displaced = (string)to.DragData;
+                to.DragData = carried;
+                to.Sprite = carried;
+                from.DragData = displaced;
+                from.Sprite = displaced;
+                e.Fly(from, from: e.Target);
+            }).AddTo(screen);
         }
 
         // ④ 模态提示：四种内置模态 + Toast，结果用 Toast 回显

@@ -180,6 +180,8 @@ namespace PromptUGUI.Controls.Internal
 
         private void KeyedRebuild(IItemBinding binding, int count)
         {
+            // Rows are about to be re-bound: a drag carrying one of them ends first (spec 2026-11-16-drag-drop, 7.7).
+            DragSession.BeforeStructureChange(_itemHost());
             if (_factory == null) _factory = ResolveFactory(_itemTemplate);
             var previous = SelectedTab;
             _bound = true;
@@ -260,6 +262,7 @@ namespace PromptUGUI.Controls.Internal
         private void Rebuild<T, TSlot>(IReadOnlyList<T> items, Action<TSlot, T> bind)
             where TSlot : class, IControl
         {
+            DragSession.BeforeStructureChange(_itemHost());
             if (_factory == null) _factory = ResolveFactory(_itemTemplate);
             ClearRows();
             _keyed = null;

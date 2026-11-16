@@ -353,33 +353,67 @@ namespace PromptUGUI.Controls.Internal
         }
 
         /// <summary>
-        /// Finds the <see cref="ReorderRowMarker"/> of the <c>&lt;ScrollList&gt;</c> row a <c>lift</c> /
-        /// <c>drop</c> trigger lives in (spec 2026-09-16 §4.2). Resolves <b>upward</b> like
-        /// <see cref="FindExpandable"/>: the row is the child of the list's Content on the way up
-        /// (Content carries a <see cref="ScrollListContentMarker"/> from the moment the list exists),
-        /// and the row's marker is created here on first use — a row without hooks never gets one,
-        /// which is how the driver knows to apply its own lift look.
+        /// Finds the <see cref="LiftMarker"/> of what a <c>lift</c> / <c>drop</c> trigger belongs to: the nearest,
+        /// walking up from the trigger itself, of a <c>drag=</c> source (spec 2026-11-16-drag-drop §5.2) or a
+        /// <c>&lt;ScrollList&gt;</c> row (spec 2026-09-16 §4.2). Resolves <b>upward</b> like
+        /// <see cref="FindExpandable"/>. A drag source carries its <c>DragSource</c> from the moment it is
+        /// attached and a row is the child of the list's Content (marked from the moment the list exists), so
+        /// both are recognisable while the subtree is still being applied. The marker is created here on first
+        /// use — one without hooks never gets one, which is how the drivers know to apply their own lift look.
         /// </summary>
         /// <param name="trigger">触发器控件</param>
-        /// <param name="sourceId">空 → 从触发器自身向上找；非空 → 词法作用域找到该控件，再从它向上找所在的行</param>
-        public static ReorderRowMarker FindReorderRow(Trigger trigger, string sourceId)
+        /// <param name="sourceId">空 → 从触发器自身向上找；非空 → 词法作用域找到该控件，再从它向上找</param>
+        public static LiftMarker FindLiftSource(Trigger trigger, string sourceId)
         {
             var start = string.IsNullOrEmpty(sourceId)
                 ? trigger.GameObject.transform
                 : ResolveId(trigger, sourceId, "lift/drop").GameObject.transform;
 
-            for (var t = start; t != null && t.parent != null; t = t.parent)
+            for (var t = start; t != null; t = t.parent)
             {
-                if (t.parent.GetComponent<ScrollListContentMarker>() == null) continue;
-                return t.gameObject.GetComponent<ReorderRowMarker>()
-                       ?? t.gameObject.AddComponent<ReorderRowMarker>();
+                var isSource = t.GetComponent<DragSource>() != null;
+                var isRow = t.parent != null && t.parent.GetComponent<ScrollListContentMarker>() != null;
+                if (!isSource && !isRow) continue;
+                // Explicit null check, not `??`: in the Editor a missing component is a fake null that `??` keeps.
+                var marker = t.gameObject.GetComponent<LiftMarker>();
+                if (marker == null) marker = t.gameObject.AddComponent<LiftMarker>();
+                return marker;
             }
 
             var label = string.IsNullOrEmpty(sourceId) ? "lift\"/\"drop" : $"lift@{sourceId}";
             throw new InvalidOperationException(
-                $"<Trigger on=\"{label}\"> in '{trigger.Id ?? trigger.GameObject.name}': no <ScrollList> row " +
-                "ancestor found. lift / drop are the events of a list row being dragged — place the trigger " +
-                "inside a row (a <ScrollList> child or its itemTemplate), or point lift@<id> at a node in one.");
+                $"<Trigger on=\"{label}\"> in '{trigger.Id ?? trigger.GameObject.name}': no drag source (drag=) or " +
+                "<ScrollList> row around it. lift / drop are the events of something being picked up — place the " +
+                "trigger on or inside a drag= control or a list row, or point lift@<id> at a node in one.");
+        }
+
+        /// <summary>
+        /// Finds the <c>drop=</c> target a <c>drop-armed</c> / <c>drop-disarmed</c> / <c>drop-over</c> / <c>drop-deny</c> /
+        /// <c>drop-out</c> / <c>drop-pending</c> / <c>receive</c> trigger listens to (spec 2026-11-16-drag-drop §5.3):
+        /// the nearest one up from the trigger itself, or the one <c>@id</c> names.
+        /// </summary>
+        public static DropTargetMarker FindDropTarget(Trigger trigger, string sourceId)
+        {
+            if (string.IsNullOrEmpty(sourceId))
+            {
+                // includeInactive: a target's state blocks may sit in a subtree that is switched off.
+                var found = trigger.GameObject.GetComponentInParent<DropTargetMarker>(true);
+                if (found == null)
+                    throw new InvalidOperationException(
+                        $"<Trigger on=\"drop-…\"/\"receive\"> in '{trigger.Id ?? trigger.GameObject.name}': no drop= " +
+                        "target around it. These are the states of a drop target — place the trigger on or inside a " +
+                        "control with drop=, or point it at one with @<id>.");
+                return found;
+            }
+
+            var ctrl = ResolveId(trigger, sourceId, "drop-…");
+            var marker = ctrl is Control c ? c.DropTarget : null;
+            if (marker == null && ctrl.GameObject != null) marker = ctrl.GameObject.GetComponent<DropTargetMarker>();
+            if (marker == null)
+                throw new InvalidOperationException(
+                    $"<Trigger on=\"…@{sourceId}\">: id '{sourceId}' is a {ctrl.GetType().Name} with no drop=. " +
+                    "drop-… / receive need a drop target.");
+            return marker;
         }
     }
 }

@@ -436,6 +436,11 @@ namespace PromptUGUI.Application
                          .Configure(textControl.TmpComponent, control.RectTransform);
                 control.LayoutHost = wrapperRt;
             }
+            // Drag and drop (spec 2026-11-16-drag-drop §7.3): a declared source / target gets its component now, in
+            // ANY variant — the hooks inside it resolve during this build's DFS post-order apply, before its own
+            // setters have run, and walk up the GameObjects to find it.
+            if (DragDropRules.Declares(node, "drag")) control.EnsureDragSource();
+            if (DragDropRules.Declares(node, "drop")) control.EnsureDropTarget();
             parentControl?.AddChild(control);
 
             if (!string.IsNullOrEmpty(node.Id))

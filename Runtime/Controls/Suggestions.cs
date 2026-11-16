@@ -670,6 +670,8 @@ namespace PromptUGUI.Controls
         /// </summary>
         private void Rebuild(IItemBinding binding, int count)
         {
+            // Rows are about to be re-bound: a drag carrying one of them ends first (spec 2026-11-16-drag-drop, 7.7).
+            DragSession.BeforeStructureChange(_content);
             var full = _rowsTemplate != _itemTemplate;
             _rowsTemplate = _itemTemplate;
 

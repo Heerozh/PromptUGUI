@@ -39,6 +39,9 @@ namespace PromptUGUI.Controls
 
         private RaycastIntent _raycast;
 
+        // drag= / drop= fold into the same decision (spec 2026-11-16-drag-drop, 7.3).
+        private protected override void ApplyDragHit(bool persistent, bool session) => _raycast.SetDrag(persistent, session);
+
         /// <summary>
         /// Whether the picture catches the pointer. Default false; a pointer subscriber turns it
         /// on by itself, and an explicit false with a subscriber is reported once (see

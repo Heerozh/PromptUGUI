@@ -44,11 +44,26 @@ namespace PromptUGUI.Controls
             // style like checked, no Normal fallback. drop is a moment, not a state: nothing to show.
             if (_spec.Kind == TriggerKind.Lift)
             {
-                var row = TriggerSourceResolver.FindReorderRow(this, _spec.SourceId);
-                row.NoteLiftHook();
-                row.RegisterLiftShow(() => GameObject.SetActive(row.IsLifted));
+                var lifted = TriggerSourceResolver.FindLiftSource(this, _spec.SourceId);
+                lifted.NoteLiftHook();
+                lifted.RegisterLiftShow(() => GameObject.SetActive(lifted.IsLifted));
                 return;
             }
+            // A drop= target's states (spec 2026-11-16-drag-drop §5.3) — registration style like checked, no
+            // Normal fallback, several blocks may show at once (armed and over).
+            if (_spec.Kind is TriggerKind.DropArmed or TriggerKind.DropDisarmed or TriggerKind.DropOver
+                or TriggerKind.DropDeny or TriggerKind.DropOut or TriggerKind.DropPending)
+            {
+                var target = TriggerSourceResolver.FindDropTarget(this, _spec.SourceId);
+                var kind = _spec.Kind;
+                target.RegisterShow(() => GameObject.SetActive(target.InState(kind)));
+                return;
+            }
+            if (_spec.Kind == TriggerKind.Receive)
+                throw new InvalidOperationException(
+                    $"<Show on=\"{OnRaw()}\">: receive is the moment something lands in a drop target, not a state a " +
+                    "<Show> can track. Use <Animation on=\"receive\"> for a landing effect, or <Show on=\"drop-over\"> " +
+                    "for what shows while something hovers.");
             // "Cooling" / "ready" are states a <Cooldown> is in (spec 2026-10-13 §4.3) — registration
             // style like checked, no Normal fallback, resolved to the nearest Cooldown (§5.8).
             if (_spec.Kind is TriggerKind.Ready or TriggerKind.Cooling)
@@ -90,7 +105,8 @@ namespace PromptUGUI.Controls
                 _ => throw new InvalidOperationException(
                     "<Show> only accepts state-* events (state-normal / state-hover / " +
                     "state-pressed / state-selected / state-disabled), the persistent " +
-                    $"checked / unchecked, expand / collapse or ready / cooling, or lift, got 'on=\"{OnRaw()}\"'."),
+                    "checked / unchecked, expand / collapse or ready / cooling, lift, or a drop target's drop-armed / " +
+                    $"drop-disarmed / drop-over / drop-deny / drop-out / drop-pending, got 'on=\"{OnRaw()}\"'."),
             };
 
             _src = TriggerSourceResolver.FindStateSource(this, _spec.SourceId);
@@ -116,7 +132,8 @@ namespace PromptUGUI.Controls
             TriggerKind.Close => "close",
             TriggerKind.Ready => _spec.SourceId == null ? "ready" : "ready@" + _spec.SourceId,
             TriggerKind.Cooling => _spec.SourceId == null ? "cooling" : "cooling@" + _spec.SourceId,
-            _ => _spec.Kind.ToString(),
+            TriggerKind.Receive => _spec.SourceId == null ? "receive" : "receive@" + _spec.SourceId,
+            _ => _spec.Raw ?? _spec.Kind.ToString(),
         };
 
         // active when: the source is in my state, OR I am the Normal block and the source's current

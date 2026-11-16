@@ -88,6 +88,21 @@ namespace PromptUGUI.Controls.Internal
         public RectTransform StripRect => _strip;
         internal float ScrollForTests => _scroll;   // test seam: observe the live (mid-drag) scroll position
         public int CardCount => _cards.Count;
+
+        /// <summary>A card's content is being dragged (spec 2026-11-16-drag-drop P21): autoplay waits, or the card would slide away under it.</summary>
+        internal bool HeldByDrag;
+
+        /// <summary>The index of the card whose transform is <paramref name="host"/>; -1 when it is not one of them.</summary>
+        internal int IndexOfCard(Transform host)
+        {
+            for (var i = 0; i < _cards.Count; i++)
+            {
+                var card = _cards[i];
+                var rt = card is Control c ? c.LayoutHost : card?.RectTransform;
+                if (rt == host) return i;
+            }
+            return -1;
+        }
         public int CurrentIndex => _current;
 
         public bool Playing
@@ -467,7 +482,7 @@ namespace PromptUGUI.Controls.Internal
         // —— Unity 生命周期 ——
         private void Update()
         {
-            if (!_playing || _interval <= 0f || _cards.Count <= 1 || _dragging || _animating) return;
+            if (!_playing || _interval <= 0f || _cards.Count <= 1 || _dragging || _animating || HeldByDrag) return;
             _elapsed += UnityEngine.Time.unscaledDeltaTime;
             if (_elapsed >= _interval)
             {

@@ -18,6 +18,10 @@ namespace PromptUGUI.Controls
         private string _fontType = "default";
         private bool _autosize;
         private RaycastIntent _raycast;
+
+        // drag= / drop= fold into the same decision (spec 2026-11-16-drag-drop, 7.3).
+        private protected override void ApplyDragHit(bool persistent, bool session) => _raycast.SetDrag(persistent, session);
+
         private Subject<string> _linkClicked;
 
         internal TMP_Text TmpComponent => _tmp;

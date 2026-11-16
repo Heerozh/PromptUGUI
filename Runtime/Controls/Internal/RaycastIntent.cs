@@ -74,13 +74,36 @@ namespace PromptUGUI.Controls.Internal
             Apply();
         }
 
+        private bool _dragSource;
+        private bool _dragSession;
+        private bool _dragWarned;
+
+        /// <summary>
+        /// Drag and drop's two reasons for a hit (spec 2026-11-16-drag-drop §7.3): a <c>drag=</c> source has to catch
+        /// its press — the author's explicit <c>false</c> still wins, reported once; a <c>drop=</c> target armed for
+        /// the current drag has to be found under the pointer — that one wins over the author for the drag's length.
+        /// </summary>
+        internal void SetDrag(bool source, bool session)
+        {
+            _dragSource = source;
+            _dragSession = session;
+            Apply();
+        }
+
         private void Apply()
         {
-            _graphic.raycastTarget = _authored ?? _wanted;
+            _graphic.raycastTarget = _dragSession || (_authored ?? (_wanted || _dragSource));
             if (_authored == false && _wanted && !_warned)
             {
                 _warned = true;
                 UILog.Warn(_owner, $"<{_owner.GetType().Name} raycastTarget=\"false\"> {_contradiction}");
+            }
+            if (_authored == false && _dragSource && !_dragWarned)
+            {
+                _dragWarned = true;
+                UILog.Warn(_owner,
+                    $"<{_owner.GetType().Name} raycastTarget=\"false\"> is a drag source (drag=), so it can never be " +
+                    "picked up. Drop raycastTarget=\"false\", or put drag= on a node that catches the pointer.");
             }
         }
     }

@@ -174,6 +174,22 @@ namespace PromptUGUI.Controls
         /// <summary>The rows in sibling order — static placeholders or <see cref="BindItems{T,TSlot}"/> rows.</summary>
         internal IReadOnlyList<IControl> Slots => _slots;
 
+        // Drag and drop (spec 2026-11-16-drag-drop): edge autoscroll over a list that holds targets, and a row's index.
+        internal RectTransform ContentRect => _content;
+        internal RectTransform ViewportRect => _viewport;
+
+        /// <summary>The slot index of the row whose layout host is <paramref name="host"/>; -1 when it is not one of them.</summary>
+        internal int IndexOfRowHost(Transform host)
+        {
+            for (var i = 0; i < _slots.Count; i++)
+            {
+                var row = _slots[i];
+                var rt = row is Control c ? c.LayoutHost : row?.RectTransform;
+                if (rt == host) return Windowing && i < _slotIndex.Count ? _slotIndex[i] : i;
+            }
+            return -1;
+        }
+
         /// <summary>
         /// The viewport shows the end of the list, or the content fits (spec 2026-09-29-scrolllist-virtualization §4.2).
         /// Read from the current layout: a plain list that was just pushed to still reports the previous content until
@@ -468,11 +484,11 @@ namespace PromptUGUI.Controls
         internal void NotifyDropped(IControl row) => MarkerOf(row)?.Drop();
 
         // The marker sits on the row's layout host (Content's direct child) — where the upward walk
-        // in TriggerSourceResolver.FindReorderRow puts it. Null for a row nobody hooked.
-        private static ReorderRowMarker MarkerOf(IControl row)
+        // in TriggerSourceResolver.FindLiftSource puts it. Null for a row nobody hooked.
+        private static LiftMarker MarkerOf(IControl row)
         {
             var host = row is Control c ? c.LayoutHost : row?.RectTransform;
-            return host != null ? host.GetComponent<ReorderRowMarker>() : null;
+            return host != null ? host.GetComponent<LiftMarker>() : null;
         }
 
         // 静态 XML 子卡与 BindItems 建的卡都进 Content（同 Carousel 的 _strip）：挂在 ScrollList
@@ -1278,6 +1294,7 @@ namespace PromptUGUI.Controls
             // row would be pulled back into the layout under the finger. Structure changes and
             // gestures do not overlap: the session ends first, back at its origin (spec §5.7).
             _reorder?.Cancel();
+            DragSession.BeforeStructureChange(_content);
         }
 
         internal override void OnAfterApply()
@@ -1439,6 +1456,7 @@ namespace PromptUGUI.Controls
             // A push mid-drag ends the session first (§5.7): Rebuild assumes row i is sibling i, which a
             // placeholder in Content would break, and the rows are about to be re-bound.
             _reorder?.Cancel();
+            DragSession.BeforeStructureChange(_content);
 
             var full = !_bound || !ReuseItems || _slotsTemplate != _itemTemplate;
             if (full) ClearSlots();
@@ -2019,6 +2037,7 @@ namespace PromptUGUI.Controls
             // 标记已动态绑定：之后 ReSolve 的静态收集不再执行。静态卡在这里被退役，
             // Screen.ReSolve 靠 `control.GameObject == null` 跳过它们的 ElementNode。
             _reorder?.Cancel();
+            DragSession.BeforeStructureChange(_content);
             _bound = true;
             foreach (var s in _slots)
             {
@@ -2033,6 +2052,7 @@ namespace PromptUGUI.Controls
         {
             _disposed = true;
             _reorder?.Cancel();
+            DragSession.BeforeStructureChange(_content);
             // The whole list goes away: no need to move the rows out of Content first.
             foreach (var s in _slots)
             {

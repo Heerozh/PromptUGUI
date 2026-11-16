@@ -617,6 +617,76 @@ list.OnReordered.Subscribe(e =>              // Observable<(int From, int To)>
   `<Show on="lift">`); a `<Trigger on="lift">` inside the row exposes them to C# as `OnFire` like
   any other trigger.
 
+### Drag and drop (`drag=` / `drop=`)
+
+The XML declares what can be picked up (`drag="unit"`) and where it can go (`drop="unit"`) — XML side,
+gesture and visuals: XML skill, `reference/drag-drop.md`. C# hears **what went where**, says **whether a
+target takes it**, and keeps the data in step:
+
+```csharp
+// Who stands for what — in the bind, like any per-row state (rows are reused: write it every bind).
+grid.BindItems(formation, (IControl slot, UnitVm u) =>
+{
+    slot.Get<Frame>("unit").Hidden = u == null;
+    slot.Get<Text>("name").TextValue = u?.Name ?? "";
+}).AddTo(screen);
+
+// A swap, applied right in the callback (optimistic) — the structure is already back to normal.
+UI.Drag.OnDrop.Where(e => e.Kind == "unit").Subscribe(e =>
+{
+    int a = e.SourceIndex, b = e.TargetIndex;      // row indices in the nearest <ScrollList> / <Carousel>
+    var next = formation.Value.ToArray();
+    var swapped = next[b] != null;
+    (next[a], next[b]) = (next[b], next[a]);
+    formation.Value = next;                        // synchronous push: both cells re-bound
+    if (swapped) e.Fly(e.Source, from: e.Target);  // the displaced unit flies from B back to A
+    api.SaveFormation(next);                       // on failure push the old array back
+}).AddTo(screen);
+
+// Acceptance on top of the kind: asked once per drag, when it is lifted.
+weaponSlot.DragData = ItemType.Weapon;
+weaponSlot.CanDrop = d => d.Data is ItemVm it && it.Type == ItemType.Weapon;
+bag.BindItems(items, (IControl cell, ItemVm it) => cell.Get("item").DragData = it).AddTo(screen);
+```
+
+- **`UI.Drag.OnDrop`** (every Screen) fires after the target's own **`control.OnDrop`**, synchronously, once the
+  structure is back to normal: **push right there**. The event carries `Kind`, `Source` / `Target`, `Data` /
+  `TargetData` (their `DragData`), `SourceScreen` / `TargetScreen`, `SourceIndex` / `TargetIndex` (row index in the
+  nearest `<ScrollList>` / `<Carousel>`, else -1; a virtual list reports the item index).
+- **After the callbacks, it lands:** the one active drag source of the same kind inside the target — which your push
+  just filled — flies in from where the source was let go. Change that with **`e.Land(control)`** (`null` = nothing
+  flies); add flights with **`e.Fly(element, from: control)`** (a swap's displaced item). Both work inside the callback
+  or later (later = at once). Accepting without updating anything makes the target's **old** content fly in — so
+  either push, or defer.
+- **`e.Reject()`** — refuse after all: the source flies home, no `receive`.
+- **Waiting for a server:** `e.Defer()` inside the callback parks the source over the target (it shows
+  `drop-pending`); answer later with **`e.Accept(() => push)`** — the library puts the structure back, runs your
+  push, then lands — or **`e.Reject()`**. Nothing new lifts meanwhile (`UI.Drag.IsPending`). `Accept(apply)` **always
+  runs `apply`**, even when the wait was cut short (the source destroyed, a timeout) or already answered — confirmed
+  data is never dropped; only the animation is skipped then. A push arriving while it waits does not break it. If your
+  data arrives by subscription before the server's answer (a call that returns only after its pushes landed), hold your
+  re-render while `UI.Drag.IsPending` and draw inside `Accept`'s `apply` — otherwise the parked item and the target show
+  the new state before the landing. Safety net: `UI.Drag.PendingTimeout` (10s, `0` = none) gives up an unanswered drop.
+
+```csharp
+UI.Drag.OnDrop.Subscribe(e => { e.Defer(); _ = Confirm(e); }).AddTo(screen);
+
+async Awaitable Confirm(DropEvent e)
+{
+    var ok = await api.MoveUnit(e.SourceIndex, e.TargetIndex);   // your own timeout, shorter than PendingTimeout
+    if (!ok) { e.Reject(); return; }
+    e.Accept(() => formation.Value = Swapped(formation.Value, e.SourceIndex, e.TargetIndex));
+}
+```
+
+- **`UI.Drag.OnLift` / `OnHover` / `OnEnd`** — `OnEnd` fires exactly once per drag with `Result` = `Dropped` /
+  `Returned` / `Cancelled`; `Target == null` + `ScreenPosition` on a `Returned` end is "dropped outside the UI" (raycast
+  your 3D world yourself). `UI.Drag.Current` is the live drag (its `Target` follows the hover). `UI.Drag.IsDragging`.
+- **Cancel:** `UI.Drag.Cancel()`; a push to the source's list, any ReSolve, closing its Screen, a modal opening, Escape
+  cancel too — no `OnDrop`, `OnEnd(Cancelled)`.
+- **Lock a source** with `Interactable = false` (a drag declared in the XML is replayed on every ReSolve; don't switch
+  `DragKind` off from code to lock it). `UI.Drag.SortingOrder` (4000) is the layer a lifted thing draws in.
+
 ### TabBar
 
 ```csharp
@@ -1466,6 +1536,13 @@ DATA PUSH      Dropdown.BindOptions(Observable<IEnumerable<string>>)
                ScrollList.IsAtEnd / .OnAtEndChanged  Observable<bool> (replay + dedupe); stickToEnd="true" follows the end
                ScrollList.OnReordered  Observable<(int From, int To)> — <ScrollList reorder="true">; rows already permuted;
                                        apply RemoveAt(From)+Insert(To) to your data and push; IsReordering while lifted
+DRAG & DROP    UI.Drag.OnDrop          Observable<DropEvent> — any accepted drop (after target.OnDrop); structure is back:
+                                       push inside; e.Source/Target, Data/TargetData (DragData), SourceIndex/TargetIndex
+               control.DragData        what it stands for (source item / target slot); set in the bind
+               control.CanDrop         Func<DragInfo,bool> — target acceptance, asked once per lift (refused = drop-deny)
+               e.Land(c) / e.Fly(c, from: t)   what flies in (default: the target's one same-kind source) / extra flight (swap)
+               e.Reject()              goes home; e.Defer() + later e.Accept(() => push) / e.Reject() = wait for a server
+               UI.Drag.OnLift / OnHover / OnEnd(Result) / Current / IsDragging / IsPending / Cancel() / PendingTimeout
                field.Suggestions.BindItems(src, bind[, key: t=>t.Id])   ScrollList's reuse contract; empty push closes
                                        (stays armed); .Count / .IsOpen / .HighlightedIndex / .Open() / .Close()
                TabBar.BindItems(Observable<IReadOnlyList<T>>, (Tab tab,t)=>...)

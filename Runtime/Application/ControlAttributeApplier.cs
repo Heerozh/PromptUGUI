@@ -192,6 +192,8 @@ namespace PromptUGUI.Application
                 wrote.Hidden = hidden.HasValue;
                 wrote.Interactable = interactable.HasValue;
                 control.OnAfterApply();
+                // The pass may have rewritten a graphic's raycastTarget: a drag source still has to catch its press.
+                control.ReapplyDragHit();
             }
             catch (Exception ex) when (!(ex is ParseException))
             {

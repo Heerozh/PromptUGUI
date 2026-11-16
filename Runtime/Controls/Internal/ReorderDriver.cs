@@ -12,7 +12,8 @@ namespace PromptUGUI.Controls.Internal
     /// Lives on Content — the rows' ancestor — so uGUI's handler search finds it before the root's
     /// <c>ScrollRect</c>. A gesture that is not a reorder (pressed off any row, moved before the hold
     /// elapsed) is forwarded up to the ScrollRect event by event, like <c>CarouselView</c> does; a
-    /// reorder is consumed and the ScrollRect never hears of it.
+    /// reorder is consumed and the ScrollRect never hears of it. The arbitration itself is
+    /// <see cref="LiftGesture"/>, shared with drag-and-drop.
     ///
     /// <para>Structure commits the moment the pointer is released; every animation is a visual
     /// <c>anchoredPosition</c> tween laid over the committed layout (FLIP), so a layout rebuild from
@@ -21,51 +22,42 @@ namespace PromptUGUI.Controls.Internal
     /// same-size placeholder holds its slot — Content's preferred size never changes.</para>
     /// </summary>
     internal sealed class ReorderDriver : MonoBehaviour,
-        IInitializePotentialDragHandler, IBeginDragHandler, IDragHandler, IEndDragHandler
+        IInitializePotentialDragHandler, IBeginDragHandler, IDragHandler, IEndDragHandler, LiftGesture.IHost
     {
         internal const string PlaceholderName = "ReorderPlaceholder";
-        internal const float DefaultTouchHold = 0.4f;
+        internal const float DefaultTouchHold = LiftGesture.DefaultTouchHold;
 
-        // Autoscroll: the band along the viewport's leading / trailing edge that scrolls, and how
-        // fast at full penetration (canvas units per second).
-        private const float EdgeFraction = 0.15f;
-        private const float EdgeMin = 24f;
-        private const float EdgeMax = 80f;
-        private const float AutoScrollSpeed = 800f;
-
-        private enum Phase
+        /// <summary>Tests substitute the device query (they have no input devices). null = real query.</summary>
+        internal static System.Func<PointerEventData, bool> PressedProbeForTests
         {
-            Idle,
-            Pressed,    // on a liftable row, hold counting down (or hold = 0: lift on the first drag frame)
-            Armed,      // lifted, no drag yet — release without moving drops in place
-            Dragging,   // lifted and following the pointer
-            Scrolling,  // not ours: every event forwarded to the ScrollRect
-            Swallow,    // cancelled mid-gesture: the rest of this gesture goes nowhere
+            get => LiftGesture.PressedProbeForTests;
+            set => LiftGesture.PressedProbeForTests = value;
         }
 
         private ScrollList _list;
         private RectTransform _content;
         private RectTransform _viewport;
 
-        private Phase _phase;
-        private PointerEventData _pointer;
+        private LiftGesture _gesture;
         private IControl _row;
         private RectTransform _rowRt;
         private LayoutElement _rowLe;
         private RectTransform _placeholder;
         private int _from;
         private int _to;
-        private float _holdRemaining;
         private Vector2 _liftLocal;
         private Vector2 _liftAnchored;
         private bool _handleWarned;
+        private readonly LiftLook _look = new();
 
         // Layout positions as of the last rebuild — the reference frame for target computation.
         // The visual positions are being tweened and would jitter the answer.
         private readonly Dictionary<RectTransform, Vector2> _layoutPos = new();
         private readonly Dictionary<RectTransform, MotionHandle> _tweens = new();
 
-        internal bool IsSessionActive => _phase is Phase.Armed or Phase.Dragging;
+        private LiftGesture Gesture => _gesture ??= new LiftGesture(this);
+
+        internal bool IsSessionActive => _gesture != null && _gesture.IsSessionActive;
 
         internal void Init(ScrollList list, RectTransform content, RectTransform viewport)
         {
@@ -74,185 +66,74 @@ namespace PromptUGUI.Controls.Internal
             _viewport = viewport;
         }
 
-        // ───── uGUI events ─────
+        // ───── uGUI events → the shared gesture ─────
 
-        void IInitializePotentialDragHandler.OnInitializePotentialDrag(PointerEventData e)
+        void IInitializePotentialDragHandler.OnInitializePotentialDrag(PointerEventData e) => Gesture.OnInitializePotentialDrag(e);
+
+        void IBeginDragHandler.OnBeginDrag(PointerEventData e) => Gesture.OnBeginDrag(e);
+
+        void IDragHandler.OnDrag(PointerEventData e) => Gesture.OnDrag(e);
+
+        void IEndDragHandler.OnEndDrag(PointerEventData e) => Gesture.OnEndDrag(e);
+
+        private void Update() => Gesture.Tick(Time.unscaledDeltaTime);
+
+        internal void TickForTests(float dt) => Gesture.Tick(dt);
+
+        // ───── LiftGesture.IHost ─────
+
+        bool LiftGesture.IHost.TryPress(PointerEventData e, out float hold)
         {
-            // The ScrollRect zeroes its velocity here — a flinging list stops on press, as today.
-            ForwardToParent(e, ExecuteEvents.initializePotentialDrag);
-            if (IsSessionActive) return;   // a second pointer while one row is lifted: not ours
-
-            _phase = Phase.Idle;
-            _pointer = e;
-            if (!_list.ReorderEnabled || e.button != PointerEventData.InputButton.Left) return;
+            hold = 0f;
+            if (!_list.ReorderEnabled) return false;
 
             var row = HitRow(e.pressPosition, e.pressEventCamera);
-            if (row == null) return;
+            if (row == null) return false;
             if (!string.IsNullOrEmpty(_list.ReorderHandle) && !HitHandle(row, e.pressPosition, e.pressEventCamera))
-                return;
+                return false;
 
             _row = row;
             _rowRt = LayoutHostOf(row);
-            _holdRemaining = ResolveHold(e);
-            _phase = Phase.Pressed;
+            hold = ResolveHold(e);
+            return true;
         }
 
-        void IBeginDragHandler.OnBeginDrag(PointerEventData e)
+        bool LiftGesture.IHost.Lift()
         {
-            if (IsAnotherPointer(e)) return;
-            switch (_phase)
-            {
-                case Phase.Pressed when _holdRemaining <= 0f:
-                    // hold = 0: the first drag frame is the lift (never the press itself — a plain
-                    // click on a <Btn> row must not flicker).
-                    Lift();
-                    _phase = Phase.Dragging;
-                    return;
-                case Phase.Pressed:
-                    // The finger moved before the hold elapsed: this is a scroll.
-                    _phase = Phase.Scrolling;
-                    ForwardToParent(e, ExecuteEvents.beginDragHandler);
-                    return;
-                case Phase.Armed:
-                    _phase = Phase.Dragging;
-                    return;
-                case Phase.Swallow:
-                    return;
-                default:
-                    _phase = Phase.Scrolling;
-                    ForwardToParent(e, ExecuteEvents.beginDragHandler);
-                    return;
-            }
+            Lift();
+            return true;
         }
 
-        void IDragHandler.OnDrag(PointerEventData e)
+        void LiftGesture.IHost.Drag(PointerEventData e)
         {
-            if (IsAnotherPointer(e)) return;
-            switch (_phase)
-            {
-                case Phase.Dragging:
-                    FollowPointer(e.position, e.pressEventCamera);
-                    UpdateTarget();
-                    return;
-                case Phase.Swallow:
-                    return;
-                default:
-                    ForwardToParent(e, ExecuteEvents.dragHandler);
-                    return;
-            }
+            FollowPointer(e.position, e.pressEventCamera);
+            UpdateTarget();
         }
 
-        void IEndDragHandler.OnEndDrag(PointerEventData e)
+        void LiftGesture.IHost.Release() => Commit();
+
+        void LiftGesture.IHost.Tick(float dt) => AutoScroll(dt);
+
+        // A reorder moves along the scroll axis by definition: nothing to tell apart on the first frame.
+        bool LiftGesture.IHost.LiftsOnBegin(PointerEventData e) => false;
+
+        // Anything that is not a reorder belongs to the ScrollRect on the root — Content's parent is
+        // the Viewport, ExecuteHierarchy walks up from there (same as CarouselView.ForwardToParent).
+        void LiftGesture.IHost.Forward<T>(PointerEventData e, ExecuteEvents.EventFunction<T> fn)
         {
-            if (IsAnotherPointer(e)) return;
-            switch (_phase)
-            {
-                case Phase.Dragging:
-                    Commit();
-                    return;
-                case Phase.Swallow:
-                    _phase = Phase.Idle;
-                    return;
-                default:
-                    ForwardToParent(e, ExecuteEvents.endDragHandler);
-                    _phase = Phase.Idle;
-                    return;
-            }
+            var parent = transform.parent;
+            if (parent != null) ExecuteEvents.ExecuteHierarchy(parent.gameObject, e, fn);
         }
-
-        private void Update() => Tick(Time.unscaledDeltaTime);
-
-        internal void TickForTests(float dt) => Tick(dt);
-
-        private void Tick(float dt)
-        {
-            switch (_phase)
-            {
-                case Phase.Pressed:
-                    if (Released()) { _phase = Phase.Idle; return; }
-                    if (_holdRemaining <= 0f) return;   // hold = 0 lifts on the first drag frame
-                    _holdRemaining -= dt;
-                    if (_holdRemaining <= 0f)
-                    {
-                        Lift();
-                        _phase = Phase.Armed;
-                    }
-                    return;
-                case Phase.Armed:
-                    // uGUI has no "released without ever dragging" callback; the input module clears
-                    // pointerDrag on release, on the very event data it handed us at press.
-                    if (Released()) Commit();
-                    return;
-                case Phase.Dragging:
-                    AutoScroll(dt);
-                    return;
-                case Phase.Swallow:
-                    if (Released()) _phase = Phase.Idle;
-                    return;
-            }
-        }
-
-        /// <summary>
-        /// Whether the pointer that started this session has been released. uGUI has no "released
-        /// without ever dragging" callback, so the driver looks for itself:
-        /// <list type="bullet">
-        /// <item>Input System module: ask the <b>device</b>. <c>InputSystemUIInputModule</c> shares ONE event
-        /// object across its left / right / middle passes and copies each button's press state into it
-        /// (<c>ButtonState.CopyPressStateTo</c>), so at the end of any frame in which the pointer changed,
-        /// <c>pointerDrag</c> holds the <i>middle</i> button's — null — and says nothing about the finger
-        /// or the left button. Reading it there ended every session on its first Update.</item>
-        /// <item>Legacy <c>StandaloneInputModule</c> (and the EditMode tests, which hand-build plain
-        /// <c>PointerEventData</c>): one event object per button, <c>pointerDrag</c> cleared on release.</item>
-        /// </list>
-        /// </summary>
-        private bool Released()
-        {
-            if (_pointer == null) return true;
-            if (PressedProbeForTests != null) return !PressedProbeForTests(_pointer);
-#if ENABLE_INPUT_SYSTEM
-            if (_pointer is UnityEngine.InputSystem.UI.ExtendedPointerEventData x && x.device != null)
-                return !DevicePressed(x);
-#endif
-            return _pointer.pointerDrag == null;
-        }
-
-        /// <summary>Tests substitute the device query (they have no input devices). null = real query.</summary>
-        internal static System.Func<PointerEventData, bool> PressedProbeForTests;
-
-#if ENABLE_INPUT_SYSTEM
-        private static bool DevicePressed(UnityEngine.InputSystem.UI.ExtendedPointerEventData x)
-        {
-            switch (x.device)
-            {
-                case UnityEngine.InputSystem.Touchscreen ts:
-                    // Multi-touch: our finger is the one with our touchId; a slot that has moved on to
-                    // Ended / Canceled (or been reused) is a release.
-                    foreach (var t in ts.touches)
-                        if (t.touchId.ReadValue() == x.touchId) return t.isInProgress;
-                    return false;
-                case UnityEngine.InputSystem.Pointer p:
-                    return p.press.isPressed;   // Mouse.leftButton / Pen.tip
-                default:
-                    return x.pointerDrag != null;
-            }
-        }
-#endif
-
-        // A second finger while a row is lifted: not this session's, and not a scroll either (the
-        // ScrollRect tracks one drag) — its events go nowhere rather than rewriting our phase.
-        private bool IsAnotherPointer(PointerEventData e)
-            => IsSessionActive && _pointer != null && e.pointerId != _pointer.pointerId;
 
         // ───── lift / drag / drop ─────
 
         private void Lift()
         {
+            var pointer = Gesture.Pointer;
             _from = IndexOfRow(_row);
             _to = _from;
 
-            _placeholder = new GameObject(PlaceholderName, typeof(RectTransform)).GetComponent<RectTransform>();
-            _placeholder.SetParent(_content, false);
-            CopyGeometry(_rowRt, _placeholder);
+            _placeholder = FlowPlaceholder.Create(_rowRt, _content, PlaceholderName);
 
             _rowLe = _rowRt.GetComponent<LayoutElement>() ?? _rowRt.gameObject.AddComponent<LayoutElement>();
             _rowLe.ignoreLayout = true;
@@ -262,49 +143,13 @@ namespace PromptUGUI.Controls.Internal
             LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
             SnapshotLayout();
             _liftAnchored = _rowRt.anchoredPosition;
-            ToContentLocal(_pointer.pressPosition, _pointer.pressEventCamera, out _liftLocal);
+            ToContentLocal(pointer.pressPosition, pointer.pressEventCamera, out _liftLocal);
             // A long-press lift is not a click: the <Btn> under the finger must not fire on release.
-            _pointer.eligibleForClick = false;
+            pointer.eligibleForClick = false;
 
             // Hooks first (an authored <Animation on="lift"> starts now); the default look only when
             // the row has no lift hook of its own — the two must not both write localScale.
-            _defaultLook = _list.NotifyLifted(_row);
-            if (_defaultLook) ScaleTo(_rowRt, DefaultLiftScale);
-        }
-
-        // ───── default lift look (spec §4.3) ─────
-
-        private const float DefaultLiftScale = 1.03f;
-        private const float DefaultLiftDuration = 0.12f;
-        private bool _defaultLook;
-        private MotionHandle _scaleTween;
-
-        private void ScaleTo(RectTransform rt, float scale)
-        {
-            if (_scaleTween.IsActive()) _scaleTween.TryCancel();
-            var target = new Vector3(scale, scale, 1f);
-            if (!UnityEngine.Application.isPlaying)
-            {
-                rt.localScale = target;
-                return;
-            }
-            _scaleTween = LMotion.Create(rt.localScale, target, DefaultLiftDuration)
-                .WithEase(Ease.OutCubic)
-                .WithScheduler(MotionScheduler.UpdateIgnoreTimeScale)
-                .Bind(rt, static (v, r) => { if (r != null) r.localScale = v; });
-        }
-
-        private void UndoDefaultLook(RectTransform rt, bool instant)
-        {
-            if (!_defaultLook) return;
-            _defaultLook = false;
-            if (rt == null) return;
-            if (instant)
-            {
-                if (_scaleTween.IsActive()) _scaleTween.TryCancel();
-                rt.localScale = Vector3.one;
-            }
-            else ScaleTo(rt, 1f);
+            if (_list.NotifyLifted(_row)) _look.Apply(_rowRt);
         }
 
         private void FollowPointer(Vector2 screen, Camera cam)
@@ -342,7 +187,8 @@ namespace PromptUGUI.Controls.Internal
             var row = _row;
             var rt = _rowRt;
 
-            DetachPlaceholder();
+            FlowPlaceholder.Remove(_placeholder);
+            _placeholder = null;
             rt.SetSiblingIndex(to);
             _rowLe.ignoreLayout = false;
             _list.PermuteSlots(from, to);
@@ -351,7 +197,7 @@ namespace PromptUGUI.Controls.Internal
             LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
             SnapshotLayout();
             Tween(rt, visual, rt.anchoredPosition);
-            UndoDefaultLook(rt, instant: false);
+            _look.Undo(instant: false);
 
             ClearSession();
             _list.NotifyDropped(row);
@@ -365,45 +211,29 @@ namespace PromptUGUI.Controls.Internal
         /// </summary>
         internal void Cancel()
         {
-            if (!IsSessionActive)
-            {
-                if (_phase == Phase.Pressed) _phase = Phase.Idle;
-                return;
-            }
+            if (_gesture == null || !_gesture.Cancel()) return;
             KillTweens();
-            DetachPlaceholder();
+            FlowPlaceholder.Remove(_placeholder);
+            _placeholder = null;
             // The row may already be gone (Dispose tearing the list down) — restore what is left.
             if (_rowRt != null)
             {
                 _rowRt.SetSiblingIndex(_from);
                 if (_rowLe != null) _rowLe.ignoreLayout = false;
             }
-            UndoDefaultLook(_rowRt, instant: true);
+            _look.Undo(instant: true);
             if (_content != null) LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
             var row = _row;
             ClearSession();
-            _phase = Phase.Swallow;
             _list.NotifyDropped(row);
         }
 
         private void ClearSession()
         {
-            _phase = Phase.Idle;
             _row = null;
             _rowRt = null;
             _rowLe = null;
             _layoutPos.Clear();
-        }
-
-        private void DetachPlaceholder()
-        {
-            if (_placeholder == null) return;
-            // Off the Content FIRST: in play mode Destroy is deferred to end of frame, and a
-            // placeholder still parented would keep its slot through the rebuild that follows.
-            _placeholder.SetParent(null, false);
-            if (UnityEngine.Application.isPlaying) Destroy(_placeholder.gameObject);
-            else DestroyImmediate(_placeholder.gameObject);
-            _placeholder = null;
         }
 
         // ───── target ─────
@@ -540,40 +370,13 @@ namespace PromptUGUI.Controls.Internal
 
         private void AutoScroll(float dt)
         {
-            if (_pointer == null || _viewport == null) return;
-            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                    _viewport, _pointer.position, _pointer.pressEventCamera, out var p))
+            var pointer = Gesture.Pointer;
+            if (pointer == null) return;
+            if (!EdgeAutoScroller.Step(_viewport, _content, _list.IsHorizontal,
+                    pointer.position, pointer.pressEventCamera, dt))
                 return;
-            var view = _viewport.rect;
-            var content = _content.rect;
-            var pos = _content.anchoredPosition;
-
-            if (_list.IsHorizontal)
-            {
-                var edge = Mathf.Clamp(view.width * EdgeFraction, EdgeMin, EdgeMax);
-                var toRight = view.xMax - p.x;
-                var toLeft = p.x - view.xMin;
-                float dir = toRight < edge ? -1f : toLeft < edge ? 1f : 0f;
-                if (dir == 0f) return;
-                var speed = AutoScrollSpeed * (1f - Mathf.Min(toRight, toLeft) / edge);
-                var max = Mathf.Max(0f, content.width - view.width);
-                pos.x = Mathf.Clamp(pos.x + dir * speed * dt, -max, 0f);
-            }
-            else
-            {
-                var edge = Mathf.Clamp(view.height * EdgeFraction, EdgeMin, EdgeMax);
-                var toTop = view.yMax - p.y;
-                var toBottom = p.y - view.yMin;
-                float dir = toBottom < edge ? 1f : toTop < edge ? -1f : 0f;
-                if (dir == 0f) return;
-                var speed = AutoScrollSpeed * (1f - Mathf.Min(toTop, toBottom) / edge);
-                var max = Mathf.Max(0f, content.height - view.height);
-                pos.y = Mathf.Clamp(pos.y + dir * speed * dt, 0f, max);
-            }
-            if (pos == _content.anchoredPosition) return;
-            _content.anchoredPosition = pos;
             // The finger did not move; the content under it did — the row stays under the finger.
-            FollowPointer(_pointer.position, _pointer.pressEventCamera);
+            FollowPointer(pointer.position, pointer.pressEventCamera);
             UpdateTarget();
         }
 
@@ -617,10 +420,10 @@ namespace PromptUGUI.Controls.Internal
             return rt.gameObject.activeInHierarchy && RectTransformUtility.RectangleContainsScreenPoint(rt, screen, cam);
         }
 
-        private static IControl FindHandle(IControl row, string id)
+        internal static IControl FindHandle(IControl root, string id)
         {
-            if (row.ScopedIds.TryGetValue(id, out var scoped)) return scoped;
-            return FindById(row, id);
+            if (root.ScopedIds.TryGetValue(id, out var scoped)) return scoped;
+            return FindById(root, id);
         }
 
         private static IControl FindById(IControl node, string id)
@@ -644,16 +447,7 @@ namespace PromptUGUI.Controls.Internal
             // auto: a mouse lifts at once (the wheel scrolls); a finger needs the hold, because on a
             // touch screen the drag IS the scroll — unless a handle already tells the two apart.
             if (!string.IsNullOrEmpty(_list.ReorderHandle)) return 0f;
-            return IsTouch(e) ? DefaultTouchHold : 0f;
-        }
-
-        private static bool IsTouch(PointerEventData e)
-        {
-#if ENABLE_INPUT_SYSTEM
-            if (e is UnityEngine.InputSystem.UI.ExtendedPointerEventData x)
-                return x.pointerType == UnityEngine.InputSystem.UI.UIPointerType.Touch;
-#endif
-            return e.pointerId >= 0;   // uGUI's mouse buttons are the negative ids
+            return LiftGesture.IsTouch(e) ? DefaultTouchHold : 0f;
         }
 
         private int IndexOfRow(IControl row)
@@ -680,42 +474,12 @@ namespace PromptUGUI.Controls.Internal
         private bool ToContentLocal(Vector2 screen, Camera cam, out Vector2 local)
             => RectTransformUtility.ScreenPointToLocalPointInRectangle(_content, screen, cam, out local);
 
-        private static void CopyGeometry(RectTransform from, RectTransform to)
-        {
-            to.anchorMin = from.anchorMin;
-            to.anchorMax = from.anchorMax;
-            to.pivot = from.pivot;
-            to.sizeDelta = from.sizeDelta;
-            to.anchoredPosition = from.anchoredPosition;
-            var src = from.GetComponent<LayoutElement>();
-            if (src == null) return;
-            // Both size channels copied, so the group sizes the placeholder exactly like the row
-            // whether it reads LayoutElement (childControl*) or the rect (sizeDelta above).
-            var le = to.gameObject.AddComponent<LayoutElement>();
-            le.minWidth = src.minWidth;
-            le.minHeight = src.minHeight;
-            le.preferredWidth = src.preferredWidth;
-            le.preferredHeight = src.preferredHeight;
-            le.flexibleWidth = src.flexibleWidth;
-            le.flexibleHeight = src.flexibleHeight;
-            le.layoutPriority = src.layoutPriority;
-        }
-
-        // Anything that is not a reorder belongs to the ScrollRect on the root — Content's parent is
-        // the Viewport, ExecuteHierarchy walks up from there (same as CarouselView.ForwardToParent).
-        private void ForwardToParent<T>(PointerEventData e, ExecuteEvents.EventFunction<T> fn)
-            where T : IEventSystemHandler
-        {
-            var parent = transform.parent;
-            if (parent != null) ExecuteEvents.ExecuteHierarchy(parent.gameObject, e, fn);
-        }
-
         private void OnDestroy()
         {
             foreach (var kv in _tweens)
                 if (kv.Value.IsActive()) kv.Value.TryCancel();
             _tweens.Clear();
-            if (_scaleTween.IsActive()) _scaleTween.TryCancel();
+            _look.Kill();
             if (_placeholder != null)
             {
                 if (UnityEngine.Application.isPlaying) Destroy(_placeholder.gameObject);

@@ -47,7 +47,7 @@ Press a row, drag it, the other rows make room as you go, release and the row se
 
 On release the **structure commits immediately**: the placeholder goes, the row is inserted at its new sibling index, the list's slot order is permuted the same way, and only then does the row slide from under the finger to its final place. Because the structure is already final, `OnReordered` fires in that same moment — a host that pushes the permuted data synchronously rebinds with zero visual change (see the C# skill). Dropping a row back where it came from fires `drop` but not `OnReordered`.
 
-`lift` / `drop` are `on=` values on `<Trigger>` / `<Animation>` / `<Show>` that resolve **upward** to the row the trigger lives in (like `expand` / `collapse` resolve to a `<Collapsible>`):
+`lift` / `drop` are `on=` values on `<Trigger>` / `<Animation>` / `<Show>` that resolve **upward** to the row the trigger lives in (like `expand` / `collapse` resolve to a `<Collapsible>`) — or to a `drag=` source, if one is nearer (a card inside the row that is dragged and dropped elsewhere; see [`drag-drop.md`](drag-drop.md)):
 
 | Value | Fires |
 |---|---|
@@ -74,4 +74,4 @@ A structural change during a drag ends the session and puts the row **back where
 
 ## Not in v1
 
-Dragging a row out of its list or between lists; a programmatic animated `Move(from, to)`; animating a reorder that arrives as a push (a keyed `BindItems` moves the rows with their items, but instantly); a visible placeholder (the gap is empty). A virtual list (`virtualize="true"`) cannot reorder at all — its rows only exist near the viewport (`PUI-SCROLL-VIRTUAL-REORDER`).
+Dragging a row out of its list or between lists (for moving things between containers and Screens use drag and drop — `drag=` / `drop=`, [`drag-drop.md`](drag-drop.md); `drag=` inside a sortable list's rows is `PUI-DRAG-REORDER`); a programmatic animated `Move(from, to)`; animating a reorder that arrives as a push (a keyed `BindItems` moves the rows with their items, but instantly); a visible placeholder (the gap is empty). A virtual list (`virtualize="true"`) cannot reorder at all — its rows only exist near the viewport (`PUI-SCROLL-VIRTUAL-REORDER`).

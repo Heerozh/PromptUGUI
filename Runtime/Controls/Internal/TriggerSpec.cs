@@ -14,6 +14,9 @@ namespace PromptUGUI.Controls.Internal
         // A <Cooldown> runs out / begins (spec 2026-10-13 §4.3). A persistent pair like checked /
         // unchecked, except that a plain <Trigger> is never fired for the state found at open.
         Ready, Cooling,
+        // A drop= target (spec 2026-11-16-drag-drop §5.3): persistent pairs armed / disarmed and over | deny / out,
+        // the pending state, and the receive edge.
+        DropArmed, DropDisarmed, DropOver, DropDeny, DropOut, DropPending, Receive,
     }
 
     internal sealed class TriggerSpec
@@ -46,6 +49,14 @@ namespace PromptUGUI.Controls.Internal
             // A <Cooldown> going ready / starting (spec 2026-10-13 §4.3).
             ("ready@",          TriggerKind.Ready),
             ("cooling@",        TriggerKind.Cooling),
+            // A drop= target (spec 2026-11-16-drag-drop §5.3). Not "drop@": that is the source put down.
+            ("drop-armed@",     TriggerKind.DropArmed),
+            ("drop-disarmed@",  TriggerKind.DropDisarmed),
+            ("drop-over@",      TriggerKind.DropOver),
+            ("drop-deny@",      TriggerKind.DropDeny),
+            ("drop-out@",       TriggerKind.DropOut),
+            ("drop-pending@",   TriggerKind.DropPending),
+            ("receive@",        TriggerKind.Receive),
         };
 
         /// <summary>
@@ -90,6 +101,13 @@ namespace PromptUGUI.Controls.Internal
                 case "drop": return new TriggerSpec { Kind = TriggerKind.Drop, Raw = value };
                 case "ready": return new TriggerSpec { Kind = TriggerKind.Ready, Raw = value };
                 case "cooling": return new TriggerSpec { Kind = TriggerKind.Cooling, Raw = value };
+                case "drop-armed": return new TriggerSpec { Kind = TriggerKind.DropArmed, Raw = value };
+                case "drop-disarmed": return new TriggerSpec { Kind = TriggerKind.DropDisarmed, Raw = value };
+                case "drop-over": return new TriggerSpec { Kind = TriggerKind.DropOver, Raw = value };
+                case "drop-deny": return new TriggerSpec { Kind = TriggerKind.DropDeny, Raw = value };
+                case "drop-out": return new TriggerSpec { Kind = TriggerKind.DropOut, Raw = value };
+                case "drop-pending": return new TriggerSpec { Kind = TriggerKind.DropPending, Raw = value };
+                case "receive": return new TriggerSpec { Kind = TriggerKind.Receive, Raw = value };
             }
             foreach (var (prefix, kind) in s_prefixedKinds)
             {
@@ -108,7 +126,8 @@ namespace PromptUGUI.Controls.Internal
                 "state-normal / state-hover / state-pressed / state-selected / state-disabled (each also with @<id>) / " +
                 "expand / expand@<id> / collapse / collapse@<id> / " +
                 "checked / checked@<id> / unchecked / unchecked@<id> / " +
-                "lift / lift@<id> / drop / drop@<id> / ready / ready@<id> / cooling / cooling@<id> / manual");
+                "lift / lift@<id> / drop / drop@<id> / ready / ready@<id> / cooling / cooling@<id> / " +
+                "drop-armed / drop-disarmed / drop-over / drop-deny / drop-out / drop-pending / receive (each also with @<id>) / manual");
         }
     }
 }
