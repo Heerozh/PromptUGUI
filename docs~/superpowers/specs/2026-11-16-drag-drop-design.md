@@ -733,10 +733,26 @@ PlayMode（`Tests/PlayMode/Controls/DragDropPlayTests.cs`，真 `EventSystem` + 
    挂钩在 DFS 后序 apply 里先于祖先的 setter 解析。改为 `ScreenInstantiator` 在 `AttachTo`（与 scale wrapper）之后，凡 base 或任一
    variant 写了 `drag` / `drop` 的节点立刻装 `DragSource` / `DropTargetMarker`（`DragDropRules.Declares`，CLI 与运行期同一判断）；
    setter 仍兜底（C# 写 `DragKind` / `DropKinds`）。
-2. **抬层 Canvas 不摘、只停用。** §7.2 写的是「飞完摘」：Play 模式下 `Destroy` 延迟到帧末，同一帧里落地后立刻再拿起（或落地飞行
-   复用源的图层）会让新抬起的那层在帧末被销毁。`LiftLayer` 加的 Canvas 带一个 `LiftLayer.Mark`，降层 = `enabled = false` +
-   `overrideSorting = false`（停用的 Canvas 对 uGUI 不存在，图形回到父 Canvas 合批），下次抬层复用。`CameraOf` / 根画布改为自己
-   向上找最外层 Canvas（停用的 Canvas 的 `rootCanvas` 不可信）。
+2. **降层摘掉库自己加的 Canvas（即 §7.2 / DND-D2 的「飞完摘」）。** 第一版为了避开 Play 模式下 `Destroy` 的帧末延迟，改成
+   「不摘、只停用」（`enabled = false` + `overrideSorting = false`），实测出 bug：放下后，被拖的控件和落地飞进格的控件整块不再绘制。
+   停用的嵌套 Canvas 会让整棵子树退出所有合批（native 侧的 CanvasRenderer 仍挂在它上面，`absoluteDepth` 一直是 -1），但 managed
+   侧的 `Graphic.canvas` 已经报父画布 —— 当初「停用的 Canvas 对 uGUI 不存在」的判断只看了 managed 侧；事后再删掉这层停用的画布
+   也救不回来。「保持启用、只关 `overrideSorting`」同样不行：物体 inactive 时 Unity 会丢掉 `overrideSorting` 的写入（拖进空格时，
+   源在 `Accept` 的 apply 里就被隐藏了，降层时正好是 inactive），再显示时它仍压在所有 Screen 之上。现在的做法：
+   - Play 模式：先关 `overrideSorting`（还 active 时，这一帧剩下的时间它跟父画布一起排序），再 `Destroy`。`Destroy` 一定在本帧
+     渲染前生效，实测本帧末画布已摘除、图形照常合批，没有闪烁。不用 `DestroyImmediate`：降层也会从 `OnDestroy`（拖动中源被
+     销毁）和激活回调里的结构变动进来，Unity 在那里拒绝 `DestroyImmediate`（报 `Destroying object multiple times`，或报
+     `Cannot destroy Component while GameObject is being activated or deactivated`，后者还删不掉）。
+   - 同一帧又抬起：`Raise` 看到本帧刚降、等待销毁的那层（`LiftLayer.Mark.Doomed`），先 `DestroyImmediate` 掉再挂新的。
+   - 编辑模式：直接 `DestroyImmediate`。
+   - 控件自带的 Canvas（不是库加的）：恢复原值；inactive 时写不进去的 `overrideSorting` 交给 `LiftLayer.RestoreOnEnable`，在
+     重新激活的 `OnEnable` 里补写（实测此时写入有效）。
+
+   测试：PlayMode 在落地 / 飞回之后断言，源和落点子树里原本在画的每个 Graphic `absoluteDepth != -1`，宿主上不留 Canvas。覆盖拖到
+   空槽、飞回原处、交换，以及等确认时 apply 把源隐藏、之后再显示。另有三条：同一帧落地又拿起；拖动中源被直接销毁（不报错）；
+   自带 Canvas 的控件在隐藏状态下落地，之后恢复 sorting。EditMode 的 `LiftCanvasOf` 不再把停用的画布当成「没有」，降层路径上的
+   断言随之变严。用变异核对过：改回只停用，PlayMode 的 4 条落地测试和 EditMode 的 11 条降层断言失败；改成一律
+   `DestroyImmediate`，或 `Raise` 不替换待销毁的那层，也各有一条测试失败。
 3. **命中意图收进 `Control.SetDragHit(persistent, session)`。** 虚方法 `ApplyDragHit` 的默认实现：自身无 Graphic → `HitCatcher`
    （不要时停用而不移除 —— 走默认实现的控件以后不会再长出 Graphic；`Frame` 会，所以它自己覆写）；有 Graphic → 强制
    `raycastTarget` 并记下原值。`Frame` 并入面板 catcher（`raycastTarget` 改为本 pass 声明值 + 拖放两路输入合算）；`Image` /
@@ -771,5 +787,5 @@ PlayMode（`Tests/PlayMode/Controls/DragDropPlayTests.cs`，真 `EventSystem` + 
 
 ### 16.3 回归
 
-在宿主工程中跑通：EditMode 5815 条（只有 16.2 那一条失败）、EditorOnly 481 条、PlayMode 334 条全过；
+在宿主工程中跑通：EditMode 5815 条（只有 16.2 那一条失败，`main` 上同样失败）、EditorOnly 481 条、PlayMode 340 条全过；
 `dotnet format --verify-no-changes` 干净。

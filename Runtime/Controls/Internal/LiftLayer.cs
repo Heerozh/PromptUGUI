@@ -10,19 +10,49 @@ namespace PromptUGUI.Controls.Internal
     /// viewport) cuts it. The control keeps its parent, its geometry, its ids and its Screen.
     ///
     /// <para>Never resident while idle: every enabled canvas is a batch root of its own, and a hundred bag
-    /// cells each under one would be a hundred draw calls. A canvas this class added stays on the
-    /// GameObject <b>disabled</b> between lifts — a disabled canvas is no canvas to uGUI, its graphics batch
-    /// with the parent again — because a <c>Destroy</c> is deferred to the end of the frame in play mode, and
-    /// a lift right after a landing (same frame) would see its new layer destroyed under it.</para>
+    /// cells each under one would be a hundred draw calls. Lowering takes a canvas this class added
+    /// <b>off</b> — never merely disables it. A disabled nested canvas keeps its whole subtree out of every
+    /// batch (the renderers stay bound to it natively, <c>absoluteDepth</c> -1) while <c>Graphic.canvas</c>
+    /// already names the parent, and destroying it later does not bring them back. Nor can it stay enabled with
+    /// <c>overrideSorting</c> off: Unity drops that write while the GameObject is inactive (a source the drop's
+    /// answer hid).</para>
+    ///
+    /// <para>In play mode the take-off is a <c>Destroy</c>, which always lands before the frame renders: lowering
+    /// is reached from <c>OnDestroy</c> (a source destroyed mid-drag) and from structure changes inside
+    /// activation callbacks, where Unity refuses a <c>DestroyImmediate</c>. Until then the canvas sorts with its
+    /// parent, and a lift in the same frame replaces it at once (<see cref="Raise"/>).</para>
     ///
     /// <para>The canvas gets no <c>GraphicRaycaster</c>: uGUI collects hit-testable graphics per canvas, so
     /// the lifted subtree is invisible to the pointer and whatever lies under it can be hit.</para>
     /// </summary>
     internal static class LiftLayer
     {
-        /// <summary>Tags a canvas this class added, so a later lift reuses it instead of treating it as the control's own.</summary>
+        /// <summary>
+        /// Tags a canvas this class added. <see cref="Doomed"/>: lowered this frame, destroyed at its end.
+        /// </summary>
         internal sealed class Mark : MonoBehaviour
         {
+            internal bool Doomed;
+        }
+
+        /// <summary>
+        /// Gives a control's own canvas its <c>overrideSorting</c> back once the GameObject is active again — Unity
+        /// dropped the write while it was inactive. Spent after one go.
+        /// </summary>
+        [ExecuteAlways]
+        internal sealed class RestoreOnEnable : MonoBehaviour
+        {
+            internal Canvas Canvas;
+            internal bool Override;
+
+            private void OnEnable()
+            {
+                if (Canvas == null) return;
+                Canvas.overrideSorting = Override;
+                Canvas = null;
+                // An activation: Destroy is allowed here, DestroyImmediate is not. In edit mode it stays, spent.
+                if (UnityEngine.Application.isPlaying) Destroy(this);
+            }
         }
 
         /// <summary>What <see cref="Raise"/> did, so <see cref="Lower"/> can undo exactly that.</summary>
@@ -46,13 +76,22 @@ namespace PromptUGUI.Controls.Internal
             var token = new Token();
             // Explicit null checks, not `??`: in the Editor a missing component is a fake null that `??` keeps.
             var canvas = go.GetComponent<Canvas>();
+            var mark = go.GetComponent<Mark>();
+            if (canvas != null && mark != null && mark.Doomed)
+            {
+                // Lowered earlier this frame and on its way out: its Destroy would take this lift with it.
+                Object.DestroyImmediate(canvas);
+                Object.DestroyImmediate(mark);
+                canvas = null;
+                mark = null;
+            }
             if (canvas == null)
             {
                 canvas = go.AddComponent<Canvas>();
                 go.AddComponent<Mark>();
                 token.Ours = true;
             }
-            else if (go.GetComponent<Mark>() != null)
+            else if (mark != null)
             {
                 token.Ours = true;
             }
@@ -81,19 +120,47 @@ namespace PromptUGUI.Controls.Internal
 
         internal static void Lower(Token token)
         {
-            if (token == null || token.Canvas == null) return;
+            if (token == null) return;
             var canvas = token.Canvas;
             token.Canvas = null;
+            if (canvas == null) return;   // went with its GameObject
             if (token.Ours)
             {
-                canvas.overrideSorting = false;
-                canvas.enabled = false;
+                TakeOff(canvas);
                 return;
             }
-            canvas.overrideSorting = token.PrevOverride;
             canvas.sortingOrder = token.PrevOrder;
             canvas.sortingLayerID = token.PrevLayer;
             canvas.additionalShaderChannels = token.PrevChannels;
+            canvas.overrideSorting = token.PrevOverride;
+            if (canvas.overrideSorting != token.PrevOverride)
+            {
+                // Inactive (the drop's answer hid it): Unity dropped the write — it is made when it shows again.
+                var restore = canvas.GetComponent<RestoreOnEnable>();
+                if (restore == null) restore = canvas.gameObject.AddComponent<RestoreOnEnable>();
+                restore.Canvas = canvas;
+                restore.Override = token.PrevOverride;
+            }
+        }
+
+        /// <summary>Removes a canvas this class added (see the class remarks for why never "disabled").</summary>
+        private static void TakeOff(Canvas canvas)
+        {
+            var go = canvas.gameObject;
+            var mark = go.GetComponent<Mark>();
+            if (!UnityEngine.Application.isPlaying)
+            {
+                Object.DestroyImmediate(canvas);
+                if (mark != null) Object.DestroyImmediate(mark);
+                return;
+            }
+            canvas.overrideSorting = false;   // sorts with its parent until it goes (dropped while inactive — gone before it shows)
+            if (mark != null)
+            {
+                mark.Doomed = true;
+                Object.Destroy(mark);
+            }
+            Object.Destroy(canvas);
         }
 
         /// <summary>The camera a control's canvas renders with — null for Screen Space - Overlay.</summary>
@@ -105,7 +172,7 @@ namespace PromptUGUI.Controls.Internal
             return root.renderMode == RenderMode.ScreenSpaceOverlay ? null : root.worldCamera;
         }
 
-        /// <summary>The outermost canvas above <paramref name="t"/> (its Screen's) — not <c>rootCanvas</c>, which a disabled lift canvas cannot be trusted to answer.</summary>
+        /// <summary>The outermost canvas above <paramref name="t"/> — its Screen's.</summary>
         internal static Canvas RootOf(Transform t)
         {
             Canvas root = null;

@@ -175,7 +175,7 @@ namespace PromptUGUI.Controls.Internal
 
             /// <summary>
             /// Home, shown flying there from <paramref name="fromScreen"/> — the lift it already has is handed over
-            /// to the flight (lowering it and raising another in the same frame would lose it to a deferred Destroy).
+            /// to the flight rather than taken off and put on again in the same frame.
             /// </summary>
             internal void FlyHomeFrom(Rect fromScreen, float duration)
             {

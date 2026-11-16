@@ -96,6 +96,36 @@ namespace PromptUGUI.Tests.PlayMode.Controls
 
         private static void Release(IControl source, PointerEventData e) => ((IEndDragHandler)SourceOf(source)).OnEndDrag(e);
 
+        /// <summary>The graphics under <paramref name="c"/> that are in a canvas batch right now.</summary>
+        private static List<Graphic> Drawn(IControl c)
+        {
+            var drawn = new List<Graphic>();
+            foreach (var g in Host(c).GetComponentsInChildren<Graphic>())
+                if (g.canvasRenderer.absoluteDepth != -1) drawn.Add(g);
+            return drawn;
+        }
+
+        /// <summary>
+        /// Everything that drew before the drag draws again, and no lift canvas is left on the control. A disabled
+        /// nested canvas left behind keeps its whole subtree out of every batch (absoluteDepth -1) while
+        /// <c>Graphic.canvas</c> still names the parent — a check on the canvas alone cannot see that.
+        /// </summary>
+        private static void AssertDrawsAgain(IControl c, List<Graphic> before, string what)
+        {
+            Assert.IsNotEmpty(before, $"guard: {what} drew before the drag");
+            foreach (var g in before)
+                Assert.AreNotEqual(-1, g.canvasRenderer.absoluteDepth, $"{what}: '{g.name}' is drawn again");
+            Assert.IsNull(Host(c).GetComponent<Canvas>(), $"{what}: no lift canvas left on it");
+        }
+
+        private const string TwoCells =
+            "<Frame id='a' anchor='top-left' size='120x120' margin='20,_,_,20' drop='item'>" +
+            "  <Frame id='ca' anchor='stretch' margin='8' color='#888' drag='item' dragDuration='0.1s'><Text anchor='stretch'>A</Text></Frame>" +
+            "</Frame>" +
+            "<Frame id='b' anchor='top-left' size='120x120' margin='20,_,_,220' drop='item'>" +
+            "  <Frame id='cb' anchor='stretch' margin='8' color='#468' drag='item' dragDuration='0.1s'><Text anchor='stretch'>B</Text></Frame>" +
+            "</Frame>";
+
         [UnityTest]
         public IEnumerator A_drop_from_a_page_into_a_modal_goes_through_real_raycasts()
         {
@@ -187,6 +217,7 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             yield return null;
             var a = page.Get<Frame>("a");
             var home = Host(a).anchoredPosition;
+            var drew = Drawn(a);
 
             var e = Lift(a);
             yield return null;
@@ -195,13 +226,171 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             yield return null;
             Release(a, e);
             yield return new WaitForSeconds(0.3f);
+            yield return null;
 
             Assert.AreEqual(1, _drops.Count);
             Assert.IsNull(Host(a).parent.Find(DragSession.PlaceholderName), "no placeholder left in the group");
-            var layer = Host(a).GetComponent<Canvas>();
-            Assert.IsTrue(layer == null || !layer.enabled, "the lift layer is off once landed");
+            AssertDrawsAgain(a, drew, "the dropped source");
             Assert.AreEqual(home, Host(a).anchoredPosition, "back in its slot");
             Assert.AreEqual(Vector3.one, Host(a).localScale, "the lift look eased back");
+        }
+
+        [UnityTest]
+        public IEnumerator Released_over_nothing_it_flies_home_and_draws_again()
+        {
+            var page = Open("Page", TwoCells);
+            var ca = page.Get<Frame>("ca");
+            yield return null;
+            yield return null;
+            var drew = Drawn(ca);
+
+            var e = Lift(ca);
+            yield return null;
+            MoveTo(ca, e, new Vector2(600, 400));
+            yield return null;
+            Release(ca, e);
+            yield return new WaitForSeconds(0.3f);
+            yield return null;
+
+            Assert.AreEqual(DragResult.Returned, _ends[0].Result, "guard: it went home");
+            AssertDrawsAgain(ca, drew, "the source that flew home");
+        }
+
+        [UnityTest]
+        public IEnumerator After_a_swap_both_cards_draw_again()
+        {
+            var page = Open("Page", TwoCells);
+            var ca = page.Get<Frame>("ca");
+            var cb = page.Get<Frame>("cb");
+            // The swap: the dropped card lands in b by itself; a's card shows what b held and flies over from b.
+            _subs.Add(page.Get<Frame>("b").OnDrop.Subscribe(d => d.Fly(ca, from: cb)));
+            yield return null;
+            yield return null;
+            var drewA = Drawn(ca);
+            var drewB = Drawn(cb);
+
+            var e = Lift(ca);
+            yield return null;
+            MoveTo(ca, e, ScreenOf(page.Get<Frame>("b")));
+            yield return null;
+            Release(ca, e);
+            Assert.AreEqual(1, _drops.Count, "guard: dropped on b");
+            yield return new WaitForSeconds(0.3f);
+            yield return null;
+
+            AssertDrawsAgain(cb, drewB, "the card that landed in b");
+            AssertDrawsAgain(ca, drewA, "the dragged card, flown back from b");
+        }
+
+        [UnityTest]
+        public IEnumerator A_source_the_answer_hid_draws_again_when_shown()
+        {
+            var page = Open("Page", TwoCells);
+            var ca = page.Get<Frame>("ca");
+            var cb = page.Get<Frame>("cb");
+            DropEvent pending = null;
+            _subs.Add(page.Get<Frame>("b").OnDrop.Subscribe(d =>
+            {
+                d.Defer();
+                pending = d;
+            }));
+            yield return null;
+            yield return null;
+            var drewA = Drawn(ca);
+            var drewB = Drawn(cb);
+            cb.Hidden = true;   // b is an empty cell
+            yield return null;
+
+            var e = Lift(ca);
+            yield return null;
+            MoveTo(ca, e, ScreenOf(page.Get<Frame>("b")));
+            yield return null;
+            Release(ca, e);
+            Assert.IsNotNull(pending, "guard: the drop waits");
+            yield return new WaitForSeconds(0.2f);
+
+            // The server says yes: b's card shows the item now, a's cell is empty — the source is hidden while its
+            // lift layer comes off, and Unity drops an overrideSorting write on an inactive canvas.
+            pending.Accept(() =>
+            {
+                cb.Hidden = false;
+                ca.Hidden = true;
+            });
+            yield return new WaitForSeconds(0.3f);
+            yield return null;
+            AssertDrawsAgain(cb, drewB, "the card that landed in b");
+
+            ca.Hidden = false;   // something is put in a again later
+            yield return null;
+            yield return null;
+            AssertDrawsAgain(ca, drewA, "the source hidden while it was lowered, shown again");
+        }
+
+        [UnityTest]
+        public IEnumerator A_lift_in_the_frame_its_landing_ends_keeps_its_layer()
+        {
+            var page = Open("Page",
+                "<Frame id='a' anchor='top-left' size='100x100' margin='20,_,_,20' color='#888' drag='item' dragDuration='0'/>");
+            yield return null;
+            var a = page.Get<Frame>("a");
+
+            var e = Lift(a);
+            yield return null;
+            Release(a, e);           // over nothing: home at once (dragDuration 0) — its layer comes off this frame
+            var again = Lift(a);     // and it is picked up again in the same frame
+            yield return null;
+            yield return null;
+
+            var layer = Host(a).GetComponent<Canvas>();
+            Assert.IsTrue(layer != null && layer.enabled && layer.overrideSorting, "the new lift layer outlived the frame");
+            Assert.AreEqual(UI.Drag.SortingOrder, layer.sortingOrder);
+            Assert.AreNotEqual(-1, Host(a).GetComponent<Graphic>().canvasRenderer.absoluteDepth, "drawn through it");
+            Release(a, again);
+        }
+
+        [UnityTest]
+        public IEnumerator A_source_destroyed_mid_drag_ends_the_drag_quietly()
+        {
+            var page = Open("Page", "<Frame id='a' anchor='top-left' size='100x100' margin='20,_,_,20' color='#888' drag='item'/>");
+            yield return null;
+            var a = page.Get<Frame>("a");
+            Lift(a);
+            yield return null;
+
+            // Game code tearing it down directly: the drag ends inside its OnDestroy, where Unity refuses a
+            // DestroyImmediate of anything on that GameObject (an error LogAssert would fail this test on).
+            Object.Destroy(Host(a).gameObject);
+            yield return null;
+            yield return null;
+
+            Assert.IsFalse(UI.Drag.IsDragging);
+            Assert.AreEqual(DragResult.Cancelled, _ends[0].Result);
+        }
+
+        [UnityTest]
+        public IEnumerator A_canvas_of_its_own_gets_its_sorting_back_when_shown_again()
+        {
+            var page = Open("Page",
+                "<Frame id='a' anchor='top-left' size='100x100' margin='20,_,_,20' color='#888' drag='item' dragDuration='0.1s'/>" +
+                "<Frame id='slot' anchor='top-left' size='100x100' margin='20,_,_,220' drop='item'/>");
+            var a = page.Get<Frame>("a");
+            var own = Host(a).gameObject.AddComponent<Canvas>();   // a nested canvas the game put there itself
+            _subs.Add(page.Get<Frame>("slot").OnDrop.Subscribe(_ => a.Hidden = true));   // the item went into the slot
+            yield return null;
+
+            var e = Lift(a);
+            yield return null;
+            Assert.IsTrue(own.overrideSorting, "guard: lifted through its own canvas");
+            MoveTo(a, e, ScreenOf(page.Get<Frame>("slot")));
+            yield return null;
+            Release(a, e);
+            yield return new WaitForSeconds(0.3f);
+
+            a.Hidden = false;
+            yield return null;
+            Assert.IsTrue(own != null && own.enabled, "its own canvas stays");
+            Assert.IsFalse(own.overrideSorting, "and sorts with its parent again — Unity drops that write while it is hidden");
+            Assert.AreEqual(0, own.sortingOrder);
         }
     }
 }

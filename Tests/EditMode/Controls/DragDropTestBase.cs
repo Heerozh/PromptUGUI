@@ -145,12 +145,11 @@ namespace PromptUGUI.Tests.EditMode.Controls
             return parent != null ? parent.Find(DragSession.PlaceholderName) : null;
         }
 
-        /// <summary>The lift layer while it is up: a lifted control's canvas stays on it disabled between lifts.</summary>
-        private protected static Canvas LiftCanvasOf(IControl c)
-        {
-            var canvas = Host(c).GetComponent<Canvas>();
-            return canvas != null && canvas.enabled ? canvas : null;
-        }
+        /// <summary>
+        /// The lift layer — any canvas on the control, enabled or not: once lowered nothing may stay behind, as a
+        /// disabled nested canvas keeps its whole subtree from drawing while <c>Graphic.canvas</c> still names the parent.
+        /// </summary>
+        private protected static Canvas LiftCanvasOf(IControl c) => Host(c).GetComponent<Canvas>();
 
         /// <summary>Records what the drag streams raise, in order.</summary>
         protected sealed class Recorder : System.IDisposable
