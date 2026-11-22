@@ -1,6 +1,7 @@
 # 关闭的可靠性：直接关闭、`OnClosing` 订阅、对话框的 token 取消、过期的路由激活
 
-> 状态：**草案，待对齐**（§7 的决策待确认）。分支 `fix/close-reliability`，叠在 `feat/ui-sfx`（PR #186）上。
+> 状态：**决策已对齐**（2026-11-23：§7 的 D1…D5 全部按推荐），实施中。分支 `fix/close-reliability`，叠在 `feat/ui-sfx`（PR #186）上；
+> plan `docs~/superpowers/plans/2026-11-23-close-reliability.md`。
 > 来源：`2026-11-23-ui-sfx-cues-design.md` §15 在调研中静态读到的既有问题 #6 / #7 / #8 / #13；之后逐条核实（静态阅读 +
 > 临时 PlayMode 探针），结论见 §1。共同点：**「关闭」在某条路径上不可靠** —— 关了还登记着、关的时候订阅先没了、在错的线程上关、
 > 不该开的页先开再关。
