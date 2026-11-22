@@ -22,6 +22,12 @@ namespace PromptUGUI.Controls.Internal
 
         public void End() => _open = false;
 
+        /// <summary>A user activation is in progress.</summary>
+        public bool IsOpen => _open;
+
+        /// <summary>The activation in progress (or the last one) already raised its cue.</summary>
+        public bool Raised => _raised;
+
         /// <summary>True once per activation, for the first value that differs from the one it began with.</summary>
         public bool TakeFlip(bool value)
         {

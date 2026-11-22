@@ -290,14 +290,34 @@ namespace PromptUGUI.Controls.Internal
         // closing another popup sees the chain as it now is.
         private static void CloseFrom(int index, PopupCloseReason reason)
         {
-            while (s_stack.Count > index)
+            // Which entry this close is aimed at — Escape at the top, an outside press at the lowest it closes, a host at
+            // its own — as opposed to the ones above it that go with it (spec 2026-11-23-ui-sfx-cues §7.6). Saved and
+            // restored: a close that reacts by closing another popup runs a cascade of its own inside this one.
+            var outer = s_aimed;
+            s_aimed = index < s_stack.Count ? s_stack[index] : null;
+            try
             {
-                var last = s_stack.Count - 1;
-                var entry = s_stack[last];
-                s_stack.RemoveAt(last);
-                entry.CloseFromChain(reason);
+                while (s_stack.Count > index)
+                {
+                    var last = s_stack.Count - 1;
+                    var entry = s_stack[last];
+                    s_stack.RemoveAt(last);
+                    entry.CloseFromChain(reason);
+                }
+            }
+            finally
+            {
+                s_aimed = outer;
             }
         }
+
+        private static IPopupEntry s_aimed;
+
+        /// <summary>
+        /// While a close runs: whether <paramref name="entry"/> is the one it was aimed at, not one closed along with it —
+        /// a sound cue belongs to the popup the gesture targeted (spec 2026-11-23-ui-sfx-cues §7.6, P4).
+        /// </summary>
+        internal static bool IsAimedAt(IPopupEntry entry) => entry != null && ReferenceEquals(s_aimed, entry);
 
         // An entry is a child when its host OR its anchor sits in the other's panel — a Popover is
         // declared anywhere but opens from a control (spec 2026-10-19 §4.9).

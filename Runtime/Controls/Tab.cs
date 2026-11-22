@@ -497,6 +497,15 @@ namespace PromptUGUI.Controls
         /// </summary>
         internal Observable<Unit> OnActivated => _toggle.OnClicked;
 
+        /// <summary>Whether a click on it now would act — false when it, or a group around it, is disabled.</summary>
+        internal bool AcceptsActivation => _toggle != null && _toggle.IsActive() && _toggle.IsInteractable();
+
+        /// <summary>
+        /// A user activation of this tab is in progress and it changed nothing — a re-pick of the selected tab, which uGUI
+        /// re-announces (spec 2026-11-23-ui-sfx-cues §7.4). What a TabMenu reads to tell the user's close from a pick's.
+        /// </summary>
+        internal bool InSfxRepick => _sfx.IsOpen && !_sfx.Raised;
+
         /// <summary>Test hook: raise <see cref="OnActivated"/> without a live EventSystem.</summary>
         internal void SimulateClickForTests() => _toggle.SimulateClickForTests();
 

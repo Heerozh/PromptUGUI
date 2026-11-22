@@ -28,8 +28,10 @@ namespace PromptUGUI.Controls
     /// either the built-in caption (<c>text</c> / <c>icon</c>) or an author-supplied
     /// <c>&lt;Header&gt;</c> subtree; the caret is drawn by the library either way.</para>
     /// </summary>
-    public sealed class Collapsible : ProceduralControl, IExpandable, IHugContent
+    public sealed class Collapsible : ProceduralControl, IExpandable, IHugContent, ISfxActivationSink
     {
+        // spec 2026-11-23-ui-sfx-cues §7.7: the header's user activation — the fold it makes, and only that, is a cue.
+        private readonly SfxActivation _sfxHeader = new();
         /// <summary>Default open / close duration when the author writes none.</summary>
         internal const float DefaultTransition = 0.2f;
 
@@ -162,6 +164,7 @@ namespace PromptUGUI.Controls
 
             _btn = _header.gameObject.AddComponent<PuiButton>();
             _btn.targetGraphic = _headerBg;
+            _btn.SfxSink = this;
             _btn.onClick.AddListener(Toggle);
 
             // Pinned mode: the caret hugs the right edge and the label fills what is left — a header
@@ -498,6 +501,8 @@ namespace PromptUGUI.Controls
             FreezeCurrentBox();
             IsExpanded = true;
             PlayTransition(expanding: true);
+            // Inside the header's window only: an accordion sibling folds in its own, closed one.
+            if (_sfxHeader.TakeFlip(true)) RaiseSfx(PromptUGUI.Lint.SfxRules.Expand);
             _expandedSubject.OnNext(Unit.Default);
             _toggledSubject.OnNext(true);
         }
@@ -509,9 +514,18 @@ namespace PromptUGUI.Controls
             FreezeCurrentBox();
             IsExpanded = false;
             PlayTransition(expanding: false);
+            if (_sfxHeader.TakeFlip(false)) RaiseSfx(PromptUGUI.Lint.SfxRules.Collapse);
             _collapsedSubject.OnNext(Unit.Default);
             _toggledSubject.OnNext(false);
         }
+
+        void ISfxActivationSink.BeginSfxActivation(bool interactable)
+        {
+            if (!interactable) RaiseSfx(PromptUGUI.Lint.SfxRules.Deny);
+            else _sfxHeader.Begin(IsExpanded);
+        }
+
+        void ISfxActivationSink.EndSfxActivation() => _sfxHeader.End();
 
         /// <summary>
         /// Pins the box to what is on screen right now, BEFORE <see cref="IsExpanded"/> flips —

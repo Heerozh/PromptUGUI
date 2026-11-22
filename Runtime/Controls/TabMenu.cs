@@ -29,8 +29,11 @@ namespace PromptUGUI.Controls
     /// <c>&lt;Frame&gt;</c> to give the handle a background — the same way <c>&lt;TabBar&gt;</c>
     /// gets a bar background.</para>
     /// </summary>
-    public sealed class TabMenu : ProceduralControl, IExpandable
+    public sealed class TabMenu : ProceduralControl, IExpandable, ISfxActivationSink
     {
+        // spec 2026-11-23-ui-sfx-cues §7.4: a user activation of the handle, and a row re-picked while the menu is open.
+        private readonly SfxActivation _sfxHandle = new();
+        private bool _sfxRepick;
         // Caption metrics. Fixed like Btn's/Tab's padding constants: the tunable part of the
         // caption is what the author writes (fontSize / iconSize / gap), not its inset.
         private const float PadX = 4f;
@@ -94,6 +97,7 @@ namespace PromptUGUI.Controls
 
             _btn = GameObject.GetComponent<PuiButton>() ?? GameObject.AddComponent<PuiButton>();
             _btn.targetGraphic = _caption.Label;
+            _btn.SfxSink = this;
             _btn.onClick.AddListener(Toggle);
 
             UI.Locale.Changed += ApplyFont;
@@ -480,6 +484,8 @@ namespace PromptUGUI.Controls
 
             PlayArrow(expanding: true);
             _expandShows.Notify();
+            // Only when it really opened (Open can refuse), and before OnExpanded.
+            if (IsExpanded && _sfxHandle.TakeFlip(true)) RaiseSfx(PromptUGUI.Lint.SfxRules.Expand);
             _expandedSubject.OnNext(Unit.Default);
         }
 
@@ -495,8 +501,30 @@ namespace PromptUGUI.Controls
         {
             PlayArrow(expanding: false);
             _expandShows.Notify();
+            if (IsUserClose(reason)) RaiseSfx(PromptUGUI.Lint.SfxRules.Collapse);
             _collapsedSubject.OnNext(Unit.Default);
         }
+
+        // spec §7.4: the handle Submitted while open, a row re-picked, or Escape / the catcher aimed at this menu. A pick
+        // that changed the selection closes it as its consequence (the tab raised select), and so does everything else.
+        private bool IsUserClose(PopupCloseReason reason)
+        {
+            switch (reason)
+            {
+                case PopupCloseReason.Owner: return _sfxHandle.TakeFlip(false) || _sfxRepick;
+                case PopupCloseReason.Escape:
+                case PopupCloseReason.OutsidePress: return PopupChain.IsAimedAt(_popupCore);
+                default: return false;
+            }
+        }
+
+        void ISfxActivationSink.BeginSfxActivation(bool interactable)
+        {
+            if (!interactable) RaiseSfx(PromptUGUI.Lint.SfxRules.Deny);
+            else _sfxHandle.Begin(IsExpanded);
+        }
+
+        void ISfxActivationSink.EndSfxActivation() => _sfxHandle.End();
 
         /// <summary>
         /// Spins the caret alongside the core's fade and slide, over the same duration. Outside play
@@ -572,7 +600,7 @@ namespace PromptUGUI.Controls
             _core.CollectStatic(Children);
             _core.SyncInitialSelection();
             _core.WireTabSubscriptions();
-            _selectionSub ??= _core.SelectionChanged.Subscribe(_ => OnSelectionSettled());
+            _selectionSub ??= _core.SelectionChanged.Subscribe(OnSelectionSettled);
             WireActivationSubscriptions();
             RefreshCaption();
 
@@ -620,12 +648,17 @@ namespace PromptUGUI.Controls
             base.Dispose();
         }
 
-        private void OnSelectionSettled()
+        private void OnSelectionSettled(Tab tab)
         {
             RefreshCaption();
             // Not while opening: see _expanding. Picking a row — by click or from code — is what
             // closes a menu, and reactivating the panel is neither.
-            if (!_expanding) Collapse();
+            if (_expanding) return;
+            // A user re-picking the selected row arrives here too (uGUI re-announces it) and is the user's own close; a
+            // pick that changed the selection raised the tab's select instead (spec 2026-11-23-ui-sfx-cues §7.4).
+            _sfxRepick = tab != null && tab.InSfxRepick;
+            try { Collapse(); }
+            finally { _sfxRepick = false; }
         }
 
         // Picking a row closes the menu — including a re-pick of the row already selected, which
@@ -635,7 +668,19 @@ namespace PromptUGUI.Controls
             _activationSubs?.Dispose();
             _activationSubs = new CompositeDisposable();
             for (int i = 0; i < _core.Tabs.Count; i++)
-                _core.Tabs[i].OnActivated.Subscribe(_ => { if (!_expanding) Collapse(); }).AddTo(_activationSubs);
+            {
+                var tab = _core.Tabs[i];
+                tab.OnActivated.Subscribe(_ =>
+                {
+                    if (_expanding) return;
+                    // Still open after the row handled the click: it changed nothing, so this close is the user's own
+                    // (spec 2026-11-23-ui-sfx-cues §7.4). A pick that changed the selection has closed it already; a
+                    // disabled row was refused (it raised deny) and closes it silently.
+                    _sfxRepick = IsExpanded && tab.AcceptsActivation;
+                    try { Collapse(); }
+                    finally { _sfxRepick = false; }
+                }).AddTo(_activationSubs);
+            }
         }
     }
 }

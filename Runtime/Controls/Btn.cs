@@ -345,9 +345,18 @@ namespace PromptUGUI.Controls
         // A user activation always does what it says: it clicks, or it is refused (spec 2026-11-23-ui-sfx-cues §7.2).
         // Raised before base handles it, so the cue comes before onClick → OnClick.
         void ISfxActivationSink.BeginSfxActivation(bool interactable)
-            => RaiseSfx(interactable ? PromptUGUI.Lint.SfxRules.Click : PromptUGUI.Lint.SfxRules.Deny);
+        {
+            RaiseSfx(interactable ? PromptUGUI.Lint.SfxRules.Click : PromptUGUI.Lint.SfxRules.Deny);
+            InSfxActivation = interactable;
+        }
 
-        void ISfxActivationSink.EndSfxActivation() { }
+        void ISfxActivationSink.EndSfxActivation() => InSfxActivation = false;
+
+        /// <summary>
+        /// True while a real user click or Submit runs this button's OnClick — not <c>onClick.Invoke()</c>. What a
+        /// <c>&lt;Popover on="click@…"&gt;</c> reads to tell a user open from a coded one (spec 2026-11-23-ui-sfx-cues §7.6).
+        /// </summary>
+        internal bool InSfxActivation { get; private set; }
 
         internal void SimulateClick() => _click.OnNext(Unit.Default);
 
