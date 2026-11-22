@@ -74,8 +74,8 @@
 
 ## Task 5：文档与收尾
 
-- [ ] C# skill：Open / Close / Get（直接关闭注销；路由页与对话框经主人关闭）、两段式关闭段（`OnClosing` 可 `.AddTo(screen)`）、
+- [x] C# skill：Open / Close / Get（直接关闭注销；路由页与对话框经主人关闭）、两段式关闭段（`OnClosing` 可 `.AddTo(screen)`）、
   CancellationToken 段（任意线程取消、主线程关闭与恢复）、Router（作废的导航不调 `OnEnter`）。
-- [ ] close-transition spec §5.1 第 3 步的更正；spec 加实施记录。
-- [ ] 全量回归：EditMode / EditorOnly / PlayMode；`dotnet format --verify-no-changes`。
-- [ ] 推送，开 PR（base `feat/ui-sfx`），写明公开行为变化。
+- [x] close-transition spec §5.1 第 3 步的更正；spec 加实施记录。
+- [x] 全量回归：EditMode / EditorOnly / PlayMode；`dotnet format --verify-no-changes`。
+- [x] 推送，开 PR（base `feat/ui-sfx`），写明公开行为变化。

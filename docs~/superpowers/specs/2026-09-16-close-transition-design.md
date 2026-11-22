@@ -143,6 +143,8 @@ UI.Router.Transition = RouteTransition.Sequential;   // 旧页销毁后再建新
 2. 以下任一 → **直接走销毁体**（今天的 `Close`，改名 `CloseImmediate`）：`!Application.isPlaying`（EditMode 没有帧）、
    `IsOpening`（建屏帧内关闭：什么都还没画出来，播退场只是看不见的幽灵活 `duration`）、显式 `Dispose()` / 强制关闭（§5.3）。
 3. `IsClosing = true`；`DetachGlobals()`（幽灵不再响应 theme / variant / resize）。
+   （2026-11-23 更正：实现里 `DetachGlobals` 一度连 `.AddTo(screen)` 的订阅也在这里释放，`OnClosing` 的 `.AddTo(screen)` 订阅者因此
+   收不到。订阅现在活到销毁体、在 `FireClosing` 之后释放，符合 §4.3 的契约 —— 见 `2026-11-23-close-reliability-design.md` §2。）
 4. 封输入：root 上 `CanvasGroup`（无则加）`blocksRaycasts = false`。**不动 `interactable`**——那会让所有
    `Selectable` 进 Disabled，`StateTintReactor` 把正在淡出的按钮刷灰。
 5. 焦点：`EventSystem.currentSelectedGameObject` 在 root 之下 → `SetSelectedGameObject(null)`；Navigation 启用时由

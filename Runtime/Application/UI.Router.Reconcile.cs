@@ -452,7 +452,8 @@ namespace PromptUGUI.Application
                     if ((a.Def.Kind != RouteKind.Page && a.Def.Kind != RouteKind.Modal) || a.ScreenKey != screenKey) continue;
                     UnityEngine.Debug.LogWarning(
                         $"[PromptUGUI] Screen '{screenKey}' is a routed page: closing it directly leaves its route in " +
-                        "UI.Router's chain. Navigate with UI.Router.Back() / UI.Router.Open() instead.",
+                        "UI.Router's chain, and the next navigation fails. Navigate with UI.Router.Back() / " +
+                        "UI.Router.Open() instead.",
                         screen.RootGameObject);
                     return;
                 }

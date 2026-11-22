@@ -1,6 +1,6 @@
 # 关闭的可靠性：直接关闭、`OnClosing` 订阅、对话框的 token 取消、过期的路由激活
 
-> 状态：**决策已对齐**（2026-11-23：§7 的 D1…D5 全部按推荐），实施中。分支 `fix/close-reliability`，叠在 `feat/ui-sfx`（PR #186）上；
+> 状态：**已实现**（2026-11-23，实施记录见 §11）。决策已对齐：§7 的 D1…D5 全部按推荐。分支 `fix/close-reliability`，叠在 `feat/ui-sfx`（PR #186）上；
 > plan `docs~/superpowers/plans/2026-11-23-close-reliability.md`。
 > 来源：`2026-11-23-ui-sfx-cues-design.md` §15 在调研中静态读到的既有问题 #6 / #7 / #8 / #13；之后逐条核实（静态阅读 +
 > 临时 PlayMode 探针），结论见 §1。共同点：**「关闭」在某条路径上不可靠** —— 关了还登记着、关的时候订阅先没了、在错的线程上关、
@@ -137,7 +137,7 @@ CenteredSlideBox / 自定义请求都汇到这里。回调跑在取消它的那�
     `await` 它的代码在主线程恢复；
   - **Router**：被 `Reset` / `UnloadAll` 作废的导航不再调用 `OnEnter`。
 - close-transition spec §5.1 第 3 步加一句更正，指向本文 §2。
-- 本文 §10 实施记录。
+- 本文 §11 实施记录。
 
 ## 9. 非目标
 
@@ -153,3 +153,20 @@ CenteredSlideBox / 自定义请求都汇到这里。回调跑在取消它的那�
 4. A4：token 在主线程结算；registration 随 entry 释放。
 5. A5（+ A6 中复现了的部分）：过期的激活什么都不开。
 6. docs：skill、close-transition 更正、实施记录。
+
+## 11. 实施记录（2026-11-23）
+
+按 §10 分步提交，一个 PR（Task 2、3 的改动落在同几个文件里，合成一个提交）。与正文的出入、实现中才看清的细节：
+
+| 处 | 记录 |
+|---|---|
+| A1 | 拆出 `ReleaseSubscriptions()`；`DetachGlobals()` 只剩 Variant、`Theme.Changed`、`RectTransformDimensionsChanged`。另加一条：已销毁的 Screen 上再 `Track` / `.AddTo(screen)`，订阅当场释放 —— 持有旧引用的代码不会再往一个没人释放的列表里挂东西 |
+| A2 | 钩子是 `Screen.OnLeftOpen(screen, rootDestroyed)`，`_leftOpen` 保证恰好一次。拆除（`UnloadAll` / `ResetForTests`）关 Screen 时它们还在 `_open` 里，钩子会把它们当成直接关闭（对话框收尾、路由页警告），所以拆除期间用 `_tearingDown` 让它静默。热重载、`PromptUGUIDocumentHost`、Router 清孤儿都先摘 `_open` 再关，不受影响 |
+| A3 | 路由页的警告只在显式关闭时发，根被外部销毁（场景重载）时不发 —— 那是 Router 链自检（`AssertChainNotStale`）的地盘。直接关掉路由页之后，下一次导航本来就会被链自检拦下抛 `RouteException`（修前修后都如此），警告文字写明了这一点。根被外部销毁的**对话框**同样结算、出栈 —— 以前它的 `await` 会一直挂着 |
+| A4 | 「是不是主线程」按**线程 ID** 判断，不按同步上下文判断：`CancellationTokenSource` 在注册时捕获的 `ExecutionContext` 里跑回调，那里的同步上下文是副本，按引用比较永远不相等，第一版因此把主线程上的取消也推迟了一帧（`ModalCancelTests` / `MarkdownBoxTests` 当场红了）。registration 由 `IModalEntry.HoldTokenRegistration` 持有，三条结算路径（按钮、Esc、取消）都释放；内部计数 `UI.Modal.TokenRegistrationsForTests` 是测试缝 |
+| A5 | `ActivatePage(def, query, epoch)` 过期返回 null，Reconcile 见 null 直接返回；只管音效的那个 epoch 判断删了 |
+| A6 | 两个旁支 Red 测试都复现了（都是 `already loaded`），都修：Router 的 `EnsureLoaded` 对进行中的同一 src 去重（`_loadingSrcs`，拆除时清空）；`UI.LoadDocumentAsync` 带加载代数，`UnloadAll` / `ResetForTests` 推进它 |
+| 测试环境 | 在 PlayMode 之后不重载域就跑 EditMode，宿主工程进 Play 时设下的静态皮肤（`MessageBox.XmlSrc`）会留下来，让依赖内置皮肤的 EditMode 用例失败。重载域之后正常；本 PR 新加的对话框用例都自带皮肤 |
+
+回归：EditMode / EditorOnly / PlayMode 全量，除 `main` 上同样失败的既有环境相关用例外全部通过；`dotnet format --verify-no-changes` 干净。
+
