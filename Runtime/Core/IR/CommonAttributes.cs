@@ -3,8 +3,9 @@ using System.Collections.Generic;
 namespace PromptUGUI.IR
 {
     /// <summary>
-    /// The attributes <c>ControlAttributeApplier</c> routes through the generic <c>ApplyCommon</c> path
-    /// (layout geometry + visibility), as opposed to a control's own <c>[UIAttr]</c> setter. This is the
+    /// The attributes <c>ControlAttributeApplier</c> resolves and writes itself on every pass — the generic
+    /// <c>ApplyCommon</c> path (layout geometry + visibility) plus <c>sfx</c> (spec 2026-11-23-ui-sfx-cues §7.15) — as
+    /// opposed to a control's own <c>[UIAttr]</c> setter, which is skipped when its value resolves to null. This is the
     /// SINGLE SOURCE OF TRUTH for "is this a common attribute", shared by:
     ///   - the runtime dispatch — <c>ControlAttributeApplier.IsCommonAttribute</c> delegates to <see cref="All"/>;
     ///   - the <c>PUI-VARIANT-NO-BASE</c> lint — its self-heal set is DERIVED from <see cref="All"/>
@@ -21,6 +22,8 @@ namespace PromptUGUI.IR
         public static readonly HashSet<string> All = new()
         {
             "anchor", "size", "width", "height", "margin", "pivot", "hidden", "interactable", "flow",
+            // Written every pass, unresolved = not written (the default sound): it self-heals like interactable.
+            "sfx",
         };
 
         public static bool Contains(string name) => All.Contains(name);

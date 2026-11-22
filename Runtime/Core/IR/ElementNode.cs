@@ -36,6 +36,14 @@ namespace PromptUGUI.IR
         public System.Collections.Generic.HashSet<string> StyleAttrNames { get; set; }
 
         /// <summary>
+        /// On a template instance root only: the common attribute names its invocation(s) spelled out inline (base or
+        /// <c>.variant</c>) — not what the invocation's own <c>class=</c> brought. Null elsewhere. Lint reads it to tell a
+        /// value written at the call site from the one the template body carries (<c>PUI-SFX-INERT</c>, spec
+        /// 2026-11-23-ui-sfx-cues §8). Replaced wholesale, never mutated in place.
+        /// </summary>
+        public System.Collections.Generic.HashSet<string> InvocationAttrNames { get; set; }
+
+        /// <summary>
         /// 1-based line in <see cref="OriginSrc"/> where this node's opening tag starts; 0 when
         /// unknown (a synthesised node, or a caller that parsed without line info). Travels with
         /// <see cref="OriginSrc"/> through expansion so a lint finding can name a place, not a file.
