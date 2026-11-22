@@ -127,4 +127,4 @@
   `scripting-promptugui-csharp/SKILL.md` 的 **UI sound cues** 小节与速查表；`AGENTS.md` 路由；主 spec §5.1。
 - [x] 全量回归：EditMode / EditorOnly / PlayMode；`dotnet format --verify-no-changes`；UIXmlLint 全目录。
 - [x] spec 加 §18 实施记录（偏差、发现）；提交。
-- [ ] 开 PR，描述写明两处行为变化（spec §12 / §18）。
+- [x] 开 PR（#186），描述写明两处行为变化（spec §12 / §18）。
