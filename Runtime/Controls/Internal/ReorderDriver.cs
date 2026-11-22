@@ -147,6 +147,7 @@ namespace PromptUGUI.Controls.Internal
             // A long-press lift is not a click: the <Btn> under the finger must not fire on release.
             pointer.eligibleForClick = false;
 
+            _list.RaiseReorderSfx(_row, PromptUGUI.Lint.SfxRules.Lift);
             // Hooks first (an authored <Animation on="lift"> starts now); the default look only when
             // the row has no lift hook of its own — the two must not both write localScale.
             if (_list.NotifyLifted(_row)) _look.Apply(_rowRt);
@@ -200,6 +201,9 @@ namespace PromptUGUI.Controls.Internal
             _look.Undo(instant: false);
 
             ClearSession();
+            // The user's release: a new place lands, the old one is a put-back — before OnReordered. A cancel (a push, an
+            // apply pass) never comes here (spec 2026-11-23-ui-sfx-cues §7.12).
+            _list.RaiseReorderSfx(row, from != to ? PromptUGUI.Lint.SfxRules.Land : PromptUGUI.Lint.SfxRules.Return);
             _list.NotifyDropped(row);
             if (from != to) _list.RaiseReordered(from, to);
         }

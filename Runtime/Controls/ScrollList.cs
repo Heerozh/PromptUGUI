@@ -483,6 +483,15 @@ namespace PromptUGUI.Controls
 
         internal void NotifyDropped(IControl row) => MarkerOf(row)?.Drop();
 
+        /// <summary>
+        /// A reorder cue for <paramref name="row"/> (spec 2026-11-23-ui-sfx-cues §7.12): its key looked up on the row's root,
+        /// then on this list — where <c>reorder</c> is declared. Independent of any lift / drop hook.
+        /// </summary>
+        internal void RaiseReorderSfx(IControl row, string action)
+        {
+            if (row is Control c) c.RaiseSfx(action, this, kind: "reorder");
+        }
+
         // The marker sits on the row's layout host (Content's direct child) — where the upward walk
         // in TriggerSourceResolver.FindLiftSource puts it. Null for a row nobody hooked.
         private static LiftMarker MarkerOf(IControl row)
