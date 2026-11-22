@@ -65,12 +65,12 @@
 **Files:** `Runtime/Application/UI.Router.Reconcile.cs`（A6：`UI.cs`、`UI.Router.Reconcile.cs` 的 `EnsureLoaded`）；
 新 `Tests/EditMode/Router/RouterStaleActivationTests.cs`。
 
-- [ ] Red：闸门 resolver（`DocumentCacheTests` 的做法）：`Router.Open` → `Router.Reset()`（以及 `UI.UnloadAll()`）→ 放闸 →
+- [x] Red：闸门 resolver（`DocumentCacheTests` 的做法）：`Router.Open` → `Router.Reset()`（以及 `UI.UnloadAll()`）→ 放闸 →
   `OnEnter` 0 次、`UI.Get` 为 null、新页上开着的弹层仍开着。
-- [ ] Red（A6）：`Reset` → 再导航到同一条 → 放闸 → 第二次导航成功、只加载一次；`UnloadAll` → 放闸 → 文档没被写回，之后导航正常。
+- [x] Red（A6）：`Reset` → 再导航到同一条 → 放闸 → 第二次导航成功、只加载一次；`UnloadAll` → 放闸 → 文档没被写回，之后导航正常。
   **不红的旁支不修**，在 spec 实施记录里写明。
-- [ ] Green：epoch 传参、过期返回 null；删 `ActivatePage` 里只管音效的 epoch 判断；A6 复现了的部分。
-- [ ] 回归；提交。
+- [x] Green：epoch 传参、过期返回 null；删 `ActivatePage` 里只管音效的 epoch 判断；A6 复现了的部分。
+- [x] 回归；提交。
 
 ## Task 5：文档与收尾
 

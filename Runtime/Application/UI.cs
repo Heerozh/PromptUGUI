@@ -585,14 +585,23 @@ namespace PromptUGUI.Application
             _docs.Remove(screenName);
         }
 
+        // Moves on with every UnloadAll / ResetForTests: a LoadDocumentAsync still in flight then registers nothing.
+        private static int _loadGeneration;
+
         public static async UnityEngine.Awaitable<IReadOnlyList<string>> LoadDocumentAsync(string src)
         {
             if (SourceResolver == null)
                 throw new System.InvalidOperationException(
                     "UI.SourceResolver must be set before LoadDocumentAsync");
 
+            var generation = _loadGeneration;
             await EnsureCommonLibrariesAsync();
             var loaded = await DocumentLoader.LoadAndMergeParsedAsync(src, CachedFetch, _commonsPool, _commonsStyles);
+            // UnloadAll ran meanwhile (a reconnect): what this load fetched belongs to the state that was thrown away, and
+            // registering it would make loading it again fail as "already loaded" (spec 2026-11-23-close-reliability §5).
+            if (generation != _loadGeneration)
+                throw new System.OperationCanceledException(
+                    $"UI.UnloadAll ran while '{src}' was loading; nothing of it was registered.");
             RegisterThemesAndAutoSet(loaded);
             var expanded = ExpandOrExplain(loaded);
 
@@ -1110,6 +1119,7 @@ namespace PromptUGUI.Application
         /// </summary>
         public static void UnloadAll()
         {
+            _loadGeneration++;
             Router.CancelAllForTeardown();
             Modal.CancelAllForTeardown();
             Modals.LoadingOverlay.CancelAllForTeardown();
@@ -1320,6 +1330,7 @@ namespace PromptUGUI.Application
         // 仅测试使用
         internal static void ResetForTests()
         {
+            _loadGeneration++;
             Locale.ResetForTestsInternal();
             Orientation.ResetForTestsInternal();
             Theme.ResetForTestsInternal();
