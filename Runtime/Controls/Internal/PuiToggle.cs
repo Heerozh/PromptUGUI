@@ -96,13 +96,36 @@ namespace PromptUGUI.Controls.Internal
         /// <summary>The control this toggle's user activations are cues of (spec 2026-11-23-ui-sfx-cues §7.1).</summary>
         internal ISfxActivationSink SfxSink { get; set; }
 
+        // The value right before the operation in progress — a click, a Submit, an IsOn write (spec
+        // 2026-11-23-input-correctness §3); null outside one. uGUI's Toggle.Set forces a group's only member back on and
+        // still calls onValueChanged(true): what Tab / Toggle drop with IsUnchanged.
+        private bool? _valueBefore;
+
+        /// <summary>Opens an operation; pass what it returns to <see cref="EndOperation"/>.</summary>
+        internal bool? BeginOperation()
+        {
+            var outer = _valueBefore;
+            _valueBefore = isOn;
+            return outer;
+        }
+
+        internal void EndOperation(bool? outer) => _valueBefore = outer;
+
+        /// <summary>A value callback that reports the value this toggle had before the operation in progress.</summary>
+        internal bool IsUnchanged(bool value) => _valueBefore.HasValue && _valueBefore.Value == value;
+
         public override void OnSubmit(BaseEventData eventData)
         {
             if (UI.Navigation.TryWakeOnSubmit()) return;
             var sink = IsActive() ? SfxSink : null;
             sink?.BeginSfxActivation(IsInteractable());
+            var outer = BeginOperation();
             try { base.OnSubmit(eventData); }
-            finally { sink?.EndSfxActivation(); }
+            finally
+            {
+                EndOperation(outer);
+                sink?.EndSfxActivation();
+            }
             // After the early return, deliberately: a wake-only Submit recalls the focus cursor
             // and is NOT an activation (see nav-hidden-submit-wake).
             _clicked.OnNext(Unit.Default);
@@ -115,8 +138,13 @@ namespace PromptUGUI.Controls.Internal
             var left = eventData.button == PointerEventData.InputButton.Left;
             var sink = left && IsActive() ? SfxSink : null;
             sink?.BeginSfxActivation(IsInteractable());
+            var outer = BeginOperation();
             try { base.OnPointerClick(eventData); }
-            finally { sink?.EndSfxActivation(); }
+            finally
+            {
+                EndOperation(outer);
+                sink?.EndSfxActivation();
+            }
             if (!left) return;
             _clicked.OnNext(Unit.Default);
         }

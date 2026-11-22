@@ -109,6 +109,8 @@ namespace PromptUGUI.Controls
 
             _toggle.onValueChanged.AddListener(v =>
             {
+                // A re-click of the on radio changed nothing: announce nothing (spec 2026-11-23-input-correctness §3).
+                if (_toggle.IsUnchanged(v)) return;
                 // Before OnValueChanged: a cue the handler causes (a dialog it opens) comes after this one.
                 if (_sfx.TakeFlip(v))
                     RaiseSfx(v ? PromptUGUI.Lint.SfxRules.Checked : PromptUGUI.Lint.SfxRules.Unchecked);
@@ -241,7 +243,12 @@ namespace PromptUGUI.Controls
         public bool IsOn
         {
             get => _toggle.isOn;
-            set => _toggle.isOn = value;
+            set
+            {
+                var outer = _toggle.BeginOperation();
+                try { _toggle.isOn = value; }
+                finally { _toggle.EndOperation(outer); }
+            }
         }
 
         /// <summary>

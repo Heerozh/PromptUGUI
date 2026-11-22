@@ -131,8 +131,8 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             yield return Click(ScreenOf(s.Get<Tab>("a")));
 
             Assert.IsEmpty(_cues, Describe(_cues));
-            // spec §15-1: whether uGUI's re-sent onValueChanged(true) reaches OnSelectionChanged on a real click.
-            TestContext.WriteLine($"OnSelectionChanged on a re-click of the selected tab: {announced}");
+            // uGUI re-sends onValueChanged(true) for it; the tab announces nothing (spec 2026-11-23-input-correctness §3).
+            Assert.AreEqual(0, announced, "OnSelectionChanged on a re-click of the selected tab");
 #else
             yield break;
 #endif

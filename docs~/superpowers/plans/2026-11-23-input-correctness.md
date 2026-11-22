@@ -51,9 +51,9 @@ EditMode 拖放 / 重排测试。
 
 **Files:** `PuiToggle.cs`、`Tab.cs`、`Toggle.cs`、`TabMenu.cs`；EditMode Tab / Toggle / TabMenu 测试；`SfxPlayTests`（日志改断言）。
 
-- [ ] Red：重点已选中的 Tab / 已开的 radio → 各事件与 `<Trigger on="checked">` 0 次；代码 `IsOn = false` 写给组里唯一开着的 → 不发；
+- [x] Red：重点已选中的 Tab / 已开的 radio → 各事件与 `<Trigger on="checked">` 0 次；代码 `IsOn = false` 写给组里唯一开着的 → 不发；
   `allowSwitchOff` 点掉照发；TabMenu 重点当前行仍收起、仍发 `collapse`；点禁用行不收起；`Open` 被拒不发 `OnExpanded`。
-- [ ] Green（删 `InSfxRepick` 与 `OnSelectionSettled` 的重点分支）；回归 sfx 全部；提交。
+- [x] Green（删 `InSfxRepick` 与 `OnSelectionSettled` 的重点分支）；回归 sfx 全部；提交。
 
 ## Task 4（B4 / B11）：下拉
 
