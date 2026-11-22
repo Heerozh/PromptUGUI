@@ -747,8 +747,10 @@ async Awaitable Confirm(DropEvent e)
 - **`UI.Drag.OnLift` / `OnHover` / `OnEnd`** — `OnEnd` fires exactly once per drag with `Result` = `Dropped` /
   `Returned` / `Cancelled`; `Target == null` + `ScreenPosition` on a `Returned` end is "dropped outside the UI" (raycast
   your 3D world yourself). `UI.Drag.Current` is the live drag (its `Target` follows the hover). `UI.Drag.IsDragging`.
-- **Cancel:** `UI.Drag.Cancel()`; a push to the source's list, any ReSolve, closing its Screen, a modal opening, Escape
-  cancel too — no `OnDrop`, `OnEnd(Cancelled)`.
+- **Cancel:** `UI.Drag.Cancel()`; a push to the source's list, any ReSolve, closing its Screen, a modal opening, Escape,
+  a touch the system cancels (a call, the notification shade, a system gesture — never taken for a release) cancel too —
+  no `OnDrop`, `OnEnd(Cancelled)`. The same signals end a press that has not lifted yet (a hold counting down): nothing
+  is lifted and no `OnLift` / `OnEnd` comes at all. A deferred drop's wait ends when the source's Screen starts closing.
 - **Lock a source** with `Interactable = false` (a drag declared in the XML is replayed on every ReSolve; don't switch
   `DragKind` off from code to lock it). `UI.Drag.SortingOrder` (4000) is the layer a lifted thing draws in.
 
@@ -795,6 +797,8 @@ bar.SelectedIndex;  // -1 if none: an empty BindItems list, ClearSelection(), or
 bar.SelectedTab;    // Tab ref or null
 bar.GetAt(i);
 ```
+
+**A re-pick announces nothing.** Re-clicking the selected tab raises no `OnValueChanged` / `OnSelected` / `OnSelectionChanged` (and no `<Animation on="checked">` replay) — nor does `IsOn = false` written to the only selected tab of a bar that keeps one, which the group puts straight back. The same holds for re-clicking the on member of a radio `<Toggle group>`. Events come only for a real change; with `allowSwitchOff` clicking the selected tab off is one.
 
 Setting `tab.IsOn = true` triggers mutex (other Tabs flip to false via the TabBar's private `ToggleGroup`) AND auto-shows the `bind`-ed Frame — no manual `frame.GameObject.SetActive(...)` needed. If `BindItems` is called with an empty list, `OnSelectionChanged` fires with `null` to let subscribers clear UI state. After hot-reload, re-Bind just like ScrollList.
 
@@ -2059,6 +2063,9 @@ public static class UI.Modal {
 
   With the Input System the UI decides in the input update, before every `Update`. With only the
   legacy Input Manager its listeners poll in `Update`, so read the flag in `LateUpdate` there.
+  **Known limitation with only the legacy Input Manager:** the open `<Dropdown>` list hears Escape through the
+  EventSystem's Cancel, the rest of the chain through those polling listeners, and the order of the two `Update`s is the
+  engine's — one Escape can close the list *and* the dialog or popup under it. Install the Input System package.
 - **A dialog closes the popups under it.** Opening a dialog from code — or a routed child page,
   a routed Modal, a `Loading` overlay — closes an open `<TabMenu>` / `<Dropdown>` list on the
   layers below, before the dialog records the focus to return to: closing it puts the focus back on
@@ -2736,6 +2743,7 @@ await UI.Tutorial.Run("first-purchase", async t =>
 - `Run(id, body)` wraps the whole session: it creates the overlay, registers a navigation guard, and on completion **or** exception tears everything down (try/finally). It is globally exclusive — a nested/concurrent `Run` throws `InvalidOperationException`.
 - **Resume:** `Run` reads `load(id)` and fast-forwards already-completed steps (they complete instantly, no visuals). Each finished step saves `index+1`; the whole run saves `int.MaxValue` on success. Advancing the *game* state to the resume point is the script's job — use `t.Navigate(...)` between steps to set the stage (deep-link reconcile makes "already there" a no-op).
 - There is no `CancellationToken` and no built-in skip button in v1: a tutorial runs to completion or the process exits (and resumes next launch via the store).
+- **Between steps nothing is blocked.** When a step ends its mask stops taking the pointer, and its dim goes once no step has used it for a frame — the next `await t.Step(…)` reuses it, so back-to-back steps do not blink. A dialog or a button you `await` between two steps is reachable. `t.Navigate(…)` holds the input (a clear catcher) until the route has switched.
 
 ### `Step` parameters
 

@@ -78,7 +78,7 @@ EditMode 拖放 / 重排测试。
 
 ## Task 7：文档与收尾
 
-- [ ] XML skill（drag-drop / reorder / controls-tabs / controls-carousel / navigation / sfx 与主 SKILL 的相应句子）；C# skill（事件、
+- [x] XML skill（drag-drop / reorder / controls-tabs / controls-carousel / navigation / sfx 与主 SKILL 的相应句子）；C# skill（事件、
   `OnEnd(Cancelled)` 原因、Tutorial、旧输入下的 Esc）；sfx spec 三句；spec 实施记录。
-- [ ] 全量回归：EditMode / EditorOnly / PlayMode；`dotnet format --verify-no-changes`；UIXmlLint。
+- [x] 全量回归：EditMode / EditorOnly / PlayMode；`dotnet format --verify-no-changes`；UIXmlLint。
 - [ ] 推送，开 PR（base `feat/ui-sfx`），写明公开行为变化。

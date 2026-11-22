@@ -45,6 +45,8 @@ Any control can be picked up (`drag="kind"`) and put onto another (`drop="kinds"
 - **Clicks stay clicks.** A source that is also a `<Btn>` (tap for details, hold to move) is let go the moment it lifts — no Pressed tint while it flies, no click on release.
 - **A `drag=` node catches its press** even if it is a click-through `<Frame>` or `<Image>`; clicks still reach the `<Btn>` around it. An explicit `raycastTarget="false"` on the source wins (it can never be picked up — reported once).
 - **One drag at a time.** A second finger's events are ignored; pressing another source meanwhile does nothing special.
+  This is about drag and drop sessions: a `<ScrollList reorder>` row can be reordered with one finger while another
+  finger drags a `drag=` source — the two do not exclude each other.
 - Not lifted by: a right / middle button, `interactable="false"` (on it or an ancestor), `drag="none"`.
 
 ## What moves
@@ -137,7 +139,7 @@ Resolved **upward to the nearest `drop=` control** (`@<id>` to name one):
 
 ### Waiting for confirmation
 
-When a server has the final word, C# can **defer** the drop: the source flies over the target and waits there (the target shows `drop-pending`), then lands when C# accepts or flies home when it rejects. Nothing new can be lifted while a drop waits (a safety timeout gives up after `UI.Drag.PendingTimeout`, 10s by default). The XML side is just `drop-pending`; the API is in the C# skill.
+When a server has the final word, C# can **defer** the drop: the source flies over the target and waits there (the target shows `drop-pending`), then lands when C# accepts or flies home when it rejects. Nothing new can be lifted while a drop waits (a safety timeout gives up after `UI.Drag.PendingTimeout`, 10s by default). The target it waits over stays armed and `drop-over` (only the others let go); the source's Screen starting to close ends the wait (`OnEnd(Cancelled)`), while a push or a ReSolve only puts the source back and keeps waiting. The XML side is just `drop-pending`; the API is in the C# skill.
 
 ## Across Screens
 
@@ -152,7 +154,13 @@ These end a drag at once: the source goes back without a flight, `drop` fires, C
 - the source destroyed, hidden, disabled, or its `drag` turned off;
 - the source's Screen closing; a modal or routed page opening above it;
 - **Escape** / the gamepad's East (the press is spent on it);
+- a touch the **system cancels** — a call, the notification shade, a system gesture, too many fingers, the app losing
+  focus. It is never taken for a release: nothing is put into the target under the finger;
 - `UI.Drag.Cancel()`.
+
+The same signals hold while a source is only **pressed** — counting down its hold, or (mouse) waiting for its first move:
+the press ends, nothing is lifted, no `OnLift` / `OnEnd`, and the rest of that gesture goes nowhere. A row re-bound under a
+held finger (a push to its list) is therefore never lifted with its new item.
 
 A target's Screen closing only takes its targets away; the drag goes on.
 

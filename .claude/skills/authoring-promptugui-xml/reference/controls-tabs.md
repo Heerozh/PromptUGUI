@@ -341,6 +341,14 @@ screen.Get<TabMenu>("channel")
 | `PUI-EXPAND-NO-SOURCE` | A bare `on="expand"` / `on="collapse"` with no `<TabMenu>` ancestor (`@id` forms and Template bodies exempt) | error |
 | `PUI-LAYOUT-ANCHOR` / `PUI-LAYOUT-MARGIN` | A row writes `anchor` / `margin` | error |
 
+## Re-clicking the selected tab
+
+Re-clicking the selected tab (or writing `IsOn = false` to the only selected tab of a bar that keeps one) changes nothing and
+**announces nothing**: no `OnValueChanged` / `OnSelected` / `OnSelectionChanged`, no `<Animation on="checked">` replay, no
+sound. uGUI re-sends the value for it; the tab drops it. With `allowSwitchOff="true"` the click turns the tab off — a real
+change, announced as usual. In a `<TabMenu>`, re-picking the current row still closes the menu; clicking a **disabled** row
+keeps it open (the row raises `tab.deny`).
+
 ## Sound cues
 
 A tab the user picks raises `tab.select` (the tab is the cue's source); `allowSwitchOff="true"` clicking the selected tab

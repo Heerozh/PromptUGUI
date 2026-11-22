@@ -1,6 +1,6 @@
 # 输入的正确性：被系统取消的触摸、按住期间的取消、重点不再发事件，以及下拉 / 菜单 / 轮播 / 引导的边角
 
-> 状态：**决策已对齐**（2026-11-23：§6 的决策全部按推荐），实施中。分支 `fix/input-correctness`，叠在 `feat/ui-sfx`（PR #186）上；
+> 状态：**已实现**（2026-11-23，实施记录见 §12）。决策已对齐：§6 的决策全部按推荐。分支 `fix/input-correctness`，叠在 `feat/ui-sfx`（PR #186）上；
 > plan `docs~/superpowers/plans/2026-11-23-input-correctness.md`。
 > 来源：`2026-11-23-ui-sfx-cues-design.md` §15 在调研中静态读到的既有问题 #1 / #2 / #3 / #4 / #5 / #9 / #10 / #11；之后逐条核实（静态
 > 阅读 + 临时 PlayMode 探针），结论见 §1。共同点：**玩家的一次输入被解释错了** —— 取消被当成松手、按住期间该取消的没取消、什么都没
@@ -156,7 +156,7 @@
   「按住期间」；Tutorial 小节写清步与步之间的输入；旧 Input Manager 下 Esc 的限制。
 - sfx spec：§7.4（禁用行「照现状收起」）、§7.5（「任意鼠标键都会打开」）、§7.8（「禁用的 Carousel 仍能拖动翻页」）三句改为新行为；
   §18 里 `InSfxRepick` 的那段注明已随 B3 删除。
-- 本文 §11 实施记录。
+- 本文 §12 实施记录。
 
 ## 10. 非目标
 
@@ -175,3 +175,20 @@
 6. B8：禁用的 Carousel。
 7. B5：引导的步与步之间。
 8. docs：skill、sfx spec 的相应句子、实施记录。
+
+## 12. 实施记录（2026-11-23）
+
+按 §11 分步提交，一个 PR。与正文的出入、实现中才看清的细节：
+
+| 处 | 记录 |
+|---|---|
+| B1 | 判定是 `LiftGesture.IsSystemCancel`：Input System 下读触点的 `phase`（`touchId` 对上的那个），旧输入下读 `Input.touches`（`#if ENABLE_LEGACY_INPUT_MANAGER`，只装 Input System 时不碰 `Input`）。宿主的取消要在手势还是 Dragging / Armed 时调用，否则 `ReorderDriver.Cancel()` 会因为手势已不活跃而提前返回、什么都不恢复；所以顺序是「先 `IHost.Cancel()`，后置 Idle」。测试缝 `LiftGesture.CanceledProbeForTests` |
+| B2 | `DragSession` 的 `s_pressed` 在 `TryPress` 通过时登记、按 `Gesture.Current` 懒清理；`BeforeStructureChange` / `OnLayerAbove` / `OnReSolve` / `OnReleased`（行被重新绑定）/ `OnSourceTurnedOff` 都覆盖它们，`DragSource` 按住期间每帧自检可交互。按住被取消 → `LiftGesture.CancelPress()` → Swallow（D-B2）。`Hidden` 的源 GameObject 不活跃，既不 Tick 也收不到拖动事件，自然不会拿起；`Begin` 兜底拒绝不可交互的源。可交互判定抽成 `Interaction.GroupsAllow`，与 B8 共用 |
+| B10 | 没有改 `Screen`：停靠时订阅源所在 Screen 的 `OnClosing`（两段式关闭与立即销毁两条路径都会发它），等待结束时（`Finish`）释放 —— 也避开了与 close-reliability PR 在 `Screen.cs` 上的冲突 |
+| B3 | 括号在 `PuiToggle`（`BeginOperation` / `EndOperation` / `IsUnchanged`）：点击、Submit 与 `Tab.IsOn` / `Toggle.IsOn` 的 setter 开括号，`Tab` / `Toggle` 的监听丢弃没变的回调。`SetIsOn(on, animate)` 都经 `IsOn`，自然覆盖 |
+| B5 | D-T1 的「下一次 `Tick`」落成「一整帧没有步用过它」（两个 Tick）：`await t.Step(a); await Awaitable.NextFrameAsync(); await t.Step(b);` 这种隔一帧的写法也不闪。`t.Navigate` 用一块独立的透明挡板，不动遮罩的暗幕状态；挡的是指针，Esc 照旧（`IsBlockingInput` 不变）|
+| 测试 | B1 的 PlayMode 用例是实现之后写的；它们的红态由调研时的临时探针在真实触屏上确认过（系统取消与正常抬起结果都是 `Dropped`）|
+
+回归：EditMode / EditorOnly / PlayMode 全量，除 `main` 上同样失败的既有环境相关用例外全部通过；`dotnet format --verify-no-changes` 与
+UIXmlLint 干净。
+

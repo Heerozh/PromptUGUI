@@ -387,7 +387,7 @@ if (c.Kind == "btn" && c.Source?.Id == "ok" && c.Screen?.Name == "PromptUGUI/Mod
   - `collapse`：原因是 `Escape` 或 `OutsidePress`（背板 —— 背板压在把手上面，开着时点把手其实点的是背板）；导航
     未关进菜单时在把手上 Submit 收起；重选当前项（选择没变、菜单收起）。
   - 选了另一项：只发 `tab.select`（在 Tab 监听里，先于 TabMenu 自己订阅 `SelectionChanged` 触发的收起）；随之而来的收起不发。
-  - 点了不可交互的行：`tab.deny`；菜单照现状收起（§15），不另发 `collapse`。
+  - 点了不可交互的行：`tab.deny`；菜单保持打开（2026-11-23-input-correctness 修正了「照现状收起」，§15-5）。
   - `Covered` / `Replaced` / `HostGone` / `AnchorLost` / 父弹层级联 / `Interactable=false` / `OnHostAfterApply` / C# `Collapse()` → 不发。
 
 ### 7.5 `<Dropdown>`
@@ -395,8 +395,8 @@ if (c.Kind == "btn" && c.Source?.Id == "ok" && c.Screen?.Name == "PromptUGUI/Mod
 TMP 实现，不走 `PopupCore`，自己没有开合事件（P24）。
 
 - 「开着」= 背板存在（`PuiDropdown` 的 `s_expanded` 判据），不看 `IsExpanded` —— 后者在淡出的 0.15s 里仍为 true。
-- `expand`：`PuiDropdown.OnPointerClick` / `OnSubmit` 覆写，`base` 之后从「没背板」变成「有背板」才发。TMP 对任意鼠标键都会
-  打开、`OnSubmit` 没有唤回门（§15）—— cue 跟着实际发生的事走。
+- `expand`：`PuiDropdown.OnPointerClick` / `OnSubmit` 覆写，`base` 之后从「没背板」变成「有背板」才发。只认左键
+  （2026-11-23-input-correctness 修正，§15-4）；`OnSubmit` 没有唤回门（照现状）—— cue 跟着实际发生的事走。
 - `select`：用户选了另一个选项。选项条目的监听以「背板已存在」为门（`Show` 里条目 `isOn` 的初始化写入发生在
   `CreateBlocker` 之前），据此在 Dropdown 的值变化监听里、`OnSelected` 之前发；选中后的关闭不发。
 - `collapse`：点背板；Esc / B —— 输入模块把 Cancel 交给**当前选中的条目**（`DropdownItem.OnCancel` → `Hide()`），所以在
@@ -434,7 +434,7 @@ TMP 实现，不走 `PopupCore`，自己没有开合事件（P24）。
 - 不发：自动播放、`GoTo` / `Next` / `Previous` / `Current=`、XML `current`、`BindItems` 改动下标、resize / 变体重排。
 - 宿主自己接的左右箭头（`Btn.OnClick` → `car.Next()`）响的是按钮的 `btn.click`；想让它听起来像翻页，写
   `<Btn sfx="carousel.flip">`。
-- 指示点是内部 `PuiButton`，永远不会发 `btn.click`（P2）。禁用的 Carousel 仍能拖动翻页（§15）—— v1 照实发 `flip`，不发 `deny`。
+- 指示点是内部 `PuiButton`，永远不会发 `btn.click`（P2）。禁用的 Carousel 不再能滑动翻页（2026-11-23-input-correctness 修正，§15-2），因此也不发 `flip`；v1 不发 `deny`。
 
 ### 7.9 `<Pages>`：不发
 
@@ -730,6 +730,7 @@ Screen 关闭途中，已捕获的重排松手提交不发 cue；`dismiss="pass"
 | 处 | 记录 |
 |---|---|
 | §7.4 TabMenu「重点当前行 = 用户的收起」 | uGUI 在收起之前会把同一个选中再宣布一遍，所以「这次点击是不是重点」不能在弹层关闭的回调里现查。`Tab` 记下自己这次激活是不是重点（`InSfxRepick`：激活窗口开着、却没发出 cue），`TabMenu` 在选择落定时（`OnSelectionSettled(tab)`）取走它，关闭回调只读这个标记 |
+| （后续）| 2026-11-23-input-correctness 修掉了重发（重点不再发任何选择事件）：重点当前行改由已有的 `OnActivated` 路径收起并发 `collapse`，`Tab.InSfxRepick` 与 `OnSelectionSettled` 里的重点分支随之删除 |
 | §7.5 Dropdown 的挂点 | 全在 `PuiDropdown`：背板上加一个点击监听（点背板 = 用户收起），`DestroyBlocker` 里认「重点当前项」，每个条目挂一个 `SfxCancelRelay`（`ICancelHandler`，Esc / B 走选中条目，P24）。`TMP_Dropdown` 自己的淡出协程不经过这些入口，所以 `BindOptions` 在打开时推送（`Hide` + `Show`）不发声 |
 | §7.6 弹层级联的「一次手势一个 cue」 | `PopupChain.CloseFrom` 记下这次 Esc / 外部按下瞄准的是哪一层（`IsAimedAt`），被连带关掉的子层与上层不发 |
 | §7.10 角色 | `ScreenSfxRole` 默认 `Silent`，只有 `UI.Open` / Router（`RoutePresent.Modal` → `Modal`）/ Modal 泵会改；Loading、Toast、引导都走 `OpenModalScreen`，天然静音，没有加任何标记 |
