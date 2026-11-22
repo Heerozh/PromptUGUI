@@ -402,6 +402,23 @@ namespace PromptUGUI.Application
                     $"route '{def.Name}': src '{def.Src}' has multiple screens; specify screen=");
             }
 
+            /// <summary>
+            /// A page or routed modal of the chain closed directly (<c>screen.Close()</c> / <c>Dispose()</c>, spec
+            /// 2026-11-23-close-reliability §3): UI forgets it, the chain does not — say so once, at the call.
+            /// </summary>
+            internal static void WarnIfRouted(string screenKey, Screen screen)
+            {
+                foreach (var a in _chain)
+                {
+                    if ((a.Def.Kind != RouteKind.Page && a.Def.Kind != RouteKind.Modal) || a.ScreenKey != screenKey) continue;
+                    UnityEngine.Debug.LogWarning(
+                        $"[PromptUGUI] Screen '{screenKey}' is a routed page: closing it directly leaves its route in " +
+                        "UI.Router's chain. Navigate with UI.Router.Back() / UI.Router.Open() instead.",
+                        screen.RootGameObject);
+                    return;
+                }
+            }
+
             // UI.UnloadAll 调用:取消 prompt/清 router 链路;链路屏在 _open 里由 UnloadAll 的
             // _open 循环统一销毁。保留注册表(配置)。
             internal static void CancelAllForTeardown()

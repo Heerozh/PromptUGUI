@@ -104,8 +104,12 @@ namespace PromptUGUI.Application
         // _detached: DetachGlobals 已执行(幂等)。
         private bool _destroyed;
         private bool _detached;
-        // 由 UI.Open / OpenModalScreen 注入:root 被外部销毁时把本 Screen 从 UI._open 注销。
-        internal System.Action<Screen> OnDetachedExternally;
+        // 由 UI.Open / OpenModalScreen 注入:本 Screen 不再是打开态时调用,恰好一次 —— 不论是哪条路径:
+        // Close() / CloseAsync() 的 Begin、CloseImmediate() / Dispose()、root 被外部销毁(第二个参数为 true)。
+        // UI 借它把直接关掉的 Screen 从 _open 注销(spec 2026-11-23-close-reliability §3);经 UI 的关闭路径
+        // 先摘了 _open,对它们是空操作。
+        internal System.Action<Screen, bool> OnLeftOpen;
+        private bool _leftOpen;
         private bool _isReapplyingScaler;
         private bool _isPixelMode;
         // The pixel/auto factor that ApplyCanvasScaler last applied; 'Nx' scale divides by it.
@@ -756,6 +760,13 @@ namespace PromptUGUI.Application
             RectTransformDimensionsChanged = null;
         }
 
+        private void LeaveOpen(bool rootDestroyed)
+        {
+            if (_leftOpen) return;
+            _leftOpen = true;
+            OnLeftOpen?.Invoke(this, rootDestroyed);
+        }
+
         // What Track / .AddTo(screen) tied to this Screen: released with the destroy body, after OnClosing.
         private void ReleaseSubscriptions()
         {
@@ -775,7 +786,7 @@ namespace PromptUGUI.Application
             DetachGlobals();
             ReleaseSubscriptions();
             RootGameObject = null;
-            OnDetachedExternally?.Invoke(this);   // 让 UI 把本 Screen 从 _open 注销
+            LeaveOpen(rootDestroyed: true);   // 让 UI 把本 Screen 从 _open 注销
             // GO 已随场景销毁,子 control 的 motion 由 .AddTo(go) 链在各自 OnDestroy 取消;这里只弃掉
             // C# 侧引用让整棵树可被 GC——不调 Destroy/Dispose(GO 正在销毁中,解引用会再次抛异常)。
             _byId.Clear();
@@ -821,6 +832,7 @@ namespace PromptUGUI.Application
         public void Close()
         {
             if (_isClosing || _destroyed) return;
+            LeaveOpen(rootDestroyed: false);
             // A close that was asked for — in every branch below, before OnClosing (spec 2026-11-23-ui-sfx-cues §7.10).
             // Teardown never comes here (it calls CloseImmediate), and a Screen closed while still being built raised no
             // open, so it raises no close either.
@@ -968,6 +980,7 @@ namespace PromptUGUI.Application
         {
             if (_destroyed) return;
             _destroyed = true;
+            LeaveOpen(rootDestroyed: false);
             FireClosing();
             DetachGlobals();
             ReleaseSubscriptions();

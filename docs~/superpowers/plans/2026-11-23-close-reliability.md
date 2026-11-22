@@ -41,24 +41,24 @@
 **Files:** `Runtime/Application/Screen.cs`、`UI.cs`、`UI.Modal.cs`、`UI.Router*.cs`；新 `Tests/EditMode/Application/CloseReliabilityTests.cs`；
 `CloseReliabilityPlayTests.cs`。
 
-- [ ] Red（EditMode）：`screen.Close()` / `CloseAsync()` / `Dispose()` 各一条 —— 之后 `UI.Get` 为 null，`UI.Open` 得到新的活实例；
+- [x] Red（EditMode）：`screen.Close()` / `CloseAsync()` / `Dispose()` 各一条 —— 之后 `UI.Get` 为 null，`UI.Open` 得到新的活实例；
   `configure` 里拿到的对话框 `IScreen` 直接 `Close()` / `Dispose()` → `await` 抛 OCE、`IsAnyOpen` 为 false、排队的下一个被提升；
   Router 链里的页被直接关掉 → 警告一次。
-- [ ] Red（PlayMode）：有退场的 `screen.Close()` → 退场期间 `UI.Get` 为 null、`ClosingCountForTests` 为 1、幽灵里的控件
+- [x] Red（PlayMode）：有退场的 `screen.Close()` → 退场期间 `UI.Get` 为 null、`ClosingCountForTests` 为 1、幽灵里的控件
   `OwnerScreenOf` 找得到它；结束后为 0。
-- [ ] Green：统一钩子；`UI` 侧摘 `_open` + `TrackClosing`；对话框栈的外部关闭收尾；Router 的 `HoldsScreen` + 一次性警告。
-- [ ] 回归 + `dotnet format`；提交。
+- [x] Green：统一钩子；`UI` 侧摘 `_open` + `TrackClosing`；对话框栈的外部关闭收尾；Router 的 `HoldsScreen` + 一次性警告。
+- [x] 回归 + `dotnet format`；提交。
 
 ## Task 3（A4）：token 在主线程结算
 
 **Files:** `Runtime/Application/UI.Modal.cs`、`Runtime/Application/Modals/ModalEntry.cs`；`CloseReliabilityPlayTests.cs`；
 `Tests/EditMode/Modals/ModalCancelTests.cs`。
 
-- [ ] Red（PlayMode）：`cts.CancelAfter(20)`，等几帧 → 根已销毁、`ClosingCountForTests` 为 0、`IsAnyOpen` 为 false、续体在主线程；
+- [x] Red（PlayMode）：`cts.CancelAfter(20)`，等几帧 → 根已销毁、`ClosingCountForTests` 为 0、`IsAnyOpen` 为 false、续体在主线程；
   `new Thread(cts.Cancel)` 一条。
-- [ ] Red（EditMode）：同一个长寿 CTS 开三个对话框、都结算之后，挂在它上面的 registration 为 0（内部计数缝）。
-- [ ] Green：记下同步上下文、跨线程 `Post`；registration 随 entry 结算 Dispose。`ModalCancelTests` 的同步用例保持绿。
-- [ ] 回归；提交。
+- [x] Red（EditMode）：同一个长寿 CTS 开三个对话框、都结算之后，挂在它上面的 registration 为 0（内部计数缝）。
+- [x] Green：记下同步上下文、跨线程 `Post`；registration 随 entry 结算 Dispose。`ModalCancelTests` 的同步用例保持绿。
+- [x] 回归；提交。
 
 ## Task 4（A5 / A6）：过期的路由激活
 
