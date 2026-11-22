@@ -52,7 +52,12 @@ namespace PromptUGUI.Controls
 
             _view = GameObject.AddComponent<CarouselView>();
             _view.Init(RectTransform, viewport, _strip, indicator);
-            _view.OnCurrent = i => _currentChanged.OnNext(i);
+            _view.OnCurrent = i =>
+            {
+                // A page the user turned, before OnCurrentChanged (spec 2026-11-23-ui-sfx-cues §7.8).
+                if (_view.InUserGesture) RaiseSfx(PromptUGUI.Lint.SfxRules.Flip);
+                _currentChanged.OnNext(i);
+            };
         }
 
         // 静态 XML 子卡 + BindItems 建的卡都进 Strip。
@@ -149,6 +154,15 @@ namespace PromptUGUI.Controls
 
         internal override string PeekRuntimeState()
             => _view.CurrentIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        /// <summary>
+        /// Where a press that turns this carousel's pages reports a user activation (its dots, a slide box's cards): inside
+        /// it, a page committed is a user's flip (spec 2026-11-23-ui-sfx-cues §7.8).
+        /// </summary>
+        internal Internal.ISfxActivationSink SfxGestureSink => _view;
+
+        /// <summary>A user gesture on this carousel is in progress — a real click, not a coded one.</summary>
+        internal bool InSfxGesture => _view != null && _view.InUserGesture;
 
         public void GoTo(int index, bool animated = true) => _view.GoTo(index, animated);
         public void Next(bool animated = true) => _view.Next(animated);

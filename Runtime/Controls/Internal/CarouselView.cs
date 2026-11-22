@@ -18,7 +18,7 @@ namespace PromptUGUI.Controls.Internal
     /// 真实运行状态（_current / _scroll / 计时器）都在这里，跨 Screen.ReSolve 存活。
     /// </summary>
     internal sealed class CarouselView : UIBehaviour,
-        IInitializePotentialDragHandler, IBeginDragHandler, IDragHandler, IEndDragHandler
+        IInitializePotentialDragHandler, IBeginDragHandler, IDragHandler, IEndDragHandler, ISfxActivationSink
     {
         private RectTransform _root;
         private RectTransform _viewport;
@@ -85,6 +85,29 @@ namespace PromptUGUI.Controls.Internal
         private bool _bound;
 
         public Action<int> OnCurrent { get; set; }
+
+        // ── UI sound cues (spec 2026-11-23-ui-sfx-cues §7.8) ───────────────────────────────────────
+        // A page the user turns — a swipe past the snap threshold, a dot, a slide box's card — commits inside this window;
+        // autoplay, GoTo / Next / Current= and a rebind commit outside it.
+        private int _userGestures;
+        private bool _sinkBegun;
+
+        /// <summary>A user gesture is committing a page (or, on a slide box's card, confirming it).</summary>
+        internal bool InUserGesture => _userGestures > 0;
+
+        // The dots' and the slide box cards' PuiButtons report here. Refused (a disabled carousel): nothing — no deny in v1.
+        void ISfxActivationSink.BeginSfxActivation(bool interactable)
+        {
+            _sinkBegun = interactable;
+            if (interactable) _userGestures++;
+        }
+
+        void ISfxActivationSink.EndSfxActivation()
+        {
+            if (_sinkBegun) _userGestures--;
+            _sinkBegun = false;
+        }
+
         public RectTransform StripRect => _strip;
         internal float ScrollForTests => _scroll;   // test seam: observe the live (mid-drag) scroll position
         public int CardCount => _cards.Count;
@@ -300,6 +323,7 @@ namespace PromptUGUI.Controls.Internal
 
                 var btn = dotRt.gameObject.AddComponent<PuiButton>();
                 btn.targetGraphic = img;
+                btn.SfxSink = this;   // a dot is a page turn, never a Btn click
                 btn.onClick.AddListener(() => GoTo(captured, animated: true));
 
                 // Dots are solid-only per spec §5; wrap the already-solid selected base as a
@@ -555,7 +579,9 @@ namespace PromptUGUI.Controls.Internal
             int target = _current;
             if (_dragLocalX <= -_stride * SnapThreshold) target = _current + 1;
             else if (_dragLocalX >= _stride * SnapThreshold) target = _current - 1;
-            GoTo(target, animated: true);
+            _userGestures++;
+            try { GoTo(target, animated: true); }
+            finally { _userGestures--; }
         }
 
         // 整段拖动都转发给父级：carousel 只取 X 分量翻页，外层 ScrollRect/ScrollList 取自己的轴
