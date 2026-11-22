@@ -43,9 +43,9 @@ EditMode 拖放 / 重排测试。
 
 **Files:** `DragSession.cs`、`DragSource.cs`、`PopupChain.cs`（`DismissUnder` 的原因）、`Screen.cs`（EditMode 的关闭路径）；EditMode 拖放测试。
 
-- [ ] Red：按住期间被禁用 / 推送 / 开模态 / `UI.Close` / ReSolve → 不拿起、没有 `OnLift` / `OnEnd`；鼠标 `hold = 0` 版；停靠后目标仍
+- [x] Red：按住期间被禁用 / 推送 / 开模态 / `UI.Close` / ReSolve → 不拿起、没有 `OnLift` / `OnEnd`；鼠标 `hold = 0` 版；停靠后目标仍
   armed；等确认中关闭源所在 Screen → 立即 `Cancelled`。
-- [ ] Green；回归；提交。
+- [x] Green；回归；提交。
 
 ## Task 3（B3 / B6 / B7）：重点不发事件；TabMenu
 

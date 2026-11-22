@@ -232,6 +232,18 @@ namespace PromptUGUI.Controls.Internal
             return false;
         }
 
+        /// <summary>
+        /// A press still counting down to its lift ends without lifting anything — the drag-drop spec's §7.7 cancels hold
+        /// while pressed too (spec 2026-11-23-input-correctness §2.2). The rest of the gesture goes nowhere, like a cancel
+        /// mid-drag. False when it was not pressed.
+        /// </summary>
+        internal bool CancelPress()
+        {
+            if (_phase != Phase.Pressed) return false;
+            _phase = Phase.Swallow;
+            return true;
+        }
+
         // A second finger while something is lifted: not this session's, and not a scroll either (the
         // ScrollRect tracks one drag) — its events go nowhere rather than rewriting the phase.
         private bool IsAnotherPointer(PointerEventData e)
