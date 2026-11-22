@@ -34,10 +34,10 @@
 **Files:** `Runtime/Controls/Internal/LiftGesture.cs`、`DragSource.cs`、`ReorderDriver.cs`；新 `Tests/PlayMode/Controls/InputCorrectnessPlayTests.cs`；
 EditMode 拖放 / 重排测试。
 
-- [ ] Red（PlayMode）：触屏拖到目标上 → `SetTouch(Canceled)` → `OnEnd(Cancelled)`、没有 `OnDrop`、没有落地音效；正常 `EndTouch` 仍是
+- [x] Red（PlayMode）：触屏拖到目标上 → `SetTouch(Canceled)` → `OnEnd(Cancelled)`、没有 `OnDrop`、没有落地音效；正常 `EndTouch` 仍是
   `Dropped`；重排版：顺序不变、没有 `OnReordered`。
-- [ ] Red（EditMode）：测试缝强制「系统取消」，Dragging 与 Armed 两个分支。
-- [ ] Green；回归拖放 / 重排；提交。
+- [x] Red（EditMode）：测试缝强制「系统取消」，Dragging 与 Armed 两个分支。
+- [x] Green；回归拖放 / 重排；提交。
 
 ## Task 2（B2 / B9 / B10）：按住期间的取消；停靠与等确认
 

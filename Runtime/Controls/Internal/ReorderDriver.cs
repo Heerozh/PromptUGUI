@@ -112,6 +112,9 @@ namespace PromptUGUI.Controls.Internal
 
         void LiftGesture.IHost.Release() => Commit();
 
+        // A cancelled touch: the row goes back to its own place, no OnReordered (spec 2026-11-23-input-correctness §2.1).
+        void LiftGesture.IHost.Cancel() => Cancel();
+
         void LiftGesture.IHost.Tick(float dt) => AutoScroll(dt);
 
         // A reorder moves along the scroll axis by definition: nothing to tell apart on the first frame.

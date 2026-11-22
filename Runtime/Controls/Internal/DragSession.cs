@@ -967,6 +967,12 @@ namespace PromptUGUI.Controls.Internal
             return true;
         }
 
+        /// <summary>The system cancelled the pointer that carries <paramref name="src"/>: its drag goes back, as a cancel.</summary>
+        internal static void CancelSessionOf(DragSource src)
+        {
+            if (s_state == State.Dragging && src != null && src == s_source) CancelDrag();
+        }
+
         /// <summary><c>UI.Drag.Cancel()</c>: a drag goes back; a wait ends.</summary>
         internal static void CancelFromCode()
         {

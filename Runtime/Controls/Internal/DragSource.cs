@@ -69,6 +69,8 @@ namespace PromptUGUI.Controls.Internal
 
         void LiftGesture.IHost.Release() => DragSession.Release(this);
 
+        void LiftGesture.IHost.Cancel() => DragSession.CancelSessionOf(this);
+
         // The session's runner owns the per-frame work (it must go on when this GameObject is switched off).
         void LiftGesture.IHost.Tick(float dt) { }
 

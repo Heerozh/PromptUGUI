@@ -46,6 +46,13 @@ namespace PromptUGUI.Controls.Internal
             /// <summary>The pointer was released while lifted (dragging, or still where it was lifted).</summary>
             public void Release();
 
+            /// <summary>
+            /// The system took the pointer away while lifted — a cancelled touch (a call, the notification shade, a system
+            /// gesture, too many fingers, the app losing focus). End it as a cancel, not as a release (spec
+            /// 2026-11-23-input-correctness §2.1).
+            /// </summary>
+            public void Cancel();
+
             /// <summary>Once a frame while dragging.</summary>
             public void Tick(float dt);
 
@@ -150,6 +157,13 @@ namespace PromptUGUI.Controls.Internal
             switch (_phase)
             {
                 case Phase.Dragging:
+                    if (IsSystemCancel(e))
+                    {
+                        // The host cancels while the session is still live (its own Cancel checks that), then it is over.
+                        _host.Cancel();
+                        _phase = Phase.Idle;
+                        return;
+                    }
                     // Idle before the host commits: whatever the commit raises sees the gesture over.
                     _phase = Phase.Idle;
                     _host.Release();
@@ -183,6 +197,12 @@ namespace PromptUGUI.Controls.Internal
                 case Phase.Armed:
                     // uGUI has no "released without ever dragging" callback; the gesture looks for itself.
                     if (!Released()) return;
+                    if (IsSystemCancel(_pointer))
+                    {
+                        _host.Cancel();
+                        _phase = Phase.Idle;
+                        return;
+                    }
                     _phase = Phase.Idle;
                     _host.Release();
                     return;
@@ -247,6 +267,42 @@ namespace PromptUGUI.Controls.Internal
 
         /// <summary>Tests substitute the device query (they have no input devices). null = real query.</summary>
         internal static System.Func<PointerEventData, bool> PressedProbeForTests;
+
+        /// <summary>Tests substitute the "did the system cancel this touch" query. null = real query.</summary>
+        internal static System.Func<PointerEventData, bool> CanceledProbeForTests;
+
+        /// <summary>
+        /// Whether the pointer ended because the system cancelled it rather than because it was let go. The input modules send
+        /// the same pointer-up / end-drag for both (the Input System module takes a cancelled touch as a release; the legacy
+        /// one only stops uGUI's own drop), so the gesture asks the device: the touch's phase stays <c>Canceled</c> through the
+        /// frame its end is handed out.
+        /// </summary>
+        internal static bool IsSystemCancel(PointerEventData pointer)
+        {
+            if (pointer == null) return false;
+            if (CanceledProbeForTests != null) return CanceledProbeForTests(pointer);
+#if ENABLE_INPUT_SYSTEM
+            if (pointer is UnityEngine.InputSystem.UI.ExtendedPointerEventData x)
+            {
+                if (x.device is not UnityEngine.InputSystem.Touchscreen ts) return false;
+                foreach (var t in ts.touches)
+                    if (t.touchId.ReadValue() == x.touchId)
+                        return t.phase.ReadValue() == UnityEngine.InputSystem.TouchPhase.Canceled;
+                return false;
+            }
+#endif
+#if ENABLE_LEGACY_INPUT_MANAGER
+            if (pointer.pointerId >= 0)   // StandaloneInputModule: a touch's pointerId is its fingerId
+            {
+                for (var i = 0; i < Input.touchCount; i++)
+                {
+                    var t = Input.GetTouch(i);
+                    if (t.fingerId == pointer.pointerId) return t.phase == UnityEngine.TouchPhase.Canceled;
+                }
+            }
+#endif
+            return false;
+        }
 
 #if ENABLE_INPUT_SYSTEM
         private static bool DevicePressed(UnityEngine.InputSystem.UI.ExtendedPointerEventData x)
