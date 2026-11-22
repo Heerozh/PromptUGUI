@@ -59,8 +59,8 @@ EditMode 拖放 / 重排测试。
 
 **Files:** `Dropdown.cs`、`PuiDropdown.cs`；`InputCorrectnessPlayTests.cs`。
 
-- [ ] Red（PlayMode）：背板关闭后淡出期间推送 → 0.4 s 后仍关着；右键 → 不展开。
-- [ ] Green；回归 Dropdown；提交。
+- [x] Red（PlayMode）：背板关闭后淡出期间推送 → 0.4 s 后仍关着；右键 → 不展开。
+- [x] Green；回归 Dropdown；提交。
 
 ## Task 5（B8）：禁用的 Carousel
 

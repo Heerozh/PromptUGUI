@@ -130,6 +130,58 @@ namespace PromptUGUI.Tests.PlayMode.Controls
             Assert.AreEqual(0, reordered, "no OnReordered");
             Assert.IsFalse(list.IsReordering);
         }
+
+        // ───── B4 / B11: Dropdown ─────
+
+        private IEnumerator Click(Vector2 at, UnityEngine.InputSystem.Controls.ButtonControl button = null)
+        {
+            button ??= _mouse.leftButton;
+            Set(_mouse.position, at);
+            yield return null;
+            Press(button);
+            yield return null;
+            Release(button);
+            yield return null;
+        }
+
+        private static (Dropdown dd, TMP_Dropdown tmp, R3.Subject<IEnumerable<string>> options) OpenDropdown()
+        {
+            var s = Open("<Dropdown id='dd' anchor='top-left' margin='20,_,_,20' width='200' height='40'/>");
+            var dd = s.Get<Dropdown>("dd");
+            var options = new R3.Subject<IEnumerable<string>>();
+            dd.BindOptions(options).AddTo(s);
+            options.OnNext(new[] { "a", "b" });
+            return (dd, dd.GameObject.GetComponent<TMP_Dropdown>(), options);
+        }
+
+        [UnityTest]
+        public IEnumerator Options_pushed_while_the_list_fades_out_leave_it_closed()
+        {
+            var (dd, tmp, options) = OpenDropdown();
+            yield return Click(At(dd));
+            Assume.That(tmp.IsExpanded, "precondition: open");
+
+            yield return Click(new Vector2(UnityEngine.Screen.width - 5f, 5f));   // the catcher: it starts fading out
+            options.OnNext(new[] { "a", "b", "c" });
+            yield return new WaitForSecondsRealtime(0.5f);
+
+            Assert.IsFalse(tmp.IsExpanded, "the list the player just closed stays closed");
+            Assert.AreEqual(0, PromptUGUI.Controls.Internal.PuiDropdown.ExpandedCount);
+            Assert.AreEqual(3, tmp.options.Count, "the options were replaced all the same");
+        }
+
+        [UnityTest]
+        public IEnumerator Only_the_left_button_opens_the_list()
+        {
+            var (dd, tmp, _) = OpenDropdown();
+
+            yield return Click(At(dd), _mouse.rightButton);
+            yield return Click(At(dd), _mouse.middleButton);
+            Assert.IsFalse(tmp.IsExpanded, "right and middle clicks do nothing, as on a Btn");
+
+            yield return Click(At(dd));
+            Assert.IsTrue(tmp.IsExpanded);
+        }
 #endif
     }
 }

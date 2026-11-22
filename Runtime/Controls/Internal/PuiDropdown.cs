@@ -66,13 +66,15 @@ namespace PromptUGUI.Controls.Internal
         private bool _sfxCloseCued;   // the last close already raised its cue
         private int _sfxClosedFrame = int.MinValue;
 
-        private bool IsListUp => s_expanded.Contains(this);
+        /// <summary>Open as the player sees it: the catcher is up. TMP's IsExpanded stays true through the fade-out.</summary>
+        internal bool IsListUp => s_expanded.Contains(this);
 
         public override void OnPointerClick(PointerEventData eventData)
         {
-            // TMP opens on any mouse button; only a left click is refused with a deny.
-            if (eventData.button == PointerEventData.InputButton.Left && IsActive() && !IsInteractable())
-                SfxOwner?.RaiseSfx(PromptUGUI.Lint.SfxRules.Deny);
+            // TMP opens on any mouse button; like Btn / Toggle / Tab, only the left one acts (spec
+            // 2026-11-23-input-correctness §4).
+            if (eventData.button != PointerEventData.InputButton.Left) return;
+            if (IsActive() && !IsInteractable()) SfxOwner?.RaiseSfx(PromptUGUI.Lint.SfxRules.Deny);
             var wasUp = IsListUp;
             base.OnPointerClick(eventData);
             if (!wasUp && IsListUp) SfxOwner?.RaiseSfx(PromptUGUI.Lint.SfxRules.Expand);
