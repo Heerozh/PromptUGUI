@@ -73,8 +73,8 @@ EditMode 拖放 / 重排测试。
 
 **Files:** `TutorialOverlayView.cs`、`TutorialFlow.cs`；EditMode 引导测试。
 
-- [ ] Red：Block 步完成后遮罩不接射线；下一次 `Tick` 后暗幕隐藏；同一帧开始的下一步暗幕不隐藏；`Navigate` 期间挡输入、之后放开。
-- [ ] Green；回归；提交。
+- [x] Red：Block 步完成后遮罩不接射线；下一次 `Tick` 后暗幕隐藏；同一帧开始的下一步暗幕不隐藏；`Navigate` 期间挡输入、之后放开。
+- [x] Green；回归；提交。
 
 ## Task 7：文档与收尾
 

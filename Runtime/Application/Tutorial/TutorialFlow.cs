@@ -70,10 +70,23 @@ namespace PromptUGUI.Application
             _save?.Invoke(_id, index + 1);
         }
 
-        public Awaitable Navigate(string name, RouteQuery query = null)
+        /// <summary>
+        /// Navigates past the Router's guards, holding the input while the route switches — a tap on the page coming or going
+        /// must not take the tutorial elsewhere (spec 2026-11-23-input-correctness §5).
+        /// </summary>
+        public async Awaitable Navigate(string name, RouteQuery query = null)
         {
-            UI.Router.BypassGuardsOnce();
-            return UI.Router.Open(name, query);
+            var view = await UI.Tutorial.EnsureOverlay();
+            view.HoldInput();
+            try
+            {
+                UI.Router.BypassGuardsOnce();
+                await UI.Router.Open(name, query);
+            }
+            finally
+            {
+                view.ReleaseInput();
+            }
         }
     }
 
