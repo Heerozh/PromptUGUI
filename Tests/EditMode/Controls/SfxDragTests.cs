@@ -185,7 +185,10 @@ namespace PromptUGUI.Tests.EditMode.Controls
             var w = content.TransformVector(new Vector3(0f, dy, 0f));
             var e = new PointerEventData(EventSystem.current)
             {
-                position = p0, pressPosition = p0, button = PointerEventData.InputButton.Left, pointerDrag = d.gameObject,
+                position = p0,
+                pressPosition = p0,
+                button = PointerEventData.InputButton.Left,
+                pointerDrag = d.gameObject,
                 eligibleForClick = true,
             };
             ((IInitializePotentialDragHandler)d).OnInitializePotentialDrag(e);
