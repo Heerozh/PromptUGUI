@@ -66,8 +66,8 @@ EditMode 拖放 / 重排测试。
 
 **Files:** `CarouselView.cs`、共用的可交互判定；EditMode Carousel 拖动测试。
 
-- [ ] Red：禁用自身 / 祖先 → 拖动不翻页、没有 `flip`、外层收到转发；自动播放照转。
-- [ ] Green；回归；提交。
+- [x] Red：禁用自身 / 祖先 → 拖动不翻页、没有 `flip`、外层收到转发；自动播放照转。
+- [x] Green；回归；提交。
 
 ## Task 6（B5）：引导的步与步之间
 

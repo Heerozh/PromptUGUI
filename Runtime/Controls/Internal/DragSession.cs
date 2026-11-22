@@ -420,14 +420,7 @@ namespace PromptUGUI.Controls.Internal
         internal static bool IsInteractable(Control c)
         {
             if (c == null || c.GameObject == null || !c.PeekInteractable) return false;
-            for (var t = c.GameObject.transform.parent; t != null; t = t.parent)
-            {
-                var g = t.GetComponent<CanvasGroup>();
-                if (g == null) continue;
-                if (!g.interactable) return false;
-                if (g.ignoreParentGroups) break;
-            }
-            return true;
+            return Interaction.GroupsAllow(c.GameObject.transform.parent);
         }
 
         // ───── per frame ─────
