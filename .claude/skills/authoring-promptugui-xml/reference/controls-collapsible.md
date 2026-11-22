@@ -184,6 +184,12 @@ panel.Text = "任务"; panel.Icon = "ui:quest";
 screen.Get<Text>("tasks/count");        // a node from inside <Header>
 ```
 
+## Sound cues
+
+The header's click raises `collapsible.expand` / `collapsible.collapse` (a disabled header: `collapsible.deny`); `sfx=` on
+the `<Collapsible>` keys them (`sfx="drawer collapse:none"`). An accordion sibling folding shut, `Expand()` / `Collapse()`
+/ `Toggle()` / `Expanded=` from code, the initial state and an `expanded` ReSolve raise nothing. → [`sfx.md`](sfx.md)
+
 ## Lint
 
 | Code | Fires when | Where |

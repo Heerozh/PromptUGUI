@@ -210,6 +210,14 @@ field.Suggestions.OnSubmit.Subscribe(s =>
 
 Give the panel a width (its only child stretches — `PUI-POPOVER-HUG-WIDTH` otherwise) and make it about as tall as the row: it is centred on the button.
 
+## Sound cues
+
+The `on="click@…"` button opening it raises `popover.expand` (after the button's own `btn.click`), clicking it again
+`popover.collapse`; an outside press and Escape raise `popover.collapse` for the popover they closed — one cue per
+gesture: child popovers closed with their parent, a popover replaced by another opening, covered, gone, closed by code or
+by the end of an edit raise nothing. With `dismiss="pass"` the press raises `collapse` and the button underneath raises
+its `click` on the release. → [`sfx.md`](sfx.md)
+
 ## Lint
 
 | Code | When | Runtime |

@@ -415,6 +415,8 @@ TMP_Text。文本简写：`<Text>Hello</Text>` ≡ `<Text text="Hello"/>`。
 
 Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内部 TMP label 子节点；可作 template root 或注册 prefab tag。不写 size 时按文字宽 + 左右 16 padding、上下 max(44, 文字高+12) 自适应；icon-only（无 text）回退 80×44。`interactable="false"` 同时驱动 `Button.interactable` → 进入 Disabled 态（`disabledColor` / `disabledModulate` 生效、`state-disabled` fire），叠加 CanvasGroup raycast block；无任何 `disabled*` 时整控件默认灰度（see reference/states.md）。状态化视觉见 [`reference/states.md`](reference/states.md)。
 
+**Sound:** a click / Submit raises the `btn.click` cue, a click while disabled (itself or an ancestor) `btn.deny`; `sfx="confirm"` re-keys, `sfx="none"` mutes (deny stays), `sfx="deny:locked"` → [`reference/sfx.md`](reference/sfx.md).
+
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
 | `color` | hex / CSS named / theme token | — | 背景基色，见 **Color Tokens** |
@@ -502,6 +504,8 @@ Image + Button + R3 `OnClick` / `OnState`。`<Btn>开始</Btn>` 简写生成内�
 
 Image + uGUI Toggle + 自动 label。R3 `OnValueChanged: bool`。`<Toggle>静音</Toggle>` 简写设 label。同 `group=` 名 → 互斥。**别给单个 Toggle 写 `group=`**（uGUI ToggleGroup 默认要求至少一个 active，单成员组点上即锁死）。不写 size 时按文字宽 + 左 23 checkmark 区 + 右 5 padding、上下 max(44, 文字高+12) 自适应；checkbox-only 回退 44×44。状态化视觉见 [`reference/states.md`](reference/states.md)。
 
+**Sound:** the user's own click raises `toggle.checked` / `toggle.unchecked` (never for the toggle a `group=` turns off), `toggle.deny` while disabled; `sfx="checked:on unchecked:off"` → [`reference/sfx.md`](reference/sfx.md).
+
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
 | `radius` · `borderWidth` · `glass` … | 同 `<Frame>` | — | **程序化表面**（覆盖**勾选框**，不含 label）→ 见 **程序化表面** 一节 |
@@ -538,6 +542,8 @@ Image + uGUI Slider。R3 `OnValueChanged: float`。不写 size 时按方向给�
 ### `<Dropdown>`
 
 TMP_Dropdown。R3 `OnSelected: int`。选项 C# 侧 `BindOptions(...)` 注入。不写 size 时默认 160×44（不读 caption 文字宽，避免每选一项改宽度）。
+
+**Sound:** `dropdown.expand` when opened; `dropdown.collapse` when closed by the catcher, Escape / B or re-picking the current option; `dropdown.select` when another option is picked (no `collapse` then); `dropdown.deny` while disabled. `BindOptions` while open, code and `Value=` raise nothing → [`reference/sfx.md`](reference/sfx.md).
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |
 |---|---|---|---|
@@ -851,6 +857,8 @@ N 选 1 容器（Qt `QStackedWidget` / Flutter `IndexedStack`）：**每个直�
 
 C# 侧：`screen.Get<Pages>("shop").Show("detail")` / `Selected` / `PageIds` / `OnSelectedChanged`，工具用 `screen.FindAll<Pages>()` 列出全部——见 scripting-promptugui-csharp → `Pages`。
 
+**Sound:** a page flip raises no sound cue — it is always code (usually inside a button's `OnClick`), never a gesture on the `<Pages>`. Key the button that flips it: `<Btn sfx="pages.flip">`. `sfx=` on `<Pages>` is `PUI-SFX-INERT` (→ [`reference/sfx.md`](reference/sfx.md)).
+
 ### `<Carousel>`
 
 水平翻页轮播卡容器：自动播放 + 拖动 + 无限循环 + 状态化指示点。卡片用 `itemTemplate` + C# `BindItems`（同 ScrollList / TabBar）或静态子卡。默认 `fill="true"` 每张卡排成视口大小，卡片**不能**写 `size`（`PUI-CAROUSEL-CARD-SIZE`）；`fill="false"` 切「居中选择器」——卡片用自身 `size`、邻卡两侧露出、焦点卡可放大(`edgeScale`)/相邻渐隐(`edgeAlpha`)。卡片始终不能写 `anchor` / `margin`（`PUI-LAYOUT-ANCHOR` / `PUI-LAYOUT-MARGIN`）。当前页 `current` 是**运行期独占状态**（resize / Variant / Theme 不重置）。**详见 [`reference/controls-carousel.md`](reference/controls-carousel.md)。**
@@ -1038,13 +1046,14 @@ Other notes:
 | `fontFloor="N"` | dp ≥ 0 | **Lint-only.** The `PUI-FONT-FLOOR` floor for this node **and its whole subtree** (nearest wins; `0` exempts) — for text that is small on purpose (badges). The runtime ignores it. See **Font-size floor**. |
 | `drag="kind"` | kind name \| `none` | **Drag and drop**: this control can be picked up and dragged; the kind decides which `drop=` targets take it. The control itself is lifted in place above every Screen (not clipped by its list), follows the pointer and lands with a short flight. A mouse lifts on its first drag frame; a finger holds 0.4s only inside a scroller. Tuning: `dragHold` (`auto` / duration), `dragHandle` (id of the grip inside), `dragDuration` (landing flight, `0.18s`). Source hooks: `on="lift"` / `on="drop"`. → [`reference/drag-drop.md`](reference/drag-drop.md) |
 | `drop="kinds"` | kinds (space / comma separated) \| `*` \| `none` | **Drag and drop**: this control takes drags of these kinds. Hit-testable only while a drag it would take is in progress. Feedback is authored with `<Show on="drop-armed\|drop-over\|drop-deny\|drop-pending">` / `<Animation on="drop-over" reverse-on="drop-out">` / `on="receive"`. C# hears the drop (`OnDrop`) and decides acceptance (`CanDrop`). → [`reference/drag-drop.md`](reference/drag-drop.md) |
+| `sfx="…"` | key \| `none` \| `action:key …` | **UI sound cues.** The library plays nothing: a real user action on a control raises a cue (C# `UI.Sfx.OnCue`) whose default key is `kind.action` (`btn.click`, `tab.select`, `drag.land`…). `sfx` overrides it: a bare key for every action of the element (`sfx="confirm"`), `none` to mute, `action:key` per action (`<Toggle sfx="checked:on unchecked:off">`); a bare key and `none` never cover `deny` (the click on a disabled control) — only `deny:` does. Carried by styles, themes, `.variant`s (no base needed) and onto a template instance root. `<Pages>` has no cue — key the button that flips it. → [`reference/sfx.md`](reference/sfx.md) |
 | `flow="false"` | bool (default `true`) | **Layout-group children only** (direct child of `<VStack>` / `<HStack>` / `<Grid>`). Opts the child **out of the layout flow**: the group neither positions it nor counts it toward its own preferred size, and `anchor` / `margin` / `N%` regain full free-positioning semantics against the group's rect. Use for a 9-slice background layer / badge / overlay inside a hug-sized stack — see **Out-of-flow children** below. Inert under a free-positioning parent (`PUI-FLOW-OUTSIDE-GROUP`). Variant-overridable (`flow.portrait="false"`). |
 | `scale="N"` / `scale="Nx"` / `scale="<r>r"` | float `N` / `Nx` (int) / `<r>r` (float) | Three forms: `N` = box-preserving (a render-density knob, **not** a resize knob); `Nx` = N physical px per design-unit (constant across factors, **doesn't grow with the window**); `<r>r` = `r×` the canvas factor **snapped to an integer** (**grows with the window yet stays pixel-aligned**). `scale="2"` ≠ `scale="2x"`. Full formulas / examples / caveats: see **Relative scale** / **Device-density** / **Canvas-relative snapped** below. |
 | `focus="true"` | bool | **Selectable controls only** (`<Btn>` / `<Tab>` / `<TabMenu>` / `<Collapsible>` / `<Toggle>` / `<Slider>` / `<Dropdown>` / `<InputField>` / `<ScrollList>`). Marks this control as the initial EventSystem selection when the Screen opens in Directional navigation mode. First `focus="true"` in document order wins. Does NOT apply to `BindItems`-generated dynamic controls. No-op when `UI.UseGamepadNavigation()` has not been called. → [`reference/navigation.md`](reference/navigation.md) |
 | `nav="none"` | `"none"` | **Selectable controls only.** Removes the control from the directional navigation graph — arrow keys / gamepad skip it entirely (neither focused to nor from). The control remains clickable via pointer. |
 | `navUp` / `navDown` / `navLeft` / `navRight` | element `id` | **Selectable controls only.** Explicit directional-navigation override: pins the neighbor in that cardinal direction. Unspecified directions auto-fill geometrically (writing only `navDown="id"` does NOT dead-end up/left/right). Missing or inactive-variant `id` → silently falls back to geometric (no runtime throw; inactive-block targets self-heal on the activating ReSolve); CLI `PUI-NAV-UNKNOWN-TARGET` catches typos statically. Variant-overridable (`navDown.mobile="id2"`). → [`reference/navigation.md`](reference/navigation.md) |
 
-**Template invocations and nav attributes:** `focus` and `nav*` are **not** in the auto-merge set for Template invocations (unlike `anchor` / `size` / `margin` / `hidden` / `interactable` and the drag-and-drop five — `drag` / `drop` / `dragHold` / `dragHandle` / `dragDuration`). Writing them directly on an invocation throws a `TemplateException` ("unknown attribute") at expansion time. Expose them via `<Param>` instead — e.g. `<Param name="focus" default="false"/>` in the template, then `focus="{{focus}}"` on the selectable root in the body. → [`reference/navigation.md`](reference/navigation.md)
+**Template invocations and nav attributes:** `focus` and `nav*` are **not** in the auto-merge set for Template invocations (unlike `anchor` / `size` / `margin` / `hidden` / `interactable`, the drag-and-drop five — `drag` / `drop` / `dragHold` / `dragHandle` / `dragDuration` — and `sfx`). Writing them directly on an invocation throws a `TemplateException` ("unknown attribute") at expansion time. Expose them via `<Param>` instead — e.g. `<Param name="focus" default="false"/>` in the template, then `focus="{{focus}}"` on the selectable root in the body. → [`reference/navigation.md`](reference/navigation.md)
 
 **margin & consumed sides.** A margin only offsets from a side the `anchor` **consumes**: a **stretched** axis reads both its slots, a **point** anchor (`top` / `bottom` / `left` / `right`) reads only its own side, a **centered** axis reads neither. So `anchor="bottom-right" margin="60,_,_,_"` puts 60 in the **top** slot → silently dropped (a `bottom` anchor reads only the bottom slot; write `margin="_,_,60,_"` to push it up). The lint CLI flags a non-zero value on an unconsumed side as **`PUI-MARGIN-INERT-SIDE`** (CLI-only; 4-component + explicit-`anchor` form only — symmetric 1-/2-component shorthands always land on the consumed side and are not flagged).
 
@@ -1429,6 +1438,7 @@ Rules:
 - **`id` is never substituted — use instance isolation, not a param.** `id` is a dedicated handle stored apart from attributes, so `{{param}}` does **not** apply to it: `id="{{sendId}}"` stays the literal string `{{sendId}}`. You don't need a parameterized id anyway — each template invocation gets its **own isolated id scope**, so a hard-coded `id="send"` is collision-free even when the template is used many times. Reach an inner id from C# with the path form `instanceId/send` (give the **invocation** an `id`). See **scripting-promptugui-csharp**.
 - `if="{{p}}"` drops the element when the substituted value is falsy (empty, `false`, `0`, `null`). Only `if=` is allowed; no `else`, no `for`.
 - `<Slot/>` appears **at most once**. Children passed at the call site replace it.
+- **`<Param name="sfx">` is a parse error.** `sfx=` written at a call site already lands on the instance root (like `anchor` / `hidden` / `drag`). To let a call site set the sound of a control **inside** the template, name the Param after it (`<Param name="buySfx" default=""/>` → `sfx="{{buySfx}}"` on the inner `<Btn>`) — see [`reference/sfx.md`](reference/sfx.md).
 
 **Calling a template** is identical to using a built-in:
 
@@ -1785,6 +1795,8 @@ A hint bends only its own segment into a power curve, so there is no kink anywhe
 
 ## Canvas / scaler attributes on `<Screen>`
 
+`<Screen>` also takes `sfx=` (and `sfx.<variant>`) for its own `open` / `close` sound cues — `screen.*` or `modal.*` depending on how it was opened; `sfx="none"` for always-on screens opened at boot. → [`reference/sfx.md`](reference/sfx.md)
+
 ```xml
 <Screen name="MainMenu" canvas="overlay" reference="1920x1080">...</Screen>
 
@@ -2065,7 +2077,9 @@ EXIT          <Animation on="open" reverse-on="close" …>  entrance played back
               state-selected is meaningful only on <Tab>/<Toggle> source; <Btn> never emits it
               详见 reference/states.md（状态化视觉）· reference/animations.md（Trigger/Animation）
 
-COMMON ATTRS  id  anchor  size|width|height  margin  pivot  hidden  interactable  stateReact  class  drag  drop
+COMMON ATTRS  id  anchor  size|width|height  margin  pivot  hidden  interactable  stateReact  class  drag  drop  sfx
+SOUND         sfx="confirm" | "none" | "checked:a unchecked:b" | "deny:locked"  → UI.Sfx.OnCue; default key kind.action;
+                                       only real user input; <Pages> none (key the button) → reference/sfx.md
 DRAG & DROP   <Frame drop="unit"><Show on="drop-over">…</Show><Frame id="card" drag="unit"/></Frame>
                                        any control → any control, across lists and Screens; the source itself is lifted above all
                                        layers; targets: drop-armed / drop-over / drop-deny / drop-out / drop-pending / receive;
@@ -2198,6 +2212,11 @@ STYLE LINT    PUI-CLASS-EMPTY                  class="" / whitespace-only — na
                                                (shape attrs are exempt when one side has NONE of them
                                                 — that surface toggles wholesale and reverts itself)
               PUI-THEME-STYLE-ON-INVOCATION    themed class= on a Template invocation won't re-skin
+
+SOUND         PUI-SFX-VALUE                    malformed sfx= (click: / :x / two bare keys / an action twice) — inline, styles, <Screen>
+              PUI-SFX-ACTION                   an inline action the built-in tag never does (Btn checked:) or misspelt
+              PUI-SFX-INERT                    sfx= on <Pages>, on an element that raises / is looked up for no cue,
+                                               or a call site's sfx= on a template whose root raises none
 
 HIT-TESTING   PUI-RAYCAST-TAG                  raycastTarget= outside Frame / Image / RawImage / Text (containers
                                                have no Graphic; Icon / Decor / Progress / Cooldown are always click-through;

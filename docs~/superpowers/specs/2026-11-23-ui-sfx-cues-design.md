@@ -1,6 +1,6 @@
 # UI 音效钩子：`sfx=` 与 `UI.Sfx.OnCue` —— 用户真实操作时发一个全局事件，库不播放
 
-> 状态：**决策已对齐**（2026-11-23：§13 的 SFX-D1…D18 全部按推荐）；**独立审查已过**，修订见 §17。分支 `feat/ui-sfx`，plan 待写。
+> 状态：**已实现**（分支 `feat/ui-sfx`，plan `docs~/superpowers/plans/2026-11-23-ui-sfx-cues.md`；实施记录见 §18）。决策已对齐（2026-11-23：§13 的 SFX-D1…D18 全部按推荐）；独立审查已过，修订见 §17。
 > 需求来源：一个要给整套 UI 配音效的游戏 —— 让通用控件统一挂上默认音，不逐份改 `.ui.xml`。库只负责发事件：
 > 不持有 AudioClip、不播放；节流、随机变体、混音都由游戏侧做。PC 宽屏与手机竖屏同一份 XML。
 > 相关：
@@ -722,3 +722,36 @@ Screen 关闭途中，已捕获的重排松手提交不发 cue；`dismiss="pass"
 | 细节：§5.2 措辞；「开着」以背板为准；帧算子来自 R3.Unity；`SubsystemRegistration` 的先例与「不要在这个阶段订阅」；`OnNext` 一律 `try/catch`；`<Param name="sfx">` 要写进发布说明；样式值的语法检查走 `StyleRules`；同一次激活至多一个 cue；构建途中被关的不发 `close`；线程池里触发的 `CancellationToken` | 各处改正（P21、P22、P29、P30、§5.2、§6.2、§6.3、§7.5、§7.10、§8、§12、§15） |
 
 没有发现泄露私有工程的内容。
+
+## 18. 实施记录（2026-11-23）
+
+按 §16 分步提交，一个 PR。与正文的偏差、实现中才看清的细节：
+
+| 处 | 记录 |
+|---|---|
+| §7.4 TabMenu「重点当前行 = 用户的收起」 | uGUI 在收起之前会把同一个选中再宣布一遍，所以「这次点击是不是重点」不能在弹层关闭的回调里现查。`Tab` 记下自己这次激活是不是重点（`InSfxRepick`：激活窗口开着、却没发出 cue），`TabMenu` 在选择落定时（`OnSelectionSettled(tab)`）取走它，关闭回调只读这个标记 |
+| §7.5 Dropdown 的挂点 | 全在 `PuiDropdown`：背板上加一个点击监听（点背板 = 用户收起），`DestroyBlocker` 里认「重点当前项」，每个条目挂一个 `SfxCancelRelay`（`ICancelHandler`，Esc / B 走选中条目，P24）。`TMP_Dropdown` 自己的淡出协程不经过这些入口，所以 `BindOptions` 在打开时推送（`Hide` + `Show`）不发声 |
+| §7.6 弹层级联的「一次手势一个 cue」 | `PopupChain.CloseFrom` 记下这次 Esc / 外部按下瞄准的是哪一层（`IsAimedAt`），被连带关掉的子层与上层不发 |
+| §7.10 角色 | `ScreenSfxRole` 默认 `Silent`，只有 `UI.Open` / Router（`RoutePresent.Modal` → `Modal`）/ Modal 泵会改；Loading、Toast、引导都走 `OpenModalScreen`，天然静音，没有加任何标记 |
+| §11 测试文件 | 按控件族合并：`SfxBtnTests`（含门面：`ResetForTests` 重建流、抛异常的订阅者、自定义控件 `RaiseSfxCue`）、`SfxToggleTabTests`、`SfxPopupTests`（TabMenu / Popover / Collapsible）、`SfxCarouselTests`、`SfxApplyTests`、`SfxTemplateTests`、`SfxRulesTests`、`Application/SfxScreenTests`、`SfxDragTests`（含重排）；真实输入的在 `PlayMode/Controls/SfxPlayTests`。控件测试的记录器默认滤掉 `screen` / `modal`，只有 Screen 的测试要它们 |
+| 测试的隔离 | 改了 `MessageBox.XmlSrc` / `Loading.XmlSrc` / `CenteredSlideBox.XmlSrc` 的测试都在 `finally` / `TearDown` 里还原 —— 这些静态皮肤不在 `ResetForTests` 里复位，漏还原会让后面不相干的测试读到测试用的皮肤 |
+
+实现中顺带验证的 §15 条目（仍不在本 PR 修）：
+
+- **§15-1 属实**：PlayMode 真实点击已选中的 Tab，`TabBar.OnSelectionChanged` 又发了一次（同一个 Tab）。音效不受影响 —— `select` 只在
+  false → true 时发，该用例断言没有 cue。
+- **§15-6 属实**：`screen.Dispose()` 之后 `UI` 的登记还在；`SfxScreenTests` 的拆除用例因此在 `Dispose` 之后再调 `UI.CloseImmediate`。
+
+另一处观察（未查证是否有意）：同步的 `UI.LoadDocument(label, xml)` 不登记文档里的 `<Theme>`，主题相关的用例改走 resolver +
+`LoadDocumentAsync`。
+
+回归：EditMode / EditorOnly / PlayMode 全量，除 `main` 上同样失败的既有用例外全部通过 —— 那几条与本分支无关，都是环境相关：
+一条着色器渲染、一条依赖平台路径格式的编辑器用例、四条按真实帧时长断言的 PlayMode 动画 / 冷却用例（编辑器在后台被限帧时帧长
+超过断言的阈值）。`dotnet format --verify-no-changes` 与 UIXmlLint（`Runtime/Resources/`、`Samples~/`）干净。
+
+发布说明要写的两处行为变化（§12）：
+
+1. `<Param name="sfx">` 现在是解析错误 —— `sfx` 成了通用属性，调用处写的 `sfx` 落到实例根；要给模板里面的控件传音效键，换个名字
+   （`<Param name="buySfx" default=""/>`）。
+2. 修复 P26：模板体根从 `class=` 拿到某个通用属性、调用处又写了同名属性时（`width` / `hidden` / `drag` … / `sfx`），只要有任何主题
+   带 `<Style>`，每次 `Screen.Open` 与 `ReSolve` 都会把样式值铺回去、盖掉调用处的值。现在调用处的值保留。
