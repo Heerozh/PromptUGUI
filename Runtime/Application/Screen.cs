@@ -736,8 +736,10 @@ namespace PromptUGUI.Application
             finally { _isReapplyingScaler = false; }
         }
 
-        // 反订阅 Screen 对进程级静态事件(UI.Theme.Changed / Variants.Changed)及自身注册的所有
-        // 订阅,使 GO 销毁后这些事件不再回调到本 Screen。幂等(Close 与哨兵 OnDestroy 都可能调用)。
+        // 反订阅 Screen 对进程级静态事件(UI.Theme.Changed / Variants.Changed / 尺寸变化),使关闭中的幽灵
+        // 不再 ReSolve、GO 销毁后这些事件不再回调到本 Screen。幂等(Close 与哨兵 OnDestroy 都可能调用)。
+        // 用户经 Track / .AddTo(screen) 挂的订阅不在这里:它们活到销毁体(ReleaseSubscriptions),
+        // 这样 OnClosing 与 close Trigger 的 .AddTo(screen) 订阅者收得到(spec 2026-11-23-close-reliability §2)。
         private void DetachGlobals()
         {
             if (_detached) return;
@@ -749,11 +751,17 @@ namespace PromptUGUI.Application
                 UI.Theme.Changed -= _themeHandler;
                 _themeHandler = null;
             }
-            foreach (var d in _subscriptions) d.Dispose();
-            _subscriptions.Clear();
             // 主动清空订阅,避免 GO 销毁过程中 Unity 再触发 OnRectTransformDimensionsChange 时
             // 还把回调派给已 Close 的 Screen 上的 stale 订阅者。
             RectTransformDimensionsChanged = null;
+        }
+
+        // What Track / .AddTo(screen) tied to this Screen: released with the destroy body, after OnClosing.
+        private void ReleaseSubscriptions()
+        {
+            var subs = _subscriptions.ToArray();
+            _subscriptions.Clear();
+            foreach (var d in subs) d.Dispose();
         }
 
         // relay(RectDimensionsRelay)的 OnDestroy 回调:RootGameObject 被外部销毁(场景重载 / 手动
@@ -765,6 +773,7 @@ namespace PromptUGUI.Application
             if (_destroyed) return;
             _destroyed = true;
             DetachGlobals();
+            ReleaseSubscriptions();
             RootGameObject = null;
             OnDetachedExternally?.Invoke(this);   // 让 UI 把本 Screen 从 _open 注销
             // GO 已随场景销毁,子 control 的 motion 由 .AddTo(go) 链在各自 OnDestroy 取消;这里只弃掉
@@ -961,6 +970,7 @@ namespace PromptUGUI.Application
             _destroyed = true;
             FireClosing();
             DetachGlobals();
+            ReleaseSubscriptions();
             // Dispose all controls before destroying the GameObject so that running
             // motions (e.g. LitMotion handles) are cancelled before the objects
             // become invalid. DestroyImmediate / Destroy are deferred in PlayMode,
@@ -1214,7 +1224,16 @@ namespace PromptUGUI.Application
             Template.ThemeStyleApplier.Apply(Def, effective);
         }
 
-        public void Track(IDisposable d) => _subscriptions.Add(d);
+        public void Track(IDisposable d)
+        {
+            // A Screen already destroyed holds nothing any more: what is tied to it now ends now.
+            if (_destroyed)
+            {
+                d?.Dispose();
+                return;
+            }
+            _subscriptions.Add(d);
+        }
 
         /// <summary>
         /// <paramref name="replayDynamicSubtrees"/> controls whether rows built by <c>BindItems</c>

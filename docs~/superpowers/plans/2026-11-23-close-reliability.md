@@ -30,11 +30,11 @@
 
 **Files:** `Runtime/Application/Screen.cs`；新 `Tests/PlayMode/Lifecycle/CloseReliabilityPlayTests.cs`。
 
-- [ ] Red（PlayMode）：`OnClosing…AddTo(screen)` + `UI.Close`，无退场 / 有退场（`InjectExit` 的做法）各收到 1 次；
+- [x] Red（PlayMode）：`OnClosing…AddTo(screen)` + `UI.Close`，无退场 / 有退场（`InjectExit` 的做法）各收到 1 次；
   `<Trigger id='t' on='close'/>` 的 `OnFire…AddTo(screen)` 收到 1 次；退场期间推给 `.AddTo(screen)` 订阅的 Subject 仍被处理；
   销毁之后不再被处理。
-- [ ] Green：拆 `DetachGlobals`；`CloseImmediate` 在 `FireClosing` 之后释放 `_subscriptions`；`OnRootDestroyedExternally` 两者都做。
-- [ ] 回归：`CloseTransitionPlayTests`、`ScreenLifecycleTests`、EditMode 全量；提交。
+- [x] Green：拆 `DetachGlobals`；`CloseImmediate` 在 `FireClosing` 之后释放 `_subscriptions`；`OnRootDestroyedExternally` 两者都做。
+- [x] 回归：`CloseTransitionPlayTests`、`ScreenLifecycleTests`、EditMode 全量；提交。
 
 ## Task 2（A2 / A3）：直接关闭也注销
 
