@@ -1308,6 +1308,7 @@ namespace PromptUGUI.Application
             foreach (var s in SnapshotAllScreens()) s.CloseImmediate();
             _open.Clear();
             _closing.Clear();
+            Sfx.ResetForTestsInternal();
             _modalInstanceSeq = 0;
             _docs.Clear();
             VariantStore.Reset();

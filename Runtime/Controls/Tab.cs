@@ -10,9 +10,10 @@ using UnityToggle = UnityEngine.UI.Toggle;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class Tab : ProceduralControl, Internal.IToggleSource
+    public sealed class Tab : ProceduralControl, Internal.IToggleSource, ISfxActivationSink
     {
         private UnityImage _bg;
+        private readonly SfxActivation _sfx = new();
 
         private protected override GameObject SurfaceHost => GameObject;
         private protected override UnityEngine.UI.Selectable SurfaceSelectable => _toggle;
@@ -84,6 +85,7 @@ namespace PromptUGUI.Controls
             _toggle.targetGraphic = _bg;
             _toggle.transition = Selectable.Transition.ColorTint;
             _toggle.InitStateBroadcast();
+            _toggle.SfxSink = this;
 
             var group = FindAncestorToggleGroup();
             if (group == null)
@@ -113,6 +115,10 @@ namespace PromptUGUI.Controls
 
         private void OnIsOnChanged(bool isOn)
         {
+            // Before OnValueChanged / OnSelected, and so before the group's OnSelectionChanged (spec 2026-11-23-ui-sfx-cues
+            // §7.4). The tab the group turns off is outside its own window and raises nothing.
+            if (_sfx.TakeFlip(isOn))
+                RaiseSfx(isOn ? PromptUGUI.Lint.SfxRules.Select : PromptUGUI.Lint.SfxRules.Deselect, SfxGroup());
             _changed.OnNext(isOn);
             NotifyCheckedShows();
             if (isOn) _selected.OnNext(Unit.Default);
@@ -440,6 +446,18 @@ namespace PromptUGUI.Controls
         }
 
         public Observable<bool> OnValueChanged => _changed;
+
+        void ISfxActivationSink.BeginSfxActivation(bool interactable)
+        {
+            if (!interactable) RaiseSfx(PromptUGUI.Lint.SfxRules.Deny, SfxGroup());
+            else _sfx.Begin(_toggle.isOn);
+        }
+
+        void ISfxActivationSink.EndSfxActivation() => _sfx.End();
+
+        // The <TabBar> / <TabMenu> this tab belongs to — looked up after the tab itself (spec §5.3). Found through the
+        // ToggleGroup on the group's own GameObject: a bound row has no logical parent to walk.
+        private Control SfxGroup() => _toggle.group != null ? UILog.ControlAt(_toggle.group.gameObject) : null;
         public Observable<Unit> OnSelected => _selected;
 
         // ── IToggleSource (checked / unchecked, FND §4) ───────────────────────────────────

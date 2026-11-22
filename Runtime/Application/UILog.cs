@@ -86,6 +86,13 @@ namespace PromptUGUI.Application
             s_owners.Add(go, control);
         }
 
+        /// <summary>The control whose own GameObject is <paramref name="go"/>, or null — the registry above, read exactly.</summary>
+        internal static Control ControlAt(GameObject go)
+        {
+            if (go == null) return null;
+            return s_owners.TryGetValue(go, out var control) ? control : null;
+        }
+
         private static ElementNode NodeOf(Control control)
         {
             for (var c = control; c != null; c = c.Parent)

@@ -93,10 +93,16 @@ namespace PromptUGUI.Controls.Internal
         /// 鼠标用过后焦点光标隐藏时，第一次 Submit 只唤回光标、不翻转 isOn（见 nav-hidden-submit-wake）。
         /// 仅拦键盘/手柄确认；鼠标点击走 OnPointerClick 不受影响。盖 Tab 与 Toggle。
         /// </summary>
+        /// <summary>The control this toggle's user activations are cues of (spec 2026-11-23-ui-sfx-cues §7.1).</summary>
+        internal ISfxActivationSink SfxSink { get; set; }
+
         public override void OnSubmit(BaseEventData eventData)
         {
             if (UI.Navigation.TryWakeOnSubmit()) return;
-            base.OnSubmit(eventData);
+            var sink = IsActive() ? SfxSink : null;
+            sink?.BeginSfxActivation(IsInteractable());
+            try { base.OnSubmit(eventData); }
+            finally { sink?.EndSfxActivation(); }
             // After the early return, deliberately: a wake-only Submit recalls the focus cursor
             // and is NOT an activation (see nav-hidden-submit-wake).
             _clicked.OnNext(Unit.Default);
@@ -104,10 +110,14 @@ namespace PromptUGUI.Controls.Internal
 
         public override void OnPointerClick(PointerEventData eventData)
         {
-            base.OnPointerClick(eventData);
             // Same button filter uGUI's Toggle applies before InternalToggle: a right-click is not
             // an activation, and firing here would let it close a TabMenu the base ignored.
-            if (eventData.button != PointerEventData.InputButton.Left) return;
+            var left = eventData.button == PointerEventData.InputButton.Left;
+            var sink = left && IsActive() ? SfxSink : null;
+            sink?.BeginSfxActivation(IsInteractable());
+            try { base.OnPointerClick(eventData); }
+            finally { sink?.EndSfxActivation(); }
+            if (!left) return;
             _clicked.OnNext(Unit.Default);
         }
 

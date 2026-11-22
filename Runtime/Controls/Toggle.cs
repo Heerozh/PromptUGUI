@@ -9,9 +9,10 @@ using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class Toggle : ProceduralControl, Internal.IToggleSource
+    public sealed class Toggle : ProceduralControl, Internal.IToggleSource, ISfxActivationSink
     {
         private UnityImage _bg;
+        private readonly SfxActivation _sfx = new();
 
         // The checkbox background is a child; the surface goes inside it so it covers exactly
         // the box and not the label.
@@ -56,6 +57,7 @@ namespace PromptUGUI.Controls
         public override void OnAttached()
         {
             _toggle = GameObject.GetComponent<PuiToggle>() ?? GameObject.AddComponent<PuiToggle>();
+            _toggle.SfxSink = this;
 
             // Background：左侧垂直居中 20x20 box。
             // 默认 prefab 是 (0,1) 锚到 top-left + 20x20 + pos(10,-10)，因为 Toggle 固定 20 高刚好满；
@@ -107,6 +109,9 @@ namespace PromptUGUI.Controls
 
             _toggle.onValueChanged.AddListener(v =>
             {
+                // Before OnValueChanged: a cue the handler causes (a dialog it opens) comes after this one.
+                if (_sfx.TakeFlip(v))
+                    RaiseSfx(v ? PromptUGUI.Lint.SfxRules.Checked : PromptUGUI.Lint.SfxRules.Unchecked);
                 _changed.OnNext(v);
                 _bgReactor?.SetSelected(v);
                 ShowCheck(v, instant: false);
@@ -263,6 +268,16 @@ namespace PromptUGUI.Controls
         }
 
         public Observable<bool> OnValueChanged => _changed;
+
+        // spec 2026-11-23-ui-sfx-cues §7.3: a refused activation is a deny; an accepted one opens the window in which the
+        // flip it makes — and only that — is a cue.
+        void ISfxActivationSink.BeginSfxActivation(bool interactable)
+        {
+            if (!interactable) RaiseSfx(PromptUGUI.Lint.SfxRules.Deny);
+            else _sfx.Begin(_toggle.isOn);
+        }
+
+        void ISfxActivationSink.EndSfxActivation() => _sfx.End();
 
         // ── IToggleSource (checked / unchecked, FND §4) ───────────────────────────────────
 
