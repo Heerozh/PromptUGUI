@@ -18,11 +18,17 @@ namespace PromptUGUI.Tests.EditMode.Controls
     {
         public const string Head = "<?xml version='1.0' encoding='utf-8'?><PromptUGUI version='1'>";
 
-        /// <summary>Every cue from now on, in order. Call after <c>UI.ResetForTests()</c> (it rebuilds the stream).</summary>
-        public static List<SfxCue> Record()
+        /// <summary>
+        /// Every cue from now on, in order — without the Screens' own open / close unless <paramref name="screens"/>, so a
+        /// control test does not see the Screen it opens. Call after <c>UI.ResetForTests()</c> (it rebuilds the stream).
+        /// </summary>
+        public static List<SfxCue> Record(bool screens = false)
         {
             var cues = new List<SfxCue>();
-            UI.Sfx.OnCue.Subscribe(cues.Add);
+            UI.Sfx.OnCue.Subscribe(c =>
+            {
+                if (screens || (c.Kind != "screen" && c.Kind != "modal")) cues.Add(c);
+            });
             return cues;
         }
 

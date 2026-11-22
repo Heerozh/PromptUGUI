@@ -74,7 +74,9 @@ namespace PromptUGUI.Application
             Screen screen;
             try
             {
-                screen = UI.Open(target);
+                // A scene-embedded document is no navigation: it opens with the scene (EditMode included) and goes
+                // with it, so it raises no open / close cue (spec 2026-11-23-ui-sfx-cues §7.10, SFX-D7).
+                screen = UI.OpenCore(target, ScreenSfxRole.Silent, cue: false);
             }
             catch (System.Exception e)
             {

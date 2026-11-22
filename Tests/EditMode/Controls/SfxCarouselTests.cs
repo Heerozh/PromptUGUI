@@ -129,22 +129,27 @@ namespace PromptUGUI.Tests.EditMode.Controls
         {
             var files = new Dictionary<string, string> { ["test/SlideBox1"] = SlideBoxXml };
             UI.SourceResolver = src => AwaitableHelpers.Completed(files.TryGetValue(src, out var v) ? v : null);
+            var skin = CenteredSlideBox.XmlSrc;
             CenteredSlideBox.XmlSrc = "test/SlideBox1";
-            var items = new List<Lv> { new Lv { Name = "a" }, new Lv { Name = "b" }, new Lv { Name = "c" } };
-            var task = UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv> { Items = items, BindCard = (card, lv) => { } });
-            var cards = UI.Modal.TopScreen.Get<Carousel>("cards");
-            var strip = cards.GameObject.GetComponent<CarouselView>().StripRect;
-            GameObject Card(int i) => strip.GetChild(i).gameObject;
-            _cues.Clear();
+            try
+            {
+                var items = new List<Lv> { new Lv { Name = "a" }, new Lv { Name = "b" }, new Lv { Name = "c" } };
+                var task = UI.Modal.OpenAsync(new CenteredSlideBoxRequest<Lv> { Items = items, BindCard = (card, lv) => { } });
+                var cards = UI.Modal.TopScreen.Get<Carousel>("cards");
+                var strip = cards.GameObject.GetComponent<CarouselView>().StripRect;
+                GameObject Card(int i) => strip.GetChild(i).gameObject;
+                _cues.Clear();
 
-            Click(Card(1));   // a side card: centre it
-            Assume.That(cards.Current, Is.EqualTo(1));
-            Click(Card(1));   // the centred card, one button: confirm
+                Click(Card(1));   // a side card: centre it
+                Assume.That(cards.Current, Is.EqualTo(1));
+                Click(Card(1));   // the centred card, one button: confirm
 
-            Assert.AreSame(items[1], task.GetAwaiter().GetResult());
-            var own = _cues.Where(c => c.Kind != "modal").ToList();
-            Assert.AreEqual("[carousel.flip→carousel.flip, btn.click→confirm]", Describe(own),
-                "confirming by the card sounds like confirming by the button");
+                Assert.AreSame(items[1], task.GetAwaiter().GetResult());
+                var own = _cues.Where(c => c.Kind != "modal").ToList();
+                Assert.AreEqual("[carousel.flip→carousel.flip, btn.click→confirm]", Describe(own),
+                    "confirming by the card sounds like confirming by the button");
+            }
+            finally { CenteredSlideBox.XmlSrc = skin; }   // a process-wide skin: do not leak it into later tests
         }
     }
 }
