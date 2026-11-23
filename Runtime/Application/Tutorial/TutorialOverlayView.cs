@@ -42,8 +42,52 @@ namespace PromptUGUI.Application.Tutorial
             _bubbleRootRt.gameObject.SetActive(false);
         }
 
+        // Between steps nothing blocks (spec 2026-11-23-input-correctness §5; tutorial spec §3, §6): the mask stops taking
+        // the pointer as a step ends, and its dim goes once no step has used it for a frame — a step that begins right away
+        // (the next `await t.Step(…)`) reuses it, so two steps in a row do not blink. -1: a step holds it, or it is off.
+        private const int DimGraceTicks = 2;
+        private int _idleTicks = -1;
+
+        // t.Navigate holds the input while the route switches: a clear catcher over the whole overlay, apart from the
+        // mask so neither disturbs the other.
+        private GameObject _hold;
+        private int _holds;
+
+        internal bool InputHeldForTests => _holds > 0;
+
+        internal void HoldInput()
+        {
+            if (_holds++ > 0) return;
+            if (_hold == null) _hold = CreateHold();
+            _hold.transform.SetAsLastSibling();
+            _hold.SetActive(true);
+        }
+
+        internal void ReleaseInput()
+        {
+            if (_holds == 0 || --_holds > 0) return;
+            if (_hold != null) _hold.SetActive(false);
+        }
+
+        private GameObject CreateHold()
+        {
+            var go = new GameObject("NavigateHold", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+            var rt = (RectTransform)go.transform;
+            rt.SetParent(_overlayRect, false);
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+            var image = go.GetComponent<UnityEngine.UI.Image>();
+            image.color = Color.clear;
+            image.raycastTarget = true;
+            go.SetActive(false);
+            return go;
+        }
+
         internal void BeginStep(StepConfig cfg, AwaitableCompletionSource acs)
         {
+            _idleTicks = -1;
             _cfg = cfg; _acs = acs; _stepActive = true; _targetLive = false;
             _waited = 0f; _untilStarted = false; _targetRect = null;
             bool block = cfg.Mode == TutorialMode.Block;
@@ -57,12 +101,22 @@ namespace PromptUGUI.Application.Tutorial
         {
             RemoveRelay();
             _stepActive = false; _targetLive = false; _targetRect = null;
-            if (Mask != null) Mask.SetHole(null);
+            if (Mask != null)
+            {
+                Mask.SetHole(null);
+                Mask.raycastTarget = false;   // what the game awaits between steps (a dialog, a button) stays reachable
+            }
+            _idleTicks = 0;
             if (_bubbleRootRt != null) _bubbleRootRt.gameObject.SetActive(false);
         }
 
         internal void Tick(float dt)
         {
+            if (!_stepActive && _idleTicks >= 0 && ++_idleTicks >= DimGraceTicks)
+            {
+                _idleTicks = -1;
+                if (Mask != null) Mask.enabled = false;
+            }
             if (!_stepActive) return;
             if (!_targetLive && _cfg.Target != null)
             {

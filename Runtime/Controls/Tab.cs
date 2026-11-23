@@ -115,6 +115,9 @@ namespace PromptUGUI.Controls
 
         private void OnIsOnChanged(bool isOn)
         {
+            // A re-click of the selected tab (or an IsOn = false the group puts straight back) changed nothing: announce
+            // nothing (spec 2026-11-23-input-correctness §3).
+            if (_toggle.IsUnchanged(isOn)) return;
             // Before OnValueChanged / OnSelected, and so before the group's OnSelectionChanged (spec 2026-11-23-ui-sfx-cues
             // §7.4). The tab the group turns off is outside its own window and raises nothing.
             if (_sfx.TakeFlip(isOn))
@@ -216,7 +219,9 @@ namespace PromptUGUI.Controls
                     }
                     return;
                 }
-                _toggle.isOn = value;
+                var outer = _toggle.BeginOperation();
+                try { _toggle.isOn = value; }
+                finally { _toggle.EndOperation(outer); }
             }
         }
 
@@ -499,12 +504,6 @@ namespace PromptUGUI.Controls
 
         /// <summary>Whether a click on it now would act — false when it, or a group around it, is disabled.</summary>
         internal bool AcceptsActivation => _toggle != null && _toggle.IsActive() && _toggle.IsInteractable();
-
-        /// <summary>
-        /// A user activation of this tab is in progress and it changed nothing — a re-pick of the selected tab, which uGUI
-        /// re-announces (spec 2026-11-23-ui-sfx-cues §7.4). What a TabMenu reads to tell the user's close from a pick's.
-        /// </summary>
-        internal bool InSfxRepick => _sfx.IsOpen && !_sfx.Raised;
 
         /// <summary>Test hook: raise <see cref="OnActivated"/> without a live EventSystem.</summary>
         internal void SimulateClickForTests() => _toggle.SimulateClickForTests();

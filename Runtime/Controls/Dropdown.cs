@@ -397,7 +397,9 @@ namespace PromptUGUI.Controls
 
         private void SetOptions(List<DropdownOption> opts)
         {
-            var wasOpen = _tmp.IsExpanded;
+            // Open as the player sees it — the catcher is up. TMP's IsExpanded stays true through the fade-out, and a
+            // Hide + Show there would reopen the list the player just closed (spec 2026-11-23-input-correctness §4).
+            var wasOpen = _pui.IsListUp;
             if (wasOpen) _tmp.Hide();
 
             _tmp.options.Clear();

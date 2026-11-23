@@ -482,10 +482,13 @@ namespace PromptUGUI.Controls
                 _expanding = false;
             }
 
+            // The chain can refuse the open (a close handler it ran closed this menu again): then nothing opened —
+            // no arrow, no <Show on="expand">, no OnExpanded (spec 2026-11-23-input-correctness §4).
+            if (!IsExpanded) return;
             PlayArrow(expanding: true);
             _expandShows.Notify();
-            // Only when it really opened (Open can refuse), and before OnExpanded.
-            if (IsExpanded && _sfxHandle.TakeFlip(true)) RaiseSfx(PromptUGUI.Lint.SfxRules.Expand);
+            // Before OnExpanded.
+            if (_sfxHandle.TakeFlip(true)) RaiseSfx(PromptUGUI.Lint.SfxRules.Expand);
             _expandedSubject.OnNext(Unit.Default);
         }
 
@@ -600,7 +603,7 @@ namespace PromptUGUI.Controls
             _core.CollectStatic(Children);
             _core.SyncInitialSelection();
             _core.WireTabSubscriptions();
-            _selectionSub ??= _core.SelectionChanged.Subscribe(OnSelectionSettled);
+            _selectionSub ??= _core.SelectionChanged.Subscribe(_ => OnSelectionSettled());
             WireActivationSubscriptions();
             RefreshCaption();
 
@@ -648,17 +651,15 @@ namespace PromptUGUI.Controls
             base.Dispose();
         }
 
-        private void OnSelectionSettled(Tab tab)
+        private void OnSelectionSettled()
         {
             RefreshCaption();
             // Not while opening: see _expanding. Picking a row — by click or from code — is what
             // closes a menu, and reactivating the panel is neither.
             if (_expanding) return;
-            // A user re-picking the selected row arrives here too (uGUI re-announces it) and is the user's own close; a
-            // pick that changed the selection raised the tab's select instead (spec 2026-11-23-ui-sfx-cues §7.4).
-            _sfxRepick = tab != null && tab.InSfxRepick;
-            try { Collapse(); }
-            finally { _sfxRepick = false; }
+            // A pick that changed the selection: the tab raised its select, the close is its consequence. A re-pick of the
+            // selected row never gets here (it changes nothing) — OnActivated closes for it.
+            Collapse();
         }
 
         // Picking a row closes the menu — including a re-pick of the row already selected, which
@@ -672,11 +673,12 @@ namespace PromptUGUI.Controls
                 var tab = _core.Tabs[i];
                 tab.OnActivated.Subscribe(_ =>
                 {
-                    if (_expanding) return;
+                    // A disabled row refused the click (it raised deny): the menu stays open (spec
+                    // 2026-11-23-input-correctness §4).
+                    if (_expanding || !tab.AcceptsActivation) return;
                     // Still open after the row handled the click: it changed nothing, so this close is the user's own
-                    // (spec 2026-11-23-ui-sfx-cues §7.4). A pick that changed the selection has closed it already; a
-                    // disabled row was refused (it raised deny) and closes it silently.
-                    _sfxRepick = IsExpanded && tab.AcceptsActivation;
+                    // (spec 2026-11-23-ui-sfx-cues §7.4). A pick that changed the selection has closed it already.
+                    _sfxRepick = IsExpanded;
                     try { Collapse(); }
                     finally { _sfxRepick = false; }
                 }).AddTo(_activationSubs);

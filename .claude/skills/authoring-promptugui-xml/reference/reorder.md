@@ -62,7 +62,7 @@ On release the **structure commits immediately**: the placeholder goes, the row 
 
 ## Cancellation
 
-A structural change during a drag ends the session and puts the row **back where it started**, fires `drop`, and fires **no** `OnReordered`: a `BindItems` push arriving, a ReSolve reaching the list (Variant / theme / orientation change), `itemTemplate` changing, the list closing, `reorder` turning off. The rest of that pointer gesture goes nowhere (it is not handed to the scroll half-way). A push that arrives *after* release, while the settle tween still runs, is unaffected — the structure was already committed.
+A structural change during a drag ends the session and puts the row **back where it started**, fires `drop`, and fires **no** `OnReordered`: a `BindItems` push arriving, a ReSolve reaching the list (Variant / theme / orientation change), `itemTemplate` changing, the list closing, `reorder` turning off — and a touch the **system cancels** (a call, the notification shade, a system gesture), which is never taken for a release. Reordering does not exclude a `drag=` drag and drop on another finger. The rest of that pointer gesture goes nowhere (it is not handed to the scroll half-way). A push that arrives *after* release, while the settle tween still runs, is unaffected — the structure was already committed.
 
 ## Sound cues
 

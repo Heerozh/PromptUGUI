@@ -543,6 +543,8 @@ Image + uGUI Slider。R3 `OnValueChanged: float`。不写 size 时按方向给�
 
 TMP_Dropdown。R3 `OnSelected: int`。选项 C# 侧 `BindOptions(...)` 注入。不写 size 时默认 160×44（不读 caption 文字宽，避免每选一项改宽度）。
 
+Only a left click opens it (as on `<Btn>`); options pushed while its list fades out leave the list closed.
+
 **Sound:** `dropdown.expand` when opened; `dropdown.collapse` when closed by the catcher, Escape / B or re-picking the current option; `dropdown.select` when another option is picked (no `collapse` then); `dropdown.deny` while disabled. `BindOptions` while open, code and `Value=` raise nothing → [`reference/sfx.md`](reference/sfx.md).
 
 | 属性 | 类型 / 取值 | 默认 | 说明 |

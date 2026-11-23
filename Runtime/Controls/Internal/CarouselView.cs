@@ -534,8 +534,19 @@ namespace PromptUGUI.Controls.Internal
         void IInitializePotentialDragHandler.OnInitializePotentialDrag(PointerEventData e)
             => ForwardToParent(e, ExecuteEvents.initializePotentialDrag);
 
+        // Disabled (interactable="false" here or on a panel above): the swipe is not ours — the whole gesture goes to the
+        // scroller around it, the way the dots already ignore clicks (spec 2026-11-23-input-correctness §4). Autoplay is not
+        // input and keeps turning.
+        private bool _forwardOnly;
+
         void IBeginDragHandler.OnBeginDrag(PointerEventData e)
         {
+            _forwardOnly = !Interaction.GroupsAllow(transform);
+            if (_forwardOnly)
+            {
+                ForwardToParent(e, ExecuteEvents.beginDragHandler);
+                return;
+            }
             // No axis lock: the carousel always acts on the horizontal (X) component of ANY drag, so a
             // gesture that starts vertical and then goes horizontal still scrolls — no dead gestures from
             // a brittle first-frame direction guess. The whole drag is forwarded up too, so an outer
@@ -557,7 +568,7 @@ namespace PromptUGUI.Controls.Internal
         void IDragHandler.OnDrag(PointerEventData e)
         {
             ForwardToParent(e, ExecuteEvents.dragHandler);   // outer ScrollRect scrolls its (orthogonal) axis
-            if (_cards.Count == 0) return;
+            if (_forwardOnly || _cards.Count == 0) return;
             // 把指针映射进 viewport 本地坐标，取与按下点的本地 X 位移：这是"手指实际走过多少本地单位"，
             // 已隐式除掉 CanvasScaler.scaleFactor / 相机 / 旋转 → 被抓住的像素 1:1 跟手，不变快/变慢。
             if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
@@ -575,6 +586,11 @@ namespace PromptUGUI.Controls.Internal
         void IEndDragHandler.OnEndDrag(PointerEventData e)
         {
             ForwardToParent(e, ExecuteEvents.endDragHandler);
+            if (_forwardOnly)
+            {
+                _forwardOnly = false;
+                return;
+            }
             _dragging = false;
             int target = _current;
             if (_dragLocalX <= -_stride * SnapThreshold) target = _current + 1;

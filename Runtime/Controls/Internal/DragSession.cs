@@ -267,6 +267,9 @@ namespace PromptUGUI.Controls.Internal
             if (s_state != State.Idle || src == null || e == null) return false;
             var ctrl = src.Owner;
             if (ctrl == null || ctrl.GameObject == null || ctrl.DragKind == null) return false;
+            // Turned off since the press (spec 2026-11-23-input-correctness §2.2) — the per-frame check missed this frame.
+            if (!IsInteractable(ctrl)) return false;
+            ForgetPress(src);
             SettleFlight.Complete(ctrl.LayoutHost);   // a flight still landing it ends here
 
             var carry = new Carry(src, e.pressEventCamera);
@@ -292,9 +295,8 @@ namespace PromptUGUI.Controls.Internal
             };
 
             EndPress(e);
-            // The user picked it up (spec 2026-11-23-ui-sfx-cues §7.11) — before the lift hooks and OnLift. Not when it
-            // went non-interactable during the hold: TryPress let the press through, SourceAlive takes it back next frame.
-            if (IsInteractable(ctrl)) ctrl.RaiseSfx(PromptUGUI.Lint.SfxRules.Lift, kind: SfxKind);
+            // The user picked it up (spec 2026-11-23-ui-sfx-cues §7.11) — before the lift hooks and OnLift.
+            ctrl.RaiseSfx(PromptUGUI.Lint.SfxRules.Lift, kind: SfxKind);
             // Hooks first (an authored <Animation on="lift"> starts now); the default look only for a source
             // with no lift hook of its own — the two must not both write localScale.
             var marker = src.Marker;
@@ -418,14 +420,7 @@ namespace PromptUGUI.Controls.Internal
         internal static bool IsInteractable(Control c)
         {
             if (c == null || c.GameObject == null || !c.PeekInteractable) return false;
-            for (var t = c.GameObject.transform.parent; t != null; t = t.parent)
-            {
-                var g = t.GetComponent<CanvasGroup>();
-                if (g == null) continue;
-                if (!g.interactable) return false;
-                if (g.ignoreParentGroups) break;
-            }
-            return true;
+            return Interaction.GroupsAllow(c.GameObject.transform.parent);
         }
 
         // ───── per frame ─────
@@ -727,6 +722,8 @@ namespace PromptUGUI.Controls.Internal
         /// <summary>The source is put down: its <c>drop</c>, the targets let go, the end announced.</summary>
         private static void Finish(DragResult result, DropEvent drop)
         {
+            s_sourceClosing?.Dispose();
+            s_sourceClosing = null;
             var source = s_carry != null ? s_carry.Source : s_source;
             var info = s_info;
             if (source != null && source.Marker is { } marker) marker.Drop();
@@ -775,11 +772,17 @@ namespace PromptUGUI.Controls.Internal
             drop.Owner = carry;
             carry.TakeOut();
             carry.Park(target.Owner?.LayoutHost, carry.Ctrl.DragDuration);
-            // The hovered target stays over and starts waiting; every other one lets go.
+            // The hovered target stays over — and armed — and starts waiting; every other one lets go (§7.10.1).
             s_hover = target;
             s_hoverDenied = false;
+            var keepArmed = s_armed.Remove(target);
             Disarm(keepHover: true);
+            if (keepArmed) s_armed.Add(target);
             target.SetPending(true);
+            // Its source's Screen starting to close ends the wait (§7.10.5) — OnClosing comes on every close path, the
+            // immediate one included; a push or a ReSolve only lets go of the park.
+            s_sourceClosing?.Dispose();
+            s_sourceClosing = s_info?.SourceScreen?.OnClosing.Subscribe(_ => EndPending(DragResult.Cancelled));
         }
 
         private static void TickPending(float dt)
@@ -814,6 +817,8 @@ namespace PromptUGUI.Controls.Internal
         private static void EndPending(DragResult result)
         {
             if (s_state != State.Pending) return;
+            s_sourceClosing?.Dispose();
+            s_sourceClosing = null;
             LetGoOfPark();
             var drop = s_pending;
             var target = s_pendingTarget;
@@ -899,6 +904,7 @@ namespace PromptUGUI.Controls.Internal
         /// </summary>
         internal static void BeforeStructureChange(Transform root)
         {
+            if (root != null) CancelPresses(src => src.transform.IsChildOf(root));
             if (root == null || s_carry == null) return;
             var host = s_carry.Host;
             if (s_state == State.Dragging)
@@ -915,6 +921,11 @@ namespace PromptUGUI.Controls.Internal
         /// <summary>A layer opened at <paramref name="sortingOrder"/> (a modal, a routed page): a drag from below it ends.</summary>
         internal static void OnLayerAbove(int sortingOrder)
         {
+            CancelPresses(src =>
+            {
+                var canvas = LiftLayer.RootOf(src.transform);
+                return (canvas != null ? canvas.sortingOrder : 0) < sortingOrder;
+            });
             if (s_state != State.Dragging || s_carry?.Host == null) return;
             var root = LiftLayer.RootOf(s_carry.Host);
             var order = root != null ? root.sortingOrder : 0;
@@ -924,6 +935,7 @@ namespace PromptUGUI.Controls.Internal
         /// <summary>A Screen re-solves (Variant, theme, orientation, locale — all global): no gesture over a changing structure.</summary>
         internal static void OnReSolve()
         {
+            CancelPresses(_ => true);
             if (s_state == State.Dragging) CancelDrag();
             else if (s_state == State.Pending) LetGoOfPark();
         }
@@ -934,6 +946,8 @@ namespace PromptUGUI.Controls.Internal
         /// </summary>
         internal static void OnReleased(Control c)
         {
+            // A row re-bound under a held finger: what the press was on is gone (it would lift the row's new item).
+            if (c != null) CancelPresses(src => ReferenceEquals(src.Owner, c));
             if (s_state == State.Idle || c == null) return;
             if (s_carry != null && ReferenceEquals(c, s_carry.Ctrl))
             {
@@ -946,6 +960,7 @@ namespace PromptUGUI.Controls.Internal
 
         internal static void OnSourceTurnedOff(Control c)
         {
+            if (c != null) CancelPresses(src => ReferenceEquals(src.Owner, c));
             if (s_state == State.Dragging && s_carry != null && ReferenceEquals(c, s_carry.Ctrl)) CancelDrag();
         }
 
@@ -965,6 +980,12 @@ namespace PromptUGUI.Controls.Internal
             s_source?.Owner?.RaiseSfx(PromptUGUI.Lint.SfxRules.Return, kind: SfxKind);
             CancelDrag();
             return true;
+        }
+
+        /// <summary>The system cancelled the pointer that carries <paramref name="src"/>: its drag goes back, as a cancel.</summary>
+        internal static void CancelSessionOf(DragSource src)
+        {
+            if (s_state == State.Dragging && src != null && src == s_source) CancelDrag();
         }
 
         /// <summary><c>UI.Drag.Cancel()</c>: a drag goes back; a wait ends.</summary>
@@ -1002,6 +1023,45 @@ namespace PromptUGUI.Controls.Internal
             catch (Exception ex) { Debug.LogException(ex); }
         }
 
+        // ───── pressed, not lifted yet (spec 2026-11-23-input-correctness §2.2) ─────
+
+        // Sources pressed and counting down to their lift — two fingers can hold one each. What the §7.7 cancel signals
+        // must reach before anything is lifted. Entries that moved on (lifted, released, scrolled) are dropped lazily.
+        private static readonly List<DragSource> s_pressed = new();
+
+        internal static void NotePressed(DragSource src)
+        {
+            if (src != null && !s_pressed.Contains(src)) s_pressed.Add(src);
+        }
+
+        private static void ForgetPress(DragSource src) => s_pressed.Remove(src);
+
+        /// <summary>This source's press ends without a lift; the rest of its gesture goes nowhere.</summary>
+        internal static void CancelPressOf(DragSource src)
+        {
+            ForgetPress(src);
+            if (src != null) src.Gesture.CancelPress();
+        }
+
+        private static void CancelPresses(Func<DragSource, bool> matches)
+        {
+            for (var i = s_pressed.Count - 1; i >= 0; i--)
+            {
+                var src = s_pressed[i];
+                if (src == null || src.Gesture.Current != LiftGesture.Phase.Pressed)
+                {
+                    s_pressed.RemoveAt(i);
+                    continue;
+                }
+                if (!matches(src)) continue;
+                s_pressed.RemoveAt(i);
+                src.Gesture.CancelPress();
+            }
+        }
+
+        // The wait for an answer listens to its source's Screen closing (§7.10.5).
+        private static IDisposable s_sourceClosing;
+
         internal static void ResetForTests()
         {
             if (s_state == State.Dragging) CancelDrag();
@@ -1013,6 +1073,9 @@ namespace PromptUGUI.Controls.Internal
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics()
         {
+            s_pressed.Clear();
+            s_sourceClosing?.Dispose();
+            s_sourceClosing = null;
             s_state = State.Idle;
             s_carry = null;
             s_source = null;

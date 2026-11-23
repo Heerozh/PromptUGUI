@@ -53,7 +53,7 @@ Theme / locale ReSolve, the state a Screen opens with, autoplay, a list re-bind,
 | `<Popover>` | `popover` | `expand` · `collapse` | its `on="click@…"` button opens / closes it; outside press, Escape | the Popover |
 | `<Collapsible>` | `collapsible` | `expand` · `collapse` | the header clicked | the Collapsible |
 | | | `deny` | a disabled header | the Collapsible |
-| `<Carousel>` | `carousel` | `flip` | a swipe that turned the page, a dot, a slide box's side card | the Carousel |
+| `<Carousel>` | `carousel` | `flip` | a swipe that turned the page, a dot, a slide box's side card (a disabled carousel takes neither) | the Carousel |
 | `<Screen>` (page / plain) | `screen` | `open` · `close` | every normal open · start of a normal close | the Screen |
 | `<Screen>` (as a dialog) | `modal` | `open` · `close` | same | the Screen |
 | a `drag=` source | `drag` | `lift` | picked up | the source |

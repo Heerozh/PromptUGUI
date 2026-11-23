@@ -42,12 +42,21 @@ namespace PromptUGUI.Controls.Internal
 
         void IEndDragHandler.OnEndDrag(PointerEventData e) => Gesture.OnEndDrag(e);
 
-        private void Update()
+        private void Update() => Tick(Time.unscaledDeltaTime);
+
+        internal void TickForTests(float dt) => Tick(dt);
+
+        private void Tick(float dt)
         {
-            if (_gesture != null) _gesture.Tick(Time.unscaledDeltaTime);
+            if (_gesture == null) return;
+            // Pressed and counting down: a source turned off meanwhile (disabled here or above, drag none) is not picked
+            // up when its hold runs out or its first move comes (drag-drop spec §7.7's "every frame" check).
+            if (_gesture.Current == LiftGesture.Phase.Pressed && !CanStillLift()) DragSession.CancelPressOf(this);
+            _gesture.Tick(dt);
         }
 
-        internal void TickForTests(float dt) => Gesture.Tick(dt);
+        private bool CanStillLift() =>
+            Owner != null && Owner.DragKind != null && isActiveAndEnabled && DragSession.IsInteractable(Owner);
 
         // ───── LiftGesture.IHost ─────
 
@@ -60,6 +69,7 @@ namespace PromptUGUI.Controls.Internal
             if (!isActiveAndEnabled || !DragSession.IsInteractable(Owner)) return false;
             if (!string.IsNullOrEmpty(Owner.DragHandle) && !HitHandle(e)) return false;
             hold = ResolveHold(e);
+            DragSession.NotePressed(this);
             return true;
         }
 
@@ -68,6 +78,8 @@ namespace PromptUGUI.Controls.Internal
         void LiftGesture.IHost.Drag(PointerEventData e) => DragSession.OnDrag(this);
 
         void LiftGesture.IHost.Release() => DragSession.Release(this);
+
+        void LiftGesture.IHost.Cancel() => DragSession.CancelSessionOf(this);
 
         // The session's runner owns the per-frame work (it must go on when this GameObject is switched off).
         void LiftGesture.IHost.Tick(float dt) { }
