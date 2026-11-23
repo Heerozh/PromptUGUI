@@ -14,6 +14,8 @@ namespace PromptUGUI.Template
             "hidden", "interactable",
             // Drag and drop (spec 2026-11-16-drag-drop, 5.1): <Card drag="unit"/> drags the instance.
             "drag", "drop", "dragHold", "dragHandle", "dragDuration",
+            // UI sound cues (spec 2026-11-23-ui-sfx-cues §5.4): <DangerButton sfx="none"/> sets the instance root's.
+            "sfx",
             // Lint-only (PUI-FONT-FLOOR's node-level floor); lands on the instance root so it covers
             // the whole instance. The runtime skips it like any attribute no control declares.
             "fontFloor",
@@ -191,6 +193,33 @@ namespace PromptUGUI.Template
             return merged;
         }
 
+        /// <summary>
+        /// The common attributes an invocation just wrote onto its instance root now belong to the call site
+        /// (spec 2026-11-23-ui-sfx-cues P26). Taking them out of <see cref="ElementNode.StyleAttrNames"/> is what keeps
+        /// a theme re-merge (<see cref="StyleMerger.ReMerge"/>, at every Open / ReSolve once any theme carries a style)
+        /// from deleting them and laying the body's <c>class=</c> value back down. A name the call site wrote in either
+        /// form is the call site's as a whole: the merge is atomic per name, base and variants together.
+        /// <see cref="ElementNode.InvocationAttrNames"/> keeps what it spelled out inline, for lint — not what its own
+        /// <c>class=</c> brought. Both sets are replaced, never mutated: they may be shared with other copies.
+        /// </summary>
+        private static void ClaimInvocationAttrs(ElementNode instanceRoot, ElementNode invocation, HashSet<string> written)
+        {
+            if (written.Count == 0) return;
+
+            if (instanceRoot.StyleAttrNames != null)
+            {
+                var remaining = new HashSet<string>(instanceRoot.StyleAttrNames);
+                remaining.ExceptWith(written);
+                instanceRoot.StyleAttrNames = remaining;
+            }
+
+            var inline = new HashSet<string>(written);
+            if (invocation.StyleAttrNames != null) inline.ExceptWith(invocation.StyleAttrNames);
+            if (inline.Count == 0) return;
+            if (instanceRoot.InvocationAttrNames != null) inline.UnionWith(instanceRoot.InvocationAttrNames);
+            instanceRoot.InvocationAttrNames = inline;
+        }
+
         private static void StampInvokedAt(ElementNode node, string site)
         {
             node.InvokedAt = site;
@@ -333,10 +362,12 @@ namespace PromptUGUI.Template
                     AppendOuter(instanceRoot.InvocationComments, invocation.LeadingComments);
                 if (!string.IsNullOrEmpty(invocation.Id))
                     instanceRoot.Id = invocation.Id;
+                var written = new HashSet<string>();
                 foreach (var kv in invocation.Attributes)
                 {
                     if (!CommonAttrs.Contains(kv.Key)) continue;
                     instanceRoot.Attributes[kv.Key] = kv.Value;
+                    written.Add(kv.Key);
                 }
                 foreach (var kv in invocation.VariantOverrides)
                 {
@@ -347,7 +378,9 @@ namespace PromptUGUI.Template
                         instanceRoot.VariantOverrides[kv.Key] = list;
                     }
                     list.AddRange(kv.Value);
+                    written.Add(kv.Key);
                 }
+                ClaimInvocationAttrs(instanceRoot, invocation, written);
 
                 // Overwrite rather than fill-in-if-empty: nested invocations expanded first and
                 // stamped themselves, but an inner site is the same for every instance and so cannot
@@ -482,6 +515,7 @@ namespace PromptUGUI.Template
                 TextContent = src.TextContent,
                 TextContentRaw = src.TextContentRaw ?? src.TextContent,
                 IsTemplateInstanceRoot = src.IsTemplateInstanceRoot,
+                InvocationAttrNames = src.InvocationAttrNames,
                 LeadingComments = src.LeadingComments,
                 InvocationComments = src.InvocationComments,
                 InvocationSite = src.InvocationSite,

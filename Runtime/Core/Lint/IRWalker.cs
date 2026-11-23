@@ -66,6 +66,11 @@ namespace PromptUGUI.Lint
                 foreach (var issue in StateTriggerRules.CheckShowExpandSelf(screen.Root))
                     yield return issue;
 
+                // sfx= naming an action the element never does, or on an element that never plays it: a walk of its
+                // own, because a static row of a sortable list needs its parent. Stamps its own source.
+                foreach (var issue in SfxRules.CheckTree(screen.Root, styles))
+                    yield return issue;
+
                 foreach (var variant in screen.Variants)
                     foreach (var add in variant.Adds)
                         foreach (var addChild in add.Children)
@@ -77,6 +82,8 @@ namespace PromptUGUI.Lint
                                 yield return issue;
                             // An Add child's host is not known statically, so it is judged as outermost.
                             foreach (var issue in RaycastRules.CheckUndecided(addChild, styles))
+                                yield return issue;
+                            foreach (var issue in SfxRules.CheckTree(addChild, styles))
                                 yield return issue;
                         }
             }
@@ -97,6 +104,12 @@ namespace PromptUGUI.Lint
                     foreach (var issue in ScrollbarRules.CheckRetired(style))
                         yield return issue.WithSource(style.OriginSrc, 0);
 
+            // sfx= in a theme's packs (the global packs reach it through StyleRules.CheckStyle above).
+            foreach (var theme in doc.Themes)
+                foreach (var style in theme.Styles.Values)
+                    foreach (var issue in SfxRules.CheckStyle(style))
+                        yield return issue.WithSource(style.OriginSrc, 0);
+
             foreach (var template in doc.Templates.Values)
             {
                 // Template bodies live in declaration-space, not in any actual TabBar
@@ -107,8 +120,12 @@ namespace PromptUGUI.Lint
                 // invocation may merge CommonAttrs onto it, which PUI-VARIANT-NO-BASE must account for.
                 // s_emptyIds: template bodies don't belong to a specific Screen — skip nav-target check.
                 if (template.Body != null)
+                {
                     foreach (var issue in WalkNode(template.Body, inTemplateBody: true, hasStateSourceAncestor: false, hasMenuAncestor: false, hasToggleAncestor: false, hasListAncestor: false, hasDragAncestor: false, hasDropAncestor: false, parentIsLayoutGroup: false, isTemplateBodyRoot: true, screenIds: s_emptyIds, styles: styles))
                         yield return issue;
+                    foreach (var issue in SfxRules.CheckTree(template.Body, styles, isTemplateBodyRoot: true))
+                        yield return issue;
+                }
             }
         }
 

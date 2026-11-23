@@ -79,14 +79,15 @@ namespace PromptUGUI.Application.Modals
             {
                 int i = idx++;
                 bindCard?.Invoke(card, item);
-                AttachCardClick(card, i, car, () => latest, onConfirm, autoConfirm, soleKey);
+                AttachCardClick(card, i, car, () => latest, onConfirm, autoConfirm, soleKey,
+                                autoConfirm && visibleButtons.Count > 0 ? visibleButtons[0] : null);
             }, key).AddTo(screen);
         }
 
         // 每张卡：透明 raycast catcher + PuiButton。click（非拖动）→ 居中导航或（仅单按钮）确认。
         private static void AttachCardClick<T>(IControl card, int i, Carousel car,
             Func<IReadOnlyList<T>> getLatest,
-            Action<T, string> onConfirm, bool autoConfirm, string soleKey) where T : class
+            Action<T, string> onConfirm, bool autoConfirm, string soleKey, Btn sole) where T : class
         {
             var go = card.GameObject;
             var img = go.GetComponent<UnityImage>() ?? go.AddComponent<UnityImage>();
@@ -95,13 +96,20 @@ namespace PromptUGUI.Application.Modals
             // 卡 GO 每次 BindItems 重建都是全新的（旧的由 ClearCards 销毁），故无条件 AddComponent 安全。
             var btn = go.AddComponent<PuiButton>();
             btn.targetGraphic = img;
+            // A side card turns the page like a dot (spec 2026-11-23-ui-sfx-cues §7.8).
+            btn.SfxSink = car.SfxGestureSink;
             btn.onClick.AddListener(() =>
             {
                 var items = getLatest();
                 if (car.Current == i)
                 {
                     // 单按钮：点居中卡=确认；多按钮：无操作（CSB-D16）。
-                    if (autoConfirm && i >= 0 && i < items.Count) onConfirm(items[i], soleKey);
+                    if (autoConfirm && i >= 0 && i < items.Count)
+                    {
+                        // Confirming by the card sounds like confirming by the one button — a real click only.
+                        if (car.InSfxGesture) sole?.RaiseSfx(PromptUGUI.Lint.SfxRules.Click);
+                        onConfirm(items[i], soleKey);
+                    }
                 }
                 else car.GoTo(i, animated: true);                // 点侧卡=居中
             });

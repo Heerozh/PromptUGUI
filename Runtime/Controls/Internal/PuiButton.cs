@@ -64,14 +64,29 @@ namespace PromptUGUI.Controls.Internal
             base.InstantClearState();
         }
 
+        /// <summary>The control this button's user activations are cues of; null for one that raises none (spec 2026-11-23-ui-sfx-cues §7.1).</summary>
+        internal ISfxActivationSink SfxSink { get; set; }
+
+        /// <summary>A left click on an active button is a user activation — refused, too, when it is not interactable.</summary>
+        public override void OnPointerClick(PointerEventData eventData)
+        {
+            var sink = eventData.button == PointerEventData.InputButton.Left && IsActive() ? SfxSink : null;
+            sink?.BeginSfxActivation(IsInteractable());
+            try { base.OnPointerClick(eventData); }
+            finally { sink?.EndSfxActivation(); }
+        }
+
         /// <summary>
         /// 鼠标用过后焦点光标隐藏时，第一次 Submit 只唤回光标、不点击（见 nav-hidden-submit-wake）。
-        /// 仅拦键盘/手柄确认；鼠标点击走 OnPointerClick 不受影响。
+        /// 仅拦键盘/手柄确认；鼠标点击走 OnPointerClick 不受影响。唤回的那次也不是用户激活：没有音效。
         /// </summary>
         public override void OnSubmit(BaseEventData eventData)
         {
             if (UI.Navigation.TryWakeOnSubmit()) return;
-            base.OnSubmit(eventData);
+            var sink = IsActive() ? SfxSink : null;
+            sink?.BeginSfxActivation(IsInteractable());
+            try { base.OnSubmit(eventData); }
+            finally { sink?.EndSfxActivation(); }
         }
 
         /// <summary>Test hook: drive a transition without a live EventSystem (ordinal — the test

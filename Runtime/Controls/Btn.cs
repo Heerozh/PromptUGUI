@@ -9,7 +9,7 @@ using UnityImage = UnityEngine.UI.Image;
 
 namespace PromptUGUI.Controls
 {
-    public sealed class Btn : ProceduralControl, IPointerEventSource
+    public sealed class Btn : ProceduralControl, IPointerEventSource, ISfxActivationSink
     {
         private UnityImage _bg;
         private PuiButton _btn;
@@ -63,6 +63,7 @@ namespace PromptUGUI.Controls
             _baseType = _bg.type;
             _btn = GameObject.GetComponent<PuiButton>() ?? GameObject.AddComponent<PuiButton>();
             _btn.targetGraphic = _bg;
+            _btn.SfxSink = this;
             _btn.onClick.AddListener(() => _click.OnNext(Unit.Default));
             _stateSpriteSub = _btn.OnState.Subscribe(ApplyStateSprite);
             PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
@@ -340,6 +341,22 @@ namespace PromptUGUI.Controls
         }
 
         public Observable<Unit> OnClick => _click;
+
+        // A user activation always does what it says: it clicks, or it is refused (spec 2026-11-23-ui-sfx-cues §7.2).
+        // Raised before base handles it, so the cue comes before onClick → OnClick.
+        void ISfxActivationSink.BeginSfxActivation(bool interactable)
+        {
+            RaiseSfx(interactable ? PromptUGUI.Lint.SfxRules.Click : PromptUGUI.Lint.SfxRules.Deny);
+            InSfxActivation = interactable;
+        }
+
+        void ISfxActivationSink.EndSfxActivation() => InSfxActivation = false;
+
+        /// <summary>
+        /// True while a real user click or Submit runs this button's OnClick — not <c>onClick.Invoke()</c>. What a
+        /// <c>&lt;Popover on="click@…"&gt;</c> reads to tell a user open from a coded one (spec 2026-11-23-ui-sfx-cues §7.6).
+        /// </summary>
+        internal bool InSfxActivation { get; private set; }
 
         internal void SimulateClick() => _click.OnNext(Unit.Default);
 

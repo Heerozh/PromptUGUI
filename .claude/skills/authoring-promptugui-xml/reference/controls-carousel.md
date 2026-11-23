@@ -134,6 +134,13 @@ screen.Get<Carousel>("sel")
 
 `current=` 的值是**初始页**；一旦用户或代码在运行期切换了页面，resize / Variant / Theme 切换都不会把它打回声明值。`current.<variant>` 仍然有效：只要运行期没动过，切到该 Variant 会正常重应用覆盖值；动过之后用户的选择优先（同 Tab `isOn`）。
 
+## Sound cues
+
+A page the user turns raises `carousel.flip`: a swipe past the snap threshold, a click on a dot (never a `btn.click`), a
+CenteredSlideBox's side card. Autoplay, `GoTo` / `Next` / `Previous` / `Current=`, a rebind and a short swipe that
+springs back raise nothing. Arrow buttons you wire to `Next()` in C# raise their own `btn.click` — key them
+`<Btn sfx="carousel.flip">` to sound like a page turn. → [`sfx.md`](sfx.md)
+
 ## Lint 规则
 
 | Code                        | 触发条件                                                                     | 级别    |

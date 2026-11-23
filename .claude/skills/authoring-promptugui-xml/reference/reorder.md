@@ -64,6 +64,12 @@ On release the **structure commits immediately**: the placeholder goes, the row 
 
 A structural change during a drag ends the session and puts the row **back where it started**, fires `drop`, and fires **no** `OnReordered`: a `BindItems` push arriving, a ReSolve reaching the list (Variant / theme / orientation change), `itemTemplate` changing, the list closing, `reorder` turning off. The rest of that pointer gesture goes nowhere (it is not handed to the scroll half-way). A push that arrives *after* release, while the settle tween still runs, is unaffected — the structure was already committed.
 
+## Sound cues
+
+`reorder.lift` when a row is picked up; on release `reorder.land` if it went to a new place (before `OnReordered`) or
+`reorder.return` if it was put back in its own. A cancel (a push, an apply pass) raises nothing. The key is looked up on
+the row's root, then on the `<ScrollList>` — `<ScrollList reorder="true" sfx="land:slot_in">` keys every row. → [`sfx.md`](sfx.md)
+
 ## Lint
 
 | Code | When |

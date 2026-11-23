@@ -326,6 +326,29 @@ namespace PromptUGUI.Parser
                 list.Add((variant, a.Value));
             }
 
+            // <Screen sfx="…"> / sfx.<variant>: the open / close cue keys (spec 2026-11-23-ui-sfx-cues §5.5). Stored
+            // as written; the grammar is lint's (PUI-SFX-VALUE) and the runtime's warning, like on any element.
+            foreach (System.Xml.XmlAttribute a in el.Attributes)
+            {
+                if (a.Name == "sfx")
+                {
+                    rootNode.Attributes["sfx"] = a.Value;
+                    continue;
+                }
+                if (!a.Name.StartsWith("sfx.")) continue;
+                var variant = a.Name.Substring("sfx.".Length);
+                if (string.IsNullOrEmpty(variant) || variant.Contains("."))
+                    throw new ParseException(
+                        $"<Screen name='{name}'>: malformed attribute '{a.Name}' " +
+                        $"(variant suffix must be 'sfx.variant' with no further dots)");
+                if (!rootNode.VariantOverrides.TryGetValue("sfx", out var list))
+                {
+                    list = new System.Collections.Generic.List<(string, string)>();
+                    rootNode.VariantOverrides["sfx"] = list;
+                }
+                list.Add((variant, a.Value));
+            }
+
             var seenWhen = new System.Collections.Generic.HashSet<string>();
 
             foreach (XmlNode c in el.ChildNodes)
@@ -388,6 +411,13 @@ namespace PromptUGUI.Parser
                     if (!paramNames.Add(pname))
                         throw new ParseException(
                             $"<Template name='{name}'>: duplicate <Param name='{pname}'>");
+                    // A common attribute on an invocation lands on the instance root AND fills a Param of the same
+                    // name, so the value would reach two places (spec 2026-11-23-ui-sfx-cues P18).
+                    if (pname == "sfx")
+                        throw new ParseException(
+                            $"<Template name='{name}'>: <Param name='sfx'> shadows the common attribute sfx — an " +
+                            "invocation's sfx= already lands on the template's root. Name the Param after what it " +
+                            "sets (e.g. <Param name='clickSfx' default=''/>, then sfx=\"{{clickSfx}}\" on the control).");
 
                     foreach (XmlAttribute pa in ce.Attributes)
                     {

@@ -34,6 +34,7 @@ namespace PromptUGUI.Controls
         private RectTransform _popupViewport;
         private bool _popupMaskExplicit;
         private TMP_Dropdown _tmp;
+        private PuiDropdown _pui;   // the same component, for the sound-cue hooks (spec 2026-11-23-ui-sfx-cues §7.5)
         private string _fontType = "default";
         private readonly Subject<int> _selected = new();
 
@@ -52,8 +53,9 @@ namespace PromptUGUI.Controls
             ProceduralBuilders.ApplyDefaultSlicedSprite(_bg);
             // PuiDropdown: the popup is a clone of the Template, and the procedural panels inside it
             // (a <Scrollbar radius=>) do not survive Instantiate without help — see PuiDropdown.
-            _tmp = GameObject.AddComponent<PuiDropdown>();
+            _tmp = _pui = GameObject.AddComponent<PuiDropdown>();
             _tmp.targetGraphic = _bg;
+            _pui.SfxOwner = this;
 
             // Caption (the always-visible label on the closed dropdown button).
             var label = ProceduralBuilders.AddText(RectTransform, "Label");
@@ -157,7 +159,12 @@ namespace PromptUGUI.Controls
             _tmp.template = template;
             _tmp.itemText = itemLabel;
 
-            _tmp.onValueChanged.AddListener(i => _selected.OnNext(i));
+            _tmp.onValueChanged.AddListener(i =>
+            {
+                // A row the user picked, not Value= / a value= pass (spec 2026-11-23-ui-sfx-cues §7.5) — before OnSelected.
+                if (_pui.TakeUserPick()) RaiseSfx(PromptUGUI.Lint.SfxRules.Select);
+                _selected.OnNext(i);
+            });
             ApplyFont();
             PromptUGUI.Application.UI.Locale.Changed += ApplyFont;
         }

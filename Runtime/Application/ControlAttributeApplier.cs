@@ -191,6 +191,9 @@ namespace PromptUGUI.Application
                 // ApplyCommon writes hidden / interactable last, so they are written once it returns.
                 wrote.Hidden = hidden.HasValue;
                 wrote.Interactable = interactable.HasValue;
+                // Every pass, unresolved included: a cleared variant or theme falls back to the default sound
+                // (spec 2026-11-23-ui-sfx-cues §7.15).
+                control.ApplySfx(VariantResolver.ResolveAttribute(node, PromptUGUI.Lint.SfxRules.Attr, variants));
                 control.OnAfterApply();
                 // The pass may have rewritten a graphic's raycastTarget: a drag source still has to catch its press.
                 control.ReapplyDragHit();

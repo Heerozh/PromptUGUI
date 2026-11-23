@@ -32,9 +32,11 @@ namespace PromptUGUI.Lint
         {
             foreach (var issue in CheckClass(n)) yield return issue;
 
+            // The synthetic root stands in for <Screen>, which is what the author wrote.
+            var context = n.Tag == "__screen_root__" ? "<Screen>" : $"<{n.Tag} id='{n.Id}'>";
             foreach (var (name, value) in AllValues(n))
             {
-                foreach (var issue in CheckValue($"<{n.Tag} id='{n.Id}'>", n.Tag, n.Id, name, value))
+                foreach (var issue in CheckValue(context, n.Tag, n.Id, name, value))
                     yield return issue;
             }
         }
@@ -92,6 +94,14 @@ namespace PromptUGUI.Lint
 
             // Template params are substituted after lint time; the final value is unknowable here.
             if (value != null && value.Contains("{{")) yield break;
+
+            // sfx= shares its parser with the runtime (spec 2026-11-23-ui-sfx-cues §8).
+            if (baseName == SfxRules.Attr)
+            {
+                var sfx = SfxRules.CheckValue(context, tag, id, attrName, value);
+                if (sfx.HasValue) yield return sfx.Value;
+                yield break;
+            }
 
             if (baseName == "radius" || IsInnerLayerRadius(baseName))
             {

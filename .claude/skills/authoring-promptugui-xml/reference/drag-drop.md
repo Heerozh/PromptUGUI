@@ -156,6 +156,14 @@ These end a drag at once: the source goes back without a flight, `drop` fires, C
 
 A target's Screen closing only takes its targets away; the drag goes on.
 
+## Sound cues
+
+`drag.lift` when it is picked up; `drag.land` when it goes into a target — the key looked up on the **target** first
+(`<Frame drop="item" sfx="land:equip">`), then on the dragged element; `drag.return` when it goes home (let go over
+nothing or a refusing target, a `Reject`, Escape). A deferred drop raises nothing when let go and speaks at
+`Accept` / `Reject`; `UI.Drag.Cancel()`, a push, a ReSolve, a close, a layer above, the pending timeout and a late answer
+raise nothing. Not the same moments as the `drop` hook, which fires for any ending. → [`sfx.md`](sfx.md)
+
 ## Lint
 
 | Code | When |

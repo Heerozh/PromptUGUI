@@ -644,7 +644,11 @@ namespace PromptUGUI.Application
             }
 
             // Never an exit here: the reopened instance would overlap its own ghost on every save.
-            var wasOpen = _open.ContainsKey(screenName);
+            var wasOpen = _open.TryGetValue(screenName, out var previous);
+            // A rebuild is not an open: the new instance takes the old one's sound-cue role, silently
+            // (spec 2026-11-23-ui-sfx-cues §7.10), so its later close still sounds like that Screen's.
+            var sfxRole = previous?.SfxRole ?? ScreenSfxRole.Screen;
+            var sfxOpened = previous != null && previous.SfxOpened;
             if (wasOpen) CloseImmediate(screenName);
 
             _docs.Remove(screenName);
@@ -659,7 +663,12 @@ namespace PromptUGUI.Application
             };
             _depGraph.SrcToDeps[dep.EntrySrc] = new System.Collections.Generic.HashSet<string>(loaded.AllSrcs);
 
-            if (wasOpen) Router.OnScreenReopened(screenName, Open(screenName));
+            if (wasOpen)
+            {
+                var reopened = OpenCore(screenName, sfxRole, cue: false);
+                if (sfxOpened) reopened.MarkSfxOpened();
+                Router.OnScreenReopened(screenName, reopened);
+            }
         }
 
         // ── common libraries (2026-09-18 commons-settings spec §4.2–4.5) ─────────────────────────
@@ -863,7 +872,14 @@ namespace PromptUGUI.Application
             foreach (var name in names) await ReloadAsync(name);
         }
 
-        public static Screen Open(string screenName)
+        public static Screen Open(string screenName) => OpenCore(screenName, ScreenSfxRole.Screen, cue: true);
+
+        /// <summary>
+        /// <see cref="Open"/> with the Screen's sound-cue role (spec 2026-11-23-ui-sfx-cues §7.10). An opener that puts the
+        /// Screen on a layer first (the Router) passes <paramref name="cue"/> false and raises the open cue itself, after
+        /// the layer. A Screen already open is returned as it is: no second open.
+        /// </summary>
+        internal static Screen OpenCore(string screenName, ScreenSfxRole role, bool cue)
         {
             if (_open.TryGetValue(screenName, out var existing)) return existing;
             if (!_docs.TryGetValue(screenName, out var def))
@@ -887,6 +903,8 @@ namespace PromptUGUI.Application
                 _open.Remove(screenName);
                 throw;
             }
+            screen.SfxRole = role;
+            if (cue) screen.RaiseSfxOpen();
             return screen;
         }
 
@@ -1308,6 +1326,7 @@ namespace PromptUGUI.Application
             foreach (var s in SnapshotAllScreens()) s.CloseImmediate();
             _open.Clear();
             _closing.Clear();
+            Sfx.ResetForTestsInternal();
             _modalInstanceSeq = 0;
             _docs.Clear();
             VariantStore.Reset();

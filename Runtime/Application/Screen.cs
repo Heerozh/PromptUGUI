@@ -10,6 +10,17 @@ using UnityEngine;
 
 namespace PromptUGUI.Application
 {
+    /// <summary>
+    /// What a Screen's open / close cues are (spec 2026-11-23-ui-sfx-cues §7.10) — decided by whoever opened it, since a
+    /// modal is a modal only once its opener has put it on the modal band.
+    /// </summary>
+    internal enum ScreenSfxRole
+    {
+        /// <summary>No open / close cue: the Loading overlay, toasts, the tutorial overlay, a document host.</summary>
+        Silent,
+        Screen,
+        Modal,
+    }
 
     public interface IScreen : IDisposable
     {
@@ -801,6 +812,10 @@ namespace PromptUGUI.Application
         public void Close()
         {
             if (_isClosing || _destroyed) return;
+            // A close that was asked for — in every branch below, before OnClosing (spec 2026-11-23-ui-sfx-cues §7.10).
+            // Teardown never comes here (it calls CloseImmediate), and a Screen closed while still being built raised no
+            // open, so it raises no close either.
+            RaiseSfxClose();
             // EditMode has no frames to play an exit in. A Screen closed while still being built
             // has never been seen: an exit would be an invisible ghost living `duration`.
             if (!UnityEngine.Application.isPlaying || IsOpening)
@@ -832,6 +847,56 @@ namespace PromptUGUI.Application
 
         /// <summary><see cref="IDisposable"/>: destroy now, no exit.</summary>
         public void Dispose() => CloseImmediate();
+
+        // ── UI sound cues (spec 2026-11-23-ui-sfx-cues §7.10) ──────────────────────────────────────
+
+        /// <summary>Set by the opener; <see cref="ScreenSfxRole.Silent"/> until one says otherwise.</summary>
+        internal ScreenSfxRole SfxRole { get; set; }
+
+        private bool _sfxOpened;
+        private string _sfxWarned;
+
+        /// <summary>Raises the open cue once — after the opener has put the Screen on its layer.</summary>
+        internal void RaiseSfxOpen()
+        {
+            if (SfxRole == ScreenSfxRole.Silent || _sfxOpened) return;
+            _sfxOpened = true;
+            RaiseScreenCue(PromptUGUI.Lint.SfxRules.Open);
+        }
+
+        /// <summary>A rebuild of a Screen that was open (hot reload): no open cue, but its close will be one.</summary>
+        internal void MarkSfxOpened()
+        {
+            if (SfxRole != ScreenSfxRole.Silent) _sfxOpened = true;
+        }
+
+        /// <summary>Whether this Screen raised (or, rebuilt, inherited) an open cue — what a rebuild carries over.</summary>
+        internal bool SfxOpened => _sfxOpened;
+
+        private void RaiseSfxClose()
+        {
+            if (!_sfxOpened) return;
+            _sfxOpened = false;
+            RaiseScreenCue(PromptUGUI.Lint.SfxRules.Close);
+        }
+
+        // <Screen sfx> is read as the variants stand now: open and close are rare.
+        private void RaiseScreenCue(string action)
+        {
+            var value = PromptUGUI.Variants.VariantResolver.ResolveAttribute(Def.Root, PromptUGUI.Lint.SfxRules.Attr, Variants);
+            if (!PromptUGUI.Lint.SfxRules.TryParse(value, out var spec, out var error))
+            {
+                if (_sfxWarned != value)
+                {
+                    _sfxWarned = value;
+                    Debug.LogWarning($"[{PromptUGUI.Lint.SfxRules.ValueCode}] <Screen name='{Name}'> sfx=\"{value}\" " +
+                                     $"{error}; playing the default sounds.", RootGameObject);
+                }
+                spec = PromptUGUI.Lint.SfxSpec.Empty;
+            }
+            var kind = SfxRole == ScreenSfxRole.Modal ? "modal" : "screen";
+            UI.Sfx.Raise(kind, action, null, null, this, spec);
+        }
 
         // The ghost must not be operable while it fades: no raycasts (blocksRaycasts only — turning
         // `interactable` off would drop every Selectable into Disabled and tint the fading buttons

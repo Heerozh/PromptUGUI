@@ -105,6 +105,9 @@ namespace PromptUGUI.Lint
                 {
                     var names = NamesOf(resolved[themeName], key);
                     if (exemptProcedural) names.ExceptWith(ShapeOnlyProcedural);
+                    // sfx is written on every pass (unresolved = the default sound), so a theme that leaves it out
+                    // resets it — nothing to keep stuck (spec 2026-11-23-ui-sfx-cues P19).
+                    names.Remove(SfxRules.Attr);
                     if (referenceNames == null)
                     {
                         referenceTheme = themeName;

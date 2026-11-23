@@ -259,11 +259,17 @@ namespace PromptUGUI.Application
             // —— Page / Modal ——
             private static async Awaitable<ActiveNode> ActivatePage(RouteNode def, RouteQuery query)
             {
+                var epoch = _epoch;
                 var screenName = await EnsureLoaded(def);
-                var screen = UI.Open(screenName);
+                var role = def.Kind == RouteKind.Modal ? ScreenSfxRole.Modal : ScreenSfxRole.Screen;
+                var screen = UI.OpenCore(screenName, role, cue: false);
                 // Before OnEnter, so the hook sees (and may adjust) the final order. The node is not
                 // in _chain yet: everything in it is this node's ancestry.
                 ApplyRouteLayer(def, screen, _chain.Count);
+                // Its open cue now that it is on its layer, and before OnEnter (a dialog that opens there comes after) —
+                // unless the navigation went stale during the load: the orphan is torn down, never shown (spec
+                // 2026-11-23-ui-sfx-cues §7.10).
+                if (epoch == _epoch) screen.RaiseSfxOpen();
                 def.OnEnter?.Invoke(screen, query);
                 return new ActiveNode { Def = def, ScreenKey = screenName };
             }

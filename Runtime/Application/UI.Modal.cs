@@ -150,6 +150,11 @@ namespace PromptUGUI.Application
                             // A key source only: what the press does is EscapeChain's decision.
                             slot.Escape = screen.RootGameObject.AddComponent<ModalEscapeListener>();
 
+                            // A dialog, now that it is on the modal band (spec 2026-11-23-ui-sfx-cues §7.10). The other
+                            // users of OpenModalScreen — Loading, toasts, the tutorial overlay — stay silent.
+                            screen.SfxRole = ScreenSfxRole.Modal;
+                            screen.RaiseSfxOpen();
+
                             entry.RunBind(screen, () => OnEntryClosed(capturedSlot));
 
                             if (UI.Navigation.IsEnabled)

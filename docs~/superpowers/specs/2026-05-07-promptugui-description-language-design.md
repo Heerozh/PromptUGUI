@@ -187,6 +187,7 @@ Template 同名（含 commons 与各 Import 的任意组合）→ 报错；`as="
 | `spacing` | 子项间距（仅 VStack/HStack/Grid） |
 | `hidden` | 初始隐藏（GameObject SetActive false）。**运行期独占**：代码写过 `Hidden` 后 ReSolve 不打回；没动过照常跟 `.variant` / 主题 `<Style>`（[`2026-09-17-common-attr-runtime-state-design.md`](2026-09-17-common-attr-runtime-state-design.md)） |
 | `interactable` | 初始不可交互（CanvasGroup.interactable false）。同上运行期独占；未声明当 `true`、没动过每次重应用（不配基础值的 `.variant` 也自愈） |
+| `sfx` | UI 音效提示（cue）的键：裸键 / `none` / `action:key …`，覆盖控件按 `kind.action` 给的默认键；库只在真实用户操作时发 `UI.Sfx.OnCue`，不放声。不是运行期状态：每次应用都按当前变体 / 主题重算；模板调用上写的值落到实例根；`<Screen>` 上也可写（[`2026-11-23-ui-sfx-cues-design.md`](2026-11-23-ui-sfx-cues-design.md)） |
 
 ### 5.1.1 指针命中（`raycastTarget`，2026-09-15 起）
 

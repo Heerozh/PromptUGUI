@@ -907,6 +907,54 @@ namespace PromptUGUI.Controls
             }
         }
 
+        // ───── UI sound cues (spec 2026-11-23-ui-sfx-cues) ─────
+
+        /// <summary>
+        /// This element's <c>sfx=</c> as the last attribute pass resolved it — written on every pass, so a cleared variant
+        /// or theme falls back to <see cref="PromptUGUI.Lint.SfxSpec.Empty"/> (the default sound).
+        /// </summary>
+        internal PromptUGUI.Lint.SfxSpec Sfx { get; private set; } = PromptUGUI.Lint.SfxSpec.Empty;
+
+        // The last malformed value warned about: one warning per node and value, not one per pass or per row.
+        private string _sfxWarned;
+        private string _sfxKind;
+
+        /// <summary>Called by <c>ControlAttributeApplier</c> on every pass with the resolved value (null = not written).</summary>
+        internal void ApplySfx(string value)
+        {
+            if (PromptUGUI.Lint.SfxRules.TryParse(value, out var spec, out var error))
+            {
+                Sfx = spec;
+                return;
+            }
+            Sfx = PromptUGUI.Lint.SfxSpec.Empty;
+            if (_sfxWarned == value) return;
+            _sfxWarned = value;
+            PromptUGUI.Application.UILog.Warn(this,
+                $"[{PromptUGUI.Lint.SfxRules.ValueCode}] sfx=\"{value}\" {error}; playing the default sounds.");
+        }
+
+        /// <summary>The <c>kind</c> of this control's cues and default keys: its tag in lower case (<c>Btn</c> → <c>btn</c>).</summary>
+        internal string SfxKind => _sfxKind ??= (SourceNode?.Tag ?? GetType().Name).ToLowerInvariant();
+
+        /// <summary>
+        /// Raises a cue for <paramref name="action"/> on this control, its key looked up on this element and then on
+        /// <paramref name="next"/> (spec §5.3). Nothing while its Screen is closing (§7.14). False when muted or gated.
+        /// </summary>
+        internal bool RaiseSfx(string action, Control next = null, string kind = null)
+        {
+            var screen = PromptUGUI.Application.UI.OwnerScreenOf(this);
+            if (screen != null && screen.IsClosing) return false;
+            return PromptUGUI.Application.UI.Sfx.Raise(kind ?? SfxKind, action, this, null, screen, Sfx, next?.Sfx);
+        }
+
+        /// <summary>
+        /// For a custom control: raise a sound cue for a user action of its own, resolved against its <c>sfx=</c> like a
+        /// built-in control's (spec §6.1). The kind is the registered tag in lower case. Call it for real user input only —
+        /// never from code paths, attribute passes or initial state.
+        /// </summary>
+        protected void RaiseSfxCue(string action) => RaiseSfx(action);
+
         // ───── drag and drop (spec 2026-11-16-drag-drop §5–§7) ─────
 
         /// <summary>

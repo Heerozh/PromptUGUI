@@ -341,6 +341,15 @@ screen.Get<TabMenu>("channel")
 | `PUI-EXPAND-NO-SOURCE` | A bare `on="expand"` / `on="collapse"` with no `<TabMenu>` ancestor (`@id` forms and Template bodies exempt) | error |
 | `PUI-LAYOUT-ANCHOR` / `PUI-LAYOUT-MARGIN` | A row writes `anchor` / `margin` | error |
 
+## Sound cues
+
+A tab the user picks raises `tab.select` (the tab is the cue's source); `allowSwitchOff="true"` clicking the selected tab
+off raises `tab.deselect`; a disabled tab clicked raises `tab.deny`. The key is looked up on the `<Tab>` first, then on its
+`<TabBar>` / `<TabMenu>` — so `<TabBar sfx="select:page_turn">` keys every tab of the bar. Re-clicking the selected tab, a
+tab the bar turns off, code (`IsOn`, `ClearSelection`), `BindItems` and Router `MapTab` raise nothing.
+`<TabMenu>`: the handle raises `tabmenu.expand`; an outside press, Escape and re-picking the current row raise
+`tabmenu.collapse`; picking another row raises only that tab's `tab.select` (the close is its consequence). → [`sfx.md`](sfx.md)
+
 ## Lint 规则
 
 | Code                   | 触发条件                                                                              | 级别    |

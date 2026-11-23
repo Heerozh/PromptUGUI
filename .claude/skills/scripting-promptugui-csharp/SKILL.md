@@ -477,6 +477,71 @@ card's keep firing into a dead control until the screen closes).
 
 `screen.RectTransformDimensionsChanged` is the same as the Canvas's `screen.RootGameObject.RectTransformDimensionsChanged` — useful for re-layout reactions that span multiple controls.
 
+## UI sound cues (`UI.Sfx.OnCue`)
+
+The library plays nothing. When the user really acts — a click, a flip, a pick, an expand, a drag landing, a click on a
+disabled control — it raises one `SfxCue` on a global stream; you map its key to audio. Code writes, attribute passes,
+ReSolve, the state a Screen opens with, autoplay, re-binds and teardown raise nothing. XML side (keys, overrides, the full
+action table): authoring-promptugui-xml `reference/sfx.md`.
+
+```csharp
+// Once at startup.
+UI.Sfx.OnCue.Subscribe(Play).AddTo(this);
+
+void Play(SfxCue c)
+{
+    // A custom key the game has not mapped falls back to the default; all *.deny can share one clip.
+    if (!_bank.TryGetValue(c.Key, out var clip) && !_bank.TryGetValue(c.DefaultKey, out clip)) return;
+    _source.PlayOneShot(clip);
+}
+```
+
+| `SfxCue` | |
+|---|---|
+| `Kind` | `btn` `toggle` `tab` `tabmenu` `dropdown` `popover` `collapsible` `carousel` `screen` `modal` `drag` `reorder` — or a custom control's tag in lower case |
+| `Action` | `click` `checked` `unchecked` `select` `deselect` `expand` `collapse` `flip` `open` `close` `lift` `land` `return` `deny` |
+| `Key` | what to play: the key `sfx=` decided, else `DefaultKey`. Never `none` — a muted action raises no cue |
+| `DefaultKey` | `Kind + "." + Action` (`btn.click`) |
+| `Source` | the control acted on (the Btn, the Tab picked, the dragged control, the list row); null for `screen` / `modal` |
+| `Target` | `drag.land`: the drop target; otherwise null |
+| `Screen` | the Screen it belongs to (the Screen itself for `screen` / `modal`; the target's for `drag.land`) |
+
+Contract:
+
+- **Synchronous, on the main thread, inside the input dispatch.** A control's cue comes **before** its own C# event
+  (`OnClick`, `OnValueChanged`, `OnSelected`, `OnSelectionChanged`, `OnExpanded` / `OnCollapsed` / `OnToggled`,
+  `OnOpened` / `OnClosed`, `OnCurrentChanged`, `UI.Drag.OnLift`, `OnReordered`), so a cue its handler causes comes after
+  it. Drag outcomes (`land` / `return`) follow the answer: after `OnDrop`, before `UI.Drag.OnEnd`. A Screen's `close`
+  comes before `OnClosing`. Only play audio in the handler — do not change UI there.
+- **No dedupe.** One gesture may raise several cues: a button and the dialog it opens (`btn.click`, `modal.open`); a
+  popover trigger (`btn.click`, `popover.expand`); a router navigation (`screen.close` ×N, `screen.open` ×M); boot opening a
+  HUD and a backdrop in one frame. Pick per frame yourself:
+
+  ```csharp
+  readonly List<SfxCue> _frame = new();
+
+  void Start() => UI.Sfx.OnCue.Subscribe(_frame.Add).AddTo(this);
+
+  void LateUpdate()
+  {
+      if (_frame.Count == 0) return;
+      Play(PickOne(_frame));   // your rule, e.g. a modal.open beats the btn.click that opened it
+      _frame.Clear();
+  }
+  ```
+
+- **Known order:** a dialog's result is set before it starts closing, and the `await` continuation runs right there — so
+  a next dialog opened straight after `await MessageBox.Open(…)` can raise its `modal.open` **before** this one's
+  `modal.close`. Do not assume "close before open" within a frame.
+- At most one cue per control per activation: a handler that flips a Toggle back inside the same click raises nothing more.
+- A broken handler is logged (`Debug.LogException`) and never stops the click.
+- With Domain Reload off the stream is rebuilt at every Play (`SubsystemRegistration`), so a startup subscription does not
+  play twice next session — do not subscribe in that phase yourself.
+- Silent openers: the Loading overlay, toasts, the tutorial overlay, `PromptUGUIDocumentHost`. Hot reload, `UnloadAll`,
+  `Dispose()` raise no close.
+- Runtime special cases go in the handler: `if (c.Kind == "btn" && c.Source?.Id == "buy" && c.Screen?.Name == "Shop") …`.
+  There is no C# `Sfx` property on controls — keys live in XML (`sfx=`), decisions at runtime live in the handler.
+
 ## List / option push
 
 ```csharp
@@ -1411,6 +1476,7 @@ UI.Registry.Register<MyControl>("MyControl", optionalPrefab: null);
 - Supported types: `string` / `int` / `float` / `bool`. Use string + parse internally for everything else.
 - `[UIAttr(IsSprite = true)]` marks an attribute whose value is a sprite reference resolved via `UI.ResolveSprite` (or `UI.SpriteResolver` for atlas-only `ns:name` lookups). The Editor "Sync Sprite Sets" feature reads this flag to discover which attribute names per tag carry sprite refs, so the atlas auto-packs sprites referenced via non-`sprite` attribute names too (e.g. `<Progress fill='ui:foo' bg='ui:bar' frame='ui:baz' mask='ui:qux'/>`). Custom controls whose setter calls `UI.ResolveSprite` should set the flag; without it, only the conventional attribute name `sprite` is scanned and you'll see "missing sprite" warnings at sync time.
 - `[Bind]` on a field auto-wires a child component from a Prefab by child name. Useful when the control has a non-trivial Prefab structure.
+- **Sound cues:** call `RaiseSfxCue("press")` (protected) from the control's own **user-input** handler. It is resolved against the element's `sfx=` like a built-in (`<VirtualJoystick sfx="press:thump">`); the kind is the registered tag in lower case (`virtualjoystick.press`). Never call it from code paths, attribute setters or initial state.
 - `<Toggle>` / `<Slider>` / `<Dropdown>` / `<ScrollList>` / `<TabMenu>` are reference implementations, and **every built-in control is `sealed`** — you cannot subclass them. Two options, in order:
   1. **Re-skin from XML.** Each inner layer has a `<layer>` (sprite) / `<layer>Color` attribute pair: `<Slider fill= fillColor= handle= handleColor=>`, `<Toggle checkmark= checkmarkColor=>`, `<Dropdown arrow= arrowColor= itemColor= itemTextColor= checkmark*>`, `<TabMenu arrow= arrowColor=>`, `<Progress fill= bg= frame= mask=>`; the scrollbar of a `<ScrollList>` / `<Dropdown>` is a `<Scrollbar>` child element (`sprite= color= handle= handleColor=` plus the full `<Frame>` shape set on the track and `handle*` shapes on the handle — see authoring-promptugui-xml `reference/controls-scrollbar.md`). `""` clears a sprite, giving a flat colour-only layer. This covers pixel borders, flat/glass looks and per-theme recolouring without any C#.
   2. **Replace the tag.** For structural changes (different popup layout, extra chrome, new interaction), write your own `Control` and register it over the built-in tag before any Screen opens: `UI.Registry.Register<MyDropdown>("Dropdown")`. XML keeps saying `<Dropdown>`; the registry decides which class builds it. Don't modify the base controls.
@@ -1543,6 +1609,9 @@ DRAG & DROP    UI.Drag.OnDrop          Observable<DropEvent> — any accepted dr
                e.Land(c) / e.Fly(c, from: t)   what flies in (default: the target's one same-kind source) / extra flight (swap)
                e.Reject()              goes home; e.Defer() + later e.Accept(() => push) / e.Reject() = wait for a server
                UI.Drag.OnLift / OnHover / OnEnd(Result) / Current / IsDragging / IsPending / Cancel() / PendingTimeout
+SOUND          UI.Sfx.OnCue            Observable<SfxCue> — Kind / Action / Key / DefaultKey / Source / Target / Screen;
+                                       real user actions only (+ Screen / Modal open & close); cue before the control's event;
+                                       no dedupe (ChunkFrame yourself); Control.RaiseSfxCue(action) for custom controls
                field.Suggestions.BindItems(src, bind[, key: t=>t.Id])   ScrollList's reuse contract; empty push closes
                                        (stays armed); .Count / .IsOpen / .HighlightedIndex / .Open() / .Close()
                TabBar.BindItems(Observable<IReadOnlyList<T>>, (Tab tab,t)=>...)

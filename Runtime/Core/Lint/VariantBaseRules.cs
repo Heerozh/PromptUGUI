@@ -69,6 +69,7 @@ namespace PromptUGUI.Lint
             "padding", "spacing",
             "hidden", "interactable",
             "drag", "drop", "dragHold", "dragHandle", "dragDuration",
+            "sfx",
             "fontFloor",
         };
 

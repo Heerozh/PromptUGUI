@@ -292,6 +292,9 @@ namespace PromptUGUI.Controls.Internal
             };
 
             EndPress(e);
+            // The user picked it up (spec 2026-11-23-ui-sfx-cues §7.11) — before the lift hooks and OnLift. Not when it
+            // went non-interactable during the hold: TryPress let the press through, SourceAlive takes it back next frame.
+            if (IsInteractable(ctrl)) ctrl.RaiseSfx(PromptUGUI.Lint.SfxRules.Lift, kind: SfxKind);
             // Hooks first (an authored <Animation on="lift"> starts now); the default look only for a source
             // with no lift hook of its own — the two must not both write localScale.
             var marker = src.Marker;
@@ -643,6 +646,9 @@ namespace PromptUGUI.Controls.Internal
         /// </summary>
         private static void Settle(Carry carry, DropEvent drop, DropTargetMarker target, Rect from, bool accepted)
         {
+            // Only outcomes of the user's drop come here — a release, or the answer to a deferred one. Cancels snap back
+            // without settling, and raise nothing (spec 2026-11-23-ui-sfx-cues §7.11).
+            CueOutcome(carry.Ctrl, target, accepted);
             var duration = carry.Ctrl != null ? carry.Ctrl.DragDuration : Control.DefaultDragDuration;
             if (accepted)
             {
@@ -665,6 +671,26 @@ namespace PromptUGUI.Controls.Internal
                 carry.FlyHomeFrom(from, duration);
             }
             if (carry.Source != null) carry.Source.Look.Undo(instant: false);
+        }
+
+        // ───── UI sound cues (spec 2026-11-23-ui-sfx-cues §7.11) ─────
+
+        private const string SfxKind = "drag";
+
+        // land: what it went into decides first (an equip slot, a bin), then the dragged thing; return: the dragged thing.
+        private static void CueOutcome(Control source, DropTargetMarker target, bool accepted)
+        {
+            if (source == null) return;
+            if (!accepted)
+            {
+                source.RaiseSfx(PromptUGUI.Lint.SfxRules.Return, kind: SfxKind);
+                return;
+            }
+            var into = target != null ? target.Owner : null;
+            var sourceScreen = UI.OwnerScreenOf(source);
+            var screen = into != null ? UI.OwnerScreenOf(into) : sourceScreen;
+            if ((sourceScreen != null && sourceScreen.IsClosing) || (screen != null && screen.IsClosing)) return;
+            UI.Sfx.Raise(SfxKind, PromptUGUI.Lint.SfxRules.Land, source, into, screen, into?.Sfx, source.Sfx);
         }
 
         private static void FlyQueued(DropEvent drop, float duration)
@@ -934,6 +960,9 @@ namespace PromptUGUI.Controls.Internal
         internal static bool TryEscape()
         {
             if (s_state != State.Dragging) return false;
+            // The user put it back: a return, before the session ends (spec 2026-11-23-ui-sfx-cues §7.11). Every other
+            // cancel — code, a push, a ReSolve, a close, a layer above — is silent.
+            s_source?.Owner?.RaiseSfx(PromptUGUI.Lint.SfxRules.Return, kind: SfxKind);
             CancelDrag();
             return true;
         }

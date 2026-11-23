@@ -1189,6 +1189,25 @@ namespace PromptUGUI.Tests.Editor
         }
 
         [Test]
+        public void Xsd_declares_sfx_in_the_common_group_and_on_Screen()
+        {
+            // spec 2026-11-23-ui-sfx-cues §9: legal on every element (the group) and on <Screen>, which is not a control
+            // and lists its own attributes.
+            var xsd = XsdGenerator.Generate(new ControlRegistry());
+            StringAssert.Contains("name=\"sfx\"", Slice(xsd, "<xs:attributeGroup name=\"commonAttrs\">", "</xs:attributeGroup>"));
+            StringAssert.Contains("name=\"sfx\"", Slice(xsd, "<xs:element name=\"Screen\">", "</xs:complexType>"));
+        }
+
+        private static string Slice(string text, string from, string to)
+        {
+            var start = text.IndexOf(from, System.StringComparison.Ordinal);
+            Assert.GreaterOrEqual(start, 0, $"'{from}' is in the schema");
+            var end = text.IndexOf(to, start, System.StringComparison.Ordinal);
+            Assert.Greater(end, start, $"'{to}' closes it");
+            return text.Substring(start, end - start);
+        }
+
+        [Test]
         public void Pages_is_an_element_with_selected()
         {
             // Reflected off the registry like every non-primitive control (spec 2026-09-17-pages-design §4.5).

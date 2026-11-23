@@ -27,6 +27,8 @@ namespace PromptUGUI.Controls
     /// </summary>
     public sealed class Popover : ProceduralControl, IExpandable
     {
+        // spec 2026-11-23-ui-sfx-cues §7.6: the trigger's real click opening or closing it.
+        private readonly SfxActivation _sfxTrigger = new();
         internal const float DefaultGap = 4f;
         internal const float DefaultTransition = 0.15f;
 
@@ -288,8 +290,18 @@ namespace PromptUGUI.Controls
 
         private void ToggleFromTrigger()
         {
-            if (IsOpen && ReferenceEquals(_anchor, _triggerAnchor)) CloseAs(PopoverCloseReason.Trigger);
-            else Open(_triggerAnchor);
+            // A real click on the trigger, not onClick.Invoke(): only then is this open / close the user's.
+            var user = _trigger != null && _trigger.InSfxActivation;
+            if (user) _sfxTrigger.Begin(IsOpen);
+            try
+            {
+                if (IsOpen && ReferenceEquals(_anchor, _triggerAnchor)) CloseAs(PopoverCloseReason.Trigger);
+                else Open(_triggerAnchor);
+            }
+            finally
+            {
+                if (user) _sfxTrigger.End();
+            }
         }
 
         private IControl RequireTrigger()
@@ -520,6 +532,7 @@ namespace PromptUGUI.Controls
             if (!IsOpen) return;
             RememberPlacement();
             _expandShows.Notify();
+            if (_sfxTrigger.TakeFlip(true)) RaiseSfx(PromptUGUI.Lint.SfxRules.Expand);
             _opened.OnNext(Unit.Default);
             _expanded.OnNext(Unit.Default);
         }
@@ -699,8 +712,23 @@ namespace PromptUGUI.Controls
         {
             _lockedSide = null;
             _expandShows.Notify();
-            _closed.OnNext(Map(reason));
+            var mapped = Map(reason);
+            if (IsUserClose(mapped)) RaiseSfx(PromptUGUI.Lint.SfxRules.Collapse);
+            _closed.OnNext(mapped);
             _collapsed.OnNext(Unit.Default);
+        }
+
+        // spec §7.6: the trigger clicked again, or Escape / an outside press aimed at this popover — not one closed along
+        // with its parent, replaced, covered, gone, or closed by code or by the end of an edit.
+        private bool IsUserClose(PopoverCloseReason reason)
+        {
+            switch (reason)
+            {
+                case PopoverCloseReason.Trigger: return _sfxTrigger.TakeFlip(false);
+                case PopoverCloseReason.Escape:
+                case PopoverCloseReason.OutsidePress: return PopupChain.IsAimedAt(_core);
+                default: return false;
+            }
         }
 
         private PopoverCloseReason Map(PopupCloseReason reason)

@@ -264,6 +264,9 @@ namespace PromptUGUI.Editor
             // Drag and drop (Control base [UIAttr]s, spec 2026-11-16-drag-drop): legal on every element, and carried
             // onto a template instance root by its invocation.
             "drag", "drop", "dragHold", "dragHandle", "dragDuration",
+            // UI sound cues (spec 2026-11-23-ui-sfx-cues §9): legal on every element, carried onto a template instance
+            // root by its invocation.
+            "sfx",
             // PUI-FONT-FLOOR's node-level floor (dp) — lint-only, legal on any element.
             "fontFloor",
             // <Style> reference. Consumed by TemplateExpander (StyleMerger) before any control
@@ -409,6 +412,13 @@ namespace PromptUGUI.Editor
             }
             w.WriteEndElement();
             w.WriteEndElement();
+            w.WriteEndElement();
+
+            // sfx="…", optional: the open / close cue keys (spec 2026-11-23-ui-sfx-cues §5.5).
+            w.WriteStartElement("xs", "attribute", null);
+            w.WriteAttributeString("name", "sfx");
+            w.WriteAttributeString("use", "optional");
+            w.WriteAttributeString("type", "xs:string");
             w.WriteEndElement();
 
             // Accept reference.<variant>="..." (open variant namespace). Must come
