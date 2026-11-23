@@ -13,6 +13,14 @@ namespace PromptUGUI.Application.Modals
         public bool TryEscape(Action wakePump);
         public void Cancel(Exception ex);
         public bool Resolved { get; }
+        /// <summary>The registration on the caller's CancellationToken: disposed when this entry settles.</summary>
+        public void HoldTokenRegistration(System.Threading.CancellationTokenRegistration registration);
+    }
+
+    // How many token registrations dialogs hold right now (test seam: a long-lived token must not collect them).
+    internal static class ModalTokenRegistrations
+    {
+        internal static int Live;
     }
 
     internal sealed class ModalEntry<TResult> : IModalEntry
@@ -25,6 +33,33 @@ namespace PromptUGUI.Application.Modals
         public Awaitable<TResult> Awaitable => _tcs.Awaitable;
 
         private ModalEntry(ModalRequest<TResult> request) { _request = request; }
+
+        private System.Threading.CancellationTokenRegistration _tokenRegistration;
+        private bool _holdsToken;
+
+        public void HoldTokenRegistration(System.Threading.CancellationTokenRegistration registration)
+        {
+            // Already settled: a token cancelled before the dialog was asked for runs its callback inside Register.
+            if (Resolved)
+            {
+                registration.Dispose();
+                return;
+            }
+            _tokenRegistration = registration;
+            _holdsToken = true;
+            ModalTokenRegistrations.Live++;
+        }
+
+        // Settled, whichever way: a long-lived token keeps no callback for a dialog that is gone.
+        private void ReleaseToken()
+        {
+            if (!_holdsToken) return;
+            _holdsToken = false;
+            var registration = _tokenRegistration;
+            _tokenRegistration = default;
+            ModalTokenRegistrations.Live--;
+            registration.Dispose();
+        }
 
         internal static (IModalEntry entry, Awaitable<TResult> awaitable) Create(
             ModalRequest<TResult> request)
@@ -39,6 +74,7 @@ namespace PromptUGUI.Application.Modals
             {
                 if (Resolved) return;
                 Resolved = true;
+                ReleaseToken();
                 _tcs.TrySetResult(result);
                 onClose?.Invoke();
             });
@@ -51,6 +87,7 @@ namespace PromptUGUI.Application.Modals
             if (Resolved) return false;
             if (!_request.TryEscape(out var r)) return false;
             Resolved = true;
+            ReleaseToken();
             _tcs.TrySetResult(r);
             wakePump?.Invoke();
             return true;
@@ -60,6 +97,7 @@ namespace PromptUGUI.Application.Modals
         {
             if (Resolved) return;
             Resolved = true;
+            ReleaseToken();
             _tcs.TrySetException(ex);
         }
     }

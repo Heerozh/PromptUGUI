@@ -50,13 +50,30 @@ namespace PromptUGUI.Application
                 if (request == null) throw new ArgumentNullException(nameof(request));
                 var (entry, awaitable) = ModalEntry<TResult>.Create(request);
                 if (ct.CanBeCanceled)
-                    ct.Register(() => CancelEntry(entry, new OperationCanceledException(ct)));
+                {
+                    // The token may be cancelled on any thread — CancelAfter's timer, a worker — and the dialog closes on the
+                    // main thread (spec 2026-11-23-close-reliability §4). Cancelled on the main thread, it still closes at once.
+                    // Compared by thread, not by context: the token runs its callbacks in the ExecutionContext captured at
+                    // Register, which carries a copy of the synchronization context rather than this one.
+                    var main = System.Threading.SynchronizationContext.Current;
+                    var mainThread = System.Threading.Thread.CurrentThread.ManagedThreadId;
+                    entry.HoldTokenRegistration(ct.Register(() =>
+                    {
+                        var cancelled = new OperationCanceledException(ct);
+                        if (main == null || System.Threading.Thread.CurrentThread.ManagedThreadId == mainThread)
+                            CancelEntry(entry, cancelled);
+                        else
+                            main.Post(_ => CancelEntry(entry, cancelled), null);
+                    }));
+                }
                 if (mode == ModalMode.Queued && !IsIdle())
                     _waiting.Enqueue(entry);
                 else
                     QueueForMaterialize(entry);
                 return awaitable;
             }
+
+            internal static int TokenRegistrationsForTests => ModalTokenRegistrations.Live;
 
             // 取消某个 entry,不论它在 stack / pending / inflight / waiting 哪一态。
             // 在 stack 上 → 同 close:resolve + 销毁 Screen + 弹栈 + 提升等待队列。
@@ -232,7 +249,32 @@ namespace PromptUGUI.Application
             {
                 _stack.Remove(slot);
                 CloseModalScreen(slot.Key);               // 销毁 Screen GameObject
+                AfterSlotGone(slot);
+            }
 
+            /// <summary>
+            /// A dialog's Screen was closed by something other than the dialog — <c>screen.CloseAsync()</c> / <c>Dispose()</c>
+            /// on the <c>IScreen</c> a <c>configure</c> hook got, or its root destroyed (spec 2026-11-23-close-reliability §3).
+            /// Its await settles as cancelled, like <see cref="CloseAll"/>, and its slot goes without closing the Screen again.
+            /// </summary>
+            internal static void OnScreenClosedOutside(Screen screen)
+            {
+                for (int i = 0; i < _stack.Count; i++)
+                {
+                    var slot = _stack[i];
+                    if (!ReferenceEquals(slot.Screen, screen)) continue;
+                    slot.Entry.Cancel(new OperationCanceledException("The dialog's Screen was closed directly"));
+                    _stack.RemoveAt(i);
+                    AfterSlotGone(slot);
+                    RefreshTopListener();
+                    PromoteWaiting();
+                    return;
+                }
+            }
+
+            // The tail of a slot leaving the stack: navigation back to the dialog under it, or to the page.
+            private static void AfterSlotGone(Slot slot)
+            {
                 if (UI.Navigation.IsEnabled)
                 {
                     UI.Navigation.ContainmentRoot = _stack.Count > 0

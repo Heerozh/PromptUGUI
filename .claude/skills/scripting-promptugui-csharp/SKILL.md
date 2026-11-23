@@ -339,10 +339,15 @@ await UI.CloseAsync("MainMenu");                           // completes once the
 
 Two consequences for the exiting kind:
 
-- **Subscriptions inside the Screen stay alive until it is destroyed.** `[Bind]` / `BindItems` bindings and your `OnClick` handlers are disposed at the end of the exit, not when `UI.Close` returns; pointer input cannot reach the ghost, but a data source you push to will still update it. Dispose your own subscriptions yourself, or `await UI.CloseAsync` before tearing down the view model.
+- **Subscriptions inside the Screen stay alive until it is destroyed.** `[Bind]` / `BindItems` bindings and your `OnClick` handlers are disposed at the end of the exit, not when `UI.Close` returns; pointer input cannot reach the ghost, but a data source you push to will still update it. Everything tied with `.AddTo(screen)` lives that long too — which is why `screen.OnClosing.Subscribe(…).AddTo(screen)` and a close Trigger's `OnFire.Subscribe(…).AddTo(screen)` are heard. Dispose your own subscriptions yourself, or `await UI.CloseAsync` before tearing down the view model.
 - **Resources the Screen references must outlive the exit** — a RenderTexture behind a `<RawImage>`, a Sprite you generated, whatever a custom control holds. Release them after `CloseAsync` completes.
 
 `screen.Dispose()` is the immediate path (destroy now, no exit); so are `UI.UnloadAll` / hot reload. A `<Trigger on="close">` is the declarative exit hook — subscribe its `OnFire` from C# to play a sound, save state, etc.; it never delays the close.
+
+**Closing through the Screen itself is the same close.** `screen.CloseAsync()` / `screen.Dispose()` (and `Screen.Close()`) take the Screen out of `UI`'s registry exactly like `UI.Close` — `UI.Get` returns null and the next `UI.Open` builds a new instance. Two kinds of Screen have an owner to close them through instead:
+
+- a **routed page** — closing it directly leaves its route in the Router's chain: a warning is logged and the next navigation throws `RouteException`. Navigate with `UI.Router.Back()` / `UI.Router.Open()`;
+- a **dialog** (`UI.Modal.*`, MessageBox & co.) — closing its Screen directly (say, from the `IScreen` a `configure` hook got) settles its `await` with `OperationCanceledException` and frees the dialog stack, so the next queued dialog comes up.
 
 Note: when a Template invocation carries `id="bagPanel"`, that id is **transferred to the template body's single root element** automatically — `screen.Get<TitledPanel>("bagPanel")` returns the root. Use the path form (`"bagPanel/close"`) only when reaching into an element that has its own id **inside** the template body. XML's `@id` takes the same path (`on="click@bagPanel/close"`), with its first segment found nearest-scope-first.
 
@@ -1533,6 +1538,8 @@ OPEN/CLOSE     var screen = UI.Open("Name");                  returns IScreen
                await UI.CloseAsync("Name");                   completes after the GameObjects are destroyed
                screen.IsClosing / screen.OnClosing            exit in progress / fires once at the start of it
                screen.Dispose()                               destroy now, no exit
+               screen.CloseAsync() / Dispose()                leave UI's registry like UI.Close (routed page: warns —
+                                                              use the Router; dialog: its await throws OperationCanceled)
 
 GET            screen.Get<Btn>("id")                          typed
                screen.Get("id")                               untyped (IControl)
@@ -2624,6 +2631,7 @@ await UI.Router.Open("home");
 - **`UI.UnloadAll()` is the full reset** — closes all open screens and clears the document cache, the router's active chain, and its loaded-src cache. This mirrors what the library does automatically when **entering Play mode** (`OnEnteringPlayMode → UnloadAll`); a *runtime* reconnect is a boundary the library can't see, so you mark it yourself.
 - **`UI.Router.Clear()` only removes registrations** (`_routes`); it does **not** touch the active chain or loaded-document cache. `UI.Router.Reset()` closes the active chain but keeps registrations and the loaded-src cache. **Neither alone is enough for a reconnect — use `UnloadAll()`.**
 - **If you skip the reset**, the next `Open` / `Navigate` throws `RouteException`: *"Routed screen 'X' was destroyed outside the Router (typically a scene reload / reconnect)… Call `UI.UnloadAll()` …"*. The router self-checks its active chain against the open screens at the start of every reconcile and **fails fast with this guidance instead of silently rendering a blank screen**.
+- **A navigation still loading across the reset is dropped cleanly.** If `UI.UnloadAll()` / `UI.Router.Reset()` lands while a route's first (asynchronous) load is running, that navigation opens nothing when the load finishes — no page, no layer, no `OnEnter`. A `LoadDocumentAsync` still in flight across `UnloadAll()` registers nothing (it throws `OperationCanceledException`), so the reconnect can load the same document again; a navigation to a route whose src is still loading after a `Reset` waits for that load instead of loading it twice.
 - **Raw `LoadDocumentAsync` (no router):** the equivalent reconnect reset is `UI.UnloadDocument(name)` before re-loading. A duplicate `LoadDocumentAsync` of an already-registered screen throws `"Screen 'X' already loaded"` **by design** — the document cache is intentionally not silently overwritten.
 
 ### CancellationToken on modal Open helpers
@@ -2639,6 +2647,8 @@ UI.Router.MapPrompt("confirm-delete", parent: "home", run: async (q, ct) =>
 ```
 
 Navigating away while the dialog is open cancels `ct`, the dialog throws `OperationCanceledException`, and the Prompt exits cleanly.
+
+The token can be cancelled from **any thread** — `CancellationTokenSource.CancelAfter`'s timer, a worker, a network library's linked token. The dialog always closes on the main thread: cancelled there, at once; cancelled elsewhere, on the next frame. The awaiting code resumes on the main thread either way, and the registration a dialog puts on a long-lived token goes when the dialog settles.
 
 ## Gamepad / Keyboard Navigation
 

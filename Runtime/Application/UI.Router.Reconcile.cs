@@ -187,10 +187,13 @@ namespace PromptUGUI.Application
 
                 for (int i = k; i < target.Count; i++)
                 {
-                    var active = await Activate(target[i], query);
+                    var active = await Activate(target[i], query, epoch);
+                    // Abandoned while it loaded (Router.Reset / UI.UnloadAll): it opened nothing (spec
+                    // 2026-11-23-close-reliability §5) — nothing to tear down either.
+                    if (active == null) return;
                     if (epoch != _epoch)
                     {
-                        // 异步加载期间发生了 teardown/Reset:_chain 已被清空,别再塞回陈旧节点。
+                        // OnEnter 里同步发生了 teardown/Reset:_chain 已被清空,别再塞回陈旧节点。
                         // 关掉这个孤儿(Page/Modal 已 UI.Open),Prompt 释放其 CTS,避免泄漏。
                         if (active.Def.Kind == RouteKind.Page || active.Def.Kind == RouteKind.Modal)
                             UI.CloseImmediate(active.ScreenKey);   // teardown's tail: no exit
@@ -217,12 +220,12 @@ namespace PromptUGUI.Application
                 return true;
             }
 
-            private static async Awaitable<ActiveNode> Activate(RouteNode def, RouteQuery query)
+            private static async Awaitable<ActiveNode> Activate(RouteNode def, RouteQuery query, int epoch)
             {
                 switch (def.Kind)
                 {
                     case RouteKind.Page:
-                    case RouteKind.Modal: return await ActivatePage(def, query);
+                    case RouteKind.Modal: return await ActivatePage(def, query, epoch);
                     case RouteKind.Tab: return ActivateTab(def, query);
                     case RouteKind.Prompt: return ActivatePrompt(def);
                     default:
@@ -257,19 +260,19 @@ namespace PromptUGUI.Application
             }
 
             // —— Page / Modal ——
-            private static async Awaitable<ActiveNode> ActivatePage(RouteNode def, RouteQuery query)
+            // Null when the navigation was abandoned while its screen loaded: nothing opened, no layer, no OnEnter.
+            private static async Awaitable<ActiveNode> ActivatePage(RouteNode def, RouteQuery query, int epoch)
             {
-                var epoch = _epoch;
                 var screenName = await EnsureLoaded(def);
+                if (epoch != _epoch) return null;
                 var role = def.Kind == RouteKind.Modal ? ScreenSfxRole.Modal : ScreenSfxRole.Screen;
                 var screen = UI.OpenCore(screenName, role, cue: false);
                 // Before OnEnter, so the hook sees (and may adjust) the final order. The node is not
                 // in _chain yet: everything in it is this node's ancestry.
                 ApplyRouteLayer(def, screen, _chain.Count);
-                // Its open cue now that it is on its layer, and before OnEnter (a dialog that opens there comes after) —
-                // unless the navigation went stale during the load: the orphan is torn down, never shown (spec
-                // 2026-11-23-ui-sfx-cues §7.10).
-                if (epoch == _epoch) screen.RaiseSfxOpen();
+                // Its open cue now that it is on its layer, and before OnEnter (a dialog that opens there comes after) — spec
+                // 2026-11-23-ui-sfx-cues §7.10. A navigation that went stale during the load never gets here.
+                screen.RaiseSfxOpen();
                 def.OnEnter?.Invoke(screen, query);
                 return new ActiveNode { Def = def, ScreenKey = screenName };
             }
@@ -388,18 +391,72 @@ namespace PromptUGUI.Application
             }
 
             // 加载 def.Src 一次,解析出要 Open 的 screen 名。
+            // One load per src at a time: a navigation that comes while the same src is still loading — after a
+            // Router.Reset abandoned the one that started it — waits for that load instead of loading it a second time,
+            // which would find the screen already loaded (spec 2026-11-23-close-reliability §5, A6).
+            private static readonly Dictionary<string, List<AwaitableCompletionSource>> _loadingSrcs = new();
+
             private static async Awaitable<string> EnsureLoaded(RouteNode def)
             {
                 if (!_loadedSrcs.Contains(def.Src))
                 {
-                    var names = await UI.LoadDocumentAsync(def.Src);
-                    _loadedSrcs.Add(def.Src);
-                    if (names.Count == 1) _srcSingleScreen[def.Src] = names[0];
+                    if (_loadingSrcs.TryGetValue(def.Src, out var loading))
+                    {
+                        var mine = new AwaitableCompletionSource();
+                        loading.Add(mine);
+                        await mine.Awaitable;
+                    }
+                    else
+                    {
+                        var waiters = new List<AwaitableCompletionSource>();
+                        _loadingSrcs[def.Src] = waiters;
+                        Exception failed = null;
+                        try
+                        {
+                            var names = await UI.LoadDocumentAsync(def.Src);
+                            _loadedSrcs.Add(def.Src);
+                            if (names.Count == 1) _srcSingleScreen[def.Src] = names[0];
+                        }
+                        catch (Exception ex)
+                        {
+                            failed = ex;
+                            throw;
+                        }
+                        finally
+                        {
+                            // A teardown in between may have started a new load of the same src: leave that one be.
+                            if (_loadingSrcs.TryGetValue(def.Src, out var current) && current == waiters)
+                                _loadingSrcs.Remove(def.Src);
+                            foreach (var w in waiters)
+                            {
+                                if (failed != null) w.TrySetException(failed);
+                                else w.TrySetResult();
+                            }
+                        }
+                    }
                 }
                 if (!string.IsNullOrEmpty(def.Screen)) return def.Screen;
                 if (_srcSingleScreen.TryGetValue(def.Src, out var single)) return single;
                 throw new RouteException(
                     $"route '{def.Name}': src '{def.Src}' has multiple screens; specify screen=");
+            }
+
+            /// <summary>
+            /// A page or routed modal of the chain closed directly (<c>screen.Close()</c> / <c>Dispose()</c>, spec
+            /// 2026-11-23-close-reliability §3): UI forgets it, the chain does not — say so once, at the call.
+            /// </summary>
+            internal static void WarnIfRouted(string screenKey, Screen screen)
+            {
+                foreach (var a in _chain)
+                {
+                    if ((a.Def.Kind != RouteKind.Page && a.Def.Kind != RouteKind.Modal) || a.ScreenKey != screenKey) continue;
+                    UnityEngine.Debug.LogWarning(
+                        $"[PromptUGUI] Screen '{screenKey}' is a routed page: closing it directly leaves its route in " +
+                        "UI.Router's chain, and the next navigation fails. Navigate with UI.Router.Back() / " +
+                        "UI.Router.Open() instead.",
+                        screen.RootGameObject);
+                    return;
+                }
             }
 
             // UI.UnloadAll 调用:取消 prompt/清 router 链路;链路屏在 _open 里由 UnloadAll 的
@@ -415,6 +472,7 @@ namespace PromptUGUI.Application
                 }
                 _chain.Clear();
                 _loadedSrcs.Clear();
+                _loadingSrcs.Clear();   // their loads end in OperationCanceledException (UI's load generation moved on)
                 _srcSingleScreen.Clear();
             }
 

@@ -585,14 +585,23 @@ namespace PromptUGUI.Application
             _docs.Remove(screenName);
         }
 
+        // Moves on with every UnloadAll / ResetForTests: a LoadDocumentAsync still in flight then registers nothing.
+        private static int _loadGeneration;
+
         public static async UnityEngine.Awaitable<IReadOnlyList<string>> LoadDocumentAsync(string src)
         {
             if (SourceResolver == null)
                 throw new System.InvalidOperationException(
                     "UI.SourceResolver must be set before LoadDocumentAsync");
 
+            var generation = _loadGeneration;
             await EnsureCommonLibrariesAsync();
             var loaded = await DocumentLoader.LoadAndMergeParsedAsync(src, CachedFetch, _commonsPool, _commonsStyles);
+            // UnloadAll ran meanwhile (a reconnect): what this load fetched belongs to the state that was thrown away, and
+            // registering it would make loading it again fail as "already loaded" (spec 2026-11-23-close-reliability §5).
+            if (generation != _loadGeneration)
+                throw new System.OperationCanceledException(
+                    $"UI.UnloadAll ran while '{src}' was loading; nothing of it was registered.");
             RegisterThemesAndAutoSet(loaded);
             var expanded = ExpandOrExplain(loaded);
 
@@ -888,9 +897,9 @@ namespace PromptUGUI.Application
 
             var inst = new ScreenInstantiator(Registry, VariantStore);
             var screen = new Screen(def, inst, Registry, VariantStore);
-            // root 被外部销毁(场景重载,未走 Close)时把本 Screen 从 _open 注销,避免 _open 残留
-            // GO 已死的 Screen(下次 Open 同名会返回死 Screen)以及静态事件对它的强引用泄漏。
-            screen.OnDetachedExternally = s => RemoveFromOpenIfSame(screenName, s);
+            // 直接关掉(screen.Close / CloseAsync / Dispose)或 root 被外部销毁(场景重载)时把本 Screen 从 _open
+            // 注销,避免 _open 残留已死的 Screen(下次 Open 同名会返回死 Screen)以及静态事件对它的强引用泄漏。
+            screen.OnLeftOpen = (s, rootDestroyed) => OnScreenLeftOpen(screenName, s, rootDestroyed, dialog: false);
             // 在 Open() 之前登记到 _open，让 controls 在 OnAttached / setter 阶段
             // 通过 UI.OwnerScreenOf 反查到本 Screen（例如 Toggle.Group 的 Group 解析）。
             _open[screenName] = screen;
@@ -965,12 +974,30 @@ namespace PromptUGUI.Application
             return all;
         }
 
-        // Screen 的 root 被外部销毁(未走 Close)时由哨兵回调,把它从 _open 注销——仅当当前登记的
-        // 仍是它本身,避免误删一个已用同名 key 重新 Open 的新 Screen。
-        private static void RemoveFromOpenIfSame(string key, Screen screen)
+        // 仅当当前登记的仍是它本身才摘,避免误删一个已用同名 key 重新 Open 的新 Screen。
+        private static bool RemoveFromOpenIfSame(string key, Screen screen)
         {
-            if (_open.TryGetValue(key, out var current) && ReferenceEquals(current, screen))
-                _open.Remove(key);
+            if (!_open.TryGetValue(key, out var current) || !ReferenceEquals(current, screen)) return false;
+            _open.Remove(key);
+            return true;
+        }
+
+        // Teardown closes everything while it is still in _open; what a direct close would set off does not apply.
+        private static bool _tearingDown;
+
+        /// <summary>
+        /// A Screen stopped being open by a path that did not go through <c>UI</c> (spec 2026-11-23-close-reliability §3):
+        /// <c>screen.Close()</c> / <c>CloseAsync()</c> / <c>Dispose()</c>, or its root destroyed under us. It leaves
+        /// <c>_open</c> like one closed through <see cref="Close"/>: a ghost playing its exit stays in the closing set, so
+        /// its controls still find their Screen. A dialog settles and leaves the dialog stack; a routed page warns. UI's own
+        /// paths take the Screen out of <c>_open</c> first, which makes this a no-op for them.
+        /// </summary>
+        private static void OnScreenLeftOpen(string key, Screen s, bool rootDestroyed, bool dialog)
+        {
+            if (_tearingDown || !RemoveFromOpenIfSame(key, s)) return;
+            TrackClosing(s);   // OnClosed takes it out again once the destroy body ran — at once when there is no exit
+            if (dialog) Modal.OnScreenClosedOutside(s);
+            else if (!rootDestroyed) Router.WarnIfRouted(key, s);
         }
 
         private static int _modalInstanceSeq;
@@ -988,7 +1015,7 @@ namespace PromptUGUI.Application
             var key = docName + "#m" + (++_modalInstanceSeq);
             var inst = new ScreenInstantiator(Registry, VariantStore);
             var screen = new Screen(def, inst, Registry, VariantStore);
-            screen.OnDetachedExternally = s => RemoveFromOpenIfSame(key, s);
+            screen.OnLeftOpen = (s, rootDestroyed) => OnScreenLeftOpen(key, s, rootDestroyed, dialog: true);
             _open[key] = screen;                 // Open() 前登记,让 OwnerScreenOf 反查得到
             try { screen.Open(); }
             catch { _open.Remove(key); throw; }
@@ -1092,13 +1119,16 @@ namespace PromptUGUI.Application
         /// </summary>
         public static void UnloadAll()
         {
+            _loadGeneration++;
             Router.CancelAllForTeardown();
             Modal.CancelAllForTeardown();
             Modals.LoadingOverlay.CancelAllForTeardown();
             Toasts.ToastOverlay.CancelAllForTeardown();
             Tutorial.CancelAllForTeardown();
             Modals.ModalDocCache.Clear();
-            foreach (var s in SnapshotAllScreens()) s.CloseImmediate();
+            _tearingDown = true;
+            try { foreach (var s in SnapshotAllScreens()) s.CloseImmediate(); }
+            finally { _tearingDown = false; }
             _open.Clear();
             _closing.Clear();
             _docs.Clear();
@@ -1300,6 +1330,7 @@ namespace PromptUGUI.Application
         // 仅测试使用
         internal static void ResetForTests()
         {
+            _loadGeneration++;
             Locale.ResetForTestsInternal();
             Orientation.ResetForTestsInternal();
             Theme.ResetForTestsInternal();
@@ -1320,10 +1351,13 @@ namespace PromptUGUI.Application
             Controls.Internal.PopupBounds.ResetForTests();
             EscapeChain.ResetForTests();
             Modal.CancelAllForTeardown();
+            Modals.ModalTokenRegistrations.Live = 0;
             Modals.LoadingOverlay.CancelAllForTeardown();
             Toasts.ToastOverlay.CancelAllForTeardown();
             Modals.ModalDocCache.Clear();
-            foreach (var s in SnapshotAllScreens()) s.CloseImmediate();
+            _tearingDown = true;
+            try { foreach (var s in SnapshotAllScreens()) s.CloseImmediate(); }
+            finally { _tearingDown = false; }
             _open.Clear();
             _closing.Clear();
             Sfx.ResetForTestsInternal();
